@@ -1,0 +1,27 @@
+## Documentation: http://docs.travis-ci.com/user/languages/julia/
+language: julia
+
+branches:
+  except:
+    - dev
+    - /^dev-.*$/
+    - /^dev_.*$/
+
+os:
+  - linux
+  - osx
+julia:
+  - 1.1
+  - nightly
+notifications:
+  email: false
+git:
+  depth: 99999999
+
+codecov: false
+coveralls: false
+
+# Allow to fail on nightly
+matrix:
+  allow_failures:
+  - julia: nightly
