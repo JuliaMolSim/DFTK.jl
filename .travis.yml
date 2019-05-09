@@ -19,7 +19,7 @@ git:
   depth: 99999999
 
 codecov: false
-coveralls: false
+coveralls: true
 
 # Allow to fail on nightly
 matrix:
