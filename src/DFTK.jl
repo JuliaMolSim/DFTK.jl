@@ -13,7 +13,9 @@ e_G      Orthonormal plane wave
 kpoints  Set of kpoints used for a calculation in the BZ.
 E_cut    Plane-wave energy cutoff
 α_Y      Supersampling for the potential basis
+         (called supersampling_Y in the code)
 α_Z      Supersampling for the XC basis
+         (called supersampling_Z in the code)
 
 ## Basis sets
     a) The k-block orbital basis X_k, consisting of all
@@ -57,8 +59,17 @@ module DFTK
 
 using Printf
 using Markdown
+using LinearAlgebra
+using FFTW
 
 export Hamiltonian
 include("Hamiltonian.jl")
+
+export PlaneWaveBasis
+export X_to_Yst!
+export Xk_to_Yst!
+export Yst_to_X!
+export Yst_to_Xk!
+include("PlaneWaveBasis.jl")
 
 end # module DFTK

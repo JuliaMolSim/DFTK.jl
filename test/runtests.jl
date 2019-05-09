@@ -1,4 +1,5 @@
 using Test
 using DFTK
 
-include("dummy_test.jl")
+include("test_FFTs.jl")
+include("test_PlaneWaveBasis.jl")

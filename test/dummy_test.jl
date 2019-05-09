@@ -1,3 +1,0 @@
-begin
-    @test true
-end
