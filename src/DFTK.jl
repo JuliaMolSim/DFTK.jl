@@ -61,6 +61,8 @@ using Printf
 using Markdown
 using LinearAlgebra
 
+include("constants.jl")
+
 export PlaneWaveBasis
 export substitute_kpoints!
 export X_to_Yst!
@@ -68,6 +70,9 @@ export Xk_to_Yst!
 export Yst_to_X!
 export Yst_to_Xk!
 include("PlaneWaveBasis.jl")
+
+export PspHgh
+include("PspHgh.jl")
 
 export Kinetic
 include("Kinetic.jl")
