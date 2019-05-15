@@ -60,16 +60,26 @@ module DFTK
 using Printf
 using Markdown
 using LinearAlgebra
-using FFTW
-
-export Hamiltonian
-include("Hamiltonian.jl")
 
 export PlaneWaveBasis
+export substitute_kpoints!
 export X_to_Yst!
 export Xk_to_Yst!
 export Yst_to_X!
 export Yst_to_Xk!
 include("PlaneWaveBasis.jl")
+
+export Kinetic
+include("Kinetic.jl")
+
+export Hamiltonian
+include("Hamiltonian.jl")
+
+export PreconditionerKinetic
+include("Preconditioner.jl")
+
+export lobpcg
+include("lobpcg.jl")
+
 
 end # module DFTK
