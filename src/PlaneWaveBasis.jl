@@ -1,4 +1,8 @@
-struct PlaneWaveBasis{T <: Real}
+using FFTW
+
+abstract type AbstractBasis end
+
+struct PlaneWaveBasis{T <: Real} <: AbstractBasis
     #
     # Lattice info used for construction
     #
@@ -17,6 +21,9 @@ struct PlaneWaveBasis{T <: Real}
     """The kpoints of the basis"""
     kpoints::Vector{Vector{T}}
 
+    """The weights associated to the above kpoints"""
+    kweights::Vector{T}
+
     """Wave vectors of the plane wave basis functions in reciprocal space"""
     Gs::Vector{Vector{T}}
 
@@ -32,6 +39,14 @@ struct PlaneWaveBasis{T <: Real}
     selected Ecut threshold.
     """
     kmask::Vector{Vector{Int}}
+
+    """
+    Cache for the expression |G + k|^2 for each wave vector corresponding
+    to a k-Point. The length is the number of k-Points and each individual
+    vector has length `length(kmask[ik])` where ik is the index into
+    the k-Point.
+    """
+    qsq::Vector{Vector{T}}
 
     #
     # FFT and real-space grid Y*
@@ -57,6 +72,9 @@ struct PlaneWaveBasis{T <: Real}
 end
 
 
+Base.eltype(basis::PlaneWaveBasis{T}) where T = T
+
+
 """
 Construct a PlaneWaveBasis from lattice vectors, a list of kpoints
 and a list of coordinates in the reciprocal lattice
@@ -65,6 +83,7 @@ and a list of coordinates in the reciprocal lattice
 - `lattice`    Matrix-like object with one lattice vectors per column
 - `kpoints`    Vector of Vector-like objects with dimensionality 3,
                which provides the list of k-points.
+- `kweights`   Weights for the kpoints during a Brillouin-zone integration
 - `Gcoords`    Vector of Vector-like objects with dimensionality 3,
                which provides the list of coordinates in reciprocal
                space to build the wave vectors of the plane waves
@@ -72,23 +91,29 @@ and a list of coordinates in the reciprocal lattice
 - `Ecut`       Energy cutoff. Used to select the subset of wave vectors
                to be used at each k-Point, i.e. the basis set X_k.
 """
-function PlaneWaveBasis(lattice::Matrix{T}, kpoints,
-                        Gcoords::Vector{Vector{I}}, Ecut::Number) where {I <: Integer, T}
+function PlaneWaveBasis(lattice::AbstractMatrix{T}, kpoints, kweights,
+                        Gcoords::Vector{Vector{I}}, Ecut::Number
+                       ) where {I <: Integer, T <: Real}
     @assert size(lattice) == (3, 3)
+    @assert length(kpoints) == length(kweights)
 
     # Index of the DC component inside Gs
     idx_DC = findfirst(isequal([0, 0, 0]), Gcoords)
     @assert idx_DC != nothing
 
     # Build wavevectors
+    lattice = Matrix{T}(lattice)
     recip_lattice = 2π * inv(lattice')
     Gs = [recip_lattice * coord for coord in Gcoords]
 
     # For each k-Point select the Gs to form the basis X_k of wave vectors
     # with energy below Ecut
     kmask = Vector{Vector{Int}}(undef, length(kpoints))
+    qsq = Vector{Vector{T}}(undef, length(kpoints))
     for (ik, k) in enumerate(kpoints)
+        # TODO Some duplicate work happens here
         kmask[ik] = findall(G -> sum(abs2, k + G) ≤ 2 * Ecut, Gs)
+        qsq[ik] = map(G -> sum(abs2, G + k), Gs[kmask[ik]])
     end
 
     # Minimal and maximal coordinates along each direction
@@ -111,25 +136,30 @@ function PlaneWaveBasis(lattice::Matrix{T}, kpoints,
         grid_Yst[klm] = lattice * (rcoord ./ fft_size)
     end
 
+    # Normalisation of kweights:
+    kweights = kweights / sum(kweights)
+
     # Plan a FFT, spending some time on finding an optimal algorithm
     # for the machine on which the computation runs
     tmp = Array{Complex{T}}(undef, fft_size...)
     fft_plan = plan_fft!(tmp, flags=FFTW.MEASURE)
     ifft_plan = plan_ifft!(tmp, flags=FFTW.MEASURE)
 
+    @assert T <: Real
     PlaneWaveBasis{T}(lattice, recip_lattice, det(lattice),
-                      kpoints, Gs, Ecut, idx_DC, kmask,
+                      kpoints, kweights, Gs, Ecut, idx_DC, kmask, qsq,
                       grid_Yst, idx_to_fft, fft_plan, ifft_plan)
 end
 
 
 """
-Construct a PlaneWaveBasis from lattice vectorsa and a list of kpoints
+Construct a PlaneWaveBasis from lattice vectors and a list of kpoints
 
 # Arguments
 - `lattice`    Matrix-like object with one lattice vectors per column.
 - `kpoints`    Vector of Vector-like objects with dimensionality 3,
                which provides the list of k-points.
+- `kweights`   Weights for the kpoints during a Brillouin-zone integration
 - `Ecut`       Energy cutoff. Used to select the subset of wave vectors
                to be used at each k-Point, i.e. the basis set X_k.
 - `supersampling_Y`
@@ -139,9 +169,10 @@ Construct a PlaneWaveBasis from lattice vectorsa and a list of kpoints
   exact result the latter potential/density basis needs to be exactly
   twice as large, which is the default.
 """
-function PlaneWaveBasis(lattice::Matrix{T}, kpoints, Ecut::Real; supersampling_Y=2) where T
+function PlaneWaveBasis(lattice::AbstractMatrix{T}, kpoints, kweights, Ecut::Real;
+                        supersampling_Y=2) where T <: Real
     # Build reciprocal lattice
-    recip_lattice = 2π * inv(Array(lattice'))
+    recip_lattice = 2π * inv(Matrix(lattice'))
 
     # We want the set of wavevectors {G} in the basis set X_k to be chosen such
     # that |G + k|^2/2 ≤ Ecut, i.e. |G + k| ≤ 2 * sqrt(Ecut). Additionally the
@@ -152,7 +183,33 @@ function PlaneWaveBasis(lattice::Matrix{T}, kpoints, Ecut::Real; supersampling_Y
     # Y basis can be computed as
     cutoff_Gsq = 2 * supersampling_Y^2 * Ecut
     Gcoords = construct_pw_grid(recip_lattice, cutoff_Gsq, kpoints=kpoints)
-    PlaneWaveBasis(lattice, kpoints, Gcoords, Ecut)
+    PlaneWaveBasis(lattice, kpoints, kweights, Gcoords, Ecut)
+end
+
+
+"""
+Take an existing Plane-wave basis and replace its kpoints without altering
+the plane-wave vectors, i.e. without altering the Gs
+"""
+function substitute_kpoints!(pw::PlaneWaveBasis{T}, kpoints, kweights) where T
+    @assert length(kpoints) == length(kweights)
+
+    # Substitute kpoints and kweights
+    resize!(pw.kpoints, length(kpoints))
+    resize!(pw.kweights, length(kweights))
+    pw.kpoints[:] = kpoints
+    pw.kweights[:] = kweights
+
+    # Compute new kmask and substitute the old one
+    resize!(pw.kmask, length(kpoints))
+    resize!(pw.qsq, length(kpoints))
+    for (ik, k) in enumerate(kpoints)
+        # TODO Some duplicate work happens here
+        pw.kmask[ik] = findall(G -> sum(abs2, k + G) ≤ 2 * pw.Ecut, pw.Gs)
+        pw.qsq[ik] = map(G -> sum(abs2, G + k), pw.Gs[pw.kmask[ik]])
+    end
+
+    return pw
 end
 
 
