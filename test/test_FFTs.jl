@@ -2,7 +2,7 @@ include("testcases_silicon.jl")
 
 @testset "FFT and IFFT are an identity" begin
     Ecut = 4.0  # Hartree
-    pw = PlaneWaveBasis(lattice, kpoints, Ecut)
+    pw = PlaneWaveBasis(lattice, kpoints, kweights, Ecut)
 
     # Test X_to_Yst and then Yst_to_X, then X_to_Yst
     begin
