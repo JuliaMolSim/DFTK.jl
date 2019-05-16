@@ -80,7 +80,7 @@ Construct a Hamiltonian from a list of potential terms
 function Hamiltonian(; pot_local=nothing, pot_nonlocal=nothing, pot_hartree=nothing,
                      pot_xc=nothing)
     basisobj = something(pot_local, pot_nonlocal, pot_hartree, pot_xc, false)
-    if basisobj === false
+    if basisobj == false
         error("At least one potenial terms needs to be given.")
     end
     Hamiltonian(basisobj.basis, pot_local=pot_local, pot_nonlocal=pot_nonlocal,
@@ -88,7 +88,7 @@ function Hamiltonian(; pot_local=nothing, pot_nonlocal=nothing, pot_hartree=noth
 end
 
 
-Base.eltype(ham::Hamiltonian) = eltype(ham.basis)
+Base.eltype(ham::Hamiltonian) = Complex{eltype(ham.basis)}
 
 
 """
@@ -110,19 +110,19 @@ The application proceeds as follows:
          trunc    Truncation to a smaller basis
          V        Apply potential elementwise.
 """
-function apply_fourier!(out_Xk, ham::Hamiltonian, ik::Int, precomp_hartree,
-                        precomp_xc, in_Xk)
+function apply_fourier!(out_Xk::AbstractVector, ham::Hamiltonian, ik::Int, precomp_hartree,
+                        precomp_xc, in_Xk::AbstractVector)
     pw = ham.basis
 
     # Apply kinetic and non-local potential if given, accumalate results
-    tmp_Xk = similar(in_Xk)
+    tmp_Xk = similar(out_Xk)
     apply_fourier!(out_Xk, ham.kinetic, ik, in_Xk)
     out_Xk .+= apply_fourier!(tmp_Xk, ham.pot_nonlocal, ik, in_Xk)
 
     fft_terms = [ham.pot_local, ham.pot_hartree, ham.pot_xc]
     if any(term !== nothing for term in fft_terms)
         # If any of the terms requiring an iFFT is present, do an iFFT
-        in_Yst = similar(in_Xk, dims=size(pw.grid_Yst))
+        in_Yst = similar(in_Xk, size(pw.grid_Yst))
         in_Yst = Xk_to_Yst!(pw, ik, in_Xk, in_Yst)
 
         # Apply the terms and accumulate
@@ -134,9 +134,23 @@ function apply_fourier!(out_Xk, ham::Hamiltonian, ik::Int, precomp_hartree,
 
         # FFT back to Xk basis, accumlate, notice that this call
         # invalidates the data of accu_Yst as well.
-        out_Xk .+= Yst_to_Xk!(pw, accu_Yst, ik, tmp_Xk)
+        out_Xk .+= Yst_to_Xk!(pw, ik, accu_Yst, tmp_Xk)
     end
 end
+
+
+function apply_fourier!(out_Xk, ham::Hamiltonian, ik::Int, precomp_hartree,
+                        precomp_xc, in_Xk)
+    # TODO This a fix for now to get it to work
+    #      Ideally the above function should be able to deal with this directly
+    n_bas, n_vec = size(in_Xk)
+    for iv in 1:n_vec
+        apply_fourier!(view(out_Xk, :, iv), ham, ik, precomp_hartree, precomp_xc,
+                       view(in_Xk, :, iv))
+    end
+    out_Xk
+end
+
 
 # Specialisations of apply_fourier! and apply_real! for cases
 # where nothing should be done.
