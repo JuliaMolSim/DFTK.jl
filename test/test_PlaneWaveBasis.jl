@@ -12,6 +12,8 @@ function test_pw_cutoffs(lattice, kpoints, kweights, Ecut, supersampling)
 end
 
 @testset "Check with reference data" begin
+    # TODO Extend this test
+
     Ecut = 3
     pw = PlaneWaveBasis(lattice, kpoints, kweights, Ecut)
 

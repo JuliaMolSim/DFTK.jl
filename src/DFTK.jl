@@ -77,6 +77,9 @@ include("PspHgh.jl")
 export Kinetic
 include("Kinetic.jl")
 
+export PotLocal
+include("PotLocal.jl")
+
 export Hamiltonian
 include("Hamiltonian.jl")
 
