@@ -65,20 +65,26 @@ include("constants.jl")
 
 export PlaneWaveBasis
 export substitute_kpoints!
-export X_to_Yst!
+export Y_to_Yst!
 export Xk_to_Yst!
-export Yst_to_X!
+export Yst_to_Y!
 export Yst_to_Xk!
 include("PlaneWaveBasis.jl")
 
 export PspHgh
 include("PspHgh.jl")
 
+export compute_density
+include("compute_density.jl")
+
 export Kinetic
 include("Kinetic.jl")
 
 export PotLocal
 include("PotLocal.jl")
+
+export PotHartree
+include("PotHartree.jl")
 
 export Hamiltonian
 include("Hamiltonian.jl")
@@ -89,5 +95,7 @@ include("Preconditioner.jl")
 export lobpcg
 include("lobpcg.jl")
 
+export self_consistent_field
+include("self_consistent_field.jl")
 
 end # module DFTK

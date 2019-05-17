@@ -24,8 +24,18 @@ struct PlaneWaveBasis{T <: Real} <: AbstractBasis
     """The weights associated to the above kpoints"""
     kweights::Vector{T}
 
-    """Wave vectors of the plane wave basis functions in reciprocal space"""
+    """
+    Wave vectors of the plane wave basis functions in reciprocal space
+    The collection of all plane-wave basis functions e_G made from these
+    wave vectors forms the density / potential basis set Y.
+    """
     Gs::Vector{Vector{T}}
+
+    """
+    Cache for the expression |G|^2 for each wave vector
+    """
+    Gsq::Vector{T}
+
 
     """Maximal kinetic energy |G + k|^2 in Hartree"""
     Ecut::T
@@ -34,9 +44,9 @@ struct PlaneWaveBasis{T <: Real} <: AbstractBasis
     idx_DC::Int
 
     """
-    Masks (list of indices), which select the plane waves required for each
-    kpoint, such that the resulting plane-wave basis reaches the
-    selected Ecut threshold.
+    Masks (list of indices), which select the basis X_k, i.e. the
+    plane waves required for each kpoint. The resulting basis sets X_k
+    satisfy the Ecut threshould for the respective k-Point.
     """
     kmask::Vector{Vector{Int}}
 
@@ -105,6 +115,7 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, kpoints, kweights,
     lattice = Matrix{T}(lattice)
     recip_lattice = 2π * inv(lattice')
     Gs = [recip_lattice * coord for coord in Gcoords]
+    Gsq = sum.(abs2, Gs)
 
     # For each k-Point select the Gs to form the basis X_k of wave vectors
     # with energy below Ecut
@@ -147,7 +158,7 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, kpoints, kweights,
 
     @assert T <: Real
     PlaneWaveBasis{T}(lattice, recip_lattice, det(lattice),
-                      kpoints, kweights, Gs, Ecut, idx_DC, kmask, qsq,
+                      kpoints, kweights, Gs, Gsq, Ecut, idx_DC, kmask, qsq,
                       grid_Yst, idx_to_fft, fft_plan, ifft_plan)
 end
 
@@ -289,9 +300,11 @@ and the real-space Y* grid.
 - `f_fourier`   input argument, the representation of F on X or X_k
 - `f_real`      output argument, the resulting representation of F on Y*
                 (all data in this array will be destroyed)
-- `idx_to_fft`  Map applied to translate f_fourier from the (smaller)
-                orbital basis X or the k-point-specific part X_k to
-                the (larger) potential basis Y by zero padding.
+- `idx_to_fft`  Map applied to translate f_fourier from the
+                density basis Y or the k-point-specific part of the
+                (smaller) orbital basis X_k to the (larger) potential
+                basis Y. In the case of X_k this involves zero padding
+                as well.
 """
 function G_to_R!(pw::PlaneWaveBasis, f_fourier, f_real, idx_to_fft)
     @assert length(f_fourier) == length(idx_to_fft)
@@ -314,11 +327,11 @@ end
 
 """
 Perform an in-place FFT to translate between a representation of
-a function f in the X basis and the real-space Y* grid.
+a function f in the Y basis and the real-space Y* grid.
 All data in `f_Yst` will be destroyed.
 """
-function X_to_Yst!(pw::PlaneWaveBasis, f_X, f_Yst)
-    G_to_R!(pw, f_X, f_Yst, pw.idx_to_fft)
+function Y_to_Yst!(pw::PlaneWaveBasis, f_Y, f_Yst)
+    G_to_R!(pw, f_Y, f_Yst, pw.idx_to_fft)
 end
 
 """
@@ -345,7 +358,8 @@ X_k or X basis.
 - `idx_to_fft`  Map applied to translate between the representation
                 of f in the potential basis Y, i.e. the result from
                 applying the discrete Fourier transform to `f_fourier`,
-                and the smaller basis X_k or X by truncation.
+                and the basis X_k or Y. In the case of X_k, where the
+                basis is smaller, this involves truncation as well.
 """
 function R_to_G!(pw::PlaneWaveBasis, f_real, f_fourier, idx_to_fft)
     @assert length(f_fourier) == length(idx_to_fft)
@@ -365,11 +379,11 @@ end
 
 """
 Perform an in-place iFFT to translate between a representation of
-a function f on the Y* grid and the X basis
-All data in `f_Yst` and `f_X` will be destroyed.
+a function f on the Y* grid and the Y basis
+All data in `f_Yst` and `f_Y` will be destroyed.
 """
-function Yst_to_X!(pw::PlaneWaveBasis, f_Yst, f_X)
-    R_to_G!(pw, f_Yst, f_X, pw.idx_to_fft)
+function Yst_to_Y!(pw::PlaneWaveBasis, f_Yst, f_Y)
+    R_to_G!(pw, f_Yst, f_Y, pw.idx_to_fft)
 end
 
 """

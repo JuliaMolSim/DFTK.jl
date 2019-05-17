@@ -157,3 +157,7 @@ end
 apply_fourier!(out_Xk, op::Nothing, ik::Int, in_Xk) = (out_Xk .= 0)
 apply_real!(out_Yst, op::Nothing, in_Yst) = (out_Yst .= 0)
 apply_real!(out_Yst, op::Nothing, precomp, in_Yst) = (out_Yst .= 0)
+
+# Specialisations of precompute for cases where nothing should be done
+precompute!(precomp, op::Nothing, ρ_Y) = nothing
+empty_precompute(op::Nothing) = nothing

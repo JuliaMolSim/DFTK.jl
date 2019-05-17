@@ -113,16 +113,16 @@ function PotLocal(pw::PlaneWaveBasis, positions, generators; parameters = (),
         )
     end
 
-    # Get the values in the plane-wave basis set X
-    values_X = call_generators.(pw.Gs)
+    # Get the values in the plane-wave basis set Y
+    values_Y = call_generators.(pw.Gs)
 
     # Zero DC component if compensating background is requested
     if compensating_background
-        values_X[pw.idx_DC] = 0
+        values_Y[pw.idx_DC] = 0
     end
 
     values_Yst = similar(pw.grid_Yst, Complex{T})
-    X_to_Yst!(pw, values_X, values_Yst)
+    Y_to_Yst!(pw, values_Y, values_Yst)
 
     if maximum(imag(values_Yst)) > 100 * eps(T)
         raise(ArgumentError("Expected potential on the real-space grid Y* to be entirely" *

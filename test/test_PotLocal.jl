@@ -19,14 +19,14 @@ include("testcases_silicon.jl")
         @test pot0.values_Yst + pot1.values_Yst ≈ pot2.values_Yst
 
         # pot1 back to the PW basis to check we get the 1/|G|^2 behaviour
-        values_X = similar(pw.Gs, ComplexF64)
-        Yst_to_X!(pw, pot1.values_Yst, values_X)
+        values_Y = similar(pw.Gs, ComplexF64)
+        Yst_to_Y!(pw, pot1.values_Yst, values_Y)
 
         lattice_vector = lattice * [0, 1/3, 0]
         reference = [4π / pw.unit_cell_volume * pot_coulomb(G) * cis(dot(G, lattice_vector))
                      for G in pw.Gs]
         reference[pw.idx_DC] = 0
-        @test reference ≈ values_X
+        @test reference ≈ values_Y
     end
 
     @testset "Construction using multiple species and a parametrised potential" begin

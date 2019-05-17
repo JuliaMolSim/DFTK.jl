@@ -60,7 +60,7 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
         hamk = HamiltonianBlock(ham, precomp_hartree, precomp_xc, ik)
 
         itres = nothing
-        if guess == nothing
+        if guess === nothing
             itres = lobpcg(hamk, largest, nev_per_kpoint, P=Pk,
                            tol=tol, maxiter=maxiter, kwargs...)
         else
