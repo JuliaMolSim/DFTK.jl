@@ -23,6 +23,7 @@ function compute_density(pw::PlaneWaveBasis, Psi, occupation;
     @assert all(occupation[ik] == occupation[1] for ik in 1:n_k)
 
     ρ_Yst = similar(pw.grid_Yst, Complex{eltype(pw)})
+    ρ_Yst .= 0
     for ik in 1:n_k
         Ψ_k = Psi[ik]
         weight = pw.kweights[ik]
@@ -59,8 +60,6 @@ function compute_density(pw::PlaneWaveBasis, Psi, occupation;
     end
 
     # Check ρ is real and positive and properly normalised
-    println(minimum(imag(ρ_Yst)))
-    println(maximum(imag(ρ_Yst)))
     @assert maximum(imag(ρ_Yst)) < 1e-12
     @assert minimum(real(ρ_Yst)) ≥ 0
 

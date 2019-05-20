@@ -68,7 +68,7 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
             @assert length(guess) ≥ n_k
             @assert size(guess[ik], 2) == nev_per_kpoint
             @assert size(guess[ik], 1) == size(hamk, 2)
-            itres = lobpcg(hamk, largest, nev_per_kpoint, guess[ik],
+            itres = lobpcg(hamk, largest, guess[ik],
                            P=Pk, tol=tol, maxiter=maxiter, kwargs...)
         end
 

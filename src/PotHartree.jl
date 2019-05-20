@@ -11,7 +11,7 @@ end
 Construct an empty PrecompHartree object
 """
 function PrecompHartree(basis::PlaneWaveBasis)
-    PrecompHartree(similar(pw.grid_Yst, eltype(basis)))
+    PrecompHartree(similar(basis.grid_Yst, eltype(basis)))
 end
 empty_precompute(pot::PotHartree) = PrecompHartree(pot.basis)
 
@@ -43,14 +43,15 @@ function precompute!(precomp::PrecompHartree, pot::PotHartree, ρ_Y)
     #      sense to switch to storing complex objects instead.
 
     # Fourier-transform and store in values_Yst
-    values_Yst = similar(precomp.values_Yst, Complex{eltype(basis)})
-    Y_to_Yst!(pw, values_Y, out_Yst)
+    T = eltype(pw)
+    values_Yst = similar(precomp.values_Yst, Complex{T})
+    Y_to_Yst!(pw, values_Y, values_Yst)
 
     if maximum(imag(values_Yst)) > 100 * eps(T)
         raise(ArgumentError("Expected potential on the real-space grid Y* to be entirely" *
                             " real-valued, but the present potential gives rise to a " *
                             "maximal imaginary entry of $(maximum(imag(values_Yst)))."))
     end
-    precomp.values_Yst = real(values_Yst)
+    precomp.values_Yst[:] = real(values_Yst)
     return precomp
 end

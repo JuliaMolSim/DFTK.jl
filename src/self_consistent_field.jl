@@ -1,3 +1,5 @@
+using NLsolve
+
 """
 This is a very simple and first version of an SCF function, which will definitely
 need some polishing and some generalisation later on.
@@ -34,11 +36,11 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
     precomp_xc = empty_precompute(ham.pot_xc)
 
     # compute_residual closure for nlsolve.
-    function compute_residual!(residual, ρ_flat)
-        # Note: reshape creates a view.
-        fft_size = size(pw.grid_Yst)
-        ρ_Y = reshape(ρ_flat, fft_size)
-
+    # nlsolve cannot do complex ... unfortunately
+    function compute_residual!(residual, ρ_Y_folded)
+        n_G = length(pw.Gs)
+        @assert size(ρ_Y_folded) == (2 * n_G, )
+        ρ_Y = ρ_Y[1:n_G] + im * ρ_Y_folded[n_G + 1:end]
         precompute!(precomp_hartree, ham.pot_hartree, ρ_Y)
         precompute!(precomp_xc, ham.pot_xc, ρ_Y)
 
@@ -51,10 +53,11 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
 
         ρ_Y_new = compute_density(pw, Psi, occupation,
                                   tolerance_orthonormality=tol)
-        residual .= reshape(ρ_Y_new, prod(fft_size)) - ρ_flat
+        residual .= [real(ρ_Y_new); imag(ρ_Y_new)] - ρ_Y_folded
     end
 
-    res = nlsolve(compute_residual!, ρ_Y, method=:anderson, m=5, xtol=tol,
+    ρ_Y_folded = [real(ρ_Y); imag(ρ_Y)]
+    res = nlsolve(compute_residual!, ρ_Y_folded, method=:anderson, m=5, xtol=tol,
                   ftol=0.0, show_trace=true)
     @assert converged(res)
 
