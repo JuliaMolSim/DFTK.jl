@@ -15,6 +15,9 @@ struct PlaneWaveBasis{T <: Real} <: AbstractBasis
     """Volume of the unit cell"""
     unit_cell_volume::T
 
+    """Volume of the reciprocal unit cell"""
+    recip_cell_volume::T
+
     #
     # Plane-Wave mesh
     #
@@ -37,7 +40,7 @@ struct PlaneWaveBasis{T <: Real} <: AbstractBasis
     Gsq::Vector{T}
 
 
-    """Maximal kinetic energy |G + k|^2 in Hartree"""
+    """Maximal kinetic energy 1/2 |G + k|^2 in Hartree"""
     Ecut::T
 
     """Index of the DC fourier component in the plane-wave mesh"""
@@ -157,7 +160,7 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, kpoints, kweights,
     ifft_plan = plan_ifft!(tmp, flags=FFTW.MEASURE)
 
     @assert T <: Real
-    PlaneWaveBasis{T}(lattice, recip_lattice, det(lattice),
+    PlaneWaveBasis{T}(lattice, recip_lattice, det(lattice), det(recip_lattice),
                       kpoints, kweights, Gs, Gsq, Ecut, idx_DC, kmask, qsq,
                       grid_Yst, idx_to_fft, fft_plan, ifft_plan)
 end
@@ -220,7 +223,7 @@ function substitute_kpoints!(pw::PlaneWaveBasis{T}, kpoints, kweights) where T
         pw.qsq[ik] = map(G -> sum(abs2, G + k), pw.Gs[pw.kmask[ik]])
     end
 
-    return pw
+    pw
 end
 
 
@@ -280,12 +283,9 @@ end
 Optimise an FFT grid such that the number of grid points in each dimenion
 agrees well with a fast FFT algorithm.
 """
-function optimise_fft_grid(n_grid_points::Vector{Int})
-    # Ensure a power of 2 in the number of grid points
-    # in each dimension for a fast FFT
-    # (because of the tree-like divide and conquer structure of the FFT)
-    return map(x -> nextpow(2, x), n_grid_points)
-end
+optimise_fft_grid(n_grid_points) = nextpow.(2, n_grid_points)
+# Right now stick to powers of 2 and agree with tree-like divide
+# and conquer structure of FFT
 
 
 #
