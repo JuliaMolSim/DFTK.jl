@@ -26,7 +26,7 @@ include("testcases_silicon.jl")
         @test res.converged
         for ik in 1:length(kpoints)
             @test ref_λ[ik] ≈ res.λ[ik]
-            @test maximum(res.residual_norms[ik]) < 10 * tol  # TODO Why the 10?
+            @test maximum(res.residual_norms[ik]) < 100tol  # TODO Why the 100?
             @test res.iterations[ik] < 200
         end
     end
@@ -38,7 +38,7 @@ include("testcases_silicon.jl")
         @test res.converged
         for ik in 1:length(kpoints)
             @test ref_λ[ik] ≈ res.λ[ik]
-            @test maximum(res.residual_norms[ik]) < 10 * tol  # TODO Why the 10?
+            @test maximum(res.residual_norms[ik]) < 100tol  # TODO Why the 100?
             @test res.iterations[ik] < 35
         end
     end
