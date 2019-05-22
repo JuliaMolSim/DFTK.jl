@@ -9,7 +9,9 @@ branches:
 
 os:
   - linux
-  - osx
+# Something is seriously wrong with the lobpcg from scipy on MacOS
+#    => MacOS stays disabled for now
+#  - osx
 julia:
   - 1.1
   - nightly
