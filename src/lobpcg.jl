@@ -1,7 +1,51 @@
-using IterativeSolvers
-import IterativeSolvers: LOBPCGResults
-import IterativeSolvers: LOBPCGState
-import IterativeSolvers: lobpcg
+# using IterativeSolvers
+# import IterativeSolvers: lobpcg
+using PyCall
+
+
+"""
+Call scipy's `lobpcg` function on an operator `hamk` using the guess `X0`,
+which also defines the block size. `P` is an optional preconditioner.
+If `largest` is true, the largest eigenvalues will be sought, else the
+smallest. Both `hamk` as well as `P` will be transformed to
+`scipy.sparse.LinearOperator` along the call.
+"""
+function lobpcg(hamk, largest::Bool, X0; P=nothing, kwargs...)
+    sla = pyimport("scipy.sparse.linalg")
+
+    @assert eltype(hamk) == ComplexF64
+    A = sla.LinearOperator((size(hamk, 1), size(hamk, 2)),
+                           matvec=(v -> mul!(similar(v, ComplexF64), hamk, v)),
+                           dtype="complex128")
+    M = nothing
+    if P !== nothing
+        M = sla.LinearOperator((size(hamk, 1), size(hamk, 2)),
+                               matvec=(v -> ldiv!(similar(v, ComplexF64), P, v)),
+                               dtype="complex128")
+    end
+
+    res = sla.lobpcg(A, X0, M=M, retResidualNormsHistory=true; kwargs...)
+
+    λ = real(res[1])
+    order = sortperm(λ)  # Order to sort eigenvalues ascendingly
+    (λ=λ[order],
+     X=res[2][:, order],
+     residual_norms=res[3][end][order],
+     iterations=length(res[3]),
+     converged=true)
+end
+
+
+"""
+Call scipy's `lobpcg` function on an operator `hamk`, solving for
+`nev` eigenvalues. If `largest` is true, the largest eigenvalues will
+be sought, else the smallest. Both `hamk` as well as `P` will be
+transformed to `scipy.sparse.LinearOperator` along the call.
+"""
+function lobpcg(hamk, largest::Bool, nev::Int; kwargs...)
+    X0 = randn(real(eltype(hamk)), size(hamk, 2), nev)
+    lobpcg(hamk, largest, X0; kwargs...)
+end
 
 
 # Setup HamiltonianBlock struct and define the required functions
@@ -29,6 +73,7 @@ function LinearAlgebra.ldiv!(Y, block::PreconditionerBlock, B)
     apply_inverse_fourier!(Y, block.precond, block.ik, B)
 end
 
+
 """
 TODO Docme
 """
@@ -42,21 +87,18 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
     pw::PlaneWaveBasis = ham.basis
     n_k = length(pw.kpoints)
 
-    # TODO This interface is in general really ugly and should be reworked
-    res = Dict{Symbol, Any}(
-        :λ => Vector{Vector{T}}(undef, n_k),
-        :X => Vector{Matrix{T}}(undef, n_k),
-        :residual_norms => Vector{Vector{T}}(undef, n_k),
-        :iterations => Vector{Int}(undef, n_k),
-        :converged => true,
+    # TODO λ and X are not the best names
+    converged = true
+    res = (λ=Vector{Vector{real(T)}}(undef, n_k),
+           X=Vector{Matrix{T}}(undef, n_k),
+           residual_norms=Vector{Vector{real(T)}}(undef, n_k),
+           iterations=Vector{Int}(undef, n_k)
     )
-
     for ik in 1:n_k
         Pk = nothing
         if preconditioner !== nothing
             Pk = PreconditionerBlock(preconditioner, ik)
         end
-
         hamk = HamiltonianBlock(ham, precomp_hartree, precomp_xc, ik)
 
         itres = nothing
@@ -73,14 +115,11 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
         end
 
         # Add iteration result to res:
-        res[:λ][ik]              = itres.λ
-        res[:X][ik]              = itres.X
-        res[:residual_norms][ik] = itres.residual_norms
-        res[:iterations][ik]     = itres.iterations
-        res[:converged]          = itres.converged && res[:converged]
+        res.λ[ik]              = itres.λ
+        res.X[ik]              = itres.X
+        res.residual_norms[ik] = itres.residual_norms
+        res.iterations[ik]     = itres.iterations
+        converged              = converged && itres.converged
     end
-
-    LOBPCGResults(res[:λ], res[:X], tol, res[:residual_norms], res[:iterations],
-                  maxiter, res[:converged],
-                  Vector{LOBPCGState{Vector{Vector{T}}, Vector{Vector{T}}}}(undef, 0))
+    return merge(res, (converged=converged, ))
 end

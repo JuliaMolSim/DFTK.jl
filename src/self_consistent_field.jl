@@ -19,9 +19,9 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
     Psi = nothing
     if PsiGuess === nothing
         hcore = Hamiltonian(pot_local=ham.pot_local, pot_nonlocal=ham.pot_nonlocal)
-        res = lobpcg(hcore, n_bands, preconditioner=PreconditionerKinetic(ham, α=0.1))
+        res = lobpcg(hcore, n_bands + 1, preconditioner=PreconditionerKinetic(ham, α=0.1))
         @assert res.converged
-        Psi = res.X
+        Psi = [Xsk[:, 2:end] for Xsk in res.X]
     else
         Psi = PsiGuess
     end
@@ -37,6 +37,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
 
     # compute_residual closure for nlsolve.
     # nlsolve cannot do complex ... unfortunately
+    #    TODO not actually a problem, since we can do a "toReal" Fourier-transform
     function compute_residual!(residual, ρ_Y_folded)
         n_G = length(pw.Gs)
         @assert size(ρ_Y_folded) == (2 * n_G, )
@@ -61,7 +62,9 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
                   ftol=0.0, show_trace=true)
     @assert converged(res)
 
-    ρ_Y = res.zero
+    n_G = length(pw.Gs)
+    @assert maximum(abs.(res.zero[n_G + 1:end])) < 1e-12
+    ρ_Y = res.zero[1:n_G]
     precompute!(precomp_hartree, ham.pot_hartree, ρ_Y)
     precompute!(precomp_xc, ham.pot_xc, ρ_Y)
     return ρ_Y, precomp_hartree, precomp_xc
