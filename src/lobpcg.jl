@@ -11,7 +11,7 @@ smallest. Both `hamk` as well as `P` will be transformed to
 `scipy.sparse.LinearOperator` along the call.
 """
 function lobpcg(hamk, largest::Bool, X0; P=nothing, kwargs...)
-    sla = pyimport("scipy.sparse.linalg")
+    sla = pyimport_conda("scipy.sparse.linalg", "scipy")
 
     @assert eltype(hamk) == ComplexF64
     A = sla.LinearOperator((size(hamk, 1), size(hamk, 2)),

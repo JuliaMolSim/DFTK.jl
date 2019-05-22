@@ -13,10 +13,11 @@ os:
 julia:
   - 1.1
   - nightly
-notifications:
-  email: false
-git:
-  depth: 99999999
+
+addons:
+  apt:
+    packages:
+      - python3-scipy
 
 codecov: false
 coveralls: true
@@ -25,3 +26,6 @@ coveralls: true
 matrix:
   allow_failures:
   - julia: nightly
+
+notifications:
+  email: false
