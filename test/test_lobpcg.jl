@@ -39,7 +39,7 @@ include("testcases_silicon.jl")
         for ik in 1:length(kpoints)
             @test ref_λ[ik] ≈ res.λ[ik]
             @test maximum(res.residual_norms[ik]) < 100tol  # TODO Why the 100?
-            @test res.iterations[ik] < 35
+            @test res.iterations[ik] < 50
         end
     end
 end
