@@ -72,6 +72,8 @@ export Yst_to_Xk!
 include("PlaneWaveBasis.jl")
 
 export PspHgh
+export eval_psp_local_fourier
+export eval_psp_projection_radial
 include("PspHgh.jl")
 
 export compute_density
