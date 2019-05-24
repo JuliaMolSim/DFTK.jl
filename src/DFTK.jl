@@ -88,7 +88,12 @@ include("PotLocal.jl")
 export PotHartree
 include("PotHartree.jl")
 
+export PotNonLocal
+include("PotNonLocal.jl")
+
 export Hamiltonian
+export apply_fourier!
+export apply_real!
 include("Hamiltonian.jl")
 
 export PreconditionerKinetic
