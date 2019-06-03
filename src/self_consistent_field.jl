@@ -5,7 +5,8 @@ This is a very simple and first version of an SCF function, which will definitel
 need some polishing and some generalisation later on.
 """
 function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
-                               PsiGuess=nothing, tol=1e-6)
+                               PsiGuess=nothing, tol=1e-6,
+                               lobpcg_preconditioner=PreconditionerKinetic(ham, α=0.1))
     pw = ham.basis
     n_k = length(pw.kpoints)
 
@@ -19,9 +20,9 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
     Psi = nothing
     if PsiGuess === nothing
         hcore = Hamiltonian(pot_local=ham.pot_local, pot_nonlocal=ham.pot_nonlocal)
-        res = lobpcg(hcore, n_bands + 1, preconditioner=PreconditionerKinetic(ham, α=0.1))
+        res = lobpcg(hcore, n_bands, preconditioner=lobpcg_preconditioner)
         @assert res.converged
-        Psi = [Xsk[:, 2:end] for Xsk in res.X]
+        Psi = [Xsk[:, 1:end] for Xsk in res.X]
     else
         Psi = PsiGuess
     end

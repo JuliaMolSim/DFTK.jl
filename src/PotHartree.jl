@@ -53,5 +53,5 @@ function precompute!(precomp::PrecompHartree, pot::PotHartree, ρ_Y)
                             "maximal imaginary entry of $(maximum(imag(values_Yst)))."))
     end
     precomp.values_Yst[:] = real(values_Yst)
-    return precomp
+    precomp
 end

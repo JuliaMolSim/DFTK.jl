@@ -136,6 +136,7 @@ function apply_fourier!(out_Xk::AbstractVector, ham::Hamiltonian, ik::Int, preco
         # invalidates the data of accu_Yst as well.
         out_Xk .+= Yst_to_Xk!(pw, ik, accu_Yst, tmp_Xk)
     end
+    out_Xk
 end
 
 
@@ -161,3 +162,19 @@ apply_real!(out_Yst, op::Nothing, precomp, in_Yst) = (out_Yst .= 0)
 # Specialisations of precompute for cases where nothing should be done
 precompute!(precomp, op::Nothing, ρ_Y) = nothing
 empty_precompute(op::Nothing) = nothing
+
+# Get a representation of the Hamiltonian as a matrix
+# TODO Is there a more julia-idiomatic way to do this?
+function block_as_matrix(ham::Hamiltonian, ik::Int, precomp_hartree, precomp_xc)
+    # TODO This assumes a PlaneWaveBasis
+    n_bas = length(ham.basis.kmask[ik])
+    T = eltype(ham)
+    mat = Matrix{T}(undef, (n_bas,n_bas))
+    v = fill(zero(T), n_bas)
+    @inbounds for i = 1:n_bas
+        v[i] = one(T)
+        apply_fourier!(view(mat, :, i), ham, ik, precomp_hartree, precomp_xc, v)
+        v[i] = zero(T)
+    end
+return mat
+end
