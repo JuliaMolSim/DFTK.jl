@@ -94,7 +94,9 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
         ρ_Y_new = compute_density(pw, Psi, occupation,
                                   tolerance_orthonormality=tol)
 
-        if 20 * norm(ρ_Y_new - ρ_Y) < tol
+        ndiff = norm(ρ_Y_new - ρ_Y)
+        @printf "%4d %15.8g\n" i ndiff
+        if 20 * ndiff < tol
             break
         end
         ρ_Y = ρ_Y_new * 0.2 + 0.8 * ρ_Y
