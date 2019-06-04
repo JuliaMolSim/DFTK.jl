@@ -1,50 +1,56 @@
-# using IterativeSolvers
-# import IterativeSolvers: lobpcg
-using PyCall
+const use_scipy = false
 
-
-"""
-Call scipy's `lobpcg` function on an operator `hamk` using the guess `X0`,
-which also defines the block size. `P` is an optional preconditioner.
-If `largest` is true, the largest eigenvalues will be sought, else the
-smallest. Both `hamk` as well as `P` will be transformed to
-`scipy.sparse.LinearOperator` along the call.
-"""
-function lobpcg(hamk, largest::Bool, X0; P=nothing, kwargs...)
-    sla = pyimport_conda("scipy.sparse.linalg", "scipy")
-
-    @assert eltype(hamk) == ComplexF64
-    A = sla.LinearOperator((size(hamk, 1), size(hamk, 2)),
-                           matvec=(v -> mul!(similar(v, ComplexF64), hamk, v)),
-                           dtype="complex128")
-    M = nothing
-    if P !== nothing
-        M = sla.LinearOperator((size(hamk, 1), size(hamk, 2)),
-                               matvec=(v -> ldiv!(similar(v, ComplexF64), P, v)),
-                               dtype="complex128")
-    end
-
-    res = sla.lobpcg(A, X0, M=M, retResidualNormsHistory=true; kwargs...)
-
-    λ = real(res[1])
-    order = sortperm(λ)  # Order to sort eigenvalues ascendingly
-    (λ=λ[order],
-     X=res[2][:, order],
-     residual_norms=res[3][end][order],
-     iterations=length(res[3]),
-     converged=true)
+if use_scipy
+    using PyCall
+else
+    using IterativeSolvers
+    import IterativeSolvers: lobpcg
 end
 
+if use_scipy
+    """
+    Call scipy's `lobpcg` function on an operator `hamk` using the guess `X0`,
+    which also defines the block size. `P` is an optional preconditioner.
+    If `largest` is true, the largest eigenvalues will be sought, else the
+    smallest. Both `hamk` as well as `P` will be transformed to
+    `scipy.sparse.LinearOperator` along the call.
+    """
+    function lobpcg(hamk, largest::Bool, X0; P=nothing, kwargs...)
+        sla = pyimport_conda("scipy.sparse.linalg", "scipy")
 
-"""
-Call scipy's `lobpcg` function on an operator `hamk`, solving for
-`nev` eigenvalues. If `largest` is true, the largest eigenvalues will
-be sought, else the smallest. Both `hamk` as well as `P` will be
-transformed to `scipy.sparse.LinearOperator` along the call.
-"""
-function lobpcg(hamk, largest::Bool, nev::Int; kwargs...)
-    X0 = randn(real(eltype(hamk)), size(hamk, 2), nev)
-    lobpcg(hamk, largest, X0; kwargs...)
+        @assert eltype(hamk) == ComplexF64
+        A = sla.LinearOperator((size(hamk, 1), size(hamk, 2)),
+                               matvec=(v -> mul!(similar(v, ComplexF64), hamk, v)),
+                               dtype="complex128")
+        M = nothing
+        if P !== nothing
+            M = sla.LinearOperator((size(hamk, 1), size(hamk, 2)),
+                                   matvec=(v -> ldiv!(similar(v, ComplexF64), P, v)),
+                                   dtype="complex128")
+        end
+
+        res = sla.lobpcg(A, X0, M=M, retResidualNormsHistory=true; kwargs...)
+
+        λ = real(res[1])
+        order = sortperm(λ)  # Order to sort eigenvalues ascendingly
+        (λ=λ[order],
+         X=res[2][:, order],
+         residual_norms=res[3][end][order],
+         iterations=length(res[3]),
+         converged=true)
+    end
+
+
+    """
+    Call scipy's `lobpcg` function on an operator `hamk`, solving for
+    `nev` eigenvalues. If `largest` is true, the largest eigenvalues will
+    be sought, else the smallest. Both `hamk` as well as `P` will be
+    transformed to `scipy.sparse.LinearOperator` along the call.
+    """
+    function lobpcg(hamk, largest::Bool, nev::Int; kwargs...)
+        X0 = randn(real(eltype(hamk)), size(hamk, 2), nev)
+        lobpcg(hamk, largest, X0; kwargs...)
+    end
 end
 
 
