@@ -10,3 +10,5 @@ include("test_PotLocal.jl")
 include("test_PotNonlocal.jl")
 
 include("test_lobpcg.jl")
+
+include("./test_noXC_silicon.jl")

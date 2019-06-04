@@ -18,11 +18,12 @@ include("testcases_silicon.jl")
         pot2 = PotLocal(pw, [[0, 1/3, 0], [0,0,0]], pot_coulomb)
         @test pot0.values_Yst + pot1.values_Yst ≈ pot2.values_Yst
 
-        # pot1 back to the PW basis to check we get the 1/|G|^2 behaviour
+        # pot3 back to the PW basis to check we get the 1/|G|^2 behaviour
+        pot3 = PotLocal(pw, [[0, 1/8, 0]], pot_coulomb)
         values_Y = similar(pw.Gs, ComplexF64)
-        Yst_to_Y!(pw, pot1.values_Yst, values_Y)
+        Yst_to_Y!(pw, pot3.values_Yst, values_Y)
 
-        lattice_vector = lattice * [0, 1/3, 0]
+        lattice_vector = lattice * [0, 1/8, 0]
         reference = [4π / pw.unit_cell_volume * pot_coulomb(G) * cis(dot(G, lattice_vector))
                      for G in pw.Gs]
         reference[pw.idx_DC] = 0
