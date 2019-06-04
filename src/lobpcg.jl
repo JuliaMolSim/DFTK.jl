@@ -41,6 +41,7 @@ if use_scipy
          X=res[2][:, order],
          residual_norms=res[3][end][order],
          iterations=length(res[3]),
+         implementation="scipy",
          converged=true)
     end
 
@@ -102,7 +103,8 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
     res = (λ=Vector{Vector{real(T)}}(undef, n_k),
            X=Vector{Matrix{T}}(undef, n_k),
            residual_norms=Vector{Vector{real(T)}}(undef, n_k),
-           iterations=Vector{Int}(undef, n_k)
+           iterations=Vector{Int}(undef, n_k),
+           implementation="IterativeSolvers.jl",
     )
     for ik in 1:n_k
         Pk = nothing

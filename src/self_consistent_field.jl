@@ -95,7 +95,9 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
                                   tolerance_orthonormality=tol)
 
         ndiff = norm(ρ_Y_new - ρ_Y)
-        @printf "%4d %15.8g\n" i ndiff
+        @printf "%4d %18.8g %s  " i ndiff res.implementation
+        println(res.iterations)
+
         if 20 * ndiff < tol
             break
         end
