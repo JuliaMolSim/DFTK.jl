@@ -86,7 +86,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
 
         tol_lobpcg = tol / 100
         res = lobpcg(ham, n_bands, precomp_hartree=precomp_hartree,
-                      precomp_xc=precomp_xc, guess=nothing, # =Psi
+                      precomp_xc=precomp_xc, guess=Psi,
                       preconditioner=lobpcg_preconditioner, tol=tol_lobpcg)
         @assert res.converged
         Psi[:] = res.X
