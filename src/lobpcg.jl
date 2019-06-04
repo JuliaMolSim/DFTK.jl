@@ -15,7 +15,7 @@ if use_scipy
     smallest. Both `hamk` as well as `P` will be transformed to
     `scipy.sparse.LinearOperator` along the call.
     """
-    function lobpcg(hamk, largest::Bool, X0; P=nothing, kwargs...)
+    function lobpcg(hamk, largest::Bool, X0; P=nothing, tol=nothing, kwargs...)
         sla = pyimport_conda("scipy.sparse.linalg", "scipy")
 
         @assert eltype(hamk) == ComplexF64
@@ -29,7 +29,11 @@ if use_scipy
                                    dtype="complex128")
         end
 
-        res = sla.lobpcg(A, X0, M=M, retResidualNormsHistory=true; kwargs...)
+        if tol !== nothing
+            tol /= 10
+        end
+
+        res = sla.lobpcg(A, X0, M=M, retResidualNormsHistory=true; tol=tol, kwargs...)
 
         λ = real(res[1])
         order = sortperm(λ)  # Order to sort eigenvalues ascendingly
