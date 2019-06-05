@@ -68,10 +68,10 @@ end
     end
 end
 
-# @testset "SCF of silicon without exchange-correlation (large)" begin
-#     if ! get(ENV, "CI", false)
-#         run_noXC(25, 1e-6)
-#     else
-#         println("Skipping large test, since running from CI.")
-#     end
-# end
+@testset "SCF of silicon without exchange-correlation (large)" begin
+    if ! get(ENV, "CI", false)
+        run_noXC(Ecut=25, test_tol=5e-7, n_ignored=0)
+    else
+        println("Skipping large test, since running from CI.")
+    end
+end
