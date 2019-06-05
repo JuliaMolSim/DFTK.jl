@@ -21,14 +21,13 @@ function lobpcg_qr(A, X0; maxiter=100, Prec=I, tol=20size(A,2)*eps(eltype(A)))
 
     # Orthogonalise X0 and apply A to it.
     X .= ortho(X0)
-    rvals = zeros(T, m, m)
     converged = false
     mul!(view(Ay, :, 1:m), A, X)
+    rvals = diag(X' * Ay[:, 1:m])
     niter = 1
     while niter <= maxiter
         # Compute residuals and Ritz values
-        rvals .= X' * Ay[:, 1:m]
-        R .= Ay[:, 1:m] - X * rvals
+        R .= Ay[:, 1:m] - X * Diagonal(rvals)
         if norm(R) < tol
             converged = true
             break
@@ -46,14 +45,14 @@ function lobpcg_qr(A, X0; maxiter=100, Prec=I, tol=20size(A,2)*eps(eltype(A)))
         Y .= ortho(Y)
         mul!(Ay, A, Y)
 
-        c = eigvecs(Hermitian(Y'*Ay))[:, 1:m]
-        new_X = Y*c
+        rvals, rvecs = eigen(Symmetric(Y'*Ay), 1:m)
+        new_X = Y * rvecs
         P .= new_X - X
         X .= new_X
-        Ay[:, 1:m] .= Ay * c
+        Ay[:, 1:m] .= Ay * rvecs
     end
 
-    (λ=real(diag(rvals)),
+    (λ=real(rvals),
      X=X,
      residual_norms=[norm(R[:, i]) for i in 1:m],
      iterations=niter,
