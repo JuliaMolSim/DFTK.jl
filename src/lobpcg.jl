@@ -1,13 +1,15 @@
-const use_scipy = false
+const lobpcg_backend = :lobpcg_qr
 
-if use_scipy
+if lobpcg_backend == :scipy
     using PyCall
-else
+elseif lobpcg_backend == :IterativeSolvers
     using IterativeSolvers
-    import IterativeSolvers: lobpcg
+    import IterativeSolvers: lobpcg, PosDefException
+elseif lobpcg_backend == :lobpcg_qr
+    include("lobpcg_qr.jl")
 end
 
-if use_scipy
+if lobpcg_backend == :scipy
     """
     Call scipy's `lobpcg` function on an operator `hamk` using the guess `X0`,
     which also defines the block size. `P` is an optional preconditioner.
@@ -18,6 +20,7 @@ if use_scipy
     function lobpcg(hamk, largest::Bool, X0; P=nothing, tol=nothing, kwargs...)
         sla = pyimport_conda("scipy.sparse.linalg", "scipy")
 
+        @assert size(X0, 1) == size(hamk, 2)
         @assert eltype(hamk) == ComplexF64
         A = sla.LinearOperator((size(hamk, 1), size(hamk, 2)),
                                matvec=(v -> mul!(similar(v, ComplexF64), hamk, v)),
@@ -33,16 +36,22 @@ if use_scipy
             tol /= 10
         end
 
-        res = sla.lobpcg(A, X0, M=M, retResidualNormsHistory=true; tol=tol, kwargs...)
-
+        res = sla.lobpcg(A, X0, M=M, retResidualNormsHistory=true; tol=tol,
+                         largest=largest, kwargs...)
         λ = real(res[1])
         order = sortperm(λ)  # Order to sort eigenvalues ascendingly
+        maxnorm = maximum(real(res[3][end][order]))
+
+        is_converged = true
+        if maxnorm !== nothing
+            is_converged = maxnorm < 10 * tol
+        end
+
         (λ=λ[order],
          X=res[2][:, order],
-         residual_norms=res[3][end][order],
+         residual_norms=real(res[3][end][order]),
          iterations=length(res[3]),
-         implementation="scipy",
-         converged=true)
+         converged=is_converged)
     end
 
 
@@ -54,7 +63,17 @@ if use_scipy
     """
     function lobpcg(hamk, largest::Bool, nev::Int; kwargs...)
         X0 = randn(real(eltype(hamk)), size(hamk, 2), nev)
-        lobpcg(hamk, largest, X0; kwargs...)
+        lobpcg(hamk, largest, Matrix(qr(X0).Q); kwargs...)
+    end
+elseif lobpcg_backend == :lobpcg_qr
+    function lobpcg(hamk, largest::Bool, X0; P=nothing, kwargs...)
+        @assert !largest  # only smallest implemented
+        lobpcg_qr(hamk, X0; Prec=P, kwargs...)
+    end
+
+    function lobpcg(hamk, largest::Bool, nev::Int; kwargs...)
+        X0 = randn(real(eltype(hamk)), size(hamk, 2), nev)
+        lobpcg(hamk, largest, Matrix(qr(X0).Q); kwargs...)
     end
 end
 
@@ -104,7 +123,7 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
            X=Vector{Matrix{T}}(undef, n_k),
            residual_norms=Vector{Vector{real(T)}}(undef, n_k),
            iterations=Vector{Int}(undef, n_k),
-           implementation="IterativeSolvers.jl",
+           implementation=string(lobpcg_backend),
     )
     for ik in 1:n_k
         Pk = nothing

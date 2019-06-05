@@ -29,7 +29,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
     @assert size(Psi[1], 2) == n_bands
 
     # Compute starting density
-    ρ_Y = compute_density(pw, Psi, occupation, tolerance_orthonormality=10 * tol)
+    ρ_Y = compute_density(pw, Psi, occupation, tolerance_orthonormality=20 * tol)
 
     # Precompute first objects for faster application of Hartree and XC terms
     # TODO This looks a little weird
