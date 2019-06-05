@@ -57,7 +57,7 @@ end
 
     psp_local = PotLocal(pw, positions, G -> DFTK.eval_psp_local_fourier(hgh, G))
     ham = Hamiltonian(pot_local=psp_local)
-    res = lapack(ham, 5, tol=1e-8)
+    res = lobpcg(ham, 5, tol=1e-8)
 
     ref = [
         [-3.974284745874937, -3.961611963017420, -0.440522571607315,
