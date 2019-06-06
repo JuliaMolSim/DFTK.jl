@@ -45,7 +45,7 @@ include("testcases_silicon.jl")
 end
 
 @testset "Diagonalisation of kinetic + local psp" begin
-    if ! get(ENV, "CI", false)
+    if ! running_in_ci
         Ecut = 25
         pw = PlaneWaveBasis(lattice, kpoints, kweights, Ecut)
         hgh = PspHgh("si-pade-q4")
@@ -68,6 +68,8 @@ end
         for ik in 1:length(kpoints)
             @test res.λ[ik] ≈ ref[ik]
         end
+    else
+        println("Skipping diagonalisation of kinetic + local psp since running from CI")
     end
 end
 

@@ -2,6 +2,8 @@ using Test
 using DFTK
 using LinearAlgebra
 
+include("utils.jl")
+
 include("test_FFTs.jl")
 include("test_PlaneWaveBasis.jl")
 include("test_PspHgh.jl")
