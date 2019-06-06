@@ -19,7 +19,7 @@ function lobpcg_qr(A, X0; maxiter=100, Prec=I, tol=20size(A,2)*eps(eltype(A)))
     # Storage for A*Y
     Ay = similar(Y, T)
 
-    # Orthogonalise X0 and apply A to it.
+    # Orthogonalize X0 and apply A to it.
     X .= ortho(X0)
     converged = false
     mul!(view(Ay, :, 1:m), A, X)
@@ -41,7 +41,7 @@ function lobpcg_qr(A, X0; maxiter=100, Prec=I, tol=20size(A,2)*eps(eltype(A)))
             ldiv!(view(Y, :, m+1:2m), Prec, R)
         end
 
-        # Orthogonalise Y and solve Rayleigh-Ritz step
+        # Orthogonalize Y and solve Rayleigh-Ritz step
         Y .= ortho(Y)
         mul!(Ay, A, Y)
 

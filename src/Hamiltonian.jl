@@ -1,11 +1,11 @@
 """
-Structure identifying a Plane-Wave-discretised Hamiltonian.
+Structure identifying a Plane-Wave-discretized Hamiltonian.
 
 The Hamiltonian is effectively a collection of terms and
 can be applied in a k-Point block using `apply_fourier!`.
 """
 struct Hamiltonian
-    """The plane-wave basis X used to discretise the Hamiltonian"""
+    """The plane-wave basis X used to discretize the Hamiltonian"""
     basis
 
     """

@@ -42,7 +42,7 @@ is drawn from the lattice vectors stored inside the PlaneWaveBasis object.
                 to provide the values of the potential in the Fourier basis.
                 The function will be queried for each wave vector G.
                 For each species a separate mapping entry has to be present.
-                See specialised methods below for more user-friendly alternatives.
+                See specialized methods below for more user-friendly alternatives.
 - `parameters`: Optional parameters for each species, which will be appended
                 to the call to the `generator` for this particular species.
 - `coords_are_cartesian`: By default it is assumed that the `positions` mapping
@@ -56,7 +56,7 @@ is drawn from the lattice vectors stored inside the PlaneWaveBasis object.
 If the lattice is composed of atoms, the identfiers would typically be
 the chemical symbol as a string. The positions are just the atomic
 positions on the lattice. A typical generator is
-`(G, Z) -> -Z / sum(abs2, G)`, i.e. the Coulomb-potential parametrised
+`(G, Z) -> -Z / sum(abs2, G)`, i.e. the Coulomb-potential parametrized
 in the nuclear charge. As parameters the charge `Z` for each atom
 needs to be specified. For sodium chloride, this would result in
 ```julia-repl

@@ -134,9 +134,9 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, kpoints, kweights,
     min_coords = minimum(hcat(Gcoords...), dims=2)
     max_coords = maximum(hcat(Gcoords...), dims=2)
 
-    # Form and optimise FFT grid dimensions
+    # Form and optimize FFT grid dimensions
     fft_size = reshape(max_coords .- min_coords .+ 1, :)
-    fft_size = optimise_fft_grid(fft_size)
+    fft_size = optimize_fft_grid(fft_size)
 
     # Translation table from plane-wave to FFT grid
     idx_to_fft = [1 .+ mod.(coord, fft_size) for coord in Gcoords]
@@ -280,10 +280,10 @@ end
 
 
 """
-Optimise an FFT grid such that the number of grid points in each dimenion
+Optimize an FFT grid such that the number of grid points in each dimenion
 agrees well with a fast FFT algorithm.
 """
-optimise_fft_grid(n_grid_points) = nextpow.(2, n_grid_points)
+optimize_fft_grid(n_grid_points) = nextpow.(2, n_grid_points)
 # Right now stick to powers of 2 and agree with tree-like divide
 # and conquer structure of FFT
 

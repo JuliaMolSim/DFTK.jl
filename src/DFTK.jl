@@ -45,7 +45,7 @@ E_cut    Plane-wave energy cutoff
 
 ## Real-space grids
     a) Y*: Potential integration grid: Grid used for convolutions
-       of a potential with the discretised representation of a
+       of a potential with the discretized representation of a
        DFT orbital. It's construction from Y is as follows:
        One takes the sphere of reciprocal space grid points
        described by Y and embeds it inside a cubic box with

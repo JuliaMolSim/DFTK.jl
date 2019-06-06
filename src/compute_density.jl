@@ -59,7 +59,7 @@ function compute_density(pw::PlaneWaveBasis, Psi, occupation;
         end
     end
 
-    # Check ρ is real and positive and properly normalised
+    # Check ρ is real and positive and properly normalized
     @assert maximum(imag(ρ_Yst)) < 1e-12
     @assert minimum(real(ρ_Yst)) ≥ 0
 

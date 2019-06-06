@@ -1,6 +1,6 @@
-function normalise_psp_identifier(path_or_identifier::AbstractString)
-    normalised = lowercase(path_or_identifier)
-    return replace(normalised, "lda" => "pade")
+function normalize_psp_identifier(path_or_identifier::AbstractString)
+    normalized = lowercase(path_or_identifier)
+    return replace(normalized, "lda" => "pade")
 end
 
 
@@ -66,7 +66,7 @@ function PspHgh(path_or_identifier::AbstractString;
         end
     end
 
-    identifier = normalise_psp_identifier(path_or_identifier)
+    identifier = normalize_psp_identifier(path_or_identifier)
     path = joinpath(search_directory, identifier * ".hgh")
     if isfile(path)
         return open(path, "r") do io
