@@ -1,1 +1,1 @@
-const running_in_ci::Bool = get(ENV, "CI", "false") == "true"
+const running_in_ci = get(ENV, "CI", "false") == "true"
