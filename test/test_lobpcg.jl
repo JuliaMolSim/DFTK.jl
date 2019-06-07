@@ -66,7 +66,7 @@ end
              -0.513805498246478, -0.497036479690380]
         ]
         for ik in 1:length(kpoints)
-            @test res.λ[ik] ≈ ref[ik]
+            @test res.λ[ik] ≈ ref[ik] atol=5e-7
         end
     else
         println("Skipping diagonalisation of kinetic + local psp since running from CI")
