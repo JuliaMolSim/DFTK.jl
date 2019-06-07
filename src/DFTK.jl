@@ -60,6 +60,7 @@ module DFTK
 using Printf
 using Markdown
 using LinearAlgebra
+using StaticArrays
 
 include("constants.jl")
 
