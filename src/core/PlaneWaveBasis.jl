@@ -2,7 +2,7 @@ using FFTW
 
 @doc raw"""
     PlaneWaveBasis(lattice::SMatrix{3, 3, T}, grid_size::SVector{3, I},
-                   Ecut::Number, kpoints, kweigths) where {T <: Real, I <: Integer}
+                   Ecut::Number, kpoints, kweights) where {T <: Real, I <: Integer}
 
 Create a plane-wave basis.
 
@@ -39,15 +39,15 @@ struct PlaneWaveBasis{T <: Real}
     Ecut::T
     kpoints::Vector{SVector{3, T}}
     kweights::Vector{T}
-    kbasis::Vector{SVector{3, Int}}
+    kbasis::Vector{Vector{SVector{3, Int}}}
 
     FFT
     iFFT
 end
 
 function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
-                        Ecut::Number, kpoints, kweigths) where {T <: Real}
-    lattice = SMatrix(3, 3, T)(lattice)
+                        Ecut::Number, kpoints, kweights) where {T <: Real}
+    lattice = SMatrix{3, 3, T}(lattice)
     recip_lattice = 2π * inv(lattice')
 
     # Plan a FFT, spending some time on finding an optimal algorithm
@@ -59,10 +59,11 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
 
     dummy_kpoints = Vector{SVector{3, T}}(undef, length(kpoints))
     dummy_kweights = Vector{T}(undef, length(kweights))
+    dummy_kbasis = Vector{Vector{SVector{3, Int}}}(undef, length(kpoints))
     pw = PlaneWaveBasis{T}(lattice, recip_lattice, det(lattice), det(recip_lattice),
-                           grid_size, Ecut, dummy_kpoints, dummy_kweigths, kbasis,
+                           grid_size, Ecut, dummy_kpoints, dummy_kweights, dummy_kbasis,
                            fft_plan, ifft_plan)
-    substitute_kpoints!(pw, kpoints, kweigths)
+    substitute_kpoints!(pw, kpoints, kweights)
 end
 
 """
@@ -71,7 +72,7 @@ the internal data structures consistent.
 """
 function substitute_kpoints!(pw::PlaneWaveBasis{T}, kpoints, kweights) where T
     if length(kpoints) != length(kweights)
-        error("Lengths of kpoints and length of kweigths need to agree")
+        error("Lengths of kpoints and length of kweights need to agree")
     end
     kweights = Vector{T}(kweights / sum(kweights))  # Normalise kweights
     kpoints = [SVector{3, T}(kp) for kp in kpoints]
@@ -79,16 +80,12 @@ function substitute_kpoints!(pw::PlaneWaveBasis{T}, kpoints, kweights) where T
     resize!(pw.kpoints, length(kpoints))[:] = kpoints
     resize!(pw.kweights, length(kweights))[:] = kweights
 
-    # Range of wave vector coordinates covered by the Fourier grid ``B_ρ``
-    start = -ceil.(Int, (grid_size .- 1) ./ 2)
-    stop  = floor.(Int, (grid_size .- 1) ./ 2)
-    Gcoords = CartesianIndices(range.(start, stop, step=1))
-
     # Update kbasis: For each k-Point select those Gcoords, such that
     # the kinetic energy cutoff is satisfied
     for (ik, k) in enumerate(kpoints)
-        energy(Gc) = sum(abs2, recip_lattice * (k + Gc)) / 2
-        pw.kbasis[ik] = findall(Gc -> energy(Gc) ≤ Ecut, Gcoords)
+        energy(Gc) = sum(abs2, pw.recip_lattice * (k + Gc)) / 2
+        p = [Gc for Gc in gcoords(pw) if energy(Gc) ≤ pw.Ecut]
+        pw.kbasis[ik] = [Gc for Gc in gcoords(pw) if energy(Gc) ≤ pw.Ecut]
     end
 
     pw
@@ -96,6 +93,16 @@ end
 
 Base.eltype(basis::PlaneWaveBasis{T}) where T = T
 
+"""
+Return a generator producing the range of wave-vector coordinates contained
+in the Fourier grid ``B_ρ`` described by the plane-wave basis.
+"""
+function gcoords(pw::PlaneWaveBasis)
+    start = -ceil.(Int, (pw.grid_size .- 1) ./ 2)
+    stop  = floor.(Int, (pw.grid_size .- 1) ./ 2)
+    ci = CartesianIndices((UnitRange.(start, stop)..., ))
+    (SVector(ci[i].I) for i in 1:length(ci))
+end
 
 
 
