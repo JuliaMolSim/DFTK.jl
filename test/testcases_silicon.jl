@@ -6,4 +6,5 @@ kpoints = [[ 0.0         ,  0.0         ,  0.0         ],
            [-0.0         ,  0.0         ,  0.4081391913],
            [ 0.4081391913, -0.4081391913, -0.0         ]]
 kweights = [1, 8, 6, 12]
+kweights = kweights / sum(kweights)
 positions = 1.2828926667882428 * [ones(3), -ones(3)]

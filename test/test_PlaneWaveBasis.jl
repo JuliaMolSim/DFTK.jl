@@ -1,40 +1,40 @@
 include("testcases_silicon.jl")
 
-function test_pw_cutoffs(lattice, kpoints, kweights, Ecut, supersampling)
-    pw = PlaneWaveBasis(lattice, kpoints, kweights, Ecut,
-                        supersampling_Y=supersampling)
-
+function test_pw_cutoffs(lattice, kpoints, kweights, Ecut, grid_size)
+    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
     for (ik, k) in enumerate(kpoints)
-        for ig in pw.kmask[ik]
-            @test sum(abs2, k + pw.Gs[ig]) ≤ 2 * Ecut
+        for G in pw.wfctn_basis[ik]
+            @test sum(abs2, pw.recip_lattice * (k + G)) ≤ 2 * Ecut
         end
     end
 end
 
-@testset "Check with reference data" begin
-    # TODO Extend this test
-
+@testset "Check struct construction" begin
     Ecut = 3
-    pw = PlaneWaveBasis(lattice, kpoints, kweights, Ecut)
+    grid_size = [8, 8, 8]
+    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
 
     @test pw.lattice == lattice
     @test pw.recip_lattice ≈ 2π * inv(lattice)
     @test pw.unit_cell_volume ≈ det(lattice)
+    @test pw.recip_cell_volume ≈ (2π)^3 * det(inv(lattice))
 
-    @test pw.kpoints == kpoints
-    @test pw.kweights == kweights / sum(kweights)
-    # @test pw.Gs
     @test pw.Ecut == 3
-    @test pw.Gs[pw.idx_DC] == zeros(3)
-    # @test pw.kmask
-    # @test pw.qsq
+    @test pw.grid_size == grid_size
+    @test pw.kpoints == kpoints
 
-    # @test pw.grid_Yst
-    # @test pw.idx_to_fft
+    g_start = -ceil.(Int, (pw.grid_size .- 1) ./ 2)
+    g_stop  = floor.(Int, (pw.grid_size .- 1) ./ 2)
+    for kbasis in pw.wfctn_basis
+        for G in kbasis
+            @test g_start <= G <= g_stop
+        end
+    end
+    @test pw.kweights == kweights
 end
 
 @testset "Energy cutoff is respected" begin
-    test_pw_cutoffs(lattice, kpoints, kweights, 4.0, 2)
-    test_pw_cutoffs(lattice, kpoints, kweights, 3.0, 2)
-    test_pw_cutoffs(lattice, kpoints, kweights, 4.0, 1.8)
+    test_pw_cutoffs(lattice, kpoints, kweights, 4.0, [8, 8, 8])
+    test_pw_cutoffs(lattice, kpoints, kweights, 3.0, [8, 8, 8])
+    test_pw_cutoffs(lattice, kpoints, kweights, 4.0, [7, 6, 6])
 end

@@ -2,22 +2,39 @@ include("testcases_silicon.jl")
 
 @testset "FFT and IFFT are an identity" begin
     Ecut = 4.0  # Hartree
-    pw = PlaneWaveBasis(lattice, kpoints, kweights, Ecut)
+    grid_size = [8, 8, 8]
+    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
 
-    # Test Y_to_Yst and then Yst_to_Y, then Y_to_Yst
-    begin
-        f_Y = Array{ComplexF64}(randn(Float64, size(pw.Gs)))
+    @testset "Density grid transformation" begin
+        f_G = Array{ComplexF64}(randn(Float64, size(gcoords(pw))))
 
-        f_Yst = Array{ComplexF64}(undef, size(pw.grid_Yst))
-        Y_to_Yst!(pw, f_Y, f_Yst)
+        f_R = Array{ComplexF64}(undef, pw.grid_size...)
+        DFTK.G_to_R!(pw, f_G, f_R)
 
-        f2_Y = similar(f_Y)
-        Yst_to_Y!(pw, copy(f_Yst), f2_Y)
+        f2_G = similar(f_G)
+        DFTK.R_to_G!(pw, copy(f_R), f2_G)
 
-        f2_Yst = similar(f_Yst)
-        Y_to_Yst!(pw, f2_Y, f2_Yst)
+        f2_R = similar(f_R)
+        DFTK.G_to_R!(pw, f2_G, f2_R)
 
-        @test maximum(abs.(f2_Y - f_Y)) < 1e-12
-        @test maximum(abs.(f2_Yst - f_Yst)) < 1e-12
+        @test maximum(abs.(f2_G - f_G)) < 1e-12
+        @test maximum(abs.(f2_R - f_R)) < 1e-12
+    end
+
+    @testset "Wave function grid transformation" begin
+        ik = 2
+        f_G = Array{ComplexF64}(randn(Float64, size(pw.wfctn_basis[ik])))
+
+        f_R = Array{ComplexF64}(undef, pw.grid_size...)
+        DFTK.G_to_R!(pw, f_G, f_R, gcoords=pw.wfctn_basis[ik])
+
+        f2_G = similar(f_G)
+        DFTK.R_to_G!(pw, copy(f_R), f2_G, gcoords=pw.wfctn_basis[ik])
+
+        f2_R = similar(f_R)
+        DFTK.G_to_R!(pw, f2_G, f2_R, gcoords=pw.wfctn_basis[ik])
+
+        @test maximum(abs.(f2_G - f_G)) < 1e-12
+        @test maximum(abs.(f2_R - f_R)) < 1e-12
     end
 end
