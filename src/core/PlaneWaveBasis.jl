@@ -1,19 +1,47 @@
 using FFTW
 
+struct PlaneWaveBasis{T <: Real}
+    # Lattice and reciprocal lattice vectors in columns
+    lattice::SMatrix{3, 3, T, 9}
+    recip_lattice::SMatrix{3, 3, T, 9}
+    unit_cell_volume::T
+    recip_cell_volume::T
+
+    # Selected energy cutoff at construction time
+    Ecut::T
+
+    # Size of the rectangular Fourier grid used as the density basis
+    # and the k-point-specific (spherical) wave function basis
+    # The wave vectors are given in integer coordinates.
+    grid_size::SVector{3, Int}
+    kpoints::Vector{SVector{3, T}}
+    wfctn_basis::Vector{Vector{SVector{3, Int}}}
+
+    # Brillouin zone integration weights.
+    kweights::Vector{T}
+
+    # Plans for forward and backward FFT on B_ρ
+    # TODO Add explicit type.
+    FFT
+    iFFT
+end
+
 @doc raw"""
     PlaneWaveBasis(lattice::SMatrix{3, 3, T}, grid_size::SVector{3, I},
                    Ecut::Number, kpoints, kweights) where {T <: Real, I <: Integer}
 
-Create a plane-wave basis.
+Create a plane-wave basis from a specification for the Fourier grid size
+and a kinetic energy cutoff to select the ``k``-point-specific wave function
+basis ``B_{Ψ,k}`` in a way that the selected ``G`` wave vectors satisfy
+``|G + k|^2/2 \leq Ecut``.
 
 ## Examples
 ```julia-repl
 julia> b = PlaneWaveBasis(TODO)
 ```
 
-## Arguments and struct fields
-- `lattice`: Real-space lattice vectors in columns
-- `recip_lattice`: Reciprocal lattice vectors in columns
+## Arguments
+- `lattice`:       Real-space lattice vectors in columns
 - `grid_size`:     Size of the rectangular Fourier grid used as the
                    density basis ``B_ρ``. In each dimension `idim` the
                    range of wave vectors (in integer coordinates) extends from
@@ -23,28 +51,7 @@ julia> b = PlaneWaveBasis(TODO)
 - `Ecut`:          Kinetic energy cutoff in Hartree
 - `kpoints`:       List of ``k``-Points in fractional coordinats
 - `kweights`:      List of corresponding weights for the Brillouin-zone integration.
-- `kbasis`:        List of wave vectors (in integer coordinates) for each ``k``-Point,
-                   chosen such that ``|G + k|^2/2 \leq Ecut`` where ``G`` is the
-                   wave vector. The defines the wave function basis ``B_{Ψ,k}`` for
-                   each ``k``-Point.
-- `FFT` and `iFFT`:   Containers for the forward and backward FFT plans on ``B_ρ``.
 """
-struct PlaneWaveBasis{T <: Real}
-    lattice::SMatrix{3, 3, T}
-    recip_lattice::SMatrix{3, 3, T}
-    unit_cell_volume::T
-    recip_cell_volume::T
-
-    grid_size::SVector{3, Int}
-    Ecut::T
-    kpoints::Vector{SVector{3, T}}
-    kweights::Vector{T}
-    kbasis::Vector{Vector{SVector{3, Int}}}
-
-    FFT
-    iFFT
-end
-
 function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
                         Ecut::Number, kpoints, kweights) where {T <: Real}
     lattice = SMatrix{3, 3, T}(lattice)
@@ -57,35 +64,27 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
     fft_plan = plan_fft!(tmp, flags=FFTW.MEASURE)
     ifft_plan = plan_ifft!(tmp, flags=FFTW.MEASURE)
 
-    dummy_kpoints = Vector{SVector{3, T}}(undef, length(kpoints))
-    dummy_kweights = Vector{T}(undef, length(kweights))
-    dummy_kbasis = Vector{Vector{SVector{3, Int}}}(undef, length(kpoints))
     pw = PlaneWaveBasis{T}(lattice, recip_lattice, det(lattice), det(recip_lattice),
-                           grid_size, Ecut, dummy_kpoints, dummy_kweights, dummy_kbasis,
-                           fft_plan, ifft_plan)
-    substitute_kpoints!(pw, kpoints, kweights)
+                           grid_size, Ecut, [], [], [], fft_plan, ifft_plan)
+    set_kpoints!(pw, kpoints, kweights)
 end
 
 """
-Replace the kpoints of an existing Plane-wave basis and make
-the internal data structures consistent.
+Reset the kpoints of an existing Plane-wave basis and change the basis accordingly
 """
-function substitute_kpoints!(pw::PlaneWaveBasis{T}, kpoints, kweights) where T
-    if length(kpoints) != length(kweights)
-        error("Lengths of kpoints and length of kweights need to agree")
-    end
-    kweights = Vector{T}(kweights / sum(kweights))  # Normalise kweights
-    kpoints = [SVector{3, T}(kp) for kp in kpoints]
+function set_kpoints!(pw::PlaneWaveBasis{T}, kpoints, kweights) where T
+    @assert(length(kpoints) == length(kweights),
+            "Lengths of kpoints and length of kweights need to agree")
+    @assert sum(kweights) ≈ 1 "kweights are assumed to be normalized."
+    resize!(pw.kpoints, length(kpoints)) .= kpoints
+    resize!(pw.kweights, length(kweights)) .= kweights
 
-    resize!(pw.kpoints, length(kpoints))[:] = kpoints
-    resize!(pw.kweights, length(kweights))[:] = kweights
-
-    # Update kbasis: For each k-Point select those Gcoords, such that
-    # the kinetic energy cutoff is satisfied
+    # Update kbasis: For each k-Point select those G coords,
+    # satisfying the energy cutoff
     for (ik, k) in enumerate(kpoints)
-        energy(Gc) = sum(abs2, pw.recip_lattice * (k + Gc)) / 2
-        p = [Gc for Gc in gcoords(pw) if energy(Gc) ≤ pw.Ecut]
-        pw.kbasis[ik] = [Gc for Gc in gcoords(pw) if energy(Gc) ≤ pw.Ecut]
+        energy(q) = sum(abs2, pw.recip_lattice * q) / 2
+        p = [G for G in gcoords(pw) if energy(k + G) ≤ pw.Ecut]
+        pw.kbasis[ik] = [G for G in gcoords(pw) if energy(k + G) ≤ pw.Ecut]
     end
 
     pw
