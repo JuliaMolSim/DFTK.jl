@@ -62,15 +62,15 @@ using Markdown
 using LinearAlgebra
 using StaticArrays
 
-include("constants.jl")
+#
+# Core functionality
+#
+include("core/constants.jl")
 
 export PlaneWaveBasis
-export substitute_kpoints!
-export Y_to_Yst!
-export Xk_to_Yst!
-export Yst_to_Y!
-export Yst_to_Xk!
-include("PlaneWaveBasis.jl")
+export set_kpoints!
+export gcoords
+include("core/PlaneWaveBasis.jl")
 
 export PspHgh
 export eval_psp_local_fourier
@@ -105,5 +105,11 @@ include("lobpcg.jl")
 
 export self_consistent_field
 include("self_consistent_field.jl")
+
+#
+# Utilities
+#
+export determine_grid_size
+include("utils/determine_grid_size.jl")
 
 end # module DFTK
