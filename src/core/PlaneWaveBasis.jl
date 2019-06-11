@@ -130,11 +130,12 @@ function G_to_R!(pw::PlaneWaveBasis, f_fourier, f_real; gcoords=gcoords(pw))
     @assert(size(f_real) == size(pw.iFFT),
             "Size mismatch between f_real(==$(size(f_real)) and " *
             "FFT size(==$(size(pw.iFFT))")
+    fft_size = [size(pw.FFT)...]
 
     # Pad the input data, then perform an FFT on the rectangular cube
     f_real .= 0
     for (ig, G) in enumerate(gcoords)
-        idx_fft = 1 .+ mod.(G, [size(pw.FFT)...])  # TODO horrible
+        idx_fft = 1 .+ mod.(G, fft_size)
         f_real[idx_fft...] = f_fourier[ig]
     end
     f_real = pw.iFFT * f_real  # Note: This destroys data in f_real
@@ -162,13 +163,14 @@ function R_to_G!(pw::PlaneWaveBasis, f_real, f_fourier; gcoords=gcoords(pw))
     @assert(size(f_real) == size(pw.FFT),
             "Size mismatch between f_real(==$(size(f_real)) and " *
             "FFT size(==$(size(pw.FFT))")
+    fft_size = [size(pw.FFT)...]
 
     # Do FFT on the full FFT plan, but truncate the resulting frequency
     # range to the part defined by the idx_to_fft array
     f_fourier_extended = pw.FFT * f_real  # This destroys data in f_real
     f_fourier .= 0
     for (ig, G) in enumerate(gcoords)
-        idx_fft = 1 .+ mod.(G, [size(pw.FFT)...])  # TODO horrible
+        idx_fft = 1 .+ mod.(G, fft_size)
         f_fourier[ig] = f_fourier_extended[idx_fft...]
     end
     # Again adjust normalisation as in G_to_R
