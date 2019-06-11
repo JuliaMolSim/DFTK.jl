@@ -1,14 +1,12 @@
 @doc raw"""
     determine_grid_size(lattice, Ecut; kpoints=[[0,0,0]], supersampling=2)
 
-Determine the minimal, optimized grid size for the density fourier grid ``B_ρ``
-subject to the kinetic energy cutoff `Ecut` for the wave function and a density
-`supersampling` factor.
+Determine the minimal grid size for the density fourier grid ``B_ρ`` subject to the
+kinetic energy cutoff `Ecut` for the wave function and a density  `supersampling` factor.
 
 The function will determine the union of wave vectors ``G`` required to satisfy
 ``|G + k|^2/2 \leq Ecut * \text{supersampling}^2`` for all ``k``-Points. The
-returned grid dimensions are the smallest cartesian box to incorporate these
-``G`` and which is optimal with respect to the devide-and-conquer nature of the FFT.
+returned grid dimensions are the smallest cartesian box to incorporate these ``G``.
 
 For an exact representation of the density resulting from wave functions
 represented in the basis ``B_ρ = \{G : |G + k|^2/2 \leq Ecut\}``, `supersampling`
@@ -43,14 +41,11 @@ function determine_grid_size(lattice::AbstractMatrix, Ecut; kpoints=[[0, 0, 0]],
     trial_n_range = -trial_n_max-1:trial_n_max+1
     n_max = 0
     for coord in CartesianIndices((trial_n_range, trial_n_range, trial_n_range))
-        G = recip_lattice * [coord.I...]
-        if any(sum(abs2, G + k) ≤ cutoff_qsq for k in kpoints)
+        energy(q) = sum(abs2, recip_lattice * q) / 2
+        if any(energy([coord.I...] + k) ≤ supersampling^2 * Ecut for k in kpoints)
             @assert all(abs.([coord.I...]) .<= trial_n_max)
             n_max = max(n_max, maximum(abs.([coord.I...])))
         end
     end
-
-    # Increase n_max to power of 2 (for fast FFT)
-    n_max = nextpow(2, n_max)
-    return n_max * @SArray(ones(3))
+    return 2 * n_max + 1
 end

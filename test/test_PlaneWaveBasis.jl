@@ -11,7 +11,7 @@ end
 
 @testset "Check struct construction" begin
     Ecut = 3
-    grid_size = [8, 8, 8]
+    grid_size = [15, 15, 15]
     pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
 
     @test pw.lattice == lattice
@@ -34,7 +34,7 @@ end
 end
 
 @testset "Energy cutoff is respected" begin
-    test_pw_cutoffs(lattice, kpoints, kweights, 4.0, [8, 8, 8])
-    test_pw_cutoffs(lattice, kpoints, kweights, 3.0, [8, 8, 8])
-    test_pw_cutoffs(lattice, kpoints, kweights, 4.0, [7, 6, 6])
+    test_pw_cutoffs(lattice, kpoints, kweights, 4.0, [15, 15, 15])
+    test_pw_cutoffs(lattice, kpoints, kweights, 3.0, [15, 13, 13])
+    test_pw_cutoffs(lattice, kpoints, kweights, 4.0, [11, 13, 11])
 end

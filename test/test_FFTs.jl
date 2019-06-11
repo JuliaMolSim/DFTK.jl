@@ -2,13 +2,13 @@ include("testcases_silicon.jl")
 
 @testset "FFT and IFFT are an identity" begin
     Ecut = 4.0  # Hartree
-    grid_size = [8, 8, 8]
+    grid_size = [15, 15, 15]
     pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
 
     @testset "Density grid transformation" begin
-        f_G = Array{ComplexF64}(randn(Float64, size(gcoords(pw))))
+        f_G = Array{ComplexF64}(randn(Float64, prod(pw.grid_size)))
 
-        f_R = Array{ComplexF64}(undef, pw.grid_size...)
+        f_R = Array{ComplexF64}(undef, size(pw.FFT)...)
         DFTK.G_to_R!(pw, f_G, f_R)
 
         f2_G = similar(f_G)
@@ -25,7 +25,7 @@ include("testcases_silicon.jl")
         ik = 2
         f_G = Array{ComplexF64}(randn(Float64, size(pw.wfctn_basis[ik])))
 
-        f_R = Array{ComplexF64}(undef, pw.grid_size...)
+        f_R = Array{ComplexF64}(undef, size(pw.FFT)...)
         DFTK.G_to_R!(pw, f_G, f_R, gcoords=pw.wfctn_basis[ik])
 
         f2_G = similar(f_G)

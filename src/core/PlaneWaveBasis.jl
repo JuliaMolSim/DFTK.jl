@@ -58,9 +58,15 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
     lattice = SMatrix{3, 3, T, 9}(lattice)
     recip_lattice = 2π * inv(lattice')
 
+    @assert(mod.(grid_size, 2) == ones(3),
+            "Grid size needs to be a 3D Array with all entries odd.")
+    # Otherwise the symmetry of the density and the potential (purely real)
+    # cannot be represented consistently
+
     # Plan a FFT, spending some time on finding an optimal algorithm
     # for the machine on which the computation runs
-    tmp = Array{Complex{T}}(undef, grid_size...)
+    fft_size = nextpow.(2, grid_size)  # Optimise FFT grid
+    tmp = Array{Complex{T}}(undef, fft_size...)
     fft_plan = plan_fft!(tmp, flags=FFTW.MEASURE)
     ifft_plan = plan_ifft!(tmp, flags=FFTW.MEASURE)
 
@@ -70,7 +76,7 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
 end
 
 """
-Reset the kpoints of an existing Plane-wave basis and change the basis accordingly
+Reset the kpoints of an existing Plane-wave basis and change the basis accordingly.
 """
 function set_kpoints!(pw::PlaneWaveBasis{T}, kpoints, kweights; Ecut=pw.Ecut) where T
     @assert(length(kpoints) == length(kweights),
@@ -121,12 +127,14 @@ in `f_real`. If `gcoords` is absent, the full density grid ``B_ρ`` is used.
 """
 function G_to_R!(pw::PlaneWaveBasis, f_fourier, f_real; gcoords=gcoords(pw))
     @assert length(f_fourier) == length(gcoords)
-    @assert size(f_real) == Tuple(pw.grid_size)
+    @assert(size(f_real) == size(pw.iFFT),
+            "Size mismatch between f_real(==$(size(f_real)) and " *
+            "FFT size(==$(size(pw.iFFT))")
 
     # Pad the input data, then perform an FFT on the rectangular cube
     f_real .= 0
     for (ig, G) in enumerate(gcoords)
-        idx_fft = 1 .+ mod.(G, pw.grid_size)
+        idx_fft = 1 .+ mod.(G, [size(pw.FFT)...])  # TODO horrible
         f_real[idx_fft...] = f_fourier[ig]
     end
     f_real = pw.iFFT * f_real  # Note: This destroys data in f_real
@@ -135,7 +143,7 @@ function G_to_R!(pw::PlaneWaveBasis, f_fourier, f_real; gcoords=gcoords(pw))
     # but the normalisation convention used in this code is
     # e_G(x) = e^iGx / sqrt(|Γ|), so we need to use the factor
     # below in order to match both conventions.
-    f_real .*= prod(size(pw.grid_size))
+    f_real .*= length(pw.iFFT)
 end
 
 
@@ -151,16 +159,18 @@ If `gcoords` is absent, the full density grid ``B_ρ`` is used.
 """
 function R_to_G!(pw::PlaneWaveBasis, f_real, f_fourier; gcoords=gcoords(pw))
     @assert length(f_fourier) == length(gcoords)
-    @assert size(f_real) == Tuple(pw.grid_size)
+    @assert(size(f_real) == size(pw.FFT),
+            "Size mismatch between f_real(==$(size(f_real)) and " *
+            "FFT size(==$(size(pw.FFT))")
 
     # Do FFT on the full FFT plan, but truncate the resulting frequency
     # range to the part defined by the idx_to_fft array
     f_fourier_extended = pw.FFT * f_real  # This destroys data in f_real
     f_fourier .= 0
     for (ig, G) in enumerate(gcoords)
-        idx_fft = 1 .+ mod.(G, pw.grid_size)
+        idx_fft = 1 .+ mod.(G, [size(pw.FFT)...])  # TODO horrible
         f_fourier[ig] = f_fourier_extended[idx_fft...]
     end
     # Again adjust normalisation as in G_to_R
-    f_fourier .*= 1 / prod(size(pw.grid_size))
+    f_fourier .*= 1 / length(pw.FFT)
 end

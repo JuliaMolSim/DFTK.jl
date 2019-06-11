@@ -7,25 +7,25 @@ like the local part of a pseudopotential
 """
 struct PotLocal
     basis::PlaneWaveBasis
-    values_Yst  # Values on the Yst grid
+    values_real  # Values on the real-space grid corresponding to basis
 
-    function PotLocal(basis::PlaneWaveBasis, values_Yst::AbstractArray)
-        if size(basis.grid_Yst) != size(values_Yst)
-            error("Size mismatch between real-space potential grid Y* as defined " *
-                  "by the plane-wave basis (== $(size(basis.grid_Yst))) and the " *
-                  "size of the passed values (== $(size(values_Yst))).")
+    function PotLocal(basis::PlaneWaveBasis, values_real::AbstractArray)
+        if size(basis.FFT) != size(values_real)
+            error("Size mismatch between real-space potential grid as defined " *
+                  "by the plane-wave basis (== $(size(basis.FFT))) and the " *
+                  "size of the passed values (== $(size(values_real))).")
         end
-        new(basis, values_Yst)
+        new(basis, values_real)
     end
 end
 
-apply_real!(tmp_Yst, pot::PotLocal, in_Yst) = tmp_Yst .= pot.values_Yst .* in_Yst
+apply_real!(tmp_real, pot::PotLocal, in_real) = tmp_Yst .= pot.values_real .* in_real
 
 """
 Function which generates a local potential.
 
 The potential is generated in Fourier space as a sum of analytic terms
-and then transformed onto the real-space potential grid Y*. For this
+and then transformed onto the real-space potential grid ``B^∗_ρ``. For this
 positions of all "species" involved in the lattice may be given
 via a mapping from an identifier to a list of positions (in cartesian
 or fractional coordinates) in the unit cell. The unit cell definition
@@ -80,7 +80,7 @@ function PotLocal(pw::PlaneWaveBasis, positions, generators; parameters = (),
 
     for spec in species
         if !haskey(generators, spec)
-            raise(ArgumentError("No generator found for species $(string(spec))." *
+            throw(ArgumentError("No generator found for species $(string(spec))." *
                                 "Please check that the generator specification contains" *
                                 " a key for each species defined in the positions " *
                                 "parameter."))
@@ -98,6 +98,10 @@ function PotLocal(pw::PlaneWaveBasis, positions, generators; parameters = (),
 
     # Closure to get the potential value a particular wave vector G
     function call_generators(G)
+        if compensating_background && G == [0,0,0]
+            return 0.0
+        end
+
         # Bind the parameters to the generators: Given a G wave vector
         # and a species, return the potential value
         potential(G, spec) = generators[spec](G, get(parameters, spec, ())...)
@@ -113,23 +117,19 @@ function PotLocal(pw::PlaneWaveBasis, positions, generators; parameters = (),
         )
     end
 
-    # Get the values in the plane-wave basis set Y
-    values_Y = call_generators.(pw.Gs)
+    # Get the values in the plane-wave basis set (Fourier space)
+    Gs = [pw.recip_lattice * G for G in gcoords(pw)]
+    values_fourier = call_generators.(Gs)
 
-    # Zero DC component if compensating background is requested
-    if compensating_background
-        values_Y[pw.idx_DC] = 0
-    end
+    values_real = similar(values_fourier, Complex{T}, size(pw.FFT)...)
+    G_to_R!(pw, values_fourier, values_real)
 
-    values_Yst = similar(pw.grid_Yst, Complex{T})
-    Y_to_Yst!(pw, values_Y, values_Yst)
-
-    if maximum(imag(values_Yst)) > 100 * eps(T)
-        raise(ArgumentError("Expected potential on the real-space grid Y* to be entirely" *
+    if maximum(imag(values_real)) > 100 * eps(T)
+        throw(ArgumentError("Expected potential on the real-space grid to be entirely" *
                             " real-valued, but the present potential gives rise to a " *
-                            "maximal imaginary entry of $(maximum(imag(values_Yst)))."))
+                            "maximal imaginary entry of $(maximum(imag(values_real)))."))
     end
-    PotLocal(pw, real(values_Yst))
+    PotLocal(pw, real(values_real))
 end
 
 
