@@ -19,7 +19,7 @@ struct PotLocal
     end
 end
 
-apply_real!(tmp_real, pot::PotLocal, in_real) = tmp_Yst .= pot.values_real .* in_real
+apply_real!(tmp_real, pot::PotLocal, in_real) = tmp_real .= pot.values_real .* in_real
 
 """
 Function which generates a local potential.
@@ -70,7 +70,7 @@ julia> PotLocal(basis,
 """
 function PotLocal(pw::PlaneWaveBasis, positions, generators; parameters = (),
                   coords_are_cartesian=false, compensating_background=true)
-    T = eltype(pw)
+    T = eltype(pw.lattice)
     positions = Dict{Any, Vector{Vector{T}}}(positions)
     generators = Dict{Any, Function}(generators)
     parameters = Dict(parameters)

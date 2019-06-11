@@ -32,7 +32,7 @@ function PotNonLocal(pw::PlaneWaveBasis, positions, psps)
     proj_vectors_all = Vector{Vector{Array{Float64, 3}}}(undef, n_k)
     structure_factor_all = Vector{Matrix{ComplexF64}}(undef, n_k)
     for (ik, k) in enumerate(pw.kpoints)
-        n_G = length(pw.kmask[ik])
+        n_G = length(pw.wfctn_basis[ik])
 
         # Evaluate projection vectors
         proj_vectors = Vector{Array{Float64, 3}}(undef, psp.lmax + 1)
@@ -41,10 +41,10 @@ function PotNonLocal(pw::PlaneWaveBasis, positions, psps)
             proj_l = zeros(Float64, n_G, n_proj, 2l + 1)
             for m in -l:l
                 for iproj in 1:n_proj
-                    for (icont, ig) in enumerate(pw.kmask[ik])
+                    for (icont, G) in enumerate(pw.wfctn_basis[ik])
                         # Compute projector for q and add it to proj_l
                         # including structure factor
-                        q = pw.Gs[ig] + k
+                        q = pw.recip_lattice * (G+k)
                         radial_il = eval_psp_projection_radial(psp, iproj, l, sum(abs2, q))
                         proj_l[icont, iproj, l + m + 1] = radial_il * ylm_real(l, m, q)
                         # im^l *
@@ -55,10 +55,11 @@ function PotNonLocal(pw::PlaneWaveBasis, positions, psps)
         end  # l
         proj_vectors_all[ik] = proj_vectors
 
+        Gvectors = [pw.recip_lattice * G for G in pw.wfctn_basis[ik]]
         structure_factor = Matrix{ComplexF64}(undef, n_G, length(atoms))
         for (iatom, R) in enumerate(atoms)
-            for (icont, ig) in enumerate(pw.kmask[ik])
-                structure_factor[icont, iatom] = cis(dot(R, pw.Gs[ig]))
+            for (icont, G) in enumerate(Gvectors)
+                structure_factor[icont, iatom] = cis(dot(R, G))
             end
         end
         structure_factor_all[ik] = structure_factor
@@ -73,7 +74,7 @@ function apply_fourier!(out_Xk, pot::PotNonLocal, ik::Int, in_Xk)
     proj_vectors = pot.proj_vectors[ik]
     proj_coeffs = pot.proj_coeffs
 
-    n_G = length(pw.kmask[ik])
+    n_G = length(pw.wfctn_basis[ik])
     n_vec = size(in_Xk, 2)
     n_atoms = size(structure_factor, 2)
     lmax = length(proj_vectors) - 1

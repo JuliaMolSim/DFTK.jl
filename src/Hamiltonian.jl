@@ -67,9 +67,9 @@ end
 """
 Construct a Hamiltonian from a basis and various potential terms
 """
-function Hamiltonian(basis::AbstractBasis; pot_local=nothing, pot_nonlocal=nothing,
+function Hamiltonian(kinetic::Kinetic; pot_local=nothing, pot_nonlocal=nothing,
             pot_hartree=nothing, pot_xc=nothing)
-    Hamiltonian(basis, Kinetic(basis), pot_local, pot_nonlocal,
+    Hamiltonian(kinetic.basis, kinetic, pot_local, pot_nonlocal,
                 pot_hartree, pot_xc)
 end
 
@@ -83,12 +83,12 @@ function Hamiltonian(; pot_local=nothing, pot_nonlocal=nothing, pot_hartree=noth
     if basisobj == false
         error("At least one potenial terms needs to be given.")
     end
-    Hamiltonian(basisobj.basis, pot_local=pot_local, pot_nonlocal=pot_nonlocal,
+    Hamiltonian(Kinetic(basisobj.basis), pot_local=pot_local, pot_nonlocal=pot_nonlocal,
                 pot_hartree=pot_hartree, pot_xc=pot_xc)
 end
 
 
-Base.eltype(ham::Hamiltonian) = Complex{eltype(ham.basis)}
+Base.eltype(ham::Hamiltonian) = Complex{eltype(ham.basis.lattice)}
 
 
 """
@@ -122,8 +122,8 @@ function apply_fourier!(out_Xk::AbstractVector, ham::Hamiltonian, ik::Int, preco
     fft_terms = [ham.pot_local, ham.pot_hartree, ham.pot_xc]
     if any(term !== nothing for term in fft_terms)
         # If any of the terms requiring an iFFT is present, do an iFFT
-        in_Yst = similar(in_Xk, size(pw.grid_Yst))
-        in_Yst = Xk_to_Yst!(pw, ik, in_Xk, in_Yst)
+        in_Yst = similar(in_Xk, size(pw.FFT)...)
+        in_Yst = G_to_R!(pw, in_Xk, in_Yst, gcoords=pw.wfctn_basis[ik])
 
         # Apply the terms and accumulate
         accu_Yst = zero(in_Yst)
@@ -134,7 +134,7 @@ function apply_fourier!(out_Xk::AbstractVector, ham::Hamiltonian, ik::Int, preco
 
         # FFT back to Xk basis, accumlate, notice that this call
         # invalidates the data of accu_Yst as well.
-        out_Xk .+= Yst_to_Xk!(pw, ik, accu_Yst, tmp_Xk)
+        out_Xk .+= R_to_G!(pw, accu_Yst, tmp_Xk, gcoords=pw.wfctn_basis[ik])
     end
     out_Xk
 end
@@ -167,9 +167,9 @@ empty_precompute(op::Nothing) = nothing
 # TODO Is there a more julia-idiomatic way to do this?
 function block_as_matrix(ham::Hamiltonian, ik::Int, precomp_hartree, precomp_xc)
     # TODO This assumes a PlaneWaveBasis
-    n_bas = length(ham.basis.kmask[ik])
+    n_bas = prod(ham.basis.grid_size)
     T = eltype(ham)
-    mat = Matrix{T}(undef, (n_bas,n_bas))
+    mat = Matrix{T}(undef, (n_bas, n_bas))
     v = fill(zero(T), n_bas)
     @inbounds for i = 1:n_bas
         v[i] = one(T)

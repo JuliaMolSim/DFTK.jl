@@ -100,8 +100,6 @@ function set_kpoints!(pw::PlaneWaveBasis{T}, kpoints, kweights; Ecut=pw.Ecut) wh
     pw
 end
 
-Base.eltype(basis::PlaneWaveBasis{T}) where T = T
-
 """
 Return a generator producing the range of wave-vector coordinates contained
 in the Fourier grid ``B_ρ`` described by the plane-wave basis.

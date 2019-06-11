@@ -7,7 +7,10 @@ end
 
 
 function apply_fourier!(out_Xk, kinetic::Kinetic, ik, in_Xk)
-    # Apply the laplacian -Δ/2
+    # Apply the Laplacian -Δ/2
     pw = kinetic.basis
-    out_Xk .= Diagonal(pw.qsq[ik] / 2) * in_Xk
+    k = pw.kpoints[ik]
+
+    qsq = [sum(abs2, pw.recip_lattice * (G + k)) for G in pw.wfctn_basis[ik]]
+    out_Xk .= Diagonal(qsq / 2) * in_Xk
 end

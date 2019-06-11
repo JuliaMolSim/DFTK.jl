@@ -3,8 +3,9 @@ include("testcases_silicon.jl")
 @testset "Diagonalisation of a free-electron Hamiltonian" begin
     # Construct a free-electron Hamiltonian
     Ecut = 5
-    pw = PlaneWaveBasis(lattice, kpoints, kweights, Ecut)
-    ham = Hamiltonian(pw)
+    grid_size = [15, 15, 15]
+    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
+    ham = Hamiltonian(Kinetic(pw))
 
     tol = 1e-8
     nev_per_k = 10
@@ -47,13 +48,14 @@ end
 @testset "Diagonalisation of kinetic + local psp" begin
     if ! running_in_ci
         Ecut = 25
-        pw = PlaneWaveBasis(lattice, kpoints, kweights, Ecut)
+        grid_size = [33, 33, 33]
+        pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
         hgh = PspHgh("si-pade-q4")
 
         psp_local = PotLocal(pw, positions, G -> DFTK.eval_psp_local_fourier(hgh, G),
                              coords_are_cartesian=true)
         ham = Hamiltonian(pot_local=psp_local)
-        res = lobpcg(ham, 5, tol=1e-8)
+        res = lobpcg(ham, 6, tol=1e-8)
 
         ref = [
             [-4.087198659513310, -4.085326314828677, -0.506869382308294,
@@ -66,7 +68,7 @@ end
              -0.513805498246478, -0.497036479690380]
         ]
         for ik in 1:length(kpoints)
-            @test res.λ[ik] ≈ ref[ik] atol=5e-7
+            @test res.λ[ik][1:5] ≈ ref[ik] atol=5e-7
         end
     else
         println("Skipping diagonalisation of kinetic + local psp since running from CI")
@@ -75,7 +77,8 @@ end
 
 @testset "Diagonalisation of a core Hamiltonian" begin
     Ecut = 10
-    pw = PlaneWaveBasis(lattice, kpoints, kweights, Ecut)
+    grid_size = [21, 21, 21]
+    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
     hgh = PspHgh("si-pade-q4")
 
     psp_local = PotLocal(pw, positions, G -> DFTK.eval_psp_local_fourier(hgh, G),
