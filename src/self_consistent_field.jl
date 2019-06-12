@@ -42,7 +42,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
         # nlsolve cannot do complex ... unfortunately
         #    TODO not actually a problem, since we can do a "toReal" Fourier-transform
         function compute_residual!(residual, ρ_Y_folded)
-            n_G = length(pw.Gs)
+            n_G = prod(pw.grid_size)
             @assert size(ρ_Y_folded) == (2 * n_G, )
             ρ_Y = ρ_Y[1:n_G] + im * ρ_Y_folded[n_G + 1:end]
 
@@ -69,13 +69,12 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
                       ftol=0.0, show_trace=true)
         @assert res.converged
 
-        n_G = length(pw.Gs)
+        n_G = prod(pw.grid_size)
         @assert maximum(abs.(res.zero[n_G + 1:end])) < tol
         ρ_Y = res.zero[1:n_G]
     else
         for i in 1:100
             if precomp_hartree !== nothing
-                orig = copy(precomp_hartree.values_Yst)
                 precomp_hartree = precompute!(precomp_hartree, ham.pot_hartree, ρ_Y)
                 precomp_xc = precompute!(precomp_xc, ham.pot_xc, ρ_Y)
             end

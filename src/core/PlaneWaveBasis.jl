@@ -15,6 +15,7 @@ struct PlaneWaveBasis{T <: Real}
     # and the k-point-specific (spherical) wave function basis
     # The wave vectors are given in integer coordinates.
     grid_size::SVector{3, Int}
+    idx_DC::Int  # Index of the DC component
     kpoints::Vector{SVector{3, T}}
     wfctn_basis::Vector{Vector{SVector{3, Int}}}
 
@@ -59,9 +60,9 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
     recip_lattice = 2π * inv(lattice')
 
     @assert(mod.(grid_size, 2) == ones(3),
-            "Grid size needs to be a 3D Array with all entries odd.")
-    # Otherwise the symmetry of the density and the potential (purely real)
-    # cannot be represented consistently
+            "grid_size needs to be a 3D Array with all entries odd, such that the " *
+            "symmetry of a real quantity can be properly represented.")
+    idx_DC = LinearIndices((Int.(grid_size)..., ))[ceil.(Int, grid_size ./ 2)...]
 
     # Plan a FFT, spending some time on finding an optimal algorithm
     # for the machine on which the computation runs
@@ -71,7 +72,7 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
     ifft_plan = plan_ifft!(tmp, flags=FFTW.MEASURE)
 
     pw = PlaneWaveBasis{T}(lattice, recip_lattice, det(lattice), det(recip_lattice),
-                           Ecut, grid_size, [], [], [], fft_plan, ifft_plan)
+                           Ecut, grid_size, idx_DC, [], [], [], fft_plan, ifft_plan)
     set_kpoints!(pw, kpoints, kweights)
 end
 

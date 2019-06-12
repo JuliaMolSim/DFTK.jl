@@ -28,8 +28,7 @@ include("testcases_silicon.jl")
         Gvectors = [pw.recip_lattice * G for G in gcoords(pw)]
         reference = [4π / pw.unit_cell_volume * pot_coulomb(G) * cis(dot(G, lattice_vector))
                      for G in Gvectors]
-        idx_DC = findfirst(G -> norm(G) < 1e-14, Gvectors)
-        reference[idx_DC] = 0
+        reference[pw.idx_DC] = 0
         @test reference ≈ values_fourier
     end
 

@@ -4,20 +4,21 @@ struct PotHartree
 end
 
 struct PrecompHartree
-    values_Yst  # Values on the Yst grid
+    values_real  # Values on the real-space grid
 end
 
 """
 Construct an empty PrecompHartree object
 """
 function PrecompHartree(basis::PlaneWaveBasis)
-    PrecompHartree(similar(basis.grid_Yst, eltype(basis)))
+    # TODO Array-type hard-coded here!
+    PrecompHartree(Array{eltype(basis.lattice)}(undef, size(basis.FFT)...))
 end
 empty_precompute(pot::PotHartree) = PrecompHartree(pot.basis)
 
 
 function apply_real!(tmp_Yst, pot::PotHartree, precomp::PrecompHartree, in_Yst)
-    tmp_Yst .= precomp.values_Yst .* in_Yst
+    tmp_Yst .= precomp.values_real .* in_Yst
 end
 
 """
@@ -33,7 +34,8 @@ function precompute!(precomp::PrecompHartree, pot::PotHartree, ρ_Y)
     # same order as the elements of ρ_Y. Thus computing the second
     # derivative (i.e. solving the Poission equation ΔV = -4π ρ
     # boils down to:
-    values_Y = 4π * ρ_Y ./ pw.Gsq
+    Gsq = [sum(abs2, pw.recip_lattice * G) for G in gcoords(pw)]
+    values_Y = 4π * ρ_Y ./ Gsq
 
     # Zero the DC component for the constant charge background:
     values_Y[pw.idx_DC] = 0
@@ -42,16 +44,16 @@ function precompute!(precomp::PrecompHartree, pot::PotHartree, ρ_Y)
     #      real-type array we store in PrecompHartree, maybe it makes
     #      sense to switch to storing complex objects instead.
 
-    # Fourier-transform and store in values_Yst
-    T = eltype(pw)
-    values_Yst = similar(precomp.values_Yst, Complex{T})
-    Y_to_Yst!(pw, values_Y, values_Yst)
+    # Fourier-transform and store in values_real
+    T = eltype(pw.lattice)
+    values_real = similar(precomp.values_real, Complex{T})
+    G_to_R!(pw, values_Y, values_real)
 
-    if maximum(imag(values_Yst)) > 100 * eps(T)
+    if maximum(imag(values_real)) > 100 * eps(T)
         raise(ArgumentError("Expected potential on the real-space grid Y* to be entirely" *
                             " real-valued, but the present potential gives rise to a " *
-                            "maximal imaginary entry of $(maximum(imag(values_Yst)))."))
+                            "maximal imaginary entry of $(maximum(imag(values_real)))."))
     end
-    precomp.values_Yst[:] = real(values_Yst)
+    precomp.values_real[:] = real(values_real)
     precomp
 end
