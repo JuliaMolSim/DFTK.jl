@@ -23,8 +23,7 @@ struct PlaneWaveBasis{T <: Real}
     kweights::Vector{T}
 
     # Plans for forward and backward FFT on B_ρ
-    # TODO Add explicit type.
-    FFT
+    FFT  # TODO Add explicit type.
     iFFT
 end
 

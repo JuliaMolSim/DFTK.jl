@@ -34,16 +34,18 @@ spgana = symmetry.analyzer.SpacegroupAnalyzer(structure)
 bzmesh = spgana.get_ir_reciprocal_mesh(kgrid)
 kpoints = [recip_lattice.get_cartesian_coords(mp[1]) for mp in bzmesh]
 kweigths = [mp[2] for mp in bzmesh]
+kweigths = kweigths / sum(kweigths)
 
 #
 # Basis and Hamiltonian in DFTK
 #
 # Construct basis: transpose is required, since pymatgen uses rows for the
 # lattice vectors and DFTK uses columns
-basis = PlaneWaveBasis(A', kpoints, kweigths, Ecut)
+grid_size = DFTK.determine_grid_size(A', Ecut, kpoints=kpoints) * ones(Int, 3)
+basis = PlaneWaveBasis(A', grid_size, Ecut, kpoints, kweigths)
 
 # Construct a free-electron Hamiltonian
-ham = Hamiltonian(basis)
+ham = Hamiltonian(Kinetic(basis))
 
 #
 # Band structure calculation in DFTK
@@ -56,8 +58,8 @@ println("Computing bands along kpath:\n     $(join(symm_kpath.kpath["path"][1], 
 # TODO Maybe think about some better mechanism here:
 #      This kind of feels implicit, since it also replaces the kpoints
 #      from potential other references to the ham or PlaneWaveBasis object.
-substitute_kpoints!(ham.basis, kpoints,
-                    zeros(eltype(ham.basis), length(kpoints)))
+kweigths = ones(length(kpoints)) ./ length(kpoints)
+set_kpoints!(ham.basis, kpoints, kweigths)
 
 # Compute bands:
 band_data = lobpcg(ham, n_bands, preconditioner=PreconditionerKinetic(ham, α=0.5))

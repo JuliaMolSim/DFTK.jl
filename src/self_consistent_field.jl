@@ -102,7 +102,8 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
                 end
                 break
             end
-            ρ_Y = ρ_Y_new * 0.2 + 0.8 * ρ_Y
+            damp = 0.25
+            ρ_Y = ρ_Y_new * damp + (1 - damp) * ρ_Y
         end
     end # use_nlsolve
 
