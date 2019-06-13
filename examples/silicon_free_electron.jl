@@ -23,11 +23,7 @@ A = mg.ArrayWithUnit(a / 2 .* [[0 1 1.];
                                [1 1 0.]], "bohr")
 lattice = mg.lattice.Lattice(A)
 recip_lattice = lattice.reciprocal_lattice
-
-τ = a / 8 .* [1, 1, 1]
-coords = mg.ArrayWithUnit([τ, -τ], "bohr")
-
-structure = mg.Structure(lattice, ["Si", "Si"], coords, coords_are_cartesian=true)
+structure = mg.Structure(lattice, ["Si", "Si"], [ones(3)/8, -ones(3)/8])
 
 # Get k-Point mesh for Brillouin-zone integration
 spgana = symmetry.analyzer.SpacegroupAnalyzer(structure)

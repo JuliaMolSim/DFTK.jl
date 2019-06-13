@@ -74,12 +74,21 @@ function Hamiltonian(kinetic::Kinetic; pot_local=nothing, pot_nonlocal=nothing,
 end
 
 
+#=
+function Hamiltonian(basis; kinetic=Kinetic(basis), pot_local=nothing, pot_nonlocal=nothing,
+            pot_hartree=nothing, pot_xc=nothing)
+    Hamiltonian(basis, kinetic, pot_local, pot_nonlocal,
+                pot_hartree, pot_xc)
+end
+=#
+
+
 """
 Construct a Hamiltonian from a list of potential terms
 """
 function Hamiltonian(; pot_local=nothing, pot_nonlocal=nothing, pot_hartree=nothing,
                      pot_xc=nothing)
-    basisobj = something(pot_local, pot_nonlocal, pot_hartree, pot_xc, false)
+    basisobj = something(pot_nonlocal, pot_hartree, pot_xc, false)
     if basisobj == false
         error("At least one potenial terms needs to be given.")
     end
@@ -156,6 +165,7 @@ end
 # Specialisations of apply_fourier! and apply_real! for cases
 # where nothing should be done.
 apply_fourier!(out_Xk, op::Nothing, ik::Int, in_Xk) = (out_Xk .= 0)
+"""Apply term staying on the real-space density grid ``B^∗_ρ``"""
 apply_real!(out_Yst, op::Nothing, in_Yst) = (out_Yst .= 0)
 apply_real!(out_Yst, op::Nothing, precomp, in_Yst) = (out_Yst .= 0)
 

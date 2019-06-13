@@ -23,11 +23,7 @@ A = mg.ArrayWithUnit(a / 2 .* [[0 1 1.];
                                [1 1 0.]], "bohr")
 lattice = mg.lattice.Lattice(A)
 recip_lattice = lattice.reciprocal_lattice
-
-τ = a / 8 .* [1, 1, 1]
-coords = mg.ArrayWithUnit([τ, -τ], "bohr")
-
-structure = mg.Structure(lattice, ["Si", "Si"], coords, coords_are_cartesian=true)
+structure = mg.Structure(lattice, ["Si", "Si"], [ones(3)/8, -ones(3)/8])
 
 # Get k-Point mesh for Brillouin-zone integration
 spgana = symmetry.analyzer.SpacegroupAnalyzer(structure)
@@ -46,9 +42,11 @@ basis = PlaneWaveBasis(A', grid_size, Ecut, kpoints, kweigths)
 
 # Construct a local pseudopotential
 hgh = PspHgh("si-pade-q4")
-positions = [s.coords for s in structure.sites]
-psp_local = PotLocal(basis, positions, G -> DFTK.eval_psp_local_fourier(hgh, G), coords_are_cartesian=true)
-psp_nonlocal = PotNonLocal(basis, "Si" => positions, "Si" => hgh)
+positions = [s.frac_coords for s in structure.sites]
+psp_local = build_local_potential(basis, positions,
+                                  G -> DFTK.eval_psp_local_fourier(hgh, G))
+pos_cart = [basis.lattice * pos for pos in positions]
+psp_nonlocal = PotNonLocal(basis, "Si" => pos_cart, "Si" => hgh)
 n_filled = 4  # In a Silicon psp model, the number of electrons per unit cell is 8
 
 # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)

@@ -28,9 +28,10 @@ function run_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15)
 
     # Construct a local pseudopotential
     hgh = PspHgh("si-pade-q4")
-    psp_local = PotLocal(basis, positions, G -> DFTK.eval_psp_local_fourier(hgh, G),
-                         coords_are_cartesian=true)
-    psp_nonlocal = PotNonLocal(basis, "Si" => positions, "Si" => hgh)
+    psp_local = build_local_potential(basis, positions,
+                                      G -> DFTK.eval_psp_local_fourier(hgh, G))
+    pos_cart = [basis.lattice * pos for pos in positions]
+    psp_nonlocal = PotNonLocal(basis, "Si" => pos_cart, "Si" => hgh)
     n_filled = 4  # In a Silicon psp model, the number of electrons per unit cell is 8
 
     # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)

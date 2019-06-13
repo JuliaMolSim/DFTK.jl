@@ -65,12 +65,20 @@ using StaticArrays
 #
 # Core functionality
 #
+export Vec3
+export Mat3
 include("core/constants.jl")
 
 export PlaneWaveBasis
 export set_kpoints!
 export gcoords
+export PotLocal
 include("core/PlaneWaveBasis.jl")
+include("core/PotLocal.jl")
+
+#
+# TODO
+#
 
 export PspHgh
 export eval_psp_local_fourier
@@ -82,9 +90,6 @@ include("compute_density.jl")
 
 export Kinetic
 include("Kinetic.jl")
-
-export PotLocal
-include("PotLocal.jl")
 
 export PotHartree
 include("PotHartree.jl")
@@ -110,6 +115,8 @@ include("self_consistent_field.jl")
 # Utilities
 #
 export determine_grid_size
+export build_local_potential
 include("utils/determine_grid_size.jl")
+include("utils/build_local_potential.jl")
 
 end # module DFTK
