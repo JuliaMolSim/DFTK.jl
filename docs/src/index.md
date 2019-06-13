@@ -1,7 +1,68 @@
-# DFTK.jl
+# DFTK.jl: The density-functional toolkit.
 
-Documentation for DFTK.jl
+DFTK is a `julia` package of for playing with
+plane-wave density-functional theory algorithms.
 
+
+## Terminology and Definitions
+General terminology used throughout the documentation
+of the plane-wave aspects of the code.
+
+## Plane wave basis functions
+At the moment the code works exclusively with orthonormal plane waves.
+In other words our bases consist of functions
+```math
+e_G = 1/\sqrt{\Omega} e^{i\, G \cdot x}
+```
+where $\Omega$ is the unit cell volume.
+
+## Basis sets
+- The **wave-function basis** $B_{Ψ,k}$ (used to be $X_k$), consisting of all
+  plane-wave basis functions below the desired energy cutoff $E_\text{cut}$
+  for each $k$-point:
+  ```math
+  B_{Ψ,k} = \{ e_G : 1/2 |G + k|^2 ≤ E_\text{cut}
+  ```
+- The **potential** or **density basis** $B_\rho$ (formerly $Y$), consisting of
+  all plane waves on which a potential needs to be known in order to be
+  consistent with the union of all $B_{Ψ,k}$ for all $k$. In practice
+  ```math
+  B_\rho = \{ e_G : 1/2 |G|^2 ≤ α E_\text{cut} \}
+  ```
+  where a supersampling factor $\alpha = 4$ is required to give a numerically
+  exact result, since
+  ```math
+  B_\rho = \{ e_{G+G'} : ∃k e_G, e_{G'} ∈ B_{Ψ,k} \}.
+  ```
+- The **XC basis** $B_\text{XC}$, which is used for computing the application
+  of the exchange-correlation potential operator to the density $\rho$,
+  represented in the basis $B_\rho$, that is
+  ```math
+  B_\text{XC}  = \{e_G : 1/2 |G|^2 ≤ β E_\text{cut} \}.
+  ```
+  Since the exchange-correlation potential might involve arbitrary powers of the
+  density $ρ$, a numerically exact computation of the integral
+  ```math
+  \langle e_G | V_\text{XC}(ρ) e_{G'} \rangle \qquad \text{with} \qquad e_G, e_{G'} ∈ B_{Ψ,k}
+  ```
+  requires the exchange-correlation supersampling factor $\beta$ to be infinite.
+  In practice, $\beta =4$ is usually chosen, such that $B_\text{XC} = B_\rho$.
+
+## Real-space grids
+Due to the Fourier-duality of reciprocal-space and real-space lattice,
+the above basis sets define corresponding real-space grids as well:
+
+- $B_\rho^\ast$, formerly $Y^\ast$, the **potential integration grid**,
+  which is the grid used for convolutions of a potential with the discretized
+  representation of a DFT orbital. It's construction from $B_{\rho}$
+  is as follows: One takes the sphere of reciprocal space grid points
+  described by $B_\rho$ and embeds it inside a cubic box with length
+  $\sqrt{2 \alpha E_\text{cut}}$. Then $B_\rho^\ast$ is the iFFT-dual
+  real-space grid.
+- $B^\ast_\text{XC}$, the **exchange-correlation integration grid**,
+  i.e. the grid used for convolutions of the exchange-correlation functional
+  terms with the density or derivatives of it. Constructed from $B_\text{XC}$
+  in the same way as $B_\rho^\ast$ from $B_\rho^\ast$.
 
 ## Core
 

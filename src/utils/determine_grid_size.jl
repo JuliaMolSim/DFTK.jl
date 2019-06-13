@@ -5,7 +5,7 @@ Determine the minimal grid size for the density fourier grid ``B_ρ`` subject to
 kinetic energy cutoff `Ecut` for the wave function and a density  `supersampling` factor.
 
 The function will determine the union of wave vectors ``G`` required to satisfy
-``|G + k|^2/2 \leq Ecut * \text{supersampling}^2`` for all ``k``-Points. The
+``|G + k|^2/2 \leq E_\text{cut} ⋅ \text{supersampling}^2`` for all ``k``-Points. The
 returned grid dimensions are the smallest cartesian box to incorporate these ``G``.
 
 For an exact representation of the density resulting from wave functions

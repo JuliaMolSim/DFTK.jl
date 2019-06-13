@@ -13,7 +13,7 @@ to a list of fractional coordinates defining their real-space positions.
 The latter maps each identifier to a function `G -> potential(G)`, which
 defines the potential value for this species at this reciprocal space position.
 Notice, that this function will be called with the actual reciprocal-space
-wave vectors in cartesian coordinates.  
+wave vectors in Cartesian coordinates.  
 The parameter `compensating_background` (default true) determines whether the DC component
 will be automatically set to zero, which physically corresponds to including
 a compensating change background in the potential model.
@@ -39,9 +39,7 @@ function build_local_potential(pw::PlaneWaveBasis, positions, generators;
     T = eltype(pw.lattice)
     positions = Dict{Any, Vector{Vec3{T}}}(positions)
     generators = Dict{Any, Function}(generators)
-
-    # The list of all species
-    species = keys(positions)
+    species = keys(positions)  # The list of all species
 
     for spec in species
         if !haskey(generators, spec)
@@ -52,30 +50,23 @@ function build_local_potential(pw::PlaneWaveBasis, positions, generators;
         end
     end
 
-    # Closure to get the potential value a particular wave vector G
-    function call_generators(G)
-        if compensating_background && G == [0,0,0]
-            return 0.0
-        end
-
-        # Sum the values over all species and positions of the species,
-        # taking into account the structure factor
+    # Get the values in the plane-wave basis set (Fourier space)
+    values_fourier = map(gcoords(pw)) do G
+        Gcart = pw.recip_lattice * G
         sum(
-            4π / pw.unit_cell_volume       # Prefactor spherical Hankel transform
-            * generators[spec](G)          # Potential data for wave vector G
-            * cis(dot(G, pw.lattice * R))  # Structure factor
+            4π / pw.unit_cell_volume           # Prefactor spherical Hankel transform
+            * generators[spec](Gcart)          # Potential data for wave vector G
+            * cis(dot(Gcart, pw.lattice * R))  # Structure factor
             for spec in species
             for R in positions[spec]
         )
     end
-
-    # Get the values in the plane-wave basis set (Fourier space)
-    Gs = [pw.recip_lattice * G for G in gcoords(pw)]
-    values_fourier = call_generators.(Gs)
+    if compensating_background
+        values_fourier[pw.idx_DC] = 0
+    end
 
     values_real = similar(values_fourier, Complex{T}, size(pw.FFT)...)
     G_to_R!(pw, values_fourier, values_real)
-
     if maximum(imag(values_real)) > 100 * eps(T)
         throw(ArgumentError("Expected potential on the real-space grid to be entirely" *
                             " real-valued, but the present potential gives rise to a " *
