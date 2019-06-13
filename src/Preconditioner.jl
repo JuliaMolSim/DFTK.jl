@@ -19,7 +19,7 @@ function apply_inverse_fourier!(out_Xk, prec::PreconditionerKinetic, ik::Int, in
     pw = prec.basis
     k = pw.kpoints[ik]
 
-    qsq = [sum(abs2, pw.recip_lattice * (G + k)) for G in pw.wfctn_basis[ik]]
+    qsq = [sum(abs2, pw.recip_lattice * (G + k)) for G in pw.wf_basis[ik]]
     diagonal = 1 ./ (qsq ./ 2 .+ 1e-6 .+ prec.α)
     out_Xk .= Diagonal(diagonal) * in_Xk
 end

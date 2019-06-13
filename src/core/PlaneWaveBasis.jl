@@ -1,10 +1,9 @@
 using FFTW
-using StaticArrays
 
 struct PlaneWaveBasis{T <: Real}
     # Lattice and reciprocal lattice vectors in columns
-    lattice::SMatrix{3, 3, T, 9}
-    recip_lattice::SMatrix{3, 3, T, 9}
+    lattice::Mat3{T}
+    recip_lattice::Mat3{T}
     unit_cell_volume::T
     recip_cell_volume::T
 
@@ -13,11 +12,13 @@ struct PlaneWaveBasis{T <: Real}
 
     # Size of the rectangular Fourier grid used as the density basis
     # and the k-point-specific (spherical) wave function basis
-    # The wave vectors are given in integer coordinates.
-    grid_size::SVector{3, Int}
-    idx_DC::Int  # Index of the DC component
-    kpoints::Vector{SVector{3, T}}
-    wfctn_basis::Vector{Vector{SVector{3, Int}}}
+    # with its wave vectors accessible per k-Point in the ordering
+    # wf_basis[ik][iG]. Wave vectors are given in integer coordinates
+    # and k-Points in fractional coordinates.
+    grid_size::Vec3{Int}
+    idx_DC::Int  # Index of the DC component in the rectangular grid
+    kpoints::Vector{Vec3{T}}
+    wf_basis::Vector{Vector{Vec3{Int}}}
 
     # Brillouin zone integration weights.
     kweights::Vector{T}
@@ -28,8 +29,8 @@ struct PlaneWaveBasis{T <: Real}
 end
 
 @doc raw"""
-    PlaneWaveBasis(lattice::SMatrix{3, 3, T, 9}, grid_size::SVector{3, I},
-                   Ecut::Number, kpoints, kweights) where {T <: Real, I <: Integer}
+    PlaneWaveBasis(lattice::Mat3{T}, grid_size::Vec3{I}, Ecut::Number, kpoints,
+                   kweights) where {T <: Real, I <: Integer}
 
 Create a plane-wave basis from a specification for the Fourier grid size
 and a kinetic energy cutoff to select the ``k``-point-specific wave function
@@ -88,14 +89,14 @@ function set_kpoints!(pw::PlaneWaveBasis{T}, kpoints, kweights; Ecut=pw.Ecut) wh
 
     resize!(pw.kpoints, length(kpoints)) .= kpoints
     resize!(pw.kweights, length(kweights)) .= kweights
-    resize!(pw.wfctn_basis, length(kpoints))
+    resize!(pw.wf_basis, length(kpoints))
 
-    # Update wfctn_basis: For each k-Point select those G coords,
+    # Update wf_basis: For each k-Point select those G coords,
     # satisfying the energy cutoff
     for (ik, k) in enumerate(kpoints)
         energy(q) = sum(abs2, pw.recip_lattice * q) / 2
         p = [G for G in gcoords(pw) if energy(k + G) ≤ pw.Ecut]
-        pw.wfctn_basis[ik] = [G for G in gcoords(pw) if energy(k + G) ≤ pw.Ecut]
+        pw.wf_basis[ik] = [G for G in gcoords(pw) if energy(k + G) ≤ pw.Ecut]
     end
     pw
 end

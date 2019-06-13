@@ -123,7 +123,7 @@ function apply_fourier!(out_Xk::AbstractVector, ham::Hamiltonian, ik::Int, preco
     if any(term !== nothing for term in fft_terms)
         # If any of the terms requiring an iFFT is present, do an iFFT
         in_Yst = similar(in_Xk, size(pw.FFT)...)
-        in_Yst = G_to_R!(pw, in_Xk, in_Yst, gcoords=pw.wfctn_basis[ik])
+        in_Yst = G_to_R!(pw, in_Xk, in_Yst, gcoords=pw.wf_basis[ik])
 
         # Apply the terms and accumulate
         accu_Yst = zero(in_Yst)
@@ -134,7 +134,7 @@ function apply_fourier!(out_Xk::AbstractVector, ham::Hamiltonian, ik::Int, preco
 
         # FFT back to Xk basis, accumlate, notice that this call
         # invalidates the data of accu_Yst as well.
-        out_Xk .+= R_to_G!(pw, accu_Yst, tmp_Xk, gcoords=pw.wfctn_basis[ik])
+        out_Xk .+= R_to_G!(pw, accu_Yst, tmp_Xk, gcoords=pw.wf_basis[ik])
     end
     out_Xk
 end

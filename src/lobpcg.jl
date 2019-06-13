@@ -87,7 +87,7 @@ struct HamiltonianBlock
     ik::Int
 end
 
-Base.size(block::HamiltonianBlock, idx::Int) = length(block.ham.basis.wfctn_basis[block.ik])
+Base.size(block::HamiltonianBlock, idx::Int) = length(block.ham.basis.wf_basis[block.ik])
 Base.eltype(block::HamiltonianBlock) = eltype(block.ham)
 function LinearAlgebra.mul!(out_Xk, block::HamiltonianBlock, in_Xk)
     return apply_fourier!(out_Xk, block.ham, block.ik, block.precomp_hartree,

@@ -14,7 +14,7 @@ function compute_density(pw::PlaneWaveBasis, Psi, occupation;
     @assert n_k == length(Psi)
     @assert n_k == length(occupation)
     for ik in 1:n_k
-        @assert length(pw.wfctn_basis[ik]) == size(Psi[ik], 1)
+        @assert length(pw.wf_basis[ik]) == size(Psi[ik], 1)
         @assert length(occupation[ik]) == size(Psi[ik], 2)
     end
     @assert n_k > 0
@@ -33,7 +33,7 @@ function compute_density(pw::PlaneWaveBasis, Psi, occupation;
         Ψ_k_real = similar(ρ_Yst, size(pw.FFT)..., n_states)
         for istate in 1:n_states
             G_to_R!(pw, Ψ_k[:, istate], view(Ψ_k_real, :, :, :, istate),
-                    gcoords=pw.wfctn_basis[ik])
+                    gcoords=pw.wf_basis[ik])
         end
 
         # TODO I am not quite sure why this is needed here

@@ -23,16 +23,16 @@ include("testcases_silicon.jl")
 
     @testset "Wave function grid transformation" begin
         ik = 2
-        f_G = Array{ComplexF64}(randn(Float64, size(pw.wfctn_basis[ik])))
+        f_G = Array{ComplexF64}(randn(Float64, size(pw.wf_basis[ik])))
 
         f_R = Array{ComplexF64}(undef, size(pw.FFT)...)
-        DFTK.G_to_R!(pw, f_G, f_R, gcoords=pw.wfctn_basis[ik])
+        DFTK.G_to_R!(pw, f_G, f_R, gcoords=pw.wf_basis[ik])
 
         f2_G = similar(f_G)
-        DFTK.R_to_G!(pw, copy(f_R), f2_G, gcoords=pw.wfctn_basis[ik])
+        DFTK.R_to_G!(pw, copy(f_R), f2_G, gcoords=pw.wf_basis[ik])
 
         f2_R = similar(f_R)
-        DFTK.G_to_R!(pw, f2_G, f2_R, gcoords=pw.wfctn_basis[ik])
+        DFTK.G_to_R!(pw, f2_G, f2_R, gcoords=pw.wf_basis[ik])
 
         @test maximum(abs.(f2_G - f_G)) < 1e-12
         @test maximum(abs.(f2_R - f_R)) < 1e-12
