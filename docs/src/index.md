@@ -81,6 +81,10 @@ DFTK.apply_real!
 DFTK.compute_potential!
 DFTK.empty_potential
 PreconditionerKinetic
+DFTK.lobpcg
+DFTK.lobpcg_qr
+DFTK.lobpcg_scipy
+DFTK.lobpcg_itsolve
 ```
 
 ## Utilities

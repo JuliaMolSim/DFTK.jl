@@ -55,8 +55,8 @@ ham = Hamiltonian(basis, pot_local=psp_local,
                   pot_hartree=PotHartree(basis))
 
 scfres = self_consistent_field(ham, n_filled + 2, n_filled,
-                               lobpcg_preconditioner=PreconditionerKinetic(ham, α=0.1))
-ρ_Y, precomp_hartree, precomp_xc = scfres
+                               lobpcg_prec=PreconditionerKinetic(ham, α=0.1))
+ρ_Y, pot_hartree_values, precomp_xc = scfres
 
 # TODO Some routine to compute this properly
 efermi = 0.5
@@ -88,8 +88,8 @@ ham = Hamiltonian(ham.basis, pot_local=ham.pot_local, pot_nonlocal=psp_nonlocal,
 
 
 # Compute bands:
-band_data = lobpcg(ham, n_bands, precomp_hartree=precomp_hartree, precomp_xc=precomp_xc,
-                   preconditioner=PreconditionerKinetic(ham, α=0.5))
+band_data = lobpcg(ham, n_bands, pot_hartree_values=pot_hartree_values,
+                   precomp_xc=precomp_xc, prec=PreconditionerKinetic(ham, α=0.5))
 if ! band_data.converged
     println("WARNING: Not all k-points converged.")
 end

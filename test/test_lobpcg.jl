@@ -34,7 +34,7 @@ include("testcases_silicon.jl")
 
     @testset "with Preconditioner" begin
         res = lobpcg(ham, nev_per_k, tol=tol,
-                     preconditioner=PreconditionerKinetic(ham, α=0.1))
+                     prec=PreconditionerKinetic(ham, α=0.1))
 
         @test res.converged
         for ik in 1:length(kpoints)

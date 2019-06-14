@@ -46,7 +46,7 @@ export PreconditionerKinetic
 include("core/Preconditioner.jl")
 
 export lobpcg
-include("lobpcg.jl")
+include("core/lobpcg.jl")
 
 export self_consistent_field
 include("self_consistent_field.jl")

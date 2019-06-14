@@ -58,7 +58,7 @@ kweigths = ones(length(kpoints)) ./ length(kpoints)
 set_kpoints!(ham.basis, kpoints, kweigths)
 
 # Compute bands:
-band_data = lobpcg(ham, n_bands, preconditioner=PreconditionerKinetic(ham, α=0.5))
+band_data = lobpcg(ham, n_bands, prec=PreconditionerKinetic(ham, α=0.5))
 if ! band_data.converged
     println("WARNING: Not all k-points converged.")
 end

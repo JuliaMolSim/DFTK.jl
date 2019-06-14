@@ -39,12 +39,12 @@ function run_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15)
                       pot_nonlocal=psp_nonlocal,
                       pot_hartree=PotHartree(basis))
 
-    preconditioner = PreconditionerKinetic(ham, α=0.1)
+    prec = PreconditionerKinetic(ham, α=0.1)
     scfres = self_consistent_field(ham, n_filled + 4, n_filled,
-                                   lobpcg_preconditioner=preconditioner)
-    ρ_Y, precomp_hartree, precomp_xc = scfres
-    res = lobpcg(ham, n_bands, precomp_hartree=precomp_hartree,
-                 precomp_xc=precomp_xc, preconditioner=preconditioner, tol=1e-6)
+                                   lobpcg_prec=prec)
+    ρ_Y, pot_hartree_values, pot_xc_values = scfres
+    res = lobpcg(ham, n_bands, pot_hartree_values=pot_hartree_values,
+                 pot_xc_values=pot_xc_values, prec=prec, tol=1e-6)
 
     for ik in 1:length(kpoints)
         println(ik, "  ", abs.(ref_noXC[ik] - res.λ[ik]))

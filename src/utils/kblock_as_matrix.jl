@@ -1,5 +1,5 @@
 @doc raw"""Compute a ``k``-Point block of an operator as a dense matrix"""
-function kblock_as_matrix(ham::Hamiltonian, ik::Int, precomp_hartree, precomp_xc)
+function kblock_as_matrix(ham::Hamiltonian, ik::Int, pot_hartree_values, pot_xc_values)
     # TODO This assumes a PlaneWaveBasis
     n_bas = prod(ham.basis.grid_size)
     T = eltype(ham)
@@ -7,7 +7,7 @@ function kblock_as_matrix(ham::Hamiltonian, ik::Int, precomp_hartree, precomp_xc
     v = fill(zero(T), n_bas)
     @inbounds for i = 1:n_bas
         v[i] = one(T)
-        apply_fourier!(view(mat, :, i), ham, ik, precomp_hartree, precomp_xc, v)
+        apply_fourier!(view(mat, :, i), ham, ik, pot_hartree_values, pot_xc_values, v)
         v[i] = zero(T)
     end
 return mat
@@ -20,7 +20,7 @@ function kblock_as_matrix(prec::PreconditionerKinetic, ik::Int)
     v = fill(zero(T), n_bas)
     @inbounds for i = 1:n_bas
         v[i] = one(T)
-        apply_inverse_fourier!(view(mat, :, i), prec, ik, v)
+        ldiv!(view(mat, :, i), prec, ik, v)
         v[i] = zero(T)
     end
 return mat

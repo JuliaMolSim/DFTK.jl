@@ -6,7 +6,7 @@ need some polishing and some generalisation later on.
 """
 function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
                                PsiGuess=nothing, tol=1e-6,
-                               lobpcg_preconditioner=PreconditionerKinetic(ham, α=0.1))
+                               lobpcg_prec=PreconditionerKinetic(ham, α=0.1))
     pw = ham.basis
     n_k = length(pw.kpoints)
 
@@ -21,7 +21,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
     if PsiGuess === nothing
         hcore = Hamiltonian(ham.basis, pot_local=ham.pot_local,
                             pot_nonlocal=ham.pot_nonlocal)
-        res = lobpcg(hcore, n_bands, preconditioner=lobpcg_preconditioner)
+        res = lobpcg(hcore, n_bands, prec=lobpcg_prec)
         @assert res.converged
         Psi = [Xsk[:, 1:end] for Xsk in res.X]
     else
@@ -52,7 +52,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
             precomp_xc = compute_potential!(precomp_xc, ham.pot_xc, ρ_Y)
             res = lobpcg(ham, n_bands, precomp_hartree=precomp_hartree,
                           precomp_xc=precomp_xc, guess=Psi,
-                          preconditioner=lobpcg_preconditioner, tol=tol_lobpcg)
+                          prec=lobpcg_prec, tol=tol_lobpcg)
             for (i, λ) in enumerate(res.λ)
                 println("λs $i:  ", λ)
             end
@@ -84,9 +84,9 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
             if i == 1
                 tol_lobpcg = tol * 10
             end
-            res = lobpcg(ham, n_bands, precomp_hartree=precomp_hartree,
-                          precomp_xc=precomp_xc, guess=Psi,
-                          preconditioner=lobpcg_preconditioner, tol=tol_lobpcg)
+            res = lobpcg(ham, n_bands, pot_hartree_values=precomp_hartree,
+                          pot_xc_values=precomp_xc, guess=Psi,
+                          prec=lobpcg_prec, tol=tol_lobpcg)
             @assert res.converged
             Psi[:] = res.X
 

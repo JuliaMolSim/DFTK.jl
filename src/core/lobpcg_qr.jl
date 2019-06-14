@@ -1,9 +1,15 @@
 using LinearAlgebra
 
 """
-A very simple LOBPCG for finding the largest eigenpairs of non-general eigenproblems
+    lobpcg_qr(A, X0; maxiter=100, prec=I, tol=20size(A,2)*eps(eltype(A)), largest=false)
+
+Naive LOBPCG for finding the largest eigenpairs of a Hermitian matrix `A`
+starting from a guess `X0` of as many guess vectors as eigenpairs are sought.
+Optionally a preconditioner `prec` may be employed.
 """
-function lobpcg_qr(A, X0; maxiter=100, Prec=I, tol=20size(A,2)*eps(eltype(A)))
+function lobpcg_qr(A, X0; maxiter=100, prec=I, tol=20size(A,2)*eps(eltype(A)),
+                   largest=false, kwargs...)
+    @assert !largest "Only seeking the smallest eigenpairs is implemented."
     ortho(X) = Array(qr(X).Q)
 
     N = size(A, 2)
@@ -35,10 +41,10 @@ function lobpcg_qr(A, X0; maxiter=100, Prec=I, tol=20size(A,2)*eps(eltype(A)))
         niter += 1
 
         # Update the residual slot of Y
-        if Prec == I || Prec === nothing
+        if prec == I || prec === nothing
             Y[:, m+1:2m] .= R
         else
-            ldiv!(view(Y, :, m+1:2m), Prec, R)
+            ldiv!(view(Y, :, m+1:2m), prec, R)
         end
 
         # Orthogonalize Y and solve Rayleigh-Ritz step
