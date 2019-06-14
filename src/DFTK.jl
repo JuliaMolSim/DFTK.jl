@@ -24,10 +24,6 @@ include("core/PotLocal.jl")
 export Kinetic
 include("core/Kinetic.jl")
 
-#
-# TODO
-#
-
 export PspHgh
 export eval_psp_local_fourier
 export eval_psp_projection_radial
@@ -43,9 +39,8 @@ export PotNonLocal
 include("PotNonLocal.jl")
 
 export Hamiltonian
-export apply_fourier!
-export apply_real!
-include("Hamiltonian.jl")
+export apply_hamiltonian!
+include("core/Hamiltonian.jl")
 
 export PreconditionerKinetic
 include("Preconditioner.jl")
@@ -59,7 +54,9 @@ include("self_consistent_field.jl")
 # Utilities
 export determine_grid_size
 export build_local_potential
+export kblock_as_matrix
 include("utils/determine_grid_size.jl")
 include("utils/build_local_potential.jl")
+include("utils/kblock_as_matrix.jl")
 
 end # module DFTK

@@ -35,7 +35,7 @@ function run_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15)
     n_filled = 4  # In a Silicon psp model, the number of electrons per unit cell is 8
 
     # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
-    ham = Hamiltonian(pot_local=psp_local,
+    ham = Hamiltonian(basis, pot_local=psp_local,
                       pot_nonlocal=psp_nonlocal,
                       pot_hartree=PotHartree(basis))
 

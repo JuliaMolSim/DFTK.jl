@@ -19,7 +19,8 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
     # This guess-forming stuff should probably be done somewhere outside this code
     Psi = nothing
     if PsiGuess === nothing
-        hcore = Hamiltonian(pot_local=ham.pot_local, pot_nonlocal=ham.pot_nonlocal)
+        hcore = Hamiltonian(ham.basis, pot_local=ham.pot_local,
+                            pot_nonlocal=ham.pot_nonlocal)
         res = lobpcg(hcore, n_bands, preconditioner=lobpcg_preconditioner)
         @assert res.converged
         Psi = [Xsk[:, 1:end] for Xsk in res.X]
@@ -33,8 +34,8 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
 
     # Precompute first objects for faster application of Hartree and XC terms
     # TODO This looks a little weird
-    precomp_hartree = empty_precompute(ham.pot_hartree)
-    precomp_xc = empty_precompute(ham.pot_xc)
+    precomp_hartree = empty_potential(ham.pot_hartree)
+    precomp_xc = empty_potential(ham.pot_xc)
 
     use_nlsolve = false
     if use_nlsolve
@@ -47,8 +48,8 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
             ρ_Y = ρ_Y[1:n_G] + im * ρ_Y_folded[n_G + 1:end]
 
             tol_lobpcg = tol / 100
-            precomp_hartree = precompute!(precomp_hartree, ham.pot_hartree, ρ_Y)
-            precomp_xc = precompute!(precomp_xc, ham.pot_xc, ρ_Y)
+            precomp_hartree = compute_potential!(precomp_hartree, ham.pot_hartree, ρ_Y)
+            precomp_xc = compute_potential!(precomp_xc, ham.pot_xc, ρ_Y)
             res = lobpcg(ham, n_bands, precomp_hartree=precomp_hartree,
                           precomp_xc=precomp_xc, guess=Psi,
                           preconditioner=lobpcg_preconditioner, tol=tol_lobpcg)
@@ -75,8 +76,8 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
     else
         for i in 1:100
             if precomp_hartree !== nothing
-                precomp_hartree = precompute!(precomp_hartree, ham.pot_hartree, ρ_Y)
-                precomp_xc = precompute!(precomp_xc, ham.pot_xc, ρ_Y)
+                precomp_hartree = compute_potential!(precomp_hartree, ham.pot_hartree, ρ_Y)
+                precomp_xc = compute_potential!(precomp_xc, ham.pot_xc, ρ_Y)
             end
 
             tol_lobpcg = tol / 100
@@ -107,7 +108,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
         end
     end # use_nlsolve
 
-    precompute!(precomp_hartree, ham.pot_hartree, ρ_Y)
-    precompute!(precomp_xc, ham.pot_xc, ρ_Y)
+    compute_potential!(precomp_hartree, ham.pot_hartree, ρ_Y)
+    compute_potential!(precomp_xc, ham.pot_xc, ρ_Y)
     return ρ_Y, precomp_hartree, precomp_xc
 end

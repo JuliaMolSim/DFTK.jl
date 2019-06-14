@@ -41,7 +41,7 @@ grid_size = DFTK.determine_grid_size(A', Ecut, kpoints=kpoints) * ones(Int, 3)
 basis = PlaneWaveBasis(A', grid_size, Ecut, kpoints, kweigths)
 
 # Construct a free-electron Hamiltonian
-ham = Hamiltonian(Kinetic(basis))
+ham = Hamiltonian(basis)
 
 #
 # Band structure calculation in DFTK

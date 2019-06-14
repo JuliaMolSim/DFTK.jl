@@ -93,7 +93,7 @@ include("testcases_silicon.jl")
              -0.12232790825818542 - 0.10249524950193939im,
               0.40179339390767305 + 0.22702804471387822im,
         ]
-        out = apply_fourier!(similar(in), potnl, ik, in)
+        out = DFTK.apply_fourier!(similar(in), potnl, ik, in)
         @test ref ≈ out
     end
 
@@ -159,7 +159,7 @@ include("testcases_silicon.jl")
               0.23844078642501887 - 0.02240045765305552im ,
 
         ]
-        out = apply_fourier!(similar(in), potnl, ik, in)
+        out = DFTK.apply_fourier!(similar(in), potnl, ik, in)
         @test ref ≈ out
     end
 end

@@ -1,24 +1,5 @@
 struct PotHartree
-    """Plane-wave basis object"""
     basis::PlaneWaveBasis
-end
-
-struct PrecompHartree
-    values_real  # Values on the real-space grid
-end
-
-"""
-Construct an empty PrecompHartree object
-"""
-function PrecompHartree(basis::PlaneWaveBasis)
-    # TODO Array-type hard-coded here!
-    PrecompHartree(Array{eltype(basis.lattice)}(undef, size(basis.FFT)...))
-end
-empty_precompute(pot::PotHartree) = PrecompHartree(pot.basis)
-
-
-function apply_real!(tmp_Yst, pot::PotHartree, precomp::PrecompHartree, in_Yst)
-    tmp_Yst .= precomp.values_real .* in_Yst
 end
 
 """
@@ -27,7 +8,7 @@ Hartree potential term of a particular SCF cycle.
 
 Requires the density expressed in the density basis Y.
 """
-function precompute!(precomp::PrecompHartree, pot::PotHartree, ρ_Y)
+function compute_potential!(precomp, pot::PotHartree, ρ_Y)
     pw = pot.basis
 
     # The |G|^2 values are cached inside PlaneWaveBasis in the
@@ -46,7 +27,7 @@ function precompute!(precomp::PrecompHartree, pot::PotHartree, ρ_Y)
 
     # Fourier-transform and store in values_real
     T = eltype(pw.lattice)
-    values_real = similar(precomp.values_real, Complex{T})
+    values_real = similar(precomp, Complex{T})
     G_to_R!(pw, values_Y, values_real)
 
     if maximum(imag(values_real)) > 100 * eps(T)
@@ -54,6 +35,5 @@ function precompute!(precomp::PrecompHartree, pot::PotHartree, ρ_Y)
                             " real-valued, but the present potential gives rise to a " *
                             "maximal imaginary entry of $(maximum(imag(values_real)))."))
     end
-    precomp.values_real[:] = real(values_real)
-    precomp
+    precomp .= real(values_real)
 end

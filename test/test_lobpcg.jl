@@ -5,7 +5,7 @@ include("testcases_silicon.jl")
     Ecut = 5
     grid_size = [15, 15, 15]
     pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
-    ham = Hamiltonian(Kinetic(pw))
+    ham = Hamiltonian(pw)
 
     tol = 1e-8
     nev_per_k = 10
@@ -54,7 +54,7 @@ end
 
         pot_local = build_local_potential(pw, positions,
                                           G -> DFTK.eval_psp_local_fourier(hgh, G))
-        ham = Hamiltonian(Kinetic(pw), pot_local=pot_local)
+        ham = Hamiltonian(pw, pot_local=pot_local)
         res = lobpcg(ham, 6, tol=1e-8)
 
         ref = [
@@ -85,7 +85,7 @@ end
                                       G -> DFTK.eval_psp_local_fourier(hgh, G))
     pos_cart = [pw.lattice * pos for pos in positions]
     psp_nonlocal = PotNonLocal(pw, "Si" => pos_cart, "Si" => hgh)
-    ham = Hamiltonian(pot_local=psp_local, pot_nonlocal=psp_nonlocal)
+    ham = Hamiltonian(pw, pot_local=psp_local, pot_nonlocal=psp_nonlocal)
     res = lobpcg(ham, 5, tol=1e-8)
 
     ref = [
