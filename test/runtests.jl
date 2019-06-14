@@ -4,6 +4,7 @@ using LinearAlgebra
 
 include("utils.jl")
 
+include("test_determine_grid_size.jl")
 include("test_FFTs.jl")
 include("test_PlaneWaveBasis.jl")
 include("test_PspHgh.jl")

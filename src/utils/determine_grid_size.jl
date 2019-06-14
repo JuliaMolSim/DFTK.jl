@@ -17,10 +17,11 @@ function determine_grid_size(lattice::AbstractMatrix, Ecut; kpoints=[[0, 0, 0]],
     # Lattice and reciprocal lattice
     lattice = SMatrix{3, 3}(lattice)
     recip_lattice = 2π * inv(Matrix(lattice'))
+    kcart = [recip_lattice * k for k in kpoints]
 
     cutoff_qsq = 2 * supersampling^2 * Ecut
-    # For a particular k-Point, the coordinates [m n o] of the
-    # complementary reciprocal lattice vectors B satisfy
+    # For a particular k-Point (in cartesian coordinates), the integer coordinates
+    # [m n o] of the complementary reciprocal lattice vectors B satisfy
     #     |B * [m n o] + k|^2 ≤ cutoff_qsq
     # Now
     #     |B * [m n o] + k| ≥ abs(|B * [m n o]| - |k|) = |B * [m n o]| - |k|
@@ -33,7 +34,7 @@ function determine_grid_size(lattice::AbstractMatrix, Ecut; kpoints=[[0, 0, 0]],
     #                = (sqrt(cutoff_qsq) + |k|) * |A| / 2π
 
     # Estimate trial upper bound n_max
-    max_k = maximum(norm.(kpoints))
+    max_k = maximum(norm.(kcart))
     @assert max_k ≤ opnorm(recip_lattice)
     trial_n_max = ceil(Int, (max_k + sqrt(cutoff_qsq)) * opnorm(lattice) / 2π)
 
@@ -41,8 +42,9 @@ function determine_grid_size(lattice::AbstractMatrix, Ecut; kpoints=[[0, 0, 0]],
     trial_n_range = -trial_n_max-1:trial_n_max+1
     n_max = 0
     for coord in CartesianIndices((trial_n_range, trial_n_range, trial_n_range))
+        # TODO There certainly are more clever ways to do this than a triple loop ...
         energy(q) = sum(abs2, recip_lattice * q) / 2
-        if any(energy([coord.I...] + k) ≤ supersampling^2 * Ecut for k in kpoints)
+        if any(energy([coord.I...] + k) ≤ supersampling^2 * Ecut for k in kcart)
             @assert all(abs.([coord.I...]) .<= trial_n_max)
             n_max = max(n_max, maximum(abs.([coord.I...])))
         end
