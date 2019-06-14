@@ -80,6 +80,7 @@ DFTK.apply_fourier!
 DFTK.apply_real!
 DFTK.compute_potential!
 DFTK.empty_potential
+PreconditionerKinetic
 ```
 
 ## Utilities

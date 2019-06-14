@@ -43,7 +43,7 @@ export apply_hamiltonian!
 include("core/Hamiltonian.jl")
 
 export PreconditionerKinetic
-include("Preconditioner.jl")
+include("core/Preconditioner.jl")
 
 export lobpcg
 include("lobpcg.jl")
