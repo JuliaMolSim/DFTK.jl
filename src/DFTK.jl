@@ -33,7 +33,7 @@ export compute_density
 include("compute_density.jl")
 
 export PotHartree
-include("PotHartree.jl")
+include("core/PotHartree.jl")
 
 export PotNonLocal
 include("PotNonLocal.jl")

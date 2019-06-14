@@ -99,10 +99,11 @@ apply_real!(out, values, in) = (out .= values .* in)
 
 @doc raw"""
 Compute the potential of a non-linear term (e.g. `pot_hartree` or `pot_xc`)
-on the real-space density grid ``B^∗_ρ``. If the passed term is `nothing`,
+on the real-space density grid ``B^∗_ρ``, given a current density `ρ`
+in the density basis ``B_ρ``. If the passed term is `nothing`,
 `nothing` is returned by the function as well, else an array of values.
 """
-compute_potential!(precomp, op::Nothing, ρ_Y) = nothing
+compute_potential!(precomp, op::Nothing, ρ) = nothing
 
 @doc raw"""
 Return an appropriately sized container for a potential term
