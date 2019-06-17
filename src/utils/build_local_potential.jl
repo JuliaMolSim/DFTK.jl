@@ -11,9 +11,8 @@ The contributions are defined by the two maps `positions` and `generators`.
 The former maps a set of keys, uniquely identifying the lattice species,
 to a list of fractional coordinates defining their real-space positions.
 The latter maps each identifier to a function `G -> potential(G)`, which
-defines the potential value for this species at this reciprocal space position.
-Notice, that this function will be called with the actual reciprocal-space
-wave vectors in Cartesian coordinates.  
+defines the potential value for this species at this reciprocal space position
+(also passed to this function in integer coordinates).  
 The parameter `compensating_background` (default true) determines whether the DC component
 will be automatically set to zero, which physically corresponds to including
 a compensating change background in the potential model.
@@ -25,13 +24,13 @@ the local potential for an all-electron treatment of sodium chloride as such
 julia> build_local_potential(basis,
                              [:Na => [[0,0,0], [1/2,1/2,0], [1/2,0,1/2], [0,1/2,1/2]],
                               :Cl => [[0,1/2,0], [1/2,0,0], [0,0,1/2], [1/2,1/2,1/2]]],
-                             [:Na => -11 / sum(abs2, G), :Cl => -17 / sum(abs2, G)])
+                             [:Na => -11 / sum(abs2, basis.recip_lattice * G), :Cl => -17 / sum(abs2, recip_lattice * G)])
 ```
 since sodium has nuclear charge 11 and chlorine charge 17.
 
 For crystals composed of only a single species, such as silicon, one can drop the mappings:
 ```julia-repl
-julia> build_local_potential(basis, [[0,0,0], [1/8, 1/8, 1/8]], G -> -12 / sum(abs2, G))
+julia> build_local_potential(basis, [[0,0,0], [1/8, 1/8, 1/8]], G -> -12 / sum(abs2, basis.recip_lattice * G))
 ```
 """
 function build_local_potential(pw::PlaneWaveBasis, positions, generators;
@@ -51,14 +50,13 @@ function build_local_potential(pw::PlaneWaveBasis, positions, generators;
     end
 
     # Get the values in the plane-wave basis set (Fourier space)
-    values_fourier = map(gcoords(pw)) do G
-        Gcart = pw.recip_lattice * G
+    values_fourier = map(basis_ρ(pw)) do G
         sum(
-            4π / pw.unit_cell_volume           # Prefactor spherical Hankel transform
-            * generators[spec](Gcart)          # Potential data for wave vector G
-            * cis(dot(Gcart, pw.lattice * R))  # Structure factor
+            4π / pw.unit_cell_volume  # Prefactor spherical Hankel transform
+            * generators[spec](G)     # Potential data for wave vector G
+            * cis(2π * dot(G, r))     # Structure factor
             for spec in species
-            for R in positions[spec]
+            for r in positions[spec]
         )
     end
     if compensating_background
@@ -66,7 +64,7 @@ function build_local_potential(pw::PlaneWaveBasis, positions, generators;
     end
 
     values_real = similar(values_fourier, Complex{T}, size(pw.FFT)...)
-    G_to_R!(pw, values_fourier, values_real)
+    G_to_r!(pw, values_fourier, values_real)
     if maximum(imag(values_real)) > 100 * eps(T)
         throw(ArgumentError("Expected potential on the real-space grid to be entirely" *
                             " real-valued, but the present potential gives rise to a " *

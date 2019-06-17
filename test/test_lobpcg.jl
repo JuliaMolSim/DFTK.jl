@@ -53,7 +53,7 @@ end
         hgh = PspHgh("si-pade-q4")
 
         pot_local = build_local_potential(pw, positions,
-                                          G -> DFTK.eval_psp_local_fourier(hgh, G))
+                                          G -> DFTK.eval_psp_local_fourier(hgh, pw.recip_lattice * G))
         ham = Hamiltonian(pw, pot_local=pot_local)
         res = lobpcg(ham, 6, tol=1e-8)
 
@@ -82,7 +82,7 @@ end
     hgh = PspHgh("si-pade-q4")
 
     psp_local = build_local_potential(pw, positions,
-                                      G -> DFTK.eval_psp_local_fourier(hgh, G))
+                                      G -> DFTK.eval_psp_local_fourier(hgh, pw.recip_lattice * G))
     pos_cart = [pw.lattice * pos for pos in positions]
     psp_nonlocal = PotNonLocal(pw, "Si" => pos_cart, "Si" => hgh)
     ham = Hamiltonian(pw, pot_local=psp_local, pot_nonlocal=psp_nonlocal)

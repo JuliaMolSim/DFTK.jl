@@ -16,7 +16,7 @@ include("core/constants.jl")
 
 export PlaneWaveBasis
 export set_kpoints!
-export gcoords
+export basis_ρ
 export PotLocal
 include("core/PlaneWaveBasis.jl")
 include("core/PotLocal.jl")

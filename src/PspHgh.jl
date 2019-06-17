@@ -49,6 +49,10 @@ struct PspHgh
     h::Vector{Matrix{Float64}}
 end
 
+
+# Again most of these constructors are boilerplate and should go to some
+# utility functions
+
 """
 Construct a PspHgh object from a path to a datafile or an identifier,
 which names the pseudopotential.
@@ -144,6 +148,7 @@ computes <e_G|Vloc|e_{G+ΔG}> without taking into account the
 structure factor and the (4π / Ω) spherical Hankel transform prefactor.
 """
 function eval_psp_local_fourier(psp::PspHgh, ΔG)
+    # TODO Use Fractional coordinates here
     rloc = psp.rloc
     C(idx) = idx <= length(psp.c) ? psp.c[idx] : 0.0
     Grsq = sum(abs2, ΔG) * rloc^2
@@ -165,6 +170,7 @@ Evaluate the local part of the pseudopotential in real space taking
 a position vector r as input.
 """
 function eval_psp_local_real(psp::PspHgh, r::Vector)
+    # TODO Use Fractional coordinates here
     rloc = psp.rloc
     C(idx) = idx <= length(psp.c) ? psp.c[idx] : 0.0
     rrsq = sum(abs2, r) / rloc

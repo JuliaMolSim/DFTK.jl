@@ -18,7 +18,7 @@ function ldiv!(out, prec::PreconditionerKinetic, ik::Int, in)
     pw = prec.basis
     k = pw.kpoints[ik]
 
-    qsq = [sum(abs2, pw.recip_lattice * (G + k)) for G in pw.wf_basis[ik]]
+    qsq = [sum(abs2, pw.recip_lattice * (G + k)) for G in pw.basis_wf[ik]]
     diagonal = 1 ./ (qsq ./ 2 .+ 1e-6 .+ prec.α)
     out .= Diagonal(diagonal) * in
 end

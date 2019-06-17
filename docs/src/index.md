@@ -69,9 +69,9 @@ the above basis sets define corresponding real-space grids as well:
 ```@docs
 PlaneWaveBasis
 set_kpoints!
-gcoords
-DFTK.G_to_R!
-DFTK.R_to_G!
+basis_ρ
+DFTK.G_to_r!
+DFTK.r_to_G!
 PotLocal
 Kinetic
 Hamiltonian

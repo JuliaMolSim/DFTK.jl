@@ -58,7 +58,7 @@ function apply_hamiltonian!(out::AbstractVector, ham, ik::Int,
     if any(term !== nothing for term in fft_terms)
         # If any of the terms requiring an iFFT is present, do an iFFT
         in_real = similar(in, size(pw.FFT)...)
-        in_real = G_to_R!(pw, in, in_real, gcoords=pw.wf_basis[ik])
+        in_real = G_to_r!(pw, in, in_real, gcoords=pw.basis_wf[ik])
 
         # Apply the terms and accumulate
         accu_real = zero(in_real)
@@ -69,7 +69,7 @@ function apply_hamiltonian!(out::AbstractVector, ham, ik::Int,
 
         # FFT back to B_{Ψ,k} basis, accumulate, notice that this call
         # invalidates the data of accu_real as well.
-        out .+= R_to_G!(pw, accu_real, tmp, gcoords=pw.wf_basis[ik])
+        out .+= r_to_G!(pw, accu_real, tmp, gcoords=pw.basis_wf[ik])
     end
     out
 end

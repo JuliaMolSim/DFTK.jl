@@ -3,7 +3,7 @@ include("testcases_silicon.jl")
 function test_pw_cutoffs(lattice, kpoints, kweights, Ecut, grid_size)
     pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
     for (ik, k) in enumerate(kpoints)
-        for G in pw.wf_basis[ik]
+        for G in pw.basis_wf[ik]
             @test sum(abs2, pw.recip_lattice * (k + G)) ≤ 2 * Ecut
         end
     end
@@ -25,7 +25,7 @@ end
 
     g_start = -ceil.(Int, (pw.grid_size .- 1) ./ 2)
     g_stop  = floor.(Int, (pw.grid_size .- 1) ./ 2)
-    for kbasis in pw.wf_basis
+    for kbasis in pw.basis_wf
         for G in kbasis
             @test g_start <= G <= g_stop
         end

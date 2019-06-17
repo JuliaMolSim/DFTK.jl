@@ -10,7 +10,7 @@ struct HamiltonianBlock
     pot_xc_values
     ik::Int
 end
-Base.size(block::HamiltonianBlock, idx::Int) = length(block.ham.basis.wf_basis[block.ik])
+Base.size(block::HamiltonianBlock, idx::Int) = length(block.ham.basis.basis_wf[block.ik])
 Base.eltype(block::HamiltonianBlock) = eltype(block.ham)
 function LinearAlgebra.mul!(out_Xk, block::HamiltonianBlock, in_Xk)
     return apply_hamiltonian!(out_Xk, block.ham, block.ik, block.pot_hartree_values,
@@ -43,13 +43,13 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
 
     # Function simplifying stuff to be done for each k-Point
     get_hamk(ik) = HamiltonianBlock(ham, pot_hartree_values, pot_xc_values, ik)
-    get_guessk(::Nothing, ik) = Matrix(qr(randn(real(T), length(pw.wf_basis[ik]),
+    get_guessk(::Nothing, ik) = Matrix(qr(randn(real(T), length(pw.basis_wf[ik]),
                                                 nev_per_kpoint)).Q)
     function get_guessk(guess, ik)
         # TODO Proper error messages
         @assert length(guess) ≥ length(pw.kpoints)
         @assert size(guess[ik], 2) == nev_per_kpoint
-        @assert size(guess[ik], 1) == length(pw.wf_basis[ik])
+        @assert size(guess[ik], 1) == length(pw.basis_wf[ik])
         guess[ik]
     end
     get_preck(::Nothing, ik) = nothing

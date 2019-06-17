@@ -13,12 +13,12 @@ struct PlaneWaveBasis{T <: Real}
     # Size of the rectangular Fourier grid used as the density basis
     # and the k-point-specific (spherical) wave function basis
     # with its wave vectors accessible per k-Point in the ordering
-    # wf_basis[ik][iG]. Wave vectors are given in integer coordinates
+    # basis_wf[ik][iG]. Wave vectors are given in integer coordinates
     # and k-Points in fractional coordinates.
     grid_size::Vec3{Int}
     idx_DC::Int  # Index of the DC component in the rectangular grid
     kpoints::Vector{Vec3{T}}
-    wf_basis::Vector{Vector{Vec3{Int}}}
+    basis_wf::Vector{Vector{Vec3{Int}}}
 
     # Brillouin zone integration weights.
     kweights::Vector{T}
@@ -89,14 +89,14 @@ function set_kpoints!(pw::PlaneWaveBasis{T}, kpoints, kweights; Ecut=pw.Ecut) wh
 
     resize!(pw.kpoints, length(kpoints)) .= kpoints
     resize!(pw.kweights, length(kweights)) .= kweights
-    resize!(pw.wf_basis, length(kpoints))
+    resize!(pw.basis_wf, length(kpoints))
 
-    # Update wf_basis: For each k-Point select those G coords,
+    # Update basis_wf: For each k-Point select those G coords,
     # satisfying the energy cutoff
     for (ik, k) in enumerate(kpoints)
         energy(q) = sum(abs2, pw.recip_lattice * q) / 2
-        p = [G for G in gcoords(pw) if energy(k + G) ≤ pw.Ecut]
-        pw.wf_basis[ik] = [G for G in gcoords(pw) if energy(k + G) ≤ pw.Ecut]
+        p = [G for G in basis_ρ(pw) if energy(k + G) ≤ pw.Ecut]
+        pw.basis_wf[ik] = [G for G in basis_ρ(pw) if energy(k + G) ≤ pw.Ecut]
     end
     pw
 end
@@ -105,7 +105,7 @@ end
 Return a generator producing the range of wave-vector coordinates contained
 in the Fourier grid ``B_ρ`` described by the plane-wave basis.
 """
-function gcoords(pw::PlaneWaveBasis)
+function basis_ρ(pw::PlaneWaveBasis)
     start = -ceil.(Int, (pw.grid_size .- 1) ./ 2)
     stop  = floor.(Int, (pw.grid_size .- 1) ./ 2)
     ci = CartesianIndices((UnitRange.(start, stop)..., ))
@@ -117,14 +117,14 @@ end
 # Perform FFT
 #
 @doc raw"""
-    G_to_R!(pw::PlaneWaveBasis, f_fourier, f_real[, gcoords])
+    G_to_r!(pw::PlaneWaveBasis, f_fourier, f_real[, basis_ρ])
 
 Perform an in-place FFT to translate between `f_fourier`, a fourier representation
-of a function using the wave vectors specified in `gcoords` and a representation
+of a function using the wave vectors specified in `basis_ρ` and a representation
 on the real-space density grid ``B^∗_ρ``. The function will destroy all data
-in `f_real`. If `gcoords` is absent, the full density grid ``B_ρ`` is used.
+in `f_real`. If `basis_ρ` is absent, the full density grid ``B_ρ`` is used.
 """
-function G_to_R!(pw::PlaneWaveBasis, f_fourier, f_real; gcoords=gcoords(pw))
+function G_to_r!(pw::PlaneWaveBasis, f_fourier, f_real; gcoords=basis_ρ(pw))
     @assert length(f_fourier) == length(gcoords)
     @assert(size(f_real) == size(pw.iFFT),
             "Size mismatch between f_real(==$(size(f_real)) and " *
@@ -148,7 +148,7 @@ end
 
 
 @doc raw"""
-    R_to_G!(pw::PlaneWaveBasis, f_real, f_fourier[, gcoords])
+    r_to_G!(pw::PlaneWaveBasis, f_real, f_fourier[, gcoords])
 
 Perform an in-place FFT to translate between `f_real`, a representation of a
 function on the real-space density grid ``B^∗_ρ`` and a fourier representation
@@ -157,7 +157,7 @@ wave vectors required to exactly represent `f_real`, than this function implies
 a truncation. On call all data in `f_real` and `f_fourier` will be destroyed.
 If `gcoords` is absent, the full density grid ``B_ρ`` is used.
 """
-function R_to_G!(pw::PlaneWaveBasis, f_real, f_fourier; gcoords=gcoords(pw))
+function r_to_G!(pw::PlaneWaveBasis, f_real, f_fourier; gcoords=basis_ρ(pw))
     @assert length(f_fourier) == length(gcoords)
     @assert(size(f_real) == size(pw.FFT),
             "Size mismatch between f_real(==$(size(f_real)) and " *
@@ -172,6 +172,6 @@ function R_to_G!(pw::PlaneWaveBasis, f_real, f_fourier; gcoords=gcoords(pw))
         idx_fft = 1 .+ mod.(G, fft_size)
         f_fourier[ig] = f_fourier_extended[idx_fft...]
     end
-    # Again adjust normalisation as in G_to_R
+    # Again adjust normalisation as in G_to_r
     f_fourier .*= 1 / length(pw.FFT)
 end

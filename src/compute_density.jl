@@ -14,7 +14,7 @@ function compute_density(pw::PlaneWaveBasis, Psi, occupation;
     @assert n_k == length(Psi)
     @assert n_k == length(occupation)
     for ik in 1:n_k
-        @assert length(pw.wf_basis[ik]) == size(Psi[ik], 1)
+        @assert length(pw.basis_wf[ik]) == size(Psi[ik], 1)
         @assert length(occupation[ik]) == size(Psi[ik], 2)
     end
     @assert n_k > 0
@@ -32,8 +32,8 @@ function compute_density(pw::PlaneWaveBasis, Psi, occupation;
         # Fourier-transform the wave functions to real space
         Ψ_k_real = similar(ρ_Yst, size(pw.FFT)..., n_states)
         for istate in 1:n_states
-            G_to_R!(pw, Ψ_k[:, istate], view(Ψ_k_real, :, :, :, istate),
-                    gcoords=pw.wf_basis[ik])
+            G_to_r!(pw, Ψ_k[:, istate], view(Ψ_k_real, :, :, :, istate),
+                    gcoords=pw.basis_wf[ik])
         end
 
         # TODO I am not quite sure why this is needed here
@@ -68,6 +68,6 @@ function compute_density(pw::PlaneWaveBasis, Psi, occupation;
     @assert abs(n_electrons - sum(occupation[1])) < 1e-9
 
     ρ_Y = similar(Psi[1][:, 1], prod(pw.grid_size))
-    R_to_G!(pw, ρ_Yst, ρ_Y)
+    r_to_G!(pw, ρ_Yst, ρ_Y)
     return ρ_Y
 end

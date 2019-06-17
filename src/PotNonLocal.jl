@@ -32,7 +32,7 @@ function PotNonLocal(pw::PlaneWaveBasis, positions, psps)
     proj_vectors_all = Vector{Vector{Array{Float64, 3}}}(undef, n_k)
     structure_factor_all = Vector{Matrix{ComplexF64}}(undef, n_k)
     for (ik, k) in enumerate(pw.kpoints)
-        n_G = length(pw.wf_basis[ik])
+        n_G = length(pw.basis_wf[ik])
 
         # Evaluate projection vectors
         proj_vectors = Vector{Array{Float64, 3}}(undef, psp.lmax + 1)
@@ -41,7 +41,7 @@ function PotNonLocal(pw::PlaneWaveBasis, positions, psps)
             proj_l = zeros(Float64, n_G, n_proj, 2l + 1)
             for m in -l:l
                 for iproj in 1:n_proj
-                    for (icont, G) in enumerate(pw.wf_basis[ik])
+                    for (icont, G) in enumerate(pw.basis_wf[ik])
                         # Compute projector for q and add it to proj_l
                         # including structure factor
                         q = pw.recip_lattice * (G+k)
@@ -55,7 +55,7 @@ function PotNonLocal(pw::PlaneWaveBasis, positions, psps)
         end  # l
         proj_vectors_all[ik] = proj_vectors
 
-        Gvectors = [pw.recip_lattice * G for G in pw.wf_basis[ik]]
+        Gvectors = [pw.recip_lattice * G for G in pw.basis_wf[ik]]
         structure_factor = Matrix{ComplexF64}(undef, n_G, length(atoms))
         for (iatom, R) in enumerate(atoms)
             for (icont, G) in enumerate(Gvectors)
@@ -74,7 +74,7 @@ function apply_fourier!(out_Xk, pot::PotNonLocal, ik::Int, in_Xk)
     proj_vectors = pot.proj_vectors[ik]
     proj_coeffs = pot.proj_coeffs
 
-    n_G = length(pw.wf_basis[ik])
+    n_G = length(pw.basis_wf[ik])
     n_vec = size(in_Xk, 2)
     n_atoms = size(structure_factor, 2)
     lmax = length(proj_vectors) - 1
