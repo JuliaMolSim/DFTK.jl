@@ -83,8 +83,7 @@ end
 
     psp_local = build_local_potential(pw, positions,
                                       G -> DFTK.eval_psp_local_fourier(hgh, pw.recip_lattice * G))
-    pos_cart = [pw.lattice * pos for pos in positions]
-    psp_nonlocal = PotNonLocal(pw, "Si" => pos_cart, "Si" => hgh)
+    psp_nonlocal = PotNonLocal(pw, "Si" => positions, "Si" => hgh)
     ham = Hamiltonian(pw, pot_local=psp_local, pot_nonlocal=psp_nonlocal)
     res = lobpcg(ham, 5, tol=1e-8)
 

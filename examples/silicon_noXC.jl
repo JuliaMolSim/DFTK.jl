@@ -45,8 +45,7 @@ hgh = PspHgh("si-pade-q4")
 positions = [s.frac_coords for s in structure.sites]
 psp_local = build_local_potential(basis, positions,
                                   G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
-pos_cart = [basis.lattice * pos for pos in positions]
-psp_nonlocal = PotNonLocal(basis, "Si" => pos_cart, "Si" => hgh)
+psp_nonlocal = PotNonLocal(basis, "Si" => positions, "Si" => hgh)
 n_filled = 4  # In a Silicon psp model, the number of electrons per unit cell is 8
 
 # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)

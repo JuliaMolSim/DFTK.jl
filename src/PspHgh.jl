@@ -190,23 +190,23 @@ by the caller.
 """
 function eval_psp_projection_radial(psp::PspHgh, i, l, qsq::Number)
     rp = psp.rp[l + 1]
-    q = sqrt(qsq)
-    qrsq = qsq * rp^2
-    common = 4 * pi^(5 / 4) * sqrt(2^(l + 1) * rp^(2 * l + 3)) * exp(-qrsq / 2)
+    q = sqrt.(qsq)
+    qrsq = qsq .* rp^2
+    common = 4π^(5 / 4) * sqrt(2^(l + 1) * rp^(2 * l + 3)) * exp.(-qrsq / 2)
 
     if l == 0
-        if i == 1 return common end
+        if i == 1 return @. common end
         # Note: In the next case the HGH paper has an error.
         #       The first 8 in equation (8) should not be under the sqrt-sign
         #       This is the right version (as shown in the GTH paper)
-        if i == 2 return common *    2  / sqrt(15)  * (3  -   qrsq         ) end
-        if i == 3 return common * (4/3) / sqrt(105) * (15 - 10qrsq + qrsq^2) end
+        if i == 2 return @. common *    2  / sqrt(15)  * (3  -   qrsq         ) end
+        if i == 3 return @. common * (4/3) / sqrt(105) * (15 - 10qrsq + qrsq^2) end
     end
 
     if l == 1  # verify expressions
-        if i == 1 return common * 1     /    sqrt(3) * q end
-        if i == 2 return common * 2     /  sqrt(105) * q * ( 5 -   qrsq         ) end
-        if i == 3 return common * 4 / 3 / sqrt(1155) * q * (35 - 14qrsq + qrsq^2) end
+        if i == 1 return @. common * 1     /    sqrt(3) * q end
+        if i == 2 return @. common * 2     /  sqrt(105) * q * ( 5 -   qrsq         ) end
+        if i == 3 return @. common * 4 / 3 / sqrt(1155) * q * (35 - 14qrsq + qrsq^2) end
     end
 
     error("Did not implement case of i == $i and l == $l")

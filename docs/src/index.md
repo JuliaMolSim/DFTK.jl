@@ -73,6 +73,7 @@ basis_ρ
 DFTK.G_to_r!
 DFTK.r_to_G!
 PotLocal
+PotNonLocal
 Kinetic
 Hamiltonian
 apply_hamiltonian!

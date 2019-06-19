@@ -6,11 +6,11 @@ struct Kinetic
 end
 
 
-function apply_fourier!(out_Xk, kinetic::Kinetic, ik, in_Xk)
+function apply_fourier!(out, kinetic::Kinetic, ik, in)
     # Apply the Laplacian -Δ/2
     pw = kinetic.basis
     k = pw.kpoints[ik]
 
     qsq = [sum(abs2, pw.recip_lattice * (G + k)) for G in pw.basis_wf[ik]]
-    out_Xk .= Diagonal(qsq / 2) * in_Xk
+    out .= Diagonal(qsq / 2) * in
 end

@@ -36,7 +36,7 @@ export PotHartree
 include("core/PotHartree.jl")
 
 export PotNonLocal
-include("PotNonLocal.jl")
+include("core/PotNonLocal.jl")
 
 export Hamiltonian
 export apply_hamiltonian!
