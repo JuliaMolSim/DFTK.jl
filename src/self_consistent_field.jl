@@ -1,114 +1,118 @@
 using NLsolve
 
-"""
-This is a very simple and first version of an SCF function, which will definitely
-need some polishing and some generalisation later on.
-"""
-function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
-                               PsiGuess=nothing, tol=1e-6,
-                               lobpcg_prec=PreconditionerKinetic(ham, α=0.1))
+function scf_damped(ham::Hamiltonian, n_bands, compute_occupation, ρ;
+                    tol=1e-6, lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
+                    max_iter=100, damping=0.20)
+    energies = nothing
+    occupation = nothing
+    Psi=nothing
+    converged = false
+    values_hartree = empty_potential(ham.pot_hartree)
+    values_xc = empty_potential(ham.pot_xc)
+    for i in 1:max_iter
+        values_hartree = compute_potential!(values_hartree, ham.pot_hartree, ρ)
+        values_xc = compute_potential!(values_xc, ham.pot_xc, ρ)
+
+        res = lobpcg(ham, n_bands, pot_hartree_values=values_hartree,
+                      pot_xc_values=values_xc, guess=Psi,
+                      prec=lobpcg_prec, tol=tol / 100)
+        @assert res.converged
+        Psi = res.X
+        energies = res.λ
+
+        occupation = compute_occupation(ham.basis, res.λ, Psi)
+        ρ_new = compute_density(ham.basis, Psi, occupation, tolerance_orthonormality=tol)
+
+        # TODO Print statements should not be here
+        ndiff = norm(ρ_new - ρ)
+        @printf "%4d %18.8g %s  " i ndiff res.implementation
+        println(res.iterations)
+        if 20 * ndiff < tol
+            converged = true
+            break
+        end
+
+        ρ = ρ_new * damping + (1 - damping) * ρ
+    end
+
+    (ρ=ρ, Psi=Psi, energies=energies, occupation=occupation,
+     pot_hartree_values=compute_potential!(values_hartree, ham.pot_hartree, ρ),
+     pot_xc_values=compute_potential!(values_xc, ham.pot_xc, ρ),
+     converged=converged)
+end
+
+
+function scf_nlsolve(ham::Hamiltonian, n_bands, compute_occupation, ρ;
+                     tol=1e-6, lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
+                     max_iter=100)
     pw = ham.basis
-    n_k = length(pw.kpoints)
+    values_hartree = empty_potential(ham.pot_hartree)
+    values_xc = empty_potential(ham.pot_xc)
+    Psi = Array{Any}([nothing])  # TODO Find out precise type
 
-    occupation = Vector{Vector{Float64}}(undef, n_k)
-    for ik in 1:n_k
-        occupation[ik] = zero(1:n_bands)
-        occupation[ik][1:n_filled] .= 2
+    function foldρ(ρ)
+        # Fold a complex array representing the Fourier transform of a purely real
+        # quantity into a real array
+        half = Int((length(ρ) + 1) / 2)
+        ρcpx =  ρ[1:half]
+        vcat(real(ρcpx), imag(ρcpx))
+    end
+    function unfoldρ(ρ)
+        # Undo "foldρ"
+        half = Int(length(ρ) / 2)
+        ρcpx = ρ[1:half] + im * ρ[half+1:end]
+        vcat(ρcpx, conj(reverse(ρcpx)[2:end]))
+    end
+    function compute_residual!(residual, ρ_folded)
+        ρ = unfoldρ(ρ_folded)
+        values_hartree = compute_potential!(values_hartree, ham.pot_hartree, ρ)
+        values_xc = compute_potential!(values_xc, ham.pot_xc, ρ)
+        res = lobpcg(ham, n_bands, pot_hartree_values=values_hartree,
+                     pot_xc_values=values_xc, guess=Psi[1],
+                     prec=lobpcg_prec, tol=tol / 100)
+        Psi[1] = res.X
+        occupation = compute_occupation(ham.basis, res.λ, res.X)
+        ρ_new = compute_density(pw, res.X, occupation, tolerance_orthonormality=tol)
+
+        residual .= foldρ(ρ_new) - ρ_folded
+    end
+    nlres = nlsolve(compute_residual!, foldρ(ρ), method=:anderson, m=5, xtol=tol,
+                    ftol=0.0, show_trace=true)
+
+    # Final LOBPCG to get eigenvalues and eigenvectors
+    ρ = unfoldρ(nlres.zero)
+    values_hartree = compute_potential!(values_hartree, ham.pot_hartree, ρ)
+    values_xc = compute_potential!(values_xc, ham.pot_xc, ρ)
+    res = lobpcg(ham, n_bands, pot_hartree_values=values_hartree,
+                 pot_xc_values=values_xc, guess=Psi[1],
+                 prec=lobpcg_prec, tol=tol / 100)
+    occupation = compute_occupation(ham.basis, res.λ, res.X)
+
+    (ρ=ρ, Psi=res.X, energies=res.λ, occupation=occupation,converged=converged(nlres),
+     pot_hartree_values=values_hartree, pot_xc_values=values_xc)
+end
+
+
+# this should go to utils ... it is in the end just a wrapper
+function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_filled::Int;
+                               ρ=nothing, tol=1e-6,
+                               lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
+                               max_iter=100, algorithm=:scf_nlsolve)
+    function compute_occupation(basis, energies, Psi)
+        occupation_zero_temperature(basis, energies, Psi, 2 * n_filled)
+    end
+    if ρ === nothing
+        ρ = guess_hcore(ham, n_bands, compute_occupation, lobpcg_prec=lobpcg_prec)
+    end
+    if algorithm == :scf_nlsolve
+        res = scf_nlsolve(ham, n_bands, compute_occupation, ρ, tol=tol,
+                          lobpcg_prec=lobpcg_prec, max_iter=max_iter)
+    elseif algorithm == :scf_damped
+        res = scf_damped(ham, n_bands, compute_occupation, ρ, tol=tol,
+                         lobpcg_prec=lobpcg_prec, max_iter=max_iter)
+    else
+        error("Unknown algorithm " * str(algorithm))
     end
 
-    # This guess-forming stuff should probably be done somewhere outside this code
-    Psi = nothing
-    if PsiGuess === nothing
-        hcore = Hamiltonian(ham.basis, pot_local=ham.pot_local,
-                            pot_nonlocal=ham.pot_nonlocal)
-        res = lobpcg(hcore, n_bands, prec=lobpcg_prec)
-        @assert res.converged
-        Psi = [Xsk[:, 1:end] for Xsk in res.X]
-    else
-        Psi = PsiGuess
-    end
-    @assert size(Psi[1], 2) == n_bands
-
-    # Compute starting density
-    ρ_Y = compute_density(pw, Psi, occupation, tolerance_orthonormality=20 * tol)
-
-    # Precompute first objects for faster application of Hartree and XC terms
-    # TODO This looks a little weird
-    precomp_hartree = empty_potential(ham.pot_hartree)
-    precomp_xc = empty_potential(ham.pot_xc)
-
-    use_nlsolve = false
-    if use_nlsolve
-        # compute_residual closure for nlsolve.
-        # nlsolve cannot do complex ... unfortunately
-        #    TODO not actually a problem, since we can do a "toReal" Fourier-transform
-        function compute_residual!(residual, ρ_Y_folded)
-            n_G = prod(pw.grid_size)
-            @assert size(ρ_Y_folded) == (2 * n_G, )
-            ρ_Y = ρ_Y[1:n_G] + im * ρ_Y_folded[n_G + 1:end]
-
-            tol_lobpcg = tol / 100
-            precomp_hartree = compute_potential!(precomp_hartree, ham.pot_hartree, ρ_Y)
-            precomp_xc = compute_potential!(precomp_xc, ham.pot_xc, ρ_Y)
-            res = lobpcg(ham, n_bands, precomp_hartree=precomp_hartree,
-                          precomp_xc=precomp_xc, guess=Psi,
-                          prec=lobpcg_prec, tol=tol_lobpcg)
-            for (i, λ) in enumerate(res.λ)
-                println("λs $i:  ", λ)
-            end
-            Psi[:] = res.X
-
-            ρ_Y_new = compute_density(pw, Psi, occupation,
-                                      tolerance_orthonormality=tol)
-
-            residual .= [real(ρ_Y_new); imag(ρ_Y_new)] - ρ_Y_folded
-            residual
-        end
-
-        ρ_Y_folded = [real(ρ_Y); imag(ρ_Y)]
-        res = nlsolve(compute_residual!, ρ_Y_folded, method=:anderson, m=5, xtol=tol,
-                      ftol=0.0, show_trace=true)
-        @assert res.converged
-
-        n_G = prod(pw.grid_size)
-        @assert maximum(abs.(res.zero[n_G + 1:end])) < tol
-        ρ_Y = res.zero[1:n_G]
-    else
-        for i in 1:100
-            if precomp_hartree !== nothing
-                precomp_hartree = compute_potential!(precomp_hartree, ham.pot_hartree, ρ_Y)
-                precomp_xc = compute_potential!(precomp_xc, ham.pot_xc, ρ_Y)
-            end
-
-            tol_lobpcg = tol / 100
-            if i == 1
-                tol_lobpcg = tol * 10
-            end
-            res = lobpcg(ham, n_bands, pot_hartree_values=precomp_hartree,
-                          pot_xc_values=precomp_xc, guess=Psi,
-                          prec=lobpcg_prec, tol=tol_lobpcg)
-            @assert res.converged
-            Psi[:] = res.X
-
-            ρ_Y_new = compute_density(pw, Psi, occupation,
-                                      tolerance_orthonormality=tol)
-
-            ndiff = norm(ρ_Y_new - ρ_Y)
-            @printf "%4d %18.8g %s  " i ndiff res.implementation
-            println(res.iterations)
-
-            if 20 * ndiff < tol
-                for (iλ, λ) in enumerate(res.λ)
-                    println("    $iλ $λ")
-                end
-                break
-            end
-            damp = 0.25
-            ρ_Y = ρ_Y_new * damp + (1 - damp) * ρ_Y
-        end
-    end # use_nlsolve
-
-    compute_potential!(precomp_hartree, ham.pot_hartree, ρ_Y)
-    compute_potential!(precomp_xc, ham.pot_xc, ρ_Y)
-    return ρ_Y, precomp_hartree, precomp_xc
+    res.ρ, res.pot_hartree_values, res.pot_xc_values
 end
