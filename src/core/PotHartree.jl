@@ -19,7 +19,7 @@ function compute_potential!(precomp, pot::PotHartree, ρ)
     G_to_r!(pw, values_Y, values_real)
 
     if maximum(imag(values_real)) > 100 * eps(T)
-        raise(ArgumentError("Expected potential on the real-space grid B_ρ to be entirely" *
+        throw(ArgumentError("Expected potential on the real-space grid B_ρ to be entirely" *
                             " real-valued, but the present density gives rise to a " *
                             "maximal imaginary entry of $(maximum(imag(values_real)))."))
     end
