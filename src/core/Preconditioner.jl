@@ -1,6 +1,6 @@
 struct PreconditionerKinetic
     basis::PlaneWaveBasis
-    α::Float64
+    α
 end
 
 """Kinetic-energy based preconditioner.
