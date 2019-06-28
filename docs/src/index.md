@@ -86,6 +86,10 @@ DFTK.lobpcg
 DFTK.lobpcg_qr
 DFTK.lobpcg_scipy
 DFTK.lobpcg_itsolve
+DFTK.occupation_zero_temperature
+self_consistent_field
+DFTK.scf_nlsolve
+DFTK.scf_damped
 ```
 
 ## Utilities
