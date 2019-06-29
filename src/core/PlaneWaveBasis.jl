@@ -24,8 +24,11 @@ struct PlaneWaveBasis{T <: Real}
     kweights::Vector{T}
 
     # Plans for forward and backward FFT on B_ρ
-    FFT  # TODO Add explicit type.
-    iFFT
+    # TODO find a better way to type it; right now this is copypasted from
+    # typeof(plan_fft!(zeros(ComplexF64,3,3,3)))
+    # (resp plan_ifft)
+    FFT::FFTW.cFFTWPlan{Complex{T},-1,true,3}
+    iFFT::AbstractFFTs.ScaledPlan{Complex{Float64},FFTW.cFFTWPlan{Complex{T},1,true,3},T}
 end
 
 @doc raw"""
@@ -108,8 +111,7 @@ in the Fourier grid ``B_ρ`` described by the plane-wave basis.
 function basis_ρ(pw::PlaneWaveBasis)
     start = -ceil.(Int, (pw.grid_size .- 1) ./ 2)
     stop  = floor.(Int, (pw.grid_size .- 1) ./ 2)
-    ci = CartesianIndices((UnitRange.(start, stop)..., ))
-    (SVector(ci[i].I) for i in 1:length(ci))
+    (Vec3{Int}([i,j,k]) for i=start[1]:stop[1],j=start[2]:stop[2],k=start[3]:stop[3])
 end
 
 
@@ -137,7 +139,7 @@ function G_to_r!(pw::PlaneWaveBasis, f_fourier, f_real; gcoords=basis_ρ(pw))
         idx_fft = 1 .+ mod.(G, fft_size)
         f_real[idx_fft...] = f_fourier[ig]
     end
-    f_real = pw.iFFT * f_real  # Note: This destroys data in f_real
+    mul!(f_real,pw.iFFT,f_real)
 
     # IFFT has a normalization factor of 1/length(ψ),
     # but the normalisation convention used in this code is
