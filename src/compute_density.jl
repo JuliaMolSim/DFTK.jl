@@ -10,6 +10,7 @@ of the wave function `Psi` are verified explicitly.
 """
 function compute_density(pw::PlaneWaveBasis, Psi, occupation;
                          tolerance_orthonormality=-1)
+    T = eltype(pw.lattice)
     n_k = length(pw.kpoints)
     @assert n_k == length(Psi)
     @assert n_k == length(occupation)
@@ -47,7 +48,7 @@ function compute_density(pw::PlaneWaveBasis, Psi, occupation;
             Ψ_k_real_mat = reshape(Ψ_k_real, n_fft, n_states)
             Ψ_k_real_overlap = adjoint(Ψ_k_real_mat) * Ψ_k_real_mat
             nondiag = Ψ_k_real_overlap - I * (n_fft / pw.unit_cell_volume)
-            @assert maximum(abs.(nondiag)) < tolerance_orthonormality
+            @assert maximum(abs.(nondiag)) < max(1000 * eps(T), tolerance_orthonormality)
             # TODO These assertions should go to a test case
         end
 
@@ -61,11 +62,11 @@ function compute_density(pw::PlaneWaveBasis, Psi, occupation;
     end
 
     # Check ρ is real and positive and properly normalized
-    @assert maximum(imag(ρ_Yst)) < 1e-12
+    @assert maximum(imag(ρ_Yst)) < 100 * eps(T)
     @assert minimum(real(ρ_Yst)) ≥ 0
 
     n_electrons = sum(ρ_Yst) * pw.unit_cell_volume / prod(size(pw.FFT))
-    @assert abs(n_electrons - sum(occupation[1])) < 1e-9
+    @assert abs(n_electrons - sum(occupation[1])) <  sqrt(eps(T))
 
     ρ_Y = similar(Psi[1][:, 1], prod(pw.grid_size))
     r_to_G!(pw, ρ_Yst, ρ_Y)
