@@ -12,5 +12,5 @@ function apply_fourier!(out, kinetic::Kinetic, ik, in)
     k = pw.kpoints[ik]
 
     qsq = [sum(abs2, pw.recip_lattice * (G + k)) for G in pw.basis_wf[ik]]
-    out .= Diagonal(qsq / 2) * in
+    out .= qsq .* in ./ 2
 end
