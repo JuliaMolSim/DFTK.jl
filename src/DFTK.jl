@@ -57,12 +57,10 @@ include("core/scf_nlsolve.jl")
 export self_consistent_field
 export build_local_potential
 export determine_grid_size
-export guess_gaussian_sad
 export guess_hcore
 export kblock_as_matrix
 include("utils/build_local_potential.jl")
 include("utils/determine_grid_size.jl")
-include("utils/guess_gaussian_sad.jl")
 include("utils/guess_hcore.jl")
 include("utils/kblock_as_matrix.jl")
 include("utils/self_consistent_field.jl")
