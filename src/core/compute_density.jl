@@ -69,7 +69,7 @@ function compute_density(pw::PlaneWaveBasis, Psi::AbstractVector,
     n_electrons = sum(ρ_real) * pw.unit_cell_volume / prod(size(pw.FFT))
     @assert abs(n_electrons - sum(occupation[1])) <  sqrt(eps(T))
 
-    ρ_Y = similar(Psi[1][:, 1], prod(pw.grid_size))
+    ρ = similar(Psi[1][:, 1], prod(pw.grid_size))
     r_to_G!(pw, ρ_real, ρ)
     return ρ
 end
