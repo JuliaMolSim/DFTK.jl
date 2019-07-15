@@ -1,15 +1,16 @@
-# TODO Could be made in-place
-
 """
-Compute the density for a PlaneWaveBasis object, which describes
-the basis and the k-Point grid, the current single-particle wave function
-`Psi` (one coefficient matrix per k-Point), the `occupation` (one vector per k-Point).
+    compute_density(pw::PlaneWaveBasis, Psi::AbstractVector, occupation::AbstractVector;
+                    tolerance_orthonormality)
 
-Optionally if, `tolerance_orthonormality` ≥ 0, some orthonormality properties
-of the wave function `Psi` are verified explicitly.
+Compute the density for a wave function `Psi` discretised on the plane-wave grid `pw`,
+where the individual k-Points are occupied according to `occupation`. `Psi` should
+be one coefficient matrix per k-Point. If `tolerance_orthonormality` is ≥ 0, some
+orthonormality properties are verified explicitly.
 """
-function compute_density(pw::PlaneWaveBasis, Psi, occupation;
-                         tolerance_orthonormality=-1)
+function compute_density(pw::PlaneWaveBasis, Psi::AbstractVector,
+                         occupation::AbstractVector; tolerance_orthonormality=-1)
+    # TODO This function could be made in-place
+
     T = eltype(pw.lattice)
     n_k = length(pw.kpoints)
     @assert n_k == length(Psi)
@@ -23,15 +24,15 @@ function compute_density(pw::PlaneWaveBasis, Psi, occupation;
     # TODO Not sure this is reasonable
     @assert all(occupation[ik] == occupation[1] for ik in 1:n_k)
 
-    ρ_Yst = similar(Psi[1][:, 1], size(pw.FFT)...)
-    ρ_Yst .= 0
+    ρ_real = similar(Psi[1][:, 1], size(pw.FFT)...)
+    ρ_real .= 0
     for ik in 1:n_k
         Ψ_k = Psi[ik]
         weight = pw.kweights[ik]
         n_states = size(Ψ_k, 2)
 
         # Fourier-transform the wave functions to real space
-        Ψ_k_real = similar(ρ_Yst, size(pw.FFT)..., n_states)
+        Ψ_k_real = similar(ρ_real, size(pw.FFT)..., n_states)
         for istate in 1:n_states
             G_to_r!(pw, Ψ_k[:, istate], view(Ψ_k_real, :, :, :, istate),
                     gcoords=pw.basis_wf[ik])
@@ -55,20 +56,20 @@ function compute_density(pw::PlaneWaveBasis, Psi, occupation;
         # Add the density from this kpoint
         occ_k = occupation[ik]
         for istate in 1:n_states
-            ρ_Yst .+= (weight * occ_k[istate]
+            ρ_real .+= (weight * occ_k[istate]
                         * Ψ_k_real[:, :, :, istate] .* conj(Ψ_k_real[:, :, :, istate])
             )
         end
     end
 
     # Check ρ is real and positive and properly normalized
-    @assert maximum(imag(ρ_Yst)) < 100 * eps(T)
-    @assert minimum(real(ρ_Yst)) ≥ 0
+    @assert maximum(imag(ρ_real)) < 100 * eps(T)
+    @assert minimum(real(ρ_real)) ≥ 0
 
-    n_electrons = sum(ρ_Yst) * pw.unit_cell_volume / prod(size(pw.FFT))
+    n_electrons = sum(ρ_real) * pw.unit_cell_volume / prod(size(pw.FFT))
     @assert abs(n_electrons - sum(occupation[1])) <  sqrt(eps(T))
 
     ρ_Y = similar(Psi[1][:, 1], prod(pw.grid_size))
-    r_to_G!(pw, ρ_Yst, ρ_Y)
-    return ρ_Y
+    r_to_G!(pw, ρ_real, ρ)
+    return ρ
 end
