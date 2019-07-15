@@ -1,17 +1,14 @@
 using Test
 using DFTK
-using LinearAlgebra
 
-include("utils.jl")
+include("determine_grid_size.jl")
+include("fourier_transforms.jl")
+include("PlaneWaveBasis.jl")
+include("PspHgh.jl")
 
-include("test_determine_grid_size.jl")
-include("test_FFTs.jl")
-include("test_PlaneWaveBasis.jl")
-include("test_PspHgh.jl")
+include("build_local_potential.jl")
+include("PotNonlocal.jl")
 
-include("test_build_local_potential.jl")
-include("test_PotNonlocal.jl")
+include("lobpcg.jl")
 
-include("test_lobpcg.jl")
-
-include("test_noXC_silicon.jl")
+include("silicon_noXC.jl")

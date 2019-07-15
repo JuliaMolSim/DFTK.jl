@@ -1,4 +1,8 @@
-include("testcases_silicon.jl")
+using Test
+using DFTK: PlaneWaveBasis, load_psp, build_local_potential, Hamiltonian
+using DFTK: lobpcg, eval_psp_local_fourier, PreconditionerKinetic, PotNonLocal
+
+include("silicon_testcases.jl")
 
 @testset "Diagonalisation of a free-electron Hamiltonian" begin
     # Construct a free-electron Hamiltonian
@@ -45,36 +49,6 @@ include("testcases_silicon.jl")
     end
 end
 
-@testset "Diagonalisation of kinetic + local psp" begin
-    if ! running_in_ci
-        Ecut = 25
-        grid_size = [33, 33, 33]
-        pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
-        hgh = load_psp("si-pade-q4.hgh")
-
-        pot_local = build_local_potential(pw, positions,
-                                          G -> DFTK.eval_psp_local_fourier(hgh, pw.recip_lattice * G))
-        ham = Hamiltonian(pw, pot_local=pot_local)
-        res = lobpcg(ham, 6, tol=1e-8)
-
-        ref = [
-            [-4.087198659513310, -4.085326314828677, -0.506869382308294,
-             -0.506869382280876, -0.506869381798614],
-            [-4.085824585443292, -4.085418874576503, -0.509716820984169,
-             -0.509716820267449, -0.508545832298541],
-            [-4.086645155119840, -4.085209948598607, -0.514320642233337,
-             -0.514320641863231, -0.499373272772206],
-            [-4.085991608422304, -4.085039856878318, -0.517299903754010,
-             -0.513805498246478, -0.497036479690380]
-        ]
-        for ik in 1:length(kpoints)
-            @test res.λ[ik][1:5] ≈ ref[ik] atol=5e-7
-        end
-    else
-        println("Skipping diagonalisation of kinetic + local psp since running from CI")
-    end
-end
-
 @testset "Diagonalisation of a core Hamiltonian" begin
     Ecut = 10
     grid_size = [21, 21, 21]
@@ -82,10 +56,10 @@ end
     hgh = load_psp("si-pade-q4.hgh")
 
     psp_local = build_local_potential(pw, positions,
-                                      G -> DFTK.eval_psp_local_fourier(hgh, pw.recip_lattice * G))
+                                      G -> eval_psp_local_fourier(hgh, pw.recip_lattice * G))
     psp_nonlocal = PotNonLocal(pw, "Si" => positions, "Si" => hgh)
     ham = Hamiltonian(pw, pot_local=psp_local, pot_nonlocal=psp_nonlocal)
-    res = lobpcg(ham, 5, tol=1e-8)
+    res = lobpcg(ham, 5, tol=1e-8, prec=PreconditionerKinetic(ham, α=0.1))
 
     ref = [
         [0.067955741977536, 0.470244204908046, 0.470244204920801,

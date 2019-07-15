@@ -1,3 +1,7 @@
+using Test
+using DFTK: load_psp, eval_psp_projection_radial, eval_psp_local_fourier
+
+
 @testset "Check reading 'C-lda-q4'" begin
     psp = load_psp("C-lda-q4.hgh")
 

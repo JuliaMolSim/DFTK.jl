@@ -1,4 +1,7 @@
-include("testcases_silicon.jl")
+using Test
+using DFTK: PlaneWaveBasis, PotNonLocal, apply_fourier!, load_psp
+
+include("silicon_testcases.jl")
 
 
 @testset "Check PotNonLocal" begin
@@ -92,7 +95,7 @@ include("testcases_silicon.jl")
              -0.12232790825818542 - 0.10249524950193939im,
               0.40179339390767305 + 0.22702804471387822im,
         ]
-        out = DFTK.apply_fourier!(similar(in), potnl, ik, in)
+        out = apply_fourier!(similar(in), potnl, ik, in)
         @test ref ≈ out
     end
 
@@ -158,7 +161,7 @@ include("testcases_silicon.jl")
               0.23844078642501887 - 0.02240045765305552im ,
 
         ]
-        out = DFTK.apply_fourier!(similar(in), potnl, ik, in)
+        out = apply_fourier!(similar(in), potnl, ik, in)
         @test ref ≈ out
     end
 end

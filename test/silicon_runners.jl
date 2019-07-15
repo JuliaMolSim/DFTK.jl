@@ -1,10 +1,9 @@
 using Test
 using DFTK
-using LinearAlgebra
 
-include("testcases_silicon.jl")
+include("silicon_testcases.jl")
 
-function run_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15)
+function run_silicon_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15)
     # T + Vloc + Vnloc + Vhartree
     # These values were computed using
     # mfherbst/PlaneWaveToyPrograms.jl/2019.03_Simple_DFT/test_Bandstructure.jl with Ecut = 25
@@ -53,25 +52,5 @@ function run_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15)
         # and typically a bit random and unstable in the LOBPCG
         diff = abs.(ref_noXC[ik] - res.λ[ik])
         @test maximum(diff[1:n_bands - n_ignored]) < test_tol
-    end
-end
-
-@testset "SCF of silicon without exchange-correlation (small)" begin
-    run_noXC(Ecut=5, test_tol=0.05, n_ignored=0, grid_size=15)
-end
-
-@testset "SCF of silicon without exchange-correlation (medium)" begin
-    if ! running_in_ci
-        run_noXC(Ecut=15, test_tol=0.0005, n_ignored=5, grid_size=25)
-    else
-        println("Skipping medium test, since running from CI.")
-    end
-end
-
-@testset "SCF of silicon without exchange-correlation (large)" begin
-    if ! running_in_ci
-        run_noXC(Ecut=25, test_tol=5e-7, n_ignored=0, grid_size=33)
-    else
-        println("Skipping large test, since running from CI.")
     end
 end

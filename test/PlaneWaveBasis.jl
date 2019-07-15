@@ -1,4 +1,8 @@
-include("testcases_silicon.jl")
+using Test
+using DFTK: PlaneWaveBasis
+using LinearAlgebra
+
+include("silicon_testcases.jl")
 
 function test_pw_cutoffs(lattice, kpoints, kweights, Ecut, grid_size)
     pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
@@ -9,7 +13,7 @@ function test_pw_cutoffs(lattice, kpoints, kweights, Ecut, grid_size)
     end
 end
 
-@testset "Check struct construction" begin
+@testset "PlaneWaveBasis: Check struct construction" begin
     Ecut = 3
     grid_size = [15, 15, 15]
     pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
@@ -33,7 +37,7 @@ end
     @test pw.kweights == kweights
 end
 
-@testset "Energy cutoff is respected" begin
+@testset "PlaneWaveBasis: Energy cutoff is respected" begin
     test_pw_cutoffs(lattice, kpoints, kweights, 4.0, [15, 15, 15])
     test_pw_cutoffs(lattice, kpoints, kweights, 3.0, [15, 13, 13])
     test_pw_cutoffs(lattice, kpoints, kweights, 4.0, [11, 13, 11])

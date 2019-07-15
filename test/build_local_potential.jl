@@ -1,9 +1,7 @@
 using Test
-using DFTK
-using LinearAlgebra
+using DFTK: PlaneWaveBasis, r_to_G!, build_local_potential, basis_ρ
 
-include("utils.jl")
-include("testcases_silicon.jl")
+include("silicon_testcases.jl")
 
 @testset "Check build_local_potential using Coulomb potential" begin
     Ecut = 4
@@ -27,7 +25,7 @@ include("testcases_silicon.jl")
         # pot3 back to the PW basis to check we get the 1/|G|^2 behaviour
         pot3 = build_local_potential(pw, [[0, 1/8, 0]], pot_coulomb)
         values_fourier = zeros(ComplexF64, prod(pw.grid_size))
-        DFTK.r_to_G!(pw, pot3.values_real, values_fourier)
+        r_to_G!(pw, pot3.values_real, values_fourier)
 
         lattice_vector = lattice * [0, 1/8, 0]
         reference = [(4π / pw.unit_cell_volume * pot_coulomb(G)

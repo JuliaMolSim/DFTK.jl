@@ -1,4 +1,7 @@
-include("testcases_silicon.jl")
+using Test
+using DFTK: PlaneWaveBasis, G_to_r!, r_to_G!
+
+include("silicon_testcases.jl")
 
 @testset "FFT and IFFT are an identity" begin
     Ecut = 4.0  # Hartree
@@ -9,13 +12,13 @@ include("testcases_silicon.jl")
         f_G = Array{ComplexF64}(randn(Float64, prod(pw.grid_size)))
 
         f_R = Array{ComplexF64}(undef, size(pw.FFT)...)
-        DFTK.G_to_r!(pw, f_G, f_R)
+        G_to_r!(pw, f_G, f_R)
 
         f2_G = similar(f_G)
-        DFTK.r_to_G!(pw, copy(f_R), f2_G)
+        r_to_G!(pw, copy(f_R), f2_G)
 
         f2_R = similar(f_R)
-        DFTK.G_to_r!(pw, f2_G, f2_R)
+        G_to_r!(pw, f2_G, f2_R)
 
         @test maximum(abs.(f2_G - f_G)) < 1e-12
         @test maximum(abs.(f2_R - f_R)) < 1e-12
@@ -26,13 +29,13 @@ include("testcases_silicon.jl")
         f_G = Array{ComplexF64}(randn(Float64, size(pw.basis_wf[ik])))
 
         f_R = Array{ComplexF64}(undef, size(pw.FFT)...)
-        DFTK.G_to_r!(pw, f_G, f_R, gcoords=pw.basis_wf[ik])
+        G_to_r!(pw, f_G, f_R, gcoords=pw.basis_wf[ik])
 
         f2_G = similar(f_G)
-        DFTK.r_to_G!(pw, copy(f_R), f2_G, gcoords=pw.basis_wf[ik])
+        r_to_G!(pw, copy(f_R), f2_G, gcoords=pw.basis_wf[ik])
 
         f2_R = similar(f_R)
-        DFTK.G_to_r!(pw, f2_G, f2_R, gcoords=pw.basis_wf[ik])
+        G_to_r!(pw, f2_G, f2_R, gcoords=pw.basis_wf[ik])
 
         @test maximum(abs.(f2_G - f_G)) < 1e-12
         @test maximum(abs.(f2_R - f_R)) < 1e-12
