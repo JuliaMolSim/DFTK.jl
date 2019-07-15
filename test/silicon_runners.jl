@@ -3,7 +3,7 @@ using DFTK
 
 include("silicon_testcases.jl")
 
-function run_silicon_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15)
+function run_silicon_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf_tol=1e-6)
     # T + Vloc + Vnloc + Vhartree
     # These values were computed using
     # mfherbst/PlaneWaveToyPrograms.jl/2019.03_Simple_DFT/test_Bandstructure.jl with Ecut = 25
@@ -30,7 +30,7 @@ function run_silicon_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15)
     psp_local = build_local_potential(basis, positions,
                                       G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
     psp_nonlocal = PotNonLocal(basis, :Si => positions, :Si => hgh)
-    n_filled = 4  # In a Silicon psp model, the number of electrons per unit cell is 8
+    n_electrons = 8
 
     # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
     ham = Hamiltonian(basis, pot_local=psp_local,
@@ -40,7 +40,7 @@ function run_silicon_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15)
 
     ρ = guess_gaussian_sad(basis, :Si => positions, :Si => atnum, :Si => hgh.Zion)
     prec = PreconditionerKinetic(ham, α=0.1)
-    scfres = self_consistent_field(ham, n_filled + 4, n_filled, lobpcg_prec=prec, ρ=ρ)
+    scfres = self_consistent_field(ham, 8, n_electrons, lobpcg_prec=prec, ρ=ρ, tol=scf_tol)
     ρ, pot_hartree_values, pot_xc_values = scfres
     res = lobpcg(ham, n_bands, pot_hartree_values=pot_hartree_values,
                  pot_xc_values=pot_xc_values, prec=prec, tol=1e-6)

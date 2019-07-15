@@ -46,7 +46,7 @@ positions = [s.frac_coords for s in structure.sites]
 psp_local = build_local_potential(basis, positions,
                                   G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
 psp_nonlocal = PotNonLocal(basis, :Si => positions, :Si => hgh)
-n_filled = 4  # In a Silicon psp model, the number of electrons per unit cell is 8
+n_electrons = 8  # In a Silicon psp model, the number of electrons per unit cell is 8
 
 # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
 ham = Hamiltonian(basis, pot_local=psp_local,
@@ -55,7 +55,7 @@ ham = Hamiltonian(basis, pot_local=psp_local,
 
 ρ = guess_gaussian_sad(basis, :Si => positions, :Si => mg.Element("Si").number,
                        :Si => hgh.Zion)
-scfres = self_consistent_field(ham, n_filled + 2, n_filled, ρ=ρ, tol=1e-5,
+scfres = self_consistent_field(ham, Int(n_electrons / 2 + 2), n_electrons, ρ=ρ, tol=1e-5,
                                lobpcg_prec=PreconditionerKinetic(ham, α=0.1))
 ρ, pot_hartree_values, pot_xc_values = scfres
 

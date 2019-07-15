@@ -5,5 +5,5 @@ include("../silicon_runners.jl")
 end
 
 @testset "SCF of silicon without exchange-correlation (large)" begin
-    run_silicon_noXC(Ecut=25, test_tol=5e-7, n_ignored=0, grid_size=33)
+    run_silicon_noXC(Ecut=25, test_tol=2e-7, n_ignored=0, grid_size=33, scf_tol=1e-7)
 end
