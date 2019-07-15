@@ -23,40 +23,42 @@ A = mg.ArrayWithUnit(a / 2 .* [[0 1 1.];
                                [1 1 0.]], "bohr")
 lattice = mg.lattice.Lattice(A)
 recip_lattice = lattice.reciprocal_lattice
-
-τ = a / 8 .* [1, 1, 1]
-coords = mg.ArrayWithUnit([τ, -τ], "bohr")
-
-structure = mg.Structure(lattice, ["Si", "Si"], coords, coords_are_cartesian=true)
+structure = mg.Structure(lattice, ["Si", "Si"], [ones(3)/8, -ones(3)/8])
 
 # Get k-Point mesh for Brillouin-zone integration
 spgana = symmetry.analyzer.SpacegroupAnalyzer(structure)
 bzmesh = spgana.get_ir_reciprocal_mesh(kgrid)
 kpoints = [recip_lattice.get_cartesian_coords(mp[1]) for mp in bzmesh]
 kweigths = [mp[2] for mp in bzmesh]
+kweigths = kweigths / sum(kweigths)
 
 #
 # SCF calculation in DFTK
 #
 # Construct basis: transpose is required, since pymatgen uses rows for the
 # lattice vectors and DFTK uses columns
-basis = PlaneWaveBasis(A', kpoints, kweigths, Ecut)
+grid_size = DFTK.determine_grid_size(A', Ecut, kpoints=kpoints) * ones(Int, 3)
+basis = PlaneWaveBasis(A', grid_size, Ecut, kpoints, kweigths)
 
 # Construct a local pseudopotential
-hgh = PspHgh("si-pade-q4")
-positions = [s.coords for s in structure.sites]
-psp_local = PotLocal(basis, positions, G -> DFTK.eval_psp_local_fourier(hgh, G), coords_are_cartesian=true)
-psp_nonlocal = PotNonLocal(basis, "Si" => positions, "Si" => hgh)
-n_filled = 4  # In a Silicon psp model, the number of electrons per unit cell is 8
+hgh = load_psp("si-pade-q4.hgh")
+positions = [s.frac_coords for s in structure.sites]
+psp_local = build_local_potential(basis, positions,
+                                  G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
+psp_nonlocal = PotNonLocal(basis, :Si => positions, :Si => hgh)
+n_electrons = 8  # In a Silicon psp model, the number of electrons per unit cell is 8
 
 # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
-ham = Hamiltonian(pot_local=psp_local,
+ham = Hamiltonian(basis, pot_local=psp_local,
                   pot_nonlocal=psp_nonlocal,
                   pot_hartree=PotHartree(basis))
 
-scfres = self_consistent_field(ham, n_filled + 2, n_filled,
-                               lobpcg_preconditioner=PreconditionerKinetic(ham, α=0.1))
-ρ_Y, precomp_hartree, precomp_xc = scfres
+ρ = guess_gaussian_sad(basis, :Si => positions, :Si => mg.Element("Si").number,
+                       :Si => hgh.Zion)
+scfres = self_consistent_field(ham, Int(n_electrons / 2 + 2), n_electrons, ρ=ρ, tol=1e-5,
+                               lobpcg_prec=PreconditionerKinetic(ham, α=0.1))
+ρ, pot_hartree_values, pot_xc_values = scfres
+
 
 # TODO Some routine to compute this properly
 efermi = 0.5
@@ -73,23 +75,23 @@ println("Computing bands along kpath:\n     $(join(symm_kpath.kpath["path"][1], 
 # TODO Maybe think about some better mechanism here:
 #      This kind of feels implicit, since it also replaces the kpoints
 #      from potential other references to the ham or PlaneWaveBasis object.
-substitute_kpoints!(ham.basis, kpoints,
-                    zeros(eltype(ham.basis), length(kpoints)))
+kweigths = ones(length(kpoints)) ./ length(kpoints)
+set_kpoints!(ham.basis, kpoints, kweigths)
 
 # TODO This is super ugly, but needed, since the PotNonLocal implicitly
 #      stores information per k-Point at the moment
 if ham.pot_nonlocal !== nothing
-    psp_nonlocal = PotNonLocal(ham.basis, "Si" => positions, "Si" => hgh)
+    psp_nonlocal = PotNonLocal(ham.basis, :Si => positions, :Si => hgh)
 else
     psp_nonlocal = nothing
 end
-ham = Hamiltonian(pot_local=ham.pot_local, pot_nonlocal=psp_nonlocal,
+ham = Hamiltonian(ham.basis, pot_local=ham.pot_local, pot_nonlocal=psp_nonlocal,
                   pot_hartree=ham.pot_hartree, pot_xc=ham.pot_xc)
 
 
 # Compute bands:
-band_data = lobpcg(ham, n_bands, precomp_hartree=precomp_hartree, precomp_xc=precomp_xc,
-                   preconditioner=PreconditionerKinetic(ham, α=0.5))
+band_data = lobpcg(ham, n_bands, pot_hartree_values=pot_hartree_values, tol=1e-5,
+                   pot_xc_values=pot_xc_values, prec=PreconditionerKinetic(ham, α=0.5))
 if ! band_data.converged
     println("WARNING: Not all k-points converged.")
 end
