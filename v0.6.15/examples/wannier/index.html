@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Wannierization using Wannier.jl or Wannier90 · DFTK.jl</title><meta name="title" content="Wannierization using Wannier.jl or Wannier90 · DFTK.jl"/><meta property="og:title" content="Wannierization using Wannier.jl or Wannier90 · DFTK.jl"/><meta property="twitter:title" content="Wannierization using Wannier.jl or Wannier90 · DFTK.jl"/><meta name="description" content="Documentation for DFTK.jl."/><meta property="og:description" content="Documentation for DFTK.jl."/><meta property="twitter:description" content="Documentation for DFTK.jl."/><meta property="og:url" content="https://docs.dftk.org/stable/examples/wannier/"/><meta property="twitter:url" content="https://docs.dftk.org/stable/examples/wannier/"/><link rel="canonical" href="https://docs.dftk.org/stable/examples/wannier/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">DFTK.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../features/">DFTK features</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../../guide/installation/">Installation</a></li><li><a class="tocitem" href="../../guide/tutorial/">Tutorial</a></li><li><a class="tocitem" href="../../guide/periodic_problems/">Problems and plane-wave discretisations</a></li><li><a class="tocitem" href="../../guide/introductory_resources/">Introductory resources</a></li><li><a class="tocitem" href="../../school2022/">DFTK School 2022</a></li></ul></li><li><span class="tocitem">Basic DFT calculations</span><ul><li><a class="tocitem" href="../metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../collinear_magnetism/">Collinear spin and magnetic systems</a></li><li><a class="tocitem" href="../convergence_study/">Performing a convergence study</a></li><li><a class="tocitem" href="../pseudopotentials/">Pseudopotentials</a></li><li><a class="tocitem" href="../supercells/">Creating and modelling metallic supercells</a></li><li><a class="tocitem" href="../gaas_surface/">Modelling a gallium arsenide surface</a></li><li><a class="tocitem" href="../graphene/">Graphene band structure</a></li><li><a class="tocitem" href="../geometry_optimization/">Geometry optimization</a></li><li><a class="tocitem" href="../energy_cutoff_smearing/">Energy cutoff smearing</a></li></ul></li><li><span class="tocitem">Response and properties</span><ul><li><a class="tocitem" href="../polarizability/">Polarizability by linear response</a></li><li><a class="tocitem" href="../forwarddiff/">Polarizability using automatic differentiation</a></li><li><a class="tocitem" href="../dielectric/">Eigenvalues of the dielectric matrix</a></li></ul></li><li><span class="tocitem">Ecosystem integration</span><ul><li><a class="tocitem" href="../atomsbase/">AtomsBase integration</a></li><li><a class="tocitem" href="../input_output/">Input and output formats</a></li><li class="is-active"><a class="tocitem" href>Wannierization using Wannier.jl or Wannier90</a><ul class="internal"><li><a class="tocitem" href="#Wannierization-with-Wannier.jl"><span>Wannierization with Wannier.jl</span></a></li><li><a class="tocitem" href="#Wannierization-with-Wannier90"><span>Wannierization with Wannier90</span></a></li></ul></li></ul></li><li><span class="tocitem">Tipps and tricks</span><ul><li><a class="tocitem" href="../../tricks/parallelization/">Timings and parallelization</a></li><li><a class="tocitem" href="../../tricks/scf_checkpoints/">Saving SCF results on disk and SCF checkpoints</a></li></ul></li><li><span class="tocitem">Solvers</span><ul><li><a class="tocitem" href="../custom_solvers/">Custom solvers</a></li><li><a class="tocitem" href="../scf_callbacks/">Monitoring self-consistent field calculations</a></li><li><a class="tocitem" href="../compare_solvers/">Comparison of DFT solvers</a></li></ul></li><li><span class="tocitem">Nonstandard models</span><ul><li><a class="tocitem" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../gross_pitaevskii_2D/">Gross-Pitaevskii equation with external magnetic field</a></li><li><a class="tocitem" href="../custom_potential/">Custom potential</a></li><li><a class="tocitem" href="../cohen_bergstresser/">Cohen-Bergstresser model</a></li><li><a class="tocitem" href="../anyons/">Anyonic models</a></li></ul></li><li><span class="tocitem">Error control</span><ul><li><a class="tocitem" href="../arbitrary_floattype/">Arbitrary floating-point types</a></li><li><a class="tocitem" href="../error_estimates_forces/">Practical error bounds for the forces</a></li></ul></li><li><span class="tocitem">Developer resources</span><ul><li><a class="tocitem" href="../../developer/setup/">Developer setup</a></li><li><a class="tocitem" href="../../developer/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../developer/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../developer/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../developer/symmetries/">Crystal symmetries</a></li><li><a class="tocitem" href="../../developer/gpu_computations/">GPU computations</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Ecosystem integration</a></li><li class="is-active"><a href>Wannierization using Wannier.jl or Wannier90</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Wannierization using Wannier.jl or Wannier90</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/examples/wannier.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Wannierization-using-Wannier.jl-or-Wannier90"><a class="docs-heading-anchor" href="#Wannierization-using-Wannier.jl-or-Wannier90">Wannierization using Wannier.jl or Wannier90</a><a id="Wannierization-using-Wannier.jl-or-Wannier90-1"></a><a class="docs-heading-anchor-permalink" href="#Wannierization-using-Wannier.jl-or-Wannier90" title="Permalink"></a></h1><p><a href="https://mybinder.org/v2/gh/JuliaMolSim/DFTK.jl/gh-pages?filepath=v0.6.15/examples/wannier.ipynb"><img src="https://mybinder.org/badge_logo.svg" alt/></a> <a href="https://nbviewer.jupyter.org/github/JuliaMolSim/DFTK.jl/blob/gh-pages/v0.6.15/examples/wannier.ipynb"><img src="https://img.shields.io/badge/show-nbviewer-579ACA.svg" alt/></a></p><p>DFTK features an interface with the programs <a href="https://wannierjl.org">Wannier.jl</a> and <a href="http://www.wannier.org/">Wannier90</a>, in order to compute maximally-localized Wannier functions (MLWFs) from an initial self consistent field calculation. All processes are handled by calling the routine <code>wannier_model</code> (for Wannier.jl) or <code>run_wannier90</code> (for Wannier90).</p><div class="admonition is-warning"><header class="admonition-header">No guarantees on Wannier interface</header><div class="admonition-body"><p>This code is at an early stage and has so far not been fully tested. Bugs are likely and we welcome issues in case you find any!</p></div></div><p>This example shows how to obtain the MLWFs corresponding to the first five bands of graphene. Since the bands 2 to 11 are entangled, 15 bands are first computed to obtain 5 MLWFs by a disantanglement procedure.</p><pre><code class="language-julia hljs">using DFTK
+using Plots
+using Unitful
+using UnitfulAtomic
+
+d = 10u&quot;Å&quot;
+a = 2.641u&quot;Å&quot;  # Graphene Lattice constant
+lattice = [a  -a/2    0;
+           0  √3*a/2  0;
+           0     0    d]
+
+C = ElementPsp(:C; psp=load_psp(&quot;hgh/pbe/c-q4&quot;))
+atoms     = [C, C]
+positions = [[0.0, 0.0, 0.0], [1//3, 2//3, 0.0]]
+model  = model_PBE(lattice, atoms, positions)
+basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[5, 5, 1])
+nbandsalg = AdaptiveBands(basis.model; n_bands_converge=15)
+scfres = self_consistent_field(basis; nbandsalg, tol=1e-5);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime
+---   ---------------   ---------   ---------   ----   ------
+  1   -11.14942000916                   -0.67    8.4
+  2   -11.15007198145       -3.19       -1.40    1.0    261ms
+  3   -11.15010724847       -4.45       -2.77    3.2    287ms
+  4   -11.15010941198       -5.66       -3.30    4.4    464ms
+  5   -11.15010943281       -7.68       -4.13    2.8    410ms
+  6   -11.15010943369       -9.06       -5.05    4.2    383ms</code></pre><p>Plot bandstructure of the system</p><pre><code class="language-julia hljs">bands = compute_bands(scfres; kline_density=10)
+plot_bandstructure(bands)</code></pre><img src="d1d8801a.svg" alt="Example block output"/><h2 id="Wannierization-with-Wannier.jl"><a class="docs-heading-anchor" href="#Wannierization-with-Wannier.jl">Wannierization with Wannier.jl</a><a id="Wannierization-with-Wannier.jl-1"></a><a class="docs-heading-anchor-permalink" href="#Wannierization-with-Wannier.jl" title="Permalink"></a></h2><p>Now we use the <code>wannier_model</code> routine to generate a Wannier.jl model that can be used to perform the wannierization procedure. For now, this model generation produces file in the Wannier90 convention, where all files are named with the same prefix and only differ by their extensions. By default all generated input and output files are stored in the subfolder &quot;wannierjl&quot; under the prefix &quot;wannier&quot; (i.e. &quot;wannierjl/wannier.win&quot;, &quot;wannierjl/wannier.wout&quot;, etc.). A different file prefix can be given with the keyword argument <code>fileprefix</code> as shown below.</p><p>We now produce a simple Wannier model for 5 MLFWs.</p><p>For a good MLWF, we need to provide initial projections that resemble the expected shape of the Wannier functions. Here we will use:</p><ul><li>3 bond-centered 2s hydrogenic orbitals for the expected σ bonds</li><li>2 atom-centered 2pz hydrogenic orbitals for the expected π bands</li></ul><pre><code class="language-julia hljs">using Wannier # Needed to make Wannier.Model available</code></pre><p>From chemical intuition, we know that the bonds with the lowest energy are:</p><ul><li>the 3 σ bonds,</li><li>the π and π* bonds.</li></ul><p>We provide relevant initial projections to help Wannierization converge to functions with a similar shape.</p><pre><code class="language-julia hljs">s_guess(center) = DFTK.HydrogenicWannierProjection(center, 2, 0, 0, C.Z)
+pz_guess(center) = DFTK.HydrogenicWannierProjection(center, 2, 1, 0, C.Z)
+projections = [
+    # Note: fractional coordinates for the centers!
+    # 3 bond-centered 2s hydrogenic orbitals to imitate σ bonds
+    s_guess((positions[1] + positions[2]) / 2),
+    s_guess((positions[1] + positions[2] + [0, -1, 0]) / 2),
+    s_guess((positions[1] + positions[2] + [-1, -1, 0]) / 2),
+    # 2 atom-centered 2pz hydrogenic orbitals
+    pz_guess(positions[1]),
+    pz_guess(positions[2]),
+]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">5-element Vector{DFTK.HydrogenicWannierProjection}:
+ DFTK.HydrogenicWannierProjection([0.16666666666666666, 0.3333333333333333, 0.0], 2, 0, 0, 6)
+ DFTK.HydrogenicWannierProjection([0.16666666666666666, -0.16666666666666669, 0.0], 2, 0, 0, 6)
+ DFTK.HydrogenicWannierProjection([-0.33333333333333337, -0.16666666666666669, 0.0], 2, 0, 0, 6)
+ DFTK.HydrogenicWannierProjection([0.0, 0.0, 0.0], 2, 1, 0, 6)
+ DFTK.HydrogenicWannierProjection([0.3333333333333333, 0.6666666666666666, 0.0], 2, 1, 0, 6)</code></pre><p>Wannierize:</p><pre><code class="language-julia hljs">wannier_model = Wannier.Model(scfres;
+    fileprefix=&quot;wannier/graphene&quot;,
+    n_bands=scfres.n_bands_converge,
+    n_wannier=5,
+    projections,
+    dis_froz_max=ustrip(auconvert(u&quot;eV&quot;, scfres.εF))+1) # maximum frozen window, for example 1 eV above Fermi level</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">lattice: Å
+  a1:  2.64100  0.00000  0.00000
+  a2: -1.32050  2.28717  0.00000
+  a3:  0.00000  0.00000 10.00000
+
+atoms: fractional
+   C:  0.00000  0.00000  0.00000
+   C:  0.33333  0.66667  0.00000
+
+n_bands: 15
+n_wann : 5
+kgrid  : 5 5 1
+n_kpts : 25
+n_bvecs: 8
+
+b-vectors:
+         [bx, by, bz] / Å⁻¹                weight
+  1      -0.47582   -0.27471    0.00000    1.10422
+  2       0.47582    0.27471    0.00000    1.10422
+  3       0.00000   -0.54943    0.00000    1.10422
+  4       0.00000    0.54943    0.00000    1.10422
+  5       0.47582   -0.27471    0.00000    1.10422
+  6      -0.47582    0.27471    0.00000    1.10422
+  7       0.00000    0.00000   -0.62832    1.26651
+  8       0.00000    0.00000    0.62832    1.26651</code></pre><p>Once we have the <code>wannier_model</code>, we can use the functions in the Wannier.jl package:</p><p>Compute MLWF:</p><pre><code class="language-julia hljs">U = disentangle(wannier_model, max_iter=200);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr36"><span class="sgr1">[ Info: </span></span>Initial spread
+  WF     center [rx, ry, rz]/Å              spread/Å²
+   1    -0.00000     0.76239     0.00000     0.62113
+   2     0.66025    -0.38120    -0.00000     0.62113
+   3    -0.66025    -0.38120    -0.00000     0.62113
+   4    -0.00000    -0.00000     0.00000     1.19369
+   5    -0.00000     1.52478    -0.00000     1.19369
+Sum spread: Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD
+   ΩI  =     3.81157
+   Ω̃   =     0.43920
+   ΩOD =     0.43823
+   ΩD  =     0.00097
+   Ω   =     4.25077
+
+
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Initial spread (with states freezed)
+  WF     center [rx, ry, rz]/Å              spread/Å²
+   1    -0.00000     0.76239     0.00000     0.64218
+   2     0.66025    -0.38120    -0.00000     0.64218
+   3    -0.66025    -0.38120    -0.00000     0.64218
+   4     0.00000    -0.00000     0.00000     1.13077
+   5    -0.00000     1.52478    -0.00000     1.13077
+Sum spread: Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD
+   ΩI  =     3.46548
+   Ω̃   =     0.72262
+   ΩOD =     0.71487
+   ΩD  =     0.00775
+   Ω   =     4.18810
+
+
+Iter     Function value   Gradient norm
+     0     4.188095e+00     1.401803e+00
+ * time: 0.0015850067138671875
+     1     3.807530e+00     8.825707e-02
+ * time: 0.008747100830078125
+     2     3.768217e+00     2.015971e-02
+ * time: 0.015794038772583008
+     3     3.765764e+00     2.446910e-03
+ * time: 0.022856950759887695
+     4     3.765724e+00     2.711436e-04
+ * time: 0.030040979385375977
+     5     3.765724e+00     3.155847e-05
+ * time: 0.040431976318359375
+     6     3.765724e+00     1.434238e-05
+ * time: 0.05064105987548828
+     7     3.765724e+00     1.359811e-06
+ * time: 0.057804107666015625
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Final spread
+  WF     center [rx, ry, rz]/Å              spread/Å²
+   1    -0.00000     0.76239     0.00000     0.64174
+   2     0.66025    -0.38120    -0.00000     0.64174
+   3    -0.66025    -0.38120    -0.00000     0.64174
+   4     0.00000    -0.00000     0.00000     0.92025
+   5    -0.00000     1.52478    -0.00000     0.92025
+Sum spread: Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD
+   ΩI  =     3.02222
+   Ω̃   =     0.74351
+   ΩOD =     0.73886
+   ΩD  =     0.00465
+   Ω   =     3.76572</code></pre><p>Inspect localization before and after Wannierization:</p><pre><code class="language-julia hljs">omega(wannier_model)
+omega(wannier_model, U)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">  WF     center [rx, ry, rz]/Å              spread/Å²
+   1    -0.00000     0.76239     0.00000     0.64174
+   2     0.66025    -0.38120    -0.00000     0.64174
+   3    -0.66025    -0.38120    -0.00000     0.64174
+   4     0.00000    -0.00000     0.00000     0.92025
+   5    -0.00000     1.52478    -0.00000     0.92025
+Sum spread: Ω = ΩI + Ω̃, Ω̃ = ΩOD + ΩD
+   ΩI  =     3.02222
+   Ω̃   =     0.74351
+   ΩOD =     0.73886
+   ΩD  =     0.00465
+   Ω   =     3.76572
+</code></pre><p>Build a Wannier interpolation model:</p><pre><code class="language-julia hljs">kpath = irrfbz_path(model)
+interp_model = Wannier.InterpModel(wannier_model; kpath=kpath)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">
+recip_lattice: Å⁻¹
+  a1:  2.37909  1.37357 -0.00000
+  a2:  0.00000  2.74714  0.00000
+  a3:  0.00000 -0.00000  0.62832
+kgrid  : 5 5 1
+n_kpts : 25
+
+lattice: Å
+  a1:  2.64100  0.00000  0.00000
+  a2: -1.32050  2.28717  0.00000
+  a3:  0.00000  0.00000 10.00000
+grid    = 5 5 1
+n_rvecs = 31
+using MDRS interpolation
+
+KPath{3} (6 points, 3 paths, 12 points in paths):
+ points: :M =&gt; [0.5, 0.0, 0.0]
+         :A =&gt; [0.0, 0.0, 0.5]
+         :H =&gt; [0.333333, 0.333333, 0.5]
+         :K =&gt; [0.333333, 0.333333, 0.0]
+         :Γ =&gt; [0.0, 0.0, 0.0]
+         :L =&gt; [0.5, 0.0, 0.5]
+  paths: [:Γ, :M, :K, :Γ, :A, :L, :H, :A]
+         [:L, :M]
+         [:H, :K]
+  basis: [1.258962, 0.726862, -0.0]
+         [0.0, 1.453724, 0.0]
+         [0.0, -0.0, 0.332492]</code></pre><p>And so on... Refer to the Wannier.jl documentation for further examples.</p><p>(Delete temporary files when done.)</p><pre><code class="language-julia hljs">rm(&quot;wannier&quot;, recursive=true)</code></pre><h3 id="Custom-initial-guesses"><a class="docs-heading-anchor" href="#Custom-initial-guesses">Custom initial guesses</a><a id="Custom-initial-guesses-1"></a><a class="docs-heading-anchor-permalink" href="#Custom-initial-guesses" title="Permalink"></a></h3><p>We can also provide custom initial guesses for Wannierization, by passing a callable function in the <code>projections</code> array. The function receives the basis and a list of points (fractional coordinates in reciprocal space), and returns the Fourier transform of the initial guess function evaluated at each point.</p><p>For example, we could use Gaussians for the σ and pz guesses with the following code:</p><pre><code class="language-julia hljs">s_guess(center) = DFTK.GaussianWannierProjection(center)
+function pz_guess(center)
+    # Approximate with two Gaussians offset by 0.5 Å from the center of the atom
+    offset = model.inv_lattice * [0, 0, austrip(0.5u&quot;Å&quot;)]
+    center1 = center + offset
+    center2 = center - offset
+    # Build the custom projector
+    (basis, qs) -&gt; DFTK.GaussianWannierProjection(center1)(basis, qs) - DFTK.GaussianWannierProjection(center2)(basis, qs)
+end
+# Feed to Wannier via the `projections` as before...</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">pz_guess (generic function with 1 method)</code></pre><p>This example assumes that Wannier.jl version 0.3.2 is used, and may need to be updated to accomodate for changes in Wannier.jl.</p><p>Note: Some parameters supported by Wannier90 may have to be passed to Wannier.jl differently, for example the max number of iterations is passed to <code>disentangle</code> in Wannier.jl, but as <code>num_iter</code> to <code>run_wannier90</code>.</p><h2 id="Wannierization-with-Wannier90"><a class="docs-heading-anchor" href="#Wannierization-with-Wannier90">Wannierization with Wannier90</a><a id="Wannierization-with-Wannier90-1"></a><a class="docs-heading-anchor-permalink" href="#Wannierization-with-Wannier90" title="Permalink"></a></h2><p>We can use the <code>run_wannier90</code> routine to generate all required files and perform the wannierization procedure:</p><pre><code class="language-julia hljs">using wannier90_jll  # Needed to make run_wannier90 available
+run_wannier90(scfres;
+              fileprefix=&quot;wannier/graphene&quot;,
+              n_wannier=5,
+              projections,
+              num_print_cycles=25,
+              num_iter=200,
+              #
+              dis_win_max=19.0,
+              dis_froz_max=ustrip(auconvert(u&quot;eV&quot;, scfres.εF))+1, # 1 eV above Fermi level
+              dis_num_iter=300,
+              dis_mix_ratio=1.0,
+              #
+              wannier_plot=true,
+              wannier_plot_format=&quot;cube&quot;,
+              wannier_plot_supercell=5,
+              write_xyz=true,
+              translate_home_cell=true,
+             );</code></pre><p>As can be observed standard optional arguments for the disentanglement can be passed directly to <code>run_wannier90</code> as keyword arguments.</p><p>(Delete temporary files.)</p><pre><code class="language-julia hljs">rm(&quot;wannier&quot;, recursive=true)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../input_output/">« Input and output formats</a><a class="docs-footer-nextpage" href="../../tricks/parallelization/">Timings and parallelization »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.1.2 on <span class="colophon-date" title="Thursday 14 December 2023 10:24">Thursday 14 December 2023</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

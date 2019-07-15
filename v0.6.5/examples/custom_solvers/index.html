@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Custom solvers · DFTK.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link rel="canonical" href="https://docs.dftk.org/stable/examples/custom_solvers/"/><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">DFTK.jl</a></span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../features/">DFTK features</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../../guide/installation/">Installation</a></li><li><a class="tocitem" href="../../guide/tutorial/">Tutorial</a></li><li><a class="tocitem" href="../../guide/periodic_problems/">Problems and plane-wave discretisations</a></li><li><a class="tocitem" href="../../guide/introductory_resources/">Introductory resources</a></li><li><a class="tocitem" href="../../school2022/">DFTK School 2022</a></li></ul></li><li><span class="tocitem">Basic DFT calculations</span><ul><li><a class="tocitem" href="../metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../collinear_magnetism/">Collinear spin and magnetic systems</a></li><li><a class="tocitem" href="../convergence_study/">Performing a convergence study</a></li><li><a class="tocitem" href="../pseudopotentials/">Pseudopotentials</a></li><li><a class="tocitem" href="../supercells/">Creating and modelling metallic supercells</a></li><li><a class="tocitem" href="../gaas_surface/">Modelling a gallium arsenide surface</a></li><li><a class="tocitem" href="../graphene/">Graphene band structure</a></li><li><a class="tocitem" href="../geometry_optimization/">Geometry optimization</a></li><li><a class="tocitem" href="../energy_cutoff_smearing/">Energy cutoff smearing</a></li></ul></li><li><span class="tocitem">Response and properties</span><ul><li><a class="tocitem" href="../polarizability/">Polarizability by linear response</a></li><li><a class="tocitem" href="../forwarddiff/">Polarizability using automatic differentiation</a></li><li><a class="tocitem" href="../dielectric/">Eigenvalues of the dielectric matrix</a></li></ul></li><li><span class="tocitem">Ecosystem integration</span><ul><li><a class="tocitem" href="../atomsbase/">AtomsBase integration</a></li><li><a class="tocitem" href="../input_output/">Input and output formats</a></li><li><a class="tocitem" href="../wannier90/">Wannierization using Wannier90</a></li></ul></li><li><span class="tocitem">Tipps and tricks</span><ul><li><a class="tocitem" href="../../tricks/parallelization/">Timings and parallelization</a></li><li><a class="tocitem" href="../../tricks/scf_checkpoints/">Saving SCF results on disk and SCF checkpoints</a></li></ul></li><li><span class="tocitem">Solvers</span><ul><li class="is-active"><a class="tocitem" href>Custom solvers</a></li><li><a class="tocitem" href="../scf_callbacks/">Monitoring self-consistent field calculations</a></li><li><a class="tocitem" href="../compare_solvers/">Comparison of DFT solvers</a></li></ul></li><li><span class="tocitem">Nonstandard models</span><ul><li><a class="tocitem" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../gross_pitaevskii_2D/">Gross-Pitaevskii equation with external magnetic field</a></li><li><a class="tocitem" href="../custom_potential/">Custom potential</a></li><li><a class="tocitem" href="../cohen_bergstresser/">Cohen-Bergstresser model</a></li><li><a class="tocitem" href="../anyons/">Anyonic models</a></li></ul></li><li><span class="tocitem">Error control</span><ul><li><a class="tocitem" href="../arbitrary_floattype/">Arbitrary floating-point types</a></li><li><a class="tocitem" href="../error_estimates_forces/">Practical error bounds for the forces</a></li></ul></li><li><span class="tocitem">Developer resources</span><ul><li><a class="tocitem" href="../../developer/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../developer/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../developer/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../developer/symmetries/">Crystal symmetries</a></li><li><a class="tocitem" href="../../developer/gpu_computations/">GPU computations</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Solvers</a></li><li class="is-active"><a href>Custom solvers</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Custom solvers</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/examples/custom_solvers.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Custom-solvers"><a class="docs-heading-anchor" href="#Custom-solvers">Custom solvers</a><a id="Custom-solvers-1"></a><a class="docs-heading-anchor-permalink" href="#Custom-solvers" title="Permalink"></a></h1><p><a href="https://mybinder.org/v2/gh/JuliaMolSim/DFTK.jl/gh-pages?filepath=v0.6.5/examples/custom_solvers.ipynb"><img src="https://mybinder.org/badge_logo.svg" alt/></a> <a href="https://nbviewer.jupyter.org/github/JuliaMolSim/DFTK.jl/blob/gh-pages/v0.6.5/examples/custom_solvers.ipynb"><img src="https://img.shields.io/badge/show-nbviewer-579ACA.svg" alt/></a></p><p>In this example, we show how to define custom solvers. Our system will again be silicon, because we are not very imaginative</p><pre><code class="language-julia hljs">using DFTK, LinearAlgebra
+
+a = 10.26
+lattice = a / 2 * [[0 1 1.];
+                   [1 0 1.];
+                   [1 1 0.]]
+Si = ElementPsp(:Si, psp=load_psp(&quot;hgh/lda/Si-q4&quot;))
+atoms = [Si, Si]
+positions =  [ones(3)/8, -ones(3)/8]
+
+# We take very (very) crude parameters
+model = model_LDA(lattice, atoms, positions)
+basis = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1]);</code></pre><p>We define our custom fix-point solver: simply a damped fixed-point</p><pre><code class="language-julia hljs">function my_fp_solver(f, x0, max_iter; tol)
+    mixing_factor = .7
+    x = x0
+    fx = f(x)
+    for n = 1:max_iter
+        inc = fx - x
+        if norm(inc) &lt; tol
+            break
+        end
+        x = x + mixing_factor * inc
+        fx = f(x)
+    end
+    (fixpoint=x, converged=norm(fx-x) &lt; tol)
+end;</code></pre><p>Our eigenvalue solver just forms the dense matrix and diagonalizes it explicitly (this only works for very small systems)</p><pre><code class="language-julia hljs">function my_eig_solver(A, X0; maxiter, tol, kwargs...)
+    n = size(X0, 2)
+    A = Array(A)
+    E = eigen(A)
+    λ = E.values[1:n]
+    X = E.vectors[:, 1:n]
+    (; λ, X, residual_norms=[], iterations=0, converged=true, n_matvec=0)
+end;</code></pre><p>Finally we also define our custom mixing scheme. It will be a mixture of simple mixing (for the first 2 steps) and than default to Kerker mixing. In the mixing interface <code>δF</code> is <span>$(ρ_\text{out} - ρ_\text{in})$</span>, i.e. the difference in density between two subsequent SCF steps and the <code>mix</code> function returns <span>$δρ$</span>, which is added to <span>$ρ_\text{in}$</span> to yield <span>$ρ_\text{next}$</span>, the density for the next SCF step.</p><pre><code class="language-julia hljs">struct MyMixing
+    n_simple  # Number of iterations for simple mixing
+end
+MyMixing() = MyMixing(2)
+
+function DFTK.mix_density(mixing::MyMixing, basis, δF; n_iter, kwargs...)
+    if n_iter &lt;= mixing.n_simple
+        return δF  # Simple mixing -&gt; Do not modify update at all
+    else
+        # Use the default KerkerMixing from DFTK
+        DFTK.mix_density(KerkerMixing(), basis, δF; kwargs...)
+    end
+end</code></pre><p>That&#39;s it! Now we just run the SCF with these solvers</p><pre><code class="language-julia hljs">scfres = self_consistent_field(basis;
+                               tol=1e-8,
+                               solver=my_fp_solver,
+                               eigensolver=my_eig_solver,
+                               mixing=MyMixing());</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime
+---   ---------------   ---------   ---------   ----   ------
+  1   -7.234646274287                   -0.50    0.0
+  2   -7.249388977489       -1.83       -0.92    0.0    717ms
+  3   -7.251162308767       -2.75       -1.34    0.0   90.8ms
+  4   -7.251293181095       -3.88       -1.65    0.0   93.8ms
+  5   -7.251326699411       -4.47       -1.95    0.0   95.1ms
+  6   -7.251335453599       -5.06       -2.25    0.0    102ms
+  7   -7.251337827991       -5.62       -2.54    0.0    282ms
+  8   -7.251338503083       -6.17       -2.82    0.0   86.5ms
+  9   -7.251338704715       -6.70       -3.10    0.0   94.6ms
+ 10   -7.251338767749       -7.20       -3.36    0.0   94.7ms
+ 11   -7.251338788229       -7.69       -3.62    0.0   91.4ms
+ 12   -7.251338795088       -8.16       -3.87    0.0   90.8ms
+ 13   -7.251338797438       -8.63       -4.11    0.0   97.7ms
+ 14   -7.251338798257       -9.09       -4.35    0.0   94.7ms
+ 15   -7.251338798545       -9.54       -4.58    0.0   92.1ms
+ 16   -7.251338798648       -9.99       -4.81    0.0    272ms
+ 17   -7.251338798684      -10.44       -5.04    0.0   73.3ms
+ 18   -7.251338798697      -10.88       -5.27    0.0   83.6ms
+ 19   -7.251338798702      -11.33       -5.49    0.0   90.2ms
+ 20   -7.251338798704      -11.77       -5.72    0.0   93.5ms
+ 21   -7.251338798704      -12.22       -5.94    0.0   91.9ms
+ 22   -7.251338798704      -12.66       -6.17    0.0   94.8ms
+ 23   -7.251338798704      -13.09       -6.39    0.0   92.4ms
+ 24   -7.251338798705      -13.56       -6.61    0.0   96.5ms
+ 25   -7.251338798705      -14.27       -6.84    0.0   97.7ms
+ 26   -7.251338798705      -14.15       -7.03    0.0    247ms
+ 27   -7.251338798705   +  -14.15       -7.08    0.0   79.0ms
+ 28   -7.251338798705      -14.15       -7.32    0.0   94.0ms
+ 29   -7.251338798705   +    -Inf       -7.57    0.0   92.6ms
+ 30   -7.251338798705   +  -13.67       -7.00    0.0   92.9ms
+ 31   -7.251338798705      -13.67       -7.24    0.0   93.9ms
+ 32   -7.251338798705   +    -Inf       -7.51    0.0   92.9ms
+ 33   -7.251338798705      -14.45       -7.80    0.0    100ms
+ 34   -7.251338798705   +  -14.21       -7.41    0.0    106ms
+ 35   -7.251338798705      -14.35       -7.57    0.0    226ms
+ 36   -7.251338798705   +  -14.45       -7.48    0.0   74.7ms
+ 37   -7.251338798705      -14.45       -7.57    0.0   92.0ms
+ 38   -7.251338798705   +  -14.45       -7.76    0.0   91.8ms
+ 39   -7.251338798705      -14.35       -7.90    0.0   92.1ms
+ 40   -7.251338798705   +  -14.75       -7.90    0.0   93.3ms
+ 41   -7.251338798705      -14.75       -7.70    0.0   99.5ms
+ 42   -7.251338798705      -14.75       -7.84    0.0   93.3ms
+ 43   -7.251338798705   +  -14.57       -7.60    0.0   97.3ms
+ 44   -7.251338798705      -14.75       -7.77    0.0   96.8ms
+ 45   -7.251338798705   +  -13.80       -7.08    0.0    215ms
+ 46   -7.251338798705      -13.91       -7.34    0.0   85.0ms
+ 47   -7.251338798705      -14.45       -7.67    0.0   94.0ms
+ 48   -7.251338798705   +  -14.75       -7.98    0.0   99.2ms
+ 49   -7.251338798705   +  -14.75       -7.33    0.0   94.4ms
+ 50   -7.251338798705      -14.75       -7.60    0.0   91.8ms
+ 51   -7.251338798705   +  -14.75       -7.51    0.0   89.9ms
+ 52   -7.251338798705   +    -Inf       -7.60    0.0   96.0ms
+ 53   -7.251338798705      -14.75       -7.77    0.0   96.6ms
+ 54   -7.251338798705   +    -Inf       -7.77    0.0    224ms
+ 55   -7.251338798705   +  -13.97       -7.14    0.0   80.2ms
+ 56   -7.251338798705      -13.97       -7.37    0.0   94.0ms
+ 57   -7.251338798705   +    -Inf       -7.63    0.0   92.5ms
+ 58   -7.251338798705      -14.57       -7.83    0.0   92.9ms
+ 59   -7.251338798705   +  -14.35       -7.49    0.0   94.2ms
+ 60   -7.251338798705      -14.75       -7.76    0.0   92.6ms
+ 61   -7.251338798705      -14.75       -7.74    0.0   95.1ms
+ 62   -7.251338798705   +    -Inf       -7.64    0.0    104ms
+ 63   -7.251338798705   +  -14.57       -7.44    0.0    228ms
+ 64   -7.251338798705   +  -15.05       -7.65    0.0   75.4ms
+ 65   -7.251338798705      -14.35       -7.77    0.0   92.4ms
+ 66   -7.251338798705   +  -14.27       -7.75    0.0   98.3ms
+ 67   -7.251338798705      -15.05       -7.52    0.0   95.0ms
+ 68   -7.251338798705      -14.45       -7.62    0.0    101ms
+ 69   -7.251338798705   +  -14.57       -7.59    0.0   89.3ms
+ 70   -7.251338798705      -14.75       -7.79    0.0   89.8ms
+ 71   -7.251338798705   +  -14.57       -7.51    0.0   96.6ms
+ 72   -7.251338798705      -14.57       -7.72    0.0   95.5ms
+ 73   -7.251338798705   +  -15.05       -7.73    0.0    211ms
+ 74   -7.251338798705   +  -14.05       -7.27    0.0   87.9ms
+ 75   -7.251338798705      -14.15       -7.52    0.0   93.6ms
+ 76   -7.251338798705   +  -15.05       -7.41    0.0   91.0ms
+ 77   -7.251338798705      -14.57       -7.65    0.0   94.3ms
+ 78   -7.251338798705      -14.75       -7.94    0.0   92.9ms
+ 79   -7.251338798705   +  -13.85       -7.12    0.0   93.4ms
+ 80   -7.251338798705      -13.91       -7.37    0.0   95.6ms
+ 81   -7.251338798705      -15.05       -7.57    0.0    100ms
+ 82   -7.251338798705   +  -15.05       -7.67    0.0    225ms
+ 83   -7.251338798705      -14.75       -7.70    0.0   79.7ms
+ 84   -7.251338798705   +  -14.75       -7.94    0.0   92.8ms
+ 85   -7.251338798705   +  -14.15       -7.21    0.0   90.6ms
+ 86   -7.251338798705      -14.27       -7.47    0.0   93.7ms
+ 87   -7.251338798705      -14.35       -7.78    0.0   92.1ms
+ 88   -7.251338798705   +  -14.21       -7.41    0.0   93.4ms
+ 89   -7.251338798705      -14.21       -7.71    0.0   90.7ms
+ 90   -7.251338798705   +  -14.10       -7.25    0.0   95.1ms
+ 91   -7.251338798705      -14.45       -7.43    0.0    229ms
+ 92   -7.251338798705      -14.57       -7.73    0.0   73.3ms
+ 93   -7.251338798705      -15.05       -7.84    0.0   89.9ms
+ 94   -7.251338798705   +  -14.15       -7.39    0.0   94.2ms
+ 95   -7.251338798705      -14.35       -7.51    0.0   94.1ms
+ 96   -7.251338798705   +  -15.05       -7.66    0.0   91.7ms
+ 97   -7.251338798705      -14.75       -7.86    0.0   90.0ms
+ 98   -7.251338798705   +  -14.10       -7.21    0.0   91.8ms
+ 99   -7.251338798705      -14.21       -7.48    0.0   99.2ms
+ 100   -7.251338798705      -14.75       -7.54    0.0   97.3ms
+ 101   -7.251338798705   +    -Inf       -7.72    0.0    232ms
+┌ Warning: SCF not converged.
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/scf/scf_callbacks.jl:38</code></pre><p>Note that the default convergence criterion is the difference in density. When this gets below <code>tol</code>, the &quot;driver&quot; <code>self_consistent_field</code> artificially makes the fixed-point solver think it&#39;s converged by forcing <code>f(x) = x</code>. You can customize this with the <code>is_converged</code> keyword argument to <code>self_consistent_field</code>.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../tricks/scf_checkpoints/">« Saving SCF results on disk and SCF checkpoints</a><a class="docs-footer-nextpage" href="../scf_callbacks/">Monitoring self-consistent field calculations »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Wednesday 22 March 2023 12:31">Wednesday 22 March 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

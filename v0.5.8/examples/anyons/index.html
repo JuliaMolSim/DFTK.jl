@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Anyonic models · DFTK.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link rel="canonical" href="https://docs.dftk.org/stable/examples/anyons/"/><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">DFTK.jl</a></span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../features/">DFTK features</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../../guide/installation/">Installation</a></li><li><a class="tocitem" href="../../guide/tutorial/">Tutorial</a></li><li><a class="tocitem" href="../../guide/periodic_problems/">Problems and plane-wave discretisations</a></li><li><a class="tocitem" href="../../guide/introductory_resources/">Introductory resources</a></li><li><a class="tocitem" href="../../school2022/">DFTK School 2022</a></li></ul></li><li><span class="tocitem">Basic DFT calculations</span><ul><li><a class="tocitem" href="../metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../collinear_magnetism/">Collinear spin and magnetic systems</a></li><li><a class="tocitem" href="../convergence_study/">Performing a convergence study</a></li><li><a class="tocitem" href="../supercells/">Creating and modelling metallic supercells</a></li><li><a class="tocitem" href="../gaas_surface/">Modelling a gallium arsenide surface</a></li><li><a class="tocitem" href="../graphene/">Graphene band structure</a></li><li><a class="tocitem" href="../geometry_optimization/">Geometry optimization</a></li><li><a class="tocitem" href="../energy_cutoff_smearing/">Energy cutoff smearing</a></li></ul></li><li><span class="tocitem">Response and properties</span><ul><li><a class="tocitem" href="../polarizability/">Polarizability by linear response</a></li><li><a class="tocitem" href="../forwarddiff/">Polarizability using automatic differentiation</a></li><li><a class="tocitem" href="../dielectric/">Eigenvalues of the dielectric matrix</a></li></ul></li><li><span class="tocitem">Ecosystem integration</span><ul><li><a class="tocitem" href="../atomsbase/">AtomsBase integration</a></li><li><a class="tocitem" href="../input_output/">Input and output formats</a></li><li><a class="tocitem" href="../wannier90/">Wannierization using Wannier90</a></li></ul></li><li><span class="tocitem">Tipps and tricks</span><ul><li><a class="tocitem" href="../../tricks/parallelization/">Timings and parallelization</a></li><li><a class="tocitem" href="../../tricks/scf_checkpoints/">Saving SCF results on disk and SCF checkpoints</a></li></ul></li><li><span class="tocitem">Solvers</span><ul><li><a class="tocitem" href="../custom_solvers/">Custom solvers</a></li><li><a class="tocitem" href="../scf_callbacks/">Monitoring self-consistent field calculations</a></li><li><a class="tocitem" href="../compare_solvers/">Comparison of DFT solvers</a></li></ul></li><li><span class="tocitem">Nonstandard models</span><ul><li><a class="tocitem" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../gross_pitaevskii_2D/">Gross-Pitaevskii equation with external magnetic field</a></li><li><a class="tocitem" href="../custom_potential/">Custom potential</a></li><li><a class="tocitem" href="../cohen_bergstresser/">Cohen-Bergstresser model</a></li><li class="is-active"><a class="tocitem" href>Anyonic models</a></li></ul></li><li><span class="tocitem">Error control</span><ul><li><a class="tocitem" href="../arbitrary_floattype/">Arbitrary floating-point types</a></li><li><a class="tocitem" href="../error_estimates_forces/">Practical error bounds for the forces</a></li></ul></li><li><span class="tocitem">Developer resources</span><ul><li><a class="tocitem" href="../../developer/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../developer/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../developer/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../developer/symmetries/">Crystal symmetries</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Nonstandard models</a></li><li class="is-active"><a href>Anyonic models</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Anyonic models</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/examples/anyons.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Anyonic-models"><a class="docs-heading-anchor" href="#Anyonic-models">Anyonic models</a><a id="Anyonic-models-1"></a><a class="docs-heading-anchor-permalink" href="#Anyonic-models" title="Permalink"></a></h1><p><a href="https://mybinder.org/v2/gh/JuliaMolSim/DFTK.jl/gh-pages?filepath=v0.5.8/examples/anyons.ipynb"><img src="https://mybinder.org/badge_logo.svg" alt/></a> <a href="https://nbviewer.jupyter.org/github/JuliaMolSim/DFTK.jl/blob/gh-pages/v0.5.8/examples/anyons.ipynb"><img src="https://img.shields.io/badge/show-nbviewer-579ACA.svg" alt/></a></p><p>We solve the almost-bosonic anyon model of https://arxiv.org/pdf/1901.10739.pdf</p><pre><code class="language-julia hljs">using DFTK
+using StaticArrays
+using Plots
+
+# Unit cell. Having one of the lattice vectors as zero means a 2D system
+a = 14
+lattice = a .* [[1 0 0.]; [0 1 0]; [0 0 0]];
+
+# Confining scalar potential
+pot(x, y, z) = ((x - a/2)^2 + (y - a/2)^2)
+
+# Parameters
+Ecut = 50
+n_electrons = 1
+β = 5
+
+terms = [Kinetic(; scaling_factor=2),
+         ExternalFromReal(X -&gt; pot(X...)),
+         Anyonic(1, β)
+]
+model = Model(lattice; n_electrons, terms, spin_polarization=:spinless)  # &quot;spinless electrons&quot;
+basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
+scfres = direct_minimization(basis, tol=1e-14)  # Reduce tol for production
+E = scfres.energies.total
+s = 2
+E11 = π/2 * (2(s+1)/s)^((s+2)/s) * (s/(s+2))^(2(s+1)/s) * E^((s+2)/s) / β
+println(&quot;e(1,1) / (2π)= &quot;, E11 / (2π))
+display(heatmap(scfres.ρ[:, :, 1, 1], c=:blues))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Iter     Function value   Gradient norm
+     0     8.284412e+01     1.454433e+01
+ * time: 0.0030210018157958984
+     1     6.158086e+01     8.922205e+00
+ * time: 0.008934974670410156
+     2     5.467294e+01     1.079422e+01
+ * time: 0.022371768951416016
+     3     3.930940e+01     7.590588e+00
+ * time: 0.09180188179016113
+     4     2.822034e+01     6.689588e+00
+ * time: 0.11011981964111328
+     5     2.075135e+01     4.841297e+00
+ * time: 0.12542200088500977
+     6     1.652393e+01     4.733464e+00
+ * time: 0.13842487335205078
+     7     9.053345e+00     2.850591e+00
+ * time: 0.15121889114379883
+     8     8.053131e+00     2.516905e+00
+ * time: 0.16426777839660645
+     9     7.195357e+00     1.751279e+00
+ * time: 0.2087419033050537
+    10     6.610164e+00     1.941304e+00
+ * time: 0.22011780738830566
+    11     6.262982e+00     1.778499e+00
+ * time: 0.23089599609375
+    12     6.143653e+00     7.726746e-01
+ * time: 0.2417898178100586
+    13     6.008477e+00     8.374171e-01
+ * time: 0.25252580642700195
+    14     5.911657e+00     8.789109e-01
+ * time: 0.26297497749328613
+    15     5.820297e+00     7.263689e-01
+ * time: 0.27321577072143555
+    16     5.781236e+00     5.193444e-01
+ * time: 0.28388285636901855
+    17     5.722995e+00     1.001006e+00
+ * time: 0.29161977767944336
+    18     5.696543e+00     7.833681e-01
+ * time: 0.29938483238220215
+    19     5.657542e+00     5.285523e-01
+ * time: 0.33664798736572266
+    20     5.642019e+00     5.038425e-01
+ * time: 0.3476898670196533
+    21     5.636677e+00     7.397559e-01
+ * time: 0.35564398765563965
+    22     5.627183e+00     6.011636e-01
+ * time: 0.36345887184143066
+    23     5.610904e+00     4.064042e-01
+ * time: 0.37163877487182617
+    24     5.609027e+00     4.745764e-01
+ * time: 0.37959790229797363
+    25     5.601792e+00     4.429229e-01
+ * time: 0.3870837688446045
+    26     5.588638e+00     2.540083e-01
+ * time: 0.39493489265441895
+    27     5.583921e+00     2.416762e-01
+ * time: 0.4050729274749756
+    28     5.578473e+00     2.473888e-01
+ * time: 0.41518497467041016
+    29     5.570766e+00     2.405424e-01
+ * time: 0.423076868057251
+    30     5.568822e+00     2.230716e-01
+ * time: 0.43073487281799316
+    31     5.566917e+00     2.130445e-01
+ * time: 0.45748400688171387
+    32     5.565271e+00     1.678320e-01
+ * time: 0.46808600425720215
+    33     5.564062e+00     1.164836e-01
+ * time: 0.47595787048339844
+    34     5.563186e+00     1.109019e-01
+ * time: 0.48404788970947266
+    35     5.562875e+00     1.320188e-01
+ * time: 0.4916558265686035
+    36     5.562035e+00     7.093754e-02
+ * time: 0.49922800064086914
+    37     5.561370e+00     4.078472e-02
+ * time: 0.5070149898529053
+    38     5.561114e+00     7.105841e-02
+ * time: 0.5144779682159424
+    39     5.560932e+00     5.011357e-02
+ * time: 0.5243899822235107
+    40     5.560826e+00     4.830838e-02
+ * time: 0.5344698429107666
+    41     5.560668e+00     2.891205e-02
+ * time: 0.5422918796539307
+    42     5.560630e+00     3.413260e-02
+ * time: 0.5668938159942627
+    43     5.560608e+00     3.467964e-02
+ * time: 0.574955940246582
+    44     5.560580e+00     2.221444e-02
+ * time: 0.5854129791259766
+    45     5.560546e+00     1.441218e-02
+ * time: 0.5961558818817139
+    46     5.560530e+00     3.561329e-02
+ * time: 0.6042599678039551
+    47     5.560509e+00     1.332621e-02
+ * time: 0.6120758056640625
+    48     5.560489e+00     1.102036e-02
+ * time: 0.6200168132781982
+    49     5.560481e+00     1.532920e-02
+ * time: 0.6275458335876465
+    50     5.560480e+00     1.046343e-02
+ * time: 0.6352288722991943
+    51     5.560479e+00     1.256970e-02
+ * time: 0.6431758403778076
+    52     5.560475e+00     7.579502e-03
+ * time: 0.6533658504486084
+    53     5.560472e+00     7.487502e-03
+ * time: 0.6779959201812744
+    54     5.560472e+00     1.308268e-02
+ * time: 0.6865828037261963
+    55     5.560470e+00     7.025209e-03
+ * time: 0.6981799602508545
+    56     5.560470e+00     9.201499e-03
+ * time: 0.7062079906463623
+    57     5.560470e+00     8.706977e-03
+ * time: 0.7146928310394287
+    58     5.560468e+00     4.863638e-03
+ * time: 0.7228219509124756
+    59     5.560466e+00     3.001714e-03
+ * time: 0.7305958271026611
+    60     5.560465e+00     5.965813e-03
+ * time: 0.7383129596710205
+    61     5.560464e+00     3.624220e-03
+ * time: 0.7461168766021729
+    62     5.560464e+00     3.217043e-03
+ * time: 0.753957986831665
+    63     5.560463e+00     2.510357e-03
+ * time: 0.7645039558410645
+    64     5.560463e+00     2.329546e-03
+ * time: 0.774763822555542
+    65     5.560463e+00     2.499284e-03
+ * time: 0.8001148700714111
+    66     5.560463e+00     1.736468e-03
+ * time: 0.8085038661956787
+    67     5.560463e+00     1.278147e-03
+ * time: 0.8189609050750732
+    68     5.560463e+00     1.337068e-03
+ * time: 0.8270778656005859
+    69     5.560463e+00     1.498816e-03
+ * time: 0.8350028991699219
+    70     5.560463e+00     1.166906e-03
+ * time: 0.8428599834442139
+    71     5.560463e+00     7.417691e-04
+ * time: 0.850883960723877
+    72     5.560463e+00     6.664871e-04
+ * time: 0.8588488101959229
+    73     5.560463e+00     4.541114e-04
+ * time: 0.8667747974395752
+    74     5.560463e+00     5.092631e-04
+ * time: 0.8746588230133057
+    75     5.560463e+00     3.934389e-04
+ * time: 0.8825039863586426
+    76     5.560463e+00     2.673692e-04
+ * time: 0.8927669525146484
+    77     5.560463e+00     2.954342e-04
+ * time: 0.9207727909088135
+    78     5.560463e+00     2.299307e-04
+ * time: 0.9314019680023193
+    79     5.560463e+00     1.974035e-04
+ * time: 0.9394679069519043
+    80     5.560463e+00     1.780867e-04
+ * time: 0.9502768516540527
+    81     5.560463e+00     1.384439e-04
+ * time: 0.9608349800109863
+    82     5.560463e+00     1.359637e-04
+ * time: 0.9686529636383057
+    83     5.560463e+00     1.158927e-04
+ * time: 0.9766778945922852
+    84     5.560463e+00     1.084452e-04
+ * time: 0.9845149517059326
+    85     5.560463e+00     1.065320e-04
+ * time: 0.9923179149627686
+    86     5.560463e+00     7.360887e-05
+ * time: 1.0001769065856934
+    87     5.560463e+00     6.232255e-05
+ * time: 1.007901906967163
+┌ Warning: Negative ρ detected
+│   min_ρ = -1.115617604038941e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+┌ Warning: Negative ρ detected
+│   min_ρ = -1.115617604038941e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+    88     5.560463e+00     6.651148e-05
+ * time: 1.146589994430542
+    89     5.560463e+00     5.731210e-05
+ * time: 1.157331943511963
+┌ Warning: Negative ρ detected
+│   min_ρ = -2.3434856963465703e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+┌ Warning: Negative ρ detected
+│   min_ρ = -2.3434856963465703e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+    90     5.560463e+00     3.903057e-05
+ * time: 1.1682097911834717
+    91     5.560463e+00     2.013973e-05
+ * time: 1.1763899326324463
+    92     5.560463e+00     1.839082e-05
+ * time: 1.1865088939666748
+┌ Warning: Negative ρ detected
+│   min_ρ = -1.695714833848529e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+┌ Warning: Negative ρ detected
+│   min_ρ = -1.695714833848529e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+    93     5.560463e+00     1.468825e-05
+ * time: 1.1968917846679688
+┌ Warning: Negative ρ detected
+│   min_ρ = -1.0484784913036249e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+┌ Warning: Negative ρ detected
+│   min_ρ = -1.0484784913036249e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+    94     5.560463e+00     1.393291e-05
+ * time: 1.2073237895965576
+    95     5.560463e+00     2.079241e-05
+ * time: 1.2151329517364502
+    96     5.560463e+00     2.115273e-05
+ * time: 1.2232789993286133
+    97     5.560463e+00     2.052584e-05
+ * time: 1.2588768005371094
+┌ Warning: Negative ρ detected
+│   min_ρ = -2.0894225869812036e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+┌ Warning: Negative ρ detected
+│   min_ρ = -2.0894225869812036e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+    98     5.560463e+00     2.089254e-05
+ * time: 1.2676799297332764
+┌ Warning: Negative ρ detected
+│   min_ρ = -6.037126746023262e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+┌ Warning: Negative ρ detected
+│   min_ρ = -2.5868022006184747e-19
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+┌ Warning: Negative ρ detected
+│   min_ρ = -2.5868022006184747e-19
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+    99     5.560463e+00     1.907673e-05
+ * time: 1.2765789031982422
+┌ Warning: Negative ρ detected
+│   min_ρ = -6.007113456465843e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+┌ Warning: Negative ρ detected
+│   min_ρ = -6.007113456465843e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+   100     5.560463e+00     3.419379e-05
+ * time: 1.2848618030548096
+   101     5.560463e+00     1.773291e-05
+ * time: 1.2930619716644287
+   102     5.560463e+00     3.054392e-05
+ * time: 1.301339864730835
+┌ Warning: Negative ρ detected
+│   min_ρ = -1.8251024220040492e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+┌ Warning: Negative ρ detected
+│   min_ρ = -1.8251024220040492e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+   103     5.560463e+00     2.134932e-05
+ * time: 1.3097198009490967
+   104     5.560463e+00     3.233434e-05
+ * time: 1.3175039291381836
+┌ Warning: Negative ρ detected
+│   min_ρ = -1.6792659313938934e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+┌ Warning: Negative ρ detected
+│   min_ρ = -1.6792659313938934e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+   105     5.560463e+00     2.229525e-05
+ * time: 1.3258287906646729
+   106     5.560463e+00     1.910041e-05
+ * time: 1.3336219787597656
+   107     5.560463e+00     1.471381e-05
+ * time: 1.3438608646392822
+   108     5.560463e+00     1.966246e-05
+ * time: 1.351637840270996
+   109     5.560463e+00     1.459640e-05
+ * time: 1.3592188358306885
+   110     5.560463e+00     1.358846e-05
+ * time: 1.3920989036560059
+   111     5.560463e+00     4.132706e-05
+ * time: 1.4006497859954834
+   112     5.560463e+00     3.075884e-05
+ * time: 1.4089617729187012
+   113     5.560463e+00     2.485974e-05
+ * time: 1.4172539710998535
+┌ Warning: Negative ρ detected
+│   min_ρ = -1.1880309103928158e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+┌ Warning: Negative ρ detected
+│   min_ρ = -1.1880309103928158e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+   114     5.560463e+00     4.677877e-05
+ * time: 1.425407886505127
+   115     5.560463e+00     5.310559e-05
+ * time: 1.433337926864624
+   116     5.560463e+00     4.334420e-05
+ * time: 1.440936803817749
+   117     5.560463e+00     4.334393e-05
+ * time: 1.463418960571289
+┌ Warning: Negative ρ detected
+│   min_ρ = -5.9476233462061954e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+┌ Warning: Negative ρ detected
+│   min_ρ = -3.96508223080413e-18
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+   118     5.560463e+00     4.334393e-05
+ * time: 1.5195839405059814
+┌ Warning: Negative ρ detected
+│   min_ρ = -9.912705577010326e-19
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+   119     5.560463e+00     4.334393e-05
+ * time: 1.545630931854248
+┌ Warning: Negative ρ detected
+│   min_ρ = -9.912705577010326e-19
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+┌ Warning: Negative ρ detected
+│   min_ρ = -9.912705577010326e-19
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/densities.jl:5
+   120     5.560463e+00     4.334392e-05
+ * time: 1.5711779594421387
+e(1,1) / (2π)= 1.7391794040286055</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../cohen_bergstresser/">« Cohen-Bergstresser model</a><a class="docs-footer-nextpage" href="../arbitrary_floattype/">Arbitrary floating-point types »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.23 on <span class="colophon-date" title="Saturday 17 September 2022 13:58">Saturday 17 September 2022</span>. Using Julia version 1.8.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

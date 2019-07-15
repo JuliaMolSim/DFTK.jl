@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Custom solvers · DFTK.jl</title><link rel="canonical" href="https://juliamolsim.github.io/DFTK.jl/stable/examples/custom_solvers/"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit">DFTK.jl</span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../../guide/installation/">Installation</a></li><li><a class="tocitem" href="../../guide/tutorial/">Tutorial</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../pymatgen/">Creating supercells with pymatgen</a></li><li><a class="tocitem" href="../ase/">Creating slabs with ASE</a></li><li><a class="tocitem" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../gross_pitaevskii_2D/">Gross-Pitaevskii equation with magnetism</a></li><li><a class="tocitem" href="../cohen_bergstresser/">Cohen-Bergstresser model</a></li><li><a class="tocitem" href="../arbitrary_floattype/">Arbitrary floating-point types</a></li><li class="is-active"><a class="tocitem" href>Custom solvers</a></li><li><a class="tocitem" href="../custom_potential/">Custom potential</a></li></ul></li><li><span class="tocitem">Advanced topics</span><ul><li><a class="tocitem" href="../../advanced/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../advanced/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../advanced/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../advanced/symmetries/">Crystal symmetries</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li><li><a class="tocitem" href="../../contributing/">Contributing</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Custom solvers</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Custom solvers</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/examples/custom_solvers.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Custom-solvers-1"><a class="docs-heading-anchor" href="#Custom-solvers-1">Custom solvers</a><a class="docs-heading-anchor-permalink" href="#Custom-solvers-1" title="Permalink"></a></h1><p><a href="https://mybinder.org/v2/gh/JuliaMolSim/DFTK.jl/gh-pages?filepath=v0.1.3/examples/custom_solvers.ipynb"><img src="https://mybinder.org/badge_logo.svg" alt/></a> <a href="https://nbviewer.jupyter.org/github/JuliaMolSim/DFTK.jl/blob/gh-pages/v0.1.3/examples/custom_solvers.ipynb"><img src="https://img.shields.io/badge/show-nbviewer-579ACA.svg" alt/></a></p><p>In this example, we show how to define custom solvers. Our system will again be silicon, because we are not very imaginative</p><pre><code class="language-julia">using DFTK, LinearAlgebra
+
+a = 10.26
+lattice = a / 2 * [[0 1 1.];
+                   [1 0 1.];
+                   [1 1 0.]]
+Si = ElementPsp(:Si, psp=load_psp(&quot;hgh/lda/Si-q4&quot;))
+atoms = [Si =&gt; [ones(3)/8, -ones(3)/8]]
+
+# We take very (very) crude parameters
+model = model_LDA(lattice, atoms)
+kgrid = [1, 1, 1]
+Ecut = 5
+basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid);</code></pre><p>We define our custom fix-point solver: simply a damped fixed-point</p><pre><code class="language-julia">function my_fp_solver(f, x0, max_iter; tol)
+    mixing_factor = .7
+    x = x0
+    fx = f(x)
+    for n = 1:max_iter
+        inc = fx - x
+        if norm(inc) &lt; tol
+            break
+        end
+        x = x + mixing_factor * inc
+        fx = f(x)
+    end
+    (fixpoint=x, converged=norm(fx-x) &lt; tol)
+end;</code></pre><p>Our eigenvalue solver just forms the dense matrix and diagonalizes it explicitly (this only works for very small systems)</p><pre><code class="language-julia">function my_eig_solver(A, X0; maxiter, tol, kwargs...)
+    n = size(X0, 2)
+    A = Array(A)
+    E = eigen(A)
+    λ = E.values[1:n]
+    X = E.vectors[:, 1:n]
+    (λ=λ, X=X, residual_norms=[], iterations=0, converged=true, n_matvec=0)
+end;</code></pre><p>Finally we also define our custom mixing scheme. It will be a mixture of simple mixing (for the first 2 steps) and than default to Kerker mixing.</p><pre><code class="language-julia">struct MyMixing
+    α  # Damping parameter
+end
+MyMixing() = MyMixing(0.7)
+
+function DFTK.mix(mixing::MyMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; n_iter, kwargs...)
+    if n_iter &lt;= 2
+        # Just do simple mixing
+        ρin + mixing.α * (ρout - ρin)
+    else
+        # Use the KerkerMixing from DFTK
+        DFTK.mix(KerkerMixing(α=mixing.α), basis, ρin, ρout; kwargs...)
+    end
+end</code></pre><p>That&#39;s it! Now we just run the SCF with these solvers</p><pre><code class="language-julia">scfres = self_consistent_field(basis;
+                               tol=1e-8,
+                               solver=my_fp_solver,
+                               eigensolver=my_eig_solver,
+                               mixing=MyMixing());</code></pre><pre><code class="language-none">Iter   Energy             ρout-ρin
+----   ------             --------
+  1    -7.233137178645    3.201734E-01
+  2    -7.246440203512    1.460007E-01
+  3    -7.248782206897    6.637745E-02
+  4    -7.249073048326    3.655787E-02
+  5    -7.249169056695    2.027929E-02
+  6    -7.249200701220    1.135561E-02
+  7    -7.249211274590    6.430887E-03
+  8    -7.249214888022    3.689209E-03
+  9    -7.249216157224    2.146500E-03
+ 10    -7.249216616171    1.267516E-03
+ 11    -7.249216786870    7.596069E-04
+ 12    -7.249216852005    4.616544E-04
+ 13    -7.249216877413    2.841608E-04
+ 14    -7.249216887507    1.768469E-04
+ 15    -7.249216891577    1.110778E-04</code></pre><p>Note that the default convergence criterion is on the difference of energy from one step to the other; when this gets below <code>tol</code>, the &quot;driver&quot; <code>self_consistent_field</code> artificially makes the fixpoint solver think it&#39;s converged by forcing <code>f(x) = x</code>. You can customize this with the <code>is_converged</code> keyword argument to <code>self_consistent_field</code>.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../arbitrary_floattype/">« Arbitrary floating-point types</a><a class="docs-footer-nextpage" href="../custom_potential/">Custom potential »</a></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Wednesday 10 June 2020 11:49">Wednesday 10 June 2020</span>. Using Julia version 1.3.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

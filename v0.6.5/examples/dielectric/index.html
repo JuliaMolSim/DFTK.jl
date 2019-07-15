@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Eigenvalues of the dielectric matrix · DFTK.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link rel="canonical" href="https://docs.dftk.org/stable/examples/dielectric/"/><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">DFTK.jl</a></span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../features/">DFTK features</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../../guide/installation/">Installation</a></li><li><a class="tocitem" href="../../guide/tutorial/">Tutorial</a></li><li><a class="tocitem" href="../../guide/periodic_problems/">Problems and plane-wave discretisations</a></li><li><a class="tocitem" href="../../guide/introductory_resources/">Introductory resources</a></li><li><a class="tocitem" href="../../school2022/">DFTK School 2022</a></li></ul></li><li><span class="tocitem">Basic DFT calculations</span><ul><li><a class="tocitem" href="../metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../collinear_magnetism/">Collinear spin and magnetic systems</a></li><li><a class="tocitem" href="../convergence_study/">Performing a convergence study</a></li><li><a class="tocitem" href="../pseudopotentials/">Pseudopotentials</a></li><li><a class="tocitem" href="../supercells/">Creating and modelling metallic supercells</a></li><li><a class="tocitem" href="../gaas_surface/">Modelling a gallium arsenide surface</a></li><li><a class="tocitem" href="../graphene/">Graphene band structure</a></li><li><a class="tocitem" href="../geometry_optimization/">Geometry optimization</a></li><li><a class="tocitem" href="../energy_cutoff_smearing/">Energy cutoff smearing</a></li></ul></li><li><span class="tocitem">Response and properties</span><ul><li><a class="tocitem" href="../polarizability/">Polarizability by linear response</a></li><li><a class="tocitem" href="../forwarddiff/">Polarizability using automatic differentiation</a></li><li class="is-active"><a class="tocitem" href>Eigenvalues of the dielectric matrix</a></li></ul></li><li><span class="tocitem">Ecosystem integration</span><ul><li><a class="tocitem" href="../atomsbase/">AtomsBase integration</a></li><li><a class="tocitem" href="../input_output/">Input and output formats</a></li><li><a class="tocitem" href="../wannier90/">Wannierization using Wannier90</a></li></ul></li><li><span class="tocitem">Tipps and tricks</span><ul><li><a class="tocitem" href="../../tricks/parallelization/">Timings and parallelization</a></li><li><a class="tocitem" href="../../tricks/scf_checkpoints/">Saving SCF results on disk and SCF checkpoints</a></li></ul></li><li><span class="tocitem">Solvers</span><ul><li><a class="tocitem" href="../custom_solvers/">Custom solvers</a></li><li><a class="tocitem" href="../scf_callbacks/">Monitoring self-consistent field calculations</a></li><li><a class="tocitem" href="../compare_solvers/">Comparison of DFT solvers</a></li></ul></li><li><span class="tocitem">Nonstandard models</span><ul><li><a class="tocitem" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../gross_pitaevskii_2D/">Gross-Pitaevskii equation with external magnetic field</a></li><li><a class="tocitem" href="../custom_potential/">Custom potential</a></li><li><a class="tocitem" href="../cohen_bergstresser/">Cohen-Bergstresser model</a></li><li><a class="tocitem" href="../anyons/">Anyonic models</a></li></ul></li><li><span class="tocitem">Error control</span><ul><li><a class="tocitem" href="../arbitrary_floattype/">Arbitrary floating-point types</a></li><li><a class="tocitem" href="../error_estimates_forces/">Practical error bounds for the forces</a></li></ul></li><li><span class="tocitem">Developer resources</span><ul><li><a class="tocitem" href="../../developer/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../developer/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../developer/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../developer/symmetries/">Crystal symmetries</a></li><li><a class="tocitem" href="../../developer/gpu_computations/">GPU computations</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Response and properties</a></li><li class="is-active"><a href>Eigenvalues of the dielectric matrix</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Eigenvalues of the dielectric matrix</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/examples/dielectric.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Eigenvalues-of-the-dielectric-matrix"><a class="docs-heading-anchor" href="#Eigenvalues-of-the-dielectric-matrix">Eigenvalues of the dielectric matrix</a><a id="Eigenvalues-of-the-dielectric-matrix-1"></a><a class="docs-heading-anchor-permalink" href="#Eigenvalues-of-the-dielectric-matrix" title="Permalink"></a></h1><p><a href="https://mybinder.org/v2/gh/JuliaMolSim/DFTK.jl/gh-pages?filepath=v0.6.5/examples/dielectric.ipynb"><img src="https://mybinder.org/badge_logo.svg" alt/></a> <a href="https://nbviewer.jupyter.org/github/JuliaMolSim/DFTK.jl/blob/gh-pages/v0.6.5/examples/dielectric.ipynb"><img src="https://img.shields.io/badge/show-nbviewer-579ACA.svg" alt/></a></p><p>We compute a few eigenvalues of the dielectric matrix (<span>$q=0$</span>, <span>$ω=0$</span>) iteratively.</p><pre><code class="language-julia hljs">using DFTK
+using Plots
+using KrylovKit
+using Printf
+
+# Calculation parameters
+kgrid = [1, 1, 1]
+Ecut = 5
+
+# Silicon lattice
+a = 10.26
+lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
+Si = ElementPsp(:Si, psp=load_psp(&quot;hgh/lda/Si-q4&quot;))
+atoms     = [Si, Si]
+positions = [ones(3)/8, -ones(3)/8]
+
+# Compute the dielectric operator without symmetries
+model  = model_LDA(lattice, atoms, positions, symmetries=false)
+basis  = PlaneWaveBasis(model; Ecut, kgrid)
+scfres = self_consistent_field(basis, tol=1e-8);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime
+---   ---------------   ---------   ---------   ----   ------
+  1   -7.234877074037                   -0.50    7.0
+  2   -7.250207907149       -1.81       -1.39    1.0   12.4ms
+  3   -7.251112495396       -3.04       -2.12    1.0   11.0ms
+  4   -7.251246432315       -3.87       -2.08    3.0   15.4ms
+  5   -7.251332085183       -4.07       -2.63    1.0   11.8ms
+  6   -7.251334324738       -5.65       -2.83    1.0   11.3ms
+  7   -7.251338567892       -5.37       -3.41    1.0   14.2ms
+  8   -7.251338775973       -6.68       -3.90    1.0   12.1ms
+  9   -7.251338795301       -7.71       -4.28    2.0   14.7ms
+ 10   -7.251338798302       -8.52       -4.69    2.0   14.6ms
+ 11   -7.251338798633       -9.48       -5.07    1.0   12.5ms
+ 12   -7.251338798689      -10.25       -5.50    1.0   12.0ms
+ 13   -7.251338798704      -10.83       -6.01    2.0   15.2ms
+ 14   -7.251338798704      -12.05       -6.32    2.0   14.0ms
+ 15   -7.251338798704      -13.57       -6.77    1.0   12.2ms
+ 16   -7.251338798705      -13.34       -7.34    2.0   14.1ms
+ 17   -7.251338798705      -14.75       -7.73    2.0   14.4ms
+ 18   -7.251338798705   +    -Inf       -8.04    2.0   14.8ms</code></pre><p>Applying <span>$ε^† ≔ (1- χ_0 K)$</span> …</p><pre><code class="language-julia hljs">function eps_fun(δρ)
+    δV = apply_kernel(basis, δρ; ρ=scfres.ρ)
+    χ0δV = apply_χ0(scfres, δV)
+    δρ - χ0δV
+end;</code></pre><p>… eagerly diagonalizes the subspace matrix at each iteration</p><pre><code class="language-julia hljs">eigsolve(eps_fun, randn(size(scfres.ρ)), 5, :LM; eager=true, verbosity=3);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">[ Info: Arnoldi iteration step 1: normres = 0.052121799711469005
+[ Info: Arnoldi iteration step 2: normres = 0.6623910925279951
+[ Info: Arnoldi iteration step 3: normres = 0.7636632361934997
+[ Info: Arnoldi iteration step 4: normres = 0.3098758609737797
+[ Info: Arnoldi iteration step 5: normres = 0.41486643888805513
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 5: 0 values converged, normres = (2.34e-02, 7.09e-02, 3.13e-01, 2.60e-01, 3.25e-02)
+[ Info: Arnoldi iteration step 6: normres = 0.3181135266436897
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 6: 0 values converged, normres = (6.34e-03, 1.02e-01, 2.79e-01, 9.09e-02, 5.66e-02)
+[ Info: Arnoldi iteration step 7: normres = 0.0845519354054909
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 7: 0 values converged, normres = (2.62e-04, 1.08e-02, 1.87e-02, 3.08e-02, 6.43e-02)
+[ Info: Arnoldi iteration step 8: normres = 0.12831441423618156
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 8: 0 values converged, normres = (1.46e-05, 9.95e-04, 1.92e-03, 1.38e-02, 6.59e-02)
+[ Info: Arnoldi iteration step 9: normres = 0.07193614414548631
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 9: 0 values converged, normres = (4.55e-07, 5.11e-05, 1.10e-04, 3.57e-03, 3.53e-02)
+[ Info: Arnoldi iteration step 10: normres = 0.08012371732989777
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 10: 0 values converged, normres = (1.61e-08, 3.01e-06, 7.20e-06, 1.11e-03, 2.65e-02)
+[ Info: Arnoldi iteration step 11: normres = 0.08006316579264398
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 11: 0 values converged, normres = (5.51e-10, 1.68e-07, 4.47e-07, 2.78e-04, 1.38e-02)
+[ Info: Arnoldi iteration step 12: normres = 0.07969449149885578
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 12: 0 values converged, normres = (1.90e-11, 9.57e-09, 2.82e-08, 7.32e-05, 7.63e-03)
+[ Info: Arnoldi iteration step 13: normres = 0.039532135448131146
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 13: 1 values converged, normres = (3.20e-13, 2.62e-10, 8.57e-10, 8.63e-06, 1.86e-03)
+[ Info: Arnoldi iteration step 14: normres = 0.6968855369535971
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 14: 1 values converged, normres = (1.20e-13, 1.93e-10, 7.37e-10, 6.81e-01, 1.18e-01)
+[ Info: Arnoldi iteration step 15: normres = 0.08617240125912157
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 15: 1 values converged, normres = (7.73e-15, 9.28e-11, 6.58e-02, 3.08e-04, 4.86e-05)
+[ Info: Arnoldi iteration step 16: normres = 0.6200717296586188
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 16: 1 values converged, normres = (3.72e-15, 1.68e-10, 1.37e-01, 1.35e-03, 6.03e-01)
+[ Info: Arnoldi iteration step 17: normres = 0.038194815976418134
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 17: 1 values converged, normres = (8.12e-17, 4.00e-09, 1.60e-02, 3.24e-05, 9.22e-03)
+[ Info: Arnoldi iteration step 18: normres = 0.02223881215058391
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 18: 1 values converged, normres = (7.48e-19, 1.11e-04, 2.09e-04, 1.44e-04, 4.16e-05)
+[ Info: Arnoldi iteration step 19: normres = 0.1535129100652116
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 19: 1 values converged, normres = (4.83e-20, 1.39e-08, 2.47e-05, 1.85e-07, 1.72e-05)
+[ Info: Arnoldi iteration step 20: normres = 0.07134719447645387
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 20: 1 values converged, normres = (1.68e-21, 4.83e-08, 1.54e-06, 2.11e-08, 1.23e-06)
+[ Info: Arnoldi iteration step 21: normres = 0.02584929960961596
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 21: 1 values converged, normres = (1.82e-23, 2.65e-08, 4.93e-09, 2.20e-08, 8.77e-09)
+[ Info: Arnoldi iteration step 22: normres = 0.01741913350269898
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 22: 1 values converged, normres = (1.30e-25, 3.07e-10, 8.37e-12, 1.96e-10, 2.24e-10)
+[ Info: Arnoldi iteration step 23: normres = 0.530665230983868
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 23: 1 values converged, normres = (3.19e-26, 1.30e-10, 7.06e-12, 9.57e-11, 1.05e-10)
+[ Info: Arnoldi iteration step 24: normres = 0.028082420851638302
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 24: 1 values converged, normres = (7.59e-28, 2.11e-11, 9.82e-13, 1.12e-09, 1.30e-09)
+[ Info: Arnoldi iteration step 25: normres = 0.025571683177284307
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 25: 3 values converged, normres = (7.96e-30, 3.57e-13, 1.71e-14, 9.82e-05, 2.69e-04)
+[ Info: Arnoldi iteration step 26: normres = 0.12296571565233257
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 26: 3 values converged, normres = (4.32e-31, 3.23e-14, 1.55e-15, 1.18e-05, 3.91e-06)
+[ Info: Arnoldi iteration step 27: normres = 0.018727200459059595
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 27: 3 values converged, normres = (3.42e-33, 4.15e-16, 1.99e-17, 7.62e-10, 2.40e-09)
+[ Info: Arnoldi iteration step 28: normres = 0.07617499233398164
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 28: 3 values converged, normres = (1.08e-34, 2.11e-17, 1.01e-18, 1.32e-09, 2.04e-09)
+[ Info: Arnoldi iteration step 29: normres = 0.03390482746572489
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 29: 3 values converged, normres = (1.61e-36, 5.22e-19, 2.50e-20, 5.06e-10, 7.70e-10)
+[ Info: Arnoldi iteration step 30: normres = 0.07357299940114666
+[ Info: Arnoldi schursolve in iter 1, krylovdim = 30: 3 values converged, normres = (4.98e-38, 2.61e-20, 1.25e-21, 2.58e-11, 4.24e-11)
+[ Info: Arnoldi schursolve in iter 2, krylovdim = 19: 3 values converged, normres = (4.98e-38, 2.61e-20, 1.25e-21, 2.58e-11, 4.24e-11)
+[ Info: Arnoldi iteration step 20: normres = 0.07837137529886476
+[ Info: Arnoldi schursolve in iter 2, krylovdim = 20: 3 values converged, normres = (1.68e-39, 1.45e-21, 6.93e-23, 1.61e-12, 2.61e-12)
+[ Info: Arnoldi iteration step 21: normres = 0.15773295812271948
+┌ Info: Arnoldi eigsolve finished after 2 iterations:
+│ *  6 eigenvalues converged
+│ *  norm of residuals = (1.2771153413290389e-40, 1.946690498704245e-22, 2.7460516046504915e-23, 2.4538089730293563e-13, 2.8831896950873297e-13, 1.4882036667845187e-13)
+└ *  number of operations = 32</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../forwarddiff/">« Polarizability using automatic differentiation</a><a class="docs-footer-nextpage" href="../atomsbase/">AtomsBase integration »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Wednesday 22 March 2023 12:32">Wednesday 22 March 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

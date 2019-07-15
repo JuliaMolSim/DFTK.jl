@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Polarizability by linear response · DFTK.jl</title><link rel="canonical" href="https://juliamolsim.github.io/DFTK.jl/stable/examples/polarizability/"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit">DFTK.jl</span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../../guide/installation/">Installation</a></li><li><a class="tocitem" href="../../guide/tutorial/">Tutorial</a></li><li><a class="tocitem" href="../../guide/input_output/">Input and output formats</a></li><li><a class="tocitem" href="../../guide/parallelization/">Timings and parallelization</a></li><li><a class="tocitem" href="../../guide/periodic_problems/">Introduction to periodic problems</a></li><li><a class="tocitem" href="../../guide/density_functional_theory/">Density-functional theory</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../pymatgen/">Creating supercells with pymatgen</a></li><li><a class="tocitem" href="../ase/">Creating slabs with ASE</a></li><li><a class="tocitem" href="../collinear_magnetism/">Collinear spin and magnetic systems</a></li><li><a class="tocitem" href="../geometry_optimization/">Geometry optimization</a></li><li><a class="tocitem" href="../scf_callbacks/">Monitoring self-consistent field calculations</a></li><li><a class="tocitem" href="../scf_checkpoints/">Saving SCF results on disk and SCF checkpoints</a></li><li class="is-active"><a class="tocitem" href>Polarizability by linear response</a><ul class="internal"><li><a class="tocitem" href="#Using-finite-differences"><span>Using finite differences</span></a></li><li><a class="tocitem" href="#Using-linear-response"><span>Using linear response</span></a></li></ul></li><li><a class="tocitem" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../gross_pitaevskii_2D/">Gross-Pitaevskii equation with magnetism</a></li><li><a class="tocitem" href="../cohen_bergstresser/">Cohen-Bergstresser model</a></li><li><a class="tocitem" href="../arbitrary_floattype/">Arbitrary floating-point types</a></li><li><a class="tocitem" href="../forwarddiff/">Polarizability using automatic differentiation</a></li><li><a class="tocitem" href="../custom_solvers/">Custom solvers</a></li><li><a class="tocitem" href="../custom_potential/">Custom potential</a></li></ul></li><li><span class="tocitem">Advanced topics</span><ul><li><a class="tocitem" href="../../advanced/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../advanced/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../advanced/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../advanced/symmetries/">Crystal symmetries</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Polarizability by linear response</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Polarizability by linear response</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/examples/polarizability.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Polarizability-by-linear-response"><a class="docs-heading-anchor" href="#Polarizability-by-linear-response">Polarizability by linear response</a><a id="Polarizability-by-linear-response-1"></a><a class="docs-heading-anchor-permalink" href="#Polarizability-by-linear-response" title="Permalink"></a></h1><p><a href="https://mybinder.org/v2/gh/JuliaMolSim/DFTK.jl/gh-pages?filepath=v0.4.0/examples/polarizability.ipynb"><img src="https://mybinder.org/badge_logo.svg" alt/></a> <a href="https://nbviewer.jupyter.org/github/JuliaMolSim/DFTK.jl/blob/gh-pages/v0.4.0/examples/polarizability.ipynb"><img src="https://img.shields.io/badge/show-nbviewer-579ACA.svg" alt/></a></p><p>We compute the polarizability of a Helium atom. The polarizability is defined as the change in dipole moment</p><p class="math-container">\[\mu = \int r ρ(r) dr\]</p><p>with respect to a small uniform electric field <span>$E = -x$</span>.</p><p>We compute this in two ways: first by finite differences (applying a finite electric field), then by linear response. Note that DFTK is not really adapted to isolated atoms because it uses periodic boundary conditions. Nevertheless we can simply embed the Helium atom in a large enough box (although this is computationally wasteful).</p><p>As in other tests, this is not fully converged, convergence parameters were simply selected for fast execution on CI,</p><pre><code class="language-julia">using DFTK
+using LinearAlgebra
+
+a = 10.
+lattice = a * I(3)  # cube of ``a`` bohrs
+He = ElementPsp(:He, psp=load_psp(&quot;hgh/lda/He-q2&quot;))
+atoms = [He =&gt; [[1/2; 1/2; 1/2]]]  # Helium at the center of the box
+
+kgrid = [1, 1, 1]  # no k-point sampling for an isolated system
+Ecut = 30
+tol = 1e-8
+
+# dipole moment of a given density (assuming the current geometry)
+function dipole(basis, ρ)
+    rr = [a * (r[1] - 1/2) for r in r_vectors(basis)]
+    sum(rr .* ρ) * basis.dvol
+end;</code></pre><h2 id="Using-finite-differences"><a class="docs-heading-anchor" href="#Using-finite-differences">Using finite differences</a><a id="Using-finite-differences-1"></a><a class="docs-heading-anchor-permalink" href="#Using-finite-differences" title="Permalink"></a></h2><p>We first compute the polarizability by finite differences. First compute the dipole moment at rest:</p><pre><code class="language-julia">model = model_LDA(lattice, atoms; symmetries=false)
+basis = PlaneWaveBasis(model; Ecut, kgrid)
+res   = self_consistent_field(basis, tol=tol)
+μref  = dipole(basis, res.ρ)</code></pre><pre class="documenter-example-output">-0.0001347161747782509</pre><p>Then in a small uniform field:</p><pre><code class="language-julia">ε = .01
+model_ε = model_LDA(lattice, atoms; extra_terms=[ExternalFromReal(r -&gt; -ε * (r[1] - a/2))],
+                    symmetries=false)
+basis_ε = PlaneWaveBasis(model_ε; Ecut, kgrid)
+res_ε = self_consistent_field(basis_ε, tol=tol)
+με = dipole(basis_ε, res_ε.ρ)</code></pre><pre class="documenter-example-output">0.017617544960359003</pre><pre><code class="language-julia">polarizability = (με - μref) / ε
+
+println(&quot;Reference dipole:  $μref&quot;)
+println(&quot;Displaced dipole:  $με&quot;)
+println(&quot;Polarizability :   $polarizability&quot;)</code></pre><pre class="documenter-example-output">Reference dipole:  -0.0001347161747782509
+Displaced dipole:  0.017617544960359003
+Polarizability :   1.7752261135137253</pre><p>The result on more converged grids is very close to published results. For example <a href="https://doi.org/10.1039/C8CP03569E">DOI 10.1039/C8CP03569E</a> quotes <strong>1.65</strong> with LSDA and <strong>1.38</strong> with CCSD(T).</p><h2 id="Using-linear-response"><a class="docs-heading-anchor" href="#Using-linear-response">Using linear response</a><a id="Using-linear-response-1"></a><a class="docs-heading-anchor-permalink" href="#Using-linear-response" title="Permalink"></a></h2><p>Now we use linear response to compute this analytically; we refer to standard textbooks for the formalism. In the following, <span>$\chi_0$</span> is the independent-particle polarizability, and <span>$K$</span> the Hartree-exchange-correlation kernel. We denote with <span>$\delta V_{\rm ext}$</span> an external perturbing potential (like in this case the uniform electric field). Then:</p><p class="math-container">\[\delta\rho = \chi_0 \delta V = \chi_0 (\delta V_{\rm ext} + K \delta\rho),\]</p><p>which implies</p><p class="math-container">\[\delta\rho = (1-\chi_0 K)^-1 \chi_0 \delta V_{\rm ext}.\]</p><p>From this we identify the polarizability operator to be <span>$\chi = (1-\chi_0 K)^{-1} \chi_0$</span>. Numerically, we apply <span>$\chi$</span> to <span>$\delta V = -x$</span> by solving a linear equation (the Dyson equation) iteratively.</p><pre><code class="language-julia">using KrylovKit
+
+# Apply (1- χ0 K)
+function dielectric_operator(δρ)
+    δV = apply_kernel(basis, δρ; ρ=res.ρ)
+    χ0δV = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, δV)
+    δρ - χ0δV
+end
+
+# δVext is the potential from a uniform field interacting with the dielectric dipole
+# of the density.
+δVext = [-a * (r[1] - 1/2) for r in r_vectors(basis)]
+δVext = cat(δVext; dims=4)
+
+# Apply χ0 once to get non-interacting dipole
+δρ_nointeract = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, δVext)
+
+# Solve Dyson equation to get interacting dipole
+δρ = linsolve(dielectric_operator, δρ_nointeract, verbosity=3)[1]
+
+println(&quot;Non-interacting polarizability: $(dipole(basis, δρ_nointeract))&quot;)
+println(&quot;Interacting polarizability:     $(dipole(basis, δρ))&quot;)</code></pre><pre class="documenter-example-output">WARNING: using KrylovKit.basis in module ex-polarizability conflicts with an existing identifier.
+[ Info: GMRES linsolve in iter 1; step 1: normres = 2.491473893120e-01
+[ Info: GMRES linsolve in iter 1; step 2: normres = 3.778008783863e-03
+[ Info: GMRES linsolve in iter 1; step 3: normres = 3.207720896226e-04
+[ Info: GMRES linsolve in iter 1; step 4: normres = 5.135688013593e-06
+[ Info: GMRES linsolve in iter 1; step 5: normres = 3.931934448054e-07
+[ Info: GMRES linsolve in iter 1; step 6: normres = 1.863792900676e-09
+[ Info: GMRES linsolve in iter 1; step 7: normres = 1.218752235439e-11
+[ Info: GMRES linsolve in iter 1; step 8: normres = 4.605105330475e-13
+[ Info: GMRES linsolve in iter 1; finished at step 8: normres = 4.605105330475e-13
+[ Info: GMRES linsolve in iter 2; step 1: normres = 7.401841742490e-07
+[ Info: GMRES linsolve in iter 2; step 2: normres = 8.640511848196e-08
+[ Info: GMRES linsolve in iter 2; step 3: normres = 1.571242632641e-09
+[ Info: GMRES linsolve in iter 2; step 4: normres = 2.745916892946e-11
+[ Info: GMRES linsolve in iter 2; step 5: normres = 1.271097165488e-13
+[ Info: GMRES linsolve in iter 2; finished at step 5: normres = 1.271097165488e-13
+[ Info: GMRES linsolve in iter 3; step 1: normres = 4.530739300893e-11
+[ Info: GMRES linsolve in iter 3; step 2: normres = 5.694866819459e-12
+[ Info: GMRES linsolve in iter 3; step 3: normres = 5.924646902113e-14
+[ Info: GMRES linsolve in iter 3; finished at step 3: normres = 5.924646902113e-14
+┌ Info: GMRES linsolve converged at iteration 3, step 3:
+│ *  norm of residual = 5.993674376433162e-14
+└ *  number of operations = 18
+Non-interacting polarizability: 1.9263419527951124
+Interacting polarizability:     1.7741495643493685</pre><p>As expected, the interacting polarizability matches the finite difference result. The non-interacting polarizability is higher.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../scf_checkpoints/">« Saving SCF results on disk and SCF checkpoints</a><a class="docs-footer-nextpage" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Sunday 17 October 2021 16:01">Sunday 17 October 2021</span>. Using Julia version 1.6.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

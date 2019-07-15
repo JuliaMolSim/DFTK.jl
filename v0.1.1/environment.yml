@@ -1,0 +1,8 @@
+name: dftk
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - ase
+  - spglib
+  - pymatgen

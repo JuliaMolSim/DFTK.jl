@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Practical error bounds for the forces · DFTK.jl</title><link rel="canonical" href="https://docs.dftk.org/stable/examples/error_estimates_forces/"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit">DFTK.jl</span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../school2022/">DFTK School 2022</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../../guide/installation/">Installation</a></li><li><a class="tocitem" href="../../guide/tutorial/">Tutorial</a></li><li><a class="tocitem" href="../../guide/input_output/">Input and output formats</a></li><li><a class="tocitem" href="../../guide/parallelization/">Timings and parallelization</a></li><li><a class="tocitem" href="../../guide/periodic_problems/">Introduction to periodic problems</a></li><li><a class="tocitem" href="../../guide/density_functional_theory/">Density-functional theory</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../pymatgen/">Creating supercells with pymatgen</a></li><li><a class="tocitem" href="../ase/">Creating slabs with ASE</a></li><li><a class="tocitem" href="../collinear_magnetism/">Collinear spin and magnetic systems</a></li><li><a class="tocitem" href="../geometry_optimization/">Geometry optimization</a></li><li><a class="tocitem" href="../scf_callbacks/">Monitoring self-consistent field calculations</a></li><li><a class="tocitem" href="../scf_checkpoints/">Saving SCF results on disk and SCF checkpoints</a></li><li><a class="tocitem" href="../polarizability/">Polarizability by linear response</a></li><li><a class="tocitem" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../gross_pitaevskii_2D/">Gross-Pitaevskii equation with external magnetic field</a></li><li><a class="tocitem" href="../cohen_bergstresser/">Cohen-Bergstresser model</a></li><li><a class="tocitem" href="../arbitrary_floattype/">Arbitrary floating-point types</a></li><li><a class="tocitem" href="../forwarddiff/">Polarizability using automatic differentiation</a></li><li><a class="tocitem" href="../custom_solvers/">Custom solvers</a></li><li><a class="tocitem" href="../custom_potential/">Custom potential</a></li><li><a class="tocitem" href="../wannier90/">Wannierization using Wannier90</a></li><li class="is-active"><a class="tocitem" href>Practical error bounds for the forces</a><ul class="internal"><li><a class="tocitem" href="#Setup"><span>Setup</span></a></li><li><a class="tocitem" href="#Computations"><span>Computations</span></a></li><li><a class="tocitem" href="#Error-estimates"><span>Error estimates</span></a></li></ul></li></ul></li><li><span class="tocitem">Advanced topics</span><ul><li><a class="tocitem" href="../../advanced/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../advanced/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../advanced/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../advanced/symmetries/">Crystal symmetries</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Practical error bounds for the forces</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Practical error bounds for the forces</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/examples/error_estimates_forces.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Practical-error-bounds-for-the-forces"><a class="docs-heading-anchor" href="#Practical-error-bounds-for-the-forces">Practical error bounds for the forces</a><a id="Practical-error-bounds-for-the-forces-1"></a><a class="docs-heading-anchor-permalink" href="#Practical-error-bounds-for-the-forces" title="Permalink"></a></h1><p><a href="https://mybinder.org/v2/gh/JuliaMolSim/DFTK.jl/gh-pages?filepath=v0.5.3/examples/error_estimates_forces.ipynb"><img src="https://mybinder.org/badge_logo.svg" alt/></a> <a href="https://nbviewer.jupyter.org/github/JuliaMolSim/DFTK.jl/blob/gh-pages/v0.5.3/examples/error_estimates_forces.ipynb"><img src="https://img.shields.io/badge/show-nbviewer-579ACA.svg" alt/></a></p><p>This is a simple example showing how to compute error estimates for the forces on a <span>${\rm TiO}_2$</span> molecule, from which we can either compute asymptotically valid error bounds or increase the precision on the computation of the forces.</p><p>The strategy we follow is described with more details in <sup class="footnote-reference"><a id="citeref-CDKL2021" href="#footnote-CDKL2021">[CDKL2021]</a></sup> and we will use in comments the density matrices framework. We will also needs operators and functions from <a href="https://dftk.org/blob/master/src/scf/newton.jl"><code>src/scf/newton.jl</code></a>.</p><pre><code class="language-julia">using DFTK
+using Printf
+using LinearAlgebra
+using ForwardDiff
+using LinearMaps
+using IterativeSolvers</code></pre><h2 id="Setup"><a class="docs-heading-anchor" href="#Setup">Setup</a><a id="Setup-1"></a><a class="docs-heading-anchor-permalink" href="#Setup" title="Permalink"></a></h2><p>We setup manually the <span>${\rm TiO}_2$</span> configuration from <a href="https://materialsproject.org/materials/mp-2657/">Materials Project</a>.</p><pre><code class="language-julia">Ti = ElementPsp(:Ti, psp=load_psp(&quot;hgh/lda/ti-q4.hgh&quot;))
+O  = ElementPsp(:O, psp=load_psp(&quot;hgh/lda/o-q6.hgh&quot;))
+atoms     = [Ti, Ti, O, O, O, O]
+positions = [[0.5,     0.5,     0.5],  # Ti
+             [0.0,     0.0,     0.0],  # Ti
+             [0.19542, 0.80458, 0.5],  # O
+             [0.80458, 0.19542, 0.5],  # O
+             [0.30458, 0.30458, 0.0],  # O
+             [0.69542, 0.69542, 0.0]]  # O
+lattice   = [[8.79341  0.0      0.0];
+             [0.0      8.79341  0.0];
+             [0.0      0.0      5.61098]];</code></pre><p>We apply a small displacement to one of the <span>$\rm Ti$</span> atoms to get nonzero forces.</p><pre><code class="language-julia">positions[1] .+= [-0.022, 0.028, 0.035]</code></pre><pre class="documenter-example-output">3-element Vector{Float64}:
+ 0.478
+ 0.528
+ 0.535</pre><p>We build a model with one k-point only, not too high <code>Ecut_ref</code> and small tolerance to limit computational time. These parameters can be increased for more precise results.</p><pre><code class="language-julia">model = model_LDA(lattice, atoms, positions)
+kgrid = [1, 1, 1]
+Ecut_ref = 35
+basis_ref = PlaneWaveBasis(model; Ecut=Ecut_ref, kgrid)
+tol = 1e-8;</code></pre><h2 id="Computations"><a class="docs-heading-anchor" href="#Computations">Computations</a><a id="Computations-1"></a><a class="docs-heading-anchor-permalink" href="#Computations" title="Permalink"></a></h2><p>We compute the reference solution <span>$P_*$</span> from which we will compute the references forces.</p><pre><code class="language-julia">scfres_ref = self_consistent_field(basis_ref; tol, callback=info-&gt;nothing)
+ψ_ref, _ = DFTK.select_occupied_orbitals(basis_ref, scfres_ref.ψ,
+                                         scfres_ref.occupation);</code></pre><p>We compute a variational approximation of the reference solution with smaller <code>Ecut</code>. <code>ψr</code>, <code>ρr</code> and <code>Er</code> are the quantities computed with <code>Ecut</code> and then extended to the reference grid.</p><div class="admonition is-info"><header class="admonition-header">Choice of convergence parameters</header><div class="admonition-body"><p>Be careful to choose <code>Ecut</code> not too close to <code>Ecut_ref</code>. Note also that the current choice <code>Ecut_ref = 35</code> is such that the reference solution is not converged and <code>Ecut = 15</code> is such that the asymptotic regime (crucial to validate the approach) is barely established.</p></div></div><pre><code class="language-julia">Ecut = 15
+basis = PlaneWaveBasis(model; Ecut=Ecut, kgrid)
+scfres = self_consistent_field(basis; tol, callback=info-&gt;nothing)
+ψr = DFTK.transfer_blochwave(scfres.ψ, basis, basis_ref)
+ρr = compute_density(basis_ref, ψr, scfres.occupation)
+Er, hamr = energy_hamiltonian(basis_ref, ψr, scfres.occupation; ρ=ρr);</code></pre><p>We then compute several quantities that we need to evaluate the error bounds.</p><ul><li>Compute the residual <span>$R(P)$</span>, and remove the virtual orbitals, as required in <a href="https://github.com/JuliaMolSim/DFTK.jl/blob/fedc720dab2d194b30d468501acd0f04bd4dd3d6/src/scf/newton.jl#L121"><code>src/scf/newton.jl</code></a>.</li></ul><pre><code class="language-julia">res = DFTK.compute_projected_gradient(basis_ref, ψr, scfres.occupation)
+res, occ = DFTK.select_occupied_orbitals(basis_ref, res, scfres.occupation)
+ψr, _ = DFTK.select_occupied_orbitals(basis_ref, ψr, scfres.occupation);</code></pre><ul><li>Compute the error <span>$P-P_*$</span> on the associated orbitals <span>$ϕ-ψ$</span> after aligning them: this is done by solving <span>$\min |ϕ - ψU|$</span> for <span>$U$</span> unitary matrix of size <span>$N\times N$</span> (<span>$N$</span> being the number of electrons) whose solution is <span>$U = S(S^*S)^{-1/2}$</span> where <span>$S$</span> is the overlap matrix <span>$ψ^*ϕ$</span>.</li></ul><pre><code class="language-julia">function compute_error(basis, ϕ, ψ)
+    map(zip(ϕ, ψ)) do (ϕk, ψk)
+        S = ψk&#39;ϕk
+        U = S*(S&#39;S)^(-1/2)
+        ϕk - ψk*U
+    end
+end
+err = compute_error(basis_ref, ψr, ψ_ref);</code></pre><ul><li>Compute <span>${\bm M}^{-1}R(P)$</span> with <span>${\bm M}^{-1}$</span> defined in <sup class="footnote-reference"><a id="citeref-CDKL2021" href="#footnote-CDKL2021">[CDKL2021]</a></sup>:</li></ul><pre><code class="language-julia">P = [PreconditionerTPA(basis_ref, kpt) for kpt in basis_ref.kpoints]
+map(zip(P, ψr)) do (Pk, ψk)
+    DFTK.precondprep!(Pk, ψk)
+end
+function apply_M(φk, Pk, δφnk, n)
+    DFTK.proj_tangent_kpt!(δφnk, φk)
+    δφnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δφnk
+    DFTK.proj_tangent_kpt!(δφnk, φk)
+    δφnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δφnk
+    DFTK.proj_tangent_kpt!(δφnk, φk)
+end
+function apply_inv_M(φk, Pk, δφnk, n)
+    DFTK.proj_tangent_kpt!(δφnk, φk)
+    op(x) = apply_M(φk, Pk, x, n)
+    function f_ldiv!(x, y)
+        x .= DFTK.proj_tangent_kpt(y, φk)
+        x ./= (Pk.mean_kin[n] .+ Pk.kin)
+        DFTK.proj_tangent_kpt!(x, φk)
+    end
+    J = LinearMap{eltype(φk)}(op, size(δφnk, 1))
+    δφnk = cg(J, δφnk, Pl=DFTK.FunctionPreconditioner(f_ldiv!),
+              verbose=false, reltol=0, abstol=1e-15)
+    DFTK.proj_tangent_kpt!(δφnk, φk)
+end
+function apply_metric(φ, P, δφ, A::Function)
+    map(enumerate(δφ)) do (ik, δφk)
+        Aδφk = similar(δφk)
+        φk = φ[ik]
+        for n = 1:size(δφk,2)
+            Aδφk[:,n] = A(φk, P[ik], δφk[:,n], n)
+        end
+        Aδφk
+    end
+end
+Mres = apply_metric(ψr, P, res, apply_inv_M);</code></pre><p>We can now compute the modified residual <span>$R_{\rm Schur}(P)$</span> using a Schur complement to approximate the error on low-frequencies<sup class="footnote-reference"><a id="citeref-CDKL2021" href="#footnote-CDKL2021">[CDKL2021]</a></sup>:</p><p class="math-container">\[\begin{bmatrix}
+(\bm \Omega + \bm K)_{11} &amp; (\bm \Omega + \bm K)_{12} \\
+0 &amp; {\bm M}_{22}
+\end{bmatrix}
+\begin{bmatrix}
+P_{1} - P_{*1} \\ P_{2}-P_{*2}
+\end{bmatrix} =
+\begin{bmatrix}
+R_{1} \\ R_{2}
+\end{bmatrix}.\]</p><ul><li>Compute the projection of the residual onto the high and low frequencies:</li></ul><pre><code class="language-julia">resLF = DFTK.transfer_blochwave(res, basis_ref, basis)
+resHF = res - DFTK.transfer_blochwave(resLF, basis, basis_ref);</code></pre><ul><li>Compute <span>${\bm M}^{-1}_{22}R_2(P)$</span>:</li></ul><pre><code class="language-julia">e2 = apply_metric(ψr, P, resHF, apply_inv_M);</code></pre><ul><li>Compute the right hand side of the Schur system:</li></ul><pre><code class="language-julia"># Rayleigh coefficients needed for `apply_Ω`
+Λ = map(enumerate(ψr)) do (ik, ψk)
+    Hk = hamr.blocks[ik]
+    Hψk = Hk * ψk
+    ψk&#39;Hψk
+end
+ΩpKe2 = DFTK.apply_Ω(e2, ψr, hamr, Λ) .+ DFTK.apply_K(basis_ref, e2, ψr, ρr, occ)
+ΩpKe2 = DFTK.transfer_blochwave(ΩpKe2, basis_ref, basis)
+rhs = resLF - ΩpKe2;</code></pre><ul><li>Solve the Schur system to compute <span>$R_{\rm Schur}(P)$</span>: this is the most costly step, but inverting <span>$\bm{\Omega} + \bm{K}$</span> on the small space has the same cost than the full SCF cycle on the small grid.</li></ul><pre><code class="language-julia">ψ, _ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
+e1 = DFTK.solve_ΩplusK(basis, ψ, rhs, occ; tol).δψ
+e1 = DFTK.transfer_blochwave(e1, basis, basis_ref)
+res_schur = e1 + Mres;</code></pre><h2 id="Error-estimates"><a class="docs-heading-anchor" href="#Error-estimates">Error estimates</a><a id="Error-estimates-1"></a><a class="docs-heading-anchor-permalink" href="#Error-estimates" title="Permalink"></a></h2><p>We start with different estimations of the forces:</p><ul><li>Force from the reference solution</li></ul><pre><code class="language-julia">f_ref = compute_forces(scfres_ref)
+forces   = Dict(&quot;F(P_*)&quot; =&gt; f_ref)
+relerror = Dict(&quot;F(P_*)&quot; =&gt; 0.0)
+compute_relerror(f) = norm(f - f_ref) / norm(f_ref)</code></pre><pre class="documenter-example-output">compute_relerror (generic function with 1 method)</pre><ul><li>Force from the variational solution and relative error without any post-processing:</li></ul><pre><code class="language-julia">f = compute_forces(scfres)
+forces[&quot;F(P)&quot;]   = f
+relerror[&quot;F(P)&quot;] = compute_relerror(f)</code></pre><pre class="documenter-example-output">0.20484167074859522</pre><p>We then try to improve <span>$F(P)$</span> using the first order linearization:</p><p class="math-container">\[F(P) = F(P_*) + {\rm d}F(P)\cdot(P-P_*).\]</p><p>To this end, we use the <code>ForwardDiff.jl</code> package to compute <span>${\rm d}F(P)$</span> using automatic differentiation.</p><pre><code class="language-julia">function df(basis, occupation, ψ, δψ, ρ)
+    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation)
+    ForwardDiff.derivative(ε -&gt; compute_forces(basis, ψ.+ε.*δψ, occupation; ρ=ρ+ε.*δρ), 0)
+end;</code></pre><ul><li>Computation of the forces by a linearization argument if we have access to the actual error <span>$P-P_*$</span>. Usually this is of course not the case, but this is the &quot;best&quot; improvement we can hope for with a linearisation, so we are aiming for this precision.</li></ul><pre><code class="language-julia">df_err = df(basis_ref, occ, ψr, DFTK.proj_tangent(err, ψr), ρr)
+forces[&quot;F(P) - df(P)⋅(P-P_*)&quot;]   = f - df_err
+relerror[&quot;F(P) - df(P)⋅(P-P_*)&quot;] = compute_relerror(f - df_err)</code></pre><pre class="documenter-example-output">0.08072342527884643</pre><ul><li>Computation of the forces by a linearization argument when replacing the error <span>$P-P_*$</span> by the modified residual <span>$R_{\rm Schur}(P)$</span>. The latter quantity is computable in practice.</li></ul><pre><code class="language-julia">df_schur = df(basis_ref, occ, ψr, res_schur, ρr)
+forces[&quot;F(P) - df(P)⋅Rschur(P)&quot;]   = f - df_schur
+relerror[&quot;F(P) - df(P)⋅Rschur(P)&quot;] = compute_relerror(f - df_schur)</code></pre><pre class="documenter-example-output">0.07830996682154953</pre><p>Summary of all forces on the first atom (Ti)</p><pre><code class="language-julia">for (key, value) in pairs(forces)
+    @printf(&quot;%30s = [%7.5f, %7.5f, %7.5f]   (rel. error: %7.5f)\n&quot;,
+            key, (value[1])..., relerror[key])
+end</code></pre><pre class="documenter-example-output">                        F(P_*) = [1.47895, -1.25366, 0.81004]   (rel. error: 0.00000)
+                          F(P) = [1.13526, -1.01526, 0.40017]   (rel. error: 0.20484)
+        F(P) - df(P)⋅Rschur(P) = [1.29137, -1.10177, 0.69056]   (rel. error: 0.07831)
+          F(P) - df(P)⋅(P-P_*) = [1.50898, -1.28627, 0.86142]   (rel. error: 0.08072)</pre><p>Notice how close the computable expression <span>$F(P) - {\rm d}F(P)⋅R_{\rm Schur}(P)$</span> is to the best linearization ansatz <span>$F(P) - {\rm d}F(P)⋅(P-P_*)$</span>.</p><section class="footnotes is-size-7"><ul><li class="footnote" id="footnote-CDKL2021"><a class="tag is-link" href="#citeref-CDKL2021">CDKL2021</a>E. Cancès, G. Dusson, G. Kemlin, and A. Levitt <em>Practical error bounds for properties in plane-wave electronic structure calculations</em> Preprint, 2021. <a href="https://arxiv.org/abs/2111.01470">arXiv</a></li></ul></section></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../wannier90/">« Wannierization using Wannier90</a><a class="docs-footer-nextpage" href="../../advanced/conventions/">Notation and conventions »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Wednesday 22 June 2022 23:01">Wednesday 22 June 2022</span>. Using Julia version 1.7.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
