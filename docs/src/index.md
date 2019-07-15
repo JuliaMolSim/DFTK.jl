@@ -104,4 +104,5 @@ build_local_potential
 kblock_as_matrix
 load_psp
 guess_gaussian_sad
+guess_hcore
 ```
