@@ -28,7 +28,7 @@ function guess_gaussian_sad(basis, positions, Znucls, Zions=Znucls)
             for r in positions[spec]
         )
     end
-    ρ / basis.unit_cell_volume
+    reshape(ρ, :) / basis.unit_cell_volume
 end
 
 

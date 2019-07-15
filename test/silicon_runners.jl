@@ -43,7 +43,7 @@ function run_silicon_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf
     scfres = self_consistent_field(ham, 8, n_electrons, lobpcg_prec=prec, ρ=ρ, tol=scf_tol)
     ρ, pot_hartree_values, pot_xc_values = scfres
     res = lobpcg(ham, n_bands, pot_hartree_values=pot_hartree_values,
-                 pot_xc_values=pot_xc_values, prec=prec, tol=1e-6)
+                 pot_xc_values=pot_xc_values, prec=prec, tol=scf_tol)
 
     for ik in 1:length(kpoints)
         println(ik, "  ", abs.(ref_noXC[ik] - res.λ[ik]))

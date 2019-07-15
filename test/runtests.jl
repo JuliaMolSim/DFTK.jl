@@ -12,3 +12,4 @@ include("PotNonlocal.jl")
 include("lobpcg.jl")
 
 include("silicon_noXC.jl")
+include("scf_compare.jl")
