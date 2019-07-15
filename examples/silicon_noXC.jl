@@ -41,11 +41,11 @@ grid_size = DFTK.determine_grid_size(A', Ecut, kpoints=kpoints) * ones(Int, 3)
 basis = PlaneWaveBasis(A', grid_size, Ecut, kpoints, kweigths)
 
 # Construct a local pseudopotential
-hgh = PspHgh("si-pade-q4")
+hgh = load_psp("si-pade-q4.hgh")
 positions = [s.frac_coords for s in structure.sites]
 psp_local = build_local_potential(basis, positions,
                                   G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
-psp_nonlocal = PotNonLocal(basis, "Si" => positions, "Si" => hgh)
+psp_nonlocal = PotNonLocal(basis, :Si => positions, :Si => hgh)
 n_filled = 4  # In a Silicon psp model, the number of electrons per unit cell is 8
 
 # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
@@ -53,9 +53,12 @@ ham = Hamiltonian(basis, pot_local=psp_local,
                   pot_nonlocal=psp_nonlocal,
                   pot_hartree=PotHartree(basis))
 
-scfres = self_consistent_field(ham, n_filled + 2, n_filled,
+ρ = guess_gaussian_sad(basis, :Si => positions, :Si => mg.Element("Si").number,
+                       :Si => hgh.Zion)
+scfres = self_consistent_field(ham, n_filled + 2, n_filled, ρ=ρ, tol=1e-5,
                                lobpcg_prec=PreconditionerKinetic(ham, α=0.1))
-ρ_Y, pot_hartree_values, precomp_xc = scfres
+ρ, pot_hartree_values, pot_xc_values = scfres
+
 
 # TODO Some routine to compute this properly
 efermi = 0.5
@@ -78,7 +81,7 @@ set_kpoints!(ham.basis, kpoints, kweigths)
 # TODO This is super ugly, but needed, since the PotNonLocal implicitly
 #      stores information per k-Point at the moment
 if ham.pot_nonlocal !== nothing
-    psp_nonlocal = PotNonLocal(ham.basis, "Si" => positions, "Si" => hgh)
+    psp_nonlocal = PotNonLocal(ham.basis, :Si => positions, :Si => hgh)
 else
     psp_nonlocal = nothing
 end
@@ -87,8 +90,8 @@ ham = Hamiltonian(ham.basis, pot_local=ham.pot_local, pot_nonlocal=psp_nonlocal,
 
 
 # Compute bands:
-band_data = lobpcg(ham, n_bands, pot_hartree_values=pot_hartree_values,
-                   precomp_xc=precomp_xc, prec=PreconditionerKinetic(ham, α=0.5))
+band_data = lobpcg(ham, n_bands, pot_hartree_values=pot_hartree_values, tol=1e-5,
+                   pot_xc_values=pot_xc_values, prec=PreconditionerKinetic(ham, α=0.5))
 if ! band_data.converged
     println("WARNING: Not all k-points converged.")
 end

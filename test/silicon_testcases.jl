@@ -8,3 +8,4 @@ kpoints = [[   0,   0, 0],   # in fractional coordinates
 kweights = [1, 8, 6, 12]
 kweights = kweights / sum(kweights)
 positions = [ones(3)/8, -ones(3)/8]  # in fractional coordinates
+atnum = 14

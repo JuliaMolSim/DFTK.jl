@@ -23,7 +23,7 @@ where $\Omega$ is the unit cell volume.
   ```math
   B_{Ψ,k} = \{ e_G : 1/2 |G + k|^2 ≤ E_\text{cut}
   ```
-- The **potential** or **density basis** $B_\rho$ (formerly $Y$), consisting of
+- The **potential** or **density basis** $B_\rho$, consisting of
   all plane waves on which a potential needs to be known in order to be
   consistent with the union of all $B_{Ψ,k}$ for all $k$. In practice
   we do not take the smallest possible set of wave vectors $G$ for this, but
@@ -56,7 +56,7 @@ where $\Omega$ is the unit cell volume.
 Due to the Fourier-duality of reciprocal-space and real-space lattice,
 the above basis sets define corresponding real-space grids as well:
 
-- The grid $B_\rho^\ast$, formerly $Y^\ast$, the **potential integration grid**,
+- The grid $B_\rho^\ast$, the **potential integration grid**,
   which is the grid used for convolutions of a potential with the discretized
   representation of a DFT orbital. It is simply the iFFT-dual real-space grid
   of $B_\rho$.
@@ -94,6 +94,7 @@ PspHgh
 eval_psp_projection_radial
 eval_psp_local_real
 eval_psp_local_fourier
+compute_density
 ```
 
 ## Utilities
@@ -102,4 +103,5 @@ determine_grid_size
 build_local_potential
 kblock_as_matrix
 load_psp
+guess_gaussian_sad
 ```
