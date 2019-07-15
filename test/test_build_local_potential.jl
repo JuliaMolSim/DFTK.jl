@@ -1,3 +1,8 @@
+using Test
+using DFTK
+using LinearAlgebra
+
+include("utils.jl")
 include("testcases_silicon.jl")
 
 @testset "Check build_local_potential using Coulomb potential" begin
@@ -29,7 +34,7 @@ include("testcases_silicon.jl")
                          * cis(dot(pw.recip_lattice * G, lattice_vector)))
                      for G in basis_ρ(pw)]
         reference[pw.idx_DC] = 0
-        @test reference ≈ values_fourier
+        @test reshape(reference, :) ≈ values_fourier
     end
 
     @testset "Construction using multiple species" begin

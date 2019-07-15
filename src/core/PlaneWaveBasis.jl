@@ -111,7 +111,7 @@ in the Fourier grid ``B_ρ`` described by the plane-wave basis.
 function basis_ρ(pw::PlaneWaveBasis)
     start = -ceil.(Int, (pw.grid_size .- 1) ./ 2)
     stop  = floor.(Int, (pw.grid_size .- 1) ./ 2)
-    (Vec3{Int}([i,j,k]) for i=start[1]:stop[1],j=start[2]:stop[2],k=start[3]:stop[3])
+    (Vec3{Int}([i, j, k]) for i=start[1]:stop[1], j=start[2]:stop[2], k=start[3]:stop[3])
 end
 
 
@@ -139,7 +139,7 @@ function G_to_r!(pw::PlaneWaveBasis, f_fourier, f_real; gcoords=basis_ρ(pw))
         idx_fft = 1 .+ mod.(G, fft_size)
         f_real[idx_fft...] = f_fourier[ig]
     end
-    mul!(f_real,pw.iFFT,f_real)
+    mul!(f_real, pw.iFFT, f_real)
 
     # IFFT has a normalization factor of 1/length(ψ),
     # but the normalisation convention used in this code is
