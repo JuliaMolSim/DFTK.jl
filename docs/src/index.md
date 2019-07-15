@@ -90,6 +90,10 @@ DFTK.occupation_zero_temperature
 self_consistent_field
 DFTK.scf_nlsolve
 DFTK.scf_damped
+PspHgh
+eval_psp_projection_radial
+eval_psp_local_real
+eval_psp_local_fourier
 ```
 
 ## Utilities
@@ -97,4 +101,5 @@ DFTK.scf_damped
 determine_grid_size
 build_local_potential
 kblock_as_matrix
+load_psp
 ```

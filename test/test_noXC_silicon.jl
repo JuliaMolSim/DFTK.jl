@@ -27,7 +27,7 @@ function run_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15)
     basis = PlaneWaveBasis(lattice, grid_size * ones(3), Ecut, kpoints, kweights)
 
     # Construct a local pseudopotential
-    hgh = PspHgh("si-pade-q4")
+    hgh = load_psp("si-pade-q4.hgh")
     psp_local = build_local_potential(basis, positions,
                                       G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
     psp_nonlocal = PotNonLocal(basis, "Si" => positions, "Si" => hgh)

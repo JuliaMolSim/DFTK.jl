@@ -5,7 +5,7 @@ include("testcases_silicon.jl")
     Ecut = 2
     grid_size = [9, 9, 9]
     pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
-    potnl = PotNonLocal(pw, "Si" => positions, "Si" => PspHgh("Si-lda-q4"))
+    potnl = PotNonLocal(pw, "Si" => positions, "Si" => load_psp("Si-lda-q4.hgh"))
 
     @testset "Dummy application test for ik == 3" begin
         ik = 3

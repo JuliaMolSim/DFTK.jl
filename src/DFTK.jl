@@ -26,8 +26,9 @@ include("core/Kinetic.jl")
 
 export PspHgh
 export eval_psp_local_fourier
+export eval_psp_local_real
 export eval_psp_projection_radial
-include("PspHgh.jl")
+include("core/PspHgh.jl")
 
 include("core/occupation.jl")
 
@@ -59,10 +60,12 @@ export build_local_potential
 export determine_grid_size
 export guess_hcore
 export kblock_as_matrix
+export load_psp
 include("utils/build_local_potential.jl")
 include("utils/determine_grid_size.jl")
 include("utils/guess_hcore.jl")
 include("utils/kblock_as_matrix.jl")
 include("utils/self_consistent_field.jl")
+include("utils/load_psp.jl")
 
 end # module DFTK

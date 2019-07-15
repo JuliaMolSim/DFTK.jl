@@ -50,7 +50,7 @@ end
         Ecut = 25
         grid_size = [33, 33, 33]
         pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
-        hgh = PspHgh("si-pade-q4")
+        hgh = load_psp("si-pade-q4.hgh")
 
         pot_local = build_local_potential(pw, positions,
                                           G -> DFTK.eval_psp_local_fourier(hgh, pw.recip_lattice * G))
@@ -79,7 +79,7 @@ end
     Ecut = 10
     grid_size = [21, 21, 21]
     pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
-    hgh = PspHgh("si-pade-q4")
+    hgh = load_psp("si-pade-q4.hgh")
 
     psp_local = build_local_potential(pw, positions,
                                       G -> DFTK.eval_psp_local_fourier(hgh, pw.recip_lattice * G))
