@@ -28,7 +28,7 @@ struct PlaneWaveBasis{T <: Real}
     # typeof(plan_fft!(zeros(ComplexF64,3,3,3)))
     # (resp plan_ifft)
     FFT::FFTW.cFFTWPlan{Complex{T},-1,true,3}
-    iFFT::AbstractFFTs.ScaledPlan{Complex{Float64},FFTW.cFFTWPlan{Complex{T},1,true,3},T}
+    iFFT::AbstractFFTs.ScaledPlan{Complex{T},FFTW.cFFTWPlan{Complex{T},1,true,3},T}
 end
 
 @doc raw"""

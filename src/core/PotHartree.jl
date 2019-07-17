@@ -14,7 +14,7 @@ function compute_potential!(precomp, pot::PotHartree, ρ)
     values[pw.idx_DC] = 0
 
     # Fourier-transform and store in values_real
-    T = eltype(pw.lattice)
+    T = real(eltype(ρ))
     values_real = similar(precomp, Complex{T})
     G_to_r!(pw, values, values_real)
 
