@@ -1,5 +1,6 @@
 using PyCall
 using DFTK
+using Libxc: Functional
 mg = pyimport("pymatgen")
 symmetry = pyimport("pymatgen.symmetry")
 elec_structure = pyimport("pymatgen.electronic_structure")
@@ -47,7 +48,7 @@ psp_local = build_local_potential(basis, positions,
                                   G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
 psp_nonlocal = PotNonLocal(basis, :Si => positions, :Si => hgh)
 n_electrons = 8  # In a Silicon psp model, the number of electrons per unit cell is 8
-pot_xc = PotXc(basis, Functional.(["lda_x", "lda_c_vwn"]))
+pot_xc = PotXc(basis, Functional.([:lda_x, :lda_c_vwn]))
 
 # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
 ham = Hamiltonian(basis, pot_local=psp_local,

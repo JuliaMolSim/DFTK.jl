@@ -42,8 +42,6 @@ export PotNonLocal
 include("core/PotNonLocal.jl")
 
 export PotXc
-export Functional
-include("core/xc_fallback.jl")
 include("core/PotXc.jl")
 
 export Hamiltonian
