@@ -11,7 +11,7 @@ function compute_density(pw::PlaneWaveBasis, Psi::AbstractVector,
                          occupation::AbstractVector; tolerance_orthonormality=-1)
     # TODO This function could be made in-place
 
-    T = eltype(pw.lattice)
+    T = real(eltype(Psi[1]))
     n_k = length(pw.kpoints)
     @assert n_k == length(Psi)
     @assert n_k == length(occupation)

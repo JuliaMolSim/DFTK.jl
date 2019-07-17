@@ -38,8 +38,10 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
                 pot_hartree_values=nothing, pot_xc_values=nothing,
                 guess=nothing, prec=nothing, tol=1e-6, maxiter=200,
                 backend=:lobpcg_qr, kwargs...)
+    # TODO This function seems to be type-unstable ... check
+    #
     T = eltype(ham)
-    pw::PlaneWaveBasis = ham.basis
+    pw = ham.basis
 
     # Function simplifying stuff to be done for each k-Point
     get_hamk(ik) = HamiltonianBlock(ham, pot_hartree_values, pot_xc_values, ik)

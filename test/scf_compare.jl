@@ -33,6 +33,5 @@ include("silicon_testcases.jl")
                                     algorithm=:scf_damped, damping=0.4)
     ρ_damp = scfdamp[1]
 
-    println(maximum(abs.(ρ_nl - ρ_damp)))
     @test maximum(abs.(ρ_nl - ρ_damp)) < 1e-6
 end

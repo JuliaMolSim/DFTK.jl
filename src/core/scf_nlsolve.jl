@@ -5,11 +5,15 @@ TODO docme
 """
 function scf_nlsolve(ham::Hamiltonian, n_bands, compute_occupation, ρ;
                      tol=1e-6, lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
-                     max_iter=100)
+                     max_iter=100, lobpcg_tol=tol / 100)
+    T = real(eltype(ρ))
     pw = ham.basis
     values_hartree = empty_potential(ham.pot_hartree)
     values_xc = empty_potential(ham.pot_xc)
-    Psi = Array{Any}([nothing])  # TODO Find out precise type
+
+    # Initialise guess for wave function to random numbers
+    Psi = [Matrix(qr(randn(Complex{T}, length(pw.basis_wf[ik]), n_bands)).Q)
+           for ik in 1:length(pw.kpoints)]
 
     function foldρ(ρ)
         # Fold a complex array representing the Fourier transform of a purely real
@@ -29,11 +33,12 @@ function scf_nlsolve(ham::Hamiltonian, n_bands, compute_occupation, ρ;
         values_hartree = compute_potential!(values_hartree, ham.pot_hartree, ρ)
         values_xc = compute_potential!(values_xc, ham.pot_xc, ρ)
         res = lobpcg(ham, n_bands, pot_hartree_values=values_hartree,
-                     pot_xc_values=values_xc, guess=Psi[1],
-                     prec=lobpcg_prec, tol=tol / 100)
-        Psi[1] = res.X
+                     pot_xc_values=values_xc, guess=Psi,
+                     prec=lobpcg_prec, tol=lobpcg_tol)
+        Psi .= res.X
         occupation = compute_occupation(ham.basis, res.λ, res.X)
-        ρ_new = compute_density(pw, res.X, occupation, tolerance_orthonormality=tol)
+        ρ_new = compute_density(pw, res.X, occupation,
+                                tolerance_orthonormality=100lobpcg_tol)
 
         residual .= foldρ(ρ_new) - ρ_folded
     end
@@ -45,8 +50,8 @@ function scf_nlsolve(ham::Hamiltonian, n_bands, compute_occupation, ρ;
     values_hartree = compute_potential!(values_hartree, ham.pot_hartree, ρ)
     values_xc = compute_potential!(values_xc, ham.pot_xc, ρ)
     res = lobpcg(ham, n_bands, pot_hartree_values=values_hartree,
-                 pot_xc_values=values_xc, guess=Psi[1],
-                 prec=lobpcg_prec, tol=tol / 100)
+                 pot_xc_values=values_xc, guess=Psi,
+                 prec=lobpcg_prec, tol=lobpcg_tol)
     occupation = compute_occupation(ham.basis, res.λ, res.X)
 
     (ρ=ρ, Psi=res.X, energies=res.λ, occupation=occupation,converged=converged(nlres),

@@ -20,13 +20,15 @@ function guess_gaussian_sad(basis, positions, Znucls, Zions=Znucls)
 
     lengths = Dict(spec => atom_decay_length(Znucls[spec] - Zions[spec], Zions[spec])
                    for spec in species)
+    T = eltype(basis.lattice)
     ρ = map(basis_ρ(basis)) do G
         Gsq = sum(abs2, basis.recip_lattice * G)
-        sum(
+        res = sum(
             Zions[spec] * exp(-Gsq * lengths[spec]^2) * cis(2π * dot(G, r))
             for spec in species
             for r in positions[spec]
         )
+        convert(T, res)
     end
     reshape(ρ, :) / basis.unit_cell_volume
 end
