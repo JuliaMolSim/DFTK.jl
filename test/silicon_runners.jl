@@ -1,5 +1,6 @@
 using Test
 using DFTK
+using Libxc: Functional
 
 include("silicon_testcases.jl")
 
@@ -52,6 +53,58 @@ function run_silicon_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf
         # Ignore last few bands, because these eigenvalues are hardest to converge
         # and typically a bit random and unstable in the LOBPCG
         diff = abs.(ref_noXC[ik] - res.λ[ik])
+        @test maximum(diff[1:n_bands - n_ignored]) < test_tol
+    end
+end
+
+function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf_tol=1e-6)
+    # These values were computed using
+    # mfherbst/PlaneWaveToyPrograms.jl/2019.03_Simple_DFT/test_Bandstructure.jl with Ecut = 25
+    ref_lda = [
+        [-0.178051301635369, 0.261398506992241, 0.262576260326963, 0.263078571863638,
+          0.352988658592485, 0.354755849352724, 0.355790898546273, 0.377652662160092,
+          0.540863835768829, 0.545642032223014],
+        [-0.127609438354543, 0.066093170654560, 0.225532280043458, 0.226147707206294,
+          0.319771354243122, 0.387035289210488, 0.389045392551022, 0.541640786469015,
+          0.555193302652323, 0.555438444446987],
+        [-0.107969256184491, 0.077436393756951, 0.173232116228659, 0.173447048182548,
+          0.283675990765947, 0.329904374121225, 0.525869414337404, 0.527031259293798,
+          0.613354356913113, 0.625702042941051],
+        [-0.058393554734870, 0.014066393945345, 0.098114979575642, 0.184797179474013,
+          0.312283152046114, 0.472042031771217, 0.498745505023607, 0.517542258623193,
+          0.528431528397109, 0.542724927211605],
+    ]
+    n_bands = length(ref_lda[1])
+    basis = PlaneWaveBasis(Array{T}(lattice), grid_size * ones(3), Ecut, kpoints, kweights)
+
+    # Construct a local pseudopotential
+    hgh = load_psp("si-pade-q4.hgh")
+    psp_local = build_local_potential(basis, positions,
+                                      G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
+    psp_nonlocal = PotNonLocal(basis, :Si => positions, :Si => hgh)
+    pot_xc = PotXc(basis, Functional.([:lda_x, :lda_c_vwn]))
+    n_electrons = 8
+
+    # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
+    ham = Hamiltonian(basis, pot_local=psp_local, pot_nonlocal=psp_nonlocal,
+                      pot_hartree=PotHartree(basis), pot_xc=pot_xc)
+
+    ρ = guess_gaussian_sad(basis, :Si => positions, :Si => atnum, :Si => hgh.Zion)
+    prec = PreconditionerKinetic(ham, α=0.1)
+    scfres = self_consistent_field(ham, 8, n_electrons, lobpcg_prec=prec, ρ=ρ, tol=scf_tol)
+    ρ, pot_hartree_values, pot_xc_values = scfres
+    res = lobpcg(ham, n_bands, pot_hartree_values=pot_hartree_values,
+                 pot_xc_values=pot_xc_values, prec=prec, tol=scf_tol)
+
+    for ik in 1:length(kpoints)
+        @test eltype(res.λ[ik]) == T
+        @test eltype(res.X[ik]) == Complex{T}
+        println(ik, "  ", abs.(ref_lda[ik] - res.λ[ik]))
+    end
+    for ik in 1:length(kpoints)
+        # Ignore last few bands, because these eigenvalues are hardest to converge
+        # and typically a bit random and unstable in the LOBPCG
+        diff = abs.(ref_lda[ik] - res.λ[ik])
         @test maximum(diff[1:n_bands - n_ignored]) < test_tol
     end
 end
