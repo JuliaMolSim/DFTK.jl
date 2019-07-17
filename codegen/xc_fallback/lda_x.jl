@@ -1,4 +1,6 @@
 # This is basically maple/lda_x.mpl from libxc
+#
+# LDA Slater exchange (DOI: 10.1017/S0305004100016108 and 10.1007/BF01340281)
 
 α = symbols("α")
 

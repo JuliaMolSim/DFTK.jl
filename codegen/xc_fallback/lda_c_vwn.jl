@@ -1,4 +1,9 @@
 # This is basically maple/lda_c_vwn.mpl and maple/vwn.mpl from libxc
+#
+# LDA correlation according to Vosko Wilk,and Nusair, (DOI 10.1139/p80-159)
+#
+# This version generates the "standard" parametrisation, where a Pade approximation of a
+# numerical diffusion Monte-Carlo simulation is used.
 
 as_rational(x) = nsimplify(Sym(x))
 

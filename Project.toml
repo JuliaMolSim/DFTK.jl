@@ -6,6 +6,7 @@ version = "0.0.0"
 [deps]
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 IterativeSolvers = "42fd0dbc-a981-5370-80f2-aaf504508153"
+Libxc = "66e17ffc-8502-11e9-23b5-c9248d0eb96d"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
 NLsolve = "2774e3e8-f4cf-5e23-947b-6d7e65073b56"

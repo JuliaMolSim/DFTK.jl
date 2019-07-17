@@ -2,7 +2,6 @@
 # Look at scripts/maple2c_new.pl in particular
 #         maple/util.jl
 
-
 using SymPy
 
 r0, r1 = symbols("ρ1 ρ2")
@@ -21,8 +20,15 @@ xt(r0, r1, sigma0, sigma1, sigma2) = sqrt(sigma0)/r0^(1 + 1//DIMENSIONS)
 
 f_zeta(z) = ((1 + z)^(4//3) + (1 - z)^(4//3) - 2)/(2^(4//3) - 2)
 
-#include("lda.jl")
-include("vwn.jl")
+# Select case to print code for
+case = "lda_x"
+case = "lda_c_vwn"
+
+include(case * ".jl")
+
+println("#")
+println("#-- " * case)
+println("#")
 
 # Energy per unit particle
 f_expr = f(r_ws(dens(r0, r1)), zeta(r0, r1), xt(r0, r1, s0, s1, s2), xs0(r0, r1, s0, s2), xs1(r0, r1, s0, s2))

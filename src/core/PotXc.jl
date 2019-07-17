@@ -7,13 +7,12 @@ PotXc(basis::PlaneWaveBasis, func; supersampling=2) = PotXc(basis, supersampling
 
 
 function compute_potential!(precomp, pot::PotXc, ρ)
-    pw = pot.basis
-    T = eltype(pw.lattice)
+    T = eltype(precomp)
 
     # TODO Consider supersampling
     @assert pot.supersampling == 2
     ρ_real = similar(precomp, Complex{T})
-    G_to_r!(pw, ρ, ρ_real)
+    G_to_r!(pot.basis, ρ, ρ_real)
     @assert(maximum(abs.(imag(ρ_real))) < 100 * eps(T),
             "Imaginary part too large $(maximum(imag(ρ_real)))")
     ρ_real = real(ρ_real)
