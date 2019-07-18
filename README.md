@@ -21,6 +21,12 @@ is thus very limited. Current features include:
 - SCF routine based on [NLsolve](https://github.com/JuliaNLSolvers/NLsolve.jl)
 - LDA functionals from [Libxc](https://github.com/unkcpz/Libxc.jl)
 - Band structure generation
+- Support for both `Float64` (double precision) and `Float32` (single precision)
+  throughout the library.
+
+**Note:** The code has not been properly verified against a standard DFT package
+and might likely contain bugs. Use for production calculations
+is not yet recommended.
 
 ## Installation
 The package is not yet registered, so you need to install it from the github url:
