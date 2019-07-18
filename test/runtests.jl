@@ -16,3 +16,5 @@ include("xc_fallback.jl")
 include("scf_compare.jl")
 include("silicon_noXC.jl")
 include("silicon_lda.jl")
+
+include("energy_ewald.jl")

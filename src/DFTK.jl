@@ -57,7 +57,11 @@ include("core/lobpcg.jl")
 include("core/scf_damped.jl")
 include("core/scf_nlsolve.jl")
 
+export energy_ewald
+include("core/energy_ewald.jl")
+
 # Utilities
+
 export Species
 export charge_nuclear
 export charge_ionic

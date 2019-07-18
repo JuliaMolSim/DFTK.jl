@@ -46,11 +46,10 @@ function parse_hgh_file(path; identifier="")
     lines = readlines(path)
     description = lines[1]
 
-    # lines[2] contains the number of projectors for each AM channel
+    # lines[2] contains the number of electrons (and the AM channel in which they sit)
     m = match(r"^ *(([0-9]+ *)+)", lines[2])
     n_elec = [parse(Int, part) for part in split(m[1])]
     Zion = sum(n_elec)
-    lmax = length(n_elec) - 1
 
     # lines[3] contains rloc nloc and coefficients for it
     m = match(r"^ *([-.0-9]+) *([0-9]+) *(([-.0-9]+ *)+)", lines[3])
@@ -59,9 +58,9 @@ function parse_hgh_file(path; identifier="")
     cloc = [parse(Float64, part) for part in split(m[3])]
     @assert length(cloc) == nloc
 
-    # lines[4] contains (lmax + 1) again
+    # lines[4] contains the maximal AM channel
     m = match(r"^ *([0-9]+)", lines[4])
-    @assert lmax == parse(Int, m[1]) - 1
+    lmax = parse(Int, m[1]) - 1
 
     rp = Vector{Float64}(undef, lmax + 1)
     h = Vector{Matrix{Float64}}(undef, lmax + 1)
