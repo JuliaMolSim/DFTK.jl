@@ -2,30 +2,50 @@ include("SphericalHarmonics.jl")
 
 
 """
-    build_nonlocal_projectors(pw::PlaneWaveBasis, positions, psps)
+    build_nonlocal_projectors(pw::PlaneWaveBasis, psp_or_species...)
 
 Build a Kleinman-Bylander representation of the non-local potential term
-for the given `basis`. `positions` is a mapping from an identifier to
-a set of positions in fractional coordinates and `psps` is a mapping from
-the identifier to the pseudopotential object associated to this idendifier.
+for the given `basis`. `psp_or_species` are pairs mapping from a Pseudopotential object
+or a `Species` object to a list of positions in fractional coordinates.
+
+## Examples
+```julia-repl
+julia> psp = load_psp("si-pade-q4.hgh")
+       nlpot = build_nonlocal_projectors(basis, psp => [[0,0,0], [0,1/2,1/2]])
+```
+or similarly using a Species object
+```julia-repl
+julia> si = Species(14, psp=load_psp("si-pade-q4.hgh"))
+       nlpot = build_nonlocal_projectors(basis, si => [[0,0,0], [0,1/2,1/2]])
+```
+Of course multiple psps or species are possible:
+```julia-repl
+julia> si = Species(14, psp=load_psp("si-pade-q4.hgh"))
+       c = Species(6, psp=load_psp("c-pade-q4.hgh"))
+       nlpot = build_nonlocal_projectors(basis, si => [[0,0,0]], c =>  [[0,1/2,1/2]])
+```
+
+Notice: If a species does not have an assoiciated pseudopotential it will be silently
+ignored by this function.
 """
-function build_nonlocal_projectors(basis::PlaneWaveBasis, positions, psps)
-    positions = Dict(positions)
-    psps = Dict(psps)
+function build_nonlocal_projectors(basis::PlaneWaveBasis, psp_or_species...)
     T = eltype(basis.lattice)
-    n_species = length(positions)
+    n_species = length(psp_or_species)
     n_k = length(basis.kpoints)
     Ω = basis.unit_cell_volume
 
+    # Function to extract the psp object in case the passed items are "Species"
+    extract_psp(elem::Species) = elem.psp
+    extract_psp(elem) = elem
+    potentials = [extract_psp(elem) => positions
+                  for (elem, positions) in psp_or_species
+                  if extract_psp(elem) !== nothing]
+
     # Compute n_proj
     n_proj = 0
-    for (ispec, species) in enumerate(keys(positions))
-        if !haskey(psps, species)
-            error("Could not find pseudopotential definition for species $species.")
-        end
-        psp = psps[species]
+    for (psp, positions) in potentials
         n_proj_psp = sum(size(psp.h[l + 1], 1) * (2l + 1) for l in 0:psp.lmax)
-        n_proj += length(positions[species]) * n_proj_psp
+        n_proj += length(positions) * n_proj_psp
     end
 
     # Build proj_coeffs and proj_vectors
@@ -40,26 +60,26 @@ function build_nonlocal_projectors(basis::PlaneWaveBasis, positions, psps)
         qsqs = [sum(abs2, q) for q in qs]
 
         count = 0
-        for (species, atoms) in positions, r in atoms
-            structure_factors = [cis(2π * dot(G, r)) for G in basis.basis_wf[ik]]
+        for (psp, positions) in potentials
+            for r in positions
+                structure_factors = [cis(2π * dot(G, r)) for G in basis.basis_wf[ik]]
+                radial_proj(iproj, l, qsq) = eval_psp_projection_radial(psp, iproj, l, qsq)
 
-            psp = psps[species]
-            radial_proj(iproj, l, qsq) = eval_psp_projection_radial(psp, iproj, l, qsq)
+                for l in 0:psp.lmax, m in -l:l
+                    prefac_lm = im^l .* structure_factors .* ylm_real.(l, m, qs) ./ sqrt(Ω)
+                    n_proj_l = size(psp.h[l + 1], 1)
+                    range = count .+ (1:n_proj_l)
+                    proj_coeffs[range, range] = psp.h[l + 1]
 
-            for l in 0:psp.lmax, m in -l:l
-                prefac_lm = im^l .* structure_factors .* ylm_real.(l, m, qs) ./ sqrt(Ω)
-                n_proj_l = size(psp.h[l + 1], 1)
-                range = count .+ (1:n_proj_l)
-                proj_coeffs[range, range] = psp.h[l + 1]
+                    for iproj in 1:n_proj_l
+                        radial_il = radial_proj.(iproj, l, qsqs)
+                        proj_vectors[ik][:, count + iproj] = prefac_lm .* radial_il
+                    end # iproj
 
-                for iproj in 1:n_proj_l
-                    radial_il = radial_proj.(iproj, l, qsqs)
-                    proj_vectors[ik][:, count + iproj] = prefac_lm .* radial_il
-                end # iproj
-
-                count += n_proj_l
-            end # l, m
-        end # species, r
+                    count += n_proj_l
+                end # l, m
+            end # r
+        end # psp, positions
         @assert count == n_proj
     end # k
 

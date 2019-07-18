@@ -99,8 +99,10 @@ compute_density
 
 ## Utilities
 ```@docs
+Species
 determine_grid_size
 build_local_potential
+build_nonlocal_projectors
 kblock_as_matrix
 load_psp
 guess_gaussian_sad

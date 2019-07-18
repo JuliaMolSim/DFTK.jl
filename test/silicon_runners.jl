@@ -22,24 +22,18 @@ function run_silicon_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf
          0.637329096727452, 0.820133740395368, 0.863328896122870, 0.877509936248489,
          0.880721134709112, 0.899689743018489],
     ]
-
     n_bands = length(ref_noXC[1])
-    basis = PlaneWaveBasis(lattice, grid_size * ones(3), Ecut, kpoints, kweights)
 
-    # Construct a local pseudopotential
-    hgh = load_psp("si-pade-q4.hgh")
-    psp_local = build_local_potential(basis, positions,
-                                      G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
-    psp_nonlocal = build_nonlocal_projectors(basis, :Si => positions, :Si => hgh)
-    n_electrons = 8
+    basis = PlaneWaveBasis(lattice, grid_size * ones(3), Ecut, kpoints, kweights)
+    Si = Species(atnum, psp=load_psp("si-pade-q4.hgh"))
+    n_electrons = length(positions) * n_elec_valence(Si)
 
     # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
-    ham = Hamiltonian(basis, pot_local=psp_local,
-                      pot_nonlocal=psp_nonlocal,
+    ham = Hamiltonian(basis, pot_local=build_local_potential(basis, Si => positions),
+                      pot_nonlocal=build_nonlocal_projectors(basis, Si => positions),
                       pot_hartree=PotHartree(basis))
 
-
-    ρ = guess_gaussian_sad(basis, :Si => positions, :Si => atnum, :Si => hgh.Zion)
+    ρ = guess_gaussian_sad(basis, Si => positions)
     prec = PreconditionerKinetic(ham, α=0.1)
     scfres = self_consistent_field(ham, 8, n_electrons, lobpcg_prec=prec, ρ=ρ, tol=scf_tol)
     ρ, pot_hartree_values, pot_xc_values = scfres
@@ -75,21 +69,19 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
           0.528431528397109, 0.542724927211605],
     ]
     n_bands = length(ref_lda[1])
+
     basis = PlaneWaveBasis(Array{T}(lattice), grid_size * ones(3), Ecut, kpoints, kweights)
+    Si = Species(atnum, psp=load_psp("si-pade-q4.hgh"))
+    n_electrons = length(positions) * n_elec_valence(Si)
 
-    # Construct a local pseudopotential
-    hgh = load_psp("si-pade-q4.hgh")
-    psp_local = build_local_potential(basis, positions,
-                                      G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
-    psp_nonlocal = build_nonlocal_projectors(basis, :Si => positions, :Si => hgh)
-    pot_xc = PotXc(basis, Functional.([:lda_x, :lda_c_vwn]))
-    n_electrons = 8
+    # Construct the Hamiltonian
+    ham = Hamiltonian(basis, pot_local=build_local_potential(basis, Si => positions),
+                      pot_nonlocal=build_nonlocal_projectors(basis, Si => positions),
+                      pot_hartree=PotHartree(basis),
+                      pot_xc=PotXc(basis, Functional.([:lda_x, :lda_c_vwn])))
 
-    # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
-    ham = Hamiltonian(basis, pot_local=psp_local, pot_nonlocal=psp_nonlocal,
-                      pot_hartree=PotHartree(basis), pot_xc=pot_xc)
-
-    ρ = guess_gaussian_sad(basis, :Si => positions, :Si => atnum, :Si => hgh.Zion)
+    # Construct guess and run the SCF
+    ρ = guess_gaussian_sad(basis, Si => positions)
     prec = PreconditionerKinetic(ham, α=0.1)
     scfres = self_consistent_field(ham, 8, n_electrons, lobpcg_prec=prec, ρ=ρ, tol=scf_tol)
     ρ, pot_hartree_values, pot_xc_values = scfres

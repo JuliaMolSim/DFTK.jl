@@ -41,21 +41,19 @@ kweigths = kweigths / sum(kweigths)
 grid_size = DFTK.determine_grid_size(A', Ecut, kpoints=kpoints) * ones(Int, 3)
 basis = PlaneWaveBasis(A', grid_size, Ecut, kpoints, kweigths)
 
-# Construct a local pseudopotential
-hgh = load_psp("si-pade-q4.hgh")
+# Setup model for silicon and list of silicon positions
+Si = Species(mg.Element("Si").number, psp=load_psp("si-pade-q4.hgh"))
 positions = [s.frac_coords for s in structure.sites]
-psp_local = build_local_potential(basis, positions,
-                                  G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
-psp_nonlocal = build_nonlocal_projectors(basis, :Si => positions, :Si => hgh)
-pot_xc = PotXc(basis, Functional.([:lda_x, :lda_c_vwn]))
-n_electrons = 8  # In a Silicon psp model, the number of electrons per unit cell is 8
+n_electrons = length(positions) * n_elec_valence(Si)
 
-# Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
-ham = Hamiltonian(basis, pot_local=psp_local, pot_nonlocal=psp_nonlocal,
-                  pot_hartree=PotHartree(basis), pot_xc=pot_xc)
+# Construct Hamiltonian
+ham = Hamiltonian(basis, pot_local=build_local_potential(basis, Si => positions),
+                  pot_nonlocal=build_nonlocal_projectors(basis, Si => positions),
+                  pot_hartree=PotHartree(basis),
+                  pot_xc=PotXc(basis, Functional.([:lda_x, :lda_c_vwn])))
 
-ρ = guess_gaussian_sad(basis, :Si => positions, :Si => mg.Element("Si").number,
-                       :Si => hgh.Zion)
+# Build a guess density and run the SCF
+ρ = guess_gaussian_sad(basis, Si => positions)
 scfres = self_consistent_field(ham, Int(n_electrons / 2 + 2), n_electrons, ρ=ρ, tol=1e-5,
                                lobpcg_prec=PreconditionerKinetic(ham, α=0.1))
 ρ, pot_hartree_values, pot_xc_values = scfres
@@ -82,11 +80,11 @@ set_kpoints!(ham.basis, kpoints, kweigths)
 # TODO This is super ugly, but needed, since the PotNonLocal implicitly
 #      stores information per k-Point at the moment
 if ham.pot_nonlocal !== nothing
-    psp_nonlocal = PotNonLocal(ham.basis, :Si => positions, :Si => hgh)
+    pot_nonlocal = build_nonlocal_projectors(ham.basis, Si => positions)
 else
-    psp_nonlocal = nothing
+    pot_nonlocal = nothing
 end
-ham = Hamiltonian(ham.basis, pot_local=ham.pot_local, pot_nonlocal=psp_nonlocal,
+ham = Hamiltonian(ham.basis, pot_local=ham.pot_local, pot_nonlocal=pot_nonlocal,
                   pot_hartree=ham.pot_hartree, pot_xc=ham.pot_xc)
 
 

@@ -58,7 +58,13 @@ include("core/scf_damped.jl")
 include("core/scf_nlsolve.jl")
 
 # Utilities
-export self_consistent_field
+export Species
+export charge_nuclear
+export charge_ionic
+export n_elec_valence
+export n_elec_core
+include("utils/Species.jl")
+
 export build_local_potential
 export build_nonlocal_projectors
 export determine_grid_size
@@ -66,6 +72,7 @@ export guess_gaussian_sad
 export guess_hcore
 export kblock_as_matrix
 export load_psp
+export self_consistent_field
 include("utils/build_local_potential.jl")
 include("utils/build_nonlocal_projectors.jl")
 include("utils/determine_grid_size.jl")

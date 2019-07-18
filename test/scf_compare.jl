@@ -6,19 +6,14 @@ include("silicon_testcases.jl")
 @testset "Compare damped and nlsolve SCF algorithm" begin
     Ecut = 5
     n_bands = 8
-    n_electrons = 8
     grid_size = [15, 15, 15]
+
     basis = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
+    Si = Species(atnum, psp=load_psp("si-pade-q4.hgh"))
+    n_electrons = length(positions) * n_elec_valence(Si)
 
-    # Construct a local pseudopotential
-    hgh = load_psp("si-pade-q4.hgh")
-    psp_local = build_local_potential(basis, positions,
-                                      G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
-    psp_nonlocal = build_nonlocal_projectors(basis, :Si => positions, :Si => hgh)
-
-    # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
-    ham = Hamiltonian(basis, pot_local=psp_local,
-                      pot_nonlocal=psp_nonlocal,
+    ham = Hamiltonian(basis, pot_local=build_local_potential(basis, Si => positions),
+                      pot_nonlocal=build_nonlocal_projectors(basis, Si => positions),
                       pot_hartree=PotHartree(basis))
 
     # Run nlsolve without guess
@@ -28,7 +23,7 @@ include("silicon_testcases.jl")
     ρ_nl = scfnl[1]
 
     # Run damped SCF with SAD guess
-    ρ = guess_gaussian_sad(basis, :Si => positions, :Si => atnum, :Si => hgh.Zion)
+    ρ = guess_gaussian_sad(basis, Si => positions)
     scfdamp = self_consistent_field(ham, n_bands, n_electrons, lobpcg_prec=prec, ρ=ρ,
                                     algorithm=:scf_damped, damping=0.4)
     ρ_damp = scfdamp[1]
