@@ -14,7 +14,7 @@ include("silicon_testcases.jl")
     hgh = load_psp("si-pade-q4.hgh")
     psp_local = build_local_potential(basis, positions,
                                       G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
-    psp_nonlocal = PotNonLocal(basis, :Si => positions, :Si => hgh)
+    psp_nonlocal = build_nonlocal_projectors(basis, :Si => positions, :Si => hgh)
 
     # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
     ham = Hamiltonian(basis, pot_local=psp_local,

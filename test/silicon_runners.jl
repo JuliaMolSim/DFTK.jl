@@ -30,7 +30,7 @@ function run_silicon_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf
     hgh = load_psp("si-pade-q4.hgh")
     psp_local = build_local_potential(basis, positions,
                                       G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
-    psp_nonlocal = PotNonLocal(basis, :Si => positions, :Si => hgh)
+    psp_nonlocal = build_nonlocal_projectors(basis, :Si => positions, :Si => hgh)
     n_electrons = 8
 
     # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
@@ -81,7 +81,7 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     hgh = load_psp("si-pade-q4.hgh")
     psp_local = build_local_potential(basis, positions,
                                       G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
-    psp_nonlocal = PotNonLocal(basis, :Si => positions, :Si => hgh)
+    psp_nonlocal = build_nonlocal_projectors(basis, :Si => positions, :Si => hgh)
     pot_xc = PotXc(basis, Functional.([:lda_x, :lda_c_vwn]))
     n_electrons = 8
 

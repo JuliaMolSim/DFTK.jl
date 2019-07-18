@@ -46,7 +46,7 @@ hgh = load_psp("si-pade-q4.hgh")
 positions = [s.frac_coords for s in structure.sites]
 psp_local = build_local_potential(basis, positions,
                                   G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
-psp_nonlocal = PotNonLocal(basis, :Si => positions, :Si => hgh)
+psp_nonlocal = build_nonlocal_projectors(basis, :Si => positions, :Si => hgh)
 pot_xc = PotXc(basis, Functional.([:lda_x, :lda_c_vwn]))
 n_electrons = 8  # In a Silicon psp model, the number of electrons per unit cell is 8
 

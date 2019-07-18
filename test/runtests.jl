@@ -7,7 +7,7 @@ include("PlaneWaveBasis.jl")
 include("PspHgh.jl")
 
 include("build_local_potential.jl")
-include("PotNonlocal.jl")
+include("build_nonlocal_projectors.jl")
 
 include("lobpcg.jl")
 include("xc_fallback.jl")
