@@ -2,10 +2,10 @@ include("SphericalHarmonics.jl")
 
 
 """
-    build_nonlocal_projectors(pw::PlaneWaveBasis, psp_or_species...)
+    build_nonlocal_projectors(pw::PlaneWaveBasis, psp_or_composition...)
 
 Build a Kleinman-Bylander representation of the non-local potential term
-for the given `basis`. `psp_or_species` are pairs mapping from a Pseudopotential object
+for the given `basis`. `psp_or_composition` are pairs mapping from a Pseudopotential object
 or a `Species` object to a list of positions in fractional coordinates.
 
 ## Examples
@@ -28,9 +28,9 @@ julia> si = Species(14, psp=load_psp("si-pade-q4.hgh"))
 Notice: If a species does not have an assoiciated pseudopotential it will be silently
 ignored by this function.
 """
-function build_nonlocal_projectors(basis::PlaneWaveBasis, psp_or_species...)
+function build_nonlocal_projectors(basis::PlaneWaveBasis, psp_or_composition...)
     T = eltype(basis.lattice)
-    n_species = length(psp_or_species)
+    n_species = length(psp_or_composition)
     n_k = length(basis.kpoints)
     Ω = basis.unit_cell_volume
 
@@ -38,7 +38,7 @@ function build_nonlocal_projectors(basis::PlaneWaveBasis, psp_or_species...)
     extract_psp(elem::Species) = elem.psp
     extract_psp(elem) = elem
     potentials = [extract_psp(elem) => positions
-                  for (elem, positions) in psp_or_species
+                  for (elem, positions) in psp_or_composition
                   if extract_psp(elem) !== nothing]
 
     # Compute n_proj

@@ -1,17 +1,17 @@
 """
-    guess_gaussian_sad(basis, species...)
+    guess_gaussian_sad(basis, composition...)
 
 Build a superposition of atomic densities (SAD) guess density. The atoms/species are
-specified as pairs representing a mapping from `Species` objects to a list of positions
-in fractional coordinates.
+specified in `composition` as pairs representing a mapping from `Species` objects to a list
+of positions in fractional coordinates.
 """
-function guess_gaussian_sad(basis, species...)
+function guess_gaussian_sad(basis, composition...)
     T = eltype(basis.lattice)
     ρ = map(basis_ρ(basis)) do G
         Gsq = sum(abs2, basis.recip_lattice * G)
         res = sum(
             charge_ionic(spec) * exp(-Gsq * atom_decay_length(spec)^2) * cis(2π * dot(G, r))
-            for (spec, positions) in species
+            for (spec, positions) in composition
             for r in positions
         )
         convert(T, res)
