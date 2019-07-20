@@ -79,7 +79,8 @@ Hamiltonian
 apply_hamiltonian!
 DFTK.apply_fourier!
 DFTK.apply_real!
-DFTK.compute_potential!
+DFTK.update_potential!
+DFTK.update_energies_potential!
 DFTK.empty_potential
 PreconditionerKinetic
 DFTK.lobpcg

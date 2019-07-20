@@ -10,6 +10,7 @@ function scf_nlsolve(ham::Hamiltonian, n_bands, compute_occupation, ρ;
     pw = ham.basis
     values_hartree = empty_potential(ham.pot_hartree)
     values_xc = empty_potential(ham.pot_xc)
+    energies = Dict{Symbol, eltype(ρ)}()
 
     # Initialise guess for wave function to random numbers
     Psi = [Matrix(qr(randn(Complex{T}, length(pw.basis_wf[ik]), n_bands)).Q)
@@ -30,8 +31,10 @@ function scf_nlsolve(ham::Hamiltonian, n_bands, compute_occupation, ρ;
     end
     function compute_residual!(residual, ρ_folded)
         ρ = unfoldρ(ρ_folded)
-        values_hartree = compute_potential!(values_hartree, ham.pot_hartree, ρ)
-        values_xc = compute_potential!(values_xc, ham.pot_xc, ρ)
+        energies, values_hartree = update_energies_potential!(energies, values_hartree,
+                                                              ham.pot_hartree, ρ)
+        energies, values_xc = update_energies_potential!(energies, values_xc, ham.pot_xc, ρ)
+
         res = lobpcg(ham, n_bands, pot_hartree_values=values_hartree,
                      pot_xc_values=values_xc, guess=Psi,
                      prec=lobpcg_prec, tol=lobpcg_tol)
@@ -47,14 +50,16 @@ function scf_nlsolve(ham::Hamiltonian, n_bands, compute_occupation, ρ;
 
     # Final LOBPCG to get eigenvalues and eigenvectors
     ρ = unfoldρ(nlres.zero)
-    values_hartree = compute_potential!(values_hartree, ham.pot_hartree, ρ)
-    values_xc = compute_potential!(values_xc, ham.pot_xc, ρ)
+    energies, values_hartree = update_energies_potential!(energies, values_hartree,
+                                                          ham.pot_hartree, ρ)
+    energies, values_xc = update_energies_potential!(energies, values_xc, ham.pot_xc, ρ)
+
     res = lobpcg(ham, n_bands, pot_hartree_values=values_hartree,
                  pot_xc_values=values_xc, guess=Psi,
                  prec=lobpcg_prec, tol=lobpcg_tol)
     occupation = compute_occupation(ham.basis, res.λ, res.X)
 
-    (ρ=ρ, Psi=res.X, energies=res.λ, occupation=occupation,converged=converged(nlres),
-     pot_hartree_values=values_hartree, pot_xc_values=values_xc)
+    (ρ=ρ, Psi=res.X, orben=res.λ, occupation=occupation, energies=energies,
+     pot_hartree_values=values_hartree, pot_xc_values=values_xc, converged=converged(nlres))
 end
 

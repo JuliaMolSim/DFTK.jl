@@ -35,18 +35,16 @@ function run_silicon_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf
 
     ρ = guess_gaussian_sad(basis, Si => positions)
     prec = PreconditionerKinetic(ham, α=0.1)
-    scfres = self_consistent_field(ham, 8, n_electrons, lobpcg_prec=prec, ρ=ρ, tol=scf_tol)
-    ρ, pot_hartree_values, pot_xc_values = scfres
-    res = lobpcg(ham, n_bands, pot_hartree_values=pot_hartree_values,
-                 pot_xc_values=pot_xc_values, prec=prec, tol=scf_tol)
+    scfres = self_consistent_field(ham, n_bands, n_electrons, lobpcg_prec=prec, ρ=ρ,
+                                   tol=scf_tol)
 
     for ik in 1:length(kpoints)
-        println(ik, "  ", abs.(ref_noXC[ik] - res.λ[ik]))
+        println(ik, "  ", abs.(ref_noXC[ik] - scfres.orben[ik]))
     end
     for ik in 1:length(kpoints)
         # Ignore last few bands, because these eigenvalues are hardest to converge
         # and typically a bit random and unstable in the LOBPCG
-        diff = abs.(ref_noXC[ik] - res.λ[ik])
+        diff = abs.(ref_noXC[ik] - scfres.orben[ik])
         @test maximum(diff[1:n_bands - n_ignored]) < test_tol
     end
 end
@@ -83,20 +81,18 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     # Construct guess and run the SCF
     ρ = guess_gaussian_sad(basis, Si => positions)
     prec = PreconditionerKinetic(ham, α=0.1)
-    scfres = self_consistent_field(ham, 8, n_electrons, lobpcg_prec=prec, ρ=ρ, tol=scf_tol)
-    ρ, pot_hartree_values, pot_xc_values = scfres
-    res = lobpcg(ham, n_bands, pot_hartree_values=pot_hartree_values,
-                 pot_xc_values=pot_xc_values, prec=prec, tol=scf_tol)
+    scfres = self_consistent_field(ham, n_bands, n_electrons, lobpcg_prec=prec, ρ=ρ,
+                                   tol=scf_tol)
 
     for ik in 1:length(kpoints)
-        @test eltype(res.λ[ik]) == T
-        @test eltype(res.X[ik]) == Complex{T}
-        println(ik, "  ", abs.(ref_lda[ik] - res.λ[ik]))
+        @test eltype(scfres.orben[ik]) == T
+        @test eltype(scfres.Psi[ik]) == Complex{T}
+        println(ik, "  ", abs.(ref_lda[ik] - scfres.orben[ik]))
     end
     for ik in 1:length(kpoints)
         # Ignore last few bands, because these eigenvalues are hardest to converge
         # and typically a bit random and unstable in the LOBPCG
-        diff = abs.(ref_lda[ik] - res.λ[ik])
+        diff = abs.(ref_lda[ik] - scfres.orben[ik])
         @test maximum(diff[1:n_bands - n_ignored]) < test_tol
     end
 end

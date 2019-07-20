@@ -98,12 +98,26 @@ apply_real!(out, values::Nothing, in) = (out .= 0)
 apply_real!(out, values, in) = (out .= values .* in)
 
 @doc raw"""
-Compute the potential of a non-linear term (e.g. `pot_hartree` or `pot_xc`)
-on the real-space density grid ``B^∗_ρ``, given a current density `ρ`
-in the density basis ``B_ρ``. If the passed term is `nothing`,
-`nothing` is returned by the function as well, else an array of values.
+Update the potential values of a non-linear term (e.g. `pot_hartree` or `pot_xc`)
+on the real-space density grid ``B^∗_ρ``, given a current density `ρ` in the density basis
+``B_ρ``. The updated values are returned as well.
 """
-compute_potential!(precomp, op::Nothing, ρ) = nothing
+function update_potential!(potential, op, ρ)
+    update_energies_potential!(Dict(), potential, op, ρ).potential
+end
+
+@doc raw"""
+    update_energies_potential!(energies, potential, op, ρ)
+
+Update the energies and the potential of a non-linear term (e.g. `pot_hartree` or `pot_xc`)
+on the real-space density grid ``B^∗_ρ``, given a current density `ρ` in the density basis
+``B_ρ``. If the passed term is `nothing`, `energies` and `potential` will be returned
+as passed, else the appropriate keys in the `energies` dictionary and the values in the
+potential array will be updated and the two objects returned.
+"""
+function update_energies_potential!(energies, potential, op::Nothing, ρ)
+    (energies=energies, potential=potential)
+end
 
 @doc raw"""
 Return an appropriately sized container for a potential term

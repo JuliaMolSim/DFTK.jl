@@ -13,9 +13,9 @@ include("build_nonlocal_projectors.jl")
 include("lobpcg.jl")
 include("xc_fallback.jl")
 
+include("energy_ewald.jl")
+include("energy_nuclear.jl")
+
 include("scf_compare.jl")
 include("silicon_noXC.jl")
 include("silicon_lda.jl")
-
-include("energy_ewald.jl")
-include("energy_nuclear.jl")
