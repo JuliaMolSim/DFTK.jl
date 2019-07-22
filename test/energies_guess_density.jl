@@ -28,9 +28,9 @@ include("silicon_testcases.jl")
     energies = Dict{Symbol, real(eltype(ρ))}()
     update_energies_potential!(energies, values_hartree, ham.pot_hartree, ρ)
     update_energies_potential!(energies, values_xc, ham.pot_xc, ρ)
-    @test energies[:PotHartree] ≈  0.3527293727197568
-    @test energies[:lda_x]      ≈ -1.9374982215670051
-    @test energies[:lda_c_vwn]  ≈ -0.3658183654888113
+    @test energies[:PotHartree] ≈  0.3527293727197568  atol=5e-8
+    @test energies[:lda_x]      ≈ -1.9374982215670051  atol=5e-8
+    @test energies[:lda_c_vwn]  ≈ -0.3658183654888113  atol=5e-8
 
     prec = PreconditionerKinetic(ham, α=0.1)
     res = lobpcg(ham, n_bands, pot_hartree_values=values_hartree,
@@ -42,10 +42,10 @@ include("silicon_testcases.jl")
     update_energies_potential!(energies, values_hartree, ham.pot_hartree, ρ)
     update_energies_potential!(energies, values_xc, ham.pot_xc, ρ)
 
-    @test energies[:PotHartree]  ≈  0.6544113969974732  atol=1e-8
-    @test energies[:lda_x]       ≈ -2.067622085570294   atol=1e-8
-    @test energies[:lda_c_vwn]   ≈ -0.37536994918122685 atol=1e-8
-    @test energies[:PotLocal]    ≈ -2.367978663117999   atol=1e-8
-    @test energies[:PotNonLocal] ≈  1.6527493682542034  atol=1e-8
-    @test energies[:Kinetic]     ≈  3.291847293270256   atol=1e-8
+    @test energies[:PotHartree]  ≈  0.6544113969974732  atol=5e-8
+    @test energies[:lda_x]       ≈ -2.067622085570294   atol=5e-8
+    @test energies[:lda_c_vwn]   ≈ -0.37536994918122685 atol=5e-8
+    @test energies[:PotLocal]    ≈ -2.367978663117999   atol=5e-8
+    @test energies[:PotNonLocal] ≈  1.6527493682542034  atol=5e-8
+    @test energies[:Kinetic]     ≈  3.291847293270256   atol=5e-8
 end

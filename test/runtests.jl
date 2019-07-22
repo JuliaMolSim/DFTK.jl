@@ -15,6 +15,7 @@ include("xc_fallback.jl")
 
 include("energy_ewald.jl")
 include("energy_nuclear.jl")
+include("energies_guess_density.jl")
 
 include("scf_compare.jl")
 include("silicon_noXC.jl")
