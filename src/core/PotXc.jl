@@ -11,16 +11,15 @@ end
     PotXc(basis, functional, supersampling=2)
 
 Construct an exchange-correlation term. `functional` is the Libxc.jl `Functional` to be used
-or a list of such objects. `supersampling` specifies the supersampling factor for the
-exchang-correlation integration grid.
+or its symbol or a list of such objects. `supersampling` specifies the supersampling factor
+for the exchang-correlation integration grid.
 """
-function PotXc(basis::PlaneWaveBasis, functional::Array; supersampling=2)
+function PotXc(basis::PlaneWaveBasis, functional...; supersampling=2)
     @assert(supersampling == 2, "Only the case supersampling == 2 is implemented")
     # TODO Actually not even that ... we assume the grid to use is the density grid
-    PotXc(basis, supersampling, functional)
-end
-function PotXc(basis::PlaneWaveBasis, functional::Functional; supersampling=2)
-    PotXc(basis, [functional]; supersampling=supersampling)
+    make_functional(func::Functional) = func
+    make_functional(symb::Symbol) = Functional(symb)
+    PotXc(basis, supersampling, [make_functional(f) for f in functional])
 end
 
 
@@ -34,7 +33,6 @@ function update_energies_potential!(energies, potential, op::PotXc, ρ)
             "Imaginary part too large $(maximum(imag(ρ_real)))")
     ρ_real = real(ρ_real)
 
-    energies[:XC] = T(0)
     potential .= 0
     V = similar(ρ_real)
     E = similar(ρ_real)
@@ -54,7 +52,6 @@ function update_energies_potential!(energies, potential, op::PotXc, ρ)
         # Factor 2 because α and β operators are identical for spin-restricted case
         dVol = pw.unit_cell_volume / prod(size(pw.FFT))
         energies[identifier] = 2 * sum(E .* ρ_real) * dVol / 2
-        energies[:XC] += energies[xc.identifier]
     end
 
     (energies=energies, potential=potential)

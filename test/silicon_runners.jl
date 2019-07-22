@@ -76,7 +76,7 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     ham = Hamiltonian(basis, pot_local=build_local_potential(basis, Si => positions),
                       pot_nonlocal=build_nonlocal_projectors(basis, Si => positions),
                       pot_hartree=PotHartree(basis),
-                      pot_xc=PotXc(basis, Functional.([:lda_x, :lda_c_vwn])))
+                      pot_xc=PotXc(basis, :lda_x, :lda_c_vwn))
 
     # Construct guess and run the SCF
     ρ = guess_gaussian_sad(basis, Si => positions)

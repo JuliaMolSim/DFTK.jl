@@ -73,5 +73,5 @@ function build_local_potential(pw::PlaneWaveBasis, generators_or_composition...;
                             " real-valued, but the present potential gives rise to a " *
                             "maximal imaginary entry of $(maximum(imag(values_real)))."))
     end
-    PotLocal(real(values_real))
+    PotLocal(pw, real(values_real))
 end

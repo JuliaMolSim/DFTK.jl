@@ -63,7 +63,7 @@ function apply_hamiltonian!(out::AbstractVector, ham, ik::Int,
         # Apply the terms and accumulate
         accu_real = zero(in_real)
         tmp_real = similar(in_real)
-        accu_real .+= apply_real!(tmp_real, ham.pot_local.values_real, in_real)
+        accu_real .+= apply_real!(tmp_real, ham.pot_local, in_real)
         accu_real .+= apply_real!(tmp_real, pot_hartree_values, in_real)
         accu_real .+= apply_real!(tmp_real, pot_xc_values, in_real)
 
@@ -85,7 +85,6 @@ function apply_hamiltonian!(out, ham, ik::Int, pot_hartree_values, pot_xc_values
 end
 
 Base.eltype(ham::Hamiltonian) = Complex{eltype(ham.basis.lattice)}
-
 
 @doc raw"""Apply a ``k``-block of a Hamiltonian term in Fourier space"""
 apply_fourier!(out, op::Nothing, ik::Int, in) = (out .= 0)
@@ -125,3 +124,50 @@ on the real-space grid ``B^∗_ρ``
 """
 empty_potential(op::Nothing) = nothing
 empty_potential(op) = Array{eltype(op.basis.lattice)}(undef, size(op.basis.FFT)...)
+
+"""
+    update_energies_1e!(energies, ham, ρ, Psi, occupation)
+
+Update the one-electron (linear) energy contributions of the Hamiltonian `ham`
+inside the dictionary `energies`.
+"""
+function update_energies_1e!(energies, ham, ρ, Psi, occupation)
+    update_energies_fourier!(energies, ham.kinetic,      Psi, occupation)
+    update_energies_fourier!(energies, ham.pot_nonlocal, Psi, occupation)
+
+    if ham.pot_local !== nothing
+        pw = ham.basis
+        ρ_real = similar(ρ, complex(eltype(ρ)), size(pw.FFT)...)
+        G_to_r!(pw, ρ, ρ_real)
+        ρ_real = real(ρ_real)
+        update_energies_real!(energies, ham.pot_local, ρ_real)
+    end
+
+    energies
+end
+
+"""
+    update_energies_fourier!(energies, op, Psi, occupation)
+
+Update the energy contribution in the dictionary `energies` related to operator `op`
+using the wave function `Psi` and the band numbers in `occupation`.
+"""
+update_energies_fourier!(energies, op::Nothing, Psi, occupation) = energies
+function update_energies_fourier!(energies, op, Psi, occupation)
+    pw = op.basis
+    symbol = nameof(typeof(op))
+    energies[symbol] = real(sum(
+          wk * tr(Diagonal(occupation[ik])
+                  * Psi[ik]' * apply_fourier!(similar(Psi[ik]), op, ik, Psi[ik]))
+          for (ik, wk) in enumerate(pw.kweights)
+    ))
+    energies
+end
+
+"""
+    update_energies_real!(energies, op, ρ_real)
+
+Update the energy contribution in the dictionary `energies` related to operator `op`
+using the real space density `ρ_real`.
+"""
+update_energies_real!(energies, op::Nothing, ρ_real) = energies

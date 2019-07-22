@@ -43,21 +43,31 @@ basis = PlaneWaveBasis(A', grid_size, Ecut, kpoints, kweigths)
 
 # Setup model for silicon and list of silicon positions
 Si = Species(mg.Element("Si").number, psp=load_psp("si-pade-q4.hgh"))
-positions = [s.frac_coords for s in structure.sites]
-n_electrons = length(positions) * n_elec_valence(Si)
+composition = [Si => [s.frac_coords for s in structure.sites if s.species_string == "Si"]]
+n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in composition)
 
 # Construct Hamiltonian
-ham = Hamiltonian(basis, pot_local=build_local_potential(basis, Si => positions),
-                  pot_nonlocal=build_nonlocal_projectors(basis, Si => positions),
+ham = Hamiltonian(basis, pot_local=build_local_potential(basis, composition...),
+                  pot_nonlocal=build_nonlocal_projectors(basis, composition...),
                   pot_hartree=PotHartree(basis),
                   pot_xc=PotXc(basis, Functional.([:lda_x, :lda_c_vwn])))
 
 # Build a guess density and run the SCF
-ρ = guess_gaussian_sad(basis, Si => positions)
-scfres = self_consistent_field(ham, Int(n_electrons / 2 + 2), n_electrons, ρ=ρ, tol=1e-5,
+ρ = guess_gaussian_sad(basis, composition...)
+scfres = self_consistent_field(ham, Int(n_electrons / 2 + 2), n_electrons, ρ=ρ, tol=1e-6,
                                lobpcg_prec=PreconditionerKinetic(ham, α=0.1))
-ρ, pot_hartree_values, pot_xc_values = scfres
 
+# Print final energies
+energies = scfres.energies
+energies[:Ewald] = energy_nuclear_ewald(basis.lattice, composition...)
+energies[:PspCorrection] = energy_nuclear_psp_correction(basis.lattice, composition...)
+println("\nEnergy breakdown:")
+for (key, value) in pairs(energies)
+    @printf "    %-20s%-10.7f\n" string(key) value
+end
+@printf "\n    %-20s%-10.7f\n\n" "total" sum(values(energies))
+
+stop
 
 # TODO Some routine to compute this properly
 efermi = 0.5
@@ -89,8 +99,9 @@ ham = Hamiltonian(ham.basis, pot_local=ham.pot_local, pot_nonlocal=pot_nonlocal,
 
 
 # Compute bands:
-band_data = lobpcg(ham, n_bands, pot_hartree_values=pot_hartree_values, tol=1e-5,
-                   pot_xc_values=pot_xc_values, prec=PreconditionerKinetic(ham, α=0.5))
+band_data = lobpcg(ham, n_bands, pot_hartree_values=scfres.pot_hartree_values, tol=1e-5,
+                   pot_xc_values=scfres.pot_xc_values,
+                   prec=PreconditionerKinetic(ham, α=0.5))
 if ! band_data.converged
     println("WARNING: Not all k-points converged.")
 end

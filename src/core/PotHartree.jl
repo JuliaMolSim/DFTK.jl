@@ -14,7 +14,7 @@ function update_energies_potential!(energies, potential, op::PotHartree, ρ)
     # Zero the DC component (i.e. assume a compensating charge background)
     values[pw.idx_DC] = 0
 
-    # Fourier-transform and store in values_real
+    # Fourier-transform values and store in values_real
     values_real = similar(potential, Complex{T})
     G_to_r!(pw, values, values_real)
 

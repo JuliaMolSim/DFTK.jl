@@ -27,8 +27,8 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_electrons::Int;
         res = scf_damped(ham, n_bands, compute_occupation, ρ, tol=tol,
                          lobpcg_prec=lobpcg_prec, max_iter=max_iter; kwargs...)
     else
-        error("Unknown algorithm " * str(algorithm))
+        error("Unknown algorithm " * string(algorithm))
     end
 
-    res.ρ, res.pot_hartree_values, res.pot_xc_values
+    res
 end
