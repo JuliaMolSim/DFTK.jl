@@ -7,6 +7,7 @@ kinetic energy cutoff `Ecut` for the wave function and a density  `supersampling
 The function will determine the union of wave vectors ``G`` required to satisfy
 ``|G + k|^2/2 \leq E_\text{cut} ⋅ \text{supersampling}^2`` for all ``k``-Points. The
 returned grid dimensions are the smallest cartesian box to incorporate these ``G``.
+`kpoints` should be specified in fractional coordinates.
 
 For an exact representation of the density resulting from wave functions
 represented in the basis ``B_ρ = \{G : |G + k|^2/2 \leq Ecut\}``, `supersampling`

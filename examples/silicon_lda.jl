@@ -29,7 +29,7 @@ structure = mg.Structure(lattice, ["Si", "Si"], [ones(3)/8, -ones(3)/8])
 # Get k-Point mesh for Brillouin-zone integration
 spgana = symmetry.analyzer.SpacegroupAnalyzer(structure)
 bzmesh = spgana.get_ir_reciprocal_mesh(kgrid)
-kpoints = [recip_lattice.get_cartesian_coords(mp[1]) for mp in bzmesh]
+kpoints = [mp[1] for mp in bzmesh]
 kweigths = [mp[2] for mp in bzmesh]
 kweigths = kweigths / sum(kweigths)
 
@@ -77,7 +77,7 @@ efermi = 0.5
 #
 # Get the kpoints at which the band structure should be computed
 symm_kpath = symmetry.bandstructure.HighSymmKpath(structure)
-kpoints, klabels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=true)
+kpoints, klabels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=false)
 println("Computing bands along kpath:\n     $(join(symm_kpath.kpath["path"][1], " -> "))")
 
 

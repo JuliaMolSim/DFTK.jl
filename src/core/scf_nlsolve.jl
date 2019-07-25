@@ -60,7 +60,7 @@ function scf_nlsolve(ham::Hamiltonian, n_bands, compute_occupation, ρ;
 
     occupation = compute_occupation(ham.basis, res.λ, res.X)
     ρ = compute_density(pw, res.X, occupation)
-    update_energies_1e!(energies, ham, ρ, Psi, occupation)
+    update_energies_1e!(energies, ham, ρ, res.X, occupation)
     update_energies_potential!(energies, values_hartree, ham.pot_hartree, ρ)
     update_energies_potential!(energies, values_xc, ham.pot_xc, ρ)
 

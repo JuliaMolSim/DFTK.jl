@@ -54,7 +54,7 @@ julia> b = PlaneWaveBasis(TODO)
                    `floor(Int, (grid_size[idim]-1) / 2)`. No optimisation is done
                    on the size of the grid with respect to performing FFTs.
 - `Ecut`:          Kinetic energy cutoff in Hartree
-- `kpoints`:       List of ``k``-Points in fractional coordinats
+- `kpoints`:       List of ``k``-Points in fractional coordinates
 - `kweights`:      List of corresponding weights for the Brillouin-zone integration.
 """
 function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
@@ -131,7 +131,7 @@ function G_to_r!(pw::PlaneWaveBasis, f_fourier, f_real; gcoords=basis_ρ(pw))
     @assert(size(f_real) == size(pw.iFFT),
             "Size mismatch between f_real(==$(size(f_real)) and " *
             "FFT size(==$(size(pw.iFFT))")
-    fft_size = [size(pw.FFT)...]
+    fft_size = Vec3(size(pw.FFT))
 
     # Pad the input data, then perform an FFT on the rectangular cube
     f_real .= 0
@@ -164,7 +164,7 @@ function r_to_G!(pw::PlaneWaveBasis, f_real, f_fourier; gcoords=basis_ρ(pw))
     @assert(size(f_real) == size(pw.FFT),
             "Size mismatch between f_real(==$(size(f_real)) and " *
             "FFT size(==$(size(pw.FFT))")
-    fft_size = [size(pw.FFT)...]
+    fft_size = Vec3(size(pw.FFT))
 
     # Do FFT on the full FFT plan, but truncate the resulting frequency
     # range to the part defined by the idx_to_fft array
