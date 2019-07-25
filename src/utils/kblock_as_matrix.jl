@@ -7,6 +7,7 @@ function kblock_as_matrix(ham::Hamiltonian, ik::Int, pot_hartree_values, pot_xc_
     v = fill(zero(T), n_bas)
     @inbounds for i = 1:n_bas
         v[i] = one(T)
+        mat[:,i] .= 0
         apply_fourier!(view(mat, :, i), ham, ik, pot_hartree_values, pot_xc_values, v)
         v[i] = zero(T)
     end

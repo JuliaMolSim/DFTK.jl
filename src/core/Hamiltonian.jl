@@ -50,26 +50,25 @@ function apply_hamiltonian!(out::AbstractVector, ham, ik::Int,
     pw = ham.basis
 
     # Apply kinetic and non-local potential if given, accumulate results
-    tmp = similar(out)
     apply_fourier!(out, ham.kinetic, ik, in)
-    out .+= apply_fourier!(tmp, ham.pot_nonlocal, ik, in)
+    apply_fourier!(out, ham.pot_nonlocal, ik, in)
 
     fft_terms = [ham.pot_local, ham.pot_hartree, ham.pot_xc]
     if any(term !== nothing for term in fft_terms)
         # If any of the terms requiring an iFFT is present, do an iFFT
         in_real = similar(in, size(pw.FFT)...)
-        in_real = G_to_r!(pw, in, in_real, gcoords=pw.basis_wf[ik])
+        G_to_r!(pw, in, in_real, gcoords=pw.basis_wf[ik])
 
         # Apply the terms and accumulate
-        accu_real = zero(in_real)
-        tmp_real = similar(in_real)
-        accu_real .+= apply_real!(tmp_real, ham.pot_local, in_real)
-        accu_real .+= apply_real!(tmp_real, pot_hartree_values, in_real)
-        accu_real .+= apply_real!(tmp_real, pot_xc_values, in_real)
+        out_real = zero(in_real)
+        apply_real!(out_real, ham.pot_local, in_real)
+        apply_real!(out_real, pot_hartree_values, in_real)
+        apply_real!(out_real, pot_xc_values, in_real)
 
         # FFT back to B_{Ψ,k} basis, accumulate, notice that this call
         # invalidates the data of accu_real as well.
-        out .+= r_to_G!(pw, accu_real, tmp, gcoords=pw.basis_wf[ik])
+        out_fourier = similar(out)
+        out .+= r_to_G!(pw, out_real, out_fourier, gcoords=pw.basis_wf[ik])
     end
     out
 end
@@ -87,14 +86,14 @@ end
 Base.eltype(ham::Hamiltonian) = Complex{eltype(ham.basis.lattice)}
 
 @doc raw"""Apply a ``k``-block of a Hamiltonian term in Fourier space"""
-apply_fourier!(out, op::Nothing, ik::Int, in) = (out .= 0)
+apply_fourier!(out, op::Nothing, ik::Int, in) = out
 
 
 @doc raw"""
 Apply a Hamiltonian term by computation on the real-space density grid ``B^∗_ρ``
 """
-apply_real!(out, values::Nothing, in) = (out .= 0)
-apply_real!(out, values, in) = (out .= values .* in)
+apply_real!(out, values::Nothing, in) = out
+apply_real!(out, values, in) = (out .+= values .* in)
 
 @doc raw"""
 Update the potential values of a non-linear term (e.g. `pot_hartree` or `pot_xc`)
@@ -158,7 +157,7 @@ function update_energies_fourier!(energies, op, Psi, occupation)
     symbol = nameof(typeof(op))
     energies[symbol] = real(sum(
           wk * tr(Diagonal(occupation[ik])
-                  * Psi[ik]' * apply_fourier!(similar(Psi[ik]), op, ik, Psi[ik]))
+                  * Psi[ik]' * apply_fourier!(zero(Psi[ik]), op, ik, Psi[ik]))
           for (ik, wk) in enumerate(pw.kweights)
     ))
     energies

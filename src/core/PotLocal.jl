@@ -6,7 +6,7 @@ struct PotLocal{T<:AbstractArray}
     basis::PlaneWaveBasis
     values_real::T
 end
-apply_real!(out, op::PotLocal, in) = (out .= op.values_real .* in)
+apply_real!(out, op::PotLocal, in) = (out .+= op.values_real .* in)
 
 function update_energies_real!(energies, op::PotLocal, ρ_real)
     pw = op.basis

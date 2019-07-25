@@ -13,6 +13,7 @@ end
 Base.size(block::HamiltonianBlock, idx::Int) = length(block.ham.basis.basis_wf[block.ik])
 Base.eltype(block::HamiltonianBlock) = eltype(block.ham)
 function LinearAlgebra.mul!(out_Xk, block::HamiltonianBlock, in_Xk)
+    out_Xk .= 0
     return apply_hamiltonian!(out_Xk, block.ham, block.ik, block.pot_hartree_values,
                               block.pot_xc_values, in_Xk)
 end
