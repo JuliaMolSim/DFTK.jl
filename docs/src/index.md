@@ -79,7 +79,8 @@ Hamiltonian
 apply_hamiltonian!
 DFTK.apply_fourier!
 DFTK.apply_real!
-DFTK.compute_potential!
+DFTK.update_potential!
+DFTK.update_energies_potential!
 DFTK.empty_potential
 PreconditionerKinetic
 DFTK.lobpcg
@@ -99,8 +100,10 @@ compute_density
 
 ## Utilities
 ```@docs
+Species
 determine_grid_size
 build_local_potential
+build_nonlocal_projectors
 kblock_as_matrix
 load_psp
 guess_gaussian_sad

@@ -1,14 +1,24 @@
 using Test
-using DFTK: PlaneWaveBasis, PotNonLocal, apply_fourier!, load_psp
+using DFTK: PlaneWaveBasis, build_nonlocal_projectors, apply_fourier!, load_psp, Species
 
 include("silicon_testcases.jl")
 
 
-@testset "Check PotNonLocal" begin
+@testset "build_nonlocal_projectors" begin
     Ecut = 2
     grid_size = [9, 9, 9]
     pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
-    potnl = PotNonLocal(pw, "Si" => positions, "Si" => load_psp("Si-lda-q4.hgh"))
+
+    psp = load_psp("Si-lda-q4.hgh")
+    potnl = build_nonlocal_projectors(pw, psp => positions)
+
+    @testset "Agreement of psp and species construction" begin
+        silicon = Species(14, psp=psp)
+        potnl2 = build_nonlocal_projectors(pw, silicon => positions)
+
+        @test potnl.proj_vectors ≈ potnl2.proj_vectors
+        @test potnl.proj_coeffs ≈ potnl2.proj_coeffs
+    end
 
     @testset "Dummy application test for ik == 3" begin
         ik = 3

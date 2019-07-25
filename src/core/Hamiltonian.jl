@@ -63,7 +63,7 @@ function apply_hamiltonian!(out::AbstractVector, ham, ik::Int,
         # Apply the terms and accumulate
         accu_real = zero(in_real)
         tmp_real = similar(in_real)
-        accu_real .+= apply_real!(tmp_real, ham.pot_local.values_real, in_real)
+        accu_real .+= apply_real!(tmp_real, ham.pot_local, in_real)
         accu_real .+= apply_real!(tmp_real, pot_hartree_values, in_real)
         accu_real .+= apply_real!(tmp_real, pot_xc_values, in_real)
 
@@ -86,7 +86,6 @@ end
 
 Base.eltype(ham::Hamiltonian) = Complex{eltype(ham.basis.lattice)}
 
-
 @doc raw"""Apply a ``k``-block of a Hamiltonian term in Fourier space"""
 apply_fourier!(out, op::Nothing, ik::Int, in) = (out .= 0)
 
@@ -98,12 +97,26 @@ apply_real!(out, values::Nothing, in) = (out .= 0)
 apply_real!(out, values, in) = (out .= values .* in)
 
 @doc raw"""
-Compute the potential of a non-linear term (e.g. `pot_hartree` or `pot_xc`)
-on the real-space density grid ``B^∗_ρ``, given a current density `ρ`
-in the density basis ``B_ρ``. If the passed term is `nothing`,
-`nothing` is returned by the function as well, else an array of values.
+Update the potential values of a non-linear term (e.g. `pot_hartree` or `pot_xc`)
+on the real-space density grid ``B^∗_ρ``, given a current density `ρ` in the density basis
+``B_ρ``. The updated values are returned as well.
 """
-compute_potential!(precomp, op::Nothing, ρ) = nothing
+function update_potential!(potential, op, ρ)
+    update_energies_potential!(Dict(), potential, op, ρ).potential
+end
+
+@doc raw"""
+    update_energies_potential!(energies, potential, op, ρ)
+
+Update the energies and the potential of a non-linear term (e.g. `pot_hartree` or `pot_xc`)
+on the real-space density grid ``B^∗_ρ``, given a current density `ρ` in the density basis
+``B_ρ``. If the passed term is `nothing`, `energies` and `potential` will be returned
+as passed, else the appropriate keys in the `energies` dictionary and the values in the
+potential array will be updated and the two objects returned.
+"""
+function update_energies_potential!(energies, potential, op::Nothing, ρ)
+    (energies=energies, potential=potential)
+end
 
 @doc raw"""
 Return an appropriately sized container for a potential term
@@ -111,3 +124,50 @@ on the real-space grid ``B^∗_ρ``
 """
 empty_potential(op::Nothing) = nothing
 empty_potential(op) = Array{eltype(op.basis.lattice)}(undef, size(op.basis.FFT)...)
+
+"""
+    update_energies_1e!(energies, ham, ρ, Psi, occupation)
+
+Update the one-electron (linear) energy contributions of the Hamiltonian `ham`
+inside the dictionary `energies`.
+"""
+function update_energies_1e!(energies, ham, ρ, Psi, occupation)
+    update_energies_fourier!(energies, ham.kinetic,      Psi, occupation)
+    update_energies_fourier!(energies, ham.pot_nonlocal, Psi, occupation)
+
+    if ham.pot_local !== nothing
+        pw = ham.basis
+        ρ_real = similar(ρ, complex(eltype(ρ)), size(pw.FFT)...)
+        G_to_r!(pw, ρ, ρ_real)
+        ρ_real = real(ρ_real)
+        update_energies_real!(energies, ham.pot_local, ρ_real)
+    end
+
+    energies
+end
+
+"""
+    update_energies_fourier!(energies, op, Psi, occupation)
+
+Update the energy contribution in the dictionary `energies` related to operator `op`
+using the wave function `Psi` and the band numbers in `occupation`.
+"""
+update_energies_fourier!(energies, op::Nothing, Psi, occupation) = energies
+function update_energies_fourier!(energies, op, Psi, occupation)
+    pw = op.basis
+    symbol = nameof(typeof(op))
+    energies[symbol] = real(sum(
+          wk * tr(Diagonal(occupation[ik])
+                  * Psi[ik]' * apply_fourier!(similar(Psi[ik]), op, ik, Psi[ik]))
+          for (ik, wk) in enumerate(pw.kweights)
+    ))
+    energies
+end
+
+"""
+    update_energies_real!(energies, op, ρ_real)
+
+Update the energy contribution in the dictionary `energies` related to operator `op`
+using the real space density `ρ_real`.
+"""
+update_energies_real!(energies, op::Nothing, ρ_real) = energies

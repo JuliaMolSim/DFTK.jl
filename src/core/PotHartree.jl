@@ -2,8 +2,9 @@ struct PotHartree
     basis::PlaneWaveBasis
 end
 
-function compute_potential!(precomp, pot::PotHartree, ρ)
-    pw = pot.basis
+function update_energies_potential!(energies, potential, op::PotHartree, ρ)
+    T = real(eltype(ρ))
+    pw = op.basis
 
     # Solve the Poisson equation ΔV = -4π ρ in Fourier space,
     # i.e. Multiply elementwise by 4π / |G|^2.
@@ -13,15 +14,22 @@ function compute_potential!(precomp, pot::PotHartree, ρ)
     # Zero the DC component (i.e. assume a compensating charge background)
     values[pw.idx_DC] = 0
 
-    # Fourier-transform and store in values_real
-    T = real(eltype(ρ))
-    values_real = similar(precomp, Complex{T})
+    # Fourier-transform values and store in values_real
+    values_real = similar(potential, Complex{T})
     G_to_r!(pw, values, values_real)
+
+    # TODO Maybe one could compute the energy directly in Fourier space
+    #      and in this way save one FFT
+    ρ_real = real(G_to_r!(pw, ρ, similar(ρ, Complex{T}, size(pw.FFT)...)))
+    dVol = pw.unit_cell_volume / prod(size(pw.FFT))
+    energies[:PotHartree] = 2 * real(sum(ρ_real .* values_real) / 2 * dVol) / 2
 
     if maximum(imag(values_real)) > 100 * eps(T)
         throw(ArgumentError("Expected potential on the real-space grid B_ρ to be entirely" *
                             " real-valued, but the present density gives rise to a " *
                             "maximal imaginary entry of $(maximum(imag(values_real)))."))
     end
-    precomp .= real(values_real)
+    potential .= real(values_real)
+
+    (energies=energies, potential=potential)
 end

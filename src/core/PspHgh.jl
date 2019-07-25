@@ -1,12 +1,14 @@
+using SpecialFunctions: erf
+
 struct PspHgh
-    Zion::Int            # Ionic charge (Z - valence electrons)
-    rloc                 # Range of local Gaussian charge distribution
-    cloc::SVector{4}     # Coefficients for the local part
-    lmax::Int            # Maximal angular momentum in the non-local part
-    rp::Vector           # Projector radius for each angular momentum
-    h::Vector            # Projector coupling coefficients per AM channel
-    identifier::String   # String identifying the PSP
-    description::String  # Descriptive string
+    Zion::Int                   # Ionic charge (Z - valence electrons)
+    rloc::Float64               # Range of local Gaussian charge distribution
+    cloc::SVector{4,Float64}    # Coefficients for the local part
+    lmax::Int                   # Maximal angular momentum in the non-local part
+    rp::Vector{Float64}         # Projector radius for each angular momentum
+    h::Vector{Matrix{Float64}}  # Projector coupling coefficients per AM channel
+    identifier::String          # String identifying the PSP
+    description::String         # Descriptive string
 end
 
 
@@ -46,11 +48,10 @@ function parse_hgh_file(path; identifier="")
     lines = readlines(path)
     description = lines[1]
 
-    # lines[2] contains the number of projectors for each AM channel
+    # lines[2] contains the number of electrons (and the AM channel in which they sit)
     m = match(r"^ *(([0-9]+ *)+)", lines[2])
     n_elec = [parse(Int, part) for part in split(m[1])]
     Zion = sum(n_elec)
-    lmax = length(n_elec) - 1
 
     # lines[3] contains rloc nloc and coefficients for it
     m = match(r"^ *([-.0-9]+) *([0-9]+) *(([-.0-9]+ *)+)", lines[3])
@@ -59,9 +60,9 @@ function parse_hgh_file(path; identifier="")
     cloc = [parse(Float64, part) for part in split(m[3])]
     @assert length(cloc) == nloc
 
-    # lines[4] contains (lmax + 1) again
+    # lines[4] contains the maximal AM channel
     m = match(r"^ *([0-9]+)", lines[4])
-    @assert lmax == parse(Int, m[1]) - 1
+    lmax = parse(Int, m[1]) - 1
 
     rp = Vector{Float64}(undef, lmax + 1)
     h = Vector{Matrix{Float64}}(undef, lmax + 1)
@@ -93,7 +94,7 @@ end
 
 
 """
-    eval_psp_local_fourier
+    eval_psp_local_fourier(psp, ΔG)
 
 Evaluate the local part of the pseudopotential in reciprocal space.
 Computes <e_G|Vloc|e_{G+ΔG}> without taking into account the structure factor
@@ -102,10 +103,11 @@ and the (4π / Ω) spherical Hankel transform prefactor.
 """
 function eval_psp_local_fourier(psp::PspHgh, ΔG::AbstractVector)
     # TODO Use Fractional coordinates here ?
+    T = eltype(ΔG)
     Gsq = sum(abs2, ΔG)
-    Grsq = Gsq * psp.rloc^2
+    Grsq::T = Gsq * psp.rloc^2
 
-    convert(eltype(ΔG),
+    convert(T,
         - psp.Zion / Gsq * exp(-Grsq / 2)
         + sqrt(π/2) * psp.rloc^3 * exp(-Grsq / 2) * (
             + psp.cloc[1]
@@ -169,35 +171,26 @@ function eval_psp_projection_radial(psp::PspHgh, i, l, qsq::Number)
 end
 
 
-#=  TODO Not sure if this should belong here. Commented out for now
 """
-Evaluate the electrostatic energy contribution of the pseudopotential core.
+    eval_psp_energy_correction(psp, n_electrons)
 
-This is equivalent to the contribution to the DC Fourier component of the
-pseudopotential required to not make the electrostatic integal blow up as G -> 0.
+Evaluate the energy correction to the Ewald electrostatic interaction energy of one unit
+cell, which is required compared the Ewald expression for point-like nuclei. `n_electrons`
+is the number of electrons per unit cell. This defines the uniform compensating background
+charge, which is assumed here.
+
+Notice: The returned result is the *energy per unit cell* and not the energy per volume.
+To obtain the latter, the caller needs to divide by the unit cell volume.
 """
-function compute_energy_psp_core(psp_::PspHgh, system::System)
-    # TODO This routine assumes that there is only one species
-    #      with exactly one psp applied for all of them
-    pspmap = Dict(system.Zs[1] =>  psp_)
+function eval_psp_energy_correction(psp::PspHgh, n_electrons)
+    # By construction we need to compute the DC component of the difference
+    # of the Coulomb potential (-Z/G^2 in Fourier space) and the pseudopotential
+    # i.e. -Z/(ΔG)^2 -  eval_psp_local_fourier(psp, ΔG) for ΔG → 0. This is:
+    difference_DC = psp.Zion * psp.rloc^2 / 2 + sqrt(π/2) * psp.rloc^3 * (
+        psp.cloc[1] + 3 * psp.cloc[2] + 15 * psp.cloc[3] + 105 * psp.cloc[4]
+    )
 
-    # Total number of explicitly treated electrons
-    # (in neutral crystal with pseudopotentials equal to total ionic charge)
-    Nelec = sum(pspmap[Z].Zion for Z in system.Zs)
-
-    ene = 0.0
-    for (iat, Z) in enumerate(system.Zs)
-        psp = pspmap[Z]
-        Zion = psp.Zion
-        rloc = psp.rloc
-        C(idx) = idx <= length(psp.cloc) ? psp.cloc[idx] : 0.0
-
-        term = (
-              Zion * rloc^2 / 2
-            + sqrt(π/2) * rloc^3 * (C(1) + 3*C(2) + 15*C(3) + 105*C(4))
-        )
-        ene += 4π * Nelec / system.unit_cell_volume * term
-    end
-    return ene
+    # Multiply by number of electrons and 4π (spherical Hankel prefactor)
+    # to get energy per unit cell
+    4π * n_electrons * difference_DC
 end
-=#

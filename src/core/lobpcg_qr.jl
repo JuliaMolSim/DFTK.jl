@@ -50,9 +50,10 @@ function lobpcg_qr(A, X0; maxiter=100, prec=I, tol=20size(A,2)*eps(eltype(A)),
         # Orthogonalize Y and solve Rayleigh-Ritz step
         Y .= ortho(Y)
         mul!(Ay, A, Y)
-
         rvals, rvecs = eigen(Hermitian(Y'*Ay), 1:m)
         new_X = Y * rvecs
+
+        # Update X and P slot of Y as well as A*X
         P .= new_X - X
         X .= new_X
         Ay[:, 1:m] .= Ay * rvecs

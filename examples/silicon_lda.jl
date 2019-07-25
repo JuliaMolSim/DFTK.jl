@@ -29,7 +29,7 @@ structure = mg.Structure(lattice, ["Si", "Si"], [ones(3)/8, -ones(3)/8])
 # Get k-Point mesh for Brillouin-zone integration
 spgana = symmetry.analyzer.SpacegroupAnalyzer(structure)
 bzmesh = spgana.get_ir_reciprocal_mesh(kgrid)
-kpoints = [recip_lattice.get_cartesian_coords(mp[1]) for mp in bzmesh]
+kpoints = [mp[1] for mp in bzmesh]
 kweigths = [mp[2] for mp in bzmesh]
 kweigths = kweigths / sum(kweigths)
 
@@ -41,25 +41,33 @@ kweigths = kweigths / sum(kweigths)
 grid_size = DFTK.determine_grid_size(A', Ecut, kpoints=kpoints) * ones(Int, 3)
 basis = PlaneWaveBasis(A', grid_size, Ecut, kpoints, kweigths)
 
-# Construct a local pseudopotential
-hgh = load_psp("si-pade-q4.hgh")
-positions = [s.frac_coords for s in structure.sites]
-psp_local = build_local_potential(basis, positions,
-                                  G -> DFTK.eval_psp_local_fourier(hgh, basis.recip_lattice * G))
-psp_nonlocal = PotNonLocal(basis, :Si => positions, :Si => hgh)
-pot_xc = PotXc(basis, Functional.([:lda_x, :lda_c_vwn]))
-n_electrons = 8  # In a Silicon psp model, the number of electrons per unit cell is 8
+# Setup model for silicon and list of silicon positions
+Si = Species(mg.Element("Si").number, psp=load_psp("si-pade-q4.hgh"))
+composition = [Si => [s.frac_coords for s in structure.sites if s.species_string == "Si"]]
+n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in composition)
 
-# Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
-ham = Hamiltonian(basis, pot_local=psp_local, pot_nonlocal=psp_nonlocal,
-                  pot_hartree=PotHartree(basis), pot_xc=pot_xc)
+# Construct Hamiltonian
+ham = Hamiltonian(basis, pot_local=build_local_potential(basis, composition...),
+                  pot_nonlocal=build_nonlocal_projectors(basis, composition...),
+                  pot_hartree=PotHartree(basis),
+                  pot_xc=PotXc(basis, Functional.([:lda_x, :lda_c_vwn])))
 
-ρ = guess_gaussian_sad(basis, :Si => positions, :Si => mg.Element("Si").number,
-                       :Si => hgh.Zion)
-scfres = self_consistent_field(ham, Int(n_electrons / 2 + 2), n_electrons, ρ=ρ, tol=1e-5,
+# Build a guess density and run the SCF
+ρ = guess_gaussian_sad(basis, composition...)
+scfres = self_consistent_field(ham, Int(n_electrons / 2 + 2), n_electrons, ρ=ρ, tol=1e-6,
                                lobpcg_prec=PreconditionerKinetic(ham, α=0.1))
-ρ, pot_hartree_values, pot_xc_values = scfres
 
+# Print final energies
+energies = scfres.energies
+energies[:Ewald] = energy_nuclear_ewald(basis.lattice, composition...)
+energies[:PspCorrection] = energy_nuclear_psp_correction(basis.lattice, composition...)
+println("\nEnergy breakdown:")
+for (key, value) in pairs(energies)
+    @printf "    %-20s%-10.7f\n" string(key) value
+end
+@printf "\n    %-20s%-10.7f\n\n" "total" sum(values(energies))
+
+stop
 
 # TODO Some routine to compute this properly
 efermi = 0.5
@@ -69,7 +77,7 @@ efermi = 0.5
 #
 # Get the kpoints at which the band structure should be computed
 symm_kpath = symmetry.bandstructure.HighSymmKpath(structure)
-kpoints, klabels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=true)
+kpoints, klabels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=false)
 println("Computing bands along kpath:\n     $(join(symm_kpath.kpath["path"][1], " -> "))")
 
 
@@ -82,17 +90,18 @@ set_kpoints!(ham.basis, kpoints, kweigths)
 # TODO This is super ugly, but needed, since the PotNonLocal implicitly
 #      stores information per k-Point at the moment
 if ham.pot_nonlocal !== nothing
-    psp_nonlocal = PotNonLocal(ham.basis, :Si => positions, :Si => hgh)
+    pot_nonlocal = build_nonlocal_projectors(ham.basis, Si => positions)
 else
-    psp_nonlocal = nothing
+    pot_nonlocal = nothing
 end
-ham = Hamiltonian(ham.basis, pot_local=ham.pot_local, pot_nonlocal=psp_nonlocal,
+ham = Hamiltonian(ham.basis, pot_local=ham.pot_local, pot_nonlocal=pot_nonlocal,
                   pot_hartree=ham.pot_hartree, pot_xc=ham.pot_xc)
 
 
 # Compute bands:
-band_data = lobpcg(ham, n_bands, pot_hartree_values=pot_hartree_values, tol=1e-5,
-                   pot_xc_values=pot_xc_values, prec=PreconditionerKinetic(ham, α=0.5))
+band_data = lobpcg(ham, n_bands, pot_hartree_values=scfres.pot_hartree_values, tol=1e-5,
+                   pot_xc_values=scfres.pot_xc_values,
+                   prec=PreconditionerKinetic(ham, α=0.5))
 if ! band_data.converged
     println("WARNING: Not all k-points converged.")
 end

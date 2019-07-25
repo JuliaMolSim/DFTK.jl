@@ -10,4 +10,6 @@ function lda_x!(ρ; α=1, E=nothing, Vρ=nothing)
     if Vρ !== nothing
         Vρ .= tmp
     end
+
+    (E=E, Vρ=Vρ)
 end

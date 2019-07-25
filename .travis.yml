@@ -1,4 +1,3 @@
-## Documentation: http://docs.travis-ci.com/user/languages/julia/
 language: julia
 
 branches:
@@ -9,9 +8,7 @@ branches:
 
 os:
   - linux
-# Something is seriously wrong with the lobpcg from scipy on MacOS
-#    => MacOS stays disabled for now
-#  - osx
+  - osx
 julia:
   - 1.1
   - nightly

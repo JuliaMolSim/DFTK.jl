@@ -1,29 +1,28 @@
 using Test
-using DFTK: PlaneWaveBasis, r_to_G!, build_local_potential, basis_ρ
+using DFTK: PlaneWaveBasis, r_to_G!, build_local_potential, basis_ρ, Species
 
 include("silicon_testcases.jl")
 
-@testset "Check build_local_potential using Coulomb potential" begin
+@testset "build_local_potential using Coulomb potential" begin
     Ecut = 4
     grid_size = [15, 15, 15]
     pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
 
-    @testset "Construction using a single species" begin
-        Z = 12
-        pot_coulomb(G) = -Z / sum(abs2, pw.recip_lattice * G)
+    @testset "Construction using a single function" begin
+        pot_coulomb(G) = -12 / sum(abs2, pw.recip_lattice * G)
 
         # Shifting by a lattice vector should not make a difference:
-        pot0 = build_local_potential(pw, [[0, 0, 0]], pot_coulomb)
-        pot1 = build_local_potential(pw, [[0, 1, 0]], pot_coulomb)
+        pot0 = build_local_potential(pw, pot_coulomb => [[0, 0, 0]])
+        pot1 = build_local_potential(pw, pot_coulomb => [[0, 1, 0]])
         @test pot0.values_real ≈ pot1.values_real
 
         # Results are additive
-        pot1 = build_local_potential(pw, [[0, 1/3, 0]], pot_coulomb)
-        pot2 = build_local_potential(pw, [[0, 1/3, 0], [0,0,0]], pot_coulomb)
+        pot1 = build_local_potential(pw, pot_coulomb => [[0, 1/3, 0]])
+        pot2 = build_local_potential(pw, pot_coulomb => [[0, 1/3, 0], [0,0,0]])
         @test pot0.values_real + pot1.values_real ≈ pot2.values_real
 
         # pot3 back to the PW basis to check we get the 1/|G|^2 behaviour
-        pot3 = build_local_potential(pw, [[0, 1/8, 0]], pot_coulomb)
+        pot3 = build_local_potential(pw, pot_coulomb => [[0, 1/8, 0]])
         values_fourier = zeros(ComplexF64, prod(pw.grid_size))
         r_to_G!(pw, pot3.values_real, values_fourier)
 
@@ -35,18 +34,34 @@ include("silicon_testcases.jl")
         @test reshape(reference, :) ≈ values_fourier
     end
 
-    @testset "Construction using multiple species" begin
-        pot_coulomb(G, Z) = -Z / sum(abs2, pw.recip_lattice * G)
+    @testset "Construction using multiple functions" begin
+        pot_coulomb14(G) = -14 / sum(abs2, pw.recip_lattice * G)
+        pot_coulomb6(G) = -6 / sum(abs2, pw.recip_lattice * G)
 
         # Compute separate potential terms for reference
-        pot_Si_1 = build_local_potential(pw, [[0, 1/8, 0]], G -> pot_coulomb(G, 14))
-        pot_Si_2 = build_local_potential(pw, [[0, -1/8, 0]], G -> pot_coulomb(G, 14))
-        pot_C = build_local_potential(pw, [[0, 1/4, 0]], G -> pot_coulomb(G, 6))
+        pot_Si_1 = build_local_potential(pw, pot_coulomb14 => [[0, 1/8, 0]])
+        pot_Si_2 = build_local_potential(pw, pot_coulomb14 => [[0, -1/8, 0]])
+        pot_C = build_local_potential(pw, pot_coulomb6 => [[0, 1/4, 0]])
         reference = pot_Si_1.values_real + pot_Si_2.values_real + pot_C.values_real
 
-        posmap = Dict("Si" => [[0, 1/8, 0], [0, -1/8, 0]], "C" => [[0, 1/4, 0]])
-        potmap = Dict("Si" => G -> pot_coulomb(G, 14), "C" => G -> pot_coulomb(G, 6))
-        pot = build_local_potential(pw, posmap, potmap)
+        pot = build_local_potential(pw, pot_coulomb14 => [[0, 1/8, 0], [0, -1/8, 0]],
+                                    pot_coulomb6 => [[0, 1/4, 0]])
         @test pot.values_real ≈ reference
+    end
+end
+
+
+@testset "build_local_potential using Species" begin
+    Ecut = 4
+    grid_size = [15, 15, 15]
+    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
+
+    @testset "Test without Pseudopotential" begin
+        pot_coulomb(G) = -14 / sum(abs2, pw.recip_lattice * G)
+        silicon = Species(14)
+
+        ref = build_local_potential(pw, pot_coulomb => [[0, 0, 0], [0, 1/3, 0]])
+        pot = build_local_potential(pw, silicon => [[0, 0, 0], [0, 1/3, 0]])
+        @test pot.values_real ≈ ref.values_real
     end
 end

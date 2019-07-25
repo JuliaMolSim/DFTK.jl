@@ -1,32 +1,18 @@
 """
-    guess_gaussian_sad(basis, positions, Znucls, [Zions])
+    guess_gaussian_sad(basis, composition...)
 
 Build a superposition of atomic densities (SAD) guess density. The atoms/species are
-specified by the three dictionaries `positions`, `Znucls` and `Zions`. The first
-specifies the list of atom positions, `Znucls` is the corresponding nuclear charge
-and `Zions` the corresponding ionic charge (i.e. the charge left over when pseudopotentials
-have been taken into account).
+specified in `composition` as pairs representing a mapping from `Species` objects to a list
+of positions in fractional coordinates.
 """
-function guess_gaussian_sad(basis, positions, Znucls, Zions=Znucls)
-    positions = Dict(positions)
-    Zions = Dict(Zions)
-    Znucls = Dict(Znucls)
-    species = keys(positions)
-    for spec in species
-        if !haskey(Zions, spec) || !haskey(Znucls, spec)
-            throw(ArgumentError("No Zion or no Znuc found for species $(string(spec))."))
-        end
-    end
-
-    lengths = Dict(spec => atom_decay_length(Znucls[spec] - Zions[spec], Zions[spec])
-                   for spec in species)
+function guess_gaussian_sad(basis, composition...)
     T = eltype(basis.lattice)
     ρ = map(basis_ρ(basis)) do G
         Gsq = sum(abs2, basis.recip_lattice * G)
         res = sum(
-            Zions[spec] * exp(-Gsq * lengths[spec]^2) * cis(2π * dot(G, r))
-            for spec in species
-            for r in positions[spec]
+            charge_ionic(spec) * exp(-Gsq * atom_decay_length(spec)^2) * cis(2π * dot(G, r))
+            for (spec, positions) in composition
+            for r in positions
         )
         convert(T, res)
     end
@@ -80,3 +66,4 @@ function atom_decay_length(n_elec_core, n_elec_valence)
     end
     data[min(n_elec_valence, length(data))]
 end
+atom_decay_length(sp::Species) = atom_decay_length(n_elec_core(sp), n_elec_valence(sp))

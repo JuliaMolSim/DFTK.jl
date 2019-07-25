@@ -4,14 +4,17 @@ function normalize_psp_identifier(identifier::AbstractString)
 end
 
 
+"""Return the data directory with pseudopotential files"""
+datadir_psp() = joinpath(get(ENV, "DFTK_DATADIR", DFTK_DATADIR), "psp")
+
+
 """
-    load_psp(identifier; search_directory)
+    load_psp(identifier; datadir_psp)
 
 Load a pseudopotential file from the library of pseudopotentials.
-The file is searched in the directory `search_directory` and by the `identifier`.
+The file is searched in the directory `datadir_psp` and by the `identifier`.
 """
-function load_psp(identifier::AbstractString,
-                  search_directory=joinpath(get(ENV, "DFTK_DATADIR", DFTK_DATADIR), "psp"))
+function load_psp(identifier::AbstractString, datadir_psp=datadir_psp())
 
     subdirs = []
     loadfctn = nothing
@@ -29,7 +32,7 @@ function load_psp(identifier::AbstractString,
         return parser(identifier)
     else
         identifier = normalize_psp_identifier(identifier)
-        path = joinpath(search_directory, subdirs..., identifier)
+        path = joinpath(datadir_psp, subdirs..., identifier)
         if !isfile(path)
             error("Could not find $(kind) pseudopotential matching identifier " *
                   "$(identifier). Searched at location $(path).")

@@ -1,6 +1,7 @@
 using Test
 using DFTK: PlaneWaveBasis, load_psp, build_local_potential, Hamiltonian
-using DFTK: lobpcg, eval_psp_local_fourier, PreconditionerKinetic, PotNonLocal
+using DFTK: lobpcg, eval_psp_local_fourier, PreconditionerKinetic
+using DFTK: lobpcg, eval_psp_local_fourier, build_nonlocal_projectors
 
 include("silicon_testcases.jl")
 
@@ -53,12 +54,9 @@ end
     Ecut = 10
     grid_size = [21, 21, 21]
     pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
-    hgh = load_psp("si-pade-q4.hgh")
-
-    psp_local = build_local_potential(pw, positions,
-                                      G -> eval_psp_local_fourier(hgh, pw.recip_lattice * G))
-    psp_nonlocal = PotNonLocal(pw, "Si" => positions, "Si" => hgh)
-    ham = Hamiltonian(pw, pot_local=psp_local, pot_nonlocal=psp_nonlocal)
+    Si = Species(atnum, psp=load_psp("si-pade-q4.hgh"))
+    ham = Hamiltonian(pw, pot_local=build_local_potential(pw, Si => positions),
+                      pot_nonlocal=build_nonlocal_projectors(pw, Si => positions))
     res = lobpcg(ham, 5, tol=1e-8, prec=PreconditionerKinetic(ham, α=0.1))
 
     ref = [
