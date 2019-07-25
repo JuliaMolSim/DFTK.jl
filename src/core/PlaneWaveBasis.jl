@@ -137,7 +137,9 @@ function G_to_r!(pw::PlaneWaveBasis, f_fourier, f_real; gcoords=basis_ρ(pw))
     f_real .= 0
     for (ig, G) in enumerate(gcoords)
         idx_fft = 1 .+ mod.(G, fft_size)
-        f_real[idx_fft...] = f_fourier[ig]
+        # Tuple here because splatting SVectors directly is slow
+        # (https://github.com/JuliaArrays/StaticArrays.jl/issues/361)
+        f_real[Tuple(idx_fft)...] = f_fourier[ig]
     end
     mul!(f_real, pw.iFFT, f_real)
 
@@ -172,7 +174,7 @@ function r_to_G!(pw::PlaneWaveBasis, f_real, f_fourier; gcoords=basis_ρ(pw))
     f_fourier .= 0
     for (ig, G) in enumerate(gcoords)
         idx_fft = 1 .+ mod.(G, fft_size)
-        f_fourier[ig] = f_fourier_extended[idx_fft...]
+        f_fourier[ig] = f_fourier_extended[Tuple(idx_fft)...]
     end
     # Again adjust normalisation as in G_to_r
     f_fourier .*= 1 / length(pw.FFT)
