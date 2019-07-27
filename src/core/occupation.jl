@@ -26,7 +26,7 @@ function occupation_zero_temperature(basis, energies, Psi, n_elec)
     ## is to do a bisection for the Fermi level as in the case of
     ## finite-temperature (although that has a dreadful convergence
     ## rate)
-    @assert HOMO < LUMO
+    @assert HOMO ≤ LUMO
     occupation
 end
 
