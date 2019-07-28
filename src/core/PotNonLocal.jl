@@ -13,5 +13,5 @@ end
 function apply_fourier!(out, pot::PotNonLocal, ik::Int, in)
     P = pot.proj_vectors[ik]  # Projectors
     C = pot.proj_coeffs       # Coefficients
-    out = P * C * (P' * in)
+    out = P * (C * (P' * in))
 end
