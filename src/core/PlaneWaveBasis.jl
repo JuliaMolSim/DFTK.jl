@@ -1,6 +1,6 @@
 using FFTW
 
-struct PlaneWaveBasis{T <: Real}
+struct PlaneWaveBasis{T <: Real, TFFT, TIFFT}
     # Lattice and reciprocal lattice vectors in columns
     lattice::Mat3{T}
     recip_lattice::Mat3{T}
@@ -24,11 +24,8 @@ struct PlaneWaveBasis{T <: Real}
     kweights::Vector{T}
 
     # Plans for forward and backward FFT on B_ρ
-    # TODO find a better way to type it; right now this is copypasted from
-    # typeof(plan_fft!(zeros(ComplexF64,3,3,3)))
-    # (resp plan_ifft)
-    FFT::FFTW.cFFTWPlan{Complex{T},-1,true,3}
-    iFFT::AbstractFFTs.ScaledPlan{Complex{T},FFTW.cFFTWPlan{Complex{T},1,true,3},T}
+    FFT::TFFT
+    iFFT::TIFFT
 end
 
 @doc raw"""
@@ -67,6 +64,9 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
             "symmetry of a real quantity can be properly represented.")
     idx_DC = LinearIndices((Int.(grid_size)..., ))[ceil.(Int, grid_size ./ 2)...]
 
+    # Optimise FFT grid: Make sure the obtained number factorises in small primes only
+    fft_size = Vec3([nextprod([2, 3, 5], gs) for gs in grid_size])
+
     # Plan a FFT, spending some time on finding an optimal algorithm
     # for the machine on which the computation runs
     fft_size = nextpow.(2, grid_size)  # Optimise FFT grid
@@ -74,8 +74,17 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
     fft_plan = plan_fft!(tmp, flags=FFTW.MEASURE)
     ifft_plan = plan_ifft!(tmp, flags=FFTW.MEASURE)
 
-    pw = PlaneWaveBasis{T}(lattice, recip_lattice, det(lattice), det(recip_lattice),
-                           Ecut, grid_size, idx_DC, [], [], [], fft_plan, ifft_plan)
+    # IFFT has a normalization factor of 1/length(ψ),
+    # but the normalisation convention used in this code is
+    # e_G(x) = e^iGx / sqrt(|Γ|), so we scale the plans in-place
+    # in order to match our convention.
+    ifft_plan *= length(ifft_plan)
+    fft_plan *= (1 / length(fft_plan))
+
+    pw = PlaneWaveBasis{T, typeof(fft_plan), typeof(ifft_plan)}(
+        lattice, recip_lattice, det(lattice), det(recip_lattice),
+        Ecut, grid_size, idx_DC, [], [], [], fft_plan, ifft_plan
+    )
     set_kpoints!(pw, kpoints, kweights)
 end
 
@@ -141,13 +150,8 @@ function G_to_r!(pw::PlaneWaveBasis, f_fourier, f_real; gcoords=basis_ρ(pw))
         # (https://github.com/JuliaArrays/StaticArrays.jl/issues/361)
         f_real[Tuple(idx_fft)...] = f_fourier[ig]
     end
+    # Note: normalization taken care of in the scaled plan
     mul!(f_real, pw.iFFT, f_real)
-
-    # IFFT has a normalization factor of 1/length(ψ),
-    # but the normalisation convention used in this code is
-    # e_G(x) = e^iGx / sqrt(|Γ|), so we need to use the factor
-    # below in order to match both conventions.
-    f_real .*= length(pw.iFFT)
 end
 
 
@@ -170,12 +174,12 @@ function r_to_G!(pw::PlaneWaveBasis, f_real, f_fourier; gcoords=basis_ρ(pw))
 
     # Do FFT on the full FFT plan, but truncate the resulting frequency
     # range to the part defined by the idx_to_fft array
-    f_fourier_extended = pw.FFT * f_real  # This destroys data in f_real
+    mul!(f_real, pw.FFT, f_real)  # This destroys data in f_real
+    f_fourier_extended = f_real
     f_fourier .= 0
     for (ig, G) in enumerate(gcoords)
         idx_fft = 1 .+ mod.(G, fft_size)
         f_fourier[ig] = f_fourier_extended[Tuple(idx_fft)...]
     end
-    # Again adjust normalisation as in G_to_r
-    f_fourier .*= 1 / length(pw.FFT)
+    f_fourier  # Note: normalization taken care of in the scaled plan
 end
