@@ -127,6 +127,9 @@ end
 #
 # Perform FFT
 #
+
+# TODO call batch version of FFTW, maybe do threading
+
 @doc raw"""
     G_to_r!(pw::PlaneWaveBasis, f_fourier, f_real[, basis_ρ])
 
@@ -135,7 +138,7 @@ of a function using the wave vectors specified in `basis_ρ` and a representatio
 on the real-space density grid ``B^∗_ρ``. The function will destroy all data
 in `f_real`. If `basis_ρ` is absent, the full density grid ``B_ρ`` is used.
 """
-function G_to_r!(pw::PlaneWaveBasis, f_fourier, f_real; gcoords=basis_ρ(pw))
+function G_to_r!(pw::PlaneWaveBasis, f_fourier, f_real::AbstractArray{T,3}; gcoords=basis_ρ(pw)) where {T}
     @assert length(f_fourier) == length(gcoords)
     @assert(size(f_real) == size(pw.iFFT),
             "Size mismatch between f_real(==$(size(f_real)) and " *
@@ -153,6 +156,12 @@ function G_to_r!(pw::PlaneWaveBasis, f_fourier, f_real; gcoords=basis_ρ(pw))
     # Note: normalization taken care of in the scaled plan
     mul!(f_real, pw.iFFT, f_real)
 end
+function G_to_r!(pw::PlaneWaveBasis, f_fourier, f_real::AbstractArray{T,4}; gcoords=basis_ρ(pw)) where {T}
+    for iband=1:size(f_fourier,2)
+        @views G_to_r!(pw, f_fourier[:,iband], f_real[:,:,:,iband], gcoords=gcoords)
+    end
+    f_real
+end
 
 
 @doc raw"""
@@ -165,7 +174,7 @@ wave vectors required to exactly represent `f_real`, than this function implies
 a truncation. On call all data in `f_real` and `f_fourier` will be destroyed.
 If `gcoords` is absent, the full density grid ``B_ρ`` is used.
 """
-function r_to_G!(pw::PlaneWaveBasis, f_real, f_fourier; gcoords=basis_ρ(pw))
+function r_to_G!(pw::PlaneWaveBasis, f_real::AbstractArray{T,3}, f_fourier; gcoords=basis_ρ(pw)) where {T}
     @assert length(f_fourier) == length(gcoords)
     @assert(size(f_real) == size(pw.FFT),
             "Size mismatch between f_real(==$(size(f_real)) and " *
@@ -182,4 +191,10 @@ function r_to_G!(pw::PlaneWaveBasis, f_real, f_fourier; gcoords=basis_ρ(pw))
         f_fourier[ig] = f_fourier_extended[Tuple(idx_fft)...]
     end
     f_fourier  # Note: normalization taken care of in the scaled plan
+end
+function r_to_G!(pw::PlaneWaveBasis, f_real::AbstractArray{T,4}, f_fourier; gcoords=basis_ρ(pw)) where {T}
+    for iband=1:size(f_fourier,2)
+        @views r_to_G!(pw, f_real[:,:,:,iband], f_fourier[:,iband], gcoords=gcoords)
+    end
+    f_fourier
 end
