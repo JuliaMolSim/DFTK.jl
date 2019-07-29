@@ -16,7 +16,7 @@ function guess_gaussian_sad(basis, composition...)
         )
         convert(T, res)
     end
-    reshape(ρ, :) / basis.unit_cell_volume
+    vec(ρ) / basis.unit_cell_volume
 end
 
 

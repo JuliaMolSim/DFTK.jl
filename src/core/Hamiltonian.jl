@@ -45,9 +45,8 @@ where
   V        Apply potential elementwise using `apply_real!`
 ```
 """
-function apply_hamiltonian!(out::AbstractArray, ham, ik::Int,
-                            pot_hartree_values, pot_xc_values, in::AbstractArray)
-    @assert 1 ≤ length(size(in)) ≤ 2 # can either be a single vector or a block
+function apply_hamiltonian!(out::AbstractVecOrMat, ham, ik::Int,
+                            pot_hartree_values, pot_xc_values, in::AbstractVecOrMat)
     pw = ham.basis
 
     # Apply kinetic and non-local potential if given, accumulate results
@@ -57,11 +56,8 @@ function apply_hamiltonian!(out::AbstractArray, ham, ik::Int,
 
     fft_terms = [ham.pot_local, ham.pot_hartree, ham.pot_xc]
     if any(term !== nothing for term in fft_terms)
-        # real space size is (n1 x n2 x n3 x nband) if in is (nfft x nband), (n1 x n2 x n3) otherwise
-        real_space_size = length(size(in)) == 2 ? (size(pw.FFT)..., size(in,2)) : size(pw.FFT)
-
         # If any of the terms requiring an iFFT is present, do an iFFT
-        in_real = similar(in, real_space_size)
+        in_real = similar(in, size(pw.FFT)..., size(in, 2))
         in_real = G_to_r!(pw, in, in_real, gcoords=pw.basis_wf[ik])
 
         # Apply the terms and accumulate
