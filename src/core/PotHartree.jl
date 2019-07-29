@@ -16,7 +16,7 @@ function update_energies_potential!(energies, potential, op::PotHartree, ρ)
 
     # Fourier-transform values and store in values_real
     values_real = similar(potential, Complex{T})
-    G_to_r!(pw, values, values_real)
+    G_to_r!(pw, vec(values), values_real)
 
     # TODO Maybe one could compute the energy directly in Fourier space
     #      and in this way save one FFT

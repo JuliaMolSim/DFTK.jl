@@ -45,8 +45,8 @@ where
   V        Apply potential elementwise using `apply_real!`
 ```
 """
-function apply_hamiltonian!(out::AbstractVector, ham, ik::Int,
-                            pot_hartree_values, pot_xc_values, in::AbstractVector)
+function apply_hamiltonian!(out::AbstractVecOrMat, ham, ik::Int,
+                            pot_hartree_values, pot_xc_values, in::AbstractVecOrMat)
     pw = ham.basis
 
     # Apply kinetic and non-local potential if given, accumulate results
@@ -57,7 +57,7 @@ function apply_hamiltonian!(out::AbstractVector, ham, ik::Int,
     fft_terms = [ham.pot_local, ham.pot_hartree, ham.pot_xc]
     if any(term !== nothing for term in fft_terms)
         # If any of the terms requiring an iFFT is present, do an iFFT
-        in_real = similar(in, size(pw.FFT)...)
+        in_real = similar(in, size(pw.FFT)..., size(in, 2))
         in_real = G_to_r!(pw, in, in_real, gcoords=pw.basis_wf[ik])
 
         # Apply the terms and accumulate
@@ -70,16 +70,6 @@ function apply_hamiltonian!(out::AbstractVector, ham, ik::Int,
         # FFT back to B_{Ψ,k} basis, accumulate, notice that this call
         # invalidates the data of accu_real as well.
         out .+= r_to_G!(pw, accu_real, tmp, gcoords=pw.basis_wf[ik])
-    end
-    out
-end
-function apply_hamiltonian!(out, ham, ik::Int, pot_hartree_values, pot_xc_values, in)
-    # TODO This a fix for now to get it to work
-    #      Ideally the above function should be able to deal with this directly
-    n_bas, n_vec = size(in)
-    for iv in 1:n_vec
-        apply_hamiltonian!(view(out, :, iv), ham, ik, pot_hartree_values, pot_xc_values,
-                           view(in, :, iv))
     end
     out
 end

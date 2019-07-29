@@ -135,23 +135,33 @@ of a function using the wave vectors specified in `basis_ρ` and a representatio
 on the real-space density grid ``B^∗_ρ``. The function will destroy all data
 in `f_real`. If `basis_ρ` is absent, the full density grid ``B_ρ`` is used.
 """
-function G_to_r!(pw::PlaneWaveBasis, f_fourier, f_real; gcoords=basis_ρ(pw))
-    @assert length(f_fourier) == length(gcoords)
-    @assert(size(f_real) == size(pw.iFFT),
-            "Size mismatch between f_real(==$(size(f_real)) and " *
-            "FFT size(==$(size(pw.iFFT))")
-    fft_size = Vec3(size(pw.FFT))
+function G_to_r!(pw::PlaneWaveBasis, f_fourier::AbstractVecOrMat, f_real::AbstractArray;
+                 gcoords=basis_ρ(pw))
+    fft_size = size(pw.FFT)
+    n_bands = size(f_fourier, 2)
+    @assert(size(f_fourier, 1) == length(gcoords), "Size mismatch between " *
+            "f_fourier(==$(size(f_fourier))) and gcoords(==$(size(gcoords)))")
+    @assert(size(f_real)[1:3] == fft_size,
+            "Size mismatch between f_real(==$(size(f_real))) and " *
+            "FFT size(==$(fft_size))")
+    @assert(size(f_real, 4) == n_bands, "Differing number of bands in f_fourier and f_real")
 
-    # Pad the input data, then perform an FFT on the rectangular cube
     f_real .= 0
-    for (ig, G) in enumerate(gcoords)
-        idx_fft = 1 .+ mod.(G, fft_size)
-        # Tuple here because splatting SVectors directly is slow
-        # (https://github.com/JuliaArrays/StaticArrays.jl/issues/361)
-        f_real[Tuple(idx_fft)...] = f_fourier[ig]
+    for iband in 1:n_bands  # TODO Call batch version of FFTW, maybe do threading
+        # Pad the input data
+        for (ig, G) in enumerate(gcoords)
+            idx_fft = 1 .+ mod.(G, Vec3(fft_size))
+            # Tuple here because splatting SVectors directly is slow
+            # (https://github.com/JuliaArrays/StaticArrays.jl/issues/361)
+            f_real[Tuple(idx_fft)..., iband] = f_fourier[ig, iband]
+        end
+
+        # Perform an FFT on the rectangular cube
+        # Note: normalization taken care of in the scaled plan
+        @views mul!(f_real[:, :, :, iband], pw.iFFT, f_real[:, :, :, iband])
     end
-    # Note: normalization taken care of in the scaled plan
-    mul!(f_real, pw.iFFT, f_real)
+
+    f_real
 end
 
 
@@ -165,21 +175,29 @@ wave vectors required to exactly represent `f_real`, than this function implies
 a truncation. On call all data in `f_real` and `f_fourier` will be destroyed.
 If `gcoords` is absent, the full density grid ``B_ρ`` is used.
 """
-function r_to_G!(pw::PlaneWaveBasis, f_real, f_fourier; gcoords=basis_ρ(pw))
-    @assert length(f_fourier) == length(gcoords)
-    @assert(size(f_real) == size(pw.FFT),
-            "Size mismatch between f_real(==$(size(f_real)) and " *
-            "FFT size(==$(size(pw.FFT))")
-    fft_size = Vec3(size(pw.FFT))
+function r_to_G!(pw::PlaneWaveBasis, f_real::AbstractArray, f_fourier::AbstractVecOrMat;
+                 gcoords=basis_ρ(pw))
+    fft_size = size(pw.FFT)
+    n_bands = size(f_fourier, 2)
+    @assert(size(f_fourier, 1) == length(gcoords), "Size mismatch between " *
+            "f_fourier(==$(size(f_fourier))) and gcoords(==$(size(gcoords)))")
+    @assert(size(f_real)[1:3] == fft_size,
+            "Size mismatch between f_real(==$(size(f_real))) and " *
+            "FFT size(==$(fft_size))")
+    @assert(size(f_real, 4) == n_bands, "Differing number of bands in f_fourier and f_real")
 
-    # Do FFT on the full FFT plan, but truncate the resulting frequency
-    # range to the part defined by the idx_to_fft array
-    mul!(f_real, pw.FFT, f_real)  # This destroys data in f_real
-    f_fourier_extended = f_real
     f_fourier .= 0
-    for (ig, G) in enumerate(gcoords)
-        idx_fft = 1 .+ mod.(G, fft_size)
-        f_fourier[ig] = f_fourier_extended[Tuple(idx_fft)...]
+    for iband in 1:n_bands  # TODO call batch version of FFTW, maybe do threading
+        # Do FFT on rectangular cube
+        # Note: normalization taken care of in the scaled plan
+        @views mul!(f_real[:, :, :, iband], pw.FFT, f_real[:, :, :, iband])
+
+        # Truncate the resulting frequency range to the part defined by the `gcoords`
+        f_fourier_extended = f_real
+        for (ig, G) in enumerate(gcoords)
+            idx_fft = 1 .+ mod.(G, Vec3(fft_size))
+            f_fourier[ig, iband] = f_fourier_extended[Tuple(idx_fft)..., iband]
+        end
     end
-    f_fourier  # Note: normalization taken care of in the scaled plan
+    f_fourier
 end

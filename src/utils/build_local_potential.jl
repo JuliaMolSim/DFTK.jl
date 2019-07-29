@@ -67,7 +67,7 @@ function build_local_potential(pw::PlaneWaveBasis, generators_or_composition...;
 
     T = eltype(pw.lattice)
     values_real = similar(values_fourier, Complex{T}, size(pw.FFT)...)
-    G_to_r!(pw, values_fourier, values_real)
+    G_to_r!(pw, vec(values_fourier), values_real)
     if maximum(imag(values_real)) > 100 * eps(T)
         throw(ArgumentError("Expected potential on the real-space grid to be entirely" *
                             " real-valued, but the present potential gives rise to a " *
