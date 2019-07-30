@@ -6,7 +6,7 @@ include("silicon_testcases.jl")
 @testset "FFT and IFFT are an identity" begin
     Ecut = 4.0  # Hartree
     grid_size = [15, 15, 15]
-    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
+    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights, ksymops)
 
     @testset "Density grid transformation" begin
         f_G = Array{ComplexF64}(randn(Float64, prod(pw.grid_size)))

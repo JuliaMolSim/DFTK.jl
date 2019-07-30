@@ -11,7 +11,7 @@ include("silicon_testcases.jl")
     n_bands = 8
     grid_size = [27, 27, 27]
 
-    basis = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
+    basis = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights, ksymops)
     Si = Species(atnum, psp=load_psp("si-pade-q4.hgh"))
     occupation = [[2.0, 2.0, 2.0, 2.0, 0.0, 0.0, 0.0, 0.0] for i in 1:length(kpoints)]
 
@@ -42,9 +42,9 @@ include("silicon_testcases.jl")
     update_energies_potential!(energies, values_hartree, ham.pot_hartree, ρ)
     update_energies_potential!(energies, values_xc, ham.pot_xc, ρ)
 
-    @test energies[:PotHartree]  ≈  0.6544113969974732  atol=5e-8
-    @test energies[:lda_x]       ≈ -2.067622085570294   atol=5e-8
-    @test energies[:lda_c_vwn]   ≈ -0.37536994918122685 atol=5e-8
+    @test energies[:PotHartree]  ≈  0.6477025793366571  atol=5e-8
+    @test energies[:lda_x]       ≈ -2.0625264692588163  atol=5e-8
+    @test energies[:lda_c_vwn]   ≈ -0.3750064723572997  atol=5e-8
     @test energies[:PotLocal]    ≈ -2.367978663117999   atol=5e-8
     @test energies[:PotNonLocal] ≈  1.6527493682542034  atol=5e-8
     @test energies[:Kinetic]     ≈  3.291847293270256   atol=5e-8

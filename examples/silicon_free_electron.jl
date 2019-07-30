@@ -25,20 +25,18 @@ lattice = mg.lattice.Lattice(A)
 recip_lattice = lattice.reciprocal_lattice
 structure = mg.Structure(lattice, ["Si", "Si"], [ones(3)/8, -ones(3)/8])
 
-# Get k-Point mesh for Brillouin-zone integration
-spgana = symmetry.analyzer.SpacegroupAnalyzer(structure)
-bzmesh = spgana.get_ir_reciprocal_mesh(kgrid)
-kpoints = [mp[1] for mp in bzmesh]
-kweigths = [mp[2] for mp in bzmesh]
-kweigths = kweigths / sum(kweigths)
-
 #
 # Basis and Hamiltonian in DFTK
 #
+# Get k-Point mesh for Brillouin-zone integration
+kpoints, ksymops = bzmesh_uniform(kgrid)
+kweights = [length(symops) for symops in ksymops]
+kweights = kweights / sum(kweights)
+
 # Construct basis: transpose is required, since pymatgen uses rows for the
 # lattice vectors and DFTK uses columns
 grid_size = DFTK.determine_grid_size(A', Ecut, kpoints=kpoints) * ones(Int, 3)
-basis = PlaneWaveBasis(A', grid_size, Ecut, kpoints, kweigths)
+basis = PlaneWaveBasis(A', grid_size, Ecut, kpoints, kweights, ksymops)
 
 # Construct a free-electron Hamiltonian
 ham = Hamiltonian(basis)
@@ -54,11 +52,11 @@ println("Computing bands along kpath:\n     $(join(symm_kpath.kpath["path"][1], 
 # TODO Maybe think about some better mechanism here:
 #      This kind of feels implicit, since it also replaces the kpoints
 #      from potential other references to the ham or PlaneWaveBasis object.
-kweigths = ones(length(kpoints)) ./ length(kpoints)
-set_kpoints!(ham.basis, kpoints, kweigths)
+set_kpoints!(ham.basis, kpoints)
 
 # Compute bands:
-band_data = lobpcg(ham, n_bands, prec=PreconditionerKinetic(ham, α=0.5))
+band_data = lobpcg(ham, n_bands, prec=PreconditionerKinetic(ham, α=0.5),
+                   backend=:lobpcg_qr)
 if ! band_data.converged
     println("WARNING: Not all k-points converged.")
 end

@@ -7,8 +7,7 @@ struct PlaneWaveBasis{T <: Real, TFFT, TIFFT}
     unit_cell_volume::T
     recip_cell_volume::T
 
-    # Selected energy cutoff at construction time
-    Ecut::T
+    Ecut::T  # Selected energy cutoff at construction time
 
     # Size of the rectangular Fourier grid used as the density basis
     # and the k-point-specific (spherical) wave function basis
@@ -20,8 +19,10 @@ struct PlaneWaveBasis{T <: Real, TFFT, TIFFT}
     kpoints::Vector{Vec3{T}}
     basis_wf::Vector{Vector{Vec3{Int}}}
 
-    # Brillouin zone integration weights.
-    kweights::Vector{T}
+    kweights::Vector{T}  # Brillouin zone integration weights
+    ksymops::Vector{Vector{Tuple{Mat3{Int}, Vec3{T}}}}  # Symmetry operations per k-Point
+    kgrid::Vec3{Int}
+
 
     # Plans for forward and backward FFT on B_ρ
     FFT::TFFT
@@ -55,7 +56,7 @@ julia> b = PlaneWaveBasis(TODO)
 - `kweights`:      List of corresponding weights for the Brillouin-zone integration.
 """
 function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
-                        Ecut::Number, kpoints, kweights) where {T <: Real}
+                        Ecut::Number, kpoints, kweights, ksymops, kgrid) where {T <: Real}
     lattice = SMatrix{3, 3, T, 9}(lattice)
     recip_lattice = 2π * inv(lattice')
 
@@ -69,7 +70,6 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
 
     # Plan a FFT, spending some time on finding an optimal algorithm
     # for the machine on which the computation runs
-    fft_size = nextpow.(2, grid_size)  # Optimise FFT grid
     tmp = Array{Complex{T}}(undef, fft_size...)
     fft_plan = plan_fft!(tmp, flags=FFTW.MEASURE)
     ifft_plan = plan_ifft!(tmp, flags=FFTW.MEASURE)
@@ -82,10 +82,10 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
     fft_plan *= (1 / length(fft_plan))
 
     pw = PlaneWaveBasis{T, typeof(fft_plan), typeof(ifft_plan)}(
-        lattice, recip_lattice, det(lattice), det(recip_lattice),
-        Ecut, grid_size, idx_DC, [], [], [], fft_plan, ifft_plan
+        lattice, recip_lattice, det(lattice), det(recip_lattice), Ecut, grid_size, idx_DC,
+        [], [], [], ksymops, kgrid, fft_plan, ifft_plan
     )
-    set_kpoints!(pw, kpoints, kweights)
+    set_kpoints!(pw, kpoints, kweights=kweights, ksymops=ksymops)
 end
 
 """

@@ -1,18 +1,16 @@
 using Test
 using DFTK: PlaneWaveBasis, load_psp, build_local_potential, Hamiltonian
-using DFTK: lobpcg, eval_psp_local_fourier
+using DFTK: lobpcg, eval_psp_local_fourier, Species
 
 include("../silicon_testcases.jl")
 
 @testset "Diagonalisation of kinetic + local psp" begin
     Ecut = 25
     grid_size = [33, 33, 33]
-    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
-    hgh = load_psp("si-pade-q4.hgh")
 
-    pot_local = build_local_potential(pw, positions,
-                                      G -> eval_psp_local_fourier(hgh, pw.recip_lattice * G))
-    ham = Hamiltonian(pw, pot_local=pot_local)
+    Si = Species(atnum, psp=load_psp("si-pade-q4.hgh"))
+    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights, ksymops)
+    ham = Hamiltonian(pw, pot_local=build_local_potential(pw, Si => positions))
     res = lobpcg(ham, 6, tol=1e-8)
 
     ref = [
