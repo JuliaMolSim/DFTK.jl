@@ -37,7 +37,24 @@ The `backend` parameters selects the LOBPCG implementation to use.
 function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
                 pot_hartree_values=nothing, pot_xc_values=nothing,
                 guess=nothing, prec=nothing, tol=1e-6, maxiter=200,
-                backend=:lobpcg_qr, kwargs...)
+                backend=:auto, kwargs...)
+    if backend == :auto
+        # First try IterativeSolvers.jl, then our QR fallback implementation
+        try
+            return lobpcg(ham, nev_per_kpoint; pot_hartree_values=pot_hartree_values,
+                          pot_xc_values=pot_xc_values, guess=guess, prec=prec,
+                          tol=tol, maxiter=maxiter, backend=:lobpcg_itsolve, kwargs...)
+        catch PosDefException
+            return lobpcg(ham, nev_per_kpoint; pot_hartree_values=pot_hartree_values,
+                          pot_xc_values=pot_xc_values, guess=guess, prec=prec,
+                          tol=tol, maxiter=maxiter, backend=:lobpcg_qr, kwargs...)
+        end
+    end
+
+    if !(backend in [:lobpcg_itsolve, :lobpcg_qr, :lobpcg_scipy])
+        error("LOBPCG backend $(str(backend)) unknown.")
+    end
+
     # TODO This function seems to be type-unstable ... check
     #
     T = eltype(ham)
@@ -58,18 +75,13 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
     get_preck(prec, ik) = PreconditionerBlock(prec, ik)
 
     # Lookup "backend" symbol and use the corresponding function as run_lobpcg
-    if !(backend in [:lobpcg_itsolve, :lobpcg_qr, :lobpcg_scipy])
-        error("LOBPCG backend $(str(backend)) unknown.")
-    end
     run_lobpcg = getfield(DFTK, backend)
-
-    # Run the LOBPCG algorithm in the backend
     results = [run_lobpcg(get_hamk(ik), get_guessk(guess, ik), prec=get_preck(prec, ik),
                           tol=tol, maxiter=maxiter, kwargs...)
                for ik in 1:length(pw.kpoints)]
 
     # Transform results into a nicer datastructure
-    (λ=[res.λ for res in results],
+    (λ=[real.(res.λ) for res in results],
      X=[res.X for res in results],
      residual_norms=[res.residual_norms for res in results],
      iterations=[res.iterations for res in results],
