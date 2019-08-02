@@ -18,10 +18,8 @@ struct PlaneWaveBasis{T <: Real, TFFT, TIFFT}
     idx_DC::Int  # Index of the DC component in the rectangular grid
     kpoints::Vector{Vec3{T}}
     basis_wf::Vector{Vector{Vec3{Int}}}
-
     kweights::Vector{T}  # Brillouin zone integration weights
     ksymops::Vector{Vector{Tuple{Mat3{Int}, Vec3{T}}}}  # Symmetry operations per k-Point
-    kgrid::Vec3{Int}
 
 
     # Plans for forward and backward FFT on B_ρ
@@ -56,7 +54,7 @@ julia> b = PlaneWaveBasis(TODO)
 - `kweights`:      List of corresponding weights for the Brillouin-zone integration.
 """
 function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
-                        Ecut::Number, kpoints, kweights, ksymops, kgrid) where {T <: Real}
+                        Ecut::Number, kpoints, kweights, ksymops) where {T <: Real}
     lattice = SMatrix{3, 3, T, 9}(lattice)
     recip_lattice = 2π * inv(lattice')
 
@@ -83,15 +81,23 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
 
     pw = PlaneWaveBasis{T, typeof(fft_plan), typeof(ifft_plan)}(
         lattice, recip_lattice, det(lattice), det(recip_lattice), Ecut, grid_size, idx_DC,
-        [], [], [], ksymops, kgrid, fft_plan, ifft_plan
+        [], [], [], [], fft_plan, ifft_plan
     )
     set_kpoints!(pw, kpoints, kweights=kweights, ksymops=ksymops)
 end
 
 """
 Reset the kpoints of an existing Plane-wave basis and change the basis accordingly.
+For a consistent k-Point basis the kweights and ksymops should be updated accordingly.
+If this is not done, density computation can give wrong results.
 """
-function set_kpoints!(pw::PlaneWaveBasis{T}, kpoints, kweights; Ecut=pw.Ecut) where T
+function set_kpoints!(pw::PlaneWaveBasis{T}, kpoints; kweights=nothing, ksymops=nothing,
+                      Ecut=pw.Ecut) where T
+    kweights === nothing && (kweights = ones(length(kpoints)) ./ length(kpoints))
+    ksymops === nothing && (ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))]
+                                         for _ in 1:length(kpoints)])
+    @assert(length(kpoints) == length(ksymops),
+            "Lengths of kpoints and length of ksymops need to agree")
     @assert(length(kpoints) == length(kweights),
             "Lengths of kpoints and length of kweights need to agree")
     @assert sum(kweights) ≈ 1 "kweights are assumed to be normalized."
@@ -101,6 +107,7 @@ function set_kpoints!(pw::PlaneWaveBasis{T}, kpoints, kweights; Ecut=pw.Ecut) wh
 
     resize!(pw.kpoints, length(kpoints)) .= kpoints
     resize!(pw.kweights, length(kweights)) .= kweights
+    resize!(pw.ksymops, length(ksymops)) .= ksymops
     resize!(pw.basis_wf, length(kpoints))
 
     # Update basis_wf: For each k-Point select those G coords,
