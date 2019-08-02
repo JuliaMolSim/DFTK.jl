@@ -6,6 +6,7 @@ include("fourier_transforms.jl")
 include("PlaneWaveBasis.jl")
 include("PspHgh.jl")
 include("Species.jl")
+include("bzmesh.jl")
 
 include("build_local_potential.jl")
 include("build_nonlocal_projectors.jl")

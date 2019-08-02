@@ -17,6 +17,7 @@ addons:
   apt:
     packages:
       - python3-scipy
+      - spglib
 
 codecov: false
 coveralls: true

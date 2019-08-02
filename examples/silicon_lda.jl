@@ -9,9 +9,9 @@ plotter = pyimport("pymatgen.electronic_structure.plotter")
 #
 # Calculation parameters
 #
-kgrid = [3, 3, 3]
+kgrid = [4, 4, 4]
 Ecut = 15  # Hartree
-n_bands = 10
+n_bands = 8
 kline_density = 20
 
 
@@ -36,13 +36,13 @@ n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in composit
 # Get k-Point mesh for Brillouin-zone integration
 # Note: The transpose is required, since pymatgen uses rows for the
 # lattice vectors and DFTK uses columns
-kpoints, ksymops = sample_kpoints_symmetry_reduced(kgrid, A', composition...)
+kpoints, ksymops = bzmesh_ir_wedge(kgrid, A', composition...)
 kweights = [length(symops) for symops in ksymops]
 kweights = kweights / sum(kweights)
 
 # Construct plane-wave basis
-grid_size = DFTK.determine_grid_size(A', Ecut, kpoints=kpoints) * ones(Int, 3)
-basis = PlaneWaveBasis(A', grid_size, Ecut, kpoints, kweights, ksymops, Vec3(kgrid))
+grid_size = determine_grid_size(A', Ecut, kpoints=kpoints) * ones(Int, 3)
+basis = PlaneWaveBasis(A', grid_size, Ecut, kpoints, kweights, ksymops)
 
 # Construct Hamiltonian
 ham = Hamiltonian(basis, pot_local=build_local_potential(basis, composition...),
@@ -63,9 +63,8 @@ println("\nEnergy breakdown:")
 for key in sort([keys(energies)...]; by=S -> string(S))
     @printf "    %-20s%-10.7f\n" string(key) energies[key]
 end
-@printf "\n    %-20s%-10.7f\n\n" "total" sum(values(energies))
+@printf "\n    %-20s%-15.12f\n\n" "total" sum(values(energies))
 
-stop
 
 # TODO Some routine to compute this properly
 efermi = 0.5
@@ -82,8 +81,7 @@ println("Computing bands along kpath:\n     $(join(symm_kpath.kpath["path"][1], 
 # TODO Maybe think about some better mechanism here:
 #      This kind of feels implicit, since it also replaces the kpoints
 #      from potential other references to the ham or PlaneWaveBasis object.
-kweights = ones(length(kpoints)) ./ length(kpoints)
-set_kpoints!(ham.basis, kpoints, kweights)
+set_kpoints!(ham.basis, kpoints)
 
 # TODO This is super ugly, but needed, since the PotNonLocal implicitly
 #      stores information per k-Point at the moment
