@@ -32,42 +32,6 @@ function new_density(ham::Hamiltonian, n_bands, compute_occupation, ρ, lobpcg_t
                             tolerance_orthonormality=100lobpcg_tol)
 end
 
-# the fp_solver must accept being called like fp_solver(f, x0, tol, maxiter),
-# where f(x) is the fixed-point map. It must return an object
-# supporting res.sol and res.converged
-
-function scf_nlsolve_solver(m)
-    function fp_solver(f, x0, tol, max_iter)
-        res = nlsolve(x -> f(x) - x, x0, method=:anderson, m=m, xtol=tol,
-                      ftol=0.0, show_trace=true, iterations=max_iter)
-        (sol=res.zero, converged=converged(res))
-    end
-    fp_solver
-end
-function scf_damping_solver(β)
-    function fp_solver(f, x0, tol, max_iter)
-        converged = false
-        x = copy(x0)
-        for i in 1:max_iter
-            x_new = f(x)
-
-            # TODO Print statements should not be here
-            ndiff = norm(x_new - x)
-            @printf "%4d %18.8g\n" i ndiff
-
-            if 20 * ndiff < tol
-                x = x_new
-                converged = true
-                break
-            end
-
-            x = @. β * x_new + (1 - β) * x
-        end
-        (sol=x, converged=converged)
-    end
-    fp_solver
-end
-
 function scf(ham::Hamiltonian, n_bands, compute_occupation, ρ, fp_solver;
              tol=1e-6, lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
              max_iter=100, lobpcg_tol=tol / 100)
