@@ -44,14 +44,10 @@ function update_energies_potential!(energies, potential, op::PotXc, ρ)
         evaluate_lda!(xc, ρ_real, Vρ=V, E=E)
         potential .+= V
 
-        # TODO This is a fat hack until the Libxc changes are in master
-        identifier = Meta.parse(xc.name)
-        # end TODO
-
         # Factor (1/2) to avoid double counting of electrons (see energy expression)
         # Factor 2 because α and β operators are identical for spin-restricted case
         dVol = pw.unit_cell_volume / prod(size(pw.FFT))
-        energies[identifier] = 2 * sum(E .* ρ_real) * dVol / 2
+        energies[xc.identifier] = 2 * sum(E .* ρ_real) * dVol / 2
     end
 
     (energies=energies, potential=potential)
