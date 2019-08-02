@@ -19,20 +19,21 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_electrons::Int;
             (basis, energies, Psi) -> occupation_step(basis, energies, Psi, n_electrons)
     else
         compute_occupation =
-            (basis, energies, Psi) -> occupation_temperature(basis, energies, Psi, n_electrons, T, smearing=smearing)
+            (basis, energies, Psi) -> occupation_temperature(basis, energies, Psi,
+                                                             n_electrons, T, smearing=smearing)
     end
 
     ρ === nothing && (ρ = guess_hcore(ham, n_bands, compute_occupation,
                                       lobpcg_prec=lobpcg_prec))
     if algorithm == :scf_nlsolve
-        res = scf_nlsolve(ham, n_bands, compute_occupation, ρ, tol=tol,
-                          lobpcg_prec=lobpcg_prec, max_iter=max_iter; kwargs...)
+        fp_solver = scf_nlsolve_solver(m)
     elseif algorithm == :scf_damped
-        res = scf_damped(ham, n_bands, compute_occupation, ρ, tol=tol,
-                         lobpcg_prec=lobpcg_prec, max_iter=max_iter; kwargs...)
+        fp_solver = scf_damping_solver(damping)
     else
         error("Unknown algorithm " * string(algorithm))
     end
+    res = scf(ham, n_bands, compute_occupation, ρ, fp_solver, tol=tol,
+              lobpcg_prec=lobpcg_prec, max_iter=max_iter)
 
     res
 end

@@ -19,7 +19,7 @@ include("silicon_testcases.jl")
     # Run nlsolve without guess
     prec = PreconditionerKinetic(ham, α=0.1)
     scfnl = self_consistent_field(ham, n_bands, n_electrons, lobpcg_prec=prec,
-                                  algorithm=:scf_nlsolve)
+                                  algorithm=:scf_nlsolve, m=5)
     ρ_nl = scfnl[1]
 
     # Run damped SCF with SAD guess
