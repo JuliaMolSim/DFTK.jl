@@ -4,6 +4,10 @@ using DFTK
 using DFTK: empty_potential, update_energies_potential!, G_to_r!
 include("silicon_testcases.jl")
 
+# TODO Once we have converged SCF densities in a file it would be better to instead / also
+#      test the energies of these densities and compare them directly to the reference
+#      energies obtained in the data files
+
 
 @testset "Using BZ symmetry yields identical density" begin
     function get_bands(lattice, Ggrid, kpoints, ksymops, composition...;
