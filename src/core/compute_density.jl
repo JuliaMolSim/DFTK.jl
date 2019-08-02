@@ -1,9 +1,7 @@
-
-
-
-
-# TODO Documentation
-function build_partial_density(pw, ik, Ψk, occupation)
+"""
+Compute the partial density at the indicated ``k``-Point and return it.
+"""
+function compute_partial_density(pw, ik, Ψk, occupation)
     n_states = size(Ψk, 2)
     @assert n_states == length(occupation)
 
@@ -79,7 +77,7 @@ function compute_density(pw::PlaneWaveBasis, Psi::AbstractVector, occupation::Ab
     ρ .= 0
     ρ_count = 0
     for (ik, k) in enumerate(pw.kpoints)
-        ρ_k = build_partial_density(pw, ik, Psi[ik], occupation[ik])
+        ρ_k = compute_partial_density(pw, ik, Psi[ik], occupation[ik])
         for (S, τ) in pw.ksymops[ik]
             ρ_count += 1
             # TODO If τ == [0,0,0] and if S == id
