@@ -32,16 +32,25 @@ function new_density(ham::Hamiltonian, n_bands, compute_occupation, ρ, lobpcg_t
                             tolerance_orthonormality=100lobpcg_tol)
 end
 
+# Scaling is from 0 to 1. 0 is density mixing, 1 is "potential mixing"
+# (at least, Hartree potential mixing). 1/2 results in a symmetric
+# Jacobian of the SCF mapping (when there is no exchange-correlation)
 function scf(ham::Hamiltonian, n_bands, compute_occupation, ρ, fp_solver;
              tol=1e-6, lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
-             max_iter=100, lobpcg_tol=tol / 100)
+             max_iter=100, lobpcg_tol=tol / 100, den_scaling = 0.0)
     pw = ham.basis
     T = real(eltype(ρ))
     Psi = [Matrix(qr(randn(Complex{T}, length(pw.basis_wf[ik]), n_bands)).Q)
            for ik in 1:length(pw.kpoints)]
+    Gsq = vec([4π * sum(abs2, pw.recip_lattice * G)
+           for G in basis_ρ(pw)])
+    Gsq[pw.idx_DC] = 1.0 # do not touch the DC component
+    den_to_mixed = Gsq.^(-den_scaling)
+    mixed_to_den = Gsq.^den_scaling
 
     # TODO remove foldρ and unfoldρ when https://github.com/JuliaNLSolvers/NLsolve.jl/pull/217 is in a release
     function foldρ(ρ)
+        ρ = den_to_mixed .* ρ
         # Fold a complex array representing the Fourier transform of a purely real
         # quantity into a real array
         half = Int((length(ρ) + 1) / 2)
@@ -52,7 +61,8 @@ function scf(ham::Hamiltonian, n_bands, compute_occupation, ρ, fp_solver;
         # Undo "foldρ"
         half = Int(length(ρ) / 2)
         ρcpx = ρ[1:half] + im * ρ[half+1:end]
-        vcat(ρcpx, conj(reverse(ρcpx)[2:end]))
+        ρ_unfolded = vcat(ρcpx, conj(reverse(ρcpx)[2:end]))
+        ρ_unfolded .* mixed_to_den
     end
 
     fp_map(ρ) = foldρ(new_density(ham, n_bands, compute_occupation, unfoldρ(ρ), lobpcg_tol, lobpcg_prec=lobpcg_prec, Psi=Psi))

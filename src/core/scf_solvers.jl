@@ -49,6 +49,8 @@ function anderson(g,x0,m::Int,niter::Int,eps::Real,warming=0)
     fs = zeros(T,N,m+1)
     xs[:,1] = x0
     errs = zeros(niter)
+    err = Inf
+
     for n = 1:niter
         fs[:,1] = g(xs[:,1])-xs[:,1]
         err = norm(fs[:,1])
@@ -92,6 +94,7 @@ function CROP(g,x0,m::Int,niter::Int,eps::Real,warming=0)
     xs[:,1] = x0
     fs[:,1] = g(x0) - x0
     errs = zeros(niter)
+    err = Inf
 
     for n = 1:niter
         # println(xs[1:4,1])
@@ -107,15 +110,6 @@ function CROP(g,x0,m::Int,niter::Int,eps::Real,warming=0)
         if m_eff > 0 && n > warming
             mat = fs[:,1:m_eff] .- ftnp1
             alphas = -mat \ ftnp1
-            # println(alphas)
-            if m_eff >= 2
-                println(cond(mat))
-                println(norm(alphas[1:2])/norm(alphas))
-                gram = mat'mat
-                println(norm(gram[1:2,1:2])/norm(gram))
-                display(inv(mat'mat)*(mat'))
-                display(alphas)
-            end
             bak_xtnp1 = copy(xtnp1)
             bak_ftnp1 = copy(ftnp1)
             for i = 1:m_eff
@@ -133,5 +127,5 @@ function CROP(g,x0,m::Int,niter::Int,eps::Real,warming=0)
     end
     (sol=xs[:,1], converged=err < eps)
 end
-scf_anderson_solver(m) = (f, x0, tol, max_iter) -> anderson(g,x0,m,max_iter,tol)
-scf_CROP_solver(m) = (f, x0, tol, max_iter) -> CROP(g,x0,m,max_iter,tol)
+scf_anderson_solver(m) = (f, x0, tol, max_iter) -> anderson(f,x0,m,max_iter,tol)
+scf_CROP_solver(m) = (f, x0, tol, max_iter) -> CROP(f,x0,m,max_iter,tol)
