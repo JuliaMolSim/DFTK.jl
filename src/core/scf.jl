@@ -1,5 +1,3 @@
-using NLsolve
-
 # gets a new density ρ by diagonalizing the Hamiltonian. If Psi is
 # provided, overwrite it with the new wavefunctions
 function new_density(ham::Hamiltonian, n_bands, compute_occupation, ρ, lobpcg_tol;

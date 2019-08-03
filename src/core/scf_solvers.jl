@@ -4,6 +4,8 @@
 # maxiter), where f(x) is the fixed-point map. It must return an
 # object supporting res.sol and res.converged
 
+using NLsolve
+
 function scf_nlsolve_solver(m)
     function fp_solver(f, x0, tol, max_iter)
         res = nlsolve(x -> f(x) - x, x0, method=:anderson, m=m, xtol=tol,
