@@ -33,7 +33,7 @@ representing a mapping from `Species` objects to a list of positions in fraction
 coordinates. `tol_symmetry` is the tolerance used for searching for symmetry operations.
 """
 function bzmesh_ir_wedge(kgrid_size, lattice, composition...; tol_symmetry=1e-5)
-    spglib = pyimport_conda("spglib", "spglib")
+    spglib = pyimport("spglib")
 
     # Ask spglib for symmetry operations and for irreducible mesh
     spg_symops = spglib.get_symmetry(spglib_cell(lattice, composition...),
