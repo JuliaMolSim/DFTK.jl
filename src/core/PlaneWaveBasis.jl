@@ -69,15 +69,24 @@ function PlaneWaveBasis(lattice::AbstractMatrix{T}, grid_size,
     # Plan a FFT, spending some time on finding an optimal algorithm
     # for the machine on which the computation runs
     tmp = Array{Complex{T}}(undef, fft_size...)
-    fft_plan = plan_fft!(tmp, flags=FFTW.MEASURE)
-    ifft_plan = plan_ifft!(tmp, flags=FFTW.MEASURE)
+
+    flags = FFTW.MEASURE
+    if T == Float32
+        flags |= FFTW.UNALIGNED
+        # TODO For Float32 there are issues with aligned FFTW plans.
+        #      Using unaligned FFTW plans is discouraged, but we do it anyways
+        #      here as a quick fix. We should reconsider this in favour of using
+        #      a parallel wisdom anyways in the future.
+    end
+    fft_plan = plan_fft!(tmp, flags=flags)
+    ifft_plan = plan_ifft!(tmp, flags=flags)
 
     # IFFT has a normalization factor of 1/length(ψ),
     # but the normalisation convention used in this code is
     # e_G(x) = e^iGx / sqrt(|Γ|), so we scale the plans in-place
     # in order to match our convention.
     ifft_plan *= length(ifft_plan)
-    fft_plan *= (1 / length(fft_plan))
+    fft_plan *= 1 / length(fft_plan)
 
     pw = PlaneWaveBasis{T, typeof(fft_plan), typeof(ifft_plan)}(
         lattice, recip_lattice, det(lattice), det(recip_lattice), Ecut, grid_size, idx_DC,
