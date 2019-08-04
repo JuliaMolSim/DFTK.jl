@@ -6,7 +6,7 @@ include("silicon_testcases.jl")
 @testset "build_local_potential using Coulomb potential" begin
     Ecut = 4
     grid_size = [15, 15, 15]
-    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
+    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights, ksymops)
 
     @testset "Construction using a single function" begin
         pot_coulomb(G) = -12 / sum(abs2, pw.recip_lattice * G)
@@ -54,7 +54,7 @@ end
 @testset "build_local_potential using Species" begin
     Ecut = 4
     grid_size = [15, 15, 15]
-    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
+    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights, ksymops)
 
     @testset "Test without Pseudopotential" begin
         pot_coulomb(G) = -14 / sum(abs2, pw.recip_lattice * G)

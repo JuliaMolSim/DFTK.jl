@@ -33,7 +33,7 @@ function scf_damped(ham::Hamiltonian, n_bands, compute_occupation, ρ;
         orben = res.λ
 
         occupation = compute_occupation(ham.basis, res.λ, Psi)
-        ρ_new = compute_density(ham.basis, Psi, occupation, tolerance_orthonormality=tol)
+        ρ_new = compute_density(ham.basis, Psi, occupation)
 
         # TODO Print statements should not be here
         ndiff = norm(ρ_new - ρ)

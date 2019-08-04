@@ -69,6 +69,10 @@ export n_elec_valence
 export n_elec_core
 include("utils/Species.jl")
 
+export bzmesh_uniform
+export bzmesh_ir_wedge
+include("utils/bzmesh.jl")
+
 export build_local_potential
 export build_nonlocal_projectors
 export determine_grid_size

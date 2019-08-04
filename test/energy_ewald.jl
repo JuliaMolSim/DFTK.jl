@@ -9,10 +9,6 @@ using LinearAlgebra
 
     ref = -0.088665545  # TODO source?
     γ_E = energy_ewald(lattice, charges, positions)
-
-    println("Ewald sum γ_E:     $γ_E")
-    println("Ewald sum ref:     $ref")
-    println("Ewald sum   Δ:     $(γ_E - ref)")
     @test abs(γ_E - ref) < 1e-8
 end
 
@@ -25,9 +21,6 @@ end
 
     ref = -102.8741963352893
     γ_E = energy_ewald(lattice, charges, positions)
-    println("Ewald sum γ_E:     $γ_E")
-    println("Ewald sum ref:     $ref")
-    println("Ewald sum   Δ:     $(γ_E - ref)")
     @test abs(γ_E - ref) < 1e-8
 end
 
@@ -38,9 +31,6 @@ end
 
     ref = 1.790634595  # TODO source?
     γ_E = energy_ewald(lattice, charges, positions)
-    println("Ewald sum γ_E:     $γ_E")
-    println("Ewald sum ref:     $ref")
-    println("Ewald sum   Δ:     $(γ_E - ref)")
     @test abs(γ_E - ref) < 1e-7
 end
 
@@ -54,9 +44,5 @@ end
 
     ref = 0.31316999  # TODO source?
     γ_E = energy_ewald(lattice, charges, positions)
-
-    println("Ewald sum γ_E:     $γ_E")
-    println("Ewald sum ref:     $ref")
-    println("Ewald sum   Δ:     $(γ_E - ref)")
     @test abs(γ_E - ref) < 1e-7
 end

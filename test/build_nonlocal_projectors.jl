@@ -7,7 +7,7 @@ include("silicon_testcases.jl")
 @testset "build_nonlocal_projectors" begin
     Ecut = 2
     grid_size = [9, 9, 9]
-    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
+    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights, ksymops)
 
     psp = load_psp("Si-lda-q4.hgh")
     potnl = build_nonlocal_projectors(pw, psp => positions)

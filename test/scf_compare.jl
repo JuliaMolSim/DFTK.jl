@@ -8,7 +8,7 @@ include("silicon_testcases.jl")
     n_bands = 8
     grid_size = [15, 15, 15]
 
-    basis = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
+    basis = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights, ksymops)
     Si = Species(atnum, psp=load_psp("si-pade-q4.hgh"))
     n_electrons = length(positions) * n_elec_valence(Si)
 

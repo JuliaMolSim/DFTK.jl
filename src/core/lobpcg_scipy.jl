@@ -7,7 +7,7 @@ Call scipy's version of LOBPCG for finding the eigenpairs of a Hermitian matrix 
 `X0` is the set of guess vectors, also determining the number of eigenpairs to be sought.
 """
 function lobpcg_scipy(A, X0; prec=nothing, tol=nothing, largest=false, kwargs...)
-    sla = pyimport_conda("scipy.sparse.linalg", "scipy")
+    sla = pyimport("scipy.sparse.linalg")
 
     @assert size(X0, 1) == size(A, 2)
     @assert eltype(A) == ComplexF64

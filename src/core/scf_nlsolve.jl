@@ -45,8 +45,7 @@ function scf_nlsolve(ham::Hamiltonian, n_bands, compute_occupation, ρ;
                      prec=lobpcg_prec, tol=lobpcg_tol)
         Psi .= res.X
         occupation .= compute_occupation(ham.basis, res.λ, res.X)
-        ρ_new = compute_density(pw, res.X, occupation,
-                                tolerance_orthonormality=100lobpcg_tol)
+        ρ_new = compute_density(pw, res.X, occupation)
 
         residual .= foldρ(ρ_new) - ρ_folded
     end

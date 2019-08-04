@@ -9,7 +9,7 @@ include("silicon_testcases.jl")
     # Construct a free-electron Hamiltonian
     Ecut = 5
     grid_size = [15, 15, 15]
-    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
+    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights, ksymops)
     ham = Hamiltonian(pw)
 
     tol = 1e-8
@@ -38,7 +38,7 @@ include("silicon_testcases.jl")
     end
 
     @testset "with Preconditioner" begin
-        res = lobpcg(ham, nev_per_k, tol=tol,
+        res = lobpcg(ham, nev_per_k, tol=tol, backend=:lobpcg_qr,
                      prec=PreconditionerKinetic(ham, α=0.1))
 
         @test res.converged
@@ -53,11 +53,12 @@ end
 @testset "Diagonalisation of a core Hamiltonian" begin
     Ecut = 10
     grid_size = [21, 21, 21]
-    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights)
+    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights, ksymops)
     Si = Species(atnum, psp=load_psp("si-pade-q4.hgh"))
     ham = Hamiltonian(pw, pot_local=build_local_potential(pw, Si => positions),
                       pot_nonlocal=build_nonlocal_projectors(pw, Si => positions))
-    res = lobpcg(ham, 5, tol=1e-8, prec=PreconditionerKinetic(ham, α=0.1))
+    res = lobpcg(ham, 5, tol=1e-8, prec=PreconditionerKinetic(ham, α=0.1),
+                 backend=:lobpcg_qr)
 
     ref = [
         [0.067955741977536, 0.470244204908046, 0.470244204920801,
