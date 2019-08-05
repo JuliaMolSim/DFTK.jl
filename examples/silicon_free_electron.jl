@@ -56,7 +56,7 @@ set_kpoints!(ham.basis, kpoints)
 
 # Compute bands:
 band_data = lobpcg(ham, n_bands, prec=PreconditionerKinetic(ham, α=0.5),
-                   backend=:lobpcg_qr)
+                   interpolate_kpoints=false)
 if ! band_data.converged
     println("WARNING: Not all k-points converged.")
 end

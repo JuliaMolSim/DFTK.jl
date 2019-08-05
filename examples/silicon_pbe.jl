@@ -10,7 +10,7 @@ plotter = pyimport("pymatgen.electronic_structure.plotter")
 # Calculation parameters
 #
 kgrid = [4, 4, 4]
-Ecut = 15  # Hartree
+Ecut = 25  # Hartree
 n_bands = 8
 kline_density = 20
 
@@ -29,7 +29,7 @@ structure = mg.Structure(lattice, ["Si", "Si"], [ones(3)/8, -ones(3)/8])
 # SCF calculation in DFTK
 #
 # Setup model for silicon and the list of silicon positions
-Si = Species(mg.Element("Si").number, psp=load_psp("si-pade-q4.hgh"))
+Si = Species(mg.Element("Si").number, psp=load_psp("si-pbe-q4.hgh"))
 composition = [Si => [s.frac_coords for s in structure.sites if s.species_string == "Si"]]
 n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in composition)
 
@@ -48,12 +48,12 @@ basis = PlaneWaveBasis(A', grid_size, Ecut, kpoints, kweights, ksymops)
 ham = Hamiltonian(basis, pot_local=build_local_potential(basis, composition...),
                   pot_nonlocal=build_nonlocal_projectors(basis, composition...),
                   pot_hartree=PotHartree(basis),
-                  pot_xc=PotXc(basis, :lda_xc_teter93)
+                  pot_xc=PotXc(basis, :gga_x_pbe, :gga_c_pbe)
                  )
 
 # Build a guess density and run the SCF
 ρ = guess_gaussian_sad(basis, composition...)
-scfres = self_consistent_field(ham, Int(n_electrons / 2 + 2), n_electrons, ρ=ρ, tol=1e-6,
+scfres = self_consistent_field(ham, Int(n_electrons / 2 + 2), n_electrons, ρ=ρ, tol=1e-8,
                                lobpcg_prec=PreconditionerKinetic(ham, α=0.1))
 
 energies = scfres.energies
@@ -61,7 +61,7 @@ energies[:Ewald] = energy_nuclear_ewald(basis.lattice, composition...)
 energies[:PspCorrection] = energy_nuclear_psp_correction(basis.lattice, composition...)
 println("\nEnergy breakdown:")
 for key in sort([keys(energies)...]; by=S -> string(S))
-    @printf "    %-20s%-10.7f\n" string(key) energies[key]
+    @printf "    %-20s%-15.12f\n" string(key) energies[key]
 end
 @printf "\n    %-20s%-15.12f\n\n" "total" sum(values(energies))
 
@@ -128,6 +128,6 @@ bs = elec_structure.bandstructure.BandStructureSymmLine(
 bsplot = plotter.BSPlotter(bs)
 plt = bsplot.get_plot()
 plt.autoscale()
-plt.savefig("silicon_lda.pdf")
+plt.savefig("silicon_pbe.pdf")
 plt.legend()
 plt.show()

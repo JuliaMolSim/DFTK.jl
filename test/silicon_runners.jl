@@ -4,6 +4,9 @@ using Libxc: Functional
 
 include("silicon_testcases.jl")
 
+# TODO There is a lot of code duplication in this file ... once we have the ABINIT reference
+#      stuff in place, this should be refactored.
+
 function run_silicon_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf_tol=1e-6)
     # T + Vloc + Vnloc + Vhartree
     # These values were computed using ABINIT with the same kpoints as silicon_testcases.jl
@@ -62,6 +65,7 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
         [-0.058089253154566, 0.012364292440522, 0.097350168867990, 0.183765652148129,
           0.314593174568090, 0.470869435132365, 0.496966579772700, 0.517009645871194],
     ]
+    ref_etot = -7.911817522631488
     n_bands = length(ref_lda[1])
 
     grid_size = grid_size * ones(3)
@@ -92,4 +96,65 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
         diff = abs.(ref_lda[ik] - scfres.orben[ik])
         @test maximum(diff[1:n_bands - n_ignored]) < test_tol
     end
+
+    energies = scfres.energies
+    energies[:Ewald] = energy_nuclear_ewald(basis.lattice, Si => positions)
+    energies[:PspCorrection] = energy_nuclear_psp_correction(basis.lattice, Si => positions)
+    @test sum(values(energies)) ≈ ref_etot atol=test_tol
+end
+
+
+function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf_tol=1e-6)
+    # These values were computed using ABINIT with the same kpoints as silicon_testcases.jl
+    # and Ecut = 25
+    ref_pbe = [
+        [-0.182613872647344, 0.259343145910962, 0.259343145913851, 0.259343145916741,
+          0.350081372804469, 0.350081372808377, 0.350081372812286, 0.379795826432543,
+          0.535074885965206, 0.539275063324970],
+        [-0.131467986580421, 0.060790353181110, 0.222093614848986, 0.222093614852180,
+          0.319157964354942, 0.383670764757857, 0.383670764761167, 0.537726468987132,
+          0.547524586026887, 0.547524586030377],
+        [-0.112051979072326, 0.074925981269773, 0.168690502706886, 0.168690502711648,
+          0.278391665927345, 0.323679635165690, 0.523474718695926, 0.523474718699762,
+          0.615008723926775, 0.618278015433293],
+        [-0.061062886690018, 0.009486666207978, 0.092232334679323, 0.180288242428985,
+          0.309085542639357, 0.465861199189178, 0.493919656233940, 0.515222260730036,
+          0.527429170390239, 0.535275889950469],
+    ]
+    ref_etot = -7.838446229475437
+    n_bands = length(ref_pbe[1])
+
+    grid_size = grid_size * ones(3)
+    basis = PlaneWaveBasis(Array{T}(lattice), grid_size, Ecut, kpoints, kweights, ksymops)
+    Si = Species(atnum, psp=load_psp("si-pbe-q4.hgh"))
+    n_electrons = length(positions) * n_elec_valence(Si)
+
+    # Construct the Hamiltonian
+    ham = Hamiltonian(basis, pot_local=build_local_potential(basis, Si => positions),
+                      pot_nonlocal=build_nonlocal_projectors(basis, Si => positions),
+                      pot_hartree=PotHartree(basis),
+                      pot_xc=PotXc(basis, :gga_x_pbe, :gga_c_pbe))
+
+    # Construct guess and run the SCF
+    ρ = guess_gaussian_sad(basis, Si => positions)
+    prec = PreconditionerKinetic(ham, α=0.1)
+    scfres = self_consistent_field(ham, n_bands, n_electrons, lobpcg_prec=prec, ρ=ρ,
+                                   tol=scf_tol)
+
+    for ik in 1:length(kpoints)
+        @test eltype(scfres.orben[ik]) == T
+        @test eltype(scfres.Psi[ik]) == Complex{T}
+        println(ik, "  ", abs.(ref_pbe[ik] - scfres.orben[ik]))
+    end
+    for ik in 1:length(kpoints)
+        # Ignore last few bands, because these eigenvalues are hardest to converge
+        # and typically a bit random and unstable in the LOBPCG
+        diff = abs.(ref_pbe[ik] - scfres.orben[ik])
+        @test maximum(diff[1:n_bands - n_ignored]) < test_tol
+    end
+
+    energies = scfres.energies
+    energies[:Ewald] = energy_nuclear_ewald(basis.lattice, Si => positions)
+    energies[:PspCorrection] = energy_nuclear_psp_correction(basis.lattice, Si => positions)
+    @test sum(values(energies)) ≈ ref_etot atol=test_tol
 end
