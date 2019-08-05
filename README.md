@@ -17,12 +17,14 @@ The library is at a very early stage of development and the supported feature se
 is thus very limited. Current features include:
 - Lattice construction and problem setup based on [pymatgen](https://pymatgen.org/)
 - Plane-wave discretisations building on top of
-  [FFTW](https://github.com/JuliaMath/FFTW.jl)
+  [FFTW](https://github.com/JuliaMath/FFTW.jl) and [fftw](http://fftw.org/).
 - SCF routine based on [NLsolve](https://github.com/JuliaNLSolvers/NLsolve.jl)
-- LDA functionals from [Libxc](https://github.com/unkcpz/Libxc.jl)
+  and [IterativeSolvers.jl](https://github.com/JuliaMath/IterativeSolvers.jl).
+- LDA and GGA functionals from [Libxc](https://github.com/unkcpz/Libxc.jl)
+  and [libxc](https://tddft.org/programs/libxc).
 - Band structure generation
 - Support for both `Float64` (double precision) and `Float32` (single precision)
-  throughout the library.
+  throughout the library (Only for selected DFT functionals at the moment).
 
 **Note:** The code has not been properly verified against a standard DFT package
 and might likely contain bugs. Use for production calculations
