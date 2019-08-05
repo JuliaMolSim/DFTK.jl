@@ -97,7 +97,7 @@ ham = Hamiltonian(ham.basis, pot_local=ham.pot_local, pot_nonlocal=pot_nonlocal,
 # Compute bands:
 band_data = lobpcg(ham, n_bands, pot_hartree_values=scfres.pot_hartree_values, tol=1e-5,
                    pot_xc_values=scfres.pot_xc_values,
-                   prec=PreconditionerKinetic(ham, α=0.5), backend=:lobpcg_qr)
+                   prec=PreconditionerKinetic(ham, α=0.5))
 if ! band_data.converged
     println("WARNING: Not all k-points converged.")
 end

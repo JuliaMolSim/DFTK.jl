@@ -27,7 +27,7 @@ include("silicon_testcases.jl")
 
     @test length(ref_λ) == length(kpoints)
     @testset "without Preconditioner" begin
-        res = lobpcg(ham, nev_per_k, tol=tol)
+        res = lobpcg(ham, nev_per_k, tol=tol, interpolate_kpoints=false)
 
         @test res.converged
         for ik in 1:length(kpoints)
@@ -39,7 +39,7 @@ include("silicon_testcases.jl")
 
     @testset "with Preconditioner" begin
         res = lobpcg(ham, nev_per_k, tol=tol, backend=:lobpcg_qr,
-                     prec=PreconditionerKinetic(ham, α=0.1))
+                     prec=PreconditionerKinetic(ham, α=0.1), interpolate_kpoints=false)
 
         @test res.converged
         for ik in 1:length(kpoints)
@@ -58,7 +58,7 @@ end
     ham = Hamiltonian(pw, pot_local=build_local_potential(pw, Si => positions),
                       pot_nonlocal=build_nonlocal_projectors(pw, Si => positions))
     res = lobpcg(ham, 5, tol=1e-8, prec=PreconditionerKinetic(ham, α=0.1),
-                 backend=:lobpcg_qr)
+                 backend=:lobpcg_qr, interpolate_kpoints=false)
 
     ref = [
         [0.067955741977536, 0.470244204908046, 0.470244204920801,
