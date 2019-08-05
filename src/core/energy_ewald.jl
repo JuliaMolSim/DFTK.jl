@@ -10,7 +10,8 @@ and `recip_lattice` should contain the lattice and reciprocal lattice vectors as
 coordinates.
 """
 function energy_ewald(lattice, charges, positions; η=nothing)
-    energy_ewald(lattice, 2π * inv(lattice'), charges, positions, η=η)
+    T = eltype(lattice)
+    energy_ewald(lattice, T(2π) * inv(lattice'), charges, positions, η=η)
 end
 function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
     T = eltype(lattice)
