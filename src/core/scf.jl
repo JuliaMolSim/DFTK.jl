@@ -26,8 +26,7 @@ function new_density(ham::Hamiltonian, n_bands, compute_occupation, ρ, lobpcg_t
     @assert res.converged
     Psi .= res.X
     occupation = compute_occupation(ham.basis, res.λ, res.X)
-    ρ_new = compute_density(pw, res.X, occupation,
-                            tolerance_orthonormality=100lobpcg_tol)
+    ρ_new = compute_density(pw, res.X, occupation)
 end
 
 # Scaling is from 0 to 1. 0 is density mixing, 1 is "potential mixing"
@@ -35,7 +34,7 @@ end
 # Jacobian of the SCF mapping (when there is no exchange-correlation)
 function scf(ham::Hamiltonian, n_bands, compute_occupation, ρ, fp_solver;
              tol=1e-6, lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
-             max_iter=100, lobpcg_tol=tol / 100, den_scaling = 0.0)
+             max_iter=100, lobpcg_tol=tol / 10, den_scaling = 0.0)
     pw = ham.basis
     T = real(eltype(ρ))
     Psi = [Matrix(qr(randn(Complex{T}, length(pw.basis_wf[ik]), n_bands)).Q)
