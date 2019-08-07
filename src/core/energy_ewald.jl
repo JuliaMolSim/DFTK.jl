@@ -3,11 +3,12 @@ using SpecialFunctions: erfc
 """
     energy_ewald(lattice, [recip_lattice, ]charges, positions; η=nothing)
 
-Compute electrostatic interaction energy per unit cell between point charges in a
-uniform background of compensating charge to yield net neutrality. the `lattice`
-and `recip_lattice` should contain the lattice and reciprocal lattice vectors as columns.
- `charges` and `positions` are the point charges and their positions in fractional
-coordinates.
+Compute the electrostatic interaction energy per unit cell between point
+charges in a uniform background of compensating charge to yield net
+neutrality. the `lattice` and `recip_lattice` should contain the
+lattice and reciprocal lattice vectors as columns. `charges` and
+`positions` are the point charges and their positions (as an array of
+arrays) in fractional coordinates.
 """
 function energy_ewald(lattice, charges, positions; η=nothing)
     T = eltype(lattice)
@@ -50,18 +51,16 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
 
     # Function to return the indices corresponding
     # to a particular shell
+    # TODO switch to an O(N) implementation
     function shell_indices(ish)
         [[i,j,k] for i in -ish:ish for j in -ish:ish for k in -ish:ish
          if maximum(abs.([i,j,k])) == ish]
     end
 
     # Loop over reciprocal-space shells
-    gsh = 0
+    gsh = 1 # Exclude G == 0
     any_term_contributes = true
     while any_term_contributes
-        # Notice that the first gsh this loop processes is 1
-        # in other words G == 0 is implicitly excluded.
-        gsh += 1
         any_term_contributes = false
 
         # Compute G vectors and moduli squared for this shell patch
@@ -82,6 +81,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
             any_term_contributes = true
             sum_recip += sum_strucfac * exp(-exponent) / Gsq
         end
+        gsh += 1
     end
     # Amend sum_recip by proper scaling factors:
     sum_recip = sum_recip * 4π / det(lattice)
@@ -93,23 +93,20 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
     sum_real::T = -2η / sqrt(π) * sum(Z -> Z^2, charges)
 
     # Loop over real-space shells
-    rsh = -1
+    rsh = 0 # Include R = 0
     any_term_contributes = true
-    while any_term_contributes || rsh <= 0
-        # In this loop the first rsh, which is processed is rsh == 0
-        rsh += 1
+    while any_term_contributes || rsh <= 1
         any_term_contributes = false
 
         # Loop over R vectors for this shell patch
         for R in shell_indices(rsh)
             for (ti, Zi) in zip(positions, charges), (tj, Zj) in zip(positions, charges)
-                # Compute norm of the distance
-                dist = norm(lattice * (ti - tj - R))
-
-                # Avoid zero denominators
-                if dist <= eps(T)^(3/2)
+                # Avoid self-interaction
+                if rsh == 0 && ti == tj
                     continue
                 end
+
+                dist = norm(lattice * (ti - tj - R))
 
                 # erfc decays very quickly, so cut off at some point
                 if η * dist > max_erfc_arg
@@ -120,6 +117,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
                 sum_real += Zi * Zj * erfc(η * dist) / dist
             end # iat, jat
         end # R
+        rsh += 1
     end
-    (sum_recip + sum_real) / 2  # Amend by 1/2 (because of double counting)
+    (sum_recip + sum_real) / 2  # Divide by 1/2 (because of double counting)
 end

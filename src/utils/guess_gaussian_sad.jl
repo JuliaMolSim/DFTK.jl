@@ -20,21 +20,21 @@ function guess_gaussian_sad(basis, composition...)
 end
 
 
+## TODO give the formula in real space in the doc, and clarify that the atomic density is that of the valence electrons
 @doc raw"""
 Get the atomic decay length for an atom with `n_elec_core` core
 and `n_elec_valence` valence electrons. The returned length parameter can be used
 to generate an approximate atomic gaussian density in reciprocal space:
 ```math
-\hat{ρ}(G) = Z \exp\left(-(2π \text{length} ⋅ G)^2)
+\hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
 ```
 """
 function atom_decay_length(n_elec_core, n_elec_valence)
     # Adapted from ABINIT/src/32_util/m_atomdata.F90,
     # from which also the data has been taken.
 
-    # Round the number of valence electrons and return early if zero
     n_elec_valence = round(Int, n_elec_valence)
-    if n_elec_valence == 0.0
+    if n_elec_valence == 0
         return 0.0
     end
 
