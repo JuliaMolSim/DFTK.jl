@@ -3,10 +3,12 @@ using SpecialFunctions: erf, factorial
 
 
 """
-Compute the occupation at zero temperature and without smearing
+Compute the occupation without any smearing
 for `n_elec` electrons and the bands `Psi` with associated `energies`.
+Note: This function only provides physical occupations for insulators
+at zero temperature.
 """
-function occupation_zero_temperature(basis, energies, Psi, n_elec)
+function occupation_step(basis, energies, Psi, n_elec)
     n_bands = size(Psi[1], 2)
     T = eltype(energies[1])
 
@@ -15,18 +17,11 @@ function occupation_zero_temperature(basis, energies, Psi, n_elec)
     @assert n_bands ≥ n_occ
 
     occupation = similar(basis.kpoints, Vector{T})
-    HOMO = -Inf
-    LUMO = Inf
     for ik in 1:length(occupation)
         occupation[ik] = zeros(T, n_bands)
         occupation[ik][1:n_occ] .= 2
-        HOMO = max(HOMO, energies[ik][n_occ])
-        LUMO = min(LUMO, energies[ik][n_occ + 1])
     end
-    # We just error in the case of metal; the proper thing to do here
-    # is to do a bisection for the Fermi level as in the case of
-    # finite-temperature (although that has a dreadful convergence rate)
-    @assert HOMO ≤ LUMO, "occupation_zero_temperature assumes an insulator."
+
     occupation
 end
 
@@ -50,7 +45,7 @@ function smearing_methfessel_paxton_2(x)
     smearing_gaussian(x) + A1 * H1(x) * exp(-x^2) + A2 * H3(x) * exp(-x^2)
 end
 
-# List of available smearing functions, useful in tests
+# List of available smearing functions
 smearing_functions = (smearing_fermi_dirac, smearing_gaussian, smearing_methfessel_paxton_1,
                       smearing_methfessel_paxton_2)
 
