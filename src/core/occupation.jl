@@ -55,7 +55,7 @@ A_coeff(n) = (-1)^n / (factorial(n) * 4^n * sqrt(π))
 const A1 = A_coeff(1)
 const A2 = A_coeff(2)
 smearing_methfessel_paxton_1(x) = smearing_gaussian(x) + A1 * H1(x) * exp(-x^2)
-smearing_methfessel_paxton_2(x) = smearing_gaussian(x) + A1 * H1(x) * exp(-x^2) + A2 * H3(x) * exp(-x^2)
+smearing_methfessel_paxton_2(x) = smearing_methfessel_paxton_1(x) + A2 * H3(x) * exp(-x^2)
 
 # List of available smearing functions
 smearing_functions = (smearing_fermi_dirac, smearing_gaussian, smearing_methfessel_paxton_1,

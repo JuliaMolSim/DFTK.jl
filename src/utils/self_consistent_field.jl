@@ -14,7 +14,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_electrons::Int;
                                ρ=nothing, tol=1e-6, T=0, smearing=nothing,
                                lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
                                max_iter=100, algorithm=:scf_nlsolve, kwargs...)
-    if smearing == nothing
+    if smearing === nothing
         compute_occupation =
             (basis, energies, Psi) -> occupation_step(basis, energies, Psi, n_electrons)
     else
