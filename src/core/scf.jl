@@ -11,7 +11,7 @@ function new_density(ham::Hamiltonian, n_bands, compute_occupation, ρ, lobpcg_t
     end
     values_hartree = empty_potential(ham.pot_hartree)
     values_xc = empty_potential(ham.pot_xc)
-    energies = Dict{Symbol, real(eltype(ρ))}()
+    energies = Dict{Symbol, T}()
     update_energies_potential!(energies, values_hartree, ham.pot_hartree, ρ)
     update_energies_potential!(energies, values_xc, ham.pot_xc, ρ)
 
@@ -39,11 +39,11 @@ function scf(ham::Hamiltonian, n_bands, compute_occupation, ρ, fp_solver;
     T = real(eltype(ρ))
     Psi = [Matrix(qr(randn(Complex{T}, length(pw.basis_wf[ik]), n_bands)).Q)
            for ik in 1:length(pw.kpoints)]
-    Gsq = vec([4π * sum(abs2, pw.recip_lattice * G)
-           for G in basis_ρ(pw)])
+    Gsq = vec([T(4π) * sum(abs2, pw.recip_lattice * G)
+               for G in basis_ρ(pw)])
     Gsq[pw.idx_DC] = 1.0 # do not touch the DC component
-    den_to_mixed = Gsq.^(-den_scaling)
-    mixed_to_den = Gsq.^den_scaling
+    den_to_mixed = Gsq.^T(-den_scaling)
+    mixed_to_den = Gsq.^T(den_scaling)
 
     # TODO remove foldρ and unfoldρ when https://github.com/JuliaNLSolvers/NLsolve.jl/pull/217 is in a release
     function foldρ(ρ)
