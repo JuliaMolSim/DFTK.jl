@@ -15,9 +15,9 @@ include("silicon_testcases.jl")
     end
     Psi = [fill(NaN,1,nband) for k in kpoints]
 
-    occs_zero_temp = DFTK.occupation_zero_temperature(basis, energies, Psi, n_elec)
+    occs_zero_temp = DFTK.occupation_step(basis, energies, Psi, n_elec)
     @test sum(kweights .* sum.(occs_zero_temp)) ≈ n_elec
-    Ts = (1e-6, .1, 1.0)
+    Ts = (0, 1e-6, .1, 1.0)
     for T in Ts, fun in DFTK.smearing_functions
         occs = DFTK.occupation_temperature(basis, energies, Psi, n_elec, T, smearing=fun)
         @test sum(kweights .* sum.(occs)) ≈ n_elec
