@@ -113,5 +113,5 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
      residual_norms=[res.residual_norms for res in results],
      iterations=[res.iterations for res in results],
      converged=all(res.converged for res in results),
-     implementation=string(backend))
+     backend=string(backend))
 end
