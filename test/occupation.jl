@@ -5,7 +5,7 @@ include("silicon_testcases.jl")
 @testset "Smearing" begin
     Ecut = 5
     grid_size=15
-    basis = PlaneWaveBasis(lattice, grid_size * ones(3), Ecut, kpoints, kweights)
+    basis = PlaneWaveBasis(lattice, grid_size * ones(3), Ecut, kpoints, kweights, ksymops)
     nband = 10
     n_elec = 8
     energies = [zeros(nband) for k in kpoints]
@@ -19,7 +19,7 @@ include("silicon_testcases.jl")
     @test sum(kweights .* sum.(occs_zero_temp)) ≈ n_elec
     Ts = (1e-6, .1, 1.0)
     for T in Ts, fun in DFTK.smearing_functions
-        occs = DFTK.occupation_temperature(basis, energies, Psi, n_elec, T, fun)
+        occs = DFTK.occupation_temperature(basis, energies, Psi, n_elec, T, smearing=fun)
         @test sum(kweights .* sum.(occs)) ≈ n_elec
         if T < 1e-4
             for ik in 1:length(kpoints)
