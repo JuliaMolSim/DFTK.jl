@@ -8,6 +8,7 @@ Call scipy's version of LOBPCG for finding the eigenpairs of a Hermitian matrix 
 """
 function lobpcg_scipy(A, X0; prec=nothing, tol=nothing, largest=false, kwargs...)
     sla = pyimport("scipy.sparse.linalg")
+    sys = pyimport("sys")
 
     @assert size(X0, 1) == size(A, 2)
     @assert eltype(A) == ComplexF64
@@ -21,18 +22,16 @@ function lobpcg_scipy(A, X0; prec=nothing, tol=nothing, largest=false, kwargs...
                                  dtype="complex128")
     end
 
-    if tol !== nothing
-        tol /= 10  # Lower tolerance a little for scipy
-    end
     res = sla.lobpcg(opA, X0, M=opP, retResidualNormsHistory=true; tol=tol,
                      largest=largest, kwargs...)
-    λ = real(res[1])
+    sys.stdout.flush()
+    λ = real(res[1])  # 1 is eigenvalues
     order = sortperm(λ)  # Order to sort eigenvalues ascendingly
-    maxnorm = maximum(real(res[3][end][order]))
+    maxnorm = maximum(real(res[3][end][order]))  # 3 is residual norms
 
     converged = true
     if maxnorm !== nothing
-        converged = maxnorm < 10 * tol
+        converged = maxnorm < 30 * tol
     end
 
     (λ=λ[order],

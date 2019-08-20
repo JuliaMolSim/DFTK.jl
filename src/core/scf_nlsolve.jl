@@ -5,7 +5,7 @@ TODO docme
 """
 function scf_nlsolve(ham::Hamiltonian, n_bands, compute_occupation, ρ;
                      tol=1e-6, lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
-                     max_iter=100, lobpcg_tol=tol / 100)
+                     max_iter=100, lobpcg_tol=tol / 10)
     pw = ham.basis
     T = real(eltype(ρ))
 
