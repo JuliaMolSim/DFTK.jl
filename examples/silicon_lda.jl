@@ -1,6 +1,7 @@
 using PyCall
 using DFTK
 using Libxc: Functional
+using Printf
 mg = pyimport("pymatgen")
 symmetry = pyimport("pymatgen.symmetry")
 elec_structure = pyimport("pymatgen.electronic_structure")

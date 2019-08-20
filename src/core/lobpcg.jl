@@ -1,6 +1,6 @@
 include("lobpcg_itsolve.jl")
 include("lobpcg_scipy.jl")
-include("lobpcg_qr.jl")
+include("lobpcg_hyper.jl")
 
 # These wrapper structures are needed to get things working properly
 # with the LOBPCG backends we use.
@@ -11,16 +11,20 @@ struct HamiltonianBlock
     ik::Int
 end
 Base.size(block::HamiltonianBlock, idx::Int) = length(block.ham.basis.basis_wf[block.ik])
+Base.size(block::HamiltonianBlock) = (size(block, 1), size(block, 2))
 Base.eltype(block::HamiltonianBlock) = eltype(block.ham)
 function LinearAlgebra.mul!(out_Xk, block::HamiltonianBlock, in_Xk)
     return apply_hamiltonian!(out_Xk, block.ham, block.ik, block.pot_hartree_values,
                               block.pot_xc_values, in_Xk)
 end
+import Base: *, \
+*(block::HamiltonianBlock, in_Xk) = mul!(similar(in_Xk), block, in_Xk)
 struct PreconditionerBlock
     precond
     ik::Int
 end
 LinearAlgebra.ldiv!(Y, block::PreconditionerBlock, B) = ldiv!(Y, block.precond, block.ik, B)
+\(block::PreconditionerBlock, B) = ldiv!(similar(B), block, B)
 
 """
 Interpolate some data from one k-Point to another. The interpolation is fast, but not
@@ -46,24 +50,9 @@ function interpolate_at_kpoint(pw, old_ik, new_ik, data_oldk::AbstractVecOrMat)
     data_newk
 end
 
-function lobpcg_auto(ham, guess; tol=1e-6, kwargs...)
-    try
-        if tol < sqrt(eps(real(eltype(ham))))
-            # No point in trying the IterativeSolvers.jl version
-            lobpcg_qr(ham, guess; tol=tol, kwargs...)
-        else
-            lobpcg_itsolve(ham, guess; tol=tol, kwargs...)
-        end
-    catch
-        @info "Caught exception in lobpcg_auto: Fallback to QR-based algorithm."
-        lobpcg_qr(ham, guess; tol=tol, kwargs...)
-    end
-end
-
-
 @doc raw"""
     lobpcg(ham::Hamiltonian, pot_hartree_values, pot_xc_values, nev_per_kpoint::Int;
-           guess=nothing, prec=nothing, tol=1e-6, maxiter=200, backend=:lobpcg_qr,
+           guess=nothing, prec=nothing, tol=1e-6, maxiter=200, backend=:lobpcg_hyper,
            kwargs...)
 
 Run the LOBPCG implementation from `backend` for each ``k``-Point of the Hamiltonian `ham`,
@@ -77,9 +66,9 @@ earlier ``k``-Points to be used as guesses for the later ones.
 function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
                 pot_hartree_values=nothing, pot_xc_values=nothing,
                 guess=nothing, prec=nothing, tol=1e-6, maxiter=200,
-                backend=:lobpcg_auto, interpolate_kpoints=true, kwargs...)
-    if !(backend in [:lobpcg_itsolve, :lobpcg_qr, :lobpcg_scipy, :lobpcg_auto])
-        error("LOBPCG backend $(str(backend)) unknown.")
+                backend=:lobpcg_hyper, interpolate_kpoints=true, kwargs...)
+    if !(backend in [:lobpcg_itsolve, :lobpcg_scipy, :lobpcg_hyper])
+        error("LOBPCG backend $(string(backend)) unknown.")
     end
 
     T = eltype(ham)
@@ -100,9 +89,13 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
     end
     function get_guessk(::Nothing, ik)
         if ik <= 1 || !interpolate_kpoints
-            Matrix(qr(randn(real(T), length(pw.basis_wf[ik]), nev_per_kpoint)).Q)
+            # TODO The double conversion is needed due to an issue in Julia
+            #      see https://github.com/JuliaLang/julia/pull/32979
+            qrres = qr(randn(real(T), length(pw.basis_wf[ik]), nev_per_kpoint))
+            m = Matrix{T}(Matrix(qrres.Q))
         else  # Interpolate from previous k-Point
-            interpolate_at_kpoint(pw, ik - 1, ik, results[ik - 1].X)
+            X0 = interpolate_at_kpoint(pw, ik - 1, ik, results[ik - 1].X)
+            X0 = Matrix(qr(X0).Q)
         end
     end
 

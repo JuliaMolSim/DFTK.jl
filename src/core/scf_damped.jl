@@ -27,7 +27,7 @@ function scf_damped(ham::Hamiltonian, n_bands, compute_occupation, ρ;
 
         res = lobpcg(ham, n_bands, pot_hartree_values=values_hartree,
                       pot_xc_values=values_xc, guess=Psi,
-                      prec=lobpcg_prec, tol=tol / 100)
+                      prec=lobpcg_prec, tol=tol / 10)
         @assert res.converged
         Psi = res.X
         orben = res.λ
