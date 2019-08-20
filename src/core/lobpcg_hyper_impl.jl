@@ -121,13 +121,12 @@ function ortho(X, Y, BY; tol=1e-10)
 
         # If we're at a fixed point, growth_factor is 1 and if tol >
         # eps(), the loop will terminate, even if BY'Y != 0
-        growth_factor*eps() < tol && break
-
+        growth_factor*eps(real(eltype(X))) < tol && break
 
         niter > 10 && error("Ortho is failing badly, this should never happen")
         niter += 1
     end
-    vprintln(ninners) # get how many Choleskys are performed
+    vprintln("ortho choleskys: ", ninners) # get how many Choleskys are performed
 
     # @assert (norm(BY'X)) < tol
     # @assert (norm(X'X-I)) < tol
@@ -144,10 +143,11 @@ end
 
 function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100; ortho_tol=2eps(real(eltype(X))))
     N,M = size(X)
-    resids = zeros(M, maxiter)
+    resids = zeros(real(eltype(X)), M, maxiter)
     buf_X = zero(X)
     buf_P = zero(X)
 
+    X = ortho(X, tol=ortho_tol)[1]
     AX = A*X
     # full_X/AX/BX will always store the full (including locked) X.
     # X/AX/BX only point to the active part
@@ -216,6 +216,7 @@ function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100; ortho_tol=2eps(real
         for i=1:size(X,2)
             resids[i+nlocked,niter] = norm(R[:,i])
         end
+        vprintln(niter, "   ", resids[:, niter])
         R = precon\R
 
         ### Compute number of locked vectors
@@ -247,7 +248,7 @@ function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100; ortho_tol=2eps(real
             # orthogonalization, see Hetmaniuk & Lehoucq, and Duersch et. al.
             # cP = copy(cX)
             # cP[Xn_indices,:] .= 0
-            e = zeros(size(Y,2), M-prev_nlocked)
+            e = zeros(eltype(X), size(Y,2), M-prev_nlocked)
             for i in 1:length(Xn_indices)
                 e[Xn_indices[i], i] = 1
             end

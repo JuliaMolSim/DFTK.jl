@@ -95,7 +95,7 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
             m = Matrix{T}(Matrix(qrres.Q))
         else  # Interpolate from previous k-Point
             X0 = interpolate_at_kpoint(pw, ik - 1, ik, results[ik - 1].X)
-            X0 = Matrix(qr(X0).Q)
+            X0 = Matrix{T}(qr(X0).Q)
         end
     end
 
