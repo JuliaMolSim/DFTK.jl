@@ -1,3 +1,4 @@
+# TODO Merge this function with core/scf
 """
     self_consistent_field(ham::Hamiltonian, n_bands::Int, n_electrons::Int;
                           ρ=nothing, tol=1e-6, max_iter=100, algorithm=:scf_nlsolve,

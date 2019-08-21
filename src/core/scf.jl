@@ -1,11 +1,13 @@
-# gets a new density ρ by diagonalizing the Hamiltonian. If Psi is
-# provided, overwrite it with the new wavefunctions
-function new_density(ham::Hamiltonian, n_bands, compute_occupation, ρ, lobpcg_tol;
-                     lobpcg_prec=PreconditionerKinetic(ham, α=0.1), Psi=nothing)
+"""
+Obtain new density ρ by diagonalizing the Hamiltonian build from the current ρ.
+If Psi is provided, overwrite it with the new wavefunctions as well.
+"""
+function iterate_density(ham::Hamiltonian, n_bands, compute_occupation, ρ;
+                         Psi=nothing, lobpcg_kwargs...)
     pw = ham.basis
     T = real(eltype(ρ))
     # Initialize guess wavefunctions if needed
-    if Psi == nothing
+    if Psi === nothing
         Psi = [Matrix(qr(randn(Complex{T}, length(pw.basis_wf[ik]), n_bands)).Q)
                for ik in 1:length(pw.kpoints)]
     end
@@ -20,27 +22,25 @@ function new_density(ham::Hamiltonian, n_bands, compute_occupation, ρ, lobpcg_t
     Psi = [Matrix(qr(randn(Complex{T}, length(pw.basis_wf[ik]), n_bands)).Q)
            for ik in 1:length(pw.kpoints)]
 
-    res = lobpcg(ham, n_bands, pot_hartree_values=values_hartree,
-                 pot_xc_values=values_xc, guess=Psi,
-                 prec=lobpcg_prec, tol=lobpcg_tol)
+    res = lobpcg(ham, n_bands; pot_hartree_values=values_hartree,
+                 pot_xc_values=values_xc, guess=Psi, lobpcg_kwargs...)
     @assert res.converged
     Psi .= res.X
     occupation = compute_occupation(ham.basis, res.λ, res.X)
     ρ_new = compute_density(pw, res.X, occupation)
 end
 
+# TODO Merge this function with util/self_consistent_field
 # Scaling is from 0 to 1. 0 is density mixing, 1 is "potential mixing"
 # (at least, Hartree potential mixing). 1/2 results in a symmetric
 # Jacobian of the SCF mapping (when there is no exchange-correlation)
 function scf(ham::Hamiltonian, n_bands, compute_occupation, ρ, fp_solver;
              tol=1e-6, lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
-             max_iter=100, lobpcg_tol=tol / 10, den_scaling = 0.0)
+             max_iter=100, lobpcg_tol=tol / 10, den_scaling=0.0, Psi=nothing,
+             lobpcg_kwargs...)
     pw = ham.basis
     T = real(eltype(ρ))
-    Psi = [Matrix(qr(randn(Complex{T}, length(pw.basis_wf[ik]), n_bands)).Q)
-           for ik in 1:length(pw.kpoints)]
-    Gsq = vec([T(4π) * sum(abs2, pw.recip_lattice * G)
-               for G in basis_ρ(pw)])
+    Gsq = vec([T(4π) * sum(abs2, pw.recip_lattice * G) for G in basis_ρ(pw)])
     Gsq[pw.idx_DC] = 1.0 # do not touch the DC component
     den_to_mixed = Gsq.^T(-den_scaling)
     mixed_to_den = Gsq.^T(den_scaling)
@@ -61,8 +61,11 @@ function scf(ham::Hamiltonian, n_bands, compute_occupation, ρ, fp_solver;
         ρ_unfolded = vcat(ρcpx, conj(reverse(ρcpx)[2:end]))
         ρ_unfolded .* mixed_to_den
     end
-
-    fp_map(ρ) = foldρ(new_density(ham, n_bands, compute_occupation, unfoldρ(ρ), lobpcg_tol, lobpcg_prec=lobpcg_prec, Psi=Psi))
+    function fp_map(ρ)
+        foldρ(iterate_density(ham, n_bands, compute_occupation, unfoldρ(ρ);
+                              tol=lobpcg_tol, prec=lobpcg_prec, Psi=Psi,
+                              lobpcg_kwargs...))
+    end
 
     nlres = fp_solver(fp_map, foldρ(ρ), tol, max_iter)
     ρ = unfoldρ(nlres.sol)
@@ -75,7 +78,7 @@ function scf(ham::Hamiltonian, n_bands, compute_occupation, ρ, fp_solver;
     # Final LOBPCG to get eigenvalues and eigenvectors
     res = lobpcg(ham, n_bands, pot_hartree_values=values_hartree,
                  pot_xc_values=values_xc, guess=Psi,
-                 prec=lobpcg_prec, tol=lobpcg_tol)
+                 prec=lobpcg_prec, tol=lobpcg_tol, lobpcg_kwargs...)
 
     occupation = compute_occupation(ham.basis, res.λ, res.X)
     update_energies_1e!(energies, ham, ρ, res.X, occupation)
