@@ -14,7 +14,7 @@ for diagonalisation. Possible `algorithm`s are `:scf_nlsolve` or `:scf_damped`.
 function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_electrons::Int;
                                ρ=nothing, tol=1e-6, T=0, smearing=nothing,
                                lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
-                               max_iter=100, algorithm=:scf_nlsolve, damping=0.2, m=5,
+                               max_iter=100, solver=scf_nlsolve_solver(),
                                den_scaling=0.0)
     if smearing === nothing
         compute_occupation =
@@ -27,19 +27,6 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_electrons::Int;
 
     ρ === nothing && (ρ = guess_hcore(ham, n_bands, compute_occupation,
                                       lobpcg_prec=lobpcg_prec))
-    if algorithm == :scf_nlsolve
-        fp_solver = scf_nlsolve_solver(m)
-    elseif algorithm == :scf_anderson
-        fp_solver = scf_anderson_solver(m)
-    elseif algorithm == :scf_CROP
-        fp_solver = scf_CROP_solver(m)
-    elseif algorithm == :scf_damped
-        fp_solver = scf_damping_solver(damping)
-    else
-        error("Unknown algorithm " * string(algorithm))
-    end
-    res = scf(ham, n_bands, compute_occupation, ρ, fp_solver, tol=tol,
-              lobpcg_prec=lobpcg_prec, max_iter=max_iter, den_scaling=den_scaling)
-
-    res
+    scf(ham, n_bands, compute_occupation, ρ, solver, tol=tol,
+        lobpcg_prec=lobpcg_prec, max_iter=max_iter, den_scaling=den_scaling)
 end

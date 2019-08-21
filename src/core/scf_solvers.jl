@@ -26,7 +26,7 @@ end
 Create a damped SCF solver updating the density as
 `x = β * x_new + (1 - β) * x`
 """
-function scf_damping_solver(β)
+function scf_damping_solver(β=0.2)
     function fp_solver(f, x0, tol, max_iter)
         converged = false
         x = copy(x0)
@@ -93,7 +93,7 @@ function anderson(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
     end
     (sol=xs[:,1], converged=err < tol)
 end
-function scf_anderson_solver(m)
+function scf_anderson_solver(m=5)
     (f, x0, tol, max_iter) -> anderson(x -> f(x) - x, x0, m, max_iter, tol)
 end
 
@@ -155,4 +155,4 @@ function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
     end
     (sol=xs[:, 1], converged=err < tol)
 end
-scf_CROP_solver(m) = (f, x0, tol, max_iter) -> CROP(x -> f(x) - x, x0, m, max_iter, tol)
+scf_CROP_solver(m=5) = (f, x0, tol, max_iter) -> CROP(x -> f(x) - x, x0, m, max_iter, tol)
