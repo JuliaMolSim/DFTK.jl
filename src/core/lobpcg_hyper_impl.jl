@@ -20,7 +20,7 @@ end
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been
 # magnified
-function ortho(X; tol=1e-10)
+function ortho(X; tol=2eps(real(eltype(X))))
     local R
 
     # # Uncomment for "gold standard"
@@ -42,7 +42,7 @@ function ortho(X; tol=1e-10)
             vprintln("fail")
             # see https://arxiv.org/pdf/1809.11085.pdf for a nice analysis
             # We are not being very clever here; but this should very rarely happen so it should be OK
-            α = 10000
+            α = 100
             nbad = 0
             while true
                 O += α*eps(real(eltype(X)))*norm(X)^2*I
@@ -56,7 +56,7 @@ function ortho(X; tol=1e-10)
                 end
                 nbad += 1
                 if nbad > 10
-                    error("Ortho is failing badly, this should never happen")
+                    error("Cholesky shifting is failing badly, this should never happen")
                 end
             end
             success = false
@@ -83,7 +83,7 @@ function ortho(X; tol=1e-10)
         # in practice this seems to be sometimes very overconservative
         success && eps(real(eltype(X)))*condR^2 < tol && break
 
-        nchol > 10 && error("Ortho is failing badly, this should never happen")
+        nchol > 10 && error("Ortho(X) is failing badly, this should never happen")
     end
 
     # @assert norm(X'X - I) < tol
@@ -91,12 +91,23 @@ function ortho(X; tol=1e-10)
     X, nchol, growth_factor
 end
 
-# Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
-function ortho(X, Y, BY; tol=1e-10)
-    # First normalize
+# Randomize the columns of X if the norm is below tol
+function drop!(X, tol=2eps(real(eltype(X))))
+    dropped = []
     for i=1:size(X,2)
         n = norm(@views X[:,i])
-        # TODO randomize when n is exactly 0
+        if n <= tol
+            X[:,i] = randn(eltype(X), size(X,1))
+            push!(dropped, i)
+        end
+    end
+    dropped
+end
+
+# Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
+function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
+    for i=1:size(X,2)
+        n = norm(@views X[:,i])
         X[:,i] /= n
     end
 
@@ -105,6 +116,13 @@ function ortho(X, Y, BY; tol=1e-10)
     while true
         BYX = BY'X
         X = X - Y*BYX
+        # If the orthogonalization has produced results below 2eps, we drop them
+        # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
+        # as can happen in extreme cases in the ortho(cP, cX)
+        dropped = drop!(X)
+        if dropped != []
+            X[:, dropped] = X[:, dropped] - Y*BY'*X[:,dropped]
+        end
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
             break
@@ -123,7 +141,7 @@ function ortho(X, Y, BY; tol=1e-10)
         # eps(), the loop will terminate, even if BY'Y != 0
         growth_factor*eps(real(eltype(X))) < tol && break
 
-        niter > 10 && error("Ortho is failing badly, this should never happen")
+        niter > 10 && error("Ortho(X,Y) is failing badly, this should never happen")
         niter += 1
     end
     vprintln("ortho choleskys: ", ninners) # get how many Choleskys are performed
