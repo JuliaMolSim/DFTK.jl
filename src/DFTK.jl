@@ -54,8 +54,12 @@ include("core/Preconditioner.jl")
 export lobpcg
 include("core/lobpcg.jl")
 
-include("core/scf_damped.jl")
-include("core/scf_nlsolve.jl")
+export scf_nlsolve_solver
+export scf_damping_solver
+export scf_anderson_solver
+export scf_CROP_solver
+include("core/scf.jl")
+include("core/scf_solvers.jl")
 
 export energy_ewald
 include("core/energy_ewald.jl")
