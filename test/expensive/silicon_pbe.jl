@@ -1,5 +1,5 @@
 include("../silicon_runners.jl")
 
-@testset "Silicon LDA (large, Float64)" begin
-    run_silicon_lda(Float64, Ecut=25, test_tol=5e-6, n_ignored=0, grid_size=33, scf_tol=1e-7)
+@testset "Silicon PBE (large, Float64)" begin
+    run_silicon_pbe(Float64, Ecut=25, test_tol=5e-6, n_ignored=0, grid_size=33, scf_tol=1e-7)
 end
