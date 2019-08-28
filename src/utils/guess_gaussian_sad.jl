@@ -14,7 +14,7 @@ function guess_gaussian_sad(basis, composition...)
             for (spec, positions) in composition
             for r in positions
         )
-        convert(T, res)
+        convert(T, real(res))
     end
     vec(ρ) / basis.unit_cell_volume
 end
