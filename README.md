@@ -24,15 +24,17 @@ is thus limited. Current features include:
 - SCF routine based on [NLsolve.jl](https://github.com/JuliaNLSolvers/NLsolve.jl)
   and [IterativeSolvers.jl](https://github.com/JuliaMath/IterativeSolvers.jl).
 - LDA and GGA functionals from [Libxc.jl](https://github.com/unkcpz/Libxc.jl).
+- Insulators and metals (Fermi-Dirac or Methfessel-Paxton smearing)
 - Band structure generation
 - Support for both `Float64` (double precision) and `Float32` (single precision)
   throughout the library (Only for selected DFT functionals at the moment).
 
-**Note:** The code has not been properly verified against a standard DFT package
-and might contain bugs. Use for production calculations is not yet recommended.
+**Note:** This code has only been compared against standard packages
+for a small number of test cases and might still contain bugs.
+Use for production calculations is not yet recommended.
 
 ## Installation
-The package is not yet registered, so you need to install it from the github url: use
+The package is not yet registered, so you need to install it from the github url: Use
 ```
 ] add https://github.com/mfherbst/DFTK.jl.
 ```
@@ -56,6 +58,5 @@ project rather general, so that this platform could be useful for
 other research in the future.
 
 ## Contact
-Feel free to contact us (Michael F. Herbst and Antoine Levitt) directly,
-to open issues and to submit pull requests. Any contribution or
-discussion is welcome!
+Feel free to contact us (@mfherbst and @antoine-levitt) directly,
+open issues or submit pull requests. Any contribution or discussion is welcome!
