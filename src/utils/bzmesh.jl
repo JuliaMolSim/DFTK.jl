@@ -50,7 +50,7 @@ function bzmesh_ir_wedge(kgrid_size, lattice, composition...; tol_symmetry=1e-5)
     # irreducible k-Points in `kpoints` generates.
     k_all_reducible = [findall(isequal(elem), mapping) for elem in unique(mapping)]
 
-    # ksyops will be the list of symmetry operations (for each irreducible k-Point)
+    # ksymops will be the list of symmetry operations (for each irreducible k-Point)
     # needed to do the respective mapping irreducible -> reducible to get the respective
     # entry in `k_all_reducible`.
     SymOp = Tuple{Mat3{Int}, Vec3{Float64}}

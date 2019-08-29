@@ -1,0 +1,10 @@
+Goedecker pseudopotential for Si
+   14   4  070301 zatom,zion,pspdat
+10 11  1 0 2001 0  pspcod,pspxc,lmax,lloc,mmax,r2well
+     0.44000000    1    -6.26928833                                                 rloc nloc c1
+    2                                                                               nnonloc
+     0.43563383    2     8.95174150    -2.70627082                                  rs ns hs11 hs12
+                                        3.49378060                                             hs22
+     0.49794218    1     2.43127673     0.00000000                                  rp np hp11 hp12
+                                        0.00000000                                             hp22
+

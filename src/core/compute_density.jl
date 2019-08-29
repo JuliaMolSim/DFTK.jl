@@ -26,13 +26,20 @@ function compute_partial_density(pw, ik, Ψk, occupation)
     end
     Ψk_real = nothing
 
-    # Check ρk is real and positive and properly normalized
+    # Check sanity of the density (real, positive and normalized)
     T = real(eltype(ρk_real))
-    @assert maximum(imag(ρk_real)) < 100 * eps(T)
-    @assert minimum(real(ρk_real)) ≥ 0
-
+    if maximum(imag(ρk_real)) > 100 * eps(T)
+        @warn "Large norm(imag(ρ))" norm_imag=maximum(imag(ρk_real))
+    end
+    if all(occupation .> 0)
+        minimum(real(ρk_real)) < 0 && @warn("Negative ρ detected",
+                                            min_ρ=minimum(real(ρk_real)))
+    end
     n_electrons = sum(ρk_real) * pw.unit_cell_volume / prod(size(pw.FFT))
-    @assert abs(n_electrons - sum(occupation)) < sqrt(eps(T))
+    if abs(n_electrons - sum(occupation)) > sqrt(eps(T))
+        @warn("Mismatch in number of electrons", sum_ρ=n_electrons,
+              sum_occupation=sum(occupation))
+    end
 
     ρk = similar(Ψk[:, 1], prod(pw.grid_size))
     r_to_G!(pw, ρk_real, ρk)
@@ -56,9 +63,6 @@ function compute_density(pw::PlaneWaveBasis, Psi::AbstractVector, occupation::Ab
         @assert length(occupation[ik]) == size(Psi[ik], 2)
     end
     @assert n_k > 0
-
-    # TODO Not sure this is reasonable
-    @assert all(occupation[ik] == occupation[1] for ik in 1:n_k)
 
     function getindex_G(grid_size, G)  # This feels a little strange
         start = -ceil.(Int, (grid_size .- 1) ./ 2)
