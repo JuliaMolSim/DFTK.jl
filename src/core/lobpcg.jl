@@ -102,7 +102,7 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
     # Lookup "backend" symbol and use the corresponding function as run_lobpcg
     run_lobpcg = getfield(DFTK, backend)
     for ik in 1:n_kpoints
-        results[ik] = run_lobpcg(get_hamk(ik), get_guessk(guess, ik),
+        results[ik] = run_lobpcg(get_hamk(ik), get_guessk(guess, ik);
                                  prec=get_preck(prec, ik), tol=tol, maxiter=maxiter,
                                  kwargs...)
     end

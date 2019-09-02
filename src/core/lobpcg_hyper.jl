@@ -1,7 +1,7 @@
 include("lobpcg_hyper_impl.jl")
 
 function lobpcg_hyper(A, X0; maxiter=100, prec=I, tol=20size(A, 2)*eps(real(eltype(A))),
-                      largest=false, kwargs...)
+                      largest=false, n_conv_check=nothing, kwargs...)
     prec === nothing && (prec = I)
     # Tolerance for orthogonalisation in LOBPCG:
     ortho_tol = max(2eps(real(eltype(A))), tol / 1000)
@@ -13,7 +13,8 @@ function lobpcg_hyper(A, X0; maxiter=100, prec=I, tol=20size(A, 2)*eps(real(elty
     λ = real(diag(X' * AX))
     residuals = AX - X*Diagonal(λ)
     residual_norms=[norm(residuals[:, i]) for i in 1:size(residuals, 2)]
-    converged = maximum(residual_norms[1:end-1]) <= 5tol  # A little cheating
+    n_conv_check === nothing && (n_conv_check = length(residual_norms) - 1)  # Some cheating
+    converged = maximum(residual_norms[1:n_conv_check]) <= 5tol
     iterations = size(resids, 2)
 
     (λ=λ, X=X,
