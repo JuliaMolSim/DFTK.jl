@@ -159,8 +159,10 @@ end
 ### R is then recomputed, and orthonormalized explicitly wrt BX and BP
 ### We reuse applications of A/B when it is safe to do so, ie only with orthogonal transformations
 
-function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100; ortho_tol=2eps(real(eltype(X))))
+function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100; ortho_tol=2eps(real(eltype(X))),
+                n_conv_check=nothing)
     N,M = size(X)
+    n_conv_check === nothing && (n_conv_check = M)
     resids = zeros(real(eltype(X)), M, maxiter)
     buf_X = zero(X)
     buf_P = zero(X)
@@ -245,12 +247,11 @@ function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100; ortho_tol=2eps(real
                 vprintln("locked $nlocked")
             else
                 # we lock in order, assuming that the lowest
-                # eigenvectors converge first; might be tricky
-                # otherwise
+                # eigenvectors converge first; might be tricky otherwise
                 break
             end
         end
-        if nlocked == M
+        if nlocked >= n_conv_check
             X .= new_X
             # AX .= new_AX
             # BX .= new_BX

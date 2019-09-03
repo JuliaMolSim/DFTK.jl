@@ -7,7 +7,8 @@ function lobpcg_hyper(A, X0; maxiter=100, prec=I, tol=20size(A, 2)*eps(real(elty
     ortho_tol = max(2eps(real(eltype(A))), tol / 1000)
 
     @assert !largest "Only seeking the smallest eigenpairs is implemented."
-    X, resids = LOBPCG(A, X0, I, prec, tol, maxiter; ortho_tol=ortho_tol)
+    X, resids = LOBPCG(A, X0, I, prec, tol, maxiter; ortho_tol=ortho_tol,
+                       n_conv_check=n_conv_check)
 
     AX = A * X
     λ = real(diag(X' * AX))
