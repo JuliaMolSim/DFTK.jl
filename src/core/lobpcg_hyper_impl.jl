@@ -153,6 +153,14 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
 end
 
 
+function final_residnorms(A, X, resids, niter)
+    AX = A * X
+    λ = real(diag(X' * AX))
+    residuals = AX - X*Diagonal(λ)
+    λ, X, [norm(residuals[:, i]) for i in 1:size(residuals, 2)], resids[:, 1:niter]
+end
+
+
 ### The algorithm is Xn+1 = RR(hcat(Xn, A*Xn, Xn-Xn-1))
 ### We follow the strategy of Hetmaniuk and Lehoucq, and maintain a B-orthonormal basis Y = (X,R,P)
 ### After each RR step, the B-orthonormal X and P are deduced by an orthogonal rotation from Y
@@ -253,9 +261,9 @@ function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100; ortho_tol=2eps(real
         end
         if nlocked >= n_conv_check
             X .= new_X
-            # AX .= new_AX
-            # BX .= new_BX
-            return full_X, resids[:, 1:niter]
+            λ, full_X, residnorms, resids = final_residnorms(A, full_X, resids, niter)
+            @assert maximum(residnorms[1:n_conv_check]) <= tol
+            return λ, full_X, residnorms, resids
         end
         newly_locked = nlocked - prev_nlocked
         active = newly_locked+1:size(X,2) # newly active vectors
@@ -345,5 +353,5 @@ function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100; ortho_tol=2eps(real
         niter <= maxiter || break
     end
 
-    full_X, resids
+    final_residnorms(A, full_X, resids, maxiter)
 end
