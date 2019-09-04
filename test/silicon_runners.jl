@@ -52,7 +52,8 @@ function run_silicon_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf
     end
 end
 
-function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf_tol=1e-6)
+function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf_tol=1e-6,
+                         lobpcg_tol=scf_tol / 10, n_noconv_check=0)
     # These values were computed using ABINIT with the same kpoints as silicon_testcases.jl
     # and Ecut = 25
     ref_lda = [
@@ -67,6 +68,8 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     ]
     ref_etot = -7.911817522631488
     n_bands = length(ref_lda[1])
+    n_conv_check = nothing
+    n_noconv_check > 0 && (n_conv_check = n_bands - n_noconv_check)
 
     grid_size = grid_size * ones(3)
     basis = PlaneWaveBasis(Array{T}(lattice), grid_size, Ecut, kpoints, kweights, ksymops)
@@ -83,7 +86,8 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     ρ = guess_gaussian_sad(basis, Si => positions)
     prec = PreconditionerKinetic(ham, α=0.1)
     scfres = self_consistent_field(ham, n_bands, n_electrons, lobpcg_prec=prec, ρ=ρ,
-                                   tol=scf_tol)
+                                   lobpcg_tol=lobpcg_tol, tol=scf_tol,
+                                   n_conv_check=n_conv_check)
 
     for ik in 1:length(kpoints)
         @test eltype(scfres.orben[ik]) == T
