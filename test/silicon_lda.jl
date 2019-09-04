@@ -5,5 +5,5 @@ include("silicon_runners.jl")
 end
 @testset "Silicon LDA (small, Float32)" begin
     run_silicon_lda(Float32, Ecut=7, test_tol=0.03, n_ignored=1, grid_size=19, scf_tol=1e-4,
-                    lobpcg_tol=3e-5, n_noconv_check=1)
+                    lobpcg_tol=5e-5, n_noconv_check=1)
 end

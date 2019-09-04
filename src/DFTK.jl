@@ -10,6 +10,8 @@ using LinearAlgebra
 using StaticArrays
 
 # Core functionality
+include("core/asserting.jl")
+
 export Vec3
 export Mat3
 include("core/constants.jl")
