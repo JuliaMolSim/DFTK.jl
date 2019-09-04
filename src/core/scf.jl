@@ -24,7 +24,7 @@ function iterate_density(ham::Hamiltonian, n_bands, compute_occupation, ρ;
 
     res = lobpcg(ham, n_bands; pot_hartree_values=values_hartree,
                  pot_xc_values=values_xc, guess=Psi, lobpcg_kwargs...)
-    @assert res.converged
+    @assert(res.converged, "Not converged, iterations: $(res.iterations)")
     Psi .= res.X
     occupation = compute_occupation(ham.basis, res.λ, res.X)
     ρ_new = compute_density(pw, res.X, occupation)
