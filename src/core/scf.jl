@@ -76,7 +76,7 @@ function scf(ham::Hamiltonian, n_bands, compute_occupation, ρ, fp_solver;
     update_energies_potential!(energies, values_xc, ham.pot_xc, ρ)
 
     # Final LOBPCG to get eigenvalues and eigenvectors
-    res = lobpcg(ham, n_bands, pot_hartree_values=values_hartree,
+    res = lobpcg(ham, n_bands; pot_hartree_values=values_hartree,
                  pot_xc_values=values_xc, guess=Psi,
                  prec=lobpcg_prec, tol=lobpcg_tol, lobpcg_kwargs...)
 

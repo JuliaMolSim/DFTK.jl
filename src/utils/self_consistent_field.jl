@@ -15,7 +15,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_electrons::Int;
                                ρ=nothing, tol=1e-6, T=0, smearing=nothing,
                                lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
                                max_iter=100, solver=scf_nlsolve_solver(),
-                               den_scaling=0.0)
+                               den_scaling=0.0, lobpcg_kwargs...)
     if smearing === nothing
         compute_occupation =
             (basis, energies, Psi) -> occupation_step(basis, energies, Psi, n_electrons)
@@ -27,6 +27,6 @@ function self_consistent_field(ham::Hamiltonian, n_bands::Int, n_electrons::Int;
 
     ρ === nothing && (ρ = guess_hcore(ham, n_bands, compute_occupation,
                                       lobpcg_prec=lobpcg_prec))
-    scf(ham, n_bands, compute_occupation, ρ, solver, tol=tol,
-        lobpcg_prec=lobpcg_prec, max_iter=max_iter, den_scaling=den_scaling)
+    scf(ham, n_bands, compute_occupation, ρ, solver; tol=tol,
+        lobpcg_prec=lobpcg_prec, max_iter=max_iter, den_scaling=den_scaling, lobpcg_kwargs...)
 end

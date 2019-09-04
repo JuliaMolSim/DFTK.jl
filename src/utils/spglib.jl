@@ -24,5 +24,7 @@ function spglib_cell(lattice, composition...)
     # Note: In the python interface of spglib the lattice vectors
     #       are given in rows, but DFTK uses columns
     #       For future reference: The C interface spglib also uses columns.
-    (lattice', spg_positions, spg_numbers)
+    #
+    # But also: python/C are row-major and Julia column-major, so no transpose here.
+    (lattice, spg_positions, spg_numbers)
 end
