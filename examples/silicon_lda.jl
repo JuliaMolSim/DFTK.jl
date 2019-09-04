@@ -55,7 +55,8 @@ ham = Hamiltonian(basis, pot_local=build_local_potential(basis, composition...),
 # Build a guess density and run the SCF
 ρ = guess_gaussian_sad(basis, composition...)
 scfres = self_consistent_field(ham, Int(n_electrons / 2 + 2), n_electrons, ρ=ρ, tol=1e-6,
-                               lobpcg_prec=PreconditionerKinetic(ham, α=0.1))
+                               lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
+                               n_conv_check=Int(n_electrons / 2),)
 
 energies = scfres.energies
 energies[:Ewald] = energy_nuclear_ewald(basis.lattice, composition...)
