@@ -166,7 +166,7 @@ function load_DFTK_setup(T, folder)
     kpoints_new, ksymops = bzmesh_ir_wedge(kgrid_size, lattice, composition...)
     @assert kpoints_new ≈ kpoints
 
-    grid_size = determine_grid_size(lattice, Ecut; kpoints=kpoints) * ones(3)
+    grid_size = determine_grid_size(lattice, Ecut)
     basis = PlaneWaveBasis(Array{T}(lattice), grid_size, Ecut, kpoints, kweights, ksymops)
 
     # Parse functional ...

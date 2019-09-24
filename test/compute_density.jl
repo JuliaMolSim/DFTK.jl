@@ -70,7 +70,7 @@ include("silicon_testcases.jl")
         Si = Species(atnum, psp=load_psp("si-pade-q4.hgh"))
 
         kfull, sym_full = bzmesh_uniform(kgrid_size)
-        Ggrid = determine_grid_size(lattice, Ecut; kpoints=kfull) * ones(3)
+        Ggrid = determine_grid_size(lattice, Ecut)
         res = get_bands(lattice, Ggrid, kfull, sym_full,
                         Si => positions, Ecut=Ecut, tol=tol)
         basis_full, Psi_full, orben_full, ρ_full = res

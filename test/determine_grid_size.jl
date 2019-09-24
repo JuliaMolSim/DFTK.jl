@@ -1,17 +1,23 @@
 using Test
+using LinearAlgebra
 using DFTK: determine_grid_size
 
 include("silicon_testcases.jl")
 
-@testset "Test determine_grid_size" begin
-    @test determine_grid_size(lattice, 3, kpoints=kpoints, supersampling=2) == 13
-    @test determine_grid_size(lattice, 4, kpoints=kpoints, supersampling=2) == 13
-    @test determine_grid_size(lattice, 5, kpoints=kpoints, supersampling=2) == 15
-    @test determine_grid_size(lattice, 15, kpoints=kpoints, supersampling=2) == 27
-    @test determine_grid_size(lattice, 25, kpoints=kpoints, supersampling=2) == 33
-    @test determine_grid_size(lattice, 30, kpoints=kpoints, supersampling=2) == 37
+@testset "Test determine_grid_size on Silicon" begin
+    @test determine_grid_size(lattice, 3, supersampling=2) == [15, 15, 15]
+    @test determine_grid_size(lattice, 4, supersampling=2) == [15, 15, 15]
+    @test determine_grid_size(lattice, 5, supersampling=2) == [18, 18, 18]
+    @test determine_grid_size(lattice, 15, supersampling=2) == [27, 27, 27]
+    @test determine_grid_size(lattice, 25, supersampling=2) == [36, 36, 36]
+    @test determine_grid_size(lattice, 30, supersampling=2) == [40, 40, 40]
 
+    @test determine_grid_size(lattice, 30) == [40, 40, 40]
+    @test determine_grid_size(lattice, 30, supersampling=1.8) == [36, 36, 36]
+end
 
-    @test determine_grid_size(lattice, 30) == 35
-    @test determine_grid_size(lattice, 30, kpoints=kpoints, supersampling=1.8) == 33
+@testset "Test determine_grid_size on skewed lattice" begin
+    lattice = Diagonal([1, 1e-12, 1e-12])
+    @test determine_grid_size(lattice, 15, supersampling=2) == [5, 1, 1]
+    @test determine_grid_size(lattice, 300, supersampling=2) == [18, 1, 1]
 end

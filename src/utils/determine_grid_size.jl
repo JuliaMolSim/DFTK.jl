@@ -1,54 +1,25 @@
 @doc raw"""
-    determine_grid_size(lattice, Ecut; kpoints=[[0,0,0]], supersampling=2)
+    determine_grid_size(lattice, Ecut; supersampling=2)
 
-Determine the minimal grid size for the density fourier grid ``B_ρ`` subject to the
+Determine the minimal grid size for the fourier grid ``C_ρ`` subject to the
 kinetic energy cutoff `Ecut` for the wave function and a density  `supersampling` factor.
-
-The function will determine the union of wave vectors ``G`` required to satisfy
-``|G + k|^2/2 \leq E_\text{cut} ⋅ \text{supersampling}^2`` for all ``k``-Points. The
-returned grid dimensions are the smallest cartesian box to incorporate these ``G``.
-`kpoints` should be specified in fractional coordinates.
-
+Optimise the grid afterwards for the FFT procedure by ensuring factorisation into
+small primes.
+The function will determine the smallest cube ``C_ρ`` containing the basis ``B_ρ``,
+i.e. the wave vectors ``|G|^2/2 \leq E_\text{cut} ⋅ \text{supersampling}^2``.
 For an exact representation of the density resulting from wave functions
-represented in the basis ``B_ρ = \{G : |G + k|^2/2 \leq Ecut\}``, `supersampling`
-should be at least `2`.
+represented in the basis ``B_k = \{G : |G + k|^2/2 \leq E_\text{cut}\}``,
+`supersampling` should be at least `2`.
 """
-function determine_grid_size(lattice::AbstractMatrix, Ecut; kpoints=[[0, 0, 0]],
-                             supersampling=2)
-    # Lattice and reciprocal lattice
-    lattice = SMatrix{3, 3}(lattice)
-    recip_lattice = 2π * inv(Matrix(lattice'))
-    kcart = [recip_lattice * k for k in kpoints]
+function determine_grid_size(lattice::AbstractMatrix, Ecut; supersampling=2, tol=1e-8)
+    # See the documentation about the grids for details on the construction of C_ρ
+    cutoff_Gsq = 2 * supersampling^2 * Ecut
+    fft_size = [norm(lattice[:, i]) / 2π * sqrt(cutoff_Gsq) for i in 1:3]
 
-    cutoff_qsq = 2 * supersampling^2 * Ecut
-    # For a particular k-Point (in cartesian coordinates), the integer coordinates
-    # [m n o] of the complementary reciprocal lattice vectors B satisfy
-    #     |B * [m n o] + k|^2 ≤ cutoff_qsq
-    # Now
-    #     |B * [m n o] + k| ≥ abs(|B * [m n o]| - |k|) = |B * [m n o]| - |k|
-    # provided that |k| ≤ |B|, which is typically the case. Therefore
-    #     |[m n o]| / |B^{-1}| ≤ |B * [m n o]| ≤ sqrt(cutoff_qsq) + |k|
-    # (where |B^{-1}| is the operator norm of the inverse of B), such that
-    #     |[m n o]| ≤ (sqrt(cutoff_qsq) + |k|) * |B^{-1}|
-    # In the extremal case, m = o = 0, such that
-    #    n_max_trial = (sqrt(cutoff_qsq) + |k|) * |B^{-1}|
-    #                = (sqrt(cutoff_qsq) + |k|) * |A| / 2π
+    # Convert fft_size into integers by rounding up unless the value is only
+    # `tol` larger than an actual integer.
+    fft_size = ceil.(Int, fft_size .- tol)
 
-    # Estimate trial upper bound n_max
-    max_k = maximum(norm.(kcart))
-    @assert max_k ≤ opnorm(recip_lattice)
-    trial_n_max = ceil(Int, (max_k + sqrt(cutoff_qsq)) * opnorm(lattice) / 2π)
-
-    # Determine actual n_max (trial_n_max is extended by 1 for safety)
-    trial_n_range = -trial_n_max-1:trial_n_max+1
-    n_max = 0
-    for coord in CartesianIndices((trial_n_range, trial_n_range, trial_n_range))
-        # TODO There certainly are more clever ways to do this than a triple loop ...
-        energy(q) = sum(abs2, recip_lattice * q) / 2
-        if any(energy([coord.I...] + k) ≤ supersampling^2 * Ecut for k in kcart)
-            @assert all(abs.([coord.I...]) .<= trial_n_max)
-            n_max = max(n_max, maximum(abs.([coord.I...])))
-        end
-    end
-    return 2 * n_max + 1
+    # Optimise FFT grid size: Make sure the number factorises in small primes only
+    return Vec3([nextprod([2, 3, 5], 2 * gs + 1) for gs in fft_size])
 end
