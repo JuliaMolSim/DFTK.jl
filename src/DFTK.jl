@@ -14,7 +14,7 @@ include("core/asserting.jl")
 
 export Vec3
 export Mat3
-include("core/constants.jl")
+include("core/types.jl")
 
 export Model
 export PlaneWaveModel
@@ -23,11 +23,7 @@ export Kpoint
 include("core/Model.jl")
 include("core/PlaneWaveModel.jl")
 
-# export PlaneWaveBasis
-# export set_kpoints!
-# export basis_ρ
 # export PotLocal
-# include("core/PlaneWaveBasis.jl")
 # include("core/PotLocal.jl")
 #
 # export Kinetic
