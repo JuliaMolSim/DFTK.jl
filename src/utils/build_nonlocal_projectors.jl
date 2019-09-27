@@ -44,6 +44,7 @@ function build_nonlocal_projectors(basis::PlaneWaveBasis, psp_or_composition...)
     # Compute n_proj
     n_proj = 0
     for (psp, positions) in potentials
+        psp.lmax < 0 && continue  # No non-local projectors
         n_proj_psp = sum(size(psp.h[l + 1], 1) * (2l + 1) for l in 0:psp.lmax)
         n_proj += length(positions) * n_proj_psp
     end
