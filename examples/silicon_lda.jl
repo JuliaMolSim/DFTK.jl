@@ -1,6 +1,5 @@
 using PyCall
 using DFTK
-using Libxc: Functional
 using Printf
 mg = pyimport("pymatgen")
 symmetry = pyimport("pymatgen.symmetry")
@@ -66,7 +65,6 @@ for key in sort([keys(energies)...]; by=S -> string(S))
     @printf "    %-20s%-10.7f\n" string(key) energies[key]
 end
 @printf "\n    %-20s%-15.12f\n\n" "total" sum(values(energies))
-
 
 # TODO Some routine to compute this properly
 efermi = 0.5
