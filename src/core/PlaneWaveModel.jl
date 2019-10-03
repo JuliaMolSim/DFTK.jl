@@ -5,7 +5,7 @@ using FFTW
 
 struct Kpoint{T <: Real}
     spin::Symbol              # :up or :down
-    coordinate::Vector{T}     # Fractional coordinate of k-Point
+    coordinate::Vec3{T}       # Fractional coordinate of k-Point
     mapping::Vector{Int}      # Index of basis[i] on FFT grid
     basis::Vector{Vec3{Int}}  # Wave vectors in integer coordinates
 end
@@ -18,8 +18,8 @@ struct PlaneWaveModel{T <: Real, TopFFT, TipFFT}
     kweights::Vector{T}       # Brillouin zone integration weights
     ksymops::Vector{Vector{Tuple{Mat3{Int}, Vec3{T}}}}  # Symmetry operations per k-Point
 
-    # Plans for forward and backward FFT on B_ρ
-    fft_size::Tuple{Int, Int, Int}  # Using tuple here, since Vec3 splicing is slow
+    # Plans for forward and backward FFT on C_ρ
+    fft_size::Tuple{Int, Int, Int}  # Using tuple here, since Vec3 splatting is slow
     opFFT::TopFFT  # out-of-place FFT
     ipFFT::TipFFT  # in-place FFT
 end

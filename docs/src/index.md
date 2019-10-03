@@ -162,3 +162,27 @@ load_psp
 guess_gaussian_sad
 guess_hcore
 ```
+
+
+## Definition of builder functions
+```
+Definition of builder functions
+   builder(basis::PlaneWaveModel, energy::Ref, potential; ρ=nothing, Ψ=nothing, kwargs...)
+       energy       nothing or reference
+       potential    nothing or Array or data structure
+
+   energy !== nothing
+       Reference updates with new energy value
+   potential !== nothing
+       Potential array update with new potential values
+       or data structure to use for updating potential data
+   energy !== nothing and potential !== nothing
+       compute potential values and energies and return energy, potential
+       May reuse the storage of the `potential` object
+
+Note: - It is *not* required nor guaranteed that the returned `potential` is an array.
+        E.g. for the non-local pseudopotential term it will be a PotNonLocal datastructure.
+        The returned energy value, however, is always a scalar.
+      - The arguments `ρ` or `Ψ` are not required for calling the function, but the
+        function might throw if they are for the requested computations.
+```

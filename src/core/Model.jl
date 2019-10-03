@@ -22,24 +22,28 @@ struct Model{T <: Real}
     smearing
 
     # Potential definitions and builders
-    pot_local
-    pot_nonlocal
-    pot_hartree
-    pot_xc
+    build_external  # External potential, e.g. local pseudopotential term
+    build_nonlocal  # Non-local potential, e.g. non-local pseudopotential projectors
+    build_hartree
+    build_xc
 end
 
 
 """
 TODO docme
 """
-function Model(lattice::AbstractMatrix{T}, n_electrons;
-               pot_local=nothing, pot_nonlocal=nothing, pot_hartree=nothing, pot_xc=nothing,
-               temperature=0.0, smearing=nothing, spin_polarisation=:none) where {T <: Real}
+function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
+               nonlocal=nothing, hartree=nothing, xc=nothing, temperature=0.0,
+               smearing=nothing, spin_polarisation=:none) where {T <: Real}
     lattice = SMatrix{3, 3, T, 9}(lattice)
     recip_lattice = 2π * inv(lattice')
+    @assert spin_polarisation in (:none, :collinear, :full)
 
-    @assert spin_polarisation in [:none, :collinear, :full]
+    build_nothing(args...; kwargs...) = nothing   # Function always returning nothing
     Model{T}(lattice, recip_lattice, det(lattice), det(recip_lattice), n_electrons,
-             spin_polarisation, T(temperature), smearing, pot_local, pot_nonlocal,
-             pot_hartree, pot_xc)
+             spin_polarisation, T(temperature), smearing,
+             something(ext, build_nothing), something(nonlocal, build_nothing),
+             something(hartree, build_nothing), something(xc, build_nothing))
 end
+
+# TODO wrapper functions to make "standard models" like DFT with arbitrary xc or so
