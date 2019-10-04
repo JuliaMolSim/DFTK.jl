@@ -1,7 +1,7 @@
 # Functions returning appropriate builders for the external potential
 
 """
-    build_local_potential(pw::PlaneWaveBasis, generators_or_composition...;
+    build_local_potential(pw::PlaneWaveModel, generators_or_composition...;
                           compensating_background=true)
 
 Function generating a local potential on the real-space density grid ``B^∗_ρ``
@@ -39,29 +39,29 @@ since sodium has nuclear charge 11.
 ```
 """
 function term_external(generators_or_composition...; compensating_background=true)
-    make_generator(elem::Function) = elem
-    function make_generator(elem::Species)
-        if elem.psp === nothing
-            # All-electron => Use default Coulomb potential
-            return G -> -charge_nuclear(elem) / sum(abs2, pw.recip_lattice * G)
-        else
-            # Use local part of pseudopotential defined in Species object
-            return G -> eval_psp_local_fourier(elem.psp, pw.recip_lattice * G)
-        end
-    end
-    genfunctions = [make_generator(elem) => positions
-                    for (elem, positions) in generators_or_composition]
-
     function inner(basis::PlaneWaveModel{T}, energy, potential; kwargs...) where T
         model = basis.model
+
+        make_generator(elem::Function) = elem
+        function make_generator(elem::Species)
+            if elem.psp === nothing
+                # All-electron => Use default Coulomb potential
+                return G -> -charge_nuclear(elem) / sum(abs2, model.recip_lattice * G)
+            else
+                # Use local part of pseudopotential defined in Species object
+                return G -> eval_psp_local_fourier(elem.psp, model.recip_lattice * G)
+            end
+        end
+        genfunctions = [make_generator(elem) => positions
+                        for (elem, positions) in generators_or_composition]
 
         @assert energy === nothing "Energy computation not yet implemented"
         @assert potential !== nothing "Potential currently needed"
 
         # Get the values in the plane-wave basis set (Fourier space)
-        values_fourier = map(basis_ρ(basis)) do G
+        values_fourier = map(basis_Cρ(basis)) do G
             sum(
-                4π / pw.unit_cell_volume  # Prefactor spherical Hankel transform
+                4π / model.unit_cell_volume  # Prefactor spherical Hankel transform
                 * genfunction(G)          # Potential data for wave vector G
                 * cis(2π * dot(G, r))     # Structure factor
                 for (genfunction, positions) in genfunctions

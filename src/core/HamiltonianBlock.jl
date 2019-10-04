@@ -1,4 +1,3 @@
-include("Hamiltonian.jl")
 # Data structures for representing a k-Point block of a one-particle Hamiltonian
 
 struct HamiltonianBlock
@@ -14,7 +13,7 @@ end
 # Matrix-like interface for solvers
 import Base: *, \, Matrix, Array
 
-function Basis.size(block::HamiltonianBlock, idx::Int)
+function Base.size(block::HamiltonianBlock, idx::Int)
     idx > 2 || return 1
     return length(values_kinetic)
 end
@@ -50,7 +49,7 @@ function LinearAlgebra.mul!(Y, block::HamiltonianBlock, X)
     else
         Y .= kin * X .+ fft!(Y, Vloc .* ifft(X))
     end
-    Vnloc !== nothing && Y .+= Vnloc * X
+    Vnloc !== nothing && (Y .+= Vnloc * X)
     Y
 end
 

@@ -7,7 +7,6 @@ module DFTK
 using Printf
 using Markdown
 using LinearAlgebra
-using StaticArrays
 
 # Core functionality
 include("core/asserting.jl")
@@ -24,11 +23,12 @@ export Kpoint
 include("core/Model.jl")
 include("core/PlaneWaveModel.jl")
 
-# export PotLocal
-# include("core/PotLocal.jl")
-#
-# export Kinetic
-# include("core/Kinetic.jl")
+export Species
+export charge_nuclear
+export charge_ionic
+export n_elec_valence
+export n_elec_core
+include("core/Species.jl")
 
 export PspHgh
 export eval_psp_local_fourier
@@ -36,23 +36,29 @@ export eval_psp_local_real
 export eval_psp_projection_radial
 include("core/PspHgh.jl")
 
+export term_external
+export term_hartree
+export term_nonlocal
+export term_xc
+include("core/Kinetic.jl")
+include("core/PotNonLocal.jl")
+include("core/term_external.jl")
+include("core/term_hartree.jl")
+include("core/term_nonlocal.jl")
+include("core/term_xc.jl")
+
+export Hamiltonian
+export HamiltonianBlock
+export build_hamiltonian
+export build_hamiltonian!
+export kblock
+include("core/Hamiltonian.jl")
+include("core/HamiltonianBlock.jl")
+
 # include("core/occupation.jl")
 #
 # export compute_density
 # include("core/compute_density.jl")
-#
-# export PotHartree
-# include("core/PotHartree.jl")
-#
-# export PotNonLocal
-# include("core/PotNonLocal.jl")
-#
-# export PotXc
-# include("core/PotXc.jl")
-#
-# export Hamiltonian
-# export apply_hamiltonian!
-# include("core/Hamiltonian.jl")
 #
 # export PreconditionerKinetic
 # include("core/Preconditioner.jl")
@@ -72,13 +78,6 @@ include("core/energy_ewald.jl")
 
 # Utilities
 
-export Species
-export charge_nuclear
-export charge_ionic
-export n_elec_valence
-export n_elec_core
-include("utils/Species.jl")
-
 export bzmesh_uniform
 export bzmesh_ir_wedge
 include("utils/bzmesh.jl")
@@ -91,12 +90,9 @@ export determine_grid_size
 # export kblock_as_matrix
 export load_psp
 # export self_consistent_field
-# include("utils/build_local_potential.jl")
-# include("utils/build_nonlocal_projectors.jl")
 include("utils/determine_grid_size.jl")
 # include("utils/guess_gaussian_sad.jl")
 # include("utils/guess_hcore.jl")
-# include("utils/kblock_as_matrix.jl")
 # include("utils/self_consistent_field.jl")
 include("utils/load_psp.jl")
 

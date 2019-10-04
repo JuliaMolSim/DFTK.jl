@@ -1,5 +1,3 @@
-include("PlaneWaveModel.jl")
-
 # Data structures for representing the kinetic operator in a particular basis
 # and functionality to represent a k-Point block of it
 

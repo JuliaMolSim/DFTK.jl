@@ -1,14 +1,13 @@
 # Data structures for representing the non-local potential in
 # Kleinman-Bylander form and functionality to represent a k-Point block of it
 
-include("PlaneWaveModel.jl")
 using Memoize
 
 """
 Structure containing a non-local potential in the Kleinman-Bylander form of projectors.
 """
 struct PotNonLocal
-    basis::PlaneWaveBasis
+    basis::PlaneWaveModel
 
     # n_proj = ∑_atom ∑_l n_proj_per_l_for_atom * (2l + 1)
     # Projection coefficients and builder for projection vectors
@@ -19,18 +18,8 @@ struct PotNonLocal
 end
 
 
-"""
-build_projection_vectors is expected to be a Function of the signature
-(PlaneWaveBasis, Kpoint) -> (Matrix)
-"""
-function PotNonLocal(basis, proj_coeffs, build_projection_vectors)
-    @memoize build_projectors_cached(basis, kpt) = build_projection_vectors(basis, kpt)
-    PotNonLocal(basis, proj_coeffs, kpt -> build_projectors_cached(basis, kpt))
-end
-
-
 struct PotNonLocalBlock
-    basis::PlaneWaveBasis
+    basis::PlaneWaveModel
     kpt::Kpoint
 
     # Projection vectors and coefficients for this basis and k-Point

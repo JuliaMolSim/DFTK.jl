@@ -1,4 +1,3 @@
-include("PlaneWaveModel.jl")
 include("xc_evaluate.jl")
 
 # Functionality for building the XC potential term and constructing the builder itself.
@@ -70,8 +69,8 @@ struct TermXc
     supersampling::Int  # Supersampling for the XC grid
 end
 
-function (term::Xc)(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, potential; ρ=nothing,
-                    kwargs...)
+function (term::TermXc)(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, potential;
+                        ρ=nothing, kwargs...)
 
     # TODO This function is pretty messy ... any ideas for cleanup welcome
 

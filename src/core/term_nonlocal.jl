@@ -1,4 +1,4 @@
-include("PotNonLocal.jl")
+using Memoize
 
 # Functionality for building the non-local potential term
 # and constructing the builder itself.
@@ -68,8 +68,9 @@ function term_nonlocal(psps_or_composition...)
         proj_coeffs
     end
 
-    function build_projection_vectors(basis::PlaneWaveModel{T}, kpt::Kpoint) where T
+    @memoize function build_projection_vectors(basis::PlaneWaveModel, kpt::Kpoint)
         model = basis.model
+        T = eltype(basis.kpoints[1])
 
         proj_vectors = zeros(Complex{T}, length(kpt.basis), n_proj)
         qs = [model.recip_lattice * (kpt.coordinate + G) for G in kpt.basis]
@@ -101,7 +102,8 @@ function term_nonlocal(psps_or_composition...)
     function inner(basis::PlaneWaveModel, energy, potential; kwargs...)
         @assert energy === nothing "Energy computation not yet implemented"
         potential === nothing && return energy, nothing
-        energy, PotNonLocal(basis, build_proj_coeffs(basis), build_projection_vectors)
+        energy, PotNonLocal(basis, build_proj_coeffs(basis),
+                            kpt -> build_projection_vectors(basis, kpt))
     end
     inner
 end

@@ -1,5 +1,3 @@
-include("types.jl")
-
 # Contains the physical specification of the model
 
 # spin_polarisation values:
@@ -39,10 +37,10 @@ function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
     recip_lattice = 2π * inv(lattice')
     @assert spin_polarisation in (:none, :collinear, :full)
 
-    build_nothing(args...; kwargs...) = nothing   # Function always returning nothing
+    build_nothing(args...; kwargs...) = (nothing, nothing)
     Model{T}(lattice, recip_lattice, det(lattice), det(recip_lattice), n_electrons,
              spin_polarisation, T(temperature), smearing,
-             something(ext, build_nothing), something(nonlocal, build_nothing),
+             something(external, build_nothing), something(nonlocal, build_nothing),
              something(hartree, build_nothing), something(xc, build_nothing))
 end
 

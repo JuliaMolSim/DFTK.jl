@@ -1,6 +1,5 @@
 # Contains the numerical specification of the model
 
-include("Model.jl")
 using FFTW
 
 struct Kpoint{T <: Real}
@@ -128,7 +127,7 @@ end
 AbstractFFTGrid = Union{AbstractArray{T, 4}, AbstractArray{T, 3}} where T
 
 @doc raw"""
-    G_to_r!(f_real, pw::PlaneWaveBasis, [kpt::Kpoint, ], f_fourier)
+    G_to_r!(f_real, pw::PlaneWaveModel, [kpt::Kpoint, ], f_fourier)
 
 Perform an iFFT to translate between `f_fourier`, a fourier representation
 of a function either on ``B_k`` (if `kpt` is given) or on ``C_ρ`` (if not),

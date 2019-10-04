@@ -22,24 +22,24 @@ A = mg.ArrayWithUnit(a / 2 .* [[0 1 1.];
                                [1 0 1.];
                                [1 1 0.]], "bohr")
 lattice = mg.lattice.Lattice(A)
-recip_lattice = lattice.reciprocal_lattice
 structure = mg.Structure(lattice, ["Si", "Si"], [ones(3)/8, -ones(3)/8])
 
 #
-# Basis and Hamiltonian in DFTK
+# Model and basis setup in DFTK
 #
-# Get k-Point mesh for Brillouin-zone integration
+n_electrons = 8
+model = Model(A', n_electrons)  # free-electron model
+
+# Setup basis (with uniform k-Point mesh)
 kpoints, ksymops = bzmesh_uniform(kgrid)
-kweights = [length(symops) for symops in ksymops]
-kweights = kweights / sum(kweights)
+kweights = ones(length(kpoints)) / length(kpoints)
+fft_size = determine_grid_size(A', Ecut)
+basis = PlaneWaveModel(model, fft_size, Ecut, kpoints, kweights, ksymops)
 
-# Construct basis: transpose is required, since pymatgen uses rows for the
-# lattice vectors and DFTK uses columns
-grid_size = DFTK.determine_grid_size(A', Ecut, kpoints=kpoints) * ones(Int, 3)
-basis = PlaneWaveBasis(A', grid_size, Ecut, kpoints, kweights, ksymops)
-
-# Construct a free-electron Hamiltonian
 ham = Hamiltonian(basis)
+
+STOP
+
 
 #
 # Band structure calculation in DFTK
@@ -80,7 +80,7 @@ end
 
 efermi = 0.5  # Just an invented number
 bs = elec_structure.bandstructure.BandStructureSymmLine(
-    kpoints, eigenvals, recip_lattice, efermi,
+    kpoints, eigenvals, lattice.recip_lattice, efermi,
     labels_dict=labels_dict, coords_are_cartesian=true
 )
 

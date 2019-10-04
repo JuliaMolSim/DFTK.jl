@@ -1,5 +1,3 @@
-include("PlaneWaveModel.jl")
-
 # Functionality for building the Hartree potential term
 
 """
