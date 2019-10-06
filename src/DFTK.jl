@@ -59,13 +59,13 @@ include("core/HamiltonianBlock.jl")
 #
 # export compute_density
 # include("core/compute_density.jl")
-#
-# export PreconditionerKinetic
-# include("core/Preconditioner.jl")
-#
-# export lobpcg
-# include("core/lobpcg.jl")
-#
+
+export PreconditionerKinetic
+include("core/Preconditioner.jl")
+
+export lobpcg
+include("core/lobpcg.jl")
+
 # export scf_nlsolve_solver
 # export scf_damping_solver
 # export scf_anderson_solver
@@ -82,14 +82,11 @@ export bzmesh_uniform
 export bzmesh_ir_wedge
 include("utils/bzmesh.jl")
 
-# export build_local_potential
-# export build_nonlocal_projectors
 export determine_grid_size
 # export guess_gaussian_sad
 # export guess_hcore
-# export kblock_as_matrix
-export load_psp
 # export self_consistent_field
+export load_psp
 include("utils/determine_grid_size.jl")
 # include("utils/guess_gaussian_sad.jl")
 # include("utils/guess_hcore.jl")
@@ -99,5 +96,8 @@ include("utils/load_psp.jl")
 # export energy_nuclear_psp_correction
 # export energy_nuclear_ewald
 # include("utils/energy_nuclear.jl")
+
+export compute_bands
+include("utils/compute_bands.jl")
 
 end # module DFTK

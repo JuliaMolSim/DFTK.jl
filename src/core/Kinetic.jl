@@ -19,7 +19,7 @@ function kblock(kin::Kinetic, kpt::Kpoint)
     # TODO For spin_polarisation == :full we need to double
     #      the vector (2 full spin components)
 
-    T = eltype(basis)
+    T = eltype(basis.kpoints[1].coordinate)
     Diagonal(Vector{T}([sum(abs2, model.recip_lattice * (G + kpt.coordinate))
                         for G in kpt.basis] ./ 2))
 end

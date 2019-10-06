@@ -14,6 +14,11 @@ struct Hamiltonian
     pot_nonlocal           # Discretized non-local operator, e.g. non-local PSP projectors
 end
 
+
+# TODO Think about a better mechanism here
+import Base: eltype
+eltype(ham::Hamiltonian) = Complex{eltype(ham.basis.kpoints[1].coordinate)}
+
 """
 Initialise a one-particle Hamiltonian from a model and optionally a density.
 """

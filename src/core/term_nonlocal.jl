@@ -70,7 +70,7 @@ function term_nonlocal(psps_or_composition...)
 
     @memoize function build_projection_vectors(basis::PlaneWaveModel, kpt::Kpoint)
         model = basis.model
-        T = eltype(basis.kpoints[1])
+        T = eltype(basis.kpoints[1].coordinate)
 
         proj_vectors = zeros(Complex{T}, length(kpt.basis), n_proj)
         qs = [model.recip_lattice * (kpt.coordinate + G) for G in kpt.basis]

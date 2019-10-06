@@ -59,7 +59,7 @@ Generate one k-Point block of a Hamiltonian, can be used as a matrix
 """
 function HamiltonianBlock(ham::Hamiltonian, kpt::Kpoint)
     HamiltonianBlock(ham.basis, kpt, kblock(ham.kinetic, kpt),
-                     ham.values_local, kblock(ham.pot_nonlocal, kpt))
+                     ham.pot_local, kblock(ham.pot_nonlocal, kpt))
 end
 
 """

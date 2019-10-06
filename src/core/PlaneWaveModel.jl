@@ -23,6 +23,32 @@ struct PlaneWaveModel{T <: Real, TopFFT, TipFFT}
     ipFFT::TipFFT  # in-place FFT
 end
 
+"""
+TODO docme
+"""
+function build_kpoints(basis::PlaneWaveModel{T}, kcoords; Ecut=basis.Ecut) where T
+    model = basis.model
+
+    model.spin_polarisation in [:none, :collinear] || (
+        error("$(model.spin_polarisation) not implemented"))
+    spin = [:undefined]
+    if model.spin_polarisation == :collinear
+        spin = [:up, :down]
+    end
+
+    kpoints = Vector{Kpoint{T}}()
+    for k in kcoords
+        energy(q) = sum(abs2, model.recip_lattice * q) / 2
+        pairs = [(i, G) for (i, G) in enumerate(basis_Cρ(basis)) if energy(k + G) ≤ Ecut]
+
+        for σ in spin
+            push!(kpoints, Kpoint{T}(σ, k, first.(pairs), last.(pairs)))
+        end
+    end
+
+    kpoints
+end
+
 
 """
 TODO docme
@@ -85,25 +111,8 @@ function PlaneWaveModel(pw::PlaneWaveModel{T, TopFFT, TipFFT}, kcoords;
     @assert(Ecut ≤ max_E, "Ecut should be less than the maximal kinetic energy " *
             "the grid supports (== $max_E)")
 
-    pw.model.spin_polarisation in [:none, :collinear] || (
-        error("$(pw.model.spin_polarisation) not implemented"))
-    spin = [:undefined]
-    if pw.model.spin_polarisation == :collinear
-        spin = [:up, :down]
-    end
-
-    kpoints = Vector{Kpoint{T}}()
-    for k in kcoords
-        energy(q) = sum(abs2, recip_lattice * q) / 2
-        pairs = [(i, G) for (i, G) in enumerate(basis_Cρ(pw)) if energy(k + G) ≤ Ecut]
-
-        for σ in spin
-            push!(kpoints, Kpoint{T}(σ, k, first.(pairs), last.(pairs)))
-        end
-    end
-
-    PlaneWaveModel{T, TopFFT, TipFFT}(pw.model, Ecut, kpoints, kweights, ksymops,
-                                      pw.fft_size, pw.opFFT, pw.ipFFT)
+    PlaneWaveModel{T, TopFFT, TipFFT}(pw.model, Ecut, build_kpoints(pw, kcoords; Ecut=Ecut),
+                                      kweights, ksymops, pw.fft_size, pw.opFFT, pw.ipFFT)
 end
 
 
