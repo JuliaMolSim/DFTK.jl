@@ -93,9 +93,9 @@ include("utils/determine_grid_size.jl")
 # include("utils/self_consistent_field.jl")
 include("utils/load_psp.jl")
 
-# export energy_nuclear_psp_correction
-# export energy_nuclear_ewald
-# include("utils/energy_nuclear.jl")
+export energy_nuclear_psp_correction
+export energy_nuclear_ewald
+include("utils/energy_nuclear.jl")
 
 export compute_bands
 include("utils/compute_bands.jl")
