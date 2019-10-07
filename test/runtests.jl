@@ -12,9 +12,9 @@ include("bzmesh.jl")
 # Test for term_xc
 include("term_external.jl")
 # include("build_nonlocal_projectors.jl")
-#
+
 include("lobpcg.jl")
-# include("xc_fallback.jl")
+include("xc_fallback.jl")
 
 include("energy_ewald.jl")
 include("energy_nuclear.jl")
