@@ -7,7 +7,6 @@ include("./testcases.jl")
     # Construct a free-electron Hamiltonian
     Ecut = 5
     fft_size = [15, 15, 15]
-
     model = Model(silicon.lattice, silicon.n_electrons)  # free-electron model
     basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights,
                            silicon.ksymops)

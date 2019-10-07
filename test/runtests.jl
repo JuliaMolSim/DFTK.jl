@@ -8,7 +8,9 @@ include("PspHgh.jl")
 include("Species.jl")
 include("bzmesh.jl")
 
-# include("build_local_potential.jl")
+# Test for term_hartree
+# Test for term_xc
+include("term_external.jl")
 # include("build_nonlocal_projectors.jl")
 #
 include("lobpcg.jl")
