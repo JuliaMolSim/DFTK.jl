@@ -1,28 +1,35 @@
 using Test
-using DFTK: PlaneWaveBasis, build_nonlocal_projectors, apply_fourier!, load_psp, Species
+using DFTK: Model, PlaneWaveModel, r_to_G, load_psp, Species, term_nonlocal, kblock
 
-include("silicon_testcases.jl")
+include("testcases.jl")
 
-
-@testset "build_nonlocal_projectors" begin
+@testset "term_nonlocal" begin
     Ecut = 2
-    grid_size = [9, 9, 9]
-    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights, ksymops)
+    fft_size = [9, 9, 9]
+    model = Model(silicon.lattice, silicon.n_electrons)
+    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
+    function build_nonlocal(composition...)
+        _, pot = term_nonlocal(composition...)(basis, nothing, zeros(basis.fft_size))
+        pot
+    end
 
     psp = load_psp("Si-lda-q4.hgh")
-    potnl = build_nonlocal_projectors(pw, psp => positions)
-
+    potnl = build_nonlocal(psp => silicon.positions)
     @testset "Agreement of psp and species construction" begin
-        silicon = Species(14, psp=psp)
-        potnl2 = build_nonlocal_projectors(pw, silicon => positions)
+        Si = Species(14, psp=psp)
+        potnl2 = build_nonlocal(Si => silicon.positions)
 
-        @test potnl.proj_vectors ≈ potnl2.proj_vectors
-        @test potnl.proj_coeffs ≈ potnl2.proj_coeffs
+        for kpt in basis.kpoints
+            potblock = kblock(potnl, kpt)
+            potblock2 = kblock(potnl2, kpt)
+            @test potblock.proj_coeffs ≈ potblock2.proj_coeffs
+            @test potblock.proj_vectors ≈ potblock2.proj_vectors
+        end
     end
 
     @testset "Dummy application test for ik == 3" begin
         ik = 3
-        in = [
+        indata = [
               -0.8549534855488266 - 0.6754549998607065im,
               0.08443727988059929 - 0.9179821254886141im,
               -0.6692401238573114 - 0.46622195170365105im,
@@ -105,13 +112,14 @@ include("silicon_testcases.jl")
              -0.12232790825818542 - 0.10249524950193939im,
               0.40179339390767305 + 0.22702804471387822im,
         ]
-        out = apply_fourier!(similar(in), potnl, ik, in)
+        out = kblock(potnl, basis.kpoints[ik]) * indata
+        @test abs.(ref) ≈ abs.(out)
         @test ref ≈ out
     end
 
     @testset "Dummy application test for ik == 1" begin
         ik = 1
-        in = [
+        indata = [
                0.7017297388223512 - 0.7826070022669703im  ,
               0.06339594485076916 - 0.5929467146496347im  ,
                0.3032766467183882 + 0.8125169845817773im  ,
@@ -171,7 +179,8 @@ include("silicon_testcases.jl")
               0.23844078642501887 - 0.02240045765305552im ,
 
         ]
-        out = apply_fourier!(similar(in), potnl, ik, in)
+        out = kblock(potnl, basis.kpoints[ik]) * indata
+        @test abs.(ref) ≈ abs.(out)
         @test ref ≈ out
     end
 end

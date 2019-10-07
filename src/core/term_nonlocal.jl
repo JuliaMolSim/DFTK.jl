@@ -1,4 +1,5 @@
 using Memoize
+include("SphericalHarmonics.jl")
 
 # Functionality for building the non-local potential term
 # and constructing the builder itself.
@@ -31,13 +32,13 @@ Notice: If a species does not have an associated pseudopotential it will be sile
 ignored by this function.
 """
 function term_nonlocal(psps_or_composition...)
-    n_species = length(psp_or_composition)
+    n_species = length(psps_or_composition)
 
     # Function to extract the psp object in case the passed items are "Species"
     extract_psp(elem::Species) = elem.psp
     extract_psp(elem) = elem
     potentials = [extract_psp(elem) => positions
-                  for (elem, positions) in psp_or_composition
+                  for (elem, positions) in psps_or_composition
                   if extract_psp(elem) !== nothing]
 
     # Compute n_proj

@@ -1,7 +1,8 @@
-using Test
 using DFTK: bzmesh_uniform, bzmesh_ir_wedge, Species, Vec3, Mat3
+using LinearAlgebra
 using PyCall
-include("silicon_testcases.jl")
+using Test
+include("testcases.jl")
 
 
 @testset "bzmesh_uniform agrees with spglib" begin
@@ -29,8 +30,8 @@ end
 @testset "bzmesh_ir_wedge is correct reduction" begin
     function test_reduction(kgrid_size)
         red_kpoints, _ = bzmesh_uniform(kgrid_size)
-        irred_kpoints, ksymops = bzmesh_ir_wedge(kgrid_size, lattice,
-                                                 Species(14) => positions)
+        irred_kpoints, ksymops = bzmesh_ir_wedge(kgrid_size, silicon.lattice,
+                                                 Species(14) => silicon.positions)
 
         # Try to reproduce all kpoints from irred_kpoints
         all_kpoints = Vector{Vec3{Rational{Int}}}()

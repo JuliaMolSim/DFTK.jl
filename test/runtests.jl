@@ -8,10 +8,10 @@ include("PspHgh.jl")
 include("Species.jl")
 include("bzmesh.jl")
 
+include("term_external.jl")
+include("term_nonlocal.jl")
 # Test for term_hartree
 # Test for term_xc
-include("term_external.jl")
-# include("build_nonlocal_projectors.jl")
 
 include("lobpcg.jl")
 include("xc_fallback.jl")
