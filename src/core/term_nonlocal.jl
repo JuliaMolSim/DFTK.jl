@@ -30,7 +30,7 @@ julia> si = Species(14, psp=load_psp("si-pade-q4.hgh"))
 Notice: If a species does not have an associated pseudopotential it will be silently
 ignored by this function.
 """
-function term_nonlocal(psps_or_composition...)
+function term_nonlocal(psps_or_composition)
     n_species = length(psp_or_composition)
 
     # Function to extract the psp object in case the passed items are "Species"

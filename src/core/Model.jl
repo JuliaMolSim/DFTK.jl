@@ -43,5 +43,3 @@ function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
              something(external, build_nothing), something(nonlocal, build_nothing),
              something(hartree, build_nothing), something(xc, build_nothing))
 end
-
-# TODO wrapper functions to make "standard models" like DFT with arbitrary xc or so

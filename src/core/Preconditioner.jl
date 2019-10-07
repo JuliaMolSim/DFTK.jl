@@ -28,5 +28,5 @@ function kblock(prec::PreconditionerKinetic, kpt::Kpoint)
     T = eltype(basis.kpoints[1].coordinate)
     qsq = Vector{T}([sum(abs2, model.recip_lattice * (G + kpt.coordinate))
                      for G in kpt.basis] ./ 2)
-    Diagonal(1 ./ (qsq .+ prec.α))
+    Diagonal(qsq .+ prec.α)
 end

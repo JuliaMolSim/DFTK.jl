@@ -11,7 +11,7 @@ include("bzmesh.jl")
 # include("build_local_potential.jl")
 # include("build_nonlocal_projectors.jl")
 #
-# include("lobpcg.jl")
+include("lobpcg.jl")
 # include("xc_fallback.jl")
 
 include("energy_ewald.jl")

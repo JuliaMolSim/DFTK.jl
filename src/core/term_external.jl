@@ -38,7 +38,7 @@ julia> na_Coulomb(G) = -11 / sum(abs2, basis.recip_lattice * G)
 since sodium has nuclear charge 11.
 ```
 """
-function term_external(generators_or_composition...; compensating_background=true)
+function term_external(generators_or_composition; compensating_background=true)
     function inner(basis::PlaneWaveModel{T}, energy, potential; kwargs...) where T
         model = basis.model
 

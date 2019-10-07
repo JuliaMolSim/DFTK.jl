@@ -100,4 +100,9 @@ include("utils/energy_nuclear.jl")
 export compute_bands
 include("utils/compute_bands.jl")
 
+export model_free_electron
+export model_dft
+export model_hcore
+include("utils/standard_models.jl")
+
 end # module DFTK
