@@ -30,14 +30,51 @@ function iterate_density(ham::Hamiltonian, n_bands, compute_occupation, ρ;
     ρ_new = compute_density(pw, res.X, occupation)
 end
 
-# TODO Merge this function with util/self_consistent_field
+
+"""
+    self_consistent_field(ham::Hamiltonian, n_bands::Int, n_electrons::Int;
+                          ρ=nothing, tol=1e-6, max_iter=100, algorithm=:scf_nlsolve,
+                          lobpcg_prec=PreconditionerKinetic(ham, α=0.1))
+
+Run a self-consistent field iteration for the Hamiltonian `ham`, returning the
+self-consistnet density, Hartree potential values and XC potential values.
+`n_bands` selects the number of bands to be computed, `n_electrons` the number of
+electrons, `ρ` is the initial density, e.g. constructed via a SAD guess.
+`lobpcg_prec` specifies the preconditioner used in the LOBPCG algorithms used
+for diagonalisation. Possible `algorithm`s are `:scf_nlsolve` or `:scf_damped`.
+"""
 # Scaling is from 0 to 1. 0 is density mixing, 1 is "potential mixing"
 # (at least, Hartree potential mixing). 1/2 results in a symmetric
 # Jacobian of the SCF mapping (when there is no exchange-correlation)
-function scf(ham::Hamiltonian, n_bands, compute_occupation, ρ, fp_solver;
-             tol=1e-6, lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
-             max_iter=100, lobpcg_tol=tol / 10, den_scaling=0.0, Psi=nothing,
-             lobpcg_kwargs...)
+function self_consistent_field(ham::Hamiltonian, n_bands::Integer;
+                               ρ=nothing, tol=1e-6, max_iter=100,
+                               lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
+                               solver=scf_nlsolve_solver(), den_scaling=0.0,
+                               lobpcg_kwargs...)
+
+
+    # if ρ is not nothing, initialise Hamiltonian no it
+    # extract n_electrons from model
+
+
+    if smearing === nothing
+        compute_occupation =
+            (basis, energies, Psi) -> occupation_step(basis, energies, Psi)
+    else
+        compute_occupation =
+            (basis, energies, Psi) -> occupation_temperature(basis, energies, Psi,
+                                                             T, smearing)
+    end
+
+    ham = copy(ham)
+    ρ !== nothing && build_hamiltonian!(ham, ρ)
+
+
+
+
+
+
+
     pw = ham.basis
     T = real(eltype(ρ))
     Gsq = vec([T(4π) * sum(abs2, pw.recip_lattice * G) for G in basis_ρ(pw)])
@@ -85,4 +122,13 @@ function scf(ham::Hamiltonian, n_bands, compute_occupation, ρ, fp_solver;
 
     (ρ=ρ, Psi=res.X, orben=res.λ, occupation=occupation, energies=energies,
      pot_hartree_values=values_hartree, pot_xc_values=values_xc, converged=nlres.converged)
+end
+
+# TODO Merge this function with core/scf
+function self_consistent_field(ham::Hamiltonian, n_bands::Integer;
+                               ρ=nothing, tol=1e-6,
+                               lobpcg_prec=PreconditionerKinetic(ham, α=0.1),
+                               max_iter=100, solver=scf_nlsolve_solver(),
+                               den_scaling=0.0, lobpcg_kwargs...)
+
 end

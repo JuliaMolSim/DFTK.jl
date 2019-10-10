@@ -16,6 +16,12 @@ export Vec3
 export Mat3
 include("core/types.jl")
 
+export smearing_fermi_dirac
+export smearing_gaussian
+export smearing_methfessel_paxton_1
+export smearing_methfessel_paxton_2
+include("core/smearing_functions.jl")
+
 export Model
 export PlaneWaveModel
 export basis_Cρ
@@ -55,8 +61,10 @@ export kblock
 include("core/Hamiltonian.jl")
 include("core/HamiltonianBlock.jl")
 
-# include("core/occupation.jl")
-#
+export find_fermi_level
+export find_occupation
+include("core/occupation.jl")
+
 # export compute_density
 # include("core/compute_density.jl")
 
@@ -70,7 +78,8 @@ include("core/lobpcg.jl")
 # export scf_damping_solver
 # export scf_anderson_solver
 # export scf_CROP_solver
-# include("core/scf.jl")
+# export self_consistent_field
+# include("core/self_consistent_field.jl")
 # include("core/scf_solvers.jl")
 
 export energy_ewald
@@ -83,14 +92,12 @@ export bzmesh_ir_wedge
 include("utils/bzmesh.jl")
 
 export determine_grid_size
-# export guess_gaussian_sad
+export guess_gaussian_sad
 # export guess_hcore
-# export self_consistent_field
 export load_psp
 include("utils/determine_grid_size.jl")
-# include("utils/guess_gaussian_sad.jl")
+include("utils/guess_gaussian_sad.jl")
 # include("utils/guess_hcore.jl")
-# include("utils/self_consistent_field.jl")
 include("utils/load_psp.jl")
 
 export energy_nuclear_psp_correction
@@ -103,6 +110,7 @@ include("utils/compute_bands.jl")
 export model_free_electron
 export model_dft
 export model_hcore
+export model_reduced_hf
 include("utils/standard_models.jl")
 
 end # module DFTK

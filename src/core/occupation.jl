@@ -1,22 +1,20 @@
 import Roots
-using SpecialFunctions: erf, factorial
 
-
+# Functions for finding the Fermi level and occupation numbers for bands
 """
-Compute the occupation without any smearing
-for `n_elec` electrons and the bands `Psi` with associated `energies`.
-Note: This function only provides physical occupations for insulators
-at zero temperature. If `check_insulator` is true, it errors on metallic
-systems.
+Find Fermi level and occupation for the given parameters, assuming a band gap
+and zero temperature.
 """
-## TODO change the default of check_insulator to `true`
-function occupation_step(basis, energies, Psi, n_elec, check_insulator=false)
+function find_occupation_gap_zero_temperature(basis, energies, Psi)
     n_bands = size(Psi[1], 2)
-    T = eltype(energies[1])
+    n_electrons = basis.model.n_electrons
+    T = eltype(basis.kpoints[1].coordinate)
 
-    @assert n_elec % 2 == 0 "Only even number of electrons implemented"
-    n_occ = div(n_elec, 2)
+    @assert basis.model.spin_polarisation == :none
+    @assert n_electrons % 2 == 0
+    n_occ = div(n_electrons, 2)
     @assert n_bands ≥ n_occ
+    @assert basis.model.temperature == 0.0
 
     HOMO = -Inf
     LUMO = Inf
@@ -27,70 +25,87 @@ function occupation_step(basis, energies, Psi, n_elec, check_insulator=false)
         HOMO = max(HOMO, energies[ik][n_occ])
         LUMO = min(LUMO, energies[ik][n_occ + 1])
     end
-    @assert sum(basis.kweights .* sum.(occupation)) ≈ n_elec
+    @assert sum(basis.kweights .* sum.(occupation)) ≈ n_electrons
 
-    if check_insulator
-        if HOMO > LUMO
-            error("`occupation_step` assumes an insulator, but the" *
-                  "system is metallic: with insulator occupation scheme," *
-                  "HOMO=$HOMO, LUMO=$LUMO")
-        end
+    # Put Fermi level slightly above HOMO energy
+    εF = HOMO + 10eps(eltype(energies[1]))
+    if HOMO > LUMO || εF > LUMO
+        @warn("`find_fermi_level_insulator` assumes an insulator, but the" *
+              "system seems metallic. Try specifying a temperature and a smearing function",
+              HOMO, LUMO)
     end
-    occupation
+
+    εF, occupation
 end
 
-# Ref for the equations:
-#    - M. Methfessel, A. T. Paxton 1989
-#       "High-precision sampling for Brillouin-zone integration in metals"
-#     - E. Cancès, V. Ehrlacher, D. Gontier, A. Levitt, D. Lombardi
-#       "Numerical quadrature in the brillouin zone for periodic schrodinger operators"
-# TODO: Marzari-Vanderbilt "cold smearing"
-smearing_fermi_dirac(x) = 1 / (1 + exp(x))
-smearing_gaussian(x) = (1 - erf(x)) / 2
-
-H1(x) = 2x
-H2(x) = 4x^2 - 2
-H3(x) = 8x^3 - 12x
-A_coeff(n) = (-1)^n / (factorial(n) * 4^n * sqrt(π))
-const A1 = A_coeff(1)
-const A2 = A_coeff(2)
-smearing_methfessel_paxton_1(x) = smearing_gaussian(x) + A1 * H1(x) * exp(-x^2)
-smearing_methfessel_paxton_2(x) = smearing_methfessel_paxton_1(x) + A2 * H3(x) * exp(-x^2)
-
-# List of available smearing functions
-smearing_functions = (smearing_fermi_dirac, smearing_gaussian, smearing_methfessel_paxton_1,
-                      smearing_methfessel_paxton_2)
-
 """
-Compute the occupation `f(ε) = smearing((ε-εF) / T)`, for `n_elec`
-electrons and the bands `Psi` with associated `energies`.
+Find the Fermi level and occupation for the given parameters, assuming no band gap
+(i.e. a metal).
 """
-function occupation_temperature(basis, energies, Psi, n_elec, T=0;
-                                smearing=smearing_fermi_dirac)
+function find_occupation_metal(basis, energies, Psi)
+    model = basis.model
     n_bands = size(Psi[1], 2)
+    n_electrons = model.n_electrons
+    temperature = model.temperature
+    smearing = model.smearing
 
-    @assert n_elec % 2 == 0 "Only even number of electrons implemented"
-    @assert n_bands ≥ n_elec / 2
+    @assert smearing !== nothing
+    @assert basis.model.spin_polarisation == :none
+    @assert n_electrons % 2 == 0
+    @assert n_bands ≥ n_electrons / 2
     @assert sum(basis.kweights) ≈ 1
 
-    # Avoid numerical issues
-    if T == 0
-        smearing = x -> x ≤ 0 ? 1 : 0
-    end
+    # Avoid some numerical issues
+    temperature == 0 && (smearing(x) = x ≤ 0 ? 1 : 0)
 
-    compute_occupation(εF) = [2 * smearing.((ε .- εF) ./ T) for ε in energies]
+    compute_occupation(εF) = [2 * smearing.((ε .- εF) ./ temperature) for ε in energies]
     compute_n_elec(εF) = sum(basis.kweights .* sum.(compute_occupation(εF)))
 
     min_ε = minimum([minimum(ε) for ε in energies]) - 1
     max_ε = maximum([maximum(ε) for ε in energies]) + 1
-    @assert compute_n_elec(min_ε) < n_elec < compute_n_elec(max_ε)
+    @assert compute_n_elec(min_ε) < n_electrons < compute_n_elec(max_ε)
 
     # Just use bisection here; note that with MP smearing there might
     # be multiple possible Fermi levels. This could be sped up with more
-    # advanced methods (eg false position), but more care has to be
+    # advanced methods (e.g. false position), but more care has to be
     # taken with convergence criteria and the like
-    εF = Roots.find_zero(εF -> compute_n_elec(εF) - n_elec, (min_ε, max_ε),
+    εF = Roots.find_zero(εF -> compute_n_elec(εF) - n_electrons, (min_ε, max_ε),
                          Roots.Bisection())
-    @assert compute_n_elec(εF) ≈ n_elec
-    compute_occupation(εF)
+    @assert compute_n_elec(εF) ≈ n_electrons
+    εF, compute_occupation(εF)
+end
+
+
+"""
+Find the Fermi level, given a `basis`, SCF band `energies` and corresponding Bloch
+one-particle wave function `Psi`. If `basis.model.assume_band_gap` this function
+assumes a band gap at the Fermi level.
+"""
+function find_fermi_level(basis, energies, Psi)
+    εF = nothing
+    if basis.model.assume_band_gap && model.temperature == 0.0
+        εF, _ = find_occupation_gap_zero_temperature(basis, energies, Psi)
+    elseif basis.model.assume_band_gap && model.temperature > 0.0
+        error("`model.assume_band_gap` and `model.temperature > 0.0` not implemented.")
+    else
+        εF, _ = find_fermi_level_metal(basis, energies, Psi)
+    end
+    εF
+end
+
+"""
+Find the occupation numbers, given a `basis`, SCF band `energies` and corresponding Bloch
+one-particle wave function `Psi`. If `basis.model.smearing` is `nothing`, this function
+assumes an insulator.
+"""
+function find_occupation(basis, energies, Psi)
+    occ = nothing
+    if basis.model.assume_band_gap && model.temperature == 0.0
+        _, occ = find_occupation_gap_zero_temperature(basis, energies, Psi)
+    elseif basis.model.assume_band_gap && model.temperature > 0.0
+        error("`model.assume_band_gap` and `model.temperature > 0.0` not implemented.")
+    else
+        _, occ = find_fermi_level_metal(basis, energies, Psi)
+    end
+    occ
 end

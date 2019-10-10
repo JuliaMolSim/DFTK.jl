@@ -28,3 +28,14 @@ function model_dft(lattice::AbstractMatrix, composition, functionals; kwargs...)
           hartree=term_hartree(),
           xc=term_xc(functionals...), kwargs...)
 end
+
+"""
+TODO DOCME
+"""
+function model_reduced_hf(lattice::AbstractMatrix, composition; kwargs...)
+    n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in composition)
+    Model(lattice, n_electrons;
+          external=term_external(composition...),
+          nonlocal=term_nonlocal(composition...),
+          hartree=term_hartree())
+end

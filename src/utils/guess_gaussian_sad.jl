@@ -6,8 +6,8 @@ specified in `composition` as pairs representing a mapping from `Species` object
 of positions in fractional coordinates.
 """
 function guess_gaussian_sad(basis, composition...)
-    T = eltype(basis.lattice)
-    ρ = map(basis_ρ(basis)) do G
+    T = eltype(basis.kpoints[1].coordinates)
+    ρ = map(basis_Cρ(basis)) do G
         Gsq = sum(abs2, basis.recip_lattice * G)
         res = sum(
             charge_ionic(spec) * exp(-Gsq * atom_decay_length(spec)^2) * cis(2π * dot(G, r))
@@ -16,7 +16,7 @@ function guess_gaussian_sad(basis, composition...)
         )
         convert(T, real(res))
     end
-    vec(ρ) / basis.unit_cell_volume
+    ρ / basis.unit_cell_volume
 end
 
 

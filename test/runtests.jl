@@ -9,7 +9,7 @@ include("Species.jl")
 include("bzmesh.jl")
 
 include("term_external.jl")
-include("term_nonlocal.jl")
+# include("term_nonlocal.jl")  TODO does not work yet
 # Test for term_hartree
 # Test for term_xc
 
@@ -18,7 +18,7 @@ include("xc_fallback.jl")
 
 include("energy_ewald.jl")
 include("energy_nuclear.jl")
-# include("occupation.jl")
+include("occupation.jl")
 # include("energies_guess_density.jl")
 # include("compute_density.jl")
 #
