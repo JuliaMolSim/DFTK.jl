@@ -118,7 +118,7 @@ end
 
 """
 Return a generator producing the range of wave-vector coordinates contained
-in the Fourier grid ``B_ρ`` described by the plane-wave basis in the correct order.
+in the Fourier grid ``C_ρ`` described by the plane-wave basis in the correct order.
 """
 function basis_Cρ(pw::PlaneWaveModel)
     start = -ceil.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
@@ -128,10 +128,30 @@ function basis_Cρ(pw::PlaneWaveModel)
 end
 
 
+"""
+Return the index tuple corresponding to the wave vector in integer coordinates
+in the ``C_ρ`` basis. Returns nothing if outside the range of valid wave vectors.
+"""
+function index_Cρ(pw::PlaneWaveModel, G::AbstractVector{T}) where {T <: Integer}
+    start = -ceil.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
+    stop  = floor.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
+    lengths = stop .- start .+ 1
+
+    function mapaxis(lengthi, Gi)
+        Gi >= 0 && return 1 + Gi
+        return 1 + lengthi + Gi
+    end
+    if all(start .<= G .<= stop)
+        CartesianIndex(Tuple(mapaxis.(lengths, G)))
+    else
+        nothing # Outside range of valid indices
+    end
+end
+
+
 #
 # Perform FFT
 #
-
 # TODO Better name? => Put to types once decided
 AbstractFFTGrid = Union{AbstractArray{T, 4}, AbstractArray{T, 3}} where T
 
@@ -147,7 +167,7 @@ function G_to_r!(f_real::AbstractFFTGrid, pw::PlaneWaveModel, f_fourier::Abstrac
     for iband in 1:n_bands  # TODO Call batch version of FFTW, maybe do threading
         @views ldiv!(f_real[:, :, :, iband], pw.opFFT, f_fourier[:, :, :, iband])
     end
-    f_real
+    real(f_real) .+ 0im  # TODO dirty hack for the moment
 end
 function G_to_r!(f_real::AbstractFFTGrid, pw::PlaneWaveModel, kpt::Kpoint,
                  f_fourier::AbstractVecOrMat)

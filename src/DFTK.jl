@@ -8,7 +8,9 @@ using Printf
 using Markdown
 using LinearAlgebra
 
+#
 # Core functionality
+#
 include("core/asserting.jl")
 include("core/constants.jl")
 
@@ -62,11 +64,11 @@ include("core/Hamiltonian.jl")
 include("core/HamiltonianBlock.jl")
 
 export find_fermi_level
-export find_occupation
+export compute_occupation
 include("core/occupation.jl")
 
-# export compute_density
-# include("core/compute_density.jl")
+export compute_density
+include("core/compute_density.jl")
 
 export PreconditionerKinetic
 include("core/Preconditioner.jl")
@@ -85,19 +87,18 @@ include("core/lobpcg.jl")
 export energy_ewald
 include("core/energy_ewald.jl")
 
+#
 # Utilities
-
+#
 export bzmesh_uniform
 export bzmesh_ir_wedge
 include("utils/bzmesh.jl")
 
 export determine_grid_size
 export guess_gaussian_sad
-# export guess_hcore
 export load_psp
 include("utils/determine_grid_size.jl")
 include("utils/guess_gaussian_sad.jl")
-# include("utils/guess_hcore.jl")
 include("utils/load_psp.jl")
 
 export energy_nuclear_psp_correction

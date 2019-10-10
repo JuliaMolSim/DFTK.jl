@@ -11,14 +11,14 @@ function term_hartree()
 
         function ifft(x)
             tmp = G_to_r(basis, x)
-            @assert(maximum(abs.(imag(tmp))) < 100 * eps(eltype(x)),
+            @assert(maximum(abs.(imag(tmp))) < 100 * eps(eltype(real(x))),
                     "Imaginary part too large $(maximum(imag(tmp)))")
             real(tmp)
         end
 
         # Solve the Poisson equation ΔV = -4π ρ in Fourier space,
         # i.e. Multiply elementwise by 4π / |G|^2.
-        values = 4π * ρ ./ [sum(abs2, model.recip_lattice * G) for G in basis_ρ(basis)]
+        values = T(4π) * ρ ./ [sum(abs2, model.recip_lattice * G) for G in basis_Cρ(basis)] .+ 0im  # Force a complex array
         # TODO The above assumes CPU arrays
 
         # Zero the DC component (i.e. assume a compensating charge background)

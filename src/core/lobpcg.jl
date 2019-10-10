@@ -33,6 +33,7 @@ implementation to use. If no guess is supplied and `interpolate_kpoints` is true
 the function tries to interpolate the results of earlier ``k``-Points to be used as guesses
 for the later ones.
 """
+# TODO Also use function-like interface here (e.g. eigensolver=lobpcg_hyper(stuff...)
 function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int, kpoints=ham.basis.kpoints;
                 guess=nothing, prec=nothing, tol=1e-6, maxiter=200,
                 backend=:lobpcg_hyper, interpolate_kpoints=true, kwargs...)

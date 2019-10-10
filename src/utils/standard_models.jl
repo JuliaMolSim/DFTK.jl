@@ -28,6 +28,9 @@ function model_dft(lattice::AbstractMatrix, composition, functionals; kwargs...)
           hartree=term_hartree(),
           xc=term_xc(functionals...), kwargs...)
 end
+function model_dft(lattice::AbstractMatrix, composition, functionals::Symbol; kwargs...)
+    model_dft(lattice, composition, [functionals])
+end
 
 """
 TODO DOCME

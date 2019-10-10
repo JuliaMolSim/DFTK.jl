@@ -1,5 +1,5 @@
 using Test
-using DFTK: PlaneWaveModel
+using DFTK: PlaneWaveModel, Model, basis_Cρ, index_Cρ
 using LinearAlgebra
 
 include("testcases.jl")
@@ -16,17 +16,17 @@ function test_pw_cutoffs(testcase, Ecut, fft_size)
     end
 end
 
-@testset "PlaneWaveBasis: Check struct construction" begin
+@testset "PlaneWaveModel: Check struct construction" begin
     Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
     pw = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords,
                         silicon.kweights, silicon.ksymops)
 
-    @test pw.model.lattice == lattice
-    @test pw.model.recip_lattice ≈ 2π * inv(lattice)
-    @test pw.model.unit_cell_volume ≈ det(lattice)
-    @test pw.model.recip_cell_volume ≈ (2π)^3 * det(inv(lattice))
+    @test pw.model.lattice == silicon.lattice
+    @test pw.model.recip_lattice ≈ 2π * inv(silicon.lattice)
+    @test pw.model.unit_cell_volume ≈ det(silicon.lattice)
+    @test pw.model.recip_cell_volume ≈ (2π)^3 * det(inv(silicon.lattice))
 
     @test pw.Ecut == 3
     @test pw.fft_size == Tuple(fft_size)
@@ -45,12 +45,26 @@ end
         end
         @test g_all[kpt.mapping] == kpt.basis
     end
-    @test pw.kweights == kweights
+    @test pw.kweights == silicon.kweights
 end
 
-@testset "PlaneWaveBasis: Energy cutoff is respected" begin
+@testset "PlaneWaveModel: Energy cutoff is respected" begin
     test_pw_cutoffs(silicon, 4.0, [15, 15, 15])
     test_pw_cutoffs(silicon, 3.0, [15, 13, 13])
     test_pw_cutoffs(silicon, 4.0, [11, 13, 11])
 end
 
+@testset "PlaneWaveModel: Check cubic basis and cubic index" begin
+    Ecut = 3
+    fft_size = [15, 15, 15]
+    model = Model(silicon.lattice, silicon.n_electrons)
+    pw = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords,
+                        silicon.kweights, silicon.ksymops)
+    g_all = collect(basis_Cρ(pw))
+
+    for i in 1:15, j in 1:15, k in 1:15
+        @test index_Cρ(pw, g_all[i, j, k]) == CartesianIndex(i, j, k)
+    end
+    @test index_Cρ(pw, [15, 1, 1]) === nothing
+    @test index_Cρ(pw, [-15, 1, 1]) === nothing
+end
