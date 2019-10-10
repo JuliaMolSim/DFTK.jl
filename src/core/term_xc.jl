@@ -81,7 +81,7 @@ function (term::TermXc)(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, poten
 
     function ifft(x)
         tmp = G_to_r(basis, x)
-        @assert(maximum(abs.(imag(tmp))) < 100 * eps(eltype(x)),
+        @assert(maximum(abs.(imag(tmp))) < 100 * eps(real(eltype(x))),
                 "Imaginary part too large $(maximum(imag(tmp)))")
         real(tmp)
     end
@@ -89,14 +89,14 @@ function (term::TermXc)(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, poten
     # If required compute contracted density gradient σ and gradient ∇ρ_real
     σ_real = nothing
     ∇ρ_real = nothing
-    if any(xc.family == Libxc.family_gga for xc in op.functional)
+    if any(xc.family == Libxc.family_gga for xc in term.functionals)
         ∇ρ_real = [ifft(im * [(model.recip_lattice * G)[α] for G in basis_ρ(pw)] .* ρ)
                    for α in 1:3]
         # TODO The above assumes CPU arrays
         σ_real = sum(∇ρ_real[α] .* ∇ρ_real[α] for α in 1:3)
     end
 
-    ρ_real = ifft(ρ)  # Density in real space
+    ρ_real = ifft(ρ .+ 0im)  # Density in real space, +0im to enforce complex algebra
 
     # Initialisation
     potential !== nothing && (potential .= 0)
@@ -109,15 +109,19 @@ function (term::TermXc)(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, poten
     # Use multiple dispatch of the next functions to avoid writing nested if-then branches
     add_xc!(xc, ::Val{Libxc.family_lda}, Epp, ::Nothing) = evaluate_lda!(xc, ρ_real, E=Epp)
     add_xc!(xc, ::Val{Libxc.family_gga}, Epp, ::Nothing) = evaluate_gga!(xc, ρ_real, E=Epp)
-    function add_xc!(xc, ::Val{Libxc.family_lda}, Epp, potential)
+    function add_xc!(xc, ::Val{Libxc.family_lda}, Epp, potential)  # TODO Do not call with nothing
         Vρ = similar(ρ_real)
-        evaluate_lda!(xc, ρ_real, Vρ=Vρ, E=Epp)
+        kwargs = Dict()
+        Epp !== nothing && (kwargs = Dict(:E => Epp))
+        evaluate_lda!(xc, ρ_real; Vρ=Vρ, kwargs...)
         potential .+= Vρ
     end
     function add_xc!(xc, ::Val{Libxc.family_gga}, Epp, potential)
         Vρ = similar(ρ_real)
         Vσ = similar(ρ_real)
-        evaluate_gga!(xc, ρ_real, σ_real, Vρ=Vρ, Vσ=Vσ, E=Epp)
+        kwargs = Dict()
+        Epp !== nothing && (kwargs = Dict(:E => Epp))
+        evaluate_gga!(xc, ρ_real, σ_real; Vρ=Vρ, Vσ=Vσ, kwargs...)
 
         # TODO Check the literature how this expression comes about in detail.
         #      Following Richard Martin, Electronic stucture, p. 158, the XC potential
@@ -135,7 +139,7 @@ function (term::TermXc)(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, poten
             Vσ∇ρ = 2r_to_G(basis, Vσ .* ∇ρ_real[α] .+ 0im)
 
             # take derivative
-            im * [(model.recip_lattice * G)[α] for G in basis_ρ(pw)] .* Vσ∇ρ
+            im * [(model.recip_lattice * G)[α] for G in basis_Cρ(basis)] .* Vσ∇ρ
         end
         potential .+= (Vρ - ifft(gradterm))
     end
@@ -144,13 +148,13 @@ function (term::TermXc)(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, poten
     end
 
     # Loop over all functionals, evaluate them and compute the energy
-    for xc in op.functional
-        add_xc!(xc, Val(xc.functional), Epp, potential)
+    for xc in term.functionals
+        add_xc!(xc, Val(xc.family), Epp, potential)
 
         if energy !== nothing
             # Factor (1/2) to avoid double counting of electrons (see energy expression)
             # Factor 2 because α and β operators are identical for spin-restricted case
-            dVol = pw.unit_cell_volume / prod(size(pw.FFT))
+            dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
             energy[] += 2 * sum(Epp .* ρ_real) * dVol / 2
         end
     end
@@ -171,5 +175,5 @@ function term_xc(functionals...; supersampling=2)
 
     make_functional(func::Functional) = func
     make_functional(symb::Symbol) = Functional(symb)
-    TermXc([make_functional(f) for f in functional], supersampling)
+    TermXc([make_functional(f) for f in functionals], supersampling)
 end

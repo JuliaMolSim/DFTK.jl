@@ -11,9 +11,7 @@ include("testcases.jl")
 @testset "Using BZ symmetry yields identical density" begin
     function get_bands(testcase, fft_size, kcoords, ksymops, composition...;
                        Ecut=5, tol=1e-8)
-        @warn "This should be made DFT again."
-        # model = model_dft(testcase.lattice, composition, :lda_xc_teter93)
-        model = model_reduced_hf(testcase.lattice, composition)
+        model = model_dft(testcase.lattice, composition, :lda_xc_teter93)
 
         kweights = [length(symops) for symops in ksymops]
         kweights = kweights / sum(kweights)
