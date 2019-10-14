@@ -90,7 +90,7 @@ function (term::TermXc)(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, poten
     σ_real = nothing
     ∇ρ_real = nothing
     if any(xc.family == Libxc.family_gga for xc in term.functionals)
-        ∇ρ_real = [ifft(im * [(model.recip_lattice * G)[α] for G in basis_ρ(pw)] .* ρ)
+        ∇ρ_real = [ifft(im * [(model.recip_lattice * G)[α] for G in basis_Cρ(basis)] .* ρ)
                    for α in 1:3]
         # TODO The above assumes CPU arrays
         σ_real = sum(∇ρ_real[α] .* ∇ρ_real[α] for α in 1:3)

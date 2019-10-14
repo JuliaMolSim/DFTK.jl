@@ -10,8 +10,8 @@ include("bzmesh.jl")
 
 include("term_external.jl")
 # include("term_nonlocal.jl")  TODO does not work yet
-# Test for term_hartree
-# Test for term_xc
+# TODO Test for term_hartree
+# TODO Test for term_xc
 
 include("lobpcg.jl")
 include("xc_fallback.jl")
@@ -24,5 +24,5 @@ include("compute_density.jl")
 
 include("scf_compare.jl")
 include("silicon_redHF.jl")
-# include("silicon_lda.jl")
-# include("silicon_pbe.jl")
+include("silicon_lda.jl")
+include("silicon_pbe.jl")

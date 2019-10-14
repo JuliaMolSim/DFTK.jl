@@ -123,7 +123,7 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
 
     # Construct guess and run the SCF
     prec = PreconditionerKinetic(ham, α=0.1)
-    scfres = self_consistent_field!(ham, n_bands, lobpcg_prec=prec, tol=scf_tol)
+    scfres = self_consistent_field!(ham, n_bands, tol=scf_tol)
 
     for ik in 1:length(silicon.kcoords)
         @test eltype(scfres.orben[ik]) == T
