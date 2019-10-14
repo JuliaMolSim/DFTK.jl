@@ -27,12 +27,13 @@ function Hamiltonian(basis::PlaneWaveModel{T}, ρ=nothing) where T
     # TODO This assumes CPU array
     potarray(ρ) = similar(ρ)
     potarray(::Nothing) = zeros(T, basis.fft_size)
+    ρzero = something(ρ, zeros(T, basis.fft_size))
 
     _, pot_external = model.build_external(basis, nothing, potarray(ρ))
     _, pot_nonlocal = model.build_nonlocal(basis, nothing, potarray(ρ))
-    _, pot_hartree = model.build_hartree(basis, nothing, potarray(ρ); ρ=ρ)
-    _, pot_xc = model.build_xc(basis, nothing, potarray(ρ); ρ=ρ)
-    out = Hamiltonian(basis, ρ, Kinetic(basis), pot_external,
+    _, pot_hartree = model.build_hartree(basis, nothing, potarray(ρ); ρ=ρzero)
+    _, pot_xc = model.build_xc(basis, nothing, potarray(ρ); ρ=ρzero)
+    out = Hamiltonian(basis, ρzero, Kinetic(basis), pot_external,
                       pot_hartree, pot_xc,
                       sum_nothing(pot_external, pot_hartree, pot_xc), pot_nonlocal)
 end
