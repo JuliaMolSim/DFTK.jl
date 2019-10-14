@@ -55,10 +55,10 @@ Update Hamiltonian in-place
 function build_hamiltonian!(ham::Hamiltonian, ρ)
     basis = ham.basis
     model = basis.model
-    model.build_hartree(basis, nothing, ham.pot_hartree, ρ)
-    model.build_xc(basis, nothing, ham.pot_xc, ρ)
+    model.build_hartree(basis, nothing, ham.pot_hartree; ρ=ρ)
+    model.build_xc(basis, nothing, ham.pot_xc; ρ=ρ)
     if ham.pot_local !== nothing
-        ham.pot_local .= sum_nothing(ham.pot_external, pot_hartree, pot_xc)
+        ham.pot_local .= sum_nothing(ham.pot_external, ham.pot_hartree, ham.pot_xc)
     end
     ham
 end

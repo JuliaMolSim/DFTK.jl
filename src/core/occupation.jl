@@ -5,7 +5,7 @@ import Roots
 Find Fermi level and occupation for the given parameters, assuming a band gap
 and zero temperature.
 """
-function compute_occupation_gap_zero_temperature(basis, energies, Psi)
+function find_occupation_gap_zero_temperature(basis, energies, Psi)
     n_bands = size(Psi[1], 2)
     n_electrons = basis.model.n_electrons
     T = eltype(basis.kpoints[1].coordinate)
@@ -32,7 +32,7 @@ function compute_occupation_gap_zero_temperature(basis, energies, Psi)
     # Put Fermi level slightly above HOMO energy
     εF = HOMO + 10eps(eltype(energies[1]))
     if HOMO > LUMO || εF > LUMO
-        @warn("`find_fermi_level_insulator` assumes an insulator, but the" *
+        @warn("`find_occupation_gap_zero_temperature` assumes an insulator, but the" *
               "system seems metallic. Try specifying a temperature and a smearing function",
               HOMO, LUMO)
     end
@@ -44,7 +44,7 @@ end
 Find the Fermi level and occupation for the given parameters, assuming no band gap
 (i.e. a metal).
 """
-function compute_occupation_metal(basis, energies, Psi)
+function find_occupation_fermi_metal(basis, energies, Psi)
     model = basis.model
     n_bands = size(Psi[1], 2)
     n_electrons = model.n_electrons
@@ -96,19 +96,19 @@ function find_fermi_level(basis, energies, Psi)
 end
 
 """
-Find the occupation numbers, given a `basis`, SCF band `energies` and corresponding Bloch
-one-particle wave function `Psi`. If `basis.model.smearing` is `nothing`, this function
-assumes an insulator.
+Find the occupation numbers around the Fermi level, given a `basis`, SCF band `energies`
+and corresponding Bloch one-particle wave function `Psi`. If `basis.model.smearing` is
+`nothing`, this function assumes an insulator.
 """
-function compute_occupation(basis, energies, Psi)
+function find_occupation_fermi_level(basis, energies, Psi)
     model = basis.model
     occ = nothing
     if model.assume_band_gap && basis.model.temperature == 0.0
-        _, occ = compute_occupation_gap_zero_temperature(basis, energies, Psi)
+        _, occ = find_occupation_gap_zero_temperature(basis, energies, Psi)
     elseif model.assume_band_gap && model.temperature > 0.0
         error("`model.assume_band_gap` and `model.temperature > 0.0` not implemented.")
     else
-        _, occ = find_fermi_level_metal(basis, energies, Psi)
+        _, occ = find_occupation_fermi_metal(basis, energies, Psi)
     end
     occ
 end

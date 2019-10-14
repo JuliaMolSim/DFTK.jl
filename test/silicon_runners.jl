@@ -2,16 +2,16 @@ using Test
 using DFTK
 using Libxc: Functional
 
-include("silicon_testcases.jl")
+include("testcases.jl")
 
 # TODO There is a lot of code duplication in this file ... once we have the ABINIT reference
 #      stuff in place, this should be refactored.
 
-function run_silicon_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf_tol=1e-6)
+function run_silicon_redHF(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf_tol=1e-6)
     # T + Vloc + Vnloc + Vhartree
-    # These values were computed using ABINIT with the same kpoints as silicon_testcases.jl
+    # These values were computed using ABINIT with the same kpoints as testcases.jl
     # and Ecut = 25
-    ref_noXC = [
+    ref_redHF = [
         [0.185624211511768, 0.645877543801093, 0.645877543804049, 0.645877543807010,
          0.710639433524012, 0.710639433527887, 0.710639433531763, 0.747770226622483,
          0.846692796204658, 0.903426057105463],
@@ -25,36 +25,30 @@ function run_silicon_noXC(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf
          0.649929646792239, 0.820125934482662, 0.856479348217456, 0.880349468106374,
          0.884889516616732, 0.892844865916440],
     ]
-    n_bands = length(ref_noXC[1])
+    n_bands = length(ref_redHF[1])
 
-    basis = PlaneWaveBasis(lattice, grid_size * ones(3), Ecut, kpoints, kweights, ksymops)
-    Si = Species(atnum, psp=load_psp("si-pade-q4.hgh"))
-    n_electrons = length(positions) * n_elec_valence(Si)
+    fft_size = grid_size * ones(3)
+    Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
+    model = model_reduced_hf(silicon.lattice, Si => silicon.positions)
+    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
+    ham = Hamiltonian(basis, guess_gaussian_sad(basis, Si => silicon.positions))
 
-    # Construct a Hamiltonian (Kinetic + local psp + nonlocal psp + Hartree)
-    ham = Hamiltonian(basis, pot_local=build_local_potential(basis, Si => positions),
-                      pot_nonlocal=build_nonlocal_projectors(basis, Si => positions),
-                      pot_hartree=PotHartree(basis))
+    scfres = self_consistent_field!(ham, n_bands, tol=scf_tol)
 
-    ρ = guess_gaussian_sad(basis, Si => positions)
-    prec = PreconditionerKinetic(ham, α=0.1)
-    scfres = self_consistent_field(ham, n_bands, n_electrons, lobpcg_prec=prec, ρ=ρ,
-                                   tol=scf_tol)
-
-    for ik in 1:length(kpoints)
-        println(ik, "  ", abs.(ref_noXC[ik] - scfres.orben[ik]))
+    for ik in 1:length(silicon.kcoords)
+        println(ik, "  ", abs.(ref_redHF[ik] - scfres.orben[ik]))
     end
-    for ik in 1:length(kpoints)
+    for ik in 1:length(silicon.kcoords)
         # Ignore last few bands, because these eigenvalues are hardest to converge
         # and typically a bit random and unstable in the LOBPCG
-        diff = abs.(ref_noXC[ik] - scfres.orben[ik])
+        diff = abs.(ref_redHF[ik] - scfres.orben[ik])
         @test maximum(diff[1:n_bands - n_ignored]) < test_tol
     end
 end
 
 function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf_tol=1e-6,
                          lobpcg_tol=scf_tol / 10, n_noconv_check=0)
-    # These values were computed using ABINIT with the same kpoints as silicon_testcases.jl
+    # These values were computed using ABINIT with the same kpoints as testcases.jl
     # and Ecut = 25
     ref_lda = [
         [-0.178566465714968, 0.261882541175914, 0.261882541178847, 0.261882541181782,
@@ -71,30 +65,22 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     n_conv_check = nothing
     n_noconv_check > 0 && (n_conv_check = n_bands - n_noconv_check)
 
-    grid_size = grid_size * ones(3)
-    basis = PlaneWaveBasis(Array{T}(lattice), grid_size, Ecut, kpoints, kweights, ksymops)
-    Si = Species(atnum, psp=load_psp("si-pade-q4.hgh"))
-    n_electrons = length(positions) * n_elec_valence(Si)
+    fft_size = grid_size * ones(3)
+    Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
+    model = model_dft(Array{T}(silicon.lattice), [:lda_x, :lda_c_vwn], Si => silicon.positions)
+    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
+    ham = Hamiltonian(basis, guess_gaussian_sad(basis, Si => silicon.positions))
 
-    # Construct the Hamiltonian
-    ham = Hamiltonian(basis, pot_local=build_local_potential(basis, Si => positions),
-                      pot_nonlocal=build_nonlocal_projectors(basis, Si => positions),
-                      pot_hartree=PotHartree(basis),
-                      pot_xc=PotXc(basis, :lda_x, :lda_c_vwn))
+    # TODO Get rid of n_conv_check here
+    scfres = self_consistent_field!(ham, n_bands, tol=scf_tol,
+                                    diag=diag_lobpcg(tol=lobpcg_tol, n_conv_check=n_conv_check))
 
-    # Construct guess and run the SCF
-    ρ = guess_gaussian_sad(basis, Si => positions)
-    prec = PreconditionerKinetic(ham, α=0.1)
-    scfres = self_consistent_field(ham, n_bands, n_electrons, lobpcg_prec=prec, ρ=ρ,
-                                   lobpcg_tol=lobpcg_tol, tol=scf_tol,
-                                   n_conv_check=n_conv_check)
-
-    for ik in 1:length(kpoints)
+    for ik in 1:length(silicon.kcoords)
         @test eltype(scfres.orben[ik]) == T
         @test eltype(scfres.Psi[ik]) == Complex{T}
         println(ik, "  ", abs.(ref_lda[ik] - scfres.orben[ik]))
     end
-    for ik in 1:length(kpoints)
+    for ik in 1:length(silicon.kcoords)
         # Ignore last few bands, because these eigenvalues are hardest to converge
         # and typically a bit random and unstable in the LOBPCG
         diff = abs.(ref_lda[ik] - scfres.orben[ik])
@@ -109,7 +95,7 @@ end
 
 
 function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf_tol=1e-6)
-    # These values were computed using ABINIT with the same kpoints as silicon_testcases.jl
+    # These values were computed using ABINIT with the same kpoints as testcases.jl
     # and Ecut = 25
     ref_pbe = [
         [-0.181210259413818, 0.258840553222639, 0.258840553225549, 0.258840553228459,
@@ -128,29 +114,22 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     ref_etot = -7.854477356672080
     n_bands = length(ref_pbe[1])
 
-    grid_size = grid_size * ones(3)
-    basis = PlaneWaveBasis(Array{T}(lattice), grid_size, Ecut, kpoints, kweights, ksymops)
-    Si = Species(atnum, psp=load_psp("si-pbe-q4.hgh"))
-    n_electrons = length(positions) * n_elec_valence(Si)
-
-    # Construct the Hamiltonian
-    ham = Hamiltonian(basis, pot_local=build_local_potential(basis, Si => positions),
-                      pot_nonlocal=build_nonlocal_projectors(basis, Si => positions),
-                      pot_hartree=PotHartree(basis),
-                      pot_xc=PotXc(basis, :gga_x_pbe, :gga_c_pbe))
+    fft_size = grid_size * ones(3)
+    Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
+    model = model_dft(Array{T}(silicon.lattice), [:gga_x_pbe, :gga_c_pbe], Si => silicon.positions)
+    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
+    ham = Hamiltonian(basis, guess_gaussian_sad(basis, Si => silicon.positions))
 
     # Construct guess and run the SCF
-    ρ = guess_gaussian_sad(basis, Si => positions)
     prec = PreconditionerKinetic(ham, α=0.1)
-    scfres = self_consistent_field(ham, n_bands, n_electrons, lobpcg_prec=prec, ρ=ρ,
-                                   tol=scf_tol)
+    scfres = self_consistent_field!(ham, n_bands, lobpcg_prec=prec, tol=scf_tol)
 
-    for ik in 1:length(kpoints)
+    for ik in 1:length(silicon.kcoords)
         @test eltype(scfres.orben[ik]) == T
         @test eltype(scfres.Psi[ik]) == Complex{T}
         println(ik, "  ", abs.(ref_pbe[ik] - scfres.orben[ik]))
     end
-    for ik in 1:length(kpoints)
+    for ik in 1:length(silicon.kcoords)
         # Ignore last few bands, because these eigenvalues are hardest to converge
         # and typically a bit random and unstable in the LOBPCG
         diff = abs.(ref_pbe[ik] - scfres.orben[ik])

@@ -10,7 +10,7 @@ end
 """
 TODO DOCME
 """
-function model_hcore(lattice::AbstractMatrix, composition; kwargs...)
+function model_hcore(lattice::AbstractMatrix, composition...; kwargs...)
     n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in composition)
     Model(lattice, n_electrons;
           external=term_external(composition...),
@@ -20,7 +20,7 @@ end
 """
 TODO DOCME
 """
-function model_dft(lattice::AbstractMatrix, composition, functionals; kwargs...)
+function model_dft(lattice::AbstractMatrix, functionals, composition...; kwargs...)
     n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in composition)
     Model(lattice, n_electrons;
           external=term_external(composition...),
@@ -28,14 +28,14 @@ function model_dft(lattice::AbstractMatrix, composition, functionals; kwargs...)
           hartree=term_hartree(),
           xc=term_xc(functionals...), kwargs...)
 end
-function model_dft(lattice::AbstractMatrix, composition, functionals::Symbol; kwargs...)
-    model_dft(lattice, composition, [functionals])
+function model_dft(lattice::AbstractMatrix, functionals::Symbol, composition...; kwargs...)
+    model_dft(lattice, [functionals], composition...)
 end
 
 """
 TODO DOCME
 """
-function model_reduced_hf(lattice::AbstractMatrix, composition; kwargs...)
+function model_reduced_hf(lattice::AbstractMatrix, composition...; kwargs...)
     n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in composition)
     Model(lattice, n_electrons;
           external=term_external(composition...),

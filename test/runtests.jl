@@ -23,6 +23,6 @@ include("occupation.jl")
 include("compute_density.jl")
 
 # include("scf_compare.jl")
-# include("silicon_noXC.jl")
+include("silicon_redHF.jl")
 # include("silicon_lda.jl")
 # include("silicon_pbe.jl")
