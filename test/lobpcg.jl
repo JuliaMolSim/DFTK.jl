@@ -50,27 +50,31 @@ include("./testcases.jl")
     end
 end
 
-# @testset "Diagonalisation of a core Hamiltonian" begin
-#     Ecut = 10
-#     grid_size = [21, 21, 21]
-#     pw = PlaneWaveBasis(lattice, grid_size, Ecut, silicon.kcoords, kweights, ksymops)
-#     Si = Species(atnum, psp=load_psp("si-pade-q4.hgh"))
-#     ham = Hamiltonian(pw, pot_local=build_local_potential(pw, Si => positions),
-#                       pot_nonlocal=build_nonlocal_projectors(pw, Si => positions))
-#     res = lobpcg(ham, 5, tol=1e-8, prec=PreconditionerKinetic(ham, α=0.1),
-#                  interpolate_kpoints=false)
-# 
-#     ref = [
-#         [0.067955741977536, 0.470244204908046, 0.470244204920801,
-#          0.470244204998022, 0.578392222232969],
-#         [0.111089041747288, 0.304724122513625, 0.445322298067717,
-#          0.445322298101198, 0.584713217756577],
-#         [0.129419322499919, 0.293174377882115, 0.411932220567084,
-#          0.411932220611853, 0.594921264868345],
-#         [0.168662148987539, 0.238552367551507, 0.370743978236562,
-#          0.418387442903058, 0.619797227001203],
-#     ]
-#     for ik in 1:length(silicon.kcoords)
-#         @test res.λ[ik] ≈ ref[ik] atol=0.02
-#     end
-# end
+@testset "Diagonalisation of a core Hamiltonian" begin
+    Ecut = 10
+    fft_size = [21, 21, 21]
+
+    Si = Species(silicon.atnum, psp=load_psp("si-pade-q4.hgh"))
+    model = Model(silicon.lattice, silicon.n_electrons,  # Core Hamiltonian model
+                  external=term_external(Si => silicon.positions),
+                  nonlocal=term_nonlocal(Si => silicon.positions))
+    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights,
+                           silicon.ksymops)
+    ham = Hamiltonian(basis)
+
+    res = lobpcg(ham, 5, tol=1e-8, prec=PreconditionerKinetic(ham, α=0.1),
+                 interpolate_kpoints=false)
+    ref = [
+        [0.067955741977536, 0.470244204908046, 0.470244204920801,
+         0.470244204998022, 0.578392222232969],
+        [0.111089041747288, 0.304724122513625, 0.445322298067717,
+         0.445322298101198, 0.584713217756577],
+        [0.129419322499919, 0.293174377882115, 0.411932220567084,
+         0.411932220611853, 0.594921264868345],
+        [0.168662148987539, 0.238552367551507, 0.370743978236562,
+         0.418387442903058, 0.619797227001203],
+    ]
+    for ik in 1:length(silicon.kcoords)
+        @test res.λ[ik] ≈ ref[ik] atol=0.02
+    end
+end
