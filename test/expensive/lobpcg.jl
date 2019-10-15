@@ -1,16 +1,18 @@
 using Test
-using DFTK: PlaneWaveBasis, load_psp, build_local_potential, Hamiltonian
-using DFTK: lobpcg, eval_psp_local_fourier, Species
+using DFTK: PlaneWaveModel, Model, Hamiltonian, lobpcg, PreconditionerKinetic, term_external
 
-include("../silicon_testcases.jl")
+include("../testcases.jl")
 
-@testset "Diagonalisation of kinetic + local psp" begin
+@testset "Diagonalisation of kinetic + local PSP" begin
     Ecut = 25
-    grid_size = [33, 33, 33]
+    fft_size = [33, 33, 33]
 
-    Si = Species(atnum, psp=load_psp("si-pade-q4.hgh"))
-    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights, ksymops)
-    ham = Hamiltonian(pw, pot_local=build_local_potential(pw, Si => positions))
+    Si = Species(silicon.atnum, psp=load_psp("si-pade-q4.hgh"))
+    model = Model(silicon.lattice, silicon.n_electrons,
+                  external=term_external(Si => silicon.positions))
+    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights,
+                           silicon.ksymops)
+    ham = Hamiltonian(basis)
     res = lobpcg(ham, 6, tol=1e-8)
 
     ref = [
@@ -23,7 +25,7 @@ include("../silicon_testcases.jl")
         [-4.085991608422304, -4.085039856878318, -0.517299903754010,
          -0.513805498246478, -0.497036479690380]
     ]
-    for ik in 1:length(kpoints)
+    for ik in 1:length(silicon.kcoords)
         @test res.λ[ik][1:5] ≈ ref[ik] atol=5e-7
     end
 end
