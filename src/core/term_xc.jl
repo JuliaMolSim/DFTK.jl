@@ -64,21 +64,20 @@ and the result follows.
 =#
 
 
-struct TermXc
-    functionals         # Functional or functionals to be used
-    supersampling::Int  # Supersampling for the XC grid
+struct DensityDervatives
+    basis
+    max_derivative::Int
+    ρ_real    # density on real-space grid
+    ∇ρ_real   # density gradient on real-space grid
+    σ_real    # contracted density gradient on real-space grid
 end
 
-function (term::TermXc)(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, potential;
-                        ρ=nothing, kwargs...)
-
-    # TODO This function is pretty messy ... any ideas for cleanup welcome
-
-    @assert ρ !== nothing
-    T = real(eltype(ρ))
+"""
+DOCME compute density in real space and its derivatives starting from Fourier-space density ρ
+"""
+function DensityDervatives(basis, max_derivative::Integer, ρ)
     model = basis.model
     @assert model.spin_polarisation == :none "Only spin_polarisation == :none implemented."
-
     function ifft(x)
         tmp = G_to_r(basis, x)
         @assert(maximum(abs.(imag(tmp))) < 100 * eps(real(eltype(x))),
@@ -86,10 +85,11 @@ function (term::TermXc)(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, poten
         real(tmp)
     end
 
-    # If required compute contracted density gradient σ and gradient ∇ρ_real
     σ_real = nothing
     ∇ρ_real = nothing
-    if any(xc.family == Libxc.family_gga for xc in term.functionals)
+    if max_derivative < 0 || max_derivative > 1
+        error("max_derivative not in [0, 1]")
+    elseif max_derivative > 0
         ∇ρ_real = [ifft(im * [(model.recip_lattice * G)[α] for G in basis_Cρ(basis)] .* ρ)
                    for α in 1:3]
         # TODO The above assumes CPU arrays
@@ -97,65 +97,99 @@ function (term::TermXc)(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, poten
     end
 
     ρ_real = ifft(ρ .+ 0im)  # Density in real space, +0im to enforce complex algebra
+    DensityDervatives(basis, max_derivative, ρ_real, ∇ρ_real, σ_real)
+end
+
+# Small internal helper function
+epp_to_kwargs_(::Nothing) = Dict()
+epp_to_kwargs_(Epp) = Dict(:E => Epp)
+
+# Evaluate a single XC functional, *adds* the value to the potential on the grid
+# and *returns* the energy per unit particle on the grid
+# These are internal functions
+eval_xc_!(basis, xc, family, Epp::Nothing, potential::Nothing, density...) = nothing
+function eval_xc_!(basis, xc, ::Val{Libxc.family_lda}, Epp, ::Nothing, density)
+    evaluate_lda!(basis, xc, density.ρ_real, epp_to_kwargs_(Epp)...)
+end
+function eval_xc_!(basis, xc, ::Val{Libxc.family_gga}, Epp, ::Nothing, density)
+    evaluate_gga!(xc, density.ρ_real, epp_to_kwargs_(Epp)...)
+end
+function eval_xc_!(basis, xc, ::Val{Libxc.family_lda}, Epp, potential, density)
+    Vρ = similar(density.ρ_real)
+    evaluate_lda!(xc, density.ρ_real; Vρ=Vρ, epp_to_kwargs_(Epp)...)
+    potential .+= Vρ
+end
+function eval_xc_!(basis, xc, ::Val{Libxc.family_gga}, Epp, potential, density)
+    model = basis.model
+    Vρ = similar(density.ρ_real)
+    Vσ = similar(density.ρ_real)
+    evaluate_gga!(xc, density.ρ_real, density.σ_real; Vρ=Vρ, Vσ=Vσ, epp_to_kwargs_(Epp)...)
+
+    # TODO Check the literature how this expression comes about in detail.
+    #      Following Richard Martin, Electronic structure, p. 158, the XC potential
+    #      can be split as:
+    #        Vxc = ∂(ρ ϵ_{XC})/∂ρ - ∇( ∂(ρ ϵ_{XC})/∂(∇ρ) )
+    #      Now the second term can be rewritten by the chain rule
+    #        -∇( ∂(ρ ϵ_{XC})/∂(∇ρ) ) = -∇( ∂(ρ ϵ_{XC})/∂(|∇ρ|^2) ∂(|∇ρ|^2)/∂(∇ρ) )
+    #                                = -∇( ∂(ρ ϵ_{XC})/∂(|∇ρ|^2) 2∇ρ )
+    #    libxc yields
+    #        Vρ === ∂(ρ ϵ_{XC})/∂ρ
+    #        Vσ === ∂(ρ ϵ_{XC})/∂(|∇ρ|^2)
+
+    gradterm = sum(1:3) do α
+        # Compute term inside -∇(  ) in Fourier space
+        Vσ∇ρ = 2r_to_G(basis, Vσ .* density.∇ρ_real[α] .+ 0im)
+
+        # take derivative
+        im * [(model.recip_lattice * G)[α] for G in basis_Cρ(basis)] .* Vσ∇ρ
+    end
+    gradterm_real = real(G_to_r(basis, gradterm))
+    potential .+= (Vρ - gradterm_real)
+end
+function eval_xc_!(basis, xc, family, Epp, potential, density)
+    error("Functional family $(string(xc.family)) not implemented.")
+end
+
+# Term structure, representing the exchange-correlation term
+struct TermXc
+    functionals         # Functional or functionals to be used
+    supersampling::Int  # Supersampling for the XC grid
+end
+
+"""
+Todo docme
+"""
+function (term::TermXc)(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, potential;
+                        ρ=nothing, kwargs...)
+    @assert ρ !== nothing
+    T = real(eltype(ρ))
+    model = basis.model
+
+    # Take derivatives of the density if needed.
+    max_ρ_derivs = 0
+    if any(xc.family == Libxc.family_gga for xc in term.functionals)
+        max_ρ_derivs = 1
+    end
+    density = DensityDervatives(basis, max_ρ_derivs, ρ)
 
     # Initialisation
     potential !== nothing && (potential .= 0)
     Epp = nothing  # Energy per unit particle
     if energy !== nothing
-        Epp = similar(ρ_real)
+        Epp = similar(density.ρ_real)
         energy[] = 0
     end
 
-    # Use multiple dispatch of the next functions to avoid writing nested if-then branches
-    add_xc!(xc, ::Val{Libxc.family_lda}, Epp, ::Nothing) = evaluate_lda!(xc, ρ_real, E=Epp)
-    add_xc!(xc, ::Val{Libxc.family_gga}, Epp, ::Nothing) = evaluate_gga!(xc, ρ_real, E=Epp)
-    function add_xc!(xc, ::Val{Libxc.family_lda}, Epp, potential)  # TODO Do not call with nothing
-        Vρ = similar(ρ_real)
-        kwargs = Dict()
-        Epp !== nothing && (kwargs = Dict(:E => Epp))
-        evaluate_lda!(xc, ρ_real; Vρ=Vρ, kwargs...)
-        potential .+= Vρ
-    end
-    function add_xc!(xc, ::Val{Libxc.family_gga}, Epp, potential)
-        Vρ = similar(ρ_real)
-        Vσ = similar(ρ_real)
-        kwargs = Dict()
-        Epp !== nothing && (kwargs = Dict(:E => Epp))
-        evaluate_gga!(xc, ρ_real, σ_real; Vρ=Vρ, Vσ=Vσ, kwargs...)
-
-        # TODO Check the literature how this expression comes about in detail.
-        #      Following Richard Martin, Electronic stucture, p. 158, the XC potential
-        #      can be split as:
-        #        Vxc = ∂(ρ ϵ_{XC})/∂ρ - ∇( ∂(ρ ϵ_{XC})/∂(∇ρ) )
-        #      Now the second term can be rewritten by the chain rule
-        #        -∇( ∂(ρ ϵ_{XC})/∂(∇ρ) ) = -∇( ∂(ρ ϵ_{XC})/∂(|∇ρ|^2) ∂(|∇ρ|^2)/∂(∇ρ) )
-        #                                = -∇( ∂(ρ ϵ_{XC})/∂(|∇ρ|^2) 2∇ρ )
-        #    libxc yields
-        #        Vρ === ∂(ρ ϵ_{XC})/∂ρ
-        #        Vσ === ∂(ρ ϵ_{XC})/∂(|∇ρ|^2)
-
-        gradterm = sum(1:3) do α
-            # Compute term inside -∇(  ) in Fourier space
-            Vσ∇ρ = 2r_to_G(basis, Vσ .* ∇ρ_real[α] .+ 0im)
-
-            # take derivative
-            im * [(model.recip_lattice * G)[α] for G in basis_Cρ(basis)] .* Vσ∇ρ
-        end
-        potential .+= (Vρ - ifft(gradterm))
-    end
-    function add_xc!(xc, type, Epp, potential)
-        error("Functional family $(string(xc.family)) not implemented.")
-    end
-
-    # Loop over all functionals, evaluate them and compute the energy
     for xc in term.functionals
-        add_xc!(xc, Val(xc.family), Epp, potential)
+        # *adds* the potential for this functional to `potential` and *sets* the
+        # energy per unit particle in `Epp`.
+        eval_xc_!(basis, xc, Val(xc.family), Epp, potential, density)
 
-        if energy !== nothing
+        if Epp !== nothing
             # Factor (1/2) to avoid double counting of electrons (see energy expression)
             # Factor 2 because α and β operators are identical for spin-restricted case
             dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
-            energy[] += 2 * sum(Epp .* ρ_real) * dVol / 2
+            energy[] += 2 * sum(Epp .* density.ρ_real) * dVol / 2
         end
     end
     energy, potential

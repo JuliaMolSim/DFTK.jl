@@ -1,4 +1,4 @@
-using Libxc: evaluate_lda!, Functional
+using Libxc: evaluate_lda!, evaluate_gga!, Functional
 using Libxc
 
 include("xc_fallback/lda_x.jl")

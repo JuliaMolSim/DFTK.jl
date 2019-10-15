@@ -75,5 +75,5 @@ function term_external(generators_or_composition...; compensating_background=tru
 
         energy, potential
     end
-    return inner
+    inner
 end

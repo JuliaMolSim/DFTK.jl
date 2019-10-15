@@ -32,9 +32,9 @@ function find_occupation_gap_zero_temperature(basis, energies, Psi)
     # Put Fermi level slightly above HOMO energy
     εF = HOMO + 10eps(eltype(energies[1]))
     if HOMO > LUMO || εF > LUMO
-        @warn("`find_occupation_gap_zero_temperature` assumes an insulator, but the" *
-              "system seems metallic. Try specifying a temperature and a smearing function",
-              HOMO, LUMO)
+        @warn("`find_occupation_gap_zero_temperature` assumes an insulator, but the " *
+              "system seems metallic. Try specifying a temperature and a smearing function.",
+              HOMO, LUMO, maxlog=5)
     end
 
     εF, occupation
@@ -100,7 +100,7 @@ Find the occupation numbers around the Fermi level, given a `basis`, SCF band `e
 and corresponding Bloch one-particle wave function `Psi`. If `basis.model.smearing` is
 `nothing`, this function assumes an insulator.
 """
-function find_occupation_fermi_level(basis, energies, Psi)
+function find_occupation_around_fermi(basis, energies, Psi)
     model = basis.model
     occ = nothing
     if model.assume_band_gap && basis.model.temperature == 0.0

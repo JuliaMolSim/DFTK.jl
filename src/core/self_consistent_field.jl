@@ -16,7 +16,7 @@ Obtain new density ρ by diagonalizing the Hamiltonian build from the current ρ
 """
 function iterate_density!(ham::Hamiltonian, n_bands, ρ=nothing; Psi=nothing,
                           prec=PreconditionerKinetic(ham, α=0.1), tol=1e-6,
-                          compute_occupation=find_occupation_fermi_level, diag=diag_lobpcg)
+                          compute_occupation=find_occupation_around_fermi, diag=diag_lobpcg)
     # Update Hamiltonian from ρ
     ρ !== nothing && build_hamiltonian!(ham, ρ)
 
