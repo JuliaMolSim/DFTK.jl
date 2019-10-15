@@ -18,7 +18,7 @@ function iterate_density!(ham::Hamiltonian, n_bands, ρ=nothing; Psi=nothing,
                           prec=PreconditionerKinetic(ham, α=0.1), tol=1e-6,
                           compute_occupation=find_occupation_around_fermi, diag=diag_lobpcg)
     # Update Hamiltonian from ρ
-    ρ !== nothing && build_hamiltonian!(ham, ρ)
+    ρ !== nothing && update_hamiltonian!(ham, ρ)
 
     # Update Psi from Hamiltonian (ask for a few more bands than the ones we need)
     n_ep = (Psi === nothing) ? n_bands + 3 : size(Psi[1], 2)
@@ -102,7 +102,7 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
     itres = iterate_density!(ham, n_bands, ρ; Psi=Psi, tol=diagtol, diag=diag)
 
     # TODO energies ... maybe do them optionally in iterate_density along with
-    #      the build_hamiltonian function
+    #      the update_hamiltonian function
     energies = Dict{Symbol, T}()
 
     # Strip off the extra (unconverged) eigenpairs

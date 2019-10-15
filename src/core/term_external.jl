@@ -71,7 +71,7 @@ function term_external(generators_or_composition...; compensating_background=tru
         if compensating_background
             values_fourier[1] = 0
         end
-        potential .= G_to_r(basis, values_fourier)  # iFFT to real space
+        G_to_r!(potential, basis, values_fourier)  # iFFT to real space
 
         energy, potential
     end

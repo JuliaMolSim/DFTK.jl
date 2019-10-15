@@ -19,19 +19,15 @@ function term_hartree_(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, potent
 
     # Solve the Poisson equation ΔV = -4π ρ in Fourier space,
     # i.e. Multiply elementwise by 4π / |G|^2.
-    values = T(4π) * ρ ./ [sum(abs2, model.recip_lattice * G) for G in basis_Cρ(basis)] .+ 0im  # Force a complex array
+    # 0im to force a complex array
+    values = 0im .+ T(4π) * ρ ./ [sum(abs2, model.recip_lattice * G) for G in basis_Cρ(basis)]
     # TODO The above assumes CPU arrays
 
     # Zero the DC component (i.e. assume a compensating charge background)
     values[1] = 0
 
-    # Fourier-transform values and store in values_real
-    Vh = if potential === nothing
-        ifft(values)
-    else
-        potential .= ifft(values)
-    end
-
+    # Fourier-transform values and store in Vh
+    Vh = (potential === nothing) ? G_to_r(basis, values) : G_to_r!(potential, basis, values)
     if energy !== nothing
         # TODO Maybe one could compute the energy directly in Fourier space
         #      and in this way save one FFT

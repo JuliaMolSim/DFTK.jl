@@ -64,7 +64,6 @@ include("core/Hamiltonian.jl")
 include("core/HamiltonianBlock.jl")
 
 export find_fermi_level
-export compute_occupation
 include("core/occupation.jl")
 
 export compute_density

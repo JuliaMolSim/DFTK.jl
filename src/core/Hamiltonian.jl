@@ -25,8 +25,8 @@ Initialise a one-particle Hamiltonian from a model and optionally a density.
 function Hamiltonian(basis::PlaneWaveModel{T}, ρ=nothing) where T
     model = basis.model
     # TODO This assumes CPU array
-    potarray(ρ) = similar(ρ)
-    potarray(::Nothing) = zeros(T, basis.fft_size)
+    potarray(ρ) = similar(ρ, Complex{T})
+    potarray(::Nothing) = zeros(Complex{T}, basis.fft_size)
     ρzero = something(ρ, zeros(T, basis.fft_size))
 
     _, pot_external = model.build_external(basis, nothing, potarray(ρ))
@@ -41,19 +41,18 @@ end
 """
 Build / update an Hamiltonian out-of-place
 """
-build_hamiltonian(basis::PlaneWaveModel, ρ) = Hamiltonian(basis, ρ)
-function build_hamiltonian(ham::Hamiltonian, ρ)
+function update_hamiltonian(ham::Hamiltonian, ρ)
     nsimilar(::Nothing) = nothing
     nsimilar(p) = similar(p)
     ham = Hamiltonian(basis, ρ, ham.kinetic, ham.pot_external, nsimilar(ham.pot_hartree),
                       nsimilar(ham.pot_xc), nsimilar(ham.pot_local), ham.pot_nonlocal)
-    build_hamiltonian!(ham, ρ)
+    update_hamiltonian!(ham, ρ)
 end
 
 """
 Update Hamiltonian in-place
 """
-function build_hamiltonian!(ham::Hamiltonian, ρ)
+function update_hamiltonian!(ham::Hamiltonian, ρ)
     basis = ham.basis
     model = basis.model
     model.build_hartree(basis, nothing, ham.pot_hartree; ρ=ρ)
