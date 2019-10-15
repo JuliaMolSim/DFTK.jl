@@ -2,16 +2,11 @@
 Setup LOBPCG eigensolver
 """
 function diag_lobpcg(;kwargs...)
-    function inner(ham, n_ep; prec=nothing, tol=nothing, guess=nothing,
-                   n_conv_check=nothing)
-        # TODO Is there a better way to achieve this?
-        kwcopy = Dict{Symbol, Any}(kwargs)
-        :guess in keys(kwcopy) || (kwcopy[:guess] = guess)
-        :prec in keys(kwcopy) || (kwcopy[:prec] = prec)
-        :tol in keys(kwcopy) || (kwcopy[:tol] = tol)
-        :n_conv_check in keys(kwcopy) || (kwcopy[:n_conv_check] = n_conv_check)
-        lobpcg(ham, n_ep; kwcopy...)
-    end
+    @warn "diag_lobpcg should be split into hyper and the different lobpcg flavours."
+    # Return a function, which calls the lobpcg routine. By default the kwargs
+    # from the scf (passed as scfkwargs) are used, unless they are overwritten
+    # by the kwargs passed upon call to diag_lobpcg.
+    (ham, n_ep; scfkwargs...) -> lobpcg(ham, n_ep; merge(scfkwargs, kwargs)...)
 end
 
 
@@ -25,9 +20,8 @@ function iterate_density!(ham::Hamiltonian, n_bands, ρ=nothing; Psi=nothing,
     # Update Hamiltonian from ρ
     ρ !== nothing && build_hamiltonian!(ham, ρ)
 
-    # Update Psi from Hamiltonian
-    n_ep = n_bands + 3  # Ask for a few more eigenpairs than we want bands
-    Psi !== nothing && (n_ep = size(Psi[1], 2))
+    # Update Psi from Hamiltonian (ask for a few more bands than the ones we need)
+    n_ep = (Psi === nothing) ? n_bands + 3 : size(Psi[1], 2)
     eigres = diag(ham, n_ep; guess=Psi, n_conv_check=n_bands, prec=prec, tol=tol)
     eigres.converged || (@warn "LOBPCG not converged" iterations=res.iterations)
     Psi !== nothing && (Psi .= eigres.X)
@@ -55,12 +49,9 @@ for diagonalisation. Possible `algorithm`s are `:scf_nlsolve` or `:scf_damped`.
 
 compute_occupation is around to manipulate the way occupations are computed.
 """
-# Scaling is from 0 to 1. 0 is density mixing, 1 is "potential mixing"
-# (at least, Hartree potential mixing). 1/2 results in a symmetric
-# Jacobian of the SCF mapping (when there is no exchange-correlation)
 function self_consistent_field!(ham::Hamiltonian, n_bands;
                                 Psi=nothing, tol=1e-6, max_iter=100,
-                                den_scaling=0.0, solver=scf_nlsolve_solver(),
+                                solver=scf_nlsolve_solver(),
                                 diag=diag_lobpcg(), n_ep_extra=3)
     T = real(eltype(ham.density))
     diagtol = tol / 10.
@@ -71,17 +62,11 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
                for kpt in ham.basis.kpoints]
     end
 
-    Gsq = [T(4π) * sum(abs2, model.recip_lattice * G) for G in basis_Cρ(ham.basis)]
-    Gsq[1] = 1.0  # do not touch the DC component
-    den_to_mixed = Gsq.^T(-den_scaling)
-    mixed_to_den = Gsq.^T(den_scaling)
-
     # TODO remove foldρ and unfoldρ when https://github.com/JuliaNLSolvers/NLsolve.jl/pull/217 is in a release
     function foldρ(ρ)
         return vec(real(r_to_G(ham.basis, ρ .+ 0im)))
 
         # TODO Does not work and disabled for now
-        ρ = den_to_mixed .* ρ
         # Fold a complex array representing the Fourier transform of a purely real
         # quantity into a real array
         half = ceil(Int, size(ρ, 1) / 2)
@@ -89,15 +74,14 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
         vcat(real(ρcpx), imag(ρcpx))
     end
     function unfoldρ(ρ)
-        return G_to_r(ham.basis, reshape(ρ .+ 0im, size(mixed_to_den)))
+        return G_to_r(ham.basis, reshape(ρ .+ 0im, ham.basis.fft_size))
 
         # TODO Does not work and disabled for now
         half = Int(size(ρ, 1) / 2)
         ρcpx = ρ[1:half, :, :] + im * ρ[half+1:end, :, :]
 
         # Undo "foldρ"
-        ρ_unfolded = vcat(ρcpx, conj(reverse(reverse(ρcpx[2:end, :, :], dims=2), dims=3)))
-        ρ_unfolded .* mixed_to_den
+        vcat(ρcpx, conj(reverse(reverse(ρcpx[2:end, :, :], dims=2), dims=3)))
     end
     fixpoint_map(ρ) = foldρ(iterate_density!(ham, n_bands, unfoldρ(ρ); Psi=Psi, diag=diag,
                                              tol=diagtol).ρ)
