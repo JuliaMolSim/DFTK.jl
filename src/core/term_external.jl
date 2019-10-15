@@ -71,14 +71,7 @@ function term_external(generators_or_composition...; compensating_background=tru
         if compensating_background
             values_fourier[1] = 0
         end
-
-        values_real = G_to_r(basis, values_fourier)
-        if maximum(imag(values_real)) > 100 * eps(T)
-            throw(ArgumentError("Expected potential on the real-space grid to be entirely" *
-                                " real-valued, but the present potential gives rise to a " *
-                                "maximal imaginary entry of $(maximum(imag(values_real)))."))
-        end
-        potential .= real(values_real)
+        potential .= G_to_r(basis, values_fourier)  # iFFT to real space
 
         energy, potential
     end

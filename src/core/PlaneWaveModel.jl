@@ -167,10 +167,7 @@ function G_to_r!(f_real::AbstractFFTGrid, pw::PlaneWaveModel, f_fourier::Abstrac
     for iband in 1:n_bands  # TODO Call batch version of FFTW, maybe do threading
         @views ldiv!(f_real[:, :, :, iband], pw.opFFT, f_fourier[:, :, :, iband])
     end
-
-    # TODO Get rid of this by instead manipulating only the non-symmetry equivalent parts of the grid
-    @warn "Uses dirty hack in G_to_r"
-    real(f_real) .+ 0im  # TODO dirty hack for the moment
+    f_real
 end
 function G_to_r!(f_real::AbstractFFTGrid, pw::PlaneWaveModel, kpt::Kpoint,
                  f_fourier::AbstractVecOrMat)

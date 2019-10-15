@@ -186,3 +186,7 @@ Note: - It is *not* required nor guaranteed that the returned `potential` is an 
       - The arguments `ρ` or `Ψ` are not required for calling the function, but the
         function might throw if they are for the requested computations.
 ```
+
+Because we do not explicitly make sure the Fourier representation of an analytic potential
+is a real fucntion in real space only the real part of the real-space representation
+of a potential is physically meaningful.
