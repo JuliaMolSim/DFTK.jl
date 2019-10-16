@@ -11,7 +11,7 @@ include("testcases.jl")
 @testset "Using BZ symmetry yields identical density" begin
     function get_bands(testcase, fft_size, kcoords, ksymops, composition...;
                        Ecut=5, tol=1e-8)
-        model = model_dft(testcase.lattice, composition, :lda_xc_teter93)
+        model = model_dft(testcase.lattice, :lda_xc_teter93, composition...)
 
         kweights = [length(symops) for symops in ksymops]
         kweights = kweights / sum(kweights)
@@ -22,7 +22,7 @@ include("testcases.jl")
         res = lobpcg(ham, n_bands; prec=PreconditionerKinetic(ham, α=0.1), tol=tol)
 
         @assert testcase.n_electrons == 8
-        occ = compute_occupation(basis, res.λ, res.X)
+        occ = DFTK.find_occupation_around_fermi(basis, res.λ, res.X)
         ρnew = compute_density(basis, res.X, occ)
 
         basis, res.X, res.λ, ρnew

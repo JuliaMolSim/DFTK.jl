@@ -4,13 +4,14 @@ using LinearAlgebra: dot
 
 include("testcases.jl")
 
-@testset "term_exteranl using Coulomb potential" begin
+@testset "term_external using Coulomb potential" begin
     Ecut = 4
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
     basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
     function build_external(composition...)
-        _, pot = term_external(composition...)(basis, nothing, zeros(basis.fft_size))
+        _, pot = term_external(composition...)(basis, nothing,
+                                               zeros(ComplexF64, basis.fft_size))
         pot
     end
 
@@ -56,13 +57,14 @@ include("testcases.jl")
 end
 
 
-@testset "term_exteranl using Species" begin
+@testset "term_external using Species" begin
     Ecut = 4
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
     basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
     function build_external(composition...)
-        _, pot = term_external(composition...)(basis, nothing, zeros(basis.fft_size))
+        _, pot = term_external(composition...)(basis, nothing,
+                                               zeros(ComplexF64, basis.fft_size))
         pot
     end
 

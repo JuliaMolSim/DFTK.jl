@@ -18,12 +18,6 @@ include("testcases.jl")
                                     solver=scf_nlsolve_solver())
     ρ_nl = scfres.ρ
 
-    # Test density scaling
-    scfres = self_consistent_field!(Hamiltonian(basis), n_bands, tol=tol, den_scaling=.5,
-                                    solver=scf_nlsolve_solver())
-    ρ_den_scaling = scfres.ρ
-    @test maximum(abs.(ρ_den_scaling - ρ_nl)) < 100tol
-
     # Run other SCFs with SAD guess
     ρ0 = guess_gaussian_sad(basis, Si => silicon.positions)
     for solver in (scf_nlsolve_solver, scf_damping_solver, scf_anderson_solver,
