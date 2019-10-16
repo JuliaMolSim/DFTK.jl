@@ -57,7 +57,7 @@ fft_size is now Fourier grid size
 kcoords is vector of Vec3
 """
 function PlaneWaveModel(model::Model{T}, fft_size, Ecut::Number,
-                        kcoords, kweights, ksymops) where {T <: Real}
+                        kcoords, ksymops, kweights=nothing) where {T <: Real}
     fft_size = Tuple{Int, Int, Int}(fft_size)
     # Plan a FFT, spending some time on finding an optimal algorithm
     # for the machine on which the computation runs
@@ -101,9 +101,13 @@ function PlaneWaveModel(pw::PlaneWaveModel{T, TopFFT, TipFFT}, kcoords;
                         kweights=nothing, ksymops=nothing,
                         Ecut=pw.Ecut) where {T, TopFFT, TipFFT}
     recip_lattice = pw.model.recip_lattice
-    kweights === nothing && (kweights = ones(length(kcoords)) ./ length(kcoords))
     ksymops === nothing && (ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))]
                                          for _ in 1:length(kcoords)])
+    if kweights === nothing
+        kweights = [length(symops) for symops in ksymops]
+        kweights = kweights / sum(kweights)
+    end
+
     @assert length(kcoords) == length(ksymops)
     @assert length(kcoords) == length(kweights)
     @assert sum(kweights) ≈ 1 "kweights are assumed to be normalized."

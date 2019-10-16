@@ -7,7 +7,7 @@ include("testcases.jl")
     Ecut = 2
     fft_size = [9, 9, 9]
     model = Model(silicon.lattice, silicon.n_electrons)
-    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
+    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     function build_nonlocal(composition...)
         _, pot = term_nonlocal(composition...)(basis, nothing, zeros(basis.fft_size))
         pot

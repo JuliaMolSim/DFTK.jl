@@ -8,7 +8,7 @@ include("testcases.jl")
     Ecut = 4
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
-    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
+    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     function build_external(composition...)
         _, pot = term_external(composition...)(basis, nothing,
                                                zeros(ComplexF64, basis.fft_size))
@@ -61,7 +61,7 @@ end
     Ecut = 4
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
-    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
+    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     function build_external(composition...)
         _, pot = term_external(composition...)(basis, nothing,
                                                zeros(ComplexF64, basis.fft_size))

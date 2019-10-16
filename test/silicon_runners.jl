@@ -30,7 +30,7 @@ function run_silicon_redHF(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     fft_size = grid_size * ones(3)
     Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_reduced_hf(silicon.lattice, Si => silicon.positions)
-    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
+    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis, guess_gaussian_sad(basis, Si => silicon.positions))
 
     scfres = self_consistent_field!(ham, n_bands, tol=scf_tol)
@@ -68,7 +68,7 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     fft_size = grid_size * ones(3)
     Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_dft(Array{T}(silicon.lattice), [:lda_x, :lda_c_vwn], Si => silicon.positions)
-    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
+    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis, guess_gaussian_sad(basis, Si => silicon.positions))
 
     # TODO Get rid of n_conv_check here
@@ -118,7 +118,7 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     fft_size = grid_size * ones(3)
     Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_dft(Array{T}(silicon.lattice), [:gga_x_pbe, :gga_c_pbe], Si => silicon.positions)
-    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
+    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis, guess_gaussian_sad(basis, Si => silicon.positions))
 
     # Construct guess and run the SCF

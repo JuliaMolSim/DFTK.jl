@@ -10,8 +10,7 @@ include("../testcases.jl")
     Si = Species(silicon.atnum, psp=load_psp("si-pade-q4.hgh"))
     model = Model(silicon.lattice, silicon.n_electrons,
                   external=term_external(Si => silicon.positions))
-    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights,
-                           silicon.ksymops)
+    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis)
     res = lobpcg(ham, 6, tol=1e-8)
 

@@ -6,8 +6,7 @@ include("testcases.jl")
 
 function test_pw_cutoffs(testcase, Ecut, fft_size)
     model = Model(testcase.lattice, testcase.n_electrons)
-    pw = PlaneWaveModel(model, fft_size, Ecut, testcase.kcoords,
-                        testcase.kweights, testcase.ksymops)
+    pw = PlaneWaveModel(model, fft_size, Ecut, testcase.kcoords, testcase.ksymops)
 
     for (ik, kpt) in enumerate(pw.kpoints)
         for G in kpt.basis
@@ -20,8 +19,7 @@ end
     Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
-    pw = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords,
-                        silicon.kweights, silicon.ksymops)
+    pw = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
 
     @test pw.model.lattice == silicon.lattice
     @test pw.model.recip_lattice ≈ 2π * inv(silicon.lattice)
@@ -45,7 +43,7 @@ end
         end
         @test g_all[kpt.mapping] == kpt.basis
     end
-    @test pw.kweights == silicon.kweights
+    @test pw.kweights == [1, 8, 6, 12] / 27
 end
 
 @testset "PlaneWaveModel: Energy cutoff is respected" begin
@@ -58,8 +56,7 @@ end
     Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
-    pw = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords,
-                        silicon.kweights, silicon.ksymops)
+    pw = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     g_all = collect(basis_Cρ(pw))
 
     for i in 1:15, j in 1:15, k in 1:15

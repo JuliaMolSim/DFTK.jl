@@ -25,7 +25,7 @@ include("testcases.jl")
 
     # Occupation for zero temperature
     model = Model(silicon.lattice, silicon.n_electrons; temperature=0.0, smearing=nothing)
-    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
+    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     εF0, occupation0 = find_occupation_gap_zero_temperature(basis, energies, Psi)
     @test εHOMO < εF0 < εLUMO
     @test sum(basis.kweights .* sum.(occupation0)) ≈ model.n_electrons
@@ -34,7 +34,7 @@ include("testcases.jl")
     Ts = (0, 1e-6, .1, 1.0)
     for T in Ts, fun in smearing_functions
         model = Model(silicon.lattice, silicon.n_electrons; temperature=T, smearing=fun)
-        basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
+        basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
         _, occs = find_occupation_fermi_metal(basis, energies, Psi)
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
     end
@@ -43,7 +43,7 @@ include("testcases.jl")
     Ts = (0, 1e-6, 1e-4)
     for T in Ts, fun in smearing_functions
         model = Model(silicon.lattice, silicon.n_electrons; temperature=T, smearing=fun)
-        basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.kweights, silicon.ksymops)
+        basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
         _, occupation = find_occupation_fermi_metal(basis, energies, Psi)
 
         for ik in 1:n_k

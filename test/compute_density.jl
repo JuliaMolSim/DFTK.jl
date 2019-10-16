@@ -12,10 +12,7 @@ include("testcases.jl")
     function get_bands(testcase, fft_size, kcoords, ksymops, composition...;
                        Ecut=5, tol=1e-8)
         model = model_dft(testcase.lattice, :lda_xc_teter93, composition...)
-
-        kweights = [length(symops) for symops in ksymops]
-        kweights = kweights / sum(kweights)
-        basis = PlaneWaveModel(model, fft_size, Ecut, kcoords, kweights, ksymops)
+        basis = PlaneWaveModel(model, fft_size, Ecut, kcoords, ksymops)
         ham = Hamiltonian(basis, guess_gaussian_sad(basis, composition...))
 
         n_bands = 4
