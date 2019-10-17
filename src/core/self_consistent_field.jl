@@ -103,7 +103,7 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
 
     # TODO energies ... maybe do them optionally in iterate_density along with
     #      the update_hamiltonian function
-    energies = Dict{Symbol, T}()
+    energies = update_energies(ham, itres.Psi, itres.occupation, itres.ρ)
 
     # Strip off the extra (unconverged) eigenpairs
     Psi = [p[1:end-n_ep_extra, :] for p in itres.Psi]

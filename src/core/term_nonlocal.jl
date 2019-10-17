@@ -74,8 +74,6 @@ end
 end
 
 
-
-
 """
     term_nonlocal(psp_or_composition...)
 
@@ -111,11 +109,14 @@ function term_nonlocal(psps_or_composition...)
                   for (elem, positions) in psps_or_composition
                   if extract_psp(elem) !== nothing]
 
-    function inner(basis::PlaneWaveModel, energy, potential; kwargs...)
-        @assert energy === nothing "Energy computation not yet implemented"
-        potential === nothing && return energy, nothing
-        energy, PotNonLocal(basis, build_projection_coefficients_(basis, potentials),
+    function inner(basis::PlaneWaveModel, energy, potential; Psi=nothing,
+                   occupation=nothing, kwargs...)
+        potnl = PotNonLocal(basis, build_projection_coefficients_(basis, potentials),
                             kpt -> build_projection_vectors_(basis, potentials, kpt))
+        if energy !== nothing
+            energy[] = energy_term_operator(potnl, Psi, occupation)
+        end
+        energy, potnl
     end
     inner
 end

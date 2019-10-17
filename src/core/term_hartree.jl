@@ -11,7 +11,7 @@ function term_hartree_(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, potent
     model = basis.model
 
     function ifft(x)
-        tmp = G_to_r(basis, x)
+        tmp = G_to_r(basis, x .+ 0im)
         @assert(maximum(abs.(imag(tmp))) < 100 * eps(eltype(real(x))),
                 "Imaginary part too large $(maximum(imag(tmp)))")
         real(tmp)
@@ -31,8 +31,11 @@ function term_hartree_(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, potent
     if energy !== nothing
         # TODO Maybe one could compute the energy directly in Fourier space
         #      and in this way save one FFT
-        dVol = model.unit_cell_volume / prod(model.fft_size)
-        energy[] = 2 * real(sum(ifft(ρ) .* Vh) / 2 * dVol) / 2
+        dVol = model.unit_cell_volume / prod(basis.fft_size)
+        energy[] = 2 * real(sum(ifft(ρ) .* Vh)) / 2 * dVol / 2
+        # One factor (1/2) to avoid double counting of electrons
+        # One factor (1/2) because ρ is the sum of alpha and beta density.
+        # Factor 2 because α and β operators are identical for case without spin polarisation
     end
 
     energy, potential

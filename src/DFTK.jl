@@ -48,6 +48,7 @@ export term_external
 export term_hartree
 export term_nonlocal
 export term_xc
+include("core/energy_term_operator.jl")
 include("core/Kinetic.jl")
 include("core/PotNonLocal.jl")
 include("core/term_external.jl")
@@ -55,19 +56,22 @@ include("core/term_hartree.jl")
 include("core/term_nonlocal.jl")
 include("core/term_xc.jl")
 
-export Hamiltonian
-export HamiltonianBlock
-export build_hamiltonian
-export build_hamiltonian!
-export kblock
-include("core/Hamiltonian.jl")
-include("core/HamiltonianBlock.jl")
-
 export find_fermi_level
 include("core/occupation.jl")
 
 export compute_density
 include("core/compute_density.jl")
+
+export Hamiltonian
+export HamiltonianBlock
+export update_hamiltonian
+export update_hamiltonian!
+export update_energies_hamiltonian!
+export update_energies!
+export update_energies
+export kblock
+include("core/Hamiltonian.jl")
+include("core/HamiltonianBlock.jl")
 
 export PreconditionerKinetic
 include("core/Preconditioner.jl")

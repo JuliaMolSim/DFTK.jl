@@ -64,6 +64,7 @@ and the result follows.
 =#
 
 
+# TODO Integrate this with compute_density.jl
 struct DensityDervatives
     basis
     max_derivative::Int
@@ -109,10 +110,10 @@ epp_to_kwargs_(Epp) = Dict(:E => Epp)
 # These are internal functions
 eval_xc_!(basis, xc, family, Epp::Nothing, potential::Nothing, density...) = nothing
 function eval_xc_!(basis, xc, ::Val{Libxc.family_lda}, Epp, ::Nothing, density)
-    evaluate_lda!(basis, xc, density.ρ_real, epp_to_kwargs_(Epp)...)
+    evaluate_lda!(xc, density.ρ_real; epp_to_kwargs_(Epp)...)
 end
 function eval_xc_!(basis, xc, ::Val{Libxc.family_gga}, Epp, ::Nothing, density)
-    evaluate_gga!(xc, density.ρ_real, epp_to_kwargs_(Epp)...)
+    evaluate_gga!(xc, density.ρ_real, density.σ_real; epp_to_kwargs_(Epp)...)
 end
 function eval_xc_!(basis, xc, ::Val{Libxc.family_lda}, Epp, potential, density)
     Vρ = similar(density.ρ_real)
@@ -120,22 +121,14 @@ function eval_xc_!(basis, xc, ::Val{Libxc.family_lda}, Epp, potential, density)
     potential .+= Vρ
 end
 function eval_xc_!(basis, xc, ::Val{Libxc.family_gga}, Epp, potential, density)
+    # Computes XC potential: Vρ - 2 div(Vσ ∇ρ)
+
     model = basis.model
     Vρ = similar(density.ρ_real)
     Vσ = similar(density.ρ_real)
     evaluate_gga!(xc, density.ρ_real, density.σ_real; Vρ=Vρ, Vσ=Vσ, epp_to_kwargs_(Epp)...)
 
-    # TODO Check the literature how this expression comes about in detail.
-    #      Following Richard Martin, Electronic structure, p. 158, the XC potential
-    #      can be split as:
-    #        Vxc = ∂(ρ ϵ_{XC})/∂ρ - ∇( ∂(ρ ϵ_{XC})/∂(∇ρ) )
-    #      Now the second term can be rewritten by the chain rule
-    #        -∇( ∂(ρ ϵ_{XC})/∂(∇ρ) ) = -∇( ∂(ρ ϵ_{XC})/∂(|∇ρ|^2) ∂(|∇ρ|^2)/∂(∇ρ) )
-    #                                = -∇( ∂(ρ ϵ_{XC})/∂(|∇ρ|^2) 2∇ρ )
-    #    libxc yields
-    #        Vρ === ∂(ρ ϵ_{XC})/∂ρ
-    #        Vσ === ∂(ρ ϵ_{XC})/∂(|∇ρ|^2)
-
+    # 2 div(Vσ ∇ρ)
     gradterm = sum(1:3) do α
         # Compute term inside -∇(  ) in Fourier space
         Vσ∇ρ = 2r_to_G(basis, Vσ .* density.∇ρ_real[α] .+ 0im)
@@ -186,7 +179,7 @@ function (term::TermXc)(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, poten
         eval_xc_!(basis, xc, Val(xc.family), Epp, potential, density)
 
         if Epp !== nothing
-            # Factor (1/2) to avoid double counting of electrons (see energy expression)
+            # Factor (1/2) to avoid double counting of electrons
             # Factor 2 because α and β operators are identical for spin-restricted case
             dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
             energy[] += 2 * sum(Epp .* density.ρ_real) * dVol / 2

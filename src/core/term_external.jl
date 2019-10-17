@@ -55,11 +55,8 @@ function term_external(generators_or_composition...; compensating_background=tru
         genfunctions = [make_generator(elem) => positions
                         for (elem, positions) in generators_or_composition]
 
-        @assert energy === nothing "Energy computation not yet implemented"
-        @assert potential !== nothing "Potential currently needed"
-
         # Get the values in the plane-wave basis set (Fourier space)
-        values_fourier = map(basis_Cρ(basis)) do G
+        values = map(basis_Cρ(basis)) do G
             sum(
                 4π / model.unit_cell_volume  # Prefactor spherical Hankel transform
                 * genfunction(G)          # Potential data for wave vector G
@@ -68,10 +65,13 @@ function term_external(generators_or_composition...; compensating_background=tru
                 for r in positions
             )
         end
-        if compensating_background
-            values_fourier[1] = 0
+        compensating_background && (values[1] = 0)
+
+        Vext = (potential === nothing) ? G_to_r(basis, values) : G_to_r!(potential, basis, values)
+        if energy !== nothing
+            dVol = model.unit_cell_volume / prod(model.fft_size)
+            energy[] = sum(G_to_r(basis, ρ) .* Vext) * dVol
         end
-        G_to_r!(potential, basis, values_fourier)  # iFFT to real space
 
         energy, potential
     end

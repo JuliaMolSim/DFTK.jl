@@ -46,6 +46,10 @@ function compute_partial_density(pw, kpt, Ψk, occupation)
 end
 
 
+# TODO Instead of returning a plain array here, return an object capable of computing
+#      densities and density derivatives lazily. Should be merged with DensityDervatives
+#      of term_xc.jl
+
 """
     compute_density(pw::PlaneWaveModel, Psi::AbstractVector, occupation::AbstractVector)
 

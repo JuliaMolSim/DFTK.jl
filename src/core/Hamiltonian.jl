@@ -44,7 +44,7 @@ Build / update an Hamiltonian out-of-place
 function update_hamiltonian(ham::Hamiltonian, ρ)
     nsimilar(::Nothing) = nothing
     nsimilar(p) = similar(p)
-    ham = Hamiltonian(basis, ρ, ham.kinetic, ham.pot_external, nsimilar(ham.pot_hartree),
+    ham = Hamiltonian(ham.basis, ρ, ham.kinetic, ham.pot_external, nsimilar(ham.pot_hartree),
                       nsimilar(ham.pot_xc), nsimilar(ham.pot_local), ham.pot_nonlocal)
     update_hamiltonian!(ham, ρ)
 end
@@ -63,6 +63,45 @@ function update_hamiltonian!(ham::Hamiltonian, ρ)
     ham
 end
 
+"""
+Compute and return electronic energies
+"""
+function update_energies!(energies, ham::Hamiltonian, Psi, occupation, ρ=nothing)
+    # TODO Not too happy with this way of computing the energy
+    #      ... a lot of Fourier transforms on the ρ
 
-# TODO Maybe later have build_energy_hamiltonian
-#      to build energies and Hamiltonian at the same time.
+    basis = ham.basis
+    model = basis.model
+    model.spin_polarisation == :none || error("$(model.spin_polarisation) not implemented")
+    ρ === nothing && (ρ = compute_density(ham.basis, Psi, occupation))
+
+    energies[:Kinetic] = energy_term_operator(ham.kinetic, Psi, occupation)
+    if ham.pot_external !== nothing
+        dVol = model.unit_cell_volume / prod(basis.fft_size)
+        energies[:PotExternal] = real(sum(G_to_r(basis, ρ) .* ham.pot_external) * dVol)
+    end
+
+    function insert_energy!(key, builder; kwargs...)
+        energy, _ = builder(basis, Ref{valtype(energies)}(0), nothing; kwargs...)
+        energy !== nothing && (energies[key] = energy[])
+    end
+    insert_energy!(:PotHartree, model.build_hartree; ρ=ρ)
+    insert_energy!(:PotXC, model.build_xc; ρ=ρ)
+    insert_energy!(:PotNonLocal, model.build_nonlocal; Psi=Psi, occupation=occupation)
+
+    energies
+end
+update_energies(ham::Hamiltonian, Psi, occupation, ρ=nothing) =
+    update_energies!(Dict{Symbol, real(eltype(ham))}(), ham, Psi, occupation, ρ)
+
+
+"""
+Update energies and Hamiltonian, return energies
+"""
+function update_energies_hamiltonian!(energies, ham::Hamiltonian, Psi, occupation, ρ=nothing)
+    # TODO this can be improved and made more efficient, by doing density and hamiltonian
+    #      update and energy computation at the same time.
+    ρ === nothing && (ρ = compute_density(ham.basis, Psi, occupation))
+    update_hamiltonian!(ham, ρ)
+    compute_energies!(energies, ham, Psi, occupation, ham.density)
+end
