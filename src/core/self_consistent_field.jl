@@ -64,7 +64,7 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
 
     # TODO remove foldρ and unfoldρ when https://github.com/JuliaNLSolvers/NLsolve.jl/pull/217 is in a release
     function foldρ(ρ)
-        return vec(real(r_to_G(ham.basis, ρ .+ 0im)))
+        return vec(real(G_to_r(ham.basis, ρ .+ 0im)))
 
         # TODO Does not work and disabled for now
         # Fold a complex array representing the Fourier transform of a purely real
@@ -74,7 +74,7 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
         vcat(real(ρcpx), imag(ρcpx))
     end
     function unfoldρ(ρ)
-        return G_to_r(ham.basis, reshape(ρ .+ 0im, ham.basis.fft_size))
+        return r_to_G(ham.basis, reshape(ρ .+ 0im, ham.basis.fft_size))
 
         # TODO Does not work and disabled for now
         half = Int(size(ρ, 1) / 2)
@@ -90,10 +90,6 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
     #                      to generate it from its eigenvectors
     ρ = ham.density
     ρ === nothing && (ρ = iterate_density!(ham, n_bands; Psi=Psi, diag=diag, tol=diagtol).ρ)
-
-    # TODO Temporary test
-    ρ = r_to_G(ham.basis, (0im .+ real(G_to_r(ham.basis, ρ .+ 0im))))
-    @assert unfoldρ(foldρ(ρ)) ≈ ρ
 
     fpres = solver(fixpoint_map, foldρ(ρ), tol, max_iter)
     ρ = unfoldρ(fpres.fixpoint)
