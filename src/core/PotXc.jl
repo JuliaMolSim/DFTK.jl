@@ -1,8 +1,8 @@
 include("xc_evaluate.jl")
 
 #=
-The energy is
-Etot = ∫ ρ E(ρ,σ), where σ = |∇ρ|^2
+The total energy is
+Etot = ∫ ρ E(ρ,σ), where σ = |∇ρ|^2 and E(ρ,σ) is the energy per unit particle
 libxc provides the scalars
 Vρ = ∂(ρ E)/∂ρ
 Vσ = ∂(ρ E)/∂σ
