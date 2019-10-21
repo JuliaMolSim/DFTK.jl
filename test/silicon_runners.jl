@@ -116,13 +116,12 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     n_bands = length(ref_pbe[1])
 
     fft_size = grid_size * ones(3)
-    Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
+    Si = Species(silicon.atnum, psp=load_psp("si-pbe-q4.hgh"))
     model = model_dft(Array{T}(silicon.lattice), [:gga_x_pbe, :gga_c_pbe], Si => silicon.positions)
     basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis, guess_gaussian_sad(basis, Si => silicon.positions))
 
     # Construct guess and run the SCF
-    prec = PreconditionerKinetic(ham, α=0.1)
     scfres = self_consistent_field!(ham, n_bands, tol=scf_tol)
 
     for ik in 1:length(silicon.kcoords)

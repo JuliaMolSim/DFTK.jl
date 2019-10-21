@@ -68,6 +68,7 @@ and the result follows.
 struct DensityDervatives
     basis
     max_derivative::Int
+    ρ
     ρ_real    # density on real-space grid
     ∇ρ_real   # density gradient on real-space grid
     σ_real    # contracted density gradient on real-space grid
@@ -98,7 +99,7 @@ function DensityDervatives(basis, max_derivative::Integer, ρ)
     end
 
     ρ_real = ifft(ρ .+ 0im)  # Density in real space, +0im to enforce complex algebra
-    DensityDervatives(basis, max_derivative, ρ_real, ∇ρ_real, σ_real)
+    DensityDervatives(basis, max_derivative, ρ, ρ_real, ∇ρ_real, σ_real)
 end
 
 # Small internal helper function
@@ -108,7 +109,7 @@ epp_to_kwargs_(Epp) = Dict(:E => Epp)
 # Evaluate a single XC functional, *adds* the value to the potential on the grid
 # and *returns* the energy per unit particle on the grid
 # These are internal functions
-eval_xc_!(basis, xc, family, Epp::Nothing, potential::Nothing, density...) = nothing
+eval_xc_!(basis, xc, family, Epp::Nothing, potential::Nothing, density) = nothing
 function eval_xc_!(basis, xc, ::Val{Libxc.family_lda}, Epp, ::Nothing, density)
     evaluate_lda!(xc, density.ρ_real; epp_to_kwargs_(Epp)...)
 end
