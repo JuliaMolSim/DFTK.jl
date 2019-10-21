@@ -121,7 +121,6 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis, guess_gaussian_sad(basis, Si => silicon.positions))
 
-    # Construct guess and run the SCF
     scfres = self_consistent_field!(ham, n_bands, tol=scf_tol)
 
     for ik in 1:length(silicon.kcoords)

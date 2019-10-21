@@ -116,11 +116,11 @@ function load_reference(folder)
     (energies=energies, bands=bands)
 end
 
-function load_density(T, folder)
+function load_density(T, folder::AbstractString)
     # Untested
 
     gsr = Dataset(joinpath(folder, "out_DEN.nc"))
-    basis = load_DFTK_setup(T, folder).basis
+    basis = load_basis(T, folder)
 
     n_comp = size(gsr["density"], 5)
     n_real_cpx = size(gsr["density"], 1)
@@ -130,14 +130,10 @@ function load_density(T, folder)
     ρ_real = Array{complex(T)}(gsr["density"][1, :, :, :, 1])
     @assert size(basis.FFT) == size(ρ_real)
 
-    ρ = similar(ρ_real, prod(basis.grid_size))
-    DFTK.r_to_G!(basis, ρ_real, ρ)
-
-    ρ
+    DFTK.r_to_G(basis, ρ_real)
 end
 
-function load_DFTK_setup(T, folder)
-    gsr = Dataset(joinpath(folder, "out_GSR.nc"))
+function load_composition(T, gsr, folder::AbstractString)
     extra = JLD.load(joinpath(folder, "extra.jld"))["extra"]
 
     composition = Dict{Species, Vector{Vec3{T}}}()
@@ -151,24 +147,14 @@ function load_DFTK_setup(T, folder)
         positions = gsr["reduced_atom_positions"][:, mask_species]
         composition[spec] = [Vec3{T}(positions[:, m]) for m in mask_species]
     end
+    pairs(composition)
+end
+function load_composition(T, folder)
+    load_composition(T, Dataset(joinpath(folder, "out_GSR.nc")), folder)
+end
 
-    Ecut = gsr["kinetic_energy_cutoff"][:]
-    lattice = Mat3{T}(gsr["primitive_vectors"][:])
-    kweights = Vector{T}(gsr["kpoint_weights"][:])
 
-    n_kpoints = size(gsr["reduced_coordinates_of_kpoints"], 2)
-    kpoints = Vector{Vec3{T}}(undef, n_kpoints)
-    for ik in 1:n_kpoints
-        kpoints[ik] = Vec3{T}(gsr["reduced_coordinates_of_kpoints"][:, ik])
-    end
-
-    kgrid_size = Vector{Int}(gsr["monkhorst_pack_folding"])
-    kpoints_new, ksymops = bzmesh_ir_wedge(kgrid_size, lattice, composition...)
-    @assert kpoints_new ≈ kpoints
-
-    grid_size = determine_grid_size(lattice, Ecut)
-    basis = PlaneWaveBasis(Array{T}(lattice), grid_size, Ecut, kpoints, kweights, ksymops)
-
+function load_model(T, gsr, folder::AbstractString)
     # Parse functional ...
     functional = Vector{Symbol}()
     ixc = Int(gsr["ixc"][:])
@@ -199,35 +185,63 @@ function load_DFTK_setup(T, folder)
     end
     smearing_function !== nothing && (Tsmear = gsr["smearing_width"][:])
 
-    (basis=basis, composition=pairs(composition), functional=functional, Tsmear=Tsmear,
-     smearing_function=smearing_function)
-end
-
-function test_folder(T, folder; scf_tol=1e-8, n_ignored=0, test_tol=1e-6)
-    data = load_DFTK_setup(T, folder)
-    ref = load_reference(folder)
-
-    basis, composition = data.basis, data.composition
-    n_bands = length(ref.bands[1])
-    n_electrons = sum(composition) do (spec, positions)
-        length(positions) * n_elec_valence(spec)
+    # Build model and discretise
+    lattice = Mat3{T}(gsr["primitive_vectors"][:])
+    composition = load_composition(T, gsr, folder)
+    model = nothing
+    if length(functional) > 0
+        model = model_dft(Array{T}(lattice), functional, composition...)
+    else
+        model = model_reduced_hf(Array{T}(lattice), composition...)
     end
 
-    # Construct the Hamiltonian
-    ham = Hamiltonian(basis, pot_local=build_local_potential(basis, composition...),
-                      pot_nonlocal=build_nonlocal_projectors(basis, composition...),
-                      pot_hartree=PotHartree(basis),
-                      pot_xc=PotXc(basis, data.functional...))
+    model
+end
+function load_model(T, folder::AbstractString)
+    load_model(T, Dataset(joinpath(folder, "out_GSR.nc")), folder)
+end
 
-    # Construct guess and run the SCF
-    ρ = guess_gaussian_sad(basis, composition...)
-    prec = PreconditionerKinetic(ham, α=0.1)
-    scfres = self_consistent_field(ham, n_bands, n_electrons, lobpcg_prec=prec, ρ=ρ,
-                                   tol=scf_tol, T=data.Tsmear,
-                                   smearing=data.smearing_function)
+
+function load_basis(T, gsr, folder::AbstractString)
+    model = load_model(T, gsr, folder)
+    composition = load_composition(T, gsr, folder)
+
+    Ecut = gsr["kinetic_energy_cutoff"][:]
+    lattice = Mat3{T}(gsr["primitive_vectors"][:])
+    kweights = Vector{T}(gsr["kpoint_weights"][:])
+
+    n_kpoints = size(gsr["reduced_coordinates_of_kpoints"], 2)
+    kcoords = Vector{Vec3{T}}(undef, n_kpoints)
+    for ik in 1:n_kpoints
+        kcoords[ik] = Vec3{T}(gsr["reduced_coordinates_of_kpoints"][:, ik])
+    end
+
+    kgrid_size = Vector{Int}(gsr["monkhorst_pack_folding"])
+    kcoords_new, ksymops = bzmesh_ir_wedge(kgrid_size, lattice, composition...)
+    @assert kcoords_new ≈ kcoords
+
+    fft_size = determine_grid_size(model, Ecut)
+    PlaneWaveModel(model, fft_size, Ecut, kcoords, ksymops)
+end
+function load_basis(T, folder::AbstractString)
+    load_basis(T, Dataset(joinpath(folder, "out_GSR.nc")), folder)
+end
+
+
+function test_folder(T, folder; scf_tol=1e-8, n_ignored=0, test_tol=1e-6)
+    basis = load_basis(T, folder)
+    composition = load_composition(T, folder)
+    ref = load_reference(folder)
+    n_bands = length(ref.bands[1])
+
+    ρ0 = guess_gaussian_sad(basis, composition...)
+    ham = Hamiltonian(basis, ρ0)
+    scfres = self_consistent_field!(ham, n_bands, tol=scf_tol)
+
     energies = scfres.energies
-    energies[:Ewald] = energy_nuclear_ewald(basis.lattice, composition...)
-    energies[:PspCorrection] = energy_nuclear_psp_correction(basis.lattice, composition...)
+    energies[:Ewald] = energy_nuclear_ewald(basis.model.lattice, composition...)
+    energies[:PspCorrection] = energy_nuclear_psp_correction(basis.model.lattice,
+                                                             composition...)
     println("etot    ", sum(values(energies)) - sum(values(ref.energies)))
 
     for ik in 1:length(basis.kpoints)

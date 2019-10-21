@@ -23,3 +23,6 @@ function determine_grid_size(lattice::AbstractMatrix, Ecut; supersampling=2, tol
     # Optimise FFT grid size: Make sure the number factorises in small primes only
     return Vec3([nextprod([2, 3, 5], 2 * gs + 1) for gs in fft_size])
 end
+function determine_grid_size(model::Model, Ecut; kwargs...)
+    determine_grid_size(model.lattice, Ecut; kwargs...)
+end
