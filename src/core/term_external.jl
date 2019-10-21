@@ -57,13 +57,13 @@ function term_external(generators_or_composition...; compensating_background=tru
 
         # Get the values in the plane-wave basis set (Fourier space)
         values = map(basis_Cρ(basis)) do G
-            sum(
+            sum(Complex{T}(
                 4π / model.unit_cell_volume  # Prefactor spherical Hankel transform
                 * genfunction(G)          # Potential data for wave vector G
                 * cis(2π * dot(G, r))     # Structure factor
-                for (genfunction, positions) in genfunctions
-                for r in positions
-            )
+                ) for (genfunction, positions) in genfunctions
+                  for r in positions
+           )
         end
         compensating_background && (values[1] = 0)
 

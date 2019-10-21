@@ -13,7 +13,8 @@ This attempts to dampen the high-kinetic energy parts of the
 Hamiltonian, thus making the Hamiltonian more well-conditioned.
 """
 function PreconditionerKinetic(ham::Hamiltonian; α=0)
-    PreconditionerKinetic(ham.basis, α)
+    T = eltype(ham)
+    PreconditionerKinetic(ham.basis, T(α))
 end
 
 
@@ -25,7 +26,7 @@ function kblock(prec::PreconditionerKinetic, kpt::Kpoint)
     # TODO For spin_polarisation == :full we need to double
     #      the vector (2 full spin components)
 
-    T = eltype(basis.kpoints[1].coordinate)
+    T = eltype(prec.α)
     qsq = Vector{T}([sum(abs2, model.recip_lattice * (G + kpt.coordinate))
                      for G in kpt.basis] ./ 2)
     Diagonal(qsq .+ prec.α)

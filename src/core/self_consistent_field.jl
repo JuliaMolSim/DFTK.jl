@@ -23,7 +23,7 @@ function iterate_density!(ham::Hamiltonian, n_bands, ρ=nothing; Psi=nothing,
     # Update Psi from Hamiltonian (ask for a few more bands than the ones we need)
     n_ep = (Psi === nothing) ? n_bands + 3 : size(Psi[1], 2)
     eigres = diag(ham, n_ep; guess=Psi, n_conv_check=n_bands, prec=prec, tol=tol)
-    eigres.converged || (@warn "LOBPCG not converged" iterations=res.iterations)
+    eigres.converged || (@warn "LOBPCG not converged" iterations=eigres.iterations)
     Psi !== nothing && (Psi .= eigres.X)
 
     # Update density from new Psi
