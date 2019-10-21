@@ -23,6 +23,42 @@ Therefore,
 Vxc = Vρ - 2 div(Vσ ∇ρ)
 
 See eg Richard Martin, Electronic stucture, p. 158
+
+A more algebraic way of deriving these for GGA, which helps see why
+this is correct at the discrete level, is the following. Let
+
+B the (Fourier, spherical) space of orbitals
+C the (Fourier, cube) space of Fourier densities/potentials
+C* the (real-space, cube) space of real-space densities/potentials
+
+X : B -> C be the extension operator
+R : C -> B the restriction (adjoint of X)
+IF : C -> C* be the IFFT
+F : C* -> be the FFT, adjoint of IF
+K : C -> C be the gradient operator (multiplication by iK, assuming dimension 1 to
+simplify notations)
+
+Then
+
+ρ = IF(Xϕ).^2
+ρf = F ρ
+∇ρf = K ρf
+∇ρ = IF ∇ρf
+
+dρ = 2 IF(Xϕ) .* IF(X dϕ)
+d∇ρ = IF K F dρ
+    = 2 IF K F (IF(Xϕ) .* IF(X dϕ))
+
+Etot = sum(ρ . * E(ρ,∇ρ.^2))
+dEtot = sum(Vρ .* dρ + 2 (Vσ .* ∇ρ) .* d∇ρ)
+      = sum(Vρ .* dρ + (IF K F) (Vσ .* ∇ρ) .* dρ)
+(IF K F is self-adjoint; this is the discrete integration by parts)
+
+Now note that
+
+sum(V .* dρ) = sum(V .* IF(Xϕ) .* IF(X dϕ))
+             = sum(R(F(V .* IF(Xϕ))) .* dϕ)
+and the result follows.
 =#
 
 struct PotXc
