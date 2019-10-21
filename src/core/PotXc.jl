@@ -1,5 +1,30 @@
 include("xc_evaluate.jl")
 
+#=
+The energy is
+Etot = ∫ ρ E(ρ,σ), where σ = |∇ρ|^2
+libxc provides the scalars
+Vρ = ∂(ρ E)/∂ρ
+Vσ = ∂(ρ E)/∂σ
+
+Consider a variation dϕi of an orbital (considered real for
+simplicity), and let dEtot be the corresponding variation of the
+energy. Then the potential Vxc is defined by
+dEtot = 2 ∫ Vxc ϕi dϕi
+
+dρ = 2 ϕi dϕi
+dσ = 2 ∇ρ ⋅ ∇dρ = 4 ∇ρ ⋅ ∇(ϕi dϕi)
+dEtot = ∫ Vρ dρ + Vσ dσ
+     = 2 ∫ Vρ ϕi dϕi + 4 ∫ Vσ ∇ρ ⋅ ∇(ϕi dϕi)
+     = 2 ∫ Vρ ϕi dϕi - 4 ∫ div(Vσ ∇ρ) ϕi dϕi
+where we performed an integration by parts in the last equation (boundary terms drop by periodicity).
+
+Therefore,
+Vxc = Vρ - 2 div(Vσ ∇ρ)
+
+See eg Richard Martin, Electronic stucture, p. 158
+=#
+
 struct PotXc
     basis::PlaneWaveBasis
     supersampling::Int  # Supersampling for the XC grid
@@ -21,7 +46,6 @@ function PotXc(basis::PlaneWaveBasis, functional...; supersampling=2)
     make_functional(symb::Symbol) = Functional(symb)
     PotXc(basis, supersampling, [make_functional(f) for f in functional])
 end
-
 
 function update_energies_potential!(energies, potential, op::PotXc, ρ)
     T = real(eltype(ρ))
@@ -47,6 +71,7 @@ function update_energies_potential!(energies, potential, op::PotXc, ρ)
     potential .= 0
     E = similar(ρ_real)
     for xc in op.functional
+        # Compute xc potential: Vρ - 2 div(Vσ ∇ρ)
         if xc.family == Libxc.family_lda
             Vρ = similar(ρ_real)
             evaluate_lda!(xc, ρ_real, Vρ=Vρ, E=E)
@@ -56,17 +81,7 @@ function update_energies_potential!(energies, potential, op::PotXc, ρ)
             Vσ = similar(ρ_real)
             evaluate_gga!(xc, ρ_real, σ_real, Vρ=Vρ, Vσ=Vσ, E=E)
 
-            # TODO Check the literature how this expression comes about in detail.
-            #      Following Richard Martin, Electronic stucture, p. 158, the XC potential
-            #      can be split as:
-            #        Vxc = ∂(ρ ϵ_{XC})/∂ρ - ∇( ∂(ρ ϵ_{XC})/∂(∇ρ) )
-            #      Now the second term can be rewritten by the chain rule
-            #        -∇( ∂(ρ ϵ_{XC})/∂(∇ρ) ) = -∇( ∂(ρ ϵ_{XC})/∂(|∇ρ|^2) ∂(|∇ρ|^2)/∂(∇ρ) )
-            #                                = -∇( ∂(ρ ϵ_{XC})/∂(|∇ρ|^2) 2∇ρ )
-            #    libxc yields
-            #        Vρ === ∂(ρ ϵ_{XC})/∂ρ
-            #        Vσ === ∂(ρ ϵ_{XC})/∂(|∇ρ|^2)
-
+            # 2 div(Vσ ∇ρ)
             gradterm = sum(1:3) do α
                 # Compute term inside -∇(  ) in Fourier space and take derivative
                 Vσ∇ρ = 2r_to_G!(pw, Vσ .* ∇ρ_real[α] .+ 0im, similar(ρ, Complex{T}))
