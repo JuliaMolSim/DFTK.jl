@@ -34,7 +34,7 @@ the function tries to interpolate the results of earlier ``k``-Points to be used
 for the later ones.
 """
 # TODO Also use function-like interface here (e.g. eigensolver=lobpcg_hyper(stuff...)
-function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int, kpoints=ham.basis.kpoints;
+function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int; kpoints=ham.basis.kpoints,
                 guess=nothing, prec=nothing, tol=1e-6, maxiter=200,
                 backend=:lobpcg_hyper, interpolate_kpoints=true, kwargs...)
     if !(backend in [:lobpcg_itsolve, :lobpcg_scipy, :lobpcg_hyper])
@@ -81,5 +81,7 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int, kpoints=ham.basis.kpoints
      residual_norms=[res.residual_norms for res in results],
      iterations=[res.iterations for res in results],
      converged=all(res.converged for res in results),
-     backend=string(backend))
+     backend=string(backend),
+     kpoints=kpoints
+    )
 end

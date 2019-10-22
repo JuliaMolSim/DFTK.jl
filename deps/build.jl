@@ -2,6 +2,6 @@
 using PyCall
 if PyCall.conda
     using Conda
-    Conda.add("scipy")
     Conda.add("spglib"; channel="conda-forge")
+    Conda.add("pymatgen"; channel="conda-forge")
 end

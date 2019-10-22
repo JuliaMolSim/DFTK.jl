@@ -41,7 +41,7 @@ The package is not yet registered, so you need to install it from the github url
 from a Julia command line (version at least 1.1).
 
 Some parts of the code require a working Python installation with the libraries
-`scipy` and `spglib`. The examples require `matplotlib` and `pymatgen` as well.
+`scipy`, `pymatgen` and `spglib`. The examples require `matplotlib` as well.
 Check out which version of python is used by the
 [PyCall.jl](https://github.com/JuliaPy/PyCall.jl) package, and use the
 corresponding package manager (usually `apt`, `pip` or `conda`) to install

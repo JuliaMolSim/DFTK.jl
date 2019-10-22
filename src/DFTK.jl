@@ -109,7 +109,10 @@ export energy_nuclear_psp_correction
 export energy_nuclear_ewald
 include("utils/energy_nuclear.jl")
 
+export determine_high_symmetry_kpath
 export compute_bands
+export pymatgen_bandstructure
+export pymatgen_structure
 include("utils/compute_bands.jl")
 
 export model_free_electron

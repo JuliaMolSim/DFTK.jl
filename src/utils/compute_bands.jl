@@ -1,12 +1,32 @@
+using PyCall
+include("pymatgen.jl")
 
-# TODO Think about this function some more
-#      Better interface would be to integrate closer with pymatgen
-#      and actually offer an interface taking the kline_density instead of the kpoint coordinates ...
+# Functionality for computing band structures, mostly using pymatgen
 
-"""
-TODO docme
-"""
-function compute_bands(ham::Hamiltonian, n_bands::Integer, kcoords; kwargs...)
-    kpoints = build_kpoints(ham.basis, kcoords)
-    lobpcg(ham, n_bands, kpoints; interpolate_kpoints=false, kwargs...)
+function determine_high_symmetry_kpath(basis, kline_density, composition...)
+    bandstructure = pyimport("pymatgen.symmetry.bandstructure")
+    pystructure = pymatgen_structure(basis.model, composition...)
+    symm_kpath = bandstructure.HighSymmKpath(pystructure)
+
+    kcoords, labels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=false)
+    kpoints = build_kpoints(basis, kcoords)
+
+    labels_dict = Dict{String, Vector{eltype(kcoords[1])}}()
+    for (ik, k) in enumerate(kcoords)
+        if length(labels[ik]) > 0
+            labels_dict[labels[ik]] = k
+        end
+    end
+    println(symm_kpath.kpath["path"])
+
+    (kpoints=kpoints, klabels=labels_dict, kpath=symm_kpath.kpath["path"][1])
+end
+
+
+function compute_bands(ham::Hamiltonian, kpoints, n_bands; diag=diag_lobpcg())
+    prec = PreconditionerKinetic(ham, α=0.5)
+    band_data = diag(ham, n_bands + 3; kpoints=kpoints, n_conv_check=n_bands, prec=prec,
+                     interpolate_kpoints=false)
+    band_data.converged || (@warn "LOBPCG not converged" iterations=eigres.iterations)
+    band_data
 end

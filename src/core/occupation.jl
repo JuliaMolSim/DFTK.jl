@@ -85,12 +85,12 @@ assumes a band gap at the Fermi level.
 """
 function find_fermi_level(basis, energies, Psi)
     εF = nothing
-    if basis.model.assume_band_gap && model.temperature == 0.0
-        εF, _ = compute_occupation_gap_zero_temperature(basis, energies, Psi)
-    elseif basis.model.assume_band_gap && model.temperature > 0.0
+    if basis.model.assume_band_gap && basis.model.temperature == 0.0
+        εF, _ = find_occupation_gap_zero_temperature(basis, energies, Psi)
+    elseif basis.model.assume_band_gap && basis.model.temperature > 0.0
         error("`model.assume_band_gap` and `model.temperature > 0.0` not implemented.")
     else
-        εF, _ = find_fermi_level_metal(basis, energies, Psi)
+        εF, _ = find_occupation_fermi_metal(basis, energies, Psi)
     end
     εF
 end
@@ -101,11 +101,10 @@ and corresponding Bloch one-particle wave function `Psi`. If `basis.model.smeari
 `nothing`, this function assumes an insulator.
 """
 function find_occupation_around_fermi(basis, energies, Psi)
-    model = basis.model
     occ = nothing
-    if model.assume_band_gap && basis.model.temperature == 0.0
+    if basis.model.assume_band_gap && basis.model.temperature == 0.0
         _, occ = find_occupation_gap_zero_temperature(basis, energies, Psi)
-    elseif model.assume_band_gap && model.temperature > 0.0
+    elseif basis.model.assume_band_gap && basis.model.temperature > 0.0
         error("`model.assume_band_gap` and `model.temperature > 0.0` not implemented.")
     else
         _, occ = find_occupation_fermi_metal(basis, energies, Psi)
