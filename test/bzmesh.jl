@@ -28,10 +28,11 @@ include("testcases.jl")
 end
 
 @testset "bzmesh_ir_wedge is correct reduction" begin
-    function test_reduction(kgrid_size)
+    function test_reduction(system, kgrid_size)
         red_kpoints, _ = bzmesh_uniform(kgrid_size)
-        irred_kpoints, ksymops = bzmesh_ir_wedge(kgrid_size, silicon.lattice,
-                                                 Species(14) => silicon.positions)
+
+        irred_kpoints, ksymops = bzmesh_ir_wedge(kgrid_size, system.lattice,
+                                                 Species(system.atnum) => system.positions)
 
         # Try to reproduce all kpoints from irred_kpoints
         all_kpoints = Vector{Vec3{Rational{Int}}}()
@@ -45,8 +46,13 @@ end
         @test all_kpoints == red_kpoints
     end
 
-    test_reduction([ 2,  3,  2])
-    test_reduction([ 3,  3,  3])
-    test_reduction([ 2,  3,  4])
-    test_reduction([ 9, 11, 13])
+    test_reduction(silicon, [ 2,  3,  2])
+    test_reduction(silicon, [ 3,  3,  3])
+    test_reduction(silicon, [ 2,  3,  4])
+    test_reduction(silicon, [ 9, 11, 13])
+
+    test_reduction(manganese, [ 2,  3,  2])
+    test_reduction(manganese, [ 3,  3,  3])
+    test_reduction(manganese, [ 2,  3,  4])
+    test_reduction(manganese, [ 9, 11, 13])
 end

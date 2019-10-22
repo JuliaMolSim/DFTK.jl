@@ -18,7 +18,7 @@ include("testcases.jl")
         n_bands = 4
         res = lobpcg(ham, n_bands; prec=PreconditionerKinetic(ham, α=0.1), tol=tol)
 
-        @assert testcase.n_electrons == 8
+        @assert testcase.n_electrons <= 8
         occ = DFTK.find_occupation_around_fermi(basis, res.λ, res.X)
         ρnew = compute_density(basis, res.X, occ)
 
@@ -50,8 +50,7 @@ include("testcases.jl")
         end
     end
 
-    function test_full_vs_irreducible(kgrid_size; Ecut=5, tol=1e-8)
-        testcase = silicon
+    function test_full_vs_irreducible(testcase, kgrid_size; Ecut=5, tol=1e-8)
         Si = Species(testcase.atnum, psp=load_psp(testcase.psp))
         composition = (Si => testcase.positions, )
 
@@ -84,8 +83,9 @@ include("testcases.jl")
         end
     end
 
-    test_full_vs_irreducible([3, 3, 3], Ecut=5, tol=1e-6)
-    test_full_vs_irreducible([2, 3, 4], Ecut=5, tol=1e-6)
+    test_full_vs_irreducible(silicon, [3, 3, 3], Ecut=5, tol=1e-6)
+    test_full_vs_irreducible(silicon, [2, 3, 4], Ecut=5, tol=1e-6)
+    test_full_vs_irreducible(manganese, [2, 3, 4], Ecut=5, tol=1e-6)
     #
     # That's pretty expensive:
     # test_full_vs_irreducible([4, 4, 4], Ecut=5, tol=1e-6)

@@ -9,13 +9,7 @@ function term_hartree_(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, potent
     @assert ρ !== nothing
     T = real(eltype(ρ))
     model = basis.model
-
-    function ifft(x)
-        tmp = G_to_r(basis, x .+ 0im)
-        @assert(maximum(abs.(imag(tmp))) < 100 * eps(eltype(real(x))),
-                "Imaginary part too large $(maximum(imag(tmp)))")
-        real(tmp)
-    end
+    ifft(x) = real(G_to_r(basis, x.+ 0im))
 
     # Solve the Poisson equation ΔV = -4π ρ in Fourier space,
     # i.e. Multiply elementwise by 4π / |G|^2.

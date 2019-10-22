@@ -101,9 +101,13 @@ function load_model(T, folder::EtsfFolder)
     composition = load_composition(T, folder)
     model = nothing
     if length(functional) > 0
-        model = model_dft(Array{T}(lattice), functional, composition...)
+        model = model_dft(Array{T}(lattice), functional, composition...;
+                          smearing=smearing_function, temperature=Tsmear
+                         )
     else
-        model = model_reduced_hf(Array{T}(lattice), composition...)
+        model = model_reduced_hf(Array{T}(lattice), composition...;
+                                 smearing=smearing_function, temperature=Tsmear
+                                )
     end
 
     model
@@ -120,7 +124,6 @@ function load_basis(T, folder::EtsfFolder)
     composition = load_composition(T, folder)
 
     Ecut = folder.gsr["kinetic_energy_cutoff"][:]
-    lattice = Mat3{T}(folder.gsr["primitive_vectors"][:])
     kweights = Vector{T}(folder.gsr["kpoint_weights"][:])
 
     n_kpoints = size(folder.gsr["reduced_coordinates_of_kpoints"], 2)
@@ -130,13 +133,13 @@ function load_basis(T, folder::EtsfFolder)
     end
 
     kgrid_size = Vector{Int}(folder.gsr["monkhorst_pack_folding"])
-    kcoords_new, ksymops = bzmesh_ir_wedge(kgrid_size, lattice, composition...)
+    kcoords_new, ksymops = bzmesh_ir_wedge(kgrid_size, model.lattice, composition...)
     @assert kcoords_new ≈ kcoords
 
     fft_size = determine_grid_size(model, Ecut)
     PlaneWaveModel(model, fft_size, Ecut, kcoords, ksymops)
 end
-basis(folder::EtsfFolder) = load_basis(Float64, folder)
+load_basis(folder::EtsfFolder) = load_basis(Float64, folder)
 
 
 """
