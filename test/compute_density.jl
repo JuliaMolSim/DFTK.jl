@@ -19,7 +19,7 @@ include("testcases.jl")
         res = lobpcg(ham, n_bands; prec=PreconditionerKinetic(ham, α=0.1), tol=tol)
 
         @assert testcase.n_electrons <= 8
-        occ = DFTK.find_occupation_around_fermi(basis, res.λ, res.X)
+        _, occ = DFTK.find_occupation_around_fermi(basis, res.λ, res.X)
         ρnew = compute_density(basis, res.X, occ)
 
         basis, res.X, res.λ, ρnew

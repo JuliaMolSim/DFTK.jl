@@ -27,11 +27,11 @@ function iterate_density!(ham::Hamiltonian, n_bands, ρ=nothing; Psi=nothing,
     Psi !== nothing && (Psi .= eigres.X)
 
     # Update density from new Psi
-    occupation = compute_occupation(ham.basis, eigres.λ, eigres.X)
+    εF, occupation = compute_occupation(ham.basis, eigres.λ, eigres.X)
     ρnew = compute_density(ham.basis, eigres.X, occupation)
     ρ !== nothing && (ρ .= ρnew)
 
-    (ham=ham, Psi=eigres.X, orben=eigres.λ, occupation=occupation, ρ=ρ)
+    (ham=ham, Psi=eigres.X, orben=eigres.λ, occupation=occupation, εF=εF, ρ=ρ)
 end
 
 

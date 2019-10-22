@@ -26,7 +26,7 @@ end
 function compute_bands(ham::Hamiltonian, kpoints, n_bands; diag=diag_lobpcg())
     prec = PreconditionerKinetic(ham, α=0.5)
     band_data = diag(ham, n_bands + 3; kpoints=kpoints, n_conv_check=n_bands, prec=prec,
-                     interpolate_kpoints=false)
+                     interpolate_kpoints=false, tol=1e-5)
     band_data.converged || (@warn "LOBPCG not converged" iterations=eigres.iterations)
     band_data
 end

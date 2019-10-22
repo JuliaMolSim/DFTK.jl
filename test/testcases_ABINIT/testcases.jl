@@ -8,7 +8,7 @@ abilab = pyimport("abipy.abilab")
 abidata = pyimport("abipy.data")
 
 
-ÅtoBohr = (1 / (a_0 * 1e10)).val
+const ÅtoBohr = (1 / (a_0 * 1e10)).val
 
 
 """Build H2 molecule with bond distance `r` in a cubic cell sized `a`"""

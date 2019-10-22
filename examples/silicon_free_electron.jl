@@ -30,7 +30,7 @@ band_data = compute_bands(ham, kpoints, n_bands)
 
 # Plot bandstructure using pymatgen
 plotter = pyimport("pymatgen.electronic_structure.plotter")
-bs = pymatgen_bandstructure(basis, band_data, klabels)
+bs = pymatgen_bandstructure(basis, band_data, klabels, fermi_level=scfres.εF)
 bsplot = plotter.BSPlotter(bs)
 plt = bsplot.get_plot()
 plt.autoscale()

@@ -84,30 +84,24 @@ one-particle wave function `Psi`. If `basis.model.assume_band_gap` this function
 assumes a band gap at the Fermi level.
 """
 function find_fermi_level(basis, energies, Psi)
-    εF = nothing
-    if basis.model.assume_band_gap && basis.model.temperature == 0.0
-        εF, _ = find_occupation_gap_zero_temperature(basis, energies, Psi)
-    elseif basis.model.assume_band_gap && basis.model.temperature > 0.0
-        error("`model.assume_band_gap` and `model.temperature > 0.0` not implemented.")
-    else
-        εF, _ = find_occupation_fermi_metal(basis, energies, Psi)
-    end
+    εF, _ = find_occupation_around_fermi(basis, energies, Psi)
     εF
 end
 
 """
 Find the occupation numbers around the Fermi level, given a `basis`, SCF band `energies`
-and corresponding Bloch one-particle wave function `Psi`. If `basis.model.smearing` is
-`nothing`, this function assumes an insulator.
+and corresponding Bloch one-particle wave function `Psi`. If `basis.model.assume_band_gap`
+this function assumes a band gap at the Fermi level.
+Returns `(fermi_level, occupation)`
 """
 function find_occupation_around_fermi(basis, energies, Psi)
     occ = nothing
     if basis.model.assume_band_gap && basis.model.temperature == 0.0
-        _, occ = find_occupation_gap_zero_temperature(basis, energies, Psi)
+        εF, occ = find_occupation_gap_zero_temperature(basis, energies, Psi)
     elseif basis.model.assume_band_gap && basis.model.temperature > 0.0
         error("`model.assume_band_gap` and `model.temperature > 0.0` not implemented.")
     else
-        _, occ = find_occupation_fermi_metal(basis, energies, Psi)
+        εF, occ = find_occupation_fermi_metal(basis, energies, Psi)
     end
-    occ
+    εF, occ
 end
