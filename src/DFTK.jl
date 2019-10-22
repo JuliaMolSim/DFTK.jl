@@ -118,4 +118,11 @@ export model_hcore
 export model_reduced_hf
 include("utils/standard_models.jl")
 
+export EtsfFolder
+export load_basis
+export load_model
+export load_density
+export load_composition
+include("utils/etsf_nanoquanta.jl")
+
 end # module DFTK
