@@ -1,68 +1,43 @@
 # DFTK.jl: The density-functional toolkit.
 
-DFTK is a `julia` package of for playing with
-plane-wave density-functional theory algorithms.
+DFTK is a `julia` package for playing with plane-wave
+density-functional theory algorithms. This page documents conventions
+used in the code.
 
-
-## Terminology and Definitions
-General terminology used throughout the documentation
-of the plane-wave aspects of the code.
-
-## Plane wave basis functions
-At the moment the code works exclusively with orthonormal plane waves.
-In other words our bases consist of functions
+## Terminology and definitions
+- $\mathcal R$ is the real-space lattice. A basis is given in `lattice`.
+- $\mathcal R^*$ is the reciprocal-space lattice. A basis is given in `recip_lattice`. TODO demonstrate `recip_lattice'lattice = 2π I`
+- $\Omega$ is an arbitrary unit cell in real space.
+- $\mathcal B$ is the Brillouin zone, an arbitrary unit cell in reciprocal space. TODO which one do we take?
+- The plane-waves are the orthonormal functions
 ```math
-e_G = 1/\sqrt{\Omega} e^{i\, G \cdot x}
+e_G(r) = 1/\sqrt{|\Omega|} e^{i\, G \cdot r}
 ```
-where $\Omega$ is the unit cell volume.
+for $G \in \mathcal R^*$.
 
-## Basis sets
-- The **wave-function basis** $B_{Ψ,k}$ (used to be $X_k$), consisting of all
-  plane-wave basis functions below the desired energy cutoff $E_\text{cut}$
-  for each $k$-point:
-  ```math
-  B_{Ψ,k} = \{ e_G : 1/2 |G + k|^2 ≤ E_\text{cut}
-  ```
-- The **potential** or **density basis** $B_\rho$, consisting of
-  all plane waves on which a potential needs to be known in order to be
-  consistent with the union of all $B_{Ψ,k}$ for all $k$. In practice
-  we do not take the smallest possible set of wave vectors $G$ for this, but
-  instead the smallest *cubic* grid, which satisfies this, i.e.
-  ```math
-  B_\rho = \{ e_G : 1/2 |G|_\text{max}^2 ≤ α E_\text{cut} \},
-  ```
-  where a supersampling factor $\alpha = 4$ is required to give a numerically
-  exact result, since
-  ```math
-  B_\rho = \{ e_{G+G'} : ∃k e_G, e_{G'} ∈ B_{Ψ,k} \}.
-  ```
-  The choice of using a cubic grid is done in order to be consistent with usual
-  fast Fourier transform implementations, which work on cubic Fourier grids.
-- The **XC basis** $B_\text{XC}$, which is used for computing the application
-  of the exchange-correlation potential operator to the density $\rho$,
-  represented in the basis $B_\rho$, that is
-  ```math
-  B_\text{XC}  = \{e_G : 1/2 |G|_\text{max}^2 ≤ β E_\text{cut} \}.
-  ```
-  Since the exchange-correlation potential might involve arbitrary powers of the
-  density $ρ$, a numerically exact computation of the integral
-  ```math
-  \langle e_G | V_\text{XC}(ρ) e_{G'} \rangle \qquad \text{with} \qquad e_G, e_{G'} ∈ B_{Ψ,k}
-  ```
-  requires the exchange-correlation supersampling factor $\beta$ to be infinite.
-  In practice, $\beta =4$ is usually chosen, such that $B_\text{XC} = B_\rho$.
+## Basis sets and grids
 
-## Real-space grids
-Due to the Fourier-duality of reciprocal-space and real-space lattice,
-the above basis sets define corresponding real-space grids as well:
+- The **wave-function basis** $B_{k}^*$ ($B$ as in ball, $*$ to recall it's in reciprocal space), consisting of all
+  plane-wave basis functions below the desired energy cutoff $E_\text{cut}$ for each $k$-point:
+  ```math
+  B_{k} = \{ e_G : 1/2 |G + k|^2 ≤ E_\text{cut}\}
+  ```
+- The **reciprocal-space basis** $C^*$ which is used for the densities and potentials. This is a rectangular grid to be able to perform FFTs. It is chosen to be able to represent densities and potentials, ie $e_{G-G'} \in C^*$ for $e_G, e_{G'} \in B_k$. We choose (TODO add link to the code) for $C^*$ the smallest rectangular basis set such that
+```math
+\{ e_G : 1/2 |G|_\text{max}^2 ≤ 4 E_\text{cut} \} \subset C^*
+```
+TODO add a demo of that property. Optionally, this can be enlarged when more precision is required on the exchange-correlation energy, with a `supersampling` factor that replaces the factor 4 above.
+- The **real-space grid** $C$, which is the dual of $C^*$
 
-- The grid $B_\rho^\ast$, the **potential integration grid**,
-  which is the grid used for convolutions of a potential with the discretized
-  representation of a DFT orbital. It is simply the iFFT-dual real-space grid
-  of $B_\rho$.
-- The grid $B^\ast_\text{XC}$, the **exchange-correlation integration grid**,
-  i.e. the grid used for convolutions of the exchange-correlation functional
-  terms with the density or derivatives of it. It is the iFFT-dual of $B_\text{XC}$.
+The IFFT operation converts from $C^*$ to $C$. $B_k^* \subset C^*$, so zero-padding is used when necessary. The FFT converts from $C$ to $C^*$.
+
+## Normalization and conventions
+Reduced units are used everywhere in the code: $R$ and $G$ are expressed in units of `lattice` and `recip_lattice` respectively, `r` in fractional coordinates, etc. TODO demonstrate
+
+The basis set $B_k^*$ has orthonormal functions, and we use the same convention for $C^*$. Quantities expressed in the real-space grid $C$ are in real units; this means that the IFFT has a prefactor $1/\sqrt{|Ω|}$, and the FFT a prefactor $\sqrt{|Ω|}/(N_g)$. TODO fix that in the code
+
+## The energy
+The unknowns are the periodic parts $u_{nk}$ of the Bloch waves $\psi_{nk}(x) = e^{ikx} u_{nk}(x)$, discretized on $B_k$. TODO write down the energy as a function of the coefficients. Fix a consistent notation for the coefficients that we use in the code.
 
 ## Core
 
