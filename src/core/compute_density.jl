@@ -46,10 +46,6 @@ function compute_partial_density(pw, kpt, Ψk, occupation)
 end
 
 
-# TODO Instead of returning a plain array here, return an object capable of computing
-#      densities and density derivatives lazily. Should be merged with DensityDervatives
-#      of term_xc.jl
-
 """
     compute_density(pw::PlaneWaveModel, Psi::AbstractVector, occupation::AbstractVector)
 
@@ -57,7 +53,8 @@ Compute the density for a wave function `Psi` discretised on the plane-wave grid
 where the individual k-Points are occupied according to `occupation`. `Psi` should
 be one coefficient matrix per k-Point.
 """
-function compute_density(pw::PlaneWaveModel, Psi::AbstractVector, occupation::AbstractVector)
+function compute_density(pw::PlaneWaveModel, Psi::AbstractVector,
+                         occupation::AbstractVector)
     n_k = length(pw.kpoints)
     @assert n_k == length(Psi)
     @assert n_k == length(occupation)
@@ -87,5 +84,5 @@ function compute_density(pw::PlaneWaveModel, Psi::AbstractVector, occupation::Ab
         end
     end
 
-    ρ / ρ_count
+    density_from_fourier(pw, ρ / ρ_count)
 end

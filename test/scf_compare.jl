@@ -16,7 +16,7 @@ include("testcases.jl")
     # Run nlsolve without guess
     scfres = self_consistent_field!(Hamiltonian(basis), n_bands, tol=tol,
                                     solver=scf_nlsolve_solver())
-    ρ_nl = scfres.ρ
+    ρ_nl = fourier(scfres.ρ)
 
     # Run other SCFs with SAD guess
     ρ0 = guess_gaussian_sad(basis, Si => silicon.positions)
@@ -24,7 +24,7 @@ include("testcases.jl")
                    scf_CROP_solver)
         println("Testing $solver")
         scfres = self_consistent_field!(Hamiltonian(basis, ρ0), n_bands, tol=tol, solver=solver())
-        ρ_alg = scfres.ρ
+        ρ_alg = fourier(scfres.ρ)
         @test maximum(abs.(ρ_alg - ρ_nl)) < 30tol
     end
 end

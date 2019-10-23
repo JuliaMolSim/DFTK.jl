@@ -17,7 +17,7 @@ function guess_gaussian_sad(basis, composition...)
         )
         convert(T, real(res))
     end
-    ρ / model.unit_cell_volume
+    density_from_fourier(basis, ρ / model.unit_cell_volume)
 end
 
 

@@ -18,9 +18,9 @@ function iterate_density!(ham::Hamiltonian, n_bands, ρ=nothing; Psi=nothing,
     # Update density from new Psi
     εF, occupation = compute_occupation(ham.basis, eigres.λ, eigres.X)
     ρnew = compute_density(ham.basis, eigres.X, occupation)
-    ρ !== nothing && (ρ .= ρnew)
 
-    (ham=ham, Psi=eigres.X, orben=eigres.λ, occupation=occupation, εF=εF, ρ=ρ)
+    (ham=ham, Psi=eigres.X, orben=eigres.λ, occupation=occupation, εF=εF,
+     ρ=ρnew)
 end
 
 
@@ -42,44 +42,36 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
                                 Psi=nothing, tol=1e-6, max_iter=100,
                                 solver=scf_nlsolve_solver(),
                                 diag=diag_lobpcg_hyper(), n_ep_extra=3)
-    T = real(eltype(ham.density))
+    T = eltype(real(ham.density))
     diagtol = tol / 10.
-    model = ham.basis.model
+    basis = ham.basis
+    model = basis.model
     if Psi === nothing   # Initialize random guess wavefunction
         # TODO This assumes CPU arrays
         Psi = [Matrix(qr(randn(Complex{T}, length(kpt.basis), n_bands + n_ep_extra)).Q)
-               for kpt in ham.basis.kpoints]
+               for kpt in basis.kpoints]
     end
 
-    # TODO remove foldρ and unfoldρ when https://github.com/JuliaNLSolvers/NLsolve.jl/pull/217 is in a release
-    function foldρ(ρ)
-        return vec(real(G_to_r(ham.basis, ρ .+ 0im)))
+    # TODO When https://github.com/JuliaNLSolvers/NLsolve.jl/pull/217
+    # is in a release, then the fixpoint iteration could also be done
+    # in Fourier space (i.e. in the actual discretisation basis),
+    # which might make the procedure more general ...
+    # would be good to give it a try and benchmark this.
 
-        # TODO Does not work and disabled for now
-        # Fold a complex array representing the Fourier transform of a purely real
-        # quantity into a real array
-        half = ceil(Int, size(ρ, 1) / 2)
-        ρcpx =  ρ[1:half, :, :]
-        vcat(real(ρcpx), imag(ρcpx))
+    # NLSolve can only work with 1D arrays as parameters, so we need to
+    # fold and unfold the Density object appropriately. Notice that we pick
+    # the *real-space* representation of the density
+    foldρ(ρ) = vec(real(ρ))
+    unfoldρ(vec_real) = density_from_real(basis, reshape(vec_real, basis.fft_size))
+    function fixpoint_map(x)
+        ρ = iterate_density!(ham, n_bands, unfoldρ(x); Psi=Psi, diag=diag, tol=diagtol).ρ
+        foldρ(ρ)
     end
-    function unfoldρ(ρ)
-        return r_to_G(ham.basis, reshape(ρ .+ 0im, ham.basis.fft_size))
-
-        # TODO Does not work and disabled for now
-        half = Int(size(ρ, 1) / 2)
-        ρcpx = ρ[1:half, :, :] + im * ρ[half+1:end, :, :]
-
-        # Undo "foldρ"
-        vcat(ρcpx, conj(reverse(reverse(ρcpx[2:end, :, :], dims=2), dims=3)))
-    end
-    fixpoint_map(ρ) = foldρ(iterate_density!(ham, n_bands, unfoldρ(ρ); Psi=Psi, diag=diag,
-                                             tol=diagtol).ρ)
 
     # Run fixpoint solver: Take guess density from Hamiltonian or iterate once
     #                      to generate it from its eigenvectors
     ρ = ham.density
     ρ === nothing && (ρ = iterate_density!(ham, n_bands; Psi=Psi, diag=diag, tol=diagtol).ρ)
-
     fpres = solver(fixpoint_map, foldρ(ρ), tol, max_iter)
     ρ = unfoldρ(fpres.fixpoint)
 

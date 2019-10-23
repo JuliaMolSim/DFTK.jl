@@ -31,6 +31,11 @@ export Kpoint
 include("core/Model.jl")
 include("core/PlaneWaveModel.jl")
 
+export Density
+export fourier
+export real
+include("core/Density.jl")
+
 export Species
 export charge_nuclear
 export charge_ionic

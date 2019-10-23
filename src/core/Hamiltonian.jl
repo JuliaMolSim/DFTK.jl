@@ -25,9 +25,9 @@ Initialise a one-particle Hamiltonian from a model and optionally a density.
 function Hamiltonian(basis::PlaneWaveModel{T}, ρ=nothing) where T
     model = basis.model
     # TODO This assumes CPU array
-    potarray(ρ) = similar(ρ, Complex{T})
+    potarray(p::Density) = similar(fourier(p))
     potarray(::Nothing) = zeros(Complex{T}, basis.fft_size)
-    ρzero = something(ρ, zeros(T, basis.fft_size))
+    ρzero = something(ρ, density_zero(basis))
 
     _, pot_external = model.build_external(basis, nothing, potarray(ρ))
     _, pot_nonlocal = model.build_nonlocal(basis, nothing, potarray(ρ))
@@ -41,9 +41,9 @@ end
 """
 Build / update an Hamiltonian out-of-place
 """
-function update_hamiltonian(ham::Hamiltonian, ρ)
+function update_hamiltonian(ham::Hamiltonian, ρ::Density)
     nsimilar(::Nothing) = nothing
-    nsimilar(p) = similar(p)
+    nsimilar(p::Density) = similar(fourier(p))
     ham = Hamiltonian(ham.basis, ρ, ham.kinetic, ham.pot_external, nsimilar(ham.pot_hartree),
                       nsimilar(ham.pot_xc), nsimilar(ham.pot_local), ham.pot_nonlocal)
     update_hamiltonian!(ham, ρ)
@@ -52,7 +52,7 @@ end
 """
 Update Hamiltonian in-place
 """
-function update_hamiltonian!(ham::Hamiltonian, ρ)
+function update_hamiltonian!(ham::Hamiltonian, ρ::Density)
     basis = ham.basis
     model = basis.model
     model.build_hartree(basis, nothing, ham.pot_hartree; ρ=ρ)
@@ -78,7 +78,7 @@ function update_energies!(energies, ham::Hamiltonian, Psi, occupation, ρ=nothin
     energies[:Kinetic] = energy_term_operator(ham.kinetic, Psi, occupation)
     if ham.pot_external !== nothing
         dVol = model.unit_cell_volume / prod(basis.fft_size)
-        energies[:PotExternal] = real(sum(G_to_r(basis, ρ) .* ham.pot_external) * dVol)
+        energies[:PotExternal] = real(sum(real(ρ) .* ham.pot_external) * dVol)
     end
 
     function insert_energy!(key, builder; kwargs...)
