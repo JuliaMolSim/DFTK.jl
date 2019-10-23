@@ -1,7 +1,3 @@
-include("lobpcg_itsolve.jl")
-include("lobpcg_scipy.jl")
-include("lobpcg_hyper.jl")
-
 """
 Interpolate some data from one k-Point to another. The interpolation is fast, but not
 necessarily exact or even normalised. Intended only to construct guesses for iterative
@@ -22,28 +18,15 @@ function interpolate_at_kpoint(kpt_old, kpt_new, data_oldk::AbstractVecOrMat)
 end
 
 @doc raw"""
-    lobpcg(ham::Hamiltonian, nev_per_kpoint::Int;
-           guess=nothing, prec=nothing, tol=1e-6, maxiter=200, backend=:lobpcg_hyper,
-           kwargs...)
-
-Run the LOBPCG implementation from `backend` for each ``k``-Point of the Hamiltonian `ham`,
-solving for the `nev_per_kpoint` smallest eigenvalues. Optionally a `guess` and a
-preconditioner `prec` can be used. The `backend` parameters selects the LOBPCG
-implementation to use. If no guess is supplied and `interpolate_kpoints` is true,
-the function tries to interpolate the results of earlier ``k``-Points to be used as guesses
-for the later ones.
+Function for diagonalising each ``k``-Point blow of ham one step at a time.
+Some logic for interpolating between ``k``-Points is used if `interpolate_kpoints`
+is true and if no guesses are given. The `kernel` is the iterative eigensolver
+that really does the work, operating on a single ``k``-Block.
 """
-# TODO Also use function-like interface here (e.g. eigensolver=lobpcg_hyper(stuff...)
-function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int; kpoints=ham.basis.kpoints,
-                guess=nothing, prec=nothing, tol=1e-6, maxiter=200,
-                backend=:lobpcg_hyper, interpolate_kpoints=true, kwargs...)
-    if !(backend in [:lobpcg_itsolve, :lobpcg_scipy, :lobpcg_hyper])
-        error("LOBPCG backend $(string(backend)) unknown.")
-    end
-    # TODO The interface of this function should be thought through now.
-    #      Also keeping in mind that we now have a specialised function for band structure
-    #      calculations.
-
+function diagonalise_all_kblocks(kernel, ham::Hamiltonian, nev_per_kpoint::Int;
+                                 kpoints=ham.basis.kpoints, guess=nothing,
+                                 prec=nothing, interpolate_kpoints=true, tol=1e-6,
+                                 maxiter=200, kwargs...)
     T = eltype(ham)
     results = Vector{Any}(undef, length(kpoints))
 
@@ -67,12 +50,10 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int; kpoints=ham.basis.kpoints
         end
     end
 
-    # Lookup "backend" symbol and use the corresponding function as run_lobpcg
-    run_lobpcg = getfield(DFTK, backend)
     for (ik, kpt) in enumerate(kpoints)
-        results[ik] = run_lobpcg(kblock(ham, kpt), get_guessk(guess, ik);
-                                 prec=kblock(prec, kpt), tol=tol, maxiter=maxiter,
-                                 kwargs...)
+        results[ik] = kernel(kblock(ham, kpt), get_guessk(guess, ik);
+                             prec=kblock(prec, kpt), tol=tol, maxiter=maxiter,
+                             kwargs...)
     end
 
     # Transform results into a nicer datastructure
@@ -81,7 +62,22 @@ function lobpcg(ham::Hamiltonian, nev_per_kpoint::Int; kpoints=ham.basis.kpoints
      residual_norms=[res.residual_norms for res in results],
      iterations=[res.iterations for res in results],
      converged=all(res.converged for res in results),
-     backend=string(backend),
      kpoints=kpoints
     )
 end
+
+"""
+DOCME
+"""
+function construct_diag(kernel; kwargs...)
+    # Return a function, which calls the diagonalisation_kloop routine.
+    # By default the kwargs from the scf (passed as scfkwargs) are used,
+    # unless they are overwritten by the kwargs passed upon call to diag_lobpcg.
+    (ham, n_ep; scfkwargs...) -> diagonalise_all_kblocks(kernel, ham, n_ep;
+                                                         merge(scfkwargs, kwargs)...)
+end
+
+# The actual implementations using the above primitives
+include("diag_lobpcg_scipy.jl")
+include("diag_lobpcg_hyper.jl")
+include("diag_lobpcg_itsolve.jl")

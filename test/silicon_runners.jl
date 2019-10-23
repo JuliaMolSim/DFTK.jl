@@ -73,7 +73,8 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
 
     # TODO Get rid of n_conv_check here
     scfres = self_consistent_field!(ham, n_bands, tol=scf_tol,
-                                    diag=diag_lobpcg(tol=lobpcg_tol, n_conv_check=n_conv_check))
+                                    diag=diag_lobpcg_hyper(tol=lobpcg_tol,
+                                                           n_conv_check=n_conv_check))
 
     for ik in 1:length(silicon.kcoords)
         @test eltype(scfres.orben[ik]) == T

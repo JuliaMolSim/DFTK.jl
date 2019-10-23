@@ -1,7 +1,8 @@
 using Test
-using DFTK: PlaneWaveModel, Model, Hamiltonian, lobpcg, PreconditionerKinetic
+using DFTK: PlaneWaveModel, Model, Hamiltonian, diag_lobpcg_hyper, PreconditionerKinetic
 
 include("./testcases.jl")
+
 
 @testset "Diagonalisation of a free-electron Hamiltonian" begin
     # Construct a free-electron Hamiltonian
@@ -10,6 +11,7 @@ include("./testcases.jl")
     model = Model(silicon.lattice, silicon.n_electrons)  # free-electron model
     basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis)
+    lobpcg = diag_lobpcg_hyper()
 
     tol = 1e-8
     nev_per_k = 10
@@ -59,6 +61,7 @@ end
                   nonlocal=term_nonlocal(Si => silicon.positions))
     basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis)
+    lobpcg = diag_lobpcg_hyper()
 
     res = lobpcg(ham, 5, tol=1e-8, prec=PreconditionerKinetic(ham, α=0.1),
                  interpolate_kpoints=false)

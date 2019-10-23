@@ -1,22 +1,11 @@
 """
-Setup LOBPCG eigensolver
-"""
-function diag_lobpcg(;kwargs...)
-    @warn "diag_lobpcg should be split into hyper and the different lobpcg flavours."
-    # Return a function, which calls the lobpcg routine. By default the kwargs
-    # from the scf (passed as scfkwargs) are used, unless they are overwritten
-    # by the kwargs passed upon call to diag_lobpcg.
-    (ham, n_ep; scfkwargs...) -> lobpcg(ham, n_ep; merge(scfkwargs, kwargs)...)
-end
-
-
-"""
 Obtain new density ρ by diagonalizing the Hamiltonian build from the current ρ.
 `ham` and `Psi` (if given) are updated in-place.
 """
 function iterate_density!(ham::Hamiltonian, n_bands, ρ=nothing; Psi=nothing,
                           prec=PreconditionerKinetic(ham, α=0.1), tol=1e-6,
-                          compute_occupation=find_occupation_around_fermi, diag=diag_lobpcg)
+                          compute_occupation=find_occupation_around_fermi,
+                          diag=diag_lobpcg_hyper())
     # Update Hamiltonian from ρ
     ρ !== nothing && update_hamiltonian!(ham, ρ)
 
@@ -52,7 +41,7 @@ compute_occupation is around to manipulate the way occupations are computed.
 function self_consistent_field!(ham::Hamiltonian, n_bands;
                                 Psi=nothing, tol=1e-6, max_iter=100,
                                 solver=scf_nlsolve_solver(),
-                                diag=diag_lobpcg(), n_ep_extra=3)
+                                diag=diag_lobpcg_hyper(), n_ep_extra=3)
     T = real(eltype(ham.density))
     diagtol = tol / 10.
     model = ham.basis.model

@@ -16,6 +16,7 @@ include("testcases.jl")
         ham = Hamiltonian(basis, guess_gaussian_sad(basis, composition...))
 
         n_bands = 4
+        lobpcg = diag_lobpcg_hyper()
         res = lobpcg(ham, n_bands; prec=PreconditionerKinetic(ham, α=0.1), tol=tol)
 
         @assert testcase.n_electrons <= 8

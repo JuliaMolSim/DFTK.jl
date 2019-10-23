@@ -76,8 +76,10 @@ include("core/HamiltonianBlock.jl")
 export PreconditionerKinetic
 include("core/Preconditioner.jl")
 
-export lobpcg
-include("core/lobpcg.jl")
+export diag_lobpcg_hyper
+export diag_lobpcg_scipy
+export diag_lobpcg_itsolve
+include("core/diag.jl")
 
 export scf_nlsolve_solver
 export scf_damping_solver
