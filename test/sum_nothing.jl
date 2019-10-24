@@ -6,6 +6,7 @@ using DFTK: sum_nothing
     @test sum_nothing(nothing, nothing) === nothing
     @test sum_nothing(nothing, nothing, nothing) === nothing
 
+    @test sum_nothing(1) === 1
     @test sum_nothing(1, nothing) === 1
     @test sum_nothing(nothing, 1) === 1
     @test sum_nothing(1, nothing, 2) === 3

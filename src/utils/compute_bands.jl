@@ -23,7 +23,7 @@ function determine_high_symmetry_kpath(basis, kline_density, composition...)
 end
 
 
-function compute_bands(ham::Hamiltonian, kpoints, n_bands; diag=diag_lobpcg())
+function compute_bands(ham::Hamiltonian, kpoints, n_bands; diag=diag_lobpcg_hyper())
     prec = PreconditionerKinetic(ham, α=0.5)
     band_data = diag(ham, n_bands + 3; kpoints=kpoints, n_conv_check=n_bands, prec=prec,
                      interpolate_kpoints=false, tol=1e-5)
