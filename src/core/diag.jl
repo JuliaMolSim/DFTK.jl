@@ -30,28 +30,25 @@ function diagonalise_all_kblocks(kernel, ham::Hamiltonian, nev_per_kpoint::Int;
     T = eltype(ham)
     results = Vector{Any}(undef, length(kpoints))
 
-    # Functions simplifying stuff to be done for each k-Point
-    function get_guessk(guess, ik)
-        # TODO Proper error messages
-        @assert length(guess) ≥ length(kpoints)
-        @assert size(guess[ik], 2) == nev_per_kpoint
-        @assert size(guess[ik], 1) == length(kpoints[ik].basis)
-        guess[ik]
-    end
-    function get_guessk(::Nothing, ik)
-        if ik <= 1 || !interpolate_kpoints
+    for (ik, kpt) in enumerate(kpoints)
+        # Get guessk
+        if guess != nothing
+            # guess provided
+            guessk = guess[ik]
+        elseif interpolate_kpoints && ik > 1
+            # use information from previous kpoint
+            X0 = interpolate_at_kpoint(kpoints[ik - 1], kpoints[ik], results[ik - 1].X)
+            guessk = Matrix{T}(qr(X0).Q)
+        else
+            # random initial guess
             # TODO The double conversion is needed due to an issue in Julia
             #      see https://github.com/JuliaLang/julia/pull/32979
             qrres = qr(randn(real(T), length(kpoints[ik].basis), nev_per_kpoint))
-            m = Matrix{T}(Matrix(qrres.Q))
-        else  # Interpolate from previous k-Point
-            X0 = interpolate_at_kpoint(kpoints[ik - 1], kpoints[ik], results[ik - 1].X)
-            X0 = Matrix{T}(qr(X0).Q)
+            guessk = Matrix{T}(Matrix(qrres.Q))
         end
-    end
+        @assert size(guessk) == (length(kpoints[ik].basis), nev_per_kpoint)
 
-    for (ik, kpt) in enumerate(kpoints)
-        results[ik] = kernel(kblock(ham, kpt), get_guessk(guess, ik);
+        results[ik] = kernel(kblock(ham, kpt), guessk;
                              prec=kblock(prec, kpt), tol=tol, maxiter=maxiter,
                              kwargs...)
     end
