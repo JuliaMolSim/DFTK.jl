@@ -40,7 +40,7 @@ function pymatgen_bandstructure(basis, band_data, klabels=Dict{String, Vector{Fl
     elec_structure = pyimport("pymatgen.electronic_structure")
 
     # This assumes no spin polarisation
-    @assert basis.model.spin_polarisation == :none
+    @assert basis.model.spin_polarisation in (:none, :spinless)
 
     kpoints = band_data.kpoints
     n_bands = length(band_data.λ[1])

@@ -74,7 +74,7 @@ function update_energies!(energies, ham::Hamiltonian, Psi, occupation, ρ=nothin
 
     basis = ham.basis
     model = basis.model
-    model.spin_polarisation == :none || error("$(model.spin_polarisation) not implemented")
+    model.spin_polarisation in (:none, :spinless) || error("$(model.spin_polarisation) not implemented")
     ρ === nothing && (ρ = compute_density(ham.basis, Psi, occupation))
 
     energies[:Kinetic] = energy_term_operator(ham.kinetic, Psi, occupation)
