@@ -66,6 +66,16 @@ function diagonalise_all_kblocks(kernel, ham::Hamiltonian, nev_per_kpoint::Int;
     )
 end
 
+@doc raw"""
+Function to select a subset of eigenpairs on each ``k``-Point. Works on the
+Tuple returned by `diagonalise_all_kblocks`.
+"""
+function select_eigenpairs_all_kblocks(eigres, range)
+    merge(eigres, (λ=[λk[range] for λk in eigres.λ],
+                   X=[Xk[:, range] for Xk in eigres.X],
+                   residual_norms=[resk[range] for resk in eigres.residual_norms]))
+end
+
 """
 DOCME
 """

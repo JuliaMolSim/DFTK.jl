@@ -17,9 +17,8 @@ function determine_high_symmetry_kpath(basis, kline_density, composition...)
             labels_dict[labels[ik]] = k
         end
     end
-    println(symm_kpath.kpath["path"])
 
-    (kpoints=kpoints, klabels=labels_dict, kpath=symm_kpath.kpath["path"][1])
+    (kpoints=kpoints, klabels=labels_dict, kpath=symm_kpath.kpath["path"])
 end
 
 
@@ -28,5 +27,6 @@ function compute_bands(ham::Hamiltonian, kpoints, n_bands; diag=diag_lobpcg_hype
     band_data = diag(ham, n_bands + 3; kpoints=kpoints, n_conv_check=n_bands, prec=prec,
                      interpolate_kpoints=false, tol=1e-5)
     band_data.converged || (@warn "LOBPCG not converged" iterations=eigres.iterations)
-    band_data
+
+    select_eigenpairs_all_kblocks(band_data, 1:n_bands)
 end

@@ -1,6 +1,6 @@
 using Test
 using LinearAlgebra
-using DFTK: determine_grid_size
+using DFTK: determine_grid_size, model_free_electron
 
 include("testcases.jl")
 
@@ -12,8 +12,10 @@ include("testcases.jl")
     @test determine_grid_size(silicon.lattice, 25, supersampling=2) == [36, 36, 36]
     @test determine_grid_size(silicon.lattice, 30, supersampling=2) == [40, 40, 40]
 
-    @test determine_grid_size(silicon, 30) == [40, 40, 40]
-    @test determine_grid_size(silicon, 30, supersampling=1.8) == [36, 36, 36]
+    # Test the model interface as well
+    model = model_free_electron(silicon.lattice, silicon.n_electrons)
+    @test determine_grid_size(model, 30) == [40, 40, 40]
+    @test determine_grid_size(model, 30, supersampling=1.8) == [36, 36, 36]
 end
 
 @testset "Test determine_grid_size on skewed lattice" begin

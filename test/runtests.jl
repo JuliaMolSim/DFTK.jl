@@ -27,3 +27,5 @@ include("scf_compare.jl")
 include("silicon_redHF.jl")
 include("silicon_lda.jl")
 include("silicon_pbe.jl")
+
+include("compute_bands.jl")

@@ -37,7 +37,7 @@ end
 
 # Band structure calculation along high-symmetry path
 kpoints, klabels, kpath = determine_high_symmetry_kpath(basis, kline_density, composition...)
-println("Computing bands along kpath:\n     $(join(kpath, " -> "))")
+println("Computing bands along kpath:\n     $(join(kpath[1], " -> "))")
 band_data = compute_bands(ham, kpoints, n_bands)
 
 # Plot bandstructure using pymatgen
