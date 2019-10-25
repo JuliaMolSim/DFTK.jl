@@ -1,8 +1,11 @@
 struct Density
     basis
-    real     # Real-space component
-    fourier  # Fourier-space component
+    _real     # Real-space component
+    _fourier  # Fourier-space component
 end
+import Base: real
+real(ρ::Density) = ρ._real
+fourier(ρ::Density) = ρ._fourier
 
 function density_from_real(basis, ρ_real)
     T = real(eltype(ρ_real))
@@ -25,7 +28,3 @@ end
 
 # This assumes CPU arrays
 density_zero(basis::PlaneWaveModel{T}) where T = density_from_real(basis, zeros(T, basis.fft_size))
-
-import Base: real
-real(ρ::Density) = ρ.real
-fourier(ρ::Density) = ρ.fourier
