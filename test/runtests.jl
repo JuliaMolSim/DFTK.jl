@@ -14,6 +14,7 @@ include("term_nonlocal.jl")
 # TODO Test for term_hartree
 # TODO Test for term_xc
 
+include("HamiltonianBlock.jl")
 include("lobpcg.jl")
 include("xc_fallback.jl")
 
