@@ -29,7 +29,7 @@ function model_dft(lattice::AbstractMatrix, functionals, composition...; kwargs.
           xc=term_xc(functionals...), kwargs...)
 end
 function model_dft(lattice::AbstractMatrix, functionals::Symbol, composition...; kwargs...)
-    model_dft(lattice, [functionals], composition...)
+    model_dft(lattice, [functionals], composition...; kwargs...)
 end
 
 """

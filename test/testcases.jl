@@ -6,6 +6,7 @@ silicon = (
                5.131570667152971 5.131570667152971  0.0],
     atnum = 14,
     n_electrons = 8,
+    Tsmear = nothing,
     psp = "si-pade-q4.hgh",
     positions = [ones(3)/8, -ones(3)/8],  # in fractional coordinates
     kcoords = [[   0,   0, 0],  # in fractional coordinates
@@ -57,6 +58,7 @@ manganese = (
                 [0,   0,   1/3],
                 [1/3, 0,   1/3],
                 [1/3, 1/3, 1/3]],
+    Tsmear = 0.01,
     ksymops = Vector{Vector{Tuple{Mat3{Int},Vec3{Float64}}}}([
         [([ 1  0  0;  0  1  0;  0  0  1], [ 0.0,  0.0,  0.0])],
         [([ 1  0  0;  0  1  0;  0  0  1], [ 0.0,  0.0,  0.0]),

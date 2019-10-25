@@ -7,11 +7,15 @@ include("testcases.jl")
 #      test the energies of these densities and compare them directly to the reference
 #      energies obtained in the data files
 
-
 @testset "Using BZ symmetry yields identical density" begin
     function get_bands(testcase, fft_size, kcoords, ksymops, composition...;
                        Ecut=5, tol=1e-8)
-        model = model_dft(testcase.lattice, :lda_xc_teter93, composition...)
+        kwargs = ()
+        if testcase.Tsmear !== nothing
+            kwargs = (temperature=testcase.Tsmear, smearing=DFTK.smearing_fermi_dirac)
+        end
+
+        model = model_dft(testcase.lattice, :lda_xc_teter93, composition...; kwargs...)
         basis = PlaneWaveModel(model, fft_size, Ecut, kcoords, ksymops)
         ham = Hamiltonian(basis, guess_gaussian_sad(basis, composition...))
 
@@ -52,19 +56,21 @@ include("testcases.jl")
     end
 
     function test_full_vs_irreducible(testcase, kgrid_size; Ecut=5, tol=1e-8)
-        Si = Species(testcase.atnum, psp=load_psp(testcase.psp))
-        composition = (Si => testcase.positions, )
+        spec = Species(testcase.atnum, psp=load_psp(testcase.psp))
+        composition = (spec => testcase.positions, )
 
         kfull, sym_full = bzmesh_uniform(kgrid_size)
         fft_size = determine_grid_size(testcase.lattice, Ecut)
-        res = get_bands(testcase, fft_size, kfull, sym_full,
-                        composition...; Ecut=Ecut, tol=tol)
+        res = get_bands(testcase, fft_size, kfull, sym_full, composition...;
+                        Ecut=Ecut, tol=tol)
         basis_full, Psi_full, orben_full, ρ_full = res
         test_orthonormality(basis_full, Psi_full, tol=tol)
 
         kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, testcase.lattice, composition...)
-        basis_ir, Psi_ir, orben_ir, ρ_ir = get_bands(testcase, fft_size, kcoords, ksymops,
-                                                     composition...; Ecut=Ecut, tol=tol)
+        res = get_bands(testcase, fft_size, kcoords, ksymops, composition...;
+                        Ecut=Ecut, tol=tol)
+        basis_ir, Psi_ir, orben_ir, ρ_ir = res
+
         test_orthonormality(basis_ir, Psi_ir, tol=tol)
 
         # Test density is equivalent
