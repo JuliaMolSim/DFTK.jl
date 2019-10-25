@@ -1,7 +1,6 @@
 using Test
 using DFTK
 
-include("sum_nothing.jl")
 include("determine_grid_size.jl")
 include("fourier_transforms.jl")
 include("PlaneWaveModel.jl")
