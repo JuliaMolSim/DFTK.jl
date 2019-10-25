@@ -32,8 +32,8 @@ function Hamiltonian(basis::PlaneWaveModel{T}, ρ=nothing) where T
     _, pot_nonlocal = model.build_nonlocal(basis, nothing, potarray(ρ))
     _, pot_hartree = model.build_hartree(basis, nothing, potarray(ρ); ρ=ρzero)
     _, pot_xc = model.build_xc(basis, nothing, potarray(ρ); ρ=ρzero)
-    pot_local = sum(term for term in (pot_external, pot_hartree, pot_xc)
-                    if !isnothing(term))
+    terms_local = filter(!isnothing, [pot_external, pot_hartree, pot_xc])
+    pot_local = isempty(terms_local) ? nothing : .+(terms_local...)
     out = Hamiltonian(basis, ρzero, Kinetic(basis), pot_external,
                       pot_hartree, pot_xc, pot_local, pot_nonlocal)
 end
@@ -58,8 +58,9 @@ function update_hamiltonian!(ham::Hamiltonian, ρ::Density)
     model.build_hartree(basis, nothing, ham.pot_hartree; ρ=ρ)
     model.build_xc(basis, nothing, ham.pot_xc; ρ=ρ)
     if ham.pot_local !== nothing
-        ham.pot_local .= sum(term for term in (ham.pot_external, ham.pot_hartree, ham.pot_xc)
-                             if !isnothing(term))
+        terms_local = filter(!isnothing, [ham.pot_external, ham.pot_hartree, ham.pot_xc])
+        @assert !isempty(terms_local)
+        ham.pot_local .= .+(terms_local...)
     end
     ham
 end
