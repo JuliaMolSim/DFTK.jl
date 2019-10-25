@@ -1,4 +1,4 @@
-using Libxc: evaluate_lda!, Functional
+using Libxc: evaluate_lda!, evaluate_gga!, Functional
 using Libxc
 
 include("xc_fallback/lda_x.jl")
@@ -14,5 +14,5 @@ function Libxc.evaluate_lda!(func::Functional, ρ::AbstractArray; E=nothing, Vρ
     func.identifier == :lda_x     && return     lda_x!(ρ, E=E, Vρ=Vρ)
     func.identifier == :lda_c_vwn && return lda_c_vwn!(ρ, E=E, Vρ=Vρ)
 
-    error("Fallback functional for name $(func.name) not implemented.")
+    error("Fallback functional for $(string(func.identifier)) not implemented.")
 end

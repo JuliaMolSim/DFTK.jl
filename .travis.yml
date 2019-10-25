@@ -4,6 +4,7 @@ branches:
     - master
     - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
 
+dist: bionic
 os:
   - linux
   - osx
@@ -16,7 +17,7 @@ addons:
   apt:
     packages:
       - python3-pip
-      - python3-scipy
+      - python3-setuptools
 
 matrix:
   allow_failures:  # Allow to fail on nightly
@@ -25,7 +26,12 @@ matrix:
     - os: osx
       julia: nightly
 
-install: if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then pip3 install spglib; fi
+install: |
+  if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+      pip3 install spglib scipy pymatgen
+  else
+     :
+  fi
 
 codecov: false
 coveralls: true
@@ -41,6 +47,12 @@ jobs:
                                                Pkg.instantiate()'
         - julia --project=docs/ docs/make.jl
       after_success: skip
+
+after_failure: |
+  if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+      python3 --version
+      pip3 list
+  fi
 
 notifications:
   email: false

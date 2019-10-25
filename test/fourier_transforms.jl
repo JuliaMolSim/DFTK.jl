@@ -1,41 +1,73 @@
 using Test
-using DFTK: PlaneWaveBasis, G_to_r!, r_to_G!
+using DFTK: PlaneWaveModel, G_to_r!, r_to_G!, G_to_r, r_to_G
 
-include("silicon_testcases.jl")
+include("testcases.jl")
 
 @testset "FFT and IFFT are an identity" begin
     Ecut = 4.0  # Hartree
-    grid_size = [15, 15, 15]
-    pw = PlaneWaveBasis(lattice, grid_size, Ecut, kpoints, kweights, ksymops)
+    fft_size = [15, 15, 15]
+    model = Model(silicon.lattice, silicon.n_electrons)
+    pw = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
 
-    @testset "Density grid transformation" begin
-        f_G = Array{ComplexF64}(randn(Float64, prod(pw.grid_size)))
+    @testset "Transformation C_ρ <-> C_ρ^∗, 1 vector" begin
+        f_G = Array{ComplexF64}(randn(Float64, pw.fft_size...))
 
-        f_R = Array{ComplexF64}(undef, size(pw.FFT)...)
-        G_to_r!(pw, f_G, f_R)
+        f_R = Array{ComplexF64}(undef, pw.fft_size...)
+        G_to_r!(f_R, pw, f_G)
+
+        f2_G = r_to_G(pw, f_R)
+        f2_R = G_to_r(pw, f2_G)
+        f3_G = r_to_G!(similar(f_R), pw, f_R)
+
+        @test maximum(abs.(f2_G - f_G)) < 1e-12
+        @test maximum(abs.(f2_R - f_R)) < 1e-12
+        @test maximum(abs.(f3_G - f_G)) < 1e-12
+    end
+
+    @testset "Transformation C_ρ <-> C_ρ^∗, 3 vectors" begin
+        f_G = Array{ComplexF64}(randn(Float64, pw.fft_size..., 3))
+
+        f_R = Array{ComplexF64}(undef, pw.fft_size..., 3)
+        G_to_r!(f_R, pw, f_G)
+
+        f2_G = r_to_G(pw, f_R)
+        f2_R = G_to_r(pw, f2_G)
+        f3_G = r_to_G!(similar(f_R), pw, f_R)
+
+        @test maximum(abs.(f2_G - f_G)) < 1e-12
+        @test maximum(abs.(f2_R - f_R)) < 1e-12
+        @test maximum(abs.(f3_G - f_G)) < 1e-12
+    end
+
+    @testset "Transformation B_k <-> C_ρ^∗, 1 vector" begin
+        kpt = pw.kpoints[2]
+        f_G = Array{ComplexF64}(randn(Float64, length(kpt.basis)))
+
+        f_R = Array{ComplexF64}(undef, pw.fft_size...)
+        G_to_r!(f_R, pw, kpt, f_G)
 
         f2_G = similar(f_G)
-        r_to_G!(pw, copy(f_R), f2_G)
+        r_to_G!(f2_G, pw, kpt, copy(f_R))  # copy needed, because r_to_G! destructive
 
         f2_R = similar(f_R)
-        G_to_r!(pw, f2_G, f2_R)
+        G_to_r!(f2_R, pw, kpt, f2_G)
 
         @test maximum(abs.(f2_G - f_G)) < 1e-12
         @test maximum(abs.(f2_R - f_R)) < 1e-12
     end
 
-    @testset "Wave function grid transformation" begin
-        ik = 2
-        f_G = Array{ComplexF64}(randn(Float64, size(pw.basis_wf[ik])))
+    @testset "Transformation B_k <-> C_ρ^∗, 3 vectors" begin
+        kpt = pw.kpoints[2]
+        f_G = Array{ComplexF64}(randn(Float64, length(kpt.basis), 3))
 
-        f_R = Array{ComplexF64}(undef, size(pw.FFT)...)
-        G_to_r!(pw, f_G, f_R, gcoords=pw.basis_wf[ik])
+        f_R = Array{ComplexF64}(undef, pw.fft_size..., 3)
+        G_to_r!(f_R, pw, kpt, f_G)
 
         f2_G = similar(f_G)
-        r_to_G!(pw, copy(f_R), f2_G, gcoords=pw.basis_wf[ik])
+        r_to_G!(f2_G, pw, kpt, copy(f_R))  # copy needed, because r_to_G! destructive
 
         f2_R = similar(f_R)
-        G_to_r!(pw, f2_G, f2_R, gcoords=pw.basis_wf[ik])
+        G_to_r!(f2_R, pw, kpt, f2_G)
 
         @test maximum(abs.(f2_G - f_G)) < 1e-12
         @test maximum(abs.(f2_R - f_R)) < 1e-12

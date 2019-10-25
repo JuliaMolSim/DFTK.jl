@@ -2,7 +2,7 @@ include("testcases.jl")
 
 test_folder(Float64, "silicon_E10_k3_LDA", test_tol=5e-8)
 test_folder(Float64, "silicon_E15_k4_LDA", n_ignored=1, test_tol=5e-8)
-test_folder(Float64, "silicon_E25_k3_LDA", n_ignored=2, test_tol=1e-8)
+test_folder(Float64, "silicon_E25_k3_LDA", n_ignored=3, test_tol=1e-8)
 test_folder(Float64, "silicon_E15_k4_GGA")
 test_folder(Float64, "silicon_E25_k3_GGA")
 test_folder(Float64, "silicon_E25_k4_GGA", n_ignored=1, test_tol=1e-7)

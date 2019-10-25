@@ -40,3 +40,9 @@ function lobpcg_scipy(A, X0; prec=nothing, tol=nothing, largest=false, kwargs...
      iterations=length(res[3]),
      converged=converged)
 end
+
+
+"""
+DOCME
+"""
+diag_lobpcg_scipy(;kwargs...) = construct_diag(lobpcg_scipy; kwargs...)

@@ -1,16 +1,25 @@
+# Data structures for representing the kinetic operator in a particular basis
+# and functionality to represent a k-Point block of it
+
 """
-Kinetic energy operator in a plane-wave basis.
+Kinetic energy operator for a particular PlaneWaveModel basis
 """
+
+# Kinetic energy operator for a particular PlaneWaveModel basis
+# and the kbuild function to build a k-Point-specific block of it.
 struct Kinetic
-    basis::PlaneWaveBasis
+    basis::PlaneWaveModel
 end
 
+function kblock(kin::Kinetic, kpt::Kpoint)
+    basis = kin.basis
+    model = basis.model
+    basis.model.spin_polarisation in [:none, :collinear] || (
+        error("$(pw.model.spin_polarisation) not implemented"))
+    # TODO For spin_polarisation == :full we need to double
+    #      the vector (2 full spin components)
 
-function apply_fourier!(out, kinetic::Kinetic, ik, in)
-    # Apply the Laplacian -Δ/2
-    pw = kinetic.basis
-    k = pw.kpoints[ik]
-
-    kin = [sum(abs2, pw.recip_lattice * (G + k)) for G in pw.basis_wf[ik]] ./ 2
-    out .= kin .* in
+    T = eltype(basis.kpoints[1].coordinate)
+    Diagonal(Vector{T}([sum(abs2, model.recip_lattice * (G + kpt.coordinate))
+                        for G in kpt.basis] ./ 2))
 end

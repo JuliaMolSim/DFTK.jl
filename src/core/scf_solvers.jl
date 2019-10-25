@@ -17,7 +17,7 @@ function scf_nlsolve_solver(m=5, method=:anderson; kwargs...)
     function fp_solver(f, x0, tol, max_iter)
         res = nlsolve(x -> f(x) - x, x0; method=method, m=m, xtol=tol,
                       ftol=0.0, show_trace=true, iterations=max_iter, kwargs...)
-        (sol=res.zero, converged=converged(res))
+        (fixpoint=res.zero, converged=converged(res))
     end
     fp_solver
 end
@@ -45,7 +45,7 @@ function scf_damping_solver(β=0.2)
 
             x = @. β * x_new + (1 - β) * x
         end
-        (sol=x, converged=converged)
+        (fixpoint=x, converged=converged)
     end
     fp_solver
 end
@@ -91,7 +91,7 @@ function anderson(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
         fs = circshift(fs, (0, 1))
         xs[:,1] = new_x
     end
-    (sol=xs[:,1], converged=err < tol)
+    (fixpoint=xs[:,1], converged=err < tol)
 end
 function scf_anderson_solver(m=5)
     (f, x0, tol, max_iter) -> anderson(x -> f(x) - x, x0, m, max_iter, tol)
@@ -153,6 +153,6 @@ function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
         fs[:,1] = ftnp1
         # fs[:,1] = f(xs[:,1])
     end
-    (sol=xs[:, 1], converged=err < tol)
+    (fixpoint=xs[:, 1], converged=err < tol)
 end
 scf_CROP_solver(m=5) = (f, x0, tol, max_iter) -> CROP(x -> f(x) - x, x0, m, max_iter, tol)

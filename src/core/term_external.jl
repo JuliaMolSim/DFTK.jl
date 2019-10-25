@@ -1,5 +1,7 @@
+# Functions returning appropriate builders for the external potential
+
 """
-    build_local_potential(pw::PlaneWaveBasis, generators_or_composition...;
+    build_local_potential(pw::PlaneWaveModel, generators_or_composition...;
                           compensating_background=true)
 
 Function generating a local potential on the real-space density grid ``B^∗_ρ``
@@ -36,42 +38,42 @@ julia> na_Coulomb(G) = -11 / sum(abs2, basis.recip_lattice * G)
 since sodium has nuclear charge 11.
 ```
 """
-function build_local_potential(pw::PlaneWaveBasis, generators_or_composition...;
-                               compensating_background=true)
-    make_generator(elem::Function) = elem
-    function make_generator(elem::Species)
-        if elem.psp === nothing
-            # Use default Coulomb potential
-            return G -> -charge_nuclear(elem) / sum(abs2, pw.recip_lattice * G)
-        else
-            # Use local part of pseudopotential defined in Species object
-            return G -> eval_psp_local_fourier(elem.psp, pw.recip_lattice * G)
+function term_external(generators_or_composition...; compensating_background=true)
+    function inner(basis::PlaneWaveModel{T}, energy, potential; kwargs...) where T
+        model = basis.model
+
+        make_generator(elem::Function) = elem
+        function make_generator(elem::Species)
+            if elem.psp === nothing
+                # All-electron => Use default Coulomb potential
+                return G -> -charge_nuclear(elem) / sum(abs2, model.recip_lattice * G)
+            else
+                # Use local part of pseudopotential defined in Species object
+                return G -> eval_psp_local_fourier(elem.psp, model.recip_lattice * G)
+            end
         end
-    end
-    genfunctions = [make_generator(elem) => positions
-                    for (elem, positions) in generators_or_composition]
+        genfunctions = [make_generator(elem) => positions
+                        for (elem, positions) in generators_or_composition]
 
-    # Get the values in the plane-wave basis set (Fourier space)
-    values_fourier = map(basis_ρ(pw)) do G
-        sum(
-            4π / pw.unit_cell_volume  # Prefactor spherical Hankel transform
-            * genfunction(G)          # Potential data for wave vector G
-            * cis(2π * dot(G, r))     # Structure factor
-            for (genfunction, positions) in genfunctions
-            for r in positions
-        )
-    end
-    if compensating_background
-        values_fourier[pw.idx_DC] = 0
-    end
+        # Get the values in the plane-wave basis set (Fourier space)
+        values = map(basis_Cρ(basis)) do G
+            sum(Complex{T}(
+                4π / model.unit_cell_volume  # Prefactor spherical Hankel transform
+                * genfunction(G)          # Potential data for wave vector G
+                * cis(2π * dot(G, r))     # Structure factor
+                ) for (genfunction, positions) in genfunctions
+                  for r in positions
+           )
+        end
+        compensating_background && (values[1] = 0)
 
-    T = eltype(pw.lattice)
-    values_real = similar(values_fourier, Complex{T}, size(pw.FFT)...)
-    G_to_r!(pw, vec(values_fourier), values_real)
-    if maximum(imag(values_real)) > 100 * eps(T)
-        throw(ArgumentError("Expected potential on the real-space grid to be entirely" *
-                            " real-valued, but the present potential gives rise to a " *
-                            "maximal imaginary entry of $(maximum(imag(values_real)))."))
+        Vext = (potential === nothing) ? G_to_r(basis, values) : G_to_r!(potential, basis, values)
+        if energy !== nothing
+            dVol = model.unit_cell_volume / prod(model.fft_size)
+            energy[] = sum(G_to_r(basis, ρ) .* Vext) * dVol
+        end
+
+        energy, potential
     end
-    PotLocal(pw, real(values_real))
+    inner
 end
