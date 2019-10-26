@@ -5,14 +5,14 @@ Obtain new density ρ by diagonalizing the Hamiltonian build from the current ρ
 function iterate_density!(ham::Hamiltonian, n_bands, ρ=nothing; Psi=nothing,
                           prec=PreconditionerKinetic(ham, α=0.1), tol=1e-6,
                           compute_occupation=find_occupation_around_fermi,
-                          diag=diag_lobpcg_hyper())
+                          eigensolver=lobpcg_hyper)
     # Update Hamiltonian from ρ
     ρ !== nothing && update_hamiltonian!(ham, ρ)
 
     # Update Psi from Hamiltonian (ask for a few more bands than the ones we need)
     n_ep = (Psi === nothing) ? n_bands + 3 : size(Psi[1], 2)
-    eigres = diag(ham, n_ep; guess=Psi, n_conv_check=n_bands, prec=prec, tol=tol)
-    eigres.converged || (@warn "LOBPCG not converged" iterations=eigres.iterations)
+    eigres = diagonalise_all_kblocks(eigensolver, ham, n_ep, guess=Psi, n_conv_check=n_bands, prec=prec, tol=tol)
+    eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
     Psi !== nothing && (Psi .= eigres.X)
 
     # Update density from new Psi
@@ -41,7 +41,7 @@ compute_occupation is around to manipulate the way occupations are computed.
 function self_consistent_field!(ham::Hamiltonian, n_bands;
                                 Psi=nothing, tol=1e-6, max_iter=100,
                                 solver=scf_nlsolve_solver(),
-                                diag=diag_lobpcg_hyper(), n_ep_extra=3)
+                                eigensolver=lobpcg_hyper, n_ep_extra=3)
     T = eltype(real(ham.density))
     diagtol = tol / 10.
     basis = ham.basis

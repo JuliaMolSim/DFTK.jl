@@ -20,13 +20,14 @@ end
 @doc raw"""
 Function for diagonalising each ``k``-Point blow of ham one step at a time.
 Some logic for interpolating between ``k``-Points is used if `interpolate_kpoints`
-is true and if no guesses are given. The `kernel` is the iterative eigensolver
+is true and if no guesses are given. `eigensolver` is the iterative eigensolver
 that really does the work, operating on a single ``k``-Block.
+`eigensolver` should support the API `eigensolver(A, X0; prec, tol, maxiter)`
 """
-function diagonalise_all_kblocks(kernel, ham::Hamiltonian, nev_per_kpoint::Int;
+function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
                                  kpoints=ham.basis.kpoints, guess=nothing,
                                  prec=nothing, interpolate_kpoints=true, tol=1e-6,
-                                 maxiter=200, kwargs...)
+                                 maxiter=200)
     T = eltype(ham)
     results = Vector{Any}(undef, length(kpoints))
 
@@ -48,9 +49,8 @@ function diagonalise_all_kblocks(kernel, ham::Hamiltonian, nev_per_kpoint::Int;
         end
         @assert size(guessk) == (length(kpoints[ik].basis), nev_per_kpoint)
 
-        results[ik] = kernel(kblock(ham, kpt), guessk;
-                             prec=kblock(prec, kpt), tol=tol, maxiter=maxiter,
-                             kwargs...)
+        results[ik] = eigensolver(kblock(ham, kpt), guessk;
+                                  prec=kblock(prec, kpt), tol=tol, maxiter=maxiter)
     end
 
     # Transform results into a nicer datastructure
@@ -71,17 +71,6 @@ function select_eigenpairs_all_kblocks(eigres, range)
     merge(eigres, (λ=[λk[range] for λk in eigres.λ],
                    X=[Xk[:, range] for Xk in eigres.X],
                    residual_norms=[resk[range] for resk in eigres.residual_norms]))
-end
-
-"""
-DOCME
-"""
-function construct_diag(kernel; kwargs...)
-    # Return a function, which calls the diagonalisation_kloop routine.
-    # By default the kwargs from the scf (passed as scfkwargs) are used,
-    # unless they are overwritten by the kwargs passed upon call to diag_lobpcg.
-    (ham, n_ep; scfkwargs...) -> diagonalise_all_kblocks(kernel, ham, n_ep;
-                                                         merge(scfkwargs, kwargs)...)
 end
 
 # The actual implementations using the above primitives
