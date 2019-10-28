@@ -1,5 +1,5 @@
 using Test
-using DFTK: PlaneWaveModel, Model, Hamiltonian, diag_lobpcg_hyper, PreconditionerKinetic
+using DFTK: PlaneWaveModel, Model, Hamiltonian, lobpcg_hyper, diagonalise_all_kblocks, PreconditionerKinetic
 
 include("./testcases.jl")
 
@@ -11,7 +11,6 @@ include("./testcases.jl")
     model = Model(silicon.lattice, silicon.n_electrons)  # free-electron model
     basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis)
-    lobpcg = diag_lobpcg_hyper()
 
     tol = 1e-8
     nev_per_k = 10
@@ -28,7 +27,7 @@ include("./testcases.jl")
 
     @test length(ref_λ) == length(silicon.kcoords)
     @testset "without Preconditioner" begin
-        res = lobpcg(ham, nev_per_k, tol=tol, interpolate_kpoints=false)
+        res = diagonalise_all_kblocks(lobpcg_hyper, ham, nev_per_k, tol=tol, interpolate_kpoints=false)
 
         @test res.converged
         for ik in 1:length(silicon.kcoords)
@@ -39,8 +38,8 @@ include("./testcases.jl")
     end
 
     @testset "with Preconditioner" begin
-        res = lobpcg(ham, nev_per_k, tol=tol,
-                     prec=PreconditionerKinetic(ham, α=0.1), interpolate_kpoints=false)
+        res = diagonalise_all_kblocks(lobpcg_hyper, ham, nev_per_k, tol=tol,
+                                      prec=PreconditionerKinetic(ham, α=0.1), interpolate_kpoints=false)
 
         @test res.converged
         for ik in 1:length(silicon.kcoords)
@@ -61,10 +60,9 @@ end
                   nonlocal=term_nonlocal(Si => silicon.positions))
     basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis)
-    lobpcg = diag_lobpcg_hyper()
 
-    res = lobpcg(ham, 5, tol=1e-8, prec=PreconditionerKinetic(ham, α=0.1),
-                 interpolate_kpoints=false)
+    res = diagonalise_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, prec=PreconditionerKinetic(ham, α=0.1),
+                                  interpolate_kpoints=false)
     ref = [
         [0.067955741977536, 0.470244204908046, 0.470244204920801,
          0.470244204998022, 0.578392222232969],

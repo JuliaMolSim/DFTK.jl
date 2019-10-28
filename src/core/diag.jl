@@ -27,7 +27,7 @@ that really does the work, operating on a single ``k``-Block.
 function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
                                  kpoints=ham.basis.kpoints, guess=nothing,
                                  prec=nothing, interpolate_kpoints=true, tol=1e-6,
-                                 maxiter=200)
+                                 maxiter=200, n_conv_check=nothing)
     T = eltype(ham)
     results = Vector{Any}(undef, length(kpoints))
 

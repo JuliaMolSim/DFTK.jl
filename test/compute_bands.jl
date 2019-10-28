@@ -150,9 +150,9 @@ end
 
 
     # Check that plain diagonalisation and compute_bands agree
-    diag = diag_lobpcg_hyper()
+    eigensolver = lobpcg_hyper
     prec = PreconditionerKinetic(ham, α=0.1)
-    eigres = diag(ham, n_bands + 3, n_conv_check=n_bands, prec=prec, tol=1e-5)
+    eigres = diagonalise_all_kblocks(eigensolver, ham, n_bands + 3, n_conv_check=n_bands, prec=prec, tol=1e-5)
 
     band_data = compute_bands(ham, basis.kpoints, n_bands)
     for ik in 1:length(basis.kpoints)

@@ -1,6 +1,6 @@
 using Test
 using DFTK: model_dft, PlaneWaveModel, guess_gaussian_sad, Species, load_psp
-using DFTK: update_energies, Hamiltonian, diag_lobpcg_hyper
+using DFTK: update_energies, Hamiltonian, lobpcg_hyper
 
 include("testcases.jl")
 
@@ -26,8 +26,7 @@ include("testcases.jl")
     @test e0_XC[]      ≈ -2.3033165870558165  atol=5e-8
 
     # Run one diagonalisation and compute energies
-    lobpcg = diag_lobpcg_hyper()
-    res = lobpcg(ham, n_bands, tol=1e-9)
+    res = diagonalise_all_kblocks(lobpcg_hyper, ham, n_bands, tol=1e-9)
     occupation = [[2.0, 2.0, 2.0, 2.0, 0.0, 0.0, 0.0, 0.0]
                   for i in 1:length(silicon.kcoords)]
     energies = update_energies(ham, res.X, occupation)

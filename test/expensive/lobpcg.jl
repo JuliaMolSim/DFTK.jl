@@ -1,6 +1,6 @@
 using Test
 using DFTK: PlaneWaveModel, Model, Hamiltonian, PreconditionerKinetic, term_external
-using DFTK: diag_lobpcg_hyper
+using DFTK: lobpcg_hyper
 
 include("../testcases.jl")
 
@@ -13,9 +13,8 @@ include("../testcases.jl")
                   external=term_external(Si => silicon.positions))
     basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis)
-    lobpcg = diag_lobpcg_hyper()
 
-    res = lobpcg(ham, 6, tol=1e-8)
+    res = diagonalise_all_kblocks(lobpcg_hyper, ham, 6, tol=1e-8)
 
     ref = [
         [-4.087198659513310, -4.085326314828677, -0.506869382308294,
