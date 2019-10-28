@@ -11,7 +11,7 @@ For an exact representation of the density resulting from wave functions
 represented in the basis ``B_k = \{G : |G + k|^2/2 \leq E_\text{cut}\}``,
 `supersampling` should be at least `2`.
 """
-function determine_grid_size(lattice::AbstractMatrix, Ecut; supersampling=2, tol=1e-8)
+function determine_grid_size(lattice::AbstractMatrix, Ecut; supersampling=2, tol=1e-8, ensure_smallprimes=true)
     # See the documentation about the grids for details on the construction of C_ρ
     cutoff_Gsq = 2 * supersampling^2 * Ecut
     fft_size = [norm(lattice[:, i]) / 2π * sqrt(cutoff_Gsq) for i in 1:3]
@@ -21,7 +21,11 @@ function determine_grid_size(lattice::AbstractMatrix, Ecut; supersampling=2, tol
     fft_size = ceil.(Int, fft_size .- tol)
 
     # Optimise FFT grid size: Make sure the number factorises in small primes only
-    return Vec3([nextprod([2, 3, 5], 2 * gs + 1) for gs in fft_size])
+    if ensure_smallprimes
+        Vec3([nextprod([2, 3, 5], 2gs + 1) for gs in fft_size])
+    else
+        Vec3([2gs+1 for gs in fft_size])
+    end
 end
 function determine_grid_size(model::Model, Ecut; kwargs...)
     determine_grid_size(model.lattice, Ecut; kwargs...)
