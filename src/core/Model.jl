@@ -4,7 +4,8 @@
 #     :none       No spin polarisation, αα and ββ density identical, αβ and βα blocks zero
 #     :collinear  Spin is polarised, but on all atoms in the same direction. αα ̸= ββ, αβ = βα = 0
 #     :full       Generic magnetisation, any direction on any atom. αβ, βα, αα, ββ all nonzero, different
-
+#     :spinless   No spin at all ("spinless fermions", "mathematicians' electrons").
+#                 Difference with :none is that the occupations are 1 instead of 2
 
 struct Model{T <: Real}
     # Lattice and reciprocal lattice vectors in columns
@@ -15,7 +16,7 @@ struct Model{T <: Real}
 
     # Electrons, occupation and smearing function
     n_electrons::Int
-    spin_polarisation::Symbol  # :none, :collinear, :full
+    spin_polarisation::Symbol  # :none, :collinear, :full, :spinless
     temperature::T
     smearing
     assume_band_gap::Bool  # DFTK may assume a band gap at the Fermi level to be present
@@ -39,7 +40,7 @@ function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
                smearing=nothing, spin_polarisation=:none, assume_band_gap=nothing) where {T <: Real}
     lattice = SMatrix{3, 3, T, 9}(lattice)
     recip_lattice = 2π * inv(lattice')
-    @assert spin_polarisation in (:none, :collinear, :full)
+    @assert spin_polarisation in (:none, :collinear, :full, :spinless)
 
     # Assume a band gap (insulator, semiconductor) if no smearing given
     assume_band_gap === nothing && (assume_band_gap = smearing === nothing)

@@ -29,11 +29,11 @@ TODO docme
 function build_kpoints(basis::PlaneWaveModel{T}, kcoords; Ecut=basis.Ecut) where T
     model = basis.model
 
-    model.spin_polarisation in [:none, :collinear] || (
+    model.spin_polarisation in (:none, :collinear, :spinless) || (
         error("$(model.spin_polarisation) not implemented"))
-    spin = [:undefined]
+    spin = (:undefined,)
     if model.spin_polarisation == :collinear
-        spin = [:up, :down]
+        spin = (:up, :down)
     end
 
     kpoints = Vector{Kpoint{T}}()

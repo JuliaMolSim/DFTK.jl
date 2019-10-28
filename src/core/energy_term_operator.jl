@@ -10,7 +10,8 @@ function energy_term_operator(op, Psi, occupation)
     @assert length(occupation) == length(basis.kpoints)
     @assert length(occupation) == length(basis.kweights)
     real(sum(basis.kweights[ik]
-             * tr(Diagonal(occupation[ik]) * Psi[ik]' * (kblock(op, kpt) * Psi[ik]))
+             * sum(occupation[ik] .*
+                   [dot(psi, kblock(op, kpt) * psi) for psi in eachcol(Psi[ik])])
              for (ik, kpt) in enumerate(basis.kpoints)
     ))
 end

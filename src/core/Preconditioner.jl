@@ -21,7 +21,7 @@ end
 function kblock(prec::PreconditionerKinetic, kpt::Kpoint)
     basis = prec.basis
     model = basis.model
-    basis.model.spin_polarisation in [:none, :collinear] || (
+    basis.model.spin_polarisation in (:none, :collinear, :spinless) || (
         error("$(pw.model.spin_polarisation) not implemented"))
     # TODO For spin_polarisation == :full we need to double
     #      the vector (2 full spin components)

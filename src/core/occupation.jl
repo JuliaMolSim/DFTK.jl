@@ -10,18 +10,24 @@ function find_occupation_gap_zero_temperature(basis, energies, Psi)
     n_electrons = basis.model.n_electrons
     T = eltype(basis.kpoints[1].coordinate)
 
-    @assert basis.model.spin_polarisation == :none
-    @assert n_electrons % 2 == 0
-    n_occ = div(n_electrons, 2)
+    @assert basis.model.spin_polarisation in (:none, :spinless)
+    if basis.model.spin_polarisation == :none
+        @assert n_electrons % 2 == 0
+        n_occ = div(n_electrons, 2)
+        filled_occ = 2
+    else
+        n_occ = n_electrons
+        filled_occ = 1
+    end
     @assert n_bands ≥ n_occ
     @assert basis.model.temperature == 0.0
 
-    HOMO = -Inf
-    LUMO = Inf
+    HOMO = -Inf # highest occupied energy state
+    LUMO = Inf  # lowest unoccupied energy state
     occupation = similar(basis.kpoints, Vector{T})
     for ik in 1:length(occupation)
         occupation[ik] = zeros(T, n_bands)
-        occupation[ik][1:n_occ] .= 2
+        occupation[ik][1:n_occ] .= filled_occ
         HOMO = max(HOMO, energies[ik][n_occ])
         if n_occ < n_bands
             LUMO = min(LUMO, energies[ik][n_occ + 1])
@@ -52,15 +58,21 @@ function find_occupation_fermi_metal(basis, energies, Psi)
     smearing = model.smearing
 
     @assert smearing !== nothing
-    @assert basis.model.spin_polarisation == :none
-    @assert n_electrons % 2 == 0
-    @assert n_bands ≥ n_electrons / 2
-    @assert sum(basis.kweights) ≈ 1
+    @assert basis.model.spin_polarisation in (:none, :spinless)
+    if basis.model.spin_polarisation == :none
+        @assert n_electrons % 2 == 0
+        n_occ = div(n_electrons, 2)
+        filled_occ = 2
+    else
+        n_occ = n_electrons
+        filled_occ = 1
+    end
+    @assert n_bands ≥ n_occ
 
     # Avoid some numerical issues
     temperature == 0 && (smearing(x) = x ≤ 0 ? 1 : 0)
 
-    compute_occupation(εF) = [2 * smearing.((ε .- εF) ./ temperature) for ε in energies]
+    compute_occupation(εF) = [filled_occ * smearing.((ε .- εF) ./ temperature) for ε in energies]
     compute_n_elec(εF) = sum(basis.kweights .* sum.(compute_occupation(εF)))
 
     min_ε = minimum([minimum(ε) for ε in energies]) - 1
