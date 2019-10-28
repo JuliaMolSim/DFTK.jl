@@ -87,6 +87,7 @@ function update_energies!(energies, ham::Hamiltonian, Psi, occupation, ρ=nothin
         energy, _ = builder(basis, Ref{valtype(energies)}(0), nothing; kwargs...)
         energy !== nothing && (energies[key] = energy[])
     end
+    insert_energy!(:PotExternal, model.build_external; ρ=ρ)
     insert_energy!(:PotHartree, model.build_hartree; ρ=ρ)
     insert_energy!(:PotXC, model.build_xc; ρ=ρ)
     insert_energy!(:PotNonLocal, model.build_nonlocal; Psi=Psi, occupation=occupation)

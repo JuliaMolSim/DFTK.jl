@@ -39,7 +39,7 @@ since sodium has nuclear charge 11.
 ```
 """
 function term_external(generators_or_composition...; compensating_background=true)
-    function inner(basis::PlaneWaveModel{T}, energy, potential; kwargs...) where T
+    function inner(basis::PlaneWaveModel{T}, energy, potential; ρ=nothing, kwargs...) where T
         model = basis.model
 
         make_generator(elem::Function) = elem
@@ -67,10 +67,11 @@ function term_external(generators_or_composition...; compensating_background=tru
         end
         compensating_background && (values[1] = 0)
 
+        # TODO impose Vext to be real
         Vext = (potential === nothing) ? G_to_r(basis, values) : G_to_r!(potential, basis, values)
         if energy !== nothing
-            dVol = model.unit_cell_volume / prod(model.fft_size)
-            energy[] = sum(G_to_r(basis, ρ) .* Vext) * dVol
+            dVol = model.unit_cell_volume / prod(basis.fft_size)
+            energy[] = real(sum(real(ρ) .* Vext)) * dVol
         end
 
         energy, potential
