@@ -2,15 +2,11 @@
 # its structures from the DFTK equivalents
 
 function pymatgen_lattice(model)
-    # Notice: Pymatgen uses rows as lattice vectors, but due to some
-    # quirks with the conversion between Array and ArrayWithUnit,
-    # the usual transpose of the Array between column-major (Julia)
-    # and row-major (python) is not done, such that our data layout
-    # (lattice vectors in columns, column-major) and the one expected
-    # by pymatgen (vectors in rows, but row-major) agree on the memory
-    # level and *no transpose* is needed here.
+    # Notice: Pymatgen uses rows as lattice vectors, so we unpeel
+    # our lattice column by column. The default unit in pymatgen is Ǎngström
     mg = pyimport("pymatgen")
-    mg.Lattice(mg.ArrayWithUnit(Array(model.lattice), "bohr"))
+    bohr_to_A = 1 / pyimport("pymatgen.core.units").ang_to_bohr
+    mg.Lattice([Array(bohr_to_A .* model.lattice[:, i]) for i in 1:3])
 end
 
 
@@ -39,6 +35,9 @@ function pymatgen_bandstructure(basis, band_data, klabels=Dict{String, Vector{Fl
     mg = pyimport("pymatgen")
     elec_structure = pyimport("pymatgen.electronic_structure")
 
+    # The energy unit in pymatgen is eV
+    Ha_to_eV = 1 / pyimport("pymatgen.core.units").eV_to_Ha
+
     # This assumes no spin polarisation
     @assert basis.model.spin_polarisation in (:none, :spinless)
 
@@ -46,14 +45,14 @@ function pymatgen_bandstructure(basis, band_data, klabels=Dict{String, Vector{Fl
     n_bands = length(band_data.λ[1])
     eigenvals_spin_up = Matrix{eltype(band_data.λ[1])}(undef, n_bands, length(kpoints))
     for (ik, λs) in enumerate(band_data.λ)
-        eigenvals_spin_up[:, ik] = λs
+        eigenvals_spin_up[:, ik] = λs * Ha_to_eV
     end
     eigenvals = Dict(elec_structure.core.Spin.up => eigenvals_spin_up)
 
     kcoords = [kpt.coordinate for kpt in kpoints]
     pylattice = pymatgen_lattice(basis.model)
     elec_structure.bandstructure.BandStructureSymmLine(
-        kcoords, eigenvals, pylattice.reciprocal_lattice, fermi_level,
+        kcoords, eigenvals, pylattice.reciprocal_lattice, fermi_level * Ha_to_eV,
         labels_dict=klabels, coords_are_cartesian=true
     )
 end
