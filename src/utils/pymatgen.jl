@@ -2,15 +2,11 @@
 # its structures from the DFTK equivalents
 
 function pymatgen_lattice(model)
-    # Notice: Pymatgen uses rows as lattice vectors, but due to some
-    # quirks with the conversion between Array and ArrayWithUnit,
-    # the usual transpose of the Array between column-major (Julia)
-    # and row-major (python) is not done, such that our data layout
-    # (lattice vectors in columns, column-major) and the one expected
-    # by pymatgen (vectors in rows, but row-major) agree on the memory
-    # level and *no transpose* is needed here.
+    # Notice: Pymatgen uses rows as lattice vectors, so we unpeel
+    # our lattice column by column.
     mg = pyimport("pymatgen")
-    mg.Lattice(mg.ArrayWithUnit(Array(model.lattice), "bohr"))
+    AtoBohr = pyimport("pymatgen.core.units").ang_to_bohr  # Ǎngström to Bohr
+    mg.Lattice([Array(AtoBohr .* model.lattice[:, i]) for i in 1:3])
 end
 
 
