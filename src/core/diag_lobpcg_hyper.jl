@@ -19,9 +19,3 @@ function lobpcg_hyper(A, X0; maxiter=100, prec=I, tol=20size(A, 2)*eps(real(elty
      iterations=iterations,
      converged=converged)
 end
-
-
-"""
-DOCME
-"""
-diag_lobpcg_hyper(;kwargs...) = construct_diag(lobpcg_hyper; kwargs...)

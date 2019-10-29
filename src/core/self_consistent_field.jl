@@ -5,14 +5,14 @@ Obtain new density ρ by diagonalizing the Hamiltonian build from the current ρ
 function iterate_density!(ham::Hamiltonian, n_bands, ρ=nothing; Psi=nothing,
                           prec=PreconditionerKinetic(ham, α=0.1), tol=1e-6,
                           compute_occupation=find_occupation_around_fermi,
-                          diag=diag_lobpcg_hyper())
+                          eigensolver=lobpcg_hyper)
     # Update Hamiltonian from ρ
     ρ !== nothing && update_hamiltonian!(ham, ρ)
 
     # Update Psi from Hamiltonian (ask for a few more bands than the ones we need)
     n_ep = (Psi === nothing) ? n_bands + 3 : size(Psi[1], 2)
-    eigres = diag(ham, n_ep; guess=Psi, n_conv_check=n_bands, prec=prec, tol=tol)
-    eigres.converged || (@warn "LOBPCG not converged" iterations=eigres.iterations)
+    eigres = diagonalise_all_kblocks(eigensolver, ham, n_ep, guess=Psi, n_conv_check=n_bands, prec=prec, tol=tol)
+    eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
     Psi !== nothing && (Psi .= eigres.X)
 
     # Update density from new Psi
@@ -41,9 +41,8 @@ compute_occupation is around to manipulate the way occupations are computed.
 function self_consistent_field!(ham::Hamiltonian, n_bands;
                                 Psi=nothing, tol=1e-6, max_iter=100,
                                 solver=scf_nlsolve_solver(),
-                                diag=diag_lobpcg_hyper(), n_ep_extra=3)
+                                eigensolver=lobpcg_hyper, n_ep_extra=3, diagtol=tol / 10)
     T = eltype(real(ham.density))
-    diagtol = tol / 10.
     basis = ham.basis
     model = basis.model
     if Psi === nothing   # Initialize random guess wavefunction
@@ -64,19 +63,19 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
     foldρ(ρ) = vec(real(ρ))
     unfoldρ(vec_real) = density_from_real(basis, reshape(vec_real, basis.fft_size))
     function fixpoint_map(x)
-        ρ = iterate_density!(ham, n_bands, unfoldρ(x); Psi=Psi, diag=diag, tol=diagtol).ρ
+        ρ = iterate_density!(ham, n_bands, unfoldρ(x); Psi=Psi, eigensolver=eigensolver, tol=diagtol).ρ
         foldρ(ρ)
     end
 
     # Run fixpoint solver: Take guess density from Hamiltonian or iterate once
     #                      to generate it from its eigenvectors
     ρ = ham.density
-    ρ === nothing && (ρ = iterate_density!(ham, n_bands; Psi=Psi, diag=diag, tol=diagtol).ρ)
+    ρ === nothing && (ρ = iterate_density!(ham, n_bands; Psi=Psi, eigensolver=eigensolver, tol=diagtol).ρ)
     fpres = solver(fixpoint_map, foldρ(ρ), tol, max_iter)
     ρ = unfoldρ(fpres.fixpoint)
 
     # Extra step to get Hamiltonian, eigenvalues and eigenvectors wrt the fixpoint density
-    itres = iterate_density!(ham, n_bands, ρ; Psi=Psi, tol=diagtol, diag=diag)
+    itres = iterate_density!(ham, n_bands, ρ; Psi=Psi, eigensolver=eigensolver, tol=diagtol)
 
     # TODO energies ... maybe do them optionally in iterate_density along with
     #      the update_hamiltonian function

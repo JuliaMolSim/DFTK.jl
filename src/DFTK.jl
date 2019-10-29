@@ -81,9 +81,10 @@ include("core/HamiltonianBlock.jl")
 export PreconditionerKinetic
 include("core/Preconditioner.jl")
 
-export diag_lobpcg_hyper
-export diag_lobpcg_scipy
-export diag_lobpcg_itsolve
+export lobpcg_hyper
+export lobpcg_scipy
+export lobpcg_itsolve
+export diagonalise_all_kblocks
 include("core/diag.jl")
 
 export scf_nlsolve_solver

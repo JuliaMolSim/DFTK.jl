@@ -62,8 +62,6 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     ]
     ref_etot = -7.911817522631488
     n_bands = length(ref_lda[1])
-    n_conv_check = nothing
-    n_noconv_check > 0 && (n_conv_check = n_bands - n_noconv_check)
 
     fft_size = grid_size * ones(3)
     Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
@@ -71,10 +69,8 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis, guess_gaussian_sad(basis, Si => silicon.positions))
 
-    # TODO Get rid of n_conv_check here
     scfres = self_consistent_field!(ham, n_bands, tol=scf_tol,
-                                    diag=diag_lobpcg_hyper(tol=lobpcg_tol,
-                                                           n_conv_check=n_conv_check))
+                                    eigensolver=lobpcg_hyper, n_ep_extra=n_noconv_check, diagtol=lobpcg_tol)
 
     for ik in 1:length(silicon.kcoords)
         @test eltype(scfres.orben[ik]) == T
