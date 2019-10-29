@@ -28,4 +28,5 @@ include("silicon_redHF.jl")
 include("silicon_lda.jl")
 include("silicon_pbe.jl")
 
+include("variational.jl")
 include("compute_bands.jl")
