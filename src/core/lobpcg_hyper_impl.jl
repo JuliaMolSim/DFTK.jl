@@ -115,7 +115,7 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
     ninners = zeros(Int,0)
     while true
         BYX = BY'X
-        X = X - Y*BYX
+        X .-= Y*BYX
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho(cP, cX)
@@ -168,7 +168,7 @@ end
 ### We reuse applications of A/B when it is safe to do so, ie only with orthogonal transformations
 
 function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100; ortho_tol=2eps(real(eltype(X))),
-                n_conv_check=nothing)
+                n_conv_check=nothing, display_progress=false)
     N,M = size(X)
     n_conv_check === nothing && (n_conv_check = M)
     resids = zeros(real(eltype(X)), M, maxiter)
@@ -259,6 +259,9 @@ function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100; ortho_tol=2eps(real
                 break
             end
         end
+
+        display_progress && println("Iter $niter, converged $(nlocked)/$(n_conv_check), resid ", norm(resids[1:n_conv_check, niter]))
+
         if nlocked >= n_conv_check
             X .= new_X
             λ, full_X, residnorms, resids = final_residnorms(A, full_X, resids, niter)
