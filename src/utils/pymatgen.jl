@@ -1,18 +1,19 @@
 # Routines for interaction with pymatgen, e.g. converting to
 # its structures from the DFTK equivalents
 
-function pymatgen_lattice(lattice)
+function pymatgen_lattice(lattice::AbstractArray)
     # Notice: Pymatgen uses rows as lattice vectors, so we unpeel
     # our lattice column by column. The default unit in pymatgen is Ǎngström
     mg = pyimport("pymatgen")
     bohr_to_A = 1 / pyimport("pymatgen.core.units").ang_to_bohr
     mg.Lattice([Array(bohr_to_A .* lattice[:, i]) for i in 1:3])
 end
+pymatgen_lattice(model::Model) = pymatgen_lattice(model.lattice)
 
 
-function pymatgen_structure(lattice, composition...)
+function pymatgen_structure(model_or_lattice, composition...)
     mg = pyimport("pymatgen")
-    pylattice = pymatgen_lattice(lattice)
+    pylattice = pymatgen_lattice(model_or_lattice)
 
     n_species = sum(length(pos) for (spec, pos) in composition)
     pyspecies = Vector{Int}(undef, n_species)
