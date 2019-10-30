@@ -50,7 +50,8 @@ function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         @assert size(guessk) == (length(kpoints[ik].basis), nev_per_kpoint)
 
         results[ik] = eigensolver(kblock(ham, kpt), guessk;
-                                  prec=kblock(prec, kpt), tol=tol, maxiter=maxiter)
+                                  prec=kblock(prec, kpt), tol=tol,
+                                  maxiter=maxiter, n_conv_check=n_conv_check)
     end
 
     # Transform results into a nicer datastructure
