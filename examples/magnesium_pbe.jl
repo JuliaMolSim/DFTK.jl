@@ -16,7 +16,7 @@ b = 5.227223542397263
 c = 9.773621942589742
 lattice = [[-a -b  0]; [-a  b  0]; [0   0 -c]]
 Mg = Species(12, psp=load_psp("mg-pbe-q2.hgh"))
-composition = [Si => [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]]]
+composition = [Mg => [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]]]
 
 # Make a supercell if desired
 pystruct = pymatgen_structure(lattice, composition...)
