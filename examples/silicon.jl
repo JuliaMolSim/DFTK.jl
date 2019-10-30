@@ -17,7 +17,7 @@ Si = Species(14, psp=load_psp("si-pade-q4.hgh"))
 composition = [Si => [ones(3)/8, -ones(3)/8]]
 
 # Make a supercell if desired
-pystruct = pymatgen_structure(model, composition...)
+pystruct = pymatgen_structure(lattice, composition...)
 pystruct.make_supercell(supercell)
 for i in 1:3, j in 1:3
     A_to_bohr = pyimport("pymatgen.core.units").ang_to_bohr
@@ -25,6 +25,7 @@ for i in 1:3, j in 1:3
 end
 composition = [Si => [s.frac_coords for s in pystruct.sites]]
 
+model = nothing
 # Setup model and discretisation
 if calculation_model == :reduced_hf
     model = model_reduced_hf(lattice, composition...)

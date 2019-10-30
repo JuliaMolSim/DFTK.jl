@@ -1,18 +1,18 @@
 # Routines for interaction with pymatgen, e.g. converting to
 # its structures from the DFTK equivalents
 
-function pymatgen_lattice(model)
+function pymatgen_lattice(lattice)
     # Notice: Pymatgen uses rows as lattice vectors, so we unpeel
     # our lattice column by column. The default unit in pymatgen is Ǎngström
     mg = pyimport("pymatgen")
     bohr_to_A = 1 / pyimport("pymatgen.core.units").ang_to_bohr
-    mg.Lattice([Array(bohr_to_A .* model.lattice[:, i]) for i in 1:3])
+    mg.Lattice([Array(bohr_to_A .* lattice[:, i]) for i in 1:3])
 end
 
 
-function pymatgen_structure(model, composition...)
+function pymatgen_structure(lattice, composition...)
     mg = pyimport("pymatgen")
-    pylattice = pymatgen_lattice(model)
+    pylattice = pymatgen_lattice(lattice)
 
     n_species = sum(length(pos) for (spec, pos) in composition)
     pyspecies = Vector{Int}(undef, n_species)
@@ -50,7 +50,7 @@ function pymatgen_bandstructure(basis, band_data, klabels=Dict{String, Vector{Fl
     eigenvals = Dict(elec_structure.core.Spin.up => eigenvals_spin_up)
 
     kcoords = [kpt.coordinate for kpt in kpoints]
-    pylattice = pymatgen_lattice(basis.model)
+    pylattice = pymatgen_lattice(basis.model.lattice)
     elec_structure.bandstructure.BandStructureSymmLine(
         kcoords, eigenvals, pylattice.reciprocal_lattice, fermi_level * Ha_to_eV,
         labels_dict=klabels, coords_are_cartesian=true

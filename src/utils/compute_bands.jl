@@ -5,7 +5,7 @@ include("pymatgen.jl")
 
 function determine_high_symmetry_kpath(basis, kline_density, composition...)
     bandstructure = pyimport("pymatgen.symmetry.bandstructure")
-    pystructure = pymatgen_structure(basis.model, composition...)
+    pystructure = pymatgen_structure(basis.model.lattice, composition...)
     symm_kpath = bandstructure.HighSymmKpath(pystructure)
 
     kcoords, labels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=false)
