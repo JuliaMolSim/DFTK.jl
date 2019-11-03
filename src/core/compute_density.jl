@@ -28,9 +28,7 @@ function compute_partial_density(pw, kpt, Ψk, occupation)
 
     # Check sanity of the density (real, positive and normalized)
     T = real(eltype(ρk_real))
-    if maximum(abs.(imag.(ρk_real))) > 100 * eps(T)
-        @warn "Large norm(imag(ρ))" norm_imag=maximum(imag(ρk_real))
-    end
+    check_density_real(ρk_real)
     if all(occupation .> 0)
         minimum(real(ρk_real)) < 0 && @warn("Negative ρ detected",
                                             min_ρ=minimum(real(ρk_real)))
