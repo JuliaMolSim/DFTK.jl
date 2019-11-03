@@ -108,6 +108,7 @@ include("utils/bzmesh.jl")
 
 export determine_grid_size
 export guess_gaussian_sad
+export guess_zero
 export load_psp
 include("utils/determine_grid_size.jl")
 include("utils/guess_gaussian_sad.jl")

@@ -45,9 +45,9 @@ kpoints, ksymops = bzmesh_ir_wedge(kgrid, lattice, composition...)
 fft_size = determine_grid_size(lattice, Ecut)
 basis = PlaneWaveModel(model, fft_size, Ecut, kpoints, ksymops)
 
-# Run SCF, note Silicon metal is an insulator, so we will assume that we do not need
-# all bands here. This will cause warnings in some models, because e.g. in the
-# :reduced_hf model silicon is a metal
+# Run SCF. Note Silicon is a semiconductor, so we use an insulator
+# occupation scheme. This will cause warnings in some models, because
+# e.g. in the :reduced_hf model silicon is a metal
 n_bands_scf = Int(model.n_electrons / 2)
 ham = Hamiltonian(basis, guess_gaussian_sad(basis, composition...))
 scfres = self_consistent_field!(ham, n_bands_scf, tol=1e-6)

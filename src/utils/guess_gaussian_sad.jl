@@ -20,6 +20,9 @@ function guess_gaussian_sad(basis, composition...)
     density_from_fourier(basis, ρ / model.unit_cell_volume)
 end
 
+function guess_zero(basis::PlaneWaveModel{T}) where T
+    density_from_real(basis, zeros(T, basis.fft_size...))
+end
 
 ## TODO give the formula in real space in the doc, and clarify that the atomic density is that of the valence electrons
 @doc raw"""

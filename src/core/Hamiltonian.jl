@@ -78,10 +78,6 @@ function update_energies!(energies, ham::Hamiltonian, Psi, occupation, ρ=nothin
     ρ === nothing && (ρ = compute_density(ham.basis, Psi, occupation))
 
     energies[:Kinetic] = energy_term_operator(ham.kinetic, Psi, occupation)
-    if ham.pot_external !== nothing
-        dVol = model.unit_cell_volume / prod(basis.fft_size)
-        energies[:PotExternal] = real(sum(real(ρ) .* ham.pot_external) * dVol)
-    end
 
     function insert_energy!(key, builder; kwargs...)
         energy, _ = builder(basis, Ref{valtype(energies)}(0), nothing; kwargs...)

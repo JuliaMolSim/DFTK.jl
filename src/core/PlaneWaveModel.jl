@@ -57,7 +57,7 @@ fft_size is now Fourier grid size
 kcoords is vector of Vec3
 """
 function PlaneWaveModel(model::Model{T}, fft_size, Ecut::Number,
-                        kcoords, ksymops, kweights=nothing) where {T <: Real}
+                        kcoords, ksymops=nothing, kweights=nothing) where {T <: Real}
     fft_size = Tuple{Int, Int, Int}(fft_size)
     # Plan a FFT, spending some time on finding an optimal algorithm
     # for the machine on which the computation runs
