@@ -14,17 +14,15 @@ represented in the basis ``B_k = \{G : |G + k|^2/2 \leq E_\text{cut}\}``,
 function determine_grid_size(lattice::AbstractMatrix, Ecut; supersampling=2, tol=1e-8, ensure_smallprimes=true)
     # See the documentation about the grids for details on the construction of C_ρ
     cutoff_Gsq = 2 * supersampling^2 * Ecut
-    fft_size = [norm(lattice[:, i]) / 2π * sqrt(cutoff_Gsq) for i in 1:3]
-
-    # Convert fft_size into integers by rounding up unless the value is only
-    # `tol` larger than an actual integer.
-    fft_size = ceil.(Int, fft_size .- tol)
+    Gmax= [norm(lattice[:, i]) / 2π * sqrt(cutoff_Gsq) for i in 1:3]
+    # Round up
+    Gmax = ceil.(Int, Gmax .- tol)
 
     # Optimise FFT grid size: Make sure the number factorises in small primes only
     if ensure_smallprimes
-        Vec3([nextprod([2, 3, 5], 2gs + 1) for gs in fft_size])
+        Vec3([nextprod([2, 3, 5], 2gs + 1) for gs in Gmax])
     else
-        Vec3([2gs+1 for gs in fft_size])
+        Vec3([2gs+1 for gs in Gmax])
     end
 end
 function determine_grid_size(model::Model, Ecut; kwargs...)

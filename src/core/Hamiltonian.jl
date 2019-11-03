@@ -26,7 +26,7 @@ function Hamiltonian(basis::PlaneWaveBasis{T}, ρ=nothing) where T
     # TODO This assumes CPU array
     potarray(p::Density) = similar(fourier(p))
     potarray(::Nothing) = zeros(Complex{T}, basis.fft_size)
-    ρzero = something(ρ, density_zero(basis))
+    ρzero = something(ρ, Density(basis))
 
     _, pot_external = model.build_external(basis, nothing, potarray(ρ))
     _, pot_nonlocal = model.build_nonlocal(basis, nothing, potarray(ρ))
@@ -78,10 +78,6 @@ function update_energies!(energies, ham::Hamiltonian, Psi, occupation, ρ=nothin
     ρ === nothing && (ρ = compute_density(ham.basis, Psi, occupation))
 
     energies[:Kinetic] = energy_term_operator(ham.kinetic, Psi, occupation)
-    if ham.pot_external !== nothing
-        dVol = model.unit_cell_volume / prod(basis.fft_size)
-        energies[:PotExternal] = real(sum(real(ρ) .* ham.pot_external) * dVol)
-    end
 
     function insert_energy!(key, builder; kwargs...)
         energy, _ = builder(basis, Ref{valtype(energies)}(0), nothing; kwargs...)

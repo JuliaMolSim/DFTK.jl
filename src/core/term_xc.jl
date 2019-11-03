@@ -81,8 +81,7 @@ function DensityDervatives(basis, max_derivative::Integer, ρ)
     @assert model.spin_polarisation == :none "Only spin_polarisation == :none implemented."
     function ifft(x)
         tmp = G_to_r(basis, x)
-        @assert(maximum(abs.(imag(tmp))) < 100 * eps(real(eltype(x))),
-                "Imaginary part too large $(maximum(imag(tmp)))")
+        check_density_real(tmp)
         real(tmp)
     end
 

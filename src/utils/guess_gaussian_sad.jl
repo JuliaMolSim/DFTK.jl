@@ -20,7 +20,6 @@ function guess_gaussian_sad(basis, composition...)
     density_from_fourier(basis, ρ / model.unit_cell_volume)
 end
 
-
 ## TODO give the formula in real space in the doc, and clarify that the atomic density is that of the valence electrons
 @doc raw"""
 Get the atomic decay length for an atom with `n_elec_core` core
