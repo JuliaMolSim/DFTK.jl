@@ -2,7 +2,7 @@ using LinearAlgebra
 
 # Data structure and functionality for a one-particle Hamiltonian
 
-struct Hamiltonian
+mutable struct Hamiltonian
     basis::PlaneWaveBasis  # Discretized model
     density                # The electron density used to build this Hamiltonian
     kinetic                # Discretized kinetic operator
@@ -55,6 +55,7 @@ Update Hamiltonian in-place
 function update_hamiltonian!(ham::Hamiltonian, ρ::Density)
     basis = ham.basis
     model = basis.model
+    ham.density = ρ
     model.build_hartree(basis, nothing, ham.pot_hartree; ρ=ρ)
     model.build_xc(basis, nothing, ham.pot_xc; ρ=ρ)
     if ham.pot_local !== nothing

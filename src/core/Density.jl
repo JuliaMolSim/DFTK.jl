@@ -1,3 +1,5 @@
+# Stores the density in both real and fourier space. Should be read-only once created.
+
 struct Density
     basis
     _real     # Real-space component
