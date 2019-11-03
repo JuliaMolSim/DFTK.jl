@@ -9,7 +9,7 @@ fourier(ρ::Density) = ρ._fourier
 
 function density_from_real(basis, ρ_real)
     T = real(eltype(ρ_real))
-    if maximum(imag(ρ_real)) > 100 * eps(T)
+    if maximum(abs.(imag.(ρ_real))) > 100 * eps(T)
         @warn "Large norm(imag(ρ))" norm_imag=maximum(imag(ρ_real))
     end
 
@@ -19,7 +19,7 @@ end
 function density_from_fourier(basis, ρ_fourier)
     ρ_real = G_to_r(basis, ρ_fourier .+ 0im)
     T = real(eltype(ρ_real))
-    if maximum(imag(ρ_real)) > 100 * eps(T)
+    if maximum(abs.(imag.(ρ_real))) > 100 * eps(T)
         @warn "Large norm(imag(ρ))" norm_imag=maximum(imag(ρ_real))
     end
 
