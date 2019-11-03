@@ -26,7 +26,7 @@ function Hamiltonian(basis::PlaneWaveModel{T}, ρ=nothing) where T
     # TODO This assumes CPU array
     potarray(p::Density) = similar(fourier(p))
     potarray(::Nothing) = zeros(Complex{T}, basis.fft_size)
-    ρzero = something(ρ, density_zero(basis))
+    ρzero = something(ρ, Density(basis))
 
     _, pot_external = model.build_external(basis, nothing, potarray(ρ))
     _, pot_nonlocal = model.build_nonlocal(basis, nothing, potarray(ρ))
