@@ -1,7 +1,7 @@
 # Contains the numerical specification of the model
 
 # Normalization conventions: TODO not yet fixed in the code
-# - Things that are expressed in the G basis are normalized so that if `x` is the vector, then the actual function is `sum_G x_G e_G` with `e_G(x) = e^{iG x}/sqrt(unit_cell_vol)`. This is so that, eg `norm(psi) = 1`. This also holds for the density.
+# - Things that are expressed in the G basis are normalized so that if `x` is the vector, then the actual function is `sum_G x_G e_G` with `e_G(x) = e^{iG x}/sqrt(unit_cell_volume)`. This is so that, eg `norm(psi) = 1` gives the correct normalization. This also holds for the density.
 # - Quantities expressed on the real-space grid are in actual values
 # G_to_r and r_to_G convert between these.
 
@@ -89,12 +89,14 @@ function PlaneWaveModel(model::Model{T}, fft_size, Ecut::Number,
     ipFFT = plan_fft!(tmp, flags=flags)
     opFFT = plan_fft(tmp, flags=flags)
 
-    # IFFT has a normalization factor of 1/length(ψ),
-    # but the normalisation convention used in this code is
-    # e_G(x) = e^iGx / sqrt(|Γ|), so we scale the plans in-place
-    # in order to match our convention.
-    ipFFT *= 1 / length(ipFFT)
-    opFFT *= 1 / length(opFFT)
+    # The FFT interface specifies that fft has no normalization, and
+    # ifft has a normalization factor of 1/length (so that both
+    # operations are inverse to each other). The convention we want is
+    # ψ(r) = sum_G c_G e^iGr / sqrt(Ω)
+    # so that the ifft is normalized by 1/sqrt(Ω). It follows that the
+    # fft must be normalized by sqrt(Ω)/length
+    ipFFT *= sqrt(model.unit_cell_volume) / length(ipFFT)
+    opFFT *= sqrt(model.unit_cell_volume) / length(opFFT)
 
     pw = PlaneWaveModel{T, typeof(opFFT), typeof(ipFFT)}(
         model, 0, [], [], [], fft_size, opFFT, ipFFT

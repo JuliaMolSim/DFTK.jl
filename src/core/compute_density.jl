@@ -11,11 +11,6 @@ function compute_partial_density(pw, kpt, Ψk, occupation)
         G_to_r!(view(Ψk_real, :, :, :, ist), pw, kpt, Ψk[:, ist])
     end
 
-    # TODO I am not quite sure why this is needed here
-    #      maybe this points at an error in the normalisation of the
-    #      Fourier transform
-    Ψk_real /= sqrt(pw.model.unit_cell_volume)
-
     # Build the partial density for this k-Point
     ρk_real = similar(Ψk[:, 1], pw.fft_size)
     ρk_real .= 0
