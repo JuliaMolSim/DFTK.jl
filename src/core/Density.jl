@@ -29,3 +29,8 @@ function check_density_real(ρreal)
         @warn "Large imag(ρ)" norm_imag=norm(imag(ρreal))
     end
 end
+function copy!(dst::Density, src::Density)
+    @assert dst.basis == src.basis
+    dst._real .= src._real
+    dst._fourier .= src._fourier
+end
