@@ -3,7 +3,7 @@ Compute the partial density at the indicated ``k``-Point and return it.
 """
 function compute_partial_density(pw, kpt, Ψk, occupation)
     n_states = size(Ψk, 2)
-    @assert n_states == length(occupation)
+    @assert length(occupation) == n_states
 
     # Fourier-transform the wave functions to real space
     Ψk_real = similar(Ψk[:, 1], pw.fft_size..., n_states)
@@ -21,7 +21,7 @@ function compute_partial_density(pw, kpt, Ψk, occupation)
     ρk_real .= 0
     for ist in 1:n_states
         @. @views begin
-            ρk_real += occupation[ist] * Ψk_real[:, :, :, ist] * conj(Ψk_real[:, :, :, ist])
+            ρk_real += occupation[ist] * abs2(Ψk_real[:, :, :, ist])
         end
     end
     Ψk_real = nothing
@@ -29,15 +29,9 @@ function compute_partial_density(pw, kpt, Ψk, occupation)
     # Check sanity of the density (real, positive and normalized)
     T = real(eltype(ρk_real))
     check_density_real(ρk_real)
-    if all(occupation .> 0)
-        minimum(real(ρk_real)) < 0 && @warn("Negative ρ detected",
-                                            min_ρ=minimum(real(ρk_real)))
-    end
-    n_electrons = sum(ρk_real) * pw.model.unit_cell_volume / prod(pw.fft_size)
-    if abs(n_electrons - sum(occupation)) > sqrt(eps(T))
-        @warn("Mismatch in number of electrons", sum_ρ=n_electrons,
-              sum_occupation=sum(occupation))
-    end
+    all(occupation .> 0) && @assert all(real(ρk_real) .> 0)
+    n_electrons = sum(ρk_real) / length(ρk_real) * pw.model.unit_cell_volume
+    @assert abs(n_electrons - sum(occupation)) < sqrt(eps(real(eltype(ρk_real))))
 
     # FFT and return
     r_to_G(pw, ρk_real)
