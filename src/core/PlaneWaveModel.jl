@@ -1,15 +1,25 @@
 # Contains the numerical specification of the model
 
+# Normalization conventions: TODO not yet fixed in the code
+# - Things that are expressed in the G basis are normalized so that if `x` is the vector, then the actual function is `sum_G x_G e_G` with `e_G(x) = e^{iG x}/sqrt(unit_cell_vol)`. This is so that, eg `norm(psi) = 1`. This also holds for the density.
+# - Quantities expressed on the real-space grid are in actual values
+# G_to_r and r_to_G convert between these.
+
 using FFTW
 
+# Each Kpoint has its own `basis`, consisting of all G vectors such that |k+G|^2 ≤ 1/2 Ecut
 struct Kpoint{T <: Real}
-    spin::Symbol              # :up or :down
+    spin::Symbol              # :up, :down, :both or :spinless
     coordinate::Vec3{T}       # Fractional coordinate of k-Point
     mapping::Vector{Int}      # Index of basis[i] on FFT grid
     basis::Vector{Vec3{Int}}  # Wave vectors in integer coordinates
 end
 
+# fft_size defines both the G basis on which densities and potentials
+# are expanded, and the real-space grid
 
+# kpoints is the list of irreducible kpoints, kweights/ksymops contain
+# the information needed to reconstruct the full BZ
 struct PlaneWaveModel{T <: Real, TopFFT, TipFFT}
     model::Model{T}
     Ecut::T
@@ -19,8 +29,9 @@ struct PlaneWaveModel{T <: Real, TopFFT, TipFFT}
 
     # Plans for forward and backward FFT on C_ρ
     fft_size::Tuple{Int, Int, Int}  # Using tuple here, since Vec3 splatting is slow
-    opFFT::TopFFT  # out-of-place FFT
-    ipFFT::TipFFT  # in-place FFT
+                                    # (https://github.com/JuliaArrays/StaticArrays.jl/issues/361)
+    opFFT::TopFFT  # out-of-place FFT plan
+    ipFFT::TipFFT  # in-place FFT plan
 end
 
 """
@@ -34,6 +45,10 @@ function build_kpoints(basis::PlaneWaveModel{T}, kcoords; Ecut=basis.Ecut) where
     spin = (:undefined,)
     if model.spin_polarisation == :collinear
         spin = (:up, :down)
+    elseif model.spin_polarisation == :none
+        spin = (:both, )
+    elseif model.spin_polarisation == :spinless
+        spin = (:spinless, )
     end
 
     kpoints = Vector{Kpoint{T}}()
