@@ -41,13 +41,16 @@ function LinearAlgebra.mul!(Y, block::HamiltonianBlock, X)
     kin = block.values_kinetic
     Vnloc = block.values_nonlocal
     Vloc = block.values_local
-    ifft(x) = G_to_r(block.basis, block.kpt, x)
-    fft!(y, x) = r_to_G!(y, block.basis, block.kpt, x)
 
-    if Vloc == nothing
-        Y .= kin * X
+    @assert kin isa Diagonal # for optimization
+
+    if Vloc === nothing
+        Y .= kin.diag .* X
     else
-        Y .= kin * X .+ fft!(Y, Vloc .* ifft(X))
+        Xreal = G_to_r(block.basis, block.kpt, X)
+        Xreal .*= Vloc
+        r_to_G!(Y, block.basis, block.kpt, Xreal)
+        Y .+= kin.diag .* X
     end
     Vnloc !== nothing && (Y .+= Vnloc * X)
     Y
