@@ -3,7 +3,7 @@ include("pymatgen.jl")
 
 # Functionality for computing band structures, mostly using pymatgen
 
-function determine_high_symmetry_kpath(basis, kline_density, composition...)
+function high_symmetry_kpath(basis, kline_density, composition...)
     bandstructure = pyimport("pymatgen.symmetry.bandstructure")
     pystructure = pymatgen_structure(basis.model.lattice, composition...)
     symm_kpath = bandstructure.HighSymmKpath(pystructure)

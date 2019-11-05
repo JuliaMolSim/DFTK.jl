@@ -21,9 +21,9 @@ composition = [Si => [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]]]
 model = model_dft(lattice, [:gga_x_pbe, :gga_c_pbe], composition...;
                   temperature=Tsmear,
                   smearing=DFTK.smearing_methfessel_paxton_1)
-kpoints, ksymops = bzmesh_ir_wedge(kgrid, lattice, composition...)
+kcoords, ksymops = bzmesh_ir_wedge(kgrid, lattice, composition...)
 fft_size = determine_grid_size(lattice, Ecut)
-basis = PlaneWaveModel(model, fft_size, Ecut, kpoints, ksymops)
+basis = PlaneWaveBasis(model, fft_size, Ecut, kcoords, ksymops)
 
 # Run SCF
 ham = Hamiltonian(basis, guess_gaussian_sad(basis, composition...))
@@ -40,7 +40,7 @@ end
 @printf "\n    %-20s%-15.12f\n\n" "total" sum(values(energies))
 
 # Band structure calculation along high-symmetry path
-kpoints, klabels, kpath = determine_high_symmetry_kpath(basis, kline_density, composition...)
+kpoints, klabels, kpath = high_symmetry_kpath(basis, kline_density, composition...)
 println("Computing bands along kpath:\n     $(join(kpath[1], " -> "))")
 band_data = compute_bands(ham, kpoints, n_bands)
 

@@ -1,5 +1,5 @@
 using Test
-using DFTK: PlaneWaveModel, Model, Hamiltonian, lobpcg_hyper, diagonalise_all_kblocks, PreconditionerKinetic
+using DFTK: PlaneWaveBasis, Model, Hamiltonian, lobpcg_hyper, diagonalise_all_kblocks, PreconditionerKinetic
 
 include("./testcases.jl")
 
@@ -9,7 +9,7 @@ include("./testcases.jl")
     Ecut = 5
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)  # free-electron model
-    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+    basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis)
 
     tol = 1e-8
@@ -58,7 +58,7 @@ end
     model = Model(silicon.lattice, silicon.n_electrons,  # Core Hamiltonian model
                   external=term_external(Si => silicon.positions),
                   nonlocal=term_nonlocal(Si => silicon.positions))
-    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+    basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis)
 
     res = diagonalise_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, prec=PreconditionerKinetic(ham, α=0.1),

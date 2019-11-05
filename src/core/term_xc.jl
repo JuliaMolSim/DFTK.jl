@@ -151,7 +151,7 @@ end
 """
 Todo docme
 """
-function (term::TermXc)(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, potential;
+function (term::TermXc)(basis::PlaneWaveBasis, energy::Union{Ref,Nothing}, potential;
                         ρ=nothing, kwargs...)
     @assert ρ !== nothing
     T = eltype(real(ρ))

@@ -25,11 +25,11 @@ export smearing_methfessel_paxton_2
 include("core/smearing_functions.jl")
 
 export Model
-export PlaneWaveModel
+export PlaneWaveBasis
 export basis_Cρ
 export Kpoint
 include("core/Model.jl")
-include("core/PlaneWaveModel.jl")
+include("core/PlaneWaveBasis.jl")
 
 export Density
 export fourier
@@ -117,7 +117,7 @@ export energy_nuclear_psp_correction
 export energy_nuclear_ewald
 include("utils/energy_nuclear.jl")
 
-export determine_high_symmetry_kpath
+export high_symmetry_kpath
 export compute_bands
 export pymatgen_bandstructure
 export pymatgen_structure

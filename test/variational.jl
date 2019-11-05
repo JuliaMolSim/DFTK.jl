@@ -21,7 +21,7 @@ function get_scf_energies(testcase, supersampling, functionals)
     end
 
     ksymops = nothing
-    basis = PlaneWaveModel(model, fft_size, Ecut, kcoords, ksymops)
+    basis = PlaneWaveBasis(model, fft_size, Ecut, kcoords, ksymops)
     ham = Hamiltonian(basis, guess_gaussian_sad(basis, spec => testcase.positions))
     scfres = self_consistent_field!(ham, n_bands, tol=scf_tol)
     values(scfres.energies)

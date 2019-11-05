@@ -1,5 +1,5 @@
 using Test
-using DFTK: Model, PlaneWaveModel, r_to_G, basis_Cρ, Species, term_external
+using DFTK: Model, PlaneWaveBasis, r_to_G, basis_Cρ, Species, term_external
 using LinearAlgebra: dot
 
 include("testcases.jl")
@@ -8,7 +8,7 @@ include("testcases.jl")
     Ecut = 4
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
-    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+    basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     function build_external(composition...)
         _, pot = term_external(composition...)(basis, nothing,
                                                zeros(ComplexF64, basis.fft_size))
@@ -61,7 +61,7 @@ end
     Ecut = 4
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
-    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+    basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     function build_external(composition...)
         _, pot = term_external(composition...)(basis, nothing,
                                                zeros(ComplexF64, basis.fft_size))
