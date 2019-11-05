@@ -116,7 +116,7 @@ include("testcases.jl")
     model = model_dft(silicon.lattice, :lda_xc_teter93, spec => testcase.positions)
     fft_size = determine_grid_size(model, Ecut)
     basis = PlaneWaveModel(model, fft_size, Ecut, testcase.kcoords, testcase.ksymops)
-    kpoints, klabels, kpath = determine_high_symmetry_kpath(basis, kline_density,
+    kpoints, klabels, kpath = high_symmetry_kpath(basis, kline_density,
                                                             spec => testcase.positions)
 
     @test length(ref_kcoords) == length(kpoints)
