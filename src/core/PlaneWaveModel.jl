@@ -76,6 +76,10 @@ kcoords is vector of Vec3
 """
 function PlaneWaveModel(model::Model{T}, fft_size, Ecut::Number,
                         kcoords::AbstractVector, ksymops=nothing, kweights=nothing) where {T <: Real}
+    ## TODO this constructor is too low-level. Write a hierharchy of
+    ## constructors starting at the high level
+    ## `PlaneWaveModel(model, Ecut, kgrid)`
+
     @assert Ecut > 0
 
     fft_size = Tuple{Int, Int, Int}(fft_size)
