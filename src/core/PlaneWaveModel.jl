@@ -26,9 +26,7 @@ end
 """
 TODO docme
 """
-function build_kpoints(basis::PlaneWaveModel{T}, kcoords; Ecut=basis.Ecut) where T
-    model = basis.model
-
+function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
     model.spin_polarisation in (:none, :collinear, :spinless) || (
         error("$(model.spin_polarisation) not implemented"))
     spin = (:undefined,)
@@ -39,7 +37,7 @@ function build_kpoints(basis::PlaneWaveModel{T}, kcoords; Ecut=basis.Ecut) where
     kpoints = Vector{Kpoint{T}}()
     for k in kcoords
         energy(q) = sum(abs2, model.recip_lattice * q) / 2
-        pairs = [(i, G) for (i, G) in enumerate(basis_Cρ(basis)) if energy(k + G) ≤ Ecut]
+        pairs = [(i, G) for (i, G) in enumerate(basis_Cρ(fft_size)) if energy(k + G) ≤ Ecut]
 
         for σ in spin
             push!(kpoints, Kpoint{T}(σ, k, first.(pairs), last.(pairs)))
@@ -48,19 +46,12 @@ function build_kpoints(basis::PlaneWaveModel{T}, kcoords; Ecut=basis.Ecut) where
 
     kpoints
 end
-
+build_kpoints(basis::PlaneWaveModel, kcoords) = build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
 
 """
-TODO docme
-
-fft_size is now Fourier grid size
-kcoords is vector of Vec3
+Plan a FFT of type `T` and size `fft_size`, spending some time on finding an optimal algorithm
 """
-function PlaneWaveModel(model::Model{T}, fft_size, Ecut::Number,
-                        kcoords, ksymops, kweights=nothing) where {T <: Real}
-    fft_size = Tuple{Int, Int, Int}(fft_size)
-    # Plan a FFT, spending some time on finding an optimal algorithm
-    # for the machine on which the computation runs
+function build_fft_plans(T, fft_size)
     tmp = Array{Complex{T}}(undef, fft_size...)
 
     flags = FFTW.MEASURE
@@ -74,6 +65,22 @@ function PlaneWaveModel(model::Model{T}, fft_size, Ecut::Number,
     ipFFT = plan_fft!(tmp, flags=flags)
     opFFT = plan_fft(tmp, flags=flags)
 
+    ipFFT, opFFT
+end
+
+"""
+TODO docme
+
+fft_size is now Fourier grid size
+kcoords is vector of Vec3
+"""
+function PlaneWaveModel(model::Model{T}, fft_size, Ecut::Number,
+                        kcoords::AbstractVector, ksymops=nothing, kweights=nothing) where {T <: Real}
+    @assert Ecut > 0
+
+    fft_size = Tuple{Int, Int, Int}(fft_size)
+    ipFFT, opFFT = build_fft_plans(T, fft_size)
+
     # IFFT has a normalization factor of 1/length(ψ),
     # but the normalisation convention used in this code is
     # e_G(x) = e^iGx / sqrt(|Γ|), so we scale the plans in-place
@@ -81,55 +88,38 @@ function PlaneWaveModel(model::Model{T}, fft_size, Ecut::Number,
     ipFFT *= 1 / length(ipFFT)
     opFFT *= 1 / length(opFFT)
 
-    pw = PlaneWaveModel{T, typeof(opFFT), typeof(ipFFT)}(
-        model, 0, [], [], [], fft_size, opFFT, ipFFT
-    )
-    PlaneWaveModel(pw, kcoords, kweights=kweights, ksymops=ksymops, Ecut=Ecut)
-end
-
-"""
-TODO docme
-
-Take an existing model and change the kpoints
-
-For a consistent k-Point basis the kweights and ksymops should be updated accordingly.
-If this is not done, density computation can give wrong results.
-
-kcoords is vector of Vec3
-"""
-function PlaneWaveModel(pw::PlaneWaveModel{T, TopFFT, TipFFT}, kcoords;
-                        kweights=nothing, ksymops=nothing,
-                        Ecut=pw.Ecut) where {T, TopFFT, TipFFT}
-    recip_lattice = pw.model.recip_lattice
+    # Default to no symmetry
     ksymops === nothing && (ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))]
                                          for _ in 1:length(kcoords)])
+    # Compute weights if not given
     if kweights === nothing
         kweights = [length(symops) for symops in ksymops]
         kweights = kweights / sum(kweights)
     end
 
+    # Sanity checks
     @assert length(kcoords) == length(ksymops)
     @assert length(kcoords) == length(kweights)
     @assert sum(kweights) ≈ 1 "kweights are assumed to be normalized."
-    max_E = sum(abs2, recip_lattice * floor.(Int, Vec3(pw.fft_size) ./ 2)) / 2
+    max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
     @assert(Ecut ≤ max_E, "Ecut should be less than the maximal kinetic energy " *
             "the grid supports (== $max_E)")
 
-    PlaneWaveModel{T, TopFFT, TipFFT}(pw.model, Ecut, build_kpoints(pw, kcoords; Ecut=Ecut),
-                                      kweights, ksymops, pw.fft_size, pw.opFFT, pw.ipFFT)
+    PlaneWaveModel{T, typeof(opFFT), typeof(ipFFT)}(model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
+                                                    kweights, ksymops, fft_size, opFFT, ipFFT)
 end
-
 
 """
 Return a generator producing the range of wave-vector coordinates contained
 in the Fourier grid ``C_ρ`` described by the plane-wave basis in the correct order.
 """
-function basis_Cρ(pw::PlaneWaveModel)
-    start = -ceil.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
-    stop  = floor.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
+function basis_Cρ(fft_size)
+    start = -ceil.(Int, (Vec3(fft_size) .- 1) ./ 2)
+    stop  = floor.(Int, (Vec3(fft_size) .- 1) ./ 2)
     axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
     (Vec3{Int}([i, j, k]) for i in axes[1], j in axes[2], k in axes[3])
 end
+basis_Cρ(pw::PlaneWaveModel) = basis_Cρ(pw.fft_size)
 
 
 """
