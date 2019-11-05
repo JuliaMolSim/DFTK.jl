@@ -16,7 +16,7 @@ include("testcases.jl")
         end
 
         model = model_dft(testcase.lattice, :lda_xc_teter93, composition...; kwargs...)
-        basis = PlaneWaveModel(model, fft_size, Ecut, kcoords, ksymops)
+        basis = PlaneWaveBasis(model, fft_size, Ecut, kcoords, ksymops)
         ham = Hamiltonian(basis, guess_gaussian_sad(basis, composition...))
 
         n_bands = 4

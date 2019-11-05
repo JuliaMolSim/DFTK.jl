@@ -1,5 +1,5 @@
 using Test
-using DFTK: PlaneWaveModel, Model, model_hcore, load_psp, Species
+using DFTK: PlaneWaveBasis, Model, model_hcore, load_psp, Species
 using DFTK: Hamiltonian, kblock
 
 include("testcases.jl")
@@ -11,7 +11,7 @@ include("testcases.jl")
 
     spec = Species(testcase.atnum, psp=load_psp(testcase.psp))
     model = model_hcore(testcase.lattice, spec => testcase.positions)
-    basis = PlaneWaveModel(model, fft_size, Ecut, testcase.kcoords, testcase.ksymops)
+    basis = PlaneWaveBasis(model, fft_size, Ecut, testcase.kcoords, testcase.ksymops)
     ham = Hamiltonian(basis)
 
     for (ik, kpt) in enumerate(basis.kpoints)

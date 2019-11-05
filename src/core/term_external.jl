@@ -1,7 +1,7 @@
 # Functions returning appropriate builders for the external potential
 
 """
-    build_local_potential(pw::PlaneWaveModel, generators_or_composition...;
+    build_local_potential(pw::PlaneWaveBasis, generators_or_composition...;
                           compensating_background=true)
 
 Function generating a local potential on the real-space density grid ``B^∗_ρ``
@@ -39,7 +39,7 @@ since sodium has nuclear charge 11.
 ```
 """
 function term_external(generators_or_composition...; compensating_background=true)
-    function inner(basis::PlaneWaveModel{T}, energy, potential; ρ=nothing, kwargs...) where T
+    function inner(basis::PlaneWaveBasis{T}, energy, potential; ρ=nothing, kwargs...) where T
         model = basis.model
 
         make_generator(elem::Function) = elem

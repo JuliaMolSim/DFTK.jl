@@ -1,5 +1,5 @@
 using Test
-using DFTK: PlaneWaveModel, G_to_r!, r_to_G!, G_to_r, r_to_G
+using DFTK: PlaneWaveBasis, G_to_r!, r_to_G!, G_to_r, r_to_G
 
 include("testcases.jl")
 
@@ -7,7 +7,7 @@ include("testcases.jl")
     Ecut = 4.0  # Hartree
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
-    pw = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+    pw = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
 
     @testset "Transformation C_ρ <-> C_ρ^∗, 1 vector" begin
         f_G = Array{ComplexF64}(randn(Float64, pw.fft_size...))

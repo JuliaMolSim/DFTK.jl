@@ -167,7 +167,7 @@ guess_hcore
 ## Definition of builder functions
 ```
 Definition of builder functions
-   builder(basis::PlaneWaveModel, energy::Ref, potential; ρ=nothing, Ψ=nothing, kwargs...)
+   builder(basis::PlaneWaveBasis, energy::Ref, potential; ρ=nothing, Ψ=nothing, kwargs...)
        energy       nothing or reference
        potential    nothing or Array or data structure
 

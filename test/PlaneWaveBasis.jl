@@ -1,12 +1,12 @@
 using Test
-using DFTK: PlaneWaveModel, Model, basis_Cρ, index_Cρ
+using DFTK: PlaneWaveBasis, Model, basis_Cρ, index_Cρ
 using LinearAlgebra
 
 include("testcases.jl")
 
 function test_pw_cutoffs(testcase, Ecut, fft_size)
     model = Model(testcase.lattice, testcase.n_electrons)
-    pw = PlaneWaveModel(model, fft_size, Ecut, testcase.kcoords, testcase.ksymops)
+    pw = PlaneWaveBasis(model, fft_size, Ecut, testcase.kcoords, testcase.ksymops)
 
     for (ik, kpt) in enumerate(pw.kpoints)
         for G in kpt.basis
@@ -15,11 +15,11 @@ function test_pw_cutoffs(testcase, Ecut, fft_size)
     end
 end
 
-@testset "PlaneWaveModel: Check struct construction" begin
+@testset "PlaneWaveBasis: Check struct construction" begin
     Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
-    pw = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+    pw = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
 
     @test pw.model.lattice == silicon.lattice
     @test pw.model.recip_lattice ≈ 2π * inv(silicon.lattice)
@@ -46,17 +46,17 @@ end
     @test pw.kweights == [1, 8, 6, 12] / 27
 end
 
-@testset "PlaneWaveModel: Energy cutoff is respected" begin
+@testset "PlaneWaveBasis: Energy cutoff is respected" begin
     test_pw_cutoffs(silicon, 4.0, [15, 15, 15])
     test_pw_cutoffs(silicon, 3.0, [15, 13, 13])
     test_pw_cutoffs(silicon, 4.0, [11, 13, 11])
 end
 
-@testset "PlaneWaveModel: Check cubic basis and cubic index" begin
+@testset "PlaneWaveBasis: Check cubic basis and cubic index" begin
     Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
-    pw = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+    pw = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     g_all = collect(basis_Cρ(pw))
 
     for i in 1:15, j in 1:15, k in 1:15

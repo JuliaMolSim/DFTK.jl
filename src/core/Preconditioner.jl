@@ -2,7 +2,7 @@
 # hamiltonians and their k-Point blocks
 
 struct PreconditionerKinetic
-    basis::PlaneWaveModel
+    basis::PlaneWaveBasis
     α
 end
 

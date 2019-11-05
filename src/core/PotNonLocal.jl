@@ -7,7 +7,7 @@ using Memoize
 Structure containing a non-local potential in the Kleinman-Bylander form of projectors.
 """
 struct PotNonLocal
-    basis::PlaneWaveModel
+    basis::PlaneWaveBasis
 
     # n_proj = ∑_atom ∑_l n_proj_per_l_for_atom * (2l + 1)
     # Projection coefficients and builder for projection vectors
@@ -19,7 +19,7 @@ end
 
 
 struct PotNonLocalBlock
-    basis::PlaneWaveModel
+    basis::PlaneWaveBasis
     kpt::Kpoint
 
     # Projection vectors and coefficients for this basis and k-Point

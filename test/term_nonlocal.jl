@@ -1,5 +1,5 @@
 using Test
-using DFTK: Model, PlaneWaveModel, r_to_G, load_psp, Species, term_nonlocal, kblock
+using DFTK: Model, PlaneWaveBasis, r_to_G, load_psp, Species, term_nonlocal, kblock
 
 include("testcases.jl")
 
@@ -7,7 +7,7 @@ include("testcases.jl")
     Ecut = 2
     fft_size = [9, 9, 9]
     model = Model(silicon.lattice, silicon.n_electrons)
-    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+    basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     function build_nonlocal(composition...)
         _, pot = term_nonlocal(composition...)(basis, nothing, zeros(basis.fft_size))
         pot

@@ -4,7 +4,7 @@
 """
 TODO docme (kind of internal though)
 """
-function term_hartree_(basis::PlaneWaveModel, energy::Union{Ref,Nothing}, potential;
+function term_hartree_(basis::PlaneWaveBasis, energy::Union{Ref,Nothing}, potential;
                        ρ=nothing, kwargs...)
     @assert ρ !== nothing
     T = eltype(real(ρ))
