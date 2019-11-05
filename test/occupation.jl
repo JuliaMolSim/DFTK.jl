@@ -1,5 +1,5 @@
 using Test
-using DFTK: smearing_functions, find_fermi_level, Model, PlaneWaveModel
+using DFTK: smearing_functions, find_fermi_level, Model, PlaneWaveBasis
 using DFTK: find_occupation_gap_zero_temperature, find_occupation_fermi_metal
 using DFTK: smearing_fermi_dirac, load_psp, Species, bzmesh_ir_wedge
 using DFTK: smearing_methfessel_paxton_1
@@ -26,7 +26,7 @@ include("testcases.jl")
 
     # Occupation for zero temperature
     model = Model(silicon.lattice, silicon.n_electrons; temperature=0.0, smearing=nothing)
-    basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+    basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
     εF0, occupation0 = find_occupation_gap_zero_temperature(basis, energies, Psi)
     @test εHOMO < εF0 < εLUMO
     @test sum(basis.kweights .* sum.(occupation0)) ≈ model.n_electrons
@@ -35,7 +35,7 @@ include("testcases.jl")
     Ts = (0, 1e-6, .1, 1.0)
     for T in Ts, fun in smearing_functions
         model = Model(silicon.lattice, silicon.n_electrons; temperature=T, smearing=fun)
-        basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+        basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
         _, occs = find_occupation_fermi_metal(basis, energies, Psi)
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
     end
@@ -44,7 +44,7 @@ include("testcases.jl")
     Ts = (0, 1e-6, 1e-4)
     for T in Ts, fun in smearing_functions
         model = Model(silicon.lattice, silicon.n_electrons; temperature=T, smearing=fun)
-        basis = PlaneWaveModel(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+        basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
         _, occupation = find_occupation_fermi_metal(basis, energies, Psi)
 
         for ik in 1:n_k
@@ -94,7 +94,7 @@ end
     for (smearing, Tsmear, εF_ref) in parameters
         model = Model(silicon.lattice, testcase.n_electrons;
                       temperature=Tsmear, smearing=smearing)
-        basis = PlaneWaveModel(model, fft_size, Ecut, kcoords, ksymops)
+        basis = PlaneWaveBasis(model, fft_size, Ecut, kcoords, ksymops)
         εF, occupation = find_occupation_fermi_metal(basis, energies, Psi)
 
         @test sum(basis.kweights .* sum.(occupation)) ≈ model.n_electrons

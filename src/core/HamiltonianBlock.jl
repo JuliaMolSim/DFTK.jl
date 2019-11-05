@@ -1,7 +1,7 @@
 # Data structures for representing a k-Point block of a one-particle Hamiltonian
 
 struct HamiltonianBlock
-    basis::PlaneWaveModel
+    basis::PlaneWaveBasis
     kpt::Kpoint
 
     # Stored values representing this Hamiltonian block

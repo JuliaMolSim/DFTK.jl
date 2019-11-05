@@ -3,7 +3,7 @@ using LinearAlgebra
 # Data structure and functionality for a one-particle Hamiltonian
 
 struct Hamiltonian
-    basis::PlaneWaveModel  # Discretized model
+    basis::PlaneWaveBasis  # Discretized model
     density                # The electron density used to build this Hamiltonian
     kinetic                # Discretized kinetic operator
     pot_external           # External local potential (e.g. Pseudopotential)
@@ -21,7 +21,7 @@ eltype(ham::Hamiltonian) = Complex{eltype(ham.basis.kpoints[1].coordinate)}
 """
 Initialise a one-particle Hamiltonian from a model and optionally a density.
 """
-function Hamiltonian(basis::PlaneWaveModel{T}, ρ=nothing) where T
+function Hamiltonian(basis::PlaneWaveBasis{T}, ρ=nothing) where T
     model = basis.model
     # TODO This assumes CPU array
     potarray(p::Density) = similar(fourier(p))

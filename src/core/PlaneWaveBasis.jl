@@ -10,7 +10,7 @@ struct Kpoint{T <: Real}
 end
 
 
-struct PlaneWaveModel{T <: Real, TopFFT, TipFFT}
+struct PlaneWaveBasis{T <: Real, TopFFT, TipFFT}
     model::Model{T}
     Ecut::T
     kpoints::Vector{Kpoint{T}}
@@ -46,7 +46,7 @@ function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
 
     kpoints
 end
-build_kpoints(basis::PlaneWaveModel, kcoords) = build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
+build_kpoints(basis::PlaneWaveBasis, kcoords) = build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
 
 """
 Plan a FFT of type `T` and size `fft_size`, spending some time on finding an optimal algorithm
@@ -74,11 +74,11 @@ TODO docme
 fft_size is now Fourier grid size
 kcoords is vector of Vec3
 """
-function PlaneWaveModel(model::Model{T}, fft_size, Ecut::Number,
+function PlaneWaveBasis(model::Model{T}, fft_size, Ecut::Number,
                         kcoords::AbstractVector, ksymops=nothing, kweights=nothing) where {T <: Real}
     ## TODO this constructor is too low-level. Write a hierharchy of
     ## constructors starting at the high level
-    ## `PlaneWaveModel(model, Ecut, kgrid)`
+    ## `PlaneWaveBasis(model, Ecut, kgrid)`
 
     @assert Ecut > 0
 
@@ -109,7 +109,7 @@ function PlaneWaveModel(model::Model{T}, fft_size, Ecut::Number,
     @assert(Ecut ≤ max_E, "Ecut should be less than the maximal kinetic energy " *
             "the grid supports (== $max_E)")
 
-    PlaneWaveModel{T, typeof(opFFT), typeof(ipFFT)}(model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
+    PlaneWaveBasis{T, typeof(opFFT), typeof(ipFFT)}(model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
                                                     kweights, ksymops, fft_size, opFFT, ipFFT)
 end
 
@@ -123,14 +123,14 @@ function basis_Cρ(fft_size)
     axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
     (Vec3{Int}([i, j, k]) for i in axes[1], j in axes[2], k in axes[3])
 end
-basis_Cρ(pw::PlaneWaveModel) = basis_Cρ(pw.fft_size)
+basis_Cρ(pw::PlaneWaveBasis) = basis_Cρ(pw.fft_size)
 
 
 """
 Return the index tuple corresponding to the wave vector in integer coordinates
 in the ``C_ρ`` basis. Returns nothing if outside the range of valid wave vectors.
 """
-function index_Cρ(pw::PlaneWaveModel, G::AbstractVector{T}) where {T <: Integer}
+function index_Cρ(pw::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}
     start = -ceil.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
     stop  = floor.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
     lengths = stop .- start .+ 1
@@ -154,20 +154,20 @@ end
 AbstractFFTGrid = Union{AbstractArray{T, 4}, AbstractArray{T, 3}} where T
 
 @doc raw"""
-    G_to_r!(f_real, pw::PlaneWaveModel, [kpt::Kpoint, ], f_fourier)
+    G_to_r!(f_real, pw::PlaneWaveBasis, [kpt::Kpoint, ], f_fourier)
 
 Perform an iFFT to translate between `f_fourier`, a fourier representation
 of a function either on ``B_k`` (if `kpt` is given) or on ``C_ρ`` (if not),
 and `f_real`. The function will destroy all data in `f_real`.
 """
-function G_to_r!(f_real::AbstractFFTGrid, pw::PlaneWaveModel, f_fourier::AbstractFFTGrid)
+function G_to_r!(f_real::AbstractFFTGrid, pw::PlaneWaveBasis, f_fourier::AbstractFFTGrid)
     n_bands = size(f_fourier, 4)
     for iband in 1:n_bands  # TODO Call batch version of FFTW, maybe do threading
         @views ldiv!(f_real[:, :, :, iband], pw.opFFT, f_fourier[:, :, :, iband])
     end
     f_real
 end
-function G_to_r!(f_real::AbstractFFTGrid, pw::PlaneWaveModel, kpt::Kpoint,
+function G_to_r!(f_real::AbstractFFTGrid, pw::PlaneWaveBasis, kpt::Kpoint,
                  f_fourier::AbstractVecOrMat)
     n_bands = size(f_fourier, 2)
     @assert size(f_fourier, 1) == length(kpt.mapping)
@@ -187,40 +187,40 @@ function G_to_r!(f_real::AbstractFFTGrid, pw::PlaneWaveModel, kpt::Kpoint,
 end
 
 @doc raw"""
-    G_to_r(pw::PlaneWaveModel, [kpt::Kpoint, ], f_fourier)
+    G_to_r(pw::PlaneWaveBasis, [kpt::Kpoint, ], f_fourier)
 
 Perform an iFFT to translate between `f_fourier`, a fourier representation
 of a function either on ``B_k`` (if `kpt` is given) or on ``C_ρ`` (if not)
 and return the values on the real-space grid `C_ρ^*`.
 """
-function G_to_r(pw::PlaneWaveModel, f_fourier::AbstractFFTGrid)
+function G_to_r(pw::PlaneWaveBasis, f_fourier::AbstractFFTGrid)
     G_to_r!(similar(f_fourier), pw, f_fourier)
 end
-function G_to_r(pw::PlaneWaveModel, kpt::Kpoint, f_fourier::AbstractVector)
+function G_to_r(pw::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector)
     G_to_r!(similar(f_fourier, pw.fft_size...), pw, kpt, f_fourier)
 end
-function G_to_r(pw::PlaneWaveModel, kpt::Kpoint, f_fourier::AbstractMatrix)
+function G_to_r(pw::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractMatrix)
     G_to_r!(similar(f_fourier, pw.fft_size..., size(f_fourier, 2)), pw, kpt, f_fourier)
 end
 
 
 
 @doc raw"""
-    r_to_G!(f_fourier, pw::PlaneWaveModel, [kpt::Kpoint, ], f_real)
+    r_to_G!(f_fourier, pw::PlaneWaveBasis, [kpt::Kpoint, ], f_real)
 
 Perform an FFT to translate between `f_real`, a function represented on
 ``C_ρ^\ast`` and its fourier representation. Truncatate the fourier
 coefficients to ``B_k`` (if `kpt` is given). Note: If `kpt` is given, all data
 in ``f_real`` will be distroyed as well.
 """
-function r_to_G!(f_fourier::AbstractFFTGrid, pw::PlaneWaveModel, f_real::AbstractFFTGrid)
+function r_to_G!(f_fourier::AbstractFFTGrid, pw::PlaneWaveBasis, f_real::AbstractFFTGrid)
     n_bands = size(f_fourier, 4)
     for iband in 1:n_bands  # TODO Call batch version of FFTW, maybe do threading
         @views mul!(f_fourier[:, :, :, iband], pw.opFFT, f_real[:, :, :, iband])
     end
     f_fourier
 end
-function r_to_G!(f_fourier::AbstractVecOrMat, pw::PlaneWaveModel, kpt::Kpoint,
+function r_to_G!(f_fourier::AbstractVecOrMat, pw::PlaneWaveBasis, kpt::Kpoint,
                  f_real::AbstractFFTGrid)
     n_bands = size(f_real, 4)
     @assert size(f_real)[1:3] == pw.fft_size
@@ -239,12 +239,12 @@ function r_to_G!(f_fourier::AbstractVecOrMat, pw::PlaneWaveModel, kpt::Kpoint,
 end
 
 @doc raw"""
-    r_to_G(pw::PlaneWaveModel, f_fourier)
+    r_to_G(pw::PlaneWaveBasis, f_fourier)
 
 Perform an FFT to translate between `f_fourier`, a fourier representation
 on ``C_ρ^\ast`` and its fourier representation on ``C_ρ``.
 """
-function r_to_G(pw::PlaneWaveModel, f_real::AbstractFFTGrid)
+function r_to_G(pw::PlaneWaveBasis, f_real::AbstractFFTGrid)
     r_to_G!(similar(f_real), pw, f_real)
 end
 # Note: There is deliberately no G_to_r version for the kpoints,

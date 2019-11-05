@@ -27,4 +27,4 @@ function density_from_fourier(basis, ρ_fourier)
 end
 
 # This assumes CPU arrays
-density_zero(basis::PlaneWaveModel{T}) where T = density_from_real(basis, zeros(T, basis.fft_size))
+density_zero(basis::PlaneWaveBasis{T}) where T = density_from_real(basis, zeros(T, basis.fft_size))

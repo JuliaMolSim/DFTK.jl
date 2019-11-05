@@ -43,7 +43,7 @@ else
 end
 kcoords, ksymops = bzmesh_ir_wedge(kgrid, lattice, composition...)
 fft_size = determine_grid_size(lattice, Ecut)
-basis = PlaneWaveModel(model, fft_size, Ecut, kcoords, ksymops)
+basis = PlaneWaveBasis(model, fft_size, Ecut, kcoords, ksymops)
 
 # Run SCF, note Silicon metal is an insulator, so we will assume that we do not need
 # all bands here. This will cause warnings in some models, because e.g. in the

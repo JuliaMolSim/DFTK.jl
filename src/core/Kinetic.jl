@@ -2,13 +2,13 @@
 # and functionality to represent a k-Point block of it
 
 """
-Kinetic energy operator for a particular PlaneWaveModel basis
+Kinetic energy operator for a particular PlaneWaveBasis basis
 """
 
-# Kinetic energy operator for a particular PlaneWaveModel basis
+# Kinetic energy operator for a particular PlaneWaveBasis basis
 # and the kbuild function to build a k-Point-specific block of it.
 struct Kinetic
-    basis::PlaneWaveModel
+    basis::PlaneWaveBasis
 end
 
 function kblock(kin::Kinetic, kpt::Kpoint)

@@ -25,11 +25,11 @@ export smearing_methfessel_paxton_2
 include("core/smearing_functions.jl")
 
 export Model
-export PlaneWaveModel
+export PlaneWaveBasis
 export basis_Cρ
 export Kpoint
 include("core/Model.jl")
-include("core/PlaneWaveModel.jl")
+include("core/PlaneWaveBasis.jl")
 
 export Density
 export fourier

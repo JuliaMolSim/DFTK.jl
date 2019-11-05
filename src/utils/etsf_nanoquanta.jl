@@ -137,7 +137,7 @@ function load_basis(T, folder::EtsfFolder)
     @assert kcoords_new ≈ kcoords
 
     fft_size = determine_grid_size(model, Ecut)
-    PlaneWaveModel(model, fft_size, Ecut, kcoords, ksymops)
+    PlaneWaveBasis(model, fft_size, Ecut, kcoords, ksymops)
 end
 load_basis(folder::EtsfFolder) = load_basis(Float64, folder)
 
