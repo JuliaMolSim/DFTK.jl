@@ -46,7 +46,8 @@ function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
 
     kpoints
 end
-build_kpoints(basis::PlaneWaveBasis, kcoords) = build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
+build_kpoints(basis::PlaneWaveBasis, kcoords) =
+    build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
 
 """
 Plan a FFT of type `T` and size `fft_size`, spending some time on finding an optimal algorithm
