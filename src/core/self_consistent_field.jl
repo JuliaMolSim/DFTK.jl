@@ -51,28 +51,20 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
                for kpt in basis.kpoints]
     end
 
-    # TODO When https://github.com/JuliaNLSolvers/NLsolve.jl/pull/217
-    # is in a release, then the fixpoint iteration could also be done
-    # in Fourier space (i.e. in the actual discretisation basis),
-    # which might make the procedure more general ...
-    # would be good to give it a try and benchmark this.
-
-    # NLSolve can only work with 1D arrays as parameters, so we need to
-    # fold and unfold the Density object appropriately. Notice that we pick
-    # the *real-space* representation of the density
-    foldρ(ρ) = vec(real(ρ))
-    unfoldρ(vec_real) = density_from_real(basis, reshape(vec_real, basis.fft_size))
+    # We do density mixing in the real representation
+    # TODO do the mixing in Fourier space instead?
     function fixpoint_map(x)
-        ρ = iterate_density!(ham, n_bands, unfoldρ(x); Psi=Psi, eigensolver=eigensolver, tol=diagtol).ρ
-        foldρ(ρ)
+        res = iterate_density!(ham, n_bands, density_from_real(basis, x);
+                               Psi=Psi, eigensolver=eigensolver, tol=diagtol)
+        real(res.ρ)
     end
 
     # Run fixpoint solver: Take guess density from Hamiltonian or iterate once
     #                      to generate it from its eigenvectors
     ρ = ham.density
     ρ === nothing && (ρ = iterate_density!(ham, n_bands; Psi=Psi, eigensolver=eigensolver, tol=diagtol).ρ)
-    fpres = solver(fixpoint_map, foldρ(ρ), tol, max_iter)
-    ρ = unfoldρ(fpres.fixpoint)
+    fpres = solver(fixpoint_map, real(ρ), tol, max_iter)
+    ρ = density_from_real(basis, fpres.fixpoint)
 
     # Extra step to get Hamiltonian, eigenvalues and eigenvectors wrt the fixpoint density
     itres = iterate_density!(ham, n_bands, ρ; Psi=Psi, eigensolver=eigensolver, tol=diagtol)
