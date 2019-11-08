@@ -38,7 +38,12 @@ function bzmesh_ir_wedge(kgrid_size, lattice, composition...; tol_symmetry=1e-5)
     # Ask spglib for symmetry operations and for irreducible mesh
     spg_symops = spglib.get_symmetry(spglib_cell(lattice, composition...),
                                      symprec=tol_symmetry)
-    spg_symops !== nothing || error("Could not get symmetry")
+
+    # If spglib does not find symmetries give an error
+    spg_symops !== nothing || error(
+        "spglib failed to get the symmetries. Check your lattice, or use a uniform BZ mesh."
+    )
+
     mapping, grid = spglib.get_stabilized_reciprocal_mesh(
         kgrid_size, spg_symops["rotations"], is_shift=[0, 0, 0], is_time_reversal=true
     )

@@ -7,6 +7,7 @@ function iterate_density!(ham::Hamiltonian, n_bands, ρ=nothing; Psi=nothing,
                           compute_occupation=find_occupation_around_fermi,
                           eigensolver=lobpcg_hyper)
     # Update Hamiltonian from ρ
+    ## TODO this changes the potentials in ham, and is problematic if we want to do potential mixing
     ρ !== nothing && update_hamiltonian!(ham, ρ)
 
     # Update Psi from Hamiltonian (ask for a few more bands than the ones we need)
