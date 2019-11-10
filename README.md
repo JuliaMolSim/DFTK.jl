@@ -1,9 +1,9 @@
 # DFTK.jl
 
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://mfherbst.github.io/DFTK.jl/dev)
-[![license](https://img.shields.io/github/license/mfherbst/DFTK.jl.svg?maxAge=2592000)](https://github.com/mfherbst/DFTK.jl/blob/master/LICENSE)
-[![Build Status on Linux](https://travis-ci.org/mfherbst/DFTK.jl.svg?branch=master)](https://travis-ci.org/mfherbst/DFTK.jl)
-[![Coverage Status](https://coveralls.io/repos/mfherbst/DFTK.jl/badge.svg?branch=master&service=github)](https://coveralls.io/github/mfherbst/DFTK.jl?branch=master)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://juliamolsim.github.io/DFTK.jl/dev)
+[![license](https://img.shields.io/github/license/JuliaMolSim/DFTK.jl.svg?maxAge=2592000)](https://github.com/JuliaMolSim/DFTK.jl/blob/master/LICENSE)
+[![Build Status on Linux](https://travis-ci.org/JuliaMolSim/DFTK.jl.svg?branch=master)](https://travis-ci.org/JuliaMolSim/DFTK.jl)
+[![Coverage Status](https://coveralls.io/repos/JuliaMolSim/DFTK.jl/badge.svg?branch=master&service=github)](https://coveralls.io/github/JuliaMolSim/DFTK.jl?branch=master)
 
 DFTK, short for the **density-functional toolkit** is a library of
 Julia routines for experimentation with plane-wave-based
@@ -36,7 +36,7 @@ Use for production calculations is not yet recommended.
 ## Installation
 The package is not yet registered, so you need to install it from the github url: Use
 ```
-] add https://github.com/mfherbst/DFTK.jl.
+] add https://github.com/JuliaMolSim/DFTK.jl.
 ```
 from a Julia command line (version at least 1.1).
 
