@@ -42,6 +42,9 @@ function term_external(generators_or_composition...; compensating_background=tru
     function inner(basis::PlaneWaveBasis{T}, energy, potential; ρ=nothing, kwargs...) where T
         model = basis.model
 
+        # gen(G) = 1/4π int_Ω Vper(x) e^-iGx
+        #        = 1/4π int_R^3 V(x) e^-iGx
+        #        = 1/4π Ω <e_G, Vper e_0>
         make_generator(elem::Function) = elem
         function make_generator(elem::Species)
             if elem.psp === nothing
@@ -55,10 +58,12 @@ function term_external(generators_or_composition...; compensating_background=tru
         genfunctions = [make_generator(elem) => positions
                         for (elem, positions) in generators_or_composition]
 
-        # Get the values in the plane-wave basis set (Fourier space)
+        # We expand Vper in the basis set:
+        # Vper(r) = sum_G cG e_G(r)
+        # cG = <e_G, Vper> = 4π gen(G) / sqrt(Ω)
         values = map(basis_Cρ(basis)) do G
             sum(Complex{T}(
-                4π / model.unit_cell_volume  # Prefactor spherical Hankel transform
+                4π / sqrt(model.unit_cell_volume)
                 * genfunction(G)          # Potential data for wave vector G
                 * cis(2π * dot(G, r))     # Structure factor
                 ) for (genfunction, positions) in genfunctions

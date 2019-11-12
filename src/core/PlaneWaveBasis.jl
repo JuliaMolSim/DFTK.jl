@@ -91,7 +91,7 @@ kcoords is vector of Vec3
 """
 function PlaneWaveBasis(model::Model{T}, fft_size, Ecut::Number,
                         kcoords::AbstractVector, ksymops=nothing, kweights=nothing) where {T <: Real}
-    ## TODO this constructor is too low-level. Write a hierharchy of
+    ## TODO this constructor is too low-level. Write a hierarchy of
     ## constructors starting at the high level
     ## `PlaneWaveBasis(model, Ecut, kgrid)`
 
