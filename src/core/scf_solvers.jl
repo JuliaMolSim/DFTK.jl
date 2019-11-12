@@ -57,7 +57,12 @@ Optionally `warming` specifies the number of non-accelerated steps to perform
 for warming up the history.
 """
 function anderson(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
-    @assert(length(size(x0)) == 1, "1D array input only")
+
+    # Cheat support for multidimensional arrays
+    if length(size(x0)) != 1
+        x, conv= anderson(x -> vec(f(reshape(x, size(x0)...))), vec(x0), m, max_iter, tol, warming)
+        return (fixpoint=reshape(x, size(x0)...), converged=conv)
+    end
     N = size(x0, 1)
     T = eltype(x0)
     xs = zeros(T, N, m+1)  # Ring buffers storing the iterates
@@ -112,7 +117,12 @@ function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
     # Reference:
     # Patrick Ettenhuber and Poul Jørgensen, JCTC 2015, 11, 1518-1524
     # https://doi.org/10.1021/ct501114q
-    @assert(length(size(x0)) == 1, "1D array input only")
+
+    # Cheat support for multidimensional arrays
+    if length(size(x0)) != 1
+        x, conv= CROP(x -> vec(f(reshape(x, size(x0)...))), vec(x0), m, max_iter, tol, warming)
+        return (fixpoint=reshape(x, size(x0)...), converged=conv)
+    end
     N = size(x0,1)
     T = eltype(x0)
     xs = zeros(T, N, m+1)  # Ring buffers storing the iterates

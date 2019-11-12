@@ -8,5 +8,5 @@ makedocs(
 )
 
 deploydocs(
-    repo = "github.com/mfherbst/DFTK.jl.git",
+    repo = "github.com/JuliaMolSim/DFTK.jl.git",
 )
