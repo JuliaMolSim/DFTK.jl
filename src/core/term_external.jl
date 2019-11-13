@@ -53,7 +53,7 @@ function term_external(generators_or_composition...; compensating_background=tru
                 return G -> -4π * charge_nuclear(elem) / sum(abs2, model.recip_lattice * G)
             else
                 # Use local part of pseudopotential defined in Species object
-                return G -> 4π * eval_psp_local_fourier(elem.psp, model.recip_lattice * G)
+                return G -> eval_psp_local_fourier(elem.psp, model.recip_lattice * G)
             end
         end
         genfunctions = [make_generator(elem) => positions
@@ -64,7 +64,7 @@ function term_external(generators_or_composition...; compensating_background=tru
         # cG = <e_G, Vper> = gen(G) / sqrt(Ω)
         coeffs = map(basis_Cρ(basis)) do G
             sum(Complex{T}(
-                sqrt(model.unit_cell_volume)
+                1/sqrt(model.unit_cell_volume)
                 * genfunction(G)          # Potential data for wave vector G
                 * cis(2π * dot(G, r))     # Structure factor
                 ) for (genfunction, positions) in genfunctions

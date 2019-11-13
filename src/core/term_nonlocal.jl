@@ -54,6 +54,9 @@ where pihat(q) = ∫_R^3 pi(r) e^{-iqr}
 
 We store 1/√Ω pihat(k+G) in proj_vectors.
 """
+build_projection_vectors_(basis, potentials, kpt)
+
+# The doc system does not like memoize, so we document it above
 @memoize function build_projection_vectors_(basis::PlaneWaveBasis, potentials, kpt::Kpoint)
     n_proj = count_n_proj_(potentials)
     model = basis.model
