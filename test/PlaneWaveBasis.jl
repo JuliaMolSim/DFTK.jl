@@ -6,7 +6,7 @@ include("testcases.jl")
 
 function test_pw_cutoffs(testcase, Ecut, fft_size)
     model = Model(testcase.lattice, testcase.n_electrons)
-    pw = PlaneWaveBasis(model, fft_size, Ecut, testcase.kcoords, testcase.ksymops)
+    pw = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops; fft_size=fft_size)
 
     for (ik, kpt) in enumerate(pw.kpoints)
         for G in kpt.basis
@@ -19,7 +19,7 @@ end
     Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
-    pw = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+    pw = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     @test pw.model.lattice == silicon.lattice
     @test pw.model.recip_lattice ≈ 2π * inv(silicon.lattice)
@@ -56,7 +56,7 @@ end
     Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
-    pw = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+    pw = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     g_all = collect(basis_Cρ(pw))
 
     for i in 1:15, j in 1:15, k in 1:15

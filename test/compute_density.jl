@@ -8,7 +8,7 @@ include("testcases.jl")
 #      energies obtained in the data files
 
 @testset "Using BZ symmetry yields identical density" begin
-    function get_bands(testcase, fft_size, kcoords, ksymops, composition...;
+    function get_bands(testcase, kcoords, ksymops, composition...;
                        Ecut=5, tol=1e-8)
         kwargs = ()
         if testcase.Tsmear !== nothing
@@ -16,7 +16,7 @@ include("testcases.jl")
         end
 
         model = model_dft(testcase.lattice, :lda_xc_teter93, composition...; kwargs...)
-        basis = PlaneWaveBasis(model, fft_size, Ecut, kcoords, ksymops)
+        basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
         ham = Hamiltonian(basis, guess_density(basis, composition...))
 
         n_bands = 4
@@ -53,14 +53,13 @@ include("testcases.jl")
         composition = (spec => testcase.positions, )
 
         kfull, sym_full = bzmesh_uniform(kgrid_size)
-        fft_size = determine_grid_size(testcase.lattice, Ecut)
-        res = get_bands(testcase, fft_size, kfull, sym_full, composition...;
+        res = get_bands(testcase, kfull, sym_full, composition...;
                         Ecut=Ecut, tol=tol)
         basis_full, Psi_full, orben_full, ρ_full = res
         test_orthonormality(basis_full, Psi_full, tol=tol)
 
         kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, testcase.lattice, composition...)
-        res = get_bands(testcase, fft_size, kcoords, ksymops, composition...;
+        res = get_bands(testcase, kcoords, ksymops, composition...;
                         Ecut=Ecut, tol=tol)
         basis_ir, Psi_ir, orben_ir, ρ_ir = res
 

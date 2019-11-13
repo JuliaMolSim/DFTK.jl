@@ -11,7 +11,7 @@ include("testcases.jl")
 
     Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_reduced_hf(silicon.lattice, Si => silicon.positions)
-    basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     # Run nlsolve without guess
     scfres = self_consistent_field!(Hamiltonian(basis), n_bands, tol=tol,

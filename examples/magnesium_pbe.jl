@@ -22,8 +22,7 @@ model = model_dft(lattice, [:gga_x_pbe, :gga_c_pbe], composition...;
                   temperature=Tsmear,
                   smearing=DFTK.smearing_methfessel_paxton_1)
 kcoords, ksymops = bzmesh_ir_wedge(kgrid, lattice, composition...)
-fft_size = determine_grid_size(lattice, Ecut)
-basis = PlaneWaveBasis(model, fft_size, Ecut, kcoords, ksymops)
+basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
 
 # Run SCF
 ham = Hamiltonian(basis, guess_density(basis, composition...))

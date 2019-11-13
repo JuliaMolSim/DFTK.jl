@@ -26,6 +26,7 @@ include("core/smearing_functions.jl")
 
 export Model
 export PlaneWaveBasis
+export determine_grid_size
 export basis_Cρ
 export Kpoint
 include("core/Model.jl")
@@ -106,11 +107,9 @@ export bzmesh_uniform
 export bzmesh_ir_wedge
 include("utils/bzmesh.jl")
 
-export determine_grid_size
 export guess_density
-export load_psp
-include("utils/determine_grid_size.jl")
 include("utils/guess_density.jl")
+export load_psp
 include("utils/load_psp.jl")
 
 export energy_nuclear_psp_correction
