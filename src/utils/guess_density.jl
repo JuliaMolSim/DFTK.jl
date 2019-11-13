@@ -1,32 +1,36 @@
-"""
-    guess_gaussian_sad(basis, composition...)
+@doc raw"""
+    guess_density(basis, composition...)
 
 Build a superposition of atomic densities (SAD) guess density. The atoms/species are
 specified in `composition` as pairs representing a mapping from `Species` objects to a list
 of positions in fractional coordinates.
+
+We take for the guess density a gaussian centered around the atom, of
+length specified by `atom_decay_length`, normalized to get the right number of electrons
+```math
+\hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
+```
 """
-function guess_gaussian_sad(basis, composition...)
+function guess_density(basis, composition...)
     model = basis.model
     T = eltype(basis.kpoints[1].coordinate)
+    # Compute Fourier transform
     ρ = map(basis_Cρ(basis)) do G
         Gsq = sum(abs2, model.recip_lattice * G)
         res = sum(
-            charge_ionic(spec) * exp(-Gsq * atom_decay_length(spec)^2) * cis(2π * dot(G, r))
+            n_elec_valence(spec) * exp(-Gsq * atom_decay_length(spec)^2) * cis(2π * dot(G, r))
             for (spec, positions) in composition
             for r in positions
         )
         convert(T, real(res))
     end
-    density_from_fourier(basis, ρ / model.unit_cell_volume)
+    # projection in the normalized plane wave basis
+    density_from_fourier(basis, ρ / sqrt(model.unit_cell_volume))
 end
 
-## TODO give the formula in real space in the doc, and clarify that the atomic density is that of the valence electrons
 @doc raw"""
-Get the atomic decay length for an atom with `n_elec_core` core
-and `n_elec_valence` valence electrons. The returned length parameter can be used
-to generate an approximate atomic gaussian density in reciprocal space:
-```math
-\hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
+Get the lengthscale of the valence density for an atom with `n_elec_core` core
+and `n_elec_valence` valence electrons.
 ```
 """
 function atom_decay_length(n_elec_core, n_elec_valence)

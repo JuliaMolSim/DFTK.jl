@@ -1,5 +1,5 @@
 using Test
-using DFTK: model_dft, PlaneWaveBasis, guess_gaussian_sad, Species, load_psp
+using DFTK: model_dft, PlaneWaveBasis, guess_density, Species, load_psp
 using DFTK: update_energies, Hamiltonian, lobpcg_hyper
 
 include("testcases.jl")
@@ -17,7 +17,7 @@ include("testcases.jl")
     model = model_dft(silicon.lattice, [:lda_x, :lda_c_vwn], Si => silicon.positions)
     basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
 
-    ρ0 = guess_gaussian_sad(basis, Si => silicon.positions)
+    ρ0 = guess_density(basis, Si => silicon.positions)
     ham = Hamiltonian(basis, ρ0)
 
     e0_Hartree, _ = model.build_hartree(basis, Ref(0.0), nothing; ρ=ρ0)

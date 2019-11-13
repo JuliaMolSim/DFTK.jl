@@ -19,7 +19,7 @@ include("testcases.jl")
     ρ_nl = fourier(scfres.ρ)
 
     # Run other SCFs with SAD guess
-    ρ0 = guess_gaussian_sad(basis, Si => silicon.positions)
+    ρ0 = guess_density(basis, Si => silicon.positions)
     for solver in (scf_nlsolve_solver, scf_damping_solver, scf_anderson_solver,
                    scf_CROP_solver)
         println("Testing $solver")

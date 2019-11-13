@@ -3,7 +3,7 @@ Compute the partial density at the indicated ``k``-Point and return it.
 """
 function compute_partial_density(pw, kpt, Ψk, occupation)
     n_states = size(Ψk, 2)
-    @assert n_states == length(occupation)
+    @assert length(occupation) == n_states
 
     # Fourier-transform the wave functions to real space
     Ψk_real = similar(Ψk[:, 1], pw.fft_size..., n_states)
@@ -11,17 +11,12 @@ function compute_partial_density(pw, kpt, Ψk, occupation)
         G_to_r!(view(Ψk_real, :, :, :, ist), pw, kpt, Ψk[:, ist])
     end
 
-    # TODO I am not quite sure why this is needed here
-    #      maybe this points at an error in the normalisation of the
-    #      Fourier transform
-    Ψk_real /= sqrt(pw.model.unit_cell_volume)
-
     # Build the partial density for this k-Point
     ρk_real = similar(Ψk[:, 1], pw.fft_size)
     ρk_real .= 0
     for ist in 1:n_states
         @. @views begin
-            ρk_real += occupation[ist] * Ψk_real[:, :, :, ist] * conj(Ψk_real[:, :, :, ist])
+            ρk_real += occupation[ist] * abs2(Ψk_real[:, :, :, ist])
         end
     end
     Ψk_real = nothing

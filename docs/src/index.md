@@ -159,7 +159,7 @@ build_local_potential
 build_nonlocal_projectors
 kblock_as_matrix
 load_psp
-guess_gaussian_sad
+guess_density
 guess_hcore
 ```
 

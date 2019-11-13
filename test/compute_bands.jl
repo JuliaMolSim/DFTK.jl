@@ -145,7 +145,7 @@ end
     basis = PlaneWaveBasis(model, fft_size, Ecut, testcase.kcoords, testcase.ksymops)
 
     # Build Hamiltonian just from SAD guess
-    ρ0 = guess_gaussian_sad(basis, spec => testcase.positions)
+    ρ0 = guess_density(basis, spec => testcase.positions)
     ham = Hamiltonian(basis, ρ0)
 
 

@@ -14,6 +14,7 @@ kline_density = 20       # Density of k-Points for bandstructure
 a = 10.263141334305942  # Silicon lattice constant in Bohr
 lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
 Si = Species(14, psp=load_psp("si-pade-q4.hgh"))
+# Si = Species(14)
 composition = [Si => [ones(3)/8, -ones(3)/8]]
 
 # Make a supercell if desired
@@ -49,7 +50,7 @@ basis = PlaneWaveBasis(model, fft_size, Ecut, kcoords, ksymops)
 # occupation scheme. This will cause warnings in some models, because
 # e.g. in the :reduced_hf model silicon is a metal
 n_bands_scf = Int(model.n_electrons / 2)
-ham = Hamiltonian(basis, guess_gaussian_sad(basis, composition...))
+ham = Hamiltonian(basis, guess_density(basis, composition...))
 scfres = self_consistent_field!(ham, n_bands_scf, tol=1e-6)
 
 # Print obtained energies

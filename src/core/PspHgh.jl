@@ -97,17 +97,19 @@ end
     eval_psp_local_fourier(psp, ΔG)
 
 Evaluate the local part of the pseudopotential in reciprocal space.
-Computes <e_G|Vloc|e_{G+ΔG}> without taking into account the structure factor
-and the (4π / Ω) spherical Hankel transform prefactor.
-`ΔG` should be in cartesian coordinates.
+
+This function computes
+V(q) = ∫_R^3 Vloc(r) e^{-iqr} dr
+     = 4π ∫_{R+} sin(qr)/q r e^{-iqr} dr
+
+[GTH98] (6) except they do it with plane waves normalized by 1/sqrt(Ω).
 """
 function eval_psp_local_fourier(psp::PspHgh, ΔG::AbstractVector)
-    # TODO Use Fractional coordinates here ?
     T = eltype(ΔG)
     Gsq = sum(abs2, ΔG)
     Grsq::T = Gsq * psp.rloc^2
 
-    convert(T,
+    convert(T, 4π * (
         - psp.Zion / Gsq * exp(-Grsq / 2)
         + sqrt(π/2) * psp.rloc^3 * exp(-Grsq / 2) * (
             + psp.cloc[1]
@@ -115,7 +117,7 @@ function eval_psp_local_fourier(psp::PspHgh, ΔG::AbstractVector)
             + psp.cloc[3] * ( 15 -  10 * Grsq +      Grsq^2         )
             + psp.cloc[4] * (105 - 105 * Grsq + 21 * Grsq^2 - Grsq^3)
         )
-    )
+    ))
 end
 
 
@@ -124,9 +126,10 @@ end
 
 Evaluate the local part of the pseudopotential in real space.
 The vector `r` should be given in cartesian coordinates.
+
+[GTH98] (1)
 """
 function eval_psp_local_real(psp::PspHgh, r::AbstractVector)
-    # TODO Use Fractional coordinates here ?
     cloc = psp.cloc
     rrsq = sum(abs2, r) / psp.rloc
 
@@ -142,8 +145,10 @@ end
 
 Evaluate the radial part of the `i`-th projector for angular momentum `l`
 at the reciprocal lattice point with modulus squared `qsq`.
-Compared to the expressions in the GTH and HGH papers, this
-expression misses a factor of 1/sqrt(Ω).
+
+p(qsq) = ∫_{R+} r^2 p(r) j_l(q r) dr
+
+[HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω).
 """
 function eval_psp_projection_radial(psp::PspHgh, i, l, qsq::Number)
     T = eltype(qsq)

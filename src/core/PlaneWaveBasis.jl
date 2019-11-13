@@ -1,15 +1,25 @@
 # Contains the numerical specification of the model
 
+# Normalization conventions: TODO not yet fixed in the code
+# - Things that are expressed in the G basis are normalized so that if `x` is the vector, then the actual function is `sum_G x_G e_G` with `e_G(x) = e^{iG x}/sqrt(unit_cell_volume)`. This is so that, eg `norm(psi) = 1` gives the correct normalization. This also holds for the density.
+# - Quantities expressed on the real-space grid are in actual values
+# G_to_r and r_to_G convert between these.
+
 using FFTW
 
+# Each Kpoint has its own `basis`, consisting of all G vectors such that |k+G|^2 ≤ 1/2 Ecut
 struct Kpoint{T <: Real}
-    spin::Symbol              # :up or :down
+    spin::Symbol              # :up, :down, :both or :spinless
     coordinate::Vec3{T}       # Fractional coordinate of k-Point
     mapping::Vector{Int}      # Index of basis[i] on FFT grid
     basis::Vector{Vec3{Int}}  # Wave vectors in integer coordinates
 end
 
+# fft_size defines both the G basis on which densities and potentials
+# are expanded, and the real-space grid
 
+# kpoints is the list of irreducible kpoints, kweights/ksymops contain
+# the information needed to reconstruct the full BZ
 struct PlaneWaveBasis{T <: Real, TopFFT, TipFFT}
     model::Model{T}
     Ecut::T
@@ -19,8 +29,9 @@ struct PlaneWaveBasis{T <: Real, TopFFT, TipFFT}
 
     # Plans for forward and backward FFT on C_ρ
     fft_size::Tuple{Int, Int, Int}  # Using tuple here, since Vec3 splatting is slow
-    opFFT::TopFFT  # out-of-place FFT
-    ipFFT::TipFFT  # in-place FFT
+                                    # (https://github.com/JuliaArrays/StaticArrays.jl/issues/361)
+    opFFT::TopFFT  # out-of-place FFT plan
+    ipFFT::TipFFT  # in-place FFT plan
 end
 
 """
@@ -32,6 +43,10 @@ function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
     spin = (:undefined,)
     if model.spin_polarisation == :collinear
         spin = (:up, :down)
+    elseif model.spin_polarisation == :none
+        spin = (:both, )
+    elseif model.spin_polarisation == :spinless
+        spin = (:spinless, )
     end
 
     kpoints = Vector{Kpoint{T}}()
@@ -65,7 +80,6 @@ function build_fft_plans(T, fft_size)
     end
     ipFFT = plan_fft!(tmp, flags=flags)
     opFFT = plan_fft(tmp, flags=flags)
-
     ipFFT, opFFT
 end
 
@@ -77,7 +91,7 @@ kcoords is vector of Vec3
 """
 function PlaneWaveBasis(model::Model{T}, fft_size, Ecut::Number,
                         kcoords::AbstractVector, ksymops=nothing, kweights=nothing) where {T <: Real}
-    ## TODO this constructor is too low-level. Write a hierharchy of
+    ## TODO this constructor is too low-level. Write a hierarchy of
     ## constructors starting at the high level
     ## `PlaneWaveBasis(model, Ecut, kgrid)`
 
@@ -86,12 +100,15 @@ function PlaneWaveBasis(model::Model{T}, fft_size, Ecut::Number,
     fft_size = Tuple{Int, Int, Int}(fft_size)
     ipFFT, opFFT = build_fft_plans(T, fft_size)
 
-    # IFFT has a normalization factor of 1/length(ψ),
-    # but the normalisation convention used in this code is
-    # e_G(x) = e^iGx / sqrt(|Γ|), so we scale the plans in-place
-    # in order to match our convention.
-    ipFFT *= 1 / length(ipFFT)
-    opFFT *= 1 / length(opFFT)
+    # The FFT interface specifies that fft has no normalization, and
+    # ifft has a normalization factor of 1/length (so that both
+    # operations are inverse to each other). The convention we want is
+    # ψ(r) = sum_G c_G e^iGr / sqrt(Ω)
+    # so that the ifft is normalized by 1/sqrt(Ω). It follows that the
+    # fft must be normalized by sqrt(Ω)/length
+    ipFFT *= sqrt(model.unit_cell_volume) / length(ipFFT)
+    opFFT *= sqrt(model.unit_cell_volume) / length(opFFT)
+
 
     # Default to no symmetry
     ksymops === nothing && (ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))]

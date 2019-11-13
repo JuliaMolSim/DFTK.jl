@@ -42,11 +42,15 @@ function term_external(generators_or_composition...; compensating_background=tru
     function inner(basis::PlaneWaveBasis{T}, energy, potential; ρ=nothing, kwargs...) where T
         model = basis.model
 
+        # gen(G) = int_Ω Vper(x) e^-iGx
+        #        = int_R^3 V(x) e^-iGx
+        #        = Ω <e_G, Vper e_0>
         make_generator(elem::Function) = elem
         function make_generator(elem::Species)
             if elem.psp === nothing
                 # All-electron => Use default Coulomb potential
-                return G -> -charge_nuclear(elem) / sum(abs2, model.recip_lattice * G)
+                # We use int_R^3 1/r e^-iqx = 4π / q^2
+                return G -> -4π * charge_nuclear(elem) / sum(abs2, model.recip_lattice * G)
             else
                 # Use local part of pseudopotential defined in Species object
                 return G -> eval_psp_local_fourier(elem.psp, model.recip_lattice * G)
@@ -55,20 +59,22 @@ function term_external(generators_or_composition...; compensating_background=tru
         genfunctions = [make_generator(elem) => positions
                         for (elem, positions) in generators_or_composition]
 
-        # Get the values in the plane-wave basis set (Fourier space)
-        values = map(basis_Cρ(basis)) do G
+        # We expand Vper in the basis set:
+        # Vper(r) = sum_G cG e_G(r)
+        # cG = <e_G, Vper> = gen(G) / sqrt(Ω)
+        coeffs = map(basis_Cρ(basis)) do G
             sum(Complex{T}(
-                4π / model.unit_cell_volume  # Prefactor spherical Hankel transform
+                1/sqrt(model.unit_cell_volume)
                 * genfunction(G)          # Potential data for wave vector G
                 * cis(2π * dot(G, r))     # Structure factor
                 ) for (genfunction, positions) in genfunctions
                   for r in positions
            )
         end
-        compensating_background && (values[1] = 0)
+        compensating_background && (coeffs[1] = 0)
 
         # TODO impose Vext to be real
-        Vext = (potential === nothing) ? G_to_r(basis, values) : G_to_r!(potential, basis, values)
+        Vext = (potential === nothing) ? G_to_r(basis, coeffs) : G_to_r!(potential, basis, coeffs)
         if energy !== nothing
             dVol = model.unit_cell_volume / prod(basis.fft_size)
             energy[] = real(sum(real(ρ) .* Vext)) * dVol

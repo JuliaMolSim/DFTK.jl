@@ -107,10 +107,10 @@ export bzmesh_ir_wedge
 include("utils/bzmesh.jl")
 
 export determine_grid_size
-export guess_gaussian_sad
+export guess_density
 export load_psp
 include("utils/determine_grid_size.jl")
-include("utils/guess_gaussian_sad.jl")
+include("utils/guess_density.jl")
 include("utils/load_psp.jl")
 
 export energy_nuclear_psp_correction

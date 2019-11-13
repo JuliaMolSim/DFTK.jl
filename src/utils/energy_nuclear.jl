@@ -17,7 +17,6 @@ function energy_nuclear_psp_correction(lattice, composition...)
         if spec.psp !== nothing
     )
 
-    # Return total correction energy per unit volume
     correction_per_cell / det(lattice)
 end
 
