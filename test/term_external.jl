@@ -16,7 +16,7 @@ include("testcases.jl")
     end
 
     @testset "Construction using a single function" begin
-        pot_coulomb(G) = -12 / sum(abs2, model.recip_lattice * G)
+        pot_coulomb(G) = -12*4π / sum(abs2, model.recip_lattice * G)
 
         # Shifting by a lattice vector should not make a difference:
         pot0 = build_external(pot_coulomb => [[0, 0, 0]])
@@ -33,16 +33,16 @@ include("testcases.jl")
         values_fourier = r_to_G(basis, complex(pot3))
 
         lattice_vector = silicon.lattice * [0, 1/8, 0]
-        reference = [(4π / model.unit_cell_volume * pot_coulomb(G)
-                         * cis(dot(model.recip_lattice * G, lattice_vector)))
+        reference = [(1/sqrt(model.unit_cell_volume) * pot_coulomb(G)
+                      * cis(dot(model.recip_lattice * G, lattice_vector)))
                      for G in basis_Cρ(basis)]
         reference[1] = 0
         @test reference ≈ values_fourier
     end
 
     @testset "Construction using multiple functions" begin
-        pot_coulomb14(G) = -14 / sum(abs2, model.recip_lattice * G)
-        pot_coulomb6(G) = -6 / sum(abs2, model.recip_lattice * G)
+        pot_coulomb14(G) = -14*4π / sum(abs2, model.recip_lattice * G)
+        pot_coulomb6(G) = -6*4π / sum(abs2, model.recip_lattice * G)
 
         # Compute separate potential terms for reference
         pot_Si_1 = build_external(pot_coulomb14 => [[0, 1/8, 0]])
@@ -69,7 +69,7 @@ end
     end
 
     @testset "Test without Pseudopotential" begin
-        pot_coulomb(G) = -14 / sum(abs2, model.recip_lattice * G)
+        pot_coulomb(G) = -14*4π / sum(abs2, model.recip_lattice * G)
         silicon = Species(14)
 
         ref = build_external(pot_coulomb => [[0, 0, 0], [0, 1/3, 0]])

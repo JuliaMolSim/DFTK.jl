@@ -39,12 +39,6 @@ include("testcases.jl")
             Ψk = Psi[ik]
             Ψk_real = DFTK.G_to_r(basis, kpt, Ψk)
 
-            # TODO I am not quite sure why this is needed here maybe this points at an
-            #      error in the normalisation of the Fourier transform.
-            #      This is also done in the compute_density routine inside the
-            #      core/compute_density.jl file
-            Ψk_real /= sqrt(basis.model.unit_cell_volume)
-
             T = real(eltype(Ψk_real))
             Ψk_real_mat = reshape(Ψk_real, n_fft, n_states)
             Ψk_real_overlap = adjoint(Ψk_real_mat) * Ψk_real_mat

@@ -46,11 +46,11 @@ end
         @test eval_psp_local_fourier(psp, G[[3, 2, 1]]) ≈ ref
     end
 
-    test_psp_local_permutations([0.1,   0,    0], -400.395448865164)
-    test_psp_local_permutations([0.1, 0.2,    0], -80.39317320182417)
-    test_psp_local_permutations([0.1, 0.2, -0.3], -28.95951714682582)
-    test_psp_local_permutations([1.0, -2.0, 3.0], -0.275673388844235)
-    test_psp_local_permutations([10.0, 0.0, 0.0], -5.1468909215285576e-5)
+    test_psp_local_permutations([0.1,   0,    0], -400.395448865164*4π)
+    test_psp_local_permutations([0.1, 0.2,    0], -80.39317320182417*4π)
+    test_psp_local_permutations([0.1, 0.2, -0.3], -28.95951714682582*4π)
+    test_psp_local_permutations([1.0, -2.0, 3.0], -0.275673388844235*4π)
+    test_psp_local_permutations([10.0, 0.0, 0.0], -5.1468909215285576e-5*4π)
 
     # Test nonlocal part evaluation
     qsq = [0, 0.01, 0.1, 0.3, 1, 10]

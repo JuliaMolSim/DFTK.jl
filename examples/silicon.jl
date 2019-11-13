@@ -3,8 +3,8 @@ using Printf
 using PyCall
 
 # Calculation parameters
-calculation_model = :lda
-kgrid = [4, 4, 4]        # k-Point grid
+calculation_model = :pbe
+kgrid = [1, 1, 1]        # k-Point grid
 supercell = [1, 1, 1]    # Lattice supercell
 Ecut = 15                # kinetic energy cutoff in Hartree
 n_bands_plot = 8 # number of bands to plot in the bandstructure
@@ -14,6 +14,7 @@ kline_density = 20       # Density of k-Points for bandstructure
 a = 10.263141334305942  # Silicon lattice constant in Bohr
 lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
 Si = Species(14, psp=load_psp("si-pade-q4.hgh"))
+# Si = Species(14)
 composition = [Si => [ones(3)/8, -ones(3)/8]]
 
 # Make a supercell if desired
