@@ -122,7 +122,7 @@ function test_folder(T, folder; scf_tol=1e-8, n_ignored=0, test_tol=1e-6)
         ref = load_reference(etsf)
         n_bands = length(ref.bands[1])
 
-        ρ0 = guess_gaussian_sad(basis, composition...)
+        ρ0 = guess_density(basis, composition...)
         ham = Hamiltonian(basis, ρ0)
         scfres = self_consistent_field!(ham, n_bands, tol=scf_tol)
 

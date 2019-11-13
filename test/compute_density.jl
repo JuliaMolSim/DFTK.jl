@@ -17,7 +17,7 @@ include("testcases.jl")
 
         model = model_dft(testcase.lattice, :lda_xc_teter93, composition...; kwargs...)
         basis = PlaneWaveBasis(model, fft_size, Ecut, kcoords, ksymops)
-        ham = Hamiltonian(basis, guess_gaussian_sad(basis, composition...))
+        ham = Hamiltonian(basis, guess_density(basis, composition...))
 
         n_bands = 4
         res = diagonalise_all_kblocks(lobpcg_hyper, ham, n_bands; prec=PreconditionerKinetic(ham, α=0.1), tol=tol)

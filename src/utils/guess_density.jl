@@ -1,5 +1,5 @@
 @doc raw"""
-    guess_gaussian_sad(basis, composition...)
+    guess_density(basis, composition...)
 
 Build a superposition of atomic densities (SAD) guess density. The atoms/species are
 specified in `composition` as pairs representing a mapping from `Species` objects to a list
@@ -11,7 +11,7 @@ length specified by `atom_decay_length`, normalized so that ??? :
 \hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
 ```
 """
-function guess_gaussian_sad(basis, composition...)
+function guess_density(basis, composition...)
     model = basis.model
     T = eltype(basis.kpoints[1].coordinate)
     # Compute Fourier transform

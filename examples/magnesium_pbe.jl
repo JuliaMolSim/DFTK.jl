@@ -26,7 +26,7 @@ fft_size = determine_grid_size(lattice, Ecut)
 basis = PlaneWaveBasis(model, fft_size, Ecut, kcoords, ksymops)
 
 # Run SCF
-ham = Hamiltonian(basis, guess_gaussian_sad(basis, composition...))
+ham = Hamiltonian(basis, guess_density(basis, composition...))
 scfres = self_consistent_field!(ham, n_bands)
 
 # Print obtained energies

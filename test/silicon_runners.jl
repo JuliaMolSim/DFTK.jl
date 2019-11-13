@@ -31,7 +31,7 @@ function run_silicon_redHF(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_reduced_hf(silicon.lattice, Si => silicon.positions)
     basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
-    ham = Hamiltonian(basis, guess_gaussian_sad(basis, Si => silicon.positions))
+    ham = Hamiltonian(basis, guess_density(basis, Si => silicon.positions))
 
     scfres = self_consistent_field!(ham, n_bands, tol=scf_tol)
 
@@ -67,7 +67,7 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_dft(Array{T}(silicon.lattice), [:lda_x, :lda_c_vwn], Si => silicon.positions)
     basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
-    ham = Hamiltonian(basis, guess_gaussian_sad(basis, Si => silicon.positions))
+    ham = Hamiltonian(basis, guess_density(basis, Si => silicon.positions))
 
     scfres = self_consistent_field!(ham, n_bands, tol=scf_tol,
                                     eigensolver=lobpcg_hyper, n_ep_extra=n_noconv_check, diagtol=lobpcg_tol)
@@ -116,7 +116,7 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     Si = Species(silicon.atnum, psp=load_psp("si-pbe-q4.hgh"))
     model = model_dft(Array{T}(silicon.lattice), [:gga_x_pbe, :gga_c_pbe], Si => silicon.positions)
     basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
-    ham = Hamiltonian(basis, guess_gaussian_sad(basis, Si => silicon.positions))
+    ham = Hamiltonian(basis, guess_density(basis, Si => silicon.positions))
 
     scfres = self_consistent_field!(ham, n_bands, tol=scf_tol)
 
