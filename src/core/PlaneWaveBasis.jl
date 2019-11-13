@@ -50,9 +50,14 @@ represented in the basis ``B_k = \{G : |G + k|^2/2 \leq E_\text{cut}\}``,
 function determine_grid_size(lattice::AbstractMatrix, Ecut; supersampling=2, tol=1e-8, ensure_smallprimes=true)
     # See the documentation about the grids for details on the construction of C_ρ
     cutoff_Gsq = 2 * supersampling^2 * Ecut
-    Gmax= [norm(lattice[:, i]) / 2π * sqrt(cutoff_Gsq) for i in 1:3]
-    # Round up
-    Gmax = ceil.(Int, Gmax .- tol)
+    Gmax = [norm(lattice[:, i]) / 2π * sqrt(cutoff_Gsq) for i in 1:3]
+    # Round up, unless exactly zero (in which case keep it zero in
+    # order to just have one G vector for 1D or 2D systems)
+    for i = 1:3
+        if Gmax[i] != 0
+            Gmax[i] = ceil.(Int, Gmax[i] .- tol)
+        end
+    end
 
     # Optimise FFT grid size: Make sure the number factorises in small primes only
     if ensure_smallprimes
