@@ -6,7 +6,7 @@ specified in `composition` as pairs representing a mapping from `Species` object
 of positions in fractional coordinates.
 
 We take for the guess density a gaussian centered around the atom, of
-length specified by `atom_decay_length`, normalized so that ??? :
+length specified by `atom_decay_length`, normalized to get the right number of electrons
 ```math
 \hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
 ```
@@ -18,7 +18,7 @@ function guess_density(basis, composition...)
     ρ = map(basis_Cρ(basis)) do G
         Gsq = sum(abs2, model.recip_lattice * G)
         res = sum(
-            charge_ionic(spec) * exp(-Gsq * atom_decay_length(spec)^2) * cis(2π * dot(G, r))
+            n_elec_valence(spec) * exp(-Gsq * atom_decay_length(spec)^2) * cis(2π * dot(G, r))
             for (spec, positions) in composition
             for r in positions
         )
