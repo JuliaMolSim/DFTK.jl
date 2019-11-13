@@ -3,8 +3,8 @@ using Printf
 using PyCall
 
 # Calculation parameters
-calculation_model = :pbe
-kgrid = [1, 1, 1]        # k-Point grid
+calculation_model = :lda
+kgrid = [4, 4, 4]        # k-Point grid
 supercell = [1, 1, 1]    # Lattice supercell
 Ecut = 15                # kinetic energy cutoff in Hartree
 n_bands_plot = 8 # number of bands to plot in the bandstructure
