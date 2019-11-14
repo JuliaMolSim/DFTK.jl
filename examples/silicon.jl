@@ -43,8 +43,7 @@ else
     error("Unknown calculation_model $(calculation_model)")
 end
 kcoords, ksymops = bzmesh_ir_wedge(kgrid, lattice, composition...)
-fft_size = determine_grid_size(lattice, Ecut)
-basis = PlaneWaveBasis(model, fft_size, Ecut, kcoords, ksymops)
+basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
 
 # Run SCF. Note Silicon is a semiconductor, so we use an insulator
 # occupation scheme. This will cause warnings in some models, because

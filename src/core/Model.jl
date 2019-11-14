@@ -13,6 +13,7 @@ struct Model{T <: Real}
     recip_lattice::Mat3{T}
     unit_cell_volume::T
     recip_cell_volume::T
+    dim::Int # Dimension of the system; 3 unless `lattice` has zero columns
 
     # Electrons, occupation and smearing function
     n_electrons::Int
@@ -39,17 +40,38 @@ function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
                nonlocal=nothing, hartree=nothing, xc=nothing, temperature=0.0,
                smearing=nothing, spin_polarisation=:none, assume_band_gap=nothing) where {T <: Real}
     lattice = SMatrix{3, 3, T, 9}(lattice)
-    recip_lattice = 2π * inv(lattice')
+
+    # Special handling of 1D and 2D systems, and sanity checks
+    d = 3-count(c -> norm(c) == 0, eachcol(lattice))
+    d > 0 || error("Check your lattice; we do not do 0D systems")
+    for i = d+1:3
+        norm(lattice[:, i]) == norm(lattice[i, :]) == 0 || error(
+            "For 1D and 2D systems, the non-empty dimensions must come first")
+    end
+    cond(lattice[1:d, 1:d]) > 1e-5 || @warn "Your lattice is badly conditioned, the computation is likely to fail"
+
+    # Compute reciprocal lattice and volumes.
+    # recall that the reciprocal lattice is the set of G vectors such
+    # that G.R ∈ 2π ℤ for all R in the lattice
+    recip_lattice = zeros(T, 3, 3)
+    recip_lattice[1:d, 1:d] = 2π*inv(lattice[1:d, 1:d]')
+    recip_lattice = Mat3{T}(recip_lattice)
+    # in the 1D or 2D case, the volume is the length/surface
+    unit_cell_volume = det(lattice[1:d, 1:d])
+    recip_cell_volume = det(recip_lattice[1:d, 1:d])
+
     @assert spin_polarisation in (:none, :collinear, :full, :spinless)
 
     # Assume a band gap (insulator, semiconductor) if no smearing given
     assume_band_gap === nothing && (assume_band_gap = smearing === nothing)
 
     # Default to Fermi-Dirac smearing
-    temperature > 0.0 && smearing === nothing && (smearing = smearing_fermi_dirac)
+    if temperature > 0.0 && smearing === nothing
+        smearing = smearing_fermi_dirac
+    end
 
     build_nothing(args...; kwargs...) = (nothing, nothing)
-    Model{T}(lattice, recip_lattice, det(lattice), det(recip_lattice), n_electrons,
+    Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
              spin_polarisation, T(temperature), smearing, assume_band_gap,
              something(external, build_nothing), something(nonlocal, build_nothing),
              something(hartree, build_nothing), something(xc, build_nothing))

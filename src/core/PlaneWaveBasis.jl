@@ -34,6 +34,42 @@ struct PlaneWaveBasis{T <: Real, TopFFT, TipFFT}
     ipFFT::TipFFT  # in-place FFT plan
 end
 
+@doc raw"""
+    determine_grid_size(lattice, Ecut; supersampling=2)
+
+Determine the minimal grid size for the fourier grid ``C_ρ`` subject to the
+kinetic energy cutoff `Ecut` for the wave function and a density  `supersampling` factor.
+Optimise the grid afterwards for the FFT procedure by ensuring factorisation into
+small primes.
+The function will determine the smallest cube ``C_ρ`` containing the basis ``B_ρ``,
+i.e. the wave vectors ``|G|^2/2 \leq E_\text{cut} ⋅ \text{supersampling}^2``.
+For an exact representation of the density resulting from wave functions
+represented in the basis ``B_k = \{G : |G + k|^2/2 \leq E_\text{cut}\}``,
+`supersampling` should be at least `2`.
+"""
+function determine_grid_size(lattice::AbstractMatrix, Ecut; supersampling=2, tol=1e-8, ensure_smallprimes=true)
+    # See the documentation about the grids for details on the construction of C_ρ
+    cutoff_Gsq = 2 * supersampling^2 * Ecut
+    Gmax = [norm(lattice[:, i]) / 2π * sqrt(cutoff_Gsq) for i in 1:3]
+    # Round up, unless exactly zero (in which case keep it zero in
+    # order to just have one G vector for 1D or 2D systems)
+    for i = 1:3
+        if Gmax[i] != 0
+            Gmax[i] = ceil.(Int, Gmax[i] .- tol)
+        end
+    end
+
+    # Optimise FFT grid size: Make sure the number factorises in small primes only
+    if ensure_smallprimes
+        Vec3([nextprod([2, 3, 5], 2gs + 1) for gs in Gmax])
+    else
+        Vec3([2gs+1 for gs in Gmax])
+    end
+end
+function determine_grid_size(model::Model, Ecut; kwargs...)
+    determine_grid_size(model.lattice, Ecut; kwargs...)
+end
+
 """
 TODO docme
 """
@@ -89,13 +125,16 @@ TODO docme
 fft_size is now Fourier grid size
 kcoords is vector of Vec3
 """
-function PlaneWaveBasis(model::Model{T}, fft_size, Ecut::Number,
-                        kcoords::AbstractVector, ksymops=nothing, kweights=nothing) where {T <: Real}
+function PlaneWaveBasis(model::Model{T}, Ecut::Number,
+                        kcoords::AbstractVector, ksymops=nothing, kweights=nothing; fft_size=nothing) where {T <: Real}
     ## TODO this constructor is too low-level. Write a hierarchy of
     ## constructors starting at the high level
     ## `PlaneWaveBasis(model, Ecut, kgrid)`
 
     @assert Ecut > 0
+    if fft_size === nothing
+        fft_size = determine_grid_size(model, Ecut)
+    end
 
     fft_size = Tuple{Int, Int, Int}(fft_size)
     ipFFT, opFFT = build_fft_plans(T, fft_size)

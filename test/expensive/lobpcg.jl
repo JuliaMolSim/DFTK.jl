@@ -11,7 +11,7 @@ include("../testcases.jl")
     Si = Species(silicon.atnum, psp=load_psp("si-pade-q4.hgh"))
     model = Model(silicon.lattice, silicon.n_electrons,
                   external=term_external(Si => silicon.positions))
-    basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis)
 
     res = diagonalise_all_kblocks(lobpcg_hyper, ham, 6, tol=1e-8)

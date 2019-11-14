@@ -136,8 +136,7 @@ function load_basis(T, folder::EtsfFolder)
     kcoords_new, ksymops = bzmesh_ir_wedge(kgrid_size, model.lattice, composition...)
     @assert kcoords_new ≈ kcoords
 
-    fft_size = determine_grid_size(model, Ecut)
-    PlaneWaveBasis(model, fft_size, Ecut, kcoords, ksymops)
+    PlaneWaveBasis(model, Ecut, kcoords, ksymops)
 end
 load_basis(folder::EtsfFolder) = load_basis(Float64, folder)
 

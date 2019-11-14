@@ -15,7 +15,7 @@ include("testcases.jl")
 
     Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_dft(silicon.lattice, [:lda_x, :lda_c_vwn], Si => silicon.positions)
-    basis = PlaneWaveBasis(model, fft_size, Ecut, silicon.kcoords, silicon.ksymops)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     ρ0 = guess_density(basis, Si => silicon.positions)
     ham = Hamiltonian(basis, ρ0)

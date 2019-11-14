@@ -11,7 +11,7 @@ include("testcases.jl")
 
     spec = Species(testcase.atnum, psp=load_psp(testcase.psp))
     model = model_hcore(testcase.lattice, spec => testcase.positions)
-    basis = PlaneWaveBasis(model, fft_size, Ecut, testcase.kcoords, testcase.ksymops)
+    basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis)
 
     for (ik, kpt) in enumerate(basis.kpoints)
