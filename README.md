@@ -4,6 +4,7 @@
 [![license](https://img.shields.io/github/license/JuliaMolSim/DFTK.jl.svg?maxAge=2592000)](https://github.com/JuliaMolSim/DFTK.jl/blob/master/LICENSE)
 [![Build Status on Linux](https://travis-ci.org/JuliaMolSim/DFTK.jl.svg?branch=master)](https://travis-ci.org/JuliaMolSim/DFTK.jl)
 [![Coverage Status](https://coveralls.io/repos/JuliaMolSim/DFTK.jl/badge.svg?branch=master&service=github)](https://coveralls.io/github/JuliaMolSim/DFTK.jl?branch=master)
+[![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238)
 
 DFTK, short for the **density-functional toolkit** is a library of
 Julia routines for experimentation with plane-wave-based
@@ -34,11 +35,20 @@ for a small number of test cases and might still contain bugs.
 Use for production calculations is not yet recommended.
 
 ## Installation
-The package is not yet registered, so you need to install it from the github url: Use
+The package is not yet registered in the [Generac](https://github.com/JuliaRegistries/General)
+registry of Julia. Instead you can obtain it from
+the [MolSim](https://github.com/JuliaMolSim/MolSim.git) registry,
+which contains a bunch of packages related to performing molecular simulations in Julia.
+
+First add `MolSim` to your installed registries. For this use
 ```
-] add https://github.com/JuliaMolSim/DFTK.jl.
+] registry add https://github.com/JuliaMolSim/MolSim.git
 ```
-from a Julia command line (version at least 1.1).
+for a Julia command line (version at least 1.1).
+Afterwards you can install DFTK like any other package in Julia:
+```
+] add DFTK
+```
 
 Some parts of the code require a working Python installation with the libraries
 `scipy`, `pymatgen` and `spglib`. The examples require `matplotlib` as well.
@@ -54,8 +64,11 @@ You can then run the code in the `examples/` directory.
 
 ## Perspective
 Despite the current focus on numerics, the intention is to keep the
-project rather general, so that this platform could be useful for
-other research in the future.
+project rather general, so that this platform is useful for
+general research in materials science.
+
+## Citation
+[![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238)
 
 ## Contact
 Feel free to contact us (@mfherbst and @antoine-levitt) directly,
