@@ -75,7 +75,7 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
     energies = update_energies(ham, itres.Psi, itres.occupation, itres.ρ)
 
     # Strip off the extra (unconverged) eigenpairs
-    Psi = [p[1:end-n_ep_extra, :] for p in itres.Psi]
+    Psi = [p[:, 1:end-n_ep_extra] for p in itres.Psi]
     orben = [oe[1:end-n_ep_extra] for oe in itres.orben]
     occupation = [occ[1:end-n_ep_extra] for occ in itres.occupation]
 
