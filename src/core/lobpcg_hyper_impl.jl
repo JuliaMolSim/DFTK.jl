@@ -8,12 +8,21 @@ vprintln(args...) = nothing
 
 
 using LinearAlgebra
-# using LazyArrays
+using GenericLinearAlgebra
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 function RR(X, AX, BX, N)
     F = eigen(Hermitian(X'AX))
     F.vectors[:,1:N], F.values[1:N]
+end
+
+import LinearAlgebra: cholesky
+function cholesky(X::Union{Matrix{ComplexF16}, Hermitian{ComplexF16,Matrix{ComplexF16}}})
+    # Cholesky factorisation above may promote the type
+    # (e.g. Float16 is promoted to Float32. This undoes it)
+    # See https://github.com/JuliaLang/julia/issues/16446
+    U = cholesky(ComplexF32.(X)).U
+    (U=convert.(ComplexF16, U), )
 end
 
 # Orthogonalizes X to tol
@@ -41,7 +50,8 @@ function ortho(X; tol=2eps(real(eltype(X))))
             @assert isa(err, PosDefException)
             vprintln("fail")
             # see https://arxiv.org/pdf/1809.11085.pdf for a nice analysis
-            # We are not being very clever here; but this should very rarely happen so it should be OK
+            # We are not being very clever here; but this should very rarely happen
+            # so it should be OK
             α = 100
             nbad = 0
             while true
@@ -78,6 +88,8 @@ function ortho(X; tol=2eps(real(eltype(X))))
 
         # condR = 1/LAPACK.trcon!('I', 'U', 'N', Array(R))
         condR = normest(R)*norminvR # in practice this seems to be an OK estimate
+
+        vprintln("Ortho(X) success? $success ", eps(real(eltype(X)))*condR^2, " < $tol")
 
         # a good a posteriori error is that X'X - I is eps()*κ(R)^2;
         # in practice this seems to be sometimes very overconservative
@@ -207,6 +219,7 @@ function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100; ortho_tol=2eps(real
         if niter > 1 # first iteration is just to compute the residuals
             ###  Perform the Rayleigh-Ritz
             mul!(AR, A, R)
+
             # Form Rayleigh-Ritz subspace
             if niter > 2
                 Y = hcat(X,R,P)
