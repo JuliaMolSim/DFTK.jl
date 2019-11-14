@@ -35,7 +35,7 @@ for a small number of test cases and might still contain bugs.
 Use for production calculations is not yet recommended.
 
 ## Installation
-The package is not yet registered in the [Generac](https://github.com/JuliaRegistries/General)
+The package is not yet registered in the [General](https://github.com/JuliaRegistries/General)
 registry of Julia. Instead you can obtain it from
 the [MolSim](https://github.com/JuliaMolSim/MolSim.git) registry,
 which contains a bunch of packages related to performing molecular simulations in Julia.
