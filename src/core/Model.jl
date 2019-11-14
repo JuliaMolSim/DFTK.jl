@@ -62,13 +62,13 @@ function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
 
     @assert spin_polarisation in (:none, :collinear, :full, :spinless)
 
-    # Assume a band gap (insulator, semiconductor) if no smearing given
-    assume_band_gap === nothing && (assume_band_gap = smearing === nothing)
-
     # Default to Fermi-Dirac smearing
     if temperature > 0.0 && smearing === nothing
         smearing = smearing_fermi_dirac
     end
+
+    # Assume a band gap (insulator, semiconductor) if no smearing given
+    assume_band_gap === nothing && (assume_band_gap = smearing === nothing)
 
     build_nothing(args...; kwargs...) = (nothing, nothing)
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
