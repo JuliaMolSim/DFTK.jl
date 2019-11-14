@@ -27,8 +27,9 @@ is thus limited. Current features include:
 - LDA and GGA functionals from [Libxc.jl](https://github.com/unkcpz/Libxc.jl).
 - Insulators and metals (Fermi-Dirac or Methfessel-Paxton smearing)
 - Band structure generation
-- Support for both `Float64` (double precision) and `Float32` (single precision)
-  throughout the library (Only for selected DFT functionals at the moment).
+- Support for arbitrary floating point types, including `Float32` (single precision),
+  `BigFloat` or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl).
+  (Only for selected DFT functionals at the moment).
 
 **Note:** This code has only been compared against standard packages
 for a small number of test cases and might still contain bugs.
