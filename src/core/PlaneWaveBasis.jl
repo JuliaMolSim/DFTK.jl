@@ -110,7 +110,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     # Compute weights if not given
     if kweights === nothing
         kweights = [length(symops) for symops in ksymops]
-        kweights = kweights / sum(kweights)
+        kweights = kweights / T(sum(kweights))
     end
 
     # Sanity checks
