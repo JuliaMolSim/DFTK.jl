@@ -1,6 +1,6 @@
 import FFTW
-import FourierTransforms
 import Primes
+include("FourierTransforms.jl/FourierTransforms.jl")
 
 # Utility functions to setup FFTs for DFTK. Most functions in here
 # are needed to correct for the fact that FourierTransforms is not
