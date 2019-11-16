@@ -128,12 +128,12 @@ The vector `r` should be given in cartesian coordinates.
 
 [GTH98] (1)
 """
-function eval_psp_local_real(psp::PspHgh, r::AbstractVector)
+function eval_psp_local_real(psp::PspHgh, r::AbstractVector{T}) where T
     cloc = psp.cloc
     rrsq = sum(abs2, r) / psp.rloc
 
-    convert(eltype(r),
-        - psp.Zion / norm(r) * erf(norm(r) / sqrt(2) / psp.rloc)
+    convert(T,
+        - psp.Zion / norm(r) * erf(norm(r) / sqrt(T(2)) / psp.rloc)
         + exp(-rrsq / 2) * (cloc[1] + cloc[2] * rrsq + cloc[3] * rrsq^2 + cloc[4] * rrsq^3)
     )
 end
@@ -161,14 +161,14 @@ function eval_psp_projection_radial(psp::PspHgh, i, l, qsq::Number)
         # Note: In the next case the HGH paper has an error.
         #       The first 8 in equation (8) should not be under the sqrt-sign
         #       This is the right version (as shown in the GTH paper)
-        if i == 2 return @. common *    2  / sqrt(15)  * (3  -   qrsq         ) end
-        if i == 3 return @. common * (4/3) / sqrt(105) * (15 - 10qrsq + qrsq^2) end
+        if i == 2 return @. common *    2     / sqrt(T(15))  * (3  -   qrsq         ) end
+        if i == 3 return @. common * (4/T(3)) / sqrt(T(°)105) * (15 - 10qrsq + qrsq^2) end
     end
 
     if l == 1  # verify expressions
-        if i == 1 return @. common * 1     /    sqrt(3) * q end
-        if i == 2 return @. common * 2     /  sqrt(105) * q * ( 5 -   qrsq         ) end
-        if i == 3 return @. common * 4 / 3 / sqrt(1155) * q * (35 - 14qrsq + qrsq^2) end
+        if i == 1 return @. common * 1     /    sqrt(T(3)) * q end
+        if i == 2 return @. common * 2     /  sqrt(T(105)) * q * ( 5 -   qrsq         ) end
+        if i == 3 return @. common * 4 / T(3) / sqrt(T(°)1155) * q * (35 - 14qrsq + qrsq^2) end
     end
 
     error("Did not implement case of i == $i and l == $l")
