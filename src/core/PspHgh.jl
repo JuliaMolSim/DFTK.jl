@@ -162,13 +162,13 @@ function eval_psp_projection_radial(psp::PspHgh, i, l, qsq::Number)
         #       The first 8 in equation (8) should not be under the sqrt-sign
         #       This is the right version (as shown in the GTH paper)
         if i == 2 return @. common *    2     / sqrt(T(15))  * (3  -   qrsq         ) end
-        if i == 3 return @. common * (4/T(3)) / sqrt(T(°)105) * (15 - 10qrsq + qrsq^2) end
+        if i == 3 return @. common * (4/T(3)) / sqrt(T(105)) * (15 - 10qrsq + qrsq^2) end
     end
 
     if l == 1  # verify expressions
         if i == 1 return @. common * 1     /    sqrt(T(3)) * q end
-        if i == 2 return @. common * 2     /  sqrt(T(105)) * q * ( 5 -   qrsq         ) end
-        if i == 3 return @. common * 4 / T(3) / sqrt(T(°)1155) * q * (35 - 14qrsq + qrsq^2) end
+        if i == 2 return @. common * 2     /    sqrt(T(105)) * q * ( 5 -   qrsq         ) end
+        if i == 3 return @. common * 4 / T(3) / sqrt(T(1155)) * q * (35 - 14qrsq + qrsq^2) end
     end
 
     error("Did not implement case of i == $i and l == $l")
