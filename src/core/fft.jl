@@ -2,6 +2,11 @@ import FFTW
 import FourierTransforms
 import Primes
 
+# Utility functions to setup FFTs for DFTK. Most functions in here
+# are needed to correct for the fact that FourierTransforms is not
+# yet fully compliant with the AbstractFFTs interface and has still
+# various bugs we work around.
+
 function is_fft_size_ok_for_generic(size::Integer)
     # TODO FourierTransforms has a bug, which is triggered
     #      only in some factorisations, see
@@ -70,6 +75,44 @@ import Base: *, \, length
 *(p::DummyInplace, X) = p.fft * X
 \(p::DummyInplace, X) = p.fft \ X
 length(p::DummyInplace) = length(p.fft)
+
+
+@doc raw"""
+    determine_grid_size(lattice, Ecut; supersampling=2)
+
+Determine the minimal grid size for the fourier grid ``C_ρ`` subject to the
+kinetic energy cutoff `Ecut` for the wave function and a density  `supersampling` factor.
+Optimise the grid afterwards for the FFT procedure by ensuring factorisation into
+small primes.
+The function will determine the smallest cube ``C_ρ`` containing the basis ``B_ρ``,
+i.e. the wave vectors ``|G|^2/2 \leq E_\text{cut} ⋅ \text{supersampling}^2``.
+For an exact representation of the density resulting from wave functions
+represented in the basis ``B_k = \{G : |G + k|^2/2 \leq E_\text{cut}\}``,
+`supersampling` should be at least `2`.
+"""
+function determine_grid_size(lattice::AbstractMatrix, Ecut; supersampling=2, tol=1e-8, ensure_smallprimes=true)
+    # See the documentation about the grids for details on the construction of C_ρ
+    cutoff_Gsq = 2 * supersampling^2 * Ecut
+    Gmax = [norm(lattice[:, i]) / 2π * sqrt(cutoff_Gsq) for i in 1:3]
+    # Round up, unless exactly zero (in which case keep it zero in
+    # order to just have one G vector for 1D or 2D systems)
+    for i = 1:3
+        if Gmax[i] != 0
+            Gmax[i] = ceil.(Int, Gmax[i] .- tol)
+        end
+    end
+
+    # Optimise FFT grid size: Make sure the number factorises in small primes only
+    if ensure_smallprimes
+        Vec3([nextprod([2, 3, 5], 2gs + 1) for gs in Gmax])
+    else
+        Vec3([2gs+1 for gs in Gmax])
+    end
+end
+function determine_grid_size(model::Model, Ecut; kwargs...)
+    determine_grid_size(model.lattice, Ecut; kwargs...)
+end
+
 
 """
 Plan a FFT of type `T` and size `fft_size`, spending some time on finding an optimal algorithm.
