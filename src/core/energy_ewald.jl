@@ -28,7 +28,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
     if η === nothing
         # Balance between reciprocal summation and real-space summation
         # with a slight bias towards reciprocal summation
-        η = T(sqrt(sqrt(1.69 * norm(recip_lattice ./ 2π) / norm(lattice))) / 2)
+        η = T(sqrt(sqrt(1.69 * norm(recip_lattice ./ T(2π)) / norm(lattice))) / 2)
     end
 
     #
@@ -80,8 +80,8 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
                 continue
             end
 
-            cos_strucfac = sum(Z * cos(2π * dot(r, G)) for (r, Z) in zip(positions, charges))
-            sin_strucfac = sum(Z * sin(2π * dot(r, G)) for (r, Z) in zip(positions, charges))
+            cos_strucfac = sum(Z * cos(2T(π) * dot(r, G)) for (r, Z) in zip(positions, charges))
+            sin_strucfac = sum(Z * sin(2T(π) * dot(r, G)) for (r, Z) in zip(positions, charges))
             sum_strucfac = cos_strucfac^2 + sin_strucfac^2
 
             any_term_contributes = true
@@ -90,13 +90,13 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
         gsh += 1
     end
     # Amend sum_recip by proper scaling factors:
-    sum_recip = sum_recip * 4π / det(lattice)
+    sum_recip = sum_recip * 4T(π) / det(lattice)
 
     #
     # Real-space sum
     #
     # Initialise real-space sum with correction term for uniform background
-    sum_real::T = -2η / sqrt(π) * sum(Z -> Z^2, charges)
+    sum_real::T = -2η / sqrt(T(π)) * sum(Z -> Z^2, charges)
 
     # Loop over real-space shells
     rsh = 0 # Include R = 0

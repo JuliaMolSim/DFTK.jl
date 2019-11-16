@@ -15,7 +15,8 @@ smearing_gaussian(x) = (1 - erf(x)) / 2
 H1(x) = 2x
 H2(x) = 4x^2 - 2
 H3(x) = 8x^3 - 12x
-A_coeff(n) = (-1)^n / (factorial(n) * 4^n * sqrt(π))
+A_coeff(n, T=Float64) = (-1)^n / (factorial(n) * 4^n * sqrt(T(π)))
+## TODO switch that to arbitrary precision
 const A1 = A_coeff(1)
 const A2 = A_coeff(2)
 smearing_methfessel_paxton_1(x) = smearing_gaussian(x) + A1 * H1(x) * exp(-x^2)

@@ -68,7 +68,7 @@ build_projection_vectors_(basis, potentials, kpt)
 
     count = 0
     for (psp, positions) in potentials, r in positions
-            structure_factors = [cis(2π * dot(G, r)) for G in kpt.basis]
+            structure_factors = [cis(2T(π) * dot(G, r)) for G in kpt.basis]
             radial_proj(iproj, l, qsq) = eval_psp_projection_radial(psp, iproj, l, qsq)
 
             for l in 0:psp.lmax, m in -l:l
