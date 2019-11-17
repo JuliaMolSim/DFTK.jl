@@ -28,7 +28,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
     if η === nothing
         # Balance between reciprocal summation and real-space summation
         # with a slight bias towards reciprocal summation
-        η = T(sqrt(sqrt(1.69 * norm(recip_lattice ./ T(2π)) / norm(lattice))) / 2)
+        η = sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
     end
 
     #

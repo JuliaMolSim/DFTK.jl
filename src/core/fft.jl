@@ -54,7 +54,7 @@ length(p::GenericPlan) = prod(length, p.subplans)
 *(p::GenericPlan{T}, fac::Number) where T = GenericPlan{T}(p.subplans, p.factor * T(fac))
 *(fac::Number, p::GenericPlan{T}) where T = p * fac
 \(p::GenericPlan, X) = inv(p) * X
-inv(p::GenericPlan{T}) where T = GenericPlan{T}(inv.(p.subplans), T(1 / p.factor))
+inv(p::GenericPlan{T}) where T = GenericPlan{T}(inv.(p.subplans), 1 / p.factor)
 
 function generic_plan_fft(data::AbstractArray{T, 3}) where T
     GenericPlan{T}([FourierTransforms.plan_fft(data[:, 1, 1]),
