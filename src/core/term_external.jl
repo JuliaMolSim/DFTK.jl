@@ -50,7 +50,7 @@ function term_external(generators_or_composition...; compensating_background=tru
             if elem.psp === nothing
                 # All-electron => Use default Coulomb potential
                 # We use int_R^3 1/r e^-iqx = 4π / q^2
-                return G -> -4π * charge_nuclear(elem) / sum(abs2, model.recip_lattice * G)
+                return G -> -4T(π) * charge_nuclear(elem) / sum(abs2, model.recip_lattice * G)
             else
                 # Use local part of pseudopotential defined in Species object
                 return G -> eval_psp_local_fourier(elem.psp, model.recip_lattice * G)
@@ -66,7 +66,7 @@ function term_external(generators_or_composition...; compensating_background=tru
             sum(Complex{T}(
                 1/sqrt(model.unit_cell_volume)
                 * genfunction(G)          # Potential data for wave vector G
-                * cis(2π * dot(G, r))     # Structure factor
+                * cis(2T(π) * dot(G, r))     # Structure factor
                 ) for (genfunction, positions) in genfunctions
                   for r in positions
            )

@@ -54,7 +54,7 @@ function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
     # recall that the reciprocal lattice is the set of G vectors such
     # that G.R ∈ 2π ℤ for all R in the lattice
     recip_lattice = zeros(T, 3, 3)
-    recip_lattice[1:d, 1:d] = 2π*inv(lattice[1:d, 1:d]')
+    recip_lattice[1:d, 1:d] = 2T(π)*inv(lattice[1:d, 1:d]')
     recip_lattice = Mat3{T}(recip_lattice)
     # in the 1D or 2D case, the volume is the length/surface
     unit_cell_volume = det(lattice[1:d, 1:d])

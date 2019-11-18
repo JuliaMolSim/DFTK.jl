@@ -104,20 +104,19 @@ V(q) = ∫_R^3 Vloc(r) e^{-iqr} dr
 
 [GTH98] (6) except they do it with plane waves normalized by 1/sqrt(Ω).
 """
-function eval_psp_local_fourier(psp::PspHgh, ΔG::AbstractVector)
-    T = eltype(ΔG)
+function eval_psp_local_fourier(psp::PspHgh, ΔG::AbstractVector{T}) where T
     Gsq = sum(abs2, ΔG)
     Grsq::T = Gsq * psp.rloc^2
 
-    convert(T, 4π * (
+    4T(π) * (
         - psp.Zion / Gsq * exp(-Grsq / 2)
-        + sqrt(π/2) * psp.rloc^3 * exp(-Grsq / 2) * (
+        + sqrt(T(π)/2) * psp.rloc^3 * exp(-Grsq / 2) * (
             + psp.cloc[1]
             + psp.cloc[2] * (  3 -       Grsq                       )
             + psp.cloc[3] * ( 15 -  10 * Grsq +      Grsq^2         )
             + psp.cloc[4] * (105 - 105 * Grsq + 21 * Grsq^2 - Grsq^3)
         )
-    ))
+    )
 end
 
 
@@ -129,12 +128,12 @@ The vector `r` should be given in cartesian coordinates.
 
 [GTH98] (1)
 """
-function eval_psp_local_real(psp::PspHgh, r::AbstractVector)
+function eval_psp_local_real(psp::PspHgh, r::AbstractVector{T}) where T
     cloc = psp.cloc
     rrsq = sum(abs2, r) / psp.rloc
 
-    convert(eltype(r),
-        - psp.Zion / norm(r) * erf(norm(r) / sqrt(2) / psp.rloc)
+    convert(T,
+        - psp.Zion / norm(r) * erf(norm(r) / sqrt(T(2)) / psp.rloc)
         + exp(-rrsq / 2) * (cloc[1] + cloc[2] * rrsq + cloc[3] * rrsq^2 + cloc[4] * rrsq^3)
     )
 end
@@ -155,21 +154,21 @@ function eval_psp_projection_radial(psp::PspHgh, i, l, qsq::Number)
     rp = psp.rp[l + 1]
     q = sqrt.(qsq)
     qrsq::T = qsq .* rp^2
-    common::T = 4π^(5 / 4) * sqrt(2^(l + 1) * rp^(2 * l + 3)) * exp.(-qrsq / 2)
+    common::T = 4T(π)^(5 / 4) * sqrt(2^(l + 1) * rp^(2 * l + 3)) * exp.(-qrsq / 2)
 
     if l == 0
         if i == 1 return @. common end
         # Note: In the next case the HGH paper has an error.
         #       The first 8 in equation (8) should not be under the sqrt-sign
         #       This is the right version (as shown in the GTH paper)
-        if i == 2 return @. common *    2  / sqrt(15)  * (3  -   qrsq         ) end
-        if i == 3 return @. common * (4/3) / sqrt(105) * (15 - 10qrsq + qrsq^2) end
+        if i == 2 return @. common *    2     / sqrt(T(15))  * (3  -   qrsq         ) end
+        if i == 3 return @. common * (4/T(3)) / sqrt(T(105)) * (15 - 10qrsq + qrsq^2) end
     end
 
     if l == 1  # verify expressions
-        if i == 1 return @. common * 1     /    sqrt(3) * q end
-        if i == 2 return @. common * 2     /  sqrt(105) * q * ( 5 -   qrsq         ) end
-        if i == 3 return @. common * 4 / 3 / sqrt(1155) * q * (35 - 14qrsq + qrsq^2) end
+        if i == 1 return @. common * 1     /    sqrt(T(3)) * q end
+        if i == 2 return @. common * 2     /    sqrt(T(105)) * q * ( 5 -   qrsq         ) end
+        if i == 3 return @. common * 4 / T(3) / sqrt(T(1155)) * q * (35 - 14qrsq + qrsq^2) end
     end
 
     error("Did not implement case of i == $i and l == $l")
@@ -177,7 +176,7 @@ end
 
 
 """
-    eval_psp_energy_correction(psp, n_electrons)
+    eval_psp_energy_correction([T=Float64,] psp, n_electrons)
 
 Evaluate the energy correction to the Ewald electrostatic interaction energy of one unit
 cell, which is required compared the Ewald expression for point-like nuclei. `n_electrons`
@@ -187,15 +186,17 @@ charge, which is assumed here.
 Notice: The returned result is the *energy per unit cell* and not the energy per volume.
 To obtain the latter, the caller needs to divide by the unit cell volume.
 """
-function eval_psp_energy_correction(psp::PspHgh, n_electrons)
+function eval_psp_energy_correction(T, psp::PspHgh, n_electrons)
     # By construction we need to compute the DC component of the difference
     # of the Coulomb potential (-Z/G^2 in Fourier space) and the pseudopotential
     # i.e. -Z/(ΔG)^2 -  eval_psp_local_fourier(psp, ΔG) for ΔG → 0. This is:
-    difference_DC = psp.Zion * psp.rloc^2 / 2 + sqrt(π/2) * psp.rloc^3 * (
+    difference_DC = psp.Zion * psp.rloc^2 / 2 + sqrt(T(π)/2) * psp.rloc^3 * (
         psp.cloc[1] + 3 * psp.cloc[2] + 15 * psp.cloc[3] + 105 * psp.cloc[4]
     )
 
     # Multiply by number of electrons and 4π (spherical Hankel prefactor)
     # to get energy per unit cell
-    4π * n_electrons * difference_DC
+    4T(π) * n_electrons * difference_DC
 end
+eval_psp_energy_correction(psp::PspHgh, n_electrons) =
+    eval_psp_energy_correction(Float64, psp, n_electrons)

@@ -11,8 +11,8 @@ function energy_nuclear_psp_correction(lattice, composition...)
     n_electrons = sum(n_elec_valence(spec) for (spec, positions) in composition
                       for pos in positions)
 
-    correction_per_cell::T = sum(
-        length(positions) * eval_psp_energy_correction(spec.psp, n_electrons)
+    correction_per_cell = sum(
+        length(positions) * eval_psp_energy_correction(T, spec.psp, n_electrons)
         for (spec, positions) in composition
         if spec.psp !== nothing
     )

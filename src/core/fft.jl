@@ -54,7 +54,7 @@ length(p::GenericPlan) = prod(length, p.subplans)
 *(p::GenericPlan{T}, fac::Number) where T = GenericPlan{T}(p.subplans, p.factor * T(fac))
 *(fac::Number, p::GenericPlan{T}) where T = p * fac
 \(p::GenericPlan, X) = inv(p) * X
-inv(p::GenericPlan{T}) where T = GenericPlan{T}(inv.(p.subplans), T(1 / p.factor))
+inv(p::GenericPlan{T}) where T = GenericPlan{T}(inv.(p.subplans), 1 / p.factor)
 
 function generic_plan_fft(data::AbstractArray{T, 3}) where T
     GenericPlan{T}([FourierTransforms.plan_fft(data[:, 1, 1]),
@@ -90,10 +90,10 @@ For an exact representation of the density resulting from wave functions
 represented in the basis ``B_k = \{G : |G + k|^2/2 \leq E_\text{cut}\}``,
 `supersampling` should be at least `2`.
 """
-function determine_grid_size(lattice::AbstractMatrix, Ecut; supersampling=2, tol=1e-8, ensure_smallprimes=true)
+function determine_grid_size(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=1e-8, ensure_smallprimes=true) where T
     # See the documentation about the grids for details on the construction of C_ρ
     cutoff_Gsq = 2 * supersampling^2 * Ecut
-    Gmax = [norm(lattice[:, i]) / 2π * sqrt(cutoff_Gsq) for i in 1:3]
+    Gmax = [norm(lattice[:, i]) / 2T(π) * sqrt(cutoff_Gsq) for i in 1:3]
     # Round up, unless exactly zero (in which case keep it zero in
     # order to just have one G vector for 1D or 2D systems)
     for i = 1:3
