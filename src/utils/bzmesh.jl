@@ -44,6 +44,10 @@ function bzmesh_ir_wedge(kgrid_size, lattice, composition...; tol_symmetry=1e-5)
         "spglib failed to get the symmetries. Check your lattice, or use a uniform BZ mesh."
     )
 
+    # TODO checks
+    # - S is unitary
+    # - check that S * lattice + τ ∈ lattice
+
     mapping, grid = spglib.get_stabilized_reciprocal_mesh(
         kgrid_size, spg_symops["rotations"], is_shift=[0, 0, 0], is_time_reversal=true
     )

@@ -66,7 +66,7 @@ function term_external(generators_or_composition...; compensating_background=tru
             sum(Complex{T}(
                 1/sqrt(model.unit_cell_volume)
                 * genfunction(G)          # Potential data for wave vector G
-                * cis(2T(π) * dot(G, r))     # Structure factor
+                * cis(-2T(π) * dot(G, r))     # Structure factor
                 ) for (genfunction, positions) in genfunctions
                   for r in positions
            )

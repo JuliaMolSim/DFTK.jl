@@ -18,11 +18,11 @@ function guess_density(basis, composition...)
     ρ = map(basis_Cρ(basis)) do G
         Gsq = sum(abs2, model.recip_lattice * G)
         res = sum(
-            n_elec_valence(spec) * exp(-Gsq * atom_decay_length(spec)^2) * cis(2T(π) * dot(G, r))
+            n_elec_valence(spec) * exp(-Gsq * T(atom_decay_length(spec))^2) * cis(-2T(π) * dot(G, r))
             for (spec, positions) in composition
             for r in positions
         )
-        convert(T, real(res))
+        res
     end
     # projection in the normalized plane wave basis
     density_from_fourier(basis, ρ / sqrt(model.unit_cell_volume))
