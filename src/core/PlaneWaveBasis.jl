@@ -1,11 +1,15 @@
+include("fft.jl")
+
 # Contains the numerical specification of the model
-
-# Normalization conventions: TODO not yet fixed in the code
-# - Things that are expressed in the G basis are normalized so that if `x` is the vector, then the actual function is `sum_G x_G e_G` with `e_G(x) = e^{iG x}/sqrt(unit_cell_volume)`. This is so that, eg `norm(psi) = 1` gives the correct normalization. This also holds for the density.
+#
+# Normalization conventions:
+# - Things that are expressed in the G basis are normalized so that if `x` is the vector,
+#   then the actual function is `sum_G x_G e_G` with `e_G(x) = e^{iG x}/sqrt(unit_cell_volume)`.
+#   This is so that, eg `norm(psi) = 1` gives the correct normalization.
+#   This also holds for the density and the potentials.
 # - Quantities expressed on the real-space grid are in actual values
+#
 # G_to_r and r_to_G convert between these.
-
-using FFTW
 
 # Each Kpoint has its own `basis`, consisting of all G vectors such that |k+G|^2 ≤ 1/2 Ecut
 struct Kpoint{T <: Real}
@@ -17,7 +21,7 @@ end
 
 # fft_size defines both the G basis on which densities and potentials
 # are expanded, and the real-space grid
-
+#
 # kpoints is the list of irreducible kpoints, kweights/ksymops contain
 # the information needed to reconstruct the full BZ
 struct PlaneWaveBasis{T <: Real, TopFFT, TipFFT}
@@ -32,42 +36,6 @@ struct PlaneWaveBasis{T <: Real, TopFFT, TipFFT}
                                     # (https://github.com/JuliaArrays/StaticArrays.jl/issues/361)
     opFFT::TopFFT  # out-of-place FFT plan
     ipFFT::TipFFT  # in-place FFT plan
-end
-
-@doc raw"""
-    determine_grid_size(lattice, Ecut; supersampling=2)
-
-Determine the minimal grid size for the fourier grid ``C_ρ`` subject to the
-kinetic energy cutoff `Ecut` for the wave function and a density  `supersampling` factor.
-Optimise the grid afterwards for the FFT procedure by ensuring factorisation into
-small primes.
-The function will determine the smallest cube ``C_ρ`` containing the basis ``B_ρ``,
-i.e. the wave vectors ``|G|^2/2 \leq E_\text{cut} ⋅ \text{supersampling}^2``.
-For an exact representation of the density resulting from wave functions
-represented in the basis ``B_k = \{G : |G + k|^2/2 \leq E_\text{cut}\}``,
-`supersampling` should be at least `2`.
-"""
-function determine_grid_size(lattice::AbstractMatrix, Ecut; supersampling=2, tol=1e-8, ensure_smallprimes=true)
-    # See the documentation about the grids for details on the construction of C_ρ
-    cutoff_Gsq = 2 * supersampling^2 * Ecut
-    Gmax = [norm(lattice[:, i]) / 2π * sqrt(cutoff_Gsq) for i in 1:3]
-    # Round up, unless exactly zero (in which case keep it zero in
-    # order to just have one G vector for 1D or 2D systems)
-    for i = 1:3
-        if Gmax[i] != 0
-            Gmax[i] = ceil.(Int, Gmax[i] .- tol)
-        end
-    end
-
-    # Optimise FFT grid size: Make sure the number factorises in small primes only
-    if ensure_smallprimes
-        Vec3([nextprod([2, 3, 5], 2gs + 1) for gs in Gmax])
-    else
-        Vec3([2gs+1 for gs in Gmax])
-    end
-end
-function determine_grid_size(model::Model, Ecut; kwargs...)
-    determine_grid_size(model.lattice, Ecut; kwargs...)
 end
 
 """
@@ -101,42 +69,30 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
 
 """
-Plan a FFT of type `T` and size `fft_size`, spending some time on finding an optimal algorithm
-"""
-function build_fft_plans(T, fft_size)
-    tmp = Array{Complex{T}}(undef, fft_size...)
-
-    flags = FFTW.MEASURE
-    if T == Float32
-        flags |= FFTW.UNALIGNED
-        # TODO For Float32 there are issues with aligned FFTW plans.
-        #      Using unaligned FFTW plans is discouraged, but we do it anyways
-        #      here as a quick fix. We should reconsider this in favour of using
-        #      a parallel wisdom anyways in the future.
-    end
-    ipFFT = plan_fft!(tmp, flags=flags)
-    opFFT = plan_fft(tmp, flags=flags)
-    ipFFT, opFFT
-end
-
-"""
 TODO docme
 
 fft_size is now Fourier grid size
 kcoords is vector of Vec3
 """
 function PlaneWaveBasis(model::Model{T}, Ecut::Number,
-                        kcoords::AbstractVector, ksymops=nothing, kweights=nothing; fft_size=nothing) where {T <: Real}
-    ## TODO this constructor is too low-level. Write a hierarchy of
-    ## constructors starting at the high level
-    ## `PlaneWaveBasis(model, Ecut, kgrid)`
+                        kcoords::AbstractVector, ksymops=nothing, kweights=nothing;
+                        fft_size=nothing) where {T <: Real}
+    # TODO this constructor is too low-level. Write a hierarchy of
+    # constructors starting at the high level
+    # `PlaneWaveBasis(model, Ecut, kgrid)`
 
     @assert Ecut > 0
     if fft_size === nothing
         fft_size = determine_grid_size(model, Ecut)
     end
-
     fft_size = Tuple{Int, Int, Int}(fft_size)
+
+    # TODO generic FFT is kind of broken for some fft sizes
+    #      ... temporary workaround, see more details in fft.jl
+    if !(T in [Float32, Float64]) && !all(is_fft_size_ok_for_generic.(fft_size))
+        fft_size = next_working_fft_size_for_generic.(fft_size)
+        @info "Changing fft size to $fft_size (smallest working size for generic FFTs)"
+    end
     ipFFT, opFFT = build_fft_plans(T, fft_size)
 
     # The FFT interface specifies that fft has no normalization, and
@@ -148,14 +104,13 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     ipFFT *= sqrt(model.unit_cell_volume) / length(ipFFT)
     opFFT *= sqrt(model.unit_cell_volume) / length(opFFT)
 
-
     # Default to no symmetry
     ksymops === nothing && (ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))]
                                          for _ in 1:length(kcoords)])
     # Compute weights if not given
     if kweights === nothing
         kweights = [length(symops) for symops in ksymops]
-        kweights = kweights / sum(kweights)
+        kweights = kweights / T(sum(kweights))
     end
 
     # Sanity checks
@@ -166,8 +121,10 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     @assert(Ecut ≤ max_E, "Ecut should be less than the maximal kinetic energy " *
             "the grid supports (== $max_E)")
 
-    PlaneWaveBasis{T, typeof(opFFT), typeof(ipFFT)}(model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
-                                                    kweights, ksymops, fft_size, opFFT, ipFFT)
+    PlaneWaveBasis{T, typeof(opFFT), typeof(ipFFT)}(
+        model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
+        kweights, ksymops, fft_size, opFFT, ipFFT
+    )
 end
 
 """

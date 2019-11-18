@@ -7,7 +7,7 @@ include("testcases.jl")
 # TODO There is a lot of code duplication in this file ... once we have the ABINIT reference
 #      stuff in place, this should be refactored.
 
-function run_silicon_redHF(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf_tol=1e-6)
+function run_silicon_redHF(T; Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf_tol=1e-6)
     # T + Vloc + Vnloc + Vhartree
     # These values were computed using ABINIT with the same kpoints as testcases.jl
     # and Ecut = 25
@@ -29,13 +29,15 @@ function run_silicon_redHF(;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
 
     fft_size = grid_size * ones(3)
     Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_reduced_hf(silicon.lattice, Si => silicon.positions)
+    model = model_reduced_hf(Array{T}(silicon.lattice), Si => silicon.positions)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis, guess_density(basis, Si => silicon.positions))
 
     scfres = self_consistent_field!(ham, n_bands, tol=scf_tol)
 
     for ik in 1:length(silicon.kcoords)
+        @test eltype(scfres.orben[ik]) == T
+        @test eltype(scfres.Psi[ik]) == Complex{T}
         println(ik, "  ", abs.(ref_redHF[ik] - scfres.orben[ik]))
     end
     for ik in 1:length(silicon.kcoords)

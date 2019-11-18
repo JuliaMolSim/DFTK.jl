@@ -14,8 +14,8 @@ end
 import Base: *, \, Matrix, Array
 
 function Base.size(block::HamiltonianBlock, idx::Int)
-    idx > 2 || return 1
-    return length(values_kinetic)
+    idx > 2 && return 1
+    return size(block.values_kinetic, 1)
 end
 Base.size(block::HamiltonianBlock) = (size(block, 1), size(block, 2))
 Base.eltype(block::HamiltonianBlock) = complex(eltype(block.values_kinetic))

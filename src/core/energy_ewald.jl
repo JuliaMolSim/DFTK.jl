@@ -12,6 +12,12 @@ arrays) in fractional coordinates.
 """
 function energy_ewald(lattice, charges, positions; η=nothing)
     T = eltype(lattice)
+
+    for i=1:3
+        @assert norm(lattice[:,i]) != 0
+        # Otherwise the formula for the reciprocal lattice
+        # computation is not correct
+    end
     energy_ewald(lattice, T(2π) * inv(lattice'), charges, positions, η=η)
 end
 function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
@@ -22,7 +28,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
     if η === nothing
         # Balance between reciprocal summation and real-space summation
         # with a slight bias towards reciprocal summation
-        η = sqrt(sqrt(1.69 * norm(recip_lattice ./ 2π) / norm(lattice))) / 2
+        η = T(sqrt(sqrt(1.69 * norm(recip_lattice ./ 2π) / norm(lattice))) / 2)
     end
 
     #
@@ -40,7 +46,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
         max_erfc_arg = Dict(Float32 => 5, Float64 => 8, BigFloat => 14)[T]
     catch KeyError
         # Fallback for not yet implemented cutoffs
-        max_erfc_arg = something(findfirst(arg -> 100 * erfc(arg) < eps(T), 4:100), 100)
+        max_erfc_arg = something(findfirst(arg -> 100 * erfc(arg) < eps(T), 1:100), 100)
     end
 
     #

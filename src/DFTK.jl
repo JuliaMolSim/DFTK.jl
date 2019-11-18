@@ -118,6 +118,7 @@ include("utils/energy_nuclear.jl")
 
 export high_symmetry_kpath
 export compute_bands
+export pymatgen_lattice
 export pymatgen_bandstructure
 export pymatgen_structure
 include("utils/compute_bands.jl")
