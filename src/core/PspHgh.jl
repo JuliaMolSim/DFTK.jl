@@ -176,7 +176,7 @@ end
 
 
 """
-    eval_psp_energy_correction(psp, n_electrons)
+    eval_psp_energy_correction([T=Float64,] psp, n_electrons)
 
 Evaluate the energy correction to the Ewald electrostatic interaction energy of one unit
 cell, which is required compared the Ewald expression for point-like nuclei. `n_electrons`
@@ -186,8 +186,7 @@ charge, which is assumed here.
 Notice: The returned result is the *energy per unit cell* and not the energy per volume.
 To obtain the latter, the caller needs to divide by the unit cell volume.
 """
-function eval_psp_energy_correction(psp::PspHgh, n_electrons)
-    T = eltype(psp)
+function eval_psp_energy_correction(T, psp::PspHgh, n_electrons)
     # By construction we need to compute the DC component of the difference
     # of the Coulomb potential (-Z/G^2 in Fourier space) and the pseudopotential
     # i.e. -Z/(ΔG)^2 -  eval_psp_local_fourier(psp, ΔG) for ΔG → 0. This is:
@@ -199,3 +198,5 @@ function eval_psp_energy_correction(psp::PspHgh, n_electrons)
     # to get energy per unit cell
     4T(π) * n_electrons * difference_DC
 end
+eval_psp_energy_correction(psp::PspHgh, n_electrons) =
+    eval_psp_energy_correction(Float64, psp, n_electrons)
