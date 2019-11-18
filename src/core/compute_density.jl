@@ -46,8 +46,9 @@ Compute the density for a wave function `Psi` discretised on the plane-wave grid
 where the individual k-Points are occupied according to `occupation`. `Psi` should
 be one coefficient matrix per k-Point.
 """
-function compute_density(pw::PlaneWaveBasis, Psi::AbstractVector{T},
-                         occupation::AbstractVector) where T
+function compute_density(pw::PlaneWaveBasis, Psi::AbstractVector{VecT},
+                         occupation::AbstractVector) where VecT
+    T = eltype(VecT)
     n_k = length(pw.kpoints)
     @assert n_k == length(Psi)
     @assert n_k == length(occupation)
