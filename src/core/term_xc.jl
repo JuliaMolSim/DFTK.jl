@@ -65,7 +65,7 @@ and the result follows.
 
 
 # TODO Integrate this with Density.jl
-struct DensityDervatives
+struct DensityDerivatives
     basis
     max_derivative::Int
     ρ         # density object
@@ -76,7 +76,7 @@ end
 """
 DOCME compute density in real space and its derivatives starting from Fourier-space density ρ
 """
-function DensityDervatives(basis, max_derivative::Integer, ρ)
+function DensityDerivatives(basis, max_derivative::Integer, ρ)
     model = basis.model
     @assert model.spin_polarisation == :none "Only spin_polarisation == :none implemented."
     function ifft(x)
@@ -97,7 +97,7 @@ function DensityDervatives(basis, max_derivative::Integer, ρ)
         σ_real = sum(∇ρ_real[α] .* ∇ρ_real[α] for α in 1:3)
     end
 
-    DensityDervatives(basis, max_derivative, ρ, ∇ρ_real, σ_real)
+    DensityDerivatives(basis, max_derivative, ρ, ∇ρ_real, σ_real)
 end
 
 # Small internal helper function
@@ -162,7 +162,7 @@ function (term::TermXc)(basis::PlaneWaveBasis, energy::Union{Ref,Nothing}, poten
     if any(xc.family == Libxc.family_gga for xc in term.functionals)
         max_ρ_derivs = 1
     end
-    density = DensityDervatives(basis, max_ρ_derivs, ρ)
+    density = DensityDerivatives(basis, max_ρ_derivs, ρ)
 
     # Initialisation
     potential !== nothing && (potential .= 0)
