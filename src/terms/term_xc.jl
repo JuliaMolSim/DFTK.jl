@@ -1,4 +1,4 @@
-include("xc_evaluate.jl")
+include("../xc/xc_evaluate.jl")
 
 # Functionality for building the XC potential term and constructing the builder itself.
 
