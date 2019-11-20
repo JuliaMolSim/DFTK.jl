@@ -25,6 +25,10 @@ export PlaneWaveBasis
 export determine_grid_size
 export basis_Cρ
 export Kpoint
+export G_to_r
+export G_to_r!
+export r_to_G
+export r_to_G!
 include("Model.jl")
 include("PlaneWaveBasis.jl")
 
