@@ -81,7 +81,7 @@ using PyPlot
 x = range(xbeg, xend, length=basis.fft_size[1] + 1)[1:end - 1]
 ρ = real(scfres.ρ)[:, 1, 1] # converged density
 ψ_fourier = scfres.Psi[1][:, 1] # first kpoint, all G components, first eigenvector
-ψ = DFTK.G_to_r(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1] # IFFT back to real space
+ψ = G_to_r(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1] # IFFT back to real space
 @assert sum(abs2.(ψ)) * (x[2]-x[1]) ≈ 1.0
 
 # phase fix
