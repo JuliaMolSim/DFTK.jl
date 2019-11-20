@@ -8,65 +8,61 @@ using Printf
 using Markdown
 using LinearAlgebra
 
-#
-# Core functionality
-#
-include("core/asserting.jl")
-include("core/constants.jl")
-
+include("common/asserting.jl")
+include("common/constants.jl")
 export Vec3
 export Mat3
-include("core/types.jl")
-
+include("common/types.jl")
+include("common/spherical_harmonics.jl")
 export smearing_fermi_dirac
 export smearing_gaussian
 export smearing_methfessel_paxton_1
 export smearing_methfessel_paxton_2
-include("core/smearing_functions.jl")
+include("common/smearing_functions.jl")
 
 export Model
 export PlaneWaveBasis
 export determine_grid_size
 export basis_Cρ
 export Kpoint
-include("core/Model.jl")
-include("core/PlaneWaveBasis.jl")
+include("Model.jl")
+include("PlaneWaveBasis.jl")
 
 export Density
 export fourier
 export real
-include("core/Density.jl")
+include("Density.jl")
 
 export Species
 export charge_nuclear
 export charge_ionic
 export n_elec_valence
 export n_elec_core
-include("core/Species.jl")
+include("Species.jl")
 
 export PspHgh
 export eval_psp_local_fourier
 export eval_psp_local_real
 export eval_psp_projection_radial
-include("core/PspHgh.jl")
+include("pseudo/PspHgh.jl")
 
 export term_external
 export term_hartree
 export term_nonlocal
 export term_xc
-include("core/energy_term_operator.jl")
-include("core/Kinetic.jl")
-include("core/PotNonLocal.jl")
-include("core/term_external.jl")
-include("core/term_hartree.jl")
-include("core/term_nonlocal.jl")
-include("core/term_xc.jl")
+include("energy_term_operator.jl")
+include("Kinetic.jl")
+include("PotNonLocal.jl")
+include("terms/term_external.jl")
+include("terms/term_hartree.jl")
+include("terms/term_nonlocal.jl")
+include("terms/term_xc.jl")
 
 export find_fermi_level
-include("core/occupation.jl")
+include("occupation.jl")
 
 export compute_density
-include("core/compute_density.jl")
+include("compute_density.jl")
 
 export Hamiltonian
 export HamiltonianBlock
@@ -76,17 +72,17 @@ export update_energies_hamiltonian!
 export update_energies!
 export update_energies
 export kblock
-include("core/Hamiltonian.jl")
-include("core/HamiltonianBlock.jl")
+include("Hamiltonian.jl")
+include("HamiltonianBlock.jl")
 
 export PreconditionerKinetic
-include("core/Preconditioner.jl")
+include("Preconditioner.jl")
 
 export lobpcg_hyper
 export lobpcg_scipy
 export lobpcg_itsolve
 export diagonalise_all_kblocks
-include("core/diag.jl")
+include("eigen/diag.jl")
 
 export scf_nlsolve_solver
 export scf_damping_solver
@@ -94,46 +90,46 @@ export scf_anderson_solver
 export scf_CROP_solver
 export self_consistent_field!
 export diag_lobpcg
-include("core/self_consistent_field.jl")
-include("core/scf_solvers.jl")
+include("scf/self_consistent_field.jl")
+include("scf/scf_solvers.jl")
 
 export energy_ewald
-include("core/energy_ewald.jl")
+include("energy_ewald.jl")
 
 #
 # Utilities
 #
 export bzmesh_uniform
 export bzmesh_ir_wedge
-include("utils/bzmesh.jl")
+include("bzmesh.jl")
 
 export guess_density
-include("utils/guess_density.jl")
+include("guess_density.jl")
 export load_psp
-include("utils/load_psp.jl")
+include("pseudo/load_psp.jl")
 
 export energy_nuclear_psp_correction
 export energy_nuclear_ewald
-include("utils/energy_nuclear.jl")
+include("energy_nuclear.jl")
 
 export high_symmetry_kpath
 export compute_bands
 export pymatgen_lattice
 export pymatgen_bandstructure
 export pymatgen_structure
-include("utils/compute_bands.jl")
+include("postprocess/compute_bands.jl")
 
 export model_free_electron
 export model_dft
 export model_hcore
 export model_reduced_hf
-include("utils/standard_models.jl")
+include("standard_models.jl")
 
 export EtsfFolder
 export load_basis
 export load_model
 export load_density
 export load_composition
-include("utils/etsf_nanoquanta.jl")
+include("external/etsf_nanoquanta.jl")
 
 end # module DFTK

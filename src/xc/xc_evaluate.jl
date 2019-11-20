@@ -1,8 +1,8 @@
 using Libxc: evaluate_lda!, evaluate_gga!, Functional
 using Libxc
 
-include("xc_fallback/lda_x.jl")
-include("xc_fallback/lda_c_vwn.jl")
+include("lda_x.jl")
+include("lda_c_vwn.jl")
 
 # This file extends the evaluate_lda! from Libxc.jl for cases where the Array type
 # is not a plain Julia array and the Floating point type is not Float64
