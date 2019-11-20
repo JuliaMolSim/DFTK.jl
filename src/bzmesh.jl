@@ -1,5 +1,5 @@
 using PyCall
-include("ext/spglib.jl")
+include("external/spglib.jl")
 
 @doc raw"""
     bzmesh_uniform(kgrid_size)

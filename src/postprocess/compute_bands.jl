@@ -1,5 +1,5 @@
 using PyCall
-include("../ext/pymatgen.jl")
+include("../external/pymatgen.jl")
 
 # Functionality for computing band structures, mostly using pymatgen
 

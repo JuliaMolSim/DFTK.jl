@@ -130,6 +130,6 @@ export load_basis
 export load_model
 export load_density
 export load_composition
-include("ext/etsf_nanoquanta.jl")
+include("external/etsf_nanoquanta.jl")
 
 end # module DFTK
