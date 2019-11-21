@@ -7,6 +7,7 @@ module DFTK
 using Printf
 using Markdown
 using LinearAlgebra
+using Interpolations
 
 include("common/asserting.jl")
 include("common/constants.jl")
