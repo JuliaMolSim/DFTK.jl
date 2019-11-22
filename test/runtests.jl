@@ -13,6 +13,7 @@ using DFTK
     include("determine_grid_size.jl")
     include("fourier_transforms.jl")
     include("PlaneWaveBasis.jl")
+    include("interpolation.jl")
     include("PspHgh.jl")
     include("Species.jl")
     include("bzmesh.jl")
