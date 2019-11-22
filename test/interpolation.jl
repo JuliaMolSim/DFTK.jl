@@ -2,7 +2,7 @@ using DFTK: interpolate_density
 using LinearAlgebra
 
 @testset "Interpolation" begin
-    lattice = Array{Float64}(I(3))
+    lattice = Array{Float64}(I, 3, 3)
     N = 20
     f(n) = cos(2π*(n-1)/N)
     grid_in = (N, N, N)

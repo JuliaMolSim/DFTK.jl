@@ -38,8 +38,8 @@ Interpolate a function expressed in a basis `b_in` to a basis `b_out`
 This interpolation uses a very basic real-space algorithm, and makes a DWIM-y attempt to take into account the fact that b_out can be a supercell of b_in
 TODO move this outside of density
 """
-function interpolate_density(ρ_in::Density, b_in::PlaneWaveBasis, b_out::PlaneWaveBasis)
-    ρ_out = interpolate_density(real(ρ_in), b_in.fft_size, b_out.fft_size, b_in.lattice, b_out.lattice)
+function interpolate_density(ρ_in::Density, b_out::PlaneWaveBasis)
+    ρ_out = interpolate_density(real(ρ_in), ρ_in.basis.fft_size, b_out.fft_size, ρ_in.basis.lattice, b_out.lattice)
     density_from_real(b_out, ρ_out)
 end
 
