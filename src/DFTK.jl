@@ -82,7 +82,7 @@ include("HamiltonianBlock.jl")
 
 export PreconditionerNone
 export PreconditionerTPA
-include("Preconditioner.jl")
+include("eigen/preconditioners.jl")
 
 export lobpcg_hyper
 export lobpcg_scipy
