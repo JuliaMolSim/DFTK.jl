@@ -80,7 +80,8 @@ export kblock
 include("Hamiltonian.jl")
 include("HamiltonianBlock.jl")
 
-export PreconditionerKinetic
+export PreconditionerNone
+export PreconditionerTPA
 include("Preconditioner.jl")
 
 export lobpcg_hyper

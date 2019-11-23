@@ -179,7 +179,7 @@ end
 ### R is then recomputed, and orthonormalized explicitly wrt BX and BP
 ### We reuse applications of A/B when it is safe to do so, ie only with orthogonal transformations
 
-function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100; ortho_tol=2eps(real(eltype(X))),
+function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_tol=2eps(real(eltype(X))),
                 n_conv_check=nothing, display_progress=false)
     N,M = size(X)
     n_conv_check === nothing && (n_conv_check = M)
@@ -258,7 +258,7 @@ function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100; ortho_tol=2eps(real
             resids[i+nlocked,niter] = norm(R[:,i])
         end
         vprintln(niter, "   ", resids[:, niter])
-        R = precon\R
+        precon(R, new_X, R)
 
         ### Compute number of locked vectors
         prev_nlocked = nlocked

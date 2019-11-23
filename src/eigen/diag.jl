@@ -26,7 +26,7 @@ that really does the work, operating on a single ``k``-Block.
 """
 function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
                                  kpoints=ham.basis.kpoints, guess=nothing,
-                                 prec=nothing, interpolate_kpoints=true, tol=1e-6,
+                                 prec=PreconditionerTPA, interpolate_kpoints=true, tol=1e-6,
                                  maxiter=200, n_conv_check=nothing)
     T = eltype(ham)
     results = Vector{Any}(undef, length(kpoints))
@@ -50,7 +50,7 @@ function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         @assert size(guessk) == (length(kpoints[ik].basis), nev_per_kpoint)
 
         results[ik] = eigensolver(kblock(ham, kpt), guessk;
-                                  prec=kblock(prec, kpt), tol=tol,
+                                  prec=prec(ham, kpt), tol=tol,
                                   maxiter=maxiter, n_conv_check=n_conv_check)
     end
 
