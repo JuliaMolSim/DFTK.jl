@@ -13,13 +13,13 @@ lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]] # unit cell. Having two lattice vect
 global xbeg = -a/2
 global xend = a/2
 
-f(x) = x .^ 2 # potential
+f(x) = (x-a/2)^2 # potential
 const α = 2.0
 
 function external_pot(basis::PlaneWaveBasis, energy::Union{Ref, Nothing}, potential; ρ=nothing, kwargs...)
     model = basis.model
     N = basis.fft_size[1]
-    x = range(xbeg, xend, length= N+1)[1:end - 1] # real-space grid
+    x = a*basis.grids[1]
 
     # Compute Vext
     Vext = zeros(basis.fft_size)
@@ -78,7 +78,7 @@ end
 
 
 using PyPlot
-x = range(xbeg, xend, length=basis.fft_size[1] + 1)[1:end - 1]
+x = a*basis.grids[1]
 ρ = real(scfres.ρ)[:, 1, 1] # converged density
 ψ_fourier = scfres.Psi[1][:, 1] # first kpoint, all G components, first eigenvector
 ψ = G_to_r(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1] # IFFT back to real space

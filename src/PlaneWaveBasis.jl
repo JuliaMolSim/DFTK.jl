@@ -19,21 +19,25 @@ struct Kpoint{T <: Real}
     basis::Vector{Vec3{Int}}  # Wave vectors in integer coordinates
 end
 
-# fft_size defines both the G basis on which densities and potentials
-# are expanded, and the real-space grid
-#
-# kpoints is the list of irreducible kpoints, kweights/ksymops contain
-# the information needed to reconstruct the full BZ
-struct PlaneWaveBasis{T <: Real, TopFFT, TipFFT}
+struct PlaneWaveBasis{T <: Real, Tgrid, TopFFT, TipFFT}
     model::Model{T}
     Ecut::T
+
+    # kpoints is the list of irreducible kpoints
     kpoints::Vector{Kpoint{T}}
-    kweights::Vector{T}       # Brillouin zone integration weights
-    ksymops::Vector{Vector{Tuple{Mat3{Int}, Vec3{T}}}}  # Symmetry operations per k-Point
+    # kweights/ksymops contain the information needed to reconstruct the full (reducible) BZ
+    # Brillouin zone integration weights
+    kweights::Vector{T}
+    # ksymops[ikpt] is a list of symmetry operations (S,τ)
+    ksymops::Vector{Vector{Tuple{Mat3{Int}, Vec3{T}}}}
+
+    # fft_size defines both the G basis on which densities and
+    # potentials are expanded, and the real-space grid
+    fft_size::Tuple{Int, Int, Int}
+    # real-space grids, in fractional coordinates. grids[i] = 0, 1/Ni, ... (Ni-1)/Ni where Ni=fft_size[i]
+    grids::Tgrid
 
     # Plans for forward and backward FFT on C_ρ
-    fft_size::Tuple{Int, Int, Int}  # Using tuple here, since Vec3 splatting is slow
-                                    # (https://github.com/JuliaArrays/StaticArrays.jl/issues/361)
     opFFT::TopFFT  # out-of-place FFT plan
     ipFFT::TipFFT  # in-place FFT plan
 end
@@ -104,6 +108,9 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     ipFFT *= sqrt(model.unit_cell_volume) / length(ipFFT)
     opFFT *= sqrt(model.unit_cell_volume) / length(opFFT)
 
+    grids = tuple((range(T(0), T(1), length=fft_size[i]+1)[1:end-1]
+                   for i=1:3)...)
+
     # Default to no symmetry
     ksymops === nothing && (ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))]
                                          for _ in 1:length(kcoords)])
@@ -121,9 +128,9 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     @assert(Ecut ≤ max_E, "Ecut should be less than the maximal kinetic energy " *
             "the grid supports (== $max_E)")
 
-    PlaneWaveBasis{T, typeof(opFFT), typeof(ipFFT)}(
+    PlaneWaveBasis{T, typeof(grids), typeof(opFFT), typeof(ipFFT)}(
         model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
-        kweights, ksymops, fft_size, opFFT, ipFFT
+        kweights, ksymops, fft_size, grids, opFFT, ipFFT
     )
 end
 
