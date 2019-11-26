@@ -258,7 +258,8 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
             resids[i+nlocked,niter] = norm(R[:,i])
         end
         vprintln(niter, "   ", resids[:, niter])
-        precon(R, new_X, R)
+        precondprep!(precon, X)
+        ldiv!(precon, R)
 
         ### Compute number of locked vectors
         prev_nlocked = nlocked

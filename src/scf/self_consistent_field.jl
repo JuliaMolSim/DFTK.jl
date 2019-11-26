@@ -3,7 +3,7 @@ Obtain new density ρ by diagonalizing the Hamiltonian build from the current ρ
 `ham` and `Psi` (if given) are updated in-place.
 """
 function iterate_density!(ham::Hamiltonian, n_bands, ρ=nothing; Psi=nothing,
-                          prec=PreconditionerTPA, tol=1e-6,
+                          prec_type=PreconditionerTPA, tol=1e-6,
                           compute_occupation=find_occupation_around_fermi,
                           eigensolver=lobpcg_hyper)
     # Update Hamiltonian from ρ
@@ -12,7 +12,7 @@ function iterate_density!(ham::Hamiltonian, n_bands, ρ=nothing; Psi=nothing,
 
     # Update Psi from Hamiltonian (ask for a few more bands than the ones we need)
     n_ep = (Psi === nothing) ? n_bands + 3 : size(Psi[1], 2)
-    eigres = diagonalise_all_kblocks(eigensolver, ham, n_ep, guess=Psi, n_conv_check=n_bands, prec=prec, tol=tol)
+    eigres = diagonalise_all_kblocks(eigensolver, ham, n_ep, guess=Psi, n_conv_check=n_bands, prec_type=prec_type, tol=tol)
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
     Psi !== nothing && (Psi .= eigres.X)
 
