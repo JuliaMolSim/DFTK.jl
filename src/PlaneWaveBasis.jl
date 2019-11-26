@@ -34,7 +34,8 @@ struct PlaneWaveBasis{T <: Real, Tgrid, TopFFT, TipFFT}
     # fft_size defines both the G basis on which densities and
     # potentials are expanded, and the real-space grid
     fft_size::Tuple{Int, Int, Int}
-    # real-space grids, in fractional coordinates. grids[i] = 0, 1/Ni, ... (Ni-1)/Ni where Ni=fft_size[i]
+    # real-space grids, in fractional coordinates.
+    # grids[i] = 0, 1/Ni, ... (Ni-1)/Ni where Ni=fft_size[i]
     grids::Tgrid
 
     # Plans for forward and backward FFT on C_ρ
@@ -178,8 +179,8 @@ end
 # space are 3D (`C_ρ`) or 1D (`B_k`). We take as input either a single
 # array (3D or 1D), or a bunch of them (4D or 2D)
 
-Array_3or4D = Union{AbstractArray{T, 3}, AbstractArray{T, 4}} where T
-Array_1or2D = Union{AbstractArray{T, 1}, AbstractArray{T, 2}} where T
+AbstractArray3or4D = Union{AbstractArray{T, 3}, AbstractArray{T, 4}} where T
+AbstractArray1or2D = Union{AbstractArray{T, 1}, AbstractArray{T, 2}} where T
 
 
 # The methods below use the fact that in julia extra dimensions are ignored.
@@ -192,15 +193,16 @@ Perform an iFFT to translate between `f_fourier`, a fourier representation
 of a function either on ``B_k`` (if `kpt` is given) or on ``C_ρ`` (if not),
 and `f_real`. The function will destroy all data in `f_real`.
 """
-function G_to_r!(f_real::Array_3or4D, pw::PlaneWaveBasis, f_fourier::Array_3or4D)
+function G_to_r!(f_real::AbstractArray3or4D, pw::PlaneWaveBasis,
+                 f_fourier::AbstractArray3or4D)
     n_bands = size(f_fourier, 4)
     for iband in 1:n_bands  # TODO Call batch version of FFTW, maybe do threading
         @views ldiv!(f_real[:, :, :, iband], pw.opFFT, f_fourier[:, :, :, iband])
     end
     f_real
 end
-function G_to_r!(f_real::Array_3or4D, pw::PlaneWaveBasis, kpt::Kpoint,
-                 f_fourier::Array_1or2D)
+function G_to_r!(f_real::AbstractArray3or4D, pw::PlaneWaveBasis, kpt::Kpoint,
+                 f_fourier::AbstractArray1or2D)
     n_bands = size(f_fourier, 2)
     @assert size(f_fourier, 1) == length(kpt.mapping)
     @assert size(f_real)[1:3] == pw.fft_size
@@ -225,7 +227,7 @@ Perform an iFFT to translate between `f_fourier`, a fourier representation
 of a function either on ``B_k`` (if `kpt` is given) or on ``C_ρ`` (if not)
 and return the values on the real-space grid `C_ρ^*`.
 """
-function G_to_r(pw::PlaneWaveBasis, f_fourier::Array_3or4D)
+function G_to_r(pw::PlaneWaveBasis, f_fourier::AbstractArray3or4D)
     G_to_r!(similar(f_fourier), pw, f_fourier)
 end
 function G_to_r(pw::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector)
@@ -245,15 +247,16 @@ Perform an FFT to translate between `f_real`, a function represented on
 coefficients to ``B_k`` (if `kpt` is given). Note: If `kpt` is given, all data
 in ``f_real`` will be distroyed as well.
 """
-function r_to_G!(f_fourier::Array_3or4D, pw::PlaneWaveBasis, f_real::Array_3or4D)
+function r_to_G!(f_fourier::AbstractArray3or4D, pw::PlaneWaveBasis,
+                 f_real::AbstractArray3or4D)
     n_bands = size(f_fourier, 4)
     for iband in 1:n_bands  # TODO Call batch version of FFTW, maybe do threading
         @views mul!(f_fourier[:, :, :, iband], pw.opFFT, f_real[:, :, :, iband])
     end
     f_fourier
 end
-function r_to_G!(f_fourier::Array_1or2D, pw::PlaneWaveBasis, kpt::Kpoint,
-                 f_real::Array_3or4D)
+function r_to_G!(f_fourier::AbstractArray1or2D, pw::PlaneWaveBasis, kpt::Kpoint,
+                 f_real::AbstractArray3or4D)
     n_bands = size(f_real, 4)
     @assert size(f_real)[1:3] == pw.fft_size
     @assert size(f_fourier, 1) == length(kpt.mapping)
@@ -276,7 +279,7 @@ end
 Perform an FFT to translate between `f_fourier`, a fourier representation
 on ``C_ρ^\ast`` and its fourier representation on ``C_ρ``.
 """
-function r_to_G(pw::PlaneWaveBasis, f_real::Array_3or4D)
+function r_to_G(pw::PlaneWaveBasis, f_real::AbstractArray3or4D)
     r_to_G!(similar(f_real), pw, f_real)
 end
 # Note: There is deliberately no G_to_r version for the kpoints,
