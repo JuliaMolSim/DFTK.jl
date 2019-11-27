@@ -6,7 +6,7 @@ using PyCall
 Call scipy's version of LOBPCG for finding the eigenpairs of a Hermitian matrix `A`.
 `X0` is the set of guess vectors, also determining the number of eigenpairs to be sought.
 """
-function lobpcg_scipy(A, X0; prec=nothing, tol, maxiter, largest=false)
+function lobpcg_scipy(A, X0; prec=nothing, tol, maxiter, largest=false, kwargs...)
     sla = pyimport("scipy.sparse.linalg")
     sys = pyimport("sys")
 

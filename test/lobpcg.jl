@@ -77,3 +77,21 @@ end
         @test res.λ[ik] ≈ ref[ik] atol=0.02
     end
 end
+
+@testset "Full diagonalisation of a core Hamiltonian" begin
+    Ecut = 2
+    fft_size = [5, 5, 5]
+
+    Si = Species(silicon.atnum, psp=load_psp("si-pade-q4.hgh"))
+    model = Model(silicon.lattice, silicon.n_electrons,  # Core Hamiltonian model
+                  external=term_external(Si => silicon.positions),
+                  nonlocal=term_nonlocal(Si => silicon.positions))
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    ham = Hamiltonian(basis)
+
+    res1 = diagonalise_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, interpolate_kpoints=false)
+    res2 = diagonalise_all_kblocks(diag_full, ham, 5, tol=1e-8, interpolate_kpoints=false)
+    for ik in 1:length(silicon.kcoords)
+        @test res1.λ[ik] ≈ res2.λ[ik] atol=1e-6
+    end
+end
