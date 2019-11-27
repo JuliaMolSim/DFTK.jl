@@ -1,6 +1,5 @@
 import FFTW
 import Primes
-using IntervalArithmetic
 include("FourierTransforms.jl/FourierTransforms.jl")
 
 # Utility functions to setup FFTs for DFTK. Most functions in here
