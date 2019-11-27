@@ -278,7 +278,6 @@ function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100; ortho_tol=2eps(real
         if nlocked >= n_conv_check
             X .= new_X
             λ, full_X, residnorms, resids = final_residnorms(A, full_X, resids, niter)
-            @assert maximum(residnorms[1:n_conv_check]) <= tol
             return λ, full_X, residnorms, resids
         end
         newly_locked = nlocked - prev_nlocked
