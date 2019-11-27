@@ -1,8 +1,6 @@
 # Data structures for representing the non-local potential in
 # Kleinman-Bylander form and functionality to represent a k-Point block of it
 
-using Memoize
-
 """
 Structure containing a non-local potential in the Kleinman-Bylander form of projectors.
 """

@@ -8,6 +8,7 @@ using Printf
 using Markdown
 using LinearAlgebra
 using Interpolations
+using Memoization
 
 include("common/asserting.jl")
 include("common/constants.jl")

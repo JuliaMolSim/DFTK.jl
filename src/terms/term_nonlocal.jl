@@ -1,5 +1,3 @@
-using Memoize
-
 # Functionality for building the non-local potential term
 # and constructing the builder itself.
 
