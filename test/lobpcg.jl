@@ -1,5 +1,5 @@
 using Test
-using DFTK: PlaneWaveBasis, Model, Hamiltonian, lobpcg_hyper, diagonalise_all_kblocks, PreconditionerKinetic
+using DFTK: PlaneWaveBasis, Model, Hamiltonian, lobpcg_hyper, diagonalise_all_kblocks
 
 include("./testcases.jl")
 
@@ -27,7 +27,8 @@ include("./testcases.jl")
 
     @test length(ref_λ) == length(silicon.kcoords)
     @testset "without Preconditioner" begin
-        res = diagonalise_all_kblocks(lobpcg_hyper, ham, nev_per_k, tol=tol, interpolate_kpoints=false)
+        res = diagonalise_all_kblocks(lobpcg_hyper, ham, nev_per_k, tol=tol,
+                                      prec_type=nothing, interpolate_kpoints=false)
 
         @test res.converged
         for ik in 1:length(silicon.kcoords)
@@ -39,7 +40,7 @@ include("./testcases.jl")
 
     @testset "with Preconditioner" begin
         res = diagonalise_all_kblocks(lobpcg_hyper, ham, nev_per_k, tol=tol,
-                                      prec=PreconditionerKinetic(ham, α=0.1), interpolate_kpoints=false)
+                                      prec_type=PreconditionerTPA, interpolate_kpoints=false)
 
         @test res.converged
         for ik in 1:length(silicon.kcoords)
@@ -61,8 +62,7 @@ end
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis)
 
-    res = diagonalise_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, prec=PreconditionerKinetic(ham, α=0.1),
-                                  interpolate_kpoints=false)
+    res = diagonalise_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, interpolate_kpoints=false)
     ref = [
         [0.067955741977536, 0.470244204908046, 0.470244204920801,
          0.470244204998022, 0.578392222232969],

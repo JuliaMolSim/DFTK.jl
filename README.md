@@ -17,18 +17,20 @@ analysis of algorithms and techniques related to DFT. For this we want
 to leverage as much of the existing developments in plane-wave DFT and
 the related ecosystems of Julia python or C codes as possible.
 
-The library is at a very early stage of development and the supported feature set
-is thus limited. Current features include:
+The library is at an early stage and the supported feature set
+is thus still limited. Current features include:
 - Lattice construction and problem setup based on [pymatgen](https://pymatgen.org/)
 - Plane-wave discretisations building on top of
   [FFTW.jl](https://github.com/JuliaMath/FFTW.jl).
-- SCF routine based on [NLsolve.jl](https://github.com/JuliaNLSolvers/NLsolve.jl)
-  and [IterativeSolvers.jl](https://github.com/JuliaMath/IterativeSolvers.jl).
-- LDA and GGA functionals from [Libxc.jl](https://github.com/unkcpz/Libxc.jl).
+- All LDA and GGA functionals from [Libxc.jl](https://github.com/unkcpz/Libxc.jl).
 - Insulators and metals (Fermi-Dirac or Methfessel-Paxton smearing)
+- GTH or HGH pseudopotentials
+- Exploitation of Brillouin zone symmetry for k-Point sampling
+- Three SCF algorithms (Anderson mixing, [NLsolve.jl](https://github.com/JuliaNLSolvers/NLsolve.jl), damping)
 - Band structure generation
-- Support for arbitrary floating point types, including `Float32` (single precision),
-  `BigFloat` or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl).
+- Full access to intermediate quantities (density, Bloch wave)
+- Support for arbitrary floating point types, including `Float32` (single precision)
+  or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl).
   (Only for selected DFT functionals at the moment).
 
 **Note:** This code has only been compared against standard packages
@@ -40,6 +42,7 @@ The package is not yet registered in the [General](https://github.com/JuliaRegis
 registry of Julia. Instead you can obtain it from
 the [MolSim](https://github.com/JuliaMolSim/MolSim.git) registry,
 which contains a bunch of packages related to performing molecular simulations in Julia.
+Note that at least **Julia 1.2** is required.
 
 First add `MolSim` to your installed registries. For this use
 ```

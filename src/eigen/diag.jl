@@ -23,11 +23,12 @@ Some logic for interpolating between ``k``-Points is used if `interpolate_kpoint
 is true and if no guesses are given. `eigensolver` is the iterative eigensolver
 that really does the work, operating on a single ``k``-Block.
 `eigensolver` should support the API `eigensolver(A, X0; prec, tol, maxiter)`
+`prec_type` should be a function that returns a preconditioner when called as `prec(ham, kpt)`
 """
 function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
                                  kpoints=ham.basis.kpoints, guess=nothing,
-                                 prec=nothing, interpolate_kpoints=true, tol=1e-6,
-                                 maxiter=200, n_conv_check=nothing)
+                                 prec_type=PreconditionerTPA, interpolate_kpoints=true,
+                                 tol=1e-6, maxiter=200, n_conv_check=nothing)
     T = eltype(ham)
     results = Vector{Any}(undef, length(kpoints))
 
@@ -49,9 +50,11 @@ function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         end
         @assert size(guessk) == (length(kpoints[ik].basis), nev_per_kpoint)
 
+        prec = nothing
+        prec_type !== nothing && (prec = prec_type(ham, kpt))
         results[ik] = eigensolver(kblock(ham, kpt), guessk;
-                                  prec=kblock(prec, kpt), tol=tol,
-                                  maxiter=maxiter, n_conv_check=n_conv_check)
+                                  prec=prec, tol=tol, maxiter=maxiter,
+                                  n_conv_check=n_conv_check)
     end
 
     # Transform results into a nicer datastructure

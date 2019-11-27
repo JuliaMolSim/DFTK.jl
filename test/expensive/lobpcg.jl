@@ -1,5 +1,5 @@
 using Test
-using DFTK: PlaneWaveBasis, Model, Hamiltonian, PreconditionerKinetic, term_external
+using DFTK: PlaneWaveBasis, Model, Hamiltonian, term_external
 using DFTK: lobpcg_hyper
 
 include("../testcases.jl")
