@@ -2,7 +2,7 @@ include("lobpcg_hyper_impl.jl")
 
 function lobpcg_hyper(A, X0; maxiter=100, prec=nothing, tol=20size(A, 2)*eps(real(eltype(A))),
                       largest=false, n_conv_check=nothing, kwargs...)
-    prec === nothing && (prec = PreconditionerNone())
+    prec === nothing && (prec = I)
     # Tolerance for orthogonalisation in LOBPCG:
     ortho_tol = max(2eps(real(eltype(A))), tol / 1000)
 

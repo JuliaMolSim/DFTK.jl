@@ -80,7 +80,6 @@ export kblock
 include("Hamiltonian.jl")
 include("HamiltonianBlock.jl")
 
-export PreconditionerNone
 export PreconditionerTPA
 include("eigen/preconditioners.jl")
 

@@ -28,7 +28,7 @@ include("./testcases.jl")
     @test length(ref_λ) == length(silicon.kcoords)
     @testset "without Preconditioner" begin
         res = diagonalise_all_kblocks(lobpcg_hyper, ham, nev_per_k, tol=tol,
-                                      prec_type=PreconditionerNone, interpolate_kpoints=false)
+                                      prec_type=nothing, interpolate_kpoints=false)
 
         @test res.converged
         for ik in 1:length(silicon.kcoords)
