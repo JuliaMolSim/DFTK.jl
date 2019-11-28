@@ -87,6 +87,7 @@ include("eigen/preconditioners.jl")
 export lobpcg_hyper
 export lobpcg_scipy
 export lobpcg_itsolve
+export diag_full
 export diagonalise_all_kblocks
 include("eigen/diag.jl")
 
@@ -95,7 +96,6 @@ export scf_damping_solver
 export scf_anderson_solver
 export scf_CROP_solver
 export self_consistent_field!
-export diag_lobpcg
 include("scf/self_consistent_field.jl")
 include("scf/scf_solvers.jl")
 
