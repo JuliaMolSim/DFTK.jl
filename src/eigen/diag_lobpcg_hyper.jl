@@ -3,11 +3,9 @@ include("lobpcg_hyper_impl.jl")
 function lobpcg_hyper(A, X0; maxiter=100, prec=nothing, tol=20size(A, 2)*eps(real(eltype(A))),
                       largest=false, n_conv_check=nothing, kwargs...)
     prec === nothing && (prec = I)
-    # Tolerance for orthogonalisation in LOBPCG:
-    ortho_tol = max(2eps(real(eltype(A))), tol / 1000)
 
     @assert !largest "Only seeking the smallest eigenpairs is implemented."
-    λ, X, residual_norms, resids = LOBPCG(A, X0, I, prec, tol, maxiter; ortho_tol=ortho_tol,
+    λ, X, residual_norms, resids = LOBPCG(A, X0, I, prec, tol, maxiter;
                                           n_conv_check=n_conv_check)
 
     n_conv_check === nothing && (n_conv_check = size(X0, 2))
