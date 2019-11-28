@@ -1,5 +1,6 @@
 import FFTW
 import Primes
+using IntervalArithmetic
 include("FourierTransforms.jl/FourierTransforms.jl")
 
 # Utility functions to setup FFTs for DFTK. Most functions in here
@@ -76,7 +77,6 @@ import Base: *, \, length
 \(p::DummyInplace, X) = p.fft \ X
 length(p::DummyInplace) = length(p.fft)
 
-
 @doc raw"""
     determine_grid_size(lattice, Ecut; supersampling=2)
 
@@ -94,6 +94,7 @@ function determine_grid_size(lattice::AbstractMatrix{T}, Ecut; supersampling=2, 
     # See the documentation about the grids for details on the construction of C_ρ
     cutoff_Gsq = 2 * supersampling^2 * Ecut
     Gmax = [norm(lattice[:, i]) / 2T(π) * sqrt(cutoff_Gsq) for i in 1:3]
+
     # Round up, unless exactly zero (in which case keep it zero in
     # order to just have one G vector for 1D or 2D systems)
     for i = 1:3
@@ -106,8 +107,12 @@ function determine_grid_size(lattice::AbstractMatrix{T}, Ecut; supersampling=2, 
     if ensure_smallprimes
         Vec3([nextprod([2, 3, 5], 2gs + 1) for gs in Gmax])
     else
-        Vec3([2gs+1 for gs in Gmax])
+        Vec3([2gs + 1 for gs in Gmax])
     end
+end
+function determine_grid_size(lattice::AbstractMatrix{T}, Ecut;
+                             kwargs...) where T <: Interval
+    determine_grid_size(mid.(lattice), Ecut; kwargs...)
 end
 function determine_grid_size(model::Model, Ecut; kwargs...)
     determine_grid_size(model.lattice, Ecut; kwargs...)
