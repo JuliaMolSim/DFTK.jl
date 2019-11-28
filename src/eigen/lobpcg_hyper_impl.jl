@@ -182,6 +182,11 @@ end
 function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_tol=2eps(real(eltype(X))),
                 n_conv_check=nothing, display_progress=false)
     N,M = size(X)
+
+    # If N is too small, we will likely get in trouble
+    N >= 3M+2 || warn("Your problem is too small, and LOBPCG might
+        fail; use a full diagonalization instead")
+
     n_conv_check === nothing && (n_conv_check = M)
     resids = zeros(real(eltype(X)), M, maxiter)
     buf_X = zero(X)
@@ -315,6 +320,13 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
         AX .= new_AX
         if B != I
             BX .= new_BX
+        end
+
+        # Sanity check
+        for i = 1:size(X, 2)
+            if abs(norm(view(X, :, i)) - 1) >= sqrt(eps(real(eltype(X))))
+                error("LOBPCG is badly failing to keep the vectors normalized; this should never happen")
+            end
         end
 
         # Restrict all arrays to active
