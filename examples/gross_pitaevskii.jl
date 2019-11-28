@@ -10,8 +10,6 @@ Ecut = 4000
 
 a = 10
 lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]] # unit cell. Having two lattice vectors as zero means a 1D system
-global xbeg = -a/2
-global xend = a/2
 
 f(x) = (x-a/2)^2 # potential
 const α = 2.0
