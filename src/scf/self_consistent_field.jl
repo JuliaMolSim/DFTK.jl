@@ -42,7 +42,8 @@ compute_occupation is around to manipulate the way occupations are computed.
 function self_consistent_field!(ham::Hamiltonian, n_bands;
                                 Psi=nothing, tol=1e-6, max_iter=100,
                                 solver=scf_nlsolve_solver(),
-                                eigensolver=lobpcg_hyper, n_ep_extra=3, diagtol=tol / 10)
+                                eigensolver=lobpcg_hyper, n_ep_extra=3, diagtol=tol / 10,
+                                mixing=nothing)
     T = eltype(real(ham.density))
     basis = ham.basis
     model = basis.model
@@ -55,9 +56,12 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
     # We do density mixing in the real representation
     # TODO do the mixing in Fourier space instead?
     function fixpoint_map(x)
-        res = iterate_density!(ham, n_bands, density_from_real(basis, x);
+        ρin = density_from_real(basis, x)
+        res = iterate_density!(ham, n_bands, ρin;
                                Psi=Psi, eigensolver=eigensolver, tol=diagtol)
-        real(res.ρ)
+        ρout = res.ρ
+        ρnext = mix(mixing, basis, ρin, ρout)
+        real(ρnext)
     end
 
     # Run fixpoint solver: Take guess density from Hamiltonian or iterate once
