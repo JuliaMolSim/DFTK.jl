@@ -30,3 +30,20 @@ function compute_bands(ham::Hamiltonian, kpoints, n_bands;
 
     select_eigenpairs_all_kblocks(band_data, 1:n_bands)
 end
+
+function plot_bands(ham, n_bands, kline_density, composition, εF)
+    basis = ham.basis
+    # Band structure calculation along high-symmetry path
+    kpoints, klabels, kpath = high_symmetry_kpath(basis, kline_density, composition...)
+    println("Computing bands along kpath:\n     $(join(kpath[1], " -> "))")
+    band_data = compute_bands(ham, kpoints, n_bands)
+
+    # Plot bandstructure using pymatgen
+    plotter = pyimport("pymatgen.electronic_structure.plotter")
+    bs = pymatgen_bandstructure(basis, band_data, klabels, fermi_level=εF)
+    bsplot = plotter.BSPlotter(bs)
+    plt = bsplot.get_plot()
+    plt.autoscale()
+    plt.legend()
+    plt.show()
+end
