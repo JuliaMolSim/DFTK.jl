@@ -126,6 +126,10 @@ export compute_bands
 export plot_bands
 include("postprocess/band_structure.jl")
 
+export DOS
+export LDOS
+include("postprocess/DOS.jl")
+
 export model_free_electron
 export model_dft
 export model_hcore

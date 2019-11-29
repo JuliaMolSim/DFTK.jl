@@ -1,6 +1,7 @@
-using PyCall
 using DFTK
 using Printf
+using PyCall
+import PyPlot
 
 # Calculation parameters
 kgrid = [4, 4, 4]        # k-Point grid
@@ -50,3 +51,9 @@ end
 
 # Plot band structure
 plot_bands(ham, n_bands, kline_density, composition, scfres.εF)
+
+# Plot DOS
+εs = range(minimum(minimum(scfres.orben)) - 1, maximum(maximum(scfres.orben)) + 1, length=1000)
+Ds = DOS.(εs, Ref(basis), Ref(scfres.orben), T=Tsmear*4, smearing=DFTK.smearing_methfessel_paxton_1)
+PyPlot.plot(εs, Ds)
+PyPlot.axvline(scfres.εF)
