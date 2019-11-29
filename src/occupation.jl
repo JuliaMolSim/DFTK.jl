@@ -1,5 +1,17 @@
 import Roots
 
+# How many electrons to put in each state
+function filled_occupation(basis)
+    @assert basis.model.spin_polarisation in (:none, :spinless)
+    if basis.model.spin_polarisation == :none
+        @assert basis.model.n_electrons % 2 == 0
+        filled_occ = 2
+    else
+        filled_occ = 1
+    end
+    filled_occ
+end
+
 # Functions for finding the Fermi level and occupation numbers for bands
 """
 Find Fermi level and occupation for the given parameters, assuming a band gap
@@ -9,35 +21,31 @@ function find_occupation_gap_zero_temperature(basis, energies, Psi)
     n_bands = size(Psi[1], 2)
     n_electrons = basis.model.n_electrons
     T = eltype(basis.kpoints[1].coordinate)
-
-    @assert basis.model.spin_polarisation in (:none, :spinless)
-    if basis.model.spin_polarisation == :none
-        @assert n_electrons % 2 == 0
-        n_occ = div(n_electrons, 2)
-        filled_occ = 2
-    else
-        n_occ = n_electrons
-        filled_occ = 1
-    end
-    @assert n_bands ≥ n_occ
     @assert basis.model.temperature == 0.0
 
+    filled_occ = filled_occupation(basis)
+    n_fill = div(n_electrons, 2)
+    @assert 2n_fill == n_electrons
+    @assert n_bands ≥ n_fill
+
+    # We need to fill n_fill states with occupation filled_occ
+    # Find HOMO and LUMO
     HOMO = -Inf # highest occupied energy state
     LUMO = Inf  # lowest unoccupied energy state
     occupation = similar(basis.kpoints, Vector{T})
     for ik in 1:length(occupation)
         occupation[ik] = zeros(T, n_bands)
-        occupation[ik][1:n_occ] .= filled_occ
-        HOMO = max(HOMO, energies[ik][n_occ])
-        if n_occ < n_bands
-            LUMO = min(LUMO, energies[ik][n_occ + 1])
+        occupation[ik][1:n_fill] .= filled_occ
+        HOMO = max(HOMO, energies[ik][n_fill])
+        if n_fill < n_bands
+            LUMO = min(LUMO, energies[ik][n_fill + 1])
         end
     end
     @assert sum(basis.kweights .* sum.(occupation)) ≈ n_electrons
 
-    # Put Fermi level slightly above HOMO energy
-    εF = HOMO + 10eps(eltype(energies[1]))
-    if HOMO > LUMO || εF > LUMO
+    # Put Fermi level slightly above HOMO energy, to ensure that HOMO < εF
+    εF = nextfloat(HOMO)
+    if εF > LUMO
         @warn("`find_occupation_gap_zero_temperature` assumes an insulator, but the " *
               "system seems metallic. Try specifying a temperature and a smearing function.",
               HOMO, LUMO, maxlog=5)
@@ -58,23 +66,21 @@ function find_occupation_fermi_metal(basis, energies, Psi)
     smearing = model.smearing
 
     @assert smearing !== nothing
-    @assert basis.model.spin_polarisation in (:none, :spinless)
-    if basis.model.spin_polarisation == :none
-        @assert n_electrons % 2 == 0
-        n_occ = div(n_electrons, 2)
-        filled_occ = 2
-    else
-        n_occ = n_electrons
-        filled_occ = 1
-    end
-    @assert n_bands ≥ n_occ
 
-    # Avoid some numerical issues
+    filled_occ = filled_occupation(basis)
+
+    @assert filled_occ*n_bands ≥ n_electrons
+
+    # Avoid numerical issues by imposing a step function for zero temp
     temperature == 0 && (smearing(x) = x ≤ 0 ? 1 : 0)
 
+    # Find εF so that
+    # n_i = filled_occ * f((εi-εF)/T)
+    # sum_i n_i = n_electrons
     compute_occupation(εF) = [filled_occ * smearing.((ε .- εF) ./ temperature) for ε in energies]
     compute_n_elec(εF) = sum(basis.kweights .* sum.(compute_occupation(εF)))
 
+    # Get rough bounds to bracket εF
     min_ε = minimum([minimum(ε) for ε in energies]) - 1
     max_ε = maximum([maximum(ε) for ε in energies]) + 1
     @assert compute_n_elec(min_ε) < n_electrons < compute_n_elec(max_ε)
@@ -91,22 +97,12 @@ end
 
 
 """
-Find the Fermi level, given a `basis`, SCF band `energies` and corresponding Bloch
-one-particle wave function `Psi`. If `basis.model.assume_band_gap` this function
-assumes a band gap at the Fermi level.
-"""
-function find_fermi_level(basis, energies, Psi)
-    εF, _ = find_occupation_around_fermi(basis, energies, Psi)
-    εF
-end
-
-"""
-Find the occupation numbers around the Fermi level, given a `basis`, SCF band `energies`
+Find the Fermi level and occupation numbers, given a `basis`, SCF band `energies`
 and corresponding Bloch one-particle wave function `Psi`. If `basis.model.assume_band_gap`
 this function assumes a band gap at the Fermi level.
 Returns `(fermi_level, occupation)`
 """
-function find_occupation_around_fermi(basis, energies, Psi)
+function find_occupation(basis, energies, Psi)
     occ = nothing
     if basis.model.assume_band_gap && basis.model.temperature == 0.0
         εF, occ = find_occupation_gap_zero_temperature(basis, energies, Psi)
@@ -116,4 +112,14 @@ function find_occupation_around_fermi(basis, energies, Psi)
         εF, occ = find_occupation_fermi_metal(basis, energies, Psi)
     end
     εF, occ
+end
+
+"""
+Find the Fermi level, given a `basis`, SCF band `energies` and corresponding Bloch
+one-particle wave function `Psi`. If `basis.model.assume_band_gap` this function
+assumes a band gap at the Fermi level.
+"""
+function find_fermi_level(basis, energies, Psi)
+    εF, _ = find_occupation(basis, energies, Psi)
+    εF
 end

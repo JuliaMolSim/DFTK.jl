@@ -23,7 +23,7 @@ include("testcases.jl")
         res = diagonalise_all_kblocks(lobpcg_hyper, ham, n_bands; tol=tol)
 
         @assert testcase.n_electrons <= 8
-        _, occ = DFTK.find_occupation_around_fermi(basis, res.λ, res.X)
+        _, occ = DFTK.find_occupation(basis, res.λ, res.X)
         ρnew = compute_density(basis, res.X, occ)
 
         basis, res.X, res.λ, fourier(ρnew)
