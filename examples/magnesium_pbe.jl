@@ -50,7 +50,7 @@ end
 @printf "\n    %-20s%-15.12f\n\n" "total" sum(values(energies))
 
 # Plot band structure
-plot_bands(ham, n_bands, kline_density, composition, scfres.εF)
+plot_bands(ham, n_bands, kline_density, composition, scfres.εF).show()
 
 # Plot DOS
 εs = range(minimum(minimum(scfres.orben)) - 1, maximum(maximum(scfres.orben)) + 1, length=1000)

@@ -63,4 +63,4 @@ end
 @printf "\n    %-20s%-15.12f\n\n" "total" sum(values(energies))
 
 # Plot band structure
-plot_bands(ham, n_bands_plot, kline_density, composition, scfres.εF)
+plot_bands(ham, n_bands_plot, kline_density, composition, scfres.εF).show()

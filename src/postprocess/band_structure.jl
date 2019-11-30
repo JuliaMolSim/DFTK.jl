@@ -44,5 +44,5 @@ function plot_bands(ham, n_bands, kline_density, composition, εF)
     bsplot = plotter.BSPlotter(bs)
     plt = bsplot.get_plot()
     plt.autoscale()
-    plt.show()
+    plt
 end
