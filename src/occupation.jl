@@ -81,8 +81,8 @@ function find_occupation_fermi_metal(basis, energies, Psi)
     compute_n_elec(εF) = sum(basis.kweights .* sum.(compute_occupation(εF)))
 
     # Get rough bounds to bracket εF
-    min_ε = minimum([minimum(ε) for ε in energies]) - 1
-    max_ε = maximum([maximum(ε) for ε in energies]) + 1
+    min_ε = minimum(minimum.(energies)) - 1
+    max_ε = maximum(maximum.(energies)) + 1
     @assert compute_n_elec(min_ε) < n_electrons < compute_n_elec(max_ε)
 
     # Just use bisection here; note that with MP smearing there might
@@ -92,6 +92,10 @@ function find_occupation_fermi_metal(basis, energies, Psi)
     εF = Roots.find_zero(εF -> compute_n_elec(εF) - n_electrons, (min_ε, max_ε),
                          Roots.Bisection())
     @assert compute_n_elec(εF) ≈ n_electrons
+    minocc = maximum(minimum.(compute_occupation(εF)))
+    if minocc > .01
+        @warn "One kpoint has minimum occupation $minocc, you should increase the number of bands"
+    end
     εF, compute_occupation(εF)
 end
 
