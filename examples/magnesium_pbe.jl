@@ -15,7 +15,7 @@ kline_density = 20       # Density of k-Points for bandstructure
 a = 3.0179389193174084
 b = 5.227223542397263
 c = 9.773621942589742
-lattice = [[-a -b  0]; [-a  b  0]; [0   0 -c]]
+lattice = [[-a -a  0]; [-b  b  0]; [0   0 -c]]
 Mg = Species(12, psp=load_psp("mg-pbe-q2.hgh"))
 composition = [Mg => [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]]]
 
