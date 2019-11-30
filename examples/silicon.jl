@@ -50,7 +50,8 @@ basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
 # e.g. in the :reduced_hf model silicon is a metal
 n_bands_scf = Int(model.n_electrons / 2)
 ham = Hamiltonian(basis, guess_density(basis, composition...))
-scfres = self_consistent_field!(ham, n_bands_scf, tol=1e-6)
+scfres = self_consistent_field(ham, n_bands_scf, tol=1e-6)
+ham = scfres.ham
 
 # Print obtained energies
 energies = scfres.energies

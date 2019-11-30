@@ -64,7 +64,8 @@ basis = PlaneWaveBasis(model, Ecut, kpoints, ksymops)
 # is a pretty bad idea; implementing direct minimization is TODO)
 n_bands_scf = model.n_electrons
 ham = Hamiltonian(basis, Density(basis)) # zero initial guess for the density
-scfres = self_consistent_field!(ham, model.n_electrons, tol=1e-6)
+scfres = self_consistent_field(ham, model.n_electrons, tol=1e-6)
+ham = scfres.ham
 
 # Print obtained energies
 energies = scfres.energies

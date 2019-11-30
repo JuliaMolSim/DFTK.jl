@@ -39,6 +39,7 @@ function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
             guessk = guess[ik]
         elseif interpolate_kpoints && ik > 1
             # use information from previous kpoint
+            # TODO ensure better traversal of kpoints so that the interpolation is relevant
             X0 = interpolate_at_kpoint(kpoints[ik - 1], kpoints[ik], results[ik - 1].X)
             guessk = Matrix{T}(qr(X0).Q)
         else

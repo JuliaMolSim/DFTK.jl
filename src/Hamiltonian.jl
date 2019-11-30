@@ -43,7 +43,7 @@ Build / update an Hamiltonian out-of-place
 """
 function update_hamiltonian(ham::Hamiltonian, ρ::Density)
     nsimilar(::Nothing) = nothing
-    nsimilar(p::Density) = similar(fourier(p))
+    nsimilar(x) = similar(x)
     ham = Hamiltonian(ham.basis, ρ, ham.kinetic, ham.pot_external, nsimilar(ham.pot_hartree),
                       nsimilar(ham.pot_xc), nsimilar(ham.pot_local), ham.pot_nonlocal)
     update_hamiltonian!(ham, ρ)
