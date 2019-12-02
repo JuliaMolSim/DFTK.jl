@@ -121,12 +121,17 @@ export energy_nuclear_psp_correction
 export energy_nuclear_ewald
 include("energy_nuclear.jl")
 
-export high_symmetry_kpath
-export compute_bands
 export pymatgen_lattice
 export pymatgen_bandstructure
 export pymatgen_structure
-include("postprocess/compute_bands.jl")
+export high_symmetry_kpath
+export compute_bands
+export plot_bands
+include("postprocess/band_structure.jl")
+
+export DOS
+export LDOS
+include("postprocess/DOS.jl")
 
 export model_free_electron
 export model_dft

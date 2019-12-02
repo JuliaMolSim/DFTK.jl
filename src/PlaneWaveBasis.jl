@@ -196,8 +196,8 @@ and `f_real`. The function will destroy all data in `f_real`.
 function G_to_r!(f_real::AbstractArray3or4D, pw::PlaneWaveBasis,
                  f_fourier::AbstractArray3or4D)
     n_bands = size(f_fourier, 4)
-    for iband in 1:n_bands  # TODO Call batch version of FFTW, maybe do threading
-        @views ldiv!(f_real[:, :, :, iband], pw.opFFT, f_fourier[:, :, :, iband])
+    @views Threads.@threads for iband in 1:n_bands
+        ldiv!(f_real[:, :, :, iband], pw.opFFT, f_fourier[:, :, :, iband])
     end
     f_real
 end
@@ -208,13 +208,14 @@ function G_to_r!(f_real::AbstractArray3or4D, pw::PlaneWaveBasis, kpt::Kpoint,
     @assert size(f_real)[1:3] == pw.fft_size
     @assert size(f_real, 4) == n_bands
 
-    f_real .= 0
-    for iband in 1:n_bands  # TODO Call batch version of FFTW, maybe do threading
+
+    @views Threads.@threads for iband in 1:n_bands
+        fill!(f_real[:, :, :, iband], 0)
         # Pad the input data from B_k to C_ρ
-        @views reshape(f_real, :, n_bands)[kpt.mapping, iband] = f_fourier[:, iband]
+        reshape(f_real, :, n_bands)[kpt.mapping, iband] = f_fourier[:, iband]
 
         # Perform an FFT on C_ρ -> C_ρ^*
-        @views ldiv!(f_real[:, :, :, iband], pw.ipFFT, f_real[:, :, :, iband])
+        ldiv!(f_real[:, :, :, iband], pw.ipFFT, f_real[:, :, :, iband])
     end
 
     f_real
@@ -250,8 +251,8 @@ in ``f_real`` will be distroyed as well.
 function r_to_G!(f_fourier::AbstractArray3or4D, pw::PlaneWaveBasis,
                  f_real::AbstractArray3or4D)
     n_bands = size(f_fourier, 4)
-    for iband in 1:n_bands  # TODO Call batch version of FFTW, maybe do threading
-        @views mul!(f_fourier[:, :, :, iband], pw.opFFT, f_real[:, :, :, iband])
+    @views Threads.@threads for iband in 1:n_bands
+        mul!(f_fourier[:, :, :, iband], pw.opFFT, f_real[:, :, :, iband])
     end
     f_fourier
 end
@@ -262,13 +263,13 @@ function r_to_G!(f_fourier::AbstractArray1or2D, pw::PlaneWaveBasis, kpt::Kpoint,
     @assert size(f_fourier, 1) == length(kpt.mapping)
     @assert size(f_fourier, 2) == n_bands
 
-    f_fourier .= 0
-    for iband in 1:n_bands  # TODO call batch version of FFTW, maybe do threading
+    @views Threads.@threads for iband in 1:n_bands
         # FFT on C_ρ^∗ -> C_ρ
-        @views mul!(f_real[:, :, :, iband], pw.ipFFT, f_real[:, :, :, iband])
+        mul!(f_real[:, :, :, iband], pw.ipFFT, f_real[:, :, :, iband])
 
         # Truncate the resulting frequency range to B_k
-        @views f_fourier[:, iband] = reshape(f_real, :, n_bands)[kpt.mapping, iband]
+        fill!(f_fourier[:, iband], 0)
+        f_fourier[:, iband] = reshape(f_real, :, n_bands)[kpt.mapping, iband]
     end
     f_fourier
 end
