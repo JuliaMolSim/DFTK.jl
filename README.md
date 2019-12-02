@@ -28,6 +28,7 @@ is thus still limited. Current features include:
 - Exploitation of Brillouin zone symmetry for k-Point sampling
 - Three SCF algorithms (Anderson mixing, [NLsolve.jl](https://github.com/JuliaNLSolvers/NLsolve.jl), damping)
 - Band structure generation
+- Computation of density of states (DOS) and local density of states (LDOS)
 - Full access to intermediate quantities (density, Bloch wave)
 - Support for arbitrary floating point types, including `Float32` (single precision)
   or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl).

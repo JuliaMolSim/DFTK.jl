@@ -63,16 +63,5 @@ for key in sort([keys(energies)...]; by=S -> string(S))
 end
 @printf "\n    %-20s%-15.12f\n\n" "total" sum(values(energies))
 
-# Band structure calculation along high-symmetry path
-kpoints, klabels, kpath = high_symmetry_kpath(basis, kline_density, composition...)
-println("Computing bands along kpath:\n     $(join(kpath[1], " -> "))")
-band_data = compute_bands(ham, kpoints, n_bands_plot)
-
-# Plot bandstructure using pymatgen
-plotter = pyimport("pymatgen.electronic_structure.plotter")
-bs = pymatgen_bandstructure(basis, band_data, klabels, fermi_level=scfres.εF)
-bsplot = plotter.BSPlotter(bs)
-plt = bsplot.get_plot()
-plt.autoscale()
-plt.savefig("silicon_$(calculation_model).pdf")
-plt.show()
+# Plot band structure
+plot_bands(ham, n_bands_plot, kline_density, composition, scfres.εF).show()
