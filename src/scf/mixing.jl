@@ -1,19 +1,27 @@
 # Mixing rules: ρin, ρout => ρnext, where ρout is produced by diagonalizing the Hamiltonian at ρin
 # These define the basic fix-point iteration, that are then combined with acceleration methods (eg anderson)
+# All these methods attempt to approximate the inverse jacobian of the SCF step, (1 - χ0 vc)^-1
 
+"""
+Kerker mixing: α*G^2/(G0^2 + G^2)
+"""
 struct KerkerMixing{T <: Real}
-    q0::T
+    α::T
+    G0::T
 end
-KerkerMixing() = KerkerMixing(1)
+KerkerMixing() = KerkerMixing(1, 1)
 function mix(m::KerkerMixing, basis, ρin::Density, ρout::Density)
     Gsq = [sum(abs2, basis.model.recip_lattice * G)
            for G in basis_Cρ(basis)]
     ρin = fourier(ρin)
     ρout = fourier(ρout)
-    ρnext = @. ρin + (ρout - ρin) * Gsq / (m.q0 + Gsq)
+    ρnext = @. ρin + m.α * (ρout - ρin) * Gsq / (m.G0^2 + Gsq)
     density_from_fourier(basis, ρnext)
 end
 
+"""
+Simple mixing: α
+"""
 struct SimpleMixing{T <: Real}
     α::T
 end
