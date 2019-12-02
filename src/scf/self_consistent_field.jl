@@ -43,7 +43,7 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
                                 Psi=nothing, tol=1e-6, max_iter=100,
                                 solver=scf_nlsolve_solver(),
                                 eigensolver=lobpcg_hyper, n_ep_extra=3, diagtol=tol / 10,
-                                mixing=nothing)
+                                mixing=SimpleMixing())
     T = eltype(real(ham.density))
     basis = ham.basis
     model = basis.model

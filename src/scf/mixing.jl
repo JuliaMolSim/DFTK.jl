@@ -1,8 +1,6 @@
 # Mixing rules: ρin, ρout => ρnext
 # These define the basic fix-point iteration, that are then combined with acceleration methods (eg anderson)
 
-mix(m::Nothing, basis, ρin, ρout) = ρout
-
 struct KerkerMixing{T <: Real}
     q0::T
 end
@@ -21,7 +19,11 @@ struct SimpleMixing{T <: Real}
 end
 SimpleMixing() = SimpleMixing(1)
 function mix(m::SimpleMixing, basis, ρin::Density, ρout::Density)
-    ## TODO optimize this by defining broadcasting directly on density objects?
-    density_from_real(basis, real(ρin) .+ m.α.*(real(ρout) .- real(ρin)))
+    if m.α == 1
+        return ρout # optimization
+    else
+        ## TODO optimize this by defining broadcasting directly on density objects?
+        density_from_real(basis, real(ρin) .+ m.α .* (real(ρout) .- real(ρin)))
+    end
 end
 
