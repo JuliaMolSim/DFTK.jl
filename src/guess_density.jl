@@ -11,20 +11,22 @@ length specified by `atom_decay_length`, normalized to get the right number of e
 \hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
 ```
 """
-function guess_density(basis, composition...)
+function guess_density(basis::PlaneWaveBasis{T}, composition...) where {T}
     model = basis.model
-    T = eltype(basis.kpoints[1].coordinate)
-    # Compute Fourier transform
-    ρ = map(basis_Cρ(basis)) do G
-        Gsq = sum(abs2, model.recip_lattice * G)
-        res = sum(
-            # TODO remove T.(r) once we check that composition has the correct type
-            n_elec_valence(spec) * exp(-Gsq * T(atom_decay_length(spec))^2) * cis(-2T(π) * dot(G, T.(r)))
-            for (spec, positions) in composition
-            for r in positions
-        )
-        res
+    ρ = zeros(complex(T), basis.fft_size)
+    # fill ρ with the (unnormalized) Fourier transform, ie ∫ e^{-iGx} ρ(x) dx
+    for (spec, positions) in composition
+        n_el_val = n_elec_valence(spec)
+        decay_length = T(atom_decay_length(spec))
+        for r in positions
+            Tr = T.(r)
+            for (iG, G) in enumerate(basis_Cρ(basis))
+                Gsq = sum(abs2, model.recip_lattice * G)
+                ρ[iG] += n_el_val * exp(-Gsq * decay_length^2) * cis(-2π * dot(G, Tr))
+            end
+        end
     end
+
     # projection in the normalized plane wave basis
     density_from_fourier(basis, ρ / sqrt(model.unit_cell_volume))
 end
