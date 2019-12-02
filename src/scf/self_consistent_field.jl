@@ -56,10 +56,12 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
     # We do density mixing in the real representation
     # TODO do the mixing in Fourier space instead?
     function fixpoint_map(x)
+        # Get ρout by diagonalizing the Hamiltonian
         ρin = density_from_real(basis, x)
         res = iterate_density!(ham, n_bands, ρin;
                                Psi=Psi, eigensolver=eigensolver, tol=diagtol)
         ρout = res.ρ
+        # mix it with ρin to get a proposal step
         ρnext = mix(mixing, basis, ρin, ρout)
         real(ρnext)
     end

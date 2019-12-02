@@ -1,4 +1,4 @@
-# Mixing rules: ρin, ρout => ρnext
+# Mixing rules: ρin, ρout => ρnext, where ρout is produced by diagonalizing the Hamiltonian at ρin
 # These define the basic fix-point iteration, that are then combined with acceleration methods (eg anderson)
 
 struct KerkerMixing{T <: Real}
@@ -26,4 +26,3 @@ function mix(m::SimpleMixing, basis, ρin::Density, ρout::Density)
         density_from_real(basis, real(ρin) .+ m.α .* (real(ρout) .- real(ρin)))
     end
 end
-
