@@ -109,10 +109,6 @@ function determine_grid_size(lattice::AbstractMatrix{T}, Ecut; supersampling=2, 
         Vec3([2gs + 1 for gs in Gmax])
     end
 end
-function determine_grid_size(lattice::AbstractMatrix{T}, Ecut;
-                             kwargs...) where T <: Interval
-    determine_grid_size(mid.(lattice), Ecut; kwargs...)
-end
 function determine_grid_size(model::Model, Ecut; kwargs...)
     determine_grid_size(model.lattice, Ecut; kwargs...)
 end

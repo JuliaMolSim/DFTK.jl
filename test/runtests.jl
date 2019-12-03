@@ -26,6 +26,7 @@ using DFTK
     include("HamiltonianBlock.jl")
     include("lobpcg.jl")
     include("xc_fallback.jl")
+    include("interval_arithmetic.jl")
 
     include("energy_ewald.jl")
     include("energy_nuclear.jl")
