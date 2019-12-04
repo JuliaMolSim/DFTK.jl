@@ -26,7 +26,7 @@ end
 # This assumes CPU arrays
 Density(basis::PlaneWaveBasis{T}) where T = density_from_real(basis, zeros(T, basis.fft_size))
 
-check_density_real(ρ::Density) = check_density(real(ρ))
+check_density_real(ρ::Density) = check_density_real(real(ρ))
 function check_density_real(ρreal)
     if norm(imag(ρreal)) > 100 * eps(real(eltype(ρreal)))
         @warn "Large imag(ρ)" norm_imag=norm(imag(ρreal))
