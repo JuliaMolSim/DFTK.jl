@@ -1,29 +1,19 @@
+# Functions for finding the Fermi level and occupation numbers for bands
+
 import Roots
 
-# How many electrons to put in each state
-function filled_occupation(basis)
-    @assert basis.model.spin_polarisation in (:none, :spinless)
-    if basis.model.spin_polarisation == :none
-        @assert basis.model.n_electrons % 2 == 0
-        filled_occ = 2
-    else
-        filled_occ = 1
-    end
-    filled_occ
-end
-
-# Functions for finding the Fermi level and occupation numbers for bands
 """
 Find Fermi level and occupation for the given parameters, assuming a band gap
 and zero temperature.
 """
 function find_occupation_gap_zero_temperature(basis, energies, Psi)
+    @assert basis.model.spin_polarisation in (:none, :spinless)
     n_bands = size(Psi[1], 2)
     n_electrons = basis.model.n_electrons
     T = eltype(basis.kpoints[1].coordinate)
     @assert basis.model.temperature == 0.0
 
-    filled_occ = filled_occupation(basis)
+    filled_occ = filled_occupation(basis.model)
     n_fill = div(n_electrons, 2)
     @assert 2n_fill == n_electrons
     @assert n_bands ≥ n_fill
@@ -59,6 +49,7 @@ Find the Fermi level and occupation for the given parameters, assuming no band g
 (i.e. a metal).
 """
 function find_occupation_fermi_metal(basis, energies, Psi)
+    @assert basis.model.spin_polarisation in (:none, :spinless)
     model = basis.model
     n_bands = size(Psi[1], 2)
     n_electrons = model.n_electrons
@@ -67,7 +58,7 @@ function find_occupation_fermi_metal(basis, energies, Psi)
 
     @assert smearing !== nothing
 
-    filled_occ = filled_occupation(basis)
+    filled_occ = filled_occupation(model)
 
     @assert filled_occ*n_bands ≥ n_electrons
 
@@ -94,7 +85,7 @@ function find_occupation_fermi_metal(basis, energies, Psi)
     @assert compute_n_elec(εF) ≈ n_electrons
     minocc = maximum(minimum.(compute_occupation(εF)))
     if minocc > .01
-        @warn "One kpoint has minimum occupation $minocc, you should increase the number of bands"
+        @warn "One kpoint has a high minimum occupation $minocc. You should probably increase the number of bands."
     end
     εF, compute_occupation(εF)
 end
