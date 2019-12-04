@@ -149,8 +149,7 @@ p(qsq) = ∫_{R+} r^2 p(r) j_l(q r) dr
 
 [HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω).
 """
-function eval_psp_projection_radial(psp::PspHgh, i, l, qsq::Number)
-    T = eltype(qsq)
+function eval_psp_projection_radial(psp::PspHgh, i, l, qsq::T) where {T <: Real}
     rp = psp.rp[l + 1]
     q = sqrt.(qsq)
     qrsq::T = qsq .* rp^2
