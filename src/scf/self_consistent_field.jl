@@ -4,7 +4,6 @@ Obtain new density ρ by diagonalizing the Hamiltonian build from the current ρ
 """
 function iterate_density!(ham::Hamiltonian, n_bands, ρ=nothing; Psi=nothing,
                           prec_type=PreconditionerTPA, tol=1e-6,
-                          compute_occupation=find_occupation_around_fermi,
                           eigensolver=lobpcg_hyper)
     # Update Hamiltonian from ρ
     ## TODO this changes the potentials in ham, and is problematic if we want to do potential mixing
@@ -17,7 +16,7 @@ function iterate_density!(ham::Hamiltonian, n_bands, ρ=nothing; Psi=nothing,
     Psi !== nothing && (Psi .= eigres.X)
 
     # Update density from new Psi
-    εF, occupation = compute_occupation(ham.basis, eigres.λ, eigres.X)
+    εF, occupation = find_occupation(ham.basis, eigres.λ, eigres.X)
     ρnew = compute_density(ham.basis, eigres.X, occupation)
 
     (ham=ham, Psi=eigres.X, orben=eigres.λ, occupation=occupation, εF=εF,
@@ -36,8 +35,6 @@ self-consistnet density, Hartree potential values and XC potential values.
 electrons, `ρ` is the initial density, e.g. constructed via a SAD guess.
 `lobpcg_prec` specifies the preconditioner used in the LOBPCG algorithms used
 for diagonalisation. Possible `algorithm`s are `:scf_nlsolve` or `:scf_damped`.
-
-compute_occupation is around to manipulate the way occupations are computed.
 """
 function self_consistent_field!(ham::Hamiltonian, n_bands;
                                 Psi=nothing, tol=1e-6, max_iter=100,
