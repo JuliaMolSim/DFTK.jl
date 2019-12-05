@@ -84,7 +84,7 @@ How many electrons to put in each state.
 function filled_occupation(model)
     @assert model.spin_polarisation in (:none, :spinless)
     if model.spin_polarisation == :none
-        @assert basis.model.n_electrons % 2 == 0
+        @assert model.n_electrons % 2 == 0
         filled_occ = 2
     else
         filled_occ = 1
