@@ -109,16 +109,13 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     ipFFT *= sqrt(model.unit_cell_volume) / length(ipFFT)
     opFFT *= sqrt(model.unit_cell_volume) / length(opFFT)
 
-    grids = tuple((range(T(0), T(1), length=fft_size[i]+1)[1:end-1]
-                   for i=1:3)...)
-
     # Default to no symmetry
     ksymops === nothing && (ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))]
                                          for _ in 1:length(kcoords)])
     # Compute weights if not given
     if kweights === nothing
         kweights = [length(symops) for symops in ksymops]
-        kweights = kweights / T(sum(kweights))
+        kweights = T.(kweights) ./ sum(kweights)
     end
 
     # Sanity checks
@@ -129,6 +126,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     @assert(Ecut ≤ max_E, "Ecut should be less than the maximal kinetic energy " *
             "the grid supports (== $max_E)")
 
+    grids = tuple((range(T(0), T(1), length=fft_size[i] + 1)[1:end-1] for i=1:3)...)
     PlaneWaveBasis{T, typeof(grids), typeof(opFFT), typeof(ipFFT)}(
         model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
         kweights, ksymops, fft_size, grids, opFFT, ipFFT

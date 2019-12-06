@@ -1,6 +1,5 @@
 using Test
 using DFTK
-using Libxc: Functional
 
 include("testcases.jl")
 

@@ -3,7 +3,6 @@ Obtain new density ρ by diagonalizing `ham`.
 """
 function next_density(ham::Hamiltonian, n_bands; Psi=nothing,
                       prec_type=PreconditionerTPA, tol=1e-6, n_ep_extra=3, 
-                      compute_occupation=find_occupation_around_fermi,
                       eigensolver=lobpcg_hyper)
     n_ep = n_bands + n_ep_extra
     if Psi !== nothing
@@ -15,7 +14,7 @@ function next_density(ham::Hamiltonian, n_bands; Psi=nothing,
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Update density from new Psi
-    εF, occupation = compute_occupation(ham.basis, eigres.λ, eigres.X)
+    εF, occupation = find_occupation(ham.basis, eigres.λ, eigres.X)
     ρnew = compute_density(ham.basis, eigres.X, occupation)
 
     (Psi=eigres.X, orben=eigres.λ, occupation=occupation, εF=εF, ρ=ρnew)
@@ -29,7 +28,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
                                Psi=nothing, tol=1e-6, max_iter=100,
                                solver=scf_nlsolve_solver(),
                                eigensolver=lobpcg_hyper, n_ep_extra=3, diagtol=tol / 10,
-                               mixing=nothing)
+                               mixing=SimpleMixing())
     T = eltype(real(ham.density))
     basis = ham.basis
     model = basis.model
@@ -47,14 +46,13 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
     # We do density mixing in the real representation
     # TODO support other mixing types
     function fixpoint_map(x)
+        # Get ρout by diagonalizing the Hamiltonian
         ρin = density_from_real(basis, x)
-
-        # Build next Hamiltonian, diagonalize it, get ρout
         ham = update_hamiltonian(ham, ρin)
-        Psi, orben, occupation, εF, ρ = next_density(ham, n_bands;
-                                                     Psi=Psi, eigensolver=eigensolver,
-                                                     tol=diagtol, n_ep_extra=n_ep_extra)
+        Psi, orben, occupation, εF, ρ = next_density(ham, n_bands, ρin;
+                                                     Psi=Psi, eigensolver=eigensolver, tol=diagtol)
         ρout = ρ
+        # mix it with ρin to get a proposal step
         ρnext = mix(mixing, basis, ρin, ρout)
         real(ρnext)
     end

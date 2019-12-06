@@ -106,9 +106,9 @@ function CTPlan(T::Type, forward::Bool, n::Int; ωpow=ωpow)
     CTPlan{T,forward,Tuple{map(typeof,tsteps_)...},typeof(nt)}(n, tsteps_, nt)
 end
 
-plan_fft(x::AbstractVector{Complex{Tr}}) where Tr<:AbstractFloat =
+plan_fft(x::AbstractVector{Complex{Tr}}) where Tr<:Real =
     CTPlan(Complex{Tr}, true, length(x))::CTPlan{Complex{Tr},true}
-plan_bfft(x::AbstractVector{Complex{Tr}}) where Tr<:AbstractFloat =
+plan_bfft(x::AbstractVector{Complex{Tr}}) where Tr<:Real =
     CTPlan(Complex{Tr}, false, length(x))::CTPlan{Complex{Tr},false}
 
 function applystep(p::CTPlan{T},
@@ -191,7 +191,7 @@ function twiddle(T, ω_n, forward::Bool, n::Integer, k::Integer, x)
     :($factor * $x)
 end
 
-function twiddle(T::Type{Complex{Tr}}, ω_n, forward::Bool, n::Integer, k::Integer, x) where Tr<:AbstractFloat
+function twiddle(T::Type{Complex{Tr}}, ω_n, forward::Bool, n::Integer, k::Integer, x) where Tr<:Real
     k == 0 && return x
     2k == n && return :(-$x)
     if 4k == n || 4k == 3n
@@ -375,12 +375,12 @@ const CTComplex = Union{Complex{Float32},Complex{Float64}} # types of pregenerat
 # are generic to any floating-point type.
 const generic_kernel_sizes = Set([1,2,4])
 for n in (1,2,4)
-    @eval @nontwiddle($(Complex{<:AbstractFloat}), true, $n)
-    @eval @nontwiddle($(Complex{<:AbstractFloat}), false, $n)
+    @eval @nontwiddle($(Complex{<:Real}), true, $n)
+    @eval @nontwiddle($(Complex{<:Real}), false, $n)
 end
 for forward in (true,false)
-    @eval @twiddle($(Complex{<:AbstractFloat}), $forward, 2)
-    @eval @twiddle($(Complex{<:AbstractFloat}), $forward, 4)
+    @eval @twiddle($(Complex{<:Real}), $forward, 2)
+    @eval @twiddle($(Complex{<:Real}), $forward, 4)
 end
 
 #############################################################################
