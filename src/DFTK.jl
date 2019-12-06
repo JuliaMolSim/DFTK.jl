@@ -99,7 +99,7 @@ export scf_damping_solver
 export scf_anderson_solver
 export scf_CROP_solver
 include("scf/scf_solvers.jl")
-export self_consistent_field!
+export self_consistent_field
 include("scf/self_consistent_field.jl")
 
 export energy_ewald

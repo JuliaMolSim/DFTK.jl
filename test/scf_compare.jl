@@ -14,8 +14,8 @@ include("testcases.jl")
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     # Run nlsolve without guess
-    scfres = self_consistent_field!(Hamiltonian(basis), n_bands, tol=tol,
-                                    solver=scf_nlsolve_solver())
+    scfres = self_consistent_field(Hamiltonian(basis), n_bands, tol=tol,
+                                   solver=scf_nlsolve_solver())
     ρ_nl = fourier(scfres.ρ)
 
     # Run other SCFs with SAD guess
@@ -23,15 +23,14 @@ include("testcases.jl")
     for solver in (scf_nlsolve_solver, scf_damping_solver, scf_anderson_solver,
                    scf_CROP_solver)
         println("Testing $solver")
-        scfres = self_consistent_field!(Hamiltonian(basis, ρ0), n_bands, tol=tol, solver=solver())
+        scfres = self_consistent_field(Hamiltonian(basis, ρ0), n_bands, tol=tol, solver=solver())
         ρ_alg = fourier(scfres.ρ)
         @test maximum(abs.(ρ_alg - ρ_nl)) < 30tol
     end
 
     # Run other mixing with nlsolve (the others are too slow...)
     for mixing in (KerkerMixing(), SimpleMixing(), SimpleMixing(.5))
-        scfres = self_consistent_field!(Hamiltonian(basis, ρ0), n_bands,
-                                        tol=tol, solver=scf_nlsolve_solver(), mixing=mixing)
+        scfres = self_consistent_field(Hamiltonian(basis, ρ0), n_bands, tol=tol, solver=scf_nlsolve_solver(), mixing=mixing)
         ρ_alg = fourier(scfres.ρ)
         @test maximum(abs.(ρ_alg - ρ_nl)) < 30tol
     end

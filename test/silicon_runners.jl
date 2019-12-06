@@ -32,7 +32,7 @@ function run_silicon_redHF(T; Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, 
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis, guess_density(basis, Si => silicon.positions))
 
-    scfres = self_consistent_field!(ham, n_bands, tol=scf_tol)
+    scfres = self_consistent_field(ham, n_bands, tol=scf_tol)
 
     for ik in 1:length(silicon.kcoords)
         @test eltype(scfres.orben[ik]) == T
@@ -70,19 +70,17 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis, guess_density(basis, Si => silicon.positions))
 
-    scfres = self_consistent_field!(ham, n_bands, tol=scf_tol,
-                                    eigensolver=lobpcg_hyper, n_ep_extra=n_noconv_check, diagtol=lobpcg_tol)
+    scfres = self_consistent_field(ham, n_bands, tol=scf_tol,
+                                   eigensolver=lobpcg_hyper, n_ep_extra=n_noconv_check, diagtol=lobpcg_tol)
 
     for ik in 1:length(silicon.kcoords)
         @test eltype(scfres.orben[ik]) == T
         @test eltype(scfres.Psi[ik]) == Complex{T}
-        println(ik, "  ", abs.(ref_lda[ik] - scfres.orben[ik]))
     end
     for ik in 1:length(silicon.kcoords)
         # Ignore last few bands, because these eigenvalues are hardest to converge
         # and typically a bit random and unstable in the LOBPCG
-        diff = abs.(ref_lda[ik] - scfres.orben[ik])
-        @test maximum(diff[1:n_bands - n_ignored]) < test_tol
+        @test maximum(ref_lda[ik][1:n_bands - n_ignored] - scfres.orben[ik][1:n_bands - n_ignored]) < test_tol
     end
 
     energies = scfres.energies
@@ -119,7 +117,7 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis, guess_density(basis, Si => silicon.positions))
 
-    scfres = self_consistent_field!(ham, n_bands, tol=scf_tol)
+    scfres = self_consistent_field(ham, n_bands, tol=scf_tol)
 
     for ik in 1:length(silicon.kcoords)
         @test eltype(scfres.orben[ik]) == T

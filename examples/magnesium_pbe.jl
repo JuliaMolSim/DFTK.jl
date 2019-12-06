@@ -37,7 +37,8 @@ basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
 
 # Run SCF
 ham = Hamiltonian(basis, guess_density(basis, composition...))
-scfres = self_consistent_field!(ham, n_bands)
+scfres = self_consistent_field(ham, n_bands)
+ham = scfres.ham
 
 # Print obtained energies
 energies = scfres.energies
