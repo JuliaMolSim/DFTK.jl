@@ -27,4 +27,12 @@ include("testcases.jl")
         ρ_alg = fourier(scfres.ρ)
         @test maximum(abs.(ρ_alg - ρ_nl)) < 30tol
     end
+
+    # Run other mixing with nlsolve (the others are too slow...)
+    for mixing in (KerkerMixing(), SimpleMixing(), SimpleMixing(.5))
+        scfres = self_consistent_field!(Hamiltonian(basis, ρ0), n_bands,
+                                        tol=tol, solver=scf_nlsolve_solver(), mixing=mixing)
+        ρ_alg = fourier(scfres.ρ)
+        @test maximum(abs.(ρ_alg - ρ_nl)) < 30tol
+    end
 end

@@ -39,7 +39,8 @@ for diagonalisation. Possible `algorithm`s are `:scf_nlsolve` or `:scf_damped`.
 function self_consistent_field!(ham::Hamiltonian, n_bands;
                                 Psi=nothing, tol=1e-6, max_iter=100,
                                 solver=scf_nlsolve_solver(),
-                                eigensolver=lobpcg_hyper, n_ep_extra=3, diagtol=tol / 10)
+                                eigensolver=lobpcg_hyper, n_ep_extra=3, diagtol=tol / 10,
+                                mixing=SimpleMixing())
     T = eltype(real(ham.density))
     basis = ham.basis
     model = basis.model
@@ -52,9 +53,14 @@ function self_consistent_field!(ham::Hamiltonian, n_bands;
     # We do density mixing in the real representation
     # TODO do the mixing in Fourier space instead?
     function fixpoint_map(x)
-        res = iterate_density!(ham, n_bands, density_from_real(basis, x);
+        # Get ρout by diagonalizing the Hamiltonian
+        ρin = density_from_real(basis, x)
+        res = iterate_density!(ham, n_bands, ρin;
                                Psi=Psi, eigensolver=eigensolver, tol=diagtol)
-        real(res.ρ)
+        ρout = res.ρ
+        # mix it with ρin to get a proposal step
+        ρnext = mix(mixing, basis, ρin, ρout)
+        real(ρnext)
     end
 
     # Run fixpoint solver: Take guess density from Hamiltonian or iterate once

@@ -91,13 +91,16 @@ export diag_full
 export diagonalise_all_kblocks
 include("eigen/diag.jl")
 
+export KerkerMixing
+export SimpleMixing
+include("scf/mixing.jl")
 export scf_nlsolve_solver
 export scf_damping_solver
 export scf_anderson_solver
 export scf_CROP_solver
+include("scf/scf_solvers.jl")
 export self_consistent_field!
 include("scf/self_consistent_field.jl")
-include("scf/scf_solvers.jl")
 
 export energy_ewald
 include("energy_ewald.jl")
