@@ -49,7 +49,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
         # Get ρout by diagonalizing the Hamiltonian
         ρin = density_from_real(basis, x)
         ham = update_hamiltonian(ham, ρin)
-        Psi, orben, occupation, εF, ρ = next_density(ham, n_bands, ρin;
+        Psi, orben, occupation, εF, ρ = next_density(ham, n_bands;
                                                      Psi=Psi, eigensolver=eigensolver, tol=diagtol)
         ρout = ρ
         # mix it with ρin to get a proposal step
