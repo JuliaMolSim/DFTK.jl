@@ -63,9 +63,12 @@ function Optim.precondprep!(P::DMPreconditioner, x)
 end
 
 
-direct_minimization(basis::PlaneWaveBasis) = direct_minimization(basis, nothing)
+"""
+Computes the ground state by direct minimization. `kwargs...` are passed to `Optim.Options()`.
+"""
+direct_minimization(basis::PlaneWaveBasis; kwargs...) = direct_minimization(basis, nothing; kwargs...)
 function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
-                             prec_type=PreconditionerTPA) where T
+                             prec_type=PreconditionerTPA, kwargs...) where T
     model = basis.model
     @assert model.spin_polarisation in (:none, :spinless)
     @assert model.assume_band_gap
@@ -77,7 +80,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
     if Psi0 === nothing
         Psi0 = [ortho(randn(Complex{T}, length(k.basis), n_bands)) for k in basis.kpoints]
     end
-    occupations = [filled_occ*ones(T, n_bands) for ik = 1:Nk]
+    occupation = [filled_occ*ones(T, n_bands) for ik = 1:Nk]
 
     ham = Hamiltonian(basis)
 
@@ -93,13 +96,16 @@ function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
     vec(Psi) = vcat(Base.vec.(Psi)...) # TODO as an optimization, do that lazily? See LazyArrays
     devec(Psi) = [@views reshape(Psi[starts[ik]:starts[ik]+lengths[ik]-1], size(Psi0[ik])) for ik in 1:Nk]
 
+    # this will get updated
+    energies = nothing
+
     # computes energies and gradients
     function fg!(E, G, Psi)
         Psi = devec(Psi)
-        ρ = compute_density(basis, Psi, occupations)
+        ρ = compute_density(basis, Psi, occupation)
         ham = update_hamiltonian(ham, ρ)
         if E != nothing
-            energies = update_energies(ham, Psi, occupations, ρ)
+            energies = update_energies(ham, Psi, occupation, ρ)
             E = sum(values(energies))
         end
 
@@ -118,5 +124,14 @@ function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
     Pks = [prec_type(ham, kpt) for kpt in basis.kpoints]
     P = DMPreconditioner(Nk, Pks, devec)
 
-    Optim.optimize(Optim.only_fg!(fg!), vec(Psi0), Optim.LBFGS(P=P, manifold=manif), Optim.Options(show_trace=true))
+    res = Optim.optimize(Optim.only_fg!(fg!), vec(Psi0), Optim.LBFGS(P=P, manifold=manif), Optim.Options(show_trace=true, kwargs...))
+    Psi = devec(res.minimizer)
+    ρ = compute_density(basis, Psi, occupation)
+    ham = update_hamiltonian(ham, ρ)
+    # These concepts do not make sense in direct minimization,
+    # although we could maybe do a final Rayleigh-Ritz
+    orben = nothing
+    εF = nothing
+    (ham=ham, energies=energies, converged=true,
+     ρ=ρ, Psi=Psi, orben=orben, occupation=occupation, εF=εF, optim_res=res)
 end
