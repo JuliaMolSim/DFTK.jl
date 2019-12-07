@@ -2,6 +2,9 @@ using Optim
 import Optim.project_tangent!
 import Optim.retract!
 import Optim.Manifold
+import Optim.precondprep!
+import LinearAlgebra.ldiv!
+import LinearAlgebra.dot
 
 struct MyManifold <: Optim.Manifold
     n_bands::Int
@@ -23,8 +26,35 @@ end
     x
 end
 
+struct MyPreconditioner
+    n_bands::Int
+    Nk::Int
+    Pks # Pks[ik] is the preconditioner for kpoint k
+end
+@views function LinearAlgebra.ldiv!(p, m::MyPreconditioner, d)
+    for ik = 1:m.Nk
+        ldiv!(p[:, (ik-1)*m.n_bands+1:ik*m.n_bands],
+              m.Pks[ik],
+              d[:, (ik-1)*m.n_bands+1:ik*m.n_bands])
+    end
+    p
+end
+@views function LinearAlgebra.dot(x, m::MyPreconditioner, y)
+    sum(dot(x[:, (ik-1)*m.n_bands+1:ik*m.n_bands],
+            m.Pks[ik],
+            y[:, (ik-1)*m.n_bands+1:ik*m.n_bands])
+        for ik = 1:m.Nk)
+end
+@views function Optim.precondprep!(P::MyPreconditioner, x)
+    for ik = 1:m.Nk
+        precondprep!(Pk, x[:, (ik-1)*m.n_bands+1:ik*m.n_bands])
+    end
+    P
+end
+
 direct_minimization(basis::PlaneWaveBasis) = direct_minimization(basis, nothing)
-function direct_minimization(basis::PlaneWaveBasis{T}, Psi0) where T
+function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
+                             prec_type=PreconditionerTPA) where T
     model = basis.model
     @assert model.spin_polarisation in (:none, :spinless)
     @assert model.assume_band_gap
@@ -61,5 +91,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, Psi0) where T
         E
     end
 
-    Optim.optimize(Optim.only_fg!(fg!), vec(Psi0), Optim.LBFGS(manifold=MyManifold(n_bands, Nk)), Optim.Options(show_trace=true))
+    Pks = [prec_type(ham, kpt) for kpt in basis.kpoints]
+    P = MyPreconditioner(n_bands, Nk, Pks)
+    manif = MyManifold(n_bands, Nk)
+    Optim.optimize(Optim.only_fg!(fg!), vec(Psi0), Optim.LBFGS(P=P, manifold=manif), Optim.Options(show_trace=true))
 end
