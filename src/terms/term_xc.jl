@@ -167,7 +167,7 @@ function (term::TermXc)(basis::PlaneWaveBasis, energy::Union{Ref,Nothing}, poten
     potential !== nothing && (potential .= 0)
     Epp = nothing  # Energy per unit particle
     if energy !== nothing
-        Epp = similar(real(ρ.real))
+        Epp = similar(density.ρreal)
         energy[] = 0
     end
 
