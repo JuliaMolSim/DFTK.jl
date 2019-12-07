@@ -20,7 +20,7 @@ eltype(ham::Hamiltonian) = Complex{eltype(ham.basis.kpoints[1].coordinate)}
 """
 Initialise a one-particle Hamiltonian from a model and optionally a density.
 """
-Hamiltonian(basis::PlaneWaveBasis) = Hamiltonian(basis, RealFourierArray(basis; iscomplex=true))
+Hamiltonian(basis::PlaneWaveBasis) = Hamiltonian(basis, RealFourierArray(basis))
 function Hamiltonian(basis::PlaneWaveBasis{T}, ρ::RealFourierArray) where T
     model = basis.model
     potarray = similar(ρ.real, Complex{T})

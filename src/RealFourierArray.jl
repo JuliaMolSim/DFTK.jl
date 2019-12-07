@@ -33,8 +33,12 @@ function from_real(basis, real_part::AbstractArray{T}) where {T <: Number}
     RealFourierArray{real(T), T}(basis, real_part, similar(real_part, complex(T)), 0)
 end
 # this will necessarily be a real array
-function from_fourier(basis, fourier_part::AbstractArray{T}) where {T <: Complex}
-    RealFourierArray{real(T), T}(basis, similar(fourier_part), fourier_part, 1)
+function from_fourier(basis, fourier_part::AbstractArray{T}; isreal=false) where {T <: Complex}
+    if isreal
+        RealFourierArray{real(T), real(T)}(basis, similar(fourier_part, real(T)), fourier_part, 1)
+    else
+        RealFourierArray{real(T), T}(basis, similar(fourier_part), fourier_part, 1)
+    end
 end
 
 check_real(A::RealFourierArray{Tr, T}) where {Tr, T <: Real} = nothing
