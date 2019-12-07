@@ -11,9 +11,6 @@ import LinearAlgebra.ldiv!
 
 precondprep!(P, X) = P  # This API is also used in Optim.jl
 
-#
-# Tetter-Payne-Allan preconditioning
-#
 """
 (simplified version of) Tetter-Payne-Allan preconditioning
 ↑ M.P. Teter, M.C. Payne and D.C. Allan, Phys. Rev. B 40, 12255 (1989).

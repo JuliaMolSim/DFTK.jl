@@ -1,3 +1,5 @@
+# Direct minimization of the energy
+
 using Optim
 import Optim.project_tangent!
 import Optim.retract!
@@ -6,51 +8,60 @@ import Optim.precondprep!
 import LinearAlgebra.ldiv!
 import LinearAlgebra.dot
 
-struct MyManifold <: Optim.Manifold
-    n_bands::Int
+# This is all a bit annoying because our Psi is represented as Psi[k][G,n], and Optim accepts only dense arrays
+# We do a bit of back and forth using custom `vec` (ours -> optim's) and `devec` (optim's -> ours) functions
+
+# Impose the orthogonality constraint on orbitals inside each k-block
+struct DMManifold <: Optim.Manifold
     Nk::Int
+    devec_fun::Function
 end
-@views function Optim.project_tangent!(m::MyManifold, g, x)
+function Optim.project_tangent!(m::DMManifold, g, x)
+    g_devec = m.devec_fun(g)
+    x_devec = m.devec_fun(x)
     for ik = 1:m.Nk
         Optim.project_tangent!(Optim.Stiefel(),
-                               g[:, (ik-1)*m.n_bands+1:ik*m.n_bands],
-                               x[:, (ik-1)*m.n_bands+1:ik*m.n_bands])
+                               g_devec[ik],
+                               x_devec[ik])
     end
     g
 end
-@views function Optim.retract!(m::MyManifold, x)
+function Optim.retract!(m::DMManifold, x)
+    x_devec = m.devec_fun(x)
     for ik = 1:m.Nk
-        Optim.retract!(Optim.Stiefel(),
-                       x[:, (ik-1)*m.n_bands+1:ik*m.n_bands])
+        Optim.retract!(Optim.Stiefel(), x_devec[ik])
     end
     x
 end
 
-struct MyPreconditioner
-    n_bands::Int
+# Array of preconditioners
+struct DMPreconditioner
     Nk::Int
-    Pks # Pks[ik] is the preconditioner for kpoint k
+    Pks::Array # Pks[ik] is the preconditioner for kpoint ik
+    devec_fun::Function
 end
-@views function LinearAlgebra.ldiv!(p, m::MyPreconditioner, d)
-    for ik = 1:m.Nk
-        ldiv!(p[:, (ik-1)*m.n_bands+1:ik*m.n_bands],
-              m.Pks[ik],
-              d[:, (ik-1)*m.n_bands+1:ik*m.n_bands])
+function LinearAlgebra.ldiv!(p, P::DMPreconditioner, d)
+    p_devec = P.devec_fun(p)
+    d_devec = P.devec_fun(d)
+    for ik = 1:P.Nk
+        ldiv!(p_devec[ik], P.Pks[ik], d_devec[ik])
     end
     p
 end
-@views function LinearAlgebra.dot(x, m::MyPreconditioner, y)
-    sum(dot(x[:, (ik-1)*m.n_bands+1:ik*m.n_bands],
-            m.Pks[ik],
-            y[:, (ik-1)*m.n_bands+1:ik*m.n_bands])
-        for ik = 1:m.Nk)
+function LinearAlgebra.dot(x, P::DMPreconditioner, y)
+    x_devec = P.devec(x)
+    y_devec = P.devec(y)
+    sum(dot(x_devec[ik], P.Pks[ik], y_devec[ik])
+        for ik = 1:P.Nk)
 end
-@views function Optim.precondprep!(P::MyPreconditioner, x)
-    for ik = 1:m.Nk
-        precondprep!(Pk, x[:, (ik-1)*m.n_bands+1:ik*m.n_bands])
+function Optim.precondprep!(P::DMPreconditioner, x)
+    x_devec = P.devec
+    for ik = 1:P.Nk
+        precondprep!(Pks[ik], x_devec[ik])
     end
     P
 end
+
 
 direct_minimization(basis::PlaneWaveBasis) = direct_minimization(basis, nothing)
 function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
@@ -70,8 +81,17 @@ function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
 
     ham = Hamiltonian(basis)
 
-    vec(Psi) = hcat(Psi...) # TODO as an optimization, do that lazily? See LazyArrays
-    devec(Psi) = [@views Psi[:, (ik-1)*n_bands+1:ik*n_bands] for ik in 1:Nk]
+    ## vec and devec
+    # length of Psi[ik]
+    lengths = [length(Psi0[ik]) for ik = 1:Nk]
+    # psi[ik] is in psi_flat[starts[ik]:starts[ik]+lengths[ik]-1]
+    starts = copy(lengths)
+    starts[1] = 1
+    for ik = 1:Nk-1
+        starts[ik+1] = starts[ik] + lengths[ik]
+    end
+    vec(Psi) = vcat(Base.vec.(Psi)...) # TODO as an optimization, do that lazily? See LazyArrays
+    devec(Psi) = [@views reshape(Psi[starts[ik]:starts[ik]+lengths[ik]-1], size(Psi0[ik])) for ik in 1:Nk]
 
     # computes energies and gradients
     function fg!(E, G, Psi)
@@ -85,14 +105,18 @@ function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
 
         # TODO check for possible 1/2 factors
         if G != nothing
-            HPsi = [kblock(ham, k) * Psi[ik] for (ik, k) in enumerate(basis.kpoints)]
-            copy!(G, vec(HPsi))
+            G = devec(G)
+            for ik = 1:Nk
+                mul!(G[ik], kblock(ham, basis.kpoints[ik]), Psi[ik])
+            end
         end
         E
     end
 
+    manif = DMManifold(Nk, devec)
+
     Pks = [prec_type(ham, kpt) for kpt in basis.kpoints]
-    P = MyPreconditioner(n_bands, Nk, Pks)
-    manif = MyManifold(n_bands, Nk)
+    P = DMPreconditioner(Nk, Pks, devec)
+
     Optim.optimize(Optim.only_fg!(fg!), vec(Psi0), Optim.LBFGS(P=P, manifold=manif), Optim.Options(show_trace=true))
 end
