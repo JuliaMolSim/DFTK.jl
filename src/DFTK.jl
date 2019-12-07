@@ -110,6 +110,7 @@ include("energy_ewald.jl")
 #
 export bzmesh_uniform
 export bzmesh_ir_wedge
+export kgrid_size_from_minimal_spacing
 include("bzmesh.jl")
 
 export guess_density
@@ -141,6 +142,7 @@ export model_reduced_hf
 include("standard_models.jl")
 
 export EtsfFolder
+export load_lattice
 export load_basis
 export load_model
 export load_density

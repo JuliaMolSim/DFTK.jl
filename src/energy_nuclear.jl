@@ -17,7 +17,7 @@ function energy_nuclear_psp_correction(lattice, composition...)
         if spec.psp !== nothing
     )
 
-    correction_per_cell / det(lattice)
+    correction_per_cell / abs(det(lattice))
 end
 
 """

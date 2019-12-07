@@ -57,8 +57,8 @@ function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
     recip_lattice[1:d, 1:d] = 2T(π)*inv(lattice[1:d, 1:d]')
     recip_lattice = Mat3{T}(recip_lattice)
     # in the 1D or 2D case, the volume is the length/surface
-    unit_cell_volume = det(lattice[1:d, 1:d])
-    recip_cell_volume = det(recip_lattice[1:d, 1:d])
+    unit_cell_volume = abs(det(lattice[1:d, 1:d]))
+    recip_cell_volume = abs(det(recip_lattice[1:d, 1:d]))
 
     @assert spin_polarisation in (:none, :collinear, :full, :spinless)
 

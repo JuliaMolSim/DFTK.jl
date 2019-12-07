@@ -6,7 +6,10 @@ function next_density(ham::Hamiltonian, n_bands; Psi=nothing,
                       eigensolver=lobpcg_hyper)
     n_ep = n_bands + n_ep_extra
     if Psi !== nothing
-        @assert size(Psi[1], 2) == n_ep
+        @assert length(Psi) == length(ham.basis.kpoints)
+        for ik in 1:length(ham.basis.kpoints)
+            @assert size(Psi[ik], 2) == n_bands + n_ep_extra
+        end
     end
 
     # Diagonalize
@@ -35,7 +38,10 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
 
     # All these variables will get updated by fixpoint_map
     if Psi !== nothing
-        @assert size(Psi[1], 2) == n_bands + n_ep_extra
+        @assert length(Psi) == length(basis.kpoints)
+        for ik in 1:length(basis.kpoints)
+            @assert size(Psi[ik], 2) == n_bands + n_ep_extra
+        end
     end
     occupation = nothing
     orben = nothing
