@@ -1,7 +1,6 @@
 using LinearAlgebra
 
 # Data structure and functionality for a one-particle Hamiltonian
-
 mutable struct Hamiltonian
     basis::PlaneWaveBasis  # Discretized model
     density                # The electron density used to build this Hamiltonian
@@ -21,27 +20,25 @@ eltype(ham::Hamiltonian) = Complex{eltype(ham.basis.kpoints[1].coordinate)}
 """
 Initialise a one-particle Hamiltonian from a model and optionally a density.
 """
-function Hamiltonian(basis::PlaneWaveBasis{T}, ρ=nothing) where T
+Hamiltonian(basis::PlaneWaveBasis) = Hamiltonian(basis, RealFourierArray(basis; iscomplex=true))
+function Hamiltonian(basis::PlaneWaveBasis{T}, ρ::RealFourierArray) where T
     model = basis.model
-    # TODO This assumes CPU array
-    potarray(p::Density) = similar(fourier(p))
-    potarray(::Nothing) = zeros(Complex{T}, basis.fft_size)
-    ρzero = something(ρ, Density(basis))
+    potarray = similar(ρ.real, Complex{T})
 
-    _, pot_external = model.build_external(basis, nothing, potarray(ρ))
-    _, pot_nonlocal = model.build_nonlocal(basis, nothing, potarray(ρ))
-    _, pot_hartree = model.build_hartree(basis, nothing, potarray(ρ); ρ=ρzero)
-    _, pot_xc = model.build_xc(basis, nothing, potarray(ρ); ρ=ρzero)
+    _, pot_external = model.build_external(basis, nothing, copy(potarray))
+    _, pot_nonlocal = model.build_nonlocal(basis, nothing, copy(potarray))
+    _, pot_hartree = model.build_hartree(basis, nothing, copy(potarray); ρ=ρ)
+    _, pot_xc = model.build_xc(basis, nothing, copy(potarray); ρ=ρ)
     terms_local = filter(!isnothing, [pot_external, pot_hartree, pot_xc])
     pot_local = isempty(terms_local) ? nothing : .+(terms_local...)
-    out = Hamiltonian(basis, ρzero, Kinetic(basis), pot_external,
+    out = Hamiltonian(basis, ρ, Kinetic(basis), pot_external,
                       pot_hartree, pot_xc, pot_local, pot_nonlocal)
 end
 
 """
 Build / update an Hamiltonian out-of-place
 """
-function update_hamiltonian(ham::Hamiltonian, ρ::Density)
+function update_hamiltonian(ham::Hamiltonian, ρ::RealFourierArray)
     nsimilar(::Nothing) = nothing
     nsimilar(x) = similar(x)
     ham = Hamiltonian(ham.basis, ρ, ham.kinetic, ham.pot_external, nsimilar(ham.pot_hartree),
@@ -52,7 +49,7 @@ end
 """
 Update Hamiltonian in-place
 """
-function update_hamiltonian!(ham::Hamiltonian, ρ::Density)
+function update_hamiltonian!(ham::Hamiltonian, ρ::RealFourierArray)
     basis = ham.basis
     model = basis.model
     ham.density = ρ

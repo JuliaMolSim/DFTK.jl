@@ -77,7 +77,7 @@ function term_external(generators_or_composition...; compensating_background=tru
         Vext = (potential === nothing) ? G_to_r(basis, coeffs) : G_to_r!(potential, basis, coeffs)
         if energy !== nothing
             dVol = model.unit_cell_volume / prod(basis.fft_size)
-            energy[] = real(sum(real(ρ) .* Vext)) * dVol
+            energy[] = real(sum(ρ.real .* Vext)) * dVol
         end
 
         energy, potential

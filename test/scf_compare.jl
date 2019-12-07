@@ -16,7 +16,7 @@ include("testcases.jl")
     # Run nlsolve without guess
     scfres = self_consistent_field(Hamiltonian(basis), n_bands, tol=tol,
                                    solver=scf_nlsolve_solver())
-    ρ_nl = fourier(scfres.ρ)
+    ρ_nl = scfres.ρ.fourier
 
     # Run other SCFs with SAD guess
     ρ0 = guess_density(basis, Si => silicon.positions)
@@ -24,14 +24,14 @@ include("testcases.jl")
                    scf_CROP_solver)
         println("Testing $solver")
         scfres = self_consistent_field(Hamiltonian(basis, ρ0), n_bands, tol=tol, solver=solver())
-        ρ_alg = fourier(scfres.ρ)
+        ρ_alg = scfres.ρ.fourier
         @test maximum(abs.(ρ_alg - ρ_nl)) < 30tol
     end
 
     # Run other mixing with nlsolve (the others are too slow...)
     for mixing in (KerkerMixing(), SimpleMixing(), SimpleMixing(.5))
         scfres = self_consistent_field(Hamiltonian(basis, ρ0), n_bands, tol=tol, solver=scf_nlsolve_solver(), mixing=mixing)
-        ρ_alg = fourier(scfres.ρ)
+        ρ_alg = scfres.ρ.fourier
         @test maximum(abs.(ρ_alg - ρ_nl)) < 30tol
     end
 end

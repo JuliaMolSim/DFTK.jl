@@ -64,7 +64,6 @@ and the result follows.
 =#
 
 
-# TODO Integrate this with Density.jl
 struct DensityDerivatives
     basis
     max_derivative::Int
@@ -81,11 +80,11 @@ function DensityDerivatives(basis, max_derivative::Integer, ρ)
     @assert model.spin_polarisation == :none "Only spin_polarisation == :none implemented."
     function ifft(x)
         tmp = G_to_r(basis, x)
-        check_density_real(tmp)
+        check_real(tmp)
         real(tmp)
     end
 
-    ρF = fourier(ρ)
+    ρF = ρ.fourier
     σ_real = nothing
     ∇ρ_real = nothing
     if max_derivative < 0 || max_derivative > 1
@@ -97,7 +96,7 @@ function DensityDerivatives(basis, max_derivative::Integer, ρ)
         σ_real = sum(∇ρ_real[α] .* ∇ρ_real[α] for α in 1:3)
     end
 
-    DensityDerivatives(basis, max_derivative, ρ, ∇ρ_real, σ_real)
+    DensityDerivatives(basis, max_derivative, real(ρ.real), ∇ρ_real, σ_real)
 end
 
 # Small internal helper function
@@ -109,23 +108,23 @@ epp_to_kwargs_(Epp) = Dict(:E => Epp)
 # These are internal functions
 eval_xc_!(basis, xc, family, Epp::Nothing, potential::Nothing, density) = nothing
 function eval_xc_!(basis, xc, ::Val{Libxc.family_lda}, Epp, ::Nothing, density)
-    evaluate_lda!(xc, real(density.ρ); epp_to_kwargs_(Epp)...)
+    evaluate_lda!(xc, density.ρ; epp_to_kwargs_(Epp)...)
 end
 function eval_xc_!(basis, xc, ::Val{Libxc.family_gga}, Epp, ::Nothing, density)
-    evaluate_gga!(xc, real(density.ρ), density.σ_real; epp_to_kwargs_(Epp)...)
+    evaluate_gga!(xc, density.ρ, density.σ_real; epp_to_kwargs_(Epp)...)
 end
 function eval_xc_!(basis, xc, ::Val{Libxc.family_lda}, Epp, potential, density)
-    Vρ = similar(real(density.ρ))
-    evaluate_lda!(xc, real(density.ρ); Vρ=Vρ, epp_to_kwargs_(Epp)...)
+    Vρ = similar(density.ρ)
+    evaluate_lda!(xc, density.ρ; Vρ=Vρ, epp_to_kwargs_(Epp)...)
     potential .+= Vρ
 end
 function eval_xc_!(basis, xc, ::Val{Libxc.family_gga}, Epp, potential, density)
     # Computes XC potential: Vρ - 2 div(Vσ ∇ρ)
 
     model = basis.model
-    Vρ = similar(real(density.ρ))
-    Vσ = similar(real(density.ρ))
-    evaluate_gga!(xc, real(density.ρ), density.σ_real; Vρ=Vρ, Vσ=Vσ, epp_to_kwargs_(Epp)...)
+    Vρ = similar(density.ρ)
+    Vσ = similar(density.ρ)
+    evaluate_gga!(xc, density.ρ, density.σ_real; Vρ=Vρ, Vσ=Vσ, epp_to_kwargs_(Epp)...)
 
     # 2 div(Vσ ∇ρ)
     gradterm = sum(1:3) do α
@@ -154,7 +153,7 @@ Todo docme
 function (term::TermXc)(basis::PlaneWaveBasis, energy::Union{Ref,Nothing}, potential;
                         ρ=nothing, kwargs...)
     @assert ρ !== nothing
-    T = eltype(real(ρ))
+    T = eltype(ρ)
     model = basis.model
 
     # Take derivatives of the density if needed.
@@ -168,7 +167,7 @@ function (term::TermXc)(basis::PlaneWaveBasis, energy::Union{Ref,Nothing}, poten
     potential !== nothing && (potential .= 0)
     Epp = nothing  # Energy per unit particle
     if energy !== nothing
-        Epp = similar(real(density.ρ))
+        Epp = similar(real(ρ.real))
         energy[] = 0
     end
 
@@ -181,7 +180,7 @@ function (term::TermXc)(basis::PlaneWaveBasis, energy::Union{Ref,Nothing}, poten
             # Factor (1/2) to avoid double counting of electrons
             # Factor 2 because α and β operators are identical for spin-restricted case
             dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
-            energy[] += 2 * sum(Epp .* real(density.ρ)) * dVol / 2
+            energy[] += 2 * sum(Epp .* density.ρ) * dVol / 2
         end
     end
     energy, potential
