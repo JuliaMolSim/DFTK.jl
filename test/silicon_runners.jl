@@ -112,7 +112,7 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     n_bands = length(ref_pbe[1])
 
     fft_size = grid_size * ones(3)
-    Si = Species(silicon.atnum, psp=load_psp("si-pbe-q4.hgh"))
+    Si = Species(silicon.atnum, psp=load_psp("hgh/pbe/si-q4"))
     model = model_dft(Array{T}(silicon.lattice), [:gga_x_pbe, :gga_c_pbe], Si => silicon.positions)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis, guess_density(basis, Si => silicon.positions))

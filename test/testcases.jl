@@ -7,7 +7,7 @@ silicon = (
     atnum = 14,
     n_electrons = 8,
     Tsmear = nothing,
-    psp = "si-pade-q4.hgh",
+    psp = "hgh/lda/si-q4",
     positions = [ones(3)/8, -ones(3)/8],  # in fractional coordinates
     kcoords = [[   0,   0, 0],  # in fractional coordinates
                [ 1/3,   0, 0],
@@ -50,7 +50,7 @@ manganese = (
                0.0000000000000000 0.0000000000000000 -9.7736219469000005],
     atnum = 12,
     n_electrons = 4,
-    psp = "mg-pade-q2.hgh",
+    psp = "hgh/lda/mg-q2",
     positions = [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]],
     kcoords =  [[0,   0,   0],
                 [1/3, 0,   0],

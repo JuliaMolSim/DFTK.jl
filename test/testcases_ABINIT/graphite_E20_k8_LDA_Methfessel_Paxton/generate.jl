@@ -13,6 +13,6 @@ infile.set_vars(
     occopt=6,       # Methfessel and Paxton, Hermite polynomial degree 2
     tsmear=0.01,    # Hartree
 )
-infile.extra = Dict("pspmap" => Dict("C" => "c-pade-q4.hgh", ), )
+infile.extra = Dict("pspmap" => Dict("C" => "hgh/lda/c-q4", ), )
 
 run_ABINIT_scf(infile, @__DIR__)

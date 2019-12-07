@@ -14,11 +14,11 @@ using DFTK: load_psp, Species, charge_nuclear, charge_ionic, n_elec_core, n_elec
 end
 
 @testset "Check constructing species with psp" begin
-    spec = Species(12, psp=load_psp("C-lda-q4.hgh"))
+    spec = Species(12, psp=load_psp("hgh/lda/C-q4"))
 
     @test spec.Znuc == 12
     @test spec.psp !== nothing
-    @test spec.psp.identifier == "c-pade-q4.hgh"
+    @test spec.psp.identifier == "hgh/lda/c-q4"
 
     @test charge_nuclear(spec) == 12
     @test charge_ionic(spec) == 4
