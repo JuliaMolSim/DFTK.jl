@@ -16,7 +16,7 @@ end
 KerkerMixing() = KerkerMixing(1, 1)
 function mix(m::KerkerMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray)
     Gsq = [sum(abs2, basis.model.recip_lattice * G)
-           for G in basis_Cρ(basis)]
+           for G in G_vectors(basis)]
     ρin = ρin.fourier
     ρout = ρout.fourier
     ρnext = @. ρin + m.α * (ρout - ρin) * Gsq / (m.G0^2 + Gsq)

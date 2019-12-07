@@ -61,7 +61,7 @@ function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
     kpoints = Vector{Kpoint{T}}()
     for k in kcoords
         energy(q) = sum(abs2, model.recip_lattice * q) / 2
-        pairs = [(i, G) for (i, G) in enumerate(basis_Cρ(fft_size)) if energy(k + G) ≤ Ecut]
+        pairs = [(i, G) for (i, G) in enumerate(G_vectors(fft_size)) if energy(k + G) ≤ Ecut]
 
         for σ in spin
             push!(kpoints, Kpoint{T}(σ, k, first.(pairs), last.(pairs)))
@@ -135,22 +135,20 @@ end
 
 """
 Return a generator producing the range of wave-vector coordinates contained
-in the Fourier grid ``C_ρ`` described by the plane-wave basis in the correct order.
+in the Fourier grid described by the plane-wave basis in the correct order.
 """
-function basis_Cρ(fft_size)
+function G_vectors(fft_size)
     start = -ceil.(Int, (Vec3(fft_size) .- 1) ./ 2)
     stop  = floor.(Int, (Vec3(fft_size) .- 1) ./ 2)
     axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
     (Vec3{Int}([i, j, k]) for i in axes[1], j in axes[2], k in axes[3])
 end
-basis_Cρ(pw::PlaneWaveBasis) = basis_Cρ(pw.fft_size)
-
+G_vectors(pw::PlaneWaveBasis) = G_vectors(pw.fft_size)
 
 """
-Return the index tuple corresponding to the wave vector in integer coordinates
-in the ``C_ρ`` basis. Returns nothing if outside the range of valid wave vectors.
+Return the index tuple I such that `G_vectors(pw)[I] == G`. Returns nothing if outside the range of valid wave vectors.
 """
-function index_Cρ(pw::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}
+function index_G_vectors(pw::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}
     start = -ceil.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
     stop  = floor.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
     lengths = stop .- start .+ 1

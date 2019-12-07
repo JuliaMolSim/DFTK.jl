@@ -14,7 +14,7 @@ function term_hartree_(basis::PlaneWaveBasis, energy::Union{Ref,Nothing}, potent
     # i.e. Multiply elementwise by 4π / |G|^2.
     # 0im to force a complex array
     values = 0im .+ T(4π) * ρ.fourier ./ [sum(abs2, model.recip_lattice * G)
-                                          for G in basis_Cρ(basis)]
+                                          for G in G_vectors(basis)]
     # TODO The above assumes CPU arrays
 
     # Zero the DC component (i.e. assume a compensating charge background)

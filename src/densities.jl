@@ -69,8 +69,8 @@ function compute_density(pw::PlaneWaveBasis, Psi::AbstractVector{VecT},
             #      this routine can be simplified or even skipped
 
             # Transform ρ_k -> to the partial density at S * k
-            for (ig, G) in enumerate(basis_Cρ(pw))
-                igired = index_Cρ(pw, Vec3{Int}(inv(S) * G))
+            for (ig, G) in enumerate(G_vectors(pw))
+                igired = index_G_vectors(pw, Vec3{Int}(inv(S) * G))
                 if igired !== nothing
                     ρ[ig] += cis(2T(π) * dot(G, τ)) * ρ_k[igired]
                 end

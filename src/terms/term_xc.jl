@@ -90,7 +90,7 @@ function DensityDerivatives(basis, max_derivative::Integer, ρ)
     if max_derivative < 0 || max_derivative > 1
         error("max_derivative not in [0, 1]")
     elseif max_derivative > 0
-        ∇ρ_real = [ifft(im * [(model.recip_lattice * G)[α] for G in basis_Cρ(basis)] .* ρF)
+        ∇ρ_real = [ifft(im * [(model.recip_lattice * G)[α] for G in G_vectors(basis)] .* ρF)
                    for α in 1:3]
         # TODO The above assumes CPU arrays
         σ_real = sum(∇ρ_real[α] .* ∇ρ_real[α] for α in 1:3)
@@ -132,7 +132,7 @@ function eval_xc_!(basis, xc, ::Val{Libxc.family_gga}, Epp, potential, density)
         Vσ∇ρ = 2r_to_G(basis, Vσ .* density.∇ρ_real[α] .+ 0im)
 
         # take derivative
-        im * [(model.recip_lattice * G)[α] for G in basis_Cρ(basis)] .* Vσ∇ρ
+        im * [(model.recip_lattice * G)[α] for G in G_vectors(basis)] .* Vσ∇ρ
     end
     gradterm_real = real(G_to_r(basis, gradterm))
     potential .+= (Vρ - gradterm_real)

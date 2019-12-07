@@ -26,7 +26,7 @@ include("common/smearing_functions.jl")
 export Model
 export PlaneWaveBasis
 export determine_grid_size
-export basis_Cρ
+export G_vectors
 export Kpoint
 export G_to_r
 export G_to_r!
