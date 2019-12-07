@@ -75,8 +75,8 @@ function Base.getproperty(A::RealFourierArray, x::Symbol)
     end
 end
 function Base.setproperty!(A::RealFourierArray, x)
-    error("RealFourierArray is intended to be read-only.
-(This can be bypassed by `setfield!` if you really want to).")
+    error("RealFourierArray is intended to be read-only." *
+          "(This can be bypassed by `setfield!` if you really want to).")
 end
 
 # Algebraic operations
