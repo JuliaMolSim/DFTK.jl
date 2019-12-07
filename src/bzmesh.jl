@@ -90,3 +90,17 @@ function bzmesh_ir_wedge(kgrid_size, lattice, composition...; tol_symmetry=1e-5)
 
     kcoords, ksymops
 end
+
+@doc raw"""
+Selects a kgrid_size to ensure a minimal spacing (in inverse Bohrs) between kpoints.
+Default is ``2π * 0.04 \AA^{-1}``.
+"""
+function kgrid_size_from_minimal_spacing(lattice, spacing=2π * 0.04 / units.Ǎ)
+    for d in 1:3
+        @assert norm(lattice[:, d]) != 0
+        # Otherwise the formula for the reciprocal lattice
+        # computation is not correct
+    end
+    recip_lattice = 2π * inv(lattice')
+    [ceil(Int, norm(recip_lattice[:, i]) ./ spacing) for i = 1:3]
+end

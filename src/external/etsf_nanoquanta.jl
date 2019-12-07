@@ -41,6 +41,13 @@ end
 
 
 """
+Load a DFTK-compatible lattice object from the ETSF folder
+"""
+load_lattice(T, folder::EtsfFolder) = Mat3{T}(folder.gsr["primitive_vectors"][:])
+load_lattice(folder) = load_lattice(Float64, folder)
+
+
+"""
 Load a DFTK-compatible compositon object from the ETSF folder.
 Use the scalar type `T` to represent the data.
 """
@@ -58,7 +65,7 @@ function load_composition(T, folder::EtsfFolder)
     end
     pairs(composition)
 end
-load_composition(folder::EtsfFolder) = load_composition(Float64, folder)
+load_composition(folder) = load_composition(Float64, folder)
 
 
 """
@@ -97,7 +104,7 @@ function load_model(T, folder::EtsfFolder)
     smearing_function !== nothing && (Tsmear = folder.gsr["smearing_width"][:])
 
     # Build model and discretise
-    lattice = Mat3{T}(folder.gsr["primitive_vectors"][:])
+    lattice = load_lattice(T, folder)
     composition = load_composition(T, folder)
     model = nothing
     if length(functional) > 0
@@ -112,7 +119,7 @@ function load_model(T, folder::EtsfFolder)
 
     model
 end
-load_model(folder::EtsfFolder) = load_model(Float64, folder)
+load_model(folder) = load_model(Float64, folder)
 
 
 """
@@ -138,7 +145,7 @@ function load_basis(T, folder::EtsfFolder)
 
     PlaneWaveBasis(model, Ecut, kcoords, ksymops)
 end
-load_basis(folder::EtsfFolder) = load_basis(Float64, folder)
+load_basis(folder) = load_basis(Float64, folder)
 
 
 """
@@ -159,4 +166,4 @@ function load_density(T, folder::EtsfFolder)
 
     r_to_G(basis, ρ_real)
 end
-load_density(folder::EtsfFolder) = load_density(Float64, folder)
+load_density(folder) = load_density(Float64, folder)
