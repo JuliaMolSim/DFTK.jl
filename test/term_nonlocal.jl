@@ -13,7 +13,7 @@ include("testcases.jl")
         pot
     end
 
-    psp = load_psp("Si-lda-q4.hgh")
+    psp = load_psp(silicon.psp)
     potnl = build_nonlocal(psp => silicon.positions)
     @testset "Agreement of psp and species construction" begin
         Si = Species(14, psp=psp)

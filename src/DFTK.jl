@@ -118,6 +118,7 @@ include("bzmesh.jl")
 export guess_density
 include("guess_density.jl")
 export load_psp
+export list_psp
 include("pseudo/load_psp.jl")
 
 export energy_nuclear_psp_correction
