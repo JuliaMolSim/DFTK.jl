@@ -8,7 +8,7 @@ include("../testcases.jl")
     Ecut = 25
     fft_size = [33, 33, 33]
 
-    Si = Species(silicon.atnum, psp=load_psp("si-pade-q4.hgh"))
+    Si = Species(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
     model = Model(silicon.lattice, silicon.n_electrons,
                   external=term_external(Si => silicon.positions))
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)

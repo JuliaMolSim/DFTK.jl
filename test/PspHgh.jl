@@ -3,9 +3,9 @@ using DFTK: load_psp, eval_psp_projection_radial, eval_psp_local_fourier
 
 
 @testset "Check reading 'C-lda-q4'" begin
-    psp = load_psp("C-lda-q4.hgh")
+    psp = load_psp("hgh/lda/C-q4")
 
-    @test psp.identifier == "c-pade-q4.hgh"
+    @test psp.identifier == "hgh/lda/c-q4"
     @test occursin("c", lowercase(psp.description))
     @test occursin("pade", lowercase(psp.description))
     @test psp.Zion == 4
@@ -17,10 +17,10 @@ using DFTK: load_psp, eval_psp_projection_radial, eval_psp_local_fourier
     @test psp.h[2] == zeros(0, 0)
 end
 
-@testset "Check reading 'Ni-pade-q18'" begin
-    psp = load_psp("Ni-pade-q18.hgh")
+@testset "Check reading 'Ni-lda-q18'" begin
+    psp = load_psp("hgh/lda/Ni-q18")
 
-    @test psp.identifier == "ni-pade-q18.hgh"
+    @test psp.identifier == "hgh/lda/ni-q18"
     @test occursin("ni", lowercase(psp.description))
     @test occursin("pade", lowercase(psp.description))
     @test psp.Zion == 18
@@ -34,7 +34,7 @@ end
 end
 
 @testset "Check evaluating 'Si-lda-q4'" begin
-    psp = load_psp("Si-lda-q4.hgh")
+    psp = load_psp("hgh/lda/Si-q4")
 
     # Test local part evaluation
     function test_psp_local_permutations(G, ref)

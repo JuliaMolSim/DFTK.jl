@@ -11,6 +11,6 @@ infile.set_vars(
     tolvrs=1e-10,   # General tolerance settings
     ixc=1           # LDA_XC_TETER93
 )
-infile.extra = Dict("pspmap" => Dict("Si" => "si-pade-q4.hgh", ), )
+infile.extra = Dict("pspmap" => Dict("Si" => "hgh/lda/si-q4", ), )
 
 run_ABINIT_scf(infile, @__DIR__)

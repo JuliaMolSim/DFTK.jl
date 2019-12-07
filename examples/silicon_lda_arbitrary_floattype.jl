@@ -11,7 +11,7 @@ T = Double64  # Try Double32, BigFloat (very slow!)
 # Setup silicon lattice
 a = 10.263141334305942  # Silicon lattice constant in Bohr
 lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
-Si = Species(14, psp=load_psp("si-pade-q4.hgh"))
+Si = Species(14, psp=load_psp("hgh/lda/Si-q4"))
 composition = [Si => [ones(3)/8, -ones(3)/8]]
 
 # Setup LDA model and discretisation

@@ -13,7 +13,7 @@ kline_density = 20       # Density of k-Points for bandstructure
 # Setup silicon lattice
 a = 10.263141334305942  # Silicon lattice constant in Bohr
 lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
-Si = Species(14, psp=load_psp("si-pade-q4.hgh"))
+Si = Species(14, psp=load_psp("hgh/lda/Si-q4"))
 # Si = Species(14)
 composition = [Si => [ones(3)/8, -ones(3)/8]]
 
