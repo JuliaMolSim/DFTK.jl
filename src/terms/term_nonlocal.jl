@@ -95,18 +95,18 @@ to a list of positions in fractional coordinates.
 
 ## Examples
 ```julia-repl
-julia> psp = load_psp("si-pade-q4.hgh")
+julia> psp = load_psp("hgh/lda/si-q4")
        nlpot = term_nonlocal(psp => [[0,0,0], [0,1/2,1/2]])
 ```
 or similarly using a Species object
 ```julia-repl
-julia> si = Species(14, psp=load_psp("si-pade-q4.hgh"))
+julia> si = Species(14, psp=load_psp("hgh/lda/si-q4"))
        nlpot = term_nonlocal(si => [[0,0,0], [0,1/2,1/2]])
 ```
 Of course multiple psps or species are possible:
 ```julia-repl
-julia> si = Species(14, psp=load_psp("si-pade-q4.hgh"))
-       c = Species(6, psp=load_psp("c-pade-q4.hgh"))
+julia> si = Species(14, psp=load_psp("hgh/lda/si-q4"))
+       c = Species(6, psp=load_psp("hgh/lda/c-q4"))
        nlpot = term_nonlocal(si => [[0,0,0]], c =>  [[0,1/2,1/2]])
 ```
 
