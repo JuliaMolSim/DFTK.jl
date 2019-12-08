@@ -14,6 +14,7 @@ using DFTK
     include("fourier_transforms.jl")
     include("PlaneWaveBasis.jl")
     include("interpolation.jl")
+    include("load_psp.jl")
     include("PspHgh.jl")
     include("Species.jl")
     include("bzmesh.jl")
