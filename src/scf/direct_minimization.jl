@@ -124,7 +124,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
     Pks = [prec_type(ham, kpt) for kpt in basis.kpoints]
     P = DMPreconditioner(Nk, Pks, devec)
 
-    res = Optim.optimize(Optim.only_fg!(fg!), vec(Psi0), Optim.LBFGS(P=P, manifold=manif), Optim.Options(show_trace=true, kwargs...))
+    res = Optim.optimize(Optim.only_fg!(fg!), vec(Psi0), Optim.LBFGS(P=P, manifold=manif), Optim.Options(; allow_f_increases=true, show_trace=true, kwargs...))
     Psi = devec(res.minimizer)
     ρ = compute_density(basis, Psi, occupation)
     ham = update_hamiltonian(ham, ρ)

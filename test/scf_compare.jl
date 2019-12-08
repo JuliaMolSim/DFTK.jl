@@ -19,7 +19,7 @@ include("testcases.jl")
     ρ_nl = scfres.ρ.fourier
 
     # Run DM
-    dmres = direct_minimization(basis)
+    dmres = direct_minimization(basis; g_tol=1e-8)
     ρ_dm = dmres.ρ.fourier
     @test maximum(abs.(ρ_dm - ρ_nl)) < 30tol
 
