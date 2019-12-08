@@ -67,7 +67,7 @@ and the result follows.
 struct DensityDerivatives
     basis
     max_derivative::Int
-    ρ         # density object
+    ρ         # density on real-space grid
     ∇ρ_real   # density gradient on real-space grid
     σ_real    # contracted density gradient on real-space grid
 end
@@ -96,7 +96,7 @@ function DensityDerivatives(basis, max_derivative::Integer, ρ)
         σ_real = sum(∇ρ_real[α] .* ∇ρ_real[α] for α in 1:3)
     end
 
-    DensityDerivatives(basis, max_derivative, real(ρ.real), ∇ρ_real, σ_real)
+    DensityDerivatives(basis, max_derivative, ρ.real, ∇ρ_real, σ_real)
 end
 
 # Small internal helper function
@@ -167,7 +167,7 @@ function (term::TermXc)(basis::PlaneWaveBasis, energy::Union{Ref,Nothing}, poten
     potential !== nothing && (potential .= 0)
     Epp = nothing  # Energy per unit particle
     if energy !== nothing
-        Epp = similar(density.ρreal)
+        Epp = similar(density.ρ)
         energy[] = 0
     end
 
