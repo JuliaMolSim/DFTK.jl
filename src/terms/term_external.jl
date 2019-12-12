@@ -62,7 +62,7 @@ function term_external(generators_or_composition...; compensating_background=tru
         # We expand Vper in the basis set:
         # Vper(r) = sum_G cG e_G(r)
         # cG = <e_G, Vper> = gen(G) / sqrt(Ω)
-        coeffs = map(basis_Cρ(basis)) do G
+        coeffs = map(G_vectors(basis)) do G
             sum(Complex{T}(
                 1/sqrt(model.unit_cell_volume)
                 * genfunction(G)          # Potential data for wave vector G
@@ -77,7 +77,7 @@ function term_external(generators_or_composition...; compensating_background=tru
         Vext = (potential === nothing) ? G_to_r(basis, coeffs) : G_to_r!(potential, basis, coeffs)
         if energy !== nothing
             dVol = model.unit_cell_volume / prod(basis.fft_size)
-            energy[] = real(sum(real(ρ) .* Vext)) * dVol
+            energy[] = real(sum(ρ.real .* Vext)) * dVol
         end
 
         energy, potential

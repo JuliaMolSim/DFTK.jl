@@ -29,7 +29,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
                                solver=scf_nlsolve_solver(),
                                eigensolver=lobpcg_hyper, n_ep_extra=3, diagtol=tol / 10,
                                mixing=SimpleMixing())
-    T = eltype(real(ham.density))
+    T = real(eltype(ham.density))
     basis = ham.basis
     model = basis.model
 
@@ -47,17 +47,17 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
     # TODO support other mixing types
     function fixpoint_map(x)
         # Get ρout by diagonalizing the Hamiltonian
-        ρin = density_from_real(basis, x)
+        ρin = from_real(basis, x)
         ham = update_hamiltonian(ham, ρin)
         Psi, orben, occupation, εF, ρ = next_density(ham, n_bands;
                                                      Psi=Psi, eigensolver=eigensolver, tol=diagtol)
         ρout = ρ
         # mix it with ρin to get a proposal step
         ρnext = mix(mixing, basis, ρin, ρout)
-        real(ρnext)
+        ρnext.real
     end
 
-    fpres = solver(fixpoint_map, real(ρ), tol, max_iter)
+    fpres = solver(fixpoint_map, ρ.real, tol, max_iter)
     # We do not use the return value of fpres but rather the one that got updated by fixpoint_map
 
     # TODO energies ... maybe do them optionally in iterate_density along with

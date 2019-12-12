@@ -1,5 +1,5 @@
 using Test
-using DFTK: Model, PlaneWaveBasis, r_to_G, basis_Cρ, Species, term_external
+using DFTK: Model, PlaneWaveBasis, r_to_G, G_vectors, Species, term_external
 using LinearAlgebra: dot
 
 include("testcases.jl")
@@ -35,7 +35,7 @@ include("testcases.jl")
         lattice_vector = silicon.lattice * [0, 1/8, 0]
         reference = [(1/sqrt(model.unit_cell_volume) * pot_coulomb(G)
                       * cis(dot(-model.recip_lattice * G, lattice_vector)))
-                     for G in basis_Cρ(basis)]
+                     for G in G_vectors(basis)]
         reference[1] = 0
         @test reference ≈ values_fourier
     end

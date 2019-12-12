@@ -1,5 +1,5 @@
 using Test
-using DFTK: PlaneWaveBasis, Model, basis_Cρ, index_Cρ
+using DFTK: PlaneWaveBasis, Model, G_vectors, index_G_vectors
 using LinearAlgebra
 
 include("testcases.jl")
@@ -32,7 +32,7 @@ end
 
     g_start = -ceil.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
     g_stop  = floor.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
-    g_all = vec(collect(basis_Cρ(pw)))
+    g_all = vec(collect(G_vectors(pw)))
 
     for (ik, kcoord) in enumerate(silicon.kcoords)
         kpt = pw.kpoints[ik]
@@ -57,11 +57,11 @@ end
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.n_electrons)
     pw = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-    g_all = collect(basis_Cρ(pw))
+    g_all = collect(G_vectors(pw))
 
     for i in 1:15, j in 1:15, k in 1:15
-        @test index_Cρ(pw, g_all[i, j, k]) == CartesianIndex(i, j, k)
+        @test index_G_vectors(pw, g_all[i, j, k]) == CartesianIndex(i, j, k)
     end
-    @test index_Cρ(pw, [15, 1, 1]) === nothing
-    @test index_Cρ(pw, [-15, 1, 1]) === nothing
+    @test index_G_vectors(pw, [15, 1, 1]) === nothing
+    @test index_G_vectors(pw, [-15, 1, 1]) === nothing
 end

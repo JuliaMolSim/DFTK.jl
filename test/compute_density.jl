@@ -26,7 +26,7 @@ include("testcases.jl")
         _, occ = DFTK.find_occupation(basis, res.λ, res.X)
         ρnew = compute_density(basis, res.X, occ)
 
-        basis, res.X, res.λ, fourier(ρnew)
+        basis, res.X, res.λ, ρnew.fourier
     end
 
     function test_orthonormality(basis, Psi; tol=1e-8)

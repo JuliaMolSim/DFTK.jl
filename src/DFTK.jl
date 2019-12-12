@@ -15,6 +15,7 @@ include("common/constants.jl")
 export Vec3
 export Mat3
 include("common/types.jl")
+include("common/check_real.jl")
 include("common/spherical_harmonics.jl")
 export smearing_fermi_dirac
 export smearing_gaussian
@@ -25,7 +26,7 @@ include("common/smearing_functions.jl")
 export Model
 export PlaneWaveBasis
 export determine_grid_size
-export basis_Cρ
+export G_vectors
 export Kpoint
 export G_to_r
 export G_to_r!
@@ -34,10 +35,10 @@ export r_to_G!
 include("Model.jl")
 include("PlaneWaveBasis.jl")
 
-export Density
-export fourier
-export real
-include("Density.jl")
+export RealFourierArray
+export from_real
+export from_fourier
+include("RealFourierArray.jl")
 
 export Species
 export charge_nuclear
@@ -68,7 +69,7 @@ export find_fermi_level
 include("occupation.jl")
 
 export compute_density
-include("compute_density.jl")
+include("densities.jl")
 
 export Hamiltonian
 export HamiltonianBlock

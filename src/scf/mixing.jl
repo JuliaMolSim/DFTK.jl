@@ -14,13 +14,13 @@ struct KerkerMixing{T <: Real}
     G0::T
 end
 KerkerMixing() = KerkerMixing(1, 1)
-function mix(m::KerkerMixing, basis, ρin::Density, ρout::Density)
+function mix(m::KerkerMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray)
     Gsq = [sum(abs2, basis.model.recip_lattice * G)
-           for G in basis_Cρ(basis)]
-    ρin = fourier(ρin)
-    ρout = fourier(ρout)
+           for G in G_vectors(basis)]
+    ρin = ρin.fourier
+    ρout = ρout.fourier
     ρnext = @. ρin + m.α * (ρout - ρin) * Gsq / (m.G0^2 + Gsq)
-    density_from_fourier(basis, ρnext)
+    from_fourier(basis, ρnext; assume_real=true)
 end
 
 """
@@ -30,11 +30,10 @@ struct SimpleMixing{T <: Real}
     α::T
 end
 SimpleMixing() = SimpleMixing(1)
-function mix(m::SimpleMixing, basis, ρin::Density, ρout::Density)
+function mix(m::SimpleMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray)
     if m.α == 1
         return ρout # optimization
     else
-        ## TODO optimize this by defining broadcasting directly on density objects?
-        density_from_real(basis, real(ρin) .+ m.α .* (real(ρout) .- real(ρin)))
+        ρin + m.α * (ρout - ρin)
     end
 end

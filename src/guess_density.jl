@@ -20,7 +20,7 @@ function guess_density(basis::PlaneWaveBasis{T}, composition...) where {T}
         decay_length = T(atom_decay_length(spec))
         for r in positions
             Tr = T.(r)
-            for (iG, G) in enumerate(basis_Cρ(basis))
+            for (iG, G) in enumerate(G_vectors(basis))
                 Gsq = sum(abs2, model.recip_lattice * G)
                 ρ[iG] += n_el_val * exp(-Gsq * decay_length^2) * cis(-2π * dot(G, Tr))
             end
@@ -28,7 +28,7 @@ function guess_density(basis::PlaneWaveBasis{T}, composition...) where {T}
     end
 
     # projection in the normalized plane wave basis
-    density_from_fourier(basis, ρ / sqrt(model.unit_cell_volume))
+    from_fourier(basis, ρ / sqrt(model.unit_cell_volume); assume_real=true)
 end
 
 @doc raw"""
