@@ -20,7 +20,7 @@ function mix(m::KerkerMixing, basis, ρin::RealFourierArray, ρout::RealFourierA
     ρin = ρin.fourier
     ρout = ρout.fourier
     ρnext = @. ρin + m.α * (ρout - ρin) * Gsq / (m.G0^2 + Gsq)
-    from_fourier(basis, ρnext; isreal=true)
+    from_fourier(basis, ρnext; assume_real=true)
 end
 
 """

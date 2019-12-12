@@ -78,7 +78,7 @@ function compute_density(pw::PlaneWaveBasis, Psi::AbstractVector{VecT},
         end
     end
 
-    from_fourier(pw, ρ / ρ_count; isreal=true)
+    from_fourier(pw, ρ / ρ_count; assume_real=true)
 end
 
 

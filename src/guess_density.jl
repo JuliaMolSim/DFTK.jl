@@ -28,7 +28,7 @@ function guess_density(basis::PlaneWaveBasis{T}, composition...) where {T}
     end
 
     # projection in the normalized plane wave basis
-    from_fourier(basis, ρ / sqrt(model.unit_cell_volume); isreal=true)
+    from_fourier(basis, ρ / sqrt(model.unit_cell_volume); assume_real=true)
 end
 
 @doc raw"""
