@@ -38,8 +38,8 @@ end
 function from_real(basis, real_part::AbstractArray{T}) where {T <: Number}
     RealFourierArray{real(T), T}(basis, real_part, similar(real_part, complex(T)), RFA_only_real)
 end
-function from_fourier(basis, fourier_part::AbstractArray{T}; isreal=false) where {T <: Complex}
-    if isreal
+function from_fourier(basis, fourier_part::AbstractArray{T}; assume_real=false) where {T <: Complex}
+    if assume_real
         RealFourierArray{real(T), real(T)}(basis, similar(fourier_part, real(T)), fourier_part, RFA_only_fourier)
     else
         RealFourierArray{real(T), T}(basis, similar(fourier_part), fourier_part, RFA_only_fourier)
