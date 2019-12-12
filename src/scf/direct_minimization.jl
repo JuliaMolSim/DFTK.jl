@@ -1,12 +1,6 @@
 # Direct minimization of the energy
 
 using Optim
-import Optim.project_tangent!
-import Optim.retract!
-import Optim.Manifold
-import Optim.precondprep!
-import LinearAlgebra.ldiv!
-import LinearAlgebra.dot
 
 # This is all a bit annoying because our Psi is represented as Psi[k][G,n], and Optim accepts only dense arrays
 # We do a bit of back and forth using custom `vec` (ours -> optim's) and `devec` (optim's -> ours) functions
