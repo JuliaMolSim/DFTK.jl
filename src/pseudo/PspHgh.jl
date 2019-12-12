@@ -54,10 +54,12 @@ function parse_hgh_file(path; identifier="")
     Zion = sum(n_elec)
 
     # lines[3] contains rloc nloc and coefficients for it
-    m = match(r"^ *([-.0-9]+) *([0-9]+) *(([-.0-9]+ *)+)", lines[3])
+    m = match(r"^ *([-.0-9]+) +([0-9]+)( +([-.0-9]+ *)+)? *", lines[3])
     rloc = parse(Float64, m[1])
     nloc = parse(Int, m[2])
-    cloc = [parse(Float64, part) for part in split(m[3])]
+
+    cloc = []
+    m[3] !== nothing && (cloc = [parse(Float64, part) for part in split(m[3])])
     @assert length(cloc) == nloc
 
     # lines[4] contains the maximal AM channel
@@ -67,22 +69,44 @@ function parse_hgh_file(path; identifier="")
     rp = Vector{Float64}(undef, lmax + 1)
     h = Vector{Matrix{Float64}}(undef, lmax + 1)
     cur = 5  # Current line to parse
+
     for l in 0:lmax
-        m = match(r"^ *([-.0-9]+) *([0-9]+) *(([-.0-9]+ *)+)", lines[cur])
+        # loop over all AM channels and extract projectors,
+        # these are given in blocks like
+        #
+        #    0.42273813    2     5.90692831    -1.26189397
+        #                                       3.25819622
+        #    0.48427842    1     2.72701346
+        #
+        # In each such blocks, the first number is the rp, the next is the number
+        # of projectors and the following numbers (including the indented continuation
+        # in the next lines) is the upper triangle of the coupling matrix h for this AM.
+        # Then the next block commences unindented.
+
+        # Match the first line of a block:
+        m = match(r"^ *([-.0-9]+) +([0-9]+)( +([-.0-9]+ *)+)? *", lines[cur])
         rp[l + 1] = parse(Float64, m[1])
         nproj = parse(Int, m[2])
         h[l + 1] = Matrix{Float64}(undef, nproj, nproj)
 
+        # If there are no projectors for this AM channel nproj is zero
+        # and we can just increase cur and move on to the next block.
+        if nproj == 0
+            cur += 1
+            continue
+        end
+
+        # Else we have to parse the extra parts of the hcoeff matrix.
+        # This is done here.
         hcoeff = [parse(Float64, part) for part in split(m[3])]
         for i in 1:nproj
             for j in i:nproj
                 h[l + 1][j, i] = h[l + 1][i, j] = hcoeff[j - i + 1]
             end
 
+            # Parse the next (indented) line
             cur += 1
-            if cur > length(lines)
-                break
-            end
+            cur > length(lines) && break
             m = match(r"^ *(([-.0-9]+ *)+)", lines[cur])
             hcoeff = [parse(Float64, part) for part in split(m[1])]
         end
