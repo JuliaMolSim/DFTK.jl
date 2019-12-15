@@ -1,4 +1,6 @@
-## 2D Gross-Pitaevskii equation, with magnetic field
+## 2D Gross-Pitaevskii equation, with magnetic field, and with
+## multiple electrons (of course, it doesn't make physical sense, but
+## why not)
 
 ## This is pretty WIP, and only serves as a very rough demo. Nothing
 ## has been checked properly, so do not use for any serious purposes.
@@ -11,7 +13,7 @@ using StaticArrays
 kgrid = [1, 1, 1] # No kpoints
 Ecut = 300
 
-const a = 15
+const a = 10
 lattice = a .* [[1 0 0.]; [0 1 0]; [0 0 0]] # unit cell. Having one lattice vectors as zero means a 2D system
 
 # Potential
@@ -94,7 +96,7 @@ function nonlinearity(basis::PlaneWaveBasis, energy::Union{Ref,Nothing}, potenti
     energy, potential
 end
      
-n_electrons = 1 # increase this for fun
+n_electrons = 2 # increase this for fun
 # We add the needed terms
 model = Model(lattice, n_electrons;
               external=external_pot,
@@ -131,3 +133,10 @@ x = a*basis.grids[1]
 
 figure()
 pcolor(x, x, real(ρ))
+for i = 1:n_electrons
+    ψ_fourier = scfres.Psi[1][:, i] # first kpoint, all G components, first eigenvector
+    ψ = G_to_r(basis, basis.kpoints[1], ψ_fourier)[:, :, 1] # IFFT back to real space
+    figure()
+    pcolor(x, x, abs2.(ψ))
+end
+nothing
