@@ -6,16 +6,18 @@
 using PyCall
 using DFTK
 using Printf
+using StaticArrays
 
 kgrid = [1, 1, 1] # No kpoints
-Ecut = 60
+Ecut = 300
 
-a = 10
+const a = 15
 lattice = a .* [[1 0 0.]; [0 1 0]; [0 0 0]] # unit cell. Having one lattice vectors as zero means a 2D system
 
-f(x, y) = 2*((x-a/2)^2 + (y-a/2)^2) # potential
-A(x, y) = 1.2*[y-a/2; -(x-a/2)]
-A(x, y) = .8*[y-a/2; -(x-a/2)]
+# Potential
+V(x, y) = 1*((x-a/2)^2 + (y-a/2)^2)
+# Vector potential: uniform magnetic field in the z direction
+A(x, y) = .2 * @SVector [y-a/2, -(x-a/2)]
 const α = 500.0
 
 function external_pot(basis::PlaneWaveBasis, energy::Union{Ref, Nothing}, potential; ρ=nothing, kwargs...)
@@ -26,7 +28,7 @@ function external_pot(basis::PlaneWaveBasis, energy::Union{Ref, Nothing}, potent
 
     # Compute Vext
     Vext = zeros(basis.fft_size)
-    Vext[:, :, 1] = f.(x, y')
+    Vext[:, :, 1] = V.(x, y')
     # Fill output as needed
     (potential !== nothing) && (potential .= Vext)
     if energy !== nothing
