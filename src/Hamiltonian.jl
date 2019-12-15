@@ -6,6 +6,7 @@ mutable struct Hamiltonian
     density                # The electron density used to build this Hamiltonian
     kinetic                # Discretized kinetic operator
     pot_external           # External local potential (e.g. Pseudopotential)
+    pot_magnetic           # External magnetic A field
     pot_hartree            # Hartree potential
     pot_xc                 # XC potential
     pot_local              # Sum of all local potential
@@ -26,12 +27,13 @@ function Hamiltonian(basis::PlaneWaveBasis{T}, ρ::RealFourierArray) where T
     potarray = similar(ρ.real, Complex{T})
 
     _, pot_external = model.build_external(basis, nothing, copy(potarray))
+    _, pot_magnetic = model.build_magnetic(basis, nothing, [copy(potarray), copy(potarray), copy(potarray)])
     _, pot_nonlocal = model.build_nonlocal(basis, nothing, copy(potarray))
     _, pot_hartree = model.build_hartree(basis, nothing, copy(potarray); ρ=ρ)
     _, pot_xc = model.build_xc(basis, nothing, copy(potarray); ρ=ρ)
     terms_local = filter(!isnothing, [pot_external, pot_hartree, pot_xc])
     pot_local = isempty(terms_local) ? nothing : .+(terms_local...)
-    out = Hamiltonian(basis, ρ, Kinetic(basis), pot_external,
+    out = Hamiltonian(basis, ρ, Kinetic(basis), pot_external, pot_magnetic,
                       pot_hartree, pot_xc, pot_local, pot_nonlocal)
 end
 
@@ -39,10 +41,11 @@ end
 Build / update an Hamiltonian out-of-place
 """
 function update_hamiltonian(ham::Hamiltonian, ρ::RealFourierArray)
-    nsimilar(::Nothing) = nothing
-    nsimilar(x) = similar(x)
-    ham = Hamiltonian(ham.basis, ρ, ham.kinetic, ham.pot_external, nsimilar(ham.pot_hartree),
-                      nsimilar(ham.pot_xc), nsimilar(ham.pot_local), ham.pot_nonlocal)
+    ncopy(::Nothing) = nothing
+    ncopy(x) = copy(x)
+    ham = Hamiltonian(ham.basis, ρ, ham.kinetic, ham.pot_external, ncopy(ham.pot_magnetic),
+                      ncopy(ham.pot_hartree), ncopy(ham.pot_xc), ncopy(ham.pot_local),
+                      ham.pot_nonlocal)
     update_hamiltonian!(ham, ρ)
 end
 
@@ -82,6 +85,7 @@ function update_energies!(energies, ham::Hamiltonian, Psi, occupation, ρ=nothin
         energy !== nothing && (energies[key] = energy[])
     end
     insert_energy!(:PotExternal, model.build_external; ρ=ρ)
+    insert_energy!(:PotMagnetic, model.build_magnetic; ρ=ρ, Psi=Psi, occupation=occupation)
     insert_energy!(:PotHartree, model.build_hartree; ρ=ρ)
     insert_energy!(:PotXC, model.build_xc; ρ=ρ)
     insert_energy!(:PotNonLocal, model.build_nonlocal; Psi=Psi, occupation=occupation)

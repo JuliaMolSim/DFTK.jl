@@ -7,6 +7,7 @@ struct HamiltonianBlock
     # Stored values representing this Hamiltonian block
     values_kinetic   # Kinetic diagonal values in B_k Fourier basis
     values_local     # Local potential values (psp, XC, Hartree)
+    values_magnetic  # Magnetic A potential
     values_nonlocal  # Non-local operator in B_k Fourier basis
 end
 
@@ -41,9 +42,11 @@ function LinearAlgebra.mul!(Y, block::HamiltonianBlock, X)
     kin = block.values_kinetic
     Vnloc = block.values_nonlocal
     Vloc = block.values_local
+    Apot = block.values_magnetic
 
     @assert kin isa Diagonal # for optimization
 
+    # local
     if Vloc === nothing
         Y .= kin.diag .* X
     else
@@ -52,6 +55,20 @@ function LinearAlgebra.mul!(Y, block::HamiltonianBlock, X)
         r_to_G!(Y, block.basis, block.kpt, Xreal)
         Y .+= kin.diag .* X
     end
+
+    # magnetic term p⋅A
+    if Apot !== nothing
+        # TODO this is not very optimized
+        for i = 1:3
+            all(Apot[i] .== 0) && continue
+            pi = [(G[i] + block.kpt.coordinate[i]) for G in block.kpt.basis]
+            ∂iX_fourier = pi .* X
+            ∂iX_real = G_to_r(block.basis, block.kpt, ∂iX_fourier)
+            Y .+= r_to_G(block.basis, block.kpt, Apot[i] .* ∂iX_real)
+        end
+    end
+
+    # nonlocal
     Vnloc !== nothing && (Y .+= Vnloc * X)
     Y
 end
@@ -62,7 +79,7 @@ Generate one k-Point block of a Hamiltonian, can be used as a matrix
 """
 function HamiltonianBlock(ham::Hamiltonian, kpt::Kpoint)
     HamiltonianBlock(ham.basis, kpt, kblock(ham.kinetic, kpt),
-                     ham.pot_local, kblock(ham.pot_nonlocal, kpt))
+                     ham.pot_local, ham.pot_magnetic, kblock(ham.pot_nonlocal, kpt))
 end
 
 """

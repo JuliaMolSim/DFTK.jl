@@ -24,6 +24,7 @@ struct Model{T <: Real}
 
     # Potential definitions and builders
     build_external  # External potential, e.g. local pseudopotential term
+    build_magnetic  # Magnetic potential, i.e. H=-i∇⋅A. This assumes the gauge ∇⋅A=0 (which is not checked)
     build_nonlocal  # Non-local potential, e.g. non-local pseudopotential projectors
     build_hartree
     build_xc
@@ -36,7 +37,7 @@ TODO docme
 If no smearing is specified the system will be assumed to be an insulator
 Occupation obtained as `f(ε) = smearing((ε-εF) / T)`
 """
-function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
+function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing, magnetic=nothing,
                nonlocal=nothing, hartree=nothing, xc=nothing, temperature=0.0,
                smearing=nothing, spin_polarisation=:none, assume_band_gap=nothing) where {T <: Real}
     lattice = SMatrix{3, 3, T, 9}(lattice)
@@ -73,8 +74,9 @@ function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
     build_nothing(args...; kwargs...) = (nothing, nothing)
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
              spin_polarisation, T(temperature), smearing, assume_band_gap,
-             something(external, build_nothing), something(nonlocal, build_nothing),
-             something(hartree, build_nothing), something(xc, build_nothing))
+             something(external, build_nothing), something(magnetic, build_nothing),
+             something(nonlocal, build_nothing), something(hartree, build_nothing),
+             something(xc, build_nothing))
 end
 
 
