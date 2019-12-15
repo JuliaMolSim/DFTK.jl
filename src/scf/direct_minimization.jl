@@ -43,8 +43,8 @@ function LinearAlgebra.ldiv!(p, P::DMPreconditioner, d)
     p
 end
 function LinearAlgebra.dot(x, P::DMPreconditioner, y)
-    x_devec = P.devec(x)
-    y_devec = P.devec(y)
+    x_devec = P.devec_fun(x)
+    y_devec = P.devec_fun(y)
     sum(dot(x_devec[ik], P.Pks[ik], y_devec[ik])
         for ik = 1:P.Nk)
 end
@@ -62,7 +62,8 @@ Computes the ground state by direct minimization. `kwargs...` are passed to `Opt
 """
 direct_minimization(basis::PlaneWaveBasis; kwargs...) = direct_minimization(basis, nothing; kwargs...)
 function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
-                             prec_type=PreconditionerTPA, kwargs...) where T
+                             prec_type=PreconditionerTPA,
+                             optim_solver=Optim.LBFGS, kwargs...) where T
     model = basis.model
     @assert model.spin_polarisation in (:none, :spinless)
     @assert model.assume_band_gap
@@ -118,7 +119,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
     Pks = [prec_type(ham, kpt) for kpt in basis.kpoints]
     P = DMPreconditioner(Nk, Pks, devec)
 
-    res = Optim.optimize(Optim.only_fg!(fg!), vec(Psi0), Optim.LBFGS(P=P, manifold=manif), Optim.Options(; allow_f_increases=true, show_trace=true, kwargs...))
+    res = Optim.optimize(Optim.only_fg!(fg!), vec(Psi0), optim_solver(P=P, manifold=manif), Optim.Options(; allow_f_increases=true, show_trace=true, kwargs...))
     Psi = devec(res.minimizer)
     ρ = compute_density(basis, Psi, occupation)
     ham = update_hamiltonian(ham, ρ)
