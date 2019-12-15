@@ -14,8 +14,8 @@ function find_occupation_gap_zero_temperature(basis, energies, Psi)
     @assert basis.model.temperature == 0.0
 
     filled_occ = filled_occupation(basis.model)
-    n_fill = div(n_electrons, 2)
-    @assert 2n_fill == n_electrons
+    n_fill = div(n_electrons, filled_occ)
+    @assert filled_occ * n_fill == n_electrons
     @assert n_bands ≥ n_fill
 
     # We need to fill n_fill states with occupation filled_occ

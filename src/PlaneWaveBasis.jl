@@ -279,6 +279,10 @@ on ``C_ρ^\ast`` and its fourier representation on ``C_ρ``.
 function r_to_G(pw::PlaneWaveBasis, f_real::AbstractArray3or4D)
     r_to_G!(similar(f_real), pw, f_real)
 end
-# Note: There is deliberately no G_to_r version for the kpoints,
-#       because at the moment this requires a copy of the input data f_real,
-#       which is overwritten in r_to_G! for the k-Point version
+# TODO optimize this
+function r_to_G(pw::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray{T, 3}) where {T}
+    r_to_G!(similar(f_real, length(kpt.mapping)), pw, kpt, copy(f_real))
+end
+function r_to_G(pw::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray{T, 4}) where {T}
+    r_to_G!(similar(f_real, length(kpt.mapping), size(f_real, 4)), pw, kpt, copy(f_real))
+end

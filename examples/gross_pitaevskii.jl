@@ -26,7 +26,7 @@ function external_pot(basis::PlaneWaveBasis, energy::Union{Ref, Nothing}, potent
     (potential !== nothing) && (potential .= Vext)
     if energy !== nothing
         dVol = model.unit_cell_volume / N # integration element. In 1D, unit_cell_volume is just the length
-        energy[] = real(sum(real(ρ) .* Vext)) * dVol
+        energy[] = real(sum(ρ.real .* Vext)) * dVol
     end
 
     energy, potential
@@ -41,10 +41,10 @@ function nonlinearity(basis::PlaneWaveBasis, energy::Union{Ref,Nothing}, potenti
 
     if energy !== nothing
         dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
-        energy[] = α * dVol * sum(real(ρ) .^ 2)/2
+        energy[] = α * dVol * sum(real(ρ.real) .^ 2)/2
     end
     if potential !== nothing
-        potential .= α * real(ρ)
+        potential .= α * real(ρ.real)
     end
     energy, potential
 end
@@ -63,7 +63,7 @@ basis = PlaneWaveBasis(model, Ecut, kpoints, ksymops)
 # We solve the self-consistent equation with an SCF algorithm (which
 # is a pretty bad idea; implementing direct minimization is TODO)
 n_bands_scf = model.n_electrons
-ham = Hamiltonian(basis, Density(basis)) # zero initial guess for the density
+ham = Hamiltonian(basis) # zero initial guess for the density
 scfres = self_consistent_field(ham, model.n_electrons, tol=1e-6)
 ham = scfres.ham
 
@@ -78,7 +78,7 @@ end
 
 using PyPlot
 x = a*basis.grids[1]
-ρ = real(scfres.ρ)[:, 1, 1] # converged density
+ρ = real(scfres.ρ.real)[:, 1, 1] # converged density
 ψ_fourier = scfres.Psi[1][:, 1] # first kpoint, all G components, first eigenvector
 ψ = G_to_r(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1] # IFFT back to real space
 @assert sum(abs2.(ψ)) * (x[2]-x[1]) ≈ 1.0
