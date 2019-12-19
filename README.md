@@ -26,7 +26,9 @@ is thus still limited. Current features include:
 - Insulators and metals (Fermi-Dirac or Methfessel-Paxton smearing)
 - GTH or HGH pseudopotentials
 - Exploitation of Brillouin zone symmetry for k-Point sampling
-- Three SCF algorithms (Anderson mixing, [NLsolve.jl](https://github.com/JuliaNLSolvers/NLsolve.jl), damping)
+- Multiple self-consistent field approaches (Kerker mixing, Anderson mixing (DIIS),
+  [NLsolve.jl](https://github.com/JuliaNLSolvers/NLsolve.jl), damping)
+- Direct minimization
 - Band structure generation
 - Computation of density of states (DOS) and local density of states (LDOS)
 - Full access to intermediate quantities (density, Bloch wave)
