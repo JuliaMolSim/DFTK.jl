@@ -9,11 +9,11 @@ using Optim
 # project_tangent and retract work per kblock
 struct DMManifold <: Optim.Manifold
     Nk::Int
-    unpack_fun::Function
+    unpack::Function
 end
 function Optim.project_tangent!(m::DMManifold, g, x)
-    g_unpack = m.unpack_fun(g)
-    x_unpack = m.unpack_fun(x)
+    g_unpack = m.unpack(g)
+    x_unpack = m.unpack(x)
     for ik = 1:m.Nk
         Optim.project_tangent!(Optim.Stiefel(),
                                g_unpack[ik],
@@ -22,7 +22,7 @@ function Optim.project_tangent!(m::DMManifold, g, x)
     g
 end
 function Optim.retract!(m::DMManifold, x)
-    x_unpack = m.unpack_fun(x)
+    x_unpack = m.unpack(x)
     for ik = 1:m.Nk
         Optim.retract!(Optim.Stiefel(), x_unpack[ik])
     end
@@ -33,24 +33,24 @@ end
 struct DMPreconditioner
     Nk::Int
     Pks::Array # Pks[ik] is the preconditioner for kpoint ik
-    unpack_fun::Function
+    unpack::Function
 end
 function LinearAlgebra.ldiv!(p, P::DMPreconditioner, d)
-    p_unpack = P.unpack_fun(p)
-    d_unpack = P.unpack_fun(d)
+    p_unpack = P.unpack(p)
+    d_unpack = P.unpack(d)
     for ik = 1:P.Nk
         ldiv!(p_unpack[ik], P.Pks[ik], d_unpack[ik])
     end
     p
 end
 function LinearAlgebra.dot(x, P::DMPreconditioner, y)
-    x_unpack = P.unpack_fun(x)
-    y_unpack = P.unpack_fun(y)
+    x_unpack = P.unpack(x)
+    y_unpack = P.unpack(y)
     sum(dot(x_unpack[ik], P.Pks[ik], y_unpack[ik])
         for ik = 1:P.Nk)
 end
 function precondprep!(P::DMPreconditioner, x)
-    x_unpack = P.unpack_fun(x)
+    x_unpack = P.unpack(x)
     for ik = 1:P.Nk
         precondprep!(P.Pks[ik], x_unpack[ik])
     end
