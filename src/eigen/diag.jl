@@ -47,7 +47,7 @@ function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
             # TODO The double conversion is needed due to an issue in Julia
             #      see https://github.com/JuliaLang/julia/pull/32979
             qrres = qr(randn(real(T), length(kpoints[ik].basis), nev_per_kpoint))
-            guessk = Matrix{T}(Matrix(qrres.Q))
+            guessk = Matrix{T}(qrres.Q)
         end
         @assert size(guessk) == (length(kpoints[ik].basis), nev_per_kpoint)
 

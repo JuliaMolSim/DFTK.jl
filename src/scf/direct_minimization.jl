@@ -59,7 +59,9 @@ end
 
 
 """
-Computes the ground state by direct minimization. `kwargs...` are passed to `Optim.Options()`.
+Computes the ground state by direct minimization. `kwargs...` are
+passed to `Optim.Options()`. Note that the resulting Psi are not
+necessarily eigenvectors of the Hamiltonian.
 """
 direct_minimization(basis::PlaneWaveBasis; kwargs...) = direct_minimization(basis, nothing; kwargs...)
 function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
