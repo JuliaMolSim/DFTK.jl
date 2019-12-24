@@ -4,7 +4,7 @@ using DFTK
 include("testcases.jl")
 
 @testset "Compare different SCF algorithms" begin
-    Ecut = 2
+    Ecut = 3
     n_bands = 6
     fft_size = [9, 9, 9]
     tol = 1e-6
@@ -17,6 +17,11 @@ include("testcases.jl")
     scfres = self_consistent_field(Hamiltonian(basis), n_bands, tol=tol,
                                    solver=scf_nlsolve_solver())
     ρ_nl = scfres.ρ.fourier
+
+    # Run DM
+    dmres = direct_minimization(basis; g_tol=1e-8)
+    ρ_dm = dmres.ρ.fourier
+    @test maximum(abs.(ρ_dm - ρ_nl)) < 30tol
 
     # Run other SCFs with SAD guess
     ρ0 = guess_density(basis, Si => silicon.positions)

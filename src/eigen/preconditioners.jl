@@ -8,12 +8,10 @@
 # it will call `precondprep!(P,X)` right before calling `ldiv!`
 
 import LinearAlgebra.ldiv!
+import LinearAlgebra.mul!
 
 precondprep!(P, X) = P  # This API is also used in Optim.jl
 
-#
-# Tetter-Payne-Allan preconditioning
-#
 """
 (simplified version of) Tetter-Payne-Allan preconditioning
 ↑ M.P. Teter, M.C. Payne and D.C. Allan, Phys. Rev. B 40, 12255 (1989).
@@ -45,6 +43,19 @@ end
     Y
 end
 ldiv!(P::PreconditionerTPA, R) = ldiv!(R, P, R)
+
+# These are needed by eg direct minimization with CG
+@views function mul!(Y, P::PreconditionerTPA, R)
+    if P.mean_kin === nothing
+        mul!(Y, Diagonal(P.kin .+ 1), R)
+    else
+        for n = 1:size(Y, 2)
+            Y[:, n] .= (P.mean_kin[n] .+ P.kin) ./ P.mean_kin[n] .* R[:, n]
+        end
+    end
+    Y
+end
+mul!(P::PreconditionerTPA, R) = mul!(R, P, R)
 
 function precondprep!(P::PreconditionerTPA, X)
     P.mean_kin = [real(dot(x, P.kin .* x)) for x in eachcol(X)]

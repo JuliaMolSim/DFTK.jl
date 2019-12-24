@@ -102,6 +102,8 @@ export scf_CROP_solver
 include("scf/scf_solvers.jl")
 export self_consistent_field
 include("scf/self_consistent_field.jl")
+export direct_minimization
+include("scf/direct_minimization.jl")
 
 export energy_ewald
 include("energy_ewald.jl")
