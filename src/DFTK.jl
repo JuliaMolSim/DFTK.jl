@@ -66,6 +66,7 @@ include("terms/term_nonlocal.jl")
 include("terms/term_xc.jl")
 
 export find_fermi_level
+export find_occupation
 include("occupation.jl")
 
 export compute_density
