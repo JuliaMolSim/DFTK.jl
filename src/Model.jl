@@ -19,7 +19,7 @@ struct Model{T <: Real}
     n_electrons::Int
     spin_polarisation::Symbol  # :none, :collinear, :full, :spinless
     temperature::T
-    smearing
+    smearing::Union{Nothing, Function} # see smearing_functions.jl for some choices
 
     # Potential definitions and builders
     build_external  # External potential, e.g. local pseudopotential term

@@ -40,5 +40,5 @@ function model_reduced_hf(lattice::AbstractMatrix, composition...; kwargs...)
     Model(lattice, n_electrons;
           external=term_external(composition...),
           nonlocal=term_nonlocal(composition...),
-          hartree=term_hartree())
+          hartree=term_hartree(), kwargs...)
 end
