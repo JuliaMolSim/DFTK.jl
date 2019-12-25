@@ -69,7 +69,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
                              optim_solver=Optim.LBFGS, kwargs...) where T
     model = basis.model
     @assert model.spin_polarisation in (:none, :spinless)
-    @assert model.assume_band_gap # temperature is not yet supported
+    @assert model.temperature == 0 # temperature is not yet supported
     filled_occ = filled_occupation(model)
     n_bands = div(model.n_electrons, filled_occ)
     ortho(Psik) = Matrix(qr(Psik).Q)

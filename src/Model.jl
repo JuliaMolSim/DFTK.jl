@@ -20,7 +20,6 @@ struct Model{T <: Real}
     spin_polarisation::Symbol  # :none, :collinear, :full, :spinless
     temperature::T
     smearing
-    assume_band_gap::Bool  # DFTK may assume a band gap at the Fermi level to be present
 
     # Potential definitions and builders
     build_external  # External potential, e.g. local pseudopotential term
@@ -38,7 +37,7 @@ Occupation obtained as `f(ε) = smearing((ε-εF) / T)`
 """
 function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
                nonlocal=nothing, hartree=nothing, xc=nothing, temperature=0.0,
-               smearing=nothing, spin_polarisation=:none, assume_band_gap=nothing) where {T <: Real}
+               smearing=nothing, spin_polarisation=:none) where {T <: Real}
     lattice = SMatrix{3, 3, T, 9}(lattice)
 
     # Special handling of 1D and 2D systems, and sanity checks
@@ -67,12 +66,9 @@ function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
         smearing = smearing_fermi_dirac
     end
 
-    # Assume a band gap (insulator, semiconductor) if no smearing given
-    assume_band_gap === nothing && (assume_band_gap = smearing === nothing)
-
     build_nothing(args...; kwargs...) = (nothing, nothing)
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
-             spin_polarisation, T(temperature), smearing, assume_band_gap,
+             spin_polarisation, T(temperature), smearing,
              something(external, build_nothing), something(nonlocal, build_nothing),
              something(hartree, build_nothing), something(xc, build_nothing))
 end
