@@ -3,15 +3,14 @@
 import Roots
 
 """
-Find the Fermi level, given a `basis`, SCF band `energies` and corresponding Bloch
-one-particle wave function `Psi`.
+Find the Fermi level.
 """
 function find_fermi_level(basis, energies)
     find_occupation(basis, energies)[1]
 end
 
 """
-Find the Fermi level and occupation for the given parameters.
+Find the occupation and Fermi level.
 """
 function find_occupation(basis::PlaneWaveBasis{T}, energies) where {T}
     @assert basis.model.spin_polarisation in (:none, :spinless)
@@ -24,23 +23,17 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies) where {T}
     temperature == 0 && (smearing(x) = x ≤ 0 ? 1 : 0)
     @assert smearing !== nothing
 
+    # Maximum occupation per state
     filled_occ = filled_occupation(model)
 
-    # assume that we can get the required number of electrons by filling every state
-    @assert filled_occ*sum(basis.kweights .* length.(energies)) ≥ n_electrons - sqrt(eps(T))
-
-    # early exit when all bands have to be filled; avoids numerical problems
-    if temperature == 0 && filled_occ*sum(basis.kweights .* length.(energies)) ≈ n_electrons
-        occupation = [fill(filled_occ, length(e)) for e in energies]
-        εF = nextfloat(maximum(maximum.(energies)))
-        return (occupation=occupation, εF=εF)
-    end
-
-    # Find εF so that
+    # The goal is to find εF so that
     # n_i = filled_occ * f((εi-εF)/T)
     # sum_i n_i = n_electrons
     compute_occupation(εF) = [filled_occ * smearing.((ε .- εF) ./ temperature) for ε in energies]
     compute_n_elec(εF) = sum(basis.kweights .* sum.(compute_occupation(εF)))
+
+    # assume that we can get the required number of electrons by filling every state
+    @assert filled_occ*sum(basis.kweights .* length.(energies)) ≥ n_electrons - sqrt(eps(T))
 
     # Get rough bounds to bracket εF
     min_ε = minimum(minimum.(energies)) - 1
@@ -49,12 +42,22 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies) where {T}
         @assert compute_n_elec(min_ε) < n_electrons < compute_n_elec(max_ε)
     end
 
-    # Just use bisection here; note that with MP smearing there might
-    # be multiple possible Fermi levels. This could be sped up with more
-    # advanced methods (e.g. false position), but more care has to be
-    # taken with convergence criteria and the like
-    εF = Roots.find_zero(εF -> compute_n_elec(εF) - n_electrons, (min_ε, max_ε),
-                         Roots.Bisection())
+    # Compute εF by bisection
+    if compute_n_elec(max_ε) ≈ n_electrons
+        # This branch takes care of the case of insulators at zero
+        # temperature with as many bands as electrons; there it is
+        # possible that compute_n_elec(max_ε) ≈ n_electrons but
+        # compute_n_elec(max_ε) < n_electrons, so that bisection does
+        # not work
+        εF = max_ε
+    else
+        # Just use bisection here; note that with MP smearing there might
+        # be multiple possible Fermi levels. This could be sped up with more
+        # advanced methods (e.g. false position), but more care has to be
+        # taken with convergence criteria and the like
+        εF = Roots.find_zero(εF -> compute_n_elec(εF) - n_electrons, (min_ε, max_ε),
+                             Roots.Bisection())
+    end
 
     if !isapprox(compute_n_elec(εF), n_electrons)
         if temperature == 0
@@ -64,6 +67,7 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies) where {T}
             error("This should not happen, debug me!")
         end
     end
+
     minocc = maximum(minimum.(compute_occupation(εF)))
     if minocc > .01
         @warn "One kpoint has a high minimum occupation $minocc. You should probably increase the number of bands."
