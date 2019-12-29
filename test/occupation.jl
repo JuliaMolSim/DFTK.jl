@@ -1,6 +1,6 @@
 using Test
 using DFTK: smearing_functions, find_fermi_level, Model, PlaneWaveBasis
-using DFTK: find_occupation_gap_zero_temperature, find_occupation_fermi_metal
+using DFTK: find_occupation, find_occupation_bandgap
 using DFTK: smearing_fermi_dirac, load_psp, Species, bzmesh_ir_wedge
 using DFTK: smearing_methfessel_paxton_1
 
@@ -22,12 +22,11 @@ include("testcases.jl")
     end
     εHOMO = maximum(energies[ik][n_occ] for ik in 1:n_k)
     εLUMO = minimum(energies[ik][n_occ + 1] for ik in 1:n_k)
-    Psi = [fill(NaN, 1, n_bands) for i in 1:n_k]
 
     # Occupation for zero temperature
     model = Model(silicon.lattice, silicon.n_electrons; temperature=0.0, smearing=nothing)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-    εF0, occupation0 = find_occupation_gap_zero_temperature(basis, energies, Psi)
+    occupation0, εF0 = find_occupation_bandgap(basis, energies)
     @test εHOMO < εF0 < εLUMO
     @test sum(basis.kweights .* sum.(occupation0)) ≈ model.n_electrons
 
@@ -36,7 +35,7 @@ include("testcases.jl")
     for T in Ts, fun in smearing_functions
         model = Model(silicon.lattice, silicon.n_electrons; temperature=T, smearing=fun)
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-        _, occs = find_occupation_fermi_metal(basis, energies, Psi)
+        occs, _ = find_occupation(basis, energies)
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
     end
 
@@ -45,7 +44,7 @@ include("testcases.jl")
     for T in Ts, fun in smearing_functions
         model = Model(silicon.lattice, silicon.n_electrons; temperature=T, smearing=fun)
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-        _, occupation = find_occupation_fermi_metal(basis, energies, Psi)
+        occupation, _= find_occupation(basis, energies)
 
         for ik in 1:n_k
             @test all(isapprox.(occupation[ik], occupation0[ik], atol=1e-2))
@@ -80,7 +79,6 @@ end
     n_bands = length(energies[1])
     n_k = length(kcoords)
     @assert n_k == length(energies)
-    Psi = [fill(NaN, 1, n_bands) for i in 1:n_k]
 
     parameters = (
         (smearing_fermi_dirac,         0.01, 0.17251898225370),
@@ -95,7 +93,7 @@ end
         model = Model(silicon.lattice, testcase.n_electrons;
                       temperature=Tsmear, smearing=smearing)
         basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops; fft_size=fft_size)
-        εF, occupation = find_occupation_fermi_metal(basis, energies, Psi)
+        occupation, εF = find_occupation(basis, energies)
 
         @test sum(basis.kweights .* sum.(occupation)) ≈ model.n_electrons
         @test εF ≈ εF_ref

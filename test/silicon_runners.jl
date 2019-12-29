@@ -3,6 +3,8 @@ using DFTK
 
 include("testcases.jl")
 
+# Silicon redHF (without xc) is a metal, so we add a bit of temperature to it
+
 # TODO There is a lot of code duplication in this file ... once we have the ABINIT reference
 #      stuff in place, this should be refactored.
 
@@ -28,7 +30,7 @@ function run_silicon_redHF(T; Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, 
 
     fft_size = grid_size * ones(3)
     Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_reduced_hf(Array{T}(silicon.lattice), Si => silicon.positions)
+    model = model_reduced_hf(Array{T}(silicon.lattice), Si => silicon.positions, temperature=.1)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis, guess_density(basis, Si => silicon.positions))
 

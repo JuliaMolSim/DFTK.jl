@@ -14,7 +14,7 @@ function next_density(ham::Hamiltonian, n_bands; Psi=nothing,
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Update density from new Psi
-    εF, occupation = find_occupation(ham.basis, eigres.λ, eigres.X)
+    occupation, εF = find_occupation(ham.basis, eigres.λ)
     ρnew = compute_density(ham.basis, eigres.X, occupation)
 
     (Psi=eigres.X, orben=eigres.λ, occupation=occupation, εF=εF, ρ=ρnew)

@@ -10,7 +10,7 @@ include("testcases.jl")
     tol = 1e-6
 
     Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_reduced_hf(silicon.lattice, Si => silicon.positions)
+    model = model_dft(silicon.lattice, :lda_xc_teter93, Si => silicon.positions)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     # Run nlsolve without guess
