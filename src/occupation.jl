@@ -7,8 +7,7 @@ Find the Fermi level, given a `basis`, SCF band `energies` and corresponding Blo
 one-particle wave function `Psi`.
 """
 function find_fermi_level(basis, energies)
-    εF, _ = find_occupation(basis, energies)
-    εF
+    find_occupation(basis, energies)[1]
 end
 
 """
@@ -34,7 +33,7 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies) where {T}
     if temperature == 0 && filled_occ*sum(basis.kweights .* length.(energies)) ≈ n_electrons
         occ = [fill(filled_occ, length(e)) for e in energies]
         εF = nextfloat(maximum(maximum.(energies)))
-        return εF, occ
+        return occ, εF
     end
 
     # Find εF so that
@@ -70,7 +69,7 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies) where {T}
         @warn "One kpoint has a high minimum occupation $minocc. You should probably increase the number of bands."
     end
 
-    εF, compute_occupation(εF)
+    compute_occupation(εF), εF
 end
 
 """
@@ -114,6 +113,6 @@ function find_occupation_bandgap(basis, energies)
               HOMO, LUMO, maxlog=5)
     end
 
-    εF, occupation
+    occupation, εF
 end
 

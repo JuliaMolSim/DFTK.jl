@@ -3,7 +3,7 @@ using DFTK
 
 include("testcases.jl")
 
-# Silicon RHF is a metal, so we add a bit of temperature to it
+# Silicon redHF (without xc) is a metal, so we add a bit of temperature to it
 
 # TODO There is a lot of code duplication in this file ... once we have the ABINIT reference
 #      stuff in place, this should be refactored.
