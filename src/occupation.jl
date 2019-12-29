@@ -31,9 +31,9 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies) where {T}
 
     # early exit when all bands have to be filled; avoids numerical problems
     if temperature == 0 && filled_occ*sum(basis.kweights .* length.(energies)) ≈ n_electrons
-        occ = [fill(filled_occ, length(e)) for e in energies]
+        occupation = [fill(filled_occ, length(e)) for e in energies]
         εF = nextfloat(maximum(maximum.(energies)))
-        return occ, εF
+        return (occupation=occupation, εF=εF)
     end
 
     # Find εF so that
@@ -69,7 +69,7 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies) where {T}
         @warn "One kpoint has a high minimum occupation $minocc. You should probably increase the number of bands."
     end
 
-    compute_occupation(εF), εF
+    (occupation=compute_occupation(εF), εF=εF)
 end
 
 """
@@ -113,6 +113,5 @@ function find_occupation_bandgap(basis, energies)
               HOMO, LUMO, maxlog=5)
     end
 
-    occupation, εF
+    (occupation=occupation, εF=εF)
 end
-
