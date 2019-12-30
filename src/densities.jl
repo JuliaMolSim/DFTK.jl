@@ -2,24 +2,16 @@
 Compute the partial density at the indicated ``k``-Point and return it.
 """
 function compute_partial_density(pw, kpt, Ψk, occupation)
-    n_states = size(Ψk, 2)
-    @assert length(occupation) == n_states
-
-    # Fourier-transform the wave functions to real space
-    Ψk_real = similar(Ψk[:, 1], pw.fft_size..., n_states)
-    for ist in 1:n_states
-        G_to_r!(view(Ψk_real, :, :, :, ist), pw, kpt, Ψk[:, ist])
-    end
+    @assert length(occupation) == size(Ψk, 2)
 
     # Build the partial density for this k-Point
     ρk_real = similar(Ψk[:, 1], pw.fft_size)
     ρk_real .= 0
-    for ist in 1:n_states
-        @. @views begin
-            ρk_real += occupation[ist] * abs2(Ψk_real[:, :, :, ist])
-        end
+    # TODO Threading
+    for (ist, Ψik) in enumerate(eachcol(Ψk))
+        Ψik_real = G_to_r(pw, kpt, Ψik)
+        ρk_real .+= occupation[ist] .* abs2.(Ψik_real)
     end
-    Ψk_real = nothing
 
     # Check sanity of the density (real, positive and normalized)
     T = real(eltype(ρk_real))
