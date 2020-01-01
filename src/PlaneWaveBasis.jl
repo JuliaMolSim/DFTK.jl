@@ -11,7 +11,7 @@ include("fft.jl")
 #
 # G_to_r and r_to_G convert between these.
 
-# Each Kpoint has its own `basis`, consisting of all G vectors such that |k+G|^2 ≤ 1/2 Ecut
+# Each Kpoint has its own `basis`, consisting of all G vectors such that 1/2 |k+G|^2 ≤ Ecut
 struct Kpoint{T <: Real}
     spin::Symbol              # :up, :down, :both or :spinless
     coordinate::Vec3{T}       # Fractional coordinate of k-Point
