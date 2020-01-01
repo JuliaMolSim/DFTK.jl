@@ -25,7 +25,7 @@ end
 
 function PreconditionerTPA(ham::Hamiltonian, kpt::Kpoint{T}) where T
     kin = Vector{T}([sum(abs2, ham.basis.model.recip_lattice * (G + kpt.coordinate))
-                     for G in kpt.basis] ./ 2)
+                     for G in G_vectors(kpt)] ./ 2)
     @assert ham.basis.model.spin_polarisation in (:none, :collinear, :spinless)
     PreconditionerTPA{T}(ham, kpt, kin, nothing)
 end

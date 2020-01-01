@@ -26,7 +26,7 @@ include("testcases.jl")
 
     @testset "Transformation B_k <-> C_ρ^∗, 1 vector" begin
         kpt = pw.kpoints[2]
-        f_G = Array{ComplexF64}(randn(Float64, length(kpt.basis)))
+        f_G = Array{ComplexF64}(randn(Float64, length(G_vectors(kpt))))
 
         f_R = Array{ComplexF64}(undef, pw.fft_size...)
         G_to_r!(f_R, pw, kpt, f_G)

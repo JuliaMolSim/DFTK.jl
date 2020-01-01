@@ -45,7 +45,7 @@ function compute_density(pw::PlaneWaveBasis, Psi::AbstractVector{VecT},
     @assert n_k == length(Psi)
     @assert n_k == length(occupation)
     for ik in 1:n_k
-        @assert length(pw.kpoints[ik].basis) == size(Psi[ik], 1)
+        @assert length(G_vectors(pw.kpoints[ik])) == size(Psi[ik], 1)
         @assert length(occupation[ik]) == size(Psi[ik], 2)
     end
     @assert n_k > 0

@@ -9,7 +9,7 @@ function test_pw_cutoffs(testcase, Ecut, fft_size)
     pw = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops; fft_size=fft_size)
 
     for (ik, kpt) in enumerate(pw.kpoints)
-        for G in kpt.basis
+        for G in G_vectors(kpt)
             @test sum(abs2, model.recip_lattice * (kpt.coordinate + G)) ≤ 2 * Ecut
         end
     end
@@ -38,10 +38,10 @@ end
         kpt = pw.kpoints[ik]
         @test kpt.coordinate == kcoord
 
-        for (ig, G) in enumerate(kpt.basis)
+        for (ig, G) in enumerate(G_vectors(kpt))
             @test g_start <= G <= g_stop
         end
-        @test g_all[kpt.mapping] == kpt.basis
+        @test g_all[kpt.mapping] == G_vectors(kpt)
     end
     @test pw.kweights == [1, 8, 6, 12] / 27
 end

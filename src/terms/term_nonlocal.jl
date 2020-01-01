@@ -59,13 +59,13 @@ build_projection_vectors_(basis, potentials, kpt)
     model = basis.model
     T = eltype(basis.kpoints[1].coordinate)
 
-    proj_vectors = zeros(Complex{T}, length(kpt.basis), n_proj)
-    qs = [model.recip_lattice * (kpt.coordinate + G) for G in kpt.basis]
+    proj_vectors = zeros(Complex{T}, length(G_vectors(kpt)), n_proj)
+    qs = [model.recip_lattice * (kpt.coordinate + G) for G in G_vectors(kpt)]
     qsqs = [sum(abs2, q) for q in qs]
 
     count = 0
     for (psp, positions) in potentials, r in positions
-            structure_factors = [cis(-2T(π) * dot(G, r)) for G in kpt.basis]
+            structure_factors = [cis(-2T(π) * dot(G, r)) for G in G_vectors(kpt)]
             radial_proj(iproj, l, qsq) = eval_psp_projection_radial(psp, iproj, l, qsq)
 
             for l in 0:psp.lmax, m in -l:l

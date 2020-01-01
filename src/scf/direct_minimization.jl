@@ -76,7 +76,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
     Nk = length(basis.kpoints)
 
     if Psi0 === nothing
-        Psi0 = [ortho(randn(Complex{T}, length(k.basis), n_bands)) for k in basis.kpoints]
+        Psi0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), n_bands)) for kpt in basis.kpoints]
     end
     occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
 

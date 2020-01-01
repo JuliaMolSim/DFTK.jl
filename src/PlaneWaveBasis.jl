@@ -13,11 +13,13 @@ include("fft.jl")
 
 # Each Kpoint has its own `basis`, consisting of all G vectors such that 1/2 |k+G|^2 ≤ Ecut
 struct Kpoint{T <: Real}
-    spin::Symbol              # :up, :down, :both or :spinless
-    coordinate::Vec3{T}       # Fractional coordinate of k-Point
-    mapping::Vector{Int}      # Index of basis[i] on FFT grid
-    basis::Vector{Vec3{Int}}  # Wave vectors in integer coordinates
+    spin::Symbol                  # :up, :down, :both or :spinless
+    coordinate::Vec3{T}           # Fractional coordinate of k-Point
+    mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
+                                  # G_vectors(pwbasis)[kpt.mapping[i]] == G_vectors(kpt)[i]
+    G_vectors::Vector{Vec3{Int}}  # Wave vectors in integer coordinates
 end
+G_vectors(kpt::Kpoint) = kpt.G_vectors
 
 struct PlaneWaveBasis{T <: Real, Tgrid, TopFFT, TipFFT}
     model::Model{T}

@@ -23,7 +23,7 @@ Base.eltype(block::HamiltonianBlock) = complex(eltype(block.values_kinetic))
 
 
 function Matrix(block::HamiltonianBlock)
-    n_bas = length(block.kpt.basis)
+    n_bas = length(G_vectors(block.kpt))
     T = eltype(block)
     mat = Matrix{T}(undef, (n_bas, n_bas))
     v = fill(zero(T), n_bas)
