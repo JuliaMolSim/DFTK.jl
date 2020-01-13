@@ -57,3 +57,55 @@ function pymatgen_bandstructure(basis, band_data, klabels=Dict{String, Vector{Fl
         labels_dict=klabels, coords_are_cartesian=true
     )
 end
+
+
+"""
+Load a DFTK-compatible lattice object from a supported pymatgen object
+"""
+function load_lattice(T, pyobj::PyObject)
+    mg = pyimport("pymatgen")
+    A_to_bohr = pyimport("pymatgen.core.units").ang_to_bohr
+
+    if pyisinstance(pyobj, mg.Structure)
+        load_lattice(T, pyobj.lattice)
+    elseif pyisinstance(pyobj, mg.Lattice)
+        lattice = Matrix{T}(undef, 3, 3)
+        for i in 1:3, j in 1:3
+            lattice[i, j] = A_to_bohr * get(get(pyobj.matrix, j-1), i-1)
+        end
+        Mat3{T}(lattice)
+    else
+        error("load_lattice not implemented for python type $pyobj")
+    end
+end
+
+
+# One could probably make this proper at some point and
+# make it a part of the main code
+function guess_psp_for_element(symbol, functional; cheapest=true)
+    fun = cheapest ? first : last
+    fun(psp for psp in list_psp() for l in 1:30
+          if startswith(psp, "hgh/$(lowercase(functional))/$(lowercase(symbol))-q$l"))
+end
+
+
+"""
+Load a DFTK-compatible composition representation from a supported pymatgen object
+"""
+function load_composition(T, pyobj::PyObject; functional="lda", pspmap=Dict())
+    mg = pyimport("pymatgen")
+    pyisinstance(pyobj, mg.Structure) || error("load_composition is only implemented for " *
+                                               "python type pymatgen.Structure")
+
+    map(unique(pyobj.species)) do spec
+        coords = [s.frac_coords for s in pyobj.sites if s.specie == spec]
+        psp = nothing
+        if spec.symbol in keys(pspmap)
+            psp = pspmap[spec.symbol]
+        elseif functional !== nothing
+            psp = guess_psp_for_element(spec.symbol, functional)
+            @info("Using autodetermined pseudopotential for $(spec.symbol).", psp)
+        end
+        Species(spec.number, psp=load_psp(psp)) => coords
+    end
+end
