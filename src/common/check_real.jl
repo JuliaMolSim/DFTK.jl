@@ -1,11 +1,12 @@
 check_real(A::AbstractArray) = nothing
 function check_real(A::AbstractArray{Complex{T}}) where T
     epsT = eps(real(eltype(A)))
-    error = imag(A) ./ abs.(A)
-    error[map(x -> abs(imag(x)) < 100epsT, A)] .= 0
+    rtol = 1000epsT
+    atol = 100epsT
 
-    discrepancy = norm(error)
-    if discrepancy > 1000epsT
-        @warn "Large imaginary part" discrepancy
+    if any(abs(imag(x)) > rtol * abs(x) && abs(imag(x)) > atol for x in A)
+        relerror = imag(A) ./ abs.(A)
+        relerror[map(x -> abs(imag(x)) < atol, A)] = 0
+        @warn "Large imaginary part" norm(relerror)
     end
 end
