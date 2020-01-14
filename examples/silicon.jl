@@ -20,11 +20,10 @@ composition = [Si => [ones(3)/8, -ones(3)/8]]
 # Make a supercell if desired
 pystruct = pymatgen_structure(lattice, composition...)
 pystruct.make_supercell(supercell)
-for i in 1:3, j in 1:3
-    A_to_bohr = pyimport("pymatgen.core.units").ang_to_bohr
-    lattice[i, j] = A_to_bohr * get(get(pystruct.lattice.matrix, j-1), i-1)
-end
+lattice = load_lattice(pystruct)
 composition = [Si => [s.frac_coords for s in pystruct.sites]]
+
+
 
 model = nothing
 # Setup model and discretisation
