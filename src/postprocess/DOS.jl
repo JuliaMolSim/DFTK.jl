@@ -9,10 +9,17 @@
 
 using ForwardDiff
 
-"""
-The number of Kohn-Sham states in temperature window of width T contributing
-to the DOS at temperature T. This value should be larger than one for DOS and LDOS to be
-meaningful at smearing temperature T.
+@doc raw"""
+    NOS(ε, basis, orben; smearing=basis.model.smearing, T=basis.model.temperature)
+
+The number of Kohn-Sham states in a temperature window of width T around the energy ε
+contributing to the DOS at temperature T.
+
+This quantity is not a physical quantity, much rather a dimensionaless approximate measure
+for how well properties near the Fermi surface are sampled with the passed `smearing`
+and temperature `T`. It increases with both `T` and better sampling of the BZ with
+``k``-Points. A value ``\gg 1`` indicates a good sampling of properties near the
+Fermi surface.
 """
 function NOS(ε, basis, orben; smearing=basis.model.smearing, T=basis.model.temperature)
     N = zero(ε)
