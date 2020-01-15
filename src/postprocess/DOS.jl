@@ -27,11 +27,12 @@ function NOS(ε, basis, orben; smearing=basis.model.smearing, T=basis.model.temp
 
     # Note the differences to the DOS and LDOS functions: We are not counting states
     # per BZ volume (like in DOS), but absolute number of states. Therefore n_symeqk
-    # is used instead of kweigths. The number of states is counted over a temperature
-    # window of width T yielding in analogy to the DOS an integral
-    #     ∫_(T-T/2)^(T+T/2) ( d/dε f_τ(εik - ε') )|_{ε' = ε} dτ
-    # at each k-Point, where f_τ is the smearing function. If we assume the integrand
-    # to vary slowly over the integrated range, this yields the factor T in front.
+    # is used instead of kweigths. We count the states inside a temperature window T
+    # centred about εik. For this the states are weighted by the distribution
+    # -f'((εik - ε)/T).
+    #
+    # To explicitly show the similarity with DOS and the T dependence we employ
+    # -f'((εik - ε)/T) = T * ( d/dε f_τ(εik - ε') )|_{ε' = ε}
     for ik = 1:length(orben)
         n_symeqk = length(basis.ksymops[ik])  # Number of symmetry-equivalent k-Points
         for iband = 1:length(orben[ik])
