@@ -55,9 +55,8 @@ function load_composition(T, folder::EtsfFolder)
     composition = Dict{Species, Vector{Vec3{T}}}()
     n_species = length(folder.gsr["atomic_numbers"])
     for ispec in 1:n_species
-        symbol = strip(join(folder.gsr["chemical_symbols"][:, ispec]))
-        spec = Species(Int(folder.gsr["atomic_numbers"][ispec]),
-                       psp=load_psp(folder.extra["pspmap"][symbol]))
+        atnum = Int(folder.gsr["atomic_numbers"][ispec])
+        spec = Species(atnum, psp=load_psp(folder.extra["pspmap"][atnum]))
 
         mask_species = findall(isequal(ispec), folder.gsr["atom_species"][:])
         positions = folder.gsr["reduced_atom_positions"][:, mask_species]

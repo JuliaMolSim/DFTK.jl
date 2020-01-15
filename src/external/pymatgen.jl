@@ -32,7 +32,8 @@ function pymatgen_structure(model_or_lattice, composition...)
 end
 
 
-function pymatgen_bandstructure(basis, band_data, klabels=Dict{String, Vector{Float64}}(); fermi_level=0.0)
+function pymatgen_bandstructure(basis, band_data, klabels=Dict{String, Vector{Float64}}();
+                                fermi_level=0.0)
     mg = pyimport("pymatgen")
     elec_structure = pyimport("pymatgen.electronic_structure")
 
@@ -101,7 +102,7 @@ function load_composition(T, pyobj::PyObject; functional="lda", pspmap=Dict())
         coords = [s.frac_coords for s in pyobj.sites if s.specie == spec]
         psp = nothing
         if spec.symbol in keys(pspmap)
-            psp = pspmap[spec.symbol]
+            psp = pspmap[spec.number]
         elseif functional !== nothing
             psp = guess_psp_for_element(spec.symbol, functional)
             @info("Using autodetermined pseudopotential for $(spec.symbol).", psp)
