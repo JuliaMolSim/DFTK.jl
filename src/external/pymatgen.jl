@@ -101,7 +101,7 @@ function load_composition(T, pyobj::PyObject; functional="lda", pspmap=Dict())
     map(unique(pyobj.species)) do spec
         coords = [s.frac_coords for s in pyobj.sites if s.specie == spec]
         psp = nothing
-        if spec.symbol in keys(pspmap)
+        if spec.number in keys(pspmap)
             psp = pspmap[spec.number]
         elseif functional !== nothing
             psp = guess_psp_for_element(spec.symbol, functional)
