@@ -6,7 +6,7 @@ function check_real(A::AbstractArray{Complex{T}}) where T
 
     if any(abs(imag(x)) > rtol * abs(x) && abs(imag(x)) > atol for x in A)
         relerror = imag(A) ./ abs.(A)
-        relerror[map(x -> abs(imag(x)) < atol, A)] = 0
+        relerror[map(x -> abs(imag(x)) < atol, A)] .= 0
         @warn "Large imaginary part" norm(relerror)
     end
 end

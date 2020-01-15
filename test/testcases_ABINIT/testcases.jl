@@ -70,8 +70,8 @@ function run_ABINIT_scf(infile, outdir)
     )
 
     # Dump extra data
-    JLD.save(joinpath(outdir, "extra.jld"), "extra", infile.extra)
-    infile.extra = nothing
+    dump_extra(infile, outdir)
+    infile.extra = nothing  # Remove extra field (causes problems below)
 
     # Create flow and run it
     flow = flowtk.Flow(rundir, flowtk.TaskManager.from_user_config())
@@ -90,6 +90,10 @@ function run_ABINIT_scf(infile, outdir)
             cp(file, joinpath(outdir, basename(file)), force=true)
         end
     end
+end
+
+function dump_extra(infile, outdir)
+    JLD.save(joinpath(outdir, "extra.jld"), "extra", infile.extra)
 end
 
 function load_reference(folder::EtsfFolder)
