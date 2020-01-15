@@ -5,7 +5,7 @@ function pymatgen_lattice(lattice::AbstractArray)
     # Notice: Pymatgen uses rows as lattice vectors, so we unpeel
     # our lattice column by column. The default unit in pymatgen is Ǎngström
     mg = pyimport("pymatgen")
-    bohr_to_A = 1 / pyimport("pymatgen.core.units").ang_to_bohr
+    bohr_to_A = 1 / units.Ǎ
     mg.Lattice([Array(bohr_to_A .* lattice[:, i]) for i in 1:3])
 end
 pymatgen_lattice(model::Model) = pymatgen_lattice(model.lattice)
@@ -34,11 +34,10 @@ end
 
 function pymatgen_bandstructure(basis, band_data, klabels=Dict{String, Vector{Float64}}();
                                 fermi_level=0.0)
-    mg = pyimport("pymatgen")
     elec_structure = pyimport("pymatgen.electronic_structure")
 
     # The energy unit in pymatgen is eV
-    Ha_to_eV = 1 / pyimport("pymatgen.core.units").eV_to_Ha
+    Ha_to_eV = 1 / units.eV
 
     # This assumes no spin polarisation
     @assert basis.model.spin_polarisation in (:none, :spinless)
@@ -65,14 +64,13 @@ Load a DFTK-compatible lattice object from a supported pymatgen object
 """
 function load_lattice(T, pyobj::PyObject)
     mg = pyimport("pymatgen")
-    A_to_bohr = pyimport("pymatgen.core.units").ang_to_bohr
 
     if pyisinstance(pyobj, mg.Structure)
         load_lattice(T, pyobj.lattice)
     elseif pyisinstance(pyobj, mg.Lattice)
         lattice = Matrix{T}(undef, 3, 3)
         for i in 1:3, j in 1:3
-            lattice[i, j] = A_to_bohr * get(get(pyobj.matrix, j-1), i-1)
+            lattice[i, j] = units.Ǎ * get(get(pyobj.matrix, j-1), i-1)
         end
         Mat3{T}(lattice)
     else
