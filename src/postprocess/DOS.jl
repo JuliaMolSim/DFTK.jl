@@ -10,6 +10,32 @@
 using ForwardDiff
 
 """
+The number of Kohn-Sham states in temperature window of width T contributing
+to the DOS at temperature T. This value should be larger than one for DOS and LDOS to be
+meaningful at smearing temperature T.
+"""
+function NOS(ε, basis, orben; smearing=basis.model.smearing, T=basis.model.temperature)
+    N = zero(ε)
+    T != 0 || error("NOS only supports finite temperature")
+
+    # Note the differences to the DOS and LDOS functions: We are not counting states
+    # per BZ volume (like in DOS), but absolute number of states. Therefore n_symeqk
+    # is used instead of kweigths. The number of states is counted over a temperature
+    # window of width T, where we assume that the number of states remains constant
+    # in the interval [T - T/2, T + T/2] as ( d/dε f_T(εik - ε') )|_{ε' = ε}
+    # with f_T the smearing function. This gives the factor T in front.
+    for ik = 1:length(orben)
+        n_symeqk = length(basis.ksymops[ik])  # Number of symmetry-equivalent k-Points
+        for iband = 1:length(orben[ik])
+            N += (T * n_symeqk
+                    * ForwardDiff.derivative(ε -> smearing((orben[ik][iband] - ε) / T), ε))
+        end
+    end
+    N
+end
+
+
+"""
 Total density of states at energy ε
 """
 function DOS(ε, basis, orben; smearing=basis.model.smearing, T=basis.model.temperature)

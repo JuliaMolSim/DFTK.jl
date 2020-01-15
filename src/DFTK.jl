@@ -136,6 +136,7 @@ include("postprocess/band_structure.jl")
 
 export DOS
 export LDOS
+export NOS
 include("postprocess/DOS.jl")
 
 export model_free_electron
