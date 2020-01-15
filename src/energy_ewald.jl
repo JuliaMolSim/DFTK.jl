@@ -90,7 +90,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
         gsh += 1
     end
     # Amend sum_recip by proper scaling factors:
-    sum_recip = sum_recip * 4T(π) / det(lattice)
+    sum_recip = sum_recip * 4T(π) / abs(det(lattice))
 
     #
     # Real-space sum

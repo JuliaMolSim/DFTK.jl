@@ -14,6 +14,6 @@ infile.set_vars(
     occopt=3,       # Fermi-Dirac
     tsmear=0.01,    # Hartree
 )
-infile.extra = Dict("pspmap" => Dict("Mg" => "hgh/lda/mg-q2", ), )
+infile.extra = Dict("pspmap" => Dict(12 => "hgh/lda/mg-q2", ), )
 
 run_ABINIT_scf(infile, @__DIR__)

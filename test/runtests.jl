@@ -18,6 +18,7 @@ using DFTK
     include("PspHgh.jl")
     include("Species.jl")
     include("bzmesh.jl")
+    include("external_pymatgen.jl")
 
     include("term_external.jl")
     include("term_nonlocal.jl")
