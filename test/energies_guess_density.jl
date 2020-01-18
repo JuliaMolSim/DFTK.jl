@@ -1,5 +1,5 @@
 using Test
-using DFTK: model_dft, PlaneWaveBasis, guess_density, Species, load_psp
+using DFTK: model_dft, PlaneWaveBasis, guess_density, Element, load_psp
 using DFTK: update_energies, Hamiltonian, lobpcg_hyper
 
 include("testcases.jl")
@@ -13,7 +13,7 @@ include("testcases.jl")
     n_bands = 8
     fft_size = [27, 27, 27]
 
-    Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
+    Si = Element(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_dft(silicon.lattice, [:lda_x, :lda_c_vwn], [Si => silicon.positions])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 

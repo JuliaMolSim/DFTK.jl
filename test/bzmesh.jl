@@ -1,4 +1,4 @@
-using DFTK: bzmesh_uniform, bzmesh_ir_wedge, Species, Vec3, Mat3
+using DFTK: bzmesh_uniform, bzmesh_ir_wedge, Element, Vec3, Mat3
 using LinearAlgebra
 using PyCall
 using Test
@@ -32,7 +32,7 @@ end
         red_kcoords, _ = bzmesh_uniform(kgrid_size)
 
         irred_kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, system.lattice,
-                                                 [Species(system.atnum) => system.positions])
+                                                 [Element(system.atnum) => system.positions])
 
         # Try to reproduce all kcoords from irred_kcoords
         all_kcoords = Vector{Vec3{Rational{Int}}}()

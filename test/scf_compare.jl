@@ -9,7 +9,7 @@ include("testcases.jl")
     fft_size = [9, 9, 9]
     tol = 1e-6
 
-    Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
+    Si = Element(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_dft(silicon.lattice, :lda_xc_teter93, [Si => silicon.positions])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 

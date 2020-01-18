@@ -21,7 +21,8 @@ struct Model{T <: Real}
     temperature::T
     smearing::Smearing.SmearingFunction # see smearing_functions.jl for some choices
 
-    atoms # Vector of pairs Species => vector of vec3 (positions, fractional coordinates)
+    atoms # Vector of pairs Element => vector of vec3 (positions, fractional coordinates)
+    # Possibly empty. Right now, the consistency of `atoms` with the different terms is *not* checked
 
     # Potential definitions and builders
     build_external  # External potential, e.g. local pseudopotential term

@@ -29,7 +29,7 @@ function run_silicon_redHF(T; Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, 
     n_bands = length(ref_redHF[1])
 
     fft_size = grid_size * ones(3)
-    Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
+    Si = Element(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_reduced_hf(Array{T}(silicon.lattice), [Si => silicon.positions], temperature=.1)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis, guess_density(basis, [Si => silicon.positions]))
@@ -67,7 +67,7 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     n_bands = length(ref_lda[1])
 
     fft_size = grid_size * ones(3)
-    Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
+    Si = Element(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_dft(Array{T}(silicon.lattice), [:lda_x, :lda_c_vwn], [Si => silicon.positions])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis, guess_density(basis, [Si => silicon.positions]))
@@ -114,7 +114,7 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     n_bands = length(ref_pbe[1])
 
     fft_size = grid_size * ones(3)
-    Si = Species(silicon.atnum, psp=load_psp("hgh/pbe/si-q4"))
+    Si = Element(silicon.atnum, psp=load_psp("hgh/pbe/si-q4"))
     model = model_dft(Array{T}(silicon.lattice), [:gga_x_pbe, :gga_c_pbe], [Si => silicon.positions])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis, guess_density(basis, [Si => silicon.positions]))

@@ -1,5 +1,5 @@
 using Test
-using DFTK: Model, PlaneWaveBasis, r_to_G, G_vectors, Species, term_external
+using DFTK: Model, PlaneWaveBasis, r_to_G, G_vectors, Element, term_external
 using LinearAlgebra: dot
 
 include("testcases.jl")
@@ -57,7 +57,7 @@ include("testcases.jl")
 end
 
 
-@testset "term_external using Species" begin
+@testset "term_external using Element" begin
     Ecut = 4
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
@@ -70,7 +70,7 @@ end
 
     @testset "Test without Pseudopotential" begin
         pot_coulomb(G) = -14*4π / sum(abs2, model.recip_lattice * G)
-        silicon = Species(14)
+        silicon = Element(14)
 
         ref = build_external([pot_coulomb => [[0, 0, 0], [0, 1/3, 0]]])
         pot = build_external([silicon => [[0, 0, 0], [0, 1/3, 0]]])

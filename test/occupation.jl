@@ -85,7 +85,7 @@ end
                 [ 0.04869672986772,  0.04869672986772, 0.27749728805752, 0.27749728805768],
                 [ 0.10585630776222,  0.10585630776223, 0.22191839818805, 0.22191839818822]]
 
-    spec = Species(testcase.atnum, psp=load_psp(testcase.psp))
+    spec = Element(testcase.atnum, psp=load_psp(testcase.psp))
     kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, testcase.lattice,
                                        [spec => testcase.positions])
 

@@ -90,7 +90,7 @@ end
     term_nonlocal(psp_or_atoms)
 
 Return a representation of the non-local potential term in Kleinman-Bylander form.
-`psp_or_atoms` are pairs mapping from a Pseudopotential object or a `Species` object
+`psp_or_atoms` are pairs mapping from a Pseudopotential object or a `Element` object
 to a list of positions in fractional coordinates.
 
 ## Examples
@@ -98,15 +98,15 @@ to a list of positions in fractional coordinates.
 julia> psp = load_psp("hgh/lda/si-q4")
        nlpot = term_nonlocal(psp => [[0,0,0], [0,1/2,1/2]])
 ```
-or similarly using a Species object
+or similarly using a Element object
 ```julia-repl
-julia> si = Species(14, psp=load_psp("hgh/lda/si-q4"))
+julia> si = Element(14, psp=load_psp("hgh/lda/si-q4"))
        nlpot = term_nonlocal(si => [[0,0,0], [0,1/2,1/2]])
 ```
 Of course multiple psps or species are possible:
 ```julia-repl
-julia> si = Species(14, psp=load_psp("hgh/lda/si-q4"))
-       c = Species(6, psp=load_psp("hgh/lda/c-q4"))
+julia> si = Element(14, psp=load_psp("hgh/lda/si-q4"))
+       c = Element(6, psp=load_psp("hgh/lda/c-q4"))
        nlpot = term_nonlocal(si => [[0,0,0]], c =>  [[0,1/2,1/2]])
 ```
 
@@ -114,8 +114,8 @@ Notice: If a species does not have an associated pseudopotential it will be sile
 ignored by this function.
 """
 function term_nonlocal(psps_or_atoms)
-    # Function to extract the psp object in case the passed items are "Species"
-    extract_psp(elem::Species) = elem.psp
+    # Function to extract the psp object in case the passed items are "Element"
+    extract_psp(elem::Element) = elem.psp
     extract_psp(elem) = elem
     potentials = [extract_psp(elem) => positions
                   for (elem, positions) in psps_or_atoms

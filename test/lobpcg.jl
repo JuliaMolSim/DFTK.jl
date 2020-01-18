@@ -55,7 +55,7 @@ end
     Ecut = 10
     fft_size = [21, 21, 21]
 
-    Si = Species(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
+    Si = Element(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
     model = Model(silicon.lattice, n_electrons=silicon.n_electrons,  # Core Hamiltonian model
                   external=term_external([Si => silicon.positions]),
                   nonlocal=term_nonlocal([Si => silicon.positions]))
@@ -82,7 +82,7 @@ end
     Ecut = 2
     fft_size = [5, 5, 5]
 
-    Si = Species(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
+    Si = Element(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
     model = Model(silicon.lattice, n_electrons=silicon.n_electrons,  # Core Hamiltonian model
                   external=term_external([Si => silicon.positions]),
                   nonlocal=term_nonlocal([Si => silicon.positions]))

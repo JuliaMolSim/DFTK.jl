@@ -1,6 +1,6 @@
 using Test
 using DFTK: load_psp, pymatgen_lattice, pymatgen_structure, load_lattice, load_atoms
-using DFTK: units, Species
+using DFTK: units, Element
 using PyCall
 
 py"""
@@ -68,9 +68,9 @@ end
     lattice = [a b c]
 
     atoms = [
-        Species(1) => [randn(3), randn(3)],
-        Species(6) => [randn(3), randn(3), randn(3)],
-        Species(8) => [randn(3), randn(3)],
+        Element(1) => [randn(3), randn(3)],
+        Element(6) => [randn(3), randn(3), randn(3)],
+        Element(8) => [randn(3), randn(3)],
     ]
 
     # Convert the lattice to python, make it flat and convert

@@ -52,11 +52,11 @@ Load a DFTK-compatible atoms object from the ETSF folder.
 Use the scalar type `T` to represent the data.
 """
 function load_atoms(T, folder::EtsfFolder)
-    atoms = Dict{Species, Vector{Vec3{T}}}()
+    atoms = Dict{Element, Vector{Vec3{T}}}()
     n_species = length(folder.gsr["atomic_numbers"])
     for ispec in 1:n_species
         atnum = Int(folder.gsr["atomic_numbers"][ispec])
-        spec = Species(atnum, psp=load_psp(folder.extra["pspmap"][atnum]))
+        spec = Element(atnum, psp=load_psp(folder.extra["pspmap"][atnum]))
 
         mask_species = findall(isequal(ispec), folder.gsr["atom_species"][:])
         positions = folder.gsr["reduced_atom_positions"][:, mask_species]

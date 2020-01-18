@@ -1,8 +1,8 @@
 using Test
-using DFTK: load_psp, Species, charge_nuclear, charge_ionic, n_elec_core, n_elec_valence
+using DFTK: load_psp, Element, charge_nuclear, charge_ionic, n_elec_core, n_elec_valence
 
 @testset "Check constructing species without psp" begin
-    spec = Species(12)
+    spec = Element(12)
 
     @test spec.Znuc == 12
     @test spec.psp === nothing
@@ -14,7 +14,7 @@ using DFTK: load_psp, Species, charge_nuclear, charge_ionic, n_elec_core, n_elec
 end
 
 @testset "Check constructing species with psp" begin
-    spec = Species(12, psp=load_psp("hgh/lda/C-q4"))
+    spec = Element(12, psp=load_psp("hgh/lda/C-q4"))
 
     @test spec.Znuc == 12
     @test spec.psp !== nothing

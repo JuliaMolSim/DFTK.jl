@@ -112,7 +112,7 @@ include("testcases.jl")
         "K"=>[0.375, 0.375, 0.75]
     )
 
-    spec = Species(testcase.atnum, psp=load_psp(testcase.psp))
+    spec = Element(testcase.atnum, psp=load_psp(testcase.psp))
     model = model_dft(silicon.lattice, :lda_xc_teter93, [spec => testcase.positions])
     basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops)
     kpoints, klabels, kpath = high_symmetry_kpath(basis, kline_density,
@@ -138,7 +138,7 @@ end
     Ecut = 7
     n_bands = 8
 
-    spec = Species(testcase.atnum, psp=load_psp(testcase.psp))
+    spec = Element(testcase.atnum, psp=load_psp(testcase.psp))
     model = model_dft(silicon.lattice, :lda_xc_teter93, [spec => testcase.positions])
     basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops)
 
