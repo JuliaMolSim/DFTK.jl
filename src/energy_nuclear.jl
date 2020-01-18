@@ -9,6 +9,8 @@ energy_nuclear_psp_correction(model::Model) = energy_nuclear_psp_correction(mode
 function energy_nuclear_psp_correction(lattice, atoms)
     T = eltype(lattice)
 
+    isempty(atoms) && return T(0)
+
     # Total number of explicitly treated (i.e. valence) electrons
     n_electrons = sum(n_elec_valence(type) for (type, positions) in atoms
                       for pos in positions)

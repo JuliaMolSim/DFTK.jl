@@ -45,7 +45,7 @@ function Model(lattice::AbstractMatrix{T}; n_electrons=nothing, atoms=[], extern
 
     if n_electrons === nothing
         # get it from the atom list
-        isempty(atoms) && @error "Either n_electrons or a non-empty atoms list should be provided"
+        isempty(atoms) && error("Either n_electrons or a non-empty atoms list should be provided")
         n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in atoms)
     else
         @assert n_electrons isa Int

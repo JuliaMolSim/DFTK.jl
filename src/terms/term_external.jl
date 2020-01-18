@@ -78,6 +78,7 @@ function term_external(generators_or_atoms; compensating_background=true)
         if energy !== nothing
             dVol = model.unit_cell_volume / prod(basis.fft_size)
             energy[] = real(sum(ρ.real .* Vext)) * dVol
+            @assert_expensive energy[] ≈ real(dot(ρ.fourier, coeffs))
         end
 
         energy, potential

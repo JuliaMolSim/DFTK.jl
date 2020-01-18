@@ -115,8 +115,7 @@ include("testcases.jl")
     spec = Element(testcase.atnum, psp=load_psp(testcase.psp))
     model = model_dft(silicon.lattice, :lda_xc_teter93, [spec => testcase.positions])
     basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops)
-    kpoints, klabels, kpath = high_symmetry_kpath(basis, kline_density,
-                                                            [spec => testcase.positions])
+    kpoints, klabels, kpath = high_symmetry_kpath(basis, kline_density)
 
     @test length(ref_kcoords) == length(kpoints)
     for ik in 1:length(ref_kcoords)

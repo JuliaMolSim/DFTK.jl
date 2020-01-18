@@ -86,9 +86,6 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     end
 
     energies = scfres.energies
-    energies[:Ewald] = energy_nuclear_ewald(model.lattice, [Si => silicon.positions])
-    energies[:PspCorrection] = energy_nuclear_psp_correction(model.lattice,
-                                                             [Si => silicon.positions])
     @test sum(values(energies)) ≈ ref_etot atol=test_tol
 end
 
@@ -134,8 +131,5 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     end
 
     energies = scfres.energies
-    energies[:Ewald] = energy_nuclear_ewald(model.lattice, [Si => silicon.positions])
-    energies[:PspCorrection] = energy_nuclear_psp_correction(model.lattice,
-                                                             [Si => silicon.positions])
     @test sum(values(energies)) ≈ ref_etot atol=test_tol
 end

@@ -41,17 +41,10 @@ scfres = self_consistent_field(ham, n_bands)
 ham = scfres.ham
 
 # Print obtained energies
-energies = scfres.energies
-energies[:Ewald] = energy_nuclear_ewald(model.lattice, atoms)
-energies[:PspCorrection] = energy_nuclear_psp_correction(model.lattice, atoms)
-println("\nEnergy breakdown:")
-for key in sort([keys(energies)...]; by=S -> string(S))
-    @printf "    %-20s%-10.7f\n" string(key) energies[key]
-end
-@printf "\n    %-20s%-15.12f\n\n" "total" sum(values(energies))
+print_energies(scfres.energies)
 
 # Plot band structure
-plot_bands(ham, n_bands, kline_density, atoms, scfres.εF).show()
+plot_bands(ham, n_bands, kline_density, scfres.εF).show()
 
 # Plot DOS
 εs = range(minimum(minimum(scfres.orben)) - 1, maximum(maximum(scfres.orben)) + 1, length=1000)

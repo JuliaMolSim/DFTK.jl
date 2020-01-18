@@ -77,6 +77,7 @@ export update_hamiltonian!
 export update_energies_hamiltonian!
 export update_energies!
 export update_energies
+export print_energies
 export kblock
 include("Hamiltonian.jl")
 include("HamiltonianBlock.jl")

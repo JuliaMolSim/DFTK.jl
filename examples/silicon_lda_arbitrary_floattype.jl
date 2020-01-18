@@ -25,12 +25,5 @@ n_bands = 4
 scfres = self_consistent_field(ham, n_bands, tol=1e-6)
 
 # Print obtained energies
-energies = scfres.energies
-energies[:Ewald] = energy_nuclear_ewald(model.lattice, atoms)
-energies[:PspCorrection] = energy_nuclear_psp_correction(model)
-println("\nEnergy breakdown:")
-for key in sort([keys(energies)...]; by=S -> string(S))
-    @printf "    %-20s%-10.7f\n" string(key) energies[key]
-end
-@printf "\n    %-20s%-15.12f\n\n" "total" sum(values(energies))
+print_energies(scfres.energies)
 @assert eltype(sum(values(energies))) == T

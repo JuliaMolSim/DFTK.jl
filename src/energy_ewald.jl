@@ -14,9 +14,12 @@ function energy_ewald(lattice, charges, positions; η=nothing)
     T = eltype(lattice)
 
     for i=1:3
-        @assert norm(lattice[:,i]) != 0
-        # Otherwise the formula for the reciprocal lattice
-        # computation is not correct
+        if norm(lattice[:,i]) == 0
+            ## TODO should something more clever be done here? For now
+            ## we assume that we are not interested in the Ewald
+            ## energy of non-3D systems
+            return T(0)
+        end
     end
     energy_ewald(lattice, T(2π) * inv(lattice'), charges, positions, η=η)
 end
