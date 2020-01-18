@@ -32,7 +32,7 @@ end
         red_kcoords, _ = bzmesh_uniform(kgrid_size)
 
         irred_kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, system.lattice,
-                                                 Species(system.atnum) => system.positions)
+                                                 [Species(system.atnum) => system.positions])
 
         # Try to reproduce all kcoords from irred_kcoords
         all_kcoords = Vector{Vec3{Rational{Int}}}()

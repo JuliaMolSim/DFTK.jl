@@ -1,9 +1,7 @@
 @doc raw"""
-    guess_density(basis, composition...)
+    guess_density(basis)
 
-Build a superposition of atomic densities (SAD) guess density. The atoms/species are
-specified in `composition` as pairs representing a mapping from `Species` objects to a list
-of positions in fractional coordinates.
+Build a superposition of atomic densities (SAD) guess density.
 
 We take for the guess density a gaussian centered around the atom, of
 length specified by `atom_decay_length`, normalized to get the right number of electrons
@@ -11,11 +9,12 @@ length specified by `atom_decay_length`, normalized to get the right number of e
 \hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
 ```
 """
-function guess_density(basis::PlaneWaveBasis{T}, composition...) where {T}
+guess_density(basis::PlaneWaveBasis) = guess_density(basis, basis.model.atoms)
+function guess_density(basis::PlaneWaveBasis{T}, atoms) where {T}
     model = basis.model
     ρ = zeros(complex(T), basis.fft_size)
     # fill ρ with the (unnormalized) Fourier transform, ie ∫ e^{-iGx} ρ(x) dx
-    for (spec, positions) in composition
+    for (spec, positions) in atoms
         n_el_val = n_elec_valence(spec)
         decay_length = T(atom_decay_length(spec))
         for r in positions

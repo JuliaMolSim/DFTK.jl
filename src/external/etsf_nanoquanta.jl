@@ -48,11 +48,11 @@ load_lattice(folder; kwargs...) = load_lattice(Float64, folder; kwargs...)
 
 
 """
-Load a DFTK-compatible composition object from the ETSF folder.
+Load a DFTK-compatible atoms object from the ETSF folder.
 Use the scalar type `T` to represent the data.
 """
-function load_composition(T, folder::EtsfFolder)
-    composition = Dict{Species, Vector{Vec3{T}}}()
+function load_atoms(T, folder::EtsfFolder)
+    atoms = Dict{Species, Vector{Vec3{T}}}()
     n_species = length(folder.gsr["atomic_numbers"])
     for ispec in 1:n_species
         atnum = Int(folder.gsr["atomic_numbers"][ispec])
@@ -60,11 +60,11 @@ function load_composition(T, folder::EtsfFolder)
 
         mask_species = findall(isequal(ispec), folder.gsr["atom_species"][:])
         positions = folder.gsr["reduced_atom_positions"][:, mask_species]
-        composition[spec] = [Vec3{T}(positions[:, m]) for m in mask_species]
+        atoms[spec] = [Vec3{T}(positions[:, m]) for m in mask_species]
     end
-    pairs(composition)
+    pairs(atoms)
 end
-load_composition(folder; kwargs...) = load_composition(Float64, folder; kwargs...)
+load_atoms(folder; kwargs...) = load_atoms(Float64, folder; kwargs...)
 
 
 """
@@ -104,14 +104,14 @@ function load_model(T, folder::EtsfFolder)
 
     # Build model and discretise
     lattice = load_lattice(T, folder)
-    composition = load_composition(T, folder)
+    atoms = load_atoms(T, folder)
     model = nothing
     if length(functional) > 0
-        model = model_dft(Array{T}(lattice), functional, composition...;
+        model = model_dft(Array{T}(lattice), functional, atoms;
                           smearing=smearing_function, temperature=Tsmear
                          )
     else
-        model = model_reduced_hf(Array{T}(lattice), composition...;
+        model = model_reduced_hf(Array{T}(lattice), atoms;
                                  smearing=smearing_function, temperature=Tsmear
                                 )
     end
@@ -127,7 +127,7 @@ Use the scalar type `T` to represent the data.
 """
 function load_basis(T, folder::EtsfFolder)
     model = load_model(T, folder)
-    composition = load_composition(T, folder)
+    atoms = load_atoms(T, folder)
 
     Ecut = folder.gsr["kinetic_energy_cutoff"][:]
     kweights = Vector{T}(folder.gsr["kpoint_weights"][:])
@@ -139,7 +139,7 @@ function load_basis(T, folder::EtsfFolder)
     end
 
     kgrid_size = Vector{Int}(folder.gsr["monkhorst_pack_folding"])
-    kcoords_new, ksymops = bzmesh_ir_wedge(kgrid_size, model.lattice, composition...)
+    kcoords_new, ksymops = bzmesh_ir_wedge(kgrid_size, model.lattice, atoms)
     @assert kcoords_new ≈ kcoords
 
     PlaneWaveBasis(model, Ecut, kcoords, ksymops)

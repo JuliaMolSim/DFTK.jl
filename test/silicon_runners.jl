@@ -30,9 +30,9 @@ function run_silicon_redHF(T; Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, 
 
     fft_size = grid_size * ones(3)
     Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_reduced_hf(Array{T}(silicon.lattice), Si => silicon.positions, temperature=.1)
+    model = model_reduced_hf(Array{T}(silicon.lattice), [Si => silicon.positions], temperature=.1)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-    ham = Hamiltonian(basis, guess_density(basis, Si => silicon.positions))
+    ham = Hamiltonian(basis, guess_density(basis, [Si => silicon.positions]))
 
     scfres = self_consistent_field(ham, n_bands, tol=scf_tol)
 
@@ -68,9 +68,9 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
 
     fft_size = grid_size * ones(3)
     Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_dft(Array{T}(silicon.lattice), [:lda_x, :lda_c_vwn], Si => silicon.positions)
+    model = model_dft(Array{T}(silicon.lattice), [:lda_x, :lda_c_vwn], [Si => silicon.positions])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-    ham = Hamiltonian(basis, guess_density(basis, Si => silicon.positions))
+    ham = Hamiltonian(basis, guess_density(basis, [Si => silicon.positions]))
 
     scfres = self_consistent_field(ham, n_bands, tol=scf_tol,
                                    eigensolver=lobpcg_hyper, n_ep_extra=n_noconv_check, diagtol=lobpcg_tol)
@@ -86,9 +86,9 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     end
 
     energies = scfres.energies
-    energies[:Ewald] = energy_nuclear_ewald(model.lattice, Si => silicon.positions)
+    energies[:Ewald] = energy_nuclear_ewald(model.lattice, [Si => silicon.positions])
     energies[:PspCorrection] = energy_nuclear_psp_correction(model.lattice,
-                                                             Si => silicon.positions)
+                                                             [Si => silicon.positions])
     @test sum(values(energies)) ≈ ref_etot atol=test_tol
 end
 
@@ -115,9 +115,9 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
 
     fft_size = grid_size * ones(3)
     Si = Species(silicon.atnum, psp=load_psp("hgh/pbe/si-q4"))
-    model = model_dft(Array{T}(silicon.lattice), [:gga_x_pbe, :gga_c_pbe], Si => silicon.positions)
+    model = model_dft(Array{T}(silicon.lattice), [:gga_x_pbe, :gga_c_pbe], [Si => silicon.positions])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-    ham = Hamiltonian(basis, guess_density(basis, Si => silicon.positions))
+    ham = Hamiltonian(basis, guess_density(basis, [Si => silicon.positions]))
 
     scfres = self_consistent_field(ham, n_bands, tol=scf_tol)
 
@@ -134,8 +134,8 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     end
 
     energies = scfres.energies
-    energies[:Ewald] = energy_nuclear_ewald(model.lattice, Si => silicon.positions)
+    energies[:Ewald] = energy_nuclear_ewald(model.lattice, [Si => silicon.positions])
     energies[:PspCorrection] = energy_nuclear_psp_correction(model.lattice,
-                                                             Si => silicon.positions)
+                                                             [Si => silicon.positions])
     @test sum(values(energies)) ≈ ref_etot atol=test_tol
 end

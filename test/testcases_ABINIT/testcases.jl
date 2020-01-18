@@ -122,18 +122,18 @@ function test_folder(T, folder; scf_tol=1e-8, n_ignored=0, test_tol=1e-6)
         etsf = EtsfFolder(folder)
 
         basis = load_basis(T, etsf)
-        composition = load_composition(T, etsf)
+        atoms = load_atoms(T, etsf)
         ref = load_reference(etsf)
         n_bands = length(ref.bands[1])
 
-        ρ0 = guess_density(basis, composition...)
+        ρ0 = guess_density(basis, atoms)
         ham = Hamiltonian(basis, ρ0)
         scfres = self_consistent_field(ham, n_bands, tol=scf_tol)
 
         energies = scfres.energies
-        energies[:Ewald] = energy_nuclear_ewald(basis.model.lattice, composition...)
+        energies[:Ewald] = energy_nuclear_ewald(basis.model.lattice, atoms)
         energies[:PspCorrection] = energy_nuclear_psp_correction(basis.model.lattice,
-                                                                 composition...)
+                                                                 atoms)
         println("etot    ", sum(values(energies)) - sum(values(ref.energies)))
 
         for ik in 1:length(basis.kpoints)

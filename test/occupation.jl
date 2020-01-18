@@ -87,7 +87,7 @@ end
 
     spec = Species(testcase.atnum, psp=load_psp(testcase.psp))
     kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, testcase.lattice,
-                                       spec => testcase.positions)
+                                       [spec => testcase.positions])
 
     n_bands = length(energies[1])
     n_k = length(kcoords)

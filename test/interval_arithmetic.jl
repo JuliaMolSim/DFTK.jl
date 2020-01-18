@@ -27,8 +27,8 @@ function discretised_hamiltonian(T, testcase)
     Ecut = 10  # Hartree
 
     spec = Species(testcase.atnum, psp=load_psp(testcase.psp))
-    composition = [spec => testcase.positions]
-    model = model_dft(Array{T}(testcase.lattice), [:lda_x, :lda_c_vwn], composition...)
+    atoms = [spec => testcase.positions]
+    model = model_dft(Array{T}(testcase.lattice), [:lda_x, :lda_c_vwn], atoms)
     kpoints, ksymops = bzmesh_uniform([1, 1, 1.])
 
     # For interval arithmetic to give useful numbers,
@@ -36,7 +36,7 @@ function discretised_hamiltonian(T, testcase)
     fft_size = nextpow.(2, determine_grid_size(model.lattice, Ecut))
     basis = PlaneWaveBasis(model, Ecut, kpoints, ksymops, fft_size=fft_size)
 
-    ham = Hamiltonian(basis, guess_density(basis, composition...))
+    ham = Hamiltonian(basis, guess_density(basis, atoms))
 end
 
 

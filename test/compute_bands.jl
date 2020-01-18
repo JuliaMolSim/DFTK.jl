@@ -113,10 +113,10 @@ include("testcases.jl")
     )
 
     spec = Species(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_dft(silicon.lattice, :lda_xc_teter93, spec => testcase.positions)
+    model = model_dft(silicon.lattice, :lda_xc_teter93, [spec => testcase.positions])
     basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops)
     kpoints, klabels, kpath = high_symmetry_kpath(basis, kline_density,
-                                                            spec => testcase.positions)
+                                                            [spec => testcase.positions])
 
     @test length(ref_kcoords) == length(kpoints)
     for ik in 1:length(ref_kcoords)
@@ -139,11 +139,11 @@ end
     n_bands = 8
 
     spec = Species(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_dft(silicon.lattice, :lda_xc_teter93, spec => testcase.positions)
+    model = model_dft(silicon.lattice, :lda_xc_teter93, [spec => testcase.positions])
     basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops)
 
     # Build Hamiltonian just from SAD guess
-    ρ0 = guess_density(basis, spec => testcase.positions)
+    ρ0 = guess_density(basis, [spec => testcase.positions])
     ham = Hamiltonian(basis, ρ0)
 
 

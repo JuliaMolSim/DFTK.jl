@@ -12,23 +12,22 @@ T = Double64  # Try Double32, BigFloat (very slow!)
 a = 10.263141334305942  # Silicon lattice constant in Bohr
 lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
 Si = Species(14, psp=load_psp("hgh/lda/Si-q4"))
-composition = [Si => [ones(3)/8, -ones(3)/8]]
+atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 # Setup LDA model and discretisation
-model = model_dft(Array{T}(lattice), [:lda_x, :lda_c_vwn], composition...)
-kpoints, ksymops = bzmesh_ir_wedge(kgrid, lattice, composition...)
+model = model_dft(Array{T}(lattice), [:lda_x, :lda_c_vwn], atoms)
+kpoints, ksymops = bzmesh_ir_wedge(kgrid, lattice, atoms)
 basis = PlaneWaveBasis(model, Ecut, kpoints, ksymops)
 
 # Run SCF, note Silicon metal is an insulator, so no need for all bands here
-ham = Hamiltonian(basis, guess_density(basis, composition...))
+ham = Hamiltonian(basis, guess_density(basis, atoms))
 n_bands = 4
 scfres = self_consistent_field(ham, n_bands, tol=1e-6)
 
 # Print obtained energies
 energies = scfres.energies
-# TODO There is an issue with erfc for Double64 ... so we fallback to Float64
-energies[:Ewald] = energy_nuclear_ewald(model.lattice, composition...)
-energies[:PspCorrection] = energy_nuclear_psp_correction(model.lattice, composition...)
+energies[:Ewald] = energy_nuclear_ewald(model.lattice, atoms)
+energies[:PspCorrection] = energy_nuclear_psp_correction(model)
 println("\nEnergy breakdown:")
 for key in sort([keys(energies)...]; by=S -> string(S))
     @printf "    %-20s%-10.7f\n" string(key) energies[key]

@@ -21,6 +21,8 @@ struct Model{T <: Real}
     temperature::T
     smearing::Smearing.SmearingFunction # see smearing_functions.jl for some choices
 
+    atoms # Vector of pairs Species => vector of vec3 (positions, fractional coordinates)
+
     # Potential definitions and builders
     build_external  # External potential, e.g. local pseudopotential term
     build_nonlocal  # Non-local potential, e.g. non-local pseudopotential projectors
@@ -35,7 +37,7 @@ TODO docme
 If no smearing is specified the system will be assumed to be an insulator
 Occupation obtained as `f(ε) = smearing((ε-εF) / T)`
 """
-function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
+function Model(lattice::AbstractMatrix{T}, n_electrons; atoms=[], external=nothing,
                nonlocal=nothing, hartree=nothing, xc=nothing, temperature=0.0,
                smearing=nothing, spin_polarisation=:none) where {T <: Real}
     lattice = SMatrix{3, 3, T, 9}(lattice)
@@ -69,7 +71,7 @@ function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
 
     build_nothing(args...; kwargs...) = (nothing, nothing)
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
-             spin_polarisation, T(temperature), smearing,
+             spin_polarisation, T(temperature), smearing, atoms, 
              something(external, build_nothing), something(nonlocal, build_nothing),
              something(hartree, build_nothing), something(xc, build_nothing))
 end

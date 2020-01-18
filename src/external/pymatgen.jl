@@ -11,15 +11,15 @@ end
 pymatgen_lattice(model::Model) = pymatgen_lattice(model.lattice)
 
 
-function pymatgen_structure(model_or_lattice, composition...)
+function pymatgen_structure(model_or_lattice, atoms)
     mg = pyimport("pymatgen")
     pylattice = pymatgen_lattice(model_or_lattice)
 
-    n_species = sum(length(pos) for (spec, pos) in composition)
+    n_species = sum(length(pos) for (spec, pos) in atoms)
     pyspecies = Vector{Int}(undef, n_species)
     pypositions = Array{Vector{Float64}}(undef, n_species)
     ispec = 1
-    for (spec, pos) in composition
+    for (spec, pos) in atoms
         for coord in pos
             pyspecies[ispec] = spec.Znuc
             pypositions[ispec] = Vector{Float64}(coord)
@@ -89,11 +89,11 @@ end
 
 
 """
-Load a DFTK-compatible composition representation from a supported pymatgen object
+Load a DFTK-compatible atoms representation from a supported pymatgen object
 """
-function load_composition(T, pyobj::PyObject; functional="lda", pspmap=Dict())
+function load_atoms(T, pyobj::PyObject; functional="lda", pspmap=Dict())
     mg = pyimport("pymatgen")
-    pyisinstance(pyobj, mg.Structure) || error("load_composition is only implemented for " *
+    pyisinstance(pyobj, mg.Structure) || error("load_atoms is only implemented for " *
                                                "python type pymatgen.Structure")
 
     map(unique(pyobj.species)) do spec

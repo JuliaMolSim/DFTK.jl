@@ -14,10 +14,10 @@ include("testcases.jl")
     fft_size = [27, 27, 27]
 
     Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_dft(silicon.lattice, [:lda_x, :lda_c_vwn], Si => silicon.positions)
+    model = model_dft(silicon.lattice, [:lda_x, :lda_c_vwn], [Si => silicon.positions])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
-    ρ0 = guess_density(basis, Si => silicon.positions)
+    ρ0 = guess_density(basis, [Si => silicon.positions])
     ham = Hamiltonian(basis, ρ0)
 
     e0_Hartree, _ = model.build_hartree(basis, Ref(0.0), nothing; ρ=ρ0)

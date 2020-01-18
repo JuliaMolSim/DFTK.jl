@@ -149,7 +149,7 @@ export load_lattice
 export load_basis
 export load_model
 export load_density
-export load_composition
+export load_atoms
 include("external/etsf_nanoquanta.jl")
 
 end # module DFTK

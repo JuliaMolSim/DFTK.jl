@@ -15,14 +15,14 @@ function get_scf_energies(testcase, supersampling, functionals)
                                    ensure_smallprimes=false)
     spec = Species(testcase.atnum, psp=load_psp(testcase.psp))
     if length(functionals) > 0
-        model = model_dft(testcase.lattice, functionals, spec => testcase.positions)
+        model = model_dft(testcase.lattice, functionals, [spec => testcase.positions])
     else
-        model = model_reduced_hf(testcase.lattice, spec => testcase.positions)
+        model = model_reduced_hf(testcase.lattice, [spec => testcase.positions])
     end
 
     ksymops = nothing
     basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops; fft_size=fft_size)
-    ham = Hamiltonian(basis, guess_density(basis, spec => testcase.positions))
+    ham = Hamiltonian(basis, guess_density(basis, [spec => testcase.positions]))
     scfres = self_consistent_field(ham, n_bands, tol=scf_tol)
     values(scfres.energies)
 end

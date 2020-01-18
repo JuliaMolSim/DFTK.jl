@@ -3,9 +3,9 @@ include("../external/pymatgen.jl")
 
 # Functionality for computing band structures, mostly using pymatgen
 
-function high_symmetry_kpath(basis, kline_density, composition...)
+function high_symmetry_kpath(basis, kline_density, atoms)
     bandstructure = pyimport("pymatgen.symmetry.bandstructure")
-    pystructure = pymatgen_structure(basis.model.lattice, composition...)
+    pystructure = pymatgen_structure(basis.model.lattice, atoms)
     symm_kpath = bandstructure.HighSymmKpath(pystructure)
 
     kcoords, labels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=false)
@@ -31,10 +31,10 @@ function compute_bands(ham::Hamiltonian, kpoints, n_bands;
     select_eigenpairs_all_kblocks(band_data, 1:n_bands)
 end
 
-function plot_bands(ham, n_bands, kline_density, composition, εF)
+function plot_bands(ham, n_bands, kline_density, atoms, εF)
     basis = ham.basis
     # Band structure calculation along high-symmetry path
-    kpoints, klabels, kpath = high_symmetry_kpath(basis, kline_density, composition...)
+    kpoints, klabels, kpath = high_symmetry_kpath(basis, kline_density, atoms)
     println("Computing bands along kpath:\n     $(join(kpath[1], " -> "))")
     band_data = compute_bands(ham, kpoints, n_bands)
 

@@ -87,10 +87,10 @@ end
 
 
 """
-    term_nonlocal(psp_or_composition...)
+    term_nonlocal(psp_or_atoms)
 
 Return a representation of the non-local potential term in Kleinman-Bylander form.
-`psp_or_composition` are pairs mapping from a Pseudopotential object or a `Species` object
+`psp_or_atoms` are pairs mapping from a Pseudopotential object or a `Species` object
 to a list of positions in fractional coordinates.
 
 ## Examples
@@ -113,12 +113,12 @@ julia> si = Species(14, psp=load_psp("hgh/lda/si-q4"))
 Notice: If a species does not have an associated pseudopotential it will be silently
 ignored by this function.
 """
-function term_nonlocal(psps_or_composition...)
+function term_nonlocal(psps_or_atoms)
     # Function to extract the psp object in case the passed items are "Species"
     extract_psp(elem::Species) = elem.psp
     extract_psp(elem) = elem
     potentials = [extract_psp(elem) => positions
-                  for (elem, positions) in psps_or_composition
+                  for (elem, positions) in psps_or_atoms
                   if extract_psp(elem) !== nothing]
 
     function inner(basis::PlaneWaveBasis, energy, potential; Psi=nothing,

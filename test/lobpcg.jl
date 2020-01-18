@@ -57,8 +57,8 @@ end
 
     Si = Species(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
     model = Model(silicon.lattice, silicon.n_electrons,  # Core Hamiltonian model
-                  external=term_external(Si => silicon.positions),
-                  nonlocal=term_nonlocal(Si => silicon.positions))
+                  external=term_external([Si => silicon.positions]),
+                  nonlocal=term_nonlocal([Si => silicon.positions]))
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis)
 
@@ -84,8 +84,8 @@ end
 
     Si = Species(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
     model = Model(silicon.lattice, silicon.n_electrons,  # Core Hamiltonian model
-                  external=term_external(Si => silicon.positions),
-                  nonlocal=term_nonlocal(Si => silicon.positions))
+                  external=term_external([Si => silicon.positions]),
+                  nonlocal=term_nonlocal([Si => silicon.positions]))
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis)
 

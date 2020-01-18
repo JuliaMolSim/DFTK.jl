@@ -4,14 +4,14 @@
 Construct a tuple containing the lattice and the positions of the species
 in the convention required to take the place of a `cell` datastructure used in spglib.
 """
-function spglib_cell(lattice, composition...)
-    n_species = sum(length(positions) for (spec, positions) in composition)
+function spglib_cell(lattice, atoms)
+    n_species = sum(length(positions) for (spec, positions) in atoms)
     spg_numbers = Vector{Int}(undef, n_species)
     spg_positions = Matrix{Float64}(undef, n_species, 3)
 
     offset = 0
     nextnumber = 1
-    for (spec, positions) in composition
+    for (spec, positions) in atoms
         for (i, pos) in enumerate(positions)
             # assign the same number to all species with this position
             spg_numbers[offset + i] = nextnumber
