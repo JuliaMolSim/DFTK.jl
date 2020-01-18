@@ -16,7 +16,7 @@ struct Model{T <: Real}
     dim::Int # Dimension of the system; 3 unless `lattice` has zero columns
 
     # Electrons, occupation and smearing function
-    n_electrons::Int
+    n_electrons::Int # not necessarily consistent with `atoms` field
     spin_polarisation::Symbol  # :none, :collinear, :full, :spinless
     temperature::T
     smearing::Smearing.SmearingFunction # see smearing_functions.jl for some choices
@@ -37,10 +37,18 @@ TODO docme
 If no smearing is specified the system will be assumed to be an insulator
 Occupation obtained as `f(ε) = smearing((ε-εF) / T)`
 """
-function Model(lattice::AbstractMatrix{T}, n_electrons; atoms=[], external=nothing,
+function Model(lattice::AbstractMatrix{T}; n_electrons=nothing, atoms=[], external=nothing,
                nonlocal=nothing, hartree=nothing, xc=nothing, temperature=0.0,
                smearing=nothing, spin_polarisation=:none) where {T <: Real}
     lattice = SMatrix{3, 3, T, 9}(lattice)
+
+    if n_electrons === nothing
+        # get it from the atom list
+        isempty(atoms) && @error "Either n_electrons or a non-empty atoms list should be provided"
+        n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in atoms)
+    else
+        @assert n_electrons isa Int
+    end
 
     # Special handling of 1D and 2D systems, and sanity checks
     d = 3-count(c -> norm(c) == 0, eachcol(lattice))

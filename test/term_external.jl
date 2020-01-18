@@ -7,7 +7,7 @@ include("testcases.jl")
 @testset "term_external using Coulomb potential" begin
     Ecut = 4
     fft_size = [15, 15, 15]
-    model = Model(silicon.lattice, silicon.n_electrons)
+    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     function build_external(atoms)
         _, pot = term_external(atoms)(basis, nothing,
@@ -60,7 +60,7 @@ end
 @testset "term_external using Species" begin
     Ecut = 4
     fft_size = [15, 15, 15]
-    model = Model(silicon.lattice, silicon.n_electrons)
+    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     function build_external(atoms)
         _, pot = term_external(atoms)(basis, nothing,

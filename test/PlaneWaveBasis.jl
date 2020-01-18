@@ -5,7 +5,7 @@ using LinearAlgebra
 include("testcases.jl")
 
 function test_pw_cutoffs(testcase, Ecut, fft_size)
-    model = Model(testcase.lattice, testcase.n_electrons)
+    model = Model(testcase.lattice, n_electrons=testcase.n_electrons)
     pw = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops; fft_size=fft_size)
 
     for (ik, kpt) in enumerate(pw.kpoints)
@@ -18,7 +18,7 @@ end
 @testset "PlaneWaveBasis: Check struct construction" begin
     Ecut = 3
     fft_size = [15, 15, 15]
-    model = Model(silicon.lattice, silicon.n_electrons)
+    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
     pw = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     @test pw.model.lattice == silicon.lattice
@@ -55,7 +55,7 @@ end
 @testset "PlaneWaveBasis: Check cubic basis and cubic index" begin
     Ecut = 3
     fft_size = [15, 15, 15]
-    model = Model(silicon.lattice, silicon.n_electrons)
+    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
     pw = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     g_all = collect(G_vectors(pw))
 

@@ -6,7 +6,7 @@ include("testcases.jl")
 @testset "term_nonlocal" begin
     Ecut = 2
     fft_size = [9, 9, 9]
-    model = Model(silicon.lattice, silicon.n_electrons)
+    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     function build_nonlocal(atoms)
         _, pot = term_nonlocal(atoms)(basis, nothing, zeros(basis.fft_size))

@@ -37,7 +37,7 @@ end
     εLUMO = minimum(energies[ik][n_occ + 1] for ik in 1:n_k)
 
     # Occupation for zero temperature
-    model = Model(silicon.lattice, silicon.n_electrons; temperature=0.0, smearing=nothing)
+    model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=0.0, smearing=nothing)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     occupation0, εF0 = find_occupation_bandgap(basis, energies)
     @test εHOMO < εF0 < εLUMO
@@ -46,7 +46,7 @@ end
     # See that the electron count still works if we add temperature
     Ts = (0, 1e-6, .1, 1.0)
     for T in Ts, meth in DFTK.Smearing.smearing_methods
-        model = Model(silicon.lattice, silicon.n_electrons; temperature=T, smearing=meth())
+        model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=T, smearing=meth())
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
         occs, _ = find_occupation(basis, energies)
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
@@ -55,7 +55,7 @@ end
     # See that the occupation is largely uneffected with only a bit of temperature
     Ts = (0, 1e-6, 1e-4)
     for T in Ts, meth in DFTK.Smearing.smearing_methods
-        model = Model(silicon.lattice, silicon.n_electrons; temperature=T, smearing=meth())
+        model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=T, smearing=meth())
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
         occupation, _= find_occupation(basis, energies)
 
@@ -103,7 +103,7 @@ end
     )
 
     for (meth, Tsmear, εF_ref) in parameters
-        model = Model(silicon.lattice, testcase.n_electrons;
+        model = Model(silicon.lattice, n_electrons=testcase.n_electrons;
                       temperature=Tsmear, smearing=meth())
         basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops; fft_size=fft_size)
         occupation, εF = find_occupation(basis, energies)

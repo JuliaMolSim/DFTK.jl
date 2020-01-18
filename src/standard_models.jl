@@ -4,15 +4,15 @@
 TODO DOCME
 """
 function model_free_electron(lattice::AbstractMatrix, n_electrons; kwargs...)
-    Model(lattice, n_electrons; kwargs...)
+    Model(lattice; n_electrons=n_electrons, kwargs...)
 end
 
 """
 TODO DOCME
 """
 function model_hcore(lattice::AbstractMatrix, atoms; kwargs...)
-    n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in atoms)
-    Model(lattice, n_electrons;
+    Model(lattice;
+          atoms=atoms,
           external=term_external(atoms),
           nonlocal=term_nonlocal(atoms), kwargs...)
 end
@@ -21,8 +21,8 @@ end
 TODO DOCME
 """
 function model_dft(lattice::AbstractMatrix, functionals, atoms; kwargs...)
-    n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in atoms)
-    Model(lattice, n_electrons;
+    Model(lattice;
+          atoms=atoms,
           external=term_external(atoms),
           nonlocal=term_nonlocal(atoms),
           hartree=term_hartree(),
@@ -36,8 +36,8 @@ end
 TODO DOCME
 """
 function model_reduced_hf(lattice::AbstractMatrix, atoms; kwargs...)
-    n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in atoms)
-    Model(lattice, n_electrons;
+    Model(lattice;
+          atoms=atoms,
           external=term_external(atoms),
           nonlocal=term_nonlocal(atoms),
           hartree=term_hartree(), kwargs...)

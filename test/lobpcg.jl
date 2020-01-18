@@ -8,7 +8,7 @@ include("./testcases.jl")
     # Construct a free-electron Hamiltonian
     Ecut = 5
     fft_size = [15, 15, 15]
-    model = Model(silicon.lattice, silicon.n_electrons)  # free-electron model
+    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)  # free-electron model
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis)
 
@@ -56,7 +56,7 @@ end
     fft_size = [21, 21, 21]
 
     Si = Species(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
-    model = Model(silicon.lattice, silicon.n_electrons,  # Core Hamiltonian model
+    model = Model(silicon.lattice, n_electrons=silicon.n_electrons,  # Core Hamiltonian model
                   external=term_external([Si => silicon.positions]),
                   nonlocal=term_nonlocal([Si => silicon.positions]))
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
@@ -83,7 +83,7 @@ end
     fft_size = [5, 5, 5]
 
     Si = Species(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
-    model = Model(silicon.lattice, silicon.n_electrons,  # Core Hamiltonian model
+    model = Model(silicon.lattice, n_electrons=silicon.n_electrons,  # Core Hamiltonian model
                   external=term_external([Si => silicon.positions]),
                   nonlocal=term_nonlocal([Si => silicon.positions]))
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
