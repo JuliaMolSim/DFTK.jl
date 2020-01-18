@@ -1,1 +1,1 @@
-Routines for parsing and handling pseudopotentials.
+Routines for parsing and handling pseudopotentials. The main interaction with the rest of the code is the eval_psp_* routines that return the quantities needed to compute matrix elements of pseudopotentials.

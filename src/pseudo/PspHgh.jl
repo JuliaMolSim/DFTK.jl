@@ -167,7 +167,7 @@ end
     eval_psp_projection_radial(psp::PspHgh, i, l, qsq::Number)
 
 Evaluate the radial part of the `i`-th projector for angular momentum `l`
-at the reciprocal lattice point with modulus squared `qsq`.
+at the reciprocal vector with modulus squared `qsq`.
 
 p(qsq) = ∫_{R+} r^2 p(r) j_l(q r) dr
 
