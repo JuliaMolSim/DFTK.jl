@@ -32,9 +32,9 @@ negative charge following the Ewald summation procedure. The function assumes al
 are modelled as point charges. If pseudopotentials are used, one needs to additionally
 compute the `energy_nuclear_psp_correction` to get the correct energy.
 """
-energy_nuclear_ewald(model::Model; η=nothing) = energy_nuclear_ewald(model.lattice, model.atoms)
-function energy_nuclear_ewald(lattice, atoms; η=nothing)
+energy_nuclear_ewald(model::Model; kwargs...) = energy_nuclear_ewald(model.lattice, model.atoms; kwargs...)
+function energy_nuclear_ewald(lattice, atoms; kwargs...)
     charges = [charge_ionic(type) for (type, positions) in atoms for pos in positions]
     positions = [pos for (elem, positions) in atoms for pos in positions]
-    energy_ewald(lattice, charges, positions; η=η)
+    energy_ewald(lattice, charges, positions; kwargs...)
 end
