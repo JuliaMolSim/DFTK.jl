@@ -46,3 +46,21 @@ end
     γ_E = energy_ewald(lattice, charges, positions)
     @test abs(γ_E - ref) < 1e-7
 end
+
+@testset "Forces" begin
+    lattice = [0.0  5.131570667152971 5.131570667152971;
+               5.131570667152971 0.0 5.131570667152971;
+               5.131570667152971 5.131570667152971  0.0]
+    # perturb positions away from equilibrium to get nonzero force
+    positions = [ones(3)/8+rand(3)/20, -ones(3)/8]
+    charges = [14, 14]
+
+    forces = zeros(Vec3{Float64}, 2)
+    γ1 = energy_ewald(lattice, charges, positions, forces=forces)
+
+    # Compare forces to finite differences
+    disp = [rand(3)/20, rand(3)/20]
+    ε = 1e-8
+    γ2 = energy_ewald(lattice, charges, positions .+ ε .* disp)
+    @test abs((γ2-γ1)/ε + dot(disp, forces))/γ1 < 1e-6
+end
