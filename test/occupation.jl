@@ -1,11 +1,24 @@
 using Test
-using DFTK: smearing_functions, find_fermi_level, Model, PlaneWaveBasis
-using DFTK: find_occupation, find_occupation_bandgap
-using DFTK: smearing_fermi_dirac, load_psp, Species, bzmesh_ir_wedge
-using DFTK: smearing_methfessel_paxton_1
+using DFTK
+using SpecialFunctions
 
 include("testcases.jl")
 
+@testset "Smearing functions" begin
+    for m in DFTK.Smearing.smearing_methods
+        @test DFTK.Smearing.occupation(m(), -Inf) == 1
+        @test DFTK.Smearing.occupation(m(), Inf) == 0
+        x = .04
+        ε = 1e-8
+        @test abs((DFTK.Smearing.occupation(m(), x+ε) - DFTK.Smearing.occupation(m(), x))/ε -
+                  DFTK.Smearing.occupation_derivative(m(), x)) < 1e-4
+
+        # entropy functions should satisfy s' = x f'
+        sprime = (DFTK.Smearing.entropy(m(), x+ε) - DFTK.Smearing.entropy(m(), x))/ε
+        fprime = (DFTK.Smearing.occupation(m(), x+ε) - DFTK.Smearing.occupation(m(), x))/ε
+        @test abs(sprime - x*fprime) < 1e-4
+    end
+end
 
 @testset "Smearing for insulators" begin
     Ecut = 5
@@ -32,8 +45,8 @@ include("testcases.jl")
 
     # See that the electron count still works if we add temperature
     Ts = (0, 1e-6, .1, 1.0)
-    for T in Ts, fun in smearing_functions
-        model = Model(silicon.lattice, silicon.n_electrons; temperature=T, smearing=fun)
+    for T in Ts, meth in DFTK.Smearing.smearing_methods
+        model = Model(silicon.lattice, silicon.n_electrons; temperature=T, smearing=meth())
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
         occs, _ = find_occupation(basis, energies)
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
@@ -41,8 +54,8 @@ include("testcases.jl")
 
     # See that the occupation is largely uneffected with only a bit of temperature
     Ts = (0, 1e-6, 1e-4)
-    for T in Ts, fun in smearing_functions
-        model = Model(silicon.lattice, silicon.n_electrons; temperature=T, smearing=fun)
+    for T in Ts, meth in DFTK.Smearing.smearing_methods
+        model = Model(silicon.lattice, silicon.n_electrons; temperature=T, smearing=meth())
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
         occupation, _= find_occupation(basis, energies)
 
@@ -81,17 +94,17 @@ end
     @assert n_k == length(energies)
 
     parameters = (
-        (smearing_fermi_dirac,         0.01, 0.17251898225370),
-        (smearing_fermi_dirac,         0.02, 0.17020763046058),
-        (smearing_fermi_dirac,         0.03, 0.16865552281082),
-        (smearing_methfessel_paxton_1, 0.01, 0.16917895217084),
-        (smearing_methfessel_paxton_1, 0.02, 0.17350869020891),
-        (smearing_methfessel_paxton_1, 0.03, 0.17395190342809),
+        (DFTK.Smearing.FermiDirac,         0.01, 0.17251898225370),
+        (DFTK.Smearing.FermiDirac,         0.02, 0.17020763046058),
+        (DFTK.Smearing.FermiDirac,         0.03, 0.16865552281082),
+        (DFTK.Smearing.MethfesselPaxton1, 0.01, 0.16917895217084),
+        (DFTK.Smearing.MethfesselPaxton1, 0.02, 0.17350869020891),
+        (DFTK.Smearing.MethfesselPaxton1, 0.03, 0.17395190342809),
     )
 
-    for (smearing, Tsmear, εF_ref) in parameters
+    for (meth, Tsmear, εF_ref) in parameters
         model = Model(silicon.lattice, testcase.n_electrons;
-                      temperature=Tsmear, smearing=smearing)
+                      temperature=Tsmear, smearing=meth())
         basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops; fft_size=fft_size)
         occupation, εF = find_occupation(basis, energies)
 
