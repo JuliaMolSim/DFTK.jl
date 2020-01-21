@@ -31,7 +31,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
                                Psi=nothing, tol=1e-6, max_iter=100,
                                solver=scf_nlsolve_solver(),
                                eigensolver=lobpcg_hyper, n_ep_extra=3, diagtol=tol / 10,
-                               mixing=SimpleMixing())
+                               mixing=SimpleMixing(), callback=x->nothing)
     T = real(eltype(ham.density))
     basis = ham.basis
     model = basis.model
@@ -45,30 +45,34 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
     end
     occupation = nothing
     orben = nothing
-    ρ = ham.density
+    ρout = ham.density  # Initial ρout is initial guess
     εF = nothing
-    @assert ρ !== nothing
+    @assert ρout !== nothing
 
     # We do density mixing in the real representation
     # TODO support other mixing types
     function fixpoint_map(x)
         # Get ρout by diagonalizing the Hamiltonian
         ρin = from_real(basis, x)
+
+        # Build next Hamiltonian, diagonalize it, get ρout
         ham = update_hamiltonian(ham, ρin)
-        Psi, orben, occupation, εF, ρ = next_density(ham, n_bands;
-                                                     Psi=Psi, eigensolver=eigensolver, tol=diagtol)
-        ρout = ρ
+        Psi, orben, occupation, εF, ρout = next_density(ham, n_bands; Psi=Psi,
+                                                        eigensolver=eigensolver, tol=diagtol)
+        energies = update_energies(ham, Psi, occupation, ρout)
+
         # mix it with ρin to get a proposal step
         ρnext = mix(mixing, basis, ρin, ρout)
+        callback((ham=ham, energies=energies, ρin=ρin, ρout=ρout, ρnext=ρnext,
+                  orben=orben, occupation=occupation, εF=εF))
+
         ρnext.real
     end
 
-    fpres = solver(fixpoint_map, ρ.real, tol, max_iter)
+    fpres = solver(fixpoint_map, ρout.real, tol, max_iter)
     # We do not use the return value of fpres but rather the one that got updated by fixpoint_map
 
-    # TODO energies ... maybe do them optionally in iterate_density along with
-    #      the update_hamiltonian function
-    energies = update_energies(ham, Psi, occupation, ρ)
+    energies = update_energies(ham, Psi, occupation, ρout)
 
     # Strip off the extra (unconverged) eigenpairs
     # TODO we might want to keep them
@@ -77,5 +81,5 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
     occupation = [occ[1:end-n_ep_extra] for occ in occupation]
 
     (ham=ham, energies=energies, converged=fpres.converged,
-     ρ=ρ, Psi=Psi, orben=orben, occupation=occupation, εF=εF)
+     ρ=ρout, Psi=Psi, orben=orben, occupation=occupation, εF=εF)
 end
