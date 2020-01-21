@@ -24,7 +24,9 @@ Derivative of the occupation function, approximation to minus the delta function
 occupation_derivative(S::SmearingFunction, x) = ForwardDiff.derivative(x -> occupation(S, x), x)
 
 """
-Entropy. Note that this is a function of the energy `x`, not of `occupation(x)`. This function satisfies s' = x f'
+Entropy. Note that this is a function of the energy `x`, not of `occupation(x)`.
+This function satisfies s' = x f' (see https://www.vasp.at/vasp-workshop/k-points.pdf
+p. 12 and https://arxiv.org/pdf/1805.07144.pdf p. 18.
 """
 entropy(S::SmearingFunction, x) = error()
 
@@ -54,22 +56,16 @@ A(n, T=Float64) = (-1)^n / (factorial(n) * 4^n * sqrt(T(π)))
 
 struct MethfesselPaxton1 <: SmearingFunction end
 function occupation(S::MethfesselPaxton1, x)
-    if x == Inf
-        return zero(x)
-    elseif x == -Inf
-        return one(x)
-    end
+    x == Inf && return zero(x)
+    x == -Inf && return one(x)
     occupation(Gaussian(), x) + A(1, typeof(x))*H1(x)*exp(-x^2)
 end
 entropy(S::MethfesselPaxton1, x) = 1/2 * A(1, typeof(x)) * H2(x) * exp(-x^2)
 
 struct MethfesselPaxton2 <: SmearingFunction end
 function occupation(S::MethfesselPaxton2, x)
-    if x == Inf
-        return zero(x)
-    elseif x == -Inf
-        return one(x)
-    end
+    x == Inf && return zero(x)
+    x == -Inf && return one(x)
     occupation(MethfesselPaxton1(), x) + A(2, typeof(x))*H3(x)*exp(-x^2)
 end
 entropy(S::MethfesselPaxton2, x) = 1/2 * A(2, typeof(x)) * H4(x) * exp(-x^2)

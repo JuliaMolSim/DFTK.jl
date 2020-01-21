@@ -25,6 +25,8 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies) where {T}
     # The goal is to find εF so that
     # n_i = filled_occ * f((εi-εF)/T)
     # sum_i n_i = n_electrons
+    # If temperature is zero, (εi-εF)/T = ±∞.
+    # The occupation function is required to give 1 and 0 respectively in these cases.
     compute_occupation(εF) = [filled_occ * Smearing.occupation.(smearing, (ε .- εF) ./ temperature) for ε in energies]
     compute_n_elec(εF) = sum(basis.kweights .* sum.(compute_occupation(εF)))
 
