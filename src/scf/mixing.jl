@@ -6,8 +6,13 @@
 
 # The interface is `mix(m, basis, ρin, ρout) -> ρnext`
 
-"""
-Kerker mixing: J^-1 ≈ α*G^2/(G0^2 + G^2)
+using LinearMaps
+using IterativeSolvers
+
+@doc raw"""
+Kerker mixing: ``J^{-1} ≈ \frac{α G^2}{(G0^2 + G^2}``
+
+Abinit calls ``1/G0`` the dielectric screening length (parameter *dielng*)
 """
 struct KerkerMixing{T <: Real}
     α::T
