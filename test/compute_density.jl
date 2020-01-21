@@ -12,7 +12,7 @@ include("testcases.jl")
                        Ecut=5, tol=1e-8)
         kwargs = ()
         if testcase.Tsmear !== nothing
-            kwargs = (temperature=testcase.Tsmear, smearing=DFTK.smearing_fermi_dirac)
+            kwargs = (temperature=testcase.Tsmear, smearing=DFTK.Smearing.FermiDirac())
         end
 
         model = model_dft(testcase.lattice, :lda_xc_teter93, composition...; kwargs...)

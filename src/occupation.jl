@@ -19,17 +19,15 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies) where {T}
     temperature = model.temperature
     smearing = model.smearing
 
-    # Avoid numerical issues by imposing a step function for zero temp
-    temperature == 0 && (smearing(x) = x ≤ 0 ? 1 : 0)
-    @assert smearing !== nothing
-
     # Maximum occupation per state
     filled_occ = filled_occupation(model)
 
     # The goal is to find εF so that
     # n_i = filled_occ * f((εi-εF)/T)
     # sum_i n_i = n_electrons
-    compute_occupation(εF) = [filled_occ * smearing.((ε .- εF) ./ temperature) for ε in energies]
+    # If temperature is zero, (εi-εF)/T = ±∞.
+    # The occupation function is required to give 1 and 0 respectively in these cases.
+    compute_occupation(εF) = [filled_occ * Smearing.occupation.(smearing, (ε .- εF) ./ temperature) for ε in energies]
     compute_n_elec(εF) = sum(basis.kweights .* sum.(compute_occupation(εF)))
 
     # assume that we can get the required number of electrons by filling every state

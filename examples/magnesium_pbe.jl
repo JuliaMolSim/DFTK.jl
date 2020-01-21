@@ -31,7 +31,7 @@ composition = [Mg => [s.frac_coords for s in pystruct.sites]]
 # Setup PBE model with Methfessel-Paxton smearing and its discretisation
 model = model_dft(lattice, [:gga_x_pbe, :gga_c_pbe], composition...;
                   temperature=Tsmear,
-                  smearing=DFTK.smearing_methfessel_paxton_1)
+                  smearing=DFTK.Smearing.MethfesselPaxton1())
 kcoords, ksymops = bzmesh_ir_wedge(kgrid, lattice, composition...)
 basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
 
@@ -55,6 +55,6 @@ plot_bands(ham, n_bands, kline_density, composition, scfres.εF).show()
 
 # Plot DOS
 εs = range(minimum(minimum(scfres.orben)) - 1, maximum(maximum(scfres.orben)) + 1, length=1000)
-Ds = DOS.(εs, Ref(basis), Ref(scfres.orben), T=Tsmear*4, smearing=DFTK.smearing_methfessel_paxton_1)
+Ds = DOS.(εs, Ref(basis), Ref(scfres.orben), T=Tsmear*4, smearing=DFTK.Smearing.MethfesselPaxton1())
 PyPlot.plot(εs, Ds)
 PyPlot.axvline(scfres.εF)

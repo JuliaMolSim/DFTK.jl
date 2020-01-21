@@ -19,7 +19,7 @@ struct Model{T <: Real}
     n_electrons::Int
     spin_polarisation::Symbol  # :none, :collinear, :full, :spinless
     temperature::T
-    smearing::Union{Nothing, Function} # see smearing_functions.jl for some choices
+    smearing::Smearing.SmearingFunction # see smearing_functions.jl for some choices
 
     # Potential definitions and builders
     build_external  # External potential, e.g. local pseudopotential term
@@ -61,9 +61,10 @@ function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
 
     @assert spin_polarisation in (:none, :collinear, :full, :spinless)
 
-    # Default to Fermi-Dirac smearing
-    if temperature > 0.0 && smearing === nothing
-        smearing = smearing_fermi_dirac
+    if smearing === nothing
+        @assert temperature >= 0
+        # Default to Fermi-Dirac smearing when finite temperature
+        smearing = temperature > 0.0 ? Smearing.FermiDirac() : Smearing.None()
     end
 
     build_nothing(args...; kwargs...) = (nothing, nothing)

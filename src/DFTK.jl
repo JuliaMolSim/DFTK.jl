@@ -17,11 +17,8 @@ export Mat3
 include("common/types.jl")
 include("common/check_real.jl")
 include("common/spherical_harmonics.jl")
-export smearing_fermi_dirac
-export smearing_gaussian
-export smearing_methfessel_paxton_1
-export smearing_methfessel_paxton_2
-include("common/smearing_functions.jl")
+export Smearing
+include("Smearing.jl")
 
 export Model
 export PlaneWaveBasis
@@ -67,6 +64,7 @@ include("terms/term_xc.jl")
 
 export find_fermi_level
 export find_occupation
+export find_occupation_bandgap
 include("occupation.jl")
 
 export compute_density

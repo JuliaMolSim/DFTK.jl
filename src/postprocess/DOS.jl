@@ -36,8 +36,8 @@ function NOS(ε, basis, orben; smearing=basis.model.smearing, T=basis.model.temp
     for ik = 1:length(orben)
         n_symeqk = length(basis.ksymops[ik])  # Number of symmetry-equivalent k-Points
         for iband = 1:length(orben[ik])
-            N += (T * n_symeqk
-                    * ForwardDiff.derivative(ε -> smearing((orben[ik][iband] - ε) / T), ε))
+            N -= (n_symeqk *
+                  Smearing.occupation_derivative(smearing, (orben[ik][iband] - ε) / T))
         end
     end
     N
@@ -53,9 +53,8 @@ function DOS(ε, basis, orben; smearing=basis.model.smearing, T=basis.model.temp
     T != 0 || error("DOS only supports finite temperature")
     for ik = 1:length(orben)
         for iband = 1:length(orben[ik])
-            D += (filled_occ * basis.kweights[ik]
-                  * ForwardDiff.derivative(ε -> smearing((orben[ik][iband] - ε) / T), ε)
-                 )
+            D -= (filled_occ * basis.kweights[ik] / T *
+                  Smearing.ocupation_derivative(smearing, (orben[ik][iband] - ε) / T))
         end
     end
     D
@@ -71,8 +70,8 @@ function LDOS(ε, basis, orben, Psi; smearing=basis.model.smearing, T=basis.mode
     for ik = 1:length(orben)
         ψreal = G_to_r(basis, basis.kpoints[ik], Psi[ik])
         for iband = 1:length(orben[ik])
-            D += (filled_occ * basis.kweights[ik]
-                  * ForwardDiff.derivative(ε -> smearing((orben[ik][iband] - ε) / T), ε)
+            D -= (filled_occ * basis.kweights[ik] / T
+                  * Smearing.ocupation_derivative(smearing, (orben[ik][iband] - ε) / T)
                   * abs2.(ψreal[:, :, :, iband]))
         end
     end
