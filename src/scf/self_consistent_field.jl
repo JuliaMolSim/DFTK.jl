@@ -23,6 +23,17 @@ function next_density(ham::Hamiltonian, n_bands; Psi=nothing,
     (Psi=eigres.X, orben=eigres.λ, occupation=occupation, εF=εF, ρ=ρnew)
 end
 
+function scf_default_callback(info)
+    E = sum(values(info.energies))
+    res = norm(info.ρout.fourier - info.ρin.fourier)
+    neval = info.neval
+    if neval == 1
+        println("Iter   Energy             ρout-ρin")
+        println("----   ------             --------")
+    end
+    @printf "%3d    %-15.12f    %E\n" neval E res
+end
+
 
 """
 Solve the KS equations with a SCF algorithm, starting at `ham`
@@ -31,7 +42,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
                                Psi=nothing, tol=1e-6, max_iter=100,
                                solver=scf_nlsolve_solver(),
                                eigensolver=lobpcg_hyper, n_ep_extra=3, diagtol=tol / 10,
-                               mixing=SimpleMixing(), callback=x->nothing)
+                               mixing=SimpleMixing(), callback=scf_default_callback)
     T = real(eltype(ham.density))
     basis = ham.basis
     model = basis.model
@@ -48,6 +59,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
     ρout = ham.density  # Initial ρout is initial guess
     εF = nothing
     @assert ρout !== nothing
+    neval = 0
 
     # We do density mixing in the real representation
     # TODO support other mixing types
@@ -63,8 +75,9 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
 
         # mix it with ρin to get a proposal step
         ρnext = mix(mixing, basis, ρin, ρout)
+        neval += 1
         callback((ham=ham, energies=energies, ρin=ρin, ρout=ρout, ρnext=ρnext,
-                  orben=orben, occupation=occupation, εF=εF))
+                  orben=orben, occupation=occupation, εF=εF, neval=neval))
 
         ρnext.real
     end
