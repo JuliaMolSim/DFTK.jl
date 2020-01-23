@@ -7,7 +7,6 @@ function compute_partial_density(pw, kpt, Ψk, occupation)
     # Build the partial density for this k-Point
     ρk_real = similar(Ψk[:, 1], pw.fft_size)
     ρk_real .= 0
-    # TODO Threading
     for (ist, Ψik) in enumerate(eachcol(Ψk))
         Ψik_real = G_to_r(pw, kpt, Ψik)
         ρk_real .+= occupation[ist] .* abs2.(Ψik_real)
