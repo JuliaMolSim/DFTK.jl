@@ -33,11 +33,7 @@ function scf_damping_solver(β=0.2)
         for i in 1:max_iter
             x_new = f(x)
 
-            # TODO Print statements should not be here
-            ndiff = norm(x_new - x)
-            @printf "%4d %18.8g\n" i ndiff
-
-            if 20 * ndiff < tol
+            if 20 * norm(x_new - x) < tol
                 x = x_new
                 converged = true
                 break
@@ -75,7 +71,6 @@ function anderson(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
         fs[:, 1] = f(xs[:, 1])  # Residual
         err = norm(fs[:, 1])
         errs[n] = err
-        println("$n $err")
         if err < tol
             break
         end
@@ -133,12 +128,10 @@ function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
     err = Inf
 
     for n = 1:max_iter
-        # println(xs[1:4, 1])
         xtnp1 = xs[:, 1] + fs[:, 1]  # Richardson update
         ftnp1 = f(xtnp1)             # Residual
         err = norm(ftnp1)
         errs[n] = err
-        println("$n $err")
         if err < tol
             break
         end
@@ -154,7 +147,6 @@ function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
                 xtnp1 .+= alphas[i].*(xs[:, i] .- bak_xtnp1)
                 ftnp1 .+= alphas[i].*(fs[:, i] .- bak_ftnp1)
             end
-            # println(norm(ftnp1 - (bak_ftnp1 + mat*alphas)))
         end
 
         xs = circshift(xs,(0,1))

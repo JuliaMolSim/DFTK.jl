@@ -68,6 +68,10 @@ these libraries, for example
 ```
 pip install scipy spglib matplotlib pymatgen
 ```
+or
+```
+conda install -c conda-forge scipy spglib matplotlib pymatgen
+```
 You can then run the code in the `examples/` directory.
 
 
