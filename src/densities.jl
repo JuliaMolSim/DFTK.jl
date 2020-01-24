@@ -41,6 +41,8 @@ function compute_density(pw::PlaneWaveBasis, Psi::AbstractVector{VecT},
                          occupation::AbstractVector) where VecT
     T = eltype(VecT)
     n_k = length(pw.kpoints)
+
+    # Sanity checks
     @assert n_k == length(Psi)
     @assert n_k == length(occupation)
     for ik in 1:n_k
@@ -68,29 +70,35 @@ function compute_density(pw::PlaneWaveBasis, Psi::AbstractVector{VecT},
         ρaccu .= 0
         for ik in ikpts
             ρ_k = compute_partial_density(pw, pw.kpoints[ik], Psi[ik], occupation[ik])
-
-            for (S, τ) in pw.ksymops[ik]
-                # Common special case, where ρ_k does not need to be processed
-                if iszero(S - I) && iszero(τ)
-                    ρaccu .+= ρ_k
-                    continue
-                end
-
-                # Transform ρ_k -> to the partial density at S * k
-                for (ig, G) in enumerate(Gs)
-                    igired = index_G_vectors(pw, Vec3{Int}(inv(S) * G))
-                    if igired !== nothing
-                        @inbounds ρaccu[ig] += cis(2T(π) * dot(G, τ)) * ρ_k[igired]
-                    end
-                end
-            end  # (S, τ)
-        end  # ik
-    end # threads
+            _symmetrize!(ρaccu, ρ_k, pw, pw.ksymops[ik], Gs)
+        end
+    end
 
     count = sum(length(pw.ksymops[ik]) for ik in 1:length(pw.kpoints))
     from_fourier(pw, sum(ρaccus) / count; assume_real=true)
 end
 
+# For a given kpoint, accumulates the symmetrized versions of the
+# density ρin into ρout. No normalization is performed
+function _symmetrize!(ρaccu, ρin, basis, ksymops, Gs)
+    T = real(eltype(ρin))
+    for (S, τ) in ksymops
+        invS = Mat3{Int}(inv(S))
+        # Common special case, where ρin does not need to be processed
+        if iszero(S - I) && iszero(τ)
+            ρaccu .+= ρin
+            continue
+        end
+
+        # Transform ρin -> to the partial density at S * k
+        for (ig, G) in enumerate(Gs)
+            igired = index_G_vectors(basis, invS * G)
+            if igired !== nothing
+                @inbounds ρaccu[ig] += cis(2T(π) * dot(G, τ)) * ρin[igired]
+            end
+        end
+    end  # (S, τ)
+end
 
 
 """
