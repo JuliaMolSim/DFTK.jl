@@ -21,7 +21,7 @@ struct Kpoint{T <: Real}
 end
 G_vectors(kpt::Kpoint) = kpt.G_vectors
 
-struct PlaneWaveBasis{T <: Real, Tgrid, TopFFT, TipFFT}
+struct PlaneWaveBasis{T <: Real, Tgrid, TopFFT, TipFFT, TopIFFT, TipIFFT}
     model::Model{T}
     Ecut::T
 
@@ -43,6 +43,8 @@ struct PlaneWaveBasis{T <: Real, Tgrid, TopFFT, TipFFT}
     # Plans for forward and backward FFT on C_ρ
     opFFT::TopFFT  # out-of-place FFT plan
     ipFFT::TipFFT  # in-place FFT plan
+    opIFFT::TopIFFT
+    ipIFFT::TipIFFT
 end
 
 """
@@ -110,6 +112,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     # fft must be normalized by sqrt(Ω)/length
     ipFFT *= sqrt(model.unit_cell_volume) / length(ipFFT)
     opFFT *= sqrt(model.unit_cell_volume) / length(opFFT)
+    ipIFFT = inv(ipFFT)
+    opIFFT = inv(opFFT)
 
     # Default to no symmetry
     ksymops === nothing && (ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))]
@@ -129,9 +133,9 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
             "the grid supports (== $max_E)")
 
     grids = tuple((range(T(0), T(1), length=fft_size[i] + 1)[1:end-1] for i=1:3)...)
-    PlaneWaveBasis{T, typeof(grids), typeof(opFFT), typeof(ipFFT)}(
+    PlaneWaveBasis{T, typeof(grids), typeof(opFFT), typeof(ipFFT), typeof(opIFFT), typeof(ipIFFT)}(
         model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
-        kweights, ksymops, fft_size, grids, opFFT, ipFFT
+        kweights, ksymops, fft_size, grids, opFFT, ipFFT, opIFFT, ipIFFT
     )
 end
 
@@ -185,7 +189,7 @@ and `f_real`. The function will destroy all data in `f_real`.
 """
 function G_to_r!(f_real::AbstractArray3, pw::PlaneWaveBasis,
                  f_fourier::AbstractArray3) where {Tr, Tf}
-    ldiv!(f_real, pw.opFFT, f_fourier)
+    mul!(f_real, pw.opIFFT, f_fourier)
 end
 function G_to_r!(f_real::AbstractArray3, pw::PlaneWaveBasis, kpt::Kpoint,
                  f_fourier::AbstractVector)
@@ -197,7 +201,7 @@ function G_to_r!(f_real::AbstractArray3, pw::PlaneWaveBasis, kpt::Kpoint,
     f_real[kpt.mapping] = f_fourier
 
     # Perform an FFT on C_ρ -> C_ρ^*
-    ldiv!(f_real, pw.ipFFT, f_real)
+    mul!(f_real, pw.ipIFFT, f_real)
 end
 
 @doc raw"""
