@@ -17,6 +17,7 @@ kcoords, ksymops = bzmesh_ir_wedge(kgrid, lattice, composition...)
 basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
 
 # Run SCF
+n_bands = 6
 ham = Hamiltonian(basis, guess_density(basis, composition...))
 scfres = self_consistent_field(ham, n_bands)
 ham = scfres.ham
