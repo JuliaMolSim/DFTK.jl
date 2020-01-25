@@ -19,6 +19,7 @@ include("testcases.jl")
     ρ_nl = scfres.ρ.fourier
 
     # Run DM
+    println("\nTesting direct minimization")
     dmres = direct_minimization(basis; g_tol=1e-8)
     ρ_dm = dmres.ρ.fourier
     @test maximum(abs.(ρ_dm - ρ_nl)) < 30tol
@@ -27,7 +28,7 @@ include("testcases.jl")
     ρ0 = guess_density(basis, Si => silicon.positions)
     for solver in (scf_nlsolve_solver, scf_damping_solver, scf_anderson_solver,
                    scf_CROP_solver)
-        println("Testing $solver")
+        println("\nTesting $solver")
         scfres = self_consistent_field(Hamiltonian(basis, ρ0), n_bands, tol=tol, solver=solver())
         ρ_alg = scfres.ρ.fourier
         @test maximum(abs.(ρ_alg - ρ_nl)) < 30tol
