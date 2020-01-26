@@ -102,13 +102,13 @@ function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
         Psi = unpack(Psi)
         ρ = compute_density(basis, Psi, occupation)
         ham = update_hamiltonian(ham, ρ)
-        if E != nothing
+        if E !== nothing
             energies = update_energies(ham, Psi, occupation, ρ)
             E = sum(values(energies))
         end
 
         # The energy has terms like occ * <ψ|H|ψ>, so the gradient is 2occ Hψ
-        if G != nothing
+        if G !== nothing
             G = unpack(G)
             for ik = 1:Nk
                 mul!(G[ik], kblock(ham, basis.kpoints[ik]), Psi[ik])
