@@ -11,15 +11,17 @@ include("fft.jl")
 #
 # G_to_r and r_to_G convert between these.
 
-# Each Kpoint has its own `basis`, consisting of all G vectors such that |k+G|^2 ≤ 1/2 Ecut
+# Each Kpoint has its own `basis`, consisting of all G vectors such that 1/2 |k+G|^2 ≤ Ecut
 struct Kpoint{T <: Real}
-    spin::Symbol              # :up, :down, :both or :spinless
-    coordinate::Vec3{T}       # Fractional coordinate of k-Point
-    mapping::Vector{Int}      # Index of basis[i] on FFT grid
-    basis::Vector{Vec3{Int}}  # Wave vectors in integer coordinates
+    spin::Symbol                  # :up, :down, :both or :spinless
+    coordinate::Vec3{T}           # Fractional coordinate of k-Point
+    mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
+                                  # G_vectors(pwbasis)[kpt.mapping[i]] == G_vectors(kpt)[i]
+    G_vectors::Vector{Vec3{Int}}  # Wave vectors in integer coordinates
 end
+G_vectors(kpt::Kpoint) = kpt.G_vectors
 
-struct PlaneWaveBasis{T <: Real, Tgrid, TopFFT, TipFFT}
+struct PlaneWaveBasis{T <: Real, Tgrid, TopFFT, TipFFT, TopIFFT, TipIFFT}
     model::Model{T}
     Ecut::T
 
@@ -41,6 +43,8 @@ struct PlaneWaveBasis{T <: Real, Tgrid, TopFFT, TipFFT}
     # Plans for forward and backward FFT on C_ρ
     opFFT::TopFFT  # out-of-place FFT plan
     ipFFT::TipFFT  # in-place FFT plan
+    opIFFT::TopIFFT
+    ipIFFT::TipIFFT
 end
 
 """
@@ -108,6 +112,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     # fft must be normalized by sqrt(Ω)/length
     ipFFT *= sqrt(model.unit_cell_volume) / length(ipFFT)
     opFFT *= sqrt(model.unit_cell_volume) / length(opFFT)
+    ipIFFT = inv(ipFFT)
+    opIFFT = inv(opFFT)
 
     # Default to no symmetry
     ksymops === nothing && (ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))]
@@ -127,9 +133,9 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
             "the grid supports (== $max_E)")
 
     grids = tuple((range(T(0), T(1), length=fft_size[i] + 1)[1:end-1] for i=1:3)...)
-    PlaneWaveBasis{T, typeof(grids), typeof(opFFT), typeof(ipFFT)}(
+    PlaneWaveBasis{T, typeof(grids), typeof(opFFT), typeof(ipFFT), typeof(opIFFT), typeof(ipIFFT)}(
         model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
-        kweights, ksymops, fft_size, grids, opFFT, ipFFT
+        kweights, ksymops, fft_size, grids, opFFT, ipFFT, opIFFT, ipIFFT
     )
 end
 
@@ -164,23 +170,15 @@ function index_G_vectors(pw::PlaneWaveBasis, G::AbstractVector{T}) where {T <: I
     end
 end
 
+AbstractArray3{T} = AbstractArray{T, 3}
 
 #
 # Perform FFT.
 #
 # There are two kinds of FFT/IFFT functions: the ones on `C_ρ` (that
 # don't take a kpoint as input) and the ones on `B_k` (that do)
-# 
 # Quantities in real-space are 3D arrays, quantities in reciprocal
-# space are 3D (`C_ρ`) or 1D (`B_k`). We take as input either a single
-# array (3D or 1D), or a bunch of them (4D or 2D)
-
-AbstractArray3or4D = Union{AbstractArray{T, 3}, AbstractArray{T, 4}} where T
-AbstractArray1or2D = Union{AbstractArray{T, 1}, AbstractArray{T, 2}} where T
-
-
-# The methods below use the fact that in julia extra dimensions are ignored.
-# Eg with x = randn(3), x[:,1] == x and size(x,2) == 1
+# space are 3D (`C_ρ`) or 1D (`B_k`).
 
 @doc raw"""
     G_to_r!(f_real, pw::PlaneWaveBasis, [kpt::Kpoint, ], f_fourier)
@@ -189,32 +187,21 @@ Perform an iFFT to translate between `f_fourier`, a fourier representation
 of a function either on ``B_k`` (if `kpt` is given) or on ``C_ρ`` (if not),
 and `f_real`. The function will destroy all data in `f_real`.
 """
-function G_to_r!(f_real::AbstractArray3or4D, pw::PlaneWaveBasis,
-                 f_fourier::AbstractArray3or4D)
-    n_bands = size(f_fourier, 4)
-    @views Threads.@threads for iband in 1:n_bands
-        ldiv!(f_real[:, :, :, iband], pw.opFFT, f_fourier[:, :, :, iband])
-    end
-    f_real
+function G_to_r!(f_real::AbstractArray3, pw::PlaneWaveBasis,
+                 f_fourier::AbstractArray3) where {Tr, Tf}
+    mul!(f_real, pw.opIFFT, f_fourier)
 end
-function G_to_r!(f_real::AbstractArray3or4D, pw::PlaneWaveBasis, kpt::Kpoint,
-                 f_fourier::AbstractArray1or2D)
-    n_bands = size(f_fourier, 2)
-    @assert size(f_fourier, 1) == length(kpt.mapping)
-    @assert size(f_real)[1:3] == pw.fft_size
-    @assert size(f_real, 4) == n_bands
+function G_to_r!(f_real::AbstractArray3, pw::PlaneWaveBasis, kpt::Kpoint,
+                 f_fourier::AbstractVector)
+    @assert length(f_fourier) == length(kpt.mapping)
+    @assert size(f_real) == pw.fft_size
 
+    # Pad the input data from B_k to C_ρ
+    fill!(f_real, 0)
+    f_real[kpt.mapping] = f_fourier
 
-    @views Threads.@threads for iband in 1:n_bands
-        fill!(f_real[:, :, :, iband], 0)
-        # Pad the input data from B_k to C_ρ
-        reshape(f_real, :, n_bands)[kpt.mapping, iband] = f_fourier[:, iband]
-
-        # Perform an FFT on C_ρ -> C_ρ^*
-        ldiv!(f_real[:, :, :, iband], pw.ipFFT, f_real[:, :, :, iband])
-    end
-
-    f_real
+    # Perform an FFT on C_ρ -> C_ρ^*
+    mul!(f_real, pw.ipIFFT, f_real)
 end
 
 @doc raw"""
@@ -224,15 +211,13 @@ Perform an iFFT to translate between `f_fourier`, a fourier representation
 of a function either on ``B_k`` (if `kpt` is given) or on ``C_ρ`` (if not)
 and return the values on the real-space grid `C_ρ^*`.
 """
-function G_to_r(pw::PlaneWaveBasis, f_fourier::AbstractArray3or4D)
+function G_to_r(pw::PlaneWaveBasis, f_fourier::AbstractArray3)
     G_to_r!(similar(f_fourier), pw, f_fourier)
 end
 function G_to_r(pw::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector)
     G_to_r!(similar(f_fourier, pw.fft_size...), pw, kpt, f_fourier)
 end
-function G_to_r(pw::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractMatrix)
-    G_to_r!(similar(f_fourier, pw.fft_size..., size(f_fourier, 2)), pw, kpt, f_fourier)
-end
+
 
 
 
@@ -244,30 +229,21 @@ Perform an FFT to translate between `f_real`, a function represented on
 coefficients to ``B_k`` (if `kpt` is given). Note: If `kpt` is given, all data
 in ``f_real`` will be distroyed as well.
 """
-function r_to_G!(f_fourier::AbstractArray3or4D, pw::PlaneWaveBasis,
-                 f_real::AbstractArray3or4D)
-    n_bands = size(f_fourier, 4)
-    @views Threads.@threads for iband in 1:n_bands
-        mul!(f_fourier[:, :, :, iband], pw.opFFT, f_real[:, :, :, iband])
-    end
-    f_fourier
+function r_to_G!(f_fourier::AbstractArray3, pw::PlaneWaveBasis,
+                 f_real::AbstractArray3)
+    mul!(f_fourier, pw.opFFT, f_real)
 end
-function r_to_G!(f_fourier::AbstractArray1or2D, pw::PlaneWaveBasis, kpt::Kpoint,
-                 f_real::AbstractArray3or4D)
-    n_bands = size(f_real, 4)
-    @assert size(f_real)[1:3] == pw.fft_size
-    @assert size(f_fourier, 1) == length(kpt.mapping)
-    @assert size(f_fourier, 2) == n_bands
+function r_to_G!(f_fourier::AbstractVector, pw::PlaneWaveBasis, kpt::Kpoint,
+                 f_real::AbstractArray3)
+    @assert size(f_real) == pw.fft_size
+    @assert length(f_fourier) == length(kpt.mapping)
 
-    @views Threads.@threads for iband in 1:n_bands
-        # FFT on C_ρ^∗ -> C_ρ
-        mul!(f_real[:, :, :, iband], pw.ipFFT, f_real[:, :, :, iband])
+    # FFT on C_ρ^∗ -> C_ρ
+    mul!(f_real, pw.ipFFT, f_real)
 
-        # Truncate the resulting frequency range to B_k
-        fill!(f_fourier[:, iband], 0)
-        f_fourier[:, iband] = reshape(f_real, :, n_bands)[kpt.mapping, iband]
-    end
-    f_fourier
+    # Truncate the resulting frequency range to B_k
+    fill!(f_fourier, 0)
+    f_fourier[:] = f_real[kpt.mapping]
 end
 
 @doc raw"""
@@ -276,13 +252,10 @@ end
 Perform an FFT to translate between `f_fourier`, a fourier representation
 on ``C_ρ^\ast`` and its fourier representation on ``C_ρ``.
 """
-function r_to_G(pw::PlaneWaveBasis, f_real::AbstractArray3or4D)
+function r_to_G(pw::PlaneWaveBasis, f_real::AbstractArray3)
     r_to_G!(similar(f_real), pw, f_real)
 end
 # TODO optimize this
-function r_to_G(pw::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray{T, 3}) where {T}
+function r_to_G(pw::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3) where {T}
     r_to_G!(similar(f_real, length(kpt.mapping)), pw, kpt, copy(f_real))
-end
-function r_to_G(pw::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray{T, 4}) where {T}
-    r_to_G!(similar(f_real, length(kpt.mapping), size(f_real, 4)), pw, kpt, copy(f_real))
 end

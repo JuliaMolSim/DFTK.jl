@@ -18,7 +18,7 @@ include("testcases.jl")
         hamk = kblock(ham, kpt)
         mat = Matrix(kblock(ham, kpt))
 
-        v = randn(ComplexF64, length(kpt.basis))
+        v = randn(ComplexF64, length(G_vectors(kpt)))
         @test mat * v ≈ hamk * v
     end
 end

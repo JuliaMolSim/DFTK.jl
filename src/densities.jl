@@ -2,24 +2,15 @@
 Compute the partial density at the indicated ``k``-Point and return it.
 """
 function compute_partial_density(pw, kpt, Ψk, occupation)
-    n_states = size(Ψk, 2)
-    @assert length(occupation) == n_states
-
-    # Fourier-transform the wave functions to real space
-    Ψk_real = similar(Ψk[:, 1], pw.fft_size..., n_states)
-    for ist in 1:n_states
-        G_to_r!(view(Ψk_real, :, :, :, ist), pw, kpt, Ψk[:, ist])
-    end
+    @assert length(occupation) == size(Ψk, 2)
 
     # Build the partial density for this k-Point
     ρk_real = similar(Ψk[:, 1], pw.fft_size)
     ρk_real .= 0
-    for ist in 1:n_states
-        @. @views begin
-            ρk_real += occupation[ist] * abs2(Ψk_real[:, :, :, ist])
-        end
+    for (ist, Ψik) in enumerate(eachcol(Ψk))
+        Ψik_real = G_to_r(pw, kpt, Ψik)
+        ρk_real .+= occupation[ist] .* abs2.(Ψik_real)
     end
-    Ψk_real = nothing
 
     # Check sanity of the density (real, positive and normalized)
     T = real(eltype(ρk_real))
@@ -50,42 +41,70 @@ function compute_density(pw::PlaneWaveBasis, Psi::AbstractVector{VecT},
                          occupation::AbstractVector) where VecT
     T = eltype(VecT)
     n_k = length(pw.kpoints)
+
+    # Sanity checks
     @assert n_k == length(Psi)
     @assert n_k == length(occupation)
     for ik in 1:n_k
-        @assert length(pw.kpoints[ik].basis) == size(Psi[ik], 1)
+        @assert length(G_vectors(pw.kpoints[ik])) == size(Psi[ik], 1)
         @assert length(occupation[ik]) == size(Psi[ik], 2)
     end
     @assert n_k > 0
 
-    ρ = similar(Psi[1][:, 1], pw.fft_size)
-    ρ .= 0
-    ρ_count = 0
-    for (ik, kpt) in enumerate(pw.kpoints)
-        ρ_k = compute_partial_density(pw, kpt, Psi[ik], occupation[ik])
-        for (S, τ) in pw.ksymops[ik]
-            ρ_count += 1
-            # TODO If τ == [0,0,0] and if S == id
-            #      this routine can be simplified or even skipped
+    # Allocate an accumulator for ρ in each thread
+    ρaccus = [similar(Psi[1][:, 1], pw.fft_size) for ithread in 1:Threads.nthreads()]
 
-            # Transform ρ_k -> to the partial density at S * k
-            for (ig, G) in enumerate(G_vectors(pw))
-                igired = index_G_vectors(pw, Vec3{Int}(inv(S) * G))
-                if igired !== nothing
-                    ρ[ig] += cis(2T(π) * dot(G, τ)) * ρ_k[igired]
-                end
-            end
+    # TODO Better load balancing ... the workload per kpoint depends also on
+    #      the number of symmetry operations. We know heuristically that the Gamma
+    #      point (first k-Point) has least symmetry operations, so we will put
+    #      some extra workload there if things do not break even
+    kblock = floor(Int, length(pw.kpoints) / Threads.nthreads())
+    kpt_per_thread = [collect(1:length(pw.kpoints) - (Threads.nthreads() - 1) * kblock)]
+    for ithread in 2:Threads.nthreads()
+        push!(kpt_per_thread, kpt_per_thread[end][end] .+ collect(1:kblock))
+    end
+    @assert kpt_per_thread[end][end] == length(pw.kpoints)
+
+    Gs = collect(G_vectors(pw))
+    Threads.@threads for (ikpts, ρaccu) in collect(zip(kpt_per_thread, ρaccus))
+        ρaccu .= 0
+        for ik in ikpts
+            ρ_k = compute_partial_density(pw, pw.kpoints[ik], Psi[ik], occupation[ik])
+            _symmetrize!(ρaccu, ρ_k, pw, pw.ksymops[ik], Gs)
         end
     end
 
-    from_fourier(pw, ρ / ρ_count; assume_real=true)
+    count = sum(length(pw.ksymops[ik]) for ik in 1:length(pw.kpoints))
+    from_fourier(pw, sum(ρaccus) / count; assume_real=true)
 end
 
+# For a given kpoint, accumulates the symmetrized versions of the
+# density ρin into ρout. No normalization is performed
+function _symmetrize!(ρaccu, ρin, basis, ksymops, Gs)
+    T = real(eltype(ρin))
+    for (S, τ) in ksymops
+        invS = Mat3{Int}(inv(S))
+        # Common special case, where ρin does not need to be processed
+        if iszero(S - I) && iszero(τ)
+            ρaccu .+= ρin
+            continue
+        end
+
+        # Transform ρin -> to the partial density at S * k
+        for (ig, G) in enumerate(Gs)
+            igired = index_G_vectors(basis, invS * G)
+            if igired !== nothing
+                @inbounds ρaccu[ig] += cis(2T(π) * dot(G, τ)) * ρin[igired]
+            end
+        end
+    end  # (S, τ)
+end
 
 
 """
 Interpolate a function expressed in a basis `b_in` to a basis `b_out`
-This interpolation uses a very basic real-space algorithm, and makes a DWIM-y attempt to take into account the fact that b_out can be a supercell of b_in
+This interpolation uses a very basic real-space algorithm, and makes
+a DWIM-y attempt to take into account the fact that b_out can be a supercell of b_in
 """
 function interpolate_density(ρ_in::RealFourierArray, b_out::PlaneWaveBasis)
     ρ_out = interpolate_density(ρ_in.real, ρ_in.basis.fft_size, b_out.fft_size, ρ_in.basis.lattice, b_out.lattice)

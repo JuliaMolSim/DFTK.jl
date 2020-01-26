@@ -44,9 +44,14 @@ function bzmesh_ir_wedge(kgrid_size, lattice, composition...; tol_symmetry=1e-5)
         "spglib failed to get the symmetries. Check your lattice, or use a uniform BZ mesh."
     )
 
-    # TODO checks
-    # - S is unitary
-    # - check that S * lattice + τ ∈ lattice
+    # Checks: S is unitary (noting that S is given in lattice coordinates)
+    for S in eachslice(spg_symops["rotations"]; dims=1)
+        Scart = lattice * S * inv(lattice)  # Form S in cartesian coords
+        if maximum(abs, Scart'Scart - I) > sqrt(eps(Float64))
+            error("spglib returned non-unitary rotation matrix")
+        end
+    end
+    # TODO check that S * lattice + τ ∈ lattice
 
     mapping, grid = spglib.get_stabilized_reciprocal_mesh(
         kgrid_size, spg_symops["rotations"], is_shift=[0, 0, 0], is_time_reversal=true
@@ -87,6 +92,10 @@ function bzmesh_ir_wedge(kgrid_size, lattice, composition...; tol_symmetry=1e-5)
             end
         end
     end
+
+    # The symmetry operation (S == I and τ == 0) should be present for each k-Point
+    @assert all(nothing !== findfirst(Sτ -> iszero(Sτ[1] - I) && iszero(Sτ[2]), ops)
+                for ops in ksymops)
 
     kcoords, ksymops
 end

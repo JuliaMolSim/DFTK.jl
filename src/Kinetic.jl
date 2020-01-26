@@ -21,5 +21,5 @@ function kblock(kin::Kinetic, kpt::Kpoint)
 
     T = eltype(basis.kpoints[1].coordinate)
     Diagonal(Vector{T}([sum(abs2, model.recip_lattice * (G + kpt.coordinate))
-                        for G in kpt.basis] ./ 2))
+                        for G in G_vectors(kpt)] ./ 2))
 end

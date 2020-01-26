@@ -37,7 +37,7 @@ include("testcases.jl")
         for (ik, kpt) in enumerate(basis.kpoints)
             # Fourier-transform the wave functions to real space
             Ψk = Psi[ik]
-            Ψk_real = DFTK.G_to_r(basis, kpt, Ψk)
+            Ψk_real = cat((DFTK.G_to_r(basis, kpt, Ψik) for Ψik in eachcol(Ψk))..., dims=4)
 
             T = real(eltype(Ψk_real))
             Ψk_real_mat = reshape(Ψk_real, n_fft, n_states)

@@ -23,7 +23,7 @@ Base.eltype(block::HamiltonianBlock) = complex(eltype(block.values_kinetic))
 
 
 function Matrix(block::HamiltonianBlock)
-    n_bas = length(block.kpt.basis)
+    n_bas = length(G_vectors(block.kpt))
     T = eltype(block)
     mat = Matrix{T}(undef, (n_bas, n_bas))
     v = fill(zero(T), n_bas)
@@ -47,12 +47,16 @@ function LinearAlgebra.mul!(Y, block::HamiltonianBlock, X)
     if Vloc === nothing
         Y .= kin.diag .* X
     else
-        Xreal = G_to_r(block.basis, block.kpt, X)
-        Xreal .*= Vloc
-        r_to_G!(Y, block.basis, block.kpt, Xreal)
-        Y .+= kin.diag .* X
+        @views Threads.@threads for n = 1:size(X, 2)
+            Xreal = G_to_r(block.basis, block.kpt, X[:, n])
+            Xreal .*= Vloc
+            r_to_G!(Y[:, n], block.basis, block.kpt, Xreal)
+            Y[:,n] .+= kin.diag .* X[:, n]
+        end
     end
+
     Vnloc !== nothing && (Y .+= Vnloc * X)
+
     Y
 end
 

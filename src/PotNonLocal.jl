@@ -21,7 +21,7 @@ struct PotNonLocalBlock
     kpt::Kpoint
 
     # Projection vectors and coefficients for this basis and k-Point
-    # n_Gk = length(kpoint.basis)
+    # n_Gk = length(G_vectors(kpt))
     # n_proj = ∑_atom ∑_l n_proj_per_l_for_atom * (2l + 1)
     proj_vectors  # n_proj × n_proj
     proj_coeffs   # n_Gk × n_proj
