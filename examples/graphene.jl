@@ -1,6 +1,12 @@
 using DFTK
 using Printf
 
+#
+# Example of a medium-scale graphene calculation. Only suitable for running
+# on a cluster or machine with large memory.
+## tags: long
+#
+
 kgrid = [12, 12, 4]
 Tsmear = 0.0009500431544769484
 Ecut = 35
