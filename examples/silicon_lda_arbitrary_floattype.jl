@@ -22,12 +22,12 @@ basis = PlaneWaveBasis(model, Ecut, kpoints, ksymops)
 # Run SCF, note Silicon metal is an insulator, so no need for all bands here
 ham = Hamiltonian(basis, guess_density(basis, composition...))
 n_bands = 4
-scfres = self_consistent_field!(ham, n_bands, tol=1e-6)
+scfres = self_consistent_field(ham, n_bands, tol=1e-6)
 
 # Print obtained energies
 energies = scfres.energies
 # TODO There is an issue with erfc for Double64 ... so we fallback to Float64
-energies[:Ewald] = energy_nuclear_ewald(Array{Float64}(model.lattice), composition...)
+energies[:Ewald] = energy_nuclear_ewald(model.lattice, composition...)
 energies[:PspCorrection] = energy_nuclear_psp_correction(model.lattice, composition...)
 println("\nEnergy breakdown:")
 for key in sort([keys(energies)...]; by=S -> string(S))

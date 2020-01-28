@@ -26,7 +26,7 @@ is thus still limited. Current features include:
   [FFTW.jl](https://github.com/JuliaMath/FFTW.jl).
 - All LDA and GGA functionals from [Libxc.jl](https://github.com/unkcpz/Libxc.jl).
 - Insulators and metals (Fermi-Dirac or Methfessel-Paxton smearing)
-- GTH or HGH pseudopotentials
+- Godecker pseudopotentials (GTH, HGH)
 - Exploitation of Brillouin zone symmetry for k-Point sampling
 - Multiple self-consistent field approaches (Kerker mixing, Anderson mixing (DIIS),
   [NLsolve.jl](https://github.com/JuliaNLSolvers/NLsolve.jl), damping)
@@ -35,12 +35,11 @@ is thus still limited. Current features include:
 - Computation of density of states (DOS) and local density of states (LDOS)
 - Full access to intermediate quantities (density, Bloch wave)
 - Support for arbitrary floating point types, including `Float32` (single precision)
-  or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl).
-  (Only for selected DFT functionals at the moment).
+  or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)).
+  This is only supported for selected DFT functionals at the moment.
 
 **Note:** This code has only been compared against standard packages
 for a small number of test cases and might still contain bugs.
-Use for production calculations is not yet recommended.
 
 ## Installation
 The package is not yet registered in the [General](https://github.com/JuliaRegistries/General)
