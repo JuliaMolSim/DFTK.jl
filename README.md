@@ -36,7 +36,8 @@ is thus still limited. Current features include:
 - Full access to intermediate quantities (density, Bloch wave)
 - Support for arbitrary floating point types, including `Float32` (single precision)
   or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)).
-  This is only supported for selected DFT functionals at the moment.
+  For DFT this is currently restricted to LDA (with Slater exchange and PWN
+  correlation).
 
 **Note:** This code has only been compared against standard packages
 for a small number of test cases and might still contain bugs.
@@ -52,10 +53,14 @@ First add `MolSim` to your installed registries. For this use
 ```
 ] registry add https://github.com/JuliaMolSim/MolSim.git
 ```
-for a Julia command line (version at least 1.1).
+for a Julia command line.
 Afterwards you can install DFTK like any other package in Julia:
 ```
 ] add DFTK
+```
+or if you like the bleeding edge:
+```
+] add DFTK#master
 ```
 
 Some parts of the code require a working Python installation with the libraries
