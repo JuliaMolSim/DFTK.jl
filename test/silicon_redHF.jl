@@ -7,7 +7,7 @@ end
 
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     @testset "SCF of silicon without exchange-correlation (large)" begin
-        run_silicon_redHF(Float64, Ecut=25, test_tol=1e-6, n_ignored=0, grid_size=33,
+        run_silicon_redHF(Float64, Ecut=25, test_tol=5e-6, n_ignored=2, grid_size=35,
                           scf_tol=1e-7)
     end
 end
