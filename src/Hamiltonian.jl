@@ -85,6 +85,12 @@ function update_energies!(energies, ham::Hamiltonian, Psi, occupation, ρ=nothin
     insert_energy!(:PotHartree, model.build_hartree; ρ=ρ)
     insert_energy!(:PotXC, model.build_xc; ρ=ρ)
     insert_energy!(:PotNonLocal, model.build_nonlocal; Psi=Psi, occupation=occupation)
+    if !isempty(model.atoms)
+        energies[:Ewald] = energy_nuclear_ewald(model)
+        if any(t -> t[1].psp != nothing, model.atoms)
+            energies[:PspCorrection] = energy_nuclear_psp_correction(model)
+        end
+    end
 
     energies
 end
@@ -101,4 +107,13 @@ function update_energies_hamiltonian!(energies, ham::Hamiltonian, Psi, occupatio
     ρ === nothing && (ρ = compute_density(ham.basis, Psi, occupation))
     update_hamiltonian!(ham, ρ)
     compute_energies!(energies, ham, Psi, occupation, ham.density)
+end
+
+# TODO move that out into a scfres structure
+function print_energies(energies)
+    println("\nEnergy breakdown:")
+    for key in sort([keys(energies)...]; by=S -> string(S))
+        @printf "    %-20s%-10.7f\n" string(key) energies[key]
+    end
+    @printf "\n    %-20s%-15.12f\n\n" "total" sum(values(energies))
 end

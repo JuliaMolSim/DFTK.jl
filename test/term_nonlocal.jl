@@ -1,23 +1,23 @@
 using Test
-using DFTK: Model, PlaneWaveBasis, r_to_G, load_psp, Species, term_nonlocal, kblock
+using DFTK: Model, PlaneWaveBasis, r_to_G, load_psp, Element, term_nonlocal, kblock
 
 include("testcases.jl")
 
 @testset "term_nonlocal" begin
     Ecut = 2
     fft_size = [9, 9, 9]
-    model = Model(silicon.lattice, silicon.n_electrons)
+    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-    function build_nonlocal(composition...)
-        _, pot = term_nonlocal(composition...)(basis, nothing, zeros(basis.fft_size))
+    function build_nonlocal(atoms)
+        _, pot = term_nonlocal(atoms)(basis, nothing, zeros(basis.fft_size))
         pot
     end
 
     psp = load_psp(silicon.psp)
-    potnl = build_nonlocal(psp => silicon.positions)
+    potnl = build_nonlocal([psp => silicon.positions])
     @testset "Agreement of psp and species construction" begin
-        Si = Species(14, psp=psp)
-        potnl2 = build_nonlocal(Si => silicon.positions)
+        Si = Element(14, psp=psp)
+        potnl2 = build_nonlocal([Si => silicon.positions])
 
         for kpt in basis.kpoints
             potblock = kblock(potnl, kpt)

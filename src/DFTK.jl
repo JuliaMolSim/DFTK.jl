@@ -37,12 +37,12 @@ export from_real
 export from_fourier
 include("RealFourierArray.jl")
 
-export Species
+export Element
 export charge_nuclear
 export charge_ionic
 export n_elec_valence
 export n_elec_core
-include("Species.jl")
+include("Element.jl")
 
 export PspHgh
 export eval_psp_local_fourier
@@ -77,6 +77,7 @@ export update_hamiltonian!
 export update_energies_hamiltonian!
 export update_energies!
 export update_energies
+export print_energies
 export kblock
 include("Hamiltonian.jl")
 include("HamiltonianBlock.jl")
@@ -149,7 +150,7 @@ export load_lattice
 export load_basis
 export load_model
 export load_density
-export load_composition
+export load_atoms
 include("external/etsf_nanoquanta.jl")
 
 end # module DFTK

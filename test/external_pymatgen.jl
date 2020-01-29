@@ -1,6 +1,6 @@
 using Test
-using DFTK: load_psp, pymatgen_lattice, pymatgen_structure, load_lattice, load_composition
-using DFTK: units, Species
+using DFTK: load_psp, pymatgen_lattice, pymatgen_structure, load_lattice, load_atoms
+using DFTK: units, Element
 using PyCall
 
 py"""
@@ -47,13 +47,13 @@ end
                   8 => "hgh/lda/o-q6")
 
     reference = py"mg.Structure($reflattice, $species, $positions)"
-    composition = load_composition(reference, pspmap=pspmap)
-    @test length(composition) == 3
-    @test composition[1].first.psp.identifier == "hgh/lda/h-q1"
-    @test composition[2].first.psp.identifier == "hgh/lda/c-q4"
-    @test composition[3].first.psp.identifier == "hgh/lda/o-q6"
+    atoms = load_atoms(reference, pspmap=pspmap)
+    @test length(atoms) == 3
+    @test atoms[1].first.psp.identifier == "hgh/lda/h-q1"
+    @test atoms[2].first.psp.identifier == "hgh/lda/c-q4"
+    @test atoms[3].first.psp.identifier == "hgh/lda/o-q6"
 
-    output = pymatgen_structure(load_lattice(reference), composition...)
+    output = pymatgen_structure(load_lattice(reference), atoms)
     @test output.lattice == reflattice
     for i in 1:6
         @test output.species[i].number == species[i]
@@ -67,15 +67,15 @@ end
     c = randn(3)
     lattice = [a b c]
 
-    composition = [
-        Species(1) => [randn(3), randn(3)],
-        Species(6) => [randn(3), randn(3), randn(3)],
-        Species(8) => [randn(3), randn(3)],
+    atoms = [
+        Element(1) => [randn(3), randn(3)],
+        Element(6) => [randn(3), randn(3), randn(3)],
+        Element(8) => [randn(3), randn(3)],
     ]
 
     # Convert the lattice to python, make it flat and convert
     # to Julia array
-    output = pymatgen_structure(lattice, composition...)
+    output = pymatgen_structure(lattice, atoms)
     outlatt = py"$output.lattice.matrix.ravel()" .+ 0
     @test a ≈ outlatt[1:3] * units.Ǎ atol=1e-14
     @test b ≈ outlatt[4:6] * units.Ǎ atol=1e-14
@@ -84,7 +84,7 @@ end
     specmap = [1, 1, 2, 2, 2, 3, 3]
     offset = [0, 0, 2, 2, 2, 5, 5]
     for i in 1:6
-        specpair = composition[specmap[i]]
+        specpair = atoms[specmap[i]]
         ired = i - offset[i]
         @test output.species[i].number == specpair.first.Znuc
         @test output.sites[i].frac_coords == specpair.second[ired]

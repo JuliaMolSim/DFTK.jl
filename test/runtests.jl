@@ -16,7 +16,7 @@ using DFTK
     include("interpolation.jl")
     include("load_psp.jl")
     include("PspHgh.jl")
-    include("Species.jl")
+    include("Element.jl")
     include("bzmesh.jl")
     include("external_pymatgen.jl")
 

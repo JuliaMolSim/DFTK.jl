@@ -23,20 +23,20 @@ end
 
 
 @doc raw"""
-    bzmesh_ir_wedge(kgrid_size, lattice, composition...; tol_symmetry=1e-5)
+    bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
 
 Construct the irreducible wedge of a uniform Brillouin zone mesh for sampling ``k``-Points.
 The function returns a tuple `(kcoords, ksymops)`, where `kcoords` are the list of
 irreducible ``k``-Points and `ksymops` are a list of symmetry operations for regenerating
-the full mesh. `lattice` are the lattice vectors, column by column, `composition` are pairs
-representing a mapping from `Species` objects to a list of positions in fractional
+the full mesh. `lattice` are the lattice vectors, column by column, `atoms` are pairs
+representing a mapping from `Element` objects to a list of positions in fractional
 coordinates. `tol_symmetry` is the tolerance used for searching for symmetry operations.
 """
-function bzmesh_ir_wedge(kgrid_size, lattice, composition...; tol_symmetry=1e-5)
+function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
     spglib = pyimport("spglib")
 
     # Ask spglib for symmetry operations and for irreducible mesh
-    spg_symops = spglib.get_symmetry(spglib_cell(lattice, composition...),
+    spg_symops = spglib.get_symmetry(spglib_cell(lattice, atoms),
                                      symprec=tol_symmetry)
 
     # If spglib does not find symmetries give an error

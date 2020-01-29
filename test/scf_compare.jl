@@ -9,8 +9,8 @@ include("testcases.jl")
     fft_size = [9, 9, 9]
     tol = 1e-6
 
-    Si = Species(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_dft(silicon.lattice, :lda_xc_teter93, Si => silicon.positions)
+    Si = Element(silicon.atnum, psp=load_psp(silicon.psp))
+    model = model_dft(silicon.lattice, :lda_xc_teter93, [Si => silicon.positions])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     # Run nlsolve without guess
@@ -25,7 +25,7 @@ include("testcases.jl")
     @test maximum(abs.(ρ_dm - ρ_nl)) < 30tol
 
     # Run other SCFs with SAD guess
-    ρ0 = guess_density(basis, Si => silicon.positions)
+    ρ0 = guess_density(basis, [Si => silicon.positions])
     for solver in (scf_nlsolve_solver, scf_damping_solver, scf_anderson_solver,
                    scf_CROP_solver)
         println("\nTesting $solver")

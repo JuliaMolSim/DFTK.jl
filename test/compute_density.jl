@@ -8,16 +8,16 @@ include("testcases.jl")
 #      energies obtained in the data files
 
 @testset "Using BZ symmetry yields identical density" begin
-    function get_bands(testcase, kcoords, ksymops, composition...;
+    function get_bands(testcase, kcoords, ksymops, atoms;
                        Ecut=5, tol=1e-8)
         kwargs = ()
         if testcase.Tsmear !== nothing
             kwargs = (temperature=testcase.Tsmear, smearing=DFTK.Smearing.FermiDirac())
         end
 
-        model = model_dft(testcase.lattice, :lda_xc_teter93, composition...; kwargs...)
+        model = model_dft(testcase.lattice, :lda_xc_teter93, atoms; kwargs...)
         basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
-        ham = Hamiltonian(basis, guess_density(basis, composition...))
+        ham = Hamiltonian(basis, guess_density(basis, atoms))
 
         n_bands = 4
         res = diagonalise_all_kblocks(lobpcg_hyper, ham, n_bands; tol=tol)
@@ -49,17 +49,17 @@ include("testcases.jl")
     end
 
     function test_full_vs_irreducible(testcase, kgrid_size; Ecut=5, tol=1e-8)
-        spec = Species(testcase.atnum, psp=load_psp(testcase.psp))
-        composition = (spec => testcase.positions, )
+        spec = Element(testcase.atnum, psp=load_psp(testcase.psp))
+        atoms = (spec => testcase.positions, )
 
         kfull, sym_full = bzmesh_uniform(kgrid_size)
-        res = get_bands(testcase, kfull, sym_full, composition...;
+        res = get_bands(testcase, kfull, sym_full, atoms;
                         Ecut=Ecut, tol=tol)
         basis_full, Psi_full, orben_full, ρ_full = res
         test_orthonormality(basis_full, Psi_full, tol=tol)
 
-        kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, testcase.lattice, composition...)
-        res = get_bands(testcase, kcoords, ksymops, composition...;
+        kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, testcase.lattice, atoms)
+        res = get_bands(testcase, kcoords, ksymops, atoms;
                         Ecut=Ecut, tol=tol)
         basis_ir, Psi_ir, orben_ir, ρ_ir = res
 

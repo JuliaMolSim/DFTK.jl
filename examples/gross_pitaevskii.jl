@@ -51,7 +51,7 @@ end
      
 n_electrons = 1 # increase this for fun
 # We add the needed terms
-model = Model(lattice, n_electrons;
+model = Model(lattice; n_electrons=n_electrons,
               external=external_pot,
               xc=nonlinearity,
               spin_polarisation=:spinless # "spinless fermions"
@@ -67,14 +67,7 @@ ham = Hamiltonian(basis) # zero initial guess for the density
 scfres = self_consistent_field(ham, model.n_electrons, tol=1e-6)
 ham = scfres.ham
 
-# Print obtained energies
-energies = scfres.energies
-println("\nEnergy breakdown:")
-for key in sort([keys(energies)...]; by=S -> string(S))
-    @printf "    %-20s%-10.7f\n" string(key) energies[key]
-end
-@printf "\n    %-20s%-15.12f\n\n" "total" sum(values(energies))
-
+print_energies(scfres.energies)
 
 using PyPlot
 x = a*basis.grids[1]

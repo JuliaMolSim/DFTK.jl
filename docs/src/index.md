@@ -153,7 +153,7 @@ compute_density
 
 ## Utilities
 ```@docs
-Species
+Element
 determine_grid_size
 build_local_potential
 build_nonlocal_projectors

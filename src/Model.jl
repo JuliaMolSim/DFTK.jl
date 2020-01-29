@@ -16,10 +16,13 @@ struct Model{T <: Real}
     dim::Int # Dimension of the system; 3 unless `lattice` has zero columns
 
     # Electrons, occupation and smearing function
-    n_electrons::Int
+    n_electrons::Int # not necessarily consistent with `atoms` field
     spin_polarisation::Symbol  # :none, :collinear, :full, :spinless
     temperature::T
     smearing::Smearing.SmearingFunction # see smearing_functions.jl for some choices
+
+    atoms # Vector of pairs Element => vector of vec3 (positions, fractional coordinates)
+    # Possibly empty. Right now, the consistency of `atoms` with the different terms is *not* checked
 
     # Potential definitions and builders
     build_external  # External potential, e.g. local pseudopotential term
@@ -35,10 +38,18 @@ TODO docme
 If no smearing is specified the system will be assumed to be an insulator
 Occupation obtained as `f(ε) = smearing((ε-εF) / T)`
 """
-function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
+function Model(lattice::AbstractMatrix{T}; n_electrons=nothing, atoms=[], external=nothing,
                nonlocal=nothing, hartree=nothing, xc=nothing, temperature=0.0,
                smearing=nothing, spin_polarisation=:none) where {T <: Real}
     lattice = SMatrix{3, 3, T, 9}(lattice)
+
+    if n_electrons === nothing
+        # get it from the atom list
+        isempty(atoms) && error("Either n_electrons or a non-empty atoms list should be provided")
+        n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in atoms)
+    else
+        @assert n_electrons isa Int
+    end
 
     # Special handling of 1D and 2D systems, and sanity checks
     d = 3-count(c -> norm(c) == 0, eachcol(lattice))
@@ -69,7 +80,7 @@ function Model(lattice::AbstractMatrix{T}, n_electrons; external=nothing,
 
     build_nothing(args...; kwargs...) = (nothing, nothing)
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
-             spin_polarisation, T(temperature), smearing,
+             spin_polarisation, T(temperature), smearing, atoms, 
              something(external, build_nothing), something(nonlocal, build_nothing),
              something(hartree, build_nothing), something(xc, build_nothing))
 end
