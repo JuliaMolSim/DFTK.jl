@@ -44,8 +44,6 @@ function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
             guessk = Matrix{T}(qr(X0).Q)
         else
             # random initial guess
-            # TODO The double conversion is needed due to an issue in Julia
-            #      see https://github.com/JuliaLang/julia/pull/32979
             qrres = qr(randn(T, length(G_vectors(kpoints[ik])), nev_per_kpoint))
             guessk = Matrix{T}(qrres.Q)
         end

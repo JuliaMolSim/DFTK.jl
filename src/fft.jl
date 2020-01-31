@@ -13,9 +13,9 @@ function is_fft_size_ok_for_generic(size::Integer)
     #      https://github.com/JuliaComputing/FourierTransforms.jl/issues/10
     # Everything is fine if we have up to one prime factor,
     # which is not two, also we want to avoid large primes
-    penalty = 100
-    sum((k == 2 ? 0 : (k > 7 ? penalty : v))
-        for (k, v) in Primes.factor(size)) <= 1
+    #
+    # Actually ... it seems to only reliably for powers of two.
+    all(k == 2 for (k, v) in Primes.factor(size))
 end
 
 function next_working_fft_size_for_generic(size)

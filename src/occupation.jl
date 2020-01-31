@@ -54,7 +54,7 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies) where {T}
         # advanced methods (e.g. false position), but more care has to be
         # taken with convergence criteria and the like
         εF = Roots.find_zero(εF -> compute_n_elec(εF) - n_electrons, (min_ε, max_ε),
-                             Roots.Bisection())
+                             Roots.Bisection(), atol=eps(T))
     end
 
     if !isapprox(compute_n_elec(εF), n_electrons)
