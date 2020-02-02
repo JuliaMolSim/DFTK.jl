@@ -4,55 +4,35 @@ branches:
     - master
     - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
 
-dist: bionic
+language: julia
+
+env:
+  global:
+    - PYTHON=""  # Force using Conda in PyCall
+after_success:
+  - julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage;
+              coverage = Coveralls.process_folder();
+              filter!(c -> !occursin("src/FourierTransforms.jl", c.filename), coverage);
+              Coveralls.submit(coverage)';
+
 os:
   - linux
   - osx
-language: julia
-julia:
-  - 1.2
-  - nightly
+julia: "1.2"
 
-addons:
-  apt:
-    packages:
-      - python3-pip
-      - python3-setuptools
-
-matrix:
+jobs:
   allow_failures:  # Allow to fail on nightly
     - julia: nightly
-  exclude:
-    - os: osx
-      julia: nightly
-
-install: |
-  if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
-      pip3 install spglib scipy pymatgen
-  else
-     :
-  fi
-
-codecov: false
-coveralls: true
-
-# Build documentation
-jobs:
   include:
+    - julia: nightly
+      os: linux
     - stage: "Documentation"
-      julia: 1.2
       os: linux
       script:
         - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd()));
                                                Pkg.instantiate()'
         - julia --project=docs/ docs/make.jl
       after_success: skip
-
-after_failure: |
-  if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
-      python3 --version
-      pip3 list
-  fi
 
 notifications:
   email: false
