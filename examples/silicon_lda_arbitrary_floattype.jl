@@ -5,8 +5,8 @@ using DoubleFloats
 
 # Calculation parameters
 kgrid = [3, 3, 3]
-Ecut = 10  # Hartree
-T = Double64  # Try Double32, BigFloat (very slow!)
+Ecut = 15  # Hartree
+T = Double64  # Try Float32, Double32, BigFloat (very slow!)
 
 # Setup silicon lattice
 a = 10.263141334305942  # Silicon lattice constant in Bohr
@@ -26,4 +26,4 @@ scfres = self_consistent_field(ham, n_bands, tol=1e-6)
 
 # Print obtained energies
 print_energies(scfres.energies)
-@assert eltype(sum(values(energies))) == T
+@assert eltype(sum(values(scfres.energies))) == T

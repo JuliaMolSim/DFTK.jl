@@ -58,19 +58,22 @@ function compute_density(pw::PlaneWaveBasis, Psi::AbstractVector{VecT},
     #      the number of symmetry operations. We know heuristically that the Gamma
     #      point (first k-Point) has least symmetry operations, so we will put
     #      some extra workload there if things do not break even
-    kblock = floor(Int, length(pw.kpoints) / Threads.nthreads())
-    kpt_per_thread = [collect(1:length(pw.kpoints) - (Threads.nthreads() - 1) * kblock)]
-    for ithread in 2:Threads.nthreads()
-        push!(kpt_per_thread, kpt_per_thread[end][end] .+ collect(1:kblock))
+    kpt_per_thread = [ifelse(i <= n_k, [i], Vector{Int}()) for i in 1:Threads.nthreads()]
+    if n_k >= Threads.nthreads()
+        kblock = floor(Int, length(pw.kpoints) / Threads.nthreads())
+        kpt_per_thread = [collect(1:length(pw.kpoints) - (Threads.nthreads() - 1) * kblock)]
+        for ithread in 2:Threads.nthreads()
+            push!(kpt_per_thread, kpt_per_thread[end][end] .+ collect(1:kblock))
+        end
+        @assert kpt_per_thread[end][end] == length(pw.kpoints)
     end
-    @assert kpt_per_thread[end][end] == length(pw.kpoints)
 
     Gs = collect(G_vectors(pw))
     Threads.@threads for (ikpts, ρaccu) in collect(zip(kpt_per_thread, ρaccus))
         ρaccu .= 0
         for ik in ikpts
             ρ_k = compute_partial_density(pw, pw.kpoints[ik], Psi[ik], occupation[ik])
-            _symmetrize!(ρaccu, ρ_k, pw, pw.ksymops[ik], Gs)
+            _symmetrize_ρ!(ρaccu, ρ_k, pw, pw.ksymops[ik], Gs)
         end
     end
 
@@ -80,7 +83,7 @@ end
 
 # For a given kpoint, accumulates the symmetrized versions of the
 # density ρin into ρout. No normalization is performed
-function _symmetrize!(ρaccu, ρin, basis, ksymops, Gs)
+function _symmetrize_ρ!(ρaccu, ρin, basis, ksymops, Gs)
     T = real(eltype(ρin))
     for (S, τ) in ksymops
         invS = Mat3{Int}(inv(S))

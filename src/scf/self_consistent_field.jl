@@ -2,7 +2,7 @@
 Obtain new density ρ by diagonalizing `ham`.
 """
 function next_density(ham::Hamiltonian, n_bands; Psi=nothing,
-                      prec_type=PreconditionerTPA, tol=1e-6, n_ep_extra=3, 
+                      prec_type=PreconditionerTPA, tol=1e-6, n_ep_extra=3,
                       eigensolver=lobpcg_hyper)
     n_ep = n_bands + n_ep_extra
     if Psi !== nothing
@@ -13,7 +13,8 @@ function next_density(ham::Hamiltonian, n_bands; Psi=nothing,
     end
 
     # Diagonalize
-    eigres = diagonalise_all_kblocks(eigensolver, ham, n_ep, guess=Psi, n_conv_check=n_bands, prec_type=prec_type, tol=tol)
+    eigres = diagonalise_all_kblocks(eigensolver, ham, n_ep, guess=Psi, n_conv_check=n_bands,
+                                     prec_type=prec_type, tol=tol)
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Update density from new Psi

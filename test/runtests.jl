@@ -1,41 +1,81 @@
 using Test
 using DFTK
 
+#
+# This test suite test arguments. For example:
+#     Pkg.test("DFTK"; test_args = ["fast"])
+# only runs the "fast" tests (i.e. not the expensive ones)
+#     Pkg.test("DFTK"; test_args = ["example"])
+# runs only the tests tagged as "example" and
+#     Pkg.test("DFTK"; test_args = ["example", "all"])
+# runs all tests plus the "example" tests.
+#
+
+# By default run expensive tests, but not if in CI environment
+# If user supplies the "fast" tag
+const FAST_TESTS = ifelse("CI" in keys(ENV), parse(Bool, get(ENV, "CI", "false")),
+                          "fast" in ARGS)
+
+# Tags supplied by the user ... filter out "fast" (already dealt with)
+TAGS = filter(e -> !(e in ["fast"]), ARGS)
+isempty(TAGS) && (TAGS = ["all"])
+
+if FAST_TESTS
+    println("   Running fast tests (TAGS = $(join(TAGS, ", "))).")
+else
+    println("   Running tests (TAGS = $(join(TAGS, ", "))).")
+end
+
+
 # Wrap in an outer testset to get a full report if one test fails
-@testset "All tests" begin
+@testset "DFTK.jl" begin
     # Synthetic tests at the beginning, so it fails faster if
     # something has gone badly wrong
-    include("silicon_redHF.jl")
-    include("silicon_lda.jl")
-    include("silicon_pbe.jl")
-    include("scf_compare.jl")
+    if "all" in TAGS || "functionality" in TAGS
+        include("silicon_redHF.jl")
+        include("silicon_lda.jl")
+        include("silicon_pbe.jl")
+        include("scf_compare.jl")
+    end
 
-    include("determine_grid_size.jl")
-    include("fourier_transforms.jl")
-    include("PlaneWaveBasis.jl")
-    include("interpolation.jl")
-    include("load_psp.jl")
-    include("PspHgh.jl")
-    include("Element.jl")
-    include("bzmesh.jl")
-    include("external_pymatgen.jl")
+    if "all" in TAGS
+        include("determine_grid_size.jl")
+        include("fourier_transforms.jl")
+        include("PlaneWaveBasis.jl")
+        include("interpolation.jl")
+        include("load_psp.jl")
+        include("PspHgh.jl")
+        include("Element.jl")
+        include("bzmesh.jl")
+        include("external_pymatgen.jl")
+    end
 
-    include("term_external.jl")
-    include("term_nonlocal.jl")
-    # TODO Test for term_hartree
-    # TODO Test for term_xc
+    if "all" in TAGS
+        include("term_external.jl")
+        include("term_nonlocal.jl")
+        # TODO Test for term_hartree
+        # TODO Test for term_xc
+    end
 
-    include("HamiltonianBlock.jl")
-    include("lobpcg.jl")
-    include("xc_fallback.jl")
-    include("interval_arithmetic.jl")
+    if "all" in TAGS
+        include("HamiltonianBlock.jl")
+        include("lobpcg.jl")
+        include("xc_fallback.jl")
+        include("interval_arithmetic.jl")
+    end
 
-    include("energy_ewald.jl")
-    include("energy_nuclear.jl")
-    include("occupation.jl")
-    include("energies_guess_density.jl")
-    include("compute_density.jl")
+    if "all" in TAGS
+        include("energy_ewald.jl")
+        include("energy_nuclear.jl")
+        include("occupation.jl")
+        include("energies_guess_density.jl")
+        include("compute_density.jl")
+    end
 
-    include("variational.jl")
-    include("compute_bands.jl")
+    if "all" in TAGS
+        include("variational.jl")
+        include("compute_bands.jl")
+    end
+
+    ("example" in TAGS) && include("runexamples.jl")
 end

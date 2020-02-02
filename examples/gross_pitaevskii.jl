@@ -4,6 +4,7 @@
 using PyCall
 using DFTK
 using Printf
+using LinearAlgebra
 
 kgrid = [1, 1, 1] # No kpoints
 Ecut = 4000

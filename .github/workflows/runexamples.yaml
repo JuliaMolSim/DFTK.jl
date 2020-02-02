@@ -1,0 +1,23 @@
+name: Run DFTK examples
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+jobs:
+  runexamples:
+    name: Run DFTK examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v1
+        with:
+          version: '3.x'
+      - name: Install python dependencies
+        run: pip install spglib scipy pymatgen matplotlib
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: 1.3
+      - run: julia --color=yes --project -e 'using Pkg; Pkg.test(test_args = ["example"])'
