@@ -153,4 +153,7 @@ export load_density
 export load_atoms
 include("external/etsf_nanoquanta.jl")
 
+export forces
+include("forces.jl")
+
 end # module DFTK

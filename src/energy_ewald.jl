@@ -1,4 +1,5 @@
 using SpecialFunctions: erfc
+using ForwardDiff
 
 """
     energy_ewald(lattice, [recip_lattice, ]charges, positions; η=nothing)
@@ -8,9 +9,10 @@ charges in a uniform background of compensating charge to yield net
 neutrality. the `lattice` and `recip_lattice` should contain the
 lattice and reciprocal lattice vectors as columns. `charges` and
 `positions` are the point charges and their positions (as an array of
-arrays) in fractional coordinates.
+arrays) in fractional coordinates. If `forces` is not nothing, minus the derivatives
+of the energy with respect to `positions` is computed.
 """
-function energy_ewald(lattice, charges, positions; η=nothing)
+function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
     T = eltype(lattice)
 
     for i=1:3
@@ -21,17 +23,21 @@ function energy_ewald(lattice, charges, positions; η=nothing)
             return T(0)
         end
     end
-    energy_ewald(lattice, T(2π) * inv(lattice'), charges, positions, η=η)
+    energy_ewald(lattice, T(2π) * inv(lattice'), charges, positions; η=η, forces=forces)
 end
-function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
+function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, forces=nothing)
     T = eltype(lattice)
     @assert T == eltype(recip_lattice)
-    @assert(length(charges) == length(positions),
-            "Length of charges and positions does not match")
+    @assert length(charges) == length(positions)
     if η === nothing
         # Balance between reciprocal summation and real-space summation
         # with a slight bias towards reciprocal summation
         η = sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
+    end
+    if forces !== nothing
+        @assert size(forces) == size(positions)
+        forces_real = copy(forces)
+        forces_recip = copy(forces)
     end
 
     #
@@ -89,11 +95,24 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
 
             any_term_contributes = true
             sum_recip += sum_strucfac * exp(-exponent) / Gsq
+
+            if forces !== nothing
+                for (ir, r) in enumerate(positions)
+                    Z = charges[ir]
+                    dc = -Z*2T(π)*G*sin(2T(π) * dot(r, G))
+                    ds = +Z*2T(π)*G*cos(2T(π) * dot(r, G))
+                    dsum = 2cos_strucfac*dc + 2sin_strucfac*ds
+                    forces_recip[ir] -= dsum * exp(-exponent)/Gsq
+                end
+            end
         end
         gsh += 1
     end
     # Amend sum_recip by proper scaling factors:
-    sum_recip = sum_recip * 4T(π) / abs(det(lattice))
+    sum_recip *= 4T(π) / abs(det(lattice))
+    if forces !== nothing
+        forces_recip .*= 4T(π) / abs(det(lattice))
+    end
 
     #
     # Real-space sum
@@ -109,7 +128,12 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
 
         # Loop over R vectors for this shell patch
         for R in shell_indices(rsh)
-            for (ti, Zi) in zip(positions, charges), (tj, Zj) in zip(positions, charges)
+            for i = 1:length(positions), j = 1:length(positions)
+                ti = positions[i]
+                Zi = charges[i]
+                tj = positions[j]
+                Zj = charges[j]
+
                 # Avoid self-interaction
                 if rsh == 0 && ti == tj
                     continue
@@ -124,9 +148,18 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing)
 
                 any_term_contributes = true
                 sum_real += Zi * Zj * erfc(η * dist) / dist
-            end # iat, jat
+                if forces !== nothing
+                    # Use ForwardDiff here because I'm lazy. TODO do it properly
+                    forces_real[i] -= ForwardDiff.gradient(r -> (dist=norm(lattice * (r - tj - R)); Zi * Zj * erfc(η * dist) / dist), ti)
+                    forces_real[j] -= ForwardDiff.gradient(r -> (dist=norm(lattice * (ti - r - R)); Zi * Zj * erfc(η * dist) / dist), tj)
+                end
+            end # i,j
         end # R
         rsh += 1
     end
-    (sum_recip + sum_real) / 2  # Divide by 1/2 (because of double counting)
+    energy = (sum_recip + sum_real) / 2  # Divide by 1/2 (because of double counting)
+    if forces !== nothing
+        forces .= (forces_recip .+ forces_real) ./ 2
+    end
+    energy
 end

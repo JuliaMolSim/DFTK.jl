@@ -1,5 +1,6 @@
 using Test
 using DFTK
+using Random
 
 #
 # This test suite test arguments. For example:
@@ -26,6 +27,8 @@ else
     println("   Running tests (TAGS = $(join(TAGS, ", "))).")
 end
 
+# Initialise seed
+Random.seed!(0)
 
 # Wrap in an outer testset to get a full report if one test fails
 @testset "DFTK.jl" begin
@@ -65,11 +68,12 @@ end
     end
 
     if "all" in TAGS
-        include("energy_ewald.jl")
+        include("ewald.jl")
         include("energy_nuclear.jl")
         include("occupation.jl")
         include("energies_guess_density.jl")
         include("compute_density.jl")
+        include("forces.jl")
     end
 
     if "all" in TAGS
