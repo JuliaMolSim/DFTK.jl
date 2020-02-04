@@ -1,7 +1,7 @@
 """
 Computes minus the derivatives of the energy with respect to atomic positions.
 """
-function forces(scfres)
+function forces(basis, ρ, Psi, occupation)
     # By generalized Hellmann-Feynman, dE/dR = ∂E/∂R. The atomic
     # positions come up explicitly only in the external and nonlocal
     # part of the energy,
@@ -10,12 +10,8 @@ function forces(scfres)
     # Find a way to move this computation closer to each term
 
     # minus signs here because f = -∇E
-    ham = scfres.ham
-    basis = ham.basis
     model = basis.model
-    Psi = scfres.Psi
-    ρ = scfres.ρ
-    T = real(eltype(ham))
+    T = real(eltype(Psi[1]))
 
     forces = []
     for (type, positions) in model.atoms
@@ -56,8 +52,7 @@ function forces(scfres)
                     # TODO BLASify this further
                     for iband = 1:size(Psi[ik], 2)
                         psi = Psi[ik][:, iband]
-                        fr[idir] -= basis.kweights[ik] *
-                                    scfres.occupation[ik][iband] *
+                        fr[idir] -= basis.kweights[ik] * occupation[ik][iband] *
                                     real(dot(psi, P*C*dPdR'*psi) + dot(psi, dPdR*C*P'*psi))
                     end
                 end
@@ -82,3 +77,4 @@ function forces(scfres)
 
     forces
 end
+forces(scfres) = forces(scfres.ham.basis, scfres.ρ, scfres.Psi, scfres.occupation)
