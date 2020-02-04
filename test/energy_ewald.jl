@@ -62,5 +62,5 @@ end
     disp = [rand(3)/20, rand(3)/20]
     ε = 1e-8
     γ2 = energy_ewald(lattice, charges, positions .+ ε .* disp)
-    @test abs((γ2-γ1)/ε + dot(disp, forces))/γ1 < 1e-6
+    @test (γ2-γ1)/ε ≈ -dot(disp, forces) atol=abs(γ1*1e-6)
 end

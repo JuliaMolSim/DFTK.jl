@@ -18,18 +18,20 @@ function forces(scfres)
     T = real(eltype(ham))
 
     forces = []
-    for (type, pos) in model.atoms
+    for (type, positions) in model.atoms
         @assert type.psp != nothing
-        f = zeros(Vec3{T}, length(pos))
+        # force for this atom type
+        f = zeros(Vec3{T}, length(positions))
 
         # Local part
+        @assert model.build_external !== nothing
         # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
         # where struct_factor(G) = cis(-2T(π) * dot(G, r))
         form_factors = [Complex{T}(eval_psp_local_fourier(type.psp, model.recip_lattice * G))
                         for G in G_vectors(basis)] ./ sqrt(model.unit_cell_volume)
         form_factors[1] = 0
 
-        for (ir, r) in enumerate(pos)
+        for (ir, r) in enumerate(positions)
             f[ir] -= real(sum(conj(ρ.fourier[iG]) .*
                               form_factors[iG] .*
                               cis(-2T(π) * dot(G, r)) .*
@@ -38,17 +40,18 @@ function forces(scfres)
         end
 
         # Nonlocal part
+        @assert model.build_nonlocal !== nothing
         C = build_projection_coefficients_(type.psp)
-        for (ir, r) in enumerate(pos)
+        for (ir, r) in enumerate(positions)
             fr = zeros(T, 3)
             for idir = 1:3
                 for (ik, kpt) in enumerate(basis.kpoints)
                     # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
-                    qs = [model.recip_lattice * (kpt.coordinate + G) for G in kpt.basis]
+                    qs = [model.recip_lattice * (kpt.coordinate + G) for G in G_vectors(kpt)]
                     form_factors = build_form_factors(type.psp, qs)
-                    structure_factors = [cis(-2T(π)*dot(kpt.coordinate + G, r)) for G in kpt.basis]
+                    structure_factors = [cis(-2T(π)*dot(kpt.coordinate + G, r)) for G in G_vectors(kpt)]
                     P = structure_factors .* form_factors ./ sqrt(model.unit_cell_volume)
-                    dPdR = [-2T(π)*im*(kpt.coordinate + G)[idir] for G in kpt.basis] .* P
+                    dPdR = [-2T(π)*im*(kpt.coordinate + G)[idir] for G in G_vectors(kpt)] .* P
 
                     # TODO BLASify this further
                     for iband = 1:size(Psi[ik], 2)

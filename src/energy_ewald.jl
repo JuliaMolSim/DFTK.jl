@@ -40,6 +40,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
         forces_recip = copy(forces)
     end
 
+    #
     # Numerical cutoffs
     #
     # The largest argument to the exp(-x) function to obtain a numerically
@@ -156,8 +157,9 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
         end # R
         rsh += 1
     end
+    energy = (sum_recip + sum_real) / 2  # Divide by 1/2 (because of double counting)
     if forces !== nothing
         forces .= (forces_recip .+ forces_real) ./ 2
     end
-    (sum_recip + sum_real) / 2  # Divide by 1/2 (because of double counting)
+    energy
 end
