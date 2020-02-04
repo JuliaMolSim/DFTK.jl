@@ -19,27 +19,30 @@ analysis of algorithms and techniques related to DFT. For this we want
 to leverage as much of the existing developments in plane-wave DFT and
 the related ecosystems of Julia python or C codes as possible.
 
+## Features
 The library is at an early stage and the supported feature set
-is thus still limited. Current features include:
-- Lattice construction and problem setup based on [pymatgen](https://pymatgen.org/)
-- Plane-wave discretisations building on top of
-  [FFTW.jl](https://github.com/JuliaMath/FFTW.jl).
-- All LDA and GGA functionals from [Libxc.jl](https://github.com/unkcpz/Libxc.jl).
-- Insulators and metals (Fermi-Dirac or Methfessel-Paxton smearing)
-- Godecker pseudopotentials (GTH, HGH)
-- Exploitation of Brillouin zone symmetry for k-Point sampling
-- Multiple self-consistent field approaches (Kerker mixing, Anderson mixing (DIIS),
-  [NLsolve.jl](https://github.com/JuliaNLSolvers/NLsolve.jl), damping)
-- Direct minimization
-- Band structure generation
-- Computation of density of states (DOS) and local density of states (LDOS)
-- Full access to intermediate quantities (density, Bloch wave)
-- Support for arbitrary floating point types, including `Float32` (single precision)
+is still limited. An overview:
+* Methods and models:
+	- Periodic Hamiltonians, such as reduced Hartree-Fock,
+	  Gross-Pitaevskii, density-functional theory, analytic potentials
+	- All LDA and GGA functionals from [libxc](https://tddft.org/programs/libxc/) supported.
+	- Godecker pseudopotentials (GTH, HGH)
+	- Exploit Brillouin zone symmetry for k-Point sampling
+	- Fermi-Dirac or Methfessel-Paxton smearing to treat metals
+	- Self-consistent field approaches: Damping, Kerker mixing, Anderson mixing (Pulay DIIS),
+	  all solvers from [NLsolve.jl](https://github.com/JuliaNLSolvers/NLsolve.jl)
+	- Direct minimization
+* Ground-state properties and post-processing:
+	- Total energy
+	- Forces
+	- Density of states (DOS) and local density of states (LDOS)
+	- Band structures
+	- Full access to all intermediate quantities (e.g. density, Bloch wave)
+* Support for arbitrary floating point types, including `Float32` (single precision)
   or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)).
-  For DFT this is currently restricted to LDA (with Slater exchange and PWN
-  correlation).
+  For DFT this is currently restricted to LDA (with Slater exchange and VWN correlation).
 
-**Note:** This code has only been compared against standard packages
+**Note:** DFTK has only been compared against standard packages
 for a small number of test cases and might still contain bugs.
 
 ## Installation
@@ -64,11 +67,17 @@ or if you like the bleeding edge:
 ```
 
 Some parts of the code require a working Python installation with the libraries
-`scipy`, `pymatgen` and `spglib`. The examples require `matplotlib` as well.
+`scipy`, [`pymatgen`](https://pymatgen.org/) and [`spglib`](https://atztogo.github.io/spglib/).
+The examples require `matplotlib` as well.
 Check out which version of python is used by the
-[PyCall.jl](https://github.com/JuliaPy/PyCall.jl) package, and use the
-corresponding package manager (usually `apt`, `pip` or `conda`) to install
-these libraries, for example
+[PyCall.jl](https://github.com/JuliaPy/PyCall.jl) package.
+You can do this for example with the Julia commands
+```julia
+using PyCall
+PyCall.python
+```
+Then use the corresponding package manager (usually `apt`, `pip` or `conda`)
+to install aforementioned libraries, for example
 ```
 pip install scipy spglib matplotlib pymatgen
 ```
