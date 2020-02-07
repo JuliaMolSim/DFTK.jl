@@ -20,7 +20,7 @@ function get_scf_energies(testcase, supersampling, functionals)
         model = model_reduced_hf(testcase.lattice, [spec => testcase.positions])
     end
 
-    ksymops = nothing
+    ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)]
     basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis, guess_density(basis, [spec => testcase.positions]))
     scfres = self_consistent_field(ham, n_bands, tol=scf_tol)

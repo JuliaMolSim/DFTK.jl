@@ -84,16 +84,9 @@ fft_size is now Fourier grid size
 kcoords is vector of Vec3
 """
 function PlaneWaveBasis(model::Model{T}, Ecut::Number,
-                        kcoords::AbstractVector, ksymops=nothing, kweights=nothing;
-                        fft_size=nothing) where {T <: Real}
-    # TODO this constructor is too low-level. Write a hierarchy of
-    # constructors starting at the high level
-    # `PlaneWaveBasis(model, Ecut, kgrid)`
-
+                        kcoords::AbstractVector, ksymops, kweights=nothing;
+                        fft_size=determine_grid_size(model, Ecut)) where {T <: Real}
     @assert Ecut > 0
-    if fft_size === nothing
-        fft_size = determine_grid_size(model, Ecut)
-    end
     fft_size = Tuple{Int, Int, Int}(fft_size)
 
     # TODO generic FFT is kind of broken for some fft sizes
@@ -115,9 +108,6 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     ipIFFT = inv(ipFFT)
     opIFFT = inv(opFFT)
 
-    # Default to no symmetry
-    ksymops === nothing && (ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))]
-                                         for _ in 1:length(kcoords)])
     # Compute weights if not given
     if kweights === nothing
         kweights = [length(symops) for symops in ksymops]
@@ -137,6 +127,15 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
         model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
         kweights, ksymops, fft_size, grids, opFFT, ipFFT, opIFFT, ipIFFT
     )
+end
+function PlaneWaveBasis(model::Model, Ecut::Number, kgrid_size::AbstractVector;
+                        enable_bzmesh_symmetry=true, kwargs...)
+    if enable_bzmesh_symmetry
+        kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, model.lattice, model.atoms)
+    else
+        kcoords, ksymops = bzmesh_uniform(kgrid_size)
+    end
+    PlaneWaveBasis(model, Ecut, kcoords, ksymops; kwargs...)
 end
 
 """

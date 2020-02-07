@@ -57,9 +57,7 @@ model = Model(lattice; n_electrons=n_electrons,
               xc=nonlinearity,
               spin_polarisation=:spinless # "spinless fermions"
               )
-
-kpoints, ksymops = bzmesh_uniform(kgrid) # create dummy BZ mesh
-basis = PlaneWaveBasis(model, Ecut, kpoints, ksymops)
+basis = PlaneWaveBasis(model, Ecut, kgrid)
 
 # We solve the self-consistent equation with an SCF algorithm (which
 # is a pretty bad idea; implementing direct minimization is TODO)

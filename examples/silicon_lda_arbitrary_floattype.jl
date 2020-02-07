@@ -16,8 +16,7 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 # Setup LDA model and discretisation
 model = model_dft(Array{T}(lattice), [:lda_x, :lda_c_vwn], atoms)
-kpoints, ksymops = bzmesh_ir_wedge(kgrid, lattice, atoms)
-basis = PlaneWaveBasis(model, Ecut, kpoints, ksymops)
+basis = PlaneWaveBasis(model, Ecut, kgrid)
 
 # Run SCF, note Silicon metal is an insulator, so no need for all bands here
 ham = Hamiltonian(basis, guess_density(basis, atoms))

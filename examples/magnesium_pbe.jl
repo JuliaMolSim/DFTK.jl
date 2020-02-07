@@ -32,8 +32,7 @@ atoms = [Mg => [s.frac_coords for s in pystruct.sites]]
 model = model_dft(lattice, [:gga_x_pbe, :gga_c_pbe], atoms;
                   temperature=Tsmear,
                   smearing=DFTK.Smearing.MethfesselPaxton1())
-kcoords, ksymops = bzmesh_ir_wedge(kgrid, lattice, atoms)
-basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
+basis = PlaneWaveBasis(model, Ecut, kgrid)
 
 # Run SCF
 ham = Hamiltonian(basis, guess_density(basis, atoms))
