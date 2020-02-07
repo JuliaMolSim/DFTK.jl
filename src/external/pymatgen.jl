@@ -30,6 +30,7 @@ function pymatgen_structure(model_or_lattice, atoms)
 
     mg.Structure(pylattice, pyspecies, pypositions)
 end
+pymatgen_structure(model::Model) = pymatgen_structure(model, model.atoms)
 
 
 function pymatgen_bandstructure(basis, band_data, klabels=Dict{String, Vector{Float64}}();

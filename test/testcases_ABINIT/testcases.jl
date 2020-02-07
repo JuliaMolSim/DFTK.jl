@@ -1,11 +1,9 @@
 using DFTK
-using JLD
 using LinearAlgebra: I
 using PyCall
 using Test
 import PhysicalConstants.CODATA2018: a_0
 abilab = pyimport("abipy.abilab")
-abidata = pyimport("abipy.data")
 
 
 const ÅtoBohr = (1 / (a_0 * 1e10)).val
@@ -51,49 +49,8 @@ end
 build_aluminium_structure() = abilab.Structure.fcc(7.6, ["Al"], units="bohr")
 
 function run_ABINIT_scf(infile, outdir)
-    flowtk = pyimport("abipy.flowtk")
-    abilab.abicheck()
-
-    # Create rundir
-    rundir = joinpath(outdir, "abinit")
-    if isdir(rundir)
-        rm(rundir, recursive=true)
-    end
-    mkdir(rundir)
-
-    # Adjust common infile settings:
-    infile.set_vars(
-        paral_kgb=0,    # Parallelisation over k-Points and Bands
-        iomode=3,       # Use NetCDF output
-        iscf=3,         # Anderson mixing instead of minimisation
-        istwfk="*1",    # Needed for extracting the wave function later
-    )
-
-    # Dump extra data
-    dump_extra(infile, outdir)
-    infile.extra = nothing  # Remove extra field (causes problems below)
-
-    # Create flow and run it
-    flow = flowtk.Flow(rundir, flowtk.TaskManager.from_user_config())
-    work = flowtk.Work()
-    scf_task = work.register_scf_task(infile)
-    flow.register_work(work)
-    flow.allocate()
-    flow.make_scheduler().start()
-
-    if !flow.all_ok
-        @warn "Flow not all_ok ... check input and output files"
-    end
-
-    for file in collect(scf_task.out_files())
-        if endswith(file, ".nc")
-            cp(file, joinpath(outdir, basename(file)), force=true)
-        end
-    end
-end
-
-function dump_extra(infile, outdir)
-    JLD.save(joinpath(outdir, "extra.jld"), "extra", infile.extra)
+    infile.set_vars(iscf=3)  # Anderson mixing instead of minimisation
+    DFTK.run_abinit_scf(infile, outdir)
 end
 
 function load_reference(folder::EtsfFolder)
@@ -126,16 +83,10 @@ function test_folder(T, folder; scf_tol=1e-8, n_ignored=0, test_tol=1e-6)
         ref = load_reference(etsf)
         n_bands = length(ref.bands[1])
 
-        ρ0 = guess_density(basis, atoms)
-        ham = Hamiltonian(basis, ρ0)
+        ham = Hamiltonian(basis, guess_density(basis))
         scfres = self_consistent_field(ham, n_bands, tol=scf_tol)
 
-        energies = scfres.energies
-        energies[:Ewald] = energy_nuclear_ewald(basis.model.lattice, atoms)
-        energies[:PspCorrection] = energy_nuclear_psp_correction(basis.model.lattice,
-                                                                 atoms)
         println("etot    ", sum(values(energies)) - sum(values(ref.energies)))
-
         for ik in 1:length(basis.kpoints)
             @test eltype(scfres.orben[ik]) == T
             @test eltype(scfres.Psi[ik]) == Complex{T}
