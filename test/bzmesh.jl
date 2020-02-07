@@ -51,8 +51,8 @@ end
     test_reduction(silicon, [ 2,  3,  4])
     test_reduction(silicon, [ 9, 11, 13])
 
-    test_reduction(manganese, [ 2,  3,  2])
-    test_reduction(manganese, [ 3,  3,  3])
-    test_reduction(manganese, [ 2,  3,  4])
-    test_reduction(manganese, [ 9, 11, 13])
+    test_reduction(magnesium, [ 2,  3,  2])
+    test_reduction(magnesium, [ 3,  3,  3])
+    test_reduction(magnesium, [ 2,  3,  4])
+    test_reduction(magnesium, [ 9, 11, 13])
 end

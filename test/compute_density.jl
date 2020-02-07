@@ -84,7 +84,7 @@ include("testcases.jl")
 
     test_full_vs_irreducible(silicon, [3, 3, 3], Ecut=5, tol=1e-6)
     test_full_vs_irreducible(silicon, [2, 3, 4], Ecut=5, tol=1e-6)
-    test_full_vs_irreducible(manganese, [2, 3, 4], Ecut=5, tol=1e-6)
+    test_full_vs_irreducible(magnesium, [2, 3, 4], Ecut=5, tol=1e-6)
     #
     # That's pretty expensive:
     # test_full_vs_irreducible([4, 4, 4], Ecut=5, tol=1e-6)

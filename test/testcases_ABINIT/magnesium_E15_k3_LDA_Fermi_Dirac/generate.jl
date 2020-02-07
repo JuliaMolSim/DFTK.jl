@@ -1,19 +1,15 @@
-include("../testcases.jl")
+include("../../testcases.jl")
+using PyCall
+using DFTK
 
-structure = build_magnesium_structure()
-pspfile = joinpath(abidata.__path__[end], "hgh_pseudos/12mg.2.hgh")
+abinitpseudos = [joinpath(pyimport("abipy.data").__path__[end], "hgh_pseudos/12mg.2.hgh")]
+pspmap = Dict(12 => "hgh/lda/mg-q2", )
 
-infile = abilab.AbinitInput(structure=structure, pseudos=abidata.pseudos(pspfile))
-infile.set_kmesh(ngkpt=[3, 3, 3], shiftk=[0, 0, 0])
-infile.set_vars(
-    ecut=15,        # Hartree
-    nband=10,       # Number of bands
-    tolvrs=1e-10,   # General tolerance settings
-    ixc="-020",     # Teter1993 LDA reparametrisation
-    # occopt=6,     # Methfessel and Paxton, Hermite polynomial degree 2
-    occopt=3,       # Fermi-Dirac
-    tsmear=0.01,    # Hartree
-)
-infile.extra = Dict("pspmap" => Dict(12 => "hgh/lda/mg-q2", ), )
+atoms = [Element(12, load_psp(pspmap[12])) => magnesium.positions]
+model = model_dft(magnesium.lattice, :lda_xc_teter93, atoms,
+                  temperature=0.01, smearing=Smearing.FermiDirac())
 
-run_ABINIT_scf(infile, @__DIR__)
+DFTK.run_abinit_scf(model, @__DIR__;
+                    abinitpseudos=abinitpseudos, pspmap=pspmap,
+                    Ecut=15, kgrid=[3, 3, 3], n_bands=10, tol=1e-10,
+                    iscf=3)  # Use Anderson mixing instead of minimisation
