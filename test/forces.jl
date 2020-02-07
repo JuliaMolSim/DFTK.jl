@@ -11,7 +11,6 @@ include("testcases.jl")
         Si = Element(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => pos]
         model = model_dft(silicon.lattice, :lda_xc_teter93, atoms)
-        kcoords, ksymops = bzmesh_ir_wedge(kgrid, lattice, atoms)
         basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 1, 2])
 
         n_bands_scf = Int(model.n_electrons / 2)
