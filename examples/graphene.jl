@@ -19,8 +19,7 @@ composition = [C => [[0.0, 0.0, 0.0], [0.33333333333, 0.66666666667, 0.0]]]
 
 model = model_dft(lattice, [:gga_x_pbe, :gga_c_pbe], composition...;
                   temperature=Tsmear, smearing=DFTK.Smearing.Gaussian())
-kcoords, ksymops = bzmesh_ir_wedge(kgrid, lattice, composition...)
-basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
+basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid)
 
 # Run SCF
 n_bands = 6
