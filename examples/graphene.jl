@@ -15,15 +15,15 @@ lattice = [4.659533614391621 -2.3297668071958104 0.0;
            0.0 4.035274479829987 0.0;
            0.0 0.0 15.117809010356462]
 C = Species(6, load_psp("hgh/pbe/c-q4"))
-composition = [C => [[0.0, 0.0, 0.0], [0.33333333333, 0.66666666667, 0.0]]]
+atoms = [C => [[0.0, 0.0, 0.0], [0.33333333333, 0.66666666667, 0.0]]]
 
-model = model_dft(lattice, [:gga_x_pbe, :gga_c_pbe], composition...;
+model = model_dft(lattice, [:gga_x_pbe, :gga_c_pbe], atoms;
                   temperature=Tsmear, smearing=DFTK.Smearing.Gaussian())
 basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid)
 
 # Run SCF
 n_bands = 6
-ham = Hamiltonian(basis, guess_density(basis, composition...))
+ham = Hamiltonian(basis, guess_density(basis))
 scfres = self_consistent_field(ham, n_bands)
 ham = scfres.ham
 

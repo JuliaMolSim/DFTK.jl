@@ -56,7 +56,7 @@ model = Model(lattice; n_electrons=n_electrons,
               xc=nonlinearity,
               spin_polarisation=:spinless # "spinless fermions"
               )
-basis = PlaneWaveBasis(model, Ecut, kgrid=[1, 1, 1])
+basis = PlaneWaveBasis(model, Ecut)
 
 # We solve the self-consistent equation with an SCF algorithm (which
 # is a pretty bad idea; implementing direct minimization is TODO)
