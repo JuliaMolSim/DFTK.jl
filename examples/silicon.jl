@@ -39,7 +39,7 @@ elseif calculation_model == :free
 else
     error("Unknown calculation_model $(calculation_model)")
 end
-basis = PlaneWaveBasis(model, Ecut, kgrid)
+basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid)
 
 # Run SCF. Note Silicon is a semiconductor, so we use an insulator
 # occupation scheme. This will cause warnings in some models, because
