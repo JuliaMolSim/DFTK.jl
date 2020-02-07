@@ -129,12 +129,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     )
 end
 function PlaneWaveBasis(model::Model, Ecut::Number;
-                        kspacing=2π * 0.04 / units.Ǎ, kgrid=nothing,
-                        enable_bzmesh_symmetry=true, kwargs...)
-    if kgrid === nothing
-        kgrid = kgrid_size_from_minimal_spacing(model.lattice, spacing=kspacing)
-    end
-
+                        kgrid=[1, 1, 1], enable_bzmesh_symmetry=true, kwargs...)
     if enable_bzmesh_symmetry
         kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, model.lattice, model.atoms)
     else

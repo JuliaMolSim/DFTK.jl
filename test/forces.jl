@@ -4,7 +4,6 @@ include("testcases.jl")
 
 @testset "Forces" begin
     function energy(pos)
-        kgrid = [2, 1, 2]        # k-Point grid
         Ecut = 5                # kinetic energy cutoff in Hartree
 
         # Setup silicon lattice
@@ -13,7 +12,7 @@ include("testcases.jl")
         atoms = [Si => pos]
         model = model_dft(silicon.lattice, :lda_xc_teter93, atoms)
         kcoords, ksymops = bzmesh_ir_wedge(kgrid, lattice, atoms)
-        basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
+        basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 1, 2])
 
         n_bands_scf = Int(model.n_electrons / 2)
         ham = Hamiltonian(basis, guess_density(basis))
