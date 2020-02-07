@@ -33,7 +33,7 @@ representing a mapping from `Element` objects to a list of positions in fraction
 coordinates. `tol_symmetry` is the tolerance used for searching for symmetry operations.
 """
 function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
-    all(isequal.(kgrid_size, (1, 1, 1))) && return bzmesh_uniform(kgrid_size)
+    all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size)
     spglib = pyimport("spglib")
 
     # Ask spglib for symmetry operations and for irreducible mesh

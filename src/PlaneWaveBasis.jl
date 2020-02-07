@@ -128,8 +128,13 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
         kweights, ksymops, fft_size, grids, opFFT, ipFFT, opIFFT, ipIFFT
     )
 end
-function PlaneWaveBasis(model::Model, Ecut::Number, kgrid_size::AbstractVector;
+function PlaneWaveBasis(model::Model, Ecut::Number;
+                        kspacing=2π * 0.04 / units.Ǎ, kgrid=nothing,
                         enable_bzmesh_symmetry=true, kwargs...)
+    if kgrid === nothing
+        kgrid = kgrid_size_from_minimal_spacing(model.lattice, spacing=kspacing)
+    end
+
     if enable_bzmesh_symmetry
         kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, model.lattice, model.atoms)
     else
