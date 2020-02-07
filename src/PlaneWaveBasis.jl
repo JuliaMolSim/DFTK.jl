@@ -131,9 +131,9 @@ end
 function PlaneWaveBasis(model::Model, Ecut::Number;
                         kgrid=[1, 1, 1], enable_bzmesh_symmetry=true, kwargs...)
     if enable_bzmesh_symmetry
-        kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, model.lattice, model.atoms)
+        kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.lattice, model.atoms)
     else
-        kcoords, ksymops = bzmesh_uniform(kgrid_size)
+        kcoords, ksymops = bzmesh_uniform(kgrid)
     end
     PlaneWaveBasis(model, Ecut, kcoords, ksymops; kwargs...)
 end
