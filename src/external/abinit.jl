@@ -63,15 +63,12 @@ Write the result to the `output` directory in ETSF Nanoquanta format
 and return the `EtsfFolder` object.
 """
 function run_abinit_scf(model::Model, outdir;
-                        kgrid, abinitpseudos, pspmap::Dict, Ecut, n_bands,
-                        tol=1e-6, kwargs...)
+                        kgrid, abinitpseudos, Ecut, n_bands, tol=1e-6, kwargs...)
     abilab = pyimport("abipy.abilab")
 
-    # Would be nice to generate the pseudofiles on the fly,
+    # Would be nice to generate the pseudofiles in ABINIT format on the fly,
     # but not for now. See the function psp10in  in 64_psp/m_psp_hgh.F90
     # for the parser, which is used in ABINIT for GTH and HGH files.
-    # If we at least able to parse ABINIT pseudofiles, we could get
-    # rid of the pspmap ...
     structure = abilab.Structure.as_structure(pymatgen_structure(model))
     pseudos = pyimport("abipy.data").pseudos(abinitpseudos...)
     infile = abilab.AbinitInput(structure=structure, pseudos=pseudos)
@@ -122,7 +119,15 @@ function run_abinit_scf(model::Model, outdir;
         error("Smearing $(model.smearing) not implemented.")
     end
 
-    !isempty(kwargs) && infile.set_vars(;kwargs...)
+    # Add pspmap
+    pspmap = Dict{Int, String}()
+    for (element, positions) in model.atoms
+        element.psp === nothing && continue
+        element.psp.identifier == "" && continue
+        pspmap[element.Znuc] = element.psp.identifier
+    end
     infile.pspmap = pspmap
+
+    !isempty(kwargs) && infile.set_vars(;kwargs...)
     run_abinit_scf(infile, outdir)
 end
