@@ -66,7 +66,7 @@ end
 end
 
 @testset "Smearing for metals" begin
-    testcase = manganese
+    testcase = magnesium
     Ecut = 5
     fft_size = [15, 15, 15]
     kgrid_size = [2, 3, 4]

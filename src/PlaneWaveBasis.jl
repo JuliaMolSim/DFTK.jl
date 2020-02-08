@@ -128,6 +128,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
         kweights, ksymops, fft_size, grids, opFFT, ipFFT, opIFFT, ipIFFT
     )
 end
+
 function PlaneWaveBasis(model::Model, Ecut::Number;
                         kgrid=[1, 1, 1], enable_bzmesh_symmetry=true, kwargs...)
     if enable_bzmesh_symmetry

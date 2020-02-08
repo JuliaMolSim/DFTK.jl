@@ -35,7 +35,7 @@ model = model_dft(lattice, [:gga_x_pbe, :gga_c_pbe], atoms;
 basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid)
 
 # Run SCF
-ham = Hamiltonian(basis, guess_density(basis, atoms))
+ham = Hamiltonian(basis, guess_density(basis))
 scfres = self_consistent_field(ham, n_bands)
 ham = scfres.ham
 

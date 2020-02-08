@@ -1,18 +1,20 @@
-include("../testcases.jl")
+include("../../testcases.jl")
+using PyCall
+using DFTK
+import DFTK.units: Ǎ
 
-structure = build_graphite_structure()
-pspfile = joinpath(abidata.__path__[end], "hgh_pseudos/6c.4.hgh")
+# Note: This is not exactly the minimum-energy structure
+a = 1.228Ǎ
+b = 2.12695839Ǎ
+c = 7Ǎ
+lattice = [[a a 0]; [-b b 0]; [0 0 c]]
+C = Element(6, load_psp("hgh/lda/c-q4"))
+atoms = [C => [[0, 0, 1/4], [0, 0, 3/4], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]]
 
-infile = abilab.AbinitInput(structure=structure, pseudos=abidata.pseudos(pspfile))
-infile.set_kmesh(ngkpt=[8, 8, 8], shiftk=[0, 0, 0])
-infile.set_vars(
-    ecut=20,        # Hartree
-    nband=12,       # Number of bands
-    tolvrs=1e-10,   # General tolerance settings
-    ixc=1,          # Teter LDA
-    occopt=6,       # Methfessel and Paxton, Hermite polynomial degree 2
-    tsmear=0.01,    # Hartree
-)
-infile.extra = Dict("pspmap" => Dict(6 => "hgh/lda/c-q4", ), )
-
-run_ABINIT_scf(infile, @__DIR__)
+model = model_dft(lattice, :lda_xc_teter93, atoms, temperature=0.01,
+                  smearing=Smearing.MethfesselPaxton2())
+abinitpseudos = [joinpath(pyimport("abipy.data").__path__[end], "hgh_pseudos/6c.4.hgh")]
+DFTK.run_abinit_scf(model, @__DIR__;
+                    abinitpseudos=abinitpseudos, pspmap=pspmap,
+                    Ecut=20, kgrid=[8, 8, 8], n_bands=12, tol=1e-10,
+                    iscf=3) # Use Anderson mixing instead of minimisation

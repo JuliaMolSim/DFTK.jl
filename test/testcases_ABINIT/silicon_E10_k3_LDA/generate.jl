@@ -1,16 +1,11 @@
-include("../testcases.jl")
+include("../../testcases.jl")
+using DFTK
 
-structure = build_silicon_structure()
-pspfile = joinpath(@__DIR__, "Si-q4-pade.abinit.hgh")
+atoms = [Element(14, load_psp("hgh/lda/si-q4")) => silicon.positions]
+model = model_dft(silicon.lattice, :lda_xc_teter93, atoms)
 
-infile = abilab.AbinitInput(structure=structure, pseudos=abidata.pseudos(pspfile))
-infile.set_kmesh(ngkpt=[3, 3, 3], shiftk=[0, 0, 0])
-infile.set_vars(
-    ecut=10,        # Hartree
-    nband=6,        # Number of bands
-    tolvrs=1e-10,   # General tolerance settings
-    ixc=1           # LDA_XC_TETER93
-)
-infile.extra = Dict("pspmap" => Dict(14 => "hgh/lda/si-q4", ), )
-
-run_ABINIT_scf(infile, @__DIR__)
+abinitpseudos = [joinpath(@__DIR__, "Si-q4-pade.abinit.hgh")]
+DFTK.run_abinit_scf(model, @__DIR__;
+                    abinitpseudos=abinitpseudos, pspmap=pspmap,
+                    Ecut=10, kgrid=[3, 3, 3], n_bands=6, tol=1e-10,
+                    iscf=3)  # Use Anderson mixing instead of minimisation

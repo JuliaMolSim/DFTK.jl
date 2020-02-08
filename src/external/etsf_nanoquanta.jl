@@ -2,14 +2,14 @@
 # ETSF Nanoquanta file format, for details see http://www.etsf.eu/fileformats/
 
 using NCDatasets
-using JLD
+using JSON
 
 struct EtsfFolder
     folder
     gsr
     den
     eig
-    extra
+    pspmap
 end
 
 """
@@ -24,7 +24,7 @@ function EtsfFolder(folder::AbstractString)
 
     den = nothing
     eig = nothing
-    extra = Dict{String, Any}()
+    pspmap = Dict{Int, Any}()
 
     if isfile(joinpath(folder, "out_DEN.nc"))
         den = Dataset(joinpath(folder, "out_DEN.nc"))
@@ -32,11 +32,12 @@ function EtsfFolder(folder::AbstractString)
     if isfile(joinpath(folder, "out_EIG.nc"))
         eig = Dataset(joinpath(folder, "out_EIG.nc"))
     end
-    if isfile(joinpath(folder, "extra.jld"))
-        extra = JLD.load(joinpath(folder, "extra.jld"))["extra"]
+    if isfile(joinpath(folder, "pspmap.json"))
+        dict = JSON.parsefile(joinpath(folder, "pspmap.json"))
+        pspmap = Dict{Int, Any}(parse(Int, k) => dict[k] for k in keys(dict))
     end
 
-    EtsfFolder(folder, gsr, den, eig, extra)
+    EtsfFolder(folder, gsr, den, eig, pspmap)
 end
 
 
@@ -56,7 +57,7 @@ function load_atoms(T, folder::EtsfFolder)
     n_species = length(folder.gsr["atomic_numbers"])
     for ispec in 1:n_species
         atnum = Int(folder.gsr["atomic_numbers"][ispec])
-        spec = Element(atnum, psp=load_psp(folder.extra["pspmap"][atnum]))
+        spec = Element(atnum, psp=load_psp(folder.pspmap[atnum]))
 
         mask_species = findall(isequal(ispec), folder.gsr["atom_species"][:])
         positions = folder.gsr["reduced_atom_positions"][:, mask_species]
@@ -94,9 +95,9 @@ function load_model(T, folder::EtsfFolder)
     if smearing == "none"
         # No smearing
     elseif smearing == "Fermi-Dirac"
-        smearing_function = DFTK.smearing_fermi_dirac
+        smearing_function = Smearing.FermiDirac()
     elseif smearing == "Methfessel and Paxton"
-        smearing_function = DFTK.smearing_methfessel_paxton_1
+        smearing_function = DFTK.MethfesselPaxton1()
     else
         error("Unknown Smearing scheme: $smearing")
     end

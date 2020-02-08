@@ -152,6 +152,7 @@ export load_model
 export load_density
 export load_atoms
 include("external/etsf_nanoquanta.jl")
+include("external/abinit.jl")
 
 export forces
 include("forces.jl")

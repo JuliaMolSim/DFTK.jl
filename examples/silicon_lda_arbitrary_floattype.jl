@@ -19,7 +19,7 @@ model = model_dft(Array{T}(lattice), [:lda_x, :lda_c_vwn], atoms)
 basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid)
 
 # Run SCF, note Silicon metal is an insulator, so no need for all bands here
-ham = Hamiltonian(basis, guess_density(basis, atoms))
+ham = Hamiltonian(basis, guess_density(basis))
 n_bands = 4
 scfres = self_consistent_field(ham, n_bands, tol=1e-6)
 

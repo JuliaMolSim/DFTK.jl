@@ -1,6 +1,6 @@
 function run_folder(folder)
     cd(folder) do
-        if !isfile("extra.jld") || !isfile("out_GSR.nc")
+        if !isfile("pspmap.json") || !isfile("out_GSR.nc")
             println("#\n#--  Running $folder\n#")
             include(joinpath(folder, "generate.jl"))
         end
