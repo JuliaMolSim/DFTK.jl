@@ -26,11 +26,15 @@ export Model
 export PlaneWaveBasis
 export determine_grid_size
 export G_vectors
+export r_vectors
 export Kpoint
 export G_to_r
 export G_to_r!
 export r_to_G
 export r_to_G!
+export model_atomic
+export model_DFT
+export model_LDA
 include("Model.jl")
 include("PlaneWaveBasis.jl")
 
@@ -54,17 +58,29 @@ export eval_psp_local_real
 export eval_psp_projection_radial
 include("pseudo/PspHgh.jl")
 
-export term_external
-export term_hartree
-export term_nonlocal
-export term_xc
-include("energy_term_operator.jl")
-include("Kinetic.jl")
-include("PotNonLocal.jl")
-include("terms/term_external.jl")
-include("terms/term_hartree.jl")
-include("terms/term_nonlocal.jl")
-include("terms/term_xc.jl")
+export Energies
+include("energies.jl")
+
+export Hamiltonian
+export HamiltonianBlock
+export energy_hamiltonian
+export ene_ops
+export forces
+export Kinetic
+export ExternalFromFourier
+export ExternalFromReal
+export AtomicLocal
+export PowerNonlinearity
+export Hartree
+export Xc
+export AtomicNonlocal
+export Ewald
+export PspCorrection
+export Entropy
+export Magnetic
+export energy_ewald
+export energy_psp_correction
+include("terms/terms.jl")
 
 export find_fermi_level
 export find_occupation
@@ -73,18 +89,6 @@ include("occupation.jl")
 
 export compute_density
 include("densities.jl")
-
-export Hamiltonian
-export HamiltonianBlock
-export update_hamiltonian
-export update_hamiltonian!
-export update_energies_hamiltonian!
-export update_energies!
-export update_energies
-export print_energies
-export kblock
-include("Hamiltonian.jl")
-include("HamiltonianBlock.jl")
 
 export PreconditionerTPA
 include("eigen/preconditioners.jl")
@@ -109,9 +113,6 @@ include("scf/self_consistent_field.jl")
 export direct_minimization
 include("scf/direct_minimization.jl")
 
-export energy_ewald
-include("energy_ewald.jl")
-
 #
 # Utilities
 #
@@ -125,13 +126,6 @@ include("guess_density.jl")
 export load_psp
 export list_psp
 include("pseudo/load_psp.jl")
-
-export energy_nuclear_psp_correction
-export energy_nuclear_ewald
-include("energy_nuclear.jl")
-
-export compute_entropy_term
-include("entropy.jl")
 
 export pymatgen_lattice
 export pymatgen_bandstructure
@@ -147,12 +141,6 @@ export LDOS
 export NOS
 include("postprocess/DOS.jl")
 
-export model_free_electron
-export model_dft
-export model_hcore
-export model_reduced_hf
-include("standard_models.jl")
-
 export EtsfFolder
 export load_lattice
 export load_basis
@@ -161,8 +149,5 @@ export load_density
 export load_atoms
 include("external/etsf_nanoquanta.jl")
 include("external/abinit.jl")
-
-export forces
-include("forces.jl")
 
 end # module DFTK

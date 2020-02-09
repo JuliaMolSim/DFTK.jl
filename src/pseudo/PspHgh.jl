@@ -121,8 +121,6 @@ end
 
 
 """
-    eval_psp_local_fourier(psp, ΔG)
-
 Evaluate the local part of the pseudopotential in reciprocal space.
 
 This function computes
@@ -132,18 +130,20 @@ V(q) = ∫_R^3 Vloc(r) e^{-iqr} dr
 [GTH98] (6) except they do it with plane waves normalized by 1/sqrt(Ω).
 """
 function eval_psp_local_fourier(psp::PspHgh, q::T) where {T <: Real}
-    Grsq::T = q^2 * psp.rloc^2
+    qsq = q^2
+    qrsq::T = qsq * psp.rloc^2
 
     4T(π) * (
-        - psp.Zion / q^2 * exp(-Grsq / 2)
-        + sqrt(T(π)/2) * psp.rloc^3 * exp(-Grsq / 2) * (
+        - psp.Zion / qsq * exp(-qrsq / 2)
+        + sqrt(T(π)/2) * psp.rloc^3 * exp(-qrsq / 2) * (
             + psp.cloc[1]
-            + psp.cloc[2] * (  3 -       Grsq                       )
-            + psp.cloc[3] * ( 15 -  10 * Grsq +      Grsq^2         )
-            + psp.cloc[4] * (105 - 105 * Grsq + 21 * Grsq^2 - Grsq^3)
+            + psp.cloc[2] * (  3 -       qrsq                       )
+            + psp.cloc[3] * ( 15 -  10 * qrsq +      qrsq^2         )
+            + psp.cloc[4] * (105 - 105 * qrsq + 21 * qrsq^2 - qrsq^3)
         )
     )
 end
+eval_psp_local_fourier(psp::PspHgh, q::AbstractVector) = eval_psp_local_fourier(psp, norm(q))
 
 
 """
@@ -163,48 +163,48 @@ function eval_psp_local_real(psp::PspHgh, r::T) where {T <: Real}
         + exp(-rrsq / 2) * (cloc[1] + cloc[2] * rrsq + cloc[3] * rrsq^2 + cloc[4] * rrsq^3)
     )
 end
-
+eval_psp_local_real(psp::PspHgh, r::AbstractVector) = eval_psp_local_real(psp, norm(r))
 
 """
-    eval_psp_projection_radial(psp::PspHgh, i, l, qsq::Number)
+    eval_psp_projection_radial(psp::PspHgh, i, l, q::Number)
 
 Evaluate the radial part of the `i`-th projector for angular momentum `l`
-at the reciprocal vector with modulus squared `qsq`.
+at the reciprocal vector with modulus q.
 
-p(qsq) = ∫_{R+} r^2 p(r) j_l(q r) dr
+p(q) = ∫_{R+} r^2 p(r) j_l(q r) dr
 
 [HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω).
 """
-function eval_psp_projection_radial(psp::PspHgh, i, l, qsq::T) where {T <: Real}
+function eval_psp_projection_radial(psp::PspHgh, i, l, q::T) where {T <: Real}
     @assert 0 <= l <= length(psp.rp) - 1
     @assert i > 0
+    qsq = q^2
     rp = psp.rp[l + 1]
-    q = sqrt.(qsq)
-    qrsq::T = qsq .* rp^2
-    common::T = 4T(π)^(5 / 4) * sqrt(2^(l + 1) * rp^(2 * l + 3)) * exp.(-qrsq / 2)
+    qrsq::T = qsq * rp^2
+    common::T = 4T(π)^(5 / 4) * sqrt(2^(l + 1) * rp^(2 * l + 3)) * exp(-qrsq / 2)
 
     if l == 0  # 4 * sqrt(2) * π^(5/4)
-        (i == 1) && return @. common * 1
+        (i == 1) && return common * 1
         # Note: In the next case the HGH paper has an error.
         #       The first 8 in equation (8) should not be under the sqrt-sign
         #       This is the right version (as shown in the GTH paper)
-        (i == 2) && return @. common * 2 / sqrt(T( 15)) * ( 3 -   qrsq         )
-        (i == 3) && return @. common * 4 / sqrt(T(105)) * (15 - 10qrsq + qrsq^2) / T(3)
+        (i == 2) && return common * 2 / sqrt(T( 15)) * ( 3 -   qrsq         )
+        (i == 3) && return common * 4 / sqrt(T(105)) * (15 - 10qrsq + qrsq^2) / T(3)
     end
 
     if l == 1  # 8 * π^(5/4)
-        (i == 1) && return @. common * 1 / sqrt(T(   3)) * q
-        (i == 2) && return @. common * 2 / sqrt(T( 105)) * q * ( 5 -   qrsq         )
-        (i == 3) && return @. common * 4 / sqrt(T(1155)) * q * (35 - 14qrsq + qrsq^2) / T(3)
+        (i == 1) && return common * 1 / sqrt(T(   3)) * q
+        (i == 2) && return common * 2 / sqrt(T( 105)) * q * ( 5 -   qrsq         )
+        (i == 3) && return common * 4 / sqrt(T(1155)) * q * (35 - 14qrsq + qrsq^2) / T(3)
     end
 
     if l == 2  # 8 * sqrt(2) * π^(5/4)
-        (i == 1) && return @. common * 1 / sqrt(T( 15)) * qsq
-        (i == 2) && return @. common * 2 / sqrt(T(105)) * qsq * (7 - qrsq) / T(3)
+        (i == 1) && return common * 1 / sqrt(T( 15)) * qsq
+        (i == 2) && return common * 2 / sqrt(T(105)) * qsq * (7 - qrsq) / T(3)
     end
 
     if l == 3  # 16 * π^(5/4)
-        (i == 1) && return @. common * 1 / sqrt(T(105)) * q * qsq
+        (i == 1) && return common * 1 / sqrt(T(105)) * q * qsq
     end
 end
 
@@ -222,6 +222,7 @@ function eval_psp_projection_radial_real(psp::PspHgh, i, l, r::T) where {T <: Re
     ired = (4i - 1) / T(2)
     sqrt(T(2)) * r^(l + 2(i - 1)) * exp(-r^2 / 2rp^2) / rp^(l + ired) / sqrt(gamma(l + ired))
 end
+eval_psp_projection_radial(psp::PspHgh, i, l, q::AbstractVector) = eval_psp_projection_radial(psp, i, l, norm(q))
 
 
 """
@@ -239,9 +240,12 @@ function eval_psp_energy_correction(T, psp::PspHgh, n_electrons)
     # By construction we need to compute the DC component of the difference
     # of the Coulomb potential (-Z/G^2 in Fourier space) and the pseudopotential
     # i.e. -Z/(ΔG)^2 -  eval_psp_local_fourier(psp, ΔG) for ΔG → 0. This is:
-    difference_DC = psp.Zion * psp.rloc^2 / 2 + sqrt(T(π)/2) * psp.rloc^3 * (
-        psp.cloc[1] + 3 * psp.cloc[2] + 15 * psp.cloc[3] + 105 * psp.cloc[4]
-    )
+    difference_DC = T(psp.Zion) * T(psp.rloc)^2 / 2 +
+                    sqrt(T(π)/2) * T(psp.rloc)^3 *
+                        (T(psp.cloc[1]) +
+                         3T(psp.cloc[2]) +
+                         15T(psp.cloc[3]) +
+                         105T(psp.cloc[4]))
 
     # Multiply by number of electrons and 4π (spherical Hankel prefactor)
     # to get energy per unit cell

@@ -1,9 +1,10 @@
 # Preconditioners
 # TODO explain a bit of theory, or refer to a source
+# TODO homogenize with the terms interface
 
-# A preconditioner is a type P that will get called as `Pk = P(ham, kpt)`
+# A preconditioner is a type P that will get called as `Pk = P(basis, kpt)`
 # and returns an object Pk that is expected to support
-# `ldiv!(Y, Pk, R)` or `ldiv!(Pk, R)`
+# ldiv! and mul! (both 2 and 3-arg versions)
 # Additionally if the solver supports adaptive preconditioning
 # it will call `precondprep!(P,X)` right before calling `ldiv!`
 
@@ -13,21 +14,30 @@ import LinearAlgebra.mul!
 precondprep!(P, X) = P  # This API is also used in Optim.jl
 
 """
+No preconditioning
+"""
+struct PreconditionerNone end
+PreconditionerNone(basis, kpt) = I
+# Piracy, remove once we drop support for julia 1.3
+LinearAlgebra.ldiv!(Y::AbstractVecOrMat, J::UniformScaling, B::AbstractVecOrMat) = (Y .= J.λ .\ B)
+
+
+"""
 (simplified version of) Tetter-Payne-Allan preconditioning
 ↑ M.P. Teter, M.C. Payne and D.C. Allan, Phys. Rev. B 40, 12255 (1989).
 """
 mutable struct PreconditionerTPA{T <: Real}
-    ham::Hamiltonian
+    basis::PlaneWaveBasis
     kpt::Kpoint{T}
     kin::Vector{T}  # kinetic energy of every G
     mean_kin::Union{Nothing, Vector{T}}  # mean kinetic energy of every band
 end
 
-function PreconditionerTPA(ham::Hamiltonian, kpt::Kpoint{T}) where T
-    kin = Vector{T}([sum(abs2, ham.basis.model.recip_lattice * (G + kpt.coordinate))
+function PreconditionerTPA(basis::PlaneWaveBasis, kpt::Kpoint{T}) where T
+    kin = Vector{T}([sum(abs2, basis.model.recip_lattice * (G + kpt.coordinate))
                      for G in G_vectors(kpt)] ./ 2)
-    @assert ham.basis.model.spin_polarisation in (:none, :collinear, :spinless)
-    PreconditionerTPA{T}(ham, kpt, kin, nothing)
+    @assert basis.model.spin_polarisation in (:none, :collinear, :spinless)
+    PreconditionerTPA{T}(basis, kpt, kin, nothing)
 end
 
 @views function ldiv!(Y, P::PreconditionerTPA, R)

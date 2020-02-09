@@ -16,9 +16,9 @@ include("testcases.jl")
             n_bands = div(testcase.n_electrons, 2) + 3
         end
 
-        model = model_dft(testcase.lattice, :lda_xc_teter93, atoms; kwargs...)
+        model = model_DFT(testcase.lattice, atoms, :lda_xc_teter93; kwargs...)
         basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
-        ham = Hamiltonian(basis, guess_density(basis, atoms))
+        ham = Hamiltonian(basis; ρ=guess_density(basis, atoms))
 
         res = diagonalise_all_kblocks(lobpcg_hyper, ham, n_bands; tol=tol)
         occ, εF = DFTK.find_occupation(basis, res.λ)
@@ -27,20 +27,20 @@ include("testcases.jl")
         basis, res.X, res.λ, ρnew.fourier
     end
 
-    function test_orthonormality(basis, Psi; tol=1e-8)
-        n_k = length(Psi)
-        n_states = size(Psi[1], 2)
+    function test_orthonormality(basis, ψ; tol=1e-8)
+        n_k = length(ψ)
+        n_states = size(ψ[1], 2)
         n_fft = prod(basis.fft_size)
 
         for (ik, kpt) in enumerate(basis.kpoints)
             # Fourier-transform the wave functions to real space
-            Ψk = Psi[ik]
-            Ψk_real = cat((DFTK.G_to_r(basis, kpt, Ψik) for Ψik in eachcol(Ψk))..., dims=4)
+            ψk = ψ[ik]
+            ψk_real = cat((DFTK.G_to_r(basis, kpt, ψik) for ψik in eachcol(ψk))..., dims=4)
 
-            T = real(eltype(Ψk_real))
-            Ψk_real_mat = reshape(Ψk_real, n_fft, n_states)
-            Ψk_real_overlap = adjoint(Ψk_real_mat) * Ψk_real_mat
-            nondiag = Ψk_real_overlap - I * (n_fft / basis.model.unit_cell_volume)
+            T = real(eltype(ψk_real))
+            ψk_real_mat = reshape(ψk_real, n_fft, n_states)
+            ψk_real_overlap = adjoint(ψk_real_mat) * ψk_real_mat
+            nondiag = ψk_real_overlap - I * (n_fft / basis.model.unit_cell_volume)
 
             @test maximum(abs.(nondiag)) < tol
         end
@@ -48,20 +48,20 @@ include("testcases.jl")
 
     function test_full_vs_irreducible(testcase, kgrid_size; Ecut=5, tol=1e-8, n_ignore=0)
         spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-        atoms = (spec => testcase.positions, )
+        atoms = [spec => testcase.positions]
 
         kfull, sym_full = bzmesh_uniform(kgrid_size)
         res = get_bands(testcase, kfull, sym_full, atoms;
                         Ecut=Ecut, tol=tol)
-        basis_full, Psi_full, orben_full, ρ_full = res
-        test_orthonormality(basis_full, Psi_full, tol=tol)
+        basis_full, ψ_full, eigenvalues_full, ρ_full = res
+        test_orthonormality(basis_full, ψ_full, tol=tol)
 
         kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, testcase.lattice, atoms)
         res = get_bands(testcase, kcoords, ksymops, atoms;
                         Ecut=Ecut, tol=tol)
-        basis_ir, Psi_ir, orben_ir, ρ_ir = res
+        basis_ir, ψ_ir, eigenvalues_ir, ρ_ir = res
 
-        test_orthonormality(basis_ir, Psi_ir, tol=tol)
+        test_orthonormality(basis_ir, ψ_ir, tol=tol)
 
         # Test density is equivalent
         @test maximum(abs.(ρ_ir - ρ_full)) < 10tol
@@ -78,8 +78,8 @@ include("testcases.jl")
                 # The largest few are ignored, because the results between the
                 # full kpoints and the reduced kpoints are sometimes a little unstable
                 # (since we actually use different guesses)
-                range = 1:length(orben_full[ikfull]) - n_ignore
-                @test orben_full[ikfull][range] ≈ orben_ir[ik][range] atol=tol
+                range = 1:length(eigenvalues_full[ikfull]) - n_ignore
+                @test eigenvalues_full[ikfull][range] ≈ eigenvalues_ir[ik][range] atol=tol
             end
         end
     end

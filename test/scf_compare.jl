@@ -10,12 +10,12 @@ include("testcases.jl")
     tol = 1e-7
 
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_dft(silicon.lattice, :lda_xc_teter93, [Si => silicon.positions])
+    model = model_DFT(silicon.lattice, [Si => silicon.positions], [:lda_xc_teter93])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     # Run nlsolve without guess
-    scfres = self_consistent_field(Hamiltonian(basis), n_bands, tol=tol,
-                                   solver=scf_nlsolve_solver())
+    ρ0 = 0*guess_density(basis)
+    scfres = self_consistent_field(basis; ρ=ρ0, tol=tol)
     ρ_nl = scfres.ρ.fourier
 
     # Run DM
@@ -29,15 +29,15 @@ include("testcases.jl")
     for solver in (scf_nlsolve_solver, scf_damping_solver, scf_anderson_solver,
                    scf_CROP_solver)
         println("\nTesting $solver")
-        scfres = self_consistent_field(Hamiltonian(basis, ρ0), n_bands, tol=tol, solver=solver())
+        scfres = self_consistent_field(basis; ρ=ρ0, solver=solver(), tol=tol)
         ρ_alg = scfres.ρ.fourier
         @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
     end
 
-    # Run other mixing with nlsolve (the others are too slow...)
+    # Run other mixing with default solver (the others are too slow...)
     for mixing in (KerkerMixing(), SimpleMixing(), SimpleMixing(.5))
         println("\n Testing $mixing")
-        scfres = self_consistent_field(Hamiltonian(basis, ρ0), n_bands, tol=tol, solver=scf_nlsolve_solver(), mixing=mixing)
+        scfres = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol)
         ρ_alg = scfres.ρ.fourier
         @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
     end

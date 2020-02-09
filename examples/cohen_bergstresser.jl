@@ -14,14 +14,16 @@ lattice = Si.lattice_constant / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 # Model, discretisation and Hamiltonian
-model = Model(Matrix{T}(lattice); atoms=atoms, external=term_external(atoms))
+model = Model(Matrix{T}(lattice); atoms=atoms, terms=[Kinetic(), AtomicLocal()])
 basis = PlaneWaveBasis(model, Ecut)
-ham = Hamiltonian(basis)
 
 # Diagonalise (at the Gamma point) to find Fermi level used in Cohen-Bergstresser,
 # then compute the bands
+ham = Hamiltonian(basis)
 eigres = diagonalise_all_kblocks(DFTK.lobpcg_hyper, ham, 6)
 εF = find_fermi_level(basis, eigres.λ)
-p = plot_bandstructure(ham, n_bands, εF=εF, kline_density=15)
+
+ρ0 = guess_density(basis)  # Just dummy, has no meaning in this model
+p = plot_bandstructure(basis, ρ0, n_bands, εF=εF, kline_density=15)
 ylims!(p, (-5, 6))
 display(p)

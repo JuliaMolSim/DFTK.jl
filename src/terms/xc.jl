@@ -1,4 +1,52 @@
+using Libxc
 include("../xc/xc_evaluate.jl")
+
+"""
+Exchange-correlation term, defined by a list of functionals and usually evaluated through libxc.
+"""
+struct Xc
+    functionals::Vector{Libxc.Functional}
+end
+Xc(functionals::Vector{Symbol}) = Xc(Functional.(functionals))
+Xc(functional::Symbol) = Xc([Functional(functional)])
+Xc(functionals::Symbol...) = Xc([functionals...])
+(xc::Xc)(basis) = XcTerm(basis, xc.functionals)
+
+struct XcTerm <: Term
+    basis::PlaneWaveBasis
+    functionals::Vector{Functional}
+end
+term_name(term::XcTerm) = "Xc"
+
+function ene_ops(term::XcTerm, ψ, occ; ρ, kwargs...)
+    basis = term.basis
+
+    T = eltype(basis)
+    model = basis.model
+
+    # Take derivatives of the density if needed.
+    max_ρ_derivs = any(xc.family == Libxc.family_gga for xc in term.functionals) ? 1 : 0
+    density = DensityDerivatives(basis, max_ρ_derivs, ρ)
+
+    # Initialisation
+    potential = zeros(T, basis.fft_size)
+    Epp = zeros(T, basis.fft_size) # Energy per unit particle
+    E = zero(T)
+
+    for xc in term.functionals
+        # *adds* the potential for this functional to `potential` and *sets* the
+        # energy per unit particle in `Epp`.
+        eval_xc_!(basis, xc, Val(xc.family), Epp, potential, density)
+
+        dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
+        E += sum(Epp .* ρ.real) * dVol
+    end
+    E, potential
+
+    ops = [RealSpaceMultiplication(basis, kpoint, potential) for kpoint in basis.kpoints]
+    (E=E, ops=ops)
+end
+
 
 # Functionality for building the XC potential term and constructing the builder itself.
 
@@ -139,66 +187,4 @@ function eval_xc_!(basis, xc, ::Val{Libxc.family_gga}, Epp, potential, density)
 end
 function eval_xc_!(basis, xc, family, Epp, potential, density)
     error("Functional family $(string(xc.family)) not implemented.")
-end
-
-# Term structure, representing the exchange-correlation term
-struct TermXc
-    functionals         # Functional or functionals to be used
-    supersampling::Int  # Supersampling for the XC grid
-end
-
-"""
-Todo docme
-"""
-function (term::TermXc)(basis::PlaneWaveBasis, energy::Union{Ref,Nothing}, potential;
-                        ρ=nothing, kwargs...)
-    @assert ρ !== nothing
-    T = eltype(ρ)
-    model = basis.model
-
-    # Take derivatives of the density if needed.
-    max_ρ_derivs = 0
-    if any(xc.family == Libxc.family_gga for xc in term.functionals)
-        max_ρ_derivs = 1
-    end
-    density = DensityDerivatives(basis, max_ρ_derivs, ρ)
-
-    # Initialisation
-    potential !== nothing && (potential .= 0)
-    Epp = nothing  # Energy per unit particle
-    if energy !== nothing
-        Epp = similar(density.ρ)
-        energy[] = 0
-    end
-
-    for xc in term.functionals
-        # *adds* the potential for this functional to `potential` and *sets* the
-        # energy per unit particle in `Epp`.
-        eval_xc_!(basis, xc, Val(xc.family), Epp, potential, density)
-
-        if Epp !== nothing
-            # Factor (1/2) to avoid double counting of electrons
-            # Factor 2 because α and β operators are identical for spin-restricted case
-            dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
-            energy[] += 2 * sum(Epp .* density.ρ) * dVol / 2
-        end
-    end
-    energy, potential
-end
-
-"""
-    term_xc(functionals; supersampling=2)
-
-Construct an exchange-correlation term. `functionals` is a Libxc.jl `Functional`
-objects to be used or its symbol or a list of such objects.
-`supersampling` specifies the supersampling factor for the exchange-correlation
-integration grid.
-"""
-function term_xc(functionals...; supersampling=2)
-    @assert(supersampling == 2, "Only the case supersampling == 2 is implemented")
-    # TODO Actually not even that ... we assume the grid to use is the density grid
-
-    make_functional(func::Functional) = func
-    make_functional(symb::Symbol) = Functional(symb)
-    TermXc([make_functional(f) for f in functionals], supersampling)
 end

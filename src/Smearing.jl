@@ -1,4 +1,4 @@
-# Implemented smearing functions
+# Smearing functions
 
 # Ref for the equations:
 #    - M. Methfessel, A. T. Paxton 1989

@@ -1,6 +1,5 @@
 using Test
-using DFTK: model_dft, PlaneWaveBasis, guess_density, ElementPsp, load_psp
-using DFTK: update_energies, Hamiltonian, lobpcg_hyper
+using DFTK
 
 include("testcases.jl")
 
@@ -14,26 +13,54 @@ include("testcases.jl")
     fft_size = [27, 27, 27]
 
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_dft(silicon.lattice, [:lda_x, :lda_c_vwn], [Si => silicon.positions])
+    model = model_DFT(silicon.lattice, [Si => silicon.positions], [:lda_x, :lda_c_vwn])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     ρ0 = guess_density(basis, [Si => silicon.positions])
-    ham = Hamiltonian(basis, ρ0)
+    E, H = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
 
-    e0_Hartree, _ = model.build_hartree(basis, Ref(0.0), nothing; ρ=ρ0)
-    e0_XC, _ = model.build_xc(basis, Ref(0.0), nothing; ρ=ρ0)
-    @test e0_Hartree[] ≈  0.3527293727197568  atol=5e-8
-    @test e0_XC[]      ≈ -2.3033165870558165  atol=5e-8
+    @test E["Hartree"] ≈  0.3527293727197568  atol=5e-8
+    @test E["Xc"]      ≈ -2.3033165870558165  atol=5e-8
 
     # Run one diagonalisation and compute energies
-    res = diagonalise_all_kblocks(lobpcg_hyper, ham, n_bands, tol=1e-9)
+    res = diagonalise_all_kblocks(lobpcg_hyper, H, n_bands, tol=1e-9)
     occupation = [[2.0, 2.0, 2.0, 2.0, 0.0, 0.0, 0.0, 0.0]
-                  for i in 1:length(silicon.kcoords)]
-    energies = update_energies(ham, res.X, occupation)
+                  for i in 1:length(basis.kpoints)]
+    ρnew = compute_density(H.basis, res.X, occupation)
+    E, H = energy_hamiltonian(basis, res.X, occupation; ρ=ρnew)
 
-    @test energies[:Kinetic]     ≈  3.291847293270256   atol=5e-8
-    @test energies[:PotExternal] ≈ -2.367978663117999   atol=5e-8
-    @test energies[:PotNonLocal] ≈  1.6527493682542034  atol=5e-8
-    @test energies[:PotHartree]  ≈  0.6477025793366571  atol=5e-8
-    @test energies[:PotXC]       ≈ -2.4375329416161162  atol=5e-8
+    @test E["Kinetic"]        ≈  3.291847293270256   atol=5e-8
+    @test E["AtomicLocal"]    ≈ -2.367978663117999   atol=5e-8
+    @test E["AtomicNonlocal"] ≈  1.6527493682542034  atol=5e-8
+    @test E["Hartree"]        ≈  0.6477025793366571  atol=5e-8
+    @test E["Xc"]             ≈ -2.4375329416161162  atol=5e-8
+    @test E["Ewald"]          ≈ -8.397893578467201   atol=5e-8
+    @test E["PspCorrection"]  ≈ -0.294622067031369   atol=5e-8
+
+
+    # Now we have a reasonable set of ψ, we make up a crazy model, and check the energies
+    model = model_DFT(silicon.lattice,
+                      [Si => silicon.positions],
+                      [:gga_x_pbe, :gga_c_pbe],
+                      extra_terms=[ExternalFromReal(X -> cos(1.2*(X[1]+X[3]))),
+                                   ExternalFromFourier(X -> cos(1.3*(X[1]+X[3]))),
+                                   PowerNonlinearity(1.2, 2.4),
+                                   Magnetic(X -> [1, cos(1.4*X[2]), exp(X[3])])]
+                      )
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    ρ = from_real(basis, ρnew.real)
+
+    E, H = energy_hamiltonian(basis, res.X, occupation; ρ=ρ)
+
+    @test E["Kinetic"]             ≈  3.291847293270256   atol=5e-8
+    @test E["AtomicLocal"]         ≈ -2.367978663117999   atol=5e-8
+    @test E["AtomicNonlocal"]      ≈  1.6527493682542034  atol=5e-8
+    @test E["Hartree"]             ≈  0.6477025793366571  atol=5e-8
+    @test E["Xc"]                  ≈  -2.456212919662419  atol=5e-8
+    @test E["Ewald"]               ≈ -8.397893578467201   atol=5e-8
+    @test E["PspCorrection"]       ≈ -0.294622067031369   atol=5e-8
+    @test E["ExternalFromReal"]    ≈  0.139216686139006   atol=5e-8
+    @test E["ExternalFromFourier"] ≈  0.057896835498415   atol=5e-8
+    @test E["PowerNonlinearity"]   ≈  0.142649748399169   atol=5e-8
+    @test E["Magnetic"]            ≈ -0.447218096875610   atol=1e-7
 end

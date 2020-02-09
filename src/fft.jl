@@ -2,6 +2,77 @@ import FFTW
 import Primes
 include("FourierTransforms.jl/FourierTransforms.jl")
 
+@doc raw"""
+Determine the minimal grid size for the cubic basis set to be able to
+represent product of orbitals (with the default `supersampling=2`).
+
+Optionally optimise the grid afterwards for the FFT procedure by
+ensuring factorisation into small primes.
+
+The function will determine the smallest cube containing the wave vectors
+ ``|G|^2/2 \leq E_\text{cut} ⋅ \text{supersampling}^2``.
+For an exact representation of the density resulting from wave functions
+represented in the spherical basis sets, `supersampling` should be at least `2`.
+"""
+function determine_grid_size(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=1e-8,
+                             ensure_smallprimes=true) where T
+    cutoff_Gsq = 2 * supersampling^2 * Ecut
+    Gmax = [norm(lattice[:, i]) / 2T(π) * sqrt(cutoff_Gsq) for i in 1:3]
+
+    # Round up, unless exactly zero (in which case keep it zero in
+    # order to just have one G vector for 1D or 2D systems)
+    for i = 1:3
+        if Gmax[i] != 0
+            Gmax[i] = ceil.(Int, Gmax[i] .- tol)
+        end
+    end
+
+    # Optimise FFT grid size: Make sure the number factorises in small primes only
+    if ensure_smallprimes
+        Vec3([nextprod([2, 3, 5], 2gs + 1) for gs in Gmax])
+    else
+        Vec3([2gs + 1 for gs in Gmax])
+    end
+end
+function determine_grid_size(model::Model, Ecut; kwargs...)
+    determine_grid_size(model.lattice, Ecut; kwargs...)
+end
+
+
+"""
+Plan a FFT of type `T` and size `fft_size`, spending some time on finding an optimal algorithm.
+Both an inplace and an out-of-place FFT plan are returned.
+"""
+function build_fft_plans(T, fft_size)
+    tmp = Array{Complex{T}}(undef, fft_size...)
+    if T == Float64
+        ipFFT = FFTW.plan_fft!(tmp, flags=FFTW.MEASURE)
+        opFFT = FFTW.plan_fft(tmp, flags=FFTW.MEASURE)
+        return ipFFT, opFFT
+    elseif T == Float32
+        # TODO For Float32 there are issues with aligned FFTW plans.
+        #      Using unaligned FFTW plans is discouraged, but we do it anyways
+        #      here as a quick fix. We should reconsider this in favour of using
+        #      a parallel wisdom anyways in the future.
+        ipFFT = FFTW.plan_fft!(tmp, flags=FFTW.MEASURE | FFTW.UNALIGNED)
+        opFFT = FFTW.plan_fft(tmp, flags=FFTW.MEASURE | FFTW.UNALIGNED)
+        return ipFFT, opFFT
+    end
+
+    # Fall back to FourierTransforms
+    # Note: FourierTransforms has no support for in-place FFTs at the moment
+    # ... also it's extension to multi-dimensional arrays is broken and
+    #     the algo only works for some cases
+    @assert all(is_fft_size_ok_for_generic.(fft_size))
+
+    # opFFT = FourierTransforms.plan_fft(tmp)   # TODO When multidim works
+    opFFT = generic_plan_fft(tmp)               # Fallback for now
+    # TODO Can be cut once FourierTransforms supports AbstractFFTs properly
+    ipFFT = DummyInplace{typeof(opFFT)}(opFFT)
+
+    ipFFT, opFFT
+end
+
 # Utility functions to setup FFTs for DFTK. Most functions in here
 # are needed to correct for the fact that FourierTransforms is not
 # yet fully compliant with the AbstractFFTs interface and has still
@@ -75,76 +146,3 @@ import Base: *, \, length
 *(p::DummyInplace, X) = p.fft * X
 \(p::DummyInplace, X) = p.fft \ X
 length(p::DummyInplace) = length(p.fft)
-
-@doc raw"""
-    determine_grid_size(lattice, Ecut; supersampling=2)
-
-Determine the minimal grid size for the fourier grid ``C_ρ`` subject to the
-kinetic energy cutoff `Ecut` for the wave function and a density  `supersampling` factor.
-Optimise the grid afterwards for the FFT procedure by ensuring factorisation into
-small primes.
-The function will determine the smallest cube ``C_ρ`` containing the basis ``B_ρ``,
-i.e. the wave vectors ``|G|^2/2 \leq E_\text{cut} ⋅ \text{supersampling}^2``.
-For an exact representation of the density resulting from wave functions
-represented in the basis ``B_k = \{G : |G + k|^2/2 \leq E_\text{cut}\}``,
-`supersampling` should be at least `2`.
-"""
-function determine_grid_size(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=1e-8,
-                             ensure_smallprimes=true) where T
-    # See the documentation about the grids for details on the construction of C_ρ
-    cutoff_Gsq = 2 * supersampling^2 * Ecut
-    Gmax = [norm(lattice[:, i]) / 2T(π) * sqrt(cutoff_Gsq) for i in 1:3]
-
-    # Round up, unless exactly zero (in which case keep it zero in
-    # order to just have one G vector for 1D or 2D systems)
-    for i = 1:3
-        if Gmax[i] != 0
-            Gmax[i] = ceil.(Int, Gmax[i] .- tol)
-        end
-    end
-
-    # Optimise FFT grid size: Make sure the number factorises in small primes only
-    if ensure_smallprimes
-        Vec3([nextprod([2, 3, 5], 2gs + 1) for gs in Gmax])
-    else
-        Vec3([2gs + 1 for gs in Gmax])
-    end
-end
-function determine_grid_size(model::Model, Ecut; kwargs...)
-    determine_grid_size(model.lattice, Ecut; kwargs...)
-end
-
-
-"""
-Plan a FFT of type `T` and size `fft_size`, spending some time on finding an optimal algorithm.
-Both an inplace and an out-of-place FFT plan are returned.
-"""
-function build_fft_plans(T, fft_size)
-    tmp = Array{Complex{T}}(undef, fft_size...)
-    if T == Float64
-        ipFFT = FFTW.plan_fft!(tmp, flags=FFTW.MEASURE)
-        opFFT = FFTW.plan_fft(tmp, flags=FFTW.MEASURE)
-        return ipFFT, opFFT
-    elseif T == Float32
-        # TODO For Float32 there are issues with aligned FFTW plans.
-        #      Using unaligned FFTW plans is discouraged, but we do it anyways
-        #      here as a quick fix. We should reconsider this in favour of using
-        #      a parallel wisdom anyways in the future.
-        ipFFT = FFTW.plan_fft!(tmp, flags=FFTW.MEASURE | FFTW.UNALIGNED)
-        opFFT = FFTW.plan_fft(tmp, flags=FFTW.MEASURE | FFTW.UNALIGNED)
-        return ipFFT, opFFT
-    end
-
-    # Fall back to FourierTransforms
-    # Note: FourierTransforms has no support for in-place FFTs at the moment
-    # ... also it's extension to multi-dimensional arrays is broken and
-    #     the algo only works for some cases
-    @assert all(is_fft_size_ok_for_generic.(fft_size))
-
-    # opFFT = FourierTransforms.plan_fft(tmp)   # TODO When multidim works
-    opFFT = generic_plan_fft(tmp)               # Fallback for now
-    # TODO Can be cut once FourierTransforms supports AbstractFFTs properly
-    ipFFT = DummyInplace{typeof(opFFT)}(opFFT)
-
-    ipFFT, opFFT
-end

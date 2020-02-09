@@ -47,29 +47,30 @@ end
 
     # Test nonlocal part evaluation
     qsq = [0, 0.01, 0.1, 0.3, 1, 10]
-    @test map(q -> eval_psp_projection_radial(psp, 1, 0, q), qsq) ≈ [
+    qnorms = sqrt.([0, 0.01, 0.1, 0.3, 1, 10])
+    @test map(q -> eval_psp_projection_radial(psp, 1, 0, q), qnorms) ≈ [
         6.503085484692629, 6.497277328372439, 6.445236803354619,
         6.331078654802208, 5.947214691896995, 2.661098803299718,
     ]
-    @test map(q -> eval_psp_projection_radial(psp, 2, 0, q), qsq) ≈ [
+    @test map(q -> eval_psp_projection_radial(psp, 2, 0, q), qnorms) ≈ [
         10.074536712471094, 10.059542796942894, 9.925438587886482,
         9.632787375976731, 8.664551612201326, 1.666783598475508
     ]
-    @test map(q -> eval_psp_projection_radial(psp, 3, 0, q), qsq) ≈ [
+    @test map(q -> eval_psp_projection_radial(psp, 3, 0, q), qnorms) ≈ [
         12.692723197804167, 12.666281142268161, 12.430208137727789,
         11.917710279480355, 10.249557409656868, 0.11180299205602792
     ]
 
-    @test map(q -> eval_psp_projection_radial(psp, 1, 1, q), qsq) ≈ [
+    @test map(q -> eval_psp_projection_radial(psp, 1, 1, q), qnorms) ≈ [
         0.0, 0.3149163627204332, 0.9853983576555614,
         1.667197861646941, 2.8039993470553535, 3.0863036233824626,
     ]
-    @test map(q -> eval_psp_projection_radial(psp, 2, 1, q), qsq) ≈ [
+    @test map(q -> eval_psp_projection_radial(psp, 2, 1, q), qnorms) ≈ [
         0.0, 0.5320561290084422, 1.657814585041487,
         2.778424038171201, 4.517311337690638, 2.7698566262467117,
     ]
 
-    @test map(q -> eval_psp_projection_radial(psp, 3, 1, q), qsq) ≈ [
+    @test map(q -> eval_psp_projection_radial(psp, 3, 1, q), qnorms) ≈ [
          0.0, 0.7482799478933317, 2.321676914155303,
          3.8541542745249706, 6.053770711942623, 1.6078748819430986,
     ]
@@ -95,7 +96,7 @@ end
             l > length(psp.rp) - 1 && continue  # Overshooting available AM
             for q in [0.01, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 100]
                 reference = sum(x -> integrand(psp, i, l, q, x) * dx, 0:dx:xmax)
-                @test reference ≈ eval_psp_projection_radial(psp, i, l, q^2) atol=5e-15 rtol=1e-8
+                @test reference ≈ eval_psp_projection_radial(psp, i, l, q) atol=5e-15 rtol=1e-8
             end
         end
     end

@@ -4,13 +4,12 @@ include("../external/pymatgen.jl")
 
 # Functionality for computing band structures, mostly using pymatgen
 
-function high_symmetry_kpath(basis; kline_density=20)
+function high_symmetry_kpath(model; kline_density=20)
     bandstructure = pyimport("pymatgen.symmetry.bandstructure")
-    pystructure = pymatgen_structure(basis.model.lattice, basis.model.atoms)
+    pystructure = pymatgen_structure(model.lattice, model.atoms)
     symm_kpath = bandstructure.HighSymmKpath(pystructure)
 
     kcoords, labels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=false)
-    kpoints = build_kpoints(basis, kcoords)
 
     labels_dict = Dict{String, Vector{eltype(kcoords[1])}}()
     for (ik, k) in enumerate(kcoords)
@@ -19,18 +18,23 @@ function high_symmetry_kpath(basis; kline_density=20)
         end
     end
 
-    (kpoints=kpoints, klabels=labels_dict, kpath=symm_kpath.kpath["path"])
+    (kcoords=kcoords, klabels=labels_dict, kpath=symm_kpath.kpath["path"])
 end
 
-function compute_bands(ham::Hamiltonian, kpoints, n_bands;
+function compute_bands(basis, ρ, kcoords, n_bands;
                        eigensolver=lobpcg_hyper, tol=1e-5, show_progress=true, kwargs...)
+    # Create basis with new kpoints, where we cheat by using any symmetry operations.
+    ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)]
+    new_basis = PlaneWaveBasis(basis, kcoords, ksymops)
+    ham = Hamiltonian(new_basis; ρ=ρ)
+
     band_data = diagonalise_all_kblocks(eigensolver, ham, n_bands + 3;
                                         kpoints=kpoints, n_conv_check=n_bands,
                                         interpolate_kpoints=false, tol=tol,
                                         show_progress=show_progress, kwargs...)
-    band_data.converged || (@warn "LOBPCG not converged" iterations=eigres.iterations)
+    band_data.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
-    select_eigenpairs_all_kblocks(band_data, 1:n_bands)
+    new_basis, select_eigenpairs_all_kblocks(band_data, 1:n_bands)
 end
 
 function plot_band_data(basis, band_data; εF=nothing,
@@ -92,15 +96,16 @@ end
 
 
 # TODO This is the top-level function, which should be documented
-function plot_bandstructure(ham::Hamiltonian, n_bands;
+function plot_bandstructure(basis, ρ, n_bands;
                             εF=nothing, kline_density=20, unit=:eV, kwargs...)
     # Band structure calculation along high-symmetry path
-    kpoints, klabels, kpath = high_symmetry_kpath(ham.basis; kline_density=kline_density)
+    kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density=kline_density)
     println("Computing bands along kpath:")
     println("       ", join(join.(kpath, " -> "), "  and  "))
-    band_data = compute_bands(ham, kpoints, n_bands; kwargs...)
+    band_data = compute_bands(basis, ρ, kcoords, n_bands; kwargs...)
     plot_band_data(ham.basis, band_data, εF=εF, klabels=klabels, unit=unit)
 end
 function plot_bandstructure(scfres, n_bands; kwargs...)
-    plot_bandstructure(scfres.ham, n_bands; εF=scfres.εF, kwargs...)
+    # Convenience wrapper for scfres named tuples
+    plot_bandstructure(scfres.ham.basis, scfres.ρ, n_bands; εF=scfres.εF, kwargs...)
 end

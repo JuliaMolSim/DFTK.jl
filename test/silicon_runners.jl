@@ -31,22 +31,21 @@ function run_silicon_redHF(T; Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, 
     n_bands = length(ref_redHF[1])
     fft_size = grid_size * ones(3)
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_reduced_hf(Array{T}(silicon.lattice), [Si => silicon.positions],
-                             temperature=0.05)
+    model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [];
+                      temperature=0.05)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-    ham = Hamiltonian(basis, guess_density(basis, [Si => silicon.positions]))
 
-    scfres = self_consistent_field(ham, n_bands, tol=scf_tol)
+    scfres = self_consistent_field(basis, tol=scf_tol, n_bands=n_bands)
 
     for ik in 1:length(silicon.kcoords)
-        @test eltype(scfres.orben[ik]) == T
-        @test eltype(scfres.Psi[ik]) == Complex{T}
-        println(ik, "  ", abs.(ref_redHF[ik] - scfres.orben[ik]))
+        @test eltype(scfres.eigenvalues[ik]) == T
+        @test eltype(scfres.ψ[ik]) == Complex{T}
+        println(ik, "  ", abs.(ref_redHF[ik] - scfres.eigenvalues[ik][1:n_bands]))
     end
     for ik in 1:length(silicon.kcoords)
         # Ignore last few bands, because these eigenvalues are hardest to converge
         # and typically a bit random and unstable in the LOBPCG
-        diff = abs.(ref_redHF[ik] - scfres.orben[ik])
+        diff = abs.(ref_redHF[ik] - scfres.eigenvalues[ik][1:n_bands])
         @test maximum(diff[1:n_bands - n_ignored]) < test_tol
     end
 end
@@ -70,21 +69,20 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
 
     fft_size = grid_size * ones(3)
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_dft(Array{T}(silicon.lattice), [:lda_x, :lda_c_vwn], [Si => silicon.positions])
+    model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [:lda_x, :lda_c_vwn])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-    ham = Hamiltonian(basis, guess_density(basis, [Si => silicon.positions]))
 
-    scfres = self_consistent_field(ham, n_bands, tol=scf_tol,
+    scfres = self_consistent_field(basis; n_bands=n_bands, tol=scf_tol,
                                    eigensolver=lobpcg_hyper, n_ep_extra=n_noconv_check, diagtol=lobpcg_tol)
 
     for ik in 1:length(silicon.kcoords)
-        @test eltype(scfres.orben[ik]) == T
-        @test eltype(scfres.Psi[ik]) == Complex{T}
+        @test eltype(scfres.eigenvalues[ik]) == T
+        @test eltype(scfres.ψ[ik]) == Complex{T}
     end
     for ik in 1:length(silicon.kcoords)
         # Ignore last few bands, because these eigenvalues are hardest to converge
         # and typically a bit random and unstable in the LOBPCG
-        @test maximum(ref_lda[ik][1:n_bands - n_ignored] - scfres.orben[ik][1:n_bands - n_ignored]) < test_tol
+        @test maximum(ref_lda[ik][1:n_bands - n_ignored] - scfres.eigenvalues[ik][1:n_bands - n_ignored]) < test_tol
     end
 
     energies = scfres.energies
@@ -114,21 +112,20 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
 
     fft_size = grid_size * ones(3)
     Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/pbe/si-q4"))
-    model = model_dft(Array{T}(silicon.lattice), [:gga_x_pbe, :gga_c_pbe], [Si => silicon.positions])
+    model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [:gga_x_pbe, :gga_c_pbe])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-    ham = Hamiltonian(basis, guess_density(basis, [Si => silicon.positions]))
 
-    scfres = self_consistent_field(ham, n_bands, tol=scf_tol)
+    scfres = self_consistent_field(basis; tol=scf_tol, n_bands=n_bands)
 
     for ik in 1:length(silicon.kcoords)
-        @test eltype(scfres.orben[ik]) == T
-        @test eltype(scfres.Psi[ik]) == Complex{T}
-        println(ik, "  ", abs.(ref_pbe[ik] - scfres.orben[ik]))
+        @test eltype(scfres.eigenvalues[ik]) == T
+        @test eltype(scfres.ψ[ik]) == Complex{T}
+        println(ik, "  ", abs.(ref_pbe[ik] - scfres.eigenvalues[ik][1:n_bands]))
     end
     for ik in 1:length(silicon.kcoords)
         # Ignore last few bands, because these eigenvalues are hardest to converge
         # and typically a bit random and unstable in the LOBPCG
-        diff = abs.(ref_pbe[ik] - scfres.orben[ik])
+        diff = abs.(ref_pbe[ik] - scfres.eigenvalues[ik][1:n_bands])
         @test maximum(diff[1:n_bands - n_ignored]) < test_tol
     end
 

@@ -15,14 +15,11 @@ Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 # Setup LDA model and discretisation
-model = model_dft(Array{T}(lattice), [:lda_x, :lda_c_vwn], atoms)
+model = model_DFT(Array{T}(lattice), atoms, [:lda_x, :lda_c_vwn])
 basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid)
 
-# Run SCF, note Silicon metal is an insulator, so no need for all bands here
-ham = Hamiltonian(basis, guess_density(basis))
-n_bands = 4
-scfres = self_consistent_field(ham, n_bands, tol=1e-6)
+scfres = self_consistent_field(basis, tol=1e-6)
 
 # Print obtained energies
-print_energies(scfres.energies)
-@assert eltype(sum(values(scfres.energies))) == T
+display(scfres.energies)
+@assert eltype(sum(scfres.energies)) == T

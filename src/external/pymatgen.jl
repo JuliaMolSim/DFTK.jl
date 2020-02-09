@@ -39,7 +39,7 @@ function pymatgen_bandstructure(basis, band_data, εF, klabels)
     # This assumes no spin polarisation
     @assert basis.model.spin_polarisation in (:none, :spinless)
 
-    kpoints = band_data.kpoints
+    kpoints = basis.kpoints
     n_bands = length(band_data.λ[1])
     eigenvals_spin_up = Matrix{eltype(band_data.λ[1])}(undef, n_bands, length(kpoints))
     for (ik, λs) in enumerate(band_data.λ)

@@ -3,6 +3,8 @@
 DFTK is a `julia` package of for playing with
 plane-wave density-functional theory algorithms.
 
+TODO the notations in this file are out of date. Look at the examples or at the source code for updated documentation.
+
 ## Terminology and Definitions
 The general terminology used throughout the documentation
 of the plane-wave aspects of the code.
@@ -116,77 +118,3 @@ the above basis sets define corresponding real-space grids as well:
 - The grid $B^\ast_\text{XC}$, the **exchange-correlation integration grid**,
   i.e. the grid used for convolutions of the exchange-correlation functional
   terms with the density or derivatives of it. It is the iFFT-dual of $B_\text{XC}$.
-
-## Core
-
-```@docs
-PlaneWaveBasis
-set_kpoints!
-basis_ρ
-DFTK.G_to_r!
-DFTK.r_to_G!
-PotLocal
-PotNonLocal
-Kinetic
-Hamiltonian
-apply_hamiltonian!
-DFTK.apply_fourier!
-DFTK.apply_real!
-DFTK.update_potential!
-DFTK.update_energies_potential!
-DFTK.empty_potential
-PreconditionerKinetic
-DFTK.lobpcg
-DFTK.lobpcg_qr
-DFTK.lobpcg_scipy
-DFTK.lobpcg_itsolve
-DFTK.occupation_zero_temperature
-self_consistent_field
-DFTK.scf_nlsolve
-DFTK.scf_damped
-PspHgh
-eval_psp_projection_radial
-eval_psp_local_real
-eval_psp_local_fourier
-compute_density
-```
-
-## Utilities
-```@docs
-Element
-determine_grid_size
-build_local_potential
-build_nonlocal_projectors
-kblock_as_matrix
-load_psp
-guess_density
-guess_hcore
-```
-
-
-## Definition of builder functions
-```
-Definition of builder functions
-   builder(basis::PlaneWaveBasis, energy::Ref, potential; ρ=nothing, Ψ=nothing, kwargs...)
-       energy       nothing or reference
-       potential    nothing or Array or data structure
-
-   energy !== nothing
-       Reference updates with new energy value
-   potential !== nothing
-       Potential array update with new potential values
-       or data structure to use for updating potential data
-   energy !== nothing and potential !== nothing
-       compute potential values and energies and return energy, potential
-       May reuse the storage of the `potential` object
-
-Note: - It is *not* required nor guaranteed that the returned `potential` is an array.
-        E.g. for the non-local pseudopotential term it will be a PotNonLocal datastructure.
-        The returned energy value, however, is always a scalar.
-      - The arguments `ρ` or `Ψ` are not required for calling the function, but the
-        function might throw if they are for the requested computations.
-```
-
-Because we do not explicitly make sure the Fourier representation of an analytic potential
-is a real fucntion in real space only the real part of the real-space representation
-of a potential is physically meaningful.

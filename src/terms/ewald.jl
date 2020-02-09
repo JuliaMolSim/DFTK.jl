@@ -1,9 +1,57 @@
 using SpecialFunctions: erfc
 using ForwardDiff
 
+""" 
+Ewald term: electrostatic energy per unit cell of the array of point
+charges defined by `model.atoms` in a uniform background of
+compensating charge yielding net neutrality.
 """
-    energy_ewald(lattice, [recip_lattice, ]charges, positions; η=nothing)
+struct Ewald end
+(E::Ewald)(basis) = TermEwald(basis)
 
+struct TermEwald <: Term
+    basis::PlaneWaveBasis
+    E::Real  # precomputed energy
+end
+function TermEwald(basis::PlaneWaveBasis)
+    # precompute Ewald energy
+    E = energy_ewald(basis.model)
+    TermEwald(basis, E)
+end
+
+term_name(term::TermEwald) = "Ewald"
+
+function ene_ops(term::TermEwald, ψ, occ; kwargs...)
+    ops = [NoopOperator(term.basis, kpoint) for kpoint in term.basis.kpoints]
+    (E=term.E, ops=ops)
+end
+
+function forces(term::TermEwald, ψ, occ; kwargs...)
+    T = eltype(term.basis)
+    atoms = term.basis.model.atoms
+    # TODO this could be precomputed
+    # Compute forces in the "flat" representation used by ewald
+    forces_ewald = zeros(Vec3{T}, sum(length(positions) for (elem, positions) in atoms))
+    energy_ewald(term.basis.model; forces=forces_ewald)
+    # translate to the "folded" representation
+    f = [zeros(Vec3{T}, length(positions)) for (type, positions) in atoms]
+    count = 1
+    for i = 1:length(atoms)
+        for j = 1:length(atoms[i][2])
+            f[i][j] += forces_ewald[count]
+            count += 1
+        end
+    end
+    f
+end
+
+function energy_ewald(model::Model; kwargs...)
+    charges = [charge_ionic(type) for (type, positions) in model.atoms for pos in positions]
+    positions = [pos for (elem, positions) in model.atoms for pos in positions]
+    energy_ewald(model.lattice, charges, positions; kwargs...)
+end
+
+"""
 Compute the electrostatic interaction energy per unit cell between point
 charges in a uniform background of compensating charge to yield net
 neutrality. the `lattice` and `recip_lattice` should contain the
@@ -25,6 +73,7 @@ function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
     end
     energy_ewald(lattice, T(2π) * inv(lattice'), charges, positions; η=η, forces=forces)
 end
+
 function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, forces=nothing)
     T = eltype(lattice)
     @assert T == eltype(recip_lattice)

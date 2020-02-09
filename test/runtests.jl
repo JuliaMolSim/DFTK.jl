@@ -55,13 +55,10 @@ Random.seed!(0)
 
     if "all" in TAGS
         include("term_external.jl")
-        include("term_nonlocal.jl")
-        # TODO Test for term_hartree
-        # TODO Test for term_xc
+        include("hamiltonian_consistency.jl")
     end
 
     if "all" in TAGS
-        include("HamiltonianBlock.jl")
         include("lobpcg.jl")
         include("xc_fallback.jl")
         include("interval_arithmetic.jl")

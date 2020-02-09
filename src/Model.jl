@@ -1,12 +1,10 @@
 # Contains the physical specification of the model
 
-# spin_polarisation values:
-#     :none       No spin polarisation, αα and ββ density identical, αβ and βα blocks zero
-#     :collinear  Spin is polarised, but on all atoms in the same direction. αα ̸= ββ, αβ = βα = 0
-#     :full       Generic magnetisation, any direction on any atom. αβ, βα, αα, ββ all nonzero, different
-#     :spinless   No spin at all ("spinless fermions", "mathematicians' electrons").
-#                 Difference with :none is that the occupations are 1 instead of 2
-
+"""
+A physical specification of a model. 
+Contains the geometry information, but no discretization parameters.
+The exact model used is defined by the list of terms.
+"""
 struct Model{T <: Real}
     # Lattice and reciprocal lattice vectors in columns
     lattice::Mat3{T}
@@ -17,31 +15,33 @@ struct Model{T <: Real}
 
     # Electrons, occupation and smearing function
     n_electrons::Int # not necessarily consistent with `atoms` field
-    spin_polarisation::Symbol  # :none, :collinear, :full, :spinless
-    temperature::T
-    smearing::Smearing.SmearingFunction # see smearing_functions.jl for some choices
 
-    atoms # Vector of pairs Element => vector of vec3 (positions, fractional coordinates)
+    # spin_polarisation values:
+    #     :none       No spin polarisation, αα and ββ density identical, αβ and βα blocks zero
+    #     :collinear  Spin is polarised, but everywhere in the same direction. αα ̸= ββ, αβ = βα = 0
+    #     :full       Generic magnetisation, non-uniform direction. αβ, βα, αα, ββ all nonzero, different
+    #     :spinless   No spin at all ("spinless fermions", "mathematicians' electrons").
+    #                 Difference with :none is that the occupations are 1 instead of 2
+    spin_polarisation::Symbol  # :none, :collinear, :full, :spinless
+
+    # If temperature=0, no fractional occupations are used.
+    # If temperature is nonzero, the occupations are
+    # `fn = max_occ*smearing((εn-εF) / temperature)`
+    temperature::T
+    smearing::Smearing.SmearingFunction # see Smearing.jl for choices
+
+    atoms::Vector{Pair} # Vector of pairs Element => vector of vec3 (positions, fractional coordinates)
     # Possibly empty. Right now, the consistency of `atoms` with the different terms is *not* checked
 
-    # Potential definitions and builders
-    build_external  # External potential, e.g. local pseudopotential term
-    build_nonlocal  # Non-local potential, e.g. non-local pseudopotential projectors
-    build_hartree
-    build_xc
+    # each element t must implement t(basis), which instantiates a
+    # term in a given basis and gives back a term (<: Term)
+    # see terms.jl for some default terms
+    term_types::Vector
 end
 
-
-"""
-TODO docme
-
-If no smearing is specified the system will be assumed to be an insulator
-Occupation obtained as `f(ε) = smearing((ε-εF) / T)`
-"""
-function Model(lattice::AbstractMatrix{T}; n_electrons=nothing, atoms=[], external=nothing,
-               nonlocal=nothing, hartree=nothing, xc=nothing, temperature=0.0,
+function Model(lattice::AbstractMatrix{T}; n_electrons=nothing, atoms=[], terms=[], temperature=0.0,
                smearing=nothing, spin_polarisation=:none) where {T <: Real}
-    lattice = SMatrix{3, 3, T, 9}(lattice)
+    lattice = Mat3{T}(lattice)
 
     if n_electrons === nothing
         # get it from the atom list
@@ -78,16 +78,48 @@ function Model(lattice::AbstractMatrix{T}; n_electrons=nothing, atoms=[], extern
         smearing = temperature > 0.0 ? Smearing.FermiDirac() : Smearing.None()
     end
 
-    build_nothing(args...; kwargs...) = (nothing, nothing)
+    if !allunique(string.(nameof.(typeof.(terms))))
+        error("Having several terms of the same name is not supported.")
+    end
+
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
-             spin_polarisation, T(temperature), smearing, atoms, 
-             something(external, build_nothing), something(nonlocal, build_nothing),
-             something(hartree, build_nothing), something(xc, build_nothing))
+             spin_polarisation, T(temperature), smearing, atoms, terms)
 end
 
+"""
+Convenience constructor, which builds a standard atomic (kinetic + atomic potential) model.
+Use `extra_terms` to add additional terms.
+"""
+function model_atomic(lattice::AbstractMatrix, atoms::Vector; extra_terms=[], kwargs...)
+    @assert !(:terms in keys(kwargs))
+    @assert !(:atoms in keys(kwargs))
+    terms = [Kinetic(),
+             AtomicLocal(),
+             AtomicNonlocal(),
+             Ewald(),
+             PspCorrection(),
+             extra_terms...]
+    if :temperature in keys(kwargs) && kwargs[:temperature] != 0
+        terms = [terms..., Entropy()]
+    end
+    Model(lattice; atoms=atoms, terms=terms, kwargs...)
+end
 
 """
-How many electrons to put in each state.
+Build a DFT model from the specified atoms, with the specified functionals.
+"""
+function model_DFT(lattice::AbstractMatrix, atoms::Vector, functionals; extra_terms=[], kwargs...)
+    model_atomic(lattice, atoms; extra_terms=[Hartree(), Xc(functionals), extra_terms...], kwargs...)
+end
+"""
+Build an LDA model (Teter93 parametrization) from the specified atoms.
+"""
+function model_LDA(lattice::AbstractMatrix, atoms::Vector; kwargs...)
+    model_DFT(lattice, atoms, :lda_xc_teter93; kwargs...)
+end
+
+"""
+Maximal occupation of a state (2 for non-spin-polarized electrons, 1 otherwise).
 """
 function filled_occupation(model)
     @assert model.spin_polarisation in (:none, :spinless)

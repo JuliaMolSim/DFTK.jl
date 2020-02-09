@@ -112,13 +112,12 @@ include("testcases.jl")
     )
 
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_dft(silicon.lattice, :lda_xc_teter93, [spec => testcase.positions])
-    basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops)
-    kpoints, klabels, kpath = high_symmetry_kpath(basis; kline_density=10)
+    model = model_DFT(silicon.lattice, [spec => testcase.positions], [:lda_xc_teter93])
+    kcoords, klabels, kpath = high_symmetry_kpath(model; kline_density=10)
 
-    @test length(ref_kcoords) == length(kpoints)
+    @test length(ref_kcoords) == length(kcoords)
     for ik in 1:length(ref_kcoords)
-        @test ref_kcoords[ik] ≈ kpoints[ik].coordinate atol=1e-11
+        @test ref_kcoords[ik] ≈ kcoords[ik] atol=1e-11
     end
 
     @test length(klabels) == length(ref_klabels)
@@ -130,25 +129,24 @@ include("testcases.jl")
     @test kpath[2] == ["U", "X"]
 end
 
-
 @testset "Compute bands for silicon" begin
     testcase = silicon
     Ecut = 7
     n_bands = 8
 
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_dft(silicon.lattice, :lda_xc_teter93, [spec => testcase.positions])
+    model = model_DFT(silicon.lattice, [spec => testcase.positions], :lda_xc_teter93)
     basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops)
 
     # Build Hamiltonian just from SAD guess
     ρ0 = guess_density(basis, [spec => testcase.positions])
-    ham = Hamiltonian(basis, ρ0)
+    ham = Hamiltonian(basis; ρ=ρ0)
 
     # Check that plain diagonalisation and compute_bands agree
-    eigensolver = lobpcg_hyper
-    eigres = diagonalise_all_kblocks(eigensolver, ham, n_bands + 3, n_conv_check=n_bands, tol=1e-5)
+    eigres = diagonalise_all_kblocks(lobpcg_hyper, ham, n_bands + 3, n_conv_check=n_bands,
+                                     tol=1e-5)
 
-    band_data = compute_bands(ham, basis.kpoints, n_bands)
+    band_data = compute_bands(basis, ρ0, [k.coordinate for k in basis.kpoints], n_bands)
     for ik in 1:length(basis.kpoints)
         @test eigres.λ[ik][1:n_bands] ≈ band_data.λ[ik] atol=1e-5
     end
