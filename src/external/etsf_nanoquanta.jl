@@ -97,7 +97,9 @@ function load_model(T, folder::EtsfFolder)
     elseif smearing == "Fermi-Dirac"
         smearing_function = Smearing.FermiDirac()
     elseif smearing == "Methfessel and Paxton"
-        smearing_function = DFTK.MethfesselPaxton1()
+        smearing_function = Smearing.MethfesselPaxton1()
+    elseif smearing == "gaussian"
+        smearing_function = Smearing.Gaussian()
     else
         error("Unknown Smearing scheme: $smearing")
     end
@@ -164,6 +166,6 @@ function load_density(T, folder::EtsfFolder)
     ρ_real = Array{Complex{T}}(folder.den["density"][1, :, :, :, 1])
     @assert basis.fft_size == size(ρ_real)
 
-    r_to_G(basis, ρ_real)
+    from_real(basis, ρ_real)
 end
 load_density(folder; kwargs...) = load_density(Float64, folder; kwargs...)
