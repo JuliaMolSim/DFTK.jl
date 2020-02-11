@@ -11,19 +11,18 @@ include("testcases.jl")
     function get_bands(testcase, kcoords, ksymops, atoms;
                        Ecut=5, tol=1e-8)
         kwargs = ()
+        n_bands = div(testcase.n_electrons, 2)
         if testcase.Tsmear !== nothing
             kwargs = (temperature=testcase.Tsmear, smearing=DFTK.Smearing.FermiDirac())
+            n_bands = div(testcase.n_electrons, 2) + 2
         end
 
         model = model_dft(testcase.lattice, :lda_xc_teter93, atoms; kwargs...)
         basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
         ham = Hamiltonian(basis, guess_density(basis, atoms))
 
-        n_bands = 4
         res = diagonalise_all_kblocks(lobpcg_hyper, ham, n_bands; tol=tol)
-
-        @assert testcase.n_electrons <= 8
-        occ, εF= DFTK.find_occupation(basis, res.λ)
+        occ, εF = DFTK.find_occupation(basis, res.λ)
         ρnew = compute_density(basis, res.X, occ)
 
         basis, res.X, res.λ, ρnew.fourier
@@ -85,6 +84,7 @@ include("testcases.jl")
     test_full_vs_irreducible(silicon, [3, 3, 3], Ecut=5, tol=1e-6)
     test_full_vs_irreducible(silicon, [2, 3, 4], Ecut=5, tol=1e-6)
     test_full_vs_irreducible(magnesium, [2, 3, 4], Ecut=5, tol=1e-6)
+    test_full_vs_irreducible(aluminium, [1, 3, 5], Ecut=3, tol=1e-5)
     #
     # That's pretty expensive:
     # test_full_vs_irreducible([4, 4, 4], Ecut=5, tol=1e-6)

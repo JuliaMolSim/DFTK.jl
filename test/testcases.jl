@@ -1,4 +1,5 @@
 using DFTK: Mat3, Vec3
+using LinearAlgebra: Diagonal
 
 silicon = (
     lattice = [0.0  5.131570667152971 5.131570667152971;
@@ -88,4 +89,15 @@ magnesium = (
          ([ 0  1  0; -1 -1  0;  0  0 -1], [ 0.0,  0.0,  0.5]),
          ([-1  0  0;  0 -1  0;  0  0 -1], [ 0.0,  0.0,  0.0])],
     ]),
+)
+
+
+aluminium = (
+    lattice = Matrix(Diagonal([4 * 7.6324708938577865, 7.6324708938577865,
+                               7.6324708938577865])),
+    atnum = 13,
+    n_electrons = 12,
+    psp = "hgh/lda/al-q3",
+    positions = [[0, 0, 0], [0, 1/2, 1/2], [1/8, 0, 1/2], [1/8, 1/2, 0]],
+    Tsmear = 0.0009500431544769484,
 )
