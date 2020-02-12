@@ -53,7 +53,7 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
     # spglib returns \tilde{S} and \tilde{τ} in integer real-space coordinates, such that
     # (A Stilde A^{-1}) is the actual \tilde{S} from the document as a unitary matrix.
     #
-    # Still we have the following properties for S and τ given is *integer* and
+    # Still we have the following properties for S and τ given in *integer* and
     # *fractional* real-space coordinates:
     #      - \tilde{S}^{-1} = S^T (if applied to a vector in frac. coords in reciprocal space)
 
@@ -118,7 +118,7 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
             else
                 S = Stildes[isym, :, :]'  # in fractional reciprocal coordinates
                 # τ in fractional real-space coordinates:
-                τ = -inv(Stildes[isym, :, :]) * τtildes[isym, :, :]
+                τ = -Stildes[isym, :, :] \ τtildes[isym, :, :]
                 push!(ksymops[ik], (S, τ))
             end
         end
