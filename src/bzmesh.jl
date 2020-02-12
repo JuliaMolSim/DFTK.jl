@@ -45,17 +45,47 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
         "spglib failed to get the symmetries. Check your lattice, or use a uniform BZ mesh."
     )
 
-    # Checks: S is unitary (noting that S is given in lattice coordinates)
-    for S in eachslice(spg_symops["rotations"]; dims=1)
-        Scart = lattice * S * inv(lattice)  # Form S in cartesian coords
+    Stildes = spg_symops["rotations"]
+    τtildes = spg_symops["translations"]
+    n_symops = size(Stildes, 1)
+    @assert size(τtildes, 1) == n_symops
+    # Notice: In the language of the latex document in the docs
+    # spglib returns \tilde{S} and \tilde{τ} in integer real-space coordinates, such that
+    # (A Stilde A^{-1}) is the actual \tilde{S} from the document as a unitary matrix.
+    #
+    # Still we have the following properties for S and τ given is *integer* and
+    # *fractional* real-space coordinates:
+    #      - \tilde{S}^{-1} = S^T (if applied to a vector in frac. coords in reciprocal space)
+
+    # Checks: (A Stilde A^{-1}) is unitary
+    for Stilde in eachslice(Stildes; dims=1)
+        Scart = lattice * Stilde * inv(lattice)  # Form S in cartesian coords
         if maximum(abs, Scart'Scart - I) > sqrt(eps(Float64))
             error("spglib returned non-unitary rotation matrix")
         end
     end
-    # TODO check that S * lattice + τ ∈ lattice
+
+    # Check (Stilde, τtilde) maps atoms to equivalent atoms in the lattice
+    for (Stilde, τtilde) in zip(eachslice(Stildes; dims=1), eachslice(τtildes; dims=1))
+        for (elem, positions) in atoms
+            # Rationalize atomic positions
+            positions = [rationalize.(pos, tol=tol_symmetry) for pos in positions]
+            for coord in positions
+                mapped = rationalize.(Stilde * coord + τtilde, tol=tol_symmetry)
+
+                # mapped is on the lattice if it maps to one other lattice position
+                # of the same element
+                if !any(all(isinteger, mapped - pos) for pos in positions)
+                    error("Cannot map the atom at position $coord to another atom of the " *
+                          "same element under the symmetry operation (Stilde, τtilde):\n" *
+                          "($Stilde, $τtilde)")
+                end
+            end
+        end
+    end
 
     mapping, grid = spglib.get_stabilized_reciprocal_mesh(
-        kgrid_size, spg_symops["rotations"], is_shift=[0, 0, 0], is_time_reversal=true
+        kgrid_size, Stildes, is_shift=[0, 0, 0], is_time_reversal=true
     )
 
     # Convert irreducible k-Points to DFTK conventions
@@ -76,20 +106,20 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
         for ired in k_all_reducible[ik]
             kred = Vec3(grid[ired, :]) .// kgrid_size
 
-            isym = findfirst(1:size(spg_symops["rotations"], 1)) do idx
-                # If the denominator of the difference between
-                # kred and S' * k is 1, than the difference is an integer,
-                # i.e. kred and S' * k are equivalent k-Points
-                S = view(spg_symops["rotations"], idx, :, :)
-                all(elem.den == 1 for elem in (kred - (S' * k)))
+            isym = findfirst(1:n_symops) do idx
+                # If the difference between kred and Stilde' * k == Stilde^{-1} * k
+                # is only integer in fractional reciprocal-space coordinates, then
+                # kred and S' * k are equivalent k-Points
+                all(isinteger, kred - (Stildes[idx, :, :]' * k))
             end
 
             if isym === nothing
                 error("No corresponding symop found for $k -> $kred. This is a bug.")
             else
-                S = spg_symops["rotations"][isym, :, :]
-                τ = spg_symops["translations"][isym, :]
-                push!(ksymops[ik], (S', -inv(S) * τ))
+                S = Stildes[isym, :, :]'  # in fractional reciprocal coordinates
+                # τ in fractional real-space coordinates:
+                τ = -inv(Stildes[isym, :, :]) * τtildes[isym, :, :]
+                push!(ksymops[ik], (S, τ))
             end
         end
     end

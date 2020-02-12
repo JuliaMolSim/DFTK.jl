@@ -97,7 +97,7 @@ function _symmetrize_ρ!(ρaccu, ρin, basis, ksymops, Gs)
         for (ig, G) in enumerate(Gs)
             igired = index_G_vectors(basis, invS * G)
             if igired !== nothing
-                @inbounds ρaccu[ig] += cis(2T(π) * dot(G, τ)) * ρin[igired]
+                @inbounds ρaccu[ig] += cis(-2T(π) * dot(G, τ)) * ρin[igired]
             end
         end
     end  # (S, τ)
