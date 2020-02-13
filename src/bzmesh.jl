@@ -128,8 +128,8 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
 
     if !isempty(kreds_notmapped)
         @warn("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
-              "the irreducible kpoints of spglib. We add them as irreducible kpoints " *
-              "as well.")
+              "the irreducible kpoints returned by spglib. They are addad as irreducible " *
+              "kpoints as well.")
         # TODO This could be improved by actually searching for symmetry amongst these as well.
         #      ... but then we would be reimplementing parts of spglib
         append!(kirreds, kreds_notmapped)
