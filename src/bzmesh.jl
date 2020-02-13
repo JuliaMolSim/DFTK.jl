@@ -45,10 +45,11 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
         "spglib failed to get the symmetries. Check your lattice, or use a uniform BZ mesh."
     )
 
-    Stildes = spg_symops["rotations"]
-    τtildes = spg_symops["translations"]
-    n_symops = size(Stildes, 1)
-    @assert size(τtildes, 1) == n_symops
+    Stildes = [St for St in eachslice(spg_symops["rotations"]; dims=1)]
+    τtildes = [rationalize.(τt, tol=tol_symmetry)
+               for τt in eachslice(spg_symops["translations"]; dims=1)]
+    n_symops = length(Stildes)
+    @assert length(τtildes) == n_symops
     # Notice: In the language of the latex document in the docs
     # spglib returns \tilde{S} and \tilde{τ} in integer real-space coordinates, such that
     # (A Stilde A^{-1}) is the actual \tilde{S} from the document as a unitary matrix.
@@ -58,7 +59,7 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
     #      - \tilde{S}^{-1} = S^T (if applied to a vector in frac. coords in reciprocal space)
 
     # Checks: (A Stilde A^{-1}) is unitary
-    for Stilde in eachslice(Stildes; dims=1)
+    for Stilde in Stildes
         Scart = lattice * Stilde * inv(lattice)  # Form S in cartesian coords
         if maximum(abs, Scart'Scart - I) > sqrt(eps(Float64))
             error("spglib returned non-unitary rotation matrix")
@@ -66,16 +67,15 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
     end
 
     # Check (Stilde, τtilde) maps atoms to equivalent atoms in the lattice
-    for (Stilde, τtilde) in zip(eachslice(Stildes; dims=1), eachslice(τtildes; dims=1))
+    for (Stilde, τtilde) in zip(Stildes, τtildes)
         for (elem, positions) in atoms
-            # Rationalize atomic positions
-            positions = [rationalize.(pos, tol=tol_symmetry) for pos in positions]
             for coord in positions
-                mapped = rationalize.(Stilde * coord + τtilde, tol=tol_symmetry)
+                diffs = [rationalize.(Stilde * coord + τtilde - pos, tol=tol_symmetry)
+                         for pos in positions]
 
-                # mapped is on the lattice if it maps to one other lattice position
-                # of the same element
-                if !any(all(isinteger, mapped - pos) for pos in positions)
+                # If all elements of a difference in diffs is integer, then
+                # Stilde * coord + τtilde and pos are equivalent lattice positions
+                if !any(all(isinteger, d) for d in diffs)
                     error("Cannot map the atom at position $coord to another atom of the " *
                           "same element under the symmetry operation (Stilde, τtilde):\n" *
                           "($Stilde, $τtilde)")
@@ -85,50 +85,63 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
     end
 
     mapping, grid = spglib.get_stabilized_reciprocal_mesh(
-        kgrid_size, Stildes, is_shift=[0, 0, 0], is_time_reversal=true
+        kgrid_size, spg_symops["rotations"], is_shift=[0, 0, 0], is_time_reversal=true
     )
 
     # Convert irreducible k-Points to DFTK conventions
     kgrid_size = Vec3{Int}(kgrid_size)
-    kcoords = [Vec3{Int}(grid[ik + 1, :]) .// kgrid_size for ik in unique(mapping)]
+    kirreds = [Vec3{Int}(grid[ik + 1, :]) .// kgrid_size for ik in unique(mapping)]
 
     # Find the indices of the corresponding reducible k-Points in `grid`, which one of the
-    # irreducible k-Points in `kcoords` generates.
+    # irreducible k-Points in `kirreds` generates.
     k_all_reducible = [findall(isequal(elem), mapping) for elem in unique(mapping)]
+
+    # This list collects a list of extra reducible k-Points, which could not be
+    # mapped to any irreducible kpoint yet even though spglib claims this can be done.
+    kreds_notmapped = empty(kirreds)
 
     # ksymops will be the list of symmetry operations (for each irreducible k-Point)
     # needed to do the respective mapping irreducible -> reducible to get the respective
     # entry in `k_all_reducible`.
     SymOp = Tuple{Mat3{Int}, Vec3{Float64}}
-    ksymops = Vector{Vector{SymOp}}(undef, length(kcoords))
-    for (ik, k) in enumerate(kcoords)
+    ksymops = Vector{Vector{SymOp}}(undef, length(kirreds))
+    for (ik, k) in enumerate(kirreds)
         ksymops[ik] = Vector{SymOp}()
         for ired in k_all_reducible[ik]
             kred = Vec3(grid[ired, :]) .// kgrid_size
 
-            isym = findfirst(1:n_symops) do idx
+            isym = findfirst(1:n_symops) do isym
                 # If the difference between kred and Stilde' * k == Stilde^{-1} * k
                 # is only integer in fractional reciprocal-space coordinates, then
                 # kred and S' * k are equivalent k-Points
-                all(isinteger, kred - (Stildes[idx, :, :]' * k))
+                all(isinteger, kred - (Stildes[isym]' * k))
             end
 
-            if isym === nothing
-                error("No corresponding symop found for $k -> $kred. This is a bug.")
+            if isym === nothing  # No symop found for $k -> $kred
+                push!(kreds_notmapped, kred)
             else
-                S = Stildes[isym, :, :]'  # in fractional reciprocal coordinates
-                # τ in fractional real-space coordinates:
-                τ = -Stildes[isym, :, :] \ τtildes[isym, :, :]
+                S = Stildes[isym]'                  # in fractional reciprocal coordinates
+                τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates
                 push!(ksymops[ik], (S, τ))
             end
         end
+    end
+
+    if !isempty(kreds_notmapped)
+        @warn("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
+              "the irreducible kpoints of spglib. We add them as irreducible kpoints " *
+              "as well.")
+        # TODO This could be improved by actually searching for symmetry amongst these as well.
+        #      ... but then we would be reimplementing parts of spglib
+        append!(kirreds, kreds_notmapped)
+        append!(ksymops, [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kreds_notmapped)])
     end
 
     # The symmetry operation (S == I and τ == 0) should be present for each k-Point
     @assert all(nothing !== findfirst(Sτ -> iszero(Sτ[1] - I) && iszero(Sτ[2]), ops)
                 for ops in ksymops)
 
-    kcoords, ksymops
+    kirreds, ksymops
 end
 
 @doc raw"""
