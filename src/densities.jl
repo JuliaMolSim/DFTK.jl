@@ -93,11 +93,18 @@ function _symmetrize_ρ!(ρaccu, ρin, basis, ksymops, Gs)
             continue
         end
 
-        # Transform ρin -> to the partial density at S * k
+        # Transform ρin -> to the partial density at S * k.
+        #
+        # Since the eigenfunctions of the Hamiltonian at k and Sk satisfy
+        #      u_{Sk}(x) = u_{k}(S^{-1} (x - τ))
+        # with Fourier transform
+        #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
+        # equivalently
+        #      ̂ρ_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
         for (ig, G) in enumerate(Gs)
             igired = index_G_vectors(basis, invS * G)
             if igired !== nothing
-                @inbounds ρaccu[ig] += cis(2T(π) * dot(G, τ)) * ρin[igired]
+                @inbounds ρaccu[ig] += cis(-2T(π) * dot(G, τ)) * ρin[igired]
             end
         end
     end  # (S, τ)
