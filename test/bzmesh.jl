@@ -1,4 +1,5 @@
 using DFTK: bzmesh_uniform, bzmesh_ir_wedge, Element, Vec3, Mat3
+using DFTK: pymatgen_structure, load_lattice
 using LinearAlgebra
 using PyCall
 using Test
@@ -28,11 +29,18 @@ include("testcases.jl")
 end
 
 @testset "bzmesh_ir_wedge is correct reduction" begin
-    function test_reduction(system, kgrid_size)
-        red_kcoords, _ = bzmesh_uniform(kgrid_size)
+    function test_reduction(system, kgrid_size; supercell=[1, 1, 1])
+        lattice = system.lattice
+        atoms = [Element(system.atnum) => system.positions]
+        if supercell != [1, 1, 1]  # Make a supercell
+            pystruct = pymatgen_structure(lattice, atoms)
+            pystruct.make_supercell(supercell)
+            lattice = load_lattice(pystruct)
+            atoms = [Element(system.atnum) => [s.frac_coords for s in pystruct.sites]]
+        end
 
-        irred_kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, system.lattice,
-                                                 [Element(system.atnum) => system.positions])
+        red_kcoords, _ = bzmesh_uniform(kgrid_size)
+        irred_kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, lattice, atoms)
 
         # Try to reproduce all kcoords from irred_kcoords
         all_kcoords = Vector{Vec3{Rational{Int}}}()
@@ -50,6 +58,8 @@ end
     test_reduction(silicon, [ 3,  3,  3])
     test_reduction(silicon, [ 2,  3,  4])
     test_reduction(silicon, [ 9, 11, 13])
+
+    test_reduction(silicon, [ 1,  4,  4], supercell=[2, 1, 1])
 
     test_reduction(magnesium, [ 2,  3,  2])
     test_reduction(magnesium, [ 3,  3,  3])
