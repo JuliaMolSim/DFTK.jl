@@ -35,6 +35,28 @@ function scf_default_callback(info)
     @printf "%3d    %-15.12f    %E\n" neval E res
 end
 
+"""
+Flag convergence as soon as total energy change drops below tolerance
+"""
+function scf_convergence_energy_difference(tolerance)
+    energy_total = NaN
+
+    function is_converged(info)
+        etot_old = energy_total
+        energy_total = sum(values(info.energies))
+        abs(energy_total - etot_old) < tolerance
+    end
+    return is_converged
+end
+
+"""
+Flag convergence by using the L2Norm of the change between
+input density and unpreconditioned output density (ρout)
+"""
+function scf_convergence_density_difference(tolerance)
+    info -> norm(info.ρout.fourier - info.ρin.fourier) < tolerance
+end
+
 
 """
 Solve the KS equations with a SCF algorithm, starting at `ham`
@@ -43,7 +65,8 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
                                Psi=nothing, tol=1e-6, max_iter=100,
                                solver=scf_nlsolve_solver(),
                                eigensolver=lobpcg_hyper, n_ep_extra=3, diagtol=tol / 10,
-                               mixing=SimpleMixing(), callback=scf_default_callback)
+                               mixing=SimpleMixing(), callback=scf_default_callback,
+                               is_converged=scf_convergence_energy_difference(tol))
     T = real(eltype(ham.density))
     basis = ham.basis
     model = basis.model
@@ -77,14 +100,19 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
         # mix it with ρin to get a proposal step
         ρnext = mix(mixing, basis, ρin, ρout)
         neval += 1
-        callback((ham=ham, energies=energies, ρin=ρin, ρout=ρout, ρnext=ρnext,
-                  orben=orben, occupation=occupation, εF=εF, neval=neval))
+
+        info = (ham=ham, energies=energies, ρin=ρin, ρout=ρout, ρnext=ρnext,
+                orben=orben, occupation=occupation, εF=εF, neval=neval)
+        callback(info)
+        is_converged(info) && return x
 
         ρnext.real
     end
 
-    fpres = solver(fixpoint_map, ρout.real, tol, max_iter)
-    # We do not use the return value of fpres but rather the one that got updated by fixpoint_map
+    fpres = solver(fixpoint_map, ρout.real, max_iter; tol=10eps(T))
+    # Tolerance is only dummy here: Convergence is flagged by is_converged
+    # inside the fixpoint_map. Also we do not use the return value of fpres but rather the
+    # one that got updated by fixpoint_map
 
     energies = update_energies(ham, Psi, occupation, ρout)
 
