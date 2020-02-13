@@ -7,7 +7,7 @@ include("testcases.jl")
     Ecut = 3
     n_bands = 6
     fft_size = [9, 9, 9]
-    tol = 1e-6
+    tol = 1e-7
 
     Si = Element(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_dft(silicon.lattice, :lda_xc_teter93, [Si => silicon.positions])
@@ -20,9 +20,9 @@ include("testcases.jl")
 
     # Run DM
     println("\nTesting direct minimization")
-    dmres = direct_minimization(basis; g_tol=1e-8)
+    dmres = direct_minimization(basis; g_tol=tol)
     ρ_dm = dmres.ρ.fourier
-    @test maximum(abs.(ρ_dm - ρ_nl)) < 30tol
+    @test maximum(abs.(ρ_dm - ρ_nl)) < sqrt(tol) / 10
 
     # Run other SCFs with SAD guess
     ρ0 = guess_density(basis, [Si => silicon.positions])
@@ -31,7 +31,7 @@ include("testcases.jl")
         println("\nTesting $solver")
         scfres = self_consistent_field(Hamiltonian(basis, ρ0), n_bands, tol=tol, solver=solver())
         ρ_alg = scfres.ρ.fourier
-        @test maximum(abs.(ρ_alg - ρ_nl)) < 30tol
+        @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
     end
 
     # Run other mixing with nlsolve (the others are too slow...)
@@ -39,6 +39,6 @@ include("testcases.jl")
         println("\n Testing $mixing")
         scfres = self_consistent_field(Hamiltonian(basis, ρ0), n_bands, tol=tol, solver=scf_nlsolve_solver(), mixing=mixing)
         ρ_alg = scfres.ρ.fourier
-        @test maximum(abs.(ρ_alg - ρ_nl)) < 30tol
+        @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
     end
 end
