@@ -14,7 +14,7 @@ fixed-point scheme, keeping `m` steps for Anderson acceleration. See the
 NLSolve documentation for details about the other parameters and methods.
 """
 function scf_nlsolve_solver(m=5, method=:anderson; kwargs...)
-    function fp_solver(f, x0, tol, max_iter)
+    function fp_solver(f, x0, max_iter; tol=1e-6)
         res = nlsolve(x -> f(x) - x, x0; method=method, m=m, xtol=tol,
                       ftol=0.0, show_trace=false, iterations=max_iter, kwargs...)
         (fixpoint=res.zero, converged=converged(res))
@@ -27,13 +27,13 @@ Create a damped SCF solver updating the density as
 `x = β * x_new + (1 - β) * x`
 """
 function scf_damping_solver(β=0.2)
-    function fp_solver(f, x0, tol, max_iter)
+    function fp_solver(f, x0, max_iter; tol=1e-6)
         converged = false
         x = copy(x0)
         for i in 1:max_iter
             x_new = f(x)
 
-            if 20 * norm(x_new - x) < tol
+            if norm(x_new - x) < tol
                 x = x_new
                 converged = true
                 break
@@ -56,7 +56,7 @@ function anderson(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
 
     # Cheat support for multidimensional arrays
     if length(size(x0)) != 1
-        x, conv= anderson(x -> vec(f(reshape(x, size(x0)...))), vec(x0), m, max_iter, tol, warming)
+        x, conv = anderson(x -> vec(f(reshape(x, size(x0)...))), vec(x0), m, max_iter, tol, warming)
         return (fixpoint=reshape(x, size(x0)...), converged=conv)
     end
     N = size(x0, 1)
@@ -94,7 +94,7 @@ function anderson(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
     (fixpoint=xs[:,1], converged=err < tol)
 end
 function scf_anderson_solver(m=5)
-    (f, x0, tol, max_iter) -> anderson(x -> f(x) - x, x0, m, max_iter, tol)
+    (f, x0, max_iter; tol=1e-6) -> anderson(x -> f(x) - x, x0, m, max_iter, tol)
 end
 
 """
@@ -157,4 +157,4 @@ function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
     end
     (fixpoint=xs[:, 1], converged=err < tol)
 end
-scf_CROP_solver(m=5) = (f, x0, tol, max_iter) -> CROP(x -> f(x) - x, x0, m, max_iter, tol)
+scf_CROP_solver(m=5) = (f, x0, max_iter; tol=1e-6) -> CROP(x -> f(x) - x, x0, m, max_iter, tol)
