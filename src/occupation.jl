@@ -6,7 +6,7 @@ import Roots
 Find the Fermi level.
 """
 function find_fermi_level(basis, energies)
-    find_occupation(basis, energies)[1]
+    find_occupation(basis, energies).εF
 end
 
 """

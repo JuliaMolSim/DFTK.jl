@@ -126,6 +126,9 @@ export energy_nuclear_psp_correction
 export energy_nuclear_ewald
 include("energy_nuclear.jl")
 
+export entropy
+include("entropy.jl")
+
 export pymatgen_lattice
 export pymatgen_bandstructure
 export pymatgen_structure

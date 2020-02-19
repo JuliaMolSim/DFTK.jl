@@ -109,7 +109,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
         ρnext.real
     end
 
-    fpres = solver(fixpoint_map, ρout.real, max_iter; tol=10eps(T))
+    fpres = solver(fixpoint_map, ρout.real, max_iter; tol=min(10eps(T), tol / 10))
     # Tolerance is only dummy here: Convergence is flagged by is_converged
     # inside the fixpoint_map. Also we do not use the return value of fpres but rather the
     # one that got updated by fixpoint_map
