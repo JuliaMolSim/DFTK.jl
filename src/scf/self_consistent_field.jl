@@ -25,11 +25,14 @@ function next_density(ham::Hamiltonian, n_bands; Psi=nothing,
 end
 
 function scf_default_callback(info)
-    E = sum(values(info.energies))
+    E = sum(values(info.energies)) + info.entropy
     res = norm(info.ρout.fourier - info.ρin.fourier)
     neval = info.neval
+
     if neval == 1
-        println("Iter   Energy             ρout-ρin")
+        label = "Energy"
+        info.entropy < 0 && (label = "E - TS")
+        println("Iter   $label             ρout-ρin")
         println("----   ------             --------")
     end
     @printf "%3d    %-15.12f    %E\n" neval E res
@@ -43,7 +46,7 @@ function scf_convergence_energy_difference(tolerance)
 
     function is_converged(info)
         etot_old = energy_total
-        energy_total = sum(values(info.energies))
+        energy_total = sum(values(info.energies)) + info.entropy
         abs(energy_total - etot_old) < tolerance
     end
     return is_converged
@@ -96,13 +99,14 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
         Psi, orben, occupation, εF, ρout = next_density(ham, n_bands; Psi=Psi,
                                                         eigensolver=eigensolver, tol=diagtol)
         energies = update_energies(ham, Psi, occupation, ρout)
+        entropy = -model.temperature * compute_entropy(basis, orben, εF=εF)
 
         # mix it with ρin to get a proposal step
         ρnext = mix(mixing, basis, ρin, ρout)
         neval += 1
 
         info = (ham=ham, energies=energies, ρin=ρin, ρout=ρout, ρnext=ρnext,
-                orben=orben, occupation=occupation, εF=εF, neval=neval)
+                orben=orben, occupation=occupation, εF=εF, neval=neval, entropy=entropy)
         callback(info)
         is_converged(info) && return x
 
@@ -115,6 +119,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
     # one that got updated by fixpoint_map
 
     energies = update_energies(ham, Psi, occupation, ρout)
+    entropy = -model.temperature * compute_entropy(basis, orben, εF=εF)
 
     # Strip off the extra (unconverged) eigenpairs
     # TODO we might want to keep them
@@ -122,6 +127,6 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
     orben = [oe[1:end-n_ep_extra] for oe in orben]
     occupation = [occ[1:end-n_ep_extra] for occ in occupation]
 
-    (ham=ham, energies=energies, converged=fpres.converged,
+    (ham=ham, energies=energies, entropy=entropy, converged=fpres.converged,
      ρ=ρout, Psi=Psi, orben=orben, occupation=occupation, εF=εF)
 end

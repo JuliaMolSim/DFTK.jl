@@ -110,10 +110,15 @@ function update_energies_hamiltonian!(energies, ham::Hamiltonian, Psi, occupatio
 end
 
 # TODO move that out into a scfres structure
-function print_energies(energies)
+function print_energies(energies; entropy=0)
     println("\nEnergy breakdown:")
     for key in sort([keys(energies)...]; by=S -> string(S))
         @printf "    %-20s%-10.7f\n" string(key) energies[key]
     end
-    @printf "\n    %-20s%-15.12f\n\n" "total" sum(values(energies))
+    total = sum(values(energies))
+    @printf "\n    %-20s%-15.12f\n\n" "total" total
+    if entropy > 0
+        @printf "\n    %-20s%-10.7f\n" "-T entropy" entropy
+        @printf "    %-20s%-10.7f\n" "E - TS" total + entropy
+    end
 end
