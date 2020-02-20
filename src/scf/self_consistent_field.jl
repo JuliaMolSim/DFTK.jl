@@ -13,8 +13,8 @@ function next_density(ham::Hamiltonian, n_bands; Psi=nothing,
     end
 
     # Diagonalize
-    eigres = diagonalise_all_kblocks(eigensolver, ham, n_ep, guess=Psi, n_conv_check=n_bands,
-                                     prec_type=prec_type, tol=tol)
+    eigres = diagonalise_all_kblocks(eigensolver, ham, n_ep, guess=Psi,
+                                     n_conv_check=n_bands, prec_type=prec_type, tol=tol)
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Update density from new Psi
@@ -81,6 +81,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
     end
     occupation = nothing
     orben = nothing
+    energies = nothing
     ρout = ham.density  # Initial ρout is initial guess
     εF = nothing
     @assert ρout !== nothing
@@ -115,9 +116,6 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
     # Tolerance is only dummy here: Convergence is flagged by is_converged
     # inside the fixpoint_map. Also we do not use the return value of fpres but rather the
     # one that got updated by fixpoint_map
-
-    energies = update_energies(ham, Psi, occupation, ρout)
-    energies[:Entropy] = -model.temperature * compute_entropy(basis, orben, εF=εF)
 
     # Strip off the extra (unconverged) eigenpairs
     # TODO we might want to keep them
