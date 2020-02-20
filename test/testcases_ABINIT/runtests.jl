@@ -9,6 +9,7 @@ function load_reference(folder::EtsfFolder)
     end
 
     energies = Dict{Symbol, Float64}(
+                     :Entropy => folder.gsr["e_entropy"][:],
                      :Ewald => folder.gsr["e_ewald"][:],
                      :PspCorrection => folder.gsr["e_corepsp"][:],
                      :PotXC => folder.gsr["e_xc"][:],

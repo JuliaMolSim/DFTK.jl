@@ -2,7 +2,7 @@ using DFTK
 using Test
 include("testcases.jl")
 
-@testset "Forces" begin
+@testset "Forces on semiconductor (using total energy)" begin
     function energy(pos)
         Ecut = 5                # kinetic energy cutoff in Hartree
 
