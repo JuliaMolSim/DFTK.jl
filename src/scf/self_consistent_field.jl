@@ -27,11 +27,11 @@ end
 function scf_default_callback(info)
     E = sum(values(info.energies))
     res = norm(info.ρout.fourier - info.ρin.fourier)
-    has_entropy = get(info.energies, :Entropy, 0.0) > 1e-16
     if info.neval == 1
-        label = has_entropy ? "E - TS" : "Energy"
-        println("Iter   $label             ρout-ρin")
-        println("----   ------             --------")
+        has_entropy = abs(get(info.energies, :Entropy, 0.0)) > 1e-16
+        label = has_entropy ? "Free Energy" : "Energy"
+        @printf "Iter   %-15s    ρout-ρin\n" label
+        @printf "----   %-15s    --------\n" "-"^length(label)
     end
     @printf "%3d    %-15.12f    %E\n" info.neval E res
 end
@@ -98,7 +98,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
         Psi, orben, occupation, εF, ρout = next_density(ham, n_bands; Psi=Psi,
                                                         eigensolver=eigensolver, tol=diagtol)
         energies = update_energies(ham, Psi, occupation, ρout)
-        energies[:Entropy] = -model.temperature * compute_entropy(basis, orben, εF=εF)
+        energies[:Entropy] = compute_entropy_term(basis, orben, εF=εF)
 
         # mix it with ρin to get a proposal step
         ρnext = mix(mixing, basis, ρin, ρout)

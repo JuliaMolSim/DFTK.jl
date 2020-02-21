@@ -35,7 +35,7 @@ occupation(S::None, x) = x > 0 ? zero(x) : one(x)
 entropy(S::None, x) = zero(x)
 
 function xlogx(x)
-    x == 0 ? 0 : x * log(x)
+    iszero(x) ? zero(x) : x * log(x)
 end
 
 struct FermiDirac <: SmearingFunction end

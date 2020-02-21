@@ -39,14 +39,15 @@ end
                           temperature=0.03, smearing=smearing)
         basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 1, 2])
 
-        n_bands = 12
+        n_bands = 10
         ρguess = guess_density(basis)
         if !isnothing(ρ)
             α = 1e-4
             ρguess = from_real(basis, (1-α) * ρ.real + α * ρguess.real)
         end
         ham = Hamiltonian(basis, ρguess)
-        scfres = self_consistent_field(ham, n_bands, tol=1e-11, diagtol=1e-11)
+        scfres = self_consistent_field(ham, n_bands, tol=1e-12, diagtol=1e-12)
+        println(scfres.occupation)
         sum(values(scfres.energies)), forces(scfres), scfres.ρ
     end
 
