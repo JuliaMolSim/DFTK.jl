@@ -1,5 +1,7 @@
 using Test
 using DFTK: load_psp, eval_psp_projection_radial, eval_psp_local_fourier
+using DFTK: eval_psp_projection_radial_real
+using SpecialFunctions: besselj
 
 
 @testset "Check reading 'C-lda-q4'" begin
@@ -80,4 +82,30 @@ end
          0.0, 0.7482799478933317, 2.321676914155303,
          3.8541542745249706, 6.053770711942623, 1.6078748819430986,
     ]
+end
+
+@testset "Numerical integration to obtain fourier-space projectors" begin
+    # The spherical bessel function of the first kind in terms of ordinary bessels:
+    function j(n, x::T) where {T}
+        x == 0 ? zero(T) : sqrt(π/2x) * besselj(n+1/2, x)
+    end
+
+    # The integrand for performing the spherical Hankel transfrom,
+    # i.e. compute the radial part of the projector in Fourier space
+    function integrand(psp, i, l, q, x)
+        4π * x^2 * eval_psp_projection_radial_real(psp, i, l, x) * j(l, q*x)
+    end
+
+    dx, xmax = 0.01, 10
+    for pspfile in ["Au-q11", "Ba-q10"]
+        psp = load_psp("hgh/lda/" * pspfile)
+        for (l, i) in [(0, 1), (0, 2), (0, 3), (1, 1), (1, 2), (1, 3),
+                       (2, 1), (2, 2), (3, 1)]
+            l > length(psp.rp) - 1 && continue  # Overshooting available AM
+            for q in [0.01, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 100]
+                reference = sum(x -> integrand(psp, i, l, q, x) * dx, 0:dx:xmax)
+                @test reference ≈ eval_psp_projection_radial(psp, i, l, q^2) atol=5e-15 rtol=1e-8
+            end
+        end
+    end
 end
