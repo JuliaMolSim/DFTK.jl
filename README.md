@@ -33,7 +33,7 @@ is still limited. An overview:
 	  all solvers from [NLsolve.jl](https://github.com/JuliaNLSolvers/NLsolve.jl)
 	- Direct minimization
 * Ground-state properties and post-processing:
-	- Total energy
+	- Total energy / free energy computation
 	- Forces
 	- Density of states (DOS) and local density of states (LDOS)
 	- Band structures
