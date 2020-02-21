@@ -34,6 +34,10 @@ struct None <: SmearingFunction end
 occupation(S::None, x) = x > 0 ? zero(x) : one(x)
 entropy(S::None, x) = zero(x)
 
+function xlogx(x)
+    iszero(x) ? zero(x) : x * log(x)
+end
+
 struct FermiDirac <: SmearingFunction end
 occupation(S::FermiDirac, x) = 1 / (1 + exp(x))
 # entropy(f) = -(f log f + (1-f)log(1-f)), where f = 1/(1+exp(x))
@@ -41,7 +45,7 @@ occupation(S::FermiDirac, x) = 1 / (1 + exp(x))
 # although that is not especially useful...
 function entropy(S::FermiDirac, x)
     f = occupation(S, x)
-    -(f*log(f) + (1-f)*log(1-f))
+    - (xlogx(f) + xlogx(1 - f))
 end
 
 struct Gaussian <: SmearingFunction end

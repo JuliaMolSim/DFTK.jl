@@ -111,9 +111,11 @@ end
 
 # TODO move that out into a scfres structure
 function print_energies(energies)
-    println("\nEnergy breakdown:")
+    label = abs(get(energies, :Entropy, 0.0)) > 1e-16 ? "Free Energy" : "Energy"
+    println("\n$label breakdown:")
     for key in sort([keys(energies)...]; by=S -> string(S))
         @printf "    %-20s%-10.7f\n" string(key) energies[key]
     end
-    @printf "\n    %-20s%-15.12f\n\n" "total" sum(values(energies))
+    total = sum(values(energies))
+    @printf "\n    %-20s%-15.12f\n\n" "total" total
 end

@@ -13,8 +13,8 @@ function next_density(ham::Hamiltonian, n_bands; Psi=nothing,
     end
 
     # Diagonalize
-    eigres = diagonalise_all_kblocks(eigensolver, ham, n_ep, guess=Psi, n_conv_check=n_bands,
-                                     prec_type=prec_type, tol=tol)
+    eigres = diagonalise_all_kblocks(eigensolver, ham, n_ep, guess=Psi,
+                                     n_conv_check=n_bands, prec_type=prec_type, tol=tol)
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Update density from new Psi
@@ -27,12 +27,13 @@ end
 function scf_default_callback(info)
     E = sum(values(info.energies))
     res = norm(info.ρout.fourier - info.ρin.fourier)
-    neval = info.neval
-    if neval == 1
-        println("Iter   Energy             ρout-ρin")
-        println("----   ------             --------")
+    if info.neval == 1
+        has_entropy = abs(get(info.energies, :Entropy, 0.0)) > 1e-16
+        label = has_entropy ? "Free Energy" : "Energy"
+        @printf "Iter   %-15s    ρout-ρin\n" label
+        @printf "----   %-15s    --------\n" "-"^length(label)
     end
-    @printf "%3d    %-15.12f    %E\n" neval E res
+    @printf "%3d    %-15.12f    %E\n" info.neval E res
 end
 
 """
@@ -80,6 +81,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
     end
     occupation = nothing
     orben = nothing
+    energies = nothing
     ρout = ham.density  # Initial ρout is initial guess
     εF = nothing
     @assert ρout !== nothing
@@ -96,6 +98,7 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
         Psi, orben, occupation, εF, ρout = next_density(ham, n_bands; Psi=Psi,
                                                         eigensolver=eigensolver, tol=diagtol)
         energies = update_energies(ham, Psi, occupation, ρout)
+        energies[:Entropy] = compute_entropy_term(basis, orben, εF=εF)
 
         # mix it with ρin to get a proposal step
         ρnext = mix(mixing, basis, ρin, ρout)
@@ -109,12 +112,10 @@ function self_consistent_field(ham::Hamiltonian, n_bands;
         ρnext.real
     end
 
-    fpres = solver(fixpoint_map, ρout.real, max_iter; tol=10eps(T))
+    fpres = solver(fixpoint_map, ρout.real, max_iter; tol=min(10eps(T), tol / 10))
     # Tolerance is only dummy here: Convergence is flagged by is_converged
     # inside the fixpoint_map. Also we do not use the return value of fpres but rather the
     # one that got updated by fixpoint_map
-
-    energies = update_energies(ham, Psi, occupation, ρout)
 
     # Strip off the extra (unconverged) eigenpairs
     # TODO we might want to keep them

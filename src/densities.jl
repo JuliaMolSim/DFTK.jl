@@ -122,8 +122,11 @@ function interpolate_density(ρ_in::RealFourierArray, b_out::PlaneWaveBasis)
     from_real(b_out, ρ_out)
 end
 
-function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in, lattice_out)
+# TODO Specialisation for the common case lattice_out = lattice_in
+function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in, lattice_out=lattice_in)
     T = real(eltype(ρ_in))
+    @assert size(ρ_in) == grid_in
+
     # First, build supercell, array of 3 ints
     supercell = zeros(Int, 3)
     for i = 1:3
