@@ -47,7 +47,6 @@ end
         end
         ham = Hamiltonian(basis, ρguess)
         scfres = self_consistent_field(ham, n_bands, tol=1e-12, diagtol=1e-12)
-        println(scfres.occupation)
         sum(values(scfres.energies)), forces(scfres), scfres.ρ
     end
 
