@@ -60,6 +60,7 @@ end
     test_reduction(silicon, [ 9, 11, 13])
 
     test_reduction(silicon, [ 1,  4,  4], supercell=[2, 1, 1])
+    test_reduction(silicon, [ 1,  16,  16], supercell=[4, 1, 1])
 
     test_reduction(magnesium, [ 2,  3,  2])
     test_reduction(magnesium, [ 3,  3,  3])
