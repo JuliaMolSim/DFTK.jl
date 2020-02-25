@@ -21,8 +21,17 @@ function bzmesh_uniform(kgrid_size)
 end
 
 
-SymOp = Tuple{Mat3{Int}, Vec3{Float64}}
+const SymOp = Tuple{Mat3{Int}, Vec3{Float64}}
+"""
+Implements a primitive search to find an irreducible subset of kpoints
+amongst the provided kpoints.
+"""
 function find_irreducible_kpoints(kpoints, Stildes, τtildes)
+    #
+    # This function is required, because spglib sometimes flags kpoints
+    # as reducible, where we cannot find a symmetry operation to generate
+    # them from the provided irreducible kpoints.
+    #
     n_symops = length(Stildes)
 
     # Flag which kpoints have already been mapped to another irred.
