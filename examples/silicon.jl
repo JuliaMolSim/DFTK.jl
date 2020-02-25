@@ -4,11 +4,11 @@ using PyCall
 
 # Calculation parameters
 calculation_model = :lda
-kgrid = [4, 4, 4]        # k-Point grid
-supercell = [1, 1, 1]    # Lattice supercell
-Ecut = 15                # kinetic energy cutoff in Hartree
-n_bands_plot = 8 # number of bands to plot in the bandstructure
-kline_density = 20       # Density of k-Points for bandstructure
+kgrid = [4, 4, 4]       # k-Point grid
+supercell = [1, 1, 1]   # Lattice supercell
+Ecut = 15               # kinetic energy cutoff in Hartree
+n_bands_plot = 8        # number of bands to plot in the bandstructure
+kline_density = 20      # Density of k-Points for bandstructure
 
 # Setup silicon lattice
 a = 10.263141334305942  # Silicon lattice constant in Bohr

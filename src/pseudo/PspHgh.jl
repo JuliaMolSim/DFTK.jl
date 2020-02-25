@@ -1,4 +1,5 @@
 using SpecialFunctions: erf
+using SpecialFunctions: gamma
 
 struct PspHgh
     Zion::Int                   # Ionic charge (Z - valence electrons)
@@ -11,6 +12,8 @@ struct PspHgh
     description::String         # Descriptive string
 end
 
+import Base.Broadcast.broadcastable
+Base.Broadcast.broadcastable(psp::PspHgh) = Ref(psp)
 
 """
     PspHgh(Zion::Number, rloc::Number, cloc::Vector, rp::Vector, h::Vector;
@@ -174,27 +177,51 @@ p(qsq) = ∫_{R+} r^2 p(r) j_l(q r) dr
 [HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω).
 """
 function eval_psp_projection_radial(psp::PspHgh, i, l, qsq::T) where {T <: Real}
+    @assert 0 <= l <= length(psp.rp) - 1
+    @assert i > 0
     rp = psp.rp[l + 1]
     q = sqrt.(qsq)
     qrsq::T = qsq .* rp^2
     common::T = 4T(π)^(5 / 4) * sqrt(2^(l + 1) * rp^(2 * l + 3)) * exp.(-qrsq / 2)
 
-    if l == 0
-        if i == 1 return @. common end
+    if l == 0  # 4 * sqrt(2) * π^(5/4)
+        (i == 1) && return @. common * 1
         # Note: In the next case the HGH paper has an error.
         #       The first 8 in equation (8) should not be under the sqrt-sign
         #       This is the right version (as shown in the GTH paper)
-        if i == 2 return @. common *    2     / sqrt(T(15))  * (3  -   qrsq         ) end
-        if i == 3 return @. common * (4/T(3)) / sqrt(T(105)) * (15 - 10qrsq + qrsq^2) end
+        (i == 2) && return @. common * 2 / sqrt(T( 15)) * ( 3 -   qrsq         )
+        (i == 3) && return @. common * 4 / sqrt(T(105)) * (15 - 10qrsq + qrsq^2) / T(3)
     end
 
-    if l == 1  # verify expressions
-        if i == 1 return @. common * 1     /    sqrt(T(3)) * q end
-        if i == 2 return @. common * 2     /    sqrt(T(105)) * q * ( 5 -   qrsq         ) end
-        if i == 3 return @. common * 4 / T(3) / sqrt(T(1155)) * q * (35 - 14qrsq + qrsq^2) end
+    if l == 1  # 8 * π^(5/4)
+        (i == 1) && return @. common * 1 / sqrt(T(   3)) * q
+        (i == 2) && return @. common * 2 / sqrt(T( 105)) * q * ( 5 -   qrsq         )
+        (i == 3) && return @. common * 4 / sqrt(T(1155)) * q * (35 - 14qrsq + qrsq^2) / T(3)
     end
 
-    error("Did not implement case of i == $i and l == $l")
+    if l == 2  # 8 * sqrt(2) * π^(5/4)
+        (i == 1) && return @. common * 1 / sqrt(T( 15)) * qsq
+        (i == 2) && return @. common * 2 / sqrt(T(105)) * qsq * (7 - qrsq) / T(3)
+    end
+
+    if l == 3  # 16 * π^(5/4)
+        (i == 1) && return @. common * 1 / sqrt(T(105)) * q * qsq
+    end
+end
+
+"""
+    eval_psp_projection_radial_real(psp::PspHgh, i, l, q::Real)
+
+Evaluate the radial part of the `i`-th projector for angular momentum `l`
+in real-space at the vector with modulus `r`.
+[HGH98] (3)
+"""
+function eval_psp_projection_radial_real(psp::PspHgh, i, l, r::T) where {T <: Real}
+    @assert 0 <= l <= length(psp.rp) - 1
+    @assert i > 0
+    rp = T(psp.rp[l + 1])
+    ired = (4i - 1) / T(2)
+    sqrt(T(2)) * r^(l + 2(i - 1)) * exp(-r^2 / 2rp^2) / rp^(l + ired) / sqrt(gamma(l + ired))
 end
 
 
