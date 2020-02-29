@@ -48,6 +48,8 @@ function LinearAlgebra.mul!(Y, block::HamiltonianBlock, X)
         Y .= kin.diag .* X
     else
         @views Threads.@threads for n = 1:size(X, 2)
+            # Profiling on Caffeine shows up allocations involved
+            # in G_to_r in the next line:
             Xreal = G_to_r(block.basis, block.kpt, X[:, n])
             Xreal .*= Vloc
             r_to_G!(Y[:, n], block.basis, block.kpt, Xreal)
