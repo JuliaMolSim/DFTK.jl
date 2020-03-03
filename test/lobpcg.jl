@@ -1,6 +1,6 @@
 using Test
 using DFTK: PlaneWaveBasis, Model, Hamiltonian, lobpcg_hyper, diagonalise_all_kblocks
-using DFTK: PreconditionerTPA, Element, load_psp, term_external, term_nonlocal, diag_full
+using DFTK: PreconditionerTPA, ElementPsp, load_psp, term_external, term_nonlocal, diag_full
 
 include("./testcases.jl")
 
@@ -57,7 +57,7 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
         Ecut = 25
         fft_size = [33, 33, 33]
 
-        Si = Element(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
+        Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
         model = Model(silicon.lattice, n_electrons=silicon.n_electrons,
                       external=term_external([Si => silicon.positions]))
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops;
@@ -86,7 +86,7 @@ end
     Ecut = 10
     fft_size = [21, 21, 21]
 
-    Si = Element(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
+    Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
     model = Model(silicon.lattice, n_electrons=silicon.n_electrons,  # Core Hamiltonian model
                   external=term_external([Si => silicon.positions]),
                   nonlocal=term_nonlocal([Si => silicon.positions]))
@@ -113,7 +113,7 @@ end
     Ecut = 2
     fft_size = [5, 5, 5]
 
-    Si = Element(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
+    Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
     model = Model(silicon.lattice, n_electrons=silicon.n_electrons,  # Core Hamiltonian model
                   external=term_external([Si => silicon.positions]),
                   nonlocal=term_nonlocal([Si => silicon.positions]))

@@ -48,7 +48,7 @@ Random.seed!(0)
         include("interpolation.jl")
         include("load_psp.jl")
         include("PspHgh.jl")
-        include("Element.jl")
+        include("elements.jl")
         include("bzmesh.jl")
         include("external_pymatgen.jl")
     end

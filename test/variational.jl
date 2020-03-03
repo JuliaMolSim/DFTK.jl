@@ -13,7 +13,7 @@ function get_scf_energies(testcase, supersampling, functionals)
 
     fft_size = determine_grid_size(testcase.lattice, Ecut, supersampling=supersampling,
                                    ensure_smallprimes=false)
-    spec = Element(testcase.atnum, psp=load_psp(testcase.psp))
+    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
     if length(functionals) > 0
         model = model_dft(testcase.lattice, functionals, [spec => testcase.positions])
     else

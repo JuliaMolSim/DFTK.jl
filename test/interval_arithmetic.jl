@@ -26,7 +26,7 @@ end
 function discretised_hamiltonian(T, testcase)
     Ecut = 10  # Hartree
 
-    spec = Element(testcase.atnum, psp=load_psp(testcase.psp))
+    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
     atoms = [spec => testcase.positions]
     model = model_dft(Array{T}(testcase.lattice), [:lda_x, :lda_c_vwn], atoms)
     kpoints, ksymops = bzmesh_uniform([1, 1, 1.])

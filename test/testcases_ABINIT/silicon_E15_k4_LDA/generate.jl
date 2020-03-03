@@ -1,7 +1,7 @@
 include("../../testcases.jl")
 using DFTK
 
-atoms = [Element(14, load_psp("hgh/lda/si-q4")) => silicon.positions]
+atoms = [ElementPsp(14, load_psp("hgh/lda/si-q4")) => silicon.positions]
 model = model_dft(silicon.lattice, :lda_xc_teter93, atoms)
 
 abinitpseudos = [joinpath(@__DIR__, "Si-q4-pade.abinit.hgh")]

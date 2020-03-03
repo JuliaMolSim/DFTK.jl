@@ -1,5 +1,5 @@
 using Test
-using DFTK: PlaneWaveBasis, Model, model_hcore, load_psp, Element
+using DFTK: PlaneWaveBasis, Model, model_hcore, load_psp, ElementPsp
 using DFTK: Hamiltonian, kblock
 
 include("testcases.jl")
@@ -9,7 +9,7 @@ include("testcases.jl")
     Ecut = 10
     fft_size = [21, 21, 21]
 
-    spec = Element(testcase.atnum, psp=load_psp(testcase.psp))
+    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
     model = model_hcore(testcase.lattice, [spec => testcase.positions])
     basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis)
