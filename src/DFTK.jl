@@ -37,12 +37,14 @@ export from_real
 export from_fourier
 include("RealFourierArray.jl")
 
-export Element
+export ElementPsp
+export ElementCohenBergstresser
+export ElementAllElectron
 export charge_nuclear
 export charge_ionic
 export n_elec_valence
 export n_elec_core
-include("Element.jl")
+include("elements.jl")
 
 export PspHgh
 export eval_psp_local_fourier

@@ -1,5 +1,8 @@
 import PeriodicTable
 
+# Alias to avoid similarity of elements and Element in DFTK module namespace
+periodic_table = PeriodicTable.elements
+
 # Data structure for chemical element and the potential model via which
 # they interact with electrons. A compensating charge background is
 # always assumed.
@@ -28,32 +31,18 @@ end
 
 
 """
-   element(key, [psp=Pseudopotential], [model=:CohenBergstresser])
-Construct an element. `key` may be a symbol, an element name or an element number.
-By default an element with a Coulomb potential (all electron treatment) is constructed.
-`psp` allows to specify a pseudopotential and `model` an alternative model for the
-interaction with electrons.
-"""
-element(Z::Int, symbol) = ElementAllElectron(Z, symbol)
-element(Z::Int, symbol; psp) = ElementPsp(Z, symbol, psp)
-function element(Z::Int, symbol; model::Symbol, kwargs...)
-    model == :CohenBergstresser && return ElementCohenBergstresser(Z, symbol, kwargs...)
-    error("Unknown element model: $model")
-end
-function element(key::Union{Symbol,Int,String}; kwargs...)
-    element(elements[key].number, elements[key].symbol; kwargs...)
-end
-
-
-"""
 Element interacting with electrons via a bare Coulomb potential
 (for all-electron calculations)
 """
 struct ElementAllElectron <: AbstractElement
     Z::Int  # Nuclear charge
-    symbol  # Element symbol (as a string)
+    symbol  # Element symbol
 end
 charge_ionic(el::ElementAllElectron) = el.Z
+
+function ElementAllElectron(key)
+    ElementAllElectron(periodic_table[key].number, periodic_table[key].symbol)
+end
 
 
 """Radial local potential, in Fourier space: V(q) = int_{R^3} V(x) e^{-iqx} dx."""
@@ -73,9 +62,10 @@ Element interacting with electrons via a pseudopotential model
 """
 struct ElementPsp <: AbstractElement
     Z::Int  # Nuclear charge
-    symbol  # Element symbol (as a string)
+    symbol  # Element symbol
     psp     # Pseudopotential data structure
 end
+ElementPsp(key; psp) = ElementPsp(periodic_table[key].number, periodic_table[key].symbol, psp)
 charge_ionic(el::ElementPsp) = el.psp.Zion
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
@@ -98,13 +88,13 @@ are implemented (i.e. Si, Ge, Sn).
 """
 struct ElementCohenBergstresser <: AbstractElement
     Z::Int  # Nuclear charge
-    symbol  # Element symbol (as a string)
+    symbol  # Element symbol
     V_sym   # Map |G|^2 (in units of (2π / lattice_constant)^2) to form factors
     lattice_constant  # Lattice constant (in Bohr) which is assumed
 end
-charge_ionic(el::ElementPsp) = 2
+charge_ionic(el::ElementCohenBergstresser) = 2
 
-function ElementCohenBergstresser(Z, symbol; lattice_constant=nothing)
+function ElementCohenBergstresser(key, lattice_constant=nothing)
     # Form factors from Cohen-Bergstresser paper Table 2, converted to Bohr
     # Lattice constants from Table 1, converted to Bohr
     V_sym_paper = Dict{Int64,Float64}()
@@ -136,7 +126,9 @@ function ElementCohenBergstresser(Z, symbol; lattice_constant=nothing)
     # => Scale by Ω / 2
     V_sym = Dict(key => value * unit_cell_volume / 2
                  for (key, value) in pairs(V_sym_paper))
-    ElementCohenBergstresser(Z, symbol, V_sym, lattice_constant)
+
+    ElementCohenBergstresser(periodic_table[key].number, periodic_table[key].symbol,
+                             V_sym, lattice_constant)
 end
 
 function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <: Real}
