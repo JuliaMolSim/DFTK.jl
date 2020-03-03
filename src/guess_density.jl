@@ -72,4 +72,4 @@ function atom_decay_length(n_elec_core, n_elec_valence)
     end
     data[min(n_elec_valence, length(data))]
 end
-atom_decay_length(sp::Element) = atom_decay_length(n_elec_core(sp), n_elec_valence(sp))
+atom_decay_length(sp::AbstractElement) = atom_decay_length(n_elec_core(sp), n_elec_valence(sp))
