@@ -1,4 +1,4 @@
-using DFTK: bzmesh_uniform, bzmesh_ir_wedge, ElementPsp, Vec3, Mat3
+using DFTK: bzmesh_uniform, bzmesh_ir_wedge, ElementAllElectron, Vec3, Mat3
 using DFTK: pymatgen_structure, load_lattice
 using LinearAlgebra
 using PyCall
@@ -31,12 +31,13 @@ end
 @testset "bzmesh_ir_wedge is correct reduction" begin
     function test_reduction(system, kgrid_size; supercell=[1, 1, 1])
         lattice = system.lattice
-        atoms = [ElementPsp(system.atnum) => system.positions]
+        atoms = [ElementAllElectron(system.atnum) => system.positions]
         if supercell != [1, 1, 1]  # Make a supercell
             pystruct = pymatgen_structure(lattice, atoms)
             pystruct.make_supercell(supercell)
             lattice = load_lattice(pystruct)
-            atoms = [ElementPsp(system.atnum) => [s.frac_coords for s in pystruct.sites]]
+            atoms = [ElementAllElectron(system.atnum)
+                     => [s.frac_coords for s in pystruct.sites]]
         end
 
         red_kcoords, _ = bzmesh_uniform(kgrid_size)

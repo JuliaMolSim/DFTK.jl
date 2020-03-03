@@ -26,7 +26,7 @@ include("testcases.jl")
 
     diff_findiff = -(E2 - E1) / ε
     diff_forces = dot(F1[1][1], disp)
-    @test abs(diff_findiff - diff_forces) < 1e-6
+    @test abs(diff_findiff - diff_forces) < 1.5e-6
 end
 
 

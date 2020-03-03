@@ -106,6 +106,6 @@ function load_atoms(T, pyobj::PyObject; functional="lda", pspmap=Dict())
             psp = guess_psp_for_element(spec.symbol, functional)
             @info("Using autodetermined pseudopotential for $(spec.symbol).", psp)
         end
-        Element(spec.number, psp=load_psp(psp)) => coords
+        ElementPsp(spec.number, psp=load_psp(psp)) => coords
     end
 end
