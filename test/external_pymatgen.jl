@@ -86,7 +86,7 @@ end
     for i in 1:6
         specpair = atoms[specmap[i]]
         ired = i - offset[i]
-        @test output.species[i].number == specpair.first.Znuc
+        @test output.species[i].number == specpair.first.Z
         @test output.sites[i].frac_coords == specpair.second[ired]
     end
 end
