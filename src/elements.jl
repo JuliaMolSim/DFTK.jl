@@ -29,17 +29,18 @@ function local_potential_real(el::Element, q::AbstractVector)
     local_potential_real(el, norm(q))
 end
 
-
-"""
-Element interacting with electrons via a bare Coulomb potential
-(for all-electron calculations)
-"""
 struct ElementAllElectron <: Element
     Z::Int  # Nuclear charge
     symbol  # Element symbol
 end
 charge_ionic(el::ElementAllElectron) = el.Z
 
+"""
+Element interacting with electrons via a bare Coulomb potential
+(for all-electron calculations)
+`key` may be an element symbol (like `:Si`), an atomic number (e.g. `14`)
+or an element name (e.g. `"silicon"`)
+"""
 function ElementAllElectron(key)
     ElementAllElectron(periodic_table[key].number, Symbol(periodic_table[key].symbol))
 end
@@ -57,14 +58,17 @@ end
 local_potential_real(el::ElementAllElectron, r::Real) = -el.Z / r
 
 
-"""
-Element interacting with electrons via a pseudopotential model
-"""
 struct ElementPsp <: Element
     Z::Int  # Nuclear charge
     symbol  # Element symbol
     psp     # Pseudopotential data structure
 end
+
+"""
+Element interacting with electrons via a pseudopotential model.
+`key` may be an element symbol (like `:Si`), an atomic number (e.g. `14`)
+or an element name (e.g. `"silicon"`)
+"""
 ElementPsp(key; psp) = ElementPsp(periodic_table[key].number,
                                   Symbol(periodic_table[key].symbol), psp)
 charge_ionic(el::ElementPsp) = el.psp.Zion
@@ -80,13 +84,6 @@ function local_potential_real(el::ElementPsp, r::Real)
 end
 
 
-"""
-Element where the interaction with electrons is modelled
-as in [CohenBergstresser1966] (DOI 10.1103/PhysRev.141.789)
-
-Only the homonuclear lattices of the diamond structure
-are implemented (i.e. Si, Ge, Sn).
-"""
 struct ElementCohenBergstresser <: Element
     Z::Int  # Nuclear charge
     symbol  # Element symbol
@@ -95,6 +92,16 @@ struct ElementCohenBergstresser <: Element
 end
 charge_ionic(el::ElementCohenBergstresser) = 2
 
+"""
+Element where the interaction with electrons is modelled
+as in [CohenBergstresser1966] (DOI 10.1103/PhysRev.141.789)
+
+Only the homonuclear lattices of the diamond structure
+are implemented (i.e. Si, Ge, Sn).
+
+`key` may be an element symbol (like `:Si`), an atomic number (e.g. `14`)
+or an element name (e.g. `"silicon"`)
+"""
 function ElementCohenBergstresser(key; lattice_constant=nothing)
     element = periodic_table[key]
 
