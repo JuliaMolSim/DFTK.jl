@@ -41,7 +41,7 @@ end
 charge_ionic(el::ElementAllElectron) = el.Z
 
 function ElementAllElectron(key)
-    ElementAllElectron(periodic_table[key].number, periodic_table[key].symbol)
+    ElementAllElectron(periodic_table[key].number, Symbol(periodic_table[key].symbol))
 end
 
 
@@ -65,7 +65,8 @@ struct ElementPsp <: AbstractElement
     symbol  # Element symbol
     psp     # Pseudopotential data structure
 end
-ElementPsp(key; psp) = ElementPsp(periodic_table[key].number, periodic_table[key].symbol, psp)
+ElementPsp(key; psp) = ElementPsp(periodic_table[key].number,
+                                  Symbol(periodic_table[key].symbol), psp)
 charge_ionic(el::ElementPsp) = el.psp.Zion
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
@@ -94,31 +95,34 @@ struct ElementCohenBergstresser <: AbstractElement
 end
 charge_ionic(el::ElementCohenBergstresser) = 2
 
-function ElementCohenBergstresser(key, lattice_constant=nothing)
+function ElementCohenBergstresser(key; lattice_constant=nothing)
+    element = periodic_table[key]
+
     # Form factors from Cohen-Bergstresser paper Table 2, converted to Bohr
     # Lattice constants from Table 1, converted to Bohr
     V_sym_paper = Dict{Int64,Float64}()
-    if Z == 14      # Si
+    if element.symbol == "Si"
         V_sym_paper[3]  = -0.21 * units.Ry
         V_sym_paper[8]  =  0.04 * units.Ry
         V_sym_paper[11] =  0.08 * units.Ry
         isnothing(lattice_constant) && (lattice_constant = 5.43 * units.Ǎ)
-    elseif Z == 32  # Ge
+    elseif element.symbol == "Ge"
         V_sym_paper[3]  = -0.23 * units.Ry
         V_sym_paper[8]  =  0.01 * units.Ry
         V_sym_paper[11] =  0.06 * units.Ry
         isnothing(lattice_constant) && (lattice_constant = 5.66 * units.Ǎ)
-    elseif Z == 50  # Sn
+    elseif element.symbol == "Sn"
         V_sym_paper[3]  = -0.20 * units.Ry
         V_sym_paper[8]  =  0.00 * units.Ry
         V_sym_paper[11] =  0.04 * units.Ry
         isnothing(lattice_constant) && (lattice_constant = 6.49 * units.Ǎ)
     else
-        error("Cohen-Bergstresser potential for Z == $Z not implemented.")
+        error("Cohen-Bergstresser potential not implemented for element " *
+              "$(element.symbol).")
     end
 
     # Unit-cell volume of the primitive lattice (used in DFTK):
-    unit_cell_volume = det(a / 2 .* [[0 1 1]; [1 0 1]; [1 1 0]])
+    unit_cell_volume = det(lattice_constant / 2 .* [[0 1 1]; [1 0 1]; [1 1 0]])
 
     # The form factors in the Cohen-Bergstresser paper Table 2 are
     # with respect to non-normalised planewaves and are already
@@ -127,7 +131,7 @@ function ElementCohenBergstresser(key, lattice_constant=nothing)
     V_sym = Dict(key => value * unit_cell_volume / 2
                  for (key, value) in pairs(V_sym_paper))
 
-    ElementCohenBergstresser(periodic_table[key].number, periodic_table[key].symbol,
+    ElementCohenBergstresser(element.number, Symbol(element.symbol),
                              V_sym, lattice_constant)
 end
 
@@ -135,6 +139,6 @@ function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <:
     q == 0 && return zero(T)  # Compensating charge background
 
     # Get |G|^2 in units of (2π / lattice_constant)^2
-    Gsq_pi = Int(round((q / (2π / el.lattice_constant))^2, digits=12))
+    Gsq_pi = Int(round(q^2 / (2π / el.lattice_constant)^2, digits=10))
     T(get(el.V_sym, Gsq_pi, 0.0))
 end

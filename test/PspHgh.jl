@@ -39,20 +39,11 @@ end
     psp = load_psp("hgh/lda/Si-q4")
 
     # Test local part evaluation
-    function test_psp_local_permutations(G, ref)
-        @test eval_psp_local_fourier(psp, G[[1, 2, 3]]) ≈ ref
-        @test eval_psp_local_fourier(psp, G[[1, 3, 2]]) ≈ ref
-        @test eval_psp_local_fourier(psp, G[[2, 1, 3]]) ≈ ref
-        @test eval_psp_local_fourier(psp, G[[2, 3, 1]]) ≈ ref
-        @test eval_psp_local_fourier(psp, G[[3, 1, 2]]) ≈ ref
-        @test eval_psp_local_fourier(psp, G[[3, 2, 1]]) ≈ ref
-    end
-
-    test_psp_local_permutations([0.1,   0,    0], -400.395448865164*4π)
-    test_psp_local_permutations([0.1, 0.2,    0], -80.39317320182417*4π)
-    test_psp_local_permutations([0.1, 0.2, -0.3], -28.95951714682582*4π)
-    test_psp_local_permutations([1.0, -2.0, 3.0], -0.275673388844235*4π)
-    test_psp_local_permutations([10.0, 0.0, 0.0], -5.1468909215285576e-5*4π)
+    @test eval_psp_local_fourier(psp, norm([0.1,   0,    0])) ≈ -400.395448865164*4π
+    @test eval_psp_local_fourier(psp, norm([0.1, 0.2,    0])) ≈ -80.39317320182417*4π
+    @test eval_psp_local_fourier(psp, norm([0.1, 0.2, -0.3])) ≈ -28.95951714682582*4π
+    @test eval_psp_local_fourier(psp, norm([1.0, -2.0, 3.0])) ≈ -0.275673388844235*4π
+    @test eval_psp_local_fourier(psp, norm([10.0, 0.0, 0.0])) ≈ -5.1468909215285576e-5*4π
 
     # Test nonlocal part evaluation
     qsq = [0, 0.01, 0.1, 0.3, 1, 10]

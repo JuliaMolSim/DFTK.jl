@@ -23,7 +23,7 @@ function forces(basis, ρ, Psi, occupation)
         @assert model.build_external !== nothing
         # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
         # where struct_factor(G) = cis(-2T(π) * dot(G, r))
-        form_factors = [Complex{T}(eval_psp_local_fourier(type.psp, model.recip_lattice * G))
+        form_factors = [Complex{T}(eval_psp_local_fourier(type.psp, norm(model.recip_lattice * G)))
                         for G in G_vectors(basis)] ./ sqrt(model.unit_cell_volume)
         form_factors[1] = 0
 
