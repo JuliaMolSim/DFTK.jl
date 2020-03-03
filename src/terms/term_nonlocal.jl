@@ -146,7 +146,8 @@ ignored by this function.
 """
 function term_nonlocal(psps_or_atoms)
     # Function to extract the psp object in case the passed items are "Element"
-    extract_psp(elem::Element) = elem.psp
+    extract_psp(elem::ElementPsp) = elem.psp
+    extract_psp(elem::AbstractElement) = nothing
     extract_psp(elem) = elem
     atoms = [extract_psp(elem) => positions
              for (elem, positions) in psps_or_atoms

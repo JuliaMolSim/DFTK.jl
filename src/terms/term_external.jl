@@ -38,7 +38,7 @@ julia> na_Coulomb(G) = -11 / sum(abs2, basis.recip_lattice * G)
 since sodium has nuclear charge 11.
 ```
 """
-function term_external(generators_or_atoms; compensating_background=true)
+function term_external(atoms)
     function inner(basis::PlaneWaveBasis{T}, energy, potential; ρ=nothing, kwargs...) where T
         model = basis.model
 
@@ -47,14 +47,7 @@ function term_external(generators_or_atoms; compensating_background=true)
         #        = Ω <e_G, Vper e_0>
         make_generator(elem::Function) = elem
         function make_generator(elem::Element)
-            if elem.psp === nothing
-                # All-electron => Use default Coulomb potential
-                # We use int_R^3 1/r e^-iqx = 4π / q^2
-                return G -> -4T(π) * charge_nuclear(elem) / sum(abs2, model.recip_lattice * G)
-            else
-                # Use local part of pseudopotential defined in Element object
-                return G -> eval_psp_local_fourier(elem.psp, model.recip_lattice * G)
-            end
+            return G -> local_potential_fourier(sum(abs2, model.recip_lattice * G))
         end
         genfunctions = [make_generator(elem) => positions
                         for (elem, positions) in generators_or_atoms]
@@ -71,7 +64,6 @@ function term_external(generators_or_atoms; compensating_background=true)
                   for r in positions
            )
         end
-        compensating_background && (coeffs[1] = 0)
 
         # TODO impose Vext to be real
         Vext = (potential === nothing) ? G_to_r(basis, coeffs) : G_to_r!(potential, basis, coeffs)
