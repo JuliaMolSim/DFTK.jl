@@ -94,8 +94,7 @@ charge_ionic(el::ElementCohenBergstresser) = 2
 
 """
 Element where the interaction with electrons is modelled
-as in [CohenBergstresser1966] (DOI 10.1103/PhysRev.141.789)
-
+as in [CohenBergstresser1966] (DOI 10.1103/PhysRev.141.789).
 Only the homonuclear lattices of the diamond structure
 are implemented (i.e. Si, Ge, Sn).
 
@@ -145,7 +144,12 @@ end
 function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <: Real}
     q == 0 && return zero(T)  # Compensating charge background
 
+    # Number of digits to keep in rounding (depending on element type)
+    digits = 10
+    eps(T) > 1e-13 && (digits = 3)
+    eps(T) > 1e-6 && (digits = 2)
+
     # Get |G|^2 in units of (2π / lattice_constant)^2
-    Gsq_pi = Int(round(q^2 / (2π / el.lattice_constant)^2, digits=10))
+    Gsq_pi = Int(round(q^2 / (2π / el.lattice_constant)^2, digits=digits))
     T(get(el.V_sym, Gsq_pi, 0.0))
 end
