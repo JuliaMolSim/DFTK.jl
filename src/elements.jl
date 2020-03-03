@@ -7,25 +7,25 @@ periodic_table = PeriodicTable.elements
 # they interact with electrons. A compensating charge background is
 # always assumed.
 
-abstract type AbstractElement end
+abstract type Element end
 
 """Return the total nuclear charge of an atom type"""
-charge_nuclear(el::AbstractElement) = el.Z
+charge_nuclear(el::Element) = el.Z
 
 """Return the total ionic charge of an atom type (nuclear charge - core electrons)"""
-charge_ionic(el::AbstractElement) = error("Implement charge_ionic")
+charge_ionic(el::Element) = error("Implement charge_ionic")
 
 """Return the number of valence electrons"""
-n_elec_valence(el::AbstractElement) = charge_ionic(el)
+n_elec_valence(el::Element) = charge_ionic(el)
 
 """Return the number of core electrons"""
-n_elec_core(el::AbstractElement) = charge_nuclear(el) - charge_ionic(el)
+n_elec_core(el::Element) = charge_nuclear(el) - charge_ionic(el)
 
-function local_potential_fourier(el::AbstractElement, q::AbstractVector)
+function local_potential_fourier(el::Element, q::AbstractVector)
     local_potential_fourier(el, norm(q))
 end
 
-function local_potential_real(el::AbstractElement, q::AbstractVector)
+function local_potential_real(el::Element, q::AbstractVector)
     local_potential_real(el, norm(q))
 end
 
@@ -34,7 +34,7 @@ end
 Element interacting with electrons via a bare Coulomb potential
 (for all-electron calculations)
 """
-struct ElementAllElectron <: AbstractElement
+struct ElementAllElectron <: Element
     Z::Int  # Nuclear charge
     symbol  # Element symbol
 end
@@ -60,7 +60,7 @@ local_potential_real(el::ElementAllElectron, r::Real) = -el.Z / r
 """
 Element interacting with electrons via a pseudopotential model
 """
-struct ElementPsp <: AbstractElement
+struct ElementPsp <: Element
     Z::Int  # Nuclear charge
     symbol  # Element symbol
     psp     # Pseudopotential data structure
@@ -87,7 +87,7 @@ as in [CohenBergstresser1966] (DOI 10.1103/PhysRev.141.789)
 Only the homonuclear lattices of the diamond structure
 are implemented (i.e. Si, Ge, Sn).
 """
-struct ElementCohenBergstresser <: AbstractElement
+struct ElementCohenBergstresser <: Element
     Z::Int  # Nuclear charge
     symbol  # Element symbol
     V_sym   # Map |G|^2 (in units of (2π / lattice_constant)^2) to form factors

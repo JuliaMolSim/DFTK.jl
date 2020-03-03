@@ -46,7 +46,7 @@ function term_external(atoms)
         #        = int_R^3 V(x) e^-iGx
         #        = Ω <e_G, Vper e_0>
         make_generator(elem::Function) = elem
-        function make_generator(elem::AbstractElement)
+        function make_generator(elem::Element)
             return G -> local_potential_fourier(elem, model.recip_lattice * G)
         end
         genfunctions = [make_generator(elem) => positions for (elem, positions) in atoms]
