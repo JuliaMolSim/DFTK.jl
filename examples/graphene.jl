@@ -14,7 +14,7 @@ Ecut = 35
 lattice = [4.659533614391621 -2.3297668071958104 0.0;
            0.0 4.035274479829987 0.0;
            0.0 0.0 15.117809010356462]
-C = Species(6, load_psp("hgh/pbe/c-q4"))
+C = ElementPsp(:C, load_psp("hgh/pbe/c-q4"))
 atoms = [C => [[0.0, 0.0, 0.0], [0.33333333333, 0.66666666667, 0.0]]]
 
 model = model_dft(lattice, [:gga_x_pbe, :gga_c_pbe], atoms;
@@ -25,14 +25,5 @@ basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid)
 n_bands = 6
 ham = Hamiltonian(basis, guess_density(basis))
 scfres = self_consistent_field(ham, n_bands)
-ham = scfres.ham
 
-# Print obtained energies
-energies = scfres.energies
-energies[:Ewald] = energy_nuclear_ewald(model.lattice, composition...)
-energies[:PspCorrection] = energy_nuclear_psp_correction(model.lattice, composition...)
-println("\nEnergy breakdown:")
-for key in sort([keys(energies)...]; by=S -> string(S))
-    @printf "    %-20s%-10.7f\n" string(key) energies[key]
-end
-@printf "\n    %-20s%-15.12f\n\n" "total" sum(values(energies))
+print_energies(scfres.energies)

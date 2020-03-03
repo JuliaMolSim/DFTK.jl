@@ -36,8 +36,8 @@ end
             pystruct = pymatgen_structure(lattice, atoms)
             pystruct.make_supercell(supercell)
             lattice = load_lattice(pystruct)
-            atoms = [ElementAllElectron(system.atnum)
-                     => [s.frac_coords for s in pystruct.sites]]
+            el = ElementAllElectron(system.atnum)
+            atoms = [el => [s.frac_coords for s in pystruct.sites]]
         end
 
         red_kcoords, _ = bzmesh_uniform(kgrid_size)
