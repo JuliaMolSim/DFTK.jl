@@ -107,6 +107,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        callback=scf_default_callback,
                                        is_converged=ScfConvergenceEnergy(tol),
                                        compute_consistent_energies=true,
+                                       mixing_initial=SimpleMixing(),
+                                       n_initial=0,
                                       )
     T = eltype(basis)
     model = basis.model
@@ -156,8 +158,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         end
 
         # mix it with ρin to get a proposal step
-        ρnext = mix(mixing, basis, ρin, ρout)
-        neval += 1
+        mixing_method = neval <= n_initial ? mixing_initial : mixing
+        ρnext = mix(mixing_method, basis, ρin, ρout, LDOS=ldos)
 
         info = (ham=ham, energies=energies, ρin=ρin, ρout=ρout, ρnext=ρnext,
                 eigenvalues=eigenvalues, occupation=occupation, εF=εF, neval=neval, ψ=ψ,
