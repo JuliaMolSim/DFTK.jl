@@ -50,7 +50,7 @@ end
 
 @testset "Check constructing ElementCohenBergstresser" begin
     element_Ge = ElementCohenBergstresser(:Ge)
-    @test element.Z == 32
+    @test element_Ge.Z == 32
 
     element = ElementCohenBergstresser("silicon")
     @test element.Z == 14
