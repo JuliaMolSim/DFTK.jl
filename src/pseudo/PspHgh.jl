@@ -131,12 +131,11 @@ V(q) = ∫_R^3 Vloc(r) e^{-iqr} dr
 
 [GTH98] (6) except they do it with plane waves normalized by 1/sqrt(Ω).
 """
-function eval_psp_local_fourier(psp::PspHgh, ΔG::AbstractVector{T}) where T
-    Gsq = sum(abs2, ΔG)
-    Grsq::T = Gsq * psp.rloc^2
+function eval_psp_local_fourier(psp::PspHgh, q::T) where {T <: Real}
+    Grsq::T = q^2 * psp.rloc^2
 
     4T(π) * (
-        - psp.Zion / Gsq * exp(-Grsq / 2)
+        - psp.Zion / q^2 * exp(-Grsq / 2)
         + sqrt(T(π)/2) * psp.rloc^3 * exp(-Grsq / 2) * (
             + psp.cloc[1]
             + psp.cloc[2] * (  3 -       Grsq                       )
@@ -155,12 +154,12 @@ The vector `r` should be given in cartesian coordinates.
 
 [GTH98] (1)
 """
-function eval_psp_local_real(psp::PspHgh, r::AbstractVector{T}) where T
+function eval_psp_local_real(psp::PspHgh, r::T) where {T <: Real}
     cloc = psp.cloc
-    rrsq = sum(abs2, r) / psp.rloc
+    rrsq = r^2 / psp.rloc
 
     convert(T,
-        - psp.Zion / norm(r) * erf(norm(r) / sqrt(T(2)) / psp.rloc)
+        - psp.Zion / r * erf(r / sqrt(T(2)) / psp.rloc)
         + exp(-rrsq / 2) * (cloc[1] + cloc[2] * rrsq + cloc[3] * rrsq^2 + cloc[4] * rrsq^3)
     )
 end

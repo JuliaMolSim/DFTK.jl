@@ -16,7 +16,7 @@ a = 3.0179389193174084
 b = 5.227223542397263
 c = 9.773621942589742
 lattice = [[-a -a  0]; [-b  b  0]; [0   0 -c]]
-Mg = Element(12, psp=load_psp("hgh/pbe/Mg-q2"))
+Mg = ElementPsp(:Mg, psp=load_psp("hgh/pbe/Mg-q2"))
 atoms = [Mg => [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]]]
 
 # Make a supercell if desired

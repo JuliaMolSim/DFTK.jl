@@ -1,6 +1,6 @@
 using Test
 using DFTK: load_psp, pymatgen_lattice, pymatgen_structure, load_lattice, load_atoms
-using DFTK: units, Element
+using DFTK: units, ElementCoulomb
 using PyCall
 
 py"""
@@ -68,9 +68,9 @@ end
     lattice = [a b c]
 
     atoms = [
-        Element(1) => [randn(3), randn(3)],
-        Element(6) => [randn(3), randn(3), randn(3)],
-        Element(8) => [randn(3), randn(3)],
+        ElementCoulomb(1) => [randn(3), randn(3)],
+        ElementCoulomb(6) => [randn(3), randn(3), randn(3)],
+        ElementCoulomb(8) => [randn(3), randn(3)],
     ]
 
     # Convert the lattice to python, make it flat and convert
@@ -86,7 +86,7 @@ end
     for i in 1:6
         specpair = atoms[specmap[i]]
         ired = i - offset[i]
-        @test output.species[i].number == specpair.first.Znuc
+        @test output.species[i].number == specpair.first.Z
         @test output.sites[i].frac_coords == specpair.second[ired]
     end
 end

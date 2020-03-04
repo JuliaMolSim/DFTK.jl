@@ -1,5 +1,5 @@
 using Test
-using DFTK: Model, PlaneWaveBasis, r_to_G, load_psp, Element, term_nonlocal, kblock
+using DFTK: Model, PlaneWaveBasis, r_to_G, load_psp, ElementPsp, term_nonlocal, kblock
 
 include("testcases.jl")
 
@@ -16,7 +16,7 @@ include("testcases.jl")
     psp = load_psp(silicon.psp)
     potnl = build_nonlocal([psp => silicon.positions])
     @testset "Agreement of psp and species construction" begin
-        Si = Element(14, psp=psp)
+        Si = ElementPsp(14, psp=psp)
         potnl2 = build_nonlocal([Si => silicon.positions])
 
         for kpt in basis.kpoints

@@ -5,7 +5,7 @@ include("testcases.jl")
 @testset "Forces on semiconductor (using total energy)" begin
     function energy(pos)
         Ecut = 5
-        Si = Element(silicon.atnum, psp=load_psp(silicon.psp))
+        Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => pos]
         model = model_dft(silicon.lattice, :lda_xc_teter93, atoms)
         basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 1, 2])
@@ -26,14 +26,14 @@ include("testcases.jl")
 
     diff_findiff = -(E2 - E1) / ε
     diff_forces = dot(F1[1][1], disp)
-    @test abs(diff_findiff - diff_forces) < 1e-6
+    @test abs(diff_findiff - diff_forces) < 1.5e-6
 end
 
 
 @testset "Forces on metal (using free energy)" begin
     function silicon_energy_forces(pos; ρ=nothing, smearing=Smearing.FermiDirac())
         Ecut = 5
-        Si = Element(silicon.atnum, psp=load_psp(silicon.psp))
+        Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => pos]
         model = model_dft(silicon.lattice, :lda_xc_teter93, atoms,
                           temperature=0.03, smearing=smearing)

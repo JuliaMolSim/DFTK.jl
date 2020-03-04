@@ -21,7 +21,7 @@ function pymatgen_structure(model_or_lattice, atoms)
     ispec = 1
     for (spec, pos) in atoms
         for coord in pos
-            pyspecies[ispec] = spec.Znuc
+            pyspecies[ispec] = spec.Z
             pypositions[ispec] = Vector{Float64}(coord)
             ispec = ispec + 1
         end
@@ -106,6 +106,6 @@ function load_atoms(T, pyobj::PyObject; functional="lda", pspmap=Dict())
             psp = guess_psp_for_element(spec.symbol, functional)
             @info("Using autodetermined pseudopotential for $(spec.symbol).", psp)
         end
-        Element(spec.number, psp=load_psp(psp)) => coords
+        ElementPsp(spec.number, psp=load_psp(psp)) => coords
     end
 end

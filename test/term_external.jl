@@ -1,5 +1,5 @@
 using Test
-using DFTK: Model, PlaneWaveBasis, r_to_G, G_vectors, Element, term_external
+using DFTK: Model, PlaneWaveBasis, r_to_G, G_vectors, ElementCoulomb, term_external
 using LinearAlgebra: dot
 
 include("testcases.jl")
@@ -10,13 +10,15 @@ include("testcases.jl")
     model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     function build_external(atoms)
-        _, pot = term_external(atoms)(basis, nothing,
-                                               zeros(ComplexF64, basis.fft_size))
+        _, pot = term_external(atoms)(basis, nothing, zeros(ComplexF64, basis.fft_size))
         pot
     end
 
     @testset "Construction using a single function" begin
-        pot_coulomb(G) = -12*4π / sum(abs2, model.recip_lattice * G)
+        function pot_coulomb(G)
+            norm(G) == 0 && return 0.0
+            -12*4π / sum(abs2, model.recip_lattice * G)
+        end
 
         # Shifting by a lattice vector should not make a difference:
         pot0 = build_external([pot_coulomb => [[0, 0, 0]]])
@@ -41,8 +43,14 @@ include("testcases.jl")
     end
 
     @testset "Construction using multiple functions" begin
-        pot_coulomb14(G) = -14*4π / sum(abs2, model.recip_lattice * G)
-        pot_coulomb6(G) = -6*4π / sum(abs2, model.recip_lattice * G)
+        function pot_coulomb14(G)
+            norm(G) == 0 && return 0.0
+            return -14*4π / sum(abs2, model.recip_lattice * G)
+        end
+        function pot_coulomb6(G)
+            norm(G) == 0 && return 0.0
+            return -6*4π / sum(abs2, model.recip_lattice * G)
+        end
 
         # Compute separate potential terms for reference
         pot_Si_1 = build_external([pot_coulomb14 => [[0, 1/8, 0]]])
@@ -57,20 +65,22 @@ include("testcases.jl")
 end
 
 
-@testset "term_external using Element" begin
+@testset "term_external using elements" begin
     Ecut = 4
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     function build_external(atoms)
-        _, pot = term_external(atoms)(basis, nothing,
-                                               zeros(ComplexF64, basis.fft_size))
+        _, pot = term_external(atoms)(basis, nothing, zeros(ComplexF64, basis.fft_size))
         pot
     end
 
     @testset "Test without Pseudopotential" begin
-        pot_coulomb(G) = -14*4π / sum(abs2, model.recip_lattice * G)
-        silicon = Element(14)
+        function pot_coulomb(G)
+            norm(G) == 0 && return 0.0
+            -14*4π / sum(abs2, model.recip_lattice * G)
+        end
+        silicon = ElementCoulomb(:Si)
 
         ref = build_external([pot_coulomb => [[0, 0, 0], [0, 1/3, 0]]])
         pot = build_external([silicon => [[0, 0, 0], [0, 1/3, 0]]])

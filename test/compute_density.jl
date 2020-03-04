@@ -47,7 +47,7 @@ include("testcases.jl")
     end
 
     function test_full_vs_irreducible(testcase, kgrid_size; Ecut=5, tol=1e-8, n_ignore=0)
-        spec = Element(testcase.atnum, psp=load_psp(testcase.psp))
+        spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
         atoms = (spec => testcase.positions, )
 
         kfull, sym_full = bzmesh_uniform(kgrid_size)

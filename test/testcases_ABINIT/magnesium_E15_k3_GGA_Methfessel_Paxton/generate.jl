@@ -2,7 +2,7 @@ include("../../testcases.jl")
 using PyCall
 using DFTK
 
-atoms = [Element(12, load_psp("hgh/lda/mg-q2")) => magnesium.positions]
+atoms = [ElementPsp(12, load_psp("hgh/lda/mg-q2")) => magnesium.positions]
 model = model_dft(magnesium.lattice, [:gga_x_pbe, :gga_c_pbe], atoms,
                   temperature=0.01, smearing=Smearing.MethfesselPaxton2())
 
