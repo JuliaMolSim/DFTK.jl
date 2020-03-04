@@ -42,6 +42,7 @@ end
 
 function spglib_get_symmetry(lattice, atoms; tol_symmetry=1e-5)
     spglib = import_spglib()
+    lattice = Matrix{Float64}(lattice)  # spglib operates in double precision
 
     # Ask spglib for symmetry operations and for irreducible mesh
     spg_symops = spglib.get_symmetry(spglib_cell(lattice, atoms),
