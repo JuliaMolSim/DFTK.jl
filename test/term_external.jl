@@ -1,5 +1,5 @@
 using Test
-using DFTK: Model, PlaneWaveBasis, r_to_G, G_vectors, ElementAllElectron, term_external
+using DFTK: Model, PlaneWaveBasis, r_to_G, G_vectors, ElementCoulomb, term_external
 using LinearAlgebra: dot
 
 include("testcases.jl")
@@ -80,7 +80,7 @@ end
             norm(G) == 0 && return 0.0
             -14*4π / sum(abs2, model.recip_lattice * G)
         end
-        silicon = ElementAllElectron(:Si)
+        silicon = ElementCoulomb(:Si)
 
         ref = build_external([pot_coulomb => [[0, 0, 0], [0, 1/3, 0]]])
         pot = build_external([silicon => [[0, 0, 0], [0, 1/3, 0]]])

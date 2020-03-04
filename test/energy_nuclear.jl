@@ -1,12 +1,12 @@
 using Test
-using DFTK: ElementPsp, ElementAllElectron, load_psp
+using DFTK: ElementPsp, ElementCoulomb, load_psp
 using DFTK: energy_nuclear_ewald, energy_nuclear_psp_correction
 using LinearAlgebra: Diagonal
 
 
 @testset "energy_nuclear_ewald Lithium hydride" begin
     lattice = 16 * Diagonal(ones(3))
-    hydrogen = ElementAllElectron(1)
+    hydrogen = ElementCoulomb(1)
     lithium = ElementPsp(3, psp=load_psp("hgh/lda/Li-q1"))
     atoms = [
         hydrogen => [[1/2, 1/2, 0.5953697526034847]],

@@ -1,16 +1,16 @@
 using Test
 using DFTK: load_psp, charge_nuclear, charge_ionic, n_elec_core, n_elec_valence
-using DFTK: ElementPsp, ElementCohenBergstresser, ElementAllElectron
+using DFTK: ElementPsp, ElementCohenBergstresser, ElementCoulomb
 using DFTK: local_potential_fourier, local_potential_real
 
-@testset "Check constructing ElementAllElectron" begin
-    el_by_name = ElementAllElectron("oxygen")
+@testset "Check constructing ElementCoulomb" begin
+    el_by_name = ElementCoulomb("oxygen")
     @test el_by_name.Z == 8
     @test el_by_name.symbol == :O
-    el_by_number = ElementAllElectron(14)
+    el_by_number = ElementCoulomb(14)
     @test el_by_number.symbol == :Si
 
-    element = ElementAllElectron(:Mg)
+    element = ElementCoulomb(:Mg)
     @test element.Z == 12
     @test element.symbol == :Mg
 
@@ -49,6 +49,9 @@ end
 end
 
 @testset "Check constructing ElementCohenBergstresser" begin
+    element_Ge = ElementCohenBergstresser(:Ge)
+    @test element.Z == 32
+
     element = ElementCohenBergstresser("silicon")
     @test element.Z == 14
     @test element.symbol == :Si
