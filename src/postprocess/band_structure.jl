@@ -42,18 +42,33 @@ function plot_band_data(basis, band_data; εF=nothing,
     data = plotter.BSPlotter(bs).bs_plot_data(zero_to_efermi=false)
 
     # Collect some useful info in a more useful way
-    spins = [("1", :blue)]
-    bs.is_spin_polarized && (spins = [("1", :blue), ("-1", :red)])
+    if bs.is_spin_polarized
+        spins = [("1", :blue), ("-1", :red)]
+    else
+        spins = [("1", :blue)]
+    end
     n_branches = length(data["energy"])
     n_bands = size(data["energy"][1]["1"], 1)
     n_kpoints = sum(length, data["distances"])
     @assert length(band_data.kpoints) == n_kpoints
 
+    # For each branch, plot all bands, spins and errors
+    ikstart = 0
     p = Plots.plot(xlabel="wave vector")
-    for ibr in 1:n_branches, (spin, color) in spins, iband in 1:n_bands
+    for ibr in 1:n_branches
         kdistances = data["distances"][ibr]
-        energies = data["energy"][ibr][spin][iband, :] .- eshift
-        Plots.plot!(p, kdistances, energies / unit_to_au(unit), color=color, label="")
+        for (spin, color) in spins, iband in 1:n_bands
+            energies = data["energy"][ibr][spin][iband, :] .- eshift
+
+            yerror = nothing
+            if hasfield(typeof(band_data), :λerror)
+                yerror = [band_data.λerror[ik + ikstart][iband] ./ unit_to_au(unit)
+                          for ik in 1:length(kdistances)]
+            end
+            Plots.plot!(p, kdistances, energies / unit_to_au(unit),
+                        color=color, label="", yerror=yerror)
+        end
+        ikstart += length(kdistances)
     end
 
     # X-range: 0 to last kdistance value
@@ -81,8 +96,7 @@ function plot_bandstructure(ham::Hamiltonian, n_bands;
     # Band structure calculation along high-symmetry path
     kpoints, klabels, kpath = high_symmetry_kpath(ham.basis; kline_density=kline_density)
     println("Computing bands along kpath:")
-    println("       ", join(join.(kpath, " -> "), "  and  "),
-            "\n       ($(length(kpoints)) kpoints)")
+    println("       ", join(join.(kpath, " -> "), "  and  "))
     band_data = compute_bands(ham, kpoints, n_bands; kwargs...)
     plot_band_data(ham.basis, band_data, εF=εF, klabels=klabels, unit=unit)
 end

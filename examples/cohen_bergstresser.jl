@@ -1,4 +1,5 @@
 using DFTK
+using Plots
 
 # Example to reproduce the silicon results of the Cohen-Bergstresser paper
 # DOI 10.1103/PhysRev.141.789

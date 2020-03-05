@@ -11,8 +11,8 @@ module units
 end
 
 """
-    unit(symbol)
+    unit_to_ao(symbol)
 Get the factor converting from the unit `symbol` to atomic units.
-E.g. `unit(:eV)` returns the conversion factor from electron volts to Hartree.
+E.g. `unit_to_au(:eV)` returns the conversion factor from electron volts to Hartree.
 """
-unit_to_au(sym::Symbol) = getfield(units, sym)
+unit_to_au(symbol::Symbol) = getfield(units, symbol)
