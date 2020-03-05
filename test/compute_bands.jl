@@ -6,7 +6,6 @@ include("testcases.jl")
 @testset "High-symmetry kpath construction for silicon" begin
     testcase = silicon
     Ecut = 2
-    kline_density = 10
 
     ref_kcoords = [
         [0.000000000000, 0.000000000000, 0.000000000000],
@@ -115,7 +114,7 @@ include("testcases.jl")
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
     model = model_dft(silicon.lattice, :lda_xc_teter93, [spec => testcase.positions])
     basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops)
-    kpoints, klabels, kpath = high_symmetry_kpath(basis, kline_density)
+    kpoints, klabels, kpath = high_symmetry_kpath(basis; kline_density=10)
 
     @test length(ref_kcoords) == length(kpoints)
     for ik in 1:length(ref_kcoords)
@@ -144,7 +143,6 @@ end
     # Build Hamiltonian just from SAD guess
     ρ0 = guess_density(basis, [spec => testcase.positions])
     ham = Hamiltonian(basis, ρ0)
-
 
     # Check that plain diagonalisation and compute_bands agree
     eigensolver = lobpcg_hyper

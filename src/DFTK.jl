@@ -11,7 +11,9 @@ using Interpolations
 using Memoization
 
 include("common/asserting.jl")
+export unit_to_au
 include("common/constants.jl")
+include("common/units.jl")
 export Vec3
 export Mat3
 include("common/types.jl")
@@ -136,7 +138,8 @@ export pymatgen_bandstructure
 export pymatgen_structure
 export high_symmetry_kpath
 export compute_bands
-export plot_bands
+export plot_band_data
+export plot_bandstructure
 include("postprocess/band_structure.jl")
 
 export DOS
