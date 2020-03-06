@@ -65,15 +65,17 @@ Local density of states, in real space
 """
 function LDOS(ε, basis, orben, Psi; smearing=basis.model.smearing, T=basis.model.temperature)
     filled_occ = filled_occupation(basis.model)
-    D = zeros(real(eltype(Psi[1])), basis.fft_size)
     T != 0 || error("LDOS only supports finite temperature")
+    weights = deepcopy(orben)
     for ik = 1:length(orben)
-        @views for iband = 1:length(orben[ik])
-            ψreal = G_to_r(basis, basis.kpoints[ik], Psi[ik][:, iband])
-            D -= (filled_occ * basis.kweights[ik] / T
-                  * Smearing.occupation_derivative(smearing, (orben[ik][iband] - ε) / T)
-                  * abs2.(ψreal))
+        for iband = 1:length(orben[ik])
+            x = (orben[ik][iband] - ε) / T
+            weights[ik][iband] = -filled_occ / T * Smearing.occupation_derivative(smearing, x)
         end
     end
-    D
+
+    # Use compute_density routine to compute LDOS, using just the modified
+    # weights (as "occupations") at each kpoint. Note, that this automatically puts in the
+    # required symmetrisation with respect to kpoints and BZ symmetry
+    compute_density(basis, Psi, weights).real
 end
