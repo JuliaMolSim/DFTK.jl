@@ -67,13 +67,14 @@ function LDOS(ε, basis, orben, Psi; smearing=basis.model.smearing, T=basis.mode
     filled_occ = filled_occupation(basis.model)
     D = zeros(real(eltype(Psi[1])), basis.fft_size)
     T != 0 || error("LDOS only supports finite temperature")
+    weights = deepcopy(orben)
     for ik = 1:length(orben)
-        @views for iband = 1:length(orben[ik])
-            ψreal = G_to_r(basis, basis.kpoints[ik], Psi[ik][:, iband])
-            D -= (filled_occ * basis.kweights[ik] / T
-                  * Smearing.occupation_derivative(smearing, (orben[ik][iband] - ε) / T)
-                  * abs2.(ψreal))
+        for iband = 1:length(orben[ik])
+            weights[ik][iband] = -filled_occ / T *
+                                 Smearing.occupation_derivative(smearing, (orben[ik][iband] - ε) / T)
         end
     end
-    D
+    D = compute_density(basis, Psi, weights)
+
+    D.real
 end
