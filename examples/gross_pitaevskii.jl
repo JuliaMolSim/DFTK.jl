@@ -1,10 +1,10 @@
 ## Gross-Pitaevskii equation: -1/2 Δ ψ + V ψ + α |ψ|^2 ψ = λ ψ, ||ψ||_L^2 = 1
 ## We emulate this with custom external potential V, and a custom xc term
 
-using PyCall
 using DFTK
-using Printf
 using LinearAlgebra
+using Plots
+Plots.pyplot()  # Use PyPlot backend for unicode support
 
 Ecut = 4000
 
@@ -67,7 +67,6 @@ ham = scfres.ham
 
 print_energies(scfres.energies)
 
-using PyPlot
 x = a*basis.grids[1]
 ρ = real(scfres.ρ.real)[:, 1, 1] # converged density
 ψ_fourier = scfres.Psi[1][:, 1] # first kpoint, all G components, first eigenvector
@@ -82,14 +81,12 @@ N = length(x)
 A = diagm(-1=>-ones(N-1), 0=>2ones(N), 1=>-ones(N-1)) / (x[2]-x[1])^2 / 2
 H = A + Diagonal(f.(x) + α .* ρ)
 
-figure()
-plot(x, ψ)
-plot(x, ρ)
-plot(x, H*ψ - dot(ψ, H*ψ)/dot(ψ, ψ)*ψ)
-legend(("ψ", "ρ", "resid"))
+p = plot(x, real.(ψ), label="ψreal")
+plot!(p, x, imag.(ψ), label="ψimag")
+plot!(p, x, ρ, label="ρ")
+plot!(p, x, abs.(H*ψ - dot(ψ, H*ψ)/dot(ψ, ψ)*ψ), label="residual")
 
-figure()
-plot(x, ham.pot_external[:, 1, 1])
-plot(x, ham.pot_xc[:, 1, 1])
-plot(x, ham.pot_local[:, 1, 1])
-legend(("Vext", "Vnl", "Vtot"))
+q = plot(real.(ham.pot_external[:, 1, 1]), label="Vext", reuse=false)
+plot!(q, real.(ham.pot_xc[:, 1, 1]), label="Vnl")
+plot!(q, real.(ham.pot_local[:, 1, 1]), label="Vtot")
+gui(plot(p, q))

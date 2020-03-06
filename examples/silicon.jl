@@ -1,14 +1,12 @@
 using DFTK
-using Printf
-using PyCall
+using Plots
 
 # Calculation parameters
 calculation_model = :lda
 kgrid = [4, 4, 4]       # k-Point grid
 supercell = [1, 1, 1]   # Lattice supercell
 Ecut = 15               # kinetic energy cutoff in Hartree
-n_bands_plot = 8        # number of bands to plot in the bandstructure
-kline_density = 20      # Density of k-Points for bandstructure
+n_bands = 8             # number of bands to plot in the bandstructure
 
 # Setup silicon lattice
 a = 10.263141334305942  # Silicon lattice constant in Bohr
@@ -51,4 +49,4 @@ ham = scfres.ham
 
 # Print energies and plot bands
 print_energies(scfres.energies)
-plot_bands(ham, n_bands_plot, kline_density, scfres.εF).show()
+gui(plot_bandstructure(scfres, n_bands))

@@ -67,8 +67,7 @@ or if you like the bleeding edge:
 ```
 
 Some parts of the code require a working Python installation with the libraries
-`scipy`, [`pymatgen`](https://pymatgen.org/) and [`spglib`](https://atztogo.github.io/spglib/).
-The examples require `matplotlib` as well.
+[`pymatgen`](https://pymatgen.org/) and [`spglib`](https://atztogo.github.io/spglib/).
 Check out which version of python is used by the
 [PyCall.jl](https://github.com/JuliaPy/PyCall.jl) package.
 You can do this for example with the Julia commands
@@ -79,11 +78,11 @@ PyCall.python
 Then use the corresponding package manager (usually `apt`, `pip` or `conda`)
 to install aforementioned libraries, for example
 ```
-pip install scipy spglib matplotlib pymatgen
+pip install spglib pymatgen
 ```
 or
 ```
-conda install -c conda-forge scipy spglib matplotlib pymatgen
+conda install -c conda-forge spglib pymatgen
 ```
 You can then run the code in the `examples/` directory.
 
