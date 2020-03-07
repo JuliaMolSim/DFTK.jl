@@ -1,3 +1,5 @@
+using ProgressMeter
+
 """
 Interpolate some data from one k-Point to another. The interpolation is fast, but not
 necessarily exact or even normalised. Intended only to construct guesses for iterative
@@ -28,10 +30,15 @@ that really does the work, operating on a single ``k``-Block.
 function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
                                  kpoints=ham.basis.kpoints, guess=nothing,
                                  prec_type=PreconditionerTPA, interpolate_kpoints=true,
-                                 tol=1e-6, maxiter=200, n_conv_check=nothing)
+                                 tol=1e-6, maxiter=200, n_conv_check=nothing,
+                                 show_progress=false)
     T = eltype(ham)
     results = Vector{Any}(undef, length(kpoints))
 
+    progress = nothing
+    if show_progress
+        progress = Progress(length(kpoints), desc="Diagonalising Hamiltonian kblocks: ")
+    end
     for (ik, kpt) in enumerate(kpoints)
         # Get guessk
         if guess != nothing
@@ -54,6 +61,9 @@ function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         results[ik] = eigensolver(kblock(ham, kpt), guessk;
                                   prec=prec, tol=tol, maxiter=maxiter,
                                   n_conv_check=n_conv_check)
+
+        # Update progress bar if desired
+        !isnothing(progress) && next!(progress)
     end
 
     # Transform results into a nicer datastructure
