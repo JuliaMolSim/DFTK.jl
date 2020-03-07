@@ -1,6 +1,4 @@
-using PyCall
 using DFTK
-using Printf
 using DoubleFloats
 
 # Calculation parameters

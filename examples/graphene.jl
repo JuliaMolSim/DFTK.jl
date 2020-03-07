@@ -1,5 +1,4 @@
 using DFTK
-using Printf
 
 #
 # Example of a medium-scale graphene calculation. Only suitable for running

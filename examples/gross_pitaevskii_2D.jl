@@ -5,40 +5,37 @@
 ## This is pretty WIP, and only serves as a very rough demo. Nothing
 ## has been checked properly, so do not use for any serious purposes.
 
-using PyCall
 using DFTK
-using Printf
-using LinearAlgebra
 using StaticArrays
+using Plots
 
 Ecut = 100
 # Nonlinearity : energy C ∫ρ^α
 C = 500.0
 α = 2
 
+# Unit cell. Having one lattice vectors as zero means a 2D system
 a = 10
-lattice = a .* [[1 0 0.]; [0 1 0]; [0 0 0]] # unit cell. Having two lattice vectors as zero means a 1D system
+lattice = a .* [[1 0 0.]; [0 1 0]; [0 0 0]]
 
-f(x, y, z) = (x-a/2)^2 + (y-a/2)^2 # potential
+f(x, y, z) = (x-a/2)^2 + (y-a/2)^2  # potential
 
 Apot(x, y, z) = .2 * @SVector [y-a/2, -(x-a/2), 0]
 Apot(X) = Apot(X...)
 
-n_electrons = 1 # increase this for fun
+n_electrons = 1  # increase this for fun
 # We add the needed terms
+terms = [Kinetic(),
+         ExternalFromReal(X -> f(X...)),
+         PowerNonlinearity(C, α),
+         Magnetic(Apot),
+]
 model = Model(lattice; n_electrons=n_electrons,
-              terms=[Kinetic(),
-                     ExternalFromReal(X -> f(X...)),
-                     PowerNonlinearity(C, α),
-                     Magnetic(Apot),],
-              spin_polarisation=:spinless # "spinless fermions"
-              )
+              terms=terms, spin_polarisation=:spinless)  # "spinless fermions"
 basis = PlaneWaveBasis(model, Ecut)
 
 n_bands_scf = model.n_electrons
 scfres = direct_minimization(basis, x_tol=1e-8, f_tol=-1, g_tol=-1)
-
 display(scfres.energies)
 
-using PyPlot
-pcolor(real(scfres.ρ.real)[:,:,1])
+heatmap(scfres.ρ.real[:,:,1], c=:blues, clims=(0, Inf))
