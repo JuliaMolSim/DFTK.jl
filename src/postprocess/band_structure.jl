@@ -23,11 +23,11 @@ function high_symmetry_kpath(basis; kline_density=20)
 end
 
 function compute_bands(ham::Hamiltonian, kpoints, n_bands;
-                       eigensolver=lobpcg_hyper, tol=1e-5, show_progress=true)
+                       eigensolver=lobpcg_hyper, tol=1e-5, show_progress=true, kwargs...)
     band_data = diagonalise_all_kblocks(eigensolver, ham, n_bands + 3;
                                         kpoints=kpoints, n_conv_check=n_bands,
                                         interpolate_kpoints=false, tol=tol,
-                                        show_progress=show_progress)
+                                        show_progress=show_progress, kwargs...)
     band_data.converged || (@warn "LOBPCG not converged" iterations=eigres.iterations)
 
     select_eigenpairs_all_kblocks(band_data, 1:n_bands)
