@@ -25,4 +25,5 @@ n_bands = 6
 scfres = self_consistent_field(basis; n_bands=n_bands)
 
 # Print obtained energies
+println()
 display(scfres.energies)

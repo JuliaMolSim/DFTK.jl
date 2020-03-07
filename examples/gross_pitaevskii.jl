@@ -27,6 +27,7 @@ model = Model(lattice; n_electrons=n_electrons, terms=terms,
 basis = PlaneWaveBasis(model, Ecut)
 
 scfres = direct_minimization(basis, x_tol=1e-8, f_tol=-1, g_tol=-1)
+println()
 display(scfres.energies)
 
 x = a * range(0, 1, length=basis.fft_size[1]+1)[1:end-1]

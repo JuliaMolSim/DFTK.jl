@@ -36,6 +36,7 @@ basis = PlaneWaveBasis(model, Ecut)
 
 n_bands_scf = model.n_electrons
 scfres = direct_minimization(basis, x_tol=1e-8, f_tol=-1, g_tol=-1)
+println()
 display(scfres.energies)
 
 heatmap(scfres.ρ.real[:,:,1], c=:blues, clims=(0, Inf))

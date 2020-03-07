@@ -26,4 +26,5 @@ eigres = diagonalise_all_kblocks(DFTK.lobpcg_hyper, ham, 6)
 ρ0 = guess_density(basis)  # Just dummy, has no meaning in this model
 p = plot_bandstructure(basis, ρ0, n_bands, εF=εF, kline_density=15)
 ylims!(p, (-5, 6))
+println()
 display(p)

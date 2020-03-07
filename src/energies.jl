@@ -8,21 +8,24 @@ struct Energies{T <: Number}
     energies::OrderedDict{String, T}
 end
 
-function Base.show(io::IO, E::Energies)
-    energies = E.energies
-    println("\nEnergy breakdown:")
-    for (name, value) in E.energies
+function Base.show(io::IO, energies::Energies)
+    println("Energy breakdown:")
+    for (name, value) in energies.energies
         @printf "    %-20s%-10.7f\n" string(name) value
     end
-    @printf "\n    %-20s%-15.12f\n" "total" sum(E)
+    @printf "\n    %-20s%-15.12f\n" "total" sum(values(energies))
 end
-Base.getindex(E::Energies, i) = E.energies[i]
+Base.getindex(energies::Energies, i) = energies.energies[i]
+Base.values(energies::Energies) = values(energies.energies)
+Base.keys(energies::Energies) = keys(energies.energies)
+Base.pairs(energies::Energies) = pairs(energies.energies)
+Base.iterate(energies::Energies) = iterate(energies.energies)
+Base.iterate(energies::Energies, state) = iterate(energies.energies, state)
+Base.haskey(energies::Energies, key) = haskey(energies.energies, key)
 
-import Base.sum
-Base.sum(E::Energies) = sum(values(E.energies))
 
-function Energies(basis::PlaneWaveBasis, energies::Vector)
+function Energies(term_types::Vector, energies::Vector{T}) where {T}
     # nameof is there to get rid of parametric types
-    Energies(OrderedDict([string(nameof(typeof(basis.model.term_types[it]))) => energies[it]
-                          for it = 1:length(basis.model.term_types)]...))
+    Energies{T}(OrderedDict([string(nameof(typeof(term))) => energies[i]
+                          for (i, term) in enumerate(term_types)]...))
 end

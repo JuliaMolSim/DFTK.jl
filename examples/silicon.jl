@@ -29,5 +29,6 @@ basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 scfres = self_consistent_field(basis, tol=1e-10)
 
 # Print energies and plot bands
+println()
 display(scfres.energies)
 gui(plot_bandstructure(scfres, n_bands))

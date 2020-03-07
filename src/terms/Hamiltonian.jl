@@ -80,7 +80,7 @@ function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occ; kwargs...)
             for ik = 1:length(basis.kpoints)] # hams[ik][it]
     H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
                             for (hks, kpt) in zip(ops, basis.kpoints)])
-    (E=Energies(basis, energies), H=H)
+    (E=Energies(basis.model.term_types, energies), H=H)
 end
 function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occ=nothing, kwargs...)
     _, H = energy_hamiltonian(basis, ψ, occ; kwargs...)
