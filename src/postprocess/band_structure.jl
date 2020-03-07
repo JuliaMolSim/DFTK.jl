@@ -25,24 +25,23 @@ function compute_bands(basis, ρ, kcoords, n_bands;
                        eigensolver=lobpcg_hyper, tol=1e-5, show_progress=true, kwargs...)
     # Create basis with new kpoints, where we cheat by using any symmetry operations.
     ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)]
-    new_basis = PlaneWaveBasis(basis, kcoords, ksymops)
-    ham = Hamiltonian(new_basis; ρ=ρ)
+    bs_basis = PlaneWaveBasis(basis, kcoords, ksymops)
+    ham = Hamiltonian(bs_basis; ρ=ρ)
 
     band_data = diagonalise_all_kblocks(eigensolver, ham, n_bands + 3;
-                                        kpoints=kpoints, n_conv_check=n_bands,
-                                        interpolate_kpoints=false, tol=tol,
-                                        show_progress=show_progress, kwargs...)
+                                        n_conv_check=n_bands, interpolate_kpoints=false,
+                                        tol=tol, show_progress=show_progress, kwargs...)
     band_data.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
-    new_basis, select_eigenpairs_all_kblocks(band_data, 1:n_bands)
+    merge((basis=bs_basis, ), select_eigenpairs_all_kblocks(band_data, 1:n_bands))
 end
 
-function plot_band_data(basis, band_data; εF=nothing,
+function plot_band_data(band_data; εF=nothing,
                         klabels=Dict{String, Vector{Float64}}(), unit=:eV)
     eshift = isnothing(εF) ? 0.0 : εF
 
     # Get pymatgen to computed kpoint distances and other useful info
-    bs = pymatgen_bandstructure(basis, band_data, eshift, klabels)
+    bs = pymatgen_bandstructure(band_data, eshift, klabels)
     plotter = pyimport("pymatgen.electronic_structure.plotter")
     data = plotter.BSPlotter(bs).bs_plot_data(zero_to_efermi=false)
 
@@ -55,7 +54,7 @@ function plot_band_data(basis, band_data; εF=nothing,
     n_branches = length(data["energy"])
     n_bands = size(data["energy"][1]["1"], 1)
     n_kpoints = sum(length, data["distances"])
-    @assert length(band_data.kpoints) == n_kpoints
+    @assert length(band_data.basis.kpoints) == n_kpoints
 
     # For each branch, plot all bands, spins and errors
     ikstart = 0
@@ -103,7 +102,7 @@ function plot_bandstructure(basis, ρ, n_bands;
     println("Computing bands along kpath:")
     println("       ", join(join.(kpath, " -> "), "  and  "))
     band_data = compute_bands(basis, ρ, kcoords, n_bands; kwargs...)
-    plot_band_data(ham.basis, band_data, εF=εF, klabels=klabels, unit=unit)
+    plot_band_data(band_data, εF=εF, klabels=klabels, unit=unit)
 end
 function plot_bandstructure(scfres, n_bands; kwargs...)
     # Convenience wrapper for scfres named tuples
