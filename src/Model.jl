@@ -17,9 +17,12 @@ struct Model{T <: Real}
     n_electrons::Int # not necessarily consistent with `atoms` field
 
     # spin_polarisation values:
-    #     :none       No spin polarisation, αα and ββ density identical, αβ and βα blocks zero
-    #     :collinear  Spin is polarised, but everywhere in the same direction. αα ̸= ββ, αβ = βα = 0
-    #     :full       Generic magnetisation, non-uniform direction. αβ, βα, αα, ββ all nonzero, different
+    #     :none       No spin polarisation, αα and ββ density identical,
+    #                 αβ and βα blocks zero
+    #     :collinear  Spin is polarised, but everywhere in the same direction.
+    #                 αα ̸= ββ, αβ = βα = 0
+    #     :full       Generic magnetisation, non-uniform direction.
+    #                 αβ, βα, αα, ββ all nonzero, different
     #     :spinless   No spin at all ("spinless fermions", "mathematicians' electrons").
     #                 Difference with :none is that the occupations are 1 instead of 2
     spin_polarisation::Symbol  # :none, :collinear, :full, :spinless
@@ -86,6 +89,7 @@ function Model(lattice::AbstractMatrix{T}; n_electrons=nothing, atoms=[], terms=
              spin_polarisation, T(temperature), smearing, atoms, terms)
 end
 
+
 """
 Convenience constructor, which builds a standard atomic (kinetic + atomic potential) model.
 Use `extra_terms` to add additional terms.
@@ -105,18 +109,22 @@ function model_atomic(lattice::AbstractMatrix, atoms::Vector; extra_terms=[], kw
     Model(lattice; atoms=atoms, terms=terms, kwargs...)
 end
 
+
 """
 Build a DFT model from the specified atoms, with the specified functionals.
 """
 function model_DFT(lattice::AbstractMatrix, atoms::Vector, functionals; extra_terms=[], kwargs...)
     model_atomic(lattice, atoms; extra_terms=[Hartree(), Xc(functionals), extra_terms...], kwargs...)
 end
+
+
 """
 Build an LDA model (Teter93 parametrization) from the specified atoms.
 """
 function model_LDA(lattice::AbstractMatrix, atoms::Vector; kwargs...)
     model_DFT(lattice, atoms, :lda_xc_teter93; kwargs...)
 end
+
 
 """
 Maximal occupation of a state (2 for non-spin-polarized electrons, 1 otherwise).

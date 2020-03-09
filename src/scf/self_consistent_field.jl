@@ -28,7 +28,7 @@ function scf_default_callback(info)
     E = info.energies === nothing ? Inf : sum(values(info.energies))
     res = norm(info.ρout.fourier - info.ρin.fourier)
     if info.neval == 1
-        label = info.ham.basis.model.temperature == 0 ? "Energy" : "Free energy"
+        label = haskey(info.energies, "Entropy") ? "Energy" : "Free energy"
         @printf "Iter   %-15s    ρout-ρin\n" label
         @printf "----   %-15s    --------\n" "-"^length(label)
     end
@@ -44,7 +44,7 @@ function scf_convergence_energy_difference(tolerance)
     function is_converged(info)
         info.energies === nothing && return false # first iteration
         etot_old = energy_total
-        energy_total = sum(info.energies)
+        energy_total = sum(values(info.energies))
         abs(energy_total - etot_old) < tolerance
     end
     return is_converged
@@ -103,19 +103,22 @@ function self_consistent_field(basis::PlaneWaveBasis;
 
         # Build next Hamiltonian, diagonalize it, get ρout
         if neval == 0 # first iteration
-            _, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρin, eigenvalues=nothing, εF=nothing)
+            _, ham = energy_hamiltonian(basis, nothing, nothing;
+                                        ρ=ρin, eigenvalues=nothing, εF=nothing)
         else
             # Note that ρin is not the density of ψ, and the eigenvalues
-            # are not the self-consistent ones, which makes this energy
-            # non-variational
-            energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, eigenvalues=eigenvalues, εF=εF)
+            # are not the self-consistent ones, which makes this energy non-variational
+            energies, ham = energy_hamiltonian(basis, ψ, occupation;
+                                               ρ=ρin, eigenvalues=eigenvalues, εF=εF)
         end
         # Diagonalize `ham` to get the new state
-        ψ, eigenvalues, occupation, εF, ρout = next_density(ham, n_bands; ψ=ψ,
-                                                            eigensolver=eigensolver, tol=diagtol)
+        nextstate = next_density(ham, n_bands; ψ=ψ, eigensolver=eigensolver, tol=diagtol)
+        ψ, eigenvalues, occupation, εF, ρout = nextstate
+
         # This computes the energy of the new state
         if compute_consistent_energies
-            energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, eigenvalues=eigenvalues, εF=εF)
+            energies, H = energy_hamiltonian(basis, ψ, occupation;
+                                             ρ=ρout, eigenvalues=eigenvalues, εF=εF)
         end
 
         # mix it with ρin to get a proposal step
@@ -138,7 +141,8 @@ function self_consistent_field(basis::PlaneWaveBasis;
     # We do not use the return value of fpres but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform
     # a last energy computation to return a correct variational energy
-    energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, eigenvalues=eigenvalues, εF=εF)
+    energies, ham = energy_hamiltonian(basis, ψ, occupation;
+                                       ρ=ρout, eigenvalues=eigenvalues, εF=εF)
 
     (ham=ham, energies=energies, converged=fpres.converged,
      ρ=ρout, ψ=ψ, eigenvalues=eigenvalues, occupation=occupation, εF=εF)

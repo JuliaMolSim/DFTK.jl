@@ -3,11 +3,12 @@ Nonlocal term coming from norm-conserving pseudopotentials in Kleinmann-Bylander
 Energy = sum_a sum_ij sum_n f_n <ψn|pai> Dij <paj|ψn>.
 """
 struct AtomicNonlocal end
-function (N::AtomicNonlocal)(basis::PlaneWaveBasis)
+function (::AtomicNonlocal)(basis::PlaneWaveBasis)
     # keep only pseudopotential atoms
     atoms = [elem.psp => positions
              for (elem, positions) in basis.model.atoms
-             if elem.psp !== nothing]
+             if elem isa ElementPsp]
+
     isempty(atoms) && return NoopTerm(basis)
     ops = map(basis.kpoints) do kpt
         P = build_projection_vectors_(basis, atoms, kpt)
@@ -21,7 +22,6 @@ struct TermAtomicNonlocal <: Term
     basis::PlaneWaveBasis
     ops::Vector{NonlocalOperator}
 end
-term_name(term::TermAtomicNonlocal) = "Atomic nonlocal"
 
 function ene_ops(term::TermAtomicNonlocal, ψ, occ; kwargs...)
     basis = term.basis
@@ -43,37 +43,45 @@ end
 function forces(term::TermAtomicNonlocal, ψ, occ; kwargs...)
     T = typeof(term.basis.Ecut)
     atoms = term.basis.model.atoms
-    # early return if no pseudopotential atoms
-    all(a -> a[1].psp !== nothing, atoms) || return nothing
+    unit_cell_volume = term.basis.model.unit_cell_volume
 
-    f = [zeros(Vec3{T}, length(positions)) for (el, positions) in atoms]
+    # early return if no pseudopotential atoms
+    any(attype isa ElementPsp for (attype, positions) in atoms) || return nothing
+
     # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
+    forces = [zeros(Vec3{T}, length(positions)) for (el, positions) in atoms]
     for (iel, (el, positions)) in enumerate(atoms)
-        el.psp === nothing && continue
+        el isa ElementPsp || continue
+
         C = build_projection_coefficients_(el.psp)
-        for (ir, r) in enumerate(positions) # TODO optimize: switch this loop and the kpoint loop
+        # TODO optimize: switch this loop and the kpoint loop
+        for (ir, r) in enumerate(positions)
             fr = zeros(T, 3)
             for α = 1:3
                 for (ik, kpt) in enumerate(term.basis.kpoints)
-                    # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
-                    qs = [term.basis.model.recip_lattice * (kpt.coordinate + G) for G in G_vectors(kpt)]
+                    # energy terms are of the form <psi, P C P' psi>,
+                    # where P(G) = form_factor(G) * structure_factor(G)
+                    qs = [term.basis.model.recip_lattice * (kpt.coordinate + G)
+                          for G in G_vectors(kpt)]
                     form_factors = build_form_factors(el.psp, qs)
-                    structure_factors = [cis(-2T(π)*dot(kpt.coordinate + G, r)) for G in G_vectors(kpt)]
-                    P = structure_factors .* form_factors ./ sqrt(term.basis.model.unit_cell_volume)
+                    structure_factors = [cis(-2T(π) * dot(kpt.coordinate + G, r))
+                                         for G in G_vectors(kpt)]
+                    P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
                     dPdR = [-2T(π)*im*(kpt.coordinate + G)[α] for G in G_vectors(kpt)] .* P
 
                     # TODO BLASify this further
                     for iband = 1:size(ψ[ik], 2)
                         psi = ψ[ik][:, iband]
-                        fr[α] -= term.basis.kweights[ik] * occ[ik][iband] *
-                            real(dot(psi, P*C*dPdR'*psi) + dot(psi, dPdR*C*P'*psi))
+                        fr[α] -= (term.basis.kweights[ik] * occ[ik][iband]
+                                  * real(  dot(psi, P*C*dPdR' * psi)
+                                         + dot(psi, dPdR*C*P' * psi)))
                     end
                 end
             end
-            f[iel][ir] += fr
+            forces[iel][ir] += fr
         end
     end
-    f
+    forces
 end
 
 # Count the number of projection vectors implied by the potential array

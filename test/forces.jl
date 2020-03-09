@@ -11,10 +11,10 @@ include("testcases.jl")
         basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 1, 2])
 
         scfres = self_consistent_field(basis; tol=1e-10, diagtol=1e-10)
-        sum(scfres.energies), forces(scfres.ham.basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
+        sum(values(scfres.energies)), forces(scfres)
     end
 
-    pos1 = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8] # displace a bit from equilibrium
+    pos1 = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8]  # displace a bit from equilibrium
     disp = rand(3)
     ε = 1e-8
     pos2 = [pos1[1] + ε * disp, pos1[2]]
@@ -38,7 +38,7 @@ end
 
         n_bands = 10
         scfres = self_consistent_field(basis, n_bands=n_bands, tol=1e-12, diagtol=1e-12)
-        sum(scfres.energies), forces(basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
+        sum(values(scfres.energies)), forces(scfres)
     end
 
     pos1 = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8] # displace a bit from equilibrium

@@ -14,7 +14,7 @@ include("testcases.jl")
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     # Run nlsolve without guess
-    ρ0 = 0*guess_density(basis)
+    ρ0 = RealFourierArray(basis)  # RFA of zeros
     scfres = self_consistent_field(basis; ρ=ρ0, tol=tol)
     ρ_nl = scfres.ρ.fourier
 

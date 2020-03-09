@@ -7,23 +7,21 @@ charges defined by `model.atoms` in a uniform background of
 compensating charge yielding net neutrality.
 """
 struct Ewald end
-(E::Ewald)(basis) = TermEwald(basis)
+(::Ewald)(basis) = TermEwald(basis)
 
 struct TermEwald <: Term
     basis::PlaneWaveBasis
-    E::Real  # precomputed energy
+    energy::Real  # precomputed energy
 end
 function TermEwald(basis::PlaneWaveBasis)
     # precompute Ewald energy
-    E = energy_ewald(basis.model)
-    TermEwald(basis, E)
+    energy = energy_ewald(basis.model)
+    TermEwald(basis, energy)
 end
-
-term_name(term::TermEwald) = "Ewald"
 
 function ene_ops(term::TermEwald, ψ, occ; kwargs...)
     ops = [NoopOperator(term.basis, kpoint) for kpoint in term.basis.kpoints]
-    (E=term.E, ops=ops)
+    (E=term.energy, ops=ops)
 end
 
 function forces(term::TermEwald, ψ, occ; kwargs...)
@@ -35,13 +33,14 @@ function forces(term::TermEwald, ψ, occ; kwargs...)
     energy_ewald(term.basis.model; forces=forces_ewald)
     # translate to the "folded" representation
     f = [zeros(Vec3{T}, length(positions)) for (type, positions) in atoms]
-    count = 1
+    count = 0
     for i = 1:length(atoms)
         for j = 1:length(atoms[i][2])
-            f[i][j] += forces_ewald[count]
             count += 1
+            f[i][j] += forces_ewald[count]
         end
     end
+    @assert count == sum(at -> length(at[2]), atoms)
     f
 end
 

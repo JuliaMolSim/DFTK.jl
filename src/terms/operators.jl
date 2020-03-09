@@ -39,7 +39,9 @@ struct NoopOperator <: RealFourierOperator
     kpoint
 end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
-Matrix(op::NoopOperator) = zeros(typeof(op.basis.Ecut), length(G_vectors(op.kpoint)), length(G_vectors(op.kpoint)))
+function Matrix(op::NoopOperator)
+    zeros(typeof(op.basis.Ecut), length(G_vectors(op.kpoint)), length(G_vectors(op.kpoint)))
+end
 
 """
 Real space multiplication by a potential:
@@ -106,7 +108,7 @@ Magnetic field operator A⋅(-i∇).
 struct MagneticFieldOperator <: RealFourierOperator
     basis
     kpoint
-    Apot # Apot[d][i,j,k] is the A field in direction d
+    Apot  # Apot[α][i,j,k] is the A field in direction α
 end
 function apply!(Hψ, op::MagneticFieldOperator, ψ)
     # TODO this could probably be better optimized

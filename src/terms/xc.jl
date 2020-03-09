@@ -16,7 +16,6 @@ struct XcTerm <: Term
     basis::PlaneWaveBasis
     functionals::Vector{Functional}
 end
-term_name(term::XcTerm) = "Xc"
 
 function ene_ops(term::XcTerm, ψ, occ; ρ, kwargs...)
     basis = term.basis
@@ -41,7 +40,6 @@ function ene_ops(term::XcTerm, ψ, occ; ρ, kwargs...)
         dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
         E += sum(Epp .* ρ.real) * dVol
     end
-    E, potential
 
     ops = [RealSpaceMultiplication(basis, kpoint, potential) for kpoint in basis.kpoints]
     (E=E, ops=ops)

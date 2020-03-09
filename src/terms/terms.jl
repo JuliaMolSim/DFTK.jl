@@ -1,10 +1,14 @@
 include("operators.jl")
 
-### A Term is something that, given a state, returns a named tuple (E,hams) with an energy and a list of RFO (for each kpoint).
-# each term must overload `ene_ops(t, ψ, occ; kwargs...)` -> (E::Real, ops::Vector{RealFourierOperator}).
-# Note that terms are allowed to hold on to references to ψ (eg Fock term), so ψ should not mutated after ene_ops
+### Terms
+# - A Term is something that, given a state, returns a named tuple (E, hams) with an energy
+#   and a list of RFO (for each kpoint).
+# - Each term must overload
+#     `ene_ops(t, ψ, occ; kwargs...)` -> (E::Real, ops::Vector{RealFourierOperator}).
+# - Note that terms are allowed to hold on to references to ψ (eg Fock term),
+#   so ψ should not mutated after ene_ops
 
-# The hamiltonian is defined as half of the gradient of the energy
+# The Hamiltonian is defined as half of the gradient of the energy
 # with respect to the density matrix sum_n fn |ψn><ψn|.
 # In particular, dE/dψn = 2 fn |Hψn> (plus weighting for kpoint sampling)
 abstract type Term end
@@ -13,8 +17,8 @@ abstract type Term end
 function forces(term::Term, ψ, occ; kwargs...)
     nothing  # by default, no force
 end
-# TODO optimize allocs here
 function forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
+    # TODO optimize allocs here
     T = eltype(basis)
     f = [zeros(Vec3{T}, length(positions)) for (type, positions) in basis.model.atoms]
     for term in basis.terms
@@ -35,9 +39,6 @@ end
 function ene_ops(term::NoopTerm, ψ, occ; kwargs...)
     (E=zero(real(eltype(ψ[1]))), ops=[NoopRFO(term.basis, kpoint) for kpoint in term.basis.kpoints])
 end
-
-# TODO switch to a field
-term_name(T::Term) = error("Implement me") # for pretty-printing purposes
 
 include("Hamiltonian.jl")
 

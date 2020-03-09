@@ -18,7 +18,7 @@ No preconditioning
 """
 struct PreconditionerNone end
 PreconditionerNone(basis, kpt) = I
-# Piracy, remove once we drop support for julia 1.3
+# TODO Piracy, remove once we drop support for julia 1.3
 LinearAlgebra.ldiv!(Y::AbstractVecOrMat, J::UniformScaling, B::AbstractVecOrMat) = (Y .= J.λ .\ B)
 
 

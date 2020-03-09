@@ -21,4 +21,4 @@ scfres = self_consistent_field(basis, tol=1e-6)
 # Print obtained energies
 println()
 display(scfres.energies)
-@assert eltype(sum(scfres.energies)) == T
+@assert eltype(sum(values(scfres.energies))) == T

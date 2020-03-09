@@ -12,7 +12,7 @@ where G is the Green's function of the periodic Laplacian with zero
 mean (-Δ G = sum_{R} 4π δ_R, integral of G zero on a unit cell).
 """
 struct Hartree end
-(H::Hartree)(basis) = TermHartree(basis)
+(::Hartree)(basis) = TermHartree(basis)
 
 struct TermHartree <: Term
     basis::PlaneWaveBasis
@@ -28,13 +28,12 @@ function TermHartree(basis::PlaneWaveBasis{T}) where T
     poisson_green_coeffs[1] = 0
     TermHartree(basis, poisson_green_coeffs)
 end
-term_name(term::TermHartree) = "Hartree"
 
 function ene_ops(term::TermHartree, ψ, occ; ρ, kwargs...)
     basis = term.basis
     T = eltype(basis)
     pot_fourier = term.poisson_green_coeffs .* ρ.fourier
-    potential = real(G_to_r(basis, pot_fourier)) # TODO optimize this
+    potential = real(G_to_r(basis, pot_fourier))  # TODO optimize this
     E = real(dot(pot_fourier, ρ.fourier) / 2)
 
     ops = [RealSpaceMultiplication(basis, kpoint, potential) for kpoint in basis.kpoints]

@@ -121,6 +121,8 @@ end
 
 
 """
+    eval_psp_local_fourier(psp, q)
+
 Evaluate the local part of the pseudopotential in reciprocal space.
 
 This function computes
@@ -169,7 +171,7 @@ eval_psp_local_real(psp::PspHgh, r::AbstractVector) = eval_psp_local_real(psp, n
     eval_psp_projection_radial(psp::PspHgh, i, l, q::Number)
 
 Evaluate the radial part of the `i`-th projector for angular momentum `l`
-at the reciprocal vector with modulus q.
+at the reciprocal vector with modulus `q`.
 
 p(q) = ∫_{R+} r^2 p(r) j_l(q r) dr
 
@@ -240,12 +242,9 @@ function eval_psp_energy_correction(T, psp::PspHgh, n_electrons)
     # By construction we need to compute the DC component of the difference
     # of the Coulomb potential (-Z/G^2 in Fourier space) and the pseudopotential
     # i.e. -Z/(ΔG)^2 -  eval_psp_local_fourier(psp, ΔG) for ΔG → 0. This is:
-    difference_DC = T(psp.Zion) * T(psp.rloc)^2 / 2 +
-                    sqrt(T(π)/2) * T(psp.rloc)^3 *
-                        (T(psp.cloc[1]) +
-                         3T(psp.cloc[2]) +
-                         15T(psp.cloc[3]) +
-                         105T(psp.cloc[4]))
+    cloc_coeffs = T[1, 3, 15, 105]
+    difference_DC = (T(psp.Zion) * T(psp.rloc)^2 / 2
+                     + sqrt(T(π)/2) * T(psp.rloc)^3 * sum(cloc_coeffs .* psp.cloc))
 
     # Multiply by number of electrons and 4π (spherical Hankel prefactor)
     # to get energy per unit cell

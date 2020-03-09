@@ -19,7 +19,7 @@ function get_scf_energies(testcase, supersampling, functionals)
     ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)]
     basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops; fft_size=fft_size)
     scfres = self_consistent_field(basis; tol=scf_tol)
-    values(scfres.energies.energies)
+    values(scfres.energies)
 end
 
 

@@ -12,7 +12,6 @@ struct TermPowerNonlinearity <: Term
     C::Real
     α::Real
 end
-term_name(term::TermPowerNonlinearity) = "∫ρ^$(term.α)"
 
 function ene_ops(term::TermPowerNonlinearity, ψ, occ; ρ, kwargs...)
     basis = term.basis

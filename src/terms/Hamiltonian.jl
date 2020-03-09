@@ -1,10 +1,13 @@
-### A Hamiltonian is composed of blocks (kpoints), which have a list of RFO corresponding to each term
+### A Hamiltonian is composed of blocks (kpoints), which have a list of RealFourierOperator
+# corresponding to each term
 # This is the "high-level" interface, provided for convenience
 
 struct HamiltonianBlock
     basis::PlaneWaveBasis
     kpoint::Kpoint
-    # The Hams are vectors of RealFourierOperator, not typed because of type invariance issues.
+
+    # The operators are vectors of RealFourierOperator,
+    # not typed because of type invariance issues.
     operators::Vector  # the original list of RealFourierOperator
                        # (as many as there are terms), kept for easier exploration
     optimized_operators::Vector  # the optimized list of RealFourierOperator, to be used for applying
@@ -71,16 +74,20 @@ end
 Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
 
 # Get energies and Hamiltonian
-# kwargs is additional info that might be useful for the energy terms to precompute (eg the density ρ)
+# kwargs is additional info that might be useful for the energy terms to precompute
+# (eg the density ρ)
 function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occ; kwargs...)
-    nterms = length(basis.terms)
-    ene_ops_arr = [ene_ops(term, ψ, occ; kwargs...) for term in basis.terms] # ene_hams[it].hams[ik]
-    energies = [eh.E for eh in ene_ops_arr] # energies[it]
-    ops = [[ene_ops_arr[it].ops[ik] for it = 1:nterms]
-            for ik = 1:length(basis.kpoints)] # hams[ik][it]
+    # it: index into terms, ik: index into kpoints
+    ene_ops_arr = [ene_ops(term, ψ, occ; kwargs...) for term in basis.terms]
+    energies    = [eh.E for eh in ene_ops_arr]
+    operators   = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
+    hks_per_k   = [[blocks[ik] for blocks in operators]  # hks_per_k[ik][it]
+                   for ik = 1:length(basis.kpoints)]
+
     H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
-                            for (hks, kpt) in zip(ops, basis.kpoints)])
-    (E=Energies(basis.model.term_types, energies), H=H)
+                            for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
+    E = Energies(basis.model.term_types, [eh.E for eh in ene_ops_arr])
+    (E=E, H=H)
 end
 function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occ=nothing, kwargs...)
     _, H = energy_hamiltonian(basis, ψ, occ; kwargs...)

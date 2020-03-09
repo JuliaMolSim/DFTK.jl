@@ -56,7 +56,7 @@ include("testcases.jl")
     @test E["AtomicLocal"]         ≈ -2.367978663117999   atol=5e-8
     @test E["AtomicNonlocal"]      ≈  1.6527493682542034  atol=5e-8
     @test E["Hartree"]             ≈  0.6477025793366571  atol=5e-8
-    @test E["Xc"]                  ≈  -2.456212919662419  atol=5e-8
+    @test E["Xc"]                  ≈ -2.456212919662419   atol=5e-8
     @test E["Ewald"]               ≈ -8.397893578467201   atol=5e-8
     @test E["PspCorrection"]       ≈ -0.294622067031369   atol=5e-8
     @test E["ExternalFromReal"]    ≈  0.139216686139006   atol=5e-8

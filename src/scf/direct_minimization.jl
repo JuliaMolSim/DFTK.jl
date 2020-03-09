@@ -3,8 +3,9 @@
 using Optim
 using LineSearches
 
-# This is all a bit annoying because our ψ is represented as ψ[k][G,n], and Optim accepts only dense arrays
-# We do a bit of back and forth using custom `pack` (ours -> optim's) and `unpack` (optim's -> ours) functions
+# This is all a bit annoying because our ψ is represented as ψ[k][G,n], and Optim accepts
+# only dense arrays. We do a bit of back and forth using custom `pack` (ours -> optim's) and
+# `unpack` (optim's -> ours) functions
 
 # Orbitals inside each kblock must be kept orthogonal: the
 # project_tangent and retract work per kblock
@@ -77,7 +78,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     Nk = length(basis.kpoints)
 
     if ψ0 === nothing
-        ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), n_bands)) for kpt in basis.kpoints]
+        ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), n_bands))
+              for kpt in basis.kpoints]
     end
     occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
 
@@ -91,7 +93,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
         starts[ik+1] = starts[ik] + lengths[ik]
     end
     pack(ψ) = vcat(Base.vec.(ψ)...) # TODO as an optimization, do that lazily? See LazyArrays
-    unpack(ψ) = [@views reshape(ψ[starts[ik]:starts[ik]+lengths[ik]-1], size(ψ0[ik])) for ik in 1:Nk]
+    unpack(ψ) = [@views reshape(ψ[starts[ik]:starts[ik]+lengths[ik]-1], size(ψ0[ik]))
+                 for ik = 1:Nk]
 
     # this will get updated along the iterations
     H = nothing
@@ -121,14 +124,17 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     P = DMPreconditioner(Nk, Pks, unpack)
 
     res = Optim.optimize(Optim.only_fg!(fg!), pack(ψ0),
-                         optim_solver(P=P, precondprep=precondprep!, manifold=manif, linesearch=LineSearches.BackTracking()),
+                         optim_solver(P=P, precondprep=precondprep!, manifold=manif,
+                                      linesearch=LineSearches.BackTracking()),
                          Optim.Options(; allow_f_increases=true, show_trace=true, kwargs...))
     ψ = unpack(res.minimizer)
     # These concepts do not make sense in direct minimization,
     # although we could maybe do a final Rayleigh-Ritz
     eigenvalues = nothing
     εF = nothing
-    # We rely on the fact that the last point where fg! was called is the minimizer to avoid recomputing at ψ
+
+    # We rely on the fact that the last point where fg! was called is the minimizer to
+    # avoid recomputing at ψ
     (H=H, energies=energies, converged=true,
      ρ=ρ, ψ=ψ, eigenvalues=eigenvalues, occupation=occupation, εF=εF, optim_res=res)
 end

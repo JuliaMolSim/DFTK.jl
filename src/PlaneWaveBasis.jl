@@ -1,10 +1,10 @@
 include("fft.jl")
 
 # There are two kinds of plane-wave basis sets used in DFTK.
-# The k-dependent orbitals are discretized on spherical basis sets {G, 1/2 |k+G|^2 ≤ Ecut}
-# Potentials and densities are expressed on cubic basis sets large
-# enough to contain products of orbitals. This also defines the
-# real-space grid (as the dual of the cubic basis set).
+# The k-dependent orbitals are discretized on spherical basis sets {G, 1/2 |k+G|^2 ≤ Ecut}.
+# Potentials and densities are expressed on cubic basis sets large enough to contain
+# products of orbitals. This also defines the real-space grid
+# (as the dual of the cubic basis set).
 
 """
 Discretization information for kpoint-dependent quantities such as orbitals.
@@ -16,23 +16,28 @@ struct Kpoint{T <: Real}
     coordinate::Vec3{T}           # Fractional coordinate of k-Point
     mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
                                   # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
-    G_vectors::Vector{Vec3{Int}}  # Wave vectors ({G, 1/2 |k+G|^2 ≤ Ecut}) in integer coordinates
+    G_vectors::Vector{Vec3{Int}}  # Wave vectors in integer coordinates:
+                                  # ({G, 1/2 |k+G|^2 ≤ Ecut})
 end
+
+
 """
 The list of G vectors of a given `basis` or `kpoint`.
 """
 G_vectors(kpt::Kpoint) = kpt.G_vectors
 
-"""
+
+@doc raw"""
 A plane-wave discretized `Model`.
 Normalization conventions:
-- Things that are expressed in the G basis are normalized so that if `x` is the vector,
-  then the actual function is `sum_G x_G e_G` with `e_G(x) = e^{iG x}/sqrt(unit_cell_volume)`.
-  This is so that, eg `norm(ψ) = 1` gives the correct normalization.
+- Things that are expressed in the G basis are normalized so that if ``x`` is the vector,
+  then the actual function is ``sum_G x_G e_G`` with
+  ``e_G(x) = e^{iG x}/sqrt(unit_cell_volume)``.
+  This is so that, eg ``norm(ψ) = 1`` gives the correct normalization.
   This also holds for the density and the potentials.
 - Quantities expressed on the real-space grid are in actual values.
 
-G_to_r and r_to_G convert between these representations.
+`G_to_r` and `r_to_G` convert between these representations.
 """
 struct PlaneWaveBasis{T <: Real, TopFFT, TipFFT, TopIFFT, TipIFFT}
     model::Model{T}
@@ -179,7 +184,7 @@ Return the list of r vectors, in reduced coordinates. By convention, this is in 
 """
 function r_vectors(basis::PlaneWaveBasis{T}) where T
     N1, N2, N3 = basis.fft_size
-    (Vec3{T}(T(i-1)/N1, T(j-1)/N2, T(k-1)/N3) for i = 1:N1, j = 1:N2, k = 1:N3)
+    (Vec3{T}(T(i-1) / N1, T(j-1) / N2, T(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3)
 end
 
 """
@@ -256,7 +261,8 @@ end
 
 
 @doc raw"""
-In-place version of `r_to_G!`. NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
+In-place version of `r_to_G!`.
+NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
 """
 function r_to_G!(f_fourier::AbstractArray3, basis::PlaneWaveBasis,
                  f_real::AbstractArray3)
