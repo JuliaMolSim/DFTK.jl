@@ -3,58 +3,60 @@ using DFTK
 
 include("testcases.jl")
 @testset "Hamiltonian consistency" begin
-
-    testcase = silicon
-    Ecut = 10
-    lattice = testcase.lattice
-
-    Si = ElementPsp(14, psp=load_psp(testcase.psp))
-    atoms = [Si => testcase.positions]
-
-    model = Model(lattice; n_electrons=testcase.n_electrons, atoms=atoms,
-                  terms=[Kinetic(),
-                         AtomicLocal(),
-                         AtomicNonlocal(),
-                         ExternalFromReal(X -> cos(X[1])),
-                         ExternalFromFourier(X -> randn()),
-                         PowerNonlinearity(1.0, 2.0),
-                         Hartree(),
-                         Ewald(),
-                         PspCorrection(),
-                         Xc(:lda_xc_teter93),
-                         ]
-                  )
-    basis = PlaneWaveBasis(model, Ecut; kgrid=[1, 2, 3], enable_bzmesh_symmetry=false)
-
-    n_electrons = testcase.n_electrons
-    nbands = div(n_electrons, 2)
-
     using Random
-    Random.seed!()
+    Random.seed!(0)
 
-    ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis.kpoints[ik])), nbands)).Q) for ik in 1:length(basis.kpoints)]
-    # occupation = [fill(2, nbands) for ik in 1:length(basis.kpoints)]
-    occupation = [2*rand(nbands) for ik in 1:length(basis.kpoints)]
+    function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8)
+        testcase = silicon
+        Ecut = 10
+        lattice = testcase.lattice
 
-    ρ = compute_density(basis, ψ, occupation)
+        Si = ElementPsp(14, psp=load_psp(testcase.psp))
+        atoms = [Si => testcase.positions]
+        model = Model(lattice; n_electrons=testcase.n_electrons, atoms=atoms, terms=[term])
+        basis = PlaneWaveBasis(model, Ecut; kgrid=[1, 2, 3], enable_bzmesh_symmetry=false)
 
-    ε = 1e-8
-    dψ = [randn(ComplexF64, size(ψ[ik])) for ik = 1:length(basis.kpoints)]
-    ψ_trial = ψ .+ ε .* dψ
-    ρ_trial = compute_density(basis, ψ_trial, occupation)
+        n_electrons = testcase.n_electrons
+        n_bands = div(n_electrons, 2)
 
-    for it = 1:length(basis.terms)
-        E0, ops = ene_ops(basis.terms[it], ψ, occupation; ρ=ρ)
-        E1, _ = ene_ops(basis.terms[it], ψ_trial, occupation; ρ=ρ_trial)
+        ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis.kpoints[ik])), n_bands)).Q)
+             for ik in 1:length(basis.kpoints)]
+        occupation = [2*rand(n_bands) for ik in 1:length(basis.kpoints)]
+        occ_scaling = n_electrons / sum(sum(occupation))
+        occupation = [occ * occ_scaling for occ in occupation]
+
+        ρ = compute_density(basis, ψ, occupation)
+
+        dψ = [randn(ComplexF64, size(ψ[ik])) for ik = 1:length(basis.kpoints)]
+        ψ_trial = ψ .+ ε .* dψ
+        ρ_trial = compute_density(basis, ψ_trial, occupation)
+
+        @assert length(basis.terms) == 1
+        E0, ops = ene_ops(basis.terms[1], ψ, occupation; ρ=ρ)
+        E1, _ = ene_ops(basis.terms[1], ψ_trial, occupation; ρ=ρ_trial)
         diff = (E1 - E0)/ε
 
         diff_predicted = 0.0
         for (ik, kpt) in enumerate(basis.kpoints)
             Hψ = ops[ik]*ψ[ik]
-            diff_predicted += 2*basis.kweights[ik]*sum(occupation[ik][iband] * real(dot(dψ[ik][:, iband], Hψ[:, iband])) for iband=1:nbands)
+            dψHψ = sum(occupation[ik][iband] * real(dot(dψ[ik][:, iband], Hψ[:, iband]))
+                       for iband=1:n_bands)
+
+            diff_predicted += 2 * basis.kweights[ik] * dψHψ
         end
 
         err = abs(diff - diff_predicted)
-        @test err < 1e-3 * abs(E0) || err < 1e-8
+        @test err < rtol * abs(E0) || err < atol
     end
+
+    test_consistency_term(Kinetic())
+    test_consistency_term(AtomicLocal())
+    test_consistency_term(AtomicNonlocal())
+    test_consistency_term(ExternalFromReal(X -> cos(X[1])))
+    test_consistency_term(ExternalFromFourier(X -> randn()))
+    test_consistency_term(PowerNonlinearity(1.0, 2.0))
+    test_consistency_term(Hartree())
+    test_consistency_term(Ewald())
+    test_consistency_term(PspCorrection())
+    test_consistency_term(Xc(:lda_xc_teter93))
 end
