@@ -35,6 +35,7 @@ Random.seed!(0)
     # Synthetic tests at the beginning, so it fails faster if
     # something has gone badly wrong
     if "all" in TAGS || "functionality" in TAGS
+        include("hydrogen_all_electron.jl")
         include("silicon_redHF.jl")
         include("silicon_lda.jl")
         include("silicon_pbe.jl")

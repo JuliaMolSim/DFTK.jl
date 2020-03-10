@@ -28,16 +28,17 @@ energy_psp_correction(model::Model) = energy_psp_correction(model.lattice, model
 function energy_psp_correction(lattice, atoms)
     T = eltype(lattice)
 
-    isempty(atoms) && return T(0)
+    # Early return for cases without atoms or psp atoms
+    any(attype isa ElementPsp for (attype, positions) in atoms) || return T(0)
 
     # Total number of explicitly treated (i.e. valence) electrons
-    n_electrons = sum(n_elec_valence(type) for (type, positions) in atoms
+    n_electrons = sum(n_elec_valence(attype) for (attype, positions) in atoms
                       for pos in positions)
 
     correction_per_cell = sum(
-        length(positions) * eval_psp_energy_correction(T, type.psp, n_electrons)
-        for (type, positions) in atoms
-        if type isa ElementPsp
+        length(positions) * eval_psp_energy_correction(T, attype.psp, n_electrons)
+        for (attype, positions) in atoms
+        if attype isa ElementPsp
     )
 
     correction_per_cell / abs(det(lattice))

@@ -28,7 +28,7 @@ function scf_default_callback(info)
     E = info.energies === nothing ? Inf : sum(values(info.energies))
     res = norm(info.ρout.fourier - info.ρin.fourier)
     if info.neval == 1
-        label = haskey(info.energies, "Entropy") ? "Energy" : "Free energy"
+        label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
         @printf "Iter   %-15s    ρout-ρin\n" label
         @printf "----   %-15s    --------\n" "-"^length(label)
     end

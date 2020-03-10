@@ -29,15 +29,17 @@ function forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
     end
     f
 end
+forces(scfres) = forces(scfres.ham.basis, scfres.ψ, scfres.occupation, ρ=scfres.ρ)
 
 """
 A term with a constant zero energy.
 """
-struct NoopTerm
+struct NoopTerm <: Term
     basis::PlaneWaveBasis
 end
 function ene_ops(term::NoopTerm, ψ, occ; kwargs...)
-    (E=zero(real(eltype(ψ[1]))), ops=[NoopRFO(term.basis, kpoint) for kpoint in term.basis.kpoints])
+    (E=zero(eltype(term.basis)), ops=[NoopOperator(term.basis, kpoint)
+                                      for kpoint in term.basis.kpoints])
 end
 
 include("Hamiltonian.jl")
@@ -53,4 +55,5 @@ include("psp_correction.jl")
 include("entropy.jl")
 include("magnetic.jl")
 
-### Builders are objects X that store the term parameters, and produce a XTerm <: Term when instantiated with a `basis`
+### Builders are objects X that store the term parameters, and produce a
+# XTerm <: Term when instantiated with a `basis`

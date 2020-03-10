@@ -244,7 +244,7 @@ function eval_psp_energy_correction(T, psp::PspHgh, n_electrons)
     # i.e. -Z/(ΔG)^2 -  eval_psp_local_fourier(psp, ΔG) for ΔG → 0. This is:
     cloc_coeffs = T[1, 3, 15, 105]
     difference_DC = (T(psp.Zion) * T(psp.rloc)^2 / 2
-                     + sqrt(T(π)/2) * T(psp.rloc)^3 * sum(cloc_coeffs .* psp.cloc))
+                     + sqrt(T(π)/2) * T(psp.rloc)^3 * T(sum(cloc_coeffs .* psp.cloc)))
 
     # Multiply by number of electrons and 4π (spherical Hankel prefactor)
     # to get energy per unit cell
