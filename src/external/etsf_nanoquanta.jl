@@ -63,7 +63,7 @@ function load_atoms(T, folder::EtsfFolder)
         positions = folder.gsr["reduced_atom_positions"][:, mask_species]
         atoms[spec] = [Vec3{T}(positions[:, m]) for m in mask_species]
     end
-    pairs(atoms)
+    collect(pairs(atoms))
 end
 load_atoms(folder; kwargs...) = load_atoms(Float64, folder; kwargs...)
 
@@ -105,21 +105,11 @@ function load_model(T, folder::EtsfFolder)
     end
     smearing_function !== nothing && (Tsmear = folder.gsr["smearing_width"][:])
 
-    # Build model and discretise
+    # Build model
     lattice = load_lattice(T, folder)
     atoms = load_atoms(T, folder)
-    model = nothing
-    if length(functional) > 0
-        model = model_dft(Array{T}(lattice), functional, atoms;
-                          smearing=smearing_function, temperature=Tsmear
-                         )
-    else
-        model = model_reduced_hf(Array{T}(lattice), atoms;
-                                 smearing=smearing_function, temperature=Tsmear
-                                )
-    end
-
-    model
+    model_DFT(Array{T}(lattice), atoms, functional;
+              smearing=smearing_function, temperature=Tsmear)
 end
 load_model(folder; kwargs...) = load_model(Float64, folder; kwargs...)
 

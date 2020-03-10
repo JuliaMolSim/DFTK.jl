@@ -1,10 +1,9 @@
 using Test
-using DFTK: ElementPsp, ElementCoulomb, load_psp
-using DFTK: energy_nuclear_ewald, energy_nuclear_psp_correction
+using DFTK
 using LinearAlgebra: Diagonal
 
 
-@testset "energy_nuclear_ewald Lithium hydride" begin
+@testset "energy_ewald Lithium hydride" begin
     lattice = 16 * Diagonal(ones(3))
     hydrogen = ElementCoulomb(1)
     lithium = ElementPsp(3, psp=load_psp("hgh/lda/Li-q1"))
@@ -14,11 +13,11 @@ using LinearAlgebra: Diagonal
     ]
 
     ref = -0.02196861  # TODO source?
-    γ_E = energy_nuclear_ewald(lattice, atoms)
+    γ_E = energy_ewald(Model(lattice; atoms=atoms))
     @test abs(γ_E - ref) < 1e-8
 end
 
-@testset "energy_nuclear_ewald silicon" begin
+@testset "energy_ewald silicon" begin
     lattice = [0.0  5.131570667152971 5.131570667152971;
                5.131570667152971 0.0 5.131570667152971;
                5.131570667152971 5.131570667152971  0.0]
@@ -26,11 +25,11 @@ end
     atoms = [silicon => [[1/8, 1/8, 1/8], [-1/8, -1/8, -1/8]], ]
 
     ref = -8.39789357839024  # from ABINIT
-    γ_E = energy_nuclear_ewald(lattice, atoms)
+    γ_E = energy_ewald(Model(lattice; atoms=atoms))
     @test abs(γ_E - ref) < 1e-10
 end
 
-@testset "energy_nuclear_psp_correction silicon" begin
+@testset "energy_psp_correction silicon" begin
     lattice = [0.0  5.131570667152971 5.131570667152971;
                5.131570667152971 0.0 5.131570667152971;
                5.131570667152971 5.131570667152971  0.0]
@@ -38,6 +37,6 @@ end
     atoms = [silicon => [[1/8, 1/8, 1/8], [-1/8, -1/8, -1/8]], ]
 
     ref = -0.294622067023269  # from ABINIT
-    e_corr = energy_nuclear_psp_correction(lattice, atoms)
+    e_corr = energy_psp_correction(lattice, atoms)
     @test abs(e_corr - ref) < 1e-10
 end

@@ -1,27 +1,45 @@
 include("fft.jl")
 
-# Contains the numerical specification of the model
-#
-# Normalization conventions:
-# - Things that are expressed in the G basis are normalized so that if `x` is the vector,
-#   then the actual function is `sum_G x_G e_G` with `e_G(x) = e^{iG x}/sqrt(unit_cell_volume)`.
-#   This is so that, eg `norm(psi) = 1` gives the correct normalization.
-#   This also holds for the density and the potentials.
-# - Quantities expressed on the real-space grid are in actual values
-#
-# G_to_r and r_to_G convert between these.
+# There are two kinds of plane-wave basis sets used in DFTK.
+# The k-dependent orbitals are discretized on spherical basis sets {G, 1/2 |k+G|^2 ≤ Ecut}.
+# Potentials and densities are expressed on cubic basis sets large enough to contain
+# products of orbitals. This also defines the real-space grid
+# (as the dual of the cubic basis set).
 
-# Each Kpoint has its own `basis`, consisting of all G vectors such that 1/2 |k+G|^2 ≤ Ecut
+"""
+Discretization information for kpoint-dependent quantities such as orbitals.
+More generally, a kpoint is a block of the Hamiltonian;
+eg collinear spin is treated by doubling the number of kpoints.
+"""
 struct Kpoint{T <: Real}
     spin::Symbol                  # :up, :down, :both or :spinless
     coordinate::Vec3{T}           # Fractional coordinate of k-Point
     mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
-                                  # G_vectors(pwbasis)[kpt.mapping[i]] == G_vectors(kpt)[i]
-    G_vectors::Vector{Vec3{Int}}  # Wave vectors in integer coordinates
+                                  # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
+    G_vectors::Vector{Vec3{Int}}  # Wave vectors in integer coordinates:
+                                  # ({G, 1/2 |k+G|^2 ≤ Ecut})
 end
+
+
+"""
+The list of G vectors of a given `basis` or `kpoint`.
+"""
 G_vectors(kpt::Kpoint) = kpt.G_vectors
 
-struct PlaneWaveBasis{T <: Real, Tgrid, TopFFT, TipFFT, TopIFFT, TipIFFT}
+
+@doc raw"""
+A plane-wave discretized `Model`.
+Normalization conventions:
+- Things that are expressed in the G basis are normalized so that if ``x`` is the vector,
+  then the actual function is ``sum_G x_G e_G`` with
+  ``e_G(x) = e^{iG x}/sqrt(unit_cell_volume)``.
+  This is so that, eg ``norm(ψ) = 1`` gives the correct normalization.
+  This also holds for the density and the potentials.
+- Quantities expressed on the real-space grid are in actual values.
+
+`G_to_r` and `r_to_G` convert between these representations.
+"""
+struct PlaneWaveBasis{T <: Real, TopFFT, TipFFT, TopIFFT, TipIFFT}
     model::Model{T}
     Ecut::T
 
@@ -36,20 +54,22 @@ struct PlaneWaveBasis{T <: Real, Tgrid, TopFFT, TipFFT, TopIFFT, TipIFFT}
     # fft_size defines both the G basis on which densities and
     # potentials are expanded, and the real-space grid
     fft_size::Tuple{Int, Int, Int}
-    # real-space grids, in fractional coordinates.
-    # grids[i] = 0, 1/Ni, ... (Ni-1)/Ni where Ni=fft_size[i]
-    grids::Tgrid
 
-    # Plans for forward and backward FFT on C_ρ
+    # Plans for forward and backward FFT
     opFFT::TopFFT  # out-of-place FFT plan
     ipFFT::TipFFT  # in-place FFT plan
     opIFFT::TopIFFT
     ipIFFT::TipIFFT
-end
 
-"""
-TODO docme
-"""
+    # Instantiated terms (<: Term), that contain a backreference to basis.
+    # See Hamiltonian for high-level usage
+    terms::Vector{Any}
+end
+# Default printing is just too verbose
+Base.show(io::IO, basis::PlaneWaveBasis) =
+    print(io, "PlaneWaveBasis (Ecut=$(basis.Ecut), $(length(basis.kpoints)) kpoints)")
+Base.eltype(basis::PlaneWaveBasis{T}) where {T} = T
+
 function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
     model.spin_polarisation in (:none, :collinear, :spinless) || (
         error("$(model.spin_polarisation) not implemented"))
@@ -77,12 +97,6 @@ end
 build_kpoints(basis::PlaneWaveBasis, kcoords) =
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
 
-"""
-TODO docme
-
-fft_size is now Fourier grid size
-kcoords is vector of Vec3
-"""
 function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                         kcoords::AbstractVector, ksymops, kweights=nothing;
                         fft_size=determine_grid_size(model, Ecut)) where {T <: Real}
@@ -108,7 +122,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     ipIFFT = inv(ipFFT)
     opIFFT = inv(opFFT)
 
-    # Compute weights if not given
+    # Compute default weights if not given
     if kweights === nothing
         kweights = [length(symops) for symops in ksymops]
         kweights = T.(kweights) ./ sum(kweights)
@@ -122,11 +136,26 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     @assert(Ecut ≤ max_E, "Ecut should be less than the maximal kinetic energy " *
             "the grid supports (== $max_E)")
 
-    grids = tuple((range(T(0), T(1), length=fft_size[i] + 1)[1:end-1] for i=1:3)...)
-    PlaneWaveBasis{T, typeof(grids), typeof(opFFT), typeof(ipFFT), typeof(opIFFT), typeof(ipIFFT)}(
+    terms = Vector{Any}(undef, length(model.term_types))
+
+    basis = PlaneWaveBasis{T, typeof(opFFT), typeof(ipFFT), typeof(opIFFT), typeof(ipIFFT)}(
         model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
-        kweights, ksymops, fft_size, grids, opFFT, ipFFT, opIFFT, ipIFFT
-    )
+        kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms)
+
+    # Instantiate terms
+    for (it, t) in enumerate(model.term_types)
+        basis.terms[it] = t(basis)
+    end
+    basis
+end
+
+"""
+Creates a new basis identical to `basis`, but with a different set of kpoints
+"""
+function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
+                        ksymops::AbstractVector, kweights=nothing)
+    PlaneWaveBasis(basis.model, basis.Ecut, kcoords, ksymops, kweights;
+                   fft_size=basis.fft_size)
 end
 
 function PlaneWaveBasis(model::Model, Ecut::Number;
@@ -140,23 +169,30 @@ function PlaneWaveBasis(model::Model, Ecut::Number;
 end
 
 """
-Return a generator producing the range of wave-vector coordinates contained
-in the Fourier grid described by the plane-wave basis in the correct order.
+Return the list of wave vectors (integer coordinates) for the cubic basis set.
 """
 function G_vectors(fft_size)
     start = -ceil.(Int, (Vec3(fft_size) .- 1) ./ 2)
     stop  = floor.(Int, (Vec3(fft_size) .- 1) ./ 2)
     axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
-    (Vec3{Int}([i, j, k]) for i in axes[1], j in axes[2], k in axes[3])
+    (Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3])
 end
-G_vectors(pw::PlaneWaveBasis) = G_vectors(pw.fft_size)
+G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_size)
 
 """
-Return the index tuple I such that `G_vectors(pw)[I] == G`. Returns nothing if outside the range of valid wave vectors.
+Return the list of r vectors, in reduced coordinates. By convention, this is in [0,1]^3.
 """
-function index_G_vectors(pw::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}
-    start = -ceil.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
-    stop  = floor.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
+function r_vectors(basis::PlaneWaveBasis{T}) where T
+    N1, N2, N3 = basis.fft_size
+    (Vec3{T}(T(i-1) / N1, T(j-1) / N2, T(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3)
+end
+
+"""
+Return the index tuple I such that `G_vectors(basis)[I] == G`. Returns nothing if outside the range of valid wave vectors.
+"""
+function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}
+    start = -ceil.(Int, (Vec3(basis.fft_size) .- 1) ./ 2)
+    stop  = floor.(Int, (Vec3(basis.fft_size) .- 1) ./ 2)
     lengths = stop .- start .+ 1
 
     function mapaxis(lengthi, Gi)
@@ -170,92 +206,92 @@ function index_G_vectors(pw::PlaneWaveBasis, G::AbstractVector{T}) where {T <: I
     end
 end
 
-AbstractArray3{T} = AbstractArray{T, 3}
+
 
 #
-# Perform FFT.
+# Perform (i)FFTs.
 #
-# There are two kinds of FFT/IFFT functions: the ones on `C_ρ` (that
-# don't take a kpoint as input) and the ones on `B_k` (that do)
-# Quantities in real-space are 3D arrays, quantities in reciprocal
-# space are 3D (`C_ρ`) or 1D (`B_k`).
+# We perform two sets of (i)FFTs.
 
-@doc raw"""
-    G_to_r!(f_real, pw::PlaneWaveBasis, [kpt::Kpoint, ], f_fourier)
+# For densities and potentials defined on the cubic basis set, r_to_G/G_to_r
+# do a simple FFT/IFFT from the cubic basis set to the real-space grid.
+# These function do not take a kpoint as input
 
-Perform an iFFT to translate between `f_fourier`, a fourier representation
-of a function either on ``B_k`` (if `kpt` is given) or on ``C_ρ`` (if not),
-and `f_real`. The function will destroy all data in `f_real`.
+# For orbitals, G_to_r converts the orbitals defined on a spherical
+# basis set to the cubic basis set using zero padding, then performs
+# an IFFT to get to the real-space grid. r_to_G performs an FFT, then
+# restricts the output to the spherical basis set. These functions
+# take a kpoint as input.
+
 """
-function G_to_r!(f_real::AbstractArray3, pw::PlaneWaveBasis,
+In-place version of `G_to_r`.
+"""
+function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
                  f_fourier::AbstractArray3) where {Tr, Tf}
-    mul!(f_real, pw.opIFFT, f_fourier)
+    mul!(f_real, basis.opIFFT, f_fourier)
 end
-function G_to_r!(f_real::AbstractArray3, pw::PlaneWaveBasis, kpt::Kpoint,
+function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis, kpt::Kpoint,
                  f_fourier::AbstractVector)
     @assert length(f_fourier) == length(kpt.mapping)
-    @assert size(f_real) == pw.fft_size
+    @assert size(f_real) == basis.fft_size
 
-    # Pad the input data from B_k to C_ρ
+    # Pad the input data
     fill!(f_real, 0)
     f_real[kpt.mapping] = f_fourier
 
-    # Perform an FFT on C_ρ -> C_ρ^*
-    mul!(f_real, pw.ipIFFT, f_real)
+    # Perform an FFT
+    mul!(f_real, basis.ipIFFT, f_real)
 end
+
+"""
+    G_to_r(basis::PlaneWaveBasis, [kpt::Kpoint, ] f_fourier)
+
+Perform an iFFT to obtain the quantity defined by `f_fourier` defined
+on the k-dependent spherical basis set (if `kpt` is given) or the
+k-independent cubic (if it is not) on the real-space grid.
+"""
+function G_to_r(basis::PlaneWaveBasis, f_fourier::AbstractArray3)
+    G_to_r!(similar(f_fourier), basis, f_fourier)
+end
+function G_to_r(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector)
+    G_to_r!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier)
+end
+
+
+
 
 @doc raw"""
-    G_to_r(pw::PlaneWaveBasis, [kpt::Kpoint, ], f_fourier)
-
-Perform an iFFT to translate between `f_fourier`, a fourier representation
-of a function either on ``B_k`` (if `kpt` is given) or on ``C_ρ`` (if not)
-and return the values on the real-space grid `C_ρ^*`.
+In-place version of `r_to_G!`.
+NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
 """
-function G_to_r(pw::PlaneWaveBasis, f_fourier::AbstractArray3)
-    G_to_r!(similar(f_fourier), pw, f_fourier)
-end
-function G_to_r(pw::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector)
-    G_to_r!(similar(f_fourier, pw.fft_size...), pw, kpt, f_fourier)
-end
-
-
-
-
-@doc raw"""
-    r_to_G!(f_fourier, pw::PlaneWaveBasis, [kpt::Kpoint, ], f_real)
-
-Perform an FFT to translate between `f_real`, a function represented on
-``C_ρ^\ast`` and its fourier representation. Truncatate the fourier
-coefficients to ``B_k`` (if `kpt` is given). Note: If `kpt` is given, all data
-in ``f_real`` will be distroyed as well.
-"""
-function r_to_G!(f_fourier::AbstractArray3, pw::PlaneWaveBasis,
+function r_to_G!(f_fourier::AbstractArray3, basis::PlaneWaveBasis,
                  f_real::AbstractArray3)
-    mul!(f_fourier, pw.opFFT, f_real)
+    mul!(f_fourier, basis.opFFT, f_real)
 end
-function r_to_G!(f_fourier::AbstractVector, pw::PlaneWaveBasis, kpt::Kpoint,
+function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis, kpt::Kpoint,
                  f_real::AbstractArray3)
-    @assert size(f_real) == pw.fft_size
+    @assert size(f_real) == basis.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
 
-    # FFT on C_ρ^∗ -> C_ρ
-    mul!(f_real, pw.ipFFT, f_real)
+    # FFT
+    mul!(f_real, basis.ipFFT, f_real)
 
-    # Truncate the resulting frequency range to B_k
+    # Truncate
     fill!(f_fourier, 0)
     f_fourier[:] = f_real[kpt.mapping]
 end
 
-@doc raw"""
-    r_to_G(pw::PlaneWaveBasis, f_fourier)
-
-Perform an FFT to translate between `f_fourier`, a fourier representation
-on ``C_ρ^\ast`` and its fourier representation on ``C_ρ``.
 """
-function r_to_G(pw::PlaneWaveBasis, f_real::AbstractArray3)
-    r_to_G!(similar(f_real), pw, f_real)
+    r_to_G(basis::PlaneWaveBasis, [kpt::Kpoint, ] f_real)
+
+Perform an FFT to obtain the Fourier representation of `f_real`. If
+`kpt` is given, the coefficients are truncated to the k-dependent
+spherical basis set.
+"""
+function r_to_G(basis::PlaneWaveBasis, f_real::AbstractArray3)
+    r_to_G!(similar(f_real), basis, f_real)
 end
 # TODO optimize this
-function r_to_G(pw::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3) where {T}
-    r_to_G!(similar(f_real, length(kpt.mapping)), pw, kpt, copy(f_real))
+function r_to_G(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3) where {T}
+    r_to_G!(similar(f_real, length(kpt.mapping)), basis, kpt, copy(f_real))
 end

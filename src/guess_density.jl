@@ -13,6 +13,8 @@ guess_density(basis::PlaneWaveBasis) = guess_density(basis, basis.model.atoms)
 function guess_density(basis::PlaneWaveBasis{T}, atoms) where {T}
     model = basis.model
     ρ = zeros(complex(T), basis.fft_size)
+    # If no atoms, start with a zero initial guess
+    isempty(atoms) && return from_fourier(basis, ρ; assume_real=true)
     # fill ρ with the (unnormalized) Fourier transform, ie ∫ e^{-iGx} ρ(x) dx
     for (spec, positions) in atoms
         n_el_val = n_elec_valence(spec)

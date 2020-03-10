@@ -28,11 +28,12 @@ that really does the work, operating on a single ``k``-Block.
 `prec_type` should be a function that returns a preconditioner when called as `prec(ham, kpt)`
 """
 function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
-                                 kpoints=ham.basis.kpoints, guess=nothing,
+                                 guess=nothing,
                                  prec_type=PreconditionerTPA, interpolate_kpoints=true,
                                  tol=1e-6, maxiter=200, n_conv_check=nothing,
                                  show_progress=false)
-    T = eltype(ham)
+    T = complex(eltype(ham.basis))
+    kpoints = ham.basis.kpoints
     results = Vector{Any}(undef, length(kpoints))
 
     progress = nothing
@@ -57,8 +58,8 @@ function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         @assert size(guessk) == (length(G_vectors(kpoints[ik])), nev_per_kpoint)
 
         prec = nothing
-        prec_type !== nothing && (prec = prec_type(ham, kpt))
-        results[ik] = eigensolver(kblock(ham, kpt), guessk;
+        prec_type !== nothing && (prec = prec_type(ham.basis, kpt))
+        results[ik] = eigensolver(ham.blocks[ik], guessk;
                                   prec=prec, tol=tol, maxiter=maxiter,
                                   n_conv_check=n_conv_check)
 
@@ -71,9 +72,7 @@ function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
      X=[res.X for res in results],
      residual_norms=[res.residual_norms for res in results],
      iterations=[res.iterations for res in results],
-     converged=all(res.converged for res in results),
-     kpoints=kpoints
-    )
+     converged=all(res.converged for res in results))
 end
 
 @doc raw"""

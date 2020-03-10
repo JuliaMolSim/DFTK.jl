@@ -84,7 +84,7 @@ function find_occupation_bandgap(basis, energies)
     n_bands = length(energies[1])
     @assert all(e -> length(e) == n_bands, energies)
     n_electrons = basis.model.n_electrons
-    T = eltype(basis.kpoints[1].coordinate)
+    T = eltype(basis)
     @assert basis.model.temperature == 0
 
     filled_occ = filled_occupation(basis.model)

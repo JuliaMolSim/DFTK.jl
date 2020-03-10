@@ -1,6 +1,5 @@
 using Test
-using DFTK: PlaneWaveBasis, Model, Hamiltonian, lobpcg_hyper, diagonalise_all_kblocks
-using DFTK: PreconditionerTPA, ElementPsp, load_psp, term_external, term_nonlocal, diag_full
+using DFTK
 
 include("./testcases.jl")
 
@@ -9,7 +8,7 @@ include("./testcases.jl")
     # Construct a free-electron Hamiltonian
     Ecut = 5
     fft_size = [15, 15, 15]
-    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)  # free-electron model
+    model = Model(silicon.lattice, n_electrons=silicon.n_electrons, terms=[Kinetic()])  # free-electron model
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis)
 
@@ -58,8 +57,8 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
         fft_size = [33, 33, 33]
 
         Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
-        model = Model(silicon.lattice, n_electrons=silicon.n_electrons,
-                      external=term_external([Si => silicon.positions]))
+        model = Model(silicon.lattice; atoms=[Si => silicon.positions],
+                      terms=[Kinetic(),AtomicLocal()])
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops;
                                fft_size=fft_size)
         ham = Hamiltonian(basis)
@@ -87,9 +86,9 @@ end
     fft_size = [21, 21, 21]
 
     Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
-    model = Model(silicon.lattice, n_electrons=silicon.n_electrons,  # Core Hamiltonian model
-                  external=term_external([Si => silicon.positions]),
-                  nonlocal=term_nonlocal([Si => silicon.positions]))
+    model = Model(silicon.lattice; atoms=[Si => silicon.positions],
+                  terms=[Kinetic(), AtomicLocal(), AtomicNonlocal()])
+
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis)
 
@@ -109,16 +108,13 @@ end
     end
 end
 
-@testset "Full diagonalisation of a core Hamiltonian" begin
+@testset "Full diagonalisation of a LDA Hamiltonian" begin
     Ecut = 2
-    fft_size = [5, 5, 5]
 
     Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
-    model = Model(silicon.lattice, n_electrons=silicon.n_electrons,  # Core Hamiltonian model
-                  external=term_external([Si => silicon.positions]),
-                  nonlocal=term_nonlocal([Si => silicon.positions]))
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-    ham = Hamiltonian(basis)
+    model = model_DFT(silicon.lattice, [Si => silicon.positions], :lda_xc_teter93)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops)
+    ham = Hamiltonian(basis; ρ=guess_density(basis))
 
     res1 = diagonalise_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, interpolate_kpoints=false)
     res2 = diagonalise_all_kblocks(diag_full, ham, 5, tol=1e-8, interpolate_kpoints=false)

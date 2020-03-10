@@ -8,7 +8,7 @@
 [![Coverage Status](https://coveralls.io/repos/JuliaMolSim/DFTK.jl/badge.svg?branch=master&service=github)](https://coveralls.io/github/JuliaMolSim/DFTK.jl?branch=master)
 [![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238)
 
-The density-functional toolkit, or short **DFTK** is a library of
+The density-functional toolkit, **DFTK** for short, is a library of
 Julia routines for experimentation with plane-wave-based
 density-functional theory (DFT), as implemented in much larger
 production codes such as [Abinit](https://www.abinit.org/),
@@ -20,32 +20,43 @@ to leverage as much of the existing developments in plane-wave DFT and
 the related ecosystems of Julia python or C codes as possible.
 
 ## Features
-The library is at an early stage and the supported feature set
-is still limited. An overview:
+The library is at an early stage but we do already support a sizeable
+set of features. An overview:
+
 * Methods and models:
-	- Periodic Hamiltonians, such as reduced Hartree-Fock,
-	  Gross-Pitaevskii, density-functional theory, analytic potentials
-	- All LDA and GGA functionals from [libxc](https://tddft.org/programs/libxc/) supported.
-	- Godecker pseudopotentials (GTH, HGH)
-	- Exploit Brillouin zone symmetry for k-Point sampling
-	- Fermi-Dirac or Methfessel-Paxton smearing to treat metals
-	- Self-consistent field approaches: Damping, Kerker mixing, Anderson mixing (Pulay DIIS),
-	  all solvers from [NLsolve.jl](https://github.com/JuliaNLSolvers/NLsolve.jl)
-	- Direct minimization
+	- Kohn-Sham-like models, with an emphasis on flexibility: compose your own model,
+	  from Cohen-Bergstresser linear eigenvalue equations to Gross-Pitaevskii equations
+	  and sophisticated LDA/GGA functionals (any functional from the
+	  [libxc](https://tddft.org/programs/libxc/) library)
+	- Analytic potentials or Godecker norm-conserving pseudopotentials (GTH, HGH)
+	- Brillouin zone symmetry for k-Point sampling using [spglib](https://atztogo.github.io/spglib/)
+	- Smearing functions for metals
+	- Self-consistent field approaches: Damping, Kerker mixing, Anderson/Pulay/DIIS mixing,
+	  interface to [NLsolve.jl](https://github.com/JuliaNLSolvers/NLsolve.jl)
+	- Direct minimization using [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl)
+	- Multi-level threading (kpoints, eigenvectors, FFTs, linear algebra)
+    - 1D / 2D / 3D systems
+    - Magnetic fields
 * Ground-state properties and post-processing:
-	- Total energy / free energy computation
+	- Total energy
 	- Forces
-	- Density of states (DOS) and local density of states (LDOS)
+	- Density of states (DOS), local density of states (LDOS)
 	- Band structures
-	- Full access to all intermediate quantities (e.g. density, Bloch wave)
+	- Easy access to all intermediate quantities (e.g. density, Bloch waves)
 * Support for arbitrary floating point types, including `Float32` (single precision)
   or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)).
   For DFT this is currently restricted to LDA (with Slater exchange and VWN correlation).
 
+All this in about 5k lines of pure Julia code. The code emphasizes simplicity and
+flexibility, with the goal of facilitating methodological development and
+interdisciplinary collaboration.
+It has not been properly optimized and fine-tuned yet,
+but the performance is of the same order of magnitude as established packages.
+
 **Note:** DFTK has only been compared against standard packages
 for a small number of test cases and might still contain bugs.
 
-## Installation
+## Getting started
 The package is not yet registered in the [General](https://github.com/JuliaRegistries/General)
 registry of Julia. Instead you can obtain it from
 the [MolSim](https://github.com/JuliaMolSim/MolSim.git) registry,
@@ -75,7 +86,7 @@ You can do this for example with the Julia commands
 using PyCall
 PyCall.python
 ```
-Then use the corresponding package manager (usually `apt`, `pip` or `conda`)
+Then use the corresponding package manager (usually `apt`, `pip`, `pip3` or `conda`)
 to install aforementioned libraries, for example
 ```
 pip install spglib pymatgen
@@ -85,12 +96,6 @@ or
 conda install -c conda-forge spglib pymatgen
 ```
 You can then run the code in the `examples/` directory.
-
-
-## Perspective
-Despite the current focus on numerics, the intention is to keep the
-project rather general, so that this platform is useful for
-general research in materials science.
 
 ## Citation
 [![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238)

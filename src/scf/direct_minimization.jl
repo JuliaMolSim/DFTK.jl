@@ -1,9 +1,11 @@
 # Direct minimization of the energy
 
 using Optim
+using LineSearches
 
-# This is all a bit annoying because our Psi is represented as Psi[k][G,n], and Optim accepts only dense arrays
-# We do a bit of back and forth using custom `pack` (ours -> optim's) and `unpack` (optim's -> ours) functions
+# This is all a bit annoying because our ψ is represented as ψ[k][G,n], and Optim accepts
+# only dense arrays. We do a bit of back and forth using custom `pack` (ours -> optim's) and
+# `unpack` (optim's -> ours) functions
 
 # Orbitals inside each kblock must be kept orthogonal: the
 # project_tangent and retract work per kblock
@@ -32,7 +34,7 @@ end
 # Array of preconditioners
 struct DMPreconditioner
     Nk::Int
-    Pks::Array # Pks[ik] is the preconditioner for kpoint ik
+    Pks::Vector # Pks[ik] is the preconditioner for kpoint ik
     unpack::Function
 end
 function LinearAlgebra.ldiv!(p, P::DMPreconditioner, d)
@@ -60,11 +62,11 @@ end
 
 """
 Computes the ground state by direct minimization. `kwargs...` are
-passed to `Optim.Options()`. Note that the resulting Psi are not
+passed to `Optim.Options()`. Note that the resulting ψ are not
 necessarily eigenvectors of the Hamiltonian.
 """
 direct_minimization(basis::PlaneWaveBasis; kwargs...) = direct_minimization(basis, nothing; kwargs...)
-function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
+function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                              prec_type=PreconditionerTPA,
                              optim_solver=Optim.LBFGS, kwargs...) where T
     model = basis.model
@@ -72,67 +74,67 @@ function direct_minimization(basis::PlaneWaveBasis{T}, Psi0;
     @assert model.temperature == 0 # temperature is not yet supported
     filled_occ = filled_occupation(model)
     n_bands = div(model.n_electrons, filled_occ)
-    ortho(Psik) = Matrix(qr(Psik).Q)
+    ortho(ψk) = Matrix(qr(ψk).Q)
     Nk = length(basis.kpoints)
 
-    if Psi0 === nothing
-        Psi0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), n_bands)) for kpt in basis.kpoints]
+    if ψ0 === nothing
+        ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), n_bands))
+              for kpt in basis.kpoints]
     end
     occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
 
-    ham = Hamiltonian(basis)
-
     ## vec and unpack
-    # length of Psi[ik]
-    lengths = [length(Psi0[ik]) for ik = 1:Nk]
+    # length of ψ[ik]
+    lengths = [length(ψ0[ik]) for ik = 1:Nk]
     # psi[ik] is in psi_flat[starts[ik]:starts[ik]+lengths[ik]-1]
     starts = copy(lengths)
     starts[1] = 1
     for ik = 1:Nk-1
         starts[ik+1] = starts[ik] + lengths[ik]
     end
-    pack(Psi) = vcat(Base.vec.(Psi)...) # TODO as an optimization, do that lazily? See LazyArrays
-    unpack(Psi) = [@views reshape(Psi[starts[ik]:starts[ik]+lengths[ik]-1], size(Psi0[ik])) for ik in 1:Nk]
+    pack(ψ) = vcat(Base.vec.(ψ)...) # TODO as an optimization, do that lazily? See LazyArrays
+    unpack(ψ) = [@views reshape(ψ[starts[ik]:starts[ik]+lengths[ik]-1], size(ψ0[ik]))
+                 for ik = 1:Nk]
 
-    # this will get updated
+    # this will get updated along the iterations
+    H = nothing
     energies = nothing
+    ρ = nothing
 
     # computes energies and gradients
-    function fg!(E, G, Psi)
-        Psi = unpack(Psi)
-        ρ = compute_density(basis, Psi, occupation)
-        ham = update_hamiltonian(ham, ρ)
-        if E !== nothing
-            energies = update_energies(ham, Psi, occupation, ρ)
-            E = sum(values(energies))
-        end
+    function fg!(E, G, ψ)
+        ψ = unpack(ψ)
+        ρ = compute_density(basis, ψ, occupation)
+        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
 
         # The energy has terms like occ * <ψ|H|ψ>, so the gradient is 2occ Hψ
         if G !== nothing
             G = unpack(G)
             for ik = 1:Nk
-                mul!(G[ik], kblock(ham, basis.kpoints[ik]), Psi[ik])
+                mul!(G[ik], H.blocks[ik], ψ[ik])
                 G[ik] .*= 2*filled_occ
             end
         end
-        E
+        sum(values(energies))
     end
 
     manif = DMManifold(Nk, unpack)
 
-    Pks = [prec_type(ham, kpt) for kpt in basis.kpoints]
+    Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
     P = DMPreconditioner(Nk, Pks, unpack)
 
-    res = Optim.optimize(Optim.only_fg!(fg!), pack(Psi0),
-                         optim_solver(P=P, precondprep=precondprep!, manifold=manif),
+    res = Optim.optimize(Optim.only_fg!(fg!), pack(ψ0),
+                         optim_solver(P=P, precondprep=precondprep!, manifold=manif,
+                                      linesearch=LineSearches.BackTracking()),
                          Optim.Options(; allow_f_increases=true, show_trace=true, kwargs...))
-    Psi = unpack(res.minimizer)
-    ρ = compute_density(basis, Psi, occupation)
-    ham = update_hamiltonian(ham, ρ)
+    ψ = unpack(res.minimizer)
     # These concepts do not make sense in direct minimization,
     # although we could maybe do a final Rayleigh-Ritz
-    orben = nothing
+    eigenvalues = nothing
     εF = nothing
-    (ham=ham, energies=energies, converged=true,
-     ρ=ρ, Psi=Psi, orben=orben, occupation=occupation, εF=εF, optim_res=res)
+
+    # We rely on the fact that the last point where fg! was called is the minimizer to
+    # avoid recomputing at ψ
+    (H=H, energies=energies, converged=true,
+     ρ=ρ, ψ=ψ, eigenvalues=eigenvalues, occupation=occupation, εF=εF, optim_res=res)
 end

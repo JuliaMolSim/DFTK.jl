@@ -3,6 +3,7 @@ import DFTK: determine_grid_size
 using Test
 using DFTK
 using IntervalArithmetic
+using SpecialFunctions
 
 include("testcases.jl")
 
@@ -11,6 +12,7 @@ include("testcases.jl")
 # TODO Remove this once https://github.com/JuliaIntervals/IntervalArithmetic.jl/issues/310
 #      is dealt with.
 cbrt(i::Interval) = Interval(prevfloat(cbrt(i.lo)), nextfloat(cbrt(i.hi)))
+SpecialFunctions.erfc(i::Interval) = Interval(prevfloat(erfc(i.lo)), nextfloat(erfc(i.hi)))
 
 function determine_grid_size(lattice::AbstractMatrix{T}, Ecut;
                              kwargs...) where T <: Interval
@@ -28,7 +30,7 @@ function discretised_hamiltonian(T, testcase)
 
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
     atoms = [spec => testcase.positions]
-    model = model_dft(Array{T}(testcase.lattice), [:lda_x, :lda_c_vwn], atoms)
+    model = model_DFT(Array{T}(testcase.lattice), atoms, [:lda_x, :lda_c_vwn])
     kpoints, ksymops = bzmesh_uniform([1, 1, 1.])
 
     # For interval arithmetic to give useful numbers,
@@ -36,7 +38,7 @@ function discretised_hamiltonian(T, testcase)
     fft_size = nextpow.(2, determine_grid_size(model.lattice, Ecut))
     basis = PlaneWaveBasis(model, Ecut, kpoints, ksymops, fft_size=fft_size)
 
-    ham = Hamiltonian(basis, guess_density(basis, atoms))
+    ham = Hamiltonian(basis; ρ=guess_density(basis))
 end
 
 
@@ -45,11 +47,10 @@ end
     ham = discretised_hamiltonian(T, silicon)
     hamInt = discretised_hamiltonian(Interval{T}, silicon)
 
-    kpt = ham.basis.kpoints[1]
-    hamk = kblock(ham, kpt)
-    hamIntk = kblock(hamInt, kpt)
+    hamk = ham.blocks[1]
+    hamIntk = hamInt.blocks[1]
 
-    x = randn(Complex{T}, size(hamk, 1))
+    x = randn(Complex{T}, length(G_vectors(ham.basis.kpoints[1])))
     ref = hamk * x
     res = hamIntk * Interval.(x)
 

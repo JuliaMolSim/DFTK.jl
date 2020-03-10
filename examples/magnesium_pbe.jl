@@ -24,23 +24,24 @@ lattice = load_lattice(pystruct)
 atoms = [Mg => [s.frac_coords for s in pystruct.sites]]
 
 # Setup PBE model with Methfessel-Paxton smearing and its discretisation
-model = model_dft(lattice, [:gga_x_pbe, :gga_c_pbe], atoms;
+model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe];
                   temperature=Tsmear,
                   smearing=DFTK.Smearing.MethfesselPaxton1())
 basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid)
 
 # Run SCF
-ham = Hamiltonian(basis, guess_density(basis))
-scfres = self_consistent_field(ham, n_bands)
-ham = scfres.ham
+scfres = self_consistent_field(basis, n_bands=n_bands)
 
 # Print obtained energies and plot bands
-print_energies(scfres.energies)
+println()
+display(scfres.energies)
 p = plot_bandstructure(scfres, n_bands)
 
 # Plot DOS
-εs = range(minimum(minimum(scfres.orben)) - 1, maximum(maximum(scfres.orben)) + 1, length=1000)
-Ds = DOS.(εs, Ref(basis), Ref(scfres.orben), T=Tsmear*4, smearing=DFTK.Smearing.MethfesselPaxton1())
+εs = range(minimum(minimum(scfres.eigenvalues)) - 1,
+           maximum(maximum(scfres.eigenvalues)) + 1, length=1000)
+Ds = DOS.(εs, Ref(basis), Ref(scfres.eigenvalues), T=Tsmear*4,
+          smearing=DFTK.Smearing.MethfesselPaxton1())
 q = plot(εs, Ds, label="DOS")
 vline!(q, [scfres.εF], label="εF")
 

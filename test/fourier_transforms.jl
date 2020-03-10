@@ -9,7 +9,7 @@ include("testcases.jl")
     model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
     pw = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
-    @testset "Transformation C_ρ <-> C_ρ^∗, 1 vector" begin
+    @testset "Transformation on the cubic basis set" begin
         f_G = Array{ComplexF64}(randn(Float64, pw.fft_size...))
 
         f_R = Array{ComplexF64}(undef, pw.fft_size...)
@@ -24,7 +24,7 @@ include("testcases.jl")
         @test maximum(abs.(f3_G - f_G)) < 1e-12
     end
 
-    @testset "Transformation B_k <-> C_ρ^∗, 1 vector" begin
+    @testset "Transformation on the spherical basis set" begin
         kpt = pw.kpoints[2]
         f_G = Array{ComplexF64}(randn(Float64, length(G_vectors(kpt))))
 
