@@ -36,3 +36,8 @@ jobs:
 
 notifications:
   email: false
+  webhooks:
+    urls:
+      - https://webhooks.gitter.im/e/675ffcbb101b5d1a3424
+    on_success: change
+    on_failure: always
