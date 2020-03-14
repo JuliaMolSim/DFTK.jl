@@ -19,5 +19,5 @@ using DFTK
     test_solver(reference, diag_full, PreconditionerTPA)
     test_solver(reference, diag_full, PreconditionerNone)
     test_solver(reference, lobpcg_hyper, PreconditionerTPA)
-    test_solver(reference, lobpcg_itsolve, PreconditionerTPA)
+    # test_solver(reference, lobpcg_itsolve, PreconditionerTPA)
 end
