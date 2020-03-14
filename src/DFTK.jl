@@ -90,6 +90,7 @@ export compute_density
 include("densities.jl")
 
 export PreconditionerTPA
+export PreconditionerNone
 include("eigen/preconditioners.jl")
 
 export lobpcg_hyper
