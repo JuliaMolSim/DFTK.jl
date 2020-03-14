@@ -65,3 +65,25 @@ end
     @test index_G_vectors(pw, [15, 1, 1]) === nothing
     @test index_G_vectors(pw, [-15, 1, 1]) === nothing
 end
+
+@testset "PlaneWaveBasis: Check index for kpoints" begin
+    Ecut = 3
+    fft_size = [7, 9, 11]
+    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    g_all = collect(G_vectors(basis))
+
+    for kpt in basis.kpoints
+        for (iball, ifull) in enumerate(kpt.mapping)
+            @test index_G_vectors(basis, kpt, g_all[ifull]) == iball
+        end
+
+        if kpt.coordinate == [1/3, 1/3, 0]
+            @test index_G_vectors(basis, kpt, [-2, -3, -1]) == 62
+        else
+            @test index_G_vectors(basis, kpt, [-2, -3, -1]) === nothing
+        end
+        @test index_G_vectors(basis, kpt, [15, 1, 1]) === nothing
+        @test index_G_vectors(basis, kpt, [-15, 1, 1]) === nothing
+    end
+end
