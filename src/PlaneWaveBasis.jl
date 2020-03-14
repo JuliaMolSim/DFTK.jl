@@ -16,6 +16,8 @@ struct Kpoint{T <: Real}
     coordinate::Vec3{T}           # Fractional coordinate of k-Point
     mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
                                   # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
+    mapping_inv::Dict{Int, Int}   # Inverse of `mapping`:
+                                  # G_vectors(basis)[i] = G_vectors(kpt)[kpt.mapping_inv[i]]
     G_vectors::Vector{Vec3{Int}}  # Wave vectors in integer coordinates:
                                   # ({G, 1/2 |k+G|^2 ≤ Ecut})
 end
@@ -87,8 +89,10 @@ function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
         energy(q) = sum(abs2, model.recip_lattice * q) / 2
         pairs = [(i, G) for (i, G) in enumerate(G_vectors(fft_size)) if energy(k + G) ≤ Ecut]
 
+        mapping = first.(pairs)
+        mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for σ in spin
-            push!(kpoints, Kpoint{T}(σ, k, first.(pairs), last.(pairs)))
+            push!(kpoints, Kpoint{T}(σ, k, mapping, mapping_inv, last.(pairs)))
         end
     end
 
@@ -185,7 +189,9 @@ function r_vectors(basis::PlaneWaveBasis{T}) where T
 end
 
 """
-Return the index tuple I such that `G_vectors(basis)[I] == G`. Returns nothing if outside the range of valid wave vectors.
+Return the index tuple `I` such that `G_vectors(basis)[I] == G`
+or the index `i` such that `G_vectors(kpoint)[i] == G`.
+Returns nothing if outside the range of valid wave vectors.
 """
 function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}
     start = -ceil.(Int, (Vec3(basis.fft_size) .- 1) ./ 2)
@@ -199,10 +205,18 @@ function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{T}) where {T <
     if all(start .<= G .<= stop)
         CartesianIndex(Tuple(mapaxis.(lengths, G)))
     else
-        nothing # Outside range of valid indices
+        nothing  # Outside range of valid indices
     end
 end
 
+function index_G_vectors(basis::PlaneWaveBasis, kpoint::Kpoint,
+                         G::AbstractVector{T}) where {T <: Integer}
+    fft_size = basis.fft_size
+    idx = index_G_vectors(basis, G)
+    isnothing(idx) && return nothing
+    idx_linear = LinearIndices(fft_size)[idx]
+    get(kpoint.mapping_inv, idx_linear, nothing)
+end
 
 
 #
