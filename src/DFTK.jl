@@ -141,6 +141,8 @@ export DOS
 export LDOS
 export NOS
 include("postprocess/DOS.jl")
+export compute_χ0
+include("postprocess/chi0.jl")
 
 export EtsfFolder
 export load_lattice

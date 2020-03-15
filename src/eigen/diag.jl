@@ -41,6 +41,10 @@ function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         progress = Progress(length(kpoints), desc="Diagonalising Hamiltonian kblocks: ")
     end
     for (ik, kpt) in enumerate(kpoints)
+        if length(G_vectors(kpoints[ik])) < nev_per_kpoint
+            error("The size of the plane wave basis is $(length(G_vectors(kpoints[ik]))), " *
+                  "and you are asking for $nev_per_kpoint. Increase Ecut.")
+        end
         # Get guessk
         if guess != nothing
             # guess provided

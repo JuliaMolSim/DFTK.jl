@@ -78,6 +78,7 @@ Random.seed!(0)
     if "all" in TAGS
         include("variational.jl")
         include("compute_bands.jl")
+        include("chi0.jl")
     end
 
     ("example" in TAGS) && include("runexamples.jl")

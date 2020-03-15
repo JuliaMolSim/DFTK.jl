@@ -24,6 +24,31 @@ Derivative of the occupation function, approximation to minus the delta function
 occupation_derivative(S::SmearingFunction, x) = ForwardDiff.derivative(x -> occupation(S, x), x)
 
 """
+(f(x) - f(y))/(x - y), computed stably in the case where x and y are close
+"""
+function occupation_divided_difference(S::SmearingFunction, x, y, εF, T)
+    if T == 0
+        if x == y
+            zero(x)
+        else
+            fx = x < εF ? 1 : 0
+            fy = y < εF ? 1 : 0
+            (fx-fy)/(x-y)
+        end
+    else
+        f(z) = occupation(S, (z-εF)/T)
+        fp(z) = occupation_derivative(S, (z-εF)/T)/T
+        divided_difference_(f, fp, x, y)
+    end
+end
+function divided_difference_(f, fp, x, y)
+    # This is only accurate to sqrt(ε)
+    ε = eps(typeof(x))
+    abs(x-y) < sqrt(ε) && return fp(x)
+    (f(x) - f(y))/(x-y)
+end
+
+"""
 Entropy. Note that this is a function of the energy `x`, not of `occupation(x)`.
 This function satisfies s' = x f' (see https://www.vasp.at/vasp-workshop/k-points.pdf
 p. 12 and https://arxiv.org/pdf/1805.07144.pdf p. 18.

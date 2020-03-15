@@ -1,7 +1,9 @@
 """
 Obtain new density ρ by diagonalizing `ham`.
 """
-function next_density(ham::Hamiltonian, n_bands; ψ=nothing,
+function next_density(ham::Hamiltonian;
+                      n_bands=div(ham.basis.model.n_electrons, filled_occupation(ham.basis.model)),
+                      ψ=nothing,
                       prec_type=PreconditionerTPA, tol=1e-6, n_ep_extra=3,
                       eigensolver=lobpcg_hyper)
     n_ep = n_bands + n_ep_extra
@@ -112,7 +114,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
                                                ρ=ρin, eigenvalues=eigenvalues, εF=εF)
         end
         # Diagonalize `ham` to get the new state
-        nextstate = next_density(ham, n_bands; ψ=ψ, eigensolver=eigensolver, tol=diagtol)
+        nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver, tol=diagtol)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # This computes the energy of the new state

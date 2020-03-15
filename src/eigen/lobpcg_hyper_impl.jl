@@ -184,7 +184,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
     N,M = size(X)
 
     # If N is too small, we will likely get in trouble
-    N >= 3M+2 || @warn "Your problem is too small, and LOBPCG might
+    N >= 3M || @warn "Your problem is too small, and LOBPCG might
         fail; use a full diagonalization instead"
 
     n_conv_check === nothing && (n_conv_check = M)
