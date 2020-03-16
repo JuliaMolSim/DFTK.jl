@@ -17,7 +17,7 @@ function next_working_fft_size(::Any, size)
 
     adjusted = nextpow(2, size)
     if adjusted != size
-        @info "Changing fft size to $fft_size (smallest working size for generic FFTs)"
+        @info "Changing fft size to $adjusted (smallest working size for generic FFTs)"
     end
     adjusted
 end
