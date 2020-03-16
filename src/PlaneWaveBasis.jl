@@ -104,11 +104,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     fft_size = Tuple{Int, Int, Int}(fft_size)
 
     # TODO generic FFT is kind of broken for some fft sizes
-    #      ... temporary workaround, see more details in fft.jl
-    if !(T in [Float32, Float64]) && !all(is_fft_size_ok_for_generic.(fft_size))
-        fft_size = next_working_fft_size_for_generic.(fft_size)
-        @info "Changing fft size to $fft_size (smallest working size for generic FFTs)"
-    end
+    #      ... temporary workaround, see more details in fft_generic.jl
+    fft_size = next_working_fft_size.(T, fft_size)
     ipFFT, opFFT = build_fft_plans(T, fft_size)
 
     # The FFT interface specifies that fft has no normalization, and
