@@ -27,7 +27,15 @@ function compute_χ0(ham)
         enred = (E[n] - εF) / model.temperature
         @assert occ[n] ≈ filled_occ * Smearing.occupation(model.smearing, enred)
         factor = filled_occ * Smearing.occupation_divided_difference(model.smearing, E[m], E[n], εF, model.temperature)
+         # dVol because inner products have a dVol so that |f> becomes <dVol f|
         χ0 += (Vr[:, m] .* Vr[:, m]') .* (Vr[:, n] .* Vr[:, n]') * factor * dVol
+    end
+
+    # Add variation wrt εF
+    if model.temperature > 0
+        ldos = vec(LDOS(εF, basis, [E], [V]))
+        dos = DOS(εF, basis, [E])
+        χ0 .+= (ldos .* ldos') .* dVol ./ dos
     end
     χ0
 end
