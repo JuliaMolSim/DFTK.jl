@@ -83,7 +83,7 @@ function plot_band_data(band_data; εF=nothing,
 
     ylims = [-4, 4]
     bs.is_metal() && (ylims = [-10, 10])
-    ylims = ceil.(Int, ylims * units.eV ./ unit_to_au(unit))
+    ylims = round.(ylims * units.eV ./ unit_to_au(unit), sigdigits=2)
     if isnothing(εF)
         Plots.ylabel!(p, "eigenvalues  ($(string(unit))")
     else
