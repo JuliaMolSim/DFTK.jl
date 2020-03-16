@@ -8,6 +8,7 @@ using Printf
 using Markdown
 using LinearAlgebra
 using Interpolations
+using Requires
 
 include("common/asserting.jl")
 export unit_to_au
@@ -90,6 +91,7 @@ export compute_density
 include("densities.jl")
 
 export PreconditionerTPA
+export PreconditionerNone
 include("eigen/preconditioners.jl")
 
 export lobpcg_hyper
@@ -148,5 +150,14 @@ export load_density
 export load_atoms
 include("external/etsf_nanoquanta.jl")
 include("external/abinit.jl")
+
+function __init__()
+    # Use requires to only include eigen/diag_lobpcg_itsolve.jl once
+    # IterativeSolvers has been loaded (via a "using" or an "import")
+    # See https://github.com/JuliaPackaging/Requires.jl for details.
+    @require IterativeSolvers="42fd0dbc-a981-5370-80f2-aaf504508153" begin
+        include("eigen/diag_lobpcg_itsolve.jl")
+    end
+end
 
 end # module DFTK

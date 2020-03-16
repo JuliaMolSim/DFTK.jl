@@ -86,7 +86,5 @@ function select_eigenpairs_all_kblocks(eigres, range)
 end
 
 # The actual implementations using the above primitives
-include("diag_lobpcg_scipy.jl")
 include("diag_lobpcg_hyper.jl")
-include("diag_lobpcg_itsolve.jl")
 include("diag_full.jl")

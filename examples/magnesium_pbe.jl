@@ -1,6 +1,5 @@
 using DFTK
 using Plots
-Plots.pyplot()  # Use PyPlot backend for unicode support
 
 # Calculation parameters
 kgrid = [4, 4, 4]        # k-Point grid

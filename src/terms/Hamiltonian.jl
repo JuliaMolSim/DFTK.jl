@@ -13,6 +13,11 @@ struct HamiltonianBlock
     optimized_operators::Vector  # the optimized list of RealFourierOperator, to be used for applying
     HamiltonianBlock(basis, kpt, operators) = new(basis, kpt, operators, optimize_operators_(operators))
 end
+Base.eltype(block::HamiltonianBlock) = complex(eltype(block.basis))
+Base.size(block::HamiltonianBlock) =
+    (length(G_vectors(block.kpoint)), length(G_vectors(block.kpoint)))
+Base.size(block::HamiltonianBlock, i::Integer) = i < 3 ? size(block)[i] : 1
+
 struct Hamiltonian
     basis::PlaneWaveBasis
     blocks::Vector{HamiltonianBlock}

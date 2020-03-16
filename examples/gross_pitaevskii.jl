@@ -3,7 +3,6 @@
 using DFTK
 using Plots
 using LinearAlgebra
-Plots.pyplot()  # Use PyPlot backend for unicode support
 
 Ecut = 4000
 # Nonlinearity : energy C ∫ρ^α
