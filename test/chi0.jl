@@ -5,11 +5,11 @@ using LinearAlgebra: norm
 include("testcases.jl")
 
 @testset "Computing χ0" begin
-    Ecut=100
-    fft_size = [60, 1, 1]
+    Ecut=3
+    fft_size = [10, 10, 1]
     tol=1e-10
     ε = 1e-8
-    kgrid = [1, 1, 1]
+    kgrid = [3, 1, 1]
     testcase = silicon
     n_bands = 10
 
@@ -17,7 +17,7 @@ include("testcases.jl")
     for temperature in (0, 0.03)
         model = model_LDA(testcase.lattice, [spec => testcase.positions], temperature=temperature)
 
-        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size)
+        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size, enable_bzmesh_symmetry=false)
 
         ρ0 = guess_density(basis)
         energies, ham = energy_hamiltonian(basis, nothing, nothing;
@@ -29,7 +29,6 @@ include("testcases.jl")
         # now we go change the local potential of the hamiltonian
         # TODO this is a bit of a hack...
         dV = randn(eltype(V), size(V))
-        dV = dV .- mean(dV)
         DFTK.set_total_local_potential!(ham, V + ε.*dV)
         ρVpdV = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
         diff = (ρVpdV.real - ρV.real)/ε
