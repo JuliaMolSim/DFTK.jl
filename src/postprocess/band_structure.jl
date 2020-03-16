@@ -66,6 +66,7 @@ function plot_band_data(band_data; εF=nothing,
 
             yerror = nothing
             if hasfield(typeof(band_data), :λerror)
+                @assert band_data.basis.model.spin_polarisation in (:none, :spinless)
                 yerror = [band_data.λerror[ik + ikstart][iband] ./ unit_to_au(unit)
                           for ik in 1:length(kdistances)]
             end
