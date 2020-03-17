@@ -61,6 +61,7 @@ Random.seed!(0)
 
     if "all" in TAGS
         include("lobpcg.jl")
+        include("diag_compare.jl")
         include("xc_fallback.jl")
         include("interval_arithmetic.jl")
     end

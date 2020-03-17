@@ -13,6 +13,7 @@ after_success:
   - julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage;
               coverage = Coveralls.process_folder();
               filter!(c -> !occursin("src/FourierTransforms.jl", c.filename), coverage);
+              filter!(c -> !occursin("src/eigen/diag_lobpcg_itsolve.jl", c.filename), coverage);
               Coveralls.submit(coverage)';
 
 os:

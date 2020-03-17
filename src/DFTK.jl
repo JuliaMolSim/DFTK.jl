@@ -8,6 +8,7 @@ using Printf
 using Markdown
 using LinearAlgebra
 using Interpolations
+using Requires
 
 include("common/asserting.jl")
 export unit_to_au
@@ -90,6 +91,7 @@ export compute_density
 include("densities.jl")
 
 export PreconditionerTPA
+export PreconditionerNone
 include("eigen/preconditioners.jl")
 
 export lobpcg_hyper
@@ -148,5 +150,24 @@ export load_density
 export load_atoms
 include("external/etsf_nanoquanta.jl")
 include("external/abinit.jl")
+
+function __init__()
+    # Use requires to only include eigen/diag_lobpcg_itsolve.jl once
+    # IterativeSolvers has been loaded (via a "using" or an "import")
+    # See https://github.com/JuliaPackaging/Requires.jl for details.
+    @require IterativeSolvers="42fd0dbc-a981-5370-80f2-aaf504508153" begin
+        include("eigen/diag_lobpcg_itsolve.jl")
+    end
+
+    # Load generic FFT stuff once IntervalArithmetic or DoubleFloats are used
+    # The global variable GENERIC_FFT_LOADED makes sure that things are only
+    # included once.
+    @require IntervalArithmetic="d1acc4aa-44c8-5952-acd4-ba5d80a2a253" begin
+        !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("fft_generic.jl")
+    end
+    @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin
+        !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("fft_generic.jl")
+    end
+end
 
 end # module DFTK
