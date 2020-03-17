@@ -1,0 +1,105 @@
+\documentclass[a4paper]{article}
+\input{../common.tex}
+
+\begin{document}
+\title{Definitions, conventions and useful facts}
+\author{Michael F. Herbst \and Antoine Levitt}
+\maketitle
+
+\section{Terminology}
+\begin{description}
+\item[$\vec{G}$] Vector on the reciprocal lattice $\mathcal{R}^\ast$
+\item[$\vec{k}$] Vector inside the first Brillouin zone
+\item[$\vec{q}$] Reciprocal-space vector $\vec{q} = \vec{k} + \vec{G}$
+\item[$\vec{R}$] Vector on the lattice $\mathcal{R}$
+\item[$\vec{r}$] Vector inside the unit cell
+\item[$\vec{x}$] Real-space vector, $\vec{x} = \vec{r} + \vec{R}$
+\item[$\Omega$] Unit cell / unit cell volume
+\item[$e_{\vec{G}}$] Normalized plane wave
+  \[ e_{\vec{G}} = \frac1{\sqrt{\Omega}} \exp(\I \vec{G} \cdot \vec{r})\]
+\item[$\Op{T}_{\vec{R}}$] Lattice translation operator
+  \[ \Op{T}_{\vec{R}} u(\vec{x}) = u(\vec{x} -
+    \vec{R}) \]
+\item[$Y_l^m$] complex spherical harmonics
+\item[$Y_{lm}$] real spherical harmonics
+\item[$\vec x = x \uvec x$] Separation of a vector into its radial and
+  angular part
+\item[$j_{l}$] Spherical Bessel functions. $j_{0}(x) = \frac{\sin x}{x}$
+\end{description}
+
+\section{Conventions and useful formulas}
+\begin{itemize}
+\item The Fourier transform is
+  \begin{align*}
+    \widehat{f}(\vec q) = \int_{\R^{3}} e^{-i\vec q \cdot \vec x} \D\vec x
+  \end{align*}
+\item Plane wave expansion
+  \begin{align*}
+    e^{\I \vec{q} \cdot \vec{r}} =
+  4 \pi \sum_{l = 0}^\infty \sum_{m = -l}^l
+  \I^l j_l(q r) Y_l^m(\uvec{q}) Y_l^{m\ast}(\uvec{r})
+\end{align*}
+\item Spherical harmonics orthogonality
+  \[
+    \int_{\mathbb{S}^2} Y_l^{m*}(\uvec{r})Y_{l'}^{m'}(\uvec{r}) \D \uvec{r}
+  = \delta_{l,l'} \delta_{m,m'}
+\]
+This also holds true for real spherical harmonics.
+
+\item Fourier transforms of centered functions.
+If 
+\[ f(\vec{x}) = R(x) Y_l^m(\uvec{x}),\]
+then
+\begin{align*}
+  \hat f(\vec q)
+  &= \int_{\R^3} R(x) Y_{l}^{m}(\uvec x) e^{-\I \vec{q} \cdot \vec{x}} \D\vec{x} \\
+  &= \sum_{l = 0}^\infty 4 \pi \I^l 
+  \sum_{m = -l}^l \int_{\R^3}
+  R(x) j_{l'}(q x)Y_{l'}^{m'}(-\uvec{q}) Y_{l}^{m}(\uvec{x})
+   Y_{l'}^{m'\ast}(\uvec{x})
+  \D\vec{x} \\
+  &= 4 \pi Y_{l}^{m}(-\uvec{q}) \I^{l}
+  \int_{\R^+} x^2 R(x) \ j_{l}(q x)
+  \
+   \D x,
+ \end{align*}
+This also holds true for real spherical harmonics.
+\end{itemize}
+\section{Discretization and normalization}
+The periodic part of Bloch waves is discretized in a set of normalized
+plane waves $e_{\vec \GG}$:
+\begin{align*}
+  \psi_{k}(x) &= e^{\I \vec k \cdot \vec x} u_{\vec k}(\vec r)\\
+  &= \sum_{\vec \GG \in \mathcal R^{*}} c_{\GG}  e^{\I \vec k \cdot \vec x} e_{\vec G}(\vec r)
+\end{align*}
+The $c_{\vec{G}}$ are $\ell^{2}$-normalized. The summation is truncated to a
+``spherical'' basis set
+\begin{align*}
+  S_{k} = \left\{G \in \mathcal R^{*} \,\middle|\, \frac 1 2 \abs{\vec k+\vec G}^{2} \le E_{\rm cut}\right\}
+\end{align*}
+Densities involve terms like $|\psi_{k}|^{2} = |u_{k}|^{2}$ and
+therefore products $e_{-\vec{G}} e_{\vec{G}'}$ for $\vec{G}, \vec{G}'$ in $X_{k}$. To
+represent these we use a ``cubic'' basis set large enough to contain
+the set $\{\vec{G}-\GG' \,|\, \GG, \GG' \in S_{k}\}$. We can obtain the decomposition
+of densities on the $e_{\GG}$ basis by a convolution, which can be
+performed efficiently with FFTs. Potentials are discretized on this
+same set. The normalization conventions used in the code is that
+quantities stored in reciprocal space are coefficients in the $e_{\GG}$
+basis, and quantities stored in real space use real physical values.
+This means for instance that wavefunctions in the real space grid are
+normalized as $\frac{|\Omega|}{N} \sum_{r} |f(r)|^{2} = 1$ where $N$
+is the number of grid points.
+
+\section{Relative and Cartesian coordinates}
+Let $A$ be a set of primitive lattice vectors for $\mathcal R$, and
+$B$ for $\mathcal R^{*}$, with $A^{*} B = 2\pi I$. Then $x_{c} = A
+x_{r}$ and $q_{c} = B q_{r}$, where the subscripts $c$ and $r$ stand
+for Cartesian and relative. Other names for relative coordinates
+are \textbf{integer coordinates} (usually for $\GG$-vectors)
+and \textbf{fractional coordinates}
+(usually for $\kk$-points). We have
+\begin{align*}
+  x_{c} \cdot q_{c} = 2\pi x_{r} \cdot q_{r}.
+\end{align*}
+
+\end{document}
