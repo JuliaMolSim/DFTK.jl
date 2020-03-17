@@ -89,6 +89,7 @@ include("occupation.jl")
 
 export compute_density
 include("densities.jl")
+include("interpolation.jl")
 
 export PreconditionerTPA
 export PreconditionerNone
