@@ -151,3 +151,73 @@ end
         @test eigres.λ[ik][1:n_bands] ≈ band_data.λ[ik] atol=1e-5
     end
 end
+
+@testset "prepare_band_data" begin
+    testcase = silicon
+    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
+    model = model_DFT(silicon.lattice, [spec => testcase.positions], :lda_xc_teter93)
+
+    # k coordinates simulating two band branches, Γ => X => W and U => X
+    kcoords = [
+        [0.000, 0.000, 0.000],
+        [0.250, 0.000, 0.250],
+        [0.500, 0.000, 0.500],
+        #
+        [0.500, 0.000, 0.500],
+        [0.500, 0.125, 0.625],
+        [0.500, 0.250, 0.750],
+        #
+        [0.625, 0.250, 0.625],
+        [0.575, 0.150, 0.575],
+        [0.500, 0.000, 0.500],
+    ]
+    ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)]
+    basis = PlaneWaveBasis(model, 5, kcoords, ksymops)
+    klabels = Dict(raw"\Gamma" => [0, 0, 0], "X" => [0.5, 0.0, 0.5],
+                   "W" => [0.5, 0.25, 0.75], "U" => [0.625, 0.25, 0.625])
+
+    # Setup some dummy data
+    λ = [10ik .+ collect(1:4) for ik = 1:length(kcoords)]  # Simulate 4 computed bands
+    λerror = [λ[ik]./100 for ik = 1:length(kcoords)]       # ... and 4 errors
+
+    ret = DFTK.prepare_band_data((basis=basis, λ=λ, λerror=λerror), klabels=klabels)
+
+    @test ret.spins == [:up]
+    @test ret.n_branches == 3
+    @test ret.n_bands == 4
+
+    for iband in 1:4
+        @test ret.λ[1][:up][iband, :] == [10ik .+ iband for ik in 1:3]
+        @test ret.λ[2][:up][iband, :] == [10ik .+ iband for ik in 4:6]
+        @test ret.λ[3][:up][iband, :] == [10ik .+ iband for ik in 7:9]
+
+        @test ret.λerror[1][:up][iband, :] == ret.λ[1][:up][iband, :] ./ 100
+        @test ret.λerror[2][:up][iband, :] == ret.λ[2][:up][iband, :] ./ 100
+        @test ret.λerror[3][:up][iband, :] == ret.λ[3][:up][iband, :] ./ 100
+    end
+
+    ref_distances = zeros(3, 3)  # row idx is kpoint, col idx is branch,
+    ikpt = 1
+    for ibr in 1:3
+        ibr != 1 && (ref_distances[1, ibr] = ref_distances[end, ibr-1])
+        ikpt += 1
+        for ik in 2:3
+            ref_distances[ik, ibr] = (ref_distances[ik-1, ibr]
+                                      + norm(kcoords[ikpt-1] - kcoords[ikpt]))
+            ikpt += 1
+        end
+    end
+    @test ret.kdistances == ref_distances'
+end
+
+@testset "is_metal" begin
+    testcase = silicon
+    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
+    model = model_LDA(silicon.lattice, [spec => testcase.positions])
+
+    basis = PlaneWaveBasis(model, 5, testcase.kcoords, testcase.ksymops)
+    λ = [[1, 2, 3, 4], [1, 1.5, 3.5, 4.2], [1, 1.1, 3.2, 4.3], [1, 2, 3.3, 4.1]]
+
+    @test !DFTK.is_metal((λ=λ, basis=basis), 2.5)
+    @test DFTK.is_metal((λ=λ, basis=basis), 3.2)
+end

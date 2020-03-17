@@ -6,9 +6,9 @@ function import_spglib()
     version = VersionNumber(spglib.__version__)
 
     if version < v"1.12"
-        @warn "Spglib below 1.12 not tested with DFTK"
-    elseif v"1.13" <= version < v"1.15"
-        @warn "Spglib versions 1.13 and 1.14 are known to be faulty when used with DFTK."
+        @warn "Spglib below 1.12 not tested with DFTK" maxlog=1
+    elseif v"1.14" <= version < v"1.15"
+        @warn "Spglib $version is known to be faulty when used with DFTK." maxlog=1
     end
     spglib
 end

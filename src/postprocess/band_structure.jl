@@ -31,63 +31,105 @@ function compute_bands(basis, ρ, kcoords, n_bands;
     band_data = diagonalise_all_kblocks(eigensolver, ham, n_bands + 3;
                                         n_conv_check=n_bands, interpolate_kpoints=false,
                                         tol=tol, show_progress=show_progress, kwargs...)
-    band_data.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
-
+    if !band_data.converged
+        @warn "Eigensolver not converged" iterations=band_data.iterations
+    end
     merge((basis=bs_basis, ), select_eigenpairs_all_kblocks(band_data, 1:n_bands))
 end
+
+function prepare_band_data(band_data; datakeys=[:λ, :λerror],
+                           klabels=Dict{String, Vector{Float64}}())
+    # Get pymatgen to compute kpoint distances and get it to split quantities
+    # from the band_data object into nicely plottable branches
+    # This is a bit of abuse of the routines in pymatgen, but it works ...
+    plotter = pyimport("pymatgen.electronic_structure.plotter")
+
+    ret = Dict{Symbol, Any}(:basis => band_data.basis)
+    for key in datakeys
+        hasproperty(band_data, key) || continue
+
+        # Compute dummy "Fermi level" for pymatgen to be happy
+        allfinite = [filter(isfinite, x) for x in band_data[key]]
+        eshift = sum(sum, allfinite) / sum(length, allfinite)
+        bs = pymatgen_bandstructure(band_data.basis, band_data[key], eshift, klabels)
+        data = plotter.BSPlotter(bs).bs_plot_data(zero_to_efermi=false)
+
+        # Check number of k-Points agrees
+        @assert length(band_data.basis.kpoints) == sum(length, data["distances"])
+
+        ret[:spins] = [:up]
+        spinmap = [("1", :up)]
+        if bs.is_spin_polarized
+            ret[:spins] = [:up, :down]
+            spinmap = [("1", :up), ("-1", :down)]
+        end
+
+        ret[:n_branches] = length(data["energy"])
+        ret[:n_bands] = size(data["energy"][1]["1"], 1)
+        ret[:kdistances] = data["distances"]
+        ret[:ticks] = data["ticks"]
+        ret[key] = [Dict(spinsym => data["energy"][ibranch][spin]
+                         for (spin, spinsym) in spinmap)
+                    for ibranch = 1:length(data["energy"])]
+    end
+
+    (; ret...)  # Make it a named tuple and return
+end
+
+"""
+    is_metal(band_data, εF, tol)
+
+Determine whether the provided bands indicate the material is a metal,
+i.e. where bands are cut by the Fermi level.
+"""
+function is_metal(band_data, εF, tol=1e-4)
+    # This assumes no spin polarisation
+    @assert band_data.basis.model.spin_polarisation in (:none, :spinless)
+
+    n_bands = length(band_data.λ[1])
+    n_kpoints = length(band_data.λ)
+    for ib in 1:n_bands
+        some_larger = any(band_data.λ[ik][ib] - εF < -tol for ik in 1:n_kpoints)
+        some_smaller = any(εF - band_data.λ[ik][ib] < -tol for ik in 1:n_kpoints)
+        some_larger && some_smaller && return true
+    end
+    false
+end
+
 
 function plot_band_data(band_data; εF=nothing,
                         klabels=Dict{String, Vector{Float64}}(), unit=:eV)
     eshift = isnothing(εF) ? 0.0 : εF
-
-    # Get pymatgen to computed kpoint distances and other useful info
-    bs = pymatgen_bandstructure(band_data, eshift, klabels)
-    plotter = pyimport("pymatgen.electronic_structure.plotter")
-    data = plotter.BSPlotter(bs).bs_plot_data(zero_to_efermi=false)
-
-    # Collect some useful info in a more useful way
-    if bs.is_spin_polarized
-        spins = [("1", :blue), ("-1", :red)]
-    else
-        spins = [("1", :blue)]
-    end
-    n_branches = length(data["energy"])
-    n_bands = size(data["energy"][1]["1"], 1)
-    n_kpoints = sum(length, data["distances"])
-    @assert length(band_data.basis.kpoints) == n_kpoints
+    data = prepare_band_data(band_data, klabels=klabels)
 
     # For each branch, plot all bands, spins and errors
-    ikstart = 0
     p = Plots.plot(xlabel="wave vector")
-    for ibr in 1:n_branches
-        kdistances = data["distances"][ibr]
-        for (spin, color) in spins, iband in 1:n_bands
-            energies = data["energy"][ibr][spin][iband, :] .- eshift
-
+    for ibranch = 1:data.n_branches
+        kdistances = data.kdistances[ibranch]
+        for spin in data.spins, iband = 1:data.n_bands
             yerror = nothing
-            if hasfield(typeof(band_data), :λerror)
-                @assert band_data.basis.model.spin_polarisation in (:none, :spinless)
-                yerror = [band_data.λerror[ik + ikstart][iband] ./ unit_to_au(unit)
-                          for ik in 1:length(kdistances)]
+            if hasproperty(data, :λerror)
+                yerror = data.λerror[ibranch][spin][iband, :] ./ unit_to_au(unit)
             end
-            Plots.plot!(p, kdistances, energies / unit_to_au(unit),
-                        color=color, label="", yerror=yerror)
+            energies = (data.λ[ibranch][spin][iband, :] .- eshift) ./ unit_to_au(unit)
+
+            color = (spin == :up) ? :blue : :red
+            Plots.plot!(p, kdistances, energies, color=color, label="", yerror=yerror)
         end
-        ikstart += length(kdistances)
     end
 
     # X-range: 0 to last kdistance value
-    Plots.xlims!(p, (0, data["distances"][end][end]))
-    Plots.xticks!(p, data["ticks"]["distance"],
-                  [replace(l, raw"$\mid$" => " | ") for l in data["ticks"]["label"]])
+    Plots.xlims!(p, (0, data.kdistances[end][end]))
+    Plots.xticks!(p, data.ticks["distance"],
+                  [replace(l, raw"$\mid$" => " | ") for l in data.ticks["label"]])
 
     ylims = [-4, 4]
-    bs.is_metal() && (ylims = [-10, 10])
+    is_metal(band_data, εF) && (ylims = [-10, 10])
     ylims = round.(ylims * units.eV ./ unit_to_au(unit), sigdigits=2)
     if isnothing(εF)
         Plots.ylabel!(p, "eigenvalues  ($(string(unit))")
     else
-        Plots.ylabel!(p, "eigenvalues - \\epsilon_f  ($(string(unit)))")
+        Plots.ylabel!(p, "eigenvalues - ε_f  ($(string(unit)))")
         Plots.ylims!(p, ylims...)
     end
 
