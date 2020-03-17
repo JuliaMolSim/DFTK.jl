@@ -26,8 +26,8 @@ occupation_derivative(S::SmearingFunction, x) = ForwardDiff.derivative(x -> occu
 """
 (f(x) - f(y))/(x - y), computed stably in the case where x and y are close
 """
-function occupation_divided_difference(S::SmearingFunction, x, y, εF, T)
-    if T == 0
+function occupation_divided_difference(S::SmearingFunction, x, y, εF, temperature)
+    if temperature == 0
         if x == y
             zero(x)
         else
@@ -36,16 +36,15 @@ function occupation_divided_difference(S::SmearingFunction, x, y, εF, T)
             (fx-fy)/(x-y)
         end
     else
-        f(z) = occupation(S, (z-εF)/T)
-        fp(z) = occupation_derivative(S, (z-εF)/T)/T
+        f(z) = occupation(S, (z-εF) / temperature)
+        fp(z) = occupation_derivative(S, (z-εF)/temperature) / temperature
         divided_difference_(f, fp, x, y)
     end
 end
 function divided_difference_(f, fp, x, y)
     # This is only accurate to sqrt(ε)
-    ε = eps(typeof(x))
-    abs(x-y) < sqrt(ε) && return fp(x)
-    (f(x) - f(y))/(x-y)
+    abs(x-y) < sqrt(eps(typeof(x))) && return fp(x)
+    (f(x)-f(y)) / (x-y)
 end
 
 """

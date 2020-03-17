@@ -6,17 +6,25 @@ using ProgressMeter
 Compute the independent-particle susceptibility. Will blow up for large systems
 """
 function compute_χ0(ham)
-    # We're after χ0(r,r') such that δρ = int_r' χ0(r,r') δV(r') dr'
+    # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
     # where (up to normalizations)
     # ρ = ∑_nk f(εnk - εF) |ψnk|^2
     # ∑_nk f(εnk - εF) = N_el
-    # Everything is ∑med on k so we omit it for notational simplicity
-    # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
-    # Now we use
+    # Everything is summed on k so we omit it for notational simplicity
+
+    # We differentiate wrt a variation δV of the external potential
+    # δρ = ∑_n (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
+    # with fn = f(εnk - εF), f'n = f'(εnk - εF)
+    # δN_el = 0 = ∑_n f'n (δεn - δεF)
+
+    # Now we use from first order perturbation theory
     # δεn = <ψn|δV|ψn>
     # δψn = ∑_{m != n} <ψm|δV|ψn> |ψm> / (εn-εm)
-    # δN_el = 0 = ∑_n f'n (δεn - δεF) => δεF = 1/DOS int δV(r) LDOS(r)dr
-    # we note ρnm = ψn* ψm, and we get
+
+    # for δεF we get, with DOS = ∑_n f'n and LDOS = ∑_n f'n |ψn|^2
+    # δεF = 1/DOS ∫ δV(r) LDOS(r)dr
+
+    # for δρ we note ρnm = ψn* ψm, and we get
     # δρ = LDOS δεF + ∑_n f'n <ρn|δV> ρn + ∑_{n != m} 2Re fn ρnm <ρmn|δV> / (εn-εm)
     # δρ = LDOS δεF + ∑_n f'n <ρn|δV> ρn + ∑_{n != m} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
     # The last two terms merge with the convention that (f(x)-f(x))/(x-x) = f'(x) into

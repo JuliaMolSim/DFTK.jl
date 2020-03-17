@@ -16,12 +16,10 @@ include("testcases.jl")
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
     for temperature in (0, 0.03)
         model = model_LDA(testcase.lattice, [spec => testcase.positions], temperature=temperature)
-
         basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size, enable_bzmesh_symmetry=false)
 
         ρ0 = guess_density(basis)
-        energies, ham = energy_hamiltonian(basis, nothing, nothing;
-                                           ρ=ρ0)
+        energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
         V = DFTK.total_local_potential(ham)
         ρV = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
         χ0 = compute_χ0(ham)

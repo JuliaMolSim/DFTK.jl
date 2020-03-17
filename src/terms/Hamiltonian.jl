@@ -110,8 +110,7 @@ Get the total local potential of the given Hamiltonian, in real space.
 """
 function total_local_potential(ham::Hamiltonian)
     @assert ham.basis.model.spin_polarisation in (:none, :spinless)
-    block = ham.blocks[1] # all local potentials are the same
-    basis = ham.basis
+    block = ham.blocks[1]  # all local potentials are the same
     rs = [o for o in block.optimized_operators if o isa RealSpaceMultiplication]
     @assert length(rs) == 1
     rs[1].potential
@@ -121,7 +120,6 @@ Set the total local potential of the given Hamiltonian. This should only be used
 """
 function set_total_local_potential!(ham::Hamiltonian, pot)
     @assert ham.basis.model.spin_polarisation in (:none, :spinless)
-    basis = ham.basis
     for b in ham.blocks
         rs = [o for o in b.optimized_operators if o isa RealSpaceMultiplication]
         @assert length(rs) == 1
