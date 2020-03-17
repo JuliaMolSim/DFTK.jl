@@ -1,61 +1,9 @@
-\documentclass[a4paper]{amsart}
-%% Language and font encodings
-\usepackage[english]{babel}
-\usepackage[utf8]{inputenc}
-% \usepackage[T1]{fontenc}
-\usepackage{amsmath,amssymb,amsfonts}
-% \usepackage{lmodern}
-% \usepackage{fullpage}
-
-%% Sets page size and margins
-\usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
-
-%% Useful packages
-\usepackage{amsmath,amsthm}
-\usepackage{graphicx}
-\usepackage[colorinlistoftodos]{todonotes}
-\usepackage[colorlinks=true, allcolors=blue]{hyperref}
-\def\C{{\mathbb C}}
-\def\R{{\mathbb R}}
-\renewcommand{\Re}{{\rm Re} \, }
-\renewcommand{\Im}{{\rm Im} \, }
-\newcommand{\I}{i}
-\newcommand{\Op}[1]{#1}
-\newcommand*{\bra}[1]{\left\langle#1\right|}
-\newcommand*{\ket}[1]{\left|#1\right\rangle}
-% 
-% Bra and kets with something in the middle.
-% They do have to come as a pair!
-\newcommand*{\mbra}[1]{\left\langle#1\middle|}
-  \newcommand*{\mket}[1]{\middle|#1\right\rangle}
-% 
-% Ketbra and braket together:
-\newcommand*{\braket}[2]{\left\langle#1\middle|#2\right\rangle}
-\newcommand*{\ketbra}[2]{\left| #1 \middle\rangle \middle\langle #2 \right|}
-% 
-% Commutator and anticommutator:
-\newcommand*{\comm}[2]{\ensuremath{ \left[ {#1}, {#2} \right] }}
-\newcommand*{\acomm}[2]{\ensuremath{ \left\{ {#1}, {#2} \right\} }}
-% 
-% Creation and anihilation operators:
-\newcommand*{\cop}[1]{\ensuremath{\op{c}_{#1}^{\dagger}}}
-\newcommand*{\aop}[1]{\ensuremath{\op{c}_{#1}}}
-\newcommand{\norm}[1]{\|#1\|}
-\renewcommand{\vec}[1]{{\mathbf{#1}}}
-\newcommand*{\uvec}[1]{\ensuremath{\hat{{\boldsymbol{#1}}}}}	%unit vector
-\newcommand{\D}{d}
-\DeclareMathOperator{\erf}{erf}
-\DeclareMathOperator{\erfc}{erfc}
-\DeclareMathOperator{\sinc}{sinc}
-
-\newtheorem*{theorem}{Theorem}
-\newtheorem*{example}{Example}
-\DeclareMathOperator{\argmin}{argmin}
-% \DeclareMathOperator{\min}{min}
+\documentclass[a4paper]{article}
+\input{../common.tex}
 
 \begin{document}
 \title{Definitions, conventions and useful facts}
-\author{Michael F. Herbst, Antoine Levitt}
+\author{Michael F. Herbst \and Antoine Levitt}
 \maketitle
 
 \section{Terminology}
@@ -83,7 +31,7 @@
 \begin{itemize}
 \item The Fourier transform is
   \begin{align*}
-    \widehat{f}(\vec q) = \int_{\R^{3}} e^{-i\vec q \cdot \vec x} d\vec x
+    \widehat{f}(\vec q) = \int_{\R^{3}} e^{-i\vec q \cdot \vec x} \D\vec x
   \end{align*}
 \item Plane wave expansion
   \begin{align*}
@@ -97,9 +45,9 @@
   = \delta_{l,l'} \delta_{m,m'}
 \]
 This also holds true for real spherical harmonics.
-\item Fourier transforms of centered functions.
 
-  If 
+\item Fourier transforms of centered functions.
+If 
 \[ f(\vec{x}) = R(x) Y_l^m(\uvec{x}),\]
 then
 \begin{align*}
@@ -117,37 +65,41 @@ then
  \end{align*}
 This also holds true for real spherical harmonics.
 \end{itemize}
-\section{The discretization}
+\section{Discretization and normalization}
 The periodic part of Bloch waves is discretized in a set of normalized
-plane waves $e_{\vec G}$:
+plane waves $e_{\vec \GG}$:
 \begin{align*}
   \psi_{k}(x) &= e^{\I \vec k \cdot \vec x} u_{\vec k}(\vec r)\\
-  &= \sum_{\vec G \in \mathcal R^{*}} c_{G}  e^{\I \vec k \cdot \vec x} e_{\vec G}(\vec r)
+  &= \sum_{\vec \GG \in \mathcal R^{*}} c_{\GG}  e^{\I \vec k \cdot \vec x} e_{\vec G}(\vec r)
 \end{align*}
-The $c_{G}$ are $\ell^{2}$-normalized. The summation is truncated to a
+The $c_{\vec{G}}$ are $\ell^{2}$-normalized. The summation is truncated to a
 ``spherical'' basis set
 \begin{align*}
-  S_{k} = \left\{G \in \mathcal R^{*}, \frac 1 2 |\vec k+\vec G|^{2} \le E_{\rm cut}\right\}
+  S_{k} = \left\{G \in \mathcal R^{*} \,\middle|\, \frac 1 2 \abs{\vec k+\vec G}^{2} \le E_{\rm cut}\right\}
 \end{align*}
 Densities involve terms like $|\psi_{k}|^{2} = |u_{k}|^{2}$ and
-therefore products $e_{-G} e_{G'}$ for $G, G'$ in $X_{k}$. To
+therefore products $e_{-\vec{G}} e_{\vec{G}'}$ for $\vec{G}, \vec{G}'$ in $X_{k}$. To
 represent these we use a ``cubic'' basis set large enough to contain
-the set $\{G-G', G, G' \in S_{k}\}$. We can obtain the decomposition
-of densities on the $e_{G}$ basis by a convolution, which can be
+the set $\{\vec{G}-\GG' \,|\, \GG, \GG' \in S_{k}\}$. We can obtain the decomposition
+of densities on the $e_{\GG}$ basis by a convolution, which can be
 performed efficiently with FFTs. Potentials are discretized on this
 same set. The normalization conventions used in the code is that
-quantities stored in reciprocal space are coefficients in the $e_{G}$
+quantities stored in reciprocal space are coefficients in the $e_{\GG}$
 basis, and quantities stored in real space use real physical values.
 This means for instance that wavefunctions in the real space grid are
 normalized as $\frac{|\Omega|}{N} \sum_{r} |f(r)|^{2} = 1$ where $N$
 is the number of grid points.
 
-\section{Relative and cartesian coordinates}
+\section{Relative and Cartesian coordinates}
 Let $A$ be a set of primitive lattice vectors for $\mathcal R$, and
 $B$ for $\mathcal R^{*}$, with $A^{*} B = 2\pi I$. Then $x_{c} = A
 x_{r}$ and $q_{c} = B q_{r}$, where the subscripts $c$ and $r$ stand
-for cartesian and relative. We have
+for Cartesian and relative. Other names for relative coordinates
+are \textbf{integer coordinates} (usually for $\GG$-vectors)
+and \textbf{fractional coordinates}
+(usually for $\kk$-points). We have
 \begin{align*}
-  x_{c} \cdot q_{c} = 2\pi x_{r} \cdot q_{r}
+  x_{c} \cdot q_{c} = 2\pi x_{r} \cdot q_{r}.
 \end{align*}
+
 \end{document}

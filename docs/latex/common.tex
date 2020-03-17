@@ -1,0 +1,82 @@
+\usepackage[left=3.8cm,right=3.8cm]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{amsthm}
+
+\usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage{hyperref}
+
+%
+% Basics
+%
+\newcommand{\D}{\mathop{}\!\mathrm{d}}
+\renewcommand{\Re}{\operatorname{Re}}
+\renewcommand{\Im}{\operatorname{Im}}
+\DeclareMathOperator{\erf}{erf}
+\DeclareMathOperator{\erfc}{erfc}
+\DeclareMathOperator{\sinc}{sinc}
+\DeclareMathOperator{\argmin}{argmin}
+
+% Default sets of numbers:
+\newcommand*{\set}[1]{\ensuremath{\mathbb{#1}}}
+\newcommand{\R}{\set{R}}
+\newcommand{\N}{\set{N}}
+\newcommand{\C}{\set{C}}
+\newcommand{\F}{\set{F}}
+
+%
+% Linear algebra
+%
+\newcommand*{\abs}[1]{\ensuremath{\left\lvert#1\right\rvert}}
+\newcommand*{\norm}[1]{\ensuremath{\left\lVert#1\right\rVert}}
+\renewcommand*{\vec}[1]{\ensuremath{\mathbf{#1}}}
+\newcommand*{\uvec}[1]{\ensuremath{\hat{{\boldsymbol{#1}}}}}
+
+%
+% Physics and Chemistry
+%
+\newcommand*{\bra}[1]{\left\langle#1\right|}
+\newcommand*{\ket}[1]{\left|#1\right\rangle}
+%
+% Bra and kets with something in the middle.
+% They do have to come as a pair!
+\newcommand*{\mbra}[1]{\left\langle#1\middle|}
+  \newcommand*{\mket}[1]{\middle|#1\right\rangle}
+% 
+% Ketbra and braket together:
+\newcommand*{\braket}[2]{\left\langle#1\middle|#2\right\rangle}
+\newcommand*{\ketbra}[2]{\left| #1 \middle\rangle \middle\langle #2 \right|}
+% 
+% Commutator and anticommutator:
+\newcommand*{\comm}[2]{\ensuremath{ \left[ {#1}, {#2} \right] }}
+\newcommand*{\acomm}[2]{\ensuremath{ \left\{ {#1}, {#2} \right\} }}
+% 
+% Creation and anihilation operators:
+\newcommand*{\cop}[1]{\ensuremath{\op{c}_{#1}^{\dagger}}}
+\newcommand*{\aop}[1]{\ensuremath{\op{c}_{#1}}}
+
+%
+% Theorems
+%
+\newtheorem*{theorem}{Theorem}
+\newtheorem*{example}{Example}
+
+%
+% Specific for plane-wave DFT
+%
+\newcommand{\GG}{\vec{G}}
+\newcommand{\kk}{\vec{k}}
+
+
+%
+% temporary
+%
+\newcommand*{\Op}[1]{#1}
+\newcommand{\I}{i}
