@@ -37,13 +37,13 @@ function occupation_divided_difference(S::SmearingFunction, x, y, εF, temperatu
         end
     else
         f(z) = occupation(S, (z-εF) / temperature)
-        fp(z) = occupation_derivative(S, (z-εF)/temperature) / temperature
-        divided_difference_(f, fp, x, y)
+        fder(z) = occupation_derivative(S, (z-εF)/temperature) / temperature
+        divided_difference_(f, fder, x, y)
     end
 end
-function divided_difference_(f, fp, x, y)
+function divided_difference_(f, fder, x, y)
     # This is only accurate to sqrt(ε)
-    abs(x-y) < sqrt(eps(typeof(x))) && return fp(x)
+    abs(x-y) < sqrt(eps(typeof(x))) && return fder((x+y)/2)
     (f(x)-f(y)) / (x-y)
 end
 
