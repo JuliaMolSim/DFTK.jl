@@ -21,15 +21,15 @@ include("testcases.jl")
         ρ0 = guess_density(basis)
         energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
         V = DFTK.total_local_potential(ham)
-        ρV = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
+        ρ1 = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
         χ0 = compute_χ0(ham)
 
         # now we go change the local potential of the hamiltonian
         # TODO this is a bit of a hack...
         dV = randn(eltype(V), size(V))
         DFTK.set_total_local_potential!(ham, V + ε.*dV)
-        ρVpdV = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
-        diff = (ρVpdV.real - ρV.real)/ε
+        ρ2 = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
+        diff = (ρ2.real - ρ1.real)/ε
 
         predicted_diff = real(reshape(χ0*vec(dV), basis.fft_size))
         @test norm(diff - predicted_diff) < sqrt(ε)
