@@ -115,14 +115,3 @@ function total_local_potential(ham::Hamiltonian)
     @assert length(rs) == 1
     rs[1].potential
 end
-"""
-Set the total local potential of the given Hamiltonian. This should only be used for exploration.
-"""
-function set_total_local_potential!(ham::Hamiltonian, pot)
-    @assert ham.basis.model.spin_polarisation in (:none, :spinless)
-    for b in ham.blocks
-        rs = [o for o in b.optimized_operators if o isa RealSpaceMultiplication]
-        @assert length(rs) == 1
-        rs[1].potential .= pot
-    end
-end

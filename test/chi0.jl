@@ -20,14 +20,15 @@ include("testcases.jl")
 
         ρ0 = guess_density(basis)
         energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-        V = DFTK.total_local_potential(ham)
         ρ1 = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
         χ0 = compute_χ0(ham)
 
-        # now we go change the local potential of the hamiltonian
-        # TODO this is a bit of a hack...
+        # Now we make the same model, but add an artificial external potential ε * dV
         dV = randn(eltype(V), size(V))
-        DFTK.set_total_local_potential!(ham, V + ε.*dV)
+        term_builder = basis -> DFTK.TermExternal(basis, ε .* dV)
+        model = model_LDA(testcase.lattice, [spec => testcase.positions], temperature=temperature, extra_terms=[term_builder])
+        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size, enable_bzmesh_symmetry=false)
+        energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
         ρ2 = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
         diff = (ρ2.real - ρ1.real)/ε
 
