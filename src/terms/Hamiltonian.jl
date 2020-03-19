@@ -104,3 +104,14 @@ function Matrix(block::HamiltonianBlock)
     sum(Matrix(h) for h in block.optimized_operators)
 end
 Array(block::HamiltonianBlock) = Matrix(block)
+
+"""
+Get the total local potential of the given Hamiltonian, in real space.
+"""
+function total_local_potential(ham::Hamiltonian)
+    @assert ham.basis.model.spin_polarisation in (:none, :spinless)
+    block = ham.blocks[1]  # all local potentials are the same
+    rs = [o for o in block.optimized_operators if o isa RealSpaceMultiplication]
+    @assert length(rs) == 1
+    rs[1].potential
+end

@@ -24,6 +24,30 @@ Derivative of the occupation function, approximation to minus the delta function
 occupation_derivative(S::SmearingFunction, x) = ForwardDiff.derivative(x -> occupation(S, x), x)
 
 """
+(f(x) - f(y))/(x - y), computed stably in the case where x and y are close
+"""
+function occupation_divided_difference(S::SmearingFunction, x, y, εF, temperature)
+    if temperature == 0
+        if x == y
+            zero(x)
+        else
+            fx = x < εF ? 1 : 0
+            fy = y < εF ? 1 : 0
+            (fx-fy)/(x-y)
+        end
+    else
+        f(z) = occupation(S, (z-εF) / temperature)
+        fder(z) = occupation_derivative(S, (z-εF)/temperature) / temperature
+        divided_difference_(f, fder, x, y)
+    end
+end
+function divided_difference_(f, fder, x, y)
+    # This is only accurate to sqrt(ε)
+    abs(x-y) < sqrt(eps(typeof(x))) && return fder((x+y)/2)
+    (f(x)-f(y)) / (x-y)
+end
+
+"""
 Entropy. Note that this is a function of the energy `x`, not of `occupation(x)`.
 This function satisfies s' = x f' (see https://www.vasp.at/vasp-workshop/k-points.pdf
 p. 12 and https://arxiv.org/pdf/1805.07144.pdf p. 18.
@@ -40,6 +64,15 @@ end
 
 struct FermiDirac <: SmearingFunction end
 occupation(S::FermiDirac, x) = 1 / (1 + exp(x))
+function occupation_derivative(S::FermiDirac, x)
+    # ForwardDiff gets NaNs for large arguments so we help it along
+    if exp(x) > floatmax(typeof(x)) / 1e3
+        zero(x)
+    else
+        -exp(x) / (1+exp(x))^2
+    end
+end
+
 # entropy(f) = -(f log f + (1-f)log(1-f)), where f = 1/(1+exp(x))
 # this "simplifies" to -(x*exp(x)/(1+exp(x)) - log(1+exp(x)))
 # although that is not especially useful...

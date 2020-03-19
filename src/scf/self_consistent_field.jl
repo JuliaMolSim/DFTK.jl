@@ -1,7 +1,11 @@
+default_n_bands(model) = div(model.n_electrons, filled_occupation(model))
+
 """
 Obtain new density ρ by diagonalizing `ham`.
 """
-function next_density(ham::Hamiltonian, n_bands; ψ=nothing,
+function next_density(ham::Hamiltonian;
+                      n_bands=default_n_bands(ham.basis.model),
+                      ψ=nothing,
                       prec_type=PreconditionerTPA, tol=1e-6, n_ep_extra=3,
                       eigensolver=lobpcg_hyper)
     n_ep = n_bands + n_ep_extra
@@ -63,7 +67,7 @@ end
 Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 """
 function self_consistent_field(basis::PlaneWaveBasis;
-                               n_bands=div(basis.model.n_electrons, filled_occupation(basis.model)),
+                               n_bands=default_n_bands(basis.model),
                                ρ=guess_density(basis),
                                ψ=nothing,
                                tol=1e-6,
@@ -112,7 +116,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
                                                ρ=ρin, eigenvalues=eigenvalues, εF=εF)
         end
         # Diagonalize `ham` to get the new state
-        nextstate = next_density(ham, n_bands; ψ=ψ, eigensolver=eigensolver, tol=diagtol)
+        nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver, tol=diagtol)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # This computes the energy of the new state

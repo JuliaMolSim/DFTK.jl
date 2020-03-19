@@ -77,5 +77,5 @@ function LDOS(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing, T=basis
     # Use compute_density routine to compute LDOS, using just the modified
     # weights (as "occupations") at each kpoint. Note, that this automatically puts in the
     # required symmetrisation with respect to kpoints and BZ symmetry
-    compute_density(basis, Psi, weights).real
+    compute_density(basis, ψ, weights).real
 end

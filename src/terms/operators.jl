@@ -66,8 +66,8 @@ function Matrix(op::RealSpaceMultiplication)
             # G_vectors(basis)[ind] = ΔG
             ind = index_G_vectors(op.basis, ΔG)
             if ind === nothing
-                error("For full matrix construction, the FFT size must be" *
-                      "large enough so that hamiltonian applications are exact")
+                error("For full matrix construction, the FFT size must be " *
+                      "large enough so that Hamiltonian applications are exact")
             end
             H[i, j] = pot_fourier[ind] / sqrt(op.basis.model.unit_cell_volume)
         end
