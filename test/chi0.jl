@@ -24,7 +24,7 @@ include("testcases.jl")
         χ0 = compute_χ0(ham)
 
         # Now we make the same model, but add an artificial external potential ε * dV
-        dV = randn(eltype(V), size(V))
+        dV = randn(eltype(basis), basis.fft_size)
         term_builder = basis -> DFTK.TermExternal(basis, ε .* dV)
         model = model_LDA(testcase.lattice, [spec => testcase.positions], temperature=temperature, extra_terms=[term_builder])
         basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size, enable_bzmesh_symmetry=false)
