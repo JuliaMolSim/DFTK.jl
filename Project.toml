@@ -32,6 +32,7 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
 Requires = "0.5"
+SpecialFunctions = "0.10"
 julia = "1.2"
 
 [extras]
