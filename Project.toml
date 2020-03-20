@@ -31,7 +31,7 @@ SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
-Requires = "0.5"
+Requires = "0.5, 1.0"
 julia = "1.2"
 
 [extras]
