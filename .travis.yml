@@ -5,6 +5,9 @@ branches:
     - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
 
 language: julia
+cache:
+  directories:
+  - $HOME/.julia/artifacts
 
 env:
   global:
@@ -40,5 +43,5 @@ notifications:
   webhooks:
     urls:
       - https://webhooks.gitter.im/e/675ffcbb101b5d1a3424
-    on_success: change
+    on_success: always
     on_failure: always
