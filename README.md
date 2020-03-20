@@ -63,7 +63,7 @@ The package is not yet registered in the [General](https://github.com/JuliaRegis
 registry of Julia. Instead you can obtain it from
 the [MolSim](https://github.com/JuliaMolSim/MolSim.git) registry,
 which contains a bunch of packages related to performing molecular simulations in Julia.
-Note that at least **Julia 1.2** is required.
+Note that at least **Julia 1.3** is required.
 
 First add `MolSim` to your installed registries. For this use
 ```
