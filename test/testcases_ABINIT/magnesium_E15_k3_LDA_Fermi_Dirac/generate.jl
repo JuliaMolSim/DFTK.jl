@@ -2,8 +2,8 @@ include("../../testcases.jl")
 using PyCall
 using DFTK
 
-atoms = [ElementPsp(12, load_psp("hgh/lda/mg-q2")) => magnesium.positions]
-model = model_dft(magnesium.lattice, :lda_xc_teter93, atoms,
+atoms = [ElementPsp(:Mg, psp=load_psp("hgh/lda/mg-q2")) => magnesium.positions]
+model = model_DFT(magnesium.lattice, atoms, :lda_xc_teter93,
                   temperature=0.01, smearing=Smearing.FermiDirac())
 
 abinitpseudos = [joinpath(pyimport("abipy.data").__path__[end], "hgh_pseudos/12mg.2.hgh")]
