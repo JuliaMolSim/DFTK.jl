@@ -70,6 +70,10 @@ struct AtomicLocal end
 function (E::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
 
+    #
+    # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
+    #
+
     # TODO doc
     # Fourier coefficient of potential for an element el at position r
     # (G in cartesian coordinates)

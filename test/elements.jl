@@ -44,7 +44,7 @@ end
     @test n_elec_core(element) == 2
 
     @test local_potential_fourier(element, 0.0) == 0.0
-    @test local_potential_fourier(element, 2.0) == -12.695860686869912
+    @test local_potential_fourier(element, 2.0) == -12.695860686869914
     @test local_potential_real(element, 2.0) == -1.981967787205101
 end
 

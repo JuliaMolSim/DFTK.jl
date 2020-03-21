@@ -62,5 +62,5 @@ include("testcases.jl")
     @test E["ExternalFromReal"]    ≈  0.139216686139006   atol=5e-8
     @test E["ExternalFromFourier"] ≈  0.057896835498415   atol=5e-8
     @test E["PowerNonlinearity"]   ≈  0.142649748399169   atol=5e-8
-    @test E["Magnetic"]            ≈ -0.447218096875610   atol=1e-7
+    @test E["Magnetic"]            ≈ -0.447218096875610   atol=5e-7
 end
