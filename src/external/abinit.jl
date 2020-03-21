@@ -81,16 +81,31 @@ function run_abinit_scf(model::Model, outdir;
         tolvrs=tol,       # General tolerance settings
     )
 
-    # Abinit can only run XC or reduced HF
-    @assert !isnothing(model.build_external)
-    @assert !isnothing(model.build_nonlocal)
-    @assert !isnothing(model.build_hartree)
+    # Spin-polarisation
+    if model.spin_polarisation == :spinless
+        error("spin_polarisation == spinless is not supported by abinit")
+    elseif model.spin_polarisation == :none
+        infile.set_vars(nsppol=1, nspinor=1, nspden=1)
+    elseif model.spin_polarisation == :collinear
+        infile.set_vars(nsppol=2, nspinor=1, nspden=2)
+    elseif model.spin_polarisation == :full
+        infile.set_vars(nsppol=1, nspinor=2, nspden=4)
+    end
+
+    # Check all required terms are there
+    if any(isnothing, indexin([Kinetic(), AtomicLocal(), AtomicNonlocal(),
+                               Ewald(), PspCorrection(), Hartree()], model.term_types))
+        error("run_abinit_scf only supports reduced Hartree-Fock or DFT models.")
+    end
 
     # Parse XC term
-    if isnothing(model.build_xc)
+    idcs_Xc = findall(t -> t isa Xc, model.term_types)
+    @assert length(idcs_Xc) <= 1
+    if isempty(idcs_Xc) || isempty(model.term_types[idcs_Xc[1]].functionals)
         infile.set_vars(ixc=0)  # Reduced HF
-    elseif isa(model.build_xc, TermXc)
-        functionals = sort([func.identifier for func in model.build_xc.functionals])
+    else
+        xcterm = model.term_types[idcs_Xc[1]]
+        functionals = sort([func.identifier for func in xcterm.functionals])
         if functionals == [:lda_xc_teter93]
             infile.set_vars(ixc=1)
         elseif functionals == [:lda_c_vwn, :lda_x]
@@ -102,8 +117,17 @@ function run_abinit_scf(model::Model, outdir;
         else
             error("Unknown functional combination: $functionals")
         end
-    else
-        error("Unknown XC term")
+    end
+
+    # Spin-polarisation
+    if model.spin_polarisation == :spinless
+        error("spin_polarisation == spinless is not supported by abinit")
+    elseif model.spin_polarisation == :none
+        infile.set_vars(nsppol=1, nspinor=1, nspden=1)
+    elseif model.spin_polarisation == :collinear
+        infile.set_vars(nsppol=2, nspinor=1, nspden=2)
+    elseif model.spin_polarisation == :full
+        infile.set_vars(nsppol=1, nspinor=2, nspden=4)
     end
 
     # Parse occopt
