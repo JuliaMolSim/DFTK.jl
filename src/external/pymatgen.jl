@@ -75,15 +75,6 @@ function load_lattice(T, pyobj::PyObject)
 end
 
 
-# One could probably make this proper at some point and
-# make it a part of the main code
-function guess_psp_for_element(symbol, functional; cheapest=true)
-    fun = cheapest ? first : last
-    fun(psp for psp in list_psp() for l in 1:30
-          if startswith(psp, "hgh/$(lowercase(functional))/$(lowercase(symbol))-q$l"))
-end
-
-
 """
 Load a DFTK-compatible atoms representation from a supported pymatgen object
 """
@@ -98,7 +89,8 @@ function load_atoms(T, pyobj::PyObject; functional="lda", pspmap=Dict())
         if spec.number in keys(pspmap)
             psp = pspmap[spec.number]
         elseif functional !== nothing
-            psp = guess_psp_for_element(spec.symbol, functional)
+            # Pick the cheapest (first) functional returned by a search
+            psp = first(list_psp(Symbol(spec.symbol), functional=functional, family="hgh"))
             @info("Using autodetermined pseudopotential for $(spec.symbol).", psp)
         end
         ElementPsp(spec.number, psp=load_psp(psp)) => coords

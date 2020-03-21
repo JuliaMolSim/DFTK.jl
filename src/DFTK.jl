@@ -128,6 +128,7 @@ include("guess_density.jl")
 export load_psp
 export list_psp
 include("pseudo/load_psp.jl")
+include("pseudo/list_psp.jl")
 
 export pymatgen_lattice
 export pymatgen_bandstructure

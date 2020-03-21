@@ -132,11 +132,10 @@ V(q) = ∫_R^3 Vloc(r) e^{-iqr} dr
 [GTH98] (6) except they do it with plane waves normalized by 1/sqrt(Ω).
 """
 function eval_psp_local_fourier(psp::PspHgh, q::T) where {T <: Real}
-    qsq = q^2
-    qrsq::T = qsq * psp.rloc^2
+    qrsq::T = q^2 * psp.rloc^2
 
     4T(π) * (
-        - psp.Zion / qsq * exp(-qrsq / 2)
+        - psp.Zion / q^2 * exp(-qrsq / 2)
         + sqrt(T(π)/2) * psp.rloc^3 * exp(-qrsq / 2) * (
             + psp.cloc[1]
             + psp.cloc[2] * (  3 -       qrsq                       )

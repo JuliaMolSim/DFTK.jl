@@ -1,3 +1,5 @@
+import PeriodicTable
+
 """Return the data directory with pseudopotential files"""
 datadir_psp() = joinpath(get(ENV, "DFTK_DATADIR", DFTK_DATADIR), "psp")
 
@@ -10,66 +12,33 @@ The file is searched in the directory `datadir_psp` and by the `identifier`.
 If the identifier is a path to a valid file, the extension is used to determine
 the type of the pseudopotential file format and a respective class is returned.
 """
-function load_psp(identifier::AbstractString, datadir_psp=datadir_psp())
-    identifier = lowercase(identifier)
-
-    loadfctn = nothing
-    extension = nothing
-    if startswith(identifier, "hgh/") || endswith(identifier, ".hgh")
+function load_psp(key::AbstractString; datadir_psp=datadir_psp())
+    if startswith(key, "hgh/") || endswith(key, ".hgh")
         parser = parse_hgh_file
-        extension = "hgh"
+        extension = ".hgh"
     else
-        error("Did not recognise pseudopotential type of path or identifier " *
-              "$(identifier).")
+        error("Could not determine pseudopotential family of '$key'")
     end
+    isfile(key) && return parser(key)
 
-    # It is an existing file ... just parse it.
-    isfile(identifier) && return parser(identifier)
-
-    # It is not a file ... must be an identifier
+    # Not a file: Threat as identifier, add extension if needed
+    identifier = lowercase(key)
     fullpath = joinpath(datadir_psp, identifier)
+    isfile(fullpath) || (fullpath = fullpath * extension)
 
-    # Add extension if not yet a file
-    !isfile(fullpath) && (fullpath = fullpath * "." * extension)
-
-    if !isfile(fullpath)
-        error("Could not find pseudopotential matching identifier " *
+    if isfile(fullpath)
+        parser(fullpath, identifier=identifier)
+    else
+        error("Could not find pseudopotential for identifier " *
               "'$identifier' in directory '$datadir_psp'")
     end
-
-    return parser(fullpath, identifier=identifier)
 end
 
 
-"""
-    list_psp(identifier; datadir_psp)
-
-List all pseudopotential files known to DFTK. Allows to specify
-part of an identifier to restrict the list
-
-# Examples
-```julia-repl
-julia> list_psp("hgh")
-```
-will list all HGH-type pseudopotentials and
-```julia-repl
-julia> list_psp("hgh/lda")
-```
-will only list those for LDA (also known as Pade in this context).
-"""
-function list_psp(prefix::AbstractString="", datadir_psp=datadir_psp())
-    prefix = lowercase(prefix)
-    !endswith(prefix, "/") && prefix != "" && (prefix = prefix * "/")
-    if !isdir(joinpath(datadir_psp, prefix))
-        error("Prefix directory '$prefix' does not exist in '$datadir_psp'")
+function load_psp(element::Union{Symbol,Integer}; family="hgh", core=:fullcore, kwargs...)
+    list = list_psp(element; family=family, core=core, kwargs...)
+    if length(list) != 1
+        error("Parameters passed to load_psp do not uniquely identify a PSP file.")
     end
-
-    res = Vector{String}()
-    for (root, dirs, files) in walkdir(joinpath(datadir_psp, prefix))
-        root_relative = relpath(root, datadir_psp)
-        append!(res, [joinpath(root_relative, f) for f in files])
-    end
-
-    # Ignore all fetch and update scripts
-    [r for r in res if !endswith(r, ".sh")]
+    load_psp(list[1].path)
 end
