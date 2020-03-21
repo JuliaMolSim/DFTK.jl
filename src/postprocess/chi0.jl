@@ -5,9 +5,9 @@ using ProgressMeter
 
 
 """
-Compute the independent-particle susceptibility. Will blow up for large systems
+Compute the independent-particle susceptibility. Will blow up for large systems. Drop all non-diagonal terms with (f(εn)-f(εm))/(εn-εm) factor less than `droptol`.
 """
-function compute_χ0(ham; diagonal_only=false)
+function compute_χ0(ham; droptol=0)
     # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
     # where (up to normalizations)
     # ρ = ∑_nk f(εnk - εF) |ψnk|^2
@@ -56,10 +56,10 @@ function compute_χ0(ham; diagonal_only=false)
         Vr = hcat(G_to_r.(Ref(basis), Ref(basis.kpoints[ik]), eachcol(V))...)
         Vr = reshape(Vr, prod(fft_size), N)
         @showprogress "Computing χ0 for kpoint $ik/$(length(basis.kpoints)) ..." for m = 1:N, n = 1:N
-            diagonal_only && (n != m) && continue
             enred = (E[n] - εF) / model.temperature
             @assert occ[ik][n] ≈ filled_occ * Smearing.occupation(model.smearing, enred)
             factor = filled_occ * Smearing.occupation_divided_difference(model.smearing, E[m], E[n], εF, model.temperature)
+            (n != m) && (abs(factor) < droptol) && continue
             # dVol because inner products have a dVol so that |f> becomes <dVol f|
             # can take the real part here because the nm term is complex conjugate of mn
             # TODO optimize this a bit... use symmetry nm, reduce allocs, etc.
@@ -78,9 +78,12 @@ function compute_χ0(ham; diagonal_only=false)
 end
 
 """
-Returns the change in density δρ for a given δV
+Returns the change in density δρ for a given δV. Drop all non-diagonal terms with (f(εn)-f(εm))/(εn-εm) factor less than `droptol`. If `sternheimer_contribution` is false, only compute excitations inside the provided orbitals.
 """
-function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; diagonal_only=false)
+function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0, sternheimer_contribution=true)
+    if droptol > 0 && sternheimer_contribution == true
+        error("Droptol cannot be positive if sternheimer contribution is to be computed.")
+    end
     # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
     basis = ham.basis
     T = eltype(basis)
@@ -110,9 +113,6 @@ function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; diagonal_only=fal
 
             # explicit contributions
             for m = 1:size(ψ[ik], 2)
-                diagonal_only && (n != m) && continue
-                ψmk = @views ψ[ik][:, m]
-                ψmk_real = G_to_r(basis, basis.kpoints[ik], ψmk)
                 εmk = eigenvalues[ik][m]
                 factor = filled_occ * Smearing.occupation_divided_difference(
                     model.smearing,
@@ -120,6 +120,9 @@ function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; diagonal_only=fal
                     εnk,
                     εF,
                     model.temperature)
+                (n != m) && (abs(factor) < droptol) && continue
+                ψmk = @views ψ[ik][:, m]
+                ψmk_real = G_to_r(basis, basis.kpoints[ik], ψmk)
                 # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
                 ρnm = conj(ψnk_real) .* ψmk_real
                 weight = dVol*dot(ρnm, δV)
@@ -127,7 +130,7 @@ function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; diagonal_only=fal
             end
 
             # Sternheimer contributions
-            diagonal_only && continue
+            !(sternheimer_contribution) && continue
             fnk = occupation[ik][n]
             abs(fnk) < eps(T) && continue
             # compute δψn by solving Q (H-εn) Q δψn = -Q δV ψn
@@ -141,7 +144,6 @@ function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; diagonal_only=fal
             J = LinearMap{eltype(ψ[ik])}(QHQ, size(ham.blocks[ik], 1))
             δψnk = cg(J, rhs)
             δψnk_real = G_to_r(basis, basis.kpoints[ik], δψnk)
-
             δρ .+= 2 .* fnk .* basis.kweights[ik] .* real(conj(ψnk_real) .* δψnk_real)
         end
     end

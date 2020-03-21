@@ -35,17 +35,17 @@ include("testcases.jl")
         predicted_diff = real(reshape(χ0*vec(dV), basis.fft_size))
         # @test norm(diff - predicted_diff) < sqrt(ε)
 
-            for diagonal_only in (true, false)
-                # Test the diagonal_only option
-                χ0_diag = compute_χ0(ham0; diagonal_only=diagonal_only)
-                diff_diag_1 = real(reshape(χ0_diag*vec(dV), basis.fft_size))
+        for droptol in (0, Inf)
+            # Test the diagonal_only option
+            χ0_diag = compute_χ0(ham0; droptol=droptol)
+            diff_diag_1 = real(reshape(χ0_diag*vec(dV), basis.fft_size))
 
-                EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham0.blocks]
-                Es = [EV.values[1:n_bands] for EV in EVs]
-                Vs = [EV.vectors[:, 1:n_bands] for EV in EVs]
-                occ, εF = find_occupation(basis, Es)
-                diff_diag_2 = apply_χ0(ham0, dV, Vs, occ, εF, Es; diagonal_only=diagonal_only)
-                @test norm(diff_diag_1 - diff_diag_2) < sqrt(ε)
-            end
+            EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham0.blocks]
+            Es = [EV.values[1:n_bands] for EV in EVs]
+            Vs = [EV.vectors[:, 1:n_bands] for EV in EVs]
+            occ, εF = find_occupation(basis, Es)
+            diff_diag_2 = apply_χ0(ham0, dV, Vs, occ, εF, Es; droptol=droptol, sternheimer_contribution=(droptol == 0))
+            @test norm(diff_diag_1 - diff_diag_2) < sqrt(ε)
+        end
     end
 end
