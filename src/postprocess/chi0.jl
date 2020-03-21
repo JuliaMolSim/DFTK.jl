@@ -139,7 +139,7 @@ function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0, sternh
             rhs = - Q(r_to_G(basis, basis.kpoints[ik], δV .* ψnk_real))
             function QHQ(ϕ)
                 Qϕ = Q(ϕ)
-                HQϕ = Q(ham.blocks[ik] * Qϕ - εnk * Qϕ)
+                Q(ham.blocks[ik] * Qϕ - εnk * Qϕ)
             end
             J = LinearMap{eltype(ψ[ik])}(QHQ, size(ham.blocks[ik], 1))
             δψnk = cg(J, rhs)
