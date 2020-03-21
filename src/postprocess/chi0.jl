@@ -1,3 +1,5 @@
+using LinearMaps
+using IterativeSolvers
 using ForwardDiff
 using ProgressMeter
 
@@ -26,7 +28,7 @@ function compute_χ0(ham; diagonal_only=false)
 
     # for δρ we note ρnm = ψn* ψm, and we get
     # δρ = LDOS δεF + ∑_n f'n <ρn|δV> ρn + ∑_{n,m != n} 2Re fn ρnm <ρmn|δV> / (εn-εm)
-    # δρ = LDOS δεF + ∑_n f'n <ρn|δV> ρn + ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
+    # δρ = LDOS δεF + ∑_n f'n <ρn|δV> ρn + ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρnm|δV>
     # The last two terms merge with the convention that (f(x)-f(x))/(x-x) = f'(x) into
     # δρ = LDOS δεF + ∑_{n,m} (fn-fm) ρnm <ρmn|δV> / (εn-εm)
     # Therefore the kernel is LDOS(r) LDOS(r') / DOS + ∑_{n,m} (fn-fm)/(εn-εm) ρnm(r) ρmn(r')
@@ -78,9 +80,10 @@ end
 """
 Returns the change in density δρ for a given δV
 """
-function apply_chi0(ham, δV, ψ, occupation, εF, eigenvalues; diagonal_only=false)
+function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; diagonal_only=false)
     # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
     basis = ham.basis
+    T = eltype(basis)
     model = basis.model
     fft_size = basis.fft_size
     @assert model.spin_polarisation == :none
@@ -92,22 +95,10 @@ function apply_chi0(ham, δV, ψ, occupation, εF, eigenvalues; diagonal_only=fa
         if length(basis.ksymops[ik]) != 1
             error("Kpoint symmetry not supported")
         end
-        for iband = 1:size(ψ[ik], 2)
-            ψnk = @views ψ[ik][:, iband]
+        for n = 1:size(ψ[ik], 2)
+            ψnk = @views ψ[ik][:, n]
             ψnk_real = G_to_r(basis, basis.kpoints[ik], ψnk)
-            εnk = eigenvalues[ik][iband]
-            fnk = occupation[ik][iband]
-            @assert fnk ≈ filled_occ * Smearing.occupation(model.smearing, (εnk - εF)/model.temperature)
-
-            if model.temperature != 0
-                # f'n δεn |ψn|^2
-                fpnk = (filled_occ * 1 / model.temperature *
-                       Smearing.occupation_derivative(model.smearing, (εnk-εF) / model.temperature))
-                δεnk = dot(abs2.(ψnk_real), δV) * dVol
-                δρ .+= basis.kweights[ik] .* fpnk .* δεnk .* abs2.(ψnk_real)
-            end
-
-            diagonal_only && continue
+            εnk = eigenvalues[ik][n]
 
             # 2Re fn ψn* δψn
             # we split δψn into its component on the computed and uncomputed states:
@@ -116,12 +107,46 @@ function apply_chi0(ham, δV, ψ, occupation, εF, eigenvalues; diagonal_only=fa
             # Q δψn by solving the Sternheimer equation
             # (H-εn) Q δψn = -Q δV ψn
             # where Q = sum_n |ψn><ψn|
-            fnk == 0 && continue
 
-            ## TODO
+            # explicit contributions
+            for m = 1:size(ψ[ik], 2)
+                diagonal_only && (n != m) && continue
+                ψmk = @views ψ[ik][:, m]
+                ψmk_real = G_to_r(basis, basis.kpoints[ik], ψmk)
+                εmk = eigenvalues[ik][m]
+                factor = filled_occ * Smearing.occupation_divided_difference(
+                    model.smearing,
+                    εmk,
+                    εnk,
+                    εF,
+                    model.temperature)
+                # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
+                ρnm = conj(ψnk_real) .* ψmk_real
+                weight = dVol*dot(ρnm, δV)
+                @views δρ .+= real(basis.kweights[ik] .* factor .* weight .* ρnm)
+            end
+
+            # Sternheimer contributions
+            diagonal_only && continue
+            fnk = occupation[ik][n]
+            abs(fnk) < eps(T) && continue
+            # compute δψn by solving Q (H-εn) Q δψn = -Q δV ψn
+            # we err on the side of caution here by applying Q a lot, there are optimizations to be made here
+            Q(ϕ) = ϕ - ψ[ik] * (ψ[ik]' * ϕ)
+            rhs = - Q(r_to_G(basis, basis.kpoints[ik], δV .* ψnk_real))
+            function QHQ(ϕ)
+                Qϕ = Q(ϕ)
+                HQϕ = Q(ham.blocks[ik] * Qϕ - εnk * Qϕ)
+            end
+            J = LinearMap{eltype(ψ[ik])}(QHQ, size(ham.blocks[ik], 1))
+            δψnk = cg(J, rhs)
+            δψnk_real = G_to_r(basis, basis.kpoints[ik], δψnk)
+
+            δρ .+= 2 .* fnk .* basis.kweights[ik] .* real(conj(ψnk_real) .* δψnk_real)
         end
     end
 
+    # Add variation wrt εF
     if model.temperature > 0
         ldos = LDOS(εF, basis, eigenvalues, ψ)
         dos = DOS(εF, basis, eigenvalues)
