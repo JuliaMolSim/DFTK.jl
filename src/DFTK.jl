@@ -130,9 +130,19 @@ export list_psp
 include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
 
-export pymatgen_lattice
-export pymatgen_bandstructure
 export pymatgen_structure
+export EtsfFolder
+export load_lattice
+export load_basis
+export load_model
+export load_density
+export load_atoms
+include("external/etsf_nanoquanta.jl")
+include("external/abinit.jl")
+include("external/load_from_python.jl")
+include("external/ase.jl")
+include("external/pymatgen.jl")
+
 export high_symmetry_kpath
 export compute_bands
 export plot_band_data
@@ -145,15 +155,6 @@ export NOS
 include("postprocess/DOS.jl")
 export compute_χ0
 include("postprocess/chi0.jl")
-
-export EtsfFolder
-export load_lattice
-export load_basis
-export load_model
-export load_density
-export load_atoms
-include("external/etsf_nanoquanta.jl")
-include("external/abinit.jl")
 
 function __init__()
     # Use requires to only include eigen/diag_lobpcg_itsolve.jl once

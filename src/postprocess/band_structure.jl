@@ -1,6 +1,5 @@
 using PyCall
 import Plots
-include("../external/pymatgen.jl")
 
 # Functionality for computing band structures, mostly using pymatgen
 
