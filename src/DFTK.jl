@@ -165,6 +165,7 @@ function __init__()
     # The global variable GENERIC_FFT_LOADED makes sure that things are only
     # included once.
     @require IntervalArithmetic="d1acc4aa-44c8-5952-acd4-ba5d80a2a253" begin
+        include("intervals_workarounds.jl")
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("fft_generic.jl")
     end
     @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin

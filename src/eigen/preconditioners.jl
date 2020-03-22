@@ -8,8 +8,8 @@
 # Additionally if the solver supports adaptive preconditioning
 # it will call `precondprep!(P,X)` right before calling `ldiv!`
 
-import LinearAlgebra.ldiv!
-import LinearAlgebra.mul!
+import LinearAlgebra: ldiv!
+import LinearAlgebra: mul!
 
 precondprep!(P, X) = P  # This API is also used in Optim.jl
 
@@ -18,8 +18,10 @@ No preconditioning
 """
 struct PreconditionerNone end
 PreconditionerNone(basis, kpt) = I
-# TODO Piracy, remove once we drop support for julia 1.3
-LinearAlgebra.ldiv!(Y::AbstractVecOrMat, J::UniformScaling, B::AbstractVecOrMat) = (Y .= J.λ .\ B)
+if VERSION < v"1.4"
+    # TODO Piracy, remove once we drop support for julia 1.3
+    ldiv!(Y::AbstractVecOrMat, J::UniformScaling, B::AbstractVecOrMat) = (Y .= J.λ .\ B)
+end
 
 
 """
