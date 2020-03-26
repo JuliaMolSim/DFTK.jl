@@ -76,23 +76,16 @@ end
 
 
 """
-Load a DFTK-compatible atoms representation from a supported pymatgen object
+Load a DFTK-compatible atoms representation from a supported pymatgen object.
+All atoms are using a Coulomb model.
 """
-function load_atoms(T, pyobj::PyObject; functional="lda", pspmap=Dict())
+function load_atoms(T, pyobj::PyObject)
     mg = pyimport("pymatgen")
     pyisinstance(pyobj, mg.Structure) || error("load_atoms is only implemented for " *
                                                "python type pymatgen.Structure")
 
     map(unique(pyobj.species)) do spec
         coords = [s.frac_coords for s in pyobj.sites if s.specie == spec]
-        psp = nothing
-        if spec.number in keys(pspmap)
-            psp = pspmap[spec.number]
-        elseif functional !== nothing
-            # Pick the cheapest (first) functional returned by a search
-            psp = first(list_psp(Symbol(spec.symbol), functional=functional, family="hgh"))
-            @info("Using autodetermined pseudopotential for $(spec.symbol).", psp)
-        end
-        ElementPsp(spec.number, psp=load_psp(psp)) => coords
+        ElementCoulomb(spec.number) => coords
     end
 end
