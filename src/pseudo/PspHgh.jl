@@ -120,6 +120,10 @@ function parse_hgh_file(path; identifier="")
            description=description)
 end
 
+function projector_indices(psp)
+    ((i, l, m) for l in 0:psp.lmax for i in 1:size(psp.h[l+1], 1)
+     for m = -l:l)
+end
 
 @doc raw"""
 The local potential of a HGH pseudopotentials in reciprocal space
@@ -158,6 +162,24 @@ function eval_psp_local_fourier(psp::PspHgh, q::T) where {T <: Real}
     psp_local_polynomial(T, psp, t) * exp(-t^2 / 2) / t^2
 end
 eval_psp_local_fourier(psp::PspHgh, q::AbstractVector) = eval_psp_local_fourier(psp, norm(q))
+
+
+@doc raw"""
+Estimate an upper bound for the argument `q` after which
+`abs(eval_psp_local_fourier(psp, q))` is a strictly decreasing function.
+"""
+function qcut_psp_local(T, psp::PspHgh)
+    Q = DFTK.psp_local_polynomial(T, psp)  # polynomial in t = q * rloc
+
+    # Find the roots of the derivative polynomial:
+    res = roots(Poly([0, 1]) * polyder(Q) - Poly([2, 0, 1]) * Q)
+    res = T[r for r in res if abs(imag(r)) < 1e-14]
+    if length(res) > 0
+        maximum(res) / psp.rloc
+    else
+        zero(T)
+    end
+end
 
 
 """
@@ -206,6 +228,24 @@ and `Q` is a polynomial. This function returns `Q`.
     (l == 2 && i == 2) && return common * 2 / 3sqrt(T( 105)) * t^2 * ( 7 -   t^2)
     #
     (l == 3 && i == 1) && return common * 1 /  sqrt(T( 105)) * t^3
+end
+
+
+@doc raw"""
+Estimate an upper bound for the argument `q` after which
+`eval_psp_projection_radial(psp, q)` is a strictly decreasing function.
+"""
+function qcut_psp_projection_radial(T, psp::PspHgh, i, l)
+    Q = DFTK.psp_projection_radial_polynomial(T, psp, i, l)  # polynomial in q * rp[l + 1]
+
+    # Find the roots of the derivative polynomial:
+    res = roots(polyder(Q) - Poly([0, 1]) * Q)
+    res = T[r for r in res if abs(imag(r)) < 1e-14]
+    if length(res) > 0
+        maximum(res) / psp.rp[l + 1]
+    else
+        zero(T)
+    end
 end
 
 

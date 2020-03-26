@@ -1,7 +1,7 @@
 using Test
 using DFTK: load_psp, eval_psp_projection_radial, eval_psp_local_fourier
 using DFTK: eval_psp_projection_radial_real, psp_local_polynomial
-using DFTK: psp_projection_radial_polynomial
+using DFTK: psp_projection_radial_polynomial, qcut_psp_projection_radial, qcut_psp_local
 using SpecialFunctions: besselj
 
 
@@ -77,6 +77,21 @@ end
     ]
 
 
+end
+
+@testset "Check qcut routines" begin
+    psp = load_psp(:Au, functional="pbe", family="hgh")
+    ε = 1e-6
+
+    qcut = qcut_psp_local(Float64, psp)
+    res = eval_psp_local_fourier.(psp, [qcut - ε, qcut, qcut + ε])
+    @test (res[1] < res[2]) == (res[3] < res[2])
+
+    for i in 1:2, l in 0:2
+        qcut = qcut_psp_projection_radial(Float64, psp, i, l)
+        res = eval_psp_projection_radial.(psp, i, l, [qcut - ε, qcut, qcut + ε])
+        @test (res[1] < res[2]) == (res[3] < res[2])
+    end
 end
 
 @testset "Agreement of polynomial implementation and eval functions" begin
