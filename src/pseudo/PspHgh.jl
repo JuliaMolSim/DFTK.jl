@@ -192,11 +192,10 @@ The vector `r` should be given in cartesian coordinates.
 """
 function eval_psp_local_real(psp::PspHgh, r::T) where {T <: Real}
     cloc = psp.cloc
-    rrsq = r^2 / psp.rloc
-
+    rr = r / psp.rloc
     convert(T,
-        - psp.Zion / r * erf(r / sqrt(T(2)) / psp.rloc)
-        + exp(-rrsq / 2) * (cloc[1] + cloc[2] * rrsq + cloc[3] * rrsq^2 + cloc[4] * rrsq^3)
+        - psp.Zion / r * erf(rr / sqrt(T(2)))
+        + exp(-rr^2 / 2) * (cloc[1] + cloc[2] * rr^2 + cloc[3] * rr^4 + cloc[4] * rr^6)
     )
 end
 eval_psp_local_real(psp::PspHgh, r::AbstractVector) = eval_psp_local_real(psp, norm(r))

@@ -45,7 +45,7 @@ end
 
     @test local_potential_fourier(element, 0.0) == 0.0
     @test local_potential_fourier(element, 2.0) == -12.695860686869914
-    @test local_potential_real(element, 2.0) == -1.981967787205101
+    @test local_potential_real(element, 2.0) == -1.999997661838144
 end
 
 @testset "Check constructing ElementCohenBergstresser" begin
