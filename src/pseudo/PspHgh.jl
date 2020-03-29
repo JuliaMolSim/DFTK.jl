@@ -1,5 +1,6 @@
 using SpecialFunctions: erf
 using SpecialFunctions: gamma
+using Polynomials
 
 struct PspHgh
     Zion::Int                   # Ionic charge (Z - valence electrons)
@@ -119,6 +120,31 @@ function parse_hgh_file(path; identifier="")
            description=description)
 end
 
+function projector_indices(psp)
+    ((i, l, m) for l in 0:psp.lmax for i in 1:size(psp.h[l+1], 1)
+     for m = -l:l)
+end
+
+@doc raw"""
+The local potential of a HGH pseudopotentials in reciprocal space
+can be brought to the form ``Q(t) / (t^2 exp(t^2 / 2))``
+where ``t = r_\text{loc} q`` and `Q`
+is a polynomial of at most degree 8. This function returns `Q`.
+"""
+@inline function psp_local_polynomial(T, psp::PspHgh, t=Poly{T}([0, 1]))
+    rloc::T = psp.rloc
+    Zion::T = psp.Zion
+
+    # The polynomial prefactor P(t) (as used inside the { ... } brackets of equation
+    # (5) of the HGH98 paper)
+    P = (  psp.cloc[1]
+         + psp.cloc[2] * (  3 -    t^2              )
+         + psp.cloc[3] * ( 15 -  10t^2 +   t^4      )
+         + psp.cloc[4] * (105 - 105t^2 + 21t^4 - t^6))
+
+    4T(π) * rloc^2 * (-Zion + sqrt(T(π) / 2) * rloc * t^2 * P)
+end
+
 
 """
     eval_psp_local_fourier(psp, q)
@@ -132,20 +158,28 @@ V(q) = ∫_R^3 Vloc(r) e^{-iqr} dr
 [GTH98] (6) except they do it with plane waves normalized by 1/sqrt(Ω).
 """
 function eval_psp_local_fourier(psp::PspHgh, q::T) where {T <: Real}
-    qsq = q^2
-    qrsq::T = qsq * psp.rloc^2
-
-    4T(π) * (
-        - psp.Zion / qsq * exp(-qrsq / 2)
-        + sqrt(T(π)/2) * psp.rloc^3 * exp(-qrsq / 2) * (
-            + psp.cloc[1]
-            + psp.cloc[2] * (  3 -       qrsq                       )
-            + psp.cloc[3] * ( 15 -  10 * qrsq +      qrsq^2         )
-            + psp.cloc[4] * (105 - 105 * qrsq + 21 * qrsq^2 - qrsq^3)
-        )
-    )
+    t::T = q * psp.rloc
+    psp_local_polynomial(T, psp, t) * exp(-t^2 / 2) / t^2
 end
 eval_psp_local_fourier(psp::PspHgh, q::AbstractVector) = eval_psp_local_fourier(psp, norm(q))
+
+
+@doc raw"""
+Estimate an upper bound for the argument `q` after which
+`abs(eval_psp_local_fourier(psp, q))` is a strictly decreasing function.
+"""
+function qcut_psp_local(T, psp::PspHgh)
+    Q = DFTK.psp_local_polynomial(T, psp)  # polynomial in t = q * rloc
+
+    # Find the roots of the derivative polynomial:
+    res = roots(Poly([0, 1]) * polyder(Q) - Poly([2, 0, 1]) * Q)
+    res = T[r for r in res if abs(imag(r)) < 1e-14]
+    if length(res) > 0
+        maximum(res) / psp.rloc
+    else
+        zero(T)
+    end
+end
 
 
 """
@@ -158,14 +192,61 @@ The vector `r` should be given in cartesian coordinates.
 """
 function eval_psp_local_real(psp::PspHgh, r::T) where {T <: Real}
     cloc = psp.cloc
-    rrsq = r^2 / psp.rloc
-
+    rr = r / psp.rloc
     convert(T,
-        - psp.Zion / r * erf(r / sqrt(T(2)) / psp.rloc)
-        + exp(-rrsq / 2) * (cloc[1] + cloc[2] * rrsq + cloc[3] * rrsq^2 + cloc[4] * rrsq^3)
+        - psp.Zion / r * erf(rr / sqrt(T(2)))
+        + exp(-rr^2 / 2) * (cloc[1] + cloc[2] * rr^2 + cloc[3] * rr^4 + cloc[4] * rr^6)
     )
 end
 eval_psp_local_real(psp::PspHgh, r::AbstractVector) = eval_psp_local_real(psp, norm(r))
+
+
+@doc raw"""
+The nonlocal projectors of a HGH pseudopotentials in reciprocal space
+can be brought to the form ``Q(t) exp(-t^2 / 2)`` where ``t = r_l q``
+and `Q` is a polynomial. This function returns `Q`.
+"""
+@inline function psp_projection_radial_polynomial(T, psp::PspHgh, i, l, t=Poly{T}([0, 1]))
+    @assert 0 <= l <= length(psp.rp) - 1
+    @assert i > 0
+    rp::T = psp.rp[l + 1]
+    common::T = 4T(π)^(5 / T(4)) * sqrt(T(2)^(l + 1) * rp^3)
+
+    # Note: In the (l == 0 && i == 2) case the HGH paper has an error.
+    #       The first 8 in equation (8) should not be under the sqrt-sign
+    #       This is the right version (as shown in the GTH paper)
+    (l == 0 && i == 1) && return convert(typeof(t), common)
+    (l == 0 && i == 2) && return common * 2 /  sqrt(T(  15))       * ( 3 -   t^2      )
+    (l == 0 && i == 3) && return common * 4 / 3sqrt(T( 105))       * (15 - 10t^2 + t^4)
+    #
+    (l == 1 && i == 1) && return common * 1 /  sqrt(T(   3)) * t
+    (l == 1 && i == 2) && return common * 2 /  sqrt(T( 105)) * t   * ( 5 -   t^2)
+    (l == 1 && i == 3) && return common * 4 / 3sqrt(T(1155)) * t   * (35 - 14t^2 + t^4)
+    #
+    (l == 2 && i == 1) && return common * 1 /  sqrt(T(  15)) * t^2
+    (l == 2 && i == 2) && return common * 2 / 3sqrt(T( 105)) * t^2 * ( 7 -   t^2)
+    #
+    (l == 3 && i == 1) && return common * 1 /  sqrt(T( 105)) * t^3
+end
+
+
+@doc raw"""
+Estimate an upper bound for the argument `q` after which
+`eval_psp_projection_radial(psp, q)` is a strictly decreasing function.
+"""
+function qcut_psp_projection_radial(T, psp::PspHgh, i, l)
+    Q = DFTK.psp_projection_radial_polynomial(T, psp, i, l)  # polynomial in q * rp[l + 1]
+
+    # Find the roots of the derivative polynomial:
+    res = roots(polyder(Q) - Poly([0, 1]) * Q)
+    res = T[r for r in res if abs(imag(r)) < 1e-14]
+    if length(res) > 0
+        maximum(res) / psp.rp[l + 1]
+    else
+        zero(T)
+    end
+end
+
 
 """
     eval_psp_projection_radial(psp::PspHgh, i, l, q::Number)
@@ -179,35 +260,8 @@ p(q) = ∫_{R+} r^2 p(r) j_l(q r) dr
 """
 function eval_psp_projection_radial(psp::PspHgh, i, l, q::T) where {T <: Real}
     @assert 0 <= l <= length(psp.rp) - 1
-    @assert i > 0
-    qsq = q^2
-    rp = psp.rp[l + 1]
-    qrsq::T = qsq * rp^2
-    common::T = 4T(π)^(5 / 4) * sqrt(2^(l + 1) * rp^(2 * l + 3)) * exp(-qrsq / 2)
-
-    if l == 0  # 4 * sqrt(2) * π^(5/4)
-        (i == 1) && return common * 1
-        # Note: In the next case the HGH paper has an error.
-        #       The first 8 in equation (8) should not be under the sqrt-sign
-        #       This is the right version (as shown in the GTH paper)
-        (i == 2) && return common * 2 / sqrt(T( 15)) * ( 3 -   qrsq         )
-        (i == 3) && return common * 4 / sqrt(T(105)) * (15 - 10qrsq + qrsq^2) / T(3)
-    end
-
-    if l == 1  # 8 * π^(5/4)
-        (i == 1) && return common * 1 / sqrt(T(   3)) * q
-        (i == 2) && return common * 2 / sqrt(T( 105)) * q * ( 5 -   qrsq         )
-        (i == 3) && return common * 4 / sqrt(T(1155)) * q * (35 - 14qrsq + qrsq^2) / T(3)
-    end
-
-    if l == 2  # 8 * sqrt(2) * π^(5/4)
-        (i == 1) && return common * 1 / sqrt(T( 15)) * qsq
-        (i == 2) && return common * 2 / sqrt(T(105)) * qsq * (7 - qrsq) / T(3)
-    end
-
-    if l == 3  # 16 * π^(5/4)
-        (i == 1) && return common * 1 / sqrt(T(105)) * q * qsq
-    end
+    t::T = q * psp.rp[l + 1]
+    psp_projection_radial_polynomial(T, psp, i, l, t) * exp(-t^2 / 2)
 end
 
 """

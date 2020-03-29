@@ -30,7 +30,7 @@ function run_silicon_redHF(T; Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, 
 
     n_bands = length(ref_redHF[1])
     fft_size = grid_size * ones(3)
-    Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
+    Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="lda", family="hgh"))
     model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [];
                       temperature=0.05)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
@@ -68,7 +68,7 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     n_bands = length(ref_lda[1])
 
     fft_size = grid_size * ones(3)
-    Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
+    Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="lda", family="hgh"))
     model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [:lda_x, :lda_c_vwn])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
@@ -112,7 +112,7 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     n_bands = length(ref_pbe[1])
 
     fft_size = grid_size * ones(3)
-    Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/pbe/si-q4"))
+    Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="pbe", family="hgh"))
     model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [:gga_x_pbe, :gga_c_pbe])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 

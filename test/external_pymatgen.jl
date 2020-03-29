@@ -42,16 +42,14 @@ end
     reflattice = py"mg.Lattice($data)"
     species = [1, 1, 6, 6, 6, 8]
     positions = [randn(3), randn(3), randn(3), randn(3), randn(3), randn(3)]
-    pspmap = Dict(1 => "hgh/lda/h-q1",
-                  6 => "hgh/lda/c-q4",
-                  8 => "hgh/lda/o-q6")
 
     reference = py"mg.Structure($reflattice, $species, $positions)"
-    atoms = load_atoms(reference, pspmap=pspmap)
+    atoms = load_atoms(reference)
     @test length(atoms) == 3
-    @test atoms[1].first.psp.identifier == "hgh/lda/h-q1"
-    @test atoms[2].first.psp.identifier == "hgh/lda/c-q4"
-    @test atoms[3].first.psp.identifier == "hgh/lda/o-q6"
+    @test all(at isa ElementCoulomb for (at, positions) in atoms)
+    @test atoms[1][1].symbol == :H
+    @test atoms[2][1].symbol == :C
+    @test atoms[3][1].symbol == :O
 
     output = pymatgen_structure(load_lattice(reference), atoms)
     @test output.lattice == reflattice

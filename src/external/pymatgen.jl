@@ -75,32 +75,17 @@ function load_lattice(T, pyobj::PyObject)
 end
 
 
-# One could probably make this proper at some point and
-# make it a part of the main code
-function guess_psp_for_element(symbol, functional; cheapest=true)
-    fun = cheapest ? first : last
-    fun(psp for psp in list_psp() for l in 1:30
-          if startswith(psp, "hgh/$(lowercase(functional))/$(lowercase(symbol))-q$l"))
-end
-
-
 """
-Load a DFTK-compatible atoms representation from a supported pymatgen object
+Load a DFTK-compatible atoms representation from a supported pymatgen object.
+All atoms are using a Coulomb model.
 """
-function load_atoms(T, pyobj::PyObject; functional="lda", pspmap=Dict())
+function load_atoms(T, pyobj::PyObject)
     mg = pyimport("pymatgen")
     pyisinstance(pyobj, mg.Structure) || error("load_atoms is only implemented for " *
                                                "python type pymatgen.Structure")
 
     map(unique(pyobj.species)) do spec
         coords = [s.frac_coords for s in pyobj.sites if s.specie == spec]
-        psp = nothing
-        if spec.number in keys(pspmap)
-            psp = pspmap[spec.number]
-        elseif functional !== nothing
-            psp = guess_psp_for_element(spec.symbol, functional)
-            @info("Using autodetermined pseudopotential for $(spec.symbol).", psp)
-        end
-        ElementPsp(spec.number, psp=load_psp(psp)) => coords
+        ElementCoulomb(spec.number) => coords
     end
 end

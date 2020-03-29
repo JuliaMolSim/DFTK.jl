@@ -1,6 +1,7 @@
 using Test
 using DFTK: load_psp, eval_psp_projection_radial, eval_psp_local_fourier
-using DFTK: eval_psp_projection_radial_real
+using DFTK: eval_psp_projection_radial_real, psp_local_polynomial
+using DFTK: psp_projection_radial_polynomial, qcut_psp_projection_radial, qcut_psp_local
 using SpecialFunctions: besselj
 
 
@@ -74,6 +75,46 @@ end
          0.0, 0.7482799478933317, 2.321676914155303,
          3.8541542745249706, 6.053770711942623, 1.6078748819430986,
     ]
+
+
+end
+
+@testset "Check qcut routines" begin
+    psp = load_psp(:Au, functional="pbe", family="hgh")
+    ε = 1e-6
+
+    qcut = qcut_psp_local(Float64, psp)
+    res = eval_psp_local_fourier.(psp, [qcut - ε, qcut, qcut + ε])
+    @test (res[1] < res[2]) == (res[3] < res[2])
+
+    for i in 1:2, l in 0:2
+        qcut = qcut_psp_projection_radial(Float64, psp, i, l)
+        res = eval_psp_projection_radial.(psp, i, l, [qcut - ε, qcut, qcut + ε])
+        @test (res[1] < res[2]) == (res[3] < res[2])
+    end
+end
+
+@testset "Agreement of polynomial implementation and eval functions" begin
+    psp = load_psp("hgh/lda/Si-q4")
+    Qloc = psp_local_polynomial(Float64, psp)
+    evalQloc(q) = let t = q * psp.rloc; Qloc(t) * exp(-t^2 / 2) / t^2; end
+    for q in abs.(randn(10))
+        @test evalQloc(q) ≈ eval_psp_local_fourier(psp, q)
+    end
+
+    for pspfile in ["Au-q11", "Ba-q10"]
+        psp = load_psp("hgh/lda/" * pspfile)
+        for (l, i) in [(0, 1), (0, 2), (0, 3), (1, 1), (1, 2), (1, 3),
+                       (2, 1), (2, 2), (3, 1)]
+            l > length(psp.rp) - 1 && continue  # Overshooting available AM
+
+            Qproj = psp_projection_radial_polynomial(Float64, psp, i, l)
+            evalQproj(q) = let t = q * psp.rp[l + 1]; Qproj(t) * exp(-t^2 / 2); end
+            for q in abs.(randn(10))
+                @test evalQproj(q) ≈ eval_psp_projection_radial(psp, i, l, q)
+            end
+        end
+    end
 end
 
 @testset "Numerical integration to obtain fourier-space projectors" begin
