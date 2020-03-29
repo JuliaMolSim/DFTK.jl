@@ -1,24 +1,5 @@
 using ProgressMeter
 
-"""
-Interpolate some data from one k-Point to another. The interpolation is fast, but not
-necessarily exact or even normalised. Intended only to construct guesses for iterative
-solvers
-"""
-function interpolate_at_kpoint(kpt_old, kpt_new, data_oldk::AbstractVecOrMat)
-    if kpt_old == kpt_new
-        return data_oldk
-    end
-    @assert length(G_vectors(kpt_old)) == size(data_oldk, 1)
-    n_bands = size(data_oldk, 2)
-
-    data_newk = similar(data_oldk, length(G_vectors(kpt_new)), n_bands) .= 0
-    for (iold, inew) in enumerate(indexin(G_vectors(kpt_old), G_vectors(kpt_new)))
-        inew !== nothing && (data_newk[inew, :] = data_oldk[iold, :])
-    end
-    data_newk
-end
-
 @doc raw"""
 Function for diagonalising each ``k``-Point blow of ham one step at a time.
 Some logic for interpolating between ``k``-Points is used if `interpolate_kpoints`
@@ -51,9 +32,8 @@ function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
             guessk = guess[ik]
         elseif interpolate_kpoints && ik > 1
             # use information from previous kpoint
-            # TODO ensure better traversal of kpoints so that the interpolation is relevant
-            X0 = interpolate_at_kpoint(kpoints[ik - 1], kpoints[ik], results[ik - 1].X)
-            guessk = Matrix{T}(qr(X0).Q)
+            X0 = interpolate_kpoint(results[ik - 1].X, kpoints[ik - 1], kpoints[ik])
+            guessk = Matrix{T}(qr(X0).Q)  # Re-orthogonalise and renormalise
         else
             # random initial guess
             qrres = qr(randn(T, length(G_vectors(kpoints[ik])), nev_per_kpoint))
