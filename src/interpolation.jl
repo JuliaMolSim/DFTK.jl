@@ -90,7 +90,7 @@ Interpolate Bloch wave between two basis sets. Limited feature set. Currently on
 interpolation to a bigger grid (larger Ecut) on the same lattice supported.
 """
 function interpolate_blochwave(ψ_in, basis_in, basis_out)
-    @assert basis_in.lattice == basis_out.lattice
+    @assert basis_in.model.lattice == basis_out.model.lattice
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
                 for ik in 1:length(basis_in.kpoints))
