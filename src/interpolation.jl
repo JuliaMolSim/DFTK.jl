@@ -96,25 +96,27 @@ function interpolate_blochwave(ψ_in, basis_in, basis_out)
                 for ik in 1:length(basis_in.kpoints))
 
     ψ_out = empty(ψ_in)
+    idcs_out = []
     for (ik, kpt_out) in enumerate(basis_out.kpoints)
         n_bands = size(ψ_in[ik], 2)
 
         # Get indices of the G vectors of the old basis inside the new basis.
-        idcs_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in.kpoints[ik]))
+        idcsk_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in.kpoints[ik]))
 
         # Linearise the indices
-        idcs_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcs_out)
+        idcsk_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcsk_out)
 
         # Map to the indices of the corresponding G-vectors in G_vectors(kpt_out)
-        idcs_kpt_out = indexin(idcs_out, kpt_out.mapping)
-        @assert !any(isnothing, idcs_kpt_out)
+        idcsk_out = indexin(idcsk_out, kpt_out.mapping)
+        @assert !any(isnothing, idcsk_out)
 
         # Set values
         ψk_out = similar(ψ_in[ik], length(G_vectors(kpt_out)), n_bands)
         ψk_out .= 0
-        ψk_out[idcs_kpt_out, :] .= ψ_in[ik]
+        ψk_out[idcsk_out, :] .= ψ_in[ik]
         push!(ψ_out, ψk_out)
+        push!(idcs_out, idcsk_out)
     end
 
-    ψ_out
+    (ψ_out, idcs_out)
 end
