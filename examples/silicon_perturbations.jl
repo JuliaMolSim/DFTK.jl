@@ -58,7 +58,7 @@ function perturbation(basis, kgrid, scfres, Ecut_fine)
         # residual on the fine grid
         λψ_fine = similar(ψ_fine[ik])
         for n in occ_bands
-            λψ_fine[:,n] = ψ_fine[ik][:,n] * egvalk[n]
+            λψ_fine[:, n] = ψ_fine[ik][:, n] * egvalk[n]
         end
         r_fine = H_fine.blocks[ik]*ψ_fine[ik] - λψ_fine
         # this residual is different from interpolating r which would only have
@@ -69,7 +69,7 @@ function perturbation(basis, kgrid, scfres, Ecut_fine)
         # --> ψ1_fine = -(-Δ|orth - λ)^{-1} * r_fine
         ψ1k_fine = copy(ψ_fine[ik])
         for n in occ_bands
-            ψ1k_fine[:,n] .= 0
+            ψ1k_fine[:, n] .= 0
             ψ1k_fine[idcs_fine_cplmt[ik], n] .=
             - 1 ./ (kin[idcs_fine_cplmt[ik]] .- egvalk[n]) .* r_fine[idcs_fine_cplmt[ik], n]
         end
@@ -80,7 +80,7 @@ function perturbation(basis, kgrid, scfres, Ecut_fine)
     ψp_fine = ψ_fine .+ ψ1_fine
     for ik in 1:Nk
         occ_bands = [i for i in 1:length(egval[ik]) if occ[ik][i] != 0.0]
-        ψp_fine[ik][:,occ_bands] .= Matrix(qr(ψp_fine[ik][:,occ_bands]).Q)
+        ψp_fine[ik][:, occ_bands] .= Matrix(qr(ψp_fine[ik][:, occ_bands]).Q)
     end
     ρp_fine = compute_density(basis_fine, ψp_fine, occ)
 
