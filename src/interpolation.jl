@@ -84,6 +84,35 @@ function interpolate_kpoint(data_in::AbstractVecOrMat, kpoint_in::Kpoint, kpoint
     data_out
 end
 
+"""
+Compute indices from basis_in that are in basis_out, alongside the complementary
+set of indices of basis_out that are not in basis_in. Currently only for basis_out
+bigger than basis_in.
+"""
+function grid_interpolation_indices(basis_in, basis_out)
+    # build the indices from basis_in that are in basis_out
+    idcs_out = []
+    for (ik, kpt_out) in enumerate(basis_out.kpoints)
+        # Get indices of the G vectors of the old basis inside the new basis.
+        idcsk_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in.kpoints[ik]))
+
+        # Linearise the indices
+        idcsk_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcsk_out)
+
+        # Map to the indices of the corresponding G-vectors in G_vectors(kpt_out)
+        idcsk_out = indexin(idcsk_out, kpt_out.mapping)
+        @assert !any(isnothing, idcsk_out)
+        push!(idcs_out, idcsk_out)
+    end
+
+    # build the complement indices of basis_out that are not in basis_in
+    #  idcs_out_cplmt = [filter(id -> !(id in idcs_fine[ik]), 1:length(ψ_fine[ik][:,1]))
+    #                     for ik in 1:Nk]
+    idcs_out_cplmt = [[id for id in 1:length(G_vectors(basis_out.kpoints[ik]))
+                       if !(id in idcs_out[ik])] for ik in 1:length(basis_in.kpoints)]
+
+    (idcs_out, idcs_out_cplmt)
+end
 
 """
 Interpolate Bloch wave between two basis sets. Limited feature set. Currently only
@@ -96,27 +125,16 @@ function interpolate_blochwave(ψ_in, basis_in, basis_out)
                 for ik in 1:length(basis_in.kpoints))
 
     ψ_out = empty(ψ_in)
-    idcs_out = []
+    idcs_out, _ = grid_interpolation_indices(basis_in, basis_out)
     for (ik, kpt_out) in enumerate(basis_out.kpoints)
         n_bands = size(ψ_in[ik], 2)
-
-        # Get indices of the G vectors of the old basis inside the new basis.
-        idcsk_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in.kpoints[ik]))
-
-        # Linearise the indices
-        idcsk_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcsk_out)
-
-        # Map to the indices of the corresponding G-vectors in G_vectors(kpt_out)
-        idcsk_out = indexin(idcsk_out, kpt_out.mapping)
-        @assert !any(isnothing, idcsk_out)
 
         # Set values
         ψk_out = similar(ψ_in[ik], length(G_vectors(kpt_out)), n_bands)
         ψk_out .= 0
-        ψk_out[idcsk_out, :] .= ψ_in[ik]
+        ψk_out[idcs_out[ik], :] .= ψ_in[ik]
         push!(ψ_out, ψk_out)
-        push!(idcs_out, idcsk_out)
     end
 
-    (ψ_out, idcs_out)
+    ψ_out
 end

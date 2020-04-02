@@ -30,20 +30,17 @@ function perturbation(basis, kgrid, scfres, Ecut_fine)
 
     # coarse grid
     occ = scfres.occupation
-    vap = scfres.eigenvalues
+    egval = scfres.eigenvalues
     ψ = scfres.ψ
     ρ = scfres.ρ
     H = scfres.ham
 
     # interpolate to fine grid and build the new density & hamiltonian
     # idcs_fine[ik] is the list of basis vector indices in basis_fine
-    ψ_fine, idcs_fine = DFTK.interpolate_blochwave(ψ, basis, basis_fine)
+    ψ_fine = DFTK.interpolate_blochwave(ψ, basis, basis_fine)
     ρ_fine = compute_density(basis_fine, ψ_fine, occ)
     H_fine = Hamiltonian(basis_fine, ψ=ψ_fine, occ=occ; ρ=ρ_fine)
-
-    # build the complement indices of basis_fine that are not in basis
-    idcs_fine_cplmt = [filter(id -> !(id in idcs_fine[ik]), 1:length(ψ_fine[ik][:,1]))
-                       for ik in 1:Nk]
+    idcs_fine, idcs_fine_cplmt = DFTK.grid_interpolation_indices(basis, basis_fine)
 
     # first order perturbation of the eigenvectors
     ψ1_fine = empty(ψ_fine)
@@ -54,45 +51,36 @@ function perturbation(basis, kgrid, scfres, Ecut_fine)
         kin = [sum(abs2, basis.model.recip_lattice * (G + kpt_fine.coordinate))
               for G in G_vectors(kpt_fine)] ./ 2
 
-        nband = size(ψ[ik], 2)
-
-        # residual on the coarse grid
-        Hψ = zeros(Complex{Float64}, size(ψ[ik]))
-        mul!(Hψ, H.blocks[ik], ψ[ik])
-        λψ = copy(ψ[ik])
-        for n in 1:nband
-            λψ[:,n] *= vap[ik][n]
-        end
-        r = Hψ - λψ
+        # occupied bands
+        egvalk = egval[ik]
+        occ_bands = [i for i in 1:length(egvalk) if occ[ik][i] != 0.0]
 
         # residual on the fine grid
-        Hψ_fine = zeros(Complex{Float64}, size(ψ_fine[ik]))
-        mul!(Hψ_fine, H_fine.blocks[ik], ψ_fine[ik])
-        λψ_fine = copy(ψ_fine[ik])
-        for n in 1:nband
-            λψ_fine[:,n] *= vap[ik][n]
+        λψ_fine = similar(ψ_fine[ik])
+        for n in occ_bands
+            λψ_fine[:,n] = ψ_fine[ik][:,n] * egvalk[n]
         end
-        r_fine = Hψ_fine - λψ_fine
+        r_fine = H_fine.blocks[ik]*ψ_fine[ik] - λψ_fine
         # this residual is different from interpolating r which would only have
         # components <= Ecut
 
-        # we apply the first order perturbation to the eigenvectors ψ one by one
-        # ψ1_fine = -(-Δ|orth - λ)^{-1} * r_fine
-        ψ1k_fine = similar(ψ_fine[ik], length(G_vectors(kpt_fine)), nband)
-        ψ1k_fine .= 0
-        for n in 1:nband
+        # first order correction to the occupied eigenvectors ψ one by one
+        # the perturbation lives only on the orthogonal of the coarse grid
+        # --> ψ1_fine = -(-Δ|orth - λ)^{-1} * r_fine
+        ψ1k_fine = copy(ψ_fine[ik])
+        for n in occ_bands
+            ψ1k_fine[:,n] .= 0
             ψ1k_fine[idcs_fine_cplmt[ik], n] .=
-            - 1 ./ (kin[idcs_fine_cplmt[ik]] .- vap[ik][n]) .* r_fine[idcs_fine_cplmt[ik], n]
+            - 1 ./ (kin[idcs_fine_cplmt[ik]] .- egvalk[n]) .* r_fine[idcs_fine_cplmt[ik], n]
         end
         push!(ψ1_fine, ψ1k_fine)
     end
 
-    # apply the perturbation and renormalize to compute density
+    # apply the perturbation and orthonormalize the occupied eigenvectors
     ψp_fine = ψ_fine .+ ψ1_fine
     for ik in 1:Nk
-        for n in 1:size(ψ[ik],2)
-            ψp_fine[ik][:,n] ./= norm(ψp_fine[ik][:,n])
-        end
+        occ_bands = [i for i in 1:length(egval[ik]) if occ[ik][i] != 0.0]
+        ψp_fine[ik][:,occ_bands] .= Matrix(qr(ψp_fine[ik][:,occ_bands]).Q)
     end
     ρp_fine = compute_density(basis_fine, ψp_fine, occ)
 
@@ -111,7 +99,7 @@ scfres_ref = self_consistent_field(basis_ref, tol=1e-12)
 Etot_ref = sum(values(scfres_ref.energies))
 
 ##### Solution on a coarse grid
-Ecut = 15
+Ecut = 5
 println("---------------------------\nSolution for Ecut = $(Ecut)")
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 scfres = self_consistent_field(basis, tol=1e-12)
@@ -119,27 +107,38 @@ Etot = sum(values(scfres.energies))
 
 ##### Perturbation for several values of the ratio α = Ecut_fine/Ecut
 function test_perturbation(α_max)
-    α_list = vcat(collect(1:0.2:2.8), collect(3:0.5:α_max))
-    E_list = []
+    α_list = vcat(collect(1:0.2:3), collect(3.5:0.5:α_max))
+    Ep_list = []
+    E_fine_list = []
     for α in α_list
         println("---------------------------\nEcut_fine = $(α) * Ecut")
-        Ep_fine, ψp_fine, ρp_fine = perturbation(basis, kgrid, scfres, α*Ecut)
-        push!(E_list, sum(values(Ep_fine)))
-    end
-    (α_list, E_list)
-end
+        # full scf on basis_fine
+        basis_fine = PlaneWaveBasis(model, α*Ecut; kgrid=kgrid)
+        scfres_fine = self_consistent_field(basis_fine, tol=1e-12)
+        push!(E_fine_list, sum(values(scfres_fine.energies)))
 
-(α_list, E_list) = test_perturbation(5)
+        # perturbation
+        Ep_fine, ψp_fine, ρp_fine = perturbation(basis, kgrid, scfres, α*Ecut)
+        push!(Ep_list, sum(values(Ep_fine)))
+    end
+    (α_list, Ep_list, E_fine_list)
+end
+α_list, Ep_list, E_fine_list = test_perturbation(5)
+
+##### Plotting results
 figure(figsize=(20,10))
 subplot(121)
 title("Total energy for α = Ecut_fine/Ecut")
-plot(α_list, E_list, "-+", label = "perturbation from Ecut = $(Ecut)")
+plot(α_list, Ep_list, "-+", label = "perturbation from Ecut = $(Ecut)")
+plot(α_list, E_fine_list, "-+", label = "full solution for Ecut_fine = α * Ecut")
 plot(α_list, [Etot_ref for α in α_list], "-+", label = "Ecut_ref = $(Ecut_ref)")
 legend()
 subplot(122)
 title("Relative energy error for α = Ecut_fine/Ecut")
-error_list = abs.((E_list .- Etot_ref)/Etot_ref)
+error_list = abs.((Ep_list .- Etot_ref)/Etot_ref)
+error_fine_list = abs.((E_fine_list .- Etot_ref)/Etot_ref)
 semilogy(α_list, error_list, "-+", label = "perturbation from Ecut = $(Ecut)")
+plot(α_list, error_fine_list, "-+", label = "full solution for Ecut_fine = α * Ecut")
 semilogy(α_list, [error_list[1] for α in α_list], "-+", label = "Ecut = $(Ecut)")
 legend()
 
