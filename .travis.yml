@@ -12,12 +12,27 @@ cache:
 env:
   global:
     - PYTHON=""  # Force using Conda in PyCall
-after_success:
-  - julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage;
-              coverage = Coveralls.process_folder();
-              filter!(c -> !occursin("src/FourierTransforms.jl", c.filename), coverage);
-              filter!(c -> !occursin("src/eigen/diag_lobpcg_itsolve.jl", c.filename), coverage);
-              Coveralls.submit(coverage)';
+script: |  # Install dependencies and test with coverage
+  julia -e '
+    using Pkg
+    Pkg.build(; verbose = true)
+
+    using Conda  # Some optional python packages via conda
+    for pkg in ["ase"]
+        Conda.add(pkg; channel="conda-forge")
+    end
+
+    Pkg.test(coverage=true)
+  '
+after_success: |  # Upload coverage when things are good.
+  julia -e '
+    using Pkg; Pkg.add("Coverage"); using Coverage;
+    coverage = Coveralls.process_folder();
+    for excluded in ["src/FourierTransforms.jl", "src/eigen/diag_lobpcg_itsolve.jl"]
+        filter!(c -> !occursin(excluded, c.filename), coverage);
+    end
+    Coveralls.submit(coverage)
+  '
 
 os:
   - linux
