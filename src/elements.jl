@@ -129,9 +129,9 @@ function ElementCohenBergstresser(key; lattice_constant=nothing)
     unit_cell_volume = det(lattice_constant / 2 .* [[0 1 1]; [1 0 1]; [1 1 0]])
 
     # The form factors in the Cohen-Bergstresser paper Table 2 are
-    # with respect to non-normalised planewaves and are already
-    # symmetrised into a sin-cos basis (see derivation p. 141)
-    # => Scale by Ω / 2
+    # with respect to normalised planewaves (i.e. not plain Fourier coefficients)
+    # and are already symmetrised into a sin-cos basis (see derivation p. 141)
+    # => Scale by Ω / 2 to get them into the DFTK convention
     V_sym = Dict(key => value * unit_cell_volume / 2
                  for (key, value) in pairs(data[symbol].form_factors))
 
