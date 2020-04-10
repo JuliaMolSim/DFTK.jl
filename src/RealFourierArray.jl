@@ -51,8 +51,7 @@ check_real(A::RealFourierArray) = check_real(A.real)
 
 function Base.propertynames(array::RealFourierArray, private=false)
     ret = [:basis, :real, :fourier]
-    private && append!(ret, fieldnames(RealFourierArray))
-    ret
+    private ? append!(ret, fieldnames(RealFourierArray)) : ret
 end
 
 function Base.getproperty(A::RealFourierArray, x::Symbol)
