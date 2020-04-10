@@ -41,7 +41,7 @@ function ene_ops(term::TermAtomicNonlocal, ψ, occ; kwargs...)
 end
 
 function forces(term::TermAtomicNonlocal, ψ, occ; kwargs...)
-    T = typeof(term.basis.Ecut)
+    T = eltype(term.basis)
     atoms = term.basis.model.atoms
     unit_cell_volume = term.basis.model.unit_cell_volume
 
