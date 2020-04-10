@@ -1,7 +1,7 @@
 # Lazy structure for an array whose real and fourier part can be accessed by A.real and A.fourier
 # For normalization conventions, see PlaneWaveBasis.jl
 
-import Base.getproperty, Base.setproperty!, Base.fieldnames
+import Base.getproperty, Base.setproperty!, Base.propertynames
 import Base.*, Base.+, Base./
 import Base.eltype
 
@@ -49,8 +49,11 @@ end
 check_real(A::RealFourierArray{Treal, T}) where {Treal, T <: Real} = nothing
 check_real(A::RealFourierArray) = check_real(A.real)
 
-# lie blatantly to the user, as recommended by the docs
-Base.fieldnames(RealFourierArray) = (:basis, :real, :fourier)
+function Base.propertynames(array::RealFourierArray, private=false)
+    ret = [:basis, :real, :fourier]
+    private && append!(ret, fieldnames(RealFourierArray))
+    ret
+end
 
 function Base.getproperty(A::RealFourierArray, x::Symbol)
     if x == :real
