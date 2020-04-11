@@ -40,7 +40,7 @@ struct NoopOperator <: RealFourierOperator
 end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
 function Matrix(op::NoopOperator)
-    zeros(typeof(op.basis.Ecut), length(G_vectors(op.kpoint)), length(G_vectors(op.kpoint)))
+    zeros(eltype(op.basis), length(G_vectors(op.kpoint)), length(G_vectors(op.kpoint)))
 end
 
 """
@@ -57,7 +57,7 @@ function Matrix(op::RealSpaceMultiplication)
     # V(G,G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
     pot_fourier = r_to_G(op.basis, complex.(op.potential))
     npw = length(G_vectors(op.kpoint))
-    H = zeros(complex(typeof(op.basis.Ecut)), npw, npw)
+    H = zeros(complex(eltype(op.basis)), npw, npw)
     for i = 1:npw
         G = G_vectors(op.kpoint)[i]
         for j = 1:npw

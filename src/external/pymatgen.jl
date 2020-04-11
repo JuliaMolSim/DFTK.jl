@@ -55,14 +55,11 @@ function pymatgen_bandstructure(basis, λ, εF, klabels)
 end
 
 
-"""
-Load a DFTK-compatible lattice object from a supported pymatgen object
-"""
-function load_lattice(T, pyobj::PyObject)
+function load_lattice_pymatgen(T, pyobj::PyObject)
     mg = pyimport("pymatgen")
 
     if pyisinstance(pyobj, mg.Structure)
-        load_lattice(T, pyobj.lattice)
+        load_lattice_pymatgen(T, pyobj.lattice)
     elseif pyisinstance(pyobj, mg.Lattice)
         lattice = Matrix{T}(undef, 3, 3)
         for i in 1:3, j in 1:3
@@ -70,7 +67,7 @@ function load_lattice(T, pyobj::PyObject)
         end
         Mat3{T}(lattice)
     else
-        error("load_lattice not implemented for python type $pyobj")
+        error("load_lattice_pymatgen not implemented for python type $pyobj")
     end
 end
 
@@ -79,11 +76,8 @@ end
 Load a DFTK-compatible atoms representation from a supported pymatgen object.
 All atoms are using a Coulomb model.
 """
-function load_atoms(T, pyobj::PyObject)
-    mg = pyimport("pymatgen")
-    pyisinstance(pyobj, mg.Structure) || error("load_atoms is only implemented for " *
-                                               "python type pymatgen.Structure")
-
+function load_atoms_pymatgen(T, pyobj::PyObject)
+    @assert pyisinstance(pyobj, pyimport("pymatgen").Structure)
     map(unique(pyobj.species)) do spec
         coords = [s.frac_coords for s in pyobj.sites if s.specie == spec]
         ElementCoulomb(spec.number) => coords

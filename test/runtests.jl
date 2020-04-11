@@ -52,6 +52,7 @@ Random.seed!(0)
         include("elements.jl")
         include("bzmesh.jl")
         include("external_pymatgen.jl")
+        include("external_ase.jl")
     end
 
     if "all" in TAGS
