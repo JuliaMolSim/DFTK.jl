@@ -107,6 +107,18 @@ function occupation(S::MethfesselPaxton2, x)
 end
 entropy(S::MethfesselPaxton2, x) = 1/2 * A(2, typeof(x)) * H4(x) * exp(-x^2)
 
+function MethfesselPaxton(order::Integer)
+    if order == 0
+        Gaussian()
+    elseif order == 1
+        MethfesselPaxton1()
+    elseif order == 2
+        MethfesselPaxton2()
+    else
+        error("Not implemented")
+    end
+end
+
 # TODO: Marzari-Vanderbilt "cold smearing"
 
 # List of available smearing functions
