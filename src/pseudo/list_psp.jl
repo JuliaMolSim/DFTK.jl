@@ -58,7 +58,7 @@ function list_psp(element=nothing; family=nothing, functional=nothing, core=noth
             cores = [(core=:fullcore, )]
         else
             cores = append!(fill((core=:other, ), length(elgroup) - 2),
-                            [(core=:semicore, ), (core=:fullcore, )])
+                            [(core=:fullcore, ), (core=:semicore, )])
         end
         merge.(sort(elgroup, by=psp -> psp.n_elec_valence), cores)
     end
