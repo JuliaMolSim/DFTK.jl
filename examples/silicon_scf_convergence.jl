@@ -3,7 +3,7 @@
 ## Some parameter values have been reduced for faster automatic testing
 
 using DFTK
-using PyPlot
+using Plots
 using Printf
 
 # Calculation parameters
@@ -13,7 +13,9 @@ Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 tol = 1e-10
 diagtol = 1e-12
-maxiter = 20 # 100 in the paper; a high value is important to see the divergence of the simple damping algorithms
+# 100 in the paper; a high value is important to see the divergence of the simple damping algorithms
+# Very reduced here for fast automated testing
+maxiter = 5
 
 global resids = []
 function my_callback(info)
@@ -56,17 +58,15 @@ end
 # @save "res.jld" as errs gaps
 
 for ia = 1:length(as)
-    figure()
-    semilogy(errs[ia][1], "-x", label="Anderson")
-    semilogy(errs[ia][2], "-x", label="Damping β=1")
-    semilogy(errs[ia][3], "-x", label="Damping β=0.5")
-    semilogy(errs[ia][4], "-x", label="Damping β=0.2")
-    semilogy(errs[ia][5], "-x", label="Damping β=0.1")
-    xlabel("n")
-    ylabel("residual")
-    ylim([1e-10, 10])
+    p = plot(errs[ia][1], label="Anderson", m=true, yaxis=:log, reuse=false)
+    plot!(errs[ia][2], label="Damping β=1", m=true, yaxis=:log)
+    plot!(errs[ia][3], label="Damping β=0.5", m=true, yaxis=:log)
+    plot!(errs[ia][4], label="Damping β=0.2", m=true, yaxis=:log)
+    plot!(errs[ia][5], label="Damping β=0.1", m=true, yaxis=:log)
+    yaxis!("residual")
+    xaxis!("n")
     g = @sprintf "%1.1e" gaps[ia]
-    title("a=$(as[ia])   gap=$g")
-    legend(loc="lower right")
-    PyPlot.savefig("silicon_a=$(as[ia]).pdf")
+    title!("a=$(as[ia])   gap=$g")
+    ylims!(1e-10, 10)
+    display(p)
 end
