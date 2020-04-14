@@ -5,23 +5,24 @@ datadir_psp() = joinpath(get(ENV, "DFTK_DATADIR", DFTK_DATADIR), "psp")
 
 
 """
-    load_psp(identifier; datadir_psp)
+    load_psp(key; datadir_psp)
 
 Load a pseudopotential file from the library of pseudopotentials.
-The file is searched in the directory `datadir_psp` and by the `identifier`.
-If the identifier is a path to a valid file, the extension is used to determine
+The file is searched in the directory `datadir_psp` and by the `key`.
+If the `key` is a path to a valid file, the extension is used to determine
 the type of the pseudopotential file format and a respective class is returned.
 """
-function load_psp(key::AbstractString; datadir_psp=datadir_psp())
+function load_psp(key::AbstractString; datadir_psp=datadir_psp(), identifier="")
     if startswith(key, "hgh/") || endswith(key, ".hgh")
         parser = parse_hgh_file
         extension = ".hgh"
     else
         error("Could not determine pseudopotential family of '$key'")
     end
-    isfile(key) && return parser(key)
+    isfile(key) && return parser(key, identifier=identifier)
 
     # Not a file: Threat as identifier, add extension if needed
+    @assert identifier == ""
     identifier = lowercase(key)
     fullpath = joinpath(datadir_psp, identifier)
     isfile(fullpath) || (fullpath = fullpath * extension)
@@ -40,5 +41,5 @@ function load_psp(element::Union{Symbol,Integer}; family="hgh", core=:fullcore, 
     if length(list) != 1
         error("Parameters passed to load_psp do not uniquely identify a PSP file.")
     end
-    load_psp(list[1].path)
+    load_psp(list[1].path, identifier=list[1].identifier)
 end
