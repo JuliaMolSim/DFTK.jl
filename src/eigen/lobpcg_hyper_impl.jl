@@ -120,7 +120,7 @@ end
 function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
     for i=1:size(X,2)
         n = norm(@views X[:,i])
-        X[:,i] /= n
+        X[:,i] ./= n
     end
 
     niter = 1
@@ -227,16 +227,14 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
 
             # Form Rayleigh-Ritz subspace
             if niter > 2
-                Y = hcat(X,R,P)
-                AY = hcat(AX,AR,AP)
-                BY = hcat(BX,BR,BP)
+                Y = hcat(X, R, P)
+                AY = hcat(AX, AR, AP)
+                BY = (B == I) ? Y : hcat(BX, BR, BP)
             else
-                Y = hcat(X,R)
-                AY = hcat(AX,AR)
-                BY = hcat(BX,BR)
+                Y = hcat(X, R)
+                AY = hcat(AX, AR)
+                BY = (B == I) ? Y : hcat(BX, BR)
             end
-
-
             cX, λs = RR(Y, AY, BY, M-nlocked)
 
             # Update X. By contrast to some other implementations, we
@@ -244,47 +242,44 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
             # to lock (and therefore the residuals) before computing P
             # only for the unlocked vectors. This results in better
             # convergence.
-            new_X = Y*cX
-            # cX is orthogonal, so there is no accuracy loss there
-            new_AX = AY*cX
-            if B != I
-                new_BX = BY*cX
-            else
-                new_BX = new_X
-            end
+            new_X  = Y * cX
+            new_AX = AY* cX  # cX is orthogonal, so no accuracy loss here
+            new_BX = (B == I) ? new_X : BY * cX
         end
 
         ### Compute new residuals
-        R = new_AX - new_BX*Diagonal(λs)
+        new_R = new_AX - new_BX * Diagonal(λs)
         # it is actually a good question of knowing when to
         # precondition. Here seems sensible, but it could plausibly be
         # done before or after
         for i=1:size(X,2)
-            resids[i+nlocked,niter] = norm(R[:,i])
+            resids[i + nlocked, niter] = norm(new_R[:, i])
         end
         vprintln(niter, "   ", resids[:, niter])
         precondprep!(precon, X)
-        ldiv!(precon, R)
+        ldiv!(precon, new_R)
 
         ### Compute number of locked vectors
         prev_nlocked = nlocked
         for i=nlocked+1:M
-            if resids[i,niter] < tol
+            if resids[i, niter] < tol
                 nlocked += 1
                 vprintln("locked $nlocked")
             else
-                # we lock in order, assuming that the lowest
+                # We lock in order, assuming that the lowest
                 # eigenvectors converge first; might be tricky otherwise
                 break
             end
         end
 
-        display_progress && println("Iter $niter, converged $(nlocked)/$(n_conv_check), resid ", norm(resids[1:n_conv_check, niter]))
+        if display_progress
+            println("Iter $niter, converged $(nlocked)/$(n_conv_check), resid ",
+                    norm(resids[1:n_conv_check, niter]))
+        end
 
-        if nlocked >= n_conv_check
-            X .= new_X
-            λ, full_X, residnorms, resids = final_residnorms(A, full_X, resids, niter)
-            return λ, full_X, residnorms, resids
+        if nlocked >= n_conv_check  # Converged!
+            X .= new_X  # Update the part of X which is still active
+            return final_residnorms(A, full_X, resids, niter)
         end
         newly_locked = nlocked - prev_nlocked
         active = newly_locked+1:size(X,2) # newly active vectors
@@ -296,7 +291,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
             # orthogonalization, see Hetmaniuk & Lehoucq, and Duersch et. al.
             # cP = copy(cX)
             # cP[Xn_indices,:] .= 0
-            e = zeros(eltype(X), size(Y,2), M-prev_nlocked)
+            e = zeros(eltype(X), size(Y, 2), M - prev_nlocked)
             for i in 1:length(Xn_indices)
                 e[Xn_indices[i], i] = 1
             end
@@ -306,10 +301,10 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
             cP = ortho(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
-            new_P = Y*cP
-            new_AP = AY*cP
+            new_P = Y * cP
+            new_AP = AY * cP
             if B != I
-                new_BP = BY*cP
+                new_BP = BY * cP
             else
                 new_BP = new_P
             end
@@ -324,17 +319,17 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
 
         # Sanity check
         for i = 1:size(X, 2)
-            if abs(norm(view(X, :, i)) - 1) >= sqrt(eps(real(eltype(X))))
+            if abs(norm(@view X[:, i]) - 1) >= sqrt(eps(real(eltype(X))))
                 error("LOBPCG is badly failing to keep the vectors normalized; this should never happen")
             end
         end
 
-        # Restrict all arrays to active
+        # Restrict all views to active
         @views begin
             X = X[:, active]
             AX = AX[:, active]
             BX = BX[:, active]
-            R = R[:, active]
+            R = new_R[:, active]
             AR = AR[:, active]
             BR = BR[:, active]
             P = P[:, active]
@@ -355,12 +350,12 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
         # Orthogonalize R wrt all X, newly active P
         if niter > 1
             Z = hcat(full_X, P)
-            BZ = hcat(full_BX, BP)
+            BZ = (B == I) ? Z : hcat(full_BX, BP)
         else
             Z = full_X
             BZ = full_BX
         end
-        R = ortho(R, Z, BZ, tol=ortho_tol)
+        R .= ortho(R, Z, BZ, tol=ortho_tol)
 
         if B != I
             # At this point R is orthogonalized but not B-orthogonalized.
@@ -370,11 +365,8 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
             mul!(BR, B, R)
             O = Hermitian(R'*BR)
             U = cholesky(O).U
-            R = R/U
-            BR = BR/U
-            # condU = 1/LAPACK.trcon!('I', 'U', 'N', Array(U))
-        else
-            BR = R
+            rdiv!(R, U)
+            rdiv!(BR, U)
         end
 
         niter = niter + 1
