@@ -11,7 +11,10 @@ struct HamiltonianBlock
     operators::Vector  # the original list of RealFourierOperator
                        # (as many as there are terms), kept for easier exploration
     optimized_operators::Vector  # the optimized list of RealFourierOperator, to be used for applying
-    HamiltonianBlock(basis, kpt, operators) = new(basis, kpt, operators, optimize_operators_(operators))
+    scratch  # Pre-allocated scratch arrays for fast application
+end
+function HamiltonianBlock(basis, kpt, operators, scratch)
+    HamiltonianBlock(basis, kpt, operators, optimize_operators_(operators), scratch)
 end
 Base.eltype(block::HamiltonianBlock) = complex(eltype(block.basis))
 Base.size(block::HamiltonianBlock) =
@@ -31,16 +34,15 @@ end
     basis = H.basis
     kpt = H.kpoint
     nband = size(ψ, 2)
-    # buffer arrays
-    ψ_reals = [similar(ψ[:, 1], basis.fft_size...) for tid = 1:Threads.nthreads()]
-    Hψ_reals = [similar(ψ[:, 1], basis.fft_size...) for tid = 1:Threads.nthreads()]
+
+    # Allocate another scratch array:
     Hψ_fouriers = [similar(Hψ[:, 1]) for tid = 1:Threads.nthreads()]
 
     # take ψi, IFFT it to ψ_real, apply each term to Hψ_temp and Hψ_real, and add it to Hψi
     Threads.@threads for iband = 1:nband
         tid = Threads.threadid()
-        ψ_real = ψ_reals[tid]
-        Hψ_real = Hψ_reals[tid]
+        ψ_real = H.scratch.ψ_reals[tid]
+        Hψ_real = H.scratch.Hψ_reals[tid]
         Hψ_fourier = Hψ_fouriers[tid]
 
         Hψ_real .= 0
@@ -89,7 +91,14 @@ function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occ; kwargs...)
     hks_per_k   = [[blocks[ik] for blocks in operators]  # hks_per_k[ik][it]
                    for ik = 1:length(basis.kpoints)]
 
-    H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
+    # Preallocated scratch arrays
+    T = eltype(basis)
+    scratch = (
+        ψ_reals=[zeros(complex(T), basis.fft_size...) for tid = 1:Threads.nthreads()],
+        Hψ_reals=[zeros(complex(T), basis.fft_size...) for tid = 1:Threads.nthreads()]
+    )
+
+    H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks, scratch)
                             for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
     E = Energies(basis.model.term_types, energies)
     (E=E, H=H)
