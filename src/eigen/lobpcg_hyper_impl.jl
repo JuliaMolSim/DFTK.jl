@@ -178,7 +178,7 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
         dropped = drop!(X)
         @views if dropped != []
             # X[:, dropped] = X[:, dropped] - Y * BY' * X[:, dropped]
-            X[:, dropped] = X[:, dropped] - bmul(Y, boverlap(BY, X[:, dropped]))
+            X[:, dropped] .= X[:, dropped] .- bmul(Y, boverlap(BY, X[:, dropped]))
         end
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
@@ -213,7 +213,7 @@ end
 function final_residnorms(A, X, resids, niter)
     AX = A * X
     λ = real(diag(X' * AX))
-    residuals = AX - X*Diagonal(λ)
+    residuals = AX .- X*Diagonal(λ)
     λ, X, [norm(residuals[:, i]) for i in 1:size(residuals, 2)], resids[:, 1:niter]
 end
 
@@ -292,7 +292,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
         end
 
         ### Compute new residuals
-        new_R = new_AX - new_BX * Diagonal(λs)
+        new_R = new_AX .- new_BX * Diagonal(λs)
         # it is actually a good question of knowing when to
         # precondition. Here seems sensible, but it could plausibly be
         # done before or after
@@ -339,7 +339,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
             for i in 1:length(Xn_indices)
                 e[Xn_indices[i], i] = 1
             end
-            cP = cX - e
+            cP = cX .- e
             cP = cP[:, Xn_indices]
             # orthogonalize against all Xn (including newly locked)
             cP = ortho(cP, cX, cX, tol=ortho_tol)
