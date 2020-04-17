@@ -61,7 +61,7 @@ function spglib_get_symmetry(lattice, atoms; tol_symmetry=1e-5)
     # Checks: (A Stilde A^{-1}) is unitary
     for Stilde in Stildes
         Scart = lattice * Stilde * inv(lattice)  # Form S in cartesian coords
-        if maximum(abs, Scart'Scart - I) > sqrt(eps(Float64))
+        if maximum(abs, Scart'Scart - I) > tol_symmetry
             error("spglib returned non-unitary rotation matrix")
         end
     end
