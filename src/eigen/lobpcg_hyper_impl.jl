@@ -5,13 +5,63 @@
 # vprintln(args...) = println(args...)  # Uncomment for output
 vprintln(args...) = nothing
 
-
 using LinearAlgebra
 using GenericLinearAlgebra
 
+# In the LOBPCG we deal with a subspace (X, R, P), where X, R and P are views
+# into bigger arrays. We don't store these subspace vectors as a dense matrix
+# or a special struct, but just as a tuple.
+# For efficiently matrix-matrix products of this subspace with itself or with
+# dense matrices, we introduce the functions `bmul` and `boverlap` below.
+
+# Given A as a list of blocks [A1, A2, A3] this forms the matrix-matrix product
+# A * B avoiding a concatenation of the blocks to a dense array
+@views function bmul(blocks::Tuple, B)
+    res = blocks[1] * B[1:size(blocks[1], 2), :]  # First multiplication
+    offset = size(blocks[1], 2)
+    for block in blocks[2:end]
+        mul!(res, block, B[offset .+ (1:size(block, 2)), :], 1, 1)
+        offset += size(block, 2)
+    end
+    res
+end
+bmul(A, B::Tuple) = error("not implemented")
+bmul(A, B) = A * B
+
+
+# Given A and B as two lists of blocks [A1, A2, A3], [B1, B2, B3] form the matrix
+# A' B optionally assuming that the output is a Hermitian matrix and will be used
+# with the Hermitian view, such that only the upper triangle needs to be computed.
+@views function boverlap(blocksA::Tuple, blocksB::Tuple; assume_hermitian=false)
+    rows = sum(size(blA, 2) for blA in blocksA)
+    cols = sum(size(blB, 2) for blB in blocksB)
+    ret = similar(blocksA[1], rows, cols)
+
+    orow = 0  # row offset
+    for (iA, blA) in enumerate(blocksA)
+        ocol = 0  # column offset
+        for (iB, blB) in enumerate(blocksB)
+            if !assume_hermitian || iA ≤ iB
+                mul!(ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))], blA', blB)
+            end
+            ocol += size(blB, 2)
+        end
+        orow += size(blA, 2)
+    end
+    ret
+end
+boverlap(blocksA::Tuple, B) = boverlap(blocksA, (B, ))
+boverlap(A, B) = A' * B
+
+
+
+
+
+
+
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 function RR(X, AX, BX, N)
-    F = eigen(Hermitian(blockdot(X, AX, assume_hermitian=true)))
+    F = eigen(Hermitian(boverlap(X, AX, assume_hermitian=true)))  # == Hermitian(X' AX)
     F.vectors[:,1:N], F.values[1:N]
 end
 
@@ -125,14 +175,15 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
     niter = 1
     ninners = zeros(Int,0)
     while true
-        BYX = blockdot(BY, X)
-        X .-= blockmul(Y, BYX)
+        BYX = boverlap(BY, X)   # = BY' X
+        X .-= bmul(Y, BYX)  # = Y * BYX
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho(cP, cX)
         dropped = drop!(X)
         @views if dropped != []
-            X[:, dropped] = X[:, dropped] - blockmul(Y, blockdot(BY, X[:, dropped]))
+            # X[:, dropped] = X[:, dropped] - Y * BY' * X[:, dropped]
+            X[:, dropped] = X[:, dropped] - bmul(Y, boverlap(BY, X[:, dropped]))
         end
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
@@ -162,46 +213,6 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
 
     X
 end
-
-
-# Given A as a list of blocks [A1, A2, A3] forms the matrix-matrix product
-# A' * B avoiding a concatenation of the blocks to a dense array
-@views function blockmul(blocks::Tuple, B)
-    res = blocks[1] * B[1:size(blocks[1], 2), :]  # First multiplication
-    offset = size(blocks[1], 2)
-    for block in blocks[2:end]
-        mul!(res, block, B[offset .+ (1:size(block, 2)), :], 1, 1)
-        offset += size(block, 2)
-    end
-    res
-end
-blockmul(A, B::Tuple) = error("not implemented")
-blockmul(A, B) = A * B
-
-
-# Given A and B as two lists of blocks [A1, A2, A3], [B1, B2, B3] form the matrix
-# A' B optionally assuming that the output is a Hermitian matrix and will be used
-# with the Hermitian view, such that only the upper triangle needs to be computed.
-@views function blockdot(blocksA::Tuple, blocksB::Tuple; assume_hermitian=false)
-    rows = sum(size(blA, 2) for blA in blocksA)
-    cols = sum(size(blB, 2) for blB in blocksB)
-    ret = similar(blocksA[1], rows, cols)
-
-    orow = 0  # row offset
-    for (iA, blA) in enumerate(blocksA)
-        ocol = 0  # column offset
-        for (iB, blB) in enumerate(blocksB)
-            if !assume_hermitian || iA ≤ iB
-                mul!(ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))], blA', blB)
-            end
-            ocol += size(blB, 2)
-        end
-        orow += size(blA, 2)
-    end
-    ret
-end
-blockdot(blocksA::Tuple, B) = blockdot(blocksA, (B, ))
-blockdot(A, B) = A' * B
 
 
 function final_residnorms(A, X, resids, niter)
@@ -268,11 +279,11 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
             if niter > 2
                 Y = (X, R, P)
                 AY = (AX, AR, AP)
-                BY = (B == I) ? Y : (BX, BR, BP)
+                BY = (BX, BR, BP)  # data shared with (X, R, P) in non-general case
             else
                 Y = (X, R)
                 AY = (AX, AR)
-                BY = (B == I) ? Y : (BX, BR)
+                BY = (BX, BR)  # data shared with (X, R) in non-general case
             end
             cX, λs = RR(Y, AY, BY, M-nlocked)
 
@@ -280,9 +291,9 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
             # wait on updating P because we have to know which vectors
             # to lock (and therefore the residuals) before computing P
             # only for the unlocked vectors. This results in better convergence.
-            new_X  = blockmul(Y , cX)
-            new_AX = blockmul(AY, cX)  # cX is orthogonal, so no accuracy loss here
-            new_BX = (B == I) ? new_X : blockmul(BY, cX)
+            new_X  = bmul(Y , cX)  # = Y * cX
+            new_AX = bmul(AY, cX)  # = AY * cX,   no accuracy loss, since cX orthogonal
+            new_BX = (B == I) ? new_X : bmul(BY, cX)
         end
 
         ### Compute new residuals
@@ -339,10 +350,10 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
             cP = ortho(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
-            new_P = blockmul(Y, cP)
-            new_AP = blockmul(AY, cP)
+            new_P = bmul(Y, cP)    # = Y * cP
+            new_AP = bmul(AY, cP)  # = AY * cP
             if B != I
-                new_BP = blockmul(BY, cP)
+                new_BP = bmul(BY, cP)  # = BY * cP
             else
                 new_BP = new_P
             end
@@ -388,7 +399,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
         # Orthogonalize R wrt all X, newly active P
         if niter > 1
             Z  = (full_X, P)
-            BZ = (B == I) ? Z : (full_BX, BP)
+            BZ = (full_BX, BP)  # data shared with (full_X, P) in non-general case
         else
             Z  = full_X
             BZ = full_BX
