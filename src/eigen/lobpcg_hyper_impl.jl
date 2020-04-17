@@ -1,18 +1,62 @@
 ## TODO micro-optimization, reuse buffers, etc.
-## TODO hcat -> Hcat if/when https://github.com/JuliaArrays/LazyArrays.jl/issues/48 is fixed
 ## TODO write a version that doesn't assume that B is well-conditionned, and doesn't reuse B applications
 ## TODO it seems there is a lack of orthogonalization immediately after locking, maybe investigate this to save on some choleskys
 
 # vprintln(args...) = println(args...)  # Uncomment for output
 vprintln(args...) = nothing
 
-
 using LinearAlgebra
 using GenericLinearAlgebra
 
+# In the LOBPCG we deal with a subspace (X, R, P), where X, R and P are views
+# into bigger arrays. We don't store these subspace vectors as a dense matrix
+# or a special struct, but just as a tuple.
+# For efficiently matrix-matrix products of this subspace with itself or with
+# dense matrices, we introduce the functions `bmul` and `boverlap` below.
+
+# Given A as a list of blocks [A1, A2, A3] this forms the matrix-matrix product
+# A * B avoiding a concatenation of the blocks to a dense array
+@views function bmul(blocks::Tuple, B)
+    res = blocks[1] * B[1:size(blocks[1], 2), :]  # First multiplication
+    offset = size(blocks[1], 2)
+    for block in blocks[2:end]
+        mul!(res, block, B[offset .+ (1:size(block, 2)), :], 1, 1)
+        offset += size(block, 2)
+    end
+    res
+end
+bmul(A, B::Tuple) = error("not implemented")
+bmul(A, B) = A * B
+
+
+# Given A and B as two lists of blocks [A1, A2, A3], [B1, B2, B3] form the matrix
+# A' B optionally assuming that the output is a Hermitian matrix and will be used
+# with the Hermitian view, such that only the upper triangle needs to be computed.
+@views function boverlap(blocksA::Tuple, blocksB::Tuple; assume_hermitian=false)
+    rows = sum(size(blA, 2) for blA in blocksA)
+    cols = sum(size(blB, 2) for blB in blocksB)
+    ret = similar(blocksA[1], rows, cols)
+
+    orow = 0  # row offset
+    for (iA, blA) in enumerate(blocksA)
+        ocol = 0  # column offset
+        for (iB, blB) in enumerate(blocksB)
+            if !assume_hermitian || iA ≤ iB
+                mul!(ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))], blA', blB)
+            end
+            ocol += size(blB, 2)
+        end
+        orow += size(blA, 2)
+    end
+    ret
+end
+boverlap(blocksA::Tuple, B) = boverlap(blocksA, (B, ))
+boverlap(A, B) = A' * B
+
+
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 function RR(X, AX, BX, N)
-    F = eigen(Hermitian(X'AX))
+    F = eigen(Hermitian(boverlap(X, AX, assume_hermitian=true)))  # == Hermitian(X' AX)
     F.vectors[:,1:N], F.values[1:N]
 end
 
@@ -118,7 +162,7 @@ end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
 function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
-    for i=1:size(X,2)
+    Threads.@threads for i=1:size(X,2)
         n = norm(@views X[:,i])
         X[:,i] ./= n
     end
@@ -126,14 +170,15 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
     niter = 1
     ninners = zeros(Int,0)
     while true
-        BYX = BY'X
-        X .-= Y*BYX
+        BYX = boverlap(BY, X)   # = BY' X
+        X .-= bmul(Y, BYX)  # = Y * BYX
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho(cP, cX)
         dropped = drop!(X)
-        if dropped != []
-            X[:, dropped] = X[:, dropped] - Y*BY'*X[:,dropped]
+        @views if dropped != []
+            # X[:, dropped] = X[:, dropped] - Y * BY' * X[:, dropped]
+            X[:, dropped] .= X[:, dropped] .- bmul(Y, boverlap(BY, X[:, dropped]))
         end
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
@@ -168,7 +213,7 @@ end
 function final_residnorms(A, X, resids, niter)
     AX = A * X
     λ = real(diag(X' * AX))
-    residuals = AX - X*Diagonal(λ)
+    residuals = AX .- X*Diagonal(λ)
     λ, X, [norm(residuals[:, i]) for i in 1:size(residuals, 2)], resids[:, 1:niter]
 end
 
@@ -212,7 +257,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
     end
     nlocked = 0
     niter = 1
-    λs = [(X[:,n]'*AX[:,n]) / (X[:,n]'BX[:,n]) for n=1:M]
+    λs = @views [(X[:,n]'*AX[:,n]) / (X[:,n]'BX[:,n]) for n=1:M]
     new_X = X
     new_AX = AX
     new_BX = BX
@@ -227,32 +272,31 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
 
             # Form Rayleigh-Ritz subspace
             if niter > 2
-                Y = hcat(X, R, P)
-                AY = hcat(AX, AR, AP)
-                BY = (B == I) ? Y : hcat(BX, BR, BP)
+                Y = (X, R, P)
+                AY = (AX, AR, AP)
+                BY = (BX, BR, BP)  # data shared with (X, R, P) in non-general case
             else
-                Y = hcat(X, R)
-                AY = hcat(AX, AR)
-                BY = (B == I) ? Y : hcat(BX, BR)
+                Y = (X, R)
+                AY = (AX, AR)
+                BY = (BX, BR)  # data shared with (X, R) in non-general case
             end
             cX, λs = RR(Y, AY, BY, M-nlocked)
 
             # Update X. By contrast to some other implementations, we
             # wait on updating P because we have to know which vectors
             # to lock (and therefore the residuals) before computing P
-            # only for the unlocked vectors. This results in better
-            # convergence.
-            new_X  = Y * cX
-            new_AX = AY* cX  # cX is orthogonal, so no accuracy loss here
-            new_BX = (B == I) ? new_X : BY * cX
+            # only for the unlocked vectors. This results in better convergence.
+            new_X  = bmul(Y , cX)  # = Y * cX
+            new_AX = bmul(AY, cX)  # = AY * cX,   no accuracy loss, since cX orthogonal
+            new_BX = (B == I) ? new_X : bmul(BY, cX)
         end
 
         ### Compute new residuals
-        new_R = new_AX - new_BX * Diagonal(λs)
+        new_R = new_AX .- new_BX * Diagonal(λs)
         # it is actually a good question of knowing when to
         # precondition. Here seems sensible, but it could plausibly be
         # done before or after
-        for i=1:size(X,2)
+        @views for i=1:size(X,2)
             resids[i + nlocked, niter] = norm(new_R[:, i])
         end
         vprintln(niter, "   ", resids[:, niter])
@@ -291,20 +335,20 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
             # orthogonalization, see Hetmaniuk & Lehoucq, and Duersch et. al.
             # cP = copy(cX)
             # cP[Xn_indices,:] .= 0
-            e = zeros(eltype(X), size(Y, 2), M - prev_nlocked)
+            e = zeros(eltype(X), size(cX, 1), M - prev_nlocked)
             for i in 1:length(Xn_indices)
                 e[Xn_indices[i], i] = 1
             end
-            cP = cX - e
+            cP = cX .- e
             cP = cP[:, Xn_indices]
             # orthogonalize against all Xn (including newly locked)
             cP = ortho(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
-            new_P = Y * cP
-            new_AP = AY * cP
+            new_P = bmul(Y, cP)    # = Y * cP
+            new_AP = bmul(AY, cP)  # = AY * cP
             if B != I
-                new_BP = BY * cP
+                new_BP = bmul(BY, cP)  # = BY * cP
             else
                 new_BP = new_P
             end
@@ -349,10 +393,10 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
 
         # Orthogonalize R wrt all X, newly active P
         if niter > 1
-            Z = hcat(full_X, P)
-            BZ = (B == I) ? Z : hcat(full_BX, BP)
+            Z  = (full_X, P)
+            BZ = (full_BX, BP)  # data shared with (full_X, P) in non-general case
         else
-            Z = full_X
+            Z  = full_X
             BZ = full_BX
         end
         R .= ortho(R, Z, BZ, tol=ortho_tol)
