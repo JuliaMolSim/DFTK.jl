@@ -48,7 +48,7 @@ end
         # preconditioning anyway.
         ldiv!(Y, Diagonal(P.kin .+ 1), R)
     else
-        for n = 1:size(Y, 2)
+        Threads.@threads for n = 1:size(Y, 2)
             Y[:, n] .= P.mean_kin[n] ./ (P.mean_kin[n] .+ P.kin) .* R[:, n]
         end
     end
@@ -61,7 +61,7 @@ ldiv!(P::PreconditionerTPA, R) = ldiv!(R, P, R)
     if P.mean_kin === nothing
         mul!(Y, Diagonal(P.kin .+ 1), R)
     else
-        for n = 1:size(Y, 2)
+        Threads.@threads for n = 1:size(Y, 2)
             Y[:, n] .= (P.mean_kin[n] .+ P.kin) ./ P.mean_kin[n] .* R[:, n]
         end
     end
