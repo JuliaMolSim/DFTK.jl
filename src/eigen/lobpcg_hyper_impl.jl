@@ -54,11 +54,6 @@ boverlap(blocksA::Tuple, B) = boverlap(blocksA, (B, ))
 boverlap(A, B) = A' * B
 
 
-
-
-
-
-
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 function RR(X, AX, BX, N)
     F = eigen(Hermitian(boverlap(X, AX, assume_hermitian=true)))  # == Hermitian(X' AX)
