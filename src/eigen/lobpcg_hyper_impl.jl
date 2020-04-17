@@ -192,7 +192,7 @@ blockmul(A, B) = A * B
         ocol = 0  # column offset
         for (iB, blB) in enumerate(blocksB)
             if !assume_hermitian || iA ≤ iB
-                ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] = blA' * blB
+                mul!(ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))], blA', blB)
             end
             ocol += size(blB, 2)
         end
@@ -390,7 +390,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
             Z  = (full_X, P)
             BZ = (B == I) ? Z : (full_BX, BP)
         else
-            Z  = (full_X, )
+            Z  = full_X
             BZ = full_BX
         end
         R .= ortho(R, Z, BZ, tol=ortho_tol)
