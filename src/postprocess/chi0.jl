@@ -129,7 +129,7 @@ function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0, sternh
                 @views δρ .+= real(basis.kweights[ik] .* factor .* weight .* ρnm)
             end
 
-            # Sternheimer contributions
+            # Sternheimer contributions. TODO add preconditioning here
             !(sternheimer_contribution) && continue
             fnk = occupation[ik][n]
             abs(fnk) < eps(T) && continue
