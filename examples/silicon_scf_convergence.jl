@@ -1,5 +1,5 @@
 ## Convergence tests on silicon for different lattice constants (higher close the gap)
-## see Cancès/Kemlin/Levitt, Convergence analysis of direct minimization and self-consistent iterations, TODO arxiv link
+## see Cancès/Kemlin/Levitt, Convergence analysis of direct minimization and self-consistent iterations, https://arxiv.org/abs/2004.09088
 ## Some parameter values have been reduced for faster automatic testing
 
 using DFTK
