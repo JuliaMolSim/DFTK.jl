@@ -123,13 +123,13 @@ function self_consistent_field(basis::PlaneWaveBasis;
             solargs = (tol=diagtol, )
         elseif profile == :abinit
             solargs = (maxiter=(neval < 2 ? 8 : 4), )
-        elseif profile == :toldep
+        elseif profile == :ρout
             if neval == 0
                 solargs = (maxiter=8, tol=diagtol)
             else
                 solargs = (tol=max(last_norm_diff / 10, diagtol), )
             end
-        elseif profile == :tolnext
+        elseif profile == :ρnext
             if neval == 0
                 solargs = (maxiter=8, tol=diagtol)
             else
