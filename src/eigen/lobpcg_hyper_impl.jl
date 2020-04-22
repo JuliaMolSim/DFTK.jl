@@ -210,11 +210,11 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
 end
 
 
-function final_residnorms(X, AX, resids, niter)
+function final_residnorms(X, AX, resid_history, niter)
     λ = real(diag(X' * AX))
     residuals = AX .- X*Diagonal(λ)
     println("Converged after $niter steps")
-    λ, X, [norm(residuals[:, i]) for i in 1:size(residuals, 2)], resids[:, 1:niter]
+    λ, X, [norm(residuals[:, i]) for i in 1:size(residuals, 2)], resid_history[:, 1:niter]
 end
 
 
@@ -233,7 +233,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
         fail; use a full diagonalization instead"
 
     n_conv_check === nothing && (n_conv_check = M)
-    resids = zeros(real(eltype(X)), M, maxiter)
+    resid_history = zeros(real(eltype(X)), M, maxiter)
     buf_X = zero(X)
     buf_P = zero(X)
 
@@ -297,16 +297,16 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
         # precondition. Here seems sensible, but it could plausibly be
         # done before or after
         @views for i=1:size(X,2)
-            resids[i + nlocked, niter] = norm(new_R[:, i])
+            resid_history[i + nlocked, niter] = norm(new_R[:, i])
         end
-        vprintln(niter, "   ", resids[:, niter])
+        vprintln(niter, "   ", resid_history[:, niter])
         precondprep!(precon, X)
         ldiv!(precon, new_R)
 
         ### Compute number of locked vectors
         prev_nlocked = nlocked
         for i=nlocked+1:M
-            if resids[i, niter] < tol
+            if resid_history[i, niter] < tol
                 nlocked += 1
                 vprintln("locked $nlocked")
             else
@@ -318,13 +318,13 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
 
         if display_progress
             println("Iter $niter, converged $(nlocked)/$(n_conv_check), resid ",
-                    norm(resids[1:n_conv_check, niter]))
+                    norm(resid_history[1:n_conv_check, niter]))
         end
 
         if nlocked >= n_conv_check  # Converged!
             X .= new_X  # Update the part of X which is still active
             AX .= new_AX
-            return final_residnorms(full_X, full_AX, resids, niter)
+            return final_residnorms(full_X, full_AX, resid_history, niter)
         end
         newly_locked = nlocked - prev_nlocked
         active = newly_locked+1:size(X,2) # newly active vectors
@@ -418,5 +418,5 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
         niter <= maxiter || break
     end
 
-    final_residnorms(full_X, full_AX, resids, maxiter)
+    final_residnorms(full_X, full_AX, resid_history, maxiter)
 end
