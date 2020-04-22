@@ -210,10 +210,10 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
 end
 
 
-function final_residnorms(A, X, resids, niter)
-    AX = A * X
+function final_residnorms(X, AX, resids, niter)
     λ = real(diag(X' * AX))
     residuals = AX .- X*Diagonal(λ)
+    println("Converged after $niter steps")
     λ, X, [norm(residuals[:, i]) for i in 1:size(residuals, 2)], resids[:, 1:niter]
 end
 
@@ -323,7 +323,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
 
         if nlocked >= n_conv_check  # Converged!
             X .= new_X  # Update the part of X which is still active
-            return final_residnorms(A, full_X, resids, niter)
+            return final_residnorms(full_X, full_AX, resids, niter)
         end
         newly_locked = nlocked - prev_nlocked
         active = newly_locked+1:size(X,2) # newly active vectors
@@ -417,5 +417,5 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
         niter <= maxiter || break
     end
 
-    final_residnorms(A, full_X, resids, maxiter)
+    final_residnorms(full_X, full_AX, resids, maxiter)
 end
