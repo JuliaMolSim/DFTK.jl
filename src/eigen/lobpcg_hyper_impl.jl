@@ -213,7 +213,6 @@ end
 function final_residnorms(X, AX, resid_history, niter)
     λ = real(diag(X' * AX))
     residuals = AX .- X*Diagonal(λ)
-    println("Converged after $niter steps")
     λ, X, [norm(residuals[:, i]) for i in 1:size(residuals, 2)], resid_history[:, 1:niter]
 end
 
