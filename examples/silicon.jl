@@ -36,9 +36,10 @@ function scf_lobpcg_diagnostics(info)
 end
 
 # profile = :abinit
-# profile = :ρout
-# profile = :ρnext
+# profile = :ρoutfix
+# profile = :ρnextfix
 profile = :old
+# profile = :ρnextdyntight
 println("Using SCF profile: $profile")
 println()
 

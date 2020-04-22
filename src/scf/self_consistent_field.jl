@@ -123,17 +123,41 @@ function self_consistent_field(basis::PlaneWaveBasis;
             solargs = (tol=diagtol, )
         elseif profile == :abinit
             solargs = (maxiter=(neval < 2 ? 8 : 4), )
-        elseif profile == :ρout
+        elseif profile == :ρoutfix
             if neval == 0
                 solargs = (maxiter=8, tol=diagtol)
             else
                 solargs = (tol=max(last_norm_diff / 10, diagtol), )
             end
-        elseif profile == :ρnext
+        elseif profile == :ρnextfix
             if neval == 0
                 solargs = (maxiter=8, tol=diagtol)
             else
                 solargs = (tol=max(last_norm_next / 10, diagtol), )
+            end
+        elseif profile == :ρoutdyn
+            if neval == 0
+                solargs = (tol=max(0.1, diagtol), )
+            else
+                solargs = (tol=max(last_norm_next / 10, diagtol), )
+            end
+        elseif profile == :ρnextdyn
+            if neval == 0
+                solargs = (tol=max(0.1, diagtol), )
+            else
+                solargs = (tol=max(last_norm_next / 10, diagtol), )
+            end
+        elseif profile == :ρoutdyntight
+            if neval == 0
+                solargs = (tol=max(1e-2, diagtol), )
+            else
+                solargs = (tol=max(last_norm_next / 50, diagtol), )
+            end
+        elseif profile == :ρnextdyntight
+            if neval == 0
+                solargs = (tol=max(1e-2, diagtol), )
+            else
+                solargs = (tol=max(last_norm_next / 50, diagtol), )
             end
         else
             error("dunnotno profile")
