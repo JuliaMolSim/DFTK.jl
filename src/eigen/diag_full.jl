@@ -7,5 +7,6 @@ function diag_full(A, X0; kwargs...)
     (λ=λ, X=X,
      residual_norms=zeros(Neig),
      iterations=0,
-     converged=true)
+     converged=true,
+     n_matvec=0)
 end

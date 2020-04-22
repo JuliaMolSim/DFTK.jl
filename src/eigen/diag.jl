@@ -56,7 +56,8 @@ function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
      X=[res.X for res in results],
      residual_norms=[res.residual_norms for res in results],
      iterations=[res.iterations for res in results],
-     converged=all(res.converged for res in results))
+     converged=all(res.converged for res in results),
+     n_matvec=sum(res.n_matvec for res in results))
 end
 
 @doc raw"""

@@ -5,9 +5,8 @@ Obtain new density ρ by diagonalizing `ham`.
 """
 function next_density(ham::Hamiltonian;
                       n_bands=default_n_bands(ham.basis.model),
-                      ψ=nothing,
-                      prec_type=PreconditionerTPA, tol=1e-6, n_ep_extra=3,
-                      eigensolver=lobpcg_hyper)
+                      ψ=nothing, n_ep_extra=3,
+                      eigensolver=lobpcg_hyper, kwargs...)
     n_ep = n_bands + n_ep_extra
     if ψ !== nothing
         @assert length(ψ) == length(ham.basis.kpoints)
@@ -17,15 +16,16 @@ function next_density(ham::Hamiltonian;
     end
 
     # Diagonalize
-    eigres = diagonalise_all_kblocks(eigensolver, ham, n_ep, guess=ψ,
-                                     n_conv_check=n_bands, prec_type=prec_type, tol=tol)
-    eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
+    eigres = diagonalise_all_kblocks(eigensolver, ham, n_ep; guess=ψ,
+                                     n_conv_check=n_bands, kwargs...)
+    # eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Update density from new ψ
     occupation, εF = find_occupation(ham.basis, eigres.λ)
     ρnew = compute_density(ham.basis, eigres.X, occupation)
 
-    (ψ=eigres.X, eigenvalues=eigres.λ, occupation=occupation, εF=εF, ρ=ρnew)
+    (ψ=eigres.X, eigenvalues=eigres.λ, occupation=occupation, εF=εF, ρ=ρnew,
+     diagonalisation=eigres)
 end
 
 function scf_default_callback(info)
@@ -71,7 +71,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
                                ρ=guess_density(basis),
                                ψ=nothing,
                                tol=1e-6,
-                               max_iter=100,
+                               maxiter=100,
                                solver=scf_nlsolve_solver(),
                                eigensolver=lobpcg_hyper,
                                n_ep_extra=3,
@@ -79,7 +79,8 @@ function self_consistent_field(basis::PlaneWaveBasis;
                                mixing=SimpleMixing(),
                                callback=scf_default_callback,
                                is_converged=scf_convergence_energy_difference(tol),
-                               compute_consistent_energies=true
+                               compute_consistent_energies=true,
+                               profile=:old
                                )
     T = eltype(basis)
     model = basis.model
@@ -98,6 +99,8 @@ function self_consistent_field(basis::PlaneWaveBasis;
     neval = 0
     energies = nothing
     ham = nothing
+    last_norm_diff = nothing
+    last_norm_next = nothing
 
     # We do density mixing in the real representation
     # TODO support other mixing types
@@ -116,7 +119,27 @@ function self_consistent_field(basis::PlaneWaveBasis;
                                                ρ=ρin, eigenvalues=eigenvalues, εF=εF)
         end
         # Diagonalize `ham` to get the new state
-        nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver, tol=diagtol)
+        if profile == :old
+            solargs = (tol=diagtol, )
+        elseif profile == :abinit
+            solargs = (maxiter=(neval < 2 ? 8 : 4), )
+        elseif profile == :toldep
+            if neval == 0
+                solargs = (maxiter=8, tol=diagtol)
+            else
+                solargs = (tol=max(last_norm_diff / 10, diagtol), )
+            end
+        elseif profile == :tolnext
+            if neval == 0
+                solargs = (maxiter=8, tol=diagtol)
+            else
+                solargs = (tol=max(last_norm_next / 10, diagtol), )
+            end
+        else
+            error("dunnotno profile")
+        end
+        nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver,
+                                 solargs...)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # This computes the energy of the new state
@@ -128,16 +151,19 @@ function self_consistent_field(basis::PlaneWaveBasis;
         # mix it with ρin to get a proposal step
         ρnext = mix(mixing, basis, ρin, ρout)
         neval += 1
+        last_norm_diff = norm(ρout.fourier - ρin.fourier)
+        last_norm_next = norm(ρnext.fourier - ρin.fourier)
 
         info = (ham=ham, energies=energies, ρin=ρin, ρout=ρout, ρnext=ρnext,
-                eigenvalues=eigenvalues, occupation=occupation, εF=εF, neval=neval, ψ=ψ)
+                eigenvalues=eigenvalues, occupation=occupation, εF=εF, neval=neval, ψ=ψ,
+                diagonalisation=nextstate.diagonalisation)
         callback(info)
         is_converged(info) && return x
 
         ρnext.real
     end
 
-    fpres = solver(fixpoint_map, ρout.real, max_iter; tol=min(10eps(T), tol / 10))
+    fpres = solver(fixpoint_map, ρout.real, maxiter; tol=min(10eps(T), tol / 10))
     # Tolerance is only dummy here: Convergence is flagged by is_converged
     # inside the fixpoint_map. Also we do not use the return value of fpres but rather the
     # one that got updated by fixpoint_map
