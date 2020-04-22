@@ -5,7 +5,8 @@ using ProgressMeter
 
 
 """
-Compute the independent-particle susceptibility. Will blow up for large systems. Drop all non-diagonal terms with (f(εn)-f(εm))/(εn-εm) factor less than `droptol`.
+Compute the independent-particle susceptibility. Will blow up for large systems.
+Drop all non-diagonal terms with (f(εn)-f(εm))/(εn-εm) factor less than `droptol`.
 """
 function compute_χ0(ham; droptol=0)
     # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
@@ -23,7 +24,7 @@ function compute_χ0(ham; droptol=0)
     # δεn = <ψn|δV|ψn>
     # δψn = ∑_{m != n} <ψm|δV|ψn> |ψm> / (εn-εm)
 
-    # for δεF we get, with DOS = ∑_n f'n and LDOS = ∑_n f'n |ψn|^2
+    # for δεF we get, with DOS = -∑_n f'n and LDOS = -∑_n f'n |ψn|^2
     # δεF = 1/DOS ∫ δV(r) LDOS(r)dr
 
     # for δρ we note ρnm = ψn* ψm, and we get
@@ -58,12 +59,15 @@ function compute_χ0(ham; droptol=0)
         @showprogress "Computing χ0 for kpoint $ik/$(length(basis.kpoints)) ..." for m = 1:N, n = 1:N
             enred = (E[n] - εF) / model.temperature
             @assert occ[ik][n] ≈ filled_occ * Smearing.occupation(model.smearing, enred)
-            factor = filled_occ * Smearing.occupation_divided_difference(model.smearing, E[m], E[n], εF, model.temperature)
+            ddiff = Smearing.occupation_divided_difference
+            factor = filled_occ * ddiff(model.smearing, E[m], E[n], εF, model.temperature)
             (n != m) && (abs(factor) < droptol) && continue
             # dVol because inner products have a dVol so that |f> becomes <dVol f|
             # can take the real part here because the nm term is complex conjugate of mn
             # TODO optimize this a bit... use symmetry nm, reduce allocs, etc.
-            @views χ0 .+= basis.kweights[ik].*real(conj((Vr[:, m] .* Vr[:, m]')) .* (Vr[:, n] .* Vr[:, n]')) .* factor .* dVol
+            prefactor = basis.kweights[ik] * factor * dVol
+            @views χ0 .+= prefactor .* real(conj((Vr[:, m] .* Vr[:, m]'))
+                                            .*   (Vr[:, n] .* Vr[:, n]'))
         end
     end
 
@@ -78,9 +82,12 @@ function compute_χ0(ham; droptol=0)
 end
 
 """
-Returns the change in density δρ for a given δV. Drop all non-diagonal terms with (f(εn)-f(εm))/(εn-εm) factor less than `droptol`. If `sternheimer_contribution` is false, only compute excitations inside the provided orbitals.
+Returns the change in density δρ for a given δV. Drop all non-diagonal terms with
+(f(εn)-f(εm))/(εn-εm) factor less than `droptol`. If `sternheimer_contribution`
+is false, only compute excitations inside the provided orbitals.
 """
-function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0, sternheimer_contribution=true)
+function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0,
+                  sternheimer_contribution=true)
     if droptol > 0 && sternheimer_contribution == true
         error("Droptol cannot be positive if sternheimer contribution is to be computed.")
     end
@@ -99,7 +106,7 @@ function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0, sternh
             error("Kpoint symmetry not supported")
         end
         for n = 1:size(ψ[ik], 2)
-            ψnk = @views ψ[ik][:, n]
+            ψnk = @view ψ[ik][:, n]
             ψnk_real = G_to_r(basis, basis.kpoints[ik], ψnk)
             εnk = eigenvalues[ik][n]
 
@@ -114,19 +121,15 @@ function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0, sternh
             # explicit contributions
             for m = 1:size(ψ[ik], 2)
                 εmk = eigenvalues[ik][m]
-                factor = filled_occ * Smearing.occupation_divided_difference(
-                    model.smearing,
-                    εmk,
-                    εnk,
-                    εF,
-                    model.temperature)
+                ddiff = Smearing.occupation_divided_difference
+                factor = filled_occ * ddiff(model.smearing, εmk, εnk, εF, model.temperature)
                 (n != m) && (abs(factor) < droptol) && continue
-                ψmk = @views ψ[ik][:, m]
+                ψmk = @view ψ[ik][:, m]
                 ψmk_real = G_to_r(basis, basis.kpoints[ik], ψmk)
                 # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
                 ρnm = conj(ψnk_real) .* ψmk_real
                 weight = dVol*dot(ρnm, δV)
-                @views δρ .+= real(basis.kweights[ik] .* factor .* weight .* ρnm)
+                δρ .+= real(basis.kweights[ik] .* factor .* weight .* ρnm)
             end
 
             # Sternheimer contributions. TODO add preconditioning here
@@ -134,7 +137,8 @@ function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0, sternh
             fnk = occupation[ik][n]
             abs(fnk) < eps(T) && continue
             # compute δψn by solving Q (H-εn) Q δψn = -Q δV ψn
-            # we err on the side of caution here by applying Q a lot, there are optimizations to be made here
+            # we err on the side of caution here by applying Q a lot,
+            # there are optimizations to be made here
             Q(ϕ) = ϕ - ψ[ik] * (ψ[ik]' * ϕ)
             rhs = - Q(r_to_G(basis, basis.kpoints[ik], δV .* ψnk_real))
             function QHQ(ϕ)
