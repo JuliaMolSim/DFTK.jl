@@ -323,6 +323,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
 
         if nlocked >= n_conv_check  # Converged!
             X .= new_X  # Update the part of X which is still active
+            AX .= new_AX
             return final_residnorms(full_X, full_AX, resids, niter)
         end
         newly_locked = nlocked - prev_nlocked
