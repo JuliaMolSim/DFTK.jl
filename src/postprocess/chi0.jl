@@ -60,13 +60,13 @@ function compute_χ0(ham; droptol=0)
             enred = (E[n] - εF) / model.temperature
             @assert occ[ik][n] ≈ filled_occ * Smearing.occupation(model.smearing, enred)
             ddiff = Smearing.occupation_divided_difference
-            factor = filled_occ * ddiff(model.smearing, E[m], E[n], εF, model.temperature)
-            (n != m) && (abs(factor) < droptol) && continue
+            ratio = filled_occ * ddiff(model.smearing, E[m], E[n], εF, model.temperature)
+            (n != m) && (abs(ratio) < droptol) && continue
             # dVol because inner products have a dVol so that |f> becomes <dVol f|
             # can take the real part here because the nm term is complex conjugate of mn
             # TODO optimize this a bit... use symmetry nm, reduce allocs, etc.
-            prefactor = basis.kweights[ik] * factor * dVol
-            @views χ0 .+= prefactor .* real(conj((Vr[:, m] .* Vr[:, m]'))
+            factor = basis.kweights[ik] * ratio * dVol
+            @views χ0 .+= factor .* real(conj((Vr[:, m] .* Vr[:, m]'))
                                             .*   (Vr[:, n] .* Vr[:, n]'))
         end
     end
@@ -122,14 +122,14 @@ function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0,
             for m = 1:size(ψ[ik], 2)
                 εmk = eigenvalues[ik][m]
                 ddiff = Smearing.occupation_divided_difference
-                factor = filled_occ * ddiff(model.smearing, εmk, εnk, εF, model.temperature)
-                (n != m) && (abs(factor) < droptol) && continue
+                ratio = filled_occ * ddiff(model.smearing, εmk, εnk, εF, model.temperature)
+                (n != m) && (abs(ratio) < droptol) && continue
                 ψmk = @view ψ[ik][:, m]
                 ψmk_real = G_to_r(basis, basis.kpoints[ik], ψmk)
                 # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
                 ρnm = conj(ψnk_real) .* ψmk_real
                 weight = dVol*dot(ρnm, δV)
-                δρ .+= real(basis.kweights[ik] .* factor .* weight .* ρnm)
+                δρ .+= real(basis.kweights[ik] .* ratio .* weight .* ρnm)
             end
 
             # Sternheimer contributions. TODO add preconditioning here
