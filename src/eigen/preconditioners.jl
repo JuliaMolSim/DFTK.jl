@@ -33,20 +33,19 @@ mutable struct PreconditionerTPA{T <: Real}
     kpt::Kpoint{T}
     kin::Vector{T}  # kinetic energy of every G
     mean_kin::Union{Nothing, Vector{T}}  # mean kinetic energy of every band
+    default_shift::T # if mean_kin is not set by `precondprep!`, this will be used for the shift
 end
 
-function PreconditionerTPA(basis::PlaneWaveBasis, kpt::Kpoint{T}) where T
+function PreconditionerTPA(basis::PlaneWaveBasis, kpt::Kpoint{T}; default_shift=1) where T
     kin = Vector{T}([sum(abs2, basis.model.recip_lattice * (G + kpt.coordinate))
                      for G in G_vectors(kpt)] ./ 2)
     @assert basis.model.spin_polarisation in (:none, :collinear, :spinless)
-    PreconditionerTPA{T}(basis, kpt, kin, nothing)
+    PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 
 @views function ldiv!(Y, P::PreconditionerTPA, R)
     if P.mean_kin === nothing
-        # This is arbitrary; the eigensolvers should support adaptive
-        # preconditioning anyway.
-        ldiv!(Y, Diagonal(P.kin .+ 1), R)
+        ldiv!(Y, Diagonal(P.kin .+ P.default_shift), R)
     else
         Threads.@threads for n = 1:size(Y, 2)
             Y[:, n] .= P.mean_kin[n] ./ (P.mean_kin[n] .+ P.kin) .* R[:, n]
@@ -59,7 +58,7 @@ ldiv!(P::PreconditionerTPA, R) = ldiv!(R, P, R)
 # These are needed by eg direct minimization with CG
 @views function mul!(Y, P::PreconditionerTPA, R)
     if P.mean_kin === nothing
-        mul!(Y, Diagonal(P.kin .+ 1), R)
+        mul!(Y, Diagonal(P.kin .+ default_shift), R)
     else
         Threads.@threads for n = 1:size(Y, 2)
             Y[:, n] .= (P.mean_kin[n] .+ P.kin) ./ P.mean_kin[n] .* R[:, n]
