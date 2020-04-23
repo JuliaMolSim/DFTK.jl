@@ -79,7 +79,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
                                solver=scf_nlsolve_solver(),
                                eigensolver=lobpcg_hyper,
                                n_ep_extra=3,
-                               diagtol_range=(1000eps(eltype(basis)), 0.1),
+                               diagtol_range=(1000eps(eltype(basis)), 0.01),
                                diagtol_ratio_ρchange=0.1,
                                mixing=SimpleMixing(),
                                callback=scf_default_callback,
