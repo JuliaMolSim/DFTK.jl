@@ -86,7 +86,7 @@ Returns the change in density δρ for a given δV. Drop all non-diagonal terms 
 (f(εn)-f(εm))/(εn-εm) factor less than `droptol`. If `sternheimer_contribution`
 is false, only compute excitations inside the provided orbitals.
 """
-function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0,
+function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
                   sternheimer_contribution=true, temperature=ham.basis.model.temperature)
     if droptol > 0 && sternheimer_contribution == true
         error("Droptol cannot be positive if sternheimer contribution is to be computed.")
@@ -135,7 +135,6 @@ function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0,
             # Sternheimer contributions. TODO add preconditioning here
             !(sternheimer_contribution) && continue
             fnk = filled_occ * Smearing.occupation(model.smearing, (εmk-εF) / temperature)
-            fnk = occupation[ik][n]
             abs(fnk) < eps(T) && continue
             # compute δψn by solving Q (H-εn) Q δψn = -Q δV ψn
             # we err on the side of caution here by applying Q a lot,
