@@ -210,7 +210,7 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
 end
 
 
-function final_residnorms(X, AX, resid_history, niter, n_matvec)
+function final_retval(X, AX, resid_history, niter, n_matvec)
     λ = real(diag(X' * AX))
     residuals = AX .- X*Diagonal(λ)
     (λ, X, [norm(residuals[:, i]) for i in 1:size(residuals, 2)],
@@ -308,7 +308,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100;
 
         ### Compute number of locked vectors
         prev_nlocked = nlocked
-        if niter > miniter  # No locking if below miniter
+        if niter ≥ miniter  # No locking if below miniter
             for i=nlocked+1:M
                 if resid_history[i, niter+1] < tol
                     nlocked += 1
@@ -329,7 +329,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100;
         if nlocked >= n_conv_check  # Converged!
             X .= new_X  # Update the part of X which is still active
             AX .= new_AX
-            return final_residnorms(full_X, full_AX, resids, niter, n_matvec)
+            return final_retval(full_X, full_AX, resid_history, niter, n_matvec)
         end
         newly_locked = nlocked - prev_nlocked
         active = newly_locked+1:size(X,2) # newly active vectors
@@ -419,9 +419,9 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100;
             rdiv!(BR, U)
         end
 
-        niter <= maxiter || break
+        niter < maxiter || break
         niter = niter + 1
     end
 
-    final_residnorms(full_X, full_AX, resid_history, maxiter, n_matvec)
+    final_retval(full_X, full_AX, resid_history, maxiter, n_matvec)
 end
