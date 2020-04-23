@@ -87,7 +87,7 @@ Returns the change in density δρ for a given δV. Drop all non-diagonal terms 
 is false, only compute excitations inside the provided orbitals.
 """
 function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0,
-                  sternheimer_contribution=true)
+                  sternheimer_contribution=true, temperature=ham.basis.model.temperature)
     if droptol > 0 && sternheimer_contribution == true
         error("Droptol cannot be positive if sternheimer contribution is to be computed.")
     end
@@ -122,7 +122,7 @@ function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0,
             for m = 1:size(ψ[ik], 2)
                 εmk = eigenvalues[ik][m]
                 ddiff = Smearing.occupation_divided_difference
-                ratio = filled_occ * ddiff(model.smearing, εmk, εnk, εF, model.temperature)
+                ratio = filled_occ * ddiff(model.smearing, εmk, εnk, εF, temperature)
                 (n != m) && (abs(ratio) < droptol) && continue
                 ψmk = @view ψ[ik][:, m]
                 ψmk_real = G_to_r(basis, basis.kpoints[ik], ψmk)
@@ -134,6 +134,7 @@ function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0,
 
             # Sternheimer contributions. TODO add preconditioning here
             !(sternheimer_contribution) && continue
+            fnk = filled_occ * Smearing.occupation(model.smearing, (εmk-εF) / temperature)
             fnk = occupation[ik][n]
             abs(fnk) < eps(T) && continue
             # compute δψn by solving Q (H-εn) Q δψn = -Q δV ψn
@@ -153,9 +154,9 @@ function apply_χ0(ham, δV, ψ, occupation, εF, eigenvalues; droptol=0,
     end
 
     # Add variation wrt εF
-    if model.temperature > 0
-        ldos = LDOS(εF, basis, eigenvalues, ψ)
-        dos = DOS(εF, basis, eigenvalues)
+    if temperature > 0
+        ldos = LDOS(εF, basis, eigenvalues, ψ, T=temperature)
+        dos = DOS(εF, basis, eigenvalues, T=temperature)
         δρ .+= ldos .* dot(ldos, δV) .* dVol ./ dos
     end
 
