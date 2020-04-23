@@ -129,8 +129,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
         @assert isfinite(diagtol)
 
         # Diagonalize `ham` to get the new state
-        nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver,
-                                 tol=diagtol)
+        nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver, tol=diagtol)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # This computes the energy of the new state
