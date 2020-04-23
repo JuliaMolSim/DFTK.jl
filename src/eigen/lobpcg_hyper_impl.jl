@@ -224,7 +224,8 @@ end
 ### R is then recomputed, and orthonormalized explicitly wrt BX and BP
 ### We reuse applications of A/B when it is safe to do so, ie only with orthogonal transformations
 
-function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_tol=2eps(real(eltype(X))),
+function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100;
+                miniter=1, ortho_tol=2eps(real(eltype(X))),
                 n_conv_check=nothing, display_progress=false)
     N, M = size(X)
 
@@ -307,14 +308,16 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
 
         ### Compute number of locked vectors
         prev_nlocked = nlocked
-        for i=nlocked+1:M
-            if resid_history[i, niter+1] < tol
-                nlocked += 1
-                vprintln("locked $nlocked")
-            else
-                # We lock in order, assuming that the lowest
-                # eigenvectors converge first; might be tricky otherwise
-                break
+        if niter > miniter  # No locking if below miniter
+            for i=nlocked+1:M
+                if resid_history[i, niter+1] < tol
+                    nlocked += 1
+                    vprintln("locked $nlocked")
+                else
+                    # We lock in order, assuming that the lowest
+                    # eigenvectors converge first; might be tricky otherwise
+                    break
+                end
             end
         end
 

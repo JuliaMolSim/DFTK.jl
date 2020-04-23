@@ -79,7 +79,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
                                solver=scf_nlsolve_solver(),
                                eigensolver=lobpcg_hyper,
                                n_ep_extra=3,
-                               diagtol_range=(1000eps(eltype(basis)), 0.01),
+                               diagtol_range=(1000eps(eltype(basis)), 0.1),
                                diagtol_ratio_ρchange=0.1,
                                mixing=SimpleMixing(),
                                callback=scf_default_callback,
@@ -129,7 +129,8 @@ function self_consistent_field(basis::PlaneWaveBasis;
         @assert isfinite(diagtol)
 
         # Diagonalize `ham` to get the new state
-        nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver, tol=diagtol)
+        nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver,
+                                 tol=diagtol, miniter=2)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # This computes the energy of the new state
