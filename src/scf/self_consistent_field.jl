@@ -66,6 +66,21 @@ function scf_convergence_density_difference(tolerance)
     info -> norm(info.ρout.fourier - info.ρin.fourier) < tolerance
 end
 
+"""
+Determine the tolerance used for the next diagonalisation. This function takes
+``|ρnext - ρin|`` and multiplies it with `ratio_ρdiff` to get the next `diagtol`,
+ensuring additionally that the returned value is between `diagtol_min` and `diagtol_max`.
+"""
+function scf_determine_diagtol(diagtol_min, diagtol_max, ratio_ρdiff)
+    function determine_diagtol(neval, norm_ρnext_ρin)
+        diagtol = norm_ρnext_ρin * ratio_ρdiff
+        diagtol = min(diagtol_max, diagtol)  # Don't overshoot
+        diagtol = max(diagtol_min, diagtol)  # Don't undershoot
+        @assert isfinite(diagtol)
+        diagtol
+    end
+end
+
 
 """
 Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
@@ -79,8 +94,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
                                solver=scf_nlsolve_solver(),
                                eigensolver=lobpcg_hyper,
                                n_ep_extra=3,
-                               diagtol_range=(1000eps(eltype(basis)), 0.1),
-                               diagtol_ratio_ρchange=0.1,
+                               determine_diagtol=scf_determine_diagtol(1000eps(eltype(basis)), 0.1, 0.2),
                                mixing=SimpleMixing(),
                                callback=scf_default_callback,
                                is_converged=scf_convergence_energy_difference(tol),
@@ -122,15 +136,9 @@ function self_consistent_field(basis::PlaneWaveBasis;
                                                ρ=ρin, eigenvalues=eigenvalues, εF=εF)
         end
 
-        # Adjust solver diagtol
-        diagtol = norm_ρnext_ρin * diagtol_ratio_ρchange
-        diagtol = min(diagtol_range[2], diagtol)
-        diagtol = max(diagtol_range[1], diagtol)
-        @assert isfinite(diagtol)
-
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver,
-                                 tol=diagtol, miniter=2)
+                                 miniter=1, tol=determine_diagtol(neval, norm_ρnext_ρin))
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # This computes the energy of the new state
