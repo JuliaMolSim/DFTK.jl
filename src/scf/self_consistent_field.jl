@@ -18,7 +18,7 @@ function next_density(ham::Hamiltonian;
     # Diagonalize
     eigres = diagonalise_all_kblocks(eigensolver, ham, n_ep; guess=ψ,
                                      n_conv_check=n_bands, kwargs...)
-    # eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
+    eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Update density from new ψ
     occupation, εF = find_occupation(ham.basis, eigres.λ)
@@ -47,6 +47,10 @@ function scf_convergence_energy_difference(tolerance)
 
     function is_converged(info)
         info.energies === nothing && return false # first iteration
+
+        # For safety: The ρ change should also be below 10sqrt(tolerance)
+        norm(info.ρout.fourier - info.ρin.fourier) > 10sqrt(tolerance) && return false
+
         etot_old = energy_total
         energy_total = sum(values(info.energies))
         abs(energy_total - etot_old) < tolerance
@@ -75,12 +79,12 @@ function self_consistent_field(basis::PlaneWaveBasis;
                                solver=scf_nlsolve_solver(),
                                eigensolver=lobpcg_hyper,
                                n_ep_extra=3,
-                               diagtol=tol / 10,
+                               diagtol_range=(1000eps(eltype(basis)), 0.1),
+                               diagtol_ratio_ρchange=0.1,
                                mixing=SimpleMixing(),
                                callback=scf_default_callback,
                                is_converged=scf_convergence_energy_difference(tol),
                                compute_consistent_energies=true,
-                               profile=:old
                                )
     T = eltype(basis)
     model = basis.model
@@ -99,8 +103,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
     neval = 0
     energies = nothing
     ham = nothing
-    last_norm_diff = nothing
-    last_norm_next = nothing
+    norm_ρnext_ρin = Inf  # The most recent norm(ρnext - ρin)
 
     # We do density mixing in the real representation
     # TODO support other mixing types
@@ -118,52 +121,16 @@ function self_consistent_field(basis::PlaneWaveBasis;
             energies, ham = energy_hamiltonian(basis, ψ, occupation;
                                                ρ=ρin, eigenvalues=eigenvalues, εF=εF)
         end
+
+        # Adjust solver diagtol
+        diagtol = norm_ρnext_ρin * diagtol_ratio_ρchange
+        diagtol = min(diagtol_range[2], diagtol)
+        diagtol = max(diagtol_range[1], diagtol)
+        @assert isfinite(diagtol)
+
         # Diagonalize `ham` to get the new state
-        if profile == :old
-            solargs = (tol=diagtol, )
-        elseif profile == :abinit
-            solargs = (maxiter=(neval < 2 ? 8 : 4), )
-        elseif profile == :ρoutfix
-            if neval == 0
-                solargs = (maxiter=8, tol=diagtol)
-            else
-                solargs = (tol=max(last_norm_diff / 10, diagtol), )
-            end
-        elseif profile == :ρnextfix
-            if neval == 0
-                solargs = (maxiter=8, tol=diagtol)
-            else
-                solargs = (tol=max(last_norm_next / 10, diagtol), )
-            end
-        elseif profile == :ρoutdyn
-            if neval == 0
-                solargs = (tol=max(0.1, diagtol), )
-            else
-                solargs = (tol=max(last_norm_next / 10, diagtol), )
-            end
-        elseif profile == :ρnextdyn
-            if neval == 0
-                solargs = (tol=max(0.1, diagtol), )
-            else
-                solargs = (tol=max(last_norm_next / 10, diagtol), )
-            end
-        elseif profile == :ρoutdyntight
-            if neval == 0
-                solargs = (tol=max(1e-2, diagtol), )
-            else
-                solargs = (tol=max(last_norm_next / 50, diagtol), )
-            end
-        elseif profile == :ρnextdyntight
-            if neval == 0
-                solargs = (tol=max(1e-2, diagtol), )
-            else
-                solargs = (tol=max(last_norm_next / 50, diagtol), )
-            end
-        else
-            error("dunnotno profile")
-        end
         nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver,
-                                 solargs...)
+                                 tol=diagtol)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # This computes the energy of the new state
@@ -175,8 +142,6 @@ function self_consistent_field(basis::PlaneWaveBasis;
         # mix it with ρin to get a proposal step
         ρnext = mix(mixing, basis, ρin, ρout)
         neval += 1
-        last_norm_diff = norm(ρout.fourier - ρin.fourier)
-        last_norm_next = norm(ρnext.fourier - ρin.fourier)
 
         info = (ham=ham, energies=energies, ρin=ρin, ρout=ρout, ρnext=ρnext,
                 eigenvalues=eigenvalues, occupation=occupation, εF=εF, neval=neval, ψ=ψ,
@@ -184,6 +149,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
         callback(info)
         is_converged(info) && return x
 
+        norm_ρnext_ρin = norm(ρnext.fourier - ρin.fourier)
         ρnext.real
     end
 
