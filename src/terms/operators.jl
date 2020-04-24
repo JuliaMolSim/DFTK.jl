@@ -45,7 +45,7 @@ end
 
 """
 Real space multiplication by a potential:
-(Hψ)(r) V(r) ψ(r)
+(Hψ)(r) = V(r) ψ(r)
 """
 struct RealSpaceMultiplication <: RealFourierOperator
     basis
