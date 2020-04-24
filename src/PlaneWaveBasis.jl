@@ -43,12 +43,29 @@ Normalization conventions:
 """
 struct PlaneWaveBasis{T <: Real}
     model::Model{T}
+    # the basis set is defined by {e_{G}, 1/2|k+G|^2 ≤ Ecut}
     Ecut::T
 
-    # kpoints is the list of irreducible kpoints
+    # The full (reducible) Brillouin zone is implicitly represented by
+    # a set of (irreducible) kpoints (see explanation in docs/). Each
+    # irreducible kpoint k comes with a list of symmetry operations
+    # (S,τ) (containing at least the trivial operation (I,0)), where S
+    # is a rotation matrix (/!\ not unitary in reduced coordinates)
+    # and τ a translation vector. The kpoint is then used to represent
+    # implicitly the information at all the kpoints Sk. The
+    # relationship between the Hamiltonians is
+    # H_{Sk} = U H_k U*, with
+    # (Uu)(x) = u(S^-1(x-τ))
+    # or in Fourier space
+    # (Uu)(G) = e^{-i G τ} u(S^-1 G)
+    # In particular, we can choose the eigenvectors at Sk as u_{Sk} = U u_k
+
+    # irreducible kpoints
     kpoints::Vector{Kpoint{T}}
-    # kweights/ksymops contain the information needed to reconstruct the full (reducible) BZ
-    # Brillouin zone integration weights
+    # Brillouin zone integration weights,
+    # kweights[ik] = length(ksymops[ik]) / sum(length(ksymops[ik]) for ik=1:Nk)
+    # The value of an observable (eg energy) per unit cell is given as
+    # the value of that observable at each irreducible kpoint, weighted by kweight
     kweights::Vector{T}
     # ksymops[ikpt] is a list of symmetry operations (S,τ)
     ksymops::Vector{Vector{Tuple{Mat3{Int}, Vec3{T}}}}
