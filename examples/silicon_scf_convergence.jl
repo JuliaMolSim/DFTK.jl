@@ -29,7 +29,8 @@ function my_callback(info)
     push!(resids, err)
 end
 my_isconverged=info -> norm(info.ρout.fourier - info.ρin.fourier) < tol
-opts = (callback=my_callback, is_converged=my_isconverged, max_iter=maxiter, tol=tol, diagtol=diagtol)
+opts = (callback=my_callback, is_converged=my_isconverged, maxiter=maxiter, tol=tol,
+        determine_diagtol=DFTK.scf_determine_diagtol(0.01, diagtol, diagtol))
 
 global errs = []
 global gaps = []
