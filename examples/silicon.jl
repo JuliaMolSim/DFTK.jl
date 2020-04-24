@@ -4,7 +4,7 @@ using Plots
 # Calculation parameters
 kgrid = [4, 4, 4]       # k-Point grid
 supercell = [1, 1, 1]   # Lattice supercell
-Ecut = 15               # kinetic energy cutoff in Hartree
+Ecut = 30               # kinetic energy cutoff in Hartree
 n_bands = 8             # number of bands to plot in the bandstructure
 
 # Setup silicon lattice
@@ -20,7 +20,7 @@ lattice = load_lattice(pystruct)
 atoms = [Si => [s.frac_coords for s in pystruct.sites]]
 
 model = model_LDA(lattice, atoms)
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, enable_bzmesh_symmetry=false)
 
 # Run SCF. Note Silicon is a semiconductor, so we use an insulator
 # occupation scheme. This will cause warnings in some models, because
@@ -28,7 +28,11 @@ basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 # scfres = direct_minimization(basis)
 scfres = self_consistent_field(basis, tol=1e-10)
 
+# compute forces
+F = forces(scfres)
+println(F)
+
 # Print energies and plot bands
 println()
 display(scfres.energies)
-gui(plot_bandstructure(scfres, n_bands))
+#  gui(plot_bandstructure(scfres, n_bands))
