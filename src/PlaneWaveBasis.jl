@@ -231,6 +231,21 @@ function index_G_vectors(basis::PlaneWaveBasis, kpoint::Kpoint,
     get(kpoint.mapping_inv, idx_linear, nothing)
 end
 
+"""
+Compute the eigenvector at point Sk given an eigenvector at k
+"""
+function symmetrize_ψ(basis::PlaneWaveBasis{T}, kpoint::Kpoint, ψ, S, τ) where {T}
+    invS = Mat3{Int}(inv(S))
+    # ψsym(G) = e^{-i G τ} ψ(S^-1 G)
+    ψsym = zero(ψ)
+    for (iG, G) in enumerate(G_vectors(kpoint))
+        igired = index_G_vectors(basis, kpoint, invS * G)
+        if igired !== nothing
+            ψsym[iG] = cis(-2T(π)*dot(G, τ)) * ψ[igired]
+        end
+    end
+    ψsym
+end
 
 #
 # Perform (i)FFTs.
