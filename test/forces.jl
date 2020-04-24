@@ -1,5 +1,6 @@
 using DFTK
 using Test
+import DFTK: scf_determine_diagtol
 include("testcases.jl")
 
 @testset "Forces on semiconductor (using total energy)" begin
@@ -10,7 +11,8 @@ include("testcases.jl")
         model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93)
         basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 1, 2])
 
-        scfres = self_consistent_field(basis; tol=1e-10, diagtol=1e-10)
+        is_converged = scf_convergence_density_difference(1e-10)
+        scfres = self_consistent_field(basis; is_converged=is_converged)
         sum(values(scfres.energies)), forces(scfres)
     end
 
@@ -37,7 +39,11 @@ end
         basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 1, 2])
 
         n_bands = 10
-        scfres = self_consistent_field(basis, n_bands=n_bands, tol=1e-12, diagtol=1e-12)
+        is_converged = scf_convergence_density_difference(1e-10)
+        scfres = self_consistent_field(basis, n_bands=n_bands,
+                                       is_converged=is_converged,
+                                       determine_diagtol=scf_determine_diagtol(0.01)
+                                      )
         sum(values(scfres.energies)), forces(scfres)
     end
 

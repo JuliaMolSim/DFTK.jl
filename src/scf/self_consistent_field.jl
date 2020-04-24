@@ -71,12 +71,18 @@ Determine the tolerance used for the next diagonalisation. This function takes
 ``|ρnext - ρin|`` and multiplies it with `ratio_ρdiff` to get the next `diagtol`,
 ensuring additionally that the returned value is between `diagtol_min` and `diagtol_max`.
 """
-function scf_determine_diagtol(diagtol_min, diagtol_max, ratio_ρdiff)
+function scf_determine_diagtol(ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.1)
     function determine_diagtol(neval, norm_ρnext_ρin)
+        isnothing(diagtol_min) && (diagtol_min = 500eps(real(eltype(norm_ρnext_ρin))))
+
         diagtol = norm_ρnext_ρin * ratio_ρdiff
         diagtol = min(diagtol_max, diagtol)  # Don't overshoot
         diagtol = max(diagtol_min, diagtol)  # Don't undershoot
         @assert isfinite(diagtol)
+
+        # Adjust maximum to ensure diagtol may only shrink during an SCF
+        diagtol_max = min(diagtol, diagtol_max)
+
         diagtol
     end
 end
@@ -94,7 +100,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
                                solver=scf_nlsolve_solver(),
                                eigensolver=lobpcg_hyper,
                                n_ep_extra=3,
-                               determine_diagtol=scf_determine_diagtol(1000eps(eltype(basis)), 0.1, 0.2),
+                               determine_diagtol=scf_determine_diagtol(),
                                mixing=SimpleMixing(),
                                callback=scf_default_callback,
                                is_converged=scf_convergence_energy_difference(tol),
