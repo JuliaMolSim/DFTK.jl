@@ -52,8 +52,7 @@ set of features. An overview:
 All this in about 5k lines of pure Julia code. The code emphasizes simplicity and
 flexibility, with the goal of facilitating methodological development and
 interdisciplinary collaboration.
-It has not been properly optimized and fine-tuned yet,
-but the performance is of the same order of magnitude as established packages.
+Our performance is of the same order of magnitude as established packages.
 
 **Note:** DFTK has only been compared against standard packages
 for a small number of test cases and might still contain bugs.
