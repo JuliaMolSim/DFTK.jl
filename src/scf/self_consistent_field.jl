@@ -69,13 +69,13 @@ end
 """
 Determine the tolerance used for the next diagonalisation. This function takes
 ``|ρnext - ρin|`` and multiplies it with `ratio_ρdiff` to get the next `diagtol`,
-ensuring additionally that the returned value is between `diagtol_min` and `diagtol_max`.
+ensuring additionally that the returned value is between `diagtol_min` and `diagtol_max`
+and never increases.
 """
-function scf_determine_diagtol(ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.1)
-    function determine_diagtol(neval, norm_ρnext_ρin)
-        isnothing(diagtol_min) && (diagtol_min = 500eps(real(eltype(norm_ρnext_ρin))))
-
-        diagtol = norm_ρnext_ρin * ratio_ρdiff
+function scf_determine_diagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.1)
+    function determine_diagtol(info)
+        isnothing(diagtol_min) && (diagtol_min = 500eps(real(eltype(info.ρin))))
+        diagtol = norm(ρnext.fourier - ρin.fourier) * ratio_ρdiff
         diagtol = min(diagtol_max, diagtol)  # Don't overshoot
         diagtol = max(diagtol_min, diagtol)  # Don't undershoot
         @assert isfinite(diagtol)
@@ -123,7 +123,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
     neval = 0
     energies = nothing
     ham = nothing
-    norm_ρnext_ρin = Inf  # The most recent norm(ρnext - ρin)
+    info = (neval=0, ρin=ρ, ρout=ρ, ρnext=ρ)   # Populate info with initial values
 
     # We do density mixing in the real representation
     # TODO support other mixing types
@@ -144,7 +144,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver,
-                                 miniter=1, tol=determine_diagtol(neval, norm_ρnext_ρin))
+                                 miniter=1, tol=determine_diagtol(info))
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # This computes the energy of the new state
@@ -163,7 +163,6 @@ function self_consistent_field(basis::PlaneWaveBasis;
         callback(info)
         is_converged(info) && return x
 
-        norm_ρnext_ρin = norm(ρnext.fourier - ρin.fourier)
         ρnext.real
     end
 

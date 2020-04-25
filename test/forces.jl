@@ -40,9 +40,10 @@ end
 
         n_bands = 10
         is_converged = scf_convergence_density_difference(5e-11)
+        determine_diagtol = scf_determine_diagtol(ratio_ρdiff=0.01)
         scfres = self_consistent_field(basis, n_bands=n_bands,
                                        is_converged=is_converged,
-                                       determine_diagtol=scf_determine_diagtol(0.01)
+                                       determine_diagtol=determine_diagtol
                                       )
         sum(values(scfres.energies)), forces(scfres)
     end
