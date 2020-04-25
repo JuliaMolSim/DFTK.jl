@@ -9,7 +9,7 @@ function lobpcg_hyper(A, X0; maxiter=100, prec=nothing, tol=20size(A, 2)*eps(rea
 
     n_conv_check === nothing && (n_conv_check = size(X0, 2))
     converged = maximum(result.residual_norms[1:n_conv_check]) < tol
-    iterations = size(result.resid_history, 2) - 1
+    iterations = size(result.residual_history, 2) - 1
 
     merge(result, (iterations=iterations, converged=converged))
 end
