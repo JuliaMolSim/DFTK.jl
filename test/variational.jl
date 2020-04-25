@@ -33,7 +33,7 @@ end
 
     # Individual terms are not variational and only converged to the amount
     # the density and the orbitals are converged, which is about sqrt(energy)
-    @test norm(energies[2] .- energies[3]) < 1e-6
+    @test norm(energies[2] .- energies[3]) < 1e-5
 end
 
 @testset "Energy is not exact for supersampling>2 with XC" begin

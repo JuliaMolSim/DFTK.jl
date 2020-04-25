@@ -1,6 +1,6 @@
 using DFTK
 using Test
-import DFTK: scf_determine_diagtol
+import DFTK: scf_determine_diagtol, scf_convergence_density_difference
 include("testcases.jl")
 
 @testset "Forces on semiconductor (using total energy)" begin
@@ -39,7 +39,7 @@ end
         basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 1, 2])
 
         n_bands = 10
-        is_converged = scf_convergence_density_difference(1e-10)
+        is_converged = scf_convergence_density_difference(5e-11)
         scfres = self_consistent_field(basis, n_bands=n_bands,
                                        is_converged=is_converged,
                                        determine_diagtol=scf_determine_diagtol(0.01)
