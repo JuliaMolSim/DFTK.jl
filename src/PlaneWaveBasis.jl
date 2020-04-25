@@ -102,7 +102,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
 
 function PlaneWaveBasis(model::Model{T}, Ecut::Number,
-                        kcoords::AbstractVector, ksymops, kweights=nothing;
+                        kcoords::AbstractVector, ksymops;
                         fft_size=determine_grid_size(model, Ecut)) where {T <: Real}
     @assert Ecut > 0
     fft_size = Tuple{Int, Int, Int}(fft_size)
@@ -123,16 +123,12 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
     ipIFFT = inv(ipFFT)
     opIFFT = inv(opFFT)
 
-    # Compute default weights if not given
-    if kweights === nothing
-        kweights = [length(symops) for symops in ksymops]
-        kweights = T.(kweights) ./ sum(kweights)
-    end
+    # Compute weights
+    kweights = [length(symops) for symops in ksymops]
+    kweights = T.(kweights) ./ sum(kweights)
 
     # Sanity checks
     @assert length(kcoords) == length(ksymops)
-    @assert length(kcoords) == length(kweights)
-    @assert sum(kweights) ≈ 1 "kweights are assumed to be normalized."
     max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
     @assert(Ecut ≤ max_E, "Ecut should be less than the maximal kinetic energy " *
             "the grid supports (== $max_E)")
@@ -154,8 +150,8 @@ end
 Creates a new basis identical to `basis`, but with a different set of kpoints
 """
 function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
-                        ksymops::AbstractVector, kweights=nothing)
-    PlaneWaveBasis(basis.model, basis.Ecut, kcoords, ksymops, kweights;
+                        ksymops::AbstractVector)
+    PlaneWaveBasis(basis.model, basis.Ecut, kcoords, ksymops;
                    fft_size=basis.fft_size)
 end
 
