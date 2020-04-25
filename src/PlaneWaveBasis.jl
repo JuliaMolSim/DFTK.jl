@@ -41,7 +41,7 @@ Normalization conventions:
 
 `G_to_r` and `r_to_G` convert between these representations.
 """
-struct PlaneWaveBasis{T <: Real, TopFFT, TipFFT, TopIFFT, TipIFFT}
+struct PlaneWaveBasis{T <: Real}
     model::Model{T}
     Ecut::T
 
@@ -58,10 +58,10 @@ struct PlaneWaveBasis{T <: Real, TopFFT, TipFFT, TopIFFT, TipIFFT}
     fft_size::Tuple{Int, Int, Int}
 
     # Plans for forward and backward FFT
-    opFFT::TopFFT  # out-of-place FFT plan
-    ipFFT::TipFFT  # in-place FFT plan
-    opIFFT::TopIFFT
-    ipIFFT::TipIFFT
+    opFFT  # out-of-place FFT plan
+    ipFFT  # in-place FFT plan
+    opIFFT
+    ipIFFT
 
     # Instantiated terms (<: Term), that contain a backreference to basis.
     # See Hamiltonian for high-level usage
@@ -135,7 +135,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
 
     terms = Vector{Any}(undef, length(model.term_types))
 
-    basis = PlaneWaveBasis{T, typeof(opFFT), typeof(ipFFT), typeof(opIFFT), typeof(ipIFFT)}(
+    basis = PlaneWaveBasis{T}(
         model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
         kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms)
 
