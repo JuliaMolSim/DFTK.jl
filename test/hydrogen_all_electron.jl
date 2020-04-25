@@ -15,7 +15,7 @@ using LinearAlgebra
         sum(values(scfres.energies)), DFTK.forces(scfres)
     end
 
-    E, forces = energy_forces(Ecut=5, tol=1e-9)
+    E, forces = energy_forces(Ecut=5, tol=1e-10)
     @test E ≈ -0.28310157350203013
     @test norm(forces) < 1e-9
 end

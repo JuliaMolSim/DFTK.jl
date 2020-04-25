@@ -48,7 +48,7 @@ function scf_convergence_energy_difference(tolerance)
     function is_converged(info)
         info.energies === nothing && return false # first iteration
 
-        # For safety: The ρ change should also be below 10sqrt(tolerance)
+        # The ρ change should also be small, otherwise we converge if the SCF is just stuck
         norm(info.ρout.fourier - info.ρin.fourier) > 10sqrt(tolerance) && return false
 
         etot_old = energy_total
