@@ -75,7 +75,7 @@ and never increases.
 function scf_determine_diagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.1)
     function determine_diagtol(info)
         isnothing(diagtol_min) && (diagtol_min = 500eps(real(eltype(info.ρin))))
-        diagtol = norm(ρnext.fourier - ρin.fourier) * ratio_ρdiff
+        diagtol = norm(info.ρnext.fourier - info.ρin.fourier) * ratio_ρdiff
         diagtol = min(diagtol_max, diagtol)  # Don't overshoot
         diagtol = max(diagtol_min, diagtol)  # Don't undershoot
         @assert isfinite(diagtol)
