@@ -123,7 +123,6 @@ function load_basis(T, folder::EtsfFolder)
     atoms = load_atoms(T, folder)
 
     Ecut = folder.gsr["kinetic_energy_cutoff"][:]
-    kweights = Vector{T}(folder.gsr["kpoint_weights"][:])
 
     n_kpoints = size(folder.gsr["reduced_coordinates_of_kpoints"], 2)
     kcoords = Vector{Vec3{T}}(undef, n_kpoints)
