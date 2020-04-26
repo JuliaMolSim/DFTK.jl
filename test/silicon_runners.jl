@@ -51,7 +51,7 @@ function run_silicon_redHF(T; Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, 
 end
 
 function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, scf_tol=1e-6,
-                         lobpcg_tol=scf_tol / 10, n_noconv_check=0)
+                         n_noconv_check=0)
     # These values were computed using ABINIT with the same kpoints as testcases.jl
     # and Ecut = 25
     ref_lda = [
@@ -73,7 +73,7 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     scfres = self_consistent_field(basis; n_bands=n_bands, tol=scf_tol,
-                                   eigensolver=lobpcg_hyper, n_ep_extra=n_noconv_check, diagtol=lobpcg_tol)
+                                   eigensolver=lobpcg_hyper, n_ep_extra=n_noconv_check)
 
     for ik in 1:length(silicon.kcoords)
         @test eltype(scfres.eigenvalues[ik]) == T
