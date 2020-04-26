@@ -210,10 +210,13 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
 end
 
 
-function final_residnorms(X, AX, resid_history, niter)
+function final_retval(X, AX, resid_history, niter, n_matvec)
     λ = real(diag(X' * AX))
     residuals = AX .- X*Diagonal(λ)
-    λ, X, [norm(residuals[:, i]) for i in 1:size(residuals, 2)], resid_history[:, 1:niter]
+    (λ=λ, X=X,
+     residual_norms=[norm(residuals[:, i]) for i in 1:size(residuals, 2)],
+     residual_history=resid_history[:, 1:niter+1],
+     n_matvec=n_matvec)
 end
 
 
@@ -223,20 +226,22 @@ end
 ### R is then recomputed, and orthonormalized explicitly wrt BX and BP
 ### We reuse applications of A/B when it is safe to do so, ie only with orthogonal transformations
 
-function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_tol=2eps(real(eltype(X))),
+function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100;
+                miniter=1, ortho_tol=2eps(real(eltype(X))),
                 n_conv_check=nothing, display_progress=false)
-    N,M = size(X)
+    N, M = size(X)
 
     # If N is too small, we will likely get in trouble
     N >= 3M || @warn "Your problem is too small, and LOBPCG might
         fail; use a full diagonalization instead"
 
     n_conv_check === nothing && (n_conv_check = M)
-    resid_history = zeros(real(eltype(X)), M, maxiter)
+    resid_history = zeros(real(eltype(X)), M, maxiter+1)
     buf_X = zero(X)
     buf_P = zero(X)
 
     X = ortho(X, tol=ortho_tol)[1]
+    n_matvec = M   # Count number of matrix-vector products
     AX = A*X
     # full_X/AX/BX will always store the full (including locked) X.
     # X/AX/BX only point to the active part
@@ -255,7 +260,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
         BP = P
     end
     nlocked = 0
-    niter = 1
+    niter = 0  # the first iteration is fake
     λs = @views [(X[:,n]'*AX[:,n]) / (X[:,n]'BX[:,n]) for n=1:M]
     new_X = X
     new_AX = AX
@@ -265,12 +270,13 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
     full_BX = BX
 
     while true
-        if niter > 1 # first iteration is just to compute the residuals
+        if niter > 0 # first iteration is just to compute the residuals: no X update
             ###  Perform the Rayleigh-Ritz
             mul!(AR, A, R)
+            n_matvec += size(R, 2)
 
             # Form Rayleigh-Ritz subspace
-            if niter > 2
+            if niter > 1
                 Y = (X, R, P)
                 AY = (AX, AR, AP)
                 BY = (BX, BR, BP)  # data shared with (X, R, P) in non-general case
@@ -296,39 +302,41 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
         # precondition. Here seems sensible, but it could plausibly be
         # done before or after
         @views for i=1:size(X,2)
-            resid_history[i + nlocked, niter] = norm(new_R[:, i])
+            resid_history[i + nlocked, niter+1] = norm(new_R[:, i])
         end
-        vprintln(niter, "   ", resid_history[:, niter])
+        vprintln(niter, "   ", resid_history[:, niter+1])
         precondprep!(precon, X)
         ldiv!(precon, new_R)
 
         ### Compute number of locked vectors
         prev_nlocked = nlocked
-        for i=nlocked+1:M
-            if resid_history[i, niter] < tol
-                nlocked += 1
-                vprintln("locked $nlocked")
-            else
-                # We lock in order, assuming that the lowest
-                # eigenvectors converge first; might be tricky otherwise
-                break
+        if niter ≥ miniter  # No locking if below miniter
+            for i=nlocked+1:M
+                if resid_history[i, niter+1] < tol
+                    nlocked += 1
+                    vprintln("locked $nlocked")
+                else
+                    # We lock in order, assuming that the lowest
+                    # eigenvectors converge first; might be tricky otherwise
+                    break
+                end
             end
         end
 
         if display_progress
             println("Iter $niter, converged $(nlocked)/$(n_conv_check), resid ",
-                    norm(resid_history[1:n_conv_check, niter]))
+                    norm(resid_history[1:n_conv_check, niter+1]))
         end
 
         if nlocked >= n_conv_check  # Converged!
             X .= new_X  # Update the part of X which is still active
             AX .= new_AX
-            return final_residnorms(full_X, full_AX, resid_history, niter)
+            return final_retval(full_X, full_AX, resid_history, niter, n_matvec)
         end
         newly_locked = nlocked - prev_nlocked
         active = newly_locked+1:size(X,2) # newly active vectors
 
-        if niter > 1
+        if niter > 0
             ### compute P = Y*cP only for the newly active vectors
             Xn_indices = newly_locked+1:M-prev_nlocked
             # TODO understand this for a potential save of an
@@ -383,7 +391,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
         end
 
         # Update newly active P
-        if niter > 1
+        if niter > 0
             P .= new_P
             AP .= new_AP
             if B != I
@@ -392,7 +400,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
         end
 
         # Orthogonalize R wrt all X, newly active P
-        if niter > 1
+        if niter > 0
             Z  = (full_X, P)
             BZ = (full_BX, BP)  # data shared with (full_X, P) in non-general case
         else
@@ -413,9 +421,9 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100; ortho_
             rdiv!(BR, U)
         end
 
+        niter < maxiter || break
         niter = niter + 1
-        niter <= maxiter || break
     end
 
-    final_residnorms(full_X, full_AX, resid_history, maxiter)
+    final_retval(full_X, full_AX, resid_history, maxiter, n_matvec)
 end

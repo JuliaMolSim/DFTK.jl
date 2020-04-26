@@ -80,8 +80,8 @@ function (E::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     pot(el, r, Gcart) = Complex{T}(local_potential_fourier(el, norm(Gcart))
                                * cis(-dot(Gcart, model.lattice * r)))
     pot(Gcart) = sum(pot(elem, r, Gcart)
-                 for (elem, positions) in model.atoms
-                 for r in positions)
+                     for (elem, positions) in model.atoms
+                     for r in positions)
 
     pot_fourier = [pot(model.recip_lattice * G) / sqrt(model.unit_cell_volume)
                    for G in G_vectors(basis)]
