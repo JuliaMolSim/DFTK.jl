@@ -42,7 +42,7 @@ end
 """
 Flag convergence as soon as total energy change drops below tolerance
 """
-function scf_convergence_energy_difference(tolerance)
+function ScfConvergenceEnergy(tolerance)
     energy_total = NaN
 
     function is_converged(info)
@@ -62,7 +62,7 @@ end
 Flag convergence by using the L2Norm of the change between
 input density and unpreconditioned output density (ρout)
 """
-function scf_convergence_density_difference(tolerance)
+function ScfConvergenceDensity(tolerance)
     info -> norm(info.ρout.fourier - info.ρin.fourier) < tolerance
 end
 
@@ -72,9 +72,11 @@ Determine the tolerance used for the next diagonalisation. This function takes
 ensuring additionally that the returned value is between `diagtol_min` and `diagtol_max`
 and never increases.
 """
-function scf_determine_diagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.1)
+function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.1)
     function determine_diagtol(info)
         isnothing(diagtol_min) && (diagtol_min = 500eps(real(eltype(info.ρin))))
+        info.neval == 0 && return diagtol_max
+
         diagtol = norm(info.ρnext.fourier - info.ρin.fourier) * ratio_ρdiff
         diagtol = min(diagtol_max, diagtol)  # Don't overshoot
         diagtol = max(diagtol_min, diagtol)  # Don't undershoot
@@ -100,10 +102,10 @@ function self_consistent_field(basis::PlaneWaveBasis;
                                solver=scf_nlsolve_solver(),
                                eigensolver=lobpcg_hyper,
                                n_ep_extra=3,
-                               determine_diagtol=scf_determine_diagtol(),
+                               determine_diagtol=ScfDiagtol(),
                                mixing=SimpleMixing(),
                                callback=scf_default_callback,
-                               is_converged=scf_convergence_energy_difference(tol),
+                               is_converged=ScfConvergenceEnergy(tol),
                                compute_consistent_energies=true,
                                )
     T = eltype(basis)
@@ -123,7 +125,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
     neval = 0
     energies = nothing
     ham = nothing
-    info = (neval=0, ρin=ρ, ρout=ρ, ρnext=ρ)   # Populate info with initial values
+    info = (neval=0, ρin=ρ)   # Populate info with initial values
 
     # We do density mixing in the real representation
     # TODO support other mixing types

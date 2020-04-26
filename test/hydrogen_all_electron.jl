@@ -1,6 +1,5 @@
 using Test
 using DFTK
-import DFTK: scf_convergence_density_difference
 using LinearAlgebra
 
 @testset "Hydrogen anion all electron" begin
@@ -10,7 +9,7 @@ using LinearAlgebra
         model = model_DFT(lattice, atoms, [], n_electrons=2)
         basis = PlaneWaveBasis(model, Ecut)
 
-        is_converged = scf_convergence_density_difference(tol)
+        is_converged = DFTK.ScfConvergenceDensity(tol)
         scfres = self_consistent_field(basis, is_converged=is_converged)
         sum(values(scfres.energies)), DFTK.forces(scfres)
     end
