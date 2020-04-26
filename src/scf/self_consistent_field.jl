@@ -74,7 +74,7 @@ and never increases.
 """
 function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.1)
     function determine_diagtol(info)
-        isnothing(diagtol_min) && (diagtol_min = 500eps(real(eltype(info.ρin))))
+        isnothing(diagtol_min) && (diagtol_min = 100eps(real(eltype(info.ρin))))
         info.neval == 0 && return diagtol_max
 
         diagtol = norm(info.ρnext.fourier - info.ρin.fourier) * ratio_ρdiff
