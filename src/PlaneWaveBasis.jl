@@ -6,6 +6,28 @@ include("fft.jl")
 # products of orbitals. This also defines the real-space grid
 # (as the dual of the cubic basis set).
 
+# The full (reducible) Brillouin zone is implicitly represented by
+# a set of (irreducible) kpoints (see explanation in docs/). Each
+# irreducible kpoint k comes with a list of symmetry operations
+# (S,τ) (containing at least the trivial operation (I,0)), where S
+# is a rotation matrix (/!\ not unitary in reduced coordinates)
+# and τ a translation vector. The kpoint is then used to represent
+# implicitly the information at all the kpoints Sk. The
+# relationship between the Hamiltonians is
+# H_{Sk} = U H_k U*, with
+# (Uu)(x) = u(S^-1(x-τ))
+# or in Fourier space
+# (Uu)(G) = e^{-i G τ} u(S^-1 G)
+# In particular, we can choose the eigenvectors at Sk as u_{Sk} = U u_k
+
+# We represent then the BZ as a set of irreducible points `kpoints`, a
+# list of symmetry operations `ksymops` allowing the reconstruction of
+# the full (reducible) BZ, and a set of weights `kweights` (summing to
+# 1). The value of an observable (eg energy) per unit cell is given as
+# the value of that observable at each irreducible kpoint, weighted by
+# kweight
+
+
 """
 Discretization information for kpoint-dependent quantities such as orbitals.
 More generally, a kpoint is a block of the Hamiltonian;
@@ -46,26 +68,10 @@ struct PlaneWaveBasis{T <: Real}
     # the basis set is defined by {e_{G}, 1/2|k+G|^2 ≤ Ecut}
     Ecut::T
 
-    # The full (reducible) Brillouin zone is implicitly represented by
-    # a set of (irreducible) kpoints (see explanation in docs/). Each
-    # irreducible kpoint k comes with a list of symmetry operations
-    # (S,τ) (containing at least the trivial operation (I,0)), where S
-    # is a rotation matrix (/!\ not unitary in reduced coordinates)
-    # and τ a translation vector. The kpoint is then used to represent
-    # implicitly the information at all the kpoints Sk. The
-    # relationship between the Hamiltonians is
-    # H_{Sk} = U H_k U*, with
-    # (Uu)(x) = u(S^-1(x-τ))
-    # or in Fourier space
-    # (Uu)(G) = e^{-i G τ} u(S^-1 G)
-    # In particular, we can choose the eigenvectors at Sk as u_{Sk} = U u_k
-
     # irreducible kpoints
     kpoints::Vector{Kpoint{T}}
     # Brillouin zone integration weights,
     # kweights[ik] = length(ksymops[ik]) / sum(length(ksymops[ik]) for ik=1:Nk)
-    # The value of an observable (eg energy) per unit cell is given as
-    # the value of that observable at each irreducible kpoint, weighted by kweight
     kweights::Vector{T}
     # ksymops[ikpt] is a list of symmetry operations (S,τ)
     ksymops::Vector{Vector{Tuple{Mat3{Int}, Vec3{T}}}}
@@ -345,7 +351,7 @@ function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
 Converts an eigenfunction at point `kpoint_src` to one at
 `kpoint_dst`, the two being related by symmetry operation S.
 """
-function transfer_ψ(basis::PlaneWaveBasis{T}, kpoint_src::Kpoint, kpoint_dst::Kpoint, ψ::AbstractVector, S, τ) where {T}
+function transfer_to_kpoint(basis::PlaneWaveBasis{T}, ψ::AbstractVector, kpoint_src::Kpoint, kpoint_dst::Kpoint, S, τ) where {T}
     @assert S*kpoint_src.coordinate ≈ kpoint_dst.coordinate
     invS = Mat3{Int}(inv(S))
     # ψsym(G) = e^{-i G τ} ψ(S^-1 G)
@@ -359,10 +365,10 @@ function transfer_ψ(basis::PlaneWaveBasis{T}, kpoint_src::Kpoint, kpoint_dst::K
     end
     ψsym
 end
-function transfer_ψ(basis::PlaneWaveBasis, kpoint_src::Kpoint, kpoint_dst::Kpoint, ψ::Tψ, S, τ) where {Tψ <: AbstractMatrix}
+function transfer_to_kpoint(basis::PlaneWaveBasis, ψ::Tψ, kpoint_src::Kpoint, kpoint_dst::Kpoint, S, τ) where {Tψ <: AbstractMatrix}
     ψsym = zero(ψ)
     for i = 1:size(ψ, 2)
-        @views ψsym[:, i] .= transfer_ψ(basis, kpoint_src, kpoint_dst, ψ[:, i], S, τ)
+        @views ψsym[:, i] .= transfer_to_kpoint(basis, ψ[:, i], kpoint_src, kpoint_dst, S, τ)
     end
     ψsym
 end
