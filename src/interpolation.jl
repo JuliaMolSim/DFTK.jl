@@ -9,7 +9,7 @@ function interpolate_density(ρ_in::RealFourierArray, b_out::PlaneWaveBasis)
     from_real(b_out, ρ_out)
 end
 
-# TODO Specialisation for the common case lattice_out = lattice_in
+# TODO Specialization for the common case lattice_out = lattice_in
 function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in, lattice_out=lattice_in)
     T = real(eltype(ρ_in))
     @assert size(ρ_in) == grid_in
@@ -64,7 +64,7 @@ end
 
 """
 Interpolate some data from one k-Point to another. The interpolation is fast, but not
-necessarily exact or even normalised. Intended only to construct guesses for iterative
+necessarily exact or even normalized. Intended only to construct guesses for iterative
 solvers
 """
 function interpolate_kpoint(data_in::AbstractVecOrMat, kpoint_in::Kpoint, kpoint_out::Kpoint)
@@ -102,7 +102,7 @@ function interpolate_blochwave(ψ_in, basis_in, basis_out)
         # Get indices of the G vectors of the old basis inside the new basis.
         idcs_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in.kpoints[ik]))
 
-        # Linearise the indices
+        # Linearize the indices
         idcs_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcs_out)
 
         # Map to the indices of the corresponding G-vectors in G_vectors(kpt_out)

@@ -4,7 +4,7 @@ using DFTK
 include("./testcases.jl")
 
 
-@testset "Diagonalisation of a free-electron Hamiltonian" begin
+@testset "Diagonalization of a free-electron Hamiltonian" begin
     # Construct a free-electron Hamiltonian
     Ecut = 5
     fft_size = [15, 15, 15]
@@ -27,7 +27,7 @@ include("./testcases.jl")
 
     @test length(ref_λ) == length(silicon.kcoords)
     @testset "without Preconditioner" begin
-        res = diagonalise_all_kblocks(lobpcg_hyper, ham, nev_per_k, tol=tol,
+        res = diagonalize_all_kblocks(lobpcg_hyper, ham, nev_per_k, tol=tol,
                                       prec_type=nothing, interpolate_kpoints=false)
 
         @test res.converged
@@ -39,7 +39,7 @@ include("./testcases.jl")
     end
 
     @testset "with Preconditioner" begin
-        res = diagonalise_all_kblocks(lobpcg_hyper, ham, nev_per_k, tol=tol,
+        res = diagonalize_all_kblocks(lobpcg_hyper, ham, nev_per_k, tol=tol,
                                       prec_type=PreconditionerTPA, interpolate_kpoints=false)
 
         @test res.converged
@@ -52,7 +52,7 @@ include("./testcases.jl")
 end
 
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
-    @testset "Diagonalisation of kinetic + local PSP" begin
+    @testset "Diagonalization of kinetic + local PSP" begin
         Ecut = 25
         fft_size = [33, 33, 33]
 
@@ -63,7 +63,7 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
                                fft_size=fft_size)
         ham = Hamiltonian(basis)
 
-        res = diagonalise_all_kblocks(lobpcg_hyper, ham, 6, tol=1e-8)
+        res = diagonalize_all_kblocks(lobpcg_hyper, ham, 6, tol=1e-8)
 
         ref = [
             [-4.087198659513310, -4.085326314828677, -0.506869382308294,
@@ -81,7 +81,7 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     end
 end
 
-@testset "Diagonalisation of a core Hamiltonian" begin
+@testset "Diagonalization of a core Hamiltonian" begin
     Ecut = 10
     fft_size = [21, 21, 21]
 
@@ -92,7 +92,7 @@ end
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     ham = Hamiltonian(basis)
 
-    res = diagonalise_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, interpolate_kpoints=false)
+    res = diagonalize_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, interpolate_kpoints=false)
     ref = [
         [0.067955741977536, 0.470244204908046, 0.470244204920801,
          0.470244204998022, 0.578392222232969],
@@ -108,7 +108,7 @@ end
     end
 end
 
-@testset "Full diagonalisation of a LDA Hamiltonian" begin
+@testset "Full diagonalization of a LDA Hamiltonian" begin
     Ecut = 2
 
     Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
@@ -116,8 +116,8 @@ end
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops)
     ham = Hamiltonian(basis; ρ=guess_density(basis))
 
-    res1 = diagonalise_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, interpolate_kpoints=false)
-    res2 = diagonalise_all_kblocks(diag_full, ham, 5, tol=1e-8, interpolate_kpoints=false)
+    res1 = diagonalize_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, interpolate_kpoints=false)
+    res2 = diagonalize_all_kblocks(diag_full, ham, 5, tol=1e-8, interpolate_kpoints=false)
     for ik in 1:length(silicon.kcoords)
         @test res1.λ[ik] ≈ res2.λ[ik] atol=1e-6
     end

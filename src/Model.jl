@@ -16,16 +16,16 @@ struct Model{T <: Real}
     # Electrons, occupation and smearing function
     n_electrons::Int # not necessarily consistent with `atoms` field
 
-    # spin_polarisation values:
-    #     :none       No spin polarisation, αα and ββ density identical,
+    # spin_polarization values:
+    #     :none       No spin polarization, αα and ββ density identical,
     #                 αβ and βα blocks zero
-    #     :collinear  Spin is polarised, but everywhere in the same direction.
+    #     :collinear  Spin is polarized, but everywhere in the same direction.
     #                 αα ̸= ββ, αβ = βα = 0
-    #     :full       Generic magnetisation, non-uniform direction.
+    #     :full       Generic magnetization, non-uniform direction.
     #                 αβ, βα, αα, ββ all nonzero, different
     #     :spinless   No spin at all ("spinless fermions", "mathematicians' electrons").
     #                 Difference with :none is that the occupations are 1 instead of 2
-    spin_polarisation::Symbol  # :none, :collinear, :full, :spinless
+    spin_polarization::Symbol  # :none, :collinear, :full, :spinless
 
     # If temperature=0, no fractional occupations are used.
     # If temperature is nonzero, the occupations are
@@ -43,7 +43,7 @@ struct Model{T <: Real}
 end
 
 function Model(lattice::AbstractMatrix{T}; n_electrons=nothing, atoms=[], terms=[], temperature=0.0,
-               smearing=nothing, spin_polarisation=:none) where {T <: Real}
+               smearing=nothing, spin_polarization=:none) where {T <: Real}
     lattice = Mat3{T}(lattice)
 
     if n_electrons === nothing
@@ -73,7 +73,7 @@ function Model(lattice::AbstractMatrix{T}; n_electrons=nothing, atoms=[], terms=
     unit_cell_volume = abs(det(lattice[1:d, 1:d]))
     recip_cell_volume = abs(det(recip_lattice[1:d, 1:d]))
 
-    @assert spin_polarisation in (:none, :collinear, :full, :spinless)
+    @assert spin_polarization in (:none, :collinear, :full, :spinless)
 
     if smearing === nothing
         @assert temperature >= 0
@@ -86,7 +86,7 @@ function Model(lattice::AbstractMatrix{T}; n_electrons=nothing, atoms=[], terms=
     end
 
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
-             spin_polarisation, T(temperature), smearing, atoms, terms)
+             spin_polarization, T(temperature), smearing, atoms, terms)
 end
 
 
@@ -130,8 +130,8 @@ end
 Maximal occupation of a state (2 for non-spin-polarized electrons, 1 otherwise).
 """
 function filled_occupation(model)
-    @assert model.spin_polarisation in (:none, :spinless)
-    if model.spin_polarisation == :none
+    @assert model.spin_polarization in (:none, :spinless)
+    if model.spin_polarization == :none
         @assert model.n_electrons % 2 == 0
         filled_occ = 2
     else

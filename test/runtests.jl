@@ -27,7 +27,7 @@ else
     println("   Running tests (TAGS = $(join(TAGS, ", "))).")
 end
 
-# Initialise seed
+# Initialize seed
 Random.seed!(0)
 
 # Wrap in an outer testset to get a full report if one test fails

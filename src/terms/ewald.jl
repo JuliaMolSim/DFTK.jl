@@ -109,7 +109,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     #
     # Reciprocal space sum
     #
-    # Initialise reciprocal sum with correction term for charge neutrality
+    # Initialize reciprocal sum with correction term for charge neutrality
     sum_recip::T = - (sum(charges)^2 / 4η^2)
 
     # Function to return the indices corresponding
@@ -165,7 +165,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     #
     # Real-space sum
     #
-    # Initialise real-space sum with correction term for uniform background
+    # Initialize real-space sum with correction term for uniform background
     sum_real::T = -2η / sqrt(T(π)) * sum(Z -> Z^2, charges)
 
     # Loop over real-space shells

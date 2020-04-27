@@ -70,7 +70,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                              prec_type=PreconditionerTPA,
                              optim_solver=Optim.LBFGS, kwargs...) where T
     model = basis.model
-    @assert model.spin_polarisation in (:none, :spinless)
+    @assert model.spin_polarization in (:none, :spinless)
     @assert model.temperature == 0 # temperature is not yet supported
     filled_occ = filled_occupation(model)
     n_bands = div(model.n_electrons, filled_occ)

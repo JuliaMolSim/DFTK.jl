@@ -23,7 +23,7 @@ will list all oxygen semicore pseudopotentials known to DFTK.
 """
 function list_psp(element=nothing; family=nothing, functional=nothing, core=nothing,
                   datadir_psp=datadir_psp())
-    # Normalise input keys
+    # Normalize input keys
     isnothing(element)    || (element = Symbol(PeriodicTable.elements[element].symbol))
     isnothing(functional) || (functional = lowercase(functional))
     isnothing(family)     || (family = lowercase(family))

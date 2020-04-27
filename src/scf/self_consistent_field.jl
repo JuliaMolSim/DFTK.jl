@@ -16,7 +16,7 @@ function next_density(ham::Hamiltonian;
     end
 
     # Diagonalize
-    eigres = diagonalise_all_kblocks(eigensolver, ham, n_ep; guess=ψ,
+    eigres = diagonalize_all_kblocks(eigensolver, ham, n_ep; guess=ψ,
                                      n_conv_check=n_bands, kwargs...)
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
@@ -25,7 +25,7 @@ function next_density(ham::Hamiltonian;
     ρnew = compute_density(ham.basis, eigres.X, occupation)
 
     (ψ=eigres.X, eigenvalues=eigres.λ, occupation=occupation, εF=εF, ρ=ρnew,
-     diagonalisation=eigres)
+     diagonalization=eigres)
 end
 
 function scf_default_callback(info)
@@ -67,7 +67,7 @@ function ScfConvergenceDensity(tolerance)
 end
 
 """
-Determine the tolerance used for the next diagonalisation. This function takes
+Determine the tolerance used for the next diagonalization. This function takes
 ``|ρnext - ρin|`` and multiplies it with `ratio_ρdiff` to get the next `diagtol`,
 ensuring additionally that the returned value is between `diagtol_min` and `diagtol_max`
 and never increases.
@@ -161,7 +161,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
 
         info = (ham=ham, energies=energies, ρin=ρin, ρout=ρout, ρnext=ρnext,
                 eigenvalues=eigenvalues, occupation=occupation, εF=εF, neval=neval, ψ=ψ,
-                diagonalisation=nextstate.diagonalisation)
+                diagonalization=nextstate.diagonalization)
         callback(info)
         is_converged(info) && return x
 

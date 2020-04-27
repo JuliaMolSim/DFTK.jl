@@ -22,8 +22,8 @@ include("testcases.jl")
     @test E["Hartree"] ≈  0.3527293727197568  atol=5e-8
     @test E["Xc"]      ≈ -2.3033165870558165  atol=5e-8
 
-    # Run one diagonalisation and compute energies
-    res = diagonalise_all_kblocks(lobpcg_hyper, H, n_bands, tol=1e-9)
+    # Run one diagonalization and compute energies
+    res = diagonalize_all_kblocks(lobpcg_hyper, H, n_bands, tol=1e-9)
     occupation = [[2.0, 2.0, 2.0, 2.0, 0.0, 0.0, 0.0, 0.0]
                   for i in 1:length(basis.kpoints)]
     ρnew = compute_density(H.basis, res.X, occupation)

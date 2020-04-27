@@ -4,7 +4,7 @@ using IntervalArithmetic
 
 include("testcases.jl")
 
-function discretised_hamiltonian(T, testcase)
+function discretized_hamiltonian(T, testcase)
     Ecut = 10  # Hartree
 
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
@@ -22,8 +22,8 @@ end
 
 @testset "Application of an LDA Hamiltonian with Intervals" begin
     T = Float64
-    ham = discretised_hamiltonian(T, silicon)
-    hamInt = discretised_hamiltonian(Interval{T}, silicon)
+    ham = discretized_hamiltonian(T, silicon)
+    hamInt = discretized_hamiltonian(Interval{T}, silicon)
 
     hamk = ham.blocks[1]
     hamIntk = hamInt.blocks[1]

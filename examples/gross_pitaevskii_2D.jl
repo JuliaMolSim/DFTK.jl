@@ -31,7 +31,7 @@ terms = [Kinetic(),
          Magnetic(Apot),
 ]
 model = Model(lattice; n_electrons=n_electrons,
-              terms=terms, spin_polarisation=:spinless)  # "spinless fermions"
+              terms=terms, spin_polarization=:spinless)  # "spinless fermions"
 basis = PlaneWaveBasis(model, Ecut)
 
 n_bands_scf = model.n_electrons
