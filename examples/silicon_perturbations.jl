@@ -20,7 +20,7 @@ lattice = load_lattice(pystruct)
 atoms = [Si => [s.frac_coords for s in pystruct.sites]]
 
 # precize the number of electrons on build the model
-Ne = 8
+Ne = 2
 model = model_LDA(lattice, atoms; n_electrons=Ne)
 
 # kgrid and ksymops
@@ -113,9 +113,9 @@ function perturbation(basis, kcoords, ksymops, scfres, Ecut_fine)
         occ_bands = [n for n in 1:length(egval[ik]) if occ[ik][n] != 0.0]
         Nb = length(occ_bands)
         # normalize eigenvectors before orthogonalization
-        for n in 1:Nb
-            ψp_fine[ik][:, n] /= norm(ψp_fine[ik][:, n])
-        end
+        #  for n in 1:Nb
+        #      ψp_fine[ik][:, n] /= norm(ψp_fine[ik][:, n])
+        #  end
         ### QR orthonormalization
         #  ψp_fine[ik][:, occ_bands] .= Matrix(qr(ψp_fine[ik][:, occ_bands]).Q)
         ### Lowdin orthonormalization
@@ -143,10 +143,17 @@ function perturbation(basis, kcoords, ksymops, scfres, Ecut_fine)
     for (ik, kpt_fine) in enumerate(basis_fine.kpoints)
         occ_bands = [n for n in 1:length(egval[ik]) if occ[ik][n] != 0.0]
 
+        # pre-allocated scratch arrays to compute the HamiltonianBlock
+        T = eltype(basis)
+        scratch = (
+            ψ_reals=[zeros(complex(T), basis_fine.fft_size...) for tid = 1:Threads.nthreads()],
+            Hψ_reals=[zeros(complex(T), basis_fine.fft_size...) for tid = 1:Threads.nthreads()]
+        )
+
         # compute W * ψ1 where W is the total potential (ie H without kinetic)
         ops_no_kin = [op for op in H_fine.blocks[ik].operators
                       if !(op isa DFTK.FourierMultiplication)]
-        H_fine_block_no_kin = HamiltonianBlock(basis_fine, kpt_fine, ops_no_kin)
+        H_fine_block_no_kin = HamiltonianBlock(basis_fine, kpt_fine, ops_no_kin, scratch)
         potψ1k = mul!(similar(ψ1_fine[ik]), H_fine_block_no_kin, ψ1_fine[ik])
 
         # second order perturbation of the eigenvalue (first order is 0)
@@ -183,7 +190,7 @@ function perturbation(basis, kcoords, ksymops, scfres, Ecut_fine)
     Ep_fine, Hp_fine = energy_hamiltonian(basis_fine, ψp_fine, occ; ρ=ρp_fine)
 
     # compute forces
-    forces_fine = norm(sum.(forces(basis_fine, ψp_fine, occ; ρ=ρp_fine)))
+    forces_fine = norm(forces(basis_fine, ψp_fine, occ; ρ=ρp_fine))
 
     (Ep_fine, ψp_fine, ρp_fine, egvalp1, egvalp2, egvalp_rl, forces_fine)
 end
@@ -191,13 +198,13 @@ end
 ################################# Calculations #################################
 
 ##### Reference solution on a fine grid
-Ecut_ref = 100
-println("---------------------------\nSolution for Ecut_ref = $(Ecut_ref)")
-basis_ref = PlaneWaveBasis(model, Ecut_ref, kcoords, ksymops)
-scfres_ref = self_consistent_field(basis_ref, tol=1e-12)
-Etot_ref = sum(values(scfres_ref.energies))
-egval_ref = scfres_ref.eigenvalues
-forces_ref = norm(sum.(forces(scfres_ref)))
+#  Ecut_ref = 100
+#  println("---------------------------\nSolution for Ecut_ref = $(Ecut_ref)")
+#  basis_ref = PlaneWaveBasis(model, Ecut_ref, kcoords, ksymops)
+#  scfres_ref = self_consistent_field(basis_ref, tol=1e-12)
+#  Etot_ref = sum(values(scfres_ref.energies))
+#  egval_ref = scfres_ref.eigenvalues
+#  forces_ref = norm(forces(scfres_ref))
 
 ##### Solution on a coarse grid
 Ecut = 15
@@ -205,6 +212,7 @@ println("---------------------------\nSolution for Ecut = $(Ecut)")
 basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
 scfres = self_consistent_field(basis, tol=1e-12)
 Etot = sum(values(scfres.energies))
+display(forces(scfres))
 
 ##### Perturbation for several values of the ratio α = Ecut_fine/Ecut
 function test_perturbation(α_max)
@@ -225,7 +233,8 @@ function test_perturbation(α_max)
         push!(E_fine_list, sum(values(scfres_fine.energies)))
         push!(egval_fine_list, scfres_fine.eigenvalues)
         forces_fine = forces(scfres_fine)
-        push!(forces_fine_list, norm(sum.(forces_fine)))
+        display(forces_fine)
+        push!(forces_fine_list, norm(forces_fine))
 
         # perturbation
         Ep_fine, ψp_fine, ρp_fine, egvalp1, egvalp2, egvalp_rl, forcesp = perturbation(basis, kcoords, ksymops, scfres, α*Ecut)
