@@ -20,7 +20,7 @@ include("testcases.jl")
         basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
         ham = Hamiltonian(basis; ρ=guess_density(basis, atoms))
 
-        res = diagonalise_all_kblocks(lobpcg_hyper, ham, n_bands; tol=tol)
+        res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol=tol)
         occ, εF = DFTK.find_occupation(basis, res.λ)
         ρnew = compute_density(basis, res.X, occ)
 

@@ -37,8 +37,8 @@ function pymatgen_bandstructure(basis, λ, εF, klabels)
     Spin = pyimport("pymatgen.electronic_structure.core").Spin
     bandstructure = pyimport("pymatgen.electronic_structure.bandstructure")
 
-    # This assumes no spin polarisation
-    @assert basis.model.spin_polarisation in (:none, :spinless)
+    # This assumes no spin polarization
+    @assert basis.model.spin_polarization in (:none, :spinless)
 
     eigenvals_spin_up = Matrix{eltype(λ[1])}(undef, length(λ[1]), length(basis.kpoints))
     for (ik, λs) in enumerate(λ)

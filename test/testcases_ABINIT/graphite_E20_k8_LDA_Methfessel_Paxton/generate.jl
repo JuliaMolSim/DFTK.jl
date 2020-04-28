@@ -16,4 +16,4 @@ model = model_DFT(lattice, atoms, :lda_xc_teter93, temperature=0.01,
 abinitpseudos = [joinpath(pyimport("abipy.data").__path__[end], "hgh_pseudos/6c.4.hgh")]
 DFTK.run_abinit_scf(model, @__DIR__; abinitpseudos=abinitpseudos,
                     Ecut=20, kgrid=[8, 8, 8], n_bands=12, tol=1e-10,
-                    iscf=3) # Use Anderson mixing instead of minimisation
+                    iscf=3) # Use Anderson mixing instead of minimization

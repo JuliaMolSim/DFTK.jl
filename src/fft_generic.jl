@@ -11,7 +11,7 @@ const GENERIC_FFT_LOADED = true
 
 function next_working_fft_size(::Any, size)
     # TODO FourierTransforms has a bug, which is triggered
-    #      only in some factorisations, see
+    #      only in some factorizations, see
     #      https://github.com/JuliaComputing/FourierTransforms.jl/issues/10
     # To be safe we fall back to powers of two
 
@@ -22,7 +22,7 @@ function next_working_fft_size(::Any, size)
     adjusted
 end
 
-# Generic fallback function, Float32 and Float64 specialisation in fft.jl
+# Generic fallback function, Float32 and Float64 specialization in fft.jl
 function build_fft_plans(T, fft_size)
     tmp = Array{Complex{T}}(undef, fft_size...)
 

@@ -13,7 +13,7 @@ struct EtsfFolder
 end
 
 """
-Initialise a EtsfFolder from the path to the folder which contains
+Initialize a EtsfFolder from the path to the folder which contains
 the data in the ETSF Nanoquanta format.
 """
 function EtsfFolder(folder::AbstractString)

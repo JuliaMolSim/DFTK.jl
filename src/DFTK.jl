@@ -99,7 +99,7 @@ export lobpcg_hyper
 export lobpcg_scipy
 export lobpcg_itsolve
 export diag_full
-export diagonalise_all_kblocks
+export diagonalize_all_kblocks
 include("eigen/diag.jl")
 
 export KerkerMixing

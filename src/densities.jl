@@ -33,7 +33,7 @@ end
 """
     compute_density(basis::PlaneWaveBasis, ψ::AbstractVector, occupation::AbstractVector)
 
-Compute the density for a wave function `ψ` discretised on the plane-wave grid `basis`,
+Compute the density for a wave function `ψ` discretized on the plane-wave grid `basis`,
 where the individual k-Points are occupied according to `occupation`. `ψ` should
 be one coefficient matrix per k-Point.
 """

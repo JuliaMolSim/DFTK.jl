@@ -73,14 +73,14 @@ Base.show(io::IO, basis::PlaneWaveBasis) =
 Base.eltype(basis::PlaneWaveBasis{T}) where {T} = T
 
 function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
-    model.spin_polarisation in (:none, :collinear, :spinless) || (
-        error("$(model.spin_polarisation) not implemented"))
+    model.spin_polarization in (:none, :collinear, :spinless) || (
+        error("$(model.spin_polarization) not implemented"))
     spin = (:undefined,)
-    if model.spin_polarisation == :collinear
+    if model.spin_polarization == :collinear
         spin = (:up, :down)
-    elseif model.spin_polarisation == :none
+    elseif model.spin_polarization == :none
         spin = (:both, )
-    elseif model.spin_polarisation == :spinless
+    elseif model.spin_polarization == :spinless
         spin = (:spinless, )
     end
 

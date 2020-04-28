@@ -24,7 +24,7 @@ function run_abinit_scf(infile::PyObject, outdir)
 
     # Adjust common infile settings:
     infile.set_vars(
-        paral_kgb=0,    # Parallelisation over k-Points and Bands
+        paral_kgb=0,    # Parallelization over k-Points and Bands
         iomode=3,       # Use NetCDF output
         istwfk="*1",    # Needed for extracting the wave function later
     )
@@ -81,14 +81,14 @@ function run_abinit_scf(model::Model, outdir;
         tolvrs=tol,       # General tolerance settings
     )
 
-    # Spin-polarisation
-    if model.spin_polarisation == :spinless
-        error("spin_polarisation == spinless is not supported by abinit")
-    elseif model.spin_polarisation == :none
+    # Spin-polarization
+    if model.spin_polarization == :spinless
+        error("spin_polarization == spinless is not supported by abinit")
+    elseif model.spin_polarization == :none
         infile.set_vars(nsppol=1, nspinor=1, nspden=1)
-    elseif model.spin_polarisation == :collinear
+    elseif model.spin_polarization == :collinear
         infile.set_vars(nsppol=2, nspinor=1, nspden=2)
-    elseif model.spin_polarisation == :full
+    elseif model.spin_polarization == :full
         infile.set_vars(nsppol=1, nspinor=2, nspden=4)
     end
 
@@ -119,14 +119,14 @@ function run_abinit_scf(model::Model, outdir;
         end
     end
 
-    # Spin-polarisation
-    if model.spin_polarisation == :spinless
-        error("spin_polarisation == spinless is not supported by abinit")
-    elseif model.spin_polarisation == :none
+    # Spin-polarization
+    if model.spin_polarization == :spinless
+        error("spin_polarization == spinless is not supported by abinit")
+    elseif model.spin_polarization == :none
         infile.set_vars(nsppol=1, nspinor=1, nspden=1)
-    elseif model.spin_polarisation == :collinear
+    elseif model.spin_polarization == :collinear
         infile.set_vars(nsppol=2, nspinor=1, nspden=2)
-    elseif model.spin_polarisation == :full
+    elseif model.spin_polarization == :full
         infile.set_vars(nsppol=1, nspinor=2, nspden=4)
     end
 

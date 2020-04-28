@@ -27,7 +27,7 @@ function compute_bands(basis, ρ, kcoords, n_bands;
     bs_basis = PlaneWaveBasis(basis, kcoords, ksymops)
     ham = Hamiltonian(bs_basis; ρ=ρ)
 
-    band_data = diagonalise_all_kblocks(eigensolver, ham, n_bands + 3;
+    band_data = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
                                         n_conv_check=n_bands, interpolate_kpoints=false,
                                         tol=tol, show_progress=show_progress, kwargs...)
     if !band_data.converged
@@ -82,8 +82,8 @@ Determine whether the provided bands indicate the material is a metal,
 i.e. where bands are cut by the Fermi level.
 """
 function is_metal(band_data, εF, tol=1e-4)
-    # This assumes no spin polarisation
-    @assert band_data.basis.model.spin_polarisation in (:none, :spinless)
+    # This assumes no spin polarization
+    @assert band_data.basis.model.spin_polarization in (:none, :spinless)
 
     n_bands = length(band_data.λ[1])
     n_kpoints = length(band_data.λ)

@@ -49,7 +49,7 @@ end
             append!(all_kcoords, [S * k for (S, τ) in ksymops[ik]])
         end
 
-        # Normalise the obtained k-Points and test for equality
+        # Normalize the obtained k-Points and test for equality
         red_kcoords = sort([mod.(k .* kgrid_size, kgrid_size) for k in red_kcoords])
         all_kcoords = sort([mod.(k .* kgrid_size, kgrid_size) for k in all_kcoords])
         @test all_kcoords == red_kcoords

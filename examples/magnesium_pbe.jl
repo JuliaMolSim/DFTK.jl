@@ -22,7 +22,7 @@ pystruct.make_supercell(supercell)
 lattice = load_lattice(pystruct)
 atoms = [Mg => [s.frac_coords for s in pystruct.sites]]
 
-# Setup PBE model with Methfessel-Paxton smearing and its discretisation
+# Setup PBE model with Methfessel-Paxton smearing and its discretization
 model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe];
                   temperature=Tsmear,
                   smearing=DFTK.Smearing.MethfesselPaxton1())

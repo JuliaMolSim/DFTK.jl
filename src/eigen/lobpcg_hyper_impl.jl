@@ -62,7 +62,7 @@ end
 
 import LinearAlgebra: cholesky
 function cholesky(X::Union{Matrix{ComplexF16}, Hermitian{ComplexF16,Matrix{ComplexF16}}})
-    # Cholesky factorisation above may promote the type
+    # Cholesky factorization above may promote the type
     # (e.g. Float16 is promoted to Float32. This undoes it)
     # See https://github.com/JuliaLang/julia/issues/16446
     U = cholesky(ComplexF32.(X)).U

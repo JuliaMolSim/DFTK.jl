@@ -12,7 +12,7 @@ lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
 Si = ElementPsp(:Si, psp=load_psp(:Si, functional="lda"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
-# Setup LDA model and discretisation
+# Setup LDA model and discretization
 model = model_DFT(Array{T}(lattice), atoms, [:lda_x, :lda_c_vwn])
 basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid)
 

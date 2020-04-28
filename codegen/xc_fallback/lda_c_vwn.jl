@@ -2,7 +2,7 @@
 #
 # LDA correlation according to Vosko Wilk,and Nusair, (DOI 10.1139/p80-159)
 #
-# This version generates the "standard" parametrisation, where a Pade approximation of a
+# This version generates the "standard" parametrization, where a Pade approximation of a
 # numerical diffusion Monte-Carlo simulation is used.
 
 as_rational(x) = nsimplify(Sym(x))

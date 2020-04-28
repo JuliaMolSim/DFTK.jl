@@ -142,8 +142,8 @@ end
     ρ0 = guess_density(basis, [spec => testcase.positions])
     ham = Hamiltonian(basis; ρ=ρ0)
 
-    # Check that plain diagonalisation and compute_bands agree
-    eigres = diagonalise_all_kblocks(lobpcg_hyper, ham, n_bands + 3, n_conv_check=n_bands,
+    # Check that plain diagonalization and compute_bands agree
+    eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands + 3, n_conv_check=n_bands,
                                      tol=1e-5)
 
     band_data = compute_bands(basis, ρ0, [k.coordinate for k in basis.kpoints], n_bands)

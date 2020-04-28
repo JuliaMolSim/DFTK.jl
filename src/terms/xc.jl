@@ -27,7 +27,7 @@ function ene_ops(term::XcTerm, ψ, occ; ρ, kwargs...)
     max_ρ_derivs = any(xc.family == Libxc.family_gga for xc in term.functionals) ? 1 : 0
     density = DensityDerivatives(basis, max_ρ_derivs, ρ)
 
-    # Initialisation
+    # Initialization
     potential = zeros(T, basis.fft_size)
     Epp = zeros(T, basis.fft_size) # Energy per unit particle
     E = zero(T)
@@ -123,7 +123,7 @@ DOCME compute density in real space and its derivatives starting from Fourier-sp
 """
 function DensityDerivatives(basis, max_derivative::Integer, ρ)
     model = basis.model
-    @assert model.spin_polarisation == :none "Only spin_polarisation == :none implemented."
+    @assert model.spin_polarization == :none "Only spin_polarization == :none implemented."
     function ifft(x)
         tmp = G_to_r(basis, x)
         check_real(tmp)

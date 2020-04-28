@@ -22,7 +22,7 @@ terms = [Kinetic(),
          PowerNonlinearity(C, α),
 ]
 model = Model(lattice; n_electrons=n_electrons, terms=terms,
-              spin_polarisation=:spinless)  # "spinless fermions"
+              spin_polarization=:spinless)  # "spinless fermions"
 basis = PlaneWaveBasis(model, Ecut)
 
 scfres = direct_minimization(basis, x_tol=1e-8, f_tol=-1, g_tol=-1)

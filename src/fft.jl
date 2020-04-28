@@ -4,8 +4,8 @@ import FFTW
 Determine the minimal grid size for the cubic basis set to be able to
 represent product of orbitals (with the default `supersampling=2`).
 
-Optionally optimise the grid afterwards for the FFT procedure by
-ensuring factorisation into small primes.
+Optionally optimize the grid afterwards for the FFT procedure by
+ensuring factorization into small primes.
 
 The function will determine the smallest cube containing the wave vectors
  ``|G|^2/2 \leq E_\text{cut} ⋅ \text{supersampling}^2``.
@@ -25,7 +25,7 @@ function determine_grid_size(lattice::AbstractMatrix{T}, Ecut; supersampling=2, 
         end
     end
 
-    # Optimise FFT grid size: Make sure the number factorises in small primes only
+    # Optimize FFT grid size: Make sure the number factorises in small primes only
     if ensure_smallprimes
         Vec3([nextprod([2, 3, 5], 2gs + 1) for gs in Gmax])
     else

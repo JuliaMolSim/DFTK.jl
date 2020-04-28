@@ -8,7 +8,7 @@ that really does the work, operating on a single ``k``-Block.
 `eigensolver` should support the API `eigensolver(A, X0; prec, tol, maxiter)`
 `prec_type` should be a function that returns a preconditioner when called as `prec(ham, kpt)`
 """
-function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
+function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
                                  guess=nothing,
                                  prec_type=PreconditionerTPA, interpolate_kpoints=true,
                                  tol=1e-6, miniter=1, maxiter=200, n_conv_check=nothing,
@@ -33,7 +33,7 @@ function diagonalise_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         elseif interpolate_kpoints && ik > 1
             # use information from previous kpoint
             X0 = interpolate_kpoint(results[ik - 1].X, kpoints[ik - 1], kpoints[ik])
-            guessk = Matrix{T}(qr(X0).Q)  # Re-orthogonalise and renormalise
+            guessk = Matrix{T}(qr(X0).Q)  # Re-orthogonalize and renormalize
         else
             # random initial guess
             qrres = qr(randn(T, length(G_vectors(kpoints[ik])), nev_per_kpoint))
@@ -62,7 +62,7 @@ end
 
 @doc raw"""
 Function to select a subset of eigenpairs on each ``k``-Point. Works on the
-Tuple returned by `diagonalise_all_kblocks`.
+Tuple returned by `diagonalize_all_kblocks`.
 """
 function select_eigenpairs_all_kblocks(eigres, range)
     merge(eigres, (λ=[λk[range] for λk in eigres.λ],
