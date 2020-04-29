@@ -4,6 +4,7 @@ using PyCall
 #
 # Example using ASE to build a (1, 1, 0) GaAs surface separated by vacuum.
 # See https://wiki.fysik.dtu.dk/ase/install.html for details
+# System setup slightly adapted from http://dx.doi.org/10.1103/physrevb.64.121101
 ## tags: long
 #
 
@@ -33,9 +34,7 @@ lattice = load_lattice(surface)
 model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe])
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 
-scfres = self_consistent_field(basis, tol=1e-8,
-                               n_bands=ceil(Int, model.n_electrons / 2),
-                               mixing=KerkerMixing())
+scfres = self_consistent_field(basis, tol=1e-8, mixing=KerkerMixing())
 
 # Print obtained energies
 println()
