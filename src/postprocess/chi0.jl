@@ -134,7 +134,7 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
 
             # Sternheimer contributions. TODO add preconditioning here
             !(sternheimer_contribution) && continue
-            fnk = filled_occ * Smearing.occupation(model.smearing, (εmk-εF) / temperature)
+            fnk = filled_occ * Smearing.occupation(model.smearing, (εnk-εF) / temperature)
             abs(fnk) < eps(T) && continue
             # compute δψn by solving Q (H-εn) Q δψn = -Q δV ψn
             # we err on the side of caution here by applying Q a lot,
