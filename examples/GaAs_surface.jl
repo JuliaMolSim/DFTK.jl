@@ -19,7 +19,8 @@ kgrid = (4, 4, 1)               # Monkhorst-Pack mesh
 
 # Use ASE to build the structure
 ase_build = pyimport("ase.build")
-gaas = ase_build.bulk("GaAs", "zincblende", a=2.82685)
+a = 5.6537  # GaAs lattice parameter in Ǎngström (because ASE uses Ǎ as length unit)
+gaas = ase_build.bulk("GaAs", "zincblende", a=a)
 surface = ase_build.surface(gaas, miller, n_GaAs, 0, periodic=true)
 
 # Get the amount of vacuum in Ǎngström we need to add
