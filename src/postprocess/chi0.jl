@@ -8,7 +8,7 @@ using ProgressMeter
 Compute the independent-particle susceptibility. Will blow up for large systems.
 Drop all non-diagonal terms with (f(εn)-f(εm))/(εn-εm) factor less than `droptol`.
 """
-function compute_χ0(ham; droptol=0)
+function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
     # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
     # where (up to normalizations)
     # ρ = ∑_nk f(εnk - εF) |ψnk|^2
@@ -43,7 +43,7 @@ function compute_χ0(ham; droptol=0)
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
     Vs = [EV.vectors for EV in EVs]
-    occ, εF = find_occupation(basis, Es)
+    occ, εF = find_occupation(basis, Es, temperature=temperature)
 
     χ0 = zeros(eltype(basis), prod(fft_size), prod(fft_size))
     for ik = 1:length(basis.kpoints)
@@ -57,10 +57,10 @@ function compute_χ0(ham; droptol=0)
         Vr = hcat(G_to_r.(Ref(basis), Ref(basis.kpoints[ik]), eachcol(V))...)
         Vr = reshape(Vr, prod(fft_size), N)
         @showprogress "Computing χ0 for kpoint $ik/$(length(basis.kpoints)) ..." for m = 1:N, n = 1:N
-            enred = (E[n] - εF) / model.temperature
+            enred = (E[n] - εF) / temperature
             @assert occ[ik][n] ≈ filled_occ * Smearing.occupation(model.smearing, enred)
             ddiff = Smearing.occupation_divided_difference
-            ratio = filled_occ * ddiff(model.smearing, E[m], E[n], εF, model.temperature)
+            ratio = filled_occ * ddiff(model.smearing, E[m], E[n], εF, temperature)
             (n != m) && (abs(ratio) < droptol) && continue
             # dVol because inner products have a dVol so that |f> becomes <dVol f|
             # can take the real part here because the nm term is complex conjugate of mn
@@ -72,7 +72,7 @@ function compute_χ0(ham; droptol=0)
     end
 
     # Add variation wrt εF
-    if model.temperature > 0
+    if temperature > 0
         ldos = vec(LDOS(εF, basis, Es, Vs))
         dos = DOS(εF, basis, Es)
         χ0 .+= (ldos .* ldos') .* dVol ./ dos
@@ -154,8 +154,8 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
 
     # Add variation wrt εF
     if temperature > 0
-        ldos = LDOS(εF, basis, eigenvalues, ψ, T=temperature)
-        dos = DOS(εF, basis, eigenvalues, T=temperature)
+        ldos = LDOS(εF, basis, eigenvalues, ψ, temperature=temperature)
+        dos = DOS(εF, basis, eigenvalues, temperature=temperature)
         δρ .+= ldos .* dot(ldos, δV) .* dVol ./ dos
     end
 
