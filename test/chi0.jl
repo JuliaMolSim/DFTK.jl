@@ -44,7 +44,8 @@ include("testcases.jl")
             Es = [EV.values[1:n_bands] for EV in EVs]
             Vs = [EV.vectors[:, 1:n_bands] for EV in EVs]
             occ, εF = find_occupation(basis, Es)
-            diff_diag_2 = apply_χ0(ham0, dV, Vs, occ, εF, Es; droptol=droptol, sternheimer_contribution=(droptol == 0))
+            diff_diag_2 = apply_χ0(ham0, dV, Vs, εF, Es; droptol=droptol,
+                                   sternheimer_contribution=(droptol == 0))
             @test norm(diff_diag_1 - diff_diag_2) < sqrt(ε)
         end
     end

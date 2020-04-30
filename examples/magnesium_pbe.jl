@@ -39,7 +39,7 @@ p = plot_bandstructure(scfres, n_bands)
 # Plot DOS
 εs = range(minimum(minimum(scfres.eigenvalues)) - 1,
            maximum(maximum(scfres.eigenvalues)) + 1, length=1000)
-Ds = DOS.(εs, Ref(basis), Ref(scfres.eigenvalues), T=Tsmear*4,
+Ds = DOS.(εs, Ref(basis), Ref(scfres.eigenvalues), temperature=Tsmear*4,
           smearing=DFTK.Smearing.MethfesselPaxton1())
 q = plot(εs, Ds, label="DOS")
 vline!(q, [scfres.εF], label="εF")

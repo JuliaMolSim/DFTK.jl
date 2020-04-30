@@ -12,11 +12,11 @@ end
 """
 Find the occupation and Fermi level.
 """
-function find_occupation(basis::PlaneWaveBasis{T}, energies) where {T}
+function find_occupation(basis::PlaneWaveBasis{T}, energies;
+                         temperature=basis.model.temperature) where {T}
     @assert basis.model.spin_polarization in (:none, :spinless)
     model = basis.model
     n_electrons = model.n_electrons
-    temperature = model.temperature
     smearing = model.smearing
 
     # Maximum occupation per state
