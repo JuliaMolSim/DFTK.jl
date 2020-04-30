@@ -6,7 +6,7 @@ include("testcases.jl")
 
 @testset "Computing χ0" begin
     Ecut=3
-    fft_size = [10, 10, 1]
+    fft_size = [10, 1, 10]
     tol=1e-10
     ε = 1e-8
     kgrid = [3, 1, 1]
@@ -33,7 +33,7 @@ include("testcases.jl")
         diff = (ρ2.real - ρ1.real)/ε
 
         predicted_diff = real(reshape(χ0*vec(dV), basis.fft_size))
-        # @test norm(diff - predicted_diff) < sqrt(ε)
+        @test norm(diff - predicted_diff) < sqrt(ε)
 
         for droptol in (0, Inf)
             # Test the diagonal_only option
