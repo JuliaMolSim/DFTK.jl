@@ -13,7 +13,9 @@ struct KerkerMixing{T <: Real}
     α::T
     G0::T
 end
-KerkerMixing() = KerkerMixing(1, 1)
+# Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, G0=1.5 Ǎ^{-1})
+# DOI 10.1103/PhysRevB.54.11169
+KerkerMixing() = KerkerMixing(0.8, 0.8)
 function mix(m::KerkerMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray)
     Gsq = [sum(abs2, basis.model.recip_lattice * G)
            for G in G_vectors(basis)]
