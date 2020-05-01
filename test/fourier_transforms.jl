@@ -5,7 +5,7 @@ include("testcases.jl")
 
 @testset "FFT and IFFT are an identity" begin
     Ecut = 4.0  # Hartree
-    fft_size = [15, 15, 15]
+    fft_size = [8, 8, 8]
     model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
     pw = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
@@ -22,6 +22,11 @@ include("testcases.jl")
         @test maximum(abs.(f2_G - f_G)) < 1e-12
         @test maximum(abs.(f2_R - f_R)) < 1e-12
         @test maximum(abs.(f3_G - f_G)) < 1e-12
+
+        G_to_r_mat = DFTK.G_to_r_matrix(pw)
+        r_to_G_mat = DFTK.r_to_G_matrix(pw)
+        @test maximum(abs.(G_to_r_mat * r_to_G_mat - I)) < 1e-12
+        @test maximum(abs.(G_to_r_mat * vec(f_G) - vec(f_R))) < 1e-12
     end
 
     @testset "Transformation on the spherical basis set" begin

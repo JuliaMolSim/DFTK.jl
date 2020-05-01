@@ -299,6 +299,26 @@ function r_to_G(basis::PlaneWaveBasis, f_real::AbstractArray3)
     r_to_G!(similar(f_real), basis, f_real)
 end
 # TODO optimize this
-function r_to_G(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3) where {T}
+function r_to_G(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3)
     r_to_G!(similar(f_real, length(kpt.mapping)), basis, kpt, copy(f_real))
+end
+
+# returns matrix representations of the G_to_r and r_to_G matrices. For debug purposes.
+function G_to_r_matrix(basis::PlaneWaveBasis{T}) where {T}
+    ret = zeros(complex(T), prod(basis.fft_size), prod(basis.fft_size))
+    for (iG, G) in enumerate(G_vectors(basis))
+        for (ir, r) in enumerate(r_vectors(basis))
+            ret[ir, iG] = cis(2π * dot(r, G)) / sqrt(basis.model.unit_cell_volume)
+        end
+    end
+    ret
+end
+function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
+    ret = zeros(complex(T), prod(basis.fft_size), prod(basis.fft_size))
+    for (iG, G) in enumerate(G_vectors(basis))
+        for (ir, r) in enumerate(r_vectors(basis))
+            ret[iG, ir] = cis(-2π * dot(r, G)) * sqrt(basis.model.unit_cell_volume) / prod(basis.fft_size)
+        end
+    end
+    ret
 end

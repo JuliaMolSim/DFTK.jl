@@ -25,7 +25,9 @@ Fermi surface.
 function NOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
              temperature=basis.model.temperature)
     N = zero(ε)
-    temperature != 0 || error("NOS only supports finite temperature")
+    if (temperature == 0) || smearing isa Smearing.None
+        error("NOS only supports finite temperature")
+    end
 
     # Note the differences to the DOS and LDOS functions: We are not counting states
     # per BZ volume (like in DOS), but absolute number of states. Therefore n_symeqk
@@ -53,7 +55,9 @@ function DOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
              temperature=basis.model.temperature)
     filled_occ = filled_occupation(basis.model)
     D = zero(ε)
-    temperature != 0 || error("DOS only supports finite temperature")
+    if (temperature == 0) || smearing isa Smearing.None
+        error("DOS only supports finite temperature")
+    end
     for ik = 1:length(eigenvalues)
         for iband = 1:length(eigenvalues[ik])
             enred = (eigenvalues[ik][iband] - ε) / temperature
@@ -70,7 +74,9 @@ Local density of states, in real space
 function LDOS(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
               temperature=basis.model.temperature)
     filled_occ = filled_occupation(basis.model)
-    temperature != 0 || error("LDOS only supports finite temperature")
+    if (temperature == 0) || smearing isa Smearing.None
+        error("LDOS only supports finite temperature")
+    end
     weights = deepcopy(eigenvalues)
     for ik = 1:length(eigenvalues)
         for iband = 1:length(eigenvalues[ik])
