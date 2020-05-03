@@ -131,7 +131,7 @@ can be brought to the form ``Q(t) / (t^2 exp(t^2 / 2))``
 where ``t = r_\text{loc} q`` and `Q`
 is a polynomial of at most degree 8. This function returns `Q`.
 """
-@inline function psp_local_polynomial(T, psp::PspHgh, t=Poly{T}([0, 1]))
+@inline function psp_local_polynomial(T, psp::PspHgh, t=Polynomial{T}([0, 1]))
     rloc::T = psp.rloc
     Zion::T = psp.Zion
 
@@ -172,7 +172,7 @@ function qcut_psp_local(T, psp::PspHgh)
     Q = DFTK.psp_local_polynomial(T, psp)  # polynomial in t = q * rloc
 
     # Find the roots of the derivative polynomial:
-    res = roots(Poly([0, 1]) * polyder(Q) - Poly([2, 0, 1]) * Q)
+    res = roots(Polynomial([0, 1]) * derivative(Q) - Polynomial([2, 0, 1]) * Q)
     res = T[r for r in res if abs(imag(r)) < 1e-14]
     if length(res) > 0
         maximum(res) / psp.rloc
@@ -206,7 +206,7 @@ The nonlocal projectors of a HGH pseudopotentials in reciprocal space
 can be brought to the form ``Q(t) exp(-t^2 / 2)`` where ``t = r_l q``
 and `Q` is a polynomial. This function returns `Q`.
 """
-@inline function psp_projection_radial_polynomial(T, psp::PspHgh, i, l, t=Poly{T}([0, 1]))
+@inline function psp_projection_radial_polynomial(T, psp::PspHgh, i, l, t=Polynomial{T}([0, 1]))
     @assert 0 <= l <= length(psp.rp) - 1
     @assert i > 0
     rp::T = psp.rp[l + 1]
@@ -238,7 +238,7 @@ function qcut_psp_projection_radial(T, psp::PspHgh, i, l)
     Q = DFTK.psp_projection_radial_polynomial(T, psp, i, l)  # polynomial in q * rp[l + 1]
 
     # Find the roots of the derivative polynomial:
-    res = roots(polyder(Q) - Poly([0, 1]) * Q)
+    res = roots(derivative(Q) - Polynomial([0, 1]) * Q)
     res = T[r for r in res if abs(imag(r)) < 1e-14]
     if length(res) > 0
         maximum(res) / psp.rp[l + 1]
