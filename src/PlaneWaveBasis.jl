@@ -231,22 +231,6 @@ function index_G_vectors(basis::PlaneWaveBasis, kpoint::Kpoint,
     get(kpoint.mapping_inv, idx_linear, nothing)
 end
 
-"""
-Compute the eigenvector at point Sk given an eigenvector at k
-"""
-function symmetrize_ψ(basis::PlaneWaveBasis{T}, kpoint::Kpoint, ψ, S, τ) where {T}
-    invS = Mat3{Int}(inv(S))
-    # ψsym(G) = e^{-i G τ} ψ(S^-1 G)
-    ψsym = zero(ψ)
-    for (iG, G) in enumerate(G_vectors(kpoint))
-        igired = index_G_vectors(basis, kpoint, invS * G)
-        if igired !== nothing
-            ψsym[iG] = cis(-2T(π)*dot(G, τ)) * ψ[igired]
-        end
-    end
-    ψsym
-end
-
 #
 # Perform (i)FFTs.
 #
@@ -353,4 +337,51 @@ function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
         end
     end
     ret
+#
+# Functions to handle BZ symmetry
+#
+
+"""
+Converts an eigenfunction at point `kpoint_src` to one at
+`kpoint_dst`, the two being related by symmetry operation S.
+"""
+function transfer_ψ(basis::PlaneWaveBasis{T}, kpoint_src::Kpoint, kpoint_dst::Kpoint, ψ::AbstractVector, S, τ) where {T}
+    @assert S*kpoint_src.coordinate ≈ kpoint_dst.coordinate
+    invS = Mat3{Int}(inv(S))
+    # ψsym(G) = e^{-i G τ} ψ(S^-1 G)
+    ψsym = zero(ψ)
+    for (iG, G) in enumerate(G_vectors(kpoint_dst))
+        igired = index_G_vectors(basis, kpoint_src, invS * G)
+        if igired !== nothing
+            @assert G_vectors(kpoint_src)[igired] ≈ invS*G
+            ψsym[iG] = cis(-2T(π)*dot(G, τ)) * ψ[igired]
+        end
+    end
+    ψsym
+end
+function transfer_ψ(basis::PlaneWaveBasis, kpoint_src::Kpoint, kpoint_dst::Kpoint, ψ::Tψ, S, τ) where {Tψ <: AbstractMatrix}
+    ψsym = zero(ψ)
+    for i = 1:size(ψ, 2)
+        @views ψsym[:, i] .= transfer_ψ(basis, kpoint_src, kpoint_dst, ψ[:, i], S, τ)
+    end
+    ψsym
+end
+
+# Convert a basis into one that uses or doesn't use BZ symmetrization
+# Mainly useful for debug purposes and in cases we don't want to
+# bother with symmetry
+function PlaneWaveBasis(basis::PlaneWaveBasis; enable_bzmesh_symmetry)
+    @assert enable_bzmesh_symmetry == true "Not implemented"
+    if all(s -> length(s) == 1, basis.ksymops)
+        return basis
+    end
+    kcoords = []
+    for (ik, kpt) in enumerate(basis.kpoints)
+        for (S, τ) in basis.ksymops[ik]
+            push!(kcoords, S*kpt.coordinate)
+        end
+    end
+    new_basis = PlaneWaveBasis(basis.model, basis.Ecut, kcoords,
+                               [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)];
+                               fft_size=basis.fft_size)
 end
