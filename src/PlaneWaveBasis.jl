@@ -343,6 +343,7 @@ function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
         end
     end
     ret
+end
 #
 # Functions to handle BZ symmetry
 #
