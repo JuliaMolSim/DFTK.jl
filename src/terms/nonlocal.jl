@@ -41,9 +41,19 @@ function ene_ops(term::TermAtomicNonlocal, ψ, occ; kwargs...)
 end
 
 function forces(term::TermAtomicNonlocal, ψ, occ; kwargs...)
-    T = eltype(term.basis)
-    atoms = term.basis.model.atoms
-    unit_cell_volume = term.basis.model.unit_cell_volume
+    basis = term.basis
+    T = eltype(basis)
+    atoms = basis.model.atoms
+    unit_cell_volume = basis.model.unit_cell_volume
+
+    # unfold the irreducible BZ into the reducible BZ
+    kcoords_red = []
+    for (ik, kpt) in enumerate(basis.kpoints)
+        for (S, τ) in basis.ksymops[ik]
+            push!(kcoords_red, S*kpt.coordinate)
+        end
+    end
+    kpoints_red = build_kpoints(basis, kcoords_red)
 
     # early return if no pseudopotential atoms
     any(attype isa ElementPsp for (attype, positions) in atoms) || return nothing
@@ -58,23 +68,38 @@ function forces(term::TermAtomicNonlocal, ψ, occ; kwargs...)
         for (ir, r) in enumerate(positions)
             fr = zeros(T, 3)
             for α = 1:3
-                for (ik, kpt) in enumerate(term.basis.kpoints)
-                    # energy terms are of the form <psi, P C P' psi>,
-                    # where P(G) = form_factor(G) * structure_factor(G)
-                    qs = [term.basis.model.recip_lattice * (kpt.coordinate + G)
-                          for G in G_vectors(kpt)]
-                    form_factors = build_form_factors(el.psp, qs)
-                    structure_factors = [cis(-2T(π) * dot(kpt.coordinate + G, r))
-                                         for G in G_vectors(kpt)]
-                    P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
-                    dPdR = [-2T(π)*im*(kpt.coordinate + G)[α] for G in G_vectors(kpt)] .* P
+                tot_red_kpt_number = sum([length(symops) for symops in basis.ksymops])
+                ind_red = 1
+                for (ik, kpt_irred) in enumerate(basis.kpoints)
+                    # Here we need to do an explicit loop over
+                    # symetries, because the atom displacement might
+                    # break the symmetries
+                    for isym in 1:length(basis.ksymops[ik])
+                        (S, τ) = basis.ksymops[ik][isym]
+                        kpt_red = kpoints_red[ind_red]
+                        kcoord_red = kpt_red.coordinate
+                        @assert kcoord_red ≈ S*kpt_irred.coordinate
+                        # energy terms are of the form <psi, P C P' psi>,
+                        # where P(G) = form_factor(G) * structure_factor(G)
+                        qs = [basis.model.recip_lattice * (kcoord_red + G)
+                              for G in G_vectors(kpt_red)]
+                        form_factors = build_form_factors(el.psp, qs)
+                        structure_factors = [cis(-2T(π) * dot(kcoord_red + G, r))
+                                             for G in G_vectors(kpt_red)]
+                        P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
+                        dPdR = [-2T(π)*im*(kcoord_red + G)[α] for G in G_vectors(kpt_red)] .* P
 
-                    # TODO BLASify this further
-                    for iband = 1:size(ψ[ik], 2)
-                        psi = ψ[ik][:, iband]
-                        fr[α] -= (term.basis.kweights[ik] * occ[ik][iband]
-                                  * real(  dot(psi, P*C*dPdR' * psi)
-                                         + dot(psi, dPdR*C*P' * psi)))
+                        # TODO BLASify this further
+                        for iband = 1:size(ψ[ik], 2)
+                            ψnk = ψ[ik][:, iband]
+                            if S != I
+                                ψnk = transfer_to_kpoint(basis, ψnk, kpt_irred, kpt_red, S, τ)
+                            end
+                            fr[α] -= (occ[ik][iband] / tot_red_kpt_number
+                                      * real(  dot(ψnk, P*C*dPdR' * ψnk)
+                                               + dot(ψnk, dPdR*C*P' * ψnk)))
+                        end
+                        ind_red += 1
                     end
                 end
             end

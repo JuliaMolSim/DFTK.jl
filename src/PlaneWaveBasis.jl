@@ -6,6 +6,28 @@ include("fft.jl")
 # products of orbitals. This also defines the real-space grid
 # (as the dual of the cubic basis set).
 
+# The full (reducible) Brillouin zone is implicitly represented by
+# a set of (irreducible) kpoints (see explanation in docs/). Each
+# irreducible kpoint k comes with a list of symmetry operations
+# (S,τ) (containing at least the trivial operation (I,0)), where S
+# is a rotation matrix (/!\ not unitary in reduced coordinates)
+# and τ a translation vector. The kpoint is then used to represent
+# implicitly the information at all the kpoints Sk. The
+# relationship between the Hamiltonians is
+# H_{Sk} = U H_k U*, with
+# (Uu)(x) = u(S^-1(x-τ))
+# or in Fourier space
+# (Uu)(G) = e^{-i G τ} u(S^-1 G)
+# In particular, we can choose the eigenvectors at Sk as u_{Sk} = U u_k
+
+# We represent then the BZ as a set of irreducible points `kpoints`, a
+# list of symmetry operations `ksymops` allowing the reconstruction of
+# the full (reducible) BZ, and a set of weights `kweights` (summing to
+# 1). The value of an observable (eg energy) per unit cell is given as
+# the value of that observable at each irreducible kpoint, weighted by
+# kweight
+
+
 """
 Discretization information for kpoint-dependent quantities such as orbitals.
 More generally, a kpoint is a block of the Hamiltonian;
@@ -43,12 +65,13 @@ Normalization conventions:
 """
 struct PlaneWaveBasis{T <: Real}
     model::Model{T}
+    # the basis set is defined by {e_{G}, 1/2|k+G|^2 ≤ Ecut}
     Ecut::T
 
-    # kpoints is the list of irreducible kpoints
+    # irreducible kpoints
     kpoints::Vector{Kpoint{T}}
-    # kweights/ksymops contain the information needed to reconstruct the full (reducible) BZ
-    # Brillouin zone integration weights
+    # Brillouin zone integration weights,
+    # kweights[ik] = length(ksymops[ik]) / sum(length(ksymops[ik]) for ik=1:Nk)
     kweights::Vector{T}
     # ksymops[ikpt] is a list of symmetry operations (S,τ)
     ksymops::Vector{Vector{Tuple{Mat3{Int}, Vec3{T}}}}
@@ -214,7 +237,6 @@ function index_G_vectors(basis::PlaneWaveBasis, kpoint::Kpoint,
     get(kpoint.mapping_inv, idx_linear, nothing)
 end
 
-
 #
 # Perform (i)FFTs.
 #
@@ -321,4 +343,52 @@ function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
         end
     end
     ret
+end
+#
+# Functions to handle BZ symmetry
+#
+
+"""
+Converts an eigenfunction at point `kpoint_src` to one at
+`kpoint_dst`, the two being related by symmetry operation S.
+"""
+function transfer_to_kpoint(basis::PlaneWaveBasis{T}, ψ::AbstractVector, kpoint_src::Kpoint, kpoint_dst::Kpoint, S, τ) where {T}
+    @assert S*kpoint_src.coordinate ≈ kpoint_dst.coordinate
+    invS = Mat3{Int}(inv(S))
+    # ψsym(G) = e^{-i G τ} ψ(S^-1 G)
+    ψsym = zero(ψ)
+    for (iG, G) in enumerate(G_vectors(kpoint_dst))
+        igired = index_G_vectors(basis, kpoint_src, invS * G)
+        if igired !== nothing
+            @assert G_vectors(kpoint_src)[igired] ≈ invS*G
+            ψsym[iG] = cis(-2T(π)*dot(G, τ)) * ψ[igired]
+        end
+    end
+    ψsym
+end
+function transfer_to_kpoint(basis::PlaneWaveBasis, ψ::Tψ, kpoint_src::Kpoint, kpoint_dst::Kpoint, S, τ) where {Tψ <: AbstractMatrix}
+    ψsym = zero(ψ)
+    for i = 1:size(ψ, 2)
+        @views ψsym[:, i] .= transfer_to_kpoint(basis, ψ[:, i], kpoint_src, kpoint_dst, S, τ)
+    end
+    ψsym
+end
+
+# Convert a basis into one that uses or doesn't use BZ symmetrization
+# Mainly useful for debug purposes and in cases we don't want to
+# bother with symmetry
+function PlaneWaveBasis(basis::PlaneWaveBasis; enable_bzmesh_symmetry)
+    @assert enable_bzmesh_symmetry == true "Not implemented"
+    if all(s -> length(s) == 1, basis.ksymops)
+        return basis
+    end
+    kcoords = []
+    for (ik, kpt) in enumerate(basis.kpoints)
+        for (S, τ) in basis.ksymops[ik]
+            push!(kcoords, S*kpt.coordinate)
+        end
+    end
+    new_basis = PlaneWaveBasis(basis.model, basis.Ecut, kcoords,
+                               [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)];
+                               fft_size=basis.fft_size)
 end
