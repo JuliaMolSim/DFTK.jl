@@ -93,7 +93,7 @@ function forces(term::TermAtomicNonlocal, ψ, occ; kwargs...)
                         for iband = 1:size(ψ[ik], 2)
                             ψnk = ψ[ik][:, iband]
                             if S != I
-                                ψnk = transfer_to_kpoint(basis, kpt_irred, kpt_red, ψnk, S, τ)
+                                ψnk = transfer_to_kpoint(basis, ψnk, kpt_irred, kpt_red, S, τ)
                             end
                             fr[α] -= (occ[ik][iband] / tot_red_kpt_number
                                       * real(  dot(ψnk, P*C*dPdR' * ψnk)
