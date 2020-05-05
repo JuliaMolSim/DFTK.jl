@@ -132,7 +132,7 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
                 δρ .+= real(basis.kweights[ik] .* ratio .* weight .* ρnm)
             end
 
-            # Sternheimer contributions. TODO add preconditioning here
+            # Sternheimer contributions.
             !(sternheimer_contribution) && continue
             fnk = filled_occ * Smearing.occupation(model.smearing, (εnk-εF) / temperature)
             abs(fnk) < eps(T) && continue
@@ -145,8 +145,10 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
                 Qϕ = Q(ϕ)
                 Q(ham.blocks[ik] * Qϕ - εnk * Qϕ)
             end
+            precon = PreconditionerTPA(basis, basis.kpoints[ik])
+            precondprep!(precon, ψnk)
             J = LinearMap{eltype(ψ[ik])}(QHQ, size(ham.blocks[ik], 1))
-            δψnk = cg(J, rhs)
+            δψnk = cg(J, rhs, Pl=precon, verbose=true, tol=1e-6)
             δψnk_real = G_to_r(basis, basis.kpoints[ik], δψnk)
             δρ .+= 2 .* fnk .* basis.kweights[ik] .* real(conj(ψnk_real) .* δψnk_real)
         end
