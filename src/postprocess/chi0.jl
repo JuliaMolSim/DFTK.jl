@@ -148,7 +148,7 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
             precon = PreconditionerTPA(basis, basis.kpoints[ik])
             precondprep!(precon, ψnk)
             J = LinearMap{eltype(ψ[ik])}(QHQ, size(ham.blocks[ik], 1))
-            δψnk = cg(J, rhs, Pl=precon, verbose=true, tol=1e-6)
+            δψnk = cg(J, rhs, Pl=precon)  # TODO tweak tolerances here
             δψnk_real = G_to_r(basis, basis.kpoints[ik], δψnk)
             δρ .+= 2 .* fnk .* basis.kweights[ik] .* real(conj(ψnk_real) .* δψnk_real)
         end
