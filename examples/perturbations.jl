@@ -230,7 +230,8 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max)
     ### Plotting results
     figure(figsize=(20,10))
     tit = "Average shift : $(avg)
-    Ne = $(Ne), kpts = $(length(basis.kpoints)), Ecut_ref = $(Ecut_ref), Ecut = $(Ecut)"
+    Ne = $(Ne), kpts = $(length(basis.kpoints)), Ecut_ref = $(Ecut_ref), Ecut = $(Ecut)
+    kcoords = $(kcoords)"
     suptitle(tit)
 
     # plot energy relative error
@@ -295,7 +296,7 @@ function test_perturbation_coarsegrid(α, Ecut_min, Ecut_max)
     egval_ref = scfres_ref.eigenvalues
     #  forces_ref = norm(forces(scfres_ref))
 
-    Ecut_list = range(Ecut_min, Ecut_max, length=16)
+    Ecut_list = range(Ecut_min, Ecut_max, length=Int(Ecut_max/Ecut_min))
     Ep_list = []
     E_coarse_list = []
     for Ecut in Ecut_list
@@ -318,7 +319,7 @@ function test_perturbation_coarsegrid(α, Ecut_min, Ecut_max)
     suptitle(tit)
 
     # size of the discretization grid
-    N_list = a  / (2*pi) *sqrt.(2 .* Ecut_list)
+    N_list = sqrt.(2 .* Ecut_list)
 
     # plot energy error
     subplot(121)
@@ -334,11 +335,24 @@ function test_perturbation_coarsegrid(α, Ecut_min, Ecut_max)
     subplot(122)
     title("Relative error between perturbed and non-perturbed")
     error_list = abs.((Ep_list .- Etot_ref) ./ (E_coarse_list .- Etot_ref))
-    semilogy(N_list, error_list, "-+")
+    loglog(N_list, error_list, "-+")
     xlabel("Nc")
     legend()
 
+    # plot slope
+    error_list_slope = error_list[end-9:end-5]
+    Nc = N_list[end-9:end-5]
+    data = DataFrame(X=log.(Nc), Y=log.(error_list_slope))
+    ols = lm(@formula(Y ~ X), data)
+    Nc_slope = N_list[end-11:end-3]
+    slope = exp(coef(ols1)[1]) .* Nc_slope .^ coef(ols1)[2]
+    loglog(Nc_slope, 1.5 .* slope, "--", label = "slope -3.82")
+    legend()
+
     savefig("first_order_perturbation_silicon_$(Ne)e_kpoints$(length(kcoords))_Ecut_ref$(Ecut_ref)_alpha$(α).pdf")
+
+    ### Return results
+    Ecut_list, N_list, Ep_list, E_coarse_list
 end
 
 
