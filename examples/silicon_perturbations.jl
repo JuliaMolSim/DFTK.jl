@@ -31,12 +31,17 @@ kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.lattice, model.atoms)
 #  kcoords = [[rand(), rand(), rand()]]
 #  a specific kcoords for which we know it works
 #  kcoords = [[0.27204337462860106, 0.4735127814871176, 0.6306195069419347]]
-println(kcoords)
 
 ################################# Calculations #################################
 
 avg = true
+
+#  kcoords = [[0.27204337462860106, 0.4735127814871176, 0.6306195069419347]]
 #  test_perturbation_ratio(15, 100, 3)
-test_perturbation_coarsegrid(2.5, 5, 80)
+
+kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.lattice, model.atoms)
+test_perturbation_ratio(15, 100, 3)
+
+#  Ecut_list, Ep_list, E_coarse_list = test_perturbation_coarsegrid(2.5, 5, 80)
 
 
