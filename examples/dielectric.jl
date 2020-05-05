@@ -2,6 +2,7 @@
 
 using DFTK
 using Plots
+using KrylovKit
 
 # Calculation parameters
 kgrid = [1, 1, 1]       # k-Point grid
@@ -15,7 +16,7 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 model = model_LDA(lattice, atoms)
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
-scfres = self_consistent_field(basis, tol=1e-10)
+scfres = self_consistent_field(basis, tol=1e-14)
 
 chi0 = compute_χ0(scfres.ham)
 Kh = DFTK.compute_hartree_kernel(basis)
