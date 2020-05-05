@@ -163,6 +163,7 @@ include("postprocess/DOS.jl")
 export compute_χ0
 export apply_χ0
 include("postprocess/chi0.jl")
+include("postprocess/response.jl")
 
 function __init__()
     # Use requires to only include eigen/diag_lobpcg_itsolve.jl once
