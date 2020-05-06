@@ -46,11 +46,19 @@ include("testcases.jl")
         diff_applied_χ0 = apply_χ0(ham0, dV, Vs, εF, Es; droptol=0) 
         @test norm(diff_findiff - diff_applied_χ0) < sqrt(ε)
 
+        # Test that apply_χ0 is self-adjoint
+        dV1 = randn(eltype(basis), basis.fft_size)
+        dV2 = randn(eltype(basis), basis.fft_size)
+        χ0dV1 = apply_χ0(ham0, dV1, Vs, εF, Es)
+        χ0dV2 = apply_χ0(ham0, dV2, Vs, εF, Es)
+        @test abs(dot(dV1, χ0dV2) - dot(dV2, χ0dV1)) < 1e-8
+
         # Test the diagonal_only option
         χ0_diag = compute_χ0(ham0; droptol=Inf)
         diff_diag_1 = real(reshape(χ0_diag*vec(dV), basis.fft_size))
         diff_diag_2 = apply_χ0(ham0, dV, Vs, εF, Es; droptol=Inf,
                                sternheimer_contribution=false)
         @test norm(diff_diag_1 - diff_diag_2) < sqrt(ε)
+
     end
 end
