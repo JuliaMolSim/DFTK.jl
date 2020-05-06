@@ -47,6 +47,10 @@ include("testcases.jl")
             diff_diag_2 = apply_χ0(ham0, dV, Vs, εF, Es; droptol=droptol,
                                    sternheimer_contribution=(droptol == 0))
             @test norm(diff_diag_1 - diff_diag_2) < sqrt(ε)
+            if droptol == 0
+                @test norm(diff_diag_1 - diff) < sqrt(ε)
+                @test norm(diff_diag_2 - diff) < sqrt(ε)
+            end
         end
     end
 end

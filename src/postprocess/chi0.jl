@@ -3,6 +3,12 @@ using IterativeSolvers
 using ForwardDiff
 using ProgressMeter
 
+struct FunctionPreconditioner
+    f_ldiv!
+end
+LinearAlgebra.ldiv!(y, P::FunctionPreconditioner, x) = P.f_ldiv!(y, x)
+LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = P.f_ldiv!(copy(x), x)
+# (Base.:\)(P::FunctionPreconditioner, x) = P.f_ldiv!(copy(x), x)
 
 """
 Compute the independent-particle susceptibility. Will blow up for large systems.
@@ -147,8 +153,12 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
             end
             precon = PreconditionerTPA(basis, basis.kpoints[ik])
             precondprep!(precon, ψnk)
+            function f_ldiv!(x, y)
+                ldiv!(x, precon, Q(y))
+                x .= Q(x)
+            end
             J = LinearMap{eltype(ψ[ik])}(QHQ, size(ham.blocks[ik], 1))
-            δψnk = cg(J, rhs, Pl=precon)  # TODO tweak tolerances here
+            δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!))  # TODO tweak tolerances here
             δψnk_real = G_to_r(basis, basis.kpoints[ik], δψnk)
             δρ .+= 2 .* fnk .* basis.kweights[ik] .* real(conj(ψnk_real) .* δψnk_real)
         end
