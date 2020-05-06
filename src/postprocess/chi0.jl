@@ -106,11 +106,9 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
     filled_occ = filled_occupation(model)
     dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
 
-    δρ = zero(δV)
+    δρ_four = zeros(complex(T), size(δV))
     for ik = 1:length(basis.kpoints)
-        if length(basis.ksymops[ik]) != 1
-            error("Kpoint symmetry not supported")
-        end
+        δρk = zero(δV)
         for n = 1:size(ψ[ik], 2)
             ψnk = @view ψ[ik][:, n]
             ψnk_real = G_to_r(basis, basis.kpoints[ik], ψnk)
@@ -135,7 +133,7 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
                 # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
                 ρnm = conj(ψnk_real) .* ψmk_real
                 weight = dVol*dot(ρnm, δV)
-                δρ .+= real(basis.kweights[ik] .* ratio .* weight .* ρnm)
+                δρk .+= real(ratio .* weight .* ρnm)
             end
 
             # Sternheimer contributions.
@@ -160,15 +158,20 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
             J = LinearMap{eltype(ψ[ik])}(QHQ, size(ham.blocks[ik], 1))
             δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!))  # TODO tweak tolerances here
             δψnk_real = G_to_r(basis, basis.kpoints[ik], δψnk)
-            δρ .+= 2 .* fnk .* basis.kweights[ik] .* real(conj(ψnk_real) .* δψnk_real)
+            δρk .+= 2 .* fnk .* real(conj(ψnk_real) .* δψnk_real)
         end
+        _symmetrize_ρ!(δρ_four, r_to_G(basis, complex(δρk)), basis, basis.ksymops[ik], G_vectors(basis))
     end
+    δρ = real(G_to_r(basis, δρ_four))
+    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))
+    δρ ./= count
 
     # Add variation wrt εF
     if temperature > 0
         ldos = LDOS(εF, basis, eigenvalues, ψ, temperature=temperature)
+        ldos_unsym = LDOS(εF, basis, eigenvalues, ψ, temperature=temperature, disable_symmetrization=true)
         dos = DOS(εF, basis, eigenvalues, temperature=temperature)
-        δρ .+= ldos .* dot(ldos, δV) .* dVol ./ dos
+        δρ .+= ldos .* dot(ldos_unsym, δV) .* dVol ./ dos
     end
 
     δρ
