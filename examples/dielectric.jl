@@ -39,12 +39,36 @@ end
 function epsfun(dv)
     dv = reshape(dv, size(scfres.ρ.real))
     dv_sym = dv
-    dv_sym = sym(dv) # comment this out to disable symetrization
+    dv_sym = sym(dv_sym) # comment this out to disable symetrization
     dρ = apply_χ0(scfres.ham, dv_sym, scfres.ψ, scfres.εF, scfres.eigenvalues)
     Kdρ = DFTK.apply_hartree_kernel(basis, dρ) + DFTK.apply_xc_kernel(basis, scfres.ρ.real, dρ)
     vec(dv - Kdρ)
 end
 
-@time e1, v1 = eigsolve(epsfun, length(scfres.ρ.real), 3, :LR, verbosity=3, tol=1e-5, krylovdim=20)
-# e2, v2 = eigsolve(eps, length(scfres.ρ.real), 3, :SR)
-display(e1)
+function arnoldi(f, x0, howmany; tol=1e-4, maxiter=30)
+    for (V, B, r, nr, b) in ArnoldiIterator(f, x0)
+        # A * V = V * B + r * b'.
+        V = hcat(V...)
+        AV = V*B + r*b'
+
+        ew, ev = eigen(B, sortby=real)
+        Vr = V*ev
+        AVr = AV*ev
+        R = AVr - Vr * Diagonal(ew)
+
+        N = size(V, 2)
+        inds = 1:min(N, howmany)
+        inds = [inds..., (inds .+ N .- min(N, howmany))...]
+        normr = [norm(r) for r in eachcol(R[:, inds])]
+        println(N)
+        display([ew[inds] normr])
+        if (N ≥ howmany && maximum(normr) < tol) || (N ≥ maxiter)
+            return Vr[:, inds], AVr[:, inds]
+        end
+    end
+end
+arnoldi(epsfun, vec(randn(size(scfres.ρ.real))), 5)
+
+# @time e1, v1 = eigsolve(epsfun, length(scfres.ρ.real), 3, :LR, verbosity=3, tol=1e-5, krylovdim=20)
+# # e2, v2 = eigsolve(eps, length(scfres.ρ.real), 3, :SR)
+# display(e1)
