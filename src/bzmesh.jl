@@ -95,9 +95,10 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
     n_symops = length(Stildes)
 
     # Use determined symmetries to deduce irreducible k-Point mesh
+    # TODO implement time-reversal symmetry and turn the flag to true
     spg_rotations = permutedims(cat(Stildes..., dims=3), (3, 1, 2))
     mapping, grid = import_spglib().get_stabilized_reciprocal_mesh(
-        kgrid_size, spg_rotations, is_shift=[0, 0, 0], is_time_reversal=true
+        kgrid_size, spg_rotations, is_shift=[0, 0, 0], is_time_reversal=false
     )
 
     # Convert irreducible k-Points to DFTK conventions
@@ -139,14 +140,12 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
     end
 
     if !isempty(kreds_notmapped)
-        eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, Stildes, τtildes)
-
-        @info("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
-              "the irreducible kpoints returned by spglib. $(length(eirreds)) of " *
-              "these are added as extra irreducible kpoints.")
-
-        append!(kirreds, eirreds)
-        append!(ksymops, esymops)
+        error("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
+              "the irreducible kpoints returned by spglib.")
+        # # add them as reducible anyway
+        # eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, Stildes, τtildes)
+        # append!(kirreds, eirreds)
+        # append!(ksymops, esymops)
     end
 
     # The symmetry operation (S == I and τ == 0) should be present for each k-Point
