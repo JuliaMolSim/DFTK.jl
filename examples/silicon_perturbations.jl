@@ -5,6 +5,7 @@ using GLM
 import Statistics: mean
 
 include("perturbations.jl")
+include("perturbations_tests.jl")
 
 ### Setting the model
 # Calculation parameters
@@ -38,12 +39,12 @@ kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.lattice, model.atoms)
 
 avg = true
 
-kcoords = [[0.27204337462860106, 0.4735127814871176, 0.6306195069419347]]
-test_perturbation_ratio(10, 100, 3, true)
+#  kcoords = [[0.27204337462860106, 0.4735127814871176, 0.6306195069419347]]
+#  test_perturbation_ratio(10, 100, 3, true)
 
 #  kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.lattice, model.atoms)
 #  test_perturbation_ratio(5, 100, 3, true)
 
-#  Ecut_list, N_list, Ep_list, E_coarse_list = test_perturbation_coarsegrid(2.5, 5, 80)
+Ecut_list, N_list, Ep_list, E_coarse_list = test_perturbation_coarsegrid(2.5, 5, 80)
 
 
