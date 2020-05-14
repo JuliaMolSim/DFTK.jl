@@ -1,7 +1,7 @@
 """
 Perturbation function to compute solutions on finer grids
 """
-function perturbation(basis, kcoords, ksymops, scfres, Ecut_fine)
+function perturbation(basis, kcoords, ksymops, scfres, Ecut_fine, compute_forces=false)
 
     Nk = length(basis.kpoints)
 
@@ -21,6 +21,7 @@ function perturbation(basis, kcoords, ksymops, scfres, Ecut_fine)
     ρ_fine = compute_density(basis_fine, ψ_fine, occ)
     H_fine = Hamiltonian(basis_fine, ψ=ψ_fine, occ=occ; ρ=ρ_fine)
     idcs_fine, idcs_fine_cplmt = DFTK.grid_interpolation_indices(basis, basis_fine)
+    Hψ_fine = mul!(deepcopy(ψ_fine), H_fine, ψ_fine)
 
     # average of the local part of the potential of the Hamiltonian on the fine
     # grid
@@ -61,7 +62,7 @@ function perturbation(basis, kcoords, ksymops, scfres, Ecut_fine)
         for n in occ_bands
             λψ_fine[:, n] = ψ_fine[ik][:, n] * egvalk[n]
         end
-        r_fine = H_fine.blocks[ik]*ψ_fine[ik] - λψ_fine
+        r_fine = Hψ_fine[ik] - λψ_fine
         # this residual is different from interpolating r from the coarse grid
         # which would only have components <= Ecut
 
@@ -162,20 +163,25 @@ function perturbation(basis, kcoords, ksymops, scfres, Ecut_fine)
     Ep_fine, Hp_fine = energy_hamiltonian(basis_fine, ψp_fine, occ; ρ=ρp_fine)
 
     # compute forces
-    #  forces_fine = norm(forces(basis_fine, ψp_fine, occ; ρ=ρp_fine))
-    forces_fine = 0
+    if compute_forces
+        forcesp_fine = forces(basis_fine, ψp_fine, occ; ρ=ρp_fine)
+    else
+        forcesp_fine = 0
+    end
 
-    (Ep_fine, ψp_fine, ρp_fine, egvalp1, egvalp2, egvalp_rl, forces_fine)
+    (Ep_fine, ψp_fine, ρp_fine, egvalp1, egvalp2, egvalp_rl, forcesp_fine)
 end
 
 """
 Perturbation for several values of the ratio α = Ecut_fine/Ecut
 """
-function test_perturbation_ratio(Ecut, Ecut_ref, α_max)
+function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces)
     """
     Ecut: coarse grid Ecut
     Ecut_ref: Ecut for the reference solution
     α_max: max ratio
+    compute_forces: if true, compute forces for the reference, coarse grid and
+    fine grid (highly increase computation time)
     """
 
     ### reference solution
@@ -184,14 +190,15 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max)
     scfres_ref = self_consistent_field(basis_ref, tol=1e-12)
     Etot_ref = sum(values(scfres_ref.energies))
     egval_ref = scfres_ref.eigenvalues
-    #  forces_ref = norm(forces(scfres_ref))
+    if compute_forces
+        forces_ref = forces(scfres_ref)
+    end
 
     ### solution on a coarse grid
     println("---------------------------\nSolution for Ecut = $(Ecut)")
     basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
     scfres = self_consistent_field(basis, tol=1e-12)
     Etot = sum(values(scfres.energies))
-    #  display(forces(scfres))
 
     ### lists to save data for plotting
     α_list = vcat(collect(1:0.1:3), collect(3.5:0.5:α_max))
@@ -201,8 +208,10 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max)
     egvalp2_list = []
     egvalp_rl_list = []
     egval_fine_list = []
-    forcesp_list = []
-    forces_fine_list = []
+    if compute_forces
+        forcesp_list = []
+        forces_fine_list = []
+    end
 
     ### test perturbation for several ratio
     for α in α_list
@@ -213,29 +222,34 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max)
         scfres_fine = self_consistent_field(basis_fine, tol=1e-12)
         push!(E_fine_list, sum(values(scfres_fine.energies)))
         push!(egval_fine_list, scfres_fine.eigenvalues)
-        #  forces_fine = forces(scfres_fine)
-        forces_fine = 0
-        push!(forces_fine_list, norm(forces_fine))
+        if compute_forces
+            forces_fine = forces(scfres_fine)
+            push!(forces_fine_list, forces_fine)
+            display(forces_fine)
+        end
 
         # perturbation
-        Ep_fine, ψp_fine, ρp_fine, egvalp1, egvalp2, egvalp_rl, forcesp = perturbation(basis, kcoords, ksymops, scfres, α*Ecut)
+        Ep_fine, ψp_fine, ρp_fine, egvalp1, egvalp2, egvalp_rl, forcesp = perturbation(basis, kcoords, ksymops, scfres, α*Ecut, compute_forces)
         push!(Ep_list, sum(values(Ep_fine)))
         push!(egvalp1_list, deepcopy(egvalp1))
         push!(egvalp2_list, deepcopy(egvalp2))
         push!(egvalp_rl_list, deepcopy(egvalp_rl))
-        push!(forcesp_list, norm(forcesp))
+        if compute_forces
+            push!(forcesp_list, forcesp)
+            display(forcesp)
+        end
 
     end
 
     ### Plotting results
-    figure(figsize=(20,10))
+    figure(figsize=(20,20))
     tit = "Average shift : $(avg)
     Ne = $(Ne), kpts = $(length(basis.kpoints)), Ecut_ref = $(Ecut_ref), Ecut = $(Ecut)
     kcoords = $(kcoords)"
     suptitle(tit)
 
     # plot energy relative error
-    subplot(121)
+    subplot(221)
     title("Relative energy error for α = Ecut_fine/Ecut")
     error_list = abs.((Ep_list .- Etot_ref)/Etot_ref)
     error_fine_list = abs.((E_fine_list .- Etot_ref)/Etot_ref)
@@ -246,7 +260,7 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max)
     legend()
 
     # plot eigenvalue relative error
-    subplot(122)
+    subplot(222)
     title("Relative error on the first egval[1][1] for α = Ecut_fine/Ecut")
     egvalp111 = [egvalp1_list[i][1][1] for i in 1:length(α_list)]
     egvalp211 = [egvalp2_list[i][1][1] for i in 1:length(α_list)]
@@ -265,15 +279,17 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max)
     xlabel("α")
     legend()
 
-    # plot forces relative error, forces_ref should be 0
-    #  subplot(224)
-    #  title("Error on the norm of the forces for α = Ecut_fine/Ecut")
-    #  error_list = abs.(forcesp_list)
-    #  error_fine_list = abs.(forces_fine_list)
-    #  semilogy(α_list, error_list, "-+", label = "perturbation from Ecut = $(Ecut)")
-    #  semilogy(α_list, error_fine_list, "-+", label = "full solution for Ecut_fine = α * Ecut")
-    #  semilogy(α_list, [error_list[1] for α in α_list], "-+", label = "Ecut = $(Ecut)")
-    #  legend()
+    if compute_forces
+        #  plot forces relative error, forces_ref should be 0
+        subplot(223)
+        title("Error on the norm of the forces for α = Ecut_fine/Ecut")
+        error_list = norm.([forcesp - forces_ref for forcesp in forcesp_list])
+        error_fine_list = norm.([forces_fine - forces_ref for forces_fine in forces_fine_list])
+        semilogy(α_list, error_list, "-+", label = "perturbation from Ecut = $(Ecut)")
+        semilogy(α_list, error_fine_list, "-+", label = "full solution for Ecut_fine = α * Ecut")
+        semilogy(α_list, [error_list[1] for α in α_list], "-+", label = "Ecut = $(Ecut)")
+        legend()
+    end
 
     savefig("first_order_perturbation_silicon_$(Ne)e_kpoints$(length(basis.kpoints))_Ecut_ref$(Ecut_ref)_Ecut$(Ecut)_avg$(avg).pdf")
 end
@@ -294,7 +310,6 @@ function test_perturbation_coarsegrid(α, Ecut_min, Ecut_max)
     scfres_ref = self_consistent_field(basis_ref, tol=1e-12)
     Etot_ref = sum(values(scfres_ref.energies))
     egval_ref = scfres_ref.eigenvalues
-    #  forces_ref = norm(forces(scfres_ref))
 
     Ecut_list = range(Ecut_min, Ecut_max, length=Int(Ecut_max/Ecut_min))
     Ep_list = []
@@ -345,7 +360,7 @@ function test_perturbation_coarsegrid(α, Ecut_min, Ecut_max)
     data = DataFrame(X=log.(Nc), Y=log.(error_list_slope))
     ols = lm(@formula(Y ~ X), data)
     Nc_slope = N_list[end-11:end-3]
-    slope = exp(coef(ols1)[1]) .* Nc_slope .^ coef(ols1)[2]
+    slope = exp(coef(ols)[1]) .* Nc_slope .^ coef(ols1)[2]
     loglog(Nc_slope, 1.5 .* slope, "--", label = "slope -3.82")
     legend()
 
