@@ -22,6 +22,8 @@ function mix(m::KerkerMixing, basis, ρin::RealFourierArray, ρout::RealFourierA
     ρin = ρin.fourier
     ρout = ρout.fourier
     ρnext = @. ρin + m.α * (ρout - ρin) * Gsq / (m.G0^2 + Gsq)
+    # take the correct DC component from ρout; otherwise the DC component never gets updated
+    ρnext[1] = ρout[1]
     from_fourier(basis, ρnext; assume_real=true)
 end
 
