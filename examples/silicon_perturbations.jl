@@ -38,7 +38,7 @@ avg = true
 kcoords = [[0.27204337462860106, 0.4735127814871176, 0.6306195069419347]]
 #  kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.lattice, model.atoms)
 for Ecut in 5:5:25
-    test_perturbation_ratio(Ecut, 100, 3, true)
+    test_perturbation_ratio(Ecut, 120, 4, true)
 end
 
 #  Ecut_list, N_list, Ep_list, E_coarse_list = test_perturbation_coarsegrid(2.5, 5, 80)
