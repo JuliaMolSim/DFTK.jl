@@ -4,6 +4,10 @@
 # Perturbation routines are in perturbations.jl
 #
 
+using DataFrames
+using GLM
+using PyPlot
+
 """
 Perturbation for several values of the ratio α = Ecut_fine/Ecut
 """
