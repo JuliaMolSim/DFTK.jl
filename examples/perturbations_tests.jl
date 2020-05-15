@@ -20,10 +20,13 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces)
     fine grid (highly increase computation time)
     """
 
+    tol = 1e-12
+
     ### reference solution
     println("---------------------------\nSolution for Ecut_ref = $(Ecut_ref)")
     basis_ref = PlaneWaveBasis(model, Ecut_ref, kcoords, ksymops)
-    scfres_ref = self_consistent_field(basis_ref, tol=1e-12)
+    scfres_ref = self_consistent_field(basis_ref, tol=tol,
+                                       is_converged=DFTK.ScfConvergenceDensity(tol))
     Etot_ref = sum(values(scfres_ref.energies))
     egval_ref = scfres_ref.eigenvalues
     if compute_forces
@@ -33,7 +36,8 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces)
     ### solution on a coarse grid to apply perturbation
     println("---------------------------\nSolution for Ecut = $(Ecut)")
     basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
-    scfres = self_consistent_field(basis, tol=1e-12)
+    scfres = self_consistent_field(basis, tol=tol,
+                                   is_converged=DFTK.ScfConvergenceDensity(tol))
     Etot = sum(values(scfres.energies))
 
     ### lists to save data for plotting
@@ -55,7 +59,8 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces)
 
         # full scf on basis_fine
         basis_fine = PlaneWaveBasis(model, α*Ecut, kcoords, ksymops)
-        scfres_fine = self_consistent_field(basis_fine, tol=1e-12)
+        scfres_fine = self_consistent_field(basis_fine, tol=tol,
+                                            is_converged=DFTK.ScfConvergenceDensity(tol))
         push!(E_fine_list, sum(values(scfres_fine.energies)))
         push!(egval_fine_list, scfres_fine.eigenvalues)
         if compute_forces
