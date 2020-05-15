@@ -178,12 +178,12 @@ function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
                    fft_size=basis.fft_size)
 end
 
-function PlaneWaveBasis(model::Model, Ecut::Number;
-                        kgrid=[1, 1, 1], enable_bzmesh_symmetry=true, kwargs...)
+function PlaneWaveBasis(model::Model, Ecut::Number; kgrid=[1, 1, 1], kshift=[0, 0, 0],
+                        enable_bzmesh_symmetry=true, kwargs...)
     if enable_bzmesh_symmetry
-        kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.lattice, model.atoms)
+        kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.lattice, model.atoms, kshift=kshift)
     else
-        kcoords, ksymops = bzmesh_uniform(kgrid)
+        kcoords, ksymops = bzmesh_uniform(kgrid, kshift=kshift)
     end
     PlaneWaveBasis(model, Ecut, kcoords, ksymops; kwargs...)
 end
@@ -374,11 +374,13 @@ function transfer_to_kpoint(basis::PlaneWaveBasis, ψ::Tψ, kpoint_src::Kpoint, 
     ψsym
 end
 
-# Convert a basis into one that uses or doesn't use BZ symmetrization
-# Mainly useful for debug purposes and in cases we don't want to
-# bother with symmetry
+""""
+Convert a basis into one that uses or doesn't use BZ symmetrization
+Mainly useful for debug purposes and in cases we don't want to
+bother with symmetry
+"""
 function PlaneWaveBasis(basis::PlaneWaveBasis; enable_bzmesh_symmetry)
-    @assert enable_bzmesh_symmetry == true "Not implemented"
+    enable_bzmesh_symmetry && error("Not implemented")
     if all(s -> length(s) == 1, basis.ksymops)
         return basis
     end

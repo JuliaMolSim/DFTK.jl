@@ -9,14 +9,17 @@ include("testcases.jl")
 @testset "bzmesh_uniform agrees with spglib" begin
     spglib = pyimport_conda("spglib", "spglib")
 
-    function test_against_spglib(kgrid_size)
+    function test_against_spglib(kgrid_size; kshift=[0, 0, 0])
         kgrid_size = Vec3(kgrid_size)
         identity = [reshape(Mat3{Int}(I), 1, 3, 3)]
-        _, grid = spglib.get_stabilized_reciprocal_mesh(kgrid_size, identity)
-        kcoords_spglib = [Vec3{Int}(grid[ik, :]) .// kgrid_size for ik in 1:size(grid, 1)]
+        is_shift = ifelse.(kshift .== 0, 0, 1)
+        _, grid = spglib.get_stabilized_reciprocal_mesh(kgrid_size, identity,
+                                                        is_shift=is_shift)
+        kcoords_spglib = [(kshift .+ Vec3{Int}(grid[ik, :])) .// kgrid_size
+                          for ik in 1:size(grid, 1)]
         sort!(kcoords_spglib)
 
-        kcoords, _ = bzmesh_uniform(kgrid_size)
+        kcoords, _ = bzmesh_uniform(kgrid_size, kshift=kshift)
         sort!(kcoords)
 
         @test kcoords == kcoords_spglib
@@ -24,12 +27,13 @@ include("testcases.jl")
 
     test_against_spglib([ 2,  3,  2])
     test_against_spglib([ 3,  3,  3])
+    test_against_spglib([ 3,  3,  3], kshift=[1//2, 0, 0])
     test_against_spglib([ 2,  3,  4])
     test_against_spglib([ 9, 11, 13])
 end
 
 @testset "bzmesh_ir_wedge is correct reduction" begin
-    function test_reduction(system, kgrid_size; supercell=[1, 1, 1])
+    function test_reduction(system, kgrid_size; supercell=[1, 1, 1], kshift=[0, 0, 0])
         lattice = system.lattice
         atoms = [ElementCoulomb(system.atnum) => system.positions]
         if supercell != [1, 1, 1]  # Make a supercell
@@ -40,8 +44,8 @@ end
             atoms = [el => [s.frac_coords for s in pystruct.sites]]
         end
 
-        red_kcoords, _ = bzmesh_uniform(kgrid_size)
-        irred_kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, lattice, atoms)
+        red_kcoords, _ = bzmesh_uniform(kgrid_size, kshift=kshift)
+        irred_kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, lattice, atoms, kshift=kshift)
 
         # Try to reproduce all kcoords from irred_kcoords
         all_kcoords = Vector{Vec3{Rational{Int}}}()
@@ -59,6 +63,10 @@ end
     test_reduction(silicon, [ 3,  3,  3])
     test_reduction(silicon, [ 2,  3,  4])
     test_reduction(silicon, [ 9, 11, 13])
+
+    test_reduction(silicon, [ 3,  3,  3], kshift=[1//2, 1//2, 1//2])
+    test_reduction(silicon, [ 3,  3,  3], kshift=[1//2, 0, 1//2])
+    test_reduction(silicon, [ 3,  3,  3], kshift=[0, 1//2, 0])
 
     test_reduction(silicon, [ 1,  4,  4], supercell=[2, 1, 1])
     test_reduction(silicon, [ 1,  16,  16], supercell=[4, 1, 1])

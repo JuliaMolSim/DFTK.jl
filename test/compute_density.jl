@@ -46,19 +46,19 @@ include("testcases.jl")
         end
     end
 
-    function test_full_vs_irreducible(testcase, kgrid_size; Ecut=5, tol=1e-8, n_ignore=0)
+    function test_full_vs_irreducible(testcase, kgrid_size; Ecut=5, tol=1e-8, n_ignore=0,
+                                      kshift=[0, 0, 0])
         spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
         atoms = [spec => testcase.positions]
 
-        kfull, sym_full = bzmesh_uniform(kgrid_size)
+        kfull, sym_full = bzmesh_uniform(kgrid_size, kshift=kshift)
         res = get_bands(testcase, kfull, sym_full, atoms;
                         Ecut=Ecut, tol=tol)
         basis_full, ψ_full, eigenvalues_full, ρ_full = res
         test_orthonormality(basis_full, ψ_full, tol=tol)
 
-        kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, testcase.lattice, atoms)
-        res = get_bands(testcase, kcoords, ksymops, atoms;
-                        Ecut=Ecut, tol=tol)
+        kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, testcase.lattice, atoms, kshift=kshift)
+        res = get_bands(testcase, kcoords, ksymops, atoms; Ecut=Ecut, tol=tol)
         basis_ir, ψ_ir, eigenvalues_ir, ρ_ir = res
 
         test_orthonormality(basis_ir, ψ_ir, tol=tol)
@@ -85,9 +85,13 @@ include("testcases.jl")
     end
 
     test_full_vs_irreducible(silicon, [3, 3, 3], Ecut=5, tol=1e-6)
+    test_full_vs_irreducible(silicon, [3, 3, 3], Ecut=5, tol=1e-6, kshift=[1/2, 1/2, 1/2])
+    test_full_vs_irreducible(silicon, [3, 3, 3], Ecut=5, tol=1e-6, kshift=[1/2, 0, 1/2])
+    test_full_vs_irreducible(silicon, [3, 3, 3], Ecut=5, tol=1e-6, kshift=[0, 1/2, 0])
+
     test_full_vs_irreducible(silicon, [2, 3, 4], Ecut=5, tol=1e-6)
     test_full_vs_irreducible(magnesium, [2, 3, 4], Ecut=5, tol=1e-6, n_ignore=1)
-    test_full_vs_irreducible(aluminium, [1, 3, 5], Ecut=3, tol=1e-5, n_ignore=2)
+    test_full_vs_irreducible(aluminium, [1, 3, 5], Ecut=3, tol=1e-5, n_ignore=3)
     #
     # That's pretty expensive:
     # test_full_vs_irreducible([4, 4, 4], Ecut=5, tol=1e-6)

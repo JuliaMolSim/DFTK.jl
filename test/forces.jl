@@ -40,6 +40,7 @@ end
         atoms = [Si => pos]
         model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93;
                           temperature=0.03, smearing=smearing)
+        # TODO Put kshift=[1/2, 0, 0] here later
         basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 1, 2])
 
         n_bands = 10
