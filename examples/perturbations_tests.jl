@@ -140,7 +140,7 @@ function test_perturbation_coarsegrid(α, Ecut_min, Ecut_max)
     """
 
     ### reference solution
-    Ecut_ref = 4*Ecut_max
+    Ecut_ref = 3*Ecut_max
     println("---------------------------\nSolution for Ecut_ref = $(Ecut_ref)")
     basis_ref = PlaneWaveBasis(model, Ecut_ref, kcoords, ksymops)
     scfres_ref = self_consistent_field(basis_ref, tol=1e-12)
