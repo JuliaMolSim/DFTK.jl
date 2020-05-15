@@ -18,6 +18,10 @@ function forces(term::Term, ψ, occ; kwargs...)
     nothing  # by default, no force
 end
 function forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
+    if !any(iszero(kpt.coordinate) for kpt in basis.kpoints)
+        @warn "Forces for shifted k-Grids not tested"
+    end
+
     # TODO optimize allocs here
     T = eltype(basis)
     f = [zeros(Vec3{T}, length(positions)) for (type, positions) in basis.model.atoms]

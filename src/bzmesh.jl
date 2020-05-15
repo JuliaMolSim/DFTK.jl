@@ -10,11 +10,12 @@ with `PlaneWaveBasis` and `bzmesh_irreducible`. No symmetry reduction is attempt
 such that there will be `prod(kgrid_size)` ``k``-Points returned and all symmetry
 operations are the identity.
 """
-function bzmesh_uniform(kgrid_size)
+function bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
     kgrid_size = Vec3{Int}(kgrid_size)
     start = -floor.(Int, (kgrid_size .- 1) ./ 2)
     stop  = ceil.(Int, (kgrid_size .- 1) ./ 2)
-    kcoords = [Vec3([i, j, k] .// kgrid_size) for i=start[1]:stop[1],
+    kshift = Vec3{Rational{Int}}(kshift)
+    kcoords = [(kshift .+ Vec3([i, j, k])) .// kgrid_size for i=start[1]:stop[1],
                j=start[2]:stop[2], k=start[3]:stop[3]]
     ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)]
     vec(kcoords), ksymops
@@ -69,7 +70,6 @@ function find_irreducible_kpoints(kpoints, Stildes, τtildes)
 end
 
 
-
 @doc raw"""
     bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
 
@@ -80,8 +80,9 @@ the full mesh. `lattice` are the lattice vectors, column by column, `atoms` are 
 representing a mapping from `Element` objects to a list of positions in fractional
 coordinates. `tol_symmetry` is the tolerance used for searching for symmetry operations.
 """
-function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
-    all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size)
+function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
+                         tol_symmetry=1e-5, kshift=[0, 0, 0])
+    all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size, kshift=kshift)
 
     # Notice: In the language of the latex document in the docs
     # spglib returns \tilde{S} and \tilde{τ} in integer real-space coordinates, such that
@@ -94,15 +95,24 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
     Stildes, τtildes = spglib_get_symmetry(lattice, atoms; tol_symmetry=tol_symmetry)
     n_symops = length(Stildes)
 
+    # Transform kshift to the convention used in spglib:
+    #    If is_shift is set (i.e. integer 1), then a shift of 0.5 is performed,
+    #    else no shift is performed along an axis.
+    kshift = Vec3{Rational{Int}}(kshift)
+    all(ks in [0, 1//2] for ks in kshift) || error("Only kshifts of 0 or 1//2 implemented.")
+    is_shift = Int.(2 * kshift)
+
     # Use determined symmetries to deduce irreducible k-Point mesh
+    # TODO implement time-reversal symmetry and turn the flag to true
     spg_rotations = permutedims(cat(Stildes..., dims=3), (3, 1, 2))
-    mapping, grid = import_spglib().get_stabilized_reciprocal_mesh(
-        kgrid_size, spg_rotations, is_shift=[0, 0, 0], is_time_reversal=true
+    mapping, grid = pyimport("spglib").get_stabilized_reciprocal_mesh(
+        kgrid_size, spg_rotations, is_shift=is_shift, is_time_reversal=false
     )
 
     # Convert irreducible k-Points to DFTK conventions
     kgrid_size = Vec3{Int}(kgrid_size)
-    kirreds = [Vec3{Int}(grid[ik + 1, :]) .// kgrid_size for ik in unique(mapping)]
+    kirreds = [(kshift .+ Vec3{Int}(grid[ik + 1, :])) .// kgrid_size
+               for ik in unique(mapping)]
 
     # Find the indices of the corresponding reducible k-Points in `grid`, which one of the
     # irreducible k-Points in `kirreds` generates.
@@ -110,6 +120,9 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
 
     # This list collects a list of extra reducible k-Points, which could not be
     # mapped to any irreducible kpoint yet even though spglib claims this can be done.
+    # This happens because spglib actually fails for non-ideal cases, resulting
+    # in *wrong results* being returned. See the discussion in
+    # https://github.com/spglib/spglib/issues/101
     kreds_notmapped = empty(kirreds)
 
     # ksymops will be the list of symmetry operations (for each irreducible k-Point)
@@ -119,7 +132,7 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
     for (ik, k) in enumerate(kirreds)
         ksymops[ik] = Vector{SymOp}()
         for ired in k_all_reducible[ik]
-            kred = Vec3(grid[ired, :]) .// kgrid_size
+            kred = (kshift .+ Vec3(grid[ired, :])) .// kgrid_size
 
             isym = findfirst(1:n_symops) do isym
                 # If the difference between kred and Stilde' * k == Stilde^{-1} * k
@@ -139,8 +152,8 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
     end
 
     if !isempty(kreds_notmapped)
+        # add them as reducible anyway
         eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, Stildes, τtildes)
-
         @info("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
               "the irreducible kpoints returned by spglib. $(length(eirreds)) of " *
               "these are added as extra irreducible kpoints.")
@@ -155,6 +168,21 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
 
     kirreds, ksymops
 end
+
+
+@doc raw"""
+Apply various standardisations to a lattice and a list of atoms. It uses spglib to detect
+symmetries (within `tol_symmetry`), then cleans up the lattice according to the symmetries
+(unless `correct_symmetry` is `false`) and returns the resulting standard lattice
+and atoms. If `primitive` is `true` (default) the primitive unit cell is returned, else
+the conventional unit cell is returned.
+"""
+function standardize_atoms(lattice, atoms; correct_symmetry=true, primitive=true,
+                           tol_symmetry=1e-5)
+    spglib_standardize_cell(lattice, atoms; correct_symmetry=correct_symmetry,
+                            primitive=primitive, tol_symmetry=tol_symmetry)
+end
+
 
 @doc raw"""
 Selects a kgrid_size to ensure a minimal spacing (in inverse Bohrs) between kpoints.
