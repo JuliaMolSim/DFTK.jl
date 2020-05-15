@@ -18,8 +18,7 @@ function Lowdin_orthonormalization!(ψp_fine::AbstractArray, occ::AbstractArray)
         E, V = eigen(Hermitian(S))
         Sdiag = Diagonal(sqrt.(1.0./E))
         S = V * Sdiag * V^(-1)
-        ψp_fine[ik][:, occ_bands] = mul!(similar(ψp_fine[ik][:, occ_bands]),
-                                         ψp_fine[ik][:, occ_bands], S)
+        ψp_fine[ik][:, occ_bands] = ψp_fine[ik][:, occ_bands] * S
         ### check orthonormalization
         S = ψp_fine[ik][:, occ_bands]'ψp_fine[ik][:, occ_bands]
         @assert(norm(S - I) < 1e-12)
@@ -27,10 +26,7 @@ function Lowdin_orthonormalization!(ψp_fine::AbstractArray, occ::AbstractArray)
     ψp_fine
 end
 
-"""
-Exntension of Diagonal to non local operator
-"""
-function Diagonal(opnl::DFTK.NonlocalOperator)
+function LinearAlgebra.Diagonal(opnl::DFTK.NonlocalOperator)
     [dot(p, opnl.D * p) for p in eachrow(opnl.P)]
 end
 
@@ -86,7 +82,7 @@ Compute first order perturbation of the eigenvectors
         λψ_fine = similar(ψ_fine[ik])
         λψ_fine .= 0
         for n in occ_bands
-            λψ_fine[:, n] = mul!(λψ_fine[:, n], ψ_fine[ik][:, n], egvalk[n])
+            λψ_fine[:, n] .= ψ_fine[ik][:, n] .* egvalk[n]
         end
         r_fine = Hψ_fine[ik] - λψ_fine
         # this residual is different from interpolating r from the coarse grid
@@ -139,7 +135,7 @@ function perturbed_eigenvalues(basis_fine::PlaneWaveBasis, H_fine::Hamiltonian,
         for n in occ_bands
             egval2k = dot(ψ_fine[ik][:, n], potψ1k[:, n])
             egval3k = dot(ψ1_fine[ik][:, n], potψ1k[:, n]) - dot(ψ1_fine[ik][:, n],
-                      mul!(similar(ψ1_fine[ik][:, n]), Diagonal(total_pot_avg[ik]), ψ1_fine[ik][:, n]))
+                      Diagonal(total_pot_avg[ik]) * ψ1_fine[ik][:, n])
             egvalp2[ik][n] += real(egval2k)
             egvalp3[ik][n] += real(egval2k) + real(egval3k)
         end
@@ -160,7 +156,7 @@ function Rayleigh_Ritz(basis_fine::PlaneWaveBasis,
         nk = length(occ[ik])
         occ_bands = [n for n in 1:nk if occ[ik][n] != 0.0]
         Hψp_fine = mul!(similar(ψp_fine[ik]), H_fine.blocks[ik], ψp_fine[ik])
-        ψpHψp_fine = mul!(zeros(ComplexF64, nk, nk), ψp_fine[ik]', Hψp_fine)
+        ψpHψp_fine = ψp_fine[ik]'Hψp_fine
         egvalp[ik][occ_bands] .= real.(eigen(ψpHψp_fine).values[occ_bands])
     end
     egvalp
