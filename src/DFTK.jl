@@ -118,6 +118,7 @@ include("scf/direct_minimization.jl")
 #
 # Utilities
 #
+export standardize_atoms
 export bzmesh_uniform
 export bzmesh_ir_wedge
 export kgrid_size_from_minimal_spacing

@@ -69,6 +69,19 @@ function find_irreducible_kpoints(kpoints, Stildes, τtildes)
 end
 
 
+@doc raw"""
+Apply various standardisations to a lattice and a list of atoms. It uses spglib to detect
+symmetries (within `tol_symmetry`), then cleans up the lattice according to the symmetries
+(unless `correct_symmetry` is `false`) and returns the resulting standard lattice
+and atoms. If `primitive` is `true` (default) the primitive unit cell is returned, else
+the conventional unit cell is returned.
+"""
+function standardize_atoms(lattice, atoms; correct_symmetry=true, primitive=true,
+                           tol_symmetry=1e-5)
+    spglib_standardize_cell(lattice, atoms; correct_symmetry=correct_symmetry,
+                            primitive=primitive, tol_symmetry=tol_symmetry)
+end
+
 
 @doc raw"""
     bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
@@ -97,7 +110,7 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
     # Use determined symmetries to deduce irreducible k-Point mesh
     # TODO implement time-reversal symmetry and turn the flag to true
     spg_rotations = permutedims(cat(Stildes..., dims=3), (3, 1, 2))
-    mapping, grid = import_spglib().get_stabilized_reciprocal_mesh(
+    mapping, grid = pyimport("spglib").get_stabilized_reciprocal_mesh(
         kgrid_size, spg_rotations, is_shift=[0, 0, 0], is_time_reversal=false
     )
 
@@ -111,6 +124,9 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
 
     # This list collects a list of extra reducible k-Points, which could not be
     # mapped to any irreducible kpoint yet even though spglib claims this can be done.
+    # This happens because spglib actually fails for non-ideal cases, resulting
+    # in *wrong results* being returned. See the discussion in
+    # https://github.com/spglib/spglib/issues/101
     kreds_notmapped = empty(kirreds)
 
     # ksymops will be the list of symmetry operations (for each irreducible k-Point)
@@ -140,12 +156,14 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
     end
 
     if !isempty(kreds_notmapped)
-        error("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
-              "the irreducible kpoints returned by spglib.")
-        # # add them as reducible anyway
-        # eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, Stildes, τtildes)
-        # append!(kirreds, eirreds)
-        # append!(ksymops, esymops)
+        # add them as reducible anyway
+        eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, Stildes, τtildes)
+        @info("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
+              "the irreducible kpoints returned by spglib. $(length(eirreds)) of " *
+              "these are added as extra irreducible kpoints.")
+
+        append!(kirreds, eirreds)
+        append!(ksymops, esymops)
     end
 
     # The symmetry operation (S == I and τ == 0) should be present for each k-Point

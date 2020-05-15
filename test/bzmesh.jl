@@ -1,5 +1,5 @@
 using DFTK: bzmesh_uniform, bzmesh_ir_wedge, ElementCoulomb, Vec3, Mat3
-using DFTK: pymatgen_structure, load_lattice
+using DFTK: pymatgen_structure, load_lattice, standardize_atoms
 using LinearAlgebra
 using PyCall
 using Test
@@ -67,4 +67,28 @@ end
     test_reduction(magnesium, [ 3,  3,  3])
     test_reduction(magnesium, [ 2,  3,  4])
     test_reduction(magnesium, [ 9, 11, 13])
+end
+
+@testset "standardize_atoms" begin
+    # Test unperturbed structure
+    atoms = [ElementCoulomb(:Si) => silicon.positions]
+    slattice, satoms = standardize_atoms(silicon.lattice, atoms, primitive=true)
+    @test length(atoms) == 1
+    @test atoms[1][1] == ElementCoulomb(:Si)
+    @test length(atoms[1][2]) == 2
+    @test atoms[1][2][1] == ones(3) ./ 8
+    @test atoms[1][2][2] == -ones(3) ./ 8
+
+    # Perturb structure
+    plattice = silicon.lattice .+ 1e-8rand(3, 3)
+    patoms = [ElementCoulomb(:Si) => [p + 1e-8rand(3) for p in silicon.positions]]
+    plattice, patoms = standardize_atoms(plattice, patoms, primitive=true)
+
+    # And check we get the usual silicon primitive cell back:
+    a = plattice[1, 2]
+    @test plattice == [0  a  a; a 0 a; a a 0]
+    @test length(atoms) == 1
+    @test atoms[1][1] == ElementCoulomb(:Si)
+    @test length(atoms[1][2]) == 2
+    @test atoms[1][2][1] - atoms[1][2][2] == ones(3) ./ 4
 end

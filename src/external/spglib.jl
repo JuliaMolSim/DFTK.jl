@@ -1,34 +1,25 @@
 using PyCall
 # Routines for interaction with spglib
 
-function import_spglib()
-    spglib = pyimport("spglib")
-    version = VersionNumber(spglib.__version__)
-
-    if version < v"1.12"
-        @warn "Spglib below 1.12 not tested with DFTK" maxlog=1
-    elseif v"1.14" <= version < v"1.15"
-        @warn "Spglib $version is known to be faulty when used with DFTK." maxlog=1
-    end
-    spglib
-end
-
 """
 Construct a tuple containing the lattice and the positions of the species
 in the convention required to take the place of a `cell` datastructure used in spglib.
 """
-function spglib_cell(lattice, atoms)
+function spglib_cell_atommapping_(lattice, atoms)
+    lattice = Matrix{Float64}(lattice)  # spglib operates in double precision
     n_attypes = sum(length(positions) for (type, positions) in atoms)
     spg_numbers = Vector{Int}(undef, n_attypes)
     spg_positions = Matrix{Float64}(undef, n_attypes, 3)
 
     offset = 0
     nextnumber = 1
-    for (type, positions) in atoms
-        for (i, pos) in enumerate(positions)
+    atommapping = Dict{Int, Any}()
+    for (iatom, (type, positions)) in enumerate(atoms)
+        atommapping[nextnumber] = type
+        for (ipos, pos) in enumerate(positions)
             # assign the same number to all types with this position
-            spg_numbers[offset + i] = nextnumber
-            spg_positions[offset + i, :] = pos
+            spg_numbers[offset + ipos] = nextnumber
+            spg_positions[offset + ipos, :] = pos
         end
         offset += length(positions)
         nextnumber += 1
@@ -37,11 +28,13 @@ function spglib_cell(lattice, atoms)
     # Note: In the python interface of spglib the lattice vectors
     #       are given in rows, but DFTK uses columns
     #       For future reference: The C interface spglib also uses columns.
-    (lattice', spg_positions, spg_numbers)
+    (lattice', spg_positions, spg_numbers), atommapping
 end
+spglib_cell(lattice, atoms) = first(spglib_cell_atommapping_(lattice, atoms))
+
 
 function spglib_get_symmetry(lattice, atoms; tol_symmetry=1e-5)
-    spglib = import_spglib()
+    spglib = pyimport("spglib")
     lattice = Matrix{Float64}(lattice)  # spglib operates in double precision
 
     # Ask spglib for symmetry operations and for irreducible mesh
@@ -85,4 +78,28 @@ function spglib_get_symmetry(lattice, atoms; tol_symmetry=1e-5)
     end
 
     Stildes, τtildes
+end
+
+function spglib_standardize_cell(lattice::MatT, atoms; correct_symmetry=true,
+                                 primitive=false, tol_symmetry=1e-5) where {MatT}
+    spglib = pyimport("spglib")
+    T = eltype(lattice)
+
+    # Convert lattice and atoms to spglib and keep the mapping between our atoms
+    # and spglibs atoms
+    cell, atommapping = spglib_cell_atommapping_(lattice, atoms)
+
+    # Ask spglib to standardize the cell (i.e. find a cell, which fits the spglib conventions)
+    res = spglib.standardize_cell(spglib_cell(lattice, atoms), to_primitive=primitive,
+                                  no_idealize=!correct_symmetry, symprec=tol_symmetry)
+    spg_lattice, spg_scaled_positions, spg_numbers = res
+
+    # Note: In the python interface of spglib the lattice vectors
+    #       are given in rows, but DFTK uses columns
+    #       For future reference: The C interface spglib also uses columns.
+    newlattice = MatT(spg_lattice')
+    newatoms = [(atommapping[iatom]
+                 => T.(spg_scaled_positions[findall(isequal(iatom), spg_numbers), :]))
+                for iatom in unique(spg_numbers)]
+    newlattice, newatoms
 end
