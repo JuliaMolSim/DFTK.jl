@@ -101,6 +101,13 @@ You can then run the code in the `examples/` directory.
 ## Citation
 [![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238)
 
+## Funding
+This project has received funding from
+the [institute of computing and data sciences (ISCD, Sorbonne Université)](https://iscd.sorbonne-universite.fr/),
+[École des Ponts ParisTech](https://enpc.fr), [Inria Research Centre Paris](https://www.inria.fr/fr/centre-inria-de-paris)
+and from the European Research Council (ERC) under the European Union's Horizon 2020 research and
+innovation program ([grant agreement No 810367](https://cordis.europa.eu/project/id/810367)).
+
 ## Contact
-Feel free to contact us (@mfherbst and @antoine-levitt) directly,
-open issues or submit pull requests. Any contribution or discussion is welcome!
+Feel free to contact us ([@mfherbst](https://github.com/mfherbst) and [@antoine-levitt](https://github.com/antoine-levitt))
+directly, open issues or submit pull requests. Any contribution or discussion is welcome!
