@@ -19,7 +19,7 @@ function kgrid_monkhorst_pack(kgrid_size; kshift=[0, 0, 0])
     kshift = Vec3{Rational{Int}}(kshift)
     kcoords = [(kshift .+ Vec3([i, j, k])) .// kgrid_size
                for i=start[1]:stop[1], j=start[2]:stop[2], k=start[3]:stop[3]]
-    normalise_kpoint_coordinate.(kcoords)
+    vec(normalise_kpoint_coordinate.(kcoords))
 end
 
 
@@ -35,7 +35,7 @@ operations are the identity.
 """
 function bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
     kcoords = kgrid_monkhorst_pack(kgrid_size; kshift=kshift)
-    vec(kcoords), [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)]
+    kcoords, [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)]
 end
 
 
@@ -44,7 +44,7 @@ const SymOp = Tuple{Mat3{Int}, Vec3{Float64}}
 Implements a primitive search to find an irreducible subset of kpoints
 amongst the provided kpoints.
 """
-function find_irreducible_kpoints(kpoints, Stildes, τtildes)
+function find_irreducible_kpoints(kcoords, Stildes, τtildes)
     #
     # This function is required, because spglib sometimes flags kpoints
     # as reducible, where we cannot find a symmetry operation to generate
@@ -53,27 +53,27 @@ function find_irreducible_kpoints(kpoints, Stildes, τtildes)
 
     # Flag which kpoints have already been mapped to another irred.
     # kpoint or which have been decided to be irreducible.
-    kpoints_mapped = zeros(Bool, length(kpoints))
-    kirreds = empty(kpoints)           # Container for irreducible kpoints
+    kcoords_mapped = zeros(Bool, length(kcoords))
+    kirreds = empty(kcoords)           # Container for irreducible kpoints
     ksymops = Vector{Vector{SymOp}}()  # Corresponding symops
 
-    while !all(kpoints_mapped)
+    while !all(kcoords_mapped)
         # Select next not mapped kpoint as irreducible
-        ik = findfirst(isequal(false), kpoints_mapped)
-        push!(kirreds, kpoints[ik])
+        ik = findfirst(isequal(false), kcoords_mapped)
+        push!(kirreds, kcoords[ik])
         thisk_symops = [(Mat3{Int}(I), Vec3(zeros(3)))]
-        kpoints_mapped[ik] = true
+        kcoords_mapped[ik] = true
 
-        for jk in findall(.!kpoints_mapped)
+        for jk in findall(.!kcoords_mapped)
             isym = findfirst(1:length(Stildes)) do isym
                 # If the difference between kred and Stilde' * k == Stilde^{-1} * k
                 # is only integer in fractional reciprocal-space coordinates, then
                 # kred and S' * k are equivalent k-Points
-                all(isinteger, kpoints[jk] - (Stildes[isym]' * kpoints[ik]))
+                all(isinteger, kcoords[jk] - (Stildes[isym]' * kcoords[ik]))
             end
 
             if !isnothing(isym)  # Found a reducible kpoint
-                kpoints_mapped[jk] = true
+                kcoords_mapped[jk] = true
                 S = Stildes[isym]'                  # in fractional reciprocal coordinates
                 τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates
                 τ = τ .- floor.(τ)
@@ -86,6 +86,25 @@ function find_irreducible_kpoints(kpoints, Stildes, τtildes)
     end
     kirreds, ksymops
 end
+
+@doc raw"""
+Return the ``k``-point symmetry operations associated to a lattice, model or basis.
+Since the ``k``-point discretisations may break some of the symmetries, the latter
+case will return less symmetries than the two former.
+"""
+function ksymops(lattice, atoms; tol_symmetry=1e-5)
+    ksymops = Set()
+    Stildes, τtildes = spglib_get_symmetry(lattice, atoms, tol_symmetry=tol_symmetry)
+    for isym = 1:length(Stildes)
+        S = Stildes[isym]'                  # in fractional reciprocal coordinates
+        τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates
+        τ = τ .- floor.(τ)
+        @assert all(0 .≤ τ .< 1)
+        push!(ksymops, (S, τ))
+    end
+    ksymops
+end
+ksymops(model::Model; kwargs...) = ksymops(model.lattice, model.atoms; kwargs...)
 
 
 @doc raw"""

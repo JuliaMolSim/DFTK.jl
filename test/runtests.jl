@@ -51,6 +51,7 @@ Random.seed!(0)
         include("PspHgh.jl")
         include("elements.jl")
         include("bzmesh.jl")
+        include("bzmesh_symmetry.jl")
         include("external_pymatgen.jl")
         include("external_ase.jl")
     end

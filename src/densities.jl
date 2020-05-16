@@ -107,4 +107,26 @@ function _symmetrize_ρ!(ρaccu, ρin, basis, ksymops, Gs)
             end
         end
     end  # (S, τ)
+    ρaccu
+end
+
+
+"""
+Symmetrise a `RealFourierArray` by applying all symmetry operations of
+the bases (or all symmetries passed as the second argument) and forming
+the average. Notice that an identity needs to be passed explicitly.
+"""
+function symmetrize(ρin::RealFourierArray, ksymops=ksymops(ρin.basis))
+    ρout_fourier = _symmetrize_ρ!(zero(ρin.fourier), ρin.fourier, ρin.basis, ksymops,
+                                  G_vectors(ρin.basis)) ./ length(ksymops)
+    from_fourier(ρin.basis, ρout_fourier)
+end
+
+
+"""
+Apply a `k`-point symmetry operation (the tuple (S, τ)) to a partial density.
+"""
+function apply_ksymop(ksymop, ρin::RealFourierArray)
+    ksymop[1] == I && iszero(ksymop[2]) && return ρin
+    from_fourier(ρin.basis, symmetrize(ρin, [ksymop]))
 end
