@@ -1,5 +1,5 @@
 using DFTK
-using Plots
+using PyPlot
 
 # Calculation parameters
 kgrid = [4, 4, 4]       # k-Point grid
@@ -29,8 +29,8 @@ basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, enable_bzmesh_symmetry=false)
 scfres = self_consistent_field(basis, tol=1e-10)
 
 # compute forces
-F = forces(scfres)
-println(F)
+#  F = forces(scfres)
+#  println(F)
 
 # Print energies and plot bands
 println()
