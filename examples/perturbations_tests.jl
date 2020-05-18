@@ -11,7 +11,7 @@ using PyPlot
 """
 Perturbation for several values of the ratio α = Ecut_fine/Ecut
 """
-function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces)
+function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces, file)
     """
     Ecut: coarse grid Ecut
     Ecut_ref: Ecut for the reference solution
@@ -20,8 +20,6 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces)
     fine grid (highly increase computation time)
     """
 
-    tol = 1e-12
-
     ### reference solution
     println("---------------------------\nSolution for Ecut_ref = $(Ecut_ref)")
     basis_ref = PlaneWaveBasis(model, Ecut_ref, kcoords, ksymops)
@@ -29,6 +27,7 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces)
                                        is_converged=DFTK.ScfConvergenceDensity(tol))
     Etot_ref = sum(values(scfres_ref.energies))
     egval_ref = scfres_ref.eigenvalues
+    ρ_ref = scfres_ref.ρ.fourier[1,2,3]
     if compute_forces
         forces_ref = forces(scfres_ref)
     end
@@ -48,6 +47,8 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces)
     egvalp3_list = []
     egvalp_rr_list = []
     egval_fine_list = []
+    ρp_list = []
+    ρ_fine_list = []
     if compute_forces
         forcesp_list = []
         forces_fine_list = []
@@ -63,6 +64,7 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces)
                                             is_converged=DFTK.ScfConvergenceDensity(tol))
         push!(E_fine_list, sum(values(scfres_fine.energies)))
         push!(egval_fine_list, scfres_fine.eigenvalues)
+        push!(ρ_fine_list, scfres.ρ.fourier[1,2,3])
         if compute_forces
             forces_fine = forces(scfres_fine)
             push!(forces_fine_list, forces_fine)
@@ -75,6 +77,7 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces)
         push!(egvalp2_list, deepcopy(egvalp2))
         push!(egvalp3_list, deepcopy(egvalp3))
         push!(egvalp_rr_list, deepcopy(egvalp_rr))
+        push!(ρp_list, ρp_fine.fourier[1,2,3])
         if compute_forces
             push!(forcesp_list, forcesp)
             display(forcesp)
@@ -120,9 +123,19 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces)
     xlabel("α")
     legend()
 
+    # plot density error at one point in particular
+    subplot(223)
+    title("Error on the density in Fourier space")
+    error_list = abs.(ρp_list .- ρ_ref)
+    error_fine_list = abs.(ρ_fine_list .- ρ_ref)
+    semilogy(α_list, error_list, "-+", label="perturbation from Ecut = $(Ecut)")
+    semilogy(α_list, error_fine_list, "-+", label="full solution for Ecut_fine = α * Ecut")
+    semilogy(α_list, [error_list[1] for α in α_list], "-+", label = "Ecut = $(Ecut)")
+    legend()
+
     if compute_forces
-        #  plot forces relative error, forces_ref should be 0
-        subplot(223)
+        #  plot forces error
+        subplot(224)
         title("Error on the norm of the forces for α = Ecut_fine/Ecut")
         error_list = norm.([forcesp - forces_ref for forcesp in forcesp_list])
         error_fine_list = norm.([forces_fine - forces_ref for forces_fine in forces_fine_list])
@@ -132,7 +145,7 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces)
         legend()
     end
 
-    savefig("first_order_perturbation_silicon_$(Ne)e_kpoints$(length(basis.kpoints))_Ecut_ref$(Ecut_ref)_Ecut$(Ecut)_avg$(avg).pdf")
+    savefig("first_order_perturbation_silicon_$(Ne)e_kpoints$(length(basis.kpoints))_Ecut_ref$(Ecut_ref)_Ecut$(Ecut)_avg$(avg)_$(file).pdf")
 end
 
 """
