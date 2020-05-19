@@ -8,7 +8,7 @@ struct Xc
     functionals::Vector{Libxc.Functional}
     scaling::Real  # to scale by an arbitrary factor (useful for exploration)
 end
-Xc(functionals::Vector{Libxc.Functional}; scaling=1) = Xc(functionals, scaling)  # default to no scaling
+Xc(functionals::Vector; scaling=1) = Xc(functionals, scaling)  # default to no scaling
 Xc(functionals::Vector{Symbol}; kwargs...) = Xc(Functional.(functionals); kwargs...)
 Xc(functional::Symbol; kwargs...) = Xc([Functional(functional)]; kwargs...)
 Xc(functionals::Symbol...; kwargs...) = Xc([functionals...]; kwargs...)

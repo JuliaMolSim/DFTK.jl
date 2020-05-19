@@ -14,7 +14,7 @@ mean (-Δ G = sum_{R} 4π δ_R, integral of G zero on a unit cell).
 struct Hartree
     scaling::Real  # to scale by an arbitrary factor (useful for exploration)
 end
-Hartree() = Hartree(1)
+Hartree(; scaling=1) = Hartree(scaling)
 (hartree::Hartree)(basis) = TermHartree(basis, hartree.scaling)
 
 struct TermHartree <: Term
