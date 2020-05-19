@@ -6,15 +6,18 @@ Exchange-correlation term, defined by a list of functionals and usually evaluate
 """
 struct Xc
     functionals::Vector{Libxc.Functional}
+    scaling::Real
 end
-Xc(functionals::Vector{Symbol}) = Xc(Functional.(functionals))
-Xc(functional::Symbol) = Xc([Functional(functional)])
-Xc(functionals::Symbol...) = Xc([functionals...])
-(xc::Xc)(basis) = XcTerm(basis, xc.functionals)
+Xc(functionals::Vector{Libxc.Functional}; scaling=1) = Xc(functionals, scaling)  # default to no scaling
+Xc(functionals::Vector{Symbol}; kwargs...) = Xc(Functional.(functionals); kwargs...)
+Xc(functional::Symbol; kwargs...) = Xc([Functional(functional)]; kwargs...)
+Xc(functionals::Symbol...; kwargs...) = Xc([functionals...]; kwargs...)
+(xc::Xc)(basis) = XcTerm(basis, xc.functionals, xc.scaling)
 
 struct XcTerm <: Term
     basis::PlaneWaveBasis
     functionals::Vector{Functional}
+    scaling::Real
 end
 
 function ene_ops(term::XcTerm, ψ, occ; ρ, kwargs...)
@@ -39,6 +42,10 @@ function ene_ops(term::XcTerm, ψ, occ; ρ, kwargs...)
 
         dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
         E += sum(Epp .* ρ.real) * dVol
+    end
+    if term.scaling != 1
+        E *= term.scaling
+        potential .*= term.scaling
     end
 
     ops = [RealSpaceMultiplication(basis, kpoint, potential) for kpoint in basis.kpoints]
