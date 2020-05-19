@@ -6,21 +6,21 @@ Exchange-correlation term, defined by a list of functionals and usually evaluate
 """
 struct Xc
     functionals::Vector{Libxc.Functional}
-    scaling::Real
+    scaling::Real  # to scale by an arbitrary factor (useful for exploration)
 end
 Xc(functionals::Vector{Libxc.Functional}; scaling=1) = Xc(functionals, scaling)  # default to no scaling
 Xc(functionals::Vector{Symbol}; kwargs...) = Xc(Functional.(functionals); kwargs...)
 Xc(functional::Symbol; kwargs...) = Xc([Functional(functional)]; kwargs...)
 Xc(functionals::Symbol...; kwargs...) = Xc([functionals...]; kwargs...)
-(xc::Xc)(basis) = XcTerm(basis, xc.functionals, xc.scaling)
+(xc::Xc)(basis) = TermXc(basis, xc.functionals, xc.scaling)
 
-struct XcTerm <: Term
+struct TermXc <: Term
     basis::PlaneWaveBasis
     functionals::Vector{Functional}
-    scaling::Real  # to scale by an arbitrary factor (useful for exploration)
+    scaling::Real
 end
 
-function ene_ops(term::XcTerm, ψ, occ; ρ, kwargs...)
+function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
     basis = term.basis
 
     T = eltype(basis)

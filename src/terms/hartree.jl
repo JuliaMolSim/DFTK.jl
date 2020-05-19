@@ -12,14 +12,14 @@ where G is the Green's function of the periodic Laplacian with zero
 mean (-Δ G = sum_{R} 4π δ_R, integral of G zero on a unit cell).
 """
 struct Hartree
-    scaling::Real
+    scaling::Real  # to scale by an arbitrary factor (useful for exploration)
 end
 Hartree() = Hartree(1)
 (H::Hartree)(basis) = TermHartree(basis, H.scaling)
 
 struct TermHartree <: Term
     basis::PlaneWaveBasis
-    scaling::Real  # to scale by an arbitrary factor (useful for exploration)
+    scaling::Real
     # Fourier coefficients of the Green's function of the periodic Poisson equation
     poisson_green_coeffs
 end
@@ -30,7 +30,7 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling) where T
                                                 for G in G_vectors(basis)]
     # Zero the DC component (i.e. assume a compensating charge background)
     poisson_green_coeffs[1] = 0
-    TermHartree(basis, poisson_green_coeffs)
+    TermHartree(basis, scaling, poisson_green_coeffs)
 end
 
 function ene_ops(term::TermHartree, ψ, occ; ρ, kwargs...)
