@@ -17,7 +17,7 @@ Xc(functionals::Symbol...; kwargs...) = Xc([functionals...]; kwargs...)
 struct XcTerm <: Term
     basis::PlaneWaveBasis
     functionals::Vector{Functional}
-    scaling::Real
+    scaling::Real  # to scale by an arbitrary factor (useful for exploration)
 end
 
 function ene_ops(term::XcTerm, ψ, occ; ρ, kwargs...)
