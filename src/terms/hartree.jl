@@ -15,7 +15,7 @@ struct Hartree
     scaling::Real  # to scale by an arbitrary factor (useful for exploration)
 end
 Hartree() = Hartree(1)
-(H::Hartree)(basis) = TermHartree(basis, H.scaling)
+(hartree::Hartree)(basis) = TermHartree(basis, hartree.scaling)
 
 struct TermHartree <: Term
     basis::PlaneWaveBasis
