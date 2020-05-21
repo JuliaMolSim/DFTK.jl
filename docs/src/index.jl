@@ -1,3 +1,5 @@
+#src This file is fed to Literate, which translates it to Markdown. The markdown is then used to generate docs. See `../make.jl`.
+
 # # DFTK.jl: The density-functional toolkit.
 
 # DFTK is a `julia` package for playing with plane-wave
