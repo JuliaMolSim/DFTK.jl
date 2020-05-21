@@ -1,5 +1,8 @@
 using Documenter
 using DFTK
+using Literate
+
+Literate.markdown("./src/index.jl", "./src/"; documenter=true)
 
 makedocs(
     sitename = "DFTK",
