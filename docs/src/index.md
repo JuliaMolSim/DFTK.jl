@@ -182,3 +182,45 @@ then
  \end{aligned}
 ```
 This also holds true for real spherical harmonics.
+
+
+# Crystal symmetries
+
+For simplicity we will only deal with a monoatomic crystal ``\mathcal C \subset \mathbb R^3``, the extension being easy. A symmetry of the crystal is a real-space unitary matrix ``\tilde S`` and a real-space vector ``\tilde \tau`` such that
+```math
+\tilde{S} \mathcal{C} + \tilde{\tau} = \mathcal{C}.
+```
+The symmetries where ``\tilde S = 1`` and ``\tilde \tau`` is a lattice vector are always assumed and ignored in the following.
+
+We can define a corresponding unitary operator
+```math
+ {U} : L^2_\text{per} \to L^2_\text{per}
+```
+with action
+```math
+ {U} : u \mapsto u\left( S^{-1} (x-\tau) \right),
+```
+where we set
+```math
+\begin{aligned}
+S &= \tilde{S}^{-1}\\
+\tau &= -\tilde{S}^{-1}\tilde{\tau}.
+\end{aligned}
+```
+
+This unitary operator acts on the Fourier coefficients of lattice-periodic functions as
+```math
+(Uu)(G) = e^{-i G \cdot \tau} u(S^-1 G)
+```
+and so
+```math
+U (-i∇ + k) U^* = (-i∇ + Sk)
+```
+Furthermore, since the potential ``V`` is the sum over radial potentials centered at atoms, it is easily seen that ``U V U^* = V``, i.e. that ``U`` and ``V`` commute.
+
+It follows that if the Bloch wave ``ψ_k(x) = e^{ik\cdot x} u_k(x)`` is an eigenfunction of the Hamiltonian, then ``e^{i (Sk) \cdot x} (Uu_k)(x)`` is also an eigenfunction, and so we can take
+```math
+u_{Sk} = U u_k.
+```
+
+This is used to reduce the computations needed. For a uniform sampling of the Brillouin zone (the "reducible kpoints"), one can find a reduced set of kpoints (the "irreducible kpoints") such that the eigenvectors at the reducible kpoints can be deduced from those at the irreducible kpoints.
