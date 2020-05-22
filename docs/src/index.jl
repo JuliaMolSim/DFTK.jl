@@ -37,7 +37,7 @@ scfres = self_consistent_field(basis, tol=1e-10);
 # ## Units
 
 # Atomic units are used throughout: lengths are in Bohr, energies in
-# Hartree. In particular, ``\hbar = m_e = e = 1``. For instance, the
+# Hartree. In particular, ``\hbar = m_e = e = 4\pi \epsilon_0 = 1``. For instance, the
 # Schrödinger equation for the electron of the hydrogen atom is
 # ``i\partial_t \psi = -\frac 1 2 \Delta \psi - \frac 1 {|r|} \psi``. Useful conversion factors can be found in `units`:
 
@@ -61,7 +61,7 @@ model.recip_lattice' * model.lattice
 # vectors in the reciprocal lattice) are represented in the code in
 # **reduced coordinates**. One switches to cartesian coordinates by
 # ``x_{\rm cart} = M x_{\rm red}``, where ``M`` is either
-# `model.unit_cell` (for real-space vectors) or `model.recip_lattice`
+# `model.lattice` (for real-space vectors) or `model.recip_lattice`
 # (for reciprocal-space vectors). A useful relationship is ``b_{\rm
 # cart} \cdot a_{\rm cart}=2\pi b_{\rm red} \cdot a_{\rm red}`` if ``a``
 # and ``b`` are real-space and reciprocal-space vectors respectively.
@@ -78,11 +78,11 @@ model.recip_lattice' * model.lattice
 # - The Bloch waves are ``\psi_{nk}(x) = e^{ik\cdot x} u_{nk}(x)``,
 #   where ``n`` is the band index and ``k`` the kpoint. In the code we
 #   sometimes use ``\psi`` and ``u`` interchangeably.
-# - ``\varepsilon`` are the eigenvalues.
+# - ``\varepsilon`` are the eigenvalues ``\varepsilon_F`` is the Fermi level.
 # - ``\rho`` is the density.
 # - Normalized plane waves: 
 # ```math
-# e_G(r) = \frac 1 {\sqrt{\Omega}} e^{i G \cdot r}
+# e_G(r) = \frac 1 {\sqrt{\Omega}} e^{i G \cdot r}.
 # ```
 # - ``Y^l_m`` are the complex spherical harmonics, and ``Y_{lm}`` the real ones.
 # - ``j_l`` are the Bessel functions. In particular, ``j_{0}(x) = \frac{\sin x}{x}``.
@@ -112,7 +112,7 @@ model.recip_lattice' * model.lattice
 # By mixing and matching these terms, the user can create custom models.
 # Convenience constructors are provided for commonly used models.
 
-typeof.(model.term_types)
+typeof.(model.term_types) # if you're not familiar with Julia syntax, this is equivalent to [typeof(t) for t in model.term_types]
 #-
 display(scfres.energies)
 
@@ -125,7 +125,7 @@ display(scfres.energies)
 # ``k``-points), and the reciprocal lattice is restricted to a finite
 # set (controlled by the `Ecut` argument).
 
-# The periodic part of Bloch waves is expanded in a set of normalized
+# The periodic parts of Bloch waves are expanded in a set of normalized
 # plane waves ``e_G``:
 # ```math
 # \begin{aligned}
@@ -145,9 +145,9 @@ display(scfres.energies)
 # therefore products ``e_{-{G}} e_{{G}'}`` for ``{G}, {G}'`` in
 # ``X_{k}``. To represent these we use a "cubic", ``k``-independent
 # basis set large enough to contain the set ``\{{G}-G' \,|\, G, G' \in
-# S_{k}\}``. We can obtain the decomposition of densities on the
+# S_{k}\}``. We can obtain the coefficients of densities on the
 # ``e_{G}`` basis by a convolution, which can be performed efficiently
-# with FFTs (`G_to_r` and `r_to_G` functions). Potentials are discretized on this same set.
+# with FFTs (see `G_to_r` and `r_to_G` functions). Potentials are discretized on this same set.
 
 # The normalization conventions used in the code is that quantities
 # stored in reciprocal space are coefficients in the ``e_{G}`` basis,
@@ -159,7 +159,7 @@ display(scfres.energies)
 ψtest = scfres.ψ[1][:, 1] # first eigenfunction at first kpoint
 sum(abs2.(ψtest)) # normalized in reciprocal space
 
-# We now perform a FFT to get ψ in real space; the kpoint has to be
+# We now perform an IFFT to get ψ in real space; the kpoint has to be
 # passed because ψ is expressed on the k-dependent basis
 
 ψreal = G_to_r(basis, basis.kpoints[1], ψtest)
@@ -172,16 +172,16 @@ sum(abs2.(ψreal)) * model.unit_cell_volume / prod(basis.fft_size)
 # set can be obtained with `G_vectors(basis)`. The list of ``r`` vectors
 # (real-space grid) can be obtained with `r_vectors(basis)`.
 
-collect(G_vectors(basis.kpoints[1]))[1:4]
+[length(G_vectors(k)) for k in basis.kpoints]
+#-
+(length(G_vectors(basis)), length(r_vectors(basis)), prod(basis.fft_size))
 #-
 collect(G_vectors(basis))[1:4]
 #-
 collect(r_vectors(basis))[1:4]
 #-
-(length(G_vectors(basis)), length(r_vectors(basis)), prod(basis.fft_size))
-#-
 
-# Wavefunctions are stored in an array `ψ` as `ψ[ik][iG, iband]` where
+# As seen above, wavefunctions are stored in an array `ψ` as `ψ[ik][iG, iband]` where
 # `ik` is the index of the kpoint (in `basis.kpoints`), `iG` is the
 # index of the plane wave (in `G_vectors(basis.kpoints[ik])`) and
 # `iband` is the index of the band. Densities are usually stored in a
@@ -189,12 +189,13 @@ collect(r_vectors(basis))[1:4]
 # real and reciprocal space can be accessed using `ρ.real` and
 # `ρ.fourier` respectively.
 
-rvecs = collect(r_vectors(basis))[:, 1, 1]
-x = [r[1] for r in rvecs]
+rvecs = collect(r_vectors(basis))[:, 1, 1] # slice along the x axis
+x = [r[1] for r in rvecs] # only keep the x coordinate
 plot(x, scfres.ρ.real[:, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 #-
 G_energies = [sum(abs2.(model.recip_lattice * G)) ./ 2 for G in G_vectors(basis)][:]
-scatter(G_energies, abs.(scfres.ρ.fourier[:]), yscale=:log10, ylims=(1e-12, 1), label="", xlabel="Energy", ylabel="|ρ|^2")
+scatter(G_energies, abs.(scfres.ρ.fourier[:]);
+        yscale=:log10, ylims=(1e-12, 1), label="", xlabel="Energy", ylabel="|ρ|^2")
 
 # (the density has no components on wavevectors above a certain energy, because the wavefunctions are limited to ``\frac 1 2|k+G|^2 ≤ E_{\rm cut}``)
 
@@ -300,4 +301,4 @@ basis_irred.ksymops[ikpt_irred]
 S, τ = basis_irred.ksymops[ikpt_irred][3] # pick an arbitrary symmetry of that kpoint
 kpt_red_coord = S * basis_irred.kpoints[ikpt_irred].coordinate
 ikpt_red = findfirst(kcoord -> kcoord ≈ kpt_red_coord, [k.coordinate for k in basis_red.kpoints])
-[scfres.eigenvalues[ikpt_irred] scfres_red.eigenvalues[ikpt_red]]
+[scfres_irred.eigenvalues[ikpt_irred] scfres_red.eigenvalues[ikpt_red]]
