@@ -2,7 +2,7 @@ using Documenter
 using DFTK
 using Literate
 
-Literate.markdown("./src/index.jl", "./src/"; documenter=true)
+Literate.markdown("src/index.jl", "src/"; documenter=true, credit=false)
 
 makedocs(
     sitename = "DFTK",

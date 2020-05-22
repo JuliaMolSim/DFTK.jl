@@ -31,7 +31,7 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]] # type and position of the atoms
 model = model_LDA(lattice, atoms)
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 
-scfres = self_consistent_field(basis);
+scfres = self_consistent_field(basis, tol=1e-10);
 
 # # Notations and conventions
 # ## Units
@@ -191,10 +191,10 @@ collect(r_vectors(basis))[1:4]
 
 rvecs = collect(r_vectors(basis))[:, 1, 1]
 x = [r[1] for r in rvecs]
-scatter(x, scfres.ρ.real[:, 1, 1]) # TODO add labels
+plot(x, scfres.ρ.real[:, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 #-
 G_energies = [sum(abs2.(model.recip_lattice * G)) ./ 2 for G in G_vectors(basis)][:]
-scatter(G_energies, abs.(scfres.ρ.fourier[:]), yscale=:log10, ylims=(1e-12, 1)) # TODO add labels
+scatter(G_energies, abs.(scfres.ρ.fourier[:]), yscale=:log10, ylims=(1e-12, 1), label="", xlabel="Energy", ylabel="|ρ|^2")
 
 # (the density has no components on wavevectors above a certain energy, because the wavefunctions are limited to ``\frac 1 2|k+G|^2 ≤ E_{\rm cut}``)
 
@@ -250,12 +250,12 @@ scatter(G_energies, abs.(scfres.ρ.fourier[:]), yscale=:log10, ylims=(1e-12, 1))
 # The symmetries where ``\tilde S = 1`` and ``\tilde \tau`` is a lattice vector are always assumed and ignored in the following.
 
 # We can define a corresponding unitary operator
-# ```math
+# ``
 #  {U} : L^2_\text{per} \to L^2_\text{per}
-# ```
+# ``
 # with action
 # ```math
-#  {U} : u \mapsto u\left( S^{-1} (x-\tau) \right),
+#  (Uu)(x) = \left( S^{-1} (x-\tau) \right),
 # ```
 # where we set
 # ```math
@@ -267,7 +267,7 @@ scatter(G_energies, abs.(scfres.ρ.fourier[:]), yscale=:log10, ylims=(1e-12, 1))
 
 # This unitary operator acts on the Fourier coefficients of lattice-periodic functions as
 # ```math
-# (Uu)(G) = e^{-i G \cdot \tau} u(S^-1 G)
+# (Uu)(G) = e^{-i G \cdot \tau} u(S^{-1} G)
 # ```
 # and so
 # ```math
@@ -282,4 +282,22 @@ scatter(G_energies, abs.(scfres.ρ.fourier[:]), yscale=:log10, ylims=(1e-12, 1))
 
 # This is used to reduce the computations needed. For a uniform sampling of the Brillouin zone (the "reducible kpoints"), one can find a reduced set of kpoints (the "irreducible kpoints") such that the eigenvectors at the reducible kpoints can be deduced from those at the irreducible kpoints.
 
-# TODO demonstrate this in code
+basis_irred = basis
+scfres_irred = scfres
+## Redo the same computation but disabling symmetry handling
+basis_red = PlaneWaveBasis(model, Ecut; kgrid=kgrid, enable_bzmesh_symmetry=false)
+scfres_red = self_consistent_field(basis_red, tol=1e-10)
+[norm(scfres_irred.ρ.real - scfres_red.ρ.real) norm(values(scfres_irred.energies) .- values(scfres_red.energies))]
+# Results are identical (up to convergence thresholds; the `tol` argument to `self_consistent_field` is a threshold on the total energy), but we have gained a considerable reduction in computing time
+(length(basis_red.kpoints), length(basis_irred.kpoints))
+#-
+# We demonstrate how the mapping works
+ikpt_irred = 2 # pick an arbitrary kpoint in the irreducible BZ
+kpt_irred_coord = basis_irred.kpoints[ikpt_irred].coordinate
+basis_irred.ksymops[ikpt_irred]
+#-
+# This is a list of all symmetries operations ``(S,\tau)`` that can be used to map this irreducible kpoint to reducible kpoints. Let's pick one and check.
+S, τ = basis_irred.ksymops[ikpt_irred][3] # pick an arbitrary symmetry of that kpoint
+kpt_red_coord = S * basis_irred.kpoints[ikpt_irred].coordinate
+ikpt_red = findfirst(kcoord -> kcoord ≈ kpt_red_coord, [k.coordinate for k in basis_red.kpoints])
+[scfres.eigenvalues[ikpt_irred] scfres_red.eigenvalues[ikpt_red]]
