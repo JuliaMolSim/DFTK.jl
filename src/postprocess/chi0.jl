@@ -42,7 +42,7 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
     basis = ham.basis
     model = basis.model
     fft_size = basis.fft_size
-    @assert model.spin_polarization == :none
+    @assert model.spin_polarization in (:none, :spinless)
     filled_occ = filled_occupation(model)
     dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
 
@@ -102,7 +102,7 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
     T = eltype(basis)
     model = basis.model
     fft_size = basis.fft_size
-    @assert model.spin_polarization == :none
+    @assert model.spin_polarization in (:none, :spinless)
     filled_occ = filled_occupation(model)
     dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
 

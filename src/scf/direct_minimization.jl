@@ -141,5 +141,5 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     # We rely on the fact that the last point where fg! was called is the minimizer to
     # avoid recomputing at ψ
     (H=H, energies=energies, converged=true,
-     ρ=ρ, ψ=ψ, eigenvalues=eigenvalues, occupation=occupation, εF=εF, optim_res=res)
+     ρ=ρ, ψ=ψ, eigenvalues=eigenvalues, occupation=occupation, εF=εF, optim_res=res, ham=H)
 end
