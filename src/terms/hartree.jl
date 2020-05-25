@@ -11,22 +11,26 @@ For the Coulomb potential with periodic boundary conditions, this is rather
 where G is the Green's function of the periodic Laplacian with zero
 mean (-Δ G = sum_{R} 4π δ_R, integral of G zero on a unit cell).
 """
-struct Hartree end
-(::Hartree)(basis) = TermHartree(basis)
+struct Hartree
+    scaling_factor::Real  # to scale by an arbitrary factor (useful for exploration)
+end
+Hartree(; scaling_factor=1) = Hartree(scaling_factor)
+(hartree::Hartree)(basis) = TermHartree(basis, hartree.scaling_factor)
 
 struct TermHartree <: Term
     basis::PlaneWaveBasis
+    scaling_factor::Real
     # Fourier coefficients of the Green's function of the periodic Poisson equation
     poisson_green_coeffs
 end
-function TermHartree(basis::PlaneWaveBasis{T}) where T
+function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
     # Solving the Poisson equation ΔV = -4π ρ in Fourier space
     # is multiplying elementwise by 4π / |G|^2.
-    poisson_green_coeffs = 4T(π) ./ [sum(abs2, basis.model.recip_lattice * G)
-                                     for G in G_vectors(basis)]
+    poisson_green_coeffs = scaling_factor .* 4T(π) ./ [sum(abs2, basis.model.recip_lattice * G)
+                                                for G in G_vectors(basis)]
     # Zero the DC component (i.e. assume a compensating charge background)
     poisson_green_coeffs[1] = 0
-    TermHartree(basis, poisson_green_coeffs)
+    TermHartree(basis, scaling_factor, poisson_green_coeffs)
 end
 
 function ene_ops(term::TermHartree, ψ, occ; ρ, kwargs...)
