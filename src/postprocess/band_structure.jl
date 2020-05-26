@@ -28,7 +28,7 @@ function compute_bands(basis, ρ, kcoords, n_bands;
     ham = Hamiltonian(bs_basis; ρ=ρ)
 
     band_data = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
-                                        n_conv_check=n_bands, interpolate_kpoints=false,
+                                        n_conv_check=n_bands,
                                         tol=tol, show_progress=show_progress, kwargs...)
     if !band_data.converged
         @warn "Eigensolver not converged" iterations=band_data.iterations
