@@ -21,7 +21,7 @@ function high_symmetry_kpath(model; kline_density=20)
 end
 
 function compute_bands(basis, ρ, kcoords, n_bands;
-                       eigensolver=lobpcg_hyper, tol=1e-5, show_progress=true, kwargs...)
+                       eigensolver=lobpcg_hyper, tol=1e-3, show_progress=true, kwargs...)
     # Create basis with new kpoints, where we cheat by using any symmetry operations.
     ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)]
     bs_basis = PlaneWaveBasis(basis, kcoords, ksymops)
@@ -113,7 +113,7 @@ function plot_band_data(band_data; εF=nothing,
             energies = (data.λ[ibranch][spin][iband, :] .- eshift) ./ unit_to_au(unit)
 
             color = (spin == :up) ? :blue : :red
-            Plots.plot!(p, kdistances, energies, color=color, label="", yerror=yerror)
+            Plots.plot!(p, kdistances, energies, color=color, label="", yerror=yerror, marker=4)
         end
     end
 
@@ -135,6 +135,16 @@ function plot_band_data(band_data; εF=nothing,
     p
 end
 
+function detexify_kpoint(string)
+    # For some reason Julia doesn't support this naively: https://github.com/JuliaLang/julia/issues/29849
+    replacements = ("\\Gamma" => "Γ",
+                    "\\Delta" => "Δ",
+                    "\\Sigma" => "Σ")
+    for r in replacements
+        string = replace(string, r)
+    end
+    string
+end
 
 # TODO This is the top-level function, which should be documented
 function plot_bandstructure(basis, ρ, n_bands;
@@ -142,7 +152,7 @@ function plot_bandstructure(basis, ρ, n_bands;
     # Band structure calculation along high-symmetry path
     kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density=kline_density)
     println("Computing bands along kpath:")
-    println("       ", join(join.(kpath, " -> "), "  and  "))
+    println("       ", join(join.(detexify_kpoint.(kpath), " -> "), "  and  "))
     band_data = compute_bands(basis, ρ, kcoords, n_bands; kwargs...)
     plot_band_data(band_data, εF=εF, klabels=klabels, unit=unit)
 end
