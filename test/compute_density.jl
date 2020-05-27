@@ -118,7 +118,7 @@ include("testcases.jl")
                     for iband in range
                         ψnSk = ψSk[:, iband]
                         residual = norm(Hk_full * ψnSk - eigenvalues_ir[ik][iband] * ψnSk)
-                        @test residual < tol
+                        @test residual < 10tol
                     end  # iband
 
                     n_ρ += 1
