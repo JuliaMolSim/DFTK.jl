@@ -88,6 +88,8 @@ export find_occupation_bandgap
 include("occupation.jl")
 
 export compute_density
+export symmetrize
+export apply_ksymop
 include("densities.jl")
 include("interpolation.jl")
 
@@ -122,6 +124,7 @@ export standardize_atoms
 export bzmesh_uniform
 export bzmesh_ir_wedge
 export kgrid_size_from_minimal_spacing
+export ksymops
 include("bzmesh.jl")
 
 export guess_density

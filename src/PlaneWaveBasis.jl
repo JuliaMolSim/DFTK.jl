@@ -178,6 +178,15 @@ function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
                    fft_size=basis.fft_size)
 end
 
+
+@doc raw"""
+Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` a Monkhorst-Pack
+kpoint grid `kgrid` shifted by `kshift` (which gives the fraction of adjacent mesh points
+to shift the mesh in each direction). If `enable_bzmesh_symmetry` is `true` (default)
+lattice symmetries are used to reduce the number of ``k``-Points which are treated
+explicitly. In this case all guess densities, (analytic) potential functions
+and guess wavefunctions used with DFTK must agree with the employed symmetry operations.
+"""
 function PlaneWaveBasis(model::Model, Ecut::Number; kgrid=[1, 1, 1], kshift=[0, 0, 0],
                         enable_bzmesh_symmetry=true, kwargs...)
     if enable_bzmesh_symmetry
@@ -344,34 +353,63 @@ function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
     end
     ret
 end
+
+
 #
 # Functions to handle BZ symmetry
 #
-
-"""
-Converts an eigenfunction at point `kpoint_src` to one at
-`kpoint_dst`, the two being related by symmetry operation S.
-"""
-function transfer_to_kpoint(basis::PlaneWaveBasis{T}, ψ::AbstractVector, kpoint_src::Kpoint, kpoint_dst::Kpoint, S, τ) where {T}
-    @assert S*kpoint_src.coordinate ≈ kpoint_dst.coordinate
-    invS = Mat3{Int}(inv(S))
-    # ψsym(G) = e^{-i G τ} ψ(S^-1 G)
-    ψsym = zero(ψ)
-    for (iG, G) in enumerate(G_vectors(kpoint_dst))
-        igired = index_G_vectors(basis, kpoint_src, invS * G)
-        if igired !== nothing
-            @assert G_vectors(kpoint_src)[igired] ≈ invS*G
-            ψsym[iG] = cis(-2T(π)*dot(G, τ)) * ψ[igired]
+function ksymops(basis::PlaneWaveBasis)
+    res = Set()
+    for ik = 1:length(basis.ksymops)
+        for isym = 1:length(basis.ksymops[ik])
+            push!(res, basis.ksymops[ik][isym])
         end
     end
-    ψsym
+    res
 end
-function transfer_to_kpoint(basis::PlaneWaveBasis, ψ::Tψ, kpoint_src::Kpoint, kpoint_dst::Kpoint, S, τ) where {Tψ <: AbstractMatrix}
-    ψsym = zero(ψ)
-    for i = 1:size(ψ, 2)
-        @views ψsym[:, i] .= transfer_to_kpoint(basis, ψ[:, i], kpoint_src, kpoint_dst, S, τ)
+
+function apply_ksymop(ksymop, basis, kpoint, ψk::AbstractVecOrMat)
+    S, τ = ksymop
+    S == I && iszero(τ) && return kpoint, ψk
+
+    # Apply S and reduce coordinates to interval (-0.5, 0.5]
+    # Notice that doing this reduction is important because
+    # of the finite kinetic energy basis cutoff
+    @assert all(-0.5 .< kpoint.coordinate .≤ 0.5)
+    Sk_raw = S * kpoint.coordinate
+    Sk = normalise_kpoint_coordinate(Sk_raw)
+    kshift = convert.(Int, Sk - Sk_raw)
+    @assert all(-0.5 .< Sk .≤ 0.5)
+
+    # Check whether the resulting kpoint is in the basis:
+    ikfull = findfirst(1:length(basis.kpoints)) do idx
+        all(isinteger, basis.kpoints[idx].coordinate - Sk)
     end
-    ψsym
+    if isnothing(ikfull)
+        # Build a new kpoint datastructure:
+        Skpoint = build_kpoints(basis, [Sk])[1]
+    else
+        Skpoint = basis.kpoints[ikfull]
+        @assert Skpoint.coordinate ≈ Sk
+    end
+
+    # Since the eigenfunctions of the Hamiltonian at k and Sk satisfy
+    #      u_{Sk}(x) = u_{k}(S^{-1} (x - τ))
+    # their Fourier transform is related as
+    #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
+    invS = Mat3{Int}(inv(S))
+    Gs_full = [G + kshift for G in G_vectors(Skpoint)]
+    ψSk = zero(ψk)
+    for iband in 1:size(ψk, 2)
+        for (ig, G_full) in enumerate(Gs_full)
+            igired = index_G_vectors(basis, kpoint, invS * G_full)
+            if igired !== nothing
+                ψSk[ig, iband] = cis(-2π * dot(G_full, τ)) * ψk[igired, iband]
+            end
+        end
+    end  # iband
+
+    Skpoint, ψSk
 end
 
 """"
@@ -387,7 +425,7 @@ function PlaneWaveBasis(basis::PlaneWaveBasis; enable_bzmesh_symmetry)
     kcoords = []
     for (ik, kpt) in enumerate(basis.kpoints)
         for (S, τ) in basis.ksymops[ik]
-            push!(kcoords, S*kpt.coordinate)
+            push!(kcoords, normalise_kpoint_coordinate(S * kpt.coordinate))
         end
     end
     new_basis = PlaneWaveBasis(basis.model, basis.Ecut, kcoords,
