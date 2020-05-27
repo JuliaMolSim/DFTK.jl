@@ -57,7 +57,6 @@ Random.seed!(0)
     end
 
     if "all" in TAGS
-        include("term_external.jl")
         include("hamiltonian_consistency.jl")
     end
 
