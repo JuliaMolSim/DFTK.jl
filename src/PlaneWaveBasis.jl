@@ -178,6 +178,15 @@ function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
                    fft_size=basis.fft_size)
 end
 
+
+@doc raw"""
+Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` a Monkhorst-Pack
+kpoint grid `kgrid` shifted by `kshift` (which gives the fraction of adjacent mesh points
+to shift the mesh in each direction). If `enable_bzmesh_symmetry` is `true` (default)
+lattice symmetries are used to reduce the number of ``k``-Points which are treated
+explicitly. In this case all guess densities, (analytic) potential functions
+and guess wavefunctions used with DFTK must agree with the employed symmetry operations.
+"""
 function PlaneWaveBasis(model::Model, Ecut::Number; kgrid=[1, 1, 1], kshift=[0, 0, 0],
                         enable_bzmesh_symmetry=true, kwargs...)
     if enable_bzmesh_symmetry
@@ -344,6 +353,8 @@ function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
     end
     ret
 end
+
+
 #
 # Functions to handle BZ symmetry
 #
