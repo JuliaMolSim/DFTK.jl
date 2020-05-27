@@ -2,13 +2,13 @@ include("external/spglib.jl")
 
 
 """Bring kpoint coordinates into the range (-0.5, 0.5]"""
-function normalise_kpoint_coordinate(x::Real)
+function normalize_kpoint_coordinate(x::Real)
     2x == -1 && return -x
     x = x - round(Int, x)
     @assert all(-0.5 < x ≤ 0.5)
     x
 end
-normalise_kpoint_coordinate(k::AbstractVector) = normalise_kpoint_coordinate.(k)
+normalize_kpoint_coordinate(k::AbstractVector) = normalize_kpoint_coordinate.(k)
 
 
 """Construct the coordinates of the kpoints in a (shifted) Monkorst-Pack grid"""
@@ -19,7 +19,7 @@ function kgrid_monkhorst_pack(kgrid_size; kshift=[0, 0, 0])
     kshift = Vec3{Rational{Int}}(kshift)
     kcoords = [(kshift .+ Vec3([i, j, k])) .// kgrid_size
                for i=start[1]:stop[1], j=start[2]:stop[2], k=start[3]:stop[3]]
-    vec(normalise_kpoint_coordinate.(kcoords))
+    vec(normalize_kpoint_coordinate.(kcoords))
 end
 
 
@@ -142,7 +142,7 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
     kpoints_mp = kgrid_monkhorst_pack(kgrid_size, kshift=kshift)
     function preserves_grid(Stilde, kpoints_mp)
         # Stilde' is S in fractional reciprocal coordinates
-        all(normalise_kpoint_coordinate(Stilde' * kcoord) in kpoints_mp
+        all(normalize_kpoint_coordinate(Stilde' * kcoord) in kpoints_mp
             for kcoord in kpoints_mp)
     end
     τtildes = [τtilde for (i, τtilde) in enumerate(τtildes)
@@ -161,7 +161,7 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
     kgrid_size = Vec3{Int}(kgrid_size)
     kirreds = [(kshift .+ Vec3{Int}(grid[ik + 1, :])) .// kgrid_size
                for ik in unique(mapping)]
-    kirreds = normalise_kpoint_coordinate.(kirreds)
+    kirreds = normalize_kpoint_coordinate.(kirreds)
 
     # Find the indices of the corresponding reducible k-Points in `grid`, which one of the
     # irreducible k-Points in `kirreds` generates.
@@ -191,7 +191,7 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
             end
 
             if isym === nothing  # No symop found for $k -> $kred
-                push!(kreds_notmapped, normalise_kpoint_coordinate(kred))
+                push!(kreds_notmapped, normalize_kpoint_coordinate(kred))
             else
                 S = Stildes[isym]'                  # in fractional reciprocal coordinates
                 τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates

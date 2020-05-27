@@ -30,13 +30,13 @@ end
 """
 mutable struct PreconditionerTPA{T <: Real}
     basis::PlaneWaveBasis
-    kpt::Kpoint{T}
+    kpt::Kpoint
     kin::Vector{T}  # kinetic energy of every G
     mean_kin::Union{Nothing, Vector{T}}  # mean kinetic energy of every band
     default_shift::T # if mean_kin is not set by `precondprep!`, this will be used for the shift
 end
 
-function PreconditionerTPA(basis::PlaneWaveBasis, kpt::Kpoint{T}; default_shift=1) where T
+function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=1) where T
     kin = Vector{T}([sum(abs2, basis.model.recip_lattice * (G + kpt.coordinate))
                      for G in G_vectors(kpt)] ./ 2)
     @assert basis.model.spin_polarization in (:none, :collinear, :spinless)

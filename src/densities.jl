@@ -112,11 +112,11 @@ end
 
 
 """
-Symmetrise a `RealFourierArray` by applying all symmetry operations of
-the bases (or all symmetries passed as the second argument) and forming
-the average. Notice that an identity needs to be passed explicitly.
+Symmetrize a `RealFourierArray` by applying all symmetry operations of
+the basis (or all symmetries passed as the second argument) and forming
+the average.
 """
-function symmetrize(ρin::RealFourierArray, ksymops=ksymops(ρin.basis))
+function symmetrize_density(ρin::RealFourierArray, ksymops=ksymops(ρin.basis))
     ρout_fourier = _symmetrize_ρ!(zero(ρin.fourier), ρin.fourier, ρin.basis, ksymops,
                                   G_vectors(ρin.basis)) ./ length(ksymops)
     from_fourier(ρin.basis, ρout_fourier)

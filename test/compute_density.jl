@@ -74,7 +74,7 @@ include("testcases.jl")
         # Test density is equivalent and symmetric
         @test maximum(abs.(ρ_ir.fourier - ρ_full.fourier)) < 10tol
         @test maximum(abs.(ρ_ir.real - ρ_full.real)) < 10tol
-        @test maximum(abs, symmetrize(ρ_ir).fourier - ρ_ir.fourier) < tol
+        @test maximum(abs, DFTK.symmetrize_density(ρ_ir).fourier - ρ_ir.fourier) < tol
 
         # Test local potential is equivalent
         @test maximum(abs, total_local_potential(ham_ir) - total_local_potential(ham_full)) < tol
@@ -106,7 +106,7 @@ include("testcases.jl")
             for (ik, k) in enumerate(kcoords)
                 Hk_ir = ham_ir.blocks[ik]
                 for (S, τ) in ksymops[ik]
-                    Skpoint, ψSk = apply_ksymop((S, τ), ham_ir.basis, Hk_ir.kpoint, ψ_ir[ik])
+                    Skpoint, ψSk = DFTK.apply_ksymop((S, τ), ham_ir.basis, Hk_ir.kpoint, ψ_ir[ik])
 
                     ikfull = findfirst(1:length(kfull)) do idx
                         all(isinteger, round.(kfull[idx] - Skpoint.coordinate, digits=10))
