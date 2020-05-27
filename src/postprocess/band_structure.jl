@@ -21,14 +21,14 @@ function high_symmetry_kpath(model; kline_density=20)
 end
 
 function compute_bands(basis, ρ, kcoords, n_bands;
-                       eigensolver=lobpcg_hyper, tol=1e-5, show_progress=true, kwargs...)
+                       eigensolver=lobpcg_hyper, tol=1e-3, show_progress=true, kwargs...)
     # Create basis with new kpoints, where we cheat by using any symmetry operations.
     ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)]
     bs_basis = PlaneWaveBasis(basis, kcoords, ksymops)
     ham = Hamiltonian(bs_basis; ρ=ρ)
 
     band_data = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
-                                        n_conv_check=n_bands, interpolate_kpoints=false,
+                                        n_conv_check=n_bands,
                                         tol=tol, show_progress=show_progress, kwargs...)
     if !band_data.converged
         @warn "Eigensolver not converged" iterations=band_data.iterations
@@ -97,7 +97,7 @@ end
 
 
 function plot_band_data(band_data; εF=nothing,
-                        klabels=Dict{String, Vector{Float64}}(), unit=:eV)
+                        klabels=Dict{String, Vector{Float64}}(), unit=:eV, kwargs...)
     eshift = isnothing(εF) ? 0.0 : εF
     data = prepare_band_data(band_data, klabels=klabels)
 
@@ -113,7 +113,8 @@ function plot_band_data(band_data; εF=nothing,
             energies = (data.λ[ibranch][spin][iband, :] .- eshift) ./ unit_to_au(unit)
 
             color = (spin == :up) ? :blue : :red
-            Plots.plot!(p, kdistances, energies, color=color, label="", yerror=yerror)
+            Plots.plot!(p, kdistances, energies; color=color, label="", yerror=yerror,
+                        kwargs...)
         end
     end
 
@@ -135,6 +136,16 @@ function plot_band_data(band_data; εF=nothing,
     p
 end
 
+function detexify_kpoint(string)
+    # For some reason Julia doesn't support this naively: https://github.com/JuliaLang/julia/issues/29849
+    replacements = ("\\Gamma" => "Γ",
+                    "\\Delta" => "Δ",
+                    "\\Sigma" => "Σ")
+    for r in replacements
+        string = replace(string, r)
+    end
+    string
+end
 
 # TODO This is the top-level function, which should be documented
 function plot_bandstructure(basis, ρ, n_bands;
@@ -142,9 +153,14 @@ function plot_bandstructure(basis, ρ, n_bands;
     # Band structure calculation along high-symmetry path
     kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density=kline_density)
     println("Computing bands along kpath:")
-    println("       ", join(join.(kpath, " -> "), "  and  "))
+    println("       ", join(join.(detexify_kpoint.(kpath), " -> "), "  and  "))
     band_data = compute_bands(basis, ρ, kcoords, n_bands; kwargs...)
-    plot_band_data(band_data, εF=εF, klabels=klabels, unit=unit)
+
+    plotargs = ()
+    if kline_density ≤ 10
+        plotargs = (markersize=2, markershape=:circle)
+    end
+    plot_band_data(band_data; εF=εF, klabels=klabels, unit=unit, plotargs...)
 end
 function plot_bandstructure(scfres, n_bands; kwargs...)
     # Convenience wrapper for scfres named tuples
