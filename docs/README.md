@@ -1,0 +1,1 @@
+The docs are built by github bots. To build them locally, run the make.jl script. We use [Documenter.jl](https://github.com/JuliaDocs/Documenter.jl) to write docs in .md files. The .jl files are in [Literate.jl](https://github.com/fredrikekre/Literate.jl) format, and are transformed into .md files by the build script.
