@@ -2,7 +2,14 @@ using Documenter
 using DFTK
 using Literate
 
-Literate.markdown("src/index.jl", "src/"; documenter=true, credit=false)
+for (dir, directories, files) in walkdir(joinpath(@__DIR__, "src"))
+    for file in files
+        if endswith(file, ".jl")
+            Literate.markdown(joinpath(dir, file), dir;
+                              documenter=true, credit=false)
+        end
+    end
+end
 
 makedocs(
     sitename = "DFTK",
