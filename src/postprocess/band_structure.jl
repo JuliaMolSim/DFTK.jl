@@ -97,7 +97,7 @@ end
 
 
 function plot_band_data(band_data; εF=nothing,
-                        klabels=Dict{String, Vector{Float64}}(), unit=:eV)
+                        klabels=Dict{String, Vector{Float64}}(), unit=:eV, kwargs...)
     eshift = isnothing(εF) ? 0.0 : εF
     data = prepare_band_data(band_data, klabels=klabels)
 
@@ -113,7 +113,8 @@ function plot_band_data(band_data; εF=nothing,
             energies = (data.λ[ibranch][spin][iband, :] .- eshift) ./ unit_to_au(unit)
 
             color = (spin == :up) ? :blue : :red
-            Plots.plot!(p, kdistances, energies, color=color, label="", yerror=yerror, marker=4)
+            Plots.plot!(p, kdistances, energies; color=color, label="", yerror=yerror,
+                        kwargs...)
         end
     end
 
@@ -154,7 +155,12 @@ function plot_bandstructure(basis, ρ, n_bands;
     println("Computing bands along kpath:")
     println("       ", join(join.(detexify_kpoint.(kpath), " -> "), "  and  "))
     band_data = compute_bands(basis, ρ, kcoords, n_bands; kwargs...)
-    plot_band_data(band_data, εF=εF, klabels=klabels, unit=unit)
+
+    plotargs = ()
+    if kline_density ≤ 10
+        plotargs = (markersize=2, markershape=:circle)
+    end
+    plot_band_data(band_data; εF=εF, klabels=klabels, unit=unit, plotargs...)
 end
 function plot_bandstructure(scfres, n_bands; kwargs...)
     # Convenience wrapper for scfres named tuples
