@@ -18,9 +18,9 @@ C = 500.0
 a = 10
 lattice = a .* [[1 0 0.]; [0 1 0]; [0 0 0]]
 
-f(x, y, z) = (x-a/2)^2 + (y-a/2)^2  # potential
+f(x, y, z) = x^2 + y^2  # potential
 
-Apot(x, y, z) = .2 * @SVector [y-a/2, -(x-a/2), 0]
+Apot(x, y, z) = .2 * @SVector [y, -x, 0]
 Apot(X) = Apot(X...)
 
 n_electrons = 1  # increase this for fun
@@ -39,4 +39,4 @@ scfres = direct_minimization(basis, x_tol=1e-8, f_tol=-1, g_tol=-1)
 println()
 display(scfres.energies)
 
-heatmap(scfres.ρ.real[:,:,1], c=:blues, clims=(0, Inf))
+heatmap(scfres.ρ.real[:,:,1], c=:blues, clims=[0, Inf])
