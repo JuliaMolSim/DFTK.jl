@@ -75,9 +75,9 @@ model.recip_lattice' * model.lattice
 # the unit cell and by ``R`` for lattice vectors. Vectors in
 # reciprocal space are analogously ``k`` (for vectors in the Brillouin zone)
 # and ``G`` for vectors on the reciprocal lattice. Commonly ``q``
-# is used to refer to ``k + G``. If not denoted otherwise the
-# code uses **reduced coordinates** for these vectors. One switches
-# to Cartesian coordinates by
+# is used to refer to ``k + G``. Unless denoted otherwise the
+# code uses **reduced coordinates**
+# for these vectors. One switches to Cartesian coordinates by
 # ```math
 # x_\text{cart} = M x_\text{red}
 # ```
@@ -91,6 +91,10 @@ model.recip_lattice' * model.lattice
 # Other names for reduced coordinates are **integer coordinates**
 # (usually for ``G``-vectors) or **fractional coordinates**
 # (usually for ``k``-points).
+#
+# We use the convention that the unit cell in real space is ``[0,
+# 1)^3`` (in reduced coordinates) and the unit cell in reciprocal
+# space (the reducible Brillouin zone) is ``[-1/2, 1/2)^3``.
 
 # ## Naming conventions
 

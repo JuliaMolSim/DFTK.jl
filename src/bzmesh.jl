@@ -1,14 +1,13 @@
 include("external/spglib.jl")
 
 
-"""Bring kpoint coordinates into the range (-0.5, 0.5]"""
-function normalise_kpoint_coordinate(x::Real)
-    2x == -1 && return -x
-    x = x - round(Int, x)
-    @assert all(-0.5 < x ≤ 0.5)
+"""Bring kpoint coordinates into the range [-0.5, 0.5)"""
+function normalize_kpoint_coordinate(x::Real)
+    x = x - round(Int, x, RoundNearestTiesUp)
+    @assert -0.5 ≤ x < 0.5
     x
 end
-normalise_kpoint_coordinate(k::AbstractVector) = normalise_kpoint_coordinate.(k)
+normalize_kpoint_coordinate(k::AbstractVector) = normalize_kpoint_coordinate.(k)
 
 
 """Construct the coordinates of the kpoints in a (shifted) Monkorst-Pack grid"""
@@ -19,7 +18,7 @@ function kgrid_monkhorst_pack(kgrid_size; kshift=[0, 0, 0])
     kshift = Vec3{Rational{Int}}(kshift)
     kcoords = [(kshift .+ Vec3([i, j, k])) .// kgrid_size
                for i=start[1]:stop[1], j=start[2]:stop[2], k=start[3]:stop[3]]
-    vec(normalise_kpoint_coordinate.(kcoords))
+    vec(normalize_kpoint_coordinate.(kcoords))
 end
 
 
@@ -90,7 +89,7 @@ end
 @doc raw"""
 Return the ``k``-point symmetry operations associated to a lattice, model or basis.
 Since the ``k``-point discretisations may break some of the symmetries, the latter
-case will return less symmetries than the two former.
+case will return a subset of the symmetries of the former two.
 """
 function ksymops(lattice, atoms; tol_symmetry=1e-5)
     ksymops = Set()
@@ -135,21 +134,21 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
     #    If is_shift is set (i.e. integer 1), then a shift of 0.5 is performed,
     #    else no shift is performed along an axis.
     kshift = Vec3{Rational{Int}}(kshift)
-    all(ks in [0, 1//2] for ks in kshift) || error("Only kshifts of 0 or 1//2 implemented.")
+    all(ks in (0, 1//2) for ks in kshift) || error("Only kshifts of 0 or 1//2 implemented.")
 
-    # Filter out the Symmetry operations, which are not compatible with the MP grid,
+    # Filter out the Symmetry operations which are not compatible with the MP grid,
     # i.e. which do not map MP kgrid points to other MP kgrid points
     kpoints_mp = kgrid_monkhorst_pack(kgrid_size, kshift=kshift)
     function preserves_grid(Stilde, kpoints_mp)
         # Stilde' is S in fractional reciprocal coordinates
-        all(normalise_kpoint_coordinate(Stilde' * kcoord) in kpoints_mp
+        all(normalize_kpoint_coordinate(Stilde' * kcoord) in kpoints_mp
             for kcoord in kpoints_mp)
     end
     τtildes = [τtilde for (i, τtilde) in enumerate(τtildes)
                if preserves_grid(Stildes[i], kpoints_mp)]
     Stildes = [Stilde for Stilde in Stildes if preserves_grid(Stilde, kpoints_mp)]
 
-    # Use the remaining symmetries in spglib to deduce irreducible k-Point mesh
+    # Give the remaining symmetries to spglib to compute an irreducible k-Point mesh
     # TODO implement time-reversal symmetry and turn the flag to true
     is_shift = Int.(2 * kshift)
     spg_rotations = permutedims(cat(Stildes..., dims=3), (3, 1, 2))
@@ -161,7 +160,7 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
     kgrid_size = Vec3{Int}(kgrid_size)
     kirreds = [(kshift .+ Vec3{Int}(grid[ik + 1, :])) .// kgrid_size
                for ik in unique(mapping)]
-    kirreds = normalise_kpoint_coordinate.(kirreds)
+    kirreds = normalize_kpoint_coordinate.(kirreds)
 
     # Find the indices of the corresponding reducible k-Points in `grid`, which one of the
     # irreducible k-Points in `kirreds` generates.
@@ -191,7 +190,7 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
             end
 
             if isym === nothing  # No symop found for $k -> $kred
-                push!(kreds_notmapped, normalise_kpoint_coordinate(kred))
+                push!(kreds_notmapped, normalize_kpoint_coordinate(kred))
             else
                 S = Stildes[isym]'                  # in fractional reciprocal coordinates
                 τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates

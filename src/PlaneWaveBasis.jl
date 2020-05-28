@@ -33,15 +33,15 @@ Discretization information for kpoint-dependent quantities such as orbitals.
 More generally, a kpoint is a block of the Hamiltonian;
 eg collinear spin is treated by doubling the number of kpoints.
 """
-struct Kpoint{T <: Real}
-    spin::Symbol                  # :up, :down, :both or :spinless
-    coordinate::Vec3{T}           # Fractional coordinate of k-Point
-    mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
-                                  # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
-    mapping_inv::Dict{Int, Int}   # Inverse of `mapping`:
-                                  # G_vectors(basis)[i] = G_vectors(kpt)[kpt.mapping_inv[i]]
-    G_vectors::Vector{Vec3{Int}}  # Wave vectors in integer coordinates:
-                                  # ({G, 1/2 |k+G|^2 ≤ Ecut})
+struct Kpoint
+    spin::Symbol                     # :up, :down, :both or :spinless
+    coordinate::Vec3{Rational{Int}}  # Fractional coordinate of k-Point
+    mapping::Vector{Int}             # Index of G_vectors[i] on the FFT grid:
+                                     # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
+    mapping_inv::Dict{Int, Int}      # Inverse of `mapping`:
+                                     # G_vectors(basis)[i] = G_vectors(kpt)[kpt.mapping_inv[i]]
+    G_vectors::Vector{Vec3{Int}}     # Wave vectors in integer coordinates:
+                                     # ({G, 1/2 |k+G|^2 ≤ Ecut})
 end
 
 
@@ -69,7 +69,7 @@ struct PlaneWaveBasis{T <: Real}
     Ecut::T
 
     # irreducible kpoints
-    kpoints::Vector{Kpoint{T}}
+    kpoints::Vector{Kpoint}
     # Brillouin zone integration weights,
     # kweights[ik] = length(ksymops[ik]) / sum(length(ksymops[ik]) for ik=1:Nk)
     kweights::Vector{T}
@@ -107,7 +107,7 @@ function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
         spin = (:spinless, )
     end
 
-    kpoints = Vector{Kpoint{T}}()
+    kpoints = Vector{Kpoint}()
     for k in kcoords
         energy(q) = sum(abs2, model.recip_lattice * q) / 2
         pairs = [(i, G) for (i, G) in enumerate(G_vectors(fft_size)) if energy(k + G) ≤ Ecut]
@@ -115,7 +115,7 @@ function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
         mapping = first.(pairs)
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for σ in spin
-            push!(kpoints, Kpoint{T}(σ, k, mapping, mapping_inv, last.(pairs)))
+            push!(kpoints, Kpoint(σ, k, mapping, mapping_inv, last.(pairs)))
         end
     end
 
@@ -180,12 +180,14 @@ end
 
 
 @doc raw"""
-Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` a Monkhorst-Pack
-kpoint grid `kgrid` shifted by `kshift` (which gives the fraction of adjacent mesh points
-to shift the mesh in each direction). If `enable_bzmesh_symmetry` is `true` (default)
-lattice symmetries are used to reduce the number of ``k``-Points which are treated
-explicitly. In this case all guess densities, (analytic) potential functions
-and guess wavefunctions used with DFTK must agree with the employed symmetry operations.
+Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a Monkhorst-Pack
+kpoint grid `kgrid` shifted by `kshift` (0 or 1/2 in each direction).
+
+If `enable_bzmesh_symmetry` is `true` (default) the symmetries of the
+crystal are used to reduce the number of ``k``-Points which are
+treated explicitly. In this case all guess densities and potential
+functions must agree with the crystal symmetries or the result is
+undefined.
 """
 function PlaneWaveBasis(model::Model, Ecut::Number; kgrid=[1, 1, 1], kshift=[0, 0, 0],
                         enable_bzmesh_symmetry=true, kwargs...)
@@ -358,7 +360,9 @@ end
 #
 # Functions to handle BZ symmetry
 #
+
 function ksymops(basis::PlaneWaveBasis)
+    # see doc in bzmesh.jl
     res = Set()
     for ik = 1:length(basis.ksymops)
         for isym = 1:length(basis.ksymops[ik])
@@ -368,18 +372,23 @@ function ksymops(basis::PlaneWaveBasis)
     res
 end
 
+"""
+Apply a symmetry operation to eigenvectors `ψk` at a given `kpoint` to obtain an
+equivalent point in [-0.5, 0.5)^3 and associated eigenvectors (expressed in the
+basis of the new kpoint).
+"""
 function apply_ksymop(ksymop, basis, kpoint, ψk::AbstractVecOrMat)
     S, τ = ksymop
     S == I && iszero(τ) && return kpoint, ψk
 
-    # Apply S and reduce coordinates to interval (-0.5, 0.5]
-    # Notice that doing this reduction is important because
+    # Apply S and reduce coordinates to interval [-0.5, 0.5)
+    # Doing this reduction is important because
     # of the finite kinetic energy basis cutoff
-    @assert all(-0.5 .< kpoint.coordinate .≤ 0.5)
+    @assert all(-0.5 .≤ kpoint.coordinate .< 0.5)
     Sk_raw = S * kpoint.coordinate
-    Sk = normalise_kpoint_coordinate(Sk_raw)
+    Sk = normalize_kpoint_coordinate(Sk_raw)
     kshift = convert.(Int, Sk - Sk_raw)
-    @assert all(-0.5 .< Sk .≤ 0.5)
+    @assert all(-0.5 .≤ Sk .< 0.5)
 
     # Check whether the resulting kpoint is in the basis:
     ikfull = findfirst(1:length(basis.kpoints)) do idx
@@ -403,19 +412,18 @@ function apply_ksymop(ksymop, basis, kpoint, ψk::AbstractVecOrMat)
     for iband in 1:size(ψk, 2)
         for (ig, G_full) in enumerate(Gs_full)
             igired = index_G_vectors(basis, kpoint, invS * G_full)
-            if igired !== nothing
-                ψSk[ig, iband] = cis(-2π * dot(G_full, τ)) * ψk[igired, iband]
-            end
+            @assert igired !== nothing
+            ψSk[ig, iband] = cis(-2π * dot(G_full, τ)) * ψk[igired, iband]
         end
-    end  # iband
+    end
 
     Skpoint, ψSk
 end
 
 """"
-Convert a basis into one that uses or doesn't use BZ symmetrization
-Mainly useful for debug purposes and in cases we don't want to
-bother with symmetry
+Convert a `basis` into one that uses or doesn't use BZ symmetrization
+Mainly useful for debug purposes (e.g. in cases we don't want to
+bother with symmetry)
 """
 function PlaneWaveBasis(basis::PlaneWaveBasis; enable_bzmesh_symmetry)
     enable_bzmesh_symmetry && error("Not implemented")
