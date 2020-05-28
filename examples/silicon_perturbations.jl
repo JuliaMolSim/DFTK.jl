@@ -6,7 +6,7 @@ include("perturbations_tests.jl")
 
 ### Setting the model
 # Calculation parameters
-kgrid = [1, 1, 1]       # k-Point grid
+kgrid = [4, 4, 4]       # k-Point grid
 supercell = [1, 1, 1]   # Lattice supercell
 
 # Setup silicon lattice
@@ -25,13 +25,6 @@ atoms = [Si => [s.frac_coords for s in pystruct.sites]]
 Ne = 8
 model = model_LDA(lattice, atoms; n_electrons=Ne)
 
-# kgrid and ksymops
-kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.lattice, model.atoms)
-# modify kcoords to use different k points
-#  kcoords = [[rand(), rand(), rand()]]
-#  a specific kcoords for which we know it works
-#  kcoords = [[0.27204337462860106, 0.4735127814871176, 0.6306195069419347]]
-
 ################################# Calculations #################################
 
 avg = true
@@ -39,7 +32,7 @@ tol = 5e-15
 
 kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.lattice, model.atoms)
 for Ecut in 5:5:25
-    test_perturbation_ratio(Ecut, 120, 4, true, "gamma")
+    test_perturbation_ratio(Ecut, 120, 4, false, "gamma")
 end
 
 kcoords = [[0.27204337462860106, 0.4735127814871176, 0.6306195069419347]]
