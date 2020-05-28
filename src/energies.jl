@@ -9,11 +9,11 @@ struct Energies{T <: Number}
 end
 
 function Base.show(io::IO, energies::Energies)
-    println("Energy breakdown:")
+    println(io, "Energy breakdown:")
     for (name, value) in energies.energies
-        @printf "    %-20s%-10.7f\n" string(name) value
+        @printf io "    %-20s%-10.7f\n" string(name) value
     end
-    @printf "\n    %-20s%-15.12f\n" "total" sum(values(energies))
+    @printf io "\n    %-20s%-15.12f\n" "total" sum(values(energies))
 end
 Base.getindex(energies::Energies, i) = energies.energies[i]
 Base.values(energies::Energies) = values(energies.energies)

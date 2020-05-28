@@ -400,4 +400,4 @@ S, τ = basis_irred.ksymops[ikpt_irred][3]
 kpt_red_coord = S * basis_irred.kpoints[ikpt_irred].coordinate
 ikpt_red = findfirst(kcoord -> kcoord ≈ kpt_red_coord,
                      [k.coordinate for k in basis_red.kpoints])
-(scfres_irred.eigenvalues[ikpt_irred], scfres_red.eigenvalues[ikpt_red])
+[scfres_irred.eigenvalues[ikpt_irred] scfres_red.eigenvalues[ikpt_red]]
