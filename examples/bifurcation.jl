@@ -1,6 +1,6 @@
 using DFTK
 using KrylovKit
-using PyPlot
+using Plots
 using Random
 using PseudoArcLengthContinuation
 const PALC = PseudoArcLengthContinuation
@@ -25,10 +25,10 @@ model = Model(lattice; n_electrons=n_electrons, terms=terms,
 basis = PlaneWaveBasis(model, Ecut)
 xgrid = range(-1/2, 1/2, length=prod(basis.fft_size))
 
-diagtol = 1e-8
-toldf = diagtol
+diagtol = 1e-10
+toldf = 1e-6
 δ_findiff = toldf^(1/3)
-tol_newton = 1e-6
+tol_newton = 1e-5
 
 function update_C!(basis, C)
     inonlinear = findfirst(t -> isa(t, DFTK.TermPowerNonlinearity), basis.terms)
@@ -53,7 +53,7 @@ function dF(ρ, p)
         dV = α*p.C*dρr
         ψ = [res.ψ[1][:, 1]]
         eig = [res.eigenvalues[1][1:1]]
-        dρ_out = apply_χ0(ham, dV, ψ, res.εF, eig)
+        dρ_out = apply_χ0(ham, dV, ψ, res.εF, eig; cgtol=toldf)
         vec(dρ_out - dρr)
     end
 
@@ -114,5 +114,5 @@ for i = 1:2
     push!(branches, br2)
     push!(branches, br3)
 end
-Plots.plot([branches...])
 # PALC.computeNormalForm1d(F, dF, d2F, d3F, br, 1; Jt=dFt, verbose = true, δ=1e-4)
+Plots.plot([branches...])

@@ -92,12 +92,11 @@ Returns the change in density δρ for a given δV. Drop all non-diagonal terms 
 (f(εn)-f(εm))/(εn-εm) factor less than `droptol`. If `sternheimer_contribution`
 is false, only compute excitations inside the provided orbitals.
 """
-function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
-                  sternheimer_contribution=true, temperature=ham.basis.model.temperature)
-    if droptol > 0 && sternheimer_contribution == true
-        error("Droptol cannot be positive if sternheimer contribution is to be computed.")
-    end
-    # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
+function apply_χ0(ham, δV, ψ, εF, eigenvalues;
+                  droptol=0,
+                  sternheimer_contribution=true,
+                  temperature=ham.basis.model.temperature,
+                  cgtol=1e-6)
     basis = ham.basis
     T = eltype(basis)
     model = basis.model
@@ -106,6 +105,18 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
     filled_occ = filled_occupation(model)
     dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
 
+    # Normalize δV to avoid numerical trouble; theoretically should
+    # not be necessary, but it simplifies the interaction with the
+    # linear solver (it makes the rhs be order 1 even if δV is small)
+    normδV = norm(δV)
+    normδV < eps(T) && return zero(δV)
+    δV ./= normδV
+
+    if droptol > 0 && sternheimer_contribution == true
+        error("Droptol cannot be positive if sternheimer contribution is to be computed.")
+    end
+
+    # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
     δρ_four = zeros(complex(T), size(δV))
     for ik = 1:length(basis.kpoints)
         δρk = zero(δV)
@@ -156,7 +167,12 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
                 x .= Q(x)
             end
             J = LinearMap{eltype(ψ[ik])}(QHQ, size(ham.blocks[ik], 1))
-            δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!))  # TODO tweak tolerances here
+            # cgtol should not be too tight, and in particular not be
+            # too far below the error in the ψ. Otherwise Q and H
+            # don't commute enough, and an oversolving of the linear
+            # system can lead to spurious solutions
+            norm(rhs) < 100eps(T) && continue
+            δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!), tol=cgtol / norm(rhs))
             δψnk_real = G_to_r(basis, basis.kpoints[ik], δψnk)
             δρk .+= 2 .* fnk .* real(conj(ψnk_real) .* δψnk_real)
         end
@@ -174,5 +190,5 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
         δρ .+= ldos .* dot(ldos_unsym, δV) .* dVol ./ dos
     end
 
-    δρ
+    δρ .* normδV
 end
