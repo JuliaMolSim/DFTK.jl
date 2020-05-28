@@ -13,7 +13,7 @@ C = 1.0
 a = 10
 lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]]
 
-f(x) = x^2 # potential
+f(x) = (x-a/2)^2 # potential
 
 n_electrons = 1  # increase this for fun
 # We add the needed terms
@@ -29,7 +29,7 @@ scfres = direct_minimization(basis, x_tol=1e-8, f_tol=-1, g_tol=-1)
 println()
 display(scfres.energies)
 
-x = a * range(-1/2, 1/2, length=basis.fft_size[1]+1)[1:end-1]
+x = a * range(0, 1, length=basis.fft_size[1]+1)[1:end-1]
 ρ = real(scfres.ρ.real)[:, 1, 1] # converged density
 ψ_fourier = scfres.ψ[1][:, 1] # first kpoint, all G components, first eigenvector
 ψ = G_to_r(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1] # IFFT back to real space
