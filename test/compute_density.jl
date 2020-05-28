@@ -74,7 +74,7 @@ include("testcases.jl")
         # Test density is equivalent and symmetric
         @test maximum(abs.(ρ_ir.fourier - ρ_full.fourier)) < 10tol
         @test maximum(abs.(ρ_ir.real - ρ_full.real)) < 10tol
-        @test maximum(abs, DFTK.symmetrize_density(ρ_ir).fourier - ρ_ir.fourier) < tol
+        @test maximum(abs, DFTK.symmetrize(ρ_ir).fourier - ρ_ir.fourier) < tol
 
         # Test local potential is equivalent
         @test maximum(abs, total_local_potential(ham_ir) - total_local_potential(ham_full)) < tol

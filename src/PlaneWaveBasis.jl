@@ -34,14 +34,14 @@ More generally, a kpoint is a block of the Hamiltonian;
 eg collinear spin is treated by doubling the number of kpoints.
 """
 struct Kpoint
-    spin::Symbol                       # :up, :down, :both or :spinless
-    coordinate::Vec3{Rational{Int}}    # Fractional coordinate of k-Point
-    mapping::Vector{Int}               # Index of G_vectors[i] on the FFT grid:
-                                       # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
-    mapping_inv::Dict{Int, Int}        # Inverse of `mapping`:
-                                       # G_vectors(basis)[i] = G_vectors(kpt)[kpt.mapping_inv[i]]
-    G_vectors::Vector{Vec3{Int}}       # Wave vectors in integer coordinates:
-                                       # ({G, 1/2 |k+G|^2 ≤ Ecut})
+    spin::Symbol                     # :up, :down, :both or :spinless
+    coordinate::Vec3{Rational{Int}}  # Fractional coordinate of k-Point
+    mapping::Vector{Int}             # Index of G_vectors[i] on the FFT grid:
+                                     # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
+    mapping_inv::Dict{Int, Int}      # Inverse of `mapping`:
+                                     # G_vectors(basis)[i] = G_vectors(kpt)[kpt.mapping_inv[i]]
+    G_vectors::Vector{Vec3{Int}}     # Wave vectors in integer coordinates:
+                                     # ({G, 1/2 |k+G|^2 ≤ Ecut})
 end
 
 
@@ -181,9 +181,9 @@ end
 
 @doc raw"""
 Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a Monkhorst-Pack
-kpoint grid `kgrid` shifted by `kshift` (0 or 1/2 in each direction
+kpoint grid `kgrid` shifted by `kshift` (0 or 1/2 in each direction).
 
-If). `enable_bzmesh_symmetry` is `true` (default) the symmetries of the
+If `enable_bzmesh_symmetry` is `true` (default) the symmetries of the
 crystal are used to reduce the number of ``k``-Points which are
 treated explicitly. In this case all guess densities and potential
 functions must agree with the crystal symmetries or the result is
@@ -422,7 +422,7 @@ end
 
 """"
 Convert a `basis` into one that uses or doesn't use BZ symmetrization
-Mainly useful for debug purposes (eg in cases we don't want to
+Mainly useful for debug purposes (e.g. in cases we don't want to
 bother with symmetry)
 """
 function PlaneWaveBasis(basis::PlaneWaveBasis; enable_bzmesh_symmetry)
