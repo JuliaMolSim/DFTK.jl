@@ -64,7 +64,7 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces, file)
                                             is_converged=DFTK.ScfConvergenceDensity(tol))
         push!(E_fine_list, sum(values(scfres_fine.energies)))
         push!(egval_fine_list, scfres_fine.eigenvalues)
-        push!(ρ_fine_list, scfres.ρ.fourier[1,2,3])
+        push!(ρ_fine_list, scfres_fine.ρ.fourier[1,2,3])
         if compute_forces
             forces_fine = forces(scfres_fine)
             push!(forces_fine_list, forces_fine)
