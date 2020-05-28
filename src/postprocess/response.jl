@@ -12,10 +12,10 @@ function apply_hartree_kernel(basis::PlaneWaveBasis{T}, dρ) where {T}
 end
 
 function compute_xc_kernel(basis::PlaneWaveBasis{T}, ρ) where {T}
-    xc_terms = [t for t in basis.terms if (isa(t,  XcTerm) || isa(t, TermPowerNonlinearity))]
+    xc_terms = [t for t in basis.terms if (isa(t,  TermXc) || isa(t, TermPowerNonlinearity))]
     @assert length(xc_terms) == 1
     xc = xc_terms[1]
-    if isa(xc, XcTerm) && any(xc.family == Libxc.family_gga for xc in xc.functionals)
+    if isa(xc, TermXc) && any(xc.family == Libxc.family_gga for xc in xc.functionals)
         error("Only LDA supported for response for the moment")
     end
     # In LDA, the potential depends on each component individually, so
