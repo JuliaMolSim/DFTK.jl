@@ -68,7 +68,7 @@ necessarily eigenvectors of the Hamiltonian.
 direct_minimization(basis::PlaneWaveBasis; kwargs...) = direct_minimization(basis, nothing; kwargs...)
 function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                              prec_type=PreconditionerTPA,
-                             optim_solver=Optim.LBFGS, kwargs...) where T
+                             optim_solver=Optim.LBFGS, tol=1e-6, kwargs...) where T
     model = basis.model
     @assert model.spin_polarization in (:none, :spinless)
     @assert model.temperature == 0 # temperature is not yet supported
@@ -123,10 +123,15 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
     P = DMPreconditioner(Nk, Pks, unpack)
 
+    kwdict = Dict(kwargs)
+    optim_options = Optim.Options(; allow_f_increases=true, show_trace=true,
+                                  x_tol=pop!(kwdict, :x_tol, tol),
+                                  f_tol=pop!(kwdict, :f_tol, -1),
+                                  g_tol=pop!(kwdict, :g_tol, -1), kwdict...)
     res = Optim.optimize(Optim.only_fg!(fg!), pack(ψ0),
                          optim_solver(P=P, precondprep=precondprep!, manifold=manif,
                                       linesearch=LineSearches.BackTracking()),
-                         Optim.Options(; allow_f_increases=true, show_trace=true, kwargs...))
+                         optim_options)
     ψ = unpack(res.minimizer)
     # These concepts do not make sense in direct minimization,
     # although we could maybe do a final Rayleigh-Ritz
