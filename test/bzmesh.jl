@@ -17,6 +17,7 @@ include("testcases.jl")
                                                         is_shift=is_shift)
         kcoords_spglib = [(kshift .+ Vec3{Int}(grid[ik, :])) .// kgrid_size
                           for ik in 1:size(grid, 1)]
+        kcoords_spglib = DFTK.normalize_kpoint_coordinate.(kcoords_spglib)
         sort!(kcoords_spglib)
 
         kcoords, _ = bzmesh_uniform(kgrid_size, kshift=kshift)

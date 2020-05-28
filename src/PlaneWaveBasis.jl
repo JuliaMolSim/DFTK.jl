@@ -372,18 +372,23 @@ function ksymops(basis::PlaneWaveBasis)
     res
 end
 
+"""
+Apply a symmetry operation to eigenvectors `ψk` at a given `kpoint` to obtain an
+equivalent point in [-0.5, 0.5)^3 and associated eigenvectors (expressed in the
+basis of the new kpoint).
+"""
 function apply_ksymop(ksymop, basis, kpoint, ψk::AbstractVecOrMat)
     S, τ = ksymop
     S == I && iszero(τ) && return kpoint, ψk
 
-    # Apply S and reduce coordinates to interval (-0.5, 0.5]
-    # Notice that doing this reduction is important because
+    # Apply S and reduce coordinates to interval [-0.5, 0.5)
+    # Doing this reduction is important because
     # of the finite kinetic energy basis cutoff
-    @assert all(-0.5 .< kpoint.coordinate .≤ 0.5)
+    @assert all(-0.5 .≤ kpoint.coordinate .< 0.5)
     Sk_raw = S * kpoint.coordinate
     Sk = normalize_kpoint_coordinate(Sk_raw)
     kshift = convert.(Int, Sk - Sk_raw)
-    @assert all(-0.5 .< Sk .≤ 0.5)
+    @assert all(-0.5 .≤ Sk .< 0.5)
 
     # Check whether the resulting kpoint is in the basis:
     ikfull = findfirst(1:length(basis.kpoints)) do idx
