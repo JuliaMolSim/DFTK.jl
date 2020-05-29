@@ -361,7 +361,7 @@ end
 # Functions to handle BZ symmetry
 #
 
-function ksymops(basis::PlaneWaveBasis)
+function symmetry_operations(basis::PlaneWaveBasis)
     # see doc in bzmesh.jl
     res = Set()
     for ik = 1:length(basis.ksymops)

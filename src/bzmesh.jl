@@ -91,19 +91,42 @@ Return the ``k``-point symmetry operations associated to a lattice, model or bas
 Since the ``k``-point discretisations may break some of the symmetries, the latter
 case will return a subset of the symmetries of the former two.
 """
-function ksymops(lattice, atoms; tol_symmetry=1e-5)
-    ksymops = Set()
+function symmetry_operations(lattice, atoms; tol_symmetry=1e-5, kcoords=nothing)
+    symops = []
     Stildes, τtildes = spglib_get_symmetry(lattice, atoms, tol_symmetry=tol_symmetry)
+
+    # Notice: In the language of the latex document in the docs
+    # spglib returns \tilde{S} and \tilde{τ} in integer real-space coordinates, such that
+    # (A Stilde A^{-1}) is the actual \tilde{S} from the document as a unitary matrix.
+    #
+    # Still we have the following properties for S and τ given in *integer* and
+    # *fractional* real-space coordinates:
+    #      - \tilde{S}^{-1} = S^T (if applied to a vector in frac. coords in reciprocal space)
+
     for isym = 1:length(Stildes)
         S = Stildes[isym]'                  # in fractional reciprocal coordinates
         τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates
         τ = τ .- floor.(τ)
         @assert all(0 .≤ τ .< 1)
-        push!(ksymops, (S, τ))
+        push!(symops, (S, τ))
     end
-    ksymops
+
+    symops = unique(symops)
+
+    
+    if kcoords !== nothing
+        # filter only the operations that respect the symmetries of the discrete BZ grid
+        function preserves_grid(S)
+            all(normalize_kpoint_coordinate(S * k) in kcoords
+                for k in normalize_kpoint_coordinate.(kcoords))
+        end
+        symops = filter(symop -> preserves_grid(symop[1]), symops)
+    end
+
+
+    symops
 end
-ksymops(model::Model; kwargs...) = ksymops(model.lattice, model.atoms; kwargs...)
+symmetry_operations(model::Model; kwargs...) = symmetry_operations(model.lattice, model.atoms; kwargs...)
 
 
 @doc raw"""
@@ -120,37 +143,21 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
                          tol_symmetry=1e-5, kshift=[0, 0, 0])
     all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size, kshift=kshift)
 
-    # Notice: In the language of the latex document in the docs
-    # spglib returns \tilde{S} and \tilde{τ} in integer real-space coordinates, such that
-    # (A Stilde A^{-1}) is the actual \tilde{S} from the document as a unitary matrix.
-    #
-    # Still we have the following properties for S and τ given in *integer* and
-    # *fractional* real-space coordinates:
-    #      - \tilde{S}^{-1} = S^T (if applied to a vector in frac. coords in reciprocal space)
-
-    Stildes, τtildes = spglib_get_symmetry(lattice, atoms; tol_symmetry=tol_symmetry)
-
     # Transform kshift to the convention used in spglib:
     #    If is_shift is set (i.e. integer 1), then a shift of 0.5 is performed,
     #    else no shift is performed along an axis.
     kshift = Vec3{Rational{Int}}(kshift)
     all(ks in (0, 1//2) for ks in kshift) || error("Only kshifts of 0 or 1//2 implemented.")
 
-    # Filter out the Symmetry operations which are not compatible with the MP grid,
-    # i.e. which do not map MP kgrid points to other MP kgrid points
     kpoints_mp = kgrid_monkhorst_pack(kgrid_size, kshift=kshift)
-    function preserves_grid(Stilde, kpoints_mp)
-        # Stilde' is S in fractional reciprocal coordinates
-        all(normalize_kpoint_coordinate(Stilde' * kcoord) in kpoints_mp
-            for kcoord in kpoints_mp)
-    end
-    τtildes = [τtilde for (i, τtilde) in enumerate(τtildes)
-               if preserves_grid(Stildes[i], kpoints_mp)]
-    Stildes = [Stilde for Stilde in Stildes if preserves_grid(Stilde, kpoints_mp)]
+
+    # Get the list of symmetry operations (S,τ) that preserve the MP grid
+    symops = symmetry_operations(lattice, atoms; kcoords=kpoints_mp)
 
     # Give the remaining symmetries to spglib to compute an irreducible k-Point mesh
     # TODO implement time-reversal symmetry and turn the flag to true
     is_shift = Int.(2 * kshift)
+    Stildes = [s[1]' for s in symops]
     spg_rotations = permutedims(cat(Stildes..., dims=3), (3, 1, 2))
     mapping, grid = pyimport("spglib").get_stabilized_reciprocal_mesh(
         kgrid_size, spg_rotations, is_shift=is_shift, is_time_reversal=false
@@ -182,27 +189,26 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
         for ired in k_all_reducible[ik]
             kred = (kshift .+ Vec3(grid[ired, :])) .// kgrid_size
 
-            isym = findfirst(1:length(Stildes)) do isym
+            # Note that this relies on the identity coming up first in symops
+            isym = findfirst(symops) do symop
                 # If the difference between kred and Stilde' * k == Stilde^{-1} * k
                 # is only integer in fractional reciprocal-space coordinates, then
                 # kred and S' * k are equivalent k-Points
-                all(isinteger, kred - (Stildes[isym]' * k))
+                all(isinteger, kred - (symop[1] * k))
             end
 
             if isym === nothing  # No symop found for $k -> $kred
                 push!(kreds_notmapped, normalize_kpoint_coordinate(kred))
             else
-                S = Stildes[isym]'                  # in fractional reciprocal coordinates
-                τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates
-                τ = τ .- floor.(τ)
-                @assert all(0 .≤ τ .< 1)
-                push!(ksymops[ik], (S, τ))
+                push!(ksymops[ik], symops[isym])
             end
         end
     end
 
     if !isempty(kreds_notmapped)
         # add them as reducible anyway
+        Stildes = [s[1]' for s in symops]
+        τtildes = [-s[1]' * s[2] for s in symops]
         eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, Stildes, τtildes)
         @info("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
               "the irreducible kpoints returned by spglib. $(length(eirreds)) of " *
@@ -213,7 +219,7 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
     end
 
     # The symmetry operation (S == I and τ == 0) should be present for each k-Point
-    @assert all(nothing !== findfirst(Sτ -> iszero(Sτ[1] - I) && iszero(Sτ[2]), ops)
+    @assert all(findfirst(Sτ -> iszero(Sτ[1] - I) && iszero(Sτ[2]), ops) !== nothing
                 for ops in ksymops)
 
     kirreds, ksymops
