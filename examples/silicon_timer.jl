@@ -1,12 +1,6 @@
 using DFTK
 using TimerOutputs
 
-using FFTW
-using LinearAlgebra
-
-FFTW.set_num_threads(4)
-BLAS.set_num_threads(4)
-
 reset_timer!(DFTK.timer)
 
 @timeit DFTK.timer "setup model" begin
@@ -29,7 +23,7 @@ reset_timer!(DFTK.timer)
     atoms = [Si => [s.frac_coords for s in pystruct.sites]]
 
     model = model_LDA(lattice, atoms)
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, enable_bzmesh_symmetry=false)
+    basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, enable_bzmesh_symmetry=false)
 end
 
 # Run SCF. Note Silicon is a semiconductor, so we use an insulator
@@ -39,13 +33,7 @@ end
 scfres = self_consistent_field(basis, tol=1e-10)
 
 # compute forces
-#  F = forces(scfres)
-#  println(F)
-
-# Print energies and plot bands
-#  println()
-#  display(scfres.energies)
-#  gui(plot_bandstructure(scfres, n_bands))
+F = forces(scfres)
+display(F)
 
 display(DFTK.timer)
-
