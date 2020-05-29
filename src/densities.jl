@@ -126,7 +126,7 @@ end
 """
 Apply a `k`-point symmetry operation (the tuple (S, τ)) to a partial density.
 """
-function apply_ksymop(ksymop, ρin::RealFourierArray)
-    ksymop[1] == I && iszero(ksymop[2]) && return ρin
-    from_fourier(ρin.basis, symmetrize(ρin, [ksymop]))
+function apply_ksymop(symop, ρin::RealFourierArray)
+    symop[1] == I && iszero(symop[2]) && return ρin
+    from_fourier(ρin.basis, symmetrize(ρin, [symop]))
 end
