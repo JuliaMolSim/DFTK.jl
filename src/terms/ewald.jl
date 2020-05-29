@@ -1,7 +1,7 @@
 using SpecialFunctions: erfc
 using ForwardDiff
 
-""" 
+"""
 Ewald term: electrostatic energy per unit cell of the array of point
 charges defined by `model.atoms` in a uniform background of
 compensating charge yielding net neutrality.
@@ -25,23 +25,25 @@ function ene_ops(term::TermEwald, ψ, occ; kwargs...)
 end
 
 function forces(term::TermEwald, ψ, occ; kwargs...)
-    T = eltype(term.basis)
-    atoms = term.basis.model.atoms
-    # TODO this could be precomputed
-    # Compute forces in the "flat" representation used by ewald
-    forces_ewald = zeros(Vec3{T}, sum(length(positions) for (elem, positions) in atoms))
-    energy_ewald(term.basis.model; forces=forces_ewald)
-    # translate to the "folded" representation
-    f = [zeros(Vec3{T}, length(positions)) for (type, positions) in atoms]
-    count = 0
-    for i = 1:length(atoms)
-        for j = 1:length(atoms[i][2])
-            count += 1
-            f[i][j] += forces_ewald[count]
+    @timeit to "ewald" begin
+        T = eltype(term.basis)
+        atoms = term.basis.model.atoms
+        # TODO this could be precomputed
+        # Compute forces in the "flat" representation used by ewald
+        forces_ewald = zeros(Vec3{T}, sum(length(positions) for (elem, positions) in atoms))
+        energy_ewald(term.basis.model; forces=forces_ewald)
+        # translate to the "folded" representation
+        f = [zeros(Vec3{T}, length(positions)) for (type, positions) in atoms]
+        count = 0
+        for i = 1:length(atoms)
+            for j = 1:length(atoms[i][2])
+                count += 1
+                f[i][j] += forces_ewald[count]
+            end
         end
+        @assert count == sum(at -> length(at[2]), atoms)
+        f
     end
-    @assert count == sum(at -> length(at[2]), atoms)
-    f
 end
 
 function energy_ewald(model::Model; kwargs...)

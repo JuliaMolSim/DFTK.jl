@@ -41,58 +41,60 @@ function ene_ops(term::TermAtomicNonlocal, ψ, occ; kwargs...)
 end
 
 function forces(term::TermAtomicNonlocal, ψ, occ; kwargs...)
-    basis = term.basis
-    T = eltype(basis)
-    atoms = basis.model.atoms
-    unit_cell_volume = basis.model.unit_cell_volume
+    @timeit to "nonlocal" begin
+        basis = term.basis
+        T = eltype(basis)
+        atoms = basis.model.atoms
+        unit_cell_volume = basis.model.unit_cell_volume
 
-    # early return if no pseudopotential atoms
-    any(attype isa ElementPsp for (attype, positions) in atoms) || return nothing
+        # early return if no pseudopotential atoms
+        any(attype isa ElementPsp for (attype, positions) in atoms) || return nothing
 
-    # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
-    forces = [zeros(Vec3{T}, length(positions)) for (el, positions) in atoms]
-    for (iel, (el, positions)) in enumerate(atoms)
-        el isa ElementPsp || continue
+        # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
+        forces = [zeros(Vec3{T}, length(positions)) for (el, positions) in atoms]
+        for (iel, (el, positions)) in enumerate(atoms)
+            el isa ElementPsp || continue
 
-        C = build_projection_coefficients_(el.psp)
-        # TODO optimize: switch this loop and the kpoint loop
-        for (ir, r) in enumerate(positions)
-            fr = zeros(T, 3)
-            for α = 1:3
-                tot_red_kpt_number = sum([length(symops) for symops in basis.ksymops])
-                ind_red = 1
-                for (ik, kpt_irred) in enumerate(basis.kpoints)
-                    # Here we need to do an explicit loop over
-                    # symmetries, because the atom displacement might break them
-                    for isym in 1:length(basis.ksymops[ik])
-                        (S, τ) = basis.ksymops[ik][isym]
-                        Skpoint, ψSk = apply_ksymop((S, τ), basis, kpt_irred, ψ[ik])
-                        Skcoord = Skpoint.coordinate
-                        # energy terms are of the form <psi, P C P' psi>,
-                        # where P(G) = form_factor(G) * structure_factor(G)
-                        qs = [basis.model.recip_lattice * (Skcoord + G)
-                              for G in G_vectors(Skpoint)]
-                        form_factors = build_form_factors(el.psp, qs)
-                        structure_factors = [cis(-2T(π) * dot(Skcoord + G, r))
-                                             for G in G_vectors(Skpoint)]
-                        P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
-                        dPdR = [-2T(π)*im*(Skcoord + G)[α] for G in G_vectors(Skpoint)] .* P
+            C = build_projection_coefficients_(el.psp)
+            # TODO optimize: switch this loop and the kpoint loop
+            for (ir, r) in enumerate(positions)
+                fr = zeros(T, 3)
+                for α = 1:3
+                    tot_red_kpt_number = sum([length(symops) for symops in basis.ksymops])
+                    ind_red = 1
+                    for (ik, kpt_irred) in enumerate(basis.kpoints)
+                        # Here we need to do an explicit loop over
+                        # symmetries, because the atom displacement might break them
+                        for isym in 1:length(basis.ksymops[ik])
+                            (S, τ) = basis.ksymops[ik][isym]
+                            Skpoint, ψSk = apply_ksymop((S, τ), basis, kpt_irred, ψ[ik])
+                            Skcoord = Skpoint.coordinate
+                            # energy terms are of the form <psi, P C P' psi>,
+                            # where P(G) = form_factor(G) * structure_factor(G)
+                            qs = [basis.model.recip_lattice * (Skcoord + G)
+                                  for G in G_vectors(Skpoint)]
+                            form_factors = build_form_factors(el.psp, qs)
+                            structure_factors = [cis(-2T(π) * dot(Skcoord + G, r))
+                                                 for G in G_vectors(Skpoint)]
+                            P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
+                            dPdR = [-2T(π)*im*(Skcoord + G)[α] for G in G_vectors(Skpoint)] .* P
 
-                        # TODO BLASify this further
-                        for iband = 1:size(ψ[ik], 2)
-                            ψnSk = @view ψSk[:, iband]
-                            fr[α] -= (occ[ik][iband] / tot_red_kpt_number
-                                      * real(  dot(ψnSk, P * C * dPdR' * ψnSk)
-                                             + dot(ψnSk, dPdR * C * P' * ψnSk)))
+                            # TODO BLASify this further
+                            for iband = 1:size(ψ[ik], 2)
+                                ψnSk = @view ψSk[:, iband]
+                                fr[α] -= (occ[ik][iband] / tot_red_kpt_number
+                                          * real(  dot(ψnSk, P * C * dPdR' * ψnSk)
+                                                 + dot(ψnSk, dPdR * C * P' * ψnSk)))
+                            end
+                            ind_red += 1
                         end
-                        ind_red += 1
                     end
                 end
+                forces[iel][ir] += fr
             end
-            forces[iel][ir] += fr
         end
+        forces
     end
-    forces
 end
 
 # Count the number of projection vectors implied by the potential array

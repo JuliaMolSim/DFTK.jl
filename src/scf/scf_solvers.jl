@@ -14,7 +14,7 @@ fixed-point scheme, keeping `m` steps for Anderson acceleration. See the
 NLSolve documentation for details about the other parameters and methods.
 """
 function scf_nlsolve_solver(m=5, method=:anderson; kwargs...)
-    function fp_solver(f, x0, max_iter; tol=1e-6)
+    @timeit to function fp_solver(f, x0, max_iter; tol=1e-6)
         res = nlsolve(x -> f(x) - x, x0; method=method, m=m, xtol=tol,
                       ftol=0.0, show_trace=false, iterations=max_iter, kwargs...)
         (fixpoint=res.zero, converged=converged(res))

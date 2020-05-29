@@ -95,7 +95,7 @@ Base.show(io::IO, basis::PlaneWaveBasis) =
     print(io, "PlaneWaveBasis (Ecut=$(basis.Ecut), $(length(basis.kpoints)) kpoints)")
 Base.eltype(basis::PlaneWaveBasis{T}) where {T} = T
 
-function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
+@timeit to function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
     model.spin_polarization in (:none, :collinear, :spinless) || (
         error("$(model.spin_polarization) not implemented"))
     spin = (:undefined,)
@@ -124,9 +124,9 @@ end
 build_kpoints(basis::PlaneWaveBasis, kcoords) =
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
 
-function PlaneWaveBasis(model::Model{T}, Ecut::Number,
-                        kcoords::AbstractVector, ksymops;
-                        fft_size=determine_grid_size(model, Ecut)) where {T <: Real}
+@timeit to function PlaneWaveBasis(model::Model{T}, Ecut::Number,
+                                   kcoords::AbstractVector, ksymops;
+                                   fft_size=determine_grid_size(model, Ecut)) where {T <: Real}
     @assert Ecut > 0
     fft_size = Tuple{Int, Int, Int}(fft_size)
 
@@ -163,8 +163,10 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number,
         kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms)
 
     # Instantiate terms
-    for (it, t) in enumerate(model.term_types)
-        basis.terms[it] = t(basis)
+    @timeit to "instantiate terms" begin
+        for (it, t) in enumerate(model.term_types)
+            basis.terms[it] = t(basis)
+        end
     end
     basis
 end
@@ -264,12 +266,12 @@ end
 """
 In-place version of `G_to_r`.
 """
-function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                 f_fourier::AbstractArray3) where {Tr, Tf}
+@timeit to function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
+                            f_fourier::AbstractArray3) where {Tr, Tf}
     mul!(f_real, basis.opIFFT, f_fourier)
 end
-function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis, kpt::Kpoint,
-                 f_fourier::AbstractVector)
+@timeit to function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis, kpt::Kpoint,
+                            f_fourier::AbstractVector)
     @assert length(f_fourier) == length(kpt.mapping)
     @assert size(f_real) == basis.fft_size
 
@@ -302,12 +304,12 @@ end
 In-place version of `r_to_G!`.
 NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
 """
-function r_to_G!(f_fourier::AbstractArray3, basis::PlaneWaveBasis,
-                 f_real::AbstractArray3)
+@timeit to function r_to_G!(f_fourier::AbstractArray3, basis::PlaneWaveBasis,
+                            f_real::AbstractArray3)
     mul!(f_fourier, basis.opFFT, f_real)
 end
-function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis, kpt::Kpoint,
-                 f_real::AbstractArray3)
+@timeit to function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis, kpt::Kpoint,
+                            f_real::AbstractArray3)
     @assert size(f_real) == basis.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
 

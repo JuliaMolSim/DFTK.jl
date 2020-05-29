@@ -52,7 +52,7 @@ struct RealSpaceMultiplication <: RealFourierOperator
     kpoint
     potential::AbstractArray
 end
-apply!(Hψ, op::RealSpaceMultiplication, ψ) = Hψ.real .+= op.potential .* ψ.real
+@timeit to apply!(Hψ, op::RealSpaceMultiplication, ψ) = Hψ.real .+= op.potential .* ψ.real
 function Matrix(op::RealSpaceMultiplication)
     # V(G,G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
     pot_fourier = r_to_G(op.basis, complex.(op.potential))
@@ -84,11 +84,11 @@ struct FourierMultiplication <: RealFourierOperator
     kpoint
     multiplier::AbstractArray
 end
-apply!(Hψ, op::FourierMultiplication, ψ) = Hψ.fourier .+= op.multiplier .* ψ.fourier
+@timeit to apply!(Hψ, op::FourierMultiplication, ψ) = Hψ.fourier .+= op.multiplier .* ψ.fourier
 Matrix(op::FourierMultiplication) = Array(Diagonal(op.multiplier))
 
 """
-Nonlocal operator in Fourier space in Kleinman-Bylander format, 
+Nonlocal operator in Fourier space in Kleinman-Bylander format,
 defined by its projectors P matrix and coupling terms D:
 Hψ = PDP' ψ
 """
@@ -99,7 +99,7 @@ struct NonlocalOperator <: RealFourierOperator
     P
     D
 end
-apply!(Hψ, op::NonlocalOperator, ψ) = Hψ.fourier .+= op.P * (op.D * (op.P' * ψ.fourier))
+@timeit to apply!(Hψ, op::NonlocalOperator, ψ) = Hψ.fourier .+= op.P * (op.D * (op.P' * ψ.fourier))
 Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
 
 """
@@ -110,7 +110,7 @@ struct MagneticFieldOperator <: RealFourierOperator
     kpoint
     Apot  # Apot[α][i,j,k] is the A field in direction α
 end
-function apply!(Hψ, op::MagneticFieldOperator, ψ)
+@timeit to function apply!(Hψ, op::MagneticFieldOperator, ψ)
     # TODO this could probably be better optimized
     for α = 1:3
         all(op.Apot[α] .== 0) && continue

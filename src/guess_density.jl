@@ -10,7 +10,7 @@ length specified by `atom_decay_length`, normalized to get the right number of e
 ```
 """
 guess_density(basis::PlaneWaveBasis) = guess_density(basis, basis.model.atoms)
-function guess_density(basis::PlaneWaveBasis{T}, atoms) where {T}
+@timeit to function guess_density(basis::PlaneWaveBasis{T}, atoms) where {T}
     model = basis.model
     ρ = zeros(complex(T), basis.fft_size)
     # If no atoms, start with a zero initial guess

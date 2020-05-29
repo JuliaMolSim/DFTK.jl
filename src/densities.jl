@@ -1,7 +1,7 @@
 """
 Compute the partial density at the indicated ``k``-Point and return it.
 """
-function compute_partial_density(basis, kpt, ψk, occupation)
+@timeit to function compute_partial_density(basis, kpt, ψk, occupation)
     @assert length(occupation) == size(ψk, 2)
 
     # Build the partial density for this k-Point
@@ -37,7 +37,7 @@ Compute the density for a wave function `ψ` discretized on the plane-wave grid 
 where the individual k-Points are occupied according to `occupation`. `ψ` should
 be one coefficient matrix per k-Point.
 """
-function compute_density(basis::PlaneWaveBasis, ψ::AbstractVector,
+@timeit to function compute_density(basis::PlaneWaveBasis, ψ::AbstractVector,
                          occupation::AbstractVector)
     n_k = length(basis.kpoints)
 

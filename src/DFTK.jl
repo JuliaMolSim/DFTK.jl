@@ -10,6 +10,9 @@ using LinearAlgebra
 using Interpolations
 using Requires
 
+using TimerOutputs
+const to = TimerOutput()
+
 include("common/asserting.jl")
 export unit_to_au
 include("common/constants.jl")

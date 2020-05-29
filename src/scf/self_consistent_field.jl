@@ -3,7 +3,7 @@ default_n_bands(model) = div(model.n_electrons, filled_occupation(model))
 """
 Obtain new density ρ by diagonalizing `ham`.
 """
-function next_density(ham::Hamiltonian;
+@timeit to function next_density(ham::Hamiltonian;
                       n_bands=default_n_bands(ham.basis.model),
                       ψ=nothing, n_ep_extra=3,
                       eigensolver=lobpcg_hyper, kwargs...)
@@ -93,21 +93,21 @@ end
 """
 Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 """
-function self_consistent_field(basis::PlaneWaveBasis;
-                               n_bands=default_n_bands(basis.model),
-                               ρ=guess_density(basis),
-                               ψ=nothing,
-                               tol=1e-6,
-                               maxiter=100,
-                               solver=scf_nlsolve_solver(),
-                               eigensolver=lobpcg_hyper,
-                               n_ep_extra=3,
-                               determine_diagtol=ScfDiagtol(),
-                               mixing=SimpleMixing(),
-                               callback=scf_default_callback,
-                               is_converged=ScfConvergenceEnergy(tol),
-                               compute_consistent_energies=true,
-                               )
+@timeit to function self_consistent_field(basis::PlaneWaveBasis;
+                                          n_bands=default_n_bands(basis.model),
+                                          ρ=guess_density(basis),
+                                          ψ=nothing,
+                                          tol=1e-6,
+                                          maxiter=100,
+                                          solver=scf_nlsolve_solver(),
+                                          eigensolver=lobpcg_hyper,
+                                          n_ep_extra=3,
+                                          determine_diagtol=ScfDiagtol(),
+                                          mixing=SimpleMixing(),
+                                          callback=scf_default_callback,
+                                          is_converged=ScfConvergenceEnergy(tol),
+                                          compute_consistent_energies=true,
+                                          )
     T = eltype(basis)
     model = basis.model
 
@@ -129,7 +129,7 @@ function self_consistent_field(basis::PlaneWaveBasis;
 
     # We do density mixing in the real representation
     # TODO support other mixing types
-    function fixpoint_map(x)
+    @timeit to function fixpoint_map(x)
         # Get ρout by diagonalizing the Hamiltonian
         ρin = from_real(basis, x)
 

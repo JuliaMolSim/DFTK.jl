@@ -89,26 +89,28 @@ function (E::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
 end
 
 function forces(term::TermAtomicLocal, ψ, occ; ρ, kwargs...)
-    T = eltype(term.basis)
-    atoms = term.basis.model.atoms
-    recip_lattice = term.basis.model.recip_lattice
-    unit_cell_volume = term.basis.model.unit_cell_volume
+    @timeit to "local" begin
+        T = eltype(term.basis)
+        atoms = term.basis.model.atoms
+        recip_lattice = term.basis.model.recip_lattice
+        unit_cell_volume = term.basis.model.unit_cell_volume
 
-    # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
-    # where struct_factor(G) = cis(-2π G⋅r)
-    forces = [zeros(Vec3{T}, length(positions)) for (el, positions) in atoms]
-    for (iel, (el, positions)) in enumerate(atoms)
-        form_factors = [Complex{T}(local_potential_fourier(el, norm(recip_lattice * G)))
-                        for G in G_vectors(term.basis)]
+        # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
+        # where struct_factor(G) = cis(-2π G⋅r)
+        forces = [zeros(Vec3{T}, length(positions)) for (el, positions) in atoms]
+        for (iel, (el, positions)) in enumerate(atoms)
+            form_factors = [Complex{T}(local_potential_fourier(el, norm(recip_lattice * G)))
+                            for G in G_vectors(term.basis)]
 
-        for (ir, r) in enumerate(positions)
-            forces[iel][ir] = -real(sum(conj(ρ.fourier[iG])
-                                    .* form_factors[iG]
-                                    .* cis(-2T(π) * dot(G, r))
-                                    .* (-2T(π)) .* G .* im
-                                    ./ sqrt(unit_cell_volume)
-                                   for (iG, G) in enumerate(G_vectors(term.basis))))
+            for (ir, r) in enumerate(positions)
+                forces[iel][ir] = -real(sum(conj(ρ.fourier[iG])
+                                        .* form_factors[iG]
+                                        .* cis(-2T(π) * dot(G, r))
+                                        .* (-2T(π)) .* G .* im
+                                        ./ sqrt(unit_cell_volume)
+                                       for (iG, G) in enumerate(G_vectors(term.basis))))
+            end
         end
+        forces
     end
-    forces
 end

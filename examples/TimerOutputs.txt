@@ -1,0 +1,54 @@
+ ────────────────────────────────────────────────────────────────────────────────────────────
+                                                     Time                   Allocations      
+                                             ──────────────────────   ───────────────────────
+              Tot / % measured:                   15.2s / 100%            12.6GiB / 100%     
+
+ Section                             ncalls     time   %tot     avg     alloc   %tot      avg
+ ────────────────────────────────────────────────────────────────────────────────────────────
+ self_consistent_field                    1    14.4s  94.4%   14.4s   12.4GiB  98.1%  12.4GiB
+   fp_solver                              1    14.4s  94.2%   14.4s   12.3GiB  97.4%  12.3GiB
+     fixpoint_map                         9    14.3s  94.2%   1.59s   12.3GiB  97.3%  1.37GiB
+       next_density                       9    13.8s  90.3%   1.53s   10.8GiB  85.2%  1.20GiB
+         diagonalize_all_kblocks          9    11.3s  74.1%   1.25s   5.78GiB  45.7%   658MiB
+           lobpcg_hyper                 576    11.2s  73.5%  19.4ms   5.67GiB  44.8%  10.1MiB
+             LOBPCG                     576    11.2s  73.4%  19.4ms   5.67GiB  44.8%  10.1MiB
+               loop                     576    7.81s  51.3%  13.6ms   4.36GiB  34.5%  7.75MiB
+                 mul!                 1.21k    5.81s  38.1%  4.79ms    559MiB  4.32%   472KiB
+                   G_to_r!            7.80k    2.30s  15.1%   295μs     0.00B  0.00%    0.00B
+                   r_to_G!            7.80k    2.06s  13.5%   265μs    253MiB  1.95%  33.2KiB
+                   apply!             16.8k    990ms  6.50%  58.9μs    258MiB  1.99%  15.7KiB
+                 ortho                3.94k    384ms  2.52%  97.4μs    792MiB  6.12%   206KiB
+                 RR                   1.21k    347ms  2.28%   286μs   38.4MiB  0.30%  32.4KiB
+                 bmul                 4.97k    297ms  1.95%  59.8μs   0.97GiB  7.65%   204KiB
+                 preconditioning      1.79k    147ms  0.97%  82.3μs    387MiB  2.99%   221KiB
+                 residual             1.79k   92.4ms  0.61%  51.7μs    765MiB  5.91%   438KiB
+                 final_retval           576   72.7ms  0.48%   126μs    392MiB  3.03%   697KiB
+               init                     576    3.36s  22.1%  5.84ms   1.31GiB  10.4%  2.33MiB
+                 mul!                   576    3.01s  19.8%  5.23ms    288MiB  2.22%   511KiB
+                   G_to_r!            4.03k    1.21s  7.96%   301μs     0.00B  0.00%    0.00B
+                   r_to_G!            4.03k    1.06s  6.94%   262μs    131MiB  1.01%  33.2KiB
+                   apply!             8.64k    510ms  3.35%  59.1μs    133MiB  1.03%  15.8KiB
+                 ortho                  576   69.3ms  0.45%   120μs    134MiB  1.04%   239KiB
+                 init λs                576   41.5ms  0.27%  72.0μs   2.14MiB  0.02%  3.81KiB
+           QR orthonormalization         64   69.9ms  0.46%  1.09ms   84.1MiB  0.65%  1.31MiB
+         compute_density                  9    2.47s  16.2%   275ms   5.00GiB  39.5%   569MiB
+           compute_partial_density      576    2.41s  15.8%  4.19ms   4.96GiB  39.2%  8.82MiB
+             G_to_r!                  4.03k    1.46s  9.57%   361μs     0.00B  0.00%    0.00B
+             r_to_G!                    576    166ms  1.09%   287μs     0.00B  0.00%    0.00B
+       energy_hamiltonian                18    578ms  3.79%  32.1ms   1.49GiB  11.8%  84.8MiB
+         build hamiltonian               18    356ms  2.34%  19.8ms   1.10GiB  8.70%  62.6MiB
+         operators                       18    218ms  1.43%  12.1ms    364MiB  2.81%  20.2MiB
+           G_to_r!                       27   8.88ms  0.06%   329μs     0.00B  0.00%    0.00B
+           r_to_G!                        9   2.83ms  0.02%   314μs     0.00B  0.00%    0.00B
+   energy_hamiltonian                     1   21.8ms  0.14%  21.8ms   84.4MiB  0.65%  84.4MiB
+     build hamiltonian                    1   11.2ms  0.07%  11.2ms   62.6MiB  0.48%  62.6MiB
+     operators                            1   10.4ms  0.07%  10.4ms   19.8MiB  0.15%  19.8MiB
+       G_to_r!                            1    288μs  0.00%   288μs     0.00B  0.00%    0.00B
+   G_to_r!                                1    520μs  0.00%   520μs     0.00B  0.00%    0.00B
+ PlaneWaveBasis                           1    756ms  4.97%   756ms    211MiB  1.63%   211MiB
+   build_kpoints                          1    656ms  4.31%   656ms   26.1MiB  0.20%  26.1MiB
+   instantiate terms                      1   98.4ms  0.65%  98.4ms    180MiB  1.39%   180MiB
+     G_to_r!                              1    441μs  0.00%   441μs     0.00B  0.00%    0.00B
+ guess_density                            1   57.5ms  0.38%  57.5ms   37.6MiB  0.29%  37.6MiB
+ init model                               1   42.9ms  0.28%  42.9ms   3.18MiB  0.02%  3.18MiB
+ ────────────────────────────────────────────────────────────────────────────────────────────
