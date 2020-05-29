@@ -8,7 +8,7 @@ that really does the work, operating on a single ``k``-Block.
 `eigensolver` should support the API `eigensolver(A, X0; prec, tol, maxiter)`
 `prec_type` should be a function that returns a preconditioner when called as `prec(ham, kpt)`
 """
-@timeit to function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
+function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
                                             guess=nothing,
                                             prec_type=PreconditionerTPA, interpolate_kpoints=true,
                                             tol=1e-6, miniter=1, maxiter=200, n_conv_check=nothing,
@@ -31,13 +31,13 @@ that really does the work, operating on a single ``k``-Block.
             # guess provided
             guessk = guess[ik]
         elseif interpolate_kpoints && ik > 1
-            @timeit to "QR orthonormalization" begin
+            @timeit timer "QR orthonormalization" begin
                 # use information from previous kpoint
                 X0 = interpolate_kpoint(results[ik - 1].X, kpoints[ik - 1], kpoints[ik])
                 guessk = Matrix{T}(qr(X0).Q)  # Re-orthogonalize and renormalize
             end
         else
-            @timeit to "QR orthonormalization" begin
+            @timeit timer "QR orthonormalization" begin
                 # random initial guess
                 qrres = qr(randn(T, length(G_vectors(kpoints[ik])), nev_per_kpoint))
                 guessk = Matrix{T}(qrres.Q)

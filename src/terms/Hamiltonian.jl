@@ -31,7 +31,7 @@ end
 # As an optimization we special-case nonlocal operators to apply them
 # instead on the full block and benefit from BLAS3
 @views function LinearAlgebra.mul!(Hψ::AbstractArray, H::HamiltonianBlock, ψ::AbstractArray)
-    @timeit to "mul!" begin
+    @timeit timer "mul!" begin
         basis = H.basis
         kpt = H.kpoint
         nband = size(ψ, 2)
@@ -85,15 +85,13 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
 # Get energies and Hamiltonian
 # kwargs is additional info that might be useful for the energy terms to precompute
 # (eg the density ρ)
-@timeit to function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occ; kwargs...)
+@timeit timer function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occ; kwargs...)
     # it: index into terms, ik: index into kpoints
-    @timeit to "operators" begin
-        ene_ops_arr = [ene_ops(term, ψ, occ; kwargs...) for term in basis.terms]
-        energies    = [eh.E for eh in ene_ops_arr]
-        operators   = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
-        hks_per_k   = [[blocks[ik] for blocks in operators]  # hks_per_k[ik][it]
-                       for ik = 1:length(basis.kpoints)]
-    end
+    ene_ops_arr = [ene_ops(term, ψ, occ; kwargs...) for term in basis.terms]
+    energies    = [eh.E for eh in ene_ops_arr]
+    operators   = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
+    hks_per_k   = [[blocks[ik] for blocks in operators]  # hks_per_k[ik][it]
+                   for ik = 1:length(basis.kpoints)]
 
     # Preallocated scratch arrays
     T = eltype(basis)
@@ -102,10 +100,8 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
         Hψ_reals=[zeros(complex(T), basis.fft_size...) for tid = 1:Threads.nthreads()]
     )
 
-    @timeit to "build hamiltonian" begin
-        H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks, scratch)
-                                for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
-    end
+    H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks, scratch)
+                            for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
     E = Energies(basis.model.term_types, energies)
     (E=E, H=H)
 end

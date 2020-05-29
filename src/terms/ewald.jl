@@ -25,7 +25,7 @@ function ene_ops(term::TermEwald, ψ, occ; kwargs...)
 end
 
 function forces(term::TermEwald, ψ, occ; kwargs...)
-    @timeit to "ewald" begin
+    @timeit timer "ewald" begin
         T = eltype(term.basis)
         atoms = term.basis.model.atoms
         # TODO this could be precomputed

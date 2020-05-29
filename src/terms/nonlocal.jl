@@ -41,7 +41,7 @@ function ene_ops(term::TermAtomicNonlocal, ψ, occ; kwargs...)
 end
 
 function forces(term::TermAtomicNonlocal, ψ, occ; kwargs...)
-    @timeit to "nonlocal" begin
+    @timeit timer "nonlocal" begin
         basis = term.basis
         T = eltype(basis)
         atoms = basis.model.atoms

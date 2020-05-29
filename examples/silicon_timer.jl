@@ -7,9 +7,9 @@ using LinearAlgebra
 FFTW.set_num_threads(4)
 BLAS.set_num_threads(4)
 
-reset_timer!(DFTK.to)
+reset_timer!(DFTK.timer)
 
-@timeit DFTK.to "init model" begin
+@timeit DFTK.timer "setup model" begin
     # Calculation parameters
     kgrid = [4, 4, 4]       # k-Point grid
     supercell = [1, 1, 1]   # Lattice supercell
@@ -29,8 +29,8 @@ reset_timer!(DFTK.to)
     atoms = [Si => [s.frac_coords for s in pystruct.sites]]
 
     model = model_LDA(lattice, atoms)
-end
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, enable_bzmesh_symmetry=false)
+end
 
 # Run SCF. Note Silicon is a semiconductor, so we use an insulator
 # occupation scheme. This will cause warnings in some models, because
@@ -47,5 +47,5 @@ scfres = self_consistent_field(basis, tol=1e-10)
 #  display(scfres.energies)
 #  gui(plot_bandstructure(scfres, n_bands))
 
-display(DFTK.to)
+display(DFTK.timer)
 

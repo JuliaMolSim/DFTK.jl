@@ -89,7 +89,7 @@ function (E::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
 end
 
 function forces(term::TermAtomicLocal, ψ, occ; ρ, kwargs...)
-    @timeit to "local" begin
+    @timeit timer "local" begin
         T = eltype(term.basis)
         atoms = term.basis.model.atoms
         recip_lattice = term.basis.model.recip_lattice

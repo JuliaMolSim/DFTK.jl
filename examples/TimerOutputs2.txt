@@ -1,0 +1,69 @@
+ ─────────────────────────────────────────────────────────────────────────────────────────────
+                                                      Time                   Allocations      
+                                              ──────────────────────   ───────────────────────
+               Tot / % measured:                    129s / 100%             374GiB / 100%     
+
+ Section                              ncalls     time   %tot     avg     alloc   %tot      avg
+ ─────────────────────────────────────────────────────────────────────────────────────────────
+ forces                                    1     114s  88.4%    114s    361GiB  96.6%   361GiB
+   nonlocal                                1     114s  87.8%    114s    361GiB  96.6%   361GiB
+   local                                   1    709ms  0.55%   709ms    170MiB  0.04%   170MiB
+   ewald                                   1   21.2ms  0.02%  21.2ms   13.0MiB  0.00%  13.0MiB
+ self_consistent_field                     1    14.1s  10.9%   14.1s   12.4GiB  3.32%  12.4GiB
+   lobpcg_hyper                          576    11.1s  8.58%  19.3ms   5.66GiB  1.52%  10.1MiB
+     mul!                              1.79k    8.77s  6.78%  4.91ms    845MiB  0.22%   484KiB
+       G_to_r!                         11.8k    3.48s  2.69%   295μs     0.00B  0.00%    0.00B
+       r_to_G!                         11.8k    3.20s  2.48%   271μs    383MiB  0.10%  33.2KiB
+       Real space multiplication       11.8k    1.12s  0.87%  94.9μs   1.08MiB  0.00%    96.0B
+       Apply nonlocal operator         1.79k    269ms  0.21%   151μs    389MiB  0.10%   223KiB
+       Fourier space multiplication    11.8k   92.9ms  0.07%  7.87μs   1.08MiB  0.00%    96.0B
+     ortho                             4.51k    438ms  0.34%  97.1μs    924MiB  0.24%   210KiB
+     Rayleigh-Ritz                     1.21k    338ms  0.26%   280μs   38.2MiB  0.01%  32.4KiB
+     bmul                              4.95k    308ms  0.24%  62.1μs   0.96GiB  0.26%   204KiB
+   compute_density                         9    2.54s  1.96%   282ms   5.00GiB  1.34%   569MiB
+     G_to_r!                           4.03k    1.51s  1.16%   374μs     0.00B  0.00%    0.00B
+     r_to_G!                             576    168ms  0.13%   292μs     0.00B  0.00%    0.00B
+   energy_hamiltonian                     19    371ms  0.29%  19.6ms   1.57GiB  0.42%  84.7MiB
+     G_to_r!                              28   8.66ms  0.01%   309μs     0.00B  0.00%    0.00B
+     r_to_G!                               9   2.93ms  0.00%   326μs     0.00B  0.00%    0.00B
+   QR orthonormalization                  64   44.7ms  0.03%   699μs   81.5MiB  0.02%  1.27MiB
+   G_to_r!                                 1    451μs  0.00%   451μs     0.00B  0.00%    0.00B
+ setup model                               1    830ms  0.64%   830ms    215MiB  0.06%   215MiB
+   PlaneWaveBasis                          1    778ms  0.60%   778ms    211MiB  0.06%   211MiB
+     G_to_r!                               1    501μs  0.00%   501μs     0.00B  0.00%    0.00B
+ guess_density                             1   40.5ms  0.03%  40.5ms   37.6MiB  0.01%  37.6MiB
+ ─────────────────────────────────────────────────────────────────────────────────────────────
+ 
+ 
+  ─────────────────────────────────────────────────────────────────────────────────────────────
+                                                      Time                   Allocations      
+                                              ──────────────────────   ───────────────────────
+               Tot / % measured:                   15.3s / 100%            12.7GiB / 100%     
+
+ Section                              ncalls     time   %tot     avg     alloc   %tot      avg
+ ─────────────────────────────────────────────────────────────────────────────────────────────
+ self_consistent_field                     1    14.4s  94.3%   14.4s   12.4GiB  98.1%  12.4GiB
+   lobpcg_hyper                          576    11.4s  74.5%  19.8ms   5.71GiB  45.0%  10.1MiB
+     mul!                              1.80k    9.00s  58.8%  5.01ms    853MiB  6.57%   486KiB
+       G_to_r!                         11.9k    3.58s  23.4%   301μs     0.00B  0.00%    0.00B
+       r_to_G!                         11.9k    3.24s  21.2%   272μs    386MiB  2.97%  33.2KiB
+       Real space multiplication       11.9k    1.17s  7.61%  97.9μs   1.09MiB  0.01%    96.0B
+       Apply nonlocal operator         1.80k    280ms  1.82%   156μs    392MiB  3.02%   223KiB
+       Fourier space multiplication    11.9k   96.6ms  0.63%  8.11μs   1.09MiB  0.01%    96.0B
+     ortho                             4.55k    449ms  2.93%  98.8μs    934MiB  7.19%   210KiB
+     Rayleigh-Ritz                     1.22k    354ms  2.31%   290μs   38.9MiB  0.30%  32.6KiB
+     bmul                              5.02k    320ms  2.09%  63.8μs   0.98GiB  7.75%   205KiB
+   compute_density                         9    2.51s  16.4%   279ms   5.00GiB  39.4%   569MiB
+     G_to_r!                           4.03k    1.52s  9.92%   377μs     0.00B  0.00%    0.00B
+     r_to_G!                             576    170ms  1.11%   295μs     0.00B  0.00%    0.00B
+   energy_hamiltonian                     19    446ms  2.91%  23.5ms   1.57GiB  12.4%  84.7MiB
+     G_to_r!                              28   8.96ms  0.06%   320μs     0.00B  0.00%    0.00B
+     r_to_G!                               9   2.95ms  0.02%   328μs     0.00B  0.00%    0.00B
+   QR orthonormalization                  64   36.5ms  0.24%   571μs   81.5MiB  0.63%  1.27MiB
+   G_to_r!                                 1    352μs  0.00%   352μs     0.00B  0.00%    0.00B
+ setup model                               1    831ms  5.43%   831ms    215MiB  1.65%   215MiB
+   PlaneWaveBasis                          1    790ms  5.15%   790ms    211MiB  1.63%   211MiB
+     G_to_r!                               1    550μs  0.00%   550μs     0.00B  0.00%    0.00B
+ guess_density                             1   40.1ms  0.26%  40.1ms   37.6MiB  0.29%  37.6MiB
+ ─────────────────────────────────────────────────────────────────────────────────────────────
+

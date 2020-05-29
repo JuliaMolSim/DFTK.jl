@@ -11,7 +11,7 @@ using Interpolations
 using Requires
 
 using TimerOutputs
-const to = TimerOutput()
+const timer = TimerOutput()
 
 include("common/asserting.jl")
 export unit_to_au
