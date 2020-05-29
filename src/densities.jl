@@ -82,9 +82,9 @@ end
 
 # For a given kpoint, accumulates the symmetrized versions of the
 # density ρin into ρout. No normalization is performed
-function _symmetrize_ρ!(ρaccu, ρin, basis, ksymops, Gs)
+function _symmetrize_ρ!(ρaccu, ρin, basis, symops, Gs)
     T = eltype(basis)
-    for (S, τ) in ksymops
+    for (S, τ) in symops
         invS = Mat3{Int}(inv(S))
         # Common special case, where ρin does not need to be processed
         if iszero(S - I) && iszero(τ)
@@ -116,9 +116,9 @@ Symmetrize a `RealFourierArray` by applying all symmetry operations of
 the basis (or all symmetries passed as the second argument) and forming
 the average.
 """
-function symmetrize(ρin::RealFourierArray, ksymops=symmetry_operations(ρin.basis))
-    ρout_fourier = _symmetrize_ρ!(zero(ρin.fourier), ρin.fourier, ρin.basis, ksymops,
-                                  G_vectors(ρin.basis)) ./ length(ksymops)
+function symmetrize(ρin::RealFourierArray, symops=symmetry_operations(ρin.basis))
+    ρout_fourier = _symmetrize_ρ!(zero(ρin.fourier), ρin.fourier, ρin.basis, symops,
+                                  G_vectors(ρin.basis)) ./ length(symops)
     from_fourier(ρin.basis, ρout_fourier)
 end
 
