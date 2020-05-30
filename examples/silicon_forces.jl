@@ -1,10 +1,16 @@
 using DFTK
+using StaticArrays
+using HDF5
 using PyPlot
 using LinearAlgebra
+using FFTW
+
+BLAS.set_num_threads(16)
+FFTW.set_num_threads(16)
 
 function test_forces_convergence()
     # Calculation parameters
-    kgrid = [4, 4, 4]       # k-Point grid
+    kgrid = [1, 1, 1]       # k-Point grid
     supercell = [1, 1, 1]   # Lattice supercell
     n_bands = 8             # number of bands to plot in the bandstructure
     tol = 5e-15
@@ -21,26 +27,32 @@ function test_forces_convergence()
     lattice = load_lattice(pystruct)
     atoms = [Si => [s.frac_coords for s in pystruct.sites]]
 
-    model = model_LDA(lattice, atoms)
+    #  model = model_LDA(lattice, atoms)
+    model = model_DFT(lattice, atoms, [])
 
     forces_list = []
-    Ecut_list = 5:5:15
+    Ecut_list = 5:1:6
 
-    Ecut_ref = 20
+    Ecut_ref = 8
     println("--------------------------------------")
     println("Ecut ref = $(Ecut_ref)")
     basis_ref = PlaneWaveBasis(model, Ecut_ref; kgrid=kgrid, enable_bzmesh_symmetry=false)
     scfres_ref = self_consistent_field(basis_ref, tol=tol,
                                    is_converged=DFTK.ScfConvergenceDensity(tol))
     Fref = Dict()
+    key_list = []
     for term in basis_ref.terms
-        key = typeof(term)
-        Fref[key] = forces(term, scfres_ref.ψ, scfres_ref.occupation, ρ=scfres_ref.ρ)
+        key = string(typeof(term))
+        ftref = forces(term, scfres_ref.ψ, scfres_ref.occupation, ρ=scfres_ref.ρ)
+        if ftref !== nothing
+            Fref[key] = Array.(ftref[1])
+            push!(key_list, key)
+        end
     end
 
     F = Dict()
     for term in basis_ref.terms
-        key = typeof(term)
+        key = string(typeof(term))
         F[key] = []
     end
 
@@ -51,36 +63,25 @@ function test_forces_convergence()
         scfres = self_consistent_field(basis, tol=tol,
                                        is_converged=DFTK.ScfConvergenceDensity(tol))
         for term in basis.terms
-            key = typeof(term)
-            ft = forces(term, scfres.ψ, scfres.occupation, ρ=scfres.ρ)
-            push!(F[key], ft)
+            key = string(typeof(term))
+            if key in key_list
+                ft = forces(term, scfres.ψ, scfres.occupation, ρ=scfres.ρ)
+                push!(F[key], Array.(ft[1]))
+            end
         end
     end
 
-    PyPlot.figure(figsize=(10,10))
-
-    for term in basis_ref.terms
-        key = typeof(term)
-        if Fref[key] != nothing
-            error_list = norm.([ff - Fref[key] for ff in F[key]])
-            semilogy(Ecut_list, error_list, "+-", label="$(typeof(term))")
+    key_list = String.(key_list)
+    h5open("forces_rHF.h5", "w") do file
+        Ecut_list = collect(Ecut_list)
+        @write file Ecut_list
+        @write file key_list
+        for key in key_list
+            file["Fref/$(key)"] = hcat(Fref[key]...)
+            Fk = reshape(hcat(hcat(F[key]...)...), 3, 2, length(Ecut_list))
+            file["F/$(key)"] = Float64.(Fk)
         end
     end
-    total_forces_ref = sum([Fref[typeof(term)] for term in basis_ref.terms
-                            if Fref[typeof(term)] != nothing])
-    total_forces = [sum(F[typeof(term)][i] for term in basis_ref.terms
-                        if F[typeof(term)][i] != nothing)
-                    for i in 1:length(Ecut_list)]
-    error_list = norm.([ff - total_forces_ref for ff in total_forces])
-    PyPlot.semilogy(Ecut_list, error_list, "x-", label="total forces")
-    legend()
-    PyPlot.xlabel("Ecut")
-    PyPlot.ylabel("error")
-    PyPlot.title("Decomposed forces")
-    PyPlot.savefig("Ecutref_$(Ecut_ref)_forces.pdf")
-
-    display(F[DFTK.TermEwald])
 end
-
 
 test_forces_convergence()
