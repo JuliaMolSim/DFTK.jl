@@ -1,5 +1,4 @@
 using DFTK
-using Plots
 using TimerOutputs
 
 using FFTW
@@ -11,7 +10,7 @@ BLAS.set_num_threads(4)
 # Calculation parameters
 kgrid = [4, 4, 4]       # k-Point grid
 supercell = [1, 1, 1]   # Lattice supercell
-Ecut = 30               # kinetic energy cutoff in Hartree
+Ecut = 15               # kinetic energy cutoff in Hartree
 n_bands = 8             # number of bands to plot in the bandstructure
 
 # Setup silicon lattice
@@ -36,12 +35,12 @@ basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, enable_bzmesh_symmetry=false)
 scfres = self_consistent_field(basis, tol=1e-10)
 
 # compute forces
-F = forces(scfres)
-println(F)
+#  F = forces(scfres)
+#  println(F)
 
 # Print energies and plot bands
-println()
-display(scfres.energies)
-gui(plot_bandstructure(scfres, n_bands))
+#  println()
+#  display(scfres.energies)
+#  gui(plot_bandstructure(scfres, n_bands))
 
 
