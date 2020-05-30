@@ -109,24 +109,3 @@ function _symmetrize_ρ!(ρaccu, ρin, basis, symops, Gs)
     end  # (S, τ)
     ρaccu
 end
-
-
-"""
-Symmetrize a `RealFourierArray` by applying all symmetry operations of
-the basis (or all symmetries passed as the second argument) and forming
-the average.
-"""
-function symmetrize(ρin::RealFourierArray, symops=symmetry_operations(ρin.basis))
-    ρout_fourier = _symmetrize_ρ!(zero(ρin.fourier), ρin.fourier, ρin.basis, symops,
-                                  G_vectors(ρin.basis)) ./ length(symops)
-    from_fourier(ρin.basis, ρout_fourier)
-end
-
-
-"""
-Apply a `k`-point symmetry operation (the tuple (S, τ)) to a partial density.
-"""
-function apply_ksymop(symop, ρin::RealFourierArray)
-    symop[1] == I && iszero(symop[2]) && return ρin
-    from_fourier(ρin.basis, symmetrize(ρin, [symop]))
-end

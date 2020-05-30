@@ -356,70 +356,6 @@ function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
     ret
 end
 
-
-#
-# Functions to handle BZ symmetry
-#
-
-function symmetry_operations(basis::PlaneWaveBasis)
-    # see doc in bzmesh.jl
-    res = Set()
-    for ik = 1:length(basis.ksymops)
-        for isym = 1:length(basis.ksymops[ik])
-            push!(res, basis.ksymops[ik][isym])
-        end
-    end
-    res
-end
-
-"""
-Apply a symmetry operation to eigenvectors `ψk` at a given `kpoint` to obtain an
-equivalent point in [-0.5, 0.5)^3 and associated eigenvectors (expressed in the
-basis of the new kpoint).
-"""
-function apply_ksymop(ksymop, basis, kpoint, ψk::AbstractVecOrMat)
-    S, τ = ksymop
-    S == I && iszero(τ) && return kpoint, ψk
-
-    # Apply S and reduce coordinates to interval [-0.5, 0.5)
-    # Doing this reduction is important because
-    # of the finite kinetic energy basis cutoff
-    @assert all(-0.5 .≤ kpoint.coordinate .< 0.5)
-    Sk_raw = S * kpoint.coordinate
-    Sk = normalize_kpoint_coordinate(Sk_raw)
-    kshift = convert.(Int, Sk - Sk_raw)
-    @assert all(-0.5 .≤ Sk .< 0.5)
-
-    # Check whether the resulting kpoint is in the basis:
-    ikfull = findfirst(1:length(basis.kpoints)) do idx
-        all(isinteger, basis.kpoints[idx].coordinate - Sk)
-    end
-    if isnothing(ikfull)
-        # Build a new kpoint datastructure:
-        Skpoint = build_kpoints(basis, [Sk])[1]
-    else
-        Skpoint = basis.kpoints[ikfull]
-        @assert Skpoint.coordinate ≈ Sk
-    end
-
-    # Since the eigenfunctions of the Hamiltonian at k and Sk satisfy
-    #      u_{Sk}(x) = u_{k}(S^{-1} (x - τ))
-    # their Fourier transform is related as
-    #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
-    invS = Mat3{Int}(inv(S))
-    Gs_full = [G + kshift for G in G_vectors(Skpoint)]
-    ψSk = zero(ψk)
-    for iband in 1:size(ψk, 2)
-        for (ig, G_full) in enumerate(Gs_full)
-            igired = index_G_vectors(basis, kpoint, invS * G_full)
-            @assert igired !== nothing
-            ψSk[ig, iband] = cis(-2π * dot(G_full, τ)) * ψk[igired, iband]
-        end
-    end
-
-    Skpoint, ψSk
-end
-
 """"
 Convert a `basis` into one that uses or doesn't use BZ symmetrization
 Mainly useful for debug purposes (e.g. in cases we don't want to
@@ -433,7 +369,7 @@ function PlaneWaveBasis(basis::PlaneWaveBasis; enable_bzmesh_symmetry)
     kcoords = []
     for (ik, kpt) in enumerate(basis.kpoints)
         for (S, τ) in basis.ksymops[ik]
-            push!(kcoords, normalise_kpoint_coordinate(S * kpt.coordinate))
+            push!(kcoords, normalize_kpoint_coordinate(S * kpt.coordinate))
         end
     end
     new_basis = PlaneWaveBasis(basis.model, basis.Ecut, kcoords,
