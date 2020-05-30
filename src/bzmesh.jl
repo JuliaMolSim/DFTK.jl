@@ -66,7 +66,7 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
     # Give the remaining symmetries to spglib to compute an irreducible k-Point mesh
     # TODO implement time-reversal symmetry and turn the flag to true
     is_shift = Int.(2 * kshift)
-    Stildes = [s[1]' for s in symops]
+    Stildes = [S' for (S, τ) in symops]
     spg_rotations = permutedims(cat(Stildes..., dims=3), (3, 1, 2))
     mapping, grid = pyimport("spglib").get_stabilized_reciprocal_mesh(
         kgrid_size, spg_rotations, is_shift=is_shift, is_time_reversal=false
@@ -103,7 +103,8 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
                 # If the difference between kred and Stilde' * k == Stilde^{-1} * k
                 # is only integer in fractional reciprocal-space coordinates, then
                 # kred and S' * k are equivalent k-Points
-                all(isinteger, kred - (symop[1] * k))
+                S = symop[1]
+                all(isinteger, kred - (S * k))
             end
 
             if isym === nothing  # No symop found for $k -> $kred
@@ -116,8 +117,8 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
 
     if !isempty(kreds_notmapped)
         # add them as reducible anyway
-        Stildes = [s[1]' for s in symops]
-        τtildes = [-s[1]' * s[2] for s in symops]
+        Stildes = [S' for (S, τ) in symops]
+        τtildes = [-S' * τ for (S, τ) in symops]
         eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, Stildes, τtildes)
         @info("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
               "the irreducible kpoints returned by spglib. $(length(eirreds)) of " *

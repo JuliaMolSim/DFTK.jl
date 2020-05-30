@@ -17,7 +17,7 @@
 # - The group of symmetry operations of the lattice
 # - The group of symmetry operations of the crystal
 # - The group of symmetry operations of the crystal that preserves the BZ mesh
-# - The set of symmetry operations that we use to reduce the RBZ to the IBZ
+# - The set of symmetry operations that we use to reduce the reducible Brillouin zone (RBZ) to the irreducible (IBZ)
 
 # (S,τ)
 const SymOp = Tuple{Mat3{Int}, Vec3{Float64}}
