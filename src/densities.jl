@@ -73,7 +73,7 @@ function compute_density(basis::PlaneWaveBasis, ψ::AbstractVector,
         for ik in ikpts
             ρ_k = compute_partial_density(basis, basis.kpoints[ik], ψ[ik], occupation[ik])
             # accumulates all the symops of ρ_k into ρaccu
-            _symmetrize!(ρaccu, ρ_k, basis, basis.ksymops[ik], Gs)
+            accumulate_over_symops!(ρaccu, ρ_k, basis, basis.ksymops[ik], Gs)
         end
     end
 

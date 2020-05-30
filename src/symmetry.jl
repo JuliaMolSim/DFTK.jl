@@ -180,7 +180,7 @@ end
 
 # Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
 # No normalization is performed
-function _symmetrize!(ρaccu, ρin, basis, symops, Gs)
+function accumulate_over_symops!(ρaccu, ρin, basis, symops, Gs)
     T = eltype(basis)
     for (S, τ) in symops
         invS = Mat3{Int}(inv(S))
@@ -214,7 +214,7 @@ the basis (or all symmetries passed as the second argument) and forming
 the average.
 """
 function symmetrize(ρin::RealFourierArray, symops=symmetry_operations(ρin.basis))
-    ρout_fourier = _symmetrize!(zero(ρin.fourier), ρin.fourier, ρin.basis, symops,
-                                G_vectors(ρin.basis)) ./ length(symops)
+    ρout_fourier = accumulate_over_symops!(zero(ρin.fourier), ρin.fourier, ρin.basis, symops,
+                                           G_vectors(ρin.basis)) ./ length(symops)
     from_fourier(ρin.basis, ρout_fourier)
 end
