@@ -32,14 +32,6 @@ function symmetry_operations(lattice, atoms; tol_symmetry=1e-5, kcoords=nothing)
     # Get symmetries from spglib
     Stildes, τtildes = spglib_get_symmetry(lattice, atoms, tol_symmetry=tol_symmetry)
 
-    # Notice: In the language of the latex document in the docs
-    # spglib returns \tilde{S} and \tilde{τ} in integer real-space coordinates, such that
-    # (A Stilde A^{-1}) is the actual \tilde{S} from the document as a unitary matrix.
-    #
-    # Still we have the following properties for S and τ given in *integer* and
-    # *fractional* real-space coordinates:
-    #      \tilde{S}^{-1} = S^T (if applied to a vector in frac. coords in reciprocal space)
-
     for isym = 1:length(Stildes)
         S = Stildes[isym]'                  # in fractional reciprocal coordinates
         τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates

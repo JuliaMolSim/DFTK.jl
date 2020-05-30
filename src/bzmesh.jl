@@ -143,12 +143,7 @@ symmetries (within `tol_symmetry`), then cleans up the lattice according to the 
 and atoms. If `primitive` is `true` (default) the primitive unit cell is returned, else
 the conventional unit cell is returned.
 """
-function standardize_atoms(lattice, atoms; correct_symmetry=true, primitive=true,
-                           tol_symmetry=1e-5)
-    spglib_standardize_cell(lattice, atoms; correct_symmetry=correct_symmetry,
-                            primitive=primitive, tol_symmetry=tol_symmetry)
-end
-
+const standardize_atoms = spglib_standardize_cell
 
 @doc raw"""
 Selects a kgrid_size to ensure a minimal spacing (in inverse Bohrs) between kpoints.
