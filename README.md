@@ -37,9 +37,9 @@ after just a good year of development.
 Our performance is of the same order of magnitude as established packages.
 
 For getting started with DFTK, see our documentation:
-- [Installation instructions](https://juliamolsim.github.io/DFTK.jl/dev/manual/installation.html)
-- [Tutorial](https://juliamolsim.github.io/DFTK.jl/dev/manual/tutorial.html)
-- [Examples](https://juliamolsim.github.io/DFTK.jl/dev/manual/examples.html)
+- [Installation instructions](https://juliamolsim.github.io/DFTK.jl/dev/guide/installation/)
+- [Tutorial](https://juliamolsim.github.io/DFTK.jl/dev/guide/tutorial/)
+- [Examples](https://juliamolsim.github.io/DFTK.jl/dev/#example-index-1)
 
 Note that at least **Julia 1.3** is required.
 
