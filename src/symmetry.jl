@@ -8,9 +8,10 @@
 
 # This induces a symmetry in the Brillouin zone that the Hamiltonian
 # at S k is unitary equivalent to that at k, which we exploit to
-# reduce computations. The relationship is (in reduced coordinates)
-# S = Stilde^-1
+# reduce computations. The relationship is
+# S = Stilde'
 # τ = -Stilde^-1 τtilde
+# (valid both in reduced and cartesian coordinates)
 
 # There is by decreasing cardinality
 # - The group of symmetry operations of the lattice
@@ -178,13 +179,13 @@ function apply_ksymop(symop, ρin::RealFourierArray)
     from_fourier(ρin.basis, symmetrize(ρin, [symop]))
 end
 
-"""
-Symmetrize a `RealFourierArray` by applying all symmetry operations of
-the basis (or all symmetries passed as the second argument) and forming
-the average.
-"""
-function symmetrize(ρin::RealFourierArray, symops=symmetry_operations(ρin.basis))
-    ρout_fourier = _symmetrize_ρ!(zero(ρin.fourier), ρin.fourier, ρin.basis, symops,
-                                  G_vectors(ρin.basis)) ./ length(symops)
-    from_fourier(ρin.basis, ρout_fourier)
-end
+# """
+# Symmetrize a `RealFourierArray` by applying all symmetry operations of
+# the basis (or all symmetries passed as the second argument) and forming
+# the average.
+# """
+# function symmetrize(ρin::RealFourierArray, symops=symmetry_operations(ρin.basis))
+#     ρout_fourier = _symmetrize_ρ!(zero(ρin.fourier), ρin.fourier, ρin.basis, symops,
+#                                   G_vectors(ρin.basis)) ./ length(symops)
+#     from_fourier(ρin.basis, ρout_fourier)
+# end
