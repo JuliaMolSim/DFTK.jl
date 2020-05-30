@@ -25,7 +25,7 @@ function compute_bands(basis, ρ, kcoords, n_bands;
     # Create basis with new kpoints, where we cheat by using any symmetry operations.
     ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)]
     # For some reason rationalize(2//3) isn't supported (julia 1.4)
-    myrationalize(x::AbstractFloat) = rationalize(x)
+    myrationalize(x::T) where {T <: AbstractFloat} = rationalize(x, tol=10eps(T))
     myrationalize(x) = x
     bs_basis = PlaneWaveBasis(basis, [myrationalize.(k) for k in kcoords], ksymops)
     ham = Hamiltonian(bs_basis; ρ=ρ)
