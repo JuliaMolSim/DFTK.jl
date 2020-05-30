@@ -50,7 +50,6 @@ function symmetry_operations(lattice, atoms; tol_symmetry=1e-5, kcoords=nothing)
 
     symops = unique(symops)
 
-    
     if kcoords !== nothing
         # filter only the operations that respect the symmetries of the discrete BZ grid
         function preserves_grid(S)
@@ -59,7 +58,6 @@ function symmetry_operations(lattice, atoms; tol_symmetry=1e-5, kcoords=nothing)
         end
         symops = filter(symop -> preserves_grid(symop[1]), symops)
     end
-
 
     symops
 end
@@ -179,13 +177,44 @@ function apply_ksymop(symop, ρin::RealFourierArray)
     from_fourier(ρin.basis, symmetrize(ρin, [symop]))
 end
 
-# """
-# Symmetrize a `RealFourierArray` by applying all symmetry operations of
-# the basis (or all symmetries passed as the second argument) and forming
-# the average.
-# """
-# function symmetrize(ρin::RealFourierArray, symops=symmetry_operations(ρin.basis))
-#     ρout_fourier = _symmetrize_ρ!(zero(ρin.fourier), ρin.fourier, ρin.basis, symops,
-#                                   G_vectors(ρin.basis)) ./ length(symops)
-#     from_fourier(ρin.basis, ρout_fourier)
-# end
+
+# Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
+# No normalization is performed
+function _symmetrize!(ρaccu, ρin, basis, symops, Gs)
+    T = eltype(basis)
+    for (S, τ) in symops
+        invS = Mat3{Int}(inv(S))
+        # Common special case, where ρin does not need to be processed
+        if iszero(S - I) && iszero(τ)
+            ρaccu .+= ρin
+            continue
+        end
+
+        # Transform ρin -> to the partial density at S * k.
+        #
+        # Since the eigenfunctions of the Hamiltonian at k and Sk satisfy
+        #      u_{Sk}(x) = u_{k}(S^{-1} (x - τ))
+        # with Fourier transform
+        #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
+        # equivalently
+        #      ̂ρ_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
+        for (ig, G) in enumerate(Gs)
+            igired = index_G_vectors(basis, invS * G)
+            if igired !== nothing
+                @inbounds ρaccu[ig] += cis(-2T(π) * dot(G, τ)) * ρin[igired]
+            end
+        end
+    end  # (S, τ)
+    ρaccu
+end
+
+"""
+Symmetrize a `RealFourierArray` by applying all symmetry operations of
+the basis (or all symmetries passed as the second argument) and forming
+the average.
+"""
+function symmetrize(ρin::RealFourierArray, symops=symmetry_operations(ρin.basis))
+    ρout_fourier = _symmetrize!(zero(ρin.fourier), ρin.fourier, ρin.basis, symops,
+                                G_vectors(ρin.basis)) ./ length(symops)
+    from_fourier(ρin.basis, ρout_fourier)
+end

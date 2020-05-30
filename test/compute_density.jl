@@ -74,7 +74,7 @@ include("testcases.jl")
         # Test density is the same in both schemes, and symmetric
         @test maximum(abs.(ρ_ir.fourier - ρ_full.fourier)) < 10tol
         @test maximum(abs.(ρ_ir.real - ρ_full.real)) < 10tol
-        # @test maximum(abs, DFTK.symmetrize(ρ_ir).fourier - ρ_ir.fourier) < tol
+        @test maximum(abs, DFTK.symmetrize(ρ_ir).fourier - ρ_ir.fourier) < tol
 
         # Test local potential is the same in both schemes
         @test maximum(abs, total_local_potential(ham_ir) - total_local_potential(ham_full)) < tol
