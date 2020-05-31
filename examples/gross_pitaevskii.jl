@@ -27,7 +27,7 @@ lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]];
 #
 # For the potential term V` we just pick a harmonic
 # potential (the grid is ``[0,1)`` in fractional coordinates, see
-#md # [Lattices and lattice vectors](@ref)
+#md # [Lattices and lattice vectors](@ref conventions-lattice)
 #nb # [Lattices and lattice vectors](https://juliamolsim.github.io/DFTK.jl/dev/advanced/conventions.html#conventions-lattice-1)
 # )
 pot(x) = (x - a/2)^2;
