@@ -96,9 +96,6 @@ using LinearAlgebra  # hide
 (norm(scfres_sym.ρ.real - scfres_nosym.ρ.real),
  norm(values(scfres_sym.energies) .- values(scfres_nosym.energies)))
 ```
-!!!note "The `tol` argument in `self_consistent_field`"
-    The `tol` argument to `self_consistent_field` is a convergence threshold
-    in the total energy, such that less agreement is found in the density.
 
 To demonstrate the mapping between `k`-points due to symmetry,
 we pick an arbitrary `k`-point in the irreducible Brillouin zone:
