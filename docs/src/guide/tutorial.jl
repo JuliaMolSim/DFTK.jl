@@ -12,9 +12,9 @@
 # is assumed throughout.
 #
 # !!! note "Convergence parameters in the documentation"
-#     We use very rough parameters in order to be able
-#     to generate these docs quickly. Therefore results are far from converged
-#     and tighter thresholds and larger grids should be used for more realistic results.
+#     We use rough parameters in order to be able
+#     to automatically generate this documentation very quickly. Therefore results are far from converged.
+#     Tighter thresholds and larger grids should be used for more realistic results.
 #
 # For our discussion we will use the classic example of
 # computing the LDA ground state of the silicon crystal.

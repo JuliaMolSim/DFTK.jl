@@ -1,10 +1,12 @@
-# EXPERIMENTAL this is very naive, probably needs to be thought about a bit more and the results have not been checked
-# TODO check the formulas and document
+# This is pretty naive and probably needs to be thought about a bit more. Right now this is sufficient to reproduce uniform fields for isolated systems.
+
+@doc raw"""
+Magnetic term ``A⋅(-i∇)``. It is assumed (but not checked) that ``∇⋅A = 0``.
+"""
 struct Magnetic
     Afunction::Function # A(x,y,z) returns [Ax,Ay,Az]
 end
 function (M::Magnetic)(basis)
-    @warn "Magnetic() is experimental. You're on your own (but please report bugs)."
     TermMagnetic(basis, M.Afunction)
 end
 

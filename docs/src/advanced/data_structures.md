@@ -37,7 +37,7 @@ defining the energy functional to be minimised during the SCF.
 For the silicon example above, we used
 an LDA model, which consists of the following terms[^2]:
 
-[^2]: If you are not familiar with Julia syntax, this is equivalent to `[typeof(t) for t in model.term_types]`.
+[^2]: If you are not familiar with Julia syntax, `typeof.(model.term_types)` is equivalent to `[typeof(t) for t in model.term_types]`.
 
 ```@example data_structures
 typeof.(model.term_types)
@@ -223,20 +223,3 @@ scatter(G_energies, abs.(scfres.ρ.fourier[:]);
 
 Note that the density has no components on wavevectors above a certain energy,
 because the wavefunctions are limited to ``\frac 1 2|k+G|^2 ≤ E_{\rm cut}``.
-
-## Band structure calculations
-Once an SCF solution has been computed, DFTK offers various
-functions for post-processing, one being the plotting of a band structure:
-
-```@example data_structures
-n_bands = 8
-p = plot_bandstructure(scfres, n_bands, kline_density=5, unit=:eV)
-p
-```
-
-!!! tip "kline_density"
-    In this example we deliberately used an extremely small value
-    for `kline_density` to speed up execution. In practice values
-    of `10` or larger are recommended.
-    The default value is `20` and provides pretty smooth bands.
-

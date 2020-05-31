@@ -1,4 +1,4 @@
-# # Gross-Pitaevskii equation
+# # 1D Gross-Pitaevskii equation
 #
 # In this example we will use DFTK to solve
 # the [Gross-Pitaevskii equation](https://en.wikipedia.org/wiki/Gross%E2%80%93Pitaevskii_equation) (GPE),
@@ -36,8 +36,8 @@ n_electrons = 1  # Increase this for fun
 
 # We setup each energy term in sequence: kinetic, potential and nonlinear term.
 # For the non-linearity we use the `PowerNonlinearity(C, α)` term of DFTK.
-# This object introduces an energy term ``C ∫ (ρ(r))^α dr``
-# to the total energy functional, thus a potential term ``α C ρ^(α-1)``.
+# This object introduces an energy term ``C ∫ ρ(r)^α dr``
+# to the total energy functional, thus a potential term ``α C ρ^{α-1}``.
 terms = [Kinetic(),
          ExternalFromReal(r -> pot(norm(r))),
          PowerNonlinearity(C, α),
@@ -49,7 +49,7 @@ model = Model(lattice; n_electrons=n_electrons, terms=terms,
 # and run a direct minimization algorithm:
 Ecut = 500
 basis = PlaneWaveBasis(model, Ecut)
-scfres = direct_minimization(basis, tol=1e-8);
+scfres = direct_minimization(basis, tol=1e-8); # This is a constrained preconditioned LBFGS
 #-
 scfres.energies
 
