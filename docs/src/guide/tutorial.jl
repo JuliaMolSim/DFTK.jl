@@ -104,8 +104,7 @@ import DFTK.units: eV, Å
 # A more detailed overview over the conventions used inside DFTK,
 # such as the coordinate systems used to express vectors in real or reciprocal space
 # or the typical symbols to denote key quantities in the code, see
-#md # [Notation and conventions](@ref).
-#nb # https://juliamolsim.github.io/DFTK.jl/dev/guide/conventions.html.
+# [Notation and conventions](@ref).
 
 # ## `Model` datastructure
 # The physical model to be solved is defined by the `Model`
@@ -184,9 +183,7 @@ scfres.energies
 PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 
 # The `PlaneWaveBasis` by default uses symmetry to reduce the number of
-# `k`-points explicitly treated. For details see
-#md # [Crystal symmetries](@ref).
-#nb # https://juliamolsim.github.io/DFTK.jl/dev/guide/symmetries.html.
+# `k`-points explicitly treated. For details see [Crystal symmetries](@ref).
 
 # As mentioned, the periodic parts of Bloch waves are expanded
 # in a set of normalized plane waves ``e_G``:
@@ -301,5 +298,5 @@ p
 # ## Where to go from here
 # Take a look at the
 #md # [example index](@ref example-index)
-#nb # [example index](https://juliamolsim.github.io/DFTK.jl/dev/#example-index)
+#nb # [example index](https://juliamolsim.github.io/DFTK.jl/dev/#example-index-1)
 # to continue exploring DFTK.
