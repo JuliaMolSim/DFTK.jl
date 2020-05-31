@@ -5,22 +5,22 @@ import Pkg
 import LibGit2
 
 # Where to get files from and where to build them
-const SRCPATH = joinpath(@__DIR__, "src")
-const BUILDPATH = joinpath(@__DIR__, "build")
-const ROOTPATH = joinpath(@__DIR__, "..")
+SRCPATH = joinpath(@__DIR__, "src")
+BUILDPATH = joinpath(@__DIR__, "build")
+ROOTPATH = joinpath(@__DIR__, "..")
 
 # Python and Julia dependencies needed by the notebooks
-const PYDEPS = ["ase", "spglib", "pymatgen"]
-const JLDEPS = [
+PYDEPS = ["ase", "spglib", "pymatgen"]
+JLDEPS = [
     Pkg.PackageSpec(url="https://github.com/JuliaMolSim/DFTK.jl.git",
                     rev=LibGit2.head(ROOTPATH)),  # The current DFTK
 ]
 
 # Collect examples to include in the documentation
-const EXAMPLES = [String(m[1])
-                  for m in match.(r"\"(examples/[^\"]+.md)\"",
-                                  readlines(joinpath(SRCPATH, "index.md")))
-                  if !isnothing(m)]
+EXAMPLES = [String(m[1])
+            for m in match.(r"\"(examples/[^\"]+.md)\"",
+                            readlines(joinpath(SRCPATH, "index.md")))
+            if !isnothing(m)]
 
 # Collect files to treat with Literate (i.e. the examples and the .jl files in the docs)
 literate_files = [(src=joinpath(ROOTPATH, splitext(file)[1] * ".jl"),
