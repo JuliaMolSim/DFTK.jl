@@ -118,6 +118,7 @@ include("scf/direct_minimization.jl")
 #
 # Utilities
 #
+include("symmetry.jl")
 export standardize_atoms
 export bzmesh_uniform
 export bzmesh_ir_wedge

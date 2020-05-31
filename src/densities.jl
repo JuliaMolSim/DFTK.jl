@@ -1,5 +1,5 @@
 """
-Compute the partial density at the indicated ``k``-Point and return it.
+Compute the partial density at the indicated ``k``-Point and return it (in Fourier space).
 """
 function compute_partial_density(basis, kpt, ψk, occupation)
     @assert length(occupation) == size(ψk, 2)
@@ -72,61 +72,11 @@ function compute_density(basis::PlaneWaveBasis, ψ::AbstractVector,
         ρaccu .= 0
         for ik in ikpts
             ρ_k = compute_partial_density(basis, basis.kpoints[ik], ψ[ik], occupation[ik])
-            _symmetrize_ρ!(ρaccu, ρ_k, basis, basis.ksymops[ik], Gs)
+            # accumulates all the symops of ρ_k into ρaccu
+            accumulate_over_symops!(ρaccu, ρ_k, basis, basis.ksymops[ik], Gs)
         end
     end
 
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))
     from_fourier(basis, sum(ρaccus) / count; assume_real=true)
-end
-
-# For a given kpoint, accumulates the symmetrized versions of the
-# density ρin into ρout. No normalization is performed
-function _symmetrize_ρ!(ρaccu, ρin, basis, ksymops, Gs)
-    T = eltype(basis)
-    for (S, τ) in ksymops
-        invS = Mat3{Int}(inv(S))
-        # Common special case, where ρin does not need to be processed
-        if iszero(S - I) && iszero(τ)
-            ρaccu .+= ρin
-            continue
-        end
-
-        # Transform ρin -> to the partial density at S * k.
-        #
-        # Since the eigenfunctions of the Hamiltonian at k and Sk satisfy
-        #      u_{Sk}(x) = u_{k}(S^{-1} (x - τ))
-        # with Fourier transform
-        #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
-        # equivalently
-        #      ̂ρ_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
-        for (ig, G) in enumerate(Gs)
-            igired = index_G_vectors(basis, invS * G)
-            if igired !== nothing
-                @inbounds ρaccu[ig] += cis(-2T(π) * dot(G, τ)) * ρin[igired]
-            end
-        end
-    end  # (S, τ)
-    ρaccu
-end
-
-
-"""
-Symmetrize a `RealFourierArray` by applying all symmetry operations of
-the basis (or all symmetries passed as the second argument) and forming
-the average.
-"""
-function symmetrize(ρin::RealFourierArray, ksymops=ksymops(ρin.basis))
-    ρout_fourier = _symmetrize_ρ!(zero(ρin.fourier), ρin.fourier, ρin.basis, ksymops,
-                                  G_vectors(ρin.basis)) ./ length(ksymops)
-    from_fourier(ρin.basis, ρout_fourier)
-end
-
-
-"""
-Apply a `k`-point symmetry operation (the tuple (S, τ)) to a partial density.
-"""
-function apply_ksymop(ksymop, ρin::RealFourierArray)
-    ksymop[1] == I && iszero(ksymop[2]) && return ρin
-    from_fourier(ρin.basis, symmetrize(ρin, [ksymop]))
 end
