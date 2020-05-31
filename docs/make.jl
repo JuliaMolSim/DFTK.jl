@@ -6,6 +6,8 @@ import LibGit2
 
 # Where to get files from and where to build them
 SRCPATH = joinpath(@__DIR__, "src")
+# Where the examples .md exported from .jl by Literate go
+EXAMPLEPATH = joinpath(@__DIR__, "src", "literate_build")
 BUILDPATH = joinpath(@__DIR__, "build")
 ROOTPATH = joinpath(@__DIR__, "..")
 
@@ -16,15 +18,17 @@ JLDEPS = [
                     rev=LibGit2.head(ROOTPATH)),  # The current DFTK
 ]
 
-# Collect examples to include in the documentation
-EXAMPLES = [String(m[1])
+# Collect examples from the example index (src/index.md)
+# The chosen examples are taken from the examples/ folder to be processed by Literate
+examples = [String(m[1])
             for m in match.(r"\"(examples/[^\"]+.md)\"",
                             readlines(joinpath(SRCPATH, "index.md")))
             if !isnothing(m)]
 
 # Collect files to treat with Literate (i.e. the examples and the .jl files in the docs)
+# The examples go to docs/literate_build/examples, the .jl files stay where they are
 literate_files = [(src=joinpath(ROOTPATH, splitext(file)[1] * ".jl"),
-                   dest=joinpath(SRCPATH, "examples"), example=true)
+                   dest=joinpath(EXAMPLEPATH, "examples"), example=true)
                   for file in EXAMPLES]
 for (dir, directories, files) in walkdir(SRCPATH)
     for file in files
@@ -54,7 +58,8 @@ for file in literate_files
     preprocess = file.example ? add_badges : identity
     Literate.markdown(file.src, file.dest; documenter=true, credit=false,
                       preprocess=preprocess)
-    Literate.notebook(file.src, file.dest; credit=false)
+    # comment that line out for a faster build
+    # Literate.notebook(file.src, file.dest; credit=false)
 end
 
 # Generate the docs in BUILDPATH
@@ -80,9 +85,10 @@ makedocs(
             "guide/installation.md",
             "Tutorial" => "guide/tutorial.md",
         ],
-        "Examples" => EXAMPLES,
+        "Examples" => [joinpath(EXAMPLEPATH, ex) for ex in examples],
         "Advanced topics" => Any[
             "advanced/conventions.md",
+            "advanced/data_structures.md",
             "advanced/useful_formulas.md",
             "advanced/symmetries.md",
         ],
@@ -90,7 +96,7 @@ makedocs(
         "publications.md",
         "contributing.md",
     ],
-    strict = true,
+    strict = false,
 )
 
 # Dump files for managing dependencies in binder
