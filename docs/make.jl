@@ -20,7 +20,7 @@ JLDEPS = [
 
 # Collect examples from the example index (src/index.md)
 # The chosen examples are taken from the examples/ folder to be processed by Literate
-examples = [String(m[1])
+EXAMPLES = [String(m[1])
             for m in match.(r"\"(examples/[^\"]+.md)\"",
                             readlines(joinpath(SRCPATH, "index.md")))
             if !isnothing(m)]
@@ -85,7 +85,7 @@ makedocs(
             "guide/installation.md",
             "Tutorial" => "guide/tutorial.md",
         ],
-        "Examples" => [joinpath(EXAMPLEPATH, ex) for ex in examples],
+        "Examples" => [joinpath("literate_build", ex) for ex in examples],
         "Advanced topics" => Any[
             "advanced/conventions.md",
             "advanced/data_structures.md",
