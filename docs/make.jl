@@ -1,21 +1,35 @@
 using Documenter
 using DFTK
 using Literate
+import Pkg
+import LibGit2
+
+# Where to get files from and where to build them
+SRCPATH = joinpath(@__DIR__, "src")
+BUILDPATH = joinpath(@__DIR__, "build")
+ROOTPATH = joinpath(@__DIR__, "..")
+
+# Python and Julia dependencies needed by the notebooks
+PYDEPS = ["ase", "spglib", "pymatgen"]
+JLDEPS = [
+    Pkg.PackageSpec(url="https://github.com/JuliaMolSim/DFTK.jl.git",
+                    rev=LibGit2.head(ROOTPATH)),  # The current DFTK
+]
 
 # Collect examples to include in the documentation
-examples = [String(m[1])
+EXAMPLES = [String(m[1])
             for m in match.(r"\"(examples/[^\"]+.md)\"",
-                            readlines(joinpath(@__DIR__, "src/index.md")))
+                            readlines(joinpath(SRCPATH, "index.md")))
             if !isnothing(m)]
 
-# Collect files to treat with literate (i.e. the examples and the .jl files in the docs)
-literate_files = [(src=joinpath(@__DIR__, "..", splitext(file)[1] * ".jl"),
-                   dest=joinpath(@__DIR__, "src/examples"), is_example=true)
-                  for file in examples]
-for (dir, directories, files) in walkdir(joinpath(@__DIR__, "src"))
+# Collect files to treat with Literate (i.e. the examples and the .jl files in the docs)
+literate_files = [(src=joinpath(ROOTPATH, splitext(file)[1] * ".jl"),
+                   dest=joinpath(SRCPATH, "examples"), example=true)
+                  for file in EXAMPLES]
+for (dir, directories, files) in walkdir(SRCPATH)
     for file in files
         if endswith(file, ".jl")
-            push!(literate_files, (src=joinpath(dir, file), dest=dir, is_example=false))
+            push!(literate_files, (src=joinpath(dir, file), dest=dir, example=false))
         end
     end
 end
@@ -35,14 +49,15 @@ function add_badges(str)
     join(splitted, "\n")
 end
 
-# Run literate on them all
+# Run Literate on them all
 for file in literate_files
-    preprocess = file.is_example ? add_badges : identity
+    preprocess = file.example ? add_badges : identity
     Literate.markdown(file.src, file.dest; documenter=true, credit=false,
                       preprocess=preprocess)
     Literate.notebook(file.src, file.dest; credit=false)
 end
 
+# Generate the docs in BUILDPATH
 makedocs(
     modules = [DFTK],
     format = Documenter.HTML(
@@ -65,7 +80,7 @@ makedocs(
             "guide/installation.md",
             "Tutorial" => "guide/tutorial.md",
         ],
-        "Examples" => examples,
+        "Examples" => EXAMPLES,
         "Advanced topics" => Any[
             "advanced/conventions.md",
             "advanced/useful_formulas.md",
@@ -78,6 +93,33 @@ makedocs(
     strict = true,
 )
 
+# Dump files for managing dependencies in binder
+if get(ENV, "CI", nothing) == "true"
+    cd(BUILDPATH) do
+        open("environment.yml", "w") do io
+            print(io,
+                    """
+                    name: dftk
+                    channels:
+                      - defaults
+                      - conda-forge
+                    dependencies:
+                    """)
+            for dep in PYDEPS
+                println(io, "  - " * dep)
+            end
+        end
+
+        # Install Julia dependencies into build
+        Pkg.activate(".")
+        for dep in JLDEPS
+            Pkg.add(dep)
+        end
+    end
+    Pkg.activate(@__DIR__)  # Back to Literate / Documenter environment
+end
+
+# Deploy docs to gh-pages branch
 deploydocs(
     repo = "github.com/JuliaMolSim/DFTK.jl.git",
 )
