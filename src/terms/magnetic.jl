@@ -1,10 +1,11 @@
-# This is pretty naive and probably needs to be thought about a bit more. Right now this is sufficient to reproduce uniform fields for isolated systems.
+# This is pretty naive and probably needs to be thought about a bit more.
+# Right now this is sufficient to reproduce uniform fields for isolated systems.
 
 @doc raw"""
 Magnetic term ``A⋅(-i∇)``. It is assumed (but not checked) that ``∇⋅A = 0``.
 """
 struct Magnetic
-    Afunction::Function # A(x,y,z) returns [Ax,Ay,Az]
+    Afunction::Function  # A(x,y,z) returns [Ax,Ay,Az]
 end
 function (M::Magnetic)(basis)
     TermMagnetic(basis, M.Afunction)

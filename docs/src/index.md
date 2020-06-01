@@ -47,7 +47,9 @@ codes such as [Abinit](https://www.abinit.org/),
     - Read data in [ETSF Nanoquanta](https://doi.org/10.1016/j.commatsci.2008.02.023) format.
 
 ## [Example index](@id example-index)
-First, new users should take a look at the [Installation](@ref) and [Tutorial](@ref) sections. Then, look at the examples:
+First, new users should take a look at the [Installation](@ref)
+and [Tutorial](@ref) sections. More details about DFTK are explained
+in the examples as we go along:
 
 ```@contents
 Pages = [
@@ -62,7 +64,8 @@ Pages = [
 Depth = 1
 ```
 
-These and more examples can be found in the [`examples`
-directory](https://dftk.org/tree/master/examples) of the main code.
+These and more examples can be found in the
+[`examples` directory](https://dftk.org/tree/master/examples) of the main code.
 
-If you have a great example you think would fit here, please open a [pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)!
+If you have a great example you think would fit here,
+please open a [pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)!

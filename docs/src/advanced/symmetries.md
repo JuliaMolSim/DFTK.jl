@@ -66,7 +66,9 @@ kgrid = [4, 4, 4]
 Let us demonstrate this in practice.
 We consider silicon, setup appropriately in the `lattice` and `atoms` objects
 as in [Tutorial](@ref) and to reach a fast execution, we take a small `Ecut` of `5`
-and a `[4, 4, 4]` Monkhorst-Pack grid. We also explicitly set the tolerance of the inner diagonalization to a small value at each SCF step:
+and a `[4, 4, 4]` Monkhorst-Pack grid.
+We also explicitly set the tolerance of the inner diagonalization
+to a small value at each SCF step:
 ```@example symmetries
 function determine_diagtol(args...; kwargs...)
     1e-8
@@ -85,7 +87,9 @@ basis_sym = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 scfres_sym = @time self_consistent_field(basis_sym, tol=1e-8, determine_diagtol=determine_diagtol)
 nothing  # hide
 ```
-Clearly both yield the same energy (and even the same convergence history, up to errors due to the inexact diagonalization at each step), but the version employing symmetry is faster,
+Clearly both yield the same energy (and even the same convergence history,
+up to errors due to the inexact diagonalization at each step),
+but the version employing symmetry is faster,
 since less ``k``-points are explicitly treated:
 ```@example symmetries
 (length(basis_sym.kpoints), length(basis_nosym.kpoints))

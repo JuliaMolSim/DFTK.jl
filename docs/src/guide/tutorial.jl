@@ -13,14 +13,16 @@
 #
 # !!! note "Convergence parameters in the documentation"
 #     We use rough parameters in order to be able
-#     to automatically generate this documentation very quickly. Therefore results are far from converged.
+#     to automatically generate this documentation very quickly.
+#     Therefore results are far from converged.
 #     Tighter thresholds and larger grids should be used for more realistic results.
 #
 # For our discussion we will use the classic example of
 # computing the LDA ground state of the silicon crystal.
 # Performing such a calculation roughly proceeds in three steps.
 
-using DFTK, Plots
+using DFTK
+using Plots
 
 ## 1. Define lattice and atomic positions
 a = 10.26  # Silicon lattice constant in Bohr
@@ -46,8 +48,9 @@ scfres = self_consistent_field(basis, tol=1e-8);
 # Note that DFTK by default applies the convergence tolerance `tol`
 # to the energy difference, so that the norm in the density difference
 # is not yet converged to 8 digits.
-# 
-# That's it! Now you can get various quantities from the result of the SCF. For instance, the energies:
+#
+# That's it! Now you can get various quantities from the result of the SCF.
+# For instance, the energies:
 scfres.energies
 # Eigenvalues:
 hcat(scfres.eigenvalues...)
@@ -55,12 +58,16 @@ hcat(scfres.eigenvalues...)
 rvecs = collect(r_vectors(basis))[:, 1, 1]  # slice along the x axis
 x = [r[1] for r in rvecs]                   # only keep the x coordinate
 plot(x, scfres.ρ.real[:, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
-# We can also perform various postprocessing steps: for instance the band structure
+
+# We can also perform various postprocessing steps:
+# for instance compute a band structure
 n_bands = 8
 plot_bandstructure(scfres, n_bands, kline_density=5, unit=:eV)
-# or the forces
-forces(scfres)[1] # [1] for "on silicium atoms"
-# As expected, they are almost zero in this highly symmetric configuration
+# or forces
+forces(scfres)[1]  # Select silicon forces
+# The `[1]` extracts the forces for the first kind of atoms,
+# i.e. `Si` (silicon) in the setup of the `atoms` list of step 1 above.
+# As expected, they are almost zero in this highly symmetric configuration.
 
 # ## Where to go from here
 # Take a look at the

@@ -1,4 +1,4 @@
-# Very basic setup; useful for testing purposes.é
+# Very basic setup, useful for testing
 using DFTK
 using Plots
 

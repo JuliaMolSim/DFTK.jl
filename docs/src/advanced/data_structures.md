@@ -2,29 +2,22 @@
 
 ```@setup data_structures
 using DFTK
-
-## 1. Define lattice and atomic positions
 a = 10.26  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
-
-## Load HGH pseudopotential for Silicon
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-
-## Specify type and positions of atoms
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
-## 2. Select model and basis
 model = model_LDA(lattice, atoms)
-kgrid = [4, 4, 4]  # k-point grid (Regular Monkhorst-Pack grid)
-Ecut = 15           # kinetic energy cutoff in Hartree
+kgrid = [4, 4, 4]
+Ecut = 15
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
-## 3. Run the SCF procedure to obtain the ground state
 scfres = self_consistent_field(basis, tol=1e-8);
 ```
 
-For this we assume that the Silicon LDA model has been set up as in the [Tutorial](@ref).
+In this section we assume a calculation of silicon LDA model
+in the setup described in [Tutorial](@ref).
 
 ## `Model` datastructure
 The physical model to be solved is defined by the `Model`
@@ -120,7 +113,8 @@ where ``\mathcal R^*`` is the set of reciprocal lattice vectors.
 The ``c_{{G}}`` are ``\ell^{2}``-normalized. The summation is truncated to a
 "spherical", ``k``-dependent basis set
 ```math
-  S_{k} = \left\{G \in \mathcal R^{*} \,\middle|\, \frac 1 2 |k+ G|^{2} \le E_\text{cut}\right\}
+  S_{k} = \left\{G \in \mathcal R^{*} \,\middle|\,
+          \frac 1 2 |k+ G|^{2} \le E_\text{cut}\right\}
 ```
 where ``E_\text{cut}`` is the cutoff energy.
 
