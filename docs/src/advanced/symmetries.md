@@ -67,24 +67,17 @@ Let us demonstrate this in practice.
 We consider silicon, setup appropriately in the `lattice` and `atoms` objects
 as in [Tutorial](@ref) and to reach a fast execution, we take a small `Ecut` of `5`
 and a `[4, 4, 4]` Monkhorst-Pack grid.
-We also explicitly set the tolerance of the inner diagonalization
-to a small value at each SCF step:
-```@example symmetries
-function determine_diagtol(args...; kwargs...)
-    1e-8
-end;
-```
 First we perform the DFT calculation disabling symmetry handling
 ```@example symmetries
 model = model_LDA(lattice, atoms)
 basis_nosym = PlaneWaveBasis(model, Ecut; kgrid=kgrid, enable_bzmesh_symmetry=false)
-scfres_nosym = @time self_consistent_field(basis_nosym, tol=1e-8, determine_diagtol=determine_diagtol)
+scfres_nosym = @time self_consistent_field(basis_nosym, tol=1e-8)
 nothing  # hide
 ```
 and then redo it using symmetry (the default):
 ```@example symmetries
 basis_sym = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
-scfres_sym = @time self_consistent_field(basis_sym, tol=1e-8, determine_diagtol=determine_diagtol)
+scfres_sym = @time self_consistent_field(basis_sym, tol=1e-8)
 nothing  # hide
 ```
 Clearly both yield the same energy (and even the same convergence history,
