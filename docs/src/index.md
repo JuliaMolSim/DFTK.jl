@@ -16,12 +16,6 @@ codes such as [Abinit](https://www.abinit.org/),
 [Quantum Espresso](http://quantum-espresso.org/) and
 [VASP](https://www.vasp.at/).
 
-This documentation provides an overview of the structure of the code
-and of the formalism used.
-It assumes basic familiarity with the concepts of plane-wave DFT.
-Users wanting to simply run computations or get a quick idea of our features
-should look at the [example index](@ref example-index).
-
 ## [Package features](@id package-features)
 * Methods and models:
     - Kohn-Sham-like models, with an emphasis on flexibility: compose your own model,
@@ -45,8 +39,17 @@ should look at the [example index](@ref example-index).
 * Support for arbitrary floating point types, including `Float32` (single precision)
   or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)).
   For DFT this is currently restricted to LDA (with Slater exchange and VWN correlation).
+* Third-party integrations:
+    - Use structures prepared in [pymatgen](https://pymatgen.org),
+      [ASE](https://wiki.fysik.dtu.dk/ase/) or [abipy](https://abinit.github.io/abipy/).
+    - [asedftk](https://github.com/mfherbst/asedftk):
+      DFTK-based calculator implementation for ASE.
+    - Read data in [ETSF Nanoquanta](https://doi.org/10.1016/j.commatsci.2008.02.023) format.
 
 ## [Example index](@id example-index)
+First, new users should take a look at the [Installation](@ref)
+and [Tutorial](@ref) sections. More details about DFTK are explained
+in the examples as we go along:
 
 ```@contents
 Pages = [
@@ -54,15 +57,15 @@ Pages = [
     "examples/pymatgen.md",
     "examples/ase.md",
     "examples/gross_pitaevskii.md",
+    "examples/gross_pitaevskii_2D.md",
     "examples/cohen_bergstresser.md",
     "examples/arbitrary_floattype.md",
 ]
 Depth = 1
 ```
 
-These and more examples
-can be found in the [`examples` directory](https://dftk.org/tree/master/examples)
-of the main code.
+These and more examples can be found in the
+[`examples` directory](https://dftk.org/tree/master/examples) of the main code.
 
-You think your great example is missing here:
-Please open a [pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)!
+If you have a great example you think would fit here,
+please open a [pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)!

@@ -41,4 +41,4 @@ or
 conda install -c conda-forge spglib pymatgen
 ```
 Afterwards you're all set and should be able to
-run the code in the can be found in the [`examples` directory](https://dftk.org/tree/master/examples).
+run the code in the [`examples` directory](https://dftk.org/tree/master/examples).

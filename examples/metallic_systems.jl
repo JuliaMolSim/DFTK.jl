@@ -23,7 +23,8 @@ atoms = [Mg => [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]]];
 # `kspacing` far too large to give a converged result.
 # These have been selected to obtain a fast execution time.
 
-kspacing = 0.5      # Minimal spacing of k-points
+kspacing = 0.5      # Minimal spacing of k-points,
+                    # in units of wavevectors (inverse Bohrs)
 Ecut = 5            # kinetic energy cutoff in Hartree
 temperature = 0.01  # Smearing temperature in Hartree
 

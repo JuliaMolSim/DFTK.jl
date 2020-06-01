@@ -40,7 +40,26 @@ In DFTK atomic units are used thoughout, most importantly
 lengths are in Bohr and energies in Hartree.
 See [wikipedia](https://en.wikipedia.org/wiki/Hartree_atomic_units)
 for a list of conversion factors. Useful conversion factors
-can also be found in `DFTK.units` and using [`DFTK.unit_to_au`](@ref).
+can also be found in `DFTK.units` and using [`DFTK.unit_to_au`](@ref):
+
+```@example
+import DFTK.units: eV, Å
+10eV      # 10eV in Hartree
+#-
+1.2 / Å  # 1.2 Bohr in Ångström
+```
+
+!!! warning "Differing unit conventions"
+    Different electronic-structure codes use different unit conventions.
+    For example for lattice vectors the common length units
+    are bohr (used by DFTK) and Ångström (used e.g. by ASE, 1Å ≈ 1.80 bohr).
+    When setting up a calculation for DFTK
+    one needs to ensure to convert to bohr and atomic units.
+    For some Python libraries (currently ASE, pymatgen and abipy)
+    DFTK directly ships conversion tools in form of the [`load_lattice`](@ref)
+    and [`load_atoms`](@ref) functions,
+    which take care of such conversions. Examples which demonstrate this
+    are [Creating slabs with ASE](@ref) and [Creating supercells with pymatgen](@ref).
 
 ## [Lattices and lattice vectors](@id conventions-lattice)
 Both the real-space lattice (i.e. `model.lattice`) and reciprocal-space lattice
@@ -50,11 +69,20 @@ but contain two or one zero-columns, respectively.
 The real-space lattice vectors are sometimes referred to by ``A`` and the
 reciprocal-space lattice vectors by ``B = 2\pi A^{-T}``.
 
+
+!!! warning "Row-major versus column-major storage order"
+    Julia stores matrices as column-major, but other languages
+    (notably Python and C) use row-major ordering.
+    Care therefore needs to be taken to properly
+    transpose the unit cell matrices ``A`` before using it with DFTK.
+    For the supported third-party packages `load_lattice`
+    and `load_atoms` again handle such conversion automatically.
+
 We use the convention that the unit cell in real space is
 ``[0, 1)^3`` in reduced coordinates and the unit cell in reciprocal
 space (the reducible Brillouin zone) is ``[-1/2, 1/2)^3``.
 
-## Lattice coordinate systems
+## Reduced and cartesian coordinates
 Unless denoted otherwise the code uses **reduced coordinates**
 for reciprocal-space vectors such as ``k``,  ``G``, ``q``
 or real-space vectors like ``r`` and ``R``
@@ -74,7 +102,7 @@ Other names for reduced coordinates are **integer coordinates**
 (usually for ``G``-vectors) or **fractional coordinates**
 (usually for ``k``-points).
 
-## Normalisation convention
+## Normalization conventions
 The normalization conventions used in the code is that quantities
 stored in reciprocal space are coefficients in the ``e_{G}`` basis,
 and quantities stored in real space use real physical values.

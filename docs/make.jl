@@ -8,6 +8,8 @@ import LibGit2
 SRCPATH = joinpath(@__DIR__, "src")
 BUILDPATH = joinpath(@__DIR__, "build")
 ROOTPATH = joinpath(@__DIR__, "..")
+CONTINUOUS_INTEGRATION = get(ENV, "CI", nothing) == "true"
+DEBUG = false  # set to true to disable some checks and cleanup
 
 # Python and Julia dependencies needed by the notebooks
 PYDEPS = ["ase", "spglib", "pymatgen"]
@@ -16,13 +18,15 @@ JLDEPS = [
                     rev=LibGit2.head(ROOTPATH)),  # The current DFTK
 ]
 
-# Collect examples to include in the documentation
+# Collect examples from the example index (src/index.md)
+# The chosen examples are taken from the examples/ folder to be processed by Literate
 EXAMPLES = [String(m[1])
             for m in match.(r"\"(examples/[^\"]+.md)\"",
                             readlines(joinpath(SRCPATH, "index.md")))
             if !isnothing(m)]
 
 # Collect files to treat with Literate (i.e. the examples and the .jl files in the docs)
+# The examples go to docs/literate_build/examples, the .jl files stay where they are
 literate_files = [(src=joinpath(ROOTPATH, splitext(file)[1] * ".jl"),
                    dest=joinpath(SRCPATH, "examples"), example=true)
                   for file in EXAMPLES]
@@ -38,7 +42,7 @@ end
 function add_badges(str)
     badges = [
         "[![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/examples/@__NAME__.ipynb)",
-        "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/examples/@__NAME__.ipynb)"
+        "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/examples/@__NAME__.ipynb)",
     ]
 
     # Find the Header and insert the badges right below
@@ -46,6 +50,7 @@ function add_badges(str)
     idx = findfirst(startswith.(splitted, "# # "))
     insert!(splitted, idx + 1, "#md # " * badges[1])
     insert!(splitted, idx + 2, "#md # " * badges[2])
+    insert!(splitted, idx + 3, "#md #")
     join(splitted, "\n")
 end
 
@@ -54,7 +59,8 @@ for file in literate_files
     preprocess = file.example ? add_badges : identity
     Literate.markdown(file.src, file.dest; documenter=true, credit=false,
                       preprocess=preprocess)
-    Literate.notebook(file.src, file.dest; credit=false)
+    Literate.notebook(file.src, file.dest; credit=false,
+                      execute=CONTINUOUS_INTEGRATION || DEBUG)
 end
 
 # Generate the docs in BUILDPATH
@@ -62,7 +68,7 @@ makedocs(
     modules = [DFTK],
     format = Documenter.HTML(
         # Use clean URLs, unless built as a "local" build
-        prettyurls = get(ENV, "CI", nothing) == "true",
+        prettyurls = CONTINUOUS_INTEGRATION,
         canonical = "https://juliamolsim.github.io/DFTK.jl/stable/",
         assets = ["assets/favicon.ico"],
     ),
@@ -83,6 +89,7 @@ makedocs(
         "Examples" => EXAMPLES,
         "Advanced topics" => Any[
             "advanced/conventions.md",
+            "advanced/data_structures.md",
             "advanced/useful_formulas.md",
             "advanced/symmetries.md",
         ],
@@ -90,11 +97,11 @@ makedocs(
         "publications.md",
         "contributing.md",
     ],
-    strict = true,
+    strict = !DEBUG,
 )
 
 # Dump files for managing dependencies in binder
-if get(ENV, "CI", nothing) == "true"
+if CONTINUOUS_INTEGRATION
     cd(BUILDPATH) do
         open("environment.yml", "w") do io
             print(io,
@@ -123,3 +130,13 @@ end
 deploydocs(
     repo = "github.com/JuliaMolSim/DFTK.jl.git",
 )
+
+# Remove generated example files
+if !DEBUG
+    for file in literate_files
+        base = splitext(basename(file.src))[1]
+        for ext in [".ipynb", ".md"]
+            rm(joinpath(file.dest, base * ext), force=true)
+        end
+    end
+end

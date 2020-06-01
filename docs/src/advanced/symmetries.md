@@ -80,20 +80,28 @@ basis_sym = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 scfres_sym = @time self_consistent_field(basis_sym, tol=1e-8)
 nothing  # hide
 ```
-Clearly both yield the same energy, but the version employing symmetry is faster,
+Clearly both yield the same energy
+but the version employing symmetry is faster,
 since less ``k``-points are explicitly treated:
 ```@example symmetries
 (length(basis_sym.kpoints), length(basis_nosym.kpoints))
 ```
+Both SCFs would even agree in the convergence history
+if exact diagonalization was used for the eigensolver
+in each step of both SCFs.
+But since DFTK adjusts this `diagtol` value adaptively during the SCF
+to increase performance, a slightly different history is obtained.
+Try adding the keyword argument
+`determine_diagtol=(args...; kwargs...) -> 1e-8`
+in each SCF call to fix the diagonalization tolerance to be `1e-8` for all SCF steps,
+which will result in an almost identical convergence history.
+
 We can also explicitly verify both methods to yield the same density:
 ```@example symmetries
 using LinearAlgebra  # hide
 (norm(scfres_sym.ρ.real - scfres_nosym.ρ.real),
  norm(values(scfres_sym.energies) .- values(scfres_nosym.energies)))
 ```
-!!!note "The `tol` argument in `self_consistent_field`"
-    The `tol` argument to `self_consistent_field` is a convergence threshold
-    in the total energy, such that less agreement is found in the density.
 
 To demonstrate the mapping between `k`-points due to symmetry,
 we pick an arbitrary `k`-point in the irreducible Brillouin zone:
