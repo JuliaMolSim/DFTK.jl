@@ -39,6 +39,12 @@ codes such as [Abinit](https://www.abinit.org/),
 * Support for arbitrary floating point types, including `Float32` (single precision)
   or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)).
   For DFT this is currently restricted to LDA (with Slater exchange and VWN correlation).
+* Third-party integrations:
+    - Use structures prepared in [pymatgen](https://pymatgen.org),
+      [ASE](https://wiki.fysik.dtu.dk/ase/) or [abipy](https://abinit.github.io/abipy/).
+    - [asedftk](https://github.com/mfherbst/asedftk):
+      DFTK-based calculator implementation for ASE.
+    - Read data in [ETSF Nanoquanta](https://doi.org/10.1016/j.commatsci.2008.02.023) format.
 
 ## [Example index](@id example-index)
 First, new users should take a look at the [Installation](@ref) and [Tutorial](@ref) sections. Then, look at the examples:
