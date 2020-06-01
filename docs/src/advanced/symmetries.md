@@ -81,21 +81,20 @@ scfres_sym = @time self_consistent_field(basis_sym, tol=1e-8)
 nothing  # hide
 ```
 Clearly both yield the same energy
-(up to errors due to the inexact diagonalization at each step),
 but the version employing symmetry is faster,
 since less ``k``-points are explicitly treated:
 ```@example symmetries
 (length(basis_sym.kpoints), length(basis_nosym.kpoints))
 ```
 Both SCFs would even agree in the convergence history
-if exactly the convergence tolerance was used for the eigensolver
+if exact diagonalization was used for the eigensolver
 in each step of both SCFs.
 But since DFTK adjusts this `diagtol` value adaptively during the SCF
-to increase performance a slightly different history is obtained.
+to increase performance, a slightly different history is obtained.
 Try adding the keyword argument
 `determine_diagtol=(args...; kwargs...) -> 1e-8`
-in each SCF call to fix `diagtol` to be `1e-8` for all SCF steps,
-which will result in an identical convergence history.
+in each SCF call to fix the diagonalization tolerance to be `1e-8` for all SCF steps,
+which will result in an almost identical convergence history.
 
 We can also explicitly verify both methods to yield the same density:
 ```@example symmetries
