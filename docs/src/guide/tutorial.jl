@@ -52,8 +52,11 @@ scfres = self_consistent_field(basis, tol=1e-8);
 # That's it! Now you can get various quantities from the result of the SCF.
 # For instance, the energies:
 scfres.energies
-# Eigenvalues:
+# Eigenvalues: here `scfres.eigenvalues` returns a 7x8 Array where 7 is the
+# number of eigenvalues that are computed and 8 the number of kpoints.
 hcat(scfres.eigenvalues...)
+# Use `scfres.occupation` to see the number of electrons on each energy level.
+hcat(scfres.occupation...)
 # And density:
 rvecs = collect(r_vectors(basis))[:, 1, 1]  # slice along the x axis
 x = [r[1] for r in rvecs]                   # only keep the x coordinate

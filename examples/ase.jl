@@ -63,7 +63,7 @@ atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="pbe")) => pos
          for (el, position) in atoms]
 lattice = load_lattice(surface);
 
-# We model this surface with (quite large a) temperature of 0.01 Hartree``
+# We model this surface with (quite large a) temperature of 0.01 Hartree
 # to ease convergence. Try lowering the SCF convergence tolerance (`tol`
 # or the `temperature` to see the full challenge of this system.
 model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe],
