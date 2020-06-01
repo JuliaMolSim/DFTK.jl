@@ -55,7 +55,7 @@ scfres.energies
 # Eigenvalues: here `scfres.eigenvalues` returns a 7x8 Array where 7 is the
 # number of eigenvalues that are computed and 8 the number of kpoints.
 hcat(scfres.eigenvalues...)
-# Use `scfres.occupation` to see the number of electron on each energy level.
+# Use `scfres.occupation` to see the number of electrons on each energy level.
 scfres.occupation
 # And density:
 rvecs = collect(r_vectors(basis))[:, 1, 1]  # slice along the x axis
