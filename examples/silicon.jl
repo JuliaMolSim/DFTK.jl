@@ -10,7 +10,7 @@ BLAS.set_num_threads(4)
 # Calculation parameters
 kgrid = [4, 4, 4]       # k-Point grid
 supercell = [1, 1, 1]   # Lattice supercell
-Ecut = 15               # kinetic energy cutoff in Hartree
+Ecut = 20               # kinetic energy cutoff in Hartree
 n_bands = 8             # number of bands to plot in the bandstructure
 
 # Setup silicon lattice

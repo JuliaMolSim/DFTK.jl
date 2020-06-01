@@ -2,11 +2,10 @@ using HDF5
 using JLD
 using PyPlot
 
-h5open("perturbation_tests.h5") do file
+h5open("perturbation_tests_k.h5") do file
     Ecut_ref = 30
     nk = 1
     α_list = read(file["alpha"])
-    nel = read(file["nel"])
     Ecut_list = read(file["Ecut_list"])
 
     for Ecut in Ecut_list
