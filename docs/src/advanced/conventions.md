@@ -36,7 +36,7 @@ to simplify typing them.
 - ``j_l`` are the **Bessel functions**. In particular, ``j_{0}(x) = \frac{\sin x}{x}``.
 
 ## Units
-In DFTK atomic units are used thoughout, most importantly
+In DFTK, atomic units are used throughout, most importantly
 lengths are in Bohr and energies in Hartree.
 See [wikipedia](https://en.wikipedia.org/wiki/Hartree_atomic_units)
 for a list of conversion factors. Useful conversion factors
@@ -52,9 +52,9 @@ import DFTK.units: eV, Å
 !!! warning "Differing unit conventions"
     Different electronic-structure codes use different unit conventions.
     For example for lattice vectors the common length units
-    are bohr (used by DFTK) and Ångström (used e.g. by ASE, 1Å ≈ 1.80 bohr).
+    are Bohr (used by DFTK) and Ångström (used e.g. by ASE, 1Å ≈ 1.80 Bohr).
     When setting up a calculation for DFTK
-    one needs to ensure to convert to bohr and atomic units.
+    one needs to ensure to convert to Bohr and atomic units.
     For some Python libraries (currently ASE, pymatgen and abipy)
     DFTK directly ships conversion tools in form of the [`load_lattice`](@ref)
     and [`load_atoms`](@ref) functions,
@@ -110,4 +110,5 @@ This means for instance that wavefunctions in the real space grid are
 normalized as ``\frac{|\Omega|}{N} \sum_{r} |\psi(r)|^{2} = 1`` where
 ``N`` is the number of grid points
 and in reciprocal space its coefficients are ``\ell^{2}``-normalized,
-see the [Tutorial](@ref) for an example where this is demonstrated.
+see the [`PlaneWaveBasis` and plane-wave discretisations](@ref) for an example
+where this is demonstrated.
