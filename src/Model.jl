@@ -106,7 +106,6 @@ function Model(lattice::AbstractMatrix{T};
     else
         symops = [(Mat3{Int}(I), Vec3(zeros(3)))]
     end
-    symmetry_operations(lattice, atoms; tol_symmetry=1e-5, kcoords=nothing)
 
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
              spin_polarization, T(temperature), smearing, atoms, terms, symops)
