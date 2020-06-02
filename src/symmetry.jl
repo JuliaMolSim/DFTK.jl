@@ -196,3 +196,9 @@ function symmetrize(ρin::RealFourierArray, symops=ρin.basis.symops)
                                            G_vectors(ρin.basis)) ./ length(symops)
     from_fourier(ρin.basis, ρout_fourier)
 end
+
+function check_symmetric(ρin::RealFourierArray, tol=1e-10)
+    for symop in ρin.basis.symops
+        @assert norm(symmetrize(ρin, [symop]).fourier - ρin.fourier) < tol
+    end
+end
