@@ -19,9 +19,6 @@
 # - The group of symmetry operations of the crystal that preserves the BZ mesh
 # - The set of symmetry operations that we use to reduce the reducible Brillouin zone (RBZ) to the irreducible (IBZ)
 
-# (S,τ)
-const SymOp = Tuple{Mat3{Int}, Vec3{Float64}}
-
 @doc raw"""
 Return the ``k``-point symmetry operations associated to a lattice, model or basis.
 Since the ``k``-point discretisations may break some of the symmetries, the latter

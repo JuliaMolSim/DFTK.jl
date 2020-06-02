@@ -40,10 +40,23 @@ struct Model{T <: Real}
     # term in a given basis and gives back a term (<: Term)
     # see terms.jl for some default terms
     term_types::Vector
+
+    # list of symmetries of the model
+    symops::Vector{SymOp}
 end
 
-function Model(lattice::AbstractMatrix{T}; n_electrons=nothing, atoms=[], terms=[], temperature=0.0,
-               smearing=nothing, spin_polarization=:none) where {T <: Real}
+function Model(lattice::AbstractMatrix{T};
+               n_electrons=nothing,
+               atoms=[],
+               terms=[],
+               temperature=0.0,
+               smearing=nothing,
+               spin_polarization=:none, # ∈ (:none, :collinear, :full, :spinless)
+               symmetries=:auto # auto: determine from terms if they are symmetric.
+                                # true: force all the symmetries of the lattice/atoms.
+                                # false: no symmetries
+               ) where {T <: Real}
+
     lattice = Mat3{T}(lattice)
 
     if n_electrons === nothing
@@ -85,8 +98,18 @@ function Model(lattice::AbstractMatrix{T}; n_electrons=nothing, atoms=[], terms=
         error("Having several terms of the same name is not supported.")
     end
 
+    @assert symmetries in (true, false, :auto)
+    # if auto, ask the terms if they break symmetries; if true or false, force to that value
+    compute_symmetries = (symmetries == :auto) ? !(any(breaks_symmetries, terms)) : symmetries
+    if compute_symmetries
+        symops = symmetry_operations(lattice, atoms)
+    else
+        symops = [(Mat3{Int}(I), Vec3(zeros(3)))]
+    end
+    symmetry_operations(lattice, atoms; tol_symmetry=1e-5, kcoords=nothing)
+
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
-             spin_polarization, T(temperature), smearing, atoms, terms)
+             spin_polarization, T(temperature), smearing, atoms, terms, symops)
 end
 
 
