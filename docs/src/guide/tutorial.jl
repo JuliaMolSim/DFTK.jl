@@ -54,14 +54,17 @@ scfres = self_consistent_field(basis, tol=1e-8);
 scfres.energies
 
 # Eigenvalues: 
-hcat(scfres.eigenvalues...) # eigenvalues is an array of arrays; this converts it to a matrix
-
-# This is a 7x8 array: 7 is the number of computed eigenvalues and 8
-# the number of kpoints. There are 7 eigenvalues because there are 4
-# occupied states in the system (4 valence electrons per silicon atom,
-# two atoms per unit cell, and paired spins), and the eigensolver
-# gives itself some breathing room by computing some extra states (see
-# `n_ep_extra` argument to `self_consistent_field`). We can check the occupations:
+hcat(scfres.eigenvalues...)
+# `eigenvalues` is an array (indexed by kpoints) of arrays (indexed by eigenvalue number). The "splatting" operation `...` calls `hcat` with all the inner arrays as arguments, which collects them into a matrix.
+#
+# The resulting matrix is 7 (number of computed eigenvalues) by 8
+# (number of kpoints). There are 7 eigenvalues per kpoint because
+# there are 4 occupied states in the system (4 valence electrons per
+# silicon atom, two atoms per unit cell, and paired spins), and the
+# eigensolver gives itself some breathing room by computing some extra
+# states (see `n_ep_extra` argument to `self_consistent_field`).
+#
+# We can check the occupations:
 hcat(scfres.occupation...)
 # And density:
 rvecs = collect(r_vectors(basis))[:, 1, 1]  # slice along the x axis
