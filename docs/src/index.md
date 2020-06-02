@@ -46,6 +46,8 @@ codes such as [Abinit](https://www.abinit.org/),
       DFTK-based calculator implementation for ASE.
     - Read data in [ETSF Nanoquanta](https://doi.org/10.1016/j.commatsci.2008.02.023) format.
 
+Missing a feature? Look for an open issue or create one [here](https://github.com/JuliaMolSim/DFTK.jl/issues).
+
 ## [Example index](@id example-index)
 First, new users should take a look at the [Installation](@ref)
 and [Tutorial](@ref) sections. More details about DFTK are explained
