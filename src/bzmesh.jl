@@ -34,7 +34,7 @@ operations are the identity.
 """
 function bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
     kcoords = kgrid_monkhorst_pack(kgrid_size; kshift=kshift)
-    kcoords, [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)]
+    kcoords, [[identity_symop()] for _ in 1:length(kcoords)], [identity_symop()]
 end
 
 
@@ -132,7 +132,7 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
     @assert all(findfirst(Sτ -> iszero(Sτ[1] - I) && iszero(Sτ[2]), ops) !== nothing
                 for ops in ksymops)
 
-    kirreds, ksymops
+    kirreds, ksymops, symops
 end
 
 

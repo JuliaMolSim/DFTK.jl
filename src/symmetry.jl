@@ -50,17 +50,6 @@ function symmetry_operations(lattice, atoms; tol_symmetry=1e-5, kcoords=nothing)
 
     symops
 end
-symmetry_operations(model::Model; kwargs...) = symmetry_operations(model.lattice, model.atoms; kwargs...)
-
-function symmetry_operations(basis::PlaneWaveBasis)
-    res = Set()
-    for ik = 1:length(basis.ksymops)
-        for isym = 1:length(basis.ksymops[ik])
-            push!(res, basis.ksymops[ik][isym])
-        end
-    end
-    res
-end
 
 """
 Implements a primitive search to find an irreducible subset of kpoints
@@ -84,7 +73,7 @@ function find_irreducible_kpoints(kcoords, Stildes, τtildes)
         # Select next not mapped kpoint as irreducible
         ik = findfirst(isequal(false), kcoords_mapped)
         push!(kirreds, kcoords[ik])
-        thisk_symops = [(Mat3{Int}(I), Vec3(zeros(3)))]
+        thisk_symops = [identity_symop()]
         kcoords_mapped[ik] = true
 
         for jk in findall(.!kcoords_mapped)
@@ -202,7 +191,7 @@ Symmetrize a `RealFourierArray` by applying all symmetry operations of
 the basis (or all symmetries passed as the second argument) and forming
 the average.
 """
-function symmetrize(ρin::RealFourierArray, symops=symmetry_operations(ρin.basis))
+function symmetrize(ρin::RealFourierArray, symops=ρin.basis.symops)
     ρout_fourier = accumulate_over_symops!(zero(ρin.fourier), ρin.fourier, ρin.basis, symops,
                                            G_vectors(ρin.basis)) ./ length(symops)
     from_fourier(ρin.basis, ρout_fourier)

@@ -104,7 +104,7 @@ function Model(lattice::AbstractMatrix{T};
     if compute_symmetries
         symops = symmetry_operations(lattice, atoms)
     else
-        symops = [(Mat3{Int}(I), Vec3(zeros(3)))]
+        symops = [identity_symop()]
     end
 
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
