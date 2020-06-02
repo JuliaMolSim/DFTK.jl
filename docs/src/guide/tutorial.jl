@@ -55,7 +55,10 @@ scfres.energies
 
 # Eigenvalues: 
 hcat(scfres.eigenvalues...)
-# `eigenvalues` is an array (indexed by kpoints) of arrays (indexed by eigenvalue number). The "splatting" operation `...` calls `hcat` with all the inner arrays as arguments, which collects them into a matrix.
+# `eigenvalues` is an array (indexed by kpoints) of arrays (indexed by
+# eigenvalue number). The "splatting" operation `...` calls `hcat`
+# with all the inner arrays as arguments, which collects them into a
+# matrix.
 #
 # The resulting matrix is 7 (number of computed eigenvalues) by 8
 # (number of kpoints). There are 7 eigenvalues per kpoint because
