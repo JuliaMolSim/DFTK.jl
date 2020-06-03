@@ -17,7 +17,7 @@ function get_scf_energies(testcase, supersampling, functionals)
     model = model_DFT(testcase.lattice, [spec => testcase.positions], functionals)
 
     ksymops = [DFTK.identity_symop() for _ in 1:length(kcoords)]
-    basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops; fft_size=fft_size)
+    basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops, [DFTK.identity_symop()]; fft_size=fft_size)
     scfres = self_consistent_field(basis; tol=scf_tol)
     values(scfres.energies)
 end
