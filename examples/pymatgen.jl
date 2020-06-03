@@ -31,7 +31,7 @@ atoms = [Si => [s.frac_coords for s in pystruct.sites]];
 model = model_LDA(lattice, atoms)
 basis = PlaneWaveBasis(model, 5)
 
-## Find the ground state using direct minimisation (always using SCF is boring ...)
+# Find the ground state using direct minimisation (always using SCF is boring ...)
 scfres = direct_minimization(basis, tol=1e-5);
 #-
 scfres.energies
