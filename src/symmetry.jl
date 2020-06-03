@@ -38,17 +38,17 @@ function symmetry_operations(lattice, atoms; tol_symmetry=1e-5, kcoords=nothing)
     end
 
     symops = unique(symops)
+    symops_preserving_kgrid(symops)
+end
 
-    if kcoords !== nothing
-        # filter only the operations that respect the symmetries of the discrete BZ grid
-        function preserves_grid(S)
-            all(normalize_kpoint_coordinate(S * k) in kcoords
-                for k in normalize_kpoint_coordinate.(kcoords))
-        end
-        symops = filter(symop -> preserves_grid(symop[1]), symops)
+function symops_preserving_kgrid(symops, kcoords=nothing)
+    kcoords === nothing && return symops
+    # filter only the operations that respect the symmetries of the discrete BZ grid
+    function preserves_grid(S)
+        all(normalize_kpoint_coordinate(S * k) in kcoords
+            for k in normalize_kpoint_coordinate.(kcoords))
     end
-
-    symops
+    filter(symop -> preserves_grid(symop[1]), symops)
 end
 
 """

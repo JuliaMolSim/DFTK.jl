@@ -203,7 +203,7 @@ undefined.
 function PlaneWaveBasis(model::Model, Ecut::Number; kgrid=[1, 1, 1], kshift=[0, 0, 0],
                         enable_bzmesh_symmetry=true, kwargs...)
     if enable_bzmesh_symmetry
-        kcoords, ksymops, symops = bzmesh_ir_wedge(kgrid, model.lattice, model.atoms, kshift=kshift)
+        kcoords, ksymops, symops = bzmesh_ir_wedge(kgrid, model.symops, kshift=kshift)
     else
         kcoords, ksymops, symops = bzmesh_uniform(kgrid, kshift=kshift)
     end

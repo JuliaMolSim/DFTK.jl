@@ -48,8 +48,7 @@ the full mesh. `lattice` are the lattice vectors, column by column, `atoms` are 
 representing a mapping from `Element` objects to a list of positions in fractional
 coordinates. `tol_symmetry` is the tolerance used for searching for symmetry operations.
 """
-function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
-                         tol_symmetry=1e-5, kshift=[0, 0, 0])
+function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
     all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size, kshift=kshift)
 
     # Transform kshift to the convention used in spglib:
@@ -60,8 +59,8 @@ function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
 
     kpoints_mp = kgrid_monkhorst_pack(kgrid_size, kshift=kshift)
 
-    # Get the list of symmetry operations (S,τ) that preserve the MP grid
-    symops = symmetry_operations(lattice, atoms; kcoords=kpoints_mp)
+    # Filter those symmetry operations (S,τ) that preserve the MP grid
+    symops = symops_preserving_kgrid(symops, kpoints_mp)
 
     # Give the remaining symmetries to spglib to compute an irreducible k-Point mesh
     # TODO implement time-reversal symmetry and turn the flag to true
