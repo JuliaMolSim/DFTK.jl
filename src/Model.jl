@@ -55,6 +55,9 @@ function Model(lattice::AbstractMatrix{T};
                symmetries=:auto # auto: determine from terms if they are symmetric.
                                 # true: force all the symmetries of the lattice/atoms.
                                 # false: no symmetries
+                                # Careful that in the forcing case symmetries=true, wrong results
+                                # can occur if the external potential breaks symmetries
+                                # (this is not checked)
                ) where {T <: Real}
 
     lattice = Mat3{T}(lattice)
