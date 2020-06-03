@@ -1,22 +1,38 @@
-using Documenter
-using DFTK
-using Literate
-import Pkg
 import LibGit2
+import Pkg
+
+# To manually generate the docs:
+#
+# 1. Install all python dependencies from the PYDEPS array below.
+# 2. Run "julia make.jl" to generate the docs
+
+# Set to true to disable some checks and cleanup
+DEBUG = false
 
 # Where to get files from and where to build them
 SRCPATH = joinpath(@__DIR__, "src")
 BUILDPATH = joinpath(@__DIR__, "build")
 ROOTPATH = joinpath(@__DIR__, "..")
 CONTINUOUS_INTEGRATION = get(ENV, "CI", nothing) == "true"
-DEBUG = false  # set to true to disable some checks and cleanup
 
-# Python and Julia dependencies needed by the notebooks
+# Python and Julia dependencies needed for running the notebooks
 PYDEPS = ["ase", "spglib", "pymatgen"]
 JLDEPS = [
     Pkg.PackageSpec(url="https://github.com/JuliaMolSim/DFTK.jl.git",
                     rev=LibGit2.head(ROOTPATH)),  # The current DFTK
 ]
+
+# Setup julia dependencies for docs generation if not yet done
+if !isfile(joinpath(@__DIR__, "Manifest.toml"))
+    Pkg.activate(@__DIR__)
+    Pkg.develop(Pkg.PackageSpec(path=ROOTPATH))
+    Pkg.instantiate()
+end
+
+# Import packages for docs generation
+using DFTK
+using Documenter
+using Literate
 
 # Collect examples from the example index (src/index.md)
 # The chosen examples are taken from the examples/ folder to be processed by Literate
@@ -139,4 +155,8 @@ if !DEBUG
             rm(joinpath(file.dest, base * ext), force=true)
         end
     end
+end
+
+if !CONTINUOUS_INTEGRATION
+    println("\nDocs generated, try $(joinpath(BUILDPATH, "index.html"))")
 end
