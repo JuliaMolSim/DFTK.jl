@@ -176,7 +176,7 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues;
             δψnk_real = G_to_r(basis, basis.kpoints[ik], δψnk)
             δρk .+= 2 .* fnk .* real(conj(ψnk_real) .* δψnk_real)
         end
-        _symmetrize_ρ!(δρ_four, r_to_G(basis, complex(δρk)), basis, basis.ksymops[ik], G_vectors(basis))
+        accumulate_over_symops!(δρ_four, r_to_G(basis, complex(δρk)), basis, basis.ksymops[ik], G_vectors(basis))
     end
     δρ = real(G_to_r(basis, δρ_four))
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))

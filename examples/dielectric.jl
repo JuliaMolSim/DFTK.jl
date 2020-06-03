@@ -22,7 +22,7 @@ lattice = load_lattice(pystruct)
 atoms = [Si => [s.frac_coords for s in pystruct.sites]]
 
 model = model_LDA(lattice, atoms)
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, enable_bzmesh_symmetry=true)
+basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 @time scfres = self_consistent_field(basis, tol=1e-14, mixing=KerkerMixing())
 
 # chi0 = compute_χ0(scfres.ham)
@@ -33,7 +33,7 @@ basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, enable_bzmesh_symmetry=true)
 # res = eigsolve(eps, length(scfres.ρ.real), 3, :SR)
 
 function sym(v)
-    real(G_to_r(basis, DFTK.symmetrize_ρ(basis, r_to_G(basis, complex(v)))))
+    DFTK.symmetrize(from_real(basis, v)).real
 end
 
 function epsfun(dv)
