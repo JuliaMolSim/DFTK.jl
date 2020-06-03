@@ -103,7 +103,7 @@ function Model(lattice::AbstractMatrix{T};
 
     @assert symmetry in (:auto, :force, :off)
     # if auto, ask the terms if they break symmetry; if true or false, force to that value
-    compute_symmetry = (symmetry == :auto) ? !(any(breaks_symmetry, terms)) : (symmetry == :force)
+    compute_symmetry = (symmetry == :auto) ? !(any(breaks_symmetries, terms)) : (symmetry == :force)
     if compute_symmetry
         symops = symmetry_operations(lattice, atoms)
     else
