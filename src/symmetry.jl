@@ -186,19 +186,35 @@ function accumulate_over_symops!(ρaccu, ρin, basis, symops, Gs)
     ρaccu
 end
 
+# Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
+function lowpass_for_symmetry!(ρ, basis, symops=basis.symops)
+    for (S, τ) in symops
+        for (ig, G) in enumerate(G_vectors(basis))
+            if index_G_vectors(basis, S * G) === nothing
+                ρ[ig] = 0
+            end
+        end
+    end
+    ρ
+end
+
 """
 Symmetrize a `RealFourierArray` by applying all symmetry operations of
 the basis (or all symmetries passed as the second argument) and forming
-the average.
+the average. Note that this is a proper symmetrization
+(ie symmetrize(symmetrize(x)) = symmetrize(x) and check_symmetric(x) holds)
+only if the input array has no very high frequency components.
 """
 function symmetrize(ρin::RealFourierArray, symops=ρin.basis.symops)
-    ρout_fourier = accumulate_over_symops!(zero(ρin.fourier), ρin.fourier, ρin.basis, symops,
+    ρin_fourier = copy(ρin.fourier)
+    lowpass_for_symmetry!(ρin_fourier, ρin.basis, symops)
+    ρout_fourier = accumulate_over_symops!(zero(ρin_fourier), ρin_fourier, ρin.basis, symops,
                                            G_vectors(ρin.basis)) ./ length(symops)
     from_fourier(ρin.basis, ρout_fourier)
 end
 
-function check_symmetric(ρin::RealFourierArray, tol=1e-10)
-    for symop in ρin.basis.symops
+function check_symmetric(ρin::RealFourierArray, tol=1e-10, symops=ρin.basis.symops)
+    for symop in symops
         @assert norm(symmetrize(ρin, [symop]).fourier - ρin.fourier) < tol
     end
 end
