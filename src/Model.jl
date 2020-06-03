@@ -52,12 +52,12 @@ function Model(lattice::AbstractMatrix{T};
                temperature=0.0,
                smearing=nothing,
                spin_polarization=:none, # ∈ (:none, :collinear, :full, :spinless)
-               symmetries=:auto # auto: determine from terms if they are symmetric.
-                                # true: force all the symmetries of the lattice/atoms.
-                                # false: no symmetries
-                                # Careful that in the forcing case symmetries=true, wrong results
-                                # can occur if the external potential breaks symmetries
-                                # (this is not checked)
+               symmetry=:auto # auto: determine from terms if they are symmetric.
+                              # off: no symmetries at all
+                              # force: force all the symmetries of the lattice/atoms.
+                              # Careful that in the forcing case, wrong results
+                              # can occur if the external potential breaks symmetries
+                              # (this is not checked)
                ) where {T <: Real}
 
     lattice = Mat3{T}(lattice)
@@ -101,10 +101,10 @@ function Model(lattice::AbstractMatrix{T};
         error("Having several terms of the same name is not supported.")
     end
 
-    @assert symmetries in (true, false, :auto)
-    # if auto, ask the terms if they break symmetries; if true or false, force to that value
-    compute_symmetries = (symmetries == :auto) ? !(any(breaks_symmetries, terms)) : symmetries
-    if compute_symmetries
+    @assert symmetry in (:auto, :force, :off)
+    # if auto, ask the terms if they break symmetry; if true or false, force to that value
+    compute_symmetry = (symmetry == :auto) ? !(any(breaks_symmetry, terms)) : (symmetry == :force)
+    if compute_symmetry
         symops = symmetry_operations(lattice, atoms)
     else
         symops = [identity_symop()]
@@ -113,7 +113,6 @@ function Model(lattice::AbstractMatrix{T};
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
              spin_polarization, T(temperature), smearing, atoms, terms, symops)
 end
-
 
 """
 Convenience constructor, which builds a standard atomic (kinetic + atomic potential) model.

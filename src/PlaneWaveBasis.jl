@@ -194,15 +194,15 @@ end
 Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a Monkhorst-Pack
 kpoint grid `kgrid` shifted by `kshift` (0 or 1/2 in each direction).
 
-If `enable_bzmesh_symmetry` is `true` (default) the symmetries of the
+If `use_symmetry` is `true` (default) the symmetries of the
 crystal are used to reduce the number of ``k``-Points which are
 treated explicitly. In this case all guess densities and potential
 functions must agree with the crystal symmetries or the result is
 undefined.
 """
 function PlaneWaveBasis(model::Model, Ecut::Number; kgrid=[1, 1, 1], kshift=[0, 0, 0],
-                        enable_bzmesh_symmetry=true, kwargs...)
-    if enable_bzmesh_symmetry
+                        use_symmetry=true, kwargs...)
+    if use_symmetry
         kcoords, ksymops, symops = bzmesh_ir_wedge(kgrid, model.symops, kshift=kshift)
     else
         kcoords, ksymops, symops = bzmesh_uniform(kgrid, kshift=kshift)
@@ -372,8 +372,8 @@ Convert a `basis` into one that uses or doesn't use BZ symmetrization
 Mainly useful for debug purposes (e.g. in cases we don't want to
 bother with symmetry)
 """
-function PlaneWaveBasis(basis::PlaneWaveBasis; enable_bzmesh_symmetry)
-    enable_bzmesh_symmetry && error("Not implemented")
+function PlaneWaveBasis(basis::PlaneWaveBasis; use_symmetry)
+    use_symmetry && error("Not implemented")
     if all(s -> length(s) == 1, basis.ksymops)
         return basis
     end
