@@ -2,7 +2,7 @@
 ## Theory
 In this discussion we will only describe the situation for a monoatomic crystal
 ``\mathcal C \subset \mathbb R^3``, the extension being easy.
-A symmetry of the crystal is a real-space unitary matrix ``\widetilde{S}``
+A symmetry of the crystal is an orthogonal matrix ``\widetilde{S}``
 and a real-space vector ``\widetilde{\tau}`` such that
 ```math
 \widetilde{S} \mathcal{C} + \widetilde{\tau} = \mathcal{C}.
