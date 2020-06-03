@@ -6,28 +6,6 @@ include("fft.jl")
 # products of orbitals. This also defines the real-space grid
 # (as the dual of the cubic basis set).
 
-# The full (reducible) Brillouin zone is implicitly represented by
-# a set of (irreducible) kpoints (see explanation in docs/). Each
-# irreducible kpoint k comes with a list of symmetry operations
-# (S,τ) (containing at least the trivial operation (I,0)), where S
-# is a rotation matrix (/!\ not unitary in reduced coordinates)
-# and τ a translation vector. The kpoint is then used to represent
-# implicitly the information at all the kpoints Sk. The
-# relationship between the Hamiltonians is
-# H_{Sk} = U H_k U*, with
-# (Uu)(x) = u(S^-1(x-τ))
-# or in Fourier space
-# (Uu)(G) = e^{-i G τ} u(S^-1 G)
-# In particular, we can choose the eigenvectors at Sk as u_{Sk} = U u_k
-
-# We represent then the BZ as a set of irreducible points `kpoints`, a
-# list of symmetry operations `ksymops` allowing the reconstruction of
-# the full (reducible) BZ, and a set of weights `kweights` (summing to
-# 1). The value of an observable (eg energy) per unit cell is given as
-# the value of that observable at each irreducible kpoint, weighted by
-# kweight
-
-
 """
 Discretization information for kpoint-dependent quantities such as orbitals.
 More generally, a kpoint is a block of the Hamiltonian;
@@ -90,8 +68,9 @@ struct PlaneWaveBasis{T <: Real}
     # See Hamiltonian for high-level usage
     terms::Vector{Any}
 
-    symops::Vector{SymOp} # symmetry operations that leave the reducible Brillouin zone invariant;
-                          # subset of model.symops, and superset of all the ksymops
+    symops::Vector{SymOp} # symmetry operations that leave the reducible Brillouin zone invariant.
+                          # Subset of model.symops, and superset of all the ksymops.
+                          # Independent of the `use_symmetry` option
 end
 # Default printing is just too verbose
 Base.show(io::IO, basis::PlaneWaveBasis) =
@@ -205,7 +184,10 @@ function PlaneWaveBasis(model::Model, Ecut::Number; kgrid=[1, 1, 1], kshift=[0, 
     if use_symmetry
         kcoords, ksymops, symops = bzmesh_ir_wedge(kgrid, model.symops, kshift=kshift)
     else
-        kcoords, ksymops, symops = bzmesh_uniform(kgrid, kshift=kshift)
+        kcoords, ksymops, _ = bzmesh_uniform(kgrid, kshift=kshift)
+        # even when not using symmetry to reduce computations, still
+        # store in symops the set of kgrid-preserving symops
+        symops = symops_preserving_kgrid(model.symops, kcoords)
     end
     PlaneWaveBasis(model, Ecut, kcoords, ksymops, symops; kwargs...)
 end

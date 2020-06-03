@@ -1,5 +1,4 @@
 ## This file contains functions to handle the symetries
-## See the docs for the theoretical explanation
 
 # A symmetry operation (symop) is a couple (Stilde, τtilde) of a
 # unitary (in cartesian coordinates, but not in reduced coordinates)
@@ -13,11 +12,33 @@
 # τ = -Stilde^-1 τtilde
 # (valid both in reduced and cartesian coordinates)
 
+# The full (reducible) Brillouin zone is implicitly represented by
+# a set of (irreducible) kpoints (see explanation in docs). Each
+# irreducible kpoint k comes with a list of symmetry operations
+# (S,τ) (containing at least the trivial operation (I,0)), where S
+# is a rotation matrix (/!\ not unitary in reduced coordinates)
+# and τ a translation vector. The kpoint is then used to represent
+# implicitly the information at all the kpoints Sk. The
+# relationship between the Hamiltonians is
+# H_{Sk} = U H_k U*, with
+# (Uu)(x) = u(S^-1(x-τ))
+# or in Fourier space
+# (Uu)(G) = e^{-i G τ} u(S^-1 G)
+# In particular, we can choose the eigenvectors at Sk as u_{Sk} = U u_k
+
+# We represent then the BZ as a set of irreducible points `kpoints`, a
+# list of symmetry operations `ksymops` allowing the reconstruction of
+# the full (reducible) BZ, and a set of weights `kweights` (summing to
+# 1). The value of an observable (eg energy) per unit cell is given as
+# the value of that observable at each irreducible kpoint, weighted by
+# kweight
+
 # There is by decreasing cardinality
 # - The group of symmetry operations of the lattice
-# - The group of symmetry operations of the crystal
-# - The group of symmetry operations of the crystal that preserves the BZ mesh
-# - The set of symmetry operations that we use to reduce the reducible Brillouin zone (RBZ) to the irreducible (IBZ)
+# - The group of symmetry operations of the crystal (model.symops)
+# - The group of symmetry operations of the crystal that preserves the BZ mesh (basis.symops)
+# - The set of symmetry operations that we use to reduce the
+#   reducible Brillouin zone (RBZ) to the irreducible (IBZ) (basis.ksymops)
 
 @doc raw"""
 Return the ``k``-point symmetry operations associated to a lattice, model or basis.
@@ -199,13 +220,9 @@ function lowpass_for_symmetry!(ρ, basis, symops=basis.symops)
 end
 
 """
-Symmetrize a `RealFourierArray` by applying all symmetry operations of
-the basis (or all symmetries passed as the second argument) and forming
-the average. Note that this is a proper symmetrization
-(ie symmetrize(symmetrize(x)) = symmetrize(x) and check_symmetric(x) holds)
-only if the input array has no very high frequency components.
+Symmetrize a `RealFourierArray` by applying all the model symmetries (by default) and forming the average.
 """
-function symmetrize(ρin::RealFourierArray{Tr, T}, symops=ρin.basis.symops) where {Tr, T}
+function symmetrize(ρin::RealFourierArray{Tr, T}, symops=ρin.basis.model.symops) where {Tr, T}
     ρin_fourier = copy(ρin.fourier)
     lowpass_for_symmetry!(ρin_fourier, ρin.basis, symops)
     ρout_fourier = accumulate_over_symops!(zero(ρin_fourier), ρin_fourier, ρin.basis, symops,
@@ -213,7 +230,7 @@ function symmetrize(ρin::RealFourierArray{Tr, T}, symops=ρin.basis.symops) whe
     from_fourier(ρin.basis, ρout_fourier; assume_real=(T <: Real))
 end
 
-function check_symmetric(ρin::RealFourierArray, tol=1e-10, symops=ρin.basis.symops)
+function check_symmetric(ρin::RealFourierArray, tol=1e-10, symops=ρin.basis.model.symops)
     for symop in symops
         @assert norm(symmetrize(ρin, [symop]).fourier - ρin.fourier) < tol
     end
