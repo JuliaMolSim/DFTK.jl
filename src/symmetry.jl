@@ -205,12 +205,12 @@ the average. Note that this is a proper symmetrization
 (ie symmetrize(symmetrize(x)) = symmetrize(x) and check_symmetric(x) holds)
 only if the input array has no very high frequency components.
 """
-function symmetrize(ρin::RealFourierArray, symops=ρin.basis.symops)
+function symmetrize(ρin::RealFourierArray{Tr, T}, symops=ρin.basis.symops) where {Tr, T}
     ρin_fourier = copy(ρin.fourier)
     lowpass_for_symmetry!(ρin_fourier, ρin.basis, symops)
     ρout_fourier = accumulate_over_symops!(zero(ρin_fourier), ρin_fourier, ρin.basis, symops,
                                            G_vectors(ρin.basis)) ./ length(symops)
-    from_fourier(ρin.basis, ρout_fourier)
+    from_fourier(ρin.basis, ρout_fourier; assume_real=(T <: Real))
 end
 
 function check_symmetric(ρin::RealFourierArray, tol=1e-10, symops=ρin.basis.symops)
