@@ -65,7 +65,7 @@ include("testcases.jl")
         ham_full, ψ_full, eigenvalues_full, ρ_full, occ_full = res
         test_orthonormality(ham_full.basis, ψ_full, tol=tol)
 
-        kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, testcase.lattice, atoms, kshift=kshift)
+        kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, DFTK.symmetry_operations(testcase.lattice, atoms), kshift=kshift)
         res = get_bands(testcase, kcoords, ksymops, atoms; Ecut=Ecut, tol=tol)
         ham_ir, ψ_ir, eigenvalues_ir, ρ_ir, occ_ir = res
         test_orthonormality(ham_ir.basis, ψ_ir, tol=tol)
