@@ -41,11 +41,11 @@ kgrid = (4, 4, 1);   # Monkhorst-Pack mesh
 using PyCall
 
 ase_build = pyimport("ase.build")
-a = 5.6537  # GaAs lattice parameter in Ǎngström (because ASE uses Ǎ as length unit)
+a = 5.6537  # GaAs lattice parameter in Ångström (because ASE uses Å as length unit)
 gaas = ase_build.bulk("GaAs", "zincblende", a=a)
 surface = ase_build.surface(gaas, miller, n_GaAs, 0, periodic=true);
 
-## Get the amount of vacuum in Ångström we need to add
+# Get the amount of vacuum in Ångström we need to add
 d_vacuum = maximum(maximum, surface.cell) / n_GaAs * n_vacuum
 surface = ase_build.surface(gaas, miller, n_GaAs, d_vacuum, periodic=true);
 
