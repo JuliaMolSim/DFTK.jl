@@ -62,6 +62,7 @@ Pages = [
     "examples/gross_pitaevskii_2D.md",
     "examples/cohen_bergstresser.md",
     "examples/arbitrary_floattype.md",
+    "examples/custom_solvers.md",
 ]
 Depth = 1
 ```
