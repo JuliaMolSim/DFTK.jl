@@ -46,7 +46,7 @@ end
         end
 
         red_kcoords, _ = bzmesh_uniform(kgrid_size, kshift=kshift)
-        irred_kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, lattice, atoms, kshift=kshift)
+        irred_kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, DFTK.symmetry_operations(lattice, atoms); kshift=kshift)
 
         # Try to reproduce all kcoords from irred_kcoords
         all_kcoords = Vector{Vec3{Rational{Int}}}()

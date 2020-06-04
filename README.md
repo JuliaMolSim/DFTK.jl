@@ -12,8 +12,8 @@
 [gitter-img]: https://badges.gitter.im/DFTK-jl/community.svg
 [gitter-url]: https://gitter.im/DFTK-jl/community
 
-[travis-img]: https://travis-ci.org/JuliaMolSim/DFTK.jl.svg?branch=master
-[travis-url]: https://travis-ci.org/JuliaMolSim/DFTK.jl
+[travis-img]: https://travis-ci.com/JuliaMolSim/DFTK.jl.svg?branch=master
+[travis-url]: https://travis-ci.com/JuliaMolSim/DFTK.jl
 
 [cov-img]: https://coveralls.io/repos/JuliaMolSim/DFTK.jl/badge.svg?branch=master&service=github
 [cov-url]: https://coveralls.io/github/JuliaMolSim/DFTK.jl?branch=master
