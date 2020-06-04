@@ -5,10 +5,10 @@ include("../xc/xc_evaluate.jl")
 Exchange-correlation term, defined by a list of functionals and usually evaluated through libxc.
 """
 struct Xc
-    functionals::Vector{Libxc.Functional}
+    functionals::Vector{Functional}
     scaling_factor::Real  # to scale by an arbitrary factor (useful for exploration)
 end
-Xc(functionals::Vector; scaling_factor=1) = Xc(functionals, scaling_factor)  # default to no scaling_factor
+Xc(functionals::Vector; scaling_factor=1) = Xc(functionals, scaling_factor)
 Xc(functionals::Vector{Symbol}; kwargs...) = Xc(Functional.(functionals); kwargs...)
 Xc(functional::Symbol; kwargs...) = Xc([Functional(functional)]; kwargs...)
 Xc(functionals::Symbol...; kwargs...) = Xc([functionals...]; kwargs...)
@@ -22,26 +22,28 @@ end
 
 function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
     basis = term.basis
-
     T = eltype(basis)
     model = basis.model
+    @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
 
     # Take derivatives of the density if needed.
-    max_ρ_derivs = any(xc.family == Libxc.family_gga for xc in term.functionals) ? 1 : 0
+    max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     density = DensityDerivatives(basis, max_ρ_derivs, ρ)
 
-    # Initialization
     potential = zeros(T, basis.fft_size)
-    Epp = zeros(T, basis.fft_size) # Energy per unit particle
+    zk = zeros(T, basis.fft_size)  # Energy per unit particle
     E = zero(T)
-
     for xc in term.functionals
-        # *adds* the potential for this functional to `potential` and *sets* the
-        # energy per unit particle in `Epp`.
-        eval_xc_!(basis, xc, Val(xc.family), Epp, potential, density)
+        # Evaluate the functional and its first derivative (potential)
+        res = evaluate(xc; input_kwargs(xc.family, density)..., zk=zk, derivatives=1)
 
+        # Add energy contribution
         dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
-        E += sum(Epp .* ρ.real) * dVol
+        E += sum(res.zk .* ρ.real) * dVol
+
+        # Add potential contribution from ∂(ρ E)/∂ρ and ∂(ρ E)/∂σ
+        potential .+= res.vrho
+        haskey(res, :vsigma) && potential .+= potential_sigma(density, res.vsigma)
     end
     if term.scaling_factor != 1
         E *= term.scaling_factor
@@ -52,8 +54,6 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
     (E=E, ops=ops)
 end
 
-
-# Functionality for building the XC potential term and constructing the builder itself.
 
 #=
 The total energy is
@@ -116,6 +116,11 @@ sum(V .* dρ) = sum(V .* IF(Xϕ) .* IF(X dϕ))
 and the result follows.
 =#
 
+function max_required_derivative(functional)
+    functional.family == :lda && return 0
+    functional.family == :gga && return 1
+    return -1
+end
 
 struct DensityDerivatives
     basis
@@ -152,44 +157,23 @@ function DensityDerivatives(basis, max_derivative::Integer, ρ)
     DensityDerivatives(basis, max_derivative, ρ.real, ∇ρ_real, σ_real)
 end
 
-# Small internal helper function
-epp_to_kwargs_(::Nothing) = Dict()
-epp_to_kwargs_(Epp) = Dict(:E => Epp)
-
-# Evaluate a single XC functional, *adds* the value to the potential on the grid
-# and *returns* the energy per unit particle on the grid
-# These are internal functions
-eval_xc_!(basis, xc, family, Epp::Nothing, potential::Nothing, density) = nothing
-function eval_xc_!(basis, xc, ::Val{Libxc.family_lda}, Epp, ::Nothing, density)
-    evaluate_lda!(xc, density.ρ; epp_to_kwargs_(Epp)...)
+function input_kwargs(family, density)
+    family == :lda && return (rho=density.ρ, )
+    family == :gga && return (rho=density.ρ, sigma=density.σ_real)
+    return NamedTuple()
 end
-function eval_xc_!(basis, xc, ::Val{Libxc.family_gga}, Epp, ::Nothing, density)
-    evaluate_gga!(xc, density.ρ, density.σ_real; epp_to_kwargs_(Epp)...)
-end
-function eval_xc_!(basis, xc, ::Val{Libxc.family_lda}, Epp, potential, density)
-    Vρ = similar(density.ρ)
-    evaluate_lda!(xc, density.ρ; Vρ=Vρ, epp_to_kwargs_(Epp)...)
-    potential .+= Vρ
-end
-function eval_xc_!(basis, xc, ::Val{Libxc.family_gga}, Epp, potential, density)
-    # Computes XC potential: Vρ - 2 div(Vσ ∇ρ)
 
-    model = basis.model
-    Vρ = similar(density.ρ)
-    Vσ = similar(density.ρ)
-    evaluate_gga!(xc, density.ρ, density.σ_real; Vρ=Vρ, Vσ=Vσ, epp_to_kwargs_(Epp)...)
+# Evaluates the potential contribution from the gradient term -2 div(Vσ ∇ρ)
+function potential_sigma(density, Vσ)
+    basis = density.basis
 
-    # 2 div(Vσ ∇ρ)
     gradterm = sum(1:3) do α
         # Compute term inside -∇(  ) in Fourier space
-        Vσ∇ρ = 2r_to_G(basis, Vσ .* density.∇ρ_real[α] .+ 0im)
+        Vσ∇ρ = r_to_G(basis, complex(Vσ .* density.∇ρ_real[α]))
 
         # take derivative
-        im * [(model.recip_lattice * G)[α] for G in G_vectors(basis)] .* Vσ∇ρ
+        im * [(basis.model.recip_lattice * G)[α] for G in G_vectors(basis)] .* Vσ∇ρ
     end
-    gradterm_real = real(G_to_r(basis, gradterm))
-    potential .+= (Vρ - gradterm_real)
-end
-function eval_xc_!(basis, xc, family, Epp, potential, density)
-    error("Functional family $(string(xc.family)) not implemented.")
+
+    -2real(G_to_r(basis, gradterm))
 end
