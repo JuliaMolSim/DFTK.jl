@@ -208,7 +208,7 @@ function accumulate_over_symops!(ρaccu, ρin, basis, symops, Gs)
 end
 
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
-function lowpass_for_symmetry!(ρ, basis, symops=basis.symops)
+function lowpass_for_symmetry!(ρ, basis; symops=basis.model.symops)
     for (S, τ) in symops
         for (ig, G) in enumerate(G_vectors(basis))
             if index_G_vectors(basis, S * G) === nothing
@@ -224,7 +224,7 @@ Symmetrize a `RealFourierArray` by applying all the model symmetries (by default
 """
 function symmetrize(ρin::RealFourierArray{Tr, T}; symops=ρin.basis.model.symops) where {Tr, T}
     ρin_fourier = copy(ρin.fourier)
-    lowpass_for_symmetry!(ρin_fourier, ρin.basis, symops)
+    lowpass_for_symmetry!(ρin_fourier, ρin.basis; symops=symops)
     ρout_fourier = accumulate_over_symops!(zero(ρin_fourier), ρin_fourier, ρin.basis, symops,
                                            G_vectors(ρin.basis)) ./ length(symops)
     from_fourier(ρin.basis, ρout_fourier; assume_real=(T <: Real))

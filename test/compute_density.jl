@@ -9,7 +9,7 @@ include("testcases.jl")
 #      energies obtained in the data files
 
 @testset "Using BZ symmetry yields identical density" begin
-    function get_bands(testcase, kcoords, ksymops, atoms; Ecut=5, tol=1e-8, n_rounds=1)
+    function get_bands(testcase, kcoords, ksymops, symops, atoms; Ecut=5, tol=1e-8, n_rounds=1)
         kwargs = ()
         n_bands = div(testcase.n_electrons, 2)
         if testcase.Tsmear !== nothing
@@ -18,7 +18,7 @@ include("testcases.jl")
         end
 
         model = model_DFT(testcase.lattice, atoms, :lda_xc_teter93; kwargs...)
-        basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
+        basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops, symops)
         ham = Hamiltonian(basis; ρ=guess_density(basis, atoms))
 
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol=tol)
@@ -60,21 +60,21 @@ include("testcases.jl")
         spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
         atoms = [spec => testcase.positions]
 
-        kfull, sym_full = bzmesh_uniform(kgrid_size, kshift=kshift)
-        res = get_bands(testcase, kfull, sym_full, atoms; Ecut=Ecut, tol=tol)
+        kfull, sym_full, symops = bzmesh_uniform(kgrid_size, kshift=kshift)
+        res = get_bands(testcase, kfull, sym_full, symops, atoms; Ecut=Ecut, tol=tol)
         ham_full, ψ_full, eigenvalues_full, ρ_full, occ_full = res
         test_orthonormality(ham_full.basis, ψ_full, tol=tol)
 
-        kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, DFTK.symmetry_operations(testcase.lattice, atoms), kshift=kshift)
-        res = get_bands(testcase, kcoords, ksymops, atoms; Ecut=Ecut, tol=tol)
+        kcoords, ksymops, symops = bzmesh_ir_wedge(kgrid_size, DFTK.symmetry_operations(testcase.lattice, atoms), kshift=kshift)
+        res = get_bands(testcase, kcoords, ksymops, symops, atoms; Ecut=Ecut, tol=tol)
         ham_ir, ψ_ir, eigenvalues_ir, ρ_ir, occ_ir = res
         test_orthonormality(ham_ir.basis, ψ_ir, tol=tol)
         @test ham_full.basis.fft_size == ham_ir.basis.fft_size
 
-        # Test density is the same in both schemes, and symmetric
+        # Test density is the same in both schemes, and symmetric wrt the basis symops
         @test maximum(abs.(ρ_ir.fourier - ρ_full.fourier)) < 10tol
         @test maximum(abs.(ρ_ir.real - ρ_full.real)) < 10tol
-        @test maximum(abs, DFTK.symmetrize(ρ_ir).fourier - ρ_ir.fourier) < tol
+        @test maximum(abs, DFTK.symmetrize(ρ_ir; symops=basis.symops).fourier - ρ_ir.fourier) < tol
 
         # Test local potential is the same in both schemes
         @test maximum(abs, total_local_potential(ham_ir) - total_local_potential(ham_full)) < tol
