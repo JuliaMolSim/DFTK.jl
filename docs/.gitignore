@@ -1,2 +1,6 @@
 build/
 site/
+src/examples/*.md
+src/examples/*.ipynb
+src/guide/tutorial.md
+src/guide/tutorial.ipynb

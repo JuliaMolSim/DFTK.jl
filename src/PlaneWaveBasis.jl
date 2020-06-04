@@ -6,42 +6,20 @@ include("fft.jl")
 # products of orbitals. This also defines the real-space grid
 # (as the dual of the cubic basis set).
 
-# The full (reducible) Brillouin zone is implicitly represented by
-# a set of (irreducible) kpoints (see explanation in docs/). Each
-# irreducible kpoint k comes with a list of symmetry operations
-# (S,τ) (containing at least the trivial operation (I,0)), where S
-# is a rotation matrix (/!\ not unitary in reduced coordinates)
-# and τ a translation vector. The kpoint is then used to represent
-# implicitly the information at all the kpoints Sk. The
-# relationship between the Hamiltonians is
-# H_{Sk} = U H_k U*, with
-# (Uu)(x) = u(S^-1(x-τ))
-# or in Fourier space
-# (Uu)(G) = e^{-i G τ} u(S^-1 G)
-# In particular, we can choose the eigenvectors at Sk as u_{Sk} = U u_k
-
-# We represent then the BZ as a set of irreducible points `kpoints`, a
-# list of symmetry operations `ksymops` allowing the reconstruction of
-# the full (reducible) BZ, and a set of weights `kweights` (summing to
-# 1). The value of an observable (eg energy) per unit cell is given as
-# the value of that observable at each irreducible kpoint, weighted by
-# kweight
-
-
 """
 Discretization information for kpoint-dependent quantities such as orbitals.
 More generally, a kpoint is a block of the Hamiltonian;
 eg collinear spin is treated by doubling the number of kpoints.
 """
-struct Kpoint{T <: Real}
-    spin::Symbol                  # :up, :down, :both or :spinless
-    coordinate::Vec3{T}           # Fractional coordinate of k-Point
-    mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
-                                  # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
-    mapping_inv::Dict{Int, Int}   # Inverse of `mapping`:
-                                  # G_vectors(basis)[i] = G_vectors(kpt)[kpt.mapping_inv[i]]
-    G_vectors::Vector{Vec3{Int}}  # Wave vectors in integer coordinates:
-                                  # ({G, 1/2 |k+G|^2 ≤ Ecut})
+struct Kpoint
+    spin::Symbol                     # :up, :down, :both or :spinless
+    coordinate::Vec3{Rational{Int}}  # Fractional coordinate of k-Point
+    mapping::Vector{Int}             # Index of G_vectors[i] on the FFT grid:
+                                     # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
+    mapping_inv::Dict{Int, Int}      # Inverse of `mapping`:
+                                     # G_vectors(basis)[i] = G_vectors(kpt)[kpt.mapping_inv[i]]
+    G_vectors::Vector{Vec3{Int}}     # Wave vectors in integer coordinates:
+                                     # ({G, 1/2 |k+G|^2 ≤ Ecut})
 end
 
 
@@ -69,12 +47,13 @@ struct PlaneWaveBasis{T <: Real}
     Ecut::T
 
     # irreducible kpoints
-    kpoints::Vector{Kpoint{T}}
-    # Brillouin zone integration weights,
+    kpoints::Vector{Kpoint}
+    # BZ integration weights, summing up to 1
     # kweights[ik] = length(ksymops[ik]) / sum(length(ksymops[ik]) for ik=1:Nk)
     kweights::Vector{T}
     # ksymops[ikpt] is a list of symmetry operations (S,τ)
-    ksymops::Vector{Vector{Tuple{Mat3{Int}, Vec3{T}}}}
+    # mapping to points in the reducible BZ
+    ksymops::Vector{Vector{SymOp}}
 
     # fft_size defines both the G basis on which densities and
     # potentials are expanded, and the real-space grid
@@ -89,7 +68,13 @@ struct PlaneWaveBasis{T <: Real}
     # Instantiated terms (<: Term), that contain a backreference to basis.
     # See Hamiltonian for high-level usage
     terms::Vector{Any}
+
+    # symmetry operations that leave the reducible Brillouin zone invariant.
+    # Subset of model.symops, and superset of all the ksymops.
+    # Independent of the `use_symmetry` option
+    symops::Vector{SymOp}
 end
+
 # Default printing is just too verbose
 Base.show(io::IO, basis::PlaneWaveBasis) =
     print(io, "PlaneWaveBasis (Ecut=$(basis.Ecut), $(length(basis.kpoints)) kpoints)")
@@ -107,7 +92,7 @@ function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
         spin = (:spinless, )
     end
 
-    kpoints = Vector{Kpoint{T}}()
+    kpoints = Vector{Kpoint}()
     for k in kcoords
         energy(q) = sum(abs2, model.recip_lattice * q) / 2
         pairs = [(i, G) for (i, G) in enumerate(G_vectors(fft_size)) if energy(k + G) ≤ Ecut]
@@ -115,7 +100,7 @@ function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
         mapping = first.(pairs)
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for σ in spin
-            push!(kpoints, Kpoint{T}(σ, k, mapping, mapping_inv, last.(pairs)))
+            push!(kpoints, Kpoint(σ, k, mapping, mapping_inv, last.(pairs)))
         end
     end
 
@@ -124,6 +109,7 @@ end
 build_kpoints(basis::PlaneWaveBasis, kcoords) =
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
 
+# This is the "internal" constructor; the higher-level one below should be preferred
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops;
                                 fft_size=determine_grid_size(model, Ecut)) where {T <: Real}
@@ -158,9 +144,16 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 
     terms = Vector{Any}(undef, length(model.term_types))
 
+    if symops === nothing
+        # TODO instead compute the group generated by with ksymops, or
+        # just retire this constructor. Not critical because this
+        # should not be used in this context anyway...
+        symops = vcat(ksymops...)
+    end
+
     basis = PlaneWaveBasis{T}(
         model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
-        kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms)
+        kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms, symops)
 
     # Instantiate terms
     for (it, t) in enumerate(model.term_types)
@@ -173,28 +166,33 @@ end
 Creates a new basis identical to `basis`, but with a different set of kpoints
 """
 function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
-                        ksymops::AbstractVector)
-    PlaneWaveBasis(basis.model, basis.Ecut, kcoords, ksymops;
+                        ksymops::AbstractVector, symops=nothing)
+    PlaneWaveBasis(basis.model, basis.Ecut, kcoords, ksymops, symops;
                    fft_size=basis.fft_size)
 end
 
 
 @doc raw"""
-Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` a Monkhorst-Pack
-kpoint grid `kgrid` shifted by `kshift` (which gives the fraction of adjacent mesh points
-to shift the mesh in each direction). If `enable_bzmesh_symmetry` is `true` (default)
-lattice symmetries are used to reduce the number of ``k``-Points which are treated
-explicitly. In this case all guess densities, (analytic) potential functions
-and guess wavefunctions used with DFTK must agree with the employed symmetry operations.
+Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a Monkhorst-Pack
+kpoint grid `kgrid` shifted by `kshift` (0 or 1/2 in each direction).
+
+If `use_symmetry` is `true` (default) the symmetries of the
+crystal are used to reduce the number of ``k``-Points which are
+treated explicitly. In this case all guess densities and potential
+functions must agree with the crystal symmetries or the result is
+undefined.
 """
 function PlaneWaveBasis(model::Model, Ecut::Number; kgrid=[1, 1, 1], kshift=[0, 0, 0],
-                        enable_bzmesh_symmetry=true, kwargs...)
-    if enable_bzmesh_symmetry
-        kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.lattice, model.atoms, kshift=kshift)
+                        use_symmetry=true, kwargs...)
+    if use_symmetry
+        kcoords, ksymops, symops = bzmesh_ir_wedge(kgrid, model.symops, kshift=kshift)
     else
-        kcoords, ksymops = bzmesh_uniform(kgrid, kshift=kshift)
+        kcoords, ksymops, _ = bzmesh_uniform(kgrid, kshift=kshift)
+        # even when not using symmetry to reduce computations, still
+        # store in symops the set of kgrid-preserving symops
+        symops = symops_preserving_kgrid(model.symops, kcoords)
     end
-    PlaneWaveBasis(model, Ecut, kcoords, ksymops; kwargs...)
+    PlaneWaveBasis(model, Ecut, kcoords, ksymops, symops; kwargs...)
 end
 
 """
@@ -354,81 +352,23 @@ function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
     ret
 end
 
-
-#
-# Functions to handle BZ symmetry
-#
-function ksymops(basis::PlaneWaveBasis)
-    res = Set()
-    for ik = 1:length(basis.ksymops)
-        for isym = 1:length(basis.ksymops[ik])
-            push!(res, basis.ksymops[ik][isym])
-        end
-    end
-    res
-end
-
-function apply_ksymop(ksymop, basis, kpoint, ψk::AbstractVecOrMat)
-    S, τ = ksymop
-    S == I && iszero(τ) && return kpoint, ψk
-
-    # Apply S and reduce coordinates to interval (-0.5, 0.5]
-    # Notice that doing this reduction is important because
-    # of the finite kinetic energy basis cutoff
-    @assert all(-0.5 .< kpoint.coordinate .≤ 0.5)
-    Sk_raw = S * kpoint.coordinate
-    Sk = normalise_kpoint_coordinate(Sk_raw)
-    kshift = convert.(Int, Sk - Sk_raw)
-    @assert all(-0.5 .< Sk .≤ 0.5)
-
-    # Check whether the resulting kpoint is in the basis:
-    ikfull = findfirst(1:length(basis.kpoints)) do idx
-        all(isinteger, basis.kpoints[idx].coordinate - Sk)
-    end
-    if isnothing(ikfull)
-        # Build a new kpoint datastructure:
-        Skpoint = build_kpoints(basis, [Sk])[1]
-    else
-        Skpoint = basis.kpoints[ikfull]
-        @assert Skpoint.coordinate ≈ Sk
-    end
-
-    # Since the eigenfunctions of the Hamiltonian at k and Sk satisfy
-    #      u_{Sk}(x) = u_{k}(S^{-1} (x - τ))
-    # their Fourier transform is related as
-    #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
-    invS = Mat3{Int}(inv(S))
-    Gs_full = [G + kshift for G in G_vectors(Skpoint)]
-    ψSk = zero(ψk)
-    for iband in 1:size(ψk, 2)
-        for (ig, G_full) in enumerate(Gs_full)
-            igired = index_G_vectors(basis, kpoint, invS * G_full)
-            if igired !== nothing
-                ψSk[ig, iband] = cis(-2π * dot(G_full, τ)) * ψk[igired, iband]
-            end
-        end
-    end  # iband
-
-    Skpoint, ψSk
-end
-
 """"
-Convert a basis into one that uses or doesn't use BZ symmetrization
-Mainly useful for debug purposes and in cases we don't want to
-bother with symmetry
+Convert a `basis` into one that uses or doesn't use BZ symmetrization
+Mainly useful for debug purposes (e.g. in cases we don't want to
+bother with symmetry)
 """
-function PlaneWaveBasis(basis::PlaneWaveBasis; enable_bzmesh_symmetry)
-    enable_bzmesh_symmetry && error("Not implemented")
+function PlaneWaveBasis(basis::PlaneWaveBasis; use_symmetry)
+    use_symmetry && error("Not implemented")
     if all(s -> length(s) == 1, basis.ksymops)
         return basis
     end
     kcoords = []
     for (ik, kpt) in enumerate(basis.kpoints)
         for (S, τ) in basis.ksymops[ik]
-            push!(kcoords, normalise_kpoint_coordinate(S * kpt.coordinate))
+            push!(kcoords, normalize_kpoint_coordinate(S * kpt.coordinate))
         end
     end
     new_basis = PlaneWaveBasis(basis.model, basis.Ecut, kcoords,
-                               [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)];
+                               [[identity_symop()] for _ in 1:length(kcoords)];
                                fft_size=basis.fft_size)
 end

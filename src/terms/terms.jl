@@ -59,5 +59,13 @@ include("psp_correction.jl")
 include("entropy.jl")
 include("magnetic.jl")
 
+# breaks_symmetries on a term builder answers true if this term breaks
+# the symmetries of the lattice/atoms (in which case kpoint reduction
+# is invalid)
+breaks_symmetries(term_builder::Any) = false
+breaks_symmetries(term_builder::Magnetic) = true
+breaks_symmetries(term_builder::ExternalFromReal) = true
+breaks_symmetries(term_builder::ExternalFromFourier) = true
+
 ### Builders are objects X that store the term parameters, and produce a
 # XTerm <: Term when instantiated with a `basis`

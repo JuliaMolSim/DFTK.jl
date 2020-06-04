@@ -171,7 +171,7 @@ end
         [0.575, 0.150, 0.575],
         [0.500, 0.000, 0.500],
     ]
-    ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)]
+    ksymops = [[DFTK.identity_symop()] for _ in 1:length(kcoords)]
     basis = PlaneWaveBasis(model, 5, kcoords, ksymops)
     klabels = Dict(raw"\Gamma" => [0, 0, 0], "X" => [0.5, 0.0, 0.5],
                    "W" => [0.5, 0.25, 0.75], "U" => [0.625, 0.25, 0.625])

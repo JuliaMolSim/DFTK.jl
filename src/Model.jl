@@ -1,10 +1,8 @@
 # Contains the physical specification of the model
 
-"""
-A physical specification of a model.
-Contains the geometry information, but no discretization parameters.
-The exact model used is defined by the list of terms.
-"""
+# A physical specification of a model. 
+# Contains the geometry information, but no discretization parameters.
+# The exact model used is defined by the list of terms.
 struct Model{T <: Real}
     # Lattice and reciprocal lattice vectors in columns
     lattice::Mat3{T}
@@ -14,7 +12,7 @@ struct Model{T <: Real}
     dim::Int # Dimension of the system; 3 unless `lattice` has zero columns
 
     # Electrons, occupation and smearing function
-    n_electrons::Int # not necessarily consistent with `atoms` field
+    n_electrons::Int # usually consistent with `atoms` field, but doesn't have to
 
     # spin_polarization values:
     #     :none       No spin polarization, αα and ββ density identical,
@@ -24,8 +22,8 @@ struct Model{T <: Real}
     #     :full       Generic magnetization, non-uniform direction.
     #                 αβ, βα, αα, ββ all nonzero, different
     #     :spinless   No spin at all ("spinless fermions", "mathematicians' electrons").
-    #                 Difference with :none is that the occupations are 1 instead of 2
-    spin_polarization::Symbol  # :none, :collinear, :full, :spinless
+    #                 The difference with :none is that the occupations are 1 instead of 2
+    spin_polarization::Symbol
 
     # If temperature=0, no fractional occupations are used.
     # If temperature is nonzero, the occupations are
@@ -33,17 +31,50 @@ struct Model{T <: Real}
     temperature::T
     smearing::Smearing.SmearingFunction # see Smearing.jl for choices
 
-    atoms::Vector{Pair} # Vector of pairs Element => vector of vec3 (positions, fractional coordinates)
-    # Possibly empty. Right now, the consistency of `atoms` with the different terms is *not* checked
+    # Vector of pairs Element => vector of vec3 (positions, fractional coordinates)
+    # Possibly empty.
+    # `atoms` just contain the information on the atoms, it's up to the `terms` to make use of it (or not)
+    atoms::Vector{Pair}
 
     # each element t must implement t(basis), which instantiates a
     # term in a given basis and gives back a term (<: Term)
     # see terms.jl for some default terms
     term_types::Vector
+
+    # list of symmetries of the model
+    symops::Vector{SymOp}
 end
 
-function Model(lattice::AbstractMatrix{T}; n_electrons=nothing, atoms=[], terms=[], temperature=0.0,
-               smearing=nothing, spin_polarization=:none) where {T <: Real}
+"""
+    Model(lattice; n_electrons, atoms, terms, temperature,
+                   smearing, spin_polarization, symmetry)
+
+Creates the physical specification of a model (without any
+discretization information).
+
+`n_electrons` is taken from `atoms` if not specified
+
+`spin_polarization` is :none by default (paired electrons)
+
+`smearing` is Fermi-Dirac if `temperature` is non-zero, none otherwise
+
+The `symmetry` kwarg can be:
+- auto: determine from terms if they respect the symmetry of the lattice/atoms.
+- off: no symmetries at all
+- force: force all the symmetries of the lattice/atoms.
+Careful that in this last case, wrong results can occur if the
+external potential breaks symmetries (this is not checked).
+"""
+function Model(lattice::AbstractMatrix{T};
+               n_electrons=nothing,
+               atoms=[],
+               terms=[],
+               temperature=T(0.0),
+               smearing=nothing,
+               spin_polarization=:none,
+               symmetry=:auto
+               ) where {T <: Real}
+
     lattice = Mat3{T}(lattice)
 
     if n_electrons === nothing
@@ -85,10 +116,23 @@ function Model(lattice::AbstractMatrix{T}; n_electrons=nothing, atoms=[], terms=
         error("Having several terms of the same name is not supported.")
     end
 
-    Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
-             spin_polarization, T(temperature), smearing, atoms, terms)
-end
+    @assert symmetry in (:auto, :force, :off)
+    if symmetry == :auto
+        # ask the terms if they break symmetry
+        compute_symmetry = !(any(breaks_symmetries, terms))
+    else
+        compute_symmetry = (symmetry == :force)
+    end
 
+    if compute_symmetry
+        symops = symmetry_operations(lattice, atoms)
+    else
+        symops = [identity_symop()]
+    end
+
+    Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
+             spin_polarization, T(temperature), smearing, atoms, terms, symops)
+end
 
 """
 Convenience constructor, which builds a standard atomic (kinetic + atomic potential) model.

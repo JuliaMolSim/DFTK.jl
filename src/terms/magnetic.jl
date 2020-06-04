@@ -1,10 +1,13 @@
-# EXPERIMENTAL this is very naive, probably needs to be thought about a bit more and the results have not been checked
-# TODO check the formulas and document
+# This is pretty naive and probably needs to be thought about a bit more.
+# Right now this is sufficient to reproduce uniform fields for isolated systems.
+
+@doc raw"""
+Magnetic term ``A⋅(-i∇)``. It is assumed (but not checked) that ``∇⋅A = 0``.
+"""
 struct Magnetic
-    Afunction::Function # A(x,y,z) returns [Ax,Ay,Az]
+    Afunction::Function  # A(x,y,z) returns [Ax,Ay,Az]
 end
 function (M::Magnetic)(basis)
-    @warn "Magnetic() is experimental. You're on your own (but please report bugs)."
     TermMagnetic(basis, M.Afunction)
 end
 
@@ -16,14 +19,13 @@ function TermMagnetic(basis::PlaneWaveBasis{T}, Afunction::Function) where T
     lattice = basis.model.lattice
     Apotential = [zeros(T, basis.fft_size) for α = 1:3]
     N1, N2, N3 = basis.fft_size
+    rvecs = collect(r_vectors(basis))
     for i = 1:N1
         for j = 1:N2
             for k = 1:N3
                 Apotential[1][i, j, k],
                 Apotential[2][i, j, k],
-                Apotential[3][i, j, k] = Afunction(lattice * @SVector[(i-1) / N1,
-                                                                      (j-1) / N2,
-                                                                      (k-1) / N3])
+                Apotential[3][i, j, k] = Afunction(lattice * rvecs[i, j, k])
             end
         end
     end

@@ -86,8 +86,9 @@ end
                 [ 0.10585630776222,  0.10585630776223, 0.22191839818805, 0.22191839818822]]
 
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, testcase.lattice,
-                                       [spec => testcase.positions])
+    symops = DFTK.symmetry_operations(testcase.lattice,
+                                      [spec => testcase.positions])
+    kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, symops)
 
     n_bands = length(energies[1])
     n_k = length(kcoords)
