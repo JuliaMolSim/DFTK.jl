@@ -43,9 +43,11 @@ for a list of conversion factors. Useful conversion factors
 can also be found in `DFTK.units` and using [`DFTK.unit_to_au`](@ref):
 
 ```@example
-import DFTK.units: eV, Å
+import DFTK.units: eV
 10eV      # 10eV in Hartree
-#-
+```
+```@example
+import DFTK.units: Å
 1.2 / Å  # 1.2 Bohr in Ångström
 ```
 

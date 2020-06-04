@@ -8,7 +8,7 @@ of the conventions used in the equations.
 ## Fourier transforms
 - The Fourier transform is
   ```math
-  \widehat{f}(q) = \int_{{\mathbb R}^{3}} e^{-i q \cdot x} dx
+  \widehat{f}(q) = \int_{{\mathbb R}^{3}} e^{-i q \cdot x} f(x) dx
   ```
 - Fourier transforms of centered functions: If ``f({x}) = R(x) Y_l^m(x/|x|)``, then
   ```math

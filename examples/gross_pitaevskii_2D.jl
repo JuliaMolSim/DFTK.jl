@@ -9,7 +9,7 @@ using DFTK
 using StaticArrays
 using Plots
 
-# Unit cell. Having one lattice vectors as zero means a 2D system
+# Unit cell. Having one of the lattice vectors as zero means a 2D system
 a = 10
 lattice = a .* [[1 0 0.]; [0 1 0]; [0 0 0]];
 
