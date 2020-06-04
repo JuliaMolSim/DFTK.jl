@@ -9,10 +9,10 @@ that really does the work, operating on a single ``k``-Block.
 `prec_type` should be a function that returns a preconditioner when called as `prec(ham, kpt)`
 """
 function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
-                                            guess=nothing,
-                                            prec_type=PreconditionerTPA, interpolate_kpoints=true,
-                                            tol=1e-6, miniter=1, maxiter=200, n_conv_check=nothing,
-                                            show_progress=false)
+                                 guess=nothing,
+                                 prec_type=PreconditionerTPA, interpolate_kpoints=true,
+                                 tol=1e-6, miniter=1, maxiter=200, n_conv_check=nothing,
+                                 show_progress=false)
     T = complex(eltype(ham.basis))
     kpoints = ham.basis.kpoints
     results = Vector{Any}(undef, length(kpoints))
@@ -27,17 +27,15 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
                   "and you are asking for $nev_per_kpoint eigenvalues. Increase Ecut.")
         end
         # Get guessk
-        if guess != nothing
-            # guess provided
-            guessk = guess[ik]
-        elseif interpolate_kpoints && ik > 1
-            @timeit timer "QR orthonormalization" begin
+        @timer "QR orthonormalization" begin
+            if guess != nothing
+                # guess provided
+                guessk = guess[ik]
+            elseif interpolate_kpoints && ik > 1
                 # use information from previous kpoint
                 X0 = interpolate_kpoint(results[ik - 1].X, kpoints[ik - 1], kpoints[ik])
                 guessk = Matrix{T}(qr(X0).Q)  # Re-orthogonalize and renormalize
-            end
-        else
-            @timeit timer "QR orthonormalization" begin
+            else
                 # random initial guess
                 qrres = qr(randn(T, length(G_vectors(kpoints[ik])), nev_per_kpoint))
                 guessk = Matrix{T}(qrres.Q)

@@ -16,16 +16,14 @@ using GenericLinearAlgebra
 
 # Given A as a list of blocks [A1, A2, A3] this forms the matrix-matrix product
 # A * B avoiding a concatenation of the blocks to a dense array
-@views function bmul(blocks::Tuple, B)
-    @timeit timer "bmul" begin
-        res = blocks[1] * B[1:size(blocks[1], 2), :]  # First multiplication
-        offset = size(blocks[1], 2)
-        for block in blocks[2:end]
-            mul!(res, block, B[offset .+ (1:size(block, 2)), :], 1, 1)
-            offset += size(block, 2)
-        end
-        res
+@views @timer "block multiplication" function bmul(blocks::Tuple, B)
+    res = blocks[1] * B[1:size(blocks[1], 2), :]  # First multiplication
+    offset = size(blocks[1], 2)
+    for block in blocks[2:end]
+        mul!(res, block, B[offset .+ (1:size(block, 2)), :], 1, 1)
+        offset += size(block, 2)
     end
+    res
 end
 bmul(A, B::Tuple) = error("not implemented")
 bmul(A, B) = A * B
@@ -57,15 +55,13 @@ boverlap(A, B) = A' * B
 
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
-function RR(X, AX, BX, N)
-    @timeit timer "Rayleigh-Ritz" begin
-        F = eigen(Hermitian(boverlap(X, AX, assume_hermitian=true)))  # == Hermitian(X' AX)
-        F.vectors[:,1:N], F.values[1:N]
-    end
+@timer function rayleigh_ritz(X, AX, BX, N)
+    F = eigen(Hermitian(boverlap(X, AX, assume_hermitian=true)))  # == Hermitian(X' AX)
+    F.vectors[:,1:N], F.values[1:N]
 end
 
 import LinearAlgebra: cholesky
-@timeit timer function cholesky(X::Union{Matrix{ComplexF16}, Hermitian{ComplexF16,Matrix{ComplexF16}}})
+function cholesky(X::Union{Matrix{ComplexF16}, Hermitian{ComplexF16,Matrix{ComplexF16}}})
     # Cholesky factorization above may promote the type
     # (e.g. Float16 is promoted to Float32. This undoes it)
     # See https://github.com/JuliaLang/julia/issues/16446
@@ -77,7 +73,7 @@ end
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been
 # magnified
-@timeit timer function ortho(X; tol=2eps(real(eltype(X))))
+@timer "orthogonalization" function ortho(X; tol=2eps(real(eltype(X))))
     local R
 
     # # Uncomment for "gold standard"
@@ -224,15 +220,15 @@ function final_retval(X, AX, resid_history, niter, n_matvec)
 end
 
 
-### The algorithm is Xn+1 = RR(hcat(Xn, A*Xn, Xn-Xn-1))
+### The algorithm is Xn+1 = rayleigh_ritz(hcat(Xn, A*Xn, Xn-Xn-1))
 ### We follow the strategy of Hetmaniuk and Lehoucq, and maintain a B-orthonormal basis Y = (X,R,P)
-### After each RR step, the B-orthonormal X and P are deduced by an orthogonal rotation from Y
+### After each rayleigh_ritz step, the B-orthonormal X and P are deduced by an orthogonal rotation from Y
 ### R is then recomputed, and orthonormalized explicitly wrt BX and BP
 ### We reuse applications of A/B when it is safe to do so, ie only with orthogonal transformations
 
 function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100;
-                           miniter=1, ortho_tol=2eps(real(eltype(X))),
-                           n_conv_check=nothing, display_progress=false)
+                miniter=1, ortho_tol=2eps(real(eltype(X))),
+                n_conv_check=nothing, display_progress=false)
     N, M = size(X)
 
     # If N is too small, we will likely get in trouble
@@ -289,7 +285,7 @@ function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100;
                 AY = (AX, AR)
                 BY = (BX, BR)  # data shared with (X, R) in non-general case
             end
-            cX, λs = RR(Y, AY, BY, M-nlocked)
+            cX, λs = rayleigh_ritz(Y, AY, BY, M-nlocked)
 
             # Update X. By contrast to some other implementations, we
             # wait on updating P because we have to know which vectors

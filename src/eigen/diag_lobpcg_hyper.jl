@@ -1,7 +1,8 @@
 include("lobpcg_hyper_impl.jl")
 
-@timeit timer function lobpcg_hyper(A, X0; maxiter=100, prec=nothing, tol=20size(A, 2)*eps(real(eltype(A))),
-                                    largest=false, n_conv_check=nothing, kwargs...)
+@timer "LOBPCG" function lobpcg_hyper(A, X0; maxiter=100, prec=nothing,
+                                      tol=20size(A, 2)*eps(real(eltype(A))),
+                                      largest=false, n_conv_check=nothing, kwargs...)
     prec === nothing && (prec = I)
 
     @assert !largest "Only seeking the smallest eigenpairs is implemented."

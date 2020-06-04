@@ -118,7 +118,7 @@ representing a mapping from `Element` objects to a list of positions in fraction
 coordinates. `tol_symmetry` is the tolerance used for searching for symmetry operations.
 """
 function bzmesh_ir_wedge(kgrid_size, lattice, atoms;
-                                    tol_symmetry=1e-5, kshift=[0, 0, 0])
+                         tol_symmetry=1e-5, kshift=[0, 0, 0])
     all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size, kshift=kshift)
 
     # Notice: In the language of the latex document in the docs
