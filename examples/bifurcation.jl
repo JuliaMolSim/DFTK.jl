@@ -1,3 +1,5 @@
+#src tags:long
+# This requires PseudoArcLengthContinuation from https://github.com/rveltz/PseudoArcLengthContinuation.jl
 using DFTK
 using KrylovKit
 using Plots
