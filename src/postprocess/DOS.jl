@@ -72,7 +72,7 @@ end
 Local density of states, in real space
 """
 function LDOS(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
-              temperature=basis.model.temperature, disable_symmetrization=false)
+              temperature=basis.model.temperature)
     filled_occ = filled_occupation(basis.model)
     if (temperature == 0) || smearing isa Smearing.None
         error("LDOS only supports finite temperature")
@@ -89,5 +89,5 @@ function LDOS(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
     # Use compute_density routine to compute LDOS, using just the modified
     # weights (as "occupations") at each kpoint. Note, that this automatically puts in the
     # required symmetrization with respect to kpoints and BZ symmetry
-    compute_density(basis, ψ, weights; disable_symmetrization=disable_symmetrization).real
+    compute_density(basis, ψ, weights).real
 end

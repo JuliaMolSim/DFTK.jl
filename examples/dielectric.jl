@@ -5,7 +5,7 @@ using Plots
 using KrylovKit
 
 # Calculation parameters
-kgrid = [2, 2, 2]       # k-Point grid
+kgrid = [1, 1, 1]       # k-Point grid
 Ecut = 15 # energy cutoff in Hartree
 
 # Setup silicon lattice
@@ -21,7 +21,7 @@ pystruct.make_supercell(supercell)
 lattice = load_lattice(pystruct)
 atoms = [Si => [s.frac_coords for s in pystruct.sites]]
 
-model = model_LDA(lattice, atoms)
+model = model_LDA(lattice, atoms, symmetry=:off, temperature=0.001)
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 @time scfres = self_consistent_field(basis, tol=1e-14, mixing=KerkerMixing())
 

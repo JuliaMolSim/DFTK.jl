@@ -46,6 +46,10 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
     filled_occ = filled_occupation(model)
     dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
 
+    if length(model.symops) != 1
+        error("Disable symmetries completely for computing χ0")
+    end
+
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
     Vs = [EV.vectors for EV in EVs]
@@ -53,9 +57,6 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
 
     χ0 = zeros(eltype(basis), prod(fft_size), prod(fft_size))
     for ik = 1:length(basis.kpoints)
-        if length(basis.ksymops[ik]) != 1
-            error("Kpoint symmetry not supported")
-        end
         N = length(G_vectors(basis.kpoints[ik]))
         @assert N < 10_000
         E = Es[ik]
@@ -110,7 +111,9 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues;
     # linear solver (it makes the rhs be order 1 even if δV is small)
     normδV = norm(δV)
     normδV < eps(T) && return zero(δV)
-    δV ./= normδV
+    δV /= normδV
+
+    δV = symmetrize(from_real(basis, δV)).real
 
     if droptol > 0 && sternheimer_contribution == true
         error("Droptol cannot be positive if sternheimer contribution is to be computed.")
@@ -185,7 +188,7 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues;
     # Add variation wrt εF
     if temperature > 0
         ldos = LDOS(εF, basis, eigenvalues, ψ, temperature=temperature)
-        ldos_unsym = LDOS(εF, basis, eigenvalues, ψ, temperature=temperature, disable_symmetrization=true)
+        ldos_unsym = LDOS(εF, basis, eigenvalues, ψ, temperature=temperature)
         dos = DOS(εF, basis, eigenvalues, temperature=temperature)
         δρ .+= ldos .* dot(ldos_unsym, δV) .* dVol ./ dos
     end

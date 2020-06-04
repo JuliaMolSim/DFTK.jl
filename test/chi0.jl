@@ -16,26 +16,26 @@ include("testcases.jl")
 
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
     for temperature in (0, 0.03)
-        for enable_bzmesh_symmetry in (false, true)
-            model = model_LDA(testcase.lattice, [spec => testcase.positions], temperature=temperature)
-            basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size, enable_bzmesh_symmetry=enable_bzmesh_symmetry)
+        for symmetry in (false, true)
+            model = model_LDA(testcase.lattice, [spec => testcase.positions], temperature=temperature, symmetry=(symmetry ? :force : :off))
+            basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size)
 
             ρ0 = guess_density(basis)
             energies, ham0 = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
             ρ1 = DFTK.next_density(ham0, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
 
-        # Now we make the same model, but add an artificial external potential ε * dV
-        dV = randn(eltype(basis), basis.fft_size)
-        term_builder = basis -> DFTK.TermExternal(basis, ε .* dV)
-        model = model_LDA(testcase.lattice, [spec => testcase.positions], temperature=temperature, extra_terms=[term_builder])
-        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size, use_symmetry=false)
-        energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-        ρ2 = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
-        diff_findiff = (ρ2.real - ρ1.real)/ε
+            # Now we make the same model, but add an artificial external potential ε * dV
+            dV = randn(eltype(basis), basis.fft_size)
+            dV_sym = DFTK.symmetrize(from_real(basis, dV)).real
+            if symmetry
+                dV = dV_sym
+            else
+                @test dV_sym ≈ dV
+            end
 
             term_builder = basis -> DFTK.TermExternal(basis, ε .* dV)
-            model = model_LDA(testcase.lattice, [spec => testcase.positions], temperature=temperature, extra_terms=[term_builder])
-            basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size, enable_bzmesh_symmetry=enable_bzmesh_symmetry)
+            model = model_LDA(testcase.lattice, [spec => testcase.positions], temperature=temperature, extra_terms=[term_builder], symmetry=(symmetry ? :force : :off))
+            basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size)
             energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
             ρ2 = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
             diff_findiff = (ρ2.real - ρ1.real)/ε
@@ -51,7 +51,7 @@ include("testcases.jl")
             @test norm(diff_findiff - diff_applied_χ0) < testtol
 
             # Test compute_χ0 against finite differences
-            if !enable_bzmesh_symmetry
+            if !symmetry
                 χ0 = compute_χ0(ham0)
                 diff_computed_χ0 = real(reshape(χ0*vec(dV), basis.fft_size))
                 @test norm(diff_findiff - diff_computed_χ0) < testtol
@@ -61,7 +61,7 @@ include("testcases.jl")
                 dV2 = randn(eltype(basis), basis.fft_size)
                 χ0dV1 = apply_χ0(ham0, dV1, Vs, εF, Es)
                 χ0dV2 = apply_χ0(ham0, dV2, Vs, εF, Es)
-                @test abs(dot(dV1, χ0dV2) - dot(dV2, χ0dV1)) < 1e-8
+                @test abs(dot(dV1, χ0dV2) - dot(dV2, χ0dV1)) < testtol
 
                 # Test the diagonal_only option
                 χ0_diag = compute_χ0(ham0; droptol=Inf)
