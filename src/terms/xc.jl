@@ -73,7 +73,7 @@ function apply_kernel(term::TermXc, dρ; ρ=ρ, kwargs...)
         # TODO This will also evaluate energy and potential ... should be optimised
         # in the next Libxc.jl one can just request derivatives=2:2
         res = evaluate(xc; input_kwargs(xc.family, density)..., derivatives=2)
-        kernel += res.v2rho2
+        kernel .+= res.v2rho2
     end
 
 
@@ -145,7 +145,7 @@ and the result follows.
 function max_required_derivative(functional)
     functional.family == :lda && return 0
     functional.family == :gga && return 1
-    return -1
+    error("Functional family $(functional.family) not known.")
 end
 
 struct DensityDerivatives
