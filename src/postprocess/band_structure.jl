@@ -23,7 +23,7 @@ end
 function compute_bands(basis, ρ, kcoords, n_bands;
                        eigensolver=lobpcg_hyper, tol=1e-3, show_progress=true, kwargs...)
     # Create basis with new kpoints, where we cheat by using any symmetry operations.
-    ksymops = [[(Mat3{Int}(I), Vec3(zeros(3)))] for _ in 1:length(kcoords)]
+    ksymops = [[identity_symop()] for _ in 1:length(kcoords)]
     # For some reason rationalize(2//3) isn't supported (julia 1.4)
     myrationalize(x::T) where {T <: AbstractFloat} = rationalize(x, tol=10eps(T))
     myrationalize(x) = x

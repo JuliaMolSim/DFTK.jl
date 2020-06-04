@@ -16,7 +16,7 @@ include("testcases.jl")
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
     for temperature in (0, 0.03)
         model = model_LDA(testcase.lattice, [spec => testcase.positions], temperature=temperature)
-        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size, enable_bzmesh_symmetry=false)
+        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size, use_symmetry=false)
 
         ρ0 = guess_density(basis)
         energies, ham0 = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
@@ -27,7 +27,7 @@ include("testcases.jl")
         dV = randn(eltype(basis), basis.fft_size)
         term_builder = basis -> DFTK.TermExternal(basis, ε .* dV)
         model = model_LDA(testcase.lattice, [spec => testcase.positions], temperature=temperature, extra_terms=[term_builder])
-        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size, enable_bzmesh_symmetry=false)
+        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size, use_symmetry=false)
         energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
         ρ2 = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
         diff = (ρ2.real - ρ1.real)/ε

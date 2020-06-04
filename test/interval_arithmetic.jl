@@ -9,7 +9,8 @@ function discretized_hamiltonian(T, testcase)
 
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
     atoms = [spec => testcase.positions]
-    model = model_DFT(Array{T}(testcase.lattice), atoms, [:lda_x, :lda_c_vwn])
+    # disable symmetry for interval
+    model = model_DFT(Array{T}(testcase.lattice), atoms, [:lda_x, :lda_c_vwn], symmetry=:off)
 
     # For interval arithmetic to give useful numbers,
     # the fft_size should be a power of 2

@@ -7,7 +7,7 @@ in the convention required to take the place of a `cell` datastructure used in s
 """
 function spglib_cell_atommapping_(lattice, atoms)
     lattice = Matrix{Float64}(lattice)  # spglib operates in double precision
-    n_attypes = sum(length(positions) for (type, positions) in atoms)
+    n_attypes = isempty(atoms) ? 0 : sum(length(positions) for (type, positions) in atoms)
     spg_numbers = Vector{Int}(undef, n_attypes)
     spg_positions = Matrix{Float64}(undef, n_attypes, 3)
 
@@ -37,14 +37,22 @@ function spglib_get_symmetry(lattice, atoms; tol_symmetry=1e-5)
     spglib = pyimport("spglib")
     lattice = Matrix{Float64}(lattice)  # spglib operates in double precision
 
+    if isempty(atoms)
+        # spglib doesn't like no atoms, so we default to
+        # no symmetries (even though there are lots)
+        return [Mat3{Int}(I)], [Vec3(zeros(3))]
+    end
+
     # Ask spglib for symmetry operations and for irreducible mesh
     spg_symops = spglib.get_symmetry(spglib_cell(lattice, atoms),
                                      symprec=tol_symmetry)
 
     # If spglib does not find symmetries give an error
-    spg_symops !== nothing || error(
-        "spglib failed to get the symmetries. Check your lattice, or use a uniform BZ mesh."
-    )
+    if spg_symops === nothing
+        err_message=spglib.get_error_message()
+        error("spglib failed to get the symmetries. Check your lattice, use a " *
+              "uniform BZ mesh or disable symmetries. Spglib reported : " * err_message)
+    end
 
     Stildes = [St for St in eachslice(spg_symops["rotations"]; dims=1)]
     τtildes = [rationalize.(τt, tol=tol_symmetry)
