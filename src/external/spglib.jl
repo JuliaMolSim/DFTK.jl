@@ -49,7 +49,7 @@ function spglib_get_symmetry(lattice, atoms; tol_symmetry=1e-5)
 
     # If spglib does not find symmetries give an error
     if spg_symops === nothing
-        err_message=pyimport("spglib").get_error_message()
+        err_message=spglib.get_error_message()
         error("spglib failed to get the symmetries. Check your lattice, use a " *
               "uniform BZ mesh or disable symmetries. Spglib reported : " * err_message)
     end

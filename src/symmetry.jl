@@ -222,7 +222,7 @@ end
 """
 Symmetrize a `RealFourierArray` by applying all the model symmetries (by default) and forming the average.
 """
-function symmetrize(ρin::RealFourierArray{Tr, T}, symops=ρin.basis.model.symops) where {Tr, T}
+function symmetrize(ρin::RealFourierArray{Tr, T}; symops=ρin.basis.model.symops) where {Tr, T}
     ρin_fourier = copy(ρin.fourier)
     lowpass_for_symmetry!(ρin_fourier, ρin.basis, symops)
     ρout_fourier = accumulate_over_symops!(zero(ρin_fourier), ρin_fourier, ρin.basis, symops,
@@ -230,7 +230,7 @@ function symmetrize(ρin::RealFourierArray{Tr, T}, symops=ρin.basis.model.symop
     from_fourier(ρin.basis, ρout_fourier; assume_real=(T <: Real))
 end
 
-function check_symmetric(ρin::RealFourierArray, tol=1e-10, symops=ρin.basis.model.symops)
+function check_symmetric(ρin::RealFourierArray; tol=1e-10, symops=ρin.basis.model.symops)
     for symop in symops
         @assert norm(symmetrize(ρin, [symop]).fourier - ρin.fourier) < tol
     end

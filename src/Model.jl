@@ -1,10 +1,8 @@
 # Contains the physical specification of the model
 
-"""
-A physical specification of a model. 
-Contains the geometry information, but no discretization parameters.
-The exact model used is defined by the list of terms.
-"""
+# A physical specification of a model. 
+# Contains the geometry information, but no discretization parameters.
+# The exact model used is defined by the list of terms.
 struct Model{T <: Real}
     # Lattice and reciprocal lattice vectors in columns
     lattice::Mat3{T}
@@ -45,19 +43,27 @@ struct Model{T <: Real}
     symops::Vector{SymOp}
 end
 
+"""
+Model(lattice; kwargs...)
+
+Creates the physical specification of a model (without any
+discretization information).
+
+The `symmetry` kwarg can be:
+auto: determine from terms if they respect the symmetry of the lattice/atoms.
+off: no symmetries at all
+force: force all the symmetries of the lattice/atoms.
+Careful that in this last case, wrong results can occur if the
+external potential breaks symmetries (this is not checked).
+"""
 function Model(lattice::AbstractMatrix{T};
-               n_electrons=nothing,
+               n_electrons=nothing,  # taken from `atoms` if not specified
                atoms=[],
                terms=[],
                temperature=0.0,
-               smearing=nothing,
-               spin_polarization=:none, # ∈ (:none, :collinear, :full, :spinless)
-               symmetry=:auto # auto: determine from terms if they are symmetric.
-                              # off: no symmetries at all
-                              # force: force all the symmetries of the lattice/atoms.
-                              # Careful that in the forcing case, wrong results
-                              # can occur if the external potential breaks symmetries
-                              # (this is not checked)
+               smearing=nothing,  # By default: Fermi-Dirac if temperature != 0, none otherwise
+               spin_polarization=:none,  # ∈ (:none, :collinear, :full, :spinless)
+               symmetry=:auto  # see above
                ) where {T <: Real}
 
     lattice = Mat3{T}(lattice)
@@ -102,8 +108,13 @@ function Model(lattice::AbstractMatrix{T};
     end
 
     @assert symmetry in (:auto, :force, :off)
-    # if auto, ask the terms if they break symmetry; if true or false, force to that value
-    compute_symmetry = (symmetry == :auto) ? !(any(breaks_symmetries, terms)) : (symmetry == :force)
+    if symmetry == :auto
+        # ask the terms if they break symmetry
+        compute_symmetry = !(any(breaks_symmetries, terms))
+    else
+        compute_symmetry = (symmetry == :force)
+    end
+
     if compute_symmetry
         symops = symmetry_operations(lattice, atoms)
     else
