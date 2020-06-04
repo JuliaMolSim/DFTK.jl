@@ -1,5 +1,6 @@
 # # Custom solvers
-# In this example, we show how to define custom solvers. Our system will again be silicon, because we are not very imaginative
+# In this example, we show how to define custom solvers. Our system
+# will again be silicon, because we are not very imaginative
 using DFTK, LinearAlgebra
 
 a = 10.26
@@ -22,7 +23,6 @@ function my_fp_solver(f, x0, max_iter; tol)
     fx = f(x)
     for n = 1:max_iter
         inc = fx - x
-        ## Note that the convergence criterion might be overwritten by the SCF solver
         if norm(inc) < tol
             break
         end
@@ -44,4 +44,13 @@ function my_eig_solver(A, X0; maxiter, tol, kwargs...)
 end;
 
 # That's it! Now we just run the SCF with these solvers
-scfres = self_consistent_field(basis, tol=1e-8, solver=my_fp_solver, eigensolver=my_eig_solver);
+scfres = self_consistent_field(basis;
+                               tol=1e-8,
+                               solver=my_fp_solver,
+                               eigensolver=my_eig_solver);
+# Note that the default convergence criterion is on the difference of
+# energy from one step to the other; when this gets below `tol`, the
+# "driver" `self_consistent_field` artificially makes the fixpoint
+# solver think it's converged by forcing `f(x) = x`. You can customize
+# this with the `is_converged` keyword argument to
+# `self_consistent_field`.
