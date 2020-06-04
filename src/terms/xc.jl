@@ -43,7 +43,7 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
 
         # Add potential contribution from ∂(ρ E)/∂ρ and ∂(ρ E)/∂σ
         potential .+= res.vrho
-        haskey(res, :vsigma) && potential .+= potential_sigma(density, res.vsigma)
+        haskey(res, :vsigma) && (potential .+= potential_sigma(density, res.vsigma))
     end
     if term.scaling_factor != 1
         E *= term.scaling_factor
@@ -52,6 +52,32 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
 
     ops = [RealSpaceMultiplication(basis, kpoint, potential) for kpoint in basis.kpoints]
     (E=E, ops=ops)
+end
+
+
+function compute_kernel(term::TermXc; kwargs...)
+    error("Not implemented")
+end
+
+function apply_kernel(term::TermXc, dρ; ρ=ρ, kwargs...)
+    basis = term.basis
+    T = eltype(basis)
+    @assert all(xc.family == :lda for xc in term.functionals)
+
+    # Take derivatives of the density if needed.
+    max_ρ_derivs = maximum(max_required_derivative, term.functionals)
+    density = DensityDerivatives(basis, max_ρ_derivs, ρ)
+
+    kernel = zeros(T, basis.fft_size)
+    for xc in term.functionals
+        # TODO This will also evaluate energy and potential ... should be optimised
+        # in the next Libxc.jl one can just request derivatives=2:2
+        res = evaluate(xc; input_kwargs(xc.family, density)..., derivatives=2)
+        kernel += res.v2rho2
+    end
+
+
+    from_real(term.basis, kernel .* dρ.real)
 end
 
 
@@ -70,8 +96,8 @@ dEtot = 2 ∫ Vxc ϕi dϕi
 dρ = 2 ϕi dϕi
 dσ = 2 ∇ρ ⋅ ∇dρ = 4 ∇ρ ⋅ ∇(ϕi dϕi)
 dEtot = ∫ Vρ dρ + Vσ dσ
-     = 2 ∫ Vρ ϕi dϕi + 4 ∫ Vσ ∇ρ ⋅ ∇(ϕi dϕi)
-     = 2 ∫ Vρ ϕi dϕi - 4 ∫ div(Vσ ∇ρ) ϕi dϕi
+      = 2 ∫ Vρ ϕi dϕi + 4 ∫ Vσ ∇ρ ⋅ ∇(ϕi dϕi)
+      = 2 ∫ Vρ ϕi dϕi - 4 ∫ div(Vσ ∇ρ) ϕi dϕi
 where we performed an integration by parts in the last equation (boundary terms drop by periodicity).
 
 Therefore,

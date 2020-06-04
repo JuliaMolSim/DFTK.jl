@@ -45,11 +45,11 @@ function ene_ops(term::TermHartree, ψ, occ; ρ, kwargs...)
     (E=E, ops=ops)
 end
 
-function compute_kernel(term::TermHartree)
+function compute_kernel(term::TermHartree; kwargs...)
     vc_G = term.poisson_green_coeffs
     G_to_r_matrix(term.basis) * Diagonal(vec(vc_G)) * r_to_G_matrix(term.basis)
 end
-function apply_kernel(term::TermHartree, dρ)
-    vc_G = term.poisson_green_coeffs
-    real(G_to_r(term.basis, vc_G .* r_to_G(term.basis, complex(dρ))))
+
+function apply_kernel(term::TermHartree, dρ; kwargs...)
+    from_real(term.basis, term.poisson_green_coeffs .* dρ.fourier)
 end
