@@ -108,11 +108,17 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues;
 
     # Normalize δV to avoid numerical trouble; theoretically should
     # not be necessary, but it simplifies the interaction with the
-    # linear solver (it makes the rhs be order 1 even if δV is small)
+    # Sternheimer linear solver (it makes the rhs be order 1 even if
+    # δV is small)
     normδV = norm(δV)
     normδV < eps(T) && return zero(δV)
     δV /= normδV
 
+    # Make δV respect the full model symmetry group, since it's
+    # invalid to consider perturbations that don't (technically it
+    # could be made to only respect basis.symops, but symmetrizing wrt
+    # the model symmetry group means that χ0 is unaffected by the
+    # use_symmetry kwarg of basis, which is nice)
     δV = symmetrize(from_real(basis, δV)).real
 
     if droptol > 0 && sternheimer_contribution == true
@@ -188,9 +194,8 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues;
     # Add variation wrt εF
     if temperature > 0
         ldos = LDOS(εF, basis, eigenvalues, ψ, temperature=temperature)
-        ldos_unsym = LDOS(εF, basis, eigenvalues, ψ, temperature=temperature)
         dos = DOS(εF, basis, eigenvalues, temperature=temperature)
-        δρ .+= ldos .* dot(ldos_unsym, δV) .* dVol ./ dos
+        δρ .+= ldos .* dot(ldos, δV) .* dVol ./ dos
     end
 
     δρ .* normδV
