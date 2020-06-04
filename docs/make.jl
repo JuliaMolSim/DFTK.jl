@@ -64,6 +64,7 @@ function add_badges(str)
     # Find the Header and insert the badges right below
     splitted = split(str, "\n")
     idx = findfirst(startswith.(splitted, "# # "))
+    idx === nothing && error("Example files must start with # #")
     insert!(splitted, idx + 1, "#md # " * badges[1])
     insert!(splitted, idx + 2, "#md # " * badges[2])
     insert!(splitted, idx + 3, "#md #")
