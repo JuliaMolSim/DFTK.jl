@@ -111,7 +111,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 
 # This is the "internal" constructor; the higher-level one below should be preferred
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
-                                kcoords::AbstractVector, ksymops;
+                                kcoords::AbstractVector, ksymops, symops=nothing;
                                 fft_size=determine_grid_size(model, Ecut)) where {T <: Real}
     @assert Ecut > 0
     fft_size = Tuple{Int, Int, Int}(fft_size)

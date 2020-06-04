@@ -1,6 +1,6 @@
 # Contains the physical specification of the model
 
-# A physical specification of a model. 
+# A physical specification of a model.
 # Contains the geometry information, but no discretization parameters.
 # The exact model used is defined by the list of terms.
 struct Model{T <: Real}
