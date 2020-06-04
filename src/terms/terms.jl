@@ -17,7 +17,7 @@ abstract type Term end
 function forces(term::Term, ψ, occ; kwargs...)
     nothing  # by default, no force
 end
-@timer function forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
+@timing function forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
     if !any(iszero(kpt.coordinate) for kpt in basis.kpoints)
         @warn "Forces for shifted k-Grids not tested"
     end

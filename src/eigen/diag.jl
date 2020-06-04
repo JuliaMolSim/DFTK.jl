@@ -27,7 +27,7 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
                   "and you are asking for $nev_per_kpoint eigenvalues. Increase Ecut.")
         end
         # Get guessk
-        @timer "QR orthonormalization" begin
+        @timing "QR orthonormalization" begin
             if guess != nothing
                 # guess provided
                 guessk = guess[ik]

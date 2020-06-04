@@ -93,21 +93,21 @@ end
 """
 Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 """
-@timer "SCF" function self_consistent_field(basis::PlaneWaveBasis;
-                                            n_bands=default_n_bands(basis.model),
-                                            ρ=guess_density(basis),
-                                            ψ=nothing,
-                                            tol=1e-6,
-                                            maxiter=100,
-                                            solver=scf_nlsolve_solver(),
-                                            eigensolver=lobpcg_hyper,
-                                            n_ep_extra=3,
-                                            determine_diagtol=ScfDiagtol(),
-                                            mixing=SimpleMixing(),
-                                            callback=scf_default_callback,
-                                            is_converged=ScfConvergenceEnergy(tol),
-                                            compute_consistent_energies=true,
-                                           )
+@timing function self_consistent_field(basis::PlaneWaveBasis;
+                                       n_bands=default_n_bands(basis.model),
+                                       ρ=guess_density(basis),
+                                       ψ=nothing,
+                                       tol=1e-6,
+                                       maxiter=100,
+                                       solver=scf_nlsolve_solver(),
+                                       eigensolver=lobpcg_hyper,
+                                       n_ep_extra=3,
+                                       determine_diagtol=ScfDiagtol(),
+                                       mixing=SimpleMixing(),
+                                       callback=scf_default_callback,
+                                       is_converged=ScfConvergenceEnergy(tol),
+                                       compute_consistent_energies=true,
+                                      )
     T = eltype(basis)
     model = basis.model
 

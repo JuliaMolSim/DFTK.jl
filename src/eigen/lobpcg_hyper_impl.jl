@@ -16,7 +16,7 @@ using GenericLinearAlgebra
 
 # Given A as a list of blocks [A1, A2, A3] this forms the matrix-matrix product
 # A * B avoiding a concatenation of the blocks to a dense array
-@views @timer "block multiplication" function bmul(blocks::Tuple, B)
+@views @timing "block multiplication" function bmul(blocks::Tuple, B)
     res = blocks[1] * B[1:size(blocks[1], 2), :]  # First multiplication
     offset = size(blocks[1], 2)
     for block in blocks[2:end]
@@ -55,7 +55,7 @@ boverlap(A, B) = A' * B
 
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
-@timer function rayleigh_ritz(X, AX, BX, N)
+@timing function rayleigh_ritz(X, AX, BX, N)
     F = eigen(Hermitian(boverlap(X, AX, assume_hermitian=true)))  # == Hermitian(X' AX)
     F.vectors[:,1:N], F.values[1:N]
 end
@@ -73,7 +73,7 @@ end
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been
 # magnified
-@timer "orthogonalization" function ortho(X; tol=2eps(real(eltype(X))))
+@timing function ortho(X; tol=2eps(real(eltype(X))))
     local R
 
     # # Uncomment for "gold standard"
@@ -226,9 +226,9 @@ end
 ### R is then recomputed, and orthonormalized explicitly wrt BX and BP
 ### We reuse applications of A/B when it is safe to do so, ie only with orthogonal transformations
 
-function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100;
-                miniter=1, ortho_tol=2eps(real(eltype(X))),
-                n_conv_check=nothing, display_progress=false)
+@timing function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100;
+                        miniter=1, ortho_tol=2eps(real(eltype(X))),
+                        n_conv_check=nothing, display_progress=false)
     N, M = size(X)
 
     # If N is too small, we will likely get in trouble
