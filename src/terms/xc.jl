@@ -67,6 +67,7 @@ function apply_kernel(term::TermXc, dρ; ρ=ρ, kwargs...)
     # Take derivatives of the density if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     density = DensityDerivatives(basis, max_ρ_derivs, ρ)
+    perturbation = DensityDerivatives(basis, max_ρ_derivs, dρ)
 
     kernel = zeros(T, basis.fft_size)
     for xc in term.functionals
@@ -76,6 +77,7 @@ function apply_kernel(term::TermXc, dρ; ρ=ρ, kwargs...)
         kernel .+= res.v2rho2
     end
 
+    # GGA follow DOI 10.1103/physrevb.69.115106
 
     from_real(term.basis, kernel .* dρ.real)
 end
