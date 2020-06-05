@@ -59,11 +59,11 @@ Pages = [
     "examples/pymatgen.md",
     "examples/ase.md",
     "examples/gross_pitaevskii.md",
-    "examples/gross_pitaevskii_custom_potential.md",
     "examples/gross_pitaevskii_2D.md",
     "examples/cohen_bergstresser.md",
     "examples/arbitrary_floattype.md",
     "examples/custom_solvers.md",
+    "examples/gross_pitaevskii_custom_potential.md",
 ]
 Depth = 1
 ```

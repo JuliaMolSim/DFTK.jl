@@ -2,17 +2,29 @@
 
 # We solve the 1D Gross-Pitaevskii equation with a custom potential.
 # This is similar to the
-# previous example ([Gross-Pitaevskii equation in one dimension](@ref)) where
-# computing forces was not possible as we used an `ExternalFromReal` term
-# instead of an `AtomicLocal` term (see [`Model` datastructure](@ref)).
-# Here, we use `ElementCustomIonPotential`
-# with a custom potential to generate an `AtomicLocal` term for which we can
-# compute forces.
+# previous example ([Gross-Pitaevskii equation in one dimension](@ref)) and we
+# show how to define local potentials attached to atoms, which allows for
+# instance to compute forces.
 using DFTK
 using LinearAlgebra
 
-# ## The model
-# First we set up the lattice. For a 1D case we supply two zero lattice vectors,
+# First, we define a new element which represents an ion generating a custom
+# potential
+struct ElementCustomIonPotential <: DFTK.Element
+    pot_real::Function      # Real potential
+    pot_fourier::Function   # Fourier potential
+end
+
+# We need to extend two methods to access the real and Fourier forms of
+# the potential during the computations performed by DFTK
+function DFTK.local_potential_fourier(el::ElementCustomIonPotential, q::T) where {T <: Real}
+    return el.pot_fourier(q)
+end
+function DFTK.local_potential_real(el::ElementCustomIonPotential, r::Real)
+    return el.pot_real(r)
+end
+
+# We set up the lattice. For a 1D case we supply two zero lattice vectors
 a = 10
 lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]];
 
@@ -27,15 +39,15 @@ L = 0.5;
 # We set the potential in its real and Fourier forms
 pot_real(x) = exp(-(x/L)^2)
 pot_fourier(q::T) where {T <: Real} = exp(- (q*L)^2 / 4);
-# And finally we build the elements and set their positions in the `atoms` array
-ion = ElementCustomIonPotential(1, pot_real, pot_fourier) # 1 is the charge of each ion
+# And finally we build the elements and set their positions in the `atoms`
+# array. Not that in this exemple, `pot_real` is not necessary as all application
+# of local potentials are done in the Fourier space.
+ion = ElementCustomIonPotential(pot_real, pot_fourier)
 atoms = [ion => [x1*[1,0,0], x2*[1,0,0]]];
 
-# Parameters for the nonlinear potential ``α C ρ^{α-1}``
+# Setup the energy terms and the model
 C = 1.0
 α = 2;
-
-# Setup the energy terms and the model
 n_electrons = 1  # Increase this for fun
 terms = [Kinetic(),
          AtomicLocal(),
@@ -44,71 +56,29 @@ terms = [Kinetic(),
 model = Model(lattice; atoms=atoms, n_electrons=n_electrons, terms=terms,
               spin_polarization=:spinless);  # use "spinless electrons"
 
-# We discretize using a moderate Ecut
-# and run a SCF algorithm to compute forces afterwards:
+# We discretize using a moderate Ecut and run a SCF algorithm to compute forces
+# afterwards. As there is no ionic charge associated to `ion` we have to specify
+# a starting density and we choose to start from the null density.
 Ecut = 500
 basis = PlaneWaveBasis(model, Ecut)
-scfres = self_consistent_field(basis, tol=1e-8)
+ρ = zeros(complex(eltype(basis)), basis.fft_size)
+scfres = self_consistent_field(basis, tol=1e-8, ρ=from_fourier(basis, ρ))
 scfres.energies
-# Computing forces is then automatic:
+# Computing forces is then automatic
 hcat(forces(scfres)...)
 
-# ## Internals
-# We run the same checks than in [Gross-Pitaevskii equation in one dimension](@ref).
-#
-# Extract the converged total local potential:
+# Extract the converged total local potential
 tot_local_pot = DFTK.total_local_potential(scfres.ham)[:,:,1][:];
 
-# Extract the converged density and the obtained wave function:
+# Extract other quantities before plotting them
 ρ = real(scfres.ρ.real)[:, 1, 1]  # converged density
 ψ_fourier = scfres.ψ[1][:, 1];    # first kpoint, all G components, first eigenvector
-
-# Transform the wave function to real space and fix the phase:
 ψ = G_to_r(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1]
 ψ /= (ψ[div(end, 2)] / abs(ψ[div(end, 2)]));
 
-# Check whether ``ψ`` is normalised:
-x = a * vec(first.(DFTK.r_vectors(basis)))
-N = length(x)
-dx = a / N  # real-space grid spacing
-@assert sum(abs2.(ψ)) * dx ≈ 1.0
-
-# The density is simply built from ψ:
-norm(scfres.ρ.real - abs2.(ψ))
-
-# We summarize the ground state in a nice plot, where we also show the total
-# local potential and see that the density shape is consistent with it:
 using Plots
-
+x = a * vec(first.(DFTK.r_vectors(basis)))
 p = plot(x, real.(ψ), label="real(ψ)")
 plot!(p, x, imag.(ψ), label="imag(ψ)")
 plot!(p, x, ρ, label="ρ")
 plot!(p, x, tot_local_pot, label="tot local pot")
-
-# The `energy_hamiltonian` function can be used to get the energy and
-# effective Hamiltonian (derivative of the energy with respect to the density matrix)
-# of a particular state (ψ, occupation).
-# The density ρ associated to this state is precomputed
-# and passed to the routine as an optimization.
-E, ham = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
-@assert sum(values(E)) == sum(values(scfres.energies))
-
-# Now the Hamiltonian contains all the blocks corresponding to kpoints. Here, we just have one kpoint:
-H = ham.blocks[1];
-
-# `H` can be used as a linear operator (efficiently using FFTs), or converted to a dense matrix:
-ψ11 = scfres.ψ[1][:, 1] # first kpoint, first eigenvector
-Hmat = Array(H) # This is now just a plain Julia matrix,
-##                which we can compute and store in this simple 1D example
-@assert norm(Hmat * ψ11 - H * ψ11) < 1e-10
-
-# Let's check that ψ11 is indeed an eigenstate:
-norm(H * ψ11 - dot(ψ11, H * ψ11) * ψ11)
-
-# Build a finite-differences version of the GPE operator ``H``, as a sanity check:
-A = Array(Tridiagonal(-ones(N - 1), 2ones(N), -ones(N - 1)))
-A[1, end] = A[end, 1] = -1
-K = A / dx^2 / 2
-V = Diagonal(tot_local_pot + C .* α .* (ρ.^(α-1)))
-H_findiff = K + V;
-maximum(abs.(H_findiff*ψ - (dot(ψ, H_findiff*ψ) / dot(ψ, ψ)) * ψ))

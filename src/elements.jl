@@ -21,10 +21,12 @@ n_elec_valence(el::Element) = charge_ionic(el)
 """Return the number of core electrons"""
 n_elec_core(el::Element) = charge_nuclear(el) - charge_ionic(el)
 
+"""Radial local potential, in Fourier space: V(q) = int_{R^3} V(x) e^{-iqx} dx."""
 function local_potential_fourier(el::Element, q::AbstractVector)
     local_potential_fourier(el, norm(q))
 end
 
+"""Radial local potential, in real space."""
 function local_potential_real(el::Element, q::AbstractVector)
     local_potential_real(el, norm(q))
 end
@@ -46,7 +48,6 @@ function ElementCoulomb(key)
 end
 
 
-"""Radial local potential, in Fourier space: V(q) = int_{R^3} V(x) e^{-iqx} dx."""
 function local_potential_fourier(el::ElementCoulomb, q::T) where {T <: Real}
     q == 0 && return zero(T)  # Compensating charge background
     # General atom => Use default Coulomb potential
@@ -54,7 +55,6 @@ function local_potential_fourier(el::ElementCoulomb, q::T) where {T <: Real}
     return -4T(π) * el.Z / q^2
 end
 
-"""Radial local potential, in real space."""
 local_potential_real(el::ElementCoulomb, r::Real) = -el.Z / r
 
 
@@ -144,21 +144,4 @@ function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <:
     # Get |q|^2 in units of (2π / lattice_constant)^2
     qsq_pi = Int(round(q^2 / (2π / el.lattice_constant)^2, digits=2))
     T(get(el.V_sym, qsq_pi, 0.0))
-end
-
-"""
-Element for an ion with charge Z that generates a custom local potential.
-There is no check of the relation between pot_real and pot_fourier, the user
-has to ensure that point.
-"""
-struct ElementCustomIonPotential <: Element
-    Z::Int                  # Nuclear charge
-    pot_real::Function      # Real potential
-    pot_fourier::Function   # Fourier potential
-end
-charge_ionic(el::ElementCustomIonPotential) = el.Z
-
-"""1D custom Fourier potential: V(q) = int_{R^3} V(x) e^{-iqx} dx."""
-function local_potential_fourier(el::ElementCustomIonPotential, q::T) where {T <: Real}
-    return el.pot_fourier(q)
 end
