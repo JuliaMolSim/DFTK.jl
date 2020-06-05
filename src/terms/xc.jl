@@ -26,6 +26,11 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
     model = basis.model
     @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
 
+    if isempty(term.functionals)
+        ops = [NoopOperator(term.basis, kpoint) for kpoint in term.basis.kpoints]
+        return (E=0, ops=ops)
+    end
+
     # Take derivatives of the density if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     density = DensityDerivatives(basis, max_ρ_derivs, ρ)
@@ -111,7 +116,8 @@ dσ = 2 ∇ρ ⋅ ∇dρ = 4 ∇ρ ⋅ ∇(ϕi dϕi)
 dEtot = ∫ Vρ dρ + Vσ dσ
       = 2 ∫ Vρ ϕi dϕi + 4 ∫ Vσ ∇ρ ⋅ ∇(ϕi dϕi)
       = 2 ∫ Vρ ϕi dϕi - 4 ∫ div(Vσ ∇ρ) ϕi dϕi
-where we performed an integration by parts in the last equation (boundary terms drop by periodicity).
+where we performed an integration by parts in the last equation
+(boundary terms drop by periodicity).
 
 Therefore,
 Vxc = Vρ - 2 div(Vσ ∇ρ)
