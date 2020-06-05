@@ -9,7 +9,7 @@ using Libxc
     ρ = abs.(randn(100))
     Eref = similar(ρ)
     Vref = similar(ρ)
-    Libxc.evaluate_lda!(func, ρ, E=Eref, Vρ=Vref)
+    Libxc.evaluate!(func, rho=ρ, zk=Eref, vrho=Vref)
 
     # Compute in DFTK in elevated precision
     ρbig = Array{BigFloat}(ρ)
@@ -28,7 +28,7 @@ end
     ρ = abs.(randn(100))
     Eref = similar(ρ)
     Vref = similar(ρ)
-    Libxc.evaluate_lda!(func, ρ, E=Eref, Vρ=Vref)
+    Libxc.evaluate!(func, rho=ρ, zk=Eref, vrho=Vref)
 
     # Compute in DFTK in elevated precision
     ρbig = Array{BigFloat}(ρ)
