@@ -120,12 +120,7 @@ function Model(lattice::AbstractMatrix{T};
     if symmetry == :auto
         # check dimension : in 1D or 2D we might have symmetries but it's not
         # detected by spglib so we ignore them
-        if d < 3
-            compute_symmetry = false
-        else
-            # ask the terms if they break symmetry
-            compute_symmetry = !(any(breaks_symmetries, terms))
-        end
+        compute_symmetry = !(any(breaks_symmetries, terms)) && (d == 3)
     else
         compute_symmetry = (symmetry == :force)
     end
