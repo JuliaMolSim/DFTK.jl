@@ -118,8 +118,13 @@ function Model(lattice::AbstractMatrix{T};
 
     @assert symmetry in (:auto, :force, :off)
     if symmetry == :auto
-        # ask the terms if they break symmetry
-        compute_symmetry = !(any(breaks_symmetries, terms))
+        # check dimension, if 1D or 2D : no symmetry
+        if d < 3
+            compute_symmetry = false
+        else
+            # ask the terms if they break symmetry
+            compute_symmetry = !(any(breaks_symmetries, terms))
+        end
     else
         compute_symmetry = (symmetry == :force)
     end
