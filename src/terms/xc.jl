@@ -63,7 +63,7 @@ function compute_kernel(term::TermXc; ρ=ρ, kwargs...)
     kernel .= 0
     for xc in term.functionals
         xc.family == :lda || error("compute_kernel only implemented for LDA")
-        terms = evaluate(xc; rho=ρ.real, derivatives=2)# :2)  # only valid for LDA
+        terms = evaluate(xc; rho=ρ.real, derivatives=2:2)  # only valid for LDA
         kernel .+= terms.v2rho2
     end
     Diagonal(vec(kernel))
@@ -83,7 +83,7 @@ function apply_kernel(term::TermXc, dρ; ρ=ρ, kwargs...)
     result .= 0
     for xc in term.functionals
         # TODO LDA actually only needs the 2nd derivatives for this ... could be optimised
-        terms = evaluate(xc; input_kwargs(xc.family, density)..., derivatives=2) #1:2)
+        terms = evaluate(xc; input_kwargs(xc.family, density)..., derivatives=1:2)
 
         # Accumulate LDA and GGA terms in result
         result .+= terms.v2rho2 .* dρ.real
