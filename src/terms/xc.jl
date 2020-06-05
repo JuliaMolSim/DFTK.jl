@@ -223,26 +223,34 @@ function divergence_real(operand, basis)
 end
 
 function apply_kernel_term_gga(terms, density, perturbation)
-    ρ = density.ρ
-    σ = density.σ_real
-    θ = perturbation.ρ
-    ∇ρ = density.∇ρ_real
-    ∇θ = perturbation.∇ρ_real
-    # Follows DOI 10.1103/physrevb.69.115106
-    # Denoting V2ρσ = ∂^2(ρ E)/(∂ρ∂σ), V2σ2 = ∂^2(ρ E)/(∂σ^2) yields the terms
-    #    2 V2ρσ ∇ρ⋅∇θ - 2 ∇⋅(
-    #          ∇ρ ( V2ρσ θ + 2 V2σ2 ∇ρ⋅∇θ )
-    #        + Vσ ( ∇θ - ∇ρ (∇ρ⋅∇θ) / σ )
-    #    )
+    error("apply_kernel_term_gga is not yet working")
+    # Follows DOI 10.1103/PhysRevLett.107.216402
+    #
+    # For GGA V = Vρ - 2 ∇⋅(Vσ ∇ρ) = (∂ε/∂ρ) - 2 ∇⋅((∂ε/∂σ) ∇ρ)
+    #
+    # dV(r) = f(r,r') dρ(r') = (∂V/∂ρ) dρ + (∂V/∂σ) dσ
+    #
+    # therefore
+    # dV(r) = (∂^2ε/∂ρ^2) dρ - 2 ∇⋅((∂^2ε/∂σ∂ρ) ∇ρ) dρ
+    #       + (∂^2ε/∂ρ∂σ) dσ - 2 ∇⋅((∂^ε/∂σ^2) ∇ρ + (∂ε/∂σ) (∂∇ρ/∂σ)) dσ
+    #
+    # Note dσ = 2∇ρ ∇dρ = 2∇ρ ∇dρ, therefore
+    #    - 2 ∇⋅((∂ε/∂σ) (∂∇ρ/∂σ)) dσ = - 2 ∇⋅((∂ε/∂σ) ∇dρ)
+    #
+    # Note that below the LDA term (∂^2ε/∂ρ^2) dρ is ignored (already dealt with)
+    ρ   = density.ρ
+    ∇ρ  = density.∇ρ_real
+    dρ  = perturbation.ρ
+    ∇dρ = perturbation.∇ρ_real
+    dσ = 2sum(∇ρ[α] .* ∇dρ[α] for α in 1:3)
 
-    ∇ρ∇θ = sum(∇ρ[α] .* ∇θ[α] for α in 1:3)
-    A = terms.v2rhosigma .* θ + 2terms.v2sigma2 .* ∇ρ∇θ
-
-    # σ is small wherever ∇ρ is small, so filter here
-    B = ∇ρ∇θ ./ σ
-    B[abs.(∇ρ∇θ) .< 100eps(eltype(ρ))] .= 0
-
-    2terms.v2rhosigma .* ∇ρ∇θ - 2divergence_real(density.basis) do α
-        ∇ρ[α] .* A + terms.vsigma .* (∇θ[α] - ∇ρ[α] .* B)
-    end
+    (
+        terms.v2rhosigma .* dσ + divergence_real(density.basis) do α
+            @. begin
+                -2 * terms.v2rhosigma * ∇ρ[α] * dρ
+                -2 * terms.v2sigma2 * ∇ρ[α] * dσ
+                -2 * terms.vsigma * ∇dρ[α]
+            end
+        end
+    )
 end
