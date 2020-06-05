@@ -63,6 +63,7 @@ Pages = [
     "examples/cohen_bergstresser.md",
     "examples/arbitrary_floattype.md",
     "examples/custom_solvers.md",
+    "examples/custom_potential.md",
 ]
 Depth = 1
 ```

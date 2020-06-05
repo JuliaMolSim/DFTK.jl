@@ -2,7 +2,7 @@
 
 # We solve the 2D Gross-Pitaevskii equation with a magnetic field.
 # This is similar to the
-# previous example ([Gross-Pitaevskii equation in one dimension](@ref),
+# previous example ([Gross-Pitaevskii equation in one dimension](@ref)),
 # but with an extra term for the magnetic field.
 
 using DFTK
