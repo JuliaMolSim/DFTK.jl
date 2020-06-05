@@ -49,7 +49,4 @@ function compute_kernel(term::TermHartree; kwargs...)
     vc_G = term.poisson_green_coeffs
     G_to_r_matrix(term.basis) * Diagonal(vec(vc_G)) * r_to_G_matrix(term.basis)
 end
-
-function apply_kernel(term::TermHartree, dρ; kwargs...)
-    from_real(term.basis, term.poisson_green_coeffs .* dρ.fourier)
-end
+apply_kernel(term::TermHartree, dρ; kwargs...) = term.poisson_green_coeffs .* dρ.fourier

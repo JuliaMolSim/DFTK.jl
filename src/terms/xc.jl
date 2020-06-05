@@ -35,15 +35,18 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
     E = zero(T)
     for xc in term.functionals
         # Evaluate the functional and its first derivative (potential)
-        res = evaluate(xc; input_kwargs(xc.family, density)..., zk=zk, derivatives=1)
+        terms = evaluate(xc; input_kwargs(xc.family, density)..., zk=zk)
 
         # Add energy contribution
         dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
-        E += sum(res.zk .* ρ.real) * dVol
+        E += sum(terms.zk .* ρ.real) * dVol
 
-        # Add potential contribution from ∂(ρ E)/∂ρ and ∂(ρ E)/∂σ
-        potential .+= res.vrho
-        haskey(res, :vsigma) && (potential .+= potential_sigma(density, res.vsigma))
+        # Add potential contributions Vρ -2 ∇⋅(Vσ ∇ρ)
+        potential .+= terms.vrho
+        if haskey(terms, :vsigma)
+            potential .+= -2 * divergence_real(α -> terms.vsigma .* density.∇ρ_real[α],
+                                               density.basis)
+        end
     end
     if term.scaling_factor != 1
         E *= term.scaling_factor
@@ -55,33 +58,41 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
 end
 
 
-function compute_kernel(term::TermXc; kwargs...)
-    error("Not implemented")
+function compute_kernel(term::TermXc; ρ=ρ, kwargs...)
+    kernel = similar(ρ.real)
+    kernel .= 0
+    for xc in term.functionals
+        xc.family == :lda || error("compute_kernel only implemented for LDA")
+        terms = evaluate(xc; rho=ρ.real, derivatives=2)# :2)  # only valid for LDA
+        kernel .+= terms.v2rho2
+    end
+    Diagonal(vec(kernel))
 end
 
 function apply_kernel(term::TermXc, dρ; ρ=ρ, kwargs...)
     basis = term.basis
     T = eltype(basis)
-    @assert all(xc.family == :lda for xc in term.functionals)
+    @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
 
-    # Take derivatives of the density if needed.
+    # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     density = DensityDerivatives(basis, max_ρ_derivs, ρ)
     perturbation = DensityDerivatives(basis, max_ρ_derivs, dρ)
 
-    kernel = zeros(T, basis.fft_size)
+    result = similar(ρ.real)
+    result .= 0
     for xc in term.functionals
-        # TODO This will also evaluate energy and potential ... should be optimised
-        # in the next Libxc.jl one can just request derivatives=2:2
-        res = evaluate(xc; input_kwargs(xc.family, density)..., derivatives=2)
-        kernel .+= res.v2rho2
+        # TODO LDA actually only needs the 2nd derivatives for this ... could be optimised
+        terms = evaluate(xc; input_kwargs(xc.family, density)..., derivatives=2) #1:2)
+
+        # Accumulate LDA and GGA terms in result
+        result .+= terms.v2rho2 .* dρ.real
+        if haskey(terms, :v2rhosigma)
+            result .+= apply_kernel_term_gga(terms, density, perturbation)
+        end
     end
-
-    # GGA follow DOI 10.1103/physrevb.69.115106
-
-    from_real(term.basis, kernel .* dρ.real)
+    result
 end
-
 
 #=
 The total energy is
@@ -191,17 +202,41 @@ function input_kwargs(family, density)
     return NamedTuple()
 end
 
-# Evaluates the potential contribution from the gradient term -2 div(Vσ ∇ρ)
-function potential_sigma(density, Vσ)
-    basis = density.basis
-
-    gradterm = sum(1:3) do α
-        # Compute term inside -∇(  ) in Fourier space
-        Vσ∇ρ = r_to_G(basis, complex(Vσ .* density.∇ρ_real[α]))
-
-        # take derivative
-        im * [(basis.model.recip_lattice * G)[α] for G in G_vectors(basis)] .* Vσ∇ρ
+"""
+Compute divergence of an operand function, which returns the cartesian x,y,z
+components in real space when called with the arguments 1 to 3.
+The divergence is also returned as a real-space array.
+"""
+function divergence_real(operand, basis)
+    gradsum = sum(1:3) do α
+        operand_α = r_to_G(basis, complex(operand(α)))
+        del_α = im * [(basis.model.recip_lattice * G)[α] for G in G_vectors(basis)]
+        del_α .* operand_α
     end
+    real(G_to_r(basis, gradsum))
+end
 
-    -2real(G_to_r(basis, gradterm))
+function apply_kernel_term_gga(terms, density, perturbation)
+    ρ = density.ρ
+    σ = density.σ_real
+    θ = perturbation.ρ
+    ∇ρ = density.∇ρ_real
+    ∇θ = perturbation.∇ρ_real
+    # Follows DOI 10.1103/physrevb.69.115106
+    # Denoting V2ρσ = ∂^2(ρ E)/(∂ρ∂σ), V2σ2 = ∂^2(ρ E)/(∂σ^2) yields the terms
+    #    2 V2ρσ ∇ρ⋅∇θ - 2 ∇⋅(
+    #          ∇ρ ( V2ρσ θ + 2 V2σ2 ∇ρ⋅∇θ )
+    #        + Vσ ( ∇θ - ∇ρ (∇ρ⋅∇θ) / σ )
+    #    )
+
+    ∇ρ∇θ = sum(∇ρ[α] .* ∇θ[α] for α in 1:3)
+    A = terms.v2rhosigma .* θ + 2terms.v2sigma2 .* ∇ρ∇θ
+
+    # σ is small wherever ∇ρ is small, so filter here
+    B = ∇ρ∇θ ./ σ
+    B[abs.(∇ρ∇θ) .< 100eps(eltype(ρ))] .= 0
+
+    2terms.v2rhosigma .* ∇ρ∇θ - 2divergence_real(density.basis) do α
+        ∇ρ[α] .* A + terms.vsigma .* (∇θ[α] - ∇ρ[α] .* B)
+    end
 end
