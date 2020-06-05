@@ -1,6 +1,6 @@
 # Installation
 
-Similar to [installing any other package](https://julialang.github.io/Pkg.jl/v1/getting-started/)
+Similar to [installing any other registered package](https://julialang.github.io/Pkg.jl/v1/getting-started/)
 in Julia just run from a Julia REPL:
 ```
 ] add DFTK
