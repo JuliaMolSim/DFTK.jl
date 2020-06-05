@@ -145,3 +145,20 @@ function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <:
     qsq_pi = Int(round(q^2 / (2π / el.lattice_constant)^2, digits=2))
     T(get(el.V_sym, qsq_pi, 0.0))
 end
+
+"""
+Element for an ion with charge Z that generates a well potential.
+There is no check of the relation between pot_real and pot_fourier.
+"""
+struct WellIon <: Element
+    Z::Int                  # Nuclear charge
+    pot_real::Function      # real potential
+    pot_fourier::Function   # fourier potential
+end
+charge_ionic(el::WellIon) = el.Z
+
+"""1D Fourier potential: V(q) = int_{R^3} V(x) e^{-iqx} dx."""
+function local_potential_fourier(el::WellIon, q::T) where {T <: Real}
+    return el.pot_fourier(q)
+end
+
