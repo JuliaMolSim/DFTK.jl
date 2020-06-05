@@ -1,25 +1,15 @@
 # Installation
 
-DFTK is not yet registered in the [General](https://github.com/JuliaRegistries/General)
-registry of Julia.
-Instead you can obtain it from
-the [MolSim](https://github.com/JuliaMolSim/MolSim.git) registry,
-which contains a bunch of packages related to performing molecular simulations in Julia.
-At least **Julia 1.3** is required.
-
-First add `MolSim` to your installed registries. For this use
-```
-] registry add https://github.com/JuliaMolSim/MolSim.git
-```
-from a Julia command line.
-Afterwards you can install DFTK like any other package in Julia:
+Similar to [installing any other registered package](https://julialang.github.io/Pkg.jl/v1/getting-started/)
+in Julia just run from a Julia REPL:
 ```
 ] add DFTK
 ```
-or if you like to be up to date:
+or if you like to be fully up to date:
 ```
 ] add DFTK#master
 ```
+At least **Julia 1.3** is required.
 
 ## Python dependencies
 Some parts of the code require a working Python installation with the libraries
