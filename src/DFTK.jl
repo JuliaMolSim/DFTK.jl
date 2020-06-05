@@ -48,7 +48,6 @@ include("RealFourierArray.jl")
 export ElementPsp
 export ElementCohenBergstresser
 export ElementCoulomb
-export ElementCustomIonPotential
 export charge_nuclear
 export charge_ionic
 export n_elec_valence
