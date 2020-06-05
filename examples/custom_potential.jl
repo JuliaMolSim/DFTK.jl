@@ -39,7 +39,7 @@ L = 0.5;
 pot_real(x) = exp(-(x/L)^2)
 pot_fourier(q::T) where {T <: Real} = exp(- (q*L)^2 / 4);
 # And finally we build the elements and set their positions in the `atoms`
-# array. Note that, in this example, `pot_real` is not required as all applications
+# array. Note that in this example `pot_real` is not required as all applications
 # of local potentials are done in the Fourier space.
 nucleus = ElementCustomPotential(pot_real, pot_fourier)
 atoms = [nucleus => [x1*[1,0,0], x2*[1,0,0]]];
