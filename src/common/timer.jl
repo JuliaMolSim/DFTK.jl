@@ -1,4 +1,4 @@
-# Control whether timings are enabled or not, by default yes
+# Control whether timings are enabled or not, by default no
 if parse(Bool, get(ENV, "DFTK_TIMING", "0"))
     timer_enabled() = true
 else
