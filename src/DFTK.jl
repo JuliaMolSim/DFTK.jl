@@ -82,6 +82,8 @@ export Entropy
 export Magnetic
 export energy_ewald
 export energy_psp_correction
+export apply_kernel
+export compute_kernel
 include("terms/terms.jl")
 
 export find_fermi_level

@@ -3,67 +3,33 @@ using Test
 
 include("testcases.jl")
 
-# TODO Test Hartree kernel
-
-@testset "LDA XC kernel" begin
-    Ecut=3
+@testset "Kernels" begin
+    Ecut=2
+    kgrid = [2, 2, 2]
+    testcase = silicon
     ε = 1e-8
-    kgrid = [3, 3, 3]
-    testcase = silicon
 
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_LDA(testcase.lattice, [spec => testcase.positions])
-    basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
-    ρ = guess_density(basis)
-
-    xc_terms = [t for t in basis.terms if t isa DFTK.TermXc]
-    @assert length(xc_terms) == 1
-    xc = xc_terms[1]
-
-    # In LDA, the potential depends on each component individually, so
-    # we just compute each with finite differences
-    pot0 = ene_ops(xc, nothing, nothing; ρ=ρ).ops[1].potential
-    ρ_pert = from_real(basis, ρ.real .+ ε .* ones(Float64, size(ρ.real)))
-    pot1 = ene_ops(xc, nothing, nothing; ρ=ρ_pert).ops[1].potential
-    kernel = Diagonal((vec(pot1) .- vec(pot0)) ./ ε)
-
-    dρ = 0.01rand(size(ρ.real)...)
-    ref = reshape(kernel * vec(dρ), size(dρ))
-
-    res = DFTK.apply_kernel(xc, from_real(basis, dρ), ρ=ρ)
-    @test ref ≈ res atol=1e-6
-
-    fxc = DFTK.compute_kernel(xc, ρ=ρ)
-    @test fxc ≈ kernel atol=1e-4
-end
-
-
-@testset "GGA XC kernel" begin
-    Ecut=4
-    kgrid = [3, 3, 3]
-    testcase = silicon
-    tol=1e-10
-    ε = 1e-6
-
-    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_DFT(testcase.lattice, [spec => testcase.positions],
-                      [:gga_x_pbe, :gga_c_pbe])
+    model = Model(testcase.lattice; atoms=[spec => testcase.positions],
+                  terms=[PowerNonlinearity(1.2, 2.0),
+                         Xc(:lda_xc_teter93),
+                         Hartree()])
     basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 
-    # Do 1 SCF step
     ρ0 = guess_density(basis)
-    energies, ham0 = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-    ρ1 = DFTK.next_density(ham0, tol=tol, eigensolver=diag_full, n_bands=6).ρ
+    dρ = randn(size(ρ0.real))
 
-    xc_terms = [t for t in basis.terms if t isa DFTK.TermXc]
-    @assert length(xc_terms) == 1
-    xc = xc_terms[1]
+    for term in basis.terms
+        ρ_minus = from_real(basis, ρ0.real - ε * dρ)
+        pot_minus = ene_ops(term, nothing, nothing; ρ=ρ_minus).ops[1].potential
+        ρ_plus = from_real(basis, ρ0.real .+ ε * dρ)
+        pot_plus = ene_ops(term, nothing, nothing; ρ=ρ_plus).ops[1].potential
+        dV = (pot_plus - pot_minus) / (2ε)
 
-    pot0 = ene_ops(xc, nothing, nothing; ρ=ρ1).ops[1].potential
-    ρ1_pert = from_real(basis, ρ1.real .+ ε * ρ0.real)
-    pot1 = ene_ops(xc, nothing, nothing; ρ=ρ1_pert).ops[1].potential
-
-    response = 0.0
-    # response = DFTK.apply_kernel(xc, from_real(basis, ρ0.real), ρ=ρ1)
-    @test_broken ((pot1 - pot0) ./ ε) ≈ response atol=5e-6
+        dV_apply = DFTK.apply_kernel(term, dρ; ρ=ρ0)
+        ker = DFTK.compute_kernel(term; ρ=ρ0)
+        dV_compute = reshape(ker * vec(dρ), size(dρ))
+        @test norm(dV - dV_apply) < 1e-6
+        @test norm(dV - dV_compute) < 1e-6
+    end
 end

@@ -19,7 +19,7 @@ Hartree(; scaling_factor=1) = Hartree(scaling_factor)
 
 struct TermHartree <: Term
     basis::PlaneWaveBasis
-    scaling_factor::Real
+    scaling_factor::Real # scaling factor, absorbed into poisson_green_coeffs
     # Fourier coefficients of the Green's function of the periodic Poisson equation
     poisson_green_coeffs
 end
@@ -47,6 +47,7 @@ end
 
 function compute_kernel(term::TermHartree; kwargs...)
     vc_G = term.poisson_green_coeffs
-    G_to_r_matrix(term.basis) * Diagonal(vec(vc_G)) * r_to_G_matrix(term.basis)
+    # Note that `real` here: if omitted, will result in high-frequency noise of even FFT grids
+    real(G_to_r_matrix(term.basis) * Diagonal(vec(vc_G)) * r_to_G_matrix(term.basis))
 end
-apply_kernel(term::TermHartree, dρ; kwargs...) = term.poisson_green_coeffs .* dρ.fourier
+apply_kernel(term::TermHartree, dρ; kwargs...) = real(G_to_r(term.basis, term.poisson_green_coeffs .* r_to_G(term.basis, complex.(dρ))))
