@@ -1,5 +1,5 @@
 # Control whether timings are enabled or not, by default yes
-if parse(Bool, get(ENV, "DFTK_TIMING", "1"))
+if parse(Bool, get(ENV, "DFTK_TIMING", "0"))
     timer_enabled() = true
 else
     timer_enabled() = false
