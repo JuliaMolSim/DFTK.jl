@@ -52,7 +52,7 @@ struct RealSpaceMultiplication <: RealFourierOperator
     kpoint
     potential::AbstractArray
 end
-@timing "apply real space multiplication" function apply!(Hψ, op::RealSpaceMultiplication, ψ)
+@timing_seq "apply RealSpaceMultiplication" function apply!(Hψ, op::RealSpaceMultiplication, ψ)
     Hψ.real .+= op.potential .* ψ.real
 end
 function Matrix(op::RealSpaceMultiplication)
@@ -86,7 +86,7 @@ struct FourierMultiplication <: RealFourierOperator
     kpoint
     multiplier::AbstractArray
 end
-@timing "apply Fourier space multiplication" function apply!(Hψ, op::FourierMultiplication, ψ)
+@timing_seq "apply FourierMultiplication" function apply!(Hψ, op::FourierMultiplication, ψ)
     Hψ.fourier .+= op.multiplier .* ψ.fourier
 end
 Matrix(op::FourierMultiplication) = Array(Diagonal(op.multiplier))
@@ -103,7 +103,7 @@ struct NonlocalOperator <: RealFourierOperator
     P
     D
 end
-@timing "apply nonlocal operator" function apply!(Hψ, op::NonlocalOperator, ψ)
+@timing_seq "apply NonlocalOperator" function apply!(Hψ, op::NonlocalOperator, ψ)
     Hψ.fourier .+= op.P * (op.D * (op.P' * ψ.fourier))
 end
 Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
@@ -116,7 +116,7 @@ struct MagneticFieldOperator <: RealFourierOperator
     kpoint
     Apot  # Apot[α][i,j,k] is the A field in direction α
 end
-@timing "apply magnetic field operator" function apply!(Hψ, op::MagneticFieldOperator, ψ)
+@timing_seq "apply MagneticFieldOperator" function apply!(Hψ, op::MagneticFieldOperator, ψ)
     # TODO this could probably be better optimized
     for α = 1:3
         all(op.Apot[α] .== 0) && continue
