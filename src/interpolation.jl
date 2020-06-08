@@ -125,7 +125,7 @@ function interpolate_blochwave(ψ_in, basis_in, basis_out)
                 for ik in 1:length(basis_in.kpoints))
 
     ψ_out = empty(ψ_in)
-    idcs_out, _ = grid_interpolation_indices(basis_in, basis_out)
+    idcs_out, idcs_out_cplmt = grid_interpolation_indices(basis_in, basis_out)
     for (ik, kpt_out) in enumerate(basis_out.kpoints)
         n_bands = size(ψ_in[ik], 2)
 
@@ -136,5 +136,5 @@ function interpolate_blochwave(ψ_in, basis_in, basis_out)
         push!(ψ_out, ψk_out)
     end
 
-    ψ_out
+    ψ_out, idcs_out, idcs_out_cplmt
 end
