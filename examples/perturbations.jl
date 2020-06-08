@@ -7,7 +7,7 @@ import Statistics: mean
 """
 Orthonormalize the occupied eigenvectors with Lowdin
 """
-function Lowdin_orthonormalization!(ψp_fine::AbstractArray, occ::AbstractArray)
+DFTK.@timing function Lowdin_orthonormalization!(ψp_fine::AbstractArray, occ::AbstractArray)
 
     Nk = length(occ)
 
@@ -33,7 +33,7 @@ end
 """
 Compute the average of the local potential and the nonlocal potential
 """
-function compute_avg(basis_fine::PlaneWaveBasis, H_fine::Hamiltonian)
+DFTK.@timing function compute_avg(basis_fine::PlaneWaveBasis, H_fine::Hamiltonian)
 
     # average of the local part of the potential of the Hamiltonian on the fine
     # grid
@@ -60,10 +60,10 @@ end
 """
 Compute first order perturbation of the eigenvectors
 """
-@views function perturbed_eigenvectors(basis_fine::PlaneWaveBasis,
-                                       H_fine::Hamiltonian, ψ_fine::AbstractArray,
-                                       total_pot_avg, idcs_fine_cplmt,
-                                       egval::AbstractArray, occ::AbstractArray)
+@views DFTK.@timing function perturbed_eigenvectors(basis_fine::PlaneWaveBasis,
+                                                    H_fine::Hamiltonian, ψ_fine::AbstractArray,
+                                                    total_pot_avg, idcs_fine_cplmt,
+                                                    egval::AbstractArray, occ::AbstractArray)
 
     ψ1_fine = empty(ψ_fine)
     Hψ_fine = mul!(deepcopy(ψ_fine), H_fine, ψ_fine)
@@ -107,9 +107,9 @@ end
 """
 Compute second and third order perturbed eigenvalues
 """
-function perturbed_eigenvalues(basis_fine::PlaneWaveBasis, H_fine::Hamiltonian,
-                               ψ1_fine::AbstractArray, ψ_fine::AbstractArray,
-                               total_pot_avg, egval::AbstractArray, occ::AbstractArray)
+DFTK.@timing function perturbed_eigenvalues(basis_fine::PlaneWaveBasis, H_fine::Hamiltonian,
+                                           ψ1_fine::AbstractArray, ψ_fine::AbstractArray,
+                                           total_pot_avg, egval::AbstractArray, occ::AbstractArray)
 
     egvalp2 = deepcopy(egval) # second order perturbation
     egvalp3 = deepcopy(egval) # third order perturbation
@@ -146,9 +146,9 @@ end
 """
 Compute perturbed eigenvalues using Rayliegh-Ritz method
 """
-function Rayleigh_Ritz(basis_fine::PlaneWaveBasis,
-                       H_fine::Hamiltonian, ψp_fine::AbstractArray,
-                       egval::AbstractArray, occ::AbstractArray)
+DFTK.@timing function Rayleigh_Ritz(basis_fine::PlaneWaveBasis,
+                                    H_fine::Hamiltonian, ψp_fine::AbstractArray,
+                                    egval::AbstractArray, occ::AbstractArray)
 
     egvalp = deepcopy(egval)
 
@@ -163,11 +163,11 @@ function Rayleigh_Ritz(basis_fine::PlaneWaveBasis,
 end
 
 """
-Perturbation function to compute solutions on finer grids
+Perturbation function to compute perturbed solutions on finer grids
 """
-function perturbation(basis::PlaneWaveBasis,
-                      kcoords::AbstractVector, ksymops::AbstractVector,
-                      scfres, Ecut_fine, compute_forces=false)
+DFTK.@timing function perturbation(basis::PlaneWaveBasis,
+                                   kcoords::AbstractVector, ksymops::AbstractVector,
+                                   scfres, Ecut_fine, compute_forces=false)
 
     Nk = length(basis.kpoints)
 
@@ -183,10 +183,9 @@ function perturbation(basis::PlaneWaveBasis,
 
     # interpolate to fine grid and build the new density & hamiltonian
     # idcs_fine[ik] is the list of basis vector indices in basis_fine
-    ψ_fine = DFTK.interpolate_blochwave(ψ, basis, basis_fine)
+    ψ_fine, idcs_fine, idcs_fine_cplmt = DFTK.interpolate_blochwave(ψ, basis, basis_fine)
     ρ_fine = compute_density(basis_fine, ψ_fine, occ)
     H_fine = Hamiltonian(basis_fine, ψ=ψ_fine, occ=occ; ρ=ρ_fine)
-    idcs_fine, idcs_fine_cplmt = DFTK.grid_interpolation_indices(basis, basis_fine)
 
     # compute avg of both local and non-local part of the potential
     total_pot_avg = compute_avg(basis_fine, H_fine)

@@ -12,16 +12,15 @@ using HDF5
 """
 Perturbation for several values of the ratio α = Ecut_fine/Ecut
 """
-function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces)
+function test_perturbation_ratio(Ecut, Ecut_ref, compute_forces)
     """
     Ecut: coarse grid Ecut
     Ecut_ref: Ecut for the reference solution
-    α_max: max ratio
     compute_forces: if true, compute forces for the reference, coarse grid and
     fine grid (at the moment, highly increase computation time)
     """
 
-    h5open("perturbation_tests.h5", "r+") do file
+    h5open(filename, "r+") do file
 
         ### compute the reference solution
         println("---------------------------\nSolution for Ecut_ref = $(Ecut_ref)")
@@ -136,14 +135,15 @@ function test_perturbation_ratio(Ecut, Ecut_ref, α_max, compute_forces)
         error_fine_list = abs.((egval_fine11 .- egval11_ref)/egval11_ref)
 
         # save data
-        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/error2"] = error1_list
-        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/error3"] = error2_list
-        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/error_rr"] = error_rr_list
-        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/error_fine"] = error_fine_list
-        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/egvalp2"] = reshape(hcat(hcat(egvalp2_list...)...), nel, nk, length(α_list))
-        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/egvalp3"] = reshape(hcat(hcat(egvalp3_list...)...), nel, nk, length(α_list))
-        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/egvalp_rr"] = reshape(hcat(hcat(egvalp_rr_list...)...), nel, nk, length(α_list))
-        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/egval_fine"] = reshape(hcat(hcat(egval_fine_list...)...), nel, nk, length(α_list))
+        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/error2"] = error1_list
+        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/error3"] = error2_list
+        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/error_rr"] = error_rr_list
+        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/error_fine"] = error_fine_list
+        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/egval_ref"] = hcat(egval_ref...)
+        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/egvalp2"] = reshape(hcat(hcat(egvalp2_list...)...), nel, nk, length(α_list))
+        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/egvalp3"] = reshape(hcat(hcat(egvalp3_list...)...), nel, nk, length(α_list))
+        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/egvalp_rr"] = reshape(hcat(hcat(egvalp_rr_list...)...), nel, nk, length(α_list))
+        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/egval_fine"] = reshape(hcat(hcat(egval_fine_list...)...), nel, nk, length(α_list))
 
 
         # plot density error at one point in particular

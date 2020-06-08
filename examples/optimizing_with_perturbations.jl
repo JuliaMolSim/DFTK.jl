@@ -4,6 +4,7 @@ using DataFrames
 using GLM
 import Statistics: mean
 using Optim
+using HDF5
 
 include("perturbations.jl")
 
@@ -11,62 +12,52 @@ aref = 10.263141334305942
 Eref = -7.924456699632 # computed with silicon.jl for kgrid = [4,4,4], Ecut = 100
 tol = 1e-6
 
+### Setting the model
+# Calculation parameters
+kgrid = [4, 4, 4]       # k-Point grid
+supercell = [1, 1, 1]   # Lattice supercell
+
+# Setup silicon lattice
+lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
+Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+atoms = [Si => [ones(3)/8, -ones(3)/8]]
+
+# Make a supercell if desired
+pystruct = pymatgen_structure(lattice, atoms)
+pystruct.make_supercell(supercell)
+lattice = load_lattice(pystruct)
+atoms = [Si => [s.frac_coords for s in pystruct.sites]]
+
+# precize the number of electrons on build the model
+Ne = 8
+model = model_LDA(lattice, atoms; n_electrons=Ne)
+kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.symops)
+basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
+
+# variable to store the plane waves from one iteration to another
+ψ = nothing
+
 """
 compute scfres for a given lattice constant
 """
-function E(a, Ecut)
-    ### Setting the model
-    # Calculation parameters
-    kgrid = [4, 4, 4]       # k-Point grid
-    supercell = [1, 1, 1]   # Lattice supercell
+DFTK.@timing function E(a, Ecut)
 
-    # Setup silicon lattice
-    lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
-    Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-    atoms = [Si => [ones(3)/8, -ones(3)/8]]
-
-    # Make a supercell if desired
-    pystruct = pymatgen_structure(lattice, atoms)
-    pystruct.make_supercell(supercell)
-    lattice = load_lattice(pystruct)
-    atoms = [Si => [s.frac_coords for s in pystruct.sites]]
-
-    # precize the number of electrons on build the model
-    Ne = 8
-    model = model_LDA(lattice, atoms; n_electrons=Ne)
-    basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, enable_bzmesh_symmetry=false)
-    scfres = self_consistent_field(basis, tol=tol/10,
+    scfres = self_consistent_field(basis, tol=tol/10, ψ=ψ,
                                    callback=info->nothing)
+
+    global ψ = scfres.ψ
     sum(values(scfres.energies))
 end
 
 """
 compute scfres with perturbation coef α
 """
-function E_perturbed(a, Ecut, α)
-    ### Setting the model
-    # Calculation parameters
-    kgrid = [4, 4, 4]       # k-Point grid
-    supercell = [1, 1, 1]   # Lattice supercell
+DFTK.@timing function E_perturbed(a, Ecut, α)
 
-    # Setup silicon lattice
-    lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
-    Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-    atoms = [Si => [ones(3)/8, -ones(3)/8]]
-
-    # Make a supercell if desired
-    pystruct = pymatgen_structure(lattice, atoms)
-    pystruct.make_supercell(supercell)
-    lattice = load_lattice(pystruct)
-    atoms = [Si => [s.frac_coords for s in pystruct.sites]]
-
-    # precize the number of electrons on build the model
-    Ne = 8
-    model = model_LDA(lattice, atoms; n_electrons=Ne)
-    kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.lattice, model.atoms)
-    basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops)
-    scfres = self_consistent_field(basis, tol=tol/10,
+    scfres = self_consistent_field(basis, tol=tol/10, ψ=ψ,
                                    callback=info->nothing)
+
+    global ψ = scfres.ψ
     avg = true
     Ep_fine, _ = perturbation(basis, kcoords, ksymops, scfres, α*Ecut, false)
     sum(values(Ep_fine))
@@ -76,7 +67,7 @@ end
 """
 optimize the lattice constant for a fixed Ecut
 """
-function optimize_a(Ecut)
+DFTK.@timing function optimize_a(Ecut)
 
     function f(x)
         E(x, Ecut)
@@ -104,25 +95,30 @@ compare optimization time for non-perturbed and perturbed scf
 """
 function compare()
 
-    res_ref = optimize_a(30)
+    global ψ = nothing
+    res_ref = optimize_a(40)
 
-    Ecut_list = 5:5:25
+    Ecut_list = 10:5:15
     time_list = []
     alloc_list = []
     err_list = []
+    a_list = []
 
-    Ecutp_list = 5:5:10
+    Ecutp_list = 10:5:15
     timep_list = []
     allocp_list = []
     errp_list = []
+    ap_list = []
 
     for Ecut in Ecut_list
 
         println("----------------------")
         println("Ecut = $(Ecut)")
+        global ψ = nothing
 
         res = optimize_a(Ecut)
-        push!(err_list, abs(res[1] - aref))
+        push!(a_list, res[1])
+        push!(err_list, abs(res[1] - res_ref[1]))
         push!(time_list, res[2])
         push!(alloc_list, res[3])
     end
@@ -131,39 +127,31 @@ function compare()
 
         println("----------------------")
         println("Ecutp = $(Ecutp)")
+        global ψ = nothing
 
         resp = optimize_a_perturbed(Ecutp, 2.5)
-        push!(errp_list, abs(resp[1] - aref))
+        push!(ap_list, resp[1])
+        push!(errp_list, abs(resp[1] - res_ref[1]))
         push!(timep_list, resp[2])
         push!(allocp_list, resp[3])
     end
 
-    figure(figsize=(20,10))
-    suptitle("Performance")
+    h5open("optim_a.h5", "w") do file
+        file["aref"] = res_ref[1]
+        file["Ecut_list"] = collect(Ecut_list)
+        file["time_list"] = Float64.(time_list)
+        file["err_list"]  = Float64.(err_list)
+        file["a_list"]    = Float64.(a_list)
+        file["Ecutp_list"] = Float64.(collect(Ecutp_list))
+        file["timep_list"] = Float64.(timep_list)
+        file["errp_list"]  = Float64.(errp_list)
+        file["ap_list"]    = Float64.(ap_list)
+    end
 
-    subplot(121)
-    PyPlot.semilogy(time_list, err_list, "+-", label="Non-perturbed")
-    PyPlot.semilogy(timep_list, errp_list, "x-", label="Perturbed")
-    xlabel("time")
-    ylabel("error")
-    legend()
-
-    subplot(122)
-    PyPlot.semilogy(alloc_list, err_list, "+-", label="Non-perturbed")
-    PyPlot.semilogy(allocp_list, errp_list, "x-", label="Perturbed")
-    xlabel("bytes allocated")
-    ylabel("error")
-    legend()
-
-    PyPlot.savefig("compare.pdf")
-
-    expo = [Ecut_list time_list alloc_list err_list]
-    expop = [Ecutp_list timep_list allocp_list errp_list]
-
-    writedlm("./optim_nonperturbed.csv", expo, ',')
-    writedlm("./optim_perturbed.csv", expop, ',')
 end
+reset_timer!(DFTK.timer)
 compare()
+display(DFTK.timer)
 STOP
 ############################# Graphical ########################################
 
