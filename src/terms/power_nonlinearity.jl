@@ -23,3 +23,12 @@ function ene_ops(term::TermPowerNonlinearity, ψ, occ; ρ, kwargs...)
     ops = [RealSpaceMultiplication(basis, kpoint, potential) for kpoint in basis.kpoints]
     (E=E, ops=ops)
 end
+_kernel(C, α, ρ) = @. C * α * (α-1) * ρ^(α-2)
+function compute_kernel(term::TermPowerNonlinearity; ρ::RealFourierArray, kwargs...)
+    k = _kernel(term.C, term.α, ρ.real)
+    Diagonal(vec(k))
+end
+function apply_kernel(term::TermPowerNonlinearity, dρ; ρ::RealFourierArray, kwargs...)
+    k = _kernel(term.C, term.α, ρ.real)
+    k .* dρ
+end

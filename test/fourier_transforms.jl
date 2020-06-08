@@ -27,6 +27,7 @@ include("testcases.jl")
         r_to_G_mat = DFTK.r_to_G_matrix(pw)
         @test maximum(abs.(G_to_r_mat * r_to_G_mat - I)) < 1e-12
         @test maximum(abs.(G_to_r_mat * vec(f_G) - vec(f_R))) < 1e-12
+        @test maximum(abs.(r_to_G_mat * vec(f_R) - vec(f_G))) < 1e-12
     end
 
     @testset "Transformation on the spherical basis set" begin

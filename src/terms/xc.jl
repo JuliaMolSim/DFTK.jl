@@ -63,7 +63,7 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
 end
 
 
-function compute_kernel(term::TermXc; ρ=ρ, kwargs...)
+function compute_kernel(term::TermXc; ρ::RealFourierArray, kwargs...)
     kernel = similar(ρ.real)
     kernel .= 0
     for xc in term.functionals
@@ -71,10 +71,10 @@ function compute_kernel(term::TermXc; ρ=ρ, kwargs...)
         terms = evaluate(xc; rho=ρ.real, derivatives=2:2)  # only valid for LDA
         kernel .+= terms.v2rho2
     end
-    Diagonal(vec(kernel))
+    Diagonal(vec(term.scaling_factor .* kernel))
 end
 
-function apply_kernel(term::TermXc, dρ; ρ=ρ, kwargs...)
+function apply_kernel(term::TermXc, dρ; ρ::RealFourierArray, kwargs...)
     basis = term.basis
     T = eltype(basis)
     @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
@@ -82,7 +82,7 @@ function apply_kernel(term::TermXc, dρ; ρ=ρ, kwargs...)
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     density = DensityDerivatives(basis, max_ρ_derivs, ρ)
-    perturbation = DensityDerivatives(basis, max_ρ_derivs, dρ)
+    perturbation = DensityDerivatives(basis, max_ρ_derivs, from_real(basis, dρ))
 
     result = similar(ρ.real)
     result .= 0
@@ -91,12 +91,12 @@ function apply_kernel(term::TermXc, dρ; ρ=ρ, kwargs...)
         terms = evaluate(xc; input_kwargs(xc.family, density)..., derivatives=1:2)
 
         # Accumulate LDA and GGA terms in result
-        result .+= terms.v2rho2 .* dρ.real
+        result .+= terms.v2rho2 .* dρ
         if haskey(terms, :v2rhosigma)
             result .+= apply_kernel_term_gga(terms, density, perturbation)
         end
     end
-    result
+    term.scaling_factor .* result
 end
 
 #=
@@ -176,9 +176,9 @@ struct DensityDerivatives
 end
 
 """
-DOCME compute density in real space and its derivatives starting from Fourier-space density ρ
+DOCME compute density in real space and its derivatives starting from ρ
 """
-function DensityDerivatives(basis, max_derivative::Integer, ρ)
+function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray)
     model = basis.model
     @assert model.spin_polarization == :none "Only spin_polarization == :none implemented."
     function ifft(x)
