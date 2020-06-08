@@ -29,7 +29,7 @@ include("testcases.jl")
         dV_apply = DFTK.apply_kernel(term, dρ; ρ=ρ0)
         ker = DFTK.compute_kernel(term; ρ=ρ0)
         dV_compute = reshape(ker * vec(dρ), size(dρ))
-        @test norm(dV - dV_apply) < 1e-6
-        @test norm(dV - dV_compute) < 1e-6
+        @test norm(dV - dV_apply)   < 100ε
+        @test norm(dV - dV_compute) < 100ε
     end
 end

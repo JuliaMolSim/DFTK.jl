@@ -51,8 +51,6 @@ breaks_symmetries(term_builder::ExternalFromReal) = true
 breaks_symmetries(term_builder::ExternalFromFourier) = true
 
 
-
-
 # forces computes either nothing or an array forces[el][at][α]
 function forces(term::Term, ψ, occ; kwargs...)
     nothing  # by default, no force
@@ -74,8 +72,6 @@ end
     f
 end
 forces(scfres) = forces(scfres.ham.basis, scfres.ψ, scfres.occupation, ρ=scfres.ρ)
-
-
 
 
 """
