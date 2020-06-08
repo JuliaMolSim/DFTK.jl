@@ -8,7 +8,7 @@ if !ispynull(ase)
     import ase
     """
 
-    @testset "ase.Atoms -> DFTK lattice / atoms" begin
+    @testset "ase.Atoms -> DFTK lattice / atoms -> ase.Atoms" begin
         py"""
         import ase
         cell = [[3.21, 0.0, 0.0], [-1.605, 2.7799415461480477, 0.0], [0.0, 0.0, 5.21304]]
@@ -29,5 +29,10 @@ if !ispynull(ase)
         @test atoms[1][1].symbol == :Mg
         @test atoms[1][2][1] ≈ [0, 0, 0]
         @test atoms[1][2][2] ≈ [1/3, 2/3, 1/2] atol=1e-5
+
+        newatoms = ase_atoms(lattice, atoms)
+        @test all(py"$newatoms.cell == atoms.cell")
+        @test all(py"$newatoms.symbols == atoms.symbols")
+        @test py"$newatoms.get_positions()" ≈  py"atoms.get_positions()"
     end
 end

@@ -135,6 +135,7 @@ include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
 
 export pymatgen_structure
+export ase_atoms
 export EtsfFolder
 export load_lattice
 export load_basis

@@ -10,7 +10,7 @@ function load_lattice_ase(T, pyobj::PyObject)
         lattice = zeros(3, 3)
         cell_julia = convert(Array, pyobj)  # Array of arrays
         for i = 1:3, j = 1:3
-            lattice[i, j] = units.Ǎ * cell_julia[j][i]  # TODO check ordering!
+            lattice[i, j] = units.Ǎ * cell_julia[j][i]
         end
         Mat3{T}(lattice)
     else
@@ -33,3 +33,20 @@ function load_atoms_ase(T, pyobj::PyObject)
         ElementCoulomb(atnum) => coords
     end
 end
+
+
+ase_cell(lattice) = pyimport("ase").cell.Cell(Array(lattice)' / DFTK.units.Å)
+ase_cell(model::Model) = ase_cell(model.lattice)
+
+
+function ase_atoms(lattice_or_model, atoms)
+    cell = ase_cell(lattice_or_model)
+    symbols = String[]
+    for (elem, pos) in atoms
+        append!(symbols, fill(string(elem.symbol), length(pos)))
+    end
+    scaled_positions = vcat([pos for (elem, pos) in atoms]...)
+    pyimport("ase").Atoms(symbols=symbols, cell=cell, pbc=true,
+                          scaled_positions=hcat(scaled_positions...)')
+end
+ase_atoms(model::Model) = pymatgen_structure(model.lattice, model.atoms)
