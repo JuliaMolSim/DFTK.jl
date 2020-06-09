@@ -52,10 +52,10 @@ MyMixing() = MyMixing(0.7)
 
 function DFTK.mix(mixing::MyMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; n_iter, kwargs...)
     if n_iter <= 2
-        # Just do simple mixing
+        ## Just do simple mixing
         ρin + mixing.α * (ρout - ρin)
     else
-        # Use the KerkerMixing from DFTK
+        ## Use the KerkerMixing from DFTK
         DFTK.mix(KerkerMixing(α=mixing.α), basis, ρin, ρout; kwargs...)
     end
 end
