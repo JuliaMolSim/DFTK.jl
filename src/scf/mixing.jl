@@ -10,23 +10,26 @@ using LinearMaps
 using IterativeSolvers
 
 @doc raw"""
-Kerker mixing: ``J^{-1} ≈ \frac{α G^2}{(G0^2 + G^2}``
+Kerker mixing: ``J^{-1} ≈ \frac{α G^2}{(k_F^2 + G^2}``
+where ``k_F`` is the Thomas-Fermi screening constant.
 
-Abinit calls ``1/G0`` the dielectric screening length (parameter *dielng*)
+Notes:
+  - Abinit calls ``1/k_F`` the dielectric screening length (parameter *dielng*)
 """
-struct KerkerMixing{T <: Real}
-    α::T
-    G0::T
+struct KerkerMixing
+    α
+    kF
 end
-# Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, G0=1.5 Ǎ^{-1})
+# Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, kF=1.5 Ǎ^{-1})
 # DOI 10.1103/PhysRevB.54.11169
-KerkerMixing() = KerkerMixing(0.8, 0.8)
-function mix(m::KerkerMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray)
+KerkerMixing(;α=0.8, kF=0.8) = KerkerMixing(α, kF)
+function mix(params::KerkerMixing; basis, ρin::RealFourierArray, ρout::RealFourierArray, kwargs...)
+    T = eltype(basis)
     Gsq = [sum(abs2, basis.model.recip_lattice * G)
            for G in G_vectors(basis)]
     ρin = ρin.fourier
     ρout = ρout.fourier
-    ρnext = @. ρin + m.α * (ρout - ρin) * Gsq / (m.G0^2 + Gsq)
+    ρnext = @. ρin + T(params.α) * (ρout - ρin) * Gsq / (T(params.kF)^2 + Gsq)
     # take the correct DC component from ρout; otherwise the DC component never gets updated
     ρnext[1] = ρout[1]
     from_fourier(basis, ρnext; assume_real=true)
@@ -35,14 +38,15 @@ end
 """
 Simple mixing: J^-1 ≈ α
 """
-struct SimpleMixing{T <: Real}
-    α::T
+struct SimpleMixing
+    α
 end
-SimpleMixing() = SimpleMixing(1)
-function mix(m::SimpleMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray)
-    if m.α == 1
-        return ρout # optimization
+SimpleMixing(;α=1) = SimpleMixing(α)
+function mix(params::SimpleMixing; basis, ρin::RealFourierArray, ρout::RealFourierArray, kwargs...)
+    if params.α == 1
+        return ρout
     else
-        ρin + m.α * (ρout - ρin)
+        T = eltype(basis)
+        ρin + T(params.α) * (ρout - ρin)
     end
 end

@@ -43,11 +43,40 @@ function my_eig_solver(A, X0; maxiter, tol, kwargs...)
     (λ=λ, X=X, residual_norms=[], iterations=0, converged=true, n_matvec=0)
 end;
 
+# Finally we also define our custom mixing scheme. It will be a mixture
+# of simple mixing (for the first 2 steps) and than default to Kerker mixing.
+struct MyMixing
+    n_initial
+    mixing_initial
+    mixing_default
+end
+
+MyMixing() = MyMixing(2, SimpleMixing(α=0.7), KerkerMixing(α=0.7))
+function DFTK.mix(params::MyMixing; n_iter, kwargs...)
+    mixing = n_iter > params.n_initial ? mixing_initial : mixing_default
+    mix(mixing; n_iter=n_iter, kwargs...)
+end;
+
+function mix(mix::KerkerMixing; basis, ρin::RealFourierArray, ρout::RealFourierArray, kwargs...)
+    T = eltype(basis)
+    Gsq = [sum(abs2, basis.model.recip_lattice * G)
+           for G in G_vectors(basis)]
+    ρin = ρin.fourier
+    ρout = ρout.fourier
+    ρnext = @. ρin + T(mix.α) * (ρout - ρin) * Gsq / (T(mix.kF)^2 + Gsq)
+    # take the correct DC component from ρout; otherwise the DC component never gets updated
+    ρnext[1] = ρout[1]
+    from_fourier(basis, ρnext; assume_real=true)
+end
+
+
+
 # That's it! Now we just run the SCF with these solvers
 scfres = self_consistent_field(basis;
                                tol=1e-8,
                                solver=my_fp_solver,
-                               eigensolver=my_eig_solver);
+                               eigensolver=my_eig_solver,
+                               mixing=MyMixing());
 # Note that the default convergence criterion is on the difference of
 # energy from one step to the other; when this gets below `tol`, the
 # "driver" `self_consistent_field` artificially makes the fixpoint
