@@ -162,7 +162,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 
         # Apply mixing and pass it the full info as kwargs
         ρnext = mix(mixing, basis, ρin, ρout; info...)
-        info = merge(info, (ρnext=ρnext))
+        info = merge(info, (ρnext=ρnext, ))
 
         callback(info)
         is_converged(info) && return x
