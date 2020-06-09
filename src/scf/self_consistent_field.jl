@@ -31,12 +31,12 @@ end
 function scf_default_callback(info)
     E = info.energies === nothing ? Inf : sum(values(info.energies))
     res = norm(info.ρout.fourier - info.ρin.fourier)
-    if info.neval == 1
+    if info.n_iter == 1
         label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
         @printf "Iter   %-15s    ρout-ρin\n" label
         @printf "----   %-15s    --------\n" "-"^length(label)
     end
-    @printf "%3d    %-15.12f    %E\n" info.neval E res
+    @printf "%3d    %-15.12f    %E\n" info.n_iter E res
 end
 
 """
@@ -75,7 +75,7 @@ and never increases.
 function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.1)
     function determine_diagtol(info)
         isnothing(diagtol_min) && (diagtol_min = 100eps(real(eltype(info.ρin))))
-        info.neval == 0 && return diagtol_max
+        info.n_iter == 0 && return diagtol_max
 
         diagtol = norm(info.ρnext.fourier - info.ρin.fourier) * ratio_ρdiff
         diagtol = min(diagtol_max, diagtol)  # Don't overshoot
@@ -122,10 +122,10 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     eigenvalues = nothing
     ρout = ρ
     εF = nothing
-    neval = 0
+    n_iter = 0
     energies = nothing
     ham = nothing
-    info = (neval=0, ρin=ρ)   # Populate info with initial values
+    info = (n_iter=0, ρin=ρ)   # Populate info with initial values
 
     # We do density mixing in the real representation
     # TODO support other mixing types
@@ -134,7 +134,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         ρin = from_real(basis, x)
 
         # Build next Hamiltonian, diagonalize it, get ρout
-        if neval == 0 # first iteration
+        if n_iter == 0 # first iteration
             _, ham = energy_hamiltonian(basis, nothing, nothing;
                                         ρ=ρin, eigenvalues=nothing, εF=nothing)
         else
@@ -149,19 +149,22 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                  miniter=1, tol=determine_diagtol(info))
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
-        # This computes the energy of the new state
+        # Compute the energy of the new state
         if compute_consistent_energies
-            energies, H = energy_hamiltonian(basis, ψ, occupation;
+            energies, _ = energy_hamiltonian(basis, ψ, occupation;
                                              ρ=ρout, eigenvalues=eigenvalues, εF=εF)
         end
 
-        # mix it with ρin to get a proposal step
-        ρnext = mix(mixing, basis, ρin, ρout)
-        neval += 1
-
-        info = (ham=ham, energies=energies, ρin=ρin, ρout=ρout, ρnext=ρnext,
-                eigenvalues=eigenvalues, occupation=occupation, εF=εF, neval=neval, ψ=ψ,
+        # Update info with results gathered so far
+        info = (ham=ham, basis=basis, energies=energies, ρin=ρin, ρout=ρout,
+                eigenvalues=eigenvalues, occupation=occupation, εF=εF, n_iter=n_iter, ψ=ψ,
                 diagonalization=nextstate.diagonalization)
+
+        # Apply mixing and pass it the full info as kwargs
+        ρnext = mix(mixing, basis, ρin, ρout; info...)
+        info = merge(info, (ρnext=ρnext, ))
+        n_iter += 1
+
         callback(info)
         is_converged(info) && return x
 
