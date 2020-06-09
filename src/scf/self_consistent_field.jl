@@ -156,12 +156,12 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         end
 
         # Update info with results gathered so far
-        info = (ham=ham, basis=ham.basis, energies=energies, ρin=ρin, ρout=ρout,
+        info = (ham=ham, basis=basis, energies=energies, ρin=ρin, ρout=ρout,
                 eigenvalues=eigenvalues, occupation=occupation, εF=εF, n_iter=n_iter, ψ=ψ,
                 diagonalization=nextstate.diagonalization)
 
-        # Apply mixing and pass it the full info
-        ρnext = mix(mixing; info...)
+        # Apply mixing and pass it the full info as kwargs
+        ρnext = mix(mixing, basis, ρin, ρout; info...)
         info = merge(info, (ρnext=ρnext))
 
         callback(info)

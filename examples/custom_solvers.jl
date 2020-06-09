@@ -46,30 +46,19 @@ end;
 # Finally we also define our custom mixing scheme. It will be a mixture
 # of simple mixing (for the first 2 steps) and than default to Kerker mixing.
 struct MyMixing
-    n_initial
-    mixing_initial
-    mixing_default
+    α::Real  # Damping parameter
 end
+MyMixing() = MyMixing(0.7)
 
-MyMixing() = MyMixing(2, SimpleMixing(α=0.7), KerkerMixing(α=0.7))
-function DFTK.mix(params::MyMixing; n_iter, kwargs...)
-    mixing = n_iter > params.n_initial ? mixing_initial : mixing_default
-    mix(mixing; n_iter=n_iter, kwargs...)
-end;
-
-function mix(mix::KerkerMixing; basis, ρin::RealFourierArray, ρout::RealFourierArray, kwargs...)
-    T = eltype(basis)
-    Gsq = [sum(abs2, basis.model.recip_lattice * G)
-           for G in G_vectors(basis)]
-    ρin = ρin.fourier
-    ρout = ρout.fourier
-    ρnext = @. ρin + T(mix.α) * (ρout - ρin) * Gsq / (T(mix.kF)^2 + Gsq)
-    # take the correct DC component from ρout; otherwise the DC component never gets updated
-    ρnext[1] = ρout[1]
-    from_fourier(basis, ρnext; assume_real=true)
+function DFTK.mix(mixing::MyMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; n_iter, kwargs...)
+    if n_iter <= 2
+        # Just do simple mixing
+        ρin + T(mixing.α) * (ρout - ρin)
+    else
+        # Use the KerkerMixing from DFTK
+        mix(KerkerMixing(α=mixing.α), basis, ρin, ρout, kwargs...)
+    end
 end
-
-
 
 # That's it! Now we just run the SCF with these solvers
 scfres = self_consistent_field(basis;

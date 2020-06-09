@@ -17,19 +17,18 @@ Notes:
   - Abinit calls ``1/k_F`` the dielectric screening length (parameter *dielng*)
 """
 struct KerkerMixing
-    α
-    kF
+    α::Real
+    kF::Real
 end
 # Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, kF=1.5 Ǎ^{-1})
 # DOI 10.1103/PhysRevB.54.11169
 KerkerMixing(;α=0.8, kF=0.8) = KerkerMixing(α, kF)
-function mix(params::KerkerMixing; basis, ρin::RealFourierArray, ρout::RealFourierArray, kwargs...)
+function mix(mixing::KerkerMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; kwargs...)
     T = eltype(basis)
-    Gsq = [sum(abs2, basis.model.recip_lattice * G)
-           for G in G_vectors(basis)]
+    Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
     ρin = ρin.fourier
     ρout = ρout.fourier
-    ρnext = @. ρin + T(params.α) * (ρout - ρin) * Gsq / (T(params.kF)^2 + Gsq)
+    ρnext = @. ρin + T(mixing.α) * (ρout - ρin) * Gsq / (T(mixing.kF)^2 + Gsq)
     # take the correct DC component from ρout; otherwise the DC component never gets updated
     ρnext[1] = ρout[1]
     from_fourier(basis, ρnext; assume_real=true)
@@ -39,14 +38,14 @@ end
 Simple mixing: J^-1 ≈ α
 """
 struct SimpleMixing
-    α
+    α::Real
 end
 SimpleMixing(;α=1) = SimpleMixing(α)
-function mix(params::SimpleMixing; basis, ρin::RealFourierArray, ρout::RealFourierArray, kwargs...)
-    if params.α == 1
+function mix(mixing::SimpleMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; kwargs...)
+    if mixing.α == 1
         return ρout
     else
         T = eltype(basis)
-        ρin + T(params.α) * (ρout - ρin)
+        ρin + T(mixing.α) * (ρout - ρin)
     end
 end
