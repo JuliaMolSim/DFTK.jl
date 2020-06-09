@@ -161,7 +161,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                 diagonalization=nextstate.diagonalization)
 
         # Apply mixing and pass it the full info
-        ρnext = mix(mixing, info...)
+        ρnext = mix(mixing; info...)
         info = merge(info, (ρnext=ρnext))
 
         callback(info)
