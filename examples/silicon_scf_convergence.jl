@@ -20,12 +20,9 @@ maxiter = 5
 global resids = []
 function my_callback(info)
     global resids
-    neval = info.neval
-    if neval == 1
-        resids = []
-    end
+    info.n_iter == 1 && (resids = [])
     err = norm(info.ρout.fourier - info.ρin.fourier)
-    println(info.neval, " ", err)
+    println(info.n_iter, " ", err)
     push!(resids, err)
 end
 my_isconverged = info -> norm(info.ρout.fourier - info.ρin.fourier) < tol
