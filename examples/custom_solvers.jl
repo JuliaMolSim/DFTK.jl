@@ -56,7 +56,7 @@ function DFTK.mix(mixing::MyMixing, basis, ρin::RealFourierArray, ρout::RealFo
         ρin + mixing.α * (ρout - ρin)
     else
         # Use the KerkerMixing from DFTK
-        DFTK.mix(KerkerMixing(α=mixing.α), basis, ρin, ρout, kwargs...)
+        DFTK.mix(KerkerMixing(α=mixing.α), basis, ρin, ρout; kwargs...)
     end
 end
 
