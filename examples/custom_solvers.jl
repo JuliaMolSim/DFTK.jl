@@ -46,14 +46,14 @@ end;
 # Finally we also define our custom mixing scheme. It will be a mixture
 # of simple mixing (for the first 2 steps) and than default to Kerker mixing.
 struct MyMixing
-    α::Real  # Damping parameter
+    α  # Damping parameter
 end
 MyMixing() = MyMixing(0.7)
 
 function DFTK.mix(mixing::MyMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; n_iter, kwargs...)
     if n_iter <= 2
         # Just do simple mixing
-        ρin + T(mixing.α) * (ρout - ρin)
+        ρin + mixing.α * (ρout - ρin)
     else
         # Use the KerkerMixing from DFTK
         mix(KerkerMixing(α=mixing.α), basis, ρin, ρout, kwargs...)
