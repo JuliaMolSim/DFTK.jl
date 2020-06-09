@@ -90,7 +90,7 @@ set of indices of basis_out that are not in basis_in. Currently only for basis_o
 bigger than basis_in.
 """
 function grid_interpolation_indices(basis_in, basis_out)
-    # build the indices from basis_in that are in basis_out
+    # build the indices from basis_out that are in basis_in
     idcs_out = []
     for (ik, kpt_out) in enumerate(basis_out.kpoints)
         # Get indices of the G vectors of the old basis inside the new basis.
@@ -101,15 +101,16 @@ function grid_interpolation_indices(basis_in, basis_out)
 
         # Map to the indices of the corresponding G-vectors in G_vectors(kpt_out)
         idcsk_out = indexin(idcsk_out, kpt_out.mapping)
-        @assert !any(isnothing, idcsk_out)
+        # this array might contains some nothings if basis_out has less G_vectors
+        # than basis_in at this kpoint
         push!(idcs_out, idcsk_out)
     end
 
     # build the complement indices of basis_out that are not in basis_in
-    #  idcs_out_cplmt = [filter(id -> !(id in idcs_fine[ik]), 1:length(ψ_fine[ik][:,1]))
-    #                     for ik in 1:Nk]
+    # create empty arrays if there is at least one nothing in idcs_out[ik]
     idcs_out_cplmt = [[id for id in 1:length(G_vectors(basis_out.kpoints[ik]))
-                       if !(id in idcs_out[ik])] for ik in 1:length(basis_in.kpoints)]
+                       if any(isnothing, idcs_out[ik]) && !(id in idcs_out[ik])]
+                      for ik in 1:length(basis_in.kpoints)]
 
     (idcs_out, idcs_out_cplmt)
 end
@@ -119,20 +120,44 @@ Interpolate Bloch wave between two basis sets. Limited feature set. Currently on
 interpolation to a bigger grid (larger Ecut) on the same lattice supported.
 """
 function interpolate_blochwave(ψ_in, basis_in, basis_out)
-    @assert basis_in.model.lattice == basis_out.model.lattice
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
                 for ik in 1:length(basis_in.kpoints))
 
     ψ_out = empty(ψ_in)
+
+    # separating indices from basis_out that are in basis_in from those that are
+    # not in basis_in, eventually idcs_out[ik] contains nothings, in which case
+    # idcs_out_cplmt[ik] = [] when the output grid is smaller
     idcs_out, idcs_out_cplmt = grid_interpolation_indices(basis_in, basis_out)
+
+    # separating indices from basis_in that are in basis_out from those that are
+    # not in basis_out, eventually idcs_in[ik] contains nothing, in which case
+    # idcs_in_cplmt[ik] = [] when the output grid is bigger
+    idcs_in, idcs_in_cplmt = grid_interpolation_indices(basis_out, basis_in)
+
+    # Small talk on what we did here :
+    # When Ecut_out > Ecut_in, only idcs_out is needed. Sometimes, we might need
+    # to interpolate between two grids that have the same Ecut (hence same
+    # fft_size) but slightly different lattices. In this case, both idcs_out and
+    # idcs_in are needed as it is not possible to predict which basis will have most
+    # G_vectors (and it might differs from the k points !). This is why we do
+    # both interpolations by default, and use the interpolation of basis_out into
+    # basis_in when needed.
+
     for (ik, kpt_out) in enumerate(basis_out.kpoints)
         n_bands = size(ψ_in[ik], 2)
 
         # Set values
         ψk_out = similar(ψ_in[ik], length(G_vectors(kpt_out)), n_bands)
         ψk_out .= 0
-        ψk_out[idcs_out[ik], :] .= ψ_in[ik]
+        if !any(isnothing, idcs_out[ik])
+            # only this is used when Ecut_out > Ecut_in
+            ψk_out[idcs_out[ik], :] .= ψ_in[ik]
+        else
+            # when needed, we get rid of high frequencies G_vectors
+            ψk_out .= ψ_in[ik][idcs_in[ik], :]
+        end
         push!(ψ_out, ψk_out)
     end
 
