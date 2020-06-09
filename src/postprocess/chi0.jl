@@ -3,12 +3,12 @@ using IterativeSolvers
 using ForwardDiff
 using ProgressMeter
 
+# make ldiv! act as a given function
 struct FunctionPreconditioner
-    f_ldiv!
+    f! # f!(y, x) applies f to x and puts it into y
 end
-LinearAlgebra.ldiv!(y, P::FunctionPreconditioner, x) = P.f_ldiv!(y, x)
-LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = P.f_ldiv!(copy(x), x)
-# (Base.:\)(P::FunctionPreconditioner, x) = P.f_ldiv!(copy(x), x)
+LinearAlgebra.ldiv!(y, P::FunctionPreconditioner, x) = P.f!(y, x)
+LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (y=similar(x); P.f!(y, x); x .= y)
 
 """
 Compute the independent-particle susceptibility. Will blow up for large systems.
@@ -46,9 +46,7 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
     filled_occ = filled_occupation(model)
     dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
 
-    if length(model.symops) != 1
-        error("Disable symmetries completely for computing χ0")
-    end
+    length(model.symops) == 1 || error("Disable symmetries completely for computing χ0")
 
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
@@ -86,6 +84,32 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
     end
 
     χ0
+end
+
+# Solves Q (H-εn) Q δψn = -Q rhs
+# where Q is the projector on the orthogonal of ψk
+function sternheimer_solver(basis, kpoint, Hk, ψk, ψnk, εnk, rhs, cgtol)
+    # we err on the side of caution here by applying Q *a lot*
+    # there are optimizations to be made here
+    Q(ϕ) = ϕ - ψk * (ψk' * ϕ)
+    function QHQ(ϕ)
+        Qϕ = Q(ϕ)
+        Q(Hk * Qϕ - εnk * Qϕ)
+    end
+    precon = PreconditionerTPA(basis, kpoint)
+    precondprep!(precon, ψnk)
+    function f_ldiv!(x, y)
+        ldiv!(x, precon, Q(y))
+        x .= Q(x)
+    end
+    J = LinearMap{eltype(ψk)}(QHQ, size(Hk, 1))
+    # cgtol should not be too tight, and in particular not be
+    # too far below the error in the ψ. Otherwise Q and H
+    # don't commute enough, and an oversolving of the linear
+    # system can lead to spurious solutions
+    rhs = Q(rhs)
+    δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!), tol=cgtol / norm(rhs), verbose=true)
+    δψnk
 end
 
 """
@@ -126,7 +150,7 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues;
     end
 
     # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
-    δρ_four = zeros(complex(T), size(δV))
+    δρ_fourier = zeros(complex(T), size(δV))
     for ik = 1:length(basis.kpoints)
         δρk = zero(δV)
         for n = 1:size(ψ[ik], 2)
@@ -156,38 +180,20 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues;
                 δρk .+= real(ratio .* weight .* ρnm)
             end
 
-            # Sternheimer contributions.
-            !(sternheimer_contribution) && continue
-            fnk = filled_occ * Smearing.occupation(model.smearing, (εnk-εF) / temperature)
-            abs(fnk) < eps(T) && continue
-            # compute δψn by solving Q (H-εn) Q δψn = -Q δV ψn
-            # we err on the side of caution here by applying Q a lot,
-            # there are optimizations to be made here
-            Q(ϕ) = ϕ - ψ[ik] * (ψ[ik]' * ϕ)
-            rhs = - Q(r_to_G(basis, basis.kpoints[ik], δV .* ψnk_real))
-            function QHQ(ϕ)
-                Qϕ = Q(ϕ)
-                Q(ham.blocks[ik] * Qϕ - εnk * Qϕ)
+            if sternheimer_contribution
+                # Compute the contributions from uncalculated bands
+                fnk = filled_occ * Smearing.occupation(model.smearing, (εnk-εF) / temperature)
+                abs(fnk) < eps(T) && continue
+                rhs = r_to_G(basis, basis.kpoints[ik], .- δV .* ψnk_real)
+                norm(rhs) < 100eps(T) && continue
+                δψnk = sternheimer_solver(basis, basis.kpoints[ik], ham.blocks[ik], ψ[ik], ψnk, εnk, rhs, cgtol)
+                δψnk_real = G_to_r(basis, basis.kpoints[ik], δψnk)
+                δρk .+= 2 .* fnk .* real(conj(ψnk_real) .* δψnk_real)
             end
-            precon = PreconditionerTPA(basis, basis.kpoints[ik])
-            precondprep!(precon, ψnk)
-            function f_ldiv!(x, y)
-                ldiv!(x, precon, Q(y))
-                x .= Q(x)
-            end
-            J = LinearMap{eltype(ψ[ik])}(QHQ, size(ham.blocks[ik], 1))
-            # cgtol should not be too tight, and in particular not be
-            # too far below the error in the ψ. Otherwise Q and H
-            # don't commute enough, and an oversolving of the linear
-            # system can lead to spurious solutions
-            norm(rhs) < 100eps(T) && continue
-            δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!), tol=cgtol / norm(rhs))
-            δψnk_real = G_to_r(basis, basis.kpoints[ik], δψnk)
-            δρk .+= 2 .* fnk .* real(conj(ψnk_real) .* δψnk_real)
         end
-        accumulate_over_symops!(δρ_four, r_to_G(basis, complex(δρk)), basis, basis.ksymops[ik], G_vectors(basis))
+        accumulate_over_symops!(δρ_fourier, r_to_G(basis, complex(δρk)), basis, basis.ksymops[ik], G_vectors(basis))
     end
-    δρ = real(G_to_r(basis, δρ_four))
+    δρ = real(G_to_r(basis, δρ_fourier))
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))
     δρ ./= count
 

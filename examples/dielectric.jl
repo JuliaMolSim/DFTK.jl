@@ -20,7 +20,7 @@ basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 scfres = self_consistent_field(basis, tol=1e-14)
 
 # Apply ε = 1 - K χ0
-function epsfun(dv)
+function eps_fun(dv)
     dv = reshape(dv, size(scfres.ρ.real))
     dρ = apply_χ0(scfres.ham, dv, scfres.ψ, scfres.εF, scfres.eigenvalues)
     Kdρ = apply_kernel(basis, dρ; ρ=scfres.ρ)
@@ -31,7 +31,7 @@ end
 # This is more efficient than Arpack when `f` is very expensive
 function arnoldi(f, x0, howmany; tol=1e-4, maxiter=30)
     for (V, B, r, nr, b) in ArnoldiIterator(f, x0)
-        # A * V = V * B + r * b'.
+        # A * V = V * B + r * b'
         V = hcat(V...)
         AV = V*B + r*b'
 
@@ -40,9 +40,11 @@ function arnoldi(f, x0, howmany; tol=1e-4, maxiter=30)
         AVr = AV*ev
         R = AVr - Vr * Diagonal(ew)
 
+        # Select `howmany` smallest and largest eigenpairs
         N = size(V, 2)
         inds = 1:min(N, howmany)
         inds = [inds..., (inds .+ N .- min(N, howmany))...]
+
         normr = [norm(r) for r in eachcol(R[:, inds])]
         println(N)
         display([ew[inds] normr])
@@ -51,4 +53,4 @@ function arnoldi(f, x0, howmany; tol=1e-4, maxiter=30)
         end
     end
 end
-arnoldi(epsfun, vec(randn(size(scfres.ρ.real))), 5)
+arnoldi(eps_fun, vec(randn(size(scfres.ρ.real))), 5)

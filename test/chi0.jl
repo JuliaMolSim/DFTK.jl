@@ -18,8 +18,10 @@ include("testcases.jl")
     for temperature in (0, 0.03)
         for symmetry in (false, true)
             for use_symmetry in (false, true)
-                model = model_LDA(testcase.lattice, [spec => testcase.positions], temperature=temperature, symmetry=(symmetry ? :force : :off))
-                basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size, use_symmetry=use_symmetry)
+                model = model_LDA(testcase.lattice, [spec => testcase.positions],
+                                  temperature=temperature, symmetry=(symmetry ? :force : :off))
+                basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size,
+                                       use_symmetry=use_symmetry)
 
                 ρ0 = guess_density(basis)
                 energies, ham0 = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
@@ -35,7 +37,9 @@ include("testcases.jl")
                 end
 
                 term_builder = basis -> DFTK.TermExternal(basis, ε .* dV)
-                model = model_LDA(testcase.lattice, [spec => testcase.positions], temperature=temperature, extra_terms=[term_builder], symmetry=(symmetry ? :force : :off))
+                model = model_LDA(testcase.lattice, [spec => testcase.positions],
+                                  temperature=temperature, extra_terms=[term_builder],
+                                  symmetry=(symmetry ? :force : :off))
                 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size, use_symmetry=use_symmetry)
                 energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
                 ρ2 = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
@@ -54,7 +58,7 @@ include("testcases.jl")
                 # Test compute_χ0 against finite differences
                 if !symmetry
                     χ0 = compute_χ0(ham0)
-                    diff_computed_χ0 = real(reshape(χ0*vec(dV), basis.fft_size))
+                    diff_computed_χ0 = real(reshape(χ0 * vec(dV), basis.fft_size))
                     @test norm(diff_findiff - diff_computed_χ0) < testtol
 
                     # Test that apply_χ0 is self-adjoint
