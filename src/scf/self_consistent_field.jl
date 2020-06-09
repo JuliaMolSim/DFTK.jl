@@ -107,8 +107,6 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        callback=scf_default_callback,
                                        is_converged=ScfConvergenceEnergy(tol),
                                        compute_consistent_energies=true,
-                                       mixing_initial=SimpleMixing(),
-                                       n_initial=0,
                                       )
     T = eltype(basis)
     model = basis.model
