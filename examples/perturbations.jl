@@ -202,7 +202,7 @@ DFTK.@timing function perturbation(basis::PlaneWaveBasis,
     ρp_fine = compute_density(basis_fine, ψp_fine, occ)
     Hp_fine = Hamiltonian(basis_fine, ψ=ψp_fine, occ=occ; ρ=ρp_fine)
 
-    # compute the eigenvalue perturbation λp = λ + λ1 + λ2
+    # compute the eigenvalue perturbation λp = λ + λ2 + λ3
     # first order peturbation = 0
     egvalp2, egvalp3 = perturbed_eigenvalues(basis_fine, H_fine, ψ1_fine, ψ_fine,
                                              total_pot_avg, egval, occ)
