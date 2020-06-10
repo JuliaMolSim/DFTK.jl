@@ -13,7 +13,7 @@ Ecut = 15
 lattice = [4.659533614391621 -2.3297668071958104 0.0;
            0.0 4.035274479829987 0.0;
            0.0 0.0 15.117809010356462]
-C = ElementPsp(:C, load_psp("hgh/pbe/c-q4"))
+C = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4"))
 atoms = [C => [[0.0, 0.0, 0.0], [0.33333333333, 0.66666666667, 0.0]]]
 
 model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe];
