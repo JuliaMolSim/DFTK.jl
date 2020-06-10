@@ -70,10 +70,12 @@ end
 RestaMixing(;α=0.8, kF=0.8, εr=1) = RestaMixing(α, εr, kF)
 function mix(mixing::RestaMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; kwargs...)
     T = eltype(basis)
-    εr = T(mixing.εr)
-    kF = T(mixing.kF)
     εr == 1 && return mix(SimpleMixing(α=α), basis, ρin, ρout)
 
+    ρin = ρin.fourier
+    ρout = ρout.fourier
+    εr = T(mixing.εr)
+    kF = T(mixing.kF)
     C = 1 - εr
     Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
 
