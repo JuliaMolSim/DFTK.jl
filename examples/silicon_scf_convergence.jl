@@ -5,6 +5,7 @@
 using DFTK
 using Plots
 using Printf
+using LinearAlgebra
 
 # Calculation parameters
 kgrid = [1, 1, 1]
