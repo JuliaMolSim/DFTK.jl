@@ -75,7 +75,7 @@ and never increases.
 function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.1)
     function determine_diagtol(info)
         isnothing(diagtol_min) && (diagtol_min = 100eps(real(eltype(info.ρin))))
-        info.n_iter == 0 && return diagtol_max
+        info.n_iter == 1 && return diagtol_max
 
         diagtol = norm(info.ρnext.fourier - info.ρin.fourier) * ratio_ρdiff
         diagtol = min(diagtol_max, diagtol)  # Don't overshoot
@@ -125,16 +125,16 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     n_iter = 0
     energies = nothing
     ham = nothing
-    info = (n_iter=0, ρin=ρ)   # Populate info with initial values
+    info = (n_iter=1, ρin=ρ)   # Populate info with initial values
 
     # We do density mixing in the real representation
     # TODO support other mixing types
     function fixpoint_map(x)
-        # Get ρout by diagonalizing the Hamiltonian
+        n_iter += 1
         ρin = from_real(basis, x)
 
         # Build next Hamiltonian, diagonalize it, get ρout
-        if n_iter == 0 # first iteration
+        if n_iter == 1 # first iteration
             _, ham = energy_hamiltonian(basis, nothing, nothing;
                                         ρ=ρin, eigenvalues=nothing, εF=nothing)
         else
@@ -163,7 +163,6 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         # Apply mixing and pass it the full info as kwargs
         ρnext = mix(mixing, basis, ρin, ρout; info...)
         info = merge(info, (ρnext=ρnext, ))
-        n_iter += 1
 
         callback(info)
         is_converged(info) && return x
