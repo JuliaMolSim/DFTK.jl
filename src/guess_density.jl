@@ -21,9 +21,9 @@ guess_density(basis::PlaneWaveBasis) = guess_density(basis, basis.model.atoms)
         decay_length::T = atom_decay_length(spec)
         for (iG, G) in enumerate(G_vectors(basis))
             Gsq = sum(abs2, model.recip_lattice * G)
-            struct_fac::T = n_el_val * exp(-Gsq * decay_length^2)
+            form_factor::T = n_el_val * exp(-Gsq * decay_length^2)
             for r in positions
-                ρ[iG] += struct_fac * cis(-2T(π) * dot(G, r))
+                ρ[iG] += form_factor * cis(-2T(π) * dot(G, r))
             end
         end
     end

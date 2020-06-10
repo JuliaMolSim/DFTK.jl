@@ -70,14 +70,17 @@ function (E::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
 
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
+    # Since V is a sum of radial functions located at atomic
+    # positions, this involves a form factor (`local_potential_fourier`)
+    # and a structure factor e^{-i Gr}
 
     pot_fourier = zeros(Complex{T}, basis.fft_size)
     for (iG, G) in enumerate(G_vectors(basis))
         pot = zero(T)
         for (elem, positions) in model.atoms
-            pot_radial_G::T = local_potential_fourier(elem, norm(model.recip_lattice * G))
+            form_factor::T = local_potential_fourier(elem, norm(model.recip_lattice * G))
             for r in positions
-                pot += cis(-2T(π)*dot(G, r)) * pot_radial_G
+                pot += cis(-2T(π) * dot(G, r)) * form_factor
             end
         end
         pot_fourier[iG] = pot / sqrt(model.unit_cell_volume)

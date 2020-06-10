@@ -151,7 +151,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         symops = vcat(ksymops...)
     end
 
-    @timing "Basis creation" kpoints = build_kpoints(model, fft_size, kcoords, Ecut)
+    @timing "Kpoint basis construction" kpoints = build_kpoints(model, fft_size, kcoords, Ecut)
     basis = PlaneWaveBasis{T}(
         model, Ecut, kpoints,
         kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms, symops)

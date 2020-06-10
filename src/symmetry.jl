@@ -48,7 +48,7 @@ case will return a subset of the symmetries of the former two.
 function symmetry_operations(lattice, atoms; tol_symmetry=1e-5, kcoords=nothing)
     symops = []
     # Get symmetries from spglib
-    @timing "spglib_get_symmetry" Stildes, τtildes = spglib_get_symmetry(lattice, atoms, tol_symmetry=tol_symmetry)
+    Stildes, τtildes = spglib_get_symmetry(lattice, atoms, tol_symmetry=tol_symmetry)
 
     for isym = 1:length(Stildes)
         S = Stildes[isym]'                  # in fractional reciprocal coordinates
