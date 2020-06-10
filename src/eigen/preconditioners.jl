@@ -54,6 +54,7 @@ end
     Y
 end
 ldiv!(P::PreconditionerTPA, R) = ldiv!(R, P, R)
+(Base.:\)(P::PreconditionerTPA, R) = ldiv!(P, copy(R))
 
 # These are needed by eg direct minimization with CG
 @views function mul!(Y, P::PreconditionerTPA, R)
@@ -66,7 +67,7 @@ ldiv!(P::PreconditionerTPA, R) = ldiv!(R, P, R)
     end
     Y
 end
-mul!(P::PreconditionerTPA, R) = mul!(R, P, R)
+(Base.:*)(P::PreconditionerTPA, R) = mul!(copy(R), P, R)
 
 function precondprep!(P::PreconditionerTPA, X)
     P.mean_kin = [real(dot(x, P.kin .* x)) for x in eachcol(X)]

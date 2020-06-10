@@ -3,7 +3,6 @@ using IterativeSolvers
 using ForwardDiff
 using ProgressMeter
 
-
 """
 Compute the independent-particle susceptibility. Will blow up for large systems.
 Drop all non-diagonal terms with (f(εn)-f(εm))/(εn-εm) factor less than `droptol`.
@@ -36,9 +35,11 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
     basis = ham.basis
     model = basis.model
     fft_size = basis.fft_size
-    @assert model.spin_polarization == :none
+    @assert model.spin_polarization in (:none, :spinless)
     filled_occ = filled_occupation(model)
     dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
+
+    length(model.symops) == 1 || error("Disable symmetries completely for computing χ0")
 
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
@@ -47,9 +48,6 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
 
     χ0 = zeros(eltype(basis), prod(fft_size), prod(fft_size))
     for ik = 1:length(basis.kpoints)
-        if length(basis.ksymops[ik]) != 1
-            error("Kpoint symmetry not supported")
-        end
         N = length(G_vectors(basis.kpoints[ik]))
         @assert N < 10_000
         E = Es[ik]
@@ -81,30 +79,80 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
     χ0
 end
 
+
+# make ldiv! act as a given function
+struct FunctionPreconditioner
+    fun!  # f!(y, x) applies f to x and puts it into y
+end
+LinearAlgebra.ldiv!(y, P::FunctionPreconditioner, x) = P.fun!(y, x)
+LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.fun!(similar(x), x))
+
+# Solves Q (H-εn) Q δψn = -Q rhs
+# where Q is the projector on the orthogonal of ψk
+function sternheimer_solver(basis, kpoint, Hk, ψk, ψnk, εnk, rhs, cgtol)
+    # we err on the side of caution here by applying Q *a lot*
+    # there are optimizations to be made here
+    Q(ϕ) = ϕ - ψk * (ψk' * ϕ)
+    function QHQ(ϕ)
+        Qϕ = Q(ϕ)
+        Q(Hk * Qϕ - εnk * Qϕ)
+    end
+    precon = PreconditionerTPA(basis, kpoint)
+    precondprep!(precon, ψnk)
+    function f_ldiv!(x, y)
+        x .= Q(precon \ Q(y))
+    end
+    J = LinearMap{eltype(ψk)}(QHQ, size(Hk, 1))
+    # cgtol should not be too tight, and in particular not be
+    # too far below the error in the ψ. Otherwise Q and H
+    # don't commute enough, and an oversolving of the linear
+    # system can lead to spurious solutions
+    rhs = Q(rhs)
+    δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!), tol=cgtol / norm(rhs), verbose=true)
+    δψnk
+end
+
 """
 Returns the change in density δρ for a given δV. Drop all non-diagonal terms with
 (f(εn)-f(εm))/(εn-εm) factor less than `droptol`. If `sternheimer_contribution`
 is false, only compute excitations inside the provided orbitals.
 """
-function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
-                  sternheimer_contribution=true, temperature=ham.basis.model.temperature)
-    if droptol > 0 && sternheimer_contribution == true
-        error("Droptol cannot be positive if sternheimer contribution is to be computed.")
-    end
-    # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
+function apply_χ0(ham, δV, ψ, εF, eigenvalues;
+                  droptol=0,
+                  sternheimer_contribution=true,
+                  temperature=ham.basis.model.temperature,
+                  cgtol=1e-6)
     basis = ham.basis
     T = eltype(basis)
     model = basis.model
     fft_size = basis.fft_size
-    @assert model.spin_polarization == :none
+    @assert model.spin_polarization in (:none, :spinless)
     filled_occ = filled_occupation(model)
     dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
 
-    δρ = zero(δV)
+    # Normalize δV to avoid numerical trouble; theoretically should
+    # not be necessary, but it simplifies the interaction with the
+    # Sternheimer linear solver (it makes the rhs be order 1 even if
+    # δV is small)
+    normδV = norm(δV)
+    normδV < eps(T) && return zero(δV)
+    δV /= normδV
+
+    # Make δV respect the full model symmetry group, since it's
+    # invalid to consider perturbations that don't (technically it
+    # could be made to only respect basis.symops, but symmetrizing wrt
+    # the model symmetry group means that χ0 is unaffected by the
+    # use_symmetry kwarg of basis, which is nice)
+    δV = symmetrize(from_real(basis, δV)).real
+
+    if droptol > 0 && sternheimer_contribution == true
+        error("Droptol cannot be positive if sternheimer contribution is to be computed.")
+    end
+
+    # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
+    δρ_fourier = zeros(complex(T), size(δV))
     for ik = 1:length(basis.kpoints)
-        if length(basis.ksymops[ik]) != 1
-            error("Kpoint symmetry not supported")
-        end
+        δρk = zero(δV)
         for n = 1:size(ψ[ik], 2)
             ψnk = @view ψ[ik][:, n]
             ψnk_real = G_to_r(basis, basis.kpoints[ik], ψnk)
@@ -129,28 +177,25 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
                 # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
                 ρnm = conj(ψnk_real) .* ψmk_real
                 weight = dVol*dot(ρnm, δV)
-                δρ .+= real(basis.kweights[ik] .* ratio .* weight .* ρnm)
+                δρk .+= real(ratio .* weight .* ρnm)
             end
 
-            # Sternheimer contributions. TODO add preconditioning here
-            !(sternheimer_contribution) && continue
-            fnk = filled_occ * Smearing.occupation(model.smearing, (εnk-εF) / temperature)
-            abs(fnk) < eps(T) && continue
-            # compute δψn by solving Q (H-εn) Q δψn = -Q δV ψn
-            # we err on the side of caution here by applying Q a lot,
-            # there are optimizations to be made here
-            Q(ϕ) = ϕ - ψ[ik] * (ψ[ik]' * ϕ)
-            rhs = - Q(r_to_G(basis, basis.kpoints[ik], δV .* ψnk_real))
-            function QHQ(ϕ)
-                Qϕ = Q(ϕ)
-                Q(ham.blocks[ik] * Qϕ - εnk * Qϕ)
+            if sternheimer_contribution
+                # Compute the contributions from uncalculated bands
+                fnk = filled_occ * Smearing.occupation(model.smearing, (εnk-εF) / temperature)
+                abs(fnk) < eps(T) && continue
+                rhs = r_to_G(basis, basis.kpoints[ik], .- δV .* ψnk_real)
+                norm(rhs) < 100eps(T) && continue
+                δψnk = sternheimer_solver(basis, basis.kpoints[ik], ham.blocks[ik], ψ[ik], ψnk, εnk, rhs, cgtol)
+                δψnk_real = G_to_r(basis, basis.kpoints[ik], δψnk)
+                δρk .+= 2 .* fnk .* real(conj(ψnk_real) .* δψnk_real)
             end
-            J = LinearMap{eltype(ψ[ik])}(QHQ, size(ham.blocks[ik], 1))
-            δψnk = cg(J, rhs)
-            δψnk_real = G_to_r(basis, basis.kpoints[ik], δψnk)
-            δρ .+= 2 .* fnk .* basis.kweights[ik] .* real(conj(ψnk_real) .* δψnk_real)
         end
+        accumulate_over_symops!(δρ_fourier, r_to_G(basis, complex(δρk)), basis, basis.ksymops[ik], G_vectors(basis))
     end
+    δρ = real(G_to_r(basis, δρ_fourier))
+    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))
+    δρ ./= count
 
     # Add variation wrt εF
     if temperature > 0
@@ -159,5 +204,5 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues; droptol=0,
         δρ .+= ldos .* dot(ldos, δV) .* dVol ./ dos
     end
 
-    δρ
+    δρ .* normδV
 end
