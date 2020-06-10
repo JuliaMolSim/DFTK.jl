@@ -3,13 +3,6 @@ using IterativeSolvers
 using ForwardDiff
 using ProgressMeter
 
-# make ldiv! act as a given function
-struct FunctionPreconditioner
-    fun!  # f!(y, x) applies f to x and puts it into y
-end
-LinearAlgebra.ldiv!(y, P::FunctionPreconditioner, x) = P.fun!(y, x)
-LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.fun!(similar(x), x))
-
 """
 Compute the independent-particle susceptibility. Will blow up for large systems.
 Drop all non-diagonal terms with (f(εn)-f(εm))/(εn-εm) factor less than `droptol`.
@@ -85,6 +78,14 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
 
     χ0
 end
+
+
+# make ldiv! act as a given function
+struct FunctionPreconditioner
+    fun!  # f!(y, x) applies f to x and puts it into y
+end
+LinearAlgebra.ldiv!(y, P::FunctionPreconditioner, x) = P.fun!(y, x)
+LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.fun!(similar(x), x))
 
 # Solves Q (H-εn) Q δψn = -Q rhs
 # where Q is the projector on the orthogonal of ψk
