@@ -43,7 +43,7 @@ function arnoldi(f, x0, howmany; tol=1e-4, maxiter=30)
         # Select `howmany` smallest and largest eigenpairs
         N = size(V, 2)
         inds = 1:min(N, howmany)
-        inds = [inds..., (inds .+ N .- min(N, howmany))...]
+        inds = [inds..., (min(N, howmany):N)...]
 
         normr = [norm(r) for r in eachcol(R[:, inds])]
         println(N)
