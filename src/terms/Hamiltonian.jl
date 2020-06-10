@@ -30,7 +30,9 @@ end
 # Do this band by band to conserve memory
 # As an optimization we special-case nonlocal operators to apply them
 # instead on the full block and benefit from BLAS3
-@views function LinearAlgebra.mul!(Hψ::AbstractArray, H::HamiltonianBlock, ψ::AbstractArray)
+@views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
+                                                                        H::HamiltonianBlock,
+                                                                        ψ::AbstractArray)
     basis = H.basis
     kpt = H.kpoint
     nband = size(ψ, 2)
@@ -83,7 +85,7 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
 # Get energies and Hamiltonian
 # kwargs is additional info that might be useful for the energy terms to precompute
 # (eg the density ρ)
-function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occ; kwargs...)
+@timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occ; kwargs...)
     # it: index into terms, ik: index into kpoints
     ene_ops_arr = [ene_ops(term, ψ, occ; kwargs...) for term in basis.terms]
     energies    = [eh.E for eh in ene_ops_arr]

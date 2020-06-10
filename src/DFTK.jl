@@ -9,7 +9,9 @@ using Markdown
 using LinearAlgebra
 using Interpolations
 using Requires
+using TimerOutputs
 
+include("common/timer.jl")
 include("common/asserting.jl")
 export unit_to_au
 include("common/constants.jl")
@@ -80,6 +82,8 @@ export Entropy
 export Magnetic
 export energy_ewald
 export energy_psp_correction
+export apply_kernel
+export compute_kernel
 include("terms/terms.jl")
 
 export find_fermi_level
@@ -133,6 +137,7 @@ include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
 
 export pymatgen_structure
+export ase_atoms
 export EtsfFolder
 export load_lattice
 export load_basis

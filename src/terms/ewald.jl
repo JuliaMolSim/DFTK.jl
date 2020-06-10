@@ -1,7 +1,7 @@
 using SpecialFunctions: erfc
 using ForwardDiff
 
-""" 
+"""
 Ewald term: electrostatic energy per unit cell of the array of point
 charges defined by `model.atoms` in a uniform background of
 compensating charge yielding net neutrality.
@@ -24,7 +24,7 @@ function ene_ops(term::TermEwald, ψ, occ; kwargs...)
     (E=term.energy, ops=ops)
 end
 
-function forces(term::TermEwald, ψ, occ; kwargs...)
+@timing "forces_ewald" function forces(term::TermEwald, ψ, occ; kwargs...)
     T = eltype(term.basis)
     atoms = term.basis.model.atoms
     # TODO this could be precomputed

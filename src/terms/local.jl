@@ -88,7 +88,7 @@ function (E::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     TermAtomicLocal(basis, real(pot_real))
 end
 
-function forces(term::TermAtomicLocal, ψ, occ; ρ, kwargs...)
+@timing "forces_local" function forces(term::TermAtomicLocal, ψ, occ; ρ, kwargs...)
     T = eltype(term.basis)
     atoms = term.basis.model.atoms
     recip_lattice = term.basis.model.recip_lattice
@@ -103,11 +103,11 @@ function forces(term::TermAtomicLocal, ψ, occ; ρ, kwargs...)
 
         for (ir, r) in enumerate(positions)
             forces[iel][ir] = -real(sum(conj(ρ.fourier[iG])
-                                    .* form_factors[iG]
-                                    .* cis(-2T(π) * dot(G, r))
-                                    .* (-2T(π)) .* G .* im
-                                    ./ sqrt(unit_cell_volume)
-                                   for (iG, G) in enumerate(G_vectors(term.basis))))
+                                        .* form_factors[iG]
+                                        .* cis(-2T(π) * dot(G, r))
+                                        .* (-2T(π)) .* G .* im
+                                        ./ sqrt(unit_cell_volume)
+                                        for (iG, G) in enumerate(G_vectors(term.basis))))
         end
     end
     forces

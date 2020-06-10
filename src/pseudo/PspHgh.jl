@@ -186,7 +186,6 @@ end
     eval_psp_local_real(psp, r)
 
 Evaluate the local part of the pseudopotential in real space.
-The vector `r` should be given in cartesian coordinates.
 
 [GTH98] (1)
 """

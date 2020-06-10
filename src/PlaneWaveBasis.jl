@@ -110,9 +110,9 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
 
 # This is the "internal" constructor; the higher-level one below should be preferred
-function PlaneWaveBasis(model::Model{T}, Ecut::Number,
-                        kcoords::AbstractVector, ksymops, symops=nothing;
-                        fft_size=determine_grid_size(model, Ecut)) where {T <: Real}
+@timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
+                                kcoords::AbstractVector, ksymops, symops=nothing;
+                                fft_size=determine_grid_size(model, Ecut)) where {T <: Real}
     @assert Ecut > 0
     fft_size = Tuple{Int, Int, Int}(fft_size)
 
@@ -262,12 +262,12 @@ end
 """
 In-place version of `G_to_r`.
 """
-function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                 f_fourier::AbstractArray3) where {Tr, Tf}
+@timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
+                             f_fourier::AbstractArray3) where {Tr, Tf}
     mul!(f_real, basis.opIFFT, f_fourier)
 end
-function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis, kpt::Kpoint,
-                 f_fourier::AbstractVector)
+@timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
+                             kpt::Kpoint, f_fourier::AbstractVector)
     @assert length(f_fourier) == length(kpt.mapping)
     @assert size(f_real) == basis.fft_size
 
@@ -300,12 +300,12 @@ end
 In-place version of `r_to_G!`.
 NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
 """
-function r_to_G!(f_fourier::AbstractArray3, basis::PlaneWaveBasis,
-                 f_real::AbstractArray3)
+@timing_seq function r_to_G!(f_fourier::AbstractArray3, basis::PlaneWaveBasis,
+                             f_real::AbstractArray3)
     mul!(f_fourier, basis.opFFT, f_real)
 end
-function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis, kpt::Kpoint,
-                 f_real::AbstractArray3)
+@timing_seq function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
+                             kpt::Kpoint, f_real::AbstractArray3)
     @assert size(f_real) == basis.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
 

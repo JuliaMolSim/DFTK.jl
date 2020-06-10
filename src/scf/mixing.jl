@@ -6,22 +6,29 @@
 
 # The interface is `mix(m, basis, ρin, ρout) -> ρnext`
 
+using LinearMaps
+using IterativeSolvers
+
+@doc raw"""
+Kerker mixing: ``J^{-1} ≈ \frac{α G^2}{(k_F^2 + G^2}``
+where ``k_F`` is the Thomas-Fermi screening constant.
+
+Notes:
+  - Abinit calls ``1/k_F`` the dielectric screening length (parameter *dielng*)
 """
-Kerker mixing: J^-1 ≈ α*G^2/(G0^2 + G^2)
-"""
-struct KerkerMixing{T <: Real}
-    α::T
-    G0::T
+struct KerkerMixing
+    α::Real
+    kF::Real
 end
-# Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, G0=1.5 Ǎ^{-1})
+# Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, kF=1.5 Ǎ^{-1})
 # DOI 10.1103/PhysRevB.54.11169
-KerkerMixing() = KerkerMixing(0.8, 0.8)
-function mix(m::KerkerMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray)
-    Gsq = [sum(abs2, basis.model.recip_lattice * G)
-           for G in G_vectors(basis)]
+KerkerMixing(;α=0.8, kF=0.8) = KerkerMixing(α, kF)
+function mix(mixing::KerkerMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; kwargs...)
+    T = eltype(basis)
+    Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
     ρin = ρin.fourier
     ρout = ρout.fourier
-    ρnext = @. ρin + m.α * (ρout - ρin) * Gsq / (m.G0^2 + Gsq)
+    ρnext = @. ρin + T(mixing.α) * (ρout - ρin) * Gsq / (T(mixing.kF)^2 + Gsq)
     # take the correct DC component from ρout; otherwise the DC component never gets updated
     ρnext[1] = ρout[1]
     from_fourier(basis, ρnext; assume_real=true)
@@ -30,14 +37,15 @@ end
 """
 Simple mixing: J^-1 ≈ α
 """
-struct SimpleMixing{T <: Real}
-    α::T
+struct SimpleMixing
+    α::Real
 end
-SimpleMixing() = SimpleMixing(1)
-function mix(m::SimpleMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray)
-    if m.α == 1
-        return ρout # optimization
+SimpleMixing(;α=1) = SimpleMixing(α)
+function mix(mixing::SimpleMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; kwargs...)
+    if mixing.α == 1
+        return ρout
     else
-        ρin + m.α * (ρout - ρin)
+        T = eltype(basis)
+        ρin + T(mixing.α) * (ρout - ρin)
     end
 end

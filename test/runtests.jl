@@ -80,6 +80,7 @@ Random.seed!(0)
         include("variational.jl")
         include("compute_bands.jl")
         include("chi0.jl")
+        include("kernel.jl")
     end
 
     ("example" in TAGS) && include("runexamples.jl")
