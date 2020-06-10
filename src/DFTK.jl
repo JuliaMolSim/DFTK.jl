@@ -108,6 +108,7 @@ include("eigen/diag.jl")
 
 export KerkerMixing
 export SimpleMixing
+export RestaMixing
 include("scf/mixing.jl")
 export scf_nlsolve_solver
 export scf_damping_solver
