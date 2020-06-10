@@ -77,7 +77,7 @@ function mix(mixing::RestaMixing, basis, ρin::RealFourierArray, ρout::RealFour
     C = 1 - εr
     Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
 
-    ρnext = @. ρin + T(params.α) * (ρout - ρin) * (kF^2 - C * Gsq) / (εr * kF^2 - C * Gsq)
+    ρnext = @. ρin + T(mixing.α) * (ρout - ρin) * (kF^2 - C * Gsq) / (εr * kF^2 - C * Gsq)
     # take the correct DC component from ρout; otherwise the DC component never gets updated
     ρnext[1] = ρout[1]
     from_fourier(basis, ρnext; assume_real=true)
