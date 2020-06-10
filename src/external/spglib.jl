@@ -33,7 +33,7 @@ end
 spglib_cell(lattice, atoms) = first(spglib_cell_atommapping_(lattice, atoms))
 
 
-@timing "spglib_get_symmetry" function spglib_get_symmetry(lattice, atoms; tol_symmetry=1e-5)
+@timing function spglib_get_symmetry(lattice, atoms; tol_symmetry=1e-5)
     spglib = pyimport("spglib")
     lattice = Matrix{Float64}(lattice)  # spglib operates in double precision
 
