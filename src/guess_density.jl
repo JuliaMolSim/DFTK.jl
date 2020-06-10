@@ -18,12 +18,12 @@ guess_density(basis::PlaneWaveBasis) = guess_density(basis, basis.model.atoms)
     # fill ρ with the (unnormalized) Fourier transform, ie ∫ e^{-iGx} ρ(x) dx
     for (spec, positions) in atoms
         n_el_val = n_elec_valence(spec)
-        decay_length = T(atom_decay_length(spec))
-        for r in positions
-            Tr = T.(r)
-            for (iG, G) in enumerate(G_vectors(basis))
-                Gsq = sum(abs2, model.recip_lattice * G)
-                ρ[iG] += n_el_val * exp(-Gsq * decay_length^2) * cis(-2π * dot(G, Tr))
+        decay_length::T = atom_decay_length(spec)
+        for (iG, G) in enumerate(G_vectors(basis))
+            Gsq = sum(abs2, model.recip_lattice * G)
+            struct_fac::T = n_el_val * exp(-Gsq * decay_length^2)
+            for r in positions
+                ρ[iG] += struct_fac * cis(-2T(π) * dot(G, r))
             end
         end
     end

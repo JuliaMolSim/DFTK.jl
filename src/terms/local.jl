@@ -69,21 +69,20 @@ struct AtomicLocal end
 function (E::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
 
-    #
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
-    #
 
-    # TODO doc
-    # Fourier coefficient of potential for an element el at position r
-    # (G in cartesian coordinates)
-    pot(el, r, Gcart) = Complex{T}(local_potential_fourier(el, norm(Gcart))
-                               * cis(-dot(Gcart, model.lattice * r)))
-    pot(Gcart) = sum(pot(elem, r, Gcart)
-                     for (elem, positions) in model.atoms
-                     for r in positions)
+    pot_fourier = zeros(Complex{T}, basis.fft_size)
+    for (iG, G) in enumerate(G_vectors(basis))
+        pot = zero(T)
+        for (elem, positions) in model.atoms
+            pot_radial_G::T = local_potential_fourier(elem, norm(model.recip_lattice * G))
+            for r in positions
+                pot += cis(-2T(π)*dot(G, r)) * pot_radial_G
+            end
+        end
+        pot_fourier[iG] = pot / sqrt(model.unit_cell_volume)
+    end
 
-    pot_fourier = [pot(model.recip_lattice * G) / sqrt(model.unit_cell_volume)
-                   for G in G_vectors(basis)]
     pot_real = G_to_r(basis, pot_fourier)
     TermAtomicLocal(basis, real(pot_real))
 end

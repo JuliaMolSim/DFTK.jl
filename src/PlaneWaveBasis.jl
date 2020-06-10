@@ -151,13 +151,15 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         symops = vcat(ksymops...)
     end
 
+    @timing "Basis creation" kpoints = build_kpoints(model, fft_size, kcoords, Ecut)
     basis = PlaneWaveBasis{T}(
-        model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
+        model, Ecut, kpoints,
         kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms, symops)
 
     # Instantiate terms
     for (it, t) in enumerate(model.term_types)
-        basis.terms[it] = t(basis)
+        term_name = string(nameof(typeof(t)))
+        @timing "Instantiation $term_name" basis.terms[it] = t(basis)
     end
     basis
 end
