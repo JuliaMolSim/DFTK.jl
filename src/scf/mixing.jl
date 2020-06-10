@@ -59,20 +59,21 @@ where ``C = 1 - ε_r`` with ``ε_r`` being the macroscopic relative permittivity
 We neglect ``f_\text{xc}``, such that
 ``J^{-1} ≈ α \frac{k_F^2 - C G^2}{ε_r k_F^2 - C G^2}``
 
-By default behaves as SimpleMixing, unless a different dielectric constant `εr`
-is specified.
+By default it assumes a relative permittivity of 10 (similar to Silicon).
+`εr == 1` is equal to `SimpleMixing` and `εr == Inf` to `KerkerMixing`.
 """
 struct RestaMixing
     α::Real
     εr::Real
     kF::Real
 end
-RestaMixing(;α=0.8, kF=0.8, εr=1) = RestaMixing(α, εr, kF)
+RestaMixing(;α=0.8, kF=0.8, εr=10) = RestaMixing(α, εr, kF)
 function mix(mixing::RestaMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; kwargs...)
     T = eltype(basis)
     εr = T(mixing.εr)
     kF = T(mixing.kF)
-    εr == 1 && return mix(SimpleMixing(α=α), basis, ρin, ρout)
+    εr == 1               && return mix(SimpleMixing(α=α), basis, ρin, ρout)
+    εr > 1 / sqrt(eps(T)) && return mix(KerkerMixing(α=α, kF=kF), basis, ρin, ρout)
 
     ρin = ρin.fourier
     ρout = ρout.fourier
