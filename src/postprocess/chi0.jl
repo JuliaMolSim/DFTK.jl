@@ -5,10 +5,10 @@ using ProgressMeter
 
 # make ldiv! act as a given function
 struct FunctionPreconditioner
-    f! # f!(y, x) applies f to x and puts it into y
+    fun!  # f!(y, x) applies f to x and puts it into y
 end
-LinearAlgebra.ldiv!(y, P::FunctionPreconditioner, x) = P.f!(y, x)
-LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (y=similar(x); P.f!(y, x); x .= y)
+LinearAlgebra.ldiv!(y, P::FunctionPreconditioner, x) = P.fun!(y, x)
+LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.fun!(similar(x), x))
 
 """
 Compute the independent-particle susceptibility. Will blow up for large systems.
@@ -99,8 +99,7 @@ function sternheimer_solver(basis, kpoint, Hk, ψk, ψnk, εnk, rhs, cgtol)
     precon = PreconditionerTPA(basis, kpoint)
     precondprep!(precon, ψnk)
     function f_ldiv!(x, y)
-        ldiv!(x, precon, Q(y))
-        x .= Q(x)
+        x .= Q(precon \ Q(y))
     end
     J = LinearMap{eltype(ψk)}(QHQ, size(Hk, 1))
     # cgtol should not be too tight, and in particular not be

@@ -67,8 +67,7 @@ ldiv!(P::PreconditionerTPA, R) = ldiv!(R, P, R)
     end
     Y
 end
-mul!(P::PreconditionerTPA, R) = mul!(R, P, R)
-(Base.:*)(P::PreconditionerTPA, R) = mul!(P, copy(R))
+(Base.:*)(P::PreconditionerTPA, R) = mul!(copy(R), P, R)
 
 function precondprep!(P::PreconditionerTPA, X)
     P.mean_kin = [real(dot(x, P.kin .* x)) for x in eachcol(X)]
