@@ -94,14 +94,22 @@ Base.eltype(basis::PlaneWaveBasis{T}) where {T} = T
 
     kpoints = Vector{Kpoint}()
     for k in kcoords
-        k = T.(k)
-        energy(q) = sum(abs2, model.recip_lattice * q) / 2
-        pairs = [(i, G) for (i, G) in enumerate(G_vectors(fft_size)) if energy(k + G) ≤ Ecut]
-
-        mapping = first.(pairs)
+        k = T.(k) # rationals are sloooow
+        mapping = Vector{Int}()
+        Gvecs_k = Vector{Vec3{Int}}()
+        # provide a rough hint so that the arrays don't have to be resized so much
+        n_guess = div(prod(fft_size), 8)
+        sizehint!(mapping, n_guess)
+        sizehint!(Gvecs_k, n_guess)
+        for (i, G) in enumerate(G_vectors(fft_size))
+            if sum(abs2, model.recip_lattice * (G + k)) / 2 ≤ Ecut
+                push!(mapping, i)
+                push!(Gvecs_k, G)
+            end
+        end
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for σ in spin
-            push!(kpoints, Kpoint(σ, k, mapping, mapping_inv, last.(pairs)))
+            push!(kpoints, Kpoint(σ, k, mapping, mapping_inv, Gvecs_k))
         end
     end
 
