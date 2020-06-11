@@ -72,7 +72,7 @@ Determine the tolerance used for the next diagonalization. This function takes
 ensuring additionally that the returned value is between `diagtol_min` and `diagtol_max`
 and never increases.
 """
-function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.1)
+function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.03)
     function determine_diagtol(info)
         isnothing(diagtol_min) && (diagtol_min = 100eps(real(eltype(info.ρin))))
         info.n_iter == 1 && return diagtol_max
