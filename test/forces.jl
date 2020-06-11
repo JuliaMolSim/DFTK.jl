@@ -56,7 +56,7 @@ end
     ε = 1e-6
     pos2 = [pos1[1] + ε * disp, pos1[2]]
 
-    for (tol, smearing) in [(0.001, Smearing.FermiDirac), (5e-5, Smearing.Gaussian)]
+    for (tol, smearing) in [(0.003, Smearing.FermiDirac), (5e-5, Smearing.Gaussian)]
         E1, F1 = silicon_energy_forces(pos1; smearing=smearing())
         E2, _ = silicon_energy_forces(pos2; smearing=smearing())
 

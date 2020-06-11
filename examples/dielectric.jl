@@ -29,6 +29,7 @@ end
 
 # A straightfoward Arnoldi eigensolver that diagonalizes the matrix at each step
 # This is more efficient than Arpack when `f` is very expensive
+println("Starting Arnoldi ...")
 function arnoldi(f, x0, howmany; tol=1e-4, maxiter=30)
     for (V, B, r, nr, b) in ArnoldiIterator(f, x0)
         # A * V = V * B + r * b'
@@ -42,15 +43,18 @@ function arnoldi(f, x0, howmany; tol=1e-4, maxiter=30)
 
         # Select `howmany` smallest and largest eigenpairs
         N = size(V, 2)
-        inds = 1:min(N, howmany)
-        inds = [inds..., (min(N, howmany):N)...]
+        inds = unique(append!(collect(1:min(N, howmany)), max(1, N-howmany):N))
 
         normr = [norm(r) for r in eachcol(R[:, inds])]
-        println(N)
-        display([ew[inds] normr])
+        println("#--- $N ---#")
+        println("idcs      evals     residnorms")
+        any(imag.(ew[inds]) .> 1e-5) && println("Warn: Suppressed imaginary part.")
+        display(real.([inds ew[inds] normr]))
+        println()
         if (N ≥ howmany && maximum(normr) < tol) || (N ≥ maxiter)
             return ew[inds], Vr[:, inds], AVr[:, inds]
         end
     end
 end
-arnoldi(eps_fun, vec(randn(size(scfres.ρ.real))), 5)
+howmany = 5
+arnoldi(eps_fun, vec(randn(size(scfres.ρ.real))), howmany)
