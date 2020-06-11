@@ -94,7 +94,7 @@ Base.eltype(basis::PlaneWaveBasis{T}) where {T} = T
 
     kpoints = Vector{Kpoint}()
     for k in kcoords
-        k = T.(k) # rationals are sloooow
+        k = Vec3{T}(k) # rationals are sloooow
         mapping = Vector{Int}()
         Gvecs_k = Vector{Vec3{Int}}()
         # provide a rough hint so that the arrays don't have to be resized so much
