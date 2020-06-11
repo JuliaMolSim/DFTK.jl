@@ -11,9 +11,9 @@ Discretization information for kpoint-dependent quantities such as orbitals.
 More generally, a kpoint is a block of the Hamiltonian;
 eg collinear spin is treated by doubling the number of kpoints.
 """
-struct Kpoint
+struct Kpoint{T <: Real}
     spin::Symbol                     # :up, :down, :both or :spinless
-    coordinate::Vec3{Rational{Int}}  # Fractional coordinate of k-Point
+    coordinate::Vec3{T}              # Fractional coordinate of k-Point
     mapping::Vector{Int}             # Index of G_vectors[i] on the FFT grid:
                                      # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
     mapping_inv::Dict{Int, Int}      # Inverse of `mapping`:
@@ -47,7 +47,7 @@ struct PlaneWaveBasis{T <: Real}
     Ecut::T
 
     # irreducible kpoints
-    kpoints::Vector{Kpoint}
+    kpoints::Vector{Kpoint{T}}
     # BZ integration weights, summing up to 1
     # kweights[ik] = length(ksymops[ik]) / sum(length(ksymops[ik]) for ik=1:Nk)
     kweights::Vector{T}
@@ -94,6 +94,7 @@ Base.eltype(basis::PlaneWaveBasis{T}) where {T} = T
 
     kpoints = Vector{Kpoint}()
     for k in kcoords
+        k = T.(k)
         energy(q) = sum(abs2, model.recip_lattice * q) / 2
         pairs = [(i, G) for (i, G) in enumerate(G_vectors(fft_size)) if energy(k + G) ≤ Ecut]
 
