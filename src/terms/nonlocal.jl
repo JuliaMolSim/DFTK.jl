@@ -180,7 +180,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, atoms, kpt::Kpoint)
             # k+G in this formula can also be G, this only changes an unimportant phase factor
             structure_factors = [cis(-2T(π)*dot(kpt.coordinate + G, r)) for G in G_vectors(kpt)]
             for iproj = 1:count_n_proj_(psp)
-                @views proj_vectors[:, offset+iproj] .= (structure_factors .*
+                @views proj_vectors[:, offset+iproj] .= (structure_factors
                                                         .* form_factors[:, iproj]
                                                         ./ sqrt(model.unit_cell_volume))
             end
