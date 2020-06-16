@@ -100,9 +100,9 @@ function compute_kernel(basis::PlaneWaveBasis{T}; kwargs...) where {T}
     k
 end
 function apply_kernel(basis, dρ; kwargs...)
-    dV = zero(dρ)
+    dV = RealFourierArray(basis)
     for term in basis.terms
-        dV .+= apply_kernel(term, dρ; kwargs...)
+        dV.real .+= apply_kernel(term, dρ; kwargs...).real
     end
     dV
 end
