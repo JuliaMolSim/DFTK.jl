@@ -82,11 +82,9 @@ end
 
 # Algebraic operations
 function Base.:+(A::RealFourierArray, B::RealFourierArray) where T
-    @assert A.basis == B.basis
     from_real(A.basis, A.real + B.real)
 end
 function Base.:-(A::RealFourierArray, B::RealFourierArray) where T
-    @assert A.basis == B.basis
     from_real(A.basis, A.real - B.real)
 end
 function Base.:*(α::Number, A::RealFourierArray)

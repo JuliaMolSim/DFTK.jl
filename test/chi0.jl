@@ -44,7 +44,7 @@ include("testcases.jl")
                                        use_symmetry=use_symmetry)
                 energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
                 ρ2 = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
-                diff_findiff = from_real(basis, ρ2.real - ρ1.real) / ε
+                diff_findiff = (ρ2 - ρ1) / ε
 
 
                 EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham0.blocks]
