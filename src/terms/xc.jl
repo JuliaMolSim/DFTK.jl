@@ -74,7 +74,8 @@ function compute_kernel(term::TermXc; ρ::RealFourierArray, kwargs...)
     Diagonal(vec(term.scaling_factor .* kernel))
 end
 
-function apply_kernel(term::TermXc, dρ; ρ::RealFourierArray, kwargs...)
+
+function apply_kernel(term::TermXc, dρ::RealFourierArray; ρ::RealFourierArray, kwargs...)
     basis = term.basis
     T = eltype(basis)
     @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
@@ -83,7 +84,7 @@ function apply_kernel(term::TermXc, dρ; ρ::RealFourierArray, kwargs...)
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     density = DensityDerivatives(basis, max_ρ_derivs, ρ)
-    perturbation = DensityDerivatives(basis, max_ρ_derivs, from_real(basis, dρ))
+    perturbation = DensityDerivatives(basis, max_ρ_derivs, dρ)
 
     result = similar(ρ.real)
     result .= 0
@@ -92,12 +93,12 @@ function apply_kernel(term::TermXc, dρ; ρ::RealFourierArray, kwargs...)
         terms = evaluate(xc; input_kwargs(xc.family, density)..., derivatives=1:2)
 
         # Accumulate LDA and GGA terms in result
-        result .+= terms.v2rho2 .* dρ
+        result .+= terms.v2rho2 .* dρ.real
         if haskey(terms, :v2rhosigma)
             result .+= apply_kernel_term_gga(terms, density, perturbation)
         end
     end
-    term.scaling_factor .* result
+    from_real(basis, term.scaling_factor .* result)
 end
 
 #=

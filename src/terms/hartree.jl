@@ -50,4 +50,6 @@ function compute_kernel(term::TermHartree; kwargs...)
     # Note that `real` here: if omitted, will result in high-frequency noise of even FFT grids
     real(G_to_r_matrix(term.basis) * Diagonal(vec(vc_G)) * r_to_G_matrix(term.basis))
 end
-apply_kernel(term::TermHartree, dρ; kwargs...) = real(G_to_r(term.basis, term.poisson_green_coeffs .* r_to_G(term.basis, complex.(dρ))))
+function apply_kernel(term::TermHartree, dρ::RealFourierArray; kwargs...)
+    from_fourier(dρ.basis, term.poisson_green_coeffs .* dρ.fourier, assume_real=true)
+end
