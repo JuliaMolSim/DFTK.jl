@@ -44,7 +44,7 @@ include("testcases.jl")
                                        use_symmetry=use_symmetry)
                 energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
                 ρ2 = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
-                diff_findiff = (ρ2 - ρ1) / ε
+                diff_findiff = from_real(basis, ρ2.real - ρ1.real) / ε
 
 
                 EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham0.blocks]
@@ -60,7 +60,7 @@ include("testcases.jl")
                 if !symmetry
                     χ0 = compute_χ0(ham0)
                     diff_computed_χ0 = real(reshape(χ0 * vec(dV.real), basis.fft_size))
-                    @test norm(diff_findiff - diff_computed_χ0) < testtol
+                    @test norm(diff_findiff.real - diff_computed_χ0) < testtol
 
                     # Test that apply_χ0 is self-adjoint
                     dV1 = from_real(basis, randn(eltype(basis), basis.fft_size))

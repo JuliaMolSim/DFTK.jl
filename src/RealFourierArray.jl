@@ -1,4 +1,5 @@
 # Lazy structure for an array whose real and fourier part can be accessed by A.real and A.fourier
+# Used to represent potentials and densities
 # For normalization conventions, see PlaneWaveBasis.jl
 
 import Base.getproperty, Base.setproperty!, Base.propertynames
@@ -12,45 +13,40 @@ import Base.eltype, Base.size, Base.length
 
 @enum RFA_state RFA_only_real RFA_only_fourier RFA_both
 
-# TODO make this concrete by parametrizing on the type of the arrays
 """
-A structure to facilitate manipulations of an array of type T in both real
+A structure to facilitate manipulations of an array of real-space type T, in both real
 and fourier space. Create with `from_real` or `from_fourier`, and access
 with `A.real` and `A.fourier`.
 """
-mutable struct RealFourierArray{Treal <: Real, T <: Union{Treal, Complex{Treal}}}
-# Treal is the underlying real type
-# T is the type of the array in real space
-    basis::PlaneWaveBasis{Treal}
+mutable struct RealFourierArray{T <: Real}
+    basis::PlaneWaveBasis{T}
     _real::AbstractArray{T, 3}
-    _fourier::AbstractArray{Complex{Treal}, 3}
+    _fourier::AbstractArray{Complex{T}, 3}
     _state::RFA_state
 end
 # Type of the real part
-Base.eltype(::RealFourierArray{Treal, T}) where {Treal, T} = T
+Base.eltype(::RealFourierArray{T}) where {T} = T
 Base.size(array::RealFourierArray) = size(array._real)
 Base.size(array::RealFourierArray, i) = size(array._real, i)
 Base.length(array::RealFourierArray) = length(array._real)
 
 # Constructors
-RealFourierArray(basis, real, fourier) = RealFourierArray(basis, real, fourier, 2)
-function RealFourierArray(basis::PlaneWaveBasis{T}; iscomplex=false) where {T}
-    from_real(basis, zeros(iscomplex ? complex(T) : T, basis.fft_size...))
+RealFourierArray(basis, real, fourier) = RealFourierArray(basis, real, fourier, RFA_both)
+function RealFourierArray(basis::PlaneWaveBasis{T}) where {T}
+    from_real(basis, zeros(T, basis.fft_size...))
 end
 
-function from_real(basis, real_part::AbstractArray{T}) where {T <: Number}
-    RealFourierArray{real(T), T}(basis, real_part, similar(real_part, complex(T)), RFA_only_real)
+function from_real(basis, real_part::AbstractArray{T}) where {T <: Real}
+    RealFourierArray(basis, real_part, similar(real_part, complex(T)), RFA_only_real)
 end
-function from_fourier(basis, fourier_part::AbstractArray{T}; assume_real=false) where {T <: Complex}
-    if assume_real
-        RealFourierArray{real(T), real(T)}(basis, similar(fourier_part, real(T)), fourier_part, RFA_only_fourier)
-    else
-        RealFourierArray{real(T), T}(basis, similar(fourier_part), fourier_part, RFA_only_fourier)
+function from_fourier(basis, fourier_part::AbstractArray{T}; check_real=false) where {T <: Complex}
+    if check_real
+        error("Not implemented yet")
+        # Go through G vectors and check c_{-G} = (c_G)' (if both G and -G are in the grid)
+        # Should be reasonably fast so we can make it the default
     end
+    RealFourierArray(basis, similar(fourier_part, real(T)), fourier_part, RFA_only_fourier)
 end
-
-check_real(A::RealFourierArray{Treal, T}) where {Treal, T <: Real} = nothing
-check_real(A::RealFourierArray) = check_real(A.real)
 
 function Base.propertynames(array::RealFourierArray, private=false)
     ret = [:basis, :real, :fourier]

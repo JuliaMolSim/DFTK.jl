@@ -51,5 +51,5 @@ function compute_kernel(term::TermHartree; kwargs...)
     real(G_to_r_matrix(term.basis) * Diagonal(vec(vc_G)) * r_to_G_matrix(term.basis))
 end
 function apply_kernel(term::TermHartree, dρ::RealFourierArray; kwargs...)
-    from_fourier(dρ.basis, term.poisson_green_coeffs .* dρ.fourier, assume_real=true)
+    from_fourier(dρ.basis, term.poisson_green_coeffs .* dρ.fourier)
 end

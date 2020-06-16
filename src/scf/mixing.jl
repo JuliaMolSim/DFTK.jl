@@ -33,7 +33,7 @@ function mix(mixing::KerkerMixing, basis, ρin::RealFourierArray, ρout::RealFou
     ρnext = @. ρin + T(mixing.α) * (ρout - ρin) * Gsq / (T(mixing.kF)^2 + Gsq)
     # take the correct DC component from ρout; otherwise the DC component never gets updated
     ρnext[1] = ρout[1]
-    from_fourier(basis, ρnext; assume_real=true)
+    from_fourier(basis, ρnext)
 end
 
 @doc raw"""
@@ -83,5 +83,5 @@ function mix(mixing::RestaMixing, basis, ρin::RealFourierArray, ρout::RealFour
     ρnext = @. ρin + T(mixing.α) * (ρout - ρin) * (kF^2 - C * Gsq) / (εr * kF^2 - C * Gsq)
     # take the correct DC component from ρout; otherwise the DC component never gets updated
     ρnext[1] = ρout[1]
-    from_fourier(basis, ρnext; assume_real=true)
+    from_fourier(basis, ρnext)
 end

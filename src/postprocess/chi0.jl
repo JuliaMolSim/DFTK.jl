@@ -203,5 +203,5 @@ function apply_χ0(ham, ψ, εF, eigenvalues, δV::RealFourierArray;
         δρ .+= ldos .* dot(ldos, δV) .* dVol ./ dos
     end
 
-    from_real(basis, δρ .* normδV, assume_real=true)
+    from_real(basis, δρ .* normδV)
 end
