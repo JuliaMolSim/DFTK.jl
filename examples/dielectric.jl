@@ -22,9 +22,9 @@ scfres = self_consistent_field(basis, tol=1e-14)
 # Apply ε = 1 - K χ0
 function eps_fun(dv)
     dv = reshape(dv, size(scfres.ρ.real))
-    dρ = apply_χ0(scfres.ham, dv, scfres.ψ, scfres.εF, scfres.eigenvalues)
+    dρ = apply_χ0(scfres.ham, scfres.ψ, scfres.εF, scfres.eigenvalues, from_real(basis, dv))
     Kdρ = apply_kernel(basis, dρ; ρ=scfres.ρ)
-    vec(dv - Kdρ)
+    vec(dv - Kdρ.real)
 end
 
 # A straightfoward Arnoldi eigensolver that diagonalizes the matrix at each step

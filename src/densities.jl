@@ -78,5 +78,5 @@ be one coefficient matrix per k-Point.
     end
 
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))
-    from_fourier(basis, sum(ρaccus) / count; assume_real=true)
+    from_fourier(basis, sum(ρaccus) / count)
 end

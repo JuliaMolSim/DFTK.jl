@@ -30,5 +30,5 @@ function compute_kernel(term::TermPowerNonlinearity; ρ::RealFourierArray, kwarg
 end
 function apply_kernel(term::TermPowerNonlinearity, dρ; ρ::RealFourierArray, kwargs...)
     k = _kernel(term.C, term.α, ρ.real)
-    k .* dρ
+    from_real(term.basis, k .* dρ.real)
 end

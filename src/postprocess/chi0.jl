@@ -113,11 +113,11 @@ function sternheimer_solver(basis, kpoint, Hk, ψk, ψnk, εnk, rhs, cgtol)
 end
 
 """
-Returns the change in density δρ for a given δV. Drop all non-diagonal terms with
+Returns the change in density `δρ` for a given `δV`. Drop all non-diagonal terms with
 (f(εn)-f(εm))/(εn-εm) factor less than `droptol`. If `sternheimer_contribution`
 is false, only compute excitations inside the provided orbitals.
 """
-function apply_χ0(ham, δV, ψ, εF, eigenvalues;
+function apply_χ0(ham, ψ, εF, eigenvalues, δV::RealFourierArray;
                   droptol=0,
                   sternheimer_contribution=true,
                   temperature=ham.basis.model.temperature,
@@ -134,16 +134,15 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues;
     # not be necessary, but it simplifies the interaction with the
     # Sternheimer linear solver (it makes the rhs be order 1 even if
     # δV is small)
-    normδV = norm(δV)
-    normδV < eps(T) && return zero(δV)
-    δV /= normδV
+    normδV = norm(δV.real)
+    normδV < eps(T) && return RealFourierArray(basis)
 
     # Make δV respect the full model symmetry group, since it's
     # invalid to consider perturbations that don't (technically it
     # could be made to only respect basis.symops, but symmetrizing wrt
     # the model symmetry group means that χ0 is unaffected by the
     # use_symmetry kwarg of basis, which is nice)
-    δV = symmetrize(from_real(basis, δV)).real
+    δV = symmetrize(δV).real / normδV
 
     if droptol > 0 && sternheimer_contribution == true
         error("Droptol cannot be positive if sternheimer contribution is to be computed.")
@@ -176,7 +175,7 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues;
                 ψmk_real = G_to_r(basis, basis.kpoints[ik], ψmk)
                 # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
                 ρnm = conj(ψnk_real) .* ψmk_real
-                weight = dVol*dot(ρnm, δV)
+                weight = dVol * dot(ρnm, δV)
                 δρk .+= real(ratio .* weight .* ρnm)
             end
 
@@ -204,5 +203,5 @@ function apply_χ0(ham, δV, ψ, εF, eigenvalues;
         δρ .+= ldos .* dot(ldos, δV) .* dVol ./ dos
     end
 
-    δρ .* normδV
+    from_real(basis, δρ .* normδV)
 end
