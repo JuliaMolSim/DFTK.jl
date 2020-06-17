@@ -22,7 +22,7 @@ include("testcases.jl")
     for term in basis.terms
         ρ_minus = ρ0 - ε * dρ
         pot_minus = ene_ops(term, nothing, nothing; ρ=ρ_minus).ops[1].potential
-        ρ_plus = ρ0 .+ ε * dρ
+        ρ_plus = ρ0 + ε * dρ
         pot_plus = ene_ops(term, nothing, nothing; ρ=ρ_plus).ops[1].potential
         dV = (pot_plus - pot_minus) / (2ε)
 
