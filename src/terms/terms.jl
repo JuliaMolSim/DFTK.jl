@@ -64,9 +64,9 @@ end
     T = eltype(basis)
     f = [zeros(Vec3{T}, length(positions)) for (type, positions) in basis.model.atoms]
     for term in basis.terms
-        ft = forces(term, ψ, occ; kwargs...)
-        if ft !== nothing
-            f += ft
+        f_term = forces(term, ψ, occ; kwargs...)
+        if !isnothing(f_term)
+            f += f_term
         end
     end
     f
@@ -89,7 +89,7 @@ end
 Computes the potential response to a perturbation dρ in real space
 """
 function apply_kernel(term::Term, dρ; kwargs...)
-    (real=false, )  # Bit of a hack until we have custom broadcasting of RFAs
+    nothing  # by default, no kernel
 end
 
 function compute_kernel(basis::PlaneWaveBasis{T}; kwargs...) where {T}
@@ -102,7 +102,10 @@ end
 function apply_kernel(basis, dρ; kwargs...)
     dV = RealFourierArray(basis)
     for term in basis.terms
-        dV.real .+= apply_kernel(term, dρ; kwargs...).real
+        dV_term = apply_kernel(term, dρ; kwargs...)
+        if !isnothing(res)
+            dV.real .+= dV_term.real
+        end
     end
     dV
 end
