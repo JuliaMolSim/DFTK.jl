@@ -103,7 +103,7 @@ function apply_kernel(basis, dρ; kwargs...)
     dV = RealFourierArray(basis)
     for term in basis.terms
         dV_term = apply_kernel(term, dρ; kwargs...)
-        if !isnothing(res)
+        if !isnothing(dV_term)
             dV.real .+= dV_term.real
         end
     end
