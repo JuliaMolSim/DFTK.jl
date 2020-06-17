@@ -89,7 +89,7 @@ end
 Computes the potential response to a perturbation dρ in real space
 """
 function apply_kernel(term::Term, dρ; kwargs...)
-    false
+    (real=false, )  # Bit of a hack until we have custom broadcasting of RFAs
 end
 
 function compute_kernel(basis::PlaneWaveBasis{T}; kwargs...) where {T}
