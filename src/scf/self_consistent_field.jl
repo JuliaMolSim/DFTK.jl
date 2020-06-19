@@ -33,7 +33,7 @@ function ScfDefaultCallback()
     function callback(info)
         if info.n_iter == 1
             E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
-            @printf "n     %-12s      ρout-ρin   Eₙ₋₁-Eₙ     diag\n" E_label
+            @printf "n     %-12s      ρout-ρin   Eₙ₋₁-Eₙ    Diag\n" E_label
             @printf "---   ---------------   --------   --------   ----\n"
         end
         E = info.energies === nothing ? Inf : sum(values(info.energies))
@@ -180,7 +180,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     # Tolerance and maxiter are only dummy here: Convergence is flagged by is_converged
     # inside the fixpoint_map. Also we do not use the return value of fpres but rather the
     # one that got updated by fixpoint_map
-    fpres = solver(fixpoint_map, ρout.real, typemax(Int); tol=0)
+    fpres = solver(fixpoint_map, ρout.real, maxiter; tol=eps(T))
 
     # We do not use the return value of fpres but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform
