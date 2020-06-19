@@ -28,18 +28,23 @@ function next_density(ham::Hamiltonian;
      diagonalization=eigres)
 end
 
-function scf_default_callback(info)
-    if info.n_iter == 1
-        E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
-        @printf "n     %-12s      ρout-ρin   Eₙ₋₁-Eₙ     diag\n" E_label
-        @printf "---   ---------------   --------   --------   ----\n"
+function ScfDefaultCallback()
+    prev_energies = nothing
+    function callback(info)
+        if info.n_iter == 1
+            E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
+            @printf "n     %-12s      ρout-ρin   Eₙ₋₁-Eₙ     diag\n" E_label
+            @printf "---   ---------------   --------   --------   ----\n"
+        end
+        E = info.energies === nothing ? Inf : sum(values(info.energies))
+        prev_E = prev_energies === nothing ? Inf : sum(values(prev_energies))
+        res = norm(info.ρout.fourier - info.ρin.fourier)
+        ΔE = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" prev_E - E
+        diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
+        @printf "%-3d   %-15.12f   %2.2e  %s   %3.1f \n" info.n_iter E res ΔE diagiter
+        prev_energies = info.energies
     end
-    E = info.energies === nothing ? Inf : sum(values(info.energies))
-    prev_E = info.previous_energies === nothing ? Inf : sum(values(info.previous_energies))
-    res = norm(info.ρout.fourier - info.ρin.fourier)
-    ΔE = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" prev_E - E
-    diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
-    @printf "%-3d   %-15.12f   %2.2e  %s   %3.1f \n" info.n_iter E res ΔE diagiter
+    callback
 end
 
 """
@@ -106,8 +111,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        n_ep_extra=3,
                                        determine_diagtol=ScfDiagtol(),
                                        mixing=SimpleMixing(),
-                                       callback=scf_default_callback,
                                        is_converged=ScfConvergenceEnergy(tol),
+                                       callback=ScfDefaultCallback(),
                                        compute_consistent_energies=true,
                                       )
     T = eltype(basis)
@@ -127,8 +132,6 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     n_iter = 0
     energies = nothing
     ham = nothing
-    nonconsistent_energies = nothing
-    previous_energies = nothing
     info = (n_iter=1, ρin=ρ)   # Populate info with initial values
 
     # We do density mixing in the real representation
@@ -144,7 +147,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         else
             # Note that ρin is not the density of ψ, and the eigenvalues
             # are not the self-consistent ones, which makes this energy non-variational
-            nonconsistent_energies, ham = energy_hamiltonian(basis, ψ, occupation;
+            energies, ham = energy_hamiltonian(basis, ψ, occupation;
                                                              ρ=ρin, eigenvalues=eigenvalues, εF=εF)
         end
 
@@ -154,16 +157,13 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # Compute the energy of the new state
-        previous_energies = energies
         if compute_consistent_energies
             energies, _ = energy_hamiltonian(basis, ψ, occupation;
                                              ρ=ρout, eigenvalues=eigenvalues, εF=εF)
-        else
-            energies = nonconsistent_energies
         end
 
         # Update info with results gathered so far
-        info = (ham=ham, basis=basis, energies=energies, previous_energies=previous_energies, ρin=ρin, ρout=ρout,
+        info = (ham=ham, basis=basis, energies=energies, ρin=ρin, ρout=ρout,
                 eigenvalues=eigenvalues, occupation=occupation, εF=εF, n_iter=n_iter, ψ=ψ,
                 diagonalization=nextstate.diagonalization)
 
