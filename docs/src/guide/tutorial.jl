@@ -45,10 +45,6 @@ basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 ## 3. Run the SCF procedure to obtain the ground state
 scfres = self_consistent_field(basis, tol=1e-8);
 
-# Note that DFTK by default applies the convergence tolerance `tol`
-# to the energy difference, so that the norm in the density difference
-# is not yet converged to 8 digits.
-#
 # That's it! Now you can get various quantities from the result of the SCF.
 # For instance, the different components of the energy:
 scfres.energies
