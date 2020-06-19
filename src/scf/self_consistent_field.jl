@@ -28,15 +28,23 @@ function next_density(ham::Hamiltonian;
      diagonalization=eigres)
 end
 
-function scf_default_callback(info)
-    E = info.energies === nothing ? Inf : sum(values(info.energies))
-    res = norm(info.ρout.fourier - info.ρin.fourier)
-    if info.n_iter == 1
-        label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
-        @printf "Iter   %-15s    ρout-ρin\n" label
-        @printf "----   %-15s    --------\n" "-"^length(label)
+function ScfDefaultCallback()
+    prev_energies = nothing
+    function callback(info)
+        if info.n_iter == 1
+            E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
+            @printf "n     %-12s      ρout-ρin   Eₙ₋₁-Eₙ    Diag\n" E_label
+            @printf "---   ---------------   --------   --------   ----\n"
+        end
+        E = info.energies === nothing ? Inf : sum(values(info.energies))
+        prev_E = prev_energies === nothing ? Inf : sum(values(prev_energies))
+        res = norm(info.ρout.fourier - info.ρin.fourier)
+        ΔE = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" prev_E - E
+        diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
+        @printf "%-3d   %-15.12f   %2.2e  %s   %3.1f \n" info.n_iter E res ΔE diagiter
+        prev_energies = info.energies
     end
-    @printf "%3d    %-15.12f    %E\n" info.n_iter E res
+    callback
 end
 
 """
@@ -84,7 +92,6 @@ function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.03)
 
         # Adjust maximum to ensure diagtol may only shrink during an SCF
         diagtol_max = min(diagtol, diagtol_max)
-
         diagtol
     end
 end
@@ -104,8 +111,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        n_ep_extra=3,
                                        determine_diagtol=ScfDiagtol(),
                                        mixing=SimpleMixing(),
-                                       callback=scf_default_callback,
                                        is_converged=ScfConvergenceEnergy(tol),
+                                       callback=ScfDefaultCallback(),
                                        compute_consistent_energies=true,
                                       )
     T = eltype(basis)
@@ -141,7 +148,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
             # Note that ρin is not the density of ψ, and the eigenvalues
             # are not the self-consistent ones, which makes this energy non-variational
             energies, ham = energy_hamiltonian(basis, ψ, occupation;
-                                               ρ=ρin, eigenvalues=eigenvalues, εF=εF)
+                                                             ρ=ρin, eigenvalues=eigenvalues, εF=εF)
         end
 
         # Diagonalize `ham` to get the new state
@@ -170,10 +177,10 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         ρnext.real
     end
 
-    fpres = solver(fixpoint_map, ρout.real, maxiter; tol=min(10eps(T), tol / 10))
-    # Tolerance is only dummy here: Convergence is flagged by is_converged
+    # Tolerance and maxiter are only dummy here: Convergence is flagged by is_converged
     # inside the fixpoint_map. Also we do not use the return value of fpres but rather the
     # one that got updated by fixpoint_map
+    fpres = solver(fixpoint_map, ρout.real, maxiter; tol=eps(T))
 
     # We do not use the return value of fpres but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform
