@@ -10,13 +10,13 @@ include("testcases.jl")
 
     function test_against_spglib(kgrid_size; kshift=[0, 0, 0])
         kgrid_size = Vec3(kgrid_size)
-        identity = collect(reshape(Matrix{Cint}(I, 3, 3), 1, 3, 3))
+        identity = collect(reshape(Matrix{Int64}(I, 3, 3), 3, 3, 1))
         is_shift = ifelse.(kshift .== 0, 0, 1)
         num_kpts, _, grid = DFTK.spglib_get_stabilized_reciprocal_mesh(kgrid_size, identity,
                                                         is_shift=is_shift)
         
-        kcoords_spglib = [(kshift .+ Vec3{Int}(grid[:, ik])) .// kgrid_size
-                          for ik in 1:size(grid, 2)]
+        kcoords_spglib = [(kshift .+ grid[ik]) .// kgrid_size
+                          for ik in 1:length(grid)]
         kcoords_spglib = DFTK.normalize_kpoint_coordinate.(kcoords_spglib)
         sort!(kcoords_spglib)
 
