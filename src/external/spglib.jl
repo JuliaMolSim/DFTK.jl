@@ -2,11 +2,11 @@
 const SPGLIB = spglib_jll.libsymspg
 
 function spglib_get_error_message()
-    error_code = ccall((:spg_get_error_code, SPGLIB), Cint,(Cvoid,),nothing)
+    error_code = ccall((:spg_get_error_code, SPGLIB), Cint,(Cvoid,),Cvoid())
     return ccall((:spg_get_error_message, SPGLIB), String,(Cint,), error_code)
 end
 
-function spglib_get_symmetry_(unit_cell; maxsize = 52, symprec = 1e-5)
+function spglib_get_symmetry_(unit_cell; maxsize = 384, symprec = 1e-5)
     rotations    = Array{Cint}(undef, 3, 3, maxsize)
     translations = Array{Cdouble}(undef, 3, maxsize)
     cell, positions, indices = unit_cell
