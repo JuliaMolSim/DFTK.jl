@@ -7,16 +7,16 @@ include("testcases.jl")
 
 
 @testset "bzmesh_uniform agrees with spglib" begin
-    spglib = pyimport_conda("spglib", "spglib")
 
     function test_against_spglib(kgrid_size; kshift=[0, 0, 0])
         kgrid_size = Vec3(kgrid_size)
-        identity = [reshape(Mat3{Int}(I), 1, 3, 3)]
+        identity = collect(reshape(Matrix{Cint}(I, 3, 3), 1, 3, 3))
         is_shift = ifelse.(kshift .== 0, 0, 1)
-        _, grid = spglib.get_stabilized_reciprocal_mesh(kgrid_size, identity,
+        num_kpts, _, grid = DFTK.spglib_get_stabilized_reciprocal_mesh(kgrid_size, identity,
                                                         is_shift=is_shift)
-        kcoords_spglib = [(kshift .+ Vec3{Int}(grid[ik, :])) .// kgrid_size
-                          for ik in 1:size(grid, 1)]
+        
+        kcoords_spglib = [(kshift .+ Vec3{Int}(grid[:, ik])) .// kgrid_size
+                          for ik in 1:size(grid, 2)]
         kcoords_spglib = DFTK.normalize_kpoint_coordinate.(kcoords_spglib)
         sort!(kcoords_spglib)
 
