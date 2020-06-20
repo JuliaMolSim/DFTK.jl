@@ -65,14 +65,14 @@ function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
     # Give the remaining symmetries to spglib to compute an irreducible k-Point mesh
     # TODO implement time-reversal symmetry and turn the flag to true
     is_shift = Int.(2 * kshift)
-    Stildes = [Cint.(S) for (S, τ) in symops]
+    Stildes = [S for (S, τ) in symops]
     spg_rotations = cat(Stildes..., dims=3)
-    num_kpts, mapping, grid = spglib_get_stabilized_reciprocal_mesh(
+    _, mapping, grid = spglib_get_stabilized_reciprocal_mesh(
         kgrid_size, spg_rotations, is_shift=is_shift, is_time_reversal=false
     )
     # Convert irreducible k-Points to DFTK conventions
     kgrid_size = Vec3{Int}(kgrid_size)
-    kirreds = [(kshift .+ Vec3{Int}(grid[:, ik + 1])) .// kgrid_size
+    kirreds = [(kshift .+ grid[ik + 1]) .// kgrid_size
                for ik in unique(mapping)]
     kirreds = normalize_kpoint_coordinate.(kirreds)
 
@@ -94,7 +94,7 @@ function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
     for (ik, k) in enumerate(kirreds)
         ksymops[ik] = Vector{SymOp}()
         for ired in k_all_reducible[ik]
-            kred = (kshift .+ Vec3(grid[:, ired])) .// kgrid_size
+            kred = (kshift .+ grid[ired]) .// kgrid_size
 
             # Note that this relies on the identity coming up first in symops
             isym = findfirst(symops) do symop
