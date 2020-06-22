@@ -1,4 +1,9 @@
 # Routines for interaction with spglib
+# Note: spglib/C uses the row-major convention, thus we need to perform transposes
+#       between julia and spglib.
+#       However, spglib expects the lattice to be passed in as a C Array of the cell vectors,
+#       which it internally treats as column vectors. Thus we don't need to transpose
+#       the lattice because the julia memory layout of a matrix coincides with this. 
 const SPGLIB = spglib_jll.libsymspg
 
 function spglib_get_error_message()
@@ -117,21 +122,21 @@ function spglib_standardize_cell(lattice::AbstractArray{T}, atoms; correct_symme
     spg_lattice, newatoms
 end
 
-function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations;
+function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;
                                                is_shift=Vec3(0, 0, 0),
                                                is_time_reversal=false,
                                                qpoints::Vector{Vec3{Float64}}=[Vec3(0.0, 0.0, 0.0)],
                                                isdense=false)
-    rotations = eltype(rotations) == Int32 ? rotations : Cint.(rotations)
+    spg_rotations = cat([Cint.(S)' for S in rotations]..., dims=3)
     nkpt = prod(kgrid_size)
     mapping = Vector{Cint}(undef, nkpt)
     grid_address = Matrix{Cint}(undef, 3, nkpt)
    
-    numrot = size(rotations, 3)
-    num_kpts = ccall((:spg_get_stabilized_reciprocal_mesh, SPGLIB), Cint,
+    nrot = length(rotations)
+    n_kpts = ccall((:spg_get_stabilized_reciprocal_mesh, SPGLIB), Cint,
       (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Cint, Cint, Ptr{Cint}, Cint, Ptr{Cdouble}),
       grid_address, mapping, [Cint.(kgrid_size)...], [Cint.(is_shift)...], Cint(is_time_reversal),
-      Cint(numrot), rotations, Cint(length(qpoints)), qpoints)
+      Cint(nrot), spg_rotations, Cint(length(qpoints)), qpoints)
     
-    return num_kpts, Int.(mapping), [Vec3{Int}(grid_address[:, i]) for i in 1:nkpt]
+    return n_kpts, Int.(mapping), [Vec3{Int}(grid_address[:, i]) for i in 1:nkpt]
 end
