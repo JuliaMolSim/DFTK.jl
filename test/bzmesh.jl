@@ -10,10 +10,9 @@ include("testcases.jl")
 
     function test_against_spglib(kgrid_size; kshift=[0, 0, 0])
         kgrid_size = Vec3(kgrid_size)
-        identity = reshape(Matrix{Int64}(I, 3, 3), 3, 3, 1)
         is_shift = ifelse.(kshift .== 0, 0, 1)
         n_kpts, _, grid =
-            DFTK.spglib_get_stabilized_reciprocal_mesh(kgrid_size, identity,
+            DFTK.spglib_get_stabilized_reciprocal_mesh(kgrid_size, [Matrix{Int64}(I, 3, 3)],
                                                        is_shift=is_shift)
         
         kcoords_spglib = [(kshift .+ grid[ik]) .// kgrid_size

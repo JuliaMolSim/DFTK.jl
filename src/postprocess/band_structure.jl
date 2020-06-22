@@ -68,7 +68,7 @@ function prepare_band_data(band_data; datakeys=[:λ, :λerror],
 
         ret[:n_branches] = length(data["energy"])
         ret[:n_bands] = size(data["energy"][1]["1"], 1)
-        ret[:kdistances] = eltype(data["distances"]) == Vector ? data["distances"] : [data["distances"]]
+        ret[:kdistances] = data["distances"]
         ret[:ticks] = data["ticks"]
         ret[key] = [Dict(spinsym => data["energy"][ibranch][spin]
                          for (spin, spinsym) in spinmap)
@@ -116,8 +116,6 @@ function plot_band_data(band_data; εF=nothing,
             energies = (data.λ[ibranch][spin][iband, :] .- eshift) ./ unit_to_au(unit)
 
             color = (spin == :up) ? :blue : :red
-            @show energies
-            @show kdistances
             Plots.plot!(p, kdistances, energies; color=color, label="", yerror=yerror,
                         kwargs...)
         end
@@ -125,10 +123,11 @@ function plot_band_data(band_data; εF=nothing,
 
     # X-range: 0 to last kdistance value
     Plots.xlims!(p, (0, data.kdistances[end][end]))
-    # Plots.xticks!(p, data.ticks["distance"],
-                  # [replace(l, raw"$\mid$" => " | ") for l in data.ticks["label"]])
+    Plots.xticks!(p, data.ticks["distance"],
+                  [replace(l, raw"$\mid$" => " | ") for l in data.ticks["label"]])
+
     ylims = [-4, 4]
-    # is_metal(band_data, εF) && (ylims = [-10, 10])
+    is_metal(band_data, εF) && (ylims = [-10, 10])
     ylims = round.(ylims * units.eV ./ unit_to_au(unit), sigdigits=2)
     if isnothing(εF)
         Plots.ylabel!(p, "eigenvalues  ($(string(unit))")
