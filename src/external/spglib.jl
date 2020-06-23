@@ -72,7 +72,8 @@ spglib_atoms(atoms) = first(spglib_atommapping(atoms))
 
     # Note: Transposes are performed to convert between spglib row-major to julia column-major
     Stildes = [Mat3{Int}(spg_rotations[:, :, i])' for i in 1:spg_n_ops]
-    τtildes = [rationalize.(Vec3{Float64}(spg_translations[:, i]), tol=tol_symmetry) for i in 1:spg_n_ops]
+    τtildes = [rationalize.(Vec3{Float64}(spg_translations[:, i]), tol=tol_symmetry)
+               for i in 1:spg_n_ops]
     
     # Checks: (A Stilde A^{-1}) is unitary
     for Stilde in Stildes
@@ -126,7 +127,7 @@ end
 function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;
                                                is_shift=Vec3(0, 0, 0),
                                                is_time_reversal=false,
-                                               qpoints::Vector{Vec3{Float64}}=[Vec3(0.0, 0.0, 0.0)],
+                                               qpoints=[Vec3(0.0, 0.0, 0.0)],
                                                isdense=false)
     # Note: Transposes are performed to convert from julia column-major to spglib row-major
     spg_rotations = cat([Cint.(S)' for S in rotations]..., dims=3)
@@ -138,7 +139,7 @@ function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;
     n_kpts = ccall((:spg_get_stabilized_reciprocal_mesh, SPGLIB), Cint,
       (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Cint, Cint, Ptr{Cint}, Cint, Ptr{Cdouble}),
       grid_address, mapping, [Cint.(kgrid_size)...], [Cint.(is_shift)...], Cint(is_time_reversal),
-      Cint(nrot), spg_rotations, Cint(length(qpoints)), qpoints)
+      Cint(nrot), spg_rotations, Cint(length(qpoints)), Vec3{Float64}.(qpoints))
     
     return n_kpts, Int.(mapping), [Vec3{Int}(grid_address[:, i]) for i in 1:nkpt]
 end
