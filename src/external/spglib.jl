@@ -1,7 +1,7 @@
 # Routines for interaction with spglib
 # Note: spglib/C uses the row-major convention, thus we need to perform transposes
 #       between julia and spglib.
-#       However, spglib expects the lattice to be passed in as a C Array of the cell vectors,
+#       However, spglib expects the lattice to be passed in as a array of arrays,
 #       which it internally treats as column vectors. Thus we don't need to transpose
 #       the lattice because the julia memory layout of a matrix coincides with this. 
 const SPGLIB = spglib_jll.libsymspg
@@ -23,8 +23,8 @@ function spglib_atommapping(atoms)
     offset = 0
     nextnumber = 1
     atommapping = Dict{Int, Any}()
-    for (iatom, (typ, positions)) in enumerate(atoms)
-        atommapping[nextnumber] = typ
+    for (iatom, (type, positions)) in enumerate(atoms)
+        atommapping[nextnumber] = type
         for (ipos, pos) in enumerate(positions)
             # assign the same number to all types with this position
             spg_numbers[offset + ipos] = nextnumber
