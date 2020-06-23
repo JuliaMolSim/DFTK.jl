@@ -12,8 +12,8 @@ or if you like to be fully up to date:
 At least **Julia 1.3** is required.
 
 ## Python dependencies
-Some parts of the code require a working Python installation with the libraries
-[`pymatgen`](https://pymatgen.org/) and [`spglib`](https://atztogo.github.io/spglib/).
+Some parts of the code require a working Python installation with the
+[`pymatgen`](https://pymatgen.org/) module.
 Check out which version of python is used by the
 [PyCall.jl](https://github.com/JuliaPy/PyCall.jl) package.
 You can do this for example with the Julia commands
@@ -24,11 +24,11 @@ PyCall.python
 Then use the corresponding package manager (usually `apt`, `pip`, `pip3` or `conda`)
 to install aforementioned libraries, for example
 ```
-pip install spglib pymatgen
+pip install pymatgen
 ```
 or
 ```
-conda install -c conda-forge spglib pymatgen
+conda install -c conda-forge pymatgen
 ```
 Afterwards you're all set and should be able to
 run the code in the [`examples` directory](https://dftk.org/tree/master/examples).
