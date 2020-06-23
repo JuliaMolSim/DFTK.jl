@@ -138,5 +138,5 @@ function hamiltonian_with_total_potential(Hk::HamiltonianBlock, V)
     @assert Hk.basis.model.spin_polarization in (:none, :spinless)
     operators = [op for op in Hk.operators if !(op isa RealSpaceMultiplication)]
     push!(operators, RealSpaceMultiplication(Hk.basis, Hk.kpoint, V))
-    HamiltonianBlock(Hk.basis, Hk.kpoint, operators, operators, Hk.scratch)
+    HamiltonianBlock(Hk.basis, Hk.kpoint, operators, Hk.scratch)
 end
