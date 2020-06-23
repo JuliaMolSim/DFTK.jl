@@ -70,6 +70,7 @@ spglib_atoms(atoms) = first(spglib_atommapping(atoms))
               "uniform BZ mesh or disable symmetries. Spglib reported : " * err_message)
     end
 
+    # Note: Transposes are performed to convert between spglib row-major to julia column-major
     Stildes = [Mat3{Int}(spg_rotations[:, :, i])' for i in 1:spg_n_ops]
     τtildes = [rationalize.(Vec3{Float64}(spg_translations[:, i]), tol=tol_symmetry) for i in 1:spg_n_ops]
     
@@ -127,6 +128,7 @@ function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;
                                                is_time_reversal=false,
                                                qpoints::Vector{Vec3{Float64}}=[Vec3(0.0, 0.0, 0.0)],
                                                isdense=false)
+    # Note: Transposes are performed to convert from julia column-major to spglib row-major
     spg_rotations = cat([Cint.(S)' for S in rotations]..., dims=3)
     nkpt = prod(kgrid_size)
     mapping = Vector{Cint}(undef, nkpt)
