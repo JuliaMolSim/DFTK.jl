@@ -151,6 +151,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     if variational && Ecut > max_E
         @warn("For a variational method, Ecut should be less than the maximal kinetic energy " *
               "the grid supports ($max_E)")
+    end
 
     terms = Vector{Any}(undef, length(model.term_types))
 
