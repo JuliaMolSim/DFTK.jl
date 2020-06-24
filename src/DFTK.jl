@@ -10,6 +10,7 @@ using LinearAlgebra
 using Interpolations
 using Requires
 using TimerOutputs
+using spglib_jll
 
 include("common/timer.jl")
 include("common/asserting.jl")

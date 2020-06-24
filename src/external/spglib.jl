@@ -1,15 +1,24 @@
-using PyCall
 # Routines for interaction with spglib
+# Note: spglib/C uses the row-major convention, thus we need to perform transposes
+#       between julia and spglib.
+#       However, spglib expects the lattice to be passed in as a array of arrays,
+#       which it internally treats as column vectors. Thus we don't need to transpose
+#       the lattice because the julia memory layout of a matrix coincides with this. 
+const SPGLIB = spglib_jll.libsymspg
+
+function spglib_get_error_message()
+    error_code = ccall((:spg_get_error_code, SPGLIB), Cint, ())
+    return unsafe_string(ccall((:spg_get_error_message, SPGLIB), Cstring, (Cint,), error_code))
+end
 
 """
-Construct a tuple containing the lattice and the positions of the species
+Construct a tuple containing the positions of the species
 in the convention required to take the place of a `cell` datastructure used in spglib.
 """
-function spglib_cell_atommapping_(lattice, atoms)
-    lattice = Matrix{Float64}(lattice)  # spglib operates in double precision
-    n_attypes = isempty(atoms) ? 0 : sum(length(positions) for (type, positions) in atoms)
-    spg_numbers = Vector{Int}(undef, n_attypes)
-    spg_positions = Matrix{Float64}(undef, n_attypes, 3)
+function spglib_atommapping(atoms)
+    n_attypes = isempty(atoms) ? 0 : sum(length(positions) for (typ, positions) in atoms)
+    spg_numbers = Vector{Cint}(undef, n_attypes)
+    spg_positions = Matrix{Cdouble}(undef, 3, n_attypes)
 
     offset = 0
     nextnumber = 1
@@ -19,22 +28,18 @@ function spglib_cell_atommapping_(lattice, atoms)
         for (ipos, pos) in enumerate(positions)
             # assign the same number to all types with this position
             spg_numbers[offset + ipos] = nextnumber
-            spg_positions[offset + ipos, :] = pos
+            spg_positions[:, offset + ipos] .= pos
         end
         offset += length(positions)
         nextnumber += 1
     end
 
-    # Note: In the python interface of spglib the lattice vectors
-    #       are given in rows, but DFTK uses columns
-    #       For future reference: The C interface spglib also uses columns.
-    (lattice', spg_positions, spg_numbers), atommapping
+    (spg_positions, spg_numbers), atommapping
 end
-spglib_cell(lattice, atoms) = first(spglib_cell_atommapping_(lattice, atoms))
+spglib_atoms(atoms) = first(spglib_atommapping(atoms))
 
 
 @timing function spglib_get_symmetry(lattice, atoms; tol_symmetry=1e-5)
-    spglib = pyimport("spglib")
     lattice = Matrix{Float64}(lattice)  # spglib operates in double precision
 
     if isempty(atoms)
@@ -44,21 +49,32 @@ spglib_cell(lattice, atoms) = first(spglib_cell_atommapping_(lattice, atoms))
     end
 
     # Ask spglib for symmetry operations and for irreducible mesh
-    spg_symops = spglib.get_symmetry(spglib_cell(lattice, atoms),
-                                     symprec=tol_symmetry)
+    spg_positions, spg_numbers = spglib_atoms(atoms)
 
+    spg_n_ops = ccall((:spg_get_multiplicity, SPGLIB), Cint,
+        (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
+        lattice, spg_positions, spg_numbers, Cint(length(spg_numbers)), tol_symmetry)
+    
+    spg_rotations    = Array{Cint}(undef, 3, 3, spg_n_ops)
+    spg_translations = Array{Cdouble}(undef, 3, spg_n_ops)
+    
+    ccall((:spg_get_symmetry, SPGLIB), Cint,
+         (Ptr{Cint}, Ptr{Cdouble}, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
+         spg_rotations, spg_translations, spg_n_ops, lattice, spg_positions, spg_numbers,
+         Cint(length(spg_numbers)), tol_symmetry)
+  
     # If spglib does not find symmetries give an error
-    if spg_symops === nothing
-        err_message=spglib.get_error_message()
+    if spg_n_ops == 0
+        err_message = spglib_get_error_message()
         error("spglib failed to get the symmetries. Check your lattice, use a " *
               "uniform BZ mesh or disable symmetries. Spglib reported : " * err_message)
     end
 
-    Stildes = [St for St in eachslice(spg_symops["rotations"]; dims=1)]
-    τtildes = [rationalize.(τt, tol=tol_symmetry)
-               for τt in eachslice(spg_symops["translations"]; dims=1)]
-    @assert length(τtildes) == length(Stildes)
-
+    # Note: Transposes are performed to convert between spglib row-major to julia column-major
+    Stildes = [Mat3{Int}(spg_rotations[:, :, i])' for i in 1:spg_n_ops]
+    τtildes = [rationalize.(Vec3{Float64}(spg_translations[:, i]), tol=tol_symmetry)
+               for i in 1:spg_n_ops]
+    
     # Checks: (A Stilde A^{-1}) is unitary
     for Stilde in Stildes
         Scart = lattice * Stilde * inv(lattice)  # Form S in cartesian coords
@@ -88,26 +104,42 @@ spglib_cell(lattice, atoms) = first(spglib_cell_atommapping_(lattice, atoms))
     Stildes, τtildes
 end
 
-function spglib_standardize_cell(lattice::MatT, atoms; correct_symmetry=true,
-                                 primitive=false, tol_symmetry=1e-5) where {MatT}
-    spglib = pyimport("spglib")
-    T = eltype(lattice)
-
+function spglib_standardize_cell(lattice::AbstractArray{T}, atoms; correct_symmetry=true,
+                                 primitive=false, tol_symmetry=1e-5) where {T}
     # Convert lattice and atoms to spglib and keep the mapping between our atoms
+    spg_lattice = Matrix{Float64}(lattice) 
     # and spglibs atoms
-    cell, atommapping = spglib_cell_atommapping_(lattice, atoms)
+    spg_atoms, atommapping = spglib_atommapping(atoms)
+    spg_positions, spg_numbers = spg_atoms
 
     # Ask spglib to standardize the cell (i.e. find a cell, which fits the spglib conventions)
-    res = spglib.standardize_cell(spglib_cell(lattice, atoms), to_primitive=primitive,
-                                  no_idealize=!correct_symmetry, symprec=tol_symmetry)
-    spg_lattice, spg_scaled_positions, spg_numbers = res
+    num_atoms = ccall((:spg_standardize_cell, SPGLIB), Cint,
+      (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cint, Cint, Cdouble),
+      spg_lattice, spg_positions, spg_numbers, length(spg_numbers), Cint(primitive),
+      Cint(!correct_symmetry), tol_symmetry)
 
-    # Note: In the python interface of spglib the lattice vectors
-    #       are given in rows, but DFTK uses columns
-    #       For future reference: The C interface spglib also uses columns.
-    newlattice = MatT(spg_lattice')
     newatoms = [(atommapping[iatom]
-                 => T.(spg_scaled_positions[findall(isequal(iatom), spg_numbers), :]))
+                 => T.(spg_positions[findall(isequal(iatom), spg_numbers), :]))
                 for iatom in unique(spg_numbers)]
-    newlattice, newatoms
+    spg_lattice, newatoms
+end
+
+function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;
+                                               is_shift=Vec3(0, 0, 0),
+                                               is_time_reversal=false,
+                                               qpoints=[Vec3(0.0, 0.0, 0.0)],
+                                               isdense=false)
+    # Note: Transposes are performed to convert from julia column-major to spglib row-major
+    spg_rotations = cat([Cint.(S)' for S in rotations]..., dims=3)
+    nkpt = prod(kgrid_size)
+    mapping = Vector{Cint}(undef, nkpt)
+    grid_address = Matrix{Cint}(undef, 3, nkpt)
+   
+    nrot = length(rotations)
+    n_kpts = ccall((:spg_get_stabilized_reciprocal_mesh, SPGLIB), Cint,
+      (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Cint, Cint, Ptr{Cint}, Cint, Ptr{Cdouble}),
+      grid_address, mapping, [Cint.(kgrid_size)...], [Cint.(is_shift)...], Cint(is_time_reversal),
+      Cint(nrot), spg_rotations, Cint(length(qpoints)), Vec3{Float64}.(qpoints))
+    
+    return n_kpts, Int.(mapping), [Vec3{Int}(grid_address[:, i]) for i in 1:nkpt]
 end
