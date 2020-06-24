@@ -12,7 +12,7 @@ include("testcases.jl")
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
         scfres = self_consistent_field(basis; is_converged=is_converged)
-        sum(scfres.energies), forces(scfres)
+        scfres.energies.total, forces(scfres)
     end
 
     # symmetrical positions, forces should be 0
@@ -48,7 +48,7 @@ end
         scfres = self_consistent_field(basis, n_bands=n_bands,
                                        is_converged=is_converged,
                                       )
-        sum(scfres.energies), forces(scfres)
+        scfres.energies.total, forces(scfres)
     end
 
     pos1 = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8] # displace a bit from equilibrium

@@ -36,8 +36,8 @@ function ScfDefaultCallback()
             @printf "n     %-12s      ρout-ρin   Eₙ₋₁-Eₙ    Diag\n" E_label
             @printf "---   ---------------   --------   --------   ----\n"
         end
-        E = info.energies === nothing ? Inf : sum(info.energies)
-        prev_E = prev_energies === nothing ? Inf : sum(prev_energies)
+        E = info.energies === nothing ? Inf : info.energies.total
+        prev_E = prev_energies === nothing ? Inf : prev_energies.total
         res = norm(info.ρout.fourier - info.ρin.fourier)
         ΔE = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" prev_E - E
         diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
@@ -60,7 +60,7 @@ function ScfConvergenceEnergy(tolerance)
         norm(info.ρout.fourier - info.ρin.fourier) > 10sqrt(tolerance) && return false
 
         etot_old = energy_total
-        energy_total = sum(info.energies)
+        energy_total = info.energies.total
         abs(energy_total - etot_old) < tolerance
     end
     return is_converged

@@ -34,7 +34,7 @@ function test_folder(T, folder; scf_tol=1e-6, n_ignored=0, test_tol=1e-6)
 
         is_converged = DFTK.scf_convergence_density_difference(scf_tol)
         scfres = self_consistent_field(basis, n_bands=n_bands, is_converged=is_converged)
-        println("etot    ", sum(scfres.energies) - sum(ref.energies))
+        println("etot    ", scfres.energies.total - ref.energies.total)
         for ik in 1:length(basis.kpoints)
             @test eltype(scfres.eigenvalues[ik]) == T
             @test eltype(scfres.ψ[ik]) == Complex{T}
@@ -53,7 +53,7 @@ function test_folder(T, folder; scf_tol=1e-6, n_ignored=0, test_tol=1e-6)
                 @warn "Key not tested: $key"
             end
         end
-        @test sum(scfres.energies) ≈ sum(ref.energies) atol=test_tol
+        @test scfres.energies.total ≈ ref.energies.total atol=test_tol
     end
 end
 
