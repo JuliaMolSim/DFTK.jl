@@ -65,6 +65,7 @@ Requires = "1"
 Roots = "1"
 SpecialFunctions = "0.10"
 StaticArrays = "0.12"
+spglib_jll = "1.15"
 TimerOutputs = "0.5.6"
 julia = "1.3"
 
