@@ -80,7 +80,7 @@ Base.show(io::IO, basis::PlaneWaveBasis) =
     print(io, "PlaneWaveBasis (Ecut=$(basis.Ecut), $(length(basis.kpoints)) kpoints)")
 Base.eltype(basis::PlaneWaveBasis{T}) where {T} = T
 
-@timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
+@timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
     model.spin_polarization in (:none, :collinear, :spinless) || (
         error("$(model.spin_polarization) not implemented"))
     spin = (:undefined,)
@@ -102,7 +102,7 @@ Base.eltype(basis::PlaneWaveBasis{T}) where {T} = T
         sizehint!(mapping, n_guess)
         sizehint!(Gvecs_k, n_guess)
         for (i, G) in enumerate(G_vectors(fft_size))
-            if sum(abs2, model.recip_lattice * (G + k)) / 2 ≤ Ecut
+            if !variational || sum(abs2, model.recip_lattice * (G + k)) / 2 ≤ Ecut
                 push!(mapping, i)
                 push!(Gvecs_k, G)
             end
@@ -121,7 +121,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 # This is the "internal" constructor; the higher-level one below should be preferred
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops, symops=nothing;
-                                fft_size=determine_grid_size(model, Ecut)) where {T <: Real}
+                                fft_size=determine_grid_size(model, Ecut), variational=true) where {T <: Real}
     @assert Ecut > 0
     fft_size = Tuple{Int, Int, Int}(fft_size)
 
@@ -148,8 +148,9 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     # Sanity checks
     @assert length(kcoords) == length(ksymops)
     max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
-    @assert(Ecut ≤ max_E, "Ecut should be less than the maximal kinetic energy " *
-            "the grid supports (== $max_E)")
+    if variational && Ecut > max_E
+        @warn("For a variational method, Ecut should be less than the maximal kinetic energy " *
+              "the grid supports ($max_E)")
 
     terms = Vector{Any}(undef, length(model.term_types))
 
@@ -160,7 +161,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         symops = vcat(ksymops...)
     end
 
-    kpoints = build_kpoints(model, fft_size, kcoords, Ecut)
+    kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
     basis = PlaneWaveBasis{T}(
         model, Ecut, kpoints,
         kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms, symops)
