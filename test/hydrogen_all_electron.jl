@@ -11,7 +11,7 @@ using LinearAlgebra
 
         is_converged = DFTK.ScfConvergenceDensity(tol)
         scfres = self_consistent_field(basis, is_converged=is_converged)
-        sum(values(scfres.energies)), DFTK.forces(scfres)
+        sum(scfres.energies), DFTK.forces(scfres)
     end
 
     E, forces = energy_forces(Ecut=5, tol=1e-10)

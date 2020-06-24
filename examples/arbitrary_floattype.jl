@@ -44,6 +44,6 @@ scfres = self_consistent_field(basis, tol=1e-4);
 
 scfres.energies
 #-
-eltype(sum(values(scfres.energies)))
+eltype(sum(scfres.energies))
 #-
 eltype(scfres.ρ.real)

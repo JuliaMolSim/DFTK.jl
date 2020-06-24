@@ -13,7 +13,7 @@ function Base.show(io::IO, energies::Energies)
     for (name, value) in energies.energies
         @printf io "    %-20s%-10.7f\n" string(name) value
     end
-    @printf io "\n    %-20s%-15.12f\n" "total" sum(values(energies))
+    @printf io "\n    %-20s%-15.12f\n" "total" sum(energies)
 end
 Base.getindex(energies::Energies, i) = energies.energies[i]
 Base.values(energies::Energies) = values(energies.energies)
@@ -22,7 +22,7 @@ Base.pairs(energies::Energies) = pairs(energies.energies)
 Base.iterate(energies::Energies) = iterate(energies.energies)
 Base.iterate(energies::Energies, state) = iterate(energies.energies, state)
 Base.haskey(energies::Energies, key) = haskey(energies.energies, key)
-
+Base.sum(energies::Energies) = sum(values(energies))
 
 function Energies(term_types::Vector, energies::Vector{T}) where {T}
     # nameof is there to get rid of parametric types

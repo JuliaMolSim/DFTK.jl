@@ -90,7 +90,7 @@ plot!(p, x, ρ, label="ρ")
 # The density ρ associated to this state is precomputed
 # and passed to the routine as an optimization.
 E, ham = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
-@assert sum(values(E)) == sum(values(scfres.energies))
+@assert sum(E) == sum(scfres.energies)
 
 # Now the Hamiltonian contains all the blocks corresponding to kpoints. Here, we just have one kpoint:
 H = ham.blocks[1];
