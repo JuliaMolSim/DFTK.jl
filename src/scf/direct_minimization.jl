@@ -115,7 +115,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                 G[ik] .*= 2*filled_occ
             end
         end
-        sum(values(energies))
+        energies.total
     end
 
     manif = DMManifold(Nk, unpack)
