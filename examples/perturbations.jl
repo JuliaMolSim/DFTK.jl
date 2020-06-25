@@ -97,7 +97,7 @@ Compute first order perturbation of the eigenvectors
         for n in occ_bands
             ψ1k_fine[:, n] .= 0
             ψ1k_fine[idcs_fine_cplmt[ik], n] .=
-            .- 1 ./ (kin[idcs_fine_cplmt[ik]] .+ total_pot_avg[ik][idcs_fine_cplmt[ik]] .- egvalk[n]) .* r_fine[idcs_fine_cplmt[ik], n]
+            .- 1.0 ./ (kin[idcs_fine_cplmt[ik]] .+ total_pot_avg[ik][idcs_fine_cplmt[ik]] .- egvalk[n]) .* r_fine[idcs_fine_cplmt[ik], n]
         end
         push!(ψ1_fine, ψ1k_fine)
     end
@@ -107,9 +107,10 @@ end
 """
 Compute second and third order perturbed eigenvalues
 """
-DFTK.@timing function perturbed_eigenvalues(basis_fine::PlaneWaveBasis, H_fine::Hamiltonian,
-                                           ψ1_fine::AbstractArray, ψ_fine::AbstractArray,
-                                           total_pot_avg, egval::AbstractArray, occ::AbstractArray)
+DFTK.@timing function perturbed_eigenvalues(basis_fine::PlaneWaveBasis, Hp_fine::Hamiltonian,
+                                            H_fine::Hamiltonian, H_ref::Hamiltonian,
+                                            ψ1_fine::AbstractArray, ψ_fine::AbstractArray,
+                                            total_pot_avg, egval::AbstractArray, occ::AbstractArray)
 
     egvalp2 = deepcopy(egval) # second order perturbation
     egvalp3 = deepcopy(egval) # third order perturbation
@@ -125,26 +126,72 @@ DFTK.@timing function perturbed_eigenvalues(basis_fine::PlaneWaveBasis, H_fine::
         )
 
         # compute W * ψ1 where W is the total potential (ie H without kinetic)
-        ops_no_kin = [op for op in H_fine.blocks[ik].operators
+        ops_no_kin = [op for op in Hp_fine.blocks[ik].operators
                       if !(op isa DFTK.FourierMultiplication)]
-        H_fine_block_no_kin = HamiltonianBlock(basis_fine, kpt_fine, ops_no_kin, scratch)
-        potψ1k = mul!(similar(ψ1_fine[ik]), H_fine_block_no_kin, ψ1_fine[ik])
+        Hp_fine_block_no_kin = HamiltonianBlock(basis_fine, kpt_fine, ops_no_kin, scratch)
+        potψ1k = mul!(similar(ψ1_fine[ik]), Hp_fine_block_no_kin, ψ1_fine[ik])
 
         # perturbation of the eigenvalue (first order is 0)
-        # λp = λ + 0 + <ψ|W|ψ1> + <ψ1|W-<W>|ψ1>
+        # λp = λ + <ψ|Rn|ψ> + <ψ|W+Rn|ψ1> + <ψ1|W-<W>+Rn|ψ1>
+        # where
+        # W = Vion + Vcoul(ρn) + Vxc(ρn)
+        # Rn = Vcoul(ρ) + Vxc(ρ) - Vcoul(ρn) - Vxc(ρn)
+        # arise from the non linearity
+
+        coeff_nl = 0
+
+        #  first order coefficient in the nonlinear case
+        #  scratch_ref = (
+        #      ψ_reals=[zeros(complex(T), basis_ref.fft_size...) for tid = 1:Threads.nthreads()],
+        #      Hψ_reals=[zeros(complex(T), basis_ref.fft_size...) for tid = 1:Threads.nthreads()]
+        #  )
+        #  ops_hartree_xc = H_ref.blocks[ik].operators[end-1:end]
+        #  H_ref_block_hxc = HamiltonianBlock(basis_ref, basis_ref.kpoints[ik],
+        #                                          ops_hartree_xc, scratch_ref)
+        #  ψ, _ = DFTK.interpolate_blochwave(ψ_fine, basis_fine, basis_ref)
+        #  ψ1, _ = DFTK.interpolate_blochwave(ψ1_fine, basis_fine, basis_ref)
+        #  potrefψk = mul!(similar(ψ[ik]), H_ref_block_hxc, ψ[ik])
+        #  potrefψ1k = mul!(similar(ψ1[ik]), H_ref_block_hxc, ψ1[ik])
+
+        scratch_ref = (
+            ψ_reals=[zeros(complex(T), basis_fine.fft_size...) for tid = 1:Threads.nthreads()],
+            Hψ_reals=[zeros(complex(T), basis_fine.fft_size...) for tid = 1:Threads.nthreads()]
+        )
+        ops_hartree_xc = Hp_fine.blocks[ik].operators[end-1:end]
+        Hp_fine_block_hxc = HamiltonianBlock(basis_fine, kpt_fine,
+                                                ops_hartree_xc, scratch)
+        ψ = deepcopy(ψ_fine)
+        ψ1 = deepcopy(ψ1_fine)
+        potrefψk = mul!(similar(ψ[ik]), Hp_fine_block_hxc, ψ[ik])
+        potrefψ1k = mul!(similar(ψ1[ik]), Hp_fine_block_hxc, ψ1[ik])
+
+        # fine grid
+        ops_hartree_xc = H_fine.blocks[ik].operators[end-1:end]
+        H_fine_block_hxc = HamiltonianBlock(basis_fine, kpt_fine,
+                                                ops_hartree_xc, scratch)
+        potfineψk = mul!(similar(ψ_fine[ik]), H_fine_block_hxc, ψ_fine[ik])
+        potfineψ1k = mul!(similar(ψ1_fine[ik]), H_fine_block_hxc, ψ1_fine[ik])
+
         for n in occ_bands
-            egval2k = dot(ψ_fine[ik][:, n], potψ1k[:, n])
+            egval1k = coeff_nl*(dot(ψ[ik][:, n], potrefψk[:, n]) - dot(ψ_fine[ik][:, n], potfineψk[:, n]))
+            egval2k = dot(ψ_fine[ik][:, n], potψ1k[:, n]) + coeff_nl*(dot(ψ[ik][:, n],
+                      potrefψ1k[:, n]) - dot(ψ_fine[ik][:, n], potfineψ1k[:, n]))
             egval3k = dot(ψ1_fine[ik][:, n], potψ1k[:, n]) - dot(ψ1_fine[ik][:, n],
-                      Diagonal(total_pot_avg[ik]) * ψ1_fine[ik][:, n])
-            egvalp2[ik][n] += real(egval2k)
-            egvalp3[ik][n] += real(egval2k) + real(egval3k)
+                      Diagonal(total_pot_avg[ik]) * ψ1_fine[ik][:, n]) + coeff_nl*(dot(ψ1[ik][:, n],
+                      potrefψ1k[:, n]) - dot(ψ1_fine[ik][:, n], potfineψ1k[:, n]))
+            egvalp2[ik][n] += real(egval1k + egval2k)
+            egvalp3[ik][n] += real(egval1k + egval2k + egval3k)
+            println(egval1k)
+            println(egval2k)
+            println(egval3k)
+            println("---------------")
         end
     end
     egvalp2, egvalp3
 end
 
 """
-Compute perturbed eigenvalues using Rayliegh-Ritz method
+Compute perturbed eigenvalues using Rayleigh-Ritz method
 """
 DFTK.@timing function Rayleigh_Ritz(basis_fine::PlaneWaveBasis,
                                     H_fine::Hamiltonian, ψp_fine::AbstractArray,
@@ -167,12 +214,16 @@ Perturbation function to compute perturbed solutions on finer grids
 """
 DFTK.@timing function perturbation(basis::PlaneWaveBasis,
                                    kcoords::AbstractVector, ksymops::AbstractVector,
-                                   scfres, Ecut_fine, compute_forces=false)
+                                   scfres, Ecut_fine, compute_forces=false,
+                                   compute_egval=true)
 
     Nk = length(basis.kpoints)
 
     # coarse grid
-    occ = scfres.occupation
+    occ = deepcopy(scfres.occupation)
+    #  for (ik, kpt) in enumerate(basis.kpoints)
+    #      occ[ik] = [2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    #  end
     egval = scfres.eigenvalues
     ψ = scfres.ψ
     ρ = scfres.ρ
@@ -195,24 +246,45 @@ DFTK.@timing function perturbation(basis::PlaneWaveBasis,
                                      idcs_fine_cplmt, egval, occ)
 
     # apply the perturbation and orthonormalize the occupied eigenvectors
+    #  display([ψ_fine[1][:,1] ψ1_fine[1][:,1]])
     ψp_fine = ψ_fine .+ ψ1_fine
     Lowdin_orthonormalization!(ψp_fine, occ)
 
     # compute perturbed density and Hamiltonian
     ρp_fine = compute_density(basis_fine, ψp_fine, occ)
-    Hp_fine = Hamiltonian(basis_fine, ψ=ψp_fine, occ=occ; ρ=ρp_fine)
-
-    # compute the eigenvalue perturbation λp = λ + λ2 + λ3
-    # first order peturbation = 0
-    egvalp2, egvalp3 = perturbed_eigenvalues(basis_fine, H_fine, ψ1_fine, ψ_fine,
-                                             total_pot_avg, egval, occ)
-
-    # Rayleigh - Ritz method to compute eigenvalues from the perturbed
-    # eigenvectors
-    egvalp_rr = Rayleigh_Ritz(basis_fine, H_fine, ψp_fine, egval, occ)
-
     # compute energies
     Ep_fine, Hp_fine = energy_hamiltonian(basis_fine, ψp_fine, occ; ρ=ρp_fine)
+
+    # new scf loop for one iteration
+    #  scfres_perturbed = self_consistent_field(basis_fine,
+    #                                           ρ=ρp_fine,
+    #                                           ψ=ψp_fine,
+    #                                           maxiter=1,
+    #                                           callback=info->nothing)
+
+    #  ψp_fine = scfres_perturbed.ψ
+    #  ρp_fine = scfres_perturbed.ρ
+    #  Ep_fine, Hp_fine = energy_hamiltonian(basis_fine, ψp_fine, occ; ρ=ρp_fine)
+
+    if compute_egval
+        # compute the eigenvalue perturbation λp = λ + λ2 + λ3
+        # first order peturbation = 0
+        H_ref = scfres_ref.ham
+        egvalp2, egvalp3 = perturbed_eigenvalues(basis_fine, Hp_fine,
+                                                 H_fine, H_ref,
+                                                 ψ1_fine, ψ_fine,
+                                                 total_pot_avg, egval, occ)
+
+        # Rayleigh - Ritz method to compute eigenvalues from the perturbed
+        # eigenvectors
+        #  ψp, _ = DFTK.interpolate_blochwave(ψp_fine, basis_fine, basis_ref)
+        #  egvalp_rr = Rayleigh_Ritz(basis_ref, scfres_ref.ham, ψp, egval, occ)
+        egvalp_rr = Rayleigh_Ritz(basis_fine, Hp_fine, ψp_fine, egval, occ)
+    else
+        egvalp2 = 0
+        egvalp3 = 0
+        egvalp_rr = 0
+    end
 
     # compute forces
     if compute_forces

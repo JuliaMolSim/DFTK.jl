@@ -30,16 +30,16 @@ model = model_LDA(lattice, atoms)
 ################################# Calculations #################################
 
 avg = true
-tol = 1e-12
+tol = 1e-10
 
 kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.symops)
-α_list = vcat(collect(1:0.2:3))
+α_list = vcat(collect(1:1:3))
 
 filename = "simple_perturbation.h5"
 h5open(filename, "w") do file
     file["alpha"] = α_list
 end
-test_perturbation_ratio(10, 60, true)
+test_perturbation_ratio(10, 40, false)
 
 
 #  filename  = "perturbation_tests.h5"

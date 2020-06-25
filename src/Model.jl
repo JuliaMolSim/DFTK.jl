@@ -72,7 +72,8 @@ function Model(lattice::AbstractMatrix{T};
                temperature=T(0.0),
                smearing=nothing,
                spin_polarization=:none,
-               symmetry=:auto
+               symmetry=:auto,
+               scaling_factor=1
                ) where {T <: Real}
 
     lattice = Mat3{T}(lattice)
@@ -159,7 +160,14 @@ end
 Build a DFT model from the specified atoms, with the specified functionals.
 """
 function model_DFT(lattice::AbstractMatrix, atoms::Vector, functionals; extra_terms=[], kwargs...)
-    model_atomic(lattice, atoms; extra_terms=[Hartree(), Xc(functionals), extra_terms...], kwargs...)
+    if :scaling_factor in keys(kwargs)
+        s = kwargs[:scaling_factor]
+    else
+        s = 1
+    end
+    model_atomic(lattice, atoms; extra_terms=[Hartree(scaling_factor=s),
+                                              Xc(functionals; scaling_factor=s),
+                                              extra_terms...], kwargs...)
 end
 
 

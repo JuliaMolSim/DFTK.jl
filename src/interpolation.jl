@@ -109,7 +109,7 @@ function grid_interpolation_indices(basis_in, basis_out)
     # build the complement indices of basis_out that are not in basis_in
     # create empty arrays if there is at least one nothing in idcs_out[ik]
     idcs_out_cplmt = [[id for id in 1:length(G_vectors(basis_out.kpoints[ik]))
-                       if any(isnothing, idcs_out[ik]) && !(id in idcs_out[ik])]
+                       if !any(isnothing, idcs_out[ik]) && !(id in idcs_out[ik])]
                       for ik in 1:length(basis_in.kpoints)]
 
     (idcs_out, idcs_out_cplmt)
