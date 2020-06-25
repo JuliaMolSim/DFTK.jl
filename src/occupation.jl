@@ -13,14 +13,13 @@ end
 Find the occupation and Fermi level.
 """
 function find_occupation(basis::PlaneWaveBasis{T}, energies;
-                         temperature=basis.model.temperature) where {T}
+                         temperature=basis.model.temperature,
+                         smearing=basis.model.smearing) where {T}
     @assert basis.model.spin_polarization in (:none, :spinless)
-    model = basis.model
-    n_electrons = model.n_electrons
-    smearing = model.smearing
+    n_electrons = basis.model.n_electrons
 
     # Maximum occupation per state
-    filled_occ = filled_occupation(model)
+    filled_occ = filled_occupation(basis.model)
 
     # The goal is to find εF so that
     # n_i = filled_occ * f((εi-εF)/T)
@@ -30,8 +29,10 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
     compute_occupation(εF) = [filled_occ * Smearing.occupation.(smearing, (ε .- εF) ./ temperature) for ε in energies]
     compute_n_elec(εF) = sum(basis.kweights .* sum.(compute_occupation(εF)))
 
-    # assume that we can get the required number of electrons by filling every state
-    @assert filled_occ*sum(basis.kweights .* length.(energies)) ≥ n_electrons - sqrt(eps(T))
+    if filled_occ*sum(basis.kweights .* length.(energies)) < n_electrons - sqrt(eps(T))
+        error("Could not obtain required number of electrons by filling every state. " *
+              "Increase n_bands.")
+    end
 
     # Get rough bounds to bracket εF
     min_ε = minimum(minimum.(energies)) - 1
@@ -60,7 +61,8 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
     if !isapprox(compute_n_elec(εF), n_electrons)
         if temperature == 0
             error("Unable to find non-fractional occupations that have the " *
-                  "correct number of electrons. You should add a temperature.")
+                  "correct number of electrons. You should add a temperature and check your" *
+                  " kgrid is properly set up. Perhaps you need to add a kshift.")
         else
             error("This should not happen, debug me!")
         end
