@@ -61,8 +61,7 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
     if !isapprox(compute_n_elec(εF), n_electrons)
         if temperature == 0
             error("Unable to find non-fractional occupations that have the " *
-                  "correct number of electrons. You should add a temperature and check your" *
-                  " kgrid is properly set up. Perhaps you need to add a kshift.")
+                  "correct number of electrons. You should add a temperature.")
         else
             error("This should not happen, debug me!")
         end
