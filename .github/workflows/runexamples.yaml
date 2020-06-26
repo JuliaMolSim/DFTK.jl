@@ -16,7 +16,7 @@ jobs:
         with:
           version: '3.x'
       - name: Install python dependencies
-        run: pip install ase spglib pymatgen
+        run: pip install ase pymatgen
       - uses: julia-actions/setup-julia@v1
         with:
           version: 1.3
