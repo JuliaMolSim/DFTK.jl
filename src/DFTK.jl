@@ -110,6 +110,7 @@ include("eigen/diag.jl")
 export KerkerMixing
 export SimpleMixing
 export RestaMixing
+export HybridMixing
 include("scf/mixing.jl")
 export scf_nlsolve_solver
 export scf_damping_solver
@@ -167,14 +168,11 @@ export apply_χ0
 include("postprocess/chi0.jl")
 
 function __init__()
-    # Use requires to only include eigen/diag_lobpcg_itsolve.jl once
-    # IterativeSolvers has been loaded (via a "using" or an "import")
+    # Use requires to only include fft_generic.jl once
+    # IntervalArithmetic or DoubleFloats has been loaded (via a "using"
+    # or an "import").
     # See https://github.com/JuliaPackaging/Requires.jl for details.
-    @require IterativeSolvers="42fd0dbc-a981-5370-80f2-aaf504508153" begin
-        include("eigen/diag_lobpcg_itsolve.jl")
-    end
-
-    # Load generic FFT stuff once IntervalArithmetic or DoubleFloats are used
+    #
     # The global variable GENERIC_FFT_LOADED makes sure that things are only
     # included once.
     @require IntervalArithmetic="d1acc4aa-44c8-5952-acd4-ba5d80a2a253" begin

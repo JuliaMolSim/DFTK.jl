@@ -99,9 +99,13 @@ function compute_kernel(basis::PlaneWaveBasis{T}; kwargs...) where {T}
     end
     k
 end
-function apply_kernel(basis, dρ; kwargs...)
+
+function apply_kernel(basis, dρ; rpa=false, kwargs...)
     dV = RealFourierArray(basis)
     for term in basis.terms
+        # Skip XC term if RPA is selected
+        rpa && term isa TermXc && continue
+
         dV_term = apply_kernel(term, dρ; kwargs...)
         if !isnothing(dV_term)
             dV.real .+= dV_term.real

@@ -35,7 +35,8 @@ include("testcases.jl")
     end
 
     # Run other mixing with default solver (the others are too slow...)
-    for mixing in (KerkerMixing(), SimpleMixing(), SimpleMixing(.5), RestaMixing(εr=12))
+    for mixing in (KerkerMixing(), SimpleMixing(), SimpleMixing(.5), RestaMixing(εr=12),
+                   HybridMixing(), HybridMixing(rpa=false))
         println("\n Testing $mixing")
         scfres = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol)
         ρ_alg = scfres.ρ.fourier
