@@ -32,8 +32,8 @@ struct Model{T <: Real}
     smearing::Smearing.SmearingFunction # see Smearing.jl for choices
 
     # Vector of pairs Element => vector of vec3 (positions, fractional coordinates)
-    # Possibly empty.
-    # `atoms` just contain the information on the atoms, it's up to the `terms` to make use of it (or not)
+    # Possibly empty. `atoms` just contain the information on the atoms, it's up to
+    # the `terms` to make use of it (or not)
     atoms::Vector{Pair{Any, Vector{Vec3{T}}}}
 
     # each element t must implement t(basis), which instantiates a
