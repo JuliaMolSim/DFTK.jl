@@ -83,12 +83,14 @@ and never increases.
 function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.03)
     function determine_diagtol(info)
         isnothing(diagtol_min) && (diagtol_min = 100eps(real(eltype(info.ρin))))
-        info.n_iter ≤ 1 && return diagtol_max
+        info.n_iter ≤ 0 && return diagtol_max
+        info.n_iter == 1 && (diagtol_max /= 5)  # Enforce more accurate Bloch wave
 
         diagtol = norm(info.ρnext.fourier - info.ρin.fourier) * ratio_ρdiff
         diagtol = min(diagtol_max, diagtol)  # Don't overshoot
         diagtol = max(diagtol_min, diagtol)  # Don't undershoot
         @assert isfinite(diagtol)
+
 
         # Adjust maximum to ensure diagtol may only shrink during an SCF
         diagtol_max = min(diagtol, diagtol_max)
