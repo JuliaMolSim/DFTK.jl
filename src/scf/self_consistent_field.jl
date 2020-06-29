@@ -33,15 +33,15 @@ function ScfDefaultCallback()
     function callback(info)
         if info.n_iter == 1
             E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
-            @printf "n     %-12s      ρout-ρin   Eₙ₋₁-Eₙ    Diag\n" E_label
-            @printf "---   ---------------   --------   --------   ----\n"
+            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin   Diag\n" E_label
+            @printf "---   ---------------   ---------   --------   ----\n"
         end
         E = info.energies === nothing ? Inf : info.energies.total
         prev_E = prev_energies === nothing ? Inf : prev_energies.total
-        res = norm(info.ρout.fourier - info.ρin.fourier)
-        ΔE = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" prev_E - E
+        Δρ = norm(info.ρout.fourier - info.ρin.fourier)
+        ΔE = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_E
         diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
-        @printf "%-3d   %-15.12f   %2.2e  %s   %3.1f \n" info.n_iter E res ΔE diagiter
+        @printf "% 3d   %-15.12f   %s   %2.2e   % 3.1f \n" info.n_iter E ΔE Δρ diagiter
         prev_energies = info.energies
     end
     callback
