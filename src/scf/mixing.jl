@@ -3,6 +3,15 @@ using IterativeSolvers
 using Statistics
 import Base: @kwdef
 
+abstract type Mixing end
+
+# Approximation to the dielectric matrix, which is diagonal
+# (such that both ρ-based and V-based SCFs can be preconditioned identically.)
+abstract type MixingDiagonal <: Mixing end
+function mix_potential(mixing::MixingDiagonal, basis::PlaneWaveBasis, δF; kwargs...)
+    mix(mixing, basis, δF; kwargs...)
+end
+
 # Mixing rules: (ρin, ρout) => ρnext, where ρout is produced by diagonalizing the
 # Hamiltonian at ρin These define the basic fix-point iteration, that are then combined with
 # acceleration methods (eg anderson). For the mixing interface we use `δF = ρout - ρin` and
@@ -14,10 +23,11 @@ import Base: @kwdef
 # process of formulating the fixed-point and solving it; we call "mixing" only the first part
 # The notation in this file follows Herbst, Levitt arXiv:2009.01665
 
+
 @doc raw"""
 Simple mixing: ``J^{-1} ≈ 1``
 """
-struct SimpleMixing; end
+struct SimpleMixing <: MixingDiagonal; end
 mix(::SimpleMixing, ::PlaneWaveBasis, δF; kwargs...) = δF
 
 
@@ -31,7 +41,7 @@ of states (per unit volume) between spin-up and spin-down.
 Notes:
 - Abinit calls ``1/k_{TF}`` the dielectric screening length (parameter *dielng*)
 """
-@kwdef struct KerkerMixing
+@kwdef struct KerkerMixing <: MixingDiagonal
     # Default kTF parameter suggested by Kresse, Furthmüller 1996 (kTF=1.5Å⁻¹)
     # DOI 10.1103/PhysRevB.54.11169
     kTF::Real    = 0.8  # == sqrt(4π (DOS_α + DOS_β)) / Ω
@@ -44,6 +54,8 @@ end
     G²     = [sum(abs2, G) for G in G_vectors_cart(basis)]
     kTF    = T.(mixing.kTF)
     ΔDOS_Ω = T.(mixing.ΔDOS_Ω)
+
+    # TODO This can be improved to use less copies for the new (α, β) interface
 
     # For Kerker the model dielectric written as a 2×2 matrix in spin components is
     #     1 - [-DOSα      0] * [1 1]
@@ -64,7 +76,9 @@ end
 
     δρtot_fourier = δFtot_fourier .* G² ./ (kTF.^2 .+ G²)
     δρtot = G_to_r(basis, δρtot_fourier)
-    δρtot .+= mean(total_density(δF)) .- mean(δρtot)  # Copy DC component, otherwise it never gets updated
+
+    # Copy DC component, otherwise it never gets updated
+    δρtot .+= mean(total_density(δF)) .- mean(δρtot)
 
     if basis.model.n_spin_components == 1
         ρ_from_total_and_spin(δρtot, nothing)
@@ -75,11 +89,12 @@ end
     end
 end
 
+
 @doc raw"""
 The same as [`KerkerMixing`](@ref), but the Thomas-Fermi wavevector is computed
 from the current density of states at the Fermi level.
 """
-struct KerkerDosMixing; end
+struct KerkerDosMixing <: MixingDiagonal; end
 @timing "KerkerDosMixing" function mix(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
                                        δF; εF, ψ, eigenvalues, kwargs...)
     if basis.model.temperature == 0
@@ -105,7 +120,7 @@ By default it assumes a relative permittivity of 10 (similar to Silicon).
 `εr == 1` is equal to `SimpleMixing` and `εr == Inf` to `KerkerMixing`.
 The mixing is applied to ``ρ`` and ``ρ_\text{spin}`` in the same way.
 """
-@kwdef struct DielectricMixing
+@kwdef struct DielectricMixing <: MixingDiagonal
     kTF::Real = 0.8
     εr::Real  = 10
 end
@@ -148,7 +163,7 @@ function HybridMixing(;εr=1.0, kTF=0.8, localization=identity, kwargs...)
     χ0terms = [DielectricModel(εr=εr, kTF=kTF, localization=localization), LdosModel()]
     χ0Mixing(; χ0terms=χ0terms, kwargs...)
 end
-LdosMixing(; kwargs...) = HybridMixing(;εr=1.0, kwargs...)
+LdosMixing(; kwargs...) = χ0Mixing(; χ0terms=[LdosModel()], kwargs...)
 
 
 @doc raw"""
@@ -158,13 +173,15 @@ real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartr
 (`RPA=true`) are employed. `verbose=true` lets the GMRES run in verbose mode
 (useful for debugging).
 """
-@kwdef struct χ0Mixing
+@kwdef struct χ0Mixing <: Mixing
     RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     χ0terms   = χ0Model[Applyχ0Model()]  # The terms to use as the model for χ0
     verbose::Bool = false  # Run the GMRES verbosely
 end
 
 @views @timing "χ0Mixing" function mix(mixing::χ0Mixing, basis, δF; ρin, kwargs...)
+    # TODO This function is plain wrong if δV is a potential difference!
+
     T = eltype(δF)
     n_spin = basis.model.n_spin_components
     @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
@@ -198,4 +215,8 @@ end
     δρ = devec(gmres(J, vec(δF), verbose=mixing.verbose))
     δρ .+= DC_δF  # Set DC from δF
     δρ
+end
+
+@timing "χ0Mixing" function mix_potential(mixing::Mixing, basis::χ0Mixing, δF::AbstractArray; kwargs...)
+    error("Not yet implemented.")
 end

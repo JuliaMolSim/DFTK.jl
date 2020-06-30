@@ -121,6 +121,7 @@ include("scf/scf_solvers.jl")
 include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
 include("scf/scfres.jl")
+include("scf/potential_mixing.jl")
 
 export symmetry_operations
 export standardize_atoms

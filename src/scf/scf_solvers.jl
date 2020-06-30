@@ -13,7 +13,7 @@ Create a NLSolve-based SCF solver, by default using an Anderson-accelerated
 fixed-point scheme, keeping `m` steps for Anderson acceleration. See the
 NLSolve documentation for details about the other parameters and methods.
 """
-function scf_nlsolve_solver(m=5, method=:anderson; kwargs...)
+function scf_nlsolve_solver(m=10, method=:anderson; kwargs...)
     function fp_solver(f, x0, max_iter; tol=1e-6)
         res = nlsolve(x -> f(x) - x, x0; method=method, m=m, xtol=tol,
                       ftol=0.0, show_trace=false, iterations=max_iter, kwargs...)
@@ -93,7 +93,7 @@ function anderson(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
     end
     (fixpoint=xs[:,1], converged=err < tol)
 end
-function scf_anderson_solver(m=5)
+function scf_anderson_solver(m=10)
     (f, x0, max_iter; tol=1e-6) -> anderson(x -> f(x) - x, x0, m, max_iter, tol)
 end
 
@@ -157,4 +157,4 @@ function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
     end
     (fixpoint=xs[:, 1], converged=err < tol)
 end
-scf_CROP_solver(m=5) = (f, x0, max_iter; tol=1e-6) -> CROP(x -> f(x) - x, x0, m, max_iter, tol)
+scf_CROP_solver(m=10) = (f, x0, max_iter; tol=1e-6) -> CROP(x -> f(x) - x, x0, m, max_iter, tol)

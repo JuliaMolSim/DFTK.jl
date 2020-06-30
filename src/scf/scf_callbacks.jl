@@ -45,7 +45,7 @@ function ScfDefaultCallback()
         ΔE     = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_E
         Mstr = collinear ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
         diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
-        @printf "% 3d   %s   %s   %2.2e%s   % 3.1f \n" info.n_iter Estr ΔE Δρ Mstr diagiter
+        @printf "% 3d   %s   %s   %2.2e%s  %5.1f \n" info.n_iter Estr ΔE Δρ Mstr diagiter
         prev_energies = info.energies
 
         flush(stdout)
@@ -94,9 +94,12 @@ function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.03)
         info.n_iter ≤ 1 && return diagtol_max
         info.n_iter == 2 && (diagtol_max /= 5)  # Enforce more accurate Bloch wave
 
+        # TODO It makes more sense to use ρout here as it is a much better
+        #      measure of the SCF being converged.
         diagtol = (norm(info.ρnext - info.ρin)
                    * sqrt(info.basis.dvol)
                    * ratio_ρdiff)
+
         # TODO Quantum espresso divides diagtol by the number of electrons
         diagtol = clamp(diagtol, diagtol_min, diagtol_max)
         @assert isfinite(diagtol)
