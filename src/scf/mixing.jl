@@ -99,7 +99,7 @@ Additionally there is the real-space localisation function `L(r)`.
     εr::Real = 10
     kF::Real = 0.8
     localisation::Function = identity  # `L(r)` with `r` in fractional real-space coordinates
-    rpa::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
+    RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     verbose::Bool = false  # Run the GMRES verbosely
 end
 
@@ -110,6 +110,7 @@ function mix(mixing::HybridMixing, basis, ρin::RealFourierArray, ρout::RealFou
     kF = T(mixing.kF)
     C0 = 1 - εr
     Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
+    dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
 
     apply_sqrtL = identity
     if mixing.localisation != identity
@@ -131,7 +132,8 @@ function mix(mixing::HybridMixing, basis, ρin::RealFourierArray, ρout::RealFou
         Jδρ = copy(δρ)
 
         # Apply Kernel (just vc for RPA and (vc + fxc) if not RPA)
-        δV = apply_kernel(basis, from_real(basis, δρ), ρ=ρin, rpa=mixing.rpa)
+        δV = apply_kernel(basis, from_real(basis, δρ), ρ=ρin, RPA=mixing.RPA)
+        δV .-= sum(δV) / length(δV)  # set DC to zero
 
         # Apply Resta term of χ0
         loc_δV = apply_sqrtL(δV).fourier
@@ -140,10 +142,11 @@ function mix(mixing::HybridMixing, basis, ρin::RealFourierArray, ρout::RealFou
 
         # Apply LDOS term of χ0
         if ldos !== nothing
-            Jδρ .-= (-ldos .* δV.real .+ sum(ldos .* δV.real) .* ldos ./ sum(ldos))
+            Jδρ .-= (-ldos .* δV.real
+                     .+ sum(ldos .* δV.real) .* dVol .* ldos ./ (sum(ldos) .* dVol))
         end
 
-        # Poor man's zero DC component before return
+        # Zero DC component and return
         vec(Jδρ .-= sum(Jδρ) / length(Jδρ))
     end
     J = LinearMap(Jop, length(ρin))
