@@ -168,9 +168,8 @@ export apply_χ0
 include("postprocess/chi0.jl")
 
 function __init__()
-    # Use requires to only include fft_generic.jl once
-    # IntervalArithmetic or DoubleFloats has been loaded (via a "using"
-    # or an "import").
+    # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
+    # DoubleFloats has been loaded (via a "using" or an "import").
     # See https://github.com/JuliaPackaging/Requires.jl for details.
     #
     # The global variable GENERIC_FFT_LOADED makes sure that things are only

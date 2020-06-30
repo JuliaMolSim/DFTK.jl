@@ -1,5 +1,6 @@
 using LinearMaps
 using IterativeSolvers
+import Base: @kwdef
 
 # Mixing rules: (ρin, ρout) => ρnext, where ρout is produced by diagonalizing the
 # Hamiltonian at ρin These define the basic fix-point iteration, that are then combined with
@@ -18,13 +19,12 @@ where ``k_F`` is the Thomas-Fermi wave vector.
 Notes:
   - Abinit calls ``1/k_F`` the dielectric screening length (parameter *dielng*)
 """
-struct KerkerMixing
-    α::Real
-    kF::Real
+@kwdef struct KerkerMixing
+    # Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, kF=1.5 Ǎ^{-1})
+    # DOI 10.1103/PhysRevB.54.11169
+    α::Real = 0.8
+    kF::Real = 0.8
 end
-# Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, kF=1.5 Ǎ^{-1})
-# DOI 10.1103/PhysRevB.54.11169
-KerkerMixing(;α=0.8, kF=0.8) = KerkerMixing(α, kF)
 function mix(mixing::KerkerMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; kwargs...)
     T = eltype(basis)
     Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
@@ -39,10 +39,9 @@ end
 @doc raw"""
 Simple mixing: ``J^{-1} ≈ α``
 """
-struct SimpleMixing
-    α::Real
+@kwdef struct SimpleMixing
+    α::Real = 0.8
 end
-SimpleMixing(;α=0.8) = SimpleMixing(α)
 function mix(mixing::SimpleMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; kwargs...)
     T = eltype(basis)
     if mixing.α == 1
@@ -62,12 +61,11 @@ We neglect ``f_\text{xc}``, such that
 By default it assumes a relative permittivity of 10 (similar to Silicon).
 `εr == 1` is equal to `SimpleMixing` and `εr == Inf` to `KerkerMixing`.
 """
-struct RestaMixing
-    α::Real
-    εr::Real
-    kF::Real
+@kwdef struct RestaMixing
+    α::Real = 0.8
+    εr::Real = 0.8
+    kF::Real = 10
 end
-RestaMixing(;α=0.8, kF=0.8, εr=10) = RestaMixing(α, εr, kF)
 function mix(mixing::RestaMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; kwargs...)
     T = eltype(basis)
     εr = T(mixing.εr)
@@ -90,22 +88,19 @@ end
 @doc raw"""
 The model for the susceptibility is
 ```math
-\chi_0(r, r') = (-LDOS(εF, r) + LDOS(εF, r) LDOS(εF, r') / DOS(εF))
-              + \sqrt{L(x)} IFFT \frac{C_0 G^2}{4π (1 - C_0 G^2 / k_F^2)} FFT \sqrt{L(x)}
+χ_0(r, r') = (-LDOS(εF, r) δ(r, r') + LDOS(εF, r) LDOS(εF, r') / DOS(εF))
+           + \sqrt{L(x)} IFFT \frac{C_0 G^2}{4π (1 - C_0 G^2 / k_F^2)} FFT \sqrt{L(x)}
 ```
 where ``C_0 = 1 - ε_r`` and the same convention for parameters is used as in `RestaMixing`.
 Additionally there is the real-space localisation function `L(r)`.
 """
-struct HybridMixing
-    α::Real
-    εr::Real
-    kF::Real
-    localisation::Function  # Function L(r), `r` is in fractional real-space coordinates
-    rpa::Bool               # Use RPA, i.e. only apply the Hartree and not the XC Kernel
-    verbose::Bool           # Run the GMRES verbosely
-end
-function HybridMixing(;α=0.8, kF=0.8, εr=10, localisation=identity, rpa=true, verbose=false)
-    HybridMixing(α, εr, kF, localisation, rpa, verbose)
+@kwdef struct HybridMixing
+    α::Real = 0.8
+    εr::Real = 10
+    kF::Real = 0.8
+    localisation::Function = identity  # `L(r)` with `r` in fractional real-space coordinates
+    rpa::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
+    verbose::Bool = false  # Run the GMRES verbosely
 end
 
 function mix(mixing::HybridMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray;
