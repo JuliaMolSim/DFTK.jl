@@ -133,7 +133,7 @@ function mix(mixing::HybridMixing, basis, ρin::RealFourierArray, ρout::RealFou
 
         # Apply Kernel (just vc for RPA and (vc + fxc) if not RPA)
         δV = apply_kernel(basis, from_real(basis, δρ), ρ=ρin, RPA=mixing.RPA)
-        δV .-= sum(δV) / length(δV)  # set DC to zero
+        δV .-= sum(δV.real) / length(δV.real)  # set DC to zero
 
         # Apply Resta term of χ0
         loc_δV = apply_sqrtL(δV).fourier

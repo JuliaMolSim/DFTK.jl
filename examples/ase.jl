@@ -52,7 +52,11 @@ surface = ase_build.surface(gaas, miller, n_GaAs, d_vacuum, periodic=true);
 # Write an image of the surface and embed it as a nice illustration:
 pyimport("ase.io").write("surface.png", surface * (3, 3, 1),
                          rotation="-90x, 30y, -75z")
-# <img src="surface.png" width=500 height=500 />
+
+#md # ```@raw html
+#md # <img src="surface.png" width=500 height=500 />
+#md # ```
+#nb # <img src="surface.png" width=500 height=500 />
 
 # Use the `load_atoms` and `load_lattice` functions
 # to convert to DFTK datastructures.
