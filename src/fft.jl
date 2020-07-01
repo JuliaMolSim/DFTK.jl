@@ -31,7 +31,7 @@ The function will determine the smallest parallelepiped containing the wave vect
 For an exact representation of the density resulting from wave functions
 represented in the spherical basis sets, `supersampling` should be at least `2`.
 """
-function determine_grid_size(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=1e-8,
+function determine_fft_size(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=1e-8,
                              ensure_smallprimes=true) where T
     Gmax = supersampling * sqrt(2 * Ecut)
     Glims = bounding_rectangle(lattice, Gmax; tol=tol)
@@ -43,8 +43,8 @@ function determine_grid_size(lattice::AbstractMatrix{T}, Ecut; supersampling=2, 
         Vec3([2gs + 1 for gs in Glims])
     end
 end
-function determine_grid_size(model::Model, Ecut; kwargs...)
-    determine_grid_size(model.lattice, Ecut; kwargs...)
+function determine_fft_size(model::Model, Ecut; kwargs...)
+    determine_fft_size(model.lattice, Ecut; kwargs...)
 end
 
 # For Float32 there are issues with aligned FFTW plans, so we
