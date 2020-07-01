@@ -79,7 +79,7 @@ function apply_kernel(term::TermXc, dρ::RealFourierArray; ρ::RealFourierArray,
     basis = term.basis
     T = eltype(basis)
     @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
-    isempty(term.functionals) && return false  # Strong zero
+    isempty(term.functionals) && return nothing  # Strong zero
 
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
