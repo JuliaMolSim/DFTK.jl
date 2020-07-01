@@ -19,6 +19,8 @@ function bounding_rectangle(lattice::AbstractMatrix{T}, Gmax; tol=1e-8) where {T
     Glims
 end
 
+_smallprimes() = [2, 3, 5, 7]
+
 @doc raw"""
 Determine the minimal grid size for the cubic basis set to be able to
 represent product of orbitals (with the default `supersampling=2`).
@@ -32,16 +34,16 @@ For an exact representation of the density resulting from wave functions
 represented in the spherical basis sets, `supersampling` should be at least `2`.
 """
 function determine_fft_size(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=1e-8,
-                             ensure_smallprimes=true) where T
+                            ensure_smallprimes=true) where T
     Gmax = supersampling * sqrt(2 * Ecut)
     Glims = bounding_rectangle(lattice, Gmax; tol=tol)
 
+    fft_size = Vec3(2 .* Glims .+ 1)
     # Optimize FFT grid size: Make sure the number factorises in small primes only
     if ensure_smallprimes
-        Vec3([nextprod([2, 3, 5], 2gs + 1) for gs in Glims])
-    else
-        Vec3([2gs + 1 for gs in Glims])
+        fft_size = nextprod.(Ref(_smallprimes()), fft_size)
     end
+    fft_size
 end
 function determine_fft_size(model::Model, Ecut; kwargs...)
     determine_fft_size(model.lattice, Ecut; kwargs...)

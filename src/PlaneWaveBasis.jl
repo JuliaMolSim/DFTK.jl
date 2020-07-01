@@ -121,8 +121,17 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 # This is the "internal" constructor; the higher-level one below should be preferred
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops, symops=nothing;
-                                fft_size=determine_fft_size(model, Ecut), variational=true) where {T <: Real}
-    @assert Ecut > 0
+                                fft_size=nothing, variational=true, supersampling=2) where {T <: Real}
+    if variational
+        @assert Ecut > 0
+        if fft_size === nothing
+            fft_size = determine_fft_size(model, Ecut; supersampling=supersampling)
+        end
+    else
+        # ensure fft_size is provided, and other options are not set
+        @assert fft_size !== nothing
+        @assert supersampling == 2
+    end
     fft_size = Tuple{Int, Int, Int}(fft_size)
 
     # TODO generic FFT is kind of broken for some fft sizes
