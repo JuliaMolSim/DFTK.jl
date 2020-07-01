@@ -32,7 +32,7 @@ For an exact representation of the density resulting from wave functions
 represented in the spherical basis sets, `supersampling` should be at least `2`.
 """
 function determine_grid_size(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=1e-8,
-                             ensure_smallprimes=false) where T
+                             ensure_smallprimes=true) where T
     Gmax = supersampling * sqrt(2 * Ecut)
     Glims = bounding_rectangle(lattice, Gmax; tol=tol)
 
