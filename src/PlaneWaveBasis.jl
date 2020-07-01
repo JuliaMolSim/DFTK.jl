@@ -121,7 +121,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 # This is the "internal" constructor; the higher-level one below should be preferred
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops, symops=nothing;
-                                fft_size=nothing, variational=true, supersampling=2) where {T <: Real}
+                                fft_size=nothing, variational=true, optimize_fft_size=false, supersampling=2) where {T <: Real}
     if variational
         @assert Ecut > 0
         if fft_size === nothing
@@ -131,8 +131,18 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         # ensure fft_size is provided, and other options are not set
         @assert fft_size !== nothing
         @assert supersampling == 2
+        @assert !optimize_fft_size
     end
     fft_size = Tuple{Int, Int, Int}(fft_size)
+
+    kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
+
+    if variational && optimize_fft_size
+        fft_size = determine_fft_size_precise(model.lattice, Ecut, kpoints; supersampling=supersampling)
+        fft_size = Tuple{Int, Int, Int}(fft_size)
+        # TODO this is a hack for now, we build the kpoints twice
+        kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
+    end
 
     # TODO generic FFT is kind of broken for some fft sizes
     #      ... temporary workaround, see more details in fft_generic.jl
@@ -171,7 +181,6 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         symops = vcat(ksymops...)
     end
 
-    kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
     basis = PlaneWaveBasis{T}(
         model, Ecut, kpoints,
         kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms, symops)

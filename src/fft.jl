@@ -49,6 +49,32 @@ function determine_fft_size(model::Model, Ecut; kwargs...)
     determine_fft_size(model.lattice, Ecut; kwargs...)
 end
 
+## This uses a more precise and slower algorithm than the one above,
+## simply enumerating all G vectors and seeing where their difference
+## is. It needs the kpoints to do so.
+function determine_fft_size_precise(lattice::AbstractMatrix{T}, Ecut, kpoints;
+                                    supersampling=2, ensure_smallprimes=true) where T
+    Glims = [0, 0, 0]
+    # get the bounding rectangle the naive way
+    for kpt in kpoints
+        for G in G_vectors(kpt)
+            for Gp in G_vectors(kpt)
+                Glims .= max.(Glims, abs.(G .- Gp))
+            end
+        end
+    end
+    if supersampling != 2
+        Glims = round.(Int, supersampling ./ 2 .* Glims)
+    end
+
+    fft_size = Vec3(2 .* Glims .+ 1)
+    # Optimize FFT grid size: Make sure the number factorises in small primes only
+    if ensure_smallprimes
+        fft_size = nextprod.(Ref(_smallprimes()), fft_size)
+    end
+    fft_size
+end
+
 # For Float32 there are issues with aligned FFTW plans, so we
 # fall back to unaligned FFTW plans (which are generally discouraged).
 _fftw_flags(T::Type{Float32}) = FFTW.MEASURE | FFTW.UNALIGNED
