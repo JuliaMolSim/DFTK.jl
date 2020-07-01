@@ -7,7 +7,6 @@ function next_density(ham::Hamiltonian;
                       n_bands=default_n_bands(ham.basis.model),
                       ψ=nothing, n_ep_extra=3,
                       eigensolver=lobpcg_hyper, kwargs...)
-    n_ep = n_bands + n_ep_extra
     if ψ !== nothing
         @assert length(ψ) == length(ham.basis.kpoints)
         for ik in 1:length(ham.basis.kpoints)
@@ -16,7 +15,7 @@ function next_density(ham::Hamiltonian;
     end
 
     # Diagonalize
-    eigres = diagonalize_all_kblocks(eigensolver, ham, n_ep; guess=ψ,
+    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_ep_extra; guess=ψ,
                                      n_conv_check=n_bands, kwargs...)
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
@@ -150,12 +149,13 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
             # Note that ρin is not the density of ψ, and the eigenvalues
             # are not the self-consistent ones, which makes this energy non-variational
             energies, ham = energy_hamiltonian(basis, ψ, occupation;
-                                                             ρ=ρin, eigenvalues=eigenvalues, εF=εF)
+                                               ρ=ρin, eigenvalues=eigenvalues, εF=εF)
         end
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver,
-                                 miniter=1, tol=determine_diagtol(info))
+                                 miniter=1, tol=determine_diagtol(info),
+                                 n_ep_extra=n_ep_extra)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # Compute the energy of the new state
