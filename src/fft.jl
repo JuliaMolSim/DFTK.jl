@@ -36,27 +36,21 @@ function determine_grid_size(model::Model, Ecut; kwargs...)
     determine_grid_size(model.lattice, Ecut; kwargs...)
 end
 
+# For Float32 there are issues with aligned FFTW plans, so we
+# fall back to unaligned FFTW plans (which are generally discouraged).
+_fftw_flags(T::Float32) = FFTW.MEASURE | FFTW.UNALIGNED
+_fftw_flags(T::Float64) = FFTW.MEASURE
 
 """
 Plan a FFT of type `T` and size `fft_size`, spending some time on finding an
 optimal algorithm. Both an inplace and an out-of-place FFT plan are returned.
 """
-function build_fft_plans(T::Type{Float32}, fft_size)
-    # TODO For Float32 there are issues with aligned FFTW plans, so we
-    #      fall back to unaligned FFTW plans (which are generally discouraged).
-    tmp = Array{ComplexF32}(undef, fft_size...)
-    ipFFT = FFTW.plan_fft!(tmp, flags=FFTW.MEASURE | FFTW.UNALIGNED)
-    opFFT = FFTW.plan_fft(tmp, flags=FFTW.MEASURE | FFTW.UNALIGNED)
+function build_fft_plans(T::Union{Type{Float32}, Type{Float64}}, fft_size)
+    tmp = Array{Complex{T}}(undef, fft_size...)
+    ipFFT = FFTW.plan_fft!(tmp, flags=_fftw_flags(T))
+    opFFT = FFTW.plan_fft(tmp, flags=_fftw_flags(T))
     ipFFT, opFFT
 end
-
-function build_fft_plans(T::Type{Float64}, fft_size)
-    tmp = Array{ComplexF64}(undef, fft_size...)
-    ipFFT = FFTW.plan_fft!(tmp, flags=FFTW.MEASURE)
-    opFFT = FFTW.plan_fft(tmp, flags=FFTW.MEASURE)
-    ipFFT, opFFT
-end
-
 
 # TODO Some grid sizes are broken in the generic FFT implementation
 # in FourierTransforms, for more details see fft_generic.jl
