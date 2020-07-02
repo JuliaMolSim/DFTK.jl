@@ -48,22 +48,47 @@ end
 function determine_fft_size(model::Model, Ecut; kwargs...)
     determine_fft_size(model.lattice, Ecut; kwargs...)
 end
+function lattice_diameter(latt)
+    diam = zero(eltype(latt))
+    # brute force search
+    for i in (-1, 0, 1)
+        for j in (-1, 0, 1)
+            for k in (-1, 0, 1)
+                diam = max(diam, norm(latt*[i; j; k]))
+            end
+        end
+    end
+    diam
+end
 
 ## This uses a more precise and slower algorithm than the one above,
 ## simply enumerating all G vectors and seeing where their difference
 ## is. It needs the kpoints to do so.
 function determine_fft_size_precise(lattice::AbstractMatrix{T}, Ecut, kpoints;
                                     supersampling=2, ensure_smallprimes=true) where T
+    recip_lattice = 2T(π)*pinv(lattice')  # pinv in case one of the dimension is trivial
+    recip_diameter = lattice_diameter(recip_lattice)
     Glims = [0, 0, 0]
     # get the bounding rectangle the naive way
     for kpt in kpoints
         for G in G_vectors(kpt)
+            if norm(recip_lattice * (G+kpt.coordinate)) ≤ sqrt(2Ecut) - recip_diameter
+                # each of the 8 neighbors (in ∞-norm) also belongs to the grid
+                # so we can safely skip the search knowing at least one of them
+                # will have larger |G-Gp|.
+                # Savings with this trick are surprisingly small : for silicon, 50% at Ecut 30, 70% at Ecut 100
+                continue
+            end
             for Gp in G_vectors(kpt)
-                Glims .= max.(Glims, abs.(G .- Gp))
+                for i = 1:3
+                    @inbounds Glims[i] = max(Glims[i], abs(G[i] - Gp[i]))
+                end
             end
         end
     end
     if supersampling != 2
+        # no guarantees there, we just do our best to satisfy the
+        # target supersampling ratio
         Glims = round.(Int, supersampling ./ 2 .* Glims)
     end
 
