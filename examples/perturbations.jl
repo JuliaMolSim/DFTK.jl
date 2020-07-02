@@ -19,7 +19,7 @@ DFTK.@timing function Lowdin_orthonormalization!(ψp_fine::AbstractArray, occ::A
         Sdiag = Diagonal(sqrt.(1.0./E))
         S = V * Sdiag * V^(-1)
         ψp_fine[ik][:, occ_bands] = ψp_fine[ik][:, occ_bands] * S
-        ### check orthonormalization
+        # check orthonormalization
         S = ψp_fine[ik][:, occ_bands]'ψp_fine[ik][:, occ_bands]
         @assert(norm(S - I) < 1e-12)
     end
@@ -93,15 +93,101 @@ Compute first order perturbation of the eigenvectors
         # we shift also with the mean potential
         # ψ1 = -(-Δ|orth + <W> - λ)^{-1} * r
         ψ1k_fine = deepcopy(ψ_fine[ik])
+        ψ1k_fine .= 0
 
         for n in occ_bands
-            ψ1k_fine[:, n] .= 0
             ψ1k_fine[idcs_fine_cplmt[ik], n] .=
             .- 1.0 ./ (kin[idcs_fine_cplmt[ik]] .+ total_pot_avg[ik][idcs_fine_cplmt[ik]] .- egvalk[n]) .* r_fine[idcs_fine_cplmt[ik], n]
         end
         push!(ψ1_fine, ψ1k_fine)
     end
     ψ1_fine
+end
+
+@views DFTK.@timing function perturbed_eigenvectors_2order(basis::PlaneWaveBasis,
+                                                           H::Hamiltonian,
+                                                           ψ::AbstractArray,
+                                                           basis_fine::PlaneWaveBasis,
+                                                           H_fine::Hamiltonian,
+                                                           ψ_fine::AbstractArray,
+                                                           ψ1_fine::AbstractArray,
+                                                           total_pot_avg, idcs_fine_cplmt,
+                                                           egval::AbstractArray,
+                                                           egvalp2::AbstractArray,
+                                                           occ::AbstractArray)
+
+    ψ2 = empty(ψ)
+    ψ2_fine = empty(ψ_fine)
+    potψ1_fine = deepcopy(ψ1_fine)
+
+    for (ik, kpt_fine) in enumerate(basis_fine.kpoints)
+        potψ1_fine[ik] .= 0
+        # pre-allocated scratch arrays to compute the HamiltonianBlock
+        T = eltype(basis_fine)
+        scratch = (
+            ψ_reals=[zeros(complex(T), basis_fine.fft_size...) for tid = 1:Threads.nthreads()],
+            Hψ_reals=[zeros(complex(T), basis_fine.fft_size...) for tid = 1:Threads.nthreads()]
+        )
+
+        ops_no_kin = [op for op in H_fine.blocks[ik].operators
+                      if !(op isa DFTK.FourierMultiplication)]
+        H_fine_block_no_kin = HamiltonianBlock(basis_fine, kpt_fine, ops_no_kin, scratch)
+        potψ1_fine[ik] = mul!(similar(ψ1_fine[ik]), H_fine_block_no_kin, ψ1_fine[ik])
+    end
+
+    potψ1, _ = DFTK.interpolate_blochwave(potψ1_fine, basis_fine, basis)
+
+    # solve the linear system (H-λn)uj_n^(2) = -(potψ1-λ_n^(2)u_n) kpt per kpt
+    for (ik, kpt) in enumerate(basis.kpoints)
+
+        ψ2k = deepcopy(ψ[ik])
+        ψ2k .= 0
+        potψ1k = potψ1[ik]
+
+        # occupied bands
+        egvalk = egval[ik]
+        occ_bands = [n for n in 1:length(occ[ik]) if occ[ik][n] != 0.0]
+
+        for n in occ_bands
+            A = Array(H.blocks[ik]) - egvalk[n]*I
+            E, V = eigen(A)
+            D = Diagonal(E)
+            Dinv = deepcopy(D)
+            # we keep only the orthogonal of the eigenvectors to inverse the
+            # system
+            for i in 1:size(D)[1]
+                if abs(D[i,i]) > 1e-8
+                    Dinv[i,i] = 1.0 / D[i,i]
+                else
+                    Dinv[i,i] = 0.0
+                end
+            end
+            Ainv = V*Dinv*V^(-1)
+            egval2k = egvalp2[ik][n] - egvalk[n]
+            b = -(potψ1k[:, n] - egval2k*ψ[ik][:, n])
+            ψ2k[:, n] .= Ainv*b - 1. / 2. * (norm(ψ1_fine)^2) * ψ[ik][:, n]
+        end
+        push!(ψ2, ψ2k)
+    end
+
+    ψ2_fine, _ = DFTK.interpolate_blochwave(ψ2, basis, basis_fine)
+
+    for (ik, kpt_fine) in enumerate(basis_fine.kpoints)
+
+        # kinetic components
+        kin = [sum(abs2, basis_fine.model.recip_lattice * (G + kpt_fine.coordinate))
+              for G in G_vectors(kpt_fine)] ./ 2
+
+        # occupied bands
+        egvalk = egval[ik]
+        occ_bands = [n for n in 1:length(occ[ik]) if occ[ik][n] != 0.0]
+
+        for n in occ_bands
+            ψ2_fine[ik][idcs_fine_cplmt[ik], n] .=
+            .- 1.0 ./ (kin[idcs_fine_cplmt[ik]] .+ total_pot_avg[ik][idcs_fine_cplmt[ik]] .- egvalk[n]) .* potψ1_fine[ik][idcs_fine_cplmt[ik], n]
+        end
+    end
+    ψ2_fine
 end
 
 """
@@ -168,7 +254,7 @@ DFTK.@timing function perturbed_eigenvalues(basis_fine::PlaneWaveBasis, Hp_fine:
         # fine grid
         ops_hartree_xc = H_fine.blocks[ik].operators[end-1:end]
         H_fine_block_hxc = HamiltonianBlock(basis_fine, kpt_fine,
-                                                ops_hartree_xc, scratch)
+                                            ops_hartree_xc, scratch)
         potfineψk = mul!(similar(ψ_fine[ik]), H_fine_block_hxc, ψ_fine[ik])
         potfineψ1k = mul!(similar(ψ1_fine[ik]), H_fine_block_hxc, ψ1_fine[ik])
 
@@ -181,10 +267,10 @@ DFTK.@timing function perturbed_eigenvalues(basis_fine::PlaneWaveBasis, Hp_fine:
                       potrefψ1k[:, n]) - dot(ψ1_fine[ik][:, n], potfineψ1k[:, n]))
             egvalp2[ik][n] += real(egval1k + egval2k)
             egvalp3[ik][n] += real(egval1k + egval2k + egval3k)
-            println(egval1k)
-            println(egval2k)
-            println(egval3k)
-            println("---------------")
+            #  println(egval1k)
+            #  println(egval2k)
+            #  println(egval3k)
+            #  println("---------------")
         end
     end
     egvalp2, egvalp3
@@ -214,8 +300,8 @@ Perturbation function to compute perturbed solutions on finer grids
 """
 DFTK.@timing function perturbation(basis::PlaneWaveBasis,
                                    kcoords::AbstractVector, ksymops::AbstractVector,
-                                   scfres, Ecut_fine, compute_forces=false,
-                                   compute_egval=true)
+                                   scfres, Ecut_fine; compute_forces=false,
+                                   compute_egval=true, schur=false)
 
     Nk = length(basis.kpoints)
 
@@ -255,17 +341,6 @@ DFTK.@timing function perturbation(basis::PlaneWaveBasis,
     # compute energies
     Ep_fine, Hp_fine = energy_hamiltonian(basis_fine, ψp_fine, occ; ρ=ρp_fine)
 
-    # new scf loop for one iteration
-    #  scfres_perturbed = self_consistent_field(basis_fine,
-    #                                           ρ=ρp_fine,
-    #                                           ψ=ψp_fine,
-    #                                           maxiter=1,
-    #                                           callback=info->nothing)
-
-    #  ψp_fine = scfres_perturbed.ψ
-    #  ρp_fine = scfres_perturbed.ρ
-    #  Ep_fine, Hp_fine = energy_hamiltonian(basis_fine, ψp_fine, occ; ρ=ρp_fine)
-
     if compute_egval
         # compute the eigenvalue perturbation λp = λ + λ2 + λ3
         # first order peturbation = 0
@@ -277,13 +352,25 @@ DFTK.@timing function perturbation(basis::PlaneWaveBasis,
 
         # Rayleigh - Ritz method to compute eigenvalues from the perturbed
         # eigenvectors
-        #  ψp, _ = DFTK.interpolate_blochwave(ψp_fine, basis_fine, basis_ref)
-        #  egvalp_rr = Rayleigh_Ritz(basis_ref, scfres_ref.ham, ψp, egval, occ)
         egvalp_rr = Rayleigh_Ritz(basis_fine, Hp_fine, ψp_fine, egval, occ)
     else
         egvalp2 = 0
         egvalp3 = 0
         egvalp_rr = 0
+    end
+
+    ## apply schur <=> second order
+    if compute_egval && schur
+        ψ2_fine = perturbed_eigenvectors_2order(basis, H, ψ,
+                                                basis_fine, Hp_fine, ψ_fine, ψ1_fine,
+                                                total_pot_avg, idcs_fine_cplmt,
+                                                egval, egvalp2, occ)
+        ψp2_fine = ψp_fine .+ ψ2_fine
+        Lowdin_orthonormalization!(ψp2_fine, occ)
+        ρp2_fine = compute_density(basis_fine, ψp2_fine, occ)
+        Ep2_fine, Hp2_fine = energy_hamiltonian(basis_fine, ψp2_fine, occ; ρ=ρp2_fine)
+    else
+        Ep2_fine = 0
     end
 
     # compute forces
@@ -293,5 +380,5 @@ DFTK.@timing function perturbation(basis::PlaneWaveBasis,
         forcesp_fine = 0
     end
 
-    (Ep_fine, ψp_fine, ρp_fine, egvalp2, egvalp3, egvalp_rr, forcesp_fine)
+    (Ep_fine, ψp_fine, ρp_fine, egvalp2, egvalp3, egvalp_rr, forcesp_fine, Ep2_fine)
 end
