@@ -4,18 +4,14 @@ import FFTW
 # that encloses the sphere of radius Gmax
 function bounding_rectangle(lattice::AbstractMatrix{T}, Gmax; tol=1e-8) where {T}
     # If |B G| ≤ Gmax, then
-    # |Gi| ≤ |e_i^T B^-1 B G| ≤ |B^-T e_i| Gmax = |A_i| Gmax
-    # with B the reciprocal lattice matrix and A_i the i-th column of the lattice matrix
-    Glims_ = [norm(lattice[:, i]) / 2T(π) * Gmax for i in 1:3]
+    # |Gi| = |e_i^T B^-1 B G| ≤ |B^-T e_i| Gmax = |A_i| Gmax
+    # with B the reciprocal lattice matrix, e_i the i-th canonical
+    # basis vector and A_i the i-th column of the lattice matrix
+    Glims = [norm(lattice[:, i]) / 2T(π) * Gmax for i in 1:3]
 
     # Round up, unless exactly zero (in which case keep it zero in
     # order to just have one G vector for 1D or 2D systems)
-    Glims = [0, 0, 0]
-    for i = 1:3
-        if Glims_[i] != 0
-            Glims[i] = ceil(Int, Glims_[i] .- tol)
-        end
-    end
+    Glims = [Glim == 0 ? 0 : ceil(Int, Glim[i] .- tol) for Glim in Glims]
     Glims
 end
 
@@ -48,15 +44,12 @@ end
 function determine_fft_size(model::Model, Ecut; kwargs...)
     determine_fft_size(model.lattice, Ecut; kwargs...)
 end
-function lattice_diameter(latt)
-    diam = zero(eltype(latt))
+
+function diameter(lattice)
+    diam = zero(eltype(lattice))
     # brute force search
-    for i in (-1, 0, 1)
-        for j in (-1, 0, 1)
-            for k in (-1, 0, 1)
-                diam = max(diam, norm(latt*[i; j; k]))
-            end
-        end
+    for vec in Vec3.(Iterators.product(-1:1, -1:1, -1:1))
+        diam = max(diam, norm(lattice*vec))
     end
     diam
 end
@@ -67,16 +60,19 @@ end
 function determine_fft_size_precise(lattice::AbstractMatrix{T}, Ecut, kpoints;
                                     supersampling=2, ensure_smallprimes=true) where T
     recip_lattice = 2T(π)*pinv(lattice')  # pinv in case one of the dimension is trivial
-    recip_diameter = lattice_diameter(recip_lattice)
+    recip_diameter = diameter(recip_lattice)
     Glims = [0, 0, 0]
-    # get the bounding rectangle the naive way
+    # get the bounding rectangle that contains all G-G' vectors
+    # (and therefore densities and potentials)
+    # This handles the case `supersampling=2`
     for kpt in kpoints
         for G in G_vectors(kpt)
-            if norm(recip_lattice * (G+kpt.coordinate)) ≤ sqrt(2Ecut) - recip_diameter
+            if norm(recip_lattice * (G + kpt.coordinate)) ≤ sqrt(2Ecut) - recip_diameter
                 # each of the 8 neighbors (in ∞-norm) also belongs to the grid
                 # so we can safely skip the search knowing at least one of them
                 # will have larger |G-Gp|.
-                # Savings with this trick are surprisingly small : for silicon, 50% at Ecut 30, 70% at Ecut 100
+                # Savings with this trick are surprisingly small :
+                # for silicon, 50% at Ecut 30, 70% at Ecut 100
                 continue
             end
             for Gp in G_vectors(kpt)
@@ -115,6 +111,7 @@ function build_fft_plans(T::Union{Type{Float32}, Type{Float64}}, fft_size)
     opFFT = FFTW.plan_fft(tmp, flags=_fftw_flags(T))
     ipFFT, opFFT
 end
+
 
 # TODO Some grid sizes are broken in the generic FFT implementation
 # in FourierTransforms, for more details see fft_generic.jl

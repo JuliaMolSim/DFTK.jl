@@ -121,7 +121,8 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 # This is the "internal" constructor; the higher-level one below should be preferred
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops, symops=nothing;
-                                fft_size=nothing, variational=true, optimize_fft_size=false, supersampling=2) where {T <: Real}
+                                fft_size=nothing, variational=true,
+                                optimize_fft_size=false, supersampling=2) where {T <: Real}
     if variational
         @assert Ecut > 0
         if fft_size === nothing
