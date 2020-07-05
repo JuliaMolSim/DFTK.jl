@@ -14,7 +14,7 @@ function compute_partial_density(basis, kpt, ψk, occupation)
 
     # Check sanity of the density (real, positive and normalized)
     T = real(eltype(ρk_real))
-    check_real(ρk_real)
+    real_checked(ρk_real)
     if all(occupation .> 0)
         minimum(real(ρk_real)) < 0 && @warn("Negative ρ detected",
                                             min_ρ=minimum(real(ρk_real)))
