@@ -37,6 +37,7 @@ export r_to_G
 export r_to_G!
 export model_atomic
 export model_DFT
+export model_PBE
 export model_LDA
 include("Model.jl")
 include("PlaneWaveBasis.jl")
