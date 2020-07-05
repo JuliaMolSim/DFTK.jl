@@ -36,12 +36,13 @@ function ScfDefaultCallback()
             @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin   Diag\n" E_label
             @printf "---   ---------------   ---------   --------   ----\n"
         end
-        E = info.energies === nothing ? Inf : info.energies.total
+        E = isnothing(info.energies) ? Inf : info.energies.total
+        Estr  = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
         prev_E = prev_energies === nothing ? Inf : prev_energies.total
         Δρ = norm(info.ρout.fourier - info.ρin.fourier)
         ΔE = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_E
         diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
-        @printf "% 3d   %-15.12f   %s   %2.2e   % 3.1f \n" info.n_iter E ΔE Δρ diagiter
+        @printf "% 3d   %s   %s   %2.2e   % 3.1f \n" info.n_iter Estr ΔE Δρ diagiter
         prev_energies = info.energies
     end
     callback
