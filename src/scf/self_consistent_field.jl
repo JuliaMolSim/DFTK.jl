@@ -30,6 +30,7 @@ end
 function ScfDefaultCallback()
     prev_energies = nothing
     function callback(info)
+        info.stage == :finalize && return
         if info.n_iter == 1
             E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
             @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin   Diag\n" E_label
@@ -165,9 +166,9 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         end
 
         # Update info with results gathered so far
-        info = (ham=ham, basis=basis, energies=energies, ρin=ρin, ρout=ρout,
+        info = (ham=ham, basis=basis, energies=energies, converged=false, ρin=ρin, ρout=ρout,
                 eigenvalues=eigenvalues, occupation=occupation, εF=εF, n_iter=n_iter, ψ=ψ,
-                diagonalization=nextstate.diagonalization)
+                diagonalization=nextstate.diagonalization, stage=:iterate)
 
         # Apply mixing and pass it the full info as kwargs
         ρnext = mix(mixing, basis, ρin, ρout; info...)
@@ -190,6 +191,10 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     energies, ham = energy_hamiltonian(basis, ψ, occupation;
                                        ρ=ρout, eigenvalues=eigenvalues, εF=εF)
 
-    (ham=ham, energies=energies, converged=fpres.converged,
-     ρ=ρout, ψ=ψ, eigenvalues=eigenvalues, occupation=occupation, εF=εF)
+    # Callback is run one last time with final state to allow callback to clean up
+    info = (ham=ham, basis=basis, energies=energies, converged=fpres.converged,
+            ρ=ρout, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
+            n_iter=n_iter, ψ=ψ, stage=:finalize)
+    callback(info)
+    info
 end

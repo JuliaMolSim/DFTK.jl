@@ -20,6 +20,7 @@ maxiter = 5
 
 global resids = []
 function my_callback(info)
+    info.stage == :finalize && return
     global resids
     info.n_iter == 1 && (resids = [])
     err = norm(info.ρout.fourier - info.ρin.fourier)
