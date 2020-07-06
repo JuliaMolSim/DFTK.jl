@@ -1,3 +1,6 @@
+using Plots
+include("scf_callbacks.jl")
+
 default_n_bands(model) = div(model.n_electrons, filled_occupation(model))
 
 """
@@ -25,78 +28,6 @@ function next_density(ham::Hamiltonian;
 
     (ψ=eigres.X, eigenvalues=eigres.λ, occupation=occupation, εF=εF, ρ=ρnew,
      diagonalization=eigres)
-end
-
-function ScfDefaultCallback()
-    prev_energies = nothing
-    function callback(info)
-        info.stage == :finalize && return
-        if info.n_iter == 1
-            E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
-            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin   Diag\n" E_label
-            @printf "---   ---------------   ---------   --------   ----\n"
-        end
-        E = isnothing(info.energies) ? Inf : info.energies.total
-        Estr  = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
-        prev_E = prev_energies === nothing ? Inf : prev_energies.total
-        Δρ = norm(info.ρout.fourier - info.ρin.fourier)
-        ΔE = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_E
-        diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
-        @printf "% 3d   %s   %s   %2.2e   % 3.1f \n" info.n_iter Estr ΔE Δρ diagiter
-        prev_energies = info.energies
-    end
-    callback
-end
-
-"""
-Flag convergence as soon as total energy change drops below tolerance
-"""
-function ScfConvergenceEnergy(tolerance)
-    energy_total = NaN
-
-    function is_converged(info)
-        info.energies === nothing && return false # first iteration
-
-        # The ρ change should also be small, otherwise we converge if the SCF is just stuck
-        norm(info.ρout.fourier - info.ρin.fourier) > 10sqrt(tolerance) && return false
-
-        etot_old = energy_total
-        energy_total = info.energies.total
-        abs(energy_total - etot_old) < tolerance
-    end
-    return is_converged
-end
-
-"""
-Flag convergence by using the L2Norm of the change between
-input density and unpreconditioned output density (ρout)
-"""
-function ScfConvergenceDensity(tolerance)
-    info -> norm(info.ρout.fourier - info.ρin.fourier) < tolerance
-end
-
-"""
-Determine the tolerance used for the next diagonalization. This function takes
-``|ρnext - ρin|`` and multiplies it with `ratio_ρdiff` to get the next `diagtol`,
-ensuring additionally that the returned value is between `diagtol_min` and `diagtol_max`
-and never increases.
-"""
-function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.03)
-    function determine_diagtol(info)
-        isnothing(diagtol_min) && (diagtol_min = 100eps(real(eltype(info.ρin))))
-        info.n_iter ≤ 0 && return diagtol_max
-        info.n_iter == 1 && (diagtol_max /= 5)  # Enforce more accurate Bloch wave
-
-        diagtol = norm(info.ρnext.fourier - info.ρin.fourier) * ratio_ρdiff
-        diagtol = min(diagtol_max, diagtol)  # Don't overshoot
-        diagtol = max(diagtol_min, diagtol)  # Don't undershoot
-        @assert isfinite(diagtol)
-
-
-        # Adjust maximum to ensure diagtol may only shrink during an SCF
-        diagtol_max = min(diagtol, diagtol_max)
-        diagtol
-    end
 end
 
 
