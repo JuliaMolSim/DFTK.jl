@@ -11,7 +11,7 @@ function bounding_rectangle(lattice::AbstractMatrix{T}, Gmax; tol=1e-8) where {T
 
     # Round up, unless exactly zero (in which case keep it zero in
     # order to just have one G vector for 1D or 2D systems)
-    Glims = [Glim == 0 ? 0 : ceil(Int, Glim[i] .- tol) for Glim in Glims]
+    Glims = [Glim == 0 ? 0 : ceil(Int, Glim .- tol) for Glim in Glims]
     Glims
 end
 
