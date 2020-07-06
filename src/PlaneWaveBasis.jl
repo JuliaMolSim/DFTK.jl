@@ -130,6 +130,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         end
     else
         # ensure fft_size is provided, and other options are not set
+        # TODO make proper error messages when the interface gets a bit cleaned up
         @assert fft_size !== nothing
         @assert supersampling == 2
         @assert !optimize_fft_size
