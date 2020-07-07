@@ -8,7 +8,7 @@ include("testcases.jl")
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => pos]
         model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93)
-        basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 2, 2])
+        basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
         scfres = self_consistent_field(basis; is_converged=is_converged)
@@ -41,7 +41,7 @@ end
         model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93;
                           temperature=0.03, smearing=smearing)
         # TODO Put kshift=[1/2, 0, 0] here later
-        basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 1, 2])
+        basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 1, 2], kshift=[0, 0, 0])
 
         n_bands = 10
         is_converged = DFTK.ScfConvergenceDensity(5e-10)

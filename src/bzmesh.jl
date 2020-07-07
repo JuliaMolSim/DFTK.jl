@@ -146,7 +146,7 @@ const standardize_atoms = spglib_standardize_cell
 Selects a kgrid_size to ensure a minimal spacing (in inverse Bohrs) between kpoints.
 Default is ``2π * 0.04 \AA^{-1}``.
 """
-function kgrid_size_from_minimal_spacing(lattice, spacing=2π * 0.04 / units.Ǎ)
+function kgrid_size_from_minimal_spacing(lattice, spacing=2π * 0.022)
     @assert spacing > 0
     isinf(spacing) && return [1, 1, 1]
 

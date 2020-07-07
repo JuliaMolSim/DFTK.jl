@@ -187,7 +187,10 @@ end
 
 @doc raw"""
 Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a Monkhorst-Pack
-kpoint grid `kgrid` shifted by `kshift` (0 or 1/2 in each direction).
+kpoint grid. The MP grid can either be specified directly with `kgrid` providing the
+number of points in each dimension and `kshift` the shift (0 or 1/2 in each direction).
+If not specified a grid is generated using `kgrid_size_from_minimal_spacing` with
+a minimal spacing of `2π * 0.022` per Bohr.
 
 If `use_symmetry` is `true` (default) the symmetries of the
 crystal are used to reduce the number of ``k``-Points which are
@@ -195,8 +198,11 @@ treated explicitly. In this case all guess densities and potential
 functions must agree with the crystal symmetries or the result is
 undefined.
 """
-function PlaneWaveBasis(model::Model, Ecut::Number; kgrid=[1, 1, 1], kshift=[0, 0, 0],
-                        use_symmetry=true, kwargs...)
+function PlaneWaveBasis(model::Model, Ecut::Number;
+                        kgrid=kgrid_size_from_minimal_spacing(model.lattice, 2π * 0.022),
+                        kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
+                        use_symmetry=true,
+                        kwargs...)
     if use_symmetry
         kcoords, ksymops, symops = bzmesh_ir_wedge(kgrid, model.symops, kshift=kshift)
     else

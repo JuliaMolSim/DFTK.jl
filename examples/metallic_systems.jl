@@ -22,17 +22,18 @@ atoms = [Mg => [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]]];
 # as well as the minimal ``k``-point spacing
 # `kspacing` far too large to give a converged result.
 # These have been selected to obtain a fast execution time.
+# By default `PlaneWaveBasis` chooses a `kspacing`
+# of `2π * 0.022` inverse Bohrs, which is much more reasonable.
 
 kspacing = 0.5      # Minimal spacing of k-points, 
 ##                    in units of wavevectors (inverse Bohrs)
 Ecut = 5            # kinetic energy cutoff in Hartree
 temperature = 0.01  # Smearing temperature in Hartree
 
-kgrid = kgrid_size_from_minimal_spacing(lattice, kspacing)
-kgrid_size_from_minimal_spacing(lattice, kspacing)
 model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe];
                   temperature=temperature,
                   smearing=DFTK.Smearing.FermiDirac())
+kgrid = kgrid_size_from_minimal_spacing(lattice, kspacing)
 basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid);
 
 # Finally we run the SCF. Two magnesium atoms in

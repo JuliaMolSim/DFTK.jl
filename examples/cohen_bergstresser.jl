@@ -18,7 +18,7 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]];
 # Next we build the rather simple model and discretise it with moderate `Ecut`:
 Ecut = 10.0
 model = Model(lattice; atoms=atoms, terms=[Kinetic(), AtomicLocal()])
-basis = PlaneWaveBasis(model, Ecut);
+basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1));
 
 # We diagonalise at the Gamma point to find a Fermi level ...
 ham = Hamiltonian(basis)

@@ -59,7 +59,7 @@ model = Model(lattice; atoms=atoms, n_electrons=n_electrons, terms=terms,
 # afterwards. As there is no ionic charge associated to `nucleus` we have to specify
 # a starting density and we choose to start from a zero density.
 Ecut = 500
-basis = PlaneWaveBasis(model, Ecut)
+basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1))
 ρ = zeros(complex(eltype(basis)), basis.fft_size)
 scfres = self_consistent_field(basis, tol=1e-8, ρ=from_fourier(basis, ρ))
 scfres.energies
