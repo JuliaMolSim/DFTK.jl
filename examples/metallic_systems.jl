@@ -35,12 +35,14 @@ model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe];
                   smearing=DFTK.Smearing.FermiDirac())
 basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid);
 
-# Finally we run the SCF. Even though two magnesium atoms in
-# our pseudopotential model only result in four valence electrons being explicitly
-# treated, we still solve for eight bands in order to capture
-# the partial occupations beyond the Fermi level due to
+# Finally we run the SCF. Two magnesium atoms in
+# our pseudopotential model result in four valence electrons being explicitly
+# treated. Nevertheless this SCF will solve for eight bands by default
+# in order to capture partial occupations beyond the Fermi level due to
 # the employed smearing scheme.
-scfres = self_consistent_field(basis, n_bands=8);
+scfres = self_consistent_field(basis);
+#-
+scfres.occupation[1]
 #-
 scfres.energies
 
