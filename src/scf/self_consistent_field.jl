@@ -1,3 +1,6 @@
+using Plots
+include("scf_callbacks.jl")
+
 default_n_bands(model) = div(model.n_electrons, filled_occupation(model))
 
 """
@@ -25,76 +28,6 @@ function next_density(ham::Hamiltonian;
 
     (ψ=eigres.X, eigenvalues=eigres.λ, occupation=occupation, εF=εF, ρ=ρnew,
      diagonalization=eigres)
-end
-
-function ScfDefaultCallback()
-    prev_energies = nothing
-    function callback(info)
-        if info.n_iter == 1
-            E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
-            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin   Diag\n" E_label
-            @printf "---   ---------------   ---------   --------   ----\n"
-        end
-        E = info.energies === nothing ? Inf : info.energies.total
-        prev_E = prev_energies === nothing ? Inf : prev_energies.total
-        Δρ = norm(info.ρout.fourier - info.ρin.fourier)
-        ΔE = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_E
-        diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
-        @printf "% 3d   %-15.12f   %s   %2.2e   % 3.1f \n" info.n_iter E ΔE Δρ diagiter
-        prev_energies = info.energies
-    end
-    callback
-end
-
-"""
-Flag convergence as soon as total energy change drops below tolerance
-"""
-function ScfConvergenceEnergy(tolerance)
-    energy_total = NaN
-
-    function is_converged(info)
-        info.energies === nothing && return false # first iteration
-
-        # The ρ change should also be small, otherwise we converge if the SCF is just stuck
-        norm(info.ρout.fourier - info.ρin.fourier) > 10sqrt(tolerance) && return false
-
-        etot_old = energy_total
-        energy_total = info.energies.total
-        abs(energy_total - etot_old) < tolerance
-    end
-    return is_converged
-end
-
-"""
-Flag convergence by using the L2Norm of the change between
-input density and unpreconditioned output density (ρout)
-"""
-function ScfConvergenceDensity(tolerance)
-    info -> norm(info.ρout.fourier - info.ρin.fourier) < tolerance
-end
-
-"""
-Determine the tolerance used for the next diagonalization. This function takes
-``|ρnext - ρin|`` and multiplies it with `ratio_ρdiff` to get the next `diagtol`,
-ensuring additionally that the returned value is between `diagtol_min` and `diagtol_max`
-and never increases.
-"""
-function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.03)
-    function determine_diagtol(info)
-        isnothing(diagtol_min) && (diagtol_min = 100eps(real(eltype(info.ρin))))
-        info.n_iter ≤ 0 && return diagtol_max
-        info.n_iter == 1 && (diagtol_max /= 5)  # Enforce more accurate Bloch wave
-
-        diagtol = norm(info.ρnext.fourier - info.ρin.fourier) * ratio_ρdiff
-        diagtol = min(diagtol_max, diagtol)  # Don't overshoot
-        diagtol = max(diagtol_min, diagtol)  # Don't undershoot
-        @assert isfinite(diagtol)
-
-
-        # Adjust maximum to ensure diagtol may only shrink during an SCF
-        diagtol_max = min(diagtol, diagtol_max)
-        diagtol
-    end
 end
 
 
@@ -165,9 +98,9 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         end
 
         # Update info with results gathered so far
-        info = (ham=ham, basis=basis, energies=energies, ρin=ρin, ρout=ρout,
+        info = (ham=ham, basis=basis, energies=energies, converged=false, ρin=ρin, ρout=ρout,
                 eigenvalues=eigenvalues, occupation=occupation, εF=εF, n_iter=n_iter, ψ=ψ,
-                diagonalization=nextstate.diagonalization)
+                diagonalization=nextstate.diagonalization, stage=:iterate)
 
         # Apply mixing and pass it the full info as kwargs
         ρnext = mix(mixing, basis, ρin, ρout; info...)
@@ -190,6 +123,10 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     energies, ham = energy_hamiltonian(basis, ψ, occupation;
                                        ρ=ρout, eigenvalues=eigenvalues, εF=εF)
 
-    (ham=ham, energies=energies, converged=fpres.converged,
-     ρ=ρout, ψ=ψ, eigenvalues=eigenvalues, occupation=occupation, εF=εF)
+    # Callback is run one last time with final state to allow callback to clean up
+    info = (ham=ham, basis=basis, energies=energies, converged=fpres.converged,
+            ρ=ρout, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
+            n_iter=n_iter, ψ=ψ, stage=:finalize)
+    callback(info)
+    info
 end

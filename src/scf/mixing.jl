@@ -136,9 +136,11 @@ function mix(mixing::HybridMixing, basis, ρin::RealFourierArray, ρout::RealFou
         δV.real .-= sum(δV.real) / length(δV.real)  # set DC to zero
 
         # Apply Resta term of χ0
-        loc_δV = apply_sqrtL(δV).fourier
-        resta_loc_δV =  @. C0 * kF^2 * Gsq / 4T(π) / (kF^2 - C0 * Gsq) * loc_δV
-        Jδρ .-= apply_sqrtL(from_fourier(basis, resta_loc_δV)).real
+        if !iszero(C0)
+            loc_δV = apply_sqrtL(δV).fourier
+            resta_loc_δV =  @. C0 * kF^2 * Gsq / 4T(π) / (kF^2 - C0 * Gsq) * loc_δV
+            Jδρ .-= apply_sqrtL(from_fourier(basis, resta_loc_δV)).real
+        end
 
         # Apply LDOS term of χ0
         if ldos !== nothing

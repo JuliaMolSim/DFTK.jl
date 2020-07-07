@@ -172,6 +172,14 @@ end
 
 
 """
+Build an PBE-GGA model from the specified atoms.
+"""
+function model_PBE(lattice::AbstractMatrix, atoms::Vector; kwargs...)
+    model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe]; kwargs...)
+end
+
+
+"""
 Maximal occupation of a state (2 for non-spin-polarized electrons, 1 otherwise).
 """
 function filled_occupation(model)
