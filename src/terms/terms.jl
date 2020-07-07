@@ -71,7 +71,7 @@ end
     end
     f
 end
-forces(scfres) = forces(scfres.ham.basis, scfres.ψ, scfres.occupation, ρ=scfres.ρ)
+forces(scfres) = forces(scfres.basis, scfres.ψ, scfres.occupation, ρ=scfres.ρ)
 
 
 """
