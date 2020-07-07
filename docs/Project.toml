@@ -9,4 +9,4 @@ PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
-Documenter = "~0.24"
+Documenter = "~0.25"
