@@ -1,7 +1,11 @@
 using Plots
 include("scf_callbacks.jl")
 
-default_n_bands(model) = div(model.n_electrons, filled_occupation(model))
+function default_n_bands(model)
+    min_n_bands = div(model.n_electrons, filled_occupation(model))
+    n_extra = model.temperature == 0 ? 0 : max(4, ceil(Int, 0.2 * min_n_bands))
+    min_n_bands + n_extra
+end
 
 """
 Obtain new density ρ by diagonalizing `ham`.

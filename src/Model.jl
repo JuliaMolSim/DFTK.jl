@@ -25,7 +25,7 @@ struct Model{T <: Real}
     #                 The difference with :none is that the occupations are 1 instead of 2
     spin_polarization::Symbol
 
-    # If temperature=0, no fractional occupations are used.
+    # If temperature==0, no fractional occupations are used.
     # If temperature is nonzero, the occupations are
     # `fn = max_occ*smearing((εn-εF) / temperature)`
     temperature::T

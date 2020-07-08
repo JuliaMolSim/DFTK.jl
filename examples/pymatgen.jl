@@ -26,10 +26,8 @@ atoms = [Si => [s.frac_coords for s in pystruct.sites]];
 
 # Setup an LDA model and discretize using
 # a single kpoint and a small `Ecut` of 5 Hartree.
-# Notice that `PlaneWaveBasis` defaults to just using the ``Γ``-point
-# if no ``k``-point options are provided.
 model = model_LDA(lattice, atoms)
-basis = PlaneWaveBasis(model, 5)
+basis = PlaneWaveBasis(model, 5, kgrid=(1, 1, 1))
 
 # Find the ground state using direct minimisation (always using SCF is boring ...)
 scfres = direct_minimization(basis, tol=1e-5);

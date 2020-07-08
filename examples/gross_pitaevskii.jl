@@ -53,7 +53,7 @@ model = Model(lattice; n_electrons=n_electrons, terms=terms,
 # We discretize using a moderate Ecut (For 1D values up to `5000` are completely fine)
 # and run a direct minimization algorithm:
 Ecut = 500
-basis = PlaneWaveBasis(model, Ecut)
+basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1))
 scfres = direct_minimization(basis, tol=1e-8) # This is a constrained preconditioned LBFGS
 scfres.energies
 
