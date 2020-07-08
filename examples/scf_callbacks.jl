@@ -24,7 +24,7 @@ lattice = load_lattice(silicon);
 model = model_LDA(lattice, atoms)
 kgrid = [3, 3, 3]  # k-point grid
 Ecut = 5           # kinetic energy cutoff in Hartree
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid);
 
 # DFTK already defines a few callback functions for standard
 # tasks. One example is the usual convergence table,
@@ -33,11 +33,11 @@ basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 # energy at each iteration and uses it to plot the convergence
 # of the SCF graphically once it is converged.
 # For details and other callbacks
-# see [src/scf/scf_callbacks.jl](https://dftk.org/blob/master/src/scf/scf_callbacks.jl).
+# see [`src/scf/scf_callbacks.jl`](https://dftk.org/blob/master/src/scf/scf_callbacks.jl).
 #
 # !!! note "Callbacks are not exported"
 #     Callbacks are not exported from the DFTK namespace as of now,
-#     so you will need to use them as `DFTK.ScfDefaultCallback`
+#     so you will need to use them, e.g., as `DFTK.ScfDefaultCallback`
 #     and `DFTK.ScfPlotTrace`.
 
 
@@ -47,7 +47,7 @@ basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 # and an empty container for all the density differences:
 using Plots
 p = plot(yaxis=:log)
-density_differences = Float64[]
+density_differences = Float64[];
 
 # The callback function itself gets passed a named tuple
 # similar to the one returned by `self_consistent_field`,
@@ -67,13 +67,13 @@ function plot_callback(info)
         default_callback(info)
         push!(density_differences, norm(info.ρout.real - info.ρin.real))
     end
-end
+end;
 
 # Notice that we additionally made reference to the `ScfDefaultCallback`,
 # such that when using the `plot_callback` function with
 # `self_consistent_field` we still get the usual convergence table printed.
 # We run the SCF with this callback ...
-scfres = self_consistent_field(basis, tol=1e-8, callback=plot_callback)
+scfres = self_consistent_field(basis, tol=1e-8, callback=plot_callback);
 
 # ... and show the plot
 p
@@ -81,7 +81,7 @@ p
 # The `info` object passed to the callback contains not just the densities
 # but also the complete Bloch wave (in `ψ`), the `occupation`, band `eigenvalues`
 # and so on.
-# See [src/scf/self_consistent_field.jl](https://dftk.org/blob/master/src/scf/self_consistent_field.jl#L101)
+# See [`src/scf/self_consistent_field.jl`](https://dftk.org/blob/master/src/scf/self_consistent_field.jl#L101)
 # for all currently available keys.
 #
 # !!! tip "Debugging with callbacks"
