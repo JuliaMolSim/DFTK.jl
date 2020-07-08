@@ -32,6 +32,8 @@ basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 # Another example is `ScfPlotTrace`, which records the total
 # energy at each iteration and uses it to plot the convergence
 # of the SCF graphically once it is converged.
+# For details and other callbacks
+# see [src/scf/scf_callbacks.jl](https://dftk.org/blob/master/src/scf/scf_callbacks.jl).
 #
 # !!! note "Callbacks are not exported"
 #     Callbacks are not exported from the DFTK namespace as of now,
@@ -55,6 +57,7 @@ density_differences = Float64[]
 # just before `self_consistent_field` finishes we can both
 # collect the data and initiate the plotting in one function.
 
+using LinearAlgebra
 default_callback = DFTK.ScfDefaultCallback()
 
 function plot_callback(info)
@@ -77,7 +80,8 @@ p
 
 # The `info` object passed to the callback contains not just the densities
 # but also the complete Bloch wave (in `ψ`), the `occupation`, band `eigenvalues`
-# and so on. See [the code](https://github.com/JuliaMolSim/DFTK.jl/blob/master/src/scf/self_consistent_field.jl#L101)
+# and so on.
+# See [src/scf/self_consistent_field.jl](https://dftk.org/blob/master/src/scf/self_consistent_field.jl#L101)
 # for all currently available keys.
 #
 # !!! tip "Debugging with callbacks"
