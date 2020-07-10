@@ -81,5 +81,5 @@ dmin = norm(lattice*xmin[1:3] - lattice*xmin[4:6])
 #     We used here a very general setting where we optimized on the 6 variables
 #     representing the position of the 2 atoms and it can be easily extended
 #     to molecules with more atoms (such as ``H_2O``). In the particular case
-#     of ``H_2``, we could the internal degree of freedom which, in this case,
-#     is just the bond length.
+#     of ``H_2``, we could use only the internal degree of freedom which, in
+#     this case, is just the bond length.
