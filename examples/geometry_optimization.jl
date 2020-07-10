@@ -74,15 +74,12 @@ dmin = norm(lattice*xmin[1:3] - lattice*xmin[4:6])
 @printf "\nOptimal bond length for Ecut=%.2f: %.3f Bohr\n" Ecut dmin
 
 # We used here very rough parameters to generate the example and
-# setting `Ecut` to 10 Ha yields a bond length of 1.523 Bohr.
-# As a comparison, ABINIT with the exact same lattice constant, `Ecut = 10`,
-# LDA with Teter parametrization and a pseudopotential from the
-# Goedecker-Hutter-Teter table gives a bond length of 1.522 Bohr
-# (cf. the [ABINIT tutorial](https://docs.abinit.org/tutorial/base1/)).
+# setting `Ecut` to 10 Ha yields a bond length of 1.523 Bohr,
+# which [agrees with ABINIT](https://docs.abinit.org/tutorial/base1/).
 #
 # !!! note "Degrees of freedom"
 #     We used here a very general setting where we optimized on the 6 variables
 #     representing the position of the 2 atoms and it can be easily extended
 #     to molecules with more atoms (such as ``H_2O``). In the particular case
-#     of ``H_2``, we could use only one degree of freedom which, in this case,
+#     of ``H_2``, we could the internal degree of freedom which, in this case,
 #     is just the bond length.
