@@ -3,7 +3,7 @@
 #       between julia and spglib.
 #       However, spglib expects the lattice to be passed in as a array of arrays,
 #       which it internally treats as column vectors. Thus we don't need to transpose
-#       the lattice because the julia memory layout of a matrix coincides with this. 
+#       the lattice because the julia memory layout of a matrix coincides with this.
 const SPGLIB = spglib_jll.libsymspg
 
 function spglib_get_error_message()
@@ -54,15 +54,15 @@ spglib_atoms(atoms) = first(spglib_atommapping(atoms))
     spg_n_ops = ccall((:spg_get_multiplicity, SPGLIB), Cint,
         (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
         lattice, spg_positions, spg_numbers, Cint(length(spg_numbers)), tol_symmetry)
-    
+
     spg_rotations    = Array{Cint}(undef, 3, 3, spg_n_ops)
     spg_translations = Array{Cdouble}(undef, 3, spg_n_ops)
-    
+
     ccall((:spg_get_symmetry, SPGLIB), Cint,
          (Ptr{Cint}, Ptr{Cdouble}, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
          spg_rotations, spg_translations, spg_n_ops, lattice, spg_positions, spg_numbers,
          Cint(length(spg_numbers)), tol_symmetry)
-  
+
     # If spglib does not find symmetries give an error
     if spg_n_ops == 0
         err_message = spglib_get_error_message()
@@ -74,7 +74,7 @@ spglib_atoms(atoms) = first(spglib_atommapping(atoms))
     Stildes = [Mat3{Int}(spg_rotations[:, :, i])' for i in 1:spg_n_ops]
     τtildes = [rationalize.(Vec3{Float64}(spg_translations[:, i]), tol=tol_symmetry)
                for i in 1:spg_n_ops]
-    
+
     # Checks: (A Stilde A^{-1}) is unitary
     for Stilde in Stildes
         Scart = lattice * Stilde * inv(lattice)  # Form S in cartesian coords
@@ -87,7 +87,7 @@ spglib_atoms(atoms) = first(spglib_atommapping(atoms))
     for (Stilde, τtilde) in zip(Stildes, τtildes)
         for (elem, positions) in atoms
             for coord in positions
-                diffs = [rationalize.(Stilde * coord + τtilde - pos, tol=tol_symmetry)
+                diffs = [rationalize.(Stilde * coord + τtilde - pos, tol=5*tol_symmetry)
                          for pos in positions]
 
                 # If all elements of a difference in diffs is integer, then
@@ -107,7 +107,7 @@ end
 function spglib_standardize_cell(lattice::AbstractArray{T}, atoms; correct_symmetry=true,
                                  primitive=false, tol_symmetry=1e-5) where {T}
     # Convert lattice and atoms to spglib and keep the mapping between our atoms
-    spg_lattice = Matrix{Float64}(lattice) 
+    spg_lattice = Matrix{Float64}(lattice)
     # and spglibs atoms
     spg_atoms, atommapping = spglib_atommapping(atoms)
     spg_positions, spg_numbers = spg_atoms
@@ -134,12 +134,12 @@ function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;
     nkpt = prod(kgrid_size)
     mapping = Vector{Cint}(undef, nkpt)
     grid_address = Matrix{Cint}(undef, 3, nkpt)
-   
+
     nrot = length(rotations)
     n_kpts = ccall((:spg_get_stabilized_reciprocal_mesh, SPGLIB), Cint,
       (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Cint, Cint, Ptr{Cint}, Cint, Ptr{Cdouble}),
       grid_address, mapping, [Cint.(kgrid_size)...], [Cint.(is_shift)...], Cint(is_time_reversal),
       Cint(nrot), spg_rotations, Cint(length(qpoints)), Vec3{Float64}.(qpoints))
-    
+
     return n_kpts, Int.(mapping), [Vec3{Int}(grid_address[:, i]) for i in 1:nkpt]
 end
