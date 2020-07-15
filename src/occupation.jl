@@ -59,6 +59,14 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
     end
 
     if !isapprox(compute_n_elec(εF), n_electrons)
+        # For insulators it can happen that bisection stops in a final interval (a, b) where
+        # `compute_n_elec(a) ≈ n_electrons` and `compute_n_elec(b) > n_electrons`, but where
+        # the returned `(a+b)/2` is rounded to `b`, such that `εF` gives a too
+        # large electron count. To make sure this is not the case, make εF a little smaller.
+        εF -= eps(εF)
+    end
+
+    if !isapprox(compute_n_elec(εF), n_electrons)
         if temperature == 0
             error("Unable to find non-fractional occupations that have the " *
                   "correct number of electrons. You should add a temperature.")
