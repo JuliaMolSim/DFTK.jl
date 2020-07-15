@@ -15,7 +15,7 @@ function bounding_rectangle(lattice::AbstractMatrix{T}, Gmax; tol=1e-8) where {T
     Glims
 end
 
-_smallprimes() = [2, 3, 5, 7]
+const _smallprimes = [2, 3, 5]
 
 @doc raw"""
 Determine the minimal grid size for the cubic basis set to be able to
@@ -37,7 +37,7 @@ function determine_fft_size(lattice::AbstractMatrix{T}, Ecut; supersampling=2, t
     fft_size = Vec3(2 .* Glims .+ 1)
     # Optimize FFT grid size: Make sure the number factorises in small primes only
     if ensure_smallprimes
-        fft_size = nextprod.(Ref(_smallprimes()), fft_size)
+        fft_size = nextprod.(Ref(_smallprimes), fft_size)
     end
     fft_size
 end
@@ -54,9 +54,9 @@ function diameter(lattice)
     diam
 end
 
-## This uses a more precise and slower algorithm than the one above,
-## simply enumerating all G vectors and seeing where their difference
-## is. It needs the kpoints to do so.
+# This uses a more precise and slower algorithm than the one above,
+# simply enumerating all G vectors and seeing where their difference
+# is. It needs the kpoints to do so.
 function determine_fft_size_precise(lattice::AbstractMatrix{T}, Ecut, kpoints;
                                     supersampling=2, ensure_smallprimes=true) where T
     recip_lattice = 2T(π)*pinv(lattice')  # pinv in case one of the dimension is trivial
@@ -91,7 +91,7 @@ function determine_fft_size_precise(lattice::AbstractMatrix{T}, Ecut, kpoints;
     fft_size = Vec3(2 .* Glims .+ 1)
     # Optimize FFT grid size: Make sure the number factorises in small primes only
     if ensure_smallprimes
-        fft_size = nextprod.(Ref(_smallprimes()), fft_size)
+        fft_size = nextprod.(Ref(_smallprimes), fft_size)
     end
     fft_size
 end
