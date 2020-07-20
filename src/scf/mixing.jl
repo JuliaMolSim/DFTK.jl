@@ -25,7 +25,8 @@ Notes:
     α::Real = 0.8
     kF::Real = 0.8
 end
-function mix(mixing::KerkerMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; kwargs...)
+@timing "mixing Kerker" function mix(mixing::KerkerMixing, basis, ρin::RealFourierArray,
+                                     ρout::RealFourierArray; kwargs...)
     T = eltype(basis)
     Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
     ρin = ρin.fourier
@@ -42,7 +43,8 @@ Simple mixing: ``J^{-1} ≈ α``
 @kwdef struct SimpleMixing
     α::Real = 0.8
 end
-function mix(mixing::SimpleMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; kwargs...)
+@timing "mixing Simple" function mix(mixing::SimpleMixing, basis, ρin::RealFourierArray,
+                                     ρout::RealFourierArray; kwargs...)
     T = eltype(basis)
     if mixing.α == 1
         return ρout
@@ -66,7 +68,8 @@ By default it assumes a relative permittivity of 10 (similar to Silicon).
     εr::Real = 0.8
     kF::Real = 10
 end
-function mix(mixing::RestaMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; kwargs...)
+@timing "mixing Resta" function mix(mixing::RestaMixing, basis, ρin::RealFourierArray,
+                                    ρout::RealFourierArray; kwargs...)
     T = eltype(basis)
     εr = T(mixing.εr)
     kF = T(mixing.kF)
@@ -103,8 +106,8 @@ Additionally there is the real-space localisation function `L(r)`.
     verbose::Bool = false  # Run the GMRES verbosely
 end
 
-function mix(mixing::HybridMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray;
-             εF, eigenvalues, ψ, kwargs...)
+@timing "mixing Hybrid" function mix(mixing::HybridMixing, basis, ρin::RealFourierArray,
+                                     ρout::RealFourierArray; εF, eigenvalues, ψ, kwargs...)
     T = eltype(basis)
     εr = T(mixing.εr)
     kF = T(mixing.kF)

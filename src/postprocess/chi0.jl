@@ -89,7 +89,10 @@ LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.fun!(similar(x), x))
 
 # Solves Q (H-εn) Q δψn = -Q rhs
 # where Q is the projector on the orthogonal of ψk
-function sternheimer_solver(basis, kpoint, Hk, ψk, ψnk, εnk, rhs, cgtol)
+function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs; cgtol=1e-6, verbose=false)
+    basis = Hk.basis
+    kpoint = Hk.kpoint
+
     # we err on the side of caution here by applying Q *a lot*
     # there are optimizations to be made here
     Q(ϕ) = ϕ - ψk * (ψk' * ϕ)
@@ -108,7 +111,8 @@ function sternheimer_solver(basis, kpoint, Hk, ψk, ψnk, εnk, rhs, cgtol)
     # don't commute enough, and an oversolving of the linear
     # system can lead to spurious solutions
     rhs = Q(rhs)
-    δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!), tol=cgtol / norm(rhs), verbose=false)
+    δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!), tol=cgtol / norm(rhs),
+              verbose=verbose)
     δψnk
 end
 
@@ -117,11 +121,11 @@ Returns the change in density `δρ` for a given `δV`. Drop all non-diagonal te
 (f(εn)-f(εm))/(εn-εm) factor less than `droptol`. If `sternheimer_contribution`
 is false, only compute excitations inside the provided orbitals.
 """
-function apply_χ0(ham, ψ, εF, eigenvalues, δV::RealFourierArray;
-                  droptol=0,
-                  sternheimer_contribution=true,
-                  temperature=ham.basis.model.temperature,
-                  cgtol=1e-6)
+@timing function apply_χ0(ham, ψ, εF, eigenvalues, δV::RealFourierArray;
+                          droptol=0,
+                          sternheimer_contribution=true,
+                          temperature=ham.basis.model.temperature,
+                          kwargs_sternheimer=(cgtol=1e-6, verbose=false))
     basis = ham.basis
     T = eltype(basis)
     model = basis.model
@@ -185,12 +189,13 @@ function apply_χ0(ham, ψ, εF, eigenvalues, δV::RealFourierArray;
                 abs(fnk) < eps(T) && continue
                 rhs = r_to_G(basis, basis.kpoints[ik], .- δV .* ψnk_real)
                 norm(rhs) < 100eps(T) && continue
-                δψnk = sternheimer_solver(basis, basis.kpoints[ik], ham.blocks[ik], ψ[ik], ψnk, εnk, rhs, cgtol)
+                δψnk = sternheimer_solver(ham.blocks[ik], ψ[ik], ψnk, εnk, rhs;
+                                          kwargs_sternheimer...)
                 δψnk_real = G_to_r(basis, basis.kpoints[ik], δψnk)
                 δρk .+= 2 .* fnk .* real(conj(ψnk_real) .* δψnk_real)
             end
         end
-        accumulate_over_symops!(δρ_fourier, r_to_G(basis, complex(δρk)), basis, basis.ksymops[ik], G_vectors(basis))
+        accumulate_over_symops!(δρ_fourier, r_to_G(basis, complex(δρk)), basis, basis.ksymops[ik])
     end
     δρ = real(G_to_r(basis, δρ_fourier))
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))

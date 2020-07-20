@@ -9,7 +9,7 @@ include("testcases.jl")
     fft_size = [10, 1, 10]
     tol=1e-14
     ε = 1e-8
-    testtol = 1e-6
+    testtol = 2e-6
     kgrid = [3, 1, 1]
     testcase = silicon
     n_bands = 12
