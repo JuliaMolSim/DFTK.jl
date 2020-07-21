@@ -102,6 +102,7 @@ makedocs(
         "Getting started" => Any[
             "guide/installation.md",
             "Tutorial" => "guide/tutorial.md",
+            "guide/parallelisation.md",
         ],
         "Examples" => EXAMPLES,
         "Advanced topics" => Any[
