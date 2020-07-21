@@ -19,8 +19,11 @@ function high_symmetry_kpath(model; kline_density=20)
     (kcoords=kcoords, klabels=labels_dict, kpath=symm_kpath.kpath["path"])
 end
 
-function compute_bands(basis, ρ, kcoords, n_bands;
-                       eigensolver=lobpcg_hyper, tol=1e-3, show_progress=true, kwargs...)
+@timing function compute_bands(basis, ρ, kcoords, n_bands;
+                               eigensolver=lobpcg_hyper,
+                               tol=1e-3,
+                               show_progress=true,
+                               kwargs...)
     # Create basis with new kpoints, where we cheat by using any symmetry operations.
     ksymops = [[identity_symop()] for _ in 1:length(kcoords)]
     # For some reason rationalize(2//3) isn't supported (julia 1.4)

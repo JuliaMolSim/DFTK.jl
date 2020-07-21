@@ -67,13 +67,12 @@ be one coefficient matrix per k-Point.
         @assert kpt_per_thread[end][end] == length(basis.kpoints)
     end
 
-    Gs = collect(G_vectors(basis))
     Threads.@threads for (ikpts, ρaccu) in collect(zip(kpt_per_thread, ρaccus))
         ρaccu .= 0
         for ik in ikpts
             ρ_k = compute_partial_density(basis, basis.kpoints[ik], ψ[ik], occupation[ik])
             # accumulates all the symops of ρ_k into ρaccu
-            accumulate_over_symops!(ρaccu, ρ_k, basis, basis.ksymops[ik], Gs)
+            accumulate_over_symops!(ρaccu, ρ_k, basis, basis.ksymops[ik])
         end
     end
 
