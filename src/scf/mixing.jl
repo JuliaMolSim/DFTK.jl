@@ -13,17 +13,17 @@ import Base: @kwdef
 # The interface is `mix(m; basis, ρin, ρout, kwargs...) -> ρnext`
 
 @doc raw"""
-Kerker mixing: ``J^{-1} ≈ \frac{α G^2}{k_F^2 + G^2}``
-where ``k_F`` is the Thomas-Fermi wave vector.
+Kerker mixing: ``J^{-1} ≈ \frac{α G^2}{k_{TF}^2 + G^2}``
+where ``k_{TF}`` is the Thomas-Fermi wave vector.
 
 Notes:
-  - Abinit calls ``1/k_F`` the dielectric screening length (parameter *dielng*)
+- Abinit calls ``1/k_{TF}`` the dielectric screening length (parameter *dielng*)
 """
 @kwdef struct KerkerMixing
-    # Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, kF=1.5 Ǎ^{-1})
+    # Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, kTF=1.5 Ǎ^{-1})
     # DOI 10.1103/PhysRevB.54.11169
     α::Real = 0.8
-    kF::Real = 0.8
+    kTF::Real = 0.8
 end
 @timing "mixing Kerker" function mix(mixing::KerkerMixing, basis, ρin::RealFourierArray,
                                      ρout::RealFourierArray; kwargs...)
@@ -31,7 +31,7 @@ end
     Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
     ρin = ρin.fourier
     ρout = ρout.fourier
-    ρnext = @. ρin + T(mixing.α) * (ρout - ρin) * Gsq / (T(mixing.kF)^2 + Gsq)
+    ρnext = @. ρin + T(mixing.α) * (ρout - ρin) * Gsq / (T(mixing.kTF)^2 + Gsq)
     # take the correct DC component from ρout; otherwise the DC component never gets updated
     ρnext[1] = ρout[1]
     from_fourier(basis, ρnext)
@@ -55,10 +55,10 @@ end
 
 @doc raw"""
 We use a simplification of the Resta model DOI 10.1103/physrevb.16.2717 and set
-``χ_0(q) = \frac{C_0 G^2}{4π (1 - C_0 G^2 / k_F^2)}
+``χ_0(q) = \frac{C_0 G^2}{4π (1 - C_0 G^2 / k_{TF}^2)}
 where ``C_0 = 1 - ε_r`` with ``ε_r`` being the macroscopic relative permittivity.
 We neglect ``f_\text{xc}``, such that
-``J^{-1} ≈ α \frac{k_F^2 - C_0 G^2}{ε_r k_F^2 - C_0 G^2}``
+``J^{-1} ≈ α \frac{k_{TF}^2 - C_0 G^2}{ε_r k_{TF}^2 - C_0 G^2}``
 
 By default it assumes a relative permittivity of 10 (similar to Silicon).
 `εr == 1` is equal to `SimpleMixing` and `εr == Inf` to `KerkerMixing`.
@@ -66,22 +66,22 @@ By default it assumes a relative permittivity of 10 (similar to Silicon).
 @kwdef struct RestaMixing
     α::Real = 0.8
     εr::Real = 0.8
-    kF::Real = 10
+    kTF::Real = 10
 end
 @timing "mixing Resta" function mix(mixing::RestaMixing, basis, ρin::RealFourierArray,
                                     ρout::RealFourierArray; kwargs...)
     T = eltype(basis)
     εr = T(mixing.εr)
-    kF = T(mixing.kF)
+    kTF = T(mixing.kTF)
     εr == 1               && return mix(SimpleMixing(α=α), basis, ρin, ρout)
-    εr > 1 / sqrt(eps(T)) && return mix(KerkerMixing(α=α, kF=kF), basis, ρin, ρout)
+    εr > 1 / sqrt(eps(T)) && return mix(KerkerMixing(α=α, kTF=kTF), basis, ρin, ρout)
 
     ρin = ρin.fourier
     ρout = ρout.fourier
     C0 = 1 - εr
     Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
 
-    ρnext = @. ρin + T(mixing.α) * (ρout - ρin) * (kF^2 - C0 * Gsq) / (εr * kF^2 - C0 * Gsq)
+    ρnext = @. ρin + T(mixing.α) * (ρout - ρin) * (kTF^2 - C0 * Gsq) / (εr * kTF^2 - C0 * Gsq)
     # take the correct DC component from ρout; otherwise the DC component never gets updated
     ρnext[1] = ρout[1]
     from_fourier(basis, ρnext)
@@ -91,8 +91,10 @@ end
 @doc raw"""
 The model for the susceptibility is
 ```math
-χ_0(r, r') = (-LDOS(εF, r) δ(r, r') + LDOS(εF, r) LDOS(εF, r') / DOS(εF))
-           + \sqrt{L(x)} IFFT \frac{C_0 G^2}{4π (1 - C_0 G^2 / k_F^2)} FFT \sqrt{L(x)}
+\begin{align*}
+χ_0(r, r') &= (-LDOS(εF, r) δ(r, r') + LDOS(εF, r) LDOS(εF, r') / DOS(εF)) \\
+           &+ \sqrt{L(x)} IFFT \frac{C_0 G^2}{4π (1 - C_0 G^2 / k_{TF}^2)} FFT \sqrt{L(x)}
+\end{align*}
 ```
 where ``C_0 = 1 - ε_r`` and the same convention for parameters is used as in `RestaMixing`.
 Additionally there is the real-space localisation function `L(r)`.
@@ -100,7 +102,7 @@ Additionally there is the real-space localisation function `L(r)`.
 @kwdef struct HybridMixing
     α::Real = 0.8
     εr::Real = 10
-    kF::Real = 0.8
+    kTF::Real = 0.8
     localisation::Function = identity  # `L(r)` with `r` in fractional real-space coordinates
     RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     verbose::Bool = false  # Run the GMRES verbosely
@@ -110,7 +112,7 @@ end
                                      ρout::RealFourierArray; εF, eigenvalues, ψ, kwargs...)
     T = eltype(basis)
     εr = T(mixing.εr)
-    kF = T(mixing.kF)
+    kTF = T(mixing.kTF)
     C0 = 1 - εr
     Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
     dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
@@ -141,7 +143,7 @@ end
         # Apply Resta term of χ0
         if !iszero(C0)
             loc_δV = apply_sqrtL(δV).fourier
-            resta_loc_δV =  @. C0 * kF^2 * Gsq / 4T(π) / (kF^2 - C0 * Gsq) * loc_δV
+            resta_loc_δV =  @. C0 * kTF^2 * Gsq / 4T(π) / (kTF^2 - C0 * Gsq) * loc_δV
             Jδρ .-= apply_sqrtL(from_fourier(basis, resta_loc_δV)).real
         end
 
