@@ -80,6 +80,23 @@ Base.show(io::IO, basis::PlaneWaveBasis) =
     print(io, "PlaneWaveBasis (Ecut=$(basis.Ecut), $(length(basis.kpoints)) kpoints)")
 Base.eltype(basis::PlaneWaveBasis{T}) where {T} = T
 
+"""
+Returns a very (very) rough estimate of the time per SCF step (in seconds),
+assuming FFTs are the limiting operation.
+"""
+function estimate_time_per_SCF(basis::PlaneWaveBasis)
+    # TODO pretty print this instead of just seconds.
+    # There's nothing in julia stdlib for this apparently...
+    # on my laptop (2020) a 128^3 FFT takes 24ms
+    time_per_FFT_per_grid_point = 24 / 1000 / 128^3
+    (time_per_FFT_per_grid_point
+     * prod(basis.fft_size)
+     * length(basis.kpoints)
+     * div(basis.model.n_electrons, filled_occupation(basis.model))
+     * 8 # mean number of FFT steps per state per kpoint per SCF
+     )
+end
+
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
     model.spin_polarization in (:none, :collinear, :spinless) || (
         error("$(model.spin_polarization) not implemented"))
