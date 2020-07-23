@@ -84,12 +84,12 @@ end
 struct FunctionPreconditioner
     fun!  # f!(y, x) applies f to x and puts it into y
 end
-LinearAlgebra.ldiv!(y, P::FunctionPreconditioner, x) = P.fun!(y, x)
+LinearAlgebra.ldiv!(y::T, P::FunctionPreconditioner, x) where {T} = P.fun!(y, x)::T
 LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.fun!(similar(x), x))
 
 # Solves Q (H-εn) Q δψn = -Q rhs
 # where Q is the projector on the orthogonal of ψk
-function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs; cgtol=1e-6, verbose=false)
+@timing_seq function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs; cgtol=1e-6, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
 
@@ -204,7 +204,7 @@ is false, only compute excitations inside the provided orbitals.
     # Add variation wrt εF
     if temperature > 0
         ldos = LDOS(εF, basis, eigenvalues, ψ, temperature=temperature)
-        dos = DOS(εF, basis, eigenvalues, temperature=temperature)
+        dos  = DOS(εF, basis, eigenvalues, temperature=temperature)
         δρ .+= ldos .* dot(ldos, δV) .* dVol ./ dos
     end
 
