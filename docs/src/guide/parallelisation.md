@@ -167,10 +167,11 @@ To **check the number of Julia threads** use `Threads.nthreads()`.
 ### Summary of recommended settings
 
 | Calculation size | `JULIA_NUM_THREADS` | `FFTW.set_num_threads(N)` | `BLAS.set_num_threads(N)` |
-| ----------------| ----- | ----- | ----- |
-| tiny            |    1  |    1  |     1 |
-| small           |    2  |    1  |     1 |
-| medium          |    2  |    2  |     2 |
+| ---------------- | ----- | ----- | ----- |
+| tiny             |    1  |    1  |     1 |
+| small            |    2  |    1  |     1 |
+| medium           |    2  |    2  |     2 |
+| large            |    2  |    4  |     4 |
 
 Note, that this picture is likely to change in future versions
 of DFTK and Julia as improvements to threading and parallelisation
