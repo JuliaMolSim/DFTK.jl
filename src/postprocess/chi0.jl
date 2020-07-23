@@ -155,8 +155,9 @@ is false, only compute excitations inside the provided orbitals.
     # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
     δρ_fourier = zeros(complex(T), size(δV))
     for ik = 1:length(basis.kpoints)
+        nbands = size(ψ[ik], 2)
         δρk = zero(δV)
-        for n = 1:size(ψ[ik], 2)
+        for n = 1:nbands
             ψnk = @view ψ[ik][:, n]
             ψnk_real = G_to_r(basis, basis.kpoints[ik], ψnk)
             εnk = eigenvalues[ik][n]
@@ -170,7 +171,7 @@ is false, only compute excitations inside the provided orbitals.
             # where Q = sum_n |ψn><ψn|
 
             # explicit contributions
-            for m = 1:size(ψ[ik], 2)
+            for m = n:nbands
                 εmk = eigenvalues[ik][m]
                 ddiff = Smearing.occupation_divided_difference
                 ratio = filled_occ * ddiff(model.smearing, εmk, εnk, εF, temperature)
@@ -180,7 +181,7 @@ is false, only compute excitations inside the provided orbitals.
                 # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
                 ρnm = conj(ψnk_real) .* ψmk_real
                 weight = dVol * dot(ρnm, δV)
-                δρk .+= real(ratio .* weight .* ρnm)
+                δρk .+= (n == m ? 1 : 2) * real(ratio .* weight .* ρnm)
             end
 
             if sternheimer_contribution
