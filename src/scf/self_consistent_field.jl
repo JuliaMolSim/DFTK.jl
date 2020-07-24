@@ -52,6 +52,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        is_converged=ScfConvergenceEnergy(tol),
                                        callback=ScfDefaultCallback(),
                                        compute_consistent_energies=true,
+                                       enforce_symmetry=false,
                                       )
     T = eltype(basis)
     model = basis.model
@@ -94,6 +95,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                  miniter=1, tol=determine_diagtol(info),
                                  n_ep_extra=n_ep_extra)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
+        enforce_symmetry && (ρout = DFTK.symmetrize(ρout))
 
         # Compute the energy of the new state
         if compute_consistent_energies
@@ -108,6 +110,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 
         # Apply mixing and pass it the full info as kwargs
         ρnext = mix(mixing, basis, ρin, ρout; info...)
+        enforce_symmetry && (ρnext = DFTK.symmetrize(ρnext))
         info = merge(info, (ρnext=ρnext, ))
 
         callback(info)
