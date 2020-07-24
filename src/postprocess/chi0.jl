@@ -120,6 +120,11 @@ end
 Returns the change in density `δρ` for a given `δV`. Drop all non-diagonal terms with
 (f(εn)-f(εm))/(εn-εm) factor less than `droptol`. If `sternheimer_contribution`
 is false, only compute excitations inside the provided orbitals.
+
+Note: This function assumes that all bands contained in `ψ` and `eigenvalues` are
+sufficiently converged. By default the `self_consistent_field` routine of `DFTK`
+returns `3` extra bands, which are not converged by the eigensolver
+(see `n_ep_extra` parameter). These should be discarded before using this function.
 """
 @timing function apply_χ0(ham, ψ, εF, eigenvalues, δV::RealFourierArray;
                           droptol=0,
