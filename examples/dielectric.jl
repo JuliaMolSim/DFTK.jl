@@ -3,6 +3,7 @@
 using DFTK
 using Plots
 using KrylovKit
+using Printf
 
 # Calculation parameters
 kgrid = [1, 1, 1]
@@ -19,18 +20,19 @@ model = model_LDA(lattice, atoms, symmetry=:off)
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 scfres = self_consistent_field(basis, tol=1e-14)
 
-# Apply ε = 1 - K χ0
-function eps_fun(dv)
-    dv = reshape(dv, size(scfres.ρ.real))
-    dρ = apply_χ0(scfres.ham, scfres.ψ, scfres.εF, scfres.eigenvalues, from_real(basis, dv))
-    Kdρ = apply_kernel(basis, dρ; ρ=scfres.ρ)
-    vec(dv - Kdρ.real)
+# Apply ε = 1 - χ0 (vc + fxc)
+function eps_fun(dρ)
+    dρ = reshape(dρ, size(scfres.ρ.real))
+    dρ = from_real(basis, dρ)
+    dv = apply_kernel(basis, dρ; ρ=scfres.ρ)
+    χdv = apply_χ0(scfres.ham, scfres.ψ, scfres.εF, scfres.eigenvalues, dv)
+    vec((dρ - χdv).real)
 end
 
 # A straightfoward Arnoldi eigensolver that diagonalizes the matrix at each step
 # This is more efficient than Arpack when `f` is very expensive
 println("Starting Arnoldi ...")
-function arnoldi(f, x0, howmany; tol=1e-4, maxiter=30)
+function arnoldi(f, x0; howmany=5, tol=1e-4, maxiter=30, n_print=howmany)
     for (V, B, r, nr, b) in ArnoldiIterator(f, x0)
         # A * V = V * B + r * b'
         V = hcat(V...)
@@ -41,20 +43,23 @@ function arnoldi(f, x0, howmany; tol=1e-4, maxiter=30)
         AVr = AV*ev
         R = AVr - Vr * Diagonal(ew)
 
-        # Select `howmany` smallest and largest eigenpairs
         N = size(V, 2)
-        inds = unique(append!(collect(1:min(N, howmany)), max(1, N-howmany):N))
+        normr = [norm(r) for r in eachcol(R)]
 
-        normr = [norm(r) for r in eachcol(R[:, inds])]
         println("#--- $N ---#")
         println("idcs      evals     residnorms")
+        inds = unique(append!(collect(1:min(N, n_print)), max(1, N-n_print):N))
+        for i in inds
+            @printf "% 3i  %10.6g  %10.6g\n" i real(ew[i]) normr[i]
+        end
         any(imag.(ew[inds]) .> 1e-5) && println("Warn: Suppressed imaginary part.")
-        display(real.([inds ew[inds] normr]))
         println()
-        if (N ≥ howmany && maximum(normr) < tol) || (N ≥ maxiter)
-            return ew[inds], Vr[:, inds], AVr[:, inds]
+
+        is_converged = (N ≥ howmany && all(normr[1:howmany] .< tol)
+                        && all(normr[end-howmany:end] .< tol))
+        if is_converged || (N ≥ maxiter)
+            return (λ=ew, X=Vr, AX=AVr, residual_norms=normr)
         end
     end
 end
-howmany = 5
-arnoldi(eps_fun, vec(randn(size(scfres.ρ.real))), howmany)
+arnoldi(eps_fun, vec(randn(size(scfres.ρ.real))); howmany=5)
