@@ -19,7 +19,7 @@ script: |  # Install dependencies and test with coverage
 
     # Some optional python packages via conda
     using Conda
-    for pkg in ["ase", "matplotlib =3.2.2"]
+    for pkg in ["nomkl", "ase", "matplotlib =3.2.2"]
         Conda.add(pkg; channel="conda-forge")
     end
 

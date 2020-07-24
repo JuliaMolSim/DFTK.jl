@@ -84,12 +84,12 @@ end
 struct FunctionPreconditioner
     fun!  # f!(y, x) applies f to x and puts it into y
 end
-LinearAlgebra.ldiv!(y, P::FunctionPreconditioner, x) = P.fun!(y, x)
+LinearAlgebra.ldiv!(y::T, P::FunctionPreconditioner, x) where {T} = P.fun!(y, x)::T
 LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.fun!(similar(x), x))
 
 # Solves Q (H-εn) Q δψn = -Q rhs
 # where Q is the projector on the orthogonal of ψk
-function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs; cgtol=1e-6, verbose=false)
+@timing_seq function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs; cgtol=1e-6, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
 
@@ -120,6 +120,11 @@ end
 Returns the change in density `δρ` for a given `δV`. Drop all non-diagonal terms with
 (f(εn)-f(εm))/(εn-εm) factor less than `droptol`. If `sternheimer_contribution`
 is false, only compute excitations inside the provided orbitals.
+
+Note: This function assumes that all bands contained in `ψ` and `eigenvalues` are
+sufficiently converged. By default the `self_consistent_field` routine of `DFTK`
+returns `3` extra bands, which are not converged by the eigensolver
+(see `n_ep_extra` parameter). These should be discarded before using this function.
 """
 @timing function apply_χ0(ham, ψ, εF, eigenvalues, δV::RealFourierArray;
                           droptol=0,
@@ -155,8 +160,9 @@ is false, only compute excitations inside the provided orbitals.
     # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
     δρ_fourier = zeros(complex(T), size(δV))
     for ik = 1:length(basis.kpoints)
+        nbands = size(ψ[ik], 2)
         δρk = zero(δV)
-        for n = 1:size(ψ[ik], 2)
+        for n = 1:nbands
             ψnk = @view ψ[ik][:, n]
             ψnk_real = G_to_r(basis, basis.kpoints[ik], ψnk)
             εnk = eigenvalues[ik][n]
@@ -170,7 +176,7 @@ is false, only compute excitations inside the provided orbitals.
             # where Q = sum_n |ψn><ψn|
 
             # explicit contributions
-            for m = 1:size(ψ[ik], 2)
+            for m = n:nbands
                 εmk = eigenvalues[ik][m]
                 ddiff = Smearing.occupation_divided_difference
                 ratio = filled_occ * ddiff(model.smearing, εmk, εnk, εF, temperature)
@@ -180,7 +186,7 @@ is false, only compute excitations inside the provided orbitals.
                 # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
                 ρnm = conj(ψnk_real) .* ψmk_real
                 weight = dVol * dot(ρnm, δV)
-                δρk .+= real(ratio .* weight .* ρnm)
+                δρk .+= (n == m ? 1 : 2) * real(ratio .* weight .* ρnm)
             end
 
             if sternheimer_contribution
@@ -204,7 +210,7 @@ is false, only compute excitations inside the provided orbitals.
     # Add variation wrt εF
     if temperature > 0
         ldos = LDOS(εF, basis, eigenvalues, ψ, temperature=temperature)
-        dos = DOS(εF, basis, eigenvalues, temperature=temperature)
+        dos  = DOS(εF, basis, eigenvalues, temperature=temperature)
         δρ .+= ldos .* dot(ldos, δV) .* dVol ./ dos
     end
 
