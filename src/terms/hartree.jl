@@ -22,6 +22,7 @@ struct TermHartree <: Term
     scaling_factor::Real  # scaling factor, absorbed into poisson_green_coeffs
     # Fourier coefficients of the Green's function of the periodic Poisson equation
     poisson_green_coeffs
+    inv_poisson_green_coeffs
 end
 function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
     # Solving the Poisson equation ΔV = -4π ρ in Fourier space
@@ -31,7 +32,17 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
 
     # Zero the DC component (i.e. assume a compensating charge background)
     poisson_green_coeffs[1] = 0
-    TermHartree(basis, scaling_factor, scaling_factor .* poisson_green_coeffs)
+    poisson_green_coeffs = scaling_factor .* poisson_green_coeffs
+
+    inv_poisson_green_coeffs = deepcopy(poisson_green_coeffs)
+    for i in 1:length(inv_poisson_green_coeffs)
+        if inv_poisson_green_coeffs[i] != 0.0
+            inv_poisson_green_coeffs[i] = 1/inv_poisson_green_coeffs[i]
+        end
+    end
+
+    TermHartree(basis, scaling_factor, poisson_green_coeffs,
+               inv_poisson_green_coeffs)
 end
 
 function ene_ops(term::TermHartree, ψ, occ; ρ, kwargs...)
@@ -45,11 +56,34 @@ function ene_ops(term::TermHartree, ψ, occ; ρ, kwargs...)
     (E=E, ops=ops)
 end
 
+function apply_kernel(term::TermHartree, dρ::RealFourierArray; kwargs...)
+    from_fourier(dρ.basis, term.poisson_green_coeffs .* dρ.fourier)
+end
+
+function apply_kernel_sqrt(term::TermHartree, dρ::RealFourierArray; kwargs...)
+    from_fourier(dρ.basis, sqrt.(term.poisson_green_coeffs) .* dρ.fourier)
+end
+
+function apply_kernel_invsqrt(term::TermHartree, dρ::RealFourierArray; kwargs...)
+    from_fourier(dρ.basis, sqrt.(term.inv_poisson_green_coeffs) .* dρ.fourier)
+end
+
+
+# for debugging
+
 function compute_kernel(term::TermHartree; kwargs...)
     vc_G = term.poisson_green_coeffs
     # Note that `real` here: if omitted, will result in high-frequency noise of even FFT grids
     real(G_to_r_matrix(term.basis) * Diagonal(vec(vc_G)) * r_to_G_matrix(term.basis))
 end
-function apply_kernel(term::TermHartree, dρ::RealFourierArray; kwargs...)
-    from_fourier(dρ.basis, term.poisson_green_coeffs .* dρ.fourier)
+
+function compute_kernel_sqrt(term::TermHartree; kwargs...)
+    vc_G = deepcopy(vec(term.poisson_green_coeffs))
+    for i in 1:length(vc_G)
+        vc_G[i] = sqrt(vc_G[i])
+    end
+    # Note that `real` here: if omitted, will result in high-frequency noise of even FFT grids
+    real(G_to_r_matrix(term.basis) * Diagonal(vc_G) * r_to_G_matrix(term.basis))
 end
+
+
