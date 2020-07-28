@@ -200,14 +200,15 @@ function test_perturbation_coarsegrid(α, Ecut_min, Ecut_max)
         push!(E_coarse_list, sum(values(scfres.energies)))
 
         # perturbation
-        Ep_fine, _ = perturbation(basis, kcoords, ksymops, scfres, α*Ecut)
+        Ep_fine, _ = perturbation(basis, kcoords, ksymops, scfres, α*Ecut;
+                                  compute_egval=false)
         push!(Ep_list, sum(values(Ep_fine)))
     end
 
     ##### Plotting results
     figure(figsize=(20,10))
     tit = "Average shift : $(avg)
-    Ne = $(Ne), kpts = $(length(kcoords)), Ecut_ref = $(Ecut_ref),
+    Ne = $(nel), kpts = $(length(kcoords)), Ecut_ref = $(Ecut_ref),
     kcoords = $(kcoords)"
     suptitle(tit)
 
@@ -233,16 +234,25 @@ function test_perturbation_coarsegrid(α, Ecut_min, Ecut_max)
     legend()
 
     # plot slope
-    error_list_slope = error_list[7:12]
-    Nc = N_list[7:12]
+    error_list_slope = error_list[10:18]
+    Nc = N_list[10:18]
     data = DataFrame(X=log.(Nc), Y=log.(error_list_slope))
     ols = lm(@formula(Y ~ X), data)
-    Nc_slope = N_list[5:13]
+    Nc_slope = N_list[8:19]
     slope = exp(coef(ols)[1]) .* Nc_slope .^ coef(ols)[2]
     loglog(Nc_slope, 1.5 .* slope, "--", label = "slope $(coef(ols)[2])")
     legend()
 
-    savefig("first_order_perturbation_silicon_$(Ne)e_kpoints$(length(kcoords))_Ecut_ref$(Ecut_ref)_alpha$(α).pdf")
+    savefig("first_order_perturbation_silicon_$(nel)e_kpoints$(length(kcoords))_Ecut_ref$(Ecut_ref)_alpha$(α).pdf")
+
+    h5open(filename, "w") do file
+        file["nk"] = length(kcoords)
+        file["Ecut_ref"] = Ecut_ref
+        file["Etot_ref"] = Etot_ref
+        file["Ecut_list"] = Float64.(Ecut_list)
+        file["Ep_list"] = Float64.(Ep_list)
+        file["E_coarse_list"] = Float64.(E_coarse_list)
+    end
 
     ### Return results
     Ecut_list, N_list, Ep_list, E_coarse_list
