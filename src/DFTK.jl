@@ -102,7 +102,6 @@ export PreconditionerNone
 include("eigen/preconditioners.jl")
 
 export lobpcg_hyper
-export lobpcg_scipy
 export lobpcg_itsolve
 export diag_full
 export diagonalize_all_kblocks
