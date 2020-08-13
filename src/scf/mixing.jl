@@ -148,7 +148,7 @@ end
         end
 
         # Apply LDOS term of χ0
-        if ldos !== nothing
+        if ldos !== nothing && maximum(abs, ldos) > eps(real(eltype(ldos)))
             Jδρ .-= (-ldos .* δV.real
                      .+ sum(ldos .* δV.real) .* dVol .* ldos ./ (sum(ldos) .* dVol))
         end
