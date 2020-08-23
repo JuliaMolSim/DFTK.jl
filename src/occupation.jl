@@ -5,16 +5,14 @@ import Roots
 """
 Find the Fermi level.
 """
-function find_fermi_level(basis, energies)
-    find_occupation(basis, energies).εF
-end
+fermi_level(basis, energies) = find_occupation_default(basis, energies).εF
 
 """
 Find the occupation and Fermi level.
 """
-function find_occupation(basis::PlaneWaveBasis{T}, energies;
-                         temperature=basis.model.temperature,
-                         smearing=basis.model.smearing) where {T}
+function find_occupation_default(basis::PlaneWaveBasis{T}, energies;
+                                 temperature=basis.model.temperature,
+                                 smearing=basis.model.smearing) where {T}
     @assert basis.model.spin_polarization in (:none, :spinless)
     n_electrons = basis.model.n_electrons
 
@@ -119,7 +117,7 @@ function find_occupation_bandgap(basis, energies)
     # Put Fermi level slightly above HOMO energy, to ensure that HOMO < εF
     εF = nextfloat(HOMO)
     if εF > LUMO
-        @warn("`find_occupation_zero_temperature` assumes an insulator, but the " *
+        @warn("`find_occupation_bandgap` assumes an insulator, but the " *
               "system seems metallic. Try specifying a temperature and a smearing function.",
               HOMO, LUMO)
     end

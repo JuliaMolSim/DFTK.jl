@@ -14,7 +14,7 @@ function next_density(ham::Hamiltonian;
                       n_bands=default_n_bands(ham.basis.model),
                       ψ=nothing, n_ep_extra=3,
                       eigensolver=lobpcg_hyper,
-                      find_occupation=find_occupation, kwargs...)
+                      find_occupation=find_occupation_default, kwargs...)
     if ψ !== nothing
         @assert length(ψ) == length(ham.basis.kpoints)
         for ik in 1:length(ham.basis.kpoints)
@@ -54,7 +54,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        callback=ScfDefaultCallback(),
                                        compute_consistent_energies=true,
                                        enforce_symmetry=false,
-                                       find_occupation=find_occupation,
+                                       find_occupation=find_occupation_default,
                                       )
     T = eltype(basis)
     model = basis.model
@@ -95,7 +95,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver,
                                  miniter=1, tol=determine_diagtol(info),
-                                 n_ep_extra=n_ep_extra, find_occupation=find_occupation)
+                                 n_ep_extra=n_ep_extra,
+                                 find_occupation=find_occupation)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
         enforce_symmetry && (ρout = DFTK.symmetrize(ρout))
 
