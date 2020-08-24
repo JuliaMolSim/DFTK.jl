@@ -83,5 +83,9 @@ Random.seed!(0)
         include("kernel.jl")
     end
 
+    if "all" in TAGS
+        include("aqua.jl")
+    end
+
     ("example" in TAGS) && include("runexamples.jl")
 end

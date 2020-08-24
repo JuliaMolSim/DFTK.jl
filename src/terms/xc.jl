@@ -63,7 +63,7 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
 end
 
 
-function compute_kernel(term::TermXc; ρ=ρ, kwargs...)
+function compute_kernel(term::TermXc; ρ::RealFourierArray, kwargs...)
     kernel = similar(ρ.real)
     kernel .= 0
     for xc in term.functionals
@@ -71,13 +71,15 @@ function compute_kernel(term::TermXc; ρ=ρ, kwargs...)
         terms = evaluate(xc; rho=ρ.real, derivatives=2:2)  # only valid for LDA
         kernel .+= terms.v2rho2
     end
-    Diagonal(vec(kernel))
+    Diagonal(vec(term.scaling_factor .* kernel))
 end
 
-function apply_kernel(term::TermXc, dρ; ρ=ρ, kwargs...)
+
+function apply_kernel(term::TermXc, dρ::RealFourierArray; ρ::RealFourierArray, kwargs...)
     basis = term.basis
     T = eltype(basis)
     @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
+    isempty(term.functionals) && return nothing
 
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
@@ -96,7 +98,7 @@ function apply_kernel(term::TermXc, dρ; ρ=ρ, kwargs...)
             result .+= apply_kernel_term_gga(terms, density, perturbation)
         end
     end
-    result
+    from_real(basis, term.scaling_factor .* result)
 end
 
 #=
@@ -176,16 +178,12 @@ struct DensityDerivatives
 end
 
 """
-DOCME compute density in real space and its derivatives starting from Fourier-space density ρ
+DOCME compute density in real space and its derivatives starting from ρ
 """
-function DensityDerivatives(basis, max_derivative::Integer, ρ)
+function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray)
     model = basis.model
     @assert model.spin_polarization == :none "Only spin_polarization == :none implemented."
-    function ifft(x)
-        tmp = G_to_r(basis, x)
-        check_real(tmp)
-        real(tmp)
-    end
+    ifft(x) = real_checked(G_to_r(basis, clear_without_conjugate!(x)))
 
     ρF = ρ.fourier
     σ_real = nothing

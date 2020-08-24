@@ -86,8 +86,8 @@ function run_silicon_lda(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     end
 
     energies = scfres.energies
-    @test sum(values(energies)) ≈ ref_etot atol=test_tol
-    @test eltype(sum(values(scfres.energies))) == T
+    @test energies.total ≈ ref_etot atol=test_tol
+    @test eltype(scfres.energies.total) == T
 end
 
 
@@ -131,6 +131,6 @@ function run_silicon_pbe(T ;Ecut=5, test_tol=1e-6, n_ignored=0, grid_size=15, sc
     end
 
     energies = scfres.energies
-    @test sum(values(energies)) ≈ ref_etot atol=test_tol
-    @test eltype(sum(values(scfres.energies))) == T
+    @test energies.total ≈ ref_etot atol=test_tol
+    @test eltype(scfres.energies.total) == T
 end

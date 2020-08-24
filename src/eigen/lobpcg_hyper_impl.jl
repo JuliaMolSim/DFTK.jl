@@ -26,6 +26,7 @@ using GenericLinearAlgebra
     res
 end
 bmul(A, B::Tuple) = error("not implemented")
+bmul(A::Tuple, B::Tuple) = error("not implemented")
 bmul(A, B) = A * B
 
 

@@ -16,7 +16,7 @@ ROOTPATH = joinpath(@__DIR__, "..")
 CONTINUOUS_INTEGRATION = get(ENV, "CI", nothing) == "true"
 
 # Python and Julia dependencies needed for running the notebooks
-PYDEPS = ["ase", "spglib", "pymatgen"]
+PYDEPS = ["ase", "pymatgen"]
 JLDEPS = [
     Pkg.PackageSpec(url="https://github.com/JuliaMolSim/DFTK.jl.git",
                     rev=LibGit2.head(ROOTPATH)),  # The current DFTK
@@ -102,6 +102,8 @@ makedocs(
         "Getting started" => Any[
             "guide/installation.md",
             "Tutorial" => "guide/tutorial.md",
+            "guide/parallelisation.md",
+            "Density-functional theory" => "guide/density_functional_theory.md",
         ],
         "Examples" => EXAMPLES,
         "Advanced topics" => Any[

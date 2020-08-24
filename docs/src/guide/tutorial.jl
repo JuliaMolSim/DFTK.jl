@@ -9,7 +9,10 @@
 # This document provides an overview of the structure of the code
 # and how to access basic information about calculations.
 # Basic familiarity with the concepts of plane-wave density functional theory
-# is assumed throughout.
+# is assumed throughout. Feel free to take a look at the
+#md # [density-functional theory](@ref density-functional-theory)
+#nb # [density-functional theory](https://juliamolsim.github.io/DFTK.jl/dev/#density-functional-theory)
+# chapter for some introductory lectures and introductory material on the topic.
 #
 # !!! note "Convergence parameters in the documentation"
 #     We use rough parameters in order to be able
@@ -18,7 +21,8 @@
 #     Tighter thresholds and larger grids should be used for more realistic results.
 #
 # For our discussion we will use the classic example of
-# computing the LDA ground state of the silicon crystal.
+# computing the LDA ground state of the
+# [silicon crystal](https://www.materialsproject.org/materials/mp-149).
 # Performing such a calculation roughly proceeds in three steps.
 
 using DFTK
@@ -26,8 +30,8 @@ using Plots
 
 ## 1. Define lattice and atomic positions
 a = 10.26  # Silicon lattice constant in Bohr
-lattice = a / 2 * [[0 1 1.];
-                   [1 0 1.];
+lattice = a / 2 * [[0 1 1.];  # Silicon lattice vectors
+                   [1 0 1.];  # specified column by column
                    [1 1 0.]]
 
 ## Load HGH pseudopotential for Silicon
@@ -45,10 +49,6 @@ basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 ## 3. Run the SCF procedure to obtain the ground state
 scfres = self_consistent_field(basis, tol=1e-8);
 
-# Note that DFTK by default applies the convergence tolerance `tol`
-# to the energy difference, so that the norm in the density difference
-# is not yet converged to 8 digits.
-#
 # That's it! Now you can get various quantities from the result of the SCF.
 # For instance, the different components of the energy:
 scfres.energies
@@ -76,8 +76,7 @@ plot(x, scfres.ρ.real[:, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 
 # We can also perform various postprocessing steps:
 # for instance compute a band structure
-n_bands = 8
-plot_bandstructure(scfres, n_bands, kline_density=5, unit=:eV)
+plot_bandstructure(scfres, kline_density=5, unit=:eV)
 # or forces
 forces(scfres)[1]  # Select silicon forces
 # The `[1]` extracts the forces for the first kind of atoms,

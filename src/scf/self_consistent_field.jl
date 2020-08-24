@@ -1,4 +1,11 @@
-default_n_bands(model) = div(model.n_electrons, filled_occupation(model))
+using Plots
+include("scf_callbacks.jl")
+
+function default_n_bands(model)
+    min_n_bands = div(model.n_electrons, filled_occupation(model))
+    n_extra = model.temperature == 0 ? 0 : max(4, ceil(Int, 0.2 * min_n_bands))
+    min_n_bands + n_extra
+end
 
 """
 Obtain new density ρ by diagonalizing `ham`.
@@ -6,8 +13,8 @@ Obtain new density ρ by diagonalizing `ham`.
 function next_density(ham::Hamiltonian;
                       n_bands=default_n_bands(ham.basis.model),
                       ψ=nothing, n_ep_extra=3,
-                      eigensolver=lobpcg_hyper, kwargs...)
-    n_ep = n_bands + n_ep_extra
+                      eigensolver=lobpcg_hyper,
+                      occupation_function=find_occupation, kwargs...)
     if ψ !== nothing
         @assert length(ψ) == length(ham.basis.kpoints)
         for ik in 1:length(ham.basis.kpoints)
@@ -16,77 +23,16 @@ function next_density(ham::Hamiltonian;
     end
 
     # Diagonalize
-    eigres = diagonalize_all_kblocks(eigensolver, ham, n_ep; guess=ψ,
+    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_ep_extra; guess=ψ,
                                      n_conv_check=n_bands, kwargs...)
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Update density from new ψ
-    occupation, εF = find_occupation(ham.basis, eigres.λ)
+    occupation, εF = occupation_function(ham.basis, eigres.λ)
     ρnew = compute_density(ham.basis, eigres.X, occupation)
 
     (ψ=eigres.X, eigenvalues=eigres.λ, occupation=occupation, εF=εF, ρ=ρnew,
      diagonalization=eigres)
-end
-
-function scf_default_callback(info)
-    E = info.energies === nothing ? Inf : sum(values(info.energies))
-    res = norm(info.ρout.fourier - info.ρin.fourier)
-    if info.neval == 1
-        label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
-        @printf "Iter   %-15s    ρout-ρin\n" label
-        @printf "----   %-15s    --------\n" "-"^length(label)
-    end
-    @printf "%3d    %-15.12f    %E\n" info.neval E res
-end
-
-"""
-Flag convergence as soon as total energy change drops below tolerance
-"""
-function ScfConvergenceEnergy(tolerance)
-    energy_total = NaN
-
-    function is_converged(info)
-        info.energies === nothing && return false # first iteration
-
-        # The ρ change should also be small, otherwise we converge if the SCF is just stuck
-        norm(info.ρout.fourier - info.ρin.fourier) > 10sqrt(tolerance) && return false
-
-        etot_old = energy_total
-        energy_total = sum(values(info.energies))
-        abs(energy_total - etot_old) < tolerance
-    end
-    return is_converged
-end
-
-"""
-Flag convergence by using the L2Norm of the change between
-input density and unpreconditioned output density (ρout)
-"""
-function ScfConvergenceDensity(tolerance)
-    info -> norm(info.ρout.fourier - info.ρin.fourier) < tolerance
-end
-
-"""
-Determine the tolerance used for the next diagonalization. This function takes
-``|ρnext - ρin|`` and multiplies it with `ratio_ρdiff` to get the next `diagtol`,
-ensuring additionally that the returned value is between `diagtol_min` and `diagtol_max`
-and never increases.
-"""
-function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.1)
-    function determine_diagtol(info)
-        isnothing(diagtol_min) && (diagtol_min = 100eps(real(eltype(info.ρin))))
-        info.neval == 0 && return diagtol_max
-
-        diagtol = norm(info.ρnext.fourier - info.ρin.fourier) * ratio_ρdiff
-        diagtol = min(diagtol_max, diagtol)  # Don't overshoot
-        diagtol = max(diagtol_min, diagtol)  # Don't undershoot
-        @assert isfinite(diagtol)
-
-        # Adjust maximum to ensure diagtol may only shrink during an SCF
-        diagtol_max = min(diagtol, diagtol_max)
-
-        diagtol
-    end
 end
 
 
@@ -104,9 +50,11 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        n_ep_extra=3,
                                        determine_diagtol=ScfDiagtol(),
                                        mixing=SimpleMixing(),
-                                       callback=scf_default_callback,
                                        is_converged=ScfConvergenceEnergy(tol),
+                                       callback=ScfDefaultCallback(),
                                        compute_consistent_energies=true,
+                                       enforce_symmetry=false,
+                                       occupation_function=find_occupation,
                                       )
     T = eltype(basis)
     model = basis.model
@@ -122,19 +70,19 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     eigenvalues = nothing
     ρout = ρ
     εF = nothing
-    neval = 0
+    n_iter = 0
     energies = nothing
     ham = nothing
-    info = (neval=0, ρin=ρ)   # Populate info with initial values
+    info = (n_iter=0, ρin=ρ)   # Populate info with initial values
 
     # We do density mixing in the real representation
     # TODO support other mixing types
     function fixpoint_map(x)
-        # Get ρout by diagonalizing the Hamiltonian
+        n_iter += 1
         ρin = from_real(basis, x)
 
         # Build next Hamiltonian, diagonalize it, get ρout
-        if neval == 0 # first iteration
+        if n_iter == 1 # first iteration
             _, ham = energy_hamiltonian(basis, nothing, nothing;
                                         ρ=ρin, eigenvalues=nothing, εF=nothing)
         else
@@ -146,32 +94,38 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver,
-                                 miniter=1, tol=determine_diagtol(info))
+                                 miniter=1, tol=determine_diagtol(info),
+                                 n_ep_extra=n_ep_extra,
+                                 occupation_function=occupation_function)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
+        enforce_symmetry && (ρout = DFTK.symmetrize(ρout))
 
-        # This computes the energy of the new state
+        # Compute the energy of the new state
         if compute_consistent_energies
-            energies, H = energy_hamiltonian(basis, ψ, occupation;
+            energies, _ = energy_hamiltonian(basis, ψ, occupation;
                                              ρ=ρout, eigenvalues=eigenvalues, εF=εF)
         end
 
-        # mix it with ρin to get a proposal step
-        ρnext = mix(mixing, basis, ρin, ρout)
-        neval += 1
+        # Update info with results gathered so far
+        info = (ham=ham, basis=basis, energies=energies, converged=false, ρin=ρin, ρout=ρout,
+                eigenvalues=eigenvalues, occupation=occupation, εF=εF, n_iter=n_iter, ψ=ψ,
+                diagonalization=nextstate.diagonalization, stage=:iterate)
 
-        info = (ham=ham, energies=energies, ρin=ρin, ρout=ρout, ρnext=ρnext,
-                eigenvalues=eigenvalues, occupation=occupation, εF=εF, neval=neval, ψ=ψ,
-                diagonalization=nextstate.diagonalization)
+        # Apply mixing and pass it the full info as kwargs
+        ρnext = mix(mixing, basis, ρin, ρout; info...)
+        enforce_symmetry && (ρnext = DFTK.symmetrize(ρnext))
+        info = merge(info, (ρnext=ρnext, ))
+
         callback(info)
         is_converged(info) && return x
 
         ρnext.real
     end
 
-    fpres = solver(fixpoint_map, ρout.real, maxiter; tol=min(10eps(T), tol / 10))
-    # Tolerance is only dummy here: Convergence is flagged by is_converged
+    # Tolerance and maxiter are only dummy here: Convergence is flagged by is_converged
     # inside the fixpoint_map. Also we do not use the return value of fpres but rather the
     # one that got updated by fixpoint_map
+    fpres = solver(fixpoint_map, ρout.real, maxiter; tol=eps(T))
 
     # We do not use the return value of fpres but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform
@@ -179,6 +133,10 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     energies, ham = energy_hamiltonian(basis, ψ, occupation;
                                        ρ=ρout, eigenvalues=eigenvalues, εF=εF)
 
-    (ham=ham, energies=energies, converged=fpres.converged,
-     ρ=ρout, ψ=ψ, eigenvalues=eigenvalues, occupation=occupation, εF=εF)
+    # Callback is run one last time with final state to allow callback to clean up
+    info = (ham=ham, basis=basis, energies=energies, converged=fpres.converged,
+            ρ=ρout, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
+            n_iter=n_iter, ψ=ψ, diagonalization=info.diagonalization, stage=:finalize)
+    callback(info)
+    info
 end

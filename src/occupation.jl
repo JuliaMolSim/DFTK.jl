@@ -5,22 +5,19 @@ import Roots
 """
 Find the Fermi level.
 """
-function find_fermi_level(basis, energies)
-    find_occupation(basis, energies).εF
-end
+fermi_level(basis, energies) = find_occupation(basis, energies).εF
 
 """
 Find the occupation and Fermi level.
 """
 function find_occupation(basis::PlaneWaveBasis{T}, energies;
-                         temperature=basis.model.temperature) where {T}
+                         temperature=basis.model.temperature,
+                         smearing=basis.model.smearing) where {T}
     @assert basis.model.spin_polarization in (:none, :spinless)
-    model = basis.model
-    n_electrons = model.n_electrons
-    smearing = model.smearing
+    n_electrons = basis.model.n_electrons
 
     # Maximum occupation per state
-    filled_occ = filled_occupation(model)
+    filled_occ = filled_occupation(basis.model)
 
     # The goal is to find εF so that
     # n_i = filled_occ * f((εi-εF)/T)
@@ -30,8 +27,10 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
     compute_occupation(εF) = [filled_occ * Smearing.occupation.(smearing, (ε .- εF) ./ temperature) for ε in energies]
     compute_n_elec(εF) = sum(basis.kweights .* sum.(compute_occupation(εF)))
 
-    # assume that we can get the required number of electrons by filling every state
-    @assert filled_occ*sum(basis.kweights .* length.(energies)) ≥ n_electrons - sqrt(eps(T))
+    if filled_occ*sum(basis.kweights .* length.(energies)) < n_electrons - sqrt(eps(T))
+        error("Could not obtain required number of electrons by filling every state. " *
+              "Increase n_bands.")
+    end
 
     # Get rough bounds to bracket εF
     min_ε = minimum(minimum.(energies)) - 1
@@ -55,6 +54,14 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
         # taken with convergence criteria and the like
         εF = Roots.find_zero(εF -> compute_n_elec(εF) - n_electrons, (min_ε, max_ε),
                              Roots.Bisection(), atol=eps(T))
+    end
+
+    if !isapprox(compute_n_elec(εF), n_electrons)
+        # For insulators it can happen that bisection stops in a final interval (a, b) where
+        # `compute_n_elec(a) ≈ n_electrons` and `compute_n_elec(b) > n_electrons`, but where
+        # the returned `(a+b)/2` is rounded to `b`, such that `εF` gives a too
+        # large electron count. To make sure this is not the case, make εF a little smaller.
+        εF -= eps(εF)
     end
 
     if !isapprox(compute_n_elec(εF), n_electrons)
@@ -110,7 +117,7 @@ function find_occupation_bandgap(basis, energies)
     # Put Fermi level slightly above HOMO energy, to ensure that HOMO < εF
     εF = nextfloat(HOMO)
     if εF > LUMO
-        @warn("`find_occupation_zero_temperature` assumes an insulator, but the " *
+        @warn("`find_occupation_bandgap` assumes an insulator, but the " *
               "system seems metallic. Try specifying a temperature and a smearing function.",
               HOMO, LUMO)
     end

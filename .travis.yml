@@ -17,8 +17,9 @@ script: |  # Install dependencies and test with coverage
     using Pkg
     Pkg.build(; verbose = true)
 
-    using Conda  # Some optional python packages via conda
-    for pkg in ["ase"]
+    # Some optional python packages via conda
+    using Conda
+    for pkg in ["nomkl", "ase", "matplotlib =3.2.2"]
         Conda.add(pkg; channel="conda-forge")
     end
 
@@ -48,9 +49,20 @@ jobs:
     - stage: "Documentation"
       os: linux
       script:
-        - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd()));
-                                               Pkg.instantiate();
-                                               Pkg.build("DFTK")'
+        - |
+          julia --project=docs/ -e '
+              using Pkg
+              Pkg.develop(PackageSpec(path=pwd()))
+              Pkg.instantiate()
+              Pkg.build("DFTK")
+
+              # Some optional python packages via conda
+              Pkg.add("Conda")
+              using Conda
+              for pkg in ["ase", "matplotlib =3.2.2"]
+                  Conda.add(pkg; channel="conda-forge")
+              end
+          '
         - julia --project=docs/ docs/make.jl
       after_success: skip
 

@@ -179,7 +179,7 @@ end
 
 # Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
 # No normalization is performed
-function accumulate_over_symops!(ρaccu, ρin, basis, symops, Gs)
+function accumulate_over_symops!(ρaccu, ρin, basis, symops)
     T = eltype(basis)
     for (S, τ) in symops
         invS = Mat3{Int}(inv(S))
@@ -197,7 +197,7 @@ function accumulate_over_symops!(ρaccu, ρin, basis, symops, Gs)
         #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
         # equivalently
         #      ̂ρ_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
-        for (ig, G) in enumerate(Gs)
+        for (ig, G) in enumerate(G_vectors(basis))
             igired = index_G_vectors(basis, invS * G)
             if igired !== nothing
                 @inbounds ρaccu[ig] += cis(-2T(π) * dot(G, τ)) * ρin[igired]
@@ -222,12 +222,11 @@ end
 """
 Symmetrize a `RealFourierArray` by applying all the model symmetries (by default) and forming the average.
 """
-function symmetrize(ρin::RealFourierArray{Tr, T}; symops=ρin.basis.model.symops) where {Tr, T}
+function symmetrize(ρin::RealFourierArray; symops=ρin.basis.model.symops)
     ρin_fourier = copy(ρin.fourier)
     lowpass_for_symmetry!(ρin_fourier, ρin.basis; symops=symops)
-    ρout_fourier = accumulate_over_symops!(zero(ρin_fourier), ρin_fourier, ρin.basis, symops,
-                                           G_vectors(ρin.basis)) ./ length(symops)
-    from_fourier(ρin.basis, ρout_fourier; assume_real=(T <: Real))
+    ρout_fourier = accumulate_over_symops!(zero(ρin_fourier), ρin_fourier, ρin.basis, symops)
+    from_fourier(ρin.basis, ρout_fourier ./ length(symops))
 end
 
 function check_symmetric(ρin::RealFourierArray; tol=1e-10, symops=ρin.basis.model.symops)

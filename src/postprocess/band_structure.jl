@@ -4,9 +4,8 @@ import Plots
 # Functionality for computing band structures, mostly using pymatgen
 
 function high_symmetry_kpath(model; kline_density=20)
-    bandstructure = pyimport("pymatgen.symmetry.bandstructure")
     pystructure = pymatgen_structure(model.lattice, model.atoms)
-    symm_kpath = bandstructure.HighSymmKpath(pystructure)
+    symm_kpath = pyimport("pymatgen.symmetry.bandstructure").HighSymmKpath(pystructure)
 
     kcoords, labels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=false)
 
@@ -20,8 +19,11 @@ function high_symmetry_kpath(model; kline_density=20)
     (kcoords=kcoords, klabels=labels_dict, kpath=symm_kpath.kpath["path"])
 end
 
-function compute_bands(basis, ρ, kcoords, n_bands;
-                       eigensolver=lobpcg_hyper, tol=1e-3, show_progress=true, kwargs...)
+@timing function compute_bands(basis, ρ, kcoords, n_bands;
+                               eigensolver=lobpcg_hyper,
+                               tol=1e-3,
+                               show_progress=true,
+                               kwargs...)
     # Create basis with new kpoints, where we cheat by using any symmetry operations.
     ksymops = [[identity_symop()] for _ in 1:length(kcoords)]
     # For some reason rationalize(2//3) isn't supported (julia 1.4)
@@ -127,7 +129,7 @@ function plot_band_data(band_data; εF=nothing,
                   [replace(l, raw"$\mid$" => " | ") for l in data.ticks["label"]])
 
     ylims = [-4, 4]
-    is_metal(band_data, εF) && (ylims = [-10, 10])
+    !isnothing(εF) && is_metal(band_data, εF) && (ylims = [-10, 10])
     ylims = round.(ylims * units.eV ./ unit_to_au(unit), sigdigits=2)
     if isnothing(εF)
         Plots.ylabel!(p, "eigenvalues  ($(string(unit))")
@@ -143,14 +145,20 @@ function detexify_kpoint(string)
     # For some reason Julia doesn't support this naively: https://github.com/JuliaLang/julia/issues/29849
     replacements = ("\\Gamma" => "Γ",
                     "\\Delta" => "Δ",
-                    "\\Sigma" => "Σ")
+                    "\\Sigma" => "Σ",
+                    "_1"      => "₁")
     for r in replacements
         string = replace(string, r)
     end
     string
 end
 
-# TODO This is the top-level function, which should be documented
+"""
+Compute and plot the band structure. `n_bands` selects the number of bands to compute.
+If this value is absent and an `scfres` is used to start the calculation a default of
+`n_bands_scf + 5sqrt(n_bands_scf)` is used. Unlike the rest of DFTK bands energies
+are plotted in `:eV` unless a different `unit` is selected.
+"""
 function plot_bandstructure(basis, ρ, n_bands;
                             εF=nothing, kline_density=20, unit=:eV, kwargs...)
     # Band structure calculation along high-symmetry path
@@ -165,7 +173,9 @@ function plot_bandstructure(basis, ρ, n_bands;
     end
     plot_band_data(band_data; εF=εF, klabels=klabels, unit=unit, plotargs...)
 end
-function plot_bandstructure(scfres, n_bands; kwargs...)
+function plot_bandstructure(scfres; n_bands=nothing, kwargs...)
     # Convenience wrapper for scfres named tuples
-    plot_bandstructure(scfres.ham.basis, scfres.ρ, n_bands; εF=scfres.εF, kwargs...)
+    n_bands_scf = size(scfres.occupation[1], 2)
+    isnothing(n_bands) && (n_bands = ceil(Int, n_bands_scf + 5sqrt(n_bands_scf)))
+    plot_bandstructure(scfres.basis, scfres.ρ, n_bands; εF=scfres.εF, kwargs...)
 end

@@ -14,22 +14,22 @@ guess_density(basis::PlaneWaveBasis) = guess_density(basis, basis.model.atoms)
     model = basis.model
     ρ = zeros(complex(T), basis.fft_size)
     # If no atoms, start with a zero initial guess
-    isempty(atoms) && return from_fourier(basis, ρ; assume_real=true)
+    isempty(atoms) && return from_fourier(basis, ρ)
     # fill ρ with the (unnormalized) Fourier transform, ie ∫ e^{-iGx} ρ(x) dx
     for (spec, positions) in atoms
         n_el_val = n_elec_valence(spec)
-        decay_length = T(atom_decay_length(spec))
-        for r in positions
-            Tr = T.(r)
-            for (iG, G) in enumerate(G_vectors(basis))
-                Gsq = sum(abs2, model.recip_lattice * G)
-                ρ[iG] += n_el_val * exp(-Gsq * decay_length^2) * cis(-2π * dot(G, Tr))
+        decay_length::T = atom_decay_length(spec)
+        for (iG, G) in enumerate(G_vectors(basis))
+            Gsq = sum(abs2, model.recip_lattice * G)
+            form_factor::T = n_el_val * exp(-Gsq * decay_length^2)
+            for r in positions
+                ρ[iG] += form_factor * cis(-2T(π) * dot(G, r))
             end
         end
     end
 
     # projection in the normalized plane wave basis
-    from_fourier(basis, ρ / sqrt(model.unit_cell_volume); assume_real=true)
+    from_fourier(basis, ρ / sqrt(model.unit_cell_volume))
 end
 
 @doc raw"""

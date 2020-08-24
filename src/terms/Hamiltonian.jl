@@ -126,3 +126,17 @@ function total_local_potential(ham::Hamiltonian)
     @assert length(rs) == 1
     rs[1].potential
 end
+
+"""
+Returns a new Hamiltonian with local potential replaced by the given one
+"""
+function hamiltonian_with_total_potential(ham::Hamiltonian, V)
+    @assert ham.basis.model.spin_polarization in (:none, :spinless)
+    Hamiltonian(ham.basis, hamiltonian_with_total_potential.(ham.blocks, Ref(V)))
+end
+function hamiltonian_with_total_potential(Hk::HamiltonianBlock, V)
+    @assert Hk.basis.model.spin_polarization in (:none, :spinless)
+    operators = [op for op in Hk.operators if !(op isa RealSpaceMultiplication)]
+    push!(operators, RealSpaceMultiplication(Hk.basis, Hk.kpoint, V))
+    HamiltonianBlock(Hk.basis, Hk.kpoint, operators, Hk.scratch)
+end

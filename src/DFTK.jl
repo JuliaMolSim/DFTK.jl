@@ -10,6 +10,7 @@ using LinearAlgebra
 using Interpolations
 using Requires
 using TimerOutputs
+using spglib_jll
 
 include("common/timer.jl")
 include("common/asserting.jl")
@@ -36,6 +37,7 @@ export r_to_G
 export r_to_G!
 export model_atomic
 export model_DFT
+export model_PBE
 export model_LDA
 include("Model.jl")
 include("PlaneWaveBasis.jl")
@@ -82,9 +84,11 @@ export Entropy
 export Magnetic
 export energy_ewald
 export energy_psp_correction
+export apply_kernel
+export compute_kernel
 include("terms/terms.jl")
 
-export find_fermi_level
+export fermi_level
 export find_occupation
 export find_occupation_bandgap
 include("occupation.jl")
@@ -98,7 +102,6 @@ export PreconditionerNone
 include("eigen/preconditioners.jl")
 
 export lobpcg_hyper
-export lobpcg_scipy
 export lobpcg_itsolve
 export diag_full
 export diagonalize_all_kblocks
@@ -106,6 +109,8 @@ include("eigen/diag.jl")
 
 export KerkerMixing
 export SimpleMixing
+export RestaMixing
+export HybridMixing
 include("scf/mixing.jl")
 export scf_nlsolve_solver
 export scf_damping_solver
@@ -135,6 +140,7 @@ include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
 
 export pymatgen_structure
+export ase_atoms
 export EtsfFolder
 export load_lattice
 export load_basis
@@ -162,14 +168,10 @@ export apply_χ0
 include("postprocess/chi0.jl")
 
 function __init__()
-    # Use requires to only include eigen/diag_lobpcg_itsolve.jl once
-    # IterativeSolvers has been loaded (via a "using" or an "import")
+    # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
+    # DoubleFloats has been loaded (via a "using" or an "import").
     # See https://github.com/JuliaPackaging/Requires.jl for details.
-    @require IterativeSolvers="42fd0dbc-a981-5370-80f2-aaf504508153" begin
-        include("eigen/diag_lobpcg_itsolve.jl")
-    end
-
-    # Load generic FFT stuff once IntervalArithmetic or DoubleFloats are used
+    #
     # The global variable GENERIC_FFT_LOADED makes sure that things are only
     # included once.
     @require IntervalArithmetic="d1acc4aa-44c8-5952-acd4-ba5d80a2a253" begin

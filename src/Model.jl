@@ -25,16 +25,16 @@ struct Model{T <: Real}
     #                 The difference with :none is that the occupations are 1 instead of 2
     spin_polarization::Symbol
 
-    # If temperature=0, no fractional occupations are used.
+    # If temperature==0, no fractional occupations are used.
     # If temperature is nonzero, the occupations are
     # `fn = max_occ*smearing((εn-εF) / temperature)`
     temperature::T
     smearing::Smearing.SmearingFunction # see Smearing.jl for choices
 
     # Vector of pairs Element => vector of vec3 (positions, fractional coordinates)
-    # Possibly empty.
-    # `atoms` just contain the information on the atoms, it's up to the `terms` to make use of it (or not)
-    atoms::Vector{Pair}
+    # Possibly empty. `atoms` just contain the information on the atoms, it's up to
+    # the `terms` to make use of it (or not)
+    atoms::Vector{Pair{Any, Vector{Vec3{T}}}}
 
     # each element t must implement t(basis), which instantiates a
     # term in a given basis and gives back a term (<: Term)
@@ -176,6 +176,14 @@ Build an LDA model (Teter93 parametrization) from the specified atoms.
 """
 function model_LDA(lattice::AbstractMatrix, atoms::Vector; kwargs...)
     model_DFT(lattice, atoms, :lda_xc_teter93; kwargs...)
+end
+
+
+"""
+Build an PBE-GGA model from the specified atoms.
+"""
+function model_PBE(lattice::AbstractMatrix, atoms::Vector; kwargs...)
+    model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe]; kwargs...)
 end
 
 

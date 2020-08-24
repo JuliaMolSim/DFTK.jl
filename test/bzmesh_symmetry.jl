@@ -15,15 +15,15 @@ include("testcases.jl")
         atoms = [Si => [(ones(3)) / 8, -ones(3) / 8]]
         model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93)
 
-        basis = PlaneWaveBasis(model, Ecut; use_symmetry=false, a...)
+        basis = PlaneWaveBasis(model, Ecut; kgrid=(1, 1, 1), use_symmetry=false, a...)
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10))
         ρ1 = scfres.ρ
-        E1 = sum(values(scfres.energies))
+        E1 = scfres.energies.total
 
-        basis = PlaneWaveBasis(model, Ecut; use_symmetry=true, a...)
+        basis = PlaneWaveBasis(model, Ecut; kgrid=(1, 1, 1), use_symmetry=true, a...)
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10))
         ρ2 = scfres.ρ
-        E2 = sum(values(scfres.energies))
+        E2 = scfres.energies.total
 
         @test abs(E1 - E2) < 1e-10
         @test norm(ρ1.fourier - ρ2.fourier) < 1e-8

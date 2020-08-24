@@ -11,9 +11,9 @@ Discretization information for kpoint-dependent quantities such as orbitals.
 More generally, a kpoint is a block of the Hamiltonian;
 eg collinear spin is treated by doubling the number of kpoints.
 """
-struct Kpoint
+struct Kpoint{T <: Real}
     spin::Symbol                     # :up, :down, :both or :spinless
-    coordinate::Vec3{Rational{Int}}  # Fractional coordinate of k-Point
+    coordinate::Vec3{T}              # Fractional coordinate of k-Point
     mapping::Vector{Int}             # Index of G_vectors[i] on the FFT grid:
                                      # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
     mapping_inv::Dict{Int, Int}      # Inverse of `mapping`:
@@ -47,7 +47,7 @@ struct PlaneWaveBasis{T <: Real}
     Ecut::T
 
     # irreducible kpoints
-    kpoints::Vector{Kpoint}
+    kpoints::Vector{Kpoint{T}}
     # BZ integration weights, summing up to 1
     # kweights[ik] = length(ksymops[ik]) / sum(length(ksymops[ik]) for ik=1:Nk)
     kweights::Vector{T}
@@ -80,7 +80,7 @@ Base.show(io::IO, basis::PlaneWaveBasis) =
     print(io, "PlaneWaveBasis (Ecut=$(basis.Ecut), $(length(basis.kpoints)) kpoints)")
 Base.eltype(basis::PlaneWaveBasis{T}) where {T} = T
 
-function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
+@timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
     model.spin_polarization in (:none, :collinear, :spinless) || (
         error("$(model.spin_polarization) not implemented"))
     spin = (:undefined,)
@@ -94,13 +94,22 @@ function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut) where T
 
     kpoints = Vector{Kpoint}()
     for k in kcoords
-        energy(q) = sum(abs2, model.recip_lattice * q) / 2
-        pairs = [(i, G) for (i, G) in enumerate(G_vectors(fft_size)) if energy(k + G) ≤ Ecut]
-
-        mapping = first.(pairs)
+        k = Vec3{T}(k)  # rationals are sloooow
+        mapping = Int[]
+        Gvecs_k = Vec3{Int}[]
+        # provide a rough hint so that the arrays don't have to be resized so much
+        n_guess = div(prod(fft_size), 8)
+        sizehint!(mapping, n_guess)
+        sizehint!(Gvecs_k, n_guess)
+        for (i, G) in enumerate(G_vectors(fft_size))
+            if !variational || sum(abs2, model.recip_lattice * (G + k)) / 2 ≤ Ecut
+                push!(mapping, i)
+                push!(Gvecs_k, G)
+            end
+        end
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for σ in spin
-            push!(kpoints, Kpoint(σ, k, mapping, mapping_inv, last.(pairs)))
+            push!(kpoints, Kpoint(σ, k, mapping, mapping_inv, Gvecs_k))
         end
     end
 
@@ -112,7 +121,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 # This is the "internal" constructor; the higher-level one below should be preferred
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops, symops=nothing;
-                                fft_size=determine_grid_size(model, Ecut)) where {T <: Real}
+                                fft_size=determine_grid_size(model, Ecut), variational=true) where {T <: Real}
     @assert Ecut > 0
     fft_size = Tuple{Int, Int, Int}(fft_size)
 
@@ -139,8 +148,10 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     # Sanity checks
     @assert length(kcoords) == length(ksymops)
     max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
-    @assert(Ecut ≤ max_E, "Ecut should be less than the maximal kinetic energy " *
-            "the grid supports (== $max_E)")
+    if variational && Ecut > max_E
+        @warn("For a variational method, Ecut should be less than the maximal kinetic energy " *
+              "the grid supports ($max_E)")
+    end
 
     terms = Vector{Any}(undef, length(model.term_types))
 
@@ -151,13 +162,15 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         symops = vcat(ksymops...)
     end
 
+    kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
     basis = PlaneWaveBasis{T}(
-        model, Ecut, build_kpoints(model, fft_size, kcoords, Ecut),
+        model, Ecut, kpoints,
         kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms, symops)
 
     # Instantiate terms
     for (it, t) in enumerate(model.term_types)
-        basis.terms[it] = t(basis)
+        term_name = string(nameof(typeof(t)))
+        @timing "Instantiation $term_name" basis.terms[it] = t(basis)
     end
     basis
 end
@@ -174,7 +187,10 @@ end
 
 @doc raw"""
 Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a Monkhorst-Pack
-kpoint grid `kgrid` shifted by `kshift` (0 or 1/2 in each direction).
+kpoint grid. The MP grid can either be specified directly with `kgrid` providing the
+number of points in each dimension and `kshift` the shift (0 or 1/2 in each direction).
+If not specified a grid is generated using `kgrid_size_from_minimal_spacing` with
+a minimal spacing of `2π * 0.022` per Bohr.
 
 If `use_symmetry` is `true` (default) the symmetries of the
 crystal are used to reduce the number of ``k``-Points which are
@@ -182,8 +198,11 @@ treated explicitly. In this case all guess densities and potential
 functions must agree with the crystal symmetries or the result is
 undefined.
 """
-function PlaneWaveBasis(model::Model, Ecut::Number; kgrid=[1, 1, 1], kshift=[0, 0, 0],
-                        use_symmetry=true, kwargs...)
+function PlaneWaveBasis(model::Model, Ecut::Number;
+                        kgrid=kgrid_size_from_minimal_spacing(model.lattice, 2π * 0.022),
+                        kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
+                        use_symmetry=true,
+                        kwargs...)
     if use_symmetry
         kcoords, ksymops, symops = bzmesh_ir_wedge(kgrid, model.symops, kshift=kshift)
     else
@@ -263,7 +282,7 @@ end
 In-place version of `G_to_r`.
 """
 @timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                             f_fourier::AbstractArray3) where {Tr, Tf}
+                             f_fourier::AbstractArray3)
     mul!(f_real, basis.opIFFT, f_fourier)
 end
 @timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,

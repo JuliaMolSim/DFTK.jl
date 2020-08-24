@@ -66,14 +66,12 @@ function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
     # TODO implement time-reversal symmetry and turn the flag to true
     is_shift = Int.(2 * kshift)
     Stildes = [S' for (S, τ) in symops]
-    spg_rotations = permutedims(cat(Stildes..., dims=3), (3, 1, 2))
-    mapping, grid = pyimport("spglib").get_stabilized_reciprocal_mesh(
-        kgrid_size, spg_rotations, is_shift=is_shift, is_time_reversal=false
+    _, mapping, grid = spglib_get_stabilized_reciprocal_mesh(
+        kgrid_size, Stildes, is_shift=is_shift, is_time_reversal=false
     )
-
     # Convert irreducible k-Points to DFTK conventions
     kgrid_size = Vec3{Int}(kgrid_size)
-    kirreds = [(kshift .+ Vec3{Int}(grid[ik + 1, :])) .// kgrid_size
+    kirreds = [(kshift .+ grid[ik + 1]) .// kgrid_size
                for ik in unique(mapping)]
     kirreds = normalize_kpoint_coordinate.(kirreds)
 
@@ -95,7 +93,7 @@ function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
     for (ik, k) in enumerate(kirreds)
         ksymops[ik] = Vector{SymOp}()
         for ired in k_all_reducible[ik]
-            kred = (kshift .+ Vec3(grid[ired, :])) .// kgrid_size
+            kred = (kshift .+ grid[ired]) .// kgrid_size
 
             # Note that this relies on the identity coming up first in symops
             isym = findfirst(symops) do symop
@@ -148,7 +146,10 @@ const standardize_atoms = spglib_standardize_cell
 Selects a kgrid_size to ensure a minimal spacing (in inverse Bohrs) between kpoints.
 Default is ``2π * 0.04 \AA^{-1}``.
 """
-function kgrid_size_from_minimal_spacing(lattice, spacing=2π * 0.04 / units.Ǎ)
+function kgrid_size_from_minimal_spacing(lattice, spacing=2π * 0.022)
+    @assert spacing > 0
+    isinf(spacing) && return [1, 1, 1]
+
     for d in 1:3
         @assert norm(lattice[:, d]) != 0
         # Otherwise the formula for the reciprocal lattice

@@ -18,12 +18,12 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]];
 # Next we build the rather simple model and discretise it with moderate `Ecut`:
 Ecut = 10.0
 model = Model(lattice; atoms=atoms, terms=[Kinetic(), AtomicLocal()])
-basis = PlaneWaveBasis(model, Ecut);
+basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1));
 
 # We diagonalise at the Gamma point to find a Fermi level ...
 ham = Hamiltonian(basis)
 eigres = diagonalize_all_kblocks(DFTK.lobpcg_hyper, ham, 6)
-εF = find_fermi_level(basis, eigres.λ)
+εF = fermi_level(basis, eigres.λ)
 
 # ... and compute and plot 8 bands:
 using Plots

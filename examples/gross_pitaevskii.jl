@@ -53,7 +53,7 @@ model = Model(lattice; n_electrons=n_electrons, terms=terms,
 # We discretize using a moderate Ecut (For 1D values up to `5000` are completely fine)
 # and run a direct minimization algorithm:
 Ecut = 500
-basis = PlaneWaveBasis(model, Ecut)
+basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1))
 scfres = direct_minimization(basis, tol=1e-8) # This is a constrained preconditioned LBFGS
 scfres.energies
 
@@ -90,7 +90,7 @@ plot!(p, x, ρ, label="ρ")
 # The density ρ associated to this state is precomputed
 # and passed to the routine as an optimization.
 E, ham = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
-@assert sum(values(E)) == sum(values(scfres.energies))
+@assert E.total == scfres.energies.total
 
 # Now the Hamiltonian contains all the blocks corresponding to kpoints. Here, we just have one kpoint:
 H = ham.blocks[1];
