@@ -57,7 +57,7 @@ function test_perturbation_ratio(Ecut, Ecut_ref, compute_forces)
         end
 
         # number of kpoints
-        nk = length(egval_ref)
+        nk = length(kcoords)
         # number of eigenvalues computed at each kpoint
         nel = length(egval_ref[1])
 
@@ -88,7 +88,7 @@ function test_perturbation_ratio(Ecut, Ecut_ref, compute_forces)
             end
 
             # perturbation
-            E_p, ψ_p, ρ_p, egval_p2, egval_p3, egval_p_rr, forces_p = perturbation(basis, kcoords, ksymops, scfres, α*Ecut, compute_forces)
+            E_p, ψ_p, ρ_p, egval_p2, egval_p3, egval_p_rr, forces_p = perturbation(basis, kcoords, ksymops, scfres, α*Ecut; compute_forces=compute_forces)
 
             # complete data for perturbation
             push!(E_p_list, sum(values(E_p)))
@@ -211,7 +211,7 @@ function test_perturbation_coarsegrid(α, Ecut_min, Ecut_max)
     end
 
     ### Return results
-    Ecut_list, N_list, E_p_list, E_coarse_list
+    Ecut_list, E_p_list, E_coarse_list
 end
 
 
