@@ -5,14 +5,14 @@ import Roots
 """
 Find the Fermi level.
 """
-fermi_level(basis, energies) = find_occupation_default(basis, energies).εF
+fermi_level(basis, energies) = find_occupation(basis, energies).εF
 
 """
 Find the occupation and Fermi level.
 """
-function find_occupation_default(basis::PlaneWaveBasis{T}, energies;
-                                 temperature=basis.model.temperature,
-                                 smearing=basis.model.smearing) where {T}
+function find_occupation(basis::PlaneWaveBasis{T}, energies;
+                         temperature=basis.model.temperature,
+                         smearing=basis.model.smearing) where {T}
     @assert basis.model.spin_polarization in (:none, :spinless)
     n_electrons = basis.model.n_electrons
 
