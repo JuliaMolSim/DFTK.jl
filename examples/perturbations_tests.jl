@@ -43,17 +43,17 @@ function test_perturbation_ratio(Ecut, Ecut_ref, compute_forces)
         Etot = sum(values(scfres.energies))
 
         ### lists to save data for plotting
-        Ep_list = []                    # perturbed energy
-        E_fine_list = []                # energy for full scf on the fine grid
-        egvalp2_list = []               # 2nd order perturbed eigenvalues
-        egvalp3_list = []               # 3rd order perturbed eigenvales
-        egvalp_rr_list = []             # Rayleigh-Ritz egval with perturbed egvectors
-        egval_fine_list = []            # eigenvalues for full scf on the fine grid
-        ρp_list = []                    # norm (perturbed density - ref density)
-        ρ_fine_list = []                # norm (density on fine grid - ref density)
+        E_p_list = []                    # perturbed energy
+        E_fine_list = []                 # energy for full scf on the fine grid
+        egval_p2_list = []               # 2nd order perturbed eigenvalues
+        egval_p3_list = []               # 3rd order perturbed eigenvales
+        egval_p_rr_list = []             # Rayleigh-Ritz egval with perturbed egvectors
+        egval_fine_list = []             # eigenvalues for full scf on the fine grid
+        ρ_p_list = []                    # norm (perturbed density - ref density)
+        ρ_fine_list = []                 # norm (density on fine grid - ref density)
         if compute_forces
-            forcesp_list = []           # perturbed forces
-            forces_fine_list = []       # forces on the fine grid
+            forces_p_list = []           # perturbed forces
+            forces_fine_list = []        # forces on the fine grid
         end
 
         # number of kpoints
@@ -70,19 +70,15 @@ function test_perturbation_ratio(Ecut, Ecut_ref, compute_forces)
             scfres_fine = self_consistent_field(basis_fine, tol=tol,
                                                 is_converged=DFTK.ScfConvergenceDensity(tol))
 
-            # interpolate ρ_ref to compare with ρ / ρp on the fine grid
-            ρref_fine = DFTK.interpolate_density(ρ_ref, basis_fine)
-
-            # save data
-            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rho_ref_fourier"] = ρref_fine.fourier
-            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rho_ref_real"] = ρref_fine.real
-
-            # complete data on fine grid
+            # interpolate ρ_ref to compare with ρ / ρ_p on the fine grid
+            ρ_ref_fine = DFTK.interpolate_density(ρ_ref, basis_fine)
             push!(E_fine_list, sum(values(scfres_fine.energies)))
             push!(egval_fine_list, scfres_fine.eigenvalues)
-            push!(ρ_fine_list, norm(scfres_fine.ρ.fourier - ρref_fine.fourier))
+            push!(ρ_fine_list, norm(scfres_fine.ρ.fourier - ρ_ref_fine.fourier))
 
             # save data
+            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rho_ref_fourier"] = ρ_ref_fine.fourier
+            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rho_ref_real"] = ρ_ref_fine.real
             file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rho_fourier"] = scfres_fine.ρ.fourier
             file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rho_real"] = scfres_fine.ρ.real
 
@@ -92,21 +88,21 @@ function test_perturbation_ratio(Ecut, Ecut_ref, compute_forces)
             end
 
             # perturbation
-            Ep_fine, ψp_fine, ρp_fine, egvalp2, egvalp3, egvalp_rr, forcesp = perturbation(basis, kcoords, ksymops, scfres, α*Ecut, compute_forces)
+            E_p, ψ_p, ρ_p, egval_p2, egval_p3, egval_p_rr, forces_p = perturbation(basis, kcoords, ksymops, scfres, α*Ecut, compute_forces)
 
             # complete data for perturbation
-            push!(Ep_list, sum(values(Ep_fine)))
-            push!(egvalp2_list, deepcopy(egvalp2))
-            push!(egvalp3_list, deepcopy(egvalp3))
-            push!(egvalp_rr_list, deepcopy(egvalp_rr))
-            push!(ρp_list, norm(ρp_fine.fourier - ρref_fine.fourier))
+            push!(E_p_list, sum(values(E_p)))
+            push!(egval_p2_list, deepcopy(egval_p2))
+            push!(egval_p3_list, deepcopy(egval_p3))
+            push!(egval_p_rr_list, deepcopy(egval_p_rr))
+            push!(ρ_p_list, norm(ρ_p.fourier - ρ_ref_fine.fourier))
 
             # save data
-            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rhop_fourier"] = ρp_fine.fourier
-            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rhop_real"] = ρp_fine.real
+            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rhop_fourier"] = ρ_p.fourier
+            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rhop_real"] = ρ_p.real
 
             if compute_forces
-                push!(forcesp_list, Array.(forcesp[1]))
+                push!(forces_p_list, Array.(forces_p[1]))
             end
 
         end
@@ -114,24 +110,24 @@ function test_perturbation_ratio(Ecut, Ecut_ref, compute_forces)
         ### Plotting results and saving objects to HDF5 file
 
         # plot energy relative error
-        error_list = abs.((Ep_list .- Etot_ref)/Etot_ref)
+        error_list = abs.((E_p_list .- Etot_ref)/Etot_ref)
         error_fine_list = abs.((E_fine_list .- Etot_ref)/Etot_ref)
 
         # save data
         file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/energy/error"] = error_list
         file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/energy/error_fine"] = error_fine_list
         file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/energy/E_fine"] = Float64.(E_fine_list)
-        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/energy/Ep"] = Float64.(Ep_list)
+        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/energy/E_p"] = Float64.(E_p_list)
 
         # plot eigenvalue relative error
-        egvalp211 = [egvalp2_list[i][1][1] for i in 1:length(α_list)]
-        egvalp311 = [egvalp3_list[i][1][1] for i in 1:length(α_list)]
-        egvalp_rr11 = [egvalp_rr_list[i][1][1] for i in 1:length(α_list)]
+        egval_p211 = [egval_p2_list[i][1][1] for i in 1:length(α_list)]
+        egval_p311 = [egval_p3_list[i][1][1] for i in 1:length(α_list)]
+        egval_p_rr11 = [egval_p_rr_list[i][1][1] for i in 1:length(α_list)]
         egval_fine11 = [egval_fine_list[i][1][1] for i in 1:length(α_list)]
         egval11_ref = egval_ref[1][1]
-        error1_list = abs.((egvalp211 .- egval11_ref)/egval11_ref)
-        error2_list = abs.((egvalp311 .- egval11_ref)/egval11_ref)
-        error_rr_list = abs.((egvalp_rr11 .- egval11_ref)/egval11_ref)
+        error1_list = abs.((egval_p211 .- egval11_ref)/egval11_ref)
+        error2_list = abs.((egval_p311 .- egval11_ref)/egval11_ref)
+        error_rr_list = abs.((egval_p_rr11 .- egval11_ref)/egval11_ref)
         error_fine_list = abs.((egval_fine11 .- egval11_ref)/egval11_ref)
 
         # save data
@@ -140,14 +136,14 @@ function test_perturbation_ratio(Ecut, Ecut_ref, compute_forces)
         file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/error_rr"] = error_rr_list
         file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/error_fine"] = error_fine_list
         file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/egval_ref"] = hcat(egval_ref...)
-        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/egvalp2"] = reshape(hcat(hcat(egvalp2_list...)...), nel, nk, length(α_list))
-        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/egvalp3"] = reshape(hcat(hcat(egvalp3_list...)...), nel, nk, length(α_list))
-        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/egvalp_rr"] = reshape(hcat(hcat(egvalp_rr_list...)...), nel, nk, length(α_list))
+        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/egval_p2"] = reshape(hcat(hcat(egval_p2_list...)...), nel, nk, length(α_list))
+        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/egval_p3"] = reshape(hcat(hcat(egval_p3_list...)...), nel, nk, length(α_list))
+        file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/egval_p_rr"] = reshape(hcat(hcat(egval_p_rr_list...)...), nel, nk, length(α_list))
         file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/egval/egval_fine"] = reshape(hcat(hcat(egval_fine_list...)...), nel, nk, length(α_list))
 
 
         # plot density error at one point in particular
-        error_list = ρp_list
+        error_list = ρ_p_list
         error_fine_list = ρ_fine_list
 
         # save data
@@ -158,14 +154,14 @@ function test_perturbation_ratio(Ecut, Ecut_ref, compute_forces)
 
         if compute_forces
             #  plot forces error
-            error_list = norm.([forcesp - forces_ref for forcesp in forcesp_list])
+            error_list = norm.([forces_p - forces_ref for forces_p in forces_p_list])
             error_fine_list = norm.([forces_fine - forces_ref for forces_fine in forces_fine_list])
 
             # save data
             file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/forces/error"] = error_list
             file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/forces/error_fine"] = error_fine_list
             file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/forces/forces_ref"] = hcat(forces_ref...)
-            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/forces/forcesp"] = reshape(hcat(hcat(forcesp_list...)...), 3, 2, length(α_list))
+            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/forces/forces_p"] = reshape(hcat(hcat(forces_p_list...)...), 3, 2, length(α_list))
             file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/forces/forces_fine"] = reshape(hcat(hcat(forces_fine_list...)...), 3, 2, length(α_list))
         end
 
@@ -190,7 +186,7 @@ function test_perturbation_coarsegrid(α, Ecut_min, Ecut_max)
     egval_ref = scfres_ref.eigenvalues
 
     Ecut_list = range(Ecut_min, Ecut_max, length=Int(Ecut_max/Ecut_min))
-    Ep_list = []
+    E_p_list = []
     E_coarse_list = []
     for Ecut in Ecut_list
         println("---------------------------\nEcut = $(Ecut)")
@@ -200,62 +196,22 @@ function test_perturbation_coarsegrid(α, Ecut_min, Ecut_max)
         push!(E_coarse_list, sum(values(scfres.energies)))
 
         # perturbation
-        Ep_fine, _ = perturbation(basis, kcoords, ksymops, scfres, α*Ecut;
+        E_p_fine, _ = perturbation(basis, kcoords, ksymops, scfres, α*Ecut;
                                   compute_egval=false)
-        push!(Ep_list, sum(values(Ep_fine)))
+        push!(E_p_list, sum(values(E_p_fine)))
     end
-
-    ##### Plotting results
-    figure(figsize=(20,10))
-    tit = "Average shift : $(avg)
-    Ne = $(nel), kpts = $(length(kcoords)), Ecut_ref = $(Ecut_ref),
-    kcoords = $(kcoords)"
-    suptitle(tit)
-
-    # size of the discretization grid
-    N_list = sqrt.(2 .* Ecut_list)
-
-    # plot energy error
-    subplot(121)
-    title("Difference with the reference energy Ecut = $(Ecut_ref)")
-    error_list = abs.(Ep_list .- Etot_ref)
-    error_coarse_list = abs.(E_coarse_list .- Etot_ref)
-    semilogy(N_list, error_list, "-+", label = "perturbation")
-    semilogy(N_list, error_coarse_list, "-+", label = "coarse grid")
-    xlabel("Nc")
-    legend()
-
-    # plot energy relative error
-    subplot(122)
-    title("Relative error between perturbed and non-perturbed")
-    error_list = abs.((Ep_list .- Etot_ref) ./ (E_coarse_list .- Etot_ref))
-    loglog(N_list, error_list, "-+")
-    xlabel("Nc")
-    legend()
-
-    # plot slope
-    error_list_slope = error_list[10:18]
-    Nc = N_list[10:18]
-    data = DataFrame(X=log.(Nc), Y=log.(error_list_slope))
-    ols = lm(@formula(Y ~ X), data)
-    Nc_slope = N_list[8:19]
-    slope = exp(coef(ols)[1]) .* Nc_slope .^ coef(ols)[2]
-    loglog(Nc_slope, 1.5 .* slope, "--", label = "slope $(coef(ols)[2])")
-    legend()
-
-    savefig("first_order_perturbation_silicon_$(nel)e_kpoints$(length(kcoords))_Ecut_ref$(Ecut_ref)_alpha$(α).pdf")
 
     h5open(filename, "w") do file
         file["nk"] = length(kcoords)
         file["Ecut_ref"] = Ecut_ref
         file["Etot_ref"] = Etot_ref
         file["Ecut_list"] = Float64.(Ecut_list)
-        file["Ep_list"] = Float64.(Ep_list)
+        file["E_p_list"] = Float64.(E_p_list)
         file["E_coarse_list"] = Float64.(E_coarse_list)
     end
 
     ### Return results
-    Ecut_list, N_list, Ep_list, E_coarse_list
+    Ecut_list, N_list, E_p_list, E_coarse_list
 end
 
 

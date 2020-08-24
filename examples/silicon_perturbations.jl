@@ -1,6 +1,9 @@
 #  using DFTK
 using LinearAlgebra
-using TimerOutputs
+using FFTW
+
+BLAS.set_num_threads(4)
+FFTW.set_num_threads(4)
 
 include("perturbations.jl")
 include("perturbations_tests.jl")
@@ -14,7 +17,7 @@ lattice = a / 2 * [[0 1 1.];
                    [1 1 0.]]
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
-tol = 1e-12
+tol = 1e-10
 nel = 8
 
 model = model_LDA(lattice, atoms, n_electrons=nel)
@@ -23,9 +26,6 @@ Ecut_ref = 60           # kinetic energy cutoff in Hartree
 kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.symops)
 
 ################################# Calculations #################################
-
-avg = true
-tol = 1e-10
 
 #  kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.symops)
 #  α_list = vcat(collect(1:0.5:3))
@@ -49,6 +49,5 @@ tol = 1e-10
 
 filename = "improvement_ratio.h5"
 res = test_perturbation_coarsegrid(2.5, 4, 76)
-
 
 display(DFTK.timer)
