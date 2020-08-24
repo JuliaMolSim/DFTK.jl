@@ -148,7 +148,7 @@ function detexify_kpoint(string)
                     "\\Sigma" => "Σ",
                     "_1"      => "₁")
     for r in replacements
-        #string = replace(string, r)
+        string = replace(string, r)
     end
     string
 end
