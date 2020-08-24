@@ -129,7 +129,7 @@ function plot_band_data(band_data; εF=nothing,
                   [replace(l, raw"$\mid$" => " | ") for l in data.ticks["label"]])
 
     ylims = [-4, 4]
-    is_metal(band_data, εF) && (ylims = [-10, 10])
+    !isnothing(εF) && is_metal(band_data, εF) && (ylims = [-10, 10])
     ylims = round.(ylims * units.eV ./ unit_to_au(unit), sigdigits=2)
     if isnothing(εF)
         Plots.ylabel!(p, "eigenvalues  ($(string(unit))")

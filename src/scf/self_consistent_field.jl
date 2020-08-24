@@ -13,7 +13,8 @@ Obtain new density ρ by diagonalizing `ham`.
 function next_density(ham::Hamiltonian;
                       n_bands=default_n_bands(ham.basis.model),
                       ψ=nothing, n_ep_extra=3,
-                      eigensolver=lobpcg_hyper, kwargs...)
+                      eigensolver=lobpcg_hyper,
+                      occupation_function=find_occupation, kwargs...)
     if ψ !== nothing
         @assert length(ψ) == length(ham.basis.kpoints)
         for ik in 1:length(ham.basis.kpoints)
@@ -27,7 +28,7 @@ function next_density(ham::Hamiltonian;
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Update density from new ψ
-    occupation, εF = find_occupation(ham.basis, eigres.λ)
+    occupation, εF = occupation_function(ham.basis, eigres.λ)
     ρnew = compute_density(ham.basis, eigres.X, occupation)
 
     (ψ=eigres.X, eigenvalues=eigres.λ, occupation=occupation, εF=εF, ρ=ρnew,
@@ -53,6 +54,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        callback=ScfDefaultCallback(),
                                        compute_consistent_energies=true,
                                        enforce_symmetry=false,
+                                       occupation_function=find_occupation,
                                       )
     T = eltype(basis)
     model = basis.model
@@ -93,7 +95,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver,
                                  miniter=1, tol=determine_diagtol(info),
-                                 n_ep_extra=n_ep_extra)
+                                 n_ep_extra=n_ep_extra,
+                                 occupation_function=occupation_function)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
         enforce_symmetry && (ρout = DFTK.symmetrize(ρout))
 

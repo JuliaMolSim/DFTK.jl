@@ -88,7 +88,7 @@ export apply_kernel
 export compute_kernel
 include("terms/terms.jl")
 
-export find_fermi_level
+export fermi_level
 export find_occupation
 export find_occupation_bandgap
 include("occupation.jl")
