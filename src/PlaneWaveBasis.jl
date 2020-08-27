@@ -226,7 +226,7 @@ end
 G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_size)
 
 """
-Return the list of r vectors, in reduced coordinates. By convention, this is in [0,1]^3.
+Return the list of r vectors, in reduced coordinates. By convention, this is in [0,1)^3.
 """
 function r_vectors(basis::PlaneWaveBasis{T}) where T
     N1, N2, N3 = basis.fft_size

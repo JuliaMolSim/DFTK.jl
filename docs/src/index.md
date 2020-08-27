@@ -67,6 +67,7 @@ Pages = [
     "examples/scf_callbacks.md",
     "examples/custom_solvers.md",
     "examples/custom_potential.md",
+    "examples/polarizability.md",
 ]
 Depth = 1
 ```
