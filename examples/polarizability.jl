@@ -17,7 +17,6 @@
 # parameters were simply selected for fast execution on CI,
 
 using DFTK
-using PyPlot
 using KrylovKit
 
 a = 10.
