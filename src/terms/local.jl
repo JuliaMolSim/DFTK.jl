@@ -104,13 +104,22 @@ end
                         for G in G_vectors(term.basis)]
 
         for (ir, r) in enumerate(positions)
-            forces[iel][ir] = -real(sum(conj(ρ.fourier[iG])
-                                        .* form_factors[iG]
-                                        .* cis(-2T(π) * dot(G, r))
-                                        .* (-2T(π)) .* G .* im
-                                        ./ sqrt(unit_cell_volume)
-                                        for (iG, G) in enumerate(G_vectors(term.basis))))
+                forces[iel][ir] = _force(term.basis, ρ.fourier, unit_cell_volume, form_factors, r)
         end
     end
     forces
+end
+
+# function barrier to work around type instability
+function _force(basis, ρfour, unit_cell_volume, form_factors, r)
+    T = real(eltype(ρfour))
+    f = zero(Vec3{T})
+    for (iG, G) in enumerate(G_vectors(basis))
+        f -= real(conj(ρfour[iG])
+                      .* form_factors[iG]
+                      .* cis(-2T(π) * dot(G, r))
+                      .* (-2T(π)) .* G .* im
+                      ./ sqrt(unit_cell_volume))
+    end
+    f
 end
