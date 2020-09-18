@@ -81,7 +81,6 @@ function LinearAlgebra.mul!(Hψ, H::Hamiltonian, ψ)
 end
 # need `deepcopy` here to copy the elements of the array of arrays ψ (not just pointers)
 Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
-
 # Get energies and Hamiltonian
 # kwargs is additional info that might be useful for the energy terms to precompute
 # (eg the density ρ)
@@ -90,8 +89,21 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
     ene_ops_arr = [ene_ops(term, ψ, occ; kwargs...) for term in basis.terms]
     energies    = [eh.E for eh in ene_ops_arr]
     operators   = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
-    hks_per_k   = [[blocks[ik] for blocks in operators]  # hks_per_k[ik][it]
-                   for ik = 1:length(basis.kpoints)]
+
+    # flatten the inner arrays in case a term returns more than one operator
+    function flatten(arr)
+        ret = []
+        for a in arr
+            if a isa RealFourierOperator
+                push!(ret, a)
+            else
+                push!(ret, a...)
+            end
+        end
+        ret
+    end
+    hks_per_k   = [flatten([blocks[ik] for blocks in operators])
+                   for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
 
     # Preallocated scratch arrays
     T = eltype(basis)
