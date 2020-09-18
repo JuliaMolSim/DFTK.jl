@@ -65,17 +65,19 @@ The `symmetry` kwarg can be:
 Careful that in this last case, wrong results can occur if the
 external potential breaks symmetries (this is not checked).
 """
-function Model(lattice::AbstractMatrix{T};
+function Model(lattice::AbstractMatrix{Tlatt};
                n_electrons=nothing,
                atoms=[],
                terms=[],
-               temperature=T(0.0),
+               temperature=0.0,
                smearing=nothing,
                spin_polarization=:none,
                symmetry=:auto
-               ) where {T <: Real}
-
+               ) where {Tlatt <: Real}
+    # if the lattice was passed as integers, use doubles instead
+    T = Tlatt <: Integer ? Float64 : Tlatt
     lattice = Mat3{T}(lattice)
+    temperature = T(temperature)
 
     if n_electrons === nothing
         # get it from the atom list
