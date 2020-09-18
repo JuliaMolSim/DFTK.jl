@@ -55,5 +55,11 @@ include("testcases.jl")
     test_consistency_term(Ewald())
     test_consistency_term(PspCorrection())
     test_consistency_term(Xc(:lda_xc_teter93))
-    test_consistency_term(DFTK.Anyonic(.0); kgrid=[1, 1, 1], lattice=[2.0 0 0; 0 2.0 0; 0 0 0], Ecut=100)
+
+    a = 10
+    pot(x, y, z) = (x - a/2)^2 + (y - a/2)^2
+    Apot(x, y, z) = .2 * [y - a/2, -(x - a/2), 0]
+    Apot(X) = Apot(X...)
+    test_consistency_term(Magnetic(Apot); kgrid=[1, 1, 1], lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
+    test_consistency_term(DFTK.Anyonic(.0); kgrid=[1, 1, 1], lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
 end
