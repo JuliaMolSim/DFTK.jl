@@ -31,8 +31,15 @@ end
 
 include("Hamiltonian.jl")
 
+# breaks_symmetries on a term builder answers true if this term breaks
+# the symmetries of the lattice/atoms (in which case kpoint reduction
+# is invalid)
+breaks_symmetries(term_builder::Any) = false
+
 include("kinetic.jl")
 include("local.jl")
+breaks_symmetries(term_builder::ExternalFromReal) = true
+breaks_symmetries(term_builder::ExternalFromFourier) = true
 include("nonlocal.jl")
 include("hartree.jl")
 include("power_nonlinearity.jl")
@@ -41,15 +48,9 @@ include("ewald.jl")
 include("psp_correction.jl")
 include("entropy.jl")
 include("magnetic.jl")
-
-# breaks_symmetries on a term builder answers true if this term breaks
-# the symmetries of the lattice/atoms (in which case kpoint reduction
-# is invalid)
-breaks_symmetries(term_builder::Any) = false
 breaks_symmetries(term_builder::Magnetic) = true
-breaks_symmetries(term_builder::ExternalFromReal) = true
-breaks_symmetries(term_builder::ExternalFromFourier) = true
-
+include("anyonic.jl")
+breaks_symmetries(term_builder::Anyonic) = true
 
 # forces computes either nothing or an array forces[el][at][α]
 function forces(term::Term, ψ, occ; kwargs...)

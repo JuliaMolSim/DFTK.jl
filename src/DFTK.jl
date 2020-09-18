@@ -82,6 +82,7 @@ export Ewald
 export PspCorrection
 export Entropy
 export Magnetic
+export Anyonic
 export energy_ewald
 export energy_psp_correction
 export apply_kernel

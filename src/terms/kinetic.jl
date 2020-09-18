@@ -1,15 +1,18 @@
 """
 Kinetic energy: 1/2 sum_n f_n ∫ |∇ψn|^2.
 """
-struct Kinetic end
-(K::Kinetic)(basis) = TermKinetic(basis)
+struct Kinetic
+    scaling_factor::Real
+end
+Kinetic() = Kinetic(1)
+(K::Kinetic)(basis) = TermKinetic(basis; scaling_factor=K.scaling_factor)
 
 struct TermKinetic <: Term
     basis::PlaneWaveBasis
     kinetic_energies::Vector{Vector} # kinetic energy 1/2|G+k|^2 for every kpoint
 end
-function TermKinetic(basis::PlaneWaveBasis)
-    kinetic_energies = [[sum(abs2, basis.model.recip_lattice * (G + kpt.coordinate)) / 2
+function TermKinetic(basis::PlaneWaveBasis; scaling_factor=1)
+    kinetic_energies = [[scaling_factor * sum(abs2, basis.model.recip_lattice * (G + kpt.coordinate)) / 2
                          for G in G_vectors(kpt)]
                         for kpt in basis.kpoints]
     TermKinetic(basis, kinetic_energies)

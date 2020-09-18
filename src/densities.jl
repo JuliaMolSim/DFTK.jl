@@ -7,9 +7,9 @@ function compute_partial_density(basis, kpt, ψk, occupation)
     # Build the partial density for this k-Point
     ρk_real = similar(ψk[:, 1], basis.fft_size)
     ρk_real .= 0
-    for (ist, ψik) in enumerate(eachcol(ψk))
-        ψik_real = G_to_r(basis, kpt, ψik)
-        ρk_real .+= occupation[ist] .* abs2.(ψik_real)
+    for (n, ψnk) in enumerate(eachcol(ψk))
+        ψnk_real = G_to_r(basis, kpt, ψnk)
+        ρk_real .+= occupation[n] .* abs2.(ψnk_real)
     end
 
     # Check sanity of the density (real, positive and normalized)
@@ -78,4 +78,24 @@ be one coefficient matrix per k-Point.
 
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))
     from_fourier(basis, sum(ρaccus) / count)
+end
+
+"""
+Computes the *probability* (not charge) current, ∑ fn Im(ϕn* ∇ϕn)
+"""
+function compute_current(basis::PlaneWaveBasis, ψ::AbstractVector,
+                         occupation::AbstractVector)
+    @assert all(symop -> length(symop) == 1, basis.ksymops) == 1  # TODO lift this
+    current = [zeros(eltype(basis), basis.fft_size) for α = 1:3]
+    for (ik, kpt) in enumerate(basis.kpoints)
+        for (n, ψnk) in enumerate(eachcol(ψ[ik]))
+            ψnk_real = G_to_r(basis, kpt, ψnk)
+            for α = 1:3
+                dαψnk = [im*(basis.model.recip_lattice * G)[α] for G in G_vectors(kpt)] .* ψnk
+                dαψnk_real = G_to_r(basis, kpt, dαψnk)
+                current[α] .+= basis.kweights[ik] * occupation[ik][n] * imag(conj(ψnk_real) .* dαψnk_real)
+            end
+        end
+    end
+    [from_real(basis, current[α]) for α = 1:3]
 end
