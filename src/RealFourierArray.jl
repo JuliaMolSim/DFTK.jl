@@ -41,8 +41,20 @@ function from_real(basis, real_part::AbstractArray{T}) where {T <: Real}
 end
 function from_fourier(basis, fourier_part::AbstractArray{T}; check_real=false) where {T <: Complex}
     if check_real
-        error("Not implemented yet")
         # Go through G vectors and check c_{-G} = (c_G)' (if both G and -G are in the grid)
+        # arr[1] is G=0, arr[1] is G=1, arr[N] is G=-1.
+        # So 1 -> 1, 2 -> N, ..., N -> 2
+        reflect(i, N) = i == 1 ? 1 : N-i+2
+        # Eg if N = 3, we get [0 1 -1], if N = 4, we get [0 1 2 -1] => we check to div(N+1,2)
+        for i = 1:div(basis.fft_size[1]+1, 2)
+            for j = 1:div(basis.fft_size[2]+1, 2)
+                for k = 1:div(basis.fft_size[3]+1, 2)
+                    err = abs(fourier_part[i, j, k] -
+                              conj(fourier_part[reflect(i, end), reflect(j, end), reflect(k, end)]))
+                    err > sqrt(eps(real(T))) && error()
+                end
+            end
+        end
         # Should be reasonably fast so we can make it the default
     end
     RealFourierArray(basis, similar(fourier_part, real(T)), fourier_part, RFA_only_fourier)
