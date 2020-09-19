@@ -65,8 +65,8 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
         G = basis.model.recip_lattice * Gred
         G2 = sum(abs2, G)
         if G2 != 0
-            eff_pot_fourier[iG] += -4T(π)*β * G[2] / G2 * eff_current[1][iG] * im
-            eff_pot_fourier[iG] += +4T(π)*β * G[1] / G2 * eff_current[2][iG] * im
+            eff_pot_fourier[iG] += -4T(π)*β * G[2] / G2 * eff_current_fourier[1][iG] * im
+            eff_pot_fourier[iG] += +4T(π)*β * G[1] / G2 * eff_current_fourier[2][iG] * im
         end
     end
     eff_pot_real = from_fourier(basis, eff_pot_fourier).real
