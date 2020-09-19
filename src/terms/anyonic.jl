@@ -16,7 +16,10 @@ function (A::Anyonic)(basis)
     @assert length(basis.kpoints) == 1
     @assert basis.kpoints[1].coordinate == [0, 0, 0]
     @assert basis.model.dim == 2
+    # only square lattices allowed
+    # (because I can't be bothered to figure out the right formulas otherwise)
     @assert basis.model.lattice[2, 1] == basis.model.lattice[1, 2] == 0
+    @assert basis.model.lattice[1, 1] == basis.model.lattice[2, 2]
 
     TermAnyonic(basis, A.β)
 end
@@ -35,6 +38,7 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
     # Compute A in Fourier domain
     # curl A = 2π ρ
     # A(G1, G2) = -2π i ρ(G1, G2) * [-G2;G1;0]/(G1^2 + G2^2)
+    # A is in cartesian (not reduced) coordinates
     A1 = zeros(complex(T), basis.fft_size)
     A2 = zeros(complex(T), basis.fft_size)
     for (iG, Gred) in enumerate(G_vectors(basis))
@@ -55,7 +59,9 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
 
     # Now compute effective local potential - 2β x⟂/|x|² ∗ (βAρ + J)
     current = compute_current(basis, ψ, occ)
-    eff_current = [β .* ρ.real .* Areal[α] .+ current[α].real for α = 1:2]
+    # TODO rationalize where this 1/sqrt(basis.model.recip_cell_volume) comes from
+    eff_current = [1/sqrt(basis.model.recip_cell_volume)*current[α].real .+
+                   β .* ρ.real .* Areal[α] for α = 1:2]
     eff_current_fourier = [from_real(basis, eff_current[α]).fourier for α = 1:2]
     # eff_pot = - 2β x⟂/|x|² ∗ eff_current
     # => ∇∧eff_pot = -4πβ eff_current

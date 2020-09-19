@@ -91,9 +91,9 @@ function compute_current(basis::PlaneWaveBasis, ψ::AbstractVector,
         for (n, ψnk) in enumerate(eachcol(ψ[ik]))
             ψnk_real = G_to_r(basis, kpt, ψnk)
             for α = 1:3
-                dαψnk = [im*(basis.model.recip_lattice * G)[α] for G in G_vectors(kpt)] .* ψnk
+                dαψnk = [im*(basis.model.recip_lattice * (G+kpt.coordinate))[α] for G in G_vectors(kpt)] .* ψnk
                 dαψnk_real = G_to_r(basis, kpt, dαψnk)
-                current[α] .+= basis.kweights[ik] * occupation[ik][n] * imag(conj(ψnk_real) .* dαψnk_real)
+                current[α] .+= @. basis.kweights[ik] * occupation[ik][n] * imag(conj(ψnk_real) * dαψnk_real)
             end
         end
     end
