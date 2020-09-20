@@ -53,7 +53,7 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
              from_fourier(basis, A2).real,
              zeros(T, basis.fft_size)]
 
-    # 2β (-i∇)⋅A + |A|^2
+    # 2β (-i∇)⋅A + β^2 |A|^2
     ops_energy = [MagneticFieldOperator(basis, basis.kpoints[1], 2β .* Areal),
                   RealSpaceMultiplication(basis, basis.kpoints[1], β^2 .* (abs2.(Areal[1]) .+ abs2.(Areal[2])))]
 
