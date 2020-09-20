@@ -22,12 +22,12 @@ function (A::Anyonic)(basis)
     @assert basis.model.lattice[2, 1] == basis.model.lattice[1, 2] == 0
     @assert basis.model.lattice[1, 1] == basis.model.lattice[2, 2]
 
-    TermAnyonic(basis, A.β)
+    TermAnyonic(basis, eltype(basis)(A.β))
 end
 
-struct TermAnyonic <: Term
-    basis::PlaneWaveBasis
-    β
+struct TermAnyonic{T <: Real} <: Term
+    basis::PlaneWaveBasis{T}
+    β::T
 end
 
 function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)

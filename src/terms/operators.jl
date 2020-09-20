@@ -111,9 +111,9 @@ Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
 """
 Magnetic field operator A⋅(-i∇).
 """
-struct MagneticFieldOperator <: RealFourierOperator
-    basis
-    kpoint
+struct MagneticFieldOperator{T <: Real} <: RealFourierOperator
+    basis::PlaneWaveBasis{T}
+    kpoint::Kpoint{T}
     Apot  # Apot[α][i,j,k] is the A field in (cartesian) direction α
 end
 @timing_seq "apply MagneticFieldOperator" function apply!(Hψ, op::MagneticFieldOperator, ψ)

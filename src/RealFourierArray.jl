@@ -10,6 +10,7 @@ import Base.eltype, Base.size, Base.length
 ## TODO this always allocates both real and fourier parts, which might be a bit wasteful
 ## TODO implement broadcasting. This seems to be non-trivial, so I just implement a few simple methods
 ## TODO implement compressed representation in Fourier space of real arrays
+## TODO generalize to AbstractArray
 
 @enum RFA_state RFA_only_real RFA_only_fourier RFA_both
 
@@ -20,8 +21,8 @@ with `A.real` and `A.fourier`.
 """
 mutable struct RealFourierArray{T <: Real}
     basis::PlaneWaveBasis{T}
-    _real::AbstractArray{T, 3}
-    _fourier::AbstractArray{Complex{T}, 3}
+    _real::Array{T, 3}
+    _fourier::Array{Complex{T}, 3}
     _state::RFA_state
 end
 # Type of the real part
@@ -39,7 +40,7 @@ end
 function from_real(basis, real_part::AbstractArray{T}) where {T <: Real}
     RealFourierArray(basis, real_part, similar(real_part, complex(T)), RFA_only_real)
 end
-function from_fourier(basis, fourier_part::AbstractArray{T}; check_real=false) where {T <: Complex}
+function from_fourier(basis, fourier_part::AbstractArray{T}; check_real=true) where {T <: Complex}
     if check_real
         # Go through G vectors and check c_{-G} = (c_G)' (if both G and -G are in the grid)
         # arr[1] is G=0, arr[1] is G=1, arr[N] is G=-1.
@@ -65,7 +66,7 @@ function Base.propertynames(array::RealFourierArray, private=false)
     private ? append!(ret, fieldnames(RealFourierArray)) : ret
 end
 
-function Base.getproperty(A::RealFourierArray, x::Symbol)
+function Base.getproperty(A::RealFourierArray{T}, x::Symbol) where {T}
     if x == :real
         if A._state == RFA_only_fourier
             r = G_to_r(A.basis, A._fourier)
@@ -76,13 +77,13 @@ function Base.getproperty(A::RealFourierArray, x::Symbol)
             end
             setfield!(A, :_state, RFA_both)
         end
-        return A._real
+        return A._real::Array{T, 3}
     elseif x == :fourier
         if A._state == RFA_only_real
             r_to_G!(A._fourier, A.basis, complex.(A._real))
             setfield!(A, :_state, RFA_both)
         end
-        return A._fourier
+        return A._fourier::Array{Complex{T}, 3}
     else
         getfield(A, x)
     end
