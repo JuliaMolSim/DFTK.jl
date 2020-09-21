@@ -30,7 +30,7 @@ codes such as [Abinit](https://www.abinit.org/),
     - Multi-level threading (kpoints, eigenvectors, FFTs, linear algebra)
     - 1D / 2D / 3D systems
     - Magnetic fields
-    - Treat systems beyond 500 electrons 400 bands
+    - Treat systems beyond 500 electrons
 * Ground-state properties and post-processing:
     - Total energy
     - Forces
