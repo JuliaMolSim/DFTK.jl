@@ -109,7 +109,7 @@ include("eigen/diag.jl")
 
 export KerkerMixing
 export SimpleMixing
-export RestaMixing
+export DielectricMixing
 export HybridMixing
 include("scf/mixing.jl")
 export scf_nlsolve_solver

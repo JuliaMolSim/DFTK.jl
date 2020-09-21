@@ -26,7 +26,10 @@ Default callback function for `self_consistent_field`, which prints a convergenc
 function ScfDefaultCallback()
     prev_energies = nothing
     function callback(info)
-        info.stage == :finalize && return
+        if info.stage == :finalize
+            info.converged || @warn "SCF not converged."
+            return
+        end
         if info.n_iter == 1
             E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
             @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin   Diag\n" E_label

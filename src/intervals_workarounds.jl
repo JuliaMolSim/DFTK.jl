@@ -7,10 +7,8 @@ import SpecialFunctions: erfc
 # (that's why it's not contributed upstream).
 # should be done e.g. by changing  the rounding mode ...
 # Some can be removed once these issues are addressed:
-#    https://github.com/JuliaIntervals/IntervalArithmetic.jl/issues/310
-#    https://github.com/JuliaIntervals/IntervalArithmetic.jl/issues/368
+#    https://github.com/JuliaIntervals/IntervalArithmetic.jl/pull/414
 cbrt(i::Interval) = Interval(prevfloat(cbrt(i.lo)), nextfloat(cbrt(i.hi)))
-hypot(a::Interval{T}, b::Interval{T}) where {T <: AbstractFloat} = √(a^2 + b^2)
 erfc(i::Interval) = Interval(prevfloat(erfc(i.lo)), nextfloat(erfc(i.hi)))
 
 function determine_grid_size(lattice::AbstractMatrix{T}, Ecut;
