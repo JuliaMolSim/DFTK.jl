@@ -37,16 +37,17 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
     @assert ψ !== nothing # the hamiltonian depends explicitly on ψ
 
     # Compute A in Fourier domain
-    # curl A = 2π ρ
-    # A(G1, G2) = -2π i ρ(G1, G2) * [-G2;G1;0]/(G1^2 + G2^2)
+    # curl A = 2π ρ, ∇⋅A = 0
+    # -i [G1;G2] ∧ A(G1,G2) = 2π ρ(G1,G2), [G1;G2] ⋅ A(G1,G2) = 0
+    # => A(G1, G2) = 2π i ρ(G1, G2) * [-G2;G1;0]/(G1^2 + G2^2)
     A1 = zeros(complex(T), basis.fft_size)
     A2 = zeros(complex(T), basis.fft_size)
     for (iG, Gred) in enumerate(G_vectors(basis))
         G = basis.model.recip_lattice * Gred
         G2 = sum(abs2, G)
         if G2 != 0
-            A1[iG] = +2T(π) * G[2] / G2 * ρ.fourier[iG] * im
-            A2[iG] = -2T(π) * G[1] / G2 * ρ.fourier[iG] * im
+            A1[iG] = -2T(π) * G[2] / G2 * ρ.fourier[iG] * im
+            A2[iG] = +2T(π) * G[1] / G2 * ρ.fourier[iG] * im
         end
     end
     Areal = [from_fourier(basis, A1).real,
@@ -64,14 +65,14 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
     eff_current_fourier = [from_real(basis, eff_current[α]).fourier for α = 1:2]
     # eff_pot = - 2β x⟂/|x|² ∗ eff_current
     # => ∇∧eff_pot = -4πβ eff_current
-    # => eff_pot(G1, G2) = 4πβ i eff_current(G1, G2) * [-G2;G1;0]/(G1^2 + G2^2)
+    # => eff_pot(G1, G2) = -4πβ i eff_current(G1, G2) * [-G2;G1;0]/(G1^2 + G2^2)
     eff_pot_fourier = zeros(complex(T), basis.fft_size)
     for (iG, Gred) in enumerate(G_vectors(basis))
         G = basis.model.recip_lattice * Gred
         G2 = sum(abs2, G)
         if G2 != 0
-            eff_pot_fourier[iG] += -4T(π)*β * G[2] / G2 * eff_current_fourier[1][iG] * im
-            eff_pot_fourier[iG] += +4T(π)*β * G[1] / G2 * eff_current_fourier[2][iG] * im
+            eff_pot_fourier[iG] += +4T(π)*β * G[2] / G2 * eff_current_fourier[1][iG] * im
+            eff_pot_fourier[iG] += -4T(π)*β * G[1] / G2 * eff_current_fourier[2][iG] * im
         end
     end
     eff_pot_real = from_fourier(basis, eff_pot_fourier).real
