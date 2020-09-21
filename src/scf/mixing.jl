@@ -6,14 +6,15 @@ import Base: @kwdef
 # Hamiltonian at ρin These define the basic fix-point iteration, that are then combined with
 # acceleration methods (eg anderson).
 # All these methods attempt to approximate the inverse Jacobian of the SCF step,
-# ``J^-1 = (1 - χ0 (vc + fxc))^-1``, where vc is the Coulomb and fxc the
+# ``J^-1 = (1 - χ0 (vc + K_{xc}))^-1``, where vc is the Coulomb and ``K_{xc}`` the
 # exchange-correlation kernel. Note that "mixing" is sometimes used to refer to the combined
 # process of formulating the fixed-point and solving it; we call "mixing" only the first part
+# The notation in this file follows Herbst, Levitt arXiv:2009.01665
 #
 # The interface is `mix(m; basis, ρin, ρout, kwargs...) -> ρnext`
 
 @doc raw"""
-Kerker mixing: ``J^{-1} ≈ \frac{α G^2}{k_{TF}^2 + G^2}``
+Kerker mixing: ``J^{-1} ≈ \frac{α |G|^2}{k_{TF}^2 + |G|^2}``
 where ``k_{TF}`` is the Thomas-Fermi wave vector.
 
 Notes:
@@ -55,26 +56,26 @@ end
 
 @doc raw"""
 We use a simplification of the Resta model DOI 10.1103/physrevb.16.2717 and set
-``χ_0(q) = \frac{C_0 G^2}{4π (1 - C_0 G^2 / k_{TF}^2)}
+``χ_0(q) = \frac{C_0 G^2}{4π (1 - C_0 G^2 / k_{TF}^2)}``
 where ``C_0 = 1 - ε_r`` with ``ε_r`` being the macroscopic relative permittivity.
-We neglect ``f_\text{xc}``, such that
+We neglect ``K_\text{xc}``, such that
 ``J^{-1} ≈ α \frac{k_{TF}^2 - C_0 G^2}{ε_r k_{TF}^2 - C_0 G^2}``
 
 By default it assumes a relative permittivity of 10 (similar to Silicon).
 `εr == 1` is equal to `SimpleMixing` and `εr == Inf` to `KerkerMixing`.
 """
-@kwdef struct RestaMixing
+@kwdef struct DielectricMixing
     α::Real = 0.8
     εr::Real = 0.8
     kTF::Real = 10
 end
-@timing "mixing Resta" function mix(mixing::RestaMixing, basis, ρin::RealFourierArray,
-                                    ρout::RealFourierArray; kwargs...)
+@timing "mixing Dielectric" function mix(mixing::DielectricMixing, basis, ρin::RealFourierArray,
+                                         ρout::RealFourierArray; kwargs...)
     T = eltype(basis)
     εr = T(mixing.εr)
     kTF = T(mixing.kTF)
-    εr == 1               && return mix(SimpleMixing(α=α), basis, ρin, ρout)
-    εr > 1 / sqrt(eps(T)) && return mix(KerkerMixing(α=α, kTF=kTF), basis, ρin, ρout)
+    εr == 1               && return mix(SimpleMixing(α=mixing.α), basis, ρin, ρout)
+    εr > 1 / sqrt(eps(T)) && return mix(KerkerMixing(α=mixing.α, kTF=kTF), basis, ρin, ρout)
 
     ρin = ρin.fourier
     ρout = ρout.fourier
@@ -91,13 +92,17 @@ end
 @doc raw"""
 The model for the susceptibility is
 ```math
-\begin{align*}
-χ_0(r, r') &= (-LDOS(εF, r) δ(r, r') + LDOS(εF, r) LDOS(εF, r') / DOS(εF)) \\
-           &+ \sqrt{L(x)} IFFT \frac{C_0 G^2}{4π (1 - C_0 G^2 / k_{TF}^2)} FFT \sqrt{L(x)}
-\end{align*}
+\begin{aligned}
+    χ_0(r, r') &= (-D_\text{loc}(r) δ(r, r') + D_\text{loc}(r) D_\text{loc}(r') / D) \\
+    &+ \sqrt{L(x)} \text{IFFT} \frac{C_0 G^2}{4π (1 - C_0 G^2 / k_{TF}^2)} \text{FFT} \sqrt{L(x)}
+\end{aligned}
 ```
-where ``C_0 = 1 - ε_r`` and the same convention for parameters is used as in `RestaMixing`.
+where ``C_0 = 1 - ε_r``, ``D_\text{loc}`` is the local density of states,
+``D`` is the density of states and
+the same convention for parameters are used
+as in `DielectricMixing`.
 Additionally there is the real-space localisation function `L(r)`.
+For details see Herbst, Levitt 2020 arXiv:2009.01665
 """
 @kwdef struct HybridMixing
     α::Real = 0.8
@@ -136,15 +141,15 @@ end
         δρ = devec(x)
         Jδρ = copy(δρ)
 
-        # Apply Kernel (just vc for RPA and (vc + fxc) if not RPA)
+        # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
         δV = apply_kernel(basis, from_real(basis, δρ), ρ=ρin, RPA=mixing.RPA)
         δV.real .-= sum(δV.real) / length(δV.real)  # set DC to zero
 
-        # Apply Resta term of χ0
+        # Apply Dielectric term of χ0
         if !iszero(C0)
             loc_δV = apply_sqrtL(δV).fourier
-            resta_loc_δV =  @. C0 * kTF^2 * Gsq / 4T(π) / (kTF^2 - C0 * Gsq) * loc_δV
-            Jδρ .-= apply_sqrtL(from_fourier(basis, resta_loc_δV)).real
+            dielectric_loc_δV =  @. C0 * kTF^2 * Gsq / 4T(π) / (kTF^2 - C0 * Gsq) * loc_δV
+            Jδρ .-= apply_sqrtL(from_fourier(basis, dielectric_loc_δV)).real
         end
 
         # Apply LDOS term of χ0

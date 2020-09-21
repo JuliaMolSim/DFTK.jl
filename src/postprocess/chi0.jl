@@ -175,7 +175,8 @@ returns `3` extra bands, which are not converged by the eigensolver
             # (H-εn) Q δψn = -Q δV ψn
             # where Q = sum_n |ψn><ψn|
 
-            # explicit contributions
+            # explicit contributions, we use symmetry in the index permutation m <-> n
+            # and therefore the loop starts at n
             for m = n:nbands
                 εmk = eigenvalues[ik][m]
                 ddiff = Smearing.occupation_divided_difference
