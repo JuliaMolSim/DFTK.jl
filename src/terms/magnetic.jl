@@ -1,4 +1,4 @@
-# This is pretty naive and probably needs to be thought about a bit more.
+# This is pretty naive and probably needs to be thought about a bit more, esp. in the periodic context.
 # Right now this is sufficient to reproduce uniform fields for isolated systems.
 
 @doc raw"""
