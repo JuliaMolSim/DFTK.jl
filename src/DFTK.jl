@@ -88,7 +88,7 @@ export apply_kernel
 export compute_kernel
 include("terms/terms.jl")
 
-export find_fermi_level
+export fermi_level
 export find_occupation
 export find_occupation_bandgap
 include("occupation.jl")
@@ -102,7 +102,6 @@ export PreconditionerNone
 include("eigen/preconditioners.jl")
 
 export lobpcg_hyper
-export lobpcg_scipy
 export lobpcg_itsolve
 export diag_full
 export diagonalize_all_kblocks
@@ -110,7 +109,7 @@ include("eigen/diag.jl")
 
 export KerkerMixing
 export SimpleMixing
-export RestaMixing
+export DielectricMixing
 export HybridMixing
 include("scf/mixing.jl")
 export scf_nlsolve_solver

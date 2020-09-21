@@ -103,6 +103,7 @@ makedocs(
             "guide/installation.md",
             "Tutorial" => "guide/tutorial.md",
             "guide/parallelisation.md",
+            "Density-functional theory" => "guide/density_functional_theory.md",
         ],
         "Examples" => EXAMPLES,
         "Advanced topics" => Any[

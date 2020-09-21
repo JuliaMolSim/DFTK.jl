@@ -135,7 +135,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     # operations are inverse to each other). The convention we want is
     # ψ(r) = sum_G c_G e^iGr / sqrt(Ω)
     # so that the ifft is normalized by 1/sqrt(Ω). It follows that the
-    # fft must be normalized by sqrt(Ω)/length
+    # fft must be normalized by sqrt(Ω) / length
     ipFFT *= sqrt(model.unit_cell_volume) / length(ipFFT)
     opFFT *= sqrt(model.unit_cell_volume) / length(opFFT)
     ipIFFT = inv(ipFFT)
@@ -282,7 +282,7 @@ end
 In-place version of `G_to_r`.
 """
 @timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                             f_fourier::AbstractArray3) where {Tr, Tf}
+                             f_fourier::AbstractArray3)
     mul!(f_real, basis.opIFFT, f_fourier)
 end
 @timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,

@@ -4,6 +4,8 @@
 # as a simple example for a metallic system.
 # For our treatment we will use the PBE exchange-correlation functional.
 # First we import required packages and setup the lattice.
+# Again notice that DFTK uses the convention that lattice vectors are
+# specified column by column.
 
 using DFTK
 using Plots
