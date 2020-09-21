@@ -15,11 +15,13 @@ env:
 script: |  # Install dependencies and test with coverage
   julia -e '
     using Pkg
-    Pkg.build(; verbose = true)
+    Pkg.build(; verbose=true)
 
     # Some optional python packages via conda
     using Conda
-    for pkg in ["nomkl", "ase", "matplotlib =3.2.2"]
+    # nomkl: https://github.com/JuliaPy/PyCall.jl/issues/801
+    #        https://github.com/bigartm/bigartm/issues/1022
+    for pkg in ["nomkl", "ase"]
         Conda.add(pkg; channel="conda-forge")
     end
 
@@ -59,6 +61,7 @@ jobs:
               # Some optional python packages via conda
               Pkg.add("Conda")
               using Conda
+              # matplotlib 3.2.2 requirement can be removed once ASE 3.20.1 is in conda
               for pkg in ["ase", "matplotlib =3.2.2"]
                   Conda.add(pkg; channel="conda-forge")
               end
