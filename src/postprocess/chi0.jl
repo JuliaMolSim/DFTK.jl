@@ -156,7 +156,6 @@ returns `3` extra bands, which are not converged by the eigensolver
     # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
     δρ_fourier = zeros(complex(T), size(δV))
     for ik = 1:length(basis.kpoints)
-        # One δρk accumulator per thread
         δρk = zero(δV)
         for n = 1:size(ψ[ik], 2)
             add_response_from_band!(δρk, n, ham.blocks[ik], eigenvalues[ik], ψ[ik],
@@ -182,6 +181,11 @@ returns `3` extra bands, which are not converged by the eigensolver
 end
 
 
+"""
+Adds the term `(f'ₙ δεₙ |ψₙ|² + 2Re fₙ ψₙ * δψₙ` to `δρ_{k}`
+where `δψₙ` is computed from `δV` partly using the known, computed states
+and partly by solving the Sternheimer equation (if `sternheimer_contribution=true`).
+"""
 function add_response_from_band!(δρk, n, hamk, εk, ψk, εF, δV,
                                  temperature, droptol, sternheimer_contribution,
                                  kwargs_sternheimer)
