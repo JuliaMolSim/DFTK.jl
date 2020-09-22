@@ -78,7 +78,7 @@ end
 # Default printing is just too verbose
 Base.show(io::IO, basis::PlaneWaveBasis) =
     print(io, "PlaneWaveBasis (Ecut=$(basis.Ecut), $(length(basis.kpoints)) kpoints)")
-Base.eltype(basis::PlaneWaveBasis{T}) where {T} = T
+Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
     model.spin_polarization in (:none, :collinear, :spinless) || (
@@ -137,13 +137,11 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     end
     fft_size = Tuple{Int, Int, Int}(fft_size)
 
-    kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
-
     if variational && optimize_fft_size
-        fft_size = determine_fft_size_precise(model.lattice, Ecut, kpoints; supersampling=supersampling)
-        fft_size = Tuple{Int, Int, Int}(fft_size)
         # TODO this is a hack for now, we build the kpoints twice
         kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
+        fft_size = determine_fft_size_precise(model.lattice, Ecut, kpoints; supersampling=supersampling)
+        fft_size = Tuple{Int, Int, Int}(fft_size)
     end
 
     # TODO generic FFT is kind of broken for some fft sizes
@@ -183,6 +181,9 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         symops = vcat(ksymops...)
     end
 
+    # Notice that this also builds index mapping from the k-point-specific basis
+    # to the global basis and thus the fft_size needs to be final at this point.
+    kpoints  = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
     basis = PlaneWaveBasis{T}(
         model, Ecut, kpoints,
         kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms, symops)

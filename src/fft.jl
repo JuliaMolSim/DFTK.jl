@@ -2,7 +2,7 @@ import FFTW
 
 # returns the lengths of the bounding rectangle in reciprocal space
 # that encloses the sphere of radius Gmax
-function bounding_rectangle(lattice::AbstractMatrix{T}, Gmax; tol=1e-8) where {T}
+function bounding_rectangle(lattice::AbstractMatrix{T}, Gmax; tol=sqrt(eps(T))) where {T}
     # If |B G| ≤ Gmax, then
     # |Gi| = |e_i^T B^-1 B G| ≤ |B^-T e_i| Gmax = |A_i| Gmax
     # with B the reciprocal lattice matrix, e_i the i-th canonical
@@ -29,7 +29,9 @@ The function will determine the smallest parallelepiped containing the wave vect
 For an exact representation of the density resulting from wave functions
 represented in the spherical basis sets, `supersampling` should be at least `2`.
 """
-function determine_fft_size(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=1e-8,
+function determine_fft_size(lattice::AbstractMatrix{T}, Ecut;
+                            supersampling=2,
+                            tol=sqrt(eps(T)),
                             ensure_smallprimes=true) where T
     Gmax = supersampling * sqrt(2 * Ecut)
     Glims = bounding_rectangle(lattice, Gmax; tol=tol)
@@ -98,8 +100,8 @@ end
 
 # For Float32 there are issues with aligned FFTW plans, so we
 # fall back to unaligned FFTW plans (which are generally discouraged).
-_fftw_flags(T::Type{Float32}) = FFTW.MEASURE | FFTW.UNALIGNED
-_fftw_flags(T::Type{Float64}) = FFTW.MEASURE
+_fftw_flags(::Type{Float32}) = FFTW.MEASURE | FFTW.UNALIGNED
+_fftw_flags(::Type{Float64}) = FFTW.MEASURE
 
 """
 Plan a FFT of type `T` and size `fft_size`, spending some time on finding an
