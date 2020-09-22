@@ -133,11 +133,7 @@ returns `3` extra bands, which are not converged by the eigensolver
                           kwargs_sternheimer=(cgtol=1e-6, verbose=false))
     basis = ham.basis
     T = eltype(basis)
-    model = basis.model
-    fft_size = basis.fft_size
-    @assert model.spin_polarization in (:none, :spinless)
-    filled_occ = filled_occupation(model)
-    dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
+    @assert basis.model.spin_polarization in (:none, :spinless)
 
     # Normalize δV to avoid numerical trouble; theoretically should
     # not be necessary, but it simplifies the interaction with the
@@ -160,49 +156,14 @@ returns `3` extra bands, which are not converged by the eigensolver
     # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
     δρ_fourier = zeros(complex(T), size(δV))
     for ik = 1:length(basis.kpoints)
-        nbands = size(ψ[ik], 2)
         δρk = zero(δV)
-        for n = 1:nbands
-            ψnk = @view ψ[ik][:, n]
-            ψnk_real = G_to_r(basis, basis.kpoints[ik], ψnk)
-            εnk = eigenvalues[ik][n]
-
-            # 2Re fn ψn* δψn
-            # we split δψn into its component on the computed and uncomputed states:
-            # δψn = P ψn + Q ψn
-            # we compute Pψn explicitly by sum over states, and
-            # Q δψn by solving the Sternheimer equation
-            # (H-εn) Q δψn = -Q δV ψn
-            # where Q = sum_n |ψn><ψn|
-
-            # explicit contributions, we use symmetry in the index permutation m <-> n
-            # and therefore the loop starts at n
-            for m = n:nbands
-                εmk = eigenvalues[ik][m]
-                ddiff = Smearing.occupation_divided_difference
-                ratio = filled_occ * ddiff(model.smearing, εmk, εnk, εF, temperature)
-                (n != m) && (abs(ratio) < droptol) && continue
-                ψmk = @view ψ[ik][:, m]
-                ψmk_real = G_to_r(basis, basis.kpoints[ik], ψmk)
-                # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
-                ρnm = conj(ψnk_real) .* ψmk_real
-                weight = dVol * dot(ρnm, δV)
-                δρk .+= (n == m ? 1 : 2) * real(ratio .* weight .* ρnm)
-            end
-
-            if sternheimer_contribution
-                # Compute the contributions from uncalculated bands
-                fnk = filled_occ * Smearing.occupation(model.smearing, (εnk-εF) / temperature)
-                abs(fnk) < eps(T) && continue
-                rhs = r_to_G(basis, basis.kpoints[ik], .- δV .* ψnk_real)
-                norm(rhs) < 100eps(T) && continue
-                δψnk = sternheimer_solver(ham.blocks[ik], ψ[ik], ψnk, εnk, rhs;
-                                          kwargs_sternheimer...)
-                δψnk_real = G_to_r(basis, basis.kpoints[ik], δψnk)
-                δρk .+= 2 .* fnk .* real(conj(ψnk_real) .* δψnk_real)
-            end
+        for n = 1:size(ψ[ik], 2)
+            add_response_from_band!(δρk, n, ham.blocks[ik], eigenvalues[ik], ψ[ik],
+                                    εF, δV, temperature, droptol, sternheimer_contribution,
+                                    kwargs_sternheimer)
         end
-        accumulate_over_symops!(δρ_fourier, r_to_G(basis, complex(δρk)), basis, basis.ksymops[ik])
+        accumulate_over_symops!(δρ_fourier, r_to_G(basis, complex(δρk)),
+                                basis, basis.ksymops[ik])
     end
     δρ = real(G_to_r(basis, δρ_fourier))
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))
@@ -210,10 +171,64 @@ returns `3` extra bands, which are not converged by the eigensolver
 
     # Add variation wrt εF
     if temperature > 0
+        dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
         ldos = LDOS(εF, basis, eigenvalues, ψ, temperature=temperature)
         dos  = DOS(εF, basis, eigenvalues, temperature=temperature)
         δρ .+= ldos .* dot(ldos, δV) .* dVol ./ dos
     end
 
     from_real(basis, δρ .* normδV)
+end
+
+
+"""
+Adds the term `(f'ₙ δεₙ |ψₙ|² + 2Re fₙ ψₙ * δψₙ` to `δρ_{k}`
+where `δψₙ` is computed from `δV` partly using the known, computed states
+and partly by solving the Sternheimer equation (if `sternheimer_contribution=true`).
+"""
+function add_response_from_band!(δρk, n, hamk, εk, ψk, εF, δV,
+                                 temperature, droptol, sternheimer_contribution,
+                                 kwargs_sternheimer)
+    basis = hamk.basis
+    T = eltype(basis)
+    model = basis.model
+    filled_occ = filled_occupation(model)
+    dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
+
+    ψnk = @view ψk[:, n]
+    ψnk_real = G_to_r(basis, hamk.kpoint, ψnk)
+
+    # 2Re fn ψn* δψn
+    # we split δψn into its component on the computed and uncomputed states:
+    # δψn = P ψn + Q ψn
+    # we compute Pψn explicitly by sum over states, and
+    # Q δψn by solving the Sternheimer equation
+    # (H-εn) Q δψn = -Q δV ψn
+    # where Q = sum_n |ψn><ψn|
+
+    # explicit contributions, we use symmetry in the index permutation m <-> n
+    # and therefore the loop starts at n
+    for m = n:size(ψk, 2)
+        ddiff = Smearing.occupation_divided_difference
+        ratio = filled_occ * ddiff(model.smearing, εk[m], εk[n], εF, temperature)
+        (n != m) && (abs(ratio) < droptol) && continue
+        ψmk_real = G_to_r(basis, hamk.kpoint, @view ψk[:, m])
+        # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
+        ρnm = conj(ψnk_real) .* ψmk_real
+        weight = dVol * dot(ρnm, δV)
+        δρk .+= (n == m ? 1 : 2) * real(ratio .* weight .* ρnm)
+    end
+
+    if sternheimer_contribution
+        # Compute the contributions from uncalculated bands
+        fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n]-εF) / temperature)
+        abs(fnk) < eps(T) && return δρk
+        rhs = r_to_G(basis, hamk.kpoint, .- δV .* ψnk_real)
+        norm(rhs) < 100eps(T) && return δρk
+        δψnk = sternheimer_solver(hamk, ψk, ψnk, εk[n], rhs; kwargs_sternheimer...)
+        δψnk_real = G_to_r(basis, hamk.kpoint, δψnk)
+        δρk .+= 2 .* fnk .* real(conj(ψnk_real) .* δψnk_real)
+    end
+
+    δρk
 end
