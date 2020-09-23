@@ -49,7 +49,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        eigensolver=lobpcg_hyper,
                                        n_ep_extra=3,
                                        determine_diagtol=ScfDiagtol(),
-                                       mixing=SimpleMixing(),
+                                       mixing=HybridMixing(),
                                        is_converged=ScfConvergenceEnergy(tol),
                                        callback=ScfDefaultCallback(),
                                        compute_consistent_energies=true,
