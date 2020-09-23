@@ -27,7 +27,7 @@ include("Smearing.jl")
 
 export Model
 export PlaneWaveBasis
-export determine_grid_size
+export determine_fft_size
 export G_vectors
 export r_vectors
 export Kpoint

@@ -43,7 +43,7 @@ Random.seed!(0)
     end
 
     if "all" in TAGS
-        include("determine_grid_size.jl")
+        include("determine_fft_size.jl")
         include("fourier_transforms.jl")
         include("PlaneWaveBasis.jl")
         include("interpolation.jl")
