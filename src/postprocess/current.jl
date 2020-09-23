@@ -1,8 +1,7 @@
 """
 Computes the *probability* (not charge) current, ∑ fn Im(ψn* ∇ψn)
 """
-function compute_current(basis::PlaneWaveBasis, ψ::AbstractVector,
-                         occupation::AbstractVector)
+function compute_current(basis::PlaneWaveBasis, ψ, occupation)
     @assert all(symop -> length(symop) == 1, basis.ksymops) == 1  # TODO lift this
     current = [zeros(eltype(basis), basis.fft_size) for α = 1:3]
     for (ik, kpt) in enumerate(basis.kpoints)

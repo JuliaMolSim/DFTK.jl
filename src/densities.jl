@@ -37,8 +37,7 @@ Compute the density for a wave function `ψ` discretized on the plane-wave grid 
 where the individual k-Points are occupied according to `occupation`. `ψ` should
 be one coefficient matrix per k-Point.
 """
-@timing function compute_density(basis::PlaneWaveBasis, ψ::AbstractVector,
-                                 occupation::AbstractVector)
+@timing function compute_density(basis::PlaneWaveBasis, ψ, occupation)
     n_k = length(basis.kpoints)
 
     # Sanity checks
