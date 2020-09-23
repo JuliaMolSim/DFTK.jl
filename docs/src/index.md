@@ -60,6 +60,7 @@ Pages = [
     "examples/pymatgen.md",
     "examples/ase.md",
     "examples/geometry_optimization.md",
+    "examples/polarizability.md",
     "examples/gross_pitaevskii.md",
     "examples/gross_pitaevskii_2D.md",
     "examples/cohen_bergstresser.md",
@@ -67,7 +68,6 @@ Pages = [
     "examples/scf_callbacks.md",
     "examples/custom_solvers.md",
     "examples/custom_potential.md",
-    "examples/polarizability.md",
 ]
 Depth = 1
 ```
