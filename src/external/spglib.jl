@@ -79,7 +79,7 @@ spglib_atoms(atoms) = first(spglib_atommapping(atoms))
     for Stilde in Stildes
         Scart = lattice * Stilde * inv(lattice)  # Form S in cartesian coords
         if maximum(abs, Scart'Scart - I) > tol_symmetry
-            error("spglib returned non-unitary rotation matrix")
+            error("spglib returned bad symmetries: Non-unitary rotation matrix.")
         end
     end
 
@@ -93,8 +93,9 @@ spglib_atoms(atoms) = first(spglib_atommapping(atoms))
                 # If all elements of a difference in diffs is integer, then
                 # Stilde * coord + τtilde and pos are equivalent lattice positions
                 if !any(all(isinteger, d) for d in diffs)
-                    error("Cannot map the atom at position $coord to another atom of the " *
-                          "same element under the symmetry operation (Stilde, τtilde):\n" *
+                    error("spglib returned bad symmetries: Cannot map the atom at position " *
+                          "$coord to another atom of the same element under the symmetry " *
+                          "operation (Stilde, τtilde):\n" *
                           "($Stilde, $τtilde)")
                 end
             end
@@ -121,7 +122,7 @@ function spglib_standardize_cell(lattice::AbstractArray{T}, atoms; correct_symme
     newatoms = [(atommapping[iatom]
                  => T.(spg_positions[findall(isequal(iatom), spg_numbers), :]))
                 for iatom in unique(spg_numbers)]
-    spg_lattice, newatoms
+    Matrix{T}(spg_lattice), newatoms
 end
 
 function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;

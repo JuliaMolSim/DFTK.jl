@@ -23,14 +23,14 @@ end
 
 
 @doc raw"""
-    bzmesh_uniform(kgrid_size)
+    bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
 
-Construct a uniform Brillouin zone mesh for sampling the ``k``-Points. The function
-returns a tuple `(kcoords, ksymops)`, where `kcoords` are the list of ``k``-Points
-and `ksymops` are a list of symmetry operations (for interface compatibility
-with `PlaneWaveBasis` and `bzmesh_irreducible`. No symmetry reduction is attempted,
-such that there will be `prod(kgrid_size)` ``k``-Points returned and all symmetry
-operations are the identity.
+Construct a (shifted) uniform Brillouin zone mesh for sampling the ``k``-Points.
+The function returns a tuple `(kcoords, ksymops)`, where `kcoords` are the list
+of ``k``-Points and `ksymops` are a list of symmetry operations (for interface
+compatibility with `PlaneWaveBasis` and `bzmesh_irreducible`. No symmetry
+reduction is attempted, such that there will be `prod(kgrid_size)` ``k``-Points
+returned and all symmetry operations are the identity.
 """
 function bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
     kcoords = kgrid_monkhorst_pack(kgrid_size; kshift=kshift)
@@ -39,14 +39,13 @@ end
 
 
 @doc raw"""
-    bzmesh_ir_wedge(kgrid_size, lattice, atoms; tol_symmetry=1e-5)
+     bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
 
 Construct the irreducible wedge of a uniform Brillouin zone mesh for sampling ``k``-Points.
 The function returns a tuple `(kcoords, ksymops)`, where `kcoords` are the list of
 irreducible ``k``-Points and `ksymops` are a list of symmetry operations for regenerating
-the full mesh. `lattice` are the lattice vectors, column by column, `atoms` are pairs
-representing a mapping from `Element` objects to a list of positions in fractional
-coordinates. `tol_symmetry` is the tolerance used for searching for symmetry operations.
+the full mesh. `symops` is the tuple returned from `symmetry_operations(lattice, atoms)`.
+`tol_symmetry` is the tolerance used for searching for symmetry operations.
 """
 function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
     all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size, kshift=kshift)

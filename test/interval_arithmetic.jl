@@ -14,7 +14,7 @@ function discretized_hamiltonian(T, testcase)
 
     # For interval arithmetic to give useful numbers,
     # the fft_size should be a power of 2
-    fft_size = nextpow.(2, determine_grid_size(model.lattice, Ecut))
+    fft_size = nextpow.(2, determine_fft_size(model.lattice, Ecut))
     basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1), fft_size=fft_size)
 
     ham = Hamiltonian(basis; ρ=guess_density(basis))

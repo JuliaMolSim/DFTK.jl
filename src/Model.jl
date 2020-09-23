@@ -59,9 +59,9 @@ discretization information).
 `smearing` is Fermi-Dirac if `temperature` is non-zero, none otherwise
 
 The `symmetry` kwarg can be:
-- auto: determine from terms if they respect the symmetry of the lattice/atoms.
-- off: no symmetries at all
-- force: force all the symmetries of the lattice/atoms.
+- `:auto`: determine from terms if they respect the symmetry of the lattice/atoms.
+- `:off`: no symmetries at all
+- `:force`: force all the symmetries of the lattice/atoms.
 Careful that in this last case, wrong results can occur if the
 external potential breaks symmetries (this is not checked).
 """
@@ -72,7 +72,8 @@ function Model(lattice::AbstractMatrix{T};
                temperature=T(0.0),
                smearing=nothing,
                spin_polarization=:none,
-               symmetry=:auto
+               symmetry=:auto,
+               tol_symmetry=1e-5,
                ) where {T <: Real}
     lattice = Mat3{T}(lattice)
     temperature = T(temperature)
@@ -92,7 +93,7 @@ function Model(lattice::AbstractMatrix{T};
         norm(lattice[:, i]) == norm(lattice[i, :]) == 0 || error(
             "For 1D and 2D systems, the non-empty dimensions must come first")
     end
-    cond(lattice[1:d, 1:d]) > 1e-5 || @warn "Your lattice is badly conditioned, the computation is likely to fail"
+    cond(lattice[1:d, 1:d]) > 1e-5 || @warn "Your lattice is badly conditioned, the computation is likely to fail."
 
     # Compute reciprocal lattice and volumes.
     # recall that the reciprocal lattice is the set of G vectors such
@@ -126,7 +127,7 @@ function Model(lattice::AbstractMatrix{T};
     end
 
     if compute_symmetry
-        symops = symmetry_operations(lattice, atoms)
+        symops = symmetry_operations(lattice, atoms, tol_symmetry=tol_symmetry)
     else
         symops = [identity_symop()]
     end
