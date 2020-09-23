@@ -104,13 +104,21 @@ end
                         for G in G_vectors(term.basis)]
 
         for (ir, r) in enumerate(positions)
-            forces[iel][ir] = -real(sum(conj(ρ.fourier[iG])
-                                        .* form_factors[iG]
-                                        .* cis(-2T(π) * dot(G, r))
-                                        .* (-2T(π)) .* G .* im
-                                        ./ sqrt(unit_cell_volume)
-                                        for (iG, G) in enumerate(G_vectors(term.basis))))
+            forces[iel][ir] = _force_local_internal(term.basis, ρ.fourier, form_factors, r)
         end
     end
     forces
+end
+# function barrier to work around various type instabilities
+function _force_local_internal(basis, ρ_fourier, form_factors, r)
+    T = real(eltype(ρ_fourier))
+    f = zero(Vec3{T})
+    for (iG, G) in enumerate(G_vectors(basis))
+        f -= real(conj(ρ_fourier[iG])
+                  .* form_factors[iG]
+                  .* cis(-2T(π) * dot(G, r))
+                  .* (-2T(π)) .* G .* im
+                  ./ sqrt(basis.model.unit_cell_volume))
+    end
+    f
 end

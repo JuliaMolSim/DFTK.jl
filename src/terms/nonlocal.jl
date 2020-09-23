@@ -78,12 +78,10 @@ end
                         P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
                         dPdR = [-2T(π)*im*(Skcoord + G)[α] for G in G_vectors(Skpoint)] .* P
 
-                        # TODO BLASify this further
+                        dHψSk = P * (C * (dPdR' * ψSk))
                         for iband = 1:size(ψ[ik], 2)
-                            ψnSk = @view ψSk[:, iband]
-                            fr[α] -= (occ[ik][iband] / tot_red_kpt_number
-                                      * real(  dot(ψnSk, P * C * dPdR' * ψnSk)
-                                             + dot(ψnSk, dPdR * C * P' * ψnSk)))
+                            @views fr[α] -= (occ[ik][iband] / tot_red_kpt_number
+                                             * 2real(  dot(ψSk[:, iband], dHψSk[:, iband])))
                         end
                         ind_red += 1
                     end
