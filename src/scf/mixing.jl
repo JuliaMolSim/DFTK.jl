@@ -66,8 +66,8 @@ By default it assumes a relative permittivity of 10 (similar to Silicon).
 """
 @kwdef struct DielectricMixing
     α::Real = 0.8
-    εr::Real = 0.8
-    kTF::Real = 10
+    kTF::Real = 0.8
+    εr::Real = 10
 end
 @timing "mixing Dielectric" function mix(mixing::DielectricMixing, basis, ρin::RealFourierArray,
                                          ρout::RealFourierArray; kwargs...)
@@ -106,7 +106,7 @@ For details see Herbst, Levitt 2020 arXiv:2009.01665
 """
 @kwdef struct HybridMixing
     α::Real = 0.8
-    εr::Real = 10
+    εr::Real = 1.0
     kTF::Real = 0.8
     localisation::Function = identity  # `L(r)` with `r` in fractional real-space coordinates
     RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
