@@ -20,10 +20,10 @@ with `A.real` and `A.fourier`.
 """
 mutable struct RealFourierArray{T <: Real,
                                 TRealArray <: AbstractArray{T, 3},
-                                TComplexArray <: AbstractArray{Complex{T}, 3}}
+                                TFourierArray <: AbstractArray{Complex{T}, 3}}
     basis::PlaneWaveBasis{T}
     _real::TRealArray
-    _fourier::TComplexArray
+    _fourier::TFourierArray
     _state::RFA_state
 end
 # Type of the real part
@@ -67,7 +67,7 @@ function Base.propertynames(array::RealFourierArray, private=false)
     private ? append!(ret, fieldnames(RealFourierArray)) : ret
 end
 
-function Base.getproperty(A::RealFourierArray{T}, x::Symbol) where {T}
+function Base.getproperty(A::RealFourierArray{T, TReal, TFourier}, x::Symbol) where {T, TReal, TFourier}
     if x == :real
         if A._state == RFA_only_fourier
             r = G_to_r(A.basis, A._fourier)
@@ -78,13 +78,13 @@ function Base.getproperty(A::RealFourierArray{T}, x::Symbol) where {T}
             end
             setfield!(A, :_state, RFA_both)
         end
-        return A._real
+        return A._real::TReal  # the compiler does not figure it out otherwise
     elseif x == :fourier
         if A._state == RFA_only_real
             r_to_G!(A._fourier, A.basis, complex.(A._real))
             setfield!(A, :_state, RFA_both)
         end
-        return A._fourier
+        return A._fourier::TFourier
     else
         getfield(A, x)
     end
