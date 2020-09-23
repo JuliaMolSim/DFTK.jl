@@ -19,11 +19,11 @@ and fourier space. Create with `from_real` or `from_fourier`, and access
 with `A.real` and `A.fourier`.
 """
 mutable struct RealFourierArray{T <: Real,
-                                T_real_array <: AbstractArray{T, 3},
-                                T_complex_array <: AbstractArray{Complex{T}, 3}}
+                                TRealArray <: AbstractArray{T, 3},
+                                TComplexArray <: AbstractArray{Complex{T}, 3}}
     basis::PlaneWaveBasis{T}
-    _real::T_real_array
-    _fourier::T_complex_array
+    _real::TRealArray
+    _fourier::TComplexArray
     _state::RFA_state
 end
 # Type of the real part
