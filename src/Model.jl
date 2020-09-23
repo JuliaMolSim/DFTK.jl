@@ -65,17 +65,16 @@ The `symmetry` kwarg can be:
 Careful that in this last case, wrong results can occur if the
 external potential breaks symmetries (this is not checked).
 """
-function Model(lattice::AbstractMatrix{Tlatt};
+function Model(lattice::AbstractMatrix{T};
                n_electrons=nothing,
                atoms=[],
                terms=[],
-               temperature=0.0,
+               temperature=T(0.0),
                smearing=nothing,
                spin_polarization=:none,
                symmetry=:auto
-               ) where {Tlatt <: Real}
+               ) where {T <: Real}
     # if the lattice was passed as integers, use doubles instead
-    T = Tlatt <: Integer ? Float64 : Tlatt
     lattice = Mat3{T}(lattice)
     temperature = T(temperature)
 
@@ -136,6 +135,7 @@ function Model(lattice::AbstractMatrix{Tlatt};
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
              spin_polarization, T(temperature), smearing, atoms, terms, symops)
 end
+Model(lattice::AbstractMatrix{T};kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
 
 """
 Convenience constructor, which builds a standard atomic (kinetic + atomic potential) model.

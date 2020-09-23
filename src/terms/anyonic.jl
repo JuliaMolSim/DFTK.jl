@@ -3,7 +3,7 @@
 # /!\ They have no 1/2 factor in front of the kinetic energy,
 #     so for consistency the added kinetic energy must have a scaling of 2
 # Energy = <u, ((-i∇+βA)^2 + V) u>
-# where ∇∧A = 2π ρ, ∇⋅A = 0 => A = x⟂/|x|² ∗ ρ
+# where ∇∧A = 2π ρ, ∇⋅A = 0 => A = x^⟂/|x|² ∗ ρ
 # H = (-i∇+βA)² + V - 2β x⟂/|x|² ∗ (βAρ + J)
 #   = -Δ + 2β (-i∇)⋅A + β²|A|^2 - 2β x⟂/|x|² ∗ (βAρ + J)
 # where only the first three terms "count for the energy", and where
@@ -55,12 +55,14 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
              zeros(T, basis.fft_size)]
 
     # 2β (-i∇)⋅A + β^2 |A|^2
-    ops_energy = [MagneticFieldOperator(basis, basis.kpoints[1], 2β .* Areal),
-                  RealSpaceMultiplication(basis, basis.kpoints[1], β^2 .* (abs2.(Areal[1]) .+ abs2.(Areal[2])))]
+    ops_energy = [MagneticFieldOperator(basis, basis.kpoints[1],
+                                        2β .* Areal),
+                  RealSpaceMultiplication(basis, basis.kpoints[1],
+                                          β^2 .* (abs2.(Areal[1]) .+ abs2.(Areal[2])))]
 
     # Now compute effective local potential - 2β x⟂/|x|² ∗ (βAρ + J)
-    current = compute_current(basis, ψ, occ)
-    eff_current = [current[α].real .+
+    J = compute_current(basis, ψ, occ)
+    eff_current = [J[α].real .+
                    β .* ρ.real .* Areal[α] for α = 1:2]
     eff_current_fourier = [from_real(basis, eff_current[α]).fourier for α = 1:2]
     # eff_pot = - 2β x⟂/|x|² ∗ eff_current
@@ -71,8 +73,8 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
         G = basis.model.recip_lattice * Gred
         G2 = sum(abs2, G)
         if G2 != 0
-            eff_pot_fourier[iG] += +4T(π)*β * G[2] / G2 * eff_current_fourier[1][iG] * im
-            eff_pot_fourier[iG] += -4T(π)*β * G[1] / G2 * eff_current_fourier[2][iG] * im
+            eff_pot_fourier[iG] += +4T(π)*β * im * G[2] / G2 * eff_current_fourier[1][iG]
+            eff_pot_fourier[iG] += -4T(π)*β * im * G[1] / G2 * eff_current_fourier[2][iG]
         end
     end
     eff_pot_real = from_fourier(basis, eff_pot_fourier).real

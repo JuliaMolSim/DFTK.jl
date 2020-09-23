@@ -10,7 +10,6 @@ import Base.eltype, Base.size, Base.length
 ## TODO this always allocates both real and fourier parts, which might be a bit wasteful
 ## TODO implement broadcasting. This seems to be non-trivial, so I just implement a few simple methods
 ## TODO implement compressed representation in Fourier space of real arrays
-## TODO generalize to AbstractArray
 
 @enum RFA_state RFA_only_real RFA_only_fourier RFA_both
 
@@ -19,10 +18,12 @@ A structure to facilitate manipulations of an array of real-space type T, in bot
 and fourier space. Create with `from_real` or `from_fourier`, and access
 with `A.real` and `A.fourier`.
 """
-mutable struct RealFourierArray{T <: Real}
+mutable struct RealFourierArray{T <: Real,
+                                Treal <: AbstractArray{T, 3},
+                                Tcomplex <: AbstractArray{Complex{T}, 3}}
     basis::PlaneWaveBasis{T}
-    _real::Array{T, 3}
-    _fourier::Array{Complex{T}, 3}
+    _real::Treal
+    _fourier::Tcomplex
     _state::RFA_state
 end
 # Type of the real part
@@ -43,6 +44,7 @@ end
 function from_fourier(basis, fourier_part::AbstractArray{T}; check_real=true) where {T <: Complex}
     if check_real
         # Go through G vectors and check c_{-G} = (c_G)' (if both G and -G are in the grid)
+        # TODO check it's reasonably fast so we can make it the default
         # arr[1] is G=0, arr[1] is G=1, arr[N] is G=-1.
         # So 1 -> 1, 2 -> N, ..., N -> 2
         reflect(i, N) = i == 1 ? 1 : N-i+2
@@ -52,11 +54,10 @@ function from_fourier(basis, fourier_part::AbstractArray{T}; check_real=true) wh
                 for k = 1:div(basis.fft_size[3]+1, 2)
                     err = abs(fourier_part[i, j, k] -
                               conj(fourier_part[reflect(i, end), reflect(j, end), reflect(k, end)]))
-                    err > sqrt(eps(real(T))) && error()
+                    err > sqrt(eps(real(T))) && error("Input array not real")
                 end
             end
         end
-        # Should be reasonably fast so we can make it the default
     end
     RealFourierArray(basis, similar(fourier_part, real(T)), fourier_part, RFA_only_fourier)
 end
@@ -77,13 +78,13 @@ function Base.getproperty(A::RealFourierArray{T}, x::Symbol) where {T}
             end
             setfield!(A, :_state, RFA_both)
         end
-        return A._real::Array{T, 3}
+        return A._real
     elseif x == :fourier
         if A._state == RFA_only_real
             r_to_G!(A._fourier, A.basis, complex.(A._real))
             setfield!(A, :_state, RFA_both)
         end
-        return A._fourier::Array{Complex{T}, 3}
+        return A._fourier
     else
         getfield(A, x)
     end

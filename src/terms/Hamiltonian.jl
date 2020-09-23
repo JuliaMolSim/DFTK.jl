@@ -81,6 +81,7 @@ function LinearAlgebra.mul!(Hψ, H::Hamiltonian, ψ)
 end
 # need `deepcopy` here to copy the elements of the array of arrays ψ (not just pointers)
 Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
+
 # Get energies and Hamiltonian
 # kwargs is additional info that might be useful for the energy terms to precompute
 # (eg the density ρ)

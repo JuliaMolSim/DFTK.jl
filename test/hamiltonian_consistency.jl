@@ -6,7 +6,8 @@ include("testcases.jl")
     using Random
     Random.seed!(0)
 
-    function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8, kgrid=[1, 2, 3], lattice=silicon.lattice, Ecut=10)
+    function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8, kgrid=[1, 2, 3],
+                                   lattice=silicon.lattice, Ecut=10)
         Si = ElementPsp(14, psp=load_psp(silicon.psp))
         atoms = [Si => silicon.positions]
         model = Model(lattice; n_electrons=silicon.n_electrons, atoms=atoms, terms=[term])
