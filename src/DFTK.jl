@@ -167,6 +167,8 @@ include("postprocess/DOS.jl")
 export compute_χ0
 export apply_χ0
 include("postprocess/chi0.jl")
+export compute_current
+include("postprocess/current.jl")
 
 function __init__()
     # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
