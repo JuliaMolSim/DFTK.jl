@@ -74,7 +74,6 @@ function Model(lattice::AbstractMatrix{T};
                spin_polarization=:none,
                symmetry=:auto
                ) where {T <: Real}
-    # if the lattice was passed as integers, use doubles instead
     lattice = Mat3{T}(lattice)
     temperature = T(temperature)
 
@@ -135,7 +134,7 @@ function Model(lattice::AbstractMatrix{T};
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
              spin_polarization, T(temperature), smearing, atoms, terms, symops)
 end
-Model(lattice::AbstractMatrix{T};kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
+Model(lattice::AbstractMatrix{T}; kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
 
 """
 Convenience constructor, which builds a standard atomic (kinetic + atomic potential) model.
