@@ -105,7 +105,7 @@ end
 function spglib_standardize_cell(lattice::AbstractArray{T}, atoms; correct_symmetry=true,
                                  primitive=false, tol_symmetry=1e-5) where {T}
     # Convert lattice and atoms to spglib and keep the mapping between our atoms
-    spg_lattice = Matrix{Float64}(lattice)
+    spg_lattice = copy(Matrix{Float64}(lattice)')
     # and spglibs atoms
     spg_atoms, atommapping = spglib_atommapping(atoms)
     spg_positions, spg_numbers = spg_atoms
@@ -113,8 +113,9 @@ function spglib_standardize_cell(lattice::AbstractArray{T}, atoms; correct_symme
     # Ask spglib to standardize the cell (i.e. find a cell, which fits the spglib conventions)
     num_atoms = ccall((:spg_standardize_cell, SPGLIB), Cint,
       (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cint, Cint, Cdouble),
-      copy(spg_lattice'), spg_positions, spg_numbers, length(spg_numbers), Cint(primitive),
+      spg_lattice, spg_positions, spg_numbers, length(spg_numbers), Cint(primitive),
       Cint(!correct_symmetry), tol_symmetry)
+    spg_lattice = copy(spg_lattice')
 
     newatoms = [(atommapping[iatom]
                  => T.(spg_positions[findall(isequal(iatom), spg_numbers), :]))
