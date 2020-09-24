@@ -21,7 +21,8 @@ script: |  # Install dependencies and test with coverage
     using Conda
     # nomkl: https://github.com/JuliaPy/PyCall.jl/issues/801
     #        https://github.com/bigartm/bigartm/issues/1022
-    for pkg in ["nomkl", "ase"]
+    # Version 1.0 is the one in conda-forge, which we enforce here
+    for pkg in ["nomkl =1.0", "ase"]
         Conda.add(pkg; channel="conda-forge")
     end
 

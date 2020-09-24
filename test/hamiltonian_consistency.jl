@@ -6,17 +6,14 @@ include("testcases.jl")
     using Random
     Random.seed!(0)
 
-    function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8)
-        testcase = silicon
-        Ecut = 10
-        lattice = testcase.lattice
+    function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8, kgrid=[1, 2, 3],
+                                   lattice=silicon.lattice, Ecut=10)
+        Si = ElementPsp(14, psp=load_psp(silicon.psp))
+        atoms = [Si => silicon.positions]
+        model = Model(lattice; n_electrons=silicon.n_electrons, atoms=atoms, terms=[term])
+        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, use_symmetry=false)
 
-        Si = ElementPsp(14, psp=load_psp(testcase.psp))
-        atoms = [Si => testcase.positions]
-        model = Model(lattice; n_electrons=testcase.n_electrons, atoms=atoms, terms=[term])
-        basis = PlaneWaveBasis(model, Ecut; kgrid=[1, 2, 3], use_symmetry=false)
-
-        n_electrons = testcase.n_electrons
+        n_electrons = silicon.n_electrons
         n_bands = div(n_electrons, 2)
 
         ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis.kpoints[ik])), n_bands)).Q)
@@ -32,13 +29,13 @@ include("testcases.jl")
         ρ_trial = compute_density(basis, ψ_trial, occupation)
 
         @assert length(basis.terms) == 1
-        E0, ops = ene_ops(basis.terms[1], ψ, occupation; ρ=ρ)
-        E1, _ = ene_ops(basis.terms[1], ψ_trial, occupation; ρ=ρ_trial)
-        diff = (E1 - E0)/ε
+        E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+        E1, _ = energy_hamiltonian(basis, ψ_trial, occupation; ρ=ρ_trial)
+        diff = (E1.total - E0.total)/ε
 
         diff_predicted = 0.0
         for (ik, kpt) in enumerate(basis.kpoints)
-            Hψ = ops[ik]*ψ[ik]
+            Hψ = ham.blocks[ik]*ψ[ik]
             dψHψ = sum(occupation[ik][iband] * real(dot(dψ[ik][:, iband], Hψ[:, iband]))
                        for iband=1:n_bands)
 
@@ -46,7 +43,7 @@ include("testcases.jl")
         end
 
         err = abs(diff - diff_predicted)
-        @test err < rtol * abs(E0) || err < atol
+        @test err < rtol * abs(E0.total) || err < atol
     end
 
     test_consistency_term(Kinetic())
@@ -59,4 +56,11 @@ include("testcases.jl")
     test_consistency_term(Ewald())
     test_consistency_term(PspCorrection())
     test_consistency_term(Xc(:lda_xc_teter93))
+
+    a = 6
+    pot(x, y, z) = (x - a/2)^2 + (y - a/2)^2
+    Apot(x, y, z) = .2 * [y - a/2, -(x - a/2), 0]
+    Apot(X) = Apot(X...)
+    test_consistency_term(Magnetic(Apot); kgrid=[1, 1, 1], lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
+    test_consistency_term(DFTK.Anyonic(1); kgrid=[1, 1, 1], lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
 end

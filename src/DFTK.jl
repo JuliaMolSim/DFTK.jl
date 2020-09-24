@@ -82,6 +82,7 @@ export Ewald
 export PspCorrection
 export Entropy
 export Magnetic
+export Anyonic
 export energy_ewald
 export energy_psp_correction
 export apply_kernel
@@ -166,6 +167,8 @@ include("postprocess/DOS.jl")
 export compute_χ0
 export apply_χ0
 include("postprocess/chi0.jl")
+export compute_current
+include("postprocess/current.jl")
 
 function __init__()
     # Use "@require" to only include fft_generic.jl once IntervalArithmetic or

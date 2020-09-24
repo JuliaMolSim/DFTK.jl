@@ -191,7 +191,7 @@ function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray
     if max_derivative < 0 || max_derivative > 1
         error("max_derivative not in [0, 1]")
     elseif max_derivative > 0
-        ∇ρ_real = [ifft(im * [(model.recip_lattice * G)[α] for G in G_vectors(basis)] .* ρF)
+        ∇ρ_real = [ifft(im * [G[α] for G in G_vectors_cart(basis)] .* ρF)
                    for α in 1:3]
         # TODO The above assumes CPU arrays
         σ_real = sum(∇ρ_real[α] .* ∇ρ_real[α] for α in 1:3)
@@ -214,7 +214,7 @@ The divergence is also returned as a real-space array.
 function divergence_real(operand, basis)
     gradsum = sum(1:3) do α
         operand_α = r_to_G(basis, complex(operand(α)))
-        del_α = im * [(basis.model.recip_lattice * G)[α] for G in G_vectors(basis)]
+        del_α = im * [G[α] for G in G_vectors_cart(basis)]
         del_α .* operand_α
     end
     real(G_to_r(basis, gradsum))

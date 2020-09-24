@@ -7,9 +7,9 @@ function compute_partial_density(basis, kpt, ψk, occupation)
     # Build the partial density for this k-Point
     ρk_real = similar(ψk[:, 1], basis.fft_size)
     ρk_real .= 0
-    for (ist, ψik) in enumerate(eachcol(ψk))
-        ψik_real = G_to_r(basis, kpt, ψik)
-        ρk_real .+= occupation[ist] .* abs2.(ψik_real)
+    for (n, ψnk) in enumerate(eachcol(ψk))
+        ψnk_real = G_to_r(basis, kpt, ψnk)
+        ρk_real .+= occupation[n] .* abs2.(ψnk_real)
     end
 
     # Check sanity of the density (real, positive and normalized)
@@ -37,8 +37,7 @@ Compute the density for a wave function `ψ` discretized on the plane-wave grid 
 where the individual k-Points are occupied according to `occupation`. `ψ` should
 be one coefficient matrix per k-Point.
 """
-@timing function compute_density(basis::PlaneWaveBasis, ψ::AbstractVector,
-                                 occupation::AbstractVector)
+@timing function compute_density(basis::PlaneWaveBasis, ψ, occupation)
     n_k = length(basis.kpoints)
 
     # Sanity checks
