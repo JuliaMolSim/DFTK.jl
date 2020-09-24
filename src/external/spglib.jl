@@ -1,9 +1,6 @@
 # Routines for interaction with spglib
 # Note: spglib/C uses the row-major convention, thus we need to perform transposes
-#       between julia and spglib.
-#       However, spglib expects the lattice to be passed in as a array of arrays,
-#       which it internally treats as column vectors. Thus we don't need to transpose
-#       the lattice because the julia memory layout of a matrix coincides with this.
+#       between julia and spglib (https://spglib.github.io/spglib/variable.html)
 const SPGLIB = spglib_jll.libsymspg
 
 function spglib_get_error_message()
@@ -53,14 +50,14 @@ spglib_atoms(atoms) = first(spglib_atommapping(atoms))
 
     spg_n_ops = ccall((:spg_get_multiplicity, SPGLIB), Cint,
         (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
-        lattice, spg_positions, spg_numbers, Cint(length(spg_numbers)), tol_symmetry)
+        copy(lattice'), spg_positions, spg_numbers, Cint(length(spg_numbers)), tol_symmetry)
 
     spg_rotations    = Array{Cint}(undef, 3, 3, spg_n_ops)
     spg_translations = Array{Cdouble}(undef, 3, spg_n_ops)
 
     ccall((:spg_get_symmetry, SPGLIB), Cint,
          (Ptr{Cint}, Ptr{Cdouble}, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
-         spg_rotations, spg_translations, spg_n_ops, lattice, spg_positions, spg_numbers,
+         spg_rotations, spg_translations, spg_n_ops, copy(lattice'), spg_positions, spg_numbers,
          Cint(length(spg_numbers)), tol_symmetry)
 
     # If spglib does not find symmetries give an error
@@ -71,7 +68,7 @@ spglib_atoms(atoms) = first(spglib_atommapping(atoms))
     end
 
     # Note: Transposes are performed to convert between spglib row-major to julia column-major
-    Stildes = [Mat3{Int}(spg_rotations[:, :, i])' for i in 1:spg_n_ops]
+    Stildes = [Mat3{Int}(spg_rotations[:, :, i]') for i in 1:spg_n_ops]
     τtildes = [rationalize.(Vec3{Float64}(spg_translations[:, i]), tol=tol_symmetry)
                for i in 1:spg_n_ops]
 
@@ -116,7 +113,7 @@ function spglib_standardize_cell(lattice::AbstractArray{T}, atoms; correct_symme
     # Ask spglib to standardize the cell (i.e. find a cell, which fits the spglib conventions)
     num_atoms = ccall((:spg_standardize_cell, SPGLIB), Cint,
       (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cint, Cint, Cdouble),
-      spg_lattice, spg_positions, spg_numbers, length(spg_numbers), Cint(primitive),
+      copy(spg_lattice'), spg_positions, spg_numbers, length(spg_numbers), Cint(primitive),
       Cint(!correct_symmetry), tol_symmetry)
 
     newatoms = [(atommapping[iatom]
@@ -130,8 +127,7 @@ function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;
                                                is_time_reversal=false,
                                                qpoints=[Vec3(0.0, 0.0, 0.0)],
                                                isdense=false)
-    # Note: Transposes are performed to convert from julia column-major to spglib row-major
-    spg_rotations = cat([Cint.(S)' for S in rotations]..., dims=3)
+    spg_rotations = cat([copy(Cint.(S')) for S in rotations]..., dims=3)
     nkpt = prod(kgrid_size)
     mapping = Vector{Cint}(undef, nkpt)
     grid_address = Matrix{Cint}(undef, 3, nkpt)
