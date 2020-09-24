@@ -37,8 +37,8 @@ mutable struct PreconditionerTPA{T <: Real}
 end
 
 function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=1) where T
-    kin = Vector{T}([sum(abs2, basis.model.recip_lattice * (G + kpt.coordinate))
-                     for G in G_vectors(kpt)] ./ 2)
+    kin = Vector{T}([sum(abs2, G + kpt.coordinate_cart)
+                     for G in G_vectors_cart(kpt)] ./ 2)
     @assert basis.model.spin_polarization in (:none, :collinear, :spinless)
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end

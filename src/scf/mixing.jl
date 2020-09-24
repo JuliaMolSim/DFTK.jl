@@ -29,7 +29,7 @@ end
 @timing "mixing Kerker" function mix(mixing::KerkerMixing, basis, ρin::RealFourierArray,
                                      ρout::RealFourierArray; kwargs...)
     T = eltype(basis)
-    Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
+    Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
     ρin = ρin.fourier
     ρout = ρout.fourier
     ρnext = @. ρin + T(mixing.α) * (ρout - ρin) * Gsq / (T(mixing.kTF)^2 + Gsq)
@@ -80,7 +80,7 @@ end
     ρin = ρin.fourier
     ρout = ρout.fourier
     C0 = 1 - εr
-    Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
+    Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
 
     ρnext = @. ρin + T(mixing.α) * (ρout - ρin) * (kTF^2 - C0 * Gsq) / (εr * kTF^2 - C0 * Gsq)
     # take the correct DC component from ρout; otherwise the DC component never gets updated
@@ -119,7 +119,7 @@ end
     εr = T(mixing.εr)
     kTF = T(mixing.kTF)
     C0 = 1 - εr
-    Gsq = [sum(abs2, basis.model.recip_lattice * G) for G in G_vectors(basis)]
+    Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
     dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
 
     apply_sqrtL = identity

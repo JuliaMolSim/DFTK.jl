@@ -42,8 +42,7 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
     # => A(G1, G2) = -2π i ρ(G1, G2) * [-G2;G1;0]/(G1^2 + G2^2)
     A1 = zeros(complex(T), basis.fft_size)
     A2 = zeros(complex(T), basis.fft_size)
-    for (iG, Gred) in enumerate(G_vectors(basis))
-        G = basis.model.recip_lattice * Gred
+    for (iG, G) in enumerate(G_vectors_cart(basis))
         G2 = sum(abs2, G)
         if G2 != 0
             A1[iG] = +2T(π) * G[2] / G2 * ρ.fourier[iG] * im
