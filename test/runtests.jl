@@ -1,6 +1,8 @@
 using Test
 using DFTK
 using Random
+import FFTW
+import LinearAlgebra: BLAS
 
 #
 # This test suite test arguments. For example:
@@ -12,14 +14,19 @@ using Random
 # runs all tests plus the "example" tests.
 #
 
+is_running_in_ci() = parse(Bool, get(ENV, "CI", "false"))
 # By default run expensive tests, but not if in CI environment
 # If user supplies the "fast" tag
-const FAST_TESTS = ifelse("CI" in keys(ENV), parse(Bool, get(ENV, "CI", "false")),
-                          "fast" in ARGS)
+const FAST_TESTS = is_running_in_ci() ? false : "fast" in ARGS
 
 # Tags supplied by the user ... filter out "fast" (already dealt with)
 TAGS = filter(e -> !(e in ["fast"]), ARGS)
 isempty(TAGS) && (TAGS = ["all"])
+
+if is_running_in_ci()
+    FFTW.set_num_threads(2)
+    BLAS.set_num_threads(2)
+end
 
 if FAST_TESTS
     println("   Running fast tests (TAGS = $(join(TAGS, ", "))).")

@@ -10,7 +10,7 @@ using LinearAlgebra
         basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1))
 
         is_converged = DFTK.ScfConvergenceDensity(tol)
-        scfres = self_consistent_field(basis, is_converged=is_converged)
+        scfres = self_consistent_field(basis, is_converged=is_converged) #, mixing=SimpleMixing())
         scfres.energies.total, DFTK.forces(scfres)
     end
 
