@@ -19,10 +19,10 @@ script: |  # Install dependencies and test with coverage
 
     # Some optional python packages via conda
     using Conda
-    # nomkl: https://github.com/JuliaPy/PyCall.jl/issues/801
+    # nomkl & blas: Enforce use of netlib BLAS
+    #        https://github.com/JuliaPy/PyCall.jl/issues/801
     #        https://github.com/bigartm/bigartm/issues/1022
-    # Version 1.0 is the one in conda-forge, which we enforce here
-    for pkg in ["nomkl =1.0", "ase"]
+    for pkg in ["nomkl", "libblas=*=*netlib", "ase"]
         Conda.add(pkg; channel="conda-forge")
     end
 
