@@ -3,6 +3,9 @@ branches:
     # Only build master and version tags
     - master
     - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
+    # For Bors:
+    - staging
+    - trying
 
 language: julia
 cache:
