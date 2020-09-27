@@ -8,7 +8,7 @@ struct Xc
     functionals::Vector{Functional}
     scaling_factor::Real  # to scale by an arbitrary factor (useful for exploration)
 end
-Xc(functionals::Vector; scaling_factor=1) = Xc(functionals, scaling_factor)
+Xc(functionals::Vector; scaling_factor = 1) = Xc(functionals, scaling_factor)
 Xc(functionals::Vector{Symbol}; kwargs...) = Xc(Functional.(functionals); kwargs...)
 Xc(functional::Symbol; kwargs...) = Xc([Functional(functional)]; kwargs...)
 Xc(functionals::Symbol...; kwargs...) = Xc([functionals...]; kwargs...)
@@ -28,7 +28,7 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
 
     if isempty(term.functionals)
         ops = [NoopOperator(term.basis, kpoint) for kpoint in term.basis.kpoints]
-        return (E=0, ops=ops)
+        return (E = 0, ops = ops)
     end
 
     # Take derivatives of the density if needed.
@@ -40,7 +40,7 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
     E = zero(T)
     for xc in term.functionals
         # Evaluate the functional and its first derivative (potential)
-        terms = evaluate(xc; input_kwargs(xc.family, density)..., zk=zk)
+        terms = evaluate(xc; input_kwargs(xc.family, density)..., zk = zk)
 
         # Add energy contribution
         dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
@@ -49,8 +49,8 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
         # Add potential contributions Vρ -2 ∇⋅(Vσ ∇ρ)
         potential .+= terms.vrho
         if haskey(terms, :vsigma)
-            potential .+= -2 * divergence_real(α -> terms.vsigma .* density.∇ρ_real[α],
-                                               density.basis)
+            potential .+=
+                -2 * divergence_real(α -> terms.vsigma .* density.∇ρ_real[α], density.basis)
         end
     end
     if term.scaling_factor != 1
@@ -59,7 +59,7 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
     end
 
     ops = [RealSpaceMultiplication(basis, kpoint, potential) for kpoint in basis.kpoints]
-    (E=E, ops=ops)
+    (E = E, ops = ops)
 end
 
 
@@ -68,7 +68,7 @@ function compute_kernel(term::TermXc; ρ::RealFourierArray, kwargs...)
     kernel .= 0
     for xc in term.functionals
         xc.family == :lda || error("compute_kernel only implemented for LDA")
-        terms = evaluate(xc; rho=ρ.real, derivatives=2:2)  # only valid for LDA
+        terms = evaluate(xc; rho = ρ.real, derivatives = 2:2)  # only valid for LDA
         kernel .+= terms.v2rho2
     end
     Diagonal(vec(term.scaling_factor .* kernel))
@@ -90,7 +90,7 @@ function apply_kernel(term::TermXc, dρ::RealFourierArray; ρ::RealFourierArray,
     result .= 0
     for xc in term.functionals
         # TODO LDA actually only needs the 2nd derivatives for this ... could be optimised
-        terms = evaluate(xc; input_kwargs(xc.family, density)..., derivatives=1:2)
+        terms = evaluate(xc; input_kwargs(xc.family, density)..., derivatives = 1:2)
 
         # Accumulate LDA and GGA terms in result
         result .+= terms.v2rho2 .* dρ.real
@@ -170,11 +170,11 @@ function max_required_derivative(functional)
 end
 
 struct DensityDerivatives
-    basis
+    basis::Any
     max_derivative::Int
-    ρ         # density on real-space grid
-    ∇ρ_real   # density gradient on real-space grid
-    σ_real    # contracted density gradient on real-space grid
+    ρ::Any         # density on real-space grid
+    ∇ρ_real::Any   # density gradient on real-space grid
+    σ_real::Any    # contracted density gradient on real-space grid
 end
 
 """
@@ -191,18 +191,17 @@ function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray
     if max_derivative < 0 || max_derivative > 1
         error("max_derivative not in [0, 1]")
     elseif max_derivative > 0
-        ∇ρ_real = [ifft(im * [G[α] for G in G_vectors_cart(basis)] .* ρF)
-                   for α in 1:3]
+        ∇ρ_real = [ifft(im * [G[α] for G in G_vectors_cart(basis)] .* ρF) for α = 1:3]
         # TODO The above assumes CPU arrays
-        σ_real = sum(∇ρ_real[α] .* ∇ρ_real[α] for α in 1:3)
+        σ_real = sum(∇ρ_real[α] .* ∇ρ_real[α] for α = 1:3)
     end
 
     DensityDerivatives(basis, max_derivative, ρ.real, ∇ρ_real, σ_real)
 end
 
 function input_kwargs(family, density)
-    family == :lda && return (rho=density.ρ, )
-    family == :gga && return (rho=density.ρ, sigma=density.σ_real)
+    family == :lda && return (rho = density.ρ,)
+    family == :gga && return (rho = density.ρ, sigma = density.σ_real)
     return NamedTuple()
 end
 
@@ -236,19 +235,17 @@ function apply_kernel_term_gga(terms, density, perturbation)
     #    - 2 ∇⋅((∂ε/∂σ) (∂∇ρ/∂σ)) dσ = - 2 ∇⋅((∂ε/∂σ) ∇dρ)
     #
     # Note that below the LDA term (∂^2ε/∂ρ^2) dρ is ignored (already dealt with)
-    ρ   = density.ρ
-    ∇ρ  = density.∇ρ_real
-    dρ  = perturbation.ρ
+    ρ = density.ρ
+    ∇ρ = density.∇ρ_real
+    dρ = perturbation.ρ
     ∇dρ = perturbation.∇ρ_real
-    dσ = 2sum(∇ρ[α] .* ∇dρ[α] for α in 1:3)
+    dσ = 2sum(∇ρ[α] .* ∇dρ[α] for α = 1:3)
 
-    (
-        terms.v2rhosigma .* dσ + divergence_real(density.basis) do α
-            @. begin
-                -2 * terms.v2rhosigma * ∇ρ[α] * dρ
-                -2 * terms.v2sigma2 * ∇ρ[α] * dσ
-                -2 * terms.vsigma * ∇dρ[α]
-            end
+    (terms.v2rhosigma .* dσ + divergence_real(density.basis) do α
+        @. begin
+            -2 * terms.v2rhosigma * ∇ρ[α] * dρ
+            -2 * terms.v2sigma2 * ∇ρ[α] * dσ
+            -2 * terms.vsigma * ∇dρ[α]
         end
-    )
+    end)
 end

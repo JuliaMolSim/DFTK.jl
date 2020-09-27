@@ -21,7 +21,7 @@ end
 
 function ene_ops(term::TermEwald, ψ, occ; kwargs...)
     ops = [NoopOperator(term.basis, kpoint) for kpoint in term.basis.kpoints]
-    (E=term.energy, ops=ops)
+    (E = term.energy, ops = ops)
 end
 
 @timing "forces_ewald" function forces(term::TermEwald, ψ, occ; kwargs...)
@@ -30,7 +30,7 @@ end
     # TODO this could be precomputed
     # Compute forces in the "flat" representation used by ewald
     forces_ewald = zeros(Vec3{T}, sum(length(positions) for (elem, positions) in atoms))
-    energy_ewald(term.basis.model; forces=forces_ewald)
+    energy_ewald(term.basis.model; forces = forces_ewald)
     # translate to the "folded" representation
     f = [zeros(Vec3{T}, length(positions)) for (type, positions) in atoms]
     count = 0
@@ -59,21 +59,28 @@ lattice and reciprocal lattice vectors as columns. `charges` and
 arrays) in fractional coordinates. If `forces` is not nothing, minus the derivatives
 of the energy with respect to `positions` is computed.
 """
-function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
+function energy_ewald(lattice, charges, positions; η = nothing, forces = nothing)
     T = eltype(lattice)
 
-    for i=1:3
-        if norm(lattice[:,i]) == 0
+    for i = 1:3
+        if norm(lattice[:, i]) == 0
             ## TODO should something more clever be done here? For now
             ## we assume that we are not interested in the Ewald
             ## energy of non-3D systems
             return T(0)
         end
     end
-    energy_ewald(lattice, T(2π) * inv(lattice'), charges, positions; η=η, forces=forces)
+    energy_ewald(lattice, T(2π) * inv(lattice'), charges, positions; η = η, forces = forces)
 end
 
-function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, forces=nothing)
+function energy_ewald(
+    lattice,
+    recip_lattice,
+    charges,
+    positions;
+    η = nothing,
+    forces = nothing,
+)
     T = eltype(lattice)
     @assert T == eltype(recip_lattice)
     @assert length(charges) == length(positions)
@@ -110,14 +117,16 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     # Reciprocal space sum
     #
     # Initialize reciprocal sum with correction term for charge neutrality
-    sum_recip::T = - (sum(charges)^2 / 4η^2)
+    sum_recip::T = -(sum(charges)^2 / 4η^2)
 
     # Function to return the indices corresponding
     # to a particular shell
     # TODO switch to an O(N) implementation
     function shell_indices(ish)
-        [[i,j,k] for i in -ish:ish for j in -ish:ish for k in -ish:ish
-         if maximum(abs.([i,j,k])) == ish]
+        [
+            [i, j, k] for i = -ish:ish for j = -ish:ish
+            for k in -ish:ish if maximum(abs.([i, j, k])) == ish
+        ]
     end
 
     # Loop over reciprocal-space shells
@@ -137,8 +146,10 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
                 continue
             end
 
-            cos_strucfac = sum(Z * cos(2T(π) * dot(r, G)) for (r, Z) in zip(positions, charges))
-            sin_strucfac = sum(Z * sin(2T(π) * dot(r, G)) for (r, Z) in zip(positions, charges))
+            cos_strucfac =
+                sum(Z * cos(2T(π) * dot(r, G)) for (r, Z) in zip(positions, charges))
+            sin_strucfac =
+                sum(Z * sin(2T(π) * dot(r, G)) for (r, Z) in zip(positions, charges))
             sum_strucfac = cos_strucfac^2 + sin_strucfac^2
 
             any_term_contributes = true
@@ -147,10 +158,10 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
             if forces !== nothing
                 for (ir, r) in enumerate(positions)
                     Z = charges[ir]
-                    dc = -Z*2T(π)*G*sin(2T(π) * dot(r, G))
-                    ds = +Z*2T(π)*G*cos(2T(π) * dot(r, G))
-                    dsum = 2cos_strucfac*dc + 2sin_strucfac*ds
-                    forces_recip[ir] -= dsum * exp(-exponent)/Gsq
+                    dc = -Z * 2T(π) * G * sin(2T(π) * dot(r, G))
+                    ds = +Z * 2T(π) * G * cos(2T(π) * dot(r, G))
+                    dsum = 2cos_strucfac * dc + 2sin_strucfac * ds
+                    forces_recip[ir] -= dsum * exp(-exponent) / Gsq
                 end
             end
         end
@@ -198,8 +209,20 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
                 sum_real += Zi * Zj * erfc(η * dist) / dist
                 if forces !== nothing
                     # Use ForwardDiff here because I'm lazy. TODO do it properly
-                    forces_real[i] -= ForwardDiff.gradient(r -> (dist=norm(lattice * (r - tj - R)); Zi * Zj * erfc(η * dist) / dist), ti)
-                    forces_real[j] -= ForwardDiff.gradient(r -> (dist=norm(lattice * (ti - r - R)); Zi * Zj * erfc(η * dist) / dist), tj)
+                    forces_real[i] -= ForwardDiff.gradient(
+                        r -> (
+                            dist = norm(lattice * (r - tj - R)); Zi * Zj * erfc(η * dist) /
+                                                                 dist
+                        ),
+                        ti,
+                    )
+                    forces_real[j] -= ForwardDiff.gradient(
+                        r -> (
+                            dist = norm(lattice * (ti - r - R)); Zi * Zj * erfc(η * dist) /
+                                                                 dist
+                        ),
+                        tj,
+                    )
                 end
             end # i,j
         end # R

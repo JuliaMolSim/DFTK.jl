@@ -16,7 +16,7 @@ end
 
 function ene_ops(term::TermPspCorrection, ψ, occ; kwargs...)
     ops = [NoopOperator(term.basis, kpoint) for kpoint in term.basis.kpoints]
-    (E=term.energy, ops=ops)
+    (E = term.energy, ops = ops)
 end
 
 """
@@ -32,13 +32,12 @@ function energy_psp_correction(lattice, atoms)
     any(attype isa ElementPsp for (attype, positions) in atoms) || return T(0)
 
     # Total number of explicitly treated (i.e. valence) electrons
-    n_electrons = sum(n_elec_valence(attype) for (attype, positions) in atoms
-                      for pos in positions)
+    n_electrons =
+        sum(n_elec_valence(attype) for (attype, positions) in atoms for pos in positions)
 
     correction_per_cell = sum(
         length(positions) * eval_psp_energy_correction(T, attype.psp, n_electrons)
-        for (attype, positions) in atoms
-        if attype isa ElementPsp
+        for (attype, positions) in atoms if attype isa ElementPsp
     )
 
     correction_per_cell / abs(det(lattice))

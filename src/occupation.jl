@@ -1,6 +1,6 @@
 # Functions for finding the Fermi level and occupation numbers for bands
 
-import Roots
+using Roots: Roots
 
 """
 Find the Fermi level.
@@ -10,9 +10,12 @@ fermi_level(basis, energies) = find_occupation(basis, energies).εF
 """
 Find the occupation and Fermi level.
 """
-function find_occupation(basis::PlaneWaveBasis{T}, energies;
-                         temperature=basis.model.temperature,
-                         smearing=basis.model.smearing) where {T}
+function find_occupation(
+    basis::PlaneWaveBasis{T},
+    energies;
+    temperature=basis.model.temperature,
+    smearing=basis.model.smearing,
+) where {T}
     @assert basis.model.spin_polarization in (:none, :spinless)
     n_electrons = basis.model.n_electrons
 
@@ -24,12 +27,17 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
     # sum_i n_i = n_electrons
     # If temperature is zero, (εi-εF)/T = ±∞.
     # The occupation function is required to give 1 and 0 respectively in these cases.
-    compute_occupation(εF) = [filled_occ * Smearing.occupation.(smearing, (ε .- εF) ./ temperature) for ε in energies]
+    compute_occupation(εF) = [
+        filled_occ * Smearing.occupation.(smearing, (ε .- εF) ./ temperature)
+        for ε in energies
+    ]
     compute_n_elec(εF) = sum(basis.kweights .* sum.(compute_occupation(εF)))
 
-    if filled_occ*sum(basis.kweights .* length.(energies)) < n_electrons - sqrt(eps(T))
-        error("Could not obtain required number of electrons by filling every state. " *
-              "Increase n_bands.")
+    if filled_occ * sum(basis.kweights .* length.(energies)) < n_electrons - sqrt(eps(T))
+        error(
+            "Could not obtain required number of electrons by filling every state. " *
+            "Increase n_bands.",
+        )
     end
 
     # Get rough bounds to bracket εF
@@ -52,8 +60,12 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
         # be multiple possible Fermi levels. This could be sped up with more
         # advanced methods (e.g. false position), but more care has to be
         # taken with convergence criteria and the like
-        εF = Roots.find_zero(εF -> compute_n_elec(εF) - n_electrons, (min_ε, max_ε),
-                             Roots.Bisection(), atol=eps(T))
+        εF = Roots.find_zero(
+            εF -> compute_n_elec(εF) - n_electrons,
+            (min_ε, max_ε),
+            Roots.Bisection();
+            atol=eps(T),
+        )
     end
 
     if !isapprox(compute_n_elec(εF), n_electrons)
@@ -66,8 +78,10 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
 
     if !isapprox(compute_n_elec(εF), n_electrons)
         if temperature == 0
-            error("Unable to find non-fractional occupations that have the " *
-                  "correct number of electrons. You should add a temperature.")
+            error(
+                "Unable to find non-fractional occupations that have the " *
+                "correct number of electrons. You should add a temperature.",
+            )
         else
             error("This should not happen, debug me!")
         end
@@ -104,12 +118,12 @@ function find_occupation_bandgap(basis, energies)
     HOMO = -Inf # highest occupied energy state
     LUMO = Inf  # lowest unoccupied energy state
     occupation = similar(basis.kpoints, Vector{T})
-    for ik in 1:length(occupation)
+    for ik = 1:length(occupation)
         occupation[ik] = zeros(T, n_bands)
         occupation[ik][1:n_fill] .= filled_occ
         HOMO = max(HOMO, energies[ik][n_fill])
         if n_fill < n_bands
-            LUMO = min(LUMO, energies[ik][n_fill + 1])
+            LUMO = min(LUMO, energies[ik][n_fill+1])
         end
     end
     @assert sum(basis.kweights .* sum.(occupation)) ≈ n_electrons
@@ -117,9 +131,12 @@ function find_occupation_bandgap(basis, energies)
     # Put Fermi level slightly above HOMO energy, to ensure that HOMO < εF
     εF = nextfloat(HOMO)
     if εF > LUMO
-        @warn("`find_occupation_bandgap` assumes an insulator, but the " *
-              "system seems metallic. Try specifying a temperature and a smearing function.",
-              HOMO, LUMO)
+        @warn(
+            "`find_occupation_bandgap` assumes an insulator, but the " *
+            "system seems metallic. Try specifying a temperature and a smearing function.",
+            HOMO,
+            LUMO
+        )
     end
 
     (occupation=occupation, εF=εF)

@@ -25,8 +25,8 @@ Base.haskey(energies::Energies, key) = haskey(energies.energies, key)
 
 function Energies(term_types::Vector, energies::Vector{T}) where {T}
     # nameof is there to get rid of parametric types
-    Energies{T}(OrderedDict([string(nameof(typeof(term))) => energies[i]
-                          for (i, term) in enumerate(term_types)]...))
+    Energies{T}(OrderedDict([string(nameof(typeof(term))) => energies[i] for
+    (i, term) in enumerate(term_types)]...))
 end
 
 function Base.propertynames(energies::Energies, private=false)

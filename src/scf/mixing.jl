@@ -26,8 +26,13 @@ Notes:
     α::Real = 0.8
     kTF::Real = 0.8
 end
-@timing "mixing Kerker" function mix(mixing::KerkerMixing, basis, ρin::RealFourierArray,
-                                     ρout::RealFourierArray; kwargs...)
+@timing "mixing Kerker" function mix(
+    mixing::KerkerMixing,
+    basis,
+    ρin::RealFourierArray,
+    ρout::RealFourierArray;
+    kwargs...,
+)
     T = eltype(basis)
     Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
     ρin = ρin.fourier
@@ -44,8 +49,13 @@ Simple mixing: ``J^{-1} ≈ α``
 @kwdef struct SimpleMixing
     α::Real = 0.8
 end
-@timing "mixing Simple" function mix(mixing::SimpleMixing, basis, ρin::RealFourierArray,
-                                     ρout::RealFourierArray; kwargs...)
+@timing "mixing Simple" function mix(
+    mixing::SimpleMixing,
+    basis,
+    ρin::RealFourierArray,
+    ρout::RealFourierArray;
+    kwargs...,
+)
     T = eltype(basis)
     if mixing.α == 1
         return ρout
@@ -69,20 +79,27 @@ By default it assumes a relative permittivity of 10 (similar to Silicon).
     kTF::Real = 0.8
     εr::Real = 10
 end
-@timing "mixing Dielectric" function mix(mixing::DielectricMixing, basis, ρin::RealFourierArray,
-                                         ρout::RealFourierArray; kwargs...)
+@timing "mixing Dielectric" function mix(
+    mixing::DielectricMixing,
+    basis,
+    ρin::RealFourierArray,
+    ρout::RealFourierArray;
+    kwargs...,
+)
     T = eltype(basis)
     εr = T(mixing.εr)
     kTF = T(mixing.kTF)
-    εr == 1               && return mix(SimpleMixing(α=mixing.α), basis, ρin, ρout)
-    εr > 1 / sqrt(eps(T)) && return mix(KerkerMixing(α=mixing.α, kTF=kTF), basis, ρin, ρout)
+    εr == 1 && return mix(SimpleMixing(α = mixing.α), basis, ρin, ρout)
+    εr > 1 / sqrt(eps(T)) &&
+        return mix(KerkerMixing(α = mixing.α, kTF = kTF), basis, ρin, ρout)
 
     ρin = ρin.fourier
     ρout = ρout.fourier
     C0 = 1 - εr
     Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
 
-    ρnext = @. ρin + T(mixing.α) * (ρout - ρin) * (kTF^2 - C0 * Gsq) / (εr * kTF^2 - C0 * Gsq)
+    ρnext =
+        @. ρin + T(mixing.α) * (ρout - ρin) * (kTF^2 - C0 * Gsq) / (εr * kTF^2 - C0 * Gsq)
     # take the correct DC component from ρout; otherwise the DC component never gets updated
     ρnext[1] = ρout[1]
     from_fourier(basis, ρnext)
@@ -113,8 +130,16 @@ For details see Herbst, Levitt 2020 arXiv:2009.01665
     verbose::Bool = false  # Run the GMRES verbosely
 end
 
-@timing "mixing Hybrid" function mix(mixing::HybridMixing, basis, ρin::RealFourierArray,
-                                     ρout::RealFourierArray; εF, eigenvalues, ψ, kwargs...)
+@timing "mixing Hybrid" function mix(
+    mixing::HybridMixing,
+    basis,
+    ρin::RealFourierArray,
+    ρout::RealFourierArray;
+    εF,
+    eigenvalues,
+    ψ,
+    kwargs...,
+)
     T = eltype(basis)
     εr = T(mixing.εr)
     kTF = T(mixing.kTF)
@@ -142,27 +167,29 @@ end
         Jδρ = copy(δρ)
 
         # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
-        δV = apply_kernel(basis, from_real(basis, δρ), ρ=ρin, RPA=mixing.RPA)
+        δV = apply_kernel(basis, from_real(basis, δρ), ρ = ρin, RPA = mixing.RPA)
         δV.real .-= sum(δV.real) / length(δV.real)  # set DC to zero
 
         # Apply Dielectric term of χ0
         if !iszero(C0)
             loc_δV = apply_sqrtL(δV).fourier
-            dielectric_loc_δV =  @. C0 * kTF^2 * Gsq / 4T(π) / (kTF^2 - C0 * Gsq) * loc_δV
+            dielectric_loc_δV = @. C0 * kTF^2 * Gsq / 4T(π) / (kTF^2 - C0 * Gsq) * loc_δV
             Jδρ .-= apply_sqrtL(from_fourier(basis, dielectric_loc_δV)).real
         end
 
         # Apply LDOS term of χ0
         if ldos !== nothing && maximum(abs, ldos) > eps(real(eltype(ldos)))
-            Jδρ .-= (-ldos .* δV.real
-                     .+ sum(ldos .* δV.real) .* dVol .* ldos ./ (sum(ldos) .* dVol))
+            Jδρ .-= (
+                -ldos .* δV.real .+
+                sum(ldos .* δV.real) .* dVol .* ldos ./ (sum(ldos) .* dVol)
+            )
         end
 
         # Zero DC component and return
         vec(Jδρ .-= sum(Jδρ) / length(Jδρ))
     end
     J = LinearMap(Jop, length(ρin))
-    x = gmres(J, ΔF, verbose=mixing.verbose)
+    x = gmres(J, ΔF, verbose = mixing.verbose)
     Δρ = devec(x)
     ρnext = real(@. ρin.real + T(mixing.α) * Δρ)
 

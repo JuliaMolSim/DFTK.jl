@@ -48,7 +48,7 @@ case will return a subset of the symmetries of the former two.
 function symmetry_operations(lattice, atoms; tol_symmetry=1e-5, kcoords=nothing)
     symops = []
     # Get symmetries from spglib
-    Stildes, τtildes = spglib_get_symmetry(lattice, atoms, tol_symmetry=tol_symmetry)
+    Stildes, τtildes = spglib_get_symmetry(lattice, atoms; tol_symmetry=tol_symmetry)
 
     for isym = 1:length(Stildes)
         S = Stildes[isym]'                  # in fractional reciprocal coordinates
@@ -66,8 +66,10 @@ function symops_preserving_kgrid(symops, kcoords=nothing)
     kcoords === nothing && return symops
     # filter only the operations that respect the symmetries of the discrete BZ grid
     function preserves_grid(S)
-        all(normalize_kpoint_coordinate(S * k) in kcoords
-            for k in normalize_kpoint_coordinate.(kcoords))
+        all(
+            normalize_kpoint_coordinate(S * k) in kcoords
+            for k in normalize_kpoint_coordinate.(kcoords)
+        )
     end
     filter(symop -> preserves_grid(symop[1]), symops)
 end
@@ -157,7 +159,7 @@ function apply_ksymop(ksymop, basis, kpoint, ψk::AbstractVecOrMat)
     invS = Mat3{Int}(inv(S))
     Gs_full = [G + kshift for G in G_vectors(Skpoint)]
     ψSk = zero(ψk)
-    for iband in 1:size(ψk, 2)
+    for iband = 1:size(ψk, 2)
         for (ig, G_full) in enumerate(Gs_full)
             igired = index_G_vectors(basis, kpoint, invS * G_full)
             @assert igired !== nothing
@@ -175,7 +177,6 @@ function apply_ksymop(symop, ρin::RealFourierArray)
     symop[1] == I && iszero(symop[2]) && return ρin
     from_fourier(ρin.basis, symmetrize(ρin, [symop]))
 end
-
 
 # Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
 # No normalization is performed

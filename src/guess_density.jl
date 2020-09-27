@@ -54,23 +54,22 @@ function atom_decay_length(n_elec_core, n_elec_valence)
         [1.8, 1.4, 1.0, 0.7, 0.6, 0.5, 0.4, 0.35, 0.3]
     elseif n_elec_core < 10.5
         # Ne core (1s2 2s2 2p6): Adjusted on 11na, 13al, 14si and 17cl
-        [2.0, 1.6, 1.25, 1.1, 1.0, 0.9, 0.8, 0.7 , 0.7, 0.7, 0.6]
+        [2.0, 1.6, 1.25, 1.1, 1.0, 0.9, 0.8, 0.7, 0.7, 0.7, 0.6]
     elseif n_elec_core < 12.5
         # Mg core (1s2 2s2 2p6 3s2): Adjusted on 19k, and on n_elec_core==10
-        [1.9, 1.5, 1.15, 1.0, 0.9, 0.8, 0.7, 0.6 , 0.6, 0.6, 0.5]
+        [1.9, 1.5, 1.15, 1.0, 0.9, 0.8, 0.7, 0.6, 0.6, 0.6, 0.5]
     elseif n_elec_core < 18.5
         # Ar core (Ne + 3s2 3p6): Adjusted on 20ca, 25mn and 30zn
         [2.0, 1.8, 1.5, 1.2, 1.0, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.65, 0.6]
     elseif n_elec_core < 28.5
         # Full 3rd shell core (Ar + 3d10): Adjusted on 31ga, 34se and 38sr
-        [1.5, 1.25, 1.15, 1.05, 1.00, 0.95, 0.95, 0.9, 0.9, 0.85, 0.85, 0.80,
-         0.8 , 0.75, 0.7]
+        [1.5, 1.25, 1.15, 1.05, 1.00, 0.95, 0.95, 0.9, 0.9, 0.85, 0.85, 0.80, 0.8, 0.75, 0.7]
     elseif n_elec_core < 36.5
         # Krypton core (Ar + 3d10 4s2 4p6): Adjusted on 39y, 42mo and 48cd
         [2.0, 2.00, 1.60, 1.40, 1.25, 1.10, 1.00, 0.95, 0.90, 0.85, 0.80, 0.75, 0.7]
     else
         # For the remaining elements, consider a function of n_elec_valence only
-        [2.0 , 2.00, 1.55, 1.25, 1.15, 1.10, 1.05, 1.0 , 0.95, 0.9, 0.85, 0.85, 0.8]
+        [2.0, 2.00, 1.55, 1.25, 1.15, 1.10, 1.05, 1.0, 0.95, 0.9, 0.85, 0.85, 0.8]
     end
     data[min(n_elec_valence, length(data))]
 end

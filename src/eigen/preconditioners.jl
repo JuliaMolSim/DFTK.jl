@@ -23,22 +23,24 @@ if VERSION < v"1.4"
     ldiv!(Y::AbstractVecOrMat, J::UniformScaling, B::AbstractVecOrMat) = (Y .= J.λ .\ B)
 end
 
-
 """
 (simplified version of) Tetter-Payne-Allan preconditioning
 ↑ M.P. Teter, M.C. Payne and D.C. Allan, Phys. Rev. B 40, 12255 (1989).
 """
-mutable struct PreconditionerTPA{T <: Real}
+mutable struct PreconditionerTPA{T<:Real}
     basis::PlaneWaveBasis
     kpt::Kpoint
     kin::Vector{T}  # kinetic energy of every G
-    mean_kin::Union{Nothing, Vector{T}}  # mean kinetic energy of every band
+    mean_kin::Union{Nothing,Vector{T}}  # mean kinetic energy of every band
     default_shift::T # if mean_kin is not set by `precondprep!`, this will be used for the shift
 end
 
-function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=1) where T
-    kin = Vector{T}([sum(abs2, G + kpt.coordinate_cart)
-                     for G in G_vectors_cart(kpt)] ./ 2)
+function PreconditionerTPA(
+    basis::PlaneWaveBasis{T},
+    kpt::Kpoint;
+    default_shift = 1,
+) where {T}
+    kin = Vector{T}([sum(abs2, G + kpt.coordinate_cart) for G in G_vectors_cart(kpt)] ./ 2)
     @assert basis.model.spin_polarization in (:none, :collinear, :spinless)
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
