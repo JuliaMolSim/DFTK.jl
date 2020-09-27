@@ -17,9 +17,7 @@ function Optim.project_tangent!(m::DMManifold, g, x)
     g_unpack = m.unpack(g)
     x_unpack = m.unpack(x)
     for ik = 1:m.Nk
-        Optim.project_tangent!(Optim.Stiefel(),
-                               g_unpack[ik],
-                               x_unpack[ik])
+        Optim.project_tangent!(Optim.Stiefel(), g_unpack[ik], x_unpack[ik])
     end
     g
 end
@@ -48,8 +46,7 @@ end
 function LinearAlgebra.dot(x, P::DMPreconditioner, y)
     x_unpack = P.unpack(x)
     y_unpack = P.unpack(y)
-    sum(dot(x_unpack[ik], P.Pks[ik], y_unpack[ik])
-        for ik = 1:P.Nk)
+    sum(dot(x_unpack[ik], P.Pks[ik], y_unpack[ik]) for ik = 1:P.Nk)
 end
 function precondprep!(P::DMPreconditioner, x)
     x_unpack = P.unpack(x)
@@ -65,10 +62,16 @@ Computes the ground state by direct minimization. `kwargs...` are
 passed to `Optim.Options()`. Note that the resulting ψ are not
 necessarily eigenvectors of the Hamiltonian.
 """
-direct_minimization(basis::PlaneWaveBasis; kwargs...) = direct_minimization(basis, nothing; kwargs...)
-function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
-                             prec_type=PreconditionerTPA,
-                             optim_solver=Optim.LBFGS, tol=1e-6, kwargs...) where T
+direct_minimization(basis::PlaneWaveBasis; kwargs...) =
+    direct_minimization(basis, nothing; kwargs...)
+function direct_minimization(
+    basis::PlaneWaveBasis{T},
+    ψ0;
+    prec_type = PreconditionerTPA,
+    optim_solver = Optim.LBFGS,
+    tol = 1e-6,
+    kwargs...,
+) where {T}
     model = basis.model
     @assert model.spin_polarization in (:none, :spinless)
     @assert model.temperature == 0 # temperature is not yet supported
@@ -78,8 +81,10 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     Nk = length(basis.kpoints)
 
     if ψ0 === nothing
-        ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), n_bands))
-              for kpt in basis.kpoints]
+        ψ0 = [
+            ortho(randn(Complex{T}, length(G_vectors(kpt)), n_bands))
+            for kpt in basis.kpoints
+        ]
     end
     occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
 
@@ -93,8 +98,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
         starts[ik+1] = starts[ik] + lengths[ik]
     end
     pack(ψ) = vcat(Base.vec.(ψ)...) # TODO as an optimization, do that lazily? See LazyArrays
-    unpack(ψ) = [@views reshape(ψ[starts[ik]:starts[ik]+lengths[ik]-1], size(ψ0[ik]))
-                 for ik = 1:Nk]
+    unpack(ψ) =
+        [@views reshape(ψ[starts[ik]:starts[ik]+lengths[ik]-1], size(ψ0[ik])) for ik = 1:Nk]
 
     # this will get updated along the iterations
     H = nothing
@@ -105,14 +110,14 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     function fg!(E, G, ψ)
         ψ = unpack(ψ)
         ρ = compute_density(basis, ψ, occupation)
-        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ = ρ)
 
         # The energy has terms like occ * <ψ|H|ψ>, so the gradient is 2occ Hψ
         if G !== nothing
             G = unpack(G)
             for ik = 1:Nk
                 mul!(G[ik], H.blocks[ik], ψ[ik])
-                G[ik] .*= 2*filled_occ
+                G[ik] .*= 2 * filled_occ
             end
         end
         energies.total
@@ -124,14 +129,25 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     P = DMPreconditioner(Nk, Pks, unpack)
 
     kwdict = Dict(kwargs)
-    optim_options = Optim.Options(; allow_f_increases=true, show_trace=true,
-                                  x_tol=pop!(kwdict, :x_tol, tol),
-                                  f_tol=pop!(kwdict, :f_tol, -1),
-                                  g_tol=pop!(kwdict, :g_tol, -1), kwdict...)
-    res = Optim.optimize(Optim.only_fg!(fg!), pack(ψ0),
-                         optim_solver(P=P, precondprep=precondprep!, manifold=manif,
-                                      linesearch=LineSearches.BackTracking()),
-                         optim_options)
+    optim_options = Optim.Options(;
+        allow_f_increases = true,
+        show_trace = true,
+        x_tol = pop!(kwdict, :x_tol, tol),
+        f_tol = pop!(kwdict, :f_tol, -1),
+        g_tol = pop!(kwdict, :g_tol, -1),
+        kwdict...,
+    )
+    res = Optim.optimize(
+        Optim.only_fg!(fg!),
+        pack(ψ0),
+        optim_solver(
+            P = P,
+            precondprep = precondprep!,
+            manifold = manif,
+            linesearch = LineSearches.BackTracking(),
+        ),
+        optim_options,
+    )
     ψ = unpack(res.minimizer)
     # These concepts do not make sense in direct minimization,
     # although we could maybe do a final Rayleigh-Ritz
@@ -140,6 +156,15 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
 
     # We rely on the fact that the last point where fg! was called is the minimizer to
     # avoid recomputing at ψ
-    (ham=H, energies=energies, converged=true,
-     ρ=ρ, ψ=ψ, eigenvalues=eigenvalues, occupation=occupation, εF=εF, optim_res=res)
+    (
+        ham = H,
+        energies = energies,
+        converged = true,
+        ρ = ρ,
+        ψ = ψ,
+        eigenvalues = eigenvalues,
+        occupation = occupation,
+        εF = εF,
+        optim_res = res,
+    )
 end

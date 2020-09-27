@@ -1,4 +1,4 @@
-import PeriodicTable
+using PeriodicTable: PeriodicTable
 
 # Alias to avoid similarity of elements and Element in DFTK module namespace
 periodic_table = PeriodicTable.elements
@@ -47,7 +47,6 @@ function ElementCoulomb(key)
     ElementCoulomb(periodic_table[key].number, Symbol(periodic_table[key].symbol))
 end
 
-
 function local_potential_fourier(el::ElementCoulomb, q::T) where {T <: Real}
     q == 0 && return zero(T)  # Compensating charge background
     # General atom => Use default Coulomb potential
@@ -56,7 +55,6 @@ function local_potential_fourier(el::ElementCoulomb, q::T) where {T <: Real}
 end
 
 local_potential_real(el::ElementCoulomb, r::Real) = -el.Z / r
-
 
 struct ElementPsp <: Element
     Z::Int  # Nuclear charge
@@ -69,8 +67,8 @@ Element interacting with electrons via a pseudopotential model.
 `key` may be an element symbol (like `:Si`), an atomic number (e.g. `14`)
 or an element name (e.g. `"silicon"`)
 """
-ElementPsp(key; psp) = ElementPsp(periodic_table[key].number,
-                                  Symbol(periodic_table[key].symbol), psp)
+ElementPsp(key; psp) =
+    ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp)
 charge_ionic(el::ElementPsp) = el.psp.Zion
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
@@ -82,7 +80,6 @@ function local_potential_real(el::ElementPsp, r::Real)
     # Use local part of pseudopotential defined in Element object
     return eval_psp_local_real(el.psp, r)
 end
-
 
 struct ElementCohenBergstresser <: Element
     Z::Int  # Nuclear charge
@@ -104,24 +101,33 @@ or an element name (e.g. `"silicon"`)
 function ElementCohenBergstresser(key; lattice_constant=nothing)
     # Form factors from Cohen-Bergstresser paper Table 2, converted to Bohr
     # Lattice constants from Table 1, converted to Bohr
-    data = Dict(:Si => (form_factors=Dict( 3 => -0.21 * units.Ry,
-                                           8 =>  0.04 * units.Ry,
-                                          11 =>  0.08 * units.Ry),
-                        lattice_constant=5.43 * units.Ǎ),
-                :Ge => (form_factors=Dict( 3 => -0.23 * units.Ry,
-                                           8 =>  0.01 * units.Ry,
-                                          11 =>  0.06 * units.Ry),
-                        lattice_constant=5.66 * units.Ǎ),
-                :Sn => (form_factors=Dict( 3 => -0.20 * units.Ry,
-                                           8 =>  0.00 * units.Ry,
-                                          11 =>  0.04 * units.Ry),
-                        lattice_constant=6.49 * units.Ǎ),
-            )
+    data = Dict(
+        :Si => (
+            form_factors=Dict(
+                3 => -0.21 * units.Ry, 8 => 0.04 * units.Ry, 11 => 0.08 * units.Ry
+            ),
+            lattice_constant=5.43 * units.Ǎ,
+        ),
+        :Ge => (
+            form_factors=Dict(
+                3 => -0.23 * units.Ry, 8 => 0.01 * units.Ry, 11 => 0.06 * units.Ry
+            ),
+            lattice_constant=5.66 * units.Ǎ,
+        ),
+        :Sn => (
+            form_factors=Dict(
+                3 => -0.20 * units.Ry, 8 => 0.00 * units.Ry, 11 => 0.04 * units.Ry
+            ),
+            lattice_constant=6.49 * units.Ǎ,
+        ),
+    )
 
     symbol = Symbol(periodic_table[key].symbol)
     if !(symbol in keys(data))
-        error("Cohen-Bergstresser potential not implemented for element " *
-              "$(element.symbol).")
+        error(
+            "Cohen-Bergstresser potential not implemented for element " *
+            "$(element.symbol)."
+        )
     end
     isnothing(lattice_constant) && (lattice_constant = data[symbol].lattice_constant)
 
@@ -132,8 +138,10 @@ function ElementCohenBergstresser(key; lattice_constant=nothing)
     # with respect to normalized planewaves (i.e. not plain Fourier coefficients)
     # and are already symmetrized into a sin-cos basis (see derivation p. 141)
     # => Scale by Ω / 2 to get them into the DFTK convention
-    V_sym = Dict(key => value * unit_cell_volume / 2
-                 for (key, value) in pairs(data[symbol].form_factors))
+    V_sym = Dict(
+        key => value * unit_cell_volume / 2
+        for (key, value) in pairs(data[symbol].form_factors)
+    )
 
     ElementCohenBergstresser(periodic_table[key].number, symbol, V_sym, lattice_constant)
 end
@@ -142,6 +150,6 @@ function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <:
     q == 0 && return zero(T)  # Compensating charge background
 
     # Get |q|^2 in units of (2π / lattice_constant)^2
-    qsq_pi = Int(round(q^2 / (2π / el.lattice_constant)^2, digits=2))
+    qsq_pi = Int(round(q^2 / (2π / el.lattice_constant)^2; digits=2))
     T(get(el.V_sym, qsq_pi, 0.0))
 end

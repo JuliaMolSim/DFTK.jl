@@ -20,7 +20,7 @@ using GenericLinearAlgebra
     res = blocks[1] * B[1:size(blocks[1], 2), :]  # First multiplication
     offset = size(blocks[1], 2)
     for block in blocks[2:end]
-        mul!(res, block, B[offset .+ (1:size(block, 2)), :], 1, 1)
+        mul!(res, block, B[offset.+(1:size(block, 2)), :], 1, 1)
         offset += size(block, 2)
     end
     res
@@ -29,11 +29,10 @@ bmul(A, B::Tuple) = error("not implemented")
 bmul(A::Tuple, B::Tuple) = error("not implemented")
 bmul(A, B) = A * B
 
-
 # Given A and B as two lists of blocks [A1, A2, A3], [B1, B2, B3] form the matrix
 # A' B optionally assuming that the output is a Hermitian matrix and will be used
 # with the Hermitian view, such that only the upper triangle needs to be computed.
-@views function boverlap(blocksA::Tuple, blocksB::Tuple; assume_hermitian=false)
+@views function boverlap(blocksA::Tuple, blocksB::Tuple; assume_hermitian = false)
     rows = sum(size(blA, 2) for blA in blocksA)
     cols = sum(size(blB, 2) for blB in blocksB)
     ret = similar(blocksA[1], rows, cols)
@@ -43,7 +42,7 @@ bmul(A, B) = A * B
         ocol = 0  # column offset
         for (iB, blB) in enumerate(blocksB)
             if !assume_hermitian || iA ≤ iB
-                mul!(ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))], blA', blB)
+                mul!(ret[orow.+(1:size(blA, 2)), ocol.+(1:size(blB, 2))], blA', blB)
             end
             ocol += size(blB, 2)
         end
@@ -51,30 +50,29 @@ bmul(A, B) = A * B
     end
     ret
 end
-boverlap(blocksA::Tuple, B) = boverlap(blocksA, (B, ))
+boverlap(blocksA::Tuple, B) = boverlap(blocksA, (B,))
 boverlap(A, B) = A' * B
-
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X, AX, BX, N)
-    F = eigen(Hermitian(boverlap(X, AX, assume_hermitian=true)))  # == Hermitian(X' AX)
-    F.vectors[:,1:N], F.values[1:N]
+    F = eigen(Hermitian(boverlap(X, AX; assume_hermitian = true)))  # == Hermitian(X' AX)
+    F.vectors[:, 1:N], F.values[1:N]
 end
 
 import LinearAlgebra: cholesky
-function cholesky(X::Union{Matrix{ComplexF16}, Hermitian{ComplexF16,Matrix{ComplexF16}}})
+function cholesky(X::Union{Matrix{ComplexF16},Hermitian{ComplexF16,Matrix{ComplexF16}}})
     # Cholesky factorization above may promote the type
     # (e.g. Float16 is promoted to Float32. This undoes it)
     # See https://github.com/JuliaLang/julia/issues/16446
     U = cholesky(ComplexF32.(X)).U
-    (U=convert.(ComplexF16, U), )
+    (U = convert.(ComplexF16, U),)
 end
 
 # Orthogonalizes X to tol
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been
 # magnified
-@timing function ortho(X; tol=2eps(real(eltype(X))))
+@timing function ortho(X; tol = 2eps(real(eltype(X))))
     local R
 
     # # Uncomment for "gold standard"
@@ -100,7 +98,7 @@ end
             α = 100
             nbad = 0
             while true
-                O += α*eps(real(eltype(X)))*norm(X)^2*I
+                O += α * eps(real(eltype(X))) * norm(X)^2 * I
                 α *= 10
                 try
                     R = cholesky(O).U
@@ -117,7 +115,7 @@ end
             success = false
         end
         invR = inv(R)
-        X = X*invR # we do not use X/R because we use invR next
+        X = X * invR # we do not use X/R because we use invR next
 
         normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 
@@ -132,13 +130,13 @@ end
         growth_factor *= norminvR
 
         # condR = 1/LAPACK.trcon!('I', 'U', 'N', Array(R))
-        condR = normest(R)*norminvR # in practice this seems to be an OK estimate
+        condR = normest(R) * norminvR # in practice this seems to be an OK estimate
 
-        vprintln("Ortho(X) success? $success ", eps(real(eltype(X)))*condR^2, " < $tol")
+        vprintln("Ortho(X) success? $success ", eps(real(eltype(X))) * condR^2, " < $tol")
 
         # a good a posteriori error is that X'X - I is eps()*κ(R)^2;
         # in practice this seems to be sometimes very overconservative
-        success && eps(real(eltype(X)))*condR^2 < tol && break
+        success && eps(real(eltype(X))) * condR^2 < tol && break
 
         nchol > 10 && error("Ortho(X) is failing badly, this should never happen")
     end
@@ -149,12 +147,12 @@ end
 end
 
 # Randomize the columns of X if the norm is below tol
-function drop!(X, tol=2eps(real(eltype(X))))
+function drop!(X, tol = 2eps(real(eltype(X))))
     dropped = []
-    for i=1:size(X,2)
-        n = norm(@views X[:,i])
+    for i = 1:size(X, 2)
+        n = norm(@views X[:, i])
         if n <= tol
-            X[:,i] = randn(eltype(X), size(X,1))
+            X[:, i] = randn(eltype(X), size(X, 1))
             push!(dropped, i)
         end
     end
@@ -162,14 +160,14 @@ function drop!(X, tol=2eps(real(eltype(X))))
 end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
-function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
-    Threads.@threads for i=1:size(X,2)
-        n = norm(@views X[:,i])
-        X[:,i] ./= n
+function ortho(X, Y, BY; tol = 2eps(real(eltype(X))))
+    Threads.@threads for i = 1:size(X, 2)
+        n = norm(@views X[:, i])
+        X[:, i] ./= n
     end
 
     niter = 1
-    ninners = zeros(Int,0)
+    ninners = zeros(Int, 0)
     while true
         BYX = boverlap(BY, X)   # = BY' X
         X .-= bmul(Y, BYX)  # = Y * BYX
@@ -185,7 +183,7 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
             push!(ninners, 0)
             break
         end
-        X, ninner, growth_factor = ortho(X, tol=tol)
+        X, ninner, growth_factor = ortho(X; tol = tol)
         push!(ninners, ninner)
 
         # norm(BY'X) < tol && break should be the proper check, but
@@ -197,7 +195,7 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
 
         # If we're at a fixed point, growth_factor is 1 and if tol >
         # eps(), the loop will terminate, even if BY'Y != 0
-        growth_factor*eps(real(eltype(X))) < tol && break
+        growth_factor * eps(real(eltype(X))) < tol && break
 
         niter > 10 && error("Ortho(X,Y) is failing badly, this should never happen")
         niter += 1
@@ -210,16 +208,17 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
     X
 end
 
-
 function final_retval(X, AX, resid_history, niter, n_matvec)
     λ = real(diag(X' * AX))
-    residuals = AX .- X*Diagonal(λ)
-    (λ=λ, X=X,
-     residual_norms=[norm(residuals[:, i]) for i in 1:size(residuals, 2)],
-     residual_history=resid_history[:, 1:niter+1],
-     n_matvec=n_matvec)
+    residuals = AX .- X * Diagonal(λ)
+    (
+        λ = λ,
+        X = X,
+        residual_norms = [norm(residuals[:, i]) for i = 1:size(residuals, 2)],
+        residual_history = resid_history[:, 1:niter+1],
+        n_matvec = n_matvec,
+    )
 end
-
 
 ### The algorithm is Xn+1 = rayleigh_ritz(hcat(Xn, A*Xn, Xn-Xn-1))
 ### We follow the strategy of Hetmaniuk and Lehoucq, and maintain a B-orthonormal basis Y = (X,R,P)
@@ -227,9 +226,18 @@ end
 ### R is then recomputed, and orthonormalized explicitly wrt BX and BP
 ### We reuse applications of A/B when it is safe to do so, ie only with orthogonal transformations
 
-@timing function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100;
-                        miniter=1, ortho_tol=2eps(real(eltype(X))),
-                        n_conv_check=nothing, display_progress=false)
+@timing function LOBPCG(
+    A,
+    X,
+    B = I,
+    precon = ((Y, X, R) -> R),
+    tol = 1e-10,
+    maxiter = 100;
+    miniter = 1,
+    ortho_tol = 2eps(real(eltype(X))),
+    n_conv_check = nothing,
+    display_progress = false,
+)
     N, M = size(X)
 
     # If N is too small, we will likely get in trouble
@@ -237,13 +245,13 @@ end
         fail; use a full diagonalization instead"
 
     n_conv_check === nothing && (n_conv_check = M)
-    resid_history = zeros(real(eltype(X)), M, maxiter+1)
+    resid_history = zeros(real(eltype(X)), M, maxiter + 1)
     buf_X = zero(X)
     buf_P = zero(X)
 
-    X = ortho(X, tol=ortho_tol)[1]
+    X = ortho(X; tol = ortho_tol)[1]
     n_matvec = M   # Count number of matrix-vector products
-    AX = A*X
+    AX = A * X
     # full_X/AX/BX will always store the full (including locked) X.
     # X/AX/BX only point to the active part
     P = zero(X)
@@ -252,7 +260,7 @@ end
     AR = zero(X)
     if B != I
         BR = zero(X)
-        BX = B*X
+        BX = B * X
         BP = zero(X)
     else
         # The B arrays share the data
@@ -262,7 +270,7 @@ end
     end
     nlocked = 0
     niter = 0  # the first iteration is fake
-    λs = @views [(X[:,n]'*AX[:,n]) / (X[:,n]'BX[:,n]) for n=1:M]
+    λs = @views [(X[:, n]' * AX[:, n]) / (X[:, n]'BX[:, n]) for n = 1:M]
     new_X = X
     new_AX = AX
     new_BX = BX
@@ -286,13 +294,13 @@ end
                 AY = (AX, AR)
                 BY = (BX, BR)  # data shared with (X, R) in non-general case
             end
-            cX, λs = rayleigh_ritz(Y, AY, BY, M-nlocked)
+            cX, λs = rayleigh_ritz(Y, AY, BY, M - nlocked)
 
             # Update X. By contrast to some other implementations, we
             # wait on updating P because we have to know which vectors
             # to lock (and therefore the residuals) before computing P
             # only for the unlocked vectors. This results in better convergence.
-            new_X  = bmul(Y , cX)  # = Y * cX
+            new_X = bmul(Y, cX)  # = Y * cX
             new_AX = bmul(AY, cX)  # = AY * cX,   no accuracy loss, since cX orthogonal
             new_BX = (B == I) ? new_X : bmul(BY, cX)
         end
@@ -302,8 +310,8 @@ end
         # it is actually a good question of knowing when to
         # precondition. Here seems sensible, but it could plausibly be
         # done before or after
-        @views for i=1:size(X,2)
-            resid_history[i + nlocked, niter+1] = norm(new_R[:, i])
+        @views for i = 1:size(X, 2)
+            resid_history[i+nlocked, niter+1] = norm(new_R[:, i])
         end
         vprintln(niter, "   ", resid_history[:, niter+1])
         precondprep!(precon, X)
@@ -312,7 +320,7 @@ end
         ### Compute number of locked vectors
         prev_nlocked = nlocked
         if niter ≥ miniter  # No locking if below miniter
-            for i=nlocked+1:M
+            for i = nlocked+1:M
                 if resid_history[i, niter+1] < tol
                     nlocked += 1
                     vprintln("locked $nlocked")
@@ -325,8 +333,10 @@ end
         end
 
         if display_progress
-            println("Iter $niter, converged $(nlocked)/$(n_conv_check), resid ",
-                    norm(resid_history[1:n_conv_check, niter+1]))
+            println(
+                "Iter $niter, converged $(nlocked)/$(n_conv_check), resid ",
+                norm(resid_history[1:n_conv_check, niter+1]),
+            )
         end
 
         if nlocked >= n_conv_check  # Converged!
@@ -335,7 +345,7 @@ end
             return final_retval(full_X, full_AX, resid_history, niter, n_matvec)
         end
         newly_locked = nlocked - prev_nlocked
-        active = newly_locked+1:size(X,2) # newly active vectors
+        active = newly_locked+1:size(X, 2) # newly active vectors
 
         if niter > 0
             ### compute P = Y*cP only for the newly active vectors
@@ -345,13 +355,13 @@ end
             # cP = copy(cX)
             # cP[Xn_indices,:] .= 0
             e = zeros(eltype(X), size(cX, 1), M - prev_nlocked)
-            for i in 1:length(Xn_indices)
+            for i = 1:length(Xn_indices)
                 e[Xn_indices[i], i] = 1
             end
             cP = cX .- e
             cP = cP[:, Xn_indices]
             # orthogonalize against all Xn (including newly locked)
-            cP = ortho(cP, cX, cX, tol=ortho_tol)
+            cP = ortho(cP, cX, cX; tol = ortho_tol)
 
             # Get new P
             new_P = bmul(Y, cP)    # = Y * cP
@@ -402,13 +412,13 @@ end
 
         # Orthogonalize R wrt all X, newly active P
         if niter > 0
-            Z  = (full_X, P)
+            Z = (full_X, P)
             BZ = (full_BX, BP)  # data shared with (full_X, P) in non-general case
         else
-            Z  = full_X
+            Z = full_X
             BZ = full_BX
         end
-        R .= ortho(R, Z, BZ, tol=ortho_tol)
+        R .= ortho(R, Z, BZ; tol = ortho_tol)
 
         if B != I
             # At this point R is orthogonalized but not B-orthogonalized.
@@ -416,7 +426,7 @@ end
             # close to be B-orthogonal. Therefore one step is OK, and B R
             # can be re-used
             mul!(BR, B, R)
-            O = Hermitian(R'*BR)
+            O = Hermitian(R' * BR)
             U = cholesky(O).U
             rdiv!(R, U)
             rdiv!(BR, U)

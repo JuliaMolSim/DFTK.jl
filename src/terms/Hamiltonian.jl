@@ -9,9 +9,9 @@ struct HamiltonianBlock
     # The operators are vectors of RealFourierOperator,
     # not typed because of type invariance issues.
     operators::Vector  # the original list of RealFourierOperator
-                       # (as many as there are terms), kept for easier exploration
+    # (as many as there are terms), kept for easier exploration
     optimized_operators::Vector  # the optimized list of RealFourierOperator, to be used for applying
-    scratch  # Pre-allocated scratch arrays for fast application
+    scratch::Any  # Pre-allocated scratch arrays for fast application
 end
 function HamiltonianBlock(basis, kpt, operators, scratch)
     HamiltonianBlock(basis, kpt, operators, optimize_operators_(operators), scratch)
@@ -30,9 +30,11 @@ end
 # Do this band by band to conserve memory
 # As an optimization we special-case nonlocal operators to apply them
 # instead on the full block and benefit from BLAS3
-@views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
-                                                                        H::HamiltonianBlock,
-                                                                        ψ::AbstractArray)
+@views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(
+    Hψ::AbstractArray,
+    H::HamiltonianBlock,
+    ψ::AbstractArray,
+)
     basis = H.basis
     kpt = H.kpoint
     nband = size(ψ, 2)
@@ -52,9 +54,11 @@ end
         G_to_r!(ψ_real, basis, kpt, ψ[:, iband])
         for op in H.optimized_operators
             if !(op isa NonlocalOperator)
-                apply!((fourier=Hψ_fourier, real=Hψ_real),
-                       op,
-                       (fourier=ψ[:, iband], real=ψ_real))
+                apply!(
+                    (fourier = Hψ_fourier, real = Hψ_real),
+                    op,
+                    (fourier = ψ[:, iband], real = ψ_real),
+                )
             end
         end
         Hψ[:, iband] .= Hψ_fourier
@@ -65,7 +69,7 @@ end
     # Apply the nonlocal operators
     for op in H.optimized_operators
         if op isa NonlocalOperator
-            apply!((fourier=Hψ, real=nothing), op, (fourier=ψ, real=nothing))
+            apply!((fourier = Hψ, real = nothing), op, (fourier = ψ, real = nothing))
         end
     end
 
@@ -88,8 +92,8 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
 @timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occ; kwargs...)
     # it: index into terms, ik: index into kpoints
     ene_ops_arr = [ene_ops(term, ψ, occ; kwargs...) for term in basis.terms]
-    energies    = [eh.E for eh in ene_ops_arr]
-    operators   = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
+    energies = [eh.E for eh in ene_ops_arr]
+    operators = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
 
     # flatten the inner arrays in case a term returns more than one operator
     function flatten(arr)
@@ -103,22 +107,27 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
         end
         ret
     end
-    hks_per_k   = [flatten([blocks[ik] for blocks in operators])
-                   for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
+    hks_per_k =
+        [flatten([blocks[ik] for blocks in operators]) for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
 
     # Preallocated scratch arrays
     T = eltype(basis)
     scratch = (
-        ψ_reals=[zeros(complex(T), basis.fft_size...) for tid = 1:Threads.nthreads()],
-        Hψ_reals=[zeros(complex(T), basis.fft_size...) for tid = 1:Threads.nthreads()]
+        ψ_reals = [zeros(complex(T), basis.fft_size...) for tid = 1:Threads.nthreads()],
+        Hψ_reals = [zeros(complex(T), basis.fft_size...) for tid = 1:Threads.nthreads()],
     )
 
-    H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks, scratch)
-                            for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
+    H = Hamiltonian(
+        basis,
+        [
+            HamiltonianBlock(basis, kpt, hks, scratch)
+            for (hks, kpt) in zip(hks_per_k, basis.kpoints)
+        ],
+    )
     E = Energies(basis.model.term_types, energies)
-    (E=E, H=H)
+    (E = E, H = H)
 end
-function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occ=nothing, kwargs...)
+function Hamiltonian(basis::PlaneWaveBasis; ψ = nothing, occ = nothing, kwargs...)
     _, H = energy_hamiltonian(basis, ψ, occ; kwargs...)
     H
 end

@@ -22,8 +22,13 @@ and temperature `T`. It increases with both `T` and better sampling of the BZ wi
 ``k``-Points. A value ``\gg 1`` indicates a good sampling of properties near the
 Fermi surface.
 """
-function NOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
-             temperature=basis.model.temperature)
+function NOS(
+    ε,
+    basis,
+    eigenvalues;
+    smearing = basis.model.smearing,
+    temperature = basis.model.temperature,
+)
     N = zero(ε)
     if (temperature == 0) || smearing isa Smearing.None
         error("NOS only supports finite temperature")
@@ -51,8 +56,13 @@ end
 """
 Total density of states at energy ε
 """
-function DOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
-             temperature=basis.model.temperature)
+function DOS(
+    ε,
+    basis,
+    eigenvalues;
+    smearing = basis.model.smearing,
+    temperature = basis.model.temperature,
+)
     filled_occ = filled_occupation(basis.model)
     D = zero(ε)
     if (temperature == 0) || smearing isa Smearing.None
@@ -61,8 +71,10 @@ function DOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
     for ik = 1:length(eigenvalues)
         for iband = 1:length(eigenvalues[ik])
             enred = (eigenvalues[ik][iband] - ε) / temperature
-            D -= (filled_occ * basis.kweights[ik] / temperature
-                  * Smearing.occupation_derivative(smearing, enred))
+            D -= (
+                filled_occ * basis.kweights[ik] / temperature *
+                Smearing.occupation_derivative(smearing, enred)
+            )
         end
     end
     D
@@ -71,8 +83,14 @@ end
 """
 Local density of states, in real space
 """
-function LDOS(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
-              temperature=basis.model.temperature)
+function LDOS(
+    ε,
+    basis,
+    eigenvalues,
+    ψ;
+    smearing = basis.model.smearing,
+    temperature = basis.model.temperature,
+)
     filled_occ = filled_occupation(basis.model)
     if (temperature == 0) || smearing isa Smearing.None
         error("LDOS only supports finite temperature")
@@ -81,8 +99,9 @@ function LDOS(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
     for ik = 1:length(eigenvalues)
         for iband = 1:length(eigenvalues[ik])
             enred = (eigenvalues[ik][iband] - ε) / temperature
-            weights[ik][iband] = (-filled_occ / temperature
-                                  * Smearing.occupation_derivative(smearing, enred))
+            weights[ik][iband] = (
+                -filled_occ / temperature * Smearing.occupation_derivative(smearing, enred)
+            )
         end
     end
 

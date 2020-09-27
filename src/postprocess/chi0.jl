@@ -7,7 +7,7 @@ using ProgressMeter
 Compute the independent-particle susceptibility. Will blow up for large systems.
 Drop all non-diagonal terms with (f(εn)-f(εm))/(εn-εm) factor less than `droptol`.
 """
-function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
+function compute_χ0(ham; droptol = 0, temperature = ham.basis.model.temperature)
     # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
     # where (up to normalizations)
     # ρ = ∑_nk f(εnk - εF) |ψnk|^2
@@ -44,7 +44,7 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
     Vs = [EV.vectors for EV in EVs]
-    occ, εF = find_occupation(basis, Es, temperature=temperature)
+    occ, εF = find_occupation(basis, Es, temperature = temperature)
 
     χ0 = zeros(eltype(basis), prod(fft_size), prod(fft_size))
     for ik = 1:length(basis.kpoints)
@@ -52,9 +52,12 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
         @assert N < 10_000
         E = Es[ik]
         V = Vs[ik]
-        Vr = cat(G_to_r.(Ref(basis), Ref(basis.kpoints[ik]), eachcol(V))..., dims=4)
+        Vr = cat(G_to_r.(Ref(basis), Ref(basis.kpoints[ik]), eachcol(V))..., dims = 4)
         Vr = reshape(Vr, prod(fft_size), N)
-        @showprogress "Computing χ0 for kpoint $ik/$(length(basis.kpoints)) ..." for m = 1:N, n = 1:N
+        @showprogress "Computing χ0 for kpoint $ik/$(length(basis.kpoints)) ..." for m =
+                1:N,
+            n = 1:N
+
             enred = (E[n] - εF) / temperature
             @assert occ[ik][n] ≈ filled_occ * Smearing.occupation(model.smearing, enred)
             ddiff = Smearing.occupation_divided_difference
@@ -64,8 +67,8 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
             # can take the real part here because the nm term is complex conjugate of mn
             # TODO optimize this a bit... use symmetry nm, reduce allocs, etc.
             factor = basis.kweights[ik] * ratio * dVol
-            @views χ0 .+= factor .* real(conj((Vr[:, m] .* Vr[:, m]'))
-                                            .*   (Vr[:, n] .* Vr[:, n]'))
+            @views χ0 .+=
+                factor .* real(conj((Vr[:, m] .* Vr[:, m]')) .* (Vr[:, n] .* Vr[:, n]'))
         end
     end
 
@@ -82,14 +85,22 @@ end
 
 # make ldiv! act as a given function
 struct FunctionPreconditioner
-    fun!  # f!(y, x) applies f to x and puts it into y
+    fun!::Any  # f!(y, x) applies f to x and puts it into y
 end
 LinearAlgebra.ldiv!(y::T, P::FunctionPreconditioner, x) where {T} = P.fun!(y, x)::T
 LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.fun!(similar(x), x))
 
 # Solves Q (H-εn) Q δψn = -Q rhs
 # where Q is the projector on the orthogonal of ψk
-@timing_seq function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs; cgtol=1e-6, verbose=false)
+@timing_seq function sternheimer_solver(
+    Hk,
+    ψk,
+    ψnk,
+    εnk,
+    rhs;
+    cgtol = 1e-6,
+    verbose = false,
+)
     basis = Hk.basis
     kpoint = Hk.kpoint
 
@@ -111,8 +122,13 @@ LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.fun!(similar(x), x))
     # don't commute enough, and an oversolving of the linear
     # system can lead to spurious solutions
     rhs = Q(rhs)
-    δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!), tol=cgtol / norm(rhs),
-              verbose=verbose)
+    δψnk = cg(
+        J,
+        rhs,
+        Pl = FunctionPreconditioner(f_ldiv!),
+        tol = cgtol / norm(rhs),
+        verbose = verbose,
+    )
     δψnk
 end
 
@@ -126,11 +142,17 @@ sufficiently converged. By default the `self_consistent_field` routine of `DFTK`
 returns `3` extra bands, which are not converged by the eigensolver
 (see `n_ep_extra` parameter). These should be discarded before using this function.
 """
-@timing function apply_χ0(ham, ψ, εF, eigenvalues, δV::RealFourierArray;
-                          droptol=0,
-                          sternheimer_contribution=true,
-                          temperature=ham.basis.model.temperature,
-                          kwargs_sternheimer=(cgtol=1e-6, verbose=false))
+@timing function apply_χ0(
+    ham,
+    ψ,
+    εF,
+    eigenvalues,
+    δV::RealFourierArray;
+    droptol = 0,
+    sternheimer_contribution = true,
+    temperature = ham.basis.model.temperature,
+    kwargs_sternheimer = (cgtol = 1e-6, verbose = false),
+)
     basis = ham.basis
     T = eltype(basis)
     @assert basis.model.spin_polarization in (:none, :spinless)
@@ -158,22 +180,36 @@ returns `3` extra bands, which are not converged by the eigensolver
     for ik = 1:length(basis.kpoints)
         δρk = zero(δV)
         for n = 1:size(ψ[ik], 2)
-            add_response_from_band!(δρk, n, ham.blocks[ik], eigenvalues[ik], ψ[ik],
-                                    εF, δV, temperature, droptol, sternheimer_contribution,
-                                    kwargs_sternheimer)
+            add_response_from_band!(
+                δρk,
+                n,
+                ham.blocks[ik],
+                eigenvalues[ik],
+                ψ[ik],
+                εF,
+                δV,
+                temperature,
+                droptol,
+                sternheimer_contribution,
+                kwargs_sternheimer,
+            )
         end
-        accumulate_over_symops!(δρ_fourier, r_to_G(basis, complex(δρk)),
-                                basis, basis.ksymops[ik])
+        accumulate_over_symops!(
+            δρ_fourier,
+            r_to_G(basis, complex(δρk)),
+            basis,
+            basis.ksymops[ik],
+        )
     end
     δρ = real(G_to_r(basis, δρ_fourier))
-    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))
+    count = sum(length(basis.ksymops[ik]) for ik = 1:length(basis.kpoints))
     δρ ./= count
 
     # Add variation wrt εF
     if temperature > 0
         dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
-        ldos = LDOS(εF, basis, eigenvalues, ψ, temperature=temperature)
-        dos  = DOS(εF, basis, eigenvalues, temperature=temperature)
+        ldos = LDOS(εF, basis, eigenvalues, ψ, temperature = temperature)
+        dos = DOS(εF, basis, eigenvalues, temperature = temperature)
         δρ .+= ldos .* dot(ldos, δV) .* dVol ./ dos
     end
 
@@ -186,9 +222,19 @@ Adds the term `(f'ₙ δεₙ |ψₙ|² + 2Re fₙ ψₙ * δψₙ` to `δρ_{k}
 where `δψₙ` is computed from `δV` partly using the known, computed states
 and partly by solving the Sternheimer equation (if `sternheimer_contribution=true`).
 """
-function add_response_from_band!(δρk, n, hamk, εk, ψk, εF, δV,
-                                 temperature, droptol, sternheimer_contribution,
-                                 kwargs_sternheimer)
+function add_response_from_band!(
+    δρk,
+    n,
+    hamk,
+    εk,
+    ψk,
+    εF,
+    δV,
+    temperature,
+    droptol,
+    sternheimer_contribution,
+    kwargs_sternheimer,
+)
     basis = hamk.basis
     T = eltype(basis)
     model = basis.model
@@ -221,9 +267,9 @@ function add_response_from_band!(δρk, n, hamk, εk, ψk, εF, δV,
 
     if sternheimer_contribution
         # Compute the contributions from uncalculated bands
-        fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n]-εF) / temperature)
+        fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n] - εF) / temperature)
         abs(fnk) < eps(T) && return δρk
-        rhs = r_to_G(basis, hamk.kpoint, .- δV .* ψnk_real)
+        rhs = r_to_G(basis, hamk.kpoint, .-δV .* ψnk_real)
         norm(rhs) < 100eps(T) && return δρk
         δψnk = sternheimer_solver(hamk, ψk, ψnk, εk[n], rhs; kwargs_sternheimer...)
         δψnk_real = G_to_r(basis, hamk.kpoint, δψnk)

@@ -18,7 +18,6 @@ function load_lattice_ase(T, pyobj::PyObject)
     end
 end
 
-
 function load_atoms_ase(T, pyobj::PyObject)
     @assert pyisinstance(pyobj, pyimport("ase").Atoms)
     # TODO Be smarter and look at the calculator to determine the psps
@@ -34,10 +33,8 @@ function load_atoms_ase(T, pyobj::PyObject)
     end
 end
 
-
 ase_cell(lattice) = pyimport("ase").cell.Cell(Array(lattice)' / DFTK.units.Å)
 ase_cell(model::Model) = ase_cell(model.lattice)
-
 
 function ase_atoms(lattice_or_model, atoms)
     cell = ase_cell(lattice_or_model)
@@ -46,7 +43,8 @@ function ase_atoms(lattice_or_model, atoms)
         append!(symbols, fill(string(elem.symbol), length(pos)))
     end
     scaled_positions = vcat([pos for (elem, pos) in atoms]...)
-    pyimport("ase").Atoms(symbols=symbols, cell=cell, pbc=true,
-                          scaled_positions=hcat(scaled_positions...)')
+    pyimport("ase").Atoms(;
+        symbols=symbols, cell=cell, pbc=true, scaled_positions=hcat(scaled_positions...)'
+    )
 end
 ase_atoms(model::Model) = pymatgen_structure(model.lattice, model.atoms)

@@ -6,11 +6,17 @@ else
 end
 
 macro assert_expensive(expr)
-    esc(:(if $(@__MODULE__).assert_expensive_enabled()
-          @assert($expr) end))
+    esc(:(
+        if $(@__MODULE__).assert_expensive_enabled()
+            @assert($expr)
+        end
+    ))
 end
 
 macro assert_expensive(expr, text)
-    esc(:(if $(@__MODULE__).assert_expensive_enabled()
-          @assert($expr, $text) end))
+    esc(:(
+        if $(@__MODULE__).assert_expensive_enabled()
+            @assert($expr, $text)
+        end
+    ))
 end

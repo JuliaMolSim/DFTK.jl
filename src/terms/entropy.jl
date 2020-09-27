@@ -19,8 +19,8 @@ function ene_ops(term::TermEntropy, ψ, occ; kwargs...)
     smearing = basis.model.smearing
     temperature = basis.model.temperature
 
-    temperature == 0 && return (E=zero(T), ops=ops)
-    ψ == nothing && return (E=T(Inf), ops=ops)
+    temperature == 0 && return (E = zero(T), ops = ops)
+    ψ == nothing && return (E = T(Inf), ops = ops)
 
     filled_occ = filled_occupation(basis.model)
     eigenvalues = kwargs[:eigenvalues]
@@ -29,12 +29,14 @@ function ene_ops(term::TermEntropy, ψ, occ; kwargs...)
     E = zero(T)
     for (ik, k) in enumerate(basis.kpoints)
         for iband = 1:size(ψ[1], 2)
-            E -= (temperature
-                  * basis.kweights[ik]
-                  * filled_occ
-                  * Smearing.entropy(smearing, (eigenvalues[ik][iband] - εF) / temperature))
+            E -= (
+                temperature *
+                basis.kweights[ik] *
+                filled_occ *
+                Smearing.entropy(smearing, (eigenvalues[ik][iband] - εF) / temperature)
+            )
         end
     end
 
-    (E=E, ops=ops)
+    (E = E, ops = ops)
 end

@@ -1,6 +1,5 @@
 include("external/spglib.jl")
 
-
 """Bring kpoint coordinates into the range [-0.5, 0.5)"""
 function normalize_kpoint_coordinate(x::Real)
     x = x - round(Int, x, RoundNearestTiesUp)
@@ -9,18 +8,18 @@ function normalize_kpoint_coordinate(x::Real)
 end
 normalize_kpoint_coordinate(k::AbstractVector) = normalize_kpoint_coordinate.(k)
 
-
 """Construct the coordinates of the kpoints in a (shifted) Monkorst-Pack grid"""
 function kgrid_monkhorst_pack(kgrid_size; kshift=[0, 0, 0])
     kgrid_size = Vec3{Int}(kgrid_size)
     start = -floor.(Int, (kgrid_size .- 1) ./ 2)
-    stop  = ceil.(Int, (kgrid_size .- 1) ./ 2)
+    stop = ceil.(Int, (kgrid_size .- 1) ./ 2)
     kshift = Vec3{Rational{Int}}(kshift)
-    kcoords = [(kshift .+ Vec3([i, j, k])) .// kgrid_size
-               for i=start[1]:stop[1], j=start[2]:stop[2], k=start[3]:stop[3]]
+    kcoords = [
+        (kshift .+ Vec3([i, j, k])) .// kgrid_size
+        for i = start[1]:stop[1], j = start[2]:stop[2], k = start[3]:stop[3]
+    ]
     vec(normalize_kpoint_coordinate.(kcoords))
 end
-
 
 @doc raw"""
     bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
@@ -34,9 +33,8 @@ returned and all symmetry operations are the identity.
 """
 function bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
     kcoords = kgrid_monkhorst_pack(kgrid_size; kshift=kshift)
-    kcoords, [[identity_symop()] for _ in 1:length(kcoords)], [identity_symop()]
+    kcoords, [[identity_symop()] for _ = 1:length(kcoords)], [identity_symop()]
 end
-
 
 @doc raw"""
      bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
@@ -48,7 +46,7 @@ the full mesh. `symops` is the tuple returned from `symmetry_operations(lattice,
 `tol_symmetry` is the tolerance used for searching for symmetry operations.
 """
 function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
-    all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size, kshift=kshift)
+    all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size; kshift=kshift)
 
     # Transform kshift to the convention used in spglib:
     #    If is_shift is set (i.e. integer 1), then a shift of 0.5 is performed,
@@ -56,7 +54,7 @@ function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
     kshift = Vec3{Rational{Int}}(kshift)
     all(ks in (0, 1//2) for ks in kshift) || error("Only kshifts of 0 or 1//2 implemented.")
 
-    kpoints_mp = kgrid_monkhorst_pack(kgrid_size, kshift=kshift)
+    kpoints_mp = kgrid_monkhorst_pack(kgrid_size; kshift=kshift)
 
     # Filter those symmetry operations (S,τ) that preserve the MP grid
     symops = symops_preserving_kgrid(symops, kpoints_mp)
@@ -65,13 +63,14 @@ function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
     # TODO implement time-reversal symmetry and turn the flag to true
     is_shift = Int.(2 * kshift)
     Stildes = [S' for (S, τ) in symops]
-    _, mapping, grid = spglib_get_stabilized_reciprocal_mesh(
-        kgrid_size, Stildes, is_shift=is_shift, is_time_reversal=false
+    _,
+    mapping,
+    grid = spglib_get_stabilized_reciprocal_mesh(
+        kgrid_size, Stildes; is_shift=is_shift, is_time_reversal=false
     )
     # Convert irreducible k-Points to DFTK conventions
     kgrid_size = Vec3{Int}(kgrid_size)
-    kirreds = [(kshift .+ grid[ik + 1]) .// kgrid_size
-               for ik in unique(mapping)]
+    kirreds = [(kshift .+ grid[ik+1]) .// kgrid_size for ik in unique(mapping)]
     kirreds = normalize_kpoint_coordinate.(kirreds)
 
     # Find the indices of the corresponding reducible k-Points in `grid`, which one of the
@@ -116,21 +115,24 @@ function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
         Stildes = [S' for (S, τ) in symops]
         τtildes = [-S' * τ for (S, τ) in symops]
         eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, Stildes, τtildes)
-        @info("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
-              "the irreducible kpoints returned by spglib. $(length(eirreds)) of " *
-              "these are added as extra irreducible kpoints.")
+        @info(
+            "$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
+            "the irreducible kpoints returned by spglib. $(length(eirreds)) of " *
+            "these are added as extra irreducible kpoints."
+        )
 
         append!(kirreds, eirreds)
         append!(ksymops, esymops)
     end
 
     # The symmetry operation (S == I and τ == 0) should be present for each k-Point
-    @assert all(findfirst(Sτ -> iszero(Sτ[1] - I) && iszero(Sτ[2]), ops) !== nothing
-                for ops in ksymops)
+    @assert all(
+        findfirst(Sτ -> iszero(Sτ[1] - I) && iszero(Sτ[2]), ops) !== nothing
+        for ops in ksymops
+    )
 
     kirreds, ksymops, symops
 end
-
 
 @doc raw"""
 Apply various standardisations to a lattice and a list of atoms. It uses spglib to detect
@@ -149,7 +151,7 @@ function kgrid_size_from_minimal_spacing(lattice, spacing=2π * 0.022)
     @assert spacing > 0
     isinf(spacing) && return [1, 1, 1]
 
-    for d in 1:3
+    for d = 1:3
         @assert norm(lattice[:, d]) != 0
         # Otherwise the formula for the reciprocal lattice
         # computation is not correct

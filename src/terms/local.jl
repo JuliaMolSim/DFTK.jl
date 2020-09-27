@@ -7,7 +7,8 @@ abstract type TermLocalPotential <: Term end
 function ene_ops(term::TermLocalPotential, ψ, occ; kwargs...)
     basis = term.basis
     T = eltype(basis)
-    ops = [RealSpaceMultiplication(basis, kpoint, term.potential) for kpoint in basis.kpoints]
+    ops =
+        [RealSpaceMultiplication(basis, kpoint, term.potential) for kpoint in basis.kpoints]
     if :ρ in keys(kwargs)
         dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
         E = dVol * sum(kwargs[:ρ].real .* term.potential)
@@ -15,7 +16,7 @@ function ene_ops(term::TermLocalPotential, ψ, occ; kwargs...)
         E = T(Inf)
     end
 
-    (E=E, ops=ops)
+    (E = E, ops = ops)
 end
 
 ## External potentials
@@ -29,7 +30,7 @@ end
 External potential from an analytic function `V` (in cartesian coordinates).
 No low-pass filtering is performed.
 """
-struct ExternalFromReal{T <: Function}
+struct ExternalFromReal{T<:Function}
     V::T
 end
 
@@ -42,13 +43,13 @@ end
 External potential from the (unnormalized) Fourier coefficients `V(G)`
 G is passed in cartesian coordinates
 """
-struct ExternalFromFourier{T <: Function}
+struct ExternalFromFourier{T<:Function}
     V::T
 end
 function (external::ExternalFromFourier)(basis::PlaneWaveBasis)
     unit_cell_volume = basis.model.unit_cell_volume
-    pot_fourier = [complex(external.V(G) / sqrt(unit_cell_volume))
-                   for G in G_vectors_cart(basis)]
+    pot_fourier =
+        [complex(external.V(G) / sqrt(unit_cell_volume)) for G in G_vectors_cart(basis)]
     pot_real = G_to_r(basis, pot_fourier)
     TermExternal(basis, real(pot_real))
 end
@@ -100,8 +101,10 @@ end
     # where struct_factor(G) = cis(-2π G⋅r)
     forces = [zeros(Vec3{T}, length(positions)) for (el, positions) in atoms]
     for (iel, (el, positions)) in enumerate(atoms)
-        form_factors = [Complex{T}(local_potential_fourier(el, norm(recip_lattice * G)))
-                        for G in G_vectors(term.basis)]
+        form_factors = [
+            Complex{T}(local_potential_fourier(el, norm(recip_lattice * G)))
+            for G in G_vectors(term.basis)
+        ]
 
         for (ir, r) in enumerate(positions)
             forces[iel][ir] = _force_local_internal(term.basis, ρ.fourier, form_factors, r)
@@ -114,11 +117,10 @@ function _force_local_internal(basis, ρ_fourier, form_factors, r)
     T = real(eltype(ρ_fourier))
     f = zero(Vec3{T})
     for (iG, G) in enumerate(G_vectors(basis))
-        f -= real(conj(ρ_fourier[iG])
-                  .* form_factors[iG]
-                  .* cis(-2T(π) * dot(G, r))
-                  .* (-2T(π)) .* G .* im
-                  ./ sqrt(basis.model.unit_cell_volume))
+        f -= real(
+            conj(ρ_fourier[iG]) .* form_factors[iG] .* cis(-2T(π) * dot(G, r)) .*
+            (-2T(π)) .* G .* im ./ sqrt(basis.model.unit_cell_volume),
+        )
     end
     f
 end

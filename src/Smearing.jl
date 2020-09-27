@@ -21,7 +21,8 @@ occupation(S::SmearingFunction, x) = error()
 """
 Derivative of the occupation function, approximation to minus the delta function.
 """
-occupation_derivative(S::SmearingFunction, x) = ForwardDiff.derivative(x -> occupation(S, x), x)
+occupation_derivative(S::SmearingFunction, x) =
+    ForwardDiff.derivative(x -> occupation(S, x), x)
 
 """
 (f(x) - f(y))/(x - y), computed stably in the case where x and y are close
@@ -33,18 +34,18 @@ function occupation_divided_difference(S::SmearingFunction, x, y, εF, temperatu
         else
             fx = x < εF ? 1 : 0
             fy = y < εF ? 1 : 0
-            (fx-fy)/(x-y)
+            (fx - fy) / (x - y)
         end
     else
-        f(z) = occupation(S, (z-εF) / temperature)
-        fder(z) = occupation_derivative(S, (z-εF)/temperature) / temperature
+        f(z) = occupation(S, (z - εF) / temperature)
+        fder(z) = occupation_derivative(S, (z - εF) / temperature) / temperature
         divided_difference_(f, fder, x, y)
     end
 end
 function divided_difference_(f, fder, x, y)
     # This is only accurate to sqrt(ε)
-    abs(x-y) < sqrt(eps(typeof(x))) && return fder((x+y)/2)
-    (f(x)-f(y)) / (x-y)
+    abs(x - y) < sqrt(eps(typeof(x))) && return fder((x + y) / 2)
+    (f(x) - f(y)) / (x - y)
 end
 
 """
@@ -69,7 +70,7 @@ function occupation_derivative(S::FermiDirac, x)
     if exp(x) > floatmax(typeof(x)) / 1e3
         zero(x)
     else
-        -exp(x) / (1+exp(x))^2
+        -exp(x) / (1 + exp(x))^2
     end
 end
 
@@ -78,7 +79,7 @@ end
 # although that is not especially useful...
 function entropy(S::FermiDirac, x)
     f = occupation(S, x)
-    - (xlogx(f) + xlogx(1 - f))
+    -(xlogx(f) + xlogx(1 - f))
 end
 
 struct Gaussian <: SmearingFunction end
@@ -95,17 +96,17 @@ struct MethfesselPaxton1 <: SmearingFunction end
 function occupation(S::MethfesselPaxton1, x)
     x == Inf && return zero(x)
     x == -Inf && return one(x)
-    occupation(Gaussian(), x) + A(1, typeof(x))*H1(x)*exp(-x^2)
+    occupation(Gaussian(), x) + A(1, typeof(x)) * H1(x) * exp(-x^2)
 end
-entropy(S::MethfesselPaxton1, x) = 1/2 * A(1, typeof(x)) * H2(x) * exp(-x^2)
+entropy(S::MethfesselPaxton1, x) = 1 / 2 * A(1, typeof(x)) * H2(x) * exp(-x^2)
 
 struct MethfesselPaxton2 <: SmearingFunction end
 function occupation(S::MethfesselPaxton2, x)
     x == Inf && return zero(x)
     x == -Inf && return one(x)
-    occupation(MethfesselPaxton1(), x) + A(2, typeof(x))*H3(x)*exp(-x^2)
+    occupation(MethfesselPaxton1(), x) + A(2, typeof(x)) * H3(x) * exp(-x^2)
 end
-entropy(S::MethfesselPaxton2, x) = 1/2 * A(2, typeof(x)) * H4(x) * exp(-x^2)
+entropy(S::MethfesselPaxton2, x) = 1 / 2 * A(2, typeof(x)) * H4(x) * exp(-x^2)
 
 function MethfesselPaxton(order::Integer)
     if order == 0

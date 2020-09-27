@@ -6,7 +6,7 @@ Magnetic term ``A⋅(-i∇)``. It is assumed (but not checked) that ``∇⋅A = 
 """
 struct Magnetic
     Afunction::Function  # A(x,y,z) returns [Ax,Ay,Az]
-                         # both [x,y,z] and [Ax,Ay,Az] are in *cartesian* coordinates
+    # both [x,y,z] and [Ax,Ay,Az] are in *cartesian* coordinates
 end
 function (M::Magnetic)(basis)
     TermMagnetic(basis, M.Afunction)
@@ -16,7 +16,7 @@ struct TermMagnetic <: Term
     basis::PlaneWaveBasis
     Apotential::AbstractArray  # Apotential[α] is an array of size fft_size for α=1:3
 end
-function TermMagnetic(basis::PlaneWaveBasis{T}, Afunction::Function) where T
+function TermMagnetic(basis::PlaneWaveBasis{T}, Afunction::Function) where {T}
     lattice = basis.model.lattice
     Apotential = [zeros(T, basis.fft_size) for α = 1:3]
     N1, N2, N3 = basis.fft_size
@@ -24,9 +24,8 @@ function TermMagnetic(basis::PlaneWaveBasis{T}, Afunction::Function) where T
     for i = 1:N1
         for j = 1:N2
             for k = 1:N3
-                Apotential[1][i, j, k],
-                Apotential[2][i, j, k],
-                Apotential[3][i, j, k] = Afunction(rvecs[i, j, k])
+                Apotential[1][i, j, k], Apotential[2][i, j, k], Apotential[3][i, j, k] =
+                    Afunction(rvecs[i, j, k])
             end
         end
     end
@@ -37,9 +36,11 @@ function ene_ops(term::TermMagnetic, ψ, occ; kwargs...)
     basis = term.basis
     T = eltype(basis)
 
-    ops = [MagneticFieldOperator(basis, kpoint, term.Apotential)
-           for (ik, kpoint) in enumerate(basis.kpoints)]
-    ψ === nothing && return (E=T(Inf), ops=ops)
+    ops = [
+        MagneticFieldOperator(basis, kpoint, term.Apotential)
+        for (ik, kpoint) in enumerate(basis.kpoints)
+    ]
+    ψ === nothing && return (E = T(Inf), ops = ops)
 
     E = zero(T)
     for (ik, k) in enumerate(basis.kpoints)
@@ -50,5 +51,5 @@ function ene_ops(term::TermMagnetic, ψ, occ; kwargs...)
         end
     end
 
-    (E=E, ops=ops)
+    (E = E, ops = ops)
 end

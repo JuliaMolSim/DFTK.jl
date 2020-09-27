@@ -21,12 +21,17 @@ julia> list_psp(:O, core=:semicore)
 ```
 will list all oxygen semicore pseudopotentials known to DFTK.
 """
-function list_psp(element=nothing; family=nothing, functional=nothing, core=nothing,
-                  datadir_psp=datadir_psp())
+function list_psp(
+    element = nothing;
+    family = nothing,
+    functional = nothing,
+    core = nothing,
+    datadir_psp = datadir_psp(),
+)
     # Normalize input keys
-    isnothing(element)    || (element = Symbol(PeriodicTable.elements[element].symbol))
+    isnothing(element) || (element = Symbol(PeriodicTable.elements[element].symbol))
     isnothing(functional) || (functional = lowercase(functional))
-    isnothing(family)     || (family = lowercase(family))
+    isnothing(family) || (family = lowercase(family))
 
     psplist = []
     for (root, _, files) in walkdir(datadir_psp)
@@ -43,10 +48,17 @@ function list_psp(element=nothing; family=nothing, functional=nothing, core=noth
             f_element = Symbol(uppercase(f_element[1]) * f_element[2:end])
             haskey(PeriodicTable.elements, Symbol(f_element)) || continue
 
-            push!(psplist, (identifier=joinpath(root, file), family=f_family,
-                  functional=f_functional, element=f_element,
-                  n_elec_valence=parse(Int, f_nvalence[2:end]),
-                  path=joinpath(datadir_psp, root, file)))
+            push!(
+                psplist,
+                (
+                    identifier = joinpath(root, file),
+                    family = f_family,
+                    functional = f_functional,
+                    element = f_element,
+                    n_elec_valence = parse(Int, f_nvalence[2:end]),
+                    path = joinpath(datadir_psp, root, file),
+                ),
+            )
         end
     end
 
@@ -55,19 +67,21 @@ function list_psp(element=nothing; family=nothing, functional=nothing, core=noth
     psp_per_element = map(per_elem) do elgroup
         @assert length(elgroup) > 0
         if length(elgroup) == 1
-            cores = [(core=:fullcore, )]
+            cores = [(core = :fullcore,)]
         else
-            cores = append!(fill((core=:other, ), length(elgroup) - 2),
-                            [(core=:fullcore, ), (core=:semicore, )])
+            cores = append!(
+                fill((core = :other,), length(elgroup) - 2),
+                [(core = :fullcore,), (core = :semicore,)],
+            )
         end
-        merge.(sort(elgroup, by=psp -> psp.n_elec_valence), cores)
+        merge.(sort(elgroup, by = psp -> psp.n_elec_valence), cores)
     end
 
     filter(collect(Iterators.flatten(psp_per_element))) do psp
-        !isnothing(element)    && psp.element    != element    && return false
+        !isnothing(element) && psp.element != element && return false
         !isnothing(functional) && psp.functional != functional && return false
-        !isnothing(family)     && psp.family     != family     && return false
-        !isnothing(core)       && psp.core       != core       && return false
+        !isnothing(family) && psp.family != family && return false
+        !isnothing(core) && psp.core != core && return false
         true
     end
 end

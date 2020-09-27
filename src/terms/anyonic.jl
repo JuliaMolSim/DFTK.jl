@@ -10,7 +10,7 @@
 # J = 1/(2i) (u* ∇u - u ∇u*)
 
 struct Anyonic
-    β
+    β::Any
 end
 function (A::Anyonic)(basis)
     @assert length(basis.kpoints) == 1
@@ -25,7 +25,7 @@ function (A::Anyonic)(basis)
     TermAnyonic(basis, eltype(basis)(A.β))
 end
 
-struct TermAnyonic{T <: Real} <: Term
+struct TermAnyonic{T<:Real} <: Term
     basis::PlaneWaveBasis{T}
     β::T
 end
@@ -49,20 +49,25 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
             A2[iG] = -2T(π) * G[1] / G2 * ρ.fourier[iG] * im
         end
     end
-    Areal = [from_fourier(basis, A1).real,
-             from_fourier(basis, A2).real,
-             zeros(T, basis.fft_size)]
+    Areal = [
+        from_fourier(basis, A1).real,
+        from_fourier(basis, A2).real,
+        zeros(T, basis.fft_size),
+    ]
 
     # 2β (-i∇)⋅A + β^2 |A|^2
-    ops_energy = [MagneticFieldOperator(basis, basis.kpoints[1],
-                                        2β .* Areal),
-                  RealSpaceMultiplication(basis, basis.kpoints[1],
-                                          β^2 .* (abs2.(Areal[1]) .+ abs2.(Areal[2])))]
+    ops_energy = [
+        MagneticFieldOperator(basis, basis.kpoints[1], 2β .* Areal),
+        RealSpaceMultiplication(
+            basis,
+            basis.kpoints[1],
+            β^2 .* (abs2.(Areal[1]) .+ abs2.(Areal[2])),
+        ),
+    ]
 
     # Now compute effective local potential - 2β x^⟂/|x|² ∗ (βAρ + J)
     J = compute_current(basis, ψ, occ)
-    eff_current = [J[α].real .+
-                   β .* ρ.real .* Areal[α] for α = 1:2]
+    eff_current = [J[α].real .+ β .* ρ.real .* Areal[α] for α = 1:2]
     eff_current_fourier = [from_real(basis, eff_current[α]).fourier for α = 1:2]
     # eff_pot = - 2β x^⟂/|x|² ∗ eff_current
     # => ∇∧eff_pot = -4πβ eff_current
@@ -72,12 +77,13 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
         G = basis.model.recip_lattice * Gred
         G2 = sum(abs2, G)
         if G2 != 0
-            eff_pot_fourier[iG] += -4T(π)*β * im * G[2] / G2 * eff_current_fourier[1][iG]
-            eff_pot_fourier[iG] += +4T(π)*β * im * G[1] / G2 * eff_current_fourier[2][iG]
+            eff_pot_fourier[iG] += -4T(π) * β * im * G[2] / G2 * eff_current_fourier[1][iG]
+            eff_pot_fourier[iG] += +4T(π) * β * im * G[1] / G2 * eff_current_fourier[2][iG]
         end
     end
     eff_pot_real = from_fourier(basis, eff_pot_fourier).real
-    ops_ham = [ops_energy..., RealSpaceMultiplication(basis, basis.kpoints[1], eff_pot_real)]
+    ops_ham =
+        [ops_energy..., RealSpaceMultiplication(basis, basis.kpoints[1], eff_pot_real)]
 
     E = zero(T)
     for iband = 1:size(ψ[1], 2)
@@ -88,5 +94,5 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
         end
     end
 
-    (E=E, ops=[ops_ham])
+    (E = E, ops = [ops_ham])
 end

@@ -16,19 +16,21 @@ function compute_partial_density(basis, kpt, ψk, occupation)
     T = real(eltype(ρk_real))
     real_checked(ρk_real)
     if all(occupation .> 0)
-        minimum(real(ρk_real)) < 0 && @warn("Negative ρ detected",
-                                            min_ρ=minimum(real(ρk_real)))
+        minimum(real(ρk_real)) < 0 &&
+            @warn("Negative ρ detected", min_ρ = minimum(real(ρk_real)))
     end
     n_electrons = sum(ρk_real) * basis.model.unit_cell_volume / prod(basis.fft_size)
     if abs(n_electrons - sum(occupation)) > sqrt(eps(T))
-        @warn("Mismatch in number of electrons", sum_ρ=n_electrons,
-              sum_occupation=sum(occupation))
+        @warn(
+            "Mismatch in number of electrons",
+            sum_ρ = n_electrons,
+            sum_occupation = sum(occupation)
+        )
     end
 
     # FFT and return
     r_to_G(basis, ρk_real)
 end
-
 
 """
     compute_density(basis::PlaneWaveBasis, ψ::AbstractVector, occupation::AbstractVector)
@@ -43,24 +45,24 @@ be one coefficient matrix per k-Point.
     # Sanity checks
     @assert n_k == length(ψ)
     @assert n_k == length(occupation)
-    for ik in 1:n_k
+    for ik = 1:n_k
         @assert length(G_vectors(basis.kpoints[ik])) == size(ψ[ik], 1)
         @assert length(occupation[ik]) == size(ψ[ik], 2)
     end
     @assert n_k > 0
 
     # Allocate an accumulator for ρ in each thread
-    ρaccus = [similar(ψ[1][:, 1], basis.fft_size) for ithread in 1:Threads.nthreads()]
+    ρaccus = [similar(ψ[1][:, 1], basis.fft_size) for ithread = 1:Threads.nthreads()]
 
     # TODO Better load balancing ... the workload per kpoint depends also on
     #      the number of symmetry operations. We know heuristically that the Gamma
     #      point (first k-Point) has least symmetry operations, so we will put
     #      some extra workload there if things do not break even
-    kpt_per_thread = [ifelse(i <= n_k, [i], Vector{Int}()) for i in 1:Threads.nthreads()]
+    kpt_per_thread = [ifelse(i <= n_k, [i], Vector{Int}()) for i = 1:Threads.nthreads()]
     if n_k >= Threads.nthreads()
         kblock = floor(Int, length(basis.kpoints) / Threads.nthreads())
-        kpt_per_thread = [collect(1:length(basis.kpoints) - (Threads.nthreads() - 1) * kblock)]
-        for ithread in 2:Threads.nthreads()
+        kpt_per_thread = [collect(1:length(basis.kpoints)-(Threads.nthreads()-1)*kblock)]
+        for ithread = 2:Threads.nthreads()
             push!(kpt_per_thread, kpt_per_thread[end][end] .+ collect(1:kblock))
         end
         @assert kpt_per_thread[end][end] == length(basis.kpoints)
@@ -75,6 +77,6 @@ be one coefficient matrix per k-Point.
         end
     end
 
-    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))
+    count = sum(length(basis.ksymops[ik]) for ik = 1:length(basis.kpoints))
     from_fourier(basis, sum(ρaccus) / count)
 end

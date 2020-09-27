@@ -11,8 +11,7 @@ import SpecialFunctions: erfc
 cbrt(i::Interval) = Interval(prevfloat(cbrt(i.lo)), nextfloat(cbrt(i.hi)))
 erfc(i::Interval) = Interval(prevfloat(erfc(i.lo)), nextfloat(erfc(i.hi)))
 
-function determine_fft_size(lattice::AbstractMatrix{T}, Ecut;
-                             kwargs...) where T <: Interval
+function determine_fft_size(lattice::AbstractMatrix{T}, Ecut; kwargs...) where {T <: Interval}
     # This is done to avoid a call like ceil(Int, ::Interval)
     # in the above implementation of determine_fft_size,
     # where it is in general cases not clear, what to do.
@@ -23,8 +22,8 @@ function determine_fft_size(lattice::AbstractMatrix{T}, Ecut;
 end
 
 function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <: Interval}
-    lor = round(q.lo, digits=5)
-    hir = round(q.hi, digits=5)
-    @assert iszero(round(lor - hir, digits=3))
+    lor = round(q.lo; digits=5)
+    hir = round(q.hi; digits=5)
+    @assert iszero(round(lor - hir; digits=3))
     T(local_potential_fourier(el, mid(q)))
 end

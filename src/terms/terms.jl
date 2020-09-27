@@ -25,8 +25,10 @@ struct NoopTerm <: Term
     basis::PlaneWaveBasis
 end
 function ene_ops(term::NoopTerm, ψ, occ; kwargs...)
-    (E=zero(eltype(term.basis)), ops=[NoopOperator(term.basis, kpoint)
-                                      for kpoint in term.basis.kpoints])
+    (
+        E = zero(eltype(term.basis)),
+        ops = [NoopOperator(term.basis, kpoint) for kpoint in term.basis.kpoints],
+    )
 end
 
 include("Hamiltonian.jl")
@@ -77,7 +79,7 @@ end
     end
     f
 end
-forces(scfres) = forces(scfres.basis, scfres.ψ, scfres.occupation, ρ=scfres.ρ)
+forces(scfres) = forces(scfres.basis, scfres.ψ, scfres.occupation, ρ = scfres.ρ)
 
 
 """
@@ -106,7 +108,7 @@ function compute_kernel(basis::PlaneWaveBasis{T}; kwargs...) where {T}
     k
 end
 
-function apply_kernel(basis, dρ; RPA=false, kwargs...)
+function apply_kernel(basis, dρ; RPA = false, kwargs...)
     dV = RealFourierArray(basis)
     for term in basis.terms
         # Skip XC term if RPA is selected

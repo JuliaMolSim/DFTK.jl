@@ -8,23 +8,33 @@ that really does the work, operating on a single ``k``-Block.
 `eigensolver` should support the API `eigensolver(A, X0; prec, tol, maxiter)`
 `prec_type` should be a function that returns a preconditioner when called as `prec(ham, kpt)`
 """
-function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
-                                 guess=nothing,
-                                 prec_type=PreconditionerTPA, interpolate_kpoints=true,
-                                 tol=1e-6, miniter=1, maxiter=200, n_conv_check=nothing,
-                                 show_progress=false)
+function diagonalize_all_kblocks(
+    eigensolver,
+    ham::Hamiltonian,
+    nev_per_kpoint::Int;
+    guess = nothing,
+    prec_type = PreconditionerTPA,
+    interpolate_kpoints = true,
+    tol = 1e-6,
+    miniter = 1,
+    maxiter = 200,
+    n_conv_check = nothing,
+    show_progress = false,
+)
     T = complex(eltype(ham.basis))
     kpoints = ham.basis.kpoints
     results = Vector{Any}(undef, length(kpoints))
 
     progress = nothing
     if show_progress
-        progress = Progress(length(kpoints), desc="Diagonalising Hamiltonian kblocks: ")
+        progress = Progress(length(kpoints); desc = "Diagonalising Hamiltonian kblocks: ")
     end
     for (ik, kpt) in enumerate(kpoints)
         if length(G_vectors(kpoints[ik])) < nev_per_kpoint
-            error("The size of the plane wave basis is $(length(G_vectors(kpoints[ik]))), " *
-                  "and you are asking for $nev_per_kpoint eigenvalues. Increase Ecut.")
+            error(
+                "The size of the plane wave basis is $(length(G_vectors(kpoints[ik]))), " *
+                "and you are asking for $nev_per_kpoint eigenvalues. Increase Ecut.",
+            )
         end
         # Get guessk
         @timing "QR orthonormalization" begin
@@ -33,7 +43,7 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
                 guessk = guess[ik]
             elseif interpolate_kpoints && ik > 1
                 # use information from previous kpoint
-                X0 = interpolate_kpoint(results[ik - 1].X, kpoints[ik - 1], kpoints[ik])
+                X0 = interpolate_kpoint(results[ik-1].X, kpoints[ik-1], kpoints[ik])
                 guessk = Matrix{T}(qr(X0).Q)  # Re-orthogonalize and renormalize
             else
                 # random initial guess
@@ -45,21 +55,29 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
 
         prec = nothing
         prec_type !== nothing && (prec = prec_type(ham.basis, kpt))
-        results[ik] = eigensolver(ham.blocks[ik], guessk;
-                                  prec=prec, tol=tol, miniter=miniter, maxiter=maxiter,
-                                  n_conv_check=n_conv_check)
+        results[ik] = eigensolver(
+            ham.blocks[ik],
+            guessk;
+            prec = prec,
+            tol = tol,
+            miniter = miniter,
+            maxiter = maxiter,
+            n_conv_check = n_conv_check,
+        )
 
         # Update progress bar if desired
         !isnothing(progress) && next!(progress)
     end
 
     # Transform results into a nicer datastructure
-    (λ=[real.(res.λ) for res in results],
-     X=[res.X for res in results],
-     residual_norms=[res.residual_norms for res in results],
-     iterations=[res.iterations for res in results],
-     converged=all(res.converged for res in results),
-     n_matvec=sum(res.n_matvec for res in results))
+    (
+        λ = [real.(res.λ) for res in results],
+        X = [res.X for res in results],
+        residual_norms = [res.residual_norms for res in results],
+        iterations = [res.iterations for res in results],
+        converged = all(res.converged for res in results),
+        n_matvec = sum(res.n_matvec for res in results),
+    )
 end
 
 @doc raw"""
@@ -67,9 +85,14 @@ Function to select a subset of eigenpairs on each ``k``-Point. Works on the
 Tuple returned by `diagonalize_all_kblocks`.
 """
 function select_eigenpairs_all_kblocks(eigres, range)
-    merge(eigres, (λ=[λk[range] for λk in eigres.λ],
-                   X=[Xk[:, range] for Xk in eigres.X],
-                   residual_norms=[resk[range] for resk in eigres.residual_norms]))
+    merge(
+        eigres,
+        (
+            λ = [λk[range] for λk in eigres.λ],
+            X = [Xk[:, range] for Xk in eigres.X],
+            residual_norms = [resk[range] for resk in eigres.residual_norms],
+        ),
+    )
 end
 
 # The actual implementations using the above primitives

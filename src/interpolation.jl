@@ -4,13 +4,20 @@ This interpolation uses a very basic real-space algorithm, and makes
 a DWIM-y attempt to take into account the fact that b_out can be a supercell of b_in
 """
 function interpolate_density(ρ_in::RealFourierArray, b_out::PlaneWaveBasis)
-    ρ_out = interpolate_density(ρ_in.real, ρ_in.basis.fft_size, b_out.fft_size,
-                                ρ_in.basis.model.lattice, b_out.model.lattice)
+    ρ_out = interpolate_density(
+        ρ_in.real,
+        ρ_in.basis.fft_size,
+        b_out.fft_size,
+        ρ_in.basis.model.lattice,
+        b_out.model.lattice,
+    )
     from_real(b_out, ρ_out)
 end
 
 # TODO Specialization for the common case lattice_out = lattice_in
-function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in, lattice_out=lattice_in)
+function interpolate_density(
+    ρ_in::AbstractArray, grid_in, grid_out, lattice_in, lattice_out=lattice_in
+)
     T = real(eltype(ρ_in))
     @assert size(ρ_in) == grid_in
 
@@ -23,7 +30,8 @@ function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in
         else
             supercell[i] = round(Int, norm(lattice_out[:, i]) / norm(lattice_in[:, i]))
         end
-        if norm(lattice_out[:, i] - supercell[i]*lattice_in[:, i]) > .3*norm(lattice_out[:, i])
+        if norm(lattice_out[:, i] - supercell[i] * lattice_in[:, i]) >
+           0.3 * norm(lattice_out[:, i])
             @warn "In direction $i, the output lattice is very different from the input lattice"
         end
     end
@@ -35,15 +43,16 @@ function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in
         for j = 1:supercell[2]
             for k = 1:supercell[3]
                 ρ_in_supercell[
-                    1 + (i-1)*grid_in[1] : i*grid_in[1],
-                    1 + (j-1)*grid_in[2] : j*grid_in[2],
-                    1 + (k-1)*grid_in[3] : k*grid_in[3]] = ρ_in
+                    1+(i-1)*grid_in[1]:i*grid_in[1],
+                    1+(j-1)*grid_in[2]:j*grid_in[2],
+                    1+(k-1)*grid_in[3]:k*grid_in[3],
+                ] = ρ_in
             end
         end
     end
 
     # interpolate ρ_in_supercell from grid grid_supercell to grid_out
-    axes_in = (range(0, 1, length=grid_supercell[i]+1)[1:end-1] for i=1:3)
+    axes_in = (range(0, 1; length=grid_supercell[i] + 1)[1:end-1] for i = 1:3)
     itp = interpolate(ρ_in_supercell, BSpline(Quadratic(Periodic(OnCell()))))
     sitp = scale(itp, axes_in...)
     ρ_interp = extrapolate(sitp, Periodic())
@@ -51,16 +60,17 @@ function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in
     for i = 1:grid_out[1]
         for j = 1:grid_out[2]
             for k = 1:grid_out[3]
-                ρ_out[i, j, k] = ρ_interp((i-1)/grid_out[1],
-                                          (j-1)/grid_out[2],
-                                          (k-1)/grid_out[3])
+                ρ_out[
+                    i, j, k
+                ] = ρ_interp(
+                    (i - 1) / grid_out[1], (j - 1) / grid_out[2], (k - 1) / grid_out[3]
+                )
             end
         end
     end
 
     ρ_out
 end
-
 
 """
 Interpolate some data from one k-Point to another. The interpolation is fast, but not
@@ -75,7 +85,7 @@ function interpolate_kpoint(data_in::AbstractVecOrMat, kpoint_in::Kpoint, kpoint
 
     n_bands = size(data_in, 2)
     data_out = similar(data_in, length(G_vectors(kpoint_out)), n_bands) .= 0
-    for iin in 1:size(data_in, 1)
+    for iin = 1:size(data_in, 1)
         idx_fft = kpoint_in.mapping[iin]
         idx_fft in keys(kpoint_out.mapping_inv) || continue
         iout = kpoint_out.mapping_inv[idx_fft]
@@ -84,7 +94,6 @@ function interpolate_kpoint(data_in::AbstractVecOrMat, kpoint_in::Kpoint, kpoint
     data_out
 end
 
-
 """
 Interpolate Bloch wave between two basis sets. Limited feature set. Currently only
 interpolation to a bigger grid (larger Ecut) on the same lattice supported.
@@ -92,8 +101,10 @@ interpolation to a bigger grid (larger Ecut) on the same lattice supported.
 function interpolate_blochwave(ψ_in, basis_in, basis_out)
     @assert basis_in.model.lattice == basis_out.model.lattice
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
-    @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
-                for ik in 1:length(basis_in.kpoints))
+    @assert all(
+        basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
+        for ik = 1:length(basis_in.kpoints)
+    )
 
     ψ_out = empty(ψ_in)
     for (ik, kpt_out) in enumerate(basis_out.kpoints)
