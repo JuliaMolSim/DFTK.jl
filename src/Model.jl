@@ -9,10 +9,10 @@ struct Model{T <: Real}
     recip_lattice::Mat3{T}
     unit_cell_volume::T
     recip_cell_volume::T
-    dim::Int # Dimension of the system; 3 unless `lattice` has zero columns
+    dim::Int  # Dimension of the system; 3 unless `lattice` has zero columns
 
     # Electrons, occupation and smearing function
-    n_electrons::Int # usually consistent with `atoms` field, but doesn't have to
+    n_electrons::Int  # usually consistent with `atoms` field, but doesn't have to
 
     # spin_polarization values:
     #     :none       No spin polarization, αα and ββ density identical,
@@ -35,6 +35,9 @@ struct Model{T <: Real}
     # Possibly empty. `atoms` just contain the information on the atoms, it's up to
     # the `terms` to make use of it (or not)
     atoms::Vector{Pair{Any, Vector{Vec3{T}}}}
+    # Vector of pairs Element => vector of initial magnetic moments
+    # TODO This is a bit quirky ... think about the structure here
+    magnetic_moments::Vector{Pair{Any, Vector{T}}}
 
     # each element t must implement t(basis), which instantiates a
     # term in a given basis and gives back a term (<: Term)
@@ -68,6 +71,7 @@ external potential breaks symmetries (this is not checked).
 function Model(lattice::AbstractMatrix{T};
                n_electrons=nothing,
                atoms=[],
+               magnetic_moments=[],
                terms=[],
                temperature=T(0.0),
                smearing=nothing,
@@ -105,7 +109,8 @@ function Model(lattice::AbstractMatrix{T};
     unit_cell_volume = abs(det(lattice[1:d, 1:d]))
     recip_cell_volume = abs(det(recip_lattice[1:d, 1:d]))
 
-    @assert spin_polarization in (:none, :collinear, :full, :spinless)
+    spin_polarization in (:none, :collinear, :full, :spinless) ||
+        error("Only :none, :collinear, :full and :spinless allowed for spin_polarization")
 
     if smearing === nothing
         @assert temperature >= 0
@@ -133,7 +138,8 @@ function Model(lattice::AbstractMatrix{T};
     end
 
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
-             spin_polarization, T(temperature), smearing, atoms, terms, symops)
+             spin_polarization, T(temperature), smearing, atoms, magnetic_moments,
+             terms, symops)
 end
 Model(lattice::AbstractMatrix{T}; kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
 
@@ -185,12 +191,20 @@ end
 Maximal occupation of a state (2 for non-spin-polarized electrons, 1 otherwise).
 """
 function filled_occupation(model)
-    @assert model.spin_polarization in (:none, :spinless)
-    if model.spin_polarization == :none
+    if model.spin_polarization in (:spinless, :collinear)
+        return 1
+    elseif model.spin_polarization == :none
         @assert model.n_electrons % 2 == 0
-        filled_occ = 2
+        return 2
     else
-        filled_occ = 1
+        error("Not implemented $(model.spin_polarization)")
     end
-    filled_occ
+end
+
+"""
+Number of spin components explicitly treated in the wavefunction
+"""
+function n_spin_component(model)
+    @assert model.spin_polarization in (:none, :spinless, :collinear)
+    model.spin_polarization in (:collinear, ) ? 2 : 1
 end

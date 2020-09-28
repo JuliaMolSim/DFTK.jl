@@ -29,9 +29,16 @@ function next_density(ham::Hamiltonian;
 
     # Update density from new ψ
     occupation, εF = occupation_function(ham.basis, eigres.λ)
-    ρnew = compute_density(ham.basis, eigres.X, occupation)
 
-    (ψ=eigres.X, eigenvalues=eigres.λ, occupation=occupation, εF=εF, ρ=ρnew,
+    # TODO Hackish
+    if ham.basis.model.spin_polarization == :collinear
+        (ρnew, ρsnew) = compute_spin_densities(ham.basis, eigres.X, occupation)
+    else
+        ρnew = compute_density(ham.basis, eigres.X, occupation)
+        ρsnew = nothing
+    end
+
+    (ψ=eigres.X, eigenvalues=eigres.λ, occupation=occupation, εF=εF, ρ=ρnew, ρs=ρsnew,
      diagonalization=eigres)
 end
 
@@ -42,6 +49,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 @timing function self_consistent_field(basis::PlaneWaveBasis;
                                        n_bands=default_n_bands(basis.model),
                                        ρ=guess_density(basis),
+                                       ρs=from_real(basis, zero(ρ.real)),  # TODO
                                        ψ=nothing,
                                        tol=1e-6,
                                        maxiter=100,
@@ -69,6 +77,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     occupation = nothing
     eigenvalues = nothing
     ρout = ρ
+    ρsout = ρs
     εF = nothing
     n_iter = 0
     energies = nothing
@@ -79,17 +88,22 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     # TODO support other mixing types
     function fixpoint_map(x)
         n_iter += 1
-        ρin = from_real(basis, x)
+        if n_spin_component(model) == 2
+            # x has 2 blocks: total and spin density
+            ρin, ρsin = from_real(basis,x[:, :, :, 1]), from_real(basis,x[:, :, :, 2])
+        else
+            ρin, ρsin = from_real(basis, x), nothing
+        end
 
         # Build next Hamiltonian, diagonalize it, get ρout
         if n_iter == 1 # first iteration
             _, ham = energy_hamiltonian(basis, nothing, nothing;
-                                        ρ=ρin, eigenvalues=nothing, εF=nothing)
+                                        ρ=ρin, ρs=ρsin, eigenvalues=nothing, εF=nothing)
         else
             # Note that ρin is not the density of ψ, and the eigenvalues
             # are not the self-consistent ones, which makes this energy non-variational
             energies, ham = energy_hamiltonian(basis, ψ, occupation;
-                                               ρ=ρin, eigenvalues=eigenvalues, εF=εF)
+                                               ρ=ρin, ρs=ρsin, eigenvalues=eigenvalues, εF=εF)
         end
 
         # Diagonalize `ham` to get the new state
@@ -97,13 +111,13 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                  miniter=1, tol=determine_diagtol(info),
                                  n_ep_extra=n_ep_extra,
                                  occupation_function=occupation_function)
-        ψ, eigenvalues, occupation, εF, ρout = nextstate
+        ψ, eigenvalues, occupation, εF, ρout, ρsout = nextstate
         enforce_symmetry && (ρout = DFTK.symmetrize(ρout))
 
         # Compute the energy of the new state
         if compute_consistent_energies
             energies, _ = energy_hamiltonian(basis, ψ, occupation;
-                                             ρ=ρout, eigenvalues=eigenvalues, εF=εF)
+                                             ρ=ρout, ρs=ρsout, eigenvalues=eigenvalues, εF=εF)
         end
 
         # Update info with results gathered so far
@@ -120,18 +134,25 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         is_converged(info) && return x
 
         ρnext.real
+        if n_spin_component(model) == 2
+            # TODO This really has to go
+            cat(ρnext.real, ρsout.real, dims=4)
+        else
+            ρnext.real
+        end
     end
 
     # Tolerance and maxiter are only dummy here: Convergence is flagged by is_converged
     # inside the fixpoint_map. Also we do not use the return value of fpres but rather the
     # one that got updated by fixpoint_map
-    fpres = solver(fixpoint_map, ρout.real, maxiter; tol=eps(T))
+    ρcat_real = n_spin_component(model) == 2 ? cat(ρout.real, ρsout.real, dims=4) : ρout.real
+    fpres = solver(fixpoint_map, ρcat_real, maxiter; tol=eps(T))
 
     # We do not use the return value of fpres but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform
     # a last energy computation to return a correct variational energy
     energies, ham = energy_hamiltonian(basis, ψ, occupation;
-                                       ρ=ρout, eigenvalues=eigenvalues, εF=εF)
+                                       ρ=ρout, ρs=ρsout, eigenvalues=eigenvalues, εF=εF)
 
     # Callback is run one last time with final state to allow callback to clean up
     info = (ham=ham, basis=basis, energies=energies, converged=fpres.converged,

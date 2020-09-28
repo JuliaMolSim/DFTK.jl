@@ -13,7 +13,7 @@ Find the occupation and Fermi level.
 function find_occupation(basis::PlaneWaveBasis{T}, energies;
                          temperature=basis.model.temperature,
                          smearing=basis.model.smearing) where {T}
-    @assert basis.model.spin_polarization in (:none, :spinless)
+    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     n_electrons = basis.model.n_electrons
 
     # Maximum occupation per state
@@ -87,7 +87,7 @@ and zero temperature. This function is for DEBUG purposes only, and the
 finite-temperature version with 0 temperature should be preferred.
 """
 function find_occupation_bandgap(basis, energies)
-    @assert basis.model.spin_polarization in (:none, :spinless)
+    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     n_bands = length(energies[1])
     @assert all(e -> length(e) == n_bands, energies)
     n_electrons = basis.model.n_electrons

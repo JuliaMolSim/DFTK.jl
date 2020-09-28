@@ -5,6 +5,7 @@ include("../xc/xc_evaluate.jl")
 Exchange-correlation term, defined by a list of functionals and usually evaluated through libxc.
 """
 struct Xc
+    # TODO Need to select the collinear version of the functional!
     functionals::Vector{Functional}
     scaling_factor::Real  # to scale by an arbitrary factor (useful for exploration)
 end
@@ -20,7 +21,7 @@ struct TermXc <: Term
     scaling_factor::Real
 end
 
-function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
+function ene_ops(term::TermXc, ψ, occ; ρ, ρs=nothing, kwargs...)
     basis = term.basis
     T = eltype(basis)
     model = basis.model
@@ -33,8 +34,9 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
 
     # Take derivatives of the density if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    density = DensityDerivatives(basis, max_ρ_derivs, ρ)
+    density = DensityDerivatives(basis, max_ρ_derivs, ρ, ρs)
 
+    # TODO Need two potential components for α and β!
     potential = zeros(T, basis.fft_size)
     zk = zeros(T, basis.fft_size)  # Energy per unit particle
     E = zero(T)
@@ -180,7 +182,7 @@ end
 """
 DOCME compute density in real space and its derivatives starting from ρ
 """
-function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray)
+function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray, ρspin=nothing)
     model = basis.model
     @assert model.spin_polarization == :none "Only spin_polarization == :none implemented."
     ifft(x) = real_checked(G_to_r(basis, clear_without_conjugate!(x)))
@@ -196,8 +198,16 @@ function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray
         # TODO The above assumes CPU arrays
         σ_real = sum(∇ρ_real[α] .* ∇ρ_real[α] for α in 1:3)
     end
+    if !isnothing(ρspin)
+        ρα = (ρ + ρspin)/2
+        ρβ = (ρ - ρspin)/2
+        # TODO Use hcat
+        ρ_zipped = collect(Iterators.flatten(zip(ρα.real, ρβ.real)))
+    else
+        ρ_zipped = ρ.real
+    end
 
-    DensityDerivatives(basis, max_derivative, ρ.real, ∇ρ_real, σ_real)
+    DensityDerivatives(basis, max_derivative, ρ_zipped, ∇ρ_real, σ_real)
 end
 
 function input_kwargs(family, density)
