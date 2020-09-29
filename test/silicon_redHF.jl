@@ -1,4 +1,5 @@
 include("run_scf_and_compare.jl")
+include("testcases.jl")
 using DoubleFloats
 
 # Silicon redHF (without xc) is a metal, so we add a bit of temperature to it
@@ -32,22 +33,22 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
 end
 
 
-#  @testset "Silicon without XC (small)" begin
-#      run_silicon_redHF(Float64, Ecut=5, test_tol=0.05, n_ignored=0, grid_size=15,
-#                        test_etot=false)
-#  end
-#  
-#  if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
-#      @testset "Silicon without XC (large)" begin
-#          run_silicon_redHF(Float64, Ecut=25, test_tol=1e-5, n_ignored=2, grid_size=35,
-#                            scf_tol=1e-7, test_etot=false)
-#      end
-#  end
-#  
-#  @testset "Silicon without XC (small, Double32)" begin
-#      run_silicon_redHF(Double32, Ecut=5, test_tol=0.05, n_ignored=0, grid_size=15,
-#                        test_etot=false)
-#  end
+@testset "Silicon without XC (small)" begin
+    run_silicon_redHF(Float64, Ecut=5, test_tol=0.05, n_ignored=0, grid_size=15,
+                      test_etot=false)
+end
+
+if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
+    @testset "Silicon without XC (large)" begin
+        run_silicon_redHF(Float64, Ecut=25, test_tol=1e-5, n_ignored=2, grid_size=35,
+                          scf_tol=1e-7, test_etot=false)
+    end
+end
+
+@testset "Silicon without XC (small, Double32)" begin
+    run_silicon_redHF(Double32, Ecut=5, test_tol=0.05, n_ignored=0, grid_size=15,
+                      test_etot=false)
+end
 
 
 @testset "Silicon without XC (small, collinear spin)" begin

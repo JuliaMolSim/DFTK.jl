@@ -89,16 +89,9 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
     model.spin_polarization in (:none, :collinear, :spinless) || (
         error("$(model.spin_polarization) not implemented"))
-    spin = (:undefined,)
-    if model.spin_polarization == :collinear
-        spin = (:up, :down)
-    elseif model.spin_polarization == :none
-        spin = (:both, )
-    elseif model.spin_polarization == :spinless
-        spin = (:spinless, )
-    end
+    spins = spin_components(model)
 
-    kpoints = Vector{Kpoint}()
+    kpoints_per_spin = [Kpoint[] for _ in spins]
     for k in kcoords
         k = Vec3{T}(k)  # rationals are sloooow
         mapping = Int[]
@@ -114,12 +107,13 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
             end
         end
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
-        for σ in spin
-            push!(kpoints, Kpoint(model, σ, k, model.recip_lattice * k, mapping, mapping_inv, Gvecs_k))
+        for (iσ, σ) in enumerate(spins)
+            push!(kpoints_per_spin[iσ],
+                  Kpoint(model, σ, k, model.recip_lattice * k, mapping, mapping_inv, Gvecs_k))
         end
     end
 
-    kpoints
+    vcat(kpoints_per_spin...)
 end
 build_kpoints(basis::PlaneWaveBasis, kcoords) =
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
@@ -136,7 +130,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         end
 
         if optimize_fft_size
-            # TODO this is a hack for now, we build the kpoints twice
+            # TODO This is a hack for now, we build the kpoints twice
             fft_size = Tuple{Int, Int, Int}(fft_size)
             kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
             fft_size = determine_fft_size_precise(model.lattice, Ecut, kpoints;
@@ -183,15 +177,13 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         symops = vcat(ksymops...)
     end
 
-    @assert n_spin_component(model) in (1, 2)
-    if n_spin_component(model) == 2  # Nothing to do for 1
-        # TODO Maybe reverse the looping (i.e. instead of (1,1,2,2) do (1,2,1,2))
-        ksymops = collect(Iterators.flatten(zip(ksymops,ksymops)))
-    end
+    n_spin = length(spin_components(model))
+    @assert n_spin in (1, 2)  # For 1 we are all set
+    n_spin == 2 && (ksymops = vcat(ksymops, ksymops))
 
     # Compute weights
     kweights = [length(symops) for symops in ksymops]
-    kweights = T.(n_spin_component(model) .* kweights) ./ sum(kweights)
+    kweights = T.(n_spin .* kweights) ./ sum(kweights)
 
     # Setup and instantiation
     terms = Vector{Any}(undef, length(model.term_types))

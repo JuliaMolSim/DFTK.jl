@@ -204,7 +204,12 @@ end
 """
 Number of spin components explicitly treated in the wavefunction
 """
-function n_spin_component(model)
+function spin_components(model)
     @assert model.spin_polarization in (:none, :spinless, :collinear)
-    model.spin_polarization in (:collinear, ) ? 2 : 1
+    Dict(
+        :collinear => (:up, :down),
+        :none      => (:both,),
+        :spinless  => (:spinless,),
+        :full      => (:undefined,),
+    )[model.spin_polarization]
 end

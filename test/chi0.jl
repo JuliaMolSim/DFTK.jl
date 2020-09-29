@@ -24,8 +24,8 @@ include("testcases.jl")
                                        use_symmetry=use_symmetry)
 
                 ρ0 = guess_density(basis)
-                energies, ham0 = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-                ρ1 = DFTK.next_density(ham0, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
+                energies, ham0 = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0, ρspin=nothing)
+                ρ1 = DFTK.next_density(ham0, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρout
 
                 # Now we make the same model, but add an artificial external potential ε * dV
                 dV = from_real(basis, randn(eltype(basis), basis.fft_size))
@@ -42,8 +42,8 @@ include("testcases.jl")
                                   symmetry=(symmetry ? :force : :off))
                 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=fft_size,
                                        use_symmetry=use_symmetry)
-                energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-                ρ2 = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρ
+                energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0, ρspin=nothing)
+                ρ2 = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands).ρout
                 diff_findiff = (ρ2 - ρ1) / ε
 
 

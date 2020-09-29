@@ -21,7 +21,7 @@ struct TermXc <: Term
     scaling_factor::Real
 end
 
-function ene_ops(term::TermXc, ψ, occ; ρ, ρs=nothing, kwargs...)
+function ene_ops(term::TermXc, ψ, occ; ρ, ρspin=nothing, kwargs...)
     basis = term.basis
     T = eltype(basis)
     model = basis.model
@@ -34,7 +34,7 @@ function ene_ops(term::TermXc, ψ, occ; ρ, ρs=nothing, kwargs...)
 
     # Take derivatives of the density if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    density = DensityDerivatives(basis, max_ρ_derivs, ρ, ρs)
+    density = DensityDerivatives(basis, max_ρ_derivs, ρ, ρspin)
 
     # TODO Need two potential components for α and β!
     potential = zeros(T, basis.fft_size)
