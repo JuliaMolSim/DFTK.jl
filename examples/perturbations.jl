@@ -241,33 +241,43 @@ DFTK.@timing function perturbed_eigenvalues(basis_fine::PlaneWaveBasis, H_p::Ham
         if coeff_nl == 1
 
             # pre-allocated scratch arrays to compute the HamiltonianBlock
-            scratch_ref = (
+            scratch_fine = (
                 ψ_reals=[zeros(complex(T), basis_fine.fft_size...) for tid = 1:Threads.nthreads()],
                 Hψ_reals=[zeros(complex(T), basis_fine.fft_size...) for tid = 1:Threads.nthreads()]
             )
             # perturbed
             ops_hartree_xc = H_p.blocks[ik].operators[end-1:end]
             H_p_block_hxc = HamiltonianBlock(basis_fine, kpt_fine,
-                                             ops_hartree_xc, scratch)
+                                             ops_hartree_xc, scratch_fine)
+            # pre-allocated scratch arrays to compute the HamiltonianBlock
+            scratch_ref = (
+                ψ_reals=[zeros(complex(T), H_ref.basis.fft_size...) for tid = 1:Threads.nthreads()],
+                Hψ_reals=[zeros(complex(T), H_ref.basis.fft_size...) for tid = 1:Threads.nthreads()]
+            )
             # ref
             ops_hartree_xc = H_ref.blocks[ik].operators[end-1:end]
-            H_ref_block_hxc = HamiltonianBlock(basis_fine, kpt_fine,
-                                               ops_hartree_xc, scratch)
+            H_ref_block_hxc = HamiltonianBlock(H_ref.basis, H_ref.basis.kpoints[ik],
+                                               ops_hartree_xc, scratch_ref)
 
-            pot_pψk = mul!(similar(ψ[ik]), H_p_block_hxc, ψk)
-            pot_pψ1k = mul!(similar(ψ1[ik]), H_p_block_hxc, ψ1k)
+            pot_pψk = mul!(similar(ψk), H_p_block_hxc, ψk)
+            pot_pψ1k = mul!(similar(ψ1k), H_p_block_hxc, ψ1k)
 
-            pot_refψk = mul!(similar(ψk), H_ref_block_hxc, ψk)
-            pot_refψ1k = mul!(similar(ψ1k), H_ref_block_hxc, ψ1k)
+            ψ_ref, _ = DFTK.interpolate_blochwave(ψ_fine, basis_fine, H_ref.basis)
+            ψ1_ref, _ = DFTK.interpolate_blochwave(ψ1_fine, basis_fine, H_ref.basis)
+            ψk_ref = ψ_ref[ik]
+            ψ1k_ref = ψ1_ref[ik]
+
+            pot_refψk = mul!(similar(ψk_ref), H_ref_block_hxc, ψk_ref)
+            pot_refψ1k = mul!(similar(ψ1k_ref), H_ref_block_hxc, ψ1k_ref)
         end
 
         for n in occ_bands
             if coeff_nl == 1
-                egval1k = dot(ψk[:, n], pot_refψk[:, n]) - dot(ψk[:, n], pot_pψk[:, n])
+                egval1k = dot(ψk_ref[:, n], pot_refψk[:, n]) - dot(ψk[:, n], pot_pψk[:, n])
                 egval2k = dot(ψk[:, n], potψ1k[:, n])
-                egval2k += dot(ψk[:, n], pot_refψ1k[:, n]) - dot(ψk[:, n], pot_pψ1k[:, n])
+                egval2k += dot(ψk_ref[:, n], pot_refψ1k[:, n]) - dot(ψk[:, n], pot_pψ1k[:, n])
                 egval3k = dot(ψ1k[:, n], potψ1k[:, n]) - dot(ψ1k[:, n], Diagonal(total_pot_avg[ik]) * ψ1k[:, n])
-                egval3k += dot(ψ1k[:, n], pot_refψ1k[:, n]) - dot(ψ1k[:, n], pot_pψ1k[:, n])
+                egval3k += dot(ψ1k_ref[:, n], pot_refψ1k[:, n]) - dot(ψ1k[:, n], pot_pψ1k[:, n])
             else
                 egval1k = 0
                 egval2k = dot(ψk[:, n], potψ1k[:, n])

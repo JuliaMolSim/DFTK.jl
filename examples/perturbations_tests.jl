@@ -29,7 +29,9 @@ function test_perturbation_ratio(Ecut, Ecut_ref, compute_forces)
                                            is_converged=DFTK.ScfConvergenceDensity(tol))
         Etot_ref = sum(values(scfres_ref.energies))
         egval_ref = scfres_ref.eigenvalues
+        ψ_ref = scfres_ref.ψ
         ρ_ref = scfres_ref.ρ
+        occ = scfres_ref.occupation
         if compute_forces
             ff = forces(scfres_ref)
             forces_ref = Array.(ff[1])
@@ -71,16 +73,17 @@ function test_perturbation_ratio(Ecut, Ecut_ref, compute_forces)
                                                 is_converged=DFTK.ScfConvergenceDensity(tol))
 
             # interpolate ρ_ref to compare with ρ / ρ_p on the fine grid
-            ρ_ref_fine = DFTK.interpolate_density(ρ_ref, basis_fine)
             push!(E_fine_list, sum(values(scfres_fine.energies)))
             push!(egval_fine_list, scfres_fine.eigenvalues)
-            push!(ρ_fine_list, norm(scfres_fine.ρ.fourier - ρ_ref_fine.fourier))
+            ψ_fine_ref, _ = DFTK.interpolate_blochwave(scfres_fine.ψ, basis_fine, basis_ref)
+            ρ_fine_ref = compute_density(basis_ref, ψ_fine_ref, occ)
+            push!(ρ_fine_list, norm(ρ_fine_ref.fourier - ρ_ref.fourier))
 
             # save data
-            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rho_ref_fourier"] = ρ_ref_fine.fourier
-            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rho_ref_real"] = ρ_ref_fine.real
-            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rho_fourier"] = scfres_fine.ρ.fourier
-            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rho_real"] = scfres_fine.ρ.real
+            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rho_ref_fourier"] = ρ_ref.fourier
+            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rho_ref_real"] = ρ_ref.real
+            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rho_fourier"] = ρ_fine_ref.fourier
+            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rho_real"] = ρ_fine_ref.real
 
             if compute_forces
                 forces_fine = forces(scfres_fine)
@@ -95,11 +98,13 @@ function test_perturbation_ratio(Ecut, Ecut_ref, compute_forces)
             push!(egval_p2_list, deepcopy(egval_p2))
             push!(egval_p3_list, deepcopy(egval_p3))
             push!(egval_p_rr_list, deepcopy(egval_p_rr))
-            push!(ρ_p_list, norm(ρ_p.fourier - ρ_ref_fine.fourier))
+            ψ_p_ref, _ = DFTK.interpolate_blochwave(ψ_p, basis_fine, basis_ref)
+            ρ_p_ref = compute_density(basis_ref, ψ_p_ref, occ)
+            push!(ρ_p_list, norm(ρ_p_ref.fourier - ρ_ref.fourier))
 
             # save data
-            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rhop_fourier"] = ρ_p.fourier
-            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rhop_real"] = ρ_p.real
+            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rhop_fourier"] = ρ_p_ref.fourier
+            file["Ecutref$(Ecut_ref)_nk$(nk)/Ecut$(Ecut)/density/alpha_$(α)/rhop_real"] = ρ_p_ref.real
 
             if compute_forces
                 push!(forces_p_list, Array.(forces_p[1]))

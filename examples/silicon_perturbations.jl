@@ -30,8 +30,8 @@ kcoords, ksymops = bzmesh_ir_wedge(kgrid, model.symops)
 α_list = vcat(collect(1:0.2:3))
 
 filename  = "perturbation_tests.h5"
-Ecut_list = collect(10:5:20)
-Ecut_ref = 120
+Ecut_list = collect(5:5:10)
+Ecut_ref = 40
 
 h5open(filename, "w") do file
     file["alpha"] = α_list
@@ -43,7 +43,7 @@ for Ecut in Ecut_list
     test_perturbation_ratio(Ecut, Ecut_ref, true)
 end
 
-filename = "improvement_ratio.h5"
-res = test_perturbation_coarsegrid(2.5, 4, 76)
+#  filename = "improvement_ratio.h5"
+#  res = test_perturbation_coarsegrid(2.5, 4, 76)
 
 display(DFTK.timer)
