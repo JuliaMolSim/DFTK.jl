@@ -9,7 +9,7 @@ or if you like to be fully up to date:
 ```
 ] add DFTK#master
 ```
-At least **Julia 1.3** is required.
+At least **Julia 1.4** is required.
 
 ## Python dependencies
 Some parts of the code require a working Python installation with the
