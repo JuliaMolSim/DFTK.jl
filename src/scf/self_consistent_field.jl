@@ -95,12 +95,12 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         # Build next Hamiltonian, diagonalize it, get ρout
         if n_iter == 1 # first iteration
             _, ham = energy_hamiltonian(basis, nothing, nothing;
-                                        ρ=ρin, ρs=ρspinin, eigenvalues=nothing, εF=nothing)
+                                        ρ=ρin, ρspin=ρspinin, eigenvalues=nothing, εF=nothing)
         else
             # Note that ρin is not the density of ψ, and the eigenvalues
             # are not the self-consistent ones, which makes this energy non-variational
             energies, ham = energy_hamiltonian(basis, ψ, occupation;
-                                               ρ=ρin, ρs=ρspinin, eigenvalues=eigenvalues, εF=εF)
+                                               ρ=ρin, ρspin=ρspinin, eigenvalues=eigenvalues, εF=εF)
         end
 
         # Diagonalize `ham` to get the new state
@@ -151,7 +151,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     # ψ is consistent with ρout, so we return that. We also perform
     # a last energy computation to return a correct variational energy
     energies, ham = energy_hamiltonian(basis, ψ, occupation;
-                                       ρ=ρout, ρs=ρspinout, eigenvalues=eigenvalues, εF=εF)
+                                       ρ=ρout, ρspin=ρspinout, eigenvalues=eigenvalues, εF=εF)
 
     # Callback is run one last time with final state to allow callback to clean up
     info = (ham=ham, basis=basis, energies=energies, converged=converged,

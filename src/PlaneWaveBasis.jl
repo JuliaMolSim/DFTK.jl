@@ -29,11 +29,17 @@ end
 The list of G vectors of a given `basis` or `kpoint`, in reduced coordinates.
 """
 G_vectors(kpt::Kpoint) = kpt.G_vectors
+
 """
 The list of G vectors of a given `basis` or `kpoint`, in cartesian coordinates.
 """
 G_vectors_cart(kpt::Kpoint) = (kpt.model.recip_lattice * G for G in G_vectors(kpt))
 
+"""
+Index of the spin component associated to the `kpoint`.
+Satisfies `spin_components(kpoint.model)[spin_index(kpoint)] == kpoint.spin`.
+"""
+index_spin(kpoint::Kpoint) = index_spin(kpoint.spin)
 
 @doc raw"""
 A plane-wave discretized `Model`.

@@ -206,10 +206,17 @@ Number of spin components explicitly treated in the wavefunction
 """
 function spin_components(model)
     @assert model.spin_polarization in (:none, :spinless, :collinear)
-    Dict(
-        :collinear => (:up, :down),
-        :none      => (:both,),
-        :spinless  => (:spinless,),
-        :full      => (:undefined,),
-    )[model.spin_polarization]
+    model.spin_polarization == :collinear && return (:up, :down  )
+    model.spin_polarization == :none      && return (:both,      )
+    model.spin_polarization == :spinless  && return (:spinless,  )
+    model.spin_polarization == :full      && return (:undefined, )
+end
+
+"""
+Index of the spin symbol in the list returned by `spin_components`
+"""
+function index_spin(symbol::Symbol)
+    symbol in (:up, :both, :spinless, :undefined) && return 1
+    symbol in (:down, ) && return 2
+    nothing
 end

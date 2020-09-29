@@ -44,6 +44,6 @@ end
 end
 
 @testset "Silicon LDA (small, collinear spin)" begin
-    @test_skip run_silicon_redHF(Float64, Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17,
-                                 scf_tol=1e-5, n_ep_extra=0, spin_polarization=:collinear)
+    run_silicon_lda(Float64, Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17,
+                    scf_tol=1e-5, n_ep_extra=0, spin_polarization=:collinear)
 end
