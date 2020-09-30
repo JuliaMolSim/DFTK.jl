@@ -104,8 +104,7 @@ function run_abinit_scf(model::Model, outdir;
     if isempty(idcs_Xc) || isempty(model.term_types[idcs_Xc[1]].functionals)
         infile.set_vars(ixc=0)  # Reduced HF
     else
-        xcterm = model.term_types[idcs_Xc[1]]
-        functionals = sort([func.identifier for func in xcterm.functionals])
+        functionals = sort(model.term_types[idcs_Xc[1]].functionals)
         if functionals == [:lda_xc_teter93]
             infile.set_vars(ixc=1)
         elseif functionals == [:lda_c_vwn, :lda_x]

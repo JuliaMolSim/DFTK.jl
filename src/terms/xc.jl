@@ -5,15 +5,15 @@ include("../xc/xc_evaluate.jl")
 Exchange-correlation term, defined by a list of functionals and usually evaluated through libxc.
 """
 struct Xc
-    symbols::Vector{Symbol}  # Symbols of the functionals (uses Libxc.jl / libxc convention)
-    scaling_factor::Real     # to scale by an arbitrary factor (useful for exploration)
+    functionals::Vector{Symbol}  # Symbols of the functionals (Libxc.jl / libxc convention)
+    scaling_factor::Real         # to scale by an arbitrary factor (useful for exploration)
 end
-Xc(symbols::Vector{Symbol}; scaling_factor=1) = Xc(symbols, scaling_factor)
+Xc(symbols::Vector; scaling_factor=1) = Xc(convert.(Symbol, symbols), scaling_factor)
 Xc(symbols::Symbol...; kwargs...) = Xc([symbols...]; kwargs...)
 
 function (xc::Xc)(basis)
     n_spin = length(spin_components(basis.model))
-    functionals = Functional.(xc.symbols; n_spin=n_spin)
+    functionals = Functional.(xc.functionals; n_spin=n_spin)
     TermXc(basis, functionals, xc.scaling_factor)
 end
 
