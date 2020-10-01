@@ -40,6 +40,7 @@ Random.seed!(0)
         include("silicon_lda.jl")
         include("silicon_pbe.jl")
         include("scf_compare.jl")
+        include("iron_lda.jl")
     end
 
     if "all" in TAGS
@@ -79,6 +80,7 @@ Random.seed!(0)
     if "all" in TAGS
         include("variational.jl")
         include("compute_bands.jl")
+        include("random_spindensity.jl")
         include("chi0.jl")
         include("kernel.jl")
     end
