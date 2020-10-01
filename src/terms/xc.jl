@@ -106,7 +106,7 @@ function apply_kernel(term::TermXc, dρ::RealFourierArray; ρ::RealFourierArray,
         terms = evaluate(xc; input_kwargs(xc.family, density)..., derivatives=1:2)
 
         # Accumulate LDA and GGA terms in result
-        result .+= terms.v2rho2 .* dρ.real
+        result .+= @view(terms.v2rho2[1, :, :, :]) .* dρ.real
         if haskey(terms, :v2rhosigma)
             result .+= apply_kernel_term_gga(terms, density, perturbation)
         end
@@ -267,11 +267,11 @@ function apply_kernel_term_gga(terms, density, perturbation)
     dσ = 2sum(∇ρ[α] .* ∇dρ[α] for α in 1:3)
 
     (
-        terms.v2rhosigma .* dσ + divergence_real(density.basis) do α
+        @view(terms.v2rhosigma[1, :, :, :]) .* dσ + divergence_real(density.basis) do α
             @. begin
-                -2 * terms.v2rhosigma * ∇ρ[α] * dρ
-                -2 * terms.v2sigma2 * ∇ρ[α] * dσ
-                -2 * terms.vsigma * ∇dρ[α]
+                -2 * @view(terms.v2rhosigma[1, :, :, :]) * ∇ρ[α] * dρ
+                -2 * @view(terms.v2sigma2[1, :, :, :])   * ∇ρ[α] * dσ
+                -2 * @view(terms.vsigma[1, :, :, :])     * ∇dρ[α]
             end
         end
     )
