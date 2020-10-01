@@ -12,11 +12,11 @@ include("testcases.jl")
         basis = PlaneWaveBasis(model, Ecut; kgrid=[2, 2, 2])
 
         if spin_polarization == :collinear
-            ρspin = from_real(basis, 2.0rand(basis.fft_size...))
+            ρspin = from_real(basis, 1.0rand(basis.fft_size...))
         else
             ρspin = nothing
         end
-        self_consistent_field(basis, tol=1e-5, ρspin=ρspin, n_bands=10);
+        self_consistent_field(basis, tol=5e-6, ρspin=ρspin, n_bands=10);
     end
 
     scfres        = run_silicon(:none)
