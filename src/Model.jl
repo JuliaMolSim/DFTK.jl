@@ -83,7 +83,7 @@ function Model(lattice::AbstractMatrix{T};
     if n_electrons === nothing
         # get it from the atom list
         isempty(atoms) && error("Either n_electrons or a non-empty atoms list should be provided")
-        n_electrons = sum(length(pos) * n_elec_valence(spec) for (spec, pos) in atoms)
+        n_electrons = sum(length(pos) * n_elec_valence(el) for (el, pos) in atoms)
     else
         @assert n_electrons isa Int
     end
@@ -187,12 +187,12 @@ end
 :none if all elements have a magnetic moment, else :collinear or :full
 """
 function default_spin_polarization(atoms)
-    magmom = !all(iszero(spec.magnetic_moment) || isempty(positions)
-                  for (spec, positions) in atoms)
+    magmom = !all(iszero(magnetic_moment(el)) || isempty(positions)
+                  for (el, positions) in atoms)
     !magmom && return :none
 
-    collinear = all(iszero(spec.magnetic_moment[1:2]) || isempty(positions)
-                    for (spec, positions) in atoms)
+    collinear = all(iszero(magnetic_moment(el)[1:2]) || isempty(positions)
+                    for (el, positions) in atoms)
     collinear && return :collinear
 
     error("Non-collinear magnetization not yet implemented")
