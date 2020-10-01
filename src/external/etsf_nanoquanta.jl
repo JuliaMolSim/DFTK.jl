@@ -105,11 +105,15 @@ function load_model(T, folder::EtsfFolder)
     end
     smearing_function !== nothing && (Tsmear = folder.gsr["smearing_width"][:])
 
+    n_spin = size(folder.gsr["eigenvalues"], 3)
+    spin_polarization = n_spin == 2 ? :collinear : :none
+
     # Build model
     lattice = load_lattice(T, folder)
     atoms = load_atoms(T, folder)
     model_DFT(Array{T}(lattice), atoms, functional;
-              smearing=smearing_function, temperature=Tsmear)
+              smearing=smearing_function, temperature=Tsmear,
+              spin_polarization=spin_polarization)
 end
 load_model(folder; kwargs...) = load_model(Float64, folder; kwargs...)
 
@@ -123,15 +127,14 @@ function load_basis(T, folder::EtsfFolder)
     atoms = load_atoms(T, folder)
 
     Ecut = folder.gsr["kinetic_energy_cutoff"][:]
+    kcoords = Vec3{T}.(eachcol(folder.gsr["reduced_coordinates_of_kpoints"]))
 
-    n_kpoints = size(folder.gsr["reduced_coordinates_of_kpoints"], 2)
-    kcoords = Vector{Vec3{T}}(undef, n_kpoints)
-    for ik in 1:n_kpoints
-        kcoords[ik] = Vec3{T}(folder.gsr["reduced_coordinates_of_kpoints"][:, ik])
-    end
+    # Try to determine whether this is a shifted kpoint mesh or not
+    ksmallest = sort(filter(k -> all(k .> 0), kcoords), by=norm)[1]
+    kshift = [(abs(k) > 10eps(T)) ? 0.5 : 0.0 for k in ksmallest]
 
-    kgrid_size = Vector{Int}(folder.gsr["monkhorst_pack_folding"])
-    kcoords_new, ksymops = bzmesh_ir_wedge(kgrid_size, model.lattice, atoms)
+    kgrid = Vector{Int}(folder.gsr["monkhorst_pack_folding"])
+    kcoords_new, ksymops, symops = bzmesh_ir_wedge(kgrid, model.symops, kshift=kshift)
     @assert kcoords_new ≈ kcoords
 
     PlaneWaveBasis(model, Ecut, kcoords, ksymops)

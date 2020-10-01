@@ -145,7 +145,7 @@ function run_abinit_scf(model::Model, outdir;
     # Add pspmap
     pspmap = Dict{Int, String}()
     for (element, positions) in model.atoms
-        (element isa ElementPsp) && continue
+        element isa ElementPsp || continue
         element.psp.identifier == "" && continue
         pspmap[element.Z] = element.psp.identifier
     end
