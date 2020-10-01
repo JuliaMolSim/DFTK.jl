@@ -33,32 +33,44 @@ guess_density(basis::PlaneWaveBasis) = guess_density(basis, basis.model.atoms)
 end
 
 
-guess_spin_density(basis::PlaneWaveBasis) = guess_spin_density(basis, basis.model.atoms, basis.model.magnetic_moments)
-@timing function guess_spin_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments) where {T}
+guess_spin_density(basis::PlaneWaveBasis) = guess_spin_density(basis, basis.model.atoms)
+@timing function guess_spin_density(basis::PlaneWaveBasis{T}, atoms) where {T}
+    # TODO Code duplication with guess_density
     model = basis.model
-    ρs = zeros(complex(T), basis.fft_size)
-    # If no atoms, start with a zero initial guess
-    isempty(atoms) && return from_fourier(basis, ρs)
-    # If no unpaired electrons, start with a zero initial guess
-    isempty(magnetic_moments) && return from_fourier(basis, ρs)
-    # fill ρ with the (unnormalized) Fourier transform, ie ∫ e^{-iGx} ρ(x) dx
-    for (ielem, (spec, positions)) in enumerate(atoms)
-        #n_el_val = n_elec_valence(spec)
-        #insted give |n_alpha-n_beta|
-        n_el_unpaired = magnetic_moments[ielem]
-        error("This is not correct")
+    model.spin_polarization != :collinear && return nothing
+    ρspin = zeros(complex(T), basis.fft_size)
+    # If no atoms, start with a zero spin density
+    isempty(atoms)            && return from_fourier(basis, ρspin)
+
+    # TODO Check how people really do this, I'm not sure this
+    #      is the best possible way ...
+
+    # fill ρspin with the (unnormalized) Fourier transform, ie ∫ e^{-iGx} ρspin(x) dx
+    any_moment = false
+    for (spec, positions) in atoms
         decay_length::T = atom_decay_length(spec)
+        magmom = Vec3{T}(magnetic_moment(spec))
+        iszero(magmom) && continue
+
+        iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
         for (iG, G) in enumerate(G_vectors(basis))
             Gsq = sum(abs2, model.recip_lattice * G)
-            form_factor::T = n_el_unpaired * exp(-Gsq * decay_length^2)
+            form_factor::T = magmom[3] * exp(-Gsq * decay_length^2)
             for r in positions
-                ρs[iG] += form_factor * cis(-2T(π) * dot(G, r))
+                any_moment = true
+                ρspin[iG] += form_factor * cis(-2T(π) * dot(G, r))
             end
         end
     end
 
+    if model.spin_polarization == :collinear && !any_moment
+        @warn("Returning zero spin density guess, because no initial magnetization has " *
+              "been specified in any of the given elements / atoms. Your SCF will likely " *
+              "not converge to a spin-broken solution.")
+    end
+
     # projection in the normalized plane wave basis
-    from_fourier(basis, ρs / sqrt(model.unit_cell_volume))
+    from_fourier(basis, ρspin / sqrt(model.unit_cell_volume))
 end
 
 @doc raw"""

@@ -95,17 +95,17 @@ end
     @assert n_k == length(energies)
 
     parameters = (
-        (DFTK.Smearing.FermiDirac,         0.01, 0.17251898225370),
-        (DFTK.Smearing.FermiDirac,         0.02, 0.17020763046058),
-        (DFTK.Smearing.FermiDirac,         0.03, 0.16865552281082),
+        (DFTK.Smearing.FermiDirac,        0.01, 0.17251898225370),
+        (DFTK.Smearing.FermiDirac,        0.02, 0.17020763046058),
+        (DFTK.Smearing.FermiDirac,        0.03, 0.16865552281082),
         (DFTK.Smearing.MethfesselPaxton1, 0.01, 0.16917895217084),
         (DFTK.Smearing.MethfesselPaxton1, 0.02, 0.17350869020891),
         (DFTK.Smearing.MethfesselPaxton1, 0.03, 0.17395190342809),
     )
 
-    for (meth, Tsmear, εF_ref) in parameters
+    for (meth, temperature, εF_ref) in parameters
         model = Model(silicon.lattice, n_electrons=testcase.n_electrons;
-                      temperature=Tsmear, smearing=meth())
+                      temperature=temperature, smearing=meth())
         basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops; fft_size=fft_size)
         occupation, εF = find_occupation(basis, energies)
 

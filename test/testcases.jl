@@ -7,7 +7,7 @@ silicon = (
                5.131570667152971 5.131570667152971  0.0],
     atnum = 14,
     n_electrons = 8,
-    Tsmear = nothing,
+    temperature = nothing,
     psp = "hgh/lda/si-q4",
     positions = [ones(3)/8, -ones(3)/8],  # in fractional coordinates
     kcoords = [[   0,   0, 0],  # in fractional coordinates
@@ -59,7 +59,7 @@ magnesium = (
                 [0,   0,   1/3],
                 [1/3, 0,   1/3],
                 [1/3, 1/3, 1/3]],
-    Tsmear = 0.01,
+    temperature = 0.01,
     ksymops = Vector{Vector{Tuple{Mat3{Int},Vec3{Float64}}}}([
         [([ 1  0  0;  0  1  0;  0  0  1], [ 0.0,  0.0,  0.0])],
         [([ 1  0  0;  0  1  0;  0  0  1], [ 0.0,  0.0,  0.0]),
@@ -99,7 +99,7 @@ aluminium = (
     n_electrons = 12,
     psp = "hgh/lda/al-q3",
     positions = [[0, 0, 0], [0, 1/2, 1/2], [1/8, 0, 1/2], [1/8, 1/2, 0]],
-    Tsmear = 0.0009500431544769484,
+    temperature = 0.0009500431544769484,
 )
 
 
@@ -111,7 +111,7 @@ aluminium_primitive = (
     n_electrons = 3,
     psp = "hgh/lda/al-q3",
     positions = [[0, 0, 0]],
-    Tsmear = 0.0009500431544769484,
+    temperature = 0.0009500431544769484,
 )
 
 
@@ -123,5 +123,14 @@ platinum_hcp = (
     n_electrons = 36,
     psp = "hgh/lda/pt-q18",
     positions = [zeros(3), ones(3) / 3],
-    Tsmear = 0.0009500431544769484,
+    temperature = 0.0009500431544769484,
+)
+
+iron_bcc = (
+    lattice = 2.71176 .* [[-1 1 1]; [1 -1  1]; [1 1 -1]],
+    atnum = 26,
+    n_electrons = 8,
+    psp = "hgh/lda/fe-q8",
+    positions = [zeros(3)],
+    temperature = 0.01,
 )

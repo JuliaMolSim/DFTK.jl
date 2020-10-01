@@ -42,7 +42,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 @timing function self_consistent_field(basis::PlaneWaveBasis;
                                        n_bands=default_n_bands(basis.model),
                                        ρ=guess_density(basis),
-                                       ρspin=from_real(basis, zero(ρ.real)),  # TODO
+                                       ρspin=guess_spin_density(basis),
                                        ψ=nothing,
                                        tol=1e-6,
                                        maxiter=100,
@@ -127,15 +127,22 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         info = merge(info, (energies=energies, ))
 
         # Apply mixing and pass it the full info as kwargs
-        ρnext = mix(mixing, basis, ρin, ρout; info...)  # TODO Spin to mixing
+        # TODO Mixing should take both density and spin density
+        ρnext     = mix(mixing, basis, ρin, ρout; info...)
         enforce_symmetry && (ρnext = DFTK.symmetrize(ρnext))
-        info = merge(info, (ρnext=ρnext, ))
+        if !isnothing(ρspinout)
+            ρspinnext = mix(mixing, basis, ρspinin, ρspinout; info...)
+            enforce_symmetry && (ρspinnext = DFTK.symmetrize(ρspinnext))
+        else
+            ρspinnext = nothing
+        end
+        info = merge(info, (ρnext=ρnext, ρspinnext=ρspinnext))
 
         callback(info)
         is_converged(info) && (converged = true)
 
         if n_spin == 2
-            cat(ρnext.real, ρspinout.real, dims=4)  # TODO This really has to go
+            cat(ρnext.real, ρspinnext.real, dims=4)  # TODO This really has to go
         else
             ρnext.real
         end

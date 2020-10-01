@@ -12,8 +12,8 @@ include("testcases.jl")
     function get_bands(testcase, kcoords, ksymops, symops, atoms; Ecut=5, tol=1e-8, n_rounds=1)
         kwargs = ()
         n_bands = div(testcase.n_electrons, 2)
-        if testcase.Tsmear !== nothing
-            kwargs = (temperature=testcase.Tsmear, smearing=DFTK.Smearing.FermiDirac())
+        if testcase.temperature !== nothing
+            kwargs = (temperature=testcase.temperature, smearing=DFTK.Smearing.FermiDirac())
             n_bands = div(testcase.n_electrons, 2) + 4
         end
 

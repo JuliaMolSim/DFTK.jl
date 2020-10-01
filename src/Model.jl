@@ -35,9 +35,6 @@ struct Model{T <: Real}
     # Possibly empty. `atoms` just contain the information on the atoms, it's up to
     # the `terms` to make use of it (or not)
     atoms::Vector{Pair{Any, Vector{Vec3{T}}}}
-    # Vector of pairs Element => vector of initial magnetic moments
-    # TODO This is a bit quirky ... think about the structure here
-    magnetic_moments::Vector{Pair{Any, Vector{T}}}
 
     # each element t must implement t(basis), which instantiates a
     # term in a given basis and gives back a term (<: Term)
@@ -58,6 +55,8 @@ discretization information).
 `n_electrons` is taken from `atoms` if not specified
 
 `spin_polarization` is :none by default (paired electrons)
+unless any of the elements has a non-zero initial magnetic moment.
+In this case the spin_polarization will be :collinear.
 
 `smearing` is Fermi-Dirac if `temperature` is non-zero, none otherwise
 
@@ -71,11 +70,10 @@ external potential breaks symmetries (this is not checked).
 function Model(lattice::AbstractMatrix{T};
                n_electrons=nothing,
                atoms=[],
-               magnetic_moments=[],
                terms=[],
                temperature=T(0.0),
                smearing=nothing,
-               spin_polarization=:none,
+               spin_polarization=default_spin_polarization(atoms),
                symmetry=:auto,
                tol_symmetry=1e-5,
                ) where {T <: Real}
@@ -138,8 +136,7 @@ function Model(lattice::AbstractMatrix{T};
     end
 
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
-             spin_polarization, T(temperature), smearing, atoms, magnetic_moments,
-             terms, symops)
+             spin_polarization, T(temperature), smearing, atoms, terms, symops)
 end
 Model(lattice::AbstractMatrix{T}; kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
 
@@ -186,6 +183,21 @@ function model_PBE(lattice::AbstractMatrix, atoms::Vector; kwargs...)
     model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe]; kwargs...)
 end
 
+"""
+:none if all elements have a magnetic moment, else :collinear or :full
+"""
+function default_spin_polarization(atoms)
+    magmom = !all(iszero(spec.magnetic_moment) || isempty(positions)
+                  for (spec, positions) in atoms)
+    !magmom && return :none
+
+    collinear = all(iszero(spec.magnetic_moment[1:2]) || isempty(positions)
+                    for (spec, positions) in atoms)
+    collinear && return :collinear
+
+    error("Non-collinear magnetization not yet implemented")
+    :full
+end
 
 """
 Maximal occupation of a state (2 for non-spin-polarized electrons, 1 otherwise).
