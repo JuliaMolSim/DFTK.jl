@@ -25,6 +25,7 @@ codes such as [Abinit](https://www.abinit.org/),
     - Analytic potentials or Godecker norm-conserving pseudopotentials (GTH, HGH)
     - Brillouin zone symmetry for k-Point sampling using [spglib](https://atztogo.github.io/spglib/)
     - Smearing functions for metals
+    - Collinear spin polarization for magnetic systems (but not yet fully supported)
     - Self-consistent field approaches: Damping, Kerker mixing, Anderson/Pulay/DIIS mixing
     - Direct minimization
     - Multi-level threading (kpoints, eigenvectors, FFTs, linear algebra)
@@ -60,6 +61,7 @@ Pages = [
     "examples/pymatgen.md",
     "examples/ase.md",
     "examples/geometry_optimization.md",
+    "examples/collinear_magnetism.md",
     "examples/polarizability.md",
     "examples/gross_pitaevskii.md",
     "examples/gross_pitaevskii_2D.md",
