@@ -27,7 +27,7 @@ include("testcases.jl")
     @test scfres.energies.total ≈ scfres_broken.energies.total atol=1e-5
     absmax(x) = maximum(abs, x)
     for ik in 1:n_kpt
-        @test scfres.eigenvalues[ik][1:10] ≈ εbroken[ik][1:10]         atol=1e-4 norm=absmax
-        @test scfres.eigenvalues[ik][1:10] ≈ εbroken[ik + n_kpt][1:10] atol=1e-4 norm=absmax
+        @test scfres.eigenvalues[ik][1:10] ≈ εbroken[ik][1:10]         atol=5e-4 norm=absmax
+        @test scfres.eigenvalues[ik][1:10] ≈ εbroken[ik + n_kpt][1:10] atol=5e-4 norm=absmax
     end
 end
