@@ -32,7 +32,7 @@ function ylm_real(l::Integer, m::Integer, rvec::AbstractVector{T}) where T
         (m == -1) && return sqrt(15 /  4T(π)) * (y / r) * (z / r)
         (m ==  0) && return sqrt( 5 / 16T(π)) * (2z^2 - x^2 - y^2) / r^2
         (m ==  1) && return sqrt(15 /  4T(π)) * (x / r) * (z / r)
-        (m ==  2) && return sqrt(15 /  4T(π)) * (x^2 - y^2) / r^2
+        (m ==  2) && return sqrt(15 / 16T(π)) * (x^2 - y^2) / r^2
     end
 
     if l == 3  # f
