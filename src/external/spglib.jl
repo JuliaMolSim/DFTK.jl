@@ -77,6 +77,8 @@ end
         max_ops = ccall((:spg_get_multiplicity, SPGLIB), Cint,
             (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
             copy(lattice'), spg_positions, spg_numbers, Cint(length(spg_numbers)), tol_symmetry)
+        spg_rotations    = Array{Cint}(undef, 3, 3, max_ops)
+        spg_translations = Array{Cdouble}(undef, 3, max_ops)
 
         spg_n_ops = ccall((:spg_get_symmetry, SPGLIB), Cint,
             (Ptr{Cint}, Ptr{Cdouble}, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
