@@ -76,12 +76,13 @@ end
 
 function compute_kernel(term::TermXc; ρ::RealFourierArray, kwargs...)
     @assert term.basis.model.spin_polarization in (:none, :spinless)
+    ρ_real = reshape(ρ.real, 1, size(ρ.real)...)
     kernel = similar(ρ.real)
     kernel .= 0
     for xc in term.functionals
         xc.family == :lda || error("compute_kernel only implemented for LDA")
-        terms = evaluate(xc; rho=ρ.real, derivatives=2:2)  # only valid for LDA
-        kernel .+= terms.v2rho2
+        terms = evaluate(xc; rho=ρ_real, derivatives=2:2)  # only valid for LDA
+        kernel .+= @view terms.v2rho2[1, :, :, :]
     end
     Diagonal(vec(term.scaling_factor .* kernel))
 end

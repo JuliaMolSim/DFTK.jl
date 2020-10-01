@@ -61,18 +61,23 @@ end
     # Ask spglib for symmetry operations and for irreducible mesh
     spg_positions, spg_numbers, spg_spins, _, collinear = spglib_atoms(atoms)
 
-    max_ops = 100  # Maximal number of symmetry operations spglib searches for
-    spg_rotations    = Array{Cint}(undef, 3, 3, max_ops)
-    spg_translations = Array{Cdouble}(undef, 3, max_ops)
     if collinear
+        error("Untested code")
+        max_ops = 384  # Maximal number of symmetry operations spglib searches for
+        spg_rotations    = Array{Cint}(undef, 3, 3, max_ops)
+        spg_translations = Array{Cdouble}(undef, 3, max_ops)
         spg_equivalent_atoms = Array{Cint}(undef, max_ops)
+
         spg_n_ops = ccall((:spg_get_symmetry_with_collinear_spin, SPGLIB), Cint,
                           (Ptr{Cint}, Ptr{Cdouble}, Ptr{Cint}, Cint, Ptr{Cdouble},
                            Ptr{Cdouble}, Ptr{Cint}, Ptr{Cdouble}, Cint, Cdouble),
                           spg_rotations, spg_translations, spg_equivalent_atoms, max_ops, copy(lattice'),
                           spg_positions, spg_numbers, spg_spins, Cint(length(spg_numbers)), tol_symmetry)
     else
-        # No collinear magnetism
+        max_ops = ccall((:spg_get_multiplicity, SPGLIB), Cint,
+            (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
+            copy(lattice'), spg_positions, spg_numbers, Cint(length(spg_numbers)), tol_symmetry)
+
         spg_n_ops = ccall((:spg_get_symmetry, SPGLIB), Cint,
             (Ptr{Cint}, Ptr{Cdouble}, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
             spg_rotations, spg_translations, max_ops, copy(lattice'), spg_positions, spg_numbers,
