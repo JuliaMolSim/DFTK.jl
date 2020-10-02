@@ -209,8 +209,10 @@ Creates a new basis identical to `basis`, but with a different set of kpoints
 """
 function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
                         ksymops::AbstractVector, symmetries=nothing)
+    # TODO This constructor does *not* keep the non-variational property
+    #      of the input basis!
     PlaneWaveBasis(basis.model, basis.Ecut, kcoords, ksymops, symmetries;
-                   fft_size=basis.fft_size)
+                   fft_size=basis.fft_size, variational=true)
 end
 
 

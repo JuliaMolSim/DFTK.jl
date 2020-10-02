@@ -19,7 +19,7 @@ function high_symmetry_kpath(model; kline_density=20)
     (kcoords=kcoords, klabels=labels_dict, kpath=symm_kpath.kpath["path"])
 end
 
-@timing function compute_bands(basis, ρ, kcoords, n_bands;
+@timing function compute_bands(basis, ρ, ρspin, kcoords, n_bands;
                                eigensolver=lobpcg_hyper,
                                tol=1e-3,
                                show_progress=true,
@@ -30,7 +30,7 @@ end
     myrationalize(x::T) where {T <: AbstractFloat} = rationalize(x, tol=10eps(T))
     myrationalize(x) = x
     bs_basis = PlaneWaveBasis(basis, [myrationalize.(k) for k in kcoords], ksymops)
-    ham = Hamiltonian(bs_basis; ρ=ρ)
+    ham = Hamiltonian(bs_basis; ρ=ρ, ρspin=ρspin)
 
     band_data = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
                                         n_conv_check=n_bands,
@@ -47,19 +47,21 @@ function prepare_band_data(band_data; datakeys=[:λ, :λerror],
     # from the band_data object into nicely plottable branches
     # This is a bit of abuse of the routines in pymatgen, but it works ...
     plotter = pyimport("pymatgen.electronic_structure.plotter")
+    basis = band_data.basis
 
-    ret = Dict{Symbol, Any}(:basis => band_data.basis)
+    ret = Dict{Symbol, Any}(:basis => basis)
     for key in datakeys
         hasproperty(band_data, key) || continue
 
         # Compute dummy "Fermi level" for pymatgen to be happy
         allfinite = [filter(isfinite, x) for x in band_data[key]]
         eshift = sum(sum, allfinite) / sum(length, allfinite)
-        bs = pymatgen_bandstructure(band_data.basis, band_data[key], eshift, klabels)
+        bs = pymatgen_bandstructure(basis, band_data[key], eshift, klabels)
         data = plotter.BSPlotter(bs).bs_plot_data(zero_to_efermi=false)
 
         # Check number of k-Points agrees
-        @assert length(band_data.basis.kpoints) == sum(length, data["distances"])
+        n_kcoords = div(length(basis.kpoints), basis.model.n_spin_components)
+        @assert n_kcoords == sum(length, data["distances"])
 
         ret[:spins] = [:up]
         spinmap = [("1", :up)]
@@ -88,7 +90,7 @@ i.e. where bands are cut by the Fermi level.
 """
 function is_metal(band_data, εF, tol=1e-4)
     # This assumes no spin polarization
-    @assert band_data.basis.model.spin_polarization in (:none, :spinless)
+    @assert band_data.basis.model.spin_polarization in (:none, :spinless, :collinear)
 
     n_bands = length(band_data.λ[1])
     n_kpoints = length(band_data.λ)
@@ -159,13 +161,13 @@ If this value is absent and an `scfres` is used to start the calculation a defau
 `n_bands_scf + 5sqrt(n_bands_scf)` is used. Unlike the rest of DFTK bands energies
 are plotted in `:eV` unless a different `unit` is selected.
 """
-function plot_bandstructure(basis, ρ, n_bands;
+function plot_bandstructure(basis, ρ, ρspin, n_bands;
                             εF=nothing, kline_density=20, unit=:eV, kwargs...)
     # Band structure calculation along high-symmetry path
     kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density=kline_density)
     println("Computing bands along kpath:")
     println("       ", join(join.(detexify_kpoint.(kpath), " -> "), "  and  "))
-    band_data = compute_bands(basis, ρ, kcoords, n_bands; kwargs...)
+    band_data = compute_bands(basis, ρ, ρspin, kcoords, n_bands; kwargs...)
 
     plotargs = ()
     if kline_density ≤ 10
@@ -177,5 +179,5 @@ function plot_bandstructure(scfres; n_bands=nothing, kwargs...)
     # Convenience wrapper for scfres named tuples
     n_bands_scf = size(scfres.occupation[1], 2)
     isnothing(n_bands) && (n_bands = ceil(Int, n_bands_scf + 5sqrt(n_bands_scf)))
-    plot_bandstructure(scfres.basis, scfres.ρ, n_bands; εF=scfres.εF, kwargs...)
+    plot_bandstructure(scfres.basis, scfres.ρ, scfres.ρspin, n_bands; εF=scfres.εF, kwargs...)
 end

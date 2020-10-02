@@ -30,5 +30,6 @@ using Plots
 
 n_bands = 8
 ρ0 = guess_density(basis)  # Just dummy, has no meaning in this model
-p = plot_bandstructure(basis, ρ0, n_bands, εF=εF, kline_density=10)
+ρspin0 = nothing
+p = plot_bandstructure(basis, ρ0, ρspin0, n_bands, εF=εF, kline_density=10)
 ylims!(p, (-5, 6))
