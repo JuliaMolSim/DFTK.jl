@@ -19,7 +19,7 @@ function run_silicon_lda(T ;Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     fft_size = grid_size * ones(3)
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="lda", family="hgh"))
     model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [:lda_x, :lda_c_vwn],
-                      spin_polarization=spin_polarization)
+                      spin_polarization=spin_polarization, magnetic_moments=[Si => zeros(2)])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     n_kpt_rounds = spin_polarization == :collinear ? 2 : 1

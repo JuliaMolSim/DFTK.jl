@@ -17,12 +17,13 @@ mapping of the `numbers` to the element objects in DFTK and `collinear` whether
 the atoms mark a case of collinear spin or not. Notice that if `collinear` is false
 than `spins` is garbage.
 """
-function spglib_atoms(atoms)
+function spglib_atoms(atoms, magnetic_moments=[])
     n_attypes = isempty(atoms) ? 0 : sum(length(positions) for (typ, positions) in atoms)
     spg_numbers = Vector{Cint}(undef, n_attypes)
     spg_spins = Vector{Cdouble}(undef, n_attypes)
     spg_positions = Matrix{Cdouble}(undef, 3, n_attypes)
 
+    arbitrary_spin = false
     offset = 0
     nextnumber = 1
     mapping = Dict{Int, Any}()
@@ -34,22 +35,23 @@ function spglib_atoms(atoms)
             # assign the same number to all elements with this position
             spg_numbers[offset + ipos] = nextnumber
             spg_positions[:, offset + ipos] .= pos
-            spg_spins[offset + ipos] = magnetic_moment(el)[3]
+
+            if !isempty(magnetic_moments)
+                magmom = magnetic_moments[iatom][2][ipos]
+                spg_spins[offset + ipos] = magmom[3]
+                !iszero(magmom[1:2]) && (arbitrary_spin = true)
+            end
         end
         offset += length(positions)
         nextnumber += 1
     end
 
-    # TODO One could gain a few more symmetry operations if one takes collinear spin
-    #      into account ... but I'm to lazy to implement that now. At the moment if
-    #      different initial magnetisations are used the elements are considered unrelated.
-
     (positions=spg_positions, numbers=spg_numbers, spins=spg_spins,
-     mapping=mapping, collinear=false)
+     mapping=mapping, collinear=!arbitrary_spin && !all(iszero, spg_spins))
 end
 
 
-@timing function spglib_get_symmetry(lattice, atoms; tol_symmetry=1e-5)
+@timing function spglib_get_symmetry(lattice, atoms, magnetic_moments=[]; tol_symmetry=1e-5)
     lattice = Matrix{Float64}(lattice)  # spglib operates in double precision
 
     if isempty(atoms)
@@ -59,10 +61,9 @@ end
     end
 
     # Ask spglib for symmetry operations and for irreducible mesh
-    spg_positions, spg_numbers, spg_spins, _, collinear = spglib_atoms(atoms)
+    spg_positions, spg_numbers, spg_spins, _, collinear = spglib_atoms(atoms, magnetic_moments)
 
     if collinear
-        error("Untested code")
         max_ops = 384  # Maximal number of symmetry operations spglib searches for
         spg_rotations    = Array{Cint}(undef, 3, 3, max_ops)
         spg_translations = Array{Cdouble}(undef, 3, max_ops)

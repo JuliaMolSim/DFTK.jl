@@ -17,8 +17,8 @@ a = 5.42352  # Bohr
 lattice = a / 2 * [[-1  1  1];
                    [ 1 -1  1];
                    [ 1  1 -1]]
-Fe_nospin = ElementPsp(:Fe, psp=load_psp("hgh/lda/Fe-q8.hgh"))
-atoms = [Fe_nospin => [zeros(3)]];
+Fe = ElementPsp(:Fe, psp=load_psp("hgh/lda/Fe-q8.hgh"))
+atoms = [Fe => [zeros(3)]];
 
 # To get the ground-state energy we use an LDA model and rather moderate
 # discretisation parameters.
@@ -34,27 +34,27 @@ scfres_nospin.energies
 
 # Since did not specify any initial magnetic moment on the iron atom,
 # DFTK will automatically assume that a calculation with only spin-paired
-# electrons should be performed. As a result the obtained state
+# electrons should be performed. As a result the obtained ground state
 # features no spin-polarization.
 
 # Now we repeat the calculation, but give the iron atom an initial magnetic moment.
 # For specifying the magnetic moment DFTK uses units of ``\frac{μ_B}{2}``, which
 # is (roughly) the magnetic moment of a single electron. As a result the value to pass
-# to the `magnetic_moment` flag conveniently agrees with the desired excess of
+# to the model and the guess density function agrees with the desired excess of
 # spin-up over spin-down electrons at the iron centre. In this case we seek
 # the case with as many spin-parallel ``d``-electrons as possible. In our pseudopotential
 # model the 8 valence electrons are 2 pair of ``s``-electrons, 1 pair of ``d``-electrions
 # and 4 unpaired ``d``-electrons giving a desired magnetic moment of 4 at the iron centre.
 
-Fe_spin = ElementPsp(:Fe, psp=load_psp("hgh/lda/Fe-q8.hgh"), magnetic_moment=4)
-atoms = [Fe_spin => [zeros(3)]];
+magnetic_moments = [Fe => [4]]
 
-# We repeat the calculation using the same model as before. DFTK now automatically detects
+# We repeat the calculation using the same model as before. DFTK now detects
 # the non-zero moment and switches to a collinear calculation.
 
-model = model_LDA(lattice, atoms, temperature=0.01)
+model = model_LDA(lattice, atoms, magnetic_moments=magnetic_moments, temperature=0.01)
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
-scfres = self_consistent_field(basis, tol=1e-10, mixing=KerkerMixing())
+ρspin = guess_spin_density(basis, magnetic_moments)
+scfres = self_consistent_field(basis, tol=1e-10, ρspin=ρspin, mixing=KerkerMixing())
 
 scfres_nospin.energies
 

@@ -41,14 +41,13 @@
 #   reducible Brillouin zone (RBZ) to the irreducible (IBZ) (basis.ksymops)
 
 @doc raw"""
-Return the ``k``-point symmetry operations associated to a lattice, model or basis.
-Since the ``k``-point discretisations may break some of the symmetries, the latter
-case will return a subset of the symmetries of the former two.
+Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
-function symmetry_operations(lattice, atoms; tol_symmetry=1e-5, kcoords=nothing)
+function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=1e-5)
     symops = []
     # Get symmetries from spglib
-    Stildes, τtildes = spglib_get_symmetry(lattice, atoms, tol_symmetry=tol_symmetry)
+    Stildes, τtildes = spglib_get_symmetry(lattice, atoms, magnetic_moments;
+                                           tol_symmetry=tol_symmetry)
 
     for isym = 1:length(Stildes)
         S = Stildes[isym]'                  # in fractional reciprocal coordinates
@@ -58,13 +57,13 @@ function symmetry_operations(lattice, atoms; tol_symmetry=1e-5, kcoords=nothing)
         push!(symops, (S, τ))
     end
 
-    symops = unique(symops)
-    symops_preserving_kgrid(symops)
+    unique(symops)
 end
 
-function symops_preserving_kgrid(symops, kcoords=nothing)
-    kcoords === nothing && return symops
-    # filter only the operations that respect the symmetries of the discrete BZ grid
+"""
+Filter out the symmetry operations that respect the symmetries of the discrete BZ grid
+"""
+function symops_preserving_kgrid(symops, kcoords)
     function preserves_grid(S)
         all(normalize_kpoint_coordinate(S * k) in kcoords
             for k in normalize_kpoint_coordinate.(kcoords))

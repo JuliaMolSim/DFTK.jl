@@ -83,7 +83,7 @@ struct PlaneWaveBasis{T <: Real}
 
     # symmetry operations that leave the reducible Brillouin zone invariant.
     # Subset of model.symops, and superset of all the ksymops.
-    # Independent of the `use_symmetry` option
+    # Independent of the `symmetry` option
     symops::Vector{SymOp}
 end
 
@@ -226,7 +226,7 @@ number of points in each dimension and `kshift` the shift (0 or 1/2 in each dire
 If not specified a grid is generated using `kgrid_size_from_minimal_spacing` with
 a minimal spacing of `2π * 0.022` per Bohr.
 
-If `use_symmetry` is `true` (default) the symmetries of the
+If `symmetry` is `true` (default) the symmetries of the
 crystal are used to reduce the number of ``k``-Points which are
 treated explicitly. In this case all guess densities and potential
 functions must agree with the crystal symmetries or the result is
@@ -235,9 +235,8 @@ undefined.
 function PlaneWaveBasis(model::Model, Ecut::Number;
                         kgrid=kgrid_size_from_minimal_spacing(model.lattice, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
-                        use_symmetry=true,
-                        kwargs...)
-    if use_symmetry
+                        symmetry=true, kwargs...)
+    if symmetry
         kcoords, ksymops, symops = bzmesh_ir_wedge(kgrid, model.symops, kshift=kshift)
     else
         kcoords, ksymops, _ = bzmesh_uniform(kgrid, kshift=kshift)
@@ -415,8 +414,8 @@ Convert a `basis` into one that uses or doesn't use BZ symmetrization
 Mainly useful for debug purposes (e.g. in cases we don't want to
 bother with symmetry)
 """
-function PlaneWaveBasis(basis::PlaneWaveBasis; use_symmetry)
-    use_symmetry && error("Not implemented")
+function PlaneWaveBasis(basis::PlaneWaveBasis; symmetry)
+    symmetry && error("Not implemented")
     if all(s -> length(s) == 1, basis.ksymops)
         return basis
     end

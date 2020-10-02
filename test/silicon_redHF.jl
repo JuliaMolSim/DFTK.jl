@@ -26,7 +26,8 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
     fft_size = grid_size * ones(3)
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="lda", family="hgh"))
     model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [];
-                      temperature=0.05, spin_polarization=spin_polarization)
+                      temperature=0.05, spin_polarization=spin_polarization,
+                      magnetic_moments=[Si => zeros(2)])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     run_scf_and_compare(T, basis, ref_redHF, ref_etot; kwargs...)

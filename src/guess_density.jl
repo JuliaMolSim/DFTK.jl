@@ -33,37 +33,53 @@ guess_density(basis::PlaneWaveBasis) = guess_density(basis, basis.model.atoms)
 end
 
 
-guess_spin_density(basis::PlaneWaveBasis) = guess_spin_density(basis, basis.model.atoms)
-@timing function guess_spin_density(basis::PlaneWaveBasis{T}, atoms) where {T}
+@doc raw"""
+    guess_spin_density(basis, magnetic_moments)
+
+Magnetic moments should be specified in units of ``μ_B / 2``
+"""
+function guess_spin_density(basis::PlaneWaveBasis, magnetic_moments=[])
+    guess_spin_density(basis, basis.model.atoms, magnetic_moments)
+end
+@timing function guess_spin_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments) where {T}
     # TODO Code duplication with guess_density
     model = basis.model
-    model.spin_polarization != :collinear && return nothing
+    if isempty(magnetic_moments) && model.spin_polarization in (:none, :spinless)
+        return nothing
+    end
+    model.spin_polarization == :collinear ||
+        error("Initial magnetic moments can only be used with collinear models.")
+
+    # If no atoms or magnetic moments, start with a zero spin density
     ρspin = zeros(complex(T), basis.fft_size)
-    # If no atoms, start with a zero spin density
-    isempty(atoms)            && return from_fourier(basis, ρspin)
 
     # TODO Check how people really do this, I'm not sure this
     #      is the best possible way ...
 
     # fill ρspin with the (unnormalized) Fourier transform, ie ∫ e^{-iGx} ρspin(x) dx
     any_moment = false
-    for (spec, positions) in atoms
+    @assert isempty(magnetic_moments) || length(magnetic_moments) == length(atoms)
+    for (ispec, (spec, magmoms)) in enumerate(magnetic_moments)
         decay_length::T = atom_decay_length(spec)
-        magmom = Vec3{T}(magnetic_moment(spec))
-        iszero(magmom) && continue
+        positions = atoms[ispec][2]
+        @assert spec == atoms[ispec][1]
+        @assert length(magmoms) == length(positions)
 
-        iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
-        for (iG, G) in enumerate(G_vectors(basis))
-            Gsq = sum(abs2, model.recip_lattice * G)
-            form_factor::T = magmom[3] * exp(-Gsq * decay_length^2)
-            for r in positions
-                any_moment = true
+        for (ipos, r) in enumerate(positions)
+            magmom = Vec3{T}(normalise_magnetic_moment(magmoms[ipos]))
+            iszero(magmom) && continue
+            iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
+            any_moment = true
+
+            for (iG, G) in enumerate(G_vectors(basis))
+                Gsq = sum(abs2, model.recip_lattice * G)
+                form_factor::T = magmom[3] * exp(-Gsq * decay_length^2)
                 ρspin[iG] += form_factor * cis(-2T(π) * dot(G, r))
             end
         end
     end
 
-    if model.spin_polarization == :collinear && !any_moment
+    if !any_moment
         @warn("Returning zero spin density guess, because no initial magnetization has " *
               "been specified in any of the given elements / atoms. Your SCF will likely " *
               "not converge to a spin-broken solution.")
