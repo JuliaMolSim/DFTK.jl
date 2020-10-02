@@ -46,8 +46,9 @@ function spglib_atoms(atoms, magnetic_moments=[])
         nextnumber += 1
     end
 
+    collinear = !isempty(magnetic_moments) && !arbitrary_spin && !all(iszero, spg_spins)
     (positions=spg_positions, numbers=spg_numbers, spins=spg_spins,
-     mapping=mapping, collinear=!arbitrary_spin && !all(iszero, spg_spins))
+     mapping=mapping, collinear=collinear)
 end
 
 
