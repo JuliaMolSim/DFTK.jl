@@ -49,9 +49,9 @@ magnetic_moments = [Fe => [4, ]]
 # !!! tip "Units of the magnetisation and magnetic moments in DFTK"
 #     Unlike all other quantities magnetisation and magnetic moments in DFTK
 #     are given in units of the Bohr magneton ``μ_B``, which in atomic units has the
-#     value ``\frac{1}{2}``. Since ``μ_B`` is the magnetic moment of a single electron
-#     the advantage is that one can directly think of these quantities as the excess of
-#     spin-up electrons or spin-up electron density.
+#     value ``\frac{1}{2}``. Since ``μ_B`` is (roughly) the magnetic moment of
+#     a single electron the advantage is that one can directly think of these
+#     quantities as the excess of spin-up electrons or spin-up electron density.
 #
 # We repeat the calculation using the same model as before. DFTK now detects
 # the non-zero moment and switches to a collinear calculation.
@@ -97,3 +97,15 @@ idown = iup + length(scfres.basis.kpoints) ÷ 2
 #     each ``k``-point coordinate twice, once associated with spin-up and once with down-down.
 #     The list first contains all spin-up ``k``-points and then all spin-down ``k``-points,
 #     such that `iup` and `idown` index the same ``k``-point, but differing spins.
+
+# We can also observe the spin-polarization by looking at the density of states
+# in the spin-up and spin-down spin around the Fermi level.
+
+using Plots
+εs = range(minimum(minimum(scfres.eigenvalues)) - .5,
+           maximum(maximum(scfres.eigenvalues)) + .5, length=1000)
+Dup   = DOS.(εs, Ref(basis), Ref(scfres.eigenvalues), spins=(:up, ))
+Ddown = DOS.(εs, Ref(basis), Ref(scfres.eigenvalues), spins=(:down, ))
+q = plot(εs,  Dup, label="DOS :up", color=:blue)
+plot!(q, εs, Ddown, label="DOS :down", color=:red)
+vline!(q, [scfres.εF], label="εF", color=:green, lw=1.5)

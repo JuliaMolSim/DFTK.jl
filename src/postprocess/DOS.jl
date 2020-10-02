@@ -23,12 +23,12 @@ and temperature `T`. It increases with both `T` and better sampling of the BZ wi
 Fermi surface.
 """
 function NOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
-             temperature=basis.model.temperature)
-    @assert basis.model.spin_polarization in (:none, :spinless)
+             temperature=basis.model.temperature, spins=1:basis.model.n_spin_components)
     N = zero(ε)
     if (temperature == 0) || smearing isa Smearing.None
         error("NOS only supports finite temperature")
     end
+    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
 
     # Note the differences to the DOS and LDOS functions: We are not counting states
     # per BZ volume (like in DOS), but absolute number of states. Therefore n_symeqk
@@ -38,10 +38,10 @@ function NOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
     #
     # To explicitly show the similarity with DOS and the temperature dependence we employ
     # -f'((εik - ε)/temperature) = temperature * ( d/dε f_τ(εik - ε') )|_{ε' = ε}
-    for ik = 1:length(eigenvalues)
+    for σ in spins, ik = krange_spin(basis, σ)
         n_symeqk = length(basis.ksymops[ik])  # Number of symmetry-equivalent k-Points
-        for iband = 1:length(eigenvalues[ik])
-            enred = (eigenvalues[ik][iband] - ε) / temperature
+        for (iband, εnk) in enumerate(eigenvalues[ik])
+            enred = (εnk - ε) / temperature
             N -= n_symeqk * Smearing.occupation_derivative(smearing, enred)
         end
     end
@@ -53,16 +53,17 @@ end
 Total density of states at energy ε
 """
 function DOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
-             temperature=basis.model.temperature)
-    @assert basis.model.spin_polarization in (:none, :spinless)
-    filled_occ = filled_occupation(basis.model)
-    D = zero(ε)
+             temperature=basis.model.temperature, spins=1:basis.model.n_spin_components)
     if (temperature == 0) || smearing isa Smearing.None
         error("DOS only supports finite temperature")
     end
-    for ik = 1:length(eigenvalues)
-        for iband = 1:length(eigenvalues[ik])
-            enred = (eigenvalues[ik][iband] - ε) / temperature
+    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
+    filled_occ = filled_occupation(basis.model)
+
+    D = zero(ε)
+    for σ in spins, ik = krange_spin(basis, σ)
+        for (iband, εnk) in enumerate(eigenvalues[ik])
+            enred = (εnk - ε) / temperature
             D -= (filled_occ * basis.kweights[ik] / temperature
                   * Smearing.occupation_derivative(smearing, enred))
         end
@@ -74,16 +75,17 @@ end
 Local density of states, in real space
 """
 function LDOS(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
-              temperature=basis.model.temperature)
-    @assert basis.model.spin_polarization in (:none, :spinless)
-    filled_occ = filled_occupation(basis.model)
+              temperature=basis.model.temperature, spins=1:basis.model.n_spin_components)
     if (temperature == 0) || smearing isa Smearing.None
         error("LDOS only supports finite temperature")
     end
+    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
+    filled_occ = filled_occupation(basis.model)
+
     weights = deepcopy(eigenvalues)
-    for ik = 1:length(eigenvalues)
-        for iband = 1:length(eigenvalues[ik])
-            enred = (eigenvalues[ik][iband] - ε) / temperature
+    for (ik, εk) in enumerate(eigenvalues)
+        for (iband, εnk) in enumerate(εk)
+            enred = (εnk - ε) / temperature
             weights[ik][iband] = (-filled_occ / temperature
                                   * Smearing.occupation_derivative(smearing, enred))
         end
@@ -93,5 +95,13 @@ function LDOS(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
     # weights (as "occupations") at each kpoint. Note, that this automatically puts in the
     # required symmetrization with respect to kpoints and BZ symmetry
     ldostot, ldosspin = compute_density(basis, ψ, weights)
-    ldostot.real
+
+    # TODO This is not great, make compute_density more flexible ...
+    if basis.model.spin_polarization == :collinear
+        ρs = [(ldostot.real + ldosspin.real) / 2, (ldostot.real - ldosspin.real) / 2]
+    else
+        @assert isnothing(ldosspin)
+        ρs = [ldostot.real]
+    end
+    return sum(ρs[iσ] for iσ in spins)
 end
