@@ -47,6 +47,7 @@ end
     @assert length(magnetic_moments) == length(atoms)
     for (ispec, (spec, magmoms)) in enumerate(magnetic_moments)
         positions = atoms[ispec][2]
+        @assert charge_nuclear(spec) == charge_nuclear(atoms[ispec][1])
         @assert length(magmoms) == length(positions)
         for (ipos, r) in enumerate(positions)
             magmom = Vec3{T}(normalize_magnetic_moment(magmoms[ipos]))
