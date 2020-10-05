@@ -5,7 +5,7 @@ include("testcases.jl")
 @testset "Spin-broken silicon setup relaxes to spin-paired ground state" begin
     function run_silicon(spin_polarization)
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-        model = model_LDA(silicon.lattice, [Si => silicon.positions],
+        model = model_PBE(silicon.lattice, [Si => silicon.positions],
                           spin_polarization=spin_polarization, temperature=0.01)
 
         Ecut = 7

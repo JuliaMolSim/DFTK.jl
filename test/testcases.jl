@@ -1,5 +1,5 @@
 using DFTK: Mat3, Vec3
-using LinearAlgebra: Diagonal
+using LinearAlgebra
 
 silicon = (
     lattice = [0.0  5.131570667152971 5.131570667152971;
@@ -133,4 +133,13 @@ iron_bcc = (
     psp = "hgh/lda/fe-q8",
     positions = [zeros(3)],
     temperature = 0.01,
+)
+
+o2molecule = (
+    lattice = diagm([6.5, 6.5, 9.0]),
+    atnum = 8,
+    n_electrons = 12,
+    psp = "hgh/lda/O-q6",
+    positions = 0.1155 * [[0, 0, 1], [0, 0, -1]],
+    temperature = 0.02,
 )

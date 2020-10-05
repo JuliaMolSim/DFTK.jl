@@ -118,7 +118,7 @@ function Model(lattice::AbstractMatrix{T};
     spin_polarization in (:none, :collinear, :full, :spinless) ||
         error("Only :none, :collinear, :full and :spinless allowed for spin_polarization")
     !isempty(magnetic_moments) && !(spin_polarization in (:collinear, :full)) && @warn(
-        "Non-empty magnetic_moments on a Model without spin polarization detected"
+        "Non-empty magnetic_moments on a Model without spin polarization detected."
     )
     n_spin = length(spin_components(spin_polarization))
 
