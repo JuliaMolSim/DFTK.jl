@@ -105,7 +105,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     function fg!(E, G, ψ)
         ψ = unpack(ψ)
         ρ, ρspin = compute_density(basis, ψ, occupation)
-        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ, ρspin=ρspin)
 
         # The energy has terms like occ * <ψ|H|ψ>, so the gradient is 2occ Hψ
         if G !== nothing
