@@ -14,6 +14,7 @@ eg collinear spin is treated by doubling the number of kpoints.
 struct Kpoint{T <: Real}
     model::Model{T}
     spin::Symbol                     # :up, :down, :both or :spinless
+    ispin::Int                       # Index of the spin component
     coordinate::Vec3{T}              # Fractional coordinate of k-Point
     coordinate_cart::Vec3{T}         # Cartesian coordinate of k-Point
     mapping::Vector{Int}             # Index of G_vectors[i] on the FFT grid:
@@ -34,12 +35,6 @@ G_vectors(kpt::Kpoint) = kpt.G_vectors
 The list of G vectors of a given `basis` or `kpoint`, in cartesian coordinates.
 """
 G_vectors_cart(kpt::Kpoint) = (kpt.model.recip_lattice * G for G in G_vectors(kpt))
-
-"""
-Index of the spin component associated to the `kpoint`.
-Satisfies `spin_components(kpoint.model)[spin_index(kpoint)] == kpoint.spin`.
-"""
-index_spin(kpoint::Kpoint) = index_spin(kpoint.spin)
 
 @doc raw"""
 A plane-wave discretized `Model`.
@@ -95,9 +90,8 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
     model.spin_polarization in (:none, :collinear, :spinless) || (
         error("$(model.spin_polarization) not implemented"))
-    spins = spin_components(model)
 
-    kpoints_per_spin = [Kpoint[] for _ in spins]
+    kpoints_per_spin = [Kpoint[] for _ in 1:model.n_spin_components]
     for k in kcoords
         k = Vec3{T}(k)  # rationals are sloooow
         mapping = Int[]
@@ -113,9 +107,9 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
             end
         end
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
-        for (iσ, σ) in enumerate(spins)
+        for (iσ, σ) in enumerate(spin_components(model))
             push!(kpoints_per_spin[iσ],
-                  Kpoint(model, σ, k, model.recip_lattice * k, mapping, mapping_inv, Gvecs_k))
+                  Kpoint(model, σ, iσ, k, model.recip_lattice * k, mapping, mapping_inv, Gvecs_k))
         end
     end
 
@@ -183,7 +177,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         symmetries = vcat(ksymops...)
     end
 
-    n_spin = length(spin_components(model))
+    n_spin = model.n_spin_components
     @assert n_spin in (1, 2)  # For 1 we are all set
     n_spin == 2 && (ksymops = vcat(ksymops, ksymops))
 
@@ -200,6 +194,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     basis = PlaneWaveBasis{T}(
         model, Ecut, kpoints,
         kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms, symmetries)
+    @assert length(kpoints) == length(kweights)
 
     # Instantiate terms
     for (it, t) in enumerate(model.term_types)
@@ -300,6 +295,7 @@ function index_G_vectors(basis::PlaneWaveBasis, kpoint::Kpoint,
     idx_linear = LinearIndices(fft_size)[idx]
     get(kpoint.mapping_inv, idx_linear, nothing)
 end
+
 
 #
 # Perform (i)FFTs.

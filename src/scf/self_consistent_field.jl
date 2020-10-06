@@ -59,7 +59,6 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                       )
     T = eltype(basis)
     model = basis.model
-    n_spin = length(spin_components(model))
 
     # All these variables will get updated by fixpoint_map
     if ψ !== nothing
@@ -85,7 +84,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         converged && return x  # No more iterations if convergence flagged
 
         n_iter += 1
-        if n_spin == 2  # TODO So ugly
+        if model.n_spin_components == 2  # TODO So ugly
             # x has 2 blocks: total and spin density
             ρin, ρ_spin_in = from_real(basis,x[:, :, :, 1]), from_real(basis,x[:, :, :, 2])
         else
@@ -142,7 +141,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         callback(info)
         is_converged(info) && (converged = true)
 
-        if n_spin == 2
+        if model.n_spin_components == 2
             cat(ρnext.real, ρ_spin_next.real, dims=4)  # TODO This really has to go
         else
             ρnext.real
@@ -152,7 +151,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     # Tolerance and maxiter are only dummy here: Convergence is flagged by is_converged
     # inside the fixpoint_map. Also we do not use the return value of fpres but rather the
     # one that got updated by fixpoint_map
-    ρcat_real = n_spin == 2 ? cat(ρout.real, ρ_spin_out.real, dims=4) : ρout.real
+    ρcat_real = model.n_spin_components == 2 ? cat(ρout.real, ρ_spin_out.real, dims=4) : ρout.real
     fpres = solver(fixpoint_map, ρcat_real, maxiter; tol=eps(T))
 
     # We do not use the return value of fpres but rather the one that got updated by fixpoint_map

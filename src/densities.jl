@@ -40,7 +40,6 @@ is not collinear the spin density is `nothing`.
 """
 @timing function compute_density(basis::PlaneWaveBasis, ψ, occupation)
     n_k = length(basis.kpoints)
-    n_spin = length(spin_components(basis.model))
 
     # Sanity checks
     @assert n_k == length(ψ)
@@ -83,6 +82,7 @@ is not collinear the spin density is `nothing`.
     end
 
     # Count the number of k-points modulo spin
+    n_spin = basis.model.n_spin_components
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
     ρs = Dict(σ => sum(getindex.(ρaccus, σ)) / count for σ in spin_components(basis.model))
 

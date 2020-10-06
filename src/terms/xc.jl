@@ -12,8 +12,7 @@ Xc(symbols::Vector; scaling_factor=1) = Xc(convert.(Symbol, symbols), scaling_fa
 Xc(symbols::Symbol...; kwargs...) = Xc([symbols...]; kwargs...)
 
 function (xc::Xc)(basis)
-    n_spin = length(spin_components(basis.model))
-    functionals = Functional.(xc.functionals; n_spin=n_spin)
+    functionals = Functional.(xc.functionals; n_spin=basis.model.n_spin_components)
     TermXc(basis, functionals, xc.scaling_factor)
 end
 
@@ -28,7 +27,6 @@ function ene_ops(term::TermXc, ψ, occ; ρ, ρspin=nothing, kwargs...)
     T = eltype(basis)
     model = basis.model
     @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
-    n_spin = length(spin_components(model))
 
     if isempty(term.functionals)
         ops = [NoopOperator(term.basis, kpoint) for kpoint in term.basis.kpoints]
@@ -39,7 +37,7 @@ function ene_ops(term::TermXc, ψ, occ; ρ, ρspin=nothing, kwargs...)
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     density = DensityDerivatives(basis, max_ρ_derivs, ρ, ρspin)
 
-    potential = [zeros(T, basis.fft_size) for _ in 1:n_spin]
+    potential = [zeros(T, basis.fft_size) for _ in 1:model.n_spin_components]
     zk = zeros(T, basis.fft_size)  # Energy per unit particle
     E = zero(T)
     for xc in term.functionals
@@ -51,7 +49,7 @@ function ene_ops(term::TermXc, ψ, occ; ρ, ρspin=nothing, kwargs...)
         E += sum(terms.zk .* ρ.real) * dVol
 
         # Add potential contributions Vρ -2 ∇⋅(Vσ ∇ρ)
-        for iσ in 1:n_spin
+        for iσ in 1:model.n_spin_components
             potential[iσ] .+= @view terms.vrho[iσ, :, :, :]
         end
         if haskey(terms, :vsigma)
@@ -68,7 +66,7 @@ function ene_ops(term::TermXc, ψ, occ; ρ, ρspin=nothing, kwargs...)
         potential = [pot .*= term.scaling_factor for pot in potential]
     end
 
-    ops = [RealSpaceMultiplication(basis, kpoint, potential[index_spin(kpoint)])
+    ops = [RealSpaceMultiplication(basis, kpoint, potential[kpoint.ispin])
            for kpoint in basis.kpoints]
     (E=E, ops=ops)
 end

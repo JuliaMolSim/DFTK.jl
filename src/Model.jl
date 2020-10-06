@@ -16,14 +16,15 @@ struct Model{T <: Real}
 
     # spin_polarization values:
     #     :none       No spin polarization, αα and ββ density identical,
-    #                 αβ and βα blocks zero
+    #                 αβ and βα blocks zero, 1 spin component treated explicitly
     #     :collinear  Spin is polarized, but everywhere in the same direction.
-    #                 αα ̸= ββ, αβ = βα = 0
+    #                 αα ̸= ββ, αβ = βα = 0, 2 spin components treated
     #     :full       Generic magnetization, non-uniform direction.
     #                 αβ, βα, αα, ββ all nonzero, different
     #     :spinless   No spin at all ("spinless fermions", "mathematicians' electrons").
     #                 The difference with :none is that the occupations are 1 instead of 2
     spin_polarization::Symbol
+    n_spin_components::Int
 
     # If temperature==0, no fractional occupations are used.
     # If temperature is nonzero, the occupations are
@@ -118,6 +119,7 @@ function Model(lattice::AbstractMatrix{T};
     !isempty(magnetic_moments) && !(spin_polarization in (:collinear, :full)) && @warn(
         "Non-empty magnetic_moments on a Model without spin polarization detected"
     )
+    n_spin = length(spin_components(spin_polarization))
 
     if smearing === nothing
         @assert temperature >= 0
@@ -136,7 +138,7 @@ function Model(lattice::AbstractMatrix{T};
     @assert !isempty(symmetries)  # Identity has to be always present.
 
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
-             spin_polarization, T(temperature), smearing, atoms, terms, symmetries)
+             spin_polarization, n_spin, T(temperature), smearing, atoms, terms, symmetries)
 end
 Model(lattice::AbstractMatrix{T}; kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
 
@@ -239,22 +241,15 @@ function filled_occupation(model)
     end
 end
 
+
 """
 Spin components explicitly treated in the wavefunction
 """
-function spin_components(model)
-    @assert model.spin_polarization in (:none, :spinless, :collinear)
-    model.spin_polarization == :collinear && return (:up, :down  )
-    model.spin_polarization == :none      && return (:both,      )
-    model.spin_polarization == :spinless  && return (:spinless,  )
-    model.spin_polarization == :full      && return (:undefined, )
+function spin_components(spin_polarization::Symbol)
+    @assert spin_polarization in (:none, :spinless, :collinear)
+    spin_polarization == :collinear && return (:up, :down  )
+    spin_polarization == :none      && return (:both,      )
+    spin_polarization == :spinless  && return (:spinless,  )
+    spin_polarization == :full      && return (:undefined, )
 end
-
-"""
-Index of the spin symbol in the list returned by `spin_components`
-"""
-function index_spin(symbol::Symbol)
-    symbol in (:up, :both, :spinless, :undefined) && return 1
-    symbol in (:down, ) && return 2
-    nothing
-end
+spin_components(model::Model) = spin_components(model.spin_polarization)

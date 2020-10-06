@@ -11,7 +11,7 @@ include("testcases.jl")
         Si = ElementPsp(14, psp=load_psp(silicon.psp))
         atoms = [Si => silicon.positions]
         model = Model(lattice; n_electrons=silicon.n_electrons, atoms=atoms, terms=[term])
-        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, symmetries=false)
+        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, use_symmetry=false)
 
         n_electrons = silicon.n_electrons
         n_bands = div(n_electrons, 2)
