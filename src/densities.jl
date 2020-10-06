@@ -40,6 +40,7 @@ is not collinear the spin density is `nothing`.
 """
 @timing function compute_density(basis::PlaneWaveBasis, ψ, occupation)
     n_k = length(basis.kpoints)
+    n_spin = basis.model.n_spin_components
 
     # Sanity checks
     @assert n_k == length(ψ)
@@ -51,8 +52,7 @@ is not collinear the spin density is `nothing`.
     @assert n_k > 0
 
     # Allocate an accumulator for ρ in each thread for each spin component
-    ρaccus = [Dict(σ => similar(ψ[1][:, 1], basis.fft_size)
-                   for σ in spin_components(basis.model))
+    ρaccus = [[similar(ψ[1][:, 1], basis.fft_size) for iσ in 1:n_spin]
               for ithread in 1:Threads.nthreads()]
 
     # TODO Better load balancing ... the workload per kpoint depends also on
@@ -70,8 +70,8 @@ is not collinear the spin density is `nothing`.
     end
 
     Threads.@threads for (ikpts, ρaccu) in collect(zip(kpt_per_thread, ρaccus))
-        for σ in spin_components(basis.model)
-            ρaccu[σ] .= 0
+        for iσ in 1:n_spin
+            ρaccu[iσ] .= 0
         end
         for ik in ikpts
             kpt = basis.kpoints[ik]
@@ -82,17 +82,15 @@ is not collinear the spin density is `nothing`.
     end
 
     # Count the number of k-points modulo spin
-    n_spin = basis.model.n_spin_components
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
-    ρs = Dict(σ => sum(getindex.(ρaccus, σ)) / count for σ in spin_components(basis.model))
+    ρs = [sum(getindex.(ρaccus, iσ)) / count for iσ in 1:n_spin]
 
     @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     if basis.model.spin_polarization == :collinear
-        ρtot  = from_fourier(basis, ρs[:up] + ρs[:down])
-        ρspin = from_fourier(basis, ρs[:up] - ρs[:down])
+        ρtot  = from_fourier(basis, ρs[1] + ρs[2])  # up + down
+        ρspin = from_fourier(basis, ρs[1] - ρs[2])  # up - down
     else
-        σ     = only(spin_components(basis.model))
-        ρtot  = from_fourier(basis, ρs[σ])
+        ρtot  = from_fourier(basis, ρs[1])
         ρspin = nothing
     end
 

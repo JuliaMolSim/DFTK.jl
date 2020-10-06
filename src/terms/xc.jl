@@ -66,7 +66,7 @@ function ene_ops(term::TermXc, ψ, occ; ρ, ρspin=nothing, kwargs...)
         potential = [pot .*= term.scaling_factor for pot in potential]
     end
 
-    ops = [RealSpaceMultiplication(basis, kpoint, potential[kpoint.ispin])
+    ops = [RealSpaceMultiplication(basis, kpoint, potential[kpoint.spin])
            for kpoint in basis.kpoints]
     (E=E, ops=ops)
 end

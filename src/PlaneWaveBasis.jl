@@ -12,9 +12,8 @@ More generally, a kpoint is a block of the Hamiltonian;
 eg collinear spin is treated by doubling the number of kpoints.
 """
 struct Kpoint{T <: Real}
-    model::Model{T}
-    spin::Symbol                     # :up, :down, :both or :spinless
-    ispin::Int                       # Index of the spin component
+    model::Model{T}                  # TODO Should be only lattice/atoms
+    spin::Int                        # Spin component, see `spin_components` function
     coordinate::Vec3{T}              # Fractional coordinate of k-Point
     coordinate_cart::Vec3{T}         # Cartesian coordinate of k-Point
     mapping::Vector{Int}             # Index of G_vectors[i] on the FFT grid:
@@ -82,7 +81,7 @@ struct PlaneWaveBasis{T <: Real}
     symmetries::Vector{SymOp}
 end
 
-# Default printing is just too verbose
+# Default printing is just too verbose TODO This is too spartanic
 Base.show(io::IO, basis::PlaneWaveBasis) =
     print(io, "PlaneWaveBasis (Ecut=$(basis.Ecut), $(length(basis.kpoints)) kpoints)")
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
@@ -107,9 +106,9 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
             end
         end
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
-        for (iσ, σ) in enumerate(spin_components(model))
+        for iσ in 1:model.n_spin_components
             push!(kpoints_per_spin[iσ],
-                  Kpoint(model, σ, iσ, k, model.recip_lattice * k, mapping, mapping_inv, Gvecs_k))
+                  Kpoint(model,  iσ, k, model.recip_lattice * k, mapping, mapping_inv, Gvecs_k))
         end
     end
 
