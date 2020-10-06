@@ -120,8 +120,7 @@ function ElementCohenBergstresser(key; lattice_constant=nothing)
 
     symbol = Symbol(periodic_table[key].symbol)
     if !(symbol in keys(data))
-        error("Cohen-Bergstresser potential not implemented for element " *
-              "$(symbol).")
+        error("Cohen-Bergstresser potential not implemented for element $symbol.")
     end
     isnothing(lattice_constant) && (lattice_constant = data[symbol].lattice_constant)
 

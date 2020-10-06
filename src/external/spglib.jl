@@ -15,7 +15,7 @@ to a unique number for each indistinguishable element, `spins` contains
 the ``z``-component of the initial magnetic moment on each atom, `mapping` contains the
 mapping of the `numbers` to the element objects in DFTK and `collinear` whether
 the atoms mark a case of collinear spin or not. Notice that if `collinear` is false
-than `spins` is garbage.
+then `spins` is garbage.
 """
 function spglib_atoms(atoms, magnetic_moments=[])
     n_attypes = isempty(atoms) ? 0 : sum(length(positions) for (typ, positions) in atoms)
@@ -64,24 +64,17 @@ end
     # Ask spglib for symmetry operations and for irreducible mesh
     spg_positions, spg_numbers, spg_spins, _, collinear = spglib_atoms(atoms, magnetic_moments)
 
+    max_ops = 384  # Maximal number of symmetry operations spglib searches for
+    spg_rotations    = Array{Cint}(undef, 3, 3, max_ops)
+    spg_translations = Array{Cdouble}(undef, 3, max_ops)
     if collinear
-        max_ops = 384  # Maximal number of symmetry operations spglib searches for
-        spg_rotations    = Array{Cint}(undef, 3, 3, max_ops)
-        spg_translations = Array{Cdouble}(undef, 3, max_ops)
         spg_equivalent_atoms = Array{Cint}(undef, max_ops)
-
         spg_n_ops = ccall((:spg_get_symmetry_with_collinear_spin, SPGLIB), Cint,
                           (Ptr{Cint}, Ptr{Cdouble}, Ptr{Cint}, Cint, Ptr{Cdouble},
                            Ptr{Cdouble}, Ptr{Cint}, Ptr{Cdouble}, Cint, Cdouble),
                           spg_rotations, spg_translations, spg_equivalent_atoms, max_ops, copy(lattice'),
                           spg_positions, spg_numbers, spg_spins, Cint(length(spg_numbers)), tol_symmetry)
     else
-        max_ops = ccall((:spg_get_multiplicity, SPGLIB), Cint,
-            (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
-            copy(lattice'), spg_positions, spg_numbers, Cint(length(spg_numbers)), tol_symmetry)
-        spg_rotations    = Array{Cint}(undef, 3, 3, max_ops)
-        spg_translations = Array{Cdouble}(undef, 3, max_ops)
-
         spg_n_ops = ccall((:spg_get_symmetry, SPGLIB), Cint,
             (Ptr{Cint}, Ptr{Cdouble}, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
             spg_rotations, spg_translations, max_ops, copy(lattice'), spg_positions, spg_numbers,

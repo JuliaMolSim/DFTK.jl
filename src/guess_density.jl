@@ -66,7 +66,7 @@ end
         @assert length(magmoms) == length(positions)
 
         for (ipos, r) in enumerate(positions)
-            magmom = Vec3{T}(normalise_magnetic_moment(magmoms[ipos]))
+            magmom = Vec3{T}(normalize_magnetic_moment(magmoms[ipos]))
             iszero(magmom) && continue
             iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
             any_moment = true

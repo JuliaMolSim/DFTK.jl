@@ -70,7 +70,7 @@ and a `[4, 4, 4]` Monkhorst-Pack grid.
 First we perform the DFT calculation disabling symmetry handling
 ```@example symmetries
 model = model_LDA(lattice, atoms)
-basis_nosym = PlaneWaveBasis(model, Ecut; kgrid=kgrid, symmetry=false)
+basis_nosym = PlaneWaveBasis(model, Ecut; kgrid=kgrid, use_symmetry=false)
 scfres_nosym = @time self_consistent_field(basis_nosym, tol=1e-8)
 nothing  # hide
 ```

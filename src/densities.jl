@@ -78,12 +78,12 @@ is not collinear the spin density is `nothing`.
             kpt = basis.kpoints[ik]
             ρ_k = compute_partial_density(basis, kpt, ψ[ik], occupation[ik])
             # accumulates all the symops of ρ_k into ρaccu
-            accumulate_over_symops!(ρaccu[kpt.spin], ρ_k, basis, basis.ksymops[ik])
+            accumulate_over_symmetries!(ρaccu[kpt.spin], ρ_k, basis, basis.ksymops[ik])
         end
     end
 
     # Count the number of k-points modulo spin
-    count::Int = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) / n_spin
+    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
     ρs = Dict(σ => sum(getindex.(ρaccus, σ)) / count for σ in spin_components(basis.model))
 
     @assert basis.model.spin_polarization in (:none, :spinless, :collinear)

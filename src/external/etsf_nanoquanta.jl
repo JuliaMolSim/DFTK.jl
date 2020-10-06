@@ -134,7 +134,7 @@ function load_basis(T, folder::EtsfFolder)
     kshift = [(abs(k) > 10eps(T)) ? 0.5 : 0.0 for k in ksmallest]
 
     kgrid = Vector{Int}(folder.gsr["monkhorst_pack_folding"])
-    kcoords_new, ksymops, symops = bzmesh_ir_wedge(kgrid, model.symops, kshift=kshift)
+    kcoords_new, ksymops, _ = bzmesh_ir_wedge(kgrid, model.symmetries, kshift=kshift)
     @assert kcoords_new ≈ kcoords
 
     PlaneWaveBasis(model, Ecut, kcoords, ksymops)

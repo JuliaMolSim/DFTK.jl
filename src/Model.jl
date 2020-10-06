@@ -42,7 +42,7 @@ struct Model{T <: Real}
     term_types::Vector
 
     # list of symmetries of the model
-    symops::Vector{SymOp}
+    symmetries::Vector{SymOp}
 end
 
 """
@@ -59,15 +59,19 @@ unless any of the elements has a non-zero initial magnetic moment.
 In this case the spin_polarization will be :collinear.
 
 `magnetic_moments` is only used to determine the symmetry and the
-`spin_polarization` and not stored inside the datastructure.
+`spin_polarization`; it is not stored inside the datastructure.
 
 `smearing` is Fermi-Dirac if `temperature` is non-zero, none otherwise
 
-The `symmetry` kwarg determines whether symmetry is used. By default
-the code checks the terms, atoms and magnetic moments to decide
-whether it can safely use symmetry or not. Setting this to `true` forces
-the use of symmetry, which can lead to wrong results if e.g.
-the external potential breaks symmetries (which is not checked).
+The `symmetries` kwarg contains the symmetry operations that agree with
+the specified model (lattice, Hamiltonian terms etc.).
+By default the code checks the terms, atoms and magnetic moments
+to automatically determine a set of symmetries it can safely use.
+Use the `symmetry_operations` function if you want to pass custom symmetries
+(e.g. a reduced set) or force to employ all the symmetries returned by spglib.
+Notice that this may lead to wrong results if e.g. the external potential breaks
+symmetries. Alternatively setting this kwarg to `false` disables symmetries completely.
+In contrast setting it to `true` explicitly selects the default behaviour.
 """
 function Model(lattice::AbstractMatrix{T};
                n_electrons=nothing,
@@ -77,8 +81,7 @@ function Model(lattice::AbstractMatrix{T};
                temperature=T(0.0),
                smearing=nothing,
                spin_polarization=default_spin_polarization(magnetic_moments),
-               symmetry=default_symmetry(lattice, magnetic_moments, terms, spin_polarization),
-               tol_symmetry=1e-5,
+               symmetries=default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization),
                ) where {T <: Real}
     lattice = Mat3{T}(lattice)
     temperature = T(temperature)
@@ -112,6 +115,9 @@ function Model(lattice::AbstractMatrix{T};
 
     spin_polarization in (:none, :collinear, :full, :spinless) ||
         error("Only :none, :collinear, :full and :spinless allowed for spin_polarization")
+    !isempty(magnetic_moments) && !(spin_polarization in (:collinear, :full)) && @warn(
+        "Non-empty magnetic_moments on a Model without spin polarization detected"
+    )
 
     if smearing === nothing
         @assert temperature >= 0
@@ -123,17 +129,14 @@ function Model(lattice::AbstractMatrix{T};
         error("Having several terms of the same name is not supported.")
     end
 
-    if symmetry
-        magnetic_moments = [el => normalise_magnetic_moment.(magmoms)
-                            for (el, magmoms) in magnetic_moments]
-        symops = symmetry_operations(lattice, atoms, magnetic_moments,
-                                     tol_symmetry=tol_symmetry)
-    else
-        symops = [identity_symop()]
-    end
+    # Determine symmetry operations to use
+    symmetries == true  && (symmetries = default_symmetries(lattice, atoms, magnetic_moments,
+                                                            terms, spin_polarization))
+    symmetries == false && (symmetries = [identity_symop()])
+    @assert !isempty(symmetries)  # Identity has to be always present.
 
     Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
-             spin_polarization, T(temperature), smearing, atoms, terms, symops)
+             spin_polarization, T(temperature), smearing, atoms, terms, symmetries)
 end
 Model(lattice::AbstractMatrix{T}; kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
 
@@ -180,39 +183,47 @@ function model_PBE(lattice::AbstractMatrix, atoms::Vector; kwargs...)
     model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe]; kwargs...)
 end
 
-normalise_magnetic_moment(::Nothing)  = zeros(3)
-normalise_magnetic_moment(mm::Number) = Float64[0, 0, mm]
-normalise_magnetic_moment(mm::AbstractVector) = Vec3{Float64}(mm)
+normalize_magnetic_moment(::Nothing)  = Vec3{Float64}(zeros(3))
+normalize_magnetic_moment(mm::Number) = Vec3{Float64}(0, 0, mm)
+normalize_magnetic_moment(mm::AbstractVector) = Vec3{Float64}(mm)
 
 """
-:none if all elements have a magnetic moment, else :collinear or :full
+:none if no element has a magnetic moment, else :collinear or :full
 """
 function default_spin_polarization(magnetic_moments)
     isempty(magnetic_moments) && return :none
-    all_magmoms = (normalise_magnetic_moment(magmom)
+    all_magmoms = (normalize_magnetic_moment(magmom)
                    for (_, magmoms) in magnetic_moments
                    for magmom in magmoms)
 
     all(iszero, all_magmoms) && return :none
     all(iszero(magmom[1:2]) for magmom in all_magmoms) && return :collinear
 
-    error("Non-collinear magnetization not yet implemented")
     :full
 end
 
 """
-Determine whether symmetry should be used by default or not.
+Default logic to determine the symmetry operations to be used in the model.
 """
-function default_symmetry(lattice, magnetic_moments, terms, spin_polarization)
+function default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization;
+                        tol_symmetry=1e-5)
     dimension = 3 - count(iszero, eachcol(lattice))
     if spin_polarization == :full || dimension != 3
-        return false  # Symmetry not supported in spglib
+        return [identity_symop()]  # Symmetry not supported in spglib
     elseif spin_polarization == :collinear && isempty(magnetic_moments)
-        return false  # Spin-breaking due to initial magnetic moments cannot be determined
+        # Spin-breaking due to initial magnetic moments cannot be determined
+        return [identity_symop()]
+    elseif any(breaks_symmetries, terms)
+        return [identity_symop()]  # Terms break symmetry
     else
-        return !(any(breaks_symmetries, terms))
+        magnetic_moments = [el => normalize_magnetic_moment.(magmoms)
+                            for (el, magmoms) in magnetic_moments]
+        return symmetry_operations(lattice, atoms, magnetic_moments,
+                                   tol_symmetry=tol_symmetry)
     end
 end
+
+
 
 """
 Maximal occupation of a state (2 for non-spin-polarized electrons, 1 otherwise).
@@ -229,7 +240,7 @@ function filled_occupation(model)
 end
 
 """
-Number of spin components explicitly treated in the wavefunction
+Spin components explicitly treated in the wavefunction
 """
 function spin_components(model)
     @assert model.spin_polarization in (:none, :spinless, :collinear)
