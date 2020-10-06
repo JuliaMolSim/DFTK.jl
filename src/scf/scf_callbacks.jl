@@ -30,18 +30,25 @@ function ScfDefaultCallback()
             info.converged || @warn "SCF not converged."
             return
         end
+        collinear = info.basis.model.spin_polarization == :collinear
+        dVol      = info.basis.model.unit_cell_volume / prod(info.basis.fft_size)
+
         if info.n_iter == 1
             E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
-            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin   Diag\n" E_label
-            @printf "---   ---------------   ---------   --------   ----\n"
+            magn    = collinear ? ("   Magnet", "   ------") : ("", "")
+            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin%s   Diag\n" E_label magn[1]
+            @printf "---   ---------------   ---------   --------%s   ----\n" magn[2]
         end
-        E = isnothing(info.energies) ? Inf : info.energies.total
-        Estr  = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
+        E    = isnothing(info.energies) ? Inf : info.energies.total
+        Δρ   = norm(info.ρout.fourier - info.ρin.fourier)
+        magn = isnothing(info.ρ_spin_out) ? NaN : sum(info.ρ_spin_out.real) * dVol
+
+        Estr   = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
         prev_E = prev_energies === nothing ? Inf : prev_energies.total
-        Δρ = norm(info.ρout.fourier - info.ρin.fourier)
-        ΔE = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_E
+        ΔE     = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_E
+        Mstr = collinear ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
         diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
-        @printf "% 3d   %s   %s   %2.2e   % 3.1f \n" info.n_iter Estr ΔE Δρ diagiter
+        @printf "% 3d   %s   %s   %2.2e%s   % 3.1f \n" info.n_iter Estr ΔE Δρ Mstr diagiter
         prev_energies = info.energies
     end
     callback
