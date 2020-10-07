@@ -24,7 +24,7 @@ struct Model{T <: Real}
     #     :spinless   No spin at all ("spinless fermions", "mathematicians' electrons").
     #                 The difference with :none is that the occupations are 1 instead of 2
     spin_polarization::Symbol
-    n_spin_components::Int
+    n_spin_components::Int  # 2 if :collinear, 1 otherwise
 
     # If temperature==0, no fractional occupations are used.
     # If temperature is nonzero, the occupations are
@@ -64,15 +64,16 @@ In this case the spin_polarization will be :collinear.
 
 `smearing` is Fermi-Dirac if `temperature` is non-zero, none otherwise
 
-The `symmetries` kwarg contains the symmetry operations that agree with
-the specified model (lattice, Hamiltonian terms etc.).
-By default the code checks the terms, atoms and magnetic moments
-to automatically determine a set of symmetries it can safely use.
-Use the `symmetry_operations` function if you want to pass custom symmetries
-(e.g. a reduced set) or force to employ all the symmetries returned by spglib.
-Notice that this may lead to wrong results if e.g. the external potential breaks
-symmetries. Alternatively setting this kwarg to `false` disables symmetries completely.
-In contrast setting it to `true` explicitly selects the default behaviour.
+The `symmetries` kwarg allows (a) to pass `true` / `false` to enable / disable
+the automatic determination of lattice symmetries or (b) to pass an explicit list
+of symmetry operations to use for lowering the computational effort.
+The default behaviour is equal to `true`, namely that the code checks the
+specified model in form of the Hamiltonian `terms`, `lattice`, `atoms` and `magnetic_moments`
+parameters and from these automatically determines a set of symmetries it can safely use.
+If you want to pass custom symmetry operations (e.g. a reduced or extended set) use the
+`symmetry_operations` function. Notice that this may lead to wrong results if e.g. the
+external potential breaks some of the passed symmetries. Use `false` to turn off
+symmetries completely.
 """
 function Model(lattice::AbstractMatrix{T};
                n_electrons=nothing,
@@ -243,7 +244,7 @@ end
 
 
 """
-Spin components explicitly treated in the wavefunction
+Explicit spin components of the KS orbitals and the density
 """
 function spin_components(spin_polarization::Symbol)
     @assert spin_polarization in (:none, :spinless, :collinear)

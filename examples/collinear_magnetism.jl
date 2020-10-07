@@ -35,17 +35,24 @@ scfres_nospin.energies
 # features no spin-polarization.
 
 # Now we repeat the calculation, but give the iron atom an initial magnetic moment.
-# For specifying the magnetic moment DFTK uses units of the Bohr magneton ``μ_B``,
-# which in atomic units has the value ``\frac{1}{2}`` and is the magnetic moment
-# of a single electron. As a result the value to pass to the model and the guess density
-# function agrees with the desired excess of spin-up over spin-down electrons
-# at the iron centre. In this case we seek the case with as many spin-parallel
+# For specifying the magnetic moment pass the desired excess of spin-up over spin-down
+# electrons at each centre to the `Model` and the guess density functions.
+# In this case we seek the state with as many spin-parallel
 # ``d``-electrons as possible. In our pseudopotential model the 8 valence
-# electrons are 2 pair of ``s``-electrons, 1 pair of ``d``-electrions
-# and 4 unpaired ``d``-electrons giving a desired magnetic moment of 4 at the iron centre.
+# electrons are 2 pair of ``s``-electrons, 1 pair of ``d``-electrons
+# and 4 unpaired ``d``-electrons giving a desired magnetic moment of `4` at the iron centre.
+# The structure (i.e. pair mapping and order) of the `magnetic_moments` array needs to agree
+# with the `atoms` array and `0` magnetic moments need to be specified as well.
 
-magnetic_moments = [Fe => [4]]
+magnetic_moments = [Fe => [4, ]]
 
+# !!! tip "Units of the magnetisation and magnetic moments in DFTK"
+#     Unlike all other quantities magnetisation and magnetic moments in DFTK
+#     are given in units of the Bohr magneton ``μ_B``, which in atomic units has the
+#     value ``\frac{1}{2}``. Since ``μ_B`` is the magnetic moment of a single electron
+#     the advantage is that one can directly think of these quantities as the excess of
+#     spin-up electrons or spin-up electron density.
+#
 # We repeat the calculation using the same model as before. DFTK now detects
 # the non-zero moment and switches to a collinear calculation.
 
@@ -87,6 +94,6 @@ idown = iup + length(scfres.basis.kpoints) ÷ 2
 
 # !!! note "k-points in collinear calculations"
 #     For collinear calculations the `kpoints` field of the `PlaneWaveBasis` object contains
-#     each ``k``-point coordinate twice, once associated with `:up` spin and once with `:down`
-#     spin. The list first contains all spin-up ``k``-points and then all spin-down ``k``-points.
-#     Therefore `iup` and `idown` index the same ``k``-point, but differing spins.
+#     each ``k``-point coordinate twice, once associated with spin-up and once with down-down.
+#     The list first contains all spin-up ``k``-points and then all spin-down ``k``-points,
+#     such that `iup` and `idown` index the same ``k``-point, but differing spins.
