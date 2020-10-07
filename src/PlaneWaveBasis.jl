@@ -209,8 +209,10 @@ Creates a new basis identical to `basis`, but with a different set of kpoints
 """
 function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
                         ksymops::AbstractVector, symmetries=nothing)
+    # TODO This constructor does *not* keep the non-variational property
+    #      of the input basis!
     PlaneWaveBasis(basis.model, basis.Ecut, kcoords, ksymops, symmetries;
-                   fft_size=basis.fft_size)
+                   fft_size=basis.fft_size, variational=true)
 end
 
 
@@ -296,6 +298,15 @@ function index_G_vectors(basis::PlaneWaveBasis, kpoint::Kpoint,
     get(kpoint.mapping_inv, idx_linear, nothing)
 end
 
+"""
+Return the index range of ``k``-points that have a particular spin component.
+"""
+function krange_spin(basis::PlaneWaveBasis, spin::Integer)
+    n_spin = basis.model.n_spin_components
+    @assert 1 ≤ spin ≤ n_spin
+    spinlength = div(length(basis.kpoints), n_spin)
+    (1 + (spin - 1) * spinlength):(spin * spinlength)
+end
 
 #
 # Perform (i)FFTs.

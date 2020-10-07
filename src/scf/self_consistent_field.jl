@@ -1,4 +1,3 @@
-using Plots
 include("scf_callbacks.jl")
 
 function default_n_bands(model)
