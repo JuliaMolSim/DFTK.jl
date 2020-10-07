@@ -1,5 +1,4 @@
 using PyCall
-import Plots
 
 # Functionality for computing band structures, mostly using pymatgen
 
@@ -102,47 +101,6 @@ function is_metal(band_data, εF, tol=1e-4)
     false
 end
 
-
-function plot_band_data(band_data; εF=nothing,
-                        klabels=Dict{String, Vector{Float64}}(), unit=:eV, kwargs...)
-    eshift = isnothing(εF) ? 0.0 : εF
-    data = prepare_band_data(band_data, klabels=klabels)
-
-    # For each branch, plot all bands, spins and errors
-    p = Plots.plot(xlabel="wave vector")
-    for ibranch = 1:data.n_branches
-        kdistances = data.kdistances[ibranch]
-        for spin in data.spins, iband = 1:data.n_bands
-            yerror = nothing
-            if hasproperty(data, :λerror)
-                yerror = data.λerror[ibranch][spin][iband, :] ./ unit_to_au(unit)
-            end
-            energies = (data.λ[ibranch][spin][iband, :] .- eshift) ./ unit_to_au(unit)
-
-            color = (spin == :up) ? :blue : :red
-            Plots.plot!(p, kdistances, energies; color=color, label="", yerror=yerror,
-                        kwargs...)
-        end
-    end
-
-    # X-range: 0 to last kdistance value
-    Plots.xlims!(p, (0, data.kdistances[end][end]))
-    Plots.xticks!(p, data.ticks["distance"],
-                  [replace(l, raw"$\mid$" => " | ") for l in data.ticks["label"]])
-
-    ylims = [-4, 4]
-    !isnothing(εF) && is_metal(band_data, εF) && (ylims = [-10, 10])
-    ylims = round.(ylims * units.eV ./ unit_to_au(unit), sigdigits=2)
-    if isnothing(εF)
-        Plots.ylabel!(p, "eigenvalues  ($(string(unit))")
-    else
-        Plots.ylabel!(p, "eigenvalues - ε_f  ($(string(unit)))")
-        Plots.ylims!(p, ylims...)
-    end
-
-    p
-end
-
 function detexify_kpoint(string)
     # For some reason Julia doesn't support this naively: https://github.com/JuliaLang/julia/issues/29849
     replacements = ("\\Gamma" => "Γ",
@@ -163,6 +121,10 @@ are plotted in `:eV` unless a different `unit` is selected.
 """
 function plot_bandstructure(basis, ρ, ρspin, n_bands;
                             εF=nothing, kline_density=20, unit=:eV, kwargs...)
+    if !isdefined(DFTK, :PLOTS_LOADED)
+        error("Plots not loaded. Run 'using Plots' before calling plot_bandstructure.")
+    end
+
     # Band structure calculation along high-symmetry path
     kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density=kline_density)
     println("Computing bands along kpath:")
@@ -173,6 +135,7 @@ function plot_bandstructure(basis, ρ, ρspin, n_bands;
     if kline_density ≤ 10
         plotargs = (markersize=2, markershape=:circle)
     end
+
     plot_band_data(band_data; εF=εF, klabels=klabels, unit=unit, plotargs...)
 end
 function plot_bandstructure(scfres; n_bands=nothing, kwargs...)

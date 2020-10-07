@@ -156,13 +156,13 @@ include("external/pymatgen.jl")
 
 export high_symmetry_kpath
 export compute_bands
-export plot_band_data
 export plot_bandstructure
 include("postprocess/band_structure.jl")
 
 export DOS
 export LDOS
 export NOS
+export plot_dos
 include("postprocess/DOS.jl")
 export compute_χ0
 export apply_χ0
@@ -184,6 +184,7 @@ function __init__()
     @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("fft_generic.jl")
     end
+    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("plotting.jl")
 end
 
 end # module DFTK

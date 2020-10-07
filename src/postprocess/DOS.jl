@@ -105,3 +105,8 @@ function LDOS(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
     end
     return sum(ρs[iσ] for iσ in spins)
 end
+
+"""
+Plot the density of states over a reasonable range
+"""
+function plot_dos end

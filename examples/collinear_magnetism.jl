@@ -103,13 +103,7 @@ idown = iup + length(scfres.basis.kpoints) ÷ 2
 # around the Fermi level, where the spin-up and spin-down DOS differ.
 
 using Plots
-εs = range(minimum(minimum(scfres.eigenvalues)) - .5,
-           maximum(maximum(scfres.eigenvalues)) + .5, length=1000)
-Dup   = DOS.(εs, Ref(basis), Ref(scfres.eigenvalues), spins=(1, ))  # DOS spin-up
-Ddown = DOS.(εs, Ref(basis), Ref(scfres.eigenvalues), spins=(2, ))  # DOS spin-down
-q = plot(εs,  Dup, label="DOS :up", color=:blue)
-plot!(q, εs, Ddown, label="DOS :down", color=:red)
-vline!(q, [scfres.εF], label="εF", color=:green, lw=1.5)
+plot_dos(scfres)
 
 # Similarly the band structure shows clear differences between both spin components.
 plot_bandstructure(scfres, kline_density=3, unit=:eV)

@@ -51,9 +51,4 @@ scfres.energies
 
 # The fact that magnesium is a metal is confirmed
 # by plotting the density of states around the Fermi level.
-
-εs = range(minimum(minimum(scfres.eigenvalues)) - .5,
-           maximum(maximum(scfres.eigenvalues)) + .5, length=1000)
-Ds = DOS.(εs, Ref(basis), Ref(scfres.eigenvalues))
-q = plot(εs, Ds, label="DOS")
-vline!(q, [scfres.εF], label="εF")
+plot_dos(scfres)

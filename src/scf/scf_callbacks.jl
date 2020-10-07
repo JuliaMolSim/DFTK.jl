@@ -1,24 +1,5 @@
-"""
-Plot the trace of an SCF, i.e. the absolute error of the total energy at
-each iteration versus the converged energy in a semilog plot. By default
-a new plot canvas is generated, but an existing one can be passed and reused
-along with `kwargs` for the call to `plot!`.
-"""
-function ScfPlotTrace(plt=plot(yaxis=:log); kwargs...)
-    energies = Float64[]
-    function callback(info)
-        if info.stage == :finalize
-            minenergy = minimum(energies[max(1, end-5):end])
-            error = abs.(energies .- minenergy)
-            error[error .== 0] .= NaN
-            extra = ifelse(:mark in keys(kwargs), (), (mark=:x, ))
-            plot!(plt, error; extra..., kwargs...)
-            display(plt)
-        else
-            push!(energies, info.energies.total)
-        end
-    end
-end
+# For ScfPlotTrace() see DFTK.jl/src/plotting.jl, which is conditionally loaded upon
+# Plots.jl is included.
 
 """
 Default callback function for `self_consistent_field`, which prints a convergence table
