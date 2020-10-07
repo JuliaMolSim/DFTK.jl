@@ -22,15 +22,15 @@ include("testcases.jl")
         occ_scaling = n_electrons / sum(sum(occupation))
         occupation = [occ * occ_scaling for occ in occupation]
 
-        ρ = compute_density(basis, ψ, occupation)
+        ρ, ρspin = compute_density(basis, ψ, occupation)
 
         dψ = [randn(ComplexF64, size(ψ[ik])) for ik = 1:length(basis.kpoints)]
         ψ_trial = ψ .+ ε .* dψ
-        ρ_trial = compute_density(basis, ψ_trial, occupation)
+        ρ_trial, ρspin_trial = compute_density(basis, ψ_trial, occupation)
 
         @assert length(basis.terms) == 1
-        E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
-        E1, _ = energy_hamiltonian(basis, ψ_trial, occupation; ρ=ρ_trial)
+        E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρ, ρspin=ρspin)
+        E1, _ = energy_hamiltonian(basis, ψ_trial, occupation; ρ=ρ_trial, ρspin=ρspin_trial)
         diff = (E1.total - E0.total)/ε
 
         diff_predicted = 0.0

@@ -16,7 +16,7 @@ Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 # change the symmetry to compute the dielectric operator with and without symmetries
-model = model_LDA(lattice, atoms, symmetry=:off)
+model = model_LDA(lattice, atoms, symmetries=false)
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 scfres = self_consistent_field(basis, tol=1e-14)
 

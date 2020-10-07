@@ -133,7 +133,7 @@ export bzmesh_ir_wedge
 export kgrid_size_from_minimal_spacing
 include("bzmesh.jl")
 
-export guess_density
+export guess_density, guess_spin_density
 include("guess_density.jl")
 export load_psp
 export list_psp

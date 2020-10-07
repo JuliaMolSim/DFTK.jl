@@ -9,28 +9,28 @@ include("testcases.jl")
 #      energies obtained in the data files
 
 @testset "Using BZ symmetry yields identical density" begin
-    function get_bands(testcase, kcoords, ksymops, symops, atoms; Ecut=5, tol=1e-8, n_rounds=1)
+    function get_bands(testcase, kcoords, ksymops, symmetries, atoms; Ecut=5, tol=1e-8, n_rounds=1)
         kwargs = ()
         n_bands = div(testcase.n_electrons, 2)
-        if testcase.Tsmear !== nothing
-            kwargs = (temperature=testcase.Tsmear, smearing=DFTK.Smearing.FermiDirac())
+        if testcase.temperature !== nothing
+            kwargs = (temperature=testcase.temperature, smearing=DFTK.Smearing.FermiDirac())
             n_bands = div(testcase.n_electrons, 2) + 4
         end
 
         model = model_DFT(testcase.lattice, atoms, :lda_xc_teter93; kwargs...)
-        basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops, symops)
+        basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops, symmetries)
         ham = Hamiltonian(basis; ρ=guess_density(basis, atoms))
 
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol=tol)
         occ, εF = DFTK.find_occupation(basis, res.λ)
-        ρnew = compute_density(basis, res.X, occ)
+        ρnew, ρspin_new = compute_density(basis, res.X, occ)
 
         for it in 1:n_rounds
-            ham = Hamiltonian(basis; ρ=ρnew)
+            ham = Hamiltonian(basis; ρ=ρnew, ρspin=ρspin_new)
             res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol=tol, guess=res.X)
 
             occ, εF = DFTK.find_occupation(basis, res.λ)
-            ρnew = compute_density(basis, res.X, occ)
+            ρnew, ρspin_new = compute_density(basis, res.X, occ)
         end
 
         ham, res.X, res.λ, ρnew, occ
@@ -60,21 +60,22 @@ include("testcases.jl")
         spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
         atoms = [spec => testcase.positions]
 
-        kfull, sym_full, symops = bzmesh_uniform(kgrid_size, kshift=kshift)
-        res = get_bands(testcase, kfull, sym_full, symops, atoms; Ecut=Ecut, tol=tol)
+        kfull, sym_full, symmetries = bzmesh_uniform(kgrid_size, kshift=kshift)
+        res = get_bands(testcase, kfull, sym_full, symmetries, atoms; Ecut=Ecut, tol=tol)
         ham_full, ψ_full, eigenvalues_full, ρ_full, occ_full = res
         test_orthonormality(ham_full.basis, ψ_full, tol=tol)
 
-        kcoords, ksymops, symops = bzmesh_ir_wedge(kgrid_size, DFTK.symmetry_operations(testcase.lattice, atoms), kshift=kshift)
-        res = get_bands(testcase, kcoords, ksymops, symops, atoms; Ecut=Ecut, tol=tol)
+        symmetries = DFTK.symmetry_operations(testcase.lattice, atoms)
+        kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid_size, symmetries, kshift=kshift)
+        res = get_bands(testcase, kcoords, ksymops, symmetries, atoms; Ecut=Ecut, tol=tol)
         ham_ir, ψ_ir, eigenvalues_ir, ρ_ir, occ_ir = res
         test_orthonormality(ham_ir.basis, ψ_ir, tol=tol)
         @test ham_full.basis.fft_size == ham_ir.basis.fft_size
 
-        # Test density is the same in both schemes, and symmetric wrt the basis symops
+        # Test density is the same in both schemes, and symmetric wrt the basis symmetries
         @test maximum(abs.(ρ_ir.fourier - ρ_full.fourier)) < 10tol
         @test maximum(abs.(ρ_ir.real - ρ_full.real)) < 10tol
-        @test maximum(abs, DFTK.symmetrize(ρ_ir; symops=symops).fourier - ρ_ir.fourier) < tol
+        @test maximum(abs, DFTK.symmetrize(ρ_ir; symmetries=symmetries).fourier - ρ_ir.fourier) < tol
 
         # Test local potential is the same in both schemes
         @test maximum(abs, total_local_potential(ham_ir) - total_local_potential(ham_full)) < tol

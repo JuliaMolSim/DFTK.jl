@@ -5,14 +5,16 @@ include("../xc/xc_evaluate.jl")
 Exchange-correlation term, defined by a list of functionals and usually evaluated through libxc.
 """
 struct Xc
-    functionals::Vector{Functional}
-    scaling_factor::Real  # to scale by an arbitrary factor (useful for exploration)
+    functionals::Vector{Symbol}  # Symbols of the functionals (Libxc.jl / libxc convention)
+    scaling_factor::Real         # to scale by an arbitrary factor (useful for exploration)
 end
-Xc(functionals::Vector; scaling_factor=1) = Xc(functionals, scaling_factor)
-Xc(functionals::Vector{Symbol}; kwargs...) = Xc(Functional.(functionals); kwargs...)
-Xc(functional::Symbol; kwargs...) = Xc([Functional(functional)]; kwargs...)
-Xc(functionals::Symbol...; kwargs...) = Xc([functionals...]; kwargs...)
-(xc::Xc)(basis) = TermXc(basis, xc.functionals, xc.scaling_factor)
+Xc(symbols::Vector; scaling_factor=1) = Xc(convert.(Symbol, symbols), scaling_factor)
+Xc(symbols::Symbol...; kwargs...) = Xc([symbols...]; kwargs...)
+
+function (xc::Xc)(basis)
+    functionals = Functional.(xc.functionals; n_spin=basis.model.n_spin_components)
+    TermXc(basis, functionals, xc.scaling_factor)
+end
 
 struct TermXc <: Term
     basis::PlaneWaveBasis
@@ -20,7 +22,7 @@ struct TermXc <: Term
     scaling_factor::Real
 end
 
-function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
+function ene_ops(term::TermXc, ψ, occ; ρ, ρspin=nothing, kwargs...)
     basis = term.basis
     T = eltype(basis)
     model = basis.model
@@ -33,9 +35,9 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
 
     # Take derivatives of the density if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    density = DensityDerivatives(basis, max_ρ_derivs, ρ)
+    density = DensityDerivatives(basis, max_ρ_derivs, ρ, ρspin)
 
-    potential = zeros(T, basis.fft_size)
+    potential = [zeros(T, basis.fft_size) for _ in 1:model.n_spin_components]
     zk = zeros(T, basis.fft_size)  # Energy per unit particle
     E = zero(T)
     for xc in term.functionals
@@ -47,29 +49,38 @@ function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
         E += sum(terms.zk .* ρ.real) * dVol
 
         # Add potential contributions Vρ -2 ∇⋅(Vσ ∇ρ)
-        potential .+= terms.vrho
+        for iσ in 1:model.n_spin_components
+            potential[iσ] .+= @view terms.vrho[iσ, :, :, :]
+        end
         if haskey(terms, :vsigma)
-            potential .+= -2 * divergence_real(α -> terms.vsigma .* density.∇ρ_real[α],
-                                               density.basis)
+            @assert term.basis.model.spin_polarization in (:none, :spinless)
+            potential[1] .+=
+                -2 * divergence_real(
+                    α -> @view(terms.vsigma[1, :, :, :]) .* density.∇ρ_real[α],
+                    density.basis,
+                )
         end
     end
     if term.scaling_factor != 1
         E *= term.scaling_factor
-        potential .*= term.scaling_factor
+        potential = [pot .*= term.scaling_factor for pot in potential]
     end
 
-    ops = [RealSpaceMultiplication(basis, kpoint, potential) for kpoint in basis.kpoints]
+    ops = [RealSpaceMultiplication(basis, kpoint, potential[kpoint.spin])
+           for kpoint in basis.kpoints]
     (E=E, ops=ops)
 end
 
 
 function compute_kernel(term::TermXc; ρ::RealFourierArray, kwargs...)
+    @assert term.basis.model.spin_polarization in (:none, :spinless)
+    ρ_real = reshape(ρ.real, 1, size(ρ.real)...)
     kernel = similar(ρ.real)
     kernel .= 0
     for xc in term.functionals
         xc.family == :lda || error("compute_kernel only implemented for LDA")
-        terms = evaluate(xc; rho=ρ.real, derivatives=2:2)  # only valid for LDA
-        kernel .+= terms.v2rho2
+        terms = evaluate(xc; rho=ρ_real, derivatives=2:2)  # only valid for LDA
+        kernel .+= @view terms.v2rho2[1, :, :, :]
     end
     Diagonal(vec(term.scaling_factor .* kernel))
 end
@@ -80,6 +91,7 @@ function apply_kernel(term::TermXc, dρ::RealFourierArray; ρ::RealFourierArray,
     T = eltype(basis)
     @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
     isempty(term.functionals) && return nothing
+    @assert basis.model.spin_polarization in (:none, :spinless)
 
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
@@ -93,7 +105,7 @@ function apply_kernel(term::TermXc, dρ::RealFourierArray; ρ::RealFourierArray,
         terms = evaluate(xc; input_kwargs(xc.family, density)..., derivatives=1:2)
 
         # Accumulate LDA and GGA terms in result
-        result .+= terms.v2rho2 .* dρ.real
+        result .+= @view(terms.v2rho2[1, :, :, :]) .* dρ.real
         if haskey(terms, :v2rhosigma)
             result .+= apply_kernel_term_gga(terms, density, perturbation)
         end
@@ -180,24 +192,35 @@ end
 """
 DOCME compute density in real space and its derivatives starting from ρ
 """
-function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray)
+function DensityDerivatives(basis, max_derivative::Integer, ρ::RealFourierArray, ρspin=nothing)
     model = basis.model
-    @assert model.spin_polarization == :none "Only spin_polarization == :none implemented."
+    @assert model.spin_polarization in (:collinear, :none, :spinless)
+    @assert max_derivative in (0, 1)
+    model.spin_polarization == :collinear && (@assert !isnothing(ρspin))
     ifft(x) = real_checked(G_to_r(basis, clear_without_conjugate!(x)))
 
     ρF = ρ.fourier
     σ_real = nothing
     ∇ρ_real = nothing
-    if max_derivative < 0 || max_derivative > 1
-        error("max_derivative not in [0, 1]")
-    elseif max_derivative > 0
+    if max_derivative > 0
         ∇ρ_real = [ifft(im * [G[α] for G in G_vectors_cart(basis)] .* ρF)
                    for α in 1:3]
         # TODO The above assumes CPU arrays
         σ_real = sum(∇ρ_real[α] .* ∇ρ_real[α] for α in 1:3)
     end
+    if model.spin_polarization == :collinear
+        @assert max_derivative == 0
+        ρα = (ρ.real + ρspin.real) / 2
+        ρβ = (ρ.real - ρspin.real) / 2
 
-    DensityDerivatives(basis, max_derivative, ρ.real, ∇ρ_real, σ_real)
+        # TODO This is the wrong place. This is specific to the interface towards Libxc.jl ...
+        ρ_real = vcat(reshape(ρα, 1, basis.fft_size...), reshape(ρβ, 1, basis.fft_size...))
+    else
+        # TODO This is the wrong place. This is specific to the interface towards Libxc.jl ...
+        ρ_real = reshape(ρ.real, 1, basis.fft_size...)
+    end
+
+    DensityDerivatives(basis, max_derivative, ρ_real, ∇ρ_real, σ_real)
 end
 
 function input_kwargs(family, density)
@@ -243,11 +266,11 @@ function apply_kernel_term_gga(terms, density, perturbation)
     dσ = 2sum(∇ρ[α] .* ∇dρ[α] for α in 1:3)
 
     (
-        terms.v2rhosigma .* dσ + divergence_real(density.basis) do α
+        @view(terms.v2rhosigma[1, :, :, :]) .* dσ + divergence_real(density.basis) do α
             @. begin
-                -2 * terms.v2rhosigma * ∇ρ[α] * dρ
-                -2 * terms.v2sigma2 * ∇ρ[α] * dσ
-                -2 * terms.vsigma * ∇dρ[α]
+                -2 * @view(terms.v2rhosigma[1, :, :, :]) * ∇ρ[α] * dρ
+                -2 * @view(terms.v2sigma2[1, :, :, :])   * ∇ρ[α] * dσ
+                -2 * @view(terms.vsigma[1, :, :, :])     * ∇dρ[α]
             end
         end
     )

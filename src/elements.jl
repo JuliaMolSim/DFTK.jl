@@ -5,15 +5,15 @@ periodic_table = PeriodicTable.elements
 
 # Data structure for chemical element and the potential model via which
 # they interact with electrons. A compensating charge background is
-# always assumed.
-
+# always assumed. It is assumed that each implementing struct has the
+# entity Z (for the nuclear charge).
 abstract type Element end
 
 """Return the total nuclear charge of an atom type"""
 charge_nuclear(el::Element) = el.Z
 
 """Return the total ionic charge of an atom type (nuclear charge - core electrons)"""
-charge_ionic(el::Element) = error("Implement charge_ionic")
+charge_ionic(::Element) = error("Implement charge_ionic")
 
 """Return the number of valence electrons"""
 n_elec_valence(el::Element) = charge_ionic(el)
@@ -31,6 +31,7 @@ function local_potential_real(el::Element, q::AbstractVector)
     local_potential_real(el, norm(q))
 end
 
+
 struct ElementCoulomb <: Element
     Z::Int  # Nuclear charge
     symbol  # Element symbol
@@ -43,9 +44,7 @@ Element interacting with electrons via a bare Coulomb potential
 `key` may be an element symbol (like `:Si`), an atomic number (e.g. `14`)
 or an element name (e.g. `"silicon"`)
 """
-function ElementCoulomb(key)
-    ElementCoulomb(periodic_table[key].number, Symbol(periodic_table[key].symbol))
-end
+ElementCoulomb(key) = ElementCoulomb(periodic_table[key].number, Symbol(periodic_table[key].symbol))
 
 
 function local_potential_fourier(el::ElementCoulomb, q::T) where {T <: Real}
@@ -69,8 +68,9 @@ Element interacting with electrons via a pseudopotential model.
 `key` may be an element symbol (like `:Si`), an atomic number (e.g. `14`)
 or an element name (e.g. `"silicon"`)
 """
-ElementPsp(key; psp) = ElementPsp(periodic_table[key].number,
-                                  Symbol(periodic_table[key].symbol), psp)
+function ElementPsp(key; psp)
+    ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp)
+end
 charge_ionic(el::ElementPsp) = el.psp.Zion
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
@@ -120,8 +120,7 @@ function ElementCohenBergstresser(key; lattice_constant=nothing)
 
     symbol = Symbol(periodic_table[key].symbol)
     if !(symbol in keys(data))
-        error("Cohen-Bergstresser potential not implemented for element " *
-              "$(element.symbol).")
+        error("Cohen-Bergstresser potential not implemented for element $symbol.")
     end
     isnothing(lattice_constant) && (lattice_constant = data[symbol].lattice_constant)
 

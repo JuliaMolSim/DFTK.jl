@@ -59,7 +59,8 @@ as a breakdown over individual routines.
 !!! note "Timing measurements and threading"
     Unfortunately measuring timings in `TimerOutputs` is not yet thread-safe.
     Therefore taking timings of threaded parts of the code will be disabled
-    if Julia threading (see section below) is used.
+    unless you set `DFTK_TIMING` to `"all"`. In this case you must not use
+    Julia threading (see section below) or otherwise undefined behaviour results.
 
 
 ## Options to influence threading

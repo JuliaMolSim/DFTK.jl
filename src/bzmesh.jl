@@ -39,15 +39,16 @@ end
 
 
 @doc raw"""
-     bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
+     bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
 
 Construct the irreducible wedge of a uniform Brillouin zone mesh for sampling ``k``-Points.
 The function returns a tuple `(kcoords, ksymops)`, where `kcoords` are the list of
 irreducible ``k``-Points and `ksymops` are a list of symmetry operations for regenerating
-the full mesh. `symops` is the tuple returned from `symmetry_operations(lattice, atoms)`.
+the full mesh. `symmetries` is the tuple returned from
+`symmetry_operations(lattice, atoms, magnetic_moments)`.
 `tol_symmetry` is the tolerance used for searching for symmetry operations.
 """
-function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
+function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size, kshift=kshift)
 
     # Transform kshift to the convention used in spglib:
@@ -59,12 +60,12 @@ function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
     kpoints_mp = kgrid_monkhorst_pack(kgrid_size, kshift=kshift)
 
     # Filter those symmetry operations (S,τ) that preserve the MP grid
-    symops = symops_preserving_kgrid(symops, kpoints_mp)
+    symmetries = symmetries_preserving_kgrid(symmetries, kpoints_mp)
 
     # Give the remaining symmetries to spglib to compute an irreducible k-Point mesh
     # TODO implement time-reversal symmetry and turn the flag to true
     is_shift = Int.(2 * kshift)
-    Stildes = [S' for (S, τ) in symops]
+    Stildes = [S' for (S, τ) in symmetries]
     _, mapping, grid = spglib_get_stabilized_reciprocal_mesh(
         kgrid_size, Stildes, is_shift=is_shift, is_time_reversal=false
     )
@@ -94,8 +95,8 @@ function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
         for ired in k_all_reducible[ik]
             kred = (kshift .+ grid[ired]) .// kgrid_size
 
-            # Note that this relies on the identity coming up first in symops
-            isym = findfirst(symops) do symop
+            # Note that this relies on the identity coming up first in symmetries
+            isym = findfirst(symmetries) do symop
                 # If the difference between kred and Stilde' * k == Stilde^{-1} * k
                 # is only integer in fractional reciprocal-space coordinates, then
                 # kred and S' * k are equivalent k-Points
@@ -106,15 +107,15 @@ function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
             if isym === nothing  # No symop found for $k -> $kred
                 push!(kreds_notmapped, normalize_kpoint_coordinate(kred))
             else
-                push!(ksymops[ik], symops[isym])
+                push!(ksymops[ik], symmetries[isym])
             end
         end
     end
 
     if !isempty(kreds_notmapped)
         # add them as reducible anyway
-        Stildes = [S' for (S, τ) in symops]
-        τtildes = [-S' * τ for (S, τ) in symops]
+        Stildes = [S' for (S, τ) in symmetries]
+        τtildes = [-S' * τ for (S, τ) in symmetries]
         eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, Stildes, τtildes)
         @info("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
               "the irreducible kpoints returned by spglib. $(length(eirreds)) of " *
@@ -128,7 +129,7 @@ function bzmesh_ir_wedge(kgrid_size, symops; kshift=[0, 0, 0])
     @assert all(findfirst(Sτ -> iszero(Sτ[1] - I) && iszero(Sτ[2]), ops) !== nothing
                 for ops in ksymops)
 
-    kirreds, ksymops, symops
+    kirreds, ksymops, symmetries
 end
 
 

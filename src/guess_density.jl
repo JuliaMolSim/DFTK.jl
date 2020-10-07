@@ -11,26 +11,84 @@ length specified by `atom_decay_length`, normalized to get the right number of e
 """
 guess_density(basis::PlaneWaveBasis) = guess_density(basis, basis.model.atoms)
 @timing function guess_density(basis::PlaneWaveBasis{T}, atoms) where {T}
+    # Return sum of atomic densities with all weights equal to 1
+    gaussians = [(T(n_elec_valence(spec)), T(atom_decay_length(spec)), pos)
+                 for (spec, positions) in atoms for pos in positions]
+    gaussian_superposition(basis, gaussians)
+end
+
+
+@doc raw"""
+    guess_spin_density(basis, magnetic_moments)
+
+Form a spin density guess. The magnetic moments should be specified in units of ``μ_B``.
+"""
+function guess_spin_density(basis::PlaneWaveBasis, magnetic_moments=[])
+    guess_spin_density(basis, basis.model.atoms, magnetic_moments)
+end
+@timing function guess_spin_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments) where {T}
     model = basis.model
+    if model.spin_polarization in (:none, :spinless)
+        isempty(magnetic_moments) && return nothing
+        error("Initial magnetic moments can only be used with collinear models.")
+    end
+
+    # If no magnetic moments start with a zero spin density
+    all_magmoms = (normalize_magnetic_moment(magmom) for (_, magmoms) in magnetic_moments
+                   for magmom in magmoms)
+    if all(iszero, all_magmoms)
+        @warn("Returning zero spin density guess, because no initial magnetization has " *
+              "been specified in any of the given elements / atoms. Your SCF will likely " *
+              "not converge to a spin-broken solution.")
+        return from_fourier(basis, zeros(complex(T), basis.fft_size))
+    end
+
+    gaussians = Tuple{T, T, Vec3{T}}[]
+    @assert length(magnetic_moments) == length(atoms)
+    for (ispec, (spec, magmoms)) in enumerate(magnetic_moments)
+        positions = atoms[ispec][2]
+        @assert length(magmoms) == length(positions)
+        for (ipos, r) in enumerate(positions)
+            magmom = Vec3{T}(normalize_magnetic_moment(magmoms[ipos]))
+            iszero(magmom) && continue
+            iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
+
+            push!(gaussians, (magmom[3], atom_decay_length(spec), r))
+        end
+    end
+    gaussian_superposition(basis, gaussians)
+end
+
+
+@doc raw"""
+Build a superposition of Gaussians as a guess for the density and magnetisation.
+Expects a list of tuples `(coefficient, length, position)` for each of the Gaussian,
+which follow the functional form
+```math
+\hat{ρ}(G) = \text{coefficient} \exp\left(-(2π \text{length} |G|)^2\right)
+```
+and are placed at `position` (in fractional coordinates).
+"""
+function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
     ρ = zeros(complex(T), basis.fft_size)
-    # If no atoms, start with a zero initial guess
-    isempty(atoms) && return from_fourier(basis, ρ)
-    # fill ρ with the (unnormalized) Fourier transform, ie ∫ e^{-iGx} ρ(x) dx
-    for (spec, positions) in atoms
-        n_el_val = n_elec_valence(spec)
-        decay_length::T = atom_decay_length(spec)
-        for (iG, G) in enumerate(G_vectors(basis))
-            Gsq = sum(abs2, model.recip_lattice * G)
-            form_factor::T = n_el_val * exp(-Gsq * decay_length^2)
-            for r in positions
-                ρ[iG] += form_factor * cis(-2T(π) * dot(G, r))
-            end
+    isempty(gaussians) && return from_fourier(basis, ρ)
+
+    # Fill ρ with the (unnormalized) Fourier transform, i.e. ∫ e^{-iGx} f(x) dx,
+    # where f(x) is a weighted gaussian
+    #
+    # is formed from a superposition of atomic densities, each scaled by a prefactor
+    for (iG, G) in enumerate(G_vectors(basis))
+        Gsq = sum(abs2, basis.model.recip_lattice * G)
+        for (coeff, decay_length, r) in gaussians
+            form_factor::T = exp(-Gsq * T(decay_length)^2)
+            ρ[iG] += T(coeff) * form_factor * cis(-2T(π) * dot(G, r))
         end
     end
 
     # projection in the normalized plane wave basis
-    from_fourier(basis, ρ / sqrt(model.unit_cell_volume))
+    from_fourier(basis, ρ / sqrt(basis.model.unit_cell_volume))
 end
+
 
 @doc raw"""
 Get the lengthscale of the valence density for an atom with `n_elec_core` core

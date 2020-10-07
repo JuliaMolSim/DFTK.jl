@@ -24,6 +24,7 @@ Fermi surface.
 """
 function NOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
              temperature=basis.model.temperature)
+    @assert basis.model.spin_polarization in (:none, :spinless)
     N = zero(ε)
     if (temperature == 0) || smearing isa Smearing.None
         error("NOS only supports finite temperature")
@@ -53,6 +54,7 @@ Total density of states at energy ε
 """
 function DOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
              temperature=basis.model.temperature)
+    @assert basis.model.spin_polarization in (:none, :spinless)
     filled_occ = filled_occupation(basis.model)
     D = zero(ε)
     if (temperature == 0) || smearing isa Smearing.None
@@ -73,6 +75,7 @@ Local density of states, in real space
 """
 function LDOS(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
               temperature=basis.model.temperature)
+    @assert basis.model.spin_polarization in (:none, :spinless)
     filled_occ = filled_occupation(basis.model)
     if (temperature == 0) || smearing isa Smearing.None
         error("LDOS only supports finite temperature")
@@ -89,5 +92,6 @@ function LDOS(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
     # Use compute_density routine to compute LDOS, using just the modified
     # weights (as "occupations") at each kpoint. Note, that this automatically puts in the
     # required symmetrization with respect to kpoints and BZ symmetry
-    compute_density(basis, ψ, weights).real
+    ldostot, ldosspin = compute_density(basis, ψ, weights)
+    ldostot.real
 end

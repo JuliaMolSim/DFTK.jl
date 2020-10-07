@@ -41,7 +41,7 @@ For getting started with DFTK, see our documentation:
 - [Tutorial](https://juliamolsim.github.io/DFTK.jl/dev/guide/tutorial/)
 - [Examples](https://juliamolsim.github.io/DFTK.jl/dev/#example-index-1)
 
-Note that at least **Julia 1.3** is required.
+Note that at least **Julia 1.4** is required.
 
 ## Citation
 [![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238)

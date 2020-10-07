@@ -136,8 +136,7 @@ function total_local_potential(ham::Hamiltonian)
     @assert ham.basis.model.spin_polarization in (:none, :spinless)
     block = ham.blocks[1]  # all local potentials are the same
     rs = [o for o in block.optimized_operators if o isa RealSpaceMultiplication]
-    @assert length(rs) == 1
-    rs[1].potential
+    only(rs).potential
 end
 
 """

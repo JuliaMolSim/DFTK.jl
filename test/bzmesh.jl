@@ -46,8 +46,8 @@ end
         end
 
         red_kcoords, _ = bzmesh_uniform(kgrid_size, kshift=kshift)
-        symops = DFTK.symmetry_operations(lattice, atoms)
-        irred_kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, symops; kshift=kshift)
+        symmetries = DFTK.symmetry_operations(lattice, atoms)
+        irred_kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, symmetries; kshift=kshift)
 
         @test length(irred_kcoords) == kirredsize
 

@@ -19,5 +19,5 @@ jobs:
         run: pip install ase pymatgen
       - uses: julia-actions/setup-julia@v1
         with:
-          version: 1.3
+          version: 1.4
       - run: julia --color=yes --project -e 'using Pkg; Pkg.test(test_args = ["example"])'

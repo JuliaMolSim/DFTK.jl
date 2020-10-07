@@ -39,7 +39,7 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
     filled_occ = filled_occupation(model)
     dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
 
-    length(model.symops) == 1 || error("Disable symmetries completely for computing χ0")
+    length(model.symmetries) == 1 || error("Disable symmetries completely for computing χ0")
 
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
@@ -144,7 +144,7 @@ returns `3` extra bands, which are not converged by the eigensolver
 
     # Make δV respect the full model symmetry group, since it's
     # invalid to consider perturbations that don't (technically it
-    # could be made to only respect basis.symops, but symmetrizing wrt
+    # could be made to only respect basis.symmetries, but symmetrizing wrt
     # the model symmetry group means that χ0 is unaffected by the
     # use_symmetry kwarg of basis, which is nice)
     δV = symmetrize(δV).real / normδV
@@ -162,8 +162,8 @@ returns `3` extra bands, which are not converged by the eigensolver
                                     εF, δV, temperature, droptol, sternheimer_contribution,
                                     kwargs_sternheimer)
         end
-        accumulate_over_symops!(δρ_fourier, r_to_G(basis, complex(δρk)),
-                                basis, basis.ksymops[ik])
+        accumulate_over_symmetries!(δρ_fourier, r_to_G(basis, complex(δρk)),
+                                    basis, basis.ksymops[ik])
     end
     δρ = real(G_to_r(basis, δρ_fourier))
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints))
