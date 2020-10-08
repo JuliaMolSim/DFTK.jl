@@ -18,8 +18,9 @@ function run_silicon_lda(T ;Ecut=5, grid_size=15, spin_polarization=:none, kwarg
 
     fft_size = grid_size * ones(3)
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="lda", family="hgh"))
+    magmoms = spin_polarization == :collinear ? [Si => zeros(2)] : []
     model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [:lda_x, :lda_c_vwn],
-                      spin_polarization=spin_polarization, magnetic_moments=[Si => zeros(2)])
+                      spin_polarization=spin_polarization, magnetic_moments=magmoms)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     n_kpt_rounds = spin_polarization == :collinear ? 2 : 1
@@ -47,4 +48,11 @@ end
 @testset "Silicon LDA (small, collinear spin)" begin
     run_silicon_lda(Float64, Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17,
                     scf_tol=1e-5, n_ep_extra=0, spin_polarization=:collinear)
+end
+
+if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
+    @testset "Silicon LDA (large, collinear spin)" begin
+        run_silicon_lda(Float64, Ecut=25, test_tol=5e-6, n_ignored=0,
+                        grid_size=33, scf_tol=1e-7, n_ep_extra=0, spin_polarization=:collinear)
+    end
 end
