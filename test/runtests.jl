@@ -41,6 +41,8 @@ Random.seed!(0)
         include("silicon_pbe.jl")
         include("scf_compare.jl")
         include("iron_lda.jl")
+        include("iron_pbe.jl")
+        include("oxygen_pbe.jl")
     end
 
     if "all" in TAGS

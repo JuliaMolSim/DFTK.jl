@@ -22,4 +22,6 @@ function run_scf_and_compare(T, basis, ref_evals, ref_etot;
 
     @test eltype(scfres.energies.total) == T
     test_etot && (@test scfres.energies.total ≈ ref_etot atol=test_tol)
+
+    scfres
 end
