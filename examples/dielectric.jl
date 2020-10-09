@@ -25,7 +25,7 @@ function eps_fun(dρ)
     dρ = reshape(dρ, size(scfres.ρ.real))
     dρ = from_real(basis, dρ)
     dv = apply_kernel(basis, dρ; ρ=scfres.ρ)
-    χdv = apply_χ0(scfres.ham, scfres.ψ, scfres.εF, scfres.eigenvalues, dv)
+    χdv = apply_χ0(scfres.ham, scfres.ψ, scfres.εF, scfres.eigenvalues, dv...)
     vec((dρ - χdv).real)
 end
 

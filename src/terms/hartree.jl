@@ -46,10 +46,22 @@ function ene_ops(term::TermHartree, ψ, occ; ρ, kwargs...)
 end
 
 function compute_kernel(term::TermHartree; kwargs...)
+    @assert term.basis.model.spin_polarization in (:none, :spinless, :collinear)
     vc_G = term.poisson_green_coeffs
     # Note that `real` here: if omitted, will result in high-frequency noise of even FFT grids
-    real(G_to_r_matrix(term.basis) * Diagonal(vec(vc_G)) * r_to_G_matrix(term.basis))
+    K = real(G_to_r_matrix(term.basis) * Diagonal(vec(vc_G)) * r_to_G_matrix(term.basis))
+
+    # Hartree kernel is independent of spin, so to apply it to (ρtot, ρspin)^T
+    # and obtain the same contribution to Vα and Vβ the operator has the block structure
+    #     ( K 0 )
+    #     ( K 0 )
+    n_spin = term.basis.model.n_spin_components
+    n_spin == 1 ? K : [K 0I; K 0I]
 end
-function apply_kernel(term::TermHartree, dρ::RealFourierArray; kwargs...)
-    from_fourier(dρ.basis, term.poisson_green_coeffs .* dρ.fourier)
+
+function apply_kernel(term::TermHartree, dρ::RealFourierArray, dρspin=nothing; kwargs...)
+    @assert term.basis.model.spin_polarization in (:none, :spinless, :collinear)
+    kernel = from_fourier(dρ.basis, term.poisson_green_coeffs .* dρ.fourier)
+    n_spin = term.basis.model.n_spin_components
+    n_spin == 1 ? (kernel, ) : (kernel, kernel)  # Hartree term does not care about spin
 end

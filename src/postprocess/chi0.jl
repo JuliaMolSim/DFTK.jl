@@ -126,7 +126,7 @@ sufficiently converged. By default the `self_consistent_field` routine of `DFTK`
 returns `3` extra bands, which are not converged by the eigensolver
 (see `n_ep_extra` parameter). These should be discarded before using this function.
 """
-@timing function apply_χ0(ham, ψ, εF, eigenvalues, δV::RealFourierArray;
+@timing function apply_χ0(ham, ψ, εF, eigenvalues, δV::RealFourierArray, δVβ=nothing;
                           droptol=0,
                           sternheimer_contribution=true,
                           temperature=ham.basis.model.temperature,

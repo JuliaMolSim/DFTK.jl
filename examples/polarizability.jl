@@ -89,7 +89,7 @@ devec(arr) = from_real(basis, reshape(arr, size(res.ρ.real)))
 function dielectric_operator(dρ)
     dρ = devec(dρ)
     dv = apply_kernel(basis, dρ; ρ=res.ρ)
-    χ0dv = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, dv)
+    χ0dv = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, dv...)
     vec((dρ - χ0dv).real)
 end
 
@@ -104,7 +104,7 @@ dρ_nointeract = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, dVext)
 dρ = devec(linsolve(dielectric_operator, vec(dρ_nointeract.real), verbosity=3)[1])
 
 println("Non-interacting polarizability: $(dipole(dρ_nointeract))")
-println("Interacting polarizability: $(dipole(dρ))")
+println("Interacting polarizability:     $(dipole(dρ))")
 
 # As expected, the interacting polarizability matches the finite difference
 # result. The non-interacting polarizability is higher.
