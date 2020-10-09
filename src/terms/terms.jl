@@ -95,7 +95,7 @@ In this case the matrix has effectively 4 blocks, which are:
 \end{array}\right)
 ```
 i.e. corresponding to a mapping
-``(ρ_\text{tot}, ρ_\text{spin}) = (ρ_α + ρ_β, ρ_α - ρ_β)^T ↦ (V_α, V_β)^T``.
+``(ρ_\text{tot}, ρ_\text{spin})^T = (ρ_α + ρ_β, ρ_α - ρ_β)^T ↦ (V_α, V_β)^T``.
 """
 function compute_kernel(basis::PlaneWaveBasis{T}; kwargs...) where {T}
     n_spin = basis.model.n_spin_components

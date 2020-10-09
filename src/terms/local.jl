@@ -1,13 +1,18 @@
 ## Local potentials. Can be provided from external potentials, or from `model.atoms`.
 
 # a local potential term. Must have the field `potential`, storing the
-# potential in real space on the grid
+# potential in real space on the grid. If the potential is different in the α and β
+# components then it should be a 4d-array with the last axis running over the
+# two spin components.
 abstract type TermLocalPotential <: Term end
 
 function ene_ops(term::TermLocalPotential, ψ, occ; kwargs...)
     basis = term.basis
     T = eltype(basis)
-    ops = [RealSpaceMultiplication(basis, kpoint, term.potential) for kpoint in basis.kpoints]
+
+    potview(data, spin) = ndims(data) == 4 ? (@view data[:, :, :, spin]) : data
+    ops = [RealSpaceMultiplication(basis, kpoint, potview(term.potential, kpoint.spin))
+           for kpoint in basis.kpoints]
     if :ρ in keys(kwargs)
         dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
         E = dVol * sum(kwargs[:ρ].real .* term.potential)
