@@ -18,10 +18,6 @@ No preconditioning
 """
 struct PreconditionerNone end
 PreconditionerNone(basis, kpt) = I
-if VERSION < v"1.4"
-    # TODO Piracy, remove once we drop support for julia 1.3
-    ldiv!(Y::AbstractVecOrMat, J::UniformScaling, B::AbstractVecOrMat) = (Y .= J.λ .\ B)
-end
 
 
 """
