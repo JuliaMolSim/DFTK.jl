@@ -115,6 +115,8 @@ end
 
 @timing "mixing Hybrid" function mix(mixing::HybridMixing, basis, ρin::RealFourierArray,
                                      ρout::RealFourierArray; εF, eigenvalues, ψ, kwargs...)
+    @assert basis.model.spin_polarization in (:none, :spinless)
+
     T = eltype(basis)
     εr = T(mixing.εr)
     kTF = T(mixing.kTF)
@@ -142,7 +144,7 @@ end
         Jδρ = copy(δρ)
 
         # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
-        δV = apply_kernel(basis, from_real(basis, δρ), ρ=ρin, RPA=mixing.RPA)
+        δV = apply_kernel(basis, from_real(basis, δρ); ρ=ρin, RPA=mixing.RPA)[1]
         δV.real .-= sum(δV.real) / length(δV.real)  # set DC to zero
 
         # Apply Dielectric term of χ0
