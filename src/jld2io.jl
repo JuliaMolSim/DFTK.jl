@@ -99,6 +99,6 @@ function load_scfres(jld::JLD2.JLDFile)
 
     scfdict[:energies] = energies
     scfdict[:ham]      = ham
-    (; (sym => scfdict[sym] for sym in keys(scfdict))...)
+    (; (sym => scfdict[sym] for sym in jld["__propertynames"]))
 end
 load_scfres(file::AbstractString) = jldopen(load_scfres, file, "r")
