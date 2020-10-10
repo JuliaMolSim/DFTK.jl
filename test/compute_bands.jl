@@ -210,7 +210,9 @@ end
             ikpt += 1
         end
     end
-    @test ret.kdistances == ref_distances'
+    for ibr in 1:3
+        @test ret.kdistances[ibr] == ref_distances[:, ibr]
+    end
 end
 
 @testset "is_metal" begin

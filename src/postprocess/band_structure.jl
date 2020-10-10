@@ -48,6 +48,9 @@ function prepare_band_data(band_data; datakeys=[:λ, :λerror],
     plotter = pyimport("pymatgen.electronic_structure.plotter")
     basis = band_data.basis
 
+    # Read and parse pymatgen version
+    mg_version = parse.(Int, split(pyimport("pymatgen").__version__, ".")[1:3])
+
     ret = Dict{Symbol, Any}(:basis => basis)
     for key in datakeys
         hasproperty(band_data, key) || continue
@@ -69,13 +72,22 @@ function prepare_band_data(band_data; datakeys=[:λ, :λerror],
             spinmap = [("1", :up), ("-1", :down)]
         end
 
-        ret[:n_branches] = length(data["energy"])
-        ret[:n_bands] = size(data["energy"][1]["1"], 1)
+        ret[:n_branches] = size(data["distances"], 1)
         ret[:kdistances] = data["distances"]
-        ret[:ticks] = data["ticks"]
-        ret[key] = [Dict(spinsym => data["energy"][ibranch][spin]
-                         for (spin, spinsym) in spinmap)
-                    for ibranch = 1:length(data["energy"])]
+        ret[:ticks]      = data["ticks"]
+        if mg_version[1:2] > [2020, 9]
+            # New interface: {Spin:[np.array(nb_bands,kpoints),...]}
+            ret[:n_bands] = size(data["energy"]["1"][1], 1)
+            ret[key] = [Dict(spinsym => data["energy"][spin][ibranch]
+                             for (spin, spinsym) in spinmap)
+                        for ibranch = 1:ret[:n_branches]]
+        else
+            # Old interface: [{Spin:[band_index][k_point_index]}]
+            ret[:n_bands] = size(data["energy"][1]["1"], 1)
+            ret[key] = [Dict(spinsym => data["energy"][ibranch][spin]
+                             for (spin, spinsym) in spinmap)
+                        for ibranch = 1:ret[:n_branches]]
+        end
     end
 
     (; ret...)  # Make it a named tuple and return
