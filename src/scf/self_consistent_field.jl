@@ -115,7 +115,9 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         if enforce_symmetry
             @assert model.spin_polarization in (:none, :spinless)
             info = merge(info, (ρout=DFTK.symmetrize(ρout), ))
-            info = merge(info, (ρ_spin_out=DFTK.symmetrize(ρ_spin_out), ))
+            !isnothing(ρ_spin_out) && (
+                info = merge(info, (ρ_spin_out=DFTK.symmetrize(ρ_spin_out), ))
+            )
         end
 
         # Compute the energy of the new state
