@@ -89,16 +89,16 @@ function Base.getproperty(A::RealFourierArray{T, TReal, TFourier}, x::Symbol) wh
         getfield(A, x)
     end
 end
-function Base.setproperty!(A::RealFourierArray, x)
+function Base.setproperty!(::RealFourierArray, ::Any)
     error("RealFourierArray is intended to be read-only." *
           "(This can be bypassed by `setfield!` if you really want to).")
 end
 
 # Algebraic operations
-function Base.:+(A::RealFourierArray, B::RealFourierArray) where T
+function Base.:+(A::RealFourierArray, B::RealFourierArray)
     from_real(A.basis, A.real + B.real)
 end
-function Base.:-(A::RealFourierArray, B::RealFourierArray) where T
+function Base.:-(A::RealFourierArray, B::RealFourierArray)
     from_real(A.basis, A.real - B.real)
 end
 function Base.:*(α::Number, A::RealFourierArray)
