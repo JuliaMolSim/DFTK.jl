@@ -3,7 +3,8 @@ import JLD2
 """
 Adds simplistic checkpointing to a DFTK self-consistent field calculation.
 """
-function ScfCheckpoint(filename="scfcheckpoint.jld2"; cleanup=true, overwrite=false)
+function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2"; cleanup=true, overwrite=false)
+    # TODO Save only every 30 minutes or so
     function callback(info)
         if info.n_iter == 1
             isfile(filename) && !overwrite && error(
@@ -11,12 +12,13 @@ function ScfCheckpoint(filename="scfcheckpoint.jld2"; cleanup=true, overwrite=fa
             )
         end
         if info.stage == :finalize
-            # Cleanup checkpoint
-            cleanup && isfile(filename) && rm(filename)
+            cleanup && isfile(filename) && rm(filename)  # Cleanup checkpoint
         else
-            scfres = merge(info, (ρ=info.ρout, ρspin=info.ρ_spin_out))
+            scfres = (; (k => v for (k, v) in pairs(info) if !startswith(string(k), "ρ"))...)
+            scfres = merge(scfres, (ρ=info.ρout, ρspin=info.ρ_spin_out))
             save_scfres(filename, scfres)
         end
+        info
     end
 end
 
@@ -50,7 +52,7 @@ Save an `scfres` obtained from `self_consistent_field` to a JLD2 file.
     It may change incompatibly between DFTK versions or stop working / be removed
     in the future.
 """
-function save_scfres(jld::JLD2.JLDFile, scfres)
+function save_scfres(jld::JLD2.JLDFile, scfres::NamedTuple)
     jld["__propertynames"] = propertynames(scfres)
     jld["ρ_real"]          = scfres.ρ.real
     jld["ρspin_real"]      = isnothing(scfres.ρspin) ? nothing : scfres.ρspin.real
@@ -63,7 +65,7 @@ function save_scfres(jld::JLD2.JLDFile, scfres)
 
     jld
 end
-function save_scfres(file::AbstractString, scfres)
+function save_scfres(file::AbstractString, scfres::NamedTuple)
     JLD2.jldopen(file, "w") do jld
         save_scfres(jld, scfres)
     end
@@ -76,7 +78,6 @@ end
 Load back an `scfres`, which has previously been stored with `save_scfres`.
 Note the warning in `save_scfres`.
 """
-Save an `scfres` obtained from `self_consistent_field` to a JLD2 file.
 function load_scfres(jld::JLD2.JLDFile)
     basis   = load_basis(jld["basis"])
     scfdict = Dict{Symbol, Any}(
@@ -99,6 +100,6 @@ function load_scfres(jld::JLD2.JLDFile)
 
     scfdict[:energies] = energies
     scfdict[:ham]      = ham
-    (; (sym => scfdict[sym] for sym in jld["__propertynames"]))
+    (; (sym => scfdict[sym] for sym in jld["__propertynames"])...)
 end
-load_scfres(file::AbstractString) = jldopen(load_scfres, file, "r")
+load_scfres(file::AbstractString) = JLD2.jldopen(load_scfres, file, "r")
