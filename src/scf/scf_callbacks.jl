@@ -1,5 +1,8 @@
-# For ScfPlotTrace() see DFTK.jl/src/plotting.jl, which is conditionally loaded upon
-# Plots.jl is included.
+#
+# Other callbacks
+#    ScfPlotTrace()        see src/plotting.jl (imported with Plots.jl)
+#    ScfSaveCheckpoints()  see src/jld2io.jl   (imported with JLD2.jl)
+#
 
 """
 Default callback function for `self_consistent_field`, which prints a convergence table
