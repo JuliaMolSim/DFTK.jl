@@ -114,7 +114,6 @@ makedocs(
         ],
         "api.md",
         "publications.md",
-        "contributing.md",
     ],
     strict = !DEBUG,
 )
