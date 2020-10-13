@@ -53,6 +53,18 @@ the [Institute of computing and data sciences (ISCD, Sorbonne Université)](http
 and from the European Research Council (ERC) under the European Union's Horizon 2020 research and
 innovation program ([grant agreement No 810367](https://cordis.europa.eu/project/id/810367)).
 
-## Contact
-Feel free to contact us ([@mfherbst](https://github.com/mfherbst) and [@antoine-levitt](https://github.com/antoine-levitt))
-directly, open issues or submit pull requests. Any contribution or discussion is welcome!
+## Contributing
+If you stumble across issues in using DFTK
+or have suggestions for future developments
+we are more than happy to hear about it.
+In this case please [open an issue](https://github.com/JuliaMolSim/DFTK.jl/issues)
+or contact us ([@mfherbst](https://github.com/mfherbst)
+and [@antoine-levitt](https://github.com/antoine-levitt)) directly.
+
+Contributions to the code in any form is very welcome,
+just [submit a pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)
+on github. If you want to contribute but are unsure where to start, take a look
+at the list of issues tagged [good first issue](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+(relatively easy tasks suitable for newcomers) or [help wanted](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
+(more sizeable but well-defined and isolated).
+Don't hesitate to ask for help, through github, email or the [gitter chat](https://gitter.im/DFTK-jl/community).
