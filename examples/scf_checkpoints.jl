@@ -19,13 +19,12 @@
 #
 #     - The interface of these functions
 #       as well as the format in which the data is stored on disk can
-#       change incompatibly in the future. At this point we make no promises
-#       towards forward or backward compatibility.
-#     - JLD2 is not yet a completely matured file format
+#       change incompatibly in the future. At this point we make no promises ...
+#     - JLD2 is not yet completely matured
 #       and it is recommended to only use it for short-term storage
 #       and **not** to archive scientific results.
 #     - If you are using the functions to transfer data between different
-#       machines ensure that you use the **same version of Julia and DFTK**
+#       machines ensure that you use the **same version of Julia, JLD2 and DFTK**
 #       for saving and loading data.
 #
 # To illustrate the use of the functions in practice we will compute
