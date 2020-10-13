@@ -63,4 +63,8 @@ and [@antoine-levitt](https://github.com/antoine-levitt)) directly.
 
 Contributions to the code in any form is very welcome,
 just [submit a pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)
-on github. If you want to contribute but are unsure where to start, take a look at the list of issues tagged [good first issue](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) (relatively easy tasks suitable for newcomers) or [help wanted](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) (more sizeable but well-defined and isolated). Don't hesitate to ask for help, through github, email or the [gitter chat](https://gitter.im/DFTK-jl/community).
+on github. If you want to contribute but are unsure where to start, take a look
+at the list of issues tagged [good first issue](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+(relatively easy tasks suitable for newcomers) or [help wanted](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
+(more sizeable but well-defined and isolated).
+Don't hesitate to ask for help, through github, email or the [gitter chat](https://gitter.im/DFTK-jl/community).
