@@ -43,7 +43,7 @@ end
     # Run SCF and do checkpointing along the way
     scfres = mktempdir() do tmpdir
         checkpointfile = joinpath(tmpdir, "scfres.jld2")
-        callback = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; cleanup=false)
+        callback = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
         scfres = self_consistent_field(basis, tol=5e-2, ρspin=ρspin, callback=callback)
         test_scfres_agreement(scfres, load_scfres(checkpointfile))
         scfres

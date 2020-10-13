@@ -170,9 +170,8 @@ include("postprocess/chi0.jl")
 export compute_current
 include("postprocess/current.jl")
 
-# Dummy IO functions
-function load_scfres end
-function save_scfres end
+# Dummy function definitions which are conditionally loaded
+include("dummy_definitions.jl")
 export load_scfres, save_scfres
 
 function __init__()

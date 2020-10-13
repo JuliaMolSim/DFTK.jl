@@ -3,7 +3,7 @@ import JLD2
 """
 Adds simplistic checkpointing to a DFTK self-consistent field calculation.
 """
-function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2"; cleanup=true, overwrite=false)
+function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2"; keep=false, overwrite=false)
     # TODO Save only every 30 minutes or so
     function callback(info)
         if info.n_iter == 1
@@ -12,7 +12,7 @@ function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2"; cleanup=true, o
             )
         end
         if info.stage == :finalize
-            cleanup && isfile(filename) && rm(filename)  # Cleanup checkpoint
+            !keep && isfile(filename) && rm(filename)  # Cleanup checkpoint
         else
             scfres = (; (k => v for (k, v) in pairs(info) if !startswith(string(k), "ρ"))...)
             scfres = merge(scfres, (ρ=info.ρout, ρspin=info.ρ_spin_out))
@@ -42,16 +42,6 @@ function load_basis(jld::JLD2.Group)
                    jld["ksymops"], jld["symmetries"], fft_size=jld["fft_size"])
 end
 
-"""
-    save_scfres(filename, scfres)
-
-Save an `scfres` obtained from `self_consistent_field` to a JLD2 file.
-
-!!! warning "No compatibility guarantees"
-    No guarantees are made with respect to this function at this point.
-    It may change incompatibly between DFTK versions or stop working / be removed
-    in the future.
-"""
 function save_scfres(jld::JLD2.JLDFile, scfres::NamedTuple)
     jld["__propertynames"] = propertynames(scfres)
     jld["ρ_real"]          = scfres.ρ.real
@@ -72,12 +62,6 @@ function save_scfres(file::AbstractString, scfres::NamedTuple)
 end
 
 
-"""
-    load_scfres(filename)
-
-Load back an `scfres`, which has previously been stored with `save_scfres`.
-Note the warning in `save_scfres`.
-"""
 function load_scfres(jld::JLD2.JLDFile)
     basis   = load_basis(jld["basis"])
     scfdict = Dict{Symbol, Any}(
