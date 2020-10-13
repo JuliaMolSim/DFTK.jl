@@ -85,6 +85,7 @@ Random.seed!(0)
         include("random_spindensity.jl")
         include("chi0.jl")
         include("kernel.jl")
+        include("checkpointing.jl")
     end
 
     if "all" in TAGS

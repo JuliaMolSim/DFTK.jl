@@ -22,6 +22,7 @@ function ScfPlotTrace(plt=Plots.plot(yaxis=:log); kwargs...)
         else
             push!(energies, info.energies.total)
         end
+        info
     end
 end
 

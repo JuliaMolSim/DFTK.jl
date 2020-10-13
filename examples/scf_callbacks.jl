@@ -58,22 +58,22 @@ density_differences = Float64[];
 # collect the data and initiate the plotting in one function.
 
 using LinearAlgebra
-default_callback = DFTK.ScfDefaultCallback()
 
 function plot_callback(info)
     if info.stage == :finalize
         plot!(p, density_differences, label="|ρout - ρin|", markershape=:x)
     else
-        default_callback(info)
         push!(density_differences, norm(info.ρout.real - info.ρin.real))
     end
-end;
+    info
+end
+callback = DFTK.ScfDefaultCallback() ∘ plot_callback;
 
-# Notice that we additionally made reference to the `ScfDefaultCallback`,
-# such that when using the `plot_callback` function with
-# `self_consistent_field` we still get the usual convergence table printed.
-# We run the SCF with this callback ...
-scfres = self_consistent_field(basis, tol=1e-8, callback=plot_callback);
+# Notice that for constructing the `callback` function we chained the `plot_callback`
+# (which does the plotting) with the `ScfDefaultCallback`, such that when using
+# the `plot_callback` function with `self_consistent_field` we still get the usual
+# convergence table printed. We run the SCF with this callback ...
+scfres = self_consistent_field(basis, tol=1e-8, callback=callback);
 
 # ... and show the plot
 p
