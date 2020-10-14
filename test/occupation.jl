@@ -1,8 +1,6 @@
 using Test
 using DFTK
 using SpecialFunctions
-using Unitful
-using UnitfulAtomic
 
 include("testcases.jl")
 
@@ -49,7 +47,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     # See that the electron count still works if we add temperature
     Ts = (0, 1e-6, .1, 1.0)
     for T in Ts, meth in DFTK.Smearing.smearing_methods
-        model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=T * 1u"Eh_au", smearing=meth())
+        model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=T, smearing=meth())
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
         occs, _ = DFTK.compute_occupation(basis, energies)
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
@@ -58,7 +56,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     # See that the occupation is largely uneffected with only a bit of temperature
     Ts = (0, 1e-6, 1e-4)
     for T in Ts, meth in DFTK.Smearing.smearing_methods
-        model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=T * 1u"Eh_au", smearing=meth())
+        model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=T, smearing=meth())
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
         occupation, _ = DFTK.compute_occupation(basis, energies)
 
@@ -109,7 +107,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
 
     for (meth, temperature, εF_ref) in parameters
         model = Model(silicon.lattice, n_electrons=testcase.n_electrons;
-                      temperature=temperature * 1u"Eh_au", smearing=meth())
+                      temperature=temperature, smearing=meth())
         basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops; fft_size=fft_size)
         occupation, εF = DFTK.compute_occupation(basis, energies)
 

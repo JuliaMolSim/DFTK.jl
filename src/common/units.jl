@@ -1,7 +1,4 @@
-using Unitful
-import Unitful.uconvert
 using UnitfulAtomic
-
 
 # Commonly used constants. The factors convert from the respective unit
 # to atomic units
@@ -21,14 +18,8 @@ E.g. `unit_to_au(:eV)` returns the conversion factor from electron volts to Hart
 """
 unit_to_au(symbol::Symbol) = getfield(units, symbol)
 
-# Convert a temperature to an energy via the Boltzmann constant.
-function uconvert(a::Unitful.EnergyUnits, x::Unitful.Quantity{T,Unitful.𝚯,U}) where {T <: Real, U <: Unitful.Units}
-    uconvert(a, Unitful.k * x)
-end
-
 # Convert a value to an energy in atomic units.
 # If given a number, assume it is already in atomic units (pass through directly).
-function to_energy(x::Unitful.Quantity)::Real
-    ustrip(uconvert(UnitfulAtomic.Eh_au, x))
+function to_energy(x)
+    austrip(x)
 end
-to_energy(x::Real)::Real = x

@@ -1,7 +1,5 @@
 # Contains the physical specification of the model
 
-using Unitful
-
 # A physical specification of a model.
 # Contains the geometry information, but no discretization parameters.
 # The exact model used is defined by the list of terms.
@@ -82,7 +80,7 @@ function Model(lattice::AbstractMatrix{T};
                atoms=[],
                magnetic_moments=[],
                terms=[],
-               temperature::Union{T, Unitful.Quantity}=T(0.0),
+               temperature=T(0.0),
                smearing=nothing,
                spin_polarization=default_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization),
