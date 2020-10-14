@@ -6,7 +6,6 @@ version = "0.2.1"
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
-DoubleFloats = "497a8b3b-efae-58df-a0af-a86822472b78"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 GenericLinearAlgebra = "14197337-ba66-59df-a3e3-ca00e7dcff7a"
