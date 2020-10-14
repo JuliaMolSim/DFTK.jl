@@ -10,7 +10,7 @@ a new plot canvas is generated, but an existing one can be passed and reused
 along with `kwargs` for the call to `plot!`.
 """
 function ScfPlotTrace(plt=Plots.plot(yaxis=:log); kwargs...)
-    energies = Float64[]
+    energies = nothing
     function callback(info)
         if info.stage == :finalize
             minenergy = minimum(energies[max(1, end-5):end])
@@ -19,6 +19,8 @@ function ScfPlotTrace(plt=Plots.plot(yaxis=:log); kwargs...)
             extra = ifelse(:mark in keys(kwargs), (), (mark=:x, ))
             Plots.plot!(plt, error; extra..., kwargs...)
             display(plt)
+        elseif info.n_iter == 1
+            energies = [info.energies.total]
         else
             push!(energies, info.energies.total)
         end
