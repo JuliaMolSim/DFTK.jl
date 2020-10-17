@@ -1,5 +1,7 @@
 using MPI
 using Unitful
+using UnitfulAtomic
+
 include("fft.jl")
 
 # There are two kinds of plane-wave basis sets used in DFTK.
@@ -136,15 +138,13 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
 
 # This is the "internal" constructor; the higher-level one below should be preferred
-@timing function PlaneWaveBasis(model::Model{T},
-                                Ecut::Union{Number, Unitful.Quantity{T,D,Unitful.EnergyUnits}},
+@timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops, symmetries=nothing;
                                 fft_size=nothing, variational=true,
                                 optimize_fft_size=false, supersampling=2) where {T <: Real, D}
     # TODO this constructor is too complicated, we should simplify it
     # if possible (esp. the variational part)
     mpi_ensure_initialized()
-    Ecut = to_energy(Ecut)
     if variational
         @assert Ecut > 0
         if fft_size === nothing
@@ -281,10 +281,10 @@ functions must agree with the crystal symmetries or the result is
 undefined.
 """
 function PlaneWaveBasis(model::Model,
-                        Ecut::Union{Number, Unitful.Quantity{T,D,Unitful.EnergyUnits}};
+                        Ecut::Union{Number, Quantity};
                         kgrid=kgrid_size_from_minimal_spacing(model.lattice, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
-                        use_symmetry=true, kwargs...) where {T, D}
+                        use_symmetry=true, kwargs...)
     if use_symmetry
         kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries, kshift=kshift)
     else
@@ -293,6 +293,7 @@ function PlaneWaveBasis(model::Model,
         # store in symmetries the set of kgrid-preserving symmetries
         symmetries = symmetries_preserving_kgrid(model.symmetries, kcoords)
     end
+    Ecut = austrip(Ecut)
     PlaneWaveBasis(model, Ecut, kcoords, ksymops, symmetries; kwargs...)
 end
 

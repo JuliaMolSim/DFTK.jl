@@ -1,3 +1,6 @@
+using Unitful
+using UnitfulAtomic
+
 # Contains the physical specification of the model
 
 # A physical specification of a model.
@@ -86,7 +89,7 @@ function Model(lattice::AbstractMatrix{T};
                symmetries=default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization),
                ) where {T <: Real}
     lattice = Mat3{T}(lattice)
-    temperature = to_energy(temperature)
+    temperature = austrip(temperature)
 
     if n_electrons === nothing
         # get it from the atom list

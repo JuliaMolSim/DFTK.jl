@@ -44,7 +44,7 @@ function compute_fft_size(lattice::AbstractMatrix{T}, Ecut;
     fft_size
 end
 function compute_fft_size(model::Model, Ecut; kwargs...)
-    compute_fft_size(model.lattice, to_energy(Ecut); kwargs...)
+    compute_fft_size(model.lattice, Ecut; kwargs...)
 end
 
 function diameter(lattice)
@@ -63,7 +63,6 @@ end
 #      It should be merged with build_kpoints somehow
 function compute_fft_size_precise(lattice::AbstractMatrix{T}, Ecut, kpoints;
                                   supersampling=2, ensure_smallprimes=true) where T
-    Ecut = to_energy(Ecut)
     recip_lattice = 2T(π)*pinv(lattice')  # pinv in case one of the dimension is trivial
     recip_diameter = diameter(recip_lattice)
     Glims = [0, 0, 0]
