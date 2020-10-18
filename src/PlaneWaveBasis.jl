@@ -141,7 +141,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops, symmetries=nothing;
                                 fft_size=nothing, variational=true,
-                                optimize_fft_size=false, supersampling=2) where {T <: Real, D}
+                                optimize_fft_size=false, supersampling=2) where {T <: Real}
     # TODO this constructor is too complicated, we should simplify it
     # if possible (esp. the variational part)
     mpi_ensure_initialized()
