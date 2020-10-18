@@ -285,6 +285,7 @@ function PlaneWaveBasis(model::Model,
                         kgrid=kgrid_size_from_minimal_spacing(model.lattice, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
                         use_symmetry=true, kwargs...)
+    kgrid = austrip.(kgrid)
     if use_symmetry
         kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries, kshift=kshift)
     else
