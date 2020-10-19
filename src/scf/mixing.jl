@@ -20,7 +20,6 @@ Simple mixing: ``J^{-1} ≈ α``
     α::Real = 0.8
 end
 @timing "mixing Simple" function mix(mixing::SimpleMixing, ::PlaneWaveBasis, δFs...; kwargs...)
-    @assert length(δFs) > 0 && !isnothing(δFs[1])
     T = eltype(δFs[1])
     map(δFs) do δF  # Apply to both δF{total} and δF{spin} in the same way 
         isnothing(δF) && return nothing
@@ -44,7 +43,6 @@ Notes:
 end
 @timing "mixing Kerker" function mix(mixing::KerkerMixing, basis::PlaneWaveBasis, δFs...;
                                      kwargs...)
-    @assert length(δFs) > 0 && !isnothing(δFs[1])
     T = eltype(δFs[1])
     Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
 
@@ -73,7 +71,6 @@ By default it assumes a relative permittivity of 10 (similar to Silicon).
 end
 @timing "mixing Dielectric" function mix(mixing::DielectricMixing, basis::PlaneWaveBasis,
                                          δFs...; kwargs...)
-    @assert length(δFs) > 0 && !isnothing(δFs[1])
     T = eltype(δFs[1])
     εr = T(mixing.εr)
     kTF = T(mixing.kTF)
