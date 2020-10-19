@@ -126,14 +126,13 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         info = merge(info, (energies=energies, ))
 
         # Apply mixing and pass it the full info as kwargs
-        # TODO Mixing should take both density and spin density
-        ρnext     = mix(mixing, basis, ρin, ρout; info...)
-        enforce_symmetry && (ρnext = DFTK.symmetrize(ρnext))
-        if !isnothing(ρ_spin_out)
-            ρ_spin_next = mix(mixing, basis, ρ_spin_in, ρ_spin_out; info...)
-            enforce_symmetry && (ρ_spin_next = DFTK.symmetrize(ρ_spin_next))
-        else
-            ρ_spin_next = nothing
+        δF_spin = isnothing(ρ_spin_out) ? nothing : ρ_spin_out - ρ_spin_in
+        δρ, δρ_spin = mix(mixing, basis, ρout - ρin, δF_spin; info...)
+        ρnext = δρ + ρin
+        ρ_spin_next = isnothing(ρ_spin_out) ? nothing : δρ_spin + ρ_spin_in
+        if enforce_symmetry
+            ρnext = DFTK.symmetrize(ρnext)
+            !isnothing(ρ_spin_next) && (ρ_spin_next = DFTK.symmetrize(ρ_spin_next))
         end
         info = merge(info, (ρnext=ρnext, ρ_spin_next=ρ_spin_next))
 
