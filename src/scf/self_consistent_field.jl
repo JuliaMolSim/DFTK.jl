@@ -108,15 +108,15 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                  occupation_function=occupation_function)
         ψ, eigenvalues, occupation, εF, ρout, ρ_spin_out = nextstate
 
+        if enforce_symmetry
+            ρout = DFTK.symmetrize(ρout)
+            isnothing(ρ_spin_out) && (ρ_spin_out = DFTK.symmetrize(ρ_spin_out))
+        end
+
         # Update info with results gathered so far
         info = (ham=ham, basis=basis, converged=converged, stage=:iterate,
-                ρin=ρin, ρ_spin_in=ρ_spin_in, n_iter=n_iter, nextstate...)
-
-        if enforce_symmetry
-            @assert model.spin_polarization in (:none, :spinless)
-            info = merge(info, (ρout=DFTK.symmetrize(ρout), ))
-            info = merge(info, (ρ_spin_out=DFTK.symmetrize(ρ_spin_out), ))
-        end
+                ρin=ρin, ρ_spin_in=ρ_spin_in, ρout=ρout, ρ_spin_out=ρ_spin_out,
+                n_iter=n_iter, nextstate...)
 
         # Compute the energy of the new state
         if compute_consistent_energies

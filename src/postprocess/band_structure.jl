@@ -152,7 +152,7 @@ function plot_bandstructure(basis, ρ, ρspin, n_bands;
 end
 function plot_bandstructure(scfres; n_bands=nothing, kwargs...)
     # Convenience wrapper for scfres named tuples
-    n_bands_scf = size(scfres.occupation[1], 2)
+    n_bands_scf = length(scfres.occupation[1])
     isnothing(n_bands) && (n_bands = ceil(Int, n_bands_scf + 5sqrt(n_bands_scf)))
     plot_bandstructure(scfres.basis, scfres.ρ, scfres.ρspin, n_bands; εF=scfres.εF, kwargs...)
 end

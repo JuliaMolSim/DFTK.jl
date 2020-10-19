@@ -12,7 +12,7 @@ function ScfDefaultCallback()
     function callback(info)
         if info.stage == :finalize
             info.converged || @warn "SCF not converged."
-            return
+            return info
         end
         collinear = info.basis.model.spin_polarization == :collinear
         dVol      = info.basis.model.unit_cell_volume / prod(info.basis.fft_size)
