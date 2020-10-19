@@ -45,18 +45,22 @@ end;
 
 # Finally we also define our custom mixing scheme. It will be a mixture
 # of simple mixing (for the first 2 steps) and than default to Kerker mixing.
+# In the mixing interface `δF` is ``(ρ_\text{out} - ρ_\text{in})``, i.e.
+# the difference in density between two subsequent SCF steps and the `mix`
+# function returns ``δρ``, which is added to ``ρ_\text{in}`` to yield ``ρ_\text{next}``,
+# the density for the next SCF step.
 struct MyMixing
     α  # Damping parameter
 end
 MyMixing() = MyMixing(0.7)
 
-function DFTK.mix(mixing::MyMixing, basis, ρin::RealFourierArray, ρout::RealFourierArray; n_iter, kwargs...)
+function DFTK.mix(mixing::MyMixing, basis, δF::RealFourierArray, δF_spin=nothing; n_iter, kwargs...)
     if n_iter <= 2
-        ## Just do simple mixing
-        ρin + mixing.α * (ρout - ρin)
+        ## Just do simple mixing on total density and spin density (if it exists)
+        (mixing.α * δF, isnothing(δF_spin) ? nothing : mixing.α * δF_spin)
     else
         ## Use the KerkerMixing from DFTK
-        DFTK.mix(KerkerMixing(α=mixing.α), basis, ρin, ρout; kwargs...)
+        DFTK.mix(KerkerMixing(α=mixing.α), basis, δF, δF_spin; kwargs...)
     end
 end
 
