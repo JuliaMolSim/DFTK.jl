@@ -89,7 +89,7 @@ devec(arr) = from_real(basis, reshape(arr, size(res.ρ.real)))
 function dielectric_operator(dρ)
     dρ = devec(dρ)
     dv = apply_kernel(basis, dρ; ρ=res.ρ)
-    χ0dv = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, dv...)
+    χ0dv = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, dv...)[1]
     vec((dρ - χ0dv).real)
 end
 
@@ -98,7 +98,7 @@ end
 dVext = from_real(basis, [-a * (r[1] - 1/2) for r in r_vectors(basis)])
 
 ## Apply χ0 once to get non-interacting dipole
-dρ_nointeract = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, dVext)
+dρ_nointeract = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, dVext)[1]
 
 ## Solve Dyson equation to get interacting dipole
 dρ = devec(linsolve(dielectric_operator, vec(dρ_nointeract.real), verbosity=3)[1])

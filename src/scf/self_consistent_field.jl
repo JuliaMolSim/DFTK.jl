@@ -110,7 +110,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 
         if enforce_symmetry
             ρout = DFTK.symmetrize(ρout)
-            isnothing(ρ_spin_out) && (ρ_spin_out = DFTK.symmetrize(ρ_spin_out))
+            !isnothing(ρ_spin_out) && (ρ_spin_out = DFTK.symmetrize(ρ_spin_out))
         end
 
         # Update info with results gathered so far
