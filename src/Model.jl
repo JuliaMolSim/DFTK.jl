@@ -88,7 +88,7 @@ function Model(lattice::AbstractMatrix{T};
                spin_polarization=default_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization),
                ) where {T <: Real}
-    lattice = austrip.(Mat3{T}(lattice))
+    lattice = Mat3{T}(lattice)
     temperature = T(austrip(temperature))
 
     if n_electrons === nothing
@@ -145,6 +145,7 @@ function Model(lattice::AbstractMatrix{T};
              spin_polarization, n_spin, T(temperature), smearing, atoms, terms, symmetries)
 end
 Model(lattice::AbstractMatrix{T}; kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
+Model(lattice::AbstractMatrix{Q}; kwargs...) where {Q <: Quantity} = Model(austrip.(lattice); kwargs...)
 
 
 normalize_magnetic_moment(::Nothing)  = Vec3{Float64}(zeros(3))
