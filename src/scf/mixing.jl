@@ -1,5 +1,6 @@
 using LinearMaps
 using IterativeSolvers
+using Statistics
 import Base: @kwdef
 
 # Mixing rules: (ρin, ρout) => ρnext, where ρout is produced by diagonalizing the
@@ -65,9 +66,9 @@ By default it assumes a relative permittivity of 10 (similar to Silicon).
 `εr == 1` is equal to `SimpleMixing` and `εr == Inf` to `KerkerMixing`.
 """
 @kwdef struct DielectricMixing
-    α::Real = 0.8
+    α::Real   = 0.8
     kTF::Real = 0.8
-    εr::Real = 10
+    εr::Real  = 10
 end
 @timing "mixing Dielectric" function mix(mixing::DielectricMixing, basis::PlaneWaveBasis,
                                          δFs...; kwargs...)
@@ -104,8 +105,8 @@ Additionally there is the real-space localisation function `L(r)`.
 For details see Herbst, Levitt 2020 arXiv:2009.01665
 """
 @kwdef struct HybridMixing
-    α::Real = 0.8
-    εr::Real = 1.0
+    α::Real   = 0.8
+    εr::Real  = 1.0
     kTF::Real = 0.8
     localisation::Function = identity  # `L(r)` with `r` in fractional real-space coordinates
     RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
@@ -114,9 +115,8 @@ end
 
 @timing "mixing Hybrid" function mix(mixing::HybridMixing, basis, δF_tot::RealFourierArray,
                                      δF_spin=nothing;
-                                     εF, eigenvalues, ψ, ρin, kwargs...)
-    @assert basis.model.spin_polarization in (:none, :spinless)
-    @assert isnothing(δF_spin)
+                                     εF, eigenvalues, ψ, ρin, ρ_spin_in, kwargs...)
+    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
 
     T = eltype(δF_tot)
     εr = T(mixing.εr)
@@ -124,6 +124,7 @@ end
     C0 = 1 - εr
     Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
     dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
+    n_spin = basis.model.n_spin_components
 
     apply_sqrtL = identity
     if mixing.localisation != identity
@@ -134,39 +135,75 @@ end
     # Compute the LDOS if required
     ldos = nothing
     if basis.model.temperature > 0
-        ldos = LDOS(εF, basis, eigenvalues, ψ)
+        ldos = [LDOS(εF, basis, eigenvalues, ψ, spins=[σ]) for σ in 1:n_spin]
+        if maximum(maximum(abs, ldos_σ) for ldos_σ in ldos) < eps(T)
+            ldos = nothing
+        end
+        dos = sum(sum, ldos) * dVol  # Integrate LDOS to form total DOS
     end
 
     # Solve J δρ = δF with J = (1 - χ0 vc) and χ_0 given as in the docstring of the class
-    devec(x) = reshape(x, size(δF_tot))
+    devec(x) = reshape(x, size(δF_tot)..., n_spin)
     function Jop(x)
-        δF = devec(x)
+        δF = devec(x)  # [:, :, :, 1] is spin-up (or total), [:, :, :, 2] is spin-down
         JδF = copy(δF)
 
-        # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
-        δV = apply_kernel(basis, from_real(basis, δF); ρ=ρin, RPA=mixing.RPA)[1]
-        δV.real .-= sum(δV.real) / length(δV.real)  # set DC to zero
+        if !iszero(C0) || ldos !== nothing
+            # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
+            @views if n_spin == 1
+                x_tot  = from_real(basis, δF[:, :, :, 1])
+                x_spin = nothing
+            else
+                x_tot  = from_real(basis, δF[:, :, :, 1] .+ δF[:, :, :, 2])
+                x_spin = from_real(basis, δF[:, :, :, 1] .- δF[:, :, :, 2])
+            end
+            δV = apply_kernel(basis, x_tot, x_spin; ρ=ρin, ρspin=ρ_spin_in, RPA=mixing.RPA)
 
-        # Apply Dielectric term of χ0
-        if !iszero(C0)
-            loc_δV = apply_sqrtL(δV).fourier
-            dielectric_loc_δV =  @. C0 * kTF^2 * Gsq / 4T(π) / (kTF^2 - C0 * Gsq) * loc_δV
-            JδF .-= apply_sqrtL(from_fourier(basis, dielectric_loc_δV)).real
+            # set DC of δV to zero (δV[1] is spin-up or total, δV[2] is spin-down)
+            δV_DC = mean(mean(δV[σ].real) for σ in 1:n_spin)
+            δV[1].real .-= δV_DC
+            n_spin == 2 && (δV[2].real .-= δV_DC)
         end
 
-        # Apply LDOS term of χ0
-        if ldos !== nothing && maximum(abs, ldos) > eps(real(eltype(ldos)))
-            JδF .-= (-ldos .* δV.real
-                     .+ sum(ldos .* δV.real) .* dVol .* ldos ./ (sum(ldos) .* dVol))
+        if !iszero(C0)  # Apply Dielectric term of χ0
+            for σ in 1:n_spin
+                loc_δV = apply_sqrtL(δV[σ]).fourier
+                dielectric_loc_δV = @. C0 * kTF^2 * Gsq / 4T(π) / (kTF^2 - C0 * Gsq) * loc_δV
+                JδF[:, :, :, σ] .-= apply_sqrtL(from_fourier(basis, dielectric_loc_δV)).real
+            end
         end
 
-        # Zero DC component and return
-        vec(JδF .-= sum(JδF) / length(JδF))
+        if ldos !== nothing  # Apply LDOS term of χ0
+            dotldosδV = sum(dot(ldos[σ], δV[σ].real) for σ = 1:n_spin)
+            for σ in 1:n_spin
+                JδF[:, :, :, σ] .-= (-ldos[σ] .* δV[σ].real
+                                     .+ ldos[σ] .* dotldosδV .* dVol ./ dos)
+            end
+        end
+
+        # Zero DC component in total density response and return
+        vec(JδF .-= mean(JδF))
     end
-    J = LinearMap(Jop, length(δF_tot))
-    x = gmres(J, vec(δF_tot.real), verbose=mixing.verbose)
+
+    if n_spin == 1
+        δF_updown = δF_tot.real
+    else
+        δF_updown = cat((δF_tot.real .+ δF_spin.real) ./ 2,  # spin-up
+                        (δF_tot.real .- δF_spin.real) ./ 2,  # spin-down
+                        dims=4)
+    end
+    δF_updown .-= mean(δF_updown)  # Zero DC of δF_updown
+    J = LinearMap(Jop, length(δF_updown))
+    x = gmres(J, vec(δF_updown), verbose=mixing.verbose)
+    # TODO Further improvement: Adapt tolerance of gmres to norm(ρ_out - ρ_in)
 
     δρ = T(mixing.α) .* devec(x)  # Apply damping
     δρ .+= (sum(δF_tot.real) - sum(δρ)) / length(δF_tot)  # Set DC from δF
-    from_real(basis, δρ), nothing
+
+    @views if n_spin == 1
+        from_real(basis, δρ[:, :, :, 1]), nothing
+    else
+        (from_real(basis, δρ[:, :, :, 1] .+ δρ[:, :, :, 2]),
+         from_real(basis, δρ[:, :, :, 1] .- δρ[:, :, :, 2]))
+    end
 end
