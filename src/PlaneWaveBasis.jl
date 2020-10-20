@@ -294,8 +294,7 @@ function PlaneWaveBasis(model::Model,
         # store in symmetries the set of kgrid-preserving symmetries
         symmetries = symmetries_preserving_kgrid(model.symmetries, kcoords)
     end
-    Ecut = austrip(Ecut)
-    PlaneWaveBasis(model, Ecut, kcoords, ksymops, symmetries; kwargs...)
+    PlaneWaveBasis(model, austrip(Ecut), kcoords, ksymops, symmetries; kwargs...)
 end
 
 """
