@@ -31,8 +31,17 @@ end
 
 include("Hamiltonian.jl")
 
+# breaks_symmetries on a term builder answers true if this term breaks
+# the symmetries of the lattice/atoms (in which case kpoint reduction
+# is invalid)
+breaks_symmetries(term_builder::Any) = false
+
 include("kinetic.jl")
+
 include("local.jl")
+breaks_symmetries(term_builder::ExternalFromReal) = true
+breaks_symmetries(term_builder::ExternalFromFourier) = true
+
 include("nonlocal.jl")
 include("hartree.jl")
 include("power_nonlinearity.jl")
@@ -40,21 +49,16 @@ include("xc.jl")
 include("ewald.jl")
 include("psp_correction.jl")
 include("entropy.jl")
-include("magnetic.jl")
 
-# breaks_symmetries on a term builder answers true if this term breaks
-# the symmetries of the lattice/atoms (in which case kpoint reduction
-# is invalid)
-breaks_symmetries(term_builder::Any) = false
+include("magnetic.jl")
 breaks_symmetries(term_builder::Magnetic) = true
-breaks_symmetries(term_builder::ExternalFromReal) = true
-breaks_symmetries(term_builder::ExternalFromFourier) = true
+
+include("anyonic.jl")
+breaks_symmetries(term_builder::Anyonic) = true
 
 
 # forces computes either nothing or an array forces[el][at][α]
-function forces(term::Term, ψ, occ; kwargs...)
-    nothing  # by default, no force
-end
+forces(term::Term, ψ, occ; kwargs...) = nothing  # by default, no force
 @timing function forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
     if !any(iszero(kpt.coordinate) for kpt in basis.kpoints)
         @warn "Forces for shifted k-Grids not tested"
@@ -74,42 +78,63 @@ end
 forces(scfres) = forces(scfres.basis, scfres.ψ, scfres.occupation, ρ=scfres.ρ)
 
 
-"""
-    compute_kernel(term::Term; kwargs...)
+@doc raw"""
+    compute_kernel(basis::PlaneWaveBasis; kwargs...)
 
 Computes a matrix representation of the full response kernel
 (derivative of potential with respect to density) in real space.
+For non-spin-polarized calculations the matrix dimension is
+`prod(basis.fft_size)` × `prod(basis.fft_size)` and
+for collinear spin-polarized cases it is
+`2prod(basis.fft_size)` × `2prod(basis.fft_size)`.
+In this case the matrix has effectively 4 blocks, which are:
+```math
+\left(\begin{array}{cc}
+    K_{α, \text{tot}} & K_{α, \text{spin}}\\
+    K_{β, \text{tot}} & K_{β, \text{spin}}
+\end{array}\right)
+```
+i.e. corresponding to a mapping
+``(ρ_\text{tot}, ρ_\text{spin})^T = (ρ_α + ρ_β, ρ_α - ρ_β)^T ↦ (V_α, V_β)^T``.
 """
-function compute_kernel(term::Term; kwargs...)
-    false  # "strong zero": false + something = something
-end
-"""
-    apply_kernel(term::Term, dρ; kwargs...)
-
-Computes the potential response to a perturbation dρ in real space
-"""
-function apply_kernel(term::Term, dρ; kwargs...)
-    nothing  # by default, no kernel
-end
-
 function compute_kernel(basis::PlaneWaveBasis{T}; kwargs...) where {T}
-    k = zeros(T, prod(basis.fft_size), prod(basis.fft_size))
+    n_spin = basis.model.n_spin_components
+    kernel = zeros(T, n_spin * prod(basis.fft_size), n_spin * prod(basis.fft_size))
     for term in basis.terms
-        k .+= compute_kernel(term; kwargs...)
+        isnothing(term) && continue
+        kernel .+= compute_kernel(term; kwargs...)
     end
-    k
+    kernel
 end
+compute_kernel(::Term; kwargs...) = nothing  # By default no kernel
 
-function apply_kernel(basis, dρ; RPA=false, kwargs...)
-    dV = RealFourierArray(basis)
+
+"""
+    apply_kernel(basis::PlaneWaveBasis, dρ, dρspin=nothing; kwargs...)
+
+Computes the potential response to a perturbation `(dρ, dρspin)` in real space.
+Returns the array `[dV_α, dV_β]` for collinear spin-polarized
+calculations, else the array [dV_{tot}].
+"""
+function apply_kernel(basis::PlaneWaveBasis, dρ, dρspin=nothing;
+                      RPA=false, kwargs...)
+    n_spin = basis.model.n_spin_components
+    (n_spin == 1) && @assert isnothing(dρspin)
+    (n_spin == 2) && @assert !isnothing(dρspin)
+    @assert 1 ≤ n_spin ≤ 2
+
+    dV = [RealFourierArray(basis) for _ in 1:n_spin]
     for term in basis.terms
         # Skip XC term if RPA is selected
         RPA && term isa TermXc && continue
 
-        dV_term = apply_kernel(term, dρ; kwargs...)
+        dV_term = apply_kernel(term, dρ, dρspin; kwargs...)
         if !isnothing(dV_term)
-            dV.real .+= dV_term.real
+            for σ in 1:n_spin
+                dV[σ].real .+= dV_term[σ].real
+            end
         end
     end
     dV
 end
+apply_kernel(::Term, dρ, dρspin; kwargs...) = nothing  # by default, no kernel

@@ -4,6 +4,8 @@
 # as a simple example for a metallic system.
 # For our treatment we will use the PBE exchange-correlation functional.
 # First we import required packages and setup the lattice.
+# Again notice that DFTK uses the convention that lattice vectors are
+# specified column by column.
 
 using DFTK
 using Plots
@@ -49,9 +51,4 @@ scfres.energies
 
 # The fact that magnesium is a metal is confirmed
 # by plotting the density of states around the Fermi level.
-
-εs = range(minimum(minimum(scfres.eigenvalues)) - .5,
-           maximum(maximum(scfres.eigenvalues)) + .5, length=1000)
-Ds = DOS.(εs, Ref(basis), Ref(scfres.eigenvalues))
-q = plot(εs, Ds, label="DOS")
-vline!(q, [scfres.εF], label="εF")
+plot_dos(scfres)

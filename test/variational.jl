@@ -11,7 +11,7 @@ function get_scf_energies(testcase, supersampling, functionals)
     n_bands = 10
     kcoords = [[.2, .3, .4]]
 
-    fft_size = determine_grid_size(testcase.lattice, Ecut, supersampling=supersampling,
+    fft_size = determine_fft_size(testcase.lattice, Ecut, supersampling=supersampling,
                                    ensure_smallprimes=false)
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
     model = model_DFT(testcase.lattice, [spec => testcase.positions], functionals)

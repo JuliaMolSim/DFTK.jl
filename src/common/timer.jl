@@ -1,8 +1,10 @@
-# Control whether timings are enabled or not, by default no
-if parse(Bool, get(ENV, "DFTK_TIMING", "0"))
-    timer_enabled() = true
+# Control whether timings are enabled or not, by default yes
+if get(ENV, "DFTK_TIMING", "1") == "1"
+    timer_enabled() = :parallel
+elseif ENV["DFTK_TIMING"] == "all"
+    timer_enabled() = :all
 else
-    timer_enabled() = false
+    timer_enabled() = :none
 end
 
 """TimerOutput object used to store DFTK timings."""
@@ -13,7 +15,7 @@ Shortened version of the `@timeit` macro from `TimerOutputs`,
 which writes to the DFTK timer.
 """
 macro timing(args...)
-    if DFTK.timer_enabled()
+    if DFTK.timer_enabled() in (:parallel, :all)
         TimerOutputs.timer_expr(__module__, false, :($(DFTK.timer)), args...)
     else  # Disable taking timings
         :($(esc(last(args))))
@@ -26,7 +28,7 @@ Should be used to time threaded regions,
 since TimerOutputs is not thread-safe and breaks otherwise.
 """
 macro timing_seq(args...)
-    if Threads.nthreads() == 1 && DFTK.timer_enabled()
+    if DFTK.timer_enabled() == :all
         TimerOutputs.timer_expr(__module__, false, :($(DFTK.timer)), args...)
     else  # Disable taking timings
         :($(esc(last(args))))

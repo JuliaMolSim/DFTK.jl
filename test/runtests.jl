@@ -40,10 +40,13 @@ Random.seed!(0)
         include("silicon_lda.jl")
         include("silicon_pbe.jl")
         include("scf_compare.jl")
+        include("iron_lda.jl")
+        include("iron_pbe.jl")
+        include("oxygen_pbe.jl")
     end
 
     if "all" in TAGS
-        include("determine_grid_size.jl")
+        include("determine_fft_size.jl")
         include("fourier_transforms.jl")
         include("PlaneWaveBasis.jl")
         include("interpolation.jl")
@@ -79,8 +82,14 @@ Random.seed!(0)
     if "all" in TAGS
         include("variational.jl")
         include("compute_bands.jl")
+        include("random_spindensity.jl")
         include("chi0.jl")
         include("kernel.jl")
+        include("checkpointing.jl")
+    end
+
+    if "all" in TAGS
+        include("aqua.jl")
     end
 
     ("example" in TAGS) && include("runexamples.jl")

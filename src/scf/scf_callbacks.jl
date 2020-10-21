@@ -1,24 +1,8 @@
-"""
-Plot the trace of an SCF, i.e. the absolute error of the total energy at
-each iteration versus the converged energy in a semilog plot. By default
-a new plot canvas is generated, but an existing one can be passed and reused
-along with `kwargs` for the call to `plot!`.
-"""
-function ScfPlotTrace(plt=plot(yaxis=:log); kwargs...)
-    energies = Float64[]
-    function callback(info)
-        if info.stage == :finalize
-            minenergy = minimum(energies[max(1, end-5):end])
-            error = abs.(energies .- minenergy)
-            error[error .== 0] .= NaN
-            extra = ifelse(:mark in keys(kwargs), (), (mark=:x, ))
-            plot!(plt, error; extra..., kwargs...)
-            display(plt)
-        else
-            push!(energies, info.energies.total)
-        end
-    end
-end
+#
+# Other callbacks
+#    ScfPlotTrace()        see src/plotting.jl (imported with Plots.jl)
+#    ScfSaveCheckpoints()  see src/jld2io.jl   (imported with JLD2.jl)
+#
 
 """
 Default callback function for `self_consistent_field`, which prints a convergence table
@@ -26,22 +10,32 @@ Default callback function for `self_consistent_field`, which prints a convergenc
 function ScfDefaultCallback()
     prev_energies = nothing
     function callback(info)
-        info.stage == :finalize && return
+        if info.stage == :finalize
+            info.converged || @warn "SCF not converged."
+            return info
+        end
+        collinear = info.basis.model.spin_polarization == :collinear
+        dVol      = info.basis.model.unit_cell_volume / prod(info.basis.fft_size)
+
         if info.n_iter == 1
             E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
-            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin   Diag\n" E_label
-            @printf "---   ---------------   ---------   --------   ----\n"
+            magn    = collinear ? ("   Magnet", "   ------") : ("", "")
+            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin%s   Diag\n" E_label magn[1]
+            @printf "---   ---------------   ---------   --------%s   ----\n" magn[2]
         end
-        E = isnothing(info.energies) ? Inf : info.energies.total
-        Estr  = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
+        E    = isnothing(info.energies) ? Inf : info.energies.total
+        Δρ   = norm(info.ρout.fourier - info.ρin.fourier)
+        magn = isnothing(info.ρ_spin_out) ? NaN : sum(info.ρ_spin_out.real) * dVol
+
+        Estr   = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
         prev_E = prev_energies === nothing ? Inf : prev_energies.total
-        Δρ = norm(info.ρout.fourier - info.ρin.fourier)
-        ΔE = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_E
+        ΔE     = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_E
+        Mstr = collinear ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
         diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
-        @printf "% 3d   %s   %s   %2.2e   % 3.1f \n" info.n_iter Estr ΔE Δρ diagiter
+        @printf "% 3d   %s   %s   %2.2e%s   % 3.1f \n" info.n_iter Estr ΔE Δρ Mstr diagiter
         prev_energies = info.energies
+        info
     end
-    callback
 end
 
 """

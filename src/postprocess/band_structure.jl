@@ -1,5 +1,4 @@
 using PyCall
-import Plots
 
 # Functionality for computing band structures, mostly using pymatgen
 
@@ -19,15 +18,18 @@ function high_symmetry_kpath(model; kline_density=20)
     (kcoords=kcoords, klabels=labels_dict, kpath=symm_kpath.kpath["path"])
 end
 
-function compute_bands(basis, ρ, kcoords, n_bands;
-                       eigensolver=lobpcg_hyper, tol=1e-3, show_progress=true, kwargs...)
+@timing function compute_bands(basis, ρ, ρspin, kcoords, n_bands;
+                               eigensolver=lobpcg_hyper,
+                               tol=1e-3,
+                               show_progress=true,
+                               kwargs...)
     # Create basis with new kpoints, where we cheat by using any symmetry operations.
     ksymops = [[identity_symop()] for _ in 1:length(kcoords)]
     # For some reason rationalize(2//3) isn't supported (julia 1.4)
     myrationalize(x::T) where {T <: AbstractFloat} = rationalize(x, tol=10eps(T))
     myrationalize(x) = x
     bs_basis = PlaneWaveBasis(basis, [myrationalize.(k) for k in kcoords], ksymops)
-    ham = Hamiltonian(bs_basis; ρ=ρ)
+    ham = Hamiltonian(bs_basis; ρ=ρ, ρspin=ρspin)
 
     band_data = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
                                         n_conv_check=n_bands,
@@ -44,19 +46,24 @@ function prepare_band_data(band_data; datakeys=[:λ, :λerror],
     # from the band_data object into nicely plottable branches
     # This is a bit of abuse of the routines in pymatgen, but it works ...
     plotter = pyimport("pymatgen.electronic_structure.plotter")
+    basis = band_data.basis
 
-    ret = Dict{Symbol, Any}(:basis => band_data.basis)
+    # Read and parse pymatgen version
+    mg_version = parse.(Int, split(pyimport("pymatgen").__version__, ".")[1:3])
+
+    ret = Dict{Symbol, Any}(:basis => basis)
     for key in datakeys
         hasproperty(band_data, key) || continue
 
         # Compute dummy "Fermi level" for pymatgen to be happy
         allfinite = [filter(isfinite, x) for x in band_data[key]]
         eshift = sum(sum, allfinite) / sum(length, allfinite)
-        bs = pymatgen_bandstructure(band_data.basis, band_data[key], eshift, klabels)
+        bs = pymatgen_bandstructure(basis, band_data[key], eshift, klabels)
         data = plotter.BSPlotter(bs).bs_plot_data(zero_to_efermi=false)
 
         # Check number of k-Points agrees
-        @assert length(band_data.basis.kpoints) == sum(length, data["distances"])
+        n_kcoords = div(length(basis.kpoints), basis.model.n_spin_components)
+        @assert n_kcoords == sum(length, data["distances"])
 
         ret[:spins] = [:up]
         spinmap = [("1", :up)]
@@ -65,13 +72,22 @@ function prepare_band_data(band_data; datakeys=[:λ, :λerror],
             spinmap = [("1", :up), ("-1", :down)]
         end
 
-        ret[:n_branches] = length(data["energy"])
-        ret[:n_bands] = size(data["energy"][1]["1"], 1)
+        ret[:n_branches] = size(data["distances"], 1)
         ret[:kdistances] = data["distances"]
-        ret[:ticks] = data["ticks"]
-        ret[key] = [Dict(spinsym => data["energy"][ibranch][spin]
-                         for (spin, spinsym) in spinmap)
-                    for ibranch = 1:length(data["energy"])]
+        ret[:ticks]      = data["ticks"]
+        if mg_version[1:2] > [2020, 9]
+            # New interface: {Spin:[np.array(nb_bands,kpoints),...]}
+            ret[:n_bands] = size(data["energy"]["1"][1], 1)
+            ret[key] = [Dict(spinsym => data["energy"][spin][ibranch]
+                             for (spin, spinsym) in spinmap)
+                        for ibranch = 1:ret[:n_branches]]
+        else
+            # Old interface: [{Spin:[band_index][k_point_index]}]
+            ret[:n_bands] = size(data["energy"][1]["1"], 1)
+            ret[key] = [Dict(spinsym => data["energy"][ibranch][spin]
+                             for (spin, spinsym) in spinmap)
+                        for ibranch = 1:ret[:n_branches]]
+        end
     end
 
     (; ret...)  # Make it a named tuple and return
@@ -85,7 +101,7 @@ i.e. where bands are cut by the Fermi level.
 """
 function is_metal(band_data, εF, tol=1e-4)
     # This assumes no spin polarization
-    @assert band_data.basis.model.spin_polarization in (:none, :spinless)
+    @assert band_data.basis.model.spin_polarization in (:none, :spinless, :collinear)
 
     n_bands = length(band_data.λ[1])
     n_kpoints = length(band_data.λ)
@@ -95,47 +111,6 @@ function is_metal(band_data, εF, tol=1e-4)
         some_larger && some_smaller && return true
     end
     false
-end
-
-
-function plot_band_data(band_data; εF=nothing,
-                        klabels=Dict{String, Vector{Float64}}(), unit=:eV, kwargs...)
-    eshift = isnothing(εF) ? 0.0 : εF
-    data = prepare_band_data(band_data, klabels=klabels)
-
-    # For each branch, plot all bands, spins and errors
-    p = Plots.plot(xlabel="wave vector")
-    for ibranch = 1:data.n_branches
-        kdistances = data.kdistances[ibranch]
-        for spin in data.spins, iband = 1:data.n_bands
-            yerror = nothing
-            if hasproperty(data, :λerror)
-                yerror = data.λerror[ibranch][spin][iband, :] ./ unit_to_au(unit)
-            end
-            energies = (data.λ[ibranch][spin][iband, :] .- eshift) ./ unit_to_au(unit)
-
-            color = (spin == :up) ? :blue : :red
-            Plots.plot!(p, kdistances, energies; color=color, label="", yerror=yerror,
-                        kwargs...)
-        end
-    end
-
-    # X-range: 0 to last kdistance value
-    Plots.xlims!(p, (0, data.kdistances[end][end]))
-    Plots.xticks!(p, data.ticks["distance"],
-                  [replace(l, raw"$\mid$" => " | ") for l in data.ticks["label"]])
-
-    ylims = [-4, 4]
-    is_metal(band_data, εF) && (ylims = [-10, 10])
-    ylims = round.(ylims * units.eV ./ unit_to_au(unit), sigdigits=2)
-    if isnothing(εF)
-        Plots.ylabel!(p, "eigenvalues  ($(string(unit))")
-    else
-        Plots.ylabel!(p, "eigenvalues - ε_f  ($(string(unit)))")
-        Plots.ylims!(p, ylims...)
-    end
-
-    p
 end
 
 function detexify_kpoint(string)
@@ -156,23 +131,28 @@ If this value is absent and an `scfres` is used to start the calculation a defau
 `n_bands_scf + 5sqrt(n_bands_scf)` is used. Unlike the rest of DFTK bands energies
 are plotted in `:eV` unless a different `unit` is selected.
 """
-function plot_bandstructure(basis, ρ, n_bands;
+function plot_bandstructure(basis, ρ, ρspin, n_bands;
                             εF=nothing, kline_density=20, unit=:eV, kwargs...)
+    if !isdefined(DFTK, :PLOTS_LOADED)
+        error("Plots not loaded. Run 'using Plots' before calling plot_bandstructure.")
+    end
+
     # Band structure calculation along high-symmetry path
     kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density=kline_density)
     println("Computing bands along kpath:")
     println("       ", join(join.(detexify_kpoint.(kpath), " -> "), "  and  "))
-    band_data = compute_bands(basis, ρ, kcoords, n_bands; kwargs...)
+    band_data = compute_bands(basis, ρ, ρspin, kcoords, n_bands; kwargs...)
 
     plotargs = ()
     if kline_density ≤ 10
         plotargs = (markersize=2, markershape=:circle)
     end
+
     plot_band_data(band_data; εF=εF, klabels=klabels, unit=unit, plotargs...)
 end
 function plot_bandstructure(scfres; n_bands=nothing, kwargs...)
     # Convenience wrapper for scfres named tuples
-    n_bands_scf = size(scfres.occupation[1], 2)
+    n_bands_scf = length(scfres.occupation[1])
     isnothing(n_bands) && (n_bands = ceil(Int, n_bands_scf + 5sqrt(n_bands_scf)))
-    plot_bandstructure(scfres.basis, scfres.ρ, n_bands; εF=scfres.εF, kwargs...)
+    plot_bandstructure(scfres.basis, scfres.ρ, scfres.ρspin, n_bands; εF=scfres.εF, kwargs...)
 end

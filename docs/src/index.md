@@ -25,11 +25,13 @@ codes such as [Abinit](https://www.abinit.org/),
     - Analytic potentials or Godecker norm-conserving pseudopotentials (GTH, HGH)
     - Brillouin zone symmetry for k-Point sampling using [spglib](https://atztogo.github.io/spglib/)
     - Smearing functions for metals
+    - Collinear spin polarization for magnetic systems
     - Self-consistent field approaches: Damping, Kerker mixing, Anderson/Pulay/DIIS mixing
     - Direct minimization
     - Multi-level threading (kpoints, eigenvectors, FFTs, linear algebra)
     - 1D / 2D / 3D systems
     - Magnetic fields
+    - Treat systems beyond 500 electrons
 * Ground-state properties and post-processing:
     - Total energy
     - Forces
@@ -47,6 +49,7 @@ codes such as [Abinit](https://www.abinit.org/),
     - Read data in [ETSF Nanoquanta](https://doi.org/10.1016/j.commatsci.2008.02.023) format.
 
 Missing a feature? Look for an open issue or [create a new one](https://github.com/JuliaMolSim/DFTK.jl/issues).
+Want to contribute? See our [contributing notes](https://github.com/JuliaMolSim/DFTK.jl#contributing).
 
 ## [Example index](@id example-index)
 First, new users should take a look at the [Installation](@ref)
@@ -58,12 +61,15 @@ Pages = [
     "examples/metallic_systems.md",
     "examples/pymatgen.md",
     "examples/ase.md",
+    "examples/collinear_magnetism.md",
     "examples/geometry_optimization.md",
+    "examples/scf_callbacks.md",
+    "examples/scf_checkpoints.md",
+    "examples/polarizability.md",
     "examples/gross_pitaevskii.md",
     "examples/gross_pitaevskii_2D.md",
     "examples/cohen_bergstresser.md",
     "examples/arbitrary_floattype.md",
-    "examples/scf_callbacks.md",
     "examples/custom_solvers.md",
     "examples/custom_potential.md",
 ]

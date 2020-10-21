@@ -35,41 +35,40 @@
 
 # There is by decreasing cardinality
 # - The group of symmetry operations of the lattice
-# - The group of symmetry operations of the crystal (model.symops)
-# - The group of symmetry operations of the crystal that preserves the BZ mesh (basis.symops)
+# - The group of symmetry operations of the crystal (model.symmetries)
+# - The group of symmetry operations of the crystal that preserves the BZ mesh (basis.symmetries)
 # - The set of symmetry operations that we use to reduce the
 #   reducible Brillouin zone (RBZ) to the irreducible (IBZ) (basis.ksymops)
 
 @doc raw"""
-Return the ``k``-point symmetry operations associated to a lattice, model or basis.
-Since the ``k``-point discretisations may break some of the symmetries, the latter
-case will return a subset of the symmetries of the former two.
+Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
-function symmetry_operations(lattice, atoms; tol_symmetry=1e-5, kcoords=nothing)
-    symops = []
+function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=1e-5)
+    symmetries = []
     # Get symmetries from spglib
-    Stildes, τtildes = spglib_get_symmetry(lattice, atoms, tol_symmetry=tol_symmetry)
+    Stildes, τtildes = spglib_get_symmetry(lattice, atoms, magnetic_moments;
+                                           tol_symmetry=tol_symmetry)
 
     for isym = 1:length(Stildes)
         S = Stildes[isym]'                  # in fractional reciprocal coordinates
         τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates
         τ = τ .- floor.(τ)
         @assert all(0 .≤ τ .< 1)
-        push!(symops, (S, τ))
+        push!(symmetries, (S, τ))
     end
 
-    symops = unique(symops)
-    symops_preserving_kgrid(symops)
+    unique(symmetries)
 end
 
-function symops_preserving_kgrid(symops, kcoords=nothing)
-    kcoords === nothing && return symops
-    # filter only the operations that respect the symmetries of the discrete BZ grid
+"""
+Filter out the symmetry operations that respect the symmetries of the discrete BZ grid
+"""
+function symmetries_preserving_kgrid(symmetries, kcoords)
     function preserves_grid(S)
         all(normalize_kpoint_coordinate(S * k) in kcoords
             for k in normalize_kpoint_coordinate.(kcoords))
     end
-    filter(symop -> preserves_grid(symop[1]), symops)
+    filter(symop -> preserves_grid(symop[1]), symmetries)
 end
 
 """
@@ -179,9 +178,9 @@ end
 
 # Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
 # No normalization is performed
-function accumulate_over_symops!(ρaccu, ρin, basis, symops, Gs)
+function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
     T = eltype(basis)
-    for (S, τ) in symops
+    for (S, τ) in symmetries
         invS = Mat3{Int}(inv(S))
         # Common special case, where ρin does not need to be processed
         if iszero(S - I) && iszero(τ)
@@ -197,7 +196,7 @@ function accumulate_over_symops!(ρaccu, ρin, basis, symops, Gs)
         #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
         # equivalently
         #      ̂ρ_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
-        for (ig, G) in enumerate(Gs)
+        for (ig, G) in enumerate(G_vectors(basis))
             igired = index_G_vectors(basis, invS * G)
             if igired !== nothing
                 @inbounds ρaccu[ig] += cis(-2T(π) * dot(G, τ)) * ρin[igired]
@@ -208,8 +207,8 @@ function accumulate_over_symops!(ρaccu, ρin, basis, symops, Gs)
 end
 
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
-function lowpass_for_symmetry!(ρ, basis; symops=basis.model.symops)
-    for (S, τ) in symops
+function lowpass_for_symmetry!(ρ, basis; symmetries=basis.model.symmetries)
+    for (S, τ) in symmetries
         for (ig, G) in enumerate(G_vectors(basis))
             if index_G_vectors(basis, S * G) === nothing
                 ρ[ig] = 0
@@ -222,16 +221,15 @@ end
 """
 Symmetrize a `RealFourierArray` by applying all the model symmetries (by default) and forming the average.
 """
-function symmetrize(ρin::RealFourierArray; symops=ρin.basis.model.symops)
+function symmetrize(ρin::RealFourierArray; symmetries=ρin.basis.model.symmetries)
     ρin_fourier = copy(ρin.fourier)
-    lowpass_for_symmetry!(ρin_fourier, ρin.basis; symops=symops)
-    ρout_fourier = accumulate_over_symops!(zero(ρin_fourier), ρin_fourier, ρin.basis, symops,
-                                           G_vectors(ρin.basis)) ./ length(symops)
-    from_fourier(ρin.basis, ρout_fourier)
+    lowpass_for_symmetry!(ρin_fourier, ρin.basis; symmetries=symmetries)
+    ρout_fourier = accumulate_over_symmetries!(zero(ρin_fourier), ρin_fourier, ρin.basis, symmetries)
+    from_fourier(ρin.basis, ρout_fourier ./ length(symmetries))
 end
 
-function check_symmetric(ρin::RealFourierArray; tol=1e-10, symops=ρin.basis.model.symops)
-    for symop in symops
+function check_symmetric(ρin::RealFourierArray; tol=1e-10, symmetries=ρin.basis.model.symmetries)
+    for symop in symmetries
         @assert norm(symmetrize(ρin, [symop]).fourier - ρin.fourier) < tol
     end
 end

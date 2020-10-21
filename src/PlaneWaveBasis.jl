@@ -12,8 +12,11 @@ More generally, a kpoint is a block of the Hamiltonian;
 eg collinear spin is treated by doubling the number of kpoints.
 """
 struct Kpoint{T <: Real}
-    spin::Symbol                     # :up, :down, :both or :spinless
+    model::Model{T}                  # TODO Should be only lattice/atoms
+    spin::Int                        # Spin component can be 1 or 2 as index into what is
+    #                                # returned by the `spin_components` function
     coordinate::Vec3{T}              # Fractional coordinate of k-Point
+    coordinate_cart::Vec3{T}         # Cartesian coordinate of k-Point
     mapping::Vector{Int}             # Index of G_vectors[i] on the FFT grid:
                                      # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
     mapping_inv::Dict{Int, Int}      # Inverse of `mapping`:
@@ -24,10 +27,14 @@ end
 
 
 """
-The list of G vectors of a given `basis` or `kpoint`.
+The list of G vectors of a given `basis` or `kpoint`, in reduced coordinates.
 """
 G_vectors(kpt::Kpoint) = kpt.G_vectors
 
+"""
+The list of G vectors of a given `basis` or `kpoint`, in cartesian coordinates.
+"""
+G_vectors_cart(kpt::Kpoint) = (kpt.model.recip_lattice * G for G in G_vectors(kpt))
 
 @doc raw"""
 A plane-wave discretized `Model`.
@@ -51,7 +58,7 @@ struct PlaneWaveBasis{T <: Real}
     # BZ integration weights, summing up to 1
     # kweights[ik] = length(ksymops[ik]) / sum(length(ksymops[ik]) for ik=1:Nk)
     kweights::Vector{T}
-    # ksymops[ikpt] is a list of symmetry operations (S,τ)
+    # ksymops[ik] is a list of symmetry operations (S,τ)
     # mapping to points in the reducible BZ
     ksymops::Vector{Vector{SymOp}}
 
@@ -69,30 +76,22 @@ struct PlaneWaveBasis{T <: Real}
     # See Hamiltonian for high-level usage
     terms::Vector{Any}
 
-    # symmetry operations that leave the reducible Brillouin zone invariant.
-    # Subset of model.symops, and superset of all the ksymops.
+    # Symmetry operations that leave the reducible Brillouin zone invariant.
+    # Subset of model.symmetries, and superset of all the ksymops.
     # Independent of the `use_symmetry` option
-    symops::Vector{SymOp}
+    symmetries::Vector{SymOp}
 end
 
-# Default printing is just too verbose
+# Default printing is just too verbose TODO This is too spartanic
 Base.show(io::IO, basis::PlaneWaveBasis) =
     print(io, "PlaneWaveBasis (Ecut=$(basis.Ecut), $(length(basis.kpoints)) kpoints)")
-Base.eltype(basis::PlaneWaveBasis{T}) where {T} = T
+Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
     model.spin_polarization in (:none, :collinear, :spinless) || (
         error("$(model.spin_polarization) not implemented"))
-    spin = (:undefined,)
-    if model.spin_polarization == :collinear
-        spin = (:up, :down)
-    elseif model.spin_polarization == :none
-        spin = (:both, )
-    elseif model.spin_polarization == :spinless
-        spin = (:spinless, )
-    end
 
-    kpoints = Vector{Kpoint}()
+    kpoints_per_spin = [Kpoint[] for _ in 1:model.n_spin_components]
     for k in kcoords
         k = Vec3{T}(k)  # rationals are sloooow
         mapping = Int[]
@@ -108,26 +107,54 @@ Base.eltype(basis::PlaneWaveBasis{T}) where {T} = T
             end
         end
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
-        for σ in spin
-            push!(kpoints, Kpoint(σ, k, mapping, mapping_inv, Gvecs_k))
+        for iσ in 1:model.n_spin_components
+            push!(kpoints_per_spin[iσ],
+                  Kpoint(model,  iσ, k, model.recip_lattice * k, mapping, mapping_inv, Gvecs_k))
         end
     end
 
-    kpoints
+    vcat(kpoints_per_spin...)
 end
 build_kpoints(basis::PlaneWaveBasis, kcoords) =
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
 
 # This is the "internal" constructor; the higher-level one below should be preferred
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
-                                kcoords::AbstractVector, ksymops, symops=nothing;
-                                fft_size=determine_grid_size(model, Ecut), variational=true) where {T <: Real}
-    @assert Ecut > 0
-    fft_size = Tuple{Int, Int, Int}(fft_size)
+                                kcoords::AbstractVector, ksymops, symmetries=nothing;
+                                fft_size=nothing, variational=true,
+                                optimize_fft_size=false, supersampling=2) where {T <: Real}
+    if variational
+        @assert Ecut > 0
+        if fft_size === nothing
+            fft_size = determine_fft_size(model, Ecut; supersampling=supersampling)
+        end
+
+        if optimize_fft_size
+            # TODO This is a hack for now, we build the kpoints twice
+            fft_size = Tuple{Int, Int, Int}(fft_size)
+            kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
+            fft_size = determine_fft_size_precise(model.lattice, Ecut, kpoints;
+                                                  supersampling=supersampling)
+        end
+
+        # Sanity checks
+        max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
+        Ecut > max_E && @warn(
+            "For a variational method, Ecut should be less than the maximal kinetic " *
+            "energy the grid supports ($max_E)"
+        )
+    else
+        # ensure fft_size is provided, and other options are not set
+        # TODO make proper error messages when the interface gets a bit cleaned up
+        @assert fft_size !== nothing
+        @assert supersampling == 2
+        @assert !optimize_fft_size
+    end
 
     # TODO generic FFT is kind of broken for some fft sizes
     #      ... temporary workaround, see more details in fft_generic.jl
     fft_size = next_working_fft_size.(T, fft_size)
+    fft_size = Tuple{Int, Int, Int}(fft_size)
     ipFFT, opFFT = build_fft_plans(T, fft_size)
 
     # The FFT interface specifies that fft has no normalization, and
@@ -135,37 +162,39 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     # operations are inverse to each other). The convention we want is
     # ψ(r) = sum_G c_G e^iGr / sqrt(Ω)
     # so that the ifft is normalized by 1/sqrt(Ω). It follows that the
-    # fft must be normalized by sqrt(Ω)/length
+    # fft must be normalized by sqrt(Ω) / length
     ipFFT *= sqrt(model.unit_cell_volume) / length(ipFFT)
     opFFT *= sqrt(model.unit_cell_volume) / length(opFFT)
     ipIFFT = inv(ipFFT)
     opIFFT = inv(opFFT)
 
-    # Compute weights
-    kweights = [length(symops) for symops in ksymops]
-    kweights = T.(kweights) ./ sum(kweights)
-
-    # Sanity checks
+    # Compute weights and symmetry operations
     @assert length(kcoords) == length(ksymops)
-    max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
-    if variational && Ecut > max_E
-        @warn("For a variational method, Ecut should be less than the maximal kinetic energy " *
-              "the grid supports ($max_E)")
-    end
-
-    terms = Vector{Any}(undef, length(model.term_types))
-
-    if symops === nothing
+    if symmetries === nothing
         # TODO instead compute the group generated by with ksymops, or
         # just retire this constructor. Not critical because this
         # should not be used in this context anyway...
-        symops = vcat(ksymops...)
+        symmetries = vcat(ksymops...)
     end
 
-    kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
+    n_spin = model.n_spin_components
+    @assert n_spin in (1, 2)  # For 1 we are all set
+    n_spin == 2 && (ksymops = vcat(ksymops, ksymops))
+
+    # Compute weights
+    kweights = [length(symmetries) for symmetries in ksymops]
+    kweights = T.(n_spin .* kweights) ./ sum(kweights)
+
+    # Setup and instantiation
+    terms = Vector{Any}(undef, length(model.term_types))
+
+    # Notice that this also builds index mapping from the k-point-specific basis
+    # to the global basis and thus the fft_size needs to be final at this point.
+    kpoints  = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
     basis = PlaneWaveBasis{T}(
         model, Ecut, kpoints,
-        kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms, symops)
+        kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms, symmetries)
+    @assert length(kpoints) == length(kweights)
 
     # Instantiate terms
     for (it, t) in enumerate(model.term_types)
@@ -179,9 +208,11 @@ end
 Creates a new basis identical to `basis`, but with a different set of kpoints
 """
 function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
-                        ksymops::AbstractVector, symops=nothing)
-    PlaneWaveBasis(basis.model, basis.Ecut, kcoords, ksymops, symops;
-                   fft_size=basis.fft_size)
+                        ksymops::AbstractVector, symmetries=nothing)
+    # TODO This constructor does *not* keep the non-variational property
+    #      of the input basis!
+    PlaneWaveBasis(basis.model, basis.Ecut, kcoords, ksymops, symmetries;
+                   fft_size=basis.fft_size, variational=true)
 end
 
 
@@ -201,17 +232,16 @@ undefined.
 function PlaneWaveBasis(model::Model, Ecut::Number;
                         kgrid=kgrid_size_from_minimal_spacing(model.lattice, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
-                        use_symmetry=true,
-                        kwargs...)
+                        use_symmetry=true, kwargs...)
     if use_symmetry
-        kcoords, ksymops, symops = bzmesh_ir_wedge(kgrid, model.symops, kshift=kshift)
+        kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries, kshift=kshift)
     else
         kcoords, ksymops, _ = bzmesh_uniform(kgrid, kshift=kshift)
         # even when not using symmetry to reduce computations, still
-        # store in symops the set of kgrid-preserving symops
-        symops = symops_preserving_kgrid(model.symops, kcoords)
+        # store in symmetries the set of kgrid-preserving symmetries
+        symmetries = symmetries_preserving_kgrid(model.symmetries, kcoords)
     end
-    PlaneWaveBasis(model, Ecut, kcoords, ksymops, symops; kwargs...)
+    PlaneWaveBasis(model, Ecut, kcoords, ksymops, symmetries; kwargs...)
 end
 
 """
@@ -224,14 +254,19 @@ function G_vectors(fft_size)
     (Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3])
 end
 G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_size)
+G_vectors_cart(basis::PlaneWaveBasis) = (basis.model.recip_lattice * G for G in G_vectors(basis.fft_size))
 
 """
-Return the list of r vectors, in reduced coordinates. By convention, this is in [0,1]^3.
+Return the list of r vectors, in reduced coordinates. By convention, this is in [0,1)^3.
 """
 function r_vectors(basis::PlaneWaveBasis{T}) where T
     N1, N2, N3 = basis.fft_size
     (Vec3{T}(T(i-1) / N1, T(j-1) / N2, T(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3)
 end
+"""
+Return the list of r vectors, in cartesian coordinates.
+"""
+r_vectors_cart(basis::PlaneWaveBasis) = (basis.model.lattice * r for r in r_vectors(basis))
 
 """
 Return the index tuple `I` such that `G_vectors(basis)[I] == G`
@@ -263,6 +298,16 @@ function index_G_vectors(basis::PlaneWaveBasis, kpoint::Kpoint,
     get(kpoint.mapping_inv, idx_linear, nothing)
 end
 
+"""
+Return the index range of ``k``-points that have a particular spin component.
+"""
+function krange_spin(basis::PlaneWaveBasis, spin::Integer)
+    n_spin = basis.model.n_spin_components
+    @assert 1 ≤ spin ≤ n_spin
+    spinlength = div(length(basis.kpoints), n_spin)
+    (1 + (spin - 1) * spinlength):(spin * spinlength)
+end
+
 #
 # Perform (i)FFTs.
 #
@@ -282,7 +327,7 @@ end
 In-place version of `G_to_r`.
 """
 @timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                             f_fourier::AbstractArray3) where {Tr, Tf}
+                             f_fourier::AbstractArray3)
     mul!(f_real, basis.opIFFT, f_fourier)
 end
 @timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,

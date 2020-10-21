@@ -23,12 +23,13 @@ basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1));
 # We diagonalise at the Gamma point to find a Fermi level ...
 ham = Hamiltonian(basis)
 eigres = diagonalize_all_kblocks(DFTK.lobpcg_hyper, ham, 6)
-εF = find_fermi_level(basis, eigres.λ)
+εF = fermi_level(basis, eigres.λ)
 
 # ... and compute and plot 8 bands:
 using Plots
 
 n_bands = 8
 ρ0 = guess_density(basis)  # Just dummy, has no meaning in this model
-p = plot_bandstructure(basis, ρ0, n_bands, εF=εF, kline_density=10)
+ρspin0 = nothing
+p = plot_bandstructure(basis, ρ0, ρspin0, n_bands, εF=εF, kline_density=10)
 ylims!(p, (-5, 6))

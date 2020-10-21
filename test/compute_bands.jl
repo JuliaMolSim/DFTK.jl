@@ -140,13 +140,14 @@ end
 
     # Build Hamiltonian just from SAD guess
     ρ0 = guess_density(basis, [spec => testcase.positions])
-    ham = Hamiltonian(basis; ρ=ρ0)
+    ρspin0 = nothing
+    ham = Hamiltonian(basis; ρ=ρ0, ρspin=ρspin0)
 
     # Check that plain diagonalization and compute_bands agree
     eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands + 3, n_conv_check=n_bands,
                                      tol=1e-5)
 
-    band_data = compute_bands(basis, ρ0, [k.coordinate for k in basis.kpoints], n_bands)
+    band_data = compute_bands(basis, ρ0, ρspin0, [k.coordinate for k in basis.kpoints], n_bands)
     for ik in 1:length(basis.kpoints)
         @test eigres.λ[ik][1:n_bands] ≈ band_data.λ[ik] atol=1e-5
     end
@@ -196,18 +197,22 @@ end
         @test ret.λerror[3][:up][iband, :] == ret.λ[3][:up][iband, :] ./ 100
     end
 
+    B = model.recip_lattice
     ref_distances = zeros(3, 3)  # row idx is kpoint, col idx is branch,
     ikpt = 1
     for ibr in 1:3
         ibr != 1 && (ref_distances[1, ibr] = ref_distances[end, ibr-1])
         ikpt += 1
         for ik in 2:3
-            ref_distances[ik, ibr] = (ref_distances[ik-1, ibr]
-                                      + norm(kcoords[ikpt-1] - kcoords[ikpt]))
+            ref_distances[ik, ibr] = (
+                ref_distances[ik-1, ibr] + norm(B * (kcoords[ikpt-1] - kcoords[ikpt]))
+            )
             ikpt += 1
         end
     end
-    @test ret.kdistances == ref_distances'
+    for ibr in 1:3
+        @test ret.kdistances[ibr] == ref_distances[:, ibr]
+    end
 end
 
 @testset "is_metal" begin

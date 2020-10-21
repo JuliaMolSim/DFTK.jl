@@ -54,7 +54,7 @@ pyimport("ase.io").write("surface.png", surface * (3, 3, 1),
                          rotation="-90x, 30y, -75z")
 
 #md # ```@raw html
-#md # <img src="surface.png" width=500 height=500 />
+#md # <img src="../surface.png" width=500 height=500 />
 #md # ```
 #nb # <img src="surface.png" width=500 height=500 />
 

@@ -10,11 +10,11 @@ function discretized_hamiltonian(T, testcase)
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
     atoms = [spec => testcase.positions]
     # disable symmetry for interval
-    model = model_DFT(Array{T}(testcase.lattice), atoms, [:lda_x, :lda_c_vwn], symmetry=:off)
+    model = model_DFT(Array{T}(testcase.lattice), atoms, [:lda_x, :lda_c_vwn], symmetries=false)
 
     # For interval arithmetic to give useful numbers,
     # the fft_size should be a power of 2
-    fft_size = nextpow.(2, determine_grid_size(model.lattice, Ecut))
+    fft_size = nextpow.(2, determine_fft_size(model.lattice, Ecut))
     basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1), fft_size=fft_size)
 
     ham = Hamiltonian(basis; ρ=guess_density(basis))

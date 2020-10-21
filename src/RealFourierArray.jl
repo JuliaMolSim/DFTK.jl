@@ -18,10 +18,12 @@ A structure to facilitate manipulations of an array of real-space type T, in bot
 and fourier space. Create with `from_real` or `from_fourier`, and access
 with `A.real` and `A.fourier`.
 """
-mutable struct RealFourierArray{T <: Real}
+mutable struct RealFourierArray{T <: Real,
+                                TRealArray <: AbstractArray{T, 3},
+                                TFourierArray <: AbstractArray{Complex{T}, 3}}
     basis::PlaneWaveBasis{T}
-    _real::AbstractArray{T, 3}
-    _fourier::AbstractArray{Complex{T}, 3}
+    _real::TRealArray
+    _fourier::TFourierArray
     _state::RFA_state
 end
 # Type of the real part
@@ -39,11 +41,23 @@ end
 function from_real(basis, real_part::AbstractArray{T}) where {T <: Real}
     RealFourierArray(basis, real_part, similar(real_part, complex(T)), RFA_only_real)
 end
-function from_fourier(basis, fourier_part::AbstractArray{T}; check_real=false) where {T <: Complex}
+function from_fourier(basis, fourier_part::AbstractArray{T}; check_real=true) where {T <: Complex}
     if check_real
-        error("Not implemented yet")
         # Go through G vectors and check c_{-G} = (c_G)' (if both G and -G are in the grid)
-        # Should be reasonably fast so we can make it the default
+        # TODO check it's reasonably fast so we can make it the default
+        # arr[1] is G=0, arr[1] is G=1, arr[N] is G=-1.
+        # So 1 -> 1, 2 -> N, ..., N -> 2
+        reflect(i, N) = i == 1 ? 1 : N-i+2
+        # Eg if N = 3, we get [0 1 -1], if N = 4, we get [0 1 2 -1] => we check to div(N+1,2)
+        for i = 1:div(basis.fft_size[1]+1, 2)
+            for j = 1:div(basis.fft_size[2]+1, 2)
+                for k = 1:div(basis.fft_size[3]+1, 2)
+                    err = abs(fourier_part[i, j, k] -
+                              conj(fourier_part[reflect(i, end), reflect(j, end), reflect(k, end)]))
+                    err > sqrt(eps(real(T))) && error("Input array not real")
+                end
+            end
+        end
     end
     RealFourierArray(basis, similar(fourier_part, real(T)), fourier_part, RFA_only_fourier)
 end
@@ -53,7 +67,7 @@ function Base.propertynames(array::RealFourierArray, private=false)
     private ? append!(ret, fieldnames(RealFourierArray)) : ret
 end
 
-function Base.getproperty(A::RealFourierArray, x::Symbol)
+function Base.getproperty(A::RealFourierArray{T, TReal, TFourier}, x::Symbol) where {T, TReal, TFourier}
     if x == :real
         if A._state == RFA_only_fourier
             r = G_to_r(A.basis, A._fourier)
@@ -64,27 +78,27 @@ function Base.getproperty(A::RealFourierArray, x::Symbol)
             end
             setfield!(A, :_state, RFA_both)
         end
-        return A._real
+        return A._real::TReal  # the compiler does not figure it out otherwise
     elseif x == :fourier
         if A._state == RFA_only_real
             r_to_G!(A._fourier, A.basis, complex.(A._real))
             setfield!(A, :_state, RFA_both)
         end
-        return A._fourier
+        return A._fourier::TFourier
     else
         getfield(A, x)
     end
 end
-function Base.setproperty!(A::RealFourierArray, x)
+function Base.setproperty!(::RealFourierArray, ::Any)
     error("RealFourierArray is intended to be read-only." *
           "(This can be bypassed by `setfield!` if you really want to).")
 end
 
 # Algebraic operations
-function Base.:+(A::RealFourierArray, B::RealFourierArray) where T
+function Base.:+(A::RealFourierArray, B::RealFourierArray)
     from_real(A.basis, A.real + B.real)
 end
-function Base.:-(A::RealFourierArray, B::RealFourierArray) where T
+function Base.:-(A::RealFourierArray, B::RealFourierArray)
     from_real(A.basis, A.real - B.real)
 end
 function Base.:*(α::Number, A::RealFourierArray)

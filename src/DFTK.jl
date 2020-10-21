@@ -27,7 +27,7 @@ include("Smearing.jl")
 
 export Model
 export PlaneWaveBasis
-export determine_grid_size
+export determine_fft_size
 export G_vectors
 export r_vectors
 export Kpoint
@@ -82,13 +82,14 @@ export Ewald
 export PspCorrection
 export Entropy
 export Magnetic
+export Anyonic
 export energy_ewald
 export energy_psp_correction
 export apply_kernel
 export compute_kernel
 include("terms/terms.jl")
 
-export find_fermi_level
+export fermi_level
 export find_occupation
 export find_occupation_bandgap
 include("occupation.jl")
@@ -102,7 +103,6 @@ export PreconditionerNone
 include("eigen/preconditioners.jl")
 
 export lobpcg_hyper
-export lobpcg_scipy
 export lobpcg_itsolve
 export diag_full
 export diagonalize_all_kblocks
@@ -110,7 +110,7 @@ include("eigen/diag.jl")
 
 export KerkerMixing
 export SimpleMixing
-export RestaMixing
+export DielectricMixing
 export HybridMixing
 include("scf/mixing.jl")
 export scf_nlsolve_solver
@@ -133,7 +133,7 @@ export bzmesh_ir_wedge
 export kgrid_size_from_minimal_spacing
 include("bzmesh.jl")
 
-export guess_density
+export guess_density, guess_spin_density
 include("guess_density.jl")
 export load_psp
 export list_psp
@@ -156,17 +156,23 @@ include("external/pymatgen.jl")
 
 export high_symmetry_kpath
 export compute_bands
-export plot_band_data
 export plot_bandstructure
 include("postprocess/band_structure.jl")
 
 export DOS
 export LDOS
 export NOS
+export plot_dos
 include("postprocess/DOS.jl")
 export compute_χ0
 export apply_χ0
 include("postprocess/chi0.jl")
+export compute_current
+include("postprocess/current.jl")
+
+# Dummy function definitions which are conditionally loaded
+include("dummy_definitions.jl")
+export load_scfres, save_scfres
 
 function __init__()
     # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
@@ -182,6 +188,8 @@ function __init__()
     @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("fft_generic.jl")
     end
+    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("plotting.jl")
+    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"  include("jld2io.jl")
 end
 
 end # module DFTK
