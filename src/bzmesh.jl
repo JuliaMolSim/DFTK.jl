@@ -1,5 +1,7 @@
 include("external/spglib.jl")
 
+using UnitfulAtomic
+
 
 """Bring kpoint coordinates into the range [-0.5, 0.5)"""
 function normalize_kpoint_coordinate(x::Real)
@@ -149,6 +151,8 @@ Selects a kgrid_size to ensure a minimal spacing (in inverse Bohrs) between kpoi
 Default is ``2π * 0.04 \AA^{-1}``.
 """
 function kgrid_size_from_minimal_spacing(lattice, spacing=2π * 0.022)
+    lattice = austrip.(lattice)
+    spacing = austrip(spacing)
     @assert spacing > 0
     isinf(spacing) && return [1, 1, 1]
 

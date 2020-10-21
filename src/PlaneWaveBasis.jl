@@ -1,5 +1,4 @@
 using MPI
-using Unitful
 using UnitfulAtomic
 
 include("fft.jl")
@@ -280,12 +279,10 @@ treated explicitly. In this case all guess densities and potential
 functions must agree with the crystal symmetries or the result is
 undefined.
 """
-function PlaneWaveBasis(model::Model,
-                        Ecut::Union{Number, Quantity};
+function PlaneWaveBasis(model::Model, Ecut;
                         kgrid=kgrid_size_from_minimal_spacing(model.lattice, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
                         use_symmetry=true, kwargs...)
-    kgrid = austrip.(kgrid)
     if use_symmetry
         kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries, kshift=kshift)
     else
