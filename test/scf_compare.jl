@@ -25,10 +25,10 @@ include("testcases.jl")
 
     # Run other SCFs with SAD guess
     ρ0 = guess_density(basis, [Si => silicon.positions])
-    for solver in (scf_nlsolve_solver, scf_damping_solver, scf_anderson_solver,
-                   scf_CROP_solver)
+    for solver in (scf_nlsolve_solver(), scf_damping_solver(1.2), scf_anderson_solver(),
+                   scf_CROP_solver())
         @testset "Testing $solver" begin
-            ρ_alg = self_consistent_field(basis; ρ=ρ0, solver=solver(), tol=tol).ρ.fourier
+            ρ_alg = self_consistent_field(basis; ρ=ρ0, solver=solver, tol=tol).ρ.fourier
             @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
         end
     end
@@ -64,7 +64,7 @@ end
     ρ0    = guess_density(basis)
     ρ_ref = self_consistent_field(basis, ρ=ρ0, tol=tol).ρ.fourier
 
-    for mixing in (HybridMixing(RPA=true), HybridMixing(εr=10, RPA=false), )
+    for mixing in (KerkerDosMixing(), HybridMixing(RPA=true), HybridMixing(εr=10, RPA=false), )
         @testset "Testing $mixing" begin
             ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol).ρ.fourier
             @test maximum(abs.(ρ_mix - ρ_ref)) < sqrt(tol)
@@ -93,7 +93,7 @@ end
     ρspin_ref = scfres.ρspin.fourier
     ρ_ref     = scfres.ρ.fourier
 
-    for mixing in (KerkerMixing(), KerkerDosMixing(), DielectricMixing(εr=10),
+    for mixing in (KerkerMixing(), KerkerDosMixing(α=1.0), DielectricMixing(εr=10),
                    HybridMixing(εr=10))
         @testset "Testing $mixing" begin
             scfres = self_consistent_field(basis; ρ=ρ0, ρspin=ρspin0, mixing=mixing, tol=tol)
