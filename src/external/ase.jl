@@ -35,7 +35,7 @@ function load_atoms_ase(T, pyobj::PyObject)
 end
 
 
-function load_magnetic_moments(pyobj::PyObject)
+function load_magnetic_moments_ase(pyobj::PyObject)
     @assert pyisinstance(pyobj, pyimport("ase").Atoms)
 
     magmoms = pyobj.get_initial_magnetic_moments()
