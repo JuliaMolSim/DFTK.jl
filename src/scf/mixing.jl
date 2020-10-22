@@ -34,7 +34,7 @@ Kerker mixing: ``J^{-1} ≈ \frac{α |G|^2}{k_{TF}^2 + |G|^2}``
 where ``k_{TF}`` is the Thomas-Fermi wave vector. For spin-polarized calculations
 by default the spin density is not preconditioned. Unless a non-default value
 for ``ΔDOS`` is specified. This value should roughly be the expected difference in density
-of states between spin-up and spin-down.
+of states (per unit volume) between spin-up and spin-down.
 
 Notes:
 - Abinit calls ``1/k_{TF}`` the dielectric screening length (parameter *dielng*)
@@ -43,8 +43,8 @@ Notes:
     # Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, kTF=1.5 Ǎ^{-1})
     # DOI 10.1103/PhysRevB.54.11169
     α::Real    = 0.8
-    kTF::Real  = 0.8  # == sqrt(4π (DOS_α + DOS_β))
-    ΔDOS::Real = 0.0  # == DOS_α - DOS_β
+    kTF::Real  = 0.8  # == sqrt(4π (DOS_α + DOS_β) / Ω)
+    ΔDOS::Real = 0.0  # == (DOS_α - DOS_β) / Ω
 end
 
 @timing "KerkerMixing" function mix(mixing::KerkerMixing, basis::PlaneWaveBasis,
@@ -61,8 +61,8 @@ end
     #     1 - [-DOSα      0] * [1 1]
     #         [    0  -DOSβ]   [1 1] * (4π/G²)
     # which maps (δρα, δρβ)ᵀ to (δFα, δFβ)ᵀ and where DOSα and DOSβ is the density
-    # of states in the spin-up and spin-down channels. After basis transformation to a
-    # mapping (δρtot, δρspin)ᵀ to (δFtot, δFspin)ᵀ this becomes
+    # of states per unit volume in the spin-up and spin-down channels. After basis
+    # transformation to a mapping (δρtot, δρspin)ᵀ to (δFtot, δFspin)ᵀ this becomes
     #     [(G² + kTF²)    0]
     #     [ 4π * ΔDOS    G²] / G²
     # where we defined kTF² = 4π * (DOSα + DOSβ) and ΔDOS = DOSα - DOSβ.
@@ -88,12 +88,13 @@ from the current density of states at the Fermi level.
     α::Real = 0.8
 end
 @timing "KerkerDosMixing" function mix(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
-                                       δF, δFspin=nothing; εF, eigenvalues, kwargs...)
+                                       δF, δFspin=nothing; εF, ψ, eigenvalues, kwargs...)
     if basis.model.temperature == 0
         return mix(SimpleMixing(α=mixing.α), basis, δF, δFspin)
     else
         n_spin = basis.model.n_spin_components
-        dos  = [DOS(εF, basis, eigenvalues, spins=[σ]) for σ in 1:n_spin]
+        Ω = basis.model.unit_cell_volume
+        dos  = [DOS(εF, basis, eigenvalues, spins=[σ]) / Ω for σ in 1:n_spin]
         kTF  = sqrt(4π * sum(dos))
         ΔDOS = n_spin == 2 ? dos[1] - dos[2] : 0.0
         mix(KerkerMixing(α=mixing.α, kTF=kTF, ΔDOS=ΔDOS), basis, δF, δFspin)
