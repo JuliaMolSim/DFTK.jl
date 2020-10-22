@@ -40,7 +40,7 @@ include("testcases.jl")
 
     # Run other mixing with default solver (the others are too slow...)
     for mixing in (KerkerMixing(), SimpleMixing(), SimpleMixing(.5), DielectricMixing(εr=12),
-                   HybridMixing(), HybridMixing(εr=10, RPA=false))
+                   KerkerDosMixing(), HybridMixing(), HybridMixing(εr=10, RPA=false))
         @testset "Testing $mixing" begin
             ρ_alg = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol).ρ.fourier
             @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
@@ -93,7 +93,8 @@ end
     ρspin_ref = scfres.ρspin.fourier
     ρ_ref     = scfres.ρ.fourier
 
-    for mixing in (KerkerMixing(), DielectricMixing(εr=10), HybridMixing(εr=10))
+    for mixing in (KerkerMixing(), KerkerDosMixing(), DielectricMixing(εr=10),
+                   HybridMixing(εr=10))
         @testset "Testing $mixing" begin
             scfres = self_consistent_field(basis; ρ=ρ0, ρspin=ρspin0, mixing=mixing, tol=tol)
             @test maximum(abs.(scfres.ρ.fourier     - ρ_ref    )) < sqrt(tol)

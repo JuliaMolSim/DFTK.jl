@@ -20,7 +20,7 @@ Simple mixing: ``J^{-1} ≈ α``
 @kwdef struct SimpleMixing
     α::Real = 0.8
 end
-@timing "mixing Simple" function mix(mixing::SimpleMixing, ::PlaneWaveBasis, δFs...; kwargs...)
+@timing "SimpleMixing" function mix(mixing::SimpleMixing, ::PlaneWaveBasis, δFs...; kwargs...)
     T = eltype(δFs[1])
     map(δFs) do δF  # Apply to both δF{total} and δF{spin} in the same way 
         isnothing(δF) && return nothing
@@ -31,7 +31,10 @@ end
 
 @doc raw"""
 Kerker mixing: ``J^{-1} ≈ \frac{α |G|^2}{k_{TF}^2 + |G|^2}``
-where ``k_{TF}`` is the Thomas-Fermi wave vector.
+where ``k_{TF}`` is the Thomas-Fermi wave vector. For spin-polarized calculations
+by default the spin density is not preconditioned. Unless a non-default value
+for `kTFspin` is specified. This should be roughly ``\sqrt{4π ΔDOS}`` where
+``ΔDOS`` is the expected difference in density of states between spin-up and spin-down.
 
 Notes:
 - Abinit calls ``1/k_{TF}`` the dielectric screening length (parameter *dielng*)
@@ -39,20 +42,58 @@ Notes:
 @kwdef struct KerkerMixing
     # Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, kTF=1.5 Ǎ^{-1})
     # DOI 10.1103/PhysRevB.54.11169
-    α::Real   = 0.8
-    kTF::Real = 0.8
+    α::Real       = 0.8
+    kTF::Real     = 0.8  # == sqrt(4π (DOS_α + DOS_β))
+    kTFspin::Real = 0.0  # == sqrt(4π (DOS_α - DOS_β))
 end
-@timing "mixing Kerker" function mix(mixing::KerkerMixing, basis::PlaneWaveBasis, δFs...;
-                                     kwargs...)
-    T = eltype(δFs[1])
-    Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
 
-    map(δFs) do δF  # Apply to both δF{total} and δF{spin} in the same way 
-        isnothing(δF) && return nothing
-        δρ    = @. T(mixing.α) * δF.fourier * Gsq / (T(mixing.kTF)^2 + Gsq)
-        δρ[1] = δF.fourier[1]  # Copy DC component, otherwise it never gets updated
-        from_fourier(basis, δρ)
+@timing "KerkerMixing" function mix(mixing::KerkerMixing, basis::PlaneWaveBasis,
+                                    δF::RealFourierArray, δFspin=nothing; kwargs...)
+    T   = eltype(δF)
+    Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
+    kTF = T.(mixing.kTF)
+    kTFspin = T.(mixing.kTFspin)
+
+    # 4π * DOSα = kTFα²
+    # 4π * DOSβ = kTFβ²
+
+    # For Kerker the model dielectric written as a 2×2 matrix in spin components is
+    #     1 - [-DOSα      0] * [1 1]
+    #         [    0  -DOSβ]   [1 1] * (4π/G²)
+    # which maps (δρα, δρβ)ᵀ to (δFα, δFβ)ᵀ and where DOSα and DOSβ is the density
+    # of states in the spin-up and spin-down channels. After basis transformation to a
+    # mapping (δρtot, δρspin)ᵀ to (δFtot, δFspin)ᵀ this becomes
+    #     [(G² + kTF²)    0]
+    #     [   kTFspin²   G²] / G²
+    # where we defined kTF² = 4π * (DOSα + DOSβ) and kTFspin² = 4π * (DOSα - DOSβ).
+    # Gaussian elimination on this matrix yields for the linear system ε δρ = δF
+    #     δρtot  = G² δFtot / (G² + kTF²)
+    #     δρspin = δFspin - kTFspin² / (G² + kTF²) δFtot
+
+    δρtot    = @. δF.fourier * Gsq / (kTF^2 + Gsq)
+    δρtot[1] = δF.fourier[1]  # Copy DC component, otherwise it never gets updated
+    if basis.model.n_spin_components == 1
+        from_fourier(basis, T(mixing.α) * δρtot), nothing
+    else
+        δρspin = @. δFspin.fourier + δF.fourier * kTFspin^2 / (kTF^2 + Gsq)
+        from_fourier(basis, T(mixing.α) * δρtot), from_fourier(basis, T(mixing.α) * δρspin)
     end
+end
+
+@doc raw"""
+Basically the same as [`KerkerMixing`](@ref), but the Thomas-Fermi wavevector is computed
+from the current density of states at the Fermi level.
+"""
+@kwdef struct KerkerDosMixing
+    α::Real = 0.8
+end
+@timing "KerkerDosMixing" function mix(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
+                                       δF, δFspin=nothing; εF, eigenvalues, kwargs...)
+    n_spin = basis.model.n_spin_components
+    dos = [DOS(εF, basis, eigenvalues, spins=[σ]) for σ in 1:n_spin]
+    kTF = sqrt(4π * sum(dos))
+    kTFspin = n_spin == 2 ? sqrt(4π * (dos[1] - dos[2])) : 0.0
+    mix(KerkerMixing(α=mixing.α, kTF=kTF, kTFspin=kTFspin), basis, δF, δFspin)
 end
 
 @doc raw"""
@@ -69,9 +110,10 @@ By default it assumes a relative permittivity of 10 (similar to Silicon).
     α::Real   = 0.8
     kTF::Real = 0.8
     εr::Real  = 10
+    # TODO Option to only apply to ρ_tot
 end
-@timing "mixing Dielectric" function mix(mixing::DielectricMixing, basis::PlaneWaveBasis,
-                                         δFs...; kwargs...)
+@timing "DielectricMixing" function mix(mixing::DielectricMixing, basis::PlaneWaveBasis,
+                                        δFs...; kwargs...)
     T = eltype(δFs[1])
     εr = T(mixing.εr)
     kTF = T(mixing.kTF)
@@ -99,8 +141,7 @@ The model for the susceptibility is
 ```
 where ``C_0 = 1 - ε_r``, ``D_\text{loc}`` is the local density of states,
 ``D`` is the density of states and
-the same convention for parameters are used
-as in `DielectricMixing`.
+the same convention for parameters are used as in [`DielectricMixing`](@ref).
 Additionally there is the real-space localisation function `L(r)`.
 For details see Herbst, Levitt 2020 arXiv:2009.01665
 """
@@ -117,7 +158,6 @@ end
                                      δF_spin=nothing;
                                      εF, eigenvalues, ψ, ρin, ρ_spin_in, kwargs...)
     @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
-
     T = eltype(δF_tot)
     εr = T(mixing.εr)
     kTF = T(mixing.kTF)
