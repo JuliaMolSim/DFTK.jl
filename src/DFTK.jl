@@ -148,6 +148,7 @@ export load_basis
 export load_model
 export load_density
 export load_atoms
+export load_magnetic_moments
 include("external/etsf_nanoquanta.jl")
 include("external/abinit.jl")
 include("external/load_from_python.jl")

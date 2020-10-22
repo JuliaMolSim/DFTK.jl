@@ -35,18 +35,47 @@ function load_atoms_ase(T, pyobj::PyObject)
 end
 
 
+function load_magnetic_moments(pyobj::PyObject)
+    @assert pyisinstance(pyobj, pyimport("ase").Atoms)
+
+    magmoms = pyobj.get_initial_magnetic_moments()
+    numbers = pyobj.get_atomic_numbers()
+    map(unique(numbers)) do atnum
+        magmom = Float64[]
+        for idx in findall(isequal(atnum), numbers)
+            push!(magmom, magmoms[idx])
+        end
+        ElementCoulomb(atnum) => magmom
+    end
+end
+
+
 ase_cell(lattice) = pyimport("ase").cell.Cell(Array(lattice)' / DFTK.units.Å)
 ase_cell(model::Model) = ase_cell(model.lattice)
 
 
-function ase_atoms(lattice_or_model, atoms)
+function ase_atoms(lattice_or_model, atoms, magnetic_moments=nothing)
     cell = ase_cell(lattice_or_model)
     symbols = String[]
     for (elem, pos) in atoms
         append!(symbols, fill(string(elem.symbol), length(pos)))
     end
     scaled_positions = vcat([pos for (elem, pos) in atoms]...)
+
+    magmoms = nothing
+    if !isnothing(magnetic_moments)
+        @assert length(magnetic_moments) == length(atoms)
+        for (elem, magmom) in magnetic_moments
+            @assert all(m -> m isa Number, magmom)
+        end
+        magmoms = vcat([magmom for (elem, magmom) in magnetic_moments]...)
+        @assert length(magmoms) == length(scaled_positions)
+    end
+
     pyimport("ase").Atoms(symbols=symbols, cell=cell, pbc=true,
-                          scaled_positions=hcat(scaled_positions...)')
+                          scaled_positions=hcat(scaled_positions...)',
+                          magmoms=magmoms)
 end
-ase_atoms(model::Model) = pymatgen_structure(model.lattice, model.atoms)
+function ase_atoms(model::Model, magnetic_moments=nothing)
+    ase_atoms(model.lattice, model.atoms, magnetic_moments)
+end
