@@ -36,3 +36,12 @@ function load_atoms(T, pyobj::PyObject)
 
     error("load_atoms not implemented for python type $pyobj")
 end
+
+
+function load_magnetic_moments(pyobj::PyObject)
+    ase = pyimport_e("ase")
+    if !ispynull(ase) && pyisinstance(pyobj, ase.Atoms)
+        return load_magnetic_moments_ase(pyobj)
+    end
+    error("load_magnetic_moments not implemented for python type $pyobj")
+end
