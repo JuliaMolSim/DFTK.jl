@@ -54,9 +54,6 @@ end
     kTF  = T.(mixing.kTF)
     ΔDOS = T.(mixing.ΔDOS)
 
-    # 4π * DOSα = kTFα²
-    # 4π * DOSβ = kTFβ²
-
     # For Kerker the model dielectric written as a 2×2 matrix in spin components is
     #     1 - [-DOSα      0] * [1 1]
     #         [    0  -DOSβ]   [1 1] * (4π/G²)
