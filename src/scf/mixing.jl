@@ -81,7 +81,7 @@ end
 end
 
 @doc raw"""
-Basically the same as [`KerkerMixing`](@ref), but the Thomas-Fermi wavevector is computed
+The same as [`KerkerMixing`](@ref), but the Thomas-Fermi wavevector is computed
 from the current density of states at the Fermi level.
 """
 @kwdef struct KerkerDosMixing
@@ -93,9 +93,8 @@ end
         return mix(SimpleMixing(α=mixing.α), basis, δF, δFspin)
     else
         n_spin = basis.model.n_spin_components
-        dos = [DOS(εF, basis, eigenvalues, spins=[σ]) for σ in 1:n_spin]
-        kTF = sqrt(4π * sum(dos))
-        T   = eltype(kTF)
+        dos  = [DOS(εF, basis, eigenvalues, spins=[σ]) for σ in 1:n_spin]
+        kTF  = sqrt(4π * sum(dos))
         ΔDOS = n_spin == 2 ? dos[1] - dos[2] : 0.0
         mix(KerkerMixing(α=mixing.α, kTF=kTF, ΔDOS=ΔDOS), basis, δF, δFspin)
     end
@@ -110,12 +109,12 @@ We neglect ``K_\text{xc}``, such that
 
 By default it assumes a relative permittivity of 10 (similar to Silicon).
 `εr == 1` is equal to `SimpleMixing` and `εr == Inf` to `KerkerMixing`.
+The mixing is applied to ``ρ`` and ``ρ_\text{spin}`` in the same way.
 """
 @kwdef struct DielectricMixing
     α::Real   = 0.8
     kTF::Real = 0.8
     εr::Real  = 10
-    # TODO Option to only apply to ρ_tot
 end
 @timing "DielectricMixing" function mix(mixing::DielectricMixing, basis::PlaneWaveBasis,
                                         δFs...; kwargs...)
@@ -127,7 +126,7 @@ end
 
     C0 = 1 - εr
     Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
-    map(δFs) do δF  # Apply to both δF{total} and δF{spin} in the same way 
+    map(δFs) do δF  # Apply to both δF{total} and δF{spin} in the same way
         isnothing(δF) && return nothing
         δρ    = @. T(mixing.α) * δF.fourier * (kTF^2 - C0 * Gsq) / (εr * kTF^2 - C0 * Gsq)
         δρ[1] = δF.fourier[1]  # Copy DC component, otherwise it never gets updated
