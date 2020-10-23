@@ -25,7 +25,7 @@ function (::LdosModel)(basis; eigenvalues, ψ, εF, kwargs...)
     # Catch cases that will yield no contribution
     iszero(basis.model.temperature) && return nothing
     ldos = [LDOS(εF, basis, eigenvalues, ψ, spins=[σ]) for σ in 1:n_spin]
-    if maximum(maximum(abs, ldos[σ]) for σ in 1:n_spin) < eps(eltype(ldos))
+    if maximum(maximum(abs, ldos[σ]) for σ in 1:n_spin) < eps(eltype(basis))
         return nothing
     end
 
@@ -96,10 +96,10 @@ function (χ0::Applyχ0Model)(basis; ham, eigenvalues, ψ, εF, n_ep_extra, kwar
         # χ0δV[1] is total, χ0δV[2] is spin
         χ0δV = apply_χ0(ham, ψ_cvg, εF, eigenvalues_cvg, δV...; χ0.kwargs_apply_χ0...)
         if basis.model.n_spin_components == 1
-            δρ[1] .+= χ0δV[1].real
+            δρ[:, :, :, 1] .+= χ0δV[1].real
         else
-            δρ[1] .+= (χ0δV[1].real .+ χ0δV[2].real) ./ 2
-            δρ[2] .+= (χ0δV[1].real .- χ0δV[2].real) ./ 2
+            δρ[:, :, :, 1] .+= (χ0δV[1].real .+ χ0δV[2].real) ./ 2
+            δρ[:, :, :, 2] .+= (χ0δV[1].real .- χ0δV[2].real) ./ 2
         end
         δρ
     end

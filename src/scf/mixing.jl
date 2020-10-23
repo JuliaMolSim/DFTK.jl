@@ -169,7 +169,7 @@ real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartr
 @kwdef struct χ0Mixing
     α::Real   = 0.8
     RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
-    χ0terms   = χ0Model[]  # The terms to use as the model for χ0
+    χ0terms   = χ0Model[Applyχ0Model()]  # The terms to use as the model for χ0
     verbose::Bool = false  # Run the GMRES verbosely
 end
 
@@ -180,7 +180,7 @@ end
     @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
 
     # Initialise χ0terms and remove nothings (terms that don't yield a contribution)
-    χ0applies = [χ0(basis, ρin=ρin, ρ_spin_in=ρ_spin_in, kwargs...) for χ0 in mixing.χ0terms]
+    χ0applies = [χ0(basis; ρin=ρin, ρ_spin_in=ρ_spin_in, kwargs...) for χ0 in mixing.χ0terms]
     χ0applies = [apply for apply in χ0applies if !isnothing(apply)]
 
     # If no applies left, do not bother running GMRES and directly do simple mixing
