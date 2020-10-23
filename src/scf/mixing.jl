@@ -154,10 +154,7 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `verbose`: Run the GMRES in verbose mode.
 """
 function HybridMixing(;εr=1.0, kTF=0.8, localisation=identity, kwargs...)
-    χ0terms = χ0Model[LdosModel()]
-    if εr != 1.0
-        append!(χ0terms, DielectricModel(εr=εr, kTF=kTF, localisation=localisation))
-    end
+    χ0terms = [DielectricModel(εr=εr, kTF=kTF, localisation=localisation), LdosModel()]
     χ0Mixing(; χ0terms=χ0terms, kwargs...)
 end
 
