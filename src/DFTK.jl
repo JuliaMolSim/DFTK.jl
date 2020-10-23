@@ -150,6 +150,7 @@ export load_magnetic_moments
 include("external/etsf_nanoquanta.jl")
 include("external/abinit.jl")
 include("external/load_from_python.jl")
+include("external/load_from_file.jl")
 include("external/ase.jl")
 include("external/pymatgen.jl")
 
