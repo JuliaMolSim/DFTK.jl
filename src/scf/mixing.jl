@@ -40,7 +40,7 @@ Notes:
 - Abinit calls ``1/k_{TF}`` the dielectric screening length (parameter *dielng*)
 """
 @kwdef struct KerkerMixing
-    # Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, kTF=1.5 Ǎ^{-1})
+    # Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, kTF=1.5Å⁻¹)
     # DOI 10.1103/PhysRevB.54.11169
     α::Real    = 0.8
     kTF::Real  = 0.8  # == sqrt(4π (DOS_α + DOS_β) / Ω)
@@ -146,85 +146,71 @@ where ``C_0 = 1 - ε_r``, ``D_\text{loc}`` is the local density of states,
 the same convention for parameters are used as in [`DielectricMixing`](@ref).
 Additionally there is the real-space localisation function `L(r)`.
 For details see Herbst, Levitt 2020 arXiv:2009.01665
+
+Important `kwargs` passed on to [`χ0Mixing`](@ref)
+- `α`: Damping parameter
+- `RPA`: Is the random-phase approximation used for the kernel (i.e. only Hartree kernel is
+  used and not XC kernel)
+- `verbose`: Run the GMRES in verbose mode.
 """
-@kwdef struct HybridMixing
+function HybridMixing(;εr=1.0, kTF=0.8, localisation=identity, kwargs...)
+    χ0terms = [DielectricModel(εr=εr, kTF=kTF, localisation=localisation), LdosModel()]
+    χ0Mixing(; χ0terms=χ0terms, kwargs...)
+end
+
+
+@doc raw"""
+Generic mixing function using a model for the susceptibility composed of the sum of the `χ0terms`.
+For valid `χ0terms` See the subtypes of `χ0Model`. The dielectric model is solved in
+real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartree kernel
+(`RPA=true`) are employed. `verbose=true` lets the GMRES run in verbose mode
+(useful for debugging).
+"""
+@kwdef struct χ0Mixing
     α::Real   = 0.8
-    εr::Real  = 1.0
-    kTF::Real = 0.8
-    localisation::Function = identity  # `L(r)` with `r` in fractional real-space coordinates
     RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
+    χ0terms   = χ0Model[Applyχ0Model()]  # The terms to use as the model for χ0
     verbose::Bool = false  # Run the GMRES verbosely
 end
 
-@timing "mixing Hybrid" function mix(mixing::HybridMixing, basis, δF_tot::RealFourierArray,
-                                     δF_spin=nothing;
-                                     εF, eigenvalues, ψ, ρin, ρ_spin_in, kwargs...)
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
+@timing "χ0Mixing" function mix(mixing::χ0Mixing, basis, δF_tot::RealFourierArray,
+                                δF_spin=nothing; ρin, ρ_spin_in, kwargs...)
     T = eltype(δF_tot)
-    εr = T(mixing.εr)
-    kTF = T(mixing.kTF)
-    C0 = 1 - εr
-    Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
-    dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
     n_spin = basis.model.n_spin_components
+    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
 
-    apply_sqrtL = identity
-    if mixing.localisation != identity
-        sqrtL = sqrt.(mixing.localisation.(r_vectors(basis)))
-        apply_sqrtL = x -> from_real(basis, sqrtL .* x.real)
-    end
+    # Initialise χ0terms and remove nothings (terms that don't yield a contribution)
+    χ0applies = [χ0(basis; ρin=ρin, ρ_spin_in=ρ_spin_in, kwargs...) for χ0 in mixing.χ0terms]
+    χ0applies = [apply for apply in χ0applies if !isnothing(apply)]
 
-    # Compute the LDOS if required
-    ldos = nothing
-    if basis.model.temperature > 0
-        ldos = [LDOS(εF, basis, eigenvalues, ψ, spins=[σ]) for σ in 1:n_spin]
-        if maximum(maximum(abs, ldos_σ) for ldos_σ in ldos) < eps(T)
-            ldos = nothing
-        end
-        dos = sum(sum, ldos) * dVol  # Integrate LDOS to form total DOS
-    end
+    # If no applies left, do not bother running GMRES and directly do simple mixing
+    isempty(χ0applies) && return mix(SimpleMixing(α=mixing.α), basis, δF_tot, δF_spin)
 
-    # Solve J δρ = δF with J = (1 - χ0 vc) and χ_0 given as in the docstring of the class
+    # Solve J δρ = δF with J = (1 - χ0 vc) and χ_0 given as the sum of the χ0terms
     devec(x) = reshape(x, size(δF_tot)..., n_spin)
     function Jop(x)
         δF = devec(x)  # [:, :, :, 1] is spin-up (or total), [:, :, :, 2] is spin-down
+
+        # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
+        @views if n_spin == 1
+            x_tot  = from_real(basis, δF[:, :, :, 1])
+            x_spin = nothing
+        else
+            x_tot  = from_real(basis, δF[:, :, :, 1] .+ δF[:, :, :, 2])
+            x_spin = from_real(basis, δF[:, :, :, 1] .- δF[:, :, :, 2])
+        end
+        δV = apply_kernel(basis, x_tot, x_spin; ρ=ρin, ρspin=ρ_spin_in, RPA=mixing.RPA)
+
+        # set DC of δV to zero (δV[1] is spin-up or total, δV[2] is spin-down)
+        δV_DC = mean(mean(δV[σ].real) for σ in 1:n_spin)
+        δV[1].real .-= δV_DC
+        n_spin == 2 && (δV[2].real .-= δV_DC)
+
         JδF = copy(δF)
-
-        if !iszero(C0) || ldos !== nothing
-            # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
-            @views if n_spin == 1
-                x_tot  = from_real(basis, δF[:, :, :, 1])
-                x_spin = nothing
-            else
-                x_tot  = from_real(basis, δF[:, :, :, 1] .+ δF[:, :, :, 2])
-                x_spin = from_real(basis, δF[:, :, :, 1] .- δF[:, :, :, 2])
-            end
-            δV = apply_kernel(basis, x_tot, x_spin; ρ=ρin, ρspin=ρ_spin_in, RPA=mixing.RPA)
-
-            # set DC of δV to zero (δV[1] is spin-up or total, δV[2] is spin-down)
-            δV_DC = mean(mean(δV[σ].real) for σ in 1:n_spin)
-            δV[1].real .-= δV_DC
-            n_spin == 2 && (δV[2].real .-= δV_DC)
+        for apply_term! in χ0applies
+            apply_term!(JδF, δV)
         end
-
-        if !iszero(C0)  # Apply Dielectric term of χ0
-            for σ in 1:n_spin
-                loc_δV = apply_sqrtL(δV[σ]).fourier
-                dielectric_loc_δV = @. C0 * kTF^2 * Gsq / 4T(π) / (kTF^2 - C0 * Gsq) * loc_δV
-                JδF[:, :, :, σ] .-= apply_sqrtL(from_fourier(basis, dielectric_loc_δV)).real
-            end
-        end
-
-        if ldos !== nothing  # Apply LDOS term of χ0
-            dotldosδV = sum(dot(ldos[σ], δV[σ].real) for σ = 1:n_spin)
-            for σ in 1:n_spin
-                JδF[:, :, :, σ] .-= (-ldos[σ] .* δV[σ].real
-                                     .+ ldos[σ] .* dotldosδV .* dVol ./ dos)
-            end
-        end
-
-        # Zero DC component in total density response and return
-        vec(JδF .-= mean(JδF))
+        vec(JδF .-= mean(JδF))  # Zero DC component in total density response
     end
 
     if n_spin == 1

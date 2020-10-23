@@ -1,5 +1,6 @@
 using Test
 using DFTK
+import DFTK: Applyχ0Model
 
 include("testcases.jl")
 
@@ -94,7 +95,7 @@ end
     ρ_ref     = scfres.ρ.fourier
 
     for mixing in (KerkerMixing(), KerkerDosMixing(α=1.0), DielectricMixing(εr=10),
-                   HybridMixing(εr=10))
+                   HybridMixing(εr=10), χ0Mixing(χ0terms=[Applyχ0Model()], RPA=false),)
         @testset "Testing $mixing" begin
             scfres = self_consistent_field(basis; ρ=ρ0, ρspin=ρspin0, mixing=mixing, tol=tol)
             @test maximum(abs.(scfres.ρ.fourier     - ρ_ref    )) < sqrt(tol)

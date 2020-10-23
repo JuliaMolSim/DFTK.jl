@@ -116,7 +116,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         # Update info with results gathered so far
         info = (ham=ham, basis=basis, converged=converged, stage=:iterate,
                 ρin=ρin, ρ_spin_in=ρ_spin_in, ρout=ρout, ρ_spin_out=ρ_spin_out,
-                n_iter=n_iter, nextstate...)
+                n_iter=n_iter, n_ep_extra=n_ep_extra, nextstate...)
 
         # Compute the energy of the new state
         if compute_consistent_energies
@@ -161,7 +161,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     # Callback is run one last time with final state to allow callback to clean up
     info = (ham=ham, basis=basis, energies=energies, converged=converged,
             ρ=ρout, ρspin=ρ_spin_out, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
-            n_iter=n_iter, ψ=ψ, diagonalization=info.diagonalization, stage=:finalize)
+            n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=ψ, diagonalization=info.diagonalization,
+            stage=:finalize)
     callback(info)
     info
 end

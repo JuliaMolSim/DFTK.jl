@@ -108,7 +108,8 @@ export diag_full
 export diagonalize_all_kblocks
 include("eigen/diag.jl")
 
-export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing, HybridMixing
+export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing, HybridMixing, χ0Mixing
+include("scf/chi0models.jl")
 include("scf/mixing.jl")
 export scf_nlsolve_solver
 export scf_damping_solver
