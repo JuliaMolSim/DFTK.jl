@@ -36,25 +36,22 @@ function plot_band_data(band_data; εF=nothing,
 
     # For each branch, plot all bands, spins and errors
     p = Plots.plot(xlabel="wave vector")
-    for ibranch = 1:data.n_branches
-        kdistances = data.kdistances[ibranch]
-        for spin in data.spins, iband = 1:data.n_bands
+    for branch in data.branches
+        for σ in 1:data.n_spin, iband = 1:data.n_bands
             yerror = nothing
-            if hasproperty(data, :λerror)
-                yerror = data.λerror[ibranch][spin][iband, :] ./ unit_to_au(unit)
+            if hasproperty(branch, :λerror)
+                yerror = branch.λerror[:, iband, σ] ./ unit_to_au(unit)
             end
-            energies = (data.λ[ibranch][spin][iband, :] .- eshift) ./ unit_to_au(unit)
-
-            color = (spin == :up) ? :blue : :red
-            Plots.plot!(p, kdistances, energies; color=color, label="", yerror=yerror,
-                        kwargs...)
+            energies = (branch.λ[:, iband, σ] .- eshift) ./ unit_to_au(unit)
+            color = (:blue, :red)[σ]
+            Plots.plot!(p, branch.kdistances, energies; color=color, label="",
+                        yerror=yerror, kwargs...)
         end
     end
 
     # X-range: 0 to last kdistance value
-    Plots.xlims!(p, (0, data.kdistances[end][end]))
-    Plots.xticks!(p, data.ticks["distance"],
-                  [replace(l, raw"$\mid$" => " | ") for l in data.ticks["label"]])
+    Plots.xlims!(p, (0, data.branches[end].kdistances[end]))
+    Plots.xticks!(p, data.ticks.distances, data.ticks.labels)
 
     ylims = [-4, 4]
     !isnothing(εF) && is_metal(band_data, εF) && (ylims = [-10, 10])
