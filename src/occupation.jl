@@ -19,6 +19,12 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
     # Maximum occupation per state
     filled_occ = filled_occupation(basis.model)
 
+    if temperature == 0 && n_electrons % filled_occ != 0
+        error("$n_electrons electron cannot be attained by filling states with " *
+              "occupation $filled_occ. Typically this indicates that you need to put " *
+              "a temperature or switch to a calculation with collinear spin polarization.")
+    end
+
     # The goal is to find εF so that
     # n_i = filled_occ * f((εi-εF)/T)
     # sum_i n_i = n_electrons
@@ -39,7 +45,6 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
         @assert compute_n_elec(min_ε) < n_electrons < compute_n_elec(max_ε)
     end
 
-    # Compute εF by bisection
     if compute_n_elec(max_ε) ≈ n_electrons
         # This branch takes care of the case of insulators at zero
         # temperature with as many bands as electrons; there it is
