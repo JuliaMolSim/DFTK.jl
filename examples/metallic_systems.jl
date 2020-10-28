@@ -8,6 +8,8 @@
 # specified column by column.
 
 using DFTK
+using Unitful
+using UnitfulAtomic
 using Plots
 
 a = 3.01794  # bohr
@@ -27,10 +29,14 @@ atoms = [Mg => [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]]];
 # By default `PlaneWaveBasis` chooses a `kspacing`
 # of `2π * 0.022` inverse Bohrs, which is much more reasonable.
 
-kspacing = 0.5      # Minimal spacing of k-points, 
-##                    in units of wavevectors (inverse Bohrs)
-Ecut = 5            # kinetic energy cutoff in Hartree
-temperature = 0.01  # Smearing temperature in Hartree
+kspacing = 0.5 / u"bohr"         # Minimal spacing of k-points,
+##                                 in units of wavevectors
+Ecut = 5 * u"hartree"            # kinetic energy cutoff
+temperature = 0.01 * u"hartree"  # Smearing temperature
+
+# If quantities in other units are specified with Unitful, they will
+# automatically be converted to atomic units, which are used
+# internally. Otherwise, quantities are assumed to be given in atomic units.
 
 model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe];
                   temperature=temperature,
