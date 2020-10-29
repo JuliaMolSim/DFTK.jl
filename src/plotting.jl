@@ -67,12 +67,12 @@ function plot_band_data(band_data; εF=nothing,
 end
 
 
-function plot_dos(basis, eigenvalues; εF=nothing)
+function plot_dos(basis, eigenvalues; εF=nothing, kwargs...)
     n_spin = basis.model.n_spin_components
     εs = range(minimum(minimum(eigenvalues)) - .5,
                maximum(maximum(eigenvalues)) + .5, length=1000)
 
-    p = Plots.plot()
+    p = Plots.plot(;kwargs...)
     spinlabels = spin_components(basis.model)
     colors = [:blue, :red]
     for σ in 1:n_spin

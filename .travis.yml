@@ -22,8 +22,6 @@ script:  # Install dependencies and test with coverage
       using Pkg
       Pkg.add("Conda")
       using Conda
-      # matplotlib 3.2.2 requirement can be removed once ASE 3.20.1 is in conda
-      Conda.add("matplotlib =3.2.2", channel="conda-forge")
       Conda.add(["blas=*=*netlib", "nomkl", "ase"]; channel="conda-forge")
     '
   - julia -e 'using Pkg; Pkg.build(; verbose=true); Pkg.test(coverage=true)'

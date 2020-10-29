@@ -29,7 +29,9 @@ export Model
 export PlaneWaveBasis
 export determine_fft_size
 export G_vectors
+export G_vectors_cart
 export r_vectors
+export r_vectors_cart
 export Kpoint
 export G_to_r
 export G_to_r!
@@ -125,6 +127,7 @@ include("scf/direct_minimization.jl")
 # Utilities
 #
 include("symmetry.jl")
+export symmetry_operations
 export standardize_atoms
 export bzmesh_uniform
 export bzmesh_ir_wedge

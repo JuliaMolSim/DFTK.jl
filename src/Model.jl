@@ -235,7 +235,6 @@ function filled_occupation(model)
     if model.spin_polarization in (:spinless, :collinear)
         return 1
     elseif model.spin_polarization == :none
-        @assert model.n_electrons % 2 == 0
         return 2
     else
         error("Not implemented $(model.spin_polarization)")
