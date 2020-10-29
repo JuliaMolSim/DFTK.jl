@@ -3,11 +3,13 @@ import DFTK: mpi_mean!
 using Test
 using Random
 using MPI
+using Unitful
+using UnitfulAtomic
 include("testcases.jl")
 
 @testset "Forces on semiconductor (using total energy)" begin
     function energy_forces(pos)
-        Ecut = 5
+        Ecut = 5 * u"hartree"
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => pos]
         model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93)
@@ -44,7 +46,7 @@ end
 
 @testset "Forces on metal (using free energy)" begin
     function silicon_energy_forces(pos; smearing=Smearing.FermiDirac())
-        Ecut = 4
+        Ecut = 4 * u"hartree"
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => pos]
         model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93;
