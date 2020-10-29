@@ -27,12 +27,18 @@
 
 using DFTK
 using Plots
+using Unitful
+using UnitfulAtomic
 
 ## 1. Define lattice and atomic positions
-a = 10.26  # Silicon lattice constant in Bohr
+a = 10.26 * u"bohr" # Silicon lattice constant
 lattice = a / 2 * [[0 1 1.];  # Silicon lattice vectors
                    [1 0 1.];  # specified column by column
                    [1 1 0.]]
+
+# Quantities such as temperature, energy cutoffs, lattice vectors, and the
+# k-point grid spacing also accept values annotated with Unitful units, which
+# are automatically converted to the atomic units used internally.
 
 ## Load HGH pseudopotential for Silicon
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
@@ -42,8 +48,8 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 ## 2. Select model and basis
 model = model_LDA(lattice, atoms)
-kgrid = [4, 4, 4]  # k-point grid (Regular Monkhorst-Pack grid)
-Ecut = 7           # kinetic energy cutoff in Hartree
+kgrid = [4, 4, 4]      # k-point grid (Regular Monkhorst-Pack grid)
+Ecut = 7 * u"hartree"  # kinetic energy cutoff
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 
 ## 3. Run the SCF procedure to obtain the ground state
