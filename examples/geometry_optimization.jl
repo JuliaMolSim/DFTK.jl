@@ -7,11 +7,13 @@ using DFTK
 using Optim
 using LinearAlgebra
 using Printf
+using Unitful
+using UnitfulAtomic
 
 kgrid = [1, 1, 1]       # k-Point grid
-Ecut = 5                # kinetic energy cutoff in Hartree
+Ecut = 5 * u"hartree"   # kinetic energy cutoff
 tol = 1e-8              # tolerance for the optimization routine
-a = 10                  # lattice constant in Bohr
+a = 10 * u"bohr"        # lattice constant
 lattice = a * Diagonal(ones(3))
 H = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1"));
 
@@ -52,7 +54,7 @@ end;
 
 function fg!(F, G, x)
     scfres = compute_scfres(x)
-    if G != nothing
+    if G !== nothing
         grad = compute_forces(scfres)
         G .= -[grad[1][1]; grad[1][2]]
     end
