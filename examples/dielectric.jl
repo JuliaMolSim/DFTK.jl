@@ -20,11 +20,7 @@ model = model_LDA(lattice, atoms, symmetries=false)
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 scfres = self_consistent_field(basis, tol=1e-14)
 
-<<<<<<< HEAD
-# Apply ε = 1 - χ0 (vc + fxc)
-=======
 # Apply ε† = 1 - χ0 (vc + fxc)
->>>>>>> master
 function eps_fun(dρ)
     dρ = reshape(dρ, size(scfres.ρ.real))
     dρ = from_real(basis, dρ)

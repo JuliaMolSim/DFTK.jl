@@ -94,11 +94,3 @@ function compute_kernel_sqrt(term::TermHartree; kwargs...)
     real(G_to_r_matrix(term.basis) * Diagonal(vc_G) * r_to_G_matrix(term.basis))
 end
 
-function apply_kernel(term::TermHartree, dρ::RealFourierArray, dρspin=nothing; kwargs...)
-    @assert term.basis.model.spin_polarization in (:none, :spinless, :collinear)
-    kernel = from_fourier(dρ.basis, term.poisson_green_coeffs .* dρ.fourier)
-    n_spin = term.basis.model.n_spin_components
-    n_spin == 1 ? (kernel, ) : (kernel, kernel)  # Hartree term does not care about spin
-end
-
-
