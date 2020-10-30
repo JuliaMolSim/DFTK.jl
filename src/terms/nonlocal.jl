@@ -36,6 +36,7 @@ end
             E += basis.kweights[ik] * occ[ik][iband] * real(dot(Pψnk, term.ops[ik].D * Pψnk))
         end
     end
+    MPI.Allreduce(E, +, basis.mpi_kcomm)
 
     (E=E, ops=term.ops)
 end
@@ -86,6 +87,7 @@ end
                         ind_red += 1
                     end
                 end
+                MPI.Allreduce.(fr, +, Ref(basis.mpi_kcomm))  # TODO take that out to gain latency
             end
             forces[iel][ir] += fr
         end

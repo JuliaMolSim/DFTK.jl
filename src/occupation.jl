@@ -31,9 +31,9 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
     # If temperature is zero, (εi-εF)/T = ±∞.
     # The occupation function is required to give 1 and 0 respectively in these cases.
     compute_occupation(εF) = [filled_occ * Smearing.occupation.(smearing, (ε .- εF) ./ temperature) for ε in energies]
-    compute_n_elec(εF) = sum(basis.kweights .* sum.(compute_occupation(εF)))
+    compute_n_elec(εF) = weighted_ksum(basis, sum.(compute_occupation(εF)))
 
-    if filled_occ*sum(basis.kweights .* length.(energies)) < n_electrons - sqrt(eps(T))
+    if filled_occ*weighted_ksum(basis, length.(energies)) < n_electrons - sqrt(eps(T))
         error("Could not obtain required number of electrons by filling every state. " *
               "Increase n_bands.")
     end
@@ -117,7 +117,7 @@ function find_occupation_bandgap(basis, energies)
             LUMO = min(LUMO, energies[ik][n_fill + 1])
         end
     end
-    @assert sum(basis.kweights .* sum.(occupation)) ≈ n_electrons
+    @assert weighted_ksum(basis, sum.(occupation)) ≈ n_electrons
 
     # Put Fermi level slightly above HOMO energy, to ensure that HOMO < εF
     εF = nextfloat(HOMO)
