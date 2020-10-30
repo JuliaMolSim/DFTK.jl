@@ -36,7 +36,7 @@ end
             E += basis.kweights[ik] * occ[ik][iband] * real(dot(Pψnk, term.ops[ik].D * Pψnk))
         end
     end
-    MPI.Allreduce(E, +, basis.mpi_kcomm)
+    E = MPI.Allreduce(E, +, basis.mpi_kcomm)
 
     (E=E, ops=term.ops)
 end

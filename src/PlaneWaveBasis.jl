@@ -125,9 +125,9 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops, symmetries=nothing;
                                 fft_size=nothing, variational=true,
-                                optimize_fft_size=false, supersampling=2,
-                                mpi=false) where {T <: Real}
+                                optimize_fft_size=false, supersampling=2) where {T <: Real}
     # need to initialize first thing, since we do MPI.Allreduce even in the non-MPI case
+    ## TODO look at interaction between MPI and threads
     MPI.Initialized() || MPI.Init()
     if variational
         @assert Ecut > 0
@@ -185,27 +185,28 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 
     # At this point, select the subset of kpoints to be computed by this processor
     mpi_comm = MPI.COMM_WORLD
-    if mpi
-        ## TODO look at interaction between MPI and threads
-        n_procs = MPI.Comm_size(mpi_comm)
-        my_rank = MPI.Comm_rank(mpi_comm)  # from 0 to n_procs-1
-        # Right now we split only the kcoords: both spin channels have to be handled by the same process
-        nkpt = length(kcoords)
-        nkpt_per_proc = div(nkpt, n_procs)
-        ibeg = my_rank * nkpt_per_proc + 1
-        iend = (my_rank+1) * nkpt_per_proc
-        iend > nkpt && iend == nkpt
-        my_slice = ibeg:iend  # slice of the kcoords to be worked on by this process
-    else
-        my_slice = 1:length(kcoords)
+    n_procs = MPI.Comm_size(mpi_comm)
+    my_rank = MPI.Comm_rank(mpi_comm)  # from 0 to n_procs-1
+    # Right now we split only the kcoords: both spin channels have to be handled by the same process
+    nkpt = length(kcoords)
+    nkpt_per_proc = div(nkpt, n_procs, RoundUp)
+    ibeg = my_rank * nkpt_per_proc + 1
+    iend = (my_rank+1) * nkpt_per_proc
+    if iend > nkpt
+        iend = nkpt  # last process is slacking off
+        # TODO optimize. Eg see
+        # https://stackoverflow.com/questions/15658145/how-to-share-work-roughly-evenly-between-processes-in-mpi-despite-the-array-size
     end
+    my_slice = ibeg:iend  # slice of the kcoords to be worked on by this process
+    # println("Process $(my_rank)/$(n_procs) computing $my_slice")
+    @assert MPI.Allreduce(length(my_slice), +, mpi_comm) == length(kcoords)
 
     kcoords = kcoords[my_slice]
     ksymops = ksymops[my_slice]
-    
+
     # Build kpoint-specific basis. Notice that this also builds index mapping from the k-point-specific basis
     # to the global basis and thus the fft_size needs to be final at this point.
-    kpoints  = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
+    kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
 
     # kpoints is now possibly twice the size of kcoords. Double it for spin
     model.n_spin_components == 2 && (ksymops = vcat(ksymops, ksymops))
@@ -214,6 +215,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     kweights = [length(symmetries) for symmetries in ksymops]
     tot_weight = MPI.Allreduce(sum(kweights), +, mpi_comm)
     kweights = T.(model.n_spin_components .* kweights) ./ tot_weight
+    @assert MPI.Allreduce(sum(kweights), +, mpi_comm) ≈ model.n_spin_components
 
     # Setup and instantiation
     terms = Vector{Any}(undef, length(model.term_types))
