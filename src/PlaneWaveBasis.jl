@@ -286,12 +286,14 @@ function PlaneWaveBasis(model::Model, Ecut::Number;
     PlaneWaveBasis(model, Ecut, kcoords, ksymops, symmetries; kwargs...)
 end
 
-mpi_sum(basis::PlaneWaveBasis, arr) = mpi_sum(arr, basis.mpi_kcomm)
-mpi_sum!(basis::PlaneWaveBasis, arr) = mpi_sum!(arr, basis.mpi_kcomm)
-mpi_min(basis::PlaneWaveBasis, arr) = mpi_min(arr, basis.mpi_kcomm)
-mpi_min!(basis::PlaneWaveBasis, arr) = mpi_min!(arr, basis.mpi_kcomm)
-mpi_max(basis::PlaneWaveBasis, arr) = mpi_max(arr, basis.mpi_kcomm)
-mpi_max!(basis::PlaneWaveBasis, arr) = mpi_max!(arr, basis.mpi_kcomm)
+for fname in ("sum", "min", "max", "average")
+    name = Symbol("mpi_$(fname)")
+    name! = Symbol("mpi_$(fname)!")
+    @eval begin
+        ($name)(basis::PlaneWaveBasis, arr) = ($name)(basis.mpi_kcomm, arr)
+        ($name!)(basis::PlaneWaveBasis, arr) = ($name!)(basis.mpi_kcomm, arr)
+    end
+end
 
 """
 Sum an array over kpoints, taking weights into account

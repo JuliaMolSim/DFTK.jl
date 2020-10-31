@@ -1,5 +1,7 @@
 using DFTK
 using Test
+using Random
+using MPI
 include("testcases.jl")
 
 @testset "Forces on semiconductor (using total energy)" begin
@@ -22,7 +24,8 @@ include("testcases.jl")
 
     pos1 = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8]  # displace a bit from equilibrium
     disp = rand(3)
-    ε = 1e-8
+    mpi_average!(MPI.COMM_WORLD, disp)  # must be identical on all processes
+    ε = 1e-7
     pos2 = [pos1[1] + ε * disp, pos1[2]]
 
     E1, F1 = energy(pos1)
@@ -53,6 +56,7 @@ end
 
     pos1 = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8] # displace a bit from equilibrium
     disp = rand(3)
+    mpi_average!(MPI.COMM_WORLD, disp)  # must be identical on all processes
     ε = 1e-6
     pos2 = [pos1[1] + ε * disp, pos1[2]]
 

@@ -62,7 +62,6 @@ end
             for α = 1:3
                 tot_red_kpt_number = sum([length(symops) for symops in basis.ksymops])
                 tot_red_kpt_number = mpi_sum(basis, tot_red_kpt_number)
-                ind_red = 1
                 for (ik, kpt_irred) in enumerate(basis.kpoints)
                     # Here we need to do an explicit loop over
                     # symmetries, because the atom displacement might break them
@@ -84,12 +83,11 @@ end
                         for iband = 1:size(ψ[ik], 2)
                             @views fr[α] -= (occ[ik][iband] / tot_red_kpt_number
                                              * 2real(  dot(ψSk[:, iband], dHψSk[:, iband])))
-                        end
-                        ind_red += 1
-                    end
-                end
-                mpi_sum!(basis, fr)  # TODO take that out to gain latency
-            end
+                        end  #iband
+                    end  #isym
+                end  #ik
+            end  #α
+            mpi_sum!(basis, fr)  # TODO take that out to gain latency
             forces[iel][ir] += fr
         end
     end
