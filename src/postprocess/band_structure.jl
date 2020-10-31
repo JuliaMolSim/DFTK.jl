@@ -163,6 +163,7 @@ are plotted in `:eV` unless a different `unit` is selected.
 """
 function plot_bandstructure(basis, ρ, ρspin, n_bands;
                             εF=nothing, kline_density=20, unit=:eV, kwargs...)
+    mpi_nprocs() > 1 && error("Band structures with MPI not supported yet")
     if !isdefined(DFTK, :PLOTS_LOADED)
         error("Plots not loaded. Run 'using Plots' before calling plot_bandstructure.")
     end

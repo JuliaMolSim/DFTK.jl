@@ -34,7 +34,7 @@ end
                   * real(dot(ψnk, term.kinetic_energies[ik] .* ψnk)))
         end
     end
-    E = mpi_sum(basis, E)
+    E = mpi_sum(E, basis.comm_k)
 
     (E=E, ops=ops)
 end

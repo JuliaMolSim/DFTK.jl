@@ -18,14 +18,14 @@ mpi_nprocs() = mpi_nprocs(MPI.COMM_WORLD)
 mpi_nprocs(comm) = (mpi_ensure_initialized(); MPI.Comm_size(comm))
 mpi_master() = (mpi_ensure_initialized(); MPI.Comm_rank(MPI.COMM_WORLD) == 0)
 
-mpi_sum(comm::MPI.Comm, arr) = MPI.Allreduce(arr, +, comm)
-mpi_sum!(comm::MPI.Comm, arr) = MPI.Allreduce!(arr, +, comm)
-mpi_min(comm::MPI.Comm, arr) = MPI.Allreduce(arr, min, comm)
-mpi_min!(comm::MPI.Comm, arr) = MPI.Allreduce!(arr, min, comm)
-mpi_max(comm::MPI.Comm, arr) = MPI.Allreduce(arr, max, comm)
-mpi_max!(comm::MPI.Comm, arr) = MPI.Allreduce!(arr, max, comm)
-mpi_average(comm::MPI.Comm, arr) = mpi_sum(comm, arr) ./ mpi_nprocs(comm)
-mpi_average!(comm::MPI.Comm, arr) = (mpi_sum!(comm, arr); arr ./= mpi_nprocs(comm))
+mpi_sum(arr, comm::MPI.Comm) = MPI.Allreduce(arr, +, comm)
+mpi_sum!(arr, comm::MPI.Comm) = MPI.Allreduce!(arr, +, comm)
+mpi_min(arr, comm::MPI.Comm) = MPI.Allreduce(arr, min, comm)
+mpi_min!(arr, comm::MPI.Comm) = MPI.Allreduce!(arr, min, comm)
+mpi_max(arr, comm::MPI.Comm) = MPI.Allreduce(arr, max, comm)
+mpi_max!(arr, comm::MPI.Comm) = MPI.Allreduce!(arr, max, comm)
+mpi_average(arr, comm::MPI.Comm) = mpi_sum(comm, arr) ./ mpi_nprocs(comm)
+mpi_average!(arr, comm::MPI.Comm) = (mpi_sum!(comm, arr); arr ./= mpi_nprocs(comm))
 
 """
 Splits N work units between the processes and returns the slice of 1:N handled by the current process

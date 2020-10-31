@@ -63,7 +63,7 @@ struct PlaneWaveBasis{T <: Real}
     # mapping to points in the reducible BZ
     ksymops::Vector{Vector{SymOp}}
 
-    mpi_kcomm::MPI.Comm  # communicator for the kpoints distribution
+    comm_k::MPI.Comm  # communicator for the kpoints distribution
     krange_thisproc::Vector{Int}
 
     # fft_size defines both the G basis on which densities and
@@ -197,7 +197,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         krange_thisproc = 1:nkpt
     else
         krange_thisproc = mpi_split_work(mpi_comm, nkpt)  # get the slice of 1:nkpt handled by this process
-        @assert MPI.Allreduce(length(krange_thisproc), +, mpi_comm) == nkpt
+        @assert mpi_sum(length(krange_thisproc), mpi_comm) == nkpt
     end
 
     kcoords = kcoords[krange_thisproc]
@@ -215,9 +215,9 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 
     # Compute weights
     kweights = [length(symmetries) for symmetries in ksymops]
-    tot_weight = MPI.Allreduce(sum(kweights), +, mpi_comm)
+    tot_weight = mpi_sum(sum(kweights), mpi_comm)
     kweights = T.(model.n_spin_components .* kweights) ./ tot_weight
-    @assert MPI.Allreduce(sum(kweights), +, mpi_comm) ≈ model.n_spin_components
+    @assert mpi_sum(sum(kweights), mpi_comm) ≈ model.n_spin_components
 
     # Setup and instantiation
     terms = Vector{Any}(undef, length(model.term_types))
@@ -276,23 +276,12 @@ function PlaneWaveBasis(model::Model, Ecut::Number;
     PlaneWaveBasis(model, Ecut, kcoords, ksymops, symmetries; kwargs...)
 end
 
-# define MPI wrappers, eg
-# mpi_sum(basis::PlaneWaveBasis, arr) = mpi_sum(basis.mpi_kcomm, arr)
-for fname in ("sum", "min", "max", "average")
-    name = Symbol("mpi_$(fname)")
-    name! = Symbol("mpi_$(fname)!")
-    @eval begin
-        ($name)(basis::PlaneWaveBasis, arr) = ($name)(basis.mpi_kcomm, arr)
-        ($name!)(basis::PlaneWaveBasis, arr) = ($name!)(basis.mpi_kcomm, arr)
-    end
-end
-
 """
 Sum an array over kpoints, taking weights into account
 """
 function weighted_ksum(basis, arr)
     res = sum(basis.kweights .* arr)
-    mpi_sum(basis, res)
+    mpi_sum(res, basis.comm_k)
 end
 
 """
