@@ -24,7 +24,7 @@ include("testcases.jl")
 
     pos1 = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8]  # displace a bit from equilibrium
     disp = rand(3)
-    mpi_average!(MPI.COMM_WORLD, disp)  # must be identical on all processes
+    mpi_average!(disp, MPI.COMM_WORLD)  # must be identical on all processes
     ε = 1e-7
     pos2 = [pos1[1] + ε * disp, pos1[2]]
 
@@ -56,7 +56,7 @@ end
 
     pos1 = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8] # displace a bit from equilibrium
     disp = rand(3)
-    mpi_average!(MPI.COMM_WORLD, disp)  # must be identical on all processes
+    mpi_average!(disp, MPI.COMM_WORLD)  # must be identical on all processes
     ε = 1e-6
     pos2 = [pos1[1] + ε * disp, pos1[2]]
 
