@@ -187,26 +187,16 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 
     # At this point, select the subset of kpoints to be computed by this processor
     mpi_comm = MPI.COMM_WORLD
-    n_procs = MPI.Comm_size(mpi_comm)
-    my_rank = MPI.Comm_rank(mpi_comm)  # from 0 to n_procs-1
+    nprocs = mpi_nprocs(mpi_comm)
     # Right now we split only the kcoords: both spin channels have to be handled by the same process
     nkpt = length(kcoords)
-    if n_procs > nkpt
-        @warn "No point in trying to parallelize $nkpt kpoints over $n_procs processes; falling back to sequential"
+    if nprocs > nkpt
+        @warn "No point in trying to parallelize $nkpt kpoints over $nprocs processes; falling back to sequential"
         # supporting this would require fixing a bunch of "reducing over empty collections not allowed" errors
         mpi_comm = MPI.COMM_SELF # everybody talks with himself now: reduces are no-ops
         krange_thisproc = 1:nkpt
     else
-        nkpt_per_proc = div(nkpt, n_procs, RoundUp)
-        ibeg = my_rank * nkpt_per_proc + 1
-        iend = (my_rank+1) * nkpt_per_proc
-        if iend > nkpt
-            iend = nkpt  # last process is slacking off
-            # TODO optimize. Eg see
-            # https://stackoverflow.com/questions/15658145/how-to-share-work-roughly-evenly-between-processes-in-mpi-despite-the-array-size
-        end
-        krange_thisproc = ibeg:iend  # slice of the kcoords to be worked on by this process
-        # println("Process $(my_rank)/$(n_procs) computing $krange_thisproc")
+        krange_thisproc = mpi_split_work(mpi_comm, nkpt)  # get the slice of 1:nkpt handled by this process
         @assert MPI.Allreduce(length(krange_thisproc), +, mpi_comm) == nkpt
     end
 
@@ -286,6 +276,8 @@ function PlaneWaveBasis(model::Model, Ecut::Number;
     PlaneWaveBasis(model, Ecut, kcoords, ksymops, symmetries; kwargs...)
 end
 
+# define MPI wrappers, eg
+# mpi_sum(basis::PlaneWaveBasis, arr) = mpi_sum(basis.mpi_kcomm, arr)
 for fname in ("sum", "min", "max", "average")
     name = Symbol("mpi_$(fname)")
     name! = Symbol("mpi_$(fname)!")

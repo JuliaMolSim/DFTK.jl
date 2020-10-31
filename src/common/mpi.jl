@@ -26,3 +26,24 @@ mpi_max(comm::MPI.Comm, arr) = MPI.Allreduce(arr, max, comm)
 mpi_max!(comm::MPI.Comm, arr) = MPI.Allreduce!(arr, max, comm)
 mpi_average(comm::MPI.Comm, arr) = mpi_sum(comm, arr) ./ mpi_nprocs(comm)
 mpi_average!(comm::MPI.Comm, arr) = (mpi_sum!(comm, arr); arr ./= mpi_nprocs(comm))
+
+"""
+Splits N work units between the processes and returns the slice of 1:N handled by the current process
+"""
+function mpi_split_work(comm, N)
+    nprocs = mpi_nprocs()
+    @assert nprocs <= N
+
+    my_rank = MPI.Comm_rank(comm)  # 0-based
+    N_per_proc = div(N, nprocs, RoundUp)
+    ibeg = my_rank * N_per_proc + 1
+    iend = (my_rank+1) * N_per_proc
+    if iend > N
+        iend = N  # last process is slacking off.
+        # This will result in work distribution like (eg) 3 3 3 1: it's not bad but 3 3 2 2 might be a bit better
+        # TODO optimize this better. Eg see
+        # https://stackoverflow.com/questions/15658145/how-to-share-work-roughly-evenly-between-processes-in-mpi-despite-the-array-size
+    end
+    # println("Process $(my_rank+1)/$(nprocs) computing $(ibeg:iend)")
+    ibeg:iend
+end
