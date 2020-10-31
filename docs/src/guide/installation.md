@@ -1,15 +1,23 @@
 # Installation
 
-Similar to [installing any other registered package](https://julialang.github.io/Pkg.jl/v1/getting-started/)
-in Julia just run from a Julia REPL:
+In case you have not yet installed Julia, first do so by
+[downloading the Julia binaries](https://julialang.org/downloads/)
+and following the [Julia installation instructions](https://julialang.org/downloads/platform/).
+At least **Julia 1.4** is required for DFTK.
+
+Afterwards you can install DFTK
+[like any other package](https://julialang.github.io/Pkg.jl/v1/getting-started/)
+in Julia. For example run in your Julia REPL terminal:
+```julia
+using Pkg
+pkg"add DFTK"
 ```
-] add DFTK
+which will install the latest DFTK release.
+Alternatively (if you like to be fully up to date) install the master branch:
 ```
-or if you like to be fully up to date:
+using Pkg
+pkg"add DFTK#master"
 ```
-] add DFTK#master
-```
-At least **Julia 1.4** is required.
 
 ## Python dependencies
 Some parts of the code require a working Python installation with the
