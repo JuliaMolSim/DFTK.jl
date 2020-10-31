@@ -16,6 +16,6 @@ function compute_current(basis::PlaneWaveBasis, ψ, occupation)
             end
         end
     end
-    MPI.Allreduce!.(current, +, Ref(basis.mpi_kcomm))
+    mpi_sum!.(basis, current)
     [from_real(basis, current[α]) for α = 1:3]
 end

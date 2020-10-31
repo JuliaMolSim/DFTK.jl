@@ -92,7 +92,7 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
                                            .*   (Vr[:, n] .* Vr[:, n]'))
         end
     end
-    MPI.Allreduce!(χ0σσ, +, basis.mpi_kcomm)
+    mpi_sum!(basis, χ0)
 
     # Add variation wrt εF (which is not diagonal wrt. spin)
     if temperature > 0
@@ -214,9 +214,9 @@ returns `3` extra bands, which are not converged by the eigensolver
         accumulate_over_symmetries!(δρ_fourier[kpt.spin], r_to_G(basis, complex(δρk)),
                                     basis, basis.ksymops[ik])
     end
-    MPI.Allreduce!.(δρ_fourier, +, Ref(basis.mpi_kcomm))
+    mpi_sum!.(basis, δρ_fourier)
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
-    count = MPI.Allreduce(count, +, basis.mpi_kcomm)
+    count = mpi_sum(basis, count)
     δρ = [real(G_to_r(basis, δρσ)) ./ count for δρσ in δρ_fourier]
 
     # Add variation wrt εF

@@ -35,7 +35,7 @@ function ene_ops(term::TermEntropy, ψ, occ; kwargs...)
                   * Smearing.entropy(smearing, (eigenvalues[ik][iband] - εF) / temperature))
         end
     end
-    E = MPI.Allreduce(E, +, basis.mpi_kcomm)
+    E = mpi_sum(basis, E)
 
     (E=E, ops=ops)
 end

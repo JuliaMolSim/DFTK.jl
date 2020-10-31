@@ -90,9 +90,9 @@ is not collinear the spin density is `nothing`.
 
     # Count the number of k-points modulo spin
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
-    count = MPI.Allreduce(count, +, basis.mpi_kcomm)
+    count = mpi_sum(basis, count)
     ρs = [sum(getindex.(ρaccus, iσ)) / count for iσ in 1:n_spin]
-    MPI.Allreduce!.(ρs, +, Ref(basis.mpi_kcomm))
+    mpi_sum!.(basis, ρs)
 
     @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     if basis.model.spin_polarization == :collinear

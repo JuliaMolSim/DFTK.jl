@@ -64,6 +64,7 @@ struct PlaneWaveBasis{T <: Real}
     ksymops::Vector{Vector{SymOp}}
 
     mpi_kcomm::MPI.Comm  # communicator for the kpoints distribution
+    krange_thisproc::Vector{Int}
 
     # fft_size defines both the G basis on which densities and
     # potentials are expanded, and the real-space grid
@@ -84,6 +85,9 @@ struct PlaneWaveBasis{T <: Real}
     # Independent of the `use_symmetry` option
     symmetries::Vector{SymOp}
 end
+# prevent broadcast on pwbasis
+import Base.Broadcast.broadcastable
+Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 
 # Default printing is just too verbose TODO This is too spartanic
 Base.show(io::IO, basis::PlaneWaveBasis) =
@@ -126,9 +130,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
                                 kcoords::AbstractVector, ksymops, symmetries=nothing;
                                 fft_size=nothing, variational=true,
                                 optimize_fft_size=false, supersampling=2) where {T <: Real}
-    # need to initialize first thing, since we do MPI.Allreduce even in the non-MPI case
-    ## TODO look at interaction between MPI and threads
-    MPI.Initialized() || MPI.Init()
+    mpi_ensure_initialized()
     if variational
         @assert Ecut > 0
         if fft_size === nothing
@@ -189,27 +191,37 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     my_rank = MPI.Comm_rank(mpi_comm)  # from 0 to n_procs-1
     # Right now we split only the kcoords: both spin channels have to be handled by the same process
     nkpt = length(kcoords)
-    nkpt_per_proc = div(nkpt, n_procs, RoundUp)
-    ibeg = my_rank * nkpt_per_proc + 1
-    iend = (my_rank+1) * nkpt_per_proc
-    if iend > nkpt
-        iend = nkpt  # last process is slacking off
-        # TODO optimize. Eg see
-        # https://stackoverflow.com/questions/15658145/how-to-share-work-roughly-evenly-between-processes-in-mpi-despite-the-array-size
+    if n_procs > nkpt
+        @warn "No point in trying to parallelize $nkpt kpoints over $n_procs processes; falling back to sequential"
+        # supporting this would require fixing a bunch of "reducing over empty collections not allowed" errors
+        mpi_comm = MPI.COMM_SELF # everybody talks with himself now: reduces are no-ops
+        krange_thisproc = 1:nkpt
+    else
+        nkpt_per_proc = div(nkpt, n_procs, RoundUp)
+        ibeg = my_rank * nkpt_per_proc + 1
+        iend = (my_rank+1) * nkpt_per_proc
+        if iend > nkpt
+            iend = nkpt  # last process is slacking off
+            # TODO optimize. Eg see
+            # https://stackoverflow.com/questions/15658145/how-to-share-work-roughly-evenly-between-processes-in-mpi-despite-the-array-size
+        end
+        krange_thisproc = ibeg:iend  # slice of the kcoords to be worked on by this process
+        # println("Process $(my_rank)/$(n_procs) computing $krange_thisproc")
+        @assert MPI.Allreduce(length(krange_thisproc), +, mpi_comm) == nkpt
     end
-    my_slice = ibeg:iend  # slice of the kcoords to be worked on by this process
-    # println("Process $(my_rank)/$(n_procs) computing $my_slice")
-    @assert MPI.Allreduce(length(my_slice), +, mpi_comm) == length(kcoords)
 
-    kcoords = kcoords[my_slice]
-    ksymops = ksymops[my_slice]
+    kcoords = kcoords[krange_thisproc]
+    ksymops = ksymops[krange_thisproc]
 
     # Build kpoint-specific basis. Notice that this also builds index mapping from the k-point-specific basis
     # to the global basis and thus the fft_size needs to be final at this point.
     kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
 
     # kpoints is now possibly twice the size of kcoords. Double it for spin
-    model.n_spin_components == 2 && (ksymops = vcat(ksymops, ksymops))
+    if model.n_spin_components == 2
+        ksymops = vcat(ksymops, ksymops)
+        krange_thisproc = vcat(krange_thisproc, nkpt .+ krange_thisproc)
+    end
 
     # Compute weights
     kweights = [length(symmetries) for symmetries in ksymops]
@@ -222,7 +234,8 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 
     basis = PlaneWaveBasis{T}(
         model, Ecut, kpoints,
-        kweights, ksymops, mpi_comm, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms, symmetries)
+        kweights, ksymops, mpi_comm, krange_thisproc,
+        fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms, symmetries)
     @assert length(kpoints) == length(kweights)
 
     # Instantiate terms
@@ -273,12 +286,19 @@ function PlaneWaveBasis(model::Model, Ecut::Number;
     PlaneWaveBasis(model, Ecut, kcoords, ksymops, symmetries; kwargs...)
 end
 
+mpi_sum(basis::PlaneWaveBasis, arr) = mpi_sum(arr, basis.mpi_kcomm)
+mpi_sum!(basis::PlaneWaveBasis, arr) = mpi_sum!(arr, basis.mpi_kcomm)
+mpi_min(basis::PlaneWaveBasis, arr) = mpi_min(arr, basis.mpi_kcomm)
+mpi_min!(basis::PlaneWaveBasis, arr) = mpi_min!(arr, basis.mpi_kcomm)
+mpi_max(basis::PlaneWaveBasis, arr) = mpi_max(arr, basis.mpi_kcomm)
+mpi_max!(basis::PlaneWaveBasis, arr) = mpi_max!(arr, basis.mpi_kcomm)
+
 """
 Sum an array over kpoints, taking weights into account
 """
 function weighted_ksum(basis, arr)
     res = sum(basis.kweights .* arr)
-    MPI.Allreduce(res, +, basis.mpi_kcomm)
+    mpi_sum(basis, res)
 end
 
 """

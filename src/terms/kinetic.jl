@@ -34,7 +34,7 @@ end
                   * real(dot(ψnk, term.kinetic_energies[ik] .* ψnk)))
         end
     end
-    E = MPI.Allreduce(E, +, basis.mpi_kcomm)
+    E = mpi_sum(basis, E)
 
     (E=E, ops=ops)
 end

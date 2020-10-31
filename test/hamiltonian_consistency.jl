@@ -43,6 +43,7 @@ function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8, kgrid=[1, 2,
 
             diff_predicted += 2 * basis.kweights[ik] * dψHψ
         end
+        diff_predicted = mpi_sum(basis, diff_predicted)
 
         err = abs(diff - diff_predicted)
         @test err < rtol * abs(E0.total) || err < atol

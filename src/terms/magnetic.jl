@@ -49,7 +49,7 @@ function ene_ops(term::TermMagnetic, ψ, occ; kwargs...)
             E += basis.kweights[ik] * occ[ik][iband] * real(dot(ψnk, ops[ik] * ψnk))
         end
     end
-    MPI.Allreduce(E, +, basis.mpi_kcomm)
+    E = mpi_sum(basis, E)
 
     (E=E, ops=ops)
 end

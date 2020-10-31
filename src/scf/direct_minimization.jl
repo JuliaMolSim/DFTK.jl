@@ -69,6 +69,10 @@ direct_minimization(basis::PlaneWaveBasis; kwargs...) = direct_minimization(basi
 function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                              prec_type=PreconditionerTPA,
                              optim_solver=Optim.LBFGS, tol=1e-6, kwargs...) where T
+    if mpi_nprocs() > 1
+        # need synchronization in Optim
+        error("Direct minimization with MPI is not supported yet")
+    end
     model = basis.model
     @assert model.spin_polarization in (:none, :spinless)
     @assert model.temperature == 0 # temperature is not yet supported

@@ -36,7 +36,7 @@ end
             E += basis.kweights[ik] * occ[ik][iband] * real(dot(Pψnk, term.ops[ik].D * Pψnk))
         end
     end
-    E = MPI.Allreduce(E, +, basis.mpi_kcomm)
+    E = mpi_sum(basis, E)
 
     (E=E, ops=term.ops)
 end
@@ -61,6 +61,7 @@ end
             fr = zeros(T, 3)
             for α = 1:3
                 tot_red_kpt_number = sum([length(symops) for symops in basis.ksymops])
+                tot_red_kpt_number = mpi_sum(basis, tot_red_kpt_number)
                 ind_red = 1
                 for (ik, kpt_irred) in enumerate(basis.kpoints)
                     # Here we need to do an explicit loop over
@@ -87,7 +88,7 @@ end
                         ind_red += 1
                     end
                 end
-                MPI.Allreduce.(fr, +, Ref(basis.mpi_kcomm))  # TODO take that out to gain latency
+                mpi_sum!(basis, fr)  # TODO take that out to gain latency
             end
             forces[iel][ir] += fr
         end
