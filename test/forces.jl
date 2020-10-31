@@ -9,7 +9,7 @@ include("testcases.jl")
         Ecut = 5
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => pos]
-        model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93)
+        model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93, spin_polarization=:collinear)
         basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
@@ -42,7 +42,7 @@ end
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => pos]
         model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93;
-                          temperature=0.03, smearing=smearing)
+                          temperature=0.03, smearing=smearing, spin_polarization=:collinear)
         # TODO Put kshift=[1/2, 0, 0] here later
         basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 1, 2], kshift=[0, 0, 0])
 
