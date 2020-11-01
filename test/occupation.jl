@@ -42,7 +42,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     occupation0, εF0 = find_occupation_bandgap(basis, energies)
     @test εHOMO < εF0 < εLUMO
-    @test weighted_ksum(sum.(occupation0)) ≈ model.n_electrons
+    @test DFTK.weighted_ksum(sum.(occupation0)) ≈ model.n_electrons
 
     # See that the electron count still works if we add temperature
     Ts = (0, 1e-6, .1, 1.0)

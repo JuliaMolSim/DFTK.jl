@@ -1,9 +1,9 @@
-# Timings and parallelisation
+# Timings and parallelization
 
-This section summarises the options DFTK offers
+This section summarizes the options DFTK offers
 to monitor and influence performance of the code.
 
-```@setup parallelisation
+```@setup parallelization
 using DFTK
 a = 10.26  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
@@ -17,12 +17,11 @@ kgrid = [2, 2, 2]
 Ecut = 5
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 
-import TimerOutputs
-TimerOutputs.reset_timer!(DFTK.timer)
+DFTK.reset_timer!(DFTK.timer)
 scfres = self_consistent_field(basis, tol=1e-8)
 ```
 
-## Built-in timing measurements
+## Timing measurements
 
 By default DFTK uses [TimerOutputs.jl](https://github.com/KristofferC/TimerOutputs.jl)
 to record timings, memory allocations and the number of calls
@@ -32,10 +31,8 @@ inside this datastructure, any timing measurement should first reset
 this timer before running the calculation of interest.
 
 For example to measure the timing of an SCF:
-```@example parallelisation
-import TimerOutputs
-
-TimerOutputs.reset_timer!(DFTK.timer)
+```@example parallelization
+DFTK.reset_timer!(DFTK.timer)
 scfres = self_consistent_field(basis, tol=1e-8)
 
 DFTK.timer
@@ -62,8 +59,18 @@ as a breakdown over individual routines.
     unless you set `DFTK_TIMING` to `"all"`. In this case you must not use
     Julia threading (see section below) or otherwise undefined behaviour results.
 
+## MPI
+DFTK uses MPI to distribute on kpoints only at the moment. This should be the most performant method of parallelization: if you have kpoints, start by disabling all threading and use this. Simply follow the instructions on [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and run DFTK under MPI:
+```
+mpiexecjl -np 16 julia myscript.jl  # use mpiexecjl (see MPI.jl docs) or make sure your mpiexec is the one used by julia
+```
 
-## Options to influence threading
+Issues and workarounds:
+- Printing is garbled, as usual with MPI. You can use `mpi_master() || (redirect_stdout(); redirect_stderr())` at the top of your script to disable printing on all processes but one.
+- This feature is still experimental and some routines (eg band structure and direct minimization) are not compatible with this yet.
+
+
+## Threading
 At the moment DFTK employs shared-memory parallelism
 using multiple levels of threading
 which distribute the workload
@@ -83,7 +90,7 @@ depend on both hardware and the problem
 (e.g. number of bands, ``k``-Points, FFT grid size).
 
 For the moment DFTK does not offer an automated selection mechanism
-of thread and parallelisation threading and just uses the Julia defaults.
+of thread and parallelization threading and just uses the Julia defaults.
 Since these are rarely good,
 users are advised to use the timing capabilities of DFTK
 to experiment with threading
@@ -102,7 +109,7 @@ The **recommended setting** for FFT threading with DFTK
 is therefore to only use moderate number of FFT threads,
 something like ``2`` or ``4`` and for smaller calculations
 disable FFT threading completely.
-To **enable parallelisation of FFTs** (which is by default disabled),
+To **enable parallelization of FFTs** (which is by default disabled),
 use
 ```
 using FFTW
@@ -112,7 +119,7 @@ where `N` is the number of threads you desire.
 
 
 ### BLAS threads
-All BLAS calls in Julia go through a parallelised OpenBlas
+All BLAS calls in Julia go through a parallelized OpenBlas
 or MKL (with [MKL.jl](https://github.com/JuliaComputing/MKL.jl).
 Generally threading in BLAS calls is far from optimal and
 the default settings can be pretty bad.
@@ -122,8 +129,8 @@ Still, BLAS calls typically take second place
 in terms of the share of runtime they make up (between 10% and 20%).
 Of note many of these do not take place on matrices of the size
 of the full FFT grid, but rather only in a subspace
-(e.g. orthogonalisation, Rayleigh-Ritz, ...)
-such that parallelisation is either anyway disabled by the BLAS library
+(e.g. orthogonalization, Rayleigh-Ritz, ...)
+such that parallelization is either anyway disabled by the BLAS library
 or not very effective.
 
 The **recommendation** is therefore to use the same number of threads
@@ -140,10 +147,9 @@ Int(ccall((BLAS.@blasfunc(openblas_get_num_threads), BLAS.libblas), Cint, ()))
 ```
 or (from Julia 1.6) simply `BLAS.get_num_threads()`.
 
-
 ### Julia threads
 On top of FFT and BLAS threading DFTK uses Julia threads (`Thread.@threads`)
-in a couple of places to parallelise over `k`-Points (density computation)
+in a couple of places to parallelize over `k`-Points (density computation)
 or bands (Hamiltonian application).
 The number of threads used for these aspects is controlled
 by the *environment variable* `JULIA_NUM_THREADS`.
@@ -151,10 +157,10 @@ To influence the number of Julia threads used, set this variable *before*
 starting the Julia process.
 
 Notice, that Julia threading is applied on top of FFTW and BLAS threading
-in the sense that the regions parallelised by Julia threads
-again use parallelised FFT and BLAS calls,
+in the sense that the regions parallelized by Julia threads
+again use parallelized FFT and BLAS calls,
 such that the effects are not orthogonal.
-Compared to FFT and BLAS threading the parallelisation implied by using Julia
+Compared to FFT and BLAS threading the parallelization implied by using Julia
 threads tends to scale better,
 but its effectiveness is limited by the number of bands and
 the number of irreducible `k`-Points used in the calculation.
@@ -175,5 +181,5 @@ To **check the number of Julia threads** use `Threads.nthreads()`.
 | large            |    2  |    4  |     4 |
 
 Note, that this picture is likely to change in future versions
-of DFTK and Julia as improvements to threading and parallelisation
+of DFTK and Julia as improvements to threading and parallelization
 are made in the language or the code.

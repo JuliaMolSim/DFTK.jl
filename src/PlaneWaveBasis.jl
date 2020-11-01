@@ -64,7 +64,8 @@ struct PlaneWaveBasis{T <: Real}
     ksymops::Vector{Vector{SymOp}}
 
     comm_k::MPI.Comm  # communicator for the kpoints distribution
-    krange_thisproc::Vector{Int}
+    krange_thisproc::Vector{Int}  # indices of kpoints treated explicitly by this
+                                  # processor in the global kcoords array
 
     # fft_size defines both the G basis on which densities and
     # potentials are expanded, and the real-space grid
