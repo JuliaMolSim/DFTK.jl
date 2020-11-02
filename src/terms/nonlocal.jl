@@ -23,7 +23,7 @@ struct TermAtomicNonlocal <: Term
     ops::Vector{NonlocalOperator}
 end
 
-function ene_ops(term::TermAtomicNonlocal, ψ, occ; kwargs...)
+@timing "ene_ops: nonlocal" function ene_ops(term::TermAtomicNonlocal, ψ, occ; kwargs...)
     basis = term.basis
     T = eltype(basis)
     ψ === nothing && return (E=T(Inf), ops=term.ops)
@@ -40,7 +40,7 @@ function ene_ops(term::TermAtomicNonlocal, ψ, occ; kwargs...)
     (E=E, ops=term.ops)
 end
 
-@timing "forces_nonlocal" function forces(term::TermAtomicNonlocal, ψ, occ; kwargs...)
+@timing "forces: nonlocal" function forces(term::TermAtomicNonlocal, ψ, occ; kwargs...)
     basis = term.basis
     T = eltype(basis)
     atoms = basis.model.atoms
