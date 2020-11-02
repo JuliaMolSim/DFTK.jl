@@ -95,7 +95,7 @@ function (E::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     TermAtomicLocal(basis, real(pot_real))
 end
 
-@timing "forces_local" function forces(term::TermAtomicLocal, ψ, occ; ρ, kwargs...)
+@timing "forces: local" function forces(term::TermAtomicLocal, ψ, occ; ρ, kwargs...)
     T = eltype(term.basis)
     atoms = term.basis.model.atoms
     recip_lattice = term.basis.model.recip_lattice
