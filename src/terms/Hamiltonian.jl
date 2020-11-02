@@ -82,6 +82,7 @@ Base.:*(H::HamiltonianBlock, ψ) = mul!(similar(ψ), H, ψ)
     kpt = H.kpoint
     nband = size(ψ, 2)
 
+    @timing "kinetic+local" begin
     Threads.@threads for iband = 1:nband
         tid = Threads.threadid()
         ψ_real = H.scratch.ψ_reals[tid]
@@ -92,13 +93,10 @@ Base.:*(H::HamiltonianBlock, ψ) = mul!(similar(ψ), H, ψ)
         r_to_G!(Hψ[:, iband], basis, kpt, ψ_real)  # overwrites ψ_real
         Hψ[:, iband] .+= fourier_op.multiplier .* ψ[:, iband]
     end
-
-    # Apply the nonlocal operators
-    for op in H.optimized_operators
-        if op isa NonlocalOperator
-            apply!((fourier=Hψ, real=nothing), op, (fourier=ψ, real=nothing))
-        end
     end
+
+    # Apply the nonlocal operator
+    @timing "nonlocal" apply!((fourier=Hψ, real=nothing), nonlocal_op, (fourier=ψ, real=nothing))
 
     Hψ
 end
