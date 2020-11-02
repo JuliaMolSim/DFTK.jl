@@ -32,7 +32,7 @@ function compute_partial_density!(ρ, basis, kpt, ψk, occupation)
     end
 
     # FFT and return
-    r_to_G!(ρ, basis, complex.(ρk_real))
+    r_to_G!(ρ, basis, complex(ρk_real))
 end
 
 
