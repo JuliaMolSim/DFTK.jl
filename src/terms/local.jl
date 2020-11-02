@@ -6,7 +6,7 @@
 # two spin components.
 abstract type TermLocalPotential <: Term end
 
-function ene_ops(term::TermLocalPotential, ψ, occ; kwargs...)
+@timing "ene_ops: local" function ene_ops(term::TermLocalPotential, ψ, occ; kwargs...)
     basis = term.basis
     T = eltype(basis)
 
