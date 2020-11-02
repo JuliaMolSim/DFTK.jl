@@ -22,7 +22,7 @@ struct TermXc <: Term
     scaling_factor::Real
 end
 
-function ene_ops(term::TermXc, ψ, occ; ρ, ρspin=nothing, kwargs...)
+@timing "ene_ops: xc" function ene_ops(term::TermXc, ψ, occ; ρ, ρspin=nothing, kwargs...)
     basis = term.basis
     T     = eltype(basis)
     model = basis.model

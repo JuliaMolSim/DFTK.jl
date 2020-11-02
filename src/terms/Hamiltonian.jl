@@ -87,7 +87,7 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
 # (eg the density ρ)
 @timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occ; kwargs...)
     # it: index into terms, ik: index into kpoints
-    ene_ops_arr = [ene_ops(term, ψ, occ; kwargs...) for term in basis.terms]
+    @timing "ene_ops" ene_ops_arr = [ene_ops(term, ψ, occ; kwargs...) for term in basis.terms]
     energies    = [eh.E for eh in ene_ops_arr]
     operators   = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
 

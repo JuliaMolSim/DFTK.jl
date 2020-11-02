@@ -123,7 +123,7 @@ include("testcases.jl")
                     end  # iband
 
                     n_ρ += 1
-                    ρsum .+= DFTK.compute_partial_density(ham_ir.basis, Skpoint, ψSk, occ_ir[ik])
+                    ρsum .+= DFTK.compute_partial_density!(copy(ρsum), ham_ir.basis, Skpoint, ψSk, occ_ir[ik])
                 end  # (S, τ)
             end  # k
 
