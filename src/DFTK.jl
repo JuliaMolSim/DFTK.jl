@@ -174,6 +174,8 @@ export apply_χ0
 include("postprocess/chi0.jl")
 export compute_current
 include("postprocess/current.jl")
+export compute_dipole_moment
+include("postprocess/dipole.jl")
 
 # ForwardDiff workarounds
 include("workarounds/dummy_inplace_fft.jl")

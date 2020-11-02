@@ -358,10 +358,18 @@ function r_vectors(basis::PlaneWaveBasis{T}) where T
     N1, N2, N3 = basis.fft_size
     (Vec3{T}(T(i-1) / N1, T(j-1) / N2, T(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3)
 end
+
 """
 Return the list of r vectors, in cartesian coordinates.
 """
 r_vectors_cart(basis::PlaneWaveBasis) = (basis.model.lattice * r for r in r_vectors(basis))
+
+
+function r_values(basis::PlaneWaveBasis{T}, α::Int) where T
+    N = basis.fft_size[α]
+    @. T(0:N-1) / N
+end
+
 
 """
 Return the index tuple `I` such that `G_vectors(basis)[I] == G`

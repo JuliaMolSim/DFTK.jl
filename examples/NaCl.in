@@ -1,0 +1,78 @@
+# NaCl molecule in a big box
+# test of the berryphase with only 1 k-point, line of k-points and full k-point mesh
+# this test does not work with gfortran 4.3.2 compiler
+
+
+ndtset    3
+
+#convergence parameters
+ecut      10
+nband     6
+toldff    1.0d-8
+nstep     10
+
+#box
+acell     20 10 10
+rprim     1 0 0  0 1 0  0 0 1
+
+#atoms
+natom     2
+ntypat    2
+znucl     11 17
+typat     1 2
+xcart    -1.25  0.0 0.0
+          1.25  0.0 0.0   Angstrom
+
+#k-point mesh
+#first dataset : only 1 k-point
+kptopt1   1
+ngkpt1     1 1 1
+nshiftk1  1
+shiftk1   0.0 0.0 0.0
+prtdipole1 1          # print out dipole of molecule
+
+#second dataset : line of k-points
+kptopt2   1
+ngkpt2    4 1 1
+
+#third dataset : full mesh of k-points
+kptopt3   1
+ngkpt3    4 4 4
+nshiftk3  1
+shiftk3   0.5 0.5 0.5
+
+# Berry phase calculation of the polarization
+berryopt -1
+rfdir 1 1 0  # there is polarisation in the first direction only ;
+             # no meaning in computing the polarisation in the third direction for testing purpose.
+
+
+ pp_dirpath "$ABI_PSPDIR"
+ pseudos "PseudosTM_pwteter/11na.pspnc, PseudosTM_pwteter/17cl.pspnc"
+
+#%%<BEGIN TEST_INFO>
+#%% [setup]
+#%% executable = abinit
+#%% [files]
+#%% files_to_test = 
+#%%   t06.out, tolnlines = 0, tolabs = 0.0, tolrel = 0.0, fld_options = -medium
+#%% [paral_info]
+#%% max_nprocs = 1
+#%% [extra_info]
+#%% authors = Unknown
+#%% keywords = NC, DFPT
+#%% description = 
+#%%   NaCl molecule in a big box.
+#%%   Test of the computation of the polarisation with the routine berryphase_new,
+#%%   for different k-point grids : only 1 k-point, a line of k-points, and a full mesh of k-points.
+#%%   Results with acell 20 10 10 are : -9.727 C/m^2, -9.975 C/m^2, -9.503 C/m^2
+#%%   multiplied by the volume (in a.u.), gives -19454, -19950, -19006
+#%%   Test provided by S. Leroux
+#%%   Going to bigger cells make these results converge to the same value :
+#%%   Results with acell 30 20 20 are : -1.771 C/m^2, -1.746 C/m^2, -1.747 C/m^2
+#%%   multiplied by the volume (in a.u.), gives -21252, -20952, -20964
+#%%   Results with acell 40 20 20 are : -1.3167C/m^2, -1.3057C/m^2, -1.3062C/m^2
+#%%   multiplied by the volume (in a.u.), gives -21067, -20891, -20899
+#%%   Results with acell 50 20 20 are : -1.0502C/m^2, -1.0444C/m^2, -1.0450C/m^2
+#%%   multiplied by the volume (in a.u.), gives -21004, -20888, -20900
+#%%<END TEST_INFO>

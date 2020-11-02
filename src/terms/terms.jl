@@ -56,6 +56,9 @@ breaks_symmetries(term_builder::Magnetic) = true
 include("anyonic.jl")
 breaks_symmetries(term_builder::Anyonic) = true
 
+include("dipole_correction.jl")
+
+
 # forces computes either nothing or an array forces[el][at][α]
 compute_forces(term::Term, ψ, occ; kwargs...) = nothing  # by default, no force
 
