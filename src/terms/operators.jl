@@ -133,7 +133,7 @@ Matrix(op::MagneticFieldOperator) = error("Not implemented")
 function optimize_operators_(ops)
     RSmults = [op for op in ops if op isa RealSpaceMultiplication]
     isempty(RSmults) && return ops
-    nonRSmults = [op for op in ops if !(op isa RealSpaceMultiplication)]
+    nonRSmults = [op for op in ops if !(op isa RealSpaceMultiplication) && !(op isa NoopOperator)]
     combined_RSmults = RealSpaceMultiplication(RSmults[1].basis,
                                                RSmults[1].kpoint,
                                                sum([op.potential for op in RSmults]))

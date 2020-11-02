@@ -378,7 +378,7 @@ end
 
     # Truncate
     fill!(f_fourier, 0)
-    f_fourier[:] = f_real[kpt.mapping]
+    f_fourier .= view(f_real, kpt.mapping)
 end
 
 """

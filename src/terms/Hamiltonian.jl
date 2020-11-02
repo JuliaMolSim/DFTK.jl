@@ -26,13 +26,18 @@ struct Hamiltonian
     blocks::Vector{HamiltonianBlock}
 end
 
+
 # Loop through bands, IFFT to get ψ in real space, loop through terms, FFT and accumulate into Hψ
-# Do this band by band to conserve memory
-# As an optimization we special-case nonlocal operators to apply them
-# instead on the full block and benefit from BLAS3
 @views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
                                                                         H::HamiltonianBlock,
                                                                         ψ::AbstractArray)
+    if length(H.optimized_operators) == 3 &&
+        any(o -> o isa FourierMultiplication, H.optimized_operators) &&
+        any(o -> o isa RealSpaceMultiplication, H.optimized_operators) &&
+        any(o -> o isa NonlocalOperator, H.optimized_operators)
+        return mul!_fast(Hψ, H, ψ)
+    end
+
     basis = H.basis
     kpt = H.kpoint
     nband = size(ψ, 2)
@@ -51,15 +56,41 @@ end
         Hψ_fourier .= 0
         G_to_r!(ψ_real, basis, kpt, ψ[:, iband])
         for op in H.optimized_operators
-            if !(op isa NonlocalOperator)
-                apply!((fourier=Hψ_fourier, real=Hψ_real),
-                       op,
-                       (fourier=ψ[:, iband], real=ψ_real))
-            end
+            apply!((fourier=Hψ_fourier, real=Hψ_real),
+                   op,
+                   (fourier=ψ[:, iband], real=ψ_real))
         end
         Hψ[:, iband] .= Hψ_fourier
         r_to_G!(Hψ_fourier, basis, kpt, Hψ_real)
         Hψ[:, iband] .+= Hψ_fourier
+    end
+
+    Hψ
+end
+Base.:*(H::HamiltonianBlock, ψ) = mul!(similar(ψ), H, ψ)
+
+# Fast version, specialized on DFT models with just 3 operators: real, fourier and nonlocal
+# Minimizes the number of allocations
+@views function mul!_fast(Hψ::AbstractArray,
+                          H::HamiltonianBlock,
+                          ψ::AbstractArray)
+    fourier_op = only(filter(o -> o isa FourierMultiplication, H.optimized_operators))
+    real_op = only(filter(o -> o isa RealSpaceMultiplication, H.optimized_operators))
+    nonlocal_op = only(filter(o -> o isa NonlocalOperator, H.optimized_operators))
+
+    basis = H.basis
+    kpt = H.kpoint
+    nband = size(ψ, 2)
+
+    Threads.@threads for iband = 1:nband
+        tid = Threads.threadid()
+        ψ_real = H.scratch.ψ_reals[tid]
+        Hψ_real = H.scratch.Hψ_reals[tid]
+
+        G_to_r!(ψ_real, basis, kpt, ψ[:, iband])
+        ψ_real .*= real_op.potential
+        r_to_G!(Hψ[:, iband], basis, kpt, ψ_real)  # overwrites ψ_real
+        Hψ[:, iband] .+= fourier_op.multiplier .* ψ[:, iband]
     end
 
     # Apply the nonlocal operators
@@ -71,7 +102,6 @@ end
 
     Hψ
 end
-Base.:*(H::HamiltonianBlock, ψ) = mul!(similar(ψ), H, ψ)
 
 function LinearAlgebra.mul!(Hψ, H::Hamiltonian, ψ)
     for ik = 1:length(H.basis.kpoints)
