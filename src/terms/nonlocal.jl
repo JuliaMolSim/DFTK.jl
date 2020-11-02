@@ -81,7 +81,8 @@ end
 
                         dHψSk = P * (C * (dPdR' * ψSk))
                         for iband = 1:size(ψ[ik], 2)
-                            @views fr[α] -= (occ[ik][iband] / tot_red_kpt_number * basis.model.n_spin_components
+                            @views fr[α] -= (occ[ik][iband] / tot_red_kpt_number
+                                             * basis.model.n_spin_components
                                              * 2real(  dot(ψSk[:, iband], dHψSk[:, iband])))
                         end  #iband
                     end  #isym

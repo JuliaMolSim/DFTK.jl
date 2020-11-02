@@ -86,6 +86,7 @@ struct PlaneWaveBasis{T <: Real}
     # Independent of the `use_symmetry` option
     symmetries::Vector{SymOp}
 end
+
 # prevent broadcast on pwbasis
 import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
@@ -121,7 +122,7 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
         end
     end
 
-    vcat(kpoints_per_spin...) # put all spin up first, then all spin down
+    vcat(kpoints_per_spin...)  # put all spin up first, then all spin down
 end
 build_kpoints(basis::PlaneWaveBasis, kcoords) =
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
