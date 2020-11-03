@@ -30,7 +30,8 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
     # sum_i n_i = n_electrons
     # If temperature is zero, (εi-εF)/T = ±∞.
     # The occupation function is required to give 1 and 0 respectively in these cases.
-    compute_occupation(εF) = [filled_occ * Smearing.occupation.(smearing, (ε .- εF) ./ temperature) for ε in energies]
+    compute_occupation(εF) = [filled_occ * Smearing.occupation.(smearing, (ε .- εF) ./ temperature)
+                              for ε in energies]
     compute_n_elec(εF) = weighted_ksum(basis, sum.(compute_occupation(εF)))
 
     if filled_occ * weighted_ksum(basis, length.(energies)) < (n_electrons - sqrt(eps(T)))

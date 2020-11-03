@@ -281,14 +281,6 @@ function PlaneWaveBasis(model::Model, Ecut::Number;
 end
 
 """
-Sum an array over kpoints, taking weights into account
-"""
-function weighted_ksum(basis, arr)
-    res = sum(basis.kweights .* arr)
-    mpi_sum(res, basis.comm_kpts)
-end
-
-"""
 Return the list of wave vectors (integer coordinates) for the cubic basis set.
 """
 function G_vectors(fft_size)
@@ -351,6 +343,15 @@ function krange_spin(basis::PlaneWaveBasis, spin::Integer)
     spinlength = div(length(basis.kpoints), n_spin)
     (1 + (spin - 1) * spinlength):(spin * spinlength)
 end
+
+"""
+Sum an array over kpoints, taking weights into account
+"""
+function weighted_ksum(basis::PlaneWaveBasis, array)
+    res = sum(@. basis.kweights * array)
+    mpi_sum(res, basis.comm_kpts)
+end
+
 
 #
 # Perform (i)FFTs.

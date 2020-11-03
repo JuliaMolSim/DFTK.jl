@@ -31,8 +31,8 @@ export mpi_min
 export mpi_min!
 export mpi_max
 export mpi_max!
-export mpi_average
-export mpi_average!
+export mpi_mean
+export mpi_mean!
 include("common/mpi.jl")
 export Smearing
 include("Smearing.jl")
