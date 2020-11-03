@@ -79,7 +79,7 @@ end
 # Fast version, specialized on DFT models with just 3 operators: real, fourier and nonlocal
 # Minimizes the number of allocations
 @views function fast_hblock_mul!(Hψ::AbstractArray,
-                                 fast_hblock,
+                                 fast_hblock::NamedTuple,
                                  ψ::AbstractArray)
     H = fast_hblock.H
     basis = H.basis
