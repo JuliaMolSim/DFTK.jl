@@ -44,6 +44,5 @@ function mpi_split_work(comm, N)
         # TODO optimize this better. Eg see
         # https://stackoverflow.com/questions/15658145/how-to-share-work-roughly-evenly-between-processes-in-mpi-despite-the-array-size
     end
-    # println("Process $(my_rank+1)/$(nprocs) computing $(ibeg:iend)")
     ibeg:iend
 end

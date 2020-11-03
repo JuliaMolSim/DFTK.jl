@@ -60,14 +60,20 @@ as a breakdown over individual routines.
     Julia threading (see section below) or otherwise undefined behaviour results.
 
 ## MPI
-DFTK uses MPI to distribute on kpoints only at the moment. This should be the most performant method of parallelization: if you have kpoints, start by disabling all threading and use this. Simply follow the instructions on [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and run DFTK under MPI:
+DFTK uses MPI to distribute on kpoints only at the moment. This should be the
+most performant method of parallelization: if you have kpoints, start by disabling
+all threading and use this. Simply follow the instructions on
+[MPI.jl](https://github.com/JuliaParallel/MPI.jl) and run DFTK under MPI:
 ```
 mpiexecjl -np 16 julia myscript.jl  # use mpiexecjl (see MPI.jl docs) or make sure your mpiexec is the one used by julia
 ```
 
 Issues and workarounds:
-- Printing is garbled, as usual with MPI. You can use `mpi_master() || (redirect_stdout(); redirect_stderr())` at the top of your script to disable printing on all processes but one.
-- This feature is still experimental and some routines (eg band structure and direct minimization) are not compatible with this yet.
+- Printing is garbled, as usual with MPI. You can use `mpi_master() ||
+  (redirect_stdout(); redirect_stderr())` at the top of your script to
+  disable printing on all processes but one.
+- This feature is still experimental and some routines (eg band
+  structure and direct minimization) are not compatible with this yet.
 
 
 ## Threading

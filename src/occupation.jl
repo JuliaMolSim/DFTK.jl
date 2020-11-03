@@ -33,7 +33,7 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
     compute_occupation(εF) = [filled_occ * Smearing.occupation.(smearing, (ε .- εF) ./ temperature) for ε in energies]
     compute_n_elec(εF) = weighted_ksum(basis, sum.(compute_occupation(εF)))
 
-    if filled_occ*weighted_ksum(basis, length.(energies)) < n_electrons - sqrt(eps(T))
+    if filled_occ * weighted_ksum(basis, length.(energies)) < (n_electrons - sqrt(eps(T)))
         error("Could not obtain required number of electrons by filling every state. " *
               "Increase n_bands.")
     end
