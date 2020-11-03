@@ -2,7 +2,7 @@ using Test
 using DFTK
 using Random
 using MPI
-using Pkg
+import Pkg
 
 #
 # This test suite supports test arguments. For example:
@@ -23,17 +23,16 @@ const FAST_TESTS = ifelse("CI" in keys(ENV), parse(Bool, get(ENV, "CI", "false")
 TAGS = filter(e -> !(e in ["fast"]), ARGS)
 isempty(TAGS) && (TAGS = ["all"])
 
+# Precompile everything on master process
+# (and stall other processes for that time)
+mpi_master() && Pkg.precompile()
+MPI.Barrier(MPI.COMM_WORLD)
+
 if FAST_TESTS
     println("   Running fast tests (TAGS = $(join(TAGS, ", "))).")
 else
     println("   Running tests (TAGS = $(join(TAGS, ", "))).")
 end
-
-# Precompile everything on master process
-if mpi_master()
-    Pkg.precompile()
-end
-MPI.Barrier(MPI.COMM_WORLD)
 
 # Initialize seed
 Random.seed!(0)
