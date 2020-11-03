@@ -72,9 +72,10 @@ struct PlaneWaveBasis{T <: Real}
     ipFFT  # in-place FFT plan
     opIFFT
     ipIFFT
-    opFFT_unnormalized   # unnormalized plans
+    # These are unnormalized plans (no normalization at all: BFFT*FFT != I)
+    opFFT_unnormalized
     ipFFT_unnormalized
-    opBFFT_unnormalized  # "backward" FFT in FFTW terminology: no normalization at all
+    opBFFT_unnormalized  # unnormalized IFFT, "backward" FFT in FFTW terminology
     ipBFFT_unnormalized
 
     # Instantiated terms (<: Term), that contain a backreference to basis.
