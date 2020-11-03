@@ -63,7 +63,7 @@ struct PlaneWaveBasis{T <: Real}
     # mapping to points in the reducible BZ
     ksymops::Vector{Vector{SymOp}}
 
-    comm_k::MPI.Comm  # communicator for the kpoints distribution
+    comm_k::MPI.Comm              # communicator for the kpoints distribution
     krange_thisproc::Vector{Int}  # indices of kpoints treated explicitly by this
                                   # processor in the global kcoords array
 
