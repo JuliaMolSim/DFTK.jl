@@ -31,6 +31,7 @@ end
 @views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
                                                                         H::HamiltonianBlock,
                                                                         ψ::AbstractArray)
+    # Special-case of DFT Hamiltonian: go to a fast path
     if length(H.optimized_operators) == 3 &&
         any(o -> o isa FourierMultiplication, H.optimized_operators) &&
         any(o -> o isa RealSpaceMultiplication, H.optimized_operators) &&
@@ -96,7 +97,9 @@ Base.:*(H::HamiltonianBlock, ψ) = mul!(similar(ψ), H, ψ)
     end
 
     # Apply the nonlocal operator
-    @timing "nonlocal" apply!((fourier=Hψ, real=nothing), nonlocal_op, (fourier=ψ, real=nothing))
+    @timing "nonlocal" begin
+        apply!((fourier=Hψ, real=nothing), nonlocal_op, (fourier=ψ, real=nothing))
+    end
 
     Hψ
 end
