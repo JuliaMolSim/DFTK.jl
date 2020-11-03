@@ -191,17 +191,19 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 
     # At this point, select the subset of kpoints to be computed by this processor
     mpi_comm = MPI.COMM_WORLD
-    nprocs = mpi_nprocs(mpi_comm)
+    n_procs   = mpi_nprocs(mpi_comm)
     # Right now we split only the kcoords: both spin channels have to be handled by the same process
-    nkpt = length(kcoords)
-    if nprocs > nkpt
-        @warn "No point in trying to parallelize $nkpt kpoints over $nprocs processes; falling back to sequential"
-        # supporting this would require fixing a bunch of "reducing over empty collections not allowed" errors
-        mpi_comm = MPI.COMM_SELF # everybody talks with himself now: reduces are no-ops
-        krange_thisproc = 1:nkpt
+    n_kpt = length(kcoords)
+    if n_procs > n_kpt
+        @warn("No point in trying to parallelize $n_kpt kpoints over $n_procs processes; " *
+              "falling back to sequential")
+        # Supporting this would require fixing a bunch of "reducing over empty collections" errors
+        mpi_comm = MPI.COMM_SELF  # everybody talks with himself now: Reduces are no-ops
+        krange_thisproc = 1:n_kpt
     else
-        krange_thisproc = mpi_split_work(mpi_comm, nkpt)  # get the slice of 1:nkpt handled by this process
-        @assert mpi_sum(length(krange_thisproc), mpi_comm) == nkpt
+        # get the slice of 1:n_kpt handled by this process
+        krange_thisproc = mpi_split_work(mpi_comm, n_kpt)
+        @assert mpi_sum(length(krange_thisproc), mpi_comm) == n_kpt
     end
 
     kcoords = kcoords[krange_thisproc]
@@ -214,7 +216,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     # kpoints is now possibly twice the size of kcoords. Double it for spin
     if model.n_spin_components == 2
         ksymops = vcat(ksymops, ksymops)
-        krange_thisproc = vcat(krange_thisproc, nkpt .+ krange_thisproc)
+        krange_thisproc = vcat(krange_thisproc, n_kpt .+ krange_thisproc)
     end
 
     # Compute weights

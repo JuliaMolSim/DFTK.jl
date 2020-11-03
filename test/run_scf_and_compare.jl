@@ -8,18 +8,18 @@ function run_scf_and_compare(T, basis, ref_evals, ref_etot;
     kpt_done = zeros(Bool, n_kpt)
 
     scfres = self_consistent_field(basis; tol=scf_tol, n_bands=n_bands, kwargs...)
-    for ik in basis.krange_thisproc
+    for (ik, ik_global) in enumerate(basis.krange_thisproc)
         @test eltype(scfres.eigenvalues[ik]) == T
         @test eltype(scfres.ψ[ik]) == Complex{T}
-        # println(ik, "  ", abs.(ref_evals[ik] - scfres.eigenvalues[ik][1:n_bands]))
+        # println(ik_global, "  ", abs.(ref_evals[ik] - scfres.eigenvalues[ik][1:n_bands]))
     end
-    for ik in basis.krange_thisproc
+    for (ik, ik_global) in enumerate(basis.krange_thisproc)
         # Ignore last few bands, because these eigenvalues are hardest to converge
         # and typically a bit random and unstable in the LOBPCG
-        diff = abs.(ref_evals[ik] - scfres.eigenvalues[ik][1:n_bands])
+        diff = abs.(ref_evals[ik_global] - scfres.eigenvalues[ik][1:n_bands])
         @test maximum(diff[1:n_bands - n_ignored]) < test_tol
 
-        kpt_done[ik] = true
+        kpt_done[ik_global] = true
     end
     @test mpi_sum(sum(kpt_done), basis.comm_kpts) == n_kpt
 

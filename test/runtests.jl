@@ -1,9 +1,11 @@
 using Test
 using DFTK
 using Random
+using MPI
+using Pkg
 
 #
-# This test suite test arguments. For example:
+# This test suite supports test arguments. For example:
 #     Pkg.test("DFTK"; test_args = ["fast"])
 # only runs the "fast" tests (i.e. not the expensive ones)
 #     Pkg.test("DFTK"; test_args = ["example"])
@@ -26,6 +28,12 @@ if FAST_TESTS
 else
     println("   Running tests (TAGS = $(join(TAGS, ", "))).")
 end
+
+# Precompile everything on master process
+if mpi_master()
+    Pkg.precompile()
+end
+MPI.Barrier(MPI.COMM_WORLD)
 
 # Initialize seed
 Random.seed!(0)
