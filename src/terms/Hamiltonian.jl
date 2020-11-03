@@ -38,6 +38,7 @@ end
     fh !== nothing && return fast_hblock_mul!(Hψ, fh, ψ)
 
     basis = H.basis
+    T = eltype(basis)
     kpt = H.kpoint
     nband = size(ψ, 2)
 
