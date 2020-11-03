@@ -28,6 +28,8 @@ end
 
 
 # Loop through bands, IFFT to get ψ in real space, loop through terms, FFT and accumulate into Hψ
+# This is a fallback function that works for all hamiltonians;
+# for "usual cases", there is a faster implementation below
 @views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
                                                                         H::HamiltonianBlock,
                                                                         ψ::AbstractArray)
@@ -39,16 +41,12 @@ end
     kpt = H.kpoint
     nband = size(ψ, 2)
 
-    # Allocate another scratch array:
-    Hψ_fouriers = [similar(Hψ[:, 1]) for tid = 1:Threads.nthreads()]
+    Hψ_fourier = similar(Hψ[:, 1])
+    ψ_real = zeros(complex(T), basis.fft_size...)
+    Hψ_real = zeros(complex(T), basis.fft_size...)
 
-    # take ψi, IFFT it to ψ_real, apply each term to Hψ_temp and Hψ_real, and add it to Hψi
-    Threads.@threads for iband = 1:nband
-        tid = Threads.threadid()
-        ψ_real = H.scratch.ψ_reals[tid]
-        Hψ_real = H.scratch.Hψ_reals[tid]
-        Hψ_fourier = Hψ_fouriers[tid]
-
+    # take ψi, IFFT it to ψ_real, apply each term to Hψ_fourier and Hψ_real, and add it to Hψ
+    for iband = 1:nband
         Hψ_real .= 0
         Hψ_fourier .= 0
         G_to_r!(ψ_real, basis, kpt, ψ[:, iband])
@@ -87,16 +85,15 @@ end
     nband = size(ψ, 2)
 
     @timing "kinetic+local" begin
-    Threads.@threads for iband = 1:nband
-        tid = Threads.threadid()
-        ψ_real = H.scratch.ψ_reals[tid]
-        Hψ_real = H.scratch.Hψ_reals[tid]
+        Threads.@threads for iband = 1:nband
+            tid = Threads.threadid()
+            ψ_real = H.scratch.ψ_reals[tid]
 
-        G_to_r!(ψ_real, basis, kpt, ψ[:, iband])
-        ψ_real .*= fast_hblock.real_op.potential
-        r_to_G!(Hψ[:, iband], basis, kpt, ψ_real)  # overwrites ψ_real
-        Hψ[:, iband] .+= fast_hblock.fourier_op.multiplier .* ψ[:, iband]
-    end
+            G_to_r!(ψ_real, basis, kpt, ψ[:, iband])
+            ψ_real .*= fast_hblock.real_op.potential
+            r_to_G!(Hψ[:, iband], basis, kpt, ψ_real)  # overwrites ψ_real
+            Hψ[:, iband] .+= fast_hblock.fourier_op.multiplier .* ψ[:, iband]
+        end
     end
 
     # Apply the nonlocal operator
@@ -144,7 +141,6 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
     T = eltype(basis)
     scratch = (
         ψ_reals=[zeros(complex(T), basis.fft_size...) for tid = 1:Threads.nthreads()],
-        Hψ_reals=[zeros(complex(T), basis.fft_size...) for tid = 1:Threads.nthreads()]
     )
 
     H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks, scratch)
