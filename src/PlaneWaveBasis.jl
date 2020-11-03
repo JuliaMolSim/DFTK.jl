@@ -383,7 +383,7 @@ NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
 end
 @timing_seq function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
                              kpt::Kpoint, f_real::AbstractArray3; skip_normalization=false)
-    plan = skip_normalization ? basis.ipBFFT_unnormalized : basis.ipFFT
+    plan = skip_normalization ? basis.ipFFT_unnormalized : basis.ipFFT
     @assert size(f_real) == basis.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
 
