@@ -1,8 +1,6 @@
 using Test
 using DFTK
 using Random
-using MPI
-import Pkg
 
 #
 # This test suite supports test arguments. For example:
@@ -22,11 +20,6 @@ const FAST_TESTS = ifelse("CI" in keys(ENV), parse(Bool, get(ENV, "CI", "false")
 # Tags supplied by the user ... filter out "fast" (already dealt with)
 TAGS = filter(e -> !(e in ["fast"]), ARGS)
 isempty(TAGS) && (TAGS = ["all"])
-
-# Precompile everything on master process
-# (and stall other processes for that time)
-mpi_master() && Pkg.precompile()
-MPI.Barrier(MPI.COMM_WORLD)
 
 if FAST_TESTS
     println("   Running fast tests (TAGS = $(join(TAGS, ", "))).")
