@@ -35,6 +35,8 @@ function ScfDefaultCallback()
         diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
         @printf "% 3d   %s   %s   %2.2e%s   % 3.1f \n" info.n_iter Estr ΔE Δρ Mstr diagiter
         prev_energies = info.energies
+
+        flush(stdout)
         info
     end
 end
