@@ -67,10 +67,15 @@ struct PlaneWaveBasis{T <: Real}
     fft_size::Tuple{Int, Int, Int}
 
     # Plans for forward and backward FFT
+    # These plans follow DFTK conventions (see above)
     opFFT  # out-of-place FFT plan
     ipFFT  # in-place FFT plan
     opIFFT
     ipIFFT
+    opFFT_unnormalized   # unnormalized plans
+    ipFFT_unnormalized
+    opBFFT_unnormalized  # "backward" FFT in FFTW terminology: no normalization at all
+    ipBFFT_unnormalized
 
     # Instantiated terms (<: Term), that contain a backreference to basis.
     # See Hamiltonian for high-level usage
@@ -155,16 +160,19 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     #      ... temporary workaround, see more details in fft_generic.jl
     fft_size = next_working_fft_size.(T, fft_size)
     fft_size = Tuple{Int, Int, Int}(fft_size)
-    ipFFT, opFFT = build_fft_plans(T, fft_size)
-
+    ipFFT_unnormalized, opFFT_unnormalized = build_fft_plans(T, fft_size)
+    # build non-normalized ("backward") plans by inverting them
+    # and then stripping off scaling
+    ipBFFT_unnormalized = inv(ipFFT_unnormalized).p
+    opBFFT_unnormalized = inv(opFFT_unnormalized).p
     # The FFT interface specifies that fft has no normalization, and
     # ifft has a normalization factor of 1/length (so that both
     # operations are inverse to each other). The convention we want is
     # ψ(r) = sum_G c_G e^iGr / sqrt(Ω)
     # so that the ifft is normalized by 1/sqrt(Ω). It follows that the
     # fft must be normalized by sqrt(Ω) / length
-    ipFFT *= sqrt(model.unit_cell_volume) / length(ipFFT)
-    opFFT *= sqrt(model.unit_cell_volume) / length(opFFT)
+    ipFFT = ipFFT_unnormalized * (sqrt(model.unit_cell_volume) / length(ipFFT_unnormalized))
+    opFFT = opFFT_unnormalized * (sqrt(model.unit_cell_volume) / length(opFFT_unnormalized))
     ipIFFT = inv(ipFFT)
     opIFFT = inv(opFFT)
 
@@ -193,7 +201,10 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     kpoints  = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
     basis = PlaneWaveBasis{T}(
         model, Ecut, kpoints,
-        kweights, ksymops, fft_size, opFFT, ipFFT, opIFFT, ipIFFT, terms, symmetries)
+        kweights, ksymops, fft_size,
+        opFFT, ipFFT, opIFFT, ipIFFT,
+        opFFT_unnormalized, ipFFT_unnormalized, opBFFT_unnormalized, ipBFFT_unnormalized,
+        terms, symmetries)
     @assert length(kpoints) == length(kweights)
 
     # Instantiate terms
@@ -331,7 +342,8 @@ In-place version of `G_to_r`.
     mul!(f_real, basis.opIFFT, f_fourier)
 end
 @timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                             kpt::Kpoint, f_fourier::AbstractVector)
+                             kpt::Kpoint, f_fourier::AbstractVector; skip_normalization=false)
+    plan = skip_normalization ? basis.ipBFFT_unnormalized : basis.ipIFFT
     @assert length(f_fourier) == length(kpt.mapping)
     @assert size(f_real) == basis.fft_size
 
@@ -340,7 +352,7 @@ end
     f_real[kpt.mapping] = f_fourier
 
     # Perform an FFT
-    mul!(f_real, basis.ipIFFT, f_real)
+    mul!(f_real, plan, f_real)
 end
 
 """
@@ -369,12 +381,13 @@ NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
     mul!(f_fourier, basis.opFFT, f_real)
 end
 @timing_seq function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
-                             kpt::Kpoint, f_real::AbstractArray3)
+                             kpt::Kpoint, f_real::AbstractArray3; skip_normalization=false)
+    plan = skip_normalization ? basis.ipBFFT_unnormalized : basis.ipFFT
     @assert size(f_real) == basis.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
 
     # FFT
-    mul!(f_real, basis.ipFFT, f_real)
+    mul!(f_real, plan, f_real)
 
     # Truncate
     f_fourier .= view(f_real, kpt.mapping)
