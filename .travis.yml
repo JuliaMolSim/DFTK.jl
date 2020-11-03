@@ -46,7 +46,7 @@ jobs:
         - julia -e '
           using Pkg; Pkg.build(); Pkg.precompile();
           using MPI; MPI.install_mpiexecjl();
-          Pkg.test(; test_args=["functionality"])
+          Pkg.test(; test_args=["quick"])
           '
         - $HOME/.julia/bin/mpiexecjl -np $MPI_NUM_PROCS julia --compiled-modules=no -e 'using Pkg; Pkg.test(coverage=true)'
       env: MPI_NUM_PROCS=2

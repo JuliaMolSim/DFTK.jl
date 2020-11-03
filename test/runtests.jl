@@ -32,6 +32,13 @@ Random.seed!(0)
 
 # Wrap in an outer testset to get a full report if one test fails
 @testset "DFTK.jl" begin
+    # Super quick tests
+    if "all" in TAGS || "quick" in TAGS
+        include("hydrogen_all_electron.jl")
+        include("silicon_lda.jl")
+        include("iron_pbe.jl")
+    end
+
     # Synthetic tests at the beginning, so it fails faster if
     # something has gone badly wrong
     if "all" in TAGS || "functionality" in TAGS
@@ -88,7 +95,7 @@ Random.seed!(0)
         include("checkpointing.jl")
     end
 
-    if "all" in TAGS
+    if "all" in TAGS && mpi_master()
         include("aqua.jl")
     end
 
