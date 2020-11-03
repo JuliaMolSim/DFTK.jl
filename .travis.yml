@@ -48,7 +48,7 @@ jobs:
           using MPI; MPI.install_mpiexecjl()
           '
         - wget https://raw.githubusercontent.com/JuliaParallel/MPI.jl/1f5df9d96de69a3186bb8f810b55f7e6acf22d82/bin/mpiexecjl -O ~/bin/mpiexecjl
-        - chown 755 ~/bin/mpiexecjl
+        - chmod 755 ~/bin/mpiexecjl
         - ~/bin/mpiexecjl -np $MPI_NUM_PROCS julia -e 'using Pkg; Pkg.test(coverage=true)'
         # - $HOME/.julia/bin/mpiexecjl -np $MPI_NUM_PROCS julia -e 'using Pkg; Pkg.test(coverage=true)'
       env: MPI_NUM_PROCS=2
