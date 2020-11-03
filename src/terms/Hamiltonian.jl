@@ -32,12 +32,8 @@ end
                                                                         H::HamiltonianBlock,
                                                                         ψ::AbstractArray)
     # Special-case of DFT Hamiltonian: go to a fast path
-    if length(H.optimized_operators) == 3 &&
-        any(o -> o isa FourierMultiplication, H.optimized_operators) &&
-        any(o -> o isa RealSpaceMultiplication, H.optimized_operators) &&
-        any(o -> o isa NonlocalOperator, H.optimized_operators)
-        return mul!_fast(Hψ, H, ψ)
-    end
+    fh = fast_hblock(H)
+    fh !== nothing && return fast_hblock_mul!(Hψ, fh, ψ)
 
     basis = H.basis
     kpt = H.kpoint
@@ -70,15 +66,22 @@ end
 end
 Base.:*(H::HamiltonianBlock, ψ) = mul!(similar(ψ), H, ψ)
 
+# Returns a fast path hamiltonian if eligible, nothing if not
+function fast_hblock(H::HamiltonianBlock)
+    length(H.optimized_operators) == 3 || return nothing
+    fourier_ops = filter(o -> o isa FourierMultiplication, H.optimized_operators)
+    real_ops = filter(o -> o isa RealSpaceMultiplication, H.optimized_operators)
+    nonlocal_ops = filter(o -> o isa NonlocalOperator, H.optimized_operators)
+    (length(fourier_ops) == length(real_ops) == length(nonlocal_ops) == 1) || return nothing
+    (fourier_op=only(fourier_ops), real_op=only(real_ops), nonlocal_op=only(nonlocal_ops), H=H)
+end
+
 # Fast version, specialized on DFT models with just 3 operators: real, fourier and nonlocal
 # Minimizes the number of allocations
-@views function mul!_fast(Hψ::AbstractArray,
-                          H::HamiltonianBlock,
-                          ψ::AbstractArray)
-    fourier_op = only(filter(o -> o isa FourierMultiplication, H.optimized_operators))
-    real_op = only(filter(o -> o isa RealSpaceMultiplication, H.optimized_operators))
-    nonlocal_op = only(filter(o -> o isa NonlocalOperator, H.optimized_operators))
-
+@views function fast_hblock_mul!(Hψ::AbstractArray,
+                                 fast_hblock,
+                                 ψ::AbstractArray)
+    H = fast_hblock.H
     basis = H.basis
     kpt = H.kpoint
     nband = size(ψ, 2)
@@ -90,15 +93,15 @@ Base.:*(H::HamiltonianBlock, ψ) = mul!(similar(ψ), H, ψ)
         Hψ_real = H.scratch.Hψ_reals[tid]
 
         G_to_r!(ψ_real, basis, kpt, ψ[:, iband])
-        ψ_real .*= real_op.potential
+        ψ_real .*= fast_hblock.real_op.potential
         r_to_G!(Hψ[:, iband], basis, kpt, ψ_real)  # overwrites ψ_real
-        Hψ[:, iband] .+= fourier_op.multiplier .* ψ[:, iband]
+        Hψ[:, iband] .+= fast_hblock.fourier_op.multiplier .* ψ[:, iband]
     end
     end
 
     # Apply the nonlocal operator
     @timing "nonlocal" begin
-        apply!((fourier=Hψ, real=nothing), nonlocal_op, (fourier=ψ, real=nothing))
+        apply!((fourier=Hψ, real=nothing), fast_hblock.nonlocal_op, (fourier=ψ, real=nothing))
     end
 
     Hψ
