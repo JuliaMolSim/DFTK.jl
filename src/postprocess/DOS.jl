@@ -45,7 +45,7 @@ function NOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
             N -= n_symeqk * Smearing.occupation_derivative(smearing, enred)
         end
     end
-    N = mpi_sum(N, basis.comm_k)
+    N = mpi_sum(N, basis.comm_kpts)
 end
 
 
@@ -68,7 +68,7 @@ function DOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
                   * Smearing.occupation_derivative(smearing, enred))
         end
     end
-    D = mpi_sum(D, basis.comm_k)
+    D = mpi_sum(D, basis.comm_kpts)
 end
 
 """

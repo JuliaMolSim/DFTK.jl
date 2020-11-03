@@ -63,7 +63,7 @@ struct PlaneWaveBasis{T <: Real}
     # mapping to points in the reducible BZ
     ksymops::Vector{Vector{SymOp}}
 
-    comm_k::MPI.Comm              # communicator for the kpoints distribution
+    comm_kpts::MPI.Comm           # communicator for the kpoints distribution
     krange_thisproc::Vector{Int}  # indices of kpoints treated explicitly by this
                                   # processor in the global kcoords array
 
@@ -285,7 +285,7 @@ Sum an array over kpoints, taking weights into account
 """
 function weighted_ksum(basis, arr)
     res = sum(basis.kweights .* arr)
-    mpi_sum(res, basis.comm_k)
+    mpi_sum(res, basis.comm_kpts)
 end
 
 """

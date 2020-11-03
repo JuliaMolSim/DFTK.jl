@@ -40,9 +40,9 @@ function find_occupation(basis::PlaneWaveBasis{T}, energies;
 
     # Get rough bounds to bracket εF
     min_ε = minimum(minimum.(energies)) - 1
-    min_ε = mpi_min(min_ε, basis.comm_k)
+    min_ε = mpi_min(min_ε, basis.comm_kpts)
     max_ε = maximum(maximum.(energies)) + 1
-    max_ε = mpi_max(max_ε, basis.comm_k)
+    max_ε = mpi_max(max_ε, basis.comm_kpts)
     if temperature != 0
         @assert compute_n_elec(min_ε) < n_electrons < compute_n_elec(max_ε)
     end
@@ -119,8 +119,8 @@ function find_occupation_bandgap(basis, energies)
             LUMO = min(LUMO, energies[ik][n_fill + 1])
         end
     end
-    LUMO = mpi_min(LUMO, basis.comm_k)
-    HOMO = mpi_max(HOMO, basis.comm_k)
+    LUMO = mpi_min(LUMO, basis.comm_kpts)
+    HOMO = mpi_max(HOMO, basis.comm_kpts)
     @assert weighted_ksum(basis, sum.(occupation)) ≈ n_electrons
 
     # Put Fermi level slightly above HOMO energy, to ensure that HOMO < εF
