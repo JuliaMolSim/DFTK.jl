@@ -10,6 +10,7 @@ Default callback function for `self_consistent_field`, which prints a convergenc
 function ScfDefaultCallback()
     prev_energies = nothing
     function callback(info)
+        !mpi_master() && return info  # Printing only on master
         if info.stage == :finalize
             info.converged || @warn "SCF not converged."
             return info
