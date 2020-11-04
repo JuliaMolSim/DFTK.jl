@@ -2,8 +2,8 @@ import Base: @kwdef
 
 # structs defining terms of a composable model for the independent-particle
 # susceptibility χ0. The struct define a call operator, which does some setup
-# and returns an `apply!(δρ, δV)` function to add the χ0 term to a preallocated
-# array `δρ`. `δV[1]` holds the spin-up (or total) potential change, `δV[2]` the
+# and returns an `apply!(δρ, δV, α=1)` function to from `δρ .+= α * χ0 * δV`.
+# `δV[1]` holds the spin-up (or total) potential change, `δV[2]` the
 # spin-down potential as a `RealFourierArray`. `δρ[:, :, :, 1]` is the spin-up
 # or the total density change and `δρ[:, :, :, 2]` the spin-down density change.
 
@@ -30,11 +30,11 @@ function (::LdosModel)(basis; eigenvalues, ψ, εF, kwargs...)
     end
 
     dos = sum(sum, ldos) * dVol  # Integrate LDOS to form total DOS
-    function apply!(δρ, δV)
+    function apply!(δρ, δV, α=1)
         dotldosδV = sum(dot(ldos[σ], δV[σ].real) for σ = 1:n_spin)
         for σ in 1:n_spin
-            δρ[:, :, :, σ] .-= (-ldos[σ] .* δV[σ].real
-                                .+ ldos[σ] .* dotldosδV .* dVol ./ dos)
+            δρ[:, :, :, σ] .+= α .* (-ldos[σ] .* δV[σ].real
+                                     .+ ldos[σ] .* dotldosδV .* dVol ./ dos)
         end
         δρ
     end
@@ -68,11 +68,11 @@ function (χ0::DielectricModel)(basis; kwargs...)
         apply_sqrtL = x -> from_real(basis, sqrtL .* x.real)
     end
 
-    function apply!(δρ, δV)
+    function apply!(δρ, δV, α=1)
         for σ in 1:n_spin
             loc_δV = apply_sqrtL(δV[σ]).fourier
             dielectric_loc_δV = @. C0 * kTF^2 * Gsq / 4T(π) / (kTF^2 - C0 * Gsq) * loc_δV
-            δρ[:, :, :, σ] .-= apply_sqrtL(from_fourier(basis, dielectric_loc_δV)).real
+            δρ[:, :, :, σ] .+= α * apply_sqrtL(from_fourier(basis, dielectric_loc_δV)).real
         end
         δρ
     end
@@ -92,14 +92,14 @@ function (χ0::Applyχ0Model)(basis; ham, eigenvalues, ψ, εF, n_ep_extra, kwar
     ψ_cvg = [@view ψk[:, 1:end-n_ep_extra]  for ψk in ψ]
     eigenvalues_cvg = [εk[1:end-n_ep_extra] for εk in eigenvalues]
 
-    function apply!(δρ, δV)
+    function apply!(δρ, δV, α=1)
         # χ0δV[1] is total, χ0δV[2] is spin
         χ0δV = apply_χ0(ham, ψ_cvg, εF, eigenvalues_cvg, δV...; χ0.kwargs_apply_χ0...)
         if basis.model.n_spin_components == 1
-            δρ[:, :, :, 1] .+= χ0δV[1].real
+            δρ[:, :, :, 1] .+= α .* χ0δV[1].real
         else
-            δρ[:, :, :, 1] .+= (χ0δV[1].real .+ χ0δV[2].real) ./ 2
-            δρ[:, :, :, 2] .+= (χ0δV[1].real .- χ0δV[2].real) ./ 2
+            δρ[:, :, :, 1] .+= α .* (χ0δV[1].real .+ χ0δV[2].real) ./ 2
+            δρ[:, :, :, 2] .+= α .* (χ0δV[1].real .- χ0δV[2].real) ./ 2
         end
         δρ
     end
