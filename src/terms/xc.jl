@@ -6,13 +6,22 @@ Exchange-correlation term, defined by a list of functionals and usually evaluate
 """
 struct Xc
     functionals::Vector{Symbol}  # Symbols of the functionals (Libxc.jl / libxc convention)
-    scaling_factor::Real         # to scale by an arbitrary factor (useful for exploration)
+    scaling_factor::Real         # Scales by an arbitrary factor (useful for exploration)
+
+    # Density cutoff for XC computation: Below this value gridpoint counts as zero
+    # `nothing` implies that Libxc defaults are used (different for every functional)
+    density_threshold::Union{Nothing,Float64}
 end
-Xc(symbols::Vector; scaling_factor=1) = Xc(convert.(Symbol, symbols), scaling_factor)
 Xc(symbols::Symbol...; kwargs...) = Xc([symbols...]; kwargs...)
+function Xc(symbols::Vector; scaling_factor=1, density_threshold=nothing)
+    Xc(convert.(Symbol, symbols), scaling_factor, density_threshold)
+end
 
 function (xc::Xc)(basis)
     functionals = Functional.(xc.functionals; n_spin=basis.model.n_spin_components)
+    if !isnothing(xc.density_threshold)
+        setproperty!.(functionals, :density_threshold, Ref(xc.density_threshold))
+    end
     TermXc(basis, functionals, xc.scaling_factor)
 end
 
