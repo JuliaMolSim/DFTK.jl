@@ -77,6 +77,7 @@ struct PlaneWaveBasis{T <: Real}
     ipFFT  # in-place FFT plan
     opIFFT
     ipIFFT
+
     # These are unnormalized plans (no normalization at all: BFFT*FFT != I)
     opFFT_unnormalized
     ipFFT_unnormalized
@@ -173,7 +174,8 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     #      ... temporary workaround, see more details in fft_generic.jl
     fft_size = next_working_fft_size.(T, fft_size)
     fft_size = Tuple{Int, Int, Int}(fft_size)
-    ipFFT_unnormalized, opFFT_unnormalized, ipBFFT_unnormalized, opBFFT_unnormalized = build_fft_plans(T, fft_size)
+    (ipFFT_unnormalized,  opFFT_unnormalized,
+     ipBFFT_unnormalized, opBFFT_unnormalized) = build_fft_plans(T, fft_size)
     # The FFT interface specifies that fft has no normalization, and
     # ifft has a normalization factor of 1/length (so that both
     # operations are inverse to each other). The convention we want is
@@ -235,7 +237,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 
     basis = PlaneWaveBasis{T}(
         model, Ecut, kpoints,
-        kweights, ksymops, mpi_comm, krange_thisproc, fft_size, 
+        kweights, ksymops, mpi_comm, krange_thisproc, fft_size,
         opFFT, ipFFT, opIFFT, ipIFFT,
         opFFT_unnormalized, ipFFT_unnormalized, opBFFT_unnormalized, ipBFFT_unnormalized,
         terms, symmetries)
@@ -385,7 +387,8 @@ In-place version of `G_to_r`.
     mul!(f_real, basis.opIFFT, f_fourier)
 end
 @timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                             kpt::Kpoint, f_fourier::AbstractVector; skip_normalization=false)
+                             kpt::Kpoint, f_fourier::AbstractVector;
+                             skip_normalization=false)
     plan = skip_normalization ? basis.ipBFFT_unnormalized : basis.ipIFFT
     @assert length(f_fourier) == length(kpt.mapping)
     @assert size(f_real) == basis.fft_size
