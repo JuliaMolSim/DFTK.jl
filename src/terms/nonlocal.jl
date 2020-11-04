@@ -36,6 +36,7 @@ end
             E += basis.kweights[ik] * occ[ik][iband] * real(dot(Pψnk, term.ops[ik].D * Pψnk))
         end
     end
+    E = mpi_sum(E, basis.comm_kpts)
 
     (E=E, ops=term.ops)
 end
@@ -60,7 +61,7 @@ end
             fr = zeros(T, 3)
             for α = 1:3
                 tot_red_kpt_number = sum([length(symops) for symops in basis.ksymops])
-                ind_red = 1
+                tot_red_kpt_number = mpi_sum(tot_red_kpt_number, basis.comm_kpts)
                 for (ik, kpt_irred) in enumerate(basis.kpoints)
                     # Here we need to do an explicit loop over
                     # symmetries, because the atom displacement might break them
@@ -81,12 +82,13 @@ end
                         dHψSk = P * (C * (dPdR' * ψSk))
                         for iband = 1:size(ψ[ik], 2)
                             @views fr[α] -= (occ[ik][iband] / tot_red_kpt_number
+                                             * basis.model.n_spin_components
                                              * 2real(  dot(ψSk[:, iband], dHψSk[:, iband])))
-                        end
-                        ind_red += 1
-                    end
-                end
-            end
+                        end  #iband
+                    end  #isym
+                end  #ik
+            end  #α
+            mpi_sum!(fr, basis.comm_kpts)  # TODO take that out to gain latency
             forces[iel][ir] += fr
         end
     end

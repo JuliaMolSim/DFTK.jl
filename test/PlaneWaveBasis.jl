@@ -34,16 +34,16 @@ end
     g_stop  = floor.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
     g_all = vec(collect(G_vectors(pw)))
 
-    for (ik, kcoord) in enumerate(silicon.kcoords)
+    for (ik, kpt) in enumerate(pw.kpoints)
         kpt = pw.kpoints[ik]
-        @test kpt.coordinate == kcoord
+        @test kpt.coordinate == silicon.kcoords[pw.krange_thisproc[ik]]
 
         for (ig, G) in enumerate(G_vectors(kpt))
             @test g_start <= G <= g_stop
         end
         @test g_all[kpt.mapping] == G_vectors(kpt)
     end
-    @test pw.kweights == [1, 8, 6, 12] / 27
+    @test pw.kweights == ([1, 8, 6, 12] / 27)[pw.krange_thisproc]
 end
 
 @testset "PlaneWaveBasis: Energy cutoff is respected" begin

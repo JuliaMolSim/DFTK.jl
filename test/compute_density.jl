@@ -8,6 +8,7 @@ include("testcases.jl")
 #      test the energies of these densities and compare them directly to the reference
 #      energies obtained in the data files
 
+if mpi_nprocs() == 1  # not easy to distribute
 @testset "Using BZ symmetry yields identical density" begin
     function get_bands(testcase, kcoords, ksymops, symmetries, atoms; Ecut=5, tol=1e-8, n_rounds=1)
         kwargs = ()
@@ -146,4 +147,5 @@ include("testcases.jl")
 
     # That's pretty expensive:
     # test_full_vs_irreducible([4, 4, 4], Ecut=5, tol=1e-6)
+end
 end

@@ -22,6 +22,18 @@ export Mat3
 include("common/types.jl")
 include("common/check_real.jl")
 include("common/spherical_harmonics.jl")
+export mpi_nprocs
+export mpi_ensure_initialized
+export mpi_master
+export mpi_sum
+export mpi_sum!
+export mpi_min
+export mpi_min!
+export mpi_max
+export mpi_max!
+export mpi_mean
+export mpi_mean!
+include("common/mpi.jl")
 export Smearing
 include("Smearing.jl")
 

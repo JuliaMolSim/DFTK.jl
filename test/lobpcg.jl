@@ -31,8 +31,8 @@ include("./testcases.jl")
                                       prec_type=nothing, interpolate_kpoints=false)
 
         @test res.converged
-        for ik in 1:length(silicon.kcoords)
-            @test ref_λ[ik] ≈ res.λ[ik]
+        for ik in 1:length(basis.kpoints)
+            @test ref_λ[basis.krange_thisproc[ik]] ≈ res.λ[ik]
             @test maximum(res.residual_norms[ik]) < 100tol  # TODO Why the 100?
             @test res.iterations[ik] < 200
         end
@@ -43,8 +43,8 @@ include("./testcases.jl")
                                       prec_type=PreconditionerTPA, interpolate_kpoints=false)
 
         @test res.converged
-        for ik in 1:length(silicon.kcoords)
-            @test ref_λ[ik] ≈ res.λ[ik]
+        for ik in 1:length(basis.kpoints)
+            @test ref_λ[basis.krange_thisproc[ik]] ≈ res.λ[ik]
             @test maximum(res.residual_norms[ik]) < 100tol  # TODO Why the 100?
             @test res.iterations[ik] < 50
         end
@@ -75,8 +75,8 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
             [-4.085991608422304, -4.085039856878318, -0.517299903754010,
              -0.513805498246478, -0.497036479690380]
         ]
-        for ik in 1:length(silicon.kcoords)
-            @test res.λ[ik][1:5] ≈ ref[ik] atol=5e-7
+        for ik in 1:length(basis.kpoints)
+            @test res.λ[ik][1:5] ≈ ref[basis.krange_thisproc[ik]] atol=5e-7
         end
     end
 end
@@ -103,8 +103,8 @@ end
         [0.168662148987539, 0.238552367551507, 0.370743978236562,
          0.418387442903058, 0.619797227001203],
     ]
-    for ik in 1:length(silicon.kcoords)
-        @test res.λ[ik] ≈ ref[ik] atol=0.02
+    for ik in 1:length(basis.kpoints)
+        @test res.λ[ik] ≈ ref[basis.krange_thisproc[ik]] atol=0.02
     end
 end
 
@@ -118,7 +118,7 @@ end
 
     res1 = diagonalize_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, interpolate_kpoints=false)
     res2 = diagonalize_all_kblocks(diag_full, ham, 5, tol=1e-8, interpolate_kpoints=false)
-    for ik in 1:length(silicon.kcoords)
+    for ik in 1:length(basis.kpoints)
         @test res1.λ[ik] ≈ res2.λ[ik] atol=1e-6
     end
 end
