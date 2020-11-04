@@ -29,6 +29,7 @@ codes such as [Abinit](https://www.abinit.org/),
     - Self-consistent field approaches: Damping, Kerker mixing, Anderson/Pulay/DIIS mixing
     - Direct minimization
     - Multi-level threading (kpoints, eigenvectors, FFTs, linear algebra)
+    - MPI-based distributed parallelism (distribution over kpoints)
     - 1D / 2D / 3D systems
     - Magnetic fields
     - Treat systems beyond 500 electrons

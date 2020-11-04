@@ -3,6 +3,7 @@ using DFTK
 
 include("testcases.jl")
 
+if mpi_nprocs() == 1  # not easy to distribute
 @testset "High-symmetry kpath construction for silicon" begin
     testcase = silicon
     Ecut = 2
@@ -236,4 +237,5 @@ end
 
     @test !DFTK.is_metal((λ=λ, basis=basis), 2.5)
     @test DFTK.is_metal((λ=λ, basis=basis), 3.2)
+end
 end

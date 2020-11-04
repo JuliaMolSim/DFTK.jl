@@ -20,6 +20,7 @@ include("testcases.jl")
     end
 end
 
+if mpi_nprocs() == 1 # can't be bothered to convert the tests
 @testset "Smearing for insulators" begin
     Ecut = 5
     n_bands = 10
@@ -41,7 +42,7 @@ end
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     occupation0, εF0 = find_occupation_bandgap(basis, energies)
     @test εHOMO < εF0 < εLUMO
-    @test sum(basis.kweights .* sum.(occupation0)) ≈ model.n_electrons
+    @test DFTK.weighted_ksum(basis, sum.(occupation0)) ≈ model.n_electrons
 
     # See that the electron count still works if we add temperature
     Ts = (0, 1e-6, .1, 1.0)
@@ -57,14 +58,16 @@ end
     for T in Ts, meth in DFTK.Smearing.smearing_methods
         model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=T, smearing=meth())
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-        occupation, _= find_occupation(basis, energies)
+        occupation, _ = find_occupation(basis, energies)
 
         for ik in 1:n_k
             @test all(isapprox.(occupation[ik], occupation0[ik], atol=1e-2))
         end
     end
 end
+end
 
+if mpi_nprocs() == 1 # can't be bothered to convert the tests
 @testset "Smearing for metals" begin
     testcase = magnesium
     Ecut = 5
@@ -108,7 +111,8 @@ end
         basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops; fft_size=fft_size)
         occupation, εF = find_occupation(basis, energies)
 
-        @test sum(basis.kweights .* sum.(occupation)) ≈ model.n_electrons
+        @test DFTK.weighted_ksum(basis, sum.(occupation)) ≈ model.n_electrons
         @test εF ≈ εF_ref
     end
+end
 end

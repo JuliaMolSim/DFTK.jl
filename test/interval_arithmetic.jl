@@ -20,7 +20,6 @@ function discretized_hamiltonian(T, testcase)
     ham = Hamiltonian(basis; ρ=guess_density(basis))
 end
 
-
 @testset "Application of an LDA Hamiltonian with Intervals" begin
     T = Float64
     ham = discretized_hamiltonian(T, silicon)

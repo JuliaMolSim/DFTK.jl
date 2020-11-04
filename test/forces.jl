@@ -1,5 +1,7 @@
 using DFTK
 using Test
+using Random
+using MPI
 include("testcases.jl")
 
 @testset "Forces on semiconductor (using total energy)" begin
@@ -7,7 +9,7 @@ include("testcases.jl")
         Ecut = 5
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => pos]
-        model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93)
+        model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93, spin_polarization=:collinear)
         basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
@@ -22,7 +24,8 @@ include("testcases.jl")
 
     pos1 = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8]  # displace a bit from equilibrium
     disp = rand(3)
-    ε = 1e-8
+    mpi_mean!(disp, MPI.COMM_WORLD)  # must be identical on all processes
+    ε = 1e-7
     pos2 = [pos1[1] + ε * disp, pos1[2]]
 
     E1, F1 = energy(pos1)
@@ -39,7 +42,7 @@ end
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => pos]
         model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93;
-                          temperature=0.03, smearing=smearing)
+                          temperature=0.03, smearing=smearing, spin_polarization=:collinear)
         # TODO Put kshift=[1/2, 0, 0] here later
         basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 1, 2], kshift=[0, 0, 0])
 
@@ -53,6 +56,7 @@ end
 
     pos1 = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8] # displace a bit from equilibrium
     disp = rand(3)
+    mpi_mean!(disp, MPI.COMM_WORLD)  # must be identical on all processes
     ε = 1e-6
     pos2 = [pos1[1] + ε * disp, pos1[2]]
 

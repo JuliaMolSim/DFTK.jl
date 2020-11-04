@@ -30,6 +30,7 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
                       magnetic_moments=[Si => zeros(2)])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
+    spin_polarization == :collinear && (ref_redHF = vcat(ref_redHF, ref_redHF))
     run_scf_and_compare(T, basis, ref_redHF, ref_etot; kwargs...)
 end
 
@@ -46,9 +47,12 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     end
 end
 
-@testset "Silicon without XC (small, Double32)" begin
-    run_silicon_redHF(Double32, Ecut=5, test_tol=0.05, n_ignored=0, grid_size=15,
-                      test_etot=false)
+# There is a weird race condition with MPI + DoubleFloats. TODO debug
+if mpi_nprocs() == 1
+    @testset "Silicon without XC (small, Double32)" begin
+        run_silicon_redHF(Double32, Ecut=5, test_tol=0.05, n_ignored=0, grid_size=15,
+                          test_etot=false)
+    end
 end
 
 

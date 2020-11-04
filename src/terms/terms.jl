@@ -97,7 +97,7 @@ In this case the matrix has effectively 4 blocks, which are:
 i.e. corresponding to a mapping
 ``(ρ_\text{tot}, ρ_\text{spin})^T = (ρ_α + ρ_β, ρ_α - ρ_β)^T ↦ (V_α, V_β)^T``.
 """
-function compute_kernel(basis::PlaneWaveBasis{T}; kwargs...) where {T}
+@timing function compute_kernel(basis::PlaneWaveBasis{T}; kwargs...) where {T}
     n_spin = basis.model.n_spin_components
     kernel = zeros(T, n_spin * prod(basis.fft_size), n_spin * prod(basis.fft_size))
     for term in basis.terms
@@ -116,8 +116,8 @@ Computes the potential response to a perturbation `(dρ, dρspin)` in real space
 Returns the array `[dV_α, dV_β]` for collinear spin-polarized
 calculations, else the array [dV_{tot}].
 """
-function apply_kernel(basis::PlaneWaveBasis, dρ, dρspin=nothing;
-                      RPA=false, kwargs...)
+@timing function apply_kernel(basis::PlaneWaveBasis, dρ, dρspin=nothing;
+                              RPA=false, kwargs...)
     n_spin = basis.model.n_spin_components
     (n_spin == 1) && @assert isnothing(dρspin)
     (n_spin == 2) && @assert !isnothing(dρspin)

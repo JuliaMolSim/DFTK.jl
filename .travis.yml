@@ -15,22 +15,17 @@ cache:
 env:
   global:
     - PYTHON=""  # Force using Conda in PyCall
-script:  # Install dependencies and test with coverage
-  - &conda |
-    julia -e '
-      # Some optional python packages via conda
-      using Pkg
-      Pkg.add("Conda")
-      using Conda
-      Conda.add(["blas=*=*netlib", "nomkl", "ase"]; channel="conda-forge")
-    '
-  - julia -e 'using Pkg; Pkg.build(; verbose=true); Pkg.test(coverage=true)'
+install: |       # Install conda dependencies
+  julia -e '
+    using Pkg; Pkg.add("Conda"); using Conda
+    Conda.add(["blas=*=*netlib", "nomkl", "ase"]; channel="conda-forge")
+  '
 after_success: |  # Upload coverage when things are good.
   julia -e '
-    using Pkg; Pkg.add("Coverage"); using Coverage;
-    coverage = Coveralls.process_folder();
+    using Pkg; Pkg.add("Coverage"); using Coverage
+    coverage = Coveralls.process_folder()
     for excluded in ["src/FourierTransforms.jl", "src/eigen/diag_lobpcg_itsolve.jl"]
-        filter!(c -> !occursin(excluded, c.filename), coverage);
+        filter!(c -> !occursin(excluded, c.filename), coverage)
     end
     Coveralls.submit(coverage)
   '
@@ -44,8 +39,17 @@ jobs:
   allow_failures:  # Allow to fail on nightly
     - julia: nightly
   include:
-    - julia: nightly
+    - julia: nightly  # Nightly test
       os: linux
+    - os: linux       # MPI test
+      script:         # Install DFTK and MPI, precompile, install test packages
+        - julia -e '
+          using Pkg; Pkg.build(); Pkg.precompile();
+          using MPI; MPI.install_mpiexecjl();
+          Pkg.test(; test_args=["quick"])
+          '
+        - $HOME/.julia/bin/mpiexecjl -np $MPI_NUM_PROCS julia --compiled-modules=no -e 'using Pkg; Pkg.test(coverage=true)'
+      env: MPI_NUM_PROCS=2
     - stage: "Documentation"
       os: linux
       script:

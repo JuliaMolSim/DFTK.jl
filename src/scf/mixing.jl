@@ -208,7 +208,7 @@ end
 
         JδF = copy(δF)
         for apply_term! in χ0applies
-            apply_term!(JδF, δV)
+            apply_term!(JδF, δV, -1)  # JδF .-= χ0 * δV
         end
         vec(JδF .-= mean(JδF))  # Zero DC component in total density response
     end
