@@ -75,7 +75,8 @@ Random.seed!(0)
         include("diag_compare.jl")
         include("xc_fallback.jl")
 
-        # TODO Not sure why, but this test fails on Travis with multiple MPI procs.
+        # This fails with multiple MPI procs, seems like a race condition
+        # with MPI + DoubleFloats. TODO debug
         mpi_nprocs() == 1 && include("interval_arithmetic.jl")
     end
 
