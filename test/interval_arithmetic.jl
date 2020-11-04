@@ -20,24 +20,21 @@ function discretized_hamiltonian(T, testcase)
     ham = Hamiltonian(basis; ρ=guess_density(basis))
 end
 
-# TODO Not sure why, but this test fails on Travis with multiple MPI procs.
-if mpi_nprocs() == 1
-    @testset "Application of an LDA Hamiltonian with Intervals" begin
-        T = Float64
-        ham = discretized_hamiltonian(T, silicon)
-        hamInt = discretized_hamiltonian(Interval{T}, silicon)
+@testset "Application of an LDA Hamiltonian with Intervals" begin
+    T = Float64
+    ham = discretized_hamiltonian(T, silicon)
+    hamInt = discretized_hamiltonian(Interval{T}, silicon)
 
-        hamk = ham.blocks[1]
-        hamIntk = hamInt.blocks[1]
+    hamk = ham.blocks[1]
+    hamIntk = hamInt.blocks[1]
 
-        x = randn(Complex{T}, length(G_vectors(ham.basis.kpoints[1])))
-        ref = hamk * x
-        res = hamIntk * Interval.(x)
+    x = randn(Complex{T}, length(G_vectors(ham.basis.kpoints[1])))
+    ref = hamk * x
+    res = hamIntk * Interval.(x)
 
-        # Difference between interval arithmetic and normal application less than 1e-10
-        @test maximum(mid, abs.(res .- ref)) < 1e-10
+    # Difference between interval arithmetic and normal application less than 1e-10
+    @test maximum(mid, abs.(res .- ref)) < 1e-10
 
-        # Maximal error done by interval arithmetic less than
-        @test maximum(radius, abs.(res)) < 1e-10
-    end
+    # Maximal error done by interval arithmetic less than
+    @test maximum(radius, abs.(res)) < 1e-10
 end
