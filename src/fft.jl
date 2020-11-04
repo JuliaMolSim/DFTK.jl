@@ -107,13 +107,14 @@ _fftw_flags(::Type{Float64}) = FFTW.MEASURE
 
 """
 Plan a FFT of type `T` and size `fft_size`, spending some time on finding an
-optimal algorithm. Both an inplace and an out-of-place FFT plan are returned.
+optimal algorithm. (Inplace, out-of-place) x (forward, backward) FFT plans are returned.
 """
 function build_fft_plans(T::Union{Type{Float32}, Type{Float64}}, fft_size)
     tmp = Array{Complex{T}}(undef, fft_size...)
     ipFFT = FFTW.plan_fft!(tmp, flags=_fftw_flags(T))
     opFFT = FFTW.plan_fft(tmp, flags=_fftw_flags(T))
-    ipFFT, opFFT
+    # backward by inverting and stripping off normalizations
+    ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
 end
 
 
