@@ -32,11 +32,14 @@ function build_fft_plans(T, fft_size)
     @assert all(ispow2, fft_size)
 
     # opFFT = FourierTransforms.plan_fft(tmp)   # TODO When multidim works
-    opFFT = generic_plan_fft(tmp)               # Fallback for now
+    # opBFFT = inv(opFFT).p
+    opFFT  = generic_plan_fft(tmp)               # Fallback for now
+    opBFFT = generic_plan_bfft(tmp)
     # TODO Can be cut once FourierTransforms supports AbstractFFTs properly
-    ipFFT = DummyInplace{typeof(opFFT)}(opFFT)
+    ipFFT  = DummyInplace{typeof(opFFT)}(opFFT)
+    ipBFFT = DummyInplace{typeof(opBFFT)}(opBFFT)
 
-    ipFFT, opFFT
+    ipFFT, opFFT, ipBFFT, opBFFT
 end
 
 
@@ -74,8 +77,13 @@ inv(p::GenericPlan{T}) where T = GenericPlan{T}(inv.(p.subplans), 1 / p.factor)
 
 function generic_plan_fft(data::AbstractArray{T, 3}) where T
     GenericPlan{T}([FourierTransforms.plan_fft(data[:, 1, 1]),
-                 FourierTransforms.plan_fft(data[1, :, 1]),
-                 FourierTransforms.plan_fft(data[1, 1, :])], T(1))
+                    FourierTransforms.plan_fft(data[1, :, 1]),
+                    FourierTransforms.plan_fft(data[1, 1, :])], T(1))
+end
+function generic_plan_bfft(data::AbstractArray{T, 3}) where T
+    GenericPlan{T}([FourierTransforms.plan_bfft(data[:, 1, 1]),
+                    FourierTransforms.plan_bfft(data[1, :, 1]),
+                    FourierTransforms.plan_bfft(data[1, 1, :])], T(1))
 end
 
 
