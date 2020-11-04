@@ -30,11 +30,9 @@ end
 
     E = zero(T)
     for (ik, k) in enumerate(basis.kpoints)
-        for iband = 1:size(ψ[1], 2)
-            ψnk = @views ψ[ik][:, iband]
-            Pψnk = term.ops[ik].P' * ψnk
-            E += basis.kweights[ik] * occ[ik][iband] * real(dot(Pψnk, term.ops[ik].D * Pψnk))
-        end
+        Pψ = term.ops[ik].P' * ψ[ik] # nproj x nband
+        band_enes = dropdims(sum(conj.(Pψ) .* (term.ops[ik].D*Pψ), dims=1), dims=1)
+        E += basis.kweights[ik] * sum(real(band_enes) .* occ[ik])
     end
     E = mpi_sum(E, basis.comm_kpts)
 

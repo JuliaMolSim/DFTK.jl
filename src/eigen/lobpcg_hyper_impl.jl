@@ -117,7 +117,7 @@ end
             success = false
         end
         invR = inv(R)
-        X = X*invR # we do not use X/R because we use invR next
+        rmul!(X, invR) # we do not use X/R because we use invR next
 
         normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 
@@ -150,7 +150,7 @@ end
 
 # Randomize the columns of X if the norm is below tol
 function drop!(X, tol=2eps(real(eltype(X))))
-    dropped = []
+    dropped = Vector{Int}()
     for i=1:size(X,2)
         n = norm(@views X[:,i])
         if n <= tol
@@ -298,7 +298,7 @@ end
         end
 
         ### Compute new residuals
-        new_R = new_AX .- new_BX * Diagonal(λs)
+        new_R = new_AX .- new_BX .* λs'
         # it is actually a good question of knowing when to
         # precondition. Here seems sensible, but it could plausibly be
         # done before or after
