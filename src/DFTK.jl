@@ -49,10 +49,6 @@ export G_to_r
 export G_to_r!
 export r_to_G
 export r_to_G!
-export model_atomic
-export model_DFT
-export model_PBE
-export model_LDA
 include("Model.jl")
 include("PlaneWaveBasis.jl")
 
@@ -121,6 +117,12 @@ export lobpcg_itsolve
 export diag_full
 export diagonalize_all_kblocks
 include("eigen/diag.jl")
+
+export model_atomic
+export model_DFT
+export model_PBE
+export model_LDA
+include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing, HybridMixing, χ0Mixing
 include("scf/chi0models.jl")
