@@ -173,11 +173,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     #      ... temporary workaround, see more details in fft_generic.jl
     fft_size = next_working_fft_size.(T, fft_size)
     fft_size = Tuple{Int, Int, Int}(fft_size)
-    ipFFT_unnormalized, opFFT_unnormalized = build_fft_plans(T, fft_size)
-    # build non-normalized ("backward") plans by inverting them
-    # and then stripping off scaling
-    ipBFFT_unnormalized = inv(ipFFT_unnormalized).p
-    opBFFT_unnormalized = inv(opFFT_unnormalized).p
+    ipFFT_unnormalized, opFFT_unnormalized, ipBFFT_unnormalized, opBFFT_unnormalized = build_fft_plans(T, fft_size)
     # The FFT interface specifies that fft has no normalization, and
     # ifft has a normalization factor of 1/length (so that both
     # operations are inverse to each other). The convention we want is
