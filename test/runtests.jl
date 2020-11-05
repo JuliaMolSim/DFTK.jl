@@ -53,6 +53,7 @@ Random.seed!(0)
     end
 
     if "all" in TAGS
+        include("split_evenly.jl")
         include("determine_fft_size.jl")
         include("fourier_transforms.jl")
         include("PlaneWaveBasis.jl")
