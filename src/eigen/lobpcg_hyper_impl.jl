@@ -150,7 +150,7 @@ end
 
 # Randomize the columns of X if the norm is below tol
 function drop!(X, tol=2eps(real(eltype(X))))
-    dropped = Vector{Int}()
+    dropped = Int[]
     for i=1:size(X,2)
         n = norm(@views X[:,i])
         if n <= tol
