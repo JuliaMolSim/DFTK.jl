@@ -24,6 +24,9 @@ end
 
 
 function save_basis(jld::JLD2.Group, basis::PlaneWaveBasis)
+    if mpi_nprocs() > 1
+        error("save_basis only implemented for non-MPI calculations for now.")
+    end
     n_kcoords = div(length(basis.kpoints), basis.model.n_spin_components)
 
     jld["model"]      = basis.model
@@ -73,10 +76,16 @@ function load_scfres(jld::JLD2.JLDFile)
         scfdict[:ρspin] = from_real(basis, jld["ρspin_real"])
     end
 
+    kpt_properties = (:ψ, :occupation, :eigenvalues)  # Need splitting over MPI processes
+    for sym in kpt_properties
+        scfdict[sym] = jld[string(sym)][basis.krange_thisproc]
+    end
     for sym in jld["__propertynames"]
         sym in (:ham, :basis, :ρ, :ρspin, :energies) && continue  # special
+        sym in kpt_properties && continue
         scfdict[sym] = jld[string(sym)]
     end
+
     energies, ham = energy_hamiltonian(basis, scfdict[:ψ], scfdict[:occupation];
                                        ρ=scfdict[:ρ], ρspin=scfdict[:ρspin],
                                        eigenvalues=scfdict[:eigenvalues],
