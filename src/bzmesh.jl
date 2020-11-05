@@ -142,6 +142,8 @@ the conventional unit cell is returned.
 """
 const standardize_atoms = spglib_standardize_cell
 
+# TODO Maybe maximal spacing is actually a better name as the kpoints are spaced
+#      at most that far apart
 @doc raw"""
 Selects a kgrid_size to ensure a minimal spacing (in inverse Bohrs) between kpoints.
 Default is ``2π * 0.04 \AA^{-1}``.

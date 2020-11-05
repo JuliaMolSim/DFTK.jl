@@ -33,6 +33,7 @@ export mpi_max
 export mpi_max!
 export mpi_mean
 export mpi_mean!
+include("common/split_evenly.jl")
 include("common/mpi.jl")
 export Smearing
 include("Smearing.jl")

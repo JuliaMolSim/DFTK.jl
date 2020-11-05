@@ -209,8 +209,9 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         krange_thisproc = 1:n_kpt
     else
         # get the slice of 1:n_kpt handled by this process
-        krange_thisproc = mpi_split_work(mpi_comm, n_kpt)
+        krange_thisproc = mpi_split_iterator(1:n_kpt, mpi_comm)
         @assert mpi_sum(length(krange_thisproc), mpi_comm) == n_kpt
+        @assert !isempty(krange_thisproc)
     end
 
     kcoords = kcoords[krange_thisproc]
