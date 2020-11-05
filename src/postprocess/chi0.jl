@@ -273,6 +273,7 @@ function add_response_from_band!(δρk, n, hamk, εk, ψk, εF, δV,
         ddiff = Smearing.occupation_divided_difference
         ratio = filled_occ * ddiff(model.smearing, εk[m], εk[n], εF, temperature)
         (n != m) && (abs(ratio) < droptol) && continue
+        abs(ratio) < eps(T) && continue
         ψmk_real = G_to_r(basis, hamk.kpoint, @view ψk[:, m])
         # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
         ρnm = conj(ψnk_real) .* ψmk_real
