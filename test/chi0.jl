@@ -64,7 +64,7 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
         EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham0.blocks]
         Es = [EV.values[1:n_bands] for EV in EVs]
         Vs = [EV.vectors[:, 1:n_bands] for EV in EVs]
-        occ, εF = find_occupation(basis, Es)
+        occ, εF = DFTK.compute_occupation(basis, Es)
 
         # Test apply_χ0 and compare against finite differences
         diff_applied_χ0 = apply_χ0(ham0, Vs, εF, Es, dV...; droptol=0)

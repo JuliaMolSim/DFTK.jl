@@ -60,7 +60,7 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
     Vs = [EV.vectors for EV in EVs]
-    occ, εF = find_occupation(basis, Es, temperature=temperature)
+    occ, εF = compute_occupation(basis, Es, temperature=temperature)
 
     # We first compute χ0 as an (χ0_αα χ0_αβ; χ0_βα χ0_ββ) 2×2 matrix and
     # than form the returned matrix later
@@ -96,8 +96,8 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
 
     # Add variation wrt εF (which is not diagonal wrt. spin)
     if temperature > 0
-        dos  = DOS(εF, basis, Es)
-        ldos = [vec(LDOS(εF, basis, Es, Vs, spins=[σ])) for σ in 1:n_spin]
+        dos  = compute_dos(εF, basis, Es)
+        ldos = [vec(compute_ldos(εF, basis, Es, Vs, spins=[σ])) for σ in 1:n_spin]
         if n_spin == 1
             χ0 .+= (ldos[1] .* ldos[1]') .* dVol ./ dos
         else
@@ -222,9 +222,9 @@ returns `3` extra bands, which are not converged by the eigensolver
     # Add variation wrt εF
     if temperature > 0
         dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
-        ldos = [LDOS(εF, basis, eigenvalues, ψ, temperature=temperature, spins=[σ])
+        ldos = [compute_ldos(εF, basis, eigenvalues, ψ, temperature=temperature, spins=[σ])
                 for σ in 1:n_spin]
-        dos  = DOS(εF, basis, eigenvalues, temperature=temperature)
+        dos  = compute_dos(εF, basis, eigenvalues, temperature=temperature)
 
         dotldosδV = dot(ldos[1], δV) + (n_spin == 2 ? dot(ldos[2], δVβ) : false)
         for σ in 1:n_spin

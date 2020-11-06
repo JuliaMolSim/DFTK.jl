@@ -54,7 +54,7 @@ Random.seed!(0)
 
     if "all" in TAGS
         include("split_evenly.jl")
-        include("determine_fft_size.jl")
+        include("compute_fft_size.jl")
         include("fourier_transforms.jl")
         include("PlaneWaveBasis.jl")
         include("interpolation.jl")

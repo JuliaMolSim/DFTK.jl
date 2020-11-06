@@ -39,7 +39,7 @@ end
     (E=E, ops=term.ops)
 end
 
-@timing "forces: nonlocal" function forces(term::TermAtomicNonlocal, ψ, occ; kwargs...)
+@timing "forces: nonlocal" function compute_forces(term::TermAtomicNonlocal, ψ, occ; kwargs...)
     basis = term.basis
     T = eltype(basis)
     atoms = basis.model.atoms

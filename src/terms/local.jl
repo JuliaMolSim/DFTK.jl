@@ -95,7 +95,7 @@ function (E::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     TermAtomicLocal(basis, real(pot_real))
 end
 
-@timing "forces: local" function forces(term::TermAtomicLocal, ψ, occ; ρ, kwargs...)
+@timing "forces: local" function compute_forces(term::TermAtomicLocal, ψ, occ; ρ, kwargs...)
     T = eltype(term.basis)
     atoms = term.basis.model.atoms
     recip_lattice = term.basis.model.recip_lattice
@@ -114,6 +114,7 @@ end
     end
     forces
 end
+
 # function barrier to work around various type instabilities
 function _force_local_internal(basis, ρ_fourier, form_factors, r)
     T = real(eltype(ρ_fourier))

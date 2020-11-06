@@ -10,8 +10,8 @@
 using ForwardDiff
 
 @doc raw"""
-    NOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
-        temperature=basis.model.temperature)
+    compute_nos(ε, basis, eigenvalues; smearing=basis.model.smearing,
+                temperature=basis.model.temperature)
 
 The number of Kohn-Sham states in a temperature window of width `temperature` around the
 energy `ε` contributing to the DOS at temperature `T`.
@@ -22,11 +22,11 @@ and temperature `T`. It increases with both `T` and better sampling of the BZ wi
 ``k``-Points. A value ``\gg 1`` indicates a good sampling of properties near the
 Fermi surface.
 """
-function NOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
-             temperature=basis.model.temperature, spins=1:basis.model.n_spin_components)
+function compute_nos(ε, basis, eigenvalues; smearing=basis.model.smearing,
+                     temperature=basis.model.temperature, spins=1:basis.model.n_spin_components)
     N = zero(ε)
     if (temperature == 0) || smearing isa Smearing.None
-        error("NOS only supports finite temperature")
+        error("compute_nos only supports finite temperature")
     end
     @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
 
@@ -52,10 +52,10 @@ end
 """
 Total density of states at energy ε
 """
-function DOS(ε, basis, eigenvalues; smearing=basis.model.smearing,
-             temperature=basis.model.temperature, spins=1:basis.model.n_spin_components)
+function compute_dos(ε, basis, eigenvalues; smearing=basis.model.smearing,
+                     temperature=basis.model.temperature, spins=1:basis.model.n_spin_components)
     if (temperature == 0) || smearing isa Smearing.None
-        error("DOS only supports finite temperature")
+        error("compute_dos only supports finite temperature")
     end
     @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     filled_occ = filled_occupation(basis.model)
@@ -74,10 +74,10 @@ end
 """
 Local density of states, in real space
 """
-function LDOS(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
-              temperature=basis.model.temperature, spins=1:basis.model.n_spin_components)
+function compute_ldos(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
+                      temperature=basis.model.temperature, spins=1:basis.model.n_spin_components)
     if (temperature == 0) || smearing isa Smearing.None
-        error("LDOS only supports finite temperature")
+        error("compute_ldos only supports finite temperature")
     end
     @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     filled_occ = filled_occupation(basis.model)

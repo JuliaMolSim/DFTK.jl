@@ -145,15 +145,15 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     if variational
         @assert Ecut > 0
         if fft_size === nothing
-            fft_size = determine_fft_size(model, Ecut; supersampling=supersampling)
+            fft_size = compute_fft_size(model, Ecut; supersampling=supersampling)
         end
 
         if optimize_fft_size
             # TODO This is a hack for now, we build the kpoints twice
             fft_size = Tuple{Int, Int, Int}(fft_size)
             kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
-            fft_size = determine_fft_size_precise(model.lattice, Ecut, kpoints;
-                                                  supersampling=supersampling)
+            fft_size = compute_fft_size_precise(model.lattice, Ecut, kpoints;
+                                                supersampling=supersampling)
         end
 
         # Sanity checks
