@@ -83,6 +83,7 @@ is not collinear the spin density is `nothing`.
         for ik in ikpts
             kpt = basis.kpoints[ik]
             compute_partial_density!(ρ_k, basis, kpt, ψ[ik], occupation[ik])
+            lowpass_for_symmetry!(ρ_k, basis)
             # accumulates all the symops of ρ_k into ρaccu
             accumulate_over_symmetries!(ρaccu[kpt.spin], ρ_k, basis, basis.ksymops[ik])
         end

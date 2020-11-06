@@ -44,7 +44,6 @@ end
 function from_fourier(basis, fourier_part::AbstractArray{T}; check_real=true) where {T <: Complex}
     if check_real
         # Go through G vectors and check c_{-G} = (c_G)' (if both G and -G are in the grid)
-        # TODO check it's reasonably fast so we can make it the default
         # arr[1] is G=0, arr[1] is G=1, arr[N] is G=-1.
         # So 1 -> 1, 2 -> N, ..., N -> 2
         reflect(i, N) = i == 1 ? 1 : N-i+2
