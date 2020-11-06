@@ -24,28 +24,35 @@ function load_atoms_ase(T, pyobj::PyObject)
     # TODO Be smarter and look at the calculator to determine the psps
 
     frac_coords = pyobj.get_scaled_positions()
-    numbers = pyobj.get_atomic_numbers()
-    map(unique(numbers)) do atnum
+    map(ase_atoms_translation_map(pyobj)) do (symbol, atom_indices)
         coords = Vec3{T}[]
-        for idx in findall(isequal(atnum), numbers)
+        for idx in atom_indices
             push!(coords, frac_coords[idx, :])
         end
-        ElementCoulomb(atnum) => coords
+        ElementCoulomb(symbol) => coords
     end
 end
 
 
 function load_magnetic_moments_ase(pyobj::PyObject)
     @assert pyisinstance(pyobj, pyimport("ase").Atoms)
-
     magmoms = pyobj.get_initial_magnetic_moments()
+    map(ase_atoms_translation_map(pyobj)) do (symbol, atom_indices)
+        ElementCoulomb(symbol) => [magmoms[i] for i in atom_indices]
+    end
+end
+
+
+"""
+Map translating between the `atoms` datastructure used in DFTK
+and the indices of the respective atoms in the ASE.Atoms object
+in `pyobj`.
+"""
+function ase_atoms_translation_map(pyobj::PyObject)
+    @assert pyisinstance(pyobj, pyimport("ase").Atoms)
     numbers = pyobj.get_atomic_numbers()
     map(unique(numbers)) do atnum
-        magmom = Float64[]
-        for idx in findall(isequal(atnum), numbers)
-            push!(magmom, magmoms[idx])
-        end
-        ElementCoulomb(atnum) => magmom
+        ElementCoulomb(atnum).symbol => findall(isequal(atnum), numbers)
     end
 end
 
