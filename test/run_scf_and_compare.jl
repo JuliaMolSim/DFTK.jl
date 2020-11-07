@@ -1,5 +1,6 @@
 using Test
 using DFTK
+import DFTK: mpi_sum
 
 function run_scf_and_compare(T, basis, ref_evals, ref_etot;
                              n_ignored=0, test_tol=1e-6, scf_tol=1e-6, test_etot=true, kwargs...)

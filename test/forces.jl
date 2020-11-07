@@ -1,4 +1,5 @@
 using DFTK
+import DFTK: mpi_mean!
 using Test
 using Random
 using MPI

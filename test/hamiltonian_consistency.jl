@@ -1,5 +1,6 @@
 using Test
 using DFTK
+import DFTK: mpi_sum
 
 include("testcases.jl")
 using Random
