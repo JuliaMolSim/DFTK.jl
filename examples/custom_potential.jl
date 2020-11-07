@@ -64,7 +64,7 @@ basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1))
 scfres = self_consistent_field(basis, tol=1e-8, ρ=from_fourier(basis, ρ))
 scfres.energies
 # Computing the forces can then be done as usual:
-hcat(forces(scfres)...)
+hcat(compute_forces(scfres)...)
 
 # Extract the converged total local potential
 tot_local_pot = DFTK.total_local_potential(scfres.ham)[:, 1, 1]; # use only dimension 1

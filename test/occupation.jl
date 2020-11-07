@@ -40,7 +40,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     # Occupation for zero temperature
     model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=0.0, smearing=nothing)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-    occupation0, εF0 = find_occupation_bandgap(basis, energies)
+    occupation0, εF0 = DFTK.compute_occupation_bandgap(basis, energies)
     @test εHOMO < εF0 < εLUMO
     @test DFTK.weighted_ksum(basis, sum.(occupation0)) ≈ model.n_electrons
 
@@ -49,7 +49,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     for T in Ts, meth in DFTK.Smearing.smearing_methods
         model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=T, smearing=meth())
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-        occs, _ = find_occupation(basis, energies)
+        occs, _ = DFTK.compute_occupation(basis, energies)
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
     end
 
@@ -58,7 +58,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     for T in Ts, meth in DFTK.Smearing.smearing_methods
         model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=T, smearing=meth())
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-        occupation, _ = find_occupation(basis, energies)
+        occupation, _ = DFTK.compute_occupation(basis, energies)
 
         for ik in 1:n_k
             @test all(isapprox.(occupation[ik], occupation0[ik], atol=1e-2))
@@ -109,7 +109,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
         model = Model(silicon.lattice, n_electrons=testcase.n_electrons;
                       temperature=temperature, smearing=meth())
         basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops; fft_size=fft_size)
-        occupation, εF = find_occupation(basis, energies)
+        occupation, εF = DFTK.compute_occupation(basis, energies)
 
         @test DFTK.weighted_ksum(basis, sum.(occupation)) ≈ model.n_electrons
         @test εF ≈ εF_ref

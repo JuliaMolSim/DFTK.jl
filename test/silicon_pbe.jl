@@ -39,7 +39,7 @@ end
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     @testset "Silicon PBE (large, Float64)" begin
         run_silicon_pbe(Float64, Ecut=25, test_tol=1e-5, n_ignored=0,
-                        grid_size=33, scf_tol=1e-7)
+                        grid_size=33, scf_tol=1e-8)
     end
 end
 
@@ -50,6 +50,6 @@ end
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     @testset "Silicon PBE (large, collinear spin)" begin
         run_silicon_pbe(Float64, Ecut=25, test_tol=1e-5, n_ignored=0, grid_size=33,
-                        scf_tol=1e-7, spin_polarization=:collinear)
+                        scf_tol=1e-8, spin_polarization=:collinear)
     end
 end

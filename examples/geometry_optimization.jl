@@ -53,7 +53,7 @@ end;
 function fg!(F, G, x)
     scfres = compute_scfres(x)
     if G != nothing
-        grad = forces(scfres)
+        grad = compute_forces(scfres)
         G .= -[grad[1][1]; grad[1][2]]
     end
     scfres.energies.total

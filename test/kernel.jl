@@ -21,8 +21,8 @@ function test_kernel_unpolarized(termtype)
 
         ρ_minus = ρ0 - ε * dρ
         ρ_plus  = ρ0 + ε * dρ
-        pot_minus = ene_ops(term, nothing, nothing; ρ=ρ_minus).ops[1].potential
-        pot_plus  = ene_ops(term, nothing, nothing; ρ=ρ_plus).ops[1].potential
+        pot_minus = DFTK.ene_ops(term, nothing, nothing; ρ=ρ_minus).ops[1].potential
+        pot_plus  = DFTK.ene_ops(term, nothing, nothing; ρ=ρ_plus).ops[1].potential
         dV = (pot_plus - pot_minus) / (2ε)
 
         dV_apply = DFTK.apply_kernel(term, dρ; ρ=ρ0)[1]
@@ -61,8 +61,8 @@ function test_kernel_collinear(termtype)
         ρ_plus      = ρ0     + ε * dρ
         ρspin_plus  = ρspin0 + ε * dρspin
 
-        ops_minus = ene_ops(term, nothing, nothing; ρ=ρ_minus, ρspin=ρspin_minus).ops
-        ops_plus  = ene_ops(term, nothing, nothing; ρ=ρ_plus,  ρspin=ρspin_plus).ops
+        ops_minus = DFTK.ene_ops(term, nothing, nothing; ρ=ρ_minus, ρspin=ρspin_minus).ops
+        ops_plus  = DFTK.ene_ops(term, nothing, nothing; ρ=ρ_plus,  ρspin=ρspin_plus).ops
         dVα = (ops_plus[  iup].potential - ops_minus[  iup].potential) / (2ε)
         dVβ = (ops_plus[idown].potential - ops_minus[idown].potential) / (2ε)
 

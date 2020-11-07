@@ -24,7 +24,7 @@ function (::LdosModel)(basis; eigenvalues, ψ, εF, kwargs...)
 
     # Catch cases that will yield no contribution
     iszero(basis.model.temperature) && return nothing
-    ldos = [LDOS(εF, basis, eigenvalues, ψ, spins=[σ]) for σ in 1:n_spin]
+    ldos = [compute_ldos(εF, basis, eigenvalues, ψ, spins=[σ]) for σ in 1:n_spin]
     if maximum(maximum(abs, ldos[σ]) for σ in 1:n_spin) < eps(eltype(basis))
         return nothing
     end

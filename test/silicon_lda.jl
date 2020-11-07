@@ -35,7 +35,7 @@ end
 
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     @testset "Silicon LDA (large, Float64)" begin
-        run_silicon_lda(Float64, Ecut=25, test_tol=5e-6, n_ignored=0,
+        run_silicon_lda(Float64, Ecut=25, test_tol=1e-5, n_ignored=0,
                         grid_size=33, scf_tol=1e-7, n_ep_extra=0)
     end
 end
@@ -52,7 +52,7 @@ end
 
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     @testset "Silicon LDA (large, collinear spin)" begin
-        run_silicon_lda(Float64, Ecut=25, test_tol=5e-6, n_ignored=0,
+        run_silicon_lda(Float64, Ecut=25, test_tol=1e-5, n_ignored=0,
                         grid_size=33, scf_tol=1e-7, n_ep_extra=0, spin_polarization=:collinear)
     end
 end

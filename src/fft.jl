@@ -29,10 +29,10 @@ The function will determine the smallest parallelepiped containing the wave vect
 For an exact representation of the density resulting from wave functions
 represented in the spherical basis sets, `supersampling` should be at least `2`.
 """
-function determine_fft_size(lattice::AbstractMatrix{T}, Ecut;
-                            supersampling=2,
-                            tol=sqrt(eps(T)),
-                            ensure_smallprimes=true) where T
+function compute_fft_size(lattice::AbstractMatrix{T}, Ecut;
+                          supersampling=2,
+                          tol=sqrt(eps(T)),
+                          ensure_smallprimes=true) where T
     Gmax = supersampling * sqrt(2 * Ecut)
     Glims = bounding_rectangle(lattice, Gmax; tol=tol)
 
@@ -43,8 +43,8 @@ function determine_fft_size(lattice::AbstractMatrix{T}, Ecut;
     end
     fft_size
 end
-function determine_fft_size(model::Model, Ecut; kwargs...)
-    determine_fft_size(model.lattice, Ecut; kwargs...)
+function compute_fft_size(model::Model, Ecut; kwargs...)
+    compute_fft_size(model.lattice, Ecut; kwargs...)
 end
 
 function diameter(lattice)
@@ -61,8 +61,8 @@ end
 # is. It needs the kpoints to do so.
 # TODO This function is strange ... it should only depend on the kcoords
 #      It should be merged with build_kpoints somehow
-function determine_fft_size_precise(lattice::AbstractMatrix{T}, Ecut, kpoints;
-                                    supersampling=2, ensure_smallprimes=true) where T
+function compute_fft_size_precise(lattice::AbstractMatrix{T}, Ecut, kpoints;
+                                  supersampling=2, ensure_smallprimes=true) where T
     recip_lattice = 2T(π)*pinv(lattice')  # pinv in case one of the dimension is trivial
     recip_diameter = diameter(recip_lattice)
     Glims = [0, 0, 0]

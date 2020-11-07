@@ -1,3 +1,5 @@
+using Interpolations
+
 """
 Interpolate a function expressed in a basis `b_in` to a basis `b_out`
 This interpolation uses a very basic real-space algorithm, and makes

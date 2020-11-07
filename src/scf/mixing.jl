@@ -91,7 +91,7 @@ end
     else
         n_spin = basis.model.n_spin_components
         Ω = basis.model.unit_cell_volume
-        dos  = [DOS(εF, basis, eigenvalues, spins=[σ]) / Ω for σ in 1:n_spin]
+        dos  = [compute_dos(εF, basis, eigenvalues, spins=[σ]) / Ω for σ in 1:n_spin]
         kTF  = sqrt(4π * sum(dos))
         ΔDOS = n_spin == 2 ? dos[1] - dos[2] : 0.0
         mix(KerkerMixing(α=mixing.α, kTF=kTF, ΔDOS=ΔDOS), basis, δF, δFspin)

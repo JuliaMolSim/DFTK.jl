@@ -13,7 +13,7 @@ using LinearAlgebra: Diagonal
     ]
 
     ref = -0.02196861  # TODO source?
-    γ_E = energy_ewald(Model(lattice; atoms=atoms))
+    γ_E = DFTK.energy_ewald(Model(lattice; atoms=atoms))
     @test abs(γ_E - ref) < 1e-8
 end
 
@@ -25,7 +25,7 @@ end
     atoms = [silicon => [[1/8, 1/8, 1/8], [-1/8, -1/8, -1/8]], ]
 
     ref = -8.39789357839024  # from ABINIT
-    γ_E = energy_ewald(Model(lattice; atoms=atoms))
+    γ_E = DFTK.energy_ewald(Model(lattice; atoms=atoms))
     @test abs(γ_E - ref) < 1e-10
 end
 
@@ -37,6 +37,6 @@ end
     atoms = [silicon => [[1/8, 1/8, 1/8], [-1/8, -1/8, -1/8]], ]
 
     ref = -0.294622067023269  # from ABINIT
-    e_corr = energy_psp_correction(lattice, atoms)
+    e_corr = DFTK.energy_psp_correction(lattice, atoms)
     @test abs(e_corr - ref) < 1e-10
 end
