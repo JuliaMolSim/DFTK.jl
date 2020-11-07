@@ -14,6 +14,8 @@ using spglib_jll
 export unit_to_au
 export Vec3
 export Mat3
+export mpi_nprocs
+export mpi_master
 include("common/timer.jl")
 include("common/asserting.jl")
 include("common/constants.jl")
@@ -21,17 +23,6 @@ include("common/units.jl")
 include("common/types.jl")
 include("common/check_real.jl")
 include("common/spherical_harmonics.jl")
-
-export mpi_nprocs
-export mpi_master
-export mpi_sum
-export mpi_sum!
-export mpi_min
-export mpi_min!
-export mpi_max
-export mpi_max!
-export mpi_mean
-export mpi_mean!
 include("common/split_evenly.jl")
 include("common/mpi.jl")
 
