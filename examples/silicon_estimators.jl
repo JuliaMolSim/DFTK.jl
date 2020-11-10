@@ -1,9 +1,12 @@
 # Very basic setup, useful for testing
 using DFTK
 using LinearAlgebra
-import KrylovKit: ArnoldiIterator, Orthogonalizer, OrthonormalBasis, KrylovDefaults, orthogonalize!
-using KrylovKit
+using PyPlot
 
+# import aux file
+include("aposteriori_operators.jl")
+
+# model parameters
 a = 10.26  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
@@ -13,157 +16,130 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 model = model_LDA(lattice, atoms, n_electrons=8)
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
-Ecut = 15           # kinetic energy cutoff in Hartree
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 
-scfres = self_consistent_field(basis, tol=1e-10)
-display(scfres.energies)
+function test_newton(Ecut_list, Ecut_ref)
 
-tol_test = 1e-12
+    println("\n------------------------------------")
+    println("Solving for Ecutref = $(Ecut_ref)")
+    basis_ref = PlaneWaveBasis(model, Ecut_ref; kgrid=kgrid)
+    scfres_ref = self_consistent_field(basis_ref, tol=1e-10,
+                                       callback=info->nothing)
 
-# for a given kpoint, we compute the
-# projection of a vector ϕk on the orthogonal of the eigenvectors ψk
-function proj!(ϕk, ψk, occk)
+    nrj_ref = scfres_ref.energies.total
+    ψ1_ref = scfres_ref.ψ[1][:,1]
 
-    N = length([l for l in occk if l != 0.0])
-    Πϕk = deepcopy(ϕk)
-    for i = 1:N, j = 1:N
-        Πϕk[:,i] -= (ψk[:,j]'ϕk[:,i]) * ψk[:,j]
-    end
-    for i = 1:N, j = 1:N
-        @assert abs(Πϕk[:,i]'ψk[:,j]) < tol_test [println(abs(Πϕk[:,i]'ψk[:,j]))]
-    end
-    ϕk = Πϕk
-    ϕk
-end
+    println("Energy : $(nrj_ref)")
 
-# KrylovKit custom orthogonaliser
-struct OrthogonalizeAndProject{F, O <: Orthogonalizer, ψk, occk} <: Orthogonalizer
-    projector!::F
-    orth::O
-    ψ::ψk
-    occ::occk
-end
-OrthogonalizeAndProject(projector, ψk, occk) = OrthogonalizeAndProject(projector,
-                                                                       KrylovDefaults.orth,
-                                                                       ψk, occk)
+    nrj_list = []
+    ψ1_list = []
 
-function KrylovKit.orthogonalize!(v::T, b::OrthonormalBasis{T}, x::AbstractVector,
-                                        alg::OrthogonalizeAndProject) where {T}
-    v, x = orthogonalize!(v, b, x, alg.orth)
-    v = reshape(v, size(alg.ψ))
-    v = vec(alg.projector!(v, alg.ψ, alg.occ))::T
-    v, x
-end
-#
-# generate random δφ that are all orthogonal to every ψi for 1 <= i <= N
-function generate_δφ(ψk, occk)
+    nrj_corr_list = []
+    ψ1_corr_list = []
 
-    N = length([l for l in occk if l != 0.0])
+    for Ecut in Ecut_list
+        println("\n------------------------------------")
+        println("Solving for Ecut = $(Ecut)")
+        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+        scfres = self_consistent_field(basis, tol=1e-10,
+                                      callback=info->nothing)
 
-    # generate random vector and project it
-    δφk = rand(typeof(ψk[1,1]), size(ψk))
-    δφk = proj!(δφk, ψk, occk)
+        H = scfres.ham
+        ψ = scfres.ψ
+        egval = scfres.eigenvalues
+        occ = scfres.occupation
+        nrj = scfres.energies.total
 
-    # normalization and test
-    for i = 1:N
-        δφk[:,i] /= norm(δφk[:,i])
-        for j = 1:N
-            @assert abs(δφk[:,i]'ψk[:,j]) < tol_test [println(abs(δφk[:,i]'ψk[:,j]))]
-        end
-    end
-    δφk
-end
-#
-# for a given kpoint, we compute the
-# application of Ω to an element on the tangent plane
-# Here, an element on the tangent plane can be written as
-#       δP = Σ |ψi><δφi| + hc
-# where the δφi are of size Nb and are all orthogonal to the ψj, 1 <= j <= N
-# therefore we store them in the same kind of array than ψ, with
-# δφ[ik][:,i] = δφi for each k-point
-# therefore, computing Ωδφ can be done analitically
-function apply_Ω(δφk, ψk, H::HamiltonianBlock, occk, egvalk)
+        ψ_itp = DFTK.interpolate_blochwave(ψ, basis, basis_ref)
+        ψ1 = ψ_itp[1][:,1]
 
-    basis = scfres.basis
+        println("Energy : $(nrj)")
+        append!(nrj_list, abs(nrj - nrj_ref))
+        append!(ψ1_list, norm(ψ1 - (ψ1_ref'ψ1) * ψ1_ref))
 
-    N = length([l for l in occk if l != 0.0])
-
-    Ωδφk = 0. * copy(δφk)
-
-    Hδφk = H * δφk
-    Hδφk = proj!(Hδφk, ψk, occk)
-
-    # compute component on i
-    for i = 1:N
-        ε_i = egvalk[i]
-        Ωδφk[:,i] = Hδφk[:,i] - ε_i * δφk[:,i]
-    end
-    Ωδφk
-end
-
-#
-function apply_K()
-end
-
-
-
-
-# Compare eigenvalues of Ω with the gap
-function validate_Ω(scfres)
-
-    ψ = scfres.ψ
-    basis = scfres.basis
-    occ = scfres.occupation
-    egval = scfres.eigenvalues
-    H = scfres.ham
-    vecs = []
-    vals = []
-    gap = nothing
-
-    for ik = 1:length(basis.kpoints)
-
-        occk = occ[ik]
-        egvalk = egval[ik]
-        N = length([l for l in occk if l != 0.0])
-        gap = egvalk[N+1] - egvalk[N]
-
-        ψk = ψ[ik][:,1:N]
-        Hk = H.blocks[ik]
-        δφk = generate_δφ(ψk, occk)
-        x0 = vec(δφk)
-
-        # function we want to compute eigenvalues
-        function f(x)
-            ncalls += 1
-            x = reshape(x, size(δφk))
-            x = proj!(x, ψk, occk)
-            Ωx = apply_Ω(x, ψk, Hk, occk, egvalk)
-            Ωx = proj!(Ωx, ψk, occk)
-            vec(Ωx)
+        println("Computing the residual...")
+        Hψ = H * ψ
+        R = similar(ψ)
+        for ik in 1:length(basis.kpoints)
+            N = length([l for l in occ[ik] if l != 0.0])
+            ψk = ψ[ik]
+            R[ik] = similar(ψk[:,1:N])
+            for i in 1:N
+                R[ik][:,i] = Hψ[ik][:,i] - ψk[:,i] * egval[ik][i]
+            end
+            R[ik] = proj!(R[ik], ψk[:,1:N])
         end
 
-        println("\n--------------------------------")
-        println("Solving with KrylovKit...")
-        ncalls = 0
-        vals_Ω, vecs_Ω, info = eigsolve(f, x0, 8, :SR;
-                                        tol=1e-6, verbosity=1, eager=true,
-                                        maxiter=50, krylovdim=30,
-                                        orth=OrthogonalizeAndProject(proj!, ψk, occk))
+        x0 = similar(ψ)
+        for ik = 1:length(basis.kpoints)
+            N = size(R[ik], 2)
+            x0[ik] = generate_δφ(ψ[ik][:,1:N])
+        end
 
-        println("\nKryloKit calls to operator: ", ncalls)
-        idx = findfirst(x -> abs(x) > 1e-6, vals_Ω)
-        display(vals_Ω)
-        println("\n")
-        display(info.normres)
-        println("\n")
-        display(vals_Ω[idx])
-        display(gap)
-        display(norm(gap-vals_Ω[idx]))
-        append!(vecs, vecs_Ω)
-        append!(vals, vals_Ω)
+        # we want to solve (Ω+K)δψ = R, and then do ψ = ψ + δψ
+        for ik = 1:length(basis.kpoints)
+
+            kpt = basis.kpoints[ik]
+            egvalk = egval[ik]
+            Rk = R[ik]
+            Hk = H.blocks[ik]
+
+            N = size(Rk, 2)
+            ψk = ψ[ik][:,1:N]
+
+            b = vec(Rk)
+
+            function f(x)
+                x = reshape(x, size(ψk))
+                x = proj!(x, ψk)
+                x0[ik] = x
+
+                δρ = compute_density(basis, x0, [o[1:N] for o in occ])
+                Kδρ = apply_kernel(basis, δρ[1]; ρ=scfres.ρ)
+
+                ΩpKx = ΩplusK_kpt(scfres, kpt, x, Kδρ[ik], ψk, Hk, egvalk)
+                ΩpKx = proj!(ΩpKx, ψk)
+                vec(ΩpKx)
+            end
+
+            println("Solve linear system and apply correction...")
+            δφk, info = linsolve(f, b, vec(x0[ik]);
+                                 tol=1e-4, verbosity=1,
+                                 orth=OrthogonalizeAndProject(proj!, ψk))
+            δφk = reshape(δφk, size(ψk))
+            ψk .-= δφk
+
+            for i=1:N
+                ψ[ik][:,i] = ψk[:,i] / norm(ψk[:,i])
+            end
+        end
+
+        ψ_itp = DFTK.interpolate_blochwave(ψ, basis, basis_ref)
+        ψ1_corr = ψ_itp[1][:,1]
+        ρ = compute_density(basis, ψ, occ)
+        nrj_corr, _ = energy_hamiltonian(basis, ψ, occ; ρ=ρ[1])
+        nrj_corr = nrj_corr.total
+
+        println("Energy corrected : $(nrj_corr)")
+        append!(nrj_corr_list, abs(nrj_corr - nrj_ref))
+        append!(ψ1_corr_list, norm(ψ1_corr - (ψ1_ref'ψ1_corr) * ψ1_ref))
+
     end
-    vals, vecs, gap
+
+    figure()
+    title("Error on the energy")
+    semilogy(Ecut_list, nrj_list, "+-", label="Solution for Ecut")
+    semilogy(Ecut_list, nrj_corr_list, "+-", label="Correction for Ecut")
+    legend()
+
+    figure()
+    title("Error on the 1st eigenvector")
+    semilogy(Ecut_list, ψ1_list, "+-", label="Solution for Ecut")
+    semilogy(Ecut_list, ψ1_corr_list, "+-", label="Correction for Ecut")
+    legend()
+
 end
 
-vals, vecs, gap = validate_Ω(scfres)
+Ecut_ref = 20
+Ecut_list = 5:5:15
+
+test_newton(Ecut_list, Ecut_ref)

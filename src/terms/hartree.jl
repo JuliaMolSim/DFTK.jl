@@ -56,8 +56,8 @@ function ene_ops(term::TermHartree, ψ, occ; ρ, kwargs...)
     (E=E, ops=ops)
 end
 
-function apply_kernel(term::TermHartree, dρ::RealFourierArray; kwargs...)
-    from_fourier(dρ.basis, term.poisson_green_coeffs .* dρ.fourier)
+function apply_kernel(term::TermHartree, dρ::RealFourierArray, dρspin; kwargs...)
+    [from_fourier(dρ.basis, term.poisson_green_coeffs .* dρ.fourier)]
 end
 
 function apply_kernel_sqrt(term::TermHartree, dρ::RealFourierArray; kwargs...)
