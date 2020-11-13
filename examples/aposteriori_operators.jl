@@ -68,6 +68,25 @@ function KrylovKit.orthogonalize!(v::T, x::AbstractVector,
     v = pack(alg.projector!(v, alg.ψ))::T
     v, x
 end
+function KrylovKit.gklrecurrence(operator, U::OrthonormalBasis, V::OrthonormalBasis, β,
+                                 alg::OrthogonalizeAndProject)
+    u = U[end]
+    v = operator(u, true)
+    v = axpy!(-β, V[end], v)
+    # for q in V # not necessary if we definitely reorthogonalize next step and previous step
+    #     v, = orthogonalize!(v, q, ModifiedGramSchmidt())
+    # end
+    α = norm(v)
+    rmul!(v, inv(α))
+
+    r = operator(v, false)
+    r = axpy!(-α, u, r)
+    for q in U
+        r, = orthogonalize!(r, q, alg)
+    end
+    β = norm(r)
+    return v, r, α, β
+end
 
 ############################# OPERATORS ########################################
 
@@ -113,7 +132,7 @@ function apply_K(basis, δφ, φ, ρ, occ)
     Nk = length(basis.kpoints)
 
     δρ = DFTK.compute_density(basis, φ, δφ, occ)
-    Kδρ = apply_kernel(basis, δρ[1]; ρ=ρ[1])
+    Kδρ = apply_kernel(basis, δρ[1]; ρ=ρ)
     Kδρ_r = Kδρ[1].real
     Kδφ = similar(φ)
 
@@ -204,4 +223,15 @@ function test_Ω(basis::PlaneWaveBasis{T};
 
     display(vals_Ω)
     println(scfres.eigenvalues[1][5] - scfres.eigenvalues[1][4])
+
+    ## testing symmetry
+    ψ1 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
+          for kpt in basis.kpoints]
+    ψ1 = proj!(ψ1, φ)
+    ΩpKψ1 = ΩplusK(basis, ψ1, φ, ρ, H, egval, occupation)
+    ψ2 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
+          for kpt in basis.kpoints]
+    ψ2 = proj!(ψ1, φ)
+    ΩpKψ2 = ΩplusK(basis, ψ2, φ, ρ, H, egval, occupation)
+    println(norm(ψ1'ΩpKψ2 - ψ2'ΩpKψ1))
 end
