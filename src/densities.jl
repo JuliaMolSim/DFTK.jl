@@ -116,15 +116,7 @@ function compute_partial_density(basis, kpt, ψk, δψk, occupation)
     # Check sanity of the density (real, positive and normalized)
     T = real(eltype(ρk_real))
     real_checked(ρk_real)
-    if all(occupation .> 0)
-        minimum(real(ρk_real)) < 0 && @warn("Negative ρ detected",
-                                            min_ρ=minimum(real(ρk_real)))
-    end
     n_electrons = sum(ρk_real) * basis.model.unit_cell_volume / prod(basis.fft_size)
-    #  if abs(n_electrons - sum(occupation)) > sqrt(eps(T))
-    #      @warn("Mismatch in number of electrons", sum_ρ=n_electrons,
-    #            sum_occupation=sum(occupation))
-    #  end
 
     # FFT and return
     r_to_G(basis, ρk_real)

@@ -4,69 +4,69 @@ using KrylovKit
 ################################## TOOL ROUTINES ###############################
 
 # test for orthogonalisation
-tol_test = 1e-10
+tol_test = 1e-12
 
-# for a given kpoint, we compute the
-# projection of a vector ϕk on the orthogonal of the eigenvectors ψk
-function proj!(ϕk, ψk)
+# we project ϕ onto the tangent space to ψ
+function proj!(ϕ, ψ)
 
-    N1 = size(ϕk,2)
-    N2 = size(ψk,2)
-    @assert N1 == N2
-    N = N1
+    Nk1 = size(ϕ,1)
+    Nk2 = size(ψ,1)
+    @assert Nk1 == Nk2
+    Nk = Nk1
 
-    Πϕk = deepcopy(ϕk)
-    for i = 1:N, j = 1:N
-        Πϕk[:,i] -= (ψk[:,j]'ϕk[:,i]) * ψk[:,j]
+    Πϕ = similar(ϕ)
+
+    for ik = 1:Nk
+        ψk = ψ[ik]
+        ϕk = ϕ[ik]
+        Πϕk = deepcopy(ϕk)
+
+        N1 = size(ϕk,2)
+        N2 = size(ψk,2)
+        @assert N1 == N2
+        N = N1
+
+        for i = 1:N, j = 1:N
+            Πϕk[:,i] -= (ψk[:,j]'ϕk[:,i]) * ψk[:,j]
+        end
+        Πϕ[ik] = Πϕk
     end
-    for i = 1:N, j = 1:N
-        @assert abs(Πϕk[:,i]'ψk[:,j]) < tol_test [println(abs(Πϕk[:,i]'ψk[:,j]))]
+
+    for ik = 1:Nk
+        ψk = ψ[ik]
+        ϕk = ϕ[ik]
+        Πϕk = Πϕ[ik]
+        N = size(ψk,2)
+        for i = 1:N, j = 1:N
+            @assert abs(Πϕk[:,i]'ψk[:,j]) < tol_test [println(abs(Πϕk[:,i]'ψk[:,j]))]
+        end
     end
-    ϕk = Πϕk
-    ϕk
+    Πϕ
 end
 
 # KrylovKit custom orthogonaliser
-struct OrthogonalizeAndProject{F, O <: Orthogonalizer, ψk} <: Orthogonalizer
+pack(ψ) = vcat(Base.vec.(ψ)...)
+struct OrthogonalizeAndProject{F, O <: Orthogonalizer, ψ} <: Orthogonalizer
     projector!::F
     orth::O
-    ψ::ψk
+    ψ::ψ
 end
-OrthogonalizeAndProject(projector, ψk) = OrthogonalizeAndProject(projector,
-                                                                 KrylovDefaults.orth,
-                                                                 ψk)
+OrthogonalizeAndProject(projector, ψ) = OrthogonalizeAndProject(projector,
+                                                                KrylovDefaults.orth,
+                                                                ψ)
 function KrylovKit.orthogonalize!(v::T, b::OrthonormalBasis{T}, x::AbstractVector,
                                         alg::OrthogonalizeAndProject) where {T}
     v, x = orthogonalize!(v, b, x, alg.orth)
     v = reshape(v, size(alg.ψ))
-    v = vec(alg.projector!(v, alg.ψ))::T
+    v = pack(alg.projector!(v, alg.ψ))::T
     v, x
 end
 function KrylovKit.orthogonalize!(v::T, x::AbstractVector,
                                         alg::OrthogonalizeAndProject) where {T}
     v, x = orthogonalize!(v, x, alg.orth)
     v = reshape(v, size(alg.ψ))
-    v = vec(alg.projector!(v, alg.ψ))::T
+    v = pack(alg.projector!(v, alg.ψ))::T
     v, x
-end
-
-# generate random δφ that are all orthogonal to every ψi for 1 <= i <= N
-function generate_δφ(ψk)
-
-    N = size(ψk,2)
-
-    # generate random vector and project it
-    δφk = rand(typeof(ψk[1,1]), size(ψk))
-    δφk = proj!(δφk, ψk)
-
-    # normalization and test
-    for i = 1:N
-        δφk[:,i] /= norm(δφk[:,i])
-        for j = 1:N
-            @assert abs(δφk[:,i]'ψk[:,j]) < tol_test [println(abs(δφk[:,i]'ψk[:,j]))]
-        end
-    end
-    δφk
 end
 
 ############################# OPERATORS ########################################
@@ -79,163 +79,129 @@ end
 # therefore we store them in the same kind of array than ψ, with
 # δφ[ik][:,i] = δφi for each k-point
 # therefore, computing Ωδφ can be done analitically
-function apply_Ω_kpt(δφk, ψk, H::HamiltonianBlock, egvalk)
+function apply_Ω(basis, δφ, φ, H, egval)
+    Nk = length(basis.kpoints)
+    Ωδφ = similar(φ)
 
-    N1 = size(δφk,2)
-    N2 = size(ψk,2)
-    @assert N1 == N2
-    N = N1
+    for ik = 1:Nk
+        δφk = δφ[ik]
+        φk = φ[ik]
+        egvalk = egval[ik]
 
-    Ωδφk = similar(δφk)
+        N1 = size(δφk,2)
+        N2 = size(φk,2)
+        @assert N1 == N2
+        N = N1
 
-    Hδφk = H * δφk
-    Hδφk = proj!(Hδφk, ψk)
+        Ωδφk = similar(δφk)
 
-    # compute component on i
-    for i = 1:N
-        ε_i = egvalk[i]
-        Ωδφk[:,i] = Hδφk[:,i] - ε_i * δφk[:,i]
+        Hδφk = H.blocks[ik] * δφk
+        #  Hδφk = proj!([Hδφk], [φk])[1]
+
+        # compute component on i
+        for i = 1:N
+            ε_i = egvalk[i]
+            Ωδφk[:,i] = Hδφk[:,i] - ε_i * δφk[:,i]
+        end
+        Ωδφ[ik] = Ωδφk
     end
-    Ωδφk
-end
-
-# same but for all kpoint at a time
-function apply_Ω(scfres, δφ, ψ, H::Hamiltonian, egval)
-    Ωδφ = similar(δφ)
-    for ik = 1:length(scfres.basis.kpoints)
-        N = size(δφ[ik],2)
-        Ωδφ[ik] = apply_Ω_kpt(δφ[ik], ψ[ik][:,1:N], H.blocks[ik], egval[ik])
-    end
-    Ωδφ
-end
-
-# we compute the application of K for on kpt
-function apply_K_kpt(scfres, kpt, δφk, Kδρk, ψk)
-
-    basis = scfres.basis
-
-    Kδρk_r = Kδρk.real
-    Kδρψk = similar(δφk)
-
-    N = size(δφk,2)
-
-    for i = 1:N
-        ψk_r = G_to_r(basis, kpt, ψk[:,i])
-        Kδρψk_r = Kδρk_r .* ψk_r
-        Kδρψk[:,i] = r_to_G(basis, kpt, Kδρψk_r)
-    end
-    proj!(Kδρψk, ψk)
+    proj!(Ωδφ, φ)
 end
 
 # we compute the application of K (for all kpoints)
-function apply_K(scfres, δφ, ψ)
+function apply_K(basis, δφ, φ, ρ, occ)
+    Nk = length(basis.kpoints)
 
-    basis = scfres.basis
-    occ = similar(scfres.occupation)
+    δρ = DFTK.compute_density(basis, φ, δφ, occ)
+    Kδρ = apply_kernel(basis, δρ[1]; ρ=ρ[1])
+    Kδρ_r = Kδρ[1].real
+    Kδφ = similar(φ)
 
-    for ik = 1:length(basis.kpoints)
-        N = size(δφ[ik],2)
-        occ[ik] = scfres.occupation[ik][1:N]
-    end
-
-    δρ = compute_density(basis, δφ, occ)
-    Kδρ = apply_kernel(basis, δρ[1]; ρ=scfres.ρ)
-    Kδφ = similar(δφ)
-
-    for ik = 1:length(basis.kpoints)
+    for ik = 1:Nk
         kpt = basis.kpoints[ik]
-        Kδφ[ik] = apply_K_kpt(scfres, kpt, δφk, Kδρ[ik], ψk)
+        φk = φ[ik]
+        Kδρφk = similar(φk)
+
+        N = size(φk,2)
+        for i = 1:N
+            φk_r = G_to_r(basis, kpt, φk[:,i])
+            Kδρφk_r = Kδρ_r .* φk_r
+            Kδρφk[:,i] = r_to_G(basis, kpt, Kδρφk_r)
+        end
+        Kδφ[ik] = Kδρφk
     end
-    Kδφ
-end
-
-# Ω+K at a given kpt
-function ΩplusK_kpt(scfres, kpt, δφk, Kδρk, ψk, Hk, egvalk)
-
-    ΩpKk = similar(δφk)
-
-    Kδφk = apply_K_kpt(scfres, kpt, δφk, Kδρk, ψk)
-    Ωδφk = apply_Ω_kpt(δφk, ψk, Hk, egvalk)
-    ΩpKδφk = Ωδφk .+ Kδφk
+    proj!(Kδφ, φ)
 end
 
 # Apply (Ω+K)δφ
-function ΩplusK(scfres, δφ)
-
-    basis = scfres.basis
-
-    ψ = scfres.ψ
-    H = scfres.ham
-    occ = scfres.occupation
-    egval = scfres.eigenvalues
-
-    Kδφ = apply_K(scfres, δφ, ψ)
-    Ωδφ = apply_Ω(scfres, δφ, ψ, H, egval)
+function ΩplusK(basis, δφ, φ, ρ, H, egval, occ)
+    Kδφ = apply_K(basis, δφ, φ, ρ, occ)
+    Ωδφ = apply_Ω(basis, δφ, φ, H, egval)
     ΩpKδφ = Ωδφ .+ Kδφ
 end
 
-############################## TESTS ##########################################
+################################## TESTS #######################################
+function test_Ω(basis::PlaneWaveBasis{T};
+                ψ0=nothing) where T
 
-# Compare eigenvalues of Ω with the gap
-function validate_Ω(scfres)
+    ## setting parameters
+    model = basis.model
+    @assert model.spin_polarization in (:none, :spinless)
+    @assert model.temperature == 0 # temperature is not yet supported
+    filled_occ = DFTK.filled_occupation(model)
+    n_bands = div(model.n_electrons, filled_occ)
 
-    ψ = scfres.ψ
-    δφ = similar(ψ)
+    ## number of kpoints
+    Nk = length(basis.kpoints)
+    occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
+    ## number of eigenvalue/eigenvectors we are looking for
+    N = n_bands
 
-    basis = scfres.basis
-    occ = scfres.occupation
-    egval = scfres.eigenvalues
-    H = scfres.ham
-
-    vecs = []
-    vals = []
-    gap = nothing
-
-    for ik = 1:length(basis.kpoints)
-
-        occk = occ[ik]
-        egvalk = egval[ik]
-        N = length([l for l in occk if l != 0.0])
-        gap = egvalk[N+1] - egvalk[N]
-
-        ψk = ψ[ik][:,1:N]
-        Hk = H.blocks[ik]
-        δφ[ik] = generate_δφ(ψk)
-        δφk = δφ[ik]
-        x0 = vec(δφk)
-
-        # function we want to compute eigenvalues
-        function f(x)
-            ncalls += 1
-            x = reshape(x, size(δφk))
-            x = proj!(x, ψk)
-            Ωx = apply_Ω_kpt(x, ψk, Hk, egvalk)
-            Ωx = proj!(Ωx, ψk)
-            vec(Ωx)
-        end
-
-        println("\n--------------------------------")
-        println("Solving with KrylovKit...")
-        ncalls = 0
-        vals_Ω, vecs_Ω, info = eigsolve(f, x0, 8, :SR;
-                                        tol=1e-6, verbosity=1, eager=true,
-                                        maxiter=50, krylovdim=30,
-                                        orth=OrthogonalizeAndProject(proj!, ψk))
-
-        println("\nKryloKit calls to operator: ", ncalls)
-        idx = findfirst(x -> abs(x) > 1e-6, vals_Ω)
-        display(vals_Ω)
-        println("\n")
-        display(info.normres)
-        println("\n")
-        display(vals_Ω[idx])
-        display(gap)
-        display(norm(gap-vals_Ω[idx]))
-        append!(vecs, vecs_Ω)
-        append!(vals, vals_Ω)
+    ortho(ψk) = Matrix(qr(ψk).Q)
+    if ψ0 === nothing
+        ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), n_bands))
+              for kpt in basis.kpoints]
     end
 
-    vals, vecs, gap
-end
+    ## vec and unpack
+    # length of ψ0[ik]
+    lengths = [length(ψ0[ik]) for ik = 1:Nk]
+    starts = copy(lengths)
+    starts[1] = 1
+    for ik = 1:Nk-1
+        starts[ik+1] = starts[ik] + lengths[ik]
+    end
+    pack(ψ) = vcat(Base.vec.(ψ)...) # TODO as an optimization, do that lazily? See LazyArrays
+    unpack(ψ) = [@views reshape(ψ[starts[ik]:starts[ik]+lengths[ik]-1], size(ψ0[ik]))
+                 for ik = 1:Nk]
 
-#  vals, vecs, gap = validate_Ω(scfres)
+    φ = similar(scfres.ψ)
+    H = scfres.ham
+    for ik = 1:Nk
+        φ[ik] = scfres.ψ[ik][:,1:4]
+    end
+    egval = [ zeros(Complex{T}, size(occupation[i])) for i = 1:length(occupation) ]
+    for ik = 1:Nk
+        φk = φ[ik]
+        Hk = H.blocks[ik]
+        egvalk = [φk[:,i]'*(Hk*φk[:,i]) for i = 1:N]
+        egval[ik] = egvalk
+    end
+
+    function f(x)
+        δφ = unpack(x)
+        δφ = proj!(δφ, φ)
+        ΩpKx = apply_Ω(basis, δφ, φ, H, egval)
+        ΩpKx = proj!(ΩpKx, φ)
+        pack(ΩpKx)
+    end
+
+    packed_proj!(ϕ,ψ) = proj!(unpack(ϕ), unpack(ψ))
+    vals_Ω, vecs_Ω, info = eigsolve(f, pack(ψ0), 8, :SR;
+                                    tol=1e-6, verbosity=1, eager=true,
+                                    maxiter=50, krylovdim=30,
+                                    orth=OrthogonalizeAndProject(packed_proj!, pack(φ)))
+
+    display(vals_Ω)
+    println(scfres.eigenvalues[1][5] - scfres.eigenvalues[1][4])
+end
