@@ -146,7 +146,7 @@ To use thread-based parallelism proceed as follows:
    ```
 
 For some cases (e.g. a single `k`-Point, fewish bands and a large FFT grid)
-it can be advantages to add threading inside the FFTs as well. One example
+it can be advantageous to add threading inside the FFTs as well. One example
 is the Caffeine calculation in the above scaling plot. In order to do so
 just call `setup_threading(n_fft=2)`, which will select two FFT threads.
 More than two FFT threads is rarely useful.
