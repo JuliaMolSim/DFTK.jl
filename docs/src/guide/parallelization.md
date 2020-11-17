@@ -75,7 +75,7 @@ depending on architecture, DFTK or Julia version.
 The rough trends should, however, be similar.
 
 ```@raw html
-<img src="scaling.png" width=750 />
+<img src="../scaling.png" width=750 />
 ```
 
 The MPI-based parallelization strategy clearly shows a superior scaling

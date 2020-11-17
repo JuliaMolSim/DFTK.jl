@@ -1,2 +1,2 @@
-status = ["continuous-integration/travis-ci/push", "Run DFTK examples"]
+status = ["continuous-integration/travis-ci/push", "CI"]
 delete_merged_branches = true

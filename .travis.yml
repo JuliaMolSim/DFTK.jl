@@ -30,39 +30,8 @@ after_success: |  # Upload coverage when things are good.
     Coveralls.submit(coverage)
   '
 
-os:
-  - linux
-  - osx
 julia: "1.4"
-
-jobs:
-  allow_failures:  # Allow to fail on nightly
-    - julia: nightly
-  include:
-    - julia: nightly  # Nightly test
-      os: linux
-    - os: linux       # MPI test
-      script:         # Install DFTK and MPI, precompile, install test packages
-        - julia -e '
-          using Pkg; Pkg.build(); Pkg.precompile();
-          using MPI; MPI.install_mpiexecjl();
-          Pkg.test(; test_args=["quick"])
-          '
-        - $HOME/.julia/bin/mpiexecjl -np $MPI_NUM_PROCS julia --compiled-modules=no -e 'using Pkg; Pkg.test(coverage=true)'
-      env: MPI_NUM_PROCS=2
-    - stage: "Documentation"
-      os: linux
-      script:
-        - *conda
-        - |
-          julia --project=docs/ -e '
-            using Pkg
-            Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.instantiate()
-            Pkg.build("DFTK")
-          '
-        - julia --project=docs/ docs/make.jl
-      after_success: skip
+os: linux
 
 notifications:
   email: false

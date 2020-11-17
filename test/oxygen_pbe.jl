@@ -33,5 +33,5 @@ function run_oxygen_pbe(T; kwargs...)
 end
 
 @testset "Oxygen PBE (Float64)" begin
-    run_oxygen_pbe(Float64, test_tol=5e-6, scf_tol=1e-8, n_ignored=1)
+    run_oxygen_pbe(Float64, test_tol=1e-5, scf_tol=1e-8, n_ignored=1)
 end

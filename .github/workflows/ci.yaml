@@ -1,0 +1,139 @@
+name: CI
+on:
+  push:
+    branches:
+      - master
+      - /^v\d+\.\d+(\.\d+)?(-\S*)?$/  # Tags
+      - staging  # Bors
+      - trying   # Bors
+  pull_request:
+    branches:
+      - master
+  schedule:
+    - cron:  '* * * * 6'  # Run every Sunday
+
+jobs:
+  #
+  # Unit tests
+  #
+  test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.payload }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {version: '1.4',   os: ubuntu-latest,  payload: serial}
+          - {version: '1.4',   os: macOS-latest,   payload: serial}
+          # - {version: '1.4',   os: windows-latest, payload: serial}
+          - {version: '1.4',   os: ubuntu-latest,  payload: mpi   }
+          - {version: nightly, os: ubuntu-latest,  payload: serial}
+    env:
+      PYTHON: ""  # Force using Conda in PyCall
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: ${{ matrix.version }}
+          arch: x64
+      - uses: actions/cache@v1
+        env:
+          cache-name: cache-artifacts
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-test-${{ env.cache-name }}-
+            ${{ runner.os }}-test-
+            ${{ runner.os }}-
+      - name: Install Conda dependencies
+        shell: bash
+        run: |
+          julia -e '
+            using Pkg; Pkg.add("Conda"); using Conda
+            Conda.add(["libblas=*=*netlib", "nomkl", "ase", "pymatgen"]; channel="conda-forge")
+          '
+      - uses: julia-actions/julia-buildpkg@latest
+
+      - name: Execute serial tests
+        uses: julia-actions/julia-runtest@latest
+        if: ${{ matrix.payload == 'serial' }}
+
+      - name: Execute MPI-parallel tests
+        run: |
+          julia --project -e '
+            using Pkg; Pkg.build(); Pkg.precompile()
+            Pkg.add("MPI"); using MPI; MPI.install_mpiexecjl()
+            Pkg.test(; test_args=["quick"])
+          '
+          $HOME/.julia/bin/mpiexecjl -np 2 julia --check-bounds=yes --depwarn=yes --project --color=yes --compiled-modules=no -e 'using Pkg; Pkg.test(coverage=true)'
+        if: ${{ matrix.payload == 'mpi' }}
+
+      - uses: julia-actions/julia-processcoverage@v1
+      - uses: julia-actions/julia-uploadcoveralls@v1
+        env:
+          COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+        continue-on-error: true
+  #
+  # Examples
+  #
+  examples:
+    name: Run examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.6'
+      - name: Install python dependencies
+        run: pip install ase pymatgen
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: '1.4'
+      - uses: actions/cache@v1
+        env:
+          cache-name: cache-artifacts
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-test-${{ env.cache-name }}-
+            ${{ runner.os }}-test-
+            ${{ runner.os }}-
+      - run: julia --color=yes --project -e 'using Pkg; Pkg.test(test_args = ["example"])'
+  #
+  # Docs
+  #
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.6'
+      - name: Install python dependencies
+        run: pip install ase pymatgen
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: '1'
+      - name: Instantiate and build packages
+        run: |
+          julia --project=docs -e '
+            using Pkg
+            Pkg.develop(PackageSpec(path=pwd()))
+            Pkg.instantiate()
+          '
+          # TODO On Travis we did this: Pkg.build("DFTK")
+      - name: Run doctests
+        run: |
+          julia --project=docs -e '
+            using Documenter: DocMeta, doctest
+            using DFTK
+            DocMeta.setdocmeta!(DFTK, :DocTestSetup, :(using DFTK); recursive=true)
+            doctest(DFTK)'
+      - name: Generate docs
+        run: julia --project=docs docs/make.jl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}

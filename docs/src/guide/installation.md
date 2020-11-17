@@ -16,7 +16,7 @@ which will install the latest DFTK release.
 Alternatively (if you like to be fully up to date) install the master branch:
 ```julia
 import Pkg
-Pkg.add("DFTK#master")
+Pkg.add(name="DFTK", rev="master")
 ```
 
 ## Python dependencies

@@ -16,7 +16,7 @@ export Vec3
 export Mat3
 export mpi_nprocs
 export mpi_master
-export setup_threading
+export setup_threading, disable_threading
 include("common/timer.jl")
 include("common/asserting.jl")
 include("common/constants.jl")
@@ -95,7 +95,6 @@ include("interpolation.jl")
 export PreconditionerTPA
 export PreconditionerNone
 export lobpcg_hyper
-export lobpcg_itsolve
 export diag_full
 export diagonalize_all_kblocks
 include("eigen/preconditioners.jl")
