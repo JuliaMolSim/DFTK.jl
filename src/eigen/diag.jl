@@ -75,4 +75,3 @@ end
 # The actual implementations using the above primitives
 include("diag_full.jl")
 include("diag_lobpcg_hyper.jl")
-include("diag_lobpcg_itsolve.jl")
