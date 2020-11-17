@@ -1,0 +1,46 @@
+name: Documentation
+on:
+  push:
+    branches:
+      - master
+      - /^v\d+\.\d+(\.\d+)?(-\S*)?$/  # Tags
+      - staging  # Bors
+      - trying   # Bors
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.6'
+      - name: Install python dependencies
+        run: pip install ase pymatgen
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: '1'
+      - name: Instantiate and build packages
+        run: |
+          julia --project=docs -e '
+            using Pkg
+            Pkg.develop(PackageSpec(path=pwd()))
+            Pkg.instantiate()
+          '
+          # TODO On Travis we did this: Pkg.build("DFTK")
+      - name: Run doctests
+        run: |
+          julia --project=docs -e '
+            using Documenter: DocMeta, doctest
+            using DFTK
+            DocMeta.setdocmeta!(DFTK, :DocTestSetup, :(using DFTK); recursive=true)
+            doctest(DFTK)'
+      - name: Generate docs
+        run: julia --project=docs docs/make.jl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
