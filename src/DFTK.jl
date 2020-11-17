@@ -16,6 +16,7 @@ export Vec3
 export Mat3
 export mpi_nprocs
 export mpi_master
+export setup_threading
 include("common/timer.jl")
 include("common/asserting.jl")
 include("common/constants.jl")
@@ -25,6 +26,7 @@ include("common/check_real.jl")
 include("common/spherical_harmonics.jl")
 include("common/split_evenly.jl")
 include("common/mpi.jl")
+include("common/threading.jl")
 
 export PspHgh
 include("pseudo/PspHgh.jl")

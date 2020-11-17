@@ -27,6 +27,9 @@ else
     println("   Running tests (TAGS = $(join(TAGS, ", "))).")
 end
 
+# Setup threading in DFTK
+setup_threading()
+
 # Initialize seed
 Random.seed!(0)
 
