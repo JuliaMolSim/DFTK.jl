@@ -2,18 +2,21 @@
 
 # Density-functional toolkit
 
-| **Documentation**                                       | **Build Status**                                       |  **License**                     |
-|:------------------------------------------------------- |:------------------------------------------------------ |:-------------------------------- |
-| [![][docs-img]][docs-url] [![][gitter-img]][gitter-url] | [![][travis-img]][travis-url] [![][cov-img]][cov-url]  | [![][license-img]][license-url]  |
+| **Documentation**                                                                   | **Build Status**                               |  **License**                     |
+|:----------------------------------------------------------------------------------- |:---------------------------------------------- |:-------------------------------- |
+| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][gitter-img]][gitter-url] | [![][ci-img]][ci-url] [![][cov-img]][cov-url]  | [![][license-img]][license-url]  |
 
-[docs-img]: https://img.shields.io/badge/docs-dev-blue.svg
-[docs-url]: https://juliamolsim.github.io/DFTK.jl/dev
+[ddocs-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[ddocs-url]: https://docs.dftk.org/dev
+
+[docs-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[docs-url]: https://docs.dftk.org/stable
 
 [gitter-img]: https://badges.gitter.im/DFTK-jl/community.svg
 [gitter-url]: https://gitter.im/DFTK-jl/community
 
-[travis-img]: https://travis-ci.com/JuliaMolSim/DFTK.jl.svg?branch=master
-[travis-url]: https://travis-ci.com/JuliaMolSim/DFTK.jl
+[ci-img]: https://github.com/JuliaMolSim/DFTK.jl/workflows/CI/badge.svg?branch=master&event=push
+[ci-url]: https://github.com/JuliaMolSim/DFTK.jl/actions
 
 [cov-img]: https://coveralls.io/repos/JuliaMolSim/DFTK.jl/badge.svg?branch=master&service=github
 [cov-url]: https://coveralls.io/github/JuliaMolSim/DFTK.jl?branch=master
