@@ -58,10 +58,10 @@ as a breakdown over individual routines.
     unless you set `DFTK_TIMING` to `"all"`. In this case you must not use
     Julia threading (see section below) or otherwise undefined behaviour results.
 
-## Options for parallelisation
-At the moment DFTK offers two ways to parallelise a calculation,
+## Options for parallelization
+At the moment DFTK offers two ways to parallelize a calculation,
 firstly shared-memory parallelism using threading
-and secondly (possibly distributed) multiprocessing using MPI
+and secondly multiprocessing using MPI
 (via the [MPI.jl](https://github.com/JuliaParallel/MPI.jl) Julia interface).
 MPI-based parallelism is currently only over `k`-Points,
 such that it cannot be used for calculations with only a single `k`-Point.
@@ -78,7 +78,7 @@ The rough trends should, however, be similar.
 <img src="scaling.png" width=750 />
 ```
 
-The MPI-based parallelisation strategy clearly shows a superior scaling
+The MPI-based parallelization strategy clearly shows a superior scaling
 and should be preferred if available.
 
 
@@ -86,30 +86,24 @@ and should be preferred if available.
 Currently DFTK uses MPI to distribute on `k`-Points only.
 This implies that calculations with only a single `k`-Point
 cannot use make use of this.
-The recommended way to use MPI with DFTK is to
-disable all threading and run Julia with the number
-of desired MPI processes.
 For details on setting up and configuring MPI with Julia
 see the [MPI.jl documentation](https://juliaparallel.github.io/MPI.jl/stable/configuration).
 
-1. To ensure the thread setup in DFTK is consistent with the environment
-   under which DFTK runs
-   add the following to your script running the DFTK calculation:
+1. First disable all threading inside DFTK, by adding the
+   following to your script running the DFTK calculation:
    ```julia
    using DFTK
-   setup_threading()
+   disable_threading()
    ```
-   This will ensure that all threading is disabled
-   (which unfortunately is not the default).
 
 2. Run Julia in parallel using the `mpiexecjl` wrapper script from MPI.jl:
    ```sh
-   mpiexecjl -np 16 julia -t 1 myscript.jl
+   mpiexecjl -np 16 julia myscript.jl
    ```
    In this `-np 16` tells MPI to use 16 processes and `-t 1` tells Julia
    to use one thread only.  
    Notice that we use `mpiexecjl` to automatically select the `mpiexec`
-   compatible with the MPI version used by Julia.
+   compatible with the MPI version used by MPI.jl.
 
 As usual with MPI printing will be garbled. You can use
 ```julia
@@ -126,7 +120,7 @@ at the top of your script to disable printing on all processes but one.
 Threading in DFTK currently happens on multiple layers
 distributing the workload
 over different ``k``-Points, bands or within
-an FFT or BLAS call between processors.
+an FFT or BLAS call between threads.
 At its current stage our scaling for thread-based parallelism
 is worse compared MPI-based and therefore the parallelism
 described here should
@@ -139,6 +133,8 @@ To use thread-based parallelism proceed as follows:
    using DFTK
    setup_threading()
    ```
+   This disables FFT threading and sets the number of
+   BLAS threads to the number of Julia threads.
 
 2. Run Julia passing the desired number of threads using the flag `-t`:
    ```sh
@@ -191,7 +187,7 @@ flag `-t` passed to Julia or the *environment variable* `JULIA_NUM_THREADS`.
 To **check the number of Julia threads** use `Threads.nthreads()`.
 
 ### FFT threads
-Since FFT threading is only used in DFTK inside the regions already parallelised
+Since FFT threading is only used in DFTK inside the regions already parallelized
 by Julia threads, setting FFT threads to something larger than `1` is
 rarely useful if a sensible number of Julia threads has been chosen.
 Still, to explicitly **set the FFT threads** use
