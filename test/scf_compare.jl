@@ -43,7 +43,8 @@ include("testcases.jl")
 
     # Run other mixing with default solver (the others are too slow...)
     for mixing in (KerkerMixing(), SimpleMixing(), SimpleMixing(.5), DielectricMixing(εr=12),
-                   KerkerDosMixing(), HybridMixing(), HybridMixing(εr=10, RPA=false))
+                   KerkerDosMixing(), HybridMixing(), HybridMixing(εr=10, RPA=false),
+                   χ0Mixing(χ0terms=[Applyχ0Model()], RPA=true))
         @testset "Testing $mixing" begin
             ρ_alg = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol).ρ.fourier
             @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
