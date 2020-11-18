@@ -3,12 +3,11 @@ on:
   push:
     branches:
       - master
-      - /^v\d+\.\d+(\.\d+)?(-\S*)?$/  # Tags
       - staging  # Bors
       - trying   # Bors
+    tags:
+      - 'v*'
   pull_request:
-    branches:
-      - master
   schedule:
     - cron:  '* * * * 6'  # Run every Sunday
 
@@ -58,6 +57,7 @@ jobs:
       - name: Execute serial tests
         uses: julia-actions/julia-runtest@latest
         if: ${{ matrix.payload == 'serial' }}
+        continue-on-error: ${{ matrix.version == 'nightly' }}
 
       - name: Execute MPI-parallel tests
         run: |
@@ -68,12 +68,13 @@ jobs:
           '
           $HOME/.julia/bin/mpiexecjl -np 2 julia --check-bounds=yes --depwarn=yes --project --color=yes --compiled-modules=no -e 'using Pkg; Pkg.test(coverage=true)'
         if: ${{ matrix.payload == 'mpi' }}
+        continue-on-error: ${{ matrix.version == 'nightly' }}
 
       - uses: julia-actions/julia-processcoverage@v1
       - uses: julia-actions/julia-uploadcoveralls@v1
         env:
           COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
-        continue-on-error: true
+        continue-on-error: true  # TODO Until Coveralls upload is fixed
   #
   # Examples
   #
