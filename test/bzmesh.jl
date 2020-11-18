@@ -3,7 +3,6 @@ using LinearAlgebra
 using PyCall
 using Test
 using Unitful
-using UnitfulAtomic
 include("testcases.jl")
 
 
@@ -111,7 +110,6 @@ end
 
 @testset "kgrid_size_from_minimal_spacing" begin
     # Test that units are stripped from both the lattice and the spacing
-    lattice = 2.71176 .* [[-1 1 1]; [1 -1  1]; [1 1 -1]]
-    spacing = 2π * 0.022
-    @test kgrid_size_from_minimal_spacing(lattice * u"bohr", spacing / u"bohr") == kgrid_size_from_minimal_spacing(lattice, spacing)
+    lattice = [[-1 1 1]; [1 -1  1]; [1 1 -1]]
+    @test kgrid_size_from_minimal_spacing(lattice * u"angstrom", 0.5 / u"angstrom") == [9; 9; 9]
 end
