@@ -36,9 +36,12 @@ lattice = a / 2 * [[0 1 1.];  # Silicon lattice vectors
                    [1 0 1.];  # specified column by column
                    [1 1 0.]]
 
+# By default, all numbers passed as arguments are assumed to be in atomic units.
 # Quantities such as temperature, energy cutoffs, lattice vectors, and the
-# k-point grid spacing also accept values annotated with Unitful units, which
-# are automatically converted to the atomic units used internally.
+# k-point grid spacing can optionally be annotated with Unitful units, which are
+# automatically converted to the atomic units used internally. For Unitful
+# package documentation, see https://painterqubits.github.io/Unitful.jl/stable/
+# and https://github.com/sostock/UnitfulAtomic.jl.
 
 ## Load HGH pseudopotential for Silicon
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
