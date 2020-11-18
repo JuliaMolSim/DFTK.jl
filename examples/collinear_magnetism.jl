@@ -24,7 +24,7 @@ atoms = [Fe => [zeros(3)]];
 
 kgrid = [3, 3, 3]       # k-point grid (Regular Monkhorst-Pack grid)
 Ecut = 15 * u"hartree"  # kinetic energy cutoff
-model_nospin = model_LDA(lattice, atoms, temperature=0.01 * u"hartree")
+model_nospin = model_LDA(lattice, atoms, temperature=3150u"K")
 basis_nospin = PlaneWaveBasis(model_nospin, Ecut; kgrid=kgrid)
 
 scfres_nospin = self_consistent_field(basis_nospin, tol=1e-6, mixing=KerkerMixing());

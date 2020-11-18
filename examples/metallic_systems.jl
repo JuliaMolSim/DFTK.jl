@@ -29,7 +29,7 @@ atoms = [Mg => [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]]];
 # By default `PlaneWaveBasis` chooses a `kspacing`
 # of `2π * 0.022` inverse Bohrs, which is much more reasonable.
 
-kspacing = 0.5 / u"bohr"         # Minimal spacing of k-points,
+kspacing = 0.945 / u"angstrom"   # Minimal spacing of k-points,
 ##                                 in units of wavevectors
 Ecut = 5 * u"hartree"            # kinetic energy cutoff
 temperature = 0.01 * u"hartree"  # Smearing temperature
