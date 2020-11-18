@@ -9,7 +9,7 @@ on:
       - 'v*'
   pull_request:
   schedule:
-    - cron:  '* * * * 6'  # Run every Sunday
+    - cron:  '0 4 * * 6'  # Run every Sunday
 
 jobs:
   #
