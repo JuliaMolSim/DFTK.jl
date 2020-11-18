@@ -9,11 +9,12 @@
 # where only the first three terms "count for the energy", and where
 # J = 1/(2i) (u* ∇u - u ∇u*)
 
-
-# for numerical reasons, we solve the equation ∇∧A = 2π ρ in two parts:
-# ∇∧A = 2π(ρ-ρref + ρref)
+# for numerical reasons, we solve the equation ∇∧A = 2π ρ in two parts: A = A_SR + A_LR, with
+# ∇∧A_SR = 2π(ρ-ρref)
+# ∇∧A_LR = 2πρref
 # where ρref is a gaussian centered at the origin and with the same integral as ρ (=M)
 # ρref(x) = M exp(-1/2 (x/σ)^2) / (σ^3 (2π)^3/2)
+# This way, ρ-ρref has zero mass, and A_SR is shorter range. The long-range part is computed explicitly
 
 function ρref_real(x::T, y::T, M, σ) where {T <: Real}
     r = hypot(x, y)
@@ -52,23 +53,6 @@ function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
     end
     [from_fourier(basis, out[α]).real for α = 1:2]
 end
-
-function _test_ρref()
-    x = 1.23
-    y = -1.8
-    ε = 1e-8
-    M = 2.31
-    σ = 1.81
-    dAdx = (magnetic_field_produced_by_ρref(x+ε, y, M, σ) - magnetic_field_produced_by_ρref(x, y, M, σ))/ε
-    dAdy = (magnetic_field_produced_by_ρref(x, y+ε, M, σ) - magnetic_field_produced_by_ρref(x, y, M, σ))/ε
-    curlA = dAdx[2] - dAdy[1]
-    divA = dAdx[1] + dAdy[2]
-    @assert norm(curlA - 2π*ρref_real(x, y, M, σ)) < 1e-4
-    @assert abs(divA) < 1e-6
-end
-_test_ρref()
-
-
 
 struct Anyonic
     β
