@@ -1,0 +1,11 @@
+procedure :
+
+pw.x < Si.scf > scf.out
+pw.x < Si.nscf > nscf.out
+/PathToWannier/wannier90.x -pp Si
+pw2wann.x < Si.pw2wan > pw2wan.out
+/PathToWannier/wannier90.x Si
+
+plot with
+$ gnuplot
+$ gnuplot load 'Si_band.gnu'
