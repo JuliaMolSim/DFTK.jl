@@ -22,47 +22,6 @@ function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2"; keep=false, ove
     end
 end
 
-
-struct PlaneWaveBasisSerialisation{T <: Real}
-    model
-    Ecut
-    kcoords
-    kweights
-    ksymops
-    fft_size
-    symmetries
-end
-
-function JLD2.writeas(::Type{PlaneWaveBasisSerialisation{T}}) where {T}
-    PlaneWaveBasisSerialisation{T}
-end
-
-function Base.convert(::Type{PlaneWaveBasisSerialisation{T}},
-                      basis::PlaneWaveBasis{T}) where {T}
-    if mpi_nprocs() > 1
-        error("JLD2 serialisation for PlaneWaveBasis only implemented for non-MPI calculations for now.")
-    end
-    n_kcoords = div(length(basis.kpoints), basis.model.n_spin_components)
-
-    PlaneWaveBasisSerialisation{T}(
-        basis.model,
-        basis.Ecut,
-        getproperty.(basis.kpoints[1:n_kcoords], :coordinate),
-        basis.kweights[1:n_kcoords],
-        basis.ksymops[1:n_kcoords],
-        basis.fft_size,
-        basis.symmetries
-    )
-end
-
-function Base.convert(::Type{PlaneWaveBasis{T}},
-                      serialised::PlaneWaveBasisSerialisation{T}) where {T}
-    PlaneWaveBasis{T}(serialised.model, serialised.Ecut, serialised.kcoords,
-                      serialised.ksymops, serialised.symmetries,
-                      fft_size=serialised.fft_size)
-end
-
-
 function save_scfres(jld::JLD2.JLDFile, scfres::NamedTuple)
     jld["__propertynames"] = propertynames(scfres)
     jld["ρ_real"]          = scfres.ρ.real
@@ -114,3 +73,43 @@ function load_scfres(jld::JLD2.JLDFile)
     (; (sym => scfdict[sym] for sym in jld["__propertynames"])...)
 end
 load_scfres(file::AbstractString) = JLD2.jldopen(load_scfres, file, "r")
+
+
+#
+# Custom serialisations
+#
+struct PlaneWaveBasisSerialisation{T <: Real}
+    model::Model{T}
+    Ecut::T
+    kcoords::Vector{Vec3{T}}
+    kweights::Vector{T}
+    ksymops::Vector{Vector{SymOp}}
+    fft_size::Tuple{Int, Int, Int}
+    symmetries::Vector{SymOp}
+end
+JLD2.writeas(::Type{PlaneWaveBasis{T}}) where {T} = PlaneWaveBasisSerialisation{T}
+
+function Base.convert(::Type{PlaneWaveBasisSerialisation{T}},
+                      basis::PlaneWaveBasis{T}) where {T}
+    if mpi_nprocs() > 1
+        error("JLD2 serialisation for PlaneWaveBasis only implemented for non-MPI calculations for now.")
+    end
+    n_kcoords = div(length(basis.kpoints), basis.model.n_spin_components)
+
+    PlaneWaveBasisSerialisation{T}(
+        basis.model,
+        basis.Ecut,
+        getproperty.(basis.kpoints[1:n_kcoords], :coordinate),
+        basis.kweights[1:n_kcoords],
+        basis.ksymops[1:n_kcoords],
+        basis.fft_size,
+        basis.symmetries
+    )
+end
+
+function Base.convert(::Type{PlaneWaveBasis{T}},
+                      serial::PlaneWaveBasisSerialisation{T}) where {T}
+    PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords,
+                   serial.ksymops, serial.symmetries;
+                   fft_size=serial.fft_size)
+end
