@@ -1,0 +1,13 @@
+For disentanglement procedure (12 bands to 8 MLWFs), add 
+
+dis_win_max       = 16.47068d0   ! upper limit between 11th and 12th band
+dis_froz_max      =  6.1172d0    ! frozen limit between 4th and 5th band
+dis_num_iter      =  120
+dis_mix_ratio     = 1d0
+
+to the win file.
+
+Also the guesses are for now gaussian with random centers. So you might have to generate a few Amn files to have matching results with QE.
+
+
+call $ ./clean.sh to remove all the produced files at the end
