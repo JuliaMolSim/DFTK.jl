@@ -68,6 +68,8 @@ Random.seed!(0)
         include("bzmesh_symmetry.jl")
         include("external_pymatgen.jl")
         include("external_ase.jl")
+        include("test_dftk2wan/dftk2wan_test.jl")
+
     end
 
     if "all" in TAGS

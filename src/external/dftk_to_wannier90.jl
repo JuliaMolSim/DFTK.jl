@@ -9,16 +9,8 @@ using Printf
 # $ dftk2wan_wannierization_files(...)--- mmn,amn,eig files
 # $ wannier90.x "prefix"  --------------- actual wannierization
 
-## Remark : the routines "dict_AOs", "guess_win", "cart_to_spherical"
-# and "A_k_matrix_win_guesses" and the "projs" table in "read_nnkp_file"
-# are dedicated to computation of A_k matrices with Wannier90 guess,
-# read from the nnkp file.
-# It is bugged and may not be usefull but I left it there.
-
 ## TODO
-# 1 - check if kgrid can be removed from dftk2wan_win_file arguments
 # 2 - add handling of the SCDM routine as an alternative guess
-# 3 - optimize the "generate_mmn" routine
 
 
 """
@@ -49,7 +41,7 @@ function dftk2wan_win_file(prefix::String, basis::PlaneWaveBasis, scfres, kgrid,
         
         # Optional parameters in kwargs
         for (key,value) in kwargs
-            write(f,@sprintf("%-20s %s %5s \n",key,"=",value))
+            write(f,@sprintf("%-20s %s   %-30s \n",key,"=",value))
         end
         write(f,"\n"^2)
 
@@ -221,39 +213,27 @@ end
  It is non zero if kpb is taken in another unit cell of the reciprocal lattice.
  We use here that : ``u_{n(k + G_shift)}(r) = e^{-i*\langle G_shift,r \rangle} u_{nk}``
 """
-function overlap_Mmn_k_kpb(pw_basis::PlaneWaveBasis, ψ, k, kpb, n_bands; G_shift = [0,0,0])
-    Mkb = zeros(n_bands*n_bands,2)
-    current_line = 0 # Manual count necessary to match the format of .mmn files.
+function overlap_Mmn_k_kpb(pw_basis::PlaneWaveBasis, ψ, ik, ikpb, n_bands; G_shift = [0,0,0])
 
+    Mkb = zeros(ComplexF64,(n_bands,n_bands))
+    # Search for common Fourier modes and their resp. indices in bloch states k and kpb
+    k = pw_basis.kpoints[ik]; kpb = pw_basis.kpoints[ikpb] #renaming for clarity
+    map_fourier_modes = [ (iGk,DFTK.index_G_vectors(basis, kpb, Gk+G_shift))
+                          for (iGk,Gk) in enumerate(G_vectors(k))
+                          if !isnothing(DFTK.index_G_vectors(basis,kpb,Gk+G_shift)) ]
+
+    # Compute overlaps
     for n in 1:n_bands
         for m in 1:n_bands
-            
-            ovlp = zero(ComplexF64)
-                     
-            # Extract Fourier coeffs and corresponding vectors in reciprocal lattice
-            Gk_coeffs = @view ψ[k][:,m] 
-            Gk_vec = G_vectors(pw_basis.kpoints[k])
-            Gkpb_coeffs = @view ψ[kpb][:,n]
-            # Don't forget the shift, see the DOC block
-            Gkpb_vec = [ G - G_shift for G in G_vectors(pw_basis.kpoints[kpb]) ]
-            
-            # Search for common Fourier modes and their resp. indices in G_vec
-            map_fourier_modes = [(iG_k,iG_kpb) for (iG_k,G_k) in enumerate(Gk_vec)
-                                  for (iG_kpb,G_kpb) in enumerate(Gkpb_vec) if G_k == G_kpb]
-
-            # Compute the overlap for mn
-            for (i,j) in map_fourier_modes
-                ovlp += conj(Gk_coeffs[i])*Gkpb_coeffs[j]
-            end
-            current_line += 1 # Go to the next line
-            Mkb[current_line,:] = [real(ovlp),imag(ovlp)]
+            # Select the coefficient in right order
+            Gk_coeffs = @view ψ[ik][[i[1] for i in map_fourier_modes],m] 
+            Gkpb_coeffs = @view ψ[ikpb][[i[2] for i in map_fourier_modes],n]
+            Mkb[m,n] = dot(Gk_coeffs,Gkpb_coeffs)
         end
-    end
+    end    
 
     Mkb
-
- end
-
+end
 
 
 """
@@ -281,9 +261,9 @@ function generate_mmn_file(prefix::String, pw_basis::PlaneWaveBasis, ψ, nn_kpts
             write(f,@sprintf("%i  %i  %i  %i  %i \n",
                              k,kpb,shift[1],shift[2],shift[3]) )
             # The matrix itself
-            Mkb = overlap_Mmn_k_kpb(pw_basis,ψ,k,kpb,n_bands,; G_shift = shift)
-            for i in 1:n_bands*n_bands
-                write(f, @sprintf("%22.18f %22.18f \n",Mkb[i,1],Mkb[i,2]))
+            Mkb = overlap_Mmn_k_kpb(pw_basis, ψ, k, kpb, n_bands,; G_shift = shift)
+            for ovlp in Mkb
+                write(f, @sprintf("%22.18f %22.18f \n",real(ovlp),imag(ovlp)) )
             end
             next!(progress)
         end
@@ -313,8 +293,7 @@ function A_k_matrix_gaussian_guesses(pw_basis::PlaneWaveBasis,ψ,k,n_bands,n_wan
     G_cart =[ pw_basis.model.recip_lattice * G for G in fft_grid ]        
 
     # Indices of the Fourier modes of the bloch states in the general FFT_grid for given k
-    index = [DFTK.index_G_vectors(basis,G) for G in G_vectors(pw_basis.kpoints[k])]                          
-
+    index = [DFTK.index_G_vectors(basis,G) for G in G_vectors(pw_basis.kpoints[k])]                    
     # Initialize output
     A_k = zeros(Complex,(n_bands,n_wann))
     
@@ -409,7 +388,7 @@ function dftk2wan_wannierization_files(prefix::String, pw_basis::PlaneWaveBasis,
     
     # Read the .nnkp file
     ψ = scfres.ψ
-    nn_kpts,nn_num,projs = read_nnkp_file(prefix) 
+    nn_kpts,nn_num,projs = read_nnkp_file(prefix)
     
     # Generate_files
     if write_eig
