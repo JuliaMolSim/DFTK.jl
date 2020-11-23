@@ -14,11 +14,11 @@ lattice = a / 2 * [[0 1 1.];
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
-#  model = model_LDA(lattice, atoms, n_electrons=8)
-model = model_atomic(lattice, atoms, n_electrons=8, symmetries=true)
+mod = model_LDA(lattice, atoms, n_electrons=8)
+#  model = model_atomic(lattice, atoms, n_electrons=2, symmetries=true)
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
 Ecut = 5           # kinetic energy cutoff in Hartree
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+basis = PlaneWaveBasis(mod, Ecut; kgrid=kgrid)
 
 tol = 1e-8
 scfres = self_consistent_field(basis, tol=tol,
@@ -136,6 +136,8 @@ function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
     semilogy(k_list, err_ref_list, "x-", label="ref ρ")
 end
 
+
+## testing newton starting not far away from the SCF solution
 ψ0 = deepcopy(scfres.ψ)
 for ik = 1:length(ψ0)
     ψ0k = ψ0[ik]

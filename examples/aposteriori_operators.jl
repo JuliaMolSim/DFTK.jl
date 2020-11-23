@@ -1,12 +1,18 @@
 import KrylovKit: ArnoldiIterator, Orthogonalizer, OrthonormalBasis, KrylovDefaults, orthogonalize!
 using KrylovKit
 
+# This file containes functions for computing the jacobian of the direct
+# minimization algorihtm on the grassman manifold, that this the operator Ω+K
+# defined Cancès/Kemlin/Levitt, Convergence analysis of SCF and direct
+# minization algorithms.
+
+
 ################################## TOOL ROUTINES ###############################
 
 # test for orthogonalisation
 tol_test = 1e-12
 
-# we project ϕ onto the tangent space to ψ
+# we project ϕ onto the orthogonal of ψ
 function proj!(ϕ, ψ)
 
     Nk1 = size(ϕ,1)
@@ -32,6 +38,7 @@ function proj!(ϕ, ψ)
         Πϕ[ik] = Πϕk
     end
 
+    # test orthogonalisation
     for ik = 1:Nk
         ψk = ψ[ik]
         ϕk = ϕ[ik]
@@ -44,7 +51,8 @@ function proj!(ϕ, ψ)
     Πϕ
 end
 
-# KrylovKit custom orthogonaliser
+# KrylovKit custom orthogonaliser to be used in KrylovKit eigsolve, svdsolve,
+# linsolve, ...
 pack(ψ) = vcat(Base.vec.(ψ)...)
 struct OrthogonalizeAndProject{F, O <: Orthogonalizer, ψ} <: Orthogonalizer
     projector!::F
@@ -115,7 +123,6 @@ function apply_Ω(basis, δφ, φ, H, egval)
         Ωδφk = similar(δφk)
 
         Hδφk = H.blocks[ik] * δφk
-        #  Hδφk = proj!([Hδφk], [φk])[1]
 
         # compute component on i
         for i = 1:N
@@ -127,7 +134,7 @@ function apply_Ω(basis, δφ, φ, H, egval)
     proj!(Ωδφ, φ)
 end
 
-# we compute the application of K (for all kpoints)
+# compute the application of K
 function apply_K(basis, δφ, φ, ρ, occ)
     Nk = length(basis.kpoints)
 
@@ -222,6 +229,7 @@ function test_Ω(basis::PlaneWaveBasis{T};
                                     orth=OrthogonalizeAndProject(packed_proj!, pack(φ)))
 
     display(vals_Ω)
+    # should match the smallest eigenvalue of Ω
     println(scfres.eigenvalues[1][5] - scfres.eigenvalues[1][4])
 
     ## testing symmetry

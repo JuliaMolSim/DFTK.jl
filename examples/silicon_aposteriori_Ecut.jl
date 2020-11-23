@@ -1,3 +1,14 @@
+# This file contains test of the estimator
+#
+# P-P* = (Ω+K)^{-1}[P,[P,H(P)]]
+#
+# when the error we look at is the basis error : P* is computed for a reference
+# Ecut_ref and then we measure the error P-P* and the residual obtained for
+# smaller Ecut (currently, only Nk = 1 kpt only is supported)
+#
+#            !!! NOT OPTIMIZED YET, WE USE PLAIN DENSITY MATRICES !!!
+#
+
 # Very basic setup, useful for testing
 using DFTK
 using LinearAlgebra
@@ -14,6 +25,7 @@ lattice = a / 2 * [[0 1 1.];
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
+# define different models
 modelLDA = model_LDA(lattice, atoms)
 modelHartree = model_atomic(lattice, atoms; extra_terms=[Hartree()])
 modelAtomic = model_atomic(lattice, atoms)
@@ -25,7 +37,6 @@ Ecut_ref = 30           # kinetic energy cutoff in Hartree
 Ecut_list = 5:5:25
 model_list = ["Atomic", "Hartree", "LDA"]
 k = 0
-
 
 for model in [modelAtomic, modelHartree, modelLDA]
     println("--------------------------------")
@@ -86,7 +97,7 @@ for model in [modelAtomic, modelHartree, modelLDA]
         for ik = 1:Nk-1
             starts[ik+1] = starts[ik] + lengths[ik]
         end
-        pack(ψ) = vcat(Base.vec.(ψ)...) # TODO as an optimization, do that lazily? See LazyArrays
+        pack(ψ) = vcat(Base.vec.(ψ)...)
         unpack(ψ) = [@views reshape(ψ[starts[ik]:starts[ik]+lengths[ik]-1], size(φ[ik]))
                      for ik = 1:Nk]
 
