@@ -11,10 +11,10 @@ using Unitful
 using UnitfulAtomic
 
 kgrid = [1, 1, 1]       # k-Point grid
-Ecut = 5 * u"hartree"   # kinetic energy cutoff
+Ecut = 5u"hartree"      # kinetic energy cutoff
 tol = 1e-8              # tolerance for the optimization routine
 a = 10 * u"bohr"        # lattice constant
-lattice = a * Diagonal(ones(3))
+lattice = austrip(a) * Diagonal(ones(3))
 H = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1"));
 
 # We define a blochwave and a density to be used as global variables so that we
@@ -73,7 +73,7 @@ xres = optimize(Optim.only_fg!(fg!), x0, LBFGS(),
                 Optim.Options(show_trace=true, f_tol=tol))
 xmin = Optim.minimizer(xres)
 dmin = norm(lattice*xmin[1:3] - lattice*xmin[4:6])
-@printf "\nOptimal bond length for Ecut=%.2f: %.3f Bohr\n" Ecut dmin
+@printf "\nOptimal bond length for Ecut=%.2f: %.3f Bohr\n" austrip(Ecut) dmin
 
 # We used here very rough parameters to generate the example and
 # setting `Ecut` to 10 Ha yields a bond length of 1.523 Bohr,
