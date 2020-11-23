@@ -3,22 +3,18 @@ using LinearAlgebra
 using Dates
 using Printf
 
-## Works in the following order
-# $ dftk2wan_win_file(...) to generate the win file
-# $ wannier90.x -pp "prefix" ------------ nnkp file
-# $ dftk2wan_wannierization_files(...)--- mmn,amn,eig files
-# $ wannier90.x "prefix"  --------------- actual wannierization
-
 ## TODO
-# 2 - add handling of the SCDM routine as an alternative guess
+# add handling of the SCDM routine as an alternative guess
 
+include("win_guess_utils.jl")
 
 """
     Create a .win file for Wannier90, compatible with the system studied with DFTK.
     Options have to be compeleted by hand.
     Parameters can also be added as kwargs argument : e.g. num_iter = 500.
 """
-function dftk2wan_win_file(prefix::String, basis::PlaneWaveBasis, scfres, kgrid, num_wann;
+function dftk2wan_win_file(prefix::String, basis::PlaneWaveBasis, scfres, kgrid,
+                           num_wann::Integer;
                            bands_plot = false,
                            kwargs...
                            )
@@ -160,7 +156,7 @@ function read_nnkp_file(prefix::String)
     
 
     # Extract projections block : NEEDED FOR WIN GUESSES
-    i_projs = findall(x-> endswith(x,"projections"),ln) # 1st and last line of the block     
+    i_projs = findall(x-> endswith(x,"projections"),ln) # 1st and last line of the block   
     @assert size(i_projs,1) == 2
     raw_projs = split.(ln[i_projs[1]+1:i_projs[2]-1],' ',keepempty = false)
 
@@ -213,11 +209,13 @@ end
  It is non zero if kpb is taken in another unit cell of the reciprocal lattice.
  We use here that : ``u_{n(k + G_shift)}(r) = e^{-i*\langle G_shift,r \rangle} u_{nk}``
 """
-function overlap_Mmn_k_kpb(pw_basis::PlaneWaveBasis, ψ, ik, ikpb, n_bands; G_shift = [0,0,0])
+function overlap_Mmn_k_kpb(basis::PlaneWaveBasis, ψ, ik::Integer, ikpb::Integer,
+                           n_bands::Integer;
+                           G_shift = [0,0,0])
 
     Mkb = zeros(ComplexF64,(n_bands,n_bands))
     # Search for common Fourier modes and their resp. indices in bloch states k and kpb
-    k = pw_basis.kpoints[ik]; kpb = pw_basis.kpoints[ikpb] #renaming for clarity
+    k = basis.kpoints[ik]; kpb = basis.kpoints[ikpb] #renaming for clarity
     map_fourier_modes = [ (iGk,DFTK.index_G_vectors(basis, kpb, Gk+G_shift))
                           for (iGk,Gk) in enumerate(G_vectors(k))
                           if !isnothing(DFTK.index_G_vectors(basis,kpb,Gk+G_shift)) ]
@@ -239,7 +237,8 @@ end
 """
 Iteratively use the preceeding function on each k and kpb to generate the whole .mmn file.
 """
-function generate_mmn_file(prefix::String, pw_basis::PlaneWaveBasis, ψ, nn_kpts, nn_num)
+function generate_mmn_file(prefix::String, basis::PlaneWaveBasis, ψ,
+                           nn_kpts, nn_num::Integer)
     # general parameters
     n_bands = size(ψ[1],2)
     k_size = length(ψ)
@@ -261,7 +260,7 @@ function generate_mmn_file(prefix::String, pw_basis::PlaneWaveBasis, ψ, nn_kpts
             write(f,@sprintf("%i  %i  %i  %i  %i \n",
                              k,kpb,shift[1],shift[2],shift[3]) )
             # The matrix itself
-            Mkb = overlap_Mmn_k_kpb(pw_basis, ψ, k, kpb, n_bands,; G_shift = shift)
+            Mkb = overlap_Mmn_k_kpb(basis, ψ, k, kpb, n_bands,; G_shift = shift)
             for ovlp in Mkb
                 write(f, @sprintf("%22.18f %22.18f \n",real(ovlp),imag(ovlp)) )
             end
@@ -275,38 +274,42 @@ end
 @doc raw"""
 Compute the matrix ``[A_k]_{m,n} = \langle ψ_m^k | g^{\text{per}}_n \rangle`` 
 
-``g^{per}_n`` are periodized gaussians whose respective centers are given as an (n_bands,1) array [ [center 1], ... ].
+``g^{per}_n`` are periodized gaussians whose respective centers are given as an
+ (n_bands,1) array [ [center 1], ... ].
 Centers are to be given in lattice coordinates.
 
 The dot product is computed in the Fourier space. 
 
-Given an orbital ``g_n``, the periodized orbital is defined by : ``g^{per}_n=  \sum\limits_{R in lattice} g_n( ⋅ - R)``. 
-``g^{per}_n`` is not explicitly computed. Its Fourier coefficient at any G is given by the value of the Fourier transform of ``g_n`` in G.
+Given an orbital ``g_n``, the periodized orbital is defined by :
+ ``g^{per}_n=  \sum\limits_{R in lattice} g_n( ⋅ - R)``. 
+``g^{per}_n`` is not explicitly computed. Its Fourier coefficient at any G 
+is given by the value of the Fourier transform of ``g_n`` in G.
 """
-function A_k_matrix_gaussian_guesses(pw_basis::PlaneWaveBasis,ψ,k,n_bands,n_wann; centers = [], projs = [])
-    # Before calculation
+function A_k_matrix_gaussian_guesses(basis::PlaneWaveBasis, ψ, k::Integer,
+                                     n_bands::Integer, n_wann::Integer;
+                                     centers = [], projs = [])
+    
     # associate a center with the fourier transform of the corresponding gaussian
     guess_fourier(center) = xi ->  exp(-im*dot(xi,center) - dot(xi,xi)/4) 
-
-    # FFT grid
-    fft_grid = [G for (iG,G) in enumerate(G_vectors(pw_basis)) ]    
-    G_cart =[ pw_basis.model.recip_lattice * G for G in fft_grid ]        
-
+    
+    G_cart =[G for (iG,G) in enumerate(G_vectors_cart(basis))]    
     # Indices of the Fourier modes of the bloch states in the general FFT_grid for given k
-    index = [DFTK.index_G_vectors(basis,G) for G in G_vectors(pw_basis.kpoints[k])]                    
-    # Initialize output
+    index = [DFTK.index_G_vectors(basis,G) for G in G_vectors(basis.kpoints[k])]                    
+  
     A_k = zeros(Complex,(n_bands,n_wann))
     
     # Compute A_k
     for n in 1:n_wann
-        # Compute fourier coeffs of g_per_n
-        fourier_gn = guess_fourier(pw_basis.model.lattice*transpose(centers[n]))        # the center is first computed in cartesian coordinates
-        norm_g_per_n = norm([fourier_gn(G) for G in G_cart],2)                          # functions are l^2 normalized in Fourier, in DFTK conventions.
-        coeffs_g_per_n = [ fourier_gn(G_cart[iG]) for iG in index ]./ norm_g_per_n      # Fourier coeffs of gn for G_vectors in common with ψm
+        fourier_gn = guess_fourier(basis.model.lattice*transpose(centers[n]))
+        # functions are l^2 normalized in Fourier, in DFTK conventions.
+        norm_gn_per = norm(fourier_gn.(G_cart),2)
+        
+        # Fourier coeffs of gn_per for G_vectors in common with ψm
+        coeffs_gn_per = fourier_gn.(G_cart[index])./ norm_gn_per     
         # Compute overlap
         for m in 1:n_bands
             coeffs_ψm = ψ[k][:,m]
-            A_k[m,n] = dot(coeffs_ψm,coeffs_g_per_n)
+            A_k[m,n] = dot(coeffs_ψm,coeffs_gn_per)
         end  
     end
     
@@ -317,15 +320,17 @@ end
 """
 Use the preceding functions on every k to generate the .amn file 
 """
-function generate_amn_file(prefix::String,pw_basis::PlaneWaveBasis,ψ, n_wann; projs = [], centers = [], guess = "")
+function generate_amn_file(prefix::String,basis::PlaneWaveBasis,ψ, n_wann::Integer;
+                           projs=[], centers=[], guess="")
     # Select guess
     if guess == "win"
         compute_A_k = A_k_matrix_win_guesses
-        @assert n_wann == size(projs,1)             # Check if the right number of projection is given...
+        # Check if the right number of projection is given...
+        @assert n_wann == size(projs,1)  
         
     elseif guess == "gaussian"
         compute_A_k = A_k_matrix_gaussian_guesses
-        @assert n_wann == size(centers, 1)          # ... same for the number of centers.
+        @assert n_wann == size(centers, 1)   # ... same for the number of centers.
         
     end
 
@@ -339,11 +344,12 @@ function generate_amn_file(prefix::String,pw_basis::PlaneWaveBasis,ψ, n_wann; p
     open("$prefix.amn", "w") do f
         # Header
         write(f,"Generated by DFTK at $(now())"*"\n")
-        write(f,string(n_bands)*"   "*string(k_size)*"   "*string(n_wann)*"\n")
+        write(f,"$n_bands   $k_size   $n_wann \n")
 
         # Matrices
         for k in 1:k_size
-            A_k = compute_A_k(pw_basis,ψ,k,n_bands,n_wann; centers = centers, projs = projs)
+            A_k = compute_A_k(basis,ψ,k,n_bands,n_wann;
+                              centers = centers, projs = projs)
             for n in 1:size(A_k,2)
                 for m in 1:size(A_k,1)
                     write(f,@sprintf("%3i %3i %3i  %22.18f %22.18f \n",
@@ -357,12 +363,12 @@ function generate_amn_file(prefix::String,pw_basis::PlaneWaveBasis,ψ, n_wann; p
 end
 
 
-
-
 """
-Use the above functions to read the nnkp file and generate the .eig, .amn and .mmn files needed by Wannier90.
+Use the above functions to read the nnkp file and generate the 
+.eig, .amn and .mmn files needed by Wannier90.
 """
-function dftk2wan_wannierization_files(prefix::String, pw_basis::PlaneWaveBasis, scfres, n_wann;
+function dftk2wan_wannierization_files(prefix::String, basis::PlaneWaveBasis,
+                                       scfres, n_wann::Integer;
                                        write_amn = true,
                                        write_mmn = true,
                                        write_eig = true,
@@ -396,12 +402,12 @@ function dftk2wan_wannierization_files(prefix::String, pw_basis::PlaneWaveBasis,
     end
     
     if write_amn
-        generate_amn_file("Si", pw_basis, ψ, n_wann;
+        generate_amn_file("Si", basis, ψ, n_wann;
                           centers = centers, projs = projs, guess = guess)
     end
     
     if write_mmn
-        generate_mmn_file("Si", pw_basis, ψ, nn_kpts, nn_num)
+        generate_mmn_file("Si", basis, ψ, nn_kpts, nn_num)
     end
 
 end

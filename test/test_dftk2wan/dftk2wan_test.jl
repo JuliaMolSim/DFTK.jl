@@ -16,14 +16,14 @@ model = model_PBE(lattice,atoms)
 
 kgrid = [4,4,4] # mp grid
 Ecut = 20
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, optimize_fft_size = true, use_symmetry = false)
+basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, use_symmetry=false)
 
 scfres = self_consistent_field(basis, tol=1e-12, n_bands = 12, n_ep_extra = 0 );
 ψ = scfres.ψ
 n_bands = size(ψ[1],2)
 
 dftk2wan_win_file("Si",basis,scfres,kgrid,8;
-                  bands_plot=true,num_print_cycles = 50,num_iter = 500,
+                  bands_plot=true, num_print_cycles=50, num_iter=500,
                   dis_win_max       = "17.185257d0",
                   dis_froz_max      =  "6.8318033d0",
                   dis_num_iter      =  120,
@@ -42,4 +42,3 @@ end
 end
 
 rm("Si.win"); rm("Si.mmn"); rm("Si.amn"); rm("Si.eig")
-
