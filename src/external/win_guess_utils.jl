@@ -1,150 +1,133 @@
 # TODO :
-# This code is obsolete. It should be fixed by using the spherical harmonics
-# already implemented in DFTK. See /src/common/spherical_harmonics.jl
+# For now does not converge
 
-# This is the part dedicated to "win" guesses
+@doc raw"""
+    The quantum numbers given by Wannier90 are not in common use. 
+    In turn the order in which the orbitals s,p,d and f are given in the Tables 3
+    (see [Wannier90's user guide][http://www.wannier.org/support/] p.54) 
+    is not matching the classic order given in spherical_harmonics.jl. 
+   
+    The purpose of this function is to retrieve the proper quantum number m
+    from the one given in the nnkp file.
+
+    Corresponding m Wannier <-> DFTK:  p  [1,2,3]         <->  [0,1,-1]
+                                       d  [1,2,3,4,5]     <->  [0,1,-1,2,-2]
+                                       f  [1,2,3,4,5,6,7] <->  [0,1,-1,2,-2,3,-3]
 """
-Generate the dictionary associating quantum numbers r,l and mr with corrsponding radial and angular parts of hydrogen AOs.
-(See Tables 3.1 and 3.2 of Wannier90 user_guide.)
-Return two dictionaries, radial_parts and angular_parts. Needed to generate guesses from the projection block in the .nnkp file.
+function retrieve_proper_m(l::Integer,mr::Integer)
+    @assert 0 ≤ l
+    m = zero(Int64)
+    m_p = [0,1,-1]; m_d = [0,1,-1,2,-2]; m_f = [0,1,-1,2,-2,3,-3]
+    (l == 0) && return 0
+    (l == 1) && return m_p[mr]  # p
+    (l == 2) && return m_d[mr]  # d
+    (l == 3) && return  m_f[mr] # f
+    error("Quantum numbers are not matching any implemented
+                orbital (s,p,d,f)")
+end
+
+
 """
+    Evaluate the guess at the real vector `rvec`,
+    given the (ish-)quantum numbers `l`,`mr`,`r` and `α` from Wannier90
 
+    Uses the spherical harmonics implemented in src/common/spherical_harmonics.jl
+    and adds linear combinations to provide hybrid orbitals  sp, sp2, sp3, sp3d and sp3d2.
+    !!! FOR NOW JUST SP AND SP3 TO TEST CONVERGENCE.
+"""
+function quantum_number_to_guess(l::Integer, mr::Integer, r_qn::Integer, α,
+                   rvec::AbstractVector{T}) where T
 
-
-# function dict_AOs(α)
-
-#     # Radial parts of hydrogen AOs in a dictionary : quantum number r -> AO radial part
-#     radial_parts = Dict()
-#     push!(radial_parts, 1 => r -> 2*α^(3/2)*exp(-α*r) ) 
-#     push!(radial_parts, 2 => r -> (1/(2*√2)) * α^(3/2) * (2-α*r) * exp(-α*r/2) )
-#     push!(radial_parts, 3 => r -> √(4/27) * α^(3/2) * (1-2*α*r/3+2*(α^2)*(r^2)/27) * exp(-α*r/3) )
+    Θ = zero(T); R = zero(T)
     
-#     # Basic blocks of hydrogen AOs' angular parts
-#     s(θ,φ) = 1/√(4*pi)
-#     pz(θ,φ) = √( 3/(4*π) )*cos(θ)
-#     px(θ,φ) = √( 3/(4*π) )*sin(θ)*cos(φ)
-#     py(θ,φ) = √( 3/(4*π) )*sin(θ)*sin(φ)
-
-#     dz2(θ,φ) = √(5/(16π))*(3*cos(θ)^2 -1)
-#     dx2(θ,φ) = √(15/(4π))*sin(θ)*cos(θ)*cos(φ)
-#     dx2_y2(θ,φ) = √(15/(16π))*(sin(θ)^2)*cos(2*φ)
-
-#     # All angular parts in a dictionary : quantum numbers [l,mr] => AO angular part
-#     angular_parts = Dict()
-#     push!(angular_parts, [0,1] => s)
-#     push!(angular_parts, [1,1] => pz)
-#     push!(angular_parts, [1,2] => px)
-#     push!(angular_parts, [1,3] => py)
-
-#     push!(angular_parts, [2,1] => dz2 )                                        #dz2
-#     push!(angular_parts, [2,2] => dx2 )                                        #dxz
-#     push!(angular_parts, [2,3] => (θ,φ) -> √(15/(4π))*sin(θ)*cos(θ)*sin(φ) )   #dyz
-#     push!(angular_parts, [2,4] => dx2_y2 )                                     #dx2-y2
-#     push!(angular_parts, [2,5] => (θ,φ) -> √(15/(16π))*(sin(θ)^2)*sin(2*φ) )   #dxy
-
-#     push!(angular_parts, [3,1] => (θ,φ) -> (√7/(4*√(2π)))  * (5*cos(θ)^3 - 3*cos(θ)) )                   #fz3  
-#     push!(angular_parts, [3,2] => (θ,φ) -> (√21/(4*√(2π))) * (5*cos(θ)^2 - 1)*sin(θ)*cos(φ) )            #fxz2
-#     push!(angular_parts, [3,3] => (θ,φ) -> (√21/(4*√(2π))) * (5*cos(θ)^2 - 1)*sin(θ)*sin(φ) )            #fyz2
-#     push!(angular_parts, [3,4] => (θ,φ) -> (√105/(4*√π))   * (sin(θ)^2)*cos(θ)*cos(2*φ) )                #fz(x2-y2)
-#     push!(angular_parts, [3,5] => (θ,φ) -> (√105/(4*√π))   * (sin(θ)^2)*cos(θ)*sin(2*φ) )                #fxyz
-#     push!(angular_parts, [3,6] => (θ,φ) -> (√35/(4*√(2π))) * (sin(θ)^3)*(cos(φ)^2 - 3*sin(φ)^2)*cos(φ) ) #fx(x2-3y2)
-#     push!(angular_parts, [3,7] => (θ,φ) -> (√35/(4*√(2π))) * (sin(θ)^3)*(3*cos(φ)^2 - sin(φ)^2)*sin(φ) ) #fy(3x2-y2)
-        
-#     push!(angular_parts, [-1,1] => (θ,φ) -> (1/√2)*s + (1/√2)*px ) #sp-1 
-#     push!(angular_parts, [-1,2] => (θ,φ) -> (1/√2)*s - (1/√2)*px ) #sp-2
+    # Angular parts
+    if l ≥ 0  # s,p,d or f
+        m = retrieve_proper_m(l,mr)
+        Θ = DFTK.ylm_real(l,m,rvec)
+    else      # hybrid
+        s = DFTK.ylm_real(0,0,rvec)
+        px = DFTK.ylm_real(1,1,rvec); py = DFTK.ylm_real(1,-1,rvec);
+        pz = DFTK.ylm_real(1,0,rvec);
+        if l==-1     # sp
+            (mr==1) && (Θ = (1/√2)*(s + px))
+            (mr==2) && (Θ = (1/√2)*(s - px))
+        elseif l==-3 # sp3
+            (mr==1) && (Θ = (1/√2)*(s + px + py + pz))
+            (mr==2) && (Θ = (1/√2)*(s + px - py - pz))
+            (mr==3) && (Θ = (1/√2)*(s - px + py - pz))
+            (mr==4) && (Θ = (1/√2)*(s - px - py + pz))
+        end
+    end
     
-#     push!(angular_parts, [-2,1] => (θ,φ) -> (1/√3)*s - (1/√6)*px + (1/√2)*py) #sp2-1
-#     push!(angular_parts, [-2,2] => (θ,φ) -> (1/√3)*s - (1/√6)*px - (1/√2)*py) #sp2-2
-#     push!(angular_parts, [-2,3] => (θ,φ) -> (1/√3)*s + (2/√6)*px )            #sp2-3
-    
-#     push!(angular_parts, [-3,1] => (θ,φ) -> 0.5*(s(θ,φ)+px(θ,φ)+py(θ,φ)+pz(θ,φ)) )  #sp3-1
-#     push!(angular_parts, [-3,2] => (θ,φ) -> 0.5*(s(θ,φ)+px(θ,φ)-py(θ,φ)-pz(θ,φ)) )  #sp3-2
-#     push!(angular_parts, [-3,3] => (θ,φ) -> 0.5*(s(θ,φ)-px(θ,φ)+py(θ,φ)-pz(θ,φ)) )  #sp3-3
-#     push!(angular_parts, [-3,4] => (θ,φ) -> 0.5*(s(θ,φ)-px(θ,φ)-py(θ,φ)+pz(θ,φ)) )  #sp3-4
+    # Radial parts
+    r = norm(rvec)
+    if r <= 10 * eps(eltype(rvec))
+        R = zero(T)
+    else
+        (r_qn==1) && (R = 2*α^(2/3)*exp(-α*r))
+        (r_qn==2) && (R = (1/√8)*α^(3/2)*(2-α*r)*exp(-α*r/2))
+        (r_qn==3) && (R = (4/√27)*α^(3/2)*(1-2*α*r/3 + 2*(α^2)*(r^2)/27)*exp(-α*r/3))
+    end
 
-#     push!(angular_parts, [-4,1] => (θ,φ) ->  (1/√3)*s - (1/√6)*px + (1/√2)*py)  #sp3d-1
-#     push!(angular_parts, [-4,2] => (θ,φ) ->  (1/√3)*s - (1/√6)*px - (1/√2)*py)  #sp3d-2
-#     push!(angular_parts, [-4,3] => (θ,φ) ->  (1/√3)*s + (2/√6)*px)              #sp3d-3
-#     push!(angular_parts, [-4,4] => (θ,φ) ->  (1/√2)*pz + (1/√2)*dz2)            #sp3d-4
-#     push!(angular_parts, [-4,5] => (θ,φ) -> -(1/√2)*pz + (1/√2)*dz2)            #sp3d-5
-
-
-#     push!(angular_parts, [-5,1] => (θ,φ) -> (1/√6)*s - (1/√2)*px - (1/√12)*dz2 +  (1/2)*dx2_y2) #sp3d2-1
-#     push!(angular_parts, [-5,2] => (θ,φ) -> (1/√6)*s + (1/√2)*px - (1/√12)*dz2 +  (1/2)*dx2_y2) #sp3d2-2
-#     push!(angular_parts, [-5,3] => (θ,φ) -> (1/√6)*s - (1/√2)*py - (1/√12)*dz2 -  (1/2)*dx2_y2) #sp3d2-3
-#     push!(angular_parts, [-5,4] => (θ,φ) -> (1/√6)*s + (1/√2)*py - (1/√12)*dz2 -  (1/2)*dx2_y2) #sp3d2-4
-#     push!(angular_parts, [-5,5] => (θ,φ) -> (1/√6)*s - (1/√2)*pz + (1/√3)*dz2)                  #sp3d2-5
-#     push!(angular_parts, [-5,6] => (θ,φ) -> (1/√6)*s + (1/√2)*pz + (1/√3)*dz2)                  #sp3d2-6
-    
- 
-
-#     radial_parts,angular_parts
-# end
-
+    R*Θ
+end
 
 
 """ 
-    Takes one line of the projections table given by read_nnkp_file and  dictionaries linking quantum numbers
-    and radial or angular parts of hydrogen AOs, and produce the analytic expression of the guess.
+    Takes one line of the projections table given by read_nnkp_file and
+    produce the fourier coefficients of the periodized guess gn_per on the G_vectors
+    corresponding to the frequency k.
     Remember that : proj = [ [center], [quantum numbers], [z_axis], [x_axis], α ]
 """
-function guess_win(proj)
+function fourier_gn_per(basis::PlaneWaveBasis,r_cart,k::Integer,proj)
     center = proj[1]
     l,mr,r = proj[2]
-    α = proj[5]
+    # α = proj[5]
 
-    radial_parts,angular_parts = dict_AOs(α)
+    # α = DFTK.atom_decay_length(Si)
+    
     # TODO take into account non-canonical basis
     @assert(proj[3] == [0,0,1]) #For now we limit ourselves to the canonical basis
     @assert(proj[4] == [1,0,0])
 
     # Choose radial and angular parts
-    R = get!(radial_parts,r,1)
-    Θ = get!(angular_parts,[l,mr],1)
-    
-    g_n(r,θ,φ) = R(r)*Θ(θ,φ)
+    gn(rvec) = quantum_number_to_guess(l,mr,r,α,rvec)
+    real_gn = complex.([gn(rvec) for rvec in r_cart])
 
-    g_n
+    # DEBUG : Shouldn't we normalize somewhere ?
+    
+    # Methode 1 : whithout normalization 
+    # coeffs_gn_per= r_to_G(basis,basis.kpoints[k],real_gn)
+    # coeff_gn_per
+    
+    # Methode 2 : with normalization
+    coeffs_gn_per = r_to_G(basis,real_gn)
+    coeffs_gn_per ./= norm(coeffs_gn_per) #Whitout this line, both methods match
+    index = [DFTK.index_G_vectors(basis,G) for G in G_vectors(basis.kpoints[k])]
+    coeffs_gn_per[index]
     
 end
 
 """
-Convert cartesian to spherical coordinates.
+    Uses the above function to generate one Amn matrix given the projection table and
+    usual informations on the system (basis etc...)
 """
-function cart_to_spherical(cart_coord)
-    x,y,z = cart_coord
-    r = norm(cart_coord,2)
-    if r != 0.0
-        φ = atan(y,x)                 #atan(x,y) gives atan(x/y) and selects the right quadrant
-        θ = atan(norm([x,y],2),z)
-    else
-        φ = 0.0
-        θ = 0.0
-    end
-    [r,φ,θ]
-end
-
-
-
-function A_k_matrix_win_guesses(pw_basis::PlaneWaveBasis,ψ,k; projs = [],centers = [])
-    n_bands = size(ψ[1][1,:],1)
+function A_k_matrix_win_guesses(basis::PlaneWaveBasis, ψ,
+                                k::Integer, n_bands::Integer, n_wann::Integer;
+                                projs = [],centers = [])
     n_projs = size(projs,1)
+    @assert n_projs == n_wann
     
-    r_cart = [pw_basis.model.lattice*r for (i,r) in enumerate(r_vectors(pw_basis)) ]
-    r_sph  = cart_to_spherical.(r_cart)
-    
+    r_cart = [r for (ir,r) in enumerate(r_vectors_cart(basis)) ]    
     A_k = zeros(Complex,(n_bands,n_projs))
 
     for n in 1:n_projs
         # Obtain fourier coeff of projection g_n
-        gn = guess_win(projs[n])
-        real_gn = complex.([gn(r,θ,φ) for (r,θ,φ) in r_sph])
-        coeffs_g_per_n = r_to_G(pw_basis,pw_basis.kpoints[k],real_gn)
-
+        coeffs_gn_per = fourier_gn_per(basis,r_cart,k,projs[n])
         # Compute overlaps
         for m in 1:n_bands
             coeffs_ψm = ψ[k][:,m]
-            A_k[m,n] = dot(coeffs_ψm,coeffs_g_per_n)
+            A_k[m,n] = dot(coeffs_ψm,coeffs_gn_per)
         end
     end
 
@@ -152,4 +135,6 @@ function A_k_matrix_win_guesses(pw_basis::PlaneWaveBasis,ψ,k; projs = [],center
         
 end
 
-# End of "win" guess part
+
+# For testing on one projection
+# test_proj =  [ [-0.12500,0.12500,-0.1250],[0,1,1],[0.0000,0.0000,1.0000],[1.00000,0.00000,0.00000],1.00 ]
