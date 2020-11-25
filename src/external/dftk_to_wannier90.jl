@@ -287,25 +287,32 @@ is given by the value of the Fourier transform of ``g_n`` in G.
 """
 function A_k_matrix_gaussian_guesses(basis::PlaneWaveBasis, ψ, k::Integer,
                                      n_bands::Integer, n_wann::Integer;
-                                     centers = [], projs = [])
-    
+                                     centers = [], coords = "", projs = [])
+
     # associate a center with the fourier transform of the corresponding gaussian
     guess_fourier(center) = xi ->  exp(-im*dot(xi,center) - dot(xi,xi)/4) 
+
+    # Select G_vectors and the scalar product in reduced or cartesian coordinates
+    if coords == "reduced"
+        # "2π .*" so that the dot product is in reduced coordinates
+        G_vec = (2π) .*[G for (iG,G) in enumerate(G_vectors(basis))] 
+    else
+        G_vec =[G for (iG,G) in enumerate(G_vectors_cart(basis))]
+    end
     
-    G_cart =[G for (iG,G) in enumerate(G_vectors_cart(basis))]    
     # Indices of the Fourier modes of the bloch states in the general FFT_grid for given k
     index = [DFTK.index_G_vectors(basis,G) for G in G_vectors(basis.kpoints[k])]                    
   
     A_k = zeros(Complex,(n_bands,n_wann))
-    
+
     # Compute A_k
     for n in 1:n_wann
         fourier_gn = guess_fourier(basis.model.lattice*transpose(centers[n]))
         # functions are l^2 normalized in Fourier, in DFTK conventions.
-        norm_gn_per = norm(fourier_gn.(G_cart),2)
+        norm_gn_per = norm(fourier_gn.(G_vec),2)
         
         # Fourier coeffs of gn_per for G_vectors in common with ψm
-        coeffs_gn_per = fourier_gn.(G_cart[index])./ norm_gn_per     
+        coeffs_gn_per = fourier_gn.(G_vec[index])./ norm_gn_per     
         # Compute overlap
         for m in 1:n_bands
             coeffs_ψm = ψ[k][:,m]
@@ -321,7 +328,7 @@ end
 Use the preceding functions on every k to generate the .amn file 
 """
 function generate_amn_file(prefix::String,basis::PlaneWaveBasis,ψ, n_wann::Integer;
-                           projs=[], centers=[], guess="")
+                           projs=[], centers=[], coords = "", guess="")
     # Select guess
     if guess == "win"
         compute_A_k = A_k_matrix_win_guesses
@@ -349,7 +356,7 @@ function generate_amn_file(prefix::String,basis::PlaneWaveBasis,ψ, n_wann::Inte
         # Matrices
         for k in 1:k_size
             A_k = compute_A_k(basis,ψ,k,n_bands,n_wann;
-                              centers = centers, projs = projs)
+                              centers=centers, coords=coords, projs=projs)
             for n in 1:size(A_k,2)
                 for m in 1:size(A_k,1)
                     write(f,@sprintf("%3i %3i %3i  %22.18f %22.18f \n",
@@ -373,10 +380,12 @@ function dftk2wan_wannierization_files(prefix::String, basis::PlaneWaveBasis,
                                        write_mmn = true,
                                        write_eig = true,
                                        guess = "gaussian",
-                                       centers = [])
+                                       centers = [],
+                                       coords = "cartesian")
 
     # Check for errors
     @assert guess ∈ ("gaussian","SCDM","win")
+    @assert coords ∈ ("cartesian","reduced")
     
     if guess == "SCDM"
         error("SCDM not yet implemented")
@@ -385,11 +394,13 @@ function dftk2wan_wannierization_files(prefix::String, basis::PlaneWaveBasis,
     @info "Guess = $guess"
 
     # Generate random centers for gaussian guesses if none are given
-    # The centers are in lattice coordinate in [-1,1]^3.
+    # The centers are given in reduced coordinates (see notations and conventions).
     if (guess == "gaussian") & isempty(centers)
+        coords = "reduced"
         for i in 1:n_wann
-            push!(centers, 1 .- 2 .*rand(1,3))   
+            push!(centers, rand(1,3))   
         end
+        println(centers)
     end
     
     # Read the .nnkp file
@@ -403,7 +414,7 @@ function dftk2wan_wannierization_files(prefix::String, basis::PlaneWaveBasis,
     
     if write_amn
         generate_amn_file("Si", basis, ψ, n_wann;
-                          centers = centers, projs = projs, guess = guess)
+                          centers = centers, coords=coords, projs=projs, guess=guess)
     end
     
     if write_mmn
