@@ -21,7 +21,7 @@ function retrieve_proper_m(l::Integer,mr::Integer)
     (l == 0) && return 0
     (l == 1) && return m_p[mr]  # p
     (l == 2) && return m_d[mr]  # d
-    (l == 3) && return  m_f[mr] # f
+    (l == 3) && return m_f[mr]  # f
     error("Quantum numbers are not matching any implemented
                 orbital (s,p,d,f)")
 end
@@ -82,7 +82,7 @@ end
 function fourier_gn_per(basis::PlaneWaveBasis,r_cart,k::Integer,proj)
     center = proj[1]
     l,mr,r = proj[2]
-    # α = proj[5]
+    α = proj[5]
 
     # α = DFTK.atom_decay_length(Si)
     
@@ -91,14 +91,14 @@ function fourier_gn_per(basis::PlaneWaveBasis,r_cart,k::Integer,proj)
     @assert(proj[4] == [1,0,0])
 
     # Choose radial and angular parts
-    gn(rvec) = quantum_number_to_guess(l,mr,r,α,rvec)
+    gn(rvec) = quantum_number_to_guess(l,mr,r,α,rvec-center)
     real_gn = complex.([gn(rvec) for rvec in r_cart])
 
     # DEBUG : Shouldn't we normalize somewhere ?
     
     # Methode 1 : whithout normalization 
-    # coeffs_gn_per= r_to_G(basis,basis.kpoints[k],real_gn)
-    # coeff_gn_per
+    # coeffs_gn_per = r_to_G(basis,basis.kpoints[k],real_gn)
+    # coeffs_gn_per
     
     # Methode 2 : with normalization
     coeffs_gn_per = r_to_G(basis,real_gn)
@@ -114,7 +114,7 @@ end
 """
 function A_k_matrix_win_guesses(basis::PlaneWaveBasis, ψ,
                                 k::Integer, n_bands::Integer, n_wann::Integer;
-                                projs = [],centers = [])
+                                projs = [],centers = [], coords = "")
     n_projs = size(projs,1)
     @assert n_projs == n_wann
     
@@ -138,3 +138,4 @@ end
 
 # For testing on one projection
 # test_proj =  [ [-0.12500,0.12500,-0.1250],[0,1,1],[0.0000,0.0000,1.0000],[1.00000,0.00000,0.00000],1.00 ]
+
