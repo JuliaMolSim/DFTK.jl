@@ -2,12 +2,12 @@
 # This term does not contain the kinetic energy, which must be added separately
 # /!\ They have no 1/2 factor in front of the kinetic energy,
 #     so for consistency the added kinetic energy must have a scaling of 2
-# Energy = <u, ((-i∇ + βA)^2 + V) u>
+# Energy = <u, ((-i hbar ∇ + βA)^2 + V) u>
 # where ∇∧A = 2π ρ, ∇⋅A = 0 => A = x^⟂/|x|² ∗ ρ
-# H = (-i∇ + βA)² + V - 2β x^⟂/|x|² ∗ (βAρ + J)
-#   = -Δ + 2β (-i∇)⋅A + β²|A|^2 - 2β x^⟂/|x|² ∗ (βAρ + J)
+# H = (-i hbar ∇ + βA)² + V - 2β x^⟂/|x|² ∗ (βAρ + J)
+#   = - hbar^2 Δ + 2β hbar (-i∇)⋅A + β²|A|^2 - 2β x^⟂/|x|² ∗ (βAρ + J)
 # where only the first three terms "count for the energy", and where
-# J = 1/(2i) (u* ∇u - u ∇u*)
+# J = 1/(2i) hbar (u* ∇u - u ∇u*)
 
 # for numerical reasons, we solve the equation ∇∧A = 2π ρ in two parts: A = A_SR + A_LR, with
 # ∇∧A_SR = 2π(ρ-ρref)
@@ -55,6 +55,7 @@ function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
 end
 
 struct Anyonic
+    hbar
     β
 end
 function (A::Anyonic)(basis)
@@ -67,16 +68,17 @@ function (A::Anyonic)(basis)
     @assert basis.model.lattice[2, 1] == basis.model.lattice[1, 2] == 0
     @assert basis.model.lattice[1, 1] == basis.model.lattice[2, 2]
 
-    TermAnyonic(basis, eltype(basis)(A.β))
+    TermAnyonic(basis, eltype(basis)(A.hbar), eltype(basis)(A.β))
 end
 
 struct TermAnyonic{T <: Real, Tρ <: RealFourierArray, TA} <: Term
     basis::PlaneWaveBasis{T}
+    hbar::T
     β::T
     ρref::Tρ
     Aref::TA
 end
-function TermAnyonic(basis::PlaneWaveBasis{T}, β) where {T}
+function TermAnyonic(basis::PlaneWaveBasis{T}, hbar, β) where {T}
     # compute correction magnetic field
     ρref = zeros(T, basis.fft_size)
     Aref = [zeros(T, basis.fft_size), zeros(T, basis.fft_size)]
@@ -89,12 +91,13 @@ function TermAnyonic(basis::PlaneWaveBasis{T}, β) where {T}
     end
     Aref = make_div_free(basis, Aref)
     ρref = from_real(basis, ρref)
-    TermAnyonic(basis, β, ρref, Aref)
+    TermAnyonic(basis, hbar, β, ρref, Aref)
 end
 
 function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
     basis = term.basis
     T = eltype(basis)
+    hbar = term.hbar
     β = term.β
     @assert ψ !== nothing # the hamiltonian depends explicitly on ψ
 
@@ -117,15 +120,15 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
              from_fourier(basis, A2).real + term.Aref[2],
              zeros(T, basis.fft_size)]
 
-    # 2β (-i∇)⋅A + β^2 |A|^2
+    # 2 hbar β (-i∇)⋅A + β^2 |A|^2
     ops_energy = [MagneticFieldOperator(basis, basis.kpoints[1],
-                                        2β .* Areal),
+                                        2 .* hbar .* β .* Areal),
                   RealSpaceMultiplication(basis, basis.kpoints[1],
                                           β^2 .* (abs2.(Areal[1]) .+ abs2.(Areal[2])))]
 
     # Now compute effective local potential - 2β x^⟂/|x|² ∗ (βAρ + J)
     J = compute_current(basis, ψ, occ)
-    eff_current = [J[α].real .+
+    eff_current = [hbar .* J[α].real .+
                    β .* ρ.real .* Areal[α] for α = 1:2]
     eff_current_fourier = [from_real(basis, eff_current[α]).fourier for α = 1:2]
     # eff_pot = - 2β x^⟂/|x|² ∗ eff_current

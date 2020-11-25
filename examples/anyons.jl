@@ -16,16 +16,15 @@ pot(x, y, z) = ((x - a/2)^2 + (y - a/2)^2)
 # Parameters
 Ecut = 50
 n_electrons = 1
-β = 140
+β = 5
 
 terms = [Kinetic(2),
          ExternalFromReal(X -> pot(X...)),
-         Anyonic(β)
+         Anyonic(1, β)
 ]
 model = Model(lattice; n_electrons=n_electrons,
               terms=terms, spin_polarization=:spinless)  # "spinless electrons"
-# basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1), fft_size=DFTK.determine_grid_size(lattice, Ecut, supersampling=1.2))
-basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1); fft_size=DFTK.determine_fft_size(lattice, Ecut, supersampling=1.2))
+basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1); fft_size=DFTK.compute_fft_size(lattice, Ecut, supersampling=1.2))
 scfres = direct_minimization(basis, tol=1e-14)  # Reduce tol for production
 E = scfres.energies.total
 s = 2
