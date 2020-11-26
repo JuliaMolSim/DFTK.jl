@@ -26,13 +26,19 @@ end
 # H(φ)*φ - λ.*φ where λ is the set of rayleigh coefficients associated to the
 # φ
 # we also return the egval set for further computations
-function compute_residual(basis::PlaneWaveBasis{T}, φ, occ) where T
+function compute_residual(basis::PlaneWaveBasis{T}, φ, occ; φproj=nothing) where T
 
     # necessary quantities
     Nk = length(basis.kpoints)
     ρ = compute_density(basis, φ, occ)
     energies, H = energy_hamiltonian(basis, φ, occ; ρ=ρ[1])
     egval = [ zeros(Complex{T}, size(occ[i])) for i = 1:length(occ) ]
+
+    # if no φ is specified to define the projection onto the tangent plane, we
+    # use the current φ
+    if φproj === nothing
+        φproj = φ
+    end
 
     # compute residual
     res = similar(φ)
@@ -49,33 +55,40 @@ function compute_residual(basis::PlaneWaveBasis{T}, φ, occ) where T
     end
 
     # return residual after projection onto the tangent space
-    (res=proj!(res, φ), ρ, H, egval)
+    (res=proj!(res, φproj), ρ, H, egval)
 end
 
 
 # perform a newton step : we take as given a planewave set φ and we return the
 # newton step φ - δφ (after proper orthonormalization) where δφ solves Jac * δφ = res
 function newton_step(basis::PlaneWaveBasis{T}, φ, res, ρ, H, egval, occ,
-                     packing) where T
+                     packing; φproj=nothing, tol_krylov=1e-12) where T
 
     # necessary quantities
     Nk = length(basis.kpoints)
     pack, unpack, packed_proj! = packing
     ortho(ψk) = Matrix(qr(ψk).Q)
 
+    # if no φ is specified to define the projection onto the tangent plane, we
+    # use the current φ
+    if φproj === nothing
+        φproj = φ
+    end
+
     # solve linear system with KrlyovKit
     function f(x)
         δφ = unpack(x)
-        δφ = proj!(δφ, φ)
-        ΩpKx = ΩplusK(basis, δφ, φ, ρ[1], H, egval, occ)
-        ΩpKx = proj!(ΩpKx, φ)
+        δφ = proj!(δφ, φproj)
+        ΩpKx = ΩplusK(basis, δφ, φproj, ρ[1], H, egval, occ)
+        ΩpKx = proj!(ΩpKx, φproj)
         pack(ΩpKx)
     end
     δφ, info = linsolve(f, pack(res);
-                        tol=1e-15, verbosity=1,
-                        orth=OrthogonalizeAndProject(packed_proj!, pack(φ)))
+                        tol=tol_krylov, verbosity=1,
+                        orth=OrthogonalizeAndProject(packed_proj!, pack(φproj)))
     δφ = unpack(δφ)
-    δφ = proj!(δφ, φ)
+    δφ = proj!(δφ, φproj)
+    φ_newton = similar(φ)
 
     for ik = 1:Nk
         φk = φ[ik]
@@ -85,9 +98,9 @@ function newton_step(basis::PlaneWaveBasis{T}, φ, res, ρ, H, egval, occ,
             φk[:,i] = φk[:,i] - δφk[:,i]
         end
         φk = ortho(φk)
-        φ[ik] = φk
+        φ_newton[ik] = φk
     end
-    φ
+    (φ_newton, δφ)
 end
 
 # newton algorithm
@@ -133,7 +146,7 @@ function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
 
         # compute next step
         res, ρ, H, egval = compute_residual(basis, φ, occupation)
-        φ = newton_step(basis, φ, res, ρ, H, egval, occupation, packing)
+        φ, δφ = newton_step(basis, φ, res, ρ, H, egval, occupation, packing)
 
         # compute error on the norm
         ρ_next = compute_density(basis, φ, occupation)
@@ -144,6 +157,7 @@ function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
 
     # plot results
     figure()
+    title("Convergence of newton algorithm")
     semilogy(k_list, err_list, "x-", label="|ρ^{k+1} - ρ^k|")
     semilogy(k_list, err_ref_list, "x-", label="|ρ^k - ρref|")
     xlabel("iterations")

@@ -7,7 +7,7 @@
 # iterations. To this end, we defined a custom callback function
 # (currently, only Nk = 1 kpt only is supported)
 #
-#            !!! NOT OPTIMIZED YET, WE USE PLAIN DENSITY MATRICES !!!
+#            !!! NOT OPTIMIZED YET !!!
 #
 
 # Very basic setup, useful for testing
@@ -17,6 +17,7 @@ using PyPlot
 
 # import aux file
 include("aposteriori_operators.jl")
+include("newton.jl")
 
 # model parameters
 a = 10.26  # Silicon lattice constant in Bohr
@@ -28,162 +29,112 @@ Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 # define different models
-n_el = 2
+n_el = 8
 modelLDA = model_LDA(lattice, atoms, n_electrons=n_el)
 modelHartree = model_atomic(lattice, atoms; extra_terms=[Hartree()], n_electrons=n_el)
 modelAtomic = model_atomic(lattice, atoms, n_electrons=n_el)
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
-tol = 1e-12
+tol = 1e-15
 tol_krylov = 1e-15
 Ecut = 15           # kinetic energy cutoff in Hartree
-
-## number of kpoints
-Nk = 0
-N = 0
-filled_occ = 0
-
-model_list = ["Atomic", "Hartree", "LDA"]
-k = 0
-ite = 0
 
 ## custom callback to follow estimators
 function callback_estimators()
 
-    φ_list = []                 # list of ψ^k
-    res_φ_list = []             # list of residuals as Hψ - λψ
-    global ite
+    global ite, φ_list, basis_list
+    φ_list = []                 # list of φ^k
+    basis_list = []
     ite = 0
 
     function callback(info)
-        global N, Nk, filled_occ, k, ite
 
         if info.stage == :finalize
-            ## converged values
-            φref = similar(info.ψ)
+
+            basis_ref = info.basis
+            model = info.basis.model
+
+            ## number of kpoints
+            Nk = length(basis_ref.kpoints)
+            ## number of eigenvalue/eigenvectors we are looking for
+            filled_occ = DFTK.filled_occupation(model)
+            N = div(model.n_electrons, filled_occ)
+            occupation = [filled_occ * ones(N) for ik = 1:Nk]
+
+            φ_ref = similar(info.ψ)
             for ik = 1:Nk
-                φref[ik] = info.ψ[ik][:,1:N]
+                φ_ref[ik] = info.ψ[ik][:,1:N]
             end
-            basis = info.basis
-            ρ = info.ρ
-            H = info.ham
-            egval = info.eigenvalues
-            T = typeof(ρ.real[1])
-            occupation = [filled_occ * ones(T, N) for ik = 1:Nk]
 
-            ## orthogonalisation routine
-            ortho(ψk) = Matrix(qr(ψk).Q)
+            ## converged values
+            ρ_ref = info.ρ
+            H_ref = info.ham
+            egval_ref = info.eigenvalues
+            T = typeof(ρ_ref.real[1])
 
-            ## vec and unpack
-            # length of ψ0[ik]
-            lengths = [length(φref[ik]) for ik = 1:Nk]
-            starts = copy(lengths)
-            starts[1] = 1
-            for ik = 1:Nk-1
-                starts[ik+1] = starts[ik] + lengths[ik]
+
+            ## packing routines to pack vectors for KrylovKit solver
+            packing = packing_routines(basis_ref, φ_ref)
+
+            ## filling residuals and errors
+            err_ref_list = []
+            err_newton_list = []
+            norm_δφ_list = []
+            norm_res_list = []
+            for i in 1:ite
+                φ = φ_list[i]
+                basis = basis_list[i]
+                for ik = 1:Nk
+                    φ[ik] = φ[ik][:,1:N]
+                end
+
+                res, ρ, H, egval = compute_residual(basis, φ, occupation;
+                                                    φproj=φ)
+
+                φ_newton, δφ = newton_step(basis, φ, res, ρ, H, egval,
+                                           occupation, packing;
+                                           φproj=φ, tol_krylov=tol_krylov)
+                append!(err_ref_list, dm_distance(φ[1], φ_ref[1]))
+                append!(err_newton_list, dm_distance(φ_newton[1], φ_ref[1]))
+                append!(norm_δφ_list, norm(δφ))
+                append!(norm_res_list, norm(res))
             end
-            pack(ψ) = vcat(Base.vec.(ψ)...)
-            unpack(ψ) = [@views reshape(ψ[starts[ik]:starts[ik]+lengths[ik]-1], size(φref[ik]))
-                         for ik = 1:Nk]
 
-            # random starting point for eigensolvers
-            ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
-                  for kpt in basis.kpoints]
-            packed_proj!(ϕ,ψ) = proj!(unpack(ϕ), unpack(ψ))
 
-            # eigsolve
-            function f(x)
-                δφ = unpack(x)
-                δφ = proj!(δφ, φref)
-                ΩpKx = ΩplusK(basis, δφ, φref, ρ, H, egval, occupation)
-                ΩpKx = proj!(ΩpKx, φref)
-                pack(ΩpKx)
-            end
-            vals_ΩpK, _ = eigsolve(f, pack(ψ0), 3, :SR;
-                                   tol=tol_krylov, verbosity=0, eager=true,
-                                   orth=OrthogonalizeAndProject(packed_proj!, pack(φref)))
+            ## error estimates
+            normop = compute_normop(basis_ref, φ_ref, ρ_ref, H_ref,
+                                    egval_ref, occupation,
+                                    packing; tol_krylov=tol_krylov)
+            err_estimator = normop .* norm_res_list
 
-            # svd solve
-            function g(x,flag)
-                f(x)
-            end
-            svds_ΩpK, _ = svdsolve(g, pack(ψ0), 3, :SR;
-                                   tol=tol_krylov, verbosity=0, eager=true,
-                                   orth=OrthogonalizeAndProject(packed_proj!, pack(φref)))
-
-            normop = 1. / svds_ΩpK[1]
-            println("--> plus petite valeur propre $(real(vals_ΩpK[1]))")
-            println("--> plus petite valeur singulière $(svds_ΩpK[1])")
-            println("--> normop $(normop)")
-            println("--> gap $(egval[1][N+1] - egval[1][N])")
-
-            # evaluating errors
-            norm_res_φ_list = norm.(res_φ_list)
-            err_ref_list = [ abs(sqrt(Complex(2*N - 2*norm(φ_list[i][1]'φref[1])^2))) for i in 1:ite]
-            err_φ_estimator = normop .* norm_res_φ_list
-
+            ## plotting convergence info
             figure()
             title("error estimators vs iteration for $(model_list[k]), N = $(N)")
             semilogy(1:ite, err_ref_list, "x-", label="|P-Pref|")
-            #  semilogy(1:ite, norm_res_φ_list, "x-", label="|res_φ|")
-            #  semilogy(1:ite, err_φ_estimator, "x-", label="|(Ω+K)^{-1}|*|res_φ|")
-
-            # plotting newton iterations
-            err_newton = []
-            err_newton_step_φ = []
-            for i in 1:ite
-                res_φ = proj!(res_φ_list[i], φref)
-                δφ_packed, info = linsolve(f, pack(res_φ);
-                                           tol=1e-15, verbosity=1,
-                                           orth=OrthogonalizeAndProject(packed_proj!, pack(φref)))
-                δφ = unpack(δφ_packed)
-                δφ = proj!(δφ, φref)
-
-
-                φ_newton = deepcopy(φ_list[i])
-                for ik = 1:Nk
-                    for j = 1:N
-                        φ_newton[ik][:,j] = φ_newton[ik][:,j] - δφ[ik][:,j]
-                    end
-                    φ_newton[ik] = ortho(φ_newton[ik])
-                end
-
-                append!(err_newton, abs(sqrt(Complex(2*N - 2*norm(φ_newton[1]'φref[1])^2))))
-                append!(err_newton_step_φ, norm(δφ))
-            end
-            semilogy(1:ite, err_newton, "x-", label="|P_newton-Pref|")
-            semilogy(1:ite, err_newton_step_φ, "x-", label="|δφ|")
+            semilogy(1:ite, norm_res_list, "x-", label="|res_φ|")
+            semilogy(1:ite, err_estimator, "x-", label="|(Ω+K)|^-1 * |res_φ|")
+            semilogy(1:ite, norm_δφ_list, "+-", label="|δφ|")
+            semilogy(1:ite, err_newton_list, "x-", label="|P_newton-Pref|")
             legend()
             xlabel("iterations")
 
         else
             ite += 1
-            φ = info.ψ
-            occ = info.occupation
-            basis = info.basis
-            ρ = compute_density(basis, φ, occ)
-            _, ham = energy_hamiltonian(basis, φ, occ; ρ=ρ[1])
-            # compute residual
-            res_φ = similar(φ)
-            for ik = 1:Nk
-                φk = φ[ik]
-                Hk = ham.blocks[ik]
-                egvalk = [φk[:,i]'*(Hk*φk[:,i]) for i = 1:length(occ[ik])]
-                rk = Hk*φk - hcat([egvalk[i] * φk[:,i] for i = 1:length(occ[ik])]...)
-                res_φ[ik] = rk[:,1:N]
-            end
-            append!(res_φ_list, [res_φ])
-            φφ = similar(φ)
-            for ik = 1:Nk
-                φφ[ik] = φ[ik][:,1:N]
-            end
-            append!(φ_list, [φφ])
+            append!(φ_list, [info.ψ])
+            append!(basis_list, [info.basis])
         end
     end
     callback
 end
 
+#  model_list = ["Atomic", "Hartree", "LDA"]
+model_list = ["LDA"]
+k = 0
+ite = nothing
+φ_list = nothing
+basis_list = nothing
 
-for model in [modelAtomic, modelHartree, modelLDA]
+#  for model in [modelAtomic, modelHartree, modelLDA]
+for model in [modelLDA]
     println("--------------------------------")
     println("--------------------------------")
     global k
@@ -192,15 +143,8 @@ for model in [modelAtomic, modelHartree, modelLDA]
 
     basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 
-    global N, Nk, filled_occ
-    ## number of kpoints
-    Nk = length(basis.kpoints)
-    ## number of eigenvalue/eigenvectors we are looking for
-    filled_occ = DFTK.filled_occupation(model)
-    N = div(model.n_electrons, filled_occ)
-
     scfres = self_consistent_field(basis, tol=tol,
                                    is_converged=DFTK.ScfConvergenceDensity(tol),
-                                   determine_diagtol=DFTK.ScfDiagtol(diagtol_max=1e-14),
+                                   #  determine_diagtol=DFTK.ScfDiagtol(diagtol_max=1e-12),
                                    callback=callback_estimators())
 end

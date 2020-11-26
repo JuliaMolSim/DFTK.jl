@@ -9,6 +9,24 @@ using KrylovKit
 
 ################################## TOOL ROUTINES ###############################
 
+# norm of difference between the density matrices associated to ϕ and ψ
+# to be consistent with |δφ|^2 = 2 Σ |δφi|^2 when δφ = Σ |φi><δφi| + hc is an
+# element on the tangent space, we return (1/√2)|ϕϕ'-ψψ'| = √(N-|ϕ'ψ|^2) so that
+# we can take Σ |δφi|^2 as norm of δφ for δφ an element of the tangent space
+function dm_distance(ϕ, ψ)
+    N = size(ϕ,2)
+
+    # use higher precision to compute √(N-|ϕ'ψ|^2) with |ϕ'ψ|^2 close to N
+    ϕ = Complex{BigFloat}.(ϕ)
+    ψ = Complex{BigFloat}.(ψ)
+    ortho(ψk) = Matrix(qr(ψk).Q)
+    ϕ = ortho(ϕ)
+    ψ = ortho(ψ)
+
+    ϕψ = norm(ϕ'ψ)
+    sqrt(abs(N - ϕψ^2))
+end
+
 # test for orthogonalisation
 tol_test = 1e-12
 
@@ -164,6 +182,45 @@ function ΩplusK(basis, δφ, φ, ρ, H, egval, occ)
     Kδφ = apply_K(basis, δφ, φ, ρ, occ)
     Ωδφ = apply_Ω(basis, δφ, φ, H, egval)
     ΩpKδφ = Ωδφ .+ Kδφ
+end
+
+# compute operator norm of Ω+K defined at φ
+function compute_normop(basis::PlaneWaveBasis{T}, φ, ρ, H, egval,
+                        occupation, packing; tol_krylov=1e-12) where T
+
+    N = size(φ[1],2)
+    pack, unpack, packed_proj! = packing
+
+    ## random starting point for eigensolvers
+    ortho(ψk) = Matrix(qr(ψk).Q)
+    ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
+          for kpt in basis.kpoints]
+
+    function f(x)
+        δφ = unpack(x)
+        δφ = proj!(δφ, φ)
+        ΩpKx = ΩplusK(basis, δφ, φ, ρ, H, egval, occupation)
+        ΩpKx = proj!(ΩpKx, φ)
+        pack(ΩpKx)
+    end
+    vals_ΩpK, _ = eigsolve(f, pack(ψ0), 3, :SR;
+                           tol=tol_krylov, verbosity=0, eager=true,
+                           orth=OrthogonalizeAndProject(packed_proj!, pack(φ)))
+
+    # svd solve
+    function g(x,flag)
+        f(x)
+    end
+    svds_ΩpK, _ = svdsolve(g, pack(ψ0), 3, :SR;
+                           tol=tol_krylov, verbosity=0, eager=true,
+                           orth=OrthogonalizeAndProject(packed_proj!, pack(φ)))
+
+    normop = 1. / svds_ΩpK[1]
+    println("--> plus petite valeur propre $(real(vals_ΩpK[1]))")
+    println("--> plus petite valeur singulière $(svds_ΩpK[1])")
+    println("--> normop $(normop)")
+    println("--> gap $(egval[1][N+1] - egval[1][N])")
+    normop
 end
 
 ################################## TESTS #######################################
