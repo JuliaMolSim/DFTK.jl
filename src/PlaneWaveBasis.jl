@@ -62,7 +62,7 @@ struct PlaneWaveBasis{T <: Real}
     # ksymops[ik] is a list of symmetry operations (S,τ)
     # mapping to points in the reducible BZ
     ksymops::Vector{Vector{SymOp}}
-    # Monkhorst-Pack grid used to generate the k-Points, nothing if unknown
+    # Monkhorst-Pack grid used to generate the k-Points or nothing for custom k-Points
     kgrid::Union{Nothing,Vec3{Int}}
     kshift::Union{Nothing,Vec3{T}}
 
