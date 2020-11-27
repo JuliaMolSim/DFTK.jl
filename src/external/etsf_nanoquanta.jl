@@ -145,7 +145,8 @@ function load_basis(T, folder::EtsfFolder; magnetic_moments=[])
     @assert kcoords_new ≈ normalize_kpoint_coordinate.(kcoords)
 
     fft_size = size(folder.den["density"])[2:4]
-    PlaneWaveBasis(model, Ecut, kcoords, ksymops, fft_size=fft_size)
+    PlaneWaveBasis(model, Ecut, kcoords, ksymops, fft_size=fft_size,
+                   kgrid=kgrid, kshift=kshift)
 end
 load_basis(folder; kwargs...) = load_basis(Float64, folder; kwargs...)
 
