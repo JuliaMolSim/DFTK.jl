@@ -2,9 +2,9 @@
 
 # Density-functional toolkit
 
-| **Documentation**                                                                   | **Build Status**                               |  **License**                     |
-|:----------------------------------------------------------------------------------- |:---------------------------------------------- |:-------------------------------- |
-| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][gitter-img]][gitter-url] | [![][ci-img]][ci-url] [![][cov-img]][cov-url]  | [![][license-img]][license-url]  |
+| **Documentation**                                                                   | **Build Status**                                                         |  **License**                     |
+|:----------------------------------------------------------------------------------- |:------------------------------------------------------------------------ |:-------------------------------- |
+| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][gitter-img]][gitter-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] [![][cov-img]][cov-url]  | [![][license-img]][license-url]  |
 
 [ddocs-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [ddocs-url]: https://docs.dftk.org/dev
@@ -20,6 +20,9 @@
 
 [cov-img]: https://coveralls.io/repos/JuliaMolSim/DFTK.jl/badge.svg?branch=master&service=github
 [cov-url]: https://coveralls.io/github/JuliaMolSim/DFTK.jl?branch=master
+
+[ccov-img]: https://codecov.io/gh/JuliaMolSim/DFTK.jl/branch/master/graph/badge.svg?token=A23M0VZ8PQ
+[ccov-url]: https://codecov.io/gh/JuliaMolSim/DFTK.jl
 
 [license-img]: https://img.shields.io/github/license/JuliaMolSim/DFTK.jl.svg?maxAge=2592000
 [license-url]: https://github.com/JuliaMolSim/DFTK.jl/blob/master/LICENSE
