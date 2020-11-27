@@ -13,12 +13,13 @@
 # ∇∧A_SR = 2π(ρ-ρref)
 # ∇∧A_LR = 2πρref
 # where ρref is a gaussian centered at the origin and with the same integral as ρ (=M)
-# ρref(x) = M exp(-1/2 (x/σ)^2) / (σ^3 (2π)^3/2)
-# This way, ρ-ρref has zero mass, and A_SR is shorter range. The long-range part is computed explicitly
+# This way, ρ-ρref has zero mass, and A_SR is shorter range.
+# The long-range part is computed explicitly
 
 function ρref_real(x::T, y::T, M, σ) where {T <: Real}
     r = hypot(x, y)
-    M * exp(-1/2 * (r/σ)^2) / (σ^2 * (2T(π))^(2/2))
+    # gaussian normalized to have integral M
+    M * exp(-T(1)/2 * (r/σ)^2) / (σ^2 * (2T(π))^(2/2))
 end
 
 function magnetic_field_produced_by_ρref(x::T, y::T, M, σ) where {T <: Real}
@@ -32,10 +33,10 @@ function magnetic_field_produced_by_ρref(x::T, y::T, M, σ) where {T <: Real}
     r = hypot(x, y)
     r == 0 && return magnetic_field_produced_by_ρref(1e-8, 0.0, M, σ) # hack
 
-    α = 1/(2*σ^2)
-    C = 2T(π)*M/(σ^2 * (2T(π))^(2/2))
+    α = 1 / (2*σ^2)
+    C = 2T(π) * M / (σ^2 * (2T(π))^(2/2))
     r = hypot(x, y)
-    ϕ = 1/2*C/α/r^2*(1-exp(-α*r^2))
+    ϕ = 1/2 * C / α / r^2 * (1 - exp(-α*r^2))
     ϕ * @SVector[-y, x]
 end
 
@@ -45,8 +46,10 @@ function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
     for (iG, G) in enumerate(G_vectors(basis))
         vec = [A_fourier[1][iG], A_fourier[2][iG]]
         G = [G[1], G[2]]
+        # project on divergence free fields, ie in Fourier
+        # project A(G) on the orthogonal of G
         if iG != 1
-            out[1][iG], out[2][iG] = vec - (G'vec)*G/sum(abs2, G)
+            out[1][iG], out[2][iG] = vec - (G'vec) * G / sum(abs2, G)
         else
             out[1][iG], out[2][iG] = vec
         end
@@ -89,6 +92,8 @@ function TermAnyonic(basis::PlaneWaveBasis{T}, hbar, β) where {T}
         ρref[ir] = ρref_real(rcart[1], rcart[2], M, σ)
         Aref[1][ir], Aref[2][ir] = magnetic_field_produced_by_ρref(rcart[1], rcart[2], M, σ)
     end
+    # Aref is not divergence-free in the finite basis, so we explicitly project it
+    # This is because we assume elsewhere (eg to ensure self-adjointness of the Hamiltonian)
     Aref = make_div_free(basis, Aref)
     ρref = from_real(basis, ρref)
     TermAnyonic(basis, hbar, β, ρref, Aref)
@@ -112,8 +117,8 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
     for (iG, G) in enumerate(G_vectors_cart(basis))
         G2 = sum(abs2, G)
         if G2 != 0
-            A1[iG] = +2T(π) * G[2] / G2 * (ρ_fourier[iG]-ρref_fourier[iG]) * im
-            A2[iG] = -2T(π) * G[1] / G2 * (ρ_fourier[iG]-ρref_fourier[iG]) * im
+            A1[iG] = +2T(π) * G[2] / G2 * (ρ_fourier[iG] - ρref_fourier[iG]) * im
+            A2[iG] = -2T(π) * G[1] / G2 * (ρ_fourier[iG] - ρref_fourier[iG]) * im
         end
     end
     Areal = [from_fourier(basis, A1).real + term.Aref[1],

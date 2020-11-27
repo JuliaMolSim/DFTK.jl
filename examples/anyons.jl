@@ -24,10 +24,11 @@ terms = [Kinetic(2),
 ]
 model = Model(lattice; n_electrons=n_electrons,
               terms=terms, spin_polarization=:spinless)  # "spinless electrons"
-basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1); fft_size=DFTK.compute_fft_size(lattice, Ecut, supersampling=1.2))
+basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1);
+                       fft_size=DFTK.compute_fft_size(lattice, Ecut, supersampling=1.2))
 scfres = direct_minimization(basis, tol=1e-14)  # Reduce tol for production
 E = scfres.energies.total
 s = 2
 E11 = π/2 * (2(s+1)/s)^((s+2)/s) * (s/(s+2))^(2(s+1)/s) * E^((s+2)/s) / β
-println("e(1,1)/(2π)= ", E11/(2π))
+println("e(1,1) / (2π)= ", E11 / (2π))
 display(heatmap(scfres.ρ.real[:, :, 1], c=:blues))
