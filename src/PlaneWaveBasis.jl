@@ -207,7 +207,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     kweights = T.(model.n_spin_components .* kweights) ./ tot_weight
     @assert mpi_sum(sum(kweights), mpi_comm) ≈ model.n_spin_components
 
-    # Create dummy terms array for basi to handle
+    # Create dummy terms array for basis to handle
     terms = Vector{Any}(undef, length(model.term_types))
 
     basis = PlaneWaveBasis{T}(
