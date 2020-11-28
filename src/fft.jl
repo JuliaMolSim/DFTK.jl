@@ -101,15 +101,13 @@ end
 
 # Main entry point from pwbasis. Uses the above functions to find out
 # the correct fft_size according to user specification
-function compute_final_fft_size(model::Model{T}, fft_size, Ecut, supersampling,
-                                variational, optimize_fft_size, kcoords) where {T}
-    if variational
-        @assert Ecut > 0
-        if fft_size === nothing
-            fft_size = compute_fft_size(model, Ecut;
-                                        supersampling=supersampling)
-        end
-
+function validate_or_compute_fft_size(model::Model{T}, fft_size, Ecut, supersampling,
+                                      variational, optimize_fft_size, kcoords) where {T}
+    # compute if not provided
+    if fft_size === nothing
+        @assert variational
+        fft_size = compute_fft_size(model, Ecut;
+                                    supersampling=supersampling)
         if optimize_fft_size
             # We build a temporary set of kpoints here
             # This gymnastics is because build_kpoints builds index
@@ -121,20 +119,22 @@ function compute_final_fft_size(model::Model{T}, fft_size, Ecut, supersampling,
             fft_size = compute_fft_size_precise(model.lattice, Ecut, kpoints_temp;
                                                 supersampling=supersampling)
         end
+    end
 
-        # Sanity checks
+    # validate
+    if variational
         max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
         Ecut > max_E && @warn(
             "For a variational method, Ecut should be less than the maximal kinetic " *
             "energy the grid supports ($max_E)"
         )
     else
-        # ensure fft_size is provided, and other options are not set
-        # TODO make proper error messages when the interface gets a bit cleaned up
+        # ensure no other options are set
         @assert fft_size !== nothing
         @assert supersampling == 2
         @assert !optimize_fft_size
     end
+
     # TODO generic FFT is kind of broken for some fft sizes
     #      ... temporary workaround, see more details in fft_generic.jl
     fft_size = next_working_fft_size.(T, fft_size)
