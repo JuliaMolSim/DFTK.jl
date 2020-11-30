@@ -106,8 +106,7 @@ function validate_or_compute_fft_size(model::Model{T}, fft_size, Ecut, supersamp
     # compute if not provided
     if fft_size === nothing
         @assert variational
-        fft_size = compute_fft_size(model, Ecut;
-                                    supersampling=supersampling)
+        fft_size = compute_fft_size(model, Ecut; supersampling=supersampling)
         if optimize_fft_size
             # We build a temporary set of kpoints here
             # This gymnastics is because build_kpoints builds index
@@ -115,7 +114,8 @@ function validate_or_compute_fft_size(model::Model{T}, fft_size, Ecut, supersamp
             # basis and thus the fft_size needs to be final at kpoint
             # construction time
             fft_size = Tuple{Int, Int, Int}(fft_size)
-            kpoints_temp = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
+            kpoints_temp = build_kpoints(model, fft_size, kcoords, Ecut;
+                                         variational=variational)
             fft_size = compute_fft_size_precise(model.lattice, Ecut, kpoints_temp;
                                                 supersampling=supersampling)
         end
@@ -130,7 +130,6 @@ function validate_or_compute_fft_size(model::Model{T}, fft_size, Ecut, supersamp
         )
     else
         # ensure no other options are set
-        @assert fft_size !== nothing
         @assert supersampling == 2
         @assert !optimize_fft_size
     end
@@ -141,7 +140,6 @@ function validate_or_compute_fft_size(model::Model{T}, fft_size, Ecut, supersamp
     fft_size = Tuple{Int, Int, Int}(fft_size)
     fft_size
 end
-
 
 
 # For Float32 there are issues with aligned FFTW plans, so we
