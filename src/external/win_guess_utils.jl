@@ -1,5 +1,9 @@
 # TODO :
-# For now does not converge
+# Tested and certified for s orbitals
+# For now the gn_per coeffs are not normalized but it has
+# no effect on the convergence a priori
+
+using SpecialFunctions
 
 @doc raw"""
     The quantum numbers given by Wannier90 are not in common use. 
@@ -27,86 +31,101 @@ function retrieve_proper_m(l::Integer,mr::Integer)
 end
 
 
-"""
-    Evaluate the guess at the real vector `rvec`,
-    given the (ish-)quantum numbers `l`,`mr`,`r` and `α` from Wannier90
 
-    Uses the spherical harmonics implemented in src/common/spherical_harmonics.jl
-    and adds linear combinations to provide hybrid orbitals  sp, sp2, sp3, sp3d and sp3d2.
-    !!! FOR NOW JUST SP AND SP3 TO TEST CONVERGENCE.
 """
-function quantum_number_to_guess(l::Integer, mr::Integer, r_qn::Integer, α,
-                   rvec::AbstractVector{T}) where T
+    Series expansion at order n of int_Rl for l=1.
+    Use Gamma function to avoid overflow errors
+"""
+function approx_radial_1(Gnorm,n)
+    sum = zero(Float64)
+    for i in 1:n  # 9 is maximum iteration without overflow
+        sum += (-1)^(i+1) * 2^(i+1) *  Gnorm^(2i-1) * i * (gamma(i+1)/gamma(2i+2))
+    end
+    sum
+end
 
-    Θ = zero(T); R = zero(T)
-    
-    # Angular parts
+
+
+@doc raw"""
+    Gives the analytic expression of the
+    integral ``I_l(G) = \int_{\mathbb{R}^+} r^2 exp(-r^2/2) j_l(|G|r)dr``
+    where ``j_l`` is the Bessel function of order l.
+    Only ``0 ≤ l ≤ 3`` are needed so any other value raises an error 
+    G is expected in cartesian coordinates
+"""
+function gaussian_intR_l(l::Integer, Gcart)
+    if iszero(Gcart) # |G| = 0
+        (l==0) && return complex(√(π/2))
+        (l!=0) && return zero(ComplexF64)
+    else # |G| > 0
+        Gnorm = norm(Gcart)
+        (l==0) && return Gnorm*√(π/2)*exp(-(Gnorm^2)/2) #tested !
+        (l==1) && return approx_radial_1(Gnorm,14)
+        (l==2) && return 0 # Not yet implemented
+        (l==3) && return 0 # Not yet implemented
+    end
+    error("l has to be bewteen 0 and 3")
+end
+
+
+@doc raw"""
+Given quantum numbers and center (in cartesian coordinates), evaluate the fourier
+transform of the corresponding orbital at given reciprocal vector ``G`` in cartesian
+coordinates.
+
+For the orbital ``g(r) = R(r)Y_l^m(r/|r|)`` the fourier transform is given by:
+
+``\hat(g)(G) = 4\pi Y_l^m(-G/|G|)i^l * \int_{\mathbb{R}^+}r^2 R(r)j_l(|G|r)dr``
+             = y_lm * intR_l
+
+Only gaussian ``R(r) = e^{-r^2/2}`` have been implemented.
+The `y_lm` and `intR_l` terms  are respectively given by the routines 
+`ylm_real` and `gaussian_intR_l`.
+
+TODO : y_lm and intR_l not needed
+"""
+function eval_fourier_orbital(center,l,mr, Gcart)
+    # TODO : Optimise to compute the whole list of G_vectors at once
+    y_lm = zero(ComplexF64); intR_l = zero(ComplexF64)
+
+    # case |G| treated separatly
+    if iszero(Gcart)
+        (l == 0) && return (√(2)π)/2
+        (l != 0) && return zero(ComplexF64) # since j_l(0) = 0 for l≥1.
+    end
+
+    # |G| ≠ 0
+    Gnorm = norm(Gcart)
+    arg_ylm = -Gcart ./ Gnorm
+
+    # Computes the phase prefactor due to center ≠ [0,0,0]
+    phase_prefac = exp(-im*dot(Gcart,center))
+
+    # y_lm and intR_l
     if l ≥ 0  # s,p,d or f
         m = retrieve_proper_m(l,mr)
-        Θ = DFTK.ylm_real(l,m,rvec)
-    else      # hybrid
-        s = DFTK.ylm_real(0,0,rvec)
-        px = DFTK.ylm_real(1,1,rvec); py = DFTK.ylm_real(1,-1,rvec);
-        pz = DFTK.ylm_real(1,0,rvec);
-        if l==-1     # sp
-            (mr==1) && (Θ = (1/√2)*(s + px))
-            (mr==2) && (Θ = (1/√2)*(s - px))
-        elseif l==-3 # sp3
-            (mr==1) && (Θ = (1/√2)*(s + px + py + pz))
-            (mr==2) && (Θ = (1/√2)*(s + px - py - pz))
-            (mr==3) && (Θ = (1/√2)*(s - px + py - pz))
-            (mr==4) && (Θ = (1/√2)*(s - px - py + pz))
+        y_lm = (4π*im^l)*DFTK.ylm_real(l,m,arg_ylm)
+        intR_l = gaussian_intR_l(l,Gcart)
+        return phase_prefac*y_lm*intR_l
+    else      # hybrid orbitals
+        s  = √(2π)/2 * Gnorm * exp(-Gnorm^2/2)
+        px = (4π*im) * DFTK.ylm_real(1,1,arg_ylm)  * gaussian_intR_l(1,Gcart)
+        py = (4π*im) * DFTK.ylm_real(1,-1,arg_ylm) * gaussian_intR_l(1,Gcart)
+        pz = (4π*im) * DFTK.ylm_real(1,0,arg_ylm)  * gaussian_intR_l(1,Gcart)
+        if  l == -1     # sp
+            (mr==1) && (y_lm = (1/√2) * (s + px))
+            (mr==2) && (y_lm = (1/√2) * (s - px))
+        elseif l == -3  # sp3
+            (mr==1) && (return phase_prefac * (1/√2)*(s + px + py + pz))
+            (mr==2) && (return phase_prefac * (1/√2)*(s + px - py - pz))
+            (mr==3) && (return phase_prefac * (1/√2)*(s - px + py - pz))
+            (mr==4) && (return phase_prefac * (1/√2)*(s - px - py + pz))
         end
     end
-    
-    # Radial parts
-    r = norm(rvec)
-    if r <= 10 * eps(eltype(rvec))
-        R = zero(T)
-    else
-        (r_qn==1) && (R = 2*α^(2/3)*exp(-α*r))
-        (r_qn==2) && (R = (1/√8)*α^(3/2)*(2-α*r)*exp(-α*r/2))
-        (r_qn==3) && (R = (4/√27)*α^(3/2)*(1-2*α*r/3 + 2*(α^2)*(r^2)/27)*exp(-α*r/3))
-    end
-
-    R*Θ
+  
+    error("No orbital match with the given quantum number")
 end
 
-
-""" 
-    Takes one line of the projections table given by read_nnkp_file and
-    produce the fourier coefficients of the periodized guess gn_per on the G_vectors
-    corresponding to the frequency k.
-    Remember that : proj = [ [center], [quantum numbers], [z_axis], [x_axis], α ]
-"""
-function fourier_gn_per(basis::PlaneWaveBasis,r_cart,k::Integer,proj)
-    center = proj[1]
-    l,mr,r = proj[2]
-    α = proj[5]
-
-    # α = DFTK.atom_decay_length(Si)
-    
-    # TODO take into account non-canonical basis
-    @assert(proj[3] == [0,0,1]) #For now we limit ourselves to the canonical basis
-    @assert(proj[4] == [1,0,0])
-
-    # Choose radial and angular parts
-    gn(rvec) = quantum_number_to_guess(l,mr,r,α,rvec-center)
-    real_gn = complex.([gn(rvec) for rvec in r_cart])
-
-    # DEBUG : Shouldn't we normalize somewhere ?
-    
-    # Methode 1 : whithout normalization 
-    # coeffs_gn_per = r_to_G(basis,basis.kpoints[k],real_gn)
-    # coeffs_gn_per
-    
-    # Methode 2 : with normalization
-    coeffs_gn_per = r_to_G(basis,real_gn)
-    coeffs_gn_per ./= norm(coeffs_gn_per) #Whitout this line, both methods match
-    index = [DFTK.index_G_vectors(basis,G) for G in G_vectors(basis.kpoints[k])]
-    coeffs_gn_per[index]
-    
-end
 
 """
     Uses the above function to generate one Amn matrix given the projection table and
@@ -118,22 +137,30 @@ function A_k_matrix_win_guesses(basis::PlaneWaveBasis, ψ,
     n_projs = size(projs,1)
     @assert n_projs == n_wann
     
-    r_cart = [r for (ir,r) in enumerate(r_vectors_cart(basis)) ]    
     A_k = zeros(Complex,(n_bands,n_projs))
 
+    # All G vectors in cartesian coordinates.
+    Gs_cart_k = [basis.model.recip_lattice*G for G in basis.kpoints[k].G_vectors]
+    Gs_cart = [G for (i,G) in enumerate(G_vectors_cart(basis))]
+    
     for n in 1:n_projs
+        center, (l,mr,r_qn) = projs[n]
+        center =  basis.model.lattice*center # lattice coords to cartesian coords
         # Obtain fourier coeff of projection g_n
-        coeffs_gn_per = fourier_gn_per(basis,r_cart,k,projs[n])
+        coeffs_gn_per = [eval_fourier_orbital(center,l,mr,Gcart) for Gcart in Gs_cart_k]
+        coeffs_gn_per ./= norm(coeffs_gn_per)
+        
         # Compute overlaps
         for m in 1:n_bands
             coeffs_ψm = ψ[k][:,m]
-            A_k[m,n] = dot(coeffs_ψm,coeffs_gn_per)
+            A_k[m,n] = dot(coeffs_ψm, coeffs_gn_per)
         end
     end
 
     A_k
         
 end
+
 
 
 # For testing on one projection

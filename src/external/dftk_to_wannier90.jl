@@ -302,7 +302,7 @@ function A_k_matrix_gaussian_guesses(basis::PlaneWaveBasis, ψ, k::Integer,
     
     # Indices of the Fourier modes of the bloch states in the general FFT_grid for given k
     index = [DFTK.index_G_vectors(basis,G) for G in G_vectors(basis.kpoints[k])]                    
-  
+
     A_k = zeros(Complex,(n_bands,n_wann))
 
     # Compute A_k
@@ -328,7 +328,7 @@ end
 Use the preceding functions on every k to generate the .amn file 
 """
 function generate_amn_file(prefix::String,basis::PlaneWaveBasis,ψ, n_wann::Integer;
-                           projs=[], centers=[], coords = "", guess="")
+                           projs=[], centers=[], coords="", guess="")
     # Select guess
     if guess == "win"
         compute_A_k = A_k_matrix_win_guesses
@@ -400,7 +400,6 @@ function dftk2wan_wannierization_files(prefix::String, basis::PlaneWaveBasis,
         for i in 1:n_wann
             push!(centers, rand(1,3))   
         end
-        println(centers)
     end
     
     # Read the .nnkp file
