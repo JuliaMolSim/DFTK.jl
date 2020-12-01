@@ -31,17 +31,18 @@ using Unitful
 using UnitfulAtomic
 
 ## 1. Define lattice and atomic positions
-a = 5.431u"angstrom" # Silicon lattice constant
+a = 5.431u"angstrom"          # Silicon lattice constant
 lattice = a / 2 * [[0 1 1.];  # Silicon lattice vectors
                    [1 0 1.];  # specified column by column
                    [1 1 0.]]
 
-# By default, all numbers passed as arguments are assumed to be in atomic units.
-# Quantities such as temperature, energy cutoffs, lattice vectors, and the
-# k-point grid spacing can optionally be annotated with Unitful units, which are
-# automatically converted to the atomic units used internally. For Unitful
-# package documentation, see https://painterqubits.github.io/Unitful.jl/stable/
-# and https://github.com/sostock/UnitfulAtomic.jl.
+# By default, all numbers passed as arguments are assumed to be in atomic
+# units.  Quantities such as temperature, energy cutoffs, lattice vectors, and
+# the k-point grid spacing can optionally be annotated with Unitful units,
+# which are automatically converted to the atomic units used internally. For
+# more details, see the [Unitful package
+# documentation](https://painterqubits.github.io/Unitful.jl/stable/) and the
+# [UnitfulAtomic.jl package](https://github.com/sostock/UnitfulAtomic.jl).
 
 ## Load HGH pseudopotential for Silicon
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
@@ -51,8 +52,9 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 ## 2. Select model and basis
 model = model_LDA(lattice, atoms)
-kgrid = [4, 4, 4]      # k-point grid (Regular Monkhorst-Pack grid)
-Ecut = 190.5u"eV"  # kinetic energy cutoff
+kgrid = [4, 4, 4]     # k-point grid (Regular Monkhorst-Pack grid)
+Ecut = 7              # kinetic energy cutoff
+## Ecut = 190.5u"eV"  # Could also use eV or other energy-compatible units
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 
 ## 3. Run the SCF procedure to obtain the ground state
