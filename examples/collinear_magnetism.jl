@@ -9,10 +9,8 @@
 # First we setup BCC iron without spin polarization
 # using a single iron atom inside the unit cell.
 using DFTK
-using Unitful
-using UnitfulAtomic
 
-a = 5.42352 * u"bohr"
+a = 5.42352  # Bohr
 lattice = a / 2 * [[-1  1  1];
                    [ 1 -1  1];
                    [ 1  1 -1]]
@@ -22,9 +20,9 @@ atoms = [Fe => [zeros(3)]];
 # To get the ground-state energy we use an LDA model and rather moderate
 # discretisation parameters.
 
-kgrid = [3, 3, 3]       # k-point grid (Regular Monkhorst-Pack grid)
-Ecut = 15 * u"hartree"  # kinetic energy cutoff
-model_nospin = model_LDA(lattice, atoms, temperature=3150u"K")
+kgrid = [3, 3, 3]  # k-point grid (Regular Monkhorst-Pack grid)
+Ecut = 15          # kinetic energy cutoff in Hartree
+model_nospin = model_LDA(lattice, atoms, temperature=0.01)
 basis_nospin = PlaneWaveBasis(model_nospin, Ecut; kgrid=kgrid)
 
 scfres_nospin = self_consistent_field(basis_nospin, tol=1e-6, mixing=KerkerMixing());

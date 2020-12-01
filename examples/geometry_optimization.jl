@@ -7,14 +7,12 @@ using DFTK
 using Optim
 using LinearAlgebra
 using Printf
-using Unitful
-using UnitfulAtomic
 
 kgrid = [1, 1, 1]       # k-Point grid
-Ecut = 5u"hartree"      # kinetic energy cutoff
+Ecut = 5                # kinetic energy cutoff in Hartree
 tol = 1e-8              # tolerance for the optimization routine
-a = 10 * u"bohr"        # lattice constant
-lattice = austrip(a) * Diagonal(ones(3))
+a = 10                  # lattice constant in Bohr
+lattice = a * Diagonal(ones(3))
 H = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1"));
 
 # We define a blochwave and a density to be used as global variables so that we
@@ -54,7 +52,7 @@ end;
 
 function fg!(F, G, x)
     scfres = compute_scfres(x)
-    if G !== nothing
+    if G != nothing
         grad = compute_forces(scfres)
         G .= -[grad[1][1]; grad[1][2]]
     end
@@ -73,7 +71,7 @@ xres = optimize(Optim.only_fg!(fg!), x0, LBFGS(),
                 Optim.Options(show_trace=true, f_tol=tol))
 xmin = Optim.minimizer(xres)
 dmin = norm(lattice*xmin[1:3] - lattice*xmin[4:6])
-@printf "\nOptimal bond length for Ecut=%.2f: %.3f Bohr\n" austrip(Ecut) dmin
+@printf "\nOptimal bond length for Ecut=%.2f: %.3f Bohr\n" Ecut dmin
 
 # We used here very rough parameters to generate the example and
 # setting `Ecut` to 10 Ha yields a bond length of 1.523 Bohr,
