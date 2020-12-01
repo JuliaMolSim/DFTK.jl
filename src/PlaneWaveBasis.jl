@@ -1,4 +1,6 @@
 using MPI
+using UnitfulAtomic
+
 include("fft.jl")
 
 # There are two kinds of plane-wave basis sets used in DFTK.
@@ -281,7 +283,7 @@ treated explicitly. In this case all guess densities and potential
 functions must agree with the crystal symmetries or the result is
 undefined.
 """
-function PlaneWaveBasis(model::Model, Ecut::Number;
+function PlaneWaveBasis(model::Model, Ecut;
                         kgrid=kgrid_size_from_minimal_spacing(model.lattice, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
                         use_symmetry=true, kwargs...)
@@ -293,7 +295,7 @@ function PlaneWaveBasis(model::Model, Ecut::Number;
         # store in symmetries the set of kgrid-preserving symmetries
         symmetries = symmetries_preserving_kgrid(model.symmetries, kcoords)
     end
-    PlaneWaveBasis(model, Ecut, kcoords, ksymops, symmetries;
+    PlaneWaveBasis(model, austrip(Ecut), kcoords, ksymops, symmetries;
                    kgrid=kgrid, kshift=kshift, kwargs...)
 end
 

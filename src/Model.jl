@@ -1,3 +1,6 @@
+using Unitful
+using UnitfulAtomic
+
 # Contains the physical specification of the model
 
 # A physical specification of a model.
@@ -86,7 +89,7 @@ function Model(lattice::AbstractMatrix{T};
                symmetries=default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization),
                ) where {T <: Real}
     lattice = Mat3{T}(lattice)
-    temperature = T(temperature)
+    temperature = T(austrip(temperature))
 
     if n_electrons === nothing
         # get it from the atom list
@@ -142,6 +145,7 @@ function Model(lattice::AbstractMatrix{T};
              spin_polarization, n_spin, T(temperature), smearing, atoms, terms, symmetries)
 end
 Model(lattice::AbstractMatrix{T}; kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
+Model(lattice::AbstractMatrix{Q}; kwargs...) where {Q <: Quantity} = Model(austrip.(lattice); kwargs...)
 
 
 normalize_magnetic_moment(::Nothing)  = Vec3{Float64}(zeros(3))

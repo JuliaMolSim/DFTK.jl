@@ -35,6 +35,8 @@ SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+UnitfulAtomic = "a7773ee8-282e-5fa2-be4e-bd808c38a91a"
 spglib_jll = "ac4a9f1e-bdb2-5204-990c-47c8b2f70d4e"
 
 [compat]
@@ -66,6 +68,8 @@ Roots = "1"
 SpecialFunctions = "0.10, 1"
 StaticArrays = "0.12, 1"
 TimerOutputs = "0.5.6"
+Unitful = "1"
+UnitfulAtomic = "1"
 julia = "1.4"
 spglib_jll = "1.15"
 
