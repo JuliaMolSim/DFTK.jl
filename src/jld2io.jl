@@ -84,6 +84,8 @@ struct PlaneWaveBasisSerialisation{T <: Real}
     kcoords::Vector{Vec3{T}}
     kweights::Vector{T}
     ksymops::Vector{Vector{SymOp}}
+    kgrid::Union{Nothing,Vec3{Int}}
+    kshift::Union{Nothing,Vec3{T}}
     fft_size::Tuple{Int, Int, Int}
     symmetries::Vector{SymOp}
 end
@@ -102,6 +104,8 @@ function Base.convert(::Type{PlaneWaveBasisSerialisation{T}},
         getproperty.(basis.kpoints[1:n_kcoords], :coordinate),
         basis.kweights[1:n_kcoords],
         basis.ksymops[1:n_kcoords],
+        basis.kgrid,
+        basis.kshift,
         basis.fft_size,
         basis.symmetries
     )
@@ -111,5 +115,6 @@ function Base.convert(::Type{PlaneWaveBasis{T}},
                       serial::PlaneWaveBasisSerialisation{T}) where {T}
     PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords,
                    serial.ksymops, serial.symmetries;
-                   fft_size=serial.fft_size)
+                   fft_size=serial.fft_size,
+                   kgrid=serial.kgrid, kshift=serial.kshift)
 end

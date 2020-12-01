@@ -86,6 +86,7 @@ Random.seed!(0)
 
     if "all" in TAGS
         include("ewald.jl")
+        include("anyons.jl")
         include("energy_nuclear.jl")
         include("occupation.jl")
         include("energies_guess_density.jl")

@@ -64,6 +64,9 @@ struct PlaneWaveBasis{T <: Real}
     # ksymops[ik] is a list of symmetry operations (S,τ)
     # mapping to points in the reducible BZ
     ksymops::Vector{Vector{SymOp}}
+    # Monkhorst-Pack grid used to generate the k-Points, or nothing for custom k-Points
+    kgrid::Union{Nothing,Vec3{Int}}
+    kshift::Union{Nothing,Vec3{T}}
 
     comm_kpts::MPI.Comm           # communicator for the kpoints distribution
     krange_thisproc::Vector{Int}  # indices of kpoints treated explicitly by this
@@ -140,7 +143,8 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops, symmetries=nothing;
                                 fft_size=nothing, variational=true,
-                                optimize_fft_size=false, supersampling=2) where {T <: Real}
+                                optimize_fft_size=false, supersampling=2,
+                                kgrid=nothing, kshift=nothing) where {T <: Real}
     # TODO this constructor is too complicated, we should simplify it
     # if possible (esp. the variational part)
     mpi_ensure_initialized()
@@ -240,7 +244,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 
     basis = PlaneWaveBasis{T}(
         model, Ecut, kpoints,
-        kweights, ksymops, mpi_comm, krange_thisproc, fft_size,
+        kweights, ksymops, kgrid, kshift, mpi_comm, krange_thisproc, fft_size,
         opFFT, ipFFT, opIFFT, ipIFFT,
         opFFT_unnormalized, ipFFT_unnormalized, opBFFT_unnormalized, ipBFFT_unnormalized,
         terms, symmetries)
@@ -291,7 +295,8 @@ function PlaneWaveBasis(model::Model, Ecut;
         # store in symmetries the set of kgrid-preserving symmetries
         symmetries = symmetries_preserving_kgrid(model.symmetries, kcoords)
     end
-    PlaneWaveBasis(model, austrip(Ecut), kcoords, ksymops, symmetries; kwargs...)
+    PlaneWaveBasis(model, austrip(Ecut), kcoords, ksymops, symmetries;
+                   kgrid=kgrid, kshift=kshift, kwargs...)
 end
 
 """
