@@ -184,11 +184,48 @@ function ΩplusK(basis, δφ, φ, ρ, H, egval, occ)
     ΩpKδφ = Ωδφ .+ Kδφ
 end
 
+# apply preconditioner M^{1/2}
+function apply_sqrt(Pks, δφ)
+    Nk = length(Pks)
+
+    ϕ = []
+
+    for ik = 1:Nk
+        ϕk = similar(δφ[ik])
+        N = size(δφ[ik], 2)
+        Pk = Pks[ik]
+        for i = 1:N
+            ϕk[:,i] .= sqrt.(Pk.mean_kin[i] .+ Pk.kin) .* δφ[ik][:,i]
+        end
+        append!(ϕ, ϕk)
+    end
+    ϕ
+end
+
+# apply preconditioner M^{-1/2}
+function apply_inv_sqrt(Pks, res)
+    Nk = length(Pks)
+
+    R = []
+
+    for ik = 1:Nk
+        Rk = similar(res[ik])
+        N = size(res[ik], 2)
+        Pk = Pks[ik]
+        for i = 1:N
+            Rk[:,i] .= 1 ./ sqrt.(Pk.mean_kin[i] .+ Pk.kin) .* res[ik][:,i]
+        end
+        append!(R, Rk)
+    end
+    R
+end
+
 # compute operator norm of Ω+K defined at φ
 function compute_normop(basis::PlaneWaveBasis{T}, φ, ρ, H, egval,
-                        occupation, packing; tol_krylov=1e-12) where T
+                        occupation, packing; tol_krylov=1e-12, Pks=nothing) where T
 
     N = size(φ[1],2)
+    Nk = size(φ)
     pack, unpack, packed_proj! = packing
 
     ## random starting point for eigensolvers
@@ -196,107 +233,164 @@ function compute_normop(basis::PlaneWaveBasis{T}, φ, ρ, H, egval,
     ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
           for kpt in basis.kpoints]
 
-    function f(x)
-        δφ = unpack(x)
+    function f(δφ)
         δφ = proj!(δφ, φ)
         ΩpKx = ΩplusK(basis, δφ, φ, ρ, H, egval, occupation)
         ΩpKx = proj!(ΩpKx, φ)
-        pack(ΩpKx)
     end
-    vals_ΩpK, _ = eigsolve(f, pack(ψ0), 3, :SR;
-                           tol=tol_krylov, verbosity=0, eager=true,
-                           orth=OrthogonalizeAndProject(packed_proj!, pack(φ)))
 
     # svd solve
     function g(x,flag)
-        f(x)
+        δφ = unpack(x)
+        if Pks != nothing
+            δφ = proj!(δφ, φ)
+            apply_sqrt(Pks, δφ)
+        end
+        ΩpKδφ = f(δφ)
+        if Pks != nothing
+            apply_sqrt(Pks, δφ)
+            δφ = proj!(δφ, φ)
+        end
+        pack(ΩpKδφ)
     end
     svds_ΩpK, _ = svdsolve(g, pack(ψ0), 3, :SR;
                            tol=tol_krylov, verbosity=0, eager=true,
                            orth=OrthogonalizeAndProject(packed_proj!, pack(φ)))
 
     normop = 1. / svds_ΩpK[1]
-    println("--> plus petite valeur propre $(real(vals_ΩpK[1]))")
     println("--> plus petite valeur singulière $(svds_ΩpK[1])")
     println("--> normop $(normop)")
     println("--> gap $(egval[1][N+1] - egval[1][N])")
     normop
 end
 
-################################## TESTS #######################################
-function test_Ω(basis::PlaneWaveBasis{T};
-                ψ0=nothing) where T
+############################# SCF CALLBACK ####################################
 
-    ## setting parameters
-    model = basis.model
-    @assert model.spin_polarization in (:none, :spinless)
-    @assert model.temperature == 0 # temperature is not yet supported
-    filled_occ = DFTK.filled_occupation(model)
-    n_bands = div(model.n_electrons, filled_occ)
+## custom callback to follow estimators
+function callback_estimators(; test_newton=false, change_norm=true)
 
-    ## number of kpoints
-    Nk = length(basis.kpoints)
-    occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
-    ## number of eigenvalue/eigenvectors we are looking for
-    N = n_bands
+    global ite, φ_list, basis_list
+    φ_list = []                 # list of φ^k
+    basis_list = []
+    ite = 0
 
-    ortho(ψk) = Matrix(qr(ψk).Q)
-    if ψ0 === nothing
-        ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), n_bands))
-              for kpt in basis.kpoints]
+    function callback(info)
+
+        if info.stage == :finalize
+
+            println("Starting post-treatment")
+
+            basis_ref = info.basis
+            model = info.basis.model
+
+            ## number of kpoints
+            Nk = length(basis_ref.kpoints)
+            ## number of eigenvalue/eigenvectors we are looking for
+            filled_occ = DFTK.filled_occupation(model)
+            N = div(model.n_electrons, filled_occ)
+            occupation = [filled_occ * ones(N) for ik = 1:Nk]
+
+            φ_ref = similar(info.ψ)
+            for ik = 1:Nk
+                φ_ref[ik] = info.ψ[ik][:,1:N]
+            end
+
+            ## converged values
+            ρ_ref = info.ρ
+            H_ref = info.ham
+            egval_ref = info.eigenvalues
+            T = typeof(ρ_ref.real[1])
+
+
+            ## packing routines to pack vectors for KrylovKit solver
+            packing = packing_routines(basis_ref, φ_ref)
+
+            ## filling residuals and errors
+            err_ref_list = []
+            norm_res_list = []
+            if test_newton
+                err_newton_list = []
+                norm_δφ_list = []
+            end
+
+            ## preconditioner for changing norm if asked so
+            if change_norm
+                Pks = [PreconditionerTPA(basis_ref, kpt) for kpt in basis_ref.kpoints]
+                for ik = 1:length(Pks)
+                    DFTK.precondprep!(Pks[ik], φ_ref[ik])
+                end
+                norm_Pkres_list = []
+                err_Pkref_list = []
+            else
+                Pks = nothing
+            end
+
+            println("Computing residual...")
+            for i in 1:ite
+                println("   iteration $(i)")
+                φ = φ_list[i]
+                basis = basis_list[i]
+                for ik = 1:Nk
+                    φ[ik] = φ[ik][:,1:N]
+                end
+
+                res, ρ, H, egval = compute_residual(basis, φ, occupation;
+                                          test_newton=test_newton, φproj=φ_ref)
+                append!(err_ref_list, dm_distance(φ[1], φ_ref[1]))
+                append!(norm_res_list, norm(res))
+
+                if change_norm
+                    append!(norm_Pkres_list, norm(apply_inv_sqrt(Pks, res)))
+                    Pkφ = apply_sqrt(Pks, φ)
+                    Pkφ_ref = apply_sqrt(Pks, φ_ref)
+                    append!(err_Pkref_list, dm_distance(Pkφ[1], Pkφ_ref[1]))
+                end
+
+                if test_newton
+                    φ_newton, δφ = newton_step(basis_ref, φ, res, ρ_ref, H_ref,
+                                               egval_ref, occupation, packing;
+                                               tol_krylov=tol_krylov, φproj=φ_ref)
+                    append!(err_newton_list, dm_distance(φ_newton[1], φ_ref[1]))
+                    append!(norm_δφ_list, norm(δφ))
+                end
+            end
+
+            ## error estimates
+            println("Computing operator norm...")
+            normop = compute_normop(basis_ref, φ_ref, ρ_ref, H_ref,
+                                    egval_ref, occupation,
+                                    packing; tol_krylov=tol_krylov, Pks=nothing)
+            err_estimator = normop .* norm_res_list
+            if change_norm
+                normop = compute_normop(basis_ref, φ_ref, ρ_ref, H_ref,
+                                        egval_ref, occupation,
+                                        packing; tol_krylov=tol_krylov, Pks=Pks)
+                err_Pk_estimator = normop .* norm_Pkres_list
+            end
+
+            ## plotting convergence info
+            figure()
+            title("error estimators vs iteration, N = $(N)")
+            semilogy(1:ite, err_ref_list, "x-", label="|P-Pref|")
+            semilogy(1:ite, norm_res_list, "x-", label="|res_φ|")
+            semilogy(1:ite, err_estimator, "x-", label="|(Ω+K)^-1| * |res_φ|")
+            if test_newton
+                semilogy(1:ite, norm_δφ_list, "+-", label="|δφ|")
+                semilogy(1:ite, err_newton_list, "x-", label="|P_newton-Pref|")
+            end
+            if change_norm
+                semilogy(1:ite, err_Pkref_list, "x--", label="|M^1/2(P-Pref)|")
+                semilogy(1:ite, norm_Pkres_list, "x--", label="|M^-1/2res_φ|")
+                semilogy(1:ite, err_Pk_estimator, "x--", label="|M^1/2(Ω+K)^-1M^1/2| * |M^-1/2res_φ|")
+            end
+            legend()
+            xlabel("iterations")
+
+        else
+            ite += 1
+            append!(φ_list, [info.ψ])
+            append!(basis_list, [info.basis])
+        end
     end
-
-    ## vec and unpack
-    # length of ψ0[ik]
-    lengths = [length(ψ0[ik]) for ik = 1:Nk]
-    starts = copy(lengths)
-    starts[1] = 1
-    for ik = 1:Nk-1
-        starts[ik+1] = starts[ik] + lengths[ik]
-    end
-    pack(ψ) = vcat(Base.vec.(ψ)...) # TODO as an optimization, do that lazily? See LazyArrays
-    unpack(ψ) = [@views reshape(ψ[starts[ik]:starts[ik]+lengths[ik]-1], size(ψ0[ik]))
-                 for ik = 1:Nk]
-
-    φ = similar(scfres.ψ)
-    H = scfres.ham
-    for ik = 1:Nk
-        φ[ik] = scfres.ψ[ik][:,1:4]
-    end
-    egval = [ zeros(Complex{T}, size(occupation[i])) for i = 1:length(occupation) ]
-    for ik = 1:Nk
-        φk = φ[ik]
-        Hk = H.blocks[ik]
-        egvalk = [φk[:,i]'*(Hk*φk[:,i]) for i = 1:N]
-        egval[ik] = egvalk
-    end
-
-    function f(x)
-        δφ = unpack(x)
-        δφ = proj!(δφ, φ)
-        ΩpKx = apply_Ω(basis, δφ, φ, H, egval)
-        ΩpKx = proj!(ΩpKx, φ)
-        pack(ΩpKx)
-    end
-
-    packed_proj!(ϕ,ψ) = proj!(unpack(ϕ), unpack(ψ))
-    vals_Ω, vecs_Ω, info = eigsolve(f, pack(ψ0), 8, :SR;
-                                    tol=1e-6, verbosity=1, eager=true,
-                                    maxiter=50, krylovdim=30,
-                                    orth=OrthogonalizeAndProject(packed_proj!, pack(φ)))
-
-    display(vals_Ω)
-    # should match the smallest eigenvalue of Ω
-    println(scfres.eigenvalues[1][5] - scfres.eigenvalues[1][4])
-
-    ## testing symmetry
-    ψ1 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
-          for kpt in basis.kpoints]
-    ψ1 = proj!(ψ1, φ)
-    ΩpKψ1 = ΩplusK(basis, ψ1, φ, ρ, H, egval, occupation)
-    ψ2 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
-          for kpt in basis.kpoints]
-    ψ2 = proj!(ψ1, φ)
-    ΩpKψ2 = ΩplusK(basis, ψ2, φ, ρ, H, egval, occupation)
-    println(norm(ψ1'ΩpKψ2 - ψ2'ΩpKψ1))
+    callback
 end

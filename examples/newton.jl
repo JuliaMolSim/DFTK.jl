@@ -26,19 +26,20 @@ end
 # H(φ)*φ - λ.*φ where λ is the set of rayleigh coefficients associated to the
 # φ
 # we also return the egval set for further computations
-function compute_residual(basis::PlaneWaveBasis{T}, φ, occ; φproj=nothing) where T
-
-    # necessary quantities
-    Nk = length(basis.kpoints)
-    ρ = compute_density(basis, φ, occ)
-    energies, H = energy_hamiltonian(basis, φ, occ; ρ=ρ[1])
-    egval = [ zeros(Complex{T}, size(occ[i])) for i = 1:length(occ) ]
+function compute_residual(basis::PlaneWaveBasis{T}, φ, occ;
+                          φproj=nothing, test_newton=false) where T
 
     # if no φ is specified to define the projection onto the tangent plane, we
     # use the current φ
     if φproj === nothing
         φproj = φ
     end
+
+    # necessary quantities
+    Nk = length(basis.kpoints)
+    ρ = compute_density(basis, φ, occ)
+    energies, H = energy_hamiltonian(basis, φ, occ; ρ=ρ[1])
+    egval = [ zeros(Complex{T}, size(occ[i])) for i = 1:length(occ) ]
 
     # compute residual
     res = similar(φ)
@@ -55,7 +56,11 @@ function compute_residual(basis::PlaneWaveBasis{T}, φ, occ; φproj=nothing) whe
     end
 
     # return residual after projection onto the tangent space
-    (res=proj!(res, φproj), ρ, H, egval)
+    if test_newton
+        return (res=proj!(res, φproj), ρ, H, egval)
+    else
+        return (res, ρ, H, egval)
+    end
 end
 
 
@@ -79,7 +84,7 @@ function newton_step(basis::PlaneWaveBasis{T}, φ, res, ρ, H, egval, occ,
     function f(x)
         δφ = unpack(x)
         δφ = proj!(δφ, φproj)
-        ΩpKx = ΩplusK(basis, δφ, φproj, ρ[1], H, egval, occ)
+        ΩpKx = ΩplusK(basis, δφ, φproj, ρ, H, egval, occ)
         ΩpKx = proj!(ΩpKx, φproj)
         pack(ΩpKx)
     end
@@ -87,7 +92,7 @@ function newton_step(basis::PlaneWaveBasis{T}, φ, res, ρ, H, egval, occ,
                         tol=tol_krylov, verbosity=1,
                         orth=OrthogonalizeAndProject(packed_proj!, pack(φproj)))
     δφ = unpack(δφ)
-    δφ = proj!(δφ, φproj)
+    δφ = proj!(δφ, φ)
     φ_newton = similar(φ)
 
     for ik = 1:Nk
