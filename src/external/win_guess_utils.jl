@@ -72,18 +72,42 @@ function eval_fourier_orbital(center, l::Integer, mr::Integer, Gcart)
         px = (4π*im) * DFTK.ylm_real(1,1,arg_ylm)  * intR_l(1,Gcart)
         py = (4π*im) * DFTK.ylm_real(1,-1,arg_ylm) * intR_l(1,Gcart)
         pz = (4π*im) * DFTK.ylm_real(1,0,arg_ylm)  * intR_l(1,Gcart)
+        dz2    = -4  * DFTK.ylm_real(2,0,arg_ylm)  * intR_l(2,Gcart)
+        dx2_y2 = -4  * DFTK.ylm_real(2,2,arg_ylm)  * intR_l(2,Gcart)
+        
         if  l == -1     # sp
             (mr==1) && (return phase_prefac * (1/√2) * (s + px))
             (mr==2) && (return phase_prefac * (1/√2) * (s - px))
+        elseif l == -2  # sp2
+            (mr==1) && (return phase_prefac * ((1/√3)*s - (1/√6)*px + (1/√2)*py) )
+            (mr==2) && (return phase_prefac * ((1/√3)*s - (1/√6)*px - (1/√2)*py) )
+            (mr==3) && (return phase_prefac * ((1/√3)*s + (2/√6)*px) )
         elseif l == -3  # sp3
             (mr==1) && (return phase_prefac * (1/√2)*(s + px + py + pz))
             (mr==2) && (return phase_prefac * (1/√2)*(s + px - py - pz))
             (mr==3) && (return phase_prefac * (1/√2)*(s - px + py - pz))
             (mr==4) && (return phase_prefac * (1/√2)*(s - px - py + pz))
+        elseif l == -4  # sp3d
+            (mr==1) && (return phase_prefac *( (1/√3)*s - (1/√6)*px + (1/√2)*py ) )
+            (mr==2) && (return phase_prefac *( (1/√3)*s - (1/√6)*px - (1/√2)*py ) )
+            (mr==3) && (return phase_prefac *( (1/√3)*s + (2/√6)*px ) )
+            (mr==4) && (return phase_prefac *( (1/√2)*pz +(1/√2)*dz2 ) )
+            (mr==5) && (return phase_prefac *(-(1/√2)*pz +(1/√2)*dz2 ) )
+        else l == -5    # sp3d2
+            (mr==1) && (return phase_prefac *((1/√6)*s - (1/√2)*px - (1/√12)*dz2
+                                               + (1/2)*dx2_y2) )
+            (mr==2) && (return phase_prefac *((1/√6)*s + (1/√2)*px - (1/√12)*dz2
+                                               + (1/2)*dx2_y2) )
+            (mr==3) && (return phase_prefac *((1/√6)*s - (1/√2)*px - (1/√12)*dz2
+                                              - (1/2)*dx2_y2) )
+            (mr==4) && (return phase_prefac *((1/√6)*s + (1/√2)*px - (1/√12)*dz2
+                                               - (1/2)*dx2_y2) )
+            (mr==5) && (return phase_prefac *((1/√6)*s - (1/√2)*pz + (1/√3)*dz2) )
+            (mr==6) && (return phase_prefac *((1/√6)*s + (1/√2)*pz + (1/√3)*dz2) )
         end
     end
   
-    error("No implemented orbital (s,p,sp,sp3) 
+    error("No implemented orbital (s, p, sp, sp2, sp3, sp3d, sp3d2) 
             match with the given quantum number")
 end
 

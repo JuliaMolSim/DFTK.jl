@@ -13,17 +13,12 @@ include("win_guess_utils.jl")
     Options have to be compeleted by hand.
     Parameters can also be added as kwargs argument : e.g. num_iter = 500.
 """
-function dftk2wan_win_file(prefix::String, basis::PlaneWaveBasis, scfres, kgrid,
+function dftk2wan_win_file(prefix::String, basis::PlaneWaveBasis, scfres,
                            num_wann::Integer;
                            bands_plot = false,
                            kwargs...
                            )
     
-    # Check kgrids
-    if (prod(kgrid) != size(scfres.ψ,1))
-        error("The given kgrid doesn't match the one used for the scf calculation")
-    end    
-
     # Write in file   
     open("$prefix.win", "w") do f
 
@@ -105,10 +100,7 @@ function dftk2wan_win_file(prefix::String, basis::PlaneWaveBasis, scfres, kgrid,
         end
         
         # Mp grid
-        if kgrid[1]*kgrid[2]*kgrid[3] !== size(scfres.ψ,1)
-            error("Given kgrid doesn't match the kgrid used for scf calculation")
-        end
-        write(f,"mp_grid : $(kgrid[1]) $(kgrid[2]) $(kgrid[3])"*"\n"^2)
+        write(f,"mp_grid : $(basis.kgrid[1]) $(basis.kgrid[2]) $(basis.kgrid[3])"*"\n"^2)
         
         # kpoints block
         write(f,"begin kpoints"*"\n")
