@@ -183,7 +183,7 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
     for (S, τ) in symmetries
         invS = Mat3{Int}(inv(S))
         # Common special case, where ρin does not need to be processed
-        if iszero(S - I) && iszero(τ)
+        if S == I && iszero(τ)
             ρaccu .+= ρin
             continue
         end
@@ -209,6 +209,7 @@ end
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
 function lowpass_for_symmetry!(ρ, basis; symmetries=basis.model.symmetries)
     for (S, τ) in symmetries
+        S == I && iszero(τ) && continue
         for (ig, G) in enumerate(G_vectors(basis))
             if index_G_vectors(basis, S * G) === nothing
                 ρ[ig] = 0

@@ -211,7 +211,9 @@ returns `3` extra bands, which are not converged by the eigensolver
                                     εF, δV_spin_component, temperature, droptol,
                                     sternheimer_contribution, kwargs_sternheimer)
         end
-        accumulate_over_symmetries!(δρ_fourier[kpt.spin], r_to_G(basis, complex(δρk)),
+        δρk_fourier = r_to_G(basis, complex(δρk))
+        lowpass_for_symmetry!(δρk_fourier, basis)
+        accumulate_over_symmetries!(δρ_fourier[kpt.spin], δρk_fourier,
                                     basis, basis.ksymops[ik])
     end
     mpi_sum!.(δρ_fourier, Ref(basis.comm_kpts))
