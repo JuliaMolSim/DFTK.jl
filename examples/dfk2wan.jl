@@ -2,7 +2,7 @@
 #
 # DFTK features an interface with the program
 # [Wannier90](http://www.wannier.org/),
-# in order to compute maximally-localised Wannier functions (MLWFs)
+# in order to compute maximally-localized Wannier functions (MLWFs)
 # from an initial scf calculation. Wannier90 needs one input file
 # `.win` that contains the parameters of the calculations and the
 # description of the system, as well as three data files `.mmn`,
@@ -24,15 +24,11 @@
 # regular case.
 #
 # !!! warning "Compatibility asks for a specific setup"
-#     The `.win` file will
-#     correspond to the studied system only if the number of ``k``
-#     points and bands in input is the same as in output.
-#     Since DFTK reduces by default
-#     the number of ``k`` points by symmetry, and adds automaticaly
-#     three non-converged bands, one must specify :
-#     - `use_symmetry = false` in the creation of the plane wave basis
-#     - `n_ep_extra = 0` in the self_consistent_field declaration.
-#
+#     The `.win` file will correspond to the studied system only if
+#     the number of ``k`` points in input is the same as in output.
+#     Since DFTK reduces by default the number of ``k`` points by
+#     symmetry one must specify `use_symmetry = false`
+#     in the creation of the plane wave basis.
 
 using DFTK
 
@@ -50,31 +46,42 @@ kgrid = [4,4,4]
 Ecut = 20
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, use_symmetry=false)
 
-scfres = self_consistent_field(basis, tol=1e-12, n_bands = 12, n_ep_extra = 0);
+scfres = self_consistent_field(basis, tol=1e-12, n_bands = 12);
 
-# We may now create the `.win` file. In addition of informations on the system
-# (via `basis` and `scfres`) the functon asks for a prefix (here "Si") and
-# the number of wanted MLWFs; 8 in our case. The keyword `bands_plot = true`
+# !!! note "Extra bands."
+#     DFTK automatically adds 3 extra non converged bands for the scf calculation.
+#     The number of bands appearing in the win file will then be `n_bands+3`.
+#     You can disable it at your own risk with `n_ep_extra = 0` in the
+#     call to `self_consistent_field`.
+#
+#
+# We may now create the `.win` file. In addition of information on the system
+# (via `scfres`) the function asks for the number of wanted MLWFs;
+# 8 in our case. In Wannier90's convention, all files are named with the same
+# prefix and only differ by their types. Such prefix also has to be specified to
+# `dftk2wan_win_file`. In this example, the choice "Si" will produce the file `Si.win`.
+# The keyword `bands_plot = true`
 # adds the ``k`` point path to the `.win` file, needed to plot the bands structure.
 # We also add as keyword arguments the parameters of the disentanglement
 # procedure. Any other argument can be added as such.
 
 prefix = "Si"
-dftk2wan_win_file(prefix, basis, scfres, 8;
-                  bands_plot=true, num_print_cycles=50, num_iter=500,
-                  dis_win_max       = "17.185257d0",
-                  dis_froz_max      =  "6.8318033d0",
-                  dis_num_iter      =  120,
-                  dis_mix_ratio     = "1d0")
+dftk2wan_win_file(prefix, scfres, 8;
+                  bands_plot=true,
+                  num_print_cycles=50, num_iter=500,
+                  dis_win_max       = 17.185257,
+                  dis_froz_max      = 6.8318033,
+                  dis_num_iter      = 120,
+                  dis_mix_ratio     = 1.0)
 
-# We then perfom a preproprocessing task via Wannier90 to generate
+# We then perform a preproprocessing task via Wannier90 to generate
 # the `Si.nnkp` file. This is simply done by :
 
 #md #```@raw bash
 #md #$ PathToWannier90/wannier90.x -pp Si
 
 # !!! note "Launching Wannier90 from Julia file or shell"
-#     All Wannier90 calls can be done through julia, with
+#     All Wannier90 calls can also be done through julia, with
 #     the help of the package wannier90_jll. The previous
 #     command is written as follows
 
@@ -83,7 +90,8 @@ wannier90() do exe
     run(`$exe -pp Si`)
 end
 
-# The `nnkp` file is read by `dftk2wan_wannierization_files` in order to
+# In both cases Wannier90's preprocessing routine has produced one `.nnkp` file.
+# This file is read by `dftk2wan_wannierization_files` in order to
 # generate the `.mmn`, `.amn` and `.eig` files. This functions ask once again
 # for informations on the system via the prefix "Si", basis,
 # scfres and the number of wanted MLWFs.
@@ -92,12 +100,11 @@ end
 #
 # - The default guess is  `guess = "gaussian"`, which asks for gaussian guesses
 #   whose centers are specified by
-#  `centers = [ [center 1] .... [center N_{MLWFs}] ]`. These centers can be given
-#   in cartesian coordinates (default) or in reduced coordinates by specifying
-#   `coords = "reduced"`. (See "Notations and conventions".)
+#  `centers = [ [center 1] .... [center N_{MLWFs}] ]`. These centers are expected
+#   in reduced coordinates.
 #   If none are given, DFTK uses a random set of centers.
 #
-# - If a `projections` bloc is added in the `win` file, e.g.
+# - If one adds manually a `projections` bloc in the `win` file,  e.g.
 
 #md #```@raw bash
 #md #begin projections
@@ -105,23 +112,16 @@ end
 #md #end projections    
 
 # one may ask for `guess = "win"` to use the guess generated by Wannier90
-# preprocessing.
+# preprocessing. The supported orbitals are : s, p, d, f and sp3 orbitals are supported.
 #
-# We choose in this case a particular set of centers in reduced coordinates.
+# We choose in this case a random set of gaussians as initial guesses.
 
-gaussian_centers = [[0.09611870429526492 0.5235290324551867 0.1482727073029615],
-                    [0.3042596500813055 0.39096307835453037 0.09817406622820646],
-                    [0.831047015966353 0.8279776870969524 0.3779108971449747],
-                    [0.30602604557771507 0.6093721290521086 0.7591324705458549],
-                    [0.3354398946220738 0.22603890755477218 0.9723396405804758],
-                    [0.22346216793907248 0.01517530607967732 0.3298288543989589],
-                    [0.4363025633802393 0.821779555205526 0.9374451887917208],
-                    [0.7639149773638563 0.07851620747046106 0.33835828273919355]]
+dftk2wan_wannierization_files(prefix, scfres, 8, guess = "gaussian",
+                              write_amn = true,
+                              write_mmn = true,
+                              write_eig = true)
 
-dftk2wan_wannierization_files("Si", basis, scfres, 8;
-                              centers = gaussian_centers, coords = "reduced")
-
-# Once the file are generated, the user can simply call the wannierization
+# Once the files are generated, the user can simply call the wannierization
 # procedure with :
 
 #md #```@raw bash
@@ -132,14 +132,6 @@ dftk2wan_wannierization_files("Si", basis, scfres, 8;
 wannier90() do exe
     run(`$exe $prefix`)
 end
-
-
-# Note that it can be useful to compute several `.amn` files to test different
-# guesses. The user can simply disable the generation of a
-# specific file with the keyword arguments `write_mnn = false`,
-# `write_amn = false` or `write_eig = false` in
-# `dftk2wan_wannierization_files`.
-
 
 
 

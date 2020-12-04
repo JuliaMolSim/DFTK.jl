@@ -26,7 +26,7 @@ end
 @doc raw"""
     Gives the analytic expression of the integral 
     ``I_l(G) = \int_{\mathbb{R}^+} r^(l+2) exp(-r^2/2) j_l(|G|r)dr``
-    as given in arXiv:1908.07374v2 
+    as given in arXiv:1908.07374v2, equation (2.5).
 
     ``j_l`` is the spherical Bessel function of order l.
     G is expected in cartesian coordinates
@@ -68,46 +68,20 @@ function eval_fourier_orbital(center, l::Integer, mr::Integer, Gcart)
         return (phase_prefac *
                 (4π*im^l)*DFTK.ylm_real(l,m,arg_ylm) * intR_l(l,Gcart) )
     else      # hybrid orbitals
-        s  = √(2π)/2 * Gnorm * exp(-Gnorm^2/2)
-        px = (4π*im) * DFTK.ylm_real(1,1,arg_ylm)  * intR_l(1,Gcart)
-        py = (4π*im) * DFTK.ylm_real(1,-1,arg_ylm) * intR_l(1,Gcart)
-        pz = (4π*im) * DFTK.ylm_real(1,0,arg_ylm)  * intR_l(1,Gcart)
-        dz2    = -4  * DFTK.ylm_real(2,0,arg_ylm)  * intR_l(2,Gcart)
-        dx2_y2 = -4  * DFTK.ylm_real(2,2,arg_ylm)  * intR_l(2,Gcart)
-        
-        if  l == -1     # sp
-            (mr==1) && (return phase_prefac * (1/√2) * (s + px))
-            (mr==2) && (return phase_prefac * (1/√2) * (s - px))
-        elseif l == -2  # sp2
-            (mr==1) && (return phase_prefac * ((1/√3)*s - (1/√6)*px + (1/√2)*py) )
-            (mr==2) && (return phase_prefac * ((1/√3)*s - (1/√6)*px - (1/√2)*py) )
-            (mr==3) && (return phase_prefac * ((1/√3)*s + (2/√6)*px) )
-        elseif l == -3  # sp3
+        if l == -3  # sp3
+            s  = √(2π)/2 * Gnorm * exp(-Gnorm^2/2)
+            px = (4π*im) * DFTK.ylm_real(1,1,arg_ylm)  * intR_l(1,Gcart)
+            py = (4π*im) * DFTK.ylm_real(1,-1,arg_ylm) * intR_l(1,Gcart)
+            pz = (4π*im) * DFTK.ylm_real(1,0,arg_ylm)  * intR_l(1,Gcart)
+            
             (mr==1) && (return phase_prefac * (1/√2)*(s + px + py + pz))
             (mr==2) && (return phase_prefac * (1/√2)*(s + px - py - pz))
             (mr==3) && (return phase_prefac * (1/√2)*(s - px + py - pz))
             (mr==4) && (return phase_prefac * (1/√2)*(s - px - py + pz))
-        elseif l == -4  # sp3d
-            (mr==1) && (return phase_prefac *( (1/√3)*s - (1/√6)*px + (1/√2)*py ) )
-            (mr==2) && (return phase_prefac *( (1/√3)*s - (1/√6)*px - (1/√2)*py ) )
-            (mr==3) && (return phase_prefac *( (1/√3)*s + (2/√6)*px ) )
-            (mr==4) && (return phase_prefac *( (1/√2)*pz +(1/√2)*dz2 ) )
-            (mr==5) && (return phase_prefac *(-(1/√2)*pz +(1/√2)*dz2 ) )
-        else l == -5    # sp3d2
-            (mr==1) && (return phase_prefac *((1/√6)*s - (1/√2)*px - (1/√12)*dz2
-                                               + (1/2)*dx2_y2) )
-            (mr==2) && (return phase_prefac *((1/√6)*s + (1/√2)*px - (1/√12)*dz2
-                                               + (1/2)*dx2_y2) )
-            (mr==3) && (return phase_prefac *((1/√6)*s - (1/√2)*px - (1/√12)*dz2
-                                              - (1/2)*dx2_y2) )
-            (mr==4) && (return phase_prefac *((1/√6)*s + (1/√2)*px - (1/√12)*dz2
-                                               - (1/2)*dx2_y2) )
-            (mr==5) && (return phase_prefac *((1/√6)*s - (1/√2)*pz + (1/√3)*dz2) )
-            (mr==6) && (return phase_prefac *((1/√6)*s + (1/√2)*pz + (1/√3)*dz2) )
         end
     end
   
-    error("No implemented orbital (s, p, sp, sp2, sp3, sp3d, sp3d2) 
+    error("No implemented orbital (s, p, d, f, sp3) 
             match with the given quantum number")
 end
 
@@ -116,13 +90,13 @@ end
     Uses the above function to generate one Amn matrix given the projection table and
     usual informations on the system (basis etc...)
 """
-function A_k_matrix_win_guesses(basis::PlaneWaveBasis, ψ,
+function Ak_matrix_win_guesses(basis::PlaneWaveBasis, ψ,
                                 k::Integer, n_bands::Integer, n_wann::Integer;
                                 projs = [],centers = [], coords = "")
     n_projs = size(projs,1)
     @assert n_projs == n_wann
     
-    A_k = zeros(Complex,(n_bands,n_projs))
+    Ak = zeros(Complex,(n_bands,n_projs))
 
     # All G vectors in cartesian coordinates.
     Gs_cart_k = [basis.model.recip_lattice*G for G in basis.kpoints[k].G_vectors]
@@ -136,10 +110,10 @@ function A_k_matrix_win_guesses(basis::PlaneWaveBasis, ψ,
         # Compute overlaps
         for m in 1:n_bands
             coeffs_ψm = ψ[k][:,m]
-            A_k[m,n] = dot(coeffs_ψm, coeffs_gn_per)
+            Ak[m,n] = dot(coeffs_ψm, coeffs_gn_per)
         end
     end
 
-    A_k
+    Ak
         
 end
