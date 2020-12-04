@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-python@v2
         with:
-          python-version: '3.6'
+          python-version: '3.7'
       - name: Install python dependencies
         run: pip install ase pymatgen
       - uses: julia-actions/setup-julia@v1
@@ -29,8 +29,9 @@ jobs:
             using Pkg
             Pkg.develop(PackageSpec(path=pwd()))
             Pkg.instantiate()
+            Pkg.precompile()
+            Pkg.build("DFTK")
           '
-          # TODO On Travis we did this: Pkg.build("DFTK")
       - name: Run doctests
         run: |
           julia --project=docs -e '
