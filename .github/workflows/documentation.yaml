@@ -29,8 +29,9 @@ jobs:
             using Pkg
             Pkg.develop(PackageSpec(path=pwd()))
             Pkg.instantiate()
+            Pkg.precompile()
+            Pkg.build("DFTK")
           '
-          # TODO On Travis we did this: Pkg.build("DFTK")
       - name: Run doctests
         run: |
           julia --project=docs -e '
