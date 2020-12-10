@@ -16,7 +16,7 @@ Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 N = 1
-mod = model_LDA(lattice, atoms, n_electrons=2*N)
+mod = model_atomic(lattice, atoms, n_electrons=2*N)
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
 Ecut = 10           # kinetic energy cutoff in Hartree
 basis_scf = PlaneWaveBasis(mod, Ecut; kgrid=kgrid)
@@ -29,13 +29,16 @@ scfres = self_consistent_field(basis_scf, tol=tol,
 ψ0 = deepcopy(scfres.ψ)
 for ik = 1:length(ψ0)
     ψ0k = ψ0[ik]
-    for i in 1:4
+    for i in 1:N
         ψ0k[:,i] += randn(size(ψ0k[:,i]))*1e-2
     end
 end
 φ0 = similar(ψ0)
+ϕ0 = similar(ψ0)
 for ik = 1:length(φ0)
     φ0[ik] = ψ0[ik][:,1:N]
     φ0[ik] = Matrix(qr(φ0[ik]).Q)
+    ϕ0[ik] = scfres.ψ[ik][:,1:N]
 end
+newton(basis_scf; ψ0=φ0, tol=1e-12, φproj=ϕ0)
 newton(basis_scf; ψ0=φ0, tol=1e-12)

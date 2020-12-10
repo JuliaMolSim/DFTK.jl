@@ -2,44 +2,16 @@
 # DFTK problems.
 
 
-## pack and unpack routines
-function packing_routines(basis::PlaneWaveBasis{T}, ψ) where T
-
-    # necessary quantities
-    Nk = length(basis.kpoints)
-
-    lengths = [length(ψ[ik]) for ik = 1:Nk]
-    starts = copy(lengths)
-    starts[1] = 1
-    for ik = 1:Nk-1
-        starts[ik+1] = starts[ik] + lengths[ik]
-    end
-    pack(φ) = vcat(Base.vec.(φ)...)
-    unpack(x) = [@views reshape(x[starts[ik]:starts[ik]+lengths[ik]-1], size(ψ[ik]))
-                 for ik = 1:Nk]
-
-    packed_proj!(ϕ,φ) = proj!(unpack(ϕ), unpack(φ))
-    (pack, unpack, packed_proj!)
-end
-
 # we compute the residual associated to a set of planewave φ, that is to say
 # H(φ)*φ - λ.*φ where λ is the set of rayleigh coefficients associated to the
 # φ
 # we also return the egval set for further computations
-function compute_residual(basis::PlaneWaveBasis{T}, φ, occ;
-                          φproj=nothing, test_newton=false) where T
-
-    # if no φ is specified to define the projection onto the tangent plane, we
-    # use the current φ
-    if φproj === nothing
-        φproj = φ
-    end
+function compute_residual(basis::PlaneWaveBasis{T}, φ, occ) where T
 
     # necessary quantities
     Nk = length(basis.kpoints)
     ρ = compute_density(basis, φ, occ)
     energies, H = energy_hamiltonian(basis, φ, occ; ρ=ρ[1])
-    egval = [ zeros(Complex{T}, size(occ[i])) for i = 1:length(occ) ]
 
     # compute residual
     res = similar(φ)
@@ -51,27 +23,21 @@ function compute_residual(basis::PlaneWaveBasis{T}, φ, occ;
         egvalk = [φk[:,i]'*(Hk*φk[:,i]) for i = 1:N]
         # compute residual at given kpoint as H(φ)φ - λφ
         rk = Hk*φk - hcat([egvalk[i] * φk[:,i] for i = 1:N]...)
-        egval[ik] = egvalk
         res[ik] = rk
     end
 
-    # return residual after projection onto the tangent space
-    if test_newton
-        return (res=proj!(res, φproj), ρ, H, egval)
-    else
-        return (res, ρ, H, egval)
-    end
+    return res
 end
 
 
 # perform a newton step : we take as given a planewave set φ and we return the
 # newton step φ - δφ (after proper orthonormalization) where δφ solves Jac * δφ = res
-function newton_step(basis::PlaneWaveBasis{T}, φ, res, ρ, H, egval, occ,
-                     packing; φproj=nothing, tol_krylov=1e-12) where T
+function newton_step(basis::PlaneWaveBasis{T}, φ, res, occ;
+                     φproj=nothing, tol_krylov=1e-12) where T
 
     # necessary quantities
+    N = size(φ[1],2)
     Nk = length(basis.kpoints)
-    pack, unpack, packed_proj! = packing
     ortho(ψk) = Matrix(qr(ψk).Q)
 
     # if no φ is specified to define the projection onto the tangent plane, we
@@ -79,20 +45,33 @@ function newton_step(basis::PlaneWaveBasis{T}, φ, res, ρ, H, egval, occ,
     if φproj === nothing
         φproj = φ
     end
+    ρproj = compute_density(basis, φproj, occ)
+    energies, Hproj = energy_hamiltonian(basis, φproj, occ; ρ=ρproj[1])
+    egvalproj = [ zeros(Complex{T}, size(occ[ik])) for ik = 1:Nk ]
+    for ik = 1:Nk
+        Hk = Hproj.blocks[ik]
+        φk = φproj[ik]
+        egvalproj[ik] = [φk[:,i]'*(Hk*φk[:,i]) for i = 1:N]
+    end
+
+    # packing routines
+    pack, unpack, packed_proj = packing(basis, φproj)
 
     # solve linear system with KrlyovKit
     function f(x)
         δφ = unpack(x)
-        δφ = proj!(δφ, φproj)
-        ΩpKx = ΩplusK(basis, δφ, φproj, ρ, H, egval, occ)
-        ΩpKx = proj!(ΩpKx, φproj)
+        ΩpKx = ΩplusK(basis, δφ, φproj, ρproj[1], Hproj, egvalproj, occ)
         pack(ΩpKx)
     end
+
+    # project res on the good tangent space
+    res = proj(res, φproj)
+
     δφ, info = linsolve(f, pack(res);
                         tol=tol_krylov, verbosity=1,
-                        orth=OrthogonalizeAndProject(packed_proj!, pack(φproj)))
+                        orth=OrthogonalizeAndProject(packed_proj, pack(φproj)))
     δφ = unpack(δφ)
-    δφ = proj!(δφ, φ)
+    δφ = proj(δφ, φ)
     φ_newton = similar(φ)
 
     for ik = 1:Nk
@@ -110,7 +89,7 @@ end
 
 # newton algorithm
 function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
-                tol=1e-6, max_iter=100) where T
+                tol=1e-6, max_iter=100, φproj=nothing) where T
 
     ## setting parameters
     model = basis.model
@@ -130,9 +109,6 @@ function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
               for kpt in basis.kpoints]
     end
 
-    ## packing routines to pack vectors for KrylovKit solver
-    packing = packing_routines(basis, ψ0)
-
     ## error list for convergence plots
     err_list = []
     err_ref_list = []
@@ -149,9 +125,16 @@ function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
         println("Iteration $(k)...")
         append!(k_list, k)
 
+        if φproj === nothing
+            ϕ = φ
+        else
+            ϕ = φproj
+        end
+
         # compute next step
-        res, ρ, H, egval = compute_residual(basis, φ, occupation)
-        φ, δφ = newton_step(basis, φ, res, ρ, H, egval, occupation, packing)
+        ρ = compute_density(basis, φ, occupation)
+        res = compute_residual(basis, φ, occupation)
+        φ, δφ = newton_step(basis, φ, res, occupation; φproj=ϕ)
 
         # compute error on the norm
         ρ_next = compute_density(basis, φ, occupation)

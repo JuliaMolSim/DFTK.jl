@@ -15,10 +15,6 @@ using DFTK
 using LinearAlgebra
 using PyPlot
 
-# import aux file
-include("aposteriori_operators.jl")
-include("newton.jl")
-
 # model parameters
 a = 10.68290949909  # GaAs lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
@@ -31,17 +27,23 @@ atoms = [Ga => [ones(3)/8], As => [-ones(3)/8]]
 # define different models
 modelLDA = model_LDA(lattice, atoms)
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
-tol = 1e-12
+tol = 1e-15
 tol_krylov = 1e-15
-Ecut = 10           # kinetic energy cutoff in Hartree
-
-ite = nothing
-φ_list = nothing
-basis_list = nothing
+Ecut = 25           # kinetic energy cutoff in Hartree
 
 basis_scf = PlaneWaveBasis(modelLDA, Ecut; kgrid=kgrid)
 
+# import aux file
+include("aposteriori_operators.jl")
+include("aposteriori_callback.jl")
+include("newton.jl")
+
+ite = nothing
+φ_list = nothing
+
+
 scfres = self_consistent_field(basis_scf, tol=tol,
                                is_converged=DFTK.ScfConvergenceDensity(tol),
-                               #  determine_diagtol=DFTK.ScfDiagtol(diagtol_max=1e-12),
-                               callback=callback_estimators())
+                               determine_diagtol=DFTK.ScfDiagtol(diagtol_max=1e-14),
+                               callback=callback_estimators(test_newton=false, change_norm=true))
+STOP
