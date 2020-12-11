@@ -113,7 +113,7 @@ function compute_normop_invΩpK(basis::PlaneWaveBasis{T}, φ, occ;
     normop = 1. / svd_SR[1]
     println("--> plus petite valeur singulière (Ω+K) $(svd_SR[1])")
     println("--> normop (Ω+K)^-1 $(normop)")
-    (normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
+    (normop=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
 end
 
 function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
@@ -201,7 +201,7 @@ function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
     normop = 1. / svd_SR[1]
     println("--> plus petite valeur singulière ε $(svd_SR[1])")
     println("--> normop ε^-1 $(normop)")
-    (normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
+    (normopp=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
 end
 
 function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
@@ -255,7 +255,7 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
     normop = 1. / svd_SR[1]
     println("--> plus petite valeur singulière Ω $(svd_SR[1])")
     println("--> normop Ω^-1 $(normop)")
-    (normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
+    (normopp=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
 end
 
 ############################# SCF CALLBACK ####################################
@@ -354,13 +354,13 @@ function callback_estimators(; test_newton=false, change_norm=true)
             end
 
             ## plotting convergence info
-            figure()
-            title("Silicon
+            figure(figsize=(10,5))
+            title("GaAs
                   error estimators vs iteration, LDA, N = $(N), M = (1-Δ),
                   (Ω+K)^-1 : norm = $(@sprintf("%.3f", normop_ΩpK)), min_svd = $(@sprintf("%.3f", svd_min_ΩpK)), max_svd = $(@sprintf("%.3f", svd_max_ΩpK))
                   ε^-1 : norm = $(@sprintf("%.3f", normop_invε)), min_svd = $(@sprintf("%.3f", svd_min_ε)), max_svd = $(@sprintf("%.3f", svd_max_ε))
                   Ω^-1 : norm = $(@sprintf("%.3f", normop_invΩ)), min_svd = $(@sprintf("%.3f", svd_min_Ω)), max_svd = $(@sprintf("%.3f", svd_max_Ω))")
-            semilogy(1:ite, err_ref_list, "x-", label="|P-Pref|")
+            semilogy(1:(ite-1), err_ref_list[1:end-1], "x-", label="|P-Pref|")
             semilogy(1:ite, norm_res_list, "x-", label="|res_φ|")
             semilogy(1:ite, err_estimator, "x-", label="|(Ω+K)^-1| * |res_φ|")
             if test_newton
@@ -368,12 +368,13 @@ function callback_estimators(; test_newton=false, change_norm=true)
                 semilogy(1:ite, err_newton_list, "x-", label="|P_newton-Pref|")
             end
             if change_norm
-                semilogy(1:ite, err_Pkref_list, "x--", label="|M^1/2(P-Pref)|")
+                semilogy(1:(ite-1), err_Pkref_list[1:end-1], "x--", label="|M^1/2(P-Pref)|")
                 semilogy(1:ite, norm_Pkres_list, "x--", label="|M^-1/2res_φ|")
                 semilogy(1:ite, err_Pk_estimator, "x--", label="|M^1/2(Ω+K)^-1M^1/2| * |M^-1/2res_φ|")
             end
             legend()
             xlabel("iterations")
+            savefile("GaAs_SCF.pdf")
         else
             ite += 1
             append!(φ_list, [info.ψ])

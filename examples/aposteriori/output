@@ -1,0 +1,53 @@
+Unable to init server: Could not connect: Connection refused
+Unable to init server: Could not connect: Connection refused
+
+(.:2025): Gdk-CRITICAL **: 09:38:01.416: gdk_cursor_new_for_display: assertion 'GDK_IS_DISPLAY (display)' failed
+
+(.:2025): Gdk-CRITICAL **: 09:38:01.439: gdk_cursor_new_for_display: assertion 'GDK_IS_DISPLAY (display)' failed
+ Activating environment at `~/DFTK/DFTK.jl/Project.toml`
+ERROR: LoadError: LoadError: ArgumentError: operator and its adjoint are not compatible
+Stacktrace:
+ [1] initialize(::GKLIterator{var"#g#23"{Nothing,Array{Array{Complex{Float64},2},1},var"#f#22"{PlaneWaveBasis{Float64},Array{Array{Complex{Float64},2},1},Array{Array{Float64,1},1},Tuple{RealFourierArray{Float64,Array{Float64,3},Array{Complex{Float64},3}},Nothing},Hamiltonian,Array{Array{Complex{Float64},1},1}},var"#pack#10",var"#unpack#11"{Array{Array{Complex{Float64},2},1},Int64,Array{Int64,1},Array{Int64,1}}},Array{Complex{Float64},1},OrthogonalizeAndProject{var"#packed_proj#13"{var"#unpack#11"{Array{Array{Complex{Float64},2},1},Int64,Array{Int64,1},Array{Int64,1}}},ModifiedGramSchmidt2,Array{Complex{Float64},1}}}; verbosity::Int64) at /home/kemling/.julia/packages/KrylovKit/OLgKs/src/krylov/gkl.jl:81
+ [2] svdsolve(::Function, ::Array{Complex{Float64},1}, ::Int64, ::Symbol, ::GKL{OrthogonalizeAndProject{var"#packed_proj#13"{var"#unpack#11"{Array{Array{Complex{Float64},2},1},Int64,Array{Int64,1},Array{Int64,1}}},ModifiedGramSchmidt2,Array{Complex{Float64},1}},Float64}) at /home/kemling/.julia/packages/KrylovKit/OLgKs/src/eigsolve/svdsolve.jl:122
+ [3] #svdsolve#71 at /home/kemling/.julia/packages/KrylovKit/OLgKs/src/eigsolve/svdsolve.jl:109 [inlined]
+ [4] compute_normop_invΩpK(::PlaneWaveBasis{Float64}, ::Array{Array{Complex{Float64},2},1}, ::Array{Array{Float64,1},1}; tol_krylov::Float64, Pks::Nothing) at /home/kemling/DFTK/DFTK.jl/examples/aposteriori/aposteriori_callback.jl:106
+ [5] (::var"#callback#49"{Bool,Bool})(::NamedTuple{(:ham, :basis, :energies, :converged, :ρ, :ρspin, :eigenvalues, :occupation, :εF, :n_iter, :ψ, :diagonalization, :stage),Tuple{Hamiltonian,PlaneWaveBasis{Float64},Energies{Float64},Bool,RealFourierArray{Float64,Array{Float64,3},Array{Complex{Float64},3}},Nothing,Array{Array{Float64,1},1},Array{Array{Float64,1},1},Float64,Int64,Array{Array{Complex{Float64},2},1},NamedTuple{(:λ, :X, :residual_norms, :iterations, :converged, :n_matvec),Tuple{Array{Array{Float64,1},1},Array{Array{Complex{Float64},2},1},Array{Array{Float64,1},1},Array{Int64,1},Bool,Int64}},Symbol}}) at /home/kemling/DFTK/DFTK.jl/examples/aposteriori/aposteriori_callback.jl:345
+ [6] macro expansion at /home/kemling/DFTK/DFTK.jl/src/scf/self_consistent_field.jl:165 [inlined]
+ [7] (::DFTK.var"#476#477"{Int64,RealFourierArray{Float64,Array{Float64,3},Array{Complex{Float64},3}},Nothing,Int64,DFTK.var"#fp_solver#446"{DFTK.var"#fp_solver#444#447"{Base.Iterators.Pairs{Union{},Union{},Tuple{},NamedTuple{(),Tuple{}}},Int64,Symbol}},typeof(lobpcg_hyper),Int64,DFTK.var"#determine_diagtol#473"{Float64},SimpleMixing,DFTK.var"#470#471"{Float64},var"#callback#49"{Bool,Bool},Bool,Bool,typeof(find_occupation),PlaneWaveBasis{Float64}})() at /home/kemling/.julia/packages/TimerOutputs/dVnaw/src/TimerOutput.jl:237
+ [8] timeit(::DFTK.var"#476#477"{Int64,RealFourierArray{Float64,Array{Float64,3},Array{Complex{Float64},3}},Nothing,Int64,DFTK.var"#fp_solver#446"{DFTK.var"#fp_solver#444#447"{Base.Iterators.Pairs{Union{},Union{},Tuple{},NamedTuple{(),Tuple{}}},Int64,Symbol}},typeof(lobpcg_hyper),Int64,DFTK.var"#determine_diagtol#473"{Float64},SimpleMixing,DFTK.var"#470#471"{Float64},var"#callback#49"{Bool,Bool},Bool,Bool,typeof(find_occupation),PlaneWaveBasis{Float64}}, ::TimerOutputs.TimerOutput, ::String) at /home/kemling/.julia/packages/TimerOutputs/dVnaw/src/TimerOutput.jl:285
+ [9] self_consistent_field(::PlaneWaveBasis{Float64}; n_bands::Int64, ρ::RealFourierArray{Float64,Array{Float64,3},Array{Complex{Float64},3}}, ρspin::Nothing, ψ::Nothing, tol::Float64, maxiter::Int64, solver::Function, eigensolver::Function, n_ep_extra::Int64, determine_diagtol::DFTK.var"#determine_diagtol#473"{Float64}, mixing::SimpleMixing, is_converged::DFTK.var"#470#471"{Float64}, callback::var"#callback#49"{Bool,Bool}, compute_consistent_energies::Bool, enforce_symmetry::Bool, occupation_function::typeof(find_occupation)) at /home/kemling/.julia/packages/TimerOutputs/dVnaw/src/TimerOutput.jl:236
+ [10] top-level scope at /home/kemling/DFTK/DFTK.jl/examples/aposteriori/gaas_aposteriori_SCF.jl:45
+ [11] include(::String) at ./client.jl:457
+ [12] top-level scope at /home/kemling/DFTK/DFTK.jl/examples/aposteriori/gaas.jl:12
+ [13] include(::Function, ::Module, ::String) at ./Base.jl:380
+ [14] include(::Module, ::String) at ./Base.jl:368
+ [15] exec_options(::Base.JLOptions) at ./client.jl:296
+ [16] _start() at ./client.jl:506
+in expression starting at /home/kemling/DFTK/DFTK.jl/examples/aposteriori/gaas_aposteriori_SCF.jl:45
+in expression starting at /home/kemling/DFTK/DFTK.jl/examples/aposteriori/gaas.jl:12
+Starting post-treatment
+Computing residual...
+   iteration 1
+   iteration 2
+   iteration 3
+   iteration 4
+   iteration 5
+   iteration 6
+   iteration 7
+   iteration 8
+   iteration 9
+   iteration 10
+   iteration 11
+   iteration 12
+   iteration 13
+   iteration 14
+   iteration 15
+   iteration 16
+   iteration 17
+   iteration 18
+   iteration 19
+   iteration 20
+   iteration 21
+--------------------------------
+Computing operator norms...
+--> gap 0.003568163561059573

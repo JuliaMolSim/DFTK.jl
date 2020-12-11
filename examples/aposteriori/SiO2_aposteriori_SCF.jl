@@ -54,9 +54,9 @@ lattice = load_lattice(atoms_ase)
 # define different models
 modelLDA = model_LDA(lattice, atoms)
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
-tol = 1e-12
+tol = 1e-15
 tol_krylov = 1e-15
-Ecut = 10           # kinetic energy cutoff in Hartree
+Ecut = 20           # kinetic energy cutoff in Hartree
 
 ite = nothing
 φ_list = nothing
@@ -66,5 +66,5 @@ basis_scf = PlaneWaveBasis(modelLDA, Ecut; kgrid=kgrid)
 
 scfres = self_consistent_field(basis_scf, tol=tol,
                                is_converged=DFTK.ScfConvergenceDensity(tol),
-                               #  determine_diagtol=DFTK.ScfDiagtol(diagtol_max=1e-12),
-                               callback=callback_estimators())
+                               determine_diagtol=DFTK.ScfDiagtol(diagtol_max=1e-14),
+                               callback=callback_estimators(test_newton=false, change_norm=true))
