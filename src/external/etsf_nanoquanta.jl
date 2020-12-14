@@ -2,7 +2,7 @@
 # ETSF Nanoquanta file format, for details see http://www.etsf.eu/fileformats/
 
 using NCDatasets
-using JSON
+import JSON
 
 struct EtsfFolder
     folder

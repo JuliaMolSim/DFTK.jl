@@ -1,6 +1,7 @@
 using Test
 using DFTK
 using IntervalArithmetic
+using GenericLinearAlgebra
 
 include("testcases.jl")
 

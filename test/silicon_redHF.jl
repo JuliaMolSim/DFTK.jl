@@ -1,6 +1,7 @@
 include("run_scf_and_compare.jl")
 include("testcases.jl")
 using DoubleFloats
+using GenericLinearAlgebra
 
 # Silicon redHF (without xc) is a metal, so we add a bit of temperature to it
 function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwargs...)
