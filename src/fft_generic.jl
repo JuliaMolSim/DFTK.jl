@@ -3,6 +3,9 @@ include("FourierTransforms.jl/FourierTransforms.jl")
 # This is needed to flag that the fft_generic.jl file has already been loaded
 const GENERIC_FFT_LOADED = true
 
+@info("Code paths for generic floating-point types activated in DFTK. Remember to add " *
+      "'using GenericLinearAlgebra' to your user script in case not yet done. " *
+      "See https://docs.dftk.org/stable/examples/arbitrary_floattype/ for details.")
 
 # Utility functions to setup FFTs for DFTK. Most functions in here
 # are needed to correct for the fact that FourierTransforms is not

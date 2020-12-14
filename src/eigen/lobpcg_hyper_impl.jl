@@ -6,7 +6,6 @@
 vprintln(args...) = nothing
 
 using LinearAlgebra
-using GenericLinearAlgebra
 
 # In the LOBPCG we deal with a subspace (X, R, P), where X, R and P are views
 # into bigger arrays. We don't store these subspace vectors as a dense matrix

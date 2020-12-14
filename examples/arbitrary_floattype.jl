@@ -5,13 +5,14 @@
 # using double-precision arithmetic (i.e.`Float64`).
 # Other floating-point types such as `Float32` (single precision)
 # are readily supported as well.
-# On top of that we  already reported[^HLC2020] calculations
+# On top of that we already reported[^HLC2020] calculations
 # in DFTK using elevated precision
 # from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)
 # or interval arithmetic
 # using [IntervalArithmetic.jl](https://github.com/JuliaIntervals/IntervalArithmetic.jl).
 # In this example, however, we will concentrate on single-precision
 # computations with `Float32`.
+#
 # The setup of such a reduced-precision calculation is basically identical
 # to the regular case, since Julia automatically compiles all routines
 # of DFTK at the precision, which is used for the lattice vectors.
@@ -47,3 +48,13 @@ scfres.energies
 eltype(scfres.energies.total)
 #-
 eltype(scfres.ρ.real)
+
+#
+# !!! note "Generic linear algebra routines"
+#     For more unusual floating-point types (like IntervalArithmetic or DoubleFloats),
+#     which are not directly supported in the standard `LinearAlgebra` library of Julia
+#     one additional step is required: One needs to explicitly enable the generic versions
+#     of standard linear-algebra operations like `cholesky` or `qr`, which are needed
+#     inside DFTK by loading the `GenericLinearAlgebra` package in the user script
+#     (i.e. just add ad `using GenericLinearAlgebra` next to your `using DFTK` call).
+#
