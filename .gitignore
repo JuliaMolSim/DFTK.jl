@@ -7,3 +7,4 @@
 *.jl.mem
 deps/deps.jl
 Manifest.toml
+.vscode
