@@ -29,7 +29,7 @@ modelLDA = model_LDA(lattice, atoms)
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
 tol = 1e-12
 tol_krylov = 1e-15
-Ecut = 10           # kinetic energy cutoff in Hartree
+Ecut = 25           # kinetic energy cutoff in Hartree
 
 basis_scf = PlaneWaveBasis(modelLDA, Ecut; kgrid=kgrid)
 

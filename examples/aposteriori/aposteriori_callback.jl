@@ -94,11 +94,11 @@ function compute_normop_invΩpK(basis::PlaneWaveBasis{T}, φ, occ;
         δφ = unpack(x)
         if Pks != nothing
             δφ = proj(δφ, φ)
-            apply_sqrt(Pks, δφ)
+            δφ = apply_sqrt(Pks, δφ)
         end
         ΩpKδφ = f(δφ)
         if Pks != nothing
-            apply_sqrt(Pks, δφ)
+            δφ = apply_sqrt(Pks, δφ)
             δφ = proj(δφ, φ)
         end
         pack(ΩpKδφ)
@@ -111,8 +111,13 @@ function compute_normop_invΩpK(basis::PlaneWaveBasis{T}, φ, occ;
                          orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
 
     normop = 1. / svd_SR[1]
-    println("--> plus petite valeur singulière (Ω+K) $(svd_SR[1])")
-    println("--> normop (Ω+K)^-1 $(normop)")
+    if !change_norm
+        println("--> plus petite valeur singulière (Ω+K) $(svd_SR[1])")
+        println("--> normop (Ω+K)^-1 $(normop)")
+    else
+        println("--> plus petite valeur singulière M^-1/2(Ω+K)M^-1/2 $(svd_SR[1])")
+        println("--> normop M^1/2(Ω+K)^-1M^1/2 $(normop)")
+    end
     (normop=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
 end
 
@@ -169,11 +174,11 @@ function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
             δφ = unpack(x)
             if Pks != nothing
                 δφ = proj(δφ, φ)
-                apply_sqrt(Pks, δφ)
+                δφ = apply_sqrt(Pks, δφ)
             end
             δφ = f(δφ, flag)
             if Pks != nothing
-                apply_inv_sqrt(Pks, δφ)
+                δφ = apply_inv_sqrt(Pks, δφ)
                 δφ = proj(δφ, φ)
             end
             return pack(δφ)
@@ -181,11 +186,11 @@ function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
             δφ = unpack(x)
             if Pks != nothing
                 δφ = proj(δφ, φ)
-                apply_inv_sqrt(Pks, δφ)
+                δφ = apply_inv_sqrt(Pks, δφ)
             end
             δφ = f(δφ, flag)
             if Pks != nothing
-                apply_sqrt(Pks, δφ)
+                δφ = apply_sqrt(Pks, δφ)
                 δφ = proj(δφ, φ)
             end
             return pack(δφ)
@@ -199,9 +204,14 @@ function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
                          orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
 
     normop = 1. / svd_SR[1]
-    println("--> plus petite valeur singulière ε $(svd_SR[1])")
-    println("--> normop ε^-1 $(normop)")
-    (normopp=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
+    if !change_norm
+        println("--> plus petite valeur singulière ε $(svd_SR[1])")
+        println("--> normop ε^-1 $(normop)")
+    else
+        println("--> plus petite valeur singulière M^1/2εM^-1/2 $(svd_SR[1])")
+        println("--> normop M^1/2ε^-1M^-1/2 $(normop)")
+    end
+    (normop=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
 end
 
 function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
@@ -236,11 +246,11 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
         δφ = unpack(x)
         if Pks != nothing
             δφ = proj(δφ, φ)
-            apply_sqrt(Pks, δφ)
+            δφ = apply_inv_sqrt(Pks, δφ)
         end
         δφ = f(δφ)
         if Pks != nothing
-            apply_sqrt(Pks, δφ)
+            δφ = apply_inv_sqrt(Pks, δφ)
             δφ = proj(δφ, φ)
         end
         pack(δφ)
@@ -253,9 +263,14 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
                          orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
 
     normop = 1. / svd_SR[1]
-    println("--> plus petite valeur singulière Ω $(svd_SR[1])")
-    println("--> normop Ω^-1 $(normop)")
-    (normopp=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
+    if !change_norm
+        println("--> plus petite valeur singulière Ω $(svd_SR[1])")
+        println("--> normop Ω^-1 $(normop)")
+    else
+        println("--> plus petite valeur singulière M^-1/2ΩM^-1/2 $(svd_SR[1])")
+        println("--> normop M^1/2Ω^-1M^1/2 $(normop)")
+    end
+    (normop=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
 end
 
 ############################# SCF CALLBACK ####################################
@@ -374,7 +389,7 @@ function callback_estimators(; test_newton=false, change_norm=true)
             end
             legend()
             xlabel("iterations")
-            savefile("GaAs_SCF.pdf")
+            savefig("GaAs_SCF.pdf")
         else
             ite += 1
             append!(φ_list, [info.ψ])

@@ -155,5 +155,5 @@ for model in [modelLDA]#, modelHartree, modelLDA]
     end
     legend()
     xlabel("Ecut")
-    savefile("GaAs_Ecut.pdf")
+    savefig("GaAs_Ecut.pdf")
 end
