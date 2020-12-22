@@ -1,79 +1,49 @@
-# Uses WriteVTK.jl to convert various structures and matrices to VTk file format
-using WriteVTK
+# Uses WriteVTK.jl to convert scfres structure to VTk file format
+import WriteVTK: vtk_grid, vtk_save
 
 """
-    EnergyToVTK(VTKFileName::String, energy::Energies{::Number})
+    save_scfres(VTKFileName, scfres)
 
-Stores the Energy structure in a VTK image file and returns the name of the file.
+The function takes in the VTK filename and the scfres structure and stores into a VTK file.
+Grid Values:
+ρ_real -> real values of scfers.ρ
+ψreal_i_j -> Real values of Bloch waves in real space, where i and j are Kpoint and EigenVector indexes respectively
+ρspin -> Real of ρspin are stored if ρspin in present
+MetaData:
+Energy and occupation.
 """
-function EnergyToVTK(VTKFileName::String, energy::Energies{<:Number})
-
-    vtkfile = vtk_grid(VTKFileName, 1, 1)
-    for i in keys(energy)
-        vtkfile[i] = energy.energies[i]
+function save_scfres(VTKFileName::AbstractString, scfres)
+    # Initialzing the VTK Grid
+    basis = scfres.basis
+    basis_r_co = r_vectors_cart(basis)
+    gridsize = size(basis_r_co)
+    grid = zeros(3, gridsize...)
+    for (idcs, r) in zip(CartesianIndices(gridsize), basis_r_co)
+        grid[:, Tuple(idcs)...] = r
     end
-    out = vtk_save(vtkfile)
-    return out[1]
-end
-
-"""
-    DensityToVtk(VTKFileName::String, ρ)
-
-Stores the energy density in a VTK image file and returns the name of the file.
-The density is stored in 3 submatrices : Real, Real components of Fourier, Imaginary
-components of Fourier.
-"""
-function DensityToVtk(VTKFileName::String, ρ::RealFourierArray{T, <: AbstractArray{T, 3}, 
-                                             <: AbstractArray{Complex{T}, 3}}) where T<:Real
-
-    out = vtk_write_array(VTKFileName,(ρ.real, Base.getproperty.(ρ.fourier, :re),
-                          Base.getproperty.(ρ.fourier, :im)), 
-                            ("Real", "Fourier Real", "Fourier Complex"))
-    return out[1]
-end
-
-"""
-    EigenValuesToVTK(VTKFileName::String, Eigenvalues)
-
-Stores the eigen values in a VTK image file and returns the name of the file.
-"""
-function EigenValuesToVTK(VTKFileName::String, Eigenvalues::Array{Array{T,1},1}) where T<:Real
-    eigen_mat = hcat(Eigenvalues...)
-    out = vtk_write_array(VTKFileName, eigen_mat, "Eigen")
-    return out[1]
-end
-
-"""
-    WavesToVTK(VTKFIleName::String, wave)   
-
-Stores the wave values in a VTK image file and returns the name of the file.
-If the sizes of wave vectors for each each value is not equal, the wave matrix
-will have size = (e, w, n) where e = No of eigen values, w = max no of values for
-each eigen value, n =  no of Kpoints). The matrix is stored as two submatrix,
-one containing the real part and the other containing the imaginary part.
-"""
-function WavesToVTK(VTKFileName::String, wave)
-
-    mat_size = (maximum(x->size(x)[1], wave), size(wave[1])[2], length(wave))
-    wave_mat = zeros(ComplexF64, mat_size)
-    @views for i = 1:length(wave)
-        (x, y) = size(wave[i])
-        for m in 1:x, n in 1:y
-            wave_mat[m,n,i] = wave[i][m, n]
+    vtkfile = vtk_grid(VTKFileName, grid)
+    
+    # Storing the Bloch Waves in Real space
+    for i in 1:length(basis.kpoints)
+        for j in 1:7
+            vtkfile["ψreal_$(i)_$(j)"] = real.(G_to_r(basis, basis.kpoints[i], scfres.ψ[i][:,j]))
         end
     end
-    out = vtk_write_array(VTKFileName, (Base.getproperty.(wave_mat, :re), 
-            Base.getproperty.(wave_mat, :im)), ("Wave Real", "Wave Imag."))
-    return out[1]
-end
-"""
-    OccupationToVTK(VTKFileName::String, occupation)
 
-Stores the occupation values in a VTK image file and returns the file name.
-"""
-function OccupationToVTK(VTKFileName::String, occupation::Array{Array{T,1},1}) where T<:Real
-   
-    occupation_mat = hcat(occupation...)
-    out = vtk_write_array(VTKFileName, occupation_mat, "Occupation")
-    return out[1]
+    # Storing the Real component of density
+    vtkfile["ρ_real"] = scfres.ρ.real
+    
+    # Storing ρspin if it is present.
+    isnothing(scfres.ρspin)  || (vtkfile["ρspin_real"] = scfres.ρspin.real)
+    
+    # Storing the energy components
+    for i in keys(scfres.energies)
+        vtkfile["Energy_$i"] = scfres.energies[i]
+    end
+
+    # Storing the Occupation as a matrix
+    occupation_mat = hcat(scfres.occupation...)
+    vtkfile["Occupation"] = occupation_mat
+
+    out = vtk_save(vtkfile)
 end

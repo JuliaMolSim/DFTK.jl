@@ -149,12 +149,6 @@ include("external/load_from_python.jl")
 include("external/load_from_file.jl")
 include("external/ase.jl")
 include("external/pymatgen.jl")
-include("external/VTK.jl")
-export EnergyToVTK
-export DensityToVtk
-export WavesToVTK
-export OccupationToVTK
-export EigenValuesToVTK
 
 export compute_bands
 export high_symmetry_kpath
@@ -192,6 +186,7 @@ function __init__()
     end
     @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("plotting.jl")
     @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"  include("jld2io.jl")
+    @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" include("external/VTK.jl")
 end
 
 end # module DFTK
