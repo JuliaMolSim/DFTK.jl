@@ -28,22 +28,27 @@ function list_psp(element=nothing; family=nothing, functional=nothing, core=noth
     isnothing(functional) || (functional = lowercase(functional))
     isnothing(family)     || (family = lowercase(family))
 
+    # Path separator character
+    pathsep = Sys.iswindows() ? '\\' : '/'
+
     psplist = []
     for (root, _, files) in walkdir(datadir_psp)
         root = relpath(root, datadir_psp)
         for file in files
             base, ext = splitext(file)
-            ext == ".sh" && continue                    # Ignore scripts
-            count(isequal('-'), base) == 1 || continue  # Need exactly one '-' in filename
-            count(isequal('/'), root) == 1 || continue  # family/functional
+            ext == ".sh" && continue                        # Ignore scripts
+            count(isequal('-'),     base) == 1 || continue  # Need exactly one '-' in filename
+            count(isequal(pathsep), root) == 1 || continue  # family/functional
 
-            f_family, f_functional = split(root, "/")
-            f_element, f_nvalence = split(base, "-")
-            f_nvalence[1] == 'q' || continue              # Need 'q' before valence number
+            f_family,  f_functional = split(root, pathsep)
+            f_element, f_nvalence   = split(base, '-')
+            f_nvalence[1] == 'q' || continue                # Need 'q' before valence number
             f_element = Symbol(uppercase(f_element[1]) * f_element[2:end])
             haskey(PeriodicTable.elements, Symbol(f_element)) || continue
 
-            push!(psplist, (identifier=joinpath(root, file), family=f_family,
+            f_identifier = joinpath(root, file)
+            Sys.iswindows() && (f_identifier = replace(f_identifier, "\\" => "/"))
+            push!(psplist, (identifier=f_identifier, family=f_family,
                   functional=f_functional, element=f_element,
                   n_elec_valence=parse(Int, f_nvalence[2:end]),
                   path=joinpath(datadir_psp, root, file)))

@@ -19,6 +19,9 @@ import Pkg
 Pkg.add(name="DFTK", rev="master")
 ```
 
+DFTK is continuously tested on Debian, Ubuntu, mac OS and Windows and should work on
+these operating systems out of the box.
+
 ## Python dependencies
 Some parts of the code require a working Python installation with the
 [`pymatgen`](https://pymatgen.org/) module.

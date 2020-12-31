@@ -19,11 +19,12 @@ function load_psp(key::AbstractString; datadir_psp=datadir_psp(), identifier="")
     else
         error("Could not determine pseudopotential family of '$key'")
     end
+    Sys.iswindows() && (key = replace(key, "/" => "\\"))
     isfile(key) && return parser(key, identifier=identifier)
 
     # Not a file: Threat as identifier, add extension if needed
     @assert identifier == ""
-    identifier = lowercase(key)
+    identifier = replace(lowercase(key), "\\" => "/")
     fullpath = joinpath(datadir_psp, identifier)
     isfile(fullpath) || (fullpath = fullpath * extension)
 

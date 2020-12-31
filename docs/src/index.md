@@ -42,6 +42,7 @@ codes such as [Abinit](https://www.abinit.org/),
 * Support for arbitrary floating point types, including `Float32` (single precision)
   or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)).
   For DFT this is currently restricted to LDA (with Slater exchange and VWN correlation).
+* Runs out of the box on Linux, macOS and Windows
 * Third-party integrations:
     - Use structures prepared in [pymatgen](https://pymatgen.org),
       [ASE](https://wiki.fysik.dtu.dk/ase/) or [abipy](https://abinit.github.io/abipy/).
