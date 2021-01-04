@@ -8,7 +8,7 @@ struct PspHgh <: NormConservingPsp
     cloc::SVector{4,Float64}    # Coefficients for the local part
     lmax::Int                   # Maximal angular momentum in the non-local part
     rp::Vector{Float64}         # Projector radius for each angular momentum
-    h::Vector{Matrix{Float64}}  # Projector coupling coefficients per AM channel
+    h::Vector{Matrix{Float64}}  # Projector coupling coefficients per AM channel: h[l][i1,i2]
     identifier::String          # String identifying the PSP
     description::String         # Descriptive string
 end
@@ -137,18 +137,7 @@ is a polynomial of at most degree 8. This function returns `Q`.
     4T(π) * rloc^2 * (-Zion + sqrt(T(π) / 2) * rloc * t^2 * P)
 end
 
-
-"""
-    eval_psp_local_fourier(psp, q)
-
-Evaluate the local part of the pseudopotential in reciprocal space.
-
-This function computes
-V(q) = ∫_R^3 Vloc(r) e^{-iqr} dr
-     = 4π ∫_{R+} sin(qr)/q r e^{-iqr} dr
-
-[GTH98] (6) except they do it with plane waves normalized by 1/sqrt(Ω).
-"""
+# [GTH98] (6) except they do it with plane waves normalized by 1/sqrt(Ω).
 function eval_psp_local_fourier(psp::PspHgh, q::T) where {T <: Real}
     t::T = q * psp.rloc
     psp_local_polynomial(T, psp, t) * exp(-t^2 / 2) / t^2
@@ -173,13 +162,7 @@ function qcut_psp_local(T, psp::PspHgh)
 end
 
 
-"""
-    eval_psp_local_real(psp, r)
-
-Evaluate the local part of the pseudopotential in real space.
-
-[GTH98] (1)
-"""
+# [GTH98] (1)
 function eval_psp_local_real(psp::PspHgh, r::T) where {T <: Real}
     cloc = psp.cloc
     rr = r / psp.rloc
@@ -195,7 +178,7 @@ The nonlocal projectors of a HGH pseudopotentials in reciprocal space
 can be brought to the form ``Q(t) exp(-t^2 / 2)`` where ``t = r_l q``
 and `Q` is a polynomial. This function returns `Q`.
 """
-@inline function psp_projection_radial_polynomial(T, psp::PspHgh, i, l, t=Polynomial{T}([0, 1]))
+@inline function psp_projector_polynomial(T, psp::PspHgh, i, l, t=Polynomial{T}([0, 1]))
     @assert 0 <= l <= length(psp.rp) - 1
     @assert i > 0
     rp::T = psp.rp[l + 1]
@@ -221,10 +204,10 @@ end
 
 @doc raw"""
 Estimate an upper bound for the argument `q` after which
-`eval_psp_projection_radial_fourier(psp, q)` is a strictly decreasing function.
+`eval_psp_projector_fourier(psp, q)` is a strictly decreasing function.
 """
-function qcut_psp_projection_radial(T, psp::PspHgh, i, l)
-    Q = DFTK.psp_projection_radial_polynomial(T, psp, i, l)  # polynomial in q * rp[l + 1]
+function qcut_psp_projector(T, psp::PspHgh, i, l)
+    Q = DFTK.psp_projector_polynomial(T, psp, i, l)  # polynomial in q * rp[l + 1]
 
     # Find the roots of the derivative polynomial:
     res = roots(derivative(Q) - Polynomial([0, 1]) * Q)
@@ -237,30 +220,16 @@ function qcut_psp_projection_radial(T, psp::PspHgh, i, l)
 end
 
 
-"""
-    eval_psp_projection_radial_fourier(psp::PspHgh, i, l, q::Number)
-
-Evaluate the radial part of the `i`-th projector for angular momentum `l`
-at the reciprocal vector with modulus `q`.
-
-p(q) = ∫_{R+} r^2 p(r) j_l(q r) dr
-
-[HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω).
-"""
-function eval_psp_projection_radial_fourier(psp::PspHgh, i, l, q::T) where {T <: Real}
+# [HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω).
+function eval_psp_projector_fourier(psp::PspHgh, i, l, q::T) where {T <: Real}
     @assert 0 <= l <= length(psp.rp) - 1
     t::T = q * psp.rp[l + 1]
-    psp_projection_radial_polynomial(T, psp, i, l, t) * exp(-t^2 / 2)
+    psp_projector_polynomial(T, psp, i, l, t) * exp(-t^2 / 2)
 end
 
-"""
-    eval_psp_projection_radial_real(psp::PspHgh, i, l, q::Real)
 
-Evaluate the radial part of the `i`-th projector for angular momentum `l`
-in real-space at the vector with modulus `r`.
-[HGH98] (3)
-"""
-function eval_psp_projection_radial_real(psp::PspHgh, i, l, r::T) where {T <: Real}
+# [HGH98] (3)
+function eval_psp_projector_real(psp::PspHgh, i, l, r::T) where {T <: Real}
     @assert 0 <= l <= length(psp.rp) - 1
     @assert i > 0
     rp = T(psp.rp[l + 1])
@@ -268,18 +237,6 @@ function eval_psp_projection_radial_real(psp::PspHgh, i, l, r::T) where {T <: Re
     sqrt(T(2)) * r^(l + 2(i - 1)) * exp(-r^2 / 2rp^2) / rp^(l + ired) / sqrt(gamma(l + ired))
 end
 
-
-"""
-    eval_psp_energy_correction([T=Float64,] psp, n_electrons)
-
-Evaluate the energy correction to the Ewald electrostatic interaction energy of one unit
-cell, which is required compared the Ewald expression for point-like nuclei. `n_electrons`
-is the number of electrons per unit cell. This defines the uniform compensating background
-charge, which is assumed here.
-
-Notice: The returned result is the *energy per unit cell* and not the energy per volume.
-To obtain the latter, the caller needs to divide by the unit cell volume.
-"""
 function eval_psp_energy_correction(T, psp::PspHgh, n_electrons)
     # By construction we need to compute the DC component of the difference
     # of the Coulomb potential (-Z/G^2 in Fourier space) and the pseudopotential

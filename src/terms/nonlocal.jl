@@ -194,7 +194,7 @@ function build_form_factors(psp, qs)
         n_proj_l = size(psp.h[l + 1], 1)
 
         for iproj in 1:n_proj_l
-            radial_il = eval_psp_projection_radial_fourier.(psp, iproj, l, qnorms)
+            radial_il = eval_psp_projector_fourier.(psp, iproj, l, qnorms)
             form_factors[:, count] = prefac_lm .* radial_il
             count += 1
         end

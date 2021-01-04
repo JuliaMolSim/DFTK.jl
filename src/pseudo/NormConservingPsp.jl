@@ -1,39 +1,72 @@
 abstract type NormConservingPsp end
-# Subtypes must implement the following fields :
+# Subtypes must implement the following:
+
+#### Fields:
+
 #    lmax::Int                   # Maximal angular momentum in the non-local part
-#    h::Vector{Matrix{Float64}}  # Projector coupling coefficients per AM channel
+#    h::Vector{Matrix{Float64}}  # Projector coupling coefficients per AM channel: h[l][i1,i2]
 #    Zion::Int                   # Ionic charge (Z - valence electrons)
 #    identifier::String          # String identifying the PSP
 #    description::String         # Descriptive string
 
-# and methods:
+#### Methods:
+"""
+    eval_psp_projector_real(psp::PspHgh, i, l, q::Real)
 
-# i-th projector for the angular momentum l p_{il}, in real space
-eval_psp_projection_radial_real(psp::NormConservingPsp, i, l, r::T) where {T <: Real} =
+Evaluate the radial part of the `i`-th projector for angular momentum `l`
+in real-space at the vector with modulus `r`.
+"""
+eval_psp_projector_real(psp::NormConservingPsp, i, l, r::T) where {T <: Real} =
     error("Not implemented")
-eval_psp_projection_radial_real(psp::NormConservingPsp, i, l, r::AbstractVector) = eval_psp_projection_radial_real(psp, i, l, norm(r))
-# i-th projector for the angular momentum l, in Fourier space
-# p(q) = ∫_R^3 p_{il}(r) e^{-iqr} dr
-#      = 4π ∫_{R+} r^2 p_{il}(r) j_l(q r) dr
-eval_psp_projection_radial_fourier(psp::NormConservingPsp, i, l, q::T) where {T <: Real} =
-    error("Not implemented")
-eval_psp_projection_radial_fourier(psp::NormConservingPsp, q::AbstractVector) = eval_psp_projection_radial_fourier(psp, norm(q))
+eval_psp_projector_real(psp::NormConservingPsp, i, l, r::AbstractVector) = eval_psp_projector_real(psp, i, l, norm(r))
 
-# local potential, in real space
+"""
+    eval_psp_projector_fourier(psp::PspHgh, i, l, q::Number)
+
+Evaluate the radial part of the `i`-th projector for angular momentum `l`
+at the reciprocal vector with modulus `q`:
+p(q) = ∫_R^3 p_{il}(r) e^{-iqr} dr
+     = 4π ∫_{R+} r^2 p_{il}(r) j_l(q r) dr
+"""
+eval_psp_projector_fourier(psp::NormConservingPsp, i, l, q::T) where {T <: Real} =
+    error("Not implemented")
+eval_psp_projector_fourier(psp::NormConservingPsp, q::AbstractVector) = eval_psp_projector_fourier(psp, norm(q))
+
+"""
+    eval_psp_local_real(psp, r)
+
+Evaluate the local part of the pseudopotential in real space.
+"""
 eval_psp_local_real(psp::NormConservingPsp, r::T) where {T <: Real} =
     error("Not implemented")
 eval_psp_local_real(psp::NormConservingPsp, r::AbstractVector) = eval_psp_local_real(psp, norm(r))
-# local potential, in reciprocal space:
-# V(q) = ∫_R^3 Vloc(r) e^{-iqr} dr
-#      = 4π ∫_{R+} sin(qr)/q r e^{-iqr} dr
+
+"""
+    eval_psp_local_fourier(psp, q)
+
+Evaluate the local part of the pseudopotential in reciprocal space:
+V(q) = ∫_R^3 Vloc(r) e^{-iqr} dr
+     = 4π ∫_{R+} sin(qr)/q r e^{-iqr} dr
+"""
 eval_psp_local_fourier(psp::NormConservingPsp, q::T) where {T <: Real} = 
     error("Not implemented")
 eval_psp_local_fourier(psp::NormConservingPsp, q::AbstractVector) = eval_psp_local_fourier(psp, norm(q))
 
+"""
+    eval_psp_energy_correction([T=Float64,] psp, n_electrons)
 
-# optionally:
-# energy correction: by default, no correction
+Evaluate the energy correction to the Ewald electrostatic interaction energy of one unit
+cell, which is required compared the Ewald expression for point-like nuclei. `n_electrons`
+is the number of electrons per unit cell. This defines the uniform compensating background
+charge, which is assumed here.
+
+Notice: The returned result is the *energy per unit cell* and not the energy per volume.
+To obtain the latter, the caller needs to divide by the unit cell volume.
+"""
 eval_psp_energy_correction(T, psp::NormConservingPsp, n_electrons) = zero(T)
+# by default, no correction
+
+
 
 import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(psp::NormConservingPsp) = Ref(psp)
