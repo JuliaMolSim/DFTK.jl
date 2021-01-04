@@ -29,6 +29,7 @@ include("common/mpi.jl")
 include("common/threading.jl")
 
 export PspHgh
+include("pseudo/NormConservingPsp.jl")
 include("pseudo/PspHgh.jl")
 
 export ElementPsp
