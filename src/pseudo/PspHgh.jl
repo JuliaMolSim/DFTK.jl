@@ -2,7 +2,7 @@ using SpecialFunctions: erf
 using SpecialFunctions: gamma
 using Polynomials
 
-struct PspHgh
+struct PspHgh <: NormConservingPsp
     Zion::Int                   # Ionic charge (Z - valence electrons)
     rloc::Float64               # Range of local Gaussian charge distribution
     cloc::SVector{4,Float64}    # Coefficients for the local part
@@ -12,9 +12,6 @@ struct PspHgh
     identifier::String          # String identifying the PSP
     description::String         # Descriptive string
 end
-
-import Base.Broadcast.broadcastable
-Base.Broadcast.broadcastable(psp::PspHgh) = Ref(psp)
 
 """
     PspHgh(Zion::Number, rloc::Number, cloc::Vector, rp::Vector, h::Vector;
@@ -120,11 +117,6 @@ function parse_hgh_file(path; identifier="")
            description=description)
 end
 
-function projector_indices(psp)
-    ((i, l, m) for l in 0:psp.lmax for i in 1:size(psp.h[l+1], 1)
-     for m = -l:l)
-end
-
 @doc raw"""
 The local potential of a HGH pseudopotentials in reciprocal space
 can be brought to the form ``Q(t) / (t^2 exp(t^2 / 2))``
@@ -161,7 +153,6 @@ function eval_psp_local_fourier(psp::PspHgh, q::T) where {T <: Real}
     t::T = q * psp.rloc
     psp_local_polynomial(T, psp, t) * exp(-t^2 / 2) / t^2
 end
-eval_psp_local_fourier(psp::PspHgh, q::AbstractVector) = eval_psp_local_fourier(psp, norm(q))
 
 
 @doc raw"""
@@ -197,7 +188,6 @@ function eval_psp_local_real(psp::PspHgh, r::T) where {T <: Real}
         + exp(-rr^2 / 2) * (cloc[1] + cloc[2] * rr^2 + cloc[3] * rr^4 + cloc[4] * rr^6)
     )
 end
-eval_psp_local_real(psp::PspHgh, r::AbstractVector) = eval_psp_local_real(psp, norm(r))
 
 
 @doc raw"""
@@ -231,7 +221,7 @@ end
 
 @doc raw"""
 Estimate an upper bound for the argument `q` after which
-`eval_psp_projection_radial(psp, q)` is a strictly decreasing function.
+`eval_psp_projection_radial_fourier(psp, q)` is a strictly decreasing function.
 """
 function qcut_psp_projection_radial(T, psp::PspHgh, i, l)
     Q = DFTK.psp_projection_radial_polynomial(T, psp, i, l)  # polynomial in q * rp[l + 1]
@@ -248,7 +238,7 @@ end
 
 
 """
-    eval_psp_projection_radial(psp::PspHgh, i, l, q::Number)
+    eval_psp_projection_radial_fourier(psp::PspHgh, i, l, q::Number)
 
 Evaluate the radial part of the `i`-th projector for angular momentum `l`
 at the reciprocal vector with modulus `q`.
@@ -257,7 +247,7 @@ p(q) = ∫_{R+} r^2 p(r) j_l(q r) dr
 
 [HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω).
 """
-function eval_psp_projection_radial(psp::PspHgh, i, l, q::T) where {T <: Real}
+function eval_psp_projection_radial_fourier(psp::PspHgh, i, l, q::T) where {T <: Real}
     @assert 0 <= l <= length(psp.rp) - 1
     t::T = q * psp.rp[l + 1]
     psp_projection_radial_polynomial(T, psp, i, l, t) * exp(-t^2 / 2)
@@ -277,7 +267,6 @@ function eval_psp_projection_radial_real(psp::PspHgh, i, l, r::T) where {T <: Re
     ired = (4i - 1) / T(2)
     sqrt(T(2)) * r^(l + 2(i - 1)) * exp(-r^2 / 2rp^2) / rp^(l + ired) / sqrt(gamma(l + ired))
 end
-eval_psp_projection_radial(psp::PspHgh, i, l, q::AbstractVector) = eval_psp_projection_radial(psp, i, l, norm(q))
 
 
 """
@@ -303,5 +292,3 @@ function eval_psp_energy_correction(T, psp::PspHgh, n_electrons)
     # to get energy per unit cell
     4T(π) * n_electrons * difference_DC
 end
-eval_psp_energy_correction(psp::PspHgh, n_electrons) =
-    eval_psp_energy_correction(Float64, psp, n_electrons)
