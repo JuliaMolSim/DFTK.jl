@@ -13,7 +13,7 @@ abstract type NormConservingPsp end
 
 #### Methods:
 """
-    eval_psp_projector_real(psp::PspHgh, i, l, r::Real)
+    eval_psp_projector_real(psp, i, l, r)
 
 Evaluate the radial part of the `i`-th projector for angular momentum `l`
 in real-space at the vector with modulus `r`.
@@ -24,7 +24,7 @@ eval_psp_projector_real(psp::NormConservingPsp, i, l, r::AbstractVector) =
     eval_psp_projector_real(psp, i, l, norm(r))
 
 """
-    eval_psp_projector_fourier(psp::PspHgh, i, l, q::Real)
+    eval_psp_projector_fourier(psp, i, l, q)
 
 Evaluate the radial part of the `i`-th projector for angular momentum `l`
 at the reciprocal vector with modulus `q`:
@@ -53,7 +53,7 @@ Evaluate the local part of the pseudopotential in reciprocal space:
 V(q) = ∫_R^3 Vloc(r) e^{-iqr} dr
      = 4π ∫_{R+} sin(qr)/q r e^{-iqr} dr
 """
-eval_psp_local_fourier(psp::NormConservingPsp, q) =
+eval_psp_local_fourier(psp::NormConservingPsp, q::Real) =
     error("Not implemented")
 eval_psp_local_fourier(psp::NormConservingPsp, q::AbstractVector) =
     eval_psp_local_fourier(psp, norm(q))
@@ -75,6 +75,7 @@ eval_psp_energy_correction(psp::NormConservingPsp, n_electrons) =
     eval_psp_energy_correction(Float64, psp, n_electrons)
 
 
+#### Methods defined on a NormConservingPsp
 import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(psp::NormConservingPsp) = Ref(psp)
 
