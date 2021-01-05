@@ -1,6 +1,8 @@
 # Parser functionality for folders adhering to the
 # ETSF Nanoquanta file format, for details see http://www.etsf.eu/fileformats/
 
+export EtsfFolder
+
 using NCDatasets
 import JSON
 
@@ -41,11 +43,7 @@ function EtsfFolder(folder::AbstractString)
 end
 
 
-"""
-Load a DFTK-compatible lattice object from the ETSF folder
-"""
 load_lattice(T, folder::EtsfFolder) = Mat3{T}(folder.gsr["primitive_vectors"][:])
-load_lattice(folder; kwargs...) = load_lattice(Float64, folder; kwargs...)
 
 
 """
@@ -65,7 +63,6 @@ function load_atoms(T, folder::EtsfFolder)
     end
     collect(pairs(atoms))
 end
-load_atoms(folder; kwargs...) = load_atoms(Float64, folder; kwargs...)
 
 
 """
@@ -119,7 +116,6 @@ function load_model(T, folder::EtsfFolder; magnetic_moments=[])
               smearing=smearing_function, temperature=Tsmear,
               spin_polarization=spin_polarization, magnetic_moments=magnetic_moments)
 end
-load_model(folder; kwargs...) = load_model(Float64, folder; kwargs...)
 
 """
 Load a DFTK-compatible basis object from the ETSF folder.
@@ -148,7 +144,6 @@ function load_basis(T, folder::EtsfFolder; magnetic_moments=[])
     PlaneWaveBasis(model, Ecut, kcoords, ksymops, fft_size=fft_size,
                    kgrid=kgrid, kshift=kshift)
 end
-load_basis(folder; kwargs...) = load_basis(Float64, folder; kwargs...)
 
 
 """
@@ -180,4 +175,3 @@ function load_density(T, folder::EtsfFolder; magnetic_moments=[])
         return from_real(basis, ρtot_real), from_real(basis, 2ρα_real - ρtot_real)
     end
 end
-load_density(folder; kwargs...) = load_density(Float64, folder; kwargs...)

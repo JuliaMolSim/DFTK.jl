@@ -1,5 +1,6 @@
 using Test
 using DFTK
+using NCDatasets
 
 function load_reference(folder::EtsfFolder)
     n_kpoints = size(folder.gsr["reduced_coordinates_of_kpoints"], 2)
