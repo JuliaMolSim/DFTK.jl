@@ -31,6 +31,10 @@ include("common/threading.jl")
 export PspHgh
 include("pseudo/PspHgh.jl")
 
+export PspTM
+export parse_tm_file
+include("pseudo/PspTm.jl")
+
 export ElementPsp
 export ElementCohenBergstresser
 export ElementCoulomb
