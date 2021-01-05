@@ -1,4 +1,5 @@
-struct PspTM
+using SpecialFunctions: besselj
+struct PspTM <: NormConservingPsp
     atomicNumber::Int                               # Atomic number of atom
     valenceElectrons::Int                           # Number of valence electrons
     lmax::Int                                       # Maximal angular momentum in the non-local part
@@ -20,31 +21,21 @@ struct PspTM
     description::String                             # Descriptive string
 end
 
-# function PspTM(Zion, rloc, cloc, rp, h::Vector{Matrix{T}};
-#                 identifier="", description="") where T
-#     @assert length(rp) == length(h) "Length of rp and h do not agree"
-#     lmax = length(h) - 1
-
-#     @assert length(cloc) <= 4 "length(cloc) > 4 not supported."
-#     if length(cloc) < 4
-#         n_extra = 4 - length(cloc)
-#         cloc = [cloc; zeros(n_extra)]
-#     end
-
-#     PspHgh(Zion, rloc, cloc, lmax, rp, h, identifier, description)
-# end
-
-function parse_TM_file(path; identifier="")
+function parse_tm_file(path; identifier="")
     file = readlines(path)
     description = file[1]
+
     Zatom,Zion = Int.(parse.(Float64,split(file[occursin.(r"zatom, zion", file)][1])[1:2]))
+
     lmax, lloc, numGridPoints, r2well = parse.(Float64,split(file[occursin.(r"lmax,lloc", file)][1])[3:6])
+
     numProjectorFctns = []; pspCoreRadius = []
     foreach(file[occursin.(r"l,e99.0",file)]) do line
         nproj,rcpsp = parse.(Float64,split(line)[4:5])
         push!(numProjectorFctns,Int(nproj))
         push!(pspCoreRadius,rcpsp)
     end
+
     rms = []; energiesKB = []; epsatm = []
     foreach(file[occursin.(r"rms,ekb1",file)]) do line
         rmS,ekb1,ekb2,epsatM = parse.(Float64,split(line)[1:4])
@@ -54,12 +45,15 @@ function parse_TM_file(path; identifier="")
     end
 
     rchrg, fchrg, totCoreChrg = parse.(Float64,split(file[occursin.(r"rchrg,fchrg", file)][1])[1:3])
+
     pspVals = map(findall(occursin.(r"for Troullier-Martins",file))) do idx
         parse.(Float64,string.(vcat(split.(file[idx+1:idx+667])...)))
     end
+
     firstProjectorVals = map(findall(occursin.(r"first projection function",file))) do idx
         parse.(Float64,string.(vcat(split.(file[idx+1:idx+667])...)))
     end
+
     secondProjectorVals = map(findall(occursin.(r"second projection function",file))) do idx
         parse.(Float64,string.(vcat(split.(file[idx+1:idx+667])...)))
     end
@@ -74,15 +68,13 @@ function parse_TM_file(path; identifier="")
             description *= pspSetupDescription * prod(line -> line *" \n",file[findlast(occursin.(r"second projection",file))+668 : end])
         end
     end
-            
-    function fct(vect)
-        @show num = length(vect[1]) - 1
-        r = map(x -> 100*(x/num + 0.01)^5 - 1e-8, eachindex(vect[1]))
+
+    function fct(data)
+        rng = [100*(x + 0.1)^5 - 1e-8 for x in 0:2000]
         plt = plot()
-        foreach(p -> display(plot!(plt,r,p)), vect)
+        foreach(vec -> display(plot!(plt, rng, vec)), data)
     end
-    # fct(psp)
-    # fct(projfct)
+    fct(firstProjectorVals)
     PspTM(
         Zatom, Zion,
         Int(lmax), Int(lloc), Int(numGridPoints), r2well,
@@ -95,4 +87,27 @@ function parse_TM_file(path; identifier="")
         identifier,
         description
     )
+end
+
+function eval_psp_energy_correction(psp::PspTM)
+
+end
+function eval_psp_local_fourier(psp::PspTM)
+    
+end
+
+"""
+Creating the projector function described in eq. 19 in [the Troullier-Martins](https://doi.org/10.1103/PhysRevB.43.1993) paper
+"""
+function eval_psp_projection_radial(psp::PspTM, q::T, qPrime::T) where {T <: Real}
+    function summations(pseudoWaveFunction,potential,r,q)
+        pseudoWaveFunction * potential * besselj(l,abs(q*r))
+    end
+    nonLocalPotential = ionicPotential - localIonicPotential
+    inv(pseudoWaveFunction * (nonLocalPotential * pseudoWaveFunction)) * sum()
+end
+
+
+function eval_psp_local_real(psp::PspTM, q::T) where {T <: Real}
+    
 end
