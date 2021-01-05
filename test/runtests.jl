@@ -68,6 +68,7 @@ Random.seed!(0)
         include("bzmesh_symmetry.jl")
         include("external_pymatgen.jl")
         include("external_ase.jl")
+        include("parsePspTM.jl")
     end
 
     if "all" in TAGS
