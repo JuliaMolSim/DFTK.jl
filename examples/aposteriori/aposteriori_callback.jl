@@ -63,7 +63,7 @@ end
 
 # compute operator norm of (Ω+K)^-1 defined at φ
 function compute_normop_invΩpK(basis::PlaneWaveBasis{T}, φ, occ;
-                               tol_krylov=1e-12, Pks=nothing) where T
+                                       tol_krylov=1e-12, Pks=nothing, change_norm=false) where T
 
     ## necessary quantities
     N = size(φ[1],2)
@@ -104,10 +104,10 @@ function compute_normop_invΩpK(basis::PlaneWaveBasis{T}, φ, occ;
         pack(ΩpKδφ)
     end
     svd_SR, _ = svdsolve(g, pack(ψ0), 3, :SR;
-                         tol=tol_krylov, verbosity=0, eager=true,
+                         tol=tol_krylov, verbosity=1, eager=true,
                          orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
     svd_LR, _ = svdsolve(g, pack(ψ0), 3, :LR;
-                         tol=tol_krylov, verbosity=0, eager=true,
+                         tol=tol_krylov, verbosity=1, eager=true,
                          orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
 
     normop = 1. / svd_SR[1]
@@ -122,7 +122,7 @@ function compute_normop_invΩpK(basis::PlaneWaveBasis{T}, φ, occ;
 end
 
 function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
-                             tol_krylov=1e-12, Pks=nothing) where T
+                             tol_krylov=1e-12, Pks=nothing, change_norm=false) where T
 
     ## necessary quantities
     N = size(φ[1],2)
@@ -151,7 +151,7 @@ function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
             pack(Ωδϕ)
         end
         invΩδφ, info = linsolve(Ω, pack(δφ);
-                                tol=tol_krylov, verbosity=0,
+                                tol=tol_krylov, verbosity=1,
                                 orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
         unpack(invΩδφ)
     end
@@ -197,10 +197,10 @@ function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
         end
     end
     svd_SR, _ = svdsolve(g, pack(ψ0), 3, :SR;
-                         tol=tol_krylov, verbosity=0, eager=true,
+                         tol=tol_krylov, verbosity=1, eager=true,
                          orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
     svd_LR, _ = svdsolve(g, pack(ψ0), 3, :LR;
-                         tol=tol_krylov, verbosity=0, eager=true,
+                         tol=tol_krylov, verbosity=1, eager=true,
                          orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
 
     normop = 1. / svd_SR[1]
@@ -215,7 +215,7 @@ function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
 end
 
 function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
-                             tol_krylov=1e-12, Pks=nothing) where T
+                             tol_krylov=1e-12, Pks=nothing, change_norm=false) where T
 
     ## necessary quantities
     N = size(φ[1],2)
@@ -256,10 +256,10 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
         pack(δφ)
     end
     svd_SR, _ = svdsolve(g, pack(ψ0), 3, :SR;
-                         tol=tol_krylov, verbosity=0, eager=true,
+                         tol=tol_krylov, verbosity=1, eager=true,
                          orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
     svd_LR, _ = svdsolve(g, pack(ψ0), 3, :LR;
-                         tol=tol_krylov, verbosity=0, eager=true,
+                         tol=tol_krylov, verbosity=1, eager=true,
                          orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
 
     normop = 1. / svd_SR[1]

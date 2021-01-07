@@ -3,73 +3,130 @@
 Atomic
 --------------------------------
 reference computation
---------------------------------
-Ecut = 5
-computing conditioning of M^1/2Ω^-1M^1/2...
---> plus petite valeur singulière 0.43990242737773494
---> normop 2.2732313753325144
-min_svd = 0.43990242737773494
-max_svd = 1.9139816288412388
+n     Energy            Eₙ-Eₙ₋₁     ρout-ρin   Diag
+---   ---------------   ---------   --------   ----
+  1   -16.40863256434         NaN   2.06e+00    23.0
+  2   -16.40863256434    1.07e-14   4.12e-01    1.0
+  3   -16.40863256434   -3.55e-15   9.11e-13    1.0
+DataType[DFTK.FourierMultiplication, DFTK.RealSpaceMultiplication]
 --------------------------------
 Ecut = 10
-computing conditioning of M^1/2Ω^-1M^1/2...
---> plus petite valeur singulière 0.4205065573117339
---> normop 2.378084200144043
-min_svd = 0.4205065573117339
-max_svd = 1.7623728467273112
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.6134084999370158
+--> normop M^1/2Ω^-1M^1/2 1.6302349903900566
+min_svd = 0.6134084999370158
+max_svd = 1.7702403008166108
+condition = 2.885907679789858
 --------------------------------
 Ecut = 15
-computing conditioning of M^1/2Ω^-1M^1/2...
---> plus petite valeur singulière 0.3840015228074246
---> normop 2.604156339508832
-min_svd = 0.3840015228074246
-max_svd = 1.7273925016360314
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.554964416979752
+--> normop M^1/2Ω^-1M^1/2 1.8019173291185717
+min_svd = 0.554964416979752
+max_svd = 1.6281013471949675
+condition = 2.9337040310719043
 --------------------------------
 Ecut = 20
-computing conditioning of M^1/2Ω^-1M^1/2...
---> plus petite valeur singulière 0.35728369568756957
---> normop 2.798896261066613
-min_svd = 0.35728369568756957
-max_svd = 1.7317668609230317
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.5175652489304078
+--> normop M^1/2Ω^-1M^1/2 1.9321235381753012
+min_svd = 0.5175652489304078
+max_svd = 1.5692857511665983
+condition = 3.032053937952093
 --------------------------------
 Ecut = 25
-computing conditioning of M^1/2Ω^-1M^1/2...
---> plus petite valeur singulière 0.33753139729354387
---> normop 2.9626873470686976
-min_svd = 0.33753139729354387
-max_svd = 1.7301974951926686
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.5030546589789415
+--> normop M^1/2Ω^-1M^1/2 1.9878555583397572
+min_svd = 0.5030546589789415
+max_svd = 1.5415142559117228
+condition = 3.064307681874093
 --------------------------------
 Ecut = 30
-computing conditioning of M^1/2Ω^-1M^1/2...
---> plus petite valeur singulière 0.33188537316986444
---> normop 3.013088496335099
-min_svd = 0.33188537316986444
-max_svd = 1.7309136063804536
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.49668183929772886
+--> normop M^1/2Ω^-1M^1/2 2.0133613127750465
+min_svd = 0.49668183929772886
+max_svd = 1.5311334687981066
+condition = 3.0827248907731666
 --------------------------------
 Ecut = 35
-computing conditioning of M^1/2Ω^-1M^1/2...
---> plus petite valeur singulière 0.3274086209148552
---> normop 3.0542873220801865
-min_svd = 0.3274086209148552
-max_svd = 1.730127985675578
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.49234750748368106
+--> normop M^1/2Ω^-1M^1/2 2.031085736801755
+min_svd = 0.49234750748368106
+max_svd = 1.5263583241400351
+condition = 3.1001646214094554
 --------------------------------
 Ecut = 40
-computing conditioning of M^1/2Ω^-1M^1/2...
---> plus petite valeur singulière 0.32572469372768076
---> normop 3.070077336034096
-min_svd = 0.32572469372768076
-max_svd = 1.7251922416393528
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.49208540159270636
+--> normop M^1/2Ω^-1M^1/2 2.032167580593437
+min_svd = 0.49208540159270636
+max_svd = 1.5251661806692929
+condition = 3.09939326737365
 --------------------------------
 Ecut = 45
-computing conditioning of M^1/2Ω^-1M^1/2...
---> plus petite valeur singulière 0.32515001620554285
---> normop 3.0755034604330214
-min_svd = 0.32515001620554285
-max_svd = 1.7329492253352101
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.4909809167891194
+--> normop M^1/2Ω^-1M^1/2 2.0367390377200927
+min_svd = 0.4909809167891194
+max_svd = 1.524326249292967
+condition = 3.1046547781564358
 --------------------------------
-Computing operator norms...
---> plus petite valeur singulière (Ω+K) 0.4024338447339236
---> normop (Ω+K)^-1 2.4848804669029967
---> plus petite valeur singulière M^-1/2ΩM^-1/2 0.3247236142487046
---> normop M^1/2Ω^-1M^1/2 3.0795419739141723
+Ecut = 50
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.4910588067065744
+--> normop M^1/2Ω^-1M^1/2 2.036415977766053
+min_svd = 0.4910588067065744
+max_svd = 1.5237199367635879
+condition = 3.1029276248660502
+--------------------------------
+Ecut = 55
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.49082819796526944
+--> normop M^1/2Ω^-1M^1/2 2.0373727592373556
+min_svd = 0.49082819796526944
+max_svd = 1.523797399785444
+condition = 3.104543312919578
+--------------------------------
+Ecut = 60
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.4906780533834574
+--> normop M^1/2Ω^-1M^1/2 2.0379961832499474
+min_svd = 0.4906780533834574
+max_svd = 1.5236825014349318
+condition = 3.105259122409123
+--------------------------------
+Ecut = 65
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.49056806985371443
+--> normop M^1/2Ω^-1M^1/2 2.038453094385446
+min_svd = 0.49056806985371443
+max_svd = 1.523442970942109
+condition = 3.1054670382366996
+--------------------------------
+Ecut = 70
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.4904490503688049
+--> normop M^1/2Ω^-1M^1/2 2.0389477749993117
+min_svd = 0.4904490503688049
+max_svd = 1.5232420550379604
+condition = 3.1058109989050284
+--------------------------------
+Ecut = 75
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.4903397443376701
+--> normop M^1/2Ω^-1M^1/2 2.039402295138766
+min_svd = 0.4903397443376701
+max_svd = 1.5236174286889734
+condition = 3.1072688809817173
+--------------------------------
+Ecut = 80
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.4907149823353364
+--> normop M^1/2Ω^-1M^1/2 2.0378428130336506
+min_svd = 0.4907149823353364
+max_svd = 1.523640755961418
+condition = 3.1049403641811337
+--------------------------------
+Ecut = 85
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.4907065166528361
+--> normop M^1/2Ω^-1M^1/2 2.0378779699546516
+min_svd = 0.4907065166528361
+max_svd = 1.5235664327064518
+condition = 3.104842468974874
+--------------------------------
+Ecut = 90
+--> plus petite valeur singulière M^-1/2ΩM^-1/2 0.4900157570197313
+--> normop M^1/2Ω^-1M^1/2 2.0407507017365836
+min_svd = 0.4900157570197313
+max_svd = 1.5230853018259463
+condition = 3.108237398505976
+--------------------------------
 
