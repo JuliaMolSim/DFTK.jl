@@ -3,7 +3,7 @@ import WriteVTK: vtk_grid, vtk_save
 # Uses WriteVTK.jl to convert scfres structure to VTk file format
 
 """
-    save_scfres(filename, scfres)
+    save_scfres(filename, scfres, Val(:vtk))
 
 The function takes in the VTK filename and the scfres structure and stores into a VTK file.
 
@@ -17,7 +17,7 @@ Grid Values:
 MetaData:
 Energy , EigenValues, Fermi Level and occupation.
 """
-function save_scfres(filename::AbstractString, scfres::NamedTuple)
+function save_scfres(filename::AbstractString, scfres::NamedTuple, format::Val{:vtk})
     # Initialzing the VTK Grid
     basis = scfres.basis
     grid = zeros(3, basis.fft_size...)

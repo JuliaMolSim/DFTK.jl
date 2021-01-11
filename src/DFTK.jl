@@ -165,9 +165,9 @@ include("postprocess/chi0.jl")
 export compute_current
 include("postprocess/current.jl")
 
-# Dummy function definitions which are conditionally loaded
+# Save and load scfres function definitions which are conditionally loaded
 export load_scfres, save_scfres
-include("dummy_definitions.jl")
+include("save_load_scfres.jl")
 
 function __init__()
     # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
