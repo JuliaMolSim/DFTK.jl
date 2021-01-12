@@ -1,4 +1,7 @@
 using SpecialFunctions: besselj
+using Interpolations: interpolate, Gridded, Linear
+using Plots: plot, plot!
+
 struct PspTM <: NormConservingPsp
     atomicNumber::Int                               # Atomic number of atom
     valenceElectrons::Int                           # Number of valence electrons
@@ -14,7 +17,7 @@ struct PspTM <: NormConservingPsp
     rchrg::Float64                                  # the Core charge radius for additional core charge used to match the xc contribution
     fchrg::Float64                                  # The prefactor of the core charge expression
     totCoreChrg::Float64                            # The total (integrated) core charge
-    PspVals::Vector{Vector{Float64}}                # Radial pseudopotential values for each angular momentum
+    pseudoPotentials::Vector{Vector{Float64}}       # Radial pseudopotential values for each angular momentum
     firstProjectorVals::Vector{Vector{Float64}}     # Radial First projection functions for each angular momentum
     secondProjectorVals::Vector{Vector{Float64}}    # If numProjectorFctns permits, the second projection functions for each angluar momentum
     identifier::String                              # String identifying the PSP
@@ -46,17 +49,21 @@ function parse_tm_file(path; identifier="")
 
     rchrg, fchrg, totCoreChrg = parse.(Float64,split(file[occursin.(r"rchrg,fchrg", file)][1])[1:3])
 
-    pspVals = map(findall(occursin.(r"for Troullier-Martins",file))) do idx
+    pseudoPotentials = map(findall(occursin.(r"for Troullier-Martins",file))) do idx
         parse.(Float64,string.(vcat(split.(file[idx+1:idx+667])...)))
     end
 
     firstProjectorVals = map(findall(occursin.(r"first projection function",file))) do idx
         parse.(Float64,string.(vcat(split.(file[idx+1:idx+667])...)))
     end
+    xval = [100*((x/2000)+0.1)^5-1e-8 for x in 0:2000]
+    firstProjectorFunctions = map(projectorValues -> interpolate((xval,), projectorValues, Gridded(Linear())), firstProjectorVals)
+    @show typeof(firstProjectorFunctions[1])
 
     secondProjectorVals = map(findall(occursin.(r"second projection function",file))) do idx
         parse.(Float64,string.(vcat(split.(file[idx+1:idx+667])...)))
     end
+    isempty(secondProjectorVals) || (secondProjectorFunctions = map(projVals -> interpolate((xval,), projVals, Gridded(Linear())), secondProjectorVals))
 
     pspSetupDescription = "\nHere are some more details about setting up of the pseudopotential:\n"
     if isempty(secondProjectorVals)
@@ -70,18 +77,20 @@ function parse_tm_file(path; identifier="")
     end
 
     function fct(data)
-        rng = [100*(x + 0.1)^5 - 1e-8 for x in 0:2000]
+        xvals = [100*((x/2000)+0.1)^5-1e-8 for x in 0:2000]
         plt = plot()
-        foreach(vec -> display(plot!(plt, rng, vec)), data)
+        foreach(rge -> display(plot!(plt,xvals,rge)), data[1:1])
     end
-    fct(firstProjectorVals)
+
+    # fct(firstProjectorVals)
+
     PspTM(
         Zatom, Zion,
         Int(lmax), Int(lloc), Int(numGridPoints), r2well,
         numProjectorFctns, pspCoreRadius,
         rms, energiesKB, epsatm,
         rchrg, fchrg, totCoreChrg,
-        pspVals,
+        pseudoPotentials,
         firstProjectorVals,
         secondProjectorVals,
         identifier,
@@ -92,21 +101,28 @@ end
 function eval_psp_energy_correction(psp::PspTM)
 
 end
+
 function eval_psp_local_fourier(psp::PspTM)
     
 end
 
 """
-Creating the projector function described in eq. 19 in [the Troullier-Martins](https://doi.org/10.1103/PhysRevB.43.1993) paper
+Creating the projector function described in eq. 19 in the [Troullier-Martins](https://doi.org/10.1103/PhysRevB.43.1993) paper.
+Also in the paper, they normalized by Ω
 """
-function eval_psp_projection_radial(psp::PspTM, q::T, qPrime::T) where {T <: Real}
-    function summations(pseudoWaveFunction,potential,r,q)
-        pseudoWaveFunction * potential * besselj(l,abs(q*r))
+function eval_psp_projection_radial(psp::PspTM, q::T, qPrime::T, angularMomentum::Int) where {T <: Real}
+    function summations(r::T)
+        nonLocalPotential(r) * pseudoWaveFunction(r) * besselj(l,abs(q*r)) * r^2
     end
-    nonLocalPotential = ionicPotential - localIonicPotential
-    inv(pseudoWaveFunction * (nonLocalPotential * pseudoWaveFunction)) * sum()
+    r = 2*pi * inv(q)
+    grid = [100*((x/2000)+0.1)^5-1e-8 for x in 0:2000]
+    nonLocalPotential = interpolate((grid,), psp.pseudoPotentials[angularMomentum + 1], Gridded(Linear()))
+    pseudoWaveFunction = interpolate((grid,), psp.firstProjectorVals[anglularMomentum + 1], Gridded(Linear()))
+    inv(conj(pseudoWaveFunction(r)) * (nonLocalPotential(r) * pseudoWaveFunction(r))) * 
+        integrate(summations, 0, Inf) * 
+        integrate(summations, 0, Inf) * 
+        sum(ylm_real(angularMomentum,m,q) * conj(ylm_real(angularMomentum,m,qPrime)) for m in -angularMomentum:angularMomentum)
 end
-
 
 function eval_psp_local_real(psp::PspTM, q::T) where {T <: Real}
     
