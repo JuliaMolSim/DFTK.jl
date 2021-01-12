@@ -1,7 +1,5 @@
 include("external/spglib.jl")
 
-using UnitfulAtomic
-
 
 """Bring kpoint coordinates into the range [-0.5, 0.5)"""
 function normalize_kpoint_coordinate(x::Real)

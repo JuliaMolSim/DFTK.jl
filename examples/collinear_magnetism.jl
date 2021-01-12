@@ -106,4 +106,6 @@ using Plots
 plot_dos(scfres)
 
 # Similarly the band structure shows clear differences between both spin components.
-plot_bandstructure(scfres, kline_density=3, unit=:eV)
+using Unitful
+using UnitfulAtomic
+plot_bandstructure(scfres, kline_density=3, unit=u"hartree")

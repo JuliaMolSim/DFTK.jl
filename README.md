@@ -57,7 +57,7 @@ Parts of DFTK have also been discussed in published papers.
 If you use our code as part of your research, teaching or other activities,
 we would be grateful if you cite them as appropriate.
 See the [CITATION.bib](CITATION.bib) in the root of this repo for relevant references.
-As a software DFTK can also cited via [![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238).
+As a software DFTK can also be cited via [![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238).
 
 ## Funding
 This project has received funding from
