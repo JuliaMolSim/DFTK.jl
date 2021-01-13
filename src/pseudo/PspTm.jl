@@ -106,24 +106,35 @@ function eval_psp_local_fourier(psp::PspTM)
     
 end
 
+function eval_psp_local_real(psp::PspTM, q::T) where {T <: Real}
+    
+end
+
+
+
+function eval_psp_semilocal_real(psp::PspTM, r::T, angularMomentum::Int) where {T <: Real}
+    radialGrid = [100*((x/2000)+0.1)^5-1e-8 for x in 0:2000]
+    ionicPseudopotential_l = interpolate((radialGrid,), psp.pseudoPotentials[angularMomentum + 1], Gridded(Linear()))
+    return ionicPseudopotential_l(r) - eval_psp_local_real(psp,r)
+end
+
+normalizer(r::Real) = conj(pseudoWaveFunction(r)) * (nonLocalPotential(r) * pseudoWaveFunction(r))
+
 """
 Creating the projector function described in eq. 19 in the [Troullier-Martins](https://doi.org/10.1103/PhysRevB.43.1993) paper.
-Also in the paper, they normalized by Ω
+Also in the paper, they normalized by Ω.
 """
-function eval_psp_projection_radial(psp::PspTM, q::T, qPrime::T, angularMomentum::Int) where {T <: Real}
+function eval_psp_projector_fourier(psp::PspTM, q::T, qPrime::T, angularMomentum::Int) where {T <: Real}
     function summations(r::T)
         nonLocalPotential(r) * pseudoWaveFunction(r) * besselj(l,abs(q*r)) * r^2
     end
     r = 2*pi * inv(q)
-    grid = [100*((x/2000)+0.1)^5-1e-8 for x in 0:2000]
-    nonLocalPotential = interpolate((grid,), psp.pseudoPotentials[angularMomentum + 1], Gridded(Linear()))
-    pseudoWaveFunction = interpolate((grid,), psp.firstProjectorVals[anglularMomentum + 1], Gridded(Linear()))
-    inv(conj(pseudoWaveFunction(r)) * (nonLocalPotential(r) * pseudoWaveFunction(r))) * 
-        integrate(summations, 0, Inf) * 
-        integrate(summations, 0, Inf) * 
-        sum(ylm_real(angularMomentum,m,q) * conj(ylm_real(angularMomentum,m,qPrime)) for m in -angularMomentum:angularMomentum)
+    integrate(summations, 0, Inf) * integrate(summations, 0, Inf) * 
+        sum(ylm_real(angularMomentum,m,q) * conj(ylm_real(angularMomentum,m,qPrime)) for m in -angularMomentum:angularMomentum) / normalizer(r)
 end
 
-function eval_psp_local_real(psp::PspTM, q::T) where {T <: Real}
-    
+function eval_psp_projector_real(psp::PspTm, r::T, angularMomentum::Int) where {T <: Real}
+    radialGrid = [100*((x/2000)+0.1)^5-1e-8 for x in 0:2000]
+    pseudoWaveFunction = interpolate((radialGrid,), psp.firstProjectorVals[anglularMomentum + 1], Gridded(Linear()))
+    return (eval_psp_semilocal_real(psp, r, angularMomentum) * pseudoWaveFunction(r))^2 / normalizer(r)
 end
