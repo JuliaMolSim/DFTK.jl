@@ -1,6 +1,7 @@
 using SpecialFunctions: besselj
 using Interpolations: interpolate, Gridded, Linear
 using Plots: plot, plot!
+using Legendre: Plm
 
 struct PspTM <: NormConservingPsp
     atomicNumber::Int                               # Atomic number of atom
@@ -98,43 +99,64 @@ function parse_tm_file(path; identifier="")
     )
 end
 
-function eval_psp_energy_correction(psp::PspTM)
 
-end
-
-function eval_psp_local_fourier(psp::PspTM)
-    
-end
-
-function eval_psp_local_real(psp::PspTM, q::T) where {T <: Real}
-    
-end
-
-
-
-function eval_psp_semilocal_real(psp::PspTM, r::T, angularMomentum::Int) where {T <: Real}
+function eval_psp_energy_correction(psp::PspTM,r::T) where {T <: Real} #From https://github.com/abinit/abinit/blob/master/src/64_psp/m_psp1.F90 Line: 658 in the psp1nl function
     radialGrid = [100*((x/2000)+0.1)^5-1e-8 for x in 0:2000]
-    ionicPseudopotential_l = interpolate((radialGrid,), psp.pseudoPotentials[angularMomentum + 1], Gridded(Linear()))
-    return ionicPseudopotential_l(r) - eval_psp_local_real(psp,r)
+    pseudoWaveFunction = interpolate((radialGrid,), psp.firstProjectorVals[anglularMomentum + 1], Gridded(Linear()))
+    integrate(pseudoWaveFunction * (eval_psp_semilocal_real^2 * pseudoWaveFunction), 0, Inf)
 end
 
-normalizer(r::Real) = conj(pseudoWaveFunction(r)) * (nonLocalPotential(r) * pseudoWaveFunction(r))
+function eval_psp_local_fourier(psp::PspTM), q::T, qPrime::T, angularMomentum::Int, localAngularMom::Int) where {T <: Real}
+    r = 2*π/magnitude(q)
+    magnitude(vector) = sum(√(a.^2))
+    γ = dot(q,qPrime)/(magnitude(q) * magnitude(qPrime))
+    legendre = (2 * angularMomentum + 1)/(4*π) * Plm(angularMomentum,1, cos(γ))
+    integrate(eval_psp_semilocal_real(psp,r,angularMomentum, localAngularMom) * besselj(angularMomentum,magnitude(q)) * besselj(angularMomentum, magnitude(qPrime)) * r^2, 0, Inf)
+end
+
+"""
+This is just creating a function from the pseudopotential that came from the file.
+"""
+function eval_psp_local_real(psp::PspTM, r::T, angularMomentum::Int) where {T <: Real}
+    radialGrid = [100*((x/2000)+0.1)^5-1e-8 for x in 0:2000]
+    interpolate((radialGrid,), psp.pseudoPotentials[angularMomentum + 1], Gridded(Linear()))(r)
+end
+
+
+"""
+This is just the difference between the pseudopotentials of different angularMomentum
+"""
+function eval_psp_semilocal_real(psp::PspTM, r::T, angularMomentum::Int, localAngularMom::Int) where {T <: Real}
+    return eval_psp_local_real(psp,r,angularMomentum) - eval_psp_local_real(psp,r,localAngularMom)
+end
 
 """
 Creating the projector function described in eq. 19 in the [Troullier-Martins](https://doi.org/10.1103/PhysRevB.43.1993) paper.
-Also in the paper, they normalized by Ω.
+Also in the paper, they additionally normalized by Ω.
+More information on how ABINIT parses the file, see the [m_psp1](https://github.com/abinit/abinit/blob/master/src/64_psp/m_psp1.F90) page Lines: 800 - 825
 """
-function eval_psp_projector_fourier(psp::PspTM, q::T, qPrime::T, angularMomentum::Int) where {T <: Real}
+function eval_psp_projector_fourier(psp::PspTM, q::T, qPrime::T, angularMomentum::Int) where {T <: Real} 
     function summations(r::T)
-        nonLocalPotential(r) * pseudoWaveFunction(r) * besselj(l,abs(q*r)) * r^2
+        nonLocalPotential(r) * pseudoWaveFunction(r) * besselj(angularMomentum,abs(q*r)) * r^2
     end
+    radialGrid = [100*((x/2000)+0.1)^5-1e-8 for x in 0:2000]
+    pseudoWaveFunction = interpolate((radialGrid,), psp.firstProjectorVals[anglularMomentum + 1], Gridded(Linear()))
+    normalizer(r::Real) = integrate(pseudoWaveFunction * (eval_psp_semilocal_real * pseudoWaveFunction), 0, Inf)
     r = 2*pi * inv(q)
     integrate(summations, 0, Inf) * integrate(summations, 0, Inf) * 
-        sum(ylm_real(angularMomentum,m,q) * conj(ylm_real(angularMomentum,m,qPrime)) for m in -angularMomentum:angularMomentum) / normalizer(r)
+        sum(ylm_real(angularMomentum,m,q) * conj(ylm_real(angularMomentum,m,qPrime)) for m in -angularMomentum:angularMomentum) / normalizer
 end
 
+
+"""
+Creating the projector function described in eq. 10 in the [Troullier-Martins](https://doi.org/10.1103/PhysRevB.43.1993) paper.
+More information on how ABINIT parses the file, see the [m_psp1](https://github.com/abinit/abinit/blob/master/src/64_psp/m_psp1.F90) page Lines: 695 - 724
+"""
 function eval_psp_projector_real(psp::PspTm, r::T, angularMomentum::Int) where {T <: Real}
     radialGrid = [100*((x/2000)+0.1)^5-1e-8 for x in 0:2000]
     pseudoWaveFunction = interpolate((radialGrid,), psp.firstProjectorVals[anglularMomentum + 1], Gridded(Linear()))
-    return (eval_psp_semilocal_real(psp, r, angularMomentum) * pseudoWaveFunction(r))^2 / normalizer(r)
+    normalizer = integrate(pseudoWaveFunction * (eval_psp_semilocal_real * pseudoWaveFunction), 0, Inf)
+    eval_psp_semilocal_real(r) = eval_psp_semilocal_real(psp,r,angularMomentum)
+    waveFctPspSquared(r::T) = (pseudoWaveFunction(r) * eval_psp_semilocal_real(r))^2
+    return waveFctPspSquared(r) / normalizer
 end
