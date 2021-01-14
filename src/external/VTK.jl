@@ -38,7 +38,7 @@ function save_scfres(filename::AbstractString, scfres::NamedTuple, format::Val{S
     vtkfile["ρ"] = scfres.ρ.real
     
     # Storing ρspin if it is present.
-    isnothing(scfres.ρspin)  || (vtkfile["ρspin_real"] = scfres.ρspin.real)
+    isnothing(scfres.ρspin)  || (vtkfile["ρspin"] = scfres.ρspin.real)
     
     # Storing the energy components
     for key in keys(scfres.energies)
