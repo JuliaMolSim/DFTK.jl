@@ -19,24 +19,18 @@ Save an `scfres` obtained from `self_consistent_field` to a JLD2 or VTK file dep
     in the future.
 """
 function save_scfres(filename::AbstractString, scfres::NamedTuple)
-    fs = split(filename,".")
+    fs = splitext(filename)
     @assert length(fs) != 1 "No file extension mentioned"
-    
-    if(fs[end] == "vts")
-        try
-            save_scfres(filename, scfres, Val(:vtk))
-        catch MethodError
-            error("Package WriteVTK needs to be imported before using this function.")
-        end
-    elseif(fs[end] == "jld")
-        try
-            save_scfres(filename, scfres, Val(:jld))
-        catch MethodError
-            error("Package JLD2 needs to be imported before using this function.")
-        end
+    save_scfres(filename, scfres, Val(Symbol(fs[end])))
+end
+
+function save_scfres(filename::AbstractString, scfres::NamedTuple, format)
+    if format == Val(Symbol(".vts"))
+        error("Package WriteVTK needs to be imported before using this function.")
+    elseif format == Val(Symbol(".jld"))
+        error("Package JLD2 needs to be imported before using this function.")
     else
-        error("$(fs[end]) extension is currently unsupported. The currently supported 
+        error("$(splitext(filename)[2])extension is currently unsupported. The currently supported 
         extensions are .vts(for VTK file)  and .jld(for JLD file).")
     end
 end
-

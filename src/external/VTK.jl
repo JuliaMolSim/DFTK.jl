@@ -10,14 +10,14 @@ The function takes in the VTK filename and the scfres structure and stores into 
 Grid Values:
 
 - ρ -> Density in real space
-- ψreal\\_i\\_j -> Real values of Bloch waves in real space, where i and j are Kpoint and EigenVector indexes respectively
-- ψimag\\_i\\_j -> Imaginary values of Bloch waves in real space, where i and j are Kpoint and EigenVector indexes respectively
+- ψreal\\_k(i)\\_band(j) -> Real values of Bloch waves in real space
+- ψimag\\_k(i)\\_band(j) -> Imaginary values of Bloch waves in real space
 - ρspin -> Real value of ρspin are stored if ρspin in present
 
 MetaData:
 Energy , EigenValues, Fermi Level and occupation.
 """
-function save_scfres(filename::AbstractString, scfres::NamedTuple, format::Val{:vtk})
+function save_scfres(filename::AbstractString, scfres::NamedTuple, format::Val{Symbol(".vts")})
     # Initialzing the VTK Grid
     basis = scfres.basis
     grid = zeros(3, basis.fft_size...)
@@ -29,8 +29,8 @@ function save_scfres(filename::AbstractString, scfres::NamedTuple, format::Val{:
     # Storing the Bloch Waves in Real space
     for i in 1:length(basis.kpoints)
         for j in 1:size(scfres.ψ[1])[2]
-            vtkfile["ψ_real_$(i)_$(j)"] = real.(G_to_r(basis, basis.kpoints[i], scfres.ψ[i][:,j]))
-            vtkfile["ψ_imag_$(i)_$(j)"] = imag.(G_to_r(basis, basis.kpoints[i], scfres.ψ[i][:,j]))
+            vtkfile["ψ_real_k$(i)_band$(j)"] = real.(G_to_r(basis, basis.kpoints[i], scfres.ψ[i][:,j]))
+            vtkfile["ψ_imag_k$(i)_band$(j)"] = imag.(G_to_r(basis, basis.kpoints[i], scfres.ψ[i][:,j]))
         end
     end
 
@@ -46,10 +46,10 @@ function save_scfres(filename::AbstractString, scfres::NamedTuple, format::Val{:
     end
     
     # Storing the Fermi level 
-    vtkfile["fermi_level"] =  scfres.εF
+    vtkfile["εF"] =  scfres.εF
 
     # Storing the EigenValues as a matrix
-    vtkfile["eigen_values"] = hcat(scfres.eigenvalues...)
+    vtkfile["eigenvalues"] = hcat(scfres.eigenvalues...)
 
     # Storing the Occupation as a matrix
     vtkfile["occupation"] = hcat(scfres.occupation...)
