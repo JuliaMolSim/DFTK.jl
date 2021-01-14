@@ -30,7 +30,7 @@ function save_scfres(filename::AbstractString, scfres::NamedTuple, format)
     elseif format == Val(Symbol(".jld"))
         error("Package JLD2 needs to be imported before using this function.")
     else
-        error("$(splitext(filename)[2])extension is currently unsupported. The currently supported 
+        error("$(splitext(filename)[end])extension is currently unsupported. The currently supported 
         extensions are .vts(for VTK file)  and .jld(for JLD file).")
     end
 end
