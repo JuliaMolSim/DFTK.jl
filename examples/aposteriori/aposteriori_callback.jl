@@ -7,7 +7,7 @@ using KrylovKit
 
 ############################## CHANGES OF NORMS ################################
 
-# apply preconditioner M^{1/2}
+# apply preconditioner M
 function apply_M(Pks, δφ)
     Nk = length(Pks)
 
@@ -43,6 +43,23 @@ function apply_sqrt(Pks, δφ)
     ϕ
 end
 
+# apply preconditioner M^{-1}
+function apply_inv_M(Pks, res)
+    Nk = length(Pks)
+
+    Res = []
+
+    for ik = 1:Nk
+        Rk = similar(res[ik])
+        N = size(res[ik], 2)
+        Pk = Pks[ik]
+        for i = 1:N
+            Rk[:,i] .= (1. ./ (Pk.mean_kin[i] .+ Pk.kin)) .* res[ik][:,i]
+        end
+        append!(Res, [Rk])
+    end
+    Res
+end
 # apply preconditioner M^{-1/2}
 function apply_inv_sqrt(Pks, res)
     Nk = length(Pks)
@@ -54,7 +71,7 @@ function apply_inv_sqrt(Pks, res)
         N = size(res[ik], 2)
         Pk = Pks[ik]
         for i = 1:N
-            Rk[:,i] .= 1 ./ sqrt.(Pk.mean_kin[i] .+ Pk.kin) .* res[ik][:,i]
+            Rk[:,i] .= (1 ./ sqrt.(Pk.mean_kin[i] .+ Pk.kin)) .* res[ik][:,i]
         end
         append!(R, [Rk])
     end

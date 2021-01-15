@@ -46,7 +46,16 @@ function dm_distance(ϕ, ψ, Pks)
     #  ϕMψ = norm(ϕ'Mψ)^2
     #  ψMϕ = norm(ψ'Mϕ)^2
 
-    abs((1/sqrt(2)) * sqrt(tr(ϕ'Mϕ + ψ'Mψ - (ϕ'ψ)*(ψ'Mϕ) - (ψ'ϕ)*(ϕ'Mψ))))
+    abs((1/sqrt(2) * sqrt(tr(ϕ'Mϕ + ψ'Mψ - (ϕ'ψ)*(ψ'Mϕ) - (ψ'ϕ)*(ϕ'Mψ)))))
+    #  abs(sqrt(tr(ϕ'Mϕ + ψ'Mψ - (ϕ'ψ)*(ψ'Mϕ) - (ψ'ϕ)*(ϕ'Mψ))))
+end
+
+function res_norm(res, φ, Pks)
+
+    Minvres = apply_inv_M(Pks, res)
+    Minvφ   = apply_inv_M(Pks, φ)
+
+    abs((1/sqrt(2) * sqrt(tr(res[1]'Minvres[1] + (φ[1]'Minvφ[1])*norm(res[1])^2 ))))
 end
 
 # test for orthogonalisation

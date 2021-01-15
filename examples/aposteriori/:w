@@ -40,9 +40,9 @@ modelAtomic = Model(lattice; atoms=atoms,
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
 tol = 1e-10
 tol_krylov = 1e-15
-Ecut_ref = 200           # kinetic energy cutoff in Hartree
+Ecut_ref = 50           # kinetic energy cutoff in Hartree
 
-Ecut_list = 10:10:(Ecut_ref-10)
+Ecut_list = 40:10:(Ecut_ref-10)
 model_list = ["Atomic", "Hartree", "LDA"]
 k = 0
 
@@ -86,12 +86,24 @@ for model in [modelAtomic]#, modelHartree, modelLDA]
         for ik = 1:length(Pk_kin)
             DFTK.precondprep!(Pk_kin[ik], φ_ref[ik])
         end
-        norm_Pk_kin_res_list  = []
-        norm_Pk_kin_err_list  = []
-        norm_ΠPk_kin_res_list = []
-        norm_ΠPk_kin_err_list = []
+        norm_Pk_kin_res_list = []
+        norm_Pk_kin_err_list = []
+
+        # mean pot
+        #  Pk_pot = [PreconditionerTPA(basis_ref, kpt) for kpt in basis_ref.kpoints]
+        #  function LinearAlgebra.Diagonal(opnl::DFTK.NonlocalOperator)
+        #      [dot(p, opnl.D * p) for p in eachrow(opnl.P)]
+        #  end
+        #  for ik = 1:length(Pk_pot)
+        #      non_local_op = [op for op in scfres_ref.ham.blocks[ik].operators if (op isa DFTK.NonlocalOperator)][1]
+        #      Pk_pot[ik].mean_kin = [abs.(Diagonal(non_local_op)) .+ real(dot(x, Pk_pot[ik].kin .* x)) for x in eachcol(φ_ref[ik])]
+        #  end
+        #  norm_Pk_pot_res_list = []
+        #  norm_Pk_pot_err_list = []
+
     else
         Pk_kin = nothing
+        Pk_pot = nothing
     end
 
     for Ecut in Ecut_list
@@ -118,16 +130,46 @@ for model in [modelAtomic]#, modelHartree, modelLDA]
         # compute residual after interpolating to the reference basis
         φr = DFTK.interpolate_blochwave(φ, basis, basis_ref)
         res = compute_residual(basis_ref, φr, occupation)
-        err = [φr[1][:,1] - (φ_ref[1][:,1]'φr[1][:,1])*φ_ref[1][:,1]]
 
         # update list
-        append!(norm_err_list, norm(err))
+        append!(norm_err_list, dm_distance(φr[1], φ_ref[1]))
+
         append!(norm_res_list, norm(res))
         if change_norm
-            append!(norm_Pk_kin_err_list,  norm(apply_sqrt(Pk_kin, err)))
-            append!(norm_Pk_kin_res_list,  norm(apply_inv_sqrt(Pk_kin, res)))
-            append!(norm_ΠPk_kin_err_list, norm(proj(apply_sqrt(Pk_kin, err), φ_ref)))
-            append!(norm_ΠPk_kin_res_list, norm(proj(apply_inv_sqrt(Pk_kin, res), φ_ref)))
+            append!(norm_Pk_kin_err_list, dm_distance(φr[1], φ_ref[1], Pk_kin))
+            println("----------------------")
+            println("distance M^1/2     = ", dm_distance(φr[1], φ_ref[1], Pk_kin))
+            Msqrt = Diagonal(sqrt.(Pk_kin[1].mean_kin[1] .+ Pk_kin[1].kin))
+            println("|M^1/2(P-Pref)|/√2 = ", norm(Msqrt*err)/sqrt(2))
+            println("----------------------")
+            Mres = apply_inv_sqrt(Pk_kin, res)
+            append!(norm_Pk_kin_res_list, res_norm(res, φr, Pk_kin))
+            Minvsqrt = Diagonal(1 ./ sqrt.(Pk_kin[1].mean_kin[1] .+ Pk_kin[1].kin))
+            MPres = Minvsqrt*Pres
+            MMPres = Minvsqrt*MPres
+            ΠMMPres = Pr*(MMPres)*(I-Pr) + (I-Pr)*MMPres*Pr
+            ΠMPres = Pr*(MPres)*(I-Pr) + (I-Pr)*MPres*Pr
+            MΠMPres = Minvsqrt*ΠMPres
+            ΠMΠMPres = Pr*MΠMPres*(I-Pr) + (I-Pr)*MΠMPres*Pr
+            println(norm(MPres - (Pr*MPres + MPres*Pr)))
+            println("√tr(Pres*M*Pres)/√2           = ", res_norm(res, φr, Pk_kin))
+            println("|M^-1/2[P,[P,H]]|/√2          = ", norm(MPres)/sqrt(2))
+            println("√tr(Pres*ΠMMΠ*Pres)/√2        = ", sqrt(tr(Pres*ΠMMPres)/2))
+            println("√tr(Pres*ΠMΠMΠ*Pres)/√2       = ", sqrt(tr(Pres*ΠMΠMPres)/2))
+            Πerr = Pr*err*(I-Pr) + (I-Pr)*err*Pr
+            MΠerr = Msqrt*Πerr
+            ΠMΠerr = Pr*(MΠerr)*(I-Pr) + (I-Pr)*(MΠerr)*Pr
+            println("|M^1/2Π(P-Pref)|/√2           = ", norm(MΠerr)/sqrt(2))
+            println("|M^1/2(P-Pref)|/√2            = ", norm(Msqrt*err)/sqrt(2))
+            MMΠerr = Msqrt*MΠerr
+            ΠMMΠerr = Pr*(MMΠerr)*(I-Pr) + (I-Pr)*(MMΠerr)*Pr
+            println("√tr((P-Pref)ΠMMΠ(P-Pref))/√2  = ", sqrt(tr(err*ΠMMΠerr)/2))
+            MΠMΠerr = Msqrt*ΠMΠerr
+            ΠMΠMΠerr = Pr*MΠMΠerr*(I-Pr) + (I-Pr)*MΠMΠerr*Pr
+            println("√tr((P-Pref)ΠMΠMΠ(P-Pref))/√2 = ", sqrt(tr(err*ΠMΠMΠerr)/2))
+            STOP
+            #  append!(norm_Pk_pot_err_list, dm_distance(φr[1], φ_ref[1], Pk_pot))
+            #  append!(norm_Pk_pot_res_list, norm(apply_inv_sqrt(Pk_pot, res)))
         end
 
         #  # to compare conditioning when Ecut varies
@@ -155,6 +197,9 @@ for model in [modelAtomic]#, modelHartree, modelLDA]
     #      normop_invΩ_kin, svd_min_Ω_kin, svd_max_Ω_kin = compute_normop_invΩ(basis_ref, φ_ref, occupation;
     #                                                                          tol_krylov=tol_krylov, Pks=Pk_kin,
     #                                                                          change_norm=change_norm)
+    #      #  normop_invΩ_pot, svd_min_Ω_pot, svd_max_Ω_pot = compute_normop_invΩ(basis_ref, φ_ref, occupation;
+    #      #                                                                      tol_krylov=tol_krylov, Pks=Pk_pot,
+    #      #                                                                      change_norm=change_norm)
     #      if model == modelAtomic
     #          normop_invε = 1.0
     #          svd_min_ε = 1.0
@@ -165,6 +210,7 @@ for model in [modelAtomic]#, modelHartree, modelLDA]
     #                                                                  change_norm=change_norm)
     #      end
     #      err_Pk_estimator = normop_invε .* normop_invΩ_kin .* norm_Pk_kin_res_list
+    #      #  err_Pk_pot_estimator = normop_invε .* normop_invΩ_pot .* norm_Pk_pot_res_list
     #  end
 
     # plot
@@ -175,20 +221,30 @@ for model in [modelAtomic]#, modelHartree, modelLDA]
           #  (Ω+K)^-1 : norm = $(@sprintf("%.3f", normop_invΩpK)), min_svd = $(@sprintf("%.3f", svd_min_ΩpK)), max_svd = $(@sprintf("%.3f", svd_max_ΩpK))
           #  kin : M^1/2Ω^-1M^1/2 : norm = $(@sprintf("%.3f", normop_invΩ_kin)), min_svd = $(@sprintf("%.3f", svd_min_Ω_kin)), max_svd = $(@sprintf("%.3f", svd_max_Ω_kin))
           #  pot : M^1/2Ω^-1M^1/2 : norm = $(@sprintf("%.3f", normop_invΩ_pot)), min_svd = $(@sprintf("%.3f", svd_min_Ω_pot)), max_svd = $(@sprintf("%.3f", svd_max_Ω_pot))")
-    semilogy(Ecut_list, norm_err_list, "x-", label="|φ-φref|")
+    semilogy(Ecut_list, norm_err_list, "x-", label="|P-Pref|")
     semilogy(Ecut_list, norm_res_list, "x-", label="|res|")
     #  semilogy(Ecut_list, err_estimator, "x-", label="|(Ω+K)^{-1}|*|res|")
     if change_norm
-        semilogy(Ecut_list, norm_Pk_kin_err_list, "+--", label="|M^1/2(φ-φref)| kin")
+        semilogy(Ecut_list, norm_Pk_kin_err_list, "+--", label="|M^1/2(P-Pref)| kin")
         semilogy(Ecut_list, norm_Pk_kin_res_list, "+--", label="|M^-1/2res| kin")
-        semilogy(Ecut_list, norm_ΠPk_kin_err_list, "+:", label="|ΠM^1/2(φ-φref)| kin")
-        semilogy(Ecut_list, norm_ΠPk_kin_res_list, "+:", label="|ΠM^-1/2res| kin")
         #  if model == modelAtomic
         #      semilogy(Ecut_list, err_Pk_estimator, "+--", label="|M^1/2Ω^-1M^1/2| * |M^-1/2res| kin")
         #  else
         #      semilogy(Ecut_list, err_Pk_estimator, "+--", label="|M^1/2(Ω+K)^-1M^-1/2| * |M^1/2Ω^-1M^1/2| * |M^-1/2res| kin")
         #  end
+        #  #  semilogy(Ecut_list, norm_Pk_pot_err_list, "+:", label="|M^1/2(P-Pref)| pot")
+        #  #  semilogy(Ecut_list, norm_Pk_pot_res_list, "+:", label="|M^-1/2res| pot")
+        #  if model == modelAtomic
+        #      #  semilogy(Ecut_list, err_Pk_pot_estimator, "+:", label="|M^1/2Ω^-1M^1/2| * |M^-1/2res| pot")
+        #  else
+        #      semilogy(Ecut_list, err_Pk_pot_estimator, "+:", label="|M^1/2(Ω+K)^-1M^-1/2| * |M^1/2Ω^-1M^1/2| * |M^-1/2res| pot")
+        #  end
     end
     legend()
     xlabel("Ecut")
+
+    figure()
+    plot(Ecut_list, norm_Pk_kin_err_list ./ norm_Pk_kin_res_list, label="err/res")
+    plot(Ecut_list, norm_Pk_kin_res_list ./ norm_Pk_kin_err_list, label="res/err")
+    legend()
 end
