@@ -35,7 +35,7 @@ function save_scfres(jld::JLD2.JLDFile, scfres::NamedTuple)
 
     jld
 end
-function save_scfres(file::AbstractString, scfres::NamedTuple, format::Val{Symbol(".jld")})
+function save_scfres(file::AbstractString, scfres::NamedTuple, format::Val{:jld})
     JLD2.jldopen(file, "w") do jld
         save_scfres(jld, scfres)
     end
