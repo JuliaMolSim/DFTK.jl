@@ -1,22 +1,17 @@
-# This test is based on example docs/src/guide/tutorial.jl
 # Import statements are not all included in front to test for 
 # error statements in dispatch
 
 using DFTK
-using Unitful
-using UnitfulAtomic
 
-a = 5.431u"angstrom"
-lattice = a / 2 * [[0 1 1.];
-                   [1 0 1.];
-                   [1 1 0.]]
-Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
-model = model_LDA(lattice, atoms)
-kgrid = [4, 4, 4]
+include("testcases.jl")
+
+Si = ElementPsp(14, psp=load_psp(silicon.psp))
+atoms = [Si => silicon.positions]
+model = model_LDA(silicon.lattice, atoms)
+kgrid = [1, 1, 1]
 Ecut = 7
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
-scfres = self_consistent_field(basis, tol=1e-8)
+basis = PlaneWaveBasis(model, Ecut; kgrid = kgrid)
+scfres = self_consistent_field(basis)
 
 @test_throws ErrorException save_scfres("MyVTKfile.vts", scfres)
 @test_throws ErrorException save_scfres("MyVTKfile.jld", scfres)

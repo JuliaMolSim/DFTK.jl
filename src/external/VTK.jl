@@ -29,7 +29,7 @@ function save_scfres(filename::AbstractString, scfres::NamedTuple, format::Val{:
     # Storing the Bloch Waves in Real space
     for ik in 1:length(basis.kpoints)
         for iband in 1:size(scfres.ψ[1])[2]
-            ψ = G_to_r(basis, basis.kpoints[ik], scfres.ψ[ik][:,iband])
+            ψ_real = G_to_r(basis, basis.kpoints[ik], scfres.ψ[ik][:,iband])
             vtkfile["ψ_real_k$(ik)_band$(iband)"] = real.(ψ)
             vtkfile["ψ_imag_k$(ik)_band$(iband)"] = imag.(ψ)
         end

@@ -20,11 +20,11 @@ Save an `scfres` obtained from `self_consistent_field` to a JLD2 or VTK file dep
 """
 function save_scfres(filename::AbstractString, scfres::NamedTuple)
     _, ext = splitext(filename)
-    isempty(ext)  && error("Provided filename misses extension")
+    isempty(ext) && error("Provided filename misses extension")
     save_scfres(filename, scfres, Val(Symbol(ext[2:end])))
 end
 
 function save_scfres(filename::AbstractString, scfres::NamedTuple, format)
-    error("The extension is not supported, which could indicate that a package 
-    (e.g. JLD2 or WriteVTK) is not yet loaded.")
+    error("The extension is not supported, which could indicate that a package"*
+          "(e.g. JLD2 or WriteVTK) is not yet loaded.")
 end
