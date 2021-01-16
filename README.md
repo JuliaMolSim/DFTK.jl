@@ -39,7 +39,7 @@ with the goal of facilitating methodological development and
 interdisciplinary collaboration.
 In about 5k lines of pure Julia code we already support a
 [sizeable set of features](https://juliamolsim.github.io/DFTK.jl/dev/index.html#package-features-1),
-after just a good year of development.
+after just about two years of development.
 Our performance is of the same order of magnitude as established packages.
 
 For getting started with DFTK, see our documentation:
@@ -49,8 +49,15 @@ For getting started with DFTK, see our documentation:
 
 Note that at least **Julia 1.4** is required.
 
-## Citation
-[![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238)
+## Support and citation
+DFTK is mostly developed as part of academic research.
+If you like our work please consider starring this repository as such metrics
+may help us to secure funding in the future.
+Parts of DFTK have also been discussed in published papers.
+If you use our code as part of your research, teaching or other activities,
+we would be grateful if you cite them as appropriate.
+See the [CITATION.bib](CITATION.bib) in the root of this repo for relevant references.
+As a software DFTK can also cited via [![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238).
 
 ## Funding
 This project has received funding from
