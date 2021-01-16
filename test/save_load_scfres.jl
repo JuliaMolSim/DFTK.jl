@@ -1,6 +1,3 @@
-# Import statements are not all included in front to test for 
-# error statements in dispatch
-
 using DFTK
 
 include("testcases.jl")
@@ -18,6 +15,8 @@ scfres = self_consistent_field(basis)
 @test_throws ErrorException save_scfres("MyVTKfile.random", scfres)
 @test_throws ErrorException save_scfres("MyVTKfile", scfres)
 
+# Import statements are not all included in front to test for 
+# error statements in dispatch
 using WriteVTK
 using JLD2
 
