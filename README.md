@@ -47,6 +47,8 @@ For getting started with DFTK, see our documentation:
 - [Tutorial](https://juliamolsim.github.io/DFTK.jl/dev/guide/tutorial/)
 - [Examples](https://juliamolsim.github.io/DFTK.jl/dev/#example-index-1)
 
+Note that at least **Julia 1.4** is required.
+
 ## Support and citation
 DFTK is mostly developed as part of academic research.
 If you like our work please consider starring this repository as such metrics
