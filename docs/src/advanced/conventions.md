@@ -39,16 +39,18 @@ to simplify typing them.
 In DFTK, atomic units are used throughout, most importantly
 lengths are in Bohr and energies in Hartree.
 See [wikipedia](https://en.wikipedia.org/wiki/Hartree_atomic_units)
-for a list of conversion factors. Useful conversion factors
-can also be found in `DFTK.units` and using [`DFTK.unit_to_au`](@ref):
+for a list of conversion factors. Appropriate unit conversion can
+can be performed using the `Unitful` and `UnitfulAtomic` packages:
 
 ```@example
-import DFTK.units: eV
-10eV      # 10eV in Hartree
+using Unitful
+using UnitfulAtomic
+austrip(10u"eV")      # 10eV in Hartree
 ```
 ```@example
-import DFTK.units: Å
-1.2 / Å  # 1.2 Bohr in Ångström
+using Unitful: Å
+using UnitfulAtomic
+auconvert(Å, 1.2)  # 1.2 Bohr in Ångström
 ```
 
 !!! warning "Differing unit conventions"

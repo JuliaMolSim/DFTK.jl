@@ -1,6 +1,4 @@
 using MPI
-using UnitfulAtomic
-
 include("fft.jl")
 
 # There are two kinds of plane-wave basis sets used in DFTK.

@@ -87,7 +87,7 @@ plot(x, scfres.ρ.real[:, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 
 # We can also perform various postprocessing steps:
 # for instance compute a band structure
-plot_bandstructure(scfres, kline_density=5, unit=:eV)
+plot_bandstructure(scfres, kline_density=5)
 # or get the cartesian forces (in Hartree / Bohr)
 compute_forces_cart(scfres)[1]  # Select silicon forces
 # The `[1]` extracts the forces for the first kind of atoms,

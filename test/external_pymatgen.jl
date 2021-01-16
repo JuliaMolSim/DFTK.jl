@@ -1,6 +1,8 @@
 using Test
 using DFTK: load_psp, pymatgen_lattice, pymatgen_structure, load_lattice, load_atoms
-using DFTK: units, ElementCoulomb
+using DFTK: ElementCoulomb
+using Unitful
+using UnitfulAtomic
 using PyCall
 
 py"""
@@ -32,9 +34,9 @@ end
     # to Julia array
     output = pymatgen_lattice(reference)
     outlatt = py"$output.matrix.ravel()" .+ 0
-    @test a ≈ outlatt[1:3] * units.Ǎ atol=1e-14
-    @test b ≈ outlatt[4:6] * units.Ǎ atol=1e-14
-    @test c ≈ outlatt[7:9] * units.Ǎ atol=1e-14
+    @test a ≈ austrip.(outlatt[1:3] * u"Å") atol=1e-14
+    @test b ≈ austrip.(outlatt[4:6] * u"Å") atol=1e-14
+    @test c ≈ austrip.(outlatt[7:9] * u"Å") atol=1e-14
 end
 
 @testset "Structure pymatgen -> DFTK -> pymatgen" begin
@@ -75,9 +77,9 @@ end
     # to Julia array
     output = pymatgen_structure(lattice, atoms)
     outlatt = py"$output.lattice.matrix.ravel()" .+ 0
-    @test a ≈ outlatt[1:3] * units.Ǎ atol=1e-14
-    @test b ≈ outlatt[4:6] * units.Ǎ atol=1e-14
-    @test c ≈ outlatt[7:9] * units.Ǎ atol=1e-14
+    @test a ≈ austrip.(outlatt[1:3] * u"Å") atol=1e-14
+    @test b ≈ austrip.(outlatt[4:6] * u"Å") atol=1e-14
+    @test c ≈ austrip.(outlatt[7:9] * u"Å") atol=1e-14
 
     specmap = [1, 1, 2, 2, 2, 3, 3]
     offset = [0, 0, 2, 2, 2, 5, 5]
