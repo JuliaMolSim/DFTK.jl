@@ -2,17 +2,17 @@ import WriteVTK: vtk_grid, vtk_save
 
 # Uses WriteVTK.jl to convert scfres structure to VTk file format
 
-"""
+@doc raw"""
     save_scfres(filename, scfres, Val(:vtk))
 
 The function takes in the VTK filename and the scfres structure and stores into a VTK file.
 
 Grid Values:
 
-- ρ -> Density in real space
-- ψreal\\_k(i)\\_band(j) -> Real values of Bloch waves in real space
-- ψimag\\_k(i)\\_band(j) -> Imaginary values of Bloch waves in real space
-- ρspin -> Real value of ρspin are stored if ρspin in present
+- ``\rho`` -> Density in real space
+- ``\psi \_k(i)\_band(j)\_real`` -> Real values of Bloch waves in real space
+- ``\psi \_k(i)\_band(j)\_imag`` -> Imaginary values of Bloch waves in real space
+- ``\rho spin`` -> Real value of ρspin are stored if ρspin in present
 
 MetaData:
 Energy , EigenValues, Fermi Level and occupation.
@@ -29,9 +29,9 @@ function save_scfres(filename::AbstractString, scfres::NamedTuple, format::Val{:
     # Storing the Bloch Waves in Real space
     for ik in 1:length(basis.kpoints)
         for iband in 1:size(scfres.ψ[1])[2]
-            ψ_real = G_to_r(basis, basis.kpoints[ik], scfres.ψ[ik][:,iband])
-            vtkfile["ψ_real_k$(ik)_band$(iband)"] = real.(ψ)
-            vtkfile["ψ_imag_k$(ik)_band$(iband)"] = imag.(ψ)
+            ψnk_real = G_to_r(basis, basis.kpoints[ik], scfres.ψ[ik][:,iband])
+            vtkfile["ψ_k$(ik)_band$(iband)_real"] = real.(ψnk_real)
+            vtkfile["ψ_k$(ik)_band$(iband)_imag"] = imag.(ψnk_real)
         end
     end
 
@@ -43,11 +43,11 @@ function save_scfres(filename::AbstractString, scfres::NamedTuple, format::Val{:
     
     # Storing the energy components
     for key in keys(scfres.energies)
-        vtkfile["energy_$key"] = scfres.energies[key]
+        vtkfile["energy_$(key)"] = scfres.energies[key]
     end
     
     # Storing the Fermi level 
-    vtkfile["εF"] =  scfres.εF
+    vtkfile["εF"] = scfres.εF
 
     # Storing the EigenValues as a matrix
     vtkfile["eigenvalues"] = hcat(scfres.eigenvalues...)
@@ -55,5 +55,5 @@ function save_scfres(filename::AbstractString, scfres::NamedTuple, format::Val{:
     # Storing the Occupation as a matrix
     vtkfile["occupation"] = hcat(scfres.occupation...)
 
-    vtk_save(vtkfile)[1]
+    only(vtk_save(vtkfile))
 end
