@@ -11,7 +11,8 @@ function load_scfres end
 """
     save_scfres(filename, scfres)
 
-Save an `scfres` obtained from `self_consistent_field` to a JLD2 or VTK file depending on the extension.
+Save an `scfres` obtained from `self_consistent_field` to a JLD2 
+or VTK file depending on the extension.
 
 !!! warning "No compatibility guarantees"
     No guarantees are made with respect to this function at this point.
