@@ -18,9 +18,7 @@ mktempdir() do tmpdir
     vtkfile = joinpath(tmpdir, "MyVTKfile.vts")
     @test save_scfres(vtkfile, scfres) == vtkfile
     @test isfile(vtkfile) == true
-    jldfile = joinpath(tmpdir, "MyJLDfile.jld")
+    jldfile = joinpath(tmpdir, "MyJLDfile.jld2")
     save_scfres(jldfile, scfres)
     @test isfile(jldfile) == true
 end
-
-
