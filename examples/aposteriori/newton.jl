@@ -1,35 +1,6 @@
 # This file contains functions to perform newton step and a newton solver for
 # DFTK problems.
 
-
-# we compute the residual associated to a set of planewave φ, that is to say
-# H(φ)*φ - λ.*φ where λ is the set of rayleigh coefficients associated to the
-# φ
-# we also return the egval set for further computations
-function compute_residual(basis::PlaneWaveBasis{T}, φ, occ) where T
-
-    # necessary quantities
-    Nk = length(basis.kpoints)
-    ρ = compute_density(basis, φ, occ)
-    energies, H = energy_hamiltonian(basis, φ, occ; ρ=ρ[1])
-
-    # compute residual
-    res = similar(φ)
-    for ik = 1:Nk
-        φk = φ[ik]
-        N = size(φk, 2)
-        Hk = H.blocks[ik]
-        # eigenvalues as rayleigh coefficients
-        egvalk = [φk[:,i]'*(Hk*φk[:,i]) for i = 1:N]
-        # compute residual at given kpoint as H(φ)φ - λφ
-        rk = Hk*φk - hcat([egvalk[i] * φk[:,i] for i = 1:N]...)
-        res[ik] = rk
-    end
-
-    return res
-end
-
-
 # perform a newton step : we take as given a planewave set φ and we return the
 # newton step φ - δφ (after proper orthonormalization) where δφ solves Jac * δφ = res
 function newton_step(basis::PlaneWaveBasis{T}, φ, res, occ;

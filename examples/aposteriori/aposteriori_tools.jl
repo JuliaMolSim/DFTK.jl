@@ -1,13 +1,57 @@
 import KrylovKit: ArnoldiIterator, Orthogonalizer, OrthonormalBasis, KrylovDefaults, orthogonalize!
 using KrylovKit
 
-# This file containes functions for computing the jacobian of the direct
-# minimization algorihtm on the grassman manifold, that this the operator Ω+K
-# defined Cancès/Kemlin/Levitt, Convergence analysis of SCF and direct
-# minization algorithms.
+############################# ERROR AND RESIDUAL ###############################
 
+## ORBITAL FORMULATION
 
-################################## TOOL ROUTINES ###############################
+# compute the residual associated to a set of planewave φ, that is to say
+# H(φ)*φ - λ.*φ where λ is the set of rayleigh coefficients associated to the
+# φ
+# we also return the egval set for further computations
+function compute_residual(basis::PlaneWaveBasis{T}, φ, occ) where T
+
+    # necessary quantities
+    Nk = length(basis.kpoints)
+    ρ = compute_density(basis, φ, occ)
+    energies, H = energy_hamiltonian(basis, φ, occ; ρ=ρ[1])
+
+    # compute residual
+    res = similar(φ)
+    for ik = 1:Nk
+        φk = φ[ik]
+        N = size(φk, 2)
+        Hk = H.blocks[ik]
+        # eigenvalues as rayleigh coefficients
+        egvalk = [φk[:,i]'*(Hk*φk[:,i]) for i = 1:N]
+        # compute residual at given kpoint as H(φ)φ - λφ
+        res[ik] = Hk*φk - hcat([egvalk[i] * φk[:,i] for i = 1:N]...)
+    end
+    res
+end
+
+# compute the error on the orbitals by aligning the eigenvectors
+# this is done by solving min |ϕ - ψ*U| for U unitary matrix of size NxN
+# whose solution is U = M(M^*M)^-1/2 where M = ψ^*ϕ
+function compute_error(basis, ϕ, ψ)
+
+    # necessary quantites
+    Nk = length(basis.kpoints)
+
+    # compute error
+    err = similar(ϕ)
+    for ik = 1:Nk
+        ϕk = ϕ[ik]
+        ψk = ψ[ik]
+        # compute overlap matrix
+        M = ψk'ϕk
+        U = M*(M'M)^(-1/2)
+        err[ik] = ϕk - ψk*U
+    end
+    err
+end
+
+## DENSITY MATRICES FORMULATION
 
 # norm of difference between the density matrices associated to ϕ and ψ
 # to be consistent with |δφ|^2 = 2 Σ |δφi|^2 when δφ = Σ |φi><δφi| + hc is an
@@ -39,13 +83,6 @@ function dm_distance(ϕ, ψ, Pks)
     Mϕ = apply_M(Pks, [ϕ])[1]
     Mψ = apply_M(Pks, [ψ])[1]
 
-    #  ϕMϕ = norm(ϕ'Mϕ)^2
-    #  ψMψ = norm(ψ'Mψ)^2
-    #  ϕψ = norm(ϕ'ψ)^2
-    #  ψϕ = norm(ψ'ϕ)^2
-    #  ϕMψ = norm(ϕ'Mψ)^2
-    #  ψMϕ = norm(ψ'Mϕ)^2
-
     abs((1/sqrt(2) * sqrt(tr(ϕ'Mϕ + ψ'Mψ - (ϕ'ψ)*(ψ'Mϕ) - (ψ'ϕ)*(ϕ'Mψ)))))
     #  abs(sqrt(tr(ϕ'Mϕ + ψ'Mψ - (ϕ'ψ)*(ψ'Mϕ) - (ψ'ϕ)*(ϕ'Mψ))))
 end
@@ -57,6 +94,8 @@ function res_norm(res, φ, Pks)
 
     abs((1/sqrt(2) * sqrt(tr(res[1]'Minvres[1] + (φ[1]'Minvφ[1])*norm(res[1])^2 ))))
 end
+
+############################## TANGENT SPACE TOOLS #############################
 
 # test for orthogonalisation
 tol_test = 1e-12
@@ -161,6 +200,79 @@ function KrylovKit.gklrecurrence(operator, U::OrthonormalBasis, V::OrthonormalBa
     return v, r, α, β
 end
 
+############################## CHANGES OF NORMS ################################
+
+# apply preconditioner M
+function apply_M(Pks, δφ)
+    Nk = length(Pks)
+
+    ϕ = []
+
+    for ik = 1:Nk
+        ϕk = similar(δφ[ik])
+        N = size(δφ[ik], 2)
+        Pk = Pks[ik]
+        for i = 1:N
+            ϕk[:,i] .= (Pk.mean_kin[i] .+ Pk.kin) .* δφ[ik][:,i]
+        end
+        append!(ϕ, [ϕk])
+    end
+    ϕ
+end
+
+# apply preconditioner M^{1/2}
+function apply_sqrt(Pks, δφ)
+    Nk = length(Pks)
+
+    ϕ = []
+
+    for ik = 1:Nk
+        ϕk = similar(δφ[ik])
+        N = size(δφ[ik], 2)
+        Pk = Pks[ik]
+        for i = 1:N
+            ϕk[:,i] .= sqrt.(Pk.mean_kin[i] .+ Pk.kin) .* δφ[ik][:,i]
+        end
+        append!(ϕ, [ϕk])
+    end
+    ϕ
+end
+
+# apply preconditioner M^{-1}
+function apply_inv_M(Pks, res)
+    Nk = length(Pks)
+
+    Res = []
+
+    for ik = 1:Nk
+        Rk = similar(res[ik])
+        N = size(res[ik], 2)
+        Pk = Pks[ik]
+        for i = 1:N
+            Rk[:,i] .= (1. ./ (Pk.mean_kin[i] .+ Pk.kin)) .* res[ik][:,i]
+        end
+        append!(Res, [Rk])
+    end
+    Res
+end
+# apply preconditioner M^{-1/2}
+function apply_inv_sqrt(Pks, res)
+    Nk = length(Pks)
+
+    R = []
+
+    for ik = 1:Nk
+        Rk = similar(res[ik])
+        N = size(res[ik], 2)
+        Pk = Pks[ik]
+        for i = 1:N
+            Rk[:,i] .= (1 ./ sqrt.(Pk.mean_kin[i] .+ Pk.kin)) .* res[ik][:,i]
+        end
+        append!(R, [Rk])
+    end
+    R
+end
+
 ############################# OPERATORS ########################################
 
 # for a given kpoint, we compute the
@@ -232,5 +344,4 @@ function ΩplusK(basis, δφ, φ, ρ, H, egval, occ)
     Ωδφ = apply_Ω(basis, δφ, φ, H, egval)
     ΩpKδφ = Ωδφ .+ Kδφ
 end
-
 
