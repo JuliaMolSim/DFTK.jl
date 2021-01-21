@@ -19,7 +19,6 @@ using StaticArrays
     @test psp.lmax == 3
     @test psp.lloc == 0
     @test psp.numGridPoints == 2001
-    @test psp.r2well == 0.0
     @test psp.numProjectorFctns == [0,1,1,1]
     @test psp.pspCoreRadius ≈ [2.7274861, 3.4157018, 2.5944632, 2.7965336]
     @test psp.rms ≈ zeros(4)
@@ -29,8 +28,9 @@ using StaticArrays
     @test psp.fchrg ≈ 0.04664758709060
     @test psp.totCoreChrg ≈ 2.06513006799856
     @test sum(length(vals) for vals in psp.pseudoPotentials) ≈ 4 * 2001
-    @test sum(length(vals) for vals in psp.firstProjectorVals) ≈ 4 * 2001
-    @test isempty(psp.secondProjectorVals)
+    @test sum(length(vals) for vals in psp.projectorVals[1]) ≈ 4 * 2001
+    @test isempty(psp.projectorVals[2])
+    @test length(psp.h[1,:]) = 4
 end
 
 # plt = plot(psp.radialGrid, x -> eval_psp_semilocal_real(psp,x,0))
@@ -40,14 +40,14 @@ end
     psp = parse_tm_file("/Users/jasonlehto/git/Dino.jl/dev/DFTK/data/psp/tm/lda/h-q1.pspnc")
     r = psp.radialGrid[30]
     l = psp.lmax
-   @test normalizer(psp,0)                          isa T
+    p = 1
+   @test normalizer(psp,p,0)                        isa T
    @test eval_psp_local_real(psp,r)                 isa T
    @test eval_psp_local_fourier(psp,r)              isa T
-   @test eval_pseudoWaveFunction_real(psp,r,l)      isa T
+   @test eval_pseudoWaveFunction_real(psp,p,l,r)    isa T
    @test eval_psp_semilocal_real(psp, r, l)         isa T
-   @test normalizer(psp,l)                          isa T
-   @test eval_psp_projector_fourier(psp, 1, l, 0.1) isa T
-   @test eval_psp_projector_real(psp, 1, l, r)      isa T
+   @test eval_psp_projector_fourier(psp, p, l, 0.1) isa T
+   @test eval_psp_projector_real(psp, p, l, r)      isa T
 end
 
 @testset "Numerical integration to obtain fourier-space projectors" begin
@@ -84,15 +84,17 @@ psp = parse_tm_file("dev/DFTK/data/psp/tm/lda/si-q4.pspnc")
 
 # display(@benchmark eval_psp_local_fourier(psp, norm([-12,15,3])))
 
-# @testset "Comparing Pseudopotential against known TM pseudopotentials" begin
-Si = ElementPsp(14,:Si,parse_tm_file("dev/DFTK/data/psp/tm/lda/si-q4.pspnc"))
-lattice = austrip(0.5431u"nm") / 2 * [  [0 1 1.];
-                                    [1 0 1.];
-                                    [1 1 0.]]
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
-model = model_LDA(lattice,atoms)
-kgrid = [4,4,4]
-Ecut = 20
-basis = PlaneWaveBasis(model, Ecut; kgrid = kgrid)
-scfres = self_consistent_field(basis)
-@show scfres.energies.total
+@testset "Comparing Pseudopotential against known TM pseudopotentials" begin
+    Si = ElementPsp(14,:Si,parse_tm_file("dev/DFTK/data/psp/tm/lda/si-q4.pspnc"))
+    lattice = austrip(0.5431u"nm") / 2 * [  [0 1 1.];
+                                        [1 0 1.];
+                                        [1 1 0.]]
+    atoms = [Si => [ones(3)/8, -ones(3)/8]]
+    model = model_LDA(lattice,atoms; temperature = austrip(300u"K"))
+    kgrid = [4,4,4]
+    Ecut = 20
+    basis = PlaneWaveBasis(model, Ecut; kgrid = kgrid)
+    scfres = self_consistent_field(basis)
+    @show scfres.energies.total
+    scfres.energies.total ≈ -8.87
+end
