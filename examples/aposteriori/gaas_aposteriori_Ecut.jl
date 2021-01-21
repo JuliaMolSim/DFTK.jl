@@ -22,12 +22,13 @@ include("aposteriori_callback.jl")
 
 # Very basic setup, useful for testing
 # model parameters
-a = 10.26  # Silicon lattice constant in Bohr
+a = 10.68290949909  # GaAs lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
-Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
+Ga = ElementPsp(:Ga, psp=load_psp("hgh/lda/ga-q3"))
+As = ElementPsp(:As, psp=load_psp("hgh/lda/as-q5"))
+atoms = [Ga => [ones(3)/8], As => [-ones(3)/8]]
 
 ## local potential only
 #  model = model_atomic(lattice, atoms)
@@ -135,7 +136,7 @@ end
 #  end
 
 figure()
-title("Silicon
+title("GaAs
       error estimators vs Ecut, LDA, N = $(N), M = (T-Δ), gap = $(@sprintf("%.3f", gap))")
       #  (Ω+K)^-1 : norm = $(@sprintf("%.3f", normop_invΩpK)), min_svd = $(@sprintf("%.3f", svd_min_ΩpK)), max_svd = $(@sprintf("%.3f", svd_max_ΩpK))
       #  M^1/2ε^-TM^-1/2 : norm = $(@sprintf("%.3f", normop_invΩ_kin)), min_svd = $(@sprintf("%.3f", svd_min_Ω_kin)), max_svd = $(@sprintf("%.3f", svd_max_Ω_kin))

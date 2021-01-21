@@ -20,14 +20,36 @@ using PyPlot
 include("aposteriori_tools.jl")
 include("aposteriori_callback.jl")
 
-# Very basic setup, useful for testing
-# model parameters
-a = 10.26  # Silicon lattice constant in Bohr
-lattice = a / 2 * [[0 1 1.];
-                   [1 0 1.];
-                   [1 1 0.]]
-Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
+# Lattice parameters for α-quartz from
+# https://www.materialsproject.org/materials/mp-549166/
+# All lengths in Ångström (used by ASE)
+a = b = 4.98530291
+c = 5.47852971
+α = β = 90
+γ = 120
+
+silicon = [  # Fractional coordinates
+           [0.000000  0.471138  0.833333],
+           [0.471138  0.000000  0.166666],
+           [0.528862  0.528862  0.500000],
+          ]
+oxygen = [  # Fractional coordinates
+          [0.148541  0.734505  0.046133],
+          [0.265495  0.414036  0.712800],
+          [0.585964  0.851459  0.379466],
+          [0.734505  0.148541  0.953867],
+          [0.414036  0.265495  0.287200],
+          [0.851459  0.585964  0.620534],
+         ]
+symbols = append!(fill("Si", 3), fill("O", 6))
+atoms_ase = pyimport("ase").Atoms(symbols=symbols, cell=[a, b, c, α, β, γ], pbc=true,
+                                  scaled_positions=vcat(vcat(silicon, oxygen)...))
+
+atoms = load_atoms(atoms_ase)
+atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="pbe")) => position
+         for (el, position) in atoms]
+
+lattice = load_lattice(atoms_ase)
 
 ## local potential only
 #  model = model_atomic(lattice, atoms)
@@ -36,7 +58,7 @@ model = model_LDA(lattice, atoms)
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
 tol = 1e-10
 tol_krylov = 1e-15
-Ecut_ref = 150           # kinetic energy cutoff in Hartree
+Ecut_ref = 50           # kinetic energy cutoff in Hartree
 Ecut_list = 10:10:(Ecut_ref-10)
 
 ## changing norm for error estimation
@@ -135,7 +157,7 @@ end
 #  end
 
 figure()
-title("Silicon
+title("SiO2
       error estimators vs Ecut, LDA, N = $(N), M = (T-Δ), gap = $(@sprintf("%.3f", gap))")
       #  (Ω+K)^-1 : norm = $(@sprintf("%.3f", normop_invΩpK)), min_svd = $(@sprintf("%.3f", svd_min_ΩpK)), max_svd = $(@sprintf("%.3f", svd_max_ΩpK))
       #  M^1/2ε^-TM^-1/2 : norm = $(@sprintf("%.3f", normop_invΩ_kin)), min_svd = $(@sprintf("%.3f", svd_min_Ω_kin)), max_svd = $(@sprintf("%.3f", svd_max_Ω_kin))

@@ -22,21 +22,20 @@ include("aposteriori_callback.jl")
 
 # Very basic setup, useful for testing
 # model parameters
-a = 10.26  # Silicon lattice constant in Bohr
+a = 10.69  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
-Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
+Ge = ElementPsp(:Ge, psp=load_psp("hgh/lda/Ge-q4"))
+atoms = [Ge => [ones(3)/8, -ones(3)/8]]
 
 ## local potential only
-#  model = model_atomic(lattice, atoms)
 model = model_LDA(lattice, atoms)
 
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
 tol = 1e-10
 tol_krylov = 1e-15
-Ecut_ref = 150           # kinetic energy cutoff in Hartree
+Ecut_ref = 30           # kinetic energy cutoff in Hartree
 Ecut_list = 10:10:(Ecut_ref-10)
 
 ## changing norm for error estimation
@@ -135,7 +134,7 @@ end
 #  end
 
 figure()
-title("Silicon
+title("Germanium
       error estimators vs Ecut, LDA, N = $(N), M = (T-Δ), gap = $(@sprintf("%.3f", gap))")
       #  (Ω+K)^-1 : norm = $(@sprintf("%.3f", normop_invΩpK)), min_svd = $(@sprintf("%.3f", svd_min_ΩpK)), max_svd = $(@sprintf("%.3f", svd_max_ΩpK))
       #  M^1/2ε^-TM^-1/2 : norm = $(@sprintf("%.3f", normop_invΩ_kin)), min_svd = $(@sprintf("%.3f", svd_min_Ω_kin)), max_svd = $(@sprintf("%.3f", svd_max_Ω_kin))
