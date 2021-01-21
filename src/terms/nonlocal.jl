@@ -127,7 +127,7 @@ function build_projection_coefficients_(psp::NormConservingPsp)
     for l in 0:psp.lmax, m in -l:l
         n_proj_l = size(psp.h[l + 1], 1)  # Number of i's
         range = count .+ (1:n_proj_l)
-        proj_coeffs[range, range] = psp.h[l + 1]
+        proj_coeffs[range, range] .= psp.h[l + 1]
         count += n_proj_l
     end # l, m
     proj_coeffs
