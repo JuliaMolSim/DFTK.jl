@@ -34,7 +34,7 @@ atoms = [Ga => [ones(3)/8], As => [-ones(3)/8]]
 #  model = model_atomic(lattice, atoms)
 model = model_LDA(lattice, atoms)
 
-kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
+kgrid = [4, 4, 4]   # k-point grid (Regular Monkhorst-Pack grid)
 tol = 1e-10
 tol_krylov = 1e-15
 Ecut_ref = 150           # kinetic energy cutoff in Hartree
@@ -109,7 +109,6 @@ for Ecut in Ecut_list
 
     # update lists
     append!(norm_err_list, norm(err))
-    display(size(err[1]))
     append!(norm_res_list, norm(res))
     if change_norm
         append!(norm_Pk_kin_err_list,  norm(apply_sqrt(Pk_kin, err)))
@@ -137,7 +136,7 @@ end
 
 figure()
 title("GaAs
-      error estimators vs Ecut, LDA, N = $(N), M = (T-Δ), gap = $(@sprintf("%.3f", gap))")
+      error estimators vs Ecut, LDA, kgrid = $(kgrid), N = $(N), M = (T-Δ), gap = $(@sprintf("%.3f", gap))")
       #  (Ω+K)^-1 : norm = $(@sprintf("%.3f", normop_invΩpK)), min_svd = $(@sprintf("%.3f", svd_min_ΩpK)), max_svd = $(@sprintf("%.3f", svd_max_ΩpK))
       #  M^1/2ε^-TM^-1/2 : norm = $(@sprintf("%.3f", normop_invΩ_kin)), min_svd = $(@sprintf("%.3f", svd_min_Ω_kin)), max_svd = $(@sprintf("%.3f", svd_max_Ω_kin))
       #  M^1/2Ω^-1M^1/2 : norm = $(@sprintf("%.3f", normop_invΩ_kin)), min_svd = $(@sprintf("%.3f", svd_min_Ω_kin)), max_svd = $(@sprintf("%.3f", svd_max_Ω_kin))")

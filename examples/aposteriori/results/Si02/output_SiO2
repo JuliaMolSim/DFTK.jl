@@ -1,0 +1,30 @@
+ Activating environment at `~/DFTK/DFTK.jl/Project.toml`
+┌ Warning: Assignment to `occupation` in soft scope is ambiguous because a global variable by the same name exists: `occupation` will be treated as a new local. Disambiguate by using `local occupation` to suppress this warning or `global occupation` to assign to the existing global variable.
+└ @ ~/DFTK/DFTK.jl/examples/aposteriori/sio2_aposteriori_Ecut.jl:143
+--------------------------------
+reference computation
+n     Energy            Eₙ-Eₙ₋₁     ρout-ρin   Diag
+---   ---------------   ---------   --------   ----
+  1   -106.0891299907         NaN   7.00e-01    39.0 
+  2   -106.0899590786   -8.29e-04   1.88e-01    27.0 
+  3   -106.0793322866    1.06e-02   1.47e-01    28.0 
+  4   -106.0984109785   -1.91e-02   5.69e-03    25.0 
+  5   -106.0984358709   -2.49e-05   5.13e-04    22.0 
+  6   -106.0984360761   -2.05e-07   1.10e-04    18.0 
+  7   -106.0984360843   -8.23e-09   2.16e-05    17.0 
+  8   -106.0984360847   -3.24e-10   2.95e-06    14.0 
+  9   -106.0984360847   -1.46e-12   1.85e-06    14.0 
+ 10   -106.0984360847   -3.85e-12   4.31e-07    13.0 
+ 11   -106.0984360847   -1.85e-13   5.85e-08    11.0 
+ 12   -106.0984360847   -1.42e-14   3.73e-08    9.0 
+ 13   -106.0984360847    1.42e-14   1.96e-09    8.0 
+ 14   -106.0984360847   -1.42e-14   1.33e-09    5.0 
+ 15   -106.0984360847    2.84e-14   3.62e-10    5.0 
+ 16   -106.0984360847   -1.42e-14   1.16e-10    3.0 
+ 17   -106.0984360847   -1.42e-14   3.61e-11    2.0 
+--------------------------------
+Ecut = 10
+--------------------------------
+Ecut = 20
+Any[1.373743552833158, 0.8877603425888309]
+Any[1.3729185908475157, 0.8876393947682839]

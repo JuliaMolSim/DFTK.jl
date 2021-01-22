@@ -9,7 +9,7 @@
 # translated to orbitals, in the linear case.
 # We look at is the basis error : φ* is computed for a reference
 # Ecut_ref and then we measure the error φ-φ* and the residual obtained for
-# smaller Ecut (currently, only Nk = 1 kpt only is supported)
+# smaller Ecut
 #
 
 using DFTK
@@ -22,12 +22,12 @@ include("aposteriori_callback.jl")
 
 # Very basic setup, useful for testing
 # model parameters
-a = 10.69  # Silicon lattice constant in Bohr
+a = 10.26  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
-Ge = ElementPsp(:Ge, psp=load_psp("hgh/lda/Ge-q4"))
-atoms = [Ge => [ones(3)/8, -ones(3)/8]]
+Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 ## local potential only
 model = model_LDA(lattice, atoms)
@@ -35,7 +35,7 @@ model = model_LDA(lattice, atoms)
 kgrid = [4, 4, 4]   # k-point grid (Regular Monkhorst-Pack grid)
 tol = 1e-10
 tol_krylov = 1e-15
-Ecut_ref = 20           # kinetic energy cutoff in Hartree
+Ecut_ref = 150           # kinetic energy cutoff in Hartree
 Ecut_list = 10:10:(Ecut_ref-10)
 
 ## changing norm for error estimation
@@ -107,7 +107,6 @@ for Ecut in Ecut_list
 
     # update lists
     append!(norm_err_list, norm(err))
-    display(size(err[1]))
     append!(norm_res_list, norm(res))
     if change_norm
         append!(norm_Pk_kin_err_list,  norm(apply_sqrt(Pk_kin, err)))
@@ -118,36 +117,36 @@ for Ecut in Ecut_list
 end
 
 ## error estimates
-#  println("--------------------------------")
-#  println("Computing operator norms...")
-#  normop_invΩpK, svd_min_ΩpK, svd_max_ΩpK = compute_normop_invΩpK(basis_ref, φ_ref, occupation;
-#                                                                  tol_krylov=tol_krylov, Pks=nothing)
-#  err_estimator = normop_invΩpK .* norm_res_list
-#  if change_norm
-#      normop_invΩ_kin, svd_min_Ω_kin, svd_max_Ω_kin = compute_normop_invΩ(basis_ref, φ_ref, occupation;
-#                                                                          tol_krylov=tol_krylov, Pks=Pk_kin,
-#                                                                          change_norm=change_norm)
-#      normop_invε_kin, svd_min_ε_kin, svd_max_ε_kin = compute_normop_invε(basis_ref, φ_ref, occupation;
-#                                                                          tol_krylov=tol_krylov, Pks=Pk_kin,
-#                                                                          change_norm=change_norm)
-#      err_Pk_estimator = normop_invε_kin .* normop_invΩ_kin .* norm_Pk_kin_res_list
-#  end
+println("--------------------------------")
+println("Computing operator norms...")
+normop_invΩpK, svd_min_ΩpK, svd_max_ΩpK = compute_normop_invΩpK(basis_ref, φ_ref, occupation;
+                                                                tol_krylov=tol_krylov, Pks=nothing)
+err_estimator = normop_invΩpK .* norm_res_list
+if change_norm
+    normop_invΩ_kin, svd_min_Ω_kin, svd_max_Ω_kin = compute_normop_invΩ(basis_ref, φ_ref, occupation;
+                                                                        tol_krylov=tol_krylov, Pks=Pk_kin,
+                                                                        change_norm=change_norm)
+    normop_invε_kin, svd_min_ε_kin, svd_max_ε_kin = compute_normop_invε(basis_ref, φ_ref, occupation;
+                                                                        tol_krylov=tol_krylov, Pks=Pk_kin,
+                                                                        change_norm=change_norm)
+    err_Pk_estimator = normop_invε_kin .* normop_invΩ_kin .* norm_Pk_kin_res_list
+end
 
 figure()
-title("Germanium
-      error estimators vs Ecut, LDA, N = $(N), M = (T-Δ), gap = $(@sprintf("%.3f", gap))")
-      #  (Ω+K)^-1 : norm = $(@sprintf("%.3f", normop_invΩpK)), min_svd = $(@sprintf("%.3f", svd_min_ΩpK)), max_svd = $(@sprintf("%.3f", svd_max_ΩpK))
-      #  M^1/2ε^-TM^-1/2 : norm = $(@sprintf("%.3f", normop_invΩ_kin)), min_svd = $(@sprintf("%.3f", svd_min_Ω_kin)), max_svd = $(@sprintf("%.3f", svd_max_Ω_kin))
-      #  M^1/2Ω^-1M^1/2 : norm = $(@sprintf("%.3f", normop_invΩ_kin)), min_svd = $(@sprintf("%.3f", svd_min_Ω_kin)), max_svd = $(@sprintf("%.3f", svd_max_Ω_kin))")
+title("Silicon
+      error estimators vs Ecut, LDA, kgrid = $(kgrid), N = $(N), M = (T-Δ), gap = $(@sprintf("%.3f", gap))
+      (Ω+K)^-1 : norm = $(@sprintf("%.3f", normop_invΩpK)), min_svd = $(@sprintf("%.3f", svd_min_ΩpK)), max_svd = $(@sprintf("%.3f", svd_max_ΩpK))
+      M^1/2Ω^-1M^1/2 : norm = $(@sprintf("%.3f", normop_invΩ_kin)), min_svd = $(@sprintf("%.3f", svd_min_Ω_kin)), max_svd = $(@sprintf("%.3f", svd_max_Ω_kin))
+      M^1/2ε^-TM^-1/2 : norm = $(@sprintf("%.3f", normop_invΩ_kin)), min_svd = $(@sprintf("%.3f", svd_min_Ω_kin)), max_svd = $(@sprintf("%.3f", svd_max_Ω_kin))")
 semilogy(Ecut_list, norm_err_list, "x-", label="|φ-φref|")
 semilogy(Ecut_list, norm_res_list, "x-", label="|res|")
-#  semilogy(Ecut_list, err_estimator, "x-", label="|(Ω+K)^-1| * |res|")
+semilogy(Ecut_list, err_estimator, "x-", label="|(Ω+K)^-1| * |res|")
 if change_norm
     semilogy(Ecut_list, norm_Pk_kin_err_list, "+--", label="|M^1/2(φ-φref)| kin")
     semilogy(Ecut_list, norm_Pk_kin_res_list, "+--", label="|M^-1/2res| kin")
     semilogy(Ecut_list, norm_ΠPk_kin_err_list, "+:", label="|ΠM^1/2(φ-φref)| kin")
     semilogy(Ecut_list, norm_ΠPk_kin_res_list, "+:", label="|ΠM^-1/2res| kin")
-    #  semilogy(Ecut_list, err_Pk_estimator, "+--", label="|M^1/2ε^-TM^-1/2| * |M^1/2Ω^-1M^1/2| * |M^-1/2res| kin")
+    semilogy(Ecut_list, err_Pk_estimator, "+--", label="|M^1/2ε^-TM^-1/2| * |M^1/2Ω^-1M^1/2| * |M^-1/2res| kin")
 end
 legend()
 xlabel("Ecut")

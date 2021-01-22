@@ -51,7 +51,7 @@ function compute_error(basis, ϕ, ψ)
     err
 end
 
-## DENSITY MATRICES FORMULATION
+## DENSITY MATRICES FORMULATION (only 1kpt supported at the moment)
 
 # norm of difference between the density matrices associated to ϕ and ψ
 # to be consistent with |δφ|^2 = 2 Σ |δφi|^2 when δφ = Σ |φi><δφi| + hc is an
@@ -98,7 +98,7 @@ end
 ############################## TANGENT SPACE TOOLS #############################
 
 # test for orthogonalisation
-tol_test = 1e-12
+tol_test = 1e-10
 
 # we project ϕ onto the orthogonal of ψ
 function proj(ϕ, ψ)

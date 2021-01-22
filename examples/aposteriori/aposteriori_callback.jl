@@ -116,9 +116,11 @@ function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
             if Pks != nothing
                 δφ = proj(δφ, φ)
                 δφ = apply_sqrt(Pks, δφ)
+                δφ = proj(δφ, φ)
             end
             δφ = f(δφ, flag)
             if Pks != nothing
+                δφ = proj(δφ, φ)
                 δφ = apply_inv_sqrt(Pks, δφ)
                 δφ = proj(δφ, φ)
             end
@@ -128,9 +130,11 @@ function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
             if Pks != nothing
                 δφ = proj(δφ, φ)
                 δφ = apply_inv_sqrt(Pks, δφ)
+                δφ = proj(δφ, φ)
             end
             δφ = f(δφ, flag)
             if Pks != nothing
+                δφ = proj(δφ, φ)
                 δφ = apply_sqrt(Pks, δφ)
                 δφ = proj(δφ, φ)
             end
@@ -278,12 +282,13 @@ function callback_estimators(; test_newton=false, change_norm=true)
                 end
 
                 res = compute_residual(basis, φ, occupation)
-                append!(err_ref_list, dm_distance(φ[1], φ_ref[1]))
+                err = compute_error(basis, φ, φ_ref)
+                append!(err_ref_list, norm(err))
                 append!(norm_res_list, norm(res))
 
                 if change_norm
                     append!(norm_Pkres_list, norm(apply_inv_sqrt(Pks, res)))
-                    append!(err_Pkref_list, dm_distance(φ[1], φ_ref[1], Pks))
+                    append!(err_Pkref_list, norm(apply_sqrt(Pks, err)))
                 end
 
                 if test_newton
@@ -310,27 +315,26 @@ function callback_estimators(; test_newton=false, change_norm=true)
             end
 
             ## plotting convergence info
-            figure(figsize=(10,5))
+            figure(figsize=(20,10))
             title("GaAs
-                  error estimators vs iteration, LDA, N = $(N), M = (1-Δ),
+                  error estimators vs iteration, Ecut = $(Ecut_ref), LDA, N = $(N), kgrid = $(kgrid), M = (1-Δ)
                   (Ω+K)^-1 : norm = $(@sprintf("%.3f", normop_ΩpK)), min_svd = $(@sprintf("%.3f", svd_min_ΩpK)), max_svd = $(@sprintf("%.3f", svd_max_ΩpK))
-                  ε^-1 : norm = $(@sprintf("%.3f", normop_invε)), min_svd = $(@sprintf("%.3f", svd_min_ε)), max_svd = $(@sprintf("%.3f", svd_max_ε))
-                  Ω^-1 : norm = $(@sprintf("%.3f", normop_invΩ)), min_svd = $(@sprintf("%.3f", svd_min_Ω)), max_svd = $(@sprintf("%.3f", svd_max_Ω))")
-            semilogy(1:(ite-1), err_ref_list[1:end-1], "x-", label="|P-Pref|")
-            semilogy(1:ite, norm_res_list, "x-", label="|res_φ|")
-            semilogy(1:ite, err_estimator, "x-", label="|(Ω+K)^-1| * |res_φ|")
+                  M^1/2Ω^-1M^1/2 : norm = $(@sprintf("%.3f", normop_invΩ)), min_svd = $(@sprintf("%.3f", svd_min_Ω)), max_svd = $(@sprintf("%.3f", svd_max_Ω))
+                  M^1/2ε^-1M^-1/2 : norm = $(@sprintf("%.3f", normop_invε)), min_svd = $(@sprintf("%.3f", svd_min_ε)), max_svd = $(@sprintf("%.3f", svd_max_ε))")
+            semilogy(1:(ite-1), err_ref_list[1:end-1], "rx-", label="|φ-φref|")
+            semilogy(1:ite, norm_res_list, "bx-", label="|res_φ|")
+            semilogy(1:ite, err_estimator, "gx-", label="|(Ω+K)^-1| * |res_φ|")
             if test_newton
                 semilogy(1:ite, norm_δφ_list, "+-", label="|δφ|")
                 semilogy(1:ite, err_newton_list, "x-", label="|P_newton-Pref|")
             end
             if change_norm
-                semilogy(1:(ite-1), err_Pkref_list[1:end-1], "x--", label="|M^1/2(P-Pref)|")
-                semilogy(1:ite, norm_Pkres_list, "x--", label="|M^-1/2res_φ|")
-                semilogy(1:ite, err_Pk_estimator, "x--", label="|M^1/2(Ω+K)^-1M^1/2| * |M^-1/2res_φ|")
+                semilogy(1:(ite-1), err_Pkref_list[1:end-1], "rx--", label="|M^1/2(φ-φref)|")
+                semilogy(1:ite, norm_Pkres_list, "bx--", label="|M^-1/2res_φ|")
+                semilogy(1:ite, err_Pk_estimator, "gx--", label="|M^1/2ε^-1M^-1/2| * |M^1/2Ω^-1M^1/2| * |M^-1/2res_φ|")
             end
             legend()
             xlabel("iterations")
-            savefig("GaAs_SCF.pdf")
         else
             ite += 1
             append!(φ_list, [info.ψ])
