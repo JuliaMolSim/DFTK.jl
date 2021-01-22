@@ -12,7 +12,9 @@ function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2"; keep=false, ove
             )
         end
         if info.stage == :finalize
-            !keep && isfile(filename) && rm(filename)  # Cleanup checkpoint
+            if mpi_master() && !keep
+                isfile(filename) && rm(filename)  # Cleanup checkpoint
+            end
         else
             scfres = (; (k => v for (k, v) in pairs(info) if !startswith(string(k), "ρ"))...)
             scfres = merge(scfres, (ρ=info.ρout, ρspin=info.ρ_spin_out))
@@ -22,22 +24,25 @@ function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2"; keep=false, ove
     end
 end
 
-function save_scfres(jld::JLD2.JLDFile, scfres::NamedTuple)
-    jld["__propertynames"] = propertynames(scfres)
-    jld["ρ_real"]          = scfres.ρ.real
-    jld["ρspin_real"]      = isnothing(scfres.ρspin) ? nothing : scfres.ρspin.real
-    jld["basis"]           = scfres.basis
 
-    for symbol in propertynames(scfres)
-        symbol in (:ham, :basis, :ρ, :ρspin, :energies) && continue  # special
-        jld[string(symbol)] = getproperty(scfres, symbol)
-    end
+function save_scfres_master(file::AbstractString, scfres::NamedTuple, ::Val{:jld2})
+    !mpi_master() && error(
+        "This function should only be called on MPI master after the k-point data has " *
+        "been gathered with `gather_kpts`."
+    )
 
-    jld
-end
-function save_scfres(file::AbstractString, scfres::NamedTuple, format::Val{:jld2})
     JLD2.jldopen(file, "w") do jld
-        save_scfres(jld, scfres)
+        jld["__propertynames"] = propertynames(scfres)
+        jld["ρ_real"]          = scfres.ρ.real
+        jld["ρspin_real"]      = isnothing(scfres.ρspin) ? nothing : scfres.ρspin.real
+        jld["basis"]           = scfres.basis
+
+        for symbol in propertynames(scfres)
+            symbol in (:ham, :basis, :ρ, :ρspin, :energies) && continue  # special
+            jld[string(symbol)] = getproperty(scfres, symbol)
+        end
+
+        jld
     end
 end
 
@@ -81,8 +86,8 @@ load_scfres(file::AbstractString) = JLD2.jldopen(load_scfres, file, "r")
 struct PlaneWaveBasisSerialisation{T <: Real}
     model::Model{T}
     Ecut::T
+    variational::Bool
     kcoords::Vector{Vec3{T}}
-    kweights::Vector{T}
     ksymops::Vector{Vector{SymOp}}
     kgrid::Union{Nothing,Vec3{Int}}
     kshift::Union{Nothing,Vec3{T}}
@@ -93,16 +98,17 @@ JLD2.writeas(::Type{PlaneWaveBasis{T}}) where {T} = PlaneWaveBasisSerialisation{
 
 function Base.convert(::Type{PlaneWaveBasisSerialisation{T}},
                       basis::PlaneWaveBasis{T}) where {T}
-    if mpi_nprocs() > 1
-        error("JLD2 serialisation for PlaneWaveBasis only implemented for non-MPI calculations for now.")
-    end
-    n_kcoords = div(length(basis.kpoints), basis.model.n_spin_components)
+    # Notice: This function is only meaningful on a basis which has gathered
+    # all k-Point information locally. So before using this in MPI-distributed calculations,
+    # ensure to call `mpi_kgather` on the PlaneWaveBasis object.
 
+    # Number of distinct k-Point coordinates
+    n_kcoords = div(length(basis.kpoints), basis.model.n_spin_components)
     PlaneWaveBasisSerialisation{T}(
         basis.model,
         basis.Ecut,
+        basis.variational,
         getproperty.(basis.kpoints[1:n_kcoords], :coordinate),
-        basis.kweights[1:n_kcoords],
         basis.ksymops[1:n_kcoords],
         basis.kgrid,
         basis.kshift,
@@ -116,5 +122,6 @@ function Base.convert(::Type{PlaneWaveBasis{T}},
     PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords,
                    serial.ksymops, serial.symmetries;
                    fft_size=serial.fft_size,
-                   kgrid=serial.kgrid, kshift=serial.kshift)
+                   kgrid=serial.kgrid, kshift=serial.kshift,
+                   variational=serial.variational)
 end
