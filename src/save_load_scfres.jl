@@ -22,6 +22,7 @@ or VTK file depending on the extension.
 function save_scfres(filename::AbstractString, scfres::NamedTuple)
     _, ext = splitext(filename)
     isempty(ext) && error("Provided filename misses extension")
+    # The function is dispatched based on the file extension
     save_scfres(filename, scfres, Val(Symbol(ext[2:end])))
 end
 

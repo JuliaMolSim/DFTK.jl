@@ -1,7 +1,5 @@
 import WriteVTK: vtk_grid, vtk_save
 
-# Uses WriteVTK.jl to convert scfres structure to VTk file format
-
 @doc raw"""
     save_scfres(filename, scfres, Val(:vtk))
 
@@ -29,7 +27,7 @@ function save_scfres(filename::AbstractString, scfres::NamedTuple, format::Val{:
     # Storing the Bloch Waves in Real space
     for ik in 1:length(basis.kpoints)
         for iband in 1:size(scfres.ψ[1])[2]
-            ψnk_real = G_to_r(basis, basis.kpoints[ik], scfres.ψ[ik][:,iband])
+            ψnk_real = G_to_r(basis, basis.kpoints[ik], scfres.ψ[ik][:, iband])
             vtkfile["ψ_k$(ik)_band$(iband)_real"] = real.(ψnk_real)
             vtkfile["ψ_k$(ik)_band$(iband)_imag"] = imag.(ψnk_real)
         end
