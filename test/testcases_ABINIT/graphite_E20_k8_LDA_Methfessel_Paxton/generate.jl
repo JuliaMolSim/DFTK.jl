@@ -1,12 +1,13 @@
 include("../../testcases.jl")
 using PyCall
 using DFTK
-import DFTK.units: Ǎ
+using Unitful: Å
+using UnitfulAtomic
 
 # Note: This is not exactly the minimum-energy structure
-a = 1.228Ǎ
-b = 2.12695839Ǎ
-c = 7Ǎ
+a = austrip(1.228Å)
+b = austrip(2.12695839Å)
+c = austrip(7Å)
 lattice = [[a a 0]; [-b b 0]; [0 0 c]]
 C = ElementPsp(:C, psp=load_psp("hgh/lda/c-q4"))
 atoms = [C => [[0, 0, 1/4], [0, 0, 3/4], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]]

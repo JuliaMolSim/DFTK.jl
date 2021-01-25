@@ -1,6 +1,3 @@
-using Unitful
-using UnitfulAtomic
-
 # Contains the physical specification of the model
 
 # A physical specification of a model.

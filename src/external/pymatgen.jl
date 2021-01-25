@@ -3,9 +3,9 @@
 
 function pymatgen_lattice(lattice::AbstractArray)
     # Notice: Pymatgen uses rows as lattice vectors, so we unpeel
-    # our lattice column by column. The default unit in pymatgen is Ǎngström
+    # our lattice column by column. The default unit in pymatgen is Ångström
     mg = pyimport("pymatgen")
-    bohr_to_A = 1 / units.Ǎ
+    bohr_to_A = 1 / austrip(1u"Å")
     mg.Lattice([Array(bohr_to_A .* lattice[:, i]) for i in 1:3])
 end
 pymatgen_lattice(model::Model) = pymatgen_lattice(model.lattice)
@@ -41,7 +41,7 @@ function load_lattice_pymatgen(T, pyobj::PyObject)
     elseif pyisinstance(pyobj, mg.Lattice)
         lattice = Matrix{T}(undef, 3, 3)
         for i in 1:3, j in 1:3
-            lattice[i, j] = units.Ǎ * get(get(pyobj.matrix, j-1), i-1)
+            lattice[i, j] = austrip(get(get(pyobj.matrix, j-1), i-1) * u"Å")
         end
         Mat3{T}(lattice)
     else

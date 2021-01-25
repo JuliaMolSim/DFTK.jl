@@ -159,10 +159,10 @@ end
 Compute and plot the band structure. `n_bands` selects the number of bands to compute.
 If this value is absent and an `scfres` is used to start the calculation a default of
 `n_bands_scf + 5sqrt(n_bands_scf)` is used. Unlike the rest of DFTK bands energies
-are plotted in `:eV` unless a different `unit` is selected.
+are plotted in eV unless a different `unit` (any Unitful unit) is selected.
 """
 function plot_bandstructure(basis, ρ, ρspin, n_bands;
-                            εF=nothing, kline_density=20, unit=:eV, kwargs...)
+                            εF=nothing, kline_density=20, unit=u"eV", kwargs...)
     mpi_nprocs() > 1 && error("Band structures with MPI not supported yet")
     if !isdefined(DFTK, :PLOTS_LOADED)
         error("Plots not loaded. Run 'using Plots' before calling plot_bandstructure.")

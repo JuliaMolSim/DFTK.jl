@@ -10,8 +10,9 @@ using LinearAlgebra
 using Requires
 using TimerOutputs
 using spglib_jll
+using Unitful
+using UnitfulAtomic
 
-export unit_to_au
 export Vec3
 export Mat3
 export mpi_nprocs
@@ -20,7 +21,6 @@ export setup_threading, disable_threading
 include("common/timer.jl")
 include("common/asserting.jl")
 include("common/constants.jl")
-include("common/units.jl")
 include("common/types.jl")
 include("common/check_real.jl")
 include("common/spherical_harmonics.jl")

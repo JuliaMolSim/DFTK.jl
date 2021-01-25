@@ -19,9 +19,9 @@ if !ispynull(ase)
         """
 
         lattice = load_lattice(py"atoms")
-        @test lattice[:, 1] ≈ DFTK.units.Å * [3.21, 0.0, 0.0]
-        @test lattice[:, 2] ≈ DFTK.units.Å * [-1.605, 2.7799415461480477, 0.0]
-        @test lattice[:, 3] ≈ DFTK.units.Å * [0.0, 0.0, 5.21304]
+        @test lattice[:, 1] ≈ austrip(1u"Å") * [3.21, 0.0, 0.0]
+        @test lattice[:, 2] ≈ austrip(1u"Å") * [-1.605, 2.7799415461480477, 0.0]
+        @test lattice[:, 3] ≈ austrip(1u"Å") * [0.0, 0.0, 5.21304]
 
         @test load_lattice(py"atoms") == load_lattice(py"atoms.cell")
 

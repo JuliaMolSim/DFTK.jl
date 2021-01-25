@@ -30,9 +30,12 @@ end
 
 
 function plot_band_data(band_data; εF=nothing,
-                        klabels=Dict{String, Vector{Float64}}(), unit=:eV, kwargs...)
+                        klabels=Dict{String, Vector{Float64}}(), unit=u"eV", kwargs...)
     eshift = isnothing(εF) ? 0.0 : εF
     data = prepare_band_data(band_data, klabels=klabels)
+
+    # Constant to convert from AU to the desired unit
+    to_unit = ustrip(auconvert(unit, 1.0))
 
     # For each branch, plot all bands, spins and errors
     p = Plots.plot(xlabel="wave vector")
@@ -40,9 +43,9 @@ function plot_band_data(band_data; εF=nothing,
         for σ in 1:data.n_spin, iband = 1:data.n_bands
             yerror = nothing
             if hasproperty(branch, :λerror)
-                yerror = branch.λerror[:, iband, σ] ./ unit_to_au(unit)
+                yerror = branch.λerror[:, iband, σ] .* to_unit
             end
-            energies = (branch.λ[:, iband, σ] .- eshift) ./ unit_to_au(unit)
+            energies = (branch.λ[:, iband, σ] .- eshift) .* to_unit
             color = (:blue, :red)[σ]
             Plots.plot!(p, branch.kdistances, energies; color=color, label="",
                         yerror=yerror, kwargs...)
@@ -53,9 +56,9 @@ function plot_band_data(band_data; εF=nothing,
     Plots.xlims!(p, (0, data.branches[end].kdistances[end]))
     Plots.xticks!(p, data.ticks.distances, data.ticks.labels)
 
-    ylims = [-4, 4]
-    !isnothing(εF) && is_metal(band_data, εF) && (ylims = [-10, 10])
-    ylims = round.(ylims * units.eV ./ unit_to_au(unit), sigdigits=2)
+    ylims = [-0.147, 0.147]
+    !isnothing(εF) && is_metal(band_data, εF) && (ylims = [-0.367, 0.367])
+    ylims = round.(ylims .* to_unit, sigdigits=2)
     if isnothing(εF)
         Plots.ylabel!(p, "eigenvalues  ($(string(unit))")
     else
