@@ -103,6 +103,10 @@ Random.seed!(0)
         include("checkpointing.jl")
     end
 
+    if "all" in TAGS
+        include("save_load_scfres.jl")
+    end
+
     if "all" in TAGS && mpi_master()
         include("aqua.jl")
     end
