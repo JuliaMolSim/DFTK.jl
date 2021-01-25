@@ -16,6 +16,9 @@ MetaData:
 Energy , EigenValues, Fermi Level and occupation.
 """
 function save_scfres(filename::AbstractString, scfres::NamedTuple, format::Val{:vts})
+    if mpi_nprocs() > 1
+        error("Saving VTK file with MPI is not supported yet.")
+    end
     # Initialzing the VTK Grid
     basis = scfres.basis
     grid = zeros(3, basis.fft_size...)
