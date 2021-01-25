@@ -36,7 +36,7 @@ model = model_LDA(lattice, atoms)
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
 tol = 1e-10
 tol_krylov = 1e-12
-Ecut_ref = 15           # kinetic energy cutoff in Hartree
+Ecut_ref = 40           # kinetic energy cutoff in Hartree
 
 ## changing norm for error estimation
 change_norm = true
@@ -47,4 +47,4 @@ basis_ref = PlaneWaveBasis(model, Ecut_ref; kgrid=kgrid)
 scfres_ref = self_consistent_field(basis_ref, tol=tol,
                                    determine_diagtol=DFTK.ScfDiagtol(diagtol_max=1e-10),
                                    is_converged=DFTK.ScfConvergenceDensity(tol),
-                                   callback=callback_estimators())
+                                   callback=callback_estimators("gaas"))

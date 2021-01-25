@@ -223,7 +223,7 @@ end
 ############################# SCF CALLBACK ####################################
 
 ## custom callback to follow estimators
-function callback_estimators(; test_newton=false, change_norm=true)
+function callback_estimators(system; test_newton=false, change_norm=true)
 
     global ite, φ_list
     φ_list = []                 # list of φ^k
@@ -316,27 +316,29 @@ function callback_estimators(; test_newton=false, change_norm=true)
                 err_Pk_estimator = normop_invε .* normop_invΩ .* norm_Pkres_list
             end
 
-            ## plotting convergence info
-            figure(figsize=(20,10))
-            title("GaAs
-                  error estimators vs iteration, Ecut = $(Ecut_ref), LDA, N = $(N), kgrid = $(kgrid), M = (1-Δ)
-                  (Ω+K)^-1 : norm = $(@sprintf("%.3f", normop_ΩpK)), min_svd = $(@sprintf("%.3f", svd_min_ΩpK)), max_svd = $(@sprintf("%.3f", svd_max_ΩpK))
-                  M^1/2Ω^-1M^1/2 : norm = $(@sprintf("%.3f", normop_invΩ)), min_svd = $(@sprintf("%.3f", svd_min_Ω)), max_svd = $(@sprintf("%.3f", svd_max_Ω))
-                  M^1/2ε^-1M^-1/2 : norm = $(@sprintf("%.3f", normop_invε)), min_svd = $(@sprintf("%.3f", svd_min_ε)), max_svd = $(@sprintf("%.3f", svd_max_ε))")
-            semilogy(1:(ite-1), err_ref_list[1:end-1], "rx-", label="|φ-φref|")
-            semilogy(1:ite, norm_res_list, "bx-", label="|res_φ|")
-            semilogy(1:ite, err_estimator, "gx-", label="|(Ω+K)^-1| * |res_φ|")
-            if test_newton
-                semilogy(1:ite, norm_δφ_list, "+-", label="|δφ|")
-                semilogy(1:ite, err_newton_list, "x-", label="|P_newton-Pref|")
+            h5open(system*"_SCF.h5", "w") do file
+                file["Ecut_ref"] = Ecut_ref
+                file["ite"] = ite
+                file["kgrid"] = kgrid
+                file["N"] = N
+                file["gap"] = gap
+                file["normop_invΩpK"] = normop_ΩpK
+                file["svd_min_ΩpK"] = svd_min_ΩpK
+                file["svd_max_ΩpK"] = svd_max_ΩpK
+                file["normop_invΩ_kin"] = normop_invΩ
+                file["svd_min_Ω_kin"] = svd_min_Ω
+                file["svd_max_Ω_kin"] = svd_max_Ω
+                file["normop_invε_kin"] = normop_invε
+                file["svd_min_ε_kin"] = svd_min_ε
+                file["svd_max_ε_kin"] = svd_max_ε
+                file["norm_err_list"] = Float64.(err_ref_list)
+                file["norm_res_list"] = Float64.(norm_res_list)
+                file["err_estimator"] = Float64.(err_estimator)
+                file["norm_Pk_kin_err_list"] = Float64.(err_Pkref_list)
+                file["norm_Pk_kin_res_list"] = Float64.(norm_Pkres_list)
+                file["err_Pk_estimator"] = Float64.(err_Pk_estimator)
             end
-            if change_norm
-                semilogy(1:(ite-1), err_Pkref_list[1:end-1], "rx--", label="|M^1/2(φ-φref)|")
-                semilogy(1:ite, norm_Pkres_list, "bx--", label="|M^-1/2res_φ|")
-                semilogy(1:ite, err_Pk_estimator, "gx--", label="|M^1/2ε^-1M^-1/2| * |M^1/2Ω^-1M^1/2| * |M^-1/2res_φ|")
-            end
-            legend()
-            xlabel("iterations")
+
         else
             ite += 1
             append!(φ_list, [info.ψ])
