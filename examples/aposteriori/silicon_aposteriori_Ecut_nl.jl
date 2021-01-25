@@ -32,11 +32,11 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]]
 ## local potential only
 model = model_LDA(lattice, atoms)
 
-kgrid = [4, 4, 4]   # k-point grid (Regular Monkhorst-Pack grid)
+kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
 tol = 1e-10
-tol_krylov = 1e-15
-Ecut_ref = 150           # kinetic energy cutoff in Hartree
-Ecut_list = 10:10:(Ecut_ref-10)
+tol_krylov = 1e-12
+Ecut_ref = 85           # kinetic energy cutoff in Hartree
+Ecut_list = 10:5:(Ecut_ref-5)
 
 ## changing norm for error estimation
 change_norm = true
@@ -74,8 +74,6 @@ if change_norm
     end
     norm_Pk_kin_res_list  = []
     norm_Pk_kin_err_list  = []
-    norm_ΠPk_kin_res_list = []
-    norm_ΠPk_kin_err_list = []
 end
 
 for Ecut in Ecut_list
@@ -111,8 +109,6 @@ for Ecut in Ecut_list
     if change_norm
         append!(norm_Pk_kin_err_list,  norm(apply_sqrt(Pk_kin, err)))
         append!(norm_Pk_kin_res_list,  norm(apply_inv_sqrt(Pk_kin, res)))
-        append!(norm_ΠPk_kin_err_list, norm(proj(apply_sqrt(Pk_kin, err), φ_ref)))
-        append!(norm_ΠPk_kin_res_list, norm(proj(apply_inv_sqrt(Pk_kin, res), φ_ref)))
     end
 end
 
@@ -132,21 +128,25 @@ if change_norm
     err_Pk_estimator = normop_invε_kin .* normop_invΩ_kin .* norm_Pk_kin_res_list
 end
 
-figure()
-title("Silicon
-      error estimators vs Ecut, LDA, kgrid = $(kgrid), N = $(N), M = (T-Δ), gap = $(@sprintf("%.3f", gap))
-      (Ω+K)^-1 : norm = $(@sprintf("%.3f", normop_invΩpK)), min_svd = $(@sprintf("%.3f", svd_min_ΩpK)), max_svd = $(@sprintf("%.3f", svd_max_ΩpK))
-      M^1/2Ω^-1M^1/2 : norm = $(@sprintf("%.3f", normop_invΩ_kin)), min_svd = $(@sprintf("%.3f", svd_min_Ω_kin)), max_svd = $(@sprintf("%.3f", svd_max_Ω_kin))
-      M^1/2ε^-TM^-1/2 : norm = $(@sprintf("%.3f", normop_invΩ_kin)), min_svd = $(@sprintf("%.3f", svd_min_Ω_kin)), max_svd = $(@sprintf("%.3f", svd_max_Ω_kin))")
-semilogy(Ecut_list, norm_err_list, "x-", label="|φ-φref|")
-semilogy(Ecut_list, norm_res_list, "x-", label="|res|")
-semilogy(Ecut_list, err_estimator, "x-", label="|(Ω+K)^-1| * |res|")
-if change_norm
-    semilogy(Ecut_list, norm_Pk_kin_err_list, "+--", label="|M^1/2(φ-φref)| kin")
-    semilogy(Ecut_list, norm_Pk_kin_res_list, "+--", label="|M^-1/2res| kin")
-    semilogy(Ecut_list, norm_ΠPk_kin_err_list, "+:", label="|ΠM^1/2(φ-φref)| kin")
-    semilogy(Ecut_list, norm_ΠPk_kin_res_list, "+:", label="|ΠM^-1/2res| kin")
-    semilogy(Ecut_list, err_Pk_estimator, "+--", label="|M^1/2ε^-TM^-1/2| * |M^1/2Ω^-1M^1/2| * |M^-1/2res| kin")
+h5open("silicon_Ecut_nl.h5", "w") do file
+    file["Ecut_list"] = collect(Ecut_list)
+    file["kgrid"] = kgrid
+    file["N"] = N
+    file["gap"] = gap
+    file["normop_invΩpK"] = normop_invΩpK
+    file["svd_min_ΩpK"] = svd_min_ΩpK
+    file["svd_max_ΩpK"] = svd_max_ΩpK
+    file["normop_invΩ_kin"] = normop_invΩ_kin
+    file["svd_min_Ω_kin"] = svd_min_Ω_kin
+    file["svd_max_Ω_kin"] = svd_max_Ω_kin
+    file["normop_invε_kin"] = normop_invε_kin
+    file["svd_min_ε_kin"] = svd_min_ε_kin
+    file["svd_max_ε_kin"] = svd_max_ε_kin
+    file["norm_err_list"] = Float64.(norm_err_list)
+    file["norm_res_list"] = Float64.(norm_res_list)
+    file["err_estimator"] = Float64.(err_estimator)
+    file["norm_Pk_kin_err_list"] = Float64.(norm_Pk_kin_err_list)
+    file["norm_Pk_kin_res_list"] = Float64.(norm_Pk_kin_res_list)
+    file["err_Pk_estimator"] = Float64.(err_Pk_estimator)
 end
-legend()
-xlabel("Ecut")
+

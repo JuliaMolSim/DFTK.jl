@@ -192,9 +192,11 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
         if Pks != nothing
             δφ = proj(δφ, φ)
             δφ = apply_inv_sqrt(Pks, δφ)
+            δφ = proj(δφ, φ)
         end
         δφ = f(δφ)
         if Pks != nothing
+            δφ = proj(δφ, φ)
             δφ = apply_inv_sqrt(Pks, δφ)
             δφ = proj(δφ, φ)
         end
