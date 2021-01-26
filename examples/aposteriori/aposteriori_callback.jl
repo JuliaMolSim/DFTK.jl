@@ -227,6 +227,7 @@ function callback_estimators(system; test_newton=false, change_norm=true)
 
     global ite, φ_list
     φ_list = []                 # list of φ^k
+    nrj_list = []
     ite = 0
 
     function callback(info)
@@ -254,10 +255,12 @@ function callback_estimators(system; test_newton=false, change_norm=true)
             ρ_ref = info.ρ
             H_ref = info.ham
             egval_ref = info.eigenvalues
+            nrj_ref = info.energies.total
 
             ## filling residuals and errors
             err_ref_list = []
             norm_res_list = []
+            nrj_ref_list = []
             if test_newton
                 err_newton_list = []
                 norm_δφ_list = []
@@ -287,6 +290,7 @@ function callback_estimators(system; test_newton=false, change_norm=true)
                 err = compute_error(basis, φ, φ_ref)
                 append!(err_ref_list, norm(err))
                 append!(norm_res_list, norm(res))
+                append!(nrj_ref_list, abs(nrj_list[i] - nrj_ref))
 
                 if change_norm
                     append!(norm_Pkres_list, norm(apply_inv_sqrt(Pks, res)))
@@ -304,7 +308,8 @@ function callback_estimators(system; test_newton=false, change_norm=true)
             ## error estimates
             println("--------------------------------")
             println("Computing operator norms...")
-            println("--> gap $(egval_ref[1][N+1] - egval_ref[1][N])")
+            gap = egval_ref[1][N+1] - egval_ref[1][N]
+            println("--> gap $(gap)")
             normop_ΩpK, svd_min_ΩpK, svd_max_ΩpK = compute_normop_invΩpK(basis, φ_ref, occupation;
                                                                          tol_krylov=tol_krylov, Pks=nothing)
             err_estimator = normop_ΩpK .* norm_res_list
@@ -337,11 +342,13 @@ function callback_estimators(system; test_newton=false, change_norm=true)
                 file["norm_Pk_kin_err_list"] = Float64.(err_Pkref_list)
                 file["norm_Pk_kin_res_list"] = Float64.(norm_Pkres_list)
                 file["err_Pk_estimator"] = Float64.(err_Pk_estimator)
+                file["nrj_ref_list"] = Float64.(nrj_ref_list)
             end
 
         else
             ite += 1
             append!(φ_list, [info.ψ])
+            append!(nrj_list, info.energies.total)
         end
     end
     callback
