@@ -36,9 +36,11 @@ function compute_normop_invΩpK(basis::PlaneWaveBasis{T}, φ, occ;
         if Pks != nothing
             δφ = proj(δφ, φ)
             δφ = apply_sqrt(Pks, δφ)
+            δφ = proj(δφ, φ)
         end
         ΩpKδφ = f(δφ)
         if Pks != nothing
+            δφ = proj(δφ, φ)
             δφ = apply_sqrt(Pks, δφ)
             δφ = proj(δφ, φ)
         end
@@ -159,8 +161,23 @@ function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
     (normop=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
 end
 
+function keep_HF(δφ, kpt, Ecut)
+
+    G_vec = G_vectors(kpt)
+    recip_lat = kpt.model.recip_lattice
+
+    for i in 1:length(δφ[1][:,1])
+        if sum(abs2, recip_lat * (G_vec[i] + kpt.coordinate)) <= 2*Ecut
+            δφ[1][i,1] = 0
+        end
+    end
+
+    δφ
+end
+
 function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
-                             tol_krylov=1e-12, Pks=nothing, change_norm=false) where T
+                             tol_krylov=1e-12, Pks=nothing, change_norm=false,
+                             high_freq=false, Ecut=nothing) where T
 
     ## necessary quantities
     N = size(φ[1],2)
@@ -175,7 +192,7 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
     end
 
     # packing routines
-    pack, unpack, packed_proj = packing(basis, φ)
+    pack, unpack, packed_proj = packing(basis, φ; high_freq=high_freq, Ecut=Ecut)
 
     ## random starting point for eigensolvers
     ortho(ψk) = Matrix(qr(ψk).Q)
@@ -189,6 +206,9 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
     # svd solve
     function g(x,flag)
         δφ = unpack(x)
+        if high_freq && Nk == 1
+            δφ = keep_HF(δφ, basis.kpoints[1], Ecut)
+        end
         if Pks != nothing
             δφ = proj(δφ, φ)
             δφ = apply_inv_sqrt(Pks, δφ)
@@ -200,9 +220,12 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
             δφ = apply_inv_sqrt(Pks, δφ)
             δφ = proj(δφ, φ)
         end
+        if high_freq && Nk == 1
+            δφ = keep_HF(δφ, basis.kpoints[1], Ecut)
+        end
         pack(δφ)
     end
-    svd_SR, _ = svdsolve(g, pack(ψ0), 3, :SR;
+    svd_SR, l, r, _ = svdsolve(g, pack(ψ0), 3, :SR;
                          tol=tol_krylov, verbosity=1, eager=true,
                          orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
     svd_LR, _ = svdsolve(g, pack(ψ0), 3, :LR;

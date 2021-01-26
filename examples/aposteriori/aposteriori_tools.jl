@@ -101,7 +101,7 @@ end
 tol_test = 1e-10
 
 # we project ϕ onto the orthogonal of ψ
-function proj(ϕ, ψ)
+function proj(ϕ, ψ; high_freq=false, Ecut=nothing, kpt=nothing)
 
     Nk1 = size(ϕ,1)
     Nk2 = size(ψ,1)
@@ -136,11 +136,16 @@ function proj(ϕ, ψ)
             @assert abs(Πϕk[:,i]'ψk[:,j]) < tol_test [println(abs(Πϕk[:,i]'ψk[:,j]))]
         end
     end
+
+    if high_freq
+        Πϕ = keep_HF(Πϕ, kpt, Ecut)
+    end
+
     Πϕ
 end
 
 # packing routines
-function packing(basis::PlaneWaveBasis{T}, φ) where T
+function packing(basis::PlaneWaveBasis{T}, φ; high_freq=false, Ecut=nothing) where T
     Nk = length(basis.kpoints)
     lengths = [length(φ[ik]) for ik = 1:Nk]
     starts = copy(lengths)
@@ -151,7 +156,12 @@ function packing(basis::PlaneWaveBasis{T}, φ) where T
     pack(φ) = vcat(Base.vec.(φ)...)
     unpack(x) = [@views reshape(x[starts[ik]:starts[ik]+lengths[ik]-1], size(φ[ik]))
                  for ik = 1:Nk]
-    packed_proj(ϕ,φ) = proj(unpack(ϕ), unpack(φ))
+    if high_freq && Nk == 1
+        kpt = basis.kpoints[1]
+    else
+        kpt = nothing
+    end
+    packed_proj(ϕ,φ) = proj(unpack(ϕ), unpack(φ); high_freq=high_freq, Ecut=Ecut, kpt=kpt)
     (pack, unpack, packed_proj)
 end
 
