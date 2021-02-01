@@ -100,11 +100,7 @@ Random.seed!(0)
         include("random_spindensity.jl")
         include("chi0.jl")
         include("kernel.jl")
-        include("checkpointing.jl")
-    end
-
-    if "all" in TAGS
-        include("save_load_scfres.jl")
+        include("serialisation.jl")
     end
 
     if "all" in TAGS && mpi_master()

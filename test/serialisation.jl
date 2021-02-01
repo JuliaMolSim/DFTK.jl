@@ -1,0 +1,91 @@
+using DFTK
+using JLD2
+using WriteVTK
+using MPI
+import DFTK: ScfDefaultCallback, ScfSaveCheckpoints
+using Test
+include("testcases.jl")
+
+function test_scfres_agreement(tested, ref)
+    @test tested.basis.model.lattice           == ref.basis.model.lattice
+    @test tested.basis.model.smearing          == ref.basis.model.smearing
+    @test tested.basis.model.symmetries        == ref.basis.model.symmetries
+    @test tested.basis.model.spin_polarization == ref.basis.model.spin_polarization
+
+    @test length(tested.basis.model.atoms) == length(ref.basis.model.atoms)
+    @test tested.basis.model.atoms[1][2]   == ref.basis.model.atoms[1][2]
+
+    @test tested.basis.Ecut      == ref.basis.Ecut
+    @test tested.basis.kweights  == ref.basis.kweights
+    @test tested.basis.ksymops   == ref.basis.ksymops
+    @test tested.basis.fft_size  == ref.basis.fft_size
+
+    kcoords_test = getproperty.(tested.basis.kpoints, :coordinate)
+    kcoords_ref  = getproperty.(ref.basis.kpoints, :coordinate)
+    @test kcoords_test == kcoords_ref
+
+    @test tested.n_iter         == ref.n_iter
+    @test tested.energies.total ≈  ref.energies.total atol=1e-13
+    @test tested.eigenvalues    == ref.eigenvalues
+    @test tested.occupation     == ref.occupation
+    @test tested.ψ              == ref.ψ
+    @test tested.ρ.real         == ref.ρ.real
+    @test tested.ρspin.real     == ref.ρspin.real
+end
+
+
+@testset "Test checkpointing" begin
+    O = ElementPsp(o2molecule.atnum, psp=load_psp("hgh/pbe/O-q6.hgh"))
+    magnetic_moments = [O => [1., 1.]]
+    model = model_PBE(o2molecule.lattice, [O => o2molecule.positions],
+                      temperature=0.02, smearing=smearing=Smearing.Gaussian(),
+                      magnetic_moments=magnetic_moments, symmetries=false)
+
+    kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
+    basis  = PlaneWaveBasis(model, 4; kgrid=kgrid)
+    ρspin  = guess_spin_density(basis, magnetic_moments)
+
+    # Run SCF and do checkpointing along the way
+    mktempdir() do tmpdir
+        checkpointfile = joinpath(tmpdir, "scfres.jld2")
+        checkpointfile = MPI.bcast(checkpointfile, 0, MPI.COMM_WORLD)  # master -> everyone
+
+        callback = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
+        scfres = self_consistent_field(basis, tol=5e-2, ρspin=ρspin, callback=callback)
+        test_scfres_agreement(scfres, load_scfres(checkpointfile))
+    end
+end
+
+@testset "Test serialisation" begin
+    Si = ElementPsp(14, psp=load_psp(silicon.psp))
+    atoms = [Si => silicon.positions]
+    model = model_LDA(silicon.lattice, atoms, spin_polarization=:collinear, temperature=0.01)
+    kgrid = [2, 3, 4]
+    Ecut = 5
+    basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+    scfres = self_consistent_field(basis)
+
+    @test_throws ErrorException save_scfres("MyVTKfile.random", scfres)
+    @test_throws ErrorException save_scfres("MyVTKfile", scfres)
+
+    @testset "JLD2" begin
+        mktempdir() do tmpdir
+            dumpfile = joinpath(tmpdir, "scfres.jld2")
+            dumpfile = MPI.bcast(dumpfile, 0, MPI.COMM_WORLD)  # master -> everyone
+
+            save_scfres(dumpfile, scfres)
+            @test isfile(dumpfile)
+            test_scfres_agreement(scfres, load_scfres(dumpfile))
+        end
+    end
+
+    @testset "VTK" begin
+        mktempdir() do tmpdir
+            dumpfile = joinpath(tmpdir, "scfres.vts")
+            dumpfile = MPI.bcast(dumpfile, 0, MPI.COMM_WORLD)  # master -> everyone
+
+            save_scfres(dumpfile, scfres; save_ψ=true)
+            @test isfile(dumpfile)
+        end
+    end
+end
