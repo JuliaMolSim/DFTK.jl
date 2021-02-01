@@ -59,7 +59,7 @@ end
 @testset "Test serialisation" begin
     Si = ElementPsp(14, psp=load_psp(silicon.psp))
     atoms = [Si => silicon.positions]
-    model = model_LDA(silicon.lattice, atoms, spin_polarization=:collinear)
+    model = model_LDA(silicon.lattice, atoms, spin_polarization=:collinear, temperature=0.01)
     kgrid = [2, 3, 4]
     Ecut = 5
     basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
@@ -84,7 +84,7 @@ end
             dumpfile = joinpath(tmpdir, "scfres.vts")
             dumpfile = MPI.bcast(dumpfile, 0, MPI.COMM_WORLD)  # master -> everyone
 
-            save_scfres(dumpfile, scfres)
+            save_scfres(dumpfile, scfres; save_ψ=true)
             @test isfile(dumpfile)
         end
     end
