@@ -7,7 +7,6 @@ The function takes in the VTK filename and the scfres structure and stores into 
 
 Parameters
 - `save_ψ`: Store the orbitals or not. By default they are not stored.
-- `save_ldos`: Store the LDOS or not. By default the LDOS is computed and stored.
 
 Grid Values:
 - ``\rho`` -> Density in real space
@@ -19,7 +18,7 @@ MetaData:
 - energies, eigenvalues, Fermi level and occupations.
 """
 function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{:vts};
-                            save_ψ=false, save_ldos=true, extra_data=Dict{String,Any}())
+                            save_ψ=false, extra_data=Dict{String,Any}())
     !mpi_master() && error(
         "This function should only be called on MPI master after the k-point data has " *
         "been gathered with `gather_kpts`."
@@ -68,12 +67,5 @@ function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{
         vtkfile[key] = value
     end
 
-    if scfres.basis.model.temperature > 0 && save_ldos
-        for σ in 1:scfres.basis.model.n_spin_components
-            ldos = compute_ldos(scfres.εF, scfres.ham.basis, scfres.eigenvalues,
-                                scfres.ψ, spins=[σ])
-            vtkfile["LDOS_spin$σ"] = ldos
-        end
-    end
     only(vtk_save(vtkfile))
 end
