@@ -24,13 +24,16 @@ function test_scfres_agreement(tested, ref)
     kcoords_ref  = getproperty.(ref.basis.kpoints, :coordinate)
     @test kcoords_test == kcoords_ref
 
+    # Note: Apart from the energy (which is recomputed on loading) the other quantities
+    #       should be exactly as stored. For MPI runs it is possible that the density differs
+    #       slightly for non-master processes as the version from the master process is stored.
     @test tested.n_iter         == ref.n_iter
     @test tested.energies.total ≈  ref.energies.total atol=1e-13
     @test tested.eigenvalues    == ref.eigenvalues
     @test tested.occupation     == ref.occupation
     @test tested.ψ              == ref.ψ
-    @test tested.ρ.real         == ref.ρ.real
-    @test tested.ρspin.real     == ref.ρspin.real
+    @test tested.ρ.real         ≈  ref.ρ.real     rtol=1e-14
+    @test tested.ρspin.real     ≈  ref.ρspin.real rtol=1e-14
 end
 
 
