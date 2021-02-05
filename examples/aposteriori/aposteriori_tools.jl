@@ -101,7 +101,7 @@ end
 tol_test = 1e-10
 
 # we project ϕ onto the orthogonal of ψ
-function proj(ϕ, ψ; high_freq=false, Ecut=nothing, kpt=nothing)
+function proj(ϕ, ψ; high_freq=false, low_freq=false, Ecut=nothing, kpt=nothing)
 
     Nk1 = size(ϕ,1)
     Nk2 = size(ψ,1)
@@ -110,42 +110,47 @@ function proj(ϕ, ψ; high_freq=false, Ecut=nothing, kpt=nothing)
 
     Πϕ = similar(ϕ)
 
-    for ik = 1:Nk
-        ψk = ψ[ik]
-        ϕk = ϕ[ik]
-        Πϕk = deepcopy(ϕk)
-
-        N1 = size(ϕk,2)
-        N2 = size(ψk,2)
-        @assert N1 == N2
-        N = N1
-
-        for i = 1:N, j = 1:N
-            Πϕk[:,i] -= (ψk[:,j]'ϕk[:,i]) * ψk[:,j]
+    if high_freq || low_freq
+        if high_freq
+            Πϕ = keep_HF(ϕ, kpt, Ecut)
+        elseif low_freq
+            Πϕ = keep_LF(ϕ, kpt, Ecut)
         end
-        Πϕ[ik] = Πϕk
-    end
+    else
+        for ik = 1:Nk
+            ψk = ψ[ik]
+            ϕk = ϕ[ik]
+            Πϕk = deepcopy(ϕk)
 
-    # test orthogonalisation
-    for ik = 1:Nk
-        ψk = ψ[ik]
-        ϕk = ϕ[ik]
-        Πϕk = Πϕ[ik]
-        N = size(ψk,2)
-        for i = 1:N, j = 1:N
-            @assert abs(Πϕk[:,i]'ψk[:,j]) < tol_test [println(abs(Πϕk[:,i]'ψk[:,j]))]
+            N1 = size(ϕk,2)
+            N2 = size(ψk,2)
+            @assert N1 == N2
+            N = N1
+
+            for i = 1:N, j = 1:N
+                Πϕk[:,i] -= (ψk[:,j]'ϕk[:,i]) * ψk[:,j]
+            end
+            Πϕ[ik] = Πϕk
         end
-    end
 
-    if high_freq
-        Πϕ = keep_HF(Πϕ, kpt, Ecut)
+        # test orthogonalisation
+        for ik = 1:Nk
+            ψk = ψ[ik]
+            ϕk = ϕ[ik]
+            Πϕk = Πϕ[ik]
+            N = size(ψk,2)
+            for i = 1:N, j = 1:N
+                @assert abs(Πϕk[:,i]'ψk[:,j]) < tol_test [println(abs(Πϕk[:,i]'ψk[:,j]))]
+            end
+        end
     end
 
     Πϕ
 end
 
 # packing routines
-function packing(basis::PlaneWaveBasis{T}, φ; high_freq=false, Ecut=nothing) where T
+function packing(basis::PlaneWaveBasis{T}, φ;
+                 high_freq=false, low_freq=false, Ecut=nothing) where T
     Nk = length(basis.kpoints)
     lengths = [length(φ[ik]) for ik = 1:Nk]
     starts = copy(lengths)
@@ -156,12 +161,14 @@ function packing(basis::PlaneWaveBasis{T}, φ; high_freq=false, Ecut=nothing) wh
     pack(φ) = vcat(Base.vec.(φ)...)
     unpack(x) = [@views reshape(x[starts[ik]:starts[ik]+lengths[ik]-1], size(φ[ik]))
                  for ik = 1:Nk]
-    if high_freq && Nk == 1
+    if (high_freq || low_freq) && Nk == 1
         kpt = basis.kpoints[1]
     else
         kpt = nothing
     end
-    packed_proj(ϕ,φ) = proj(unpack(ϕ), unpack(φ); high_freq=high_freq, Ecut=Ecut, kpt=kpt)
+    packed_proj(ϕ,φ) = proj(unpack(ϕ), unpack(φ);
+                            high_freq=high_freq, low_freq=low_freq,
+                            Ecut=Ecut, kpt=kpt)
     (pack, unpack, packed_proj)
 end
 

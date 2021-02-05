@@ -161,23 +161,8 @@ function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
     (normop=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
 end
 
-function keep_HF(δφ, kpt, Ecut)
-
-    G_vec = G_vectors(kpt)
-    recip_lat = kpt.model.recip_lattice
-
-    for i in 1:length(δφ[1][:,1])
-        if sum(abs2, recip_lat * (G_vec[i] + kpt.coordinate)) <= 2*Ecut
-            δφ[1][i,1] = 0
-        end
-    end
-
-    δφ
-end
-
 function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
-                             tol_krylov=1e-12, Pks=nothing, change_norm=false,
-                             high_freq=false, Ecut=nothing) where T
+                             tol_krylov=1e-12, Pks=nothing, change_norm=false) where T
 
     ## necessary quantities
     N = size(φ[1],2)
@@ -192,7 +177,7 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
     end
 
     # packing routines
-    pack, unpack, packed_proj = packing(basis, φ; high_freq=high_freq, Ecut=Ecut)
+    pack, unpack, packed_proj = packing(basis, φ)
 
     ## random starting point for eigensolvers
     ortho(ψk) = Matrix(qr(ψk).Q)
@@ -206,9 +191,6 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
     # svd solve
     function g(x,flag)
         δφ = unpack(x)
-        if high_freq && Nk == 1
-            δφ = keep_HF(δφ, basis.kpoints[1], Ecut)
-        end
         if Pks != nothing
             δφ = proj(δφ, φ)
             δφ = apply_inv_sqrt(Pks, δφ)
@@ -219,9 +201,6 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
             δφ = proj(δφ, φ)
             δφ = apply_inv_sqrt(Pks, δφ)
             δφ = proj(δφ, φ)
-        end
-        if high_freq && Nk == 1
-            δφ = keep_HF(δφ, basis.kpoints[1], Ecut)
         end
         pack(δφ)
     end
@@ -241,6 +220,134 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
         println("--> normop M^1/2Ω^-1M^1/2 $(normop)")
     end
     (normop=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
+end
+
+## projection on frequencies higher than Ecut
+function keep_HF(δφ, kpt, Ecut)
+
+    G_vec = G_vectors(kpt)
+    recip_lat = kpt.model.recip_lattice
+
+    for i in 1:length(δφ[1][:,1])
+        if sum(abs2, recip_lat * (G_vec[i] + kpt.coordinate)) <= 2*Ecut
+            δφ[1][i,1] = 0
+        end
+    end
+
+    δφ
+end
+
+## projection on frequencies smaller than Ecut
+function keep_LF(δφ, kpt, Ecut)
+
+    G_vec = G_vectors(kpt)
+    recip_lat = kpt.model.recip_lattice
+
+    for i in 1:length(δφ[1][:,1])
+        if sum(abs2, recip_lat * (G_vec[i] + kpt.coordinate)) > 2*Ecut
+            δφ[1][i,1] = 0
+        end
+    end
+
+    δφ
+end
+
+function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
+                                     tol_krylov=1e-12, Pks=nothing, change_norm=false,
+                                     high_freq=false, low_freq=false, Ecut=nothing) where T
+
+    ## ensure that high_freq and low_freq are not true at the same time or false
+    ## at the same time
+    @assert !(high_freq && low_freq)
+    @assert (high_freq || low_freq)
+    @assert Ecut != nothing
+
+    ## necessary quantities
+    N = size(φ[1],2)
+    Nk = length(basis.kpoints)
+    ρ = compute_density(basis, φ, occ)
+    energies, H = energy_hamiltonian(basis, φ, occ; ρ=ρ[1])
+    egval = [ zeros(Complex{T}, size(occ[ik])) for ik = 1:Nk ]
+    for ik = 1:Nk
+        Hk = H.blocks[ik]
+        φk = φ[ik]
+        egval[ik] = [φk[:,i]'*(Hk*φk[:,i]) for i = 1:N]
+    end
+
+    if high_freq
+        @assert Nk == 1 [println("high_freq only valid for 1 kpt yet")]
+        println("Computing M^1/2Ω^-1M^1/2 on high frequencies...")
+    elseif low_freq
+        @assert Nk == 1 [println("high_freq only valid for 1 kpt yet")]
+        println("Computing M^1/2Ω^-1M^1/2 on low frequencies...")
+    end
+
+    # packing routines
+    pack, unpack, packed_proj = packing(basis, φ)
+    pack, unpack, packed_proj_freq = packing(basis, φ;
+                                             high_freq=high_freq,
+                                             low_freq=low_freq, Ecut=Ecut)
+
+    ## random starting point for eigensolvers
+    ortho(ψk) = Matrix(qr(ψk).Q)
+    ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
+          for kpt in basis.kpoints]
+
+    function invΩ(basis, δφ, φ, H, egval)
+        function Ω(x)
+            δϕ = unpack(x)
+            Ωδϕ = apply_Ω(basis, δϕ, φ, H, egval)
+            pack(Ωδϕ)
+        end
+        invΩδφ, info = linsolve(Ω, pack(δφ);
+                                tol=tol_krylov, verbosity=0,
+                                orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
+        unpack(invΩδφ)
+    end
+    function f(δφ)
+        Ωδφ = invΩ(basis, δφ, φ, H, egval)
+    end
+
+    # svd solve
+    function g(x,flag)
+        δφ = unpack(x)
+        if high_freq
+            δφ = keep_HF(δφ, basis.kpoints[1], Ecut)
+        end
+        if Pks != nothing
+            δφ = proj(δφ, φ)
+            δφ = apply_inv_sqrt(Pks, δφ)
+            δφ = proj(δφ, φ)
+        end
+        δφ = f(δφ)
+        if Pks != nothing
+            δφ = proj(δφ, φ)
+            if high_freq
+                δφ = keep_HF(δφ, basis.kpoints[1], Ecut)
+            elseif low_freq
+                δφ = keep_LF(δφ, basis.kpoints[1], Ecut)
+            end
+            δφ = apply_inv_sqrt(Pks, δφ)
+            δφ = proj(δφ, φ)
+        end
+        if high_freq
+            δφ = keep_HF(δφ, basis.kpoints[1], Ecut)
+        elseif low_freq
+            δφ = keep_LF(δφ, basis.kpoints[1], Ecut)
+        end
+        pack(δφ)
+    end
+    svd_LR, _ = svdsolve(g, pack(ψ0), 3, :LR;
+                         tol=tol_krylov, verbosity=1, eager=true,
+                         orth=OrthogonalizeAndProject(packed_proj_freq, pack(φ)))
+
+    normop = svd_LR[1]
+    if !change_norm
+        println("--> normop Ω^-1 $(normop)")
+    else
+        println("--> normop M^1/2Ω^-1M^1/2 $(normop)")
+    end
+    (normop=normop, svd_max=svd_LR[1])
 end
 
 ############################# SCF CALLBACK ####################################
