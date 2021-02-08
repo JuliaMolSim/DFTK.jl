@@ -101,7 +101,7 @@ end
 tol_test = 1e-10
 
 # we project ϕ onto the orthogonal of ψ
-function proj(ϕ, ψ; high_freq=false, low_freq=false, Ecut=nothing, kpt=nothing)
+function proj(ϕ, ψ; high_freq=false, low_freq=false, Ecut=nothing, basis=nothing)
 
     Nk1 = size(ϕ,1)
     Nk2 = size(ψ,1)
@@ -112,9 +112,9 @@ function proj(ϕ, ψ; high_freq=false, low_freq=false, Ecut=nothing, kpt=nothing
 
     if high_freq || low_freq
         if high_freq
-            Πϕ = keep_HF(ϕ, kpt, Ecut)
+            Πϕ = keep_HF(ϕ, basis, Ecut)
         elseif low_freq
-            Πϕ = keep_LF(ϕ, kpt, Ecut)
+            Πϕ = keep_LF(ϕ, basis, Ecut)
         end
     else
         for ik = 1:Nk
@@ -162,13 +162,13 @@ function packing(basis::PlaneWaveBasis{T}, φ;
     unpack(x) = [@views reshape(x[starts[ik]:starts[ik]+lengths[ik]-1], size(φ[ik]))
                  for ik = 1:Nk]
     if (high_freq || low_freq) && Nk == 1
-        kpt = basis.kpoints[1]
+        b = basis
     else
-        kpt = nothing
+        b = nothing
     end
     packed_proj(ϕ,φ) = proj(unpack(ϕ), unpack(φ);
                             high_freq=high_freq, low_freq=low_freq,
-                            Ecut=Ecut, kpt=kpt)
+                            Ecut=Ecut, basis=b)
     (pack, unpack, packed_proj)
 end
 

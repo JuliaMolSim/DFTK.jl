@@ -223,14 +223,24 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
 end
 
 ## projection on frequencies higher than Ecut
-function keep_HF(δφ, kpt, Ecut)
+function keep_HF(δϕ, basis, Ecut)
 
-    G_vec = G_vectors(kpt)
-    recip_lat = kpt.model.recip_lattice
+    Nk = length(basis.kpoints)
 
-    for i in 1:length(δφ[1][:,1])
-        if sum(abs2, recip_lat * (G_vec[i] + kpt.coordinate)) <= 2*Ecut
-            δφ[1][i,1] = 0
+    δφ = deepcopy(δϕ)
+
+    for ik in 1:Nk
+        kpt = basis.kpoints[ik]
+        G_vec = G_vectors(kpt)
+        recip_lat = kpt.model.recip_lattice
+        N = size(δφ[ik], 2)
+
+        for i in 1:N
+            for g in 1:length(δφ[ik][:,i])
+                if sum(abs2, recip_lat * (G_vec[g] + kpt.coordinate)) <= 2*Ecut
+                    δφ[ik][g,i] = 0
+                end
+            end
         end
     end
 
@@ -238,14 +248,24 @@ function keep_HF(δφ, kpt, Ecut)
 end
 
 ## projection on frequencies smaller than Ecut
-function keep_LF(δφ, kpt, Ecut)
+function keep_LF(δϕ, basis, Ecut)
 
-    G_vec = G_vectors(kpt)
-    recip_lat = kpt.model.recip_lattice
+    Nk = length(basis.kpoints)
 
-    for i in 1:length(δφ[1][:,1])
-        if sum(abs2, recip_lat * (G_vec[i] + kpt.coordinate)) > 2*Ecut
-            δφ[1][i,1] = 0
+    δφ = deepcopy(δϕ)
+
+    for ik in 1:Nk
+        kpt = basis.kpoints[ik]
+        G_vec = G_vectors(kpt)
+        recip_lat = kpt.model.recip_lattice
+        N = size(δφ[ik], 2)
+
+        for i in 1:N
+            for g in 1:length(δφ[ik][:,i])
+                if sum(abs2, recip_lat * (G_vec[g] + kpt.coordinate)) > 2*Ecut
+                    δφ[ik][g,i] = 0
+                end
+            end
         end
     end
 
@@ -312,7 +332,7 @@ function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
     function g(x,flag)
         δφ = unpack(x)
         if high_freq || low_freq
-            δφ = keep_HF(δφ, basis.kpoints[1], Ecut)
+            δφ = keep_HF(δφ, basis, Ecut)
         end
         if Pks != nothing
             δφ = proj(δφ, φ)
@@ -326,9 +346,9 @@ function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
             δφ = proj(δφ, φ)
         end
         if high_freq
-            δφ = keep_HF(δφ, basis.kpoints[1], Ecut)
+            δφ = keep_HF(δφ, basis, Ecut)
         elseif low_freq
-            δφ = keep_LF(δφ, basis.kpoints[1], Ecut)
+            δφ = keep_LF(δφ, basis, Ecut)
         end
         pack(δφ)
     end

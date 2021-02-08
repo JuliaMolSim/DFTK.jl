@@ -30,7 +30,7 @@ Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 ## local potential only
-model = model_atomic(lattice, atoms, n_electrons=2)
+model = model_atomic(lattice, atoms)
 
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
 tol = 1e-10
