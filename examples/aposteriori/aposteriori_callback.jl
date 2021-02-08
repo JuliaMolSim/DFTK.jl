@@ -311,13 +311,14 @@ function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
     # svd solve
     function g(x,flag)
         δφ = unpack(x)
-        if high_freq
-            δφ = keep_HF(δφ, basis.kpoints[1], Ecut)
-        end
         if Pks != nothing
-            δφ = proj(δφ, φ)
+            if high_freq || low_freq
+                δφ = keep_HF(δφ, basis.kpoints[1], Ecut)
+            end
             δφ = apply_inv_sqrt(Pks, δφ)
-            δφ = proj(δφ, φ)
+            if high_freq || low_freq
+                δφ = keep_HF(δφ, basis.kpoints[1], Ecut)
+            end
         end
         δφ = f(δφ)
         if Pks != nothing
@@ -328,18 +329,19 @@ function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
                 δφ = keep_LF(δφ, basis.kpoints[1], Ecut)
             end
             δφ = apply_inv_sqrt(Pks, δφ)
-            δφ = proj(δφ, φ)
+            if high_freq
+                δφ = keep_HF(δφ, basis.kpoints[1], Ecut)
+            elseif low_freq
+                δφ = keep_LF(δφ, basis.kpoints[1], Ecut)
+            end
+            pack(δφ)
         end
-        if high_freq
-            δφ = keep_HF(δφ, basis.kpoints[1], Ecut)
-        elseif low_freq
-            δφ = keep_LF(δφ, basis.kpoints[1], Ecut)
-        end
-        pack(δφ)
     end
-    svd_LR, _ = svdsolve(g, pack(ψ0), 3, :LR;
+    svd_LR, lvecs, _ = svdsolve(g, pack(ψ0), 3, :LR;
                          tol=tol_krylov, verbosity=1, eager=true,
                          orth=OrthogonalizeAndProject(packed_proj_freq, pack(φ)))
+
+    figure()
 
     normop = svd_LR[1]
     if !change_norm
