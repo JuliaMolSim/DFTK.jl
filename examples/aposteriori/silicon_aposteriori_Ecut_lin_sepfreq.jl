@@ -30,7 +30,7 @@ Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 ## local potential only
-model = model_atomic(lattice, atoms)
+model = model_atomic(lattice, atoms, n_electrons=2)
 
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
 tol = 1e-10
@@ -80,6 +80,7 @@ end
 
 for Ecut in Ecut_list
 
+    println("\n--------------------------------")
     println("--------------------------------")
     println("Ecut = $(Ecut)")
 
@@ -125,7 +126,7 @@ for Ecut in Ecut_list
 end
 
 ## error estimates
-println("--------------------------------")
+println("\n--------------------------------")
 println("Computing operator norms...")
 normop_invΩpK, svd_min_ΩpK, svd_max_ΩpK = compute_normop_invΩpK(basis_ref, φ_ref, occupation;
                                                                 tol_krylov=tol_krylov, Pks=nothing)

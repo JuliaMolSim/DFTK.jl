@@ -296,10 +296,10 @@ function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
 
     if high_freq
         @assert Nk == 1 [println("high_freq only valid for 1 kpt yet")]
-        println("Computing M^1/2Ω^-1M^1/2 on high frequencies...")
+        println("\nComputing M^1/2Ω^-1M^1/2 on high frequencies...")
     elseif low_freq
         @assert Nk == 1 [println("high_freq only valid for 1 kpt yet")]
-        println("Computing M^1/2Ω^-1M^1/2 on low frequencies...")
+        println("\nComputing M^1/2Ω^-1M^1/2 on low frequencies...")
     end
 
     # packing routines
@@ -312,6 +312,11 @@ function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
     ortho(ψk) = Matrix(qr(ψk).Q)
     ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
           for kpt in basis.kpoints]
+    if high_freq
+        ψ0 = keep_HF(ψ0, basis, Ecut)
+    elseif low_freq
+        ψ0 = keep_LF(ψ0, basis, Ecut)
+    end
 
     function invΩ(basis, δφ, φ, H, egval)
         function Ω(x)
@@ -331,8 +336,10 @@ function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
     # svd solve
     function g(x,flag)
         δφ = unpack(x)
-        if high_freq || low_freq
+        if high_freq || (low_freq && !flag)
             δφ = keep_HF(δφ, basis, Ecut)
+        elseif low_freq && flag
+            δφ = keep_LF(δφ, basis, Ecut)
         end
         if Pks != nothing
             δφ = proj(δφ, φ)
@@ -345,14 +352,14 @@ function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
             δφ = apply_sqrt(Pks, δφ)
             δφ = proj(δφ, φ)
         end
-        if high_freq
+        if high_freq || (low_freq && flag)
             δφ = keep_HF(δφ, basis, Ecut)
-        elseif low_freq
+        elseif low_freq && !flag
             δφ = keep_LF(δφ, basis, Ecut)
         end
         pack(δφ)
     end
-    svd_LR, lvecs, _ = svdsolve(g, pack(ψ0), 3, :LR;
+    svd_LR, lvecs, _ = svdsolve(g, pack(ψ0), 2, :LR;
                          tol=tol_krylov, verbosity=1, eager=true,
                          orth=OrthogonalizeAndProject(packed_proj_freq, pack(φ)))
 

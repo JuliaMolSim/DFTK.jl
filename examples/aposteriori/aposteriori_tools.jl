@@ -110,12 +110,10 @@ function proj(ϕ, ψ; high_freq=false, low_freq=false, Ecut=nothing, basis=nothi
 
     Πϕ = similar(ϕ)
 
-    if high_freq || low_freq
-        if high_freq
-            Πϕ = keep_HF(ϕ, basis, Ecut)
-        elseif low_freq
-            Πϕ = keep_LF(ϕ, basis, Ecut)
-        end
+    if high_freq
+        Πϕ = keep_HF(ϕ, basis, Ecut)
+    elseif low_freq
+        Πϕ = keep_LF(ϕ, basis, Ecut)
     else
         for ik = 1:Nk
             ψk = ψ[ik]
