@@ -129,7 +129,7 @@ end
 println("\n--------------------------------")
 println("Computing operator norms...")
 normop_invΩpK, svd_min_ΩpK, svd_max_ΩpK = compute_normop_invΩpK(basis_ref, φ_ref, occupation;
-                                                                tol_krylov=tol_krylov, Pks=nothing)
+                                                                tol_krylov=tol_krylov)
 err_estimator = normop_invΩpK .* norm_res_list
 if change_norm
     normop_invΩ_kin, svd_min_Ω_kin, svd_max_Ω_kin = compute_normop_invΩ(basis_ref, φ_ref, occupation;

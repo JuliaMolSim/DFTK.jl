@@ -4,7 +4,7 @@ using KrylovKit
 
 # compute operator norm of (Ω+K)^-1 defined at φ
 function compute_normop_invΩpK(basis::PlaneWaveBasis{T}, φ, occ;
-                                       tol_krylov=1e-12, Pks=nothing, change_norm=false) where T
+                                       tol_krylov=1e-12) where T
 
     ## necessary quantities
     N = size(φ[1],2)
@@ -22,6 +22,7 @@ function compute_normop_invΩpK(basis::PlaneWaveBasis{T}, φ, occ;
     ortho(ψk) = Matrix(qr(ψk).Q)
     ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
           for kpt in basis.kpoints]
+    ψ0 = proj(ψ0, φ)
 
     function f(δφ)
         ΩpKδφ = ΩplusK(basis, δφ, φ, ρ[1], H, egval, occ)
@@ -33,17 +34,7 @@ function compute_normop_invΩpK(basis::PlaneWaveBasis{T}, φ, occ;
     # svd solve
     function g(x,flag)
         δφ = unpack(x)
-        if Pks != nothing
-            δφ = proj(δφ, φ)
-            δφ = apply_sqrt(Pks, δφ)
-            δφ = proj(δφ, φ)
-        end
         ΩpKδφ = f(δφ)
-        if Pks != nothing
-            δφ = proj(δφ, φ)
-            δφ = apply_sqrt(Pks, δφ)
-            δφ = proj(δφ, φ)
-        end
         pack(ΩpKδφ)
     end
     svd_SR, _ = svdsolve(g, pack(ψ0), 3, :SR;
@@ -54,13 +45,8 @@ function compute_normop_invΩpK(basis::PlaneWaveBasis{T}, φ, occ;
                          orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
 
     normop = 1. / svd_SR[1]
-    if !change_norm
-        println("--> plus petite valeur singulière (Ω+K) $(svd_SR[1])")
-        println("--> normop (Ω+K)^-1 $(normop)")
-    else
-        println("--> plus petite valeur singulière M^-1/2(Ω+K)M^-1/2 $(svd_SR[1])")
-        println("--> normop M^1/2(Ω+K)^-1M^1/2 $(normop)")
-    end
+    println("--> plus petite valeur singulière (Ω+K) $(svd_SR[1])")
+    println("--> normop (Ω+K)^-1 $(normop)")
     (normop=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
 end
 
@@ -86,6 +72,7 @@ function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
     ortho(ψk) = Matrix(qr(ψk).Q)
     ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
           for kpt in basis.kpoints]
+    ψ0 = proj(ψ0, φ)
 
     function invΩ(basis, δφ, φ, H, egval)
         function Ω(x)
@@ -183,9 +170,21 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
     ortho(ψk) = Matrix(qr(ψk).Q)
     ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
           for kpt in basis.kpoints]
+    ψ0 = proj(ψ0, φ)
 
+    function invΩ(basis, δφ, φ, H, egval)
+        function Ω(x)
+            δϕ = unpack(x)
+            Ωδϕ = apply_Ω(basis, δϕ, φ, H, egval)
+            pack(Ωδϕ)
+        end
+        invΩδφ, info = linsolve(Ω, pack(δφ);
+                                tol=tol_krylov, verbosity=0,
+                                orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
+        unpack(invΩδφ)
+    end
     function f(δφ)
-        Ωδφ = apply_Ω(basis, δφ, φ, H, egval)
+        Ωδφ = invΩ(basis, δφ, φ, H, egval)
     end
 
     # svd solve
@@ -193,30 +192,32 @@ function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
         δφ = unpack(x)
         if Pks != nothing
             δφ = proj(δφ, φ)
-            δφ = apply_inv_sqrt(Pks, δφ)
+            δφ = apply_sqrt(Pks, δφ)
             δφ = proj(δφ, φ)
         end
         δφ = f(δφ)
         if Pks != nothing
             δφ = proj(δφ, φ)
-            δφ = apply_inv_sqrt(Pks, δφ)
+            δφ = apply_sqrt(Pks, δφ)
             δφ = proj(δφ, φ)
         end
         pack(δφ)
     end
-    svd_SR, l, r, _ = svdsolve(g, pack(ψ0), 3, :SR;
+    svd_SR, _ = svdsolve(g, pack(ψ0), 3, :SR;
                          tol=tol_krylov, verbosity=1, eager=true,
                          orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
     svd_LR, _ = svdsolve(g, pack(ψ0), 3, :LR;
                          tol=tol_krylov, verbosity=1, eager=true,
                          orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
 
-    normop = 1. / svd_SR[1]
+    normop = svd_LR[1]
     if !change_norm
-        println("--> plus petite valeur singulière Ω $(svd_SR[1])")
+        println("--> plus petite valeur singulière Ω^-1 $(svd_SR[1])")
+        println("--> plus grande valeur singulière Ω^-1 $(svd_LR[1])")
         println("--> normop Ω^-1 $(normop)")
     else
-        println("--> plus petite valeur singulière M^-1/2ΩM^-1/2 $(svd_SR[1])")
+        println("--> plus petite valeur singulière M^1/2Ω^-1M^1/2 $(svd_SR[1])")
+        println("--> plus grande valeur singulière M^1/2Ω^-1M^1/2 $(svd_LR[1])")
         println("--> normop M^1/2Ω^-1M^1/2 $(normop)")
     end
     (normop=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
@@ -359,7 +360,7 @@ function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
         end
         pack(δφ)
     end
-    svd_LR, lvecs, _ = svdsolve(g, pack(ψ0), 2, :LR;
+    svd_LR, _ = svdsolve(g, pack(ψ0), 2, :LR;
                          tol=tol_krylov, verbosity=1, eager=true,
                          orth=OrthogonalizeAndProject(packed_proj_freq, pack(φ)))
 
