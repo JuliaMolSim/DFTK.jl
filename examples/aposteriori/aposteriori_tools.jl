@@ -358,5 +358,6 @@ function ΩplusK(basis, δφ, φ, ρ, H, egval, occ)
     Kδφ = apply_K(basis, δφ, φ, ρ, occ)
     Ωδφ = apply_Ω(basis, δφ, φ, H, egval)
     ΩpKδφ = Ωδφ .+ Kδφ
+    proj(ΩpKδφ, φ)
 end
 

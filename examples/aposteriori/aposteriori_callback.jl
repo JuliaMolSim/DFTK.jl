@@ -2,227 +2,6 @@ using KrylovKit
 
 ############################### OPERATOR NORMS #################################
 
-# compute operator norm of (Ω+K)^-1 defined at φ
-function compute_normop_invΩpK(basis::PlaneWaveBasis{T}, φ, occ;
-                                       tol_krylov=1e-12) where T
-
-    ## necessary quantities
-    N = size(φ[1],2)
-    Nk = length(basis.kpoints)
-    ρ = compute_density(basis, φ, occ)
-    energies, H = energy_hamiltonian(basis, φ, occ; ρ=ρ[1])
-    egval = [ zeros(Complex{T}, size(occ[ik])) for ik = 1:Nk ]
-    for ik = 1:Nk
-        Hk = H.blocks[ik]
-        φk = φ[ik]
-        egval[ik] = [φk[:,i]'*(Hk*φk[:,i]) for i = 1:N]
-    end
-
-    ## random starting point for eigensolvers
-    ortho(ψk) = Matrix(qr(ψk).Q)
-    ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
-          for kpt in basis.kpoints]
-    ψ0 = proj(ψ0, φ)
-
-    function f(δφ)
-        ΩpKδφ = ΩplusK(basis, δφ, φ, ρ[1], H, egval, occ)
-    end
-
-    # packing routines
-    pack, unpack, packed_proj = packing(basis, φ)
-
-    # svd solve
-    function g(x,flag)
-        δφ = unpack(x)
-        ΩpKδφ = f(δφ)
-        pack(ΩpKδφ)
-    end
-    svd_SR, _ = svdsolve(g, pack(ψ0), 3, :SR;
-                         tol=tol_krylov, verbosity=1, eager=true,
-                         orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
-    svd_LR, _ = svdsolve(g, pack(ψ0), 3, :LR;
-                         tol=tol_krylov, verbosity=1, eager=true,
-                         orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
-
-    normop = 1. / svd_SR[1]
-    println("--> plus petite valeur singulière (Ω+K) $(svd_SR[1])")
-    println("--> normop (Ω+K)^-1 $(normop)")
-    (normop=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
-end
-
-function compute_normop_invε(basis::PlaneWaveBasis{T}, φ, occ;
-                             tol_krylov=1e-12, Pks=nothing, change_norm=false) where T
-
-    ## necessary quantities
-    N = size(φ[1],2)
-    Nk = length(basis.kpoints)
-    ρ = compute_density(basis, φ, occ)
-    energies, H = energy_hamiltonian(basis, φ, occ; ρ=ρ[1])
-    egval = [ zeros(Complex{T}, size(occ[ik])) for ik = 1:Nk ]
-    for ik = 1:Nk
-        Hk = H.blocks[ik]
-        φk = φ[ik]
-        egval[ik] = [φk[:,i]'*(Hk*φk[:,i]) for i = 1:N]
-    end
-
-    # packing routines
-    pack, unpack, packed_proj = packing(basis, φ)
-
-    ## random starting point for eigensolvers
-    ortho(ψk) = Matrix(qr(ψk).Q)
-    ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
-          for kpt in basis.kpoints]
-    ψ0 = proj(ψ0, φ)
-
-    function invΩ(basis, δφ, φ, H, egval)
-        function Ω(x)
-            δϕ = unpack(x)
-            Ωδϕ = apply_Ω(basis, δϕ, φ, H, egval)
-            pack(Ωδϕ)
-        end
-        invΩδφ, info = linsolve(Ω, pack(δφ);
-                                tol=tol_krylov, verbosity=1,
-                                orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
-        unpack(invΩδφ)
-    end
-
-    function f(δφ,flag)
-        if flag
-            invΩδφ = invΩ(basis, δφ, φ, H, egval)
-            KinvΩδφ = apply_K(basis, invΩδφ, φ, ρ[1], occ)
-            return proj(δφ .+ KinvΩδφ, φ)
-        else
-            Kδφ = apply_K(basis, δφ, φ, ρ[1], occ)
-            invΩKδφ = invΩ(basis, Kδφ, φ, H, egval)
-            return proj(δφ .+ invΩKδφ, φ)
-        end
-    end
-
-    # svd solve
-    function g(x,flag)
-        if flag
-            δφ = unpack(x)
-            if Pks != nothing
-                δφ = proj(δφ, φ)
-                δφ = apply_sqrt(Pks, δφ)
-                δφ = proj(δφ, φ)
-            end
-            δφ = f(δφ, flag)
-            if Pks != nothing
-                δφ = proj(δφ, φ)
-                δφ = apply_inv_sqrt(Pks, δφ)
-                δφ = proj(δφ, φ)
-            end
-            return pack(δφ)
-        else
-            δφ = unpack(x)
-            if Pks != nothing
-                δφ = proj(δφ, φ)
-                δφ = apply_inv_sqrt(Pks, δφ)
-                δφ = proj(δφ, φ)
-            end
-            δφ = f(δφ, flag)
-            if Pks != nothing
-                δφ = proj(δφ, φ)
-                δφ = apply_sqrt(Pks, δφ)
-                δφ = proj(δφ, φ)
-            end
-            return pack(δφ)
-        end
-    end
-    svd_SR, _ = svdsolve(g, pack(ψ0), 3, :SR;
-                         tol=tol_krylov, verbosity=1, eager=true,
-                         orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
-    svd_LR, _ = svdsolve(g, pack(ψ0), 3, :LR;
-                         tol=tol_krylov, verbosity=1, eager=true,
-                         orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
-
-    normop = 1. / svd_SR[1]
-    if !change_norm
-        println("--> plus petite valeur singulière ε $(svd_SR[1])")
-        println("--> normop ε^-1 $(normop)")
-    else
-        println("--> plus petite valeur singulière M^1/2εM^-1/2 $(svd_SR[1])")
-        println("--> normop M^1/2ε^-1M^-1/2 $(normop)")
-    end
-    (normop=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
-end
-
-function compute_normop_invΩ(basis::PlaneWaveBasis{T}, φ, occ;
-                             tol_krylov=1e-12, Pks=nothing, change_norm=false) where T
-
-    ## necessary quantities
-    N = size(φ[1],2)
-    Nk = length(basis.kpoints)
-    ρ = compute_density(basis, φ, occ)
-    energies, H = energy_hamiltonian(basis, φ, occ; ρ=ρ[1])
-    egval = [ zeros(Complex{T}, size(occ[ik])) for ik = 1:Nk ]
-    for ik = 1:Nk
-        Hk = H.blocks[ik]
-        φk = φ[ik]
-        egval[ik] = [φk[:,i]'*(Hk*φk[:,i]) for i = 1:N]
-    end
-
-    # packing routines
-    pack, unpack, packed_proj = packing(basis, φ)
-
-    ## random starting point for eigensolvers
-    ortho(ψk) = Matrix(qr(ψk).Q)
-    ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
-          for kpt in basis.kpoints]
-    ψ0 = proj(ψ0, φ)
-
-    function invΩ(basis, δφ, φ, H, egval)
-        function Ω(x)
-            δϕ = unpack(x)
-            Ωδϕ = apply_Ω(basis, δϕ, φ, H, egval)
-            pack(Ωδϕ)
-        end
-        invΩδφ, info = linsolve(Ω, pack(δφ);
-                                tol=tol_krylov, verbosity=0,
-                                orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
-        unpack(invΩδφ)
-    end
-    function f(δφ)
-        Ωδφ = invΩ(basis, δφ, φ, H, egval)
-    end
-
-    # svd solve
-    function g(x,flag)
-        δφ = unpack(x)
-        if Pks != nothing
-            δφ = proj(δφ, φ)
-            δφ = apply_sqrt(Pks, δφ)
-            δφ = proj(δφ, φ)
-        end
-        δφ = f(δφ)
-        if Pks != nothing
-            δφ = proj(δφ, φ)
-            δφ = apply_sqrt(Pks, δφ)
-            δφ = proj(δφ, φ)
-        end
-        pack(δφ)
-    end
-    svd_SR, _ = svdsolve(g, pack(ψ0), 3, :SR;
-                         tol=tol_krylov, verbosity=1, eager=true,
-                         orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
-    svd_LR, _ = svdsolve(g, pack(ψ0), 3, :LR;
-                         tol=tol_krylov, verbosity=1, eager=true,
-                         orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
-
-    normop = svd_LR[1]
-    if !change_norm
-        println("--> plus petite valeur singulière Ω^-1 $(svd_SR[1])")
-        println("--> plus grande valeur singulière Ω^-1 $(svd_LR[1])")
-        println("--> normop Ω^-1 $(normop)")
-    else
-        println("--> plus petite valeur singulière M^1/2Ω^-1M^1/2 $(svd_SR[1])")
-        println("--> plus grande valeur singulière M^1/2Ω^-1M^1/2 $(svd_LR[1])")
-        println("--> normop M^1/2Ω^-1M^1/2 $(normop)")
-    end
-    (normop=normop, svd_min=svd_SR[1], svd_max=svd_LR[1])
-end
-
 ## projection on frequencies higher than Ecut
 function keep_HF(δϕ, basis, Ecut)
 
@@ -273,15 +52,13 @@ function keep_LF(δϕ, basis, Ecut)
     δφ
 end
 
-function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
-                                     tol_krylov=1e-12, Pks=nothing, change_norm=false,
-                                     high_freq=false, low_freq=false, Ecut=nothing) where T
+function compute_normop(basis::PlaneWaveBasis{T}, φ, occ;
+                        tol_krylov=1e-12, Pks=nothing, change_norm=false,
+                        high_freq=false, low_freq=false, Ecut=nothing, nl=false) where T
 
     ## ensure that high_freq and low_freq are not true at the same time or false
     ## at the same time
     @assert !(high_freq && low_freq)
-    @assert (high_freq || low_freq)
-    @assert Ecut != nothing
 
     ## necessary quantities
     N = size(φ[1],2)
@@ -296,9 +73,11 @@ function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
     end
 
     if high_freq
+        @assert Ecut != nothing
         @assert Nk == 1 [println("high_freq only valid for 1 kpt yet")]
         println("\nComputing M^1/2Ω^-1M^1/2 on high frequencies...")
     elseif low_freq
+        @assert Ecut != nothing
         @assert Nk == 1 [println("high_freq only valid for 1 kpt yet")]
         println("\nComputing M^1/2Ω^-1M^1/2 on low frequencies...")
     end
@@ -319,19 +98,20 @@ function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
         ψ0 = keep_LF(ψ0, basis, Ecut)
     end
 
-    function invΩ(basis, δφ, φ, H, egval)
-        function Ω(x)
+    function inv_op(δφ)
+        function op(x)
             δϕ = unpack(x)
-            Ωδϕ = apply_Ω(basis, δϕ, φ, H, egval)
-            pack(Ωδϕ)
+            if !nl
+                δϕ = apply_Ω(basis, δϕ, φ, H, egval)
+            else
+                δϕ = ΩplusK(basis, δϕ, φ, ρ[1], H, egval, occ)
+            end
+            pack(δϕ)
         end
-        invΩδφ, info = linsolve(Ω, pack(δφ);
-                                tol=tol_krylov, verbosity=0,
-                                orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
-        unpack(invΩδφ)
-    end
-    function f(δφ)
-        Ωδφ = invΩ(basis, δφ, φ, H, egval)
+        δφ, info = linsolve(op, pack(δφ);
+                            tol=tol_krylov, verbosity=0,
+                            orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
+        unpack(δφ)
     end
 
     # svd solve
@@ -346,11 +126,15 @@ function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
             δφ = proj(δφ, φ)
             δφ = apply_sqrt(Pks, δφ)
             δφ = proj(δφ, φ)
+        else
+            δφ = proj(δφ, φ)
         end
-        δφ = f(δφ)
+        δφ = inv_op(δφ)
         if Pks != nothing
             δφ = proj(δφ, φ)
             δφ = apply_sqrt(Pks, δφ)
+            δφ = proj(δφ, φ)
+        else
             δφ = proj(δφ, φ)
         end
         if high_freq || (low_freq && flag)
@@ -363,14 +147,17 @@ function compute_normop_invΩ_sepfreq(basis::PlaneWaveBasis{T}, φ, occ;
     svd_LR, _ = svdsolve(g, pack(ψ0), 2, :LR;
                          tol=tol_krylov, verbosity=1, eager=true,
                          orth=OrthogonalizeAndProject(packed_proj_freq, pack(φ)))
+    #  svd_SR, _ = svdsolve(g, pack(ψ0), 2, :SR;
+    #                       tol=tol_krylov, verbosity=1, eager=true,
+    #                       orth=OrthogonalizeAndProject(packed_proj_freq, pack(φ)))
 
     normop = svd_LR[1]
     if !change_norm
-        println("--> normop Ω^-1 $(normop)")
+        println("--> normop (Ω+K)^-1 $(normop)")
     else
-        println("--> normop M^1/2Ω^-1M^1/2 $(normop)")
+        println("--> normop M^1/2(Ω+K)^-1M^1/2 $(normop)")
     end
-    (normop=normop, svd_max=svd_LR[1])
+    normop
 end
 
 ############################# SCF CALLBACK ####################################
@@ -479,6 +266,7 @@ function callback_estimators(system; test_newton=false, change_norm=true)
                 file["ite"] = ite
                 file["kgrid"] = kgrid
                 file["N"] = N
+                file["nl"] = nl
                 file["gap"] = gap
                 file["normop_invΩpK"] = normop_ΩpK
                 file["svd_min_ΩpK"] = svd_min_ΩpK

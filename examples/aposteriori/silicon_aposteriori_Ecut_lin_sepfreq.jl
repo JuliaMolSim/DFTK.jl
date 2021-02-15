@@ -30,7 +30,9 @@ Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 ## local potential only
-model = model_atomic(lattice, atoms, n_electrons=2)
+model = model_LDA(lattice, atoms, n_electrons=2)
+nl = true
+#  model = model_atomic(lattice, atoms, n_electrons=2)
 
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
 tol = 1e-10
@@ -74,8 +76,8 @@ if change_norm
     end
     norm_Pk_kin_res_list  = []
     norm_Pk_kin_err_list  = []
-    normop_invΩ_HF_list  = []
-    normop_invΩ_LF_list  = []
+    normop_HF_list  = []
+    normop_LF_list  = []
 end
 
 for Ecut in Ecut_list
@@ -110,49 +112,50 @@ for Ecut in Ecut_list
     append!(norm_err_list, norm(err))
     append!(norm_res_list, norm(res))
     if change_norm
-        normop_invΩ_HF, _ = compute_normop_invΩ_sepfreq(basis_ref, φ_ref, occupation;
-                                                         tol_krylov=tol_krylov, Pks=Pk_kin,
-                                                         change_norm=change_norm,
-                                                         high_freq=true, Ecut=Ecut)
-        normop_invΩ_LF, _ = compute_normop_invΩ_sepfreq(basis_ref, φ_ref, occupation;
-                                                         tol_krylov=tol_krylov, Pks=Pk_kin,
-                                                         change_norm=change_norm,
-                                                         low_freq=true, Ecut=Ecut)
+        normop_HF = compute_normop(basis_ref, φ_ref, occupation;
+                                   tol_krylov=tol_krylov, Pks=Pk_kin,
+                                   change_norm=change_norm,
+                                   high_freq=true, Ecut=Ecut, nl=nl)
+        normop_LF = compute_normop(basis_ref, φ_ref, occupation;
+                                   tol_krylov=tol_krylov, Pks=Pk_kin,
+                                   change_norm=change_norm,
+                                   low_freq=true, Ecut=Ecut, nl=nl)
         append!(norm_Pk_kin_err_list,  norm(apply_sqrt(Pk_kin, err)))
         append!(norm_Pk_kin_res_list,  norm(apply_inv_sqrt(Pk_kin, res)))
-        append!(normop_invΩ_LF_list,   normop_invΩ_LF)
-        append!(normop_invΩ_HF_list,   normop_invΩ_HF)
+        append!(normop_LF_list,   normop_LF)
+        append!(normop_HF_list,   normop_HF)
     end
 end
 
 ## error estimates
 println("\n--------------------------------")
 println("Computing operator norms...")
-normop_invΩpK, svd_min_ΩpK, svd_max_ΩpK = compute_normop_invΩpK(basis_ref, φ_ref, occupation;
-                                                                tol_krylov=tol_krylov)
+normop_invΩpK = compute_normop(basis_ref, φ_ref, occupation;
+                               tol_krylov=tol_krylov, nl=nl)
 err_estimator = normop_invΩpK .* norm_res_list
 if change_norm
-    normop_invΩ_kin, svd_min_Ω_kin, svd_max_Ω_kin = compute_normop_invΩ(basis_ref, φ_ref, occupation;
-                                                                        tol_krylov=tol_krylov, Pks=Pk_kin,
-                                                                        change_norm=change_norm)
-    err_Pk_estimator_HF = normop_invΩ_HF_list .* norm_Pk_kin_res_list
-    err_Pk_estimator_LF = normop_invΩ_LF_list .* norm_Pk_kin_res_list
-    err_Pk_estimator = normop_invΩ_kin .* norm_Pk_kin_res_list
+    normop = compute_normop(basis_ref, φ_ref, occupation;
+                            tol_krylov=tol_krylov, Pks=Pk_kin,
+                            change_norm=change_norm, nl=nl)
+    err_Pk_estimator_HF = normop_HF_list .* norm_Pk_kin_res_list
+    err_Pk_estimator_LF = normop_LF_list .* norm_Pk_kin_res_list
+    err_Pk_estimator = normop .* norm_Pk_kin_res_list
 end
 
 h5open("silicon_Ecut_lin_sepfreq.h5", "w") do file
     file["Ecut_list"] = collect(Ecut_list)
     file["kgrid"] = kgrid
+    file["nl"] = nl
     file["N"] = N
     file["gap"] = gap
     file["normop_invΩpK"] = normop_invΩpK
-    file["svd_min_ΩpK"] = svd_min_ΩpK
-    file["svd_max_ΩpK"] = svd_max_ΩpK
-    file["normop_invΩ_HF_list"] = Float64.(normop_invΩ_HF_list)
-    file["normop_invΩ_LF_list"] = Float64.(normop_invΩ_LF_list)
-    file["normop_invΩ_kin"] = normop_invΩ_kin
-    file["svd_min_Ω_kin"] = svd_min_Ω_kin
-    file["svd_max_Ω_kin"] = svd_max_Ω_kin
+    #  file["svd_min_ΩpK"] = svd_min_ΩpK
+    #  file["svd_max_ΩpK"] = svd_max_ΩpK
+    file["normop_HF_list"] = Float64.(normop_HF_list)
+    file["normop_LF_list"] = Float64.(normop_LF_list)
+    file["normop"] = normop
+    #  file["svd_min_Ω_kin"] = svd_min
+    #  file["svd_max_Ω_kin"] = svd_max
     file["norm_err_list"] = Float64.(norm_err_list)
     file["norm_res_list"] = Float64.(norm_res_list)
     file["err_estimator"] = Float64.(err_estimator)
