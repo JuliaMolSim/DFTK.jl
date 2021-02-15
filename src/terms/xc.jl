@@ -66,7 +66,7 @@ end
             potential[σ] .+= @view terms.vrho[σ, :, :, :]
         end
 
-        if haskey(terms, :vsigma)
+        if haskey(terms, :vsigma)  # Need gradient correction
             # TODO Potential to save some FFTs for spin-polarised calculations:
             #      For n_spin == 2 this calls divergence_real 4 times, where only 2 are
             #      needed (one for potential[1] and one for potential[2])
@@ -78,7 +78,7 @@ end
                 potential[σ] .+=
                      -spinfac .* divergence_real(
                         α -> terms.vsigma[στ, :, :, :] .* density.∇ρ_real[τ, :, :, :, α],
-                        density.basis,
+                        density.basis
                     )
             end
         end
@@ -156,7 +156,7 @@ function apply_kernel(term::TermXc, dρ::RealFourierArray, dρspin=nothing;
         end
         if haskey(terms, :v2rhosigma)
             @assert basis.model.spin_polarization in (:none, :spinless)
-            result[1] .+= apply_kernel_term_gga(terms, density, perturbation)
+            result[:, :, :, 1] .+= apply_kernel_gradient_correction(terms, density, perturbation)
         end
     end
 
@@ -347,8 +347,7 @@ function divergence_real(operand, basis)
     real(G_to_r(basis, gradsum))
 end
 
-function apply_kernel_term_gga(terms, density, perturbation)
-    error("apply_kernel_term_gga is not yet working")
+function apply_kernel_gradient_correction(terms, density, perturbation)
     # Follows DOI 10.1103/PhysRevLett.107.216402
     #
     # For GGA V = Vρ - 2 ∇⋅(Vσ ∇ρ) = (∂ε/∂ρ) - 2 ∇⋅((∂ε/∂σ) ∇ρ)
@@ -359,24 +358,27 @@ function apply_kernel_term_gga(terms, density, perturbation)
     # dV(r) = (∂^2ε/∂ρ^2) dρ - 2 ∇⋅[(∂^2ε/∂σ∂ρ) ∇ρ + (∂ε/∂σ) (∂∇ρ/∂ρ)] dρ
     #       + (∂^2ε/∂ρ∂σ) dσ - 2 ∇⋅[(∂^ε/∂σ^2) ∇ρ  + (∂ε/∂σ) (∂∇ρ/∂σ)] dσ
     #
-    # Note dσ = 2∇ρ d∇ρ = 2∇ρ ∇dρ, therefore
-    #    - 2 ∇⋅((∂ε/∂σ) (∂∇ρ/∂σ)) dσ = - 2 ∇⋅((∂ε/∂σ) ∇dρ)
+    # Note dσ = 2∇ρ⋅d∇ρ = 2∇ρ⋅∇dρ, therefore
+    #      - 2 ∇⋅((∂ε/∂σ) (∂∇ρ/∂σ)) dσ
+    #    = - 2 ∇(∂ε/∂σ)⋅(∂∇ρ/∂σ) dσ - 2 (∂ε/∂σ) ∇⋅(∂∇ρ/∂σ) dσ
+    #    = - 2 ∇(∂ε/∂σ)⋅d∇ρ - 2 (∂ε/∂σ) ∇⋅d∇ρ
+    #    = - 2 ∇⋅((∂ε/∂σ) ∇dρ)
     # and (because assumed independent variables): (∂∇ρ/∂ρ) = 0.
     #
-    # Note that below the LDA term (∂^2ε/∂ρ^2) dρ is ignored (already dealt with)
+    # Note that below the LDA term (∂^2ε/∂ρ^2) dρ is not done (dealt with by caller)
     ρ   = density.ρ_real
     ∇ρ  = density.∇ρ_real
     dρ  = perturbation.ρ_real
     ∇dρ = perturbation.∇ρ_real
-    dσ = 2sum(∇ρ[α] .* ∇dρ[α] for α in 1:3)
+    dσ  = @views 2sum(∇ρ[1, :, :, :, α] .* ∇dρ[1, :, :, :, α] for α in 1:3)  # 3D-array
 
     @views begin
         terms.v2rhosigma[1, :, :, :] .* dσ + divergence_real(density.basis) do α
-            @. begin
-                -2 * terms.v2rhosigma[1, :, :, :] * ∇ρ[α] * dρ
-                -2 * terms.v2sigma2[1, :, :, :]   * ∇ρ[α] * dσ
-                -2 * terms.vsigma[1, :, :, :]     * ∇dρ[α]
-            end
+            @. (
+                -2 * terms.v2rhosigma[1, :, :, :] * ∇ρ[1, :, :, :, α]  * dρ[1, :, :, :]
+                -2 * terms.v2sigma2[1, :, :, :]   * ∇ρ[1, :, :, :, α]  * dσ[:, :, :]
+                -2 * terms.vsigma[1, :, :, :]     * ∇dρ[1, :, :, :, α]
+            )
         end
     end
 end
