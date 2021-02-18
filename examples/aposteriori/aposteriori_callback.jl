@@ -106,10 +106,17 @@ function compute_normop(basis::PlaneWaveBasis{T}, φ, occ;
             else
                 δϕ = ΩplusK(basis, δϕ, φ, ρ[1], H, egval, occ)
             end
+            if Pks != nothing
+                δϕ = apply_inv_T(Pks, δϕ)
+            end
             pack(δϕ)
+        end
+        if Pks != nothing
+            δφ = apply_inv_T(Pks, δφ)
         end
         δφ, info = linsolve(op, pack(δφ);
                             tol=tol_krylov, verbosity=0,
+                            krylovdim=2, maxiter=1,
                             orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
         unpack(δφ)
     end
@@ -123,17 +130,13 @@ function compute_normop(basis::PlaneWaveBasis{T}, φ, occ;
             δφ = keep_LF(δφ, basis, Ecut)
         end
         if Pks != nothing
-            δφ = proj(δφ, φ)
-            δφ = apply_sqrt(Pks, δφ)
-            δφ = proj(δφ, φ)
+            δφ = apply_sqrt_M(φ, Pks, δφ)
         else
             δφ = proj(δφ, φ)
         end
         δφ = inv_op(δφ)
         if Pks != nothing
-            δφ = proj(δφ, φ)
-            δφ = apply_sqrt(Pks, δφ)
-            δφ = proj(δφ, φ)
+            δφ = apply_sqrt_M(φ, Pks, δφ)
         else
             δφ = proj(δφ, φ)
         end
@@ -163,134 +166,134 @@ end
 ############################# SCF CALLBACK ####################################
 
 ## custom callback to follow estimators
-function callback_estimators(system; test_newton=false, change_norm=true)
+#  function callback_estimators(system; test_newton=false, change_norm=true)
 
-    global ite, φ_list
-    φ_list = []                 # list of φ^k
-    nrj_list = []
-    ite = 0
+#      global ite, φ_list
+#      φ_list = []                 # list of φ^k
+#      nrj_list = []
+#      ite = 0
 
-    function callback(info)
+#      function callback(info)
 
-        if info.stage == :finalize
+#          if info.stage == :finalize
 
-            println("Starting post-treatment")
+#              println("Starting post-treatment")
 
-            basis = info.basis
-            model = info.basis.model
+#              basis = info.basis
+#              model = info.basis.model
 
-            ## number of kpoints
-            Nk = length(basis.kpoints)
-            ## number of eigenvalue/eigenvectors we are looking for
-            filled_occ = DFTK.filled_occupation(model)
-            N = div(model.n_electrons, filled_occ)
-            occupation = [filled_occ * ones(N) for ik = 1:Nk]
+#              ## number of kpoints
+#              Nk = length(basis.kpoints)
+#              ## number of eigenvalue/eigenvectors we are looking for
+#              filled_occ = DFTK.filled_occupation(model)
+#              N = div(model.n_electrons, filled_occ)
+#              occupation = [filled_occ * ones(N) for ik = 1:Nk]
 
-            φ_ref = similar(info.ψ)
-            for ik = 1:Nk
-                φ_ref[ik] = info.ψ[ik][:,1:N]
-            end
+#              φ_ref = similar(info.ψ)
+#              for ik = 1:Nk
+#                  φ_ref[ik] = info.ψ[ik][:,1:N]
+#              end
 
-            ## converged values
-            ρ_ref = info.ρ
-            H_ref = info.ham
-            egval_ref = info.eigenvalues
-            nrj_ref = info.energies.total
+#              ## converged values
+#              ρ_ref = info.ρ
+#              H_ref = info.ham
+#              egval_ref = info.eigenvalues
+#              nrj_ref = info.energies.total
 
-            ## filling residuals and errors
-            err_ref_list = []
-            norm_res_list = []
-            nrj_ref_list = []
-            if test_newton
-                err_newton_list = []
-                norm_δφ_list = []
-            end
+#              ## filling residuals and errors
+#              err_ref_list = []
+#              norm_res_list = []
+#              nrj_ref_list = []
+#              if test_newton
+#                  err_newton_list = []
+#                  norm_δφ_list = []
+#              end
 
-            ## preconditioner for changing norm if asked so
-            if change_norm
-                Pks = [PreconditionerTPA(basis, kpt) for kpt in basis.kpoints]
-                for ik = 1:length(Pks)
-                    DFTK.precondprep!(Pks[ik], φ_ref[ik])
-                end
-                norm_Pkres_list = []
-                err_Pkref_list = []
-            else
-                Pks = nothing
-            end
+#              ## preconditioner for changing norm if asked so
+#              if change_norm
+#                  Pks = [PreconditionerTPA(basis, kpt) for kpt in basis.kpoints]
+#                  for ik = 1:length(Pks)
+#                      DFTK.precondprep!(Pks[ik], φ_ref[ik])
+#                  end
+#                  norm_Pkres_list = []
+#                  err_Pkref_list = []
+#              else
+#                  Pks = nothing
+#              end
 
-            println("Computing residual...")
-            for i in 1:ite
-                println("   iteration $(i)")
-                φ = φ_list[i]
-                for ik = 1:Nk
-                    φ[ik] = φ[ik][:,1:N]
-                end
+#              println("Computing residual...")
+#              for i in 1:ite
+#                  println("   iteration $(i)")
+#                  φ = φ_list[i]
+#                  for ik = 1:Nk
+#                      φ[ik] = φ[ik][:,1:N]
+#                  end
 
-                res = compute_residual(basis, φ, occupation)
-                err = compute_error(basis, φ, φ_ref)
-                append!(err_ref_list, norm(err))
-                append!(norm_res_list, norm(res))
-                append!(nrj_ref_list, abs(nrj_list[i] - nrj_ref))
+#                  res = compute_residual(basis, φ, occupation)
+#                  err = compute_error(basis, φ, φ_ref)
+#                  append!(err_ref_list, norm(err))
+#                  append!(norm_res_list, norm(res))
+#                  append!(nrj_ref_list, abs(nrj_list[i] - nrj_ref))
 
-                if change_norm
-                    append!(norm_Pkres_list, norm(apply_inv_sqrt(Pks, res)))
-                    append!(err_Pkref_list, norm(apply_sqrt(Pks, err)))
-                end
+#                  if change_norm
+#                      append!(norm_Pkres_list, norm(apply_inv_sqrt(Pks, res)))
+#                      append!(err_Pkref_list, norm(apply_sqrt_M(Pks, err)))
+#                  end
 
-                if test_newton
-                    φ_newton, δφ = newton_step(basis, φ, res, occupation;
-                                               tol_krylov=tol_krylov, φproj=φ_ref)
-                    append!(err_newton_list, dm_distance(φ_newton[1], φ_ref[1]))
-                    append!(norm_δφ_list, norm(δφ))
-                end
-            end
+#                  if test_newton
+#                      φ_newton, δφ = newton_step(basis, φ, res, occupation;
+#                                                 tol_krylov=tol_krylov, φproj=φ_ref)
+#                      append!(err_newton_list, dm_distance(φ_newton[1], φ_ref[1]))
+#                      append!(norm_δφ_list, norm(δφ))
+#                  end
+#              end
 
-            ## error estimates
-            println("--------------------------------")
-            println("Computing operator norms...")
-            gap = egval_ref[1][N+1] - egval_ref[1][N]
-            println("--> gap $(gap)")
-            normop_ΩpK, svd_min_ΩpK, svd_max_ΩpK = compute_normop_invΩpK(basis, φ_ref, occupation;
-                                                                         tol_krylov=tol_krylov, Pks=nothing)
-            err_estimator = normop_ΩpK .* norm_res_list
-            if change_norm
-                normop_invΩ, svd_min_Ω, svd_max_Ω = compute_normop_invΩ(basis, φ_ref, occupation;
-                                                                        tol_krylov=tol_krylov, Pks=Pks)
-                normop_invε, svd_min_ε, svd_max_ε = compute_normop_invε(basis, φ_ref, occupation;
-                                                                        tol_krylov=tol_krylov, Pks=Pks)
-                err_Pk_estimator = normop_invε .* normop_invΩ .* norm_Pkres_list
-            end
+#              ## error estimates
+#              println("--------------------------------")
+#              println("Computing operator norms...")
+#              gap = egval_ref[1][N+1] - egval_ref[1][N]
+#              println("--> gap $(gap)")
+#              normop_ΩpK, svd_min_ΩpK, svd_max_ΩpK = compute_normop_invΩpK(basis, φ_ref, occupation;
+#                                                                           tol_krylov=tol_krylov, Pks=nothing)
+#              err_estimator = normop_ΩpK .* norm_res_list
+#              if change_norm
+#                  normop_invΩ, svd_min_Ω, svd_max_Ω = compute_normop_invΩ(basis, φ_ref, occupation;
+#                                                                          tol_krylov=tol_krylov, Pks=Pks)
+#                  normop_invε, svd_min_ε, svd_max_ε = compute_normop_invε(basis, φ_ref, occupation;
+#                                                                          tol_krylov=tol_krylov, Pks=Pks)
+#                  err_Pk_estimator = normop_invε .* normop_invΩ .* norm_Pkres_list
+#              end
 
-            h5open(system*"_SCF.h5", "w") do file
-                file["Ecut_ref"] = Ecut_ref
-                file["ite"] = ite
-                file["kgrid"] = kgrid
-                file["N"] = N
-                file["nl"] = nl
-                file["gap"] = gap
-                file["normop_invΩpK"] = normop_ΩpK
-                file["svd_min_ΩpK"] = svd_min_ΩpK
-                file["svd_max_ΩpK"] = svd_max_ΩpK
-                file["normop_invΩ_kin"] = normop_invΩ
-                file["svd_min_Ω_kin"] = svd_min_Ω
-                file["svd_max_Ω_kin"] = svd_max_Ω
-                file["normop_invε_kin"] = normop_invε
-                file["svd_min_ε_kin"] = svd_min_ε
-                file["svd_max_ε_kin"] = svd_max_ε
-                file["norm_err_list"] = Float64.(err_ref_list)
-                file["norm_res_list"] = Float64.(norm_res_list)
-                file["err_estimator"] = Float64.(err_estimator)
-                file["norm_Pk_kin_err_list"] = Float64.(err_Pkref_list)
-                file["norm_Pk_kin_res_list"] = Float64.(norm_Pkres_list)
-                file["err_Pk_estimator"] = Float64.(err_Pk_estimator)
-                file["nrj_ref_list"] = Float64.(nrj_ref_list)
-            end
+#              h5open(system*"_SCF.h5", "w") do file
+#                  file["Ecut_ref"] = Ecut_ref
+#                  file["ite"] = ite
+#                  file["kgrid"] = kgrid
+#                  file["N"] = N
+#                  file["nl"] = nl
+#                  file["gap"] = gap
+#                  file["normop_invΩpK"] = normop_ΩpK
+#                  file["svd_min_ΩpK"] = svd_min_ΩpK
+#                  file["svd_max_ΩpK"] = svd_max_ΩpK
+#                  file["normop_invΩ_kin"] = normop_invΩ
+#                  file["svd_min_Ω_kin"] = svd_min_Ω
+#                  file["svd_max_Ω_kin"] = svd_max_Ω
+#                  file["normop_invε_kin"] = normop_invε
+#                  file["svd_min_ε_kin"] = svd_min_ε
+#                  file["svd_max_ε_kin"] = svd_max_ε
+#                  file["norm_err_list"] = Float64.(err_ref_list)
+#                  file["norm_res_list"] = Float64.(norm_res_list)
+#                  file["err_estimator"] = Float64.(err_estimator)
+#                  file["norm_Pk_kin_err_list"] = Float64.(err_Pkref_list)
+#                  file["norm_Pk_kin_res_list"] = Float64.(norm_Pkres_list)
+#                  file["err_Pk_estimator"] = Float64.(err_Pk_estimator)
+#                  file["nrj_ref_list"] = Float64.(nrj_ref_list)
+#              end
 
-        else
-            ite += 1
-            append!(φ_list, [info.ψ])
-            append!(nrj_list, info.energies.total)
-        end
-    end
-    callback
-end
+#          else
+#              ite += 1
+#              append!(φ_list, [info.ψ])
+#              append!(nrj_list, info.energies.total)
+#          end
+#      end
+#      callback
+#  end

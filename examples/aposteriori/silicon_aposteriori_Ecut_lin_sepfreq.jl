@@ -30,14 +30,14 @@ Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 ## local potential only
-model = model_LDA(lattice, atoms, n_electrons=2)
+model = model_LDA(lattice, atoms)
 nl = true
-#  model = model_atomic(lattice, atoms, n_electrons=2)
+#  model = model_atomic(lattice, atoms)
 
 kgrid = [1, 1, 1]   # k-point grid (Regular Monkhorst-Pack grid)
 tol = 1e-10
 tol_krylov = 1e-12
-Ecut_ref = 15           # kinetic energy cutoff in Hartree
+Ecut_ref = 20           # kinetic energy cutoff in Hartree
 Ecut_list = 5:5:(Ecut_ref-5)
 
 ## changing norm for error estimation
@@ -120,8 +120,8 @@ for Ecut in Ecut_list
                                    tol_krylov=tol_krylov, Pks=Pk_kin,
                                    change_norm=change_norm,
                                    low_freq=true, Ecut=Ecut, nl=nl)
-        append!(norm_Pk_kin_err_list,  norm(apply_sqrt(Pk_kin, err)))
-        append!(norm_Pk_kin_res_list,  norm(apply_inv_sqrt(Pk_kin, res)))
+        append!(norm_Pk_kin_err_list,  norm(apply_sqrt_M(φ_ref, Pk_kin, err)))
+        append!(norm_Pk_kin_res_list,  norm(apply_inv_sqrt_M(basis, φ_ref, Pk_kin, res)))
         append!(normop_LF_list,   normop_LF)
         append!(normop_HF_list,   normop_HF)
     end

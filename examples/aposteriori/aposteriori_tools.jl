@@ -217,8 +217,9 @@ end
 
 ############################## CHANGES OF NORMS ################################
 
-# apply preconditioner M
-function apply_M(Pks, δφ)
+## T = -1/2 Δ + t
+
+function apply_inv_T(Pks, δφ)
     Nk = length(Pks)
 
     ϕ = []
@@ -228,15 +229,14 @@ function apply_M(Pks, δφ)
         N = size(δφ[ik], 2)
         Pk = Pks[ik]
         for i = 1:N
-            ϕk[:,i] .= (Pk.mean_kin[i] .+ Pk.kin) .* δφ[ik][:,i]
+            ϕk[:,i] .= 1 ./ (Pk.mean_kin[i] .+ Pk.kin) .* δφ[ik][:,i]
         end
         append!(ϕ, [ϕk])
     end
     ϕ
 end
 
-# apply preconditioner M^{1/2}
-function apply_sqrt(Pks, δφ)
+function apply_sqrt_T(Pks, δφ)
     Nk = length(Pks)
 
     ϕ = []
@@ -253,40 +253,55 @@ function apply_sqrt(Pks, δφ)
     ϕ
 end
 
-# apply preconditioner M^{-1}
-function apply_inv_M(Pks, res)
+function apply_M(φ, Pks, δφ)
+    δφ = proj(δφ, φ)
+    δφ = apply_sqrt_T(Pks, δφ)
+    δφ = proj(δφ, φ)
+    δφ = apply_sqrt_T(Pks, δφ)
+    δφ = proj(δφ, φ)
+end
+
+function apply_sqrt_M(φ, Pks, δφ)
+    δφ = proj(δφ, φ)
+    δφ = apply_sqrt_T(Pks, δφ)
+    δφ = proj(δφ, φ)
+end
+
+function apply_inv_sqrt_M(basis, φ, Pks, res)
     Nk = length(Pks)
 
-    Res = []
+    pack, unpack, packed_proj = packing(basis, φ)
 
-    for ik = 1:Nk
-        Rk = similar(res[ik])
-        N = size(res[ik], 2)
-        Pk = Pks[ik]
-        for i = 1:N
-            Rk[:,i] .= (1. ./ (Pk.mean_kin[i] .+ Pk.kin)) .* res[ik][:,i]
-        end
-        append!(Res, [Rk])
+    function op(x)
+        δφ = unpack(x)
+        δφ = apply_sqrt_M(φ, Pks, δφ)
+        pack(δφ)
     end
-    Res
+
+    Res, info = linsolve(op, pack(proj(res, φ));
+                         tol=tol_krylov, verbosity=0,
+                         orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
+    unpack(Res)
 end
-# apply preconditioner M^{-1/2}
-function apply_inv_sqrt(Pks, res)
+
+function apply_inv_M(basis, φ, Pks, res)
     Nk = length(Pks)
 
-    R = []
+    pack, unpack, packed_proj = packing(basis, φ)
 
-    for ik = 1:Nk
-        Rk = similar(res[ik])
-        N = size(res[ik], 2)
-        Pk = Pks[ik]
-        for i = 1:N
-            Rk[:,i] .= (1 ./ sqrt.(Pk.mean_kin[i] .+ Pk.kin)) .* res[ik][:,i]
-        end
-        append!(R, [Rk])
+    function op(x)
+        δφ = unpack(x)
+        δφ = apply_M(φ, Pks, δφ)
+        pack(δφ)
     end
-    R
+
+    Res, info = linsolve(op, pack(proj(res, φ));
+                         tol=tol_krylov, verbosity=0,
+                         orth=OrthogonalizeAndProject(packed_proj, pack(φ)))
+    unpack(Res)
 end
+
+
 
 ############################# OPERATORS ########################################
 
