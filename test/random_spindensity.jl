@@ -13,7 +13,7 @@ include("testcases.jl")
 
         ρ = guess_density(basis)
         if spin_polarization == :collinear
-            spin_factors = rand([-1.0, 1.0], basis.fft_size...) .* rand(basis.fft_size...)
+            spin_factors = 0.9 .+ 0.1rand(basis.fft_size...)
             ρspin = from_real(basis, spin_factors .* ρ.real)
         else
             ρspin = nothing
