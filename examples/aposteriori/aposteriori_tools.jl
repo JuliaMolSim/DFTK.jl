@@ -51,50 +51,6 @@ function compute_error(basis, ϕ, ψ)
     err
 end
 
-## DENSITY MATRICES FORMULATION (only 1kpt supported at the moment)
-
-# norm of difference between the density matrices associated to ϕ and ψ
-# to be consistent with |δφ|^2 = 2 Σ |δφi|^2 when δφ = Σ |φi><δφi| + hc is an
-# element on the tangent space, we return (1/√2)|ϕϕ'-ψψ'| = √(N-|ϕ'ψ|^2) so that
-# we can take Σ |δφi|^2 as norm of δφ for δφ an element of the tangent space
-function dm_distance(ϕ, ψ)
-    N = size(ϕ,2)
-
-    # use higher precision to compute √(N-|ϕ'ψ|^2) with |ϕ'ψ|^2 close to N
-    ϕ = Complex{BigFloat}.(ϕ)
-    ψ = Complex{BigFloat}.(ψ)
-    ortho(ψk) = Matrix(qr(ψk).Q)
-    ϕ = ortho(ϕ)
-    ψ = ortho(ψ)
-
-    ϕψ = norm(ϕ'ψ)^2
-    sqrt(abs(N - ϕψ))
-end
-
-function dm_distance(ϕ, ψ, Pks)
-
-    # use higher precision to compute √(N-|ϕ'ψ|^2) with |ϕ'ψ|^2 close to N
-    ϕ = Complex{BigFloat}.(ϕ)
-    ψ = Complex{BigFloat}.(ψ)
-    ortho(ψk) = Matrix(qr(ψk).Q)
-    ϕ = ortho(ϕ)
-    ψ = ortho(ψ)
-
-    Mϕ = apply_M(Pks, [ϕ])[1]
-    Mψ = apply_M(Pks, [ψ])[1]
-
-    abs((1/sqrt(2) * sqrt(tr(ϕ'Mϕ + ψ'Mψ - (ϕ'ψ)*(ψ'Mϕ) - (ψ'ϕ)*(ϕ'Mψ)))))
-    #  abs(sqrt(tr(ϕ'Mϕ + ψ'Mψ - (ϕ'ψ)*(ψ'Mϕ) - (ψ'ϕ)*(ϕ'Mψ))))
-end
-
-function res_norm(res, φ, Pks)
-
-    Minvres = apply_inv_M(Pks, res)
-    Minvφ   = apply_inv_M(Pks, φ)
-
-    abs((1/sqrt(2) * sqrt(tr(res[1]'Minvres[1] + (φ[1]'Minvφ[1])*norm(res[1])^2 ))))
-end
-
 ############################## TANGENT SPACE TOOLS #############################
 
 # test for orthogonalisation
