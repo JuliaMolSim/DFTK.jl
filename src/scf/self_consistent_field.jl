@@ -28,10 +28,10 @@ function next_density(ham::Hamiltonian;
 
     # Update density from new ψ
     occupation, εF = occupation_function(ham.basis, eigres.λ)
-    ρout, ρ_spin_out = compute_density(ham.basis, eigres.X, occupation)
+    ρout = compute_density(ham.basis, eigres.X, occupation)
 
     (ψ=eigres.X, eigenvalues=eigres.λ, occupation=occupation, εF=εF,
-     ρout=ρout, ρ_spin_out=ρ_spin_out, diagonalization=eigres)
+     ρout=ρout, diagonalization=eigres)
 end
 
 
@@ -41,7 +41,6 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 @timing function self_consistent_field(basis::PlaneWaveBasis;
                                        n_bands=default_n_bands(basis.model),
                                        ρ=guess_density(basis),
-                                       ρspin=guess_spin_density(basis),
                                        ψ=nothing,
                                        tol=1e-6,
                                        maxiter=100,
@@ -69,36 +68,29 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     occupation = nothing
     eigenvalues = nothing
     ρout = ρ
-    ρ_spin_out = ρspin
     εF = nothing
     n_iter = 0
     energies = nothing
     ham = nothing
-    info = (n_iter=0, ρin=ρ, ρ_spin_in=ρspin)   # Populate info with initial values
+    info = (n_iter=0, ρin=ρ)   # Populate info with initial values
     converged = false
 
     # We do density mixing in the real representation
     # TODO support other mixing types
-    function fixpoint_map(x)
-        converged && return x  # No more iterations if convergence flagged
+    function fixpoint_map(ρin)
+        converged && return ρin  # No more iterations if convergence flagged
 
         n_iter += 1
-        if model.n_spin_components == 2  # TODO So ugly
-            # x has 2 blocks: total and spin density
-            ρin, ρ_spin_in = from_real(basis,x[:, :, :, 1]), from_real(basis,x[:, :, :, 2])
-        else
-            ρin, ρ_spin_in = from_real(basis, x), nothing
-        end
 
         # Build next Hamiltonian, diagonalize it, get ρout
         if n_iter == 1 # first iteration
             _, ham = energy_hamiltonian(basis, nothing, nothing;
-                                        ρ=ρin, ρspin=ρ_spin_in, eigenvalues=nothing, εF=nothing)
+                                        ρ=ρin, eigenvalues=nothing, εF=nothing)
         else
             # Note that ρin is not the density of ψ, and the eigenvalues
             # are not the self-consistent ones, which makes this energy non-variational
             energies, ham = energy_hamiltonian(basis, ψ, occupation;
-                                               ρ=ρin, ρspin=ρ_spin_in, eigenvalues=eigenvalues, εF=εF)
+                                               ρ=ρin, eigenvalues=eigenvalues, εF=εF)
         end
 
         # Diagonalize `ham` to get the new state
@@ -106,61 +98,52 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                  miniter=1, tol=determine_diagtol(info),
                                  n_ep_extra=n_ep_extra,
                                  occupation_function=occupation_function)
-        ψ, eigenvalues, occupation, εF, ρout, ρ_spin_out = nextstate
+        ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         if enforce_symmetry
-            ρout = DFTK.symmetrize(ρout)
-            !isnothing(ρ_spin_out) && (ρ_spin_out = DFTK.symmetrize(ρ_spin_out))
+            ρout = DFTK.symmetrize(basis, ρout)
         end
 
         # Update info with results gathered so far
         info = (ham=ham, basis=basis, converged=converged, stage=:iterate,
-                ρin=ρin, ρ_spin_in=ρ_spin_in, ρout=ρout, ρ_spin_out=ρ_spin_out,
+                ρin=ρin, ρout=ρout,
                 n_iter=n_iter, n_ep_extra=n_ep_extra, nextstate...)
 
         # Compute the energy of the new state
         if compute_consistent_energies
             energies, _ = energy_hamiltonian(basis, ψ, occupation;
-                                             ρ=ρout, ρspin=ρ_spin_out, eigenvalues=eigenvalues, εF=εF)
+                                             ρ=ρout, eigenvalues=eigenvalues, εF=εF)
         end
         info = merge(info, (energies=energies, ))
 
         # Apply mixing and pass it the full info as kwargs
-        δF_spin = isnothing(ρ_spin_out) ? nothing : ρ_spin_out - ρ_spin_in
-        δρ, δρ_spin = mix(mixing, basis, ρout - ρin, δF_spin; info...)
+        δρ = mix(mixing, basis, ρout - ρin; info...)
         ρnext = δρ + ρin
-        ρ_spin_next = isnothing(ρ_spin_out) ? nothing : δρ_spin + ρ_spin_in
         if enforce_symmetry
-            ρnext = DFTK.symmetrize(ρnext)
-            !isnothing(ρ_spin_next) && (ρ_spin_next = DFTK.symmetrize(ρ_spin_next))
+            ρnext = DFTK.symmetrize(basis, ρnext)
         end
-        info = merge(info, (ρnext=ρnext, ρ_spin_next=ρ_spin_next))
+        info = merge(info, (; ρnext=ρnext))
 
         callback(info)
         is_converged(info) && (converged = true)
 
-        if model.n_spin_components == 2
-            cat(ρnext.real, ρ_spin_next.real, dims=4)  # TODO This really has to go
-        else
-            ρnext.real
-        end
+        ρnext
     end
 
     # Tolerance and maxiter are only dummy here: Convergence is flagged by is_converged
     # inside the fixpoint_map. Also we do not use the return value of fpres but rather the
     # one that got updated by fixpoint_map
-    ρcat_real = model.n_spin_components == 2 ? cat(ρout.real, ρ_spin_out.real, dims=4) : ρout.real
-    fpres = solver(fixpoint_map, ρcat_real, maxiter; tol=eps(T))
+    fpres = solver(fixpoint_map, ρout, maxiter; tol=eps(T))
 
     # We do not use the return value of fpres but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform
     # a last energy computation to return a correct variational energy
     energies, ham = energy_hamiltonian(basis, ψ, occupation;
-                                       ρ=ρout, ρspin=ρ_spin_out, eigenvalues=eigenvalues, εF=εF)
+                                       ρ=ρout, eigenvalues=eigenvalues, εF=εF)
 
     # Callback is run one last time with final state to allow callback to clean up
     info = (ham=ham, basis=basis, energies=energies, converged=converged,
-            ρ=ρout, ρspin=ρ_spin_out, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
+            ρ=ρout, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
             n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=ψ, diagonalization=info.diagonalization,
             stage=:finalize)
     callback(info)

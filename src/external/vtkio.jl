@@ -42,10 +42,10 @@ function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{
     end
 
     # Storing the  density in real space
-    vtkfile["ρ"] = scfres.ρ.real
+    vtkfile["ρ"] = total_density(scfres.ρ)
 
     # Storing ρspin if it is present.
-    isnothing(scfres.ρspin)  || (vtkfile["ρspin"] = scfres.ρspin.real)
+    isnothing(spin_density(scfres.ρ))  || (vtkfile["ρspin"] = spin_density(scfres.ρ))
 
     # Storing the energy components
     for key in keys(scfres.energies)

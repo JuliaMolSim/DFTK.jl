@@ -49,8 +49,7 @@ model = model_PBE(lattice, atoms, temperature=0.02, smearing=smearing=Smearing.G
                   magnetic_moments=magnetic_moments)
 basis = PlaneWaveBasis(model, Ecut; kgrid=[1, 1, 1])
 
-ρspin  = guess_spin_density(basis, magnetic_moments)
-scfres = self_consistent_field(basis, tol=1e-2, ρspin=ρspin)
+scfres = self_consistent_field(basis, tol=1e-2, ρ=guess_density(basis, magnetic_moments))
 save_scfres("scfres.jld2", scfres);
 #-
 scfres.energies
@@ -81,7 +80,8 @@ loaded.energies
 # callback to [`self_consistent_field`](@ref), for example:
 
 callback = DFTK.ScfSaveCheckpoints()
-scfres = self_consistent_field(basis, tol=1e-2, ρspin=ρspin, callback=callback);
+scfres = self_consistent_field(basis; ρ=guess_density(basis, magnetic_moments),
+                               tol=1e-2, callback=callback);
 
 # Notice that using this callback makes the SCF go silent since the passed
 # callback parameter overwrites the default value (namely `DefaultScfCallback()`)
@@ -89,7 +89,8 @@ scfres = self_consistent_field(basis, tol=1e-2, ρspin=ρspin, callback=callback
 # If you want to have both (printing and checkpointing) you need to chain
 # both callbacks:
 callback = DFTK.ScfDefaultCallback() ∘ DFTK.ScfSaveCheckpoints(keep=true)
-scfres = self_consistent_field(basis, tol=1e-2, ρspin=ρspin, callback=callback);
+scfres = self_consistent_field(basis; ρ=guess_density(basis, magnetic_moments),
+                               tol=1e-2, callback=callback);
 
 # For more details on using callbacks with DFTK's `self_consistent_field` function
 # see [Monitoring self-consistent field calculations](@ref).
@@ -102,7 +103,7 @@ scfres = self_consistent_field(basis, tol=1e-2, ρspin=ρspin, callback=callback
 # For this one just loads the checkpoint with [`load_scfres`](@ref):
 
 oldstate = load_scfres("dftk_scf_checkpoint.jld2")
-scfres   = self_consistent_field(oldstate.basis, ρ=oldstate.ρ, ρspin=oldstate.ρspin,
+scfres   = self_consistent_field(oldstate.basis, ρ=oldstate.ρ,
                                  ψ=oldstate.ψ, tol=1e-3);
 
 # !!! note "Availability of `load_scfres`, `save_scfres` and `ScfSaveCheckpoints`"

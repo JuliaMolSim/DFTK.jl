@@ -18,7 +18,7 @@ function test_kernel_unpolarized(termtype; test_compute=true)
         term  = only(basis.terms)
 
         ρ0 = guess_density(basis)
-        dρ = from_real(basis, randn(size(ρ0)))
+        dρ = randn(size(ρ0))
 
         ρ_minus = ρ0 - ε * dρ
         ρ_plus  = ρ0 + ε * dρ
@@ -26,17 +26,16 @@ function test_kernel_unpolarized(termtype; test_compute=true)
         pot_plus  = DFTK.ene_ops(term, nothing, nothing; ρ=ρ_plus ).ops[1].potential
         dV = (pot_plus - pot_minus) / (2ε)
 
-        dV_apply = DFTK.apply_kernel(term, dρ; ρ=ρ0)[1]
-        @test norm(dV - dV_apply.real) < 100ε
+        dV_apply = DFTK.apply_kernel(term, dρ; ρ=ρ0)
+        @test norm(dV - dV_apply) < 100ε
 
         if test_compute
             kernel = DFTK.compute_kernel(term; ρ=ρ0)
-            dV_compute = reshape(kernel * vec(dρ.real), size(dρ))
+            dV_compute = reshape(kernel * vec(dρ), size(dρ))
             @test norm(dV - dV_compute) < 100ε
         end
     end
 end
-
 
 function test_kernel_collinear_vs_noncollinear(termtype)
     Ecut=2
@@ -72,6 +71,7 @@ function test_kernel_collinear_vs_noncollinear(termtype)
 end
 
 
+## TODO merge with the previous
 function test_kernel_collinear(termtype; test_compute=true)
     Ecut=2
     kgrid = [2, 2, 2]
@@ -90,31 +90,25 @@ function test_kernel_collinear(termtype; test_compute=true)
         idown = DFTK.krange_spin(basis, 2)[1]  # First spin-down k-point
         term  = only(basis.terms)
 
-        ρ0      = guess_density(basis)
-        dρ      = from_real(basis, randn(size(ρ0)))
-        ρspin0  = guess_spin_density(basis, magnetic_moments)
-        dρspin  = from_real(basis, randn(size(ρspin0)))
+        ρ0 = guess_density(basis, magnetic_moments)
+        dρ = randn(size(ρ0))
 
-        ρ_minus     = ρ0     - ε * dρ
-        ρspin_minus = ρspin0 - ε * dρspin
-        ρ_plus      = ρ0     + ε * dρ
-        ρspin_plus  = ρspin0 + ε * dρspin
+        ρ_minus     = ρ0 - ε * dρ
+        ρ_plus      = ρ0 + ε * dρ
 
-        ops_minus = DFTK.ene_ops(term, nothing, nothing; ρ=ρ_minus, ρspin=ρspin_minus).ops
-        ops_plus  = DFTK.ene_ops(term, nothing, nothing; ρ=ρ_plus,  ρspin=ρspin_plus).ops
-        dVα = (ops_plus[  iup].potential - ops_minus[  iup].potential) / (2ε)
-        dVβ = (ops_plus[idown].potential - ops_minus[idown].potential) / (2ε)
+        ops_minus = DFTK.ene_ops(term, nothing, nothing; ρ=ρ_minus).ops
+        ops_plus  = DFTK.ene_ops(term, nothing, nothing; ρ=ρ_plus).ops
+        dV = zero(ρ0)
+        dV[:, :, :, 1] = (ops_plus[  iup].potential - ops_minus[  iup].potential) / (2ε)
+        dV[:, :, :, 2] = (ops_plus[idown].potential - ops_minus[idown].potential) / (2ε)
 
-        dVα_apply, dVβ_apply = DFTK.apply_kernel(term, dρ, dρspin; ρ=ρ0, ρspin=ρspin0)
-        @test norm(dVα - dVα_apply.real) < 200ε
-        @test norm(dVβ - dVβ_apply.real) < 200ε
+        dV_apply = DFTK.apply_kernel(term, dρ; ρ=ρ0)
+        @test norm(dV - dV_apply) < 200ε
 
         if test_compute
-            kernel = DFTK.compute_kernel(term; ρ=ρ0, ρspin=ρspin0)
-            dρcat  = vcat(vec(dρ.real), vec(dρspin.real))
-            dV_matrix = reshape(kernel * dρcat, size(dρ)..., 2)
-            @test norm(dVα - dV_matrix[:, :, :, 1]) < 100ε
-            @test norm(dVβ - dV_matrix[:, :, :, 2]) < 100ε
+            kernel = DFTK.compute_kernel(term; ρ=ρ0)
+            dV_matrix = reshape(kernel * vec(dρ), size(dρ))
+            @test norm(dV - dV_matrix) < 100ε
         end
     end
 end

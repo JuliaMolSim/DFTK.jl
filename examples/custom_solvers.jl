@@ -54,13 +54,13 @@ struct MyMixing
 end
 MyMixing() = MyMixing(0.7)
 
-function DFTK.mix(mixing::MyMixing, basis, δF::RealFourierArray, δF_spin=nothing; n_iter, kwargs...)
+function DFTK.mix(mixing::MyMixing, basis, δF; n_iter, kwargs...)
     if n_iter <= 2
-        ## Just do simple mixing on total density and spin density (if it exists)
-        (mixing.α * δF, isnothing(δF_spin) ? nothing : mixing.α * δF_spin)
+        ## Just do simple mixing
+        mixing.α * δF
     else
         ## Use the KerkerMixing from DFTK
-        DFTK.mix(KerkerMixing(α=mixing.α), basis, δF, δF_spin; kwargs...)
+        DFTK.mix(KerkerMixing(α=mixing.α), basis, δF; kwargs...)
     end
 end
 

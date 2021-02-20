@@ -32,8 +32,7 @@ function test_scfres_agreement(tested, ref)
     @test tested.eigenvalues    == ref.eigenvalues
     @test tested.occupation     == ref.occupation
     @test tested.ψ              == ref.ψ
-    @test tested.ρ.real         ≈  ref.ρ.real     rtol=1e-14
-    @test tested.ρspin.real     ≈  ref.ρspin.real rtol=1e-14
+    @test tested.ρ              ≈  ref.ρ     rtol=1e-14
 end
 
 
@@ -46,7 +45,6 @@ end
 
     kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
     basis  = PlaneWaveBasis(model, 4; kgrid=kgrid)
-    ρspin  = guess_spin_density(basis, magnetic_moments)
 
     # Run SCF and do checkpointing along the way
     mktempdir() do tmpdir
@@ -54,7 +52,7 @@ end
         checkpointfile = MPI.bcast(checkpointfile, 0, MPI.COMM_WORLD)  # master -> everyone
 
         callback = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
-        scfres = self_consistent_field(basis, tol=5e-2, ρspin=ρspin, callback=callback)
+        scfres = self_consistent_field(basis, tol=5e-2, callback=callback)
         test_scfres_agreement(scfres, load_scfres(checkpointfile))
     end
 end

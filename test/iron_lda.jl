@@ -40,8 +40,8 @@ function run_iron_lda(T; kwargs...)
                       temperature=0.01, magnetic_moments=magnetic_moments)
     basis = PlaneWaveBasis(model, Ecut; fft_size=[20, 20, 20],
                            kgrid=[4, 4, 4], kshift=[1/2, 1/2, 1/2])
-    ρspin = guess_spin_density(basis, magnetic_moments)
-    run_scf_and_compare(T, basis, ref_lda, ref_etot; ρspin=ρspin, kwargs...)
+    run_scf_and_compare(T, basis, ref_lda, ref_etot;
+                        ρ=guess_density(basis, magnetic_moments), kwargs...)
 end
 
 @testset "Iron LDA (Float64)" begin

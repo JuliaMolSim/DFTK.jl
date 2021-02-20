@@ -108,8 +108,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     # computes energies and gradients
     function fg!(E, G, ψ)
         ψ = unpack(ψ)
-        ρ, ρspin = compute_density(basis, ψ, occupation)
-        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ, ρspin=ρspin)
+        ρ = compute_density(basis, ψ, occupation)
+        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
 
         # The energy has terms like occ * <ψ|H|ψ>, so the gradient is 2occ Hψ
         if G !== nothing

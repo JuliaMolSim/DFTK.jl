@@ -26,6 +26,6 @@ include("testcases.jl")
         E2 = scfres.energies.total
 
         @test abs(E1 - E2) < 1e-10
-        @test norm(ρ1.fourier - ρ2.fourier) < 1e-8
+        @test norm(ρ1 - ρ2) .* sqrt(basis.dvol) < 1e-8
     end
 end

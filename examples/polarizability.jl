@@ -29,10 +29,9 @@ Ecut = 30
 tol = 1e-8
 
 ## dipole moment of a given density (assuming the current geometry)
-function dipole(ρ)
-    basis = ρ.basis
+function dipole(basis, ρ)
     rr = [a * (r[1] - 1/2) for r in r_vectors(basis)]
-    d = sum(rr .* ρ.real) * basis.model.unit_cell_volume / prod(basis.fft_size)
+    d = sum(rr .* ρ) * basis.dvol
 end;
 
 # ## Polarizability by finite differences
@@ -41,7 +40,7 @@ end;
 model = model_LDA(lattice, atoms; symmetries=false)
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 res = self_consistent_field(basis, tol=tol)
-μref = dipole(res.ρ)
+μref = dipole(basis, res.ρ)
 
 # Then in a small uniform field:
 ε = .01
@@ -49,7 +48,7 @@ model_ε = model_LDA(lattice, atoms; extra_terms=[ExternalFromReal(r -> -ε * (r
                     symmetries=false)
 basis_ε = PlaneWaveBasis(model_ε, Ecut; kgrid=kgrid)
 res_ε = self_consistent_field(basis_ε, tol=tol)
-με = dipole(res_ε.ρ)
+με = dipole(basis_ε, res_ε.ρ)
 
 #-
 polarizability = (με - μref) / ε
@@ -81,30 +80,26 @@ println("Polarizability :   $polarizability")
 
 using KrylovKit
 
-## KrylovKit cannot deal with the density as a 3D array, so we need `vec` to vectorize
-## and `devec` to "unvectorize"
-devec(arr) = from_real(basis, reshape(arr, size(res.ρ.real)))
-
-## Apply (1- χ0 K) to a vectorized dρ
+## Apply (1- χ0 K)
 function dielectric_operator(dρ)
-    dρ = devec(dρ)
     dv = apply_kernel(basis, dρ; ρ=res.ρ)
-    χ0dv = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, dv...)[1]
-    vec((dρ - χ0dv).real)
+    χ0dv = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, dv)
+    dρ - χ0dv
 end
 
 ## dVext is the potential from a uniform field interacting with the dielectric dipole
 ## of the density.
-dVext = from_real(basis, [-a * (r[1] - 1/2) for r in r_vectors(basis)])
+dVext = [-a * (r[1] - 1/2) for r in r_vectors(basis)]
+dVext = cat(dVext; dims=4)
 
 ## Apply χ0 once to get non-interacting dipole
-dρ_nointeract = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, dVext)[1]
+dρ_nointeract = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, dVext)
 
 ## Solve Dyson equation to get interacting dipole
-dρ = devec(linsolve(dielectric_operator, vec(dρ_nointeract.real), verbosity=3)[1])
+dρ = linsolve(dielectric_operator, dρ_nointeract, verbosity=3)[1]
 
-println("Non-interacting polarizability: $(dipole(dρ_nointeract))")
-println("Interacting polarizability:     $(dipole(dρ))")
+println("Non-interacting polarizability: $(dipole(basis, dρ_nointeract))")
+println("Interacting polarizability:     $(dipole(basis, dρ))")
 
 # As expected, the interacting polarizability matches the finite difference
 # result. The non-interacting polarizability is higher.

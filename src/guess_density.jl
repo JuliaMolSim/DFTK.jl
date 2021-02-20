@@ -1,5 +1,5 @@
 @doc raw"""
-    guess_density(basis)
+    guess_density(basis, magnetic_moments)
 
 Build a superposition of atomic densities (SAD) guess density.
 
@@ -7,26 +7,32 @@ We take for the guess density a gaussian centered around the atom, of
 length specified by `atom_decay_length`, normalized to get the right number of electrons
 ```math
 \hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
-```
+
+When magnetic moments are provided, construct a symmetry-broken density guess.
+The magnetic moments should be specified in units of ``μ_B``.
 """
-guess_density(basis::PlaneWaveBasis) = guess_density(basis, basis.model.atoms)
-@timing function guess_density(basis::PlaneWaveBasis{T}, atoms) where {T}
-    # Return sum of atomic densities with all weights equal to 1
-    gaussians = [(T(n_elec_valence(spec)), T(atom_decay_length(spec)), pos)
-                 for (spec, positions) in atoms for pos in positions]
-    gaussian_superposition(basis, gaussians)
+function guess_density(basis::PlaneWaveBasis, magnetic_moments=[])
+    guess_density(basis, basis.model.atoms, magnetic_moments)
+end
+@timing function guess_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments) where {T}
+    ρtot = _guess_total_density(basis, atoms)
+    if basis.model.n_spin_components == 1
+        ρspin = nothing
+    else
+        ρspin = _guess_spin_density(basis, atoms, magnetic_moments)
+    end
+
+    ρ_from_total_and_spin(ρtot, ρspin)
 end
 
-
-@doc raw"""
-    guess_spin_density(basis, magnetic_moments)
-
-Form a spin density guess. The magnetic moments should be specified in units of ``μ_B``.
-"""
-function guess_spin_density(basis::PlaneWaveBasis, magnetic_moments=[])
-    guess_spin_density(basis, basis.model.atoms, magnetic_moments)
+function _guess_total_density(basis::PlaneWaveBasis{T}, atoms) where {T}
+    # build ρtot
+    gaussians_tot = [(T(n_elec_valence(spec)), T(atom_decay_length(spec)), pos)
+                     for (spec, positions) in atoms for pos in positions]
+    ρtot = gaussian_superposition(basis, gaussians_tot)
 end
-@timing function guess_spin_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments) where {T}
+
+function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments) where {T}
     model = basis.model
     if model.spin_polarization in (:none, :spinless)
         isempty(magnetic_moments) && return nothing
@@ -40,7 +46,7 @@ end
         @warn("Returning zero spin density guess, because no initial magnetization has " *
               "been specified in any of the given elements / atoms. Your SCF will likely " *
               "not converge to a spin-broken solution.")
-        return from_fourier(basis, zeros(complex(T), basis.fft_size))
+        return zeros(T, basis.fft_size)
     end
 
     gaussians = Tuple{T, T, Vec3{T}}[]
@@ -87,7 +93,7 @@ function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
     end
 
     # projection in the normalized plane wave basis
-    from_fourier(basis, ρ / sqrt(basis.model.unit_cell_volume))
+    G_to_r(basis, ρ / sqrt(basis.model.unit_cell_volume))
 end
 
 
