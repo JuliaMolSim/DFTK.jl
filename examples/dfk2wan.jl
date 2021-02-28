@@ -132,10 +132,3 @@ dftk2wan_wannierization_files(prefix, scfres, 8, guess = "gaussian",
 wannier90() do exe
     run(`$exe $prefix`)
 end
-
-
-
-
-
-
-

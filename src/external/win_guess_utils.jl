@@ -13,8 +13,7 @@
 """
 function retrieve_proper_m(l::Integer,mr::Integer)
     @assert 0 ≤ l
-    m = zero(Int64)
-    m_p = [0,1,-1]; m_d = [0,1,-1,2,-2]; m_f = [0,1,-1,2,-2,3,-3]
+    m_p = (0,1,-1); m_d = (0,1,-1,2,-2); m_f = (0,1,-1,2,-2,3,-3)
     (l == 0) && return 0
     (l == 1) && return m_p[mr]  # p
     (l == 2) && return m_d[mr]  # d
@@ -39,7 +38,7 @@ end
 @doc raw"""
 Given quantum numbers and center (in cartesian coordinates), evaluate the fourier
 transform of the corresponding orbital at given reciprocal vector ``G`` in cartesian
-coordinates.
+coordinates, using wannier90 conventions for `l` and `m`.
 
 For the orbital ``g(r) = Rl(r)Y_l^m(r/|r|)`` the fourier transform is given by:
 
@@ -53,7 +52,7 @@ function eval_fourier_orbital(center, l::Integer, mr::Integer, Gcart)
     # case |G| treated separatly
     if iszero(Gcart)
         (l == 0) && return (√(2)π)/2  # explicit value of y_0 * intR_0
-        (l != 0) && return zero(ComplexF64) # since j_l(0) = 0 for l≥1.
+        (l != 0) && return zero(eltype(Gcart)) # since j_l(0) = 0 for l≥1.
     end
 
     # |G| ≠ 0
@@ -91,29 +90,24 @@ end
     usual informations on the system (basis etc...)
 """
 function Ak_matrix_win_guesses(basis::PlaneWaveBasis, ψ,
-                                k::Integer, n_bands::Integer, n_wann::Integer;
-                                projs = [],centers = [], coords = "")
+                                k, n_bands, n_wann;
+                                projs=[], centers=[], coords="")
     n_projs = size(projs,1)
     @assert n_projs == n_wann
-    
-    Ak = zeros(Complex,(n_bands,n_projs))
 
-    # All G vectors in cartesian coordinates.
-    Gs_cart_k = [basis.model.recip_lattice*G for G in basis.kpoints[k].G_vectors]
+    Ak = zeros(complex(eltype(basis)), n_bands, n_projs)
 
     for n in 1:n_projs
         #Extract data from projs[n]
         center, (l,mr,r_qn) = projs[n]
-        center =  basis.model.lattice*center # lattice coords to cartesian coords
+        center = basis.model.lattice * center # lattice coords to cartesian coords
         # Obtain fourier coeff of projection g_n
-        coeffs_gn_per = [eval_fourier_orbital(center,l,mr,Gcart) for Gcart in Gs_cart_k]      
+        coeffs_gn_per = [eval_fourier_orbital(center, l, mr, Gcart)
+                         for Gcart in G_vectors_cart(basis.kpoints[k])]
         # Compute overlaps
         for m in 1:n_bands
-            coeffs_ψm = ψ[k][:,m]
-            Ak[m,n] = dot(coeffs_ψm, coeffs_gn_per)
+            Ak[m,n] = @views dot(ψ[k][:,m], coeffs_gn_per)
         end
     end
-
     Ak
-        
 end
