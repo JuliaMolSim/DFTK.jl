@@ -198,6 +198,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
                 energy_contribution = Zi * Zj * erfc(η * dist) / dist 
                 sum_real += energy_contribution
                 if forces !== nothing
+                    # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
                     dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
                     dE_ddist -= energy_contribution
                     dE_dti = lattice' * ((dE_ddist / dist^2) * Δr)
