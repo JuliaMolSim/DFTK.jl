@@ -186,8 +186,8 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
                     continue
                 end
 
-                v = lattice * (ti - tj - R)
-                dist = norm(v)
+                Δr = lattice * (ti - tj - R)
+                dist = norm(Δr)
 
                 # erfc decays very quickly, so cut off at some point
                 if η * dist > max_erfc_arg
@@ -198,12 +198,11 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
                 energy_contribution = Zi * Zj * erfc(η * dist) / dist 
                 sum_real += energy_contribution
                 if forces !== nothing
-                    # grad = ForwardDiff.gradient(r -> (dist=norm(lattice * (r - tj - R)); Zi * Zj * erfc(η * dist) / dist), ti)
-                    ddist = Zi * Zj * η * (-2exp(-(η*dist)^2) / sqrt(T(π)))
-                    ddist += -energy_contribution
-                    dti = lattice'*((ddist / dist^2) * v)
-                    forces_real[i] += -dti
-                    forces_real[j] += dti
+                    dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
+                    dE_ddist -= energy_contribution
+                    dE_dti = lattice' * ((dE_ddist / dist^2) * Δr)
+                    forces_real[i] -= dE_dti
+                    forces_real[j] += dE_dti
                 end
             end # i,j
         end # R
