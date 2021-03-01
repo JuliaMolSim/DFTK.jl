@@ -1,5 +1,4 @@
 using SpecialFunctions: erfc
-using ForwardDiff
 
 """
 Ewald term: electrostatic energy per unit cell of the array of point
@@ -187,7 +186,8 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
                     continue
                 end
 
-                dist = norm(lattice * (ti - tj - R))
+                v = lattice * (ti - tj - R)
+                dist = norm(v)
 
                 # erfc decays very quickly, so cut off at some point
                 if η * dist > max_erfc_arg
@@ -195,11 +195,15 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
                 end
 
                 any_term_contributes = true
-                sum_real += Zi * Zj * erfc(η * dist) / dist
+                energy_contribution = Zi * Zj * erfc(η * dist) / dist 
+                sum_real += energy_contribution
                 if forces !== nothing
-                    # Use ForwardDiff here because I'm lazy. TODO do it properly
-                    forces_real[i] -= ForwardDiff.gradient(r -> (dist=norm(lattice * (r - tj - R)); Zi * Zj * erfc(η * dist) / dist), ti)
-                    forces_real[j] -= ForwardDiff.gradient(r -> (dist=norm(lattice * (ti - r - R)); Zi * Zj * erfc(η * dist) / dist), tj)
+                    # grad = ForwardDiff.gradient(r -> (dist=norm(lattice * (r - tj - R)); Zi * Zj * erfc(η * dist) / dist), ti)
+                    ddist = Zi * Zj * η * (-2exp(-(η*dist)^2) / sqrt(T(π)))
+                    ddist += -energy_contribution
+                    dti = lattice'*((ddist / dist^2) * v)
+                    forces_real[i] += -dti
+                    forces_real[j] += dti
                 end
             end # i,j
         end # R
