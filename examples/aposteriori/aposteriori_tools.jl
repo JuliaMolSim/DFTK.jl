@@ -192,6 +192,23 @@ function apply_inv_T(Pks, δφ)
     ϕ
 end
 
+function apply_inv_sqrt_T(Pks, δφ)
+    Nk = length(Pks)
+
+    ϕ = []
+
+    for ik = 1:Nk
+        ϕk = similar(δφ[ik])
+        N = size(δφ[ik], 2)
+        Pk = Pks[ik]
+        for i = 1:N
+            ϕk[:,i] .= 1 ./ sqrt.(Pk.mean_kin[i] .+ Pk.kin) .* δφ[ik][:,i]
+        end
+        append!(ϕ, [ϕk])
+    end
+    ϕ
+end
+
 function apply_sqrt_T(Pks, δφ)
     Nk = length(Pks)
 

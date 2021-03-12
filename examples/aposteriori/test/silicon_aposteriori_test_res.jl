@@ -17,9 +17,9 @@ using DataFrames
 using GLM
 
 # import aux file
-include("aposteriori_operators.jl")
-include("aposteriori_callback.jl")
-include("newton.jl")
+include("../aposteriori_tools.jl")
+include("../aposteriori_callback.jl")
+#  include("newton.jl")
 
 # model parameters
 a = 10.26  # Silicon lattice constant in Bohr
