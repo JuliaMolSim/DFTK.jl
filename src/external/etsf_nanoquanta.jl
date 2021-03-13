@@ -3,7 +3,6 @@
 
 export EtsfFolder
 
-using NCDatasets
 import JSON
 
 struct EtsfFolder

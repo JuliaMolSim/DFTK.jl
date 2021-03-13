@@ -1,5 +1,3 @@
-import JLD2
-
 """
 Adds simplistic checkpointing to a DFTK self-consistent field calculation.
 """

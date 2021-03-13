@@ -1,5 +1,3 @@
-import WriteVTK: vtk_grid, vtk_save
-
 @doc raw"""
     save_scfres(filename, scfres, Val(:vtk))
 
@@ -30,7 +28,7 @@ function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{
     for (idcs, r) in zip(CartesianIndices(basis.fft_size), r_vectors_cart(basis))
         grid[:, Tuple(idcs)...] = r
     end
-    vtkfile = vtk_grid(filename, grid)
+    vtkfile = WriteVTK.vtk_grid(filename, grid)
 
     # Storing the bloch waves
     if save_ψ
@@ -67,5 +65,5 @@ function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{
         vtkfile[key] = value
     end
 
-    only(vtk_save(vtkfile))
+    only(WriteVTK.vtk_save(vtkfile))
 end
