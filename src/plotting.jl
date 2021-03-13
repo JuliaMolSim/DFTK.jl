@@ -1,5 +1,3 @@
-import Plots
-
 # This is needed to flag that the plots-dependent code has been loaded
 const PLOTS_LOADED = true
 

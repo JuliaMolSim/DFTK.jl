@@ -3,7 +3,7 @@
 In case you don't have a working Julia installation yet, first
 [download the Julia binaries](https://julialang.org/downloads/)
 and follow the [Julia installation instructions](https://julialang.org/downloads/platform/).
-At least **Julia 1.4** is required for DFTK.
+At least **Julia 1.5** is required for DFTK.
 
 Afterwards you can install DFTK
 [like any other package](https://julialang.github.io/Pkg.jl/v1/getting-started/)
