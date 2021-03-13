@@ -65,7 +65,7 @@ StaticArrays = "0.12, 1"
 TimerOutputs = "0.5.6"
 Unitful = "1"
 UnitfulAtomic = "1"
-julia = "1.4"
+julia = "1.5"
 spglib_jll = "1.15"
 
 [extras]
