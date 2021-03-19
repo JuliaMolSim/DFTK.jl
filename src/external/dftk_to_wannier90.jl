@@ -1,9 +1,5 @@
 using ProgressMeter
-using LinearAlgebra
 using Dates
-using Printf
-
-using Unitful; using UnitfulAtomic;
 using wannier90_jll
 
 """

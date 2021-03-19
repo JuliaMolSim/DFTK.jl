@@ -1,7 +1,4 @@
 using Test
-using DFTK
-
-include("../../src/external/dftk_to_wannier90.jl")
 
 if mpi_nprocs() == 1
     # SCF loop

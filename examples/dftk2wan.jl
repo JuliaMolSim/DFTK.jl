@@ -114,6 +114,7 @@ dftk2wan_wannierization_files(prefix, scfres, 8, guess = "gaussian",
                               write_mmn = true,
                               write_eig = true)
 
+# Note that DFTK compute all files by default.
 # Once the files are generated, the user can simply call the wannierization
 # procedure with :
 
