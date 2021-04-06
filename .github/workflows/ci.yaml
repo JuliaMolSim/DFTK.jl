@@ -22,13 +22,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {version: '1.5',   os: ubuntu-latest,  payload: serial}
-          - {version: '1.5',   os: macOS-latest,   payload: serial}
-          - {version: '1.5',   os: windows-latest, payload: serial}
-          - {version: '1.5',   os: ubuntu-latest,  payload: mpi   }
+          - {version: '1.6',   os: ubuntu-latest,  payload: serial}
+          - {version: '1.6',   os: macOS-latest,   payload: serial}
+          - {version: '1.6',   os: windows-latest, payload: serial}
+          - {version: '1.6',   os: ubuntu-latest,  payload: mpi   }
           - {version: nightly, os: ubuntu-latest,  payload: serial}
     env:
-      PYTHON: ""  # Force using Conda in PyCall
+      PYTHON: ""          # Force using Conda in PyCall
+      GKS_ENCODING: "utf8"
+      GKSwstype: "100"    # Needed for Plots-related tests
+      PLOTS_TEST: "true"  # Needed for Plots-related tests
+
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1
@@ -86,6 +90,10 @@ jobs:
   examples:
     name: Run examples
     runs-on: ubuntu-latest
+    env:
+      GKS_ENCODING: "utf8"
+      GKSwstype: "100"    # Needed for Plots-related tests
+      PLOTS_TEST: "true"  # Needed for Plots-related tests
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-python@v2
@@ -95,7 +103,7 @@ jobs:
         run: pip install ase pymatgen
       - uses: julia-actions/setup-julia@v1
         with:
-          version: '1.5'
+          version: '1.6'
       - uses: actions/cache@v1
         env:
           cache-name: cache-artifacts
