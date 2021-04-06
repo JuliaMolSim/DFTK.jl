@@ -29,6 +29,11 @@ if !isfile(joinpath(@__DIR__, "Manifest.toml"))
     Pkg.instantiate()
 end
 
+# Setup environment for making plots
+ENV["GKS_ENCODING"] = "utf8"
+ENV["GKSwstype"] = "100"
+ENV["PLOTS_TEST"] = "true"
+
 # Import packages for docs generation
 using DFTK
 using Documenter
