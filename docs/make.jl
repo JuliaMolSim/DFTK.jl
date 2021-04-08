@@ -107,6 +107,7 @@ makedocs(
         "Getting started" => Any[
             "guide/installation.md",
             "Tutorial" => "guide/tutorial.md",
+            "guide/input_output.md",
             "guide/parallelization.md",
             "Density-functional theory" => "guide/density_functional_theory.md",
         ],
