@@ -1,12 +1,6 @@
 # This is needed to flag that the plots-dependent code has been loaded
 const PLOTS_LOADED = true
 
-"""
-Plot the trace of an SCF, i.e. the absolute error of the total energy at
-each iteration versus the converged energy in a semilog plot. By default
-a new plot canvas is generated, but an existing one can be passed and reused
-along with `kwargs` for the call to `plot!`.
-"""
 function ScfPlotTrace(plt=Plots.plot(yaxis=:log); kwargs...)
     energies = nothing
     function callback(info)

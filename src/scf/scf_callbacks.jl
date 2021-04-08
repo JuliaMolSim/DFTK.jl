@@ -1,8 +1,17 @@
-#
-# Other callbacks
-#    ScfPlotTrace()        see src/plotting.jl (imported with Plots.jl)
-#    ScfSaveCheckpoints()  see src/jld2io.jl   (imported with JLD2.jl)
-#
+"""
+Adds simplistic checkpointing to a DFTK self-consistent field calculation.
+Requires JLD2 to be loaded.
+"""
+function ScfSaveCheckpoints end  # implementation in src/jld2io.jl
+
+"""
+Plot the trace of an SCF, i.e. the absolute error of the total energy at
+each iteration versus the converged energy in a semilog plot. By default
+a new plot canvas is generated, but an existing one can be passed and reused
+along with `kwargs` for the call to `plot!`. Requires Plots to be loaded.
+"""
+function ScfPlotTrace end  # implementation in src/plotting.jl
+
 
 """
 Default callback function for `self_consistent_field`, which prints a convergence table
