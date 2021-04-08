@@ -4,3 +4,5 @@ src/examples/*.md
 src/examples/*.ipynb
 src/guide/tutorial.md
 src/guide/tutorial.ipynb
+src/guide/input_output.md
+src/guide/input_output.ipynb
