@@ -80,10 +80,6 @@ jobs:
       - uses: codecov/codecov-action@v1
         with:
           file: lcov.info
-      - uses: julia-actions/julia-uploadcoveralls@v1
-        env:
-          COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
-        continue-on-error: true  # TODO Until Coveralls upload is fixed
   #
   # Examples
   #
