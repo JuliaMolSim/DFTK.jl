@@ -9,7 +9,7 @@ function test_kernel_unpolarized(termtype; test_compute=true)
     testcase = silicon
     ε = 1e-8
 
-    xcsym = (termtype isa Xc) ? string(only(termtype.functionals)) : ""
+    xcsym = (termtype isa Xc) ? join(string.(termtype.functionals), " ") : ""
     @testset "Kernel $(typeof(termtype)) $xcsym" begin
         spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
         model = Model(testcase.lattice; atoms=[spec => testcase.positions],
@@ -38,13 +38,48 @@ function test_kernel_unpolarized(termtype; test_compute=true)
 end
 
 
+function test_kernel_collinear_vs_noncollinear(termtype)
+    Ecut=2
+    kgrid = [2, 2, 2]
+    testcase = silicon
+
+    xcsym = (termtype isa Xc) ? join(string.(termtype.functionals), " ") : ""
+    @testset "Kernel $(typeof(termtype)) $xcsym (coll == noncoll)" begin
+        spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
+        model = Model(testcase.lattice; atoms=[spec => testcase.positions],
+                      terms=[termtype])
+        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+        term  = only(basis.terms)
+
+        model_col = Model(testcase.lattice; atoms=[spec => testcase.positions],
+                          terms=[termtype], spin_polarization=:collinear)
+        basis_col = PlaneWaveBasis(model_col, Ecut; kgrid=kgrid)
+        term_col  = only(basis_col.terms)
+
+        ρ0 = guess_density(basis)
+        dρ = from_real(basis, randn(size(ρ0)))
+        dV = DFTK.apply_kernel(term, dρ; ρ=ρ0)[1]
+
+        ρ0     = from_real(basis_col, ρ0.real)
+        dρ     = from_real(basis_col, dρ.real)
+        ρspin0 = from_real(basis_col, zero(ρ0.real))
+        dρspin = from_real(basis_col, zero(ρspin0.real))
+        dVα_pol, dVβ_pol = DFTK.apply_kernel(term_col, dρ, dρspin; ρ=ρ0, ρspin=ρspin0)
+
+        @test norm(dVα_pol.real - dVβ_pol.real) < 1e-12
+        @test norm(dV.real - dVα_pol.real) < 1e-11
+    end
+end
+
+
 function test_kernel_collinear(termtype; test_compute=true)
     Ecut=2
     kgrid = [2, 2, 2]
     testcase = silicon
     ε = 1e-8
 
-    @testset "Kernel $(typeof(termtype)) (collinear)" begin
+    xcsym = (termtype isa Xc) ? join(string.(termtype.functionals), " ") : ""
+    @testset "Kernel $(typeof(termtype)) $xcsym (collinear)" begin
         spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
         magnetic_moments = [spec => 2rand(2)]
         model = Model(testcase.lattice; atoms=[spec => testcase.positions],
@@ -90,6 +125,14 @@ test_kernel_unpolarized(Xc(:lda_xc_teter93))
 test_kernel_unpolarized(Xc(:gga_c_pbe), test_compute=false)
 test_kernel_unpolarized(Xc(:gga_x_pbe), test_compute=false)
 
+test_kernel_collinear_vs_noncollinear(Hartree())
+test_kernel_collinear_vs_noncollinear(Xc(:lda_xc_teter93))
+test_kernel_collinear_vs_noncollinear(Xc(:gga_c_pbe))
+test_kernel_collinear_vs_noncollinear(Xc(:gga_x_pbe))
+
 test_kernel_collinear(Hartree())
 test_kernel_collinear(PowerNonlinearity(1.2, 2.5))
 test_kernel_collinear(Xc(:lda_xc_teter93))
+test_kernel_collinear(Xc(:gga_c_pbe), test_compute=false)
+test_kernel_collinear(Xc(:gga_x_pbe), test_compute=false)
+test_kernel_collinear(Xc(:gga_x_pbe, :gga_c_pbe), test_compute=false)
