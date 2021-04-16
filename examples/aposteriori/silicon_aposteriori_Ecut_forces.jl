@@ -59,6 +59,14 @@ ratio_list = []
 ratio_list_N1 = []
 ratio_list_N2 = []
 
+v = nothing
+CS_list_err = []
+CS_list_res = []
+CS_list_HF_err = []
+CS_list_HF_res = []
+CS_list_φp_err = []
+CS_list_φp_res = []
+
 for Ecut in Ecut_list
 
     println("--------------------------")
@@ -128,6 +136,11 @@ for Ecut in Ecut_list
     legend()
     STOP
 
+    f_err = norm(compute_forces_estimate(basis_ref, Merr, φr, Pks)[1][1])
+    f_res = norm(compute_forces_estimate(basis_ref, Mres, φr, Pks)[1][1])
+    f_res_N1 = norm(compute_forces_estimate(basis_ref, Mres_N1, φr, Pks)[1][1])
+    f_res_N2 = norm(compute_forces_estimate(basis_ref, Mres_N2, φr, Pks)[1][1])
+
     append!(estimator_forces_list_err, f_err)
     append!(estimator_forces_list_res, f_res)
     append!(estimator_forces_list_res_N1, f_res_N1)
@@ -161,6 +174,17 @@ for Ecut in Ecut_list
     append!(ratio_list, norm(Merr)/norm(Mres))
     append!(ratio_list_N1, norm(Merr)/norm(Mres_N1))
     append!(ratio_list_N2, norm(Merr)/norm(Mres_N2))
+
+    # CS
+    global v
+    v_HF = keep_HF([v], basis_ref, Ecut)[1]
+    v_φp = proj([v], φr)[1]
+    append!(CS_list_err, norm(v)*norm(Merr[1]) .* 4 / sqrt(basis.model.unit_cell_volume))
+    append!(CS_list_res, norm(v)*norm(Mres[1]) .* 4 / sqrt(basis.model.unit_cell_volume))
+    append!(CS_list_HF_err, norm(v_HF)*norm(Merr_HF[1]) .* 4 / sqrt(basis.model.unit_cell_volume))
+    append!(CS_list_HF_res, norm(v_HF)*norm(Mres_HF[1]) .* 4 / sqrt(basis.model.unit_cell_volume))
+    append!(CS_list_φp_err, norm(v_φp)*norm(Merr_φp[1]) .* 4 / sqrt(basis.model.unit_cell_volume))
+    append!(CS_list_φp_res, norm(v_φp)*norm(Mres_φp[1]) .* 4 / sqrt(basis.model.unit_cell_volume))
 end
 
 figure(1)
@@ -204,6 +228,19 @@ title("Ecutref=$(Ecut_ref), HF")
 semilogy(Ecut_list, ratio_list, "g", label = "ratio")
 semilogy(Ecut_list, ratio_list_N1, "g--", label = "ratio_N1")
 semilogy(Ecut_list, ratio_list_N2, "g:", label = "ratio_N2")
+xlabel("Ecut")
+legend()
+
+figure(5)
+rc("font", size=16)
+title("Ecutref=$(Ecut_ref), Cauchy-Schwarz")
+semilogy(Ecut_list, forces_list, "r", label = "|F - F*|")
+semilogy(Ecut_list, CS_list_err, "g", label = "CS err")
+semilogy(Ecut_list, CS_list_res, "b", label = "CS res")
+semilogy(Ecut_list, CS_list_HF_err, "g--", label = "CS err HF")
+semilogy(Ecut_list, CS_list_HF_res, "b--", label = "CS res HF")
+semilogy(Ecut_list, CS_list_φp_err, "g:x", label = "CS err φp")
+semilogy(Ecut_list, CS_list_φp_res, "b:x", label = "CS res φp")
 xlabel("Ecut")
 legend()
 

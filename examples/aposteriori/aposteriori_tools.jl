@@ -54,7 +54,7 @@ end
 ############################## TANGENT SPACE TOOLS #############################
 
 # test for orthogonalisation
-tol_test = 1e-10
+tol_test = 1e-8
 
 # we project ϕ onto the orthogonal of ψ
 function proj(ϕ, ψ; high_freq=false, low_freq=false, Ecut=nothing, basis=nothing)
