@@ -106,8 +106,8 @@ function test_kernel_collinear(termtype; test_compute=true)
         dVβ = (ops_plus[idown].potential - ops_minus[idown].potential) / (2ε)
 
         dVα_apply, dVβ_apply = DFTK.apply_kernel(term, dρ, dρspin; ρ=ρ0, ρspin=ρspin0)
-        @test norm(dVα - dVα_apply.real) < 100ε
-        @test norm(dVβ - dVβ_apply.real) < 100ε
+        @test norm(dVα - dVα_apply.real) < 200ε
+        @test norm(dVβ - dVβ_apply.real) < 200ε
 
         if test_compute
             kernel = DFTK.compute_kernel(term; ρ=ρ0, ρspin=ρspin0)

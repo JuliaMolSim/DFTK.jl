@@ -357,7 +357,8 @@ function add_kernel_gradient_correction!(result, terms, density, perturbation, c
     @views for s in 1:n_spin
         for t in 1:n_spin, u in 1:n_spin
             spinfac_tu = (t == u ? one(T) : one(T)/2)
-            @. result[:, :, :, s] += spinfac_tu * Vρσ[tρσ(s, tσ(t, u)), :, :, :] * dσ[t, u][:, :, :]
+            stu = tρσ(s, tσ(t, u))
+            @. result[:, :, :, s] += spinfac_tu * Vρσ[stu, :, :, :] * dσ[t, u][:, :, :]
         end
 
         # TODO Potential for some optimisation ... some contractions in this body are
@@ -371,12 +372,13 @@ function add_kernel_gradient_correction!(result, terms, density, perturbation, c
 
                 for u in 1:n_spin
                     spinfac_su = (s == u ? one(T) : one(T)/2)
-                    ret_α .+= (-2spinfac_su .* Vρσ[tρσ(t, tσ(s, u)), :, :, :]
-                               .* ∇ρ[u, :, :, :, α] .* dρ[t, :, :, :])
+                    tsu = tρσ(t, tσ(s, u))
+                    ret_α .+= -2spinfac_su .* Vρσ[tsu, :, :, :] .* ∇ρ[u, :, :, :, α] .* dρ[t, :, :, :]
 
                     for v in 1:n_spin
                         spinfac_uv = (u == v ? one(T) : one(T)/2)
-                        ret_α .+= (-2spinfac_uv .* spinfac_st .* Vσσ[tσσ(tσ(s, t), tσ(u, v)), :, :, :]
+                        stuv = tσσ(tσ(s, t), tσ(u, v))
+                        ret_α .+= (-2spinfac_uv .* spinfac_st .* Vσσ[stuv, :, :, :]
                                    .* ∇ρ[t, :, :, :, α] .* dσ[u, v][:, :, :])
                     end  # v
                 end  # u
