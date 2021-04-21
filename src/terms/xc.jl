@@ -57,8 +57,9 @@ end
     dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
     E = sum(terms.zk .* ρ.real) * dVol
 
-    # Map from the cartesian index into the two spin indices of the contracted
-    # density gradient σ_{αβ} to the convention used in libxc.
+    # Map from the tuple of spin indices for the contracted density gradient
+    # (s, t) to the index convention used in libxc (i.e. packed symmetry-adapted
+    # storage), see details on "Spin-polarised calculations" below.
     tσ = libxc_spinindex_σ
 
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ)
@@ -66,6 +67,7 @@ end
         potential[s] .+= terms.vrho[s, :, :, :]
 
         if haskey(terms, :vsigma)  # Need gradient correction
+            # TODO Drop do-block syntax here?
             potential[s] .+= -2divergence_real(density.basis) do α
                 # Extra factor (1/2) for s != t is needed because libxc only keeps σ_{αβ}
                 # in the energy expression. See comment block below on spin-polarised XC.
@@ -85,9 +87,8 @@ end
     (E=E, ops=ops)
 end
 
-# Kernel functions given towards the end of the file
+#=  GGA energy and potential
 
-#=
 The total energy is
 Etot = ∫ ρ E(ρ,σ), where σ = |∇ρ|^2 and E(ρ,σ) is the energy per unit particle.
 libxc provides the scalars
@@ -108,42 +109,6 @@ where we performed an integration by parts in the last equation
 (boundary terms drop by periodicity). Therefore,
     Vxc = Vρ - 2 div(Vσ ∇ρ)
 See eg Richard Martin, Electronic stucture, p. 158
-
-A more algebraic way of deriving these for GGA, which helps see why
-this is correct at the discrete level, is the following. Let
-
-B the (Fourier, spherical) space of orbitals
-C the (Fourier, cube) space of Fourier densities/potentials
-C* the (real-space, cube) space of real-space densities/potentials
-
-X : B -> C be the extension operator
-R : C -> B the restriction (adjoint of X)
-IF : C -> C* be the IFFT
-F : C* -> be the FFT, adjoint of IF
-K : C -> C be the gradient operator (multiplication by iK, assuming dimension 1 to
-simplify notations)
-
-Then
-    ρ = IF(Xϕ).^2
-    ρf = F ρ
-    ∇ρf = K ρf
-    ∇ρ = IF ∇ρf
-
-    dρ  = 2 IF(Xϕ) .* IF(X dϕ)
-    d∇ρ = IF K F dρ
-        = 2 IF K F (IF(Xϕ) .* IF(X dϕ))
-
-    Etot  = sum(ρ . * E(ρ, ∇ρ.^2))
-    dEtot = sum(Vρ .* dρ + 2 (Vσ .* ∇ρ) .* d∇ρ)
-          = sum(Vρ .* dρ + 2 (Vσ .* ∇ρ) .* [(IF K F) dρ)]
-          = sum(Vρ .* dρ - 2 [(IF K F) (Vσ .* ∇ρ)] .* dρ)
-where we used that (IF K F) is anti-self-adjoint and thought of sum(A .* op B )
-like ⟨A | op B⟩; this is the discrete integration by parts. Now note that
-
-    sum(V .* dρ) = 2 sum(V .* IF(Xϕ) .* IF(X dϕ))
-                 = 2 sum(R(F[ V .* IF(Xϕ) ]) .* dϕ)
-
-where we took the adjoint (IF X)^† = (R F) and the result follows.
 =#
 
 #=  Spin-polarised calculations
@@ -163,8 +128,55 @@ to be a vector of the three independent components only
 Accordingly Vσ has the compoments
     [∂(ρ E)/∂σ_αα, ∂(ρ E)/∂σ_x, ∂(ρ E)/∂σ_ββ]
 where in particular ∂(ρ E)/∂σ_x = (1/2) ∂(ρ E)/∂σ_αβ = (1/2) ∂(ρ E)/∂σ_βα.
-This explains the extra factor (1/2) needed in the GGA term of the XC potential.
+This explains the extra factor (1/2) needed in the GGA term of the XC potential
+and which pops up in the GGA kernel whenever derivatives wrt. σ are considered.
 =#
+
+#=  Packed representation of spin-adapted libxc quantities.
+
+When storing the spin components of the contracted density gradient as well
+as the various derivatives of the energy wrt. ρ or σ, libxc uses a packed
+representation exploiting spin symmetry. The following helper functions
+allow to write more readable loops by taking care of the packing of a Cartesian
+spin index to the libxc format.
+=#
+
+# Leaving aside the details with the identification of the second spin
+# component of σ with (σ_αβ + σ_βα)/2 detailed above, the contracted density
+# gradient σ seems to be storing the spin components [αα αβ ββ]. In DFTK we
+# identify α with 1 and β with 2, leading to the spin mapping. The caller has
+# to make sure to include a factor (1/2) in the contraction whenever s == t.
+function libxc_spinindex_σ(s, t)
+    s == 1 && t == 1 && return 1
+    s == 2 && t == 2 && return 3
+    return 2
+end
+
+# For terms.v2rho2 the spins are arranged as [(α, α), (α, β), (β, β)]
+function libxc_spinindex_ρρ(s, t)
+    s == 1 && t == 1 && return 1
+    s == 2 && t == 2 && return 3
+    return 2
+end
+
+# For e.g. terms.v2rhosigma the spins are arranged in row-major order as
+# [(α, αα) (α, αβ) (α, ββ) (β, αα) (β, αβ) (β, ββ)]
+# where the second entry in the tuple refers to the spin component of
+# the σ derivative.
+libxc_spinindex_ρσ(s, t) = @inbounds LinearIndices((3, 2))[t, s]
+
+# For e.g. terms.v2sigma2 the spins are arranged as
+# [(αα, αα) (αα, αβ) (αα, ββ) (αβ, αβ) (αβ, ββ) (ββ, ββ)]
+function libxc_spinindex_σσ(s, t)
+    s ≤ t || return libxc_spinindex_σσ(t, s)
+    Dict((1, 1) => 1, (1, 2) => 2, (1, 3) => 3,
+                      (2, 2) => 4, (2, 3) => 5,
+                                   (3, 3) => 6
+    )[(s, t)]
+end
+
+# TODO Hide some of the index and spin-factor details by wrapping around the terms tuple
+#      returned from Libxc.evaluate ?
 
 function max_required_derivative(functional)
     functional.family == :lda && return 0
@@ -223,9 +235,7 @@ function LibxcDensity(basis, max_derivative::Integer, ρ::RealFourierArray, ρsp
             end
         end
 
-        # Does the spin index transformation (σ, τ) => στ as expected by Libxc
-        tσ = libxc_spinindex_σ
-
+        tσ = libxc_spinindex_σ  # Spin index transformation (s, t) => st as expected by Libxc
         σ_real .= 0
         @views for α in 1:3
             σ_real[tσ(1, 1), :, :, :] .+= ∇ρ_real[1, :, :, :, α] .* ∇ρ_real[1, :, :, :, α]
@@ -239,9 +249,7 @@ function LibxcDensity(basis, max_derivative::Integer, ρ::RealFourierArray, ρsp
     LibxcDensity(basis, max_derivative, ρ_real, ∇ρ_real, σ_real)
 end
 
-#
-# XC kernel
-#
+
 function compute_kernel(term::TermXc; ρ::RealFourierArray, ρspin=nothing, kwargs...)
     @assert term.basis.model.spin_polarization in (:none, :spinless, :collinear)
     density = LibxcDensity(term.basis, 0, ρ, ρspin)
@@ -336,7 +344,7 @@ function add_kernel_gradient_correction!(result, terms, density, perturbation, c
     #    = - 2 ∇⋅((∂ε/∂σ) ∇dρ)
     # and (because assumed independent variables): (∂∇ρ/∂ρ) = 0.
     #
-    # Note that below the LDA term (∂^2ε/∂ρ^2) dρ is not done (dealt with by caller)
+    # Note that below the LDA term (∂^2ε/∂ρ^2) dρ is not done here (dealt with by caller)
 
     basis  = density.basis
     n_spin = basis.model.n_spin_components
@@ -391,9 +399,6 @@ function add_kernel_gradient_correction!(result, terms, density, perturbation, c
 end
 
 
-#
-# Details
-#
 function Libxc.evaluate(xc::Functional, density::LibxcDensity; kwargs...)
     if xc.family == :lda
         evaluate(xc; rho=density.ρ_real, kwargs...)
@@ -415,35 +420,6 @@ function Libxc.evaluate(xcs::Vector{Functional}, density::LibxcDensity; kwargs..
         end
     end
     result
-end
-
-
-# Libxc treats the contracted density gradient σ like an object with 3 spins.
-# This translates between the "cartesian" representation of a tuple of two
-# spin indices (s, t) to the representation used in libxc. Assumes s, t
-# only take the values 1 and 2.
-function libxc_spinindex_σ(s, t)
-    s == 1 && t == 1 && return 1
-    s == 2 && t == 2 && return 3
-    return 2
-end
-
-# Symmetrised spin index for a quantity containing two ρ-like spinindices
-# (like the second derivative of the energy wrt. ρ)
-function libxc_spinindex_ρρ(s, t)
-    s == 1 && t == 1 && return 1
-    s == 2 && t == 2 && return 3
-    return 2
-end
-
-libxc_spinindex_ρσ(s, t) = @inbounds LinearIndices((3, 2))[t, s]
-
-function libxc_spinindex_σσ(s, t)
-    s ≤ t || return libxc_spinindex_σσ(t, s)
-    Dict((1, 1) => 1, (1, 2) => 2, (1, 3) => 3,
-                      (2, 2) => 4, (2, 3) => 5,
-                                   (3, 3) => 6
-    )[(s, t)]
 end
 
 
