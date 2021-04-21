@@ -141,7 +141,8 @@ compute_kernel(::Term; kwargs...) = nothing  # By default no kernel
 
 Computes the potential response to a perturbation `(dρ, dρspin)` in real space.
 Returns the array `[dV_α, dV_β]` for collinear spin-polarized
-calculations, else the array [dV_{tot}].
+calculations. For non-polarized calculations just the array [dV_α] is returned
+(since dV_α = dV_β).
 """
 @timing function apply_kernel(basis::PlaneWaveBasis, dρ, dρspin=nothing;
                               RPA=false, kwargs...)
