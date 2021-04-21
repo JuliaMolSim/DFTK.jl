@@ -40,7 +40,7 @@ magnetic_moments = load_magnetic_moments(qe_input)
 # See [Creating slabs with ASE](@ref) for more details.
 
 atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="pbe")) => position
-         for (el, position) in atoms]
+         for (el, position) in atoms];
 
 # Finally we run the calculation.
 
