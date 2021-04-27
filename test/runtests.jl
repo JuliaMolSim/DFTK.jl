@@ -47,11 +47,9 @@ Random.seed!(0)
     if "all" in TAGS || "functionality" in TAGS
         include("hydrogen_all_electron.jl")
         include("silicon_redHF.jl")
-        include("silicon_lda.jl")
         include("silicon_pbe.jl")
         include("scf_compare.jl")
         include("iron_lda.jl")
-        include("iron_pbe.jl")
         include("oxygen_pbe.jl")
     end
 
