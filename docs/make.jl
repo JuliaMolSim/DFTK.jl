@@ -23,8 +23,8 @@ JLDEPS = [
 ]
 
 # Setup julia dependencies for docs generation if not yet done
+Pkg.activate(@__DIR__)
 if !isfile(joinpath(@__DIR__, "Manifest.toml"))
-    Pkg.activate(@__DIR__)
     Pkg.develop(Pkg.PackageSpec(path=ROOTPATH))
     Pkg.instantiate()
 end

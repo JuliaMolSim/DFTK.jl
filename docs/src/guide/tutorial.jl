@@ -78,12 +78,14 @@ hcat(scfres.eigenvalues...)
 # eigensolver gives itself some breathing room by computing some extra
 # states (see `n_ep_extra` argument to `self_consistent_field`).
 #
-# We can check the occupations:
+# We can check the occupations ...
 hcat(scfres.occupation...)
-# And density:
+# ... and density, where we use that the density objects in DFTK are
+# indexed as ρ[iσ, ix, iy, iz], i.e. first in the spin component and then
+# in the 3-dimensional real-space grid.
 rvecs = collect(r_vectors(basis))[:, 1, 1]  # slice along the x axis
 x = [r[1] for r in rvecs]                   # only keep the x coordinate
-plot(x, scfres.ρ.real[:, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
+plot(x, scfres.ρ[1, :, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 
 # We can also perform various postprocessing steps:
 # for instance compute a band structure
