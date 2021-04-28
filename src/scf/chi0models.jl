@@ -25,7 +25,7 @@ function (::LdosModel)(basis; eigenvalues, ψ, εF, kwargs...)
         return nothing
     end
 
-    tdos = sum(sum, ldos) * basis.dvol
+    tdos = sum(sum, ldos) * basis.dvol  # Integrate LDOS to form total DOS
     function apply!(δρ, δV, α=1)
         δεF = dot(ldos, δV) .* basis.dvol
         δρ .+= α .* (-ldos .* δV .+ ldos .* δεF ./ tdos)

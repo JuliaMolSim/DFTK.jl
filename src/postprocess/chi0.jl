@@ -197,9 +197,8 @@ returns `3` extra bands, which are not converged by the eigensolver
 
     # Add variation wrt εF
     if temperature > 0
-        ldos = compute_ldos(εF, basis, eigenvalues, ψ, temperature=temperature)
         dos  = compute_dos(εF, basis, eigenvalues, temperature=temperature)
-
+        ldos = compute_ldos(εF, basis, eigenvalues, ψ, temperature=temperature)
         δρ .+= ldos .* dot(ldos, δV) .* basis.dvol ./ sum(dos)
     end
     δρ .* normδV

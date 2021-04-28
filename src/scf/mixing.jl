@@ -30,7 +30,7 @@ end
 Kerker mixing: ``J^{-1} ≈ \frac{α |G|^2}{k_{TF}^2 + |G|^2}``
 where ``k_{TF}`` is the Thomas-Fermi wave vector. For spin-polarized calculations
 by default the spin density is not preconditioned. Unless a non-default value
-for ``ΔDOS`` is specified. This value should roughly be the expected difference in density
+for ``ΔDOS_Ω`` is specified. This value should roughly be the expected difference in density
 of states (per unit volume) between spin-up and spin-down.
 
 Notes:
@@ -40,16 +40,16 @@ Notes:
     # Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, kTF=1.5Å⁻¹)
     # DOI 10.1103/PhysRevB.54.11169
     α::Real    = 0.8
-    kTF::Real  = 0.8  # == sqrt(4π (DOS_α + DOS_β))
-    ΔDOS::Real = 0.0  # == (DOS_α - DOS_β)
+    kTF::Real  = 0.8  # == sqrt(4π (DOS_α + DOS_β)) / Ω
+    ΔDOS_Ω::Real = 0.0  # == (DOS_α - DOS_β) / Ω
 end
 
 @timing "KerkerMixing" function mix(mixing::KerkerMixing, basis::PlaneWaveBasis,
                                     δF; kwargs...)
-    T    = eltype(δF)
-    G²   = [sum(abs2, G) for G in G_vectors_cart(basis)]
-    kTF  = T.(mixing.kTF)
-    ΔDOS = T.(mixing.ΔDOS)
+    T      = eltype(δF)
+    G²     = [sum(abs2, G) for G in G_vectors_cart(basis)]
+    kTF    = T.(mixing.kTF)
+    ΔDOS_Ω = T.(mixing.ΔDOS_Ω)
 
     # For Kerker the model dielectric written as a 2×2 matrix in spin components is
     #     1 - [-DOSα      0] * [1 1]
@@ -75,7 +75,7 @@ end
     if basis.model.n_spin_components == 1
         δρspin = nothing
     else
-        δρspin_fourier = @. δFspin_fourier - δFtot_fourier * (4π * ΔDOS) / (kTF^2 + G²)
+        δρspin_fourier = @. δFspin_fourier - δFtot_fourier * (4π * ΔDOS_Ω) / (kTF^2 + G²)
         δρspin = G_to_r(basis, δρspin_fourier)
     end
     T(mixing.α) .* ρ_from_total_and_spin(δρtot, δρspin)
@@ -95,10 +95,10 @@ end
     else
         n_spin = basis.model.n_spin_components
         Ω = basis.model.unit_cell_volume
-        dos  = compute_dos(εF, basis, eigenvalues)
-        kTF  = sqrt(4π * sum(dos))
-        ΔDOS = n_spin == 2 ? dos[1] - dos[2] : 0.0
-        mix(KerkerMixing(α=mixing.α, kTF=kTF, ΔDOS=ΔDOS), basis, δF)
+        dos_per_vol  = compute_dos(εF, basis, eigenvalues) ./ Ω
+        kTF  = sqrt(4π * sum(dos_per_vol))
+        ΔDOS_Ω = n_spin == 2 ? dos_per_vol[1] - dos_per_vol[2] : 0.0
+        mix(KerkerMixing(α=mixing.α, kTF=kTF, ΔDOS_Ω=ΔDOS_Ω), basis, δF)
     end
 end
 
@@ -188,25 +188,25 @@ end
 
     # Solve J δρ = δF with J = (1 - χ0 vc) and χ_0 given as the sum of the χ0terms
     devec(x) = reshape(x, size(δF))
-    function Jop(δρ)
-        δρ = devec(δρ)
+    function Jop(δF)
+        δF = devec(δF)
         # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
-        δV = apply_kernel(basis, δρ; ρ=ρin, RPA=mixing.RPA)
+        δV = apply_kernel(basis, δF; ρ=ρin, RPA=mixing.RPA)
         δV .-= mean(δV)
-        Jδρ = copy(δρ)
+        JδF = copy(δF)
         for apply_term! in χ0applies
-            apply_term!(Jδρ, δV, -1)  # JδF .-= χ0 * δV
+            apply_term!(JδF, δV, -1)  # JδF .-= χ0 * δV
         end
-        Jδρ .-= mean(Jδρ)
-        vec(Jδρ)
+        JδF .-= mean(JδF)
+        vec(JδF)
     end
 
     DC_δF = mean(δF)
     δF .-= DC_δF
     J = LinearMap(Jop, length(δF))
     # TODO Further improvement: Adapt tolerance of gmres to norm(ρ_out - ρ_in)
-    x = gmres(J, vec(δF), verbose=mixing.verbose)
-    δρ = T(mixing.α) .* devec(x)  # Apply damping
+    δρ = devec(gmres(J, vec(δF), verbose=mixing.verbose))
+    δρ = T(mixing.α) .* δρ  # Apply damping
     δρ .+= DC_δF  # Set DC from δF
     δρ
 end
