@@ -18,7 +18,7 @@ import Base: @kwdef
 Simple mixing: ``J^{-1} ≈ 1``
 """
 struct SimpleMixing; end
-function mix(::SimpleMixing, ::PlaneWaveBasis, δF; kwargs...) = δF
+mix(::SimpleMixing, ::PlaneWaveBasis, δF; kwargs...) = δF
 
 
 @doc raw"""
