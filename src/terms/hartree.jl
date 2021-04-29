@@ -58,15 +58,15 @@ end
     (E=E, ops=ops)
 end
 
-function apply_kernel(term::TermHartree, dρ::RealFourierArray, dρspin; kwargs...)
+function apply_kernel(term::TermHartree, dρ, dρspin; kwargs...)
     [from_fourier(dρ.basis, term.poisson_green_coeffs .* dρ.fourier)]
 end
 
-function apply_kernel_sqrt(term::TermHartree, dρ::RealFourierArray; kwargs...)
+function apply_kernel_sqrt(term::TermHartree, dρ; kwargs...)
     from_fourier(dρ.basis, sqrt.(term.poisson_green_coeffs) .* dρ.fourier)
 end
 
-function apply_kernel_invsqrt(term::TermHartree, dρ::RealFourierArray; kwargs...)
+function apply_kernel_invsqrt(term::TermHartree, dρ; kwargs...)
     from_fourier(dρ.basis, sqrt.(term.inv_poisson_green_coeffs) .* dρ.fourier)
 end
 
