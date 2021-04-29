@@ -55,7 +55,7 @@ end
 MyMixing() = MyMixing(2)
 
 function DFTK.mix(mixing::MyMixing, basis, δF; n_iter, kwargs...)
-    if n_iter <= maxing.n_simple
+    if n_iter <= mixing.n_simple
         return δF  # Simple mixing -> Do not modify update at all
     else
         ## Use the default KerkerMixing from DFTK
