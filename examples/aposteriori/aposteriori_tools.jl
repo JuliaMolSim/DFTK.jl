@@ -53,6 +53,56 @@ end
 
 ############################## TANGENT SPACE TOOLS #############################
 
+## projection on frequencies higher than Ecut
+function keep_HF(δϕ, basis, Ecut)
+
+    Nk = length(basis.kpoints)
+
+    δφ = deepcopy(δϕ)
+
+    for ik in 1:Nk
+        kpt = basis.kpoints[ik]
+        G_vec = G_vectors(kpt)
+        recip_lat = kpt.model.recip_lattice
+        N = size(δφ[ik], 2)
+
+        for i in 1:N
+            for g in 1:length(δφ[ik][:,i])
+                if sum(abs2, recip_lat * (G_vec[g] + kpt.coordinate)) <= 2*Ecut
+                    δφ[ik][g,i] = 0
+                end
+            end
+        end
+    end
+
+    δφ
+end
+
+## projection on frequencies smaller than Ecut
+function keep_LF(δϕ, basis, Ecut)
+
+    Nk = length(basis.kpoints)
+
+    δφ = deepcopy(δϕ)
+
+    for ik in 1:Nk
+        kpt = basis.kpoints[ik]
+        G_vec = G_vectors(kpt)
+        recip_lat = kpt.model.recip_lattice
+        N = size(δφ[ik], 2)
+
+        for i in 1:N
+            for g in 1:length(δφ[ik][:,i])
+                if sum(abs2, recip_lat * (G_vec[g] + kpt.coordinate)) > 2*Ecut
+                    δφ[ik][g,i] = 0
+                end
+            end
+        end
+    end
+
+    δφ
+end
+
 # test for orthogonalisation
 tol_test = 1e-8
 

@@ -46,7 +46,7 @@ function force_estimate(basis, φ, vec, Pks, form_factors, r, ir)
             v = ∇Vφ
             Mv = M∇Vφ[1]
         end
-        f_est[i] = 4 .* real(dot(M∇Vφ[1], vec[1])) / sqrt(basis.model.unit_cell_volume)
+        f_est[i] = - 4 .* real(dot(M∇Vφ[1], vec[1])) / sqrt(basis.model.unit_cell_volume)
     end
 
     # plot for debug

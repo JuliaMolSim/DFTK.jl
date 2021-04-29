@@ -1,3 +1,6 @@
+# Computation of error estimate and corrections for the forces for the linear
+# silicon eigenvalue problem
+#
 # Very basic setup, useful for testing
 using DFTK
 using PyPlot
