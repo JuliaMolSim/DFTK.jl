@@ -8,6 +8,7 @@ include("testcases.jl")
 #      test the energies of these densities and compare them directly to the reference
 #      energies obtained in the data files
 
+if mpi_nprocs() == 1  # not easy to distribute
 @testset "Using BZ symmetry yields identical density" begin
     function get_bands(testcase, kcoords, ksymops, symmetries, atoms; Ecut=5, tol=1e-8, n_rounds=1)
         kwargs = ()
@@ -22,15 +23,15 @@ include("testcases.jl")
         ham = Hamiltonian(basis; ρ=guess_density(basis, atoms))
 
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol=tol)
-        occ, εF = DFTK.find_occupation(basis, res.λ)
-        ρnew, ρspin_new = compute_density(basis, res.X, occ)
+        occ, εF = DFTK.compute_occupation(basis, res.λ)
+        ρnew = compute_density(basis, res.X, occ)
 
         for it in 1:n_rounds
-            ham = Hamiltonian(basis; ρ=ρnew, ρspin=ρspin_new)
+            ham = Hamiltonian(basis; ρ=ρnew)
             res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol=tol, guess=res.X)
 
-            occ, εF = DFTK.find_occupation(basis, res.λ)
-            ρnew, ρspin_new = compute_density(basis, res.X, occ)
+            occ, εF = DFTK.compute_occupation(basis, res.λ)
+            ρnew = compute_density(basis, res.X, occ)
         end
 
         ham, res.X, res.λ, ρnew, occ
@@ -73,9 +74,8 @@ include("testcases.jl")
         @test ham_full.basis.fft_size == ham_ir.basis.fft_size
 
         # Test density is the same in both schemes, and symmetric wrt the basis symmetries
-        @test maximum(abs.(ρ_ir.fourier - ρ_full.fourier)) < 10tol
-        @test maximum(abs.(ρ_ir.real - ρ_full.real)) < 10tol
-        @test maximum(abs, DFTK.symmetrize(ρ_ir; symmetries=symmetries).fourier - ρ_ir.fourier) < tol
+        @test maximum(abs.(ρ_ir - ρ_full)) < 10tol
+        @test maximum(abs, DFTK.symmetrize(ham_ir.basis, ρ_ir; symmetries=symmetries) - ρ_ir) < tol
 
         # Test local potential is the same in both schemes
         @test maximum(abs, total_local_potential(ham_ir) - total_local_potential(ham_full)) < tol
@@ -102,7 +102,7 @@ include("testcases.jl")
             # yields an eigenfunction of the Hamiltonian
             # Also check that the accumulated partial densities are equal
             # to the returned density.
-            ρsum = zero(ρ_ir.fourier)
+            ρsum = zeros(eltype(ψ_ir[1]), ham_ir.basis.fft_size)
             n_ρ = 0
             for (ik, k) in enumerate(kcoords)
                 Hk_ir = ham_ir.blocks[ik]
@@ -123,12 +123,12 @@ include("testcases.jl")
                     end  # iband
 
                     n_ρ += 1
-                    ρsum .+= DFTK.compute_partial_density(ham_ir.basis, Skpoint, ψSk, occ_ir[ik])
+                    ρsum .+= DFTK.compute_partial_density!(copy(ρsum), ham_ir.basis, Skpoint, ψSk, occ_ir[ik])
                 end  # (S, τ)
             end  # k
 
             @test n_ρ == length(kfull)
-            @test maximum(abs, ρsum / n_ρ - ρ_full.fourier) < 10tol
+            @test maximum(abs, ρsum / n_ρ - r_to_G(ham_ir.basis, ρ_full)) < 10tol
         end # eigenvectors
     end
 
@@ -146,4 +146,5 @@ include("testcases.jl")
 
     # That's pretty expensive:
     # test_full_vs_irreducible([4, 4, 4], Ecut=5, tol=1e-6)
+end
 end

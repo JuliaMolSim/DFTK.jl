@@ -1,6 +1,6 @@
 # [Introductory resources on density-functional theory and DFTK](@id density-functional-theory)
 
-This page collects a bunch of lecture notes, textbooks and recordings
+This page collects a bunch of articles, lecture notes, textbooks and recordings
 related to density-functional theory (DFT) and DFTK.
 Since DFTK aims for an interdisciplinary audience the
 level and scope of the referenced works varies.
@@ -13,6 +13,10 @@ see [Publications](@ref).
   Assumes no knowledge about DFT and gives the broad picture of DFTK.
   [Slides](https://michael-herbst.com/talks/2020.07.29_juliacon_dftk.pdf).
 
+- [DFT in a nutshell](https://doi.org/10.1002/qua.24259) by Kieron Burke and Lucas Wagner:
+  Short tutorial-style article introducing the basic DFT setting, basic equations and terminology.
+  Great introduction from the physical / chemical perspective.
+
 - [Introduction to plane-wave DFT and DFTK](https://github.com/mfherbst/aachen_introduction_dftk) by M. F. Herbst:
   Jupyter notebooks a two-hour lecture
   introducing plane-wave DFT and DFTK
@@ -24,7 +28,7 @@ see [Publications](@ref).
   by R. M. Martin (Cambridge University Press, 2004):
   Standard textbook introducing
   most common methods of the field (lattices, pseudopotentials, DFT, ...)
-  from the perspective of a physicist
+  from the perspective of a physicist.
 
 - [A Mathematical Introduction to Electronic Structure Theory](http://dx.doi.org/10.1137/1.9781611975802)
   by L. Lin and J. Lu (SIAM, 2019):

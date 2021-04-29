@@ -1,32 +1,40 @@
+## Densities (and potentials) are represented by arrays
+## ρ[ix,iy,iz,iσ] in real space, where iσ ∈ [1:n_spin_components]
+
 """
 Compute the partial density at the indicated ``k``-Point and return it (in Fourier space).
 """
-function compute_partial_density(basis, kpt, ψk, occupation)
+function compute_partial_density!(ρ, basis, kpt, ψk, occupation)
     @assert length(occupation) == size(ψk, 2)
 
-    # Build the partial density for this k-Point
-    ρk_real = similar(ψk[:, 1], basis.fft_size)
-    ρk_real .= 0
-    for (n, ψnk) in enumerate(eachcol(ψk))
-        ψnk_real = G_to_r(basis, kpt, ψnk)
-        ρk_real .+= occupation[n] .* abs2.(ψnk_real)
+    # Build the partial density ρk_real for this k-Point
+    ρk_real = [zeros(eltype(basis), basis.fft_size) for it = 1:Threads.nthreads()]
+    ψnk_real = [zeros(complex(eltype(basis)), basis.fft_size) for it = 1:Threads.nthreads()]
+    Threads.@threads for n = 1:size(ψk, 2)
+        ψnk = @views ψk[:, n]
+        tid = Threads.threadid()
+        G_to_r!(ψnk_real[tid], basis, kpt, ψnk)
+        ρk_real[tid] .+= occupation[n] .* abs2.(ψnk_real[tid])
     end
+    for it = 2:Threads.nthreads()
+        ρk_real[1] .+= ρk_real[it]
+    end
+    ρk_real = ρk_real[1]
 
     # Check sanity of the density (real, positive and normalized)
     T = real(eltype(ρk_real))
-    real_checked(ρk_real)
     if all(occupation .> 0)
         minimum(real(ρk_real)) < 0 && @warn("Negative ρ detected",
                                             min_ρ=minimum(real(ρk_real)))
     end
-    n_electrons = sum(ρk_real) * basis.model.unit_cell_volume / prod(basis.fft_size)
+    n_electrons = sum(ρk_real) * basis.dvol
     if abs(n_electrons - sum(occupation)) > sqrt(eps(T))
         @warn("Mismatch in number of electrons", sum_ρ=n_electrons,
               sum_occupation=sum(occupation))
     end
 
     # FFT and return
-    r_to_G(basis, ρk_real)
+    r_to_G!(ρ, basis, ρk_real)
 end
 
 
@@ -38,7 +46,7 @@ grid `basis`, where the individual k-Points are occupied according to `occupatio
 `ψ` should be one coefficient matrix per k-Point. If the `Model` underlying the basis
 is not collinear the spin density is `nothing`.
 """
-@timing function compute_density(basis::PlaneWaveBasis, ψ, occupation)
+@views @timing function compute_density(basis::PlaneWaveBasis, ψ, occupation)
     n_k = length(basis.kpoints)
     n_spin = basis.model.n_spin_components
 
@@ -52,7 +60,7 @@ is not collinear the spin density is `nothing`.
     @assert n_k > 0
 
     # Allocate an accumulator for ρ in each thread for each spin component
-    ρaccus = [[similar(ψ[1][:, 1], basis.fft_size) for iσ in 1:n_spin]
+    ρaccus = [similar(view(ψ[1], :, 1), (basis.fft_size..., n_spin))
               for ithread in 1:Threads.nthreads()]
 
     # TODO Better load balancing ... the workload per kpoint depends also on
@@ -70,31 +78,44 @@ is not collinear the spin density is `nothing`.
     end
 
     Threads.@threads for (ikpts, ρaccu) in collect(zip(kpt_per_thread, ρaccus))
-        for iσ in 1:n_spin
-            ρaccu[iσ] .= 0
-        end
+        ρaccu .= 0
+        ρ_k = similar(ψ[1][:, 1], basis.fft_size)
         for ik in ikpts
             kpt = basis.kpoints[ik]
-            ρ_k = compute_partial_density(basis, kpt, ψ[ik], occupation[ik])
+            compute_partial_density!(ρ_k, basis, kpt, ψ[ik], occupation[ik])
+            lowpass_for_symmetry!(ρ_k, basis)
             # accumulates all the symops of ρ_k into ρaccu
-            accumulate_over_symmetries!(ρaccu[kpt.spin], ρ_k, basis, basis.ksymops[ik])
+            accumulate_over_symmetries!(ρaccu[:, :, :, kpt.spin], ρ_k, basis, basis.ksymops[ik])
         end
     end
 
     # Count the number of k-points modulo spin
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
-    ρs = [sum(getindex.(ρaccus, iσ)) / count for iσ in 1:n_spin]
+    count = mpi_sum(count, basis.comm_kpts)
+    ρ = sum(ρaccus) ./ count
+    mpi_sum!(ρ, basis.comm_kpts)
+    G_to_r(basis, ρ)
+end
 
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
-    if basis.model.spin_polarization == :collinear
-        ρtot  = from_fourier(basis, ρs[1] + ρs[2])  # up + down
-        ρspin = from_fourier(basis, ρs[1] - ρs[2])  # up - down
+total_density(ρ) = dropdims(sum(ρ; dims=4); dims=4)
+@views function spin_density(ρ)
+    if size(ρ, 4) == 2
+        ρ[:, :, :, 1] - ρ[:, :, :, 2]
     else
-        ρtot  = from_fourier(basis, ρs[1])
-        ρspin = nothing
+        zero(ρ[:, :, :])
     end
+end
 
-    ρtot, ρspin
+function ρ_from_total_and_spin(ρtot, ρspin=nothing)
+    n_spin = ρspin === nothing ? 1 : 2
+    ρ = similar(ρtot, size(ρtot)..., n_spin)
+    if n_spin == 1
+        ρ .= ρtot
+    else
+        ρ[:, :, :, 1] .= (ρtot .+ ρspin) ./ 2
+        ρ[:, :, :, 2] .= (ρtot .- ρspin) ./ 2
+    end
+    ρ
 end
 
 """

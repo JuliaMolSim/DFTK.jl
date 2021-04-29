@@ -1,6 +1,7 @@
 include("run_scf_and_compare.jl")
 include("testcases.jl")
 using DoubleFloats
+using GenericLinearAlgebra
 
 # Silicon redHF (without xc) is a metal, so we add a bit of temperature to it
 function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwargs...)
@@ -26,11 +27,13 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
     fft_size = grid_size * ones(3)
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="lda", family="hgh"))
     model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [];
-                      temperature=0.05, spin_polarization=spin_polarization,
-                      magnetic_moments=[Si => zeros(2)])
+                      temperature=0.05, spin_polarization=spin_polarization)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
-    run_scf_and_compare(T, basis, ref_redHF, ref_etot; kwargs...)
+    spin_polarization == :collinear && (ref_redHF = vcat(ref_redHF, ref_redHF))
+    run_scf_and_compare(T, basis, ref_redHF, ref_etot;
+                        ρ=guess_density(basis),
+                        kwargs...)
 end
 
 
@@ -46,9 +49,12 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     end
 end
 
-@testset "Silicon without XC (small, Double32)" begin
-    run_silicon_redHF(Double32, Ecut=5, test_tol=0.05, n_ignored=0, grid_size=15,
-                      test_etot=false)
+# There is a weird race condition with MPI + DoubleFloats. TODO debug
+if mpi_nprocs() == 1
+    @testset "Silicon without XC (small, Double32)" begin
+        run_silicon_redHF(Double32, Ecut=5, test_tol=0.05, n_ignored=0, grid_size=15,
+                          test_etot=false)
+    end
 end
 
 

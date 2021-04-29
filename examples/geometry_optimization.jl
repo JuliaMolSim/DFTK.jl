@@ -35,7 +35,7 @@ function compute_scfres(x)
     model = model_LDA(lattice, atoms)
     basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
     global ψ, ρ
-    if ρ ===  nothing
+    if ρ === nothing
         ρ = guess_density(basis)
     end
     scfres = self_consistent_field(basis; ψ=ψ, ρ=ρ,
@@ -53,7 +53,7 @@ end;
 function fg!(F, G, x)
     scfres = compute_scfres(x)
     if G != nothing
-        grad = forces(scfres)
+        grad = compute_forces(scfres)
         G .= -[grad[1][1]; grad[1][2]]
     end
     scfres.energies.total

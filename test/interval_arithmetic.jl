@@ -1,6 +1,7 @@
 using Test
 using DFTK
 using IntervalArithmetic
+using GenericLinearAlgebra
 
 include("testcases.jl")
 
@@ -14,12 +15,11 @@ function discretized_hamiltonian(T, testcase)
 
     # For interval arithmetic to give useful numbers,
     # the fft_size should be a power of 2
-    fft_size = nextpow.(2, determine_fft_size(model.lattice, Ecut))
+    fft_size = nextpow.(2, compute_fft_size(model.lattice, Ecut))
     basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1), fft_size=fft_size)
 
     ham = Hamiltonian(basis; ρ=guess_density(basis))
 end
-
 
 @testset "Application of an LDA Hamiltonian with Intervals" begin
     T = Float64
@@ -33,9 +33,9 @@ end
     ref = hamk * x
     res = hamIntk * Interval.(x)
 
-    # Difference between interval arithmetic and normal application less than 1e-10
-    @test maximum(mid, abs.(res .- ref)) < 1e-10
+    # Small difference between interval arithmetic and normal application
+    @test maximum(mid, abs.(res .- ref)) < 1e-9
 
-    # Maximal error done by interval arithmetic less than
-    @test maximum(radius, abs.(res)) < 1e-10
+    # Small error determined by interval arithmetic
+    @test maximum(radius, abs.(res)) < 1e-9
 end

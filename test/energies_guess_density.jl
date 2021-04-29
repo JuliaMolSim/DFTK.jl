@@ -17,7 +17,7 @@ include("testcases.jl")
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     ρ0 = guess_density(basis, [Si => silicon.positions])
-    E, H = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0, ρspin=nothing)
+    E, H = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
 
     @test E["Hartree"] ≈  0.3527293727197568  atol=5e-8
     @test E["Xc"]      ≈ -2.3033165870558165  atol=5e-8
@@ -26,8 +26,8 @@ include("testcases.jl")
     res = diagonalize_all_kblocks(lobpcg_hyper, H, n_bands, tol=1e-9)
     occupation = [[2.0, 2.0, 2.0, 2.0, 0.0, 0.0, 0.0, 0.0]
                   for i in 1:length(basis.kpoints)]
-    ρnew, ρspin_new = compute_density(H.basis, res.X, occupation)
-    E, H = energy_hamiltonian(basis, res.X, occupation; ρ=ρnew, ρspin=ρspin_new)
+    ρnew = compute_density(H.basis, res.X, occupation)
+    E, H = energy_hamiltonian(basis, res.X, occupation; ρ=ρnew)
 
     @test E["Kinetic"]        ≈  3.291847293270256   atol=5e-8
     @test E["AtomicLocal"]    ≈ -2.367978663117999   atol=5e-8
@@ -48,9 +48,8 @@ include("testcases.jl")
                                    Magnetic(X -> [1, cos(1.4*X[2]), exp(X[3])])]
                       )
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-    ρ = from_real(basis, ρnew.real)
 
-    E, H = energy_hamiltonian(basis, res.X, occupation; ρ=ρ, ρspin=nothing)
+    E, H = energy_hamiltonian(basis, res.X, occupation; ρ=ρnew)
 
     @test E["Kinetic"]             ≈  3.291847293270256   atol=5e-8
     @test E["AtomicLocal"]         ≈ -2.367978663117999   atol=5e-8

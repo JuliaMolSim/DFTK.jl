@@ -124,7 +124,7 @@ Apply a symmetry operation to eigenvectors `ψk` at a given `kpoint` to obtain a
 equivalent point in [-0.5, 0.5)^3 and associated eigenvectors (expressed in the
 basis of the new kpoint).
 """
-function apply_ksymop(ksymop, basis, kpoint, ψk::AbstractVecOrMat)
+function apply_ksymop(ksymop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     S, τ = ksymop
     S == I && iszero(τ) && return kpoint, ψk
 
@@ -170,9 +170,10 @@ end
 """
 Apply a `k`-point symmetry operation (the tuple (S, τ)) to a partial density.
 """
-function apply_ksymop(symop, ρin::RealFourierArray)
-    symop[1] == I && iszero(symop[2]) && return ρin
-    from_fourier(ρin.basis, symmetrize(ρin, [symop]))
+function apply_ksymop(symop::SymOp, basis, ρin)
+    S, τ = ksymop
+    S == I && iszero(τ) && return ρin
+    symmetrize(basis, ρin, [symop])
 end
 
 
@@ -183,7 +184,7 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
     for (S, τ) in symmetries
         invS = Mat3{Int}(inv(S))
         # Common special case, where ρin does not need to be processed
-        if iszero(S - I) && iszero(τ)
+        if S == I && iszero(τ)
             ρaccu .+= ρin
             continue
         end
@@ -209,6 +210,7 @@ end
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
 function lowpass_for_symmetry!(ρ, basis; symmetries=basis.model.symmetries)
     for (S, τ) in symmetries
+        S == I && iszero(τ) && continue
         for (ig, G) in enumerate(G_vectors(basis))
             if index_G_vectors(basis, S * G) === nothing
                 ρ[ig] = 0
@@ -219,17 +221,21 @@ function lowpass_for_symmetry!(ρ, basis; symmetries=basis.model.symmetries)
 end
 
 """
-Symmetrize a `RealFourierArray` by applying all the model symmetries (by default) and forming the average.
+Symmetrize a density by applying all the model symmetries (by default) and forming the average.
 """
-function symmetrize(ρin::RealFourierArray; symmetries=ρin.basis.model.symmetries)
-    ρin_fourier = copy(ρin.fourier)
-    lowpass_for_symmetry!(ρin_fourier, ρin.basis; symmetries=symmetries)
-    ρout_fourier = accumulate_over_symmetries!(zero(ρin_fourier), ρin_fourier, ρin.basis, symmetries)
-    from_fourier(ρin.basis, ρout_fourier ./ length(symmetries))
+@views function symmetrize(basis, ρin; symmetries=basis.model.symmetries)
+    ρin_fourier = r_to_G(basis, ρin)
+    ρout_fourier = copy(ρin_fourier)
+    for σ = 1:size(ρin, 4)
+        lowpass_for_symmetry!(ρin_fourier[:, :, :, σ], basis; symmetries=symmetries)
+        ρout_fourier[:, :, :, σ] = accumulate_over_symmetries!(zero(ρin_fourier[:, :, :, σ]),
+                                                               ρin_fourier[:, :, :, σ], basis, symmetries)
+    end
+    G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
 
-function check_symmetric(ρin::RealFourierArray; tol=1e-10, symmetries=ρin.basis.model.symmetries)
+function check_symmetric(basis, ρin; tol=1e-10, symmetries=ρin.basis.model.symmetries)
     for symop in symmetries
-        @assert norm(symmetrize(ρin, [symop]).fourier - ρin.fourier) < tol
+        @assert norm(symmetrize(ρin, [symop]) - ρin) < tol
     end
 end

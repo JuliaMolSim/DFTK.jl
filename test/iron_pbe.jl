@@ -55,17 +55,17 @@ function run_iron_pbe(T; kwargs...)
     basis = PlaneWaveBasis(model, Ecut; fft_size=[20, 20, 20],
                            kgrid=[4, 4, 4], kshift=[1/2, 1/2, 1/2])
 
-    ρspin = guess_spin_density(basis, magnetic_moments)
-    scfres = run_scf_and_compare(T, basis, ref_evals, ref_etot; ρspin=ρspin, kwargs...)
+    scfres = run_scf_and_compare(T, basis, ref_evals, ref_etot;
+                                 ρ=guess_density(basis, magnetic_moments),
+                                 kwargs...)
 
-    dVol = scfres.basis.model.unit_cell_volume / prod(scfres.basis.fft_size)
-    magnetisation = sum(scfres.ρspin.real) * dVol
+    magnetisation = sum(spin_density(scfres.ρ)) * basis.dvol
     @test magnetisation ≈ ref_magn atol=5e-5
 end
 
 
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     @testset "Iron PBE (Float64)" begin
-        run_iron_pbe(Float64, test_tol=5e-6, scf_tol=1e-8)
+        run_iron_pbe(Float64, test_tol=5e-6, scf_tol=1e-9)
     end
 end

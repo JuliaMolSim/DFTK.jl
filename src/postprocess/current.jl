@@ -1,3 +1,4 @@
+## TODO switch this to a [:,:,:,α] representation?
 """
 Computes the *probability* (not charge) current, ∑ fn Im(ψn* ∇ψn)
 """
@@ -16,5 +17,6 @@ function compute_current(basis::PlaneWaveBasis, ψ, occupation)
             end
         end
     end
-    [from_real(basis, current[α]) for α = 1:3]
+    mpi_sum!.(current, Ref(basis.comm_kpts))
+    current
 end

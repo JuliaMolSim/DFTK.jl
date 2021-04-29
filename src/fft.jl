@@ -14,6 +14,14 @@ function bounding_rectangle(lattice::AbstractMatrix{T}, Gmax; tol=sqrt(eps(T))) 
     Glims = [Glim == 0 ? 0 : ceil(Int, Glim .- tol) for Glim in Glims]
     Glims
 end
+function diameter(lattice)
+    diam = zero(eltype(lattice))
+    # brute force search
+    for vec in Vec3.(Iterators.product(-1:1, -1:1, -1:1))
+        diam = max(diam, norm(lattice*vec))
+    end
+    diam
+end
 
 const _smallprimes = [2, 3, 5]
 
@@ -29,10 +37,10 @@ The function will determine the smallest parallelepiped containing the wave vect
 For an exact representation of the density resulting from wave functions
 represented in the spherical basis sets, `supersampling` should be at least `2`.
 """
-function determine_fft_size(lattice::AbstractMatrix{T}, Ecut;
-                            supersampling=2,
-                            tol=sqrt(eps(T)),
-                            ensure_smallprimes=true) where T
+function compute_fft_size(lattice::AbstractMatrix{T}, Ecut;
+                          supersampling=2,
+                          tol=sqrt(eps(T)),
+                          ensure_smallprimes=true) where T
     Gmax = supersampling * sqrt(2 * Ecut)
     Glims = bounding_rectangle(lattice, Gmax; tol=tol)
 
@@ -43,17 +51,8 @@ function determine_fft_size(lattice::AbstractMatrix{T}, Ecut;
     end
     fft_size
 end
-function determine_fft_size(model::Model, Ecut; kwargs...)
-    determine_fft_size(model.lattice, Ecut; kwargs...)
-end
-
-function diameter(lattice)
-    diam = zero(eltype(lattice))
-    # brute force search
-    for vec in Vec3.(Iterators.product(-1:1, -1:1, -1:1))
-        diam = max(diam, norm(lattice*vec))
-    end
-    diam
+function compute_fft_size(model::Model, Ecut; kwargs...)
+    compute_fft_size(model.lattice, Ecut; kwargs...)
 end
 
 # This uses a more precise and slower algorithm than the one above,
@@ -61,8 +60,8 @@ end
 # is. It needs the kpoints to do so.
 # TODO This function is strange ... it should only depend on the kcoords
 #      It should be merged with build_kpoints somehow
-function determine_fft_size_precise(lattice::AbstractMatrix{T}, Ecut, kpoints;
-                                    supersampling=2, ensure_smallprimes=true) where T
+function compute_fft_size_precise(lattice::AbstractMatrix{T}, Ecut, kpoints;
+                                  supersampling=2, ensure_smallprimes=true) where T
     recip_lattice = 2T(π)*pinv(lattice')  # pinv in case one of the dimension is trivial
     recip_diameter = diameter(recip_lattice)
     Glims = [0, 0, 0]
@@ -100,6 +99,49 @@ function determine_fft_size_precise(lattice::AbstractMatrix{T}, Ecut, kpoints;
     fft_size
 end
 
+# Main entry point from pwbasis. Uses the above functions to find out
+# the correct fft_size according to user specification
+function validate_or_compute_fft_size(model::Model{T}, fft_size, Ecut, supersampling,
+                                      variational, optimize_fft_size, kcoords) where {T}
+    # compute if not provided
+    if fft_size === nothing
+        @assert variational
+        fft_size = compute_fft_size(model, Ecut; supersampling=supersampling)
+        if optimize_fft_size
+            # We build a temporary set of kpoints here
+            # This gymnastics is because build_kpoints builds index
+            # mapping from the k-point-specific basis to the global
+            # basis and thus the fft_size needs to be final at kpoint
+            # construction time
+            fft_size = Tuple{Int, Int, Int}(fft_size)
+            kpoints_temp = build_kpoints(model, fft_size, kcoords, Ecut;
+                                         variational=variational)
+            fft_size = compute_fft_size_precise(model.lattice, Ecut, kpoints_temp;
+                                                supersampling=supersampling)
+        end
+    end
+
+    # validate
+    if variational
+        max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
+        Ecut > max_E && @warn(
+            "For a variational method, Ecut should be less than the maximal kinetic " *
+            "energy the grid supports ($max_E)"
+        )
+    else
+        # ensure no other options are set
+        @assert supersampling == 2
+        @assert !optimize_fft_size
+    end
+
+    # TODO generic FFT is kind of broken for some fft sizes
+    #      ... temporary workaround, see more details in fft_generic.jl
+    fft_size = next_working_fft_size.(T, fft_size)
+    fft_size = Tuple{Int, Int, Int}(fft_size)
+    fft_size
+end
+
+
 # For Float32 there are issues with aligned FFTW plans, so we
 # fall back to unaligned FFTW plans (which are generally discouraged).
 _fftw_flags(::Type{Float32}) = FFTW.MEASURE | FFTW.UNALIGNED
@@ -107,13 +149,14 @@ _fftw_flags(::Type{Float64}) = FFTW.MEASURE
 
 """
 Plan a FFT of type `T` and size `fft_size`, spending some time on finding an
-optimal algorithm. Both an inplace and an out-of-place FFT plan are returned.
+optimal algorithm. (Inplace, out-of-place) x (forward, backward) FFT plans are returned.
 """
 function build_fft_plans(T::Union{Type{Float32}, Type{Float64}}, fft_size)
     tmp = Array{Complex{T}}(undef, fft_size...)
     ipFFT = FFTW.plan_fft!(tmp, flags=_fftw_flags(T))
     opFFT = FFTW.plan_fft(tmp, flags=_fftw_flags(T))
-    ipFFT, opFFT
+    # backward by inverting and stripping off normalizations
+    ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
 end
 
 

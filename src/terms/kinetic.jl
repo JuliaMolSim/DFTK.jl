@@ -18,7 +18,7 @@ function TermKinetic(basis::PlaneWaveBasis; scaling_factor=1)
     TermKinetic(basis, kinetic_energies)
 end
 
-function ene_ops(term::TermKinetic, ψ, occ; kwargs...)
+@timing "ene_ops: kinetic" function ene_ops(term::TermKinetic, ψ, occ; kwargs...)
     basis = term.basis
     T = eltype(basis)
 
@@ -34,6 +34,7 @@ function ene_ops(term::TermKinetic, ψ, occ; kwargs...)
                   * real(dot(ψnk, term.kinetic_energies[ik] .* ψnk)))
         end
     end
+    E = mpi_sum(E, basis.comm_kpts)
 
     (E=E, ops=ops)
 end

@@ -61,7 +61,7 @@ scfres.energies
 # We use the opportunity to explore some of DFTK internals.
 #
 # Extract the converged density and the obtained wave function:
-ρ = real(scfres.ρ.real)[:, 1, 1]  # converged density
+ρ = real(scfres.ρ)[:, 1, 1, 1]  # converged density, first spin component
 ψ_fourier = scfres.ψ[1][:, 1];    # first kpoint, all G components, first eigenvector
 
 # Transform the wave function to real space and fix the phase:
@@ -75,7 +75,7 @@ dx = a / N  # real-space grid spacing
 @assert sum(abs2.(ψ)) * dx ≈ 1.0
 
 # The density is simply built from ψ:
-norm(scfres.ρ.real - abs2.(ψ))
+norm(scfres.ρ - abs2.(ψ))
 
 # We summarize the ground state in a nice plot:
 using Plots

@@ -86,7 +86,7 @@ function Model(lattice::AbstractMatrix{T};
                symmetries=default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization),
                ) where {T <: Real}
     lattice = Mat3{T}(lattice)
-    temperature = T(temperature)
+    temperature = T(austrip(temperature))
 
     if n_electrons === nothing
         # get it from the atom list
@@ -142,49 +142,8 @@ function Model(lattice::AbstractMatrix{T};
              spin_polarization, n_spin, T(temperature), smearing, atoms, terms, symmetries)
 end
 Model(lattice::AbstractMatrix{T}; kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
+Model(lattice::AbstractMatrix{Q}; kwargs...) where {Q <: Quantity} = Model(austrip.(lattice); kwargs...)
 
-"""
-Convenience constructor, which builds a standard atomic (kinetic + atomic potential) model.
-Use `extra_terms` to add additional terms.
-"""
-function model_atomic(lattice::AbstractMatrix, atoms::Vector; extra_terms=[], kwargs...)
-    @assert !(:terms in keys(kwargs))
-    @assert !(:atoms in keys(kwargs))
-    terms = [Kinetic(),
-             AtomicLocal(),
-             AtomicNonlocal(),
-             Ewald(),
-             PspCorrection(),
-             extra_terms...]
-    if :temperature in keys(kwargs) && kwargs[:temperature] != 0
-        terms = [terms..., Entropy()]
-    end
-    Model(lattice; atoms=atoms, terms=terms, kwargs...)
-end
-
-
-"""
-Build a DFT model from the specified atoms, with the specified functionals.
-"""
-function model_DFT(lattice::AbstractMatrix, atoms::Vector, functionals; extra_terms=[], kwargs...)
-    model_atomic(lattice, atoms; extra_terms=[Hartree(), Xc(functionals), extra_terms...], kwargs...)
-end
-
-
-"""
-Build an LDA model (Teter93 parametrization) from the specified atoms.
-"""
-function model_LDA(lattice::AbstractMatrix, atoms::Vector; kwargs...)
-    model_DFT(lattice, atoms, :lda_xc_teter93; kwargs...)
-end
-
-
-"""
-Build an PBE-GGA model from the specified atoms.
-"""
-function model_PBE(lattice::AbstractMatrix, atoms::Vector; kwargs...)
-    model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe]; kwargs...)
-end
 
 normalize_magnetic_moment(::Nothing)  = Vec3{Float64}(zeros(3))
 normalize_magnetic_moment(mm::Number) = Vec3{Float64}(0, 0, mm)
@@ -235,7 +194,6 @@ function filled_occupation(model)
     if model.spin_polarization in (:spinless, :collinear)
         return 1
     elseif model.spin_polarization == :none
-        @assert model.n_electrons % 2 == 0
         return 2
     else
         error("Not implemented $(model.spin_polarization)")

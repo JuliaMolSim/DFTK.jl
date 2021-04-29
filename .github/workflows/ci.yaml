@@ -1,0 +1,113 @@
+name: CI
+on:
+  push:
+    branches:
+      - master
+      - staging  # Bors
+      - trying   # Bors
+    tags:
+      - 'v*'
+  pull_request:
+  schedule:
+    - cron:  '0 4 * * 6'  # Run every Sunday
+
+jobs:
+  #
+  # Unit tests
+  #
+  test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.payload }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {version: '1.6',   os: ubuntu-latest,  payload: serial}
+          - {version: '1.6',   os: macOS-latest,   payload: serial}
+          - {version: '1.6',   os: windows-latest, payload: serial}
+          - {version: '1.6',   os: ubuntu-latest,  payload: mpi   }
+          - {version: nightly, os: ubuntu-latest,  payload: serial}
+    env:
+      PYTHON: ""          # Force using Conda in PyCall
+      GKS_ENCODING: "utf8"
+      GKSwstype: "100"    # Needed for Plots-related tests
+      PLOTS_TEST: "true"  # Needed for Plots-related tests
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: ${{ matrix.version }}
+          arch: x64
+      - uses: actions/cache@v1
+        env:
+          cache-name: cache-artifacts
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-test-${{ env.cache-name }}-
+            ${{ runner.os }}-test-
+            ${{ runner.os }}-
+      - name: Install Conda dependencies
+        shell: bash
+        run: |
+          julia -e '
+            using Pkg; Pkg.add("Conda"); using Conda
+            pkgs = ["ase", "pymatgen"]
+            !Sys.iswindows() && (pkgs = append!(["libblas=*=*netlib", "nomkl"], pkgs))
+            Conda.add(pkgs; channel="conda-forge")
+          '
+      - uses: julia-actions/julia-buildpkg@latest
+
+      - name: Execute serial tests
+        uses: julia-actions/julia-runtest@latest
+        if: ${{ matrix.payload == 'serial' }}
+        continue-on-error: ${{ matrix.version == 'nightly' }}
+
+      - name: Execute MPI-parallel tests
+        run: |
+          julia --project -e '
+            using Pkg; Pkg.build(); Pkg.precompile()
+            Pkg.add("MPI"); using MPI; MPI.install_mpiexecjl()
+            Pkg.test(; test_args=["quick"])
+          '
+          $HOME/.julia/bin/mpiexecjl -np 2 julia --check-bounds=yes --depwarn=yes --project --color=yes --compiled-modules=no -e 'using Pkg; Pkg.test(coverage=true)'
+        if: ${{ matrix.payload == 'mpi' }}
+        continue-on-error: ${{ matrix.version == 'nightly' }}
+
+      - uses: julia-actions/julia-processcoverage@v1
+      - uses: codecov/codecov-action@v1
+        with:
+          file: lcov.info
+  #
+  # Examples
+  #
+  examples:
+    name: Run examples
+    runs-on: ubuntu-latest
+    env:
+      GKS_ENCODING: "utf8"
+      GKSwstype: "100"    # Needed for Plots-related tests
+      PLOTS_TEST: "true"  # Needed for Plots-related tests
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.7'
+      - name: Install python dependencies
+        run: pip install ase pymatgen
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: '1.6'
+      - uses: actions/cache@v1
+        env:
+          cache-name: cache-artifacts
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-test-${{ env.cache-name }}-
+            ${{ runner.os }}-test-
+            ${{ runner.os }}-
+      - run: julia --color=yes --project -e 'using Pkg; Pkg.test(test_args = ["example"])'

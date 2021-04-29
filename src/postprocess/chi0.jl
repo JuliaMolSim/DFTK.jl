@@ -13,12 +13,10 @@ for collinear spin-polarized cases it is
 In this case the matrix has effectively 4 blocks, which are:
 ```math
 \left(\begin{array}{cc}
-    (χ_0)_{\text{tot}, α}  & (χ_0)_{\text{tot}, β} \\
-    (χ_0)_{\text{spin}, α} & (χ_0)_{\text{spin}, β}
+    (χ_0)_{αα}  & (χ_0)_{αβ} \\
+    (χ_0)_{βα}  & (χ_0)_{ββ}
 \end{array}\right)
 ```
-i.e. corresponding to a mapping
-``(V_α, V_β)^T ↦ (ρ_\text{tot}, ρ_\text{spin})^T = (ρ_α + ρ_β, ρ_α - ρ_β)^T.
 """
 function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
     # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
@@ -48,22 +46,18 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
     basis = ham.basis
     model = basis.model
     filled_occ = filled_occupation(model)
-    dVol     = basis.model.unit_cell_volume / prod(basis.fft_size)
     n_spin   = basis.model.n_spin_components
     fft_size = basis.fft_size
     n_fft    = prod(fft_size)
 
     @assert model.spin_polarization in (:none, :spinless, :collinear)
-    @assert 1 ≤ n_spin ≤ 2
     length(model.symmetries) == 1 || error("Disable symmetries completely for computing χ0")
 
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
     Vs = [EV.vectors for EV in EVs]
-    occ, εF = find_occupation(basis, Es, temperature=temperature)
+    occ, εF = compute_occupation(basis, Es, temperature=temperature)
 
-    # We first compute χ0 as an (χ0_αα χ0_αβ; χ0_βα χ0_ββ) 2×2 matrix and
-    # than form the returned matrix later
     χ0 = zeros(eltype(basis), n_spin * n_fft, n_spin * n_fft)
     for (ik, kpt) in enumerate(basis.kpoints)
         # The sum-over-states terms of χ0 are diagonal in the spin blocks (no αβ / βα terms)
@@ -83,35 +77,25 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
             ddiff = Smearing.occupation_divided_difference
             ratio = filled_occ * ddiff(model.smearing, E[m], E[n], εF, temperature)
             (n != m) && (abs(ratio) < droptol) && continue
-            # dVol because inner products have a dVol so that |f> becomes <dVol f|
+            # dvol because inner products have a dvol in them
+            # so that the dual gets one : |f> -> <dvol f|
             # can take the real part here because the nm term is complex conjugate of mn
             # TODO optimize this a bit... use symmetry nm, reduce allocs, etc.
-            factor = basis.kweights[ik] * ratio * dVol
+            factor = basis.kweights[ik] * ratio * basis.dvol
 
             @views χ0σσ .+= factor .* real(conj((Vr[:, m] .* Vr[:, m]'))
                                            .*   (Vr[:, n] .* Vr[:, n]'))
         end
     end
+    mpi_sum!(χ0, basis.comm_kpts)
 
     # Add variation wrt εF (which is not diagonal wrt. spin)
     if temperature > 0
-        dos  = DOS(εF, basis, Es)
-        ldos = [vec(LDOS(εF, basis, Es, Vs, spins=[σ])) for σ in 1:n_spin]
-        if n_spin == 1
-            χ0 .+= (ldos[1] .* ldos[1]') .* dVol ./ dos
-        else
-            χ0 .+= [(ldos[1] .* ldos[1]') (ldos[1] .* ldos[2]');
-                    (ldos[2] .* ldos[1]') (ldos[2] .* ldos[2]')] .* dVol ./ dos
-        end
+        dos  = compute_dos(εF, basis, Es)
+        ldos = compute_ldos(εF, basis, Es, Vs)
+        χ0 .+= vec(ldos) .* vec(ldos)' .* basis.dvol ./ sum(dos)
     end
-
-    if n_spin == 1
-        χ0  # Nothing to do here
-    else
-        # Add α and β rows to get response in ρtot, subtract them to get response in ρspin
-        [χ0[1:n_fft, :] + χ0[n_fft+1:2n_fft, :];
-         χ0[1:n_fft, :] - χ0[n_fft+1:2n_fft, :]]
-    end
+    χ0
 end
 
 
@@ -146,7 +130,7 @@ LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(simila
     # don't commute enough, and an oversolving of the linear
     # system can lead to spurious solutions
     rhs = Q(rhs)
-    δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!), tol=cgtol / norm(rhs),
+    δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!), reltol=cgtol / norm(rhs),
               verbose=verbose)
     δψnk
 end
@@ -161,7 +145,7 @@ sufficiently converged. By default the `self_consistent_field` routine of `DFTK`
 returns `3` extra bands, which are not converged by the eigensolver
 (see `n_ep_extra` parameter). These should be discarded before using this function.
 """
-@timing function apply_χ0(ham, ψ, εF, eigenvalues, δV::RealFourierArray, δVβ=nothing;
+@views @timing function apply_χ0(ham, ψ, εF, eigenvalues, δV;
                           droptol=0,
                           sternheimer_contribution=true,
                           temperature=ham.basis.model.temperature,
@@ -171,29 +155,21 @@ returns `3` extra bands, which are not converged by the eigensolver
     @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
 
     n_spin = basis.model.n_spin_components
-    (n_spin == 1) && isnothing(δVβ)
-    (n_spin == 2) && !isnothing(δVβ)
     @assert 1 ≤ n_spin ≤ 2
 
     # Normalize δV to avoid numerical trouble; theoretically should
     # not be necessary, but it simplifies the interaction with the
     # Sternheimer linear solver (it makes the rhs be order 1 even if
     # δV is small)
-    if n_spin == 1
-        normδV = norm(δV.real)
-        normδV < eps(T) && return (RealFourierArray(basis), )
-    else
-        normδV = sqrt(sum(abs2, δV.real) + sum(abs2, δVβ.real))
-        normδV < eps(T) && return (RealFourierArray(basis), RealFourierArray(basis))
-    end
+    normδV = norm(δV)
+    normδV < eps(T) && return zero(δV)
 
     # Make δV respect the full model symmetry group, since it's
     # invalid to consider perturbations that don't (technically it
     # could be made to only respect basis.symmetries, but symmetrizing wrt
     # the model symmetry group means that χ0 is unaffected by the
     # use_symmetry kwarg of basis, which is nice)
-    δV = symmetrize(δV).real  / normδV
-    (n_spin > 1) && (δVβ = symmetrize(δVβ).real / normδV)
+    δV = symmetrize(basis, δV) / normδV
 
     if droptol > 0 && sternheimer_contribution == true
         error("Droptol cannot be positive if sternheimer contribution is to be computed.")
@@ -201,41 +177,31 @@ returns `3` extra bands, which are not converged by the eigensolver
 
     # Accumulate spin component by spin component:
     # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
-    δρ_fourier = [zeros(complex(T), size(δV)) for _ in 1:n_spin]
+    δρ_fourier = zeros(complex(eltype(δV)), size(δV)...)
     for (ik, kpt) in enumerate(basis.kpoints)
-        δρk = zero(δV)
+        δρk = zeros(eltype(δV), basis.fft_size)
         for n = 1:size(ψ[ik], 2)
-            δV_spin_component = kpt.spin == 1 ? δV : δVβ
             add_response_from_band!(δρk, n, ham.blocks[ik], eigenvalues[ik], ψ[ik],
-                                    εF, δV_spin_component, temperature, droptol,
+                                    εF, δV[:, :, :, kpt.spin], temperature, droptol,
                                     sternheimer_contribution, kwargs_sternheimer)
         end
-        accumulate_over_symmetries!(δρ_fourier[kpt.spin], r_to_G(basis, complex(δρk)),
+        δρk_fourier = r_to_G(basis, complex(δρk))
+        lowpass_for_symmetry!(δρk_fourier, basis)
+        accumulate_over_symmetries!(δρ_fourier[:, :, :, kpt.spin], δρk_fourier,
                                     basis, basis.ksymops[ik])
     end
+    mpi_sum!(δρ_fourier, basis.comm_kpts)
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
-    δρ = [real(G_to_r(basis, δρσ)) ./ count for δρσ in δρ_fourier]
+    count = mpi_sum(count, basis.comm_kpts)
+    δρ = G_to_r(basis, δρ_fourier) ./ count
 
     # Add variation wrt εF
     if temperature > 0
-        dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
-        ldos = [LDOS(εF, basis, eigenvalues, ψ, temperature=temperature, spins=[σ])
-                for σ in 1:n_spin]
-        dos  = DOS(εF, basis, eigenvalues, temperature=temperature)
-
-        dotldosδV = dot(ldos[1], δV) + (n_spin == 2 ? dot(ldos[2], δVβ) : false)
-        for σ in 1:n_spin
-            δρ[σ] .+= ldos[σ] .* dotldosδV .* dVol ./ dos
-        end
+        dos  = compute_dos(εF, basis, eigenvalues, temperature=temperature)
+        ldos = compute_ldos(εF, basis, eigenvalues, ψ, temperature=temperature)
+        δρ .+= ldos .* dot(ldos, δV) .* basis.dvol ./ sum(dos)
     end
-
-    if n_spin == 1
-        (from_real(basis, δρ[1] .* normδV), )
-    else
-        # δρ[1] is spin-up and δρ[2] is spin-down
-        (from_real(basis, (δρ[1] + δρ[2]) .* normδV),
-         from_real(basis, (δρ[1] - δρ[2]) .* normδV))
-    end
+    δρ .* normδV
 end
 
 
@@ -251,7 +217,6 @@ function add_response_from_band!(δρk, n, hamk, εk, ψk, εF, δV,
     T = eltype(basis)
     model = basis.model
     filled_occ = filled_occupation(model)
-    dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
 
     ψnk = @view ψk[:, n]
     ψnk_real = G_to_r(basis, hamk.kpoint, ψnk)
@@ -270,10 +235,11 @@ function add_response_from_band!(δρk, n, hamk, εk, ψk, εF, δV,
         ddiff = Smearing.occupation_divided_difference
         ratio = filled_occ * ddiff(model.smearing, εk[m], εk[n], εF, temperature)
         (n != m) && (abs(ratio) < droptol) && continue
+        abs(ratio) < eps(T) && continue
         ψmk_real = G_to_r(basis, hamk.kpoint, @view ψk[:, m])
         # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
         ρnm = conj(ψnk_real) .* ψmk_real
-        weight = dVol * dot(ρnm, δV)
+        weight = basis.dvol * dot(ρnm, δV)
         δρk .+= (n == m ? 1 : 2) * real(ratio .* weight .* ρnm)
     end
 

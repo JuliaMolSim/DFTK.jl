@@ -2,21 +2,24 @@
 
 # Density-functional toolkit
 
-| **Documentation**                                       | **Build Status**                                       |  **License**                     |
-|:------------------------------------------------------- |:------------------------------------------------------ |:-------------------------------- |
-| [![][docs-img]][docs-url] [![][gitter-img]][gitter-url] | [![][travis-img]][travis-url] [![][cov-img]][cov-url]  | [![][license-img]][license-url]  |
+| **Documentation**                                                                   | **Build Status**                                |  **License**                     |
+|:----------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
+| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][gitter-img]][gitter-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
 
-[docs-img]: https://img.shields.io/badge/docs-dev-blue.svg
-[docs-url]: https://juliamolsim.github.io/DFTK.jl/dev
+[ddocs-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[ddocs-url]: https://docs.dftk.org/dev
+
+[docs-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[docs-url]: https://docs.dftk.org/stable
 
 [gitter-img]: https://badges.gitter.im/DFTK-jl/community.svg
 [gitter-url]: https://gitter.im/DFTK-jl/community
 
-[travis-img]: https://travis-ci.com/JuliaMolSim/DFTK.jl.svg?branch=master
-[travis-url]: https://travis-ci.com/JuliaMolSim/DFTK.jl
+[ci-img]: https://github.com/JuliaMolSim/DFTK.jl/workflows/CI/badge.svg?branch=master&event=push
+[ci-url]: https://github.com/JuliaMolSim/DFTK.jl/actions
 
-[cov-img]: https://coveralls.io/repos/JuliaMolSim/DFTK.jl/badge.svg?branch=master&service=github
-[cov-url]: https://coveralls.io/github/JuliaMolSim/DFTK.jl?branch=master
+[ccov-img]: https://codecov.io/gh/JuliaMolSim/DFTK.jl/branch/master/graph/badge.svg?token=A23M0VZ8PQ
+[ccov-url]: https://codecov.io/gh/JuliaMolSim/DFTK.jl
 
 [license-img]: https://img.shields.io/github/license/JuliaMolSim/DFTK.jl.svg?maxAge=2592000
 [license-url]: https://github.com/JuliaMolSim/DFTK.jl/blob/master/LICENSE
@@ -33,7 +36,7 @@ with the goal of facilitating methodological development and
 interdisciplinary collaboration.
 In about 5k lines of pure Julia code we already support a
 [sizeable set of features](https://juliamolsim.github.io/DFTK.jl/dev/index.html#package-features-1),
-after just a good year of development.
+after just about two years of development.
 Our performance is of the same order of magnitude as established packages.
 
 For getting started with DFTK, see our documentation:
@@ -41,10 +44,17 @@ For getting started with DFTK, see our documentation:
 - [Tutorial](https://juliamolsim.github.io/DFTK.jl/dev/guide/tutorial/)
 - [Examples](https://juliamolsim.github.io/DFTK.jl/dev/#example-index-1)
 
-Note that at least **Julia 1.4** is required.
+Note that at least **Julia 1.6** is required.
 
-## Citation
-[![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238)
+## Support and citation
+DFTK is mostly developed as part of academic research.
+If you like our work please consider starring this repository as such metrics
+may help us to secure funding in the future.
+Parts of DFTK have also been discussed in published papers.
+If you use our code as part of your research, teaching or other activities,
+we would be grateful if you cite them as appropriate.
+See the [CITATION.bib](CITATION.bib) in the root of this repo for relevant references.
+As a software DFTK can also be cited via [![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238).
 
 ## Funding
 This project has received funding from

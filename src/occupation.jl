@@ -5,41 +5,49 @@ import Roots
 """
 Find the Fermi level.
 """
-fermi_level(basis, energies) = find_occupation(basis, energies).εF
+fermi_level(basis, energies) = compute_occupation(basis, energies).εF
 
 """
 Find the occupation and Fermi level.
 """
-function find_occupation(basis::PlaneWaveBasis{T}, energies;
-                         temperature=basis.model.temperature,
-                         smearing=basis.model.smearing) where {T}
+function compute_occupation(basis::PlaneWaveBasis{T}, energies;
+                            temperature=basis.model.temperature,
+                            smearing=basis.model.smearing) where {T}
     @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     n_electrons = basis.model.n_electrons
 
     # Maximum occupation per state
     filled_occ = filled_occupation(basis.model)
 
+    if temperature == 0 && n_electrons % filled_occ != 0
+        error("$n_electrons electron cannot be attained by filling states with " *
+              "occupation $filled_occ. Typically this indicates that you need to put " *
+              "a temperature or switch to a calculation with collinear spin polarization.")
+    end
+
     # The goal is to find εF so that
     # n_i = filled_occ * f((εi-εF)/T)
     # sum_i n_i = n_electrons
     # If temperature is zero, (εi-εF)/T = ±∞.
     # The occupation function is required to give 1 and 0 respectively in these cases.
-    compute_occupation(εF) = [filled_occ * Smearing.occupation.(smearing, (ε .- εF) ./ temperature) for ε in energies]
-    compute_n_elec(εF) = sum(basis.kweights .* sum.(compute_occupation(εF)))
+    compute_occupation(εF) = [filled_occ * Smearing.occupation.(smearing, (ε .- εF) ./ temperature)
+                              for ε in energies]
+    compute_n_elec(εF) = weighted_ksum(basis, sum.(compute_occupation(εF)))
 
-    if filled_occ*sum(basis.kweights .* length.(energies)) < n_electrons - sqrt(eps(T))
+    if filled_occ * weighted_ksum(basis, length.(energies)) < (n_electrons - sqrt(eps(T)))
         error("Could not obtain required number of electrons by filling every state. " *
               "Increase n_bands.")
     end
 
     # Get rough bounds to bracket εF
     min_ε = minimum(minimum.(energies)) - 1
+    min_ε = mpi_min(min_ε, basis.comm_kpts)
     max_ε = maximum(maximum.(energies)) + 1
+    max_ε = mpi_max(max_ε, basis.comm_kpts)
     if temperature != 0
         @assert compute_n_elec(min_ε) < n_electrons < compute_n_elec(max_ε)
     end
 
-    # Compute εF by bisection
     if compute_n_elec(max_ε) ≈ n_electrons
         # This branch takes care of the case of insulators at zero
         # temperature with as many bands as electrons; there it is
@@ -86,7 +94,7 @@ Find Fermi level and occupation for the given parameters, assuming a band gap
 and zero temperature. This function is for DEBUG purposes only, and the
 finite-temperature version with 0 temperature should be preferred.
 """
-function find_occupation_bandgap(basis, energies)
+function compute_occupation_bandgap(basis, energies)
     @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     n_bands = length(energies[1])
     @assert all(e -> length(e) == n_bands, energies)
@@ -112,12 +120,14 @@ function find_occupation_bandgap(basis, energies)
             LUMO = min(LUMO, energies[ik][n_fill + 1])
         end
     end
-    @assert sum(basis.kweights .* sum.(occupation)) ≈ n_electrons
+    LUMO = mpi_min(LUMO, basis.comm_kpts)
+    HOMO = mpi_max(HOMO, basis.comm_kpts)
+    @assert weighted_ksum(basis, sum.(occupation)) ≈ n_electrons
 
     # Put Fermi level slightly above HOMO energy, to ensure that HOMO < εF
     εF = nextfloat(HOMO)
     if εF > LUMO
-        @warn("`find_occupation_bandgap` assumes an insulator, but the " *
+        @warn("`compute_occupation_bandgap` assumes an insulator, but the " *
               "system seems metallic. Try specifying a temperature and a smearing function.",
               HOMO, LUMO)
     end

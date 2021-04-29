@@ -15,6 +15,7 @@ Our performance is of the same order of magnitude as much larger production
 codes such as [Abinit](https://www.abinit.org/),
 [Quantum Espresso](http://quantum-espresso.org/) and
 [VASP](https://www.vasp.at/).
+DFTK's source code is [publicly available on github](https://dftk.org).
 
 ## [Package features](@id package-features)
 * Methods and models:
@@ -29,6 +30,7 @@ codes such as [Abinit](https://www.abinit.org/),
     - Self-consistent field approaches: Damping, Kerker mixing, Anderson/Pulay/DIIS mixing
     - Direct minimization
     - Multi-level threading (kpoints, eigenvectors, FFTs, linear algebra)
+    - MPI-based distributed parallelism (distribution over kpoints)
     - 1D / 2D / 3D systems
     - Magnetic fields
     - Treat systems beyond 500 electrons
@@ -41,6 +43,7 @@ codes such as [Abinit](https://www.abinit.org/),
 * Support for arbitrary floating point types, including `Float32` (single precision)
   or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)).
   For DFT this is currently restricted to LDA (with Slater exchange and VWN correlation).
+* Runs out of the box on Linux, macOS and Windows
 * Third-party integrations:
     - Use structures prepared in [pymatgen](https://pymatgen.org),
       [ASE](https://wiki.fysik.dtu.dk/ase/) or [abipy](https://abinit.github.io/abipy/).

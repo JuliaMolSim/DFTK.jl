@@ -10,9 +10,9 @@
 # and how to access basic information about calculations.
 # Basic familiarity with the concepts of plane-wave density functional theory
 # is assumed throughout. Feel free to take a look at the
-#md # [density-functional theory](@ref density-functional-theory)
-#nb # [density-functional theory](https://juliamolsim.github.io/DFTK.jl/dev/#density-functional-theory)
-# chapter for some introductory lectures and introductory material on the topic.
+#md # [density-functional theory chapter](@ref density-functional-theory)
+#nb # [density-functional theory chapter](https://juliamolsim.github.io/DFTK.jl/dev/#density-functional-theory)
+# for some introductory material on the topic.
 #
 # !!! note "Convergence parameters in the documentation"
 #     We use rough parameters in order to be able
@@ -27,12 +27,22 @@
 
 using DFTK
 using Plots
+using Unitful
+using UnitfulAtomic
 
 ## 1. Define lattice and atomic positions
-a = 10.26  # Silicon lattice constant in Bohr
+a = 5.431u"angstrom"          # Silicon lattice constant
 lattice = a / 2 * [[0 1 1.];  # Silicon lattice vectors
                    [1 0 1.];  # specified column by column
                    [1 1 0.]]
+
+# By default, all numbers passed as arguments are assumed to be in atomic
+# units.  Quantities such as temperature, energy cutoffs, lattice vectors, and
+# the k-point grid spacing can optionally be annotated with Unitful units,
+# which are automatically converted to the atomic units used internally. For
+# more details, see the [Unitful package
+# documentation](https://painterqubits.github.io/Unitful.jl/stable/) and the
+# [UnitfulAtomic.jl package](https://github.com/sostock/UnitfulAtomic.jl).
 
 ## Load HGH pseudopotential for Silicon
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
@@ -42,8 +52,9 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 ## 2. Select model and basis
 model = model_LDA(lattice, atoms)
-kgrid = [4, 4, 4]  # k-point grid (Regular Monkhorst-Pack grid)
-Ecut = 7           # kinetic energy cutoff in Hartree
+kgrid = [4, 4, 4]     # k-point grid (Regular Monkhorst-Pack grid)
+Ecut = 7              # kinetic energy cutoff
+## Ecut = 190.5u"eV"  # Could also use eV or other energy-compatible units
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 
 ## 3. Run the SCF procedure to obtain the ground state
@@ -67,18 +78,20 @@ hcat(scfres.eigenvalues...)
 # eigensolver gives itself some breathing room by computing some extra
 # states (see `n_ep_extra` argument to `self_consistent_field`).
 #
-# We can check the occupations:
+# We can check the occupations ...
 hcat(scfres.occupation...)
-# And density:
+# ... and density, where we use that the density objects in DFTK are
+# indexed as ρ[iσ, ix, iy, iz], i.e. first in the spin component and then
+# in the 3-dimensional real-space grid.
 rvecs = collect(r_vectors(basis))[:, 1, 1]  # slice along the x axis
 x = [r[1] for r in rvecs]                   # only keep the x coordinate
-plot(x, scfres.ρ.real[:, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
+plot(x, scfres.ρ[1, :, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 
 # We can also perform various postprocessing steps:
 # for instance compute a band structure
-plot_bandstructure(scfres, kline_density=5, unit=:eV)
-# or forces
-forces(scfres)[1]  # Select silicon forces
+plot_bandstructure(scfres, kline_density=5)
+# or get the cartesian forces (in Hartree / Bohr)
+compute_forces_cart(scfres)[1]  # Select silicon forces
 # The `[1]` extracts the forces for the first kind of atoms,
 # i.e. `Si` (silicon) in the setup of the `atoms` list of step 1 above.
 # As expected, they are almost zero in this highly symmetric configuration.

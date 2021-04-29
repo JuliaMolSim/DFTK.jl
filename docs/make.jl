@@ -23,11 +23,16 @@ JLDEPS = [
 ]
 
 # Setup julia dependencies for docs generation if not yet done
+Pkg.activate(@__DIR__)
 if !isfile(joinpath(@__DIR__, "Manifest.toml"))
-    Pkg.activate(@__DIR__)
     Pkg.develop(Pkg.PackageSpec(path=ROOTPATH))
     Pkg.instantiate()
 end
+
+# Setup environment for making plots
+ENV["GKS_ENCODING"] = "utf8"
+ENV["GKSwstype"] = "100"
+ENV["PLOTS_TEST"] = "true"
 
 # Import packages for docs generation
 using DFTK
@@ -102,7 +107,8 @@ makedocs(
         "Getting started" => Any[
             "guide/installation.md",
             "Tutorial" => "guide/tutorial.md",
-            "guide/parallelisation.md",
+            "guide/input_output.md",
+            "guide/parallelization.md",
             "Density-functional theory" => "guide/density_functional_theory.md",
         ],
         "Examples" => EXAMPLES,

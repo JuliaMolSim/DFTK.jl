@@ -1,5 +1,7 @@
 using Primes
 
+# COV_EXCL_START
+
 # 1d Cooley-Tukey FFTs, using an FFTW-like (version 1) approach: automatic
 # generation of fixed-size FFT kernels (with and without twiddle factors)
 # which are combined to make arbitrary-size FFTs (plus generic base
@@ -598,3 +600,5 @@ function fft_factors(T::Type, n::Integer)
     end
     factors
 end
+
+# COV_EXCL_STOP

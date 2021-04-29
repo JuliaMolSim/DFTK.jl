@@ -58,24 +58,50 @@ breaks_symmetries(term_builder::Anyonic) = true
 
 
 # forces computes either nothing or an array forces[el][at][α]
-forces(term::Term, ψ, occ; kwargs...) = nothing  # by default, no force
-@timing function forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
+compute_forces(term::Term, ψ, occ; kwargs...) = nothing  # by default, no force
+
+"""
+Compute the forces of an obtained SCF solution. Returns the forces wrt. the fractional
+lattice vectors. To get cartesian forces use [`compute_forces_cart`](@ref).
+Returns a list of lists of forces
+`[[force for atom in positions] for (element, positions) in atoms]`
+which has the same structure as the `atoms` object passed to the underlying [`Model`](@ref).
+"""
+@timing function compute_forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
     if !any(iszero(kpt.coordinate) for kpt in basis.kpoints)
         @warn "Forces for shifted k-Grids not tested"
     end
 
     # TODO optimize allocs here
     T = eltype(basis)
-    f = [zeros(Vec3{T}, length(positions)) for (type, positions) in basis.model.atoms]
+    forces = [zeros(Vec3{T}, length(positions)) for (element, positions) in basis.model.atoms]
     for term in basis.terms
-        f_term = forces(term, ψ, occ; kwargs...)
+        f_term = compute_forces(term, ψ, occ; kwargs...)
         if !isnothing(f_term)
-            f += f_term
+            forces += f_term
         end
     end
-    f
+    forces
 end
-forces(scfres) = forces(scfres.basis, scfres.ψ, scfres.occupation, ρ=scfres.ρ)
+
+"""
+Compute the cartesian forces of an obtained SCF solution in Hartree / Bohr.
+Returns a list of lists of forces
+`[[force for atom in positions] for (element, positions) in atoms]`
+which has the same structure as the `atoms` object passed to the underlying [`Model`](@ref).
+"""
+function compute_forces_cart(basis::PlaneWaveBasis, ψ, occ; kwargs...)
+    lattice = basis.model.lattice
+    forces = compute_forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
+    [[lattice \ f for f in forces_for_element] for forces_for_element in forces]
+end
+
+function compute_forces(scfres)
+    compute_forces(scfres.basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
+end
+function compute_forces_cart(scfres)
+    compute_forces_cart(scfres.basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
+end
 
 
 @doc raw"""
@@ -87,17 +113,15 @@ For non-spin-polarized calculations the matrix dimension is
 `prod(basis.fft_size)` × `prod(basis.fft_size)` and
 for collinear spin-polarized cases it is
 `2prod(basis.fft_size)` × `2prod(basis.fft_size)`.
-In this case the matrix has effectively 4 blocks, which are:
+In this case the matrix has effectively 4 blocks
 ```math
 \left(\begin{array}{cc}
-    K_{α, \text{tot}} & K_{α, \text{spin}}\\
-    K_{β, \text{tot}} & K_{β, \text{spin}}
+    K_{αα} & K_{αβ}\\
+    K_{βα} & K_{ββ}
 \end{array}\right)
 ```
-i.e. corresponding to a mapping
-``(ρ_\text{tot}, ρ_\text{spin})^T = (ρ_α + ρ_β, ρ_α - ρ_β)^T ↦ (V_α, V_β)^T``.
 """
-function compute_kernel(basis::PlaneWaveBasis{T}; kwargs...) where {T}
+@timing function compute_kernel(basis::PlaneWaveBasis{T}; kwargs...) where {T}
     n_spin = basis.model.n_spin_components
     kernel = zeros(T, n_spin * prod(basis.fft_size), n_spin * prod(basis.fft_size))
     for term in basis.terms
@@ -110,31 +134,26 @@ compute_kernel(::Term; kwargs...) = nothing  # By default no kernel
 
 
 """
-    apply_kernel(basis::PlaneWaveBasis, dρ, dρspin=nothing; kwargs...)
+    apply_kernel(basis::PlaneWaveBasis, dρ; kwargs...)
 
-Computes the potential response to a perturbation `(dρ, dρspin)` in real space.
-Returns the array `[dV_α, dV_β]` for collinear spin-polarized
-calculations, else the array [dV_{tot}].
+Computes the potential response to a perturbation dρ in real space,
+as a 4D (i,j,k,σ) array.
 """
-function apply_kernel(basis::PlaneWaveBasis, dρ, dρspin=nothing;
-                      RPA=false, kwargs...)
+@timing function apply_kernel(basis::PlaneWaveBasis, dρ;
+                              RPA=false, kwargs...)
     n_spin = basis.model.n_spin_components
-    (n_spin == 1) && @assert isnothing(dρspin)
-    (n_spin == 2) && @assert !isnothing(dρspin)
     @assert 1 ≤ n_spin ≤ 2
 
-    dV = [RealFourierArray(basis) for _ in 1:n_spin]
+    dV = zero(dρ)
     for term in basis.terms
         # Skip XC term if RPA is selected
         RPA && term isa TermXc && continue
 
-        dV_term = apply_kernel(term, dρ, dρspin; kwargs...)
+        dV_term = apply_kernel(term, dρ; kwargs...)
         if !isnothing(dV_term)
-            for σ in 1:n_spin
-                dV[σ].real .+= dV_term[σ].real
-            end
+            dV .+= dV_term
         end
     end
     dV
 end
-apply_kernel(::Term, dρ, dρspin; kwargs...) = nothing  # by default, no kernel
+apply_kernel(::Term, dρ; kwargs...) = nothing  # by default, no kernel

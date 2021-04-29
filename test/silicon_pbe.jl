@@ -22,12 +22,13 @@ function run_silicon_pbe(T ;Ecut=5, grid_size=15, spin_polarization=:none, kwarg
 
     fft_size = grid_size * ones(3)
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="pbe", family="hgh"))
-    magmoms = spin_polarization == :collinear ? [Si => zeros(2)] : []
     model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [:gga_x_pbe, :gga_c_pbe],
-                      spin_polarization=spin_polarization, magnetic_moments=magmoms)
+                      spin_polarization=spin_polarization)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
-    run_scf_and_compare(T, basis, ref_pbe, ref_etot; kwargs...)
+    spin_polarization == :collinear && (ref_pbe = vcat(ref_pbe, ref_pbe))
+    run_scf_and_compare(T, basis, ref_pbe, ref_etot;
+                        ρ=guess_density(basis), kwargs...)
 end
 
 
@@ -38,7 +39,7 @@ end
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     @testset "Silicon PBE (large, Float64)" begin
         run_silicon_pbe(Float64, Ecut=25, test_tol=1e-5, n_ignored=0,
-                        grid_size=33, scf_tol=1e-7)
+                        grid_size=33, scf_tol=1e-8)
     end
 end
 
@@ -49,6 +50,6 @@ end
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     @testset "Silicon PBE (large, collinear spin)" begin
         run_silicon_pbe(Float64, Ecut=25, test_tol=1e-5, n_ignored=0, grid_size=33,
-                        scf_tol=1e-7, spin_polarization=:collinear)
+                        scf_tol=1e-8, spin_polarization=:collinear)
     end
 end

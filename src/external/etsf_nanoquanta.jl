@@ -1,8 +1,9 @@
 # Parser functionality for folders adhering to the
 # ETSF Nanoquanta file format, for details see http://www.etsf.eu/fileformats/
 
-using NCDatasets
-using JSON
+export EtsfFolder
+
+import JSON
 
 struct EtsfFolder
     folder
@@ -41,11 +42,7 @@ function EtsfFolder(folder::AbstractString)
 end
 
 
-"""
-Load a DFTK-compatible lattice object from the ETSF folder
-"""
 load_lattice(T, folder::EtsfFolder) = Mat3{T}(folder.gsr["primitive_vectors"][:])
-load_lattice(folder; kwargs...) = load_lattice(Float64, folder; kwargs...)
 
 
 """
@@ -65,7 +62,6 @@ function load_atoms(T, folder::EtsfFolder)
     end
     collect(pairs(atoms))
 end
-load_atoms(folder; kwargs...) = load_atoms(Float64, folder; kwargs...)
 
 
 """
@@ -119,7 +115,6 @@ function load_model(T, folder::EtsfFolder; magnetic_moments=[])
               smearing=smearing_function, temperature=Tsmear,
               spin_polarization=spin_polarization, magnetic_moments=magnetic_moments)
 end
-load_model(folder; kwargs...) = load_model(Float64, folder; kwargs...)
 
 """
 Load a DFTK-compatible basis object from the ETSF folder.
@@ -145,9 +140,9 @@ function load_basis(T, folder::EtsfFolder; magnetic_moments=[])
     @assert kcoords_new ≈ normalize_kpoint_coordinate.(kcoords)
 
     fft_size = size(folder.den["density"])[2:4]
-    PlaneWaveBasis(model, Ecut, kcoords, ksymops, fft_size=fft_size)
+    PlaneWaveBasis(model, Ecut, kcoords, ksymops, fft_size=fft_size,
+                   kgrid=kgrid, kshift=kshift)
 end
-load_basis(folder; kwargs...) = load_basis(Float64, folder; kwargs...)
 
 
 """
@@ -168,7 +163,7 @@ function load_density(T, folder::EtsfFolder; magnetic_moments=[])
         ρtot_real = Array{T}(folder.den["density"][1, :, :, :, 1])
         @assert basis.fft_size == size(ρ_real)
 
-        return from_real(basis, ρtot_real), nothing
+        return ρ_from_total_and_spin(ρtot_real)
     else
         @assert basis.model.spin_polarization == :collinear
         ρtot_real = Array{T}(folder.den["density"][1, :, :, :, 1])
@@ -176,7 +171,6 @@ function load_density(T, folder::EtsfFolder; magnetic_moments=[])
         @assert basis.fft_size == size(ρtot_real)
         @assert basis.fft_size == size(ρα_real)
 
-        return from_real(basis, ρtot_real), from_real(basis, 2ρα_real - ρtot_real)
+        return ρ_from_total_and_spin(ρtot_real, 2ρα_real - ρtot_real)
     end
 end
-load_density(folder; kwargs...) = load_density(Float64, folder; kwargs...)

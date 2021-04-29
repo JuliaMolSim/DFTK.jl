@@ -7,45 +7,29 @@ module DFTK
 using Printf
 using Markdown
 using LinearAlgebra
-using Interpolations
 using Requires
 using TimerOutputs
 using spglib_jll
+using Unitful
+using UnitfulAtomic
 
-include("common/timer.jl")
-include("common/asserting.jl")
-export unit_to_au
-include("common/constants.jl")
-include("common/units.jl")
 export Vec3
 export Mat3
+export mpi_nprocs
+export mpi_master
+export setup_threading, disable_threading
+include("common/timer.jl")
+include("common/asserting.jl")
+include("common/constants.jl")
 include("common/types.jl")
-include("common/check_real.jl")
 include("common/spherical_harmonics.jl")
-export Smearing
-include("Smearing.jl")
+include("common/split_evenly.jl")
+include("common/mpi.jl")
+include("common/threading.jl")
 
-export Model
-export PlaneWaveBasis
-export determine_fft_size
-export G_vectors
-export r_vectors
-export Kpoint
-export G_to_r
-export G_to_r!
-export r_to_G
-export r_to_G!
-export model_atomic
-export model_DFT
-export model_PBE
-export model_LDA
-include("Model.jl")
-include("PlaneWaveBasis.jl")
-
-export RealFourierArray
-export from_real
-export from_fourier
-include("RealFourierArray.jl")
+export PspHgh
+include("pseudo/NormConservingPsp.jl")
+include("pseudo/PspHgh.jl")
 
 export ElementPsp
 export ElementCohenBergstresser
@@ -56,11 +40,22 @@ export n_elec_valence
 export n_elec_core
 include("elements.jl")
 
-export PspHgh
-export eval_psp_local_fourier
-export eval_psp_local_real
-export eval_psp_projection_radial
-include("pseudo/PspHgh.jl")
+export Smearing
+export Model
+export PlaneWaveBasis
+export compute_fft_size
+export G_vectors
+export G_vectors_cart
+export r_vectors
+export r_vectors_cart
+export Kpoint
+export G_to_r
+export G_to_r!
+export r_to_G
+export r_to_G!
+include("Smearing.jl")
+include("Model.jl")
+include("PlaneWaveBasis.jl")
 
 export Energies
 include("energies.jl")
@@ -68,8 +63,8 @@ include("energies.jl")
 export Hamiltonian
 export HamiltonianBlock
 export energy_hamiltonian
-export ene_ops
-export forces
+export compute_forces
+export compute_forces_cart
 export Kinetic
 export ExternalFromFourier
 export ExternalFromReal
@@ -83,96 +78,91 @@ export PspCorrection
 export Entropy
 export Magnetic
 export Anyonic
-export energy_ewald
-export energy_psp_correction
 export apply_kernel
 export compute_kernel
 include("terms/terms.jl")
 
-export fermi_level
-export find_occupation
-export find_occupation_bandgap
 include("occupation.jl")
-
 export compute_density
+export total_density
+export spin_density
+export ρ_from_total_and_spin
 include("densities.jl")
 include("interpolation.jl")
 
 export PreconditionerTPA
 export PreconditionerNone
-include("eigen/preconditioners.jl")
-
 export lobpcg_hyper
-export lobpcg_itsolve
 export diag_full
 export diagonalize_all_kblocks
+include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
-export KerkerMixing
-export SimpleMixing
-export DielectricMixing
-export HybridMixing
-include("scf/mixing.jl")
+export model_atomic
+export model_DFT
+export model_PBE
+export model_LDA
+include("standard_models.jl")
+
+export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing, HybridMixing, χ0Mixing
 export scf_nlsolve_solver
 export scf_damping_solver
 export scf_anderson_solver
 export scf_CROP_solver
-include("scf/scf_solvers.jl")
 export self_consistent_field
-include("scf/self_consistent_field.jl")
 export direct_minimization
+export load_scfres, save_scfres
+include("scf/chi0models.jl")
+include("scf/mixing.jl")
+include("scf/scf_solvers.jl")
+include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
+include("scf/scfres.jl")
 
-#
-# Utilities
-#
-include("symmetry.jl")
+export symmetry_operations
 export standardize_atoms
 export bzmesh_uniform
 export bzmesh_ir_wedge
 export kgrid_size_from_minimal_spacing
+include("symmetry.jl")
 include("bzmesh.jl")
 
-export guess_density, guess_spin_density
-include("guess_density.jl")
+export guess_density
 export load_psp
 export list_psp
+include("guess_density.jl")
 include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
 
 export pymatgen_structure
 export ase_atoms
-export EtsfFolder
 export load_lattice
 export load_basis
 export load_model
 export load_density
 export load_atoms
-include("external/etsf_nanoquanta.jl")
+export load_magnetic_moments
 include("external/abinit.jl")
 include("external/load_from_python.jl")
+include("external/load_from_file.jl")
 include("external/ase.jl")
 include("external/pymatgen.jl")
 
-export high_symmetry_kpath
 export compute_bands
+export high_symmetry_kpath
 export plot_bandstructure
 include("postprocess/band_structure.jl")
 
-export DOS
-export LDOS
-export NOS
+export compute_dos
+export compute_ldos
+export compute_nos
 export plot_dos
-include("postprocess/DOS.jl")
+include("postprocess/dos.jl")
 export compute_χ0
 export apply_χ0
 include("postprocess/chi0.jl")
 export compute_current
 include("postprocess/current.jl")
-
-# Dummy function definitions which are conditionally loaded
-include("dummy_definitions.jl")
-export load_scfres, save_scfres
 
 function __init__()
     # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
@@ -189,7 +179,11 @@ function __init__()
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("fft_generic.jl")
     end
     @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("plotting.jl")
-    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"  include("jld2io.jl")
+    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"  include("external/jld2io.jl")
+    @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" include("external/vtkio.jl")
+    @require NCDatasets="85f8d34a-cbdd-5861-8df4-14fed0d494ab" begin
+        include("external/etsf_nanoquanta.jl")
+    end
 end
 
 end # module DFTK

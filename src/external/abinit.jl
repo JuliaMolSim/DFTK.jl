@@ -65,6 +65,7 @@ and return the `EtsfFolder` object.
 function run_abinit_scf(model::Model, outdir;
                         kgrid, abinitpseudos, Ecut, n_bands, tol=1e-6, kwargs...)
     abilab = pyimport("abipy.abilab")
+    Ecut = austrip(Ecut)
 
     # Would be nice to generate the pseudofiles in ABINIT format on the fly,
     # but not for now. See the function psp10in  in 64_psp/m_psp_hgh.F90

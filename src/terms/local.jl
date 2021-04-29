@@ -6,7 +6,7 @@
 # two spin components.
 abstract type TermLocalPotential <: Term end
 
-function ene_ops(term::TermLocalPotential, ψ, occ; kwargs...)
+@timing "ene_ops: local" function ene_ops(term::TermLocalPotential, ψ, occ; kwargs...)
     basis = term.basis
     T = eltype(basis)
 
@@ -14,8 +14,7 @@ function ene_ops(term::TermLocalPotential, ψ, occ; kwargs...)
     ops = [RealSpaceMultiplication(basis, kpoint, potview(term.potential, kpoint.spin))
            for kpoint in basis.kpoints]
     if :ρ in keys(kwargs)
-        dVol = basis.model.unit_cell_volume / prod(basis.fft_size)
-        E = dVol * sum(kwargs[:ρ].real .* term.potential)
+        E = sum(total_density(kwargs[:ρ]) .* term.potential) * term.basis.dvol
     else
         E = T(Inf)
     end
@@ -95,11 +94,12 @@ function (E::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     TermAtomicLocal(basis, real(pot_real))
 end
 
-@timing "forces_local" function forces(term::TermAtomicLocal, ψ, occ; ρ, kwargs...)
+@timing "forces: local" function compute_forces(term::TermAtomicLocal, ψ, occ; ρ, kwargs...)
     T = eltype(term.basis)
     atoms = term.basis.model.atoms
     recip_lattice = term.basis.model.recip_lattice
     unit_cell_volume = term.basis.model.unit_cell_volume
+    ρ_fourier = r_to_G(term.basis, total_density(ρ))
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
     # where struct_factor(G) = cis(-2π G⋅r)
@@ -109,11 +109,12 @@ end
                         for G in G_vectors(term.basis)]
 
         for (ir, r) in enumerate(positions)
-            forces[iel][ir] = _force_local_internal(term.basis, ρ.fourier, form_factors, r)
+            forces[iel][ir] = _force_local_internal(term.basis, ρ_fourier, form_factors, r)
         end
     end
     forces
 end
+
 # function barrier to work around various type instabilities
 function _force_local_internal(basis, ρ_fourier, form_factors, r)
     T = real(eltype(ρ_fourier))

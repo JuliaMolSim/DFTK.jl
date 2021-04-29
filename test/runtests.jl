@@ -3,7 +3,7 @@ using DFTK
 using Random
 
 #
-# This test suite test arguments. For example:
+# This test suite supports test arguments. For example:
 #     Pkg.test("DFTK"; test_args = ["fast"])
 # only runs the "fast" tests (i.e. not the expensive ones)
 #     Pkg.test("DFTK"; test_args = ["example"])
@@ -27,26 +27,35 @@ else
     println("   Running tests (TAGS = $(join(TAGS, ", "))).")
 end
 
+# Setup threading in DFTK
+setup_threading()
+
 # Initialize seed
 Random.seed!(0)
 
 # Wrap in an outer testset to get a full report if one test fails
 @testset "DFTK.jl" begin
+    # Super quick tests
+    if "all" in TAGS || "quick" in TAGS
+        include("hydrogen_all_electron.jl")
+        include("silicon_lda.jl")
+        include("iron_pbe.jl")
+    end
+
     # Synthetic tests at the beginning, so it fails faster if
     # something has gone badly wrong
     if "all" in TAGS || "functionality" in TAGS
         include("hydrogen_all_electron.jl")
         include("silicon_redHF.jl")
-        include("silicon_lda.jl")
         include("silicon_pbe.jl")
         include("scf_compare.jl")
         include("iron_lda.jl")
-        include("iron_pbe.jl")
         include("oxygen_pbe.jl")
     end
 
     if "all" in TAGS
-        include("determine_fft_size.jl")
+        include("split_evenly.jl")
+        include("compute_fft_size.jl")
         include("fourier_transforms.jl")
         include("PlaneWaveBasis.jl")
         include("interpolation.jl")
@@ -67,11 +76,15 @@ Random.seed!(0)
         include("lobpcg.jl")
         include("diag_compare.jl")
         include("xc_fallback.jl")
-        include("interval_arithmetic.jl")
+
+        # This fails with multiple MPI procs, seems like a race condition
+        # with MPI + DoubleFloats. TODO debug
+        mpi_nprocs() == 1 && include("interval_arithmetic.jl")
     end
 
     if "all" in TAGS
         include("ewald.jl")
+        include("anyons.jl")
         include("energy_nuclear.jl")
         include("occupation.jl")
         include("energies_guess_density.jl")
@@ -85,10 +98,10 @@ Random.seed!(0)
         include("random_spindensity.jl")
         include("chi0.jl")
         include("kernel.jl")
-        include("checkpointing.jl")
+        include("serialisation.jl")
     end
 
-    if "all" in TAGS
+    if "all" in TAGS && mpi_master()
         include("aqua.jl")
     end
 

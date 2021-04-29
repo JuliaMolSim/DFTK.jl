@@ -3,6 +3,7 @@ using DFTK
 
 include("testcases.jl")
 
+if mpi_nprocs() == 1  # not easy to distribute
 @testset "High-symmetry kpath construction for silicon" begin
     testcase = silicon
     Ecut = 2
@@ -106,7 +107,7 @@ include("testcases.jl")
         "U"=>[0.625, 0.25, 0.625],
         "W"=>[0.5, 0.25, 0.75],
         "X"=>[0.5, 0.0, 0.5],
-        "\\Gamma"=>[0.0, 0.0, 0.0],
+        "Γ"=>[0.0, 0.0, 0.0],
         "L"=>[0.5, 0.5, 0.5],
         "K"=>[0.375, 0.375, 0.75]
     )
@@ -140,14 +141,13 @@ end
 
     # Build Hamiltonian just from SAD guess
     ρ0 = guess_density(basis, [spec => testcase.positions])
-    ρspin0 = nothing
-    ham = Hamiltonian(basis; ρ=ρ0, ρspin=ρspin0)
+    ham = Hamiltonian(basis; ρ=ρ0)
 
     # Check that plain diagonalization and compute_bands agree
     eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands + 3, n_conv_check=n_bands,
                                      tol=1e-5)
 
-    band_data = compute_bands(basis, ρ0, ρspin0, [k.coordinate for k in basis.kpoints], n_bands)
+    band_data = compute_bands(basis, ρ0, [k.coordinate for k in basis.kpoints], n_bands)
     for ik in 1:length(basis.kpoints)
         @test eigres.λ[ik][1:n_bands] ≈ band_data.λ[ik] atol=1e-5
     end
@@ -174,7 +174,7 @@ end
     ]
     ksymops = [[DFTK.identity_symop()] for _ in 1:length(kcoords)]
     basis = PlaneWaveBasis(model, 5, kcoords, ksymops)
-    klabels = Dict(raw"\Gamma" => [0, 0, 0], "X" => [0.5, 0.0, 0.5],
+    klabels = Dict("Γ" => [0, 0, 0], "X" => [0.5, 0.0, 0.5],
                    "W" => [0.5, 0.25, 0.75], "U" => [0.625, 0.25, 0.625])
 
     # Setup some dummy data
@@ -183,36 +183,47 @@ end
 
     ret = DFTK.prepare_band_data((basis=basis, λ=λ, λerror=λerror), klabels=klabels)
 
-    @test ret.spins == [:up]
-    @test ret.n_branches == 3
-    @test ret.n_bands == 4
+    @test ret.n_spin   == 1
+    @test ret.n_kcoord == 9
+    @test ret.n_bands  == 4
+
+    @test ret.branches[1].kindices == [1, 2, 3]
+    @test ret.branches[2].kindices == [4, 5, 6]
+    @test ret.branches[3].kindices == [7, 8, 9]
+
+    @test ret.branches[1].klabels == ("Γ", "X")
+    @test ret.branches[2].klabels == ("X", "W")
+    @test ret.branches[3].klabels == ("U", "X")
 
     for iband in 1:4
-        @test ret.λ[1][:up][iband, :] == [10ik .+ iband for ik in 1:3]
-        @test ret.λ[2][:up][iband, :] == [10ik .+ iband for ik in 4:6]
-        @test ret.λ[3][:up][iband, :] == [10ik .+ iband for ik in 7:9]
+        @test ret.branches[1].λ[:, iband, 1] == [10ik .+ iband for ik in 1:3]
+        @test ret.branches[2].λ[:, iband, 1] == [10ik .+ iband for ik in 4:6]
+        @test ret.branches[3].λ[:, iband, 1] == [10ik .+ iband for ik in 7:9]
 
-        @test ret.λerror[1][:up][iband, :] == ret.λ[1][:up][iband, :] ./ 100
-        @test ret.λerror[2][:up][iband, :] == ret.λ[2][:up][iband, :] ./ 100
-        @test ret.λerror[3][:up][iband, :] == ret.λ[3][:up][iband, :] ./ 100
+        for ibr in 1:3
+            @test ret.branches[ibr].λerror[:, iband, 1] == ret.branches[ibr].λ[:, iband, 1] ./ 100
+        end
     end
 
     B = model.recip_lattice
-    ref_distances = zeros(3, 3)  # row idx is kpoint, col idx is branch,
+    ref_kdist = zeros(3, 3)  # row idx is kpoint, col idx is branch,
     ikpt = 1
     for ibr in 1:3
-        ibr != 1 && (ref_distances[1, ibr] = ref_distances[end, ibr-1])
+        ibr != 1 && (ref_kdist[1, ibr] = ref_kdist[end, ibr-1])
         ikpt += 1
         for ik in 2:3
-            ref_distances[ik, ibr] = (
-                ref_distances[ik-1, ibr] + norm(B * (kcoords[ikpt-1] - kcoords[ikpt]))
+            ref_kdist[ik, ibr] = (
+                ref_kdist[ik-1, ibr] + norm(B * (kcoords[ikpt-1] - kcoords[ikpt]))
             )
             ikpt += 1
         end
     end
     for ibr in 1:3
-        @test ret.kdistances[ibr] == ref_distances[:, ibr]
+        @test ret.branches[ibr].kdistances == ref_kdist[:, ibr]
     end
+
+    @test ret.ticks.labels == ["Γ", "X", "W | U", "X"]
+    @test ret.ticks.distances == [0.0, ref_kdist[end, 1], ref_kdist[end, 2], ref_kdist[end, 3]]
 end
 
 @testset "is_metal" begin
@@ -225,4 +236,5 @@ end
 
     @test !DFTK.is_metal((λ=λ, basis=basis), 2.5)
     @test DFTK.is_metal((λ=λ, basis=basis), 3.2)
+end
 end

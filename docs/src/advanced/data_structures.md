@@ -149,7 +149,7 @@ Again the function is normalised:
 
 ```@example data_structures
 ψreal = G_to_r(basis, basis.kpoints[1], ψtest)
-sum(abs2.(ψreal)) * model.unit_cell_volume / prod(basis.fft_size)
+sum(abs2.(ψreal)) * basis.dvol
 ```
 
 The list of ``k`` points of the basis can be obtained with `basis.kpoints`.
@@ -197,21 +197,18 @@ Wavefunctions are stored in an array `scfres.ψ` as `ψ[ik][iG, iband]` where
 `ik` is the index of the kpoint (in `basis.kpoints`), `iG` is the
 index of the plane wave (in `G_vectors(basis.kpoints[ik])`) and
 `iband` is the index of the band.
-Densities are usually stored in a
-special type, `RealFourierArray`, from which the representation in
-real and reciprocal space can be accessed using `ρ.real` and
-`ρ.fourier` respectively.
+Densities are stored in real space, as a 4-dimensional array (the third being the spin component).
 
 ```@example data_structures
 using Plots  # hide
 rvecs = collect(r_vectors(basis))[:, 1, 1]  # slice along the x axis
 x = [r[1] for r in rvecs]                   # only keep the x coordinate
-plot(x, scfres.ρ.real[:, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
+plot(x, scfres.ρ[:, 1, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 ```
 
 ```@example data_structures
 G_energies = [sum(abs2.(model.recip_lattice * G)) ./ 2 for G in G_vectors(basis)][:]
-scatter(G_energies, abs.(scfres.ρ.fourier[:]);
+scatter(G_energies, abs.(r_to_G(basis, scfres.ρ)[:]);
         yscale=:log10, ylims=(1e-12, 1), label="", xlabel="Energy", ylabel="|ρ|^2")
 ```
 
