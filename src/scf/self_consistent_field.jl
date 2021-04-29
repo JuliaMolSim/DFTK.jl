@@ -119,7 +119,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 
         # Apply mixing and pass it the full info as kwargs
         δρ = mix(mixing, basis, ρout - ρin; info...)
-        ρnext = ρin .+ α .* δρ
+        ρnext = ρin .+ T(α) .* δρ
         if enforce_symmetry
             ρnext = DFTK.symmetrize(basis, ρnext)
         end
