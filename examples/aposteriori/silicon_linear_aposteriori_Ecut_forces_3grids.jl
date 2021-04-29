@@ -48,7 +48,7 @@ f_ref = forces(scfres_ref)
 
 ## min and max Ecuts for the two grid solution
 Ecut_min = 5
-Ecut_max = 40
+Ecut_max = 80
 
 Ecut_list = Ecut_min:5:Ecut_max
 K = length(Ecut_list)
