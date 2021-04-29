@@ -63,7 +63,7 @@ function plot_callback(info)
     if info.stage == :finalize
         plot!(p, density_differences, label="|ρout - ρin|", markershape=:x)
     else
-        push!(density_differences, norm(info.ρout.real - info.ρin.real))
+        push!(density_differences, norm(info.ρout - info.ρin))
     end
     info
 end

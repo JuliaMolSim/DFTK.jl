@@ -38,4 +38,4 @@ model = Model(lattice; n_electrons=n_electrons,
               terms=terms, spin_polarization=:spinless)  # "spinless electrons"
 basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1))
 scfres = direct_minimization(basis, tol=1e-5)  # Reduce tol for production
-heatmap(scfres.ρ.real[:, :, 1], c=:blues)
+heatmap(scfres.ρ[:, :, 1, 1], c=:blues)

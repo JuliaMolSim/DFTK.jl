@@ -15,13 +15,13 @@ include("testcases.jl")
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     # Run nlsolve without guess
-    ρ0 = RealFourierArray(basis)  # RFA of zeros
-    ρ_nl = self_consistent_field(basis; ρ=ρ0, tol=tol).ρ.fourier
+    ρ0 = zeros(basis.fft_size..., 1)
+    ρ_nl = self_consistent_field(basis; ρ=ρ0, tol=tol).ρ
 
     # Run DM
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Direct minimization" begin
-            ρ_dm = direct_minimization(basis; g_tol=tol).ρ.fourier
+            ρ_dm = direct_minimization(basis; g_tol=tol).ρ
             @test maximum(abs.(ρ_dm - ρ_nl)) < sqrt(tol) / 10
         end
     end
@@ -31,13 +31,13 @@ include("testcases.jl")
     for solver in (scf_nlsolve_solver(), scf_damping_solver(1.2), scf_anderson_solver(),
                    scf_CROP_solver())
         @testset "Testing $solver" begin
-            ρ_alg = self_consistent_field(basis; ρ=ρ0, solver=solver, tol=tol).ρ.fourier
+            ρ_alg = self_consistent_field(basis; ρ=ρ0, solver=solver, tol=tol).ρ
             @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
         end
     end
 
     @testset "Enforce symmetry" begin
-        ρ_alg = self_consistent_field(basis; ρ=ρ0, tol=tol, enforce_symmetry=true).ρ.fourier
+        ρ_alg = self_consistent_field(basis; ρ=ρ0, tol=tol, enforce_symmetry=true).ρ
         @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
     end
 
@@ -46,7 +46,7 @@ include("testcases.jl")
                    KerkerDosMixing(), HybridMixing(), HybridMixing(εr=10, RPA=false),
                    χ0Mixing(χ0terms=[Applyχ0Model()], RPA=true))
         @testset "Testing $mixing" begin
-            ρ_alg = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol).ρ.fourier
+            ρ_alg = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol).ρ
             @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
         end
     end
@@ -66,11 +66,11 @@ end
 
     # Reference: Default algorithm
     ρ0    = guess_density(basis)
-    ρ_ref = self_consistent_field(basis, ρ=ρ0, tol=tol).ρ.fourier
+    ρ_ref = self_consistent_field(basis, ρ=ρ0, tol=tol).ρ
 
     for mixing in (KerkerDosMixing(), HybridMixing(RPA=true), HybridMixing(εr=10, RPA=false), )
         @testset "Testing $mixing" begin
-            ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol).ρ.fourier
+            ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol).ρ
             @test maximum(abs.(ρ_mix - ρ_ref)) < sqrt(tol)
         end
     end
@@ -89,20 +89,17 @@ end
                       temperature=0.01, magnetic_moments=magnetic_moments,
                       spin_polarization=:collinear)
     basis = PlaneWaveBasis(model, Ecut; fft_size=fft_size, kgrid=[3, 3, 3])
-    ρspin0 = guess_spin_density(basis, magnetic_moments)
 
     # Reference: Default algorithm
     ρ0     = guess_density(basis)
-    scfres = self_consistent_field(basis, ρ=ρ0, ρspin=ρspin0, tol=tol)
-    ρspin_ref = scfres.ρspin.fourier
-    ρ_ref     = scfres.ρ.fourier
+    scfres = self_consistent_field(basis, ρ=ρ0, tol=tol)
+    ρ_ref = scfres.ρ
 
     for mixing in (KerkerMixing(), KerkerDosMixing(α=1.0), DielectricMixing(εr=10),
                    HybridMixing(εr=10), χ0Mixing(χ0terms=[Applyχ0Model()], RPA=false),)
         @testset "Testing $mixing" begin
-            scfres = self_consistent_field(basis; ρ=ρ0, ρspin=ρspin0, mixing=mixing, tol=tol)
-            @test maximum(abs.(scfres.ρ.fourier     - ρ_ref    )) < sqrt(tol)
-            @test maximum(abs.(scfres.ρspin.fourier - ρspin_ref)) < sqrt(tol)
+            scfres = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol)
+            @test maximum(abs.(scfres.ρ - ρ_ref)) < sqrt(tol)
         end
     end
 end

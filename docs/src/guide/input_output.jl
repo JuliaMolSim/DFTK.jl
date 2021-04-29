@@ -44,10 +44,10 @@ atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="pbe")) => pos
 
 # Finally we run the calculation.
 
-model  = model_LDA(lattice, atoms, magnetic_moments=magnetic_moments, temperature=0.01)
-basis  = PlaneWaveBasis(model, 10; kgrid=(2, 2, 2))
-ρspin  = guess_spin_density(basis, magnetic_moments)
-scfres = self_consistent_field(basis, tol=1e-4, ρspin=ρspin, mixing=KerkerMixing());
+model = model_LDA(lattice, atoms, magnetic_moments=magnetic_moments, temperature=0.01)
+basis = PlaneWaveBasis(model, 10; kgrid=(2, 2, 2))
+ρ0 = guess_density(basis, magnetic_moments)
+scfres = self_consistent_field(basis, tol=1e-4, ρ=ρ0, mixing=KerkerMixing());
 
 # !!! note "DFTK and ASE"
 #     DFTK also supports using ASE to setup a calculation

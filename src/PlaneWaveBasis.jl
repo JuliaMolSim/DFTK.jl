@@ -15,7 +15,7 @@ eg collinear spin is treated by doubling the number of kpoints.
 struct Kpoint{T <: Real}
     model::Model{T}               # TODO Should be only lattice/atoms
     spin::Int                     # Spin component can be 1 or 2 as index into what is
-    #                             # returned by the `spin_components` function
+                                  # returned by the `spin_components` function
     coordinate::Vec3{T}           # Fractional coordinate of k-Point
     coordinate_cart::Vec3{T}      # Cartesian coordinate of k-Point
     mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
@@ -77,6 +77,8 @@ struct PlaneWaveBasis{T <: Real}
     # fft_size defines both the G basis on which densities and
     # potentials are expanded, and the real-space grid
     fft_size::Tuple{Int, Int, Int}
+    # factor for integrals in real space: sum(ρ) * dvol ~ ∫ρ
+    dvol::T  # = model.unit_cell_volume ./ prod(fft_size)
 
     # Plans for forward and backward FFT
     # These plans follow DFTK conventions (see above)
@@ -228,10 +230,12 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     # Create dummy terms array for basis to handle
     terms = Vector{Any}(undef, length(model.term_types))
 
+    dvol = model.unit_cell_volume ./ prod(fft_size)
+
     basis = PlaneWaveBasis{T}(
         model, Ecut, variational, kpoints,
         kweights, ksymops, kgrid, kshift, comm_kpts, krange_thisproc, krange_allprocs,
-        fft_size, opFFT, ipFFT, opIFFT, ipIFFT,
+        fft_size, dvol, opFFT, ipFFT, opIFFT, ipIFFT,
         opFFT_unnormalized, ipFFT_unnormalized, opBFFT_unnormalized, ipBFFT_unnormalized,
         terms, symmetries)
     @assert length(kpoints) == length(kweights)
@@ -400,8 +404,16 @@ Perform an iFFT to obtain the quantity defined by `f_fourier` defined
 on the k-dependent spherical basis set (if `kpt` is given) or the
 k-independent cubic (if it is not) on the real-space grid.
 """
-function G_to_r(basis::PlaneWaveBasis, f_fourier::AbstractArray3)
-    G_to_r!(similar(f_fourier), basis, f_fourier)
+function G_to_r(basis::PlaneWaveBasis, f_fourier::AbstractArray; assume_real=true)
+    # assume_real is true by default because this is the most common usage
+    # (for densities & potentials)
+    f_real = similar(f_fourier)
+    @assert length(size(f_fourier)) ∈ (3, 4)
+    # this exploits trailing index convention
+    for iσ = 1:size(f_fourier, 4)
+        @views G_to_r!(f_real[:, :, :, iσ], basis, f_fourier[:, :, :, iσ])
+    end
+    assume_real ? real(f_real) : f_real
 end
 function G_to_r(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector)
     G_to_r!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier)
@@ -416,6 +428,9 @@ NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
 """
 @timing_seq function r_to_G!(f_fourier::AbstractArray3, basis::PlaneWaveBasis,
                              f_real::AbstractArray3)
+    if isreal(f_real)
+        f_real = complex.(f_real)
+    end
     mul!(f_fourier, basis.opFFT, f_real)
 end
 @timing_seq function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
@@ -438,8 +453,14 @@ Perform an FFT to obtain the Fourier representation of `f_real`. If
 `kpt` is given, the coefficients are truncated to the k-dependent
 spherical basis set.
 """
-function r_to_G(basis::PlaneWaveBasis, f_real::AbstractArray3)
-    r_to_G!(similar(f_real), basis, f_real)
+function r_to_G(basis::PlaneWaveBasis, f_real::AbstractArray)
+    f_fourier = similar(f_real, complex(eltype(f_real)))
+    @assert length(size(f_real)) ∈ (3, 4)
+    # this exploits trailing index convention
+    for iσ = 1:size(f_real, 4)
+        @views r_to_G!(f_fourier[:, :, :, iσ], basis, f_real[:, :, :, iσ])
+    end
+    f_fourier
 end
 # TODO optimize this
 function r_to_G(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3)

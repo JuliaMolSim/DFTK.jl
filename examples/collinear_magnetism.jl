@@ -56,10 +56,10 @@ magnetic_moments = [Fe => [4, ]];
 # We repeat the calculation using the same model as before. DFTK now detects
 # the non-zero moment and switches to a collinear calculation.
 
-model  = model_LDA(lattice, atoms, magnetic_moments=magnetic_moments, temperature=0.01)
-basis  = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
-ρspin  = guess_spin_density(basis, magnetic_moments)
-scfres = self_consistent_field(basis, tol=1e-6, ρspin=ρspin, mixing=KerkerMixing());
+model = model_LDA(lattice, atoms, magnetic_moments=magnetic_moments, temperature=0.01)
+basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+ρ0 = guess_density(basis, magnetic_moments)
+scfres = self_consistent_field(basis, tol=1e-6; ρ=ρ0, mixing=KerkerMixing());
 #-
 scfres.energies
 
