@@ -78,7 +78,7 @@ and are placed at `position` (in fractional coordinates).
 """
 function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
     ρ = zeros(complex(T), basis.fft_size)
-    isempty(gaussians) && return from_fourier(basis, ρ)
+    isempty(gaussians) && return G_to_r(basis, ρ)
 
     # Fill ρ with the (unnormalized) Fourier transform, i.e. ∫ e^{-iGx} f(x) dx,
     # where f(x) is a weighted gaussian
