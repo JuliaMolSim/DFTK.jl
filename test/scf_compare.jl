@@ -42,11 +42,11 @@ include("testcases.jl")
     end
 
     # Run other mixing with default solver (the others are too slow...)
-    for mixing in (KerkerMixing(), SimpleMixing(), SimpleMixing(.5), DielectricMixing(εr=12),
+    for mixing in (KerkerMixing(), SimpleMixing(), DielectricMixing(εr=12),
                    KerkerDosMixing(), HybridMixing(), HybridMixing(εr=10, RPA=false),
                    χ0Mixing(χ0terms=[Applyχ0Model()], RPA=true))
         @testset "Testing $mixing" begin
-            ρ_alg = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol).ρ
+            ρ_alg = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol, α=0.8).ρ
             @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
         end
     end
@@ -70,7 +70,7 @@ end
 
     for mixing in (KerkerDosMixing(), HybridMixing(RPA=true), HybridMixing(εr=10, RPA=false), )
         @testset "Testing $mixing" begin
-            ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol).ρ
+            ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol, α=0.8).ρ
             @test maximum(abs.(ρ_mix - ρ_ref)) < sqrt(tol)
         end
     end
@@ -95,10 +95,10 @@ end
     scfres = self_consistent_field(basis, ρ=ρ0, tol=tol)
     ρ_ref = scfres.ρ
 
-    for mixing in (KerkerMixing(), KerkerDosMixing(α=1.0), DielectricMixing(εr=10),
+    for mixing in (KerkerMixing(), KerkerDosMixing(), DielectricMixing(εr=10),
                    HybridMixing(εr=10), χ0Mixing(χ0terms=[Applyχ0Model()], RPA=false),)
         @testset "Testing $mixing" begin
-            scfres = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol)
+            scfres = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol, α=0.8)
             @test maximum(abs.(scfres.ρ - ρ_ref)) < sqrt(tol)
         end
     end
