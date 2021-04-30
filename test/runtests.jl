@@ -51,6 +51,7 @@ Random.seed!(0)
         include("scf_compare.jl")
         include("iron_lda.jl")
         include("oxygen_pbe.jl")
+        include("external_potential.jl")
     end
 
     if "all" in TAGS
