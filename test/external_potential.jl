@@ -2,19 +2,13 @@ using DFTK
 using Test
 
 @testset "Externel potential from Fourier coefficients" begin
-    function pot(G)
-        if G == 0
-            return 0.0
-        else
-            1. / (abs(G))
-        end
-    end
+    pot(G) = G == 0 ? zero(G) : 1 / abs(G)
 
     a = 10
-    lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]];
+    lattice = a * [[1 0 0.]; [0 0 0]; [0 0 0]]
 
-    C = 1.0
-    α = 2;
+    C = 1
+    α = 2
 
     n_electrons = 1
     terms = [Kinetic(),
@@ -22,7 +16,7 @@ using Test
              PowerNonlinearity(C, α),
     ]
     model = Model(lattice; n_electrons=n_electrons, terms=terms,
-                  spin_polarization=:spinless);  # use "spinless electrons"
+                  spin_polarization=:spinless)  # use "spinless electrons"
 
     Ecut = 15
     basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1))
