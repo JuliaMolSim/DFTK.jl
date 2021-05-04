@@ -1,7 +1,7 @@
 using SpecialFunctions: besselj
 using Interpolations: interpolate, Gridded, Linear
 using Plots: plot, plot!
-using QuadGK: quadgk
+using QuadGK: quadgk, quadgk!, gauss
 import PeriodicTable
 using BenchmarkTools: @benchmark
 
@@ -143,9 +143,16 @@ eval_psp_local_real(psp::PspTm, r::T) where {T <: Real} = interpolate((psp.radia
 Local potential in inverse space. Calculated with the Hankel transformation: 4π∫(\frac{sin(2π q r)}{2π q r})(r^2 v(r)+r Zv)dr.
 """
 function eval_psp_local_fourier(psp::PspTm, q::T) where {T <: Real} #This is increadibly slow
-    j0(r) = sin(2π * q * r)/(2π * q * r)
-    f(r) = j0(r) * r * (r * eval_psp_local_real(psp,r) + psp.Zion)
-    return 4π * quadgk(f, psp.radialGrid[1],psp.radialGrid[end]; order = 17, rtol = 1e0)[1]
+    j0(r) = sin(2π * q * r)/(2π * q)
+    f(r) = j0(r) * (r * eval_psp_local_real(psp,r) + psp.Zion)
+    return 4π * quadgk(f, psp.radialGrid[1],psp.radialGrid[end]; order = 17, rtol = 1e-8)[1]
+end
+
+function approx(psp,q,N)
+    W(r) = sin(2π * q * r)/(2π * q)
+    g(r) = r * eval_psp_local_real(psp,r) + psp.Zion
+    r,w = gauss(N,psp.radialGrid[1], psp.radialGrid[end])
+    return dot(W.(r),w)
 end
 
 """
@@ -160,8 +167,7 @@ end
 function eval_psp_energy_correction(psp::PspTm,r::T,angularMomentum::Int) where {T <: Real} #From https://github.com/abinit/abinit/blob/master/src/64_psp/m_psp1.F90 Line: 658 in the psp1nl function
     f(r) = (eval_pseudoWaveFunction_real(psp,projector,angularMomentum,r) * eval_psp_semilocal_real(r)
     )^2
-    integral, err = quadgk(f, psp.radialGrid[1], psp.radialGrid[end]; rtol = 1e0)
-    return integral
+    return first(quadgk(f, psp.radialGrid[1], psp.radialGrid[end]; rtol = 1e-1))
 end
 
 #This is the normalizer that ABINIT uses for their nonlocal K-B potential
@@ -169,7 +175,7 @@ end
 function normalizer(psp, projector, angularMomentum)
     #The normalizer should have a square root, but it will be squared later on.
     angularMomentum == psp.lloc && (return 1.0)
-    return quadgk(x -> (eval_pseudoWaveFunction_real(psp,projector,angularMomentum,x) * eval_psp_semilocal_real(psp,x,angularMomentum))^2, psp.radialGrid[1], psp.radialGrid[end]; rtol = 1e0) |> first
+    return quadgk(x -> (eval_pseudoWaveFunction_real(psp,projector,angularMomentum,x) * eval_psp_semilocal_real(psp,x,angularMomentum))^2, psp.radialGrid[1], psp.radialGrid[end]; rtol = 1e-1) |> first
 end
 
 
@@ -198,5 +204,5 @@ function eval_psp_projector_fourier(psp::PspTm, projector::Int, angularMomentum:
     else
         besselj(angularMomentum-1,x(r)) - (angularMomentum+1) * besselj(angularMomentum,x(r))/x(r)
     end
-    return quadgk(r -> 2π * rDependencies(r) * bess(r), psp.radialGrid[1], psp.radialGrid[end]; rtol = 1e0)|>first#, atol = 1e0)|> first
+    return quadgk(r -> 2π * rDependencies(r) * bess(r), psp.radialGrid[1], psp.radialGrid[end]; rtol = 1e-1)|>first#, atol = 1e0)|> first
 end
