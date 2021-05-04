@@ -80,10 +80,17 @@ function (E::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # and a structure factor e^{-i Gr}
 
     pot_fourier = zeros(Complex{T}, basis.fft_size)
+    time1 = time()
+    preNorm = (G -> model.recip_lattice * G).(G_vectors(basis))
     for (iG, G) in enumerate(G_vectors(basis))
+        if G[1:2] == [-1,-1]
+            # @show @__LINE__, iG, G, time()-time1
+            time1 = time()
+        end
         pot = zero(T)
         for (elem, positions) in model.atoms
-            form_factor::T = local_potential_fourier(elem, norm(model.recip_lattice * G))
+            # form_factor::T = local_potential_fourier(elem, norm(model.recip_lattice * G))
+            form_factor::T = local_potential_fourier(elem, preNorm[iG])
             for r in positions
                 pot += cis(-2T(π) * dot(G, r)) * form_factor
             end
