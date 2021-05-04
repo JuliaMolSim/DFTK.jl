@@ -30,7 +30,7 @@ using StaticArrays
     @test sum(length(vals) for vals in psp.pseudoPotentials) ≈ 4 * 2001
     @test sum(length(vals) for vals in psp.projectorVals[1]) ≈ 4 * 2001
     @test isempty(psp.projectorVals[2])
-    @test length(psp.h[1,:]) = 4
+    @test size(psp.h) == (2,4)
 end
 
 # plt = plot(psp.radialGrid, x -> eval_psp_semilocal_real(psp,x,0))
@@ -84,17 +84,20 @@ psp = parse_tm_file("dev/DFTK/data/psp/tm/lda/si-q4.pspnc")
 
 # display(@benchmark eval_psp_local_fourier(psp, norm([-12,15,3])))
 
-@testset "Comparing Pseudopotential against known TM pseudopotentials" begin
-    Si = ElementPsp(14,:Si,parse_tm_file("dev/DFTK/data/psp/tm/lda/si-q4.pspnc"))
-    lattice = austrip(0.5431u"nm") / 2 * [  [0 1 1.];
-                                        [1 0 1.];
-                                        [1 1 0.]]
-    atoms = [Si => [ones(3)/8, -ones(3)/8]]
-    model = model_LDA(lattice,atoms; temperature = austrip(300u"K"))
-    kgrid = [4,4,4]
-    Ecut = 20
-    basis = PlaneWaveBasis(model, Ecut; kgrid = kgrid)
-    scfres = self_consistent_field(basis)
-    @show scfres.energies.total
-    scfres.energies.total ≈ -8.87
-end
+# @testset "Comparing Pseudopotential against known TM pseudopotentials" begin
+#     Si = ElementPsp(14,:Si,parse_tm_file("dev/DFTK/data/psp/tm/lda/si-q4.pspnc"))
+#     lattice = austrip(0.5431u"nm") / 2 * [  [0 1 1.];
+#                                         [1 0 1.];
+#                                         [1 1 0.]]
+#     atoms = [Si => [ones(3)/8, -ones(3)/8]]
+#     model = model_LDA(lattice,atoms; temperature = austrip(300u"K"))
+#     kgrid = [4,4,4]
+#     Ecut = 20
+#     basis = PlaneWaveBasis(model, Ecut; kgrid = kgrid)
+#     scfres = self_consistent_field(basis)
+#     @show scfres.energies.total
+#     scfres.energies.total ≈ -8.87
+# end
+
+@show eval_psp_local_fourier(psp,10)
+@show approx(psp,10,700)
