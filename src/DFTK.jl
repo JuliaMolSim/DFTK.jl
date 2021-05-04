@@ -42,6 +42,7 @@ export eval_psp_projector_real
 export eval_psp_projector_fourier
 export eval_psp_energy_correction
 export normalizer
+export approx
 include("pseudo/PspTm.jl")
 
 export ElementPsp
