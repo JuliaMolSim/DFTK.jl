@@ -141,14 +141,13 @@ end
 
     # Build Hamiltonian just from SAD guess
     ρ0 = guess_density(basis, [spec => testcase.positions])
-    ρspin0 = nothing
-    ham = Hamiltonian(basis; ρ=ρ0, ρspin=ρspin0)
+    ham = Hamiltonian(basis; ρ=ρ0)
 
     # Check that plain diagonalization and compute_bands agree
     eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands + 3, n_conv_check=n_bands,
                                      tol=1e-5)
 
-    band_data = compute_bands(basis, ρ0, ρspin0, [k.coordinate for k in basis.kpoints], n_bands)
+    band_data = compute_bands(basis, ρ0, [k.coordinate for k in basis.kpoints], n_bands)
     for ik in 1:length(basis.kpoints)
         @test eigres.λ[ik][1:n_bands] ≈ band_data.λ[ik] atol=1e-5
     end

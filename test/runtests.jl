@@ -47,12 +47,11 @@ Random.seed!(0)
     if "all" in TAGS || "functionality" in TAGS
         include("hydrogen_all_electron.jl")
         include("silicon_redHF.jl")
-        include("silicon_lda.jl")
         include("silicon_pbe.jl")
         include("scf_compare.jl")
         include("iron_lda.jl")
-        include("iron_pbe.jl")
         include("oxygen_pbe.jl")
+        include("external_potential.jl")
     end
 
     if "all" in TAGS
@@ -101,7 +100,7 @@ Random.seed!(0)
         include("random_spindensity.jl")
         include("chi0.jl")
         include("kernel.jl")
-        include("checkpointing.jl")
+        include("serialisation.jl")
     end
 
     if "all" in TAGS && mpi_master()

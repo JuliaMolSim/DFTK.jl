@@ -60,8 +60,8 @@ model = Model(lattice; atoms=atoms, n_electrons=n_electrons, terms=terms,
 # a starting density and we choose to start from a zero density.
 Ecut = 500
 basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1))
-ρ = zeros(complex(eltype(basis)), basis.fft_size)
-scfres = self_consistent_field(basis, tol=1e-8, ρ=from_fourier(basis, ρ))
+ρ = zeros(eltype(basis), basis.fft_size..., 1)
+scfres = self_consistent_field(basis, tol=1e-8, ρ=ρ)
 scfres.energies
 # Computing the forces can then be done as usual:
 hcat(compute_forces(scfres)...)
@@ -70,7 +70,7 @@ hcat(compute_forces(scfres)...)
 tot_local_pot = DFTK.total_local_potential(scfres.ham)[:, 1, 1]; # use only dimension 1
 
 # Extract other quantities before plotting them
-ρ = real(scfres.ρ.real)[:, 1, 1]  # converged density
+ρ = scfres.ρ[:, 1, 1, 1]  # converged density, first spin component
 ψ_fourier = scfres.ψ[1][:, 1];    # first kpoint, all G components, first eigenvector
 ψ = G_to_r(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1]
 ψ /= (ψ[div(end, 2)] / abs(ψ[div(end, 2)]));

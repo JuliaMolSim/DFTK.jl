@@ -1,7 +1,7 @@
 name = "DFTK"
 uuid = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
 authors = ["Michael F. Herbst <info@michael-herbst.com>", "Antoine Levitt <antoine.levitt@inria.fr>"]
-version = "0.2.4"
+version = "0.2.8"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -49,12 +49,12 @@ JSON = "0.21"
 Libxc = "0.3"
 LineSearches = "7"
 LinearMaps = "2, 3"
-MPI = "0.15, 0.16"
+MPI = "0.15, 0.16, 0.17"
 NLsolve = "4"
 Optim = "1"
 OrderedCollections = "1"
 PeriodicTable = "1"
-Polynomials = "1"
+Polynomials = "1, 2"
 Primes = "0.4, 0.5"
 ProgressMeter = "1"
 PyCall = "1"
@@ -65,7 +65,7 @@ StaticArrays = "0.12, 1"
 TimerOutputs = "0.5.6"
 Unitful = "1"
 UnitfulAtomic = "1"
-julia = "1.4"
+julia = "1.6"
 spglib_jll = "1.15"
 
 [extras]
@@ -78,6 +78,7 @@ KrylovKit = "0b1a1467-8014-51b9-945f-bf0ae24f4b77"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [targets]
-test = ["Test", "Aqua", "DoubleFloats", "GenericLinearAlgebra", "IntervalArithmetic", "Plots", "Random", "KrylovKit", "JLD2"]
+test = ["Test", "Aqua", "DoubleFloats", "GenericLinearAlgebra", "IntervalArithmetic", "Plots", "Random", "KrylovKit", "JLD2", "WriteVTK"]

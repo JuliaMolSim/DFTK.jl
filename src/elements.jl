@@ -104,18 +104,18 @@ or an element name (e.g. `"silicon"`)
 function ElementCohenBergstresser(key; lattice_constant=nothing)
     # Form factors from Cohen-Bergstresser paper Table 2, converted to Bohr
     # Lattice constants from Table 1, converted to Bohr
-    data = Dict(:Si => (form_factors=Dict( 3 => -0.21 * units.Ry,
-                                           8 =>  0.04 * units.Ry,
-                                          11 =>  0.08 * units.Ry),
-                        lattice_constant=5.43 * units.Ǎ),
-                :Ge => (form_factors=Dict( 3 => -0.23 * units.Ry,
-                                           8 =>  0.01 * units.Ry,
-                                          11 =>  0.06 * units.Ry),
-                        lattice_constant=5.66 * units.Ǎ),
-                :Sn => (form_factors=Dict( 3 => -0.20 * units.Ry,
-                                           8 =>  0.00 * units.Ry,
-                                          11 =>  0.04 * units.Ry),
-                        lattice_constant=6.49 * units.Ǎ),
+    data = Dict(:Si => (form_factors=Dict( 3 => -0.21u"Ry",
+                                           8 =>  0.04u"Ry",
+                                          11 =>  0.08u"Ry"),
+                        lattice_constant=5.43u"Å"),
+                :Ge => (form_factors=Dict( 3 => -0.23u"Ry",
+                                           8 =>  0.01u"Ry",
+                                          11 =>  0.06u"Ry"),
+                        lattice_constant=5.66u"Å"),
+                :Sn => (form_factors=Dict( 3 => -0.20u"Ry",
+                                           8 =>  0.00u"Ry",
+                                          11 =>  0.04u"Ry"),
+                        lattice_constant=6.49u"Å"),
             )
 
     symbol = Symbol(periodic_table[key].symbol)
@@ -123,6 +123,7 @@ function ElementCohenBergstresser(key; lattice_constant=nothing)
         error("Cohen-Bergstresser potential not implemented for element $symbol.")
     end
     isnothing(lattice_constant) && (lattice_constant = data[symbol].lattice_constant)
+    lattice_constant = austrip(lattice_constant)
 
     # Unit-cell volume of the primitive lattice (used in DFTK):
     unit_cell_volume = det(lattice_constant / 2 .* [[0 1 1]; [1 0 1]; [1 1 0]])
@@ -131,7 +132,7 @@ function ElementCohenBergstresser(key; lattice_constant=nothing)
     # with respect to normalized planewaves (i.e. not plain Fourier coefficients)
     # and are already symmetrized into a sin-cos basis (see derivation p. 141)
     # => Scale by Ω / 2 to get them into the DFTK convention
-    V_sym = Dict(key => value * unit_cell_volume / 2
+    V_sym = Dict(key => austrip(value) * unit_cell_volume / 2
                  for (key, value) in pairs(data[symbol].form_factors))
 
     ElementCohenBergstresser(periodic_table[key].number, symbol, V_sym, lattice_constant)

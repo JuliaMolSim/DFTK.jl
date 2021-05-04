@@ -17,24 +17,14 @@ end
 """
 Number of processors used in MPI. Can be called without ensuring initialization.
 """
-mpi_nprocs(comm=MPI.COMM_WORLD)  = (mpi_ensure_initialized(); MPI.Comm_size(comm))
-mpi_master() = (mpi_ensure_initialized(); MPI.Comm_rank(MPI.COMM_WORLD) == 0)
+mpi_nprocs(comm=MPI.COMM_WORLD) = (mpi_ensure_initialized(); MPI.Comm_size(comm))
+mpi_master(comm=MPI.COMM_WORLD) = (mpi_ensure_initialized(); MPI.Comm_rank(comm) == 0)
 
-mpi_sum( arr, comm::MPI.Comm)  = MPI.Allreduce( arr, +, comm)
-mpi_sum!(arr, comm::MPI.Comm)  = MPI.Allreduce!(arr, +, comm)
-mpi_min( arr, comm::MPI.Comm)  = MPI.Allreduce( arr, min, comm)
-mpi_min!(arr, comm::MPI.Comm)  = MPI.Allreduce!(arr, min, comm)
-mpi_max( arr, comm::MPI.Comm)  = MPI.Allreduce( arr, max, comm)
-mpi_max!(arr, comm::MPI.Comm)  = MPI.Allreduce!(arr, max, comm)
-mpi_mean(arr, comm::MPI.Comm)  = mpi_sum(arr, comm) ./ mpi_nprocs(comm)
+mpi_sum(  arr, comm::MPI.Comm) = MPI.Allreduce( arr,   +, comm)
+mpi_sum!( arr, comm::MPI.Comm) = MPI.Allreduce!(arr,   +, comm)
+mpi_min(  arr, comm::MPI.Comm) = MPI.Allreduce( arr, min, comm)
+mpi_min!( arr, comm::MPI.Comm) = MPI.Allreduce!(arr, min, comm)
+mpi_max(  arr, comm::MPI.Comm) = MPI.Allreduce( arr, max, comm)
+mpi_max!( arr, comm::MPI.Comm) = MPI.Allreduce!(arr, max, comm)
+mpi_mean( arr, comm::MPI.Comm) = mpi_sum(arr, comm) ./ mpi_nprocs(comm)
 mpi_mean!(arr, comm::MPI.Comm) = (mpi_sum!(arr, comm); arr ./= mpi_nprocs(comm))
-
-"""
-Splits an iterator evenly between the processes of `comm` and returns the part handled
-by the current process.
-"""
-function mpi_split_iterator(itr, comm)
-    nprocs = mpi_nprocs(comm)
-    @assert nprocs <= length(itr)
-    split_evenly(itr, nprocs)[1 + MPI.Comm_rank(comm)]  # MPI ranks are 0-based
-end

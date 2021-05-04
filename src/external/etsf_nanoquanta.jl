@@ -3,7 +3,6 @@
 
 export EtsfFolder
 
-using NCDatasets
 import JSON
 
 struct EtsfFolder
@@ -164,7 +163,7 @@ function load_density(T, folder::EtsfFolder; magnetic_moments=[])
         ρtot_real = Array{T}(folder.den["density"][1, :, :, :, 1])
         @assert basis.fft_size == size(ρ_real)
 
-        return from_real(basis, ρtot_real), nothing
+        return ρ_from_total_and_spin(ρtot_real)
     else
         @assert basis.model.spin_polarization == :collinear
         ρtot_real = Array{T}(folder.den["density"][1, :, :, :, 1])
@@ -172,6 +171,6 @@ function load_density(T, folder::EtsfFolder; magnetic_moments=[])
         @assert basis.fft_size == size(ρtot_real)
         @assert basis.fft_size == size(ρα_real)
 
-        return from_real(basis, ρtot_real), from_real(basis, 2ρα_real - ρtot_real)
+        return ρ_from_total_and_spin(ρtot_real, 2ρα_real - ρtot_real)
     end
 end

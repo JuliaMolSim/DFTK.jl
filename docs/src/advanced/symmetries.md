@@ -99,7 +99,7 @@ which will result in an almost identical convergence history.
 We can also explicitly verify both methods to yield the same density:
 ```@example symmetries
 using LinearAlgebra  # hide
-(norm(scfres_sym.ρ.real - scfres_nosym.ρ.real),
+(norm(scfres_sym.ρ - scfres_nosym.ρ),
  norm(values(scfres_sym.energies) .- values(scfres_nosym.energies)))
 ```
 

@@ -3,7 +3,7 @@
 In case you don't have a working Julia installation yet, first
 [download the Julia binaries](https://julialang.org/downloads/)
 and follow the [Julia installation instructions](https://julialang.org/downloads/platform/).
-At least **Julia 1.4** is required for DFTK.
+At least **Julia 1.6** is required for DFTK.
 
 Afterwards you can install DFTK
 [like any other package](https://julialang.github.io/Pkg.jl/v1/getting-started/)
@@ -43,6 +43,21 @@ conda install -c conda-forge pymatgen
 ```
 Afterwards you're all set and should be able to
 run the code in the [`examples` directory](https://dftk.org/tree/master/examples).
+
+## Recommended optional dependencies
+While not strictly speaking required to use DFTK, a large number of convenience
+features (such as reading standard [Input and output formats](@ref))
+are based on ASE, the [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html).
+Its installation is therefore strongly recommended, for example
+```
+pip install ase
+```
+or
+```
+conda install -c conda-forge ase
+```
+See also the [installation instructions](https://wiki.fysik.dtu.dk/ase/install.html)
+in the ASE documentation.
 
 ## Developer setup
 If you want to start developing DFTK Julia has the option to

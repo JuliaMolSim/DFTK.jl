@@ -108,8 +108,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     # computes energies and gradients
     function fg!(E, G, ψ)
         ψ = unpack(ψ)
-        ρ, ρspin = compute_density(basis, ψ, occupation)
-        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ, ρspin=ρspin)
+        ρ = compute_density(basis, ψ, occupation)
+        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
 
         # The energy has terms like occ * <ψ|H|ψ>, so the gradient is 2occ Hψ
         if G !== nothing
@@ -137,10 +137,17 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                                       linesearch=LineSearches.BackTracking()),
                          optim_options)
     ψ = unpack(res.minimizer)
-    # These concepts do not make sense in direct minimization,
-    # although we could maybe do a final Rayleigh-Ritz
-    eigenvalues = nothing
-    εF = nothing
+
+    # Final Rayleigh-Ritz (not strictly necessary, but sometimes useful)
+    eigenvalues = []
+    for ik = 1:Nk
+        Hψk = H.blocks[ik] * ψ[ik]
+        F = eigen(Hermitian(ψ[ik]'Hψk))
+        push!(eigenvalues, F.values)
+        ψ[ik] .= ψ[ik] * F.vectors
+    end
+    εF = nothing  # does not necessarily make sense here, as the
+                  # Aufbau property might not even be true
 
     # We rely on the fact that the last point where fg! was called is the minimizer to
     # avoid recomputing at ψ

@@ -58,8 +58,8 @@ magnetic_moments = [Fe => [4, ]];
 
 model = model_LDA(lattice, atoms, magnetic_moments=magnetic_moments, temperature=0.01)
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
-ρspin = guess_spin_density(basis, magnetic_moments)
-scfres = self_consistent_field(basis, tol=1e-6, ρspin=ρspin, mixing=KerkerMixing());
+ρ0 = guess_density(basis, magnetic_moments)
+scfres = self_consistent_field(basis, tol=1e-6; ρ=ρ0, mixing=KerkerMixing());
 #-
 scfres.energies
 
@@ -106,4 +106,6 @@ using Plots
 plot_dos(scfres)
 
 # Similarly the band structure shows clear differences between both spin components.
-plot_bandstructure(scfres, kline_density=3, unit=:eV)
+using Unitful
+using UnitfulAtomic
+plot_bandstructure(scfres, kline_density=3, unit=u"hartree")

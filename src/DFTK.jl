@@ -10,8 +10,9 @@ using LinearAlgebra
 using Requires
 using TimerOutputs
 using spglib_jll
+using Unitful
+using UnitfulAtomic
 
-export unit_to_au
 export Vec3
 export Mat3
 export mpi_nprocs
@@ -20,9 +21,7 @@ export setup_threading, disable_threading
 include("common/timer.jl")
 include("common/asserting.jl")
 include("common/constants.jl")
-include("common/units.jl")
 include("common/types.jl")
-include("common/check_real.jl")
 include("common/spherical_harmonics.jl")
 include("common/split_evenly.jl")
 include("common/mpi.jl")
@@ -71,11 +70,6 @@ include("Smearing.jl")
 include("Model.jl")
 include("PlaneWaveBasis.jl")
 
-export RealFourierArray
-export from_real
-export from_fourier
-include("RealFourierArray.jl")
-
 export Energies
 include("energies.jl")
 
@@ -101,8 +95,11 @@ export apply_kernel
 export compute_kernel
 include("terms/terms.jl")
 
-export compute_density
 include("occupation.jl")
+export compute_density
+export total_density
+export spin_density
+export ρ_from_total_and_spin
 include("densities.jl")
 include("interpolation.jl")
 
@@ -120,18 +117,21 @@ export model_PBE
 export model_LDA
 include("standard_models.jl")
 
-export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing, HybridMixing, χ0Mixing
+export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
+export LdosMixing, HybridMixing, χ0Mixing
 export scf_nlsolve_solver
 export scf_damping_solver
 export scf_anderson_solver
 export scf_CROP_solver
 export self_consistent_field
 export direct_minimization
+export load_scfres, save_scfres
 include("scf/chi0models.jl")
 include("scf/mixing.jl")
 include("scf/scf_solvers.jl")
 include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
+include("scf/scfres.jl")
 
 export symmetry_operations
 export standardize_atoms
@@ -141,7 +141,7 @@ export kgrid_size_from_minimal_spacing
 include("symmetry.jl")
 include("bzmesh.jl")
 
-export guess_density, guess_spin_density
+export guess_density
 export load_psp
 export list_psp
 include("guess_density.jl")
@@ -178,10 +178,6 @@ include("postprocess/chi0.jl")
 export compute_current
 include("postprocess/current.jl")
 
-# Dummy function definitions which are conditionally loaded
-export load_scfres, save_scfres
-include("dummy_definitions.jl")
-
 function __init__()
     # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
     # DoubleFloats has been loaded (via a "using" or an "import").
@@ -197,8 +193,8 @@ function __init__()
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("fft_generic.jl")
     end
     @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("plotting.jl")
-    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"  include("jld2io.jl")
-
+    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"  include("external/jld2io.jl")
+    @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" include("external/vtkio.jl")
     @require NCDatasets="85f8d34a-cbdd-5861-8df4-14fed0d494ab" begin
         include("external/etsf_nanoquanta.jl")
     end

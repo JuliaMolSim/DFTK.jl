@@ -10,7 +10,7 @@ function load_lattice_ase(T, pyobj::PyObject)
         lattice = zeros(3, 3)
         cell_julia = convert(Array, pyobj)  # Array of arrays
         for i = 1:3, j = 1:3
-            lattice[i, j] = units.Ǎ * cell_julia[j][i]
+            lattice[i, j] = austrip(cell_julia[j][i] * u"Å")
         end
         Mat3{T}(lattice)
     else
@@ -57,7 +57,8 @@ function ase_atoms_translation_map(pyobj::PyObject)
 end
 
 
-ase_cell(lattice) = pyimport("ase").cell.Cell(Array(lattice)' / DFTK.units.Å)
+#                                                             convert A.U. -> Å
+ase_cell(lattice) = pyimport("ase").cell.Cell(Array(lattice)' / austrip(1u"Å"))
 ase_cell(model::Model) = ase_cell(model.lattice)
 
 
