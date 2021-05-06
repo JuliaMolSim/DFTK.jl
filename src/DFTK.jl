@@ -104,7 +104,8 @@ export model_PBE
 export model_LDA
 include("standard_models.jl")
 
-export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing, HybridMixing, χ0Mixing
+export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
+export LdosMixing, HybridMixing, χ0Mixing
 export scf_nlsolve_solver
 export scf_damping_solver
 export scf_anderson_solver

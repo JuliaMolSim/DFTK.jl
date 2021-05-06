@@ -15,19 +15,14 @@ import Base: @kwdef
 # The notation in this file follows Herbst, Levitt arXiv:2009.01665
 
 @doc raw"""
-Simple mixing: ``J^{-1} ≈ α``
+Simple mixing: ``J^{-1} ≈ 1``
 """
-@kwdef struct SimpleMixing
-    α::Real = 0.8
-end
-@timing "SimpleMixing" function mix(mixing::SimpleMixing, ::PlaneWaveBasis, δF; kwargs...)
-    T = eltype(δF)
-    T(mixing.α) * δF
-end
+struct SimpleMixing; end
+mix(::SimpleMixing, ::PlaneWaveBasis, δF; kwargs...) = δF
 
 
 @doc raw"""
-Kerker mixing: ``J^{-1} ≈ \frac{α |G|^2}{k_{TF}^2 + |G|^2}``
+Kerker mixing: ``J^{-1} ≈ \frac{|G|^2}{k_{TF}^2 + |G|^2}``
 where ``k_{TF}`` is the Thomas-Fermi wave vector. For spin-polarized calculations
 by default the spin density is not preconditioned. Unless a non-default value
 for ``ΔDOS_Ω`` is specified. This value should roughly be the expected difference in density
@@ -37,10 +32,9 @@ Notes:
 - Abinit calls ``1/k_{TF}`` the dielectric screening length (parameter *dielng*)
 """
 @kwdef struct KerkerMixing
-    # Default parameters suggested by Kresse, Furthmüller 1996 (α=0.8, kTF=1.5Å⁻¹)
+    # Default kTF parameter suggested by Kresse, Furthmüller 1996 (kTF=1.5Å⁻¹)
     # DOI 10.1103/PhysRevB.54.11169
-    α::Real    = 0.8
-    kTF::Real  = 0.8  # == sqrt(4π (DOS_α + DOS_β)) / Ω
+    kTF::Real    = 0.8  # == sqrt(4π (DOS_α + DOS_β)) / Ω
     ΔDOS_Ω::Real = 0.0  # == (DOS_α - DOS_β) / Ω
 end
 
@@ -73,32 +67,30 @@ end
     δρtot .+= mean(total_density(δF)) .- mean(δρtot)  # Copy DC component, otherwise it never gets updated
 
     if basis.model.n_spin_components == 1
-        δρspin = nothing
+        ρ_from_total_and_spin(δρtot, nothing)
     else
         δρspin_fourier = @. δFspin_fourier - δFtot_fourier * (4π * ΔDOS_Ω) / (kTF^2 + G²)
         δρspin = G_to_r(basis, δρspin_fourier)
+        ρ_from_total_and_spin(δρtot, δρspin)
     end
-    T(mixing.α) .* ρ_from_total_and_spin(δρtot, δρspin)
 end
 
 @doc raw"""
 The same as [`KerkerMixing`](@ref), but the Thomas-Fermi wavevector is computed
 from the current density of states at the Fermi level.
 """
-@kwdef struct KerkerDosMixing
-    α::Real = 0.8
-end
+struct KerkerDosMixing; end
 @timing "KerkerDosMixing" function mix(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
                                        δF; εF, ψ, eigenvalues, kwargs...)
     if basis.model.temperature == 0
-        return mix(SimpleMixing(α=mixing.α), basis, δF)
+        return mix(SimpleMixing(), basis, δF)
     else
         n_spin = basis.model.n_spin_components
         Ω = basis.model.unit_cell_volume
         dos_per_vol  = compute_dos(εF, basis, eigenvalues) ./ Ω
         kTF  = sqrt(4π * sum(dos_per_vol))
         ΔDOS_Ω = n_spin == 2 ? dos_per_vol[1] - dos_per_vol[2] : 0.0
-        mix(KerkerMixing(α=mixing.α, kTF=kTF, ΔDOS_Ω=ΔDOS_Ω), basis, δF)
+        mix(KerkerMixing(kTF=kTF, ΔDOS_Ω=ΔDOS_Ω), basis, δF)
     end
 end
 
@@ -107,14 +99,13 @@ We use a simplification of the Resta model DOI 10.1103/physrevb.16.2717 and set
 ``χ_0(q) = \frac{C_0 G^2}{4π (1 - C_0 G^2 / k_{TF}^2)}``
 where ``C_0 = 1 - ε_r`` with ``ε_r`` being the macroscopic relative permittivity.
 We neglect ``K_\text{xc}``, such that
-``J^{-1} ≈ α \frac{k_{TF}^2 - C_0 G^2}{ε_r k_{TF}^2 - C_0 G^2}``
+``J^{-1} ≈ \frac{k_{TF}^2 - C_0 G^2}{ε_r k_{TF}^2 - C_0 G^2}``
 
 By default it assumes a relative permittivity of 10 (similar to Silicon).
 `εr == 1` is equal to `SimpleMixing` and `εr == Inf` to `KerkerMixing`.
 The mixing is applied to ``ρ`` and ``ρ_\text{spin}`` in the same way.
 """
 @kwdef struct DielectricMixing
-    α::Real   = 0.8
     kTF::Real = 0.8
     εr::Real  = 10
 end
@@ -123,13 +114,13 @@ end
     T = eltype(δF)
     εr = T(mixing.εr)
     kTF = T(mixing.kTF)
-    εr == 1               && return mix(SimpleMixing(α=mixing.α), basis, δF)
-    εr > 1 / sqrt(eps(T)) && return mix(KerkerMixing(α=mixing.α, kTF=kTF), basis, δF)
+    εr == 1               && return mix(SimpleMixing(), basis, δF)
+    εr > 1 / sqrt(eps(T)) && return mix(KerkerMixing(kTF=kTF), basis, δF)
 
     C0 = 1 - εr
     Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
     δF_fourier = r_to_G(basis, δF)
-    δρ = @. T(mixing.α) * δF_fourier * (kTF^2 - C0 * Gsq) / (εr * kTF^2 - C0 * Gsq)
+    δρ = @. δF_fourier * (kTF^2 - C0 * Gsq) / (εr * kTF^2 - C0 * Gsq)
     δρ = G_to_r(basis, δρ)
     δρ .+= mean(δF) .- mean(δρ)
 end
@@ -149,7 +140,6 @@ Additionally there is the real-space localization function `L(r)`.
 For details see Herbst, Levitt 2020 arXiv:2009.01665
 
 Important `kwargs` passed on to [`χ0Mixing`](@ref)
-- `α`: Damping parameter
 - `RPA`: Is the random-phase approximation used for the kernel (i.e. only Hartree kernel is
   used and not XC kernel)
 - `verbose`: Run the GMRES in verbose mode.
@@ -158,6 +148,7 @@ function HybridMixing(;εr=1.0, kTF=0.8, localization=identity, kwargs...)
     χ0terms = [DielectricModel(εr=εr, kTF=kTF, localization=localization), LdosModel()]
     χ0Mixing(; χ0terms=χ0terms, kwargs...)
 end
+LdosMixing(; kwargs...) = HybridMixing(;εr=1.0, kwargs...)
 
 
 @doc raw"""
@@ -168,7 +159,6 @@ real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartr
 (useful for debugging).
 """
 @kwdef struct χ0Mixing
-    α::Real   = 0.8
     RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     χ0terms   = χ0Model[Applyχ0Model()]  # The terms to use as the model for χ0
     verbose::Bool = false  # Run the GMRES verbosely
@@ -184,7 +174,7 @@ end
     χ0applies = [apply for apply in χ0applies if !isnothing(apply)]
 
     # If no applies left, do not bother running GMRES and directly do simple mixing
-    isempty(χ0applies) && return mix(SimpleMixing(α=mixing.α), basis, δF)
+    isempty(χ0applies) && return mix(SimpleMixing(), basis, δF)
 
     # Solve J δρ = δF with J = (1 - χ0 vc) and χ_0 given as the sum of the χ0terms
     devec(x) = reshape(x, size(δF))
@@ -206,7 +196,6 @@ end
     J = LinearMap(Jop, length(δF))
     # TODO Further improvement: Adapt tolerance of gmres to norm(ρ_out - ρ_in)
     δρ = devec(gmres(J, vec(δF), verbose=mixing.verbose))
-    δρ = T(mixing.α) .* δρ  # Apply damping
     δρ .+= DC_δF  # Set DC from δF
     δρ
 end
