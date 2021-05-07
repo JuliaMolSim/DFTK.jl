@@ -14,7 +14,7 @@ function compute_residual(basis::PlaneWaveBasis{T}, φ, occ) where T
     # necessary quantities
     Nk = length(basis.kpoints)
     ρ = compute_density(basis, φ, occ)
-    energies, H = energy_hamiltonian(basis, φ, occ; ρ=ρ[1])
+    energies, H = energy_hamiltonian(basis, φ, occ; ρ=ρ)
 
     # compute residual
     res = similar(φ)
