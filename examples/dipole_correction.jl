@@ -14,7 +14,8 @@ atoms   = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="lda")) => p
 
 model  = model_LDA(lattice, atoms, extra_terms=[DFTK.SurfaceDipoleCorrection()],
                    temperature=0.01, smearing=Smearing.Gaussian())
-basis  = PlaneWaveBasis(model, 15, kgrid=[4, 4, 1])
+# basis  = PlaneWaveBasis(model, 15, kgrid=[4, 4, 1])
+basis  = PlaneWaveBasis(model, 15, kgrid=[1, 1, 1])
 scfres = self_consistent_field(basis, tol=1e-6, mixing=HybridMixing())
 
 nothing
