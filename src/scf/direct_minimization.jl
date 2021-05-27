@@ -68,7 +68,9 @@ necessarily eigenvectors of the Hamiltonian.
 direct_minimization(basis::PlaneWaveBasis; kwargs...) = direct_minimization(basis, nothing; kwargs...)
 function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                              prec_type=PreconditionerTPA,
-                             optim_solver=Optim.LBFGS, tol=1e-6, kwargs...) where T
+                             optim_solver=Optim.LBFGS, tol=1e-6,
+                             callback=info->nothing,
+                             kwargs...) where T
     if mpi_nprocs() > 1
         # need synchronization in Optim
         error("Direct minimization with MPI is not supported yet")
@@ -105,6 +107,26 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     energies = nothing
     ρ = nothing
 
+    # callback
+    function callback_dm(x)
+        ψ = unpack(x.metadata["x"])
+        ρ = compute_density(basis, ψ, occupation)
+        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+
+        φ = []
+        for ik = 1:length(ψ)
+            φk = zeros(ComplexF64, size(ψ[ik]))
+            for i = 1:(size(ψ[ik], 2))
+                φk[:,i] = ψ[ik][:,i]
+            end
+            push!(φ, φk)
+        end
+
+        info = (ham=H, stage=:iterate, basis=basis, ψ=φ, occupation=occupation)
+        callback(info)
+        false
+    end
+
     # computes energies and gradients
     function fg!(E, G, ψ)
         ψ = unpack(ψ)
@@ -128,15 +150,30 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     P = DMPreconditioner(Nk, Pks, unpack)
 
     kwdict = Dict(kwargs)
-    optim_options = Optim.Options(; allow_f_increases=true, show_trace=true,
+    optim_options = Optim.Options(; allow_f_increases=true, show_trace=false,
+                                  extended_trace=true,
                                   x_tol=pop!(kwdict, :x_tol, tol),
                                   f_tol=pop!(kwdict, :f_tol, -1),
-                                  g_tol=pop!(kwdict, :g_tol, -1), kwdict...)
+                                  g_tol=pop!(kwdict, :g_tol, -1),
+                                  callback = callback_dm, kwdict...)
     res = Optim.optimize(Optim.only_fg!(fg!), pack(ψ0),
                          optim_solver(P=P, precondprep=precondprep!, manifold=manif,
                                       linesearch=LineSearches.BackTracking()),
                          optim_options)
     ψ = unpack(res.minimizer)
+
+    ρ = compute_density(basis, ψ, occupation)
+    energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+    φ = []
+    for ik = 1:length(ψ)
+        φk = zeros(ComplexF64, size(ψ[ik]))
+        for i = 1:(size(ψ[ik], 2))
+            φk[:,i] = ψ[ik][:,i]
+        end
+        push!(φ, φk)
+    end
+    info = (stage=:finalize, ψ=φ, ham=H, basis=basis, occupation=occupation)
+    callback(info)
 
     # Final Rayleigh-Ritz (not strictly necessary, but sometimes useful)
     eigenvalues = []
@@ -148,6 +185,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     end
     εF = nothing  # does not necessarily make sense here, as the
                   # Aufbau property might not even be true
+
 
     # We rely on the fact that the last point where fg! was called is the minimizer to
     # avoid recomputing at ψ
