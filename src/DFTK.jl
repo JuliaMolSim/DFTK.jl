@@ -112,12 +112,16 @@ export scf_anderson_solver
 export scf_CROP_solver
 export self_consistent_field
 export direct_minimization
+export newton
+export newton_step
 export load_scfres, save_scfres
 include("scf/chi0models.jl")
 include("scf/mixing.jl")
 include("scf/scf_solvers.jl")
 include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
+include("scf/newton_tools.jl")
+include("scf/newton.jl")
 include("scf/scfres.jl")
 
 export symmetry_operations
