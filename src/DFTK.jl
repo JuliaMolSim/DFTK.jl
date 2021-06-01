@@ -120,7 +120,6 @@ include("scf/mixing.jl")
 include("scf/scf_solvers.jl")
 include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
-include("scf/newton_tools.jl")
 include("scf/newton.jl")
 include("scf/scfres.jl")
 
