@@ -104,26 +104,6 @@ function proj(δφ, φ; tol_test=1e-12)
     Πδφ
 end
 
-# packing routines
-pack(φ) = vcat(Base.vec.(φ)...)
-function packing(basis::PlaneWaveBasis{T}, φ) where T
-
-    Nk = length(basis.kpoints)
-
-    lengths = [length(φ[ik]) for ik = 1:Nk]
-    starts = copy(lengths)
-    starts[1] = 1
-    for ik = 1:Nk-1
-        starts[ik+1] = starts[ik] + lengths[ik]
-    end
-    unpack(x) = [@views reshape(x[starts[ik]:starts[ik]+lengths[ik]-1], size(φ[ik]))
-                 for ik = 1:Nk]
-
-    packed_proj(δφ,φ) = proj(unpack(δφ), unpack(φ))
-
-    (pack, unpack, packed_proj)
-end
-
 # KrylovKit custom orthogonaliser to be used in KrylovKit eigsolve, svdsolve,
 # linsolve, ...
 # This has to be passed in KrylovKit solvers when studying (Ω+K) as a super
@@ -221,13 +201,41 @@ with the same notations as for the computation of Ω, we have
       dV = kernel(δρ)
 where δρ = Σi φi*conj(δφi) + hc.
 """
-function apply_K(basis::PlaneWaveBasis, δφ, φ, ρ, occ)
+@views function apply_K(basis::PlaneWaveBasis, δφ, φ, ρ, occ)
     Nk = length(basis.kpoints)
+    n_spin = basis.model.n_spin_components
 
-    δρ = compute_density(basis, φ, δφ, occ)
+    ## compute δρ = Σi φi*conj(δφi)
+    δρ_fourier = zeros(complex(eltype(ρ)), size(ρ)...)
+    for (ik, kpt) in enumerate(basis.kpoints)
+        δρk = zeros(eltype(ρ), basis.fft_size)
+        for i = 1:size(φ[ik], 2)
+            φki_real = G_to_r(basis, kpt, φ[ik][:,i])
+            δφki_real = G_to_r(basis, kpt, δφ[ik][:,i])
+            δρk .+= occ[ik][i] .* (conj.(φki_real) .* δφki_real +
+                                   conj.(δφki_real) .* φki_real)
+        end
+        # Check sanity in the density, we should have ∫δρ = 0
+        T = real(eltype(δρk))
+        sum_δρ = sum(δρk)
+        if abs(sum_δρ) > sqrt(eps(T))
+            @warn("Mismatch in δρ", sum_δρ=sum_δρ)
+        end
+        δρk_fourier = r_to_G(basis, complex(δρk))
+        lowpass_for_symmetry!(δρk_fourier, basis)
+        accumulate_over_symmetries!(δρ_fourier[:, :, :, kpt.spin], δρk_fourier,
+                                    basis, basis.ksymops[ik])
+    end
+    mpi_sum!(δρ_fourier, basis.comm_kpts)
+    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
+    count = mpi_sum(count, basis.comm_kpts)
+    δρ = G_to_r(basis, δρ_fourier) ./ count
+
+    ## dV = kernel(δρ)
     dV = apply_kernel(basis, δρ; ρ=ρ)
-    Kδφ = similar(φ)
 
+    ## Kδφi = Π(dV * φi)
+    Kδφ = similar(φ)
     for ik = 1:Nk
         kpt = basis.kpoints[ik]
         φk = φ[ik]
@@ -235,7 +243,7 @@ function apply_K(basis::PlaneWaveBasis, δφ, φ, ρ, occ)
 
         for i = 1:size(φk,2)
             φk_r = G_to_r(basis, kpt, φk[:,i])
-            dVφk_r = dV[:,:,:,kpt.spin] .* φk_r
+            dVφk_r = dV[:, :, :, kpt.spin] .* φk_r
             dVφk[:,i] = r_to_G(basis, kpt, dVφk_r)
         end
         Kδφ[ik] = dVφk
@@ -262,14 +270,14 @@ function newton_step(basis::PlaneWaveBasis, φ, φproj, res, occ;
     # necessary quantities
     N = size(φ[1],2)
     Nk = length(basis.kpoints)
-    ortho(φk) = Matrix(qr(φk).Q)
 
     # compute quantites at the point which define the tangent space
     ρproj = compute_density(basis, φproj, occ)
     energies, Hproj = energy_hamiltonian(basis, φproj, occ; ρ=ρproj)
 
     # packing routines
-    pack, unpack, packed_proj = packing(basis, φproj)
+    unpack = unpacking(φ)
+    packed_proj(δφ,φ) = proj(unpack(δφ), unpack(φ))
 
     # mapping of the linear system on the tangent space
     function f(x)
@@ -296,7 +304,7 @@ function newton_step(basis::PlaneWaveBasis, φ, φproj, res, occ;
 
     # perform newton_step
     for ik = 1:Nk
-        φ_newton[ik] = ortho(φ[ik] - δφ[ik])
+        φ_newton[ik] = ortho_qr(φ[ik] - δφ[ik])
     end
     (φ_newton, δφ)
 end
@@ -326,8 +334,7 @@ function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
 
     ## starting point and keep only occupied orbitals
     if ψ0 === nothing
-        ortho(φk) = Matrix(qr(φk).Q)
-        ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), N))
+        ψ0 = [ortho_qr(randn(Complex{T}, length(G_vectors(kpt)), N))
               for kpt in basis.kpoints]
     else
         for ik in 1:Nk
@@ -397,6 +404,7 @@ function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
                   # Aufbau property might not even be true
 
     # return results
-    (ham=H, basis=basis, energies=energies, converged=true,
+    cvg = k == max_iter ? false : true
+    (ham=H, basis=basis, energies=energies, converged=cvg,
      ρ=ρ, ψ=φ, eigenvalues=eigenvalues, occupation=occupation, εF=εF)
 end

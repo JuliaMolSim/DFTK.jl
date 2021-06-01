@@ -21,6 +21,8 @@ export setup_threading, disable_threading
 include("common/timer.jl")
 include("common/asserting.jl")
 include("common/constants.jl")
+include("common/ortho.jl")
+include("common/packing.jl")
 include("common/types.jl")
 include("common/spherical_harmonics.jl")
 include("common/split_evenly.jl")
