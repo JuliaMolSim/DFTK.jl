@@ -18,9 +18,9 @@ lattice = a / 2 * [[0 1 1.];
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8 + [0.42, 0.35, 0.24] ./ 10, -ones(3)/8]]
 
-#  model = Model(lattice; atoms=atoms, n_electrons=2,
-#                terms=[Kinetic(), AtomicNonlocal()])
-model = model_atomic(lattice, atoms; n_electrons=2)
+model = Model(lattice; atoms=atoms, n_electrons=2,
+              terms=[Kinetic(), AtomicNonlocal()])
+#  model = model_atomic(lattice, atoms; n_electrons=2)
 nl = false
 kgrid = [1,1,1]  # k-point grid (Regular Monkhorst-Pack grid)
 Ecut_ref = 100   # kinetic energy cutoff in Hartree
@@ -138,18 +138,18 @@ for Ecut_g in Ecut_list
         #  Mschur = [Mres[1] + MeLF[1]]
 
         #  approximate forces f-f*
-        f_res_loc, cs = compute_forces_estimate(basis_f, Merr, φr, Pks, occupation; term="local")
+        #  f_res_loc = compute_forces_estimate(basis_f, Merr, φr, Pks, occupation; term="local")
         #  f_schur_loc, cs_schur = compute_forces_estimate(basis_f, Mschur, φr, Pks, occupation; term="local")
-        f_res_nonloc, cs = compute_forces_estimate(basis_f, err, φr, Pks, occupation; term="nonlocal")
+        f_res_nonloc = compute_forces_estimate(basis_f, err, φr, Pks, occupation; term="nonlocal")
         #  f_schur_nonloc, cs_schur = compute_forces_estimate(basis_f, Mschur, φr, Pks, occupation; term="nonlocal")
 
-        f_res = f_res_loc + f_res_nonloc
+        f_res = f_res_nonloc
         #  f_schur = f_schur_loc + f_schur_nonloc
 
-        diff_list[i,j] = f_g[1][2][1]-f_ref[1][2][1]
-        diff_list_res[i,j] = f_res[1][2][1]
-        diff_list_res_loc[i,j] = f_res_loc[1][2][1]
-        #  diff_list_res_nonloc[i,j] = abs(f_res_nonloc[1][2][1])
+        diff_list[i,j] = abs(f_g[1][2][1]-f_ref[1][2][1])
+        diff_list_res[i,j] = abs(f_res[1][2][1])
+        #  diff_list_res_loc[i,j] = f_res_loc[1][2][1]
+        diff_list_res_nonloc[i,j] = abs(f_res_nonloc[1][2][1])
         #  diff_list_schur[i,j] = abs(f_g[1][2][1]-f_ref[1][2][1]-f_schur[1][2][1])
         j += 1
     end
@@ -163,8 +163,8 @@ end
 
 semilogy([diff_list[i,i] for i = 1:length(diff_list[1,:])], label="ref")
 semilogy([diff_list_res[i,i] for i = 1:length(diff_list_res[1,:])], label="err")
-semilogy([diff_list_res_loc[i,i] for i = 1:length(diff_list_res_loc[1,:])], label="err_loc")
-#  semilogy([diff_list_res_nonloc[i,i] for i = 1:length(diff_list_res[1,:])], label="err_nonloc")
+#  semilogy([diff_list_res_loc[i,i] for i = 1:length(diff_list_res_loc[1,:])], label="err_loc")
+semilogy([diff_list_res_nonloc[i,i] for i = 1:length(diff_list_res[1,:])], label="err_nonloc")
 legend()
 
 #  h5open("3grids_lineigval_forces.h5", "w") do file
