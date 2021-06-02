@@ -12,6 +12,7 @@
 #   - Ω represents the influence of the curvature of the manifold :
 #         ΩδP = -[P_∞,[H(P_∞),δP]].
 #     In practice, we dont have access to P_∞ so we just use the current P.
+#     Ω is also -χ0^(-1) where χ0 is the occupation function.
 #
 # Here, in the orbital framework, an element on the tangent space at φ can be written as
 #       δP = Σ |φi><δφi| + hc
@@ -35,7 +36,9 @@
 import KrylovKit: ArnoldiIterator, Orthogonalizer, OrthonormalBasis, KrylovDefaults, orthogonalize!
 using KrylovKit
 
-############################### TOOLS ##########################################
+#
+# Tools
+#
 
 """
     compute_residual(basis::PlaneWaveBasis, φ, occ)
@@ -65,7 +68,7 @@ function compute_residual(basis::PlaneWaveBasis, φ, occ)
 end
 
 # To project onto the space tangent to φ, we project δφ onto the orthogonal of φ
-function proj(δφ, φ; tol_test=1e-12)
+function proj_tangent(δφ, φ; tol_test=1e-12)
 
     Nk1 = size(δφ,1)
     Nk2 = size(φ,1)
@@ -188,7 +191,7 @@ function apply_Ω(basis::PlaneWaveBasis, δφ, φ, H)
         Ωδφ[ik] = Ωδφk
     end
     # ensure proper projection onto the tangent space
-    proj(Ωδφ, φ)
+    proj_tangent(Ωδφ, φ)
 end
 
 """
@@ -249,7 +252,7 @@ where δρ = Σi φi*conj(δφi) + hc.
         Kδφ[ik] = dVφk
     end
     # ensure proper projection onto the tangent space
-    proj(Kδφ, φ)
+    proj_tangent(Kδφ, φ)
 end
 
 ############################# NEWTON ALGORITHM #################################
@@ -277,19 +280,19 @@ function newton_step(basis::PlaneWaveBasis, φ, φproj, res, occ;
 
     # packing routines
     unpack = unpacking(φ)
-    packed_proj(δφ,φ) = proj(unpack(δφ), unpack(φ))
+    packed_proj(δφ,φ) = proj_tangent(unpack(δφ), unpack(φ))
 
     # mapping of the linear system on the tangent space
     function f(x)
         δφ = unpack(x)
-        δφ = proj(δφ, φproj)
+        δφ = proj_tangent(δφ, φproj)
         Kδφ = apply_K(basis, δφ, φproj, ρproj, occ)
         Ωδφ = apply_Ω(basis, δφ, φproj, Hproj)
         pack(Ωδφ .+ Kδφ)
     end
 
     # project res on the good tangent space before starting
-    res = proj(res, φproj)
+    res = proj_tangent(res, φproj)
 
     # solve (Ω+K) δφ = res on the tangent space with KrylovKit
     δφ, info = linsolve(f, pack(res);
@@ -299,7 +302,7 @@ function newton_step(basis::PlaneWaveBasis, φ, φproj, res, occ;
                         orth=OrthogonalizeAndProject(packed_proj, pack(φproj)))
     δφ = unpack(δφ)
     # ensure proper projection onto the tangent space
-    δφ = proj(δφ, φ)
+    δφ = proj_tangent(δφ, φ)
     φ_newton = similar(φ)
 
     # perform newton_step

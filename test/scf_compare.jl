@@ -35,7 +35,6 @@ include("testcases.jl")
         end
     end
 
-
     # Run other SCFs with SAD guess
     ρ0 = guess_density(basis, [Si => silicon.positions])
     for solver in (scf_nlsolve_solver(), scf_damping_solver(1.2), scf_anderson_solver(),

@@ -11,8 +11,8 @@ Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 model = model_LDA(lattice, atoms)
-kgrid = [2, 2, 2]  # k-point grid (Regular Monkhorst-Pack grid)
-Ecut = 15           # kinetic energy cutoff in Hartree
+kgrid = [3, 3, 3]  # k-point grid (Regular Monkhorst-Pack grid)
+Ecut = 5           # kinetic energy cutoff in Hartree
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 tol = 1e-12
 

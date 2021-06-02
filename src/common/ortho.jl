@@ -1,2 +1,2 @@
-# Orthonormalises a set of planewave at a given k-point
+# Orthonormalise
 ortho_qr(φk) = Matrix(qr(φk).Q)

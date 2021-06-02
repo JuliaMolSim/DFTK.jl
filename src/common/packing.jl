@@ -3,7 +3,7 @@
 # algorithms from KrylovKit or Optim libraries
 
 pack(φ) = vcat(Base.vec.(φ)...) # TODO as an optimization, do that lazily? See LazyArrays
-function unpacking(φ) where T
+function unpacking(φ)
 
     Nk = length(φ)
 
@@ -15,11 +15,5 @@ function unpacking(φ) where T
     end
     unpack(x) = [@views reshape(x[starts[ik]:starts[ik]+lengths[ik]-1], size(φ[ik]))
                  for ik = 1:Nk]
-
     unpack
 end
-
-
-
-
-
