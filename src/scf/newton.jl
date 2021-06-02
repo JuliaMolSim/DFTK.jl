@@ -112,6 +112,7 @@ end
 # This has to be passed in KrylovKit solvers when studying (Ω+K) as a super
 # operator from the tangent space to the tangent space to be sure that
 # iterations are constrained to stay on the tangent space.
+# /!\ Be careful that here, φ needs to be packed into on big array
 struct OrthogonalizeAndProject{F, O <: Orthogonalizer, φ} <: Orthogonalizer
     projector::F
     orth::O
@@ -124,14 +125,14 @@ function KrylovKit.orthogonalize!(v::T, b::OrthonormalBasis{T}, x::AbstractVecto
                                         alg::OrthogonalizeAndProject) where {T}
     v, x = orthogonalize!(v, b, x, alg.orth)
     v = reshape(v, size(alg.φ))
-    v = pack(alg.projector(v, alg.φ))::T
+    v = alg.projector(v, alg.φ)::T
     v, x
 end
 function KrylovKit.orthogonalize!(v::T, x::AbstractVector,
                                         alg::OrthogonalizeAndProject) where {T}
     v, x = orthogonalize!(v, x, alg.orth)
     v = reshape(v, size(alg.φ))
-    v = pack(alg.projector(v, alg.φ))::T
+    v = alg.projector(v, alg.φ)::T
     v, x
 end
 function KrylovKit.gklrecurrence(operator, U::OrthonormalBasis, V::OrthonormalBasis, β,
@@ -154,7 +155,9 @@ function KrylovKit.gklrecurrence(operator, U::OrthonormalBasis, V::OrthonormalBa
     return v, r, α, β
 end
 
-############################# OPERATORS ########################################
+#
+# Operators
+#
 
 """
     apply_Ω(basis::PlaneWaveBasis, δφ, φ, H, λ)
@@ -255,7 +258,9 @@ where δρ = Σi φi*conj(δφi) + hc.
     proj_tangent(Kδφ, φ)
 end
 
-############################# NEWTON ALGORITHM #################################
+#
+# Newton algorithm
+#
 
 """
     newton_step(basis::PlaneWaveBasis, φ, φproj, res, occ;
@@ -279,8 +284,9 @@ function newton_step(basis::PlaneWaveBasis, φ, φproj, res, occ;
     energies, Hproj = energy_hamiltonian(basis, φproj, occ; ρ=ρproj)
 
     # packing routines
-    unpack = unpacking(φ)
-    packed_proj(δφ,φ) = proj_tangent(unpack(δφ), unpack(φ))
+    pack(φ) = pack_arrays(basis, φ)
+    unpack(x) = unpack_arrays(basis, x)
+    packed_proj(δx, x) = pack(proj_tangent(unpack(δx), unpack(x)))
 
     # mapping of the linear system on the tangent space
     function f(x)

@@ -86,8 +86,9 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     end
     occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
 
-    ## unpack
-    unpack = unpacking(ψ0)
+    ## pack and unpack
+    pack(φ) = pack_arrays(basis, φ)
+    unpack(x) = unpack_arrays(basis, x)
 
     # this will get updated along the iterations
     H = nothing
