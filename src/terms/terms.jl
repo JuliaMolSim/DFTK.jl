@@ -68,7 +68,7 @@ Returns a list of lists of forces
 which has the same structure as the `atoms` object passed to the underlying [`Model`](@ref).
 """
 @timing function compute_forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
-    if !any(iszero(kpt.coordinate) for kpt in basis.kpoints)
+    if !MPI.Allreduce(any(iszero(kpt.coordinate) for kpt in basis.kpoints), &, basis.comm_kpts)
         @warn "Forces for shifted k-Grids not tested"
     end
 
