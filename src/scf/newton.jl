@@ -332,7 +332,7 @@ function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
 
     ## setting parameters
     model = basis.model
-    @assert model.spin_polarization in (:none, :spinless)
+    @assert model.spin_polarization in (:none, :spinless, :collinear)
     @assert model.temperature == 0 # temperature is not yet supported
     filled_occ = filled_occupation(model)
     N = div(model.n_electrons, filled_occ)
