@@ -587,7 +587,8 @@ function unpack_arrays(basis::PlaneWaveBasis, x)
     Nk = length(basis.kpoints)
     model = basis.model
     filled_occ = filled_occupation(model)
-    n_bands = div(model.n_electrons, filled_occ)
+    n_spin = basis.model.n_spin_components
+    n_bands = div(div(model.n_electrons, filled_occ), n_spin)
 
     lengths = [length(G_vectors(basis.kpoints[ik]))*n_bands for ik = 1:Nk]
     starts = copy(lengths)

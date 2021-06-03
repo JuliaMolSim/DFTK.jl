@@ -335,9 +335,10 @@ function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
     @assert model.spin_polarization in (:none, :spinless, :collinear)
     @assert model.temperature == 0 # temperature is not yet supported
     filled_occ = filled_occupation(model)
-    N = div(model.n_electrons, filled_occ)
+    n_spin = basis.model.n_spin_components
+    N = div(div(model.n_electrons, filled_occ), n_spin)
 
-    ## number of kpoints
+    ## number of kpoints and occupation
     Nk = length(basis.kpoints)
     occupation = [filled_occ * ones(T, N) for ik = 1:Nk]
 
