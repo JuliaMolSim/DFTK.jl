@@ -590,13 +590,9 @@ function unpack_arrays(basis::PlaneWaveBasis, x)
     n_spin = basis.model.n_spin_components
     n_bands = div(div(model.n_electrons, filled_occ), n_spin)
 
-    lengths = [length(G_vectors(basis.kpoints[ik]))*n_bands for ik = 1:Nk]
-    starts = copy(lengths)
-    starts[1] = 1
-    for ik = 1:Nk-1
-        starts[ik+1] = starts[ik] + lengths[ik]
-    end
-    [@views reshape(x[starts[ik]:starts[ik]+lengths[ik]-1],
+    lengths = length.(G_vectors.(basis.kpoints)) .* n_bands
+    ends = cumsum(lengths)
+    [@views reshape(x[ends[ik]-lengths[ik]+1:ends[ik]],
                     (length(G_vectors(basis.kpoints[ik])), n_bands))
      for ik = 1:Nk]
 end
