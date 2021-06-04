@@ -4,21 +4,25 @@
 # Newton algorithm consist of iterating over density matrices like
 #       P = P - δP
 # where δP solves
-#       (Ω+K)δP = [P,[P,H(P)]] (residual)
+#       (Ω+K)δP = [P, [P, H(P)]] (residual)
 # where (Ω+K) if the Jacobian of the direct minimization iterations. It is
 # defined as a super operator from the space tangent to the constraints
 # manifold at point P_∞, the solution of our problem.
 #   - K is the Hessian of the energy on the manifold;
 #   - Ω represents the influence of the curvature of the manifold :
-#         ΩδP = -[P_∞,[H(P_∞),δP]].
+#         ΩδP = -[P_∞, [H(P_∞), δP]].
 #     In practice, we dont have access to P_∞ so we just use the current P.
-#     Ω is also -χ0^(-1) where χ0 is the occupation function.
+#     Another way to see Ω is to define the following operators
+#       - E : builds a density matrix Eρ given a density ρ via Eρ(r,r') = δ(r,r')ρ(r),
+#       - R : builds a density ρ given a density matrix O via ρ(r) = O(r,r),
+#     then you have the relation χ0 = -R(Ω^-1)E, where χ0 is the susceptibility
+#     and returns δρ from a given δV.
 #
 # Here, in the orbital framework, an element on the tangent space at φ can be written as
 #       δP = Σ |φi><δφi| + hc
 # where the δφi are of size Nb and are all orthogonal to the φj, 1 <= j <= N.
 # Therefore we store them in the same kind of array than φ, with
-# δφ[ik][:,i] = δφi for each k-point.
+# δφ[ik][:, i] = δφi for each k-point.
 # In this framework :
 #   - computing Ωδφ can be done analitically with the formula
 #         Ωδφi = H*δφi - Σj <δφj|H|δφi> δφj - Σj λji δφj
@@ -41,23 +45,19 @@ using KrylovKit
 #
 
 """
-    compute_residual(basis::PlaneWaveBasis, φ, occ)
+    compute_scf_residual(basis::PlaneWaveBasis, φ, occ)
 
 Compute the residual associated to a set of planewave φ, that is to say
 H(φ)*φ - λ*φ where λ is the set of rayleigh coefficients associated to the φ.
 """
-function compute_residual(basis::PlaneWaveBasis, φ, occ)
-
-    # necessary quantities
+function compute_scf_residual(basis::PlaneWaveBasis, φ, occ)
     Nk = length(basis.kpoints)
     ρ = compute_density(basis, φ, occ)
-    energies, H = energy_hamiltonian(basis, φ, occ; ρ=ρ)
+    _, H = energy_hamiltonian(basis, φ, occ; ρ=ρ)
 
     # compute residual
     res = similar(φ)
-    for ik = 1:Nk
-        φk = φ[ik]
-        N = size(φk, 2)
+    for (ik, φk) in enumerate(φ)
         Hk = H.blocks[ik]
         # eigenvalues as rayleigh coefficients
         egvalk = φk'*(Hk*φk)
@@ -67,40 +67,40 @@ function compute_residual(basis::PlaneWaveBasis, φ, occ)
     res
 end
 
-# To project onto the space tangent to φ, we project δφ onto the orthogonal of φ
-function proj_tangent(δφ, φ; tol_test=1e-12)
+"""
+    proj_tangent(δφ, φ; tol_test=1e-12)
 
-    Nk1 = size(δφ,1)
-    Nk2 = size(φ,1)
-    @assert Nk1 == Nk2
-    Nk = Nk1
+Computation the projection of δφ onto the tangent space defined at φ.
+"""
+function proj_tangent(δφ, φ)
+    @assert size(δφ, 1) == size(φ, 1)
+    Nk = size(φ, 1)
 
+    # compute projection
     Πδφ = similar(δφ)
-
-    for ik = 1:Nk
-        φk = φ[ik]
+    for (ik, φk) in enumerate(φ)
         δφk = δφ[ik]
         Πδφk = deepcopy(δφk)
 
-        N1 = size(δφk,2)
-        N2 = size(φk,2)
-        @assert N1 == N2
-        N = N1
+        @assert size(δφk, 2) == size(φk, 2)
+        N = size(φk, 2)
 
         for i = 1:N, j = 1:N
-            Πδφk[:,i] -= (φk[:,j]'δφk[:,i]) * φk[:,j]
+            Πδφk[:, i] -= (φk[:, j]'δφk[:, i]) * φk[:, j]
         end
         Πδφ[ik] = Πδφk
     end
 
     # test orthogonalisation
-    for ik = 1:Nk
-        φk = φ[ik]
+    tol_test = eps(real(eltype(φ[1])))^(2/3)
+    for (ik, φk) in enumerate(φ)
         δφk = δφ[ik]
         Πδφk = Πδφ[ik]
-        N = size(φk,2)
+        N = size(φk, 2)
         for i = 1:N, j = 1:N
-            @assert abs(Πδφk[:,i]'φk[:,j]) < tol_test [println(abs(Πδφk[:,i]'φk[:,j]))]
+            if abs(Πδφk[:, i]'φk[:, j]) > tol_test
+                @warn "Projection failed : <Πδφki,φkj> = $(abs(Πδφk[:, i]'φk[:, j]))"
+            end
         end
     end
 
@@ -112,11 +112,11 @@ end
 # This has to be passed in KrylovKit solvers when studying (Ω+K) as a super
 # operator from the tangent space to the tangent space to be sure that
 # iterations are constrained to stay on the tangent space.
-# /!\ Be careful that here, φ needs to be packed into on big array
-struct OrthogonalizeAndProject{F, O <: Orthogonalizer, φ} <: Orthogonalizer
+# /!\ Be careful that here, φproj needs to be packed into on big array
+struct OrthogonalizeAndProject{F, O <: Orthogonalizer, φproj} <: Orthogonalizer
     projector::F
     orth::O
-    φ::φ
+    φ::φproj
 end
 OrthogonalizeAndProject(projector, φ) = OrthogonalizeAndProject(projector,
                                                                 KrylovDefaults.orth,
@@ -175,20 +175,20 @@ function apply_Ω(basis::PlaneWaveBasis, δφ, φ, H)
         φk = φ[ik]
         δφk = δφ[ik]
         Hk = H.blocks[ik]
-        λk = φk'*(Hk*φk)
+        λk = φk' * (Hk*φk)
         Ωδφk = similar(δφk)
 
-        N1 = size(δφk,2)
-        N2 = size(φk,2)
+        N1 = size(δφk, 2)
+        N2 = size(φk, 2)
         @assert N1 == N2
         N = N1
 
         for i = 1:N
-            Hδφki = Hk * δφk[:,i]
-            Ωδφk[:,i] = Hδφki
+            Hδφki = Hk * δφk[:, i]
+            Ωδφk[:, i] = Hδφki
             for j = 1:N
-                Ωδφk[:,i] -= (φk[:,j]'Hδφki) * φk[:,j]
-                Ωδφk[:,i] -= λk[j,i] * δφk[:,j]
+                Ωδφk[:, i] -= (φk[:, j]'Hδφki) * φk[:, j]
+                Ωδφk[:, i] -= λk[j, i] * δφk[:, j]
             end
         end
         Ωδφ[ik] = Ωδφk
@@ -216,8 +216,8 @@ where δρ = Σi φi*conj(δφi) + hc.
     for (ik, kpt) in enumerate(basis.kpoints)
         δρk = zeros(eltype(ρ), basis.fft_size)
         for i = 1:size(φ[ik], 2)
-            φki_real = G_to_r(basis, kpt, φ[ik][:,i])
-            δφki_real = G_to_r(basis, kpt, δφ[ik][:,i])
+            φki_real = G_to_r(basis, kpt, φ[ik][:, i])
+            δφki_real = G_to_r(basis, kpt, δφ[ik][:, i])
             δρk .+= occ[ik][i] .* (conj.(φki_real) .* δφki_real +
                                    conj.(δφki_real) .* φki_real)
         end
@@ -247,10 +247,10 @@ where δρ = Σi φi*conj(δφi) + hc.
         φk = φ[ik]
         dVφk = similar(φk)
 
-        for i = 1:size(φk,2)
+        for i = 1:size(φk, 2)
             φk_r = G_to_r(basis, kpt, φk[:,i])
             dVφk_r = dV[:, :, :, kpt.spin] .* φk_r
-            dVφk[:,i] = r_to_G(basis, kpt, dVφk_r)
+            dVφk[:, i] = r_to_G(basis, kpt, dVφk_r)
         end
         Kδφ[ik] = dVφk
     end
@@ -276,7 +276,7 @@ function newton_step(basis::PlaneWaveBasis, φ, φproj, res, occ;
                      tol_krylov=1e-12, krylov_verbosity=1)
 
     # necessary quantities
-    N = size(φ[1],2)
+    N = size(φ[1], 2)
     Nk = length(basis.kpoints)
 
     # compute quantites at the point which define the tangent space
@@ -348,12 +348,14 @@ function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
               for kpt in basis.kpoints]
     else
         for ik in 1:Nk
-            ψ0[ik] = ψ0[ik][:,1:N]
+            ψ0[ik] = ψ0[ik][:, 1:N]
         end
     end
+    update_φproj = true
     if φproj != nothing
+        update_φproj = false
         for ik in 1:Nk
-            φproj[ik] = φproj[ik][:,1:N]
+            φproj[ik] = φproj[ik][:, 1:N]
         end
     end
 
@@ -373,16 +375,14 @@ function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
     while err > tol && k < max_iter
         k += 1
 
-        # set ϕ which defines the tangent space
-        if φproj === nothing
-            ϕ = φ
-        else
-            ϕ = φproj
+        # update φproj which defines the tangent space if necessary
+        if update_φproj
+            φproj = φ
         end
 
         # compute next step
-        res = compute_residual(basis, φ, occupation)
-        φ, δφ = newton_step(basis, φ, ϕ, res, occupation;
+        res = compute_scf_residual(basis, φ, occupation)
+        φ, δφ = newton_step(basis, φ, φproj, res, occupation;
                             krylov_verbosity=verbosity)
 
         # compute error on the densities and the energies

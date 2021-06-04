@@ -74,10 +74,11 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
         error("Direct minimization with MPI is not supported yet")
     end
     model = basis.model
-    @assert model.spin_polarization in (:none, :spinless)
+    @assert model.spin_polarization in (:none, :spinless, :collinear)
     @assert model.temperature == 0 # temperature is not yet supported
     filled_occ = filled_occupation(model)
-    n_bands = div(model.n_electrons, filled_occ)
+    n_spin = basis.model.n_spin_components
+    n_bands = div(div(model.n_electrons, filled_occ), n_spin)
     Nk = length(basis.kpoints)
 
     if ψ0 === nothing
