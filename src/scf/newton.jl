@@ -37,7 +37,7 @@
 # direct minimization and self-consistent iterations. SIAM Journal of Matrix
 # Analysis and Applications, 42(1):243–274 (2021)
 
-import KrylovKit: ArnoldiIterator, Orthogonalizer, OrthonormalBasis, KrylovDefaults, orthogonalize!
+import KrylovKit: Orthogonalizer, OrthonormalBasis, KrylovDefaults, orthogonalize!
 using KrylovKit
 
 #
