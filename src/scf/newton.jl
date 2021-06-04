@@ -259,6 +259,73 @@ where δρ = Σi φi*conj(δφi) + hc.
 end
 
 #
+# Callback and convergence
+#
+
+"""
+Flag convergence as soon as total energy change drops below tolerance
+"""
+function NewtonConvergenceEnergy(tolerance)
+    energy_total = NaN
+
+    function is_converged(info)
+        info.energies === nothing && return false # first iteration
+
+        etot_old = energy_total
+        energy_total = info.energies.total
+        abs(energy_total - etot_old) < tolerance
+    end
+    return is_converged
+end
+:w
+
+"""
+Flag convergence as soon as density change drops below tolerance
+"""
+function NewtonConvergenceDensity(tolerance)
+    info -> (norm(info.ρ_next - info.ρ) * sqrt(info.basis.dvol) < tolerance)
+end
+
+"""
+Default callback function for `newton`, which prints a convergence table
+"""
+function NewtonDefaultCallback()
+    prev_energies = nothing
+    function callback(info)
+        !mpi_master() && return info  # Printing only on master
+        if info.stage == :finalize
+            info.converged || @warn "Newton not converged."
+            return info
+        end
+        collinear = info.basis.model.spin_polarization == :collinear
+
+        if info.n_iter == 1
+            E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
+            magn    = collinear ? ("   Magnet", "   ------") : ("", "")
+            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρ_next-ρ%s\n" E_label magn[1]
+            @printf "---   ---------------   ---------   --------%s\n" magn[2]
+        end
+        E    = isnothing(info.energies) ? Inf : info.energies.total
+        Δρ   = norm(info.ρ_next - info.ρ) * sqrt(info.basis.dvol)
+        if size(info.ρ_next, 4) == 1
+            magn = NaN
+        else
+            magn = sum(spin_density(info.ρ_next)) * info.basis.dvol
+        end
+
+        Estr   = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
+        prev_E = prev_energies === nothing ? Inf : prev_energies.total
+        ΔE     = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_E
+        Mstr = collinear ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
+        @printf "% 3d   %s   %s   %2.2e%s\n" info.n_iter Estr ΔE Δρ Mstr
+        prev_energies = info.energies
+
+        flush(stdout)
+        info
+    end
+end
+
+#
 # Newton algorithm
 #
 
@@ -319,8 +386,10 @@ function newton_step(basis::PlaneWaveBasis, φ, φproj, res, occ;
 end
 
 """
-    newton(basis::PlaneWaveBasis; ψ0=nothing,
-           tol=1e-6, max_iter=100, φproj=nothing, verbosity=0)
+    newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
+                    tol=1e-6, maxiter=20, φproj=nothing, verbosity=0,
+                    callback=NewtonDefaultCallback(),
+                    is_converged=NewtonConvergenceDensity(tol))
 
 Newton algorithm. Be careful that the starting needs to be not too far from the solution.
 Still contains debugging features.
@@ -328,7 +397,9 @@ If φproj is nothing, we use the successive φ's to define the tangent spaces on
 Newton's equation. φproj can be useful when we want to fix the tangent space for testing.
 """
 function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
-                tol=1e-6, max_iter=20, φproj=nothing, verbosity=0) where T
+                tol=1e-6, maxiter=20, φproj=nothing, verbosity=0,
+                callback=NewtonDefaultCallback(),
+                is_converged=NewtonConvergenceDensity(tol)) where T
 
     ## setting parameters
     model = basis.model
@@ -361,19 +432,17 @@ function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
 
     ## iterators
     err = 1
-    k = 0
+    n_iter = 0
 
     ## orbitals, densities and energies to be updated along the iterations
     φ = deepcopy(ψ0)
     ρ = compute_density(basis, φ, occupation)
     prev_energies = nothing
-
-    @printf "\nn     %-12s      Eₙ-Eₙ₋₁     ρ_next-ρ\n" "Energy"
-    @printf "---   ---------------   ---------   --------\n"
+    converged = false
 
     ## perform iterations
-    while err > tol && k < max_iter
-        k += 1
+    while !converged && n_iter < maxiter
+        n_iter += 1
 
         # update φproj which defines the tangent space if necessary
         if update_φproj
@@ -385,19 +454,16 @@ function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
         φ, δφ = newton_step(basis, φ, φproj, res, occupation;
                             krylov_verbosity=verbosity)
 
-        # compute error on the densities and the energies
+        # callback
         ρ_next = compute_density(basis, φ, occupation)
-        err = norm(ρ_next - ρ)
         energies, H = energy_hamiltonian(basis, φ, occupation; ρ=ρ)
-        E = energies.total
-        Estr = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
-        prev_E = prev_energies === nothing ? Inf : prev_energies.total
-        ΔE     = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_E
-        @printf "% 3d   %s   %s   %2.2e \n" k Estr ΔE err
+        info = (ham=H, basis=basis, converged=converged, stage=:iterate,
+                ρ=ρ, ρ_next=ρ_next, n_iter=n_iter, energies=energies)
+        callback(info)
 
-        # update
+        # update and test convergence
+        converged = is_converged(info)
         ρ = ρ_next
-        prev_energies = energies
     end
 
     # Rayleigh-Ritz
@@ -413,8 +479,11 @@ function newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
     εF = nothing  # does not necessarily make sense here, as the
                   # Aufbau property might not even be true
 
-    # return results
-    cvg = k == max_iter ? false : true
-    (ham=H, basis=basis, energies=energies, converged=cvg,
-     ρ=ρ, ψ=φ, eigenvalues=eigenvalues, occupation=occupation, εF=εF)
+    # return results and call callback one last time with final state for clean
+    # up
+    info = (ham=H, basis=basis, energies=energies, converged=converged,
+            ρ=ρ, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
+            n_iter=n_iter, ψ=φ, stage=:finalize)
+    callback(info)
+    info
 end
