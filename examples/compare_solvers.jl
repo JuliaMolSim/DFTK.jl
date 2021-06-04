@@ -1,7 +1,7 @@
 ## We compare here three different solvers : SCF, direct minimization and newton
 ## algorithm.
 
-using DFTK
+using DFTK, LinearAlgebra
 
 a = 10.26  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
