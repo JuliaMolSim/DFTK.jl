@@ -1,5 +1,5 @@
 ## we compute an estimation of the forces F - F*
-function compute_forces_estimate(basis, δφ, φ, Pks, occ; term="local")
+function compute_forces_estimate(basis, δφ, φ, Pks, occ)
 
     T = eltype(basis)
     atoms = basis.model.atoms
@@ -7,9 +7,13 @@ function compute_forces_estimate(basis, δφ, φ, Pks, occ; term="local")
 
     f_est = [zeros(Vec3{T}, length(positions)) for (el, positions) in atoms]
     cs = nothing
-    for (iel, (el, positions)) in enumerate(atoms)
-        for (ir, r) in enumerate(positions)
-            f_est[iel][ir] = force_estimate(basis, φ, δφ, Pks, occ, r, ir, el, term)
+    for term in basis.terms
+        if term isa DFTK.TermAtomicLocal || term isa DFTK.TermAtomicNonlocal
+            for (iel, (el, positions)) in enumerate(atoms)
+                for (ir, r) in enumerate(positions)
+                    f_est[iel][ir] += force_estimate(basis, φ, δφ, Pks, occ, r, ir, el, term)
+                end
+            end
         end
     end
     f_est
@@ -22,7 +26,7 @@ function force_estimate(basis, φ, δφ, Pks, occ, r, ir, el, term)
 
     f_est = zeros(T, 3)
 
-    if term == "local"
+    if term isa DFTK.TermAtomicLocal
         ## |M^-1/2 G∇V φ| --> 3 components vector
         ∇VG = [zero(Vec3{Complex{T}}) for (iG, G) in enumerate(G_vectors(basis))]
         form_factors = [Complex{T}(DFTK.local_potential_fourier(el, norm(basis.model.recip_lattice * G)))
@@ -53,7 +57,7 @@ function force_estimate(basis, φ, δφ, Pks, occ, r, ir, el, term)
         end #i
 
         return f_est
-    elseif term == "nonlocal"
+    elseif term isa DFTK.TermAtomicNonlocal
         C = DFTK.build_projection_coefficients_(el.psp)
         for i = 1:3
             tot_red_kpt_number = sum([length(symops) for symops in basis.ksymops])
@@ -90,8 +94,6 @@ function force_estimate(basis, φ, δφ, Pks, occ, r, ir, el, term)
         end  #i
         DFTK.mpi_sum!(f_est, basis.comm_kpts)  # TODO take that out to gain latency
         return f_est
-    else
-        return 0
     end
 end
 
