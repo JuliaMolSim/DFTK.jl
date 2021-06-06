@@ -29,6 +29,18 @@ function cholesky(X::Union{Matrix{ComplexF16}, Hermitian{ComplexF16,Matrix{Compl
     (U=convert.(ComplexF16, U), )
 end
 
+# B-orthogonalize X (in place) using only one B apply.
+# This uses an unstable method which is only OK if X is already
+# orthogonal (not B-orthogonal) and B is relatively well-conditioned
+# (which implies that X'BX is relatively well-conditioned, and
+# therefore that it is safe to cholesky it and reuse the B aply)
+function B_ortho!(X, BX)
+    O = Hermitian(X'*BX)
+    U = cholesky(O).U
+    rdiv!(X, U)
+    rdiv!(BX, U)
+end
+
 normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 # Orthogonalizes X to tol
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
@@ -198,7 +210,13 @@ end
     buf_X = zero(X)
     buf_P = zero(X)
 
-    X = ortho(X, tol=ortho_tol)[1] # TODO we need to B-orthogonalize here!!
+    # B-orthogonalize X
+    X = ortho(X, tol=ortho_tol)[1]
+    if B != I
+        BX = B*X
+        B_ortho!(X, BX)
+    end
+    
     n_matvec = M   # Count number of matrix-vector products
     AX = A*X
     # full_X/AX/BX will always store the full (including locked) X.
@@ -209,10 +227,10 @@ end
     AR = zero(X)
     if B != I
         BR = zero(X)
-        BX = B*X
+        # BX was already computed
         BP = zero(X)
     else
-        # The B arrays share the data
+        # The B arrays are just pointers to the same data
         BR = R
         BX = X
         BP = P
@@ -327,9 +345,9 @@ end
             BX .= new_BX
         end
 
-        # Sanity check
+        # Quick sanity check
         for i = 1:size(X, 2)
-            if abs(norm(@view X[:, i]) - 1) >= sqrt(eps(real(eltype(X))))
+            @views if abs(BX[:, i]'X[:, i] - 1) >= sqrt(eps(real(eltype(X))))
                 error("LOBPCG is badly failing to keep the vectors normalized; this should never happen")
             end
         end
@@ -366,17 +384,9 @@ end
             BZ = full_BX
         end
         R .= ortho(R, Z, BZ; tol=ortho_tol)
-
         if B != I
-            # At this point R is orthogonalized but not B-orthogonalized.
-            # We assume that B is relatively well-conditioned so that R is
-            # close to be B-orthogonal. Therefore one step is OK, and B R
-            # can be re-used
             mul!(BR, B, R)
-            O = Hermitian(R'*BR)
-            U = cholesky(O).U
-            rdiv!(R, U)
-            rdiv!(BR, U)
+            B_ortho!(R, BR)
         end
 
         niter < maxiter || break
