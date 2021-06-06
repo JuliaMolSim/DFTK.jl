@@ -1,5 +1,19 @@
-## TODO micro-optimization, reuse buffers, etc.
-## TODO write a version that doesn't assume that B is well-conditionned, and doesn't reuse B applications
+# Implementation of the LOBPCG algorithm, seeking optimal performance
+# and stability (it should be very, very hard to break, even at tight
+# tolerance criteria). The code is not 100% optimized yet, but the
+# most time-consuming parts (BLAS3 and matvecs) should be OK. The
+# implementation follows the scheme of Hetmaniuk & Lehoucq (see also
+# the refinements in Duersch et. al.), with the following
+# modifications:
+
+# - Cholesky factorizations are used instead of the eigenvalue decomposition of Stathopolous & Wu for the orthogonalization. Cholesky orthogonalization is fast but has an unwarranted bad reputation: when applied twice to a matrix X with κ(X) <~ sqrt(1/ε), where ε is the machine epsilon, it will produce a set of very orthogonal vectors, just as the eigendecomposition-based method. It can fail when κ >~ sqrt(1/ε), but that can be fixed by shifting the overlap matrix. This is very reliable while being much faster than eigendecompositions.
+# - Termination criteria for the orthogonalization are based on cheap estimates instead of costly explicit checks.
+# - The default tolerances are very tight, yielding a very stable algorithm. This can be tweaked (see keyword ortho_tol) to compromise on stability for less Cholesky factorizations.
+# - Implicit product updates (reuse of matvecs) are performed whenever it is safe to do so, ie only with orthogonal transformations. An exception is the B matrix reuse, which seems to be OK even with very badly conditioned B matrices. The code is easy to modify if this is not the case.
+# - The locking is performed carefully to ensure minimal impact on the other eigenvectors (which is not the case in many - all ? - other implementations)
+
+## TODO micro-optimization of buffer reuse
+## TODO write a version that doesn't assume that B is well-conditionned, and doesn't reuse B applications at all
 ## TODO it seems there is a lack of orthogonalization immediately after locking, maybe investigate this to save on some choleskys
 
 # vprintln(args...) = println(args...)  # Uncomment for output
