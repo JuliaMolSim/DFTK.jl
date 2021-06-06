@@ -6,57 +6,17 @@
 vprintln(args...) = nothing
 
 using LinearAlgebra
+using BlockArrays # used for the `mortar` command which makes block matrices
 
-# In the LOBPCG we deal with a subspace (X, R, P), where X, R and P are views
-# into bigger arrays. We don't store these subspace vectors as a dense matrix
-# or a special struct, but just as a tuple.
-# For efficiently matrix-matrix products of this subspace with itself or with
-# dense matrices, we introduce the functions `bmul` and `boverlap` below.
-
-# Given A as a list of blocks [A1, A2, A3] this forms the matrix-matrix product
-# A * B avoiding a concatenation of the blocks to a dense array
-@views @timing "block multiplication" function bmul(blocks::Tuple, B)
-    res = blocks[1] * B[1:size(blocks[1], 2), :]  # First multiplication
-    offset = size(blocks[1], 2)
-    for block in blocks[2:end]
-        mul!(res, block, B[offset .+ (1:size(block, 2)), :], 1, 1)
-        offset += size(block, 2)
-    end
-    res
+# when X or Y are BlockArrays, this makes the return value be a proper array (not a BlockArray)
+function array_mul(X, Y)
+    Z = zeros(eltype(X), size(X, 1), size(Y, 2))
+    mul!(Z, X, Y)
 end
-bmul(A, B::Tuple) = error("not implemented")
-bmul(A::Tuple, B::Tuple) = error("not implemented")
-bmul(A, B) = A * B
-
-
-# Given A and B as two lists of blocks [A1, A2, A3], [B1, B2, B3] form the matrix
-# A' B optionally assuming that the output is a Hermitian matrix and will be used
-# with the Hermitian view, such that only the upper triangle needs to be computed.
-@views function boverlap(blocksA::Tuple, blocksB::Tuple; assume_hermitian=false)
-    rows = sum(size(blA, 2) for blA in blocksA)
-    cols = sum(size(blB, 2) for blB in blocksB)
-    ret = similar(blocksA[1], rows, cols)
-
-    orow = 0  # row offset
-    for (iA, blA) in enumerate(blocksA)
-        ocol = 0  # column offset
-        for (iB, blB) in enumerate(blocksB)
-            if !assume_hermitian || iA ≤ iB
-                mul!(ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))], blA', blB)
-            end
-            ocol += size(blB, 2)
-        end
-        orow += size(blA, 2)
-    end
-    ret
-end
-boverlap(blocksA::Tuple, B) = boverlap(blocksA, (B, ))
-boverlap(A, B) = A' * B
-
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X, AX, BX, N)
-    F = eigen(Hermitian(boverlap(X, AX, assume_hermitian=true)))  # == Hermitian(X' AX)
+    F = eigen(Hermitian(array_mul(X', AX)))
     F.vectors[:,1:N], F.values[1:N]
 end
 
@@ -69,6 +29,7 @@ function cholesky(X::Union{Matrix{ComplexF16}, Hermitian{ComplexF16,Matrix{Compl
     (U=convert.(ComplexF16, U), )
 end
 
+normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 # Orthogonalizes X to tol
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been
@@ -117,8 +78,6 @@ end
         end
         invR = inv(R)
         rmul!(X, invR) # we do not use X/R because we use invR next
-
-        normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 
         # We would like growth_factor *= opnorm(inv(R)) but it's too
         # expensive, so we use an upper bound which is sharp enough to
@@ -170,15 +129,14 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
     niter = 1
     ninners = zeros(Int,0)
     while true
-        BYX = boverlap(BY, X)   # = BY' X
-        X .-= bmul(Y, BYX)  # = Y * BYX
+        BYX = BY'X
+        mul!(X, Y, BYX, -1, 1) # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho(cP, cX)
         dropped = drop!(X)
-        @views if dropped != []
-            # X[:, dropped] = X[:, dropped] - Y * BY' * X[:, dropped]
-            X[:, dropped] .= X[:, dropped] .- bmul(Y, boverlap(BY, X[:, dropped]))
+        if dropped != []
+            @views mul!(X[:, dropped], Y, BY'X[:, dropped], -1, 1) # X -= Y*BY'X
         end
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
@@ -240,7 +198,7 @@ end
     buf_X = zero(X)
     buf_P = zero(X)
 
-    X = ortho(X, tol=ortho_tol)[1]
+    X = ortho(X, tol=ortho_tol)[1] # TODO we need to B-orthogonalize here!!
     n_matvec = M   # Count number of matrix-vector products
     AX = A*X
     # full_X/AX/BX will always store the full (including locked) X.
@@ -270,30 +228,30 @@ end
     full_BX = BX
 
     while true
-        if niter > 0 # first iteration is just to compute the residuals: no X update
+        if niter > 0 # first iteration is just to compute the residuals (no X update)
             ###  Perform the Rayleigh-Ritz
             mul!(AR, A, R)
             n_matvec += size(R, 2)
 
             # Form Rayleigh-Ritz subspace
             if niter > 1
-                Y = (X, R, P)
-                AY = (AX, AR, AP)
-                BY = (BX, BR, BP)  # data shared with (X, R, P) in non-general case
+                Y = mortar((X, R, P))
+                AY = mortar((AX, AR, AP))
+                BY = mortar((BX, BR, BP))  # data shared with (X, R, P) in non-general case
             else
-                Y = (X, R)
-                AY = (AX, AR)
-                BY = (BX, BR)  # data shared with (X, R) in non-general case
+                Y = mortar((X, R))
+                AY = mortar((AX, AR))
+                BY = mortar((BX, BR))  # data shared with (X, R) in non-general case
             end
-            cX, λs = rayleigh_ritz(Y, AY, BY, M-nlocked)
+            cX, λs = rayleigh_ritz(Y, AY, M-nlocked)
 
             # Update X. By contrast to some other implementations, we
             # wait on updating P because we have to know which vectors
             # to lock (and therefore the residuals) before computing P
             # only for the unlocked vectors. This results in better convergence.
-            new_X  = bmul(Y , cX)  # = Y * cX
-            new_AX = bmul(AY, cX)  # = AY * cX,   no accuracy loss, since cX orthogonal
-            new_BX = (B == I) ? new_X : bmul(BY, cX)
+            new_X  = array_mul(Y, cX)  # = Y * cX
+            new_AX = array_mul(AY, cX)  # = AY * cX,   no accuracy loss, since cX orthogonal
+            new_BX = (B == I) ? new_X : array_mul(BY, cX)
         end
 
         ### Compute new residuals
@@ -353,10 +311,10 @@ end
             cP = ortho(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
-            new_P = bmul(Y, cP)    # = Y * cP
-            new_AP = bmul(AY, cP)  # = AY * cP
+            new_P = array_mul(Y, cP)    # = Y * cP
+            new_AP = array_mul(AY, cP)  # = AY * cP
             if B != I
-                new_BP = bmul(BY, cP)  # = BY * cP
+                new_BP = array_mul(BY, cP)  # = BY * cP
             else
                 new_BP = new_P
             end
@@ -401,13 +359,13 @@ end
 
         # Orthogonalize R wrt all X, newly active P
         if niter > 0
-            Z  = (full_X, P)
-            BZ = (full_BX, BP)  # data shared with (full_X, P) in non-general case
+            Z  = mortar((full_X, P))
+            BZ = mortar((full_BX, BP))  # data shared with (full_X, P) in non-general case
         else
             Z  = full_X
             BZ = full_BX
         end
-        R .= ortho(R, Z, BZ, tol=ortho_tol)
+        R .= ortho(R, Z, BZ; tol=ortho_tol)
 
         if B != I
             # At this point R is orthogonalized but not B-orthogonalized.
