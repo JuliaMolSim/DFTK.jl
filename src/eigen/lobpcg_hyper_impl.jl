@@ -15,7 +15,7 @@ function array_mul(X, Y)
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
-@timing function rayleigh_ritz(X, AX, BX, N)
+@timing function rayleigh_ritz(X, AX, N)
     F = eigen(Hermitian(array_mul(X', AX)))
     F.vectors[:,1:N], F.values[1:N]
 end
