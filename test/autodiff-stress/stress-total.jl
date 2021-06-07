@@ -1,4 +1,3 @@
-# Very basic setup, useful for testing
 using DFTK
 using Test
 
@@ -34,8 +33,11 @@ end
 
 compute_energy(scfres, 10.26)
 
-# Finite difference reference stress
-FiniteDiff.finite_difference_derivative(a -> compute_energy(scfres, a), 10.26) # -1.4114474091964526
+function compute_stress(scfres_ref, a)
+    Inf # TODO implement
+end
+@test compute_stress(scfres, a) ≈ FiniteDiff.finite_difference_derivative(a -> compute_energy(scfres, a), a) # -1.411
+
 
 ###
 ### Forward mode
