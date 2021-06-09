@@ -60,6 +60,10 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments) 
             iszero(magmom) && continue
             iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
 
+            magmom[3] ≤ n_elec_valence(spec) || error(
+                "Magnetic moment $(magmom[3]) too large for element $(spec.symbol) with " *
+                "only $(n_elec_valence(spec)) valence electrons."
+            )
             push!(gaussians, (magmom[3], atom_decay_length(spec), r))
         end
     end
