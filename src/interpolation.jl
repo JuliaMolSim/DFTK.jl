@@ -85,10 +85,33 @@ function interpolate_kpoint(data_in::AbstractVecOrMat, kpoint_in::Kpoint, kpoint
     data_out
 end
 
+"""
+Compute indices from basis_in that are in basis_out, alongside the complementary
+set of indices of basis_out that are not in basis_in.
+"""
+function grid_interpolation_indices(basis_in, basis_out)
+    idcs_out = []
+
+    for (ik, kpt_out) in enumerate(basis_out.kpoints)
+        # Get indices of the G vectors of the old basis inside the new basis.
+        idcsk_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in.kpoints[ik]))
+
+        # Linearise the indices
+        idcsk_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcsk_out)
+
+        # Map to the indices of the corresponding G-vectors in G_vectors(kpt_out)
+        idcsk_out = indexin(idcsk_out, kpt_out.mapping)
+        # this array might contains some nothings if basis_out has less G_vectors
+        # than basis_in at this kpoint
+        push!(idcs_out, idcsk_out)
+    end
+
+    idcs_out
+end
 
 """
-Interpolate Bloch wave between two basis sets. Limited feature set. Currently only
-interpolation to a bigger grid (larger Ecut) on the same lattice supported.
+Interpolate Bloch wave between two basis sets. Limited feature set.
+Currently, only basis with same lattices are supported.
 """
 function interpolate_blochwave(ψ_in, basis_in, basis_out)
     @assert basis_in.model.lattice == basis_out.model.lattice
@@ -97,23 +120,28 @@ function interpolate_blochwave(ψ_in, basis_in, basis_out)
                 for ik in 1:length(basis_in.kpoints))
 
     ψ_out = empty(ψ_in)
+
+    # indices from basis_out that are in basis_in
+    # idcs_out[ik] might contains nothings if basis_out is smaller than basis_in
+    idcs_out = grid_interpolation_indices(basis_in, basis_out)
+
+    # indices from basis_in that are in basis_out
+    # idcs_in[ik] might contains nothings if basis_in is smaller than basis_out
+    idcs_in  = grid_interpolation_indices(basis_out, basis_in)
+
     for (ik, kpt_out) in enumerate(basis_out.kpoints)
         n_bands = size(ψ_in[ik], 2)
-
-        # Get indices of the G vectors of the old basis inside the new basis.
-        idcs_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in.kpoints[ik]))
-
-        # Linearize the indices
-        idcs_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcs_out)
-
-        # Map to the indices of the corresponding G-vectors in G_vectors(kpt_out)
-        idcs_kpt_out = indexin(idcs_out, kpt_out.mapping)
-        @assert !any(isnothing, idcs_kpt_out)
 
         # Set values
         ψk_out = similar(ψ_in[ik], length(G_vectors(kpt_out)), n_bands)
         ψk_out .= 0
-        ψk_out[idcs_kpt_out, :] .= ψ_in[ik]
+        if !any(isnothing, idcs_out[ik])
+            # if true, then Ecut_out >= Ecut_in and we pad with zeros
+            ψk_out[idcs_out[ik], :] .= ψ_in[ik]
+        else
+            # else, then Ecut_in > Ecut_out and we cut off high frequencies
+            ψk_out .= ψ_in[ik][idcs_in[ik], :]
+        end
         push!(ψ_out, ψk_out)
     end
 
