@@ -568,3 +568,31 @@ function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
         nothing
     end
 end
+
+
+# Packing routines used in direct_minimization and newton algorithms.
+# They pack / unpack sets of planewaves to make them compatible to be used in
+# algorithms from KrylovKit or Optim libraries
+
+"""
+Pack a set of planewaves defined on different k-point into one big vector.
+"""
+pack_arrays(basis::PlaneWaveBasis, φ) = vcat(Base.vec.(φ)...)
+
+"""
+Unpack a packed vector into a set of planewaves with good dimensions.
+"""
+function unpack_arrays(basis::PlaneWaveBasis, x)
+
+    Nk = length(basis.kpoints)
+    model = basis.model
+    filled_occ = filled_occupation(model)
+    n_spin = basis.model.n_spin_components
+    n_bands = div(div(model.n_electrons, filled_occ), n_spin)
+
+    lengths = length.(G_vectors.(basis.kpoints)) .* n_bands
+    ends = cumsum(lengths)
+    [@views reshape(x[ends[ik]-lengths[ik]+1:ends[ik]],
+                    (length(G_vectors(basis.kpoints[ik])), n_bands))
+     for ik = 1:Nk]
+end

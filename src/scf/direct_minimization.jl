@@ -76,31 +76,22 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
         error("Direct minimization with MPI is not supported yet")
     end
     model = basis.model
-    @assert model.spin_polarization in (:none, :spinless)
+    @assert model.spin_polarization in (:none, :spinless, :collinear)
     @assert model.temperature == 0 # temperature is not yet supported
     filled_occ = filled_occupation(model)
-    n_bands = div(model.n_electrons, filled_occ)
-    ortho(ψk) = Matrix(qr(ψk).Q)
+    n_spin = basis.model.n_spin_components
+    n_bands = div(div(model.n_electrons, filled_occ), n_spin)
     Nk = length(basis.kpoints)
 
     if ψ0 === nothing
-        ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), n_bands))
+        ψ0 = [ortho_qr(randn(Complex{T}, length(G_vectors(kpt)), n_bands))
               for kpt in basis.kpoints]
     end
     occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
 
-    ## vec and unpack
-    # length of ψ[ik]
-    lengths = [length(ψ0[ik]) for ik = 1:Nk]
-    # psi[ik] is in psi_flat[starts[ik]:starts[ik]+lengths[ik]-1]
-    starts = copy(lengths)
-    starts[1] = 1
-    for ik = 1:Nk-1
-        starts[ik+1] = starts[ik] + lengths[ik]
-    end
-    pack(ψ) = vcat(Base.vec.(ψ)...) # TODO as an optimization, do that lazily? See LazyArrays
-    unpack(ψ) = [@views reshape(ψ[starts[ik]:starts[ik]+lengths[ik]-1], size(ψ0[ik]))
-                 for ik = 1:Nk]
+    ## pack and unpack
+    pack(φ) = pack_arrays(basis, φ)
+    unpack(x) = unpack_arrays(basis, x)
 
     # this will get updated along the iterations
     H = nothing

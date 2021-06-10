@@ -26,6 +26,15 @@ include("testcases.jl")
         end
     end
 
+    # Run Newtom algorithm
+    if mpi_nprocs() == 1  # Distributed implementation not yet available
+        @testset "Newton" begin
+            ψ0 = self_consistent_field(basis, maxiter=1).ψ
+            ρ_newton = newton(basis; tol=tol, ψ0=ψ0).ρ
+            @test maximum(abs.(ρ_newton - ρ_nl)) < sqrt(tol) / 10
+        end
+    end
+
     # Run other SCFs with SAD guess
     ρ0 = guess_density(basis, [Si => silicon.positions])
     for solver in (scf_nlsolve_solver(), scf_damping_solver(1.2), scf_anderson_solver(),
