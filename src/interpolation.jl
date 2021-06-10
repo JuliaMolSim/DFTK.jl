@@ -86,10 +86,30 @@ function interpolate_kpoint(data_in::AbstractVecOrMat, kpoint_in::Kpoint, kpoint
 end
 
 """
-Compute indices from basis_in that are in basis_out, alongside the complementary
-set of indices of basis_out that are not in basis_in.
+Compute indices from basis_in that are in basis_out. The output format is an array
+idcs_out of size length(basis_in.kpoint), where idcs_out[ik] contains the indices
+of the vectors in G_vectors(basis_in) that are also present in G_vectors(basis_out).
+
+If, for some kpt ik, basis_in has less vectors than basis_out, then idcs_out[ik] is
+the array of the indices of the G_vectors from basis_in in basis_out.
+It is then of size G_vectors(basis_in.kpoints[ik]) and the interpolation can be done with
+ψ_out[ik] .= 0
+ψ_out[ik][idcs_out[ik], :] .= ψ_in[ik]
+
+Otherwise, if, for some kpt ik, basis_in has more vectors than basis_out, then
+idcs_out[ik] just keep the indices of the G_vectors from basis_in that are in basis_out.
+It is then of size G_vectors(basis_out.kpoints[ik]) and the interpolation can be done with
+ψ_out[ik] .= ψ_in[ik][idcs_in[ik], :]
+
+For the moment, only PlaneWaveBasis with same lattice and kgrid are supported.
 """
-function grid_interpolation_indices(basis_in, basis_out)
+function grid_interpolation_indices(basis_in::PlaneWaveBasis{T},
+                                    basis_out::PlaneWaveBasis{T}) where T
+    @assert basis_in.model.lattice == basis_out.model.lattice
+    @assert length(basis_in.kpoints) == length(basis_out.kpoints)
+    @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
+                for ik in 1:length(basis_in.kpoints))
+
     idcs_out = []
 
     for (ik, kpt_out) in enumerate(basis_out.kpoints)
@@ -111,13 +131,10 @@ end
 
 """
 Interpolate Bloch wave between two basis sets. Limited feature set.
-Currently, only basis with same lattices are supported.
+Currently, only PlaneWaveBasis with same lattice and kgrid are supported.
 """
-function interpolate_blochwave(ψ_in, basis_in, basis_out)
-    @assert basis_in.model.lattice == basis_out.model.lattice
-    @assert length(basis_in.kpoints) == length(basis_out.kpoints)
-    @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
-                for ik in 1:length(basis_in.kpoints))
+function interpolate_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
+                               basis_out::PlaneWaveBasis{T}) where T
 
     ψ_out = empty(ψ_in)
 
