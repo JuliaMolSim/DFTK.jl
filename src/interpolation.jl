@@ -115,6 +115,10 @@ function grid_interpolation_indices(basis_in::PlaneWaveBasis{T},
     for (ik, kpt_out) in enumerate(basis_out.kpoints)
         # Get indices of the G vectors of the old basis inside the new basis.
         idcsk_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in.kpoints[ik]))
+        # if basis_in is too big and contains vectors that are not in
+        # basis_out.fft_size, then there are nothings in idcsk_out, which we
+        # don't want so we filter them
+        filter!(e -> e != nothing, idcsk_out)
 
         # Linearise the indices
         idcsk_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcsk_out)
