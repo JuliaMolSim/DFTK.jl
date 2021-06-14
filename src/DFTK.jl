@@ -99,7 +99,6 @@ include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
 export model_atomic
-export model_atomic_debug # TODO delete
 export model_DFT
 export model_PBE
 export model_LDA
