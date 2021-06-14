@@ -21,8 +21,7 @@ function make_basis(a)
     model = Model(lattice; atoms=atoms, terms=terms, symmetries=false)
     kgrid = [1, 1, 1]  # k-point grid (Regular Monkhorst-Pack grid)
     Ecut = 15          # kinetic energy cutoff in Hartree
-    basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=[32, 32, 32])
-    return basis
+    PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=[32, 32, 32])
 end
 
 a = 10.26
