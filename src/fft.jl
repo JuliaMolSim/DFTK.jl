@@ -166,3 +166,4 @@ end
 # for floating-point types natively supported by FFTW
 next_working_fft_size(::Type{Float32}, size) = size
 next_working_fft_size(::Type{Float64}, size) = size
+next_working_fft_size(::Type{<:ForwardDiff.Dual}, size) = size
