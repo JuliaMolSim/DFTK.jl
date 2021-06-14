@@ -40,14 +40,17 @@ function compute_energy(scfres_ref, a)
     energies.total
 end
 
-compute_energy(scfres, 10.26)
+compute_energy(a) = compute_energy(scfres, a)
+compute_energy(10.26)
 
 import FiniteDiff
-FiniteDiff.finite_difference_derivative(a -> compute_energy(scfres, a), 10.26) # -11.113131188820518 
-
-###
-### Forward mode
-###
+FiniteDiff.finite_difference_derivative(compute_energy, 10.26) # -11.113131188820518 
 
 using ForwardDiff
-ForwardDiff.derivative(a -> compute_energy(scfres, a), 10.26) # -11.113131188299548
+ForwardDiff.derivative(compute_energy, 10.26) # -11.113131188299548
+
+using BenchmarkTools
+@btime compute_energy(10.26)                                           # 14.294 ms (60112 allocations: 9.65 MiB)
+@btime FiniteDiff.finite_difference_derivative(compute_energy, 10.26)  # 29.582 ms (120228 allocations: 19.30 MiB)
+@btime ForwardDiff.derivative(compute_energy, 10.26)                   # 26.178 ms (70669 allocations: 14.51 MiB)
+

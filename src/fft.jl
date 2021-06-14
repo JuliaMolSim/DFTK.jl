@@ -1,4 +1,5 @@
 import FFTW
+import ForwardDiff
 
 # returns the lengths of the bounding rectangle in reciprocal space
 # that encloses the sphere of radius Gmax
