@@ -13,10 +13,10 @@ function make_basis(a)
     atoms = [Si => [ones(3)/8, -ones(3)/8]]
     terms = [
         Kinetic(),
-        # AtomicLocal(),
+        AtomicLocal(),
         # AtomicNonlocal(),
-        # Ewald(),
-        # PspCorrection()
+        Ewald(),
+        PspCorrection()
     ]
     model = Model(lattice; atoms=atoms, terms=terms, symmetries=false)
     kgrid = [1, 1, 1]  # k-point grid (Regular Monkhorst-Pack grid)
@@ -41,11 +41,11 @@ end
 compute_energy(scfres, 10.26)
 
 import FiniteDiff
-FiniteDiff.finite_difference_derivative(a -> compute_energy(scfres, a), 10.26) # -0.6579483620146331 
+FiniteDiff.finite_difference_derivative(a -> compute_energy(scfres, a), 10.26) # -11.113131188820518 
 
 ###
 ### Forward mode
 ###
 
 using ForwardDiff
-ForwardDiff.derivative(a -> compute_energy(scfres, a), 10.26) # -0.6579483619526001
+ForwardDiff.derivative(a -> compute_energy(scfres, a), 10.26) # -11.113131188299548
