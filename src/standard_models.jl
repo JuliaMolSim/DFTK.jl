@@ -20,6 +20,24 @@ function model_atomic(lattice::AbstractMatrix, atoms::Vector; extra_terms=[], kw
     Model(lattice; atoms=atoms, terms=terms, kwargs...)
 end
 
+"""
+Convenience constructor for debugging purposes only.
+"""
+function model_atomic_debug(lattice::AbstractMatrix, atoms::Vector; extra_terms=[], kwargs...)
+    @assert !(:terms in keys(kwargs))
+    @assert !(:atoms in keys(kwargs))
+    terms = [Kinetic(),
+            #  AtomicLocal(),
+            #  AtomicNonlocal(),
+            #  Ewald(),
+            #  PspCorrection(),
+             extra_terms...]
+    if :temperature in keys(kwargs) && kwargs[:temperature] != 0
+        terms = [terms..., Entropy()]
+    end
+    Model(lattice; atoms=atoms, terms=terms, kwargs...)
+end
+
 
 """
 Build a DFT model from the specified atoms, with the specified functionals.
