@@ -1,3 +1,6 @@
+# Hellmann-Feynman stress
+# via ForwardDiff & generic arithmetic (FourierTransforms.jl)
+# (disregarding performance)
 using DFTK
 using Test
 
