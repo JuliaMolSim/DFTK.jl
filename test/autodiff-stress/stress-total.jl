@@ -1,43 +1,30 @@
 using DFTK
-using Test
 
-a = 10.26
-lattice = a / 2 * [[0 1 1.];
-                   [1 0 1.];
-                   [1 1 0.]]
-Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
-
-model = model_atomic(lattice, atoms, symmetries=false)
-kgrid = [1, 1, 1]  # k-point grid (Regular Monkhorst-Pack grid)
-Ecut = 15          # kinetic energy cutoff in Hartree
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
-
-scfres = self_consistent_field(basis, tol=1e-8)
-
-function compute_energy(scfres_ref, a)
+function make_basis(a)
     lattice = a / 2 * [[0 1 1.];
-                       [1 0 1.];
-                       [1 1 0.]]
+                    [1 0 1.];
+                    [1 1 0.]]
     Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
     atoms = [Si => [ones(3)/8, -ones(3)/8]]
-
     model = model_atomic(lattice, atoms, symmetries=false)
     kgrid = [1, 1, 1]  # k-point grid (Regular Monkhorst-Pack grid)
-    Ecut = 15           # kinetic energy cutoff in Hartree
-    basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+    Ecut = 15          # kinetic energy cutoff in Hartree
+    PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+end
 
+a = 10.26
+scfres = self_consistent_field(make_basis(a), tol=1e-8)
+
+function compute_energy(scfres_ref, a)
+    basis = make_basis(a)
     energies, H = energy_hamiltonian(basis, scfres_ref.ψ, scfres_ref.occupation; ρ=scfres_ref.ρ)
     energies.total
 end
 
 compute_energy(scfres, 10.26)
 
-function compute_stress(scfres_ref, a)
-    Inf # TODO implement
-end
-@test compute_stress(scfres, a) ≈ FiniteDiff.finite_difference_derivative(a -> compute_energy(scfres, a), a) # -1.411
-
+import FiniteDiff
+fd_stress = FiniteDiff.finite_difference_derivative(a -> compute_energy(scfres, a), a)
 
 ###
 ### Forward mode
@@ -45,31 +32,43 @@ end
 
 using ForwardDiff
 ForwardDiff.derivative(a -> compute_energy(scfres, a), 10.26)
-# ERROR: LoadError: MethodError: no method matching svdvals!(::Matrix{ForwardDiff.Dual{ForwardDiff.Tag{var"#15#16", Float64}, Float64, 1}})
+# ERROR: LoadError: MethodError: no method matching next_working_fft_size(::Type{ForwardDiff.Dual{ForwardDiff.Tag{var"#11#12", Float64}, Float64, 1}}, ::Int64)
 # Closest candidates are:
-#   svdvals!(::SymTridiagonal) at /buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/LinearAlgebra/src/tridiag.jl:351
-#   svdvals!(::StridedMatrix{T}) where T<:Union{Float32, Float64, ComplexF32, ComplexF64} at /buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/LinearAlgebra/src/svd.jl:192
-#   svdvals!(::StridedMatrix{T}, ::StridedMatrix{T}) where T<:Union{Float32, Float64, ComplexF32, ComplexF64} at /buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/LinearAlgebra/src/svd.jl:498
-#   ...
+#   next_working_fft_size(::Type{Float32}, ::Any) at /home/niku/.julia/dev/DFTK.jl/src/fft.jl:167
+#   next_working_fft_size(::Type{Float64}, ::Any) at /home/niku/.julia/dev/DFTK.jl/src/fft.jl:168
 # Stacktrace:
-#  [1] svdvals(A::Matrix{ForwardDiff.Dual{ForwardDiff.Tag{var"#15#16", Float64}, Float64, 1}})
-#    @ LinearAlgebra /buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/LinearAlgebra/src/svd.jl:217
-#  [2] cond(A::Matrix{ForwardDiff.Dual{ForwardDiff.Tag{var"#15#16", Float64}, Float64, 1}}, p::Int64)
-#    @ LinearAlgebra /buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/LinearAlgebra/src/dense.jl:1462
-#  [3] cond
-#    @ /buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/LinearAlgebra/src/dense.jl:1461 [inlined]
-#  [4] Model(lattice::Matrix{ForwardDiff.Dual{ForwardDiff.Tag{var"#15#16", Float64}, Float64, 1}}; n_electrons::Nothing, atoms::Vector{Pair{ElementPsp, Vector{Vector{Float64}}}}, magnetic_moments::Vector{Any}, terms::Vector{Any}, temperature::ForwardDiff.Dual{ForwardDiff.Tag{var"#15#16", Float64}, Float64, 1}, smearing::Nothing, spin_polarization::Symbol, symmetries::Bool)
-#    @ DFTK ~/.julia/dev/DFTK.jl/src/Model.jl:106
-#  [5] model_atomic(lattice::Matrix{ForwardDiff.Dual{ForwardDiff.Tag{var"#15#16", Float64}, Float64, 1}}, atoms::Vector{Pair{ElementPsp, Vector{Vector{Float64}}}}; extra_terms::Vector{Any}, kwargs::Base.Iterators.Pairs{Symbol, Bool, Tuple{Symbol}, NamedTuple{(:symmetries,), Tuple{Bool}}})
-#    @ DFTK ~/.julia/dev/DFTK.jl/src/standard_models.jl:20
-#  [6] compute_energy(scfres_ref::NamedTuple{(:ham, :basis, :energies, :converged, :ρ, :eigenvalues, :occupation, :εF, :n_iter, :n_ep_extra, :ψ, :diagonalization, :stage), Tuple{Hamiltonian, PlaneWaveBasis{Float64}, Energies{Float64}, Bool, Array{Float64, 4}, Vector{Vector{Float64}}, Vector{Vector{Float64}}, Float64, Int64, Int64, Vector{Matrix{ComplexF64}}, NamedTuple{(:λ, :X, :residual_norms, :iterations, :converged, :n_matvec), Tuple{Vector{Vector{Float64}}, Vector{Matrix{ComplexF64}}, Vector{Vector{Float64}}, Vector{Int64}, Bool, Int64}}, Symbol}}, a::ForwardDiff.Dual{ForwardDiff.Tag{var"#15#16", Float64}, Float64, 1})
-#    @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:25
-#  [7] (::var"#15#16")(a::ForwardDiff.Dual{ForwardDiff.Tag{var"#15#16", Float64}, Float64, 1})
-#    @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:45
-#  [8] derivative(f::var"#15#16", x::Float64)
-#    @ ForwardDiff ~/.julia/packages/ForwardDiff/m7cm5/src/derivative.jl:14
-#  [9] top-level scope
-#    @ ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:45
+#   [1] macro expansion
+#     @ ~/.julia/packages/StaticArrays/NTbHj/src/broadcast.jl:125 [inlined]
+#   [2] _broadcast
+#     @ ~/.julia/packages/StaticArrays/NTbHj/src/broadcast.jl:99 [inlined]
+#   [3] copy
+#     @ ~/.julia/packages/StaticArrays/NTbHj/src/broadcast.jl:26 [inlined]
+#   [4] materialize
+#     @ ./broadcast.jl:883 [inlined]
+#   [5] validate_or_compute_fft_size(model::Model{ForwardDiff.Dual{ForwardDiff.Tag{var"#11#12", Float64}, Float64, 1}}, fft_size::Nothing, Ecut::Int64, supersampling::Int64, variational::Bool, optimize_fft_size::Bool, kcoords::Vector{StaticArrays.SVector{3, Rational{Int64}}})
+#     @ DFTK ~/.julia/dev/DFTK.jl/src/fft.jl:139
+#   [6] macro expansion
+#     @ ~/.julia/dev/DFTK.jl/src/PlaneWaveBasis.jl:193 [inlined]
+#   [7] (::DFTK.var"#62#64"{ForwardDiff.Dual{ForwardDiff.Tag{var"#11#12", Float64}, Float64, 1}, Bool, Bool, Int64, Vector{Int64}, Vector{Int64}, Model{ForwardDiff.Dual{ForwardDiff.Tag{var"#11#12", Float64}, Float64, 1}}, Int64})()
+#     @ DFTK ~/.julia/packages/TimerOutputs/ZmKD7/src/TimerOutput.jl:237
+#   [8] timeit(f::DFTK.var"#62#64"{ForwardDiff.Dual{ForwardDiff.Tag{var"#11#12", Float64}, Float64, 1}, Bool, Bool, Int64, Vector{Int64}, Vector{Int64}, Model{ForwardDiff.Dual{ForwardDiff.Tag{var"#11#12", Float64}, Float64, 1}}, Int64}, to::TimerOutputs.TimerOutput, label::String)
+#     @ TimerOutputs ~/.julia/packages/TimerOutputs/ZmKD7/src/TimerOutput.jl:285
+#   [9] PlaneWaveBasis(model::Model{ForwardDiff.Dual{ForwardDiff.Tag{var"#11#12", Float64}, Float64, 1}}, Ecut::Int64, kcoords::Vector{StaticArrays.SVector{3, Rational{Int64}}}, ksymops::Vector{Vector{Tuple{StaticArrays.SMatrix{3, 3, Int64, 9}, StaticArrays.SVector{3, Float64}}}}, symmetries::Vector{Tuple{StaticArrays.SMatrix{3, 3, Int64, 9}, StaticArrays.SVector{3, Float64}}}; fft_size::Nothing, variational::Bool, optimize_fft_size::Bool, supersampling::Int64, kgrid::Vector{Int64}, kshift::Vector{Int64}, comm_kpts::MPI.Comm)
+#     @ DFTK ~/.julia/packages/TimerOutputs/ZmKD7/src/TimerOutput.jl:236
+#  [10] PlaneWaveBasis(model::Model{ForwardDiff.Dual{ForwardDiff.Tag{var"#11#12", Float64}, Float64, 1}}, Ecut::Int64; kgrid::Vector{Int64}, kshift::Vector{Int64}, use_symmetry::Bool, kwargs::Base.Iterators.Pairs{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}})
+#     @ DFTK ~/.julia/dev/DFTK.jl/src/PlaneWaveBasis.jl:286
+#  [11] make_basis(a::ForwardDiff.Dual{ForwardDiff.Tag{var"#11#12", Float64}, Float64, 1})
+#     @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:13
+#  [12] compute_energy(scfres_ref::NamedTuple{(:ham, :basis, :energies, :converged, :ρ, :eigenvalues, :occupation, :εF, :n_iter, :n_ep_extra, :ψ, :diagonalization, :stage), Tuple{Hamiltonian, PlaneWaveBasis{Float64}, Energies{Float64}, Bool, Array{Float64, 4}, Vector{Vector{Float64}}, Vector{Vector{Float64}}, Float64, Int64, Int64, Vector{Matrix{ComplexF64}}, NamedTuple{(:λ, :X, :residual_norms, :iterations, :converged, :n_matvec), Tuple{Vector{Vector{Float64}}, Vector{Matrix{ComplexF64}}, Vector{Vector{Float64}}, Vector{Int64}, Bool, Int64}}, Symbol}}, a::ForwardDiff.Dual{ForwardDiff.Tag{var"#11#12", Float64}, Float64, 1})
+#     @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:20
+#  [13] (::var"#11#12")(a::ForwardDiff.Dual{ForwardDiff.Tag{var"#11#12", Float64}, Float64, 1})
+#     @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:41
+#  [14] derivative(f::var"#11#12", x::Float64)
+#     @ ForwardDiff ~/.julia/packages/ForwardDiff/m7cm5/src/derivative.jl:14
+#  [15] top-level scope
+#     @ ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:41
+# in expression starting at /home/niku/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:41
+
 
 ###
 ### Reverse mode
@@ -160,31 +159,42 @@ Zygote.gradient(a -> compute_energy(scfres, a), 10.26)
 
 using ReverseDiff
 ReverseDiff.gradient(a -> compute_energy(scfres, first(a)), [10.26])
-# ERROR: LoadError: MethodError: no method matching svdvals!(::Matrix{ReverseDiff.TrackedReal{Float64, Float64, Nothing}})
+# ERROR: LoadError: MethodError: no method matching next_working_fft_size(::Type{ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.TrackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}}}, ::Int64)
 # Closest candidates are:
-#   svdvals!(::SymTridiagonal) at /buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/LinearAlgebra/src/tridiag.jl:351
-#   svdvals!(::StridedMatrix{T}) where T<:Union{Float32, Float64, ComplexF32, ComplexF64} at /buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/LinearAlgebra/src/svd.jl:192
-#   svdvals!(::StridedMatrix{T}, ::StridedMatrix{T}) where T<:Union{Float32, Float64, ComplexF32, ComplexF64} at /buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/LinearAlgebra/src/svd.jl:498
-#   ...
+#   next_working_fft_size(::Type{Float32}, ::Any) at /home/niku/.julia/dev/DFTK.jl/src/fft.jl:167
+#   next_working_fft_size(::Type{Float64}, ::Any) at /home/niku/.julia/dev/DFTK.jl/src/fft.jl:168
 # Stacktrace:
-#   [1] svdvals(A::Matrix{ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.TrackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}}})
-#     @ LinearAlgebra /buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/LinearAlgebra/src/svd.jl:217
-#   [2] cond(A::Matrix{ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.TrackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}}}, p::Int64)
-#     @ LinearAlgebra /buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/LinearAlgebra/src/dense.jl:1462
-#   [3] cond
-#     @ /buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/LinearAlgebra/src/dense.jl:1461 [inlined]
-#   [4] Model(lattice::ReverseDiff.TrackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}; n_electrons::Nothing, atoms::Vector{Pair{ElementPsp, Vector{Vector{Float64}}}}, magnetic_moments::Vector{Any}, terms::Vector{Any}, temperature::ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.TrackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}}, smearing::Nothing, spin_polarization::Symbol, symmetries::Bool)
-#     @ DFTK ~/.julia/dev/DFTK.jl/src/Model.jl:106
-#   [5] model_atomic(lattice::ReverseDiff.TrackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}, atoms::Vector{Pair{ElementPsp, Vector{Vector{Float64}}}}; extra_terms::Vector{Any}, kwargs::Base.Iterators.Pairs{Symbol, Bool, Tuple{Symbol}, NamedTuple{(:symmetries,), Tuple{Bool}}})
-#     @ DFTK ~/.julia/dev/DFTK.jl/src/standard_models.jl:20
-#   [6] compute_energy(scfres_ref::NamedTuple{(:ham, :basis, :energies, :converged, :ρ, :eigenvalues, :occupation, :εF, :n_iter, :n_ep_extra, :ψ, :diagonalization, :stage), Tuple{Hamiltonian, PlaneWaveBasis{Float64}, Energies{Float64}, Bool, Array{Float64, 4}, Vector{Vector{Float64}}, Vector{Vector{Float64}}, Float64, Int64, Int64, Vector{Matrix{ComplexF64}}, NamedTuple{(:λ, :X, :residual_norms, :iterations, :converged, :n_matvec), Tuple{Vector{Vector{Float64}}, Vector{Matrix{ComplexF64}}, Vector{Vector{Float64}}, Vector{Int64}, Bool, Int64}}, Symbol}}, a::ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.TrackedArray{Float64, Float64, 1, Vector{Float64}, Vector{Float64}}})
-#     @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:25
-#   [7] (::var"#23#24")(a::ReverseDiff.TrackedArray{Float64, Float64, 1, Vector{Float64}, Vector{Float64}})
-#     @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:160
-#   [8] ReverseDiff.GradientTape(f::var"#23#24", input::Vector{Float64}, cfg::ReverseDiff.GradientConfig{ReverseDiff.TrackedArray{Float64, Float64, 1, Vector{Float64}, Vector{Float64}}})
+#   [1] macro expansion
+#     @ ~/.julia/packages/StaticArrays/NTbHj/src/broadcast.jl:125 [inlined]
+#   [2] _broadcast
+#     @ ~/.julia/packages/StaticArrays/NTbHj/src/broadcast.jl:99 [inlined]
+#   [3] copy
+#     @ ~/.julia/packages/StaticArrays/NTbHj/src/broadcast.jl:26 [inlined]
+#   [4] materialize
+#     @ ./broadcast.jl:883 [inlined]
+#   [5] validate_or_compute_fft_size(model::Model{ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.TrackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}}}, fft_size::Nothing, Ecut::Int64, supersampling::Int64, variational::Bool, optimize_fft_size::Bool, kcoords::Vector{StaticArrays.SVector{3, Rational{Int64}}})
+#     @ DFTK ~/.julia/dev/DFTK.jl/src/fft.jl:139
+#   [6] macro expansion
+#     @ ~/.julia/dev/DFTK.jl/src/PlaneWaveBasis.jl:193 [inlined]
+#   [7] (::DFTK.var"#62#64"{ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.TrackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}}, Bool, Bool, Int64, Vector{Int64}, Vector{Int64}, Model{ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.TrackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}}}, Int64})()
+#     @ DFTK ~/.julia/packages/TimerOutputs/ZmKD7/src/TimerOutput.jl:237
+#   [8] timeit(f::DFTK.var"#62#64"{ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.TrackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}}, Bool, Bool, Int64, Vector{Int64}, Vector{Int64}, Model{ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.TrackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}}}, Int64}, to::TimerOutputs.TimerOutput, label::String)
+#     @ TimerOutputs ~/.julia/packages/TimerOutputs/ZmKD7/src/TimerOutput.jl:285
+#   [9] PlaneWaveBasis(model::Model{ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.TrackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}}}, Ecut::Int64, kcoords::Vector{StaticArrays.SVector{3, Rational{Int64}}}, ksymops::Vector{Vector{Tuple{StaticArrays.SMatrix{3, 3, Int64, 9}, StaticArrays.SVector{3, Float64}}}}, symmetries::Vector{Tuple{StaticArrays.SMatrix{3, 3, Int64, 9}, StaticArrays.SVector{3, Float64}}}; fft_size::Nothing, variational::Bool, optimize_fft_size::Bool, supersampling::Int64, kgrid::Vector{Int64}, kshift::Vector{Int64}, comm_kpts::MPI.Comm)
+#     @ DFTK ~/.julia/packages/TimerOutputs/ZmKD7/src/TimerOutput.jl:236
+#  [10] PlaneWaveBasis(model::Model{ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.TrackedArray{Float64, Float64, 2, Matrix{Float64}, Matrix{Float64}}}}, Ecut::Int64; kgrid::Vector{Int64}, kshift::Vector{Int64}, use_symmetry::Bool, kwargs::Base.Iterators.Pairs{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}})
+#     @ DFTK ~/.julia/dev/DFTK.jl/src/PlaneWaveBasis.jl:286
+#  [11] make_basis(a::ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.TrackedArray{Float64, Float64, 1, Vector{Float64}, Vector{Float64}}})
+#     @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:13
+#  [12] compute_energy(scfres_ref::NamedTuple{(:ham, :basis, :energies, :converged, :ρ, :eigenvalues, :occupation, :εF, :n_iter, :n_ep_extra, :ψ, :diagonalization, :stage), Tuple{Hamiltonian, PlaneWaveBasis{Float64}, Energies{Float64}, Bool, Array{Float64, 4}, Vector{Vector{Float64}}, Vector{Vector{Float64}}, Float64, Int64, Int64, Vector{Matrix{ComplexF64}}, NamedTuple{(:λ, :X, :residual_norms, :iterations, :converged, :n_matvec), Tuple{Vector{Vector{Float64}}, Vector{Matrix{ComplexF64}}, Vector{Vector{Float64}}, Vector{Int64}, Bool, Int64}}, Symbol}}, a::ReverseDiff.TrackedReal{Float64, Float64, ReverseDiff.TrackedArray{Float64, Float64, 1, Vector{Float64}, Vector{Float64}}})
+#     @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:20
+#  [13] (::var"#15#16")(a::ReverseDiff.TrackedArray{Float64, Float64, 1, Vector{Float64}, Vector{Float64}})
+#     @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:161
+#  [14] ReverseDiff.GradientTape(f::var"#15#16", input::Vector{Float64}, cfg::ReverseDiff.GradientConfig{ReverseDiff.TrackedArray{Float64, Float64, 1, Vector{Float64}, Vector{Float64}}})
 #     @ ReverseDiff ~/.julia/packages/ReverseDiff/E4Tzn/src/api/tape.jl:199
-#   [9] gradient(f::Function, input::Vector{Float64}, cfg::ReverseDiff.GradientConfig{ReverseDiff.TrackedArray{Float64, Float64, 1, Vector{Float64}, Vector{Float64}}}) (repeats 2 times)
+#  [15] gradient(f::Function, input::Vector{Float64}, cfg::ReverseDiff.GradientConfig{ReverseDiff.TrackedArray{Float64, Float64, 1, Vector{Float64}, Vector{Float64}}}) (repeats 2 times)
 #     @ ReverseDiff ~/.julia/packages/ReverseDiff/E4Tzn/src/api/gradients.jl:22
-#  [10] top-level scope
-#     @ ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:160
+#  [16] top-level scope
+#     @ ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:161
+# in expression starting at /home/niku/.julia/dev/DFTK.jl/test/autodiff-stress/stress-total.jl:161
 
