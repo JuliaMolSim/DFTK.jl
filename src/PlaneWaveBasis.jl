@@ -203,11 +203,18 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     # ψ(r) = sum_G c_G e^iGr / sqrt(Ω)
     # so that the ifft is normalized by 1/sqrt(Ω). It follows that the
     # fft must be normalized by sqrt(Ω) / length
-    ipFFT = ipFFT_unnormalized * (sqrt(model.unit_cell_volume) / length(ipFFT_unnormalized))
-    opFFT = opFFT_unnormalized * (sqrt(model.unit_cell_volume) / length(opFFT_unnormalized))
-    ipIFFT = inv(ipFFT)
-    opIFFT = inv(opFFT)
 
+    ## normalization disabled for debugging (model.unit_cell_volume is a ForwardDiff.Dual, thus makes a real plan Dual which fails)
+    ## TODO re-enable normalization
+    # ipFFT = ipFFT_unnormalized * (sqrt(model.unit_cell_volume) / length(ipFFT_unnormalized))
+    # opFFT = opFFT_unnormalized * (sqrt(model.unit_cell_volume) / length(opFFT_unnormalized))
+    # ipIFFT = inv(ipFFT)
+    # opIFFT = inv(opFFT)
+    ipFFT = ipFFT_unnormalized #* (sqrt(model.unit_cell_volume) / length(ipFFT_unnormalized))
+    opFFT = opFFT_unnormalized #* (sqrt(model.unit_cell_volume) / length(opFFT_unnormalized))
+    ipIFFT = ipBFFT_unnormalized
+    opIFFT = opBFFT_unnormalized
+    
     # Setup kpoint basis sets
     !variational && @warn(
         "Non-variational calculations are experimental. " *

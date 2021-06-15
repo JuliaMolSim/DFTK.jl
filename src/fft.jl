@@ -229,12 +229,19 @@ end
 for P in [:Plan, :ScaledPlan]  # need ScaledPlan to avoid ambiguities
     @eval begin
 
+        # TODO handle ForwardDiff.Dual scaling factors (perhaps lazy evaluation?)
+
         Base.:*(p::AbstractFFTs.$P, x::AbstractArray{<:ForwardDiff.Dual}) =
             _apply_plan(p, x)
 
         Base.:*(p::AbstractFFTs.$P, x::AbstractArray{<:Complex{<:ForwardDiff.Dual}}) =
             _apply_plan(p, x)
 
+        LinearAlgebra.mul!(Y::AbstractArray, p::AbstractFFTs.$P, X::AbstractArray{<:ForwardDiff.Dual}) = 
+            (Y .= _apply_plan(p, X))
+        
+        LinearAlgebra.mul!(Y::AbstractArray, p::AbstractFFTs.$P, X::AbstractArray{<:Complex{<:ForwardDiff.Dual}}) =
+            (Y .= _apply_plan(p, X))
     end
 end
 
@@ -274,7 +281,7 @@ import Base: *, \, length
 \(p::DummyInplace, X) = p.fft \ X
 length(p::DummyInplace) = length(p.fft)
 
-function build_fft_plans(T::Type{<:ForwardDiff.Dual}, fft_size)
+function build_fft_plans(T::Type{<:Union{ForwardDiff.Dual,Complex{<:ForwardDiff.Dual}}}, fft_size)
     tmp = Array{Complex{T}}(undef, fft_size...)
     opFFT  = FFTW.plan_fft(tmp, flags=_fftw_flags(T))
     opBFFT = FFTW.plan_bfft(tmp, flags=_fftw_flags(T))
@@ -284,5 +291,4 @@ function build_fft_plans(T::Type{<:ForwardDiff.Dual}, fft_size)
     # backward by inverting and stripping off normalizations
     ipFFT, opFFT, ipBFFT, opBFFT
 end
-
 
