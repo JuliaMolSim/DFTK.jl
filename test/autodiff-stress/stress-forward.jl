@@ -1,3 +1,5 @@
+# Hellmann-Feynman stress
+# via ForwardDiff & custom FFTW overloads on ForwardDiff.Dual
 using DFTK
 
 function make_basis(a)
