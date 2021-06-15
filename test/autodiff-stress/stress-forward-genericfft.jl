@@ -2,7 +2,6 @@
 # via ForwardDiff & generic arithmetic (FourierTransforms.jl)
 # (disregarding performance)
 using DFTK
-using Test
 
 # for generic FourierTransforms.jl (TODO replace by FFTW later)
 using DoubleFloats
@@ -44,10 +43,10 @@ compute_energy(a) = compute_energy(scfres, a)
 compute_energy(10.26)
 
 import FiniteDiff
-FiniteDiff.finite_difference_derivative(compute_energy, 10.26) # -11.113131188820518 
+FiniteDiff.finite_difference_derivative(compute_energy, 10.26) # -2.9485566656257386e9 
 
 using ForwardDiff
-ForwardDiff.derivative(compute_energy, 10.26) # -11.113131188299548
+ForwardDiff.derivative(compute_energy, 10.26) # -2.9485566655301175e9
 
 using BenchmarkTools
 @btime compute_energy(10.26)                                           # 14.294 ms (60112 allocations: 9.65 MiB)
