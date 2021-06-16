@@ -1,5 +1,5 @@
 using Test
-using DFTK: interpolate_density, interpolate_blochwave
+using DFTK: interpolate_density
 using LinearAlgebra
 
 include("testcases.jl")
@@ -47,14 +47,14 @@ end
     # Interpolation to bigger basis then same basis (both interpolations are
     # tested then)
     bigger_basis = PlaneWaveBasis(model, Ecut+5; kgrid=kgrid)
-    ψ_b = interpolate_blochwave(ψ, basis, bigger_basis)
-    ψ_bb = interpolate_blochwave(ψ_b, bigger_basis, basis)
+    ψ_b = transfer_blochwave(ψ, basis, bigger_basis)
+    ψ_bb = transfer_blochwave(ψ_b, bigger_basis, basis)
     @test norm(ψ-ψ_bb) < eps(eltype(basis))
 
     # Interpolation between same basis (not very useful, but is worth testing)
     bigger_basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
-    ψ_b = interpolate_blochwave(ψ, basis, bigger_basis)
-    ψ_bb = interpolate_blochwave(ψ_b, bigger_basis, basis)
+    ψ_b = transfer_blochwave(ψ, basis, bigger_basis)
+    ψ_bb = transfer_blochwave(ψ_b, bigger_basis, basis)
     @test norm(ψ-ψ_bb) < eps(eltype(basis))
 
 end
