@@ -86,9 +86,24 @@ function interpolate_kpoint(data_in::AbstractVecOrMat, kpoint_in::Kpoint, kpoint
 end
 
 """
-Compute indices from basis_in that are in basis_out. The output format is an array
-idcs_out of size length(basis_in.kpoint), where idcs_out[ik] contains the indices
-of the vectors in G_vectors(basis_in) that are also present in G_vectors(basis_out).
+Compute indices of the vectors in G_vectors(basis_in[ik]) that are also present
+in G_vectors(basis_out[ik]).
+"""
+function transfer_blochwave_mapping(ik, basis_in::PlaneWaveBasis{T},
+                                    basis_out::PlaneWaveBasis{T}) where T
+    # Get indices of the G vectors of the old basis inside the new basis.
+    idcsk_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in.kpoints[ik]))
+    # Linearise the indices
+    idcsk_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcsk_out)
+
+    # Map to the indices of the corresponding G-vectors in G_vectors(kpt_out)
+    # this array might contains some nothings if basis_out has less G_vectors
+    # than basis_in at this kpoint
+    indexin(idcsk_out, basis_out.kpoints[ik].mapping)
+end
+
+"""
+Transfer Bloch wave between two basis sets. Limited feature set.
 
 If, for some kpt ik, basis_in has less vectors than basis_out, then idcs_out[ik] is
 the array of the indices of the G_vectors from basis_in in basis_out.
@@ -103,61 +118,31 @@ It is then of size G_vectors(basis_out.kpoints[ik]) and the interpolation can be
 
 For the moment, only PlaneWaveBasis with same lattice and kgrid are supported.
 """
-function grid_interpolation_indices(basis_in::PlaneWaveBasis{T},
-                                    basis_out::PlaneWaveBasis{T}) where T
+function interpolate_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
+                               basis_out::PlaneWaveBasis{T}) where T
     @assert basis_in.model.lattice == basis_out.model.lattice
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
                 for ik in 1:length(basis_in.kpoints))
 
-    idcs_out = []
-
-    for (ik, kpt_out) in enumerate(basis_out.kpoints)
-        # Get indices of the G vectors of the old basis inside the new basis.
-        idcsk_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in.kpoints[ik]))
-
-        # Linearise the indices
-        idcsk_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcsk_out)
-
-        # Map to the indices of the corresponding G-vectors in G_vectors(kpt_out)
-        idcsk_out = indexin(idcsk_out, kpt_out.mapping)
-        # this array might contains some nothings if basis_out has less G_vectors
-        # than basis_in at this kpoint
-        push!(idcs_out, idcsk_out)
-    end
-
-    idcs_out
-end
-
-"""
-Interpolate Bloch wave between two basis sets. Limited feature set.
-Currently, only PlaneWaveBasis with same lattice and kgrid are supported.
-"""
-function interpolate_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
-                               basis_out::PlaneWaveBasis{T}) where T
-
     ψ_out = empty(ψ_in)
-
-    # indices from basis_out that are in basis_in
-    # idcs_out[ik] might contains nothings if basis_out is smaller than basis_in
-    idcs_out = grid_interpolation_indices(basis_in, basis_out)
-
-    # indices from basis_in that are in basis_out
-    # idcs_in[ik] might contains nothings if basis_in is smaller than basis_out
-    idcs_in  = grid_interpolation_indices(basis_out, basis_in)
 
     for (ik, kpt_out) in enumerate(basis_out.kpoints)
         n_bands = size(ψ_in[ik], 2)
 
+        idcsk_out = transfer_blochwave_mapping(ik, basis_in, basis_out)
+
         # Set values
         ψk_out = similar(ψ_in[ik], length(G_vectors(kpt_out)), n_bands)
         ψk_out .= 0
-        if !any(isnothing, idcs_out[ik])
+        if !any(isnothing, idcsk_out)
             # if true, then Ecut_out >= Ecut_in and we pad with zeros
-            ψk_out[idcs_out[ik], :] .= ψ_in[ik]
+            ψk_out[idcsk_out, :] .= ψ_in[ik]
         else
-            # else, then Ecut_in > Ecut_out and we cut off high frequencies
-            ψk_out .= ψ_in[ik][idcs_in[ik], :]
+            # else, then Ecut_in > Ecut_out and the mappig should be done the
+            # other way
+            idcsk_in  = transfer_blochwave_mapping(ik, basis_out, basis_in)
+            ψk_out .= ψ_in[ik][idcsk_in, :]
         end
         push!(ψ_out, ψk_out)
     end
