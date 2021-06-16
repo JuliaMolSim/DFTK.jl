@@ -93,6 +93,7 @@ function transfer_blochwave_mapping(ik, basis_in::PlaneWaveBasis{T},
                                     basis_out::PlaneWaveBasis{T}) where T
     # Get indices of the G vectors of the old basis inside the new basis.
     idcsk_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in.kpoints[ik]))
+    filter!(e -> e != nothing, idcsk_out)
     # Linearise the indices
     idcsk_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcsk_out)
 
