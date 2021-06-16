@@ -138,7 +138,7 @@ if CONTINUOUS_INTEGRATION
         end
 
         # Install Julia dependencies into build
-        cp(joinpath(@__DIR__, "Project.toml"), BUILDPATH)
+        cp(joinpath(@__DIR__, "Project.toml"), joinpath(BUILDPATH, "Project.toml"))
         Pkg.activate(".")
         Pkg.add(Pkg.PackageSpec(url="https://github.com/JuliaMolSim/DFTK.jl.git",
                                 rev=LibGit2.head(ROOTPATH)))
