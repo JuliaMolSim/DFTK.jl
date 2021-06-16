@@ -17,10 +17,6 @@ CONTINUOUS_INTEGRATION = get(ENV, "CI", nothing) == "true"
 
 # Python and Julia dependencies needed for running the notebooks
 PYDEPS = ["ase", "pymatgen"]
-JLDEPS = [
-    Pkg.PackageSpec(url="https://github.com/JuliaMolSim/DFTK.jl.git",
-                    rev=LibGit2.head(ROOTPATH)),  # The current DFTK
-]
 
 # Setup julia dependencies for docs generation if not yet done
 Pkg.activate(@__DIR__)
@@ -142,18 +138,16 @@ if CONTINUOUS_INTEGRATION
         end
 
         # Install Julia dependencies into build
+        cp(joinpath(@__DIR__, "Project.toml"), BUILDPATH)
         Pkg.activate(".")
-        for dep in JLDEPS
-            Pkg.add(dep)
-        end
+        Pkg.add(Pkg.PackageSpec(url="https://github.com/JuliaMolSim/DFTK.jl.git",
+                                rev=LibGit2.head(ROOTPATH)))
     end
     Pkg.activate(@__DIR__)  # Back to Literate / Documenter environment
 end
 
 # Deploy docs to gh-pages branch
-deploydocs(
-    repo = "github.com/JuliaMolSim/DFTK.jl.git",
-)
+deploydocs(; repo="github.com/JuliaMolSim/DFTK.jl.git")
 
 # Remove generated example files
 if !DEBUG
