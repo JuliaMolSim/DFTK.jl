@@ -93,8 +93,12 @@ function transfer_blochwave_mapping(ik, basis_in::PlaneWaveBasis{T},
                                     basis_out::PlaneWaveBasis{T}) where T
     # Get indices of the G vectors of the old basis inside the new basis.
     idcsk_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in.kpoints[ik]))
-    filter!(e -> e != nothing, idcsk_out)
-    # Linearise the indices
+    # In the case where G_vectors(basis_in.kpoints[ik]) are biggers than vectors
+    # in the fft_size box of basis_out, we need to filter out the "nothings" to
+    # make sure that the indices linearization works. It is not an issue to
+    # filter these vectors as this can only happen if Ecut_in > Ecut_out.
+    filter!(!isnothing, idcsk_out)
+    # Linearize the indices
     idcsk_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcsk_out)
 
     # Map to the indices of the corresponding G-vectors in G_vectors(kpt_out)
@@ -105,18 +109,6 @@ end
 
 """
 Transfer Bloch wave between two basis sets. Limited feature set.
-
-If, for some kpt ik, basis_in has less vectors than basis_out, then idcs_out[ik] is
-the array of the indices of the G_vectors from basis_in in basis_out.
-It is then of size G_vectors(basis_in.kpoints[ik]) and the interpolation can be done with
-ψ_out[ik] .= 0
-ψ_out[ik][idcs_out[ik], :] .= ψ_in[ik]
-
-Otherwise, if, for some kpt ik, basis_in has more vectors than basis_out, then
-idcs_out[ik] just keep the indices of the G_vectors from basis_in that are in basis_out.
-It is then of size G_vectors(basis_out.kpoints[ik]) and the interpolation can be done with
-ψ_out[ik] .= ψ_in[ik][idcs_in[ik], :]
-
 For the moment, only PlaneWaveBasis with same lattice and kgrid are supported.
 """
 function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
@@ -125,6 +117,17 @@ function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
                 for ik in 1:length(basis_in.kpoints))
+
+    # If, for some kpt ik, basis_in has less vectors than basis_out, then idcs_out[ik] is
+    # the array of the indices of the G_vectors from basis_in in basis_out.
+    # It is then of size G_vectors(basis_in.kpoints[ik]) and the interpolation can be done with
+    # ψ_out[ik] .= 0
+    # ψ_out[ik][idcs_out[ik], :] .= ψ_in[ik]
+
+    # Otherwise, if, for some kpt ik, basis_in has more vectors than basis_out, then
+    # idcs_out[ik] just keep the indices of the G_vectors from basis_in that are in basis_out.
+    # It is then of size G_vectors(basis_out.kpoints[ik]) and the interpolation can be done with
+    # ψ_out[ik] .= ψ_in[ik][idcs_in[ik], :]
 
     ψ_out = empty(ψ_in)
 
@@ -140,7 +143,7 @@ function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
             # if true, then Ecut_out >= Ecut_in and we pad with zeros
             ψk_out[idcsk_out, :] .= ψ_in[ik]
         else
-            # else, then Ecut_in > Ecut_out and the mappig should be done the
+            # else, then Ecut_in > Ecut_out and the mapping should be done the
             # other way
             idcsk_in  = transfer_blochwave_mapping(ik, basis_out, basis_in)
             ψk_out .= ψ_in[ik][idcsk_in, :]
