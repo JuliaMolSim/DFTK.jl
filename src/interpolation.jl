@@ -118,8 +118,8 @@ It is then of size G_vectors(basis_out.kpoints[ik]) and the interpolation can be
 
 For the moment, only PlaneWaveBasis with same lattice and kgrid are supported.
 """
-function interpolate_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
-                               basis_out::PlaneWaveBasis{T}) where T
+function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
+                            basis_out::PlaneWaveBasis{T}) where T
     @assert basis_in.model.lattice == basis_out.model.lattice
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
