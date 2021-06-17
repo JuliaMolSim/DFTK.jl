@@ -168,7 +168,6 @@ in the spin components.
 """
 function total_local_potential(ham::Hamiltonian)
     n_spin = ham.basis.model.n_spin_components
-
     pots = map(1:n_spin) do σ
         # Get the first Hamiltonian block of this spin component
         # (works since all local potentials are the same)
@@ -176,8 +175,6 @@ function total_local_potential(ham::Hamiltonian)
         rs = [o for o in block.optimized_operators if o isa RealSpaceMultiplication]
         only(rs).potential
     end
-
-    # TODO This makes a copy ... might not always be what we want
     cat(pots..., dims=4)
 end
 
