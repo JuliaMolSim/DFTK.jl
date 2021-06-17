@@ -107,8 +107,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 
         # Update info with results gathered so far
         info = (ham=ham, basis=basis, converged=converged, stage=:iterate,
-                ρin=ρin, ρout=ρout,
-                n_iter=n_iter, n_ep_extra=n_ep_extra, nextstate...)
+                ρin=ρin, ρout=ρout, α=α, n_iter=n_iter, n_ep_extra=n_ep_extra,
+                nextstate..., diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
         if compute_consistent_energies

@@ -3,7 +3,7 @@ using Statistics
 # Quick and dirty Anderson implementation ... lacks important things like
 # control of the condition number of the anderson matrix.
 # Not particularly optimised. Also should be moved to NLSolve ...
-function AndersonAcceleration(m=Inf)
+function AndersonAcceleration(;m=Inf)
     # Accelerates the iterative solution of f(V) = 0, where for our DFT case:
     #    f(V) = Vext + Vhxc(ρ(V)) - V
     # Further define
@@ -18,15 +18,17 @@ function AndersonAcceleration(m=Inf)
     PfVs = []  # The Pf(V) for each iteration
 
     function extrapolate(Vₙ, αₙ, PfVₙ)
+        m == 0 && return Vₙ .+ αₙ .* PfVₙ
+
         # Gets the current Vₙ, Pf(Vₙ) and damping αₙ
         #
-        Vₙ₊₁ = @. vec(Vₙ) + αₙ * vec(PfVₙ)
+        Vₙ₊₁ = vec(Vₙ) .+ αₙ .* vec(PfVₙ)
         if !isempty(Vs)
             M = hcat(PfVs...) .- vec(PfVₙ)  # Mᵢⱼ = (PfVⱼ)ᵢ - (PfVₙ)ᵢ
             # We need to solve 0 = M' PfVₙ + M'M βs <=> βs = - (M'M)⁻¹ M' PfVₙ
             βs = -M \ vec(PfVₙ)
-            @. for (iβ, β) in enumerate(βs)
-                Vₙ₊₁ += β .* (Vs[iβ] - vec(Vₙ) + αₙ * (PfVs[iβ] - vec(PfVₙ)))
+            for (iβ, β) in enumerate(βs)
+                Vₙ₊₁ .+= β .* (Vs[iβ] .- vec(Vₙ) .+ αₙ .* (PfVs[iβ] .- vec(PfVₙ)))
             end
         end
 
@@ -58,21 +60,17 @@ end
 
 
 function scf_quadratic_model(info, info_next; modeltol=0.1)
-    T = eltype(ρ)
+    T     = eltype(info.Vin)
+    dvol  = info.basis.dvol
 
-    # Vout    = step(V), where step(V) = (Vext + Vhxc(ρ(Vin)))
-    # Vnext   = Vin + α0 * (Anderson(Vin, P⁻¹( Vout - Vin )) - Vin)
-    # ρin     = ρ(Vin)
-    # ρnext   = ρ(Vnext)
-    # α0 * δV = α0 * (Vnext - Vin) = α0 * (Anderson(Vin, P⁻¹( Vout - Vin )) - Vin)
-    #
     Vin   = info.Vin
-    Vout  = info.Vout
-    ρ     = info.ρout
+    ρin   = info.ρout      # = ρ(Vin)
+    Vout  = info.Vout      # = step(Vin), where step(V) = (Vext + Vhxc(ρ(V)))
     α0    = info_next.α
-    Vnext = info_next.Vin
-    ρnext = info_next.ρout
+    Vnext = info_next.Vin  # = Vin + α0 * (Anderson(Vin, P⁻¹( Vout - Vin )) - Vin)
+    ρnext = info_next.ρout # = ρ(Vnext)
     δρ    = ρnext - ρin
+    # α0 * δV = α0 * (Vnext - Vin) = α0 * (Anderson(Vin, P⁻¹( Vout - Vin )) - Vin)
 
     # We build a quadratic model for
     #   ϕ(α) = E(Vin  + α δV)  at α = 0
@@ -86,14 +84,14 @@ function scf_quadratic_model(info, info_next; modeltol=0.1)
     #      ∇E|_(V=Vin) ⋅ δV         = -(Vout - Vin) ⋅ χ₀(δV) = - (Vout - Vin) ⋅ δρ
     #      <δV | ∇²E|_(V=Vin) | δV> = - δV ⋅ δρ + δρ ⋅ K(δρ)
     #
-    slope = dot(Vout .- Vin, δρ) / α0 * basis.dvol
-    Kδρ   = apply_kernel(basis, δρ; ρ=ρin)
-    curv  = basis.dvol * (-dot(Vnext .- Vin, δρ) + dot(δρ, Kδρ)) / α0^2
-    Emodel(α) = info.energy.total + slope * α + curv * α^2 / 2
+    slope = dot(Vout .- Vin, δρ) / α0 * dvol
+    Kδρ   = apply_kernel(info.basis, δρ; ρ=ρin)
+    curv  = dvol * (-dot(Vnext .- Vin, δρ) + dot(δρ, Kδρ)) / α0^2
+    Emodel(α) = info.energies.total + slope * α + curv * α^2 / 2
 
     # Relative error of the model at α0 (the damping we used to get info_next)
-    Etotal_next = info_next.energy.total
-    model_relerror = abs(Etotal_next - Emodel(α0)) / abs(Etotal_next - info.energy.total)
+    Etotal_next = info_next.energies.total
+    model_relerror = abs(Etotal_next - Emodel(α0)) / abs(Etotal_next - info.energies.total)
 
     minimum_exists = curv > eps(T)  # Does the model predict a minimum along the search direction
     trusted_model  = model_relerror < modeltol      # Model fits observation
@@ -180,7 +178,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
     mixing=SimpleMixing(),
     is_converged=ScfConvergenceEnergy(tol),
     callback=ScfDefaultCallback(),
-    acceleration=AndersonAcceleration(m=10),
+    acceleration=AndersonAcceleration(;m=10),
     ratio_failure_accel_off=Inf,  # Acceleration never switched off
     α_accel_min=0.0,  # Minimal damping passed to an accelerator (e.g. Anderson)
                       # Increasing this a bit for adaptive damping speeds up convergence
@@ -215,12 +213,12 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
 
     n_iter    = 1
     converged = false
-    diagtol   = determine_diagtol((ρin=ρ_prev, Vin=V, n_iter=n_iter))
-    info      = merge(EVρ(V; diagtol=diagtol, ψ=ψ), (α=NaN, n_iter=n_iter))
-    Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; info...)
-    info      = merge(info, (α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
-                             n_iter=n_iter, Pinv_δV=Pinv_δV))
     α_trial   = initial_damping(damping)
+    diagtol   = determine_diagtol((ρin=ρ, Vin=V, n_iter=n_iter))
+    info      = EVρ(V; diagtol=diagtol, ψ=ψ)
+    Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; info...)
+    info      = merge(info, (α=α_trial, diagonalization=[info.diagonalization], ρin=ρ,
+                             n_iter=n_iter, Pinv_δV=Pinv_δV))
     ΔEdown    = 0.0
     n_acceleration_off = 0  # >0 switches acceleration off for a few steps if in difficult region
 
@@ -236,7 +234,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
 
         # New search direction via convergence accelerator:
         αdiis = max(α_accel_min, α_trial)
-        δV    = (acceleration(basis, info.Vin, αdiis, info.Pinv_δV) - info.Vin) / αdiis
+        δV    = (acceleration(info.Vin, αdiis, info.Pinv_δV) - info.Vin) / αdiis
         if n_acceleration_off > 0
             δV = Pinv_δV
         end
@@ -252,7 +250,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
             Vnext = info.Vin + α * δV
 
             info_next    = EVρ(Vnext; ψ=guess, diagtol=determine_diagtol(info_next))
-            Pinv_δV_next = mix_potential(mixing, basis, info.Vout - info.Vin; info...)
+            Pinv_δV_next = mix_potential(mixing, basis, info_next.Vout - info_next.Vin; info_next...)
             push!(diagonalization, info_next.diagonalization)
             info_next = merge(info_next, (α=α, diagonalization=diagonalization,
                                           ρin=info.ρout, n_iter=n_iter,
@@ -276,8 +274,8 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         end
 
         # Switch off acceleration in case of very bad steps
-        Etotal = info.energy.total
-        Etotal_next = info_next.energy.total
+        Etotal = info.energies.total
+        Etotal_next = info_next.energies.total
         if Etotal_next < Etotal
             ΔEdown = -max(abs(Etotal_next - Etotal), tol)
         end
@@ -295,9 +293,9 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
     end
 
     ham  = hamiltonian_with_total_potential(ham, V)
-    info = (ham=ham, basis=basis, energies=energies, converged=converged,
-            ρ=ρ, eigenvalues=info.eigenvalues, occupation=info.occupation,
-            εF=info.εF, n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=ψ, stage=:finalize)
+    info = (ham=ham, basis=basis, energies=info.energies, converged=converged,
+            ρ=info.ρout, eigenvalues=info.eigenvalues, occupation=info.occupation,
+            εF=info.εF, n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=info.ψ, stage=:finalize)
     callback(info)
     info
 end

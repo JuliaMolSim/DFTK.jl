@@ -17,7 +17,7 @@ function ScfPlotTrace end  # implementation in src/plotting.jl
 Default callback function for `self_consistent_field`, which prints a convergence table
 """
 function ScfDefaultCallback()
-    prev_energies = nothing
+    prev_total = Inf
     function callback(info)
         !mpi_master() && return info  # Printing only on master
         if info.stage == :finalize
@@ -29,8 +29,8 @@ function ScfDefaultCallback()
         if info.n_iter == 1
             E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
             magn    = collinear ? ("   Magnet", "   ------") : ("", "")
-            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin%s   Diag\n" E_label magn[1]
-            @printf "---   ---------------   ---------   --------%s   ----\n" magn[2]
+            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin%s α     Diag\n" E_label magn[1]
+            @printf "---   ---------------   ---------   --------%s ----  ----\n" magn[2]
         end
         E    = isnothing(info.energies) ? Inf : info.energies.total
         Δρ   = norm(info.ρout - info.ρin) * sqrt(info.basis.dvol)
@@ -41,12 +41,13 @@ function ScfDefaultCallback()
         end
 
         Estr   = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
-        prev_E = prev_energies === nothing ? Inf : prev_energies.total
-        ΔE     = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_E
+        ΔE     = prev_total == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_total
         Mstr = collinear ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
-        diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
-        @printf "% 3d   %s   %s   %2.2e%s  %5.1f \n" info.n_iter Estr ΔE Δρ Mstr diagiter
-        prev_energies = info.energies
+
+        diagiter = mpi_mean(sum(mean(diag.iterations) for diag in info.diagonalization),
+                            info.basis.comm_kpts)
+        @printf "% 3d   %s   %s   %2.2e%s %3.2f %5.1f \n" info.n_iter Estr ΔE Δρ Mstr info.α diagiter
+        prev_total = info.energies.total
 
         flush(stdout)
         info
@@ -94,9 +95,10 @@ function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.03)
         info.n_iter ≤ 1 && return diagtol_max
         info.n_iter == 2 && (diagtol_max /= 5)  # Enforce more accurate Bloch wave
 
-        # TODO It makes more sense to use ρout here as it is a much better
-        #      measure of the SCF being converged.
-        diagtol = (norm(info.ρnext - info.ρin)
+        # TODO Does it make sense to always use ρout here, since it measures better how much
+        #      the SCF is converged?
+        ρnext = hasproperty(info, :ρnext) ? info.ρnext : info.ρout
+        diagtol = (norm(ρnext - info.ρin)
                    * sqrt(info.basis.dvol)
                    * ratio_ρdiff)
 
