@@ -184,7 +184,14 @@ end
 Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
 function build_form_factors(psp, qs)
-    qnorms = norm.(qs)
+
+    ## The AtomicNonlocal NaN boiled down to ForwardDiff + norm + StaticArrays at [0., 0., 0.]
+    ## https://github.com/JuliaDiff/ForwardDiff.jl/issues/243#issuecomment-369948031
+    ## specifically this happend because qs[1] is a Vec3 of zeros
+    ## TODO fix this more generally
+    # qnorms = norm.(qs)
+    qnorms = vcat(norm(Vector(qs[1])), norm.(@view qs[2:end]))
+
     T = real(eltype(qnorms))
     # Compute position-independent form factors
     form_factors = zeros(Complex{T}, length(qs), count_n_proj(psp))
