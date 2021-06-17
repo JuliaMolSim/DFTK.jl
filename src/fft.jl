@@ -229,8 +229,6 @@ end
 for P in [:Plan, :ScaledPlan]  # need ScaledPlan to avoid ambiguities
     @eval begin
 
-        # TODO handle ForwardDiff.Dual scaling factors (perhaps lazy evaluation?)
-
         Base.:*(p::AbstractFFTs.$P, x::AbstractArray{<:ForwardDiff.Dual}) =
             _apply_plan(p, x)
 
@@ -257,6 +255,10 @@ function _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray)
             ForwardDiff.Dual{T}(imag(val), map(imag, parts)),
         )
     end
+end
+
+function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray) where {T,P}
+    _apply_plan(p.p, p.scale * x) # for when p.scale is Dual, need out-of-place
 end
 
 ###
