@@ -1,5 +1,5 @@
 using Test
-using DFTK: interpolate_density
+using DFTK: interpolate_density, transfer_blochwave
 using LinearAlgebra
 
 include("testcases.jl")

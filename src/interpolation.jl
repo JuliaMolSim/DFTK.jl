@@ -62,7 +62,6 @@ function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in
     ρ_out
 end
 
-
 """
 Interpolate some data from one k-Point to another. The interpolation is fast, but not
 necessarily exact or even normalized. Intended only to construct guesses for iterative
@@ -86,13 +85,13 @@ function interpolate_kpoint(data_in::AbstractVecOrMat, kpoint_in::Kpoint, kpoint
 end
 
 """
-Compute indices of the vectors in G_vectors(basis_in[ik]) that are also present
-in G_vectors(basis_out[ik]).
+Compute indices of the vectors in G_vectors(kpt_in) that are also present
+in G_vectors(kpt_out).
 """
-function transfer_blochwave_mapping(ik, basis_in::PlaneWaveBasis{T},
-                                    basis_out::PlaneWaveBasis{T}) where T
+function transfer_blochwave_mapping(basis_in::PlaneWaveBasis{T}, kpt_in::Kpoint,
+                                    basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where T
     # Get indices of the G vectors of the old basis inside the new basis.
-    idcsk_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in.kpoints[ik]))
+    idcsk_out = index_G_vectors.(Ref(basis_out), G_vectors(kpt_in))
     # In the case where G_vectors(basis_in.kpoints[ik]) are biggers than vectors
     # in the fft_size box of basis_out, we need to filter out the "nothings" to
     # make sure that the indices linearization works. It is not an issue to
@@ -103,12 +102,41 @@ function transfer_blochwave_mapping(ik, basis_in::PlaneWaveBasis{T},
     # Map to the indices of the corresponding G-vectors in G_vectors(kpt_out)
     # this array might contains some nothings if basis_out has less G_vectors
     # than basis_in at this kpoint
-    indexin(idcsk_out, basis_out.kpoints[ik].mapping)
+    indexin(idcsk_out, kpt_out.mapping)
+end
+
+"""
+Transfer an array ψk defined on basis_in kpoint kpt_in to basis_out kpoint kpt_out.
+"""
+function transfer_blochwave_kpt(ψk_in, basis_in::PlaneWaveBasis{T}, kpt_in::Kpoint,
+                                basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where T
+    if kpt_in == kpt_out
+        return copy(ψk_in)
+    end
+    @assert length(G_vectors(kpt_in)) == size(ψk_in, 1)
+
+    idcsk_out = transfer_blochwave_mapping(basis_in, kpt_in,
+                                           basis_out, kpt_out)
+
+    # Set values
+    n_bands = size(ψk_in, 2)
+    ψk_out = similar(ψk_in, length(G_vectors(kpt_out)), n_bands)
+    ψk_out .= 0
+    if !any(isnothing, idcsk_out)
+        # if true, then Ecut_out >= Ecut_in and we pad with zeros
+        ψk_out[idcsk_out, :] .= ψk_in
+    else
+        # else, then Ecut_in > Ecut_out and the mapping should be done the
+        # other way
+        idcsk_in  = transfer_blochwave_mapping(basis_out, kpt_out,
+                                               basis_in, kpt_in)
+        ψk_out .= ψk_in[idcsk_in, :]
+    end
+    ψk_out
 end
 
 """
 Transfer Bloch wave between two basis sets. Limited feature set.
-For the moment, only PlaneWaveBasis with same lattice and kgrid are supported.
 """
 function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
                             basis_out::PlaneWaveBasis{T}) where T
@@ -131,22 +159,9 @@ function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
     ψ_out = empty(ψ_in)
 
     for (ik, kpt_out) in enumerate(basis_out.kpoints)
-        n_bands = size(ψ_in[ik], 2)
-
-        idcsk_out = transfer_blochwave_mapping(ik, basis_in, basis_out)
-
-        # Set values
-        ψk_out = similar(ψ_in[ik], length(G_vectors(kpt_out)), n_bands)
-        ψk_out .= 0
-        if !any(isnothing, idcsk_out)
-            # if true, then Ecut_out >= Ecut_in and we pad with zeros
-            ψk_out[idcsk_out, :] .= ψ_in[ik]
-        else
-            # else, then Ecut_in > Ecut_out and the mapping should be done the
-            # other way
-            idcsk_in  = transfer_blochwave_mapping(ik, basis_out, basis_in)
-            ψk_out .= ψ_in[ik][idcsk_in, :]
-        end
+        kpt_in = basis_in.kpoints[ik]
+        ψk_out = transfer_blochwave_kpt(ψ_in[ik], basis_in, kpt_in,
+                                        basis_out, kpt_out)
         push!(ψ_out, ψk_out)
     end
 
