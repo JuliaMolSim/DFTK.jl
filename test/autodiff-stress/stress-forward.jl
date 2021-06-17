@@ -6,12 +6,12 @@ function make_basis(a)
     lattice = a / 2 * [[0 1 1.];
                        [1 0 1.];
                        [1 1 0.]]
-    C = ElementPsp(:C, psp=load_psp("hgh/lda/c-q4.hgh"))
-    atoms = [C => [ones(3)/8]]
+    Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+    atoms = [Si => [ones(3)/8, -ones(3)/8]]
     terms = [
         Kinetic(),
         AtomicLocal(),
-        # AtomicNonlocal(),
+        AtomicNonlocal(),
         Ewald(),
         PspCorrection()
     ]
@@ -25,74 +25,95 @@ a = 10.26
 
 # scfres = self_consistent_field(basis, tol=1e-8) # LoadError: Unable to find non-fractional occupations that have the correct number of electrons. You should add a temperature.
 # try a bogus tolerance for debugging
-scfres = self_consistent_field(make_basis(a), tol=1e9)
-# ┌ Warning: Mismatch in number of electrons
-# │   sum_ρ = 1080.0455760000316
-# │   sum_occupation = 4.0
-# └ @ DFTK ~/.julia/dev/DFTK.jl/src/densities.jl:32
-# n     Free energy       Eₙ-Eₙ₋₁     ρout-ρin   Diag
-# ---   ---------------   ---------   --------   ----
-#   1   -3819171908.212         NaN   2.49e+07    21.0 
-# ERROR: LoadError: Unable to find non-fractional occupations that have the correct number of electrons. You should add a temperature.
-# Stacktrace:
-#   [1] error(s::String)
-#     @ Base ./error.jl:33
-#   [2] compute_occupation(basis::PlaneWaveBasis{Float64}, energies::Vector{Vector{Float64}}; temperature::Float64, smearing::DFTK.Smearing.None)
-#     @ DFTK ~/.julia/dev/DFTK.jl/src/occupation.jl:77
-#   [3] compute_occupation(basis::PlaneWaveBasis{Float64}, energies::Vector{Vector{Float64}})
-#     @ DFTK ~/.julia/dev/DFTK.jl/src/occupation.jl:16
-#   [4] next_density(ham::Hamiltonian; n_bands::Int64, ψ::Vector{Matrix{ComplexF64}}, n_ep_extra::Int64, eigensolver::Function, occupation_function::typeof(DFTK.compute_occupation), kwargs::Base.Iterators.Pairs{Symbol, Real, Tuple{Symbol, Symbol}, NamedTuple{(:miniter, :tol), Tuple{Int64, Float64}}})
-#     @ DFTK ~/.julia/dev/DFTK.jl/src/scf/self_consistent_field.jl:30
-#   [5] (::DFTK.var"#fixpoint_map#520"{DataType, Int64, typeof(lobpcg_hyper), Int64, DFTK.var"#determine_diagtol#515"{Float64}, Float64, SimpleMixing, DFTK.var"#is_converged#511"{Float64}, DFTK.var"#callback#510", Bool, Bool, typeof(DFTK.compute_occupation), PlaneWaveBasis{Float64}})(ρin::Array{Float64, 4})
-#     @ DFTK ~/.julia/dev/DFTK.jl/src/scf/self_consistent_field.jl:98
-#   [6] (::DFTK.var"#487#490"{DFTK.var"#fixpoint_map#520"{DataType, Int64, typeof(lobpcg_hyper), Int64, DFTK.var"#determine_diagtol#515"{Float64}, Float64, SimpleMixing, DFTK.var"#is_converged#511"{Float64}, DFTK.var"#callback#510", Bool, Bool, typeof(DFTK.compute_occupation), PlaneWaveBasis{Float64}}})(x::Array{Float64, 4})
-#     @ DFTK ~/.julia/dev/DFTK.jl/src/scf/scf_solvers.jl:18
-#   [7] (::NLSolversBase.var"#ff!#1"{DFTK.var"#487#490"{DFTK.var"#fixpoint_map#520"{DataType, Int64, typeof(lobpcg_hyper), Int64, DFTK.var"#determine_diagtol#515"{Float64}, Float64, SimpleMixing, DFTK.var"#is_converged#511"{Float64}, DFTK.var"#callback#510", Bool, Bool, typeof(DFTK.compute_occupation), PlaneWaveBasis{Float64}}}})(F::Array{Float64, 4}, x::Array{Float64, 4})
-#     @ NLSolversBase ~/.julia/packages/NLSolversBase/geyh3/src/objective_types/inplace_factory.jl:11
-#   [8] value!!(obj::NLSolversBase.NonDifferentiable{Array{Float64, 4}, Array{Float64, 4}}, F::Array{Float64, 4}, x::Array{Float64, 4})
-#     @ NLSolversBase ~/.julia/packages/NLSolversBase/geyh3/src/interface.jl:166
-#   [9] value!!
-#     @ ~/.julia/packages/NLSolversBase/geyh3/src/interface.jl:163 [inlined]
-#  [10] anderson_(df::NLSolversBase.NonDifferentiable{Array{Float64, 4}, Array{Float64, 4}}, initial_x::Array{Float64, 4}, xtol::Float64, ftol::Float64, iterations::Int64, store_trace::Bool, show_trace::Bool, extended_trace::Bool, beta::Int64, aa_start::Int64, droptol::Float64, cache::NLsolve.AndersonCache{Array{Float64, 4}, Array{Float64, 4}, Vector{Array{Float64, 4}}, Vector{Float64}, Matrix{Float64}, Matrix{Float64}})
-#     @ NLsolve ~/.julia/packages/NLsolve/gJL1I/src/solvers/anderson.jl:73
-#  [11] anderson(df::NLSolversBase.NonDifferentiable{Array{Float64, 4}, Array{Float64, 4}}, initial_x::Array{Float64, 4}, xtol::Float64, ftol::Float64, iterations::Int64, store_trace::Bool, show_trace::Bool, extended_trace::Bool, beta::Int64, aa_start::Int64, droptol::Float64, cache::NLsolve.AndersonCache{Array{Float64, 4}, Array{Float64, 4}, Vector{Array{Float64, 4}}, Vector{Float64}, Matrix{Float64}, Matrix{Float64}})
-#     @ NLsolve ~/.julia/packages/NLsolve/gJL1I/src/solvers/anderson.jl:203
-#  [12] anderson(df::NLSolversBase.NonDifferentiable{Array{Float64, 4}, Array{Float64, 4}}, initial_x::Array{Float64, 4}, xtol::Float64, ftol::Float64, iterations::Int64, store_trace::Bool, show_trace::Bool, extended_trace::Bool, m::Int64, beta::Int64, aa_start::Int64, droptol::Float64)
-#     @ NLsolve ~/.julia/packages/NLsolve/gJL1I/src/solvers/anderson.jl:188
-#  [13] nlsolve(df::NLSolversBase.NonDifferentiable{Array{Float64, 4}, Array{Float64, 4}}, initial_x::Array{Float64, 4}; method::Symbol, xtol::Float64, ftol::Float64, iterations::Int64, store_trace::Bool, show_trace::Bool, extended_trace::Bool, linesearch::LineSearches.Static, linsolve::NLsolve.var"#29#31", factor::Float64, autoscale::Bool, m::Int64, beta::Int64, aa_start::Int64, droptol::Float64)
-#     @ NLsolve ~/.julia/packages/NLsolve/gJL1I/src/nlsolve/nlsolve.jl:30
-#  [14] nlsolve(f::Function, initial_x::Array{Float64, 4}; method::Symbol, autodiff::Symbol, inplace::Bool, kwargs::Base.Iterators.Pairs{Symbol, Real, NTuple{5, Symbol}, NamedTuple{(:m, :xtol, :ftol, :show_trace, :iterations), Tuple{Int64, Float64, Float64, Bool, Int64}}})
-#     @ NLsolve ~/.julia/packages/NLsolve/gJL1I/src/nlsolve/nlsolve.jl:52
-#  [15] fp_solver
-#     @ ~/.julia/dev/DFTK.jl/src/scf/scf_solvers.jl:18 [inlined]
-#  [16] macro expansion
-#     @ ~/.julia/dev/DFTK.jl/src/scf/self_consistent_field.jl:137 [inlined]
-#  [17] (::DFTK.var"#518#519"{Int64, Array{Float64, 4}, Int64, DFTK.var"#fp_solver#488"{DFTK.var"#fp_solver#486#489"{Base.Iterators.Pairs{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}, Int64, Symbol}}, typeof(lobpcg_hyper), Int64, DFTK.var"#determine_diagtol#515"{Float64}, Float64, SimpleMixing, DFTK.var"#is_converged#511"{Float64}, DFTK.var"#callback#510", Bool, Bool, typeof(DFTK.compute_occupation), PlaneWaveBasis{Float64}})()
-#     @ DFTK ~/.julia/packages/TimerOutputs/ZmKD7/src/TimerOutput.jl:237
-#  [18] timeit(f::DFTK.var"#518#519"{Int64, Array{Float64, 4}, Int64, DFTK.var"#fp_solver#488"{DFTK.var"#fp_solver#486#489"{Base.Iterators.Pairs{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}, Int64, Symbol}}, typeof(lobpcg_hyper), Int64, DFTK.var"#determine_diagtol#515"{Float64}, Float64, SimpleMixing, DFTK.var"#is_converged#511"{Float64}, DFTK.var"#callback#510", Bool, Bool, typeof(DFTK.compute_occupation), PlaneWaveBasis{Float64}}, to::TimerOutputs.TimerOutput, label::String)
-#     @ TimerOutputs ~/.julia/packages/TimerOutputs/ZmKD7/src/TimerOutput.jl:285
-#  [19] self_consistent_field(basis::PlaneWaveBasis{Float64}; n_bands::Int64, ρ::Array{Float64, 4}, ψ::Nothing, tol::Float64, maxiter::Int64, solver::Function, eigensolver::Function, n_ep_extra::Int64, determine_diagtol::DFTK.var"#determine_diagtol#515"{Float64}, α::Float64, mixing::SimpleMixing, is_converged::DFTK.var"#is_converged#511"{Float64}, callback::DFTK.var"#callback#510", compute_consistent_energies::Bool, enforce_symmetry::Bool, occupation_function::typeof(DFTK.compute_occupation))
-#     @ DFTK ~/.julia/packages/TimerOutputs/ZmKD7/src/TimerOutput.jl:236
-#  [20] top-level scope
-#     @ ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-forward.jl:29
+scfres = self_consistent_field(make_basis(a), tol=1e-4)
 
+function compute_energy(scfres_ref, a)
+    basis = make_basis(a)
+    energies, H = energy_hamiltonian(basis, scfres_ref.ψ, scfres_ref.occupation; ρ=scfres_ref.ρ)
+    energies.total
+end
 
-# function compute_energy(scfres_ref, a)
-#     basis = make_basis(a)
-#     energies, H = energy_hamiltonian(basis, scfres_ref.ψ, scfres_ref.occupation; ρ=scfres_ref.ρ)
-#     energies.total
-# end
+compute_energy(a) = compute_energy(scfres, a)
+compute_energy(10.26)
 
-# compute_energy(a) = compute_energy(scfres, a)
-# compute_energy(10.26)
+import FiniteDiff
+FiniteDiff.finite_difference_derivative(compute_energy, 10.26) # -2.948556665633414e9 
 
-# import FiniteDiff
-# FiniteDiff.finite_difference_derivative(compute_energy, 10.26) # -2.948556665633414e9 
-
-# using ForwardDiff
-# ForwardDiff.derivative(compute_energy, 10.26) # -2.948556665529993e9
+using ForwardDiff
+ForwardDiff.derivative(compute_energy, 10.26) # NaN
 
 # using BenchmarkTools
 # @btime compute_energy(10.26)                                           # 19.513 ms ( 60004 allocations:  8.15 MiB)
 # @btime FiniteDiff.finite_difference_derivative(compute_energy, 10.26)  # 39.317 ms (120012 allocations: 16.29 MiB)
 # @btime ForwardDiff.derivative(compute_energy, 10.26)                   # 80.757 ms (543588 allocations: 31.91 MiB)
+
+#===#
+# debug NaN in AtomicNonlocal ForwardDiff
+
+# Bits for x86 FPU control word
+const FE_INVALID    = 0x1
+const FE_DIVBYZERO  = 0x4
+const FE_OVERFLOW   = 0x8
+const FE_UNDERFLOW  = 0x10
+const FE_INEXACT    = 0x20
+
+fpexceptions() = ccall(:fegetexcept, Cint, ())
+
+function setfpexceptions(f, mode)
+    prev = ccall(:feenableexcept, Cint, (Cint,), mode)
+    try
+        f()
+    finally
+        ccall(:fedisableexcept, Cint, (Cint,), mode & ~prev)
+    end
+end
+
+setfpexceptions(FE_DIVBYZERO) do
+    FiniteDiff.finite_difference_derivative(compute_energy, 10.26)
+end
+
+setfpexceptions(FE_DIVBYZERO) do
+    ForwardDiff.derivative(compute_energy, 10.26)  
+end
+# ERROR: LoadError: DivideError: integer division error
+# Stacktrace:
+#   [1] /
+#     @ ./math.jl:0 [inlined]
+#   [2] inv
+#     @ ./number.jl:217 [inlined]
+#   [3] sqrt
+#     @ ~/.julia/packages/ForwardDiff/QOqCN/src/dual.jl:203 [inlined]
+#   [4] macro expansion
+#     @ ~/.julia/packages/StaticArrays/NTbHj/src/linalg.jl:225 [inlined]
+#   [5] _norm
+#     @ ~/.julia/packages/StaticArrays/NTbHj/src/linalg.jl:213 [inlined]
+#   [6] norm
+#     @ ~/.julia/packages/StaticArrays/NTbHj/src/linalg.jl:212 [inlined]
+#   [7] (::AtomicLocal)(basis::PlaneWaveBasis{ForwardDiff.Dual{ForwardDiff.Tag{typeof(compute_energy), Float64}, Float64, 1}})
+#     @ DFTK ~/.julia/dev/DFTK.jl/src/terms/local.jl:85
+#   [8] macro expansion
+#     @ ~/.julia/packages/TimerOutputs/ZmKD7/src/TimerOutput.jl:190 [inlined]
+#   [9] macro expansion
+#     @ ~/.julia/dev/DFTK.jl/src/PlaneWaveBasis.jl:253 [inlined]
+#  [10] (::DFTK.var"#77#79"{ForwardDiff.Dual{ForwardDiff.Tag{typeof(compute_energy), Float64}, Float64, 1}, Bool, Bool, Int64, Vector{Int64}, Vector{Int64}, Model{ForwardDiff.Dual{ForwardDiff.Tag{typeof(compute_energy), Float64}, Float64, 1}}, Int64})()
+#     @ DFTK ~/.julia/packages/TimerOutputs/ZmKD7/src/TimerOutput.jl:237
+#  [11] timeit(f::DFTK.var"#77#79"{ForwardDiff.Dual{ForwardDiff.Tag{typeof(compute_energy), Float64}, Float64, 1}, Bool, Bool, Int64, Vector{Int64}, Vector{Int64}, Model{ForwardDiff.Dual{ForwardDiff.Tag{typeof(compute_energy), Float64}, Float64, 1}}, Int64}, to::TimerOutputs.TimerOutput, label::String)
+#     @ TimerOutputs ~/.julia/packages/TimerOutputs/ZmKD7/src/TimerOutput.jl:285
+#  [12] #PlaneWaveBasis#76
+#     @ ~/.julia/packages/TimerOutputs/ZmKD7/src/TimerOutput.jl:236 [inlined]
+#  [13] PlaneWaveBasis(model::Model{ForwardDiff.Dual{ForwardDiff.Tag{typeof(compute_energy), Float64}, Float64, 1}}, Ecut::Int64; kgrid::Vector{Int64}, kshift::Vector{Int64}, use_symmetry::Bool, kwargs::Base.Iterators.Pairs{Symbol, Vector{Int64}, Tuple{Symbol}, NamedTuple{(:fft_size,), Tuple{Vector{Int64}}}})
+#     @ DFTK ~/.julia/dev/DFTK.jl/src/PlaneWaveBasis.jl:293
+#  [14] make_basis(a::ForwardDiff.Dual{ForwardDiff.Tag{typeof(compute_energy), Float64}, Float64, 1})
+#     @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-forward.jl:21
+#  [15] compute_energy(scfres_ref::NamedTuple{(:ham, :basis, :energies, :converged, :ρ, :eigenvalues, :occupation, :εF, :n_iter, :n_ep_extra, :ψ, :diagonalization, :stage), Tuple{Hamiltonian, PlaneWaveBasis{Float64}, Energies{Float64}, Bool, Array{Float64, 4}, Vector{Vector{Float64}}, Vector{Vector{Float64}}, Float64, Int64, Int64, Vector{Matrix{ComplexF64}}, NamedTuple{(:λ, :X, :residual_norms, :iterations, :converged, :n_matvec), Tuple{Vector{Vector{Float64}}, Vector{Matrix{ComplexF64}}, Vector{Vector{Float64}}, Vector{Int64}, Bool, Int64}}, Symbol}}, a::ForwardDiff.Dual{ForwardDiff.Tag{typeof(compute_energy), Float64}, Float64, 1})
+#     @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-forward.jl:31
+#  [16] compute_energy(a::ForwardDiff.Dual{ForwardDiff.Tag{typeof(compute_energy), Float64}, Float64, 1})
+#     @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-forward.jl:36
+#  [17] derivative
+#     @ ~/.julia/packages/ForwardDiff/QOqCN/src/derivative.jl:14 [inlined]
+#  [18] (::var"#15#16")()
+#     @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-forward.jl:76
+#  [19] setfpexceptions(f::var"#15#16", mode::UInt8)
+#     @ Main ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-forward.jl:65
+#  [20] top-level scope
+#     @ ~/.julia/dev/DFTK.jl/test/autodiff-stress/stress-forward.jl:75
