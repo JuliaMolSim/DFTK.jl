@@ -38,9 +38,7 @@ end
     Ecut = 5
     basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 
-    # Run nlsolve without guess
-    ρ0 = zeros(basis.fft_size..., 1)
-    ψ = self_consistent_field(basis; ρ=ρ0, tol=tol, callback=info->nothing).ψ
+    ψ = self_consistent_field(basis; tol=tol, callback=info->nothing).ψ
 
     ## Testing interpolations from basis to a bigger_basis and backwards
 

@@ -89,7 +89,6 @@ export spin_density
 export ρ_from_total_and_spin
 include("densities.jl")
 include("interpolation.jl")
-export transfer_blochwave
 
 export PreconditionerTPA
 export PreconditionerNone

@@ -98,7 +98,6 @@ function transfer_blochwave_mapping(ik, basis_in::PlaneWaveBasis{T},
     # make sure that the indices linearization works. It is not an issue to
     # filter these vectors as this can only happen if Ecut_in > Ecut_out.
     filter!(!isnothing, idcsk_out)
-    # Linearize the indices
     idcsk_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcsk_out)
 
     # Map to the indices of the corresponding G-vectors in G_vectors(kpt_out)
