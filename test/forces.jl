@@ -90,8 +90,7 @@ end
         scfres = self_consistent_field(basis;
                                        is_converged=DFTK.ScfConvergenceDensity(1e-7),
                                        ρ=guess_density(basis, magnetic_moments),
-                                       α=0.7,
-                                      )
+                                       damping=0.7)
         scfres.energies.total, compute_forces(scfres)
     end
 
