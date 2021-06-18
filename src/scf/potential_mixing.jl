@@ -149,10 +149,10 @@ function next_trial_damping(damping::AdaptiveDamping, info, info_next, step_succ
 
     α_trial = abs(info_next.α)  # By default use the α that worked in this step
     if step_successful && n_backtrack == 1
-        # First step was directly ok => Accelerate a little
+        # First step was directly ok => Allow to accelerate a little
         α_model = scf_quadratic_model(info, info_next; modeltol=damping.modeltol)
-        if !isnothing(α_model)
-            α_trial = damping.α_trial_enhancement * α_model
+        if !isnothing(α_model)  # Model is meaningful
+            α_trial = max(damping.α_trial_enhancement * abs(α_model), α_trial)
         end
     end
 
@@ -260,7 +260,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         info_next = info
         while n_backtrack ≤ max_backtracks
             diagtol = determine_diagtol(info_next)
-            @debug "Linesearch step $n_backtrack   α=$α diagtol=$diagtol"
+            @debug "Iteration $n_iter linesearch step $n_backtrack   α=$α diagtol=$diagtol"
             Vnext = info.Vin + α * δV
 
             info_next    = EVρ(Vnext; ψ=guess, diagtol=diagtol)
@@ -301,7 +301,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         # Update α_trial and commit the next state
         α_trial = next_trial_damping(damping, info, info_next, successful)
         info = info_next
-        @debug "Linesearch $(successful ? "successful" : "failed")" α_trial
+        @debug "Iteration $n_iter linesearch $(successful ? "successful" : "failed")" α_trial
     end
 
     ham  = hamiltonian_with_total_potential(ham, V)
