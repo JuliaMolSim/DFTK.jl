@@ -125,6 +125,11 @@ end
 end
 
 function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
+    if abs(info_next.α) < 1.75damping.α_min
+        # Too close to α_min to be worth making another step ... just give up
+        return info_next.α
+    end
+
     α = scf_quadratic_model(info, info_next; modeltol=damping.modeltol)
     isnothing(α) && (α = info_next.α / 2)  # Model failed ... use heuristics
 
@@ -132,14 +137,7 @@ function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
     α_sign = sign(α)
     α = clamp(abs(α), damping.α_min, damping.α_max)
     α = min(0.95abs(info_next.α), α)  # Avoid to get stuck
-    α = α_sign * α
-
-    if abs(α) < 1.75damping.α_min
-        # Too close to α_min to be worth computing the result ... just give up
-        return info_next.α
-    else
-        return α
-    end
+    return α_sign * α
 end
 
 initial_damping(damping::AdaptiveDamping) = damping.α_init
@@ -293,6 +291,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
             if ΔE > abs(ΔEdown) * ratio_failure_accel_off
                 n_acceleration_off = 2  # will be reduced to 2 in the next line ...
                 @warn "Backtracking linesearch failed badly. Switching off acceleration for two steps"
+                @debug ΔE ΔEdown ratio_failure_accel_off
             end
         else
             n_acceleration_off = max(0, n_acceleration_off - 1)
