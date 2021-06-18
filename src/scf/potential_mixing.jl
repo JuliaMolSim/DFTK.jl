@@ -270,7 +270,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
                                           Pinv_δV=Pinv_δV_next))
 
             successful = accept_step(info, info_next)
-            if successful || n_backtrack ≥ damping.max_α_trials
+            if successful || n_backtrack ≥ max_backtracks
                 break  # Hooray!
             end
             n_backtrack += 1
@@ -300,7 +300,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         # Update α_trial and commit the next state
         α_trial = next_trial_damping(damping, info, info_next, successful)
         info = info_next
-        @debug "Linesearch $(successful ? "successful" : "failed")" n_acceleration_off α_trial
+        @debug "Linesearch $(successful ? "successful" : "failed")" α_trial
     end
 
     ham  = hamiltonian_with_total_potential(ham, V)
