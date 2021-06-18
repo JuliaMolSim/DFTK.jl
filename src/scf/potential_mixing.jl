@@ -124,7 +124,7 @@ end
     modeltol = 0.1     # Maximum relative error for model to be considered trustworthy
 end
 
-function propose_damping(damping::AdaptiveDamping, info, info_next)
+function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
     α = scf_quadratic_model(info, info_next; modeltol=damping.modeltol)
     isnothing(α) && (α = info_next.α / 2)  # Model failed ... use heuristics
 
@@ -164,7 +164,7 @@ struct FixedDamping
     α
 end
 FixedDamping() = FixedDamping(0.8)
-propose_damping(damping::FixedDamping) = damping.α
+propose_backtrack_damping(damping::FixedDamping) = damping.α
 initial_damping(damping::FixedDamping) = damping.α
 next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping.α
 
@@ -276,7 +276,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
             n_backtrack += 1
 
             # Adjust α to try again ...
-            α_next = propose_damping(damping, info, info_next)
+            α_next = propose_backtrack_damping(damping, info, info_next)
             if α_next == α  # We learned nothing new ...
                 break
             end
