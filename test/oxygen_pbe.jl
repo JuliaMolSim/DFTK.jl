@@ -29,7 +29,7 @@ function run_oxygen_pbe(T; kwargs...)
     @test scfres.energies.total ≈ ref_etot atol=1e-4  # A little large a difference ...
 
     magnetization = sum(spin_density(scfres.ρ)) * basis.dvol
-    @test magnetization ≈ ref_magn atol=1e-5
+    @test magnetization ≈ ref_magn atol=1e-4
 end
 
 @testset "Oxygen PBE (Float64)" begin

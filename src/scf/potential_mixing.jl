@@ -259,10 +259,11 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         diagonalization = empty(info.diagonalization)
         info_next = info
         while n_backtrack ≤ max_backtracks
-            @debug "Linesearch step $n_backtrack α=$α"
+            diagtol = determine_diagtol(info_next)
+            @debug "Linesearch step $n_backtrack   α=$α diagtol=$diagtol"
             Vnext = info.Vin + α * δV
 
-            info_next    = EVρ(Vnext; ψ=guess, diagtol=determine_diagtol(info_next))
+            info_next    = EVρ(Vnext; ψ=guess, diagtol=diagtol)
             Pinv_δV_next = mix_potential(mixing, basis, info_next.Vout - info_next.Vin; info_next...)
             push!(diagonalization, info_next.diagonalization)
             info_next = merge(info_next, (α=α, diagonalization=diagonalization,
