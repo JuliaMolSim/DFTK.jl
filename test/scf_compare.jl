@@ -46,7 +46,7 @@ include("testcases.jl")
                    KerkerDosMixing(), HybridMixing(), HybridMixing(εr=10, RPA=false),
                    χ0Mixing(χ0terms=[Applyχ0Model()], RPA=true))
         @testset "Testing $mixing" begin
-            ρ_alg = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol, α=0.8).ρ
+            ρ_alg = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol, damping=0.8).ρ
             @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
         end
     end
@@ -70,7 +70,7 @@ end
 
     for mixing in (KerkerDosMixing(), HybridMixing(RPA=true), HybridMixing(εr=10, RPA=false), )
         @testset "Testing $mixing" begin
-            ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol, α=0.8).ρ
+            ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol, damping=0.8).ρ
             @test maximum(abs.(ρ_mix - ρ_ref)) < sqrt(tol)
         end
     end
@@ -91,15 +91,23 @@ end
     basis = PlaneWaveBasis(model, Ecut; fft_size=fft_size, kgrid=[3, 3, 3])
 
     # Reference: Default algorithm
-    ρ0     = guess_density(basis)
+    ρ0     = guess_density(basis, magnetic_moments)
     scfres = self_consistent_field(basis, ρ=ρ0, tol=tol)
     ρ_ref = scfres.ρ
 
     for mixing in (KerkerMixing(), KerkerDosMixing(), DielectricMixing(εr=10),
                    HybridMixing(εr=10), χ0Mixing(χ0terms=[Applyχ0Model()], RPA=false),)
         @testset "Testing $mixing" begin
-            scfres = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol, α=0.8)
-            @test maximum(abs.(scfres.ρ - ρ_ref)) < sqrt(tol)
+            scfres = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol, damping=0.8)
+            @test maximum(abs.(scfres.ρ - ρ_ref)) < 2sqrt(tol)
         end
     end
+
+    # Potential mixing
+    scfres = DFTK.scf_potential_mixing(basis, mixing=KerkerMixing(), tol=tol, ρ=ρ0)
+    @test maximum(abs.(scfres.ρ - ρ_ref)) < sqrt(tol)
+
+    # Adaptive potential mixing
+    scfres = DFTK.scf_potential_mixing_adaptive(basis, mixing=SimpleMixing(), tol=tol, ρ=ρ0)
+    @test maximum(abs.(scfres.ρ - ρ_ref)) < sqrt(tol)
 end
