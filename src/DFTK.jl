@@ -132,6 +132,7 @@ include("symmetry.jl")
 include("bzmesh.jl")
 
 export guess_density
+export random_density
 export load_psp
 export list_psp
 include("guess_density.jl")

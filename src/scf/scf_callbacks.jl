@@ -42,11 +42,12 @@ function ScfDefaultCallback()
 
         Estr   = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
         ΔE     = prev_total == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_total
+        αstr   = isnan(info.α) ? " NaN" : @sprintf "%3.2f" info.α
         Mstr = collinear ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
 
         diagiter = mpi_mean(sum(mean(diag.iterations) for diag in info.diagonalization),
                             info.basis.comm_kpts)
-        @printf "% 3d   %s   %s   %2.2e%s %3.2f %5.1f \n" info.n_iter Estr ΔE Δρ Mstr info.α diagiter
+        @printf "% 3d   %s   %s   %2.2e%s %s %5.1f \n" info.n_iter Estr ΔE Δρ Mstr αstr diagiter
         prev_total = info.energies.total
 
         flush(stdout)

@@ -227,7 +227,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
     diagtol   = determine_diagtol((ρin=ρ, Vin=V, n_iter=n_iter))
     info      = EVρ(V; diagtol=diagtol, ψ=ψ)
     Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; info...)
-    info      = merge(info, (α=α_trial, diagonalization=[info.diagonalization], ρin=ρ,
+    info      = merge(info, (α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
                              n_iter=n_iter, Pinv_δV=Pinv_δV))
     ΔEdown    = 0.0
     n_acceleration_off = 0  # >0 switches acceleration off for a few steps if in difficult region
