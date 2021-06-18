@@ -56,7 +56,7 @@ function ScfAcceptImprovingStep(;max_energy_change=1e-12, max_relative_residual=
 
         # Accept if energy goes down or residual decreases
         accept = energy_change < max_energy_change || relative_residual < max_relative_residual
-        @debug "Step $(accept ? "accepted" : "discarded")" energy_change relative_residual
+        mpi_master() && @debug "Step $(accept ? "accepted" : "discarded")" energy_change relative_residual
         accept
     end
 end
@@ -106,10 +106,10 @@ function scf_quadratic_model(info, info_next; modeltol=0.1)
     # Accept model if it leads to minimum and is either tight or shows a negative slope
     if minimum_exists && (tight_model || (slope < -eps(T) && trusted_model))
         α_model = -slope / curv
-        @debug "Quadratic model accepted" model_relerror slope curv α_model
+        mpi_master() && @debug "Quadratic model accepted" model_relerror slope curv α_model
         return α_model
     else
-        @debug "Quadratic model discarded" model_relerror slope curv
+        mpi_master() && @debug "Quadratic model discarded" model_relerror slope curv
         nothing  # Model not trustworthy ... better return nothing
     end
 end
@@ -257,7 +257,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         info_next = info
         while n_backtrack ≤ max_backtracks
             diagtol = determine_diagtol(info_next)
-            @debug "Iteration $n_iter linesearch step $n_backtrack   α=$α diagtol=$diagtol"
+            mpi_master() && @debug "Iteration $n_iter linesearch step $n_backtrack   α=$α diagtol=$diagtol"
             Vnext = info.Vin + α * δV
 
             info_next    = EVρ(Vnext; ψ=guess, diagtol=diagtol)
@@ -288,10 +288,12 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         ΔE = info_next.energies.total - info.energies.total
         ΔE < 0 && (ΔEdown = -max(abs(ΔE), tol))
         if !successful && n_acceleration_off == 0
-            if ΔE > abs(ΔEdown) * ratio_failure_accel_off
+            if abs(ΔE) > abs(ratio_failure_accel_off * ΔEdown)
                 n_acceleration_off = 2  # will be reduced to 2 in the next line ...
-                @warn "Backtracking linesearch failed badly. Switching off acceleration for two steps"
-                @debug ΔE ΔEdown ratio_failure_accel_off
+                if mpi_master()
+                    @warn "Backtracking linesearch failed badly. Acceleration not used for two steps."
+                    @debug ΔE ΔEdown ratio_failure_accel_off
+                end
             end
         else
             n_acceleration_off = max(0, n_acceleration_off - 1)
