@@ -45,13 +45,19 @@ function AndersonAcceleration(;m=Inf)
 end
 
 
-function ScfAcceptStepImproving(;tol=1e-12, residual_ratio=0.9)
+"""
+Accept a step if the energy is at most increasing by `max_energy` and the residual
+is at most `max_relative_residual` times the residual in the previous step.
+"""
+function ScfAcceptImprovingStep(;max_energy_change=1e-12, max_relative_residual=0.9)
     function accept_step(info, info_next)
+        energy_change = info_next.energies.total - info.energies.total
+        relative_residual = norm(info_next.Pinv_δV) / norm(info.Pinv_δV)
+
         # Accept if energy goes down or residual decreases
-        return (
-               info_next.energies.total - info.energies.total < tol
-            || norm(info_next.Pinv_δV) / norm(info.Pinv_δV) < residual_ratio
-        )
+        accept = energy_change < max_energy_change || relative_residual < max_relative_residual
+        @debug "Step $(accept ? "accepted" : "discarded")" energy_change relative_residual
+        accept
     end
 end
 function ScfAcceptStepAll()
@@ -99,15 +105,18 @@ function scf_quadratic_model(info, info_next; modeltol=0.1)
 
     # Accept model if it leads to minimum and is either tight or shows a negative slope
     if minimum_exists && (tight_model || (slope < -eps(T) && trusted_model))
-        α_next = -slope / curv
+        α_model = -slope / curv
+        @debug "Quadratic model accepted" model_relerror slope curv α_model
+        return α_model
     else
+        @debug "Quadratic model discarded" model_relerror slope curv
         nothing  # Model not trustworthy ... better return nothing
     end
 end
 
 # Adaptive damping using a quadratic model
 @kwdef struct AdaptiveDamping
-    α_init = 0.8       # The initial damping value (used as first trial value in first SCF step)
+    α_init = 0.5       # The initial damping value (used as first trial value in first SCF step)
     α_min = 0.01       # Minimal damping
     α_max = 1.0        # Maximal damping
     α_trial_min = 0.1  # Minimal first trial damping used in a step
@@ -116,20 +125,20 @@ end
 end
 
 function propose_damping(damping::AdaptiveDamping, info, info_next)
-    α_next = scf_quadratic_model(info, info_next; modeltol=damping.modeltol)
-    isnothing(α_next) && (α_next = α0 / 2)  # Model failed ... use heuristics
+    α = scf_quadratic_model(info, info_next; modeltol=damping.modeltol)
+    isnothing(α) && (α = info_next.α / 2)  # Model failed ... use heuristics
 
-    # Adjust α_next to stay within desired range
-    α_sign = sign(α_next)
-    α_next = clamp(abs(α_next), damping.α_min, damping.α_max)
-    α_next = min(0.95abs(α), α_next)  # Avoid to get stuck
-    α_next = α_sign * α_next
+    # Adjust α to stay within desired range
+    α_sign = sign(α)
+    α = clamp(abs(α), damping.α_min, damping.α_max)
+    α = min(0.95abs(info_next.α), α)  # Avoid to get stuck
+    α = α_sign * α
 
-    if abs(α_next) < 1.75damping.α_min
+    if abs(α) < 1.75damping.α_min
         # Too close to α_min to be worth computing the result ... just give up
-        return α0
+        return info_next.α
     else
-        return α_next
+        return α
     end
 end
 
@@ -189,6 +198,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
     @assert (   mixing isa SimpleMixing
              || mixing isa KerkerMixing
              || mixing isa KerkerDosMixing)
+    damping isa Number && (damping = FixedDamping(damping))
 
     # Initial guess for V and ψ (if none given)
     if ψ !== nothing
@@ -223,7 +233,8 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
     n_acceleration_off = 0  # >0 switches acceleration off for a few steps if in difficult region
 
     while n_iter < maxiter
-        info = merge(info, (stage=:iterate, converged=converged))
+        info = merge(info, (stage=:iterate, converged=converged,
+                            n_acceleration_off=n_acceleration_off))
         callback(info)
         if is_converged(info)
             converged = true
@@ -236,6 +247,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         αdiis = max(α_accel_min, α_trial)
         δV    = (acceleration(info.Vin, αdiis, info.Pinv_δV) - info.Vin) / αdiis
         if n_acceleration_off > 0
+            @debug "Acceleration disabled"
             δV = Pinv_δV
         end
 
@@ -247,6 +259,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         diagonalization = empty(info.diagonalization)
         info_next = info
         while n_backtrack ≤ max_backtracks
+            @debug "Linesearch step $n_backtrack α=$α"
             Vnext = info.Vin + α * δV
 
             info_next    = EVρ(Vnext; ψ=guess, diagtol=determine_diagtol(info_next))
@@ -258,7 +271,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
 
             successful = accept_step(info, info_next)
             if successful || n_backtrack ≥ damping.max_α_trials
-                break
+                break  # Hooray!
             end
             n_backtrack += 1
 
@@ -274,13 +287,10 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         end
 
         # Switch off acceleration in case of very bad steps
-        Etotal = info.energies.total
-        Etotal_next = info_next.energies.total
-        if Etotal_next < Etotal
-            ΔEdown = -max(abs(Etotal_next - Etotal), tol)
-        end
+        ΔE = info_next.energies.total - info.energies.total
+        ΔE < 0 && (ΔEdown = -max(abs(ΔE), tol))
         if !successful && n_acceleration_off == 0
-            if Etotal_next - Etotal > abs(ΔEdown) * ratio_failure_accel_off
+            if ΔE > abs(ΔEdown) * ratio_failure_accel_off
                 n_acceleration_off = 2  # will be reduced to 2 in the next line ...
             end
         else
@@ -290,6 +300,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         # Update α_trial and commit the next state
         α_trial = next_trial_damping(damping, info, info_next, successful)
         info = info_next
+        @debug "Linesearch $(successful ? "successful" : "failed")" n_acceleration_off α_trial
     end
 
     ham  = hamiltonian_with_total_potential(ham, V)
@@ -310,14 +321,15 @@ function scf_potential_mixing_adaptive(basis; tol=1e-6, mode=:standard, kwargs..
     if mode == :standard
         # Standard settings (decent compromise between speed and robustness)
         scf_potential_mixing(basis; tol=tol,
-                             accept_step=ScfAcceptStepImproving(tol=tol),
+                             accept_step=ScfAcceptImprovingStep(max_energy_change=tol),
                              ratio_failure_accel_off=0.01,
                              α_accel_min=0.2,
                              extraargs..., kwargs...)
     else
         # Slower but more robust settings
+        accept_step = ScfAcceptImprovingStep(max_energy_change=tol, max_relative_residual=0.0)
         scf_potential_mixing(basis; tol=tol,
-                             accept_step=ScfAcceptStepImproving(tol=tol, residual_ratio=0.0),
+                             accept_step=accept_step,
                              ratio_failure_accel_off=0.0,
                              α_accel_min=0.0,
                              extraargs..., kwargs...)
