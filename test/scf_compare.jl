@@ -50,6 +50,14 @@ include("testcases.jl")
             @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
         end
     end
+
+    # Potential mixing
+    scfres = DFTK.scf_potential_mixing(basis, mixing=KerkerMixing(), tol=tol, ρ=ρ0)
+    @test maximum(abs.(scfres.ρ - ρ_nl)) < sqrt(tol) / 10
+
+    # Adaptive potential mixing
+    scfres = DFTK.scf_potential_mixing_adaptive(basis, mixing=SimpleMixing(), tol=tol, ρ=ρ0)
+    @test maximum(abs.(scfres.ρ - ρ_nl)) < sqrt(tol) / 10
 end
 
 
