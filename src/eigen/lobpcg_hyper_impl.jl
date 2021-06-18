@@ -46,8 +46,7 @@ using BlockArrays # used for the `mortar` command which makes block matrices
 
 # when X or Y are BlockArrays, this makes the return value be a proper array (not a BlockArray)
 function array_mul(X, Y)
-    Z = zeros(eltype(X), size(X, 1), size(Y, 2))
-    mul!(Z, X, Y)
+    Array(X*Y)
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
