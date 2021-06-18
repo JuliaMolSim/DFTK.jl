@@ -247,7 +247,6 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         αdiis = max(α_accel_min, α_trial)
         δV    = (acceleration(info.Vin, αdiis, info.Pinv_δV) - info.Vin) / αdiis
         if n_acceleration_off > 0
-            @debug "Acceleration disabled"
             δV = Pinv_δV
         end
 
@@ -272,13 +271,13 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
 
             successful = accept_step(info, info_next)
             if successful || n_backtrack ≥ max_backtracks
-                break  # Hooray!
+                break
             end
             n_backtrack += 1
 
             # Adjust α to try again ...
             α_next = propose_backtrack_damping(damping, info, info_next)
-            if α_next == α  # We learned nothing new ...
+            if α_next == α  # Backtracking further not useful ...
                 break
             end
 
@@ -293,6 +292,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         if !successful && n_acceleration_off == 0
             if ΔE > abs(ΔEdown) * ratio_failure_accel_off
                 n_acceleration_off = 2  # will be reduced to 2 in the next line ...
+                @warn "Backtracking linesearch failed badly. Switching off acceleration for two steps"
             end
         else
             n_acceleration_off = max(0, n_acceleration_off - 1)
@@ -301,7 +301,6 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         # Update α_trial and commit the next state
         α_trial = next_trial_damping(damping, info, info_next, successful)
         info = info_next
-        @debug "Iteration $n_iter linesearch $(successful ? "successful" : "failed")" α_trial
     end
 
     ham  = hamiltonian_with_total_potential(ham, V)
