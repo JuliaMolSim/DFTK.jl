@@ -55,8 +55,7 @@ end
         n_bands = 10
         is_converged = DFTK.ScfConvergenceDensity(5e-10)
         scfres = self_consistent_field(basis, n_bands=n_bands,
-                                       is_converged=is_converged,
-                                      )
+                                       is_converged=is_converged)
         scfres.energies.total, compute_forces(scfres)
     end
 
