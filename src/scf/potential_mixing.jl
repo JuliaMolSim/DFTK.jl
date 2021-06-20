@@ -146,16 +146,16 @@ function next_trial_damping(damping::AdaptiveDamping, info, info_next, step_succ
     n_backtrack = length(info_next.diagonalization)
 
     α_trial = abs(info_next.α)  # By default use the α that worked in this step
-    if step_successful && n_backtrack == 1
-        # First step was directly ok => Allow to accelerate a little
+    if step_successful && n_backtrack == 1  # First step was good => speed things up
+        α_trial ≥ damping.α_max && return damping.α_max  # No need to compute model
         α_model = scf_quadratic_model(info, info_next; modeltol=damping.modeltol)
         if !isnothing(α_model)  # Model is meaningful
             α_trial = max(damping.α_trial_enhancement * abs(α_model), α_trial)
         end
     end
 
-    # Ensure the range stays valid
-    α_trial = clamp(α_trial, damping.α_trial_min, damping.α_max)
+    # Ensure returned damping is in valid range
+    clamp(α_trial, damping.α_trial_min, damping.α_max)
 end
 
 struct FixedDamping
