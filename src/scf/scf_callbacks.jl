@@ -17,8 +17,12 @@ function ScfPlotTrace end  # implementation in src/plotting.jl
 Default callback function for `self_consistent_field`, which prints a convergence table
 """
 function ScfDefaultCallback()
-    prev_total = Inf
+    prev_total = NaN
     function callback(info)
+        # Gather MPI-distributed information
+        diagiter = mpi_mean(sum(mean(diag.iterations) for diag in info.diagonalization),
+                            info.basis.comm_kpts)
+
         !mpi_master() && return info  # Printing only on master
         if info.stage == :finalize
             info.converged || @warn "SCF not converged."
@@ -41,12 +45,10 @@ function ScfDefaultCallback()
         end
 
         Estr   = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
-        ΔE     = prev_total == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_total
+        ΔE     = isnan(prev_total) ? "      NaN" : @sprintf "% 3.2e" E - prev_total
         αstr   = isnan(info.α) ? " NaN" : @sprintf "%3.2f" info.α
         Mstr = collinear ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
 
-        diagiter = mpi_mean(sum(mean(diag.iterations) for diag in info.diagonalization),
-                            info.basis.comm_kpts)
         @printf "% 3d   %s   %s   %2.2e%s %s %5.1f \n" info.n_iter Estr ΔE Δρ Mstr αstr diagiter
         prev_total = info.energies.total
 

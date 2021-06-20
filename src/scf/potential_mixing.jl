@@ -208,14 +208,14 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
     energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ)
     isnothing(V) && (V = total_local_potential(ham))
 
-    function EVρ(V; diagtol=tol / 10, ψ=nothing)
-        ham_V = hamiltonian_with_total_potential(ham, V)
+    function EVρ(Vin; diagtol=tol / 10, ψ=nothing)
+        ham_V = hamiltonian_with_total_potential(ham, Vin)
         res_V = next_density(ham_V; n_bands=n_bands, ψ=ψ, n_ep_extra=n_ep_extra,
                              miniter=diag_miniter, tol=diagtol)
         new_E, new_ham = energy_hamiltonian(basis, res_V.ψ, res_V.occupation;
                                             ρ=res_V.ρout, eigenvalues=res_V.eigenvalues,
                                             εF=res_V.εF)
-        (basis=basis, ham=new_ham, energies=new_E, Vin=V,
+        (basis=basis, ham=new_ham, energies=new_E, Vin=Vin,
          Vout=total_local_potential(new_ham), res_V...)
     end
 
@@ -304,10 +304,11 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         info = info_next
     end
 
-    ham  = hamiltonian_with_total_potential(ham, V)
+    ham  = hamiltonian_with_total_potential(ham, info.Vout)
     info = (ham=ham, basis=basis, energies=info.energies, converged=converged,
             ρ=info.ρout, eigenvalues=info.eigenvalues, occupation=info.occupation,
-            εF=info.εF, n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=info.ψ, stage=:finalize)
+            εF=info.εF, n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=info.ψ,
+            diagonalization=info.diagonalization, stage=:finalize)
     callback(info)
     info
 end
