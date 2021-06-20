@@ -33,8 +33,8 @@ function ScfDefaultCallback()
         if info.n_iter == 1
             E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
             magn    = collinear ? ("   Magnet", "   ------") : ("", "")
-            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin%s α     Diag\n" E_label magn[1]
-            @printf "---   ---------------   ---------   --------%s ----  ----\n" magn[2]
+            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin%s  α      Diag\n" E_label magn[1]
+            @printf "---   ---------------   ---------   --------%s  -----  ----\n" magn[2]
         end
         E    = isnothing(info.energies) ? Inf : info.energies.total
         Δρ   = norm(info.ρout - info.ρin) * sqrt(info.basis.dvol)
@@ -46,10 +46,10 @@ function ScfDefaultCallback()
 
         Estr   = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
         ΔE     = isnan(prev_total) ? "      NaN" : @sprintf "% 3.2e" E - prev_total
-        αstr   = isnan(info.α) ? " NaN" : @sprintf "%3.2f" info.α
+        αstr   = isnan(info.α) ? "  NaN" : @sprintf "% 4.2f" info.α
         Mstr = collinear ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
 
-        @printf "% 3d   %s   %s   %2.2e%s %s %5.1f \n" info.n_iter Estr ΔE Δρ Mstr αstr diagiter
+        @printf "% 3d   %s   %s   %2.2e%s  %s %5.1f \n" info.n_iter Estr ΔE Δρ Mstr αstr diagiter
         prev_total = info.energies.total
 
         flush(stdout)
