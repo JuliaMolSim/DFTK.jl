@@ -46,7 +46,8 @@ using BlockArrays # used for the `mortar` command which makes block matrices
 
 # when X or Y are BlockArrays, this makes the return value be a proper array (not a BlockArray)
 function array_mul(X, Y)
-    Array(X*Y)
+    Z = zeros(eltype(X), size(X, 1), size(Y, 2))
+    mul!(Z, X, Y)
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
@@ -242,8 +243,6 @@ end
 
     n_conv_check === nothing && (n_conv_check = M)
     resid_history = zeros(real(eltype(X)), M, maxiter+1)
-    buf_X = zero(X)
-    buf_P = zero(X)
 
     # B-orthogonalize X
     X = ortho(X, tol=ortho_tol)[1]
@@ -292,7 +291,7 @@ end
                 AY = mortar((AX, AR, AP))
                 BY = mortar((BX, BR, BP))  # data shared with (X, R, P) in non-general case
             else
-                Y = mortar((X, R))
+                Y  = mortar((X, R))
                 AY = mortar((AX, AR))
                 BY = mortar((BX, BR))  # data shared with (X, R) in non-general case
             end
@@ -302,8 +301,8 @@ end
             # wait on updating P because we have to know which vectors
             # to lock (and therefore the residuals) before computing P
             # only for the unlocked vectors. This results in better convergence.
-            new_X  = array_mul(Y, cX)  # = Y * cX
-            new_AX = array_mul(AY, cX)  # = AY * cX,   no accuracy loss, since cX orthogonal
+            new_X  = array_mul(Y, cX)
+            new_AX = array_mul(AY, cX)  # no accuracy loss, since cX orthogonal
             new_BX = (B == I) ? new_X : array_mul(BY, cX)
         end
 
@@ -364,17 +363,17 @@ end
             cP = ortho(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
-            new_P = array_mul(Y, cP)    # = Y * cP
-            new_AP = array_mul(AY, cP)  # = AY * cP
+            new_P  = array_mul( Y, cP)
+            new_AP = array_mul(AY, cP)
             if B != I
-                new_BP = array_mul(BY, cP)  # = BY * cP
+                new_BP = array_mul(BY, cP)
             else
                 new_BP = new_P
             end
         end
 
         # Update all X, even newly locked
-        X .= new_X
+        X  .= new_X
         AX .= new_AX
         if B != I
             BX .= new_BX
