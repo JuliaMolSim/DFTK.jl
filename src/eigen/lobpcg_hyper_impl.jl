@@ -178,13 +178,15 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
     ninners = zeros(Int,0)
     while true
         BYX = BY'X
-        mul!(X, Y, BYX, -1, 1) # X -= Y*BY'X
+        X .-= Y * BYX
+        # XXX once in BlockArrays:   mul!(X, Y, BYX, -1, 1) # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho(cP, cX)
         dropped = drop!(X)
         if dropped != []
-            @views mul!(X[:, dropped], Y, BY'X[:, dropped], -1, 1) # X -= Y*BY'X
+            # XXX once in BlockArrays:   @views mul!(X[:, dropped], Y, BY'X[:, dropped], -1, 1) # X -= Y*BY'X
+            @views X[:, dropped] .-= Y * BY'X[:, dropped]
         end
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
