@@ -138,10 +138,10 @@ if CONTINUOUS_INTEGRATION
         end
 
         # Install Julia dependencies into build
-        cp(joinpath(@__DIR__, "Project.toml"), joinpath(BUILDPATH, "Project.toml"))
         Pkg.activate(".")
         Pkg.add(Pkg.PackageSpec(url="https://github.com/JuliaMolSim/DFTK.jl.git",
                                 rev=LibGit2.head(ROOTPATH)))
+        cp(joinpath(@__DIR__, "Project.toml"), joinpath(BUILDPATH, "Project.toml"), force=true)
     end
     Pkg.activate(@__DIR__)  # Back to Literate / Documenter environment
 end
