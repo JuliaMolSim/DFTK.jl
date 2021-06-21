@@ -241,6 +241,10 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         n_iter += 1
         info = merge(info, (n_iter=n_iter, ))
 
+        # Ensure same α and n_acceleration_off on all processors
+        α_trial = MPI.bcast(α_trial, 0, MPI.COMM_WORLD)
+        n_acceleration_off = MPI.bcast(n_acceleration_off, 0, MPI.COMM_WORLD)
+
         # New search direction via convergence accelerator:
         αdiis = max(α_accel_min, α_trial)
         δV    = (acceleration(info.Vin, αdiis, info.Pinv_δV) - info.Vin) / αdiis
@@ -275,6 +279,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
 
             # Adjust α to try again ...
             α_next = propose_backtrack_damping(damping, info, info_next)
+            α_next = MPI.bcast(α_next, 0, MPI.COMM_WORLD)  # Ensure same α on all processors
             if α_next == α  # Backtracking further not useful ...
                 break
             end
@@ -289,10 +294,10 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         ΔE < 0 && (ΔEdown = -max(abs(ΔE), tol))
         if !successful && n_acceleration_off == 0
             if abs(ΔE) > abs(ratio_failure_accel_off * ΔEdown)
-                n_acceleration_off = 2  # will be reduced to 2 in the next line ...
+                n_acceleration_off = 2
                 if mpi_master()
                     @warn "Backtracking linesearch failed badly. Acceleration not used for two steps."
-                    @debug ΔE ΔEdown ratio_failure_accel_off
+                    @debug "" ΔE ΔEdown ratio_failure_accel_off
                 end
             end
         else
