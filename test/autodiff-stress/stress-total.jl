@@ -24,14 +24,14 @@ end
 compute_energy(scfres, 10.26)
 
 import FiniteDiff
-fd_stress = FiniteDiff.finite_difference_derivative(a -> compute_energy(scfres, a), a)
+fd_stress = FiniteDiff.finite_difference_derivative(a -> compute_energy(scfres, a), a) # -1.411445519652162
 
 ###
 ### Forward mode
 ###
 
 using ForwardDiff
-ForwardDiff.derivative(a -> compute_energy(scfres, a), 10.26) # NaN
+ForwardDiff.derivative(a -> compute_energy(scfres, a), 10.26) # -1.4114455192624642
 
 ###
 ### Reverse mode
