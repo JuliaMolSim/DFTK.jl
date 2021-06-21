@@ -272,6 +272,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
                                           Pinv_δV=Pinv_δV_next))
 
             successful = accept_step(info, info_next)
+            successful = MPI.bcast(successful, 0, MPI.COMM_WORLD)  # Ensure same successful
             if successful || n_backtrack ≥ max_backtracks
                 break
             end
