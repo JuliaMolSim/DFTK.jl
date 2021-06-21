@@ -40,6 +40,6 @@ using ForwardDiff
 ForwardDiff.derivative(compute_energy, 10.26) # -1.4114477059240538
 
 using BenchmarkTools
-@btime compute_energy(10.26)                                           # 19.513 ms ( 60004 allocations:  8.15 MiB)
-@btime FiniteDiff.finite_difference_derivative(compute_energy, 10.26)  # 39.317 ms (120012 allocations: 16.29 MiB)
-@btime ForwardDiff.derivative(compute_energy, 10.26)                   # 80.757 ms (543588 allocations: 31.91 MiB)
+@btime compute_energy(10.26)                                           # 14.253 ms (60220 allocations: 10.01 MiB)
+@btime FiniteDiff.finite_difference_derivative(compute_energy, 10.26)  # 30.813 ms (120444 allocations: 20.01 MiB)
+@btime ForwardDiff.derivative(compute_energy, 10.26)                   # 67.657 ms (543847 allocations: 35.61 MiB)

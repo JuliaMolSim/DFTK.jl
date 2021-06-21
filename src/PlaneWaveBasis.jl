@@ -207,7 +207,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     opFFT = opFFT_unnormalized * (sqrt(model.unit_cell_volume) / length(opFFT_unnormalized))
     ipIFFT = inv(ipFFT)
     opIFFT = inv(opFFT)
-    
+
     # Setup kpoint basis sets
     !variational && @warn(
         "Non-variational calculations are experimental. " *
