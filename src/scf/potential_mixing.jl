@@ -234,7 +234,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         info = merge(info, (stage=:iterate, converged=converged,
                             n_acceleration_off=n_acceleration_off))
         callback(info)
-        if is_converged(info)
+        if MPI.bcast(is_converged(info), 0, MPI.COMM_WORLD)
             converged = true
             break
         end

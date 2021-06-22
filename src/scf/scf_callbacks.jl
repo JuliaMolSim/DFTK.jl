@@ -23,7 +23,8 @@ function ScfDefaultCallback()
         diagiter = mpi_mean(sum(mean(diag.iterations) for diag in info.diagonalization),
                             info.basis.comm_kpts)
 
-        !mpi_master() && return info  # Printing only on master
+        # Rest is printing => only do on master
+        !mpi_master() && return info
         if info.stage == :finalize
             info.converged || @warn "SCF not converged."
             return info
