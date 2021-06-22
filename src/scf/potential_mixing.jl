@@ -249,7 +249,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         αdiis = max(α_accel_min, α_trial)
         δV    = (acceleration(info.Vin, αdiis, info.Pinv_δV) - info.Vin) / αdiis
         if n_acceleration_off > 0
-            δV = Pinv_δV
+            δV = info.Pinv_δV
         end
 
         # Determine damping and take next step
