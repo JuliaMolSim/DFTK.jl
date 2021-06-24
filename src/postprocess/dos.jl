@@ -7,8 +7,6 @@
 # LDOS (local density of states)
 # LD = sum_n f_n ψn
 
-using ForwardDiff
-
 @doc raw"""
     compute_nos(ε, basis, eigenvalues; smearing=basis.model.smearing,
                 temperature=basis.model.temperature)

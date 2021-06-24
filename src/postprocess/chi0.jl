@@ -1,6 +1,5 @@
 using LinearMaps
 using IterativeSolvers
-using ForwardDiff
 using ProgressMeter
 
 @doc raw"""

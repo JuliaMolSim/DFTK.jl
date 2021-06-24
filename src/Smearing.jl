@@ -9,7 +9,7 @@
 module Smearing
 
 using SpecialFunctions: erf, factorial
-using ForwardDiff
+import ForwardDiff
 
 abstract type SmearingFunction end
 
