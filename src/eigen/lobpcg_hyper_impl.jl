@@ -37,6 +37,7 @@
 ## TODO micro-optimization of buffer reuse
 ## TODO write a version that doesn't assume that B is well-conditionned, and doesn't reuse B applications at all
 ## TODO it seems there is a lack of orthogonalization immediately after locking, maybe investigate this to save on some choleskys
+## TODO debug orthogonalizations when A=I
 
 # vprintln(args...) = println(args...)  # Uncomment for output
 vprintln(args...) = nothing
@@ -169,24 +170,25 @@ end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
 function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
+    T = real(eltype(X))
+    # normalize to try to cheaply improve conditioning
     Threads.@threads for i=1:size(X,2)
         n = norm(@views X[:,i])
-        X[:,i] ./= n
+        @views X[:,i] ./= n
     end
 
     niter = 1
     ninners = zeros(Int,0)
     while true
         BYX = BY'X
-        X .-= Y * BYX
-        # XXX once in BlockArrays:   mul!(X, Y, BYX, -1, 1) # X -= Y*BY'X
+        # XXX the one(T) instead of plain old 1 is because of https://github.com/JuliaArrays/BlockArrays.jl/issues/176
+        mul!(X, Y, BYX, -one(T), one(T)) # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho(cP, cX)
         dropped = drop!(X)
         if dropped != []
-            # XXX once in BlockArrays:   @views mul!(X[:, dropped], Y, BY'X[:, dropped], -1, 1) # X -= Y*BY'X
-            @views X[:, dropped] .-= Y * BY'X[:, dropped]
+            @views mul!(X[:, dropped], Y, BY' * (X[:, dropped]), -one(T), one(T)) # X -= Y*BY'X
         end
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
@@ -234,7 +236,7 @@ end
 ### R is then recomputed, and orthonormalized explicitly wrt BX and BP
 ### We reuse applications of A/B when it is safe to do so, ie only with orthogonal transformations
 
-@timing function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100;
+@timing function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100;
                         miniter=1, ortho_tol=2eps(real(eltype(X))),
                         n_conv_check=nothing, display_progress=false)
     N, M = size(X)
@@ -317,8 +319,10 @@ end
             resid_history[i + nlocked, niter+1] = norm(new_R[:, i])
         end
         vprintln(niter, "   ", resid_history[:, niter+1])
-        precondprep!(precon, X)
-        ldiv!(precon, new_R)
+        if precon !== I
+            precondprep!(precon, X) # update preconditioner if needed; defaults to noop
+            ldiv!(precon, new_R)
+        end
 
         ### Compute number of locked vectors
         prev_nlocked = nlocked
