@@ -170,6 +170,7 @@ end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
 function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
+    T = real(eltype(X))
     # normalize to try to cheaply improve conditioning
     Threads.@threads for i=1:size(X,2)
         n = norm(@views X[:,i])
@@ -180,14 +181,14 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
     ninners = zeros(Int,0)
     while true
         BYX = BY'X
-        # XXX the 1.0 instead of 1 is because of https://github.com/JuliaArrays/BlockArrays.jl/issues/176
-        mul!(X, Y, BYX, -1.0, 1.0) # X -= Y*BY'X
+        # XXX the one(T) instead of plain old 1 is because of https://github.com/JuliaArrays/BlockArrays.jl/issues/176
+        mul!(X, Y, BYX, -one(T), one(T)) # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho(cP, cX)
         dropped = drop!(X)
         if dropped != []
-            @views mul!(X[:, dropped], Y, BY' * (X[:, dropped]), -1.0, 1.0) # X -= Y*BY'X
+            @views mul!(X[:, dropped], Y, BY' * (X[:, dropped]), -one(T), one(T)) # X -= Y*BY'X
         end
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
