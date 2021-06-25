@@ -4,7 +4,6 @@ using ProgressMeter
 
 @doc raw"""
 Compute the independent-particle susceptibility. Will blow up for large systems.
-Drop all non-diagonal terms with (f(εn)-f(εm))/(εn-εm) factor less than `droptol`.
 For non-spin-polarized calculations the matrix dimension is
 `prod(basis.fft_size)` × `prod(basis.fft_size)` and
 for collinear spin-polarized cases it is
@@ -17,7 +16,7 @@ In this case the matrix has effectively 4 blocks, which are:
 \end{array}\right)
 ```
 """
-function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
+function compute_χ0(ham; temperature=ham.basis.model.temperature)
     # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
     # where (up to normalizations)
     # ρ = ∑_nk f(εnk - εF) |ψnk|^2
@@ -75,7 +74,6 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
             @assert occ[ik][n] ≈ filled_occ * Smearing.occupation(model.smearing, enred)
             ddiff = Smearing.occupation_divided_difference
             ratio = filled_occ * ddiff(model.smearing, E[m], E[n], εF, temperature)
-            (n != m) && (abs(ratio) < droptol) && continue
             # dvol because inner products have a dvol in them
             # so that the dual gets one : |f> -> <dvol f|
             # can take the real part here because the nm term is complex conjugate of mn
@@ -135,9 +133,7 @@ LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(simila
 end
 
 """
-Returns the change in density `δρ` for a given `δV`. Drop all non-diagonal terms with
-(f(εn)-f(εm))/(εn-εm) factor less than `droptol`. If `sternheimer_contribution`
-is false, only compute excitations inside the provided orbitals.
+Returns the change in density `δρ` for a given `δV`.
 
 Note: This function assumes that all bands contained in `ψ` and `eigenvalues` are
 sufficiently converged. By default the `self_consistent_field` routine of `DFTK`
@@ -145,8 +141,6 @@ returns `3` extra bands, which are not converged by the eigensolver
 (see `n_ep_extra` parameter). These should be discarded before using this function.
 """
 @views @timing function apply_χ0(ham, ψ, εF, eigenvalues, δV;
-                          droptol=0,
-                          sternheimer_contribution=true,
                           temperature=ham.basis.model.temperature,
                           kwargs_sternheimer=(cgtol=1e-6, verbose=false))
     basis  = ham.basis
@@ -170,10 +164,6 @@ returns `3` extra bands, which are not converged by the eigensolver
     # use_symmetry kwarg of basis, which is nice)
     δV = symmetrize(basis, δV) / normδV
 
-    if droptol > 0 && sternheimer_contribution == true
-        error("Droptol cannot be positive if sternheimer contribution is to be computed.")
-    end
-
     # Accumulate spin component by spin component:
     # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
     δρ_fourier = zeros(complex(eltype(δV)), size(δV)...)
@@ -181,8 +171,7 @@ returns `3` extra bands, which are not converged by the eigensolver
         δρk = zeros(eltype(δV), basis.fft_size)
         for n = 1:size(ψ[ik], 2)
             add_response_from_band!(δρk, n, ham.blocks[ik], eigenvalues[ik], ψ[ik],
-                                    εF, δV[:, :, :, kpt.spin], temperature, droptol,
-                                    sternheimer_contribution, kwargs_sternheimer)
+                                    εF, δV[:, :, :, kpt.spin], temperature, kwargs_sternheimer)
         end
         δρk_fourier = r_to_G(basis, complex(δρk))
         lowpass_for_symmetry!(δρk_fourier, basis)
@@ -207,11 +196,10 @@ end
 """
 Adds the term `(f'ₙ δεₙ |ψₙ|² + 2Re fₙ ψₙ * δψₙ` to `δρ_{k}`
 where `δψₙ` is computed from `δV` partly using the known, computed states
-and partly by solving the Sternheimer equation (if `sternheimer_contribution=true`).
+and partly by solving the Sternheimer equation.
 """
 function add_response_from_band!(δρk, n, hamk, εk, ψk, εF, δV,
-                                 temperature, droptol, sternheimer_contribution,
-                                 kwargs_sternheimer)
+                                 temperature, kwargs_sternheimer)
     basis = hamk.basis
     T = eltype(basis)
     model = basis.model
@@ -233,7 +221,6 @@ function add_response_from_band!(δρk, n, hamk, εk, ψk, εF, δV,
     for m = n:size(ψk, 2)
         ddiff = Smearing.occupation_divided_difference
         ratio = filled_occ * ddiff(model.smearing, εk[m], εk[n], εF, temperature)
-        (n != m) && (abs(ratio) < droptol) && continue
         abs(ratio) < eps(T) && continue
         ψmk_real = G_to_r(basis, hamk.kpoint, @view ψk[:, m])
         # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
@@ -242,16 +229,13 @@ function add_response_from_band!(δρk, n, hamk, εk, ψk, εF, δV,
         δρk .+= (n == m ? 1 : 2) * real(ratio .* weight .* ρnm)
     end
 
-    if sternheimer_contribution
-        # Compute the contributions from uncalculated bands
-        fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n]-εF) / temperature)
-        abs(fnk) < eps(T) && return δρk
-        rhs = r_to_G(basis, hamk.kpoint, .- δV .* ψnk_real)
-        norm(rhs) < 100eps(T) && return δρk
-        δψnk = sternheimer_solver(hamk, ψk, ψnk, εk[n], rhs; kwargs_sternheimer...)
-        δψnk_real = G_to_r(basis, hamk.kpoint, δψnk)
-        δρk .+= 2 .* fnk .* real(conj(ψnk_real) .* δψnk_real)
-    end
-
+    # Sternheimer contributions from uncalculated bands
+    fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n]-εF) / temperature)
+    abs(fnk) < eps(T) && return δρk
+    rhs = r_to_G(basis, hamk.kpoint, .- δV .* ψnk_real)
+    norm(rhs) < 100eps(T) && return δρk
+    δψnk = sternheimer_solver(hamk, ψk, ψnk, εk[n], rhs; kwargs_sternheimer...)
+    δψnk_real = G_to_r(basis, hamk.kpoint, δψnk)
+    δρk .+= 2 .* fnk .* real(conj(ψnk_real) .* δψnk_real)
     δρk
 end
