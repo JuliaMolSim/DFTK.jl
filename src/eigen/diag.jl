@@ -45,8 +45,7 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
 
         prec = nothing
         prec_type !== nothing && (prec = prec_type(ham.basis, kpt))
-        results[ik] = eigensolver(ham.blocks[ik],
-                                  copy(guessk);  # Copy in case eigensolver modifies guess
+        results[ik] = eigensolver(ham.blocks[ik], guessk;
                                   prec=prec, tol=tol, miniter=miniter, maxiter=maxiter,
                                   n_conv_check=n_conv_check)
 
