@@ -37,6 +37,7 @@
 ## TODO micro-optimization of buffer reuse
 ## TODO write a version that doesn't assume that B is well-conditionned, and doesn't reuse B applications at all
 ## TODO it seems there is a lack of orthogonalization immediately after locking, maybe investigate this to save on some choleskys
+## TODO debug orthogonalizations when A=I
 
 # vprintln(args...) = println(args...)  # Uncomment for output
 vprintln(args...) = nothing
@@ -169,22 +170,25 @@ end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
 function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
+    T = real(eltype(X))
+    # normalize to try to cheaply improve conditioning
     Threads.@threads for i=1:size(X,2)
         n = norm(@views X[:,i])
-        X[:,i] ./= n
+        @views X[:,i] ./= n
     end
 
     niter = 1
     ninners = zeros(Int,0)
     while true
         BYX = BY'X
-        mul!(X, Y, BYX, -1, 1) # X -= Y*BY'X
+        # XXX the one(T) instead of plain old 1 is because of https://github.com/JuliaArrays/BlockArrays.jl/issues/176
+        mul!(X, Y, BYX, -one(T), one(T)) # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho(cP, cX)
         dropped = drop!(X)
         if dropped != []
-            @views mul!(X[:, dropped], Y, BY'X[:, dropped], -1, 1) # X -= Y*BY'X
+            @views mul!(X[:, dropped], Y, BY' * (X[:, dropped]), -one(T), one(T)) # X -= Y*BY'X
         end
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
@@ -232,7 +236,7 @@ end
 ### R is then recomputed, and orthonormalized explicitly wrt BX and BP
 ### We reuse applications of A/B when it is safe to do so, ie only with orthogonal transformations
 
-@timing function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100;
+@timing function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100;
                         miniter=1, ortho_tol=2eps(real(eltype(X))),
                         n_conv_check=nothing, display_progress=false)
     N, M = size(X)
@@ -243,8 +247,6 @@ end
 
     n_conv_check === nothing && (n_conv_check = M)
     resid_history = zeros(real(eltype(X)), M, maxiter+1)
-    buf_X = zero(X)
-    buf_P = zero(X)
 
     # B-orthogonalize X
     X = ortho(X, tol=ortho_tol)[1]
@@ -293,7 +295,7 @@ end
                 AY = mortar((AX, AR, AP))
                 BY = mortar((BX, BR, BP))  # data shared with (X, R, P) in non-general case
             else
-                Y = mortar((X, R))
+                Y  = mortar((X, R))
                 AY = mortar((AX, AR))
                 BY = mortar((BX, BR))  # data shared with (X, R) in non-general case
             end
@@ -303,8 +305,8 @@ end
             # wait on updating P because we have to know which vectors
             # to lock (and therefore the residuals) before computing P
             # only for the unlocked vectors. This results in better convergence.
-            new_X  = array_mul(Y, cX)  # = Y * cX
-            new_AX = array_mul(AY, cX)  # = AY * cX,   no accuracy loss, since cX orthogonal
+            new_X  = array_mul(Y, cX)
+            new_AX = array_mul(AY, cX)  # no accuracy loss, since cX orthogonal
             new_BX = (B == I) ? new_X : array_mul(BY, cX)
         end
 
@@ -317,8 +319,10 @@ end
             resid_history[i + nlocked, niter+1] = norm(new_R[:, i])
         end
         vprintln(niter, "   ", resid_history[:, niter+1])
-        precondprep!(precon, X)
-        ldiv!(precon, new_R)
+        if precon !== I
+            precondprep!(precon, X) # update preconditioner if needed; defaults to noop
+            ldiv!(precon, new_R)
+        end
 
         ### Compute number of locked vectors
         prev_nlocked = nlocked
@@ -365,17 +369,17 @@ end
             cP = ortho(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
-            new_P = array_mul(Y, cP)    # = Y * cP
-            new_AP = array_mul(AY, cP)  # = AY * cP
+            new_P  = array_mul( Y, cP)
+            new_AP = array_mul(AY, cP)
             if B != I
-                new_BP = array_mul(BY, cP)  # = BY * cP
+                new_BP = array_mul(BY, cP)
             else
                 new_BP = new_P
             end
         end
 
         # Update all X, even newly locked
-        X .= new_X
+        X  .= new_X
         AX .= new_AX
         if B != I
             BX .= new_BX
