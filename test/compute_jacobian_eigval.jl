@@ -1,7 +1,7 @@
 using Test
 using DFTK
 using LinearMaps
-import DFTK: ortho_qr, pack_ψ, unpack_ψ, proj_tangent
+import DFTK: ortho_qr, pack_ψ, unpack_ψ, proj_tangent, proj_tangent!
 import DFTK: apply_K, apply_Ω, filled_occupation
 import DFTK: precondprep!, FunctionPreconditioner
 
@@ -10,10 +10,11 @@ include("testcases.jl")
 if mpi_nprocs() == 1  # Distributed implementation not yet available
     @testset "Compute SVD of Ω+K" begin
         Ecut = 5
-        tol = 1e-7
+        tol = 1e-12
+        numval = 1 # number of eigenvalues we want to compute
 
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-        model = model_atomic(silicon.lattice, [Si => silicon.positions])# [:lda_xc_teter93])
+        model = model_LDA(silicon.lattice, [Si => silicon.positions])
         basis = PlaneWaveBasis(model, Ecut, kgrid=[1,1,1])
         N = div(model.n_electrons, filled_occupation(model))
 
@@ -28,23 +29,24 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
 
         # preconditioner
         Pks = [PreconditionerTPA(basis, kpt) for kpt in basis.kpoints]
-        for ik = 1:length(Pks)
-            precondprep!(Pks[ik], ψ[ik])
+        for (ik, ψk) in enumerate(ψ)
+            precondprep!(Pks[ik], ψk)
         end
-        function f_ldiv(x, y)
-            δψ = unpack(y)
-            δψ = proj_tangent(δψ, ψ)
-            Pδψ = copy(δψ)
-            for (ik, δψk) in enumerate(δψ)
-                Pδψ[ik] .= Pks[ik] \ δψk
+        function f_ldiv!(x, y)
+            for n in 1:numval
+                δψ = unpack(y[:,n])
+                proj_tangent!(δψ, ψ)
+                Pδψ = [ Pks[ik] \ δψk for (ik, δψk) in enumerate(δψ)]
+                proj_tangent!(Pδψ, ψ)
+                x[:,n] .= pack(Pδψ)
             end
-            Pδψ = proj_tangent(Pδψ, ψ)
-            x .= pack(Pδψ)
+            x
         end
 
-        # random starting point on the tangent space
-        x0 = pack(proj_tangent([randn(Complex{eltype(basis)}, length(G_vectors(kpt)), N)
-                                for kpt in basis.kpoints], ψ))
+        # random starting point on the tangent space to avoid eigenvalue 0
+        # (we get them from outisde of the tangent space)
+        x0 = hcat([pack(proj_tangent([randn(Complex{eltype(basis)}, length(G_vectors(kpt)), N)
+                                      for kpt in basis.kpoints], ψ)) for n in 1:numval]...)
 
         # mapping of the linear system on the tangent space
         function apply_jacobian(x)
@@ -55,13 +57,11 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
         end
         J = LinearMap{T}(apply_jacobian, size(x0, 1))
 
-        # compute smallest eigenvalue of (Ω+K) with internal routine LOBPCG de
+        # compute smallest eigenvalue of (Ω+K) with internal routine LOBPCG of
         # DFTK
-        res = lobpcg_hyper(J, [x0 x0], prec=((Y, X, R)->f_ldiv(X, Y)), tol=tol)
+        res = lobpcg_hyper(J, x0, prec=FunctionPreconditioner(f_ldiv!),
+                           tol=1e-7)
 
-        println(res.λ[1])
-        println(res.λ)
-        println(scfres.eigenvalues[1][5] - scfres.eigenvalues[1][4])
-        @test res.λ[1] > 0
+        @test res.λ[1] > 1e-3
     end
 end

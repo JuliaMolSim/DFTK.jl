@@ -254,9 +254,9 @@ end
         BX = B*X
         B_ortho!(X, BX)
     end
-    
+
     n_matvec = M   # Count number of matrix-vector products
-    AX = A*X
+    AX = Matrix(A*X)
     # full_X/AX/BX will always store the full (including locked) X.
     # X/AX/BX only point to the active part
     P = zero(X)

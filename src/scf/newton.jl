@@ -67,6 +67,9 @@ Computation the projection of δψk onto the tangent space defined at ψk, where
 δψk and ψk are defined at the same kpoint.
 """
 proj_tangent_kpt(δψk, ψk) = δψk - ψk * (ψk'δψk)
+function proj_tangent_kpt!(δψk, ψk)
+    mul!(δψk, ψk, ψk'δψk, -1, 1)
+end
 """
     proj_tangent(δψ, ψ)
 
@@ -74,6 +77,9 @@ Computation the projection of δψ onto the tangent space defined at ψ.
 """
 function proj_tangent(δψ, ψ)
     [proj_tangent_kpt(δψ[ik], ψ[ik]) for ik = 1:size(ψ,1)]
+end
+function proj_tangent!(δψ, ψ)
+    [proj_tangent_kpt!(δψ[ik], ψ[ik]) for ik = 1:size(ψ,1)]
 end
 
 # Operators
@@ -93,7 +99,7 @@ function apply_Ω(basis::PlaneWaveBasis, δψ, ψ, H)
     δψ = proj_tangent(δψ, ψ)
     Ωδψ = [H.blocks[ik] * δψ[ik] - ψHψ[ik] * δψ[ik] for ik = 1:Nk]
     Ωδψ = Ωδψ - [δψ[ik]*λ[ik] for ik = 1:Nk]
-    Ωδψ = proj_tangent(Ωδψ, ψ)
+    proj_tangent!(Ωδψ, ψ)
 end
 
 """
@@ -155,7 +161,7 @@ function apply_K(basis::PlaneWaveBasis, δψ, ψ, ρ, occupation)
         push!(Kδψ, dVψk)
     end
     # ensure proper projection onto the tangent space
-    proj_tangent(Kδψ, ψ)
+    proj_tangent!(Kδψ, ψ)
 end
 
 # Callback and convergence
@@ -210,7 +216,7 @@ end
 
 """
     newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
-                tol_cg=1e-12, verbose=false)
+                tol_cg=1e-10, verbose=false)
 
 Perform a Newton step : we take as given a planewave set ψ and we return the
 Newton step δψ and the updated state ψ - δψ
@@ -219,7 +225,7 @@ and Jac is the Jacobian of the projected gradient descent : Jac = Ω+K.
 δψ is an element of the tangent space at ψ (set to ψ if not specified in newton function).
 """
 function newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
-                     tol_cg=1e-8, verbose=false)
+                     tol_cg=1e-10, verbose=false)
 
     N = size(ψ[1], 2)
     Nk = length(basis.kpoints)
@@ -241,7 +247,7 @@ function newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
     packed_proj(δx, x) = pack(proj_tangent(unpack(δx), unpack(x)))
 
     # project res on the good tangent space before starting
-    res = proj_tangent(res, ψ)
+    proj_tangent!(res, ψ)
     rhs = pack(res)
 
     # preconditioner
@@ -251,12 +257,9 @@ function newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
     end
     function f_ldiv!(x, y)
         δψ = unpack(y)
-        δψ = proj_tangent(δψ, ψ)
-        Pδψ = copy(δψ)
-        for (ik, δψk) in enumerate(δψ)
-            Pδψ[ik] .= Pks[ik] \ δψk
-        end
-        Pδψ = proj_tangent(Pδψ, ψ)
+        proj_tangent!(δψ, ψ)
+        Pδψ = [ Pks[ik] \ δψk for (ik, δψk) in enumerate(δψ)]
+        proj_tangent!(Pδψ, ψ)
         x .= pack(Pδψ)
     end
 
@@ -278,14 +281,14 @@ end
 
 """
     newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
-                    tol=1e-6, maxiter=20, verbose=false,
-                    callback=NewtonDefaultCallback(),
-                    is_converged=NewtonConvergenceDensity(tol))
+           tol=1e-6, tol_cg=1e-10, maxiter=20, verbose=false,
+           callback=NewtonDefaultCallback(),
+           is_converged=NewtonConvergenceDensity(tol))
 
 Newton algorithm. Be careful that the starting needs to be not too far from the solution.
 """
 function newton(basis::PlaneWaveBasis{T}, ψ0;
-                tol=1e-6, maxiter=20, verbose=false,
+                tol=1e-6, tol_cg=1e-10, maxiter=20, verbose=false,
                 callback=NewtonDefaultCallback(),
                 is_converged=NewtonConvergenceDensity(tol)) where T
 
@@ -301,8 +304,8 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     Nk = length(basis.kpoints)
     occupation = [filled_occ * ones(T, N) for ik = 1:Nk]
 
-    # check that there is no virtual orbitals
-    @assert(N == size(ψ0[1],2))
+    # check that there are no virtual orbitals
+    @assert N == size(ψ0[1],2)
 
     # iterators
     err = Inf
@@ -320,7 +323,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
         # compute next step
         res = compute_projected_gradient(basis, ψ, occupation)
-        δψ = newton_step(basis, ψ, res, occupation;
+        δψ = newton_step(basis, ψ, res, occupation; tol_cg=tol_cg,
                          verbose=verbose)
         ψ = [ortho_qr(ψ[ik] - δψ[ik]) for ik = 1:Nk]
 
