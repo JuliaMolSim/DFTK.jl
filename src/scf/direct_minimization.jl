@@ -127,7 +127,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                          optim_solver(P=P, precondprep=precondprep!, manifold=manif,
                                       linesearch=LineSearches.BackTracking()),
                          optim_options)
-    ψ = unpack(res.minimizer)
+    # return copy to ensure we have an array
+    ψ = copy(unpack(res.minimizer))
 
     # Final Rayleigh-Ritz (not strictly necessary, but sometimes useful)
     eigenvalues = []

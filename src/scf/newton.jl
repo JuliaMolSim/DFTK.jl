@@ -26,8 +26,10 @@
 # δψ[ik][:, i] = δψi for each k-point.
 # In this framework :
 #   - computing Ωδψ can be done analytically with the formula
-#         Ωδψi = H*δψi - Σj <ψj|H|δψi> ψj - Σj λji δψj
-#     where λij = <ψi|H|ψj>;
+#         Ωδψi = H*δψi - Σj (<ψj|H|δψi> ψj + <ψj|δψi> Hψj)/2 - Σj λji δψj
+#     where λij = <ψi|H|ψj>. This is one way among other to extend the
+#     definition of ΩδP = -[P_∞, [H(P_∞), δP]] to any point P on the manifold --
+#     we chose this one because it is self-adjoint;
 #   - computing Kδψ can be done by constructing the dρ associated with dψ, then
 #     using the exchange-correlation kernel to compute the associated dV, then
 #     acting with dV on the ψ and projecting on the tangent space;
@@ -55,13 +57,7 @@ function compute_projected_gradient(basis::PlaneWaveBasis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
     _, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
 
-    res = similar(ψ)
-    for (ik, ψk) in enumerate(ψ)
-        Hk = H.blocks[ik]
-        Hkψk = Hk * ψk
-        res[ik] = Hkψk - ψk * (ψk'Hkψk)
-    end
-    res
+    [proj_tangent_kpt(H.blocks[ik]*ψ[ik], ψ[ik]) for ik = 1:Nk]
 end
 
 """
@@ -139,9 +135,15 @@ Apply Ω to an element in the tangent space to ψ.
 """
 function apply_Ω(basis::PlaneWaveBasis, δψ, ψ, H)
     Nk = length(basis.kpoints)
-    Ωδψ = [proj_tangent_kpt(H.blocks[ik] * δψ[ik], ψ[ik]) for ik = 1:Nk]
-    λ = [ψ[ik]' * (H.blocks[ik]*ψ[ik]) for ik = 1:Nk]
-    Ωδψ - [δψ[ik]*λ[ik] for ik = 1:Nk]
+
+    Hψ = [H.blocks[ik] * ψ[ik] for ik = 1:Nk]
+    ψHψ = [(ψ[ik]*Hψ[ik]' + Hψ[ik]*ψ[ik]') / 2 for ik = 1:Nk]
+    λ = [ψ[ik]'Hψ[ik] for ik = 1:Nk]
+
+    δψ = proj_tangent(δψ, ψ)
+    Ωδψ = [H.blocks[ik] * δψ[ik] - ψHψ[ik] * δψ[ik] for ik = 1:Nk]
+    Ωδψ = Ωδψ - [δψ[ik]*λ[ik] for ik = 1:Nk]
+    Ωδψ = proj_tangent(Ωδψ, ψ)
 end
 
 """
@@ -185,10 +187,11 @@ Compute the application of K to an element in the space tangent to ψ.
 function apply_K(basis::PlaneWaveBasis, δψ, ψ, ρ, occupation)
     Nk = length(basis.kpoints)
 
+    δψ = proj_tangent(δψ, ψ)
     dρ = compute_dρ(basis, ψ, δψ, ρ, occupation)
     dV = apply_kernel(basis, dρ; ρ=ρ)
 
-    Kδψ = similar(ψ)
+    Kδψ = []
     for ik = 1:Nk
         kpt = basis.kpoints[ik]
         ψk = ψ[ik]
@@ -199,7 +202,7 @@ function apply_K(basis::PlaneWaveBasis, δψ, ψ, ρ, occupation)
             dVψk_r = dV[:, :, :, kpt.spin] .* ψk_r
             dVψk[:, i] = r_to_G(basis, kpt, dVψk_r)
         end
-        Kδψ[ik] = dVψk
+        push!(Kδψ, dVψk)
     end
     # ensure proper projection onto the tangent space
     proj_tangent(Kδψ, ψ)
@@ -276,14 +279,20 @@ function newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
     energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
 
     # packing routines
-    pack(ψ) = pack_ψ(basis, ψ)
-    unpack(x) = unpack_ψ(basis, x)
+    # some care is needed here : K is real-linear but not complex-linear because
+    # of the computation of δρ from δψ. To overcome this difficulty, instead of
+    # seeing the jacobian as an operator from C^Nb to C^Nb, we see it as an
+    # operator from R^2Nb to R^2Nb. In practice, this is done with the
+    # reinterpret function from julia. Thus, we are sure that the map we define
+    # below apply_jacobian is self-adjoint.
+    T = eltype(basis)
+    pack(ψ) = Array(reinterpret(T, pack_ψ(basis, ψ)))
+    unpack(x) = unpack_ψ(basis, reinterpret(Complex{T}, x))
     packed_proj(δx, x) = pack(proj_tangent(unpack(δx), unpack(x)))
 
     # mapping of the linear system on the tangent space
     function apply_jacobian(x)
         δψ = unpack(x)
-        δψ = proj_tangent(δψ, ψ)
         Kδψ = apply_K(basis, δψ, ψ, ρ, occupation)
         Ωδψ = apply_Ω(basis, δψ, ψ, H)
         pack(Ωδψ + Kδψ)
@@ -326,10 +335,8 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     Nk = length(basis.kpoints)
     occupation = [filled_occ * ones(T, N) for ik = 1:Nk]
 
-    # starting point and keep only occupied orbitals
-    for ik in 1:Nk
-        ψ0[ik] = ψ0[ik][:, 1:N]
-    end
+    # check that there is no virtual orbitals
+    @assert(N == size(ψ0[1],2))
 
     # iterators
     err = Inf

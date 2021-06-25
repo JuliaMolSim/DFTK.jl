@@ -26,8 +26,7 @@ scfres_dm = direct_minimization(basis, tol=tol)
 ## Newton algorithm
 # start not too far from the solution to ensure convergence : we use here the
 # solution of a 1 iteration SCF cycle
-scfres_start = self_consistent_field(basis, tol=tol, maxiter=1,
-                                   is_converged=DFTK.ScfConvergenceDensity(tol))
+scfres_start = direct_minimization(basis, tol=1e-2)
 scfres_newton = newton(basis, scfres_start.ψ, tol=tol)
 
 println("|ρ_newton - ρ_scf| = ", norm(scfres_newton.ρ - scfres_scf.ρ))
