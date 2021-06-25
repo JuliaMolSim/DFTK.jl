@@ -41,8 +41,8 @@
 # direct minimization and self-consistent iterations. SIAM Journal of Matrix
 # Analysis and Applications, 42(1):243–274 (2021)
 
-import KrylovKit: Orthogonalizer, OrthonormalBasis, KrylovDefaults, orthogonalize!
-using KrylovKit
+using LinearMaps
+using IterativeSolvers
 
 # Tools
 
@@ -74,56 +74,6 @@ Computation the projection of δψ onto the tangent space defined at ψ.
 """
 function proj_tangent(δψ, ψ)
     [proj_tangent_kpt(δψ[ik], ψ[ik]) for ik = 1:size(ψ,1)]
-end
-
-# KrylovKit custom orthogonalizer to be used in KrylovKit eigsolve, svdsolve,
-# linsolve, ...
-# This has to be passed in KrylovKit solvers when studying (Ω+K) as a super
-# operator from the tangent space to the tangent space to be sure that
-# iterations are constrained to stay on the tangent space. The projection is
-# done in the application of the operator, so it is not needed in theory,
-# but in practice we still need to do this projection in the Krylov algorithm
-# for numerical stability.
-# /!\ Be careful that this is the projection on the tangent space, and not the
-# orthogonalization against the Krylov subspace.
-# /!\ Be careful that here, ψproj needs to be packed into on big array.
-struct OrthogonalizeAndProject{F, O <: Orthogonalizer, ψproj} <: Orthogonalizer
-    projector::F
-    orth::O
-    ψ::ψproj
-end
-OrthogonalizeAndProject(projector, ψ) = OrthogonalizeAndProject(projector,
-                                                                KrylovDefaults.orth,
-                                                                ψ)
-function KrylovKit.orthogonalize!(v::T, b::OrthonormalBasis{T}, x::AbstractVector,
-                                        alg::OrthogonalizeAndProject) where {T}
-    v, x = orthogonalize!(v, b, x, alg.orth)
-    v = reshape(v, size(alg.ψ))
-    v = alg.projector(v, alg.ψ)::T
-    v, x
-end
-function KrylovKit.orthogonalize!(v::T, x::AbstractVector,
-                                        alg::OrthogonalizeAndProject) where {T}
-    v, x = orthogonalize!(v, x, alg.orth)
-    v = reshape(v, size(alg.ψ))
-    v = alg.projector(v, alg.ψ)::T
-    v, x
-end
-function KrylovKit.gklrecurrence(operator, U::OrthonormalBasis, V::OrthonormalBasis, β,
-                                 alg::OrthogonalizeAndProject)
-    u = U[end]
-    v = operator(u, true)
-    v = axpy!(-β, V[end], v)
-    α = norm(v)
-    rmul!(v, inv(α))
-
-    r = operator(v, false)
-    r = axpy!(-α, u, r)
-    for q in U
-        r, = orthogonalize!(r, q, alg)
-    end
-    β = norm(r)
-    return v, r, α, β
 end
 
 # Operators
@@ -260,7 +210,7 @@ end
 
 """
     newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
-                tol_krylov=1e-12, krylov_verbosity=1)
+                tol_cg=1e-12, verbose=false)
 
 Perform a Newton step : we take as given a planewave set ψ and we return the
 Newton step δψ and the updated state ψ - δψ
@@ -269,7 +219,7 @@ and Jac is the Jacobian of the projected gradient descent : Jac = Ω+K.
 δψ is an element of the tangent space at ψ (set to ψ if not specified in newton function).
 """
 function newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
-                     tol_krylov=1e-12, krylov_verbosity=0)
+                     tol_cg=1e-12, verbose=false)
 
     N = size(ψ[1], 2)
     Nk = length(basis.kpoints)
@@ -290,6 +240,26 @@ function newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
     unpack(x) = unpack_ψ(basis, reinterpret(Complex{T}, x))
     packed_proj(δx, x) = pack(proj_tangent(unpack(δx), unpack(x)))
 
+    # project res on the good tangent space before starting
+    res = proj_tangent(res, ψ)
+    rhs = pack(res)
+
+    # preconditioner
+    Pks = [PreconditionerTPA(basis, kpt) for kpt in basis.kpoints]
+    for ik = 1:length(Pks)
+        precondprep!(Pks[ik], ψ[ik])
+    end
+    function f_ldiv!(x, y)
+        δψ = unpack(y)
+        δψ = proj_tangent(δψ, ψ)
+        Pδψ = copy(δψ)
+        for (ik, δψk) in enumerate(δψ)
+            Pδψ[ik] .= Pks[ik] \ δψk
+        end
+        Pδψ = proj_tangent(Pδψ, ψ)
+        x .= pack(Pδψ)
+    end
+
     # mapping of the linear system on the tangent space
     function apply_jacobian(x)
         δψ = unpack(x)
@@ -297,29 +267,25 @@ function newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
         Ωδψ = apply_Ω(basis, δψ, ψ, H)
         pack(Ωδψ + Kδψ)
     end
+    J = LinearMap{T}(apply_jacobian, size(rhs, 1))
 
-    # project res on the good tangent space before starting
-    res = proj_tangent(res, ψ)
+    # solve (Ω+K) δψ = res on the tangent space with CG
+    δψ = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!),
+            reltol=tol_cg/norm(rhs), verbose=true)
 
-    # solve (Ω+K) δψ = res on the tangent space with KrylovKit
-    δψ, info = linsolve(apply_jacobian, pack(res);
-                        tol=tol_krylov, verbosity=krylov_verbosity,
-                        # important to specify custom orthogonaliser to keep
-                        # iterations on the tangent space
-                        orth=OrthogonalizeAndProject(packed_proj, pack(ψ)))
     unpack(δψ)
 end
 
 """
     newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
-                    tol=1e-6, maxiter=20, verbosity=0,
+                    tol=1e-6, maxiter=20, verbose=false,
                     callback=NewtonDefaultCallback(),
                     is_converged=NewtonConvergenceDensity(tol))
 
 Newton algorithm. Be careful that the starting needs to be not too far from the solution.
 """
 function newton(basis::PlaneWaveBasis{T}, ψ0;
-                tol=1e-6, maxiter=20,
+                tol=1e-6, maxiter=20, verbose=false,
                 callback=NewtonDefaultCallback(),
                 is_converged=NewtonConvergenceDensity(tol)) where T
 
@@ -354,7 +320,8 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
         # compute next step
         res = compute_projected_gradient(basis, ψ, occupation)
-        δψ = newton_step(basis, ψ, res, occupation)
+        δψ = newton_step(basis, ψ, res, occupation;
+                         verbose=verbose)
         ψ = [ortho_qr(ψ[ik] - δψ[ik]) for ik = 1:Nk]
 
         # callback
