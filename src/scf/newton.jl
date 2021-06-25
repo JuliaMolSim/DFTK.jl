@@ -219,7 +219,7 @@ and Jac is the Jacobian of the projected gradient descent : Jac = Ω+K.
 δψ is an element of the tangent space at ψ (set to ψ if not specified in newton function).
 """
 function newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
-                     tol_cg=1e-12, verbose=false)
+                     tol_cg=1e-8, verbose=false)
 
     N = size(ψ[1], 2)
     Nk = length(basis.kpoints)
@@ -271,7 +271,7 @@ function newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
 
     # solve (Ω+K) δψ = res on the tangent space with CG
     δψ = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!),
-            reltol=tol_cg/norm(rhs), verbose=true)
+            reltol=tol_cg/norm(rhs), verbose=verbose)
 
     unpack(δψ)
 end
