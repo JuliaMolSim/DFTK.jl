@@ -244,7 +244,6 @@ function newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
     T = eltype(basis)
     pack(ψ) = Array(reinterpret(T, pack_ψ(basis, ψ)))
     unpack(x) = unpack_ψ(basis, reinterpret(Complex{T}, x))
-    packed_proj(δx, x) = pack(proj_tangent(unpack(δx), unpack(x)))
 
     # project res on the good tangent space before starting
     proj_tangent!(res, ψ)

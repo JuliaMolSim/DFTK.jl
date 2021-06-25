@@ -25,7 +25,6 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
         T = eltype(basis)
         pack(ψ) = Array(reinterpret(T, pack_ψ(basis, ψ)))
         unpack(x) = unpack_ψ(basis, reinterpret(Complex{T}, x))
-        packed_proj(δx, x) = pack(proj_tangent(unpack(δx), unpack(x)))
 
         # preconditioner
         Pks = [PreconditionerTPA(basis, kpt) for kpt in basis.kpoints]
