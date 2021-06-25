@@ -84,6 +84,8 @@ function interpolate_kpoint(data_in::AbstractVecOrMat, kpoint_in::Kpoint, kpoint
     data_out
 end
 
+# Transfer blochwave routines
+
 """
 Compute indices of the vectors in G_vectors(kpt_in) that are also present
 in G_vectors(kpt_out).
@@ -147,13 +149,13 @@ function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
 
     # If, for some kpt ik, basis_in has less vectors than basis_out, then idcs_out[ik] is
     # the array of the indices of the G_vectors from basis_in in basis_out.
-    # It is then of size G_vectors(basis_in.kpoints[ik]) and the interpolation can be done with
+    # It is then of size G_vectors(basis_in.kpoints[ik]) and the transfer can be done with
     # ψ_out[ik] .= 0
     # ψ_out[ik][idcs_out[ik], :] .= ψ_in[ik]
 
     # Otherwise, if, for some kpt ik, basis_in has more vectors than basis_out, then
     # idcs_out[ik] just keep the indices of the G_vectors from basis_in that are in basis_out.
-    # It is then of size G_vectors(basis_out.kpoints[ik]) and the interpolation can be done with
+    # It is then of size G_vectors(basis_out.kpoints[ik]) and the transfer can be done with
     # ψ_out[ik] .= ψ_in[ik][idcs_in[ik], :]
 
     ψ_out = empty(ψ_in)

@@ -29,7 +29,7 @@ include("testcases.jl")
     @test maximum(abs.(ρout2 - ρout1)) < .01
 end
 
-@testset "Interpolation of blochwave" begin
+@testset "Transfer of blochwave" begin
     tol = 1e-7
 
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
@@ -40,16 +40,16 @@ end
 
     ψ = self_consistent_field(basis; tol=tol, callback=info->nothing).ψ
 
-    ## Testing interpolations from basis to a bigger_basis and backwards
+    ## Testing transfers from basis to a bigger_basis and backwards
 
-    # Interpolation to bigger basis then same basis (both interpolations are
+    # Transfer to bigger basis then same basis (both interpolations are
     # tested then)
     bigger_basis = PlaneWaveBasis(model, Ecut+5; kgrid=kgrid)
     ψ_b = transfer_blochwave(ψ, basis, bigger_basis)
     ψ_bb = transfer_blochwave(ψ_b, bigger_basis, basis)
     @test norm(ψ-ψ_bb) < eps(eltype(basis))
 
-    # Interpolation between same basis (not very useful, but is worth testing)
+    # Transfer between same basis (not very useful, but is worth testing)
     bigger_basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
     ψ_b = transfer_blochwave(ψ, basis, bigger_basis)
     ψ_bb = transfer_blochwave(ψ_b, bigger_basis, basis)
