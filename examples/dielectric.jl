@@ -21,10 +21,10 @@ basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 scfres = self_consistent_field(basis, tol=1e-14)
 
 # Apply ε† = 1 - χ0 (vc + fxc)
-function eps_fun(dρ)
-    dv = apply_kernel(basis, dρ; ρ=scfres.ρ)
-    χdv = apply_χ0(scfres.ham, scfres.ψ, scfres.εF, scfres.eigenvalues, dv)
-    dρ - χdv
+function eps_fun(δρ)
+    δv = apply_kernel(basis, δρ; ρ=scfres.ρ)
+    χδv = apply_χ0(scfres.ham, scfres.ψ, scfres.εF, scfres.eigenvalues, δv)
+    δρ - χδv
 end
 
 # eager diagonalizes the subspace matrix at each iteration
