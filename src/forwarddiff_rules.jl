@@ -68,6 +68,9 @@ for P in [:Plan, :ScaledPlan]  # need ScaledPlan to avoid ambiguities
     end
 end
 
+LinearAlgebra.mul!(Y::AbstractArray{<:Complex{<:ForwardDiff.Dual}}, p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, X::AbstractArray{<:ComplexF64}) where {T,P} =
+    (Y .= _apply_plan(p, X))
+
 function _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray)
     xtil = p * ForwardDiff.value.(x)
     dxtils = ntuple(ForwardDiff.npartials(eltype(x))) do n
@@ -117,6 +120,16 @@ function build_fft_plans(T::Type{<:Union{ForwardDiff.Dual,Complex{<:ForwardDiff.
     ipBFFT = DummyInplace{typeof(opBFFT)}(opBFFT)
     # backward by inverting and stripping off normalizations
     ipFFT, opFFT, ipBFFT, opBFFT
+end
+
+function r_to_G(basis::PlaneWaveBasis{T}, f_real::AbstractArray) where {T<:ForwardDiff.Dual}
+    f_fourier = similar(f_real, complex(T))
+    @assert length(size(f_real)) ∈ (3, 4)
+    # this exploits trailing index convention
+    for iσ = 1:size(f_real, 4)
+        @views r_to_G!(f_fourier[:, :, :, iσ], basis, f_real[:, :, :, iσ])
+    end
+    f_fourier
 end
 
 ###
