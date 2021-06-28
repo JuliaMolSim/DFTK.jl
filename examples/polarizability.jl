@@ -82,9 +82,9 @@ using KrylovKit
 
 ## Apply (1- χ0 K)
 function dielectric_operator(δρ)
-    dv = apply_kernel(basis, δρ; ρ=res.ρ)
-    χ0dv = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, dv)
-    δρ - χ0dv
+    δV = apply_kernel(basis, δρ; ρ=res.ρ)
+    χ0δV = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, δV)
+    δρ - χ0δV
 end
 
 ## δVext is the potential from a uniform field interacting with the dielectric dipole
