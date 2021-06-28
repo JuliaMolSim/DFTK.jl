@@ -61,7 +61,7 @@ end
 Accept a step if the energy is at most increasing by `max_energy` and the residual
 is at most `max_relative_residual` times the residual in the previous step.
 """
-function ScfAcceptImprovingStep(;max_energy_change=1e-12, max_relative_residual=0.9)
+function ScfAcceptImprovingStep(;max_energy_change=1e-12, max_relative_residual=1.0)
     function accept_step(info, info_next)
         energy_change = info_next.energies.total - info.energies.total
         relative_residual = norm(info_next.Pinv_δV) / norm(info.Pinv_δV)
@@ -131,14 +131,14 @@ end
 
 # Adaptive damping using a quadratic model
 @kwdef struct AdaptiveDamping
-    α_init = 0.5       # The initial damping value (used as first trial value in first SCF step)
     α_min = 0.01       # Minimal damping
     α_max = 1.0        # Maximal damping
-    α_trial_min = 0.1  # Minimal first trial damping used in a step
+    α_trial_min = 0.5  # Minimal trial damping used in a step
     α_trial_enhancement = 1.1  # Enhancement factor to α_trial in case a step is immediately successful
     modeltol = 0.1     # Maximum relative error on the predicted energy for model
     #                    to be considered trustworthy
 end
+AdaptiveDamping(α; kwargs...) = AdaptiveDamping(α_min=α / 50, α_trial_min=α, kwargs...)
 
 function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
     if abs(info_next.α) < 1.75damping.α_min
@@ -156,9 +156,8 @@ function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
     return α_sign * α
 end
 
-initial_damping(damping::AdaptiveDamping) = damping.α_init
-
-function next_trial_damping(damping::AdaptiveDamping, info, info_next, step_successful)
+trial_damping(damping::AdaptiveDamping) = damping.α_trial_min
+function trial_damping(damping::AdaptiveDamping, info, info_next, step_successful)
     n_backtrack = length(info_next.diagonalization)
 
     α_trial = abs(info_next.α)  # By default use the α that worked in this step
@@ -179,8 +178,7 @@ struct FixedDamping
 end
 FixedDamping() = FixedDamping(0.8)
 propose_backtrack_damping(damping::FixedDamping) = damping.α
-initial_damping(damping::FixedDamping) = damping.α
-next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping.α
+trial_damping(damping::FixedDamping, args...) = damping.α
 
 
 # Notice: For adaptive damping to run smoothly, multiple defaults need to be changed.
@@ -203,8 +201,6 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
     callback=ScfDefaultCallback(),
     acceleration=AndersonAcceleration(;m=10),
     ratio_failure_accel_off=Inf,  # Acceleration never switched off
-    α_accel_min=0.0,  # Minimal damping passed to an accelerator (e.g. Anderson)
-                      # Increasing this a bit for adaptive damping speeds up convergence
     accept_step=ScfAcceptStepAll(),
     max_backtracks=3,  # Maximal number of backtracking line searches
 )
@@ -228,7 +224,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
     function EVρ(Vin; diagtol=tol / 10, ψ=nothing)
         ham_V = hamiltonian_with_total_potential(ham, Vin)
         res_V = next_density(ham_V; n_bands=n_bands, ψ=ψ, n_ep_extra=n_ep_extra,
-                             miniter=diag_miniter, tol=diagtol)
+                             miniter=diag_miniter, tol=diagtol, eigensolver=eigensolver)
         new_E, new_ham = energy_hamiltonian(basis, res_V.ψ, res_V.occupation;
                                             ρ=res_V.ρout, eigenvalues=res_V.eigenvalues,
                                             εF=res_V.εF)
@@ -238,7 +234,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
 
     n_iter    = 1
     converged = false
-    α_trial   = initial_damping(damping)
+    α_trial   = trial_damping(damping)
     diagtol   = determine_diagtol((ρin=ρ, Vin=V, n_iter=n_iter))
     info      = EVρ(V; diagtol=diagtol, ψ=ψ)
     Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; info...)
@@ -264,12 +260,11 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         n_acceleration_off = MPI.bcast(n_acceleration_off, 0, MPI.COMM_WORLD)
 
         # New search direction via convergence accelerator:
-        αdiis = max(α_accel_min, α_trial)
         if n_acceleration_off > 0
-            push!(acceleration, info.Vin, αdiis, info.Pinv_δV)
+            push!(acceleration, info.Vin, α_trial, info.Pinv_δV)
             δV = info.Pinv_δV
         else
-            δV = (acceleration(info.Vin, αdiis, info.Pinv_δV) - info.Vin) / αdiis
+            δV = (acceleration(info.Vin, α_trial, info.Pinv_δV) - info.Vin) / α_trial
         end
 
         # Determine damping and take next step
@@ -326,7 +321,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         end
 
         # Update α_trial and commit the next state
-        α_trial = next_trial_damping(damping, info, info_next, successful)
+        α_trial = trial_damping(damping, info, info_next, successful)
         info = info_next
     end
 
@@ -340,26 +335,12 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
 end
 
 
-function scf_potential_mixing_adaptive(basis; tol=1e-6, mode=:standard, kwargs...)
-    extraargs = (
-        determine_diagtol=ScfDiagtol(ratio_ρdiff=0.03, diagtol_max=5e-3),
-        damping=AdaptiveDamping(),
-        diag_miniter=2,
-    )
-    if mode == :standard
-        # Standard settings (decent compromise between speed and robustness)
-        scf_potential_mixing(basis; tol=tol,
-                             accept_step=ScfAcceptImprovingStep(max_energy_change=tol),
-                             ratio_failure_accel_off=0.01,
-                             α_accel_min=0.2,
-                             extraargs..., kwargs...)
-    else
-        # Slower but more robust settings
-        accept_step = ScfAcceptImprovingStep(max_energy_change=tol, max_relative_residual=0.0)
-        scf_potential_mixing(basis; tol=tol,
-                             accept_step=accept_step,
-                             ratio_failure_accel_off=0.0,
-                             α_accel_min=0.0,
-                             extraargs..., kwargs...)
-    end
+# Wrapper function setting a few good defaults for adaptive damping
+function scf_potential_mixing_adaptive(basis; tol=1e-6, damping::Number=0.6, kwargs...)
+    scf_potential_mixing(basis; tol=tol, diag_miniter=2,
+                         accept_step=ScfAcceptImprovingStep(max_energy_change=tol),
+                         determine_diagtol=ScfDiagtol(ratio_ρdiff=0.03, diagtol_max=5e-3),
+                         ratio_failure_accel_off=0.01,
+                         damping=AdaptiveDamping(damping),
+                         kwargs...)
 end
