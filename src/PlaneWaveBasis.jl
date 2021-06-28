@@ -573,10 +573,14 @@ end
 # They pack / unpack sets of ψ's (or compatible arrays, such as hamiltonian
 # applies and gradients) to make them compatible to be used in algorithms
 # from IterativeSolvers
-pack_ψ(basis::PlaneWaveBasis, ψ) = vcat(Base.vec.(ψ)...)
-function unpack_ψ(basis::PlaneWaveBasis, x)
+# Some care is needed here : some operators (for instance K in newton.jl)
+# are real-linear but not complex-linear. To overcome this difficulty, instead of
+# seeing them as operators from C^N to C^N, we see them as
+# operators from R^2N to R^2N. In practice, this is done with the
+# reinterpret function from julia.
+pack_ψ(basis::PlaneWaveBasis{T}, ψ) where T = Array(reinterpret(T, vcat(Base.vec.(ψ)...)))
+function unpack_ψ(basis::PlaneWaveBasis{T}, x) where T
 
-    Nk = length(basis.kpoints)
     model = basis.model
     filled_occ = filled_occupation(model)
     n_spin = basis.model.n_spin_components
@@ -584,7 +588,8 @@ function unpack_ψ(basis::PlaneWaveBasis, x)
 
     lengths = length.(G_vectors.(basis.kpoints)) .* n_bands
     ends = cumsum(lengths)
+    x = Array(reinterpret(Complex{T}, x))
     [@views reshape(x[ends[ik]-lengths[ik]+1:ends[ik]],
-                    (length(G_vectors(basis.kpoints[ik])), n_bands))
-     for ik = 1:Nk]
+                        (length(G_vectors(basis.kpoints[ik])), n_bands))
+     for ik = 1:length(basis.kpoints)]
 end

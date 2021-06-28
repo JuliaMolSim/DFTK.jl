@@ -179,35 +179,27 @@ function NewtonDefaultCallback()
 end
 
 """
-    newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
-                tol_cg=1e-10, verbose=false)
+    solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, res, occupation;
+                 tol_cg=1e-10, verbose=false) where T
 
-Perform a Newton step : we take as given a ψ and we return the Newton step δψ
-where δψ solves Jac * δψ = res and Jac = Ω+K.
+Return δψ where (Ω+K) δψ = rhs
 """
-function newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
-                     tol_cg=1e-10, verbose=false)
+function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
+                     tol_cg=1e-10, verbose=false) where T
 
-    N = size(ψ[1], 2)
     Nk = length(basis.kpoints)
 
     # compute quantites at the point which define the tangent space
     ρ = compute_density(basis, ψ, occupation)
     _, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
 
-    # packing routines
-    # some care is needed here : K is real-linear but not complex-linear because
-    # of the computation of δρ from δψ. To overcome this difficulty, instead of
-    # seeing the jacobian as an operator from C^Nb to C^Nb, we see it as an
-    # operator from R^2N to R^2N. In practice, this is done with the
-    # reinterpret function from julia.
-    T = eltype(basis)
-    pack(ψ) = reinterpret(T, pack_ψ(basis, ψ))
-    unpack(x) = unpack_ψ(basis, reinterpret(Complex{T}, x))
+    # pack and unpack
+    pack(ψ) = pack_ψ(basis, ψ)
+    unpack(x) = unpack_ψ(basis, x)
 
-    # project res on the tangent space before starting
-    proj_tangent!(res, ψ)
-    rhs = pack(res)
+    # project rhs on the tangent space before starting
+    proj_tangent!(rhs, ψ)
+    rhs_pack = pack(rhs)
 
     # preconditioner
     Pks = [PreconditionerTPA(basis, kpt) for kpt in basis.kpoints]
@@ -223,16 +215,16 @@ function newton_step(basis::PlaneWaveBasis, ψ, res, occupation;
     end
 
     # mapping of the linear system on the tangent space
-    function jac(x)
+    function ΩpK(x)
         δψ = unpack(x)
         Kδψ = apply_K(basis, δψ, ψ, ρ, occupation)
         Ωδψ = apply_Ω(basis, δψ, ψ, H)
         pack(Ωδψ + Kδψ)
     end
-    J = LinearMap{T}(jac, size(rhs, 1))
+    J = LinearMap{T}(ΩpK, size(rhs_pack, 1))
 
-    # solve (Ω+K) δψ = res on the tangent space with CG
-    δψ = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!),
+    # solve (Ω+K) δψ = rhs on the tangent space with CG
+    δψ = cg(J, rhs_pack, Pl=FunctionPreconditioner(f_ldiv!),
             reltol=tol_cg/norm(rhs), verbose=verbose)
 
     unpack(δψ)
@@ -258,14 +250,14 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     @assert model.temperature == 0 # temperature is not yet supported
     filled_occ = filled_occupation(model)
     n_spin = basis.model.n_spin_components
-    N = div(div(model.n_electrons, filled_occ), n_spin)
+    n_bands = div(div(model.n_electrons, filled_occ), n_spin)
 
     # number of kpoints and occupation
     Nk = length(basis.kpoints)
-    occupation = [filled_occ * ones(T, N) for ik = 1:Nk]
+    occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
 
     # check that there are no virtual orbitals
-    @assert N == size(ψ0[1],2)
+    @assert n_bands == size(ψ0[1],2)
 
     # iterators
     err = Inf
@@ -284,8 +276,8 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
         # compute next step
         res = compute_projected_gradient(basis, ψ, occupation)
         # solve (Ω+K) δψ = -res so that the Newton step is ψ <- ψ+δψ
-        δψ = newton_step(basis, ψ, -res, occupation; tol_cg=tol_cg,
-                         verbose=verbose)
+        δψ = solve_ΩplusK(basis, ψ, -res, occupation; tol_cg=tol_cg,
+                          verbose=verbose)
         ψ = map(1:Nk) do ik ortho_qr(ψ[ik] + δψ[ik]) end
 
         # callback

@@ -28,7 +28,8 @@ scfres_dm = direct_minimization(basis, tol=tol)
 # solution of a single iteration SCF
 scfres_start = self_consistent_field(basis, maxiter=1)
 # remove virtual orbitals
-n_bands = div(model.n_electrons, DFTK.filled_occupation(model))
+n_spin = basis.model.n_spin_components
+n_bands = div(div(model.n_electrons, filled_occupation(model)), n_spin)
 ψ = [ψk[:,1:n_bands] for ψk in scfres_start.ψ]
 scfres_newton = newton(basis, ψ, tol=tol)
 

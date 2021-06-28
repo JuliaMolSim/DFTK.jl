@@ -12,6 +12,7 @@ using LineSearches
 struct DMManifold <: Optim.Manifold
     Nk::Int
     unpack::Function
+    pack::Function
 end
 function Optim.project_tangent!(m::DMManifold, g, x)
     g_unpack = m.unpack(g)
@@ -21,14 +22,15 @@ function Optim.project_tangent!(m::DMManifold, g, x)
                                g_unpack[ik],
                                x_unpack[ik])
     end
-    g
+    x = m.pack(x_unpack)
+    g = m.pack(g_unpack)
 end
 function Optim.retract!(m::DMManifold, x)
     x_unpack = m.unpack(x)
     for ik = 1:m.Nk
         Optim.retract!(Optim.Stiefel(), x_unpack[ik])
     end
-    x
+    x = m.pack(x_unpack)
 end
 
 # Array of preconditioners
@@ -36,6 +38,7 @@ struct DMPreconditioner
     Nk::Int
     Pks::Vector # Pks[ik] is the preconditioner for kpoint ik
     unpack::Function
+    pack::Function
 end
 function LinearAlgebra.ldiv!(p, P::DMPreconditioner, d)
     p_unpack = P.unpack(p)
@@ -43,7 +46,8 @@ function LinearAlgebra.ldiv!(p, P::DMPreconditioner, d)
     for ik = 1:P.Nk
         ldiv!(p_unpack[ik], P.Pks[ik], d_unpack[ik])
     end
-    p
+    d = P.pack(d_unpack)
+    p = P.pack(p_unpack)
 end
 function LinearAlgebra.dot(x, P::DMPreconditioner, y)
     x_unpack = P.unpack(x)
@@ -87,7 +91,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     end
     occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
 
-    ## pack and unpack
+    # pack and unpack
     pack(ψ) = pack_ψ(basis, ψ)
     unpack(x) = unpack_ψ(basis, x)
 
@@ -109,14 +113,15 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                 mul!(G[ik], H.blocks[ik], ψ[ik])
                 G[ik] .*= 2*filled_occ
             end
+            G = pack(G)
         end
         energies.total
     end
 
-    manif = DMManifold(Nk, unpack)
+    manif = DMManifold(Nk, unpack, pack)
 
     Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
-    P = DMPreconditioner(Nk, Pks, unpack)
+    P = DMPreconditioner(Nk, Pks, unpack, pack)
 
     kwdict = Dict(kwargs)
     optim_options = Optim.Options(; allow_f_increases=true, show_trace=true,
