@@ -12,7 +12,6 @@ using LineSearches
 struct DMManifold <: Optim.Manifold
     Nk::Int
     unpack::Function
-    pack::Function
 end
 function Optim.project_tangent!(m::DMManifold, g, x)
     g_unpack = m.unpack(g)
@@ -22,15 +21,14 @@ function Optim.project_tangent!(m::DMManifold, g, x)
                                g_unpack[ik],
                                x_unpack[ik])
     end
-    x = m.pack(x_unpack)
-    g = m.pack(g_unpack)
+    g
 end
 function Optim.retract!(m::DMManifold, x)
     x_unpack = m.unpack(x)
     for ik = 1:m.Nk
         Optim.retract!(Optim.Stiefel(), x_unpack[ik])
     end
-    x = m.pack(x_unpack)
+    x
 end
 
 # Array of preconditioners
@@ -38,7 +36,6 @@ struct DMPreconditioner
     Nk::Int
     Pks::Vector # Pks[ik] is the preconditioner for kpoint ik
     unpack::Function
-    pack::Function
 end
 function LinearAlgebra.ldiv!(p, P::DMPreconditioner, d)
     p_unpack = P.unpack(p)
@@ -46,8 +43,7 @@ function LinearAlgebra.ldiv!(p, P::DMPreconditioner, d)
     for ik = 1:P.Nk
         ldiv!(p_unpack[ik], P.Pks[ik], d_unpack[ik])
     end
-    d = P.pack(d_unpack)
-    p = P.pack(p_unpack)
+    p
 end
 function LinearAlgebra.dot(x, P::DMPreconditioner, y)
     x_unpack = P.unpack(x)
@@ -113,15 +109,14 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                 mul!(G[ik], H.blocks[ik], ψ[ik])
                 G[ik] .*= 2*filled_occ
             end
-            G = pack(G)
         end
         energies.total
     end
 
-    manif = DMManifold(Nk, unpack, pack)
+    manif = DMManifold(Nk, unpack)
 
     Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
-    P = DMPreconditioner(Nk, Pks, unpack, pack)
+    P = DMPreconditioner(Nk, Pks, unpack)
 
     kwdict = Dict(kwargs)
     optim_options = Optim.Options(; allow_f_increases=true, show_trace=true,

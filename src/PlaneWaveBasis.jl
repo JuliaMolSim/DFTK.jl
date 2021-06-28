@@ -572,13 +572,17 @@ end
 # Packing routines used in direct_minimization and newton algorithms.
 # They pack / unpack sets of ψ's (or compatible arrays, such as hamiltonian
 # applies and gradients) to make them compatible to be used in algorithms
-# from IterativeSolvers
+# from IterativeSolvers.
 # Some care is needed here : some operators (for instance K in newton.jl)
 # are real-linear but not complex-linear. To overcome this difficulty, instead of
 # seeing them as operators from C^N to C^N, we see them as
 # operators from R^2N to R^2N. In practice, this is done with the
 # reinterpret function from julia.
-pack_ψ(basis::PlaneWaveBasis{T}, ψ) where T = Array(reinterpret(T, vcat(Base.vec.(ψ)...)))
+# /!\ pack_ψ does not share memory while unpack_ψ does
+function pack_ψ(basis::PlaneWaveBasis{T}, ψ) where T
+    # TODO as an optimization, do that lazily? See LazyArrays
+    vcat([vec(reinterpret(T, ψk)) for ψk in ψ]...)
+end
 function unpack_ψ(basis::PlaneWaveBasis{T}, x) where T
 
     model = basis.model
@@ -588,8 +592,11 @@ function unpack_ψ(basis::PlaneWaveBasis{T}, x) where T
 
     lengths = length.(G_vectors.(basis.kpoints)) .* n_bands
     ends = cumsum(lengths)
-    x = Array(reinterpret(Complex{T}, x))
-    [@views reshape(x[ends[ik]-lengths[ik]+1:ends[ik]],
-                        (length(G_vectors(basis.kpoints[ik])), n_bands))
+    # We unsafe_wrap the resulting array to avoid a complicated type for ψ.
+    # The resulting array is valid as long as the original x is still in live memory.
+    x = reinterpret(Complex{T}, x)
+    [unsafe_wrap(Array{Complex{T}},
+                 pointer(@views x[ends[ik]-lengths[ik]+1:ends[ik]]),
+                 (length(G_vectors(basis.kpoints[ik])), n_bands))
      for ik = 1:length(basis.kpoints)]
 end

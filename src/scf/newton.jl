@@ -11,11 +11,14 @@
 #   - Ω represents the influence of the curvature of the manifold :
 #         ΩδP = -[P_∞, [H(P_∞), δP]].
 #     In practice, we dont have access to P_∞ so we just use the current P.
-#     Another way to see Ω is to define the following extension and retraction operators
+#     Another way to see Ω is as the four-point independent-particle
+#     susceptibility. Indeed, if we define the following extension and
+#     retraction operators
 #       - E : builds a density matrix Eρ given a density ρ via Eρ(r,r') = δ(r,r')ρ(r),
 #       - R : builds a density ρ given a density matrix O via ρ(r) = O(r,r),
-#     then we have the relation χ0 = -R(Ω^-1)E, where χ0 is the independent-particle
-#     susceptibility and returns δρ from a given δV.
+#     then we have the relation χ02P = -R(Ω4P^-1)E, where χ02P is the two_point
+#     independent-particle susceptibility (it returns δρ from a given δV) and
+#     Ω4P is the four-point independent-particle susceptibility.
 #
 # For further details :
 # [1] Eric Cancès, Gaspard Kemlin, Antoine Levitt. Convergence analysis of
