@@ -17,9 +17,12 @@ function ScfPlotTrace end  # implementation in src/plotting.jl
 Default callback function for `self_consistent_field`, which prints a convergence table
 """
 function ScfDefaultCallback()
-    prev_total = NaN
+    prev_energy = NaN
     function callback(info)
         # Gather MPI-distributed information
+        # Average number of diagonalisations per k-Point needed for this SCF step
+        # Note: If two Hamiltonian diagonalisations have been used (e.g. adaptive damping),
+        # the per k-Point values are summed.
         diagiter = mpi_mean(sum(mean(diag.iterations) for diag in info.diagonalization),
                             info.basis.comm_kpts)
 
@@ -46,12 +49,12 @@ function ScfDefaultCallback()
         end
 
         Estr   = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
-        ΔE     = isnan(prev_total) ? "      NaN" : @sprintf "% 3.2e" E - prev_total
+        ΔE     = isnan(prev_energy) ? "      NaN" : @sprintf "% 3.2e" E - prev_energy
         αstr   = isnan(info.α) ? "  NaN" : @sprintf "% 4.2f" info.α
         Mstr = collinear ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
 
         @printf "% 3d   %s   %s   %2.2e%s  %s %5.1f \n" info.n_iter Estr ΔE Δρ Mstr αstr diagiter
-        prev_total = info.energies.total
+        prev_energy = info.energies.total
 
         flush(stdout)
         info
@@ -99,8 +102,6 @@ function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.03)
         info.n_iter ≤ 1 && return diagtol_max
         info.n_iter == 2 && (diagtol_max /= 5)  # Enforce more accurate Bloch wave
 
-        # TODO Does it make sense to always use ρout here, since it measures better how much
-        #      the SCF is converged?
         ρnext = hasproperty(info, :ρnext) ? info.ρnext : info.ρout
         diagtol = (norm(ρnext - info.ρin)
                    * sqrt(info.basis.dvol)

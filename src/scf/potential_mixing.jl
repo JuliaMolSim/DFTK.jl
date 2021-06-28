@@ -3,47 +3,59 @@ using Statistics
 # Quick and dirty Anderson implementation ... lacks important things like
 # control of the condition number of the anderson matrix.
 # Not particularly optimised. Also should be moved to NLSolve ...
-function AndersonAcceleration(;m=Inf)
-    # Accelerates the iterative solution of f(V) = 0, where for our DFT case:
-    #    f(V) = Vext + Vhxc(ρ(V)) - V
-    # Further define
-    #    preconditioned update    Pf(V) = P⁻¹ f(V)
-    #    fixed-point map          g(V)  = V + α Pf(V)
-    # where the α may vary between steps.
-    #
-    # Finds the linear combination Vₙ₊₁ = g(Vₙ) + ∑ᵢ βᵢ (g(Vᵢ) - g(Vₙ))
-    # such that |Pf(Vₙ) + ∑ᵢ βᵢ (Pf(Vᵢ) - Pf(Vₙ))|² is minimal
-    #
-    Vs   = []  # The V     for each iteration
-    PfVs = []  # The Pf(V) for each iteration
+#
+# Accelerates the iterative solution of f(x) = 0 according to a
+# damped preconditioned scheme
+#    xₙ₊₁ = xₙ + αₙ P⁻¹ (f(xₙ) - xₙ)
+# Further define
+#    preconditioned residual  Pf(x) = P⁻¹ f(x)
+#    fixed-point map          g(x)  = V + α Pf(x)
+# where the α may vary between steps.
+#
+# Finds the linear combination xₙ₊₁ = g(xₙ) + ∑ᵢ βᵢ (g(xᵢ) - g(xₙ))
+# such that |Pf(xₙ) + ∑ᵢ βᵢ (Pf(xᵢ) - Pf(xₙ))|² is minimal
+struct AndersonAcceleration
+    m::Int                  # maximal history size
+    iterates::Vector{Any}   # xₙ
+    residuals::Vector{Any}  # Pf(xₙ)
+end
+AndersonAcceleration(;m=10) = AndersonAcceleration(m, [], [])
 
-    function extrapolate(Vₙ, αₙ, PfVₙ)
-        m == 0 && return Vₙ .+ αₙ .* PfVₙ
-
-        # Gets the current Vₙ, Pf(Vₙ) and damping αₙ
-        #
-        Vₙ₊₁ = vec(Vₙ) .+ αₙ .* vec(PfVₙ)
-        if !isempty(Vs)
-            M = hcat(PfVs...) .- vec(PfVₙ)  # Mᵢⱼ = (PfVⱼ)ᵢ - (PfVₙ)ᵢ
-            # We need to solve 0 = M' PfVₙ + M'M βs <=> βs = - (M'M)⁻¹ M' PfVₙ
-            βs = -M \ vec(PfVₙ)
-            for (iβ, β) in enumerate(βs)
-                Vₙ₊₁ .+= β .* (Vs[iβ] .- vec(Vₙ) .+ αₙ .* (PfVs[iβ] .- vec(PfVₙ)))
-            end
-        end
-
-        push!(Vs,   vec(Vₙ))
-        push!(PfVs, vec(PfVₙ))
-        if length(Vs) > m
-            Vs   = Vs[2:end]
-            PfVs = PfVs[2:end]
-        end
-        @assert length(Vs) <= m
-
-        reshape(Vₙ₊₁, size(Vₙ))
+function Base.push!(anderson::AndersonAcceleration, xₙ, αₙ, Pfxₙ)
+    push!(anderson.iterates,  vec(xₙ))
+    push!(anderson.residuals, vec(Pfxₙ))
+    if length(anderson.iterates) > anderson.m
+        popfirst!(anderson.iterates)
+        popfirst!(anderson.residuals)
     end
+    @assert length(anderson.iterates) <= anderson.m
+    @assert length(anderson.iterates) == length(anderson.residuals)
+    anderson
 end
 
+function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
+    # Gets the current xₙ, Pf(xₙ) and damping αₙ
+    anderson.m == 0 && return xₙ .+ αₙ .* Pfxₙ
+
+    xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
+    xs   = anderson.iterates
+    Pfxs = anderson.residuals
+    if !isempty(anderson.iterates)
+        M = hcat(Pfxs...) .- vec(Pfxₙ)  # Mᵢⱼ = (Pfxⱼ)ᵢ - (Pfxₙ)ᵢ
+        # We need to solve 0 = M' Pfxₙ + M'M βs <=> βs = - (M'M)⁻¹ M' Pfxₙ
+        βs = -M \ vec(Pfxₙ)
+        for (iβ, β) in enumerate(βs)
+            xₙ₊₁ .+= β .* (xs[iβ] .- vec(xₙ) .+ αₙ .* (Pfxs[iβ] .- vec(Pfxₙ)))
+        end
+    end
+
+    push!(anderson, xₙ, αₙ, Pfxₙ)
+    reshape(xₙ₊₁, size(xₙ))
+end
+
+function ScfAcceptStepAll()
+    accept_step(info, info_next) = true
+end
 
 """
 Accept a step if the energy is at most increasing by `max_energy` and the residual
@@ -60,12 +72,13 @@ function ScfAcceptImprovingStep(;max_energy_change=1e-12, max_relative_residual=
         accept
     end
 end
-function ScfAcceptStepAll()
-    accept_step(info, info_next) = true
-end
 
-
-function scf_quadratic_model(info, info_next; modeltol=0.1)
+"""
+Use the two iteration states `info` and `info_next` to find a damping value
+from a quadratic model for the SCF energy. Returns `nothing` if the constructed
+model is not considered trustworthy, else returns the suggested damping.
+"""
+function scf_damping_quadratic_model(info, info_next; modeltol=0.1)
     T     = eltype(info.Vin)
     dvol  = info.basis.dvol
 
@@ -97,6 +110,8 @@ function scf_quadratic_model(info, info_next; modeltol=0.1)
 
     # Relative error of the model at α0 (the damping we used to get info_next)
     Etotal_next = info_next.energies.total
+
+    # TODO Is this a good error measure ... for larger problems it seems to be over-demanding
     model_relerror = abs(Etotal_next - Emodel(α0)) / abs(Etotal_next - info.energies.total)
 
     minimum_exists = curv > eps(T)  # Does the model predict a minimum along the search direction
@@ -104,12 +119,12 @@ function scf_quadratic_model(info, info_next; modeltol=0.1)
     tight_model    = model_relerror < modeltol / 5  # Model fits observation very well
 
     # Accept model if it leads to minimum and is either tight or shows a negative slope
+    α_model = -slope / curv
     if minimum_exists && (tight_model || (slope < -eps(T) && trusted_model))
-        α_model = -slope / curv
         mpi_master() && @debug "Quadratic model accepted" model_relerror slope curv α_model
-        return α_model
+        α_model
     else
-        mpi_master() && @debug "Quadratic model discarded" model_relerror slope curv
+        mpi_master() && @debug "Quadratic model discarded" model_relerror slope curv α_model
         nothing  # Model not trustworthy ... better return nothing
     end
 end
@@ -121,7 +136,8 @@ end
     α_max = 1.0        # Maximal damping
     α_trial_min = 0.1  # Minimal first trial damping used in a step
     α_trial_enhancement = 1.1  # Enhancement factor to α_trial in case a step is immediately successful
-    modeltol = 0.1     # Maximum relative error for model to be considered trustworthy
+    modeltol = 0.1     # Maximum relative error on the predicted energy for model
+    #                    to be considered trustworthy
 end
 
 function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
@@ -130,13 +146,13 @@ function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
         return info_next.α
     end
 
-    α = scf_quadratic_model(info, info_next; modeltol=damping.modeltol)
+    α = scf_damping_quadratic_model(info, info_next; modeltol=damping.modeltol)
     isnothing(α) && (α = info_next.α / 2)  # Model failed ... use heuristics
 
     # Adjust α to stay within desired range
     α_sign = sign(α)
     α = clamp(abs(α), damping.α_min, damping.α_max)
-    α = min(0.95abs(info_next.α), α)  # Avoid to get stuck
+    α = min(0.95abs(info_next.α), α)  # Avoid getting stuck
     return α_sign * α
 end
 
@@ -148,7 +164,7 @@ function next_trial_damping(damping::AdaptiveDamping, info, info_next, step_succ
     α_trial = abs(info_next.α)  # By default use the α that worked in this step
     if step_successful && n_backtrack == 1  # First step was good => speed things up
         α_trial ≥ damping.α_max && return damping.α_max  # No need to compute model
-        α_model = scf_quadratic_model(info, info_next; modeltol=damping.modeltol)
+        α_model = scf_damping_quadratic_model(info, info_next; modeltol=damping.modeltol)
         if !isnothing(α_model)  # Model is meaningful
             α_trial = max(damping.α_trial_enhancement * abs(α_model), α_trial)
         end
@@ -198,13 +214,14 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
              || mixing isa KerkerDosMixing)
     damping isa Number && (damping = FixedDamping(damping))
 
-    # Initial guess for V and ψ (if none given)
     if ψ !== nothing
         @assert length(ψ) == length(basis.kpoints)
         for ik in 1:length(basis.kpoints)
             @assert size(ψ[ik], 2) == n_bands + n_ep_extra
         end
     end
+
+    # Initial guess for V (if none given)
     energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ)
     isnothing(V) && (V = total_local_potential(ham))
 
@@ -235,6 +252,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
                             n_acceleration_off=n_acceleration_off))
         callback(info)
         if MPI.bcast(is_converged(info), 0, MPI.COMM_WORLD)
+            # TODO Debug why these MPI broadcasts are needed
             converged = true
             break
         end
@@ -247,9 +265,11 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
 
         # New search direction via convergence accelerator:
         αdiis = max(α_accel_min, α_trial)
-        δV    = (acceleration(info.Vin, αdiis, info.Pinv_δV) - info.Vin) / αdiis
         if n_acceleration_off > 0
+            push!(acceleration, info.Vin, αdiis, info.Pinv_δV)
             δV = info.Pinv_δV
+        else
+            δV = (acceleration(info.Vin, αdiis, info.Pinv_δV) - info.Vin) / αdiis
         end
 
         # Determine damping and take next step
@@ -262,7 +282,7 @@ next_trial_damping(damping::FixedDamping, info, info_next, successful) = damping
         while n_backtrack ≤ max_backtracks
             diagtol = determine_diagtol(info_next)
             mpi_master() && @debug "Iteration $n_iter linesearch step $n_backtrack   α=$α diagtol=$diagtol"
-            Vnext = info.Vin + α * δV
+            Vnext = info.Vin .+ α .* δV
 
             info_next    = EVρ(Vnext; ψ=guess, diagtol=diagtol)
             Pinv_δV_next = mix_potential(mixing, basis, info_next.Vout - info_next.Vin; info_next...)

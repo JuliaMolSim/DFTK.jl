@@ -366,7 +366,7 @@ end
             cP = cX .- e
             cP = cP[:, Xn_indices]
             # orthogonalize against all Xn (including newly locked)
-            cP = ortho!(cP, cX, cX, tol=ortho_tol)
+            ortho!(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
             new_P  = array_mul( Y, cP)
@@ -423,7 +423,7 @@ end
             Z  = full_X
             BZ = full_BX
         end
-        R = ortho!(R, Z, BZ; tol=ortho_tol)
+        ortho!(R, Z, BZ; tol=ortho_tol)
         if B != I
             mul!(BR, B, R)
             B_ortho!(R, BR)

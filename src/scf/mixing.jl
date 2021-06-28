@@ -15,10 +15,12 @@ import Base: @kwdef
 # The notation in this file follows Herbst, Levitt arXiv:2009.01665
 
 # Mixing can be done in the potential or the density. By default we assume
-# the dielectric model is so simple that both types of mixing are identical
+# the dielectric model is so simple that both types of mixing are identical.
+# If mixing is done in the potential, the interface is
+# `mix_potential(mixing, basis, δF; kwargs...) -> δV`
 abstract type Mixing end
-function mix_potential(mixing::Mixing, basis::PlaneWaveBasis, δF; kwargs...)
-    mix_density(mixing, basis, δF; kwargs...)
+function mix_potential(args...; kwargs...)
+    mix_density(args...; kwargs...)
 end
 
 @doc raw"""
