@@ -68,6 +68,7 @@ necessarily exact or even normalized. Intended only to construct guesses for ite
 solvers
 """
 function interpolate_kpoint(data_in::AbstractVecOrMat, kpoint_in::Kpoint, kpoint_out::Kpoint)
+    # TODO merge with transfer_blochwave_kpt
     if kpoint_in == kpoint_out
         return copy(data_in)
     end
