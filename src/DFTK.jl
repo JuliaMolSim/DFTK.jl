@@ -121,6 +121,7 @@ include("scf/scf_solvers.jl")
 include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
 include("scf/scfres.jl")
+include("scf/potential_mixing.jl")
 
 export symmetry_operations
 export standardize_atoms
@@ -131,6 +132,7 @@ include("symmetry.jl")
 include("bzmesh.jl")
 
 export guess_density
+export random_density
 export load_psp
 export list_psp
 include("guess_density.jl")

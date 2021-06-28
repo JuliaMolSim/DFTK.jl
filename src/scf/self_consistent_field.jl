@@ -48,7 +48,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        eigensolver=lobpcg_hyper,
                                        n_ep_extra=3,
                                        determine_diagtol=ScfDiagtol(),
-                                       α=0.8,  # Damping parameter
+                                       damping=0.8,  # Damping parameter
                                        mixing=SimpleMixing(),
                                        is_converged=ScfConvergenceEnergy(tol),
                                        callback=ScfDefaultCallback(),
@@ -107,8 +107,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 
         # Update info with results gathered so far
         info = (ham=ham, basis=basis, converged=converged, stage=:iterate,
-                ρin=ρin, ρout=ρout,
-                n_iter=n_iter, n_ep_extra=n_ep_extra, nextstate...)
+                ρin=ρin, ρout=ρout, α=damping, n_iter=n_iter, n_ep_extra=n_ep_extra,
+                nextstate..., diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
         if compute_consistent_energies
@@ -118,8 +118,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         info = merge(info, (energies=energies, ))
 
         # Apply mixing and pass it the full info as kwargs
-        δρ = mix(mixing, basis, ρout - ρin; info...)
-        ρnext = ρin .+ T(α) .* δρ
+        δρ = mix_density(mixing, basis, ρout - ρin; info...)
+        ρnext = ρin .+ T(damping) .* δρ
         if enforce_symmetry
             ρnext = DFTK.symmetrize(basis, ρnext)
         end

@@ -1,3 +1,20 @@
+
+"""
+Generate a physically valid random density integrating to the given number of electrons.
+"""
+function random_density(basis::PlaneWaveBasis; n_electrons=basis.model.n_electrons)
+    T = eltype(basis)
+    ρtot  = rand(T, basis.fft_size)
+    ρtot  = ρtot .* n_electrons ./ (sum(ρtot) * basis.dvol)  # Integration to n_electrons
+    ρspin = nothing
+    if basis.model.n_spin_components > 1
+        ρspin = rand((-1, 1), basis.fft_size ) .* rand(T, basis.fft_size) .* ρtot
+        @assert all(abs.(ρspin) .≤ ρtot)
+    end
+    ρ_from_total_and_spin(ρtot, ρspin)
+end
+
+
 @doc raw"""
     guess_density(basis, magnetic_moments)
 

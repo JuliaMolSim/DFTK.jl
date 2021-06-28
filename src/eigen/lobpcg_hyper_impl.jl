@@ -83,7 +83,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been
 # magnified
-@timing function ortho(X; tol=2eps(real(eltype(X))))
+@timing function ortho!(X; tol=2eps(real(eltype(X))))
     local R
 
     # # Uncomment for "gold standard"
@@ -169,7 +169,7 @@ function drop!(X, tol=2eps(real(eltype(X))))
 end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
-function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
+function ortho!(X, Y, BY; tol=2eps(real(eltype(X))))
     T = real(eltype(X))
     # normalize to try to cheaply improve conditioning
     Threads.@threads for i=1:size(X,2)
@@ -185,7 +185,7 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
         mul!(X, Y, BYX, -one(T), one(T)) # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
-        # as can happen in extreme cases in the ortho(cP, cX)
+        # as can happen in extreme cases in the ortho!(cP, cX)
         dropped = drop!(X)
         if dropped != []
             @views mul!(X[:, dropped], Y, BY' * (X[:, dropped]), -one(T), one(T)) # X -= Y*BY'X
@@ -194,7 +194,7 @@ function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
             push!(ninners, 0)
             break
         end
-        X, ninner, growth_factor = ortho(X, tol=tol)
+        X, ninner, growth_factor = ortho!(X, tol=tol)
         push!(ninners, ninner)
 
         # norm(BY'X) < tol && break should be the proper check, but
@@ -249,7 +249,7 @@ end
     resid_history = zeros(real(eltype(X)), M, maxiter+1)
 
     # B-orthogonalize X
-    X = ortho(X, tol=ortho_tol)[1]
+    X = ortho!(copy(X), tol=ortho_tol)[1]
     if B != I
         BX = B*X
         B_ortho!(X, BX)
@@ -366,7 +366,7 @@ end
             cP = cX .- e
             cP = cP[:, Xn_indices]
             # orthogonalize against all Xn (including newly locked)
-            cP = ortho(cP, cX, cX, tol=ortho_tol)
+            ortho!(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
             new_P  = array_mul( Y, cP)
@@ -423,7 +423,7 @@ end
             Z  = full_X
             BZ = full_BX
         end
-        R .= ortho(R, Z, BZ; tol=ortho_tol)
+        ortho!(R, Z, BZ; tol=ortho_tol)
         if B != I
             mul!(BR, B, R)
             B_ortho!(R, BR)
