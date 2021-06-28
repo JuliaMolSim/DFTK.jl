@@ -570,8 +570,9 @@ function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
 end
 
 # Packing routines used in direct_minimization and newton algorithms.
-# They pack / unpack sets of ψ's to make them compatible to be used in
-# algorithms from KrylovKit or Optim libraries
+# They pack / unpack sets of ψ's (or compatible arrays, such as hamiltonian
+# applies and gradients) to make them compatible to be used in algorithms
+# from IterativeSolvers
 pack_ψ(basis::PlaneWaveBasis, ψ) = vcat(Base.vec.(ψ)...)
 function unpack_ψ(basis::PlaneWaveBasis, x)
 
