@@ -94,16 +94,16 @@ libxc provides the scalars
     Vρ = ∂(ρ E)/∂ρ
     Vσ = ∂(ρ E)/∂σ
 
-Consider a variation dϕi of an orbital (considered real for
-simplicity), and let dEtot be the corresponding variation of the
+Consider a variation δϕi of an orbital (considered real for
+simplicity), and let δEtot be the corresponding variation of the
 energy. Then the potential Vxc is defined by
-    dEtot = 2 ∫ Vxc ϕi dϕi
+    δEtot = 2 ∫ Vxc ϕi δϕi
 
-    δρ = 2 ϕi dϕi
-    dσ = 2 ∇ρ ⋅ ∇δρ = 4 ∇ρ ⋅ ∇(ϕi dϕi)
-    dEtot = ∫ Vρ δρ + Vσ dσ
-          = 2 ∫ Vρ ϕi dϕi + 4 ∫ Vσ ∇ρ ⋅ ∇(ϕi dϕi)
-          = 2 ∫ Vρ ϕi dϕi - 4 ∫ div(Vσ ∇ρ) ϕi dϕi
+    δρ = 2 ϕi δϕi
+    δσ = 2 ∇ρ ⋅ ∇δρ = 4 ∇ρ ⋅ ∇(ϕi δϕi)
+    δEtot = ∫ Vρ δρ + Vσ δσ
+          = 2 ∫ Vρ ϕi δϕi + 4 ∫ Vσ ∇ρ ⋅ ∇(ϕi δϕi)
+          = 2 ∫ Vρ ϕi δϕi - 4 ∫ div(Vσ ∇ρ) ϕi δϕi
 where we performed an integration by parts in the last equation
 (boundary terms drop by periodicity). Therefore,
     Vxc = Vρ - 2 div(Vσ ∇ρ)
@@ -286,7 +286,7 @@ function apply_kernel(term::TermXc, δρ; ρ, kwargs...)
     # Compute required density / perturbation cross-derivatives
     cross_derivatives = Dict{Symbol, Any}()
     if max_ρ_derivs > 0
-        cross_derivatives[:dσ] = [
+        cross_derivatives[:δσ] = [
             @views 2sum(∇ρ[I[1], :, :, :, α] .* ∇δρ[I[2], :, :, :, α] for α in 1:3)
             for I in CartesianIndices((n_spin, n_spin))
         ]
@@ -313,16 +313,16 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
     #
     # For GGA V = Vρ - 2 ∇⋅(Vσ ∇ρ) = (∂ε/∂ρ) - 2 ∇⋅((∂ε/∂σ) ∇ρ)
     #
-    # δV(r) = f(r,r') δρ(r') = (∂V/∂ρ) δρ + (∂V/∂σ) dσ
+    # δV(r) = f(r,r') δρ(r') = (∂V/∂ρ) δρ + (∂V/∂σ) δσ
     #
     # therefore
     # δV(r) = (∂^2ε/∂ρ^2) δρ - 2 ∇⋅[(∂^2ε/∂σ∂ρ) ∇ρ + (∂ε/∂σ) (∂∇ρ/∂ρ)] δρ
-    #       + (∂^2ε/∂ρ∂σ) dσ - 2 ∇⋅[(∂^ε/∂σ^2) ∇ρ  + (∂ε/∂σ) (∂∇ρ/∂σ)] dσ
+    #       + (∂^2ε/∂ρ∂σ) δσ - 2 ∇⋅[(∂^ε/∂σ^2) ∇ρ  + (∂ε/∂σ) (∂∇ρ/∂σ)] δσ
     #
-    # Note dσ = 2∇ρ⋅d∇ρ = 2∇ρ⋅∇δρ, therefore
-    #      - 2 ∇⋅((∂ε/∂σ) (∂∇ρ/∂σ)) dσ
-    #    = - 2 ∇(∂ε/∂σ)⋅(∂∇ρ/∂σ) dσ - 2 (∂ε/∂σ) ∇⋅(∂∇ρ/∂σ) dσ
-    #    = - 2 ∇(∂ε/∂σ)⋅d∇ρ - 2 (∂ε/∂σ) ∇⋅d∇ρ
+    # Note δσ = 2∇ρ⋅δ∇ρ = 2∇ρ⋅∇δρ, therefore
+    #      - 2 ∇⋅((∂ε/∂σ) (∂∇ρ/∂σ)) δσ
+    #    = - 2 ∇(∂ε/∂σ)⋅(∂∇ρ/∂σ) δσ - 2 (∂ε/∂σ) ∇⋅(∂∇ρ/∂σ) δσ
+    #    = - 2 ∇(∂ε/∂σ)⋅δ∇ρ - 2 (∂ε/∂σ) ∇⋅δ∇ρ
     #    = - 2 ∇⋅((∂ε/∂σ) ∇δρ)
     # and (because assumed independent variables): (∂∇ρ/∂ρ) = 0.
     #
@@ -334,7 +334,7 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
     ∇ρ  = density.∇ρ_real
     δρ  = perturbation.ρ_real
     ∇δρ = perturbation.∇ρ_real
-    dσ  = cross_derivatives[:dσ]
+    δσ  = cross_derivatives[:δσ]
     Vρσ = terms.v2rhosigma
     Vσσ = terms.v2sigma2
     Vσ  = terms.vsigma
@@ -349,7 +349,7 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
         for t in 1:n_spin, u in 1:n_spin
             spinfac_tu = (t == u ? one(T) : one(T)/2)
             stu = tρσ(s, tσ(t, u))
-            @. δV[:, :, :, s] += spinfac_tu * Vρσ[stu, :, :, :] * dσ[t, u][:, :, :]
+            @. δV[:, :, :, s] += spinfac_tu * Vρσ[stu, :, :, :] * δσ[t, u][:, :, :]
         end
 
         # TODO Potential for some optimisation ... some contractions in this body are
@@ -370,7 +370,7 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
                         spinfac_uv = (u == v ? one(T) : one(T)/2)
                         stuv = tσσ(tσ(s, t), tσ(u, v))
                         ret_α .+= (-2spinfac_uv .* spinfac_st .* Vσσ[stuv, :, :, :]
-                                   .* ∇ρ[t, :, :, :, α] .* dσ[u, v][:, :, :])
+                                   .* ∇ρ[t, :, :, :, α] .* δσ[u, v][:, :, :])
                     end  # v
                 end  # u
             end  # t

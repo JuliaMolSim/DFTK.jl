@@ -34,7 +34,7 @@
 # δψ[ik][:, i] = δψi for each k-point.
 # In this framework :
 #   - computing Ωδψ can be done analytically with the formula
-#         Ωδψi = H*δψi - Σj (<ψj|H|δψi> ψj + <ψj|δψi> Hψj)/2 - Σj λji δψj
+#         Ωδψi = H*δψi - Σj λji δψj
 #     where λij = <ψi|H|ψj>. This is one way among others to extend the
 #     definition of ΩδP = -[P_∞, [H(P_∞), δP]] to any point P on the manifold --
 #     we chose this one because it makes Ω self-adjoint for the Frobenius scalar
@@ -59,7 +59,7 @@ end
 
 # Projections on the space tangent to ψ
 function proj_tangent_kpt!(δψk, ψk)
-    # δψk <- δψk - ψk * (ψk'δψk)
+    # δψk = δψk - ψk * (ψk'δψk)
     mul!(δψk, ψk, ψk'δψk, -1, 1)
 end
 proj_tangent_kpt(δψk, ψk) = proj_tangent_kpt!(copy(δψk), ψk)
@@ -70,20 +70,14 @@ function proj_tangent!(δψ, ψ)
     [proj_tangent_kpt!(δψ[ik], ψ[ik]) for ik = 1:size(ψ,1)]
 end
 
-function apply_Ω(basis::PlaneWaveBasis, δψ, ψ, H::Hamiltonian)
+function apply_Ω(δψ, ψ, H::Hamiltonian, Λ)
 
     δψ = proj_tangent(δψ, ψ)
-    Ωδψ = map(1:length(basis.kpoints)) do ik
-        ψk = ψ[ik]
+    Ωδψ = map(enumerate(δψ)) do (ik, δψk)
         Hk = H.blocks[ik]
-        δψk = δψ[ik]
+        Λk = Λ[ik]
 
-        Hψk = Hk * ψk
-        ψHψk = Hermitian(ψk * Hψk')
-        λk = ψk'Hψk
-
-        Ωδψk = Hk * δψk - ψHψk * δψk
-        Ωδψk .-= δψk * λk
+        Ωδψk = Hk * δψk - δψk * Λk
     end
 
     proj_tangent!(Ωδψ, ψ)
@@ -125,9 +119,8 @@ end
     δρ = compute_δρ(basis, ψ, δψ, occupation)
     δV = apply_kernel(basis, δρ; ρ=ρ)
 
-    Kδψ = map(1:length(basis.kpoints)) do ik
+    Kδψ = map(enumerate(ψ)) do (ik, ψk)
         kpt = basis.kpoints[ik]
-        ψk = ψ[ik]
         δVψk = similar(ψk)
 
         for n = 1:size(ψk, 2)
@@ -217,11 +210,18 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
         x .= pack(Pδψ)
     end
 
+    # Rayleigh-coefficients
+    Λ = map(enumerate(ψ)) do (ik, ψk)
+        Hk = H.blocks[ik]
+        Hψk = Hk * ψk
+        ψk'Hψk
+    end
+
     # mapping of the linear system on the tangent space
     function ΩpK(x)
         δψ = unpack(x)
         Kδψ = apply_K(basis, δψ, ψ, ρ, occupation)
-        Ωδψ = apply_Ω(basis, δψ, ψ, H)
+        Ωδψ = apply_Ω(δψ, ψ, H, Λ)
         pack(Ωδψ + Kδψ)
     end
     J = LinearMap{T}(ΩpK, size(rhs_pack, 1))

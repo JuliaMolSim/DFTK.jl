@@ -19,12 +19,12 @@ include("testcases.jl")
     ρ_nl = self_consistent_field(basis; ρ=ρ0, tol=tol).ρ
 
     # Run DM
-    #  if mpi_nprocs() == 1  # Distributed implementation not yet available
-    #      @testset "Direct minimization" begin
-    #          ρ_dm = direct_minimization(basis; g_tol=tol).ρ
-    #          @test maximum(abs.(ρ_dm - ρ_nl)) < sqrt(tol) / 10
-    #      end
-    #  end
+    if mpi_nprocs() == 1  # Distributed implementation not yet available
+        @testset "Direct minimization" begin
+            ρ_dm = direct_minimization(basis; g_tol=tol).ρ
+            @test maximum(abs.(ρ_dm - ρ_nl)) < sqrt(tol) / 10
+        end
+    end
 
     # Run Newton algorithm
     if mpi_nprocs() == 1  # Distributed implementation not yet available

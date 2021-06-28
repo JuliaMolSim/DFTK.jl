@@ -47,10 +47,17 @@ include("testcases.jl")
             x0 = hcat([pack(proj_tangent([randn(Complex{eltype(basis)}, length(G_vectors(kpt)), n_bands)
                                           for kpt in basis.kpoints], ψ)) for n in 1:numval]...)
 
+            # Rayleigh-coefficients
+            Λ = map(enumerate(ψ)) do (ik, ψk)
+                Hk = scfres.ham.blocks[ik]
+                Hψk = Hk * ψk
+                ψk'Hψk
+            end
+
             # mapping of the linear system on the tangent space
             function Ω(x)
                 δψ = unpack(x)
-                Ωδψ = apply_Ω(basis, δψ, ψ, scfres.ham)
+                Ωδψ = apply_Ω(δψ, ψ, scfres.ham, Λ)
                 pack(Ωδψ)
             end
             J = LinearMap{T}(Ω, size(x0, 1))
@@ -102,11 +109,18 @@ include("testcases.jl")
             x0 = hcat([pack(proj_tangent([randn(Complex{eltype(basis)}, length(G_vectors(kpt)), n_bands)
                                           for kpt in basis.kpoints], ψ)) for n in 1:numval]...)
 
+            # Rayleigh-coefficients
+            Λ = map(enumerate(ψ)) do (ik, ψk)
+                Hk = scfres.ham.blocks[ik]
+                Hψk = Hk * ψk
+                ψk'Hψk
+            end
+
             # mapping of the linear system on the tangent space
             function ΩpK(x)
                 δψ = unpack(x)
                 Kδψ = apply_K(basis, δψ, ψ, scfres.ρ, scfres.occupation)
-                Ωδψ = apply_Ω(basis, δψ, ψ, scfres.ham)
+                Ωδψ = apply_Ω(δψ, ψ, scfres.ham, Λ)
                 pack(Ωδψ + Kδψ)
             end
             J = LinearMap{T}(ΩpK, size(x0, 1))
