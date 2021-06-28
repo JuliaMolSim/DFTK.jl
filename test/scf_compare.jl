@@ -115,9 +115,9 @@ end
     scfres = DFTK.scf_potential_mixing(basis, mixing=KerkerMixing(), tol=tol, ρ=ρ0)
     @test maximum(abs.(scfres.ρ - ρ_ref)) < sqrt(tol)
 
-    # Adaptive potential mixing (started deliberately with the very bad initial damping
-    #          of 1.5 to provoke a backtrack step ... don't do this in production runs!)
+    # Adaptive potential mixing (started deliberately with the very bad damping
+    #          of 1.5 to provoke backtrack steps ... don't do this in production runs!)
     scfres = DFTK.scf_potential_mixing_adaptive(basis, mixing=SimpleMixing(), tol=tol, ρ=ρ0,
-                                                damping=DFTK.AdaptiveDamping(;α_init=1.5))
+                                                damping=1.5)
     @test maximum(abs.(scfres.ρ - ρ_ref)) < sqrt(tol)
 end

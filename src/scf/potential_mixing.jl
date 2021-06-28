@@ -138,7 +138,9 @@ end
     modeltol = 0.1     # Maximum relative error on the predicted energy for model
     #                    to be considered trustworthy
 end
-AdaptiveDamping(α; kwargs...) = AdaptiveDamping(α_min=α / 50, α_trial_min=α, kwargs...)
+function AdaptiveDamping(α; kwargs...)
+    AdaptiveDamping(α_min=α / 50, α_trial_min=α, α_max=max(α, 1.0), kwargs...)
+end
 
 function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
     if abs(info_next.α) < 1.75damping.α_min
@@ -336,11 +338,11 @@ end
 
 
 # Wrapper function setting a few good defaults for adaptive damping
-function scf_potential_mixing_adaptive(basis; tol=1e-6, damping::Number=0.6, kwargs...)
+function scf_potential_mixing_adaptive(basis; tol=1e-6, damping=0.6, kwargs...)
+    damping isa Number && (damping = AdaptiveDamping(damping))
     scf_potential_mixing(basis; tol=tol, diag_miniter=2,
                          accept_step=ScfAcceptImprovingStep(max_energy_change=tol),
                          determine_diagtol=ScfDiagtol(ratio_ρdiff=0.03, diagtol_max=5e-3),
                          ratio_failure_accel_off=0.01,
-                         damping=AdaptiveDamping(damping),
-                         kwargs...)
+                         damping=damping, kwargs...)
 end
