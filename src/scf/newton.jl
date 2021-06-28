@@ -16,9 +16,9 @@
 #     retraction operators
 #       - E : builds a density matrix Eρ given a density ρ via Eρ(r,r') = δ(r,r')ρ(r),
 #       - R : builds a density ρ given a density matrix O via ρ(r) = O(r,r),
-#     then we have the relation χ02P = -R(Ω4P^-1)E, where χ02P is the two_point
+#     then we have the relation χ0_2P = -R(Ω_4P^-1)E, where χ0_2P is the two_point
 #     independent-particle susceptibility (it returns δρ from a given δV) and
-#     Ω4P is the four-point independent-particle susceptibility.
+#     Ω_4P is the four-point independent-particle susceptibility.
 #
 # For further details :
 # [1] Eric Cancès, Gaspard Kemlin, Antoine Levitt. Convergence analysis of
