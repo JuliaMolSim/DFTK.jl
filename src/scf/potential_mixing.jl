@@ -34,10 +34,6 @@ function Base.push!(anderson::AndersonAcceleration, xₙ, αₙ, Pfxₙ)
     anderson
 end
 
-function popfirst!(anderson::AndersonAcceleration)
-    popfirst!(anderson.iterates), popfirst!(anderson.residuals)
-end
-
 # Gets the current xₙ, Pf(xₙ) and damping αₙ
 function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
     xs   = anderson.iterates
@@ -56,10 +52,9 @@ function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
     # Ensure the condition number of M stays below maxcond, else prune the history
     Mfac = qr(M)
     while size(M, 2) > 1 && cond(Mfac.R) > anderson.maxcond
-        # Drop oldest entry in history
-        M = M[:, 2:end]
-        popfirst!(anderson)
-        @debug "Anderson prune $(size(M, 2)) $(anderson.m)"   # TODO Delete before merge into master
+        M = M[:, 2:end]  # Drop oldest entry in history
+        popfirst!(anderson.iterates)
+        popfirst!(anderson.residuals)
     end
 
     xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
