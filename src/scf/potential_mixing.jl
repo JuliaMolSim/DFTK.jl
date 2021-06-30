@@ -53,6 +53,7 @@ function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
         # Drop oldest entry in history
         M = M[:, 2:end]
         popfirst!(anderson)
+        @debug "Anderson prune $(size(M, 2)) $(anderson.m)"   # TODO Delete before merge into master
     end
 
     βs = -Mfac \ vec(Pfxₙ)
