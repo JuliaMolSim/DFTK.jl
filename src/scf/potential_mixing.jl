@@ -33,16 +33,22 @@ function Base.push!(anderson::AndersonAcceleration, xₙ, αₙ, Pfxₙ)
     @assert length(anderson.iterates) == length(anderson.residuals)
     anderson
 end
+
 function popfirst!(anderson::AndersonAcceleration)
     popfirst!(anderson.iterates), popfirst!(anderson.residuals)
 end
-function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
-    # Gets the current xₙ, Pf(xₙ) and damping αₙ
-    anderson.m == 0 || isempty(anderson.iterates) && return xₙ .+ αₙ .* Pfxₙ
 
-    xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
+# Gets the current xₙ, Pf(xₙ) and damping αₙ
+function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
     xs   = anderson.iterates
     Pfxs = anderson.residuals
+
+    # Special cases with fast exit
+    anderson.m == 0 && return xₙ .+ αₙ .* Pfxₙ
+    if isempty(xs)
+        push!(anderson, xₙ, αₙ, Pfxₙ)
+        return xₙ .+ αₙ .* Pfxₙ
+    end
 
     M = hcat(Pfxs...) .- vec(Pfxₙ)  # Mᵢⱼ = (Pfxⱼ)ᵢ - (Pfxₙ)ᵢ
     # We need to solve 0 = M' Pfxₙ + M'M βs <=> βs = - (M'M)⁻¹ M' Pfxₙ
@@ -56,7 +62,8 @@ function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
         @debug "Anderson prune $(size(M, 2)) $(anderson.m)"   # TODO Delete before merge into master
     end
 
-    βs = -Mfac \ vec(Pfxₙ)
+    xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
+    βs   = -(Mfac \ vec(Pfxₙ))
     for (iβ, β) in enumerate(βs)
         xₙ₊₁ .+= β .* (xs[iβ] .- vec(xₙ) .+ αₙ .* (Pfxs[iβ] .- vec(Pfxₙ)))
     end
