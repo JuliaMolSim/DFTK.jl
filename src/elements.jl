@@ -94,7 +94,7 @@ charge_ionic(el::ElementCohenBergstresser) = 2
 
 """
 Element where the interaction with electrons is modelled
-as in [CohenBergstresser1966] (DOI 10.1103/PhysRev.141.789).
+as in [CohenBergstresser1966](https://doi.org/10.1103/PhysRev.141.789).
 Only the homonuclear lattices of the diamond structure
 are implemented (i.e. Si, Ge, Sn).
 

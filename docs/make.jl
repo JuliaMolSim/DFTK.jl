@@ -10,17 +10,15 @@ import Pkg
 DEBUG = false
 
 # Where to get files from and where to build them
-SRCPATH = joinpath(@__DIR__, "src")
+SRCPATH   = joinpath(@__DIR__, "src")
 BUILDPATH = joinpath(@__DIR__, "build")
-ROOTPATH = joinpath(@__DIR__, "..")
+ROOTPATH  = joinpath(@__DIR__, "..")
 CONTINUOUS_INTEGRATION = get(ENV, "CI", nothing) == "true"
+DFTKREV   = LibGit2.head(ROOTPATH)
+DFTKREPO  = "https://github.com/JuliaMolSim/DFTK.jl.git"
 
 # Python and Julia dependencies needed for running the notebooks
 PYDEPS = ["ase", "pymatgen"]
-JLDEPS = [
-    Pkg.PackageSpec(url="https://github.com/JuliaMolSim/DFTK.jl.git",
-                    rev=LibGit2.head(ROOTPATH)),  # The current DFTK
-]
 
 # Setup julia dependencies for docs generation if not yet done
 Pkg.activate(@__DIR__)
@@ -143,17 +141,14 @@ if CONTINUOUS_INTEGRATION
 
         # Install Julia dependencies into build
         Pkg.activate(".")
-        for dep in JLDEPS
-            Pkg.add(dep)
-        end
+        Pkg.add(Pkg.PackageSpec(url=DFTKREPO, rev=DFTKREV))
+        cp(joinpath(@__DIR__, "Project.toml"), joinpath(BUILDPATH, "Project.toml"), force=true)
     end
     Pkg.activate(@__DIR__)  # Back to Literate / Documenter environment
 end
 
 # Deploy docs to gh-pages branch
-deploydocs(
-    repo = "github.com/JuliaMolSim/DFTK.jl.git",
-)
+deploydocs(; repo=DFTKREPO)
 
 # Remove generated example files
 if !DEBUG

@@ -18,7 +18,7 @@ To cite DFTK as a software please use
   JuliaCon Proceedings, **3**, 69 (2021).
 
 - E. Cancès, G. Kemlin and A. Levitt.
-  [*Convergence analysis of direct minimization and self-consistent iterations*](10.1137/20M1332864)
+  [*Convergence analysis of direct minimization and self-consistent iterations*](https://doi.org/10.1137/20M1332864)
   SIAM Journal on Matrix Analysis and Applications, **42**, 243 (2021).
   [ArXiv:2004.09088](https://arxiv.org/abs/2004.09088).
 

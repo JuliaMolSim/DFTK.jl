@@ -88,7 +88,9 @@ export total_density
 export spin_density
 export ρ_from_total_and_spin
 include("densities.jl")
-include("interpolation.jl")
+include("interpolation_transfer.jl")
+export transfer_blochwave
+export transfer_blochwave_kpt
 
 export PreconditionerTPA
 export PreconditionerNone
@@ -119,6 +121,7 @@ include("scf/scf_solvers.jl")
 include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
 include("scf/scfres.jl")
+include("scf/potential_mixing.jl")
 
 export symmetry_operations
 export standardize_atoms
@@ -129,6 +132,7 @@ include("symmetry.jl")
 include("bzmesh.jl")
 
 export guess_density
+export random_density
 export load_psp
 export list_psp
 include("guess_density.jl")
@@ -175,11 +179,11 @@ function __init__()
     # The global variable GENERIC_FFT_LOADED makes sure that things are only
     # included once.
     @require IntervalArithmetic="d1acc4aa-44c8-5952-acd4-ba5d80a2a253" begin
-        include("intervals_workarounds.jl")
-        !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("fft_generic.jl")
+        include("workarounds/intervals.jl")
+        !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
     end
     @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin
-        !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("fft_generic.jl")
+        !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
     end
     @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("plotting.jl")
     @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"  include("external/jld2io.jl")
