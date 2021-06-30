@@ -169,7 +169,7 @@ include("postprocess/chi0.jl")
 export compute_current
 include("postprocess/current.jl")
 
-include("forwarddiff_rules.jl")
+include("workarounds/forwarddiff_rules.jl")
 
 function __init__()
     # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
