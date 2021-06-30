@@ -131,15 +131,23 @@ end
 
 # Adaptive damping using a quadratic model
 @kwdef struct AdaptiveDamping
-    α_min = 0.01       # Minimal damping
-    α_max = 1.0        # Maximal damping
-    α_trial_min = 0.5  # Minimal trial damping used in a step
+    α_min = 0.01        # Minimal damping
+    α_max = 1.0         # Maximal damping
+    α_trial_init = 0.5  # Initial trial damping used (i.e. in the first SCF step)
+    α_trial_min = 0.2   # Minimal trial damping used in a step
     α_trial_enhancement = 1.1  # Enhancement factor to α_trial in case a step is immediately successful
-    modeltol = 0.1     # Maximum relative error on the predicted energy for model
-    #                    to be considered trustworthy
+    modeltol = 0.1      # Maximum relative error on the predicted energy for model
+    #                     to be considered trustworthy
 end
-function AdaptiveDamping(α; kwargs...)
-    AdaptiveDamping(α_min=α / 50, α_trial_min=α, α_max=max(α, 1.0), kwargs...)
+function AdaptiveDamping(α_trial_min; kwargs...)
+    # Select some reasonable defaults.
+    # The free tweaking parameter here should be increased a bit for cases,
+    # where the Anderson does weird stuff in case of too small damping.
+    AdaptiveDamping(α_min=α_trial_min / 20,
+                    α_max=max(1.25α_trial_min, 1.0),
+                    α_trial_init=max(α_trial_min, 0.8),
+                    α_trial_min=α_trial_min,
+                    kwargs...)
 end
 
 function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
@@ -158,7 +166,7 @@ function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
     return α_sign * α
 end
 
-trial_damping(damping::AdaptiveDamping) = damping.α_trial_min
+trial_damping(damping::AdaptiveDamping) = damping.α_trial_init
 function trial_damping(damping::AdaptiveDamping, info, info_next, step_successful)
     n_backtrack = length(info_next.diagonalization)
 
@@ -338,8 +346,8 @@ end
 
 
 # Wrapper function setting a few good defaults for adaptive damping
-function scf_potential_mixing_adaptive(basis; tol=1e-6, damping=0.6, kwargs...)
-    damping isa Number && (damping = AdaptiveDamping(damping))
+function scf_potential_mixing_adaptive(basis; tol=1e-6, damping=AdaptiveDamping(), kwargs...)
+    @assert damping isa AdaptiveDamping
     scf_potential_mixing(basis; tol=tol, diag_miniter=2,
                          accept_step=ScfAcceptImprovingStep(max_energy_change=tol),
                          determine_diagtol=ScfDiagtol(ratio_ρdiff=0.03, diagtol_max=5e-3),
