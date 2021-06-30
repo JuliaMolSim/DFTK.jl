@@ -122,6 +122,8 @@ function build_fft_plans(T::Type{<:Union{ForwardDiff.Dual,Complex{<:ForwardDiff.
     ipFFT, opFFT, ipBFFT, opBFFT
 end
 
+# PlaneWaveBasis{<:Dual} contains dual-scaled fft, which means that the result f_fourier 
+# must be able to hold complex dual numbers even if f_real is not dual
 function r_to_G(basis::PlaneWaveBasis{T}, f_real::AbstractArray) where {T<:ForwardDiff.Dual}
     f_fourier = similar(f_real, complex(T))
     @assert length(size(f_real)) ∈ (3, 4)
