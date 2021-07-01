@@ -51,12 +51,14 @@ function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
 
     # Ensure the condition number of M stays below maxcond, else prune the history
     Mfac = qr(M)
+    @debug "before size $(size(M))   cond $(cond(Mfac.R))"
     while size(M, 2) > 1 && cond(Mfac.R) > anderson.maxcond
         M = M[:, 2:end]  # Drop oldest entry in history
         popfirst!(anderson.iterates)
         popfirst!(anderson.residuals)
         Mfac = qr(M)
     end
+    @debug "after size $(size(M))    cond $(cond(Mfac.R))"
 
     xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
     βs   = -(Mfac \ vec(Pfxₙ))
@@ -148,7 +150,7 @@ end
 @kwdef struct AdaptiveDamping
     α_min = 0.01        # Minimal damping
     α_max = 1.0         # Maximal damping
-    α_trial_init = 0.5  # Initial trial damping used (i.e. in the first SCF step)
+    α_trial_init = 0.8  # Initial trial damping used (i.e. in the first SCF step)
     α_trial_min = 0.2   # Minimal trial damping used in a step
     α_trial_enhancement = 1.1  # Enhancement factor to α_trial in case a step is immediately successful
     modeltol = 0.1      # Maximum relative error on the predicted energy for model
