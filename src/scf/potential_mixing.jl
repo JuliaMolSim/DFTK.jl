@@ -55,6 +55,7 @@ function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
         M = M[:, 2:end]  # Drop oldest entry in history
         popfirst!(anderson.iterates)
         popfirst!(anderson.residuals)
+        Mfac = qr(M)
     end
 
     xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
