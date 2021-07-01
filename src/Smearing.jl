@@ -26,8 +26,8 @@ occupation_derivative(S::SmearingFunction, x) = ForwardDiff.derivative(x -> occu
 """
 (f(x) - f(y))/(x - y), computed stably in the case where x and y are close
 """
-function occupation_divided_difference(S::SmearingFunction, x, y, εF, temperature)
-    if temperature == 0
+function occupation_divided_difference(S::SmearingFunction, x, y, εF, T)
+    if T == 0
         if x == y
             zero(x)
         else
@@ -36,8 +36,8 @@ function occupation_divided_difference(S::SmearingFunction, x, y, εF, temperatu
             (fx-fy)/(x-y)
         end
     else
-        f(z) = occupation(S, (z-εF) / temperature)
-        fder(z) = occupation_derivative(S, (z-εF)/temperature) / temperature
+        f(z) = occupation(S, (z-εF) / T)
+        fder(z) = occupation_derivative(S, (z-εF)/T) / T
         divided_difference_(f, fder, x, y)
     end
 end
@@ -81,19 +81,19 @@ function entropy(S::FermiDirac, x)
     f = occupation(S, x)
     - (xlogx(f) + xlogx(1 - f))
 end
-function occupation_divided_difference(S::FermiDirac, x, y, εF, temperature)
-    temperature == 0 && return occupation_divided_difference(None(), x, y, εF, temperature)
-    f(z) = occupation(S, (z-εF) / temperature)
-    fder(z) = occupation_derivative(S, (z-εF)/temperature) / temperature
+function occupation_divided_difference(S::FermiDirac, x, y, εF, T)
+    T == 0 && return occupation_divided_difference(None(), x, y, εF, T)
+    f(z) = occupation(S, (z-εF) / T)
+    fder(z) = occupation_derivative(S, (z-εF)/T) / T
     # For a stable computation we use
     # (fx - fy) = fx fy (exp(y) - exp(x)) = fx fy exp(x) expm1(y-x)
     # which we symmetrize. This can overflow, in which case we fall back to the standard method
-    will_exp_overflow(z1, z2) = abs((z1-z2)/temperature) > log(floatmax(typeof(x))) / 4 # conservative
+    will_exp_overflow(z1, z2) = abs((z1-z2)/T) > log(floatmax(typeof(x))) / 4 # conservative
     if will_exp_overflow(x, y) || will_exp_overflow(x, εF) || will_exp_overflow(y, εF)
         divided_difference_(f, fder, x, y)
     else
-        Δfxy = f(x) * f(y) * exp((x-εF)/temperature) * expm1((y-x)/temperature)
-        Δfyx = f(x) * f(y) * exp((y-εF)/temperature) * expm1((x-y)/temperature)
+        Δfxy = f(x) * f(y) * exp((x-εF)/T) * expm1((y-x)/T)
+        Δfyx = f(x) * f(y) * exp((y-εF)/T) * expm1((x-y)/T)
         (Δfxy-Δfyx) / 2 / (x-y)
     end
 end
