@@ -51,14 +51,12 @@ function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
 
     # Ensure the condition number of M stays below maxcond, else prune the history
     Mfac = qr(M)
-    @debug "before size $(size(M))   cond $(cond(Mfac.R))"
     while size(M, 2) > 1 && cond(Mfac.R) > anderson.maxcond
         M = M[:, 2:end]  # Drop oldest entry in history
         popfirst!(anderson.iterates)
         popfirst!(anderson.residuals)
         Mfac = qr(M)
     end
-    @debug "after size $(size(M))    cond $(cond(Mfac.R))"
 
     xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
     βs   = -(Mfac \ vec(Pfxₙ))
