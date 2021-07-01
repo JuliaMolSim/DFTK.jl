@@ -20,7 +20,7 @@ struct AndersonAcceleration
     residuals::Vector{Any}  # Pf(xₙ)
     maxcond::Real           # Maximal condition number for Anderson matrix
 end
-AndersonAcceleration(;m=10, maxcond=1e10) = AndersonAcceleration(m, [], [], maxcond)
+AndersonAcceleration(;m=10, maxcond=1e6) = AndersonAcceleration(m, [], [], maxcond)
 
 function Base.push!(anderson::AndersonAcceleration, xₙ, αₙ, Pfxₙ)
     push!(anderson.iterates,  vec(xₙ))
@@ -366,6 +366,7 @@ function scf_potential_mixing_adaptive(basis; tol=1e-6, damping=AdaptiveDamping(
     scf_potential_mixing(basis; tol=tol, diag_miniter=2,
                          accept_step=ScfAcceptImprovingStep(max_energy_change=tol),
                          determine_diagtol=ScfDiagtol(ratio_ρdiff=0.03, diagtol_max=5e-3),
-                         ratio_failure_accel_off=0.01,
+                         # ratio_failure_accel_off=0.01,
+                         ratio_failure_accel_off=Inf,
                          damping=damping, kwargs...)
 end
