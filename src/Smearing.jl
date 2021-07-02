@@ -91,7 +91,7 @@ function occupation_divided_difference(S::FermiDirac, x, y, εF, temp)
     # we fall back to the standard method
     large_float = floatmax(typeof(x)) / 1e4 # conservative
     will_exp_overflow(z1, z2) = abs((z1-z2)/temp) > log(large_float)
-    if will_exp_overflow(x, y) || will_exp_overflow(x, εF) || will_exp_overflow(y, εF)
+    if x == y || will_exp_overflow(x, y) || will_exp_overflow(x, εF) || will_exp_overflow(y, εF)
         divided_difference_(f, fder, x, y)
     else
         Δfxy = f(x) * f(y) * exp((x-εF)/temp) * expm1((y-x)/temp)
