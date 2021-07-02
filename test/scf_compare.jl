@@ -1,6 +1,6 @@
 using Test
 using DFTK
-import DFTK: Applyχ0Model, filled_occupation
+import DFTK: Applyχ0Model, filled_occupation, select_occupied_orbitals
 
 include("testcases.jl")
 
@@ -31,9 +31,7 @@ include("testcases.jl")
         @testset "Newton" begin
             scfres_start = self_consistent_field(basis, maxiter=1)
             # remove virtual orbitals
-            n_spin = basis.model.n_spin_components
-            n_bands = div(div(model.n_electrons, filled_occupation(model)), n_spin)
-            ψ0 = [ψk[:,1:n_bands] for ψk in scfres_start.ψ]
+            ψ0 = select_occupied_orbitals(basis, scfres_start.ψ)
             ρ_newton = newton(basis, ψ0; tol=tol).ρ
             @test maximum(abs.(ρ_newton - ρ_nl)) < sqrt(tol) / 10
         end
@@ -76,7 +74,6 @@ end
     model = model_DFT(silicon.lattice, [Si => silicon.positions], [:lda_xc_teter93];
                       magnetic_moments=magnetic_moments)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-
     ρ_nl = self_consistent_field(basis; tol=tol).ρ
 
     # Run DM
@@ -92,9 +89,7 @@ end
         @testset "Newton" begin
             scfres_start = self_consistent_field(basis, maxiter=1)
             # remove virtual orbitals
-            n_spin = basis.model.n_spin_components
-            n_bands = div(div(model.n_electrons, filled_occupation(model)), n_spin)
-            ψ0 = [ψk[:,1:n_bands] for ψk in scfres_start.ψ]
+            ψ0 = select_occupied_orbitals(basis, scfres_start.ψ)
             ρ_newton = newton(basis, ψ0; tol=tol).ρ
             @test maximum(abs.(ρ_newton - ρ_nl)) < sqrt(tol) / 10
         end

@@ -14,14 +14,15 @@ function ScfPlotTrace end  # implementation in src/plotting.jl
 
 
 """
-Default callback function for `self_consistent_field`, which prints a convergence table
+Default callback function for `self_consistent_field` and `newton`, which prints a convergence table.
+If used for newton algorithm, set algo_newton to true.
 """
-function ScfDefaultCallback()
+function ScfDefaultCallback(; algo_newton=false)
     prev_energies = nothing
     function callback(info)
         !mpi_master() && return info  # Printing only on master
         if info.stage == :finalize
-            info.converged || @warn "SCF not converged."
+            info.converged || @warn algo_newton ? "Newton not converged." : "SCF not converged."
             return info
         end
         collinear = info.basis.model.spin_polarization == :collinear
@@ -29,8 +30,9 @@ function ScfDefaultCallback()
         if info.n_iter == 1
             E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
             magn    = collinear ? ("   Magnet", "   ------") : ("", "")
-            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin%s   Diag\n" E_label magn[1]
-            @printf "---   ---------------   ---------   --------%s   ----\n" magn[2]
+            diag    = !algo_newton ? ("Diag", "----") : ("", "")
+            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin%s   %s\n" E_label magn[1] diag[1]
+            @printf "---   ---------------   ---------   --------%s   %s\n" magn[2] diag[2]
         end
         E    = isnothing(info.energies) ? Inf : info.energies.total
         Δρ   = norm(info.ρout - info.ρin) * sqrt(info.basis.dvol)
@@ -44,8 +46,12 @@ function ScfDefaultCallback()
         prev_E = prev_energies === nothing ? Inf : prev_energies.total
         ΔE     = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_E
         Mstr = collinear ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
-        diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
-        @printf "% 3d   %s   %s   %2.2e%s   % 3.1f \n" info.n_iter Estr ΔE Δρ Mstr diagiter
+        if algo_newton
+            @printf "% 3d   %s   %s   %2.2e%s \n" info.n_iter Estr ΔE Δρ Mstr
+        else
+            diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
+            @printf "% 3d   %s   %s   %2.2e%s   % 3.1f \n" info.n_iter Estr ΔE Δρ Mstr diagiter
+        end
         prev_energies = info.energies
 
         flush(stdout)

@@ -77,8 +77,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     @assert model.spin_polarization in (:none, :spinless, :collinear)
     @assert model.temperature == 0 # temperature is not yet supported
     filled_occ = filled_occupation(model)
-    n_spin = basis.model.n_spin_components
-    n_bands = div(div(model.n_electrons, filled_occ), n_spin)
+    n_spin = model.n_spin_components
+    n_bands = div(model.n_electrons, n_spin * filled_occ)
     Nk = length(basis.kpoints)
 
     if ψ0 === nothing
@@ -88,8 +88,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
 
     # pack and unpack
-    pack(ψ) = pack_ψ(basis, ψ)
-    unpack(x) = unpack_ψ(basis, x)
+    pack(ψ) = pack_ψ(basis, reinterpret_real(ψ))
+    unpack(x) = unpack_ψ(basis, reinterpret_complex(x))
 
     # this will get updated along the iterations
     H = nothing
