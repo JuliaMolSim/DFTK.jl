@@ -87,7 +87,8 @@ function occupation_divided_difference(S::FermiDirac, x, y, εF, temp)
     fder(z) = occupation_derivative(S, (z-εF)/temp) / temp
     # For a stable computation we use
     # (fx - fy) = fx fy (exp(y) - exp(x)) = fx fy exp(x) expm1(y-x)
-    # which we symmetrize. temphis can overflow, in which case we fall back to the standard method
+    # which we symmetrize. This can overflow, in which case
+    # we fall back to the standard method
     large_float = floatmax(typeof(x)) / 1e4 # conservative
     will_exp_overflow(z1, z2) = abs((z1-z2)/temp) > log(large_float)
     if will_exp_overflow(x, y) || will_exp_overflow(x, εF) || will_exp_overflow(y, εF)
