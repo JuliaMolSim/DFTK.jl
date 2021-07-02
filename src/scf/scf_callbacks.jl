@@ -51,7 +51,7 @@ function ScfDefaultCallback(; algo_newton=false)
         end
 
         Estr   = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
-        ΔE     = isnan(prev_energy) ? "      NaN" : @sprintf "% 3.2e" E - prev_energy
+        ΔE     = isnan(prev_energies) ? "      NaN" : @sprintf "% 3.2e" E - prev_energies
         αstr   = isnan(info.α) ? "  NaN" : @sprintf "% 4.2f" info.α
         Mstr = collinear ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
         if algo_newton
