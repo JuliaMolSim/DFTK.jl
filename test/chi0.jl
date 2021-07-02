@@ -35,18 +35,18 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
         res = DFTK.next_density(ham0, tol=tol, eigensolver=diag_full, n_bands=n_bands)
         ρ1  = res.ρout
 
-        # Now we make the same model, but add an artificial external potential ε * dV
+        # Now we make the same model, but add an artificial external potential ε * δV
         n_spin = model.n_spin_components
-        dV = randn(eltype(basis), basis.fft_size..., n_spin)
-        dV_sym = DFTK.symmetrize(basis, dV)
+        δV = randn(eltype(basis), basis.fft_size..., n_spin)
+        δV_sym = DFTK.symmetrize(basis, δV)
         if symmetry
-            dV = dV_sym
+            δV = δV_sym
         else
-            @test dV_sym ≈ dV
+            @test δV_sym ≈ δV
         end
 
-        εdV = ε * dV
-        term_builder = basis -> DFTK.TermExternal(basis, εdV)
+        εδV = ε * δV
+        term_builder = basis -> DFTK.TermExternal(basis, εδV)
         model = model_LDA(testcase.lattice, [spec => testcase.positions];
                           model_kwargs..., extra_terms=[term_builder])
         basis = PlaneWaveBasis(model, Ecut; basis_kwargs...)
@@ -74,7 +74,7 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
         if !symmetry
             # Test compute_χ0 against finite differences
             χ0 = compute_χ0(ham0)
-            diff_computed_χ0 = reshape(χ0 * vec(dV), basis.fft_size..., n_spin)
+            diff_computed_χ0 = reshape(χ0 * vec(δV), basis.fft_size..., n_spin)
             @test norm(diff_findiff - diff_computed_χ0) < testtol
 
             # Test that apply_χ0 is self-adjoint
