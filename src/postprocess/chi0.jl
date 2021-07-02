@@ -132,30 +132,137 @@ LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(simila
     δψnk
 end
 
-"""
-Returns the change in density `δρ` for a given `δV`.
+# Returns δψ, δocc, δεF corresponding to a change in *total* Hamiltonian dH
+# P = f_fd(H-εF), tr(P) = N
+# δεn = <ψn|δV|ψn>
+# 0 = ∑_n f'n (δεn - δεF) determines δεF
 
-Note: This function assumes that all bands contained in `ψ` and `eigenvalues` are
-sufficiently converged. By default the `self_consistent_field` routine of `DFTK`
-returns `3` extra bands, which are not converged by the eigensolver
-(see `n_ep_extra` parameter). These should be discarded before using this function.
-"""
-@views @timing function apply_χ0(ham, ψ, εF, eigenvalues, δV;
-                          temperature=ham.basis.model.temperature,
-                          kwargs_sternheimer=(cgtol=1e-6, verbose=false))
+# Then <ψm|δP|ψn> = (fm-fn)/(εm-εn) <ψm|δH|ψn>
+# Except for the diagonal which is
+# <ψn|δP|ψn> = (fn'-δεF) <ψn|δH|ψn>
+
+# We want to represent this with a δψ, δf, we do *not* impose that
+# δψ is orthogonal at finite temp.
+# We get
+# δP = ∑_k fk |δψk><ψk| + |ψk><δψk| + δ fk |ψk><ψk|
+# Identifying with <ψm|δP|ψn> we get for the diagonal terms
+# δfn = fn'<ψn|δH-δεF|ψn>
+# and for the off-diagonal
+# (fm-fn)/(εm-εn) <ψm|δH|ψn> = fm <δψm|ψn> + fn <ψm|δψn>
+# We split the computation of δψn in two contributions:
+# for the already-computed states, we add an explicit contribution
+# for the empty states, we solve a Sternheimer equation
+# (H-εn) δψn = - P_{ψ^⟂} δH ψn
+
+# The explicit term needs a careful consideration of stability.
+# Let <ψm|δψn> = αmn <δψm|δH|ψn>. αmn has to satisfy
+# fn αmn + fm αnm = ratio = (fn-fm)/(εn-εm)
+# The usual way is to impose orthogonality (=> αmn=-αnm),
+# but this means that αmn = 1/(εm-εn), which is unstable
+# Instead, we minimize αmn^2 + αnm^2 under the linear constraint above, which leads to
+# fn αmn = ratio * fn^2 / (fn^2 + fm^2)
+
+# This formula is very nice
+# - It gives a vanishing contribution fn αmn for empty states (note that α itself blows up, but it's compensated by fn)
+# - In the case where fn=1/0 or fm=0 we recover the same formulas as the ones with orthogonality
+# - It does not blow up for degenerate states
+function get_αmn(fm, fn, ratio)
+    ratio == 0 && return ratio
+    ratio * fn / (fn^2 + fm^2)
+end
+
+@views function solve_Ω(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer=(cgtol=1e-6, verbose=false))
     basis  = ham.basis
+    model = basis.model
+    temperature = model.temperature
+    filled_occ = filled_occupation(model)
     T      = eltype(basis)
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
+    Nk = length(basis.kpoints)
 
-    n_spin = basis.model.n_spin_components
-    @assert 1 ≤ n_spin ≤ 2
+    # First compute δocc, δεF
+    δεF = zero(T)
+    δocc = [zero(occ[ik]) for ik = 1:Nk]
+    if temperature > 0
+        # First compute change in occupation without self-consistent Fermi δεF
+        D = zero(T)
+        for ik = 1:Nk
+            for (n, εnk) in enumerate(eigenvalues[ik])
+                enred = (εnk - εF) / temperature
+                δεnk = real(dot(ψ[ik][:, n], δHψ[ik][:, n]))
+                fpnk = (filled_occ 
+                        * Smearing.occupation_derivative(model.smearing, enred)
+                        / temperature)
+                δocc[ik][n] = δεnk * fpnk
+                D += fpnk * basis.kweights[ik]
+            end
+        end
+        D = mpi_sum(D, basis.comm_kpts) # equal to minus the total DOS
+        dos = sum(compute_dos(εF, basis, eigenvalues))
+        δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
+        δεF = δocc_tot / D
 
+        # Now add δεF contribution
+        for ik = 1:Nk
+            for (n, εnk) in enumerate(eigenvalues[ik])
+                enred = (εnk - εF) / temperature
+                δεnk = real(dot(ψ[ik][:, n], δHψ[ik][:, n]))
+                fpnk = (filled_occ 
+                        * Smearing.occupation_derivative(model.smearing, enred)
+                        / temperature)
+                δocc[ik][n] = (δεnk-δεF) * fpnk
+            end
+        end
+    end
+    # δεF ensures charge neutrality
+    @assert abs(mpi_sum(sum(sum, δocc), basis.comm_kpts)) < sqrt(eps(T))
+
+    # compute δψnk band per band
+    δψ = zero.(ψ)
+    for ik = 1:Nk
+        ψk = ψ[ik]
+        δψk = δψ[ik]
+
+        εk = eigenvalues[ik]
+        for n = 1:length(eigenvalues[ik])
+            fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n]-εF) / temperature)
+
+            # explicit contributions
+            for m = 1:size(ψk, 2)
+                n == m && continue # contribution already taken care of by δocc
+                fmk = filled_occ * Smearing.occupation(model.smearing, (εk[m]-εF) / temperature)
+                ddiff = Smearing.occupation_divided_difference
+                ratio = filled_occ * ddiff(model.smearing, εk[m], εk[n], εF, temperature)
+                αmn = get_αmn(fmk, fnk, ratio)
+                # αnm = get_αmn(fnk, fmk, ratio)
+                # @assert fnk * αmn + fmk * αnm ≈ ratio
+                δψk[:, n] .+= ψk[:, m] .* αmn .* dot(ψk[:, m], δHψ[ik][:, n])
+            end
+
+            # Sternheimer contribution
+            # TODO unoccupied orbitals may have a very bad sternheimer solve, be careful about this
+            δψk[:, n] .-= sternheimer_solver(ham.blocks[ik], ψk, ψk[:, n], εk[n], δHψ[ik][:, n];
+                                                 kwargs_sternheimer...)
+        end
+    end
+    δψ, δocc, δεF
+end
+
+"""
+Get the density variation δρ corresponding to a total potential variation δV.
+"""
+@timing function apply_χ0(ham, ψ, εF, eigenvalues, δV;
+                          kwargs_sternheimer=(cgtol=1e-6, verbose=false))
+    basis = ham.basis
+    model = basis.model
+    occ = [filled_occupation(model) *
+           Smearing.occupation.(model.smearing, (eigenvalues[ik] .- εF) ./ model.temperature)
+           for ik = 1:length(basis.kpoints)]
     # Normalize δV to avoid numerical trouble; theoretically should
     # not be necessary, but it simplifies the interaction with the
     # Sternheimer linear solver (it makes the rhs be order 1 even if
     # δV is small)
     normδV = norm(δV)
-    normδV < eps(T) && return zero(δV)
+    normδV < eps(typeof(εF)) && return zero(δV)
 
     # Make δV respect the full model symmetry group, since it's
     # invalid to consider perturbations that don't (technically it
@@ -164,78 +271,9 @@ returns `3` extra bands, which are not converged by the eigensolver
     # use_symmetry kwarg of basis, which is nice)
     δV = symmetrize(basis, δV) / normδV
 
-    # Accumulate spin component by spin component:
-    # δρ = ∑_nk (f'n δεn |ψn|^2 + 2Re fn ψn* δψn - f'n δεF |ψn|^2
-    δρ_fourier = zeros(complex(eltype(δV)), size(δV)...)
-    for (ik, kpt) in enumerate(basis.kpoints)
-        δρk = zeros(eltype(δV), basis.fft_size)
-        for n = 1:size(ψ[ik], 2)
-            add_response_from_band!(δρk, n, ham.blocks[ik], eigenvalues[ik], ψ[ik],
-                                    εF, δV[:, :, :, kpt.spin], temperature, kwargs_sternheimer)
-        end
-        δρk_fourier = r_to_G(basis, complex(δρk))
-        lowpass_for_symmetry!(δρk_fourier, basis)
-        accumulate_over_symmetries!(δρ_fourier[:, :, :, kpt.spin], δρk_fourier,
-                                    basis, basis.ksymops[ik])
-    end
-    mpi_sum!(δρ_fourier, basis.comm_kpts)
-    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
-    count = mpi_sum(count, basis.comm_kpts)
-    δρ = G_to_r(basis, δρ_fourier) ./ count
-
-    # Add variation wrt εF
-    if temperature > 0
-        dos  = compute_dos(εF, basis, eigenvalues, temperature=temperature)
-        ldos = compute_ldos(εF, basis, eigenvalues, ψ, temperature=temperature)
-        δρ .+= ldos .* dot(ldos, δV) .* basis.dvol ./ sum(dos)
-    end
-    δρ .* normδV
-end
-
-
-"""
-Adds the term `(f'ₙ δεₙ |ψₙ|² + 2Re fₙ ψₙ * δψₙ` to `δρ_{k}`
-where `δψₙ` is computed from `δV` partly using the known, computed states
-and partly by solving the Sternheimer equation.
-"""
-function add_response_from_band!(δρk, n, hamk, εk, ψk, εF, δV,
-                                 temperature, kwargs_sternheimer)
-    basis = hamk.basis
-    T = eltype(basis)
-    model = basis.model
-    filled_occ = filled_occupation(model)
-
-    ψnk = @view ψk[:, n]
-    ψnk_real = G_to_r(basis, hamk.kpoint, ψnk)
-
-    # 2Re fn ψn* δψn
-    # we split δψn into its component on the computed and uncomputed states:
-    # δψn = P ψn + Q ψn
-    # we compute Pψn explicitly by sum over states, and
-    # Q δψn by solving the Sternheimer equation
-    # (H-εn) Q δψn = -Q δV ψn
-    # where Q = sum_n |ψn><ψn|
-
-    # explicit contributions, we use symmetry in the index permutation m <-> n
-    # and therefore the loop starts at n
-    for m = n:size(ψk, 2)
-        ddiff = Smearing.occupation_divided_difference
-        ratio = filled_occ * ddiff(model.smearing, εk[m], εk[n], εF, temperature)
-        abs(ratio) < eps(T) && continue
-        ψmk_real = G_to_r(basis, hamk.kpoint, @view ψk[:, m])
-        # ∑_{n,m != n} (fn-fm)/(εn-εm) ρnm <ρmn|δV>
-        ρnm = conj(ψnk_real) .* ψmk_real
-        weight = basis.dvol * dot(ρnm, δV)
-        δρk .+= (n == m ? 1 : 2) * real(ratio .* weight .* ρnm)
-    end
-
-    # Sternheimer contributions from uncalculated bands
-    fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n]-εF) / temperature)
-    abs(fnk) < eps(T) && return δρk
-    rhs = r_to_G(basis, hamk.kpoint, .- δV .* ψnk_real)
-    norm(rhs) < 100eps(T) && return δρk
-    δψnk = sternheimer_solver(hamk, ψk, ψnk, εk[n], rhs; kwargs_sternheimer...)
-    δψnk_real = G_to_r(basis, hamk.kpoint, δψnk)
-    δρk .+= 2 .* fnk .* real(conj(ψnk_real) .* δψnk_real)
-    δρk
+    δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
+       for (ik, kpt) in enumerate(basis.kpoints)]
+    δψ, δocc, δεF = solve_Ω(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer)
+    δρ = DFTK.compute_δρ(basis, ψ, δψ, occ, δocc)
+    δρ * normδV
 end
