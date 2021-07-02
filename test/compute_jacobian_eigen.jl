@@ -20,8 +20,7 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
 
         occupation = [filled_occ * ones(T, n_bands) for kpt = basis.kpoints]
 
-        # packing routines
-        pack(ψ) = pack_ψ(basis, reinterpret_real(ψ))
+        pack(ψ) = reinterpret_real(pack_ψ(basis, ψ))
         unpack(x) = unpack_ψ(basis, reinterpret_complex(x))
 
         # compute quantites at the point which define the tangent space

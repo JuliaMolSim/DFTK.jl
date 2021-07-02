@@ -18,15 +18,8 @@ Default callback function for `self_consistent_field` and `newton`, which prints
 If used for newton algorithm, set algo_newton to true.
 """
 function ScfDefaultCallback(; algo_newton=false)
-    prev_energies = nothing
+    prev_energy = NaN
     function callback(info)
-        # Gather MPI-distributed information
-        # Average number of diagonalisations per k-Point needed for this SCF step
-        # Note: If two Hamiltonian diagonalisations have been used (e.g. adaptive damping),
-        # the per k-Point values are summed.
-        diagiter = mpi_mean(sum(mean(diag.iterations) for diag in info.diagonalization),
-                            info.basis.comm_kpts)
-
         # Rest is printing => only do on master
         !mpi_master() && return info
         if info.stage == :finalize
@@ -39,8 +32,9 @@ function ScfDefaultCallback(; algo_newton=false)
             E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
             magn    = collinear ? ("   Magnet", "   ------") : ("", "")
             diag    = !algo_newton ? ("Diag", "----") : ("", "")
-            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin%s   %s\n" E_label magn[1] diag[1]
-            @printf "---   ---------------   ---------   --------%s   %s\n" magn[2] diag[2]
+            αstr    = !algo_newton ? ("α   ", "----") : ("", "")
+            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin%s   %s   %s\n" E_label magn[1] αstr[1] diag[1]
+            @printf "---   ---------------   ---------   --------%s   %s   %s\n" magn[2] αstr[2] diag[2]
         end
         E    = isnothing(info.energies) ? Inf : info.energies.total
         Δρ   = norm(info.ρout - info.ρin) * sqrt(info.basis.dvol)
@@ -51,16 +45,22 @@ function ScfDefaultCallback(; algo_newton=false)
         end
 
         Estr   = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
-        ΔE     = isnan(prev_energies) ? "      NaN" : @sprintf "% 3.2e" E - prev_energies
-        αstr   = isnan(info.α) ? "  NaN" : @sprintf "% 4.2f" info.α
+        ΔE     = isnan(prev_energy) ? "      NaN" : @sprintf "% 3.2e" E - prev_energy
         Mstr = collinear ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
         if algo_newton
             @printf "% 3d   %s   %s   %2.2e%s \n" info.n_iter Estr ΔE Δρ Mstr
         else
-            diagiter = sum(info.diagonalization.iterations) / length(info.diagonalization.iterations)
-            @printf "% 3d   %s   %s   %2.2e%s   % 3.1f \n" info.n_iter Estr ΔE Δρ Mstr diagiter
+            # Gather MPI-distributed information
+            # Average number of diagonalisations per k-Point needed for this SCF step
+            # Note: If two Hamiltonian diagonalisations have been used (e.g. adaptive damping),
+            # the per k-Point values are summed.
+            diagiter = mpi_mean(sum(mean(diag.iterations) for diag in info.diagonalization),
+                                info.basis.comm_kpts)
+            αstr   = isnan(info.α) ? "  NaN" : @sprintf "% 4.2f" info.α
+
+            @printf "% 3d   %s   %s   %2.2e%s  %s %5.1f \n" info.n_iter Estr ΔE Δρ Mstr αstr diagiter
         end
-        prev_energies = info.energies
+        prev_energy = info.energies.total
 
         flush(stdout)
         info

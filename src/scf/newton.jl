@@ -1,9 +1,9 @@
 # Newton's algorithm to solve SCF equations
 #
-# Newton algorithm consist of iterating over density matrices like
-#       P <- P - δP, with additional renormalization
+# Newton algorithm consists of iterating over density matrices like
+#       P <- P + δP, with additional renormalization
 # where δP solves ([1])
-#       (Ω+K)δP = [P, [P, H(P)]]
+#       (Ω+K)δP = -[P, [P, H(P)]]
 # where (Ω+K) is the constrained Hessian of the energy. It is
 # defined as a super operator on the space tangent to the constraints
 # manifold at point P_∞, the solution of our problem.
@@ -11,7 +11,7 @@
 #   - Ω represents the influence of the curvature of the manifold :
 #         ΩδP = -[P_∞, [H(P_∞), δP]].
 #     In practice, we dont have access to P_∞ so we just use the current P.
-#     Another way to see Ω is as the four-point independent-particle
+#     Another way to see Ω is to link it to the four-point independent-particle
 #     susceptibility. Indeed, if we define the following extension and
 #     retraction operators
 #       - E : builds a density matrix Eρ given a density ρ via Eρ(r,r') = δ(r,r')ρ(r),
@@ -61,7 +61,7 @@ function proj_tangent_kpt!(δψk, ψk)
     # δψk = δψk - ψk * (ψk'δψk)
     mul!(δψk, ψk, ψk'δψk, -1, 1)
 end
-proj_tangent_kpt(δψk, ψk) = proj_tangent_kpt!(copy(δψk), ψk)
+proj_tangent_kpt(δψk, ψk) = proj_tangent_kpt!(deepcopy(δψk), ψk)
 
 function proj_tangent(δψ, ψ)
     [proj_tangent_kpt(δψ[ik], ψk) for (ik, ψk) in enumerate(ψ)]
@@ -78,13 +78,7 @@ from ψ and Λ is the set of Rayleigh coefficients ψk' * Hk * ψk at each k-poi
 """
 function apply_Ω(δψ, ψ, H::Hamiltonian, Λ)
     δψ = proj_tangent(δψ, ψ)
-    Ωδψ = map(enumerate(δψ)) do (ik, δψk)
-        Hk = H.blocks[ik]
-        Λk = Λ[ik]
-
-        Ωδψk = Hk * δψk - δψk * Λk
-    end
-
+    Ωδψ = [H.blocks[ik] * δψk - δψk * Λ[ik] for (ik, δψk) in enumerate(δψ)]
     proj_tangent!(Ωδψ, ψ)
 end
 
@@ -128,8 +122,7 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
     ρ = compute_density(basis, ψ, occupation)
     _, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
 
-    # pack and unpack
-    pack(ψ) = pack_ψ(basis, reinterpret_real(ψ))
+    pack(ψ) = reinterpret_real(pack_ψ(basis, ψ))
     unpack(x) = unpack_ψ(basis, reinterpret_complex(x))
 
     # project rhs on the tangent space before starting
@@ -213,7 +206,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
         # compute Newton step and next iteration
         res = compute_projected_gradient(basis, ψ, occupation)
-        # solve (Ω+K) δψ = -res so that the Newton step is ψ <- ψ+δψ
+        # solve (Ω+K) δψ = -res so that the Newton step is ψ <- ψ + δψ
         δψ = solve_ΩplusK(basis, ψ, -res, occupation; tol_cg=tol_cg,
                           verbose=verbose)
         ψ = [ortho_qr(ψ[ik] + δψ[ik]) for ik in 1:Nk]

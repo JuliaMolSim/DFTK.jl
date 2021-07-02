@@ -97,9 +97,9 @@ is not collinear the spin density is `nothing`.
     G_to_r(basis, ρ)
 end
 
-# The variation in density corresponds to a variation in the orbitals.
+# Variation in density corresponding to a variation in the orbitals and occupations.
 @views function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ,
-                           occupation, δoccupation=zero(T) .* occupation) where T
+                           occupation, δoccupation=zero.(occupation)) where T
     n_spin = basis.model.n_spin_components
 
     δρ_fourier = zeros(complex(T), basis.fft_size..., n_spin)
@@ -108,9 +108,9 @@ end
         for n = 1:size(ψ[ik], 2)
             ψnk_real = G_to_r(basis, kpt, ψ[ik][:, n])
             δψnk_real = G_to_r(basis, kpt, δψ[ik][:, n])
-            δρk .+= occupation[ik][n] .* (conj.(ψnk_real) .* δψnk_real +
-                                          conj.(δψnk_real) .* ψnk_real)
-            δρk .+= δoccupation[ik][n] .* abs2.(ψnk_real)
+            δρk .+= (occupation[ik][n] .* (conj.(ψnk_real) .* δψnk_real .+
+                                           conj.(δψnk_real) .* ψnk_real) .+
+                     δoccupation[ik][n] .* abs2.(ψnk_real))
         end
         δρk_fourier = r_to_G(basis, complex(δρk))
         lowpass_for_symmetry!(δρk_fourier, basis)
@@ -123,7 +123,7 @@ end
     δρ = G_to_r(basis, δρ_fourier) ./ count
     # Check sanity in the density, we should have ∫δρ = 0
     if abs(sum(δρ)) > sqrt(eps(T))
-        @warn("Mismatch in δρ", sum_δρ=sum(δρ))
+        @warn("Non-neutral δρ", sum_δρ=sum(δρ))
     end
     δρ
 end

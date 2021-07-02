@@ -87,8 +87,9 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     end
     occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
 
-    # pack and unpack
-    pack(ψ) = pack_ψ(basis, reinterpret_real(ψ))
+    # we need to copy the reinterpret array here to not raise errors in Optim.jl
+    # TODO raise this issue in Optim.jl
+    pack(ψ) = copy(reinterpret_real(pack_ψ(basis, ψ)))
     unpack(x) = unpack_ψ(basis, reinterpret_complex(x))
 
     # this will get updated along the iterations
@@ -128,7 +129,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                                       linesearch=LineSearches.BackTracking()),
                          optim_options)
     # return copy to ensure we have a plain array
-    ψ = copy(unpack(res.minimizer))
+    ψ = deepcopy(unpack(res.minimizer))
 
     # Final Rayleigh-Ritz (not strictly necessary, but sometimes useful)
     eigenvalues = []

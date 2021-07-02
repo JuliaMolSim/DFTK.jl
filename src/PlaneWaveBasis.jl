@@ -588,7 +588,7 @@ end
 # reinterpret function from julia.
 # /!\ pack_ψ does not share memory while unpack_ψ does
 
-reinterpret_real(ψ) = [reinterpret(eltype(real.(ψk)), ψk) for ψk in ψ]
+reinterpret_real(x) = reinterpret(real(eltype(x)), x)
 reinterpret_complex(x) = reinterpret(Complex{eltype(x)}, x)
 
 function pack_ψ(basis::PlaneWaveBasis, ψ)
