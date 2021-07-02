@@ -20,7 +20,15 @@ If used for newton algorithm, set algo_newton to true.
 function ScfDefaultCallback(; algo_newton=false)
     prev_energies = nothing
     function callback(info)
-        !mpi_master() && return info  # Printing only on master
+        # Gather MPI-distributed information
+        # Average number of diagonalisations per k-Point needed for this SCF step
+        # Note: If two Hamiltonian diagonalisations have been used (e.g. adaptive damping),
+        # the per k-Point values are summed.
+        diagiter = mpi_mean(sum(mean(diag.iterations) for diag in info.diagonalization),
+                            info.basis.comm_kpts)
+
+        # Rest is printing => only do on master
+        !mpi_master() && return info
         if info.stage == :finalize
             info.converged || @warn algo_newton ? "Newton not converged." : "SCF not converged."
             return info
@@ -43,8 +51,8 @@ function ScfDefaultCallback(; algo_newton=false)
         end
 
         Estr   = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
-        prev_E = prev_energies === nothing ? Inf : prev_energies.total
-        ΔE     = prev_E == Inf ? "      NaN" : @sprintf "% 3.2e" E - prev_E
+        ΔE     = isnan(prev_energy) ? "      NaN" : @sprintf "% 3.2e" E - prev_energy
+        αstr   = isnan(info.α) ? "  NaN" : @sprintf "% 4.2f" info.α
         Mstr = collinear ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
         if algo_newton
             @printf "% 3d   %s   %s   %2.2e%s \n" info.n_iter Estr ΔE Δρ Mstr
@@ -100,9 +108,11 @@ function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.03)
         info.n_iter ≤ 1 && return diagtol_max
         info.n_iter == 2 && (diagtol_max /= 5)  # Enforce more accurate Bloch wave
 
-        diagtol = (norm(info.ρnext - info.ρin)
+        ρnext = hasproperty(info, :ρnext) ? info.ρnext : info.ρout
+        diagtol = (norm(ρnext - info.ρin)
                    * sqrt(info.basis.dvol)
                    * ratio_ρdiff)
+
         # TODO Quantum espresso divides diagtol by the number of electrons
         diagtol = clamp(diagtol, diagtol_min, diagtol_max)
         @assert isfinite(diagtol)

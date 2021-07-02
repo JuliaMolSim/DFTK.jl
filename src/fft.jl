@@ -135,7 +135,7 @@ function validate_or_compute_fft_size(model::Model{T}, fft_size, Ecut, supersamp
     end
 
     # TODO generic FFT is kind of broken for some fft sizes
-    #      ... temporary workaround, see more details in fft_generic.jl
+    #      ... temporary workaround, see more details in workarounds/fft_generic.jl
     fft_size = next_working_fft_size.(T, fft_size)
     fft_size = Tuple{Int, Int, Int}(fft_size)
     fft_size
@@ -161,7 +161,7 @@ end
 
 
 # TODO Some grid sizes are broken in the generic FFT implementation
-# in FourierTransforms, for more details see fft_generic.jl
+# in FourierTransforms, for more details see workarounds/fft_generic.jl
 # This function is needed to provide a noop fallback for grid adjustment for
 # for floating-point types natively supported by FFTW
 next_working_fft_size(::Type{Float32}, size) = size

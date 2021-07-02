@@ -163,24 +163,31 @@ end
 Array(block::HamiltonianBlock) = Matrix(block)
 
 """
-Get the total local potential of the given Hamiltonian, in real space.
+Get the total local potential of the given Hamiltonian, in real space
+in the spin components.
 """
 function total_local_potential(ham::Hamiltonian)
-    @assert ham.basis.model.spin_polarization in (:none, :spinless)
-    block = ham.blocks[1]  # all local potentials are the same
-    rs = [o for o in block.optimized_operators if o isa RealSpaceMultiplication]
-    only(rs).potential
+    n_spin = ham.basis.model.n_spin_components
+    pots = map(1:n_spin) do σ
+        # Get the first Hamiltonian block of this spin component
+        # (works since all local potentials are the same)
+        block = ham.blocks[first(krange_spin(ham.basis, σ))]
+        rs = [o for o in block.optimized_operators if o isa RealSpaceMultiplication]
+        only(rs).potential
+    end
+    cat(pots..., dims=4)
 end
 
 """
 Returns a new Hamiltonian with local potential replaced by the given one
 """
 function hamiltonian_with_total_potential(ham::Hamiltonian, V)
-    @assert ham.basis.model.spin_polarization in (:none, :spinless)
-    Hamiltonian(ham.basis, hamiltonian_with_total_potential.(ham.blocks, Ref(V)))
+    @assert size(V, 4) == ham.basis.model.n_spin_components
+    newblocks = [hamiltonian_with_total_potential(Hk, V[:, :, :, Hk.kpoint.spin])
+                 for Hk in ham.blocks]
+    Hamiltonian(ham.basis, newblocks)
 end
 function hamiltonian_with_total_potential(Hk::HamiltonianBlock, V)
-    @assert Hk.basis.model.spin_polarization in (:none, :spinless)
     operators = [op for op in Hk.operators if !(op isa RealSpaceMultiplication)]
     push!(operators, RealSpaceMultiplication(Hk.basis, Hk.kpoint, V))
     HamiltonianBlock(Hk.basis, Hk.kpoint, operators, Hk.scratch)

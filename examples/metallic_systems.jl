@@ -46,7 +46,7 @@ basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid);
 # in order to capture partial occupations beyond the Fermi level due to
 # the employed smearing scheme. In this example we use a damping of `0.8`
 # and Kerker mixing to ease convergence.
-scfres = self_consistent_field(basis, α=0.8, mixing=KerkerMixing());
+scfres = self_consistent_field(basis, damping=0.8, mixing=KerkerMixing());
 #-
 scfres.occupation[1]
 #-

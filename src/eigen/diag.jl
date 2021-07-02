@@ -28,7 +28,7 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         end
         # Get guessk
         @timing "QR orthonormalization" begin
-            if guess != nothing
+            if guess !== nothing
                 # guess provided
                 guessk = guess[ik]
             elseif interpolate_kpoints && ik > 1
