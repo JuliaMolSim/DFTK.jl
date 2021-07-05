@@ -14,17 +14,17 @@ using Statistics
 #
 # Finds the linear combination xₙ₊₁ = g(xₙ) + ∑ᵢ βᵢ (g(xᵢ) - g(xₙ))
 # such that |Pf(xₙ) + ∑ᵢ βᵢ (Pf(xᵢ) - Pf(xₙ))|² is minimal
-struct AndersonAcceleration
+struct AndersonAcceleration{T}
     m::Int                  # maximal history size
     iterates::Vector{Any}   # xₙ
     residuals::Vector{Any}  # Pf(xₙ)
     maxcond::Real           # Maximal condition number for Anderson matrix
 end
-AndersonAcceleration(;m=10, maxcond=1e6) = AndersonAcceleration(m, [], [], maxcond)
+AndersonAcceleration(;m=10, maxcond=1e6, T=Float64) = AndersonAcceleration{T}(m, [], [], maxcond)
 
-function Base.push!(anderson::AndersonAcceleration, xₙ, αₙ, Pfxₙ)
+function Base.push!(anderson::AndersonAcceleration{T}, xₙ, αₙ, Pfxₙ) where T
     push!(anderson.iterates,  vec(xₙ))
-    push!(anderson.residuals, vec(Pfxₙ))
+    push!(anderson.residuals, T.(vec(Pfxₙ)))
     if length(anderson.iterates) > anderson.m
         popfirst!(anderson.iterates)
         popfirst!(anderson.residuals)
@@ -35,7 +35,8 @@ function Base.push!(anderson::AndersonAcceleration, xₙ, αₙ, Pfxₙ)
 end
 
 # Gets the current xₙ, Pf(xₙ) and damping αₙ
-function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
+function (anderson::AndersonAcceleration{T})(xₙ, αₙ, Pfxₙ) where T
+    Torig = eltype(xₙ)
     xs   = anderson.iterates
     Pfxs = anderson.residuals
 
@@ -46,7 +47,7 @@ function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
         return xₙ .+ αₙ .* Pfxₙ
     end
 
-    M = hcat(Pfxs...) .- vec(Pfxₙ)  # Mᵢⱼ = (Pfxⱼ)ᵢ - (Pfxₙ)ᵢ
+    M = hcat(Pfxs...) .- T.(vec(Pfxₙ))  # Mᵢⱼ = (Pfxⱼ)ᵢ - (Pfxₙ)ᵢ
     # We need to solve 0 = M' Pfxₙ + M'M βs <=> βs = - (M'M)⁻¹ M' Pfxₙ
 
     # Ensure the condition number of M stays below maxcond, else prune the history
@@ -59,12 +60,13 @@ function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
     end
 
     xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
-    βs   = -(Mfac \ vec(Pfxₙ))
+    βs   = Torig.(-(Mfac \ vec(Pfxₙ)))
     for (iβ, β) in enumerate(βs)
-        xₙ₊₁ .+= β .* (xs[iβ] .- vec(xₙ) .+ αₙ .* (Pfxs[iβ] .- vec(Pfxₙ)))
+        xₙ₊₁ .+= β .* (xs[iβ] .- vec(xₙ) .+ αₙ .* Torig.((Pfxs[iβ] .- vec(Pfxₙ))))
     end
-
     push!(anderson, xₙ, αₙ, Pfxₙ)
+
+    @assert eltype(xₙ₊₁) isa Torig
     reshape(xₙ₊₁, size(xₙ))
 end
 
