@@ -135,16 +135,17 @@ end
 # Returns δψ, δocc, δεF corresponding to a change in *total* Hamiltonian dH
 # P = f_fd(H-εF), tr(P) = N
 # δεn = <ψn|δV|ψn>
-# 0 = ∑_n f'n (δεn - δεF) determines δεF
+# 0 = ∑_n fn' (δεn - δεF) determines δεF
+# where fn' = f_fd'((εn-εF)/T)/T
 
 # Then <ψm|δP|ψn> = (fm-fn)/(εm-εn) <ψm|δH|ψn>
 # Except for the diagonal which is
 # <ψn|δP|ψn> = (fn'-δεF) <ψn|δH|ψn>
 
 # We want to represent this with a δψ, δf, we do *not* impose that
-# δψ is orthogonal at finite temp.
+# δψ is orthogonal at finite temperature.
 # We get
-# δP = ∑_k fk |δψk><ψk| + |ψk><δψk| + δ fk |ψk><ψk|
+# δP = ∑_k fk (|δψk><ψk| + |ψk><δψk|) + δfk |ψk><ψk|
 # Identifying with <ψm|δP|ψn> we get for the diagonal terms
 # δfn = fn'<ψn|δH-δεF|ψn>
 # and for the off-diagonal
@@ -223,11 +224,11 @@ end
         δψk = δψ[ik]
 
         εk = eigenvalues[ik]
-        for n = 1:length(eigenvalues[ik])
+        for n = 1:length(εk)
             fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n]-εF) / temperature)
 
             # explicit contributions
-            for m = 1:size(ψk, 2)
+            for m = 1:length(εk)
                 n == m && continue # contribution already taken care of by δocc
                 fmk = filled_occ * Smearing.occupation(model.smearing, (εk[m]-εF) / temperature)
                 ddiff = Smearing.occupation_divided_difference
@@ -241,7 +242,7 @@ end
             # Sternheimer contribution
             # TODO unoccupied orbitals may have a very bad sternheimer solve, be careful about this
             δψk[:, n] .-= sternheimer_solver(ham.blocks[ik], ψk, ψk[:, n], εk[n], δHψ[ik][:, n];
-                                                 kwargs_sternheimer...)
+                                             kwargs_sternheimer...)
         end
     end
     δψ, δocc, δεF
