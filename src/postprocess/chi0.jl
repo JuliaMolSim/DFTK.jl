@@ -214,7 +214,7 @@ end
         end
     end
     # δεF ensures charge neutrality
-    @assert abs(mpi_sum(sum(sum, δocc), basis.comm_kpts)) < sqrt(eps(T))
+    @assert abs(mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)) < sqrt(eps(T))
 
     # compute δψnk band per band
     δψ = zero.(ψ)
