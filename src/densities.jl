@@ -97,6 +97,37 @@ is not collinear the spin density is `nothing`.
     G_to_r(basis, ρ)
 end
 
+# Variation in density corresponding to a variation in the orbitals and occupations.
+@views function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ,
+                           occupation, δoccupation=zero.(occupation)) where T
+    n_spin = basis.model.n_spin_components
+
+    δρ_fourier = zeros(complex(T), basis.fft_size..., n_spin)
+    for (ik, kpt) in enumerate(basis.kpoints)
+        δρk = zeros(T, basis.fft_size)
+        for n = 1:size(ψ[ik], 2)
+            ψnk_real = G_to_r(basis, kpt, ψ[ik][:, n])
+            δψnk_real = G_to_r(basis, kpt, δψ[ik][:, n])
+            δρk .+= (occupation[ik][n] .* (conj.(ψnk_real) .* δψnk_real .+
+                                           conj.(δψnk_real) .* ψnk_real) .+
+                     δoccupation[ik][n] .* abs2.(ψnk_real))
+        end
+        δρk_fourier = r_to_G(basis, complex(δρk))
+        lowpass_for_symmetry!(δρk_fourier, basis)
+        accumulate_over_symmetries!(δρ_fourier[:, :, :, kpt.spin], δρk_fourier,
+                                    basis, basis.ksymops[ik])
+    end
+    mpi_sum!(δρ_fourier, basis.comm_kpts)
+    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
+    count = mpi_sum(count, basis.comm_kpts)
+    δρ = G_to_r(basis, δρ_fourier) ./ count
+    # Check sanity in the density, we should have ∫δρ = 0
+    if abs(sum(δρ)) > sqrt(eps(T))
+        @warn("Non-neutral δρ", sum_δρ=sum(δρ))
+    end
+    δρ
+end
+
 total_density(ρ) = dropdims(sum(ρ; dims=4); dims=4)
 @views function spin_density(ρ)
     if size(ρ, 4) == 2

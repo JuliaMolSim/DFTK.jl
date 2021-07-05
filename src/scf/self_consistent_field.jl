@@ -106,7 +106,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         end
 
         # Update info with results gathered so far
-        info = (ham=ham, basis=basis, converged=converged, stage=:iterate,
+        info = (ham=ham, basis=basis, converged=converged, stage=:iterate, algorithm="SCF",
                 ρin=ρin, ρout=ρout, α=damping, n_iter=n_iter, n_ep_extra=n_ep_extra,
                 nextstate..., diagonalization=[nextstate.diagonalization])
 
@@ -146,7 +146,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     info = (ham=ham, basis=basis, energies=energies, converged=converged,
             ρ=ρout, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
             n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=ψ, diagonalization=info.diagonalization,
-            stage=:finalize)
+            stage=:finalize, algorithm="SCF")
     callback(info)
     info
 end
