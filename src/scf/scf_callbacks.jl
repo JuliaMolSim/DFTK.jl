@@ -20,6 +20,14 @@ If used for newton algorithm, set algo_newton to true.
 function ScfDefaultCallback(; algo_newton=false)
     prev_energy = NaN
     function callback(info)
+        if !algo_newton
+            # Gather MPI-distributed information
+            # Average number of diagonalisations per k-Point needed for this SCF step
+            # Note: If two Hamiltonian diagonalisations have been used (e.g. adaptive damping),
+            # the per k-Point values are summed.
+            diagiter = mpi_mean(sum(mean(diag.iterations) for diag in info.diagonalization),
+                                info.basis.comm_kpts)
+        end
         # Rest is printing => only do on master
         !mpi_master() && return info
         if info.stage == :finalize
@@ -50,12 +58,6 @@ function ScfDefaultCallback(; algo_newton=false)
         if algo_newton
             @printf "% 3d   %s   %s   %2.2e%s \n" info.n_iter Estr ΔE Δρ Mstr
         else
-            # Gather MPI-distributed information
-            # Average number of diagonalisations per k-Point needed for this SCF step
-            # Note: If two Hamiltonian diagonalisations have been used (e.g. adaptive damping),
-            # the per k-Point values are summed.
-            diagiter = mpi_mean(sum(mean(diag.iterations) for diag in info.diagonalization),
-                                info.basis.comm_kpts)
             αstr   = isnan(info.α) ? "  NaN" : @sprintf "% 4.2f" info.α
 
             @printf "% 3d   %s   %s   %2.2e%s  %s %5.1f \n" info.n_iter Estr ΔE Δρ Mstr αstr diagiter
