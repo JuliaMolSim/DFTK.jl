@@ -191,7 +191,6 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
 
     # iterators
-    err = Inf
     n_iter = 0
 
     # orbitals, densities and energies to be updated along the iterations
@@ -212,7 +211,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
         ψ = [ortho_qr(ψ[ik] + δψ[ik]) for ik in 1:Nk]
 
         ρ_next = compute_density(basis, ψ, occupation)
-        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ_next)
         info = (ham=H, basis=basis, converged=converged, stage=:iterate,
                 ρin=ρ, ρout=ρ_next, n_iter=n_iter, energies=energies)
         callback(info)
