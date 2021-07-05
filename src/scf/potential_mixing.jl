@@ -146,7 +146,7 @@ end
 
 # Adaptive damping using a quadratic model
 @kwdef struct AdaptiveDamping
-    α_min = 0.01        # Minimal damping
+    α_min = 0.05        # Minimal damping
     α_max = 1.0         # Maximal damping
     α_trial_init = 0.8  # Initial trial damping used (i.e. in the first SCF step)
     α_trial_min = 0.2   # Minimal trial damping used in a step
@@ -158,7 +158,7 @@ function AdaptiveDamping(α_trial_min; kwargs...)
     # Select some reasonable defaults.
     # The free tweaking parameter here should be increased a bit for cases,
     # where the Anderson does weird stuff in case of too small damping.
-    AdaptiveDamping(α_min=α_trial_min / 20,
+    AdaptiveDamping(α_min=α_trial_min / 4,
                     α_max=max(1.25α_trial_min, 1.0),
                     α_trial_init=max(α_trial_min, 0.8),
                     α_trial_min=α_trial_min,
