@@ -152,10 +152,8 @@ include("external/load_from_file.jl")
 include("external/ase.jl")
 include("external/pymatgen.jl")
 
-export dftk2wan_win_file
-export dftk2wan_wannierization_files
 export run_wannier90
-include("external/dftk_to_wannier90.jl")
+include("external/wannier90.jl")
 
 export compute_bands
 export high_symmetry_kpath

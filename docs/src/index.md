@@ -74,7 +74,7 @@ Pages = [
     "examples/arbitrary_floattype.md",
     "examples/custom_solvers.md",
     "examples/custom_potential.md",
-    "examples/dftk2wan.md",
+    "examples/wannier90.md",
 ]
 Depth = 1
 ```

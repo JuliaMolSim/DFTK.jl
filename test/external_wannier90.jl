@@ -1,7 +1,8 @@
 using Test
 
 if mpi_nprocs() == 1
-    # SCF loop
+
+    # Classic SCF
     a = 10.26 #a.u.
 
     lattice = a / 2*[[-1.  0. -1.];   #basis.model.lattice (in a.u.)
@@ -20,14 +21,13 @@ if mpi_nprocs() == 1
     ψ = scfres.ψ
     n_bands = size(ψ[1],2)
 
-    dftk2wan_win_file("Si",basis,scfres,kgrid,8;
-                      bands_plot=true, num_print_cycles=50, num_iter=500,
-                      dis_win_max       = "17.185257d0",
-                      dis_froz_max      =  "6.8318033d0",
-                      dis_num_iter      =  120,
-                      dis_mix_ratio     = "1d0")
-
-    dftk2wan_wannierization_files("Si",basis,scfres,8)
+    # Run wannierization
+    run_wannier90("Si", scfres, 8;
+                  bands_plot=true, num_print_cycles=50, num_iter=500,
+                  dis_win_max       = "17.185257d0",
+                  dis_froz_max      =  "6.8318033d0",
+                  dis_num_iter      =  120,
+                  dis_mix_ratio     = "1d0")
 
     @testset "Test production of the win file " begin
         @test isfile("Si.win")
@@ -38,5 +38,9 @@ if mpi_nprocs() == 1
         @test isfile("Si.amn")
         @test isfile("Si.eig")
     end
-    rm("Si.win"); rm("Si.mmn"); rm("Si.amn"); rm("Si.eig")
+    
+    # remove wannier90 files
+    for output_file in filter(startswith("Si"), readdir())
+        rm("$(output_file)")
+    end
 end

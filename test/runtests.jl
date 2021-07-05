@@ -68,7 +68,7 @@ Random.seed!(0)
         include("bzmesh_symmetry.jl")
         include("external_pymatgen.jl")
         include("external_ase.jl")
-        include("test_dftk2wan/dftk2wan_test.jl")
+        include("test_wannier90/wannier90_test.jl")
 
     end
 
