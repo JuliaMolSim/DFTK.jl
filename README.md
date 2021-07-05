@@ -48,8 +48,6 @@ Note that at least **Julia 1.6** is required.
 
 ## Support and citation
 DFTK is mostly developed as part of academic research.
-If you like our work please consider starring this repository as such metrics
-may help us to secure funding in the future.
 Parts of DFTK have also been discussed in published papers.
 If you use our code as part of your research, teaching or other activities,
 we would be grateful if you cite them as appropriate.
