@@ -568,3 +568,48 @@ function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
         nothing
     end
 end
+
+# select the occupied orbitals assuming the Aufbau principle
+function select_occupied_orbitals(basis::PlaneWaveBasis, ψ)
+    model = basis.model
+    n_spin = model.n_spin_components
+    n_bands = div(model.n_electrons, n_spin * filled_occupation(model))
+    [ψk[:, 1:n_bands] for ψk in ψ]
+end
+
+# Packing routines used in direct_minimization and newton algorithms.
+# They pack / unpack sets of ψ's (or compatible arrays, such as hamiltonian
+# applies and gradients) to make them compatible to be used in algorithms
+# from IterativeSolvers.
+# Some care is needed here : some operators (for instance K in newton.jl)
+# are real-linear but not complex-linear. To overcome this difficulty, instead of
+# seeing them as operators from C^N to C^N, we see them as
+# operators from R^2N to R^2N. In practice, this is done with the
+# reinterpret function from julia.
+# /!\ pack_ψ does not share memory while unpack_ψ does
+
+reinterpret_real(x) = reinterpret(real(eltype(x)), x)
+reinterpret_complex(x) = reinterpret(Complex{eltype(x)}, x)
+
+function pack_ψ(basis::PlaneWaveBasis, ψ)
+    # TODO as an optimization, do that lazily? See LazyArrays
+    vcat([vec(ψk) for ψk in ψ]...)
+end
+
+function unpack_ψ(basis::PlaneWaveBasis{T}, x) where T
+    model = basis.model
+    filled_occ = filled_occupation(model)
+    n_spin = model.n_spin_components
+    n_bands = div(model.n_electrons, n_spin * filled_occ)
+
+    lengths = length.(G_vectors.(basis.kpoints)) .* n_bands
+    ends = cumsum(lengths)
+    # We unsafe_wrap the resulting array to avoid a complicated type for ψ.
+    # The resulting array is valid as long as the original x is still in live memory.
+    map(1:length(basis.kpoints)) do ik
+        unsafe_wrap(Array{Complex{T}},
+                    pointer(@views x[ends[ik]-lengths[ik]+1:ends[ik]]),
+                    (length(G_vectors(basis.kpoints[ik])), n_bands))
+
+    end
+end
