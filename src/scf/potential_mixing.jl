@@ -225,7 +225,6 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     is_converged=ScfConvergenceEnergy(tol),
     callback=ScfDefaultCallback(),
     acceleration=AndersonAcceleration(;m=10),
-    ratio_failure_accel_off=Inf,  # Acceleration never switched off
     accept_step=ScfAcceptStepAll(),
     max_backtracks=3,  # Maximal number of backtracking line searches
 )
@@ -266,11 +265,9 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     info      = merge(info, (α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
                              n_iter=n_iter, Pinv_δV=Pinv_δV))
     ΔEdown    = 0.0
-    n_acceleration_off = 0  # >0 switches acceleration off for a few steps if in difficult region
 
     while n_iter < maxiter
-        info = merge(info, (stage=:iterate, algorithm="SCF", converged=converged,
-                            n_acceleration_off=n_acceleration_off))
+        info = merge(info, (stage=:iterate, algorithm="SCF", converged=converged))
         callback(info)
         if MPI.bcast(is_converged(info), 0, MPI.COMM_WORLD)
             # TODO Debug why these MPI broadcasts are needed
@@ -280,17 +277,9 @@ trial_damping(damping::FixedDamping, args...) = damping.α
         n_iter += 1
         info = merge(info, (n_iter=n_iter, ))
 
-        # Ensure same α and n_acceleration_off on all processors
+        # Ensure same α on all processors
         α_trial = MPI.bcast(α_trial, 0, MPI.COMM_WORLD)
-        n_acceleration_off = MPI.bcast(n_acceleration_off, 0, MPI.COMM_WORLD)
-
-        # New search direction via convergence accelerator:
-        if n_acceleration_off > 0
-            push!(acceleration, info.Vin, α_trial, info.Pinv_δV)
-            δV = info.Pinv_δV
-        else
-            δV = (acceleration(info.Vin, α_trial, info.Pinv_δV) - info.Vin) / α_trial
-        end
+        δV = (acceleration(info.Vin, α_trial, info.Pinv_δV) - info.Vin) / α_trial
 
         # Determine damping and take next step
         guess   = ψ
@@ -333,17 +322,6 @@ trial_damping(damping::FixedDamping, args...) = damping.α
         # Switch off acceleration in case of very bad steps
         ΔE = info_next.energies.total - info.energies.total
         ΔE < 0 && (ΔEdown = -max(abs(ΔE), tol))
-        if !successful && n_acceleration_off == 0
-            if abs(ΔE) > abs(ratio_failure_accel_off * ΔEdown)
-                n_acceleration_off = 2
-                if mpi_master()
-                    @warn "Backtracking linesearch failed badly. Acceleration not used for two steps."
-                    @debug "" ΔE ΔEdown ratio_failure_accel_off
-                end
-            end
-        else
-            n_acceleration_off = max(0, n_acceleration_off - 1)
-        end
 
         # Update α_trial and commit the next state
         α_trial = trial_damping(damping, info, info_next, successful)
@@ -366,7 +344,5 @@ function scf_potential_mixing_adaptive(basis; tol=1e-6, damping=AdaptiveDamping(
     scf_potential_mixing(basis; tol=tol, diag_miniter=2,
                          accept_step=ScfAcceptImprovingStep(max_energy_change=tol),
                          determine_diagtol=ScfDiagtol(ratio_ρdiff=0.03, diagtol_max=5e-3),
-                         # ratio_failure_accel_off=0.01,
-                         ratio_failure_accel_off=Inf,
                          damping=damping, kwargs...)
 end
