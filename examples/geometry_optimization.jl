@@ -35,7 +35,7 @@ function compute_scfres(x)
     model = model_LDA(lattice, atoms)
     basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
     global ψ, ρ
-    if ρ ===  nothing
+    if ρ === nothing
         ρ = guess_density(basis)
     end
     scfres = self_consistent_field(basis; ψ=ψ, ρ=ρ,

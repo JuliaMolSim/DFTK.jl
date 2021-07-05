@@ -9,7 +9,7 @@
 module Smearing
 
 using SpecialFunctions: erf, factorial
-using ForwardDiff
+import ForwardDiff
 
 abstract type SmearingFunction end
 
@@ -26,8 +26,8 @@ occupation_derivative(S::SmearingFunction, x) = ForwardDiff.derivative(x -> occu
 """
 (f(x) - f(y))/(x - y), computed stably in the case where x and y are close
 """
-function occupation_divided_difference(S::SmearingFunction, x, y, εF, temperature)
-    if temperature == 0
+function occupation_divided_difference(S::SmearingFunction, x, y, εF, temp)
+    if temp == 0
         if x == y
             zero(x)
         else
@@ -36,8 +36,8 @@ function occupation_divided_difference(S::SmearingFunction, x, y, εF, temperatu
             (fx-fy)/(x-y)
         end
     else
-        f(z) = occupation(S, (z-εF) / temperature)
-        fder(z) = occupation_derivative(S, (z-εF)/temperature) / temperature
+        f(z) = occupation(S, (z-εF) / temp)
+        fder(z) = occupation_derivative(S, (z-εF)/temp) / temp
         divided_difference_(f, fder, x, y)
     end
 end
@@ -61,10 +61,6 @@ struct None <: SmearingFunction end
 occupation(S::None, x) = x > 0 ? zero(x) : one(x)
 entropy(S::None, x) = zero(x)
 
-function xlogx(x)
-    iszero(x) ? zero(x) : x * log(x)
-end
-
 struct FermiDirac <: SmearingFunction end
 occupation(S::FermiDirac, x) = 1 / (1 + exp(x))
 function occupation_derivative(S::FermiDirac, x)
@@ -75,13 +71,33 @@ function occupation_derivative(S::FermiDirac, x)
         -exp(x) / (1+exp(x))^2
     end
 end
-
 # entropy(f) = -(f log f + (1-f)log(1-f)), where f = 1/(1+exp(x))
 # this "simplifies" to -(x*exp(x)/(1+exp(x)) - log(1+exp(x)))
 # although that is not especially useful...
+function xlogx(x)
+    iszero(x) ? zero(x) : x * log(x)
+end
 function entropy(S::FermiDirac, x)
     f = occupation(S, x)
     - (xlogx(f) + xlogx(1 - f))
+end
+function occupation_divided_difference(S::FermiDirac, x, y, εF, temp)
+    temp == 0 && return occupation_divided_difference(None(), x, y, εF, temp)
+    f(z) = occupation(S, (z-εF) / temp)
+    fder(z) = occupation_derivative(S, (z-εF)/temp) / temp
+    # For a stable computation we use
+    # (fx - fy) = fx fy (exp(y) - exp(x)) = fx fy exp(x) expm1(y-x)
+    # which we symmetrize. This can overflow, in which case
+    # we fall back to the standard method
+    large_float = floatmax(typeof(x)) / 1e4 # conservative
+    will_exp_overflow(z1, z2) = abs((z1-z2)/temp) > log(large_float)
+    if x == y || will_exp_overflow(x, y) || will_exp_overflow(x, εF) || will_exp_overflow(y, εF)
+        divided_difference_(f, fder, x, y)
+    else
+        Δfxy = f(x) * f(y) * exp((x-εF)/temp) * expm1((y-x)/temp)
+        Δfyx = f(x) * f(y) * exp((y-εF)/temp) * expm1((x-y)/temp)
+        (Δfxy-Δfyx) / 2 / (x-y)
+    end
 end
 
 struct Gaussian <: SmearingFunction end

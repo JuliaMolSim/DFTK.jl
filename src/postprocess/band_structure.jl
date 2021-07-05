@@ -22,7 +22,7 @@ function high_symmetry_kpath(model; kline_density=20)
     (kcoords=kcoords, klabels=labels_dict, kpath=symm_kpath.kpath["path"])
 end
 
-@timing function compute_bands(basis, ρ, ρspin, kcoords, n_bands;
+@timing function compute_bands(basis, ρ, kcoords, n_bands;
                                eigensolver=lobpcg_hyper,
                                tol=1e-3,
                                show_progress=true,
@@ -33,7 +33,7 @@ end
     myrationalize(x::T) where {T <: AbstractFloat} = rationalize(x, tol=10eps(T))
     myrationalize(x) = x
     bs_basis = PlaneWaveBasis(basis, [myrationalize.(k) for k in kcoords], ksymops)
-    ham = Hamiltonian(bs_basis; ρ=ρ, ρspin=ρspin)
+    ham = Hamiltonian(bs_basis; ρ=ρ)
 
     band_data = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
                                         n_conv_check=n_bands,
@@ -161,7 +161,7 @@ If this value is absent and an `scfres` is used to start the calculation a defau
 `n_bands_scf + 5sqrt(n_bands_scf)` is used. Unlike the rest of DFTK bands energies
 are plotted in eV unless a different `unit` (any Unitful unit) is selected.
 """
-function plot_bandstructure(basis, ρ, ρspin, n_bands;
+function plot_bandstructure(basis, ρ, n_bands;
                             εF=nothing, kline_density=20, unit=u"eV", kwargs...)
     mpi_nprocs() > 1 && error("Band structures with MPI not supported yet")
     if !isdefined(DFTK, :PLOTS_LOADED)
@@ -172,7 +172,7 @@ function plot_bandstructure(basis, ρ, ρspin, n_bands;
     kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density=kline_density)
     println("Computing bands along kpath:")
     println("       ", join(join.(detexify_kpoint.(kpath), " -> "), "  and  "))
-    band_data = compute_bands(basis, ρ, ρspin, kcoords, n_bands; kwargs...)
+    band_data = compute_bands(basis, ρ, kcoords, n_bands; kwargs...)
 
     plotargs = ()
     if kline_density ≤ 10
@@ -185,5 +185,5 @@ function plot_bandstructure(scfres; n_bands=nothing, kwargs...)
     # Convenience wrapper for scfres named tuples
     n_bands_scf = length(scfres.occupation[1])
     isnothing(n_bands) && (n_bands = ceil(Int, n_bands_scf + 5sqrt(n_bands_scf)))
-    plot_bandstructure(scfres.basis, scfres.ρ, scfres.ρspin, n_bands; εF=scfres.εF, kwargs...)
+    plot_bandstructure(scfres.basis, scfres.ρ, n_bands; εF=scfres.εF, kwargs...)
 end

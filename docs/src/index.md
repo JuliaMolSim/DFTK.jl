@@ -15,6 +15,7 @@ Our performance is of the same order of magnitude as much larger production
 codes such as [Abinit](https://www.abinit.org/),
 [Quantum Espresso](http://quantum-espresso.org/) and
 [VASP](https://www.vasp.at/).
+DFTK's source code is [publicly available on github](https://dftk.org).
 
 ## [Package features](@id package-features)
 * Methods and models:

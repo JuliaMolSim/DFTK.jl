@@ -2,9 +2,9 @@
 
 # Density-functional toolkit
 
-| **Documentation**                                                                   | **Build Status**                                                         |  **License**                     |
-|:----------------------------------------------------------------------------------- |:------------------------------------------------------------------------ |:-------------------------------- |
-| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][gitter-img]][gitter-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] [![][cov-img]][cov-url]  | [![][license-img]][license-url]  |
+| **Documentation**                                                                   | **Build Status**                                |  **License**                     |
+|:----------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
+| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][gitter-img]][gitter-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
 
 [ddocs-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [ddocs-url]: https://docs.dftk.org/dev
@@ -17,9 +17,6 @@
 
 [ci-img]: https://github.com/JuliaMolSim/DFTK.jl/workflows/CI/badge.svg?branch=master&event=push
 [ci-url]: https://github.com/JuliaMolSim/DFTK.jl/actions
-
-[cov-img]: https://coveralls.io/repos/JuliaMolSim/DFTK.jl/badge.svg?branch=master&service=github
-[cov-url]: https://coveralls.io/github/JuliaMolSim/DFTK.jl?branch=master
 
 [ccov-img]: https://codecov.io/gh/JuliaMolSim/DFTK.jl/branch/master/graph/badge.svg?token=A23M0VZ8PQ
 [ccov-url]: https://codecov.io/gh/JuliaMolSim/DFTK.jl
@@ -47,12 +44,10 @@ For getting started with DFTK, see our documentation:
 - [Tutorial](https://juliamolsim.github.io/DFTK.jl/dev/guide/tutorial/)
 - [Examples](https://juliamolsim.github.io/DFTK.jl/dev/#example-index-1)
 
-Note that at least **Julia 1.4** is required.
+Note that at least **Julia 1.6** is required.
 
 ## Support and citation
 DFTK is mostly developed as part of academic research.
-If you like our work please consider starring this repository as such metrics
-may help us to secure funding in the future.
 Parts of DFTK have also been discussed in published papers.
 If you use our code as part of your research, teaching or other activities,
 we would be grateful if you cite them as appropriate.
@@ -62,7 +57,8 @@ As a software DFTK can also be cited via [![DOI](https://zenodo.org/badge/181734
 ## Funding
 This project has received funding from
 the [Institute of computing and data sciences (ISCD, Sorbonne Université)](https://iscd.sorbonne-universite.fr/),
-[École des Ponts ParisTech](https://enpc.fr), [Inria Research Centre Paris](https://www.inria.fr/fr/centre-inria-de-paris)
+[École des Ponts ParisTech](https://enpc.fr), [Inria Research Centre Paris](https://www.inria.fr/fr/centre-inria-de-paris),
+[RWTH Aachen University](https://rwth-aachen.de/),
 and from the European Research Council (ERC) under the European Union's Horizon 2020 research and
 innovation program ([grant agreement No 810367](https://cordis.europa.eu/project/id/810367)).
 

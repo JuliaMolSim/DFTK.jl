@@ -23,11 +23,11 @@ function my_callback(info)
     info.stage == :finalize && return
     global resids
     info.n_iter == 1 && (resids = [])
-    err = norm(info.ρout.fourier - info.ρin.fourier)
+    err = norm(info.ρout - info.ρin)
     println(info.n_iter, " ", err)
     push!(resids, err)
 end
-my_isconverged = info -> norm(info.ρout.fourier - info.ρin.fourier) < tol
+my_isconverged = info -> norm(info.ρout - info.ρin) < tol
 opts = (callback=my_callback, is_converged=my_isconverged, maxiter=maxiter, tol=tol,
         determine_diagtol=info -> diagtol)
 

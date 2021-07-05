@@ -31,7 +31,7 @@ end
         for iband = 1:size(ψ[1], 2)
             ψnk = @views ψ[ik][:, iband]
             E += (basis.kweights[ik] * occ[ik][iband]
-                  * real(dot(ψnk, term.kinetic_energies[ik] .* ψnk)))
+                  * real(dot(ψnk, Diagonal(term.kinetic_energies[ik]), ψnk)))
         end
     end
     E = mpi_sum(E, basis.comm_kpts)

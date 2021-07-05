@@ -16,7 +16,7 @@ include("testcases.jl")
         G_to_r!(f_R, pw, f_G)
 
         f2_G = r_to_G(pw, f_R)
-        f2_R = G_to_r(pw, f2_G)
+        f2_R = G_to_r(pw, f2_G; assume_real=false)
         f3_G = r_to_G!(similar(f_R), pw, f_R)
 
         @test maximum(abs.(f2_G - f_G)) < 1e-12

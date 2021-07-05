@@ -7,8 +7,6 @@
 # LDOS (local density of states)
 # LD = sum_n f_n ψn
 
-using ForwardDiff
-
 @doc raw"""
     compute_nos(ε, basis, eigenvalues; smearing=basis.model.smearing,
                 temperature=basis.model.temperature)
@@ -23,8 +21,8 @@ and temperature `T`. It increases with both `T` and better sampling of the BZ wi
 Fermi surface.
 """
 function compute_nos(ε, basis, eigenvalues; smearing=basis.model.smearing,
-                     temperature=basis.model.temperature, spins=1:basis.model.n_spin_components)
-    N = zero(ε)
+                     temperature=basis.model.temperature)
+    N = zeros(typeof(ε), basis.model.n_spin_components)
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_nos only supports finite temperature")
     end
@@ -38,11 +36,11 @@ function compute_nos(ε, basis, eigenvalues; smearing=basis.model.smearing,
     #
     # To explicitly show the similarity with DOS and the temperature dependence we employ
     # -f'((εik - ε)/temperature) = temperature * ( d/dε f_τ(εik - ε') )|_{ε' = ε}
-    for σ in spins, ik = krange_spin(basis, σ)
+    for σ in 1:basis.model.n_spin_components, ik = krange_spin(basis, σ)
         n_symeqk = length(basis.ksymops[ik])  # Number of symmetry-equivalent k-Points
         for (iband, εnk) in enumerate(eigenvalues[ik])
             enred = (εnk - ε) / temperature
-            N -= n_symeqk * Smearing.occupation_derivative(smearing, enred)
+            N[σ] -= n_symeqk * Smearing.occupation_derivative(smearing, enred)
         end
     end
     N = mpi_sum(N, basis.comm_kpts)
@@ -53,19 +51,19 @@ end
 Total density of states at energy ε
 """
 function compute_dos(ε, basis, eigenvalues; smearing=basis.model.smearing,
-                     temperature=basis.model.temperature, spins=1:basis.model.n_spin_components)
+                     temperature=basis.model.temperature)
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_dos only supports finite temperature")
     end
     @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     filled_occ = filled_occupation(basis.model)
 
-    D = zero(ε)
-    for σ in spins, ik = krange_spin(basis, σ)
+    D = zeros(typeof(ε), basis.model.n_spin_components)
+    for σ in 1:basis.model.n_spin_components, ik = krange_spin(basis, σ)
         for (iband, εnk) in enumerate(eigenvalues[ik])
             enred = (εnk - ε) / temperature
-            D -= (filled_occ * basis.kweights[ik] / temperature
-                  * Smearing.occupation_derivative(smearing, enred))
+            D[σ] -= (filled_occ * basis.kweights[ik] / temperature
+                     * Smearing.occupation_derivative(smearing, enred))
         end
     end
     D = mpi_sum(D, basis.comm_kpts)
@@ -75,7 +73,7 @@ end
 Local density of states, in real space
 """
 function compute_ldos(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
-                      temperature=basis.model.temperature, spins=1:basis.model.n_spin_components)
+                      temperature=basis.model.temperature)
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_ldos only supports finite temperature")
     end
@@ -94,16 +92,7 @@ function compute_ldos(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
     # Use compute_density routine to compute LDOS, using just the modified
     # weights (as "occupations") at each kpoint. Note, that this automatically puts in the
     # required symmetrization with respect to kpoints and BZ symmetry
-    ldostot, ldosspin = compute_density(basis, ψ, weights)
-
-    # TODO This is not great, make compute_density more flexible ...
-    if basis.model.spin_polarization == :collinear
-        ρs = [(ldostot.real + ldosspin.real) / 2, (ldostot.real - ldosspin.real) / 2]
-    else
-        @assert isnothing(ldosspin)
-        ρs = [ldostot.real]
-    end
-    return sum(ρs[iσ] for iσ in spins)
+    compute_density(basis, ψ, weights)
 end
 
 """

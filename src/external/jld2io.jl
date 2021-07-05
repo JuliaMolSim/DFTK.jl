@@ -1,8 +1,4 @@
-import JLD2
 
-"""
-Adds simplistic checkpointing to a DFTK self-consistent field calculation.
-"""
 function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2"; keep=false, overwrite=false)
     # TODO Save only every 30 minutes or so
     function callback(info)
@@ -17,7 +13,7 @@ function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2"; keep=false, ove
             end
         else
             scfres = (; (k => v for (k, v) in pairs(info) if !startswith(string(k), "ρ"))...)
-            scfres = merge(scfres, (ρ=info.ρout, ρspin=info.ρ_spin_out))
+            scfres = merge(scfres, (; ρ=info.ρout))
             save_scfres(filename, scfres)
         end
         info
@@ -33,12 +29,11 @@ function save_scfres_master(file::AbstractString, scfres::NamedTuple, ::Val{:jld
 
     JLD2.jldopen(file, "w") do jld
         jld["__propertynames"] = propertynames(scfres)
-        jld["ρ_real"]          = scfres.ρ.real
-        jld["ρspin_real"]      = isnothing(scfres.ρspin) ? nothing : scfres.ρspin.real
+        jld["ρ_real"]          = scfres.ρ
         jld["basis"]           = scfres.basis
 
         for symbol in propertynames(scfres)
-            symbol in (:ham, :basis, :ρ, :ρspin, :energies) && continue  # special
+            symbol in (:ham, :basis, :ρ, :energies) && continue  # special
             jld[string(symbol)] = getproperty(scfres, symbol)
         end
 
@@ -50,26 +45,22 @@ end
 function load_scfres(jld::JLD2.JLDFile)
     basis = jld["basis"]
     scfdict = Dict{Symbol, Any}(
-        :ρ     => from_real(basis, jld["ρ_real"]),
-        :ρspin => nothing,
+        :ρ     => jld["ρ_real"],
         :basis => basis
     )
-    if !isnothing(jld["ρspin_real"])
-        scfdict[:ρspin] = from_real(basis, jld["ρspin_real"])
-    end
 
     kpt_properties = (:ψ, :occupation, :eigenvalues)  # Need splitting over MPI processes
     for sym in kpt_properties
         scfdict[sym] = jld[string(sym)][basis.krange_thisproc]
     end
     for sym in jld["__propertynames"]
-        sym in (:ham, :basis, :ρ, :ρspin, :energies) && continue  # special
+        sym in (:ham, :basis, :ρ, :energies) && continue  # special
         sym in kpt_properties && continue
         scfdict[sym] = jld[string(sym)]
     end
 
     energies, ham = energy_hamiltonian(basis, scfdict[:ψ], scfdict[:occupation];
-                                       ρ=scfdict[:ρ], ρspin=scfdict[:ρspin],
+                                       ρ=scfdict[:ρ],
                                        eigenvalues=scfdict[:eigenvalues],
                                        εF=scfdict[:εF])
 

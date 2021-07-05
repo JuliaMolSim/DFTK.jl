@@ -50,17 +50,16 @@ end;
 # function returns ``δρ``, which is added to ``ρ_\text{in}`` to yield ``ρ_\text{next}``,
 # the density for the next SCF step.
 struct MyMixing
-    α  # Damping parameter
+    n_simple  # Number of iterations for simple mixing
 end
-MyMixing() = MyMixing(0.7)
+MyMixing() = MyMixing(2)
 
-function DFTK.mix(mixing::MyMixing, basis, δF::RealFourierArray, δF_spin=nothing; n_iter, kwargs...)
-    if n_iter <= 2
-        ## Just do simple mixing on total density and spin density (if it exists)
-        (mixing.α * δF, isnothing(δF_spin) ? nothing : mixing.α * δF_spin)
+function DFTK.mix_density(mixing::MyMixing, basis, δF; n_iter, kwargs...)
+    if n_iter <= mixing.n_simple
+        return δF  # Simple mixing -> Do not modify update at all
     else
-        ## Use the KerkerMixing from DFTK
-        DFTK.mix(KerkerMixing(α=mixing.α), basis, δF, δF_spin; kwargs...)
+        ## Use the default KerkerMixing from DFTK
+        DFTK.mix_density(KerkerMixing(), basis, δF; kwargs...)
     end
 end
 
