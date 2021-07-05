@@ -18,8 +18,9 @@ struct AndersonAcceleration
     m::Int                  # maximal history size
     iterates::Vector{Any}   # xₙ
     residuals::Vector{Any}  # Pf(xₙ)
+    maxcond::Real           # Maximal condition number for Anderson matrix
 end
-AndersonAcceleration(;m=10) = AndersonAcceleration(m, [], [])
+AndersonAcceleration(;m=10, maxcond=1e6) = AndersonAcceleration(m, [], [], maxcond)
 
 function Base.push!(anderson::AndersonAcceleration, xₙ, αₙ, Pfxₙ)
     push!(anderson.iterates,  vec(xₙ))
@@ -33,20 +34,34 @@ function Base.push!(anderson::AndersonAcceleration, xₙ, αₙ, Pfxₙ)
     anderson
 end
 
+# Gets the current xₙ, Pf(xₙ) and damping αₙ
 function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
-    # Gets the current xₙ, Pf(xₙ) and damping αₙ
-    anderson.m == 0 && return xₙ .+ αₙ .* Pfxₙ
-
-    xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
     xs   = anderson.iterates
     Pfxs = anderson.residuals
-    if !isempty(anderson.iterates)
-        M = hcat(Pfxs...) .- vec(Pfxₙ)  # Mᵢⱼ = (Pfxⱼ)ᵢ - (Pfxₙ)ᵢ
-        # We need to solve 0 = M' Pfxₙ + M'M βs <=> βs = - (M'M)⁻¹ M' Pfxₙ
-        βs = -M \ vec(Pfxₙ)
-        for (iβ, β) in enumerate(βs)
-            xₙ₊₁ .+= β .* (xs[iβ] .- vec(xₙ) .+ αₙ .* (Pfxs[iβ] .- vec(Pfxₙ)))
-        end
+
+    # Special cases with fast exit
+    anderson.m == 0 && return xₙ .+ αₙ .* Pfxₙ
+    if isempty(xs)
+        push!(anderson, xₙ, αₙ, Pfxₙ)
+        return xₙ .+ αₙ .* Pfxₙ
+    end
+
+    M = hcat(Pfxs...) .- vec(Pfxₙ)  # Mᵢⱼ = (Pfxⱼ)ᵢ - (Pfxₙ)ᵢ
+    # We need to solve 0 = M' Pfxₙ + M'M βs <=> βs = - (M'M)⁻¹ M' Pfxₙ
+
+    # Ensure the condition number of M stays below maxcond, else prune the history
+    Mfac = qr(M)
+    while size(M, 2) > 1 && cond(Mfac.R) > anderson.maxcond
+        M = M[:, 2:end]  # Drop oldest entry in history
+        popfirst!(anderson.iterates)
+        popfirst!(anderson.residuals)
+        Mfac = qr(M)
+    end
+
+    xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
+    βs   = -(Mfac \ vec(Pfxₙ))
+    for (iβ, β) in enumerate(βs)
+        xₙ₊₁ .+= β .* (xs[iβ] .- vec(xₙ) .+ αₙ .* (Pfxs[iβ] .- vec(Pfxₙ)))
     end
 
     push!(anderson, xₙ, αₙ, Pfxₙ)
@@ -131,15 +146,23 @@ end
 
 # Adaptive damping using a quadratic model
 @kwdef struct AdaptiveDamping
-    α_min = 0.01       # Minimal damping
-    α_max = 1.0        # Maximal damping
-    α_trial_min = 0.5  # Minimal trial damping used in a step
+    α_min = 0.01        # Minimal damping
+    α_max = 1.0         # Maximal damping
+    α_trial_init = 0.8  # Initial trial damping used (i.e. in the first SCF step)
+    α_trial_min = 0.2   # Minimal trial damping used in a step
     α_trial_enhancement = 1.1  # Enhancement factor to α_trial in case a step is immediately successful
-    modeltol = 0.1     # Maximum relative error on the predicted energy for model
-    #                    to be considered trustworthy
+    modeltol = 0.1      # Maximum relative error on the predicted energy for model
+    #                     to be considered trustworthy
 end
-function AdaptiveDamping(α; kwargs...)
-    AdaptiveDamping(α_min=α / 50, α_trial_min=α, α_max=max(α, 1.0), kwargs...)
+function AdaptiveDamping(α_trial_min; kwargs...)
+    # Select some reasonable defaults.
+    # The free tweaking parameter here should be increased a bit for cases,
+    # where the Anderson does weird stuff in case of too small damping.
+    AdaptiveDamping(α_min=α_trial_min / 20,
+                    α_max=max(1.25α_trial_min, 1.0),
+                    α_trial_init=max(α_trial_min, 0.8),
+                    α_trial_min=α_trial_min,
+                    kwargs...)
 end
 
 function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
@@ -158,7 +181,7 @@ function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
     return α_sign * α
 end
 
-trial_damping(damping::AdaptiveDamping) = damping.α_trial_min
+trial_damping(damping::AdaptiveDamping) = damping.α_trial_init
 function trial_damping(damping::AdaptiveDamping, info, info_next, step_successful)
     n_backtrack = length(info_next.diagonalization)
 
@@ -338,11 +361,12 @@ end
 
 
 # Wrapper function setting a few good defaults for adaptive damping
-function scf_potential_mixing_adaptive(basis; tol=1e-6, damping=0.6, kwargs...)
-    damping isa Number && (damping = AdaptiveDamping(damping))
+function scf_potential_mixing_adaptive(basis; tol=1e-6, damping=AdaptiveDamping(), kwargs...)
+    @assert damping isa AdaptiveDamping
     scf_potential_mixing(basis; tol=tol, diag_miniter=2,
                          accept_step=ScfAcceptImprovingStep(max_energy_change=tol),
                          determine_diagtol=ScfDiagtol(ratio_ρdiff=0.03, diagtol_max=5e-3),
-                         ratio_failure_accel_off=0.01,
+                         # ratio_failure_accel_off=0.01,
+                         ratio_failure_accel_off=Inf,
                          damping=damping, kwargs...)
 end
