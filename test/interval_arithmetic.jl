@@ -33,9 +33,9 @@ end
     ref = hamk * x
     res = hamIntk * Interval.(x)
 
-    # Difference between interval arithmetic and normal application less than 1e-10
-    @test maximum(mid, abs.(res .- ref)) < 1e-10
+    # Small difference between interval arithmetic and normal application
+    @test maximum(mid, abs.(res .- ref)) < 1e-9
 
-    # Maximal error done by interval arithmetic less than
-    @test maximum(radius, abs.(res)) < 1e-10
+    # Small error determined by interval arithmetic
+    @test maximum(radius, abs.(res)) < 1e-9
 end

@@ -18,13 +18,14 @@ function run_silicon_lda(T ;Ecut=5, grid_size=15, spin_polarization=:none, kwarg
 
     fft_size = grid_size * ones(3)
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="lda", family="hgh"))
-    magmoms = spin_polarization == :collinear ? [Si => zeros(2)] : []
     model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [:lda_x, :lda_c_vwn],
-                      spin_polarization=spin_polarization, magnetic_moments=magmoms)
+                      spin_polarization=spin_polarization)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     spin_polarization == :collinear && (ref_lda = vcat(ref_lda, ref_lda))
-    run_scf_and_compare(T, basis, ref_lda, ref_etot; kwargs...)
+    run_scf_and_compare(T, basis, ref_lda, ref_etot;
+                        ρ=guess_density(basis),
+                        kwargs...)
 end
 
 

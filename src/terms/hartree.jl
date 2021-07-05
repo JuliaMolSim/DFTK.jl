@@ -37,11 +37,13 @@ end
 @timing "ene_ops: hartree" function ene_ops(term::TermHartree, ψ, occ; ρ, kwargs...)
     basis = term.basis
     T = eltype(basis)
-    pot_fourier = term.poisson_green_coeffs .* ρ.fourier
-    potential = real(G_to_r(basis, pot_fourier))  # TODO optimize this
-    E = real(dot(pot_fourier, ρ.fourier) / 2)
+    ρtot = total_density(ρ)
+    ρtot_fourier = r_to_G(basis, ρtot)
+    pot_fourier = term.poisson_green_coeffs .* ρtot_fourier
+    pot_real = G_to_r(basis, pot_fourier)
+    E = real(dot(pot_fourier, ρtot_fourier) / 2)
 
-    ops = [RealSpaceMultiplication(basis, kpoint, potential) for kpoint in basis.kpoints]
+    ops = [RealSpaceMultiplication(basis, kpoint, pot_real) for kpoint in basis.kpoints]
     (E=E, ops=ops)
 end
 
@@ -51,17 +53,14 @@ function compute_kernel(term::TermHartree; kwargs...)
     # Note that `real` here: if omitted, will result in high-frequency noise of even FFT grids
     K = real(G_to_r_matrix(term.basis) * Diagonal(vec(vc_G)) * r_to_G_matrix(term.basis))
 
-    # Hartree kernel is independent of spin, so to apply it to (ρtot, ρspin)^T
-    # and obtain the same contribution to Vα and Vβ the operator has the block structure
-    #     ( K 0 )
-    #     ( K 0 )
     n_spin = term.basis.model.n_spin_components
-    n_spin == 1 ? K : [K 0I; K 0I]
+    n_spin == 1 ? K : [K K; K K]
 end
 
-function apply_kernel(term::TermHartree, dρ::RealFourierArray, dρspin=nothing; kwargs...)
+function apply_kernel(term::TermHartree, dρ; kwargs...)
     @assert term.basis.model.spin_polarization in (:none, :spinless, :collinear)
-    kernel = from_fourier(dρ.basis, term.poisson_green_coeffs .* dρ.fourier)
-    n_spin = term.basis.model.n_spin_components
-    n_spin == 1 ? (kernel, ) : (kernel, kernel)  # Hartree term does not care about spin
+    dV = zero(dρ)
+    dρtot = total_density(dρ)
+    # note broadcast here: dV is 4D, and all its spin components get the same potential
+    dV .= G_to_r(term.basis, term.poisson_green_coeffs .* r_to_G(term.basis, dρtot))
 end

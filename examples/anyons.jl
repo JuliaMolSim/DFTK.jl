@@ -31,4 +31,4 @@ E = scfres.energies.total
 s = 2
 E11 = π/2 * (2(s+1)/s)^((s+2)/s) * (s/(s+2))^(2(s+1)/s) * E^((s+2)/s) / β
 println("e(1,1) / (2π)= ", E11 / (2π))
-display(heatmap(scfres.ρ.real[:, :, 1], c=:blues))
+display(heatmap(scfres.ρ[:, :, 1, 1], c=:blues))

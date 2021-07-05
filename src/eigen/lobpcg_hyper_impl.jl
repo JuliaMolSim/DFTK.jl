@@ -1,62 +1,59 @@
-## TODO micro-optimization, reuse buffers, etc.
-## TODO write a version that doesn't assume that B is well-conditionned, and doesn't reuse B applications
+# Implementation of the LOBPCG algorithm, seeking optimal performance
+# and stability (it should be very, very hard to break, even at tight
+# tolerance criteria). The code is not 100% optimized yet, but the
+# most time-consuming parts (BLAS3 and matvecs) should be OK. The
+# implementation follows the scheme of Hetmaniuk & Lehoucq (see also
+# the refinements in Duersch et. al.), with the following
+# modifications:
+
+# - Cholesky factorizations are used instead of the eigenvalue
+# decomposition of Stathopolous & Wu for the orthogonalization.
+# Cholesky orthogonalization is fast but has an unwarranted bad
+# reputation: when applied twice to a matrix X with κ(X) <~
+# sqrt(1/ε), where ε is the machine epsilon, it will produce a set
+# of very orthogonal vectors, just as the eigendecomposition-based
+# method. It can fail when κ >~ sqrt(1/ε), but that can be fixed by
+# shifting the overlap matrix. This is very reliable while being
+# much faster than eigendecompositions.
+
+# - Termination criteria for the orthogonalization are based on cheap
+# estimates instead of costly explicit checks.
+
+# - The default tolerances are very tight, yielding a very stable
+# algorithm. This can be tweaked (see keyword ortho_tol) to
+# compromise on stability for less Cholesky factorizations.
+
+# - Implicit product updates (reuse of matvecs) are performed whenever
+# it is safe to do so, ie only with orthogonal transformations. An
+# exception is the B matrix reuse, which seems to be OK even with very
+# badly conditioned B matrices. The code is easy to modify if this is
+# not the case.
+
+# - The locking is performed carefully to ensure minimal impact on the
+# other eigenvectors (which is not the case in many - all ? - other
+# implementations)
+
+
+## TODO micro-optimization of buffer reuse
+## TODO write a version that doesn't assume that B is well-conditionned, and doesn't reuse B applications at all
 ## TODO it seems there is a lack of orthogonalization immediately after locking, maybe investigate this to save on some choleskys
+## TODO debug orthogonalizations when A=I
 
 # vprintln(args...) = println(args...)  # Uncomment for output
 vprintln(args...) = nothing
 
 using LinearAlgebra
+using BlockArrays # used for the `mortar` command which makes block matrices
 
-# In the LOBPCG we deal with a subspace (X, R, P), where X, R and P are views
-# into bigger arrays. We don't store these subspace vectors as a dense matrix
-# or a special struct, but just as a tuple.
-# For efficiently matrix-matrix products of this subspace with itself or with
-# dense matrices, we introduce the functions `bmul` and `boverlap` below.
-
-# Given A as a list of blocks [A1, A2, A3] this forms the matrix-matrix product
-# A * B avoiding a concatenation of the blocks to a dense array
-@views @timing "block multiplication" function bmul(blocks::Tuple, B)
-    res = blocks[1] * B[1:size(blocks[1], 2), :]  # First multiplication
-    offset = size(blocks[1], 2)
-    for block in blocks[2:end]
-        mul!(res, block, B[offset .+ (1:size(block, 2)), :], 1, 1)
-        offset += size(block, 2)
-    end
-    res
+# when X or Y are BlockArrays, this makes the return value be a proper array (not a BlockArray)
+function array_mul(X, Y)
+    Z = zeros(eltype(X), size(X, 1), size(Y, 2))
+    mul!(Z, X, Y)
 end
-bmul(A, B::Tuple) = error("not implemented")
-bmul(A::Tuple, B::Tuple) = error("not implemented")
-bmul(A, B) = A * B
-
-
-# Given A and B as two lists of blocks [A1, A2, A3], [B1, B2, B3] form the matrix
-# A' B optionally assuming that the output is a Hermitian matrix and will be used
-# with the Hermitian view, such that only the upper triangle needs to be computed.
-@views function boverlap(blocksA::Tuple, blocksB::Tuple; assume_hermitian=false)
-    rows = sum(size(blA, 2) for blA in blocksA)
-    cols = sum(size(blB, 2) for blB in blocksB)
-    ret = similar(blocksA[1], rows, cols)
-
-    orow = 0  # row offset
-    for (iA, blA) in enumerate(blocksA)
-        ocol = 0  # column offset
-        for (iB, blB) in enumerate(blocksB)
-            if !assume_hermitian || iA ≤ iB
-                mul!(ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))], blA', blB)
-            end
-            ocol += size(blB, 2)
-        end
-        orow += size(blA, 2)
-    end
-    ret
-end
-boverlap(blocksA::Tuple, B) = boverlap(blocksA, (B, ))
-boverlap(A, B) = A' * B
-
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
-@timing function rayleigh_ritz(X, AX, BX, N)
-    F = eigen(Hermitian(boverlap(X, AX, assume_hermitian=true)))  # == Hermitian(X' AX)
+@timing function rayleigh_ritz(X, AX, N)
+    F = eigen(Hermitian(array_mul(X', AX)))
     F.vectors[:,1:N], F.values[1:N]
 end
 
@@ -69,11 +66,24 @@ function cholesky(X::Union{Matrix{ComplexF16}, Hermitian{ComplexF16,Matrix{Compl
     (U=convert.(ComplexF16, U), )
 end
 
+# B-orthogonalize X (in place) using only one B apply.
+# This uses an unstable method which is only OK if X is already
+# orthogonal (not B-orthogonal) and B is relatively well-conditioned
+# (which implies that X'BX is relatively well-conditioned, and
+# therefore that it is safe to cholesky it and reuse the B aply)
+function B_ortho!(X, BX)
+    O = Hermitian(X'*BX)
+    U = cholesky(O).U
+    rdiv!(X, U)
+    rdiv!(BX, U)
+end
+
+normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 # Orthogonalizes X to tol
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been
 # magnified
-@timing function ortho(X; tol=2eps(real(eltype(X))))
+@timing function ortho!(X; tol=2eps(real(eltype(X))))
     local R
 
     # # Uncomment for "gold standard"
@@ -118,8 +128,6 @@ end
         invR = inv(R)
         rmul!(X, invR) # we do not use X/R because we use invR next
 
-        normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
-
         # We would like growth_factor *= opnorm(inv(R)) but it's too
         # expensive, so we use an upper bound which is sharp enough to
         # be close to 1 when R is close to I, which we need for the
@@ -161,30 +169,32 @@ function drop!(X, tol=2eps(real(eltype(X))))
 end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
-function ortho(X, Y, BY; tol=2eps(real(eltype(X))))
+function ortho!(X, Y, BY; tol=2eps(real(eltype(X))))
+    T = real(eltype(X))
+    # normalize to try to cheaply improve conditioning
     Threads.@threads for i=1:size(X,2)
         n = norm(@views X[:,i])
-        X[:,i] ./= n
+        @views X[:,i] ./= n
     end
 
     niter = 1
     ninners = zeros(Int,0)
     while true
-        BYX = boverlap(BY, X)   # = BY' X
-        X .-= bmul(Y, BYX)  # = Y * BYX
+        BYX = BY'X
+        # XXX the one(T) instead of plain old 1 is because of https://github.com/JuliaArrays/BlockArrays.jl/issues/176
+        mul!(X, Y, BYX, -one(T), one(T)) # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
-        # as can happen in extreme cases in the ortho(cP, cX)
+        # as can happen in extreme cases in the ortho!(cP, cX)
         dropped = drop!(X)
-        @views if dropped != []
-            # X[:, dropped] = X[:, dropped] - Y * BY' * X[:, dropped]
-            X[:, dropped] .= X[:, dropped] .- bmul(Y, boverlap(BY, X[:, dropped]))
+        if dropped != []
+            @views mul!(X[:, dropped], Y, BY' * (X[:, dropped]), -one(T), one(T)) # X -= Y*BY'X
         end
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
             break
         end
-        X, ninner, growth_factor = ortho(X, tol=tol)
+        X, ninner, growth_factor = ortho!(X, tol=tol)
         push!(ninners, ninner)
 
         # norm(BY'X) < tol && break should be the proper check, but
@@ -226,7 +236,7 @@ end
 ### R is then recomputed, and orthonormalized explicitly wrt BX and BP
 ### We reuse applications of A/B when it is safe to do so, ie only with orthogonal transformations
 
-@timing function LOBPCG(A, X, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100;
+@timing function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100;
                         miniter=1, ortho_tol=2eps(real(eltype(X))),
                         n_conv_check=nothing, display_progress=false)
     N, M = size(X)
@@ -237,10 +247,14 @@ end
 
     n_conv_check === nothing && (n_conv_check = M)
     resid_history = zeros(real(eltype(X)), M, maxiter+1)
-    buf_X = zero(X)
-    buf_P = zero(X)
 
-    X = ortho(X, tol=ortho_tol)[1]
+    # B-orthogonalize X
+    X = ortho!(copy(X), tol=ortho_tol)[1]
+    if B != I
+        BX = B*X
+        B_ortho!(X, BX)
+    end
+    
     n_matvec = M   # Count number of matrix-vector products
     AX = A*X
     # full_X/AX/BX will always store the full (including locked) X.
@@ -251,10 +265,10 @@ end
     AR = zero(X)
     if B != I
         BR = zero(X)
-        BX = B*X
+        # BX was already computed
         BP = zero(X)
     else
-        # The B arrays share the data
+        # The B arrays are just pointers to the same data
         BR = R
         BX = X
         BP = P
@@ -270,30 +284,30 @@ end
     full_BX = BX
 
     while true
-        if niter > 0 # first iteration is just to compute the residuals: no X update
+        if niter > 0 # first iteration is just to compute the residuals (no X update)
             ###  Perform the Rayleigh-Ritz
             mul!(AR, A, R)
             n_matvec += size(R, 2)
 
             # Form Rayleigh-Ritz subspace
             if niter > 1
-                Y = (X, R, P)
-                AY = (AX, AR, AP)
-                BY = (BX, BR, BP)  # data shared with (X, R, P) in non-general case
+                Y = mortar((X, R, P))
+                AY = mortar((AX, AR, AP))
+                BY = mortar((BX, BR, BP))  # data shared with (X, R, P) in non-general case
             else
-                Y = (X, R)
-                AY = (AX, AR)
-                BY = (BX, BR)  # data shared with (X, R) in non-general case
+                Y  = mortar((X, R))
+                AY = mortar((AX, AR))
+                BY = mortar((BX, BR))  # data shared with (X, R) in non-general case
             end
-            cX, λs = rayleigh_ritz(Y, AY, BY, M-nlocked)
+            cX, λs = rayleigh_ritz(Y, AY, M-nlocked)
 
             # Update X. By contrast to some other implementations, we
             # wait on updating P because we have to know which vectors
             # to lock (and therefore the residuals) before computing P
             # only for the unlocked vectors. This results in better convergence.
-            new_X  = bmul(Y , cX)  # = Y * cX
-            new_AX = bmul(AY, cX)  # = AY * cX,   no accuracy loss, since cX orthogonal
-            new_BX = (B == I) ? new_X : bmul(BY, cX)
+            new_X  = array_mul(Y, cX)
+            new_AX = array_mul(AY, cX)  # no accuracy loss, since cX orthogonal
+            new_BX = (B == I) ? new_X : array_mul(BY, cX)
         end
 
         ### Compute new residuals
@@ -305,8 +319,10 @@ end
             resid_history[i + nlocked, niter+1] = norm(new_R[:, i])
         end
         vprintln(niter, "   ", resid_history[:, niter+1])
-        precondprep!(precon, X)
-        ldiv!(precon, new_R)
+        if precon !== I
+            precondprep!(precon, X) # update preconditioner if needed; defaults to noop
+            ldiv!(precon, new_R)
+        end
 
         ### Compute number of locked vectors
         prev_nlocked = nlocked
@@ -350,28 +366,28 @@ end
             cP = cX .- e
             cP = cP[:, Xn_indices]
             # orthogonalize against all Xn (including newly locked)
-            cP = ortho(cP, cX, cX, tol=ortho_tol)
+            ortho!(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
-            new_P = bmul(Y, cP)    # = Y * cP
-            new_AP = bmul(AY, cP)  # = AY * cP
+            new_P  = array_mul( Y, cP)
+            new_AP = array_mul(AY, cP)
             if B != I
-                new_BP = bmul(BY, cP)  # = BY * cP
+                new_BP = array_mul(BY, cP)
             else
                 new_BP = new_P
             end
         end
 
         # Update all X, even newly locked
-        X .= new_X
+        X  .= new_X
         AX .= new_AX
         if B != I
             BX .= new_BX
         end
 
-        # Sanity check
+        # Quick sanity check
         for i = 1:size(X, 2)
-            if abs(norm(@view X[:, i]) - 1) >= sqrt(eps(real(eltype(X))))
+            @views if abs(BX[:, i]'X[:, i] - 1) >= sqrt(eps(real(eltype(X))))
                 error("LOBPCG is badly failing to keep the vectors normalized; this should never happen")
             end
         end
@@ -401,24 +417,16 @@ end
 
         # Orthogonalize R wrt all X, newly active P
         if niter > 0
-            Z  = (full_X, P)
-            BZ = (full_BX, BP)  # data shared with (full_X, P) in non-general case
+            Z  = mortar((full_X, P))
+            BZ = mortar((full_BX, BP))  # data shared with (full_X, P) in non-general case
         else
             Z  = full_X
             BZ = full_BX
         end
-        R .= ortho(R, Z, BZ, tol=ortho_tol)
-
+        ortho!(R, Z, BZ; tol=ortho_tol)
         if B != I
-            # At this point R is orthogonalized but not B-orthogonalized.
-            # We assume that B is relatively well-conditioned so that R is
-            # close to be B-orthogonal. Therefore one step is OK, and B R
-            # can be re-used
             mul!(BR, B, R)
-            O = Hermitian(R'*BR)
-            U = cholesky(O).U
-            rdiv!(R, U)
-            rdiv!(BR, U)
+            B_ortho!(R, BR)
         end
 
         niter < maxiter || break

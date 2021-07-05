@@ -21,8 +21,8 @@ end
 """
     load_scfres(filename)
 
-Load back an `scfres`, which has previously been stored with `save_scfres`.
-Note the warning in `save_scfres`.
+Load back an `scfres`, which has previously been stored with [`save_scfres`](@ref).
+Note the warning in [`save_scfres`](@ref).
 """
 function load_scfres end
 
@@ -30,8 +30,21 @@ function load_scfres end
 """
     save_scfres(filename, scfres)
 
-Save an `scfres` obtained from `self_consistent_field` to a JLD2 
-or VTK file depending on the extension.
+Save an `scfres` obtained from `self_consistent_field` to a file.
+The format is determined from the file extension. Currently the following
+file extensions are recognized and supported:
+
+- **jld2**: A JLD2 file. Stores the complete state and can be used
+  (with [`load_scfres`](@ref)) to restart an SCF from a checkpoint or
+  post-process an SCF solution. See [Saving SCF results on disk and SCF checkpoints](@ref)
+  for details.
+- **vts**: A VTK file for visualisation e.g. in [paraview](https://www.paraview.org/).
+  Stores the density, spin density and some metadata (energy, Fermi level, occupation etc.).
+  Supports these keyword arguments:
+    * `save_ψ`: Save the real-space representation of the orbitals as well
+      (may lead to larger files).
+    * `extra_data`: `Dict{String,Array}` with additional data on the 3D real-space
+      grid to store into the VTK file.
 
 !!! warning "No compatibility guarantees"
     No guarantees are made with respect to this function at this point.

@@ -6,8 +6,8 @@ using UnitfulAtomic
 using PyCall
 
 py"""
-import numpy as np
-import pymatgen as mg
+from pymatgen.core.lattice import Lattice
+from pymatgen.core.structure import Structure
 """
 
 @testset "Lattice DFTK -> pymatgen -> DFTK" begin
@@ -18,7 +18,7 @@ end
 
 @testset "Lattice pymatgen -> DFTK -> pymatgen" begin
     data = randn(9)
-    reference = py"mg.Lattice($data)"
+    reference = py"Lattice($data)"
     output = pymatgen_lattice(load_lattice(reference))
     output = py"$output.matrix.ravel()" .+ 0
     @test data ≈ output atol=1e-14
@@ -41,11 +41,11 @@ end
 
 @testset "Structure pymatgen -> DFTK -> pymatgen" begin
     data = randn(9)
-    reflattice = py"mg.Lattice($data)"
+    reflattice = py"Lattice($data)"
     species = [1, 1, 6, 6, 6, 8]
     positions = [randn(3), randn(3), randn(3), randn(3), randn(3), randn(3)]
 
-    reference = py"mg.Structure($reflattice, $species, $positions)"
+    reference = py"Structure($reflattice, $species, $positions)"
     atoms = load_atoms(reference)
     @test length(atoms) == 3
     @test all(at isa ElementCoulomb for (at, positions) in atoms)

@@ -47,7 +47,7 @@ scfres.energies
 #-
 eltype(scfres.energies.total)
 #-
-eltype(scfres.ρ.real)
+eltype(scfres.ρ)
 
 #
 # !!! note "Generic linear algebra routines"

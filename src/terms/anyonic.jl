@@ -42,7 +42,7 @@ end
 
 function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
     out = [zeros(complex(T), basis.fft_size), zeros(complex(T), basis.fft_size)]
-    A_fourier = [from_real(basis, A[α]).fourier for α = 1:2]
+    A_fourier = [r_to_G(basis, A[α]) for α = 1:2]
     for (iG, G) in enumerate(G_vectors(basis))
         vec = [A_fourier[1][iG], A_fourier[2][iG]]
         G = [G[1], G[2]]
@@ -54,7 +54,7 @@ function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
             out[1][iG], out[2][iG] = vec
         end
     end
-    [from_fourier(basis, out[α]).real for α = 1:2]
+    [G_to_r(basis, out[α]) for α = 1:2]
 end
 
 struct Anyonic
@@ -70,11 +70,12 @@ function (A::Anyonic)(basis)
     # although they might already be correct)
     @assert basis.model.lattice[2, 1] == basis.model.lattice[1, 2] == 0
     @assert basis.model.lattice[1, 1] == basis.model.lattice[2, 2]
+    @assert basis.model.n_spin_components == 1
 
     TermAnyonic(basis, eltype(basis)(A.hbar), eltype(basis)(A.β))
 end
 
-struct TermAnyonic{T <: Real, Tρ <: RealFourierArray, TA} <: Term
+struct TermAnyonic{T <: Real, Tρ, TA} <: Term
     basis::PlaneWaveBasis{T}
     hbar::T
     β::T
@@ -95,7 +96,6 @@ function TermAnyonic(basis::PlaneWaveBasis{T}, hbar, β) where {T}
     # Aref is not divergence-free in the finite basis, so we explicitly project it
     # This is because we assume elsewhere (eg to ensure self-adjointness of the Hamiltonian)
     Aref = make_div_free(basis, Aref)
-    ρref = from_real(basis, ρref)
     TermAnyonic(basis, hbar, β, ρref, Aref)
 end
 
@@ -112,8 +112,8 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
     # => A(G1, G2) = -2π i ρ(G1, G2) * [-G2;G1;0]/(G1^2 + G2^2)
     A1 = zeros(complex(T), basis.fft_size)
     A2 = zeros(complex(T), basis.fft_size)
-    ρ_fourier = ρ.fourier  # unpack before hot loop for perf
-    ρref_fourier = term.ρref.fourier
+    ρ_fourier = r_to_G(basis, ρ[:, :, :, 1])
+    ρref_fourier = r_to_G(basis, term.ρref) # TODO optimize
     for (iG, G) in enumerate(G_vectors_cart(basis))
         G2 = sum(abs2, G)
         if G2 != 0
@@ -121,8 +121,8 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
             A2[iG] = -2T(π) * G[1] / G2 * (ρ_fourier[iG] - ρref_fourier[iG]) * im
         end
     end
-    Areal = [from_fourier(basis, A1).real + term.Aref[1],
-             from_fourier(basis, A2).real + term.Aref[2],
+    Areal = [G_to_r(basis, A1) + term.Aref[1],
+             G_to_r(basis, A2) + term.Aref[2],
              zeros(T, basis.fft_size)]
 
     # 2 hbar β (-i∇)⋅A + β^2 |A|^2
@@ -133,9 +133,9 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
 
     # Now compute effective local potential - 2β x^⟂/|x|² ∗ (βAρ + J)
     J = compute_current(basis, ψ, occ)
-    eff_current = [hbar .* J[α].real .+
-                   β .* ρ.real .* Areal[α] for α = 1:2]
-    eff_current_fourier = [from_real(basis, eff_current[α]).fourier for α = 1:2]
+    eff_current = [hbar .* J[α] .+
+                   β .* ρ .* Areal[α] for α = 1:2]
+    eff_current_fourier = [r_to_G(basis, eff_current[α]) for α = 1:2]
     # eff_pot = - 2β x^⟂/|x|² ∗ eff_current
     # => ∇∧eff_pot = -4πβ eff_current
     # => eff_pot(G1, G2) = 4πβ i eff_current(G1, G2) * [-G2;G1;0]/(G1^2 + G2^2)
@@ -148,7 +148,7 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
             eff_pot_fourier[iG] += +4T(π)*β * im * G[1] / G2 * eff_current_fourier[2][iG]
         end
     end
-    eff_pot_real = from_fourier(basis, eff_pot_fourier).real
+    eff_pot_real = G_to_r(basis, eff_pot_fourier)
     ops_ham = [ops_energy..., RealSpaceMultiplication(basis, basis.kpoints[1], eff_pot_real)]
 
     E = zero(T)

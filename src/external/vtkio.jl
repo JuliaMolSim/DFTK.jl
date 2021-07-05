@@ -1,22 +1,3 @@
-import WriteVTK: vtk_grid, vtk_save
-
-@doc raw"""
-    save_scfres(filename, scfres, Val(:vtk))
-
-The function takes in the VTK filename and the scfres structure and stores into a VTK file.
-
-Parameters
-- `save_ψ`: Store the orbitals or not. By default they are not stored.
-
-Grid Values:
-- ``\rho`` -> Density in real space
-- ``\psi \_k(i)\_band(j)\_real`` -> Real values of Bloch waves in real space
-- ``\psi \_k(i)\_band(j)\_imag`` -> Imaginary values of Bloch waves in real space
-- ``\rho spin`` -> Real value of ρspin are stored if ρspin in present
-
-MetaData:
-- energies, eigenvalues, Fermi level and occupations.
-"""
 function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{:vts};
                             save_ψ=false, extra_data=Dict{String,Any}())
     !mpi_master() && error(
@@ -30,7 +11,7 @@ function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{
     for (idcs, r) in zip(CartesianIndices(basis.fft_size), r_vectors_cart(basis))
         grid[:, Tuple(idcs)...] = r
     end
-    vtkfile = vtk_grid(filename, grid)
+    vtkfile = WriteVTK.vtk_grid(filename, grid)
 
     # Storing the bloch waves
     if save_ψ
@@ -44,10 +25,10 @@ function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{
     end
 
     # Storing the  density in real space
-    vtkfile["ρ"] = scfres.ρ.real
+    vtkfile["ρ"] = total_density(scfres.ρ)
 
     # Storing ρspin if it is present.
-    isnothing(scfres.ρspin)  || (vtkfile["ρspin"] = scfres.ρspin.real)
+    isnothing(spin_density(scfres.ρ))  || (vtkfile["ρspin"] = spin_density(scfres.ρ))
 
     # Storing the energy components
     for key in keys(scfres.energies)
@@ -67,5 +48,5 @@ function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{
         vtkfile[key] = value
     end
 
-    only(vtk_save(vtkfile))
+    only(WriteVTK.vtk_save(vtkfile))
 end
