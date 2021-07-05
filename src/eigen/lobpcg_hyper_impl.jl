@@ -251,12 +251,14 @@ end
     # B-orthogonalize X
     X = ortho!(copy(X), tol=ortho_tol)[1]
     if B != I
-        BX = B*X
+        BX = similar(X)
+        BX = mul!(BX, B, X)
         B_ortho!(X, BX)
     end
-    
+
     n_matvec = M   # Count number of matrix-vector products
-    AX = A*X
+    AX = similar(X)
+    AX = mul!(AX, A, X)
     # full_X/AX/BX will always store the full (including locked) X.
     # X/AX/BX only point to the active part
     P = zero(X)

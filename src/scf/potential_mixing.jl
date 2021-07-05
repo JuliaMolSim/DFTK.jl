@@ -267,7 +267,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     ΔEdown    = 0.0
 
     while n_iter < maxiter
-        info = merge(info, (stage=:iterate, converged=converged))
+        info = merge(info, (stage=:iterate, algorithm="SCF", converged=converged))
         callback(info)
         if MPI.bcast(is_converged(info), 0, MPI.COMM_WORLD)
             # TODO Debug why these MPI broadcasts are needed
@@ -332,7 +332,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     info = (ham=ham, basis=basis, energies=info.energies, converged=converged,
             ρ=info.ρout, eigenvalues=info.eigenvalues, occupation=info.occupation,
             εF=info.εF, n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=info.ψ,
-            diagonalization=info.diagonalization, stage=:finalize)
+            diagonalization=info.diagonalization, stage=:finalize, algorithm="SCF")
     callback(info)
     info
 end

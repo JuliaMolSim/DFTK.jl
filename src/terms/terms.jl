@@ -134,26 +134,26 @@ compute_kernel(::Term; kwargs...) = nothing  # By default no kernel
 
 
 """
-    apply_kernel(basis::PlaneWaveBasis, dρ; kwargs...)
+    apply_kernel(basis::PlaneWaveBasis, δρ; kwargs...)
 
-Computes the potential response to a perturbation dρ in real space,
+Computes the potential response to a perturbation δρ in real space,
 as a 4D (i,j,k,σ) array.
 """
-@timing function apply_kernel(basis::PlaneWaveBasis, dρ;
+@timing function apply_kernel(basis::PlaneWaveBasis, δρ;
                               RPA=false, kwargs...)
     n_spin = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
 
-    dV = zero(dρ)
+    δV = zero(δρ)
     for term in basis.terms
         # Skip XC term if RPA is selected
         RPA && term isa TermXc && continue
 
-        dV_term = apply_kernel(term, dρ; kwargs...)
-        if !isnothing(dV_term)
-            dV .+= dV_term
+        δV_term = apply_kernel(term, δρ; kwargs...)
+        if !isnothing(δV_term)
+            δV .+= δV_term
         end
     end
-    dV
+    δV
 end
-apply_kernel(::Term, dρ; kwargs...) = nothing  # by default, no kernel
+apply_kernel(::Term, δρ; kwargs...) = nothing  # by default, no kernel
