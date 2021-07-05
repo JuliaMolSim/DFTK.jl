@@ -15,53 +15,54 @@ function ScfPlotTrace end  # implementation in src/plotting.jl
 
 """
 Default callback function for `self_consistent_field` and `newton`, which prints a convergence table.
-If used for newton algorithm, set algo_newton to true.
 """
-function ScfDefaultCallback(; algo_newton=false)
+function ScfDefaultCallback()
     prev_energy = NaN
     function callback(info)
-        if !algo_newton
+        show_magn = info.basis.model.spin_polarization == :collinear
+        show_diag = hasproperty(info, :diagonalization)
+        show_damp = hasproperty(info, :α)
+
+        if show_diag
             # Gather MPI-distributed information
-            # Average number of diagonalisations per k-Point needed for this SCF step
-            # Note: If two Hamiltonian diagonalisations have been used (e.g. adaptive damping),
+            # Average number of diagonalizations per k-Point needed for this SCF step
+            # Note: If two Hamiltonian diagonalizations have been used (e.g. adaptive damping),
             # the per k-Point values are summed.
             diagiter = mpi_mean(sum(mean(diag.iterations) for diag in info.diagonalization),
                                 info.basis.comm_kpts)
         end
-        # Rest is printing => only do on master
-        !mpi_master() && return info
+
+        !mpi_master() && return info  # Rest is printing => only do on master
         if info.stage == :finalize
-            info.converged || @warn algo_newton ? "Newton not converged." : "SCF not converged."
+            info.converged || @warn "$(info.algorithm) not converged."
             return info
         end
-        collinear = info.basis.model.spin_polarization == :collinear
 
+        # TODO We should really do this properly ... this is really messy
         if info.n_iter == 1
             E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
-            magn    = collinear ? ("   Magnet", "   ------") : ("", "")
-            diag    = !algo_newton ? ("Diag", "----") : ("", "")
-            αstr    = !algo_newton ? ("α   ", "----") : ("", "")
-            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin%s   %s   %s\n" E_label magn[1] αstr[1] diag[1]
-            @printf "---   ---------------   ---------   --------%s   %s   %s\n" magn[2] αstr[2] diag[2]
+            label_magn = show_magn ? ("   Magnet", "   ------") : ("", "")
+            label_damp = show_damp ? ("   α   ", "   ----") : ("", "")
+            label_diag = show_diag ? ("   Diag", "   ----") : ("", "")
+            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin" E_label
+            println(label_magn[1], label_damp[1], label_diag[1])
+            @printf "---   ---------------   ---------   --------"
+            println(label_magn[2], label_damp[2], label_diag[2])
         end
         E    = isnothing(info.energies) ? Inf : info.energies.total
         Δρ   = norm(info.ρout - info.ρin) * sqrt(info.basis.dvol)
-        if size(info.ρout, 4) == 1
-            magn = NaN
-        else
-            magn = sum(spin_density(info.ρout)) * info.basis.dvol
-        end
+        magn = sum(spin_density(info.ρout)) * info.basis.dvol
 
-        Estr   = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
-        ΔE     = isnan(prev_energy) ? "      NaN" : @sprintf "% 3.2e" E - prev_energy
-        Mstr = collinear ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
-        if algo_newton
-            @printf "% 3d   %s   %s   %2.2e%s \n" info.n_iter Estr ΔE Δρ Mstr
-        else
-            αstr   = isnan(info.α) ? "  NaN" : @sprintf "% 4.2f" info.α
+        Estr    = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
+        ΔE      = isnan(prev_energy) ? "      NaN" : @sprintf "% 3.2e" E - prev_energy
+        Mstr    = show_magn ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
+        diagstr = show_diag ? "  $(@sprintf "% 5.1f" diagiter)" : ""
 
-            @printf "% 3d   %s   %s   %2.2e%s  %s %5.1f \n" info.n_iter Estr ΔE Δρ Mstr αstr diagiter
-        end
+        αstr = ""
+        show_damp && (αstr = isnan(info.α) ? "    NaN" : @sprintf "  % 4.2f" info.α)
+
+        @printf "% 3d   %s   %s   %2.2e" info.n_iter Estr ΔE Δρ
+        println(Mstr, αstr, diagstr)
         prev_energy = info.energies.total
 
         flush(stdout)

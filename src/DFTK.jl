@@ -115,7 +115,7 @@ export scf_anderson_solver
 export scf_CROP_solver
 export self_consistent_field
 export direct_minimization
-export newton, solve_ΩplusK
+export newton
 export load_scfres, save_scfres
 include("scf/chi0models.jl")
 include("scf/mixing.jl")

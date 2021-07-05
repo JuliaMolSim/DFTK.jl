@@ -1,3 +1,6 @@
+using LinearMaps
+using IterativeSolvers
+
 # Newton's algorithm to solve SCF equations
 #
 # Newton algorithm consists of iterating over density matrices like
@@ -42,9 +45,6 @@
 #   - computing Kδψ can be done by constructing the δρ associated with δψ, then
 #     using the exchange-correlation kernel to compute the associated δV, then
 #     acting with δV on the ψ and projecting on the tangent space.
-
-using LinearMaps
-using IterativeSolvers
 
 #  Compute the gradient of the energy, projected on the space tangent to ψ, that
 #  is to say H(ψ)*ψ - ψ*λ where λ is the set of Rayleigh coefficients associated
@@ -172,7 +172,7 @@ from the solution.
 """
 function newton(basis::PlaneWaveBasis{T}, ψ0;
                 tol=1e-6, tol_cg=1e-10, maxiter=20, verbose=false,
-                callback=ScfDefaultCallback(; algo_newton=true),
+                callback=ScfDefaultCallback(),
                 is_converged=ScfConvergenceDensity(tol)) where T
 
     # setting parameters
@@ -213,7 +213,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
         ρ_next = compute_density(basis, ψ, occupation)
         energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ_next)
         info = (ham=H, basis=basis, converged=converged, stage=:iterate,
-                ρin=ρ, ρout=ρ_next, n_iter=n_iter, energies=energies)
+                ρin=ρ, ρout=ρ_next, n_iter=n_iter, energies=energies, algorithm="Newton")
         callback(info)
 
         # update and test convergence
@@ -237,7 +237,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     # up
     info = (ham=H, basis=basis, energies=energies, converged=converged,
             ρ=ρ, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
-            n_iter=n_iter, ψ=ψ, stage=:finalize)
+            n_iter=n_iter, ψ=ψ, stage=:finalize, algorithm="Newton")
     callback(info)
     info
 end
