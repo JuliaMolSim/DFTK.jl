@@ -172,6 +172,8 @@ include("postprocess/chi0.jl")
 export compute_current
 include("postprocess/current.jl")
 
+include("workarounds/forwarddiff_rules.jl")
+
 function __init__()
     # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
     # DoubleFloats has been loaded (via a "using" or an "import").
