@@ -179,7 +179,7 @@ function compute_αmn(fm, fn, ratio)
     ratio * fn / (fn^2 + fm^2)
 end
 
-@views function solve_Ω(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer=(tol_cg=1e-6, verbose=false))
+@views function solve_Ω(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer...)
     basis  = ham.basis
     model = basis.model
     temperature = model.temperature
