@@ -132,7 +132,8 @@ LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(simila
     δψnk
 end
 
-# Returns δψ, δεF corresponding to a change in *total* Hamiltonian dH
+# Apply the four-point polarizability operator χ0_4P = -Ω^-1
+# Returns δψ corresponding to a change in *total* Hamiltonian δH
 # We start from
 # P = f(H-εF), tr(P) = N
 # where P is the density matrix, f the occupation function
@@ -179,7 +180,7 @@ function compute_αmn(fm, fn, ratio)
     ratio * fn / (fn^2 + fm^2)
 end
 
-@views function solve_Ω(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer...)
+@views function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer...)
     basis  = ham.basis
     model = basis.model
     temperature = model.temperature
@@ -269,7 +270,7 @@ returns `3` extra bands, which are not converged by the eigensolver
 
     δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
-    δψ = solve_Ω(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer...)
+    δψ = apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer...)
     δρ = DFTK.compute_δρ(basis, ψ, δψ, occ)
     δρ * normδV
 end
