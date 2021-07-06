@@ -105,7 +105,7 @@ LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(simila
 
 # Solves Q (H-εn) Q δψn = -Q rhs
 # where Q is the projector on the orthogonal of ψk
-@timing_seq function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs; cgtol=1e-6, verbose=false)
+@timing_seq function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs; tol_cg=1e-6, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
 
@@ -122,21 +122,23 @@ LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(simila
         x .= Q(precon \ Q(y))
     end
     J = LinearMap{eltype(ψk)}(QHQ, size(Hk, 1))
-    # cgtol should not be too tight, and in particular not be
+    # tol_cg should not be too tight, and in particular not be
     # too far below the error in the ψ. Otherwise Q and H
     # don't commute enough, and an oversolving of the linear
     # system can lead to spurious solutions
     rhs = Q(rhs)
-    δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!), reltol=cgtol / norm(rhs),
+    δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!), reltol=tol_cg / norm(rhs),
               verbose=verbose)
     δψnk
 end
 
 # Returns δψ, δocc, δεF corresponding to a change in *total* Hamiltonian dH
-# P = f_fd(H-εF), tr(P) = N
+# We start from
+# P = f(H-εF), tr(P) = N
+# where P is the density matrix, f the occupation function
 # δεn = <ψn|δV|ψn>
 # 0 = ∑_n fn' (δεn - δεF) determines δεF
-# where fn' = f_fd'((εn-εF)/T)/T
+# where fn' = f'((εn-εF)/T)/T
 
 # Then <ψm|δP|ψn> = (fm-fn)/(εm-εn) <ψm|δH|ψn>
 # Except for the diagonal which is
@@ -150,6 +152,7 @@ end
 # δfn = fn'<ψn|δH-δεF|ψn>
 # and for the off-diagonal
 # (fm-fn)/(εm-εn) <ψm|δH|ψn> = fm <δψm|ψn> + fn <ψm|δψn>
+
 # We split the computation of δψn in two contributions:
 # for the already-computed states, we add an explicit contribution
 # for the empty states, we solve a Sternheimer equation
@@ -157,22 +160,24 @@ end
 
 # The explicit term needs a careful consideration of stability.
 # Let <ψm|δψn> = αmn <δψm|δH|ψn>. αmn has to satisfy
-# fn αmn + fm αnm = ratio = (fn-fm)/(εn-εm)
+# fn αmn + fm αnm = ratio = (fn-fm)/(εn-εm)   (*)
 # The usual way is to impose orthogonality (=> αmn=-αnm),
 # but this means that αmn = 1/(εm-εn), which is unstable
-# Instead, we minimize αmn^2 + αnm^2 under the linear constraint above, which leads to
+# Instead, we minimize αmn^2 + αnm^2 under the linear constraint (*), which leads to
 # fn αmn = ratio * fn^2 / (fn^2 + fm^2)
 
 # This formula is very nice
-# - It gives a vanishing contribution fn αmn for empty states (note that α itself blows up, but it's compensated by fn)
-# - In the case where fn=1/0 or fm=0 we recover the same formulas as the ones with orthogonality
+# - It gives a vanishing contribution fn αmn for empty states
+#   (note that α itself blows up, but it's compensated by fn)
+# - In the case where fn=1/0 or fm=0 we recover the same formulas
+#   as the ones with orthogonality
 # - It does not blow up for degenerate states
-function get_αmn(fm, fn, ratio)
+function compute_αmn(fm, fn, ratio)
     ratio == 0 && return ratio
     ratio * fn / (fn^2 + fm^2)
 end
 
-@views function solve_Ω(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer=(cgtol=1e-6, verbose=false))
+@views function solve_Ω(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer=(tol_cg=1e-6, verbose=false))
     basis  = ham.basis
     model = basis.model
     temperature = model.temperature
@@ -182,9 +187,9 @@ end
 
     # First compute δocc, δεF
     δεF = zero(T)
-    δocc = [zero(occ[ik]) for ik = 1:Nk]
+    δocc = [zero(occ[ik]) for ik = 1:Nk] # = fn' * (δεn - δεF)
     if temperature > 0
-        # First compute change in occupation without self-consistent Fermi δεF
+        # First compute δocc without self-consistent Fermi δεF
         D = zero(T)
         for ik = 1:Nk
             for (n, εnk) in enumerate(eigenvalues[ik])
@@ -197,12 +202,12 @@ end
                 D += fpnk * basis.kweights[ik]
             end
         end
-        D = mpi_sum(D, basis.comm_kpts) # equal to minus the total DOS
-        dos = sum(compute_dos(εF, basis, eigenvalues))
+        # compute δεF
+        D = mpi_sum(D, basis.comm_kpts)  # equal to minus the total DOS
         δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
         δεF = δocc_tot / D
 
-        # Now add δεF contribution
+        # Add δεF contribution
         for ik = 1:Nk
             for (n, εnk) in enumerate(eigenvalues[ik])
                 enred = (εnk - εF) / temperature
@@ -229,12 +234,12 @@ end
 
             # explicit contributions
             for m = 1:length(εk)
-                n == m && continue # contribution already taken care of by δocc
+                n == m && continue  # contribution already taken care of by δocc
                 fmk = filled_occ * Smearing.occupation(model.smearing, (εk[m]-εF) / temperature)
                 ddiff = Smearing.occupation_divided_difference
                 ratio = filled_occ * ddiff(model.smearing, εk[m], εk[n], εF, temperature)
-                αmn = get_αmn(fmk, fnk, ratio)
-                # αnm = get_αmn(fnk, fmk, ratio)
+                αmn = compute_αmn(fmk, fnk, ratio)
+                # αnm = compute_αmn(fnk, fmk, ratio)
                 # @assert fnk * αmn + fmk * αnm ≈ ratio
                 δψk[:, n] .+= ψk[:, m] .* αmn .* dot(ψk[:, m], δHψ[ik][:, n])
             end
@@ -250,9 +255,14 @@ end
 
 """
 Get the density variation δρ corresponding to a total potential variation δV.
+
+Note: This function assumes that all bands contained in `ψ` and `eigenvalues` are
+sufficiently converged. By default the `self_consistent_field` routine of `DFTK`
+returns `3` extra bands, which are not converged by the eigensolver
+(see `n_ep_extra` parameter). These should be discarded before using this function.
 """
 @timing function apply_χ0(ham, ψ, εF, eigenvalues, δV;
-                          kwargs_sternheimer=(cgtol=1e-6, verbose=false))
+                          kwargs_sternheimer...)
     basis = ham.basis
     model = basis.model
     occ = [filled_occupation(model) *
@@ -273,8 +283,8 @@ Get the density variation δρ corresponding to a total potential variation δV.
     δV = symmetrize(basis, δV) / normδV
 
     δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
-       for (ik, kpt) in enumerate(basis.kpoints)]
-    δψ, δocc, δεF = solve_Ω(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer)
+           for (ik, kpt) in enumerate(basis.kpoints)]
+    δψ, δocc, δεF = solve_Ω(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer...)
     δρ = DFTK.compute_δρ(basis, ψ, δψ, occ, δocc)
     δρ * normδV
 end
