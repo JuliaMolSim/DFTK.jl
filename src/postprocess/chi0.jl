@@ -127,8 +127,8 @@ LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(simila
     # don't commute enough, and an oversolving of the linear
     # system can lead to spurious solutions
     rhs = Q(rhs)
-    δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!), reltol=tol_cg / norm(rhs),
-              verbose=verbose)
+    δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!),
+              reltol=0, abstol=tol_cg, verbose=verbose)
     δψnk
 end
 
