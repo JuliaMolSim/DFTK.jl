@@ -8,7 +8,7 @@ function make_basis(a)
                        [1 1 0.]]
     Si = ElementPsp(:Si, psp=load_psp(:Si, functional="lda"))
     atoms = [Si => [ones(3)/8, -ones(3)/8]]
-    model = model_DFT(lattice, atoms, []; symmetries=false)
+    model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn]; symmetries=false)
     kgrid = [4, 4, 4] # k-point grid (Regular Monkhorst-Pack grid)
     Ecut = 7          # kinetic energy cutoff in Hartree
     PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=[32, 32, 32])
@@ -27,12 +27,12 @@ compute_energy(a) = compute_energy(scfres, a)
 compute_energy(10.26)
 
 import FiniteDiff
-FiniteDiff.finite_difference_derivative(compute_energy, 10.26) # -0.4347657610031856 
+FiniteDiff.finite_difference_derivative(compute_energy, 10.26) # -1.215583767344458
 
 using ForwardDiff
-ForwardDiff.derivative(compute_energy, 10.26) # -0.434770331446876
+ForwardDiff.derivative(compute_energy, 10.26) # -1.2155837670108651
 
 using BenchmarkTools
-@btime compute_energy(10.26)                                           # 101.814 ms (89326 allocations: 48.94 MiB)
-@btime FiniteDiff.finite_difference_derivative(compute_energy, 10.26)  # 224.734 ms (178656 allocations: 97.87 MiB)
-@btime ForwardDiff.derivative(compute_energy, 10.26)                   # 340.684 ms (1556202 allocations: 146.99 MiB)
+@btime compute_energy(10.26)                                           #  91.082 ms (  88919 allocations:  65.00 MiB)
+@btime FiniteDiff.finite_difference_derivative(compute_energy, 10.26)  # 244.758 ms ( 177842 allocations: 129.99 MiB)
+@btime ForwardDiff.derivative(compute_energy, 10.26)                   # 206.069 ms (1555666 allocations: 177.43 MiB)
