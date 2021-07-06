@@ -103,3 +103,119 @@ println("Interacting polarizability:     $(dipole(basis, δρ))")
 
 # As expected, the interacting polarizability matches the finite difference
 # result. The non-interacting polarizability is higher.
+
+#=============================================================================#
+
+# # Dipole moment
+using ForwardDiff
+
+function obj(ε)
+    model_ε = model_LDA(lattice, atoms; extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
+                    symmetries=false)
+    basis_ε = PlaneWaveBasis(model_ε, Ecut; kgrid=kgrid)
+    res_ε = self_consistent_field(basis_ε, tol=tol)
+    dipole(basis_ε, res_ε.ρ)
+end
+# goal: obj'(0)
+
+function make_basis(ε, lattice)
+    # model_ε = model_LDA(lattice, atoms; extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
+    #                 symmetries=false) # Fallback functional for lda_xc_teter93 not implemented.
+    model_ε = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn];  
+                        extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
+                        symmetries=false)
+    basis_ε = PlaneWaveBasis(model_ε, Ecut; kgrid=kgrid)
+end
+make_basis(ε) = make_basis(ε, lattice)
+
+# workaround: enforce the Model to promote its type from Float64 to Dual, by promoting the lattice too
+make_basis(ε::T) where T <: ForwardDiff.Dual = make_basis(ε, T.(lattice))
+basis_dual = make_basis(ForwardDiff.Dual{:tttag}(0.0, 1.0))
+
+basis = make_basis(0.0)
+scfres = self_consistent_field(basis; tol=tol)
+ψ = scfres.ψ
+occupation = scfres.occupation
+
+δH, ψ_dual = let T = eltype(δH.basis.terms[end].potential)
+   occupation_dual = [T.(scfres.occupation[1])]
+   ψ = scfres.ψ
+   ψ_dual = [Complex.(T.(real(ψ[1])), T.(imag(ψ[1])))]
+   ρ_dual = compute_density(basis_dual, ψ_dual, occupation_dual)
+   _, δH = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual; ρ=ρ_dual)
+   δH, ψ_dual
+end
+
+δH * ψ_dual
+
+# # frule sketch:
+# function frule(::typeof(self_consistent_field), basis, δbasis; kwargs...)
+#     scfres = self_consistent_field(basis; kwargs...)
+#     ψ = scfres.ψ
+#     function Hψ(basis, ψ)
+#         ρ = compute_density(basis, ψ)
+#         _, H = energy_hamiltonian(basis, ψ, ρ)
+#         H*ψ
+#     end
+#     δHψ = callback_into_ad(H, basis, ψ)(δbasis, nothing)
+#     δψ = solve_ΩplusK(basis, ψ, -δHψ, occupation)
+#     δρ = compute_δρ(basis, ψ, δψ)
+#     δscfres = (ham=δham, basis=δbasis; ...ψ=δψ, ρ=δρ)
+#     (scfres, δscfres)
+# end
+
+# Approach 0: keep both a non-dual basis, and a basis including Duals for easy bookkeeping (but redundant computation)
+function self_consistent_field_dual(basis::PlaneWaveBasis, basis_dual::PlaneWaveBasis{T}; kwargs...) where T <: ForwardDiff.Dual
+    # forward mode implicit differentiation
+    scfres = self_consistent_field(basis; kwargs...)
+    ψ = scfres.ψ
+    occupation = scfres.occupation
+
+    # promote everything eagerly to Dual numbers
+    # TODO figure out how to get by without this
+    occupation_dual = [T.(occupation[1])]
+    ψ_dual = [Complex.(T.(real(ψ[1])), T.(imag(ψ[1])))]
+    ρ_dual = compute_density(basis_dual, ψ_dual, occupation_dual)
+
+    _, δH = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual; ρ=ρ_dual)
+    δHψ = δH * ψ_dual
+    δψ = DFTK.solve_ΩplusK(basis_dual, ψ_dual, -δHψ, occupation_dual)
+end
+
+self_consistent_field_dual(basis, basis_dual; tol=tol)
+# LoadError: DimensionMismatch("array could not be broadcast to match destination")
+# Stacktrace:
+#   [1] check_broadcast_shape
+#     @ ./broadcast.jl:520 [inlined]
+#   [2] check_broadcast_axes
+#     @ ./broadcast.jl:523 [inlined]
+#   [3] instantiate
+#     @ ./broadcast.jl:269 [inlined]
+#   [4] materialize!
+#     @ ./broadcast.jl:894 [inlined]
+#   [5] materialize!(dest::Vector{ForwardDiff.Dual{:tttag, Float64, 1}}, bc::Base.Broadcast.Broadcasted{Base.Broadcast.DefaultArrayStyle{1}, Nothing, typeof(identity), Tuple{Base.ReinterpretArray{ForwardDiff.Dual{:tttag, Float64, 1}, 1, Complex{ForwardDiff.Dual{:tttag, Float64, 1}}, Vector{Complex{ForwardDiff.Dual{:tttag, Float64, 1}}}, false}}})
+#     @ Base.Broadcast ./broadcast.jl:891
+#   [6] (::DFTK.var"#f_ldiv!#532"{Vector{Matrix{Complex{ForwardDiff.Dual{:tttag, Float64, 1}}}}, Vector{PreconditionerTPA{ForwardDiff.Dual{:tttag, Float64, 1}}}, DFTK.var"#unpack#530"{PlaneWaveBasis{ForwardDiff.Dual{:tttag, Float64, 1}}}, DFTK.var"#pack#529"{PlaneWaveBasis{ForwardDiff.Dual{:tttag, Float64, 1}}}})(x::Vector{ForwardDiff.Dual{:tttag, Float64, 1}}, y::Vector{ForwardDiff.Dual{:tttag, Float64, 1}})
+#     @ DFTK ~/.julia/dev/DFTK.jl/src/scf/newton.jl:142
+#   [7] ldiv!(y::Vector{ForwardDiff.Dual{:tttag, Float64, 1}}, P::DFTK.FunctionPreconditioner, x::Vector{ForwardDiff.Dual{:tttag, Float64, 1}})
+#     @ DFTK ~/.julia/dev/DFTK.jl/src/postprocess/chi0.jl:105
+#   [8] iterate(it::IterativeSolvers.PCGIterable{DFTK.FunctionPreconditioner, LinearMaps.FunctionMap{ForwardDiff.Dual{:tttag, Float64, 1}, DFTK.var"#ΩpK#535"{PlaneWaveBasis{ForwardDiff.Dual{:tttag, Float64, 1}}, Vector{Matrix{Complex{ForwardDiff.Dual{:tttag, Float64, 1}}}}, Vector{Vector{ForwardDiff.Dual{:tttag, Float64, 1}}}, Vector{Matrix{Complex{ForwardDiff.Dual{:tttag, Float64, 1}}}}, DFTK.var"#unpack#530"{PlaneWaveBasis{ForwardDiff.Dual{:tttag, Float64, 1}}}, DFTK.var"#pack#529"{PlaneWaveBasis{ForwardDiff.Dual{:tttag, Float64, 1}}}, Hamiltonian, Array{ForwardDiff.Dual{:tttag, Float64, 1}, 4}}, Nothing}, Vector{ForwardDiff.Dual{:tttag, Float64, 1}}, Vector{ForwardDiff.Dual{:tttag, Float64, 1}}, ForwardDiff.Dual{:tttag, Float64, 1}, ForwardDiff.Dual{:tttag, Float64, 1}}, iteration::Int64)
+#     @ IterativeSolvers ~/.julia/packages/IterativeSolvers/TpeDx/src/cg.jl:79
+#   [9] iterate
+#     @ ~/.julia/packages/IterativeSolvers/TpeDx/src/cg.jl:74 [inlined]
+#  [10] iterate
+#     @ ./iterators.jl:159 [inlined]
+#  [11] iterate
+#     @ ./iterators.jl:158 [inlined]
+#  [12] cg!(x::Vector{ForwardDiff.Dual{:tttag, Float64, 1}}, A::LinearMaps.FunctionMap{ForwardDiff.Dual{:tttag, Float64, 1}, DFTK.var"#ΩpK#535"{PlaneWaveBasis{ForwardDiff.Dual{:tttag, Float64, 1}}, Vector{Matrix{Complex{ForwardDiff.Dual{:tttag, Float64, 1}}}}, Vector{Vector{ForwardDiff.Dual{:tttag, Float64, 1}}}, Vector{Matrix{Complex{ForwardDiff.Dual{:tttag, Float64, 1}}}}, DFTK.var"#unpack#530"{PlaneWaveBasis{ForwardDiff.Dual{:tttag, Float64, 1}}}, DFTK.var"#pack#529"{PlaneWaveBasis{ForwardDiff.Dual{:tttag, Float64, 1}}}, Hamiltonian, Array{ForwardDiff.Dual{:tttag, Float64, 1}, 4}}, Nothing}, b::Base.ReinterpretArray{ForwardDiff.Dual{:tttag, Float64, 1}, 1, Complex{ForwardDiff.Dual{:tttag, Float64, 1}}, Vector{Complex{ForwardDiff.Dual{:tttag, Float64, 1}}}, false}; abstol::ForwardDiff.Dual{:tttag, Float64, 1}, reltol::ForwardDiff.Dual{:tttag, Float64, 1}, maxiter::Int64, log::Bool, statevars::IterativeSolvers.CGStateVariables{ForwardDiff.Dual{:tttag, Float64, 1}, Vector{ForwardDiff.Dual{:tttag, Float64, 1}}}, verbose::Bool, Pl::DFTK.FunctionPreconditioner, kwargs::Base.Iterators.Pairs{Symbol, Bool, Tuple{Symbol}, NamedTuple{(:initially_zero,), Tuple{Bool}}})
+#     @ IterativeSolvers ~/.julia/packages/IterativeSolvers/TpeDx/src/cg.jl:226
+#  [13] cg(A::LinearMaps.FunctionMap{ForwardDiff.Dual{:tttag, Float64, 1}, DFTK.var"#ΩpK#535"{PlaneWaveBasis{ForwardDiff.Dual{:tttag, Float64, 1}}, Vector{Matrix{Complex{ForwardDiff.Dual{:tttag, Float64, 1}}}}, Vector{Vector{ForwardDiff.Dual{:tttag, Float64, 1}}}, Vector{Matrix{Complex{ForwardDiff.Dual{:tttag, Float64, 1}}}}, DFTK.var"#unpack#530"{PlaneWaveBasis{ForwardDiff.Dual{:tttag, Float64, 1}}}, DFTK.var"#pack#529"{PlaneWaveBasis{ForwardDiff.Dual{:tttag, Float64, 1}}}, Hamiltonian, Array{ForwardDiff.Dual{:tttag, Float64, 1}, 4}}, Nothing}, b::Base.ReinterpretArray{ForwardDiff.Dual{:tttag, Float64, 1}, 1, Complex{ForwardDiff.Dual{:tttag, Float64, 1}}, Vector{Complex{ForwardDiff.Dual{:tttag, Float64, 1}}}, false}; kwargs::Base.Iterators.Pairs{Symbol, Any, Tuple{Symbol, Symbol, Symbol}, NamedTuple{(:Pl, :reltol, :verbose), Tuple{DFTK.FunctionPreconditioner, ForwardDiff.Dual{:tttag, Float64, 1}, Bool}}})
+#     @ IterativeSolvers ~/.julia/packages/IterativeSolvers/TpeDx/src/cg.jl:162
+#  [14] solve_ΩplusK(basis::PlaneWaveBasis{ForwardDiff.Dual{:tttag, Float64, 1}}, ψ::Vector{Matrix{Complex{ForwardDiff.Dual{:tttag, Float64, 1}}}}, rhs::Vector{Matrix{Complex{ForwardDiff.Dual{:tttag, Float64, 1}}}}, occupation::Vector{Vector{ForwardDiff.Dual{:tttag, Float64, 1}}}; tol_cg::Float64, verbose::Bool)
+#     @ DFTK ~/.julia/dev/DFTK.jl/src/scf/newton.jl:158
+#  [15] solve_ΩplusK(basis::PlaneWaveBasis{ForwardDiff.Dual{:tttag, Float64, 1}}, ψ::Vector{Matrix{Complex{ForwardDiff.Dual{:tttag, Float64, 1}}}}, rhs::Vector{Matrix{Complex{ForwardDiff.Dual{:tttag, Float64, 1}}}}, occupation::Vector{Vector{ForwardDiff.Dual{:tttag, Float64, 1}}})
+#     @ DFTK ~/.julia/dev/DFTK.jl/src/scf/newton.jl:119
+#  [16] self_consistent_field_dual(basis::PlaneWaveBasis{Float64}, basis_dual::PlaneWaveBasis{ForwardDiff.Dual{:tttag, Float64, 1}}; kwargs::Base.Iterators.Pairs{Symbol, Float64, Tuple{Symbol}, NamedTuple{(:tol,), Tuple{Float64}}})
+#     @ Main ~/.julia/dev/DFTK.jl/examples/polarizability.jl:211
+#  [17] top-level scope
+#     @ ~/.julia/dev/DFTK.jl/examples/polarizability.jl:214
