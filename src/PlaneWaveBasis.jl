@@ -591,25 +591,21 @@ end
 reinterpret_real(x) = reinterpret(real(eltype(x)), x)
 reinterpret_complex(x) = reinterpret(Complex{eltype(x)}, x)
 
-function pack_ψ(basis::PlaneWaveBasis, ψ)
+function pack_ψ(ψ)
     # TODO as an optimization, do that lazily? See LazyArrays
     vcat([vec(ψk) for ψk in ψ]...)
 end
 
-function unpack_ψ(basis::PlaneWaveBasis{T}, x) where T
-    model = basis.model
-    filled_occ = filled_occupation(model)
-    n_spin = model.n_spin_components
-    n_bands = div(model.n_electrons, n_spin * filled_occ)
-
-    lengths = length.(G_vectors.(basis.kpoints)) .* n_bands
+function unpack_ψ(x, ψ_for_shape) where T
+    n_bands = size(ψ_for_shape[1], 2)
+    lengths = length.(ψ_for_shape)
     ends = cumsum(lengths)
     # We unsafe_wrap the resulting array to avoid a complicated type for ψ.
     # The resulting array is valid as long as the original x is still in live memory.
-    map(1:length(basis.kpoints)) do ik
-        unsafe_wrap(Array{Complex{T}},
+    map(1:length(ψ_for_shape)) do ik
+        unsafe_wrap(Array{eltype(ψ_for_shape[ik])},
                     pointer(@views x[ends[ik]-lengths[ik]+1:ends[ik]]),
-                    (length(G_vectors(basis.kpoints[ik])), n_bands))
+                    size(ψ_for_shape[ik]))
 
     end
 end
