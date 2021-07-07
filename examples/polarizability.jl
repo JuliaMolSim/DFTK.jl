@@ -172,8 +172,15 @@ function self_consistent_field_dual(basis::PlaneWaveBasis, basis_dual::PlaneWave
     δHψ = δH * ψ_dual
     δHψ = [ForwardDiff.partials.(δHψ[1], 1)] # keep only partial components of duals
     δψ = DFTK.solve_ΩplusK(basis, ψ, -δHψ, occupation)
+    δψ # TODO compute other δscfres quantities
 end
 
 basis = make_basis(0.0)
 basis_dual = make_basis(ForwardDiff.Dual{:tttag}(0.0, 1.0))
-self_consistent_field_dual(basis, basis_dual; tol=tol)
+a, b = self_consistent_field_dual(basis, basis_dual; tol=tol)
+
+# TODO next steps.
+# - somehow verify δψ
+# - compute δρ from δψ
+# - diff through dipole
+# - compose the thing into obj'(ε)
