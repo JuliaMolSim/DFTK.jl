@@ -68,10 +68,6 @@ Returns a list of lists of forces
 which has the same structure as the `atoms` object passed to the underlying [`Model`](@ref).
 """
 @timing function compute_forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
-    if !MPI.Allreduce(any(iszero(kpt.coordinate) for kpt in basis.kpoints), &, basis.comm_kpts)
-        @warn "Forces for shifted k-Grids not tested"
-    end
-
     # TODO optimize allocs here
     T = eltype(basis)
     forces = [zeros(Vec3{T}, length(positions)) for (element, positions) in basis.model.atoms]

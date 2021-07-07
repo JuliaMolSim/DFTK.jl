@@ -156,7 +156,7 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
 
     # solve (Ω+K) δψ = rhs on the tangent space with CG
     δψ = cg(J, rhs_pack, Pl=FunctionPreconditioner(f_ldiv!),
-            reltol=tol_cg / norm(rhs), verbose=verbose)
+            reltol=0, abstol=tol_cg, verbose=verbose)
 
     unpack(δψ)
 end
