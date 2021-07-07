@@ -20,7 +20,7 @@ struct Model{T <: Real}
     #     :collinear  Spin is polarized, but everywhere in the same direction.
     #                 αα ̸= ββ, αβ = βα = 0, 2 spin components treated
     #     :full       Generic magnetization, non-uniform direction.
-    #                 αβ, βα, αα, ββ all nonzero, different [NOT SUPPORTED]
+    #                 αβ, βα, αα, ββ all nonzero, different (not supported)
     #     :spinless   No spin at all ("spinless fermions", "mathematicians' electrons").
     #                 The difference with :none is that the occupations are 1 instead of 2
     spin_polarization::Symbol
