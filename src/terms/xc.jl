@@ -198,7 +198,6 @@ Compute density in real space and its derivatives starting from ρ
 """
 function LibxcDensity(basis, max_derivative::Integer, ρ)
     model = basis.model
-    @assert model.spin_polarization in (:collinear, :none, :spinless)
     @assert max_derivative in (0, 1)
 
     n_spin    = model.n_spin_components
@@ -241,7 +240,6 @@ end
 
 
 function compute_kernel(term::TermXc; ρ, kwargs...)
-    @assert term.basis.model.spin_polarization in (:none, :spinless, :collinear)
     density = LibxcDensity(term.basis, 0, ρ)
     n_spin = term.basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
@@ -272,7 +270,6 @@ function apply_kernel(term::TermXc, δρ; ρ, kwargs...)
     n_spin = basis.model.n_spin_components
     isempty(term.functionals) && return nothing
     @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
 
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)

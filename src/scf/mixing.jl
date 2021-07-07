@@ -180,7 +180,6 @@ end
 
 @views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, basis, δF; ρin, kwargs...)
     T = eltype(δF)
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
 
     # Initialise χ0terms and remove nothings (terms that don't yield a contribution)
     χ0applies = [χ0(basis; ρin=ρin, kwargs...) for χ0 in mixing.χ0terms]

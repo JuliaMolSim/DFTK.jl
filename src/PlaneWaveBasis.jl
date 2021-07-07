@@ -113,9 +113,6 @@ Base.show(io::IO, basis::PlaneWaveBasis) =
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
-    model.spin_polarization in (:none, :collinear, :spinless) || (
-        error("$(model.spin_polarization) not implemented"))
-
     kpoints_per_spin = [Kpoint[] for _ in 1:model.n_spin_components]
     for k in kcoords
         k = Vec3{T}(k)  # rationals are sloooow

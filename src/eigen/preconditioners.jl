@@ -36,7 +36,6 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     scaling = only([t for t in basis.model.term_types if t isa Kinetic]).scaling_factor
     kin = Vector{T}([scaling * sum(abs2, G + kpt.coordinate_cart)
                      for G in G_vectors_cart(kpt)] ./ 2)
-    @assert basis.model.spin_polarization in (:none, :collinear, :spinless)
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 

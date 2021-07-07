@@ -49,7 +49,6 @@ function compute_χ0(ham; droptol=0, temperature=ham.basis.model.temperature)
     fft_size = basis.fft_size
     n_fft    = prod(fft_size)
 
-    @assert model.spin_polarization in (:none, :spinless, :collinear)
     length(model.symmetries) == 1 || error("Disable symmetries completely for computing χ0")
 
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
@@ -151,7 +150,6 @@ returns `3` extra bands, which are not converged by the eigensolver
                           kwargs_sternheimer=(cgtol=1e-6, verbose=false))
     basis  = ham.basis
     T      = eltype(basis)
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
 
     n_spin = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
