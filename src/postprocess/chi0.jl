@@ -246,9 +246,9 @@ sufficiently converged. By default the `self_consistent_field` routine of `DFTK`
 returns `3` extra bands, which are not converged by the eigensolver
 (see `n_ep_extra` parameter). These should be discarded before using this function.
 """
-function apply_χ0(ham, ψ, εF, eigenvalues, δV;
-                          kwargs_sternheimer...)
+function apply_χ0(ham, ψ, εF, eigenvalues, δV; kwargs_sternheimer...)
     basis = ham.basis
+    model = basis.model
     occ = [filled_occupation(model) *
            Smearing.occupation.(model.smearing, (eigenvalues[ik] .- εF) ./ model.temperature)
            for ik = 1:length(basis.kpoints)]
