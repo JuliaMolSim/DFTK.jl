@@ -596,16 +596,15 @@ function pack_ψ(ψ)
     vcat([vec(ψk) for ψk in ψ]...)
 end
 
-function unpack_ψ(x, ψ_for_shape) where T
-    n_bands = size(ψ_for_shape[1], 2)
-    lengths = length.(ψ_for_shape)
+function unpack_ψ(x, sizes_ψ)
+    n_bands = sizes_ψ[1][2]
+    lengths = prod.(sizes_ψ)
     ends = cumsum(lengths)
     # We unsafe_wrap the resulting array to avoid a complicated type for ψ.
     # The resulting array is valid as long as the original x is still in live memory.
-    map(1:length(ψ_for_shape)) do ik
-        unsafe_wrap(Array{eltype(ψ_for_shape[ik])},
+    map(1:length(sizes_ψ)) do ik
+        unsafe_wrap(Array{complex(eltype(x))},
                     pointer(@views x[ends[ik]-lengths[ik]+1:ends[ik]]),
-                    size(ψ_for_shape[ik]))
-
+                    sizes_ψ[ik])
     end
 end

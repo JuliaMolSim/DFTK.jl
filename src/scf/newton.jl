@@ -126,7 +126,7 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
     _, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
 
     pack(ψ) = reinterpret_real(pack_ψ(ψ))
-    unpack(x) = unpack_ψ(reinterpret_complex(x), ψ)
+    unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
 
     # project rhs on the tangent space before starting
     proj_tangent!(rhs, ψ)

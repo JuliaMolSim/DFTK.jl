@@ -90,7 +90,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     # we need to copy the reinterpret array here to not raise errors in Optim.jl
     # TODO raise this issue in Optim.jl
     pack(ψ) = copy(reinterpret_real(pack_ψ(ψ)))
-    unpack(x) = unpack_ψ(reinterpret_complex(x), ψ0)
+    unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ0))
 
     # this will get updated along the iterations
     H = nothing
