@@ -177,7 +177,6 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
     # setting parameters
     model = basis.model
-    @assert model.spin_polarization in (:none, :spinless, :collinear)
     @assert model.temperature == 0 # temperature is not yet supported
 
     # check that there are no virtual orbitals

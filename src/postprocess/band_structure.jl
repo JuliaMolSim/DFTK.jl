@@ -80,7 +80,6 @@ end
 function prepare_band_data(band_data; datakeys=[:λ, :λerror],
                            klabels=Dict{String, Vector{Float64}}())
     basis = band_data.basis
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     n_spin   = basis.model.n_spin_components
     n_kcoord = length(basis.kpoints) ÷ n_spin
     n_bands  = nothing
@@ -130,9 +129,6 @@ Determine whether the provided bands indicate the material is a metal,
 i.e. where bands are cut by the Fermi level.
 """
 function is_metal(band_data, εF, tol=1e-4)
-    # This assumes no spin polarization
-    @assert band_data.basis.model.spin_polarization in (:none, :spinless, :collinear)
-
     n_bands = length(band_data.λ[1])
     n_kpoints = length(band_data.λ)
     for ib in 1:n_bands

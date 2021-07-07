@@ -20,7 +20,7 @@ struct Model{T <: Real}
     #     :collinear  Spin is polarized, but everywhere in the same direction.
     #                 αα ̸= ββ, αβ = βα = 0, 2 spin components treated
     #     :full       Generic magnetization, non-uniform direction.
-    #                 αβ, βα, αα, ββ all nonzero, different
+    #                 αβ, βα, αα, ββ all nonzero, different (not supported)
     #     :spinless   No spin at all ("spinless fermions", "mathematicians' electrons").
     #                 The difference with :none is that the occupations are 1 instead of 2
     spin_polarization::Symbol
@@ -117,6 +117,7 @@ function Model(lattice::AbstractMatrix{T};
 
     spin_polarization in (:none, :collinear, :full, :spinless) ||
         error("Only :none, :collinear, :full and :spinless allowed for spin_polarization")
+    spin_polarization == :full && error("Full spin polarization not yet supported")
     !isempty(magnetic_moments) && !(spin_polarization in (:collinear, :full)) && @warn(
         "Non-empty magnetic_moments on a Model without spin polarization detected."
     )
@@ -205,7 +206,6 @@ end
 Explicit spin components of the KS orbitals and the density
 """
 function spin_components(spin_polarization::Symbol)
-    @assert spin_polarization in (:none, :spinless, :collinear)
     spin_polarization == :collinear && return (:up, :down  )
     spin_polarization == :none      && return (:both,      )
     spin_polarization == :spinless  && return (:spinless,  )

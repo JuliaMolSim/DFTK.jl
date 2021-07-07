@@ -48,7 +48,6 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
     fft_size = basis.fft_size
     n_fft    = prod(fft_size)
 
-    @assert model.spin_polarization in (:none, :spinless, :collinear)
     length(model.symmetries) == 1 || error("Disable symmetries completely for computing χ0")
 
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
@@ -180,7 +179,7 @@ function compute_αmn(fm, fn, ratio)
     ratio * fn / (fn^2 + fm^2)
 end
 
-@views function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer...)
+@views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer...)
     basis  = ham.basis
     model = basis.model
     temperature = model.temperature
@@ -247,13 +246,13 @@ sufficiently converged. By default the `self_consistent_field` routine of `DFTK`
 returns `3` extra bands, which are not converged by the eigensolver
 (see `n_ep_extra` parameter). These should be discarded before using this function.
 """
-@timing function apply_χ0(ham, ψ, εF, eigenvalues, δV;
-                          kwargs_sternheimer...)
+function apply_χ0(ham, ψ, εF, eigenvalues, δV; kwargs_sternheimer...)
     basis = ham.basis
     model = basis.model
     occ = [filled_occupation(model) *
            Smearing.occupation.(model.smearing, (eigenvalues[ik] .- εF) ./ model.temperature)
            for ik = 1:length(basis.kpoints)]
+
     # Normalize δV to avoid numerical trouble; theoretically should
     # not be necessary, but it simplifies the interaction with the
     # Sternheimer linear solver (it makes the rhs be order 1 even if
