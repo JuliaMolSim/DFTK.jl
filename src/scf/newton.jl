@@ -117,13 +117,16 @@ Return δψ where (Ω+K) δψ = rhs
 function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
                      tol_cg=1e-10, verbose=false) where T
     @assert mpi_nprocs() == 1  # Distributed implementation not yet available
+    filled_occ = filled_occupation(basis.model)
+    # for now, all orbitals have to be fully occupied -> need to strip them beforehand
+    @assert all(all(occ_k .== filled_occ) for occ_k in occupation)
 
     # compute quantites at the point which define the tangent space
     ρ = compute_density(basis, ψ, occupation)
     _, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
 
-    pack(ψ) = reinterpret_real(pack_ψ(basis, ψ))
-    unpack(x) = unpack_ψ(basis, reinterpret_complex(x))
+    pack(ψ) = reinterpret_real(pack_ψ(ψ))
+    unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
 
     # project rhs on the tangent space before starting
     proj_tangent!(rhs, ψ)
