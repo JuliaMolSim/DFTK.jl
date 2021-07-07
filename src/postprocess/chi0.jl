@@ -190,7 +190,7 @@ end
 
     # First compute δεF
     δεF = zero(T)
-    δocc = [zero(occ[ik]) for ik = 1:Nk] # = fn' * (δεn - δεF)
+    δocc = [zero(occ[ik]) for ik = 1:Nk]  # = fn' * (δεn - δεF)
     if temperature > 0
         # First compute δocc without self-consistent Fermi δεF
         D = zero(T)
