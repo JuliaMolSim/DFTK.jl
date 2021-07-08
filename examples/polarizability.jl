@@ -162,7 +162,7 @@ function self_consistent_field_dual(basis::PlaneWaveBasis, basis_dual::PlaneWave
     Nk = length(basis.kpoints)
     occupation = [filled_occ * ones(n_bands) for ik = 1:Nk]
 
-    # promote everything eagerly to Dual numbersψ
+    # promote everything eagerly to Dual numbers
     # TODO figure out how to get by without this
     occupation_dual = [T.(occupation[1])]
     ψ_dual = [Complex.(T.(real(ψ[1])), T.(imag(ψ[1])))]
@@ -172,15 +172,30 @@ function self_consistent_field_dual(basis::PlaneWaveBasis, basis_dual::PlaneWave
     δHψ = δH * ψ_dual
     δHψ = [ForwardDiff.partials.(δHψ[1], 1)] # keep only partial components of duals
     δψ = DFTK.solve_ΩplusK(basis, ψ, -δHψ, occupation)
-    δψ # TODO compute other δscfres quantities
+    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation)
+    ρ = ForwardDiff.value.(ρ_dual)
+    ψ, ρ, δψ, δρ
 end
 
-basis = make_basis(0.0)
-basis_dual = make_basis(ForwardDiff.Dual{:tttag}(0.0, 1.0))
-a, b = self_consistent_field_dual(basis, basis_dual; tol=tol)
-
 # TODO next steps.
-# - somehow verify δψ
-# - compute δρ from δψ
-# - diff through dipole
-# - compose the thing into obj'(ε)
+# - [ ] somehow verify δψ
+# - [x] compute δρ from δψ
+# - [x] diff through dipole
+# - [x] compose the thing into obj'(ε)
+# - [x] compare against finite difference
+
+function obj(ε::ForwardDiff.Dual)
+    T = ForwardDiff.tagtype(ε)
+    basis = make_basis(ForwardDiff.value(ε))
+    basis_dual = make_basis(ε)
+    ψ, ρ, δψ, δρ = self_consistent_field_dual(basis, basis_dual; tol=tol)
+    ρ_dual = ForwardDiff.Dual{T}.(ρ, δρ)
+    dipole(basis_dual, ρ_dual)
+end
+
+# obj(ForwardDiff.Dual{:qwerty}(0.0, 1.0))
+ForwardDiff.derivative(obj, 0.0) # 1.7725352397017748
+
+let d = 1e-4
+    (obj(d) - obj(0.0)) / d
+end # 1.7768028953041282
