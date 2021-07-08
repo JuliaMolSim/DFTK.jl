@@ -74,7 +74,6 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
         error("Direct minimization with MPI is not supported yet")
     end
     model = basis.model
-    @assert model.spin_polarization in (:none, :spinless, :collinear)
     @assert model.temperature == 0 # temperature is not yet supported
     filled_occ = filled_occupation(model)
     n_spin = model.n_spin_components
@@ -89,8 +88,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
 
     # we need to copy the reinterpret array here to not raise errors in Optim.jl
     # TODO raise this issue in Optim.jl
-    pack(ψ) = copy(reinterpret_real(pack_ψ(basis, ψ)))
-    unpack(x) = unpack_ψ(basis, reinterpret_complex(x))
+    pack(ψ) = copy(reinterpret_real(pack_ψ(ψ)))
+    unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ0))
 
     # this will get updated along the iterations
     H = nothing

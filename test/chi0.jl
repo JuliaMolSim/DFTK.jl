@@ -61,7 +61,7 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
         occ, εF = DFTK.compute_occupation(basis, Es)
 
         # Test apply_χ0 and compare against finite differences
-        diff_applied_χ0 = apply_χ0(ham0, Vs, εF, Es, δV; droptol=0)
+        diff_applied_χ0 = apply_χ0(ham0, Vs, εF, Es, δV)
         @test norm(diff_findiff - diff_applied_χ0) < testtol
 
         # just to cover it here
@@ -83,13 +83,6 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
             χ0δV1 = apply_χ0(ham0, Vs, εF, Es, δV1)
             χ0δV2 = apply_χ0(ham0, Vs, εF, Es, δV2)
             @test abs(dot(δV1, χ0δV2) - dot(δV2, χ0δV1)) < testtol
-
-            # Test the diagonal_only option
-            χ0_diag = compute_χ0(ham0; droptol=Inf)
-            diff_diag_1 = real(reshape(χ0_diag * vec(δV), basis.fft_size..., n_spin))
-            diff_diag_2 = apply_χ0(ham0, Vs, εF, Es, δV; droptol=Inf,
-                                   sternheimer_contribution=false)
-            @test norm(diff_diag_1 - diff_diag_2) < testtol
         end
     end
 end
