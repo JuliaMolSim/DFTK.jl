@@ -40,6 +40,6 @@ import FiniteDiff
     ref_hf = FiniteDiff.finite_difference_derivative(hellmann_feynman_energy, a)
     s_hf = ForwardDiff.derivative(hellmann_feynman_energy, a)
 
-    @test isapprox(ref_hf, ref_recompute, atol=1e-8)
+    @test isapprox(ref_hf, ref_recompute, atol=1e-4)
     @test isapprox(s_hf, ref_hf, atol=1e-8)
 end
