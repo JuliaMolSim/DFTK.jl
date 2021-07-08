@@ -15,7 +15,7 @@ import FiniteDiff
         model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn]; symmetries=false)
         kgrid = [4, 4, 4] # k-point grid (Regular Monkhorst-Pack grid)
         Ecut = 7          # kinetic energy cutoff in Hartree
-        PlaneWaveBasis(model, Ecut; kgrid=kgrid, fft_size=[32, 32, 32])
+        PlaneWaveBasis(model, Ecut; kgrid=kgrid)
     end
 
     function compute_energy(scfres_ref, a)
