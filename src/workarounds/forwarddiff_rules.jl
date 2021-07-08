@@ -139,6 +139,10 @@ function spglib_get_symmetry(lattice::Matrix{<:ForwardDiff.Dual}, atoms, magneti
     spglib_get_symmetry(ForwardDiff.value.(lattice), atoms, magnetic_moments; kwargs...)
 end
 
+function _check_well_conditioned(A::AbstractArray{<:ForwardDiff.Dual}; kwargs...)
+    _check_well_conditioned(ForwardDiff.value.(A); kwargs...)
+end
+
 ###
 ### other workarounds
 ###
