@@ -50,13 +50,13 @@ end
 Create a simple anderson-accelerated SCF solver. `m` specifies the number
 of steps to keep the history of.
 """
-function scf_anderson_solver(m=10)
+function scf_anderson_solver(m=10; kwargs...)
     function anderson(f, x0, max_iter; tol=1e-6)
         T = eltype(x0)
         x = x0
 
         converged = false
-        acceleration = AndersonAcceleration(;m=m)
+        acceleration = AndersonAcceleration(;m=m, kwargs...)
         for n = 1:max_iter
             residual = f(x) - x
             converged = norm(residual) < tol

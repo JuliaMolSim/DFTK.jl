@@ -66,6 +66,6 @@ end
 
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     @testset "Iron PBE (Float64)" begin
-        run_iron_pbe(Float64, test_tol=5e-6, scf_tol=1e-9)
+        run_iron_pbe(Float64, test_tol=5e-6, scf_tol=1e-12)
     end
 end

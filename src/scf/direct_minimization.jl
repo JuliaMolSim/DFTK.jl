@@ -74,31 +74,22 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
         error("Direct minimization with MPI is not supported yet")
     end
     model = basis.model
-    @assert model.spin_polarization in (:none, :spinless)
     @assert model.temperature == 0 # temperature is not yet supported
     filled_occ = filled_occupation(model)
-    n_bands = div(model.n_electrons, filled_occ)
-    ortho(ψk) = Matrix(qr(ψk).Q)
+    n_spin = model.n_spin_components
+    n_bands = div(model.n_electrons, n_spin * filled_occ)
     Nk = length(basis.kpoints)
 
     if ψ0 === nothing
-        ψ0 = [ortho(randn(Complex{T}, length(G_vectors(kpt)), n_bands))
+        ψ0 = [ortho_qr(randn(Complex{T}, length(G_vectors(kpt)), n_bands))
               for kpt in basis.kpoints]
     end
     occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
 
-    ## vec and unpack
-    # length of ψ[ik]
-    lengths = [length(ψ0[ik]) for ik = 1:Nk]
-    # psi[ik] is in psi_flat[starts[ik]:starts[ik]+lengths[ik]-1]
-    starts = copy(lengths)
-    starts[1] = 1
-    for ik = 1:Nk-1
-        starts[ik+1] = starts[ik] + lengths[ik]
-    end
-    pack(ψ) = vcat(Base.vec.(ψ)...) # TODO as an optimization, do that lazily? See LazyArrays
-    unpack(ψ) = [@views reshape(ψ[starts[ik]:starts[ik]+lengths[ik]-1], size(ψ0[ik]))
-                 for ik = 1:Nk]
+    # we need to copy the reinterpret array here to not raise errors in Optim.jl
+    # TODO raise this issue in Optim.jl
+    pack(ψ) = copy(reinterpret_real(pack_ψ(ψ)))
+    unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ0))
 
     # this will get updated along the iterations
     H = nothing
@@ -136,7 +127,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                          optim_solver(P=P, precondprep=precondprep!, manifold=manif,
                                       linesearch=LineSearches.BackTracking()),
                          optim_options)
-    ψ = unpack(res.minimizer)
+    # return copy to ensure we have a plain array
+    ψ = deepcopy(unpack(res.minimizer))
 
     # Final Rayleigh-Ritz (not strictly necessary, but sometimes useful)
     eigenvalues = []
@@ -146,6 +138,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
         push!(eigenvalues, F.values)
         ψ[ik] .= ψ[ik] * F.vectors
     end
+
     εF = nothing  # does not necessarily make sense here, as the
                   # Aufbau property might not even be true
 
