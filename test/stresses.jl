@@ -13,7 +13,7 @@ import FiniteDiff
         Si = ElementPsp(:Si, psp=load_psp(:Si, functional="lda"))
         atoms = [Si => [ones(3)/8, -ones(3)/8]]
         model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn]; symmetries=false)
-        kgrid = [4, 4, 4] # k-point grid (Regular Monkhorst-Pack grid)
+        kgrid = [1, 1, 1] # k-point grid (Regular Monkhorst-Pack grid)
         Ecut = 7          # kinetic energy cutoff in Hartree
         PlaneWaveBasis(model, Ecut; kgrid=kgrid)
     end
@@ -25,9 +25,9 @@ import FiniteDiff
     end
 
     a = 10.26
-    scfres = self_consistent_field(make_basis(a), tol=1e-4)
+    scfres = self_consistent_field(make_basis(a), is_converged=DFTK.ScfConvergenceDensity(1e-13))
     compute_energy(a) = compute_energy(scfres, a)
 
     ref = FiniteDiff.finite_difference_derivative(compute_energy, a)
-    @test isapprox(ForwardDiff.derivative(compute_energy, a), ref, atol=1e-4)
+    @test isapprox(ForwardDiff.derivative(compute_energy, a), ref, atol=1e-8)
 end
