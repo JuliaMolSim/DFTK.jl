@@ -169,7 +169,8 @@ end
 # With χ04P = -Ω^-1,
 # (Ω+K)^-1 = Ω^-1 (1 - K(1+Ω^-1 K)^-1 Ω^-1)
 # (Ω+K)^-1 = -χ04P (1 + K(1 - χ04P K)^-1 χ04P)
-# (Ω+K)^-1 = -χ04P (1 + K(1 - χ0 K)^-1 χ04P)
+# (Ω+K)^-1 = -χ04P (1 + E K2P (1 - χ02P K2P)^-1 R χ04P)
+# where χ02P = R χ04P E and K2P = R K E
 function solve_ΩplusK_split(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
                             tol_dyson=1e-8, tol_cg=1e-12, verbose=false) where T
     ρ = compute_density(basis, ψ, occupation)
