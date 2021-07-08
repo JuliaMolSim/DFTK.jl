@@ -71,6 +71,7 @@ Unitful = "1"
 UnitfulAtomic = "1"
 julia = "1.6"
 spglib_jll = "1.15"
+wannier90_jll = "3"
 
 # Some world-age-related issues with JLD2 > 0.4.7 at the moment
 JLD2 = "0.4 - 0.4.7"

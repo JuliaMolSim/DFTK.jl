@@ -130,7 +130,7 @@ function read_nnkp(prefix::String)
     @assert size(i_projs,1) == 2
     raw_projs = split.(ln[i_projs[1]+1:i_projs[2]-1],' ',keepempty = false)
 
-    n_projs = parse(Int,only(popfirst!(raw_projs)))     # number of projections
+    n_projs = parse(Int64,only(popfirst!(raw_projs)))     # number of projections
     @assert(n_projs == size(raw_projs,1)/2)
 
     # Reshape so that one line gives all infos about one projection
