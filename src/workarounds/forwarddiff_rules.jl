@@ -134,6 +134,11 @@ function r_to_G(basis::PlaneWaveBasis{T}, f_real::AbstractArray) where {T<:Forwa
     f_fourier
 end
 
+# determine symmetry operations only from primal lattice values
+function spglib_get_symmetry(lattice::Matrix{<:ForwardDiff.Dual}, atoms, magnetic_moments=[]; kwargs...)
+    spglib_get_symmetry(ForwardDiff.value.(lattice), atoms, magnetic_moments; kwargs...)
+end
+
 ###
 ### other workarounds
 ###

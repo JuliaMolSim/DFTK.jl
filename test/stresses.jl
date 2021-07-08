@@ -12,7 +12,7 @@ import FiniteDiff
                         [1 1 0.]]
         Si = ElementPsp(:Si, psp=load_psp(:Si, functional="lda"))
         atoms = [Si => [ones(3)/8, -ones(3)/8]]
-        model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn]; symmetries=false)
+        model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn])
         kgrid = [1, 1, 1] # k-point grid (Regular Monkhorst-Pack grid)
         Ecut = 7          # kinetic energy cutoff in Hartree
         PlaneWaveBasis(model, Ecut; kgrid=kgrid)
