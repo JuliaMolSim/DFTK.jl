@@ -46,7 +46,7 @@ grid `basis`, where the individual k-Points are occupied according to `occupatio
 `ψ` should be one coefficient matrix per k-Point. If the `Model` underlying the basis
 is not collinear the spin density is `nothing`.
 """
-@views @timing function compute_density(basis::PlaneWaveBasis, ψ, occupation)
+@views @timing function compute_density(basis::PlaneWaveBasis{T}, ψ, occupation) where T
     n_k = length(basis.kpoints)
     n_spin = basis.model.n_spin_components
 
@@ -60,9 +60,10 @@ is not collinear the spin density is `nothing`.
     @assert n_k > 0
 
     # Allocate an accumulator for ρ in each thread for each spin component
-    ρaccus = [similar(view(ψ[1], :, 1), (basis.fft_size..., n_spin))
+    # TODO use something like T = promote_type(Array{eltype(basis)}, eltype(ψ), ...)
+    ρaccus = [similar(Array{complex(T)}, (basis.fft_size..., n_spin))
               for ithread in 1:Threads.nthreads()]
-
+    
     # TODO Better load balancing ... the workload per kpoint depends also on
     #      the number of symmetry operations. We know heuristically that the Gamma
     #      point (first k-Point) has least symmetry operations, so we will put
@@ -79,7 +80,10 @@ is not collinear the spin density is `nothing`.
 
     Threads.@threads for (ikpts, ρaccu) in collect(zip(kpt_per_thread, ρaccus))
         ρaccu .= 0
-        ρ_k = similar(ψ[1][:, 1], basis.fft_size)
+
+        # TODO use something like T = promote_type(Array{eltype(basis)}, eltype(ψ), ...)
+        ρ_k = similar(Array{complex(T)}, basis.fft_size)
+        
         for ik in ikpts
             kpt = basis.kpoints[ik]
             compute_partial_density!(ρ_k, basis, kpt, ψ[ik], occupation[ik])
