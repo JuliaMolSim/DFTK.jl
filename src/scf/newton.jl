@@ -73,7 +73,7 @@ end
 """
     apply_Ω(δψ, ψ, H::Hamiltonian, Λ)
 
-Compute the application of Ω defined at ψ to δψ. H is the Hamiltoninan computed
+Compute the application of Ω defined at ψ to δψ. H is the Hamiltonian computed
 from ψ and Λ is the set of Rayleigh coefficients ψk' * Hk * ψk at each k-point.
 """
 function apply_Ω(δψ, ψ, H::Hamiltonian, Λ)
@@ -163,6 +163,44 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
 
     unpack(δψ)
 end
+
+
+# Solves Ω+K using a split algorithm
+# With χ04P = -Ω^-1,
+# (Ω+K)^-1 = Ω^-1 (1 - K(1+Ω^-1 K)^-1 Ω^-1)
+# (Ω+K)^-1 = -χ04P (1 + K(1 - χ04P K)^-1 χ04P)
+# (Ω+K)^-1 = -χ04P (1 + K(1 - χ0 K)^-1 χ04P)
+function solve_ΩplusK_split(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
+                            tol_dyson=1e-8, tol_cg=1e-12, verbose=false) where T
+    ρ = compute_density(basis, ψ, occupation)
+    _, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+
+    λ = [real.(eigvals(ψk'Hψk)) for (ψk, Hψk) in zip(ψ, H * ψ)]
+    occupation, εF = compute_occupation(basis, λ)
+
+    # compute δρ0 (ignoring interactions)
+    δψ0 = apply_χ0_4P(H, ψ, occupation, εF, λ, rhs; tol_cg, verbose)
+    δρ0 = compute_δρ(basis, ψ, δψ0, occupation)
+
+    pack(δρ) = vec(δρ)
+    unpack(δρ) = reshape(δρ, size(ρ))
+    # compute total δρ
+    function eps_fun(δρ)
+        δρ = unpack(δρ)
+        δV = apply_kernel(basis, δρ; ρ)
+        χ0δV = apply_χ0(H, ψ, εF, λ, δV; tol_cg)
+        pack(δρ - χ0δV)
+    end
+    J = LinearMap{T}(eps_fun, length(pack(δρ0)))
+    δρ = unpack(gmres(J, pack(δρ0); reltol=0, abstol=tol_dyson, verbose))
+    δV = apply_kernel(basis, δρ; ρ)
+
+    δVψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
+           for (ik, kpt) in enumerate(basis.kpoints)]
+    δψ = apply_χ0_4P(H, ψ, occupation, εF, λ, δVψ; tol_cg, verbose)
+    .- (δψ0 .+ δψ)
+end
+
 
 """
     newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
