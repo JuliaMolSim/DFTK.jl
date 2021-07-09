@@ -54,12 +54,12 @@ struct MyMixing
 end
 MyMixing() = MyMixing(2)
 
-function DFTK.mix(mixing::MyMixing, basis, δF; n_iter, kwargs...)
+function DFTK.mix_density(mixing::MyMixing, basis, δF; n_iter, kwargs...)
     if n_iter <= mixing.n_simple
         return δF  # Simple mixing -> Do not modify update at all
     else
         ## Use the default KerkerMixing from DFTK
-        DFTK.mix(KerkerMixing(), basis, δF; kwargs...)
+        DFTK.mix_density(KerkerMixing(), basis, δF; kwargs...)
     end
 end
 

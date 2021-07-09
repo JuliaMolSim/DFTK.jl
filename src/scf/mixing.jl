@@ -6,19 +6,28 @@ import Base: @kwdef
 # Mixing rules: (ρin, ρout) => ρnext, where ρout is produced by diagonalizing the
 # Hamiltonian at ρin These define the basic fix-point iteration, that are then combined with
 # acceleration methods (eg anderson). For the mixing interface we use `δF = ρout - ρin` and
-# `δρ = ρnext - ρin`, such that the mixing interface is `mix(mixing, basis, δF; kwargs...) -> δρ`
-# with the user being assumed to add this to ρin to get ρnext.
-# All these methods attempt to approximate the inverse Jacobian of the SCF step,
-# ``J^-1 = (1 - χ0 (vc + K_{xc}))^-1``, where vc is the Coulomb and ``K_{xc}`` the
+# `δρ = ρnext - ρin`, such that the mixing interface is
+# `mix_density(mixing, basis, δF; kwargs...) -> δρ` with the user being assumed to add this
+# to ρin to get ρnext. All these methods attempt to approximate the inverse Jacobian of the
+# SCF step, ``J^-1 = (1 - χ0 (vc + K_{xc}))^-1``, where vc is the Coulomb and ``K_{xc}`` the
 # exchange-correlation kernel. Note that "mixing" is sometimes used to refer to the combined
 # process of formulating the fixed-point and solving it; we call "mixing" only the first part
 # The notation in this file follows Herbst, Levitt arXiv:2009.01665
 
+# Mixing can be done in the potential or the density. By default we assume
+# the dielectric model is so simple that both types of mixing are identical.
+# If mixing is done in the potential, the interface is
+# `mix_potential(mixing, basis, δF; kwargs...) -> δV`
+abstract type Mixing end
+function mix_potential(args...; kwargs...)
+    mix_density(args...; kwargs...)
+end
+
 @doc raw"""
 Simple mixing: ``J^{-1} ≈ 1``
 """
-struct SimpleMixing; end
-mix(::SimpleMixing, ::PlaneWaveBasis, δF; kwargs...) = δF
+struct SimpleMixing <: Mixing; end
+mix_density(::SimpleMixing, ::PlaneWaveBasis, δF; kwargs...) = δF
 
 
 @doc raw"""
@@ -31,19 +40,21 @@ of states (per unit volume) between spin-up and spin-down.
 Notes:
 - Abinit calls ``1/k_{TF}`` the dielectric screening length (parameter *dielng*)
 """
-@kwdef struct KerkerMixing
+@kwdef struct KerkerMixing <: Mixing
     # Default kTF parameter suggested by Kresse, Furthmüller 1996 (kTF=1.5Å⁻¹)
     # DOI 10.1103/PhysRevB.54.11169
     kTF::Real    = 0.8  # == sqrt(4π (DOS_α + DOS_β)) / Ω
     ΔDOS_Ω::Real = 0.0  # == (DOS_α - DOS_β) / Ω
 end
 
-@timing "KerkerMixing" function mix(mixing::KerkerMixing, basis::PlaneWaveBasis,
-                                    δF; kwargs...)
+@timing "KerkerMixing" function mix_density(mixing::KerkerMixing, basis::PlaneWaveBasis,
+                                            δF; kwargs...)
     T      = eltype(δF)
     G²     = [sum(abs2, G) for G in G_vectors_cart(basis)]
     kTF    = T.(mixing.kTF)
     ΔDOS_Ω = T.(mixing.ΔDOS_Ω)
+
+    # TODO This can be improved to use less copies for the new (α, β) interface
 
     # For Kerker the model dielectric written as a 2×2 matrix in spin components is
     #     1 - [-DOSα      0] * [1 1]
@@ -64,7 +75,9 @@ end
 
     δρtot_fourier = δFtot_fourier .* G² ./ (kTF.^2 .+ G²)
     δρtot = G_to_r(basis, δρtot_fourier)
-    δρtot .+= mean(total_density(δF)) .- mean(δρtot)  # Copy DC component, otherwise it never gets updated
+
+    # Copy DC component, otherwise it never gets updated
+    δρtot .+= mean(total_density(δF)) .- mean(δρtot)
 
     if basis.model.n_spin_components == 1
         ρ_from_total_and_spin(δρtot, nothing)
@@ -75,22 +88,23 @@ end
     end
 end
 
+
 @doc raw"""
 The same as [`KerkerMixing`](@ref), but the Thomas-Fermi wavevector is computed
 from the current density of states at the Fermi level.
 """
-struct KerkerDosMixing; end
-@timing "KerkerDosMixing" function mix(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
-                                       δF; εF, ψ, eigenvalues, kwargs...)
+struct KerkerDosMixing <: Mixing; end
+@timing "KerkerDosMixing" function mix_density(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
+                                               δF; εF, ψ, eigenvalues, kwargs...)
     if basis.model.temperature == 0
-        return mix(SimpleMixing(), basis, δF)
+        return mix_density(SimpleMixing(), basis, δF)
     else
         n_spin = basis.model.n_spin_components
         Ω = basis.model.unit_cell_volume
         dos_per_vol  = compute_dos(εF, basis, eigenvalues) ./ Ω
         kTF  = sqrt(4π * sum(dos_per_vol))
         ΔDOS_Ω = n_spin == 2 ? dos_per_vol[1] - dos_per_vol[2] : 0.0
-        mix(KerkerMixing(kTF=kTF, ΔDOS_Ω=ΔDOS_Ω), basis, δF)
+        mix_density(KerkerMixing(kTF=kTF, ΔDOS_Ω=ΔDOS_Ω), basis, δF)
     end
 end
 
@@ -105,17 +119,17 @@ By default it assumes a relative permittivity of 10 (similar to Silicon).
 `εr == 1` is equal to `SimpleMixing` and `εr == Inf` to `KerkerMixing`.
 The mixing is applied to ``ρ`` and ``ρ_\text{spin}`` in the same way.
 """
-@kwdef struct DielectricMixing
+@kwdef struct DielectricMixing <: Mixing
     kTF::Real = 0.8
     εr::Real  = 10
 end
-@timing "DielectricMixing" function mix(mixing::DielectricMixing, basis::PlaneWaveBasis,
-                                        δF; kwargs...)
+@timing "DielectricMixing" function mix_density(mixing::DielectricMixing, basis::PlaneWaveBasis,
+                                                δF; kwargs...)
     T = eltype(δF)
     εr = T(mixing.εr)
     kTF = T(mixing.kTF)
-    εr == 1               && return mix(SimpleMixing(), basis, δF)
-    εr > 1 / sqrt(eps(T)) && return mix(KerkerMixing(kTF=kTF), basis, δF)
+    εr == 1               && return mix_density(SimpleMixing(), basis, δF)
+    εr > 1 / sqrt(eps(T)) && return mix_density(KerkerMixing(kTF=kTF), basis, δF)
 
     C0 = 1 - εr
     Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
@@ -148,7 +162,7 @@ function HybridMixing(;εr=1.0, kTF=0.8, localization=identity, kwargs...)
     χ0terms = [DielectricModel(εr=εr, kTF=kTF, localization=localization), LdosModel()]
     χ0Mixing(; χ0terms=χ0terms, kwargs...)
 end
-LdosMixing(; kwargs...) = HybridMixing(;εr=1.0, kwargs...)
+LdosMixing(; kwargs...) = χ0Mixing(; χ0terms=[LdosModel()], kwargs...)
 
 
 @doc raw"""
@@ -158,23 +172,21 @@ real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartr
 (`RPA=true`) are employed. `verbose=true` lets the GMRES run in verbose mode
 (useful for debugging).
 """
-@kwdef struct χ0Mixing
+@kwdef struct χ0Mixing <: Mixing
     RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     χ0terms   = χ0Model[Applyχ0Model()]  # The terms to use as the model for χ0
     verbose::Bool = false  # Run the GMRES verbosely
 end
 
-@views @timing "χ0Mixing" function mix(mixing::χ0Mixing, basis, δF; ρin, kwargs...)
+@views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, basis, δF; ρin, kwargs...)
     T = eltype(δF)
-    n_spin = basis.model.n_spin_components
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
 
     # Initialise χ0terms and remove nothings (terms that don't yield a contribution)
     χ0applies = [χ0(basis; ρin=ρin, kwargs...) for χ0 in mixing.χ0terms]
     χ0applies = [apply for apply in χ0applies if !isnothing(apply)]
 
     # If no applies left, do not bother running GMRES and directly do simple mixing
-    isempty(χ0applies) && return mix(SimpleMixing(), basis, δF)
+    isempty(χ0applies) && return mix_density(SimpleMixing(), basis, δF)
 
     # Solve J δρ = δF with J = (1 - χ0 vc) and χ_0 given as the sum of the χ0terms
     devec(x) = reshape(x, size(δF))
@@ -198,4 +210,8 @@ end
     δρ = devec(gmres(J, vec(δF), verbose=mixing.verbose))
     δρ .+= DC_δF  # Set DC from δF
     δρ
+end
+
+@timing "χ0Mixing" function mix_potential(mixing::Mixing, basis::χ0Mixing, δF::AbstractArray; kwargs...)
+    error("Not yet implemented.")
 end

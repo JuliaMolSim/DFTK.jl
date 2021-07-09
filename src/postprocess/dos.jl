@@ -7,8 +7,6 @@
 # LDOS (local density of states)
 # LD = sum_n f_n ψn
 
-using ForwardDiff
-
 @doc raw"""
     compute_nos(ε, basis, eigenvalues; smearing=basis.model.smearing,
                 temperature=basis.model.temperature)
@@ -28,7 +26,6 @@ function compute_nos(ε, basis, eigenvalues; smearing=basis.model.smearing,
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_nos only supports finite temperature")
     end
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
 
     # Note the differences to the DOS and LDOS functions: We are not counting states
     # per BZ volume (like in DOS), but absolute number of states. Therefore n_symeqk
@@ -57,7 +54,6 @@ function compute_dos(ε, basis, eigenvalues; smearing=basis.model.smearing,
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_dos only supports finite temperature")
     end
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     filled_occ = filled_occupation(basis.model)
 
     D = zeros(typeof(ε), basis.model.n_spin_components)
@@ -79,7 +75,6 @@ function compute_ldos(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_ldos only supports finite temperature")
     end
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     filled_occ = filled_occupation(basis.model)
 
     weights = deepcopy(eigenvalues)

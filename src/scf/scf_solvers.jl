@@ -13,7 +13,7 @@ Create a NLSolve-based SCF solver, by default using an Anderson-accelerated
 fixed-point scheme, keeping `m` steps for Anderson acceleration. See the
 NLSolve documentation for details about the other parameters and methods.
 """
-function scf_nlsolve_solver(m=5, method=:anderson; kwargs...)
+function scf_nlsolve_solver(m=10, method=:anderson; kwargs...)
     function fp_solver(f, x0, max_iter; tol=1e-6)
         res = nlsolve(x -> f(x) - x, x0; method=method, m=m, xtol=tol,
                       ftol=0.0, show_trace=false, iterations=max_iter, kwargs...)
@@ -47,54 +47,24 @@ function scf_damping_solver(β=0.2)
 end
 
 """
-Anderson-accelerated root-finding iteration for finding a
-root of `f`, starting from `x0` and keeping a history of `m` steps.
-Optionally `warming` specifies the number of non-accelerated steps to perform
-for warming up the history.
+Create a simple anderson-accelerated SCF solver. `m` specifies the number
+of steps to keep the history of.
 """
-function anderson(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
+function scf_anderson_solver(m=10; kwargs...)
+    function anderson(f, x0, max_iter; tol=1e-6)
+        T = eltype(x0)
+        x = x0
 
-    # Cheat support for multidimensional arrays
-    if length(size(x0)) != 1
-        x, conv = anderson(x -> vec(f(reshape(x, size(x0)...))), vec(x0), m, max_iter, tol, warming)
-        return (fixpoint=reshape(x, size(x0)...), converged=conv)
-    end
-    N = size(x0, 1)
-    T = eltype(x0)
-    xs = zeros(T, N, m+1)  # Ring buffers storing the iterates
-    fs = zeros(T, N, m+1)  # newest to oldest
-    xs[:, 1] = x0
-    errs = zeros(max_iter)
-    err = Inf
-
-    for n = 1:max_iter
-        fs[:, 1] = f(xs[:, 1])  # Residual
-        err = norm(fs[:, 1])
-        errs[n] = err
-        if err < tol
-            break
+        converged = false
+        acceleration = AndersonAcceleration(;m=m, kwargs...)
+        for n = 1:max_iter
+            residual = f(x) - x
+            converged = norm(residual) < tol
+            converged && break
+            x = acceleration(x, one(T), residual)
         end
-        new_x = xs[:, 1] + fs[:, 1]  # Richardson update
-
-        # Anderson acceleration
-        m_eff = min(n-1, m)
-        if m_eff > 0 && n > warming
-            mat = fs[:, 2:m_eff + 1] .- fs[:, 1]
-            alphas = -mat \ fs[:, 1]
-            # alphas = -(mat'*mat) \ (mat'* (gs[:,1] - xs[:,1]))
-            for i = 1:m_eff
-                new_x .+= alphas[i] .* (xs[:, i+1] + fs[:, i+1] - xs[:, 1] - fs[:, 1])
-            end
-        end
-
-        xs = circshift(xs, (0, 1))
-        fs = circshift(fs, (0, 1))
-        xs[:,1] = new_x
+        (fixpoint=x, converged=converged)
     end
-    (fixpoint=xs[:,1], converged=err < tol)
-end
-function scf_anderson_solver(m=5)
-    (f, x0, max_iter; tol=1e-6) -> anderson(x -> f(x) - x, x0, m, max_iter, tol)
 end
 
 """
@@ -157,4 +127,4 @@ function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
     end
     (fixpoint=xs[:, 1], converged=err < tol)
 end
-scf_CROP_solver(m=5) = (f, x0, max_iter; tol=1e-6) -> CROP(x -> f(x) - x, x0, m, max_iter, tol)
+scf_CROP_solver(m=10) = (f, x0, max_iter; tol=1e-6) -> CROP(x -> f(x) - x, x0, m, max_iter, tol)

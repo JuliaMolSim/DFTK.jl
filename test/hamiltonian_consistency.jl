@@ -27,8 +27,8 @@ function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8, kgrid=[1, 2,
         occupation = [occ * occ_scaling for occ in occupation]
         ρ = compute_density(basis, ψ, occupation)
 
-        dψ = [randn(ComplexF64, size(ψ[ik])) for ik = 1:length(basis.kpoints)]
-        ψ_trial = ψ .+ ε .* dψ
+        δψ = [randn(ComplexF64, size(ψ[ik])) for ik = 1:length(basis.kpoints)]
+        ψ_trial = ψ .+ ε .* δψ
         ρ_trial = compute_density(basis, ψ_trial, occupation)
 
         @assert length(basis.terms) == 1
@@ -39,10 +39,10 @@ function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8, kgrid=[1, 2,
         diff_predicted = 0.0
         for (ik, kpt) in enumerate(basis.kpoints)
             Hψ = ham.blocks[ik]*ψ[ik]
-            dψHψ = sum(occupation[ik][iband] * real(dot(dψ[ik][:, iband], Hψ[:, iband]))
+            δψHψ = sum(occupation[ik][iband] * real(dot(δψ[ik][:, iband], Hψ[:, iband]))
                        for iband=1:n_bands)
 
-            diff_predicted += 2 * basis.kweights[ik] * dψHψ
+            diff_predicted += 2 * basis.kweights[ik] * δψHψ
         end
         diff_predicted = mpi_sum(diff_predicted, basis.comm_kpts)
 

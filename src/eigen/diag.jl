@@ -28,17 +28,16 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         end
         # Get guessk
         @timing "QR orthonormalization" begin
-            if guess != nothing
+            if guess !== nothing
                 # guess provided
                 guessk = guess[ik]
             elseif interpolate_kpoints && ik > 1
                 # use information from previous kpoint
                 X0 = interpolate_kpoint(results[ik - 1].X, kpoints[ik - 1], kpoints[ik])
-                guessk = Matrix{T}(qr(X0).Q)  # Re-orthogonalize and renormalize
+                guessk = ortho_qr(X0)  # Re-orthogonalize and renormalize
             else
                 # random initial guess
-                qrres = qr(randn(T, length(G_vectors(kpoints[ik])), nev_per_kpoint))
-                guessk = Matrix{T}(qrres.Q)
+                guessk = ortho_qr(randn(T, length(G_vectors(kpoints[ik])), nev_per_kpoint))
             end
         end
         @assert size(guessk) == (length(G_vectors(kpoints[ik])), nev_per_kpoint)

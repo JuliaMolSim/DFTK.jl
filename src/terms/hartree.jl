@@ -48,7 +48,6 @@ end
 end
 
 function compute_kernel(term::TermHartree; kwargs...)
-    @assert term.basis.model.spin_polarization in (:none, :spinless, :collinear)
     vc_G = term.poisson_green_coeffs
     # Note that `real` here: if omitted, will result in high-frequency noise of even FFT grids
     K = real(G_to_r_matrix(term.basis) * Diagonal(vec(vc_G)) * r_to_G_matrix(term.basis))
@@ -57,10 +56,9 @@ function compute_kernel(term::TermHartree; kwargs...)
     n_spin == 1 ? K : [K K; K K]
 end
 
-function apply_kernel(term::TermHartree, dρ; kwargs...)
-    @assert term.basis.model.spin_polarization in (:none, :spinless, :collinear)
-    dV = zero(dρ)
-    dρtot = total_density(dρ)
-    # note broadcast here: dV is 4D, and all its spin components get the same potential
-    dV .= G_to_r(term.basis, term.poisson_green_coeffs .* r_to_G(term.basis, dρtot))
+function apply_kernel(term::TermHartree, δρ; kwargs...)
+    δV = zero(δρ)
+    δρtot = total_density(δρ)
+    # note broadcast here: δV is 4D, and all its spin components get the same potential
+    δV .= G_to_r(term.basis, term.poisson_green_coeffs .* r_to_G(term.basis, δρtot))
 end

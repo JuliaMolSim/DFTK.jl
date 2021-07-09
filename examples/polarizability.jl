@@ -65,41 +65,41 @@ println("Polarizability :   $polarizability")
 # Now we use linear response to compute this analytically; we refer to standard
 # textbooks for the formalism. In the following, ``\chi_0`` is the
 # independent-particle polarizability, and ``K`` the
-# Hartree-exchange-correlation kernel. We denote with ``dV_{\rm ext}`` an external
+# Hartree-exchange-correlation kernel. We denote with ``\delta V_{\rm ext}`` an external
 # perturbing potential (like in this case the uniform electric field). Then:
 # ```math
-# d\rho = \chi_0 dV = \chi_0 (dV_{\rm ext} + K d\rho),
+# \delta\rho = \chi_0 \delta V = \chi_0 (\delta V_{\rm ext} + K \delta\rho),
 # ```
 # which implies
 # ```math
-# d\rho = (1-\chi_0 K)^-1 \chi_0 dV_{\rm ext}.
+# \delta\rho = (1-\chi_0 K)^-1 \chi_0 \delta V_{\rm ext}.
 # ```
-# From this we identify the polarizability operator to be ``\chi = (1-\chi_0 K)^-1 \chi_0``.
-# Numerically, we apply ``\chi`` to ``dV = -x`` by solving a linear equation
+# From this we identify the polarizability operator to be ``\chi = (1-\chi_0 K)^{-1} \chi_0``.
+# Numerically, we apply ``\chi`` to ``\delta V = -x`` by solving a linear equation
 # (the Dyson equation) iteratively.
 
 using KrylovKit
 
 ## Apply (1- χ0 K)
-function dielectric_operator(dρ)
-    dv = apply_kernel(basis, dρ; ρ=res.ρ)
-    χ0dv = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, dv)
-    dρ - χ0dv
+function dielectric_operator(δρ)
+    δV = apply_kernel(basis, δρ; ρ=res.ρ)
+    χ0δV = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, δV)
+    δρ - χ0δV
 end
 
-## dVext is the potential from a uniform field interacting with the dielectric dipole
+## δVext is the potential from a uniform field interacting with the dielectric dipole
 ## of the density.
-dVext = [-a * (r[1] - 1/2) for r in r_vectors(basis)]
-dVext = cat(dVext; dims=4)
+δVext = [-a * (r[1] - 1/2) for r in r_vectors(basis)]
+δVext = cat(δVext; dims=4)
 
 ## Apply χ0 once to get non-interacting dipole
-dρ_nointeract = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, dVext)
+δρ_nointeract = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, δVext)
 
 ## Solve Dyson equation to get interacting dipole
-dρ = linsolve(dielectric_operator, dρ_nointeract, verbosity=3)[1]
+δρ = linsolve(dielectric_operator, δρ_nointeract, verbosity=3)[1]
 
-println("Non-interacting polarizability: $(dipole(basis, dρ_nointeract))")
-println("Interacting polarizability:     $(dipole(basis, dρ))")
+println("Non-interacting polarizability: $(dipole(basis, δρ_nointeract))")
+println("Interacting polarizability:     $(dipole(basis, δρ))")
 
 # As expected, the interacting polarizability matches the finite difference
 # result. The non-interacting polarizability is higher.

@@ -94,16 +94,16 @@ libxc provides the scalars
     Vρ = ∂(ρ E)/∂ρ
     Vσ = ∂(ρ E)/∂σ
 
-Consider a variation dϕi of an orbital (considered real for
-simplicity), and let dEtot be the corresponding variation of the
+Consider a variation δϕi of an orbital (considered real for
+simplicity), and let δEtot be the corresponding variation of the
 energy. Then the potential Vxc is defined by
-    dEtot = 2 ∫ Vxc ϕi dϕi
+    δEtot = 2 ∫ Vxc ϕi δϕi
 
-    dρ = 2 ϕi dϕi
-    dσ = 2 ∇ρ ⋅ ∇dρ = 4 ∇ρ ⋅ ∇(ϕi dϕi)
-    dEtot = ∫ Vρ dρ + Vσ dσ
-          = 2 ∫ Vρ ϕi dϕi + 4 ∫ Vσ ∇ρ ⋅ ∇(ϕi dϕi)
-          = 2 ∫ Vρ ϕi dϕi - 4 ∫ div(Vσ ∇ρ) ϕi dϕi
+    δρ = 2 ϕi δϕi
+    δσ = 2 ∇ρ ⋅ ∇δρ = 4 ∇ρ ⋅ ∇(ϕi δϕi)
+    δEtot = ∫ Vρ δρ + Vσ δσ
+          = 2 ∫ Vρ ϕi δϕi + 4 ∫ Vσ ∇ρ ⋅ ∇(ϕi δϕi)
+          = 2 ∫ Vρ ϕi δϕi - 4 ∫ div(Vσ ∇ρ) ϕi δϕi
 where we performed an integration by parts in the last equation
 (boundary terms drop by periodicity). Therefore,
     Vxc = Vρ - 2 div(Vσ ∇ρ)
@@ -198,7 +198,6 @@ Compute density in real space and its derivatives starting from ρ
 """
 function LibxcDensity(basis, max_derivative::Integer, ρ)
     model = basis.model
-    @assert model.spin_polarization in (:collinear, :none, :spinless)
     @assert max_derivative in (0, 1)
 
     n_spin    = model.n_spin_components
@@ -241,7 +240,6 @@ end
 
 
 function compute_kernel(term::TermXc; ρ, kwargs...)
-    @assert term.basis.model.spin_polarization in (:none, :spinless, :collinear)
     density = LibxcDensity(term.basis, 0, ρ)
     n_spin = term.basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
@@ -266,75 +264,74 @@ function compute_kernel(term::TermXc; ρ, kwargs...)
 end
 
 
-function apply_kernel(term::TermXc, dρ; ρ, kwargs...)
+function apply_kernel(term::TermXc, δρ; ρ, kwargs...)
     basis  = term.basis
     T      = eltype(basis)
     n_spin = basis.model.n_spin_components
     isempty(term.functionals) && return nothing
     @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
 
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     density      = LibxcDensity(basis, max_ρ_derivs, ρ)
-    perturbation = LibxcDensity(basis, max_ρ_derivs, dρ)
+    perturbation = LibxcDensity(basis, max_ρ_derivs, δρ)
 
     ∇ρ  = density.∇ρ_real
-    dρ  = perturbation.ρ_real
-    ∇dρ = perturbation.∇ρ_real
+    δρ  = perturbation.ρ_real
+    ∇δρ = perturbation.∇ρ_real
 
     # Compute required density / perturbation cross-derivatives
     cross_derivatives = Dict{Symbol, Any}()
     if max_ρ_derivs > 0
-        cross_derivatives[:dσ] = [
-            @views 2sum(∇ρ[I[1], :, :, :, α] .* ∇dρ[I[2], :, :, :, α] for α in 1:3)
+        cross_derivatives[:δσ] = [
+            @views 2sum(∇ρ[I[1], :, :, :, α] .* ∇δρ[I[2], :, :, :, α] for α in 1:3)
             for I in CartesianIndices((n_spin, n_spin))
         ]
     end
 
     # TODO LDA actually only needs the 2nd derivatives for this ... could be optimised
     terms  = evaluate(term.functionals, density, derivatives=1:2)
-    dV = zero(ρ)  # [iσ, ix, iy, iz]
+    δV = zero(ρ)  # [iσ, ix, iy, iz]
 
     tρρ = libxc_spinindex_ρρ
     @views for s in 1:n_spin, t in 1:n_spin  # LDA term
-        dV[:, :, :, s] .+= terms.v2rho2[tρρ(s, t), :, :, :] .* dρ[t, :, :, :]
+        δV[:, :, :, s] .+= terms.v2rho2[tρρ(s, t), :, :, :] .* δρ[t, :, :, :]
     end
     if haskey(terms, :v2rhosigma)  # GGA term
-        add_kernel_gradient_correction!(dV, terms, density, perturbation, cross_derivatives)
+        add_kernel_gradient_correction!(δV, terms, density, perturbation, cross_derivatives)
     end
 
-    term.scaling_factor * dV
+    term.scaling_factor * δV
 end
 
 
-function add_kernel_gradient_correction!(dV, terms, density, perturbation, cross_derivatives)
+function add_kernel_gradient_correction!(δV, terms, density, perturbation, cross_derivatives)
     # Follows DOI 10.1103/PhysRevLett.107.216402
     #
     # For GGA V = Vρ - 2 ∇⋅(Vσ ∇ρ) = (∂ε/∂ρ) - 2 ∇⋅((∂ε/∂σ) ∇ρ)
     #
-    # dV(r) = f(r,r') dρ(r') = (∂V/∂ρ) dρ + (∂V/∂σ) dσ
+    # δV(r) = f(r,r') δρ(r') = (∂V/∂ρ) δρ + (∂V/∂σ) δσ
     #
     # therefore
-    # dV(r) = (∂^2ε/∂ρ^2) dρ - 2 ∇⋅[(∂^2ε/∂σ∂ρ) ∇ρ + (∂ε/∂σ) (∂∇ρ/∂ρ)] dρ
-    #       + (∂^2ε/∂ρ∂σ) dσ - 2 ∇⋅[(∂^ε/∂σ^2) ∇ρ  + (∂ε/∂σ) (∂∇ρ/∂σ)] dσ
+    # δV(r) = (∂^2ε/∂ρ^2) δρ - 2 ∇⋅[(∂^2ε/∂σ∂ρ) ∇ρ + (∂ε/∂σ) (∂∇ρ/∂ρ)] δρ
+    #       + (∂^2ε/∂ρ∂σ) δσ - 2 ∇⋅[(∂^ε/∂σ^2) ∇ρ  + (∂ε/∂σ) (∂∇ρ/∂σ)] δσ
     #
-    # Note dσ = 2∇ρ⋅d∇ρ = 2∇ρ⋅∇dρ, therefore
-    #      - 2 ∇⋅((∂ε/∂σ) (∂∇ρ/∂σ)) dσ
-    #    = - 2 ∇(∂ε/∂σ)⋅(∂∇ρ/∂σ) dσ - 2 (∂ε/∂σ) ∇⋅(∂∇ρ/∂σ) dσ
-    #    = - 2 ∇(∂ε/∂σ)⋅d∇ρ - 2 (∂ε/∂σ) ∇⋅d∇ρ
-    #    = - 2 ∇⋅((∂ε/∂σ) ∇dρ)
+    # Note δσ = 2∇ρ⋅δ∇ρ = 2∇ρ⋅∇δρ, therefore
+    #      - 2 ∇⋅((∂ε/∂σ) (∂∇ρ/∂σ)) δσ
+    #    = - 2 ∇(∂ε/∂σ)⋅(∂∇ρ/∂σ) δσ - 2 (∂ε/∂σ) ∇⋅(∂∇ρ/∂σ) δσ
+    #    = - 2 ∇(∂ε/∂σ)⋅δ∇ρ - 2 (∂ε/∂σ) ∇⋅δ∇ρ
+    #    = - 2 ∇⋅((∂ε/∂σ) ∇δρ)
     # and (because assumed independent variables): (∂∇ρ/∂ρ) = 0.
     #
-    # Note that below the LDA term (∂^2ε/∂ρ^2) dρ is not done here (dealt with by caller)
+    # Note that below the LDA term (∂^2ε/∂ρ^2) δρ is not done here (dealt with by caller)
 
     basis  = density.basis
     n_spin = basis.model.n_spin_components
     ρ   = density.ρ_real
     ∇ρ  = density.∇ρ_real
-    dρ  = perturbation.ρ_real
-    ∇dρ = perturbation.∇ρ_real
-    dσ  = cross_derivatives[:dσ]
+    δρ  = perturbation.ρ_real
+    ∇δρ = perturbation.∇ρ_real
+    δσ  = cross_derivatives[:δσ]
     Vρσ = terms.v2rhosigma
     Vσσ = terms.v2sigma2
     Vσ  = terms.vsigma
@@ -344,33 +341,33 @@ function add_kernel_gradient_correction!(dV, terms, density, perturbation, cross
     tρσ = libxc_spinindex_ρσ
     tσσ = libxc_spinindex_σσ
 
-    # Note: dV[iσ, ix, iy, iz] unlike the other quantities ...
+    # Note: δV[iσ, ix, iy, iz] unlike the other quantities ...
     @views for s in 1:n_spin
         for t in 1:n_spin, u in 1:n_spin
             spinfac_tu = (t == u ? one(T) : one(T)/2)
             stu = tρσ(s, tσ(t, u))
-            @. dV[:, :, :, s] += spinfac_tu * Vρσ[stu, :, :, :] * dσ[t, u][:, :, :]
+            @. δV[:, :, :, s] += spinfac_tu * Vρσ[stu, :, :, :] * δσ[t, u][:, :, :]
         end
 
         # TODO Potential for some optimisation ... some contractions in this body are
         #      independent of α and could be precomputed.
-        dV[:, :, :, s] .+= divergence_real(density.basis) do α
+        δV[:, :, :, s] .+= divergence_real(density.basis) do α
             ret_α = similar(density.ρ_real, basis.fft_size...)
             ret_α .= 0
             for t in 1:n_spin
                 spinfac_st = (t == s ? one(T) : one(T)/2)
-                ret_α .+= -2spinfac_st .* Vσ[tσ(s, t), :, :, :] .* ∇dρ[t, :, :, :, α]
+                ret_α .+= -2spinfac_st .* Vσ[tσ(s, t), :, :, :] .* ∇δρ[t, :, :, :, α]
 
                 for u in 1:n_spin
                     spinfac_su = (s == u ? one(T) : one(T)/2)
                     tsu = tρσ(t, tσ(s, u))
-                    ret_α .+= -2spinfac_su .* Vρσ[tsu, :, :, :] .* ∇ρ[u, :, :, :, α] .* dρ[t, :, :, :]
+                    ret_α .+= -2spinfac_su .* Vρσ[tsu, :, :, :] .* ∇ρ[u, :, :, :, α] .* δρ[t, :, :, :]
 
                     for v in 1:n_spin
                         spinfac_uv = (u == v ? one(T) : one(T)/2)
                         stuv = tσσ(tσ(s, t), tσ(u, v))
                         ret_α .+= (-2spinfac_uv .* spinfac_st .* Vσσ[stuv, :, :, :]
-                                   .* ∇ρ[t, :, :, :, α] .* dσ[u, v][:, :, :])
+                                   .* ∇ρ[t, :, :, :, α] .* δσ[u, v][:, :, :])
                     end  # v
                 end  # u
             end  # t
@@ -378,7 +375,7 @@ function add_kernel_gradient_correction!(dV, terms, density, perturbation, cross
         end  # α
     end
 
-    dV
+    δV
 end
 
 

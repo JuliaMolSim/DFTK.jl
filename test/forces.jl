@@ -49,14 +49,12 @@ end
         atoms = [Si => pos]
         model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93;
                           temperature=0.03, smearing=smearing, spin_polarization=:collinear)
-        # TODO Put kshift=[1/2, 0, 0] here later
-        basis = PlaneWaveBasis(model, Ecut, kgrid=[2, 1, 2], kshift=[0, 0, 0])
+        basis = PlaneWaveBasis(model, Ecut, kgrid=[4, 1, 2], kshift=[1/2, 0, 0])
 
         n_bands = 10
         is_converged = DFTK.ScfConvergenceDensity(5e-10)
         scfres = self_consistent_field(basis, n_bands=n_bands,
-                                       is_converged=is_converged,
-                                      )
+                                       is_converged=is_converged)
         scfres.energies.total, compute_forces(scfres)
     end
 
@@ -91,8 +89,7 @@ end
         scfres = self_consistent_field(basis;
                                        is_converged=DFTK.ScfConvergenceDensity(1e-7),
                                        ρ=guess_density(basis, magnetic_moments),
-                                       α=0.7,
-                                      )
+                                       damping=0.7)
         scfres.energies.total, compute_forces(scfres)
     end
 

@@ -35,18 +35,18 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
         res = DFTK.next_density(ham0, tol=tol, eigensolver=diag_full, n_bands=n_bands)
         ρ1  = res.ρout
 
-        # Now we make the same model, but add an artificial external potential ε * dV
+        # Now we make the same model, but add an artificial external potential ε * δV
         n_spin = model.n_spin_components
-        dV = randn(eltype(basis), basis.fft_size..., n_spin)
-        dV_sym = DFTK.symmetrize(basis, dV)
+        δV = randn(eltype(basis), basis.fft_size..., n_spin)
+        δV_sym = DFTK.symmetrize(basis, δV)
         if symmetry
-            dV = dV_sym
+            δV = δV_sym
         else
-            @test dV_sym ≈ dV
+            @test δV_sym ≈ δV
         end
 
-        εdV = ε * dV
-        term_builder = basis -> DFTK.TermExternal(basis, εdV)
+        εδV = ε * δV
+        term_builder = basis -> DFTK.TermExternal(basis, εδV)
         model = model_LDA(testcase.lattice, [spec => testcase.positions];
                           model_kwargs..., extra_terms=[term_builder])
         basis = PlaneWaveBasis(model, Ecut; basis_kwargs...)
@@ -61,7 +61,7 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
         occ, εF = DFTK.compute_occupation(basis, Es)
 
         # Test apply_χ0 and compare against finite differences
-        diff_applied_χ0 = apply_χ0(ham0, Vs, εF, Es, dV; droptol=0)
+        diff_applied_χ0 = apply_χ0(ham0, Vs, εF, Es, δV)
         @test norm(diff_findiff - diff_applied_χ0) < testtol
 
         # just to cover it here
@@ -74,22 +74,15 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
         if !symmetry
             # Test compute_χ0 against finite differences
             χ0 = compute_χ0(ham0)
-            diff_computed_χ0 = reshape(χ0 * vec(dV), basis.fft_size..., n_spin)
+            diff_computed_χ0 = reshape(χ0 * vec(δV), basis.fft_size..., n_spin)
             @test norm(diff_findiff - diff_computed_χ0) < testtol
 
             # Test that apply_χ0 is self-adjoint
-            dV1 = randn(eltype(basis), basis.fft_size..., n_spin)
-            dV2 = randn(eltype(basis), basis.fft_size..., n_spin)
-            χ0dV1 = apply_χ0(ham0, Vs, εF, Es, dV1)
-            χ0dV2 = apply_χ0(ham0, Vs, εF, Es, dV2)
-            @test abs(dot(dV1, χ0dV2) - dot(dV2, χ0dV1)) < testtol
-
-            # Test the diagonal_only option
-            χ0_diag = compute_χ0(ham0; droptol=Inf)
-            diff_diag_1 = real(reshape(χ0_diag * vec(dV), basis.fft_size..., n_spin))
-            diff_diag_2 = apply_χ0(ham0, Vs, εF, Es, dV; droptol=Inf,
-                                   sternheimer_contribution=false)
-            @test norm(diff_diag_1 - diff_diag_2) < testtol
+            δV1 = randn(eltype(basis), basis.fft_size..., n_spin)
+            δV2 = randn(eltype(basis), basis.fft_size..., n_spin)
+            χ0δV1 = apply_χ0(ham0, Vs, εF, Es, δV1)
+            χ0δV2 = apply_χ0(ham0, Vs, εF, Es, δV2)
+            @test abs(dot(δV1, χ0δV2) - dot(δV2, χ0δV1)) < testtol
         end
     end
 end

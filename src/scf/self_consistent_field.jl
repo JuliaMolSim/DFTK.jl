@@ -12,8 +12,7 @@ Obtain new density ρ by diagonalizing `ham`.
 function next_density(ham::Hamiltonian;
                       n_bands=default_n_bands(ham.basis.model),
                       ψ=nothing, n_ep_extra=3,
-                      eigensolver=lobpcg_hyper,
-                      occupation_function=compute_occupation, kwargs...)
+                      eigensolver=lobpcg_hyper, kwargs...)
     if ψ !== nothing
         @assert length(ψ) == length(ham.basis.kpoints)
         for ik in 1:length(ham.basis.kpoints)
@@ -27,7 +26,7 @@ function next_density(ham::Hamiltonian;
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Update density from new ψ
-    occupation, εF = occupation_function(ham.basis, eigres.λ)
+    occupation, εF = compute_occupation(ham.basis, eigres.λ)
     ρout = compute_density(ham.basis, eigres.X, occupation)
 
     (ψ=eigres.X, eigenvalues=eigres.λ, occupation=occupation, εF=εF,
@@ -48,13 +47,12 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        eigensolver=lobpcg_hyper,
                                        n_ep_extra=3,
                                        determine_diagtol=ScfDiagtol(),
-                                       α=0.8,  # Damping parameter
+                                       damping=0.8,  # Damping parameter
                                        mixing=SimpleMixing(),
                                        is_converged=ScfConvergenceEnergy(tol),
                                        callback=ScfDefaultCallback(),
                                        compute_consistent_energies=true,
                                        enforce_symmetry=false,
-                                       occupation_function=compute_occupation,
                                       )
     T = eltype(basis)
     model = basis.model
@@ -97,8 +95,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver,
                                  miniter=1, tol=determine_diagtol(info),
-                                 n_ep_extra=n_ep_extra,
-                                 occupation_function=occupation_function)
+                                 n_ep_extra=n_ep_extra)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         if enforce_symmetry
@@ -106,9 +103,9 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         end
 
         # Update info with results gathered so far
-        info = (ham=ham, basis=basis, converged=converged, stage=:iterate,
-                ρin=ρin, ρout=ρout,
-                n_iter=n_iter, n_ep_extra=n_ep_extra, nextstate...)
+        info = (ham=ham, basis=basis, converged=converged, stage=:iterate, algorithm="SCF",
+                ρin=ρin, ρout=ρout, α=damping, n_iter=n_iter, n_ep_extra=n_ep_extra,
+                nextstate..., diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
         if compute_consistent_energies
@@ -118,8 +115,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         info = merge(info, (energies=energies, ))
 
         # Apply mixing and pass it the full info as kwargs
-        δρ = mix(mixing, basis, ρout - ρin; info...)
-        ρnext = ρin .+ T(α) .* δρ
+        δρ = mix_density(mixing, basis, ρout - ρin; info...)
+        ρnext = ρin .+ T(damping) .* δρ
         if enforce_symmetry
             ρnext = DFTK.symmetrize(basis, ρnext)
         end
@@ -146,7 +143,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     info = (ham=ham, basis=basis, energies=energies, converged=converged,
             ρ=ρout, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
             n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=ψ, diagonalization=info.diagonalization,
-            stage=:finalize)
+            stage=:finalize, algorithm="SCF")
     callback(info)
     info
 end
