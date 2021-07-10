@@ -44,8 +44,9 @@ end
 end
 
 function energy_ewald(model::Model; kwargs...)
-    charges = [charge_ionic(elem) for (elem, positions) in model.atoms for pos in positions]
+    charges   = [charge_ionic(elem) for (elem, positions) in model.atoms for pos in positions]
     positions = [pos for (_, positions) in model.atoms for pos in positions]
+    isempty(charges) && return zero(eltype(model.lattice))
 
     # DFTK currently assumes that the compensating charge in the electronic and nuclear
     # terms is equal and of opposite sign. See also the PSP correction term, where n_electrons
