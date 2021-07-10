@@ -106,10 +106,6 @@ function Model(lattice::AbstractMatrix{T};
     cond(lattice[1:n_dim, 1:n_dim]) > 1e-5 || (
         @warn "Your lattice is badly conditioned, the computation is likely to fail.")
 
-    if n_dim != 3 && any(attype isa ElementPsp for (attype, positions) in atoms)
-        error("The use of pseudopotentials is only sensible for 3D systems.")
-    end
-
     # Compute reciprocal lattice and volumes.
     # recall that the reciprocal lattice is the set of G vectors such
     # that G.R ∈ 2π ℤ for all R in the lattice
@@ -117,7 +113,7 @@ function Model(lattice::AbstractMatrix{T};
     recip_lattice[1:n_dim, 1:n_dim] = 2T(π)*inv(lattice[1:n_dim, 1:n_dim]')
     recip_lattice = Mat3{T}(recip_lattice)
     # in the 1D or 2D case, the volume is the length/surface
-    unit_cell_volume = abs(det(lattice[1:n_dim, 1:n_dim]))
+    unit_cell_volume  = abs(det(lattice[1:n_dim, 1:n_dim]))
     recip_cell_volume = abs(det(recip_lattice[1:n_dim, 1:n_dim]))
 
     spin_polarization in (:none, :collinear, :full, :spinless) ||
