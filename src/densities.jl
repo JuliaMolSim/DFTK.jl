@@ -139,8 +139,8 @@ end
 
 function ρ_from_total_and_spin(ρtot, ρspin=nothing)
     if ρspin === nothing
-         # returns a copy for consistency with the other case
-        copy(reshape(ρtot, (size(ρtot)..., 1)))
+         # make a copy for consistency with the other case
+        cat(ρtot; dims=Val(4))
     else
         # Val to ensure inferability
         cat((ρtot .+ ρspin) ./ 2,
