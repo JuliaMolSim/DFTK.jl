@@ -88,20 +88,6 @@ next_working_fft_size(::Type{<:ForwardDiff.Dual}, size) = size
 
 _fftw_flags(::Type{<:ForwardDiff.Dual}) = FFTW.MEASURE | FFTW.UNALIGNED
 
-# *** COPIED from fft_generic.jl *** TODO refactor
-# A dummy wrapper around an out-of-place FFT plan to make it appear in-place
-# This is needed for some generic FFT implementations, which do not have in-place plans
-struct DummyInplace{opFFT}
-    fft::opFFT
-end
-LinearAlgebra.mul!(Y, p::DummyInplace, X) = (Y .= mul!(similar(X), p.fft, X))
-LinearAlgebra.ldiv!(Y, p::DummyInplace, X) = (Y .= ldiv!(similar(X), p.fft, X))
-
-import Base: *, \, length
-*(p::DummyInplace, X) = p.fft * X
-\(p::DummyInplace, X) = p.fft \ X
-length(p::DummyInplace) = length(p.fft)
-
 function build_fft_plans(T::Type{<:Union{ForwardDiff.Dual,Complex{<:ForwardDiff.Dual}}}, fft_size)
     tmp = Array{Complex{T}}(undef, fft_size...)
     opFFT  = FFTW.plan_fft(tmp, flags=_fftw_flags(T))
