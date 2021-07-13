@@ -1,11 +1,14 @@
 # Control whether timings are enabled or not, by default yes
-if get(ENV, "DFTK_TIMING", "1") == "1"
-    timer_enabled() = :parallel
-elseif ENV["DFTK_TIMING"] == "all"
-    timer_enabled() = :all
-else
-    timer_enabled() = :none
-end
+# if get(ENV, "DFTK_TIMING", "1") == "1"
+#     timer_enabled() = :parallel
+# elseif ENV["DFTK_TIMING"] == "all"
+#     timer_enabled() = :all
+# else
+#     timer_enabled() = :none
+# end
+
+# temporarily disable all timers for Zygote (try-catch not supported) TODO re-enable
+timer_enabled() = :none
 
 """TimerOutput object used to store DFTK timings."""
 const timer = TimerOutput()

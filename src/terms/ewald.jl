@@ -97,13 +97,11 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     # The largest argument to the erfc function for various precisions.
     # To get an idea:
     #   erfc(5) ≈ 1e-12,  erfc(8) ≈ 1e-29,  erfc(10) ≈ 2e-45,  erfc(14) ≈ 3e-87
-    max_erfc_arg = 100
-    try
-        max_erfc_arg = Dict(Float32 => 5, Float64 => 8, BigFloat => 14)[T]
-    catch KeyError
-        # Fallback for not yet implemented cutoffs
-        max_erfc_arg = something(findfirst(arg -> 100 * erfc(arg) < eps(T), 1:100), 100)
-    end
+    max_erfc_arg = get(
+        Dict(Float32 => 5, Float64 => 8, BigFloat => 14),
+        T,
+        something(findfirst(arg -> 100 * erfc(arg) < eps(T), 1:100), 100) # fallback for not yet implemented cutoffs
+    )
 
     #
     # Reciprocal space sum

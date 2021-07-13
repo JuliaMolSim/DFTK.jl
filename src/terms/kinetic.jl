@@ -34,7 +34,9 @@ end
                   * real(dot(ψnk, Diagonal(term.kinetic_energies[ik]), ψnk)))
         end
     end
-    E = mpi_sum(E, basis.comm_kpts)
+    
+    ## TODO Figure out what Zygote+MPI need (or write rrules)
+    # E = mpi_sum(E, basis.comm_kpts) 
 
     (E=E, ops=ops)
 end

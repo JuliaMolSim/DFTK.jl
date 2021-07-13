@@ -6,15 +6,15 @@
 # two spin components.
 abstract type TermLocalPotential <: Term end
 
-@timing "ene_ops: local" function ene_ops(term::TermLocalPotential, ψ, occ; kwargs...)
+@timing "ene_ops: local" function ene_ops(term::TermLocalPotential, ψ, occ; ρ=nothing, kwargs...)
     basis = term.basis
     T = eltype(basis)
 
     potview(data, spin) = ndims(data) == 4 ? (@view data[:, :, :, spin]) : data
     ops = [RealSpaceMultiplication(basis, kpoint, potview(term.potential, kpoint.spin))
            for kpoint in basis.kpoints]
-    if :ρ in keys(kwargs)
-        E = sum(total_density(kwargs[:ρ]) .* term.potential) * term.basis.dvol
+    if !isnothing(ρ)
+        E = sum(total_density(ρ) .* term.potential) * term.basis.dvol
     else
         E = T(Inf)
     end
