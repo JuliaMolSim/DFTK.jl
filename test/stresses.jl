@@ -1,20 +1,21 @@
-# Hellmann-Feynman stress
-# via ForwardDiff & custom FFTW overloads on ForwardDiff.Dual
 using Test
 using DFTK
 using ForwardDiff
 import FiniteDiff
 
+# Hellmann-Feynman stress
+# via ForwardDiff & custom FFTW overloads on ForwardDiff.Dual
+
 @testset "ForwardDiff stresses on silicon" begin
     function make_basis(a)
         lattice = a / 2 * [[0 1 1.];
-                        [1 0 1.];
-                        [1 1 0.]]
+                           [1 0 1.];
+                           [1 1 0.]]
         Si = ElementPsp(:Si, psp=load_psp(:Si, functional="lda"))
         atoms = [Si => [ones(3)/8, -ones(3)/8]]
         model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn])
-        kgrid = [1, 1, 1] # k-point grid (Regular Monkhorst-Pack grid)
-        Ecut = 7          # kinetic energy cutoff in Hartree
+        kgrid = [1, 1, 1]
+        Ecut = 7
         PlaneWaveBasis(model, Ecut; kgrid=kgrid)
     end
 

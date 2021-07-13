@@ -172,8 +172,6 @@ include("postprocess/chi0.jl")
 export compute_current
 include("postprocess/current.jl")
 
-include("workarounds/forwarddiff_rules.jl")
-
 function __init__()
     # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
     # DoubleFloats has been loaded (via a "using" or an "import").
@@ -181,6 +179,9 @@ function __init__()
     #
     # The global variable GENERIC_FFT_LOADED makes sure that things are only
     # included once.
+    @require ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210" begin
+        include("workarounds/forwarddiff_rules.jl")
+    end
     @require IntervalArithmetic="d1acc4aa-44c8-5952-acd4-ba5d80a2a253" begin
         include("workarounds/intervals.jl")
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")

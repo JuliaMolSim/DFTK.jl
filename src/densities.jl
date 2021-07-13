@@ -63,7 +63,7 @@ is not collinear the spin density is `nothing`.
     # TODO use something like T = promote_type(Array{eltype(basis)}, eltype(ψ), ...)
     ρaccus = [similar(Array{complex(T)}, (basis.fft_size..., n_spin))
               for ithread in 1:Threads.nthreads()]
-    
+
     # TODO Better load balancing ... the workload per kpoint depends also on
     #      the number of symmetry operations. We know heuristically that the Gamma
     #      point (first k-Point) has least symmetry operations, so we will put

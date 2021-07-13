@@ -2,10 +2,8 @@ import ForwardDiff
 import AbstractFFTs
 
 # original PR by mcabbott: https://github.com/JuliaDiff/ForwardDiff.jl/pull/495
-# modified version: https://github.com/niklasschmitz/ForwardDiff.jl/blob/nfs/fft/src/fft.jl
 
-ForwardDiff.value(x::Complex{<:ForwardDiff.Dual}) =
-    Complex(x.re.value, x.im.value)
+ForwardDiff.value(x::Complex{<:ForwardDiff.Dual}) = Complex(x.re.value, x.im.value)
 
 ForwardDiff.partials(x::Complex{<:ForwardDiff.Dual}, n::Int) =
     Complex(ForwardDiff.partials(x.re, n), ForwardDiff.partials(x.im, n))
@@ -25,13 +23,11 @@ AbstractFFTs.realfloat(d::ForwardDiff.Dual{T,V,N}) where {T,V,N} = convert(Forwa
 
 for plan in [:plan_fft, :plan_ifft, :plan_bfft]
     @eval begin
-
         AbstractFFTs.$plan(x::AbstractArray{<:ForwardDiff.Dual}, region=1:ndims(x); kwargs...) =
             AbstractFFTs.$plan(ForwardDiff.value.(x) .+ 0im, region; kwargs...)
 
         AbstractFFTs.$plan(x::AbstractArray{<:Complex{<:ForwardDiff.Dual}}, region=1:ndims(x); kwargs...) =
             AbstractFFTs.$plan(ForwardDiff.value.(x), region; kwargs...)
-
     end
 end
 
@@ -41,19 +37,16 @@ AbstractFFTs.plan_rfft(x::AbstractArray{<:ForwardDiff.Dual}, region=1:ndims(x); 
 
 for plan in [:plan_irfft, :plan_brfft]  # these take an extra argument, only when complex?
     @eval begin
-
         AbstractFFTs.$plan(x::AbstractArray{<:ForwardDiff.Dual}, region=1:ndims(x); kwargs...) =
             AbstractFFTs.$plan(ForwardDiff.value.(x) .+ 0im, region; kwargs...)
 
         AbstractFFTs.$plan(x::AbstractArray{<:Complex{<:ForwardDiff.Dual}}, d::Integer, region=1:ndims(x); kwargs...) =
             AbstractFFTs.$plan(ForwardDiff.value.(x), d, region; kwargs...)
-
     end
 end
 
 for P in [:Plan, :ScaledPlan]  # need ScaledPlan to avoid ambiguities
     @eval begin
-
         Base.:*(p::AbstractFFTs.$P, x::AbstractArray{<:ForwardDiff.Dual}) =
             _apply_plan(p, x)
 
@@ -89,9 +82,7 @@ function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::Abst
     _apply_plan(p.p, p.scale * x) # for when p.scale is Dual, need out-of-place
 end
 
-###
-### DFTK setup specific
-###
+# DFTK setup specific
 
 next_working_fft_size(::Type{<:ForwardDiff.Dual}, size) = size
 
@@ -143,9 +134,8 @@ function _check_well_conditioned(A::AbstractArray{<:ForwardDiff.Dual}; kwargs...
     _check_well_conditioned(ForwardDiff.value.(A); kwargs...)
 end
 
-###
-### other workarounds
-###
+
+# other workarounds
 
 # problem: ForwardDiff of norm of SVector gives NaN derivative at zero
 # https://github.com/JuliaMolSim/DFTK.jl/issues/443#issuecomment-864930410
