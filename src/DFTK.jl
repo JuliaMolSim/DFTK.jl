@@ -32,6 +32,19 @@ export PspHgh
 include("pseudo/NormConservingPsp.jl")
 include("pseudo/PspHgh.jl")
 
+export PspTm
+export parse_tm_file
+export eval_psp_local_real
+export eval_psp_local_fourier
+export eval_pseudoWaveFunction_real
+export eval_psp_semilocal_real
+export eval_psp_projector_real
+export eval_psp_projector_fourier
+export eval_psp_energy_correction
+export normalizer
+export approx
+include("pseudo/PspTm.jl")
+
 export ElementPsp
 export ElementCohenBergstresser
 export ElementCoulomb
