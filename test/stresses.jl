@@ -2,6 +2,7 @@ using Test
 using DFTK
 using ForwardDiff
 import FiniteDiff
+include("testcases.jl")
 
 # Hellmann-Feynman stress
 # via ForwardDiff & custom FFTW overloads on ForwardDiff.Dual
@@ -11,8 +12,8 @@ import FiniteDiff
         lattice = a / 2 * [[0 1 1.];
                            [1 0 1.];
                            [1 1 0.]]
-        Si = ElementPsp(:Si, psp=load_psp(:Si, functional="lda"))
-        atoms = [Si => [ones(3)/8, -ones(3)/8]]
+        Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
+        atoms = [Si => silicon.positions]
         model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn])
         kgrid = [1, 1, 1]
         Ecut = 7
