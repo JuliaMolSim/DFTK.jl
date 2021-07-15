@@ -8,16 +8,18 @@ lattice = a / 2 * [[0 1 1.];
                    [1 1 0.]]
 Si = ElementPsp(:Si, psp=load_psp(:Si, functional="lda"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
-# model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn])
-terms = [
-    Kinetic(),
-    AtomicLocal(),
-    AtomicNonlocal(),
-    Ewald(),
-    PspCorrection(),
-    Entropy()
-]
-model = Model(lattice; atoms=atoms, terms=terms, symmetries=false)
+# model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn]) # xc not working yet (mutating)
+model = model_DFT(lattice, atoms, [])
+# terms = [
+#     Kinetic(),
+#     AtomicLocal(),
+#     AtomicNonlocal(),
+#     Ewald(),
+#     PspCorrection(),
+#     Entropy(),
+#     Hartree()
+# ]
+# model = Model(lattice; atoms=atoms, terms=terms, symmetries=false)
 kgrid = [1, 1, 1]
 Ecut = 7
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
@@ -52,4 +54,15 @@ g1 = Zygote.gradient(total_energy2, scfres.ρ)[1] # works
 
 # check against finite differences
 g2 = FiniteDiff.finite_difference_gradient(total_energy2, scfres.ρ)
-sum(abs, g1 - g2)  # 2.6296283975172e-7
+sum(abs, g1 - g2)  # 3.7460628693848023e-7
+
+using BenchmarkTools
+@btime total_energy2(scfres.ρ)  # 215.649 μs (278 allocations: 772.42 KiB)
+@btime Zygote.gradient(total_energy2, scfres.ρ)[1];  # 2.044 ms (3413 allocations: 3.03 MiB)
+@btime FiniteDiff.finite_difference_gradient(total_energy2, scfres.ρ);  # 4.559 s (4463509 allocations: 11.78 GiB)
+
+# also try E w.r.t. ψ
+total_energy_psi(ψ) = sum([DFTK.ene_ops(term, ψ, occupation; ρ=scfres.ρ).E for term in basis.terms])
+Zygote.gradient(total_energy_psi, ψ)
+@btime total_energy_psi(ψ);  # 192.225 μs (291 allocations: 776.19 KiB)
+@btime Zygote.gradient(total_energy_psi, ψ);  # 1.823 ms (3464 allocations: 3.11 MiB)
