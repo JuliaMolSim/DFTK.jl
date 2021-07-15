@@ -34,9 +34,7 @@ end
         band_enes = dropdims(sum(real.(conj.(Pψ) .* (term.ops[ik].D * Pψ)), dims=1), dims=1)
         E += basis.kweights[ik] * sum(band_enes .* occ[ik])
     end
-
-    ## TODO Figure out what Zygote+MPI need (or write rrules)
-    # E = mpi_sum(E, basis.comm_kpts)
+    E = mpi_sum(E, basis.comm_kpts)
 
     (E=E, ops=term.ops)
 end

@@ -1,6 +1,5 @@
 using ChainRulesCore
 
-# TODO rrule for r_to_G
 
 function ChainRulesCore.rrule(::typeof(r_to_G), basis::PlaneWaveBasis, f_real::AbstractArray)
     f_fourier = r_to_G(basis, f_real)
@@ -20,4 +19,10 @@ function ChainRulesCore.rrule(::typeof(G_to_r), basis::PlaneWaveBasis, f_fourier
     return f_real, G_to_r_pullback
 end
 
-# add workaround rrules for mpi ?
+# workaround rrules for mpi: treat as noop
+function ChainRulesCore.rrule(::typeof(mpi_sum), arr, comm)
+    function mpi_sum_pullback(Δy)
+        return NoTangent(), Δy, NoTangent()
+    end
+    return arr, mpi_sum_pullback
+end
