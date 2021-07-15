@@ -103,7 +103,7 @@ function Model(lattice::AbstractMatrix{T};
         norm(lattice[:, i]) == norm(lattice[i, :]) == 0 || error(
             "For 1D and 2D systems, the non-empty dimensions must come first")
     end
-    _check_well_conditioned(lattice[1:d, 1:d]) || @warn (
+    _check_well_conditioned(lattice[1:n_dim, 1:n_dim]) || @warn (
         "Your lattice is badly conditioned, the computation is likely to fail.")
 
     # Compute reciprocal lattice and volumes.
