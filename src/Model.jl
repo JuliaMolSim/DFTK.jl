@@ -103,8 +103,8 @@ function Model(lattice::AbstractMatrix{T};
         norm(lattice[:, i]) == norm(lattice[i, :]) == 0 || error(
             "For 1D and 2D systems, the non-empty dimensions must come first")
     end
-    cond(lattice[1:n_dim, 1:n_dim]) > 1e-5 || (
-        @warn "Your lattice is badly conditioned, the computation is likely to fail.")
+    _check_well_conditioned(lattice[1:n_dim, 1:n_dim]) || @warn (
+        "Your lattice is badly conditioned, the computation is likely to fail.")
 
     # Compute reciprocal lattice and volumes.
     # recall that the reciprocal lattice is the set of G vectors such
@@ -213,3 +213,5 @@ function spin_components(spin_polarization::Symbol)
     spin_polarization == :full      && return (:undefined, )
 end
 spin_components(model::Model) = spin_components(model.spin_polarization)
+
+_check_well_conditioned(A; tol=1e5) = (cond(A) <= tol)

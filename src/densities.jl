@@ -60,7 +60,8 @@ is not collinear the spin density is `nothing`.
     @assert n_k > 0
 
     # Allocate an accumulator for ρ in each thread for each spin component
-    ρaccus = [similar(view(ψ[1], :, 1), (basis.fft_size..., n_spin))
+    T = promote_type(eltype(basis), eltype(ψ[1]))
+    ρaccus = [similar(ψ[1], T, (basis.fft_size..., n_spin))
               for ithread in 1:Threads.nthreads()]
 
     # TODO Better load balancing ... the workload per kpoint depends also on
@@ -79,7 +80,7 @@ is not collinear the spin density is `nothing`.
 
     Threads.@threads for (ikpts, ρaccu) in collect(zip(kpt_per_thread, ρaccus))
         ρaccu .= 0
-        ρ_k = similar(ψ[1][:, 1], basis.fft_size)
+        ρ_k = similar(ψ[1], T, basis.fft_size)
         for ik in ikpts
             kpt = basis.kpoints[ik]
             compute_partial_density!(ρ_k, basis, kpt, ψ[ik], occupation[ik])
