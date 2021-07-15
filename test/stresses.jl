@@ -14,7 +14,7 @@ include("testcases.jl")
                            [1 1 0.]]
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => silicon.positions]
-        model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn])
+        model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn], symmetries=false)
         kgrid = [1, 1, 1]
         Ecut = 7
         PlaneWaveBasis(model, Ecut; kgrid=kgrid)
@@ -38,10 +38,13 @@ include("testcases.jl")
     scfres = self_consistent_field(make_basis(a), is_converged=DFTK.ScfConvergenceDensity(1e-13))
     hellmann_feynman_energy(a) = hellmann_feynman_energy(scfres, a)
 
+    stresses = compute_stresses(scfres)
     ref_recompute = FiniteDiff.finite_difference_derivative(recompute_energy, a)
     ref_hf = FiniteDiff.finite_difference_derivative(hellmann_feynman_energy, a)
     s_hf = ForwardDiff.derivative(hellmann_feynman_energy, a)
 
+
     @test isapprox(ref_hf, ref_recompute, atol=1e-4)
     @test isapprox(s_hf, ref_hf, atol=1e-8)
+    @test isapprox(tr(stresses), ref_hf, atol=1e-8)
 end
