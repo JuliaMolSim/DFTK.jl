@@ -101,44 +101,27 @@ end
 
 # Main entry point from pwbasis. Uses the above functions to find out
 # the correct fft_size according to user specification
-function validate_or_compute_fft_size(model::Model{T}, fft_size, Ecut, supersampling,
-                                      variational, optimize_fft_size, kcoords) where {T}
-    # compute if not provided
-    if fft_size === nothing
-        @assert variational
-        fft_size = compute_fft_size(model, Ecut; supersampling=supersampling)
-        if optimize_fft_size
-            # We build a temporary set of kpoints here
-            # This gymnastics is because build_kpoints builds index
-            # mapping from the k-point-specific basis to the global
-            # basis and thus the fft_size needs to be final at kpoint
-            # construction time
-            fft_size = Tuple{Int, Int, Int}(fft_size)
-            kpoints_temp = build_kpoints(model, fft_size, kcoords, Ecut;
-                                         variational=variational)
-            fft_size = compute_fft_size_precise(model.lattice, Ecut, kpoints_temp;
-                                                supersampling=supersampling)
-        end
-    end
-
-    # validate
-    if variational
-        max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
-        Ecut > max_E && @warn(
-            "For a variational method, Ecut should be less than the maximal kinetic " *
-            "energy the grid supports ($max_E)"
-        )
-    else
-        # ensure no other options are set
-        @assert supersampling == 2
-        @assert !optimize_fft_size
+function compute_fft_size(model::Model{T}, Ecut, supersampling,
+                          variational, optimize_fft_size, kcoords) where {T}
+    @assert variational
+    fft_size = compute_fft_size(model, Ecut; supersampling=supersampling)
+    if optimize_fft_size
+        # We build a temporary set of kpoints here
+        # We don't reuse this kpoint construction for the pwbasis
+        # because build_kpoints builds index mapping from the
+        # k-point-specific basis to the global basis and thus the
+        # fft_size needs to be final at kpoint construction time
+        fft_size = Tuple{Int, Int, Int}(fft_size)
+        kpoints_temp = build_kpoints(model, fft_size, kcoords, Ecut;
+                                     variational=variational)
+        fft_size = compute_fft_size_precise(model.lattice, Ecut, kpoints_temp;
+                                            supersampling=supersampling)
     end
 
     # TODO generic FFT is kind of broken for some fft sizes
     #      ... temporary workaround, see more details in workarounds/fft_generic.jl
     fft_size = next_working_fft_size.(T, fft_size)
-    fft_size = Tuple{Int, Int, Int}(fft_size)
-    fft_size
+    Tuple{Int, Int, Int}(fft_size)
 end
 
 

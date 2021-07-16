@@ -73,7 +73,9 @@ struct PlaneWaveBasis{T <: Real}
     kgrid::Union{Nothing,Vec3{Int}}
     kshift::Union{Nothing,Vec3{T}}
     # full list of kpoint coordinates; kpoints.coordinate is a subset of this
-    kcoords::Vector{Vec3{T}}
+    # (possibly doubled because of spin)
+    kcoords_global::Vector{Vec3{T}}
+    ksymops_global::Vector{Vector{SymOp}}
 
     # Setup for MPI-distributed processing over k-Points
     comm_kpts::MPI.Comm           # communicator for the kpoints distribution
@@ -148,11 +150,15 @@ end
 build_kpoints(basis::PlaneWaveBasis, kcoords) =
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
 
-# Lowest-level constructor
+# Lowest-level constructor. All given parameters must be the same on all processors
+# and are stored in PlaneWaveBasis for easy reconstruction
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops,
                                 fft_size, variational, symmetries,
                                 kgrid, kshift, comm_kpts) where {T <: Real}
+    if !(all(fft_size .== next_working_fft_size.(T, fft_size)))
+        error("Selected fft_size will not work for the buggy generic FFT routines")
+    end
     mpi_ensure_initialized()
 
     # Compute kpoint information and spread them across processors
@@ -225,7 +231,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 
     basis = PlaneWaveBasis{T}(
         model, Ecut, variational, kpoints,
-        kweights, ksymops_thisproc, kgrid, kshift, kcoords, comm_kpts, krange_thisproc, krange_allprocs,
+        kweights, ksymops_thisproc, kgrid, kshift, kcoords, ksymops, comm_kpts, krange_thisproc, krange_allprocs,
         fft_size, dvol, opFFT, ipFFT, opIFFT, ipIFFT,
         opFFT_unnormalized, ipFFT_unnormalized, opBFFT_unnormalized, ipBFFT_unnormalized,
         terms, symmetries)
@@ -237,7 +243,6 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         @timing "Instantiation $term_name" basis.terms[it] = t(basis)
     end
     basis
-    
 end
 
 # This is the "internal" constructor; the higher-level one below should be preferred
@@ -249,10 +254,26 @@ end
                                 comm_kpts=MPI.COMM_WORLD,
                                ) where {T <: Real}
     mpi_ensure_initialized()
-    fft_size = validate_or_compute_fft_size(model::Model{T}, fft_size, Ecut, supersampling,
-                                            variational, optimize_fft_size, kcoords)
-    fft_size = mpi_max(fft_size, comm_kpts)
-    
+
+    # Compute or validate fft_size
+    if fft_size === nothing
+        fft_size = compute_fft_size(model::Model{T}, Ecut, supersampling,
+                                    variational, optimize_fft_size, kcoords)
+    else
+        # validate
+        if variational
+            max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
+            Ecut > max_E && @warn(
+                "For a variational method, Ecut should be less than the maximal kinetic " *
+                    "energy the grid supports ($max_E)"
+            )
+        else
+            # ensure no other options are set
+            @assert supersampling == 2
+            @assert !optimize_fft_size
+        end
+    end
+
     # Validate kpoints and symmetries
     @assert length(kcoords) == length(ksymops)
     if symmetries === nothing
@@ -268,12 +289,14 @@ end
 end
 
 """
-Creates a new basis identical to `basis`, but with a different set of kpoints
+Creates a new basis identical to `basis`, but with a custom set of kpoints
 """
 function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
                         ksymops::AbstractVector, symmetries=nothing)
-    PlaneWaveBasis(basis.model, basis.Ecut, kcoords, ksymops, symmetries;
-                   fft_size=basis.fft_size, variational=basis.variational)
+    PlaneWaveBasis(basis.model, basis.Ecut, kcoords, ksymops,
+                   basis.fft_size, basis.variational, symmetries,
+                   nothing, nothing, # explicitly given kpoints
+                   basis.comm_kpts)
 end
 
 
