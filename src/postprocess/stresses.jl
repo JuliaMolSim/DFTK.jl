@@ -1,7 +1,6 @@
 using ForwardDiff
 """
-Compute the stresses of an obtained SCF solution (derivatives of the energy
-with respect to lattice), in fractional coordinates.
+Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF solution.
 """
 @timing function compute_stresses(basis::PlaneWaveBasis, ψ, occ; kwargs...)
     # TODO optimize by only computing derivatives wrt 6 independent parameters
@@ -36,7 +35,8 @@ with respect to lattice), in fractional coordinates.
         energies, _ = energy_hamiltonian(new_basis, ψ, occupation; ρ=ρ)
         energies.total
     end
-    ForwardDiff.gradient(HF_energy, basis.model.lattice)
+    ForwardDiff.gradient(M -> HF_energy((I+M) * basis.lattice),
+                         zeros(eltype(basis), 3, 3)) / det(basis.lattice)
 end
 function compute_stresses(scfres)
     compute_stresses(scfres.basis, scfres.ψ, scfres.occupation)
