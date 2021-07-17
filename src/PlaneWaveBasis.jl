@@ -156,10 +156,11 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
                                 kcoords::AbstractVector, ksymops,
                                 fft_size, variational, symmetries,
                                 kgrid, kshift, comm_kpts) where {T <: Real}
-    if !(all(fft_size .== next_working_fft_size.(T, fft_size)))
-        error("Selected fft_size will not work for the buggy generic FFT routines")
+    if !(all(fft_size .== next_working_fft_size(T, fft_size)))
+        error("Selected fft_size will not work for the buggy generic " *
+              "FFT routines; use next_working_fft_size")
     end
-    fft_size = Tuple{Int, Int, Int}(fft_size) # need explicit convert from 
+    fft_size = Tuple{Int, Int, Int}(fft_size)  # need explicit convert in case it's given as array
     mpi_ensure_initialized()
 
     # Compute kpoint information and spread them across processors
@@ -210,8 +211,7 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         "Non-variational calculations are experimental. " *
         "Not all features of DFTK may be supported or work as intended."
     )
-    kpoints = build_kpoints(model, fft_size, kcoords_thisproc, Ecut;
-                            variational)
+    kpoints = build_kpoints(model, fft_size, kcoords_thisproc, Ecut; variational)
     # kpoints is now possibly twice the size of ksymops. Make things consistent
     if model.n_spin_components == 2
         ksymops_thisproc = vcat(ksymops_thisproc, ksymops_thisproc)
@@ -232,7 +232,8 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 
     basis = PlaneWaveBasis{T}(
         model, Ecut, variational, kpoints,
-        kweights, ksymops_thisproc, kgrid, kshift, kcoords, ksymops, comm_kpts, krange_thisproc, krange_allprocs,
+        kweights, ksymops_thisproc, kgrid, kshift,
+        kcoords, ksymops, comm_kpts, krange_thisproc, krange_allprocs,
         fft_size, dvol, opFFT, ipFFT, opIFFT, ipIFFT,
         opFFT_unnormalized, ipFFT_unnormalized, opBFFT_unnormalized, ipBFFT_unnormalized,
         terms, symmetries)
@@ -252,12 +253,10 @@ end
                                 fft_size=nothing, variational=true,
                                 optimize_fft_size=false, supersampling=2,
                                 kgrid=nothing, kshift=nothing,
-                                comm_kpts=MPI.COMM_WORLD,
-                               ) where {T <: Real}
-    mpi_ensure_initialized()
-
+                                comm_kpts=MPI.COMM_WORLD) where {T <: Real}
     # Compute or validate fft_size
     if fft_size === nothing
+        @assert variational
         fft_size = compute_fft_size(model::Model{T}, Ecut, supersampling,
                                     variational, optimize_fft_size, kcoords)
     else
@@ -283,8 +282,7 @@ end
         # not be used in this context anyway...
         symmetries = vcat(ksymops...)
     end
-    PlaneWaveBasis(model, Ecut,
-                   kcoords, ksymops,
+    PlaneWaveBasis(model, Ecut, kcoords, ksymops,
                    fft_size, variational, symmetries,
                    kgrid, kshift, comm_kpts)
 end
@@ -294,10 +292,10 @@ Creates a new basis identical to `basis`, but with a custom set of kpoints
 """
 function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
                         ksymops::AbstractVector, symmetries=vcat(ksymops...))
+    kgrid = kshift = nothing
     PlaneWaveBasis(basis.model, basis.Ecut, kcoords, ksymops,
                    basis.fft_size, basis.variational, basis.symmetries,
-                   nothing, nothing, # explicitly given kpoints
-                   basis.comm_kpts)
+                   kgrid, kshift, basis.comm_kpts)
 end
 
 

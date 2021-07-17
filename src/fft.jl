@@ -102,8 +102,7 @@ end
 # Main entry point from pwbasis. Uses the above functions to find out
 # the correct fft_size according to user specification
 function compute_fft_size(model::Model{T}, Ecut, supersampling,
-                          variational, optimize_fft_size, kcoords) where {T}
-    @assert variational
+                          optimize_fft_size, kcoords) where {T}
     fft_size = compute_fft_size(model, Ecut; supersampling=supersampling)
     if optimize_fft_size
         # We build a temporary set of kpoints here
@@ -112,15 +111,14 @@ function compute_fft_size(model::Model{T}, Ecut, supersampling,
         # k-point-specific basis to the global basis and thus the
         # fft_size needs to be final at kpoint construction time
         fft_size = Tuple{Int, Int, Int}(fft_size)
-        kpoints_temp = build_kpoints(model, fft_size, kcoords, Ecut;
-                                     variational=variational)
+        kpoints_temp = build_kpoints(model, fft_size, kcoords, Ecut)
         fft_size = compute_fft_size_precise(model.lattice, Ecut, kpoints_temp;
                                             supersampling=supersampling)
     end
 
     # TODO generic FFT is kind of broken for some fft sizes
     #      ... temporary workaround, see more details in workarounds/fft_generic.jl
-    fft_size = next_working_fft_size.(T, fft_size)
+    fft_size = next_working_fft_size(T, fft_size)
     Tuple{Int, Int, Int}(fft_size)
 end
 
@@ -147,5 +145,6 @@ end
 # in FourierTransforms, for more details see workarounds/fft_generic.jl
 # This function is needed to provide a noop fallback for grid adjustment for
 # for floating-point types natively supported by FFTW
-next_working_fft_size(::Type{Float32}, size) = size
-next_working_fft_size(::Type{Float64}, size) = size
+next_working_fft_size(::Type{Float32}, size::Int) = size
+next_working_fft_size(::Type{Float64}, size::Int) = size
+next_working_fft_size(T, sizes::Tuple) = next_working_fft_size.(T, sizes)
