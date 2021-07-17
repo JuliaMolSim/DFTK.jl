@@ -52,11 +52,29 @@ Normalization conventions:
 struct PlaneWaveBasis{T <: Real}
     model::Model{T}
 
+    ## Global grid information
+    # fft_size defines both the G basis on which densities and
+    # potentials are expanded, and the real-space grid
+    fft_size::Tuple{Int, Int, Int}
+    # factor for integrals in real space: sum(ρ) * dvol ~ ∫ρ
+    dvol::T  # = model.unit_cell_volume ./ prod(fft_size)
     # Information used to construct the kpoint-specific basis
     # (not used directly after that)
     Ecut::T  # The basis set is defined by {e_{G}, 1/2|k+G|^2 ≤ Ecut}
     variational::Bool  # Is the k-Point specific basis variationally consistent with
     #                    the basis used for the density / potential?
+
+    ## Plans for forward and backward FFT
+    # These plans follow DFTK normalization conventions (see above)
+    opFFT   # out-of-place FFT plan
+    ipFFT   # in-place FFT plan
+    opIFFT  # inverse plans
+    ipIFFT
+    # These are unnormalized plans (no normalization at all: BFFT*FFT != I)
+    opFFT_unnormalized
+    ipFFT_unnormalized
+    opBFFT_unnormalized  # unnormalized IFFT, "backward" FFT in FFTW terminology
+    ipBFFT_unnormalized
 
     ## MPI-local information of the kpoints this processor treats
     # Irreducible kpoints. In the case of collinear spin,
@@ -84,33 +102,14 @@ struct PlaneWaveBasis{T <: Real}
     krange_allprocs::Vector{Vector{Int}}  # indices of kpoints treated by the
     #                                       respective rank in comm_kpts
 
-    # fft_size defines both the G basis on which densities and
-    # potentials are expanded, and the real-space grid
-    fft_size::Tuple{Int, Int, Int}
-    # factor for integrals in real space: sum(ρ) * dvol ~ ∫ρ
-    dvol::T  # = model.unit_cell_volume ./ prod(fft_size)
-
-    # Plans for forward and backward FFT
-    # These plans follow DFTK conventions (see above)
-    opFFT   # out-of-place FFT plan
-    ipFFT   # in-place FFT plan
-    opIFFT  # inverse plans
-    ipIFFT
-
-    # These are unnormalized plans (no normalization at all: BFFT*FFT != I)
-    opFFT_unnormalized
-    ipFFT_unnormalized
-    opBFFT_unnormalized  # unnormalized IFFT, "backward" FFT in FFTW terminology
-    ipBFFT_unnormalized
-
-    # Instantiated terms (<: Term), that contain a backreference to basis.
-    # See Hamiltonian for high-level usage
-    terms::Vector{Any}
-
     # Symmetry operations that leave the reducible Brillouin zone invariant.
     # Subset of model.symmetries, and superset of all the ksymops.
     # Independent of the `use_symmetry` option
     symmetries::Vector{SymOp}
+
+    # Instantiated terms (<: Term), that contain a backreference to basis.
+    # See Hamiltonian for high-level usage
+    terms::Vector{Any}
 end
 
 # prevent broadcast on pwbasis
@@ -153,9 +152,9 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 # Lowest-level constructor. All given parameters must be the same on all processors
 # and are stored in PlaneWaveBasis for easy reconstruction
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
+                                fft_size, variational, 
                                 kcoords::AbstractVector, ksymops,
-                                fft_size, variational, symmetries,
-                                kgrid, kshift, comm_kpts) where {T <: Real}
+                                kgrid, kshift, symmetries,comm_kpts) where {T <: Real}
     if !(all(fft_size .== next_working_fft_size(T, fft_size)))
         error("Selected fft_size will not work for the buggy generic " *
               "FFT routines; use next_working_fft_size")
@@ -231,12 +230,13 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     dvol = model.unit_cell_volume ./ prod(fft_size)
 
     basis = PlaneWaveBasis{T}(
-        model, Ecut, variational, kpoints,
-        kweights, ksymops_thisproc, kgrid, kshift,
-        kcoords, ksymops, comm_kpts, krange_thisproc, krange_allprocs,
-        fft_size, dvol, opFFT, ipFFT, opIFFT, ipIFFT,
+        model, fft_size, dvol, 
+        Ecut, variational,
+        opFFT, ipFFT, opIFFT, ipIFFT,
         opFFT_unnormalized, ipFFT_unnormalized, opBFFT_unnormalized, ipBFFT_unnormalized,
-        terms, symmetries)
+        kpoints, kweights, ksymops_thisproc, kgrid, kshift,
+        kcoords, ksymops, comm_kpts, krange_thisproc, krange_allprocs,
+        symmetries, terms)
     @assert length(kpoints) == length(kweights)
 
     # Instantiate the terms with the basis
@@ -258,7 +258,7 @@ end
     if fft_size === nothing
         @assert variational
         fft_size = compute_fft_size(model::Model{T}, Ecut, supersampling,
-                                    variational, optimize_fft_size, kcoords)
+                                    optimize_fft_size, kcoords)
     else
         # validate
         if variational
@@ -282,9 +282,8 @@ end
         # not be used in this context anyway...
         symmetries = vcat(ksymops...)
     end
-    PlaneWaveBasis(model, Ecut, kcoords, ksymops,
-                   fft_size, variational, symmetries,
-                   kgrid, kshift, comm_kpts)
+    PlaneWaveBasis(model, Ecut, fft_size, variational, kcoords, ksymops,
+                   kgrid, kshift, symmetries, comm_kpts)
 end
 
 """
@@ -293,9 +292,10 @@ Creates a new basis identical to `basis`, but with a custom set of kpoints
 function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
                         ksymops::AbstractVector, symmetries=vcat(ksymops...))
     kgrid = kshift = nothing
-    PlaneWaveBasis(basis.model, basis.Ecut, kcoords, ksymops,
-                   basis.fft_size, basis.variational, basis.symmetries,
-                   kgrid, kshift, basis.comm_kpts)
+    PlaneWaveBasis(basis.model, basis.Ecut,
+                   basis.fft_size, basis.variational, 
+                   kcoords, ksymops, kgrid, kshift,
+                   basis.symmetries, basis.comm_kpts)
 end
 
 

@@ -147,4 +147,4 @@ end
 # for floating-point types natively supported by FFTW
 next_working_fft_size(::Type{Float32}, size::Int) = size
 next_working_fft_size(::Type{Float64}, size::Int) = size
-next_working_fft_size(T, sizes::Tuple) = next_working_fft_size.(T, sizes)
+next_working_fft_size(T, sizes::Union{Tuple, AbstractArray}) = next_working_fft_size.(T, sizes)
