@@ -84,7 +84,7 @@ end
 
 # DFTK setup specific
 
-next_working_fft_size(::Type{<:ForwardDiff.Dual}, size) = size
+next_working_fft_size(::Type{<:ForwardDiff.Dual}, size::Int) = size
 
 _fftw_flags(::Type{<:ForwardDiff.Dual}) = FFTW.MEASURE | FFTW.UNALIGNED
 
