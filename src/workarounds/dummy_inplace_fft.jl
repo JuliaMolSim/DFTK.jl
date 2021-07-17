@@ -1,6 +1,3 @@
-# This is needed to flag that the dummy_inplace_fft.jl file has already been loaded
-const DUMMY_INPLACE_LOADED = true
-
 # A dummy wrapper around an out-of-place FFT plan to make it appear in-place
 # This is needed for some generic FFT implementations, which do not have in-place plans
 struct DummyInplace{opFFT}
