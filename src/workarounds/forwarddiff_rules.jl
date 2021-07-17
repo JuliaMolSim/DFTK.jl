@@ -128,10 +128,9 @@ end
 # solution: follow ChainRules custom frule for norm
 # https://github.com/JuliaDiff/ChainRules.jl/blob/52a0eeadf8d19bff491f224517b7b064ce1ba378/src/rulesets/LinearAlgebra/norm.jl#L5
 # TODO delete, once forward diff AD tools use ChainRules natively
-function LinearAlgebra.norm(x::SVector{S,<:ForwardDiff.Dual}) where {S}
-    T = ForwardDiff.tagtype(eltype(x))
-    dx = ForwardDiff.partials.(x)
-    y = norm(ForwardDiff.value.(x))
-    dy = real(dot(ForwardDiff.value.(x), dx)) * pinv(y)
-    ForwardDiff.Dual{T}(y, dy)
+function LinearAlgebra.norm(x::SVector{S,<:ForwardDiff.Dual{Tg,T,N}}) where {S,Tg,T,N}
+    x_value = ForwardDiff.value.(x)
+    y = norm(x_value)
+    dy = ntuple(j->real(dot(x_value, ForwardDiff.partials.(x,j))) * pinv(y), N)
+    ForwardDiff.Dual{Tg}(y, dy)
 end
