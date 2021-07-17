@@ -17,7 +17,7 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 # change the symmetry to compute the dielectric operator with and without symmetries
 model = model_LDA(lattice, atoms, symmetries=false)
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+basis = PlaneWaveBasis(model; Ecut, kgrid)
 scfres = self_consistent_field(basis, tol=1e-14)
 
 # Apply ε† = 1 - χ0 (vc + fxc)

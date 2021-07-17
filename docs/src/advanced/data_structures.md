@@ -12,7 +12,7 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]]
 model = model_LDA(lattice, atoms)
 kgrid = [4, 4, 4]
 Ecut = 15
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+basis = PlaneWaveBasis(model; Ecut, kgrid)
 scfres = self_consistent_field(basis, tol=1e-8);
 ```
 
@@ -94,7 +94,7 @@ of `PlaneWaveBasis`, the latter is controlled by the
 cutoff energy parameter `Ecut`:
 
 ```@example data_structures
-PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+PlaneWaveBasis(model; Ecut, kgrid)
 ```
 
 The `PlaneWaveBasis` by default uses symmetry to reduce the number of

@@ -121,7 +121,8 @@ Base.show(io::IO, basis::PlaneWaveBasis) =
     print(io, "PlaneWaveBasis (Ecut=$(basis.Ecut), $(length(basis.kpoints)) kpoints)")
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
-@timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
+@timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
+                               variational=true) where T
     kpoints_per_spin = [Kpoint[] for _ in 1:model.n_spin_components]
     for k in kcoords
         k = Vec3{T}(k)  # rationals are sloooow
@@ -140,14 +141,18 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for iσ = 1:model.n_spin_components
             push!(kpoints_per_spin[iσ],
-                  Kpoint(model,  iσ, k, model.recip_lattice * k, mapping, mapping_inv, Gvecs_k))
+                  Kpoint(model,  iσ, k, model.recip_lattice * k,
+                         mapping, mapping_inv, Gvecs_k))
         end
     end
 
     vcat(kpoints_per_spin...)  # put all spin up first, then all spin down
 end
-build_kpoints(basis::PlaneWaveBasis, kcoords) =
-    build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
+
+function build_kpoints(basis::PlaneWaveBasis, kcoords)
+    build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut;
+                  variational=basis.variational)
+end
 
 # Lowest-level constructor. All given parameters must be the same on all processors
 # and are stored in PlaneWaveBasis for easy reconstruction
@@ -159,11 +164,13 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         error("Selected fft_size will not work for the buggy generic " *
               "FFT routines; use next_working_fft_size")
     end
-    fft_size = Tuple{Int, Int, Int}(fft_size)  # need explicit convert in case it's given as array
+    # need explicit convert in case it's given as array
+    fft_size = Tuple{Int, Int, Int}(fft_size)
     mpi_ensure_initialized()
 
     # Compute kpoint information and spread them across processors
-    # Right now we split only the kcoords: both spin channels have to be handled by the same process
+    # Right now we split only the kcoords: both spin channels have to be handled
+    # by the same process
     n_kpt   = length(kcoords)
     n_procs = mpi_nprocs(comm_kpts)
     if n_procs > n_kpt
@@ -181,8 +188,9 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         end
     else
         # get the slice of 1:n_kpt to be handled by this process
+        # Note: MPI ranks are 0-based
         krange_allprocs = split_evenly(1:n_kpt, n_procs)
-        krange_thisproc = krange_allprocs[1 + MPI.Comm_rank(comm_kpts)]  # MPI ranks are 0-based
+        krange_thisproc = krange_allprocs[1 + MPI.Comm_rank(comm_kpts)]
         @assert mpi_sum(length(krange_thisproc), comm_kpts) == n_kpt
         @assert !isempty(krange_thisproc)
     end
@@ -312,10 +320,12 @@ treated explicitly. In this case all guess densities and potential
 functions must agree with the crystal symmetries or the result is
 undefined.
 """
-function PlaneWaveBasis(model::Model, Ecut;
+function PlaneWaveBasis(model::Model;
+                        Ecut,
                         kgrid=kgrid_size_from_minimal_spacing(model.lattice, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
-                        use_symmetry=true, kwargs...)
+                        use_symmetry=true,
+                        kwargs...)
     if use_symmetry
         kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries, kshift=kshift)
     else
@@ -328,6 +338,9 @@ function PlaneWaveBasis(model::Model, Ecut;
                    kgrid=kgrid, kshift=kshift, kwargs...)
 end
 
+PlaneWaveBasis(model::Model, Ecut; kwargs...) = PlaneWaveBasis(model; Ecut, kwargs...)
+@deprecate PlaneWaveBasis(model, Ecut; kwargs...) PlaneWaveBasis(model; Ecut, kwargs...)
+
 """
 Return the list of wave vectors (integer coordinates) for the cubic basis set.
 """
@@ -338,7 +351,10 @@ function G_vectors(fft_size)
     (Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3])
 end
 G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_size)
-G_vectors_cart(basis::PlaneWaveBasis) = (basis.model.recip_lattice * G for G in G_vectors(basis.fft_size))
+    
+function G_vectors_cart(basis::PlaneWaveBasis)
+    (basis.model.recip_lattice * G for G in G_vectors(basis.fft_size))
+end
 
 """
 Return the list of r vectors, in reduced coordinates. By convention, this is in [0,1)^3.
@@ -522,7 +538,8 @@ function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
     ret = zeros(complex(T), prod(basis.fft_size), prod(basis.fft_size))
     for (iG, G) in enumerate(G_vectors(basis))
         for (ir, r) in enumerate(r_vectors(basis))
-            ret[iG, ir] = cis(-2π * dot(r, G)) * sqrt(basis.model.unit_cell_volume) / prod(basis.fft_size)
+            Ω = basis.model.unit_cell_volume
+            ret[iG, ir] = cis(-2π * dot(r, G)) * sqrt(Ω) / prod(basis.fft_size)
         end
     end
     ret

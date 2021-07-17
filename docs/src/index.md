@@ -82,5 +82,13 @@ Depth = 1
 These and more examples can be found in the
 [`examples` directory](https://dftk.org/tree/master/examples) of the main code.
 
+
+!!! note "Convergence parameters in the documentation"
+    In the documentation we use very rough convergence parameters to be able
+    to automatically generate this documentation very quickly.
+    Therefore results are far from converged.
+    Tighter thresholds and larger grids should be used for
+    more realistic results.
+
 If you have a great example you think would fit here,
 please open a [pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)!

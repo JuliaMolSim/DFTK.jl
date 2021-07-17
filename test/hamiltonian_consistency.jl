@@ -15,7 +15,7 @@ function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8, kgrid=[1, 2,
         atoms = [Si => silicon.positions]
         model = Model(lattice; n_electrons=silicon.n_electrons, atoms=atoms, terms=[term],
                       spin_polarization=spin_polarization)
-        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, use_symmetry=false)
+        basis = PlaneWaveBasis(model; Ecut, kgrid, use_symmetry=false)
 
         n_electrons = silicon.n_electrons
         n_bands = div(n_electrons, 2)

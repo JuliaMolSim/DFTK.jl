@@ -58,8 +58,7 @@ model = Model(lattice; atoms=atoms, n_electrons=n_electrons, terms=terms,
 # We discretize using a moderate Ecut and run a SCF algorithm to compute forces
 # afterwards. As there is no ionic charge associated to `nucleus` we have to specify
 # a starting density and we choose to start from a zero density.
-Ecut = 500
-basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1))
+basis = PlaneWaveBasis(model; Ecut=500, kgrid=(1, 1, 1))
 ρ = zeros(eltype(basis), basis.fft_size..., 1)
 scfres = self_consistent_field(basis, tol=1e-8, ρ=ρ)
 scfres.energies

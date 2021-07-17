@@ -15,9 +15,7 @@ include("testcases.jl")
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => silicon.positions]
         model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn])
-        kgrid = [1, 1, 1]
-        Ecut = 7
-        PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+        PlaneWaveBasis(model; Ecut=7, kgrid=[1, 1, 1])
     end
 
     function recompute_energy(a)
