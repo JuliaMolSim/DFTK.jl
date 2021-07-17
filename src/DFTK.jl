@@ -175,24 +175,22 @@ include("postprocess/chi0.jl")
 export compute_current
 include("postprocess/current.jl")
 
+# ForwardDiff workarounds
+include("workarounds/dummy_inplace_fft.jl")
+include("workarounds/forwarddiff_rules.jl")
+
 function __init__()
     # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
     # DoubleFloats has been loaded (via a "using" or an "import").
     # See https://github.com/JuliaPackaging/Requires.jl for details.
     #
-    # The global variables GENERIC_FFT_LOADED and DUMMY_INPLACE_LOADED
-    # make sure that things are only included once.
-    @require ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210" begin
-        !isdefined(DFTK, :DUMMY_INPLACE_LOADED) && include("workarounds/dummy_inplace_fft.jl")
-        include("workarounds/forwarddiff_rules.jl")
-    end
+    # The global variable GENERIC_FFT_LOADED makes sure that things are
+    # only included once.
     @require IntervalArithmetic="d1acc4aa-44c8-5952-acd4-ba5d80a2a253" begin
         include("workarounds/intervals.jl")
-        !isdefined(DFTK, :DUMMY_INPLACE_LOADED) && include("workarounds/dummy_inplace_fft.jl")
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
     end
     @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin
-        !isdefined(DFTK, :DUMMY_INPLACE_LOADED) && include("workarounds/dummy_inplace_fft.jl")
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
     end
     @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("plotting.jl")
