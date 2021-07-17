@@ -151,10 +151,10 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
 
 # Lowest-level constructor. All given parameters must be the same on all processors
 # and are stored in PlaneWaveBasis for easy reconstruction
-@timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
-                                fft_size, variational, 
+@timing function PlaneWaveBasis(model::Model{T},
+                                Ecut::Number, fft_size, variational,
                                 kcoords::AbstractVector, ksymops,
-                                kgrid, kshift, symmetries,comm_kpts) where {T <: Real}
+                                kgrid, kshift, symmetries, comm_kpts) where {T <: Real}
     if !(all(fft_size .== next_working_fft_size(T, fft_size)))
         error("Selected fft_size will not work for the buggy generic " *
               "FFT routines; use next_working_fft_size")

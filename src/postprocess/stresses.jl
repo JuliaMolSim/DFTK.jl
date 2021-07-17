@@ -6,6 +6,8 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
     # TODO optimize by only computing derivatives wrt 6 independent parameters
     # TODO this is a bit ugly (couples strongly to the structures) because we
     # don't have a good way to say "make the same model/pwbasis except for this"
+    # TODO unfold BZ
+    # TODO handle MPI correctly
 
     # compute the Hellmann-Feynman energy (with fixed ψ/occ/ρ)
     function HF_energy(lattice)
@@ -21,10 +23,11 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
                           model.smearing,
                           model.spin_polarization,
                           model.symmetries)
-        new_basis = PlaneWaveBasis(new_model, basis.Ecut,
+        new_basis = PlaneWaveBasis(new_model,
+                                   basis.Ecut, basis.fft_size, basis.variational,
                                    basis.kcoords_global, basis.ksymops_global,
-                                   basis.fft_size, basis.variational, basis.symmetries,
-                                   basis.kgrid, basis.kshift, basis.comm_kpts)
+                                   basis.kgrid, basis.kshift, basis.symmetries,
+                                   basis.comm_kpts)
         ρ = DFTK.compute_density(new_basis, ψ, occ)
         energies, _ = energy_hamiltonian(new_basis, ψ, occ; ρ=ρ)
         energies.total
