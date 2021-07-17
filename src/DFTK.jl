@@ -13,6 +13,7 @@ using spglib_jll
 using Unitful
 using UnitfulAtomic
 
+
 export Vec3
 export Mat3
 export mpi_nprocs
@@ -155,6 +156,9 @@ include("external/load_from_python.jl")
 include("external/load_from_file.jl")
 include("external/ase.jl")
 include("external/pymatgen.jl")
+
+export run_wannier90
+include("external/wannier90.jl")
 
 export compute_bands
 export high_symmetry_kpath
