@@ -11,7 +11,8 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 model = model_LDA(lattice, atoms)
 kgrid = [4, 4, 4]
-basis = PlaneWaveBasis(model; Ecut=15, kgrid=kgrid)
+Ecut = 15
+basis = PlaneWaveBasis(model; Ecut, kgrid)
 scfres = self_consistent_field(basis, tol=1e-8);
 ```
 
