@@ -268,10 +268,12 @@ treated explicitly. In this case all guess densities and potential
 functions must agree with the crystal symmetries or the result is
 undefined.
 """
-function PlaneWaveBasis(model::Model, Ecut;
+function PlaneWaveBasis(model::Model;
+                        Ecut,
                         kgrid=kgrid_size_from_minimal_spacing(model.lattice, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
-                        use_symmetry=true, kwargs...)
+                        use_symmetry=true,
+                        kwargs...)
     if use_symmetry
         kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries, kshift=kshift)
     else
@@ -283,6 +285,9 @@ function PlaneWaveBasis(model::Model, Ecut;
     PlaneWaveBasis(model, austrip(Ecut), kcoords, ksymops, symmetries;
                    kgrid=kgrid, kshift=kshift, kwargs...)
 end
+
+PlaneWaveBasis(model::Model, Ecut; kwargs...) = PlaneWaveBasis(model; Ecut, kwargs...)
+@deprecate PlaneWaveBasis(model, Ecut; kwargs...) PlaneWaveBasis(model; Ecut, kwargs...)
 
 """
 Return the list of wave vectors (integer coordinates) for the cubic basis set.

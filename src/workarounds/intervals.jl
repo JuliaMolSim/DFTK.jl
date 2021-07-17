@@ -1,5 +1,5 @@
-import IntervalArithmetic: Interval, mid
 import SpecialFunctions: erfc
+import IntervalArithmetic: Interval, mid
 
 # Monkey-patch a few functions for Intervals
 # ... this is far from proper and a bit specific for our use case here

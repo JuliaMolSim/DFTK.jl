@@ -28,7 +28,7 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
                         spin_polarization=spin_polarization)
         basis_kwargs = (kgrid=kgrid, fft_size=fft_size, use_symmetry=use_symmetry)
         model = model_LDA(testcase.lattice, [spec => testcase.positions]; model_kwargs...)
-        basis = PlaneWaveBasis(model, Ecut; basis_kwargs...)
+        basis = PlaneWaveBasis(model; Ecut, basis_kwargs...)
 
         ρ0     = guess_density(basis, magnetic_moments)
         energies, ham0 = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
@@ -49,7 +49,7 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
         term_builder = basis -> DFTK.TermExternal(basis, εδV)
         model = model_LDA(testcase.lattice, [spec => testcase.positions];
                           model_kwargs..., extra_terms=[term_builder])
-        basis = PlaneWaveBasis(model, Ecut; basis_kwargs...)
+        basis = PlaneWaveBasis(model; Ecut, basis_kwargs...)
         energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
         res = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands)
         ρ2     = res.ρout
