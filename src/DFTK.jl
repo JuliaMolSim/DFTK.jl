@@ -64,8 +64,6 @@ include("energies.jl")
 export Hamiltonian
 export HamiltonianBlock
 export energy_hamiltonian
-export compute_forces
-export compute_forces_cart
 export Kinetic
 export ExternalFromFourier
 export ExternalFromReal
@@ -161,6 +159,11 @@ export high_symmetry_kpath
 export plot_bandstructure
 include("postprocess/band_structure.jl")
 
+export compute_forces
+export compute_forces_cart
+include("postprocess/forces.jl")
+export compute_stresses
+include("postprocess/stresses.jl")
 export compute_dos
 export compute_ldos
 export compute_nos
