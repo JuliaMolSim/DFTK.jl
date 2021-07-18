@@ -52,7 +52,7 @@ function spglib_atoms(atoms, magnetic_moments=[])
 end
 
 
-@timing function spglib_get_symmetry(lattice, atoms, magnetic_moments=[]; tol_symmetry=1e-5)
+function spglib_get_symmetry(lattice, atoms, magnetic_moments=[]; tol_symmetry=1e-5)
     lattice = Matrix{Float64}(lattice)  # spglib operates in double precision
 
     if isempty(atoms)
@@ -161,4 +161,25 @@ function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;
       Cint(nrot), spg_rotations, Cint(length(qpoints)), Vec3{Float64}.(qpoints))
 
     return n_kpts, Int.(mapping), [Vec3{Int}(grid_address[:, i]) for i in 1:nkpt]
+end
+
+
+struct SpglibDataset
+	spacegroup_number::Cint
+end
+
+
+function spglib_get_dataset(lattice, atoms; tol_symmetry=1e-5)
+
+    # Convert lattice and atoms to spglib and keep the mapping between our atoms
+    spg_lattice = copy(Matrix{Float64}(lattice)')
+    # and spglibs atoms
+    spg_positions, spg_numbers, spg_spins, atommapping = spglib_atoms(atoms)
+    
+    spg_dataset = ccall((:spg_get_dataset, SPGLIB), Ptr{SpglibDataset}, 
+			(Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
+			spg_lattice, spg_positions, spg_numbers, 
+			length(spg_numbers), tol_symmetry)
+   sgnum = unsafe_load(spg_dataset).spacegroup_number
+   return sgnum, spg_lattice
 end

@@ -1,4 +1,5 @@
 using PyCall
+using Brillouin
 
 # Functionality for computing band structures
 
@@ -19,18 +20,22 @@ function high_symmetry_kpath(model; kline_density=20)
     # https://github.com/louisponet/DFControl.jl/blob/master/src/structure.jl
     # but for this the best way to go would be to refactor into a small "CrystalStructure"
     # julia module which deals with these sort of low-level details everyone can agree on.
-    pystructure = pymatgen_structure(model.lattice, model.atoms)
-    symm_kpath = pyimport("pymatgen.symmetry.bandstructure").HighSymmKpath(pystructure)
-    kcoords, labels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=false)
-
-    labels_dict = Dict{String, Vector{eltype(kcoords[1])}}()
-    for (ik, k) in enumerate(kcoords)
-        if length(labels[ik]) > 0
-            labels_dict[detexify_kpoint(labels[ik])] = k
-        end
-    end
-
-    (kcoords=kcoords, klabels=labels_dict, kpath=symm_kpath.kpath["path"])
+    # pystructure = pymatgen_structure(model.lattice, model.atoms)
+    # symm_kpath = pyimport("pymatgen.symmetry.bandstructure").HighSymmKpath(pystructure)
+    # kcoords, labels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=false)
+    
+    sgnum, spg_lattice = spglib_get_dataset(model.lattice, model.atoms)
+    Rs = [spg_lattice[i, :] for i in 1:size(spg_lattice,1)]
+    kp        = irrfbz_path(sgnum, Rs)
+    return kp
+    # labels_dict = Dict{String, Vector{eltype(kcoords[1])}}()
+    # for (ik, k) in enumerate(kcoords)
+    #     if length(labels[ik]) > 0
+    #         labels_dict[detexify_kpoint(labels[ik])] = k
+    #     end
+    # end
+    #
+    # (kcoords=kcoords, klabels=labels_dict, kpath=symm_kpath.kpath["path"])
 end
 
 @timing function compute_bands(basis, ρ, kcoords, n_bands;
