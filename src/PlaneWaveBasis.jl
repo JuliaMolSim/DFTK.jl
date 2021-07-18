@@ -317,15 +317,15 @@ function PlaneWaveBasis(model::Model, Ecut;
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
                         use_symmetry=true, kwargs...)
     if use_symmetry
-        kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries, kshift=kshift)
+        kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
     else
-        kcoords, ksymops, _ = bzmesh_uniform(kgrid, kshift=kshift)
+        kcoords, ksymops, _ = bzmesh_uniform(kgrid; kshift)
         # even when not using symmetry to reduce computations, still
         # store in symmetries the set of kgrid-preserving symmetries
         symmetries = symmetries_preserving_kgrid(model.symmetries, kcoords)
     end
     PlaneWaveBasis(model, austrip(Ecut), kcoords, ksymops, symmetries;
-                   kgrid=kgrid, kshift=kshift, kwargs...)
+                   kgrid, kshift, kwargs...)
 end
 
 """
@@ -396,7 +396,7 @@ end
 Sum an array over kpoints, taking weights into account
 """
 function weighted_ksum(basis::PlaneWaveBasis, array)
-    res = sum(@. basis.kweights * array)
+    res = sum(basis.kweights .* array)
     mpi_sum(res, basis.comm_kpts)
 end
 
@@ -610,7 +610,7 @@ function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
     end
 end
 
-# select the occupied orbitals assuming the Aufbau principle
+# select the occupied orbitals assuming an insulator
 function select_occupied_orbitals(basis::PlaneWaveBasis, ψ)
     model = basis.model
     n_spin = model.n_spin_components
