@@ -8,9 +8,9 @@ function high_symmetry_kpath(model; kline_density=20)
         # Length of the kpath is lattice[1, 1] in 1D
         n_points = ceil(Int, kline_density / austrip(1u"Å") * model.lattice[1, 1])
         return (
-            kcoords = [[coord, 0, 0] for coord in range(0, 1, length=1+n_points)],
-            klabels=Dict("Γ" => zeros(3), "" => [1.0, 0.0, 0.0]),
-            kpath=[[raw"\Gamma", raw"\Gamma"]],
+            kcoords = [[coord, 0, 0] for coord in range(-1//2, 1//2, length=1+n_points)],
+            klabels=Dict("Γ" => zeros(3), "-1/2" => [-0.5, 0.0, 0.0], "1/2" => [0.5, 0, 0]),
+            kpath=[[raw"-1/2", raw"1/2"]],
         )
     end
 
