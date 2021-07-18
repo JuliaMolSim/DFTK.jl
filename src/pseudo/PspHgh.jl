@@ -182,7 +182,7 @@ and `Q` is a polynomial. This function returns `Q`.
     @assert 0 <= l <= length(psp.rp) - 1
     @assert i > 0
     rp::T = psp.rp[l + 1]
-    common::T = 4T(π)^(5 / T(4)) * sqrt(T(2)^(l + 1) * rp^3)
+    common::T = 4T(π)^(5 / T(4)) * sqrt(T(2^(l + 1)) * rp^3)
 
     # Note: In the (l == 0 && i == 2) case the HGH paper has an error.
     #       The first 8 in equation (8) should not be under the sqrt-sign
