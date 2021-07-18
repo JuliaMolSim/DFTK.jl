@@ -3,6 +3,17 @@ using PyCall
 # Functionality for computing band structures
 
 function high_symmetry_kpath(model; kline_density=20)
+    if model.n_dim == 1  # Return fast for 1D model
+        # kline_density = Number of kpoint per Angström
+        # Length of the kpath is lattice[1, 1] in 1D
+        n_points = ceil(Int, kline_density / austrip(1u"Å") * model.lattice[1, 1])
+        return (
+            kcoords = [[coord, 0, 0] for coord in range(0, 1, length=1+n_points)],
+            klabels=Dict("Γ" => zeros(3), "" => [1.0, 0.0, 0.0]),
+            kpath=[[raw"\Gamma", raw"\Gamma"]],
+        )
+    end
+
     # TODO This is the last function that hard-depends on pymatgen. The way to solve this
     # is to use the julia version implemented in
     # https://github.com/louisponet/DFControl.jl/blob/master/src/structure.jl
