@@ -12,9 +12,7 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 ## We take very (very) crude parameters
 model = model_LDA(lattice, atoms)
-kgrid = [1, 1, 1]
-Ecut = 5
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid);
+basis = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1]);
 
 # We define our custom fix-point solver: simply a damped fixed-point
 function my_fp_solver(f, x0, max_iter; tol)

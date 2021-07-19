@@ -17,7 +17,7 @@ include("testcases.jl")
         model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn], symmetries=false)
         kgrid = [1, 1, 1]
         Ecut = 7
-        PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+        PlaneWaveBasis(model; Ecut, kgrid)
     end
 
     function recompute_energy(a)

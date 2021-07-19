@@ -33,7 +33,7 @@ H = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1"));
 function compute_scfres(x)
     atoms = [H => [x[1:3], x[4:6]]]
     model = model_LDA(lattice, atoms)
-    basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+    basis = PlaneWaveBasis(model; Ecut, kgrid)
     global ψ, ρ
     if ρ === nothing
         ρ = guess_density(basis)
