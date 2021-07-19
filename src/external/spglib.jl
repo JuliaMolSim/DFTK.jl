@@ -166,36 +166,29 @@ end
 
 struct SpglibDataset
 	spacegroup_number::Cint
+	hall_number::Cint
+	international_symbol::NTuple{11, Cchar}
+	hall_symbol::NTuple{17, Cchar}
+	choice::NTuple{6, Cchar}
+	transformation_matrix::NTuple{9, Cdouble}
+	origin_shift::NTuple{3, Cdouble}
+	n_operations::Cint
+	rotations::Ptr{NTuple{9, Cint}}
+        translations::Ptr{NTuple{3, Cdouble}}	
+	n_atoms::Cint
+	wyckoffs::Ptr{Cint}
+	site_symmetry_symbols::Ptr{NTuple{7, Cchar}}
+	equivalent_atoms::Ptr{Cint}
+	crystallographic_orbits::Ptr{Cint}
+	primitive_lattice::NTuple{9, Cdouble}
+	n_std_atoms::Cint
+	std_lattice::NTuple{9, Cdouble}
+	std_types::Ptr{Cint}
+        std_positions::NTuple{3, Cdouble}
+	std_rotation_matrix::NTuple{9, Cdouble}
+	std_mapping_to_primitive::Ptr{Cint}
+	pointgroup_symbol::NTuple{6, Cchar}
 end
-
-# Spglib dataset to be converted to Julia struct
-# typedef struct {
-#    int spacegroup_number;
-#    int hall_number;
-#    char international_symbol[11];
-#    char hall_symbol[17];
-#    char choice[6];
-#    double transformation_matrix[3][3];
-#    double origin_shift[3];
-#    int n_operations;
-#    int (*rotations)[3][3];
-#    double (*translations)[3];
-#    int n_atoms;
-#    int *wyckoffs;
-#    char (*site_symmetry_symbols)[7];
-#    int *equivalent_atoms;
-#    int *crystallographic_orbits;
-#    double primitive_lattice[3][3];
-#    int *mapping_to_primitive;
-#    int n_std_atoms;
-#    double std_lattice[3][3];
-#    int *std_types;
-#    double (*std_positions)[3];
-#    double std_rotation_matrix[3][3];
-#    int *std_mapping_to_primitive;
-#    /* int pointgroup_number; */
-#    char pointgroup_symbol[6];
-#  } SpglibDataset;
 
 function spglib_get_dataset(lattice, atoms; tol_symmetry=1e-5)
 

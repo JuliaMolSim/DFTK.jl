@@ -23,6 +23,7 @@ function high_symmetry_kpath(model; kline_density=20)
     # pystructure = pymatgen_structure(model.lattice, model.atoms)
     # symm_kpath = pyimport("pymatgen.symmetry.bandstructure").HighSymmKpath(pystructure)
     # kcoords, labels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=false)
+    
     sgnum, spg_lattice = spglib_get_spacegroup(model.lattice, model.atoms)
     Rs = [spg_lattice[i, :] for i in 1:size(spg_lattice,1)]
     kp        = irrfbz_path(sgnum, Rs)
