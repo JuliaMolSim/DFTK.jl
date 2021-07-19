@@ -29,5 +29,5 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
         energies.total
     end
     ForwardDiff.gradient(M -> HF_energy((I+M) * scfres.basis.model.lattice),
-                         zeros(eltype(scfres.basis), 3, 3)) / det(scfres.basis.model.lattice)
+                         zeros(eltype(scfres.basis), 3, 3)) / scfres.basis.model.unit_cell_volume
 end
