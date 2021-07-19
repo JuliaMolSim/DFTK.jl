@@ -168,8 +168,36 @@ struct SpglibDataset
 	spacegroup_number::Cint
 end
 
+# Spglib dataset to be converted to Julia struct
+# typedef struct {
+#    int spacegroup_number;
+#    int hall_number;
+#    char international_symbol[11];
+#    char hall_symbol[17];
+#    char choice[6];
+#    double transformation_matrix[3][3];
+#    double origin_shift[3];
+#    int n_operations;
+#    int (*rotations)[3][3];
+#    double (*translations)[3];
+#    int n_atoms;
+#    int *wyckoffs;
+#    char (*site_symmetry_symbols)[7];
+#    int *equivalent_atoms;
+#    int *crystallographic_orbits;
+#    double primitive_lattice[3][3];
+#    int *mapping_to_primitive;
+#    int n_std_atoms;
+#    double std_lattice[3][3];
+#    int *std_types;
+#    double (*std_positions)[3];
+#    double std_rotation_matrix[3][3];
+#    int *std_mapping_to_primitive;
+#    /* int pointgroup_number; */
+#    char pointgroup_symbol[6];
+#  } SpglibDataset;
 
-function spglib_get_spacegroup(lattice, atoms; tol_symmetry=1e-5)
+function spglib_get_dataset(lattice, atoms; tol_symmetry=1e-5)
 
     # Convert lattice and atoms to spglib and keep the mapping between our atoms
     spg_lattice = copy(Matrix{Float64}(lattice)')
@@ -180,6 +208,12 @@ function spglib_get_spacegroup(lattice, atoms; tol_symmetry=1e-5)
 			(Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
 			spg_lattice, spg_positions, spg_numbers, 
 			length(spg_numbers), tol_symmetry)
-   sgnum = unsafe_load(spg_dataset).spacegroup_number
-   return sgnum, spg_lattice
+   return unsafe_load(spg_dataset)
+end
+
+
+function spglib_get_spacegroup(lattice, atoms)
+    	spg_lattice = copy(Matrix{Float64}(lattice)')
+	spg_dataset = spglib_get_dataset(lattice, atoms)
+	return spg_dataset.spacegroup_number, spg_lattice
 end
