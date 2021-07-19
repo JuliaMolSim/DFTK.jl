@@ -8,7 +8,8 @@ function make_basis(a)
                        [1 1 0.]]
     Si = ElementPsp(:Si, psp=load_psp(:Si, functional="lda"))
     atoms = [Si => [ones(3)/8, -ones(3)/8]]
-    model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn])
+    # model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn])
+    model = model_DFT(lattice, atoms, [], symmetries=false)
     kgrid = [1, 1, 1]
     Ecut = 7
     PlaneWaveBasis(model, Ecut; kgrid=kgrid)
