@@ -25,7 +25,6 @@ include("testcases.jl")
     end
 
     function hellmann_feynman_energy(scfres, lattice, symmetry)
-        println(typeof(lattice))
         basis = make_basis(lattice, symmetry)
         ρ = DFTK.compute_density(basis, scfres.ψ, scfres.occupation)
         energies, H = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ=ρ)
