@@ -24,18 +24,26 @@ function high_symmetry_kpath(model; kline_density=20)
     # symm_kpath = pyimport("pymatgen.symmetry.bandstructure").HighSymmKpath(pystructure)
     # kcoords, labels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=false)
     
-    sgnum, spg_lattice = spglib_get_dataset(model.lattice, model.atoms)
+    sgnum, spg_lattice = spglib_get_spacegroup(model.lattice, model.atoms)
     Rs = [spg_lattice[i, :] for i in 1:size(spg_lattice,1)]
     kp        = irrfbz_path(sgnum, Rs)
-    return kp
-    # labels_dict = Dict{String, Vector{eltype(kcoords[1])}}()
-    # for (ik, k) in enumerate(kcoords)
-    #     if length(labels[ik]) > 0
-    #         labels_dict[detexify_kpoint(labels[ik])] = k
-    #     end
-    # end
-    #
-    # (kcoords=kcoords, klabels=labels_dict, kpath=symm_kpath.kpath["path"])
+    N         = kline_density*length(vcat(kp.paths...))
+    kcoords   = collect(Brillouin.interpolate(kp, N))
+    
+    labels_dict = Dict{String, Vector{eltype(kcoords[1])}}()
+    for (key, val) in kp.points
+        labels_dict[string(key)] = val
+    end
+    kpath = []
+    for path in kp.paths
+	new_path = []
+	for el in path
+	    push!(new_path, retexify_kpoint(string(el)))
+	end
+	push!(kpath, new_path)
+    end
+
+    (kcoords=kcoords, klabels=labels_dict, kpath=kpath)
 end
 
 @timing function compute_bands(basis, ρ, kcoords, n_bands;
@@ -165,6 +173,17 @@ function detexify_kpoint(string)
         string = replace(string, r)
     end
     string
+end
+
+function retexify_kpoint(string)
+	replacements = ("Γ" => "\\Gamma",
+			"Δ" => "\\Delta",
+			"Σ" => "\\Sigma",
+			"₁" => "_1")
+	for r in replacements
+	    string = replace(string, r)
+	end
+	string
 end
 
 """
