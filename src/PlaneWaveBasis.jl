@@ -528,28 +528,6 @@ function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
     ret
 end
 
-""""
-Convert a `basis` into one that uses or doesn't use BZ symmetrization
-Mainly useful for debug purposes (e.g. in cases we don't want to
-bother with symmetry)
-"""
-function PlaneWaveBasis(basis::PlaneWaveBasis; use_symmetry)
-    use_symmetry && error("Not implemented")
-    if all(s -> length(s) == 1, basis.ksymops)
-        return basis
-    end
-    kcoords = []
-    for (ik, kpt) in enumerate(basis.kpoints)
-        for (S, τ) in basis.ksymops[ik]
-            push!(kcoords, normalize_kpoint_coordinate(S * kpt.coordinate))
-        end
-    end
-    new_basis = PlaneWaveBasis(basis.model, basis.Ecut, kcoords,
-                               [[identity_symop()] for _ in 1:length(kcoords)];
-                               fft_size=basis.fft_size)
-end
-
-
 """
 Gather the distributed k-Point data on the master process and return
 it as a `PlaneWaveBasis`. On the other (non-master) processes `nothing` is returned.
