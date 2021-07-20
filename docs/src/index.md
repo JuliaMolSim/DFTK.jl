@@ -27,16 +27,17 @@ DFTK's source code is [publicly available on github](https://dftk.org).
     - Brillouin zone symmetry for k-Point sampling using [spglib](https://atztogo.github.io/spglib/)
     - Smearing functions for metals
     - Collinear spin polarization for magnetic systems
-    - Self-consistent field approaches: Damping, Kerker mixing, Anderson/Pulay/DIIS mixing
-    - Direct minimization
+    - Self-consistent field approaches: Damping, Kerker mixing,
+      [LDOS mixing](https://doi.org/10.1088/1361-648X/abcbdb), Anderson/Pulay/DIIS acceleration
+    - Direct minimization, Newton solver
     - Multi-level threading (kpoints, eigenvectors, FFTs, linear algebra)
     - MPI-based distributed parallelism (distribution over kpoints)
     - 1D / 2D / 3D systems
     - Magnetic fields
-    - Treat systems beyond 500 electrons
+    - Treat systems beyond 800 electrons
 * Ground-state properties and post-processing:
     - Total energy
-    - Forces
+    - Forces, stresses
     - Density of states (DOS), local density of states (LDOS)
     - Band structures
     - Easy access to all intermediate quantities (e.g. density, Bloch waves)
@@ -45,11 +46,11 @@ DFTK's source code is [publicly available on github](https://dftk.org).
   For DFT this is currently restricted to LDA (with Slater exchange and VWN correlation).
 * Runs out of the box on Linux, macOS and Windows
 * Third-party integrations:
+    - Seamless integration with many standard [Input and output formats](@ref).
     - Use structures prepared in [pymatgen](https://pymatgen.org),
       [ASE](https://wiki.fysik.dtu.dk/ase/) or [abipy](https://abinit.github.io/abipy/).
     - [asedftk](https://github.com/mfherbst/asedftk):
       DFTK-based calculator implementation for ASE.
-    - Read data in [ETSF Nanoquanta](https://doi.org/10.1016/j.commatsci.2008.02.023) format.
 
 Missing a feature? Look for an open issue or [create a new one](https://github.com/JuliaMolSim/DFTK.jl/issues).
 Want to contribute? See our [contributing notes](https://github.com/JuliaMolSim/DFTK.jl#contributing).
