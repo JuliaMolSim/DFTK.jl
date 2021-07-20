@@ -175,14 +175,14 @@ function detexify_kpoint(string)
 end
 
 function retexify_kpoint(string)
-	replacements = ("Γ" => "\\Gamma",
-			"Δ" => "\\Delta",
-			"Σ" => "\\Sigma",
-			"₁" => "_1")
-	for r in replacements
-	    string = replace(string, r)
-	end
-	string
+    replacements = ("Γ" => "\\Gamma",
+		    "Δ" => "\\Delta",
+		    "Σ" => "\\Sigma",
+		    "₁" => "_1")
+    for r in replacements
+        string = replace(string, r)
+    end
+    string
 end
 
 """
