@@ -1,4 +1,3 @@
-using PyCall
 using Brillouin
 
 # Functionality for computing band structures
@@ -24,8 +23,8 @@ function high_symmetry_kpath(model; kline_density=20)
     # symm_kpath = pyimport("pymatgen.symmetry.bandstructure").HighSymmKpath(pystructure)
     # kcoords, labels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=false)
     
-    sgnum, spg_lattice = spglib_get_spacegroup(model.lattice, model.atoms)
-    Rs = [spg_lattice[i, :] for i in 1:size(spg_lattice,1)]
+    sgnum = spglib_get_spacegroup(model.lattice, model.atoms)
+    Rs = [model.lattice[i, :] for i in 1:size(model.lattice,1)]
     kp        = irrfbz_path(sgnum, Rs)
     N         = kline_density*length(vcat(kp.paths...))
     kcoords   = collect(Brillouin.interpolate(kp, N))

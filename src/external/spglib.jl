@@ -165,38 +165,36 @@ end
 
 
 struct SpglibDataset
-	spacegroup_number::Cint
-	hall_number::Cint
-	international_symbol::NTuple{11, Cchar}
-	hall_symbol::NTuple{17, Cchar}
-	choice::NTuple{6, Cchar}
-	transformation_matrix::NTuple{9, Cdouble}
-	origin_shift::NTuple{3, Cdouble}
-	n_operations::Cint
-	rotations::Ptr{NTuple{9, Cint}}
-        translations::Ptr{NTuple{3, Cdouble}}	
-	n_atoms::Cint
-	wyckoffs::Ptr{Cint}
-	site_symmetry_symbols::Ptr{NTuple{7, Cchar}}
-	equivalent_atoms::Ptr{Cint}
-	crystallographic_orbits::Ptr{Cint}
-	primitive_lattice::NTuple{9, Cdouble}
-	n_std_atoms::Cint
-	std_lattice::NTuple{9, Cdouble}
-	std_types::Ptr{Cint}
-        std_positions::NTuple{3, Cdouble}
-	std_rotation_matrix::NTuple{9, Cdouble}
-	std_mapping_to_primitive::Ptr{Cint}
-	pointgroup_symbol::NTuple{6, Cchar}
+    spacegroup_number::Cint
+    hall_number::Cint
+    international_symbol::NTuple{11, Cchar}
+    hall_symbol::NTuple{17, Cchar}
+    choice::NTuple{6, Cchar}
+    transformation_matrix::NTuple{9, Cdouble}
+    origin_shift::NTuple{3, Cdouble}
+    n_operations::Cint
+    rotations::Ptr{NTuple{9, Cint}}
+    translations::Ptr{NTuple{3, Cdouble}}	
+    n_atoms::Cint
+    wyckoffs::Ptr{Cint}
+    site_symmetry_symbols::Ptr{NTuple{7, Cchar}}
+    equivalent_atoms::Ptr{Cint}
+    crystallographic_orbits::Ptr{Cint}
+    primitive_lattice::NTuple{9, Cdouble}
+    n_std_atoms::Cint
+    std_lattice::NTuple{9, Cdouble}
+    std_types::Ptr{Cint}
+    std_positions::NTuple{3, Cdouble}
+    std_rotation_matrix::NTuple{9, Cdouble}
+    std_mapping_to_primitive::Ptr{Cint}
+    pointgroup_symbol::NTuple{6, Cchar}
 end
 
 function spglib_get_dataset(lattice, atoms; tol_symmetry=1e-5)
-
-    # Convert lattice and atoms to spglib and keep the mapping between our atoms
+    # Convert lattice and atoms to spglib
     spg_lattice = copy(Matrix{Float64}(lattice)')
-    # and spglibs atoms
-    spg_positions, spg_numbers, spg_spins, atommapping = spglib_atoms(atoms)
-    
+    spg_positions, spg_numbers, _ = spglib_atoms(atoms)
+    # Get the spglib dataset 
     spg_dataset = ccall((:spg_get_dataset, SPGLIB), Ptr{SpglibDataset}, 
 			(Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
 			spg_lattice, spg_positions, spg_numbers, 
@@ -206,7 +204,6 @@ end
 
 
 function spglib_get_spacegroup(lattice, atoms)
-    	spg_lattice = copy(Matrix{Float64}(lattice)')
-	spg_dataset = spglib_get_dataset(lattice, atoms)
-	return spg_dataset.spacegroup_number, spg_lattice
+    spg_dataset = spglib_get_dataset(lattice, atoms)
+    return spg_dataset.spacegroup_number
 end
