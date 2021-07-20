@@ -111,7 +111,8 @@ at the top of your script to disable printing on all processes but one.
 
 !!! info "MPI-based parallelism not fully supported"
     While standard procedures (such as the SCF or band structure calculations)
-    fully support MPI, not not all routines of DFTK are compatible with MPI yet.
+    fully support MPI, not all routines of DFTK are compatible with MPI yet
+    and will throw an error when being called in an MPI-parallel run.
     In most cases there is no intrinsic limitation it just has not yet been
     implemented. If you require MPI in one of our routines, where this is not
     yet supported, feel free to open an issue on github or otherwise get in touch.
