@@ -16,12 +16,12 @@ end
 
 # We extend the two methods providing access to the real and Fourier
 # representation of the potential to DFTK.
-
-function DFTK.local_potential_fourier(el::ElementGaussian, q::Real)
-    el.α * exp(- (q * el.L)^2 / 4)
-end
 function DFTK.local_potential_real(el::ElementGaussian, r::Real)
-    el.α * exp(- (r / el.L)^2)
+    -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
+end
+function DFTK.local_potential_fourier(el::ElementGaussian, q::Real)
+    # = ∫ V(r) exp(-ix⋅q) dx
+    -el.α * exp(- (q * el.L)^2 / 2)
 end
 
 # We set up the lattice. For a 1D case we supply two zero lattice vectors

@@ -53,7 +53,7 @@ ElementCoulomb(key) = ElementCoulomb(periodic_table[key].number, Symbol(periodic
 function local_potential_fourier(el::ElementCoulomb, q::T) where {T <: Real}
     q == 0 && return zero(T)  # Compensating charge background
     # General atom => Use default Coulomb potential
-    # We use int_R^3 1/r e^{-i q⋅x} = 4π / |q|^2
+    # We use int_{R^3} -Z/r e^{-i q⋅x} = 4π / |q|^2
     return -4T(π) * el.Z / q^2
 end
 
