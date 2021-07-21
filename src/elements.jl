@@ -38,7 +38,7 @@ struct ElementCoulomb <: Element
     Z::Int  # Nuclear charge
     symbol  # Element symbol
 end
-charge_ionic(el::ElementCoulomb) = el.Z
+charge_ionic(el::ElementCoulomb)   = el.Z
 charge_nuclear(el::ElementCoulomb) = el.Z
 
 """
@@ -74,7 +74,8 @@ or an element name (e.g. `"silicon"`)
 function ElementPsp(key; psp)
     ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp)
 end
-charge_ionic(el::ElementPsp) = el.psp.Zion
+charge_ionic(el::ElementPsp)   = el.psp.Zion
+charge_nuclear(el::ElementPsp) = el.Z
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
     q == 0 && return zero(T)  # Compensating charge background
@@ -93,7 +94,8 @@ struct ElementCohenBergstresser <: Element
     V_sym   # Map |G|^2 (in units of (2π / lattice_constant)^2) to form factors
     lattice_constant  # Lattice constant (in Bohr) which is assumed
 end
-charge_ionic(el::ElementCohenBergstresser) = 2
+charge_ionic(el::ElementCohenBergstresser)   = 2
+charge_nuclear(el::ElementCohenBergstresser) = el.Z
 
 """
 Element where the interaction with electrons is modelled
