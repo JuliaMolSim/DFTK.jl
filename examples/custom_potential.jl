@@ -20,7 +20,7 @@ function DFTK.local_potential_real(el::ElementGaussian, r::Real)
     -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
 end
 function DFTK.local_potential_fourier(el::ElementGaussian, q::Real)
-    # = ∫ V(r) exp(-ix⋅q) dx
+    ## = ∫ V(r) exp(-ix⋅q) dx
     -el.α * exp(- (q * el.L)^2 / 2)
 end
 
