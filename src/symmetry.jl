@@ -277,9 +277,12 @@ function unfold_mapping(basis_irred, kpt_unfolded)
 end
 
 function unfold_array(basis_irred, basis_unfolded, data, is_ψ)
-    # MPI distribution not supported yet
-    @assert basis_irred.comm_kpts == basis_irred.comm_kpts == MPI.COMM_WORLD
-    basis_irred == basis_unfolded && return data
+    if basis_irred == basis_unfolded
+        return data
+    end
+    if !(basis_irred.comm_kpts == basis_irred.comm_kpts == MPI.COMM_WORLD)
+        error("Brillouin zone symmetry unfolding not supported with MPI yet")
+    end
     data_unfolded = similar(data, length(basis_unfolded.kpoints))
     for ik_unfolded in 1:length(basis_unfolded.kpoints)
         kpt_unfolded = basis_unfolded.kpoints[ik_unfolded]
