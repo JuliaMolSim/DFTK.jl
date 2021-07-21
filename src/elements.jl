@@ -5,15 +5,17 @@ periodic_table = PeriodicTable.elements
 
 # Data structure for chemical element and the potential model via which
 # they interact with electrons. A compensating charge background is
-# always assumed. It is assumed that each implementing struct has the
-# entity Z (for the nuclear charge).
+# always assumed. It is assumed that each implementing struct
+# defines at least the functions `local_potential_fourier` and `local_potential_real`.
+# Very likely `charge_nuclear` and `charge_ionic` need to be defined as well.
 abstract type Element end
 
 """Return the total nuclear charge of an atom type"""
-charge_nuclear(el::Element) = el.Z
+charge_nuclear(::Element) = 0
+# This is a fallback implementation that should be altered as needed.
 
 """Return the total ionic charge of an atom type (nuclear charge - core electrons)"""
-charge_ionic(::Element) = error("Implement charge_ionic")
+charge_ionic(el::Element) = charge_nuclear(el)
 
 """Return the number of valence electrons"""
 n_elec_valence(el::Element) = charge_ionic(el)
@@ -37,6 +39,7 @@ struct ElementCoulomb <: Element
     symbol  # Element symbol
 end
 charge_ionic(el::ElementCoulomb) = el.Z
+charge_nuclear(el::ElementCoulomb) = el.Z
 
 """
 Element interacting with electrons via a bare Coulomb potential
