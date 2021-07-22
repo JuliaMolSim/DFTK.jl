@@ -1,4 +1,4 @@
-using Brillouin
+import Brillouin
 
 # Functionality for computing band structures
 
@@ -19,13 +19,10 @@ function high_symmetry_kpath(model; kline_density=20)
     # https://github.com/louisponet/DFControl.jl/blob/master/src/structure.jl
     # but for this the best way to go would be to refactor into a small "CrystalStructure"
     # julia module which deals with these sort of low-level details everyone can agree on.
-    # pystructure = pymatgen_structure(model.lattice, model.atoms)
-    # symm_kpath = pyimport("pymatgen.symmetry.bandstructure").HighSymmKpath(pystructure)
-    # kcoords, labels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=false)
     
     sgnum = spglib_get_spacegroup(model.lattice, model.atoms)
     Rs = [model.lattice[i, :] for i in 1:size(model.lattice,1)]
-    kp        = irrfbz_path(sgnum, Rs)
+    kp        = Brillouin.irrfbz_path(sgnum, Rs)
     N         = kline_density*length(vcat(kp.paths...))
     kcoords   = collect(Brillouin.interpolate(kp, N))
     
@@ -33,14 +30,8 @@ function high_symmetry_kpath(model; kline_density=20)
     for (key, val) in kp.points
         labels_dict[string(key)] = val
     end
-    kpath = []
-    for path in kp.paths
-        new_path = []
-        for el in path
-            push!(new_path, retexify_kpoint(string(el)))
-	end
-        push!(kpath, new_path)
-    end
+
+    kpath = [ [string(el)  for el in path] for path in kp.paths]
 
     (kcoords=kcoords, klabels=labels_dict, kpath=kpath)
 end
@@ -173,17 +164,7 @@ function detexify_kpoint(string)
     end
     string
 end
-
-function retexify_kpoint(string)
-    replacements = ("Γ" => "\\Gamma",
-		    "Δ" => "\\Delta",
-		    "Σ" => "\\Sigma",
-		    "₁" => "_1")
-    for r in replacements
-        string = replace(string, r)
-    end
-    string
-end
+    
 
 """
 Compute and plot the band structure. `n_bands` selects the number of bands to compute.

@@ -181,6 +181,7 @@ struct SpglibDataset
     equivalent_atoms::Ptr{Cint}
     crystallographic_orbits::Ptr{Cint}
     primitive_lattice::NTuple{9, Cdouble}
+    mapping_to_primitive::Ptr{Cint}
     n_std_atoms::Cint
     std_lattice::NTuple{9, Cdouble}
     std_types::Ptr{Cint}
@@ -190,20 +191,53 @@ struct SpglibDataset
     pointgroup_symbol::NTuple{6, Cchar}
 end
 
+function unload_spglib_dataset(dataset)
+    # unload spglib dataset into Julia dictionary
+    spglib_dataset = Dict()
+    
+    data = unsafe_load(dataset)
+
+    spglib_dataset[:spacegroup_number] = data.spacegroup_number
+    spglib_dataset[:hall_number] = data.hall_number
+    spglib_dataset[:international_symbol] = collect(data.international_symbol)
+    spglib_dataset[:hall_symbol] = collect(data.hall_symbol)
+    spglib_dataset[:choice] = collect(data.choice)
+    spglib_dataset[:transformation_matrix] = reshape(collect(data.transformation_matrix), 3, 3)    
+    spglib_dataset[:origin_shift] = collect(data.origin_shift)
+    spglib_dataset[:n_operations] = data.n_operations
+    spglib_dataset[:rotations] =  reshape(collect(unsafe_load(data.rotations)), 3, 3)
+    spglib_dataset[:translations] = collect(unsafe_load(data.translations))
+    spglib_dataset[:n_atoms] = data.n_atoms
+    spglib_dataset[:wyckoffs] = unsafe_load(data.wyckoffs)
+    spglib_dataset[:site_symmetry_symbols] = collect(unsafe_load(data.site_symmetry_symbols))
+    spglib_dataset[:equivalent_atoms] = unsafe_load(data.equivalent_atoms)
+    spglib_dataset[:crystallographic_orbits] = unsafe_load(data.crystallographic_orbits)
+    spglib_dataset[:primitive_lattice] = reshape(collect(data.primitive_lattice), 3, 3)
+    spglib_dataset[:mapping_to_primitive] = unsafe_load(data.mapping_to_primitive)
+    spglib_dataset[:n_std_atoms] = data.n_std_atoms
+    spglib_dataset[:std_lattice] = reshape(collect(data.std_lattice), 3, 3)
+    spglib_dataset[:std_types] = unsafe_load(data.std_types)
+    spglib_dataset[:std_positions] = collect(data.std_positions)
+    spglib_dataset[:std_rotation_matrix] = reshape(collect(data.std_rotation_matrix), 3, 3)
+    # spglib_dataset["std_mapping_to_primitive"] = unsafe_load(data.std_mapping_to_primitive) <-- seg faults?
+    spglib_dataset[:pointgroup_symbol] = collect(data.pointgroup_symbol)
+    return spglib_dataset
+end
+
 function spglib_get_dataset(lattice, atoms; tol_symmetry=1e-5)
     # Convert lattice and atoms to spglib
     spg_lattice = copy(Matrix{Float64}(lattice)')
     spg_positions, spg_numbers, _ = spglib_atoms(atoms)
     # Get the spglib dataset 
-    spg_dataset = ccall((:spg_get_dataset, SPGLIB), Ptr{SpglibDataset}, 
-			(Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
-			spg_lattice, spg_positions, spg_numbers, 
-			length(spg_numbers), tol_symmetry)
-   return unsafe_load(spg_dataset)
+    spglib_dataset = ccall((:spg_get_dataset, SPGLIB), Ptr{SpglibDataset}, 
+	(Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cdouble),
+	spg_lattice, spg_positions, spg_numbers, 
+	length(spg_numbers), tol_symmetry)
+    return unload_spglib_dataset(spglib_dataset)
 end
 
 
 function spglib_get_spacegroup(lattice, atoms)
-    spg_dataset = spglib_get_dataset(lattice, atoms)
-    return spg_dataset.spacegroup_number
+    spglib_dataset = spglib_get_dataset(lattice, atoms)
+    return spglib_dataset[:spacegroup_number]
 end
