@@ -16,7 +16,7 @@ function discretized_hamiltonian(T, testcase)
     # For interval arithmetic to give useful numbers,
     # the fft_size should be a power of 2
     fft_size = nextpow.(2, compute_fft_size(model.lattice, Ecut))
-    basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 2, 1), fft_size=fft_size)
+    basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1), fft_size=fft_size)
 
     Hamiltonian(basis; ρ=guess_density(basis))
 end
@@ -25,6 +25,7 @@ end
     T = Float64
     ham = discretized_hamiltonian(T, silicon)
     hamInt = discretized_hamiltonian(Interval{T}, silicon)
+    @test length(ham.basis.model.symmetries) == length(hamInt.basis.model.symmetries)
 
     hamk = ham.blocks[1]
     hamIntk = hamInt.blocks[1]
