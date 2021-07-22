@@ -18,8 +18,8 @@ function compute_fft_size(lattice::AbstractMatrix{<:Interval}, Ecut; kwargs...)
 end
 
 function _is_well_conditioned(A::AbstractArray{<:Interval}; kwargs...)
-    # This check is used during the lattice setup, where it is not really
-    # needed to do the check in interval arithmetic.
+    # This check is used during the lattice setup, where it frequently fails with intervals
+    # (because doing an SVD with intervals leads to a large overestimation of the rounding error)
     _is_well_conditioned(mid.(A); kwargs...)
 end
 
