@@ -92,9 +92,9 @@ end
             tid = Threads.threadid()
             ψ_real = H.scratch.ψ_reals[tid]
 
-            G_to_r!(ψ_real, basis, kpt, ψ[:, iband]; skip_normalization=true)
+            G_to_r!(ψ_real, basis, kpt, ψ[:, iband]; normalization=false)
             ψ_real .*= potential
-            r_to_G!(Hψ[:, iband], basis, kpt, ψ_real; skip_normalization=true)  # overwrites ψ_real
+            r_to_G!(Hψ[:, iband], basis, kpt, ψ_real; normalization=false)  # overwrites ψ_real
             Hψ[:, iband] .+= fast_hblock.fourier_op.multiplier .* ψ[:, iband]
         end
     end
