@@ -34,7 +34,7 @@ production codes such as [Abinit](https://www.abinit.org/),
 The unique feature of this code is its emphasis on simplicity and flexibility
 with the goal of facilitating methodological development and
 interdisciplinary collaboration.
-In about 5k lines of pure Julia code we already support a
+In about 7k lines of pure Julia code we already support a
 [sizeable set of features](https://juliamolsim.github.io/DFTK.jl/dev/index.html#package-features-1),
 after just about two years of development.
 Our performance is of the same order of magnitude as established packages.
