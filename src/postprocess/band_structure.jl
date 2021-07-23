@@ -19,13 +19,27 @@ function high_symmetry_kpath(model; kline_density=20)
     # https://github.com/louisponet/DFControl.jl/blob/master/src/structure.jl
     # but for this the best way to go would be to refactor into a small "CrystalStructure"
     # julia module which deals with these sort of low-level details everyone can agree on.
-    
+    std_lattice = spglib_get_std_lattice(model.lattice, model.atoms)
     sgnum = spglib_get_spacegroup(model.lattice, model.atoms)
-    Rs = [model.lattice[i, :] for i in 1:size(model.lattice,1)]
-    kp        = Brillouin.irrfbz_path(sgnum, Rs)
-    N         = kline_density*length(vcat(kp.paths...))
-    kcoords   = collect(Brillouin.interpolate(kp, N))
-    
+    Rs = [std_lattice[i, :] for i in 1:size(std_lattice,1)]
+    kp = Brillouin.irrfbz_path(sgnum, Rs)
+    kcoords = []
+    ############# move to Brillouin.jl ##################
+    kp_cart   = Brillouin.cartesianize(kp)
+    for p in paths(kp_cart)
+	for i=1:length(p)-1
+	    s = points(kp_cart)[p[i]]   # start
+	    e = points(kp_cart)[p[i+1]] # end
+	    dist = norm(e-s)
+	    npts = ceil(dist*kline_density)
+	    append!(kcoords, [s + (i/npts)*(e - s) for i=0:npts])
+	end
+    end
+
+    for i in eachindex(kcoords)
+	@inbounds kcoords[i] = Brillouin.latticize(kcoords[i], kp.basis)
+    end
+    #######################################################  
     labels_dict = Dict{String, Vector{eltype(kcoords[1])}}()
     for (key, val) in kp.points
         labels_dict[string(key)] = val
