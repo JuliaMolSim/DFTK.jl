@@ -8,14 +8,16 @@ The unique feature of the code is its **emphasis on simplicity
 and flexibility**
 with the goal of facilitating methodological development and
 interdisciplinary collaboration.
-In about 5k lines of pure Julia code
-we already support a [sizeable set of features](@ref package-features),
-after just a good year of development.
+In about 7k lines of pure Julia code
+we support a [sizeable set of features](@ref package-features).
 Our performance is of the same order of magnitude as much larger production
 codes such as [Abinit](https://www.abinit.org/),
 [Quantum Espresso](http://quantum-espresso.org/) and
 [VASP](https://www.vasp.at/).
 DFTK's source code is [publicly available on github](https://dftk.org).
+
+If you are new to density-functional theory or plane-wave methods,
+see our collection of [lectures, workshops and literature on DFT](@ref density-functional-theory).
 
 ## [Package features](@id package-features)
 * Methods and models:
