@@ -23,23 +23,8 @@ function high_symmetry_kpath(model; kline_density=20)
     sgnum = spglib_get_spacegroup(model.lattice, model.atoms)
     Rs = [std_lattice[i, :] for i in 1:size(std_lattice,1)]
     kp = Brillouin.irrfbz_path(sgnum, Rs)
-    kcoords = []
-    ############# move to Brillouin.jl ##################
-    kp_cart   = Brillouin.cartesianize(kp)
-    for p in Brillouin.paths(kp_cart)
-	for i=1:length(p)-1
-	    s = Brillouin.points(kp_cart)[p[i]]   # start
-	    e = Brillouin.points(kp_cart)[p[i+1]] # end
-	    dist = norm(e-s)
-	    npts = ceil(dist*kline_density)
-	    append!(kcoords, [s + (i/npts)*(e - s) for i=0:npts])
-	end
-    end
+    kcoords = Brillouin.interpolate(kp, density=kline_density)
 
-    for i in eachindex(kcoords)
-	@inbounds kcoords[i] = Brillouin.latticize(kcoords[i], kp.basis)
-    end
-    #######################################################  
     labels_dict = Dict{String, Vector{eltype(kcoords[1])}}()
     for (key, val) in kp.points
         labels_dict[string(key)] = val
