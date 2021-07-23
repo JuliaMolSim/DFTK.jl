@@ -436,8 +436,7 @@ In-place version of `G_to_r`.
     f_real .*= basis.G_to_r_normalization
 end
 @timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                             kpt::Kpoint, f_fourier::AbstractVector;
-                             normalization=true)
+                             kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
     @assert length(f_fourier) == length(kpt.mapping)
     @assert size(f_real) == basis.fft_size
 
@@ -447,7 +446,7 @@ end
 
     # Perform an IFFT
     mul!(f_real, basis.ipBFFT, f_real)
-    normalization && (f_real .*= basis.G_to_r_normalization)
+    normalize && (f_real .*= basis.G_to_r_normalization)
     f_real
 end
 
@@ -489,7 +488,7 @@ NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
     f_fourier .*= basis.r_to_G_normalization
 end
 @timing_seq function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
-                             kpt::Kpoint, f_real::AbstractArray3; normalization=true)
+                             kpt::Kpoint, f_real::AbstractArray3; normalize=true)
     @assert size(f_real) == basis.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
 
@@ -498,7 +497,7 @@ end
 
     # Truncate
     f_fourier .= view(f_real, kpt.mapping)
-    normalization && (f_fourier .*= basis.r_to_G_normalization)
+    normalize && (f_fourier .*= basis.r_to_G_normalization)
     f_fourier
 end
 
