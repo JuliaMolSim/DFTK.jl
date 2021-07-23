@@ -7,7 +7,7 @@ import IntervalArithmetic: Interval, mid
 # should be done e.g. by changing  the rounding mode ...
 erfc(i::Interval) = Interval(prevfloat(erfc(i.lo)), nextfloat(erfc(i.hi)))
 
-function compute_fft_size(lattice::AbstractMatrix{T}, Ecut; kwargs...) where T <: Interval
+function compute_fft_size(lattice::AbstractMatrix{<:Interval}, Ecut; kwargs...)
     # This is done to avoid a call like ceil(Int, ::Interval)
     # in the above implementation of compute_fft_size,
     # where it is in general cases not clear, what to do.
@@ -15,6 +15,18 @@ function compute_fft_size(lattice::AbstractMatrix{T}, Ecut; kwargs...) where T <
     # so replacing the intervals in the lattice with
     # their midpoints should be good.
     compute_fft_size(mid.(lattice), Ecut; kwargs...)
+end
+
+function _is_well_conditioned(A::AbstractArray{<:Interval}; kwargs...)
+    # This check is used during the lattice setup, where it frequently fails with intervals
+    # (because doing an SVD with intervals leads to a large overestimation of the rounding error)
+    _is_well_conditioned(mid.(A); kwargs...)
+end
+
+function symmetry_operations(lattice::AbstractMatrix{<:Interval}, atoms, magnetic_moments=[];
+                             tol_symmetry=max(1e-5, maximum(radius, lattice)))
+    @assert tol_symmetry < 1e-2
+    symmetry_operations(mid.(lattice), atoms, magnetic_moments; tol_symmetry)
 end
 
 function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <: Interval}
