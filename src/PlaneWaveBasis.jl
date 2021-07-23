@@ -65,15 +65,15 @@ struct PlaneWaveBasis{T <: Real}
     #                    the basis used for the density / potential?
 
     ## Plans for forward and backward FFT
-    # All these plans are *completely unnormalized* (eg FFT * IFFT != I)
+    # All these plans are *completely unnormalized* (eg FFT * BFFT != I)
     # The normalizations are performed in G_to_r/r_to_G according to
     # the DFTK conventions (see above)
     opFFT   # out-of-place FFT plan
     ipFFT   # in-place FFT plan
-    opIFFT  # inverse plans (unnormalized; BFFT in FFTW terminology)
-    ipIFFT
+    opBFFT  # inverse plans (unnormalized plan; backward in FFTW terminology)
+    ipBFFT
     r_to_G_normalization::T  # r_to_G = r_to_G_normalization * FFT
-    G_to_r_normalization::T  # G_to_r = G_to_r_normalization * IFFT
+    G_to_r_normalization::T  # G_to_r = G_to_r_normalization * BFFT
 
     ## MPI-local information of the kpoints this processor treats
     # Irreducible kpoints. In the case of collinear spin,
@@ -197,14 +197,14 @@ end
     ksymops_thisproc = ksymops[krange_thisproc]
 
     # Setup fft_size and plans
-    (ipFFT,  opFFT, ipIFFT, opIFFT) = build_fft_plans(T, fft_size)
+    (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans(T, fft_size)
 
     # Normalization constants
     # r_to_G = r_to_G_normalization * FFT
     # The convention we want is
     # ψ(r) = sum_G c_G e^iGr / sqrt(Ω)
     # so that the G_to_r has to normalized by 1/sqrt(Ω).
-    # The other constant is chosen because FFT * IFFT = N
+    # The other constant is chosen because FFT * BFFT = N
     G_to_r_normalization = 1/sqrt(model.unit_cell_volume)
     r_to_G_normalization = sqrt(model.unit_cell_volume) / length(ipFFT)
 
@@ -235,7 +235,7 @@ end
     basis = PlaneWaveBasis{T}(
         model, fft_size, dvol, 
         Ecut, variational,
-        opFFT, ipFFT, opIFFT, ipIFFT,
+        opFFT, ipFFT, opBFFT, ipBFFT,
         r_to_G_normalization, G_to_r_normalization,
         kpoints, kweights, ksymops_thisproc, kgrid, kshift,
         kcoords, ksymops, comm_kpts, krange_thisproc, krange_allprocs,
@@ -432,7 +432,7 @@ In-place version of `G_to_r`.
 """
 @timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
                              f_fourier::AbstractArray3)
-    mul!(f_real, basis.opIFFT, f_fourier)
+    mul!(f_real, basis.opBFFT, f_fourier)
     f_real .*= basis.G_to_r_normalization
 end
 @timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
@@ -446,7 +446,7 @@ end
     f_real[kpt.mapping] = f_fourier
 
     # Perform an IFFT
-    mul!(f_real, basis.ipIFFT, f_real)
+    mul!(f_real, basis.ipBFFT, f_real)
     if !skip_normalization
         f_real .*= basis.G_to_r_normalization
     end
