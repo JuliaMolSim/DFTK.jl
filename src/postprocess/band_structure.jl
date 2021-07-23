@@ -26,10 +26,10 @@ function high_symmetry_kpath(model; kline_density=20)
     kcoords = []
     ############# move to Brillouin.jl ##################
     kp_cart   = Brillouin.cartesianize(kp)
-    for p in paths(kp_cart)
+    for p in Brillouin.paths(kp_cart)
 	for i=1:length(p)-1
-	    s = points(kp_cart)[p[i]]   # start
-	    e = points(kp_cart)[p[i+1]] # end
+	    s = Brillouin.points(kp_cart)[p[i]]   # start
+	    e = Brillouin.points(kp_cart)[p[i+1]] # end
 	    dist = norm(e-s)
 	    npts = ceil(dist*kline_density)
 	    append!(kcoords, [s + (i/npts)*(e - s) for i=0:npts])
