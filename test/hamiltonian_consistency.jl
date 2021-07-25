@@ -10,11 +10,12 @@ function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8, kgrid=[1, 2,
                                lattice=silicon.lattice, Ecut=10, spin_polarization=:none)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     @testset "Hamiltonian consistency $(typeof(term)) $sspol" begin
-        Si = ElementPsp(14, psp=load_psp(silicon.psp))
+        n_dim = 3 - count(iszero, eachcol(lattice))
+        Si = n_dim == 3 ? ElementPsp(14, psp=load_psp(silicon.psp)) : ElementCoulomb(:Si)
         atoms = [Si => silicon.positions]
         model = Model(lattice; n_electrons=silicon.n_electrons, atoms=atoms, terms=[term],
                       spin_polarization=spin_polarization)
-        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, use_symmetry=false)
+        basis = PlaneWaveBasis(model; Ecut, kgrid, use_symmetry=false)
 
         n_electrons = silicon.n_electrons
         n_bands = div(n_electrons, 2)

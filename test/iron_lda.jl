@@ -33,12 +33,11 @@ function run_iron_lda(T; kwargs...)
     ]
     ref_etot = -16.670871429685356
 
-    Ecut = 15
     Fe = ElementPsp(iron_bcc.atnum, psp=load_psp(iron_bcc.psp))
     magnetic_moments = [Fe => [4.0]]
     model = model_LDA(Array{T}(iron_bcc.lattice), [Fe => iron_bcc.positions],
                       temperature=0.01, magnetic_moments=magnetic_moments)
-    basis = PlaneWaveBasis(model, Ecut; fft_size=[20, 20, 20],
+    basis = PlaneWaveBasis(model; Ecut=15, fft_size=[20, 20, 20],
                            kgrid=[4, 4, 4], kshift=[1/2, 1/2, 1/2])
     run_scf_and_compare(T, basis, ref_lda, ref_etot;
                         ρ=guess_density(basis, magnetic_moments), kwargs...)

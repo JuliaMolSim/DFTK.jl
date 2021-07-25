@@ -1,7 +1,7 @@
 name = "DFTK"
 uuid = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
 authors = ["Michael F. Herbst <info@michael-herbst.com>", "Antoine Levitt <antoine.levitt@inria.fr>"]
-version = "0.3.6"
+version = "0.3.9"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -73,6 +73,7 @@ spglib_jll = "1.15"
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 DoubleFloats = "497a8b3b-efae-58df-a0af-a86822472b78"
+FiniteDiff = "6a86dc24-6348-571c-b903-95158fe2bd41"
 GenericLinearAlgebra = "14197337-ba66-59df-a3e3-ca00e7dcff7a"
 IntervalArithmetic = "d1acc4aa-44c8-5952-acd4-ba5d80a2a253"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
@@ -83,4 +84,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [targets]
-test = ["Test", "Aqua", "DoubleFloats", "GenericLinearAlgebra", "IntervalArithmetic", "Plots", "Random", "KrylovKit", "JLD2", "WriteVTK"]
+test = ["Test", "Aqua", "DoubleFloats", "FiniteDiff", "GenericLinearAlgebra", "IntervalArithmetic", "Plots", "Random", "KrylovKit", "JLD2", "WriteVTK"]

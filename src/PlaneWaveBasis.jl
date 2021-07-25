@@ -51,10 +51,31 @@ Normalization conventions:
 """
 struct PlaneWaveBasis{T <: Real}
     model::Model{T}
+
+    ## Global grid information
+    # fft_size defines both the G basis on which densities and
+    # potentials are expanded, and the real-space grid
+    fft_size::Tuple{Int, Int, Int}
+    # factor for integrals in real space: sum(ρ) * dvol ~ ∫ρ
+    dvol::T  # = model.unit_cell_volume ./ prod(fft_size)
+    # Information used to construct the kpoint-specific basis
+    # (not used directly after that)
     Ecut::T  # The basis set is defined by {e_{G}, 1/2|k+G|^2 ≤ Ecut}
     variational::Bool  # Is the k-Point specific basis variationally consistent with
     #                    the basis used for the density / potential?
 
+    ## Plans for forward and backward FFT
+    # All these plans are *completely unnormalized* (eg FFT * BFFT != I)
+    # The normalizations are performed in G_to_r/r_to_G according to
+    # the DFTK conventions (see above)
+    opFFT   # out-of-place FFT plan
+    ipFFT   # in-place FFT plan
+    opBFFT  # inverse plans (unnormalized plan; backward in FFTW terminology)
+    ipBFFT
+    r_to_G_normalization::T  # r_to_G = r_to_G_normalization * FFT
+    G_to_r_normalization::T  # G_to_r = G_to_r_normalization * BFFT
+
+    ## MPI-local information of the kpoints this processor treats
     # Irreducible kpoints. In the case of collinear spin,
     # this lists all the spin up, then all the spin down
     kpoints::Vector{Kpoint{T}}
@@ -63,9 +84,15 @@ struct PlaneWaveBasis{T <: Real}
     # ksymops[ik] is a list of symmetry operations (S,τ)
     # mapping to points in the reducible BZ
     ksymops::Vector{Vector{SymOp}}
+
+    ## MPI-global information of how the global kpoint grid was constructed
     # Monkhorst-Pack grid used to generate the k-Points, or nothing for custom k-Points
     kgrid::Union{Nothing,Vec3{Int}}
     kshift::Union{Nothing,Vec3{T}}
+    # full list of kpoint coordinates; kpoints.coordinate is a subset of this
+    # (possibly doubled because of spin)
+    kcoords_global::Vector{Vec3{T}}
+    ksymops_global::Vector{Vector{SymOp}}
 
     # Setup for MPI-distributed processing over k-Points
     comm_kpts::MPI.Comm           # communicator for the kpoints distribution
@@ -74,33 +101,14 @@ struct PlaneWaveBasis{T <: Real}
     krange_allprocs::Vector{Vector{Int}}  # indices of kpoints treated by the
     #                                       respective rank in comm_kpts
 
-    # fft_size defines both the G basis on which densities and
-    # potentials are expanded, and the real-space grid
-    fft_size::Tuple{Int, Int, Int}
-    # factor for integrals in real space: sum(ρ) * dvol ~ ∫ρ
-    dvol::T  # = model.unit_cell_volume ./ prod(fft_size)
-
-    # Plans for forward and backward FFT
-    # These plans follow DFTK conventions (see above)
-    opFFT   # out-of-place FFT plan
-    ipFFT   # in-place FFT plan
-    opIFFT  # inverse plans
-    ipIFFT
-
-    # These are unnormalized plans (no normalization at all: BFFT*FFT != I)
-    opFFT_unnormalized
-    ipFFT_unnormalized
-    opBFFT_unnormalized  # unnormalized IFFT, "backward" FFT in FFTW terminology
-    ipBFFT_unnormalized
-
-    # Instantiated terms (<: Term), that contain a backreference to basis.
-    # See Hamiltonian for high-level usage
-    terms::Vector{Any}
-
     # Symmetry operations that leave the reducible Brillouin zone invariant.
     # Subset of model.symmetries, and superset of all the ksymops.
     # Independent of the `use_symmetry` option
     symmetries::Vector{SymOp}
+
+    # Instantiated terms (<: Term), that contain a backreference to basis.
+    # See Hamiltonian for high-level usage
+    terms::Vector{Any}
 end
 
 # prevent broadcast on pwbasis
@@ -112,7 +120,8 @@ Base.show(io::IO, basis::PlaneWaveBasis) =
     print(io, "PlaneWaveBasis (Ecut=$(basis.Ecut), $(length(basis.kpoints)) kpoints)")
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
-@timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
+@timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
+                               variational=true) where T
     kpoints_per_spin = [Kpoint[] for _ in 1:model.n_spin_components]
     for k in kcoords
         k = Vec3{T}(k)  # rationals are sloooow
@@ -131,36 +140,36 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for iσ = 1:model.n_spin_components
             push!(kpoints_per_spin[iσ],
-                  Kpoint(model,  iσ, k, model.recip_lattice * k, mapping, mapping_inv, Gvecs_k))
+                  Kpoint(model,  iσ, k, model.recip_lattice * k,
+                         mapping, mapping_inv, Gvecs_k))
         end
     end
 
     vcat(kpoints_per_spin...)  # put all spin up first, then all spin down
 end
-build_kpoints(basis::PlaneWaveBasis, kcoords) =
-    build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut)
 
-# This is the "internal" constructor; the higher-level one below should be preferred
+function build_kpoints(basis::PlaneWaveBasis, kcoords)
+    build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut;
+                  variational=basis.variational)
+end
+
+# Lowest-level constructor. All given parameters must be the same on all processors
+# and are stored in PlaneWaveBasis for easy reconstruction
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
-                                kcoords::AbstractVector, ksymops, symmetries=nothing;
-                                fft_size=nothing, variational=true,
-                                optimize_fft_size=false, supersampling=2,
-                                kgrid=nothing, kshift=nothing,
-                                comm_kpts=MPI.COMM_WORLD,
-                               ) where {T <: Real}
+                                fft_size, variational, 
+                                kcoords::AbstractVector, ksymops,
+                                kgrid, kshift, symmetries,comm_kpts) where {T <: Real}
+    if !(all(fft_size .== next_working_fft_size(T, fft_size)))
+        error("Selected fft_size will not work for the buggy generic " *
+              "FFT routines; use next_working_fft_size")
+    end
+    # need explicit convert in case it's given as array
+    fft_size = Tuple{Int, Int, Int}(fft_size)
     mpi_ensure_initialized()
 
-    # Validate kpoints and symmetries
-    @assert length(kcoords) == length(ksymops)
-    if symmetries === nothing
-        # TODO instead compute the group generated by with ksymops, or
-        # just retire this constructor. Not critical because this
-        # should not be used in this context anyway...
-        symmetries = vcat(ksymops...)
-    end
-
     # Compute kpoint information and spread them across processors
-    # Right now we split only the kcoords: both spin channels have to be handled by the same process
+    # Right now we split only the kcoords: both spin channels have to be handled
+    # by the same process
     n_kpt   = length(kcoords)
     n_procs = mpi_nprocs(comm_kpts)
     if n_procs > n_kpt
@@ -178,48 +187,42 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
         end
     else
         # get the slice of 1:n_kpt to be handled by this process
+        # Note: MPI ranks are 0-based
         krange_allprocs = split_evenly(1:n_kpt, n_procs)
-        krange_thisproc = krange_allprocs[1 + MPI.Comm_rank(comm_kpts)]  # MPI ranks are 0-based
+        krange_thisproc = krange_allprocs[1 + MPI.Comm_rank(comm_kpts)]
         @assert mpi_sum(length(krange_thisproc), comm_kpts) == n_kpt
         @assert !isempty(krange_thisproc)
     end
-    kcoords = kcoords[krange_thisproc]
-    ksymops = ksymops[krange_thisproc]
+    kcoords_thisproc = kcoords[krange_thisproc]
+    ksymops_thisproc = ksymops[krange_thisproc]
 
     # Setup fft_size and plans
-    fft_size = validate_or_compute_fft_size(model::Model{T}, fft_size, Ecut, supersampling,
-                                            variational, optimize_fft_size, kcoords)
-    fft_size = mpi_max(fft_size, comm_kpts)
-    (ipFFT_unnormalized,  opFFT_unnormalized,
-     ipBFFT_unnormalized, opBFFT_unnormalized) = build_fft_plans(T, fft_size)
+    (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans(T, fft_size)
 
-    # Normalize plans
-    # The FFT interface specifies that fft has no normalization, and
-    # ifft has a normalization factor of 1/length (so that both
-    # operations are inverse to each other). The convention we want is
+    # Normalization constants
+    # r_to_G = r_to_G_normalization * FFT
+    # The convention we want is
     # ψ(r) = sum_G c_G e^iGr / sqrt(Ω)
-    # so that the ifft is normalized by 1/sqrt(Ω). It follows that the
-    # fft must be normalized by sqrt(Ω) / length
-    ipFFT = ipFFT_unnormalized * (sqrt(model.unit_cell_volume) / length(ipFFT_unnormalized))
-    opFFT = opFFT_unnormalized * (sqrt(model.unit_cell_volume) / length(opFFT_unnormalized))
-    ipIFFT = inv(ipFFT)
-    opIFFT = inv(opFFT)
+    # so that the G_to_r has to normalized by 1/sqrt(Ω).
+    # The other constant is chosen because FFT * BFFT = N
+    G_to_r_normalization = 1/sqrt(model.unit_cell_volume)
+    r_to_G_normalization = sqrt(model.unit_cell_volume) / length(ipFFT)
 
     # Setup kpoint basis sets
     !variational && @warn(
         "Non-variational calculations are experimental. " *
         "Not all features of DFTK may be supported or work as intended."
     )
-    kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
+    kpoints = build_kpoints(model, fft_size, kcoords_thisproc, Ecut; variational)
     # kpoints is now possibly twice the size of ksymops. Make things consistent
     if model.n_spin_components == 2
-        ksymops = vcat(ksymops, ksymops)
+        ksymops_thisproc = vcat(ksymops_thisproc, ksymops_thisproc)
         krange_thisproc = vcat(krange_thisproc, n_kpt .+ krange_thisproc)
         krange_allprocs = [vcat(range, n_kpt .+ range) for range in krange_allprocs]
     end
 
     # Compute weights
-    kweights = [length(symmetries) for symmetries in ksymops]
+    kweights = [length(symmetries) for symmetries in ksymops_thisproc]
     tot_weight = mpi_sum(sum(kweights), comm_kpts)
     kweights = T.(model.n_spin_components .* kweights) ./ tot_weight
     @assert mpi_sum(sum(kweights), comm_kpts) ≈ model.n_spin_components
@@ -230,11 +233,13 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     dvol = model.unit_cell_volume ./ prod(fft_size)
 
     basis = PlaneWaveBasis{T}(
-        model, Ecut, variational, kpoints,
-        kweights, ksymops, kgrid, kshift, comm_kpts, krange_thisproc, krange_allprocs,
-        fft_size, dvol, opFFT, ipFFT, opIFFT, ipIFFT,
-        opFFT_unnormalized, ipFFT_unnormalized, opBFFT_unnormalized, ipBFFT_unnormalized,
-        terms, symmetries)
+        model, fft_size, dvol, 
+        Ecut, variational,
+        opFFT, ipFFT, opBFFT, ipBFFT,
+        r_to_G_normalization, G_to_r_normalization,
+        kpoints, kweights, ksymops_thisproc, kgrid, kshift,
+        kcoords, ksymops, comm_kpts, krange_thisproc, krange_allprocs,
+        symmetries, terms)
     @assert length(kpoints) == length(kweights)
 
     # Instantiate the terms with the basis
@@ -245,13 +250,55 @@ build_kpoints(basis::PlaneWaveBasis, kcoords) =
     basis
 end
 
+# This is the "internal" constructor; the higher-level one below should be preferred
+@timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
+                                kcoords::AbstractVector, ksymops, symmetries=nothing;
+                                fft_size=nothing, variational=true,
+                                optimize_fft_size=false, supersampling=2,
+                                kgrid=nothing, kshift=nothing,
+                                comm_kpts=MPI.COMM_WORLD) where {T <: Real}
+    # Compute or validate fft_size
+    if fft_size === nothing
+        @assert variational
+        fft_size = compute_fft_size(model::Model{T}, Ecut, supersampling,
+                                    optimize_fft_size, kcoords)
+    else
+        # validate
+        if variational
+            max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
+            Ecut > max_E && @warn(
+                "For a variational method, Ecut should be less than the maximal kinetic " *
+                    "energy the grid supports ($max_E)"
+            )
+        else
+            # ensure no other options are set
+            @assert supersampling == 2
+            @assert !optimize_fft_size
+        end
+    end
+
+    # Validate kpoints and symmetries
+    @assert length(kcoords) == length(ksymops)
+    if symmetries === nothing
+        # TODO instead compute the group generated by ksymops (also in
+        # the other constructors). Not critical because this should
+        # not be used in this context anyway...
+        symmetries = vcat(ksymops...)
+    end
+    PlaneWaveBasis(model, Ecut, fft_size, variational, kcoords, ksymops,
+                   kgrid, kshift, symmetries, comm_kpts)
+end
+
 """
-Creates a new basis identical to `basis`, but with a different set of kpoints
+Creates a new basis identical to `basis`, but with a custom set of kpoints
 """
 function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
-                        ksymops::AbstractVector, symmetries=nothing)
-    PlaneWaveBasis(basis.model, basis.Ecut, kcoords, ksymops, symmetries;
-                   fft_size=basis.fft_size, variational=basis.variational)
+                        ksymops::AbstractVector, symmetries=vcat(ksymops...))
+    kgrid = kshift = nothing
+    PlaneWaveBasis(basis.model, basis.Ecut,
+                   basis.fft_size, basis.variational, 
+                   kcoords, ksymops, kgrid, kshift,
+                   basis.symmetries, basis.comm_kpts)
 end
 
 
@@ -268,10 +315,12 @@ treated explicitly. In this case all guess densities and potential
 functions must agree with the crystal symmetries or the result is
 undefined.
 """
-function PlaneWaveBasis(model::Model, Ecut;
+function PlaneWaveBasis(model::Model;
+                        Ecut,
                         kgrid=kgrid_size_from_minimal_spacing(model.lattice, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
-                        use_symmetry=true, kwargs...)
+                        use_symmetry=true,
+                        kwargs...)
     if use_symmetry
         kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries, kshift=kshift)
     else
@@ -284,6 +333,9 @@ function PlaneWaveBasis(model::Model, Ecut;
                    kgrid=kgrid, kshift=kshift, kwargs...)
 end
 
+PlaneWaveBasis(model::Model, Ecut; kwargs...) = PlaneWaveBasis(model; Ecut, kwargs...)
+@deprecate PlaneWaveBasis(model, Ecut; kwargs...) PlaneWaveBasis(model; Ecut, kwargs...)
+
 """
 Return the list of wave vectors (integer coordinates) for the cubic basis set.
 """
@@ -294,7 +346,10 @@ function G_vectors(fft_size)
     (Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3])
 end
 G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_size)
-G_vectors_cart(basis::PlaneWaveBasis) = (basis.model.recip_lattice * G for G in G_vectors(basis.fft_size))
+    
+function G_vectors_cart(basis::PlaneWaveBasis)
+    (basis.model.recip_lattice * G for G in G_vectors(basis.fft_size))
+end
 
 """
 Return the list of r vectors, in reduced coordinates. By convention, this is in [0,1)^3.
@@ -377,12 +432,11 @@ In-place version of `G_to_r`.
 """
 @timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
                              f_fourier::AbstractArray3)
-    mul!(f_real, basis.opIFFT, f_fourier)
+    mul!(f_real, basis.opBFFT, f_fourier)
+    f_real .*= basis.G_to_r_normalization
 end
 @timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                             kpt::Kpoint, f_fourier::AbstractVector;
-                             skip_normalization=false)
-    plan = skip_normalization ? basis.ipBFFT_unnormalized : basis.ipIFFT
+                             kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
     @assert length(f_fourier) == length(kpt.mapping)
     @assert size(f_real) == basis.fft_size
 
@@ -390,8 +444,10 @@ end
     fill!(f_real, 0)
     f_real[kpt.mapping] = f_fourier
 
-    # Perform an FFT
-    mul!(f_real, plan, f_real)
+    # Perform an IFFT
+    mul!(f_real, basis.ipBFFT, f_real)
+    normalize && (f_real .*= basis.G_to_r_normalization)
+    f_real
 end
 
 """
@@ -429,18 +485,20 @@ NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
         f_real = complex.(f_real)
     end
     mul!(f_fourier, basis.opFFT, f_real)
+    f_fourier .*= basis.r_to_G_normalization
 end
 @timing_seq function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
-                             kpt::Kpoint, f_real::AbstractArray3; skip_normalization=false)
-    plan = skip_normalization ? basis.ipFFT_unnormalized : basis.ipFFT
+                             kpt::Kpoint, f_real::AbstractArray3; normalize=true)
     @assert size(f_real) == basis.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
 
     # FFT
-    mul!(f_real, plan, f_real)
+    mul!(f_real, basis.ipFFT, f_real)
 
     # Truncate
     f_fourier .= view(f_real, kpt.mapping)
+    normalize && (f_fourier .*= basis.r_to_G_normalization)
+    f_fourier
 end
 
 """
@@ -478,7 +536,8 @@ function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
     ret = zeros(complex(T), prod(basis.fft_size), prod(basis.fft_size))
     for (iG, G) in enumerate(G_vectors(basis))
         for (ir, r) in enumerate(r_vectors(basis))
-            ret[iG, ir] = cis(-2π * dot(r, G)) * sqrt(basis.model.unit_cell_volume) / prod(basis.fft_size)
+            Ω = basis.model.unit_cell_volume
+            ret[iG, ir] = cis(-2π * dot(r, G)) * sqrt(Ω) / prod(basis.fft_size)
         end
     end
     ret

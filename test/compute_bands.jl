@@ -130,6 +130,18 @@ if mpi_nprocs() == 1  # not easy to distribute
     @test kpath[2] == ["U", "X"]
 end
 
+@testset "High-symmetry kpath construction for 1D system" begin
+    lattice = diagm([1.0, 0, 0])
+    model = Model(lattice, n_electrons=1, terms=[Kinetic()])
+    kcoords, klabels, kpath = high_symmetry_kpath(model; kline_density=10)
+
+    @test length(kcoords) == 7
+    @test kcoords[1] ≈ [-1/2, 0, 0]
+    @test kcoords[4] ≈ [   0, 0, 0]
+    @test kcoords[7] ≈ [ 1/2, 0, 0]
+    @test length(kpath) == 1
+end
+
 @testset "Compute bands for silicon" begin
     testcase = silicon
     Ecut = 7
