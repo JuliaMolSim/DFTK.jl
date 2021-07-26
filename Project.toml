@@ -43,6 +43,7 @@ spglib_jll = "ac4a9f1e-bdb2-5204-990c-47c8b2f70d4e"
 [compat]
 AbstractFFTs = "1"
 BlockArrays = "0.16.2"
+Brillouin = "0.4"
 Conda = "1"
 FFTW = "1"
 ForwardDiff = "0.10"
