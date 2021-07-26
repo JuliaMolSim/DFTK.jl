@@ -7,8 +7,9 @@ if mpi_nprocs() == 1  # not easy to distribute
 @testset "High-symmetry kpath construction for silicon" begin
     testcase = silicon
     Ecut = 2
-    
+
     ref_kcoords = [
+        [0.000000000000, 0.000000000000, 0.000000000000],
         [0.041666666667, 0.000000000000, 0.041666666667],
         [0.083333333333, 0.000000000000, 0.083333333333],
         [0.125000000000, 0.000000000000, 0.125000000000],
