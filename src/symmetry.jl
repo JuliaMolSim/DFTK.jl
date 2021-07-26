@@ -289,11 +289,11 @@ function unfold_array(basis_irred, basis_unfolded, data, is_ψ)
         kpt_unfolded = basis_unfolded.kpoints[ik_unfolded]
         ik_irred, symop = unfold_mapping(basis_irred, kpt_unfolded)
         if is_ψ
-            # transform ψ_Sk from data into ψ_k in data_unfolded
+            # transform ψ_k from data into ψ_Sk in data_unfolded
             @assert normalize_kpoint_coordinate(kpt_unfolded.coordinate) ≈ kpt_unfolded.coordinate
-            data_unfolded[ik_unfolded] = apply_ksymop(symop, basis_irred,
-                                                      basis_irred.kpoints[ik_irred],
-                                                      data[ik_irred])[2]
+            Skpoint, ψSk = apply_ksymop(symop, basis_irred,
+                                        basis_irred.kpoints[ik_irred], data[ik_irred])
+            data_unfolded[ik_unfolded] = ψSk
         else
             # simple copy
             data_unfolded[ik_unfolded] = data[ik_irred]
@@ -301,15 +301,12 @@ function unfold_array(basis_irred, basis_unfolded, data, is_ψ)
     end
     data_unfolded
 end
-unfold_array(basis_irred, basis_unfolded, data::Vector{Vector{T}}) where {T <: Number} =
-    unfold_array(basis_irred, basis_unfolded, data, false)
-unfold_ψ(basis_irred, basis_unfolded, ψ) = unfold_array(basis_irred, basis_unfolded, ψ, true)
 
 function unfold_bz(scfres)
     basis_unfolded = unfold_bz(scfres.basis)
-    ψ = unfold_ψ(scfres.basis, basis_unfolded, scfres.ψ)
-    eigenvalues = unfold_array(scfres.basis, basis_unfolded, scfres.eigenvalues)
-    occupation = unfold_array(scfres.basis, basis_unfolded, scfres.occupation)
+    ψ = unfold_array(scfres.basis, basis_unfolded, scfres.ψ, true)
+    eigenvalues = unfold_array(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
+    occupation = unfold_array(scfres.basis, basis_unfolded, scfres.occupation, false)
     E, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
                                 scfres.ρ, eigenvalues, scfres.εF)
     @assert E.total ≈ scfres.energies.total
