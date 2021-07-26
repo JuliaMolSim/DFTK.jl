@@ -245,7 +245,7 @@ Convert a `basis` into one that doesn't use BZ symmetry.
 This is mainly useful for debug purposes (e.g. in cases we don't want to
 bother thinking about symmetries).
 """
-function unfold_BZ(basis::PlaneWaveBasis)
+function unfold_bz(basis::PlaneWaveBasis)
     if all(length.(basis.ksymops_global) .== 1)
         return basis
     else
@@ -305,8 +305,8 @@ unfold_array(basis_irred, basis_unfolded, data::Vector{Vector{T}}) where {T <: N
     unfold_array(basis_irred, basis_unfolded, data, false)
 unfold_ψ(basis_irred, basis_unfolded, ψ) = unfold_array(basis_irred, basis_unfolded, ψ, true)
 
-function unfold_BZ(scfres)
-    basis_unfolded = unfold_BZ(scfres.basis)
+function unfold_bz(scfres)
+    basis_unfolded = unfold_bz(scfres.basis)
     ψ = unfold_ψ(scfres.basis, basis_unfolded, scfres.ψ)
     eigenvalues = unfold_array(scfres.basis, basis_unfolded, scfres.eigenvalues)
     occupation = unfold_array(scfres.basis, basis_unfolded, scfres.occupation)

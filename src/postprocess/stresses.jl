@@ -4,7 +4,7 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
 """
 @timing function compute_stresses(scfres)
     # TODO optimize by only computing derivatives wrt 6 independent parameters
-    scfres = unfold_BZ(scfres)
+    scfres = unfold_bz(scfres)
     # compute the Hellmann-Feynman energy (with fixed ψ/occ/ρ)
     function HF_energy(lattice)
         T = eltype(lattice)
