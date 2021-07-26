@@ -262,13 +262,14 @@ function unfold_BZ(basis::PlaneWaveBasis)
     end
 end
 
-# find where in an irreducible basis kpoint `kcoord_unfolded` is handled
+# find where in the irreducible basis `basis_irred` the kpoint `kpt_unfolded` is handled
 function unfold_mapping(basis_irred, kpt_unfolded)
     for ik_irred = 1:length(basis_irred.kpoints)
         kpt_irred = basis_irred.kpoints[ik_irred]
         for symop in basis_irred.ksymops[ik_irred]
-            if normalize_kpoint_coordinate(symop[1] * kpt_irred.coordinate) ≈
-                normalize_kpoint_coordinate(kpt_unfolded.coordinate) && kpt_unfolded.spin == kpt_irred.spin
+            Sk_irred = normalize_kpoint_coordinate(symop[1] * kpt_irred.coordinate)
+            k_unfolded = normalize_kpoint_coordinate(kpt_unfolded.coordinate)
+            if (Sk_irred ≈ k_unfolded) && (kpt_unfolded.spin == kpt_irred.spin)
                 return ik_irred, symop
             end
         end
@@ -287,13 +288,15 @@ function unfold_array(basis_irred, basis_unfolded, data, is_ψ)
     for ik_unfolded in 1:length(basis_unfolded.kpoints)
         kpt_unfolded = basis_unfolded.kpoints[ik_unfolded]
         ik_irred, symop = unfold_mapping(basis_irred, kpt_unfolded)
-        if !is_ψ
-            data_unfolded[ik_unfolded] = data[ik_irred]
-        else
+        if is_ψ
+            # transform ψ_Sk from data into ψ_k in data_unfolded
             @assert normalize_kpoint_coordinate(kpt_unfolded.coordinate) ≈ kpt_unfolded.coordinate
             data_unfolded[ik_unfolded] = apply_ksymop(symop, basis_irred,
-                                                        basis_irred.kpoints[ik_irred],
-                                                        data[ik_irred])[2]
+                                                      basis_irred.kpoints[ik_irred],
+                                                      data[ik_irred])[2]
+        else
+            # simple copy
+            data_unfolded[ik_unfolded] = data[ik_irred]
         end
     end
     data_unfolded
@@ -310,10 +313,6 @@ function unfold_BZ(scfres)
     E, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
                                 scfres.ρ, eigenvalues, scfres.εF)
     @assert E.total ≈ scfres.energies.total
-    new_scfres = (basis=basis_unfolded,
-                  ψ=ψ,
-                  ham=ham,
-                  eigenvalues=eigenvalues,
-                  occupation=occupation)
+    new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)
     merge(scfres, new_scfres)
 end
