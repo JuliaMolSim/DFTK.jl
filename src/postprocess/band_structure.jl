@@ -1,7 +1,6 @@
 import Brillouin
-
+using Spglib
 # Functionality for computing band structures
-
 function high_symmetry_kpath(model; kline_density=20)
     if model.n_dim == 1  # Return fast for 1D model
         # kline_density = Number of k-point per Angström
@@ -19,11 +18,23 @@ function high_symmetry_kpath(model; kline_density=20)
     # https://github.com/louisponet/DFControl.jl/blob/master/src/structure.jl
     # but for this the best way to go would be to refactor into a small "CrystalStructure"
     # julia module which deals with these sort of low-level details everyone can agree on.
-    std_lattice = spglib_get_std_lattice(model.lattice, model.atoms)
-    sgnum = spglib_get_spacegroup(model.lattice, model.atoms)
-    Rs = [std_lattice[i, :] for i in 1:size(std_lattice,1)]
+
+    # setup for Spglib.jl
+    # tranpose our lattice to match spglib convention
+    spg_positions, spg_numbers, _ = spglib_atoms(model.atoms)
+    structure = Cell(transpose(model.lattice), spg_positions, spg_numbers)
+    # get standardized cell and spacegroup number for Brillouin.jl 
+    spg_lattice = standardize_cell(structure, to_primitive=false).lattice
+    # comparge spglibe primitive to DFTK primitive
+    spg_primitive = standardize_cell(structure, to_primitive=true).lattice
+    spg_primitive ≈ transpose(model.lattice) || error("the DFTK lattice and Spglib's primitive lattice disagree.")
+   
+    # get spacegroup num from spglib dataset
+    sgnum = get_dataset(structure).spacegroup_number 
+    
+    Rs = [spg_lattice[i, :] for i in 1:size(spg_lattice,1)]
     kp = Brillouin.irrfbz_path(sgnum, Rs)
-    kcoords = Brillouin.interpolate(kp, density=kline_density)
+    kcoords = collect(Brillouin.interpolate(kp, density=kline_density))
 
     labels_dict = Dict{String, Vector{eltype(kcoords[1])}}()
     for (key, val) in kp.points
