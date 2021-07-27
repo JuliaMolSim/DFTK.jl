@@ -108,7 +108,7 @@ Random.seed!(0)
     end
 
     if "all" in TAGS
-        include("stresses.jl")
+        mpi_nprocs() == 1 && include("stresses.jl")
     end
 
     ("example" in TAGS) && include("runexamples.jl")
