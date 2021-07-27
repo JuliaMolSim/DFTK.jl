@@ -27,7 +27,7 @@ function high_symmetry_kpath(model; kline_density=20)
     spg_lattice = standardize_cell(structure, to_primitive=false).lattice
     # comparge spglibe primitive to DFTK primitive
     spg_primitive = standardize_cell(structure, to_primitive=true).lattice
-    spg_primitive ≈ transpose(model.lattice) || error("the DFTK lattice and Spglib's primitive lattice disagree.")
+    spg_primitive ≈ transpose(model.lattice) || @warn "The DFTK lattice and spglib's primitive lattice do not agree."
    
     # get spacegroup num from spglib dataset
     sgnum = get_spacegroup_number(structure)
