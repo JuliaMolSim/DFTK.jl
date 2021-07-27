@@ -155,10 +155,10 @@ end
 
 # Lowest-level constructor. All given parameters must be the same on all processors
 # and are stored in PlaneWaveBasis for easy reconstruction
-@timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
-                                fft_size, variational, 
+@timing function PlaneWaveBasis(model::Model{T},
+                                Ecut::Number, fft_size, variational,
                                 kcoords::AbstractVector, ksymops,
-                                kgrid, kshift, symmetries,comm_kpts) where {T <: Real}
+                                kgrid, kshift, symmetries, comm_kpts) where {T <: Real}
     if !(all(fft_size .== next_working_fft_size(T, fft_size)))
         error("Selected fft_size will not work for the buggy generic " *
               "FFT routines; use next_working_fft_size")
@@ -322,15 +322,15 @@ function PlaneWaveBasis(model::Model;
                         use_symmetry=true,
                         kwargs...)
     if use_symmetry
-        kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries, kshift=kshift)
+        kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
     else
-        kcoords, ksymops, _ = bzmesh_uniform(kgrid, kshift=kshift)
+        kcoords, ksymops, _ = bzmesh_uniform(kgrid; kshift)
         # even when not using symmetry to reduce computations, still
         # store in symmetries the set of kgrid-preserving symmetries
         symmetries = symmetries_preserving_kgrid(model.symmetries, kcoords)
     end
     PlaneWaveBasis(model, austrip(Ecut), kcoords, ksymops, symmetries;
-                   kgrid=kgrid, kshift=kshift, kwargs...)
+                   kgrid, kshift, kwargs...)
 end
 
 PlaneWaveBasis(model::Model, Ecut; kwargs...) = PlaneWaveBasis(model; Ecut, kwargs...)
@@ -407,7 +407,7 @@ end
 Sum an array over kpoints, taking weights into account
 """
 function weighted_ksum(basis::PlaneWaveBasis, array)
-    res = sum(@. basis.kweights * array)
+    res = sum(basis.kweights .* array)
     mpi_sum(res, basis.comm_kpts)
 end
 
@@ -543,28 +543,6 @@ function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
     ret
 end
 
-""""
-Convert a `basis` into one that uses or doesn't use BZ symmetrization
-Mainly useful for debug purposes (e.g. in cases we don't want to
-bother with symmetry)
-"""
-function PlaneWaveBasis(basis::PlaneWaveBasis; use_symmetry)
-    use_symmetry && error("Not implemented")
-    if all(s -> length(s) == 1, basis.ksymops)
-        return basis
-    end
-    kcoords = []
-    for (ik, kpt) in enumerate(basis.kpoints)
-        for (S, τ) in basis.ksymops[ik]
-            push!(kcoords, normalize_kpoint_coordinate(S * kpt.coordinate))
-        end
-    end
-    new_basis = PlaneWaveBasis(basis.model, basis.Ecut, kcoords,
-                               [[identity_symop()] for _ in 1:length(kcoords)];
-                               fft_size=basis.fft_size)
-end
-
-
 """
 Gather the distributed k-Point data on the master process and return
 it as a `PlaneWaveBasis`. On the other (non-master) processes `nothing` is returned.
@@ -625,7 +603,7 @@ function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
     end
 end
 
-# select the occupied orbitals assuming the Aufbau principle
+# select the occupied orbitals assuming an insulator
 function select_occupied_orbitals(basis::PlaneWaveBasis, ψ)
     model = basis.model
     n_spin = model.n_spin_components

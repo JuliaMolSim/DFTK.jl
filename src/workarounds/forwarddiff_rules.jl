@@ -64,12 +64,12 @@ end
 LinearAlgebra.mul!(Y::AbstractArray{<:Complex{<:ForwardDiff.Dual}}, p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, X::AbstractArray{<:ComplexF64}) where {T,P} =
     (Y .= _apply_plan(p, X))
 
-function _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray)
+function _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where T
+    # TODO do we want x::AbstractArray{<:ForwardDiff.Dual{T}} too?
     xtil = p * ForwardDiff.value.(x)
     dxtils = ntuple(ForwardDiff.npartials(eltype(x))) do n
         p * ForwardDiff.partials.(x, n)
     end
-    T = ForwardDiff.tagtype(eltype(x))
     map(xtil, dxtils...) do val, parts...
         Complex(
             ForwardDiff.Dual{T}(real(val), map(real, parts)),
@@ -82,6 +82,13 @@ function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::Abst
     _apply_plan(p.p, p.scale * x) # for when p.scale is Dual, need out-of-place
 end
 
+# this is to avoid method ambiguities between these two:
+#   _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where T
+#   _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray) where {T,P}
+function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{Tg}}}) where {T,P,Tg}
+    _apply_plan(p.p, p.scale * x)
+end
+
 # DFTK setup specific
 
 next_working_fft_size(::Type{<:ForwardDiff.Dual}, size::Int) = size
@@ -89,7 +96,7 @@ next_working_fft_size(::Type{<:ForwardDiff.Dual}, size::Int) = size
 _fftw_flags(::Type{<:ForwardDiff.Dual}) = FFTW.MEASURE | FFTW.UNALIGNED
 
 function build_fft_plans(T::Type{<:Union{ForwardDiff.Dual,Complex{<:ForwardDiff.Dual}}}, fft_size)
-    tmp = Array{Complex{T}}(undef, fft_size...)
+    tmp = Array{complex(T)}(undef, fft_size...) # TODO think about other Array types
     opFFT  = FFTW.plan_fft(tmp, flags=_fftw_flags(T))
     opBFFT = FFTW.plan_bfft(tmp, flags=_fftw_flags(T))
 

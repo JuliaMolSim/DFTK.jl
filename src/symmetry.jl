@@ -239,3 +239,78 @@ function check_symmetric(basis, ρin; tol=1e-10, symmetries=ρin.basis.model.sym
         @assert norm(symmetrize(ρin, [symop]) - ρin) < tol
     end
 end
+
+""""
+Convert a `basis` into one that doesn't use BZ symmetry.
+This is mainly useful for debug purposes (e.g. in cases we don't want to
+bother thinking about symmetries).
+"""
+function unfold_bz(basis::PlaneWaveBasis)
+    if all(length.(basis.ksymops_global) .== 1)
+        return basis
+    else
+        kcoords = []
+        for (ik, kpt) in enumerate(basis.kcoords_global)
+            for (S, τ) in basis.ksymops_global[ik]
+                push!(kcoords, normalize_kpoint_coordinate(S * kpt))
+            end
+        end
+        new_basis = PlaneWaveBasis(basis.model,
+                                   basis.Ecut, basis.fft_size, basis.variational,
+                                   kcoords, [[identity_symop()] for _ in 1:length(kcoords)],
+                                   basis.kgrid, basis.kshift, basis.symmetries, basis.comm_kpts)
+    end
+end
+
+# find where in the irreducible basis `basis_irred` the kpoint `kpt_unfolded` is handled
+function unfold_mapping(basis_irred, kpt_unfolded)
+    for ik_irred = 1:length(basis_irred.kpoints)
+        kpt_irred = basis_irred.kpoints[ik_irred]
+        for symop in basis_irred.ksymops[ik_irred]
+            Sk_irred = normalize_kpoint_coordinate(symop[1] * kpt_irred.coordinate)
+            k_unfolded = normalize_kpoint_coordinate(kpt_unfolded.coordinate)
+            if (Sk_irred ≈ k_unfolded) && (kpt_unfolded.spin == kpt_irred.spin)
+                return ik_irred, symop
+            end
+        end
+    end
+    error("Invalid unfolding of BZ")
+end
+
+function unfold_array_(basis_irred, basis_unfolded, data, is_ψ)
+    if basis_irred == basis_unfolded
+        return data
+    end
+    if !(basis_irred.comm_kpts == basis_irred.comm_kpts == MPI.COMM_WORLD)
+        error("Brillouin zone symmetry unfolding not supported with MPI yet")
+    end
+    data_unfolded = similar(data, length(basis_unfolded.kpoints))
+    for ik_unfolded in 1:length(basis_unfolded.kpoints)
+        kpt_unfolded = basis_unfolded.kpoints[ik_unfolded]
+        ik_irred, symop = unfold_mapping(basis_irred, kpt_unfolded)
+        if is_ψ
+            # transform ψ_k from data into ψ_Sk in data_unfolded
+            kunfold_coord = kpt_unfolded.coordinate
+            @assert normalize_kpoint_coordinate(kunfold_coord) ≈ kunfold_coord
+            _, ψSk = apply_ksymop(symop, basis_irred,
+                                  basis_irred.kpoints[ik_irred], data[ik_irred])
+            data_unfolded[ik_unfolded] = ψSk
+        else
+            # simple copy
+            data_unfolded[ik_unfolded] = data[ik_irred]
+        end
+    end
+    data_unfolded
+end
+
+function unfold_bz(scfres)
+    basis_unfolded = unfold_bz(scfres.basis)
+    ψ = unfold_array_(scfres.basis, basis_unfolded, scfres.ψ, true)
+    eigenvalues = unfold_array_(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
+    occupation = unfold_array_(scfres.basis, basis_unfolded, scfres.occupation, false)
+    E, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
+                                scfres.ρ, eigenvalues, scfres.εF)
+    @assert E.total ≈ scfres.energies.total
+    new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)
+    merge(scfres, new_scfres)
+end
