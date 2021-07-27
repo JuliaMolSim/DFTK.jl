@@ -277,7 +277,7 @@ function unfold_mapping(basis_irred, kpt_unfolded)
     error("Invalid unfolding of BZ")
 end
 
-function unfold_array(basis_irred, basis_unfolded, data, is_ψ)
+function unfold_array_(basis_irred, basis_unfolded, data, is_ψ)
     if basis_irred == basis_unfolded
         return data
     end
@@ -290,9 +290,10 @@ function unfold_array(basis_irred, basis_unfolded, data, is_ψ)
         ik_irred, symop = unfold_mapping(basis_irred, kpt_unfolded)
         if is_ψ
             # transform ψ_k from data into ψ_Sk in data_unfolded
-            @assert normalize_kpoint_coordinate(kpt_unfolded.coordinate) ≈ kpt_unfolded.coordinate
-            Skpoint, ψSk = apply_ksymop(symop, basis_irred,
-                                        basis_irred.kpoints[ik_irred], data[ik_irred])
+            kunfold_coord = kpt_unfolded.coordinate
+            @assert normalize_kpoint_coordinate(kunfold_coord) ≈ kunfold_coord
+            _, ψSk = apply_ksymop(symop, basis_irred,
+                                  basis_irred.kpoints[ik_irred], data[ik_irred])
             data_unfolded[ik_unfolded] = ψSk
         else
             # simple copy
@@ -304,9 +305,9 @@ end
 
 function unfold_bz(scfres)
     basis_unfolded = unfold_bz(scfres.basis)
-    ψ = unfold_array(scfres.basis, basis_unfolded, scfres.ψ, true)
-    eigenvalues = unfold_array(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
-    occupation = unfold_array(scfres.basis, basis_unfolded, scfres.occupation, false)
+    ψ = unfold_array_(scfres.basis, basis_unfolded, scfres.ψ, true)
+    eigenvalues = unfold_array_(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
+    occupation = unfold_array_(scfres.basis, basis_unfolded, scfres.occupation, false)
     E, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
                                 scfres.ρ, eigenvalues, scfres.εF)
     @assert E.total ≈ scfres.energies.total

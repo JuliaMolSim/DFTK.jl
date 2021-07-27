@@ -103,7 +103,7 @@ function Model(lattice::AbstractMatrix{T};
         norm(lattice[:, i]) == norm(lattice[i, :]) == 0 || error(
             "For 1D and 2D systems, the non-empty dimensions must come first")
     end
-    _check_well_conditioned(lattice[1:n_dim, 1:n_dim]) || @warn (
+    _is_well_conditioned(lattice[1:n_dim, 1:n_dim]) || @warn (
         "Your lattice is badly conditioned, the computation is likely to fail.")
 
     # Compute reciprocal lattice and volumes.
@@ -214,4 +214,4 @@ function spin_components(spin_polarization::Symbol)
 end
 spin_components(model::Model) = spin_components(model.spin_polarization)
 
-_check_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
+_is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)

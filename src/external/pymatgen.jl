@@ -20,7 +20,7 @@ function pymatgen_structure(model_or_lattice, atoms)
     ispec = 1
     for (spec, pos) in atoms
         for coord in pos
-            pyspecies[ispec] = spec.Z
+            pyspecies[ispec] = charge_nuclear(spec)
             pypositions[ispec] = Vector{Float64}(coord)
             ispec = ispec + 1
         end

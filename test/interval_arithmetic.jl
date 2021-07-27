@@ -11,7 +11,7 @@ function discretized_hamiltonian(T, testcase)
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
     atoms = [spec => testcase.positions]
     # disable symmetry for interval
-    model = model_DFT(Array{T}(testcase.lattice), atoms, [:lda_x, :lda_c_vwn], symmetries=false)
+    model = model_DFT(Array{T}(testcase.lattice), atoms, [:lda_x, :lda_c_vwn])
 
     # For interval arithmetic to give useful numbers,
     # the fft_size should be a power of 2
@@ -25,6 +25,7 @@ end
     T = Float64
     ham = discretized_hamiltonian(T, silicon)
     hamInt = discretized_hamiltonian(Interval{T}, silicon)
+    @test length(ham.basis.model.symmetries) == length(hamInt.basis.model.symmetries)
 
     hamk = ham.blocks[1]
     hamIntk = hamInt.blocks[1]
