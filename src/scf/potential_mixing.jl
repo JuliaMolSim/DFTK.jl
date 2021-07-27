@@ -173,7 +173,7 @@ function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
 
     α, relerror = scf_damping_quadratic_model(info, info_next; modeltol=damping.modeltol)
     if isnothing(α)
-        # Model failed ... use heuristics
+        # Model failed ... use heuristics: Half for small model error, else use a quarter
         α = info_next.α / (relerror < 10 ? 2 : 4)
     end
 
