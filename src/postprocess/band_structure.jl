@@ -30,7 +30,7 @@ function high_symmetry_kpath(model; kline_density=20)
     spg_primitive ≈ transpose(model.lattice) || error("the DFTK lattice and Spglib's primitive lattice disagree.")
    
     # get spacegroup num from spglib dataset
-    sgnum = get_dataset(structure).spacegroup_number 
+    sgnum = get_spacegroup_number(structure)
     
     Rs = [spg_lattice[i, :] for i in 1:size(spg_lattice,1)]
     kp = Brillouin.irrfbz_path(sgnum, Rs)
