@@ -17,6 +17,13 @@ see [Publications](@ref).
   Short tutorial-style article introducing the basic DFT setting, basic equations and terminology.
   Great introduction from the physical / chemical perspective.
 
+- [Juliacon 2021 DFT workshop](https://github.com/mfherbst/juliacon_dft_workshop) by M. F. Herbst:
+  Three-hour workshop session at the 2021 Juliacon providing a mathematical look on
+  DFT, SCF solution algorithms as well as the integration of DFTK into the Julia
+  package ecosystem (arbitrary floating-point types, automatic differentiation, linear
+  algebra and optimisation toolkits).
+  [Youtube recording](https://www.youtube.com/watch?v=HvpPMWVm8aw).
+
 - [Introduction to plane-wave DFT and DFTK](https://github.com/mfherbst/aachen_introduction_dftk) by M. F. Herbst:
   Jupyter notebooks a two-hour lecture
   introducing plane-wave DFT and DFTK

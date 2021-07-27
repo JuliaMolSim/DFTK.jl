@@ -77,7 +77,7 @@ lattice = load_lattice(surface);
 # or the `temperature` to see the full challenge of this system.
 model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe],
                   temperature=0.001, smearing=DFTK.Smearing.Gaussian())
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+basis = PlaneWaveBasis(model; Ecut, kgrid)
 
 scfres = self_consistent_field(basis, tol=1e-4, mixing=KerkerMixing());
 #-

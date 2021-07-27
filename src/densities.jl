@@ -60,7 +60,8 @@ is not collinear the spin density is `nothing`.
     @assert n_k > 0
 
     # Allocate an accumulator for ρ in each thread for each spin component
-    ρaccus = [similar(view(ψ[1], :, 1), (basis.fft_size..., n_spin))
+    T = promote_type(eltype(basis), eltype(ψ[1]))
+    ρaccus = [similar(ψ[1], T, (basis.fft_size..., n_spin))
               for ithread in 1:Threads.nthreads()]
 
     # TODO Better load balancing ... the workload per kpoint depends also on
@@ -79,7 +80,7 @@ is not collinear the spin density is `nothing`.
 
     Threads.@threads for (ikpts, ρaccu) in collect(zip(kpt_per_thread, ρaccus))
         ρaccu .= 0
-        ρ_k = similar(ψ[1][:, 1], basis.fft_size)
+        ρ_k = similar(ψ[1], T, basis.fft_size)
         for ik in ikpts
             kpt = basis.kpoints[ik]
             compute_partial_density!(ρ_k, basis, kpt, ψ[ik], occupation[ik])
@@ -138,13 +139,11 @@ total_density(ρ) = dropdims(sum(ρ; dims=4); dims=4)
 end
 
 function ρ_from_total_and_spin(ρtot, ρspin=nothing)
-    n_spin = ρspin === nothing ? 1 : 2
-    ρ = similar(ρtot, size(ρtot)..., n_spin)
-    if n_spin == 1
-        ρ .= ρtot
+    if ρspin === nothing
+        # Val used to ensure inferability
+        cat(ρtot; dims=Val(4))  # copy for consistency with other case
     else
-        ρ[:, :, :, 1] .= (ρtot .+ ρspin) ./ 2
-        ρ[:, :, :, 2] .= (ρtot .- ρspin) ./ 2
+        cat((ρtot .+ ρspin) ./ 2,
+            (ρtot .- ρspin) ./ 2; dims=Val(4))
     end
-    ρ
 end

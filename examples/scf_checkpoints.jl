@@ -47,7 +47,7 @@ magnetic_moments = [O => [1., 1.]]
 Ecut  = 10  # Far too small to be converged
 model = model_PBE(lattice, atoms, temperature=0.02, smearing=smearing=Smearing.Gaussian(),
                   magnetic_moments=magnetic_moments)
-basis = PlaneWaveBasis(model, Ecut; kgrid=[1, 1, 1])
+basis = PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])
 
 scfres = self_consistent_field(basis, tol=1e-2, ρ=guess_density(basis, magnetic_moments))
 save_scfres("scfres.jld2", scfres);

@@ -31,12 +31,12 @@ end
 
 @testset "Transfer of blochwave" begin
     tol = 1e-7
+    Ecut = 5
 
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_LDA(silicon.lattice, [Si => silicon.positions])
-    kgrid = [2,2,2]
-    Ecut = 5
-    basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+    kgrid = [2, 2, 2]
+    basis = PlaneWaveBasis(model; Ecut, kgrid)
 
     ψ = self_consistent_field(basis; tol=tol, callback=info->nothing).ψ
 
@@ -44,13 +44,13 @@ end
 
     # Transfer to bigger basis then same basis (both interpolations are
     # tested then)
-    bigger_basis = PlaneWaveBasis(model, Ecut+5; kgrid=kgrid)
+    bigger_basis = PlaneWaveBasis(model; Ecut=(Ecut + 5), kgrid)
     ψ_b = transfer_blochwave(ψ, basis, bigger_basis)
     ψ_bb = transfer_blochwave(ψ_b, bigger_basis, basis)
     @test norm(ψ-ψ_bb) < eps(eltype(basis))
 
     # Transfer between same basis (not very useful, but is worth testing)
-    bigger_basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+    bigger_basis = PlaneWaveBasis(model; Ecut, kgrid)
     ψ_b = transfer_blochwave(ψ, basis, bigger_basis)
     ψ_bb = transfer_blochwave(ψ_b, bigger_basis, basis)
     @test norm(ψ-ψ_bb) < eps(eltype(basis))
