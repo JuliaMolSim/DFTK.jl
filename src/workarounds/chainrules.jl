@@ -128,8 +128,8 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBa
     # Create dummy terms array for _basis to handle
     terms = Vector{Any}(undef, length(model.term_types))
 
-    # TODO kpoints have also differentiable components (inside model and coordinate_cart)
-    kcoords_thisproc = basis.kcoords_global[basis.krange_thisproc]
+    # kpoints have differentiable components (inside model and coordinate_cart)
+    kcoords_thisproc = basis.kcoords_global[basis.krange_thisproc] # TODO which kcoords?
     kpoints = build_kpoints(model, basis.fft_size, kcoords_thisproc, basis.Ecut; basis.variational)
 
     # cicularity is getting complicated...
