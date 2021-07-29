@@ -112,9 +112,9 @@ make_model(a)
 Zygote.gradient(a -> make_model(a).recip_cell_volume, a) # (-0.2686157095138732,)
 FiniteDiff.finite_difference_derivative(a -> make_model(a).recip_cell_volume, a) # -0.2686157095506202
 
+kgrid = [1, 1, 1]
+Ecut = 7
 function make_basis(model::Model)
-    kgrid = [1, 1, 1]
-    Ecut = 7
     PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 end
 make_basis(make_model(a)).G_to_r_normalization # 0.06085677788055191
@@ -124,4 +124,4 @@ FiniteDiff.finite_difference_derivative(a -> make_basis(make_model(a)).G_to_r_no
 # TODO diff through term construction (pre-computations)
 Zygote.gradient(a -> HF_energy(make_basis(make_model(a))), a)
 
-Zygote.gradient(basis -> sum(Kinetic()(basis).kinetic_energies[1]), basis)
+Zygote.gradient(basis -> sum(Kinetic()(basis).kinetic_energies[1]), make_basis(make_model(a)))

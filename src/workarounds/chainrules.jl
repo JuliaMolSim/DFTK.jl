@@ -66,6 +66,10 @@ function ChainRulesCore.rrule(::typeof(mpi_sum), arr, comm)
 end
 
 ChainRulesCore.@non_differentiable ElementPsp(::Any...)
+ChainRulesCore.@non_differentiable r_vectors(::Any...)
+ChainRulesCore.@non_differentiable r_vectors_cart(::Any...)
+ChainRulesCore.@non_differentiable G_vectors(::Any...)
+ChainRulesCore.@non_differentiable G_vectors_cart(::Any...)
 
 # TODO delete
 @adjoint (T::Type{<:SArray})(x...) = T(x...), y->(y,)
@@ -126,17 +130,18 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Plan
 end
 
 
-function _autodiff_TermKinetic_namedtuple(basis)
-    kpt = basis.kpoints[1]
-    kinetic_energies = [scaling_factor * sum(abs2, G + kpt.coordinate_cart) / 2
+function _autodiff_TermKinetic_namedtuple(basis; scaling_factor=1)
+    kinetic_energies = [[scaling_factor * sum(abs2, G + kpt.coordinate_cart) / 2
                          for G in G_vectors_cart(kpt)]
+                        for kpt in basis.kpoints]
     (;basis=basis, kinetic_energies=kinetic_energies)
 end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::TermKinetic, basis::PlaneWaveBasis)
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{TermKinetic}, basis::PlaneWaveBasis; kwargs...)
     @warn "simplified TermKinetic rrule triggered."
-    term = T(basis)
-    _term, TermKinetic_pullback = rrule_via_ad(config, _autodiff_TermKinetic_namedtuple, basis)
+    term = T(basis; kwargs...)
+    T_simple = (args...) -> _autodiff_TermKinetic_namedtuple(args...; kwargs...)
+    _term, TermKinetic_pullback = rrule_via_ad(config, T_simple, basis)
     return term, TermKinetic_pullback
 end
 
