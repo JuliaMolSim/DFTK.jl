@@ -69,3 +69,75 @@ ChainRulesCore.@non_differentiable ElementPsp(::Any...)
 
 # TODO delete
 @adjoint (T::Type{<:SArray})(x...) = T(x...), y->(y,)
+
+# TODO rrule for Model and PlaneWaveBasis constructor
+
+# # simplified version of the Model constructor to
+# # help reverse mode AD to only differentiate the relevant computations.
+# # this excludes assertions (try-catch), and symmetries
+function _autodiff_Model_namedtuple(lattice)
+    T = eltype(lattice)
+    recip_lattice = 2T(π)*inv(lattice')
+    unit_cell_volume = abs(det(lattice))
+    recip_cell_volume = abs(det(recip_lattice))
+    (;lattice=lattice, recip_lattice=recip_lattice, unit_cell_volume=unit_cell_volume, recip_cell_volume=recip_cell_volume)
+end
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Model}, lattice; kwargs...)
+    @warn "simplified Model rrule triggered."
+    model = T(lattice; kwargs...)
+    _model, Model_pullback = rrule_via_ad(config, _autodiff_Model_namedtuple, lattice)
+    # TODO add some assertion that model and _model agree
+    return model, Model_pullback
+end
+
+# simplified version of PlaneWaveBasis constructor to
+# help reverse mode AD to only differentiate the relevant computations.
+# this excludes assertions (try-catch), MPI handling, and other things
+function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBasis) where {T <: Real}
+    dvol = model.unit_cell_volume ./ prod(basis.fft_size)
+    G_to_r_normalization = 1 / sqrt(model.unit_cell_volume)
+    r_to_G_normalization = sqrt(model.unit_cell_volume) / length(basis.ipFFT)
+
+    # Create dummy terms array for _basis to handle
+    terms = Vector{Any}(undef, length(model.term_types))
+
+    # cicularity is getting complicated...
+    # To correctly instantiate term types, we do need a full PlaneWaveBasis struct;
+    # so we need to interleave re-computed differentiable parameters, and fixed paramters in basis
+    _basis = PlaneWaveBasis{T}(
+        model, basis.fft_size, dvol, 
+        basis.Ecut, basis.variational,
+        basis.opFFT, basis.ipFFT, basis.opBFFT, basis.ipBFFT,
+        r_to_G_normalization, G_to_r_normalization,
+        basis.kpoints, basis.kweights, basis.ksymops, basis.kgrid, basis.kshift,
+        basis.kcoords_global, basis.ksymops_global, basis.comm_kpts, basis.krange_thisproc, basis.krange_allprocs,
+        basis.symmetries, terms)
+
+    terms = [t(_basis) for t in model.term_types]
+    (;model=model, dvol=dvol, terms=terms, G_to_r_normalization=G_to_r_normalization, r_to_G_normalization=r_to_G_normalization)
+end
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{PlaneWaveBasis}, model::Model, Ecut; kwargs...)
+    @warn "simplified PlaneWaveBasis rrule triggered."
+    basis = T(model, Ecut; kwargs...)
+    _basis, PlaneWaveBasis_pullback = rrule_via_ad(config, _autodiff_PlaneWaveBasis_namedtuple, model, basis)
+    return basis, PlaneWaveBasis_pullback
+end
+
+
+function _autodiff_TermKinetic_namedtuple(basis)
+    kpt = basis.kpoints[1]
+    kinetic_energies = [scaling_factor * sum(abs2, G + kpt.coordinate_cart) / 2
+                         for G in G_vectors_cart(kpt)]
+    (;basis=basis, kinetic_energies=kinetic_energies)
+end
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::TermKinetic, basis::PlaneWaveBasis)
+    @warn "simplified TermKinetic rrule triggered."
+    term = T(basis)
+    _term, TermKinetic_pullback = rrule_via_ad(config, _autodiff_TermKinetic_namedtuple, basis)
+    return term, TermKinetic_pullback
+end
+
+

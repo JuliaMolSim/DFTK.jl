@@ -81,9 +81,9 @@ Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[4], ψ, occupation)[1], basis)
 Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[5], ψ, occupation)[1], basis)
 Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[6], ψ, occupation; ρ=scfres.ρ)[1], basis)
 Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[7], ψ, occupation; ρ=scfres.ρ)[1], basis)
-HF_energy_basis(basis) = HF_energy(basis, ψ, occupation, scfres.ρ)
-HF_energy_basis(basis) # -4.807121625456233
-g = Zygote.gradient(HF_energy_basis, basis)[1];
+HF_energy(basis::PlaneWaveBasis) = HF_energy(basis, ψ, occupation, scfres.ρ)
+HF_energy(basis) # -4.807121625456233
+g = Zygote.gradient(HF_energy, basis)[1];
 dump(g; maxdepth=2)
 # TODO verify result
 # look at forces
@@ -97,7 +97,16 @@ function make_model(a)
                        [1. 1. 0.]]
     atoms = [Si => [ones(3)/8, -ones(3)/8]]
     # model = model_DFT(lattice, atoms, [], symmetries=false)
-    Model(lattice; atoms=atoms)
+    terms = [
+        Kinetic(),
+        # AtomicLocal(),
+        # AtomicNonlocal(),
+        # Ewald(),
+        # PspCorrection(),
+        # Entropy(),
+        # Hartree()
+    ]
+    Model(lattice; atoms=atoms, terms=terms)
 end
 make_model(a)
 Zygote.gradient(a -> make_model(a).recip_cell_volume, a) # (-0.2686157095138732,)
@@ -108,30 +117,11 @@ function make_basis(model::Model)
     Ecut = 7
     PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 end
-make_basis(make_model(a)).opFFT.scale # 0.0020540029287345234
-Zygote.gradient(a -> make_basis(make_model(a)).opFFT.scale, a) # (nothing,)
-FiniteDiff.finite_difference_derivative(a -> make_basis(make_model(a)).opFFT.scale, a)# 0.00030029282584396495
+make_basis(make_model(a)).G_to_r_normalization # 0.06085677788055191
+Zygote.gradient(a -> make_basis(make_model(a)).G_to_r_normalization, a)  # (-0.0088971897486187,)
+FiniteDiff.finite_difference_derivative(a -> make_basis(make_model(a)).G_to_r_normalization, a)  # -0.008897189749284017
 
-# basis w.r.t. lattice parameter
+# TODO diff through term construction (pre-computations)
+Zygote.gradient(a -> HF_energy(make_basis(make_model(a))), a)
 
-
-function make_basis(a)
-    lattice = a / 2 * [[0. 1. 1.];
-                       [1. 0. 1.];
-                       [1. 1. 0.]]
-    atoms = [Si => [ones(3)/8, -ones(3)/8]]
-    model = model_DFT(lattice, atoms, [], symmetries=false)
-    kgrid = [1, 1, 1]
-    Ecut = 7
-    PlaneWaveBasis(model, Ecut; kgrid=kgrid)
-end
-
-f(a) = real(sum(make_basis(a).opFFT * real(zeros(20, 20, 20))))
-f(a)
-Zygote.gradient(f, a)
-#ERROR: Compiling Tuple{DFTK.var"##PlaneWaveBasis#59", Nothing, Bool, Bool, Int64, Vector{Int64}, Vector{Int64}, MPI.Comm, Type{PlaneWaveBasis}, Model{Float64}, Int64, Vector{StaticArrays.SVector{3, Rational{Int64}}}, Vector{Vector{Tuple{StaticArrays.SMatrix{3, 3, Int64, 9}, StaticArrays.SVector{3, Float64}}}}, Vector{Tuple{StaticArrays.SMatrix{3, 3, Int64, 9}, StaticArrays.SVector{3, Float64}}}}: try/catch is not supported.
-
-Zygote.gradient(x -> sum(Mat3(x)), zeros(3,3))
-# ERROR: Need an adjoint for constructor StaticArrays.SMatrix{3, 3, Float64, 9}. Gradient is of type FillArrays.Fill{Float64, 2, Tuple{Base.OneTo{Int64}, Base.OneTo{Int64}}}
-
-
+Zygote.gradient(basis -> sum(Kinetic()(basis).kinetic_energies[1]), basis)
