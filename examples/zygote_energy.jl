@@ -128,4 +128,19 @@ Zygote.gradient(a -> sum(make_basis(make_model(a)).terms[1].kinetic_energies[1])
 FiniteDiff.finite_difference_derivative(a -> sum(make_basis(make_model(a)).terms[1].kinetic_energies[1]), a)
 
 
-
+Vector{
+    Tangent{
+        Kpoint{Float64}, 
+        NamedTuple{
+            (:model, :spin, :coordinate, :coordinate_cart, :mapping, :mapping_inv, :G_vectors), 
+            Tuple{Tangent{
+                Model{Float64}, 
+                NamedTuple{
+                    (:lattice, :recip_lattice, :unit_cell_volume, :recip_cell_volume, :n_dim, :n_electrons, :spin_polarization, :n_spin_components, :temperature, :smearing, :atoms, :term_types, :symmetries), 
+                    Tuple{NoTangent, StaticArrays.SMatrix{3, 3, Float64, 9}, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent}
+                }
+            }, 
+            NoTangent, NoTangent, StaticArrays.SVector{3, Float64}, NoTangent, NoTangent, NoTangent}
+        }
+    }
+}

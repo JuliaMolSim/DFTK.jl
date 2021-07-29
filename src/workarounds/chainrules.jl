@@ -72,7 +72,12 @@ ChainRulesCore.@non_differentiable G_vectors(::Any...)
 # TODO delete
 @adjoint (T::Type{<:SArray})(x...) = T(x...), y->(y,)
 
-# TODO rrule for Model and PlaneWaveBasis constructor
+# TODO delete
+function ChainRulesCore.rrule(T::Type{Vector{Kpoint{Float64}}}, x)
+    @warn "strange Vector{Kpoint{Float64}} rrule triggered"
+    return T(x), ΔTx -> (NoTangent(), ΔTx)
+end
+
 
 # # simplified version of the Model constructor to
 # # help reverse mode AD to only differentiate the relevant computations.
@@ -93,6 +98,18 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Mode
     return model, Model_pullback
 end
 
+function ChainRulesCore.rrule(::typeof(build_kpoints), model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
+    @warn "build_kpoints rrule triggered"
+    kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
+    function build_kpoints_pullback(Δkpoints)
+        @show Δkpoints
+        ∂model = @not_implemented("TODO")
+        ∂kcoords = @not_implemented("TODO")
+        return NoTangent(), ∂model, NoTangent(), ∂kcoords, NoTangent()
+    end
+    return kpoints, build_kpoints_pullback
+end
+
 # simplified version of PlaneWaveBasis constructor to
 # help reverse mode AD to only differentiate the relevant computations.
 # this excludes assertions (try-catch), MPI handling, and other things
@@ -104,20 +121,27 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBa
     # Create dummy terms array for _basis to handle
     terms = Vector{Any}(undef, length(model.term_types))
 
+    # TODO kpoints have also differentiable components (inside model and coordinate_cart)
+    kcoords_thisproc = basis.kcoords_global[basis.krange_thisproc]
+    kpoints = build_kpoints(model, basis.fft_size, kcoords_thisproc, basis.Ecut; basis.variational)
+
     # cicularity is getting complicated...
     # To correctly instantiate term types, we do need a full PlaneWaveBasis struct;
     # so we need to interleave re-computed differentiable params, and fixed params in basis
-    _basis = PlaneWaveBasis{T}(
+    _basis = PlaneWaveBasis{T}( # this shouldn't hit the rrule below a second time due to more args
         model, basis.fft_size, dvol, 
         basis.Ecut, basis.variational,
         basis.opFFT, basis.ipFFT, basis.opBFFT, basis.ipBFFT,
         r_to_G_normalization, G_to_r_normalization,
-        basis.kpoints, basis.kweights, basis.ksymops, basis.kgrid, basis.kshift,
+        kpoints, basis.kweights, basis.ksymops, basis.kgrid, basis.kshift,
         basis.kcoords_global, basis.ksymops_global, basis.comm_kpts, basis.krange_thisproc, basis.krange_allprocs,
         basis.symmetries, terms)
 
-    terms = [t(_basis) for t in model.term_types]
-    (;model=model, dvol=dvol, terms=terms, G_to_r_normalization=G_to_r_normalization, r_to_G_normalization=r_to_G_normalization)
+    # terms = Any[t(_basis) for t in model.term_types]
+    terms = vcat([], [t(_basis) for t in model.term_types]) # hack: enforce Vector{Any} without causing reverse mutation
+    # @show terms
+    @show typeof(terms)
+    (;model=model, kpoints=kpoints, dvol=dvol, terms=terms, G_to_r_normalization=G_to_r_normalization, r_to_G_normalization=r_to_G_normalization)
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{PlaneWaveBasis}, model::Model, Ecut; kwargs...)
