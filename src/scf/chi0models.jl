@@ -6,6 +6,32 @@ import Base: @kwdef
 
 abstract type χ0Model end
 
+function DefaultAdjustTemperature()
+    total_energy = NaN
+    lasttemp = Inf
+    function callback(temperature; energies, n_iter, kwargs...)
+        isnothing(energies) && return temperature
+        iszero(temperature) && return temperature
+        ΔE = abs(total_energy - energies.total)
+        total_energy = energies.total
+
+        # adjustment factor going smoothly from init to 1
+        # as x crosses from 1e-2 to 1e-5
+        init = 0.25
+        fac = log10(init / temperature)
+        f(x) = 10^(0.5fac - 0.5fac * erf(-1 * (log10(x) + 3.5)))
+
+        temperature > init && return temperature
+        if isnan(ΔE) || n_iter ≤ 1
+            return init
+        else
+            temperature =  min(lasttemp, f(ΔE) * temperature)
+            lasttemp = min(temperature, lasttemp)
+            return temperature
+        end
+    end
+end
+
 @doc raw"""
 Represents the LDOS-based ``χ_0`` model
 ```math
@@ -14,13 +40,16 @@ Represents the LDOS-based ``χ_0`` model
 where ``D_\text{loc}`` is the local density of states and ``D`` the density of states.
 For details see Herbst, Levitt 2020 arXiv:2009.01665
 """
-struct LdosModel <: χ0Model end
-function (::LdosModel)(basis; eigenvalues, ψ, εF, kwargs...)
+@kwdef struct LdosModel <: χ0Model
+    adjust_temperature = DefaultAdjustTemperature()
+end
+function (χ0::LdosModel)(basis; eigenvalues, ψ, εF, kwargs...)
     n_spin = basis.model.n_spin_components
 
     # Catch cases that will yield no contribution
-    iszero(basis.model.temperature) && return nothing
-    ldos = compute_ldos(εF, basis, eigenvalues, ψ)
+    temperature = χ0.adjust_temperature(basis.model.temperature; kwargs...)
+    iszero(temperature) && return nothing
+    ldos = compute_ldos(εF, basis, eigenvalues, ψ; temperature)
     if maximum(abs, ldos) < eps(eltype(basis))
         return nothing
     end

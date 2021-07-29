@@ -93,15 +93,18 @@ end
 The same as [`KerkerMixing`](@ref), but the Thomas-Fermi wavevector is computed
 from the current density of states at the Fermi level.
 """
-struct KerkerDosMixing <: Mixing; end
+@kwdef struct KerkerDosMixing <: Mixing
+    adjust_temperature = DefaultAdjustTemperature()
+end
 @timing "KerkerDosMixing" function mix_density(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
                                                δF; εF, ψ, eigenvalues, kwargs...)
-    if basis.model.temperature == 0
+    if iszero(basis.model.temperature)
         return mix_density(SimpleMixing(), basis, δF)
     else
         n_spin = basis.model.n_spin_components
         Ω = basis.model.unit_cell_volume
-        dos_per_vol  = compute_dos(εF, basis, eigenvalues) ./ Ω
+        temperature = mixing.adjust_temperature(basis.model.temperature; kwargs...)
+        dos_per_vol  = compute_dos(εF, basis, eigenvalues; temperature) ./ Ω
         kTF  = sqrt(4π * sum(dos_per_vol))
         ΔDOS_Ω = n_spin == 2 ? dos_per_vol[1] - dos_per_vol[2] : 0.0
         mix_density(KerkerMixing(kTF=kTF, ΔDOS_Ω=ΔDOS_Ω), basis, δF)
