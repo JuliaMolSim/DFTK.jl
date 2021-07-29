@@ -67,9 +67,7 @@ end
 
 ChainRulesCore.@non_differentiable ElementPsp(::Any...)
 ChainRulesCore.@non_differentiable r_vectors(::Any...)
-ChainRulesCore.@non_differentiable r_vectors_cart(::Any...)
 ChainRulesCore.@non_differentiable G_vectors(::Any...)
-ChainRulesCore.@non_differentiable G_vectors_cart(::Any...)
 
 # TODO delete
 @adjoint (T::Type{<:SArray})(x...) = T(x...), y->(y,)
@@ -108,7 +106,7 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBa
 
     # cicularity is getting complicated...
     # To correctly instantiate term types, we do need a full PlaneWaveBasis struct;
-    # so we need to interleave re-computed differentiable parameters, and fixed paramters in basis
+    # so we need to interleave re-computed differentiable params, and fixed params in basis
     _basis = PlaneWaveBasis{T}(
         model, basis.fft_size, dvol, 
         basis.Ecut, basis.variational,
@@ -130,9 +128,18 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Plan
 end
 
 
+# TODO delete (once fixed upstream in Zygote, "difftype_warn not defined")
+Zygote.z2d(x::Union{AbstractZero, Tangent}, ::Any) = x
+
+# convert generators into arrays (needed for Zygote here)
+function _G_vectors_cart(basis::PlaneWaveBasis)
+    [basis.model.recip_lattice * G for G in G_vectors(basis.fft_size)]
+end
+_G_vectors_cart(kpt::Kpoint) = [kpt.model.recip_lattice * G for G in G_vectors(kpt)]
+
 function _autodiff_TermKinetic_namedtuple(basis; scaling_factor=1)
     kinetic_energies = [[scaling_factor * sum(abs2, G + kpt.coordinate_cart) / 2
-                         for G in G_vectors_cart(kpt)]
+                         for G in _G_vectors_cart(kpt)]
                         for kpt in basis.kpoints]
     (;basis=basis, kinetic_energies=kinetic_energies)
 end
@@ -143,6 +150,13 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Term
     T_simple = (args...) -> _autodiff_TermKinetic_namedtuple(args...; kwargs...)
     _term, TermKinetic_pullback = rrule_via_ad(config, T_simple, basis)
     return term, TermKinetic_pullback
+    # function back(Δterm)
+    #     ∂T, ∂basis = TermKinetic_pullback(Δterm)
+    #     @show ∂T
+    #     @show ∂basis
+    #     return (Tangent{typeof(T)}(;∂T...), Tangent{typeof(basis)}(;∂basis...))
+    # end
+    # return term, back
 end
 
 

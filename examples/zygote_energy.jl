@@ -124,4 +124,8 @@ FiniteDiff.finite_difference_derivative(a -> make_basis(make_model(a)).G_to_r_no
 # TODO diff through term construction (pre-computations)
 Zygote.gradient(a -> HF_energy(make_basis(make_model(a))), a)
 
-Zygote.gradient(basis -> sum(Kinetic()(basis).kinetic_energies[1]), make_basis(make_model(a)))
+Zygote.gradient(a -> sum(make_basis(make_model(a)).terms[1].kinetic_energies[1]), a)
+FiniteDiff.finite_difference_derivative(a -> sum(make_basis(make_model(a)).terms[1].kinetic_energies[1]), a)
+
+
+
