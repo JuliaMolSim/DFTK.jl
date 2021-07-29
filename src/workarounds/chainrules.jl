@@ -72,7 +72,7 @@ ChainRulesCore.@non_differentiable G_vectors(::Any...)
 # TODO delete
 @adjoint (T::Type{<:SArray})(x...) = T(x...), y->(y,)
 
-# TODO delete
+# TODO delete, or understand why this is necessary
 function ChainRulesCore.rrule(T::Type{Vector{Kpoint{Float64}}}, x)
     @warn "strange Vector{Kpoint{Float64}} rrule triggered"
     return T(x), ΔTx -> (NoTangent(), ΔTx)
@@ -98,12 +98,19 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Mode
     return model, Model_pullback
 end
 
+# a workaround to manually updating immutable Tangent fields
+function _update_tangent(t::Tangent{P,T}, nt::NamedTuple) where {P,T}
+    return Tangent{P,T}(merge(ChainRulesCore.backing(t), nt))
+end
+
 function ChainRulesCore.rrule(::typeof(build_kpoints), model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
     @warn "build_kpoints rrule triggered"
     kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
     function build_kpoints_pullback(Δkpoints)
-        @show Δkpoints
-        ∂model = @not_implemented("TODO")
+        ∂model = sum(Δkpoints).model # TODO double-check.
+        ∂recip_lattice = ∂model.recip_lattice + sum([Δkp.coordinate_cart * kp.coordinate' for (kp, Δkp) in zip(kpoints, Δkpoints) if !(Δkp isa NoTangent)])
+        # ∂model.recip_lattice += ∂recip_lattice # Tangents are immutable
+        ∂model = _update_tangent(∂model, (;recip_lattice=∂recip_lattice))
         ∂kcoords = @not_implemented("TODO")
         return NoTangent(), ∂model, NoTangent(), ∂kcoords, NoTangent()
     end
@@ -139,8 +146,7 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBa
 
     # terms = Any[t(_basis) for t in model.term_types]
     terms = vcat([], [t(_basis) for t in model.term_types]) # hack: enforce Vector{Any} without causing reverse mutation
-    # @show terms
-    @show typeof(terms)
+
     (;model=model, kpoints=kpoints, dvol=dvol, terms=terms, G_to_r_normalization=G_to_r_normalization, r_to_G_normalization=r_to_G_normalization)
 end
 
@@ -174,13 +180,6 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Term
     T_simple = (args...) -> _autodiff_TermKinetic_namedtuple(args...; kwargs...)
     _term, TermKinetic_pullback = rrule_via_ad(config, T_simple, basis)
     return term, TermKinetic_pullback
-    # function back(Δterm)
-    #     ∂T, ∂basis = TermKinetic_pullback(Δterm)
-    #     @show ∂T
-    #     @show ∂basis
-    #     return (Tangent{typeof(T)}(;∂T...), Tangent{typeof(basis)}(;∂basis...))
-    # end
-    # return term, back
 end
 
 

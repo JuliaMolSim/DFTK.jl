@@ -20,7 +20,7 @@ terms = [
 ]
 model = Model(lattice; atoms=atoms, terms=terms, symmetries=false)
 # model = model_DFT(lattice, atoms, [], symmetries=false)
-kgrid = [1, 1, 1]
+kgrid = [2, 2, 2]
 Ecut = 7
 basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 
@@ -112,8 +112,6 @@ make_model(a)
 Zygote.gradient(a -> make_model(a).recip_cell_volume, a) # (-0.2686157095138732,)
 FiniteDiff.finite_difference_derivative(a -> make_model(a).recip_cell_volume, a) # -0.2686157095506202
 
-kgrid = [1, 1, 1]
-Ecut = 7
 function make_basis(model::Model)
     PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 end
@@ -128,19 +126,24 @@ Zygote.gradient(a -> sum(make_basis(make_model(a)).terms[1].kinetic_energies[1])
 FiniteDiff.finite_difference_derivative(a -> sum(make_basis(make_model(a)).terms[1].kinetic_energies[1]), a)
 
 
-Vector{
-    Tangent{
-        Kpoint{Float64}, 
-        NamedTuple{
-            (:model, :spin, :coordinate, :coordinate_cart, :mapping, :mapping_inv, :G_vectors), 
-            Tuple{Tangent{
-                Model{Float64}, 
-                NamedTuple{
-                    (:lattice, :recip_lattice, :unit_cell_volume, :recip_cell_volume, :n_dim, :n_electrons, :spin_polarization, :n_spin_components, :temperature, :smearing, :atoms, :term_types, :symmetries), 
-                    Tuple{NoTangent, StaticArrays.SMatrix{3, 3, Float64, 9}, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent}
-                }
-            }, 
-            NoTangent, NoTangent, StaticArrays.SVector{3, Float64}, NoTangent, NoTangent, NoTangent}
-        }
-    }
-}
+# Δkpoints = Tangent{
+#     Kpoint{Float64}, 
+#     NamedTuple{
+#         (:model, :spin, :coordinate, :coordinate_cart, :mapping, :mapping_inv, :G_vectors), 
+#         Tuple{
+#             Tangent{
+#                 Model{Float64}, 
+#                 NamedTuple{(:lattice, :recip_lattice, :unit_cell_volume, :recip_cell_volume, :n_dim, :n_electrons, :spin_polarization, :n_spin_components, :temperature, :smearing, :atoms, :term_types, :symmetries), 
+#                 Tuple{NoTangent, StaticArrays.SMatrix{3, 3, Float64, 9}, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent}}}, 
+#                 NoTangent, NoTangent, StaticArrays.SVector{3, Float64}, NoTangent, NoTangent, NoTangent
+#         }
+#     }
+# }[Tangent{Kpoint{Float64}}(model = Tangent{Model{Float64}}(lattice = NoTangent(), recip_lattice = [1.7763568394002505e-15 624.644153345339 624.644153345339; 624.644153345339 5.329070518200751e-15 624.644153345339; 624.6441533453391 624.6441533453392 0.0], unit_cell_volume = NoTangent(), recip_cell_volume = NoTangent(), n_dim = NoTangent(), n_electrons = NoTangent(), spin_polarization = NoTangent(), n_spin_components = NoTangent(), temperature = NoTangent(), smearing = NoTangent(), atoms = NoTangent(), term_types = NoTangent(), symmetries = NoTangent()), spin = NoTangent(), coordinate = NoTangent(), coordinate_cart = [-7.105427357601002e-15, 0.0, 0.0], mapping = NoTangent(), mapping_inv = NoTangent(), G_vectors = NoTangent())]
+
+Δkpoints = ChainRulesCore.AbstractTangent[
+    Tangent{Kpoint{Float64}}(model = Tangent{Model{Float64}}(lattice = NoTangent(), recip_lattice = [-52.35987755982991 541.6644643470122 541.6644643470119; 541.6644643470121 -52.3598775598299 541.664464347012; 541.6644643470122 541.664464347012 -52.35987755982987], unit_cell_volume = NoTangent(), recip_cell_volume = NoTangent(), n_dim = NoTangent(), n_electrons = NoTangent(), spin_polarization = NoTangent(), n_spin_components = NoTangent(), temperature = NoTangent(), smearing = NoTangent(), atoms = NoTangent(), term_types = NoTangent(), symmetries = NoTangent()), spin = NoTangent(), coordinate = NoTangent(), coordinate_cart = [-5.511566058929473, -5.511566058929462, -5.5115660589294855], mapping = NoTangent(), mapping_inv = NoTangent(), G_vectors = NoTangent()), 
+    Tangent{Kpoint{Float64}}(model = Tangent{Model{Float64}}(lattice = NoTangent(), recip_lattice = [-200.35987755982991 541.6644643470122 541.6644643470119; 541.6644643470121 -52.3598775598299 541.664464347012; 541.6644643470122 541.664464347012 -52.35987755982987], unit_cell_volume = NoTangent(), recip_cell_volume = NoTangent(), n_dim = NoTangent(), n_electrons = NoTangent(), spin_polarization = NoTangent(), n_spin_components = NoTangent(), temperature = NoTangent(), smearing = NoTangent(), atoms = NoTangent(), term_types = NoTangent(), symmetries = NoTangent()), spin = NoTangent(), coordinate = NoTangent(), coordinate_cart = [-100.511566058929473, -5.511566058929462, -5.5115660589294855], mapping = NoTangent(), mapping_inv = NoTangent(), G_vectors = NoTangent()), 
+    NoTangent()
+]
+
+sum(Δkpoints).model
