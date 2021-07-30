@@ -94,10 +94,10 @@ The same as [`KerkerMixing`](@ref), but the Thomas-Fermi wavevector is computed
 from the current density of states at the Fermi level.
 """
 @kwdef struct KerkerDosMixing <: Mixing
-    adjust_temperature = DefaultAdjustTemperature()
+    adjust_temperature = AdjustMixingTemperature()
 end
 @timing "KerkerDosMixing" function mix_density(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
-                                               δF; εF, ψ, eigenvalues, kwargs...)
+                                               δF; εF, eigenvalues, kwargs...)
     if iszero(basis.model.temperature)
         return mix_density(SimpleMixing(), basis, δF)
     else
@@ -217,4 +217,33 @@ end
 
 @timing "χ0Mixing" function mix_potential(mixing::Mixing, basis::χ0Mixing, δF::AbstractArray; kwargs...)
     error("Not yet implemented.")
+end
+
+
+function AdjustMixingTemperature(factor=25, switch=(1e-3, 0.1), temperature_max=0.5)
+    total_energy = NaN
+    function callback(temperature; energies, n_iter, kwargs...)
+        if isnothing(energies) || iszero(temperature) || temperature > temperature_max
+            return temperature
+        end
+
+        # Update total_energy
+        ΔE = abs(total_energy - energies.total)
+        total_energy = energies.total
+
+        if n_iter ≤ 1 || isnan(ΔE)
+            return factor * temperature
+        else
+            # Continuous piecewise linear function on a logarithmic scale
+            # In switch_range it switches from 1 to factor
+            slope       = (  (log10(ΔE)        - log10(switch[1]))
+                           / (log10(switch[2]) - log10(switch[1])))
+            enhancement = clamp(1 + (factor - 1) * slope, 1, factor)
+
+            # Between SCF iterations temperature may never grow
+            temperature = clamp(enhancement * temperature, temperature, temperature_max)
+            temperature_max = temperature
+            return temperature
+        end
+    end
 end
