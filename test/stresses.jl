@@ -2,6 +2,7 @@ using Test
 using DFTK
 using ForwardDiff
 import FiniteDiff
+using MPI
 include("testcases.jl")
 
 # Hellmann-Feynman stress
@@ -12,7 +13,7 @@ include("testcases.jl")
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => silicon.positions]
         model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn]; symmetries)
-        kgrid = [2, 2, 1]
+        kgrid = [3, 3, 1]
         Ecut = 7
         PlaneWaveBasis(model; Ecut, kgrid)
     end
@@ -42,7 +43,7 @@ include("testcases.jl")
     stresses = compute_stresses(scfres)
     @test isapprox(stresses, compute_stresses(scfres_nosym), atol=1e-10)
 
-    dir = randn(3, 3)
+    dir = MPI.bcast(randn(3, 3), 0, MPI.COMM_WORLD)
 
     dE_stresses = dot(dir, stresses) * scfres.basis.model.unit_cell_volume
     ref_recompute = FiniteDiff.finite_difference_derivative(0.0) do ε

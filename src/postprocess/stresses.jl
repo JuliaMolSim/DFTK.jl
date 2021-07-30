@@ -4,7 +4,6 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
 """
 @timing function compute_stresses(scfres)
     # TODO optimize by only computing derivatives wrt 6 independent parameters
-    scfres = unfold_bz(scfres)
     # compute the Hellmann-Feynman energy (with fixed ψ/occ/ρ)
     function HF_energy(lattice)
         T = eltype(lattice)
@@ -31,5 +30,6 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
     end
     L = scfres.basis.model.lattice
     Ω = scfres.basis.model.unit_cell_volume
-    ForwardDiff.gradient(M -> HF_energy((I+M) * L), zero(L)) / Ω
+    stresses_not_symmetrized = ForwardDiff.gradient(M -> HF_energy((I+M) * L), zero(L)) / Ω
+    symmetrize_stresses(L, scfres.basis.symmetries, stresses_not_symmetrized)
 end

@@ -40,6 +40,8 @@
 # - The set of symmetry operations that we use to reduce the
 #   reducible Brillouin zone (RBZ) to the irreducible (IBZ) (basis.ksymops)
 
+# See https://juliamolsim.github.io/DFTK.jl/stable/advanced/symmetries for details.
+
 @doc raw"""
 Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
@@ -313,4 +315,15 @@ function unfold_bz(scfres)
     @assert E.total ≈ scfres.energies.total
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)
     merge(scfres, new_scfres)
+end
+
+# symmetrize the stress tensor which is a rank-2 contravariant tensor in reduced coordinates
+function symmetrize_stresses(lattice, symmetries, stresses::Mat3)
+    stresses_symmetrized = zero(stresses)
+    for (S, τ) in symmetries
+        S_reduced = inv(lattice) * S * lattice
+        stresses_symmetrized += S_reduced' * stresses * S_reduced
+    end
+    stresses_symmetrized /= length(symmetries)
+    stresses_symmetrized
 end
