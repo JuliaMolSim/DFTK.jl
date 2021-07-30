@@ -315,13 +315,13 @@ function unfold_bz(scfres)
     merge(scfres, new_scfres)
 end
 
-# symmetrize a rank-2 tensor in reduced coordinates
-function symmetrize_tensor(tensor, symmetries, lattice)
-    tensor_symmetrized = zero(tensor)
+# symmetrize the stress tensor which is a rank-2 contravariant tensor in reduced coordinates
+function symmetrize_stresses(lattice, symmetries, stresses)
+    stresses_symmetrized = zero(stresses)
     for (S, τ) in symmetries
         S_reduced = inv(lattice) * S * lattice
-        tensor_symmetrized += S_reduced' * tensor * S_reduced
+        stresses_symmetrized += S_reduced' * stresses * S_reduced
     end
-    tensor_symmetrized /= length(symmetries)
-    tensor_symmetrized
+    stresses_symmetrized /= length(symmetries)
+    stresses_symmetrized
 end
