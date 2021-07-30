@@ -1,6 +1,7 @@
 # Routines for interaction with spglib
 # Note: spglib/C uses the row-major convention, thus we need to perform transposes
 #       between julia and spglib (https://spglib.github.io/spglib/variable.html)
+import Spglib
 const SPGLIB = spglib_jll.libsymspg
 
 function spglib_get_error_message()
@@ -161,4 +162,20 @@ function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;
       Cint(nrot), spg_rotations, Cint(length(qpoints)), Vec3{Float64}.(qpoints))
 
     return n_kpts, Int.(mapping), [Vec3{Int}(grid_address[:, i]) for i in 1:nkpt]
+end
+
+
+function get_spglib_lattice(model; to_primitive=false)
+    spg_positions, spg_numbers, _ = spglib_atoms(model.atoms)
+    structure = Spglib.Cell(transpose(model.lattice), spg_positions, spg_numbers)
+    spglib_lattice = Spglib.standardize_cell(structure, to_primitive=to_primitive).lattice
+    spglib_lattice
+end
+
+
+function spglib_spacegroup_number(model)
+	spg_positions, spg_numbers, _ = spglib_atoms(model.atoms)
+	structure = Spglib.Cell(transpose(model.lattice), spg_positions, spg_numbers)
+	spacegroup_number = Spglib.get_spacegroup_number(structure)
+	spacegroup_number
 end
