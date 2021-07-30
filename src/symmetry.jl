@@ -175,7 +175,7 @@ Apply a `k`-point symmetry operation (the tuple (S, τ)) to a partial density.
 function apply_ksymop(symop::SymOp, basis, ρin)
     S, τ = ksymop
     S == I && iszero(τ) && return ρin
-    symmetrize(basis, ρin, [symop])
+    symmetrize_ρ(basis, ρin, [symop])
 end
 
 
@@ -225,7 +225,7 @@ end
 """
 Symmetrize a density by applying all the model symmetries (by default) and forming the average.
 """
-@views function symmetrize(basis, ρin; symmetries=basis.model.symmetries)
+@views function symmetrize_ρ(basis, ρin; symmetries=basis.model.symmetries)
     ρin_fourier = r_to_G(basis, ρin)
     ρout_fourier = copy(ρin_fourier)
     for σ = 1:size(ρin, 4)
@@ -235,10 +235,20 @@ Symmetrize a density by applying all the model symmetries (by default) and formi
     end
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
+# symmetrize the stress tensor, which is a rank-2 contravariant tensor in reduced coordinates
+function symmetrize_stresses(lattice, symmetries, stresses)
+    stresses_symmetrized = zero(stresses)
+    for (S, τ) in symmetries
+        S_reduced = inv(lattice) * S * lattice
+        stresses_symmetrized += S_reduced' * stresses * S_reduced
+    end
+    stresses_symmetrized /= length(symmetries)
+    stresses_symmetrized
+end
 
 function check_symmetric(basis, ρin; tol=1e-10, symmetries=ρin.basis.model.symmetries)
     for symop in symmetries
-        @assert norm(symmetrize(ρin, [symop]) - ρin) < tol
+        @assert norm(symmetrize_ρ(ρin, [symop]) - ρin) < tol
     end
 end
 
@@ -315,15 +325,4 @@ function unfold_bz(scfres)
     @assert E.total ≈ scfres.energies.total
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)
     merge(scfres, new_scfres)
-end
-
-# symmetrize the stress tensor which is a rank-2 contravariant tensor in reduced coordinates
-function symmetrize_stresses(lattice, symmetries, stresses::Mat3)
-    stresses_symmetrized = zero(stresses)
-    for (S, τ) in symmetries
-        S_reduced = inv(lattice) * S * lattice
-        stresses_symmetrized += S_reduced' * stresses * S_reduced
-    end
-    stresses_symmetrized /= length(symmetries)
-    stresses_symmetrized
 end
