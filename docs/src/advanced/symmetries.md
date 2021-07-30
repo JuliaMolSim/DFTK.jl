@@ -51,6 +51,25 @@ one can find a reduced set of ``k``-points
 (the *irreducible ``k``-points*) such that the eigenvectors at the
 reducible ``k``-points can be deduced from those at the irreducible ``k``-points.
 
+### Symmetrization
+Quantities that are calculated by summing over the reducible ``k`` points can be
+calculated by first summing over the irreducible ``k`` points and then symmetrizing.
+In this subsection, we denote by ``S`` the combined rotation and fractional transformation.
+If ``S`` is the symmetry of the system, ``f(Sk) = S(f(k))`` holds, where ``S(f)`` is the
+symmetry transformation of ``f`` which is a linear function and depends on the quantity
+``f``. Then, we find
+```math
+\sum_{k\ \mathrm{reducible}} f(k)
+= \sum_{k\ \mathrm{irreducible}} \sum_{S\text{ that maps $k$ to reducible $k$}} S(f(k))
+= \sum_{k\ \mathrm{irreducible}} \frac{N_S}{N_{S,k}} \sum_{S} S(f(k))
+= S \left( \sum_{k\ \mathrm{irreducible}} \frac{N_S}{N_{S,k}} f(k) \right).
+```
+Here, ``N_S`` and ``N_{S,k}`` are the total number of symmetry operations and the
+number of operations such that ``k=Sk``, respectively. The latter operations form
+a subgroup of the group of all symmetry operations. This subgroup is often called
+the "small/little group of ``k``".
+The factor ``\frac{N_S}{N_{S,k}}`` determines the weight of each ``k`` point.
+
 ## Example
 ```@setup symmetries
 using DFTK

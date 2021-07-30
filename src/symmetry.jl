@@ -40,6 +40,8 @@
 # - The set of symmetry operations that we use to reduce the
 #   reducible Brillouin zone (RBZ) to the irreducible (IBZ) (basis.ksymops)
 
+# See https://juliamolsim.github.io/DFTK.jl/stable/advanced/symmetries for details.
+
 @doc raw"""
 Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
