@@ -165,7 +165,7 @@ end
     end
     # need explicit convert in case it's given as array
     fft_size = Tuple{Int, Int, Int}(fft_size)
-    mpi_ensure_initialized()
+    MPI.Init()
 
     # Compute kpoint information and spread them across processors
     # Right now we split only the kcoords: both spin channels have to be handled
