@@ -314,3 +314,14 @@ function unfold_bz(scfres)
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)
     merge(scfres, new_scfres)
 end
+
+# symmetrize a rank-2 tensor in reduced coordinates
+function symmetrize_tensor(tensor, symmetries, lattice)
+    tensor_symmetrized = zero(tensor)
+    for (S, τ) in symmetries
+        S_reduced = inv(lattice) * S * lattice
+        tensor_symmetrized += S_reduced' * tensor * S_reduced
+    end
+    tensor_symmetrized /= length(symmetries)
+    tensor_symmetrized
+end
