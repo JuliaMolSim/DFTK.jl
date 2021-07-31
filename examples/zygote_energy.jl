@@ -71,16 +71,12 @@ Zygote.gradient(HF_energy_psi, ψ)
 @btime Zygote.gradient(HF_energy_psi, ψ);  # 1.823 ms (3464 allocations: 3.11 MiB)
 
 
-# E w.r.t. basis
+# E w.r.t. basis 
 
 typeof.(basis.terms)
-Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[1], ψ, occupation)[1], basis)
-Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[2], ψ, occupation)[1], basis)
-Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[3], ψ, occupation)[1], basis)
-Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[4], ψ, occupation)[1], basis)
-Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[5], ψ, occupation)[1], basis)
-Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[6], ψ, occupation; ρ=scfres.ρ)[1], basis)
-Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[7], ψ, occupation; ρ=scfres.ρ)[1], basis)
+Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[1], ψ, occupation).E, basis)
+Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[2], ψ, occupation; ρ=scfres.ρ).E, basis)
+
 HF_energy(basis::PlaneWaveBasis) = HF_energy(basis, ψ, occupation, scfres.ρ)
 HF_energy(basis) # -4.807121625456233
 g = Zygote.gradient(HF_energy, basis)[1];
@@ -99,7 +95,7 @@ function make_model(a)
     # model = model_DFT(lattice, atoms, [], symmetries=false)
     terms = [
         Kinetic(),
-        # AtomicLocal(),
+        AtomicLocal(),
         # AtomicNonlocal(),
         # Ewald(),
         # PspCorrection(),
@@ -120,30 +116,19 @@ Zygote.gradient(a -> make_basis(make_model(a)).G_to_r_normalization, a)  # (-0.0
 FiniteDiff.finite_difference_derivative(a -> make_basis(make_model(a)).G_to_r_normalization, a)  # -0.008897189749284017
 
 # TODO diff through term construction (pre-computations)
-Zygote.gradient(a -> HF_energy(make_basis(make_model(a))), a)
 
 Zygote.gradient(a -> sum(make_basis(make_model(a)).terms[1].kinetic_energies[1]), a)
 FiniteDiff.finite_difference_derivative(a -> sum(make_basis(make_model(a)).terms[1].kinetic_energies[1]), a)
 
+# TODO next steps
+# - include AtomicLocal
+# - HF_energy compute_density
 
-# Δkpoints = Tangent{
-#     Kpoint{Float64}, 
-#     NamedTuple{
-#         (:model, :spin, :coordinate, :coordinate_cart, :mapping, :mapping_inv, :G_vectors), 
-#         Tuple{
-#             Tangent{
-#                 Model{Float64}, 
-#                 NamedTuple{(:lattice, :recip_lattice, :unit_cell_volume, :recip_cell_volume, :n_dim, :n_electrons, :spin_polarization, :n_spin_components, :temperature, :smearing, :atoms, :term_types, :symmetries), 
-#                 Tuple{NoTangent, StaticArrays.SMatrix{3, 3, Float64, 9}, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent, NoTangent}}}, 
-#                 NoTangent, NoTangent, StaticArrays.SVector{3, Float64}, NoTangent, NoTangent, NoTangent
-#         }
-#     }
-# }[Tangent{Kpoint{Float64}}(model = Tangent{Model{Float64}}(lattice = NoTangent(), recip_lattice = [1.7763568394002505e-15 624.644153345339 624.644153345339; 624.644153345339 5.329070518200751e-15 624.644153345339; 624.6441533453391 624.6441533453392 0.0], unit_cell_volume = NoTangent(), recip_cell_volume = NoTangent(), n_dim = NoTangent(), n_electrons = NoTangent(), spin_polarization = NoTangent(), n_spin_components = NoTangent(), temperature = NoTangent(), smearing = NoTangent(), atoms = NoTangent(), term_types = NoTangent(), symmetries = NoTangent()), spin = NoTangent(), coordinate = NoTangent(), coordinate_cart = [-7.105427357601002e-15, 0.0, 0.0], mapping = NoTangent(), mapping_inv = NoTangent(), G_vectors = NoTangent())]
+# failing currently below
+Zygote.gradient(a -> HF_energy(make_basis(make_model(a))), a)
+FiniteDiff.finite_difference_derivative(a -> HF_energy(make_basis(make_model(a))), a)
 
-Δkpoints = ChainRulesCore.AbstractTangent[
-    Tangent{Kpoint{Float64}}(model = Tangent{Model{Float64}}(lattice = NoTangent(), recip_lattice = [-52.35987755982991 541.6644643470122 541.6644643470119; 541.6644643470121 -52.3598775598299 541.664464347012; 541.6644643470122 541.664464347012 -52.35987755982987], unit_cell_volume = NoTangent(), recip_cell_volume = NoTangent(), n_dim = NoTangent(), n_electrons = NoTangent(), spin_polarization = NoTangent(), n_spin_components = NoTangent(), temperature = NoTangent(), smearing = NoTangent(), atoms = NoTangent(), term_types = NoTangent(), symmetries = NoTangent()), spin = NoTangent(), coordinate = NoTangent(), coordinate_cart = [-5.511566058929473, -5.511566058929462, -5.5115660589294855], mapping = NoTangent(), mapping_inv = NoTangent(), G_vectors = NoTangent()), 
-    Tangent{Kpoint{Float64}}(model = Tangent{Model{Float64}}(lattice = NoTangent(), recip_lattice = [-200.35987755982991 541.6644643470122 541.6644643470119; 541.6644643470121 -52.3598775598299 541.664464347012; 541.6644643470122 541.664464347012 -52.35987755982987], unit_cell_volume = NoTangent(), recip_cell_volume = NoTangent(), n_dim = NoTangent(), n_electrons = NoTangent(), spin_polarization = NoTangent(), n_spin_components = NoTangent(), temperature = NoTangent(), smearing = NoTangent(), atoms = NoTangent(), term_types = NoTangent(), symmetries = NoTangent()), spin = NoTangent(), coordinate = NoTangent(), coordinate_cart = [-100.511566058929473, -5.511566058929462, -5.5115660589294855], mapping = NoTangent(), mapping_inv = NoTangent(), G_vectors = NoTangent()), 
-    NoTangent()
-]
+atomiclocal = AtomicLocal()
+Zygote.gradient(a -> atomiclocal(make_basis(make_model(a))).potential[1], a)
+FiniteDiff.finite_difference_derivative(a -> atomiclocal(make_basis(make_model(a))).potential[1], a)
 
-sum(Δkpoints).model

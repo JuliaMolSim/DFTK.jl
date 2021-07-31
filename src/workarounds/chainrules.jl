@@ -182,4 +182,30 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Term
     return term, TermKinetic_pullback
 end
 
+zero(::ElementPsp) = ZeroTangent() # TODO 
+
+function _autodiff_AtomicLocal(basis::PlaneWaveBasis{T}) where {T}
+    model = basis.model
+
+    pot_fourier = map(G_vectors(basis)) do G
+        pot = zero(T)
+        for (elem, positions) in model.atoms
+            form_factor::T = local_potential_fourier(elem, norm(model.recip_lattice * G))
+            for r in positions
+                pot += cis(-2T(π) * dot(G, r)) * form_factor
+            end
+        end
+        pot / sqrt(model.unit_cell_volume)
+    end
+
+    pot_real = G_to_r(basis, pot_fourier)
+    TermAtomicLocal(basis, real(pot_real))
+end
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, E::AtomicLocal, basis::PlaneWaveBasis{T}) where {T}
+    @warn "simplified AtomicLocal rrule triggered."
+    term = E(basis)
+    _term, AtomicLocal_pullback = rrule_via_ad(config, _autodiff_AtomicLocal, basis)
+    return term, AtomicLocal_pullback
+end
 
