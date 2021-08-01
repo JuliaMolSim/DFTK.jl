@@ -220,7 +220,7 @@ end
 end
 
 
-function AdjustMixingTemperature(factor=25, switch=(1e-3, 0.1), temperature_max=0.5)
+function AdjustMixingTemperature(;factor=25, switch=(1e-3, 0.1), temperature_max=0.5)
     total_energy = NaN
     function callback(temperature; energies, n_iter, kwargs...)
         if isnothing(energies) || iszero(temperature) || temperature > temperature_max
