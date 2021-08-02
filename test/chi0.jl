@@ -38,7 +38,7 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
         # Now we make the same model, but add an artificial external potential ε * δV
         n_spin = model.n_spin_components
         δV = randn(eltype(basis), basis.fft_size..., n_spin)
-        δV_sym = DFTK.symmetrize(basis, δV)
+        δV_sym = DFTK.symmetrize_ρ(basis, δV)
         if symmetry
             δV = δV_sym
         else

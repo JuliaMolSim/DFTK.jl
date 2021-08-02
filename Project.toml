@@ -1,7 +1,7 @@
 name = "DFTK"
 uuid = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
 authors = ["Michael F. Herbst <info@michael-herbst.com>", "Antoine Levitt <antoine.levitt@inria.fr>"]
-version = "0.3.9"
+version = "0.3.10"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -51,7 +51,7 @@ JSON = "0.21"
 Libxc = "0.3"
 LineSearches = "7"
 LinearMaps = "2, 3"
-MPI = "0.15, 0.16, 0.17, 0.18"
+MPI = "0.19"
 NLsolve = "4"
 Optim = "1"
 OrderedCollections = "1"
