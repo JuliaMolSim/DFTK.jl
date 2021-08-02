@@ -111,24 +111,24 @@ FiniteDiff.finite_difference_derivative(a -> make_model(a).recip_cell_volume, a)
 function make_basis(model::Model)
     PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 end
-make_basis(make_model(a)).G_to_r_normalization # 0.06085677788055191
-Zygote.gradient(a -> make_basis(make_model(a)).G_to_r_normalization, a)  # (-0.0088971897486187,)
-FiniteDiff.finite_difference_derivative(a -> make_basis(make_model(a)).G_to_r_normalization, a)  # -0.008897189749284017
+make_basis(a::Float64) = make_basis(make_model(a))
+make_basis(a).G_to_r_normalization # 0.06085677788055191
+Zygote.gradient(a -> make_basis(a).G_to_r_normalization, a)  # (-0.0088971897486187,)
+FiniteDiff.finite_difference_derivative(a -> make_basis(a).G_to_r_normalization, a)  # -0.008897189749284017
+
 
 # TODO diff through term construction (pre-computations)
 
-Zygote.gradient(a -> sum(make_basis(make_model(a)).terms[1].kinetic_energies[1]), a)
-FiniteDiff.finite_difference_derivative(a -> sum(make_basis(make_model(a)).terms[1].kinetic_energies[1]), a)
+Zygote.gradient(a -> sum(make_basis(a).terms[1].kinetic_energies[1]), a)
+FiniteDiff.finite_difference_derivative(a -> sum(make_basis(a).terms[1].kinetic_energies[1]), a)
 
 # TODO next steps
 # - include AtomicLocal
 # - HF_energy compute_density
 
 # failing currently below
-Zygote.gradient(a -> HF_energy(make_basis(make_model(a))), a)
-FiniteDiff.finite_difference_derivative(a -> HF_energy(make_basis(make_model(a))), a)
+Zygote.gradient(a -> HF_energy(make_basis(a)), a)
+FiniteDiff.finite_difference_derivative(a -> HF_energy(make_basis(a)), a)
 
-atomiclocal = AtomicLocal()
-Zygote.gradient(a -> atomiclocal(make_basis(make_model(a))).potential[1], a)
-FiniteDiff.finite_difference_derivative(a -> atomiclocal(make_basis(make_model(a))).potential[1], a)
-
+Zygote.gradient(a -> make_basis(a).terms[2].potential[1], a)
+FiniteDiff.finite_difference_derivative(a -> make_basis(a).terms[2].potential[1], a)

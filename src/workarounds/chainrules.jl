@@ -95,6 +95,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Mode
     model = T(lattice; kwargs...)
     _model, Model_pullback = rrule_via_ad(config, _autodiff_Model_namedtuple, lattice)
     # TODO add some assertion that model and _model agree
+    # TODO treat atoms (figure out how to deal with differentiable kwargs)
     return model, Model_pullback
 end
 
@@ -182,7 +183,12 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Term
     return term, TermKinetic_pullback
 end
 
-zero(::ElementPsp) = ZeroTangent() # TODO 
+Base.zero(::ElementPsp) = ZeroTangent() # TODO 
+
+function ChainRulesCore.rrule(T::Type{TermAtomicLocal}, basis, potential)
+    TermAtomicLocal_pullback(Δ) = NoTangent(), Δ.basis, Δ.potential
+    return T(basis, potential), TermAtomicLocal_pullback
+end
 
 function _autodiff_AtomicLocal(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
