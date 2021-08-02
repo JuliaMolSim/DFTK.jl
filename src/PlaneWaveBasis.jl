@@ -490,7 +490,8 @@ end
 """"
 Convert a `basis` into one that uses or doesn't use BZ symmetrization
 Mainly useful for debug purposes (e.g. in cases we don't want to
-bother with symmetry)
+bother with symmetry). 
+Also used to give unfolded basis to the Wannier90 program.
 """
 function PlaneWaveBasis(basis::PlaneWaveBasis; use_symmetry)
     use_symmetry && error("Not implemented")
