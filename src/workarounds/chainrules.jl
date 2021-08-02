@@ -2,10 +2,12 @@ using ChainRulesCore
 using Zygote: @adjoint  # TODO remove, once ChainRules rrules can overrule Zygote
 import AbstractFFTs
 
+
 function ChainRulesCore.rrule(::typeof(r_to_G), basis::PlaneWaveBasis, f_real::AbstractArray)
+    @warn "r_to_G rrule triggered."
     f_fourier = r_to_G(basis, f_real)
     function r_to_G_pullback(Δf_fourier)
-        ∂f_real = r_to_G_normalization * real(basis.opBFFT * Δf_fourier)
+        ∂f_real = G_to_r(basis, complex(Δf_fourier)) * basis.r_to_G_normalization / basis.G_to_r_normalization
         ∂normalization = sum(Δf_fourier .* f_fourier)
         ∂basis = Tangent{typeof(basis)}(;r_to_G_normalization=∂normalization)
         return NoTangent(), ∂basis, ∂f_real
@@ -13,13 +15,38 @@ function ChainRulesCore.rrule(::typeof(r_to_G), basis::PlaneWaveBasis, f_real::A
     return f_fourier, r_to_G_pullback
 end
 
+function ChainRulesCore.rrule(::typeof(r_to_G), basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray)
+    @warn "r_to_G kpoint rrule triggered."
+    f_fourier = r_to_G(basis, kpt, f_real)
+    function r_to_G_pullback(Δf_fourier)
+        ∂f_real = G_to_r(basis, kpt, complex(Δf_fourier)) * basis.r_to_G_normalization / basis.G_to_r_normalization
+        ∂normalization = sum(Δf_fourier .* f_fourier)
+        ∂basis = Tangent{typeof(basis)}(;r_to_G_normalization=∂normalization)
+        return NoTangent(), ∂basis, NoTangent(), ∂f_real
+    end
+    return f_fourier, r_to_G_pullback
+end
+
 function ChainRulesCore.rrule(::typeof(G_to_r), basis::PlaneWaveBasis, f_fourier::AbstractArray; kwargs...)
+    @warn "G_to_r rrule triggered."
     f_real = G_to_r(basis, f_fourier; kwargs...)
     function G_to_r_pullback(Δf_real)
-        ∂f_fourier = (basis.opFFT * Δf_real) * (length(basis.opFFT) / (basis.model.unit_cell_volume))
+        ∂f_fourier = r_to_G(basis, Δf_real) * basis.G_to_r_normalization / basis.r_to_G_normalization
         ∂normalization = sum(Δf_real .* f_real)
         ∂basis = Tangent{typeof(basis)}(;G_to_r_normalization=∂normalization)
         return NoTangent(), ∂basis, ∂f_fourier
+    end
+    return f_real, G_to_r_pullback
+end
+
+function ChainRulesCore.rrule(::typeof(G_to_r), basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector)
+    @warn "G_to_r kpoint rrule triggered."
+    f_real = G_to_r(basis, kpt, f_fourier)
+    function G_to_r_pullback(Δf_real) # TODO verify soundness
+        ∂f_fourier = r_to_G(basis, kpt, complex(Δf_real)) * basis.G_to_r_normalization / basis.r_to_G_normalization
+        ∂normalization = sum(Δf_real .* f_real)
+        ∂basis = Tangent{typeof(basis)}(;G_to_r_normalization=∂normalization)
+        return NoTangent(), ∂basis, NoTangent(), ∂f_fourier
     end
     return f_real, G_to_r_pullback
 end
@@ -215,3 +242,71 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, E::AtomicLoc
     return term, AtomicLocal_pullback
 end
 
+# TODO compute_density rrule
+
+# function _compute_partial_density(basis, kpt, ψk, occupation)
+
+#     ρk_real = map(1:size(ψk, 2)) do n
+#         ψnk = @views ψk[:, n]
+#         ψnk_real_tid = G_to_r(basis, kpt, ψnk)
+#         occupation[n] .* abs2.(ψnk_real_tid)
+#     end
+#     ρk_real = sum(ρk_real)
+
+#     # FFT and return
+#     r_to_G(basis, ρk_real)
+# end
+
+# function _autodiff_compute_density(basis::PlaneWaveBasis, ψ, occupation)
+#     n_k = length(basis.kpoints)
+#     n_spin = basis.model.n_spin_components
+
+#     # Allocate an accumulator for ρ in each thread for each spin component
+#     T = promote_type(eltype(basis), eltype(ψ[1]))
+#     ρaccus = [similar(ψ[1], T, (basis.fft_size..., n_spin))
+#               for ithread in 1:Threads.nthreads()]
+
+#     # # TODO Better load balancing ... the workload per kpoint depends also on
+#     # #      the number of symmetry operations. We know heuristically that the Gamma
+#     # #      point (first k-Point) has least symmetry operations, so we will put
+#     # #      some extra workload there if things do not break even
+#     # kpt_per_thread = [ifelse(i <= n_k, [i], Vector{Int}()) for i in 1:Threads.nthreads()]
+#     # if n_k >= Threads.nthreads()
+#     #     kblock = floor(Int, length(basis.kpoints) / Threads.nthreads())
+#     #     kpt_per_thread = [collect(1:length(basis.kpoints) - (Threads.nthreads() - 1) * kblock)]
+#     #     for ithread in 2:Threads.nthreads()
+#     #         push!(kpt_per_thread, kpt_per_thread[end][end] .+ collect(1:kblock))
+#     #     end
+#     #     @assert kpt_per_thread[end][end] == length(basis.kpoints)
+#     # end
+
+#     Threads.@threads for (ikpts, ρaccu) in collect(zip(kpt_per_thread, ρaccus))
+#         ρaccu .= 0
+#         ρ_k = similar(ψ[1], T, basis.fft_size)
+#         for ik in ikpts
+#             kpt = basis.kpoints[ik]
+#             compute_partial_density!(ρ_k, basis, kpt, ψ[ik], occupation[ik])
+#             lowpass_for_symmetry!(ρ_k, basis)
+#             # accumulates all the symops of ρ_k into ρaccu
+#             accumulate_over_symmetries!(ρaccu[:, :, :, kpt.spin], ρ_k, basis, basis.ksymops[ik])
+#         end
+#     end
+
+#     for (ik, kpt) in enumerate(basis.kpoints)
+
+#     end
+
+#     # Count the number of k-points modulo spin
+#     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
+#     count = mpi_sum(count, basis.comm_kpts)
+#     ρ = sum(ρaccus) ./ count
+#     mpi_sum!(ρ, basis.comm_kpts)
+#     G_to_r(basis, ρ)
+# end
+
+# function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(compute_density), basis::PlaneWaveBasis, ψ, occupation)
+#     @warn "simplified compute_density rrule triggered."
+#     ρ = compute_density(basis, ψ, occupation)
+#     _ρ, compute_density_pullback = rrule_via_ad(config, _autodiff_compute_density, basis, ψ, occupation)
+#     return ρ, compute_density_pullback
+# end
