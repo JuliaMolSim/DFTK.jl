@@ -24,13 +24,19 @@ struct TermHartree <: Term
     poisson_green_coeffs
 end
 function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
+    model = basis.model
+
     # Solving the Poisson equation ΔV = -4π ρ in Fourier space
     # is multiplying elementwise by 4π / |G|^2.
-    poisson_green_coeffs = 4T(π) ./ [sum(abs2, G)
-                                     for G in G_vectors_cart(basis)]
+    poisson_green_coeffs = 4T(π) ./ [sum(abs2, G) for G in G_vectors_cart(basis)]
+    if !isempty(model.atoms)
+        # Assume positive charge from nuclei is exactly compensated by the electrons
+        sum_charges = sum(length(positions) * charge_ionic(elem)
+                          for (elem, positions) in model.atoms)
+        @assert sum_charges == model.n_electrons
+    end
+    poisson_green_coeffs[1] = 0  # Compensating charge background => Zero DC
 
-    # Zero the DC component (i.e. assume a compensating charge background)
-    poisson_green_coeffs[1] = 0
     TermHartree(basis, scaling_factor, scaling_factor .* poisson_green_coeffs)
 end
 
@@ -48,7 +54,6 @@ end
 end
 
 function compute_kernel(term::TermHartree; kwargs...)
-    @assert term.basis.model.spin_polarization in (:none, :spinless, :collinear)
     vc_G = term.poisson_green_coeffs
     # Note that `real` here: if omitted, will result in high-frequency noise of even FFT grids
     K = real(G_to_r_matrix(term.basis) * Diagonal(vec(vc_G)) * r_to_G_matrix(term.basis))
@@ -57,10 +62,9 @@ function compute_kernel(term::TermHartree; kwargs...)
     n_spin == 1 ? K : [K K; K K]
 end
 
-function apply_kernel(term::TermHartree, dρ; kwargs...)
-    @assert term.basis.model.spin_polarization in (:none, :spinless, :collinear)
-    dV = zero(dρ)
-    dρtot = total_density(dρ)
-    # note broadcast here: dV is 4D, and all its spin components get the same potential
-    dV .= G_to_r(term.basis, term.poisson_green_coeffs .* r_to_G(term.basis, dρtot))
+function apply_kernel(term::TermHartree, δρ; kwargs...)
+    δV = zero(δρ)
+    δρtot = total_density(δρ)
+    # note broadcast here: δV is 4D, and all its spin components get the same potential
+    δV .= G_to_r(term.basis, term.poisson_green_coeffs .* r_to_G(term.basis, δρtot))
 end

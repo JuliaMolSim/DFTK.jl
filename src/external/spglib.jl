@@ -64,7 +64,8 @@ end
     # Ask spglib for symmetry operations and for irreducible mesh
     spg_positions, spg_numbers, spg_spins, _, collinear = spglib_atoms(atoms, magnetic_moments)
 
-    max_ops = 384  # Maximal number of symmetry operations spglib searches for
+    # Maximal number of symmetry operations spglib searches for
+    max_ops = max(384, 50 * length(spg_numbers))
     spg_rotations    = Array{Cint}(undef, 3, 3, max_ops)
     spg_translations = Array{Cdouble}(undef, 3, max_ops)
     if collinear

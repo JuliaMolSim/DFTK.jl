@@ -9,7 +9,7 @@ struct Model{T <: Real}
     recip_lattice::Mat3{T}
     unit_cell_volume::T
     recip_cell_volume::T
-    dim::Int  # Dimension of the system; 3 unless `lattice` has zero columns
+    n_dim::Int  # Dimension of the system; 3 unless `lattice` has zero columns
 
     # Electrons, occupation and smearing function
     n_electrons::Int  # usually consistent with `atoms` field, but doesn't have to
@@ -20,7 +20,7 @@ struct Model{T <: Real}
     #     :collinear  Spin is polarized, but everywhere in the same direction.
     #                 αα ̸= ββ, αβ = βα = 0, 2 spin components treated
     #     :full       Generic magnetization, non-uniform direction.
-    #                 αβ, βα, αα, ββ all nonzero, different
+    #                 αβ, βα, αα, ββ all nonzero, different (not supported)
     #     :spinless   No spin at all ("spinless fermions", "mathematicians' electrons").
     #                 The difference with :none is that the occupations are 1 instead of 2
     spin_polarization::Symbol
@@ -97,26 +97,28 @@ function Model(lattice::AbstractMatrix{T};
     end
 
     # Special handling of 1D and 2D systems, and sanity checks
-    d = 3 - count(iszero, eachcol(lattice))
-    d > 0 || error("Check your lattice; we do not do 0D systems")
-    for i = d+1:3
+    n_dim = 3 - count(iszero, eachcol(lattice))
+    n_dim > 0 || error("Check your lattice; we do not do 0D systems")
+    for i = n_dim+1:3
         norm(lattice[:, i]) == norm(lattice[i, :]) == 0 || error(
             "For 1D and 2D systems, the non-empty dimensions must come first")
     end
-    cond(lattice[1:d, 1:d]) > 1e-5 || @warn "Your lattice is badly conditioned, the computation is likely to fail."
+    _is_well_conditioned(lattice[1:n_dim, 1:n_dim]) || @warn (
+        "Your lattice is badly conditioned, the computation is likely to fail.")
 
     # Compute reciprocal lattice and volumes.
     # recall that the reciprocal lattice is the set of G vectors such
     # that G.R ∈ 2π ℤ for all R in the lattice
     recip_lattice = zeros(T, 3, 3)
-    recip_lattice[1:d, 1:d] = 2T(π)*inv(lattice[1:d, 1:d]')
+    recip_lattice[1:n_dim, 1:n_dim] = 2T(π)*inv(lattice[1:n_dim, 1:n_dim]')
     recip_lattice = Mat3{T}(recip_lattice)
     # in the 1D or 2D case, the volume is the length/surface
-    unit_cell_volume = abs(det(lattice[1:d, 1:d]))
-    recip_cell_volume = abs(det(recip_lattice[1:d, 1:d]))
+    unit_cell_volume  = abs(det(lattice[1:n_dim, 1:n_dim]))
+    recip_cell_volume = abs(det(recip_lattice[1:n_dim, 1:n_dim]))
 
     spin_polarization in (:none, :collinear, :full, :spinless) ||
         error("Only :none, :collinear, :full and :spinless allowed for spin_polarization")
+    spin_polarization == :full && error("Full spin polarization not yet supported")
     !isempty(magnetic_moments) && !(spin_polarization in (:collinear, :full)) && @warn(
         "Non-empty magnetic_moments on a Model without spin polarization detected."
     )
@@ -138,7 +140,7 @@ function Model(lattice::AbstractMatrix{T};
     symmetries == false && (symmetries = [identity_symop()])
     @assert !isempty(symmetries)  # Identity has to be always present.
 
-    Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, d, n_electrons,
+    Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, n_dim, n_electrons,
              spin_polarization, n_spin, T(temperature), smearing, atoms, terms, symmetries)
 end
 Model(lattice::AbstractMatrix{T}; kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
@@ -205,10 +207,11 @@ end
 Explicit spin components of the KS orbitals and the density
 """
 function spin_components(spin_polarization::Symbol)
-    @assert spin_polarization in (:none, :spinless, :collinear)
     spin_polarization == :collinear && return (:up, :down  )
     spin_polarization == :none      && return (:both,      )
     spin_polarization == :spinless  && return (:spinless,  )
     spin_polarization == :full      && return (:undefined, )
 end
 spin_components(model::Model) = spin_components(model.spin_polarization)
+
+_is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)

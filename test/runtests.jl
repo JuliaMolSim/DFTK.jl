@@ -37,7 +37,7 @@ Random.seed!(0)
 @testset "DFTK.jl" begin
     # Super quick tests
     if "all" in TAGS || "quick" in TAGS
-        include("hydrogen_all_electron.jl")
+        include("helium_all_electron.jl")
         include("silicon_lda.jl")
         include("iron_pbe.jl")
     end
@@ -45,7 +45,7 @@ Random.seed!(0)
     # Synthetic tests at the beginning, so it fails faster if
     # something has gone badly wrong
     if "all" in TAGS || "functionality" in TAGS
-        include("hydrogen_all_electron.jl")
+        include("helium_all_electron.jl")
         include("silicon_redHF.jl")
         include("silicon_pbe.jl")
         include("scf_compare.jl")
@@ -93,6 +93,7 @@ Random.seed!(0)
         include("energies_guess_density.jl")
         include("compute_density.jl")
         include("forces.jl")
+        include("stresses.jl")
     end
 
     if "all" in TAGS
@@ -102,6 +103,7 @@ Random.seed!(0)
         include("chi0.jl")
         include("kernel.jl")
         include("serialisation.jl")
+        include("compute_jacobian_eigen.jl")
     end
 
     if "all" in TAGS && mpi_master()

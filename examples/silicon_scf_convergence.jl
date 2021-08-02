@@ -9,7 +9,7 @@ using LinearAlgebra
 
 # Calculation parameters
 kgrid = [1, 1, 1]
-Ecut = 15 # 30 in the paper
+Ecut = 15  # 30 in the paper
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
 tol = 1e-10
@@ -38,7 +38,7 @@ global as = (10.26, 11.405)
 for a in as
     lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
     model = model_LDA(lattice, atoms)
-    basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+    basis = PlaneWaveBasis(model; Ecut, kgrid)
     res = self_consistent_field(basis; opts...)
     gap = res.eigenvalues[1][5] - res.eigenvalues[1][4]
     errs_anderson = copy(resids)

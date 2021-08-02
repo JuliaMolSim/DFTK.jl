@@ -30,6 +30,6 @@ function compute_kernel(term::TermPowerNonlinearity; ρ, kwargs...)
     K = Diagonal(vec(_pnl_kernel(term.C, term.α, ρ)))
 end
 
-function apply_kernel(term::TermPowerNonlinearity, dρ; ρ, kwargs...)
-    _pnl_kernel(term.C, term.α, ρ) .* dρ
+function apply_kernel(term::TermPowerNonlinearity, δρ; ρ, kwargs...)
+    _pnl_kernel(term.C, term.α, ρ) .* δρ
 end

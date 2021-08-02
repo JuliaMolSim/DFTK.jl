@@ -1,6 +1,6 @@
 using Test
 using DFTK
-import DFTK: Applyχ0Model
+import DFTK: Applyχ0Model, filled_occupation, select_occupied_orbitals
 
 include("testcases.jl")
 
@@ -23,6 +23,17 @@ include("testcases.jl")
         @testset "Direct minimization" begin
             ρ_dm = direct_minimization(basis; g_tol=tol).ρ
             @test maximum(abs.(ρ_dm - ρ_nl)) < sqrt(tol) / 10
+        end
+    end
+
+    # Run Newton algorithm
+    if mpi_nprocs() == 1  # Distributed implementation not yet available
+        @testset "Newton" begin
+            scfres_start = self_consistent_field(basis, maxiter=1)
+            # remove virtual orbitals
+            ψ0 = select_occupied_orbitals(basis, scfres_start.ψ)
+            ρ_newton = newton(basis, ψ0; tol=tol).ρ
+            @test maximum(abs.(ρ_newton - ρ_nl)) < sqrt(tol) / 10
         end
     end
 
@@ -60,6 +71,38 @@ include("testcases.jl")
     @test maximum(abs.(scfres.ρ - ρ_nl)) < sqrt(tol) / 10
 end
 
+@testset "Compare different SCF algorithms (collinear spin, no temperature)" begin
+    Ecut = 3
+    n_bands = 6
+    fft_size = [9, 9, 9]
+    tol = 1e-7
+
+    Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
+    magnetic_moments = [Si => [1, 1]]
+    model = model_DFT(silicon.lattice, [Si => silicon.positions], [:lda_xc_teter93];
+                      magnetic_moments=magnetic_moments)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    ρ_nl = self_consistent_field(basis; tol=tol).ρ
+
+    # Run DM
+    if mpi_nprocs() == 1  # Distributed implementation not yet available
+        @testset "Direct minimization" begin
+            ρ_dm = direct_minimization(basis; g_tol=tol).ρ
+            @test maximum(abs.(ρ_dm - ρ_nl)) < sqrt(tol) / 10
+        end
+    end
+
+    # Run Newton algorithm
+    if mpi_nprocs() == 1  # Distributed implementation not yet available
+        @testset "Newton" begin
+            scfres_start = self_consistent_field(basis, maxiter=1)
+            # remove virtual orbitals
+            ψ0 = select_occupied_orbitals(basis, scfres_start.ψ)
+            ρ_newton = newton(basis, ψ0; tol=tol).ρ
+            @test maximum(abs.(ρ_newton - ρ_nl)) < sqrt(tol) / 10
+        end
+    end
+end
 
 @testset "Compare different SCF algorithms (no spin, temperature)" begin
     Ecut = 3
@@ -86,7 +129,6 @@ end
 
 
 @testset "Compare different SCF algorithms (collinear spin, temperature)" begin
-    Ecut = 11
     n_bands = 8
     fft_size = [13, 13, 13]
     tol = 1e-7
@@ -96,7 +138,7 @@ end
     model = model_LDA(iron_bcc.lattice, [Fe => iron_bcc.positions],
                       temperature=0.01, magnetic_moments=magnetic_moments,
                       spin_polarization=:collinear)
-    basis = PlaneWaveBasis(model, Ecut; fft_size=fft_size, kgrid=[3, 3, 3])
+    basis = PlaneWaveBasis(model; Ecut=11, fft_size=fft_size, kgrid=[3, 3, 3])
 
     # Reference: Default algorithm
     ρ0     = guess_density(basis, magnetic_moments)

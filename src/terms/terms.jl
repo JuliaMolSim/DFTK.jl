@@ -56,53 +56,8 @@ breaks_symmetries(term_builder::Magnetic) = true
 include("anyonic.jl")
 breaks_symmetries(term_builder::Anyonic) = true
 
-
 # forces computes either nothing or an array forces[el][at][α]
 compute_forces(term::Term, ψ, occ; kwargs...) = nothing  # by default, no force
-
-"""
-Compute the forces of an obtained SCF solution. Returns the forces wrt. the fractional
-lattice vectors. To get cartesian forces use [`compute_forces_cart`](@ref).
-Returns a list of lists of forces
-`[[force for atom in positions] for (element, positions) in atoms]`
-which has the same structure as the `atoms` object passed to the underlying [`Model`](@ref).
-"""
-@timing function compute_forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
-    if !MPI.Allreduce(any(iszero(kpt.coordinate) for kpt in basis.kpoints), &, basis.comm_kpts)
-        @warn "Forces for shifted k-Grids not tested"
-    end
-
-    # TODO optimize allocs here
-    T = eltype(basis)
-    forces = [zeros(Vec3{T}, length(positions)) for (element, positions) in basis.model.atoms]
-    for term in basis.terms
-        f_term = compute_forces(term, ψ, occ; kwargs...)
-        if !isnothing(f_term)
-            forces += f_term
-        end
-    end
-    forces
-end
-
-"""
-Compute the cartesian forces of an obtained SCF solution in Hartree / Bohr.
-Returns a list of lists of forces
-`[[force for atom in positions] for (element, positions) in atoms]`
-which has the same structure as the `atoms` object passed to the underlying [`Model`](@ref).
-"""
-function compute_forces_cart(basis::PlaneWaveBasis, ψ, occ; kwargs...)
-    lattice = basis.model.lattice
-    forces = compute_forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
-    [[lattice \ f for f in forces_for_element] for forces_for_element in forces]
-end
-
-function compute_forces(scfres)
-    compute_forces(scfres.basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
-end
-function compute_forces_cart(scfres)
-    compute_forces_cart(scfres.basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
-end
-
 
 @doc raw"""
     compute_kernel(basis::PlaneWaveBasis; kwargs...)
@@ -134,26 +89,26 @@ compute_kernel(::Term; kwargs...) = nothing  # By default no kernel
 
 
 """
-    apply_kernel(basis::PlaneWaveBasis, dρ; kwargs...)
+    apply_kernel(basis::PlaneWaveBasis, δρ; kwargs...)
 
-Computes the potential response to a perturbation dρ in real space,
+Computes the potential response to a perturbation δρ in real space,
 as a 4D (i,j,k,σ) array.
 """
-@timing function apply_kernel(basis::PlaneWaveBasis, dρ;
+@timing function apply_kernel(basis::PlaneWaveBasis, δρ;
                               RPA=false, kwargs...)
     n_spin = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
 
-    dV = zero(dρ)
+    δV = zero(δρ)
     for term in basis.terms
         # Skip XC term if RPA is selected
         RPA && term isa TermXc && continue
 
-        dV_term = apply_kernel(term, dρ; kwargs...)
-        if !isnothing(dV_term)
-            dV .+= dV_term
+        δV_term = apply_kernel(term, δρ; kwargs...)
+        if !isnothing(δV_term)
+            δV .+= δV_term
         end
     end
-    dV
+    δV
 end
-apply_kernel(::Term, dρ; kwargs...) = nothing  # by default, no kernel
+apply_kernel(::Term, δρ; kwargs...) = nothing  # by default, no kernel

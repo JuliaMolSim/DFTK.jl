@@ -38,7 +38,7 @@ model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe];
                   temperature=temperature,
                   smearing=DFTK.Smearing.FermiDirac())
 kgrid = kgrid_size_from_minimal_spacing(lattice, kspacing)
-basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid);
+basis = PlaneWaveBasis(model; Ecut, kgrid);
 
 # Finally we run the SCF. Two magnesium atoms in
 # our pseudopotential model result in four valence electrons being explicitly

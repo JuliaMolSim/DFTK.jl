@@ -51,6 +51,23 @@ one can find a reduced set of ``k``-points
 (the *irreducible ``k``-points*) such that the eigenvectors at the
 reducible ``k``-points can be deduced from those at the irreducible ``k``-points.
 
+## Symmetrization
+Quantities that are calculated by summing over the reducible ``k`` points can be
+calculated by first summing over the irreducible ``k`` points and then symmetrizing. Let ``f`` be a ``k``-dependent quantity to sum (for instance, energies, densities, forces, etc). ``f`` transforms in a particular way under symmetries: ``f(Sk) = S(f(k))`` where the (linear) action of ``S`` on ``f`` depends on the particular ``f``. Let ``\mathcal S`` the group of all crystal symmetries that leave the Brillouin zone mesh invariant.
+```math
+\begin{aligned}
+\sum_{k\ \mathrm{reducible}} f(k)
+&= \sum_{k\ \mathrm{irreducible}} \sum_{S\text{ mapping $k$ to a reducible point}} S(f(k)) \\
+&= \sum_{k\ \mathrm{irreducible}} \frac{1}{N_{S,k}} \sum_{S \in \mathcal S} S(f(k))\\
+&= \frac 1 {N_S} \sum_{S \in \mathcal S} \left(\sum_{k\ \mathrm{irreducible}} \frac{N_S}{N_{S,k}} f(k) \right)
+\end{aligned}
+```
+Here, ``N_S = |\mathcal S|`` and ``N_{S,k}`` are the total number of symmetry operations and the
+number of operations such that ``k=Sk``, respectively. The latter operations form
+a subgroup of the group of all symmetry operations, sometimes called
+the "small/little group of ``k``".
+The factor ``\frac{N_S}{N_{S,k}}``, also equal to the ratio of number of reducible points encoded by this particular irreducible ``k`` to the total number of reducible points, determines the weight of each irreducible ``k`` point.
+
 ## Example
 ```@setup symmetries
 using DFTK
@@ -70,13 +87,13 @@ and a `[4, 4, 4]` Monkhorst-Pack grid.
 First we perform the DFT calculation disabling symmetry handling
 ```@example symmetries
 model = model_LDA(lattice, atoms)
-basis_nosym = PlaneWaveBasis(model, Ecut; kgrid=kgrid, use_symmetry=false)
+basis_nosym = PlaneWaveBasis(model; Ecut, kgrid, use_symmetry=false)
 scfres_nosym = @time self_consistent_field(basis_nosym, tol=1e-8)
 nothing  # hide
 ```
 and then redo it using symmetry (the default):
 ```@example symmetries
-basis_sym = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+basis_sym = PlaneWaveBasis(model; Ecut, kgrid)
 scfres_sym = @time self_consistent_field(basis_sym, tol=1e-8)
 nothing  # hide
 ```

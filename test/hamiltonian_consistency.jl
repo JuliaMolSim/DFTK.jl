@@ -10,11 +10,12 @@ function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8, kgrid=[1, 2,
                                lattice=silicon.lattice, Ecut=10, spin_polarization=:none)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     @testset "Hamiltonian consistency $(typeof(term)) $sspol" begin
-        Si = ElementPsp(14, psp=load_psp(silicon.psp))
+        n_dim = 3 - count(iszero, eachcol(lattice))
+        Si = n_dim == 3 ? ElementPsp(14, psp=load_psp(silicon.psp)) : ElementCoulomb(:Si)
         atoms = [Si => silicon.positions]
         model = Model(lattice; n_electrons=silicon.n_electrons, atoms=atoms, terms=[term],
                       spin_polarization=spin_polarization)
-        basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, use_symmetry=false)
+        basis = PlaneWaveBasis(model; Ecut, kgrid, use_symmetry=false)
 
         n_electrons = silicon.n_electrons
         n_bands = div(n_electrons, 2)
@@ -27,8 +28,8 @@ function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8, kgrid=[1, 2,
         occupation = [occ * occ_scaling for occ in occupation]
         ρ = compute_density(basis, ψ, occupation)
 
-        dψ = [randn(ComplexF64, size(ψ[ik])) for ik = 1:length(basis.kpoints)]
-        ψ_trial = ψ .+ ε .* dψ
+        δψ = [randn(ComplexF64, size(ψ[ik])) for ik = 1:length(basis.kpoints)]
+        ψ_trial = ψ .+ ε .* δψ
         ρ_trial = compute_density(basis, ψ_trial, occupation)
 
         @assert length(basis.terms) == 1
@@ -39,10 +40,10 @@ function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8, kgrid=[1, 2,
         diff_predicted = 0.0
         for (ik, kpt) in enumerate(basis.kpoints)
             Hψ = ham.blocks[ik]*ψ[ik]
-            dψHψ = sum(occupation[ik][iband] * real(dot(dψ[ik][:, iband], Hψ[:, iband]))
+            δψHψ = sum(occupation[ik][iband] * real(dot(δψ[ik][:, iband], Hψ[:, iband]))
                        for iband=1:n_bands)
 
-            diff_predicted += 2 * basis.kweights[ik] * dψHψ
+            diff_predicted += 2 * basis.kweights[ik] * δψHψ
         end
         diff_predicted = mpi_sum(diff_predicted, basis.comm_kpts)
 

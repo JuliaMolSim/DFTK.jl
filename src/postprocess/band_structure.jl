@@ -3,6 +3,17 @@ using PyCall
 # Functionality for computing band structures
 
 function high_symmetry_kpath(model; kline_density=20)
+    if model.n_dim == 1  # Return fast for 1D model
+        # kline_density = Number of kpoint per Angström
+        # Length of the kpath is lattice[1, 1] in 1D
+        n_points = ceil(Int, kline_density / austrip(1u"Å") * model.lattice[1, 1])
+        return (
+            kcoords = [[coord, 0, 0] for coord in range(-1//2, 1//2, length=1+n_points)],
+            klabels=Dict("Γ" => zeros(3), "-1/2" => [-0.5, 0.0, 0.0], "1/2" => [0.5, 0, 0]),
+            kpath=[[raw"-1/2", raw"1/2"]],
+        )
+    end
+
     # TODO This is the last function that hard-depends on pymatgen. The way to solve this
     # is to use the julia version implemented in
     # https://github.com/louisponet/DFControl.jl/blob/master/src/structure.jl
@@ -80,7 +91,6 @@ end
 function prepare_band_data(band_data; datakeys=[:λ, :λerror],
                            klabels=Dict{String, Vector{Float64}}())
     basis = band_data.basis
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     n_spin   = basis.model.n_spin_components
     n_kcoord = length(basis.kpoints) ÷ n_spin
     n_bands  = nothing
@@ -130,9 +140,6 @@ Determine whether the provided bands indicate the material is a metal,
 i.e. where bands are cut by the Fermi level.
 """
 function is_metal(band_data, εF, tol=1e-4)
-    # This assumes no spin polarization
-    @assert band_data.basis.model.spin_polarization in (:none, :spinless, :collinear)
-
     n_bands = length(band_data.λ[1])
     n_kpoints = length(band_data.λ)
     for ib in 1:n_bands

@@ -14,13 +14,12 @@ function run_oxygen_pbe(T; kwargs...)
     ref_magn = 1.99231275
 
     # Produce reference data and guess for this configuration
-    Ecut = 13
     O = ElementPsp(o2molecule.atnum, psp=load_psp("hgh/pbe/O-q6.hgh"))
     magnetic_moments = [O => [1., 1.]]
     model = model_PBE(Array{T}(o2molecule.lattice), [O => o2molecule.positions],
                       temperature=0.02, smearing=smearing=Smearing.Gaussian(),
                       magnetic_moments=magnetic_moments)
-    basis = PlaneWaveBasis(model, Ecut; fft_size=[24, 24, 30], kgrid=[1, 1, 1])
+    basis = PlaneWaveBasis(model; Ecut=13, fft_size=[24, 24, 30], kgrid=[1, 1, 1])
 
     scfres = run_scf_and_compare(T, basis, ref_evals, ref_etot;
                                  ρ=guess_density(basis, magnetic_moments),

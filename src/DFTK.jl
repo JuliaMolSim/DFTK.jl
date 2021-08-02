@@ -22,6 +22,7 @@ export setup_threading, disable_threading
 include("common/timer.jl")
 include("common/asserting.jl")
 include("common/constants.jl")
+include("common/ortho.jl")
 include("common/types.jl")
 include("common/spherical_harmonics.jl")
 include("common/split_evenly.jl")
@@ -64,8 +65,6 @@ include("energies.jl")
 export Hamiltonian
 export HamiltonianBlock
 export energy_hamiltonian
-export compute_forces
-export compute_forces_cart
 export Kinetic
 export ExternalFromFourier
 export ExternalFromReal
@@ -115,12 +114,14 @@ export scf_anderson_solver
 export scf_CROP_solver
 export self_consistent_field
 export direct_minimization
+export newton
 export load_scfres, save_scfres
 include("scf/chi0models.jl")
 include("scf/mixing.jl")
 include("scf/scf_solvers.jl")
 include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
+include("scf/newton.jl")
 include("scf/scfres.jl")
 include("scf/potential_mixing.jl")
 
@@ -162,6 +163,11 @@ export high_symmetry_kpath
 export plot_bandstructure
 include("postprocess/band_structure.jl")
 
+export compute_forces
+export compute_forces_cart
+include("postprocess/forces.jl")
+export compute_stresses
+include("postprocess/stresses.jl")
 export compute_dos
 export compute_ldos
 export compute_nos
@@ -173,13 +179,17 @@ include("postprocess/chi0.jl")
 export compute_current
 include("postprocess/current.jl")
 
+# ForwardDiff workarounds
+include("workarounds/dummy_inplace_fft.jl")
+include("workarounds/forwarddiff_rules.jl")
+
 function __init__()
     # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
     # DoubleFloats has been loaded (via a "using" or an "import").
     # See https://github.com/JuliaPackaging/Requires.jl for details.
     #
-    # The global variable GENERIC_FFT_LOADED makes sure that things are only
-    # included once.
+    # The global variable GENERIC_FFT_LOADED makes sure that things are
+    # only included once.
     @require IntervalArithmetic="d1acc4aa-44c8-5952-acd4-ba5d80a2a253" begin
         include("workarounds/intervals.jl")
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
