@@ -1,5 +1,5 @@
 using Test
-using DFTK: write_eig, write_amn, write_mmn, read_nnkp
+using DFTK
 using wannier90_jll
 
 if( (mpi_nprocs() == 1) && !(Sys.iswindows()) )
@@ -16,13 +16,13 @@ if( (mpi_nprocs() == 1) && !(Sys.iswindows()) )
     model = model_PBE(lattice,atoms)
 
     kgrid = [4,4,4] # mp grid
-    Ecut = 20
-    basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid, use_symmetry=false)
+    Ecut = 5
+    basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 
     scfres = self_consistent_field(basis, tol=1e-12, n_bands = 12, n_ep_extra = 0 );
     ψ = scfres.ψ
     n_bands = size(ψ[1],2)
-    
+
     # Run wannierization with gaussian guess
     run_wannier90("testcases_WANNIER90/Si", scfres, 8;
                   bands_plot=true, num_print_cycles=50, num_iter=500,
@@ -40,7 +40,7 @@ if( (mpi_nprocs() == 1) && !(Sys.iswindows()) )
         @test isfile("testcases_WANNIER90/Si.amn")
         @test isfile("testcases_WANNIER90/Si.eig")
     end
-    
+
     # remove produced files
     for output_file in filter(startswith("Si"), readdir("testcases_WANNIER90"))
         rm("testcases_WANNIER90/$(output_file)")
@@ -51,18 +51,19 @@ if( (mpi_nprocs() == 1) && !(Sys.iswindows()) )
     wannier90() do exe
         run(`$exe -pp $prefix`)
     end
-    nn_kpts, nn_num, projs = read_nnkp(prefix)
-    
-    write_eig(prefix, scfres)
-    write_amn(prefix, scfres, 8; guess="win", projs=projs)
-    write_mmn(prefix, scfres, nn_kpts, nn_num)
+    nn_kpts, nn_num, projs = DFTK.read_nnkp(prefix)
+
+    scfres_unfold = DFTK.unfold_bz(scfres);
+    DFTK.write_eig(prefix, scfres_unfold)
+    DFTK.write_amn(prefix, scfres_unfold, 8; guess="win", projs=projs)
+    DFTK.write_mmn(prefix, scfres_unfold, nn_kpts, nn_num)
 
     @testset "Test production of the .mmn, .amn and .eig files" begin
         @test isfile("testcases_WANNIER90/W90_guess_Si.mmn")
         @test isfile("testcases_WANNIER90/W90_guess_Si.amn")
         @test isfile("testcases_WANNIER90/W90_guess_Si.eig")
     end
-    
+
     # remove produced files
     for postfix in ("eig","mmn","amn","wout","nnkp")
         rm("$(prefix).$(postfix)")

@@ -1,34 +1,6 @@
-using ProgressMeter
 using Dates
 using wannier90_jll
 
-# """
-#     Unfold given basis and scfres needed to compute Mmn and Amn matrices
-#     for wannierization.
-#     # TODO: replace by "unfold_basis_and_scfres!" ?
-#     # Also not optimal since this function runs through ksymops 2 times:
-#     # first in PlaneWaveBasis and then in the for loop.
-# """
-# function unfold_basis_and_scfres(scfres, basis)
-#     # First unfold the basis
-#     unfolded_basis = unfold_basis(basis)
-    
-#     # Compute Ψk on the unfolded_k_points
-#     unfolded_ψ = empty(scfres.ψ); eigenvalues=empty(scfres.eigenvalues);
-#     occupation=empty(scfres.occupation)
-    
-#     for (i,k) in enumerate(basis.kpoints)
-#         for (S,τ) in basis.ksymops[i]
-#             push!(unfolded_ψ, apply_ksymop((S,τ), basis, k, scfres.ψ[i])[2])
-#             push!(eigenvalues, scfres.eigenvalues[i])
-#             push!(occupation, scfres.occupation[i])
-#         end
-#     end
-#     unfolded_scfres = merge(scfres, (basis=unfolded_basis, ψ = unfolded_ψ,
-#                                      occupation=occupation, eigenvalues=eigenvalues))
-#     unfolded_scfres
-# end
-    
 """
     Create a .win file for Wannier90, compatible with the system studied with DFTK.
     Parameters to Wannier90 can be added as kwargs : e.g. num_iter = 500.
@@ -88,7 +60,7 @@ function write_win(prefix::String, basis, ψ,
                 A,B = path[1][i],path[1][i+1]
                 (A == "\\Gamma") && (A = "Γ")
                 (B == "\\Gamma") && (B = "Γ")
-            
+
                 # kpoints are writen in the file with normalized coordinates
                 k_A = round.(DFTK.normalize_kpoint_coordinate.(get!(labels,A,1)),
                              digits = 5)
@@ -149,6 +121,7 @@ function read_nnkp(prefix::String)
     nn_kpts =  [parse.(Int,split(l,' ',keepempty = false))
                 for l in ln[i_nn_kpts[1]+2:i_nn_kpts[2]-1] ]
 
+    # Do we keep wannier90's guesses ?
     # Extract projections block : needed for win guesses only
     i_projs = findall(x-> endswith(x,"projections"),ln) # 1st and last line of the block   
     @assert size(i_projs,1) == 2
@@ -223,7 +196,6 @@ function overlap_Mmn_k_kpb(basis::PlaneWaveBasis, ψ, ik::Integer, ikpb::Integer
     Mkb
 end
 
-
 """
 Iteratively use the preceding function on each k and kpb to generate the whole .mmn file.
 """
@@ -232,8 +204,6 @@ function write_mmn(prefix::String, basis::PlaneWaveBasis, ψ,
     # general parameters
     n_bands = size(ψ[1],2)
     k_size = length(ψ)
-
-    #progress = Progress(size(nn_kpts,1), desc="Computing Mmn overlaps : ")
 
     # Small function for the sake of clarity
     read_nn_kpts(n) = nn_kpts[n][1],nn_kpts[n][2],nn_kpts[n][3:end]
@@ -253,7 +223,6 @@ function write_mmn(prefix::String, basis::PlaneWaveBasis, ψ,
             for ovlp in Mkb
                 write(f, @sprintf("%22.18f %22.18f \n",real(ovlp),imag(ovlp)) )
             end
-            #next!(progress)
         end
     end
     return nothing
@@ -437,8 +406,6 @@ function write_amn(prefix::String, basis::PlaneWaveBasis, ψ, num_wann::Integer;
     n_bands = size(ψ[1],2)
     k_size = size(ψ,1)
 
-    #progress = Progress(k_size, desc="Computing Amn overlaps : ")
-
     # write file
     open("$prefix.amn", "w") do f
         # Header
@@ -456,7 +423,6 @@ function write_amn(prefix::String, basis::PlaneWaveBasis, ψ, num_wann::Integer;
                                      m, n, k, real(Ak[m,n]), imag(Ak[m,n])) )
                 end
             end
-            #next!(progress)
         end
     end
     return nothing
@@ -484,7 +450,11 @@ function run_wannier90(prefix::String, scfres, num_wann::Integer;
     @assert guess ∈ ("gaussian", "win")
     @info "Guess = $guess"
 
-    write_win(prefix, scfres, num_wann; bands_plot=bands_plot, kwargs...)
+    # Unfold scfres to retrieve full k-point list
+    scfres_unfold = unfold_bz(scfres)
+
+    # Write wannier90 input file
+    write_win(prefix, scfres_unfold, num_wann; bands_plot=bands_plot, kwargs...)
 
     # Wannier90 preprocessing task
     wannier90() do exe
@@ -494,9 +464,9 @@ function run_wannier90(prefix::String, scfres, num_wann::Integer;
     nn_kpts, nn_num, projs = read_nnkp(prefix)
 
     # Generate eig, amn and mmn files
-    write_eig(prefix, scfres)
-    write_amn(prefix, scfres, num_wann; centers=centers, projs=projs, guess=guess)
-    write_mmn(prefix, scfres, nn_kpts, nn_num)
+    write_eig(prefix, scfres_unfold)
+    write_amn(prefix, scfres_unfold, num_wann; centers=centers, projs=projs, guess=guess)
+    write_mmn(prefix, scfres_unfold, nn_kpts, nn_num)
 
     # Wannierization
     wannier90() do exe
