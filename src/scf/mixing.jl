@@ -94,7 +94,7 @@ The same as [`KerkerMixing`](@ref), but the Thomas-Fermi wavevector is computed
 from the current density of states at the Fermi level.
 """
 @kwdef struct KerkerDosMixing <: Mixing
-    adjust_temperature = AdjustMixingTemperature()
+    adjust_temperature = IncreaseMixingTemperature()
 end
 @timing "KerkerDosMixing" function mix_density(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
                                                δF; εF, eigenvalues, kwargs...)
@@ -161,11 +161,15 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
   used and not XC kernel)
 - `verbose`: Run the GMRES in verbose mode.
 """
-function HybridMixing(;εr=1.0, kTF=0.8, localization=identity, kwargs...)
-    χ0terms = [DielectricModel(εr=εr, kTF=kTF, localization=localization), LdosModel()]
+function HybridMixing(;εr=1.0, kTF=0.8, localization=identity,
+                      adjust_temperature=IncreaseMixingTemperature(), kwargs...)
+    χ0terms = [DielectricModel(εr=εr, kTF=kTF, localization=localization),
+               LdosModel(;adjust_temperature)]
     χ0Mixing(; χ0terms=χ0terms, kwargs...)
 end
-LdosMixing(; kwargs...) = χ0Mixing(; χ0terms=[LdosModel()], kwargs...)
+function LdosMixing(; adjust_temperature=IncreaseMixingTemperature(), kwargs...)
+    χ0Mixing(; χ0terms=[LdosModel(;adjust_temperature)], kwargs...)
+end
 
 
 @doc raw"""
@@ -220,30 +224,30 @@ end
 end
 
 
-function AdjustMixingTemperature(;factor=25, switch=(1e-3, 0.1), temperature_max=0.5)
-    total_energy = NaN
-    function callback(temperature; energies, n_iter, kwargs...)
-        if isnothing(energies) || iszero(temperature) || temperature > temperature_max
+"""
+Increase the temperature used for computing the SCF preconditioners. Initially the temperature
+is increased by a `factor`, which is then smoothly lowered towards the temperature used
+within the model as the SCF converges. Once the density change is below `above_ρdiff` the
+mixing temperature is equal to the model temperature.
+"""
+function IncreaseMixingTemperature(;factor=25, above_ρdiff=1e-2, temperature_max=0.5)
+    function callback(temperature; n_iter, ρin=nothing, ρout=nothing, info...)
+        if iszero(temperature) || temperature > temperature_max
             return temperature
-        end
-
-        # Update total_energy
-        ΔE = abs(total_energy - energies.total)
-        total_energy = energies.total
-
-        if n_iter ≤ 1 || isnan(ΔE)
+        elseif isnothing(ρin) || isnothing(ρout)
+            return temperature
+        elseif n_iter ≤ 1
             return factor * temperature
-        else
-            # Continuous piecewise linear function on a logarithmic scale
-            # In switch_range it switches from 1 to factor
-            slope       = (  (log10(ΔE)        - log10(switch[1]))
-                           / (log10(switch[2]) - log10(switch[1])))
-            enhancement = clamp(1 + (factor - 1) * slope, 1, factor)
-
-            # Between SCF iterations temperature may never grow
-            temperature = clamp(enhancement * temperature, temperature, temperature_max)
-            temperature_max = temperature
-            return temperature
         end
+
+        # Continuous piecewise linear function on a logarithmic scale
+        # In [log(above_ρdiff), log(above_ρdiff) + 1] it switches from 1 to factor
+        ρdiff = norm(ρout .- ρin)
+        enhancement = clamp(1 + (factor - 1) * log10(ρdiff / above_ρdiff), 1, factor)
+
+        # Between SCF iterations temperature may never grow
+        temperature = clamp(enhancement * temperature, temperature, temperature_max)
+        temperature_max = temperature
+        return temperature
     end
 end

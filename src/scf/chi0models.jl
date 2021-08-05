@@ -15,7 +15,7 @@ where ``D_\text{loc}`` is the local density of states and ``D`` the density of s
 For details see Herbst, Levitt 2020 arXiv:2009.01665
 """
 @kwdef struct LdosModel <: χ0Model
-    adjust_temperature = AdjustMixingTemperature()
+    adjust_temperature = IncreaseMixingTemperature()
 end
 function (χ0::LdosModel)(basis; eigenvalues, ψ, εF, kwargs...)
     n_spin = basis.model.n_spin_components
