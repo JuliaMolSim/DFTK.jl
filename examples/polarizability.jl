@@ -31,7 +31,7 @@ tol = 1e-8
 ## dipole moment of a given density (assuming the current geometry)
 function dipole(basis, ρ)
     rr = [a * (r[1] - 1/2) for r in r_vectors(basis)]
-    d = sum(rr .* ρ) * basis.dvol
+    sum(rr .* ρ) * basis.dvol
 end;
 
 # ## Polarizability by finite differences

@@ -1,5 +1,7 @@
 using PyCall
 using DFTK
+using Unitful
+using UnitfulAtomic
 
 kgrid = [1, 1, 1]
 Ecut  = 10
@@ -17,7 +19,7 @@ scfres = self_consistent_field(basis, tol=1e-8);
 @show compute_dipole_moment(scfres)
 
 dipole_ABINIT = [  0.309208E+01 ,   -0.192893E-01,    -0.192893E-01]
-dipole_GPAW = [-1.680941, -0.000000, -0.000000] * DFTK.units.Å
+dipole_GPAW = [-1.680941, -0.000000, -0.000000] .* austrip(1u"Å")  #DFTK.units.Å
 
 @show dipole_ABINIT
 @show dipole_GPAW

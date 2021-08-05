@@ -75,6 +75,7 @@ function ene_ops(term::TermSurfaceDipoleCorrection, ψ, occ; ρ, kwargs...)
     # self.correction = 2π * dip_v[c] * L / gd.volume
     # vHt_q -= 2 * self.correction * self.sawtooth_q
 
+    # This volume looks wrong, because dipmom_z probably already is per volume ???
     correction = 2π * dipmom_z * Lz / basis.model.unit_cell_volume
     Vdip = zero(ρ.real) .+ 2correction .* reshape(term.sawtooth, 1, 1, :)
     @assert term.normal_axis == 3
