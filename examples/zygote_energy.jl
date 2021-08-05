@@ -128,3 +128,6 @@ end
 HF_energy_recompute(basis, ψ, occupation)
 Zygote.gradient(a -> HF_energy_recompute(make_basis(a), ψ, occupation), a)
 
+Zygote.gradient(t -> sum(real(DFTK._accumulate_over_symmetries(t*scfres.ρ[:,:,:,1], basis, basis.ksymops[1]))), 1.0) # (470.99047570146837 - 0.0im,)
+FiniteDiff.finite_difference_derivative(t -> sum(real(DFTK._accumulate_over_symmetries(t*scfres.ρ[:,:,:,1], basis, basis.ksymops[1]))), 1.0) # 470.99047570106745
+FiniteDiff.finite_difference_derivative(t -> sum(real(DFTK.accumulate_over_symmetries!(zeros(20,20,20), t*scfres.ρ[:,:,:,1], basis, basis.ksymops[1]))), 1.0) # 470.99047570106745

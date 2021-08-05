@@ -259,61 +259,53 @@ end
 
 function _accumulate_over_symmetries(ρin, basis, symmetries)
     T = eltype(basis)
-    # TODO clean-up using enumerate(...) once supported by Zygote or others
-    ρaccu = sum(symmetries) do (S, τ)
-        # Common special case, where ρin does not need to be processed
-        if S == I && iszero(τ)
-            ρin
-        else
+    # # TODO clean-up using enumerate(...) once supported by Zygote or others
+    x = map(
+        function (sym)
+            S, τ = sym
             invS = Mat3{Int}(inv(S))
             ρS = map(G_vectors(basis)) do G
                 igired = index_G_vectors(basis, invS * G)
                 if isnothing(igired)
-                    zero(T)
+                    zero(complex(T))
                 else
                     cis(-2T(π) * dot(G, τ)) * ρin[igired]
                 end
             end
             ρS
-        end
-    end
+        end,
+        symmetries
+    )
+    ρaccu = sum(x)
+
     ρaccu
 end
-
-# ρaccus [(fft_size..., n_spin) for i in 1:Threads.nthreads()]
-# ρ_k (fft_size...)
-# ρ   (fft_size..., n_spin)
 
 function _autodiff_compute_density(basis::PlaneWaveBasis, ψ, occupation)
     n_spin = basis.model.n_spin_components
 
-    ρ_ks = map(eachindex(basis.kpoints)) do ik
+    ρsum = map(eachindex(basis.kpoints)) do ik
         kpt = basis.kpoints[ik]
         ρ_k = _compute_partial_density(basis, kpt, ψ[ik], occupation[ik])
         # TODO lowpass_for_symmetry
-        # TODO accumulate_over_symmetries
-        @show basis.ksymops[ik]
-        ρ_k
+        ρaccu = _accumulate_over_symmetries(ρ_k, basis, basis.ksymops[ik])
+        ρaccu
     end
-
-    ## TODO accumulate_over_symmetries
-    # ρaccus = _accumulate_over_symmetries(ρ_k, basis, basis.ksymops[ik])
-    ρsum = sum(ρ_ks)
-    ρaccus = [reshape(ρsum, size(ρsum)..., 1)]
-
-    @show size(ρaccus[1])
+    ρsum = sum(ρsum)
+    ρaccus = [reshape(ρsum, size(ρsum)..., 1)] # TODO handle n_spin > 1
 
     # Count the number of k-points modulo spin
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
     count = mpi_sum(count, basis.comm_kpts)
+
     ρ = sum(ρaccus) ./ count
     # mpi_sum!(ρ, basis.comm_kpts)
     G_to_r(basis, ρ)
 end
 
-# function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(compute_density), basis::PlaneWaveBasis, ψ, occupation)
-#     @warn "simplified compute_density rrule triggered."
-#     ρ = compute_density(basis, ψ, occupation)
-#     _ρ, compute_density_pullback = rrule_via_ad(config, _autodiff_compute_density, basis, ψ, occupation)
-#     return ρ, compute_density_pullback
-# end
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(compute_density), basis::PlaneWaveBasis, ψ, occupation)
+    @warn "simplified compute_density rrule triggered."
+    ρ = compute_density(basis, ψ, occupation)
+    _ρ, compute_density_pullback = rrule_via_ad(config, _autodiff_compute_density, basis, ψ, occupation)
+    return ρ, compute_density_pullback
+end
