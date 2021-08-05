@@ -244,65 +244,72 @@ end
 
 # TODO compute_density rrule
 
-# function _compute_partial_density(basis, kpt, ψk, occupation)
+function _compute_partial_density(basis, kpt, ψk, occupation)
 
-#     ρk_real = map(1:size(ψk, 2)) do n
-#         ψnk = @views ψk[:, n]
-#         ψnk_real_tid = G_to_r(basis, kpt, ψnk)
-#         occupation[n] .* abs2.(ψnk_real_tid)
-#     end
-#     ρk_real = sum(ρk_real)
+    ρk_real = map(1:size(ψk, 2)) do n
+        ψnk = @views ψk[:, n]
+        ψnk_real_tid = G_to_r(basis, kpt, ψnk)
+        occupation[n] .* abs2.(ψnk_real_tid)
+    end
+    ρk_real = sum(ρk_real)
 
-#     # FFT and return
-#     r_to_G(basis, ρk_real)
-# end
+    # FFT and return
+    r_to_G(basis, ρk_real)
+end
 
-# function _autodiff_compute_density(basis::PlaneWaveBasis, ψ, occupation)
-#     n_k = length(basis.kpoints)
-#     n_spin = basis.model.n_spin_components
+function _accumulate_over_symmetries(ρin, basis, symmetries)
+    T = eltype(basis)
+    # TODO clean-up using enumerate(...) once supported by Zygote or others
+    ρaccu = sum(symmetries) do (S, τ)
+        # Common special case, where ρin does not need to be processed
+        if S == I && iszero(τ)
+            ρin
+        else
+            invS = Mat3{Int}(inv(S))
+            ρS = map(G_vectors(basis)) do G
+                igired = index_G_vectors(basis, invS * G)
+                if isnothing(igired)
+                    zero(T)
+                else
+                    cis(-2T(π) * dot(G, τ)) * ρin[igired]
+                end
+            end
+            ρS
+        end
+    end
+    ρaccu
+end
 
-#     # Allocate an accumulator for ρ in each thread for each spin component
-#     T = promote_type(eltype(basis), eltype(ψ[1]))
-#     ρaccus = [similar(ψ[1], T, (basis.fft_size..., n_spin))
-#               for ithread in 1:Threads.nthreads()]
+# ρaccus [(fft_size..., n_spin) for i in 1:Threads.nthreads()]
+# ρ_k (fft_size...)
+# ρ   (fft_size..., n_spin)
 
-#     # # TODO Better load balancing ... the workload per kpoint depends also on
-#     # #      the number of symmetry operations. We know heuristically that the Gamma
-#     # #      point (first k-Point) has least symmetry operations, so we will put
-#     # #      some extra workload there if things do not break even
-#     # kpt_per_thread = [ifelse(i <= n_k, [i], Vector{Int}()) for i in 1:Threads.nthreads()]
-#     # if n_k >= Threads.nthreads()
-#     #     kblock = floor(Int, length(basis.kpoints) / Threads.nthreads())
-#     #     kpt_per_thread = [collect(1:length(basis.kpoints) - (Threads.nthreads() - 1) * kblock)]
-#     #     for ithread in 2:Threads.nthreads()
-#     #         push!(kpt_per_thread, kpt_per_thread[end][end] .+ collect(1:kblock))
-#     #     end
-#     #     @assert kpt_per_thread[end][end] == length(basis.kpoints)
-#     # end
+function _autodiff_compute_density(basis::PlaneWaveBasis, ψ, occupation)
+    n_spin = basis.model.n_spin_components
 
-#     Threads.@threads for (ikpts, ρaccu) in collect(zip(kpt_per_thread, ρaccus))
-#         ρaccu .= 0
-#         ρ_k = similar(ψ[1], T, basis.fft_size)
-#         for ik in ikpts
-#             kpt = basis.kpoints[ik]
-#             compute_partial_density!(ρ_k, basis, kpt, ψ[ik], occupation[ik])
-#             lowpass_for_symmetry!(ρ_k, basis)
-#             # accumulates all the symops of ρ_k into ρaccu
-#             accumulate_over_symmetries!(ρaccu[:, :, :, kpt.spin], ρ_k, basis, basis.ksymops[ik])
-#         end
-#     end
+    ρ_ks = map(eachindex(basis.kpoints)) do ik
+        kpt = basis.kpoints[ik]
+        ρ_k = _compute_partial_density(basis, kpt, ψ[ik], occupation[ik])
+        # TODO lowpass_for_symmetry
+        # TODO accumulate_over_symmetries
+        @show basis.ksymops[ik]
+        ρ_k
+    end
 
-#     for (ik, kpt) in enumerate(basis.kpoints)
+    ## TODO accumulate_over_symmetries
+    # ρaccus = _accumulate_over_symmetries(ρ_k, basis, basis.ksymops[ik])
+    ρsum = sum(ρ_ks)
+    ρaccus = [reshape(ρsum, size(ρsum)..., 1)]
 
-#     end
+    @show size(ρaccus[1])
 
-#     # Count the number of k-points modulo spin
-#     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
-#     count = mpi_sum(count, basis.comm_kpts)
-#     ρ = sum(ρaccus) ./ count
-#     mpi_sum!(ρ, basis.comm_kpts)
-#     G_to_r(basis, ρ)
-# end
+    # Count the number of k-points modulo spin
+    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
+    count = mpi_sum(count, basis.comm_kpts)
+    ρ = sum(ρaccus) ./ count
+    # mpi_sum!(ρ, basis.comm_kpts)
+    G_to_r(basis, ρ)
+end
 
 # function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(compute_density), basis::PlaneWaveBasis, ψ, occupation)
 #     @warn "simplified compute_density rrule triggered."
