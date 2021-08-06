@@ -2,10 +2,14 @@ import Brillouin
 
 # Functionality for computing band structures
 function high_symmetry_kpath(model; kline_density=20)
+    # Change units from Number of kpoints per inverse Angström (i.e. unit of length)
+    # to number of kpoints per inverse bohrs.
+    # TODO Change interface to atomic units ... 
+    kline_density = kline_density * austrip(1u"Å")
+
     if model.n_dim == 1  # Return fast for 1D model
-        # kline_density = Number of k-point per Angström
-        # Length of the kpath is lattice[1, 1] in 1D
-        n_points = ceil(Int, kline_density / austrip(1u"Å") * model.lattice[1, 1])
+        # Length of the kpath is recip_lattice[1, 1] in 1D
+        n_points = ceil(Int, kline_density * model.recip_lattice[1, 1])
         return (
             kcoords = [[coord, 0, 0] for coord in range(-1//2, 1//2, length=1+n_points)],
             klabels=Dict("Γ" => zeros(3), "-1/2" => [-0.5, 0.0, 0.0], "1/2" => [0.5, 0, 0]),
@@ -13,32 +17,32 @@ function high_symmetry_kpath(model; kline_density=20)
         )
     end
 
-    # TODO This is the last function that hard-depends on pymatgen. The way to solve this
-    # is to use the julia version implemented in
-    # https://github.com/louisponet/DFControl.jl/blob/master/src/structure.jl
-    # but for this the best way to go would be to refactor into a small "CrystalStructure"
-    # julia module which deals with these sort of low-level details everyone can agree on.
+    conv_latt      = get_spglib_lattice(model; to_primitive=false)
+    primitive_latt = get_spglib_lattice(model; to_primitive=true)
+    # TODO This produces a segfault ... unify functions later
+    # conv_latt, _      = spglib_standardize_cell(model.lattice, model.atoms, primitive=false)
+    # primitive_latt, _ = spglib_standardize_cell(model.lattice, model.atoms, primitive=true)
+    primitive_latt ≈ model.lattice || @warn "The DFTK lattice and spglib's primitive lattice do not agree."
 
-    conv_latt = get_spglib_lattice(model, to_primitive=false)
-    # comparge spglibe primitive to DFTK primitive
-    primitive_latt = get_spglib_lattice(model, to_primitive=true)
-    primitive_latt ≈ transpose(model.lattice) || @warn "The DFTK lattice and spglib's primitive lattice do not agree."
-   
-    # get spacegroup num from spglib dataset
+    # Get International Tables for Crystallography (ITA) space group number
     sgnum = spglib_spacegroup_number(model)
-    
-    Rs = [conv_latt[i, :] for i in 1:size(conv_latt,1)]
+
+    Rs = collect(eachcol(conv_latt))
     kp = Brillouin.irrfbz_path(sgnum, Rs)
     kcoords = collect(Brillouin.interpolate(kp, density=kline_density))
 
-    labels_dict = Dict{String, Vector{eltype(kcoords[1])}}()
-    for (key, val) in kp.points
-        labels_dict[string(key)] = val
-    end
+    # Need to double the points whenever a new path starts
+    # (for temporary compatibility with pymatgen)
+    idcs = findall(k -> any(sum(abs2, k - kcomp) < 1e-5 for kcomp in values(kp.points)), kcoords)
+    @assert length(idcs) ≥ 2
+    idcs = idcs[2:end-1]  # Don't duplicate first and last
+    idcs = sort(append!(idcs, 1:length(kcoords)))
+    kcoords = kcoords[idcs]
 
-    kpath = [ [string(el)  for el in path] for path in kp.paths]
-
-    (kcoords=kcoords, klabels=labels_dict, kpath=kpath)
+    T = eltype(kcoords[1])
+    klabels = Dict{String,Vector{T}}(string(key) => val for (key, val) in kp.points)
+    kpath = [[string(el) for el in path] for path in kp.paths]
+    (; kcoords, klabels, kpath)
 end
 
 @timing function compute_bands(basis, ρ, kcoords, n_bands;

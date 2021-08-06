@@ -95,9 +95,9 @@ if mpi_nprocs() == 1  # not easy to distribute
     for key in keys(ref_klabels)
         @test klabels[key] ≈ ref_klabels[key] atol=1e-15
     end
-    
-    @test kpath[1] = ["Γ", "X", "U"]
-    @test kpath[2] = ["K", "Γ", "L", "W", "X"]
+
+    @test kpath[1] == ["Γ", "X", "U"]
+    @test kpath[2] == ["K", "Γ", "L", "W", "X"]
 end
 
 @testset "High-symmetry kpath construction for 1D system" begin

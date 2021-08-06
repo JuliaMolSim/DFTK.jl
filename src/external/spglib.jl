@@ -148,8 +148,7 @@ end
 function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;
                                                is_shift=Vec3(0, 0, 0),
                                                is_time_reversal=false,
-                                               qpoints=[Vec3(0.0, 0.0, 0.0)],
-                                               isdense=false)
+                                               qpoints=[Vec3(0.0, 0.0, 0.0)])
     spg_rotations = cat([copy(Cint.(S')) for S in rotations]..., dims=3)
     nkpt = prod(kgrid_size)
     mapping = Vector{Cint}(undef, nkpt)
@@ -165,17 +164,19 @@ function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;
 end
 
 
+# TODO merge this function into spglib_standardize_cell
 function get_spglib_lattice(model; to_primitive=false)
     spg_positions, spg_numbers, _ = spglib_atoms(model.atoms)
     structure = Spglib.Cell(transpose(model.lattice), spg_positions, spg_numbers)
     spglib_lattice = Spglib.standardize_cell(structure, to_primitive=to_primitive).lattice
-    spglib_lattice
+    Matrix(copy(spglib_lattice'))
 end
 
 
 function spglib_spacegroup_number(model)
-	spg_positions, spg_numbers, _ = spglib_atoms(model.atoms)
-	structure = Spglib.Cell(transpose(model.lattice), spg_positions, spg_numbers)
-	spacegroup_number = Spglib.get_spacegroup_number(structure)
-	spacegroup_number
+    # Get spacegroup number according to International Tables for Crystallography (ITA)
+    spg_positions, spg_numbers, _ = spglib_atoms(model.atoms)
+    structure = Spglib.Cell(transpose(model.lattice), spg_positions, spg_numbers)
+    spacegroup_number = Spglib.get_spacegroup_number(structure)
+    spacegroup_number
 end
