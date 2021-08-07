@@ -293,9 +293,9 @@ function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
                         ksymops::AbstractVector, symmetries=vcat(ksymops...))
     kgrid = kshift = nothing
     PlaneWaveBasis(basis.model, basis.Ecut,
-                   basis.fft_size, basis.variational, 
+                   basis.fft_size, basis.variational,
                    kcoords, ksymops, kgrid, kshift,
-                   basis.symmetries, basis.comm_kpts)
+                   symmetries, basis.comm_kpts)
 end
 
 

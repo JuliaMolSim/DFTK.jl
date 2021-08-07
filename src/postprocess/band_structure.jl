@@ -4,17 +4,17 @@ import Brillouin
 function high_symmetry_kpath(model; kline_density=20)
     # Change units from Number of kpoints per inverse Angström (i.e. unit of length)
     # to number of kpoints per inverse bohrs.
-    # TODO Change interface to atomic units ... 
+    # TODO Change interface to atomic units ...
     kline_density = kline_density * austrip(1u"Å")
 
     if model.n_dim == 1  # Return fast for 1D model
+        # TODO Is this special-casing of 1D still needed for Brillouin.jl
         # Length of the kpath is recip_lattice[1, 1] in 1D
-        n_points = ceil(Int, kline_density * model.recip_lattice[1, 1])
-        return (
-            kcoords = [[coord, 0, 0] for coord in range(-1//2, 1//2, length=1+n_points)],
-            klabels=Dict("Γ" => zeros(3), "-1/2" => [-0.5, 0.0, 0.0], "1/2" => [0.5, 0, 0]),
-            kpath=[[raw"-1/2", raw"1/2"]],
-        )
+        n_points = max(2, 1 + ceil(Int, kline_density * model.recip_lattice[1, 1]))
+        kcoords  = [@SVector[coord, 0, 0] for coord in range(-1//2, 1//2, length=n_points)]
+        klabels  = Dict("Γ" => zeros(3), "-½" => [-0.5, 0.0, 0.0], "½" => [0.5, 0, 0])
+        return (kcoords=kcoords, klabels=klabels,
+                kpath=[["-½", "½"]], kbranches=[1:length(kcoords)])
     end
 
     conv_latt      = get_spglib_lattice(model; to_primitive=false)
@@ -26,36 +26,37 @@ function high_symmetry_kpath(model; kline_density=20)
 
     # Get International Tables for Crystallography (ITA) space group number
     sgnum = spglib_spacegroup_number(model)
-
-    Rs = collect(eachcol(conv_latt))
-    kp = Brillouin.irrfbz_path(sgnum, Rs)
-    kcoords = collect(Brillouin.interpolate(kp, density=kline_density))
+    Rs    = collect(eachcol(conv_latt))
+    kp    = Brillouin.irrfbz_path(sgnum, Rs)
+    kinter = Brillouin.interpolate(kp, density=kline_density)
 
     # Need to double the points whenever a new path starts
     # (for temporary compatibility with pymatgen)
-    idcs = findall(k -> any(sum(abs2, k - kcomp) < 1e-5 for kcomp in values(kp.points)), kcoords)
-    @assert length(idcs) ≥ 2
-    idcs = idcs[2:end-1]  # Don't duplicate first and last
-    idcs = sort(append!(idcs, 1:length(kcoords)))
-    kcoords = kcoords[idcs]
+    kcoords = empty(first(kinter.kpaths))
+    for kbranch in kinter.kpaths
+        idcs = findall(k -> any(sum(abs2, k - kcomp) < 1e-5
+                                for kcomp in values(kp.points)), kbranch)
+        @assert length(idcs) ≥ 2
+        idcs = idcs[2:end-1]  # Don't duplicate first and last
+        idcs = sort(append!(idcs, 1:length(kbranch)))
+        append!(kcoords, kbranch[idcs])
+    end
 
     T = eltype(kcoords[1])
     klabels = Dict{String,Vector{T}}(string(key) => val for (key, val) in kp.points)
-    kpath = [[string(el) for el in path] for path in kp.paths]
+    kpath   = [[string(el) for el in path] for path in kp.paths]
     (; kcoords, klabels, kpath)
 end
+
 
 @timing function compute_bands(basis, ρ, kcoords, n_bands;
                                eigensolver=lobpcg_hyper,
                                tol=1e-3,
                                show_progress=true,
                                kwargs...)
-    # Create basis with new kpoints, where we cheat by using any symmetry operations.
-    ksymops = [[identity_symop()] for _ in 1:length(kcoords)]
-    # For some reason rationalize(2//3) isn't supported (julia 1.6)
-    myrationalize(x::T) where {T <: AbstractFloat} = rationalize(x, tol=10eps(T))
-    myrationalize(x) = x
-    bs_basis = PlaneWaveBasis(basis, [myrationalize.(k) for k in kcoords], ksymops)
+    # Create basis with new kpoints, where we cheat by not using any symmetry operations.
+    ksymops     = [[identity_symop()] for _ in 1:length(kcoords)]
+    bs_basis    = PlaneWaveBasis(basis, kcoords, ksymops)
     ham = Hamiltonian(bs_basis; ρ=ρ)
 
     band_data = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
@@ -145,6 +146,7 @@ function prepare_band_data(band_data; datakeys=[:λ, :λerror],
      n_bands=n_bands, n_kcoord=n_kcoord, n_spin=n_spin, basis=basis)
 end
 
+
 """
     is_metal(band_data, εF, tol)
 
@@ -162,18 +164,6 @@ function is_metal(band_data, εF, tol=1e-4)
     false
 end
 
-function detexify_kpoint(string)
-    # For some reason Julia doesn't support this naively: https://github.com/JuliaLang/julia/issues/29849
-    replacements = ("\\Gamma" => "Γ",
-                    "\\Delta" => "Δ",
-                    "\\Sigma" => "Σ",
-                    "_1"      => "₁")
-    for r in replacements
-        string = replace(string, r)
-    end
-    string
-end
-    
 
 """
 Compute and plot the band structure. `n_bands` selects the number of bands to compute.
@@ -189,9 +179,9 @@ function plot_bandstructure(basis, ρ, n_bands;
     end
 
     # Band structure calculation along high-symmetry path
-    kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density=kline_density)
+    kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density)
     println("Computing bands along kpath:")
-    println("       ", join(join.(detexify_kpoint.(kpath), " -> "), "  and  "))
+    println("       ", join(join.(kpath, " -> "), "  and  "))
     band_data = compute_bands(basis, ρ, kcoords, n_bands; kwargs...)
 
     plotargs = ()
