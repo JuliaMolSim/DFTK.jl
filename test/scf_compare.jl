@@ -119,7 +119,8 @@ end
     ρ0    = guess_density(basis)
     ρ_ref = self_consistent_field(basis, ρ=ρ0, tol=tol).ρ
 
-    for mixing in (KerkerDosMixing(), HybridMixing(RPA=true), HybridMixing(εr=10, RPA=false), )
+    for mixing in (KerkerDosMixing(), HybridMixing(RPA=true), LdosMixing(RPA=false),
+                   HybridMixing(εr=10, RPA=true), )
         @testset "Testing $mixing" begin
             ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol, damping=0.8).ρ
             @test maximum(abs.(ρ_mix - ρ_ref)) < sqrt(tol)
