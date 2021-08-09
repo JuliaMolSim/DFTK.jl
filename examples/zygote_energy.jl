@@ -18,7 +18,7 @@ function make_model(a)
         # Entropy(),
         # Hartree()
     ]
-    Model(lattice; atoms=atoms, terms=terms)
+    Model(lattice; atoms=atoms, terms=terms, temperature=1e-3)
 end
 # kgrid = [2, 2, 2]
 kgrid = [1, 1, 1]
@@ -27,7 +27,7 @@ make_basis(model::Model) = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 make_basis(a::Real) = make_basis(make_model(a))
 basis = make_basis(a)
 
-scfres = self_consistent_field(basis, is_converged=DFTK.ScfConvergenceDensity(1e-13))
+scfres = self_consistent_field(basis, is_converged=DFTK.ScfConvergenceDensity(1e-4))
 ψ = scfres.ψ
 occupation = scfres.occupation
 
@@ -132,6 +132,12 @@ FiniteDiff.finite_difference_derivative(t -> sum(compute_density(basis, ψ + t*�
 Zygote.gradient(a -> sum(compute_density(make_basis(a), ψ, occupation)), a) # -3.125002852258521,
 FiniteDiff.finite_difference_derivative(a -> sum(compute_density(make_basis(a), ψ, occupation)), a) # -69.3061504470064
 FiniteDiff.finite_difference_derivative(a -> sum(DFTK._autodiff_compute_density(make_basis(a), ψ, occupation)), a) # -69.3061504470064
+# TODO  debug compute_density w.r.t. basis
+Zygote.gradient(basis -> sum(compute_density(basis, ψ, occupation)), basis)
+using ChainRulesCore
+tang = Tangent{typeof(basis)}(;r_to_G_normalization=1.0)
+FiniteDiff.finite_difference_derivative(t -> sum(compute_density(basis + t*tang, ψ, occupation)), 0.0)
+
 
 function HF_energy_recompute(basis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
