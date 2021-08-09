@@ -128,6 +128,11 @@ FiniteDiff.finite_difference_derivative(t -> sum(real(DFTK.accumulate_over_symme
 Zygote.gradient(t -> sum(compute_density(basis, ψ + t*ψ, occupation)), 0.0) # (474.05406899236243 + 1.4210854715202004e-14im,)
 FiniteDiff.finite_difference_derivative(t -> sum(compute_density(basis, ψ + t*ψ, occupation)), 0.0) # 474.0540689933782
 
+# TODO Currently wrong below
+Zygote.gradient(a -> sum(compute_density(make_basis(a), ψ, occupation)), a) # -3.125002852258521,
+FiniteDiff.finite_difference_derivative(a -> sum(compute_density(make_basis(a), ψ, occupation)), a) # -69.3061504470064
+FiniteDiff.finite_difference_derivative(a -> sum(DFTK._autodiff_compute_density(make_basis(a), ψ, occupation)), a) # -69.3061504470064
+
 function HF_energy_recompute(basis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
     energies = [DFTK.ene_ops(term, ψ, occupation; ρ=ρ).E for term in basis.terms]
@@ -136,4 +141,5 @@ end
 HF_energy_recompute(basis, ψ, occupation)
 Zygote.gradient(a -> HF_energy_recompute(make_basis(a), ψ, occupation), a) # -8.569624864733145,
 FiniteDiff.finite_difference_derivative(a -> HF_energy_recompute(make_basis(a), ψ, occupation), a) # -0.22098990093995188
+# TODO find error
 

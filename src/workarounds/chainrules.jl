@@ -277,8 +277,23 @@ function _accumulate_over_symmetries(ρin, basis, symmetries)
         symmetries
     )
     ρaccu = sum(x)
-
     ρaccu
+end
+
+function _lowpass_for_symmetry(ρ, basis; symmetries=basis.model.symmetries)
+    ρnew = deepcopy(ρ)
+    ρnew = lowpass_for_symmetry!(ρnew, basis; symmetries)
+    ρnew
+end
+
+function ChainRulesCore.rrule(::typeof(_lowpass_for_symmetry), ρ, basis; symmetries=basis.model.symmetries)
+    @warn "_lowpass_for_symmetry rrule triggered."
+    ρnew = _lowpass_for_symmetry(ρ, basis; symmetries)
+    function lowpass_for_symmetry_pullback(Δρ)
+        ∂ρ = _lowpass_for_symmetry(Δρ, basis; symmetries)
+        return NoTangent(), ∂ρ, NoTangent()
+    end
+    return ρnew, lowpass_for_symmetry_pullback
 end
 
 function _autodiff_compute_density(basis::PlaneWaveBasis, ψ, occupation)
@@ -287,7 +302,7 @@ function _autodiff_compute_density(basis::PlaneWaveBasis, ψ, occupation)
     ρsum = map(eachindex(basis.kpoints)) do ik
         kpt = basis.kpoints[ik]
         ρ_k = _compute_partial_density(basis, kpt, ψ[ik], occupation[ik])
-        # TODO lowpass_for_symmetry
+        ρ_k = _lowpass_for_symmetry(ρ_k, basis)
         ρaccu = _accumulate_over_symmetries(ρ_k, basis, basis.ksymops[ik])
         ρaccu
     end
