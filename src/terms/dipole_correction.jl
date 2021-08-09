@@ -59,26 +59,36 @@ function ene_ops(term::TermSurfaceDipoleCorrection, ψ, occ; ρ, kwargs...)
     #  P_{ele} = \sum_{ijk} \rho_{r_{ijk}} Saw\left( \frac{k}{nr3} \right)
     #                    \frac{alat}{bmod} \frac{\Omega}{nrxx} \frac{4\pi}{\Omega}
     #
+    # alat = 1.0
+    # bmod = Lz
     # dip = P_{ele} + P_{nuc}
     # eamp = 0
     # E_{TOT} = -e^{2} \left( eamp - dip \right) dip \frac{\Omega}{4\pi}
 
+    # charge = dipmom / length of lattice along z
+    #
+
+    model = basis.model
+    ccharge = DFTK.center_of_charge(model.atoms)
+    polarisation  = compute_dipole_moment(basis, ρ, center=ccharge)
+    dipmom_z = polarisation[3] * model.unit_cell_volume
+    println("   dip2   ", dipmom_z)
 
 
 
     # weirdshift(x) = mod(x + 1.5, 1.0) - 0.5
-    weirdshift(x) = x - 0.5
+    # weirdshift(x) = x - 0.5
 
     @assert size(ρ, 4) == 1
     ρ = dropdims(ρ, dims=4)
 
-    # Compute electronic dipole moment of ρ along term.normal_axis
-    ρ_z       = vec(sum(ρ; dims=term.slab_axes))
-    ρ_z1      = vec(sum(ρ; dims=[2, 3]))
-    ρ_z2      = vec(sum(ρ; dims=[1, 3]))
-    dipmom_z  = -dot(ρ_z, @. weirdshift(T(0:Nz-1) / Nz) * Lz )    * dVol  # Lz  / Nz
-    dipmom_z1 = -dot(ρ_z1, @. weirdshift(T(0:Nz1-1)/ Nz1) * Lz1 ) * dVol # Lz1 / Nz1
-    dipmom_z2 = -dot(ρ_z2, @. weirdshift(T(0:Nz2-1)/ Nz2) * Lz2 ) * dVol # Lz2 / Nz2
+    # # Compute electronic dipole moment of ρ along term.normal_axis
+    # ρ_z       = vec(sum(ρ; dims=term.slab_axes))
+    # ρ_z1      = vec(sum(ρ; dims=[2, 3]))
+    # ρ_z2      = vec(sum(ρ; dims=[1, 3]))
+    # dipmom_z  = -dot(ρ_z, @. weirdshift(T(0:Nz-1) / Nz) * Lz )    * dVol  # Lz  / Nz
+    # dipmom_z1 = -dot(ρ_z1, @. weirdshift(T(0:Nz1-1)/ Nz1) * Lz1 ) * dVol # Lz1 / Nz1
+    # dipmom_z2 = -dot(ρ_z2, @. weirdshift(T(0:Nz2-1)/ Nz2) * Lz2 ) * dVol # Lz2 / Nz2
 
     # println("   dip   ", dipmom_z1/DFTK.units.Å, "  ", dipmom_z2/DFTK.units.Å, "  ", dipmom_z  /DFTK.units.Å)
     # ops = [NoopOperator(term.basis, kpoint) for kpoint in term.basis.kpoints]
@@ -90,16 +100,19 @@ function ene_ops(term::TermSurfaceDipoleCorrection, ψ, occ; ρ, kwargs...)
     # self.correction = 2π * dip_v[c] * L / gd.volume
     # vHt_q -= 2 * self.correction * self.sawtooth_q
 
-    # This volume looks wrong, because dipmom_z probably already is per volume ???
-    correction = 2π * dipmom_z * Lz / basis.model.unit_cell_volume
-    Vdip = zero(ρ) .+ 2correction .* reshape(term.sawtooth, 1, 1, :)
+    surface_dipole_density = dipmom_z * Lz / basis.model.unit_cell_volume
+    println("surf dip dens   ", surface_dipole_density)
+    Vdip = zero(ρ) .- 4π * surface_dipole_density .* reshape(term.sawtooth, 1, 1, :)
     @assert term.normal_axis == 3
+    ops = [NoopOperator(term.basis, kpoint) for kpoint in term.basis.kpoints]
+    # return (E=0, ops=ops)
 
     # TODO
     # V = Vdip
     # E = energy from Vdip + Ecdip
 
     E = sum(Vdip .* ρ) / 2 * dVol
+    @show E
     # @infiltrate
     ops = [RealSpaceMultiplication(basis, kpoint, Vdip) for kpoint in basis.kpoints]
     (E=E, ops=ops)
