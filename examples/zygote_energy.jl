@@ -20,7 +20,8 @@ function make_model(a)
     ]
     Model(lattice; atoms=atoms, terms=terms)
 end
-kgrid = [2, 2, 2]
+# kgrid = [2, 2, 2]
+kgrid = [1, 1, 1]
 Ecut = 7
 make_basis(model::Model) = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
 make_basis(a::Real) = make_basis(make_model(a))
@@ -120,14 +121,19 @@ FiniteDiff.finite_difference_derivative(a -> HF_energy(make_basis(a)), a)
 
 # TODO compute_density
 
+Zygote.gradient(t -> sum(real(DFTK._accumulate_over_symmetries(t*scfres.ρ[:,:,:,1], basis, basis.ksymops[1]))), 1.0) # (470.99047570146837 - 0.0im,)
+FiniteDiff.finite_difference_derivative(t -> sum(real(DFTK._accumulate_over_symmetries(t*scfres.ρ[:,:,:,1], basis, basis.ksymops[1]))), 1.0) # 470.99047570106745
+FiniteDiff.finite_difference_derivative(t -> sum(real(DFTK.accumulate_over_symmetries!(zeros(20,20,20), t*scfres.ρ[:,:,:,1], basis, basis.ksymops[1]))), 1.0) # 470.99047570106745
+
+Zygote.gradient(t -> sum(compute_density(basis, ψ + t*ψ, occupation)), 0.0) # (474.05406899236243 + 1.4210854715202004e-14im,)
+FiniteDiff.finite_difference_derivative(t -> sum(compute_density(basis, ψ + t*ψ, occupation)), 0.0) # 474.0540689933782
+
 function HF_energy_recompute(basis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
     energies = [DFTK.ene_ops(term, ψ, occupation; ρ=ρ).E for term in basis.terms]
     sum(energies)
 end
 HF_energy_recompute(basis, ψ, occupation)
-Zygote.gradient(a -> HF_energy_recompute(make_basis(a), ψ, occupation), a)
+Zygote.gradient(a -> HF_energy_recompute(make_basis(a), ψ, occupation), a) # -8.569624864733145,
+FiniteDiff.finite_difference_derivative(a -> HF_energy_recompute(make_basis(a), ψ, occupation), a) # -0.22098990093995188
 
-Zygote.gradient(t -> sum(real(DFTK._accumulate_over_symmetries(t*scfres.ρ[:,:,:,1], basis, basis.ksymops[1]))), 1.0) # (470.99047570146837 - 0.0im,)
-FiniteDiff.finite_difference_derivative(t -> sum(real(DFTK._accumulate_over_symmetries(t*scfres.ρ[:,:,:,1], basis, basis.ksymops[1]))), 1.0) # 470.99047570106745
-FiniteDiff.finite_difference_derivative(t -> sum(real(DFTK.accumulate_over_symmetries!(zeros(20,20,20), t*scfres.ρ[:,:,:,1], basis, basis.ksymops[1]))), 1.0) # 470.99047570106745
