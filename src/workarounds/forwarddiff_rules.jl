@@ -141,3 +141,14 @@ function LinearAlgebra.norm(x::SVector{S,<:ForwardDiff.Dual{Tg,T,N}}) where {S,T
     dy = ntuple(j->real(dot(x_value, ForwardDiff.partials.(x,j))) * pinv(y), N)
     ForwardDiff.Dual{Tg}(y, dy)
 end
+
+# problem: the derivative of 1/(1+exp(x)) = -exp(x) / (1+exp(x))^2. When x is too large, exp(x) = Inf and this is a NaN.
+function Smearing.occupation(S::Smearing.FermiDirac, d::ForwardDiff.Dual{T}) where {T}
+    x = ForwardDiff.value(d)
+    if exp(x) > floatmax(typeof(x)) / 1e3
+        der = -zero(x)
+    else
+        der = -exp(x) / (1+exp(x))^2
+    end
+    ForwardDiff.Dual{T}(Smearing.occupation(S, x), der * ForwardDiff.partials(d))
+end
