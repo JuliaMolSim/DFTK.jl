@@ -132,12 +132,73 @@ FiniteDiff.finite_difference_derivative(t -> sum(compute_density(basis, ψ + t*�
 Zygote.gradient(a -> sum(compute_density(make_basis(a), ψ, occupation)), a) # -3.125002852258521,
 FiniteDiff.finite_difference_derivative(a -> sum(compute_density(make_basis(a), ψ, occupation)), a) # -69.3061504470064
 FiniteDiff.finite_difference_derivative(a -> sum(DFTK._autodiff_compute_density(make_basis(a), ψ, occupation)), a) # -69.3061504470064
+
 # TODO  debug compute_density w.r.t. basis
-Zygote.gradient(basis -> sum(compute_density(basis, ψ, occupation)), basis)
+# on which (differentiable) fields of basis does compute_density depend?
+# - basis.kpoints
+# - basis.ksymops via _accumulate_over_symmetries (but I think this isn't diff'able)
+# - basis.r_to_G_normalization via _compute_partial_density r_to_G
+# - basis.G_to_r_normalization via _compute_partial_density G_to_r
+
+compute_density(basis, ψ, occupation)
+
+g1 = Zygote.gradient(basis -> sum(compute_density(basis, ψ, occupation)), basis)[1]
 using ChainRulesCore
 tang = Tangent{typeof(basis)}(;r_to_G_normalization=1.0)
-FiniteDiff.finite_difference_derivative(t -> sum(compute_density(basis + t*tang, ψ, occupation)), 0.0)
+g2 = FiniteDiff.finite_difference_derivative(t -> sum(compute_density(basis + t*tang, ψ, occupation)), 0.0)
+g1.r_to_G_normalization ≈ g2
 
+tang = Tangent{typeof(basis)}(;G_to_r_normalization=1.0)
+FiniteDiff.finite_difference_derivative(t -> sum(compute_density(basis + t*tang, ψ, occupation)), 0.0)
+FiniteDiff.finite_difference_derivative(t -> sum(DFTK._autodiff_compute_density(basis + t*tang, ψ, occupation)), 0.0)
+g1.G_to_r_normalization # wrong! TODO
+
+# TODO debug G_to_r_normalization
+_ρ = complex(scfres.ρ)
+w = rand(20,20,20,1)
+Zygote.gradient(a -> sum(G_to_r(make_basis(a), _ρ) .* w), a)
+FiniteDiff.finite_difference_derivative(a -> sum(G_to_r(make_basis(a), _ρ) .* w), a)
+
+# TODO G_to_r_normalization kpt
+G_to_r(make_basis(a), _ρ)
+
+kpt = basis.kpoints[1]
+kpt.mapping
+x = complex(rand(259))
+y = rand(20,20,20)
+G_to_r(make_basis(a), kpt, x)
+Zygote.gradient(a -> real(sum(G_to_r(make_basis(a), kpt, x) .* y)), a) # -53.48369127605996,
+FiniteDiff.finite_difference_derivative(a -> real(sum(G_to_r(make_basis(a), kpt, x) .* y)), a) # -53.48369127959806
+# ??? this seems to work..
+
+# TODO somewhere inside _compute_partial_density w.r.t basis G_to_r_normalization is wrong
+
+DFTK._compute_partial_density(basis, kpt, ψ[1], occupation[1])
+
+g2 = Zygote.gradient(basis -> real(sum(DFTK._compute_partial_density(basis, kpt, ψ[1], occupation[1]) .* y)), basis)[1]
+
+tang = Tangent{typeof(basis)}(;r_to_G_normalization=1.0)
+FiniteDiff.finite_difference_derivative(t -> real(sum(DFTK._compute_partial_density(basis + t*tang, kpt, ψ[1], occupation[1]) .* y)), 0.0)
+g2.r_to_G_normalization # looks correct
+
+tang = Tangent{typeof(basis)}(;G_to_r_normalization=1.0)
+FiniteDiff.finite_difference_derivative(t -> real(sum(DFTK._compute_partial_density(basis + t*tang, kpt, ψ[1], occupation[1]) .* y)), 0.0)
+g2.G_to_r_normalization # looks wrong
+
+# try to simplify / narrow down: no-kpt r_to_G after kpt-G_to_r
+
+r_to_G(basis, G_to_r(basis, kpt, x))
+g3 = Zygote.gradient(basis -> real(sum(r_to_G(basis, G_to_r(basis, kpt, x)) .* y)), basis)[1]
+
+tang = Tangent{typeof(basis)}(;r_to_G_normalization=1.0)
+FiniteDiff.finite_difference_derivative(t -> real(sum(r_to_G(basis + t*tang, G_to_r(basis + t*tang, kpt, x)) .* y)), 0.0)
+g3.r_to_G_normalization # looks correct
+
+tang = Tangent{typeof(basis)}(;G_to_r_normalization=1.0)
+FiniteDiff.finite_difference_derivative(t -> real(sum(r_to_G(basis + t*tang, G_to_r(basis + t*tang, kpt, x)) .* y)), 0.0)
+g3.G_to_r_normalization # looks wrong
+
+# aside: should G_to_r(basis, kpt, x) also have an assume_real ? currently only G_to_r(basis, x) has
 
 function HF_energy_recompute(basis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
@@ -148,4 +209,3 @@ HF_energy_recompute(basis, ψ, occupation)
 Zygote.gradient(a -> HF_energy_recompute(make_basis(a), ψ, occupation), a) # -8.569624864733145,
 FiniteDiff.finite_difference_derivative(a -> HF_energy_recompute(make_basis(a), ψ, occupation), a) # -0.22098990093995188
 # TODO find error
-
