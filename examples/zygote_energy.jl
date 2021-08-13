@@ -128,8 +128,7 @@ FiniteDiff.finite_difference_derivative(t -> sum(real(DFTK.accumulate_over_symme
 Zygote.gradient(t -> sum(compute_density(basis, ψ + t*ψ, occupation)), 0.0) # (474.05406899236243 + 1.4210854715202004e-14im,)
 FiniteDiff.finite_difference_derivative(t -> sum(compute_density(basis, ψ + t*ψ, occupation)), 0.0) # 474.0540689933782
 
-# TODO Currently wrong below
-Zygote.gradient(a -> sum(compute_density(make_basis(a), ψ, occupation)), a) # -3.125002852258521,
+Zygote.gradient(a -> sum(compute_density(make_basis(a), ψ, occupation)), a) # -69.30615043748014,
 FiniteDiff.finite_difference_derivative(a -> sum(compute_density(make_basis(a), ψ, occupation)), a) # -69.3061504470064
 FiniteDiff.finite_difference_derivative(a -> sum(DFTK._autodiff_compute_density(make_basis(a), ψ, occupation)), a) # -69.3061504470064
 
@@ -161,7 +160,6 @@ y = rand(20,20,20)
 w = rand(ComplexF64,20,20,20)
 
 ## r_to_G, G_to_r rules w.r.t. basis
-# TODO once complex intermediates are around, ∂normalization gets it wrong
  
 # r_to_G
 f(a) = abs2(sum(r_to_G(make_basis(a), y) .* y))
@@ -170,7 +168,6 @@ FiniteDiff.finite_difference_derivative(f, a)
 # looks good
 
 # r_to_G kpt
-r_to_G(make_basis(a), kpt, complex(y))
 f(a) = abs2(sum(r_to_G(make_basis(a), kpt, w) .* x))
 Zygote.gradient(f, a)
 FiniteDiff.finite_difference_derivative(f, a)
@@ -188,7 +185,6 @@ Zygote.gradient(f, a)
 FiniteDiff.finite_difference_derivative(f, a)
 # looks wrong
 
-sum(abs2, r_to_G(basis, G_to_r(basis, kpt, x) .* w) .* w)
 function f(a)
     # a = real(a)
     basis = make_basis(a)
@@ -196,8 +192,7 @@ function f(a)
 end
 Zygote.gradient(f, a)
 FiniteDiff.finite_difference_derivative(f, a)
-# looks wrong
-
+# looks wrong, TODO
 
 # r_to_G w.r.t. f_real
 f(y) = abs2(sum(r_to_G(basis, y) .* w))
@@ -223,45 +218,24 @@ FiniteDiff.finite_difference_gradient(f, x)
 # looks good
 
 
-# TODO somewhere inside _compute_partial_density w.r.t basis G_to_r_normalization is wrong
-
-DFTK._compute_partial_density(basis, kpt, ψ[1], occupation[1])
-
 g2 = Zygote.gradient(basis -> real(sum(DFTK._compute_partial_density(basis, kpt, ψ[1], occupation[1]) .* y)), basis)[1]
 
 using ChainRulesCore
 tang = Tangent{typeof(basis)}(;r_to_G_normalization=1.0)
 FiniteDiff.finite_difference_derivative(t -> real(sum(DFTK._compute_partial_density(basis + t*tang, kpt, ψ[1], occupation[1]) .* y)), 0.0)
 g2.r_to_G_normalization
-# looks wrong
+# looks good
 
 tang = Tangent{typeof(basis)}(;G_to_r_normalization=1.0)
 FiniteDiff.finite_difference_derivative(t -> real(sum(DFTK._compute_partial_density(basis + t*tang, kpt, ψ[1], occupation[1]) .* y)), 0.0)
 g2.G_to_r_normalization
-# looks wrong
+# looks good
 
-# try to simplify / narrow down: no-kpt r_to_G after kpt-G_to_r
-
-g3 = Zygote.gradient(basis -> real(sum(r_to_G(basis, G_to_r(basis, kpt, x)) .* y)), basis)[1]
-
-tang = Tangent{typeof(basis)}(;r_to_G_normalization=1.0)
-FiniteDiff.finite_difference_derivative(t -> real(sum(r_to_G(basis + t*tang, G_to_r(basis + t*tang, kpt, x)) .* y)), 0.0) # 31605.39007812946
-g3.r_to_G_normalization # 31898.347535655652 
-# looks wrong
-
-tang = Tangent{typeof(basis)}(;G_to_r_normalization=1.0)
-FiniteDiff.finite_difference_derivative(t -> real(sum(r_to_G(basis + t*tang, G_to_r(basis + t*tang, kpt, x)) .* y)), 0.0) # 1066.7269291140424
-g3.G_to_r_normalization # 1076.6146605498566 
-# looks wrong
-
-# aside: should G_to_r(basis, kpt, x) also have an assume_real ? currently only G_to_r(basis, x) has
 
 function HF_energy_recompute(basis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
     energies = [DFTK.ene_ops(term, ψ, occupation; ρ=ρ).E for term in basis.terms]
     sum(energies)
 end
-HF_energy_recompute(basis, ψ, occupation)
-Zygote.gradient(a -> HF_energy_recompute(make_basis(a), ψ, occupation), a) # -8.569624864733145,
-FiniteDiff.finite_difference_derivative(a -> HF_energy_recompute(make_basis(a), ψ, occupation), a) # -0.22098990093995188
-# TODO find error
+Zygote.gradient(a -> HF_energy_recompute(make_basis(a), ψ, occupation), a) # -0.22098988721348034,
+FiniteDiff.finite_difference_derivative(a -> HF_energy_recompute(make_basis(a), ψ, occupation), a) # -0.22098988731612818
