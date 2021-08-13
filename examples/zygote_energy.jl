@@ -86,104 +86,18 @@ dump(g; maxdepth=2)
 # TODO verify result
 # look at forces
 
-
-# model w.r.t. lattice parameter
-make_model(a)
-Zygote.gradient(a -> make_model(a).recip_cell_volume, a) # (-0.2686157095138732,)
-FiniteDiff.finite_difference_derivative(a -> make_model(a).recip_cell_volume, a) # -0.2686157095506202
-
-make_basis(a).G_to_r_normalization # 0.06085677788055191
-Zygote.gradient(a -> make_basis(a).G_to_r_normalization, a)  # (-0.0088971897486187,)
-FiniteDiff.finite_difference_derivative(a -> make_basis(a).G_to_r_normalization, a)  # -0.008897189749284017
-
-Zygote.gradient(a -> make_basis(a).dvol, a)
-FiniteDiff.finite_difference_derivative(a -> make_basis(a).dvol, a)
-
-Zygote.gradient(a -> make_basis(a).model.recip_cell_volume, a)
-FiniteDiff.finite_difference_derivative(a -> make_basis(a).model.recip_cell_volume, a)
-
-Zygote.gradient(a -> make_basis(a).r_to_G_normalization, a)
-FiniteDiff.finite_difference_derivative(a -> make_basis(a).r_to_G_normalization, a)
-
 # diff through term construction (pre-computations)
-
-# Kinetic
-Zygote.gradient(a -> sum(make_basis(a).terms[1].kinetic_energies[1]), a)
-FiniteDiff.finite_difference_derivative(a -> sum(make_basis(a).terms[1].kinetic_energies[1]), a)
-
-# AtomicLocal 
-Zygote.gradient(a -> make_basis(a).terms[2].potential[1], a)
-FiniteDiff.finite_difference_derivative(a -> make_basis(a).terms[2].potential[1], a)
 
 # Kinetic + AtomicLocal
 Zygote.gradient(a -> HF_energy_debug(make_basis(a)), a)
 FiniteDiff.finite_difference_derivative(a -> HF_energy_debug(make_basis(a)), a)
 
-# TODO compute_density
-
-Zygote.gradient(t -> sum(real(DFTK._accumulate_over_symmetries(t*scfres.ρ[:,:,:,1], basis, basis.ksymops[1]))), 1.0) # (470.99047570146837 - 0.0im,)
-FiniteDiff.finite_difference_derivative(t -> sum(real(DFTK._accumulate_over_symmetries(t*scfres.ρ[:,:,:,1], basis, basis.ksymops[1]))), 1.0) # 470.99047570106745
-FiniteDiff.finite_difference_derivative(t -> sum(real(DFTK.accumulate_over_symmetries!(zeros(20,20,20), t*scfres.ρ[:,:,:,1], basis, basis.ksymops[1]))), 1.0) # 470.99047570106745
-
-Zygote.gradient(t -> sum(compute_density(basis, ψ + t*ψ, occupation)), 0.0) # (474.05406899236243 + 1.4210854715202004e-14im,)
-FiniteDiff.finite_difference_derivative(t -> sum(compute_density(basis, ψ + t*ψ, occupation)), 0.0) # 474.0540689933782
-
-Zygote.gradient(a -> sum(compute_density(make_basis(a), ψ, occupation)), a) # -69.30615043748014,
-FiniteDiff.finite_difference_derivative(a -> sum(compute_density(make_basis(a), ψ, occupation)), a) # -69.3061504470064
-FiniteDiff.finite_difference_derivative(a -> sum(DFTK._autodiff_compute_density(make_basis(a), ψ, occupation)), a) # -69.3061504470064
-
-# TODO  debug compute_density w.r.t. basis
-# on which (differentiable) fields of basis does compute_density depend?
-# - basis.kpoints
-# - basis.ksymops via _accumulate_over_symmetries (but I think this isn't diff'able)
-# - basis.r_to_G_normalization via _compute_partial_density r_to_G
-# - basis.G_to_r_normalization via _compute_partial_density G_to_r
-
-compute_density(basis, ψ, occupation)
-
-g1 = Zygote.gradient(basis -> sum(compute_density(basis, ψ, occupation)), basis)[1]
-using ChainRulesCore
-tang = Tangent{typeof(basis)}(;r_to_G_normalization=1.0)
-g2 = FiniteDiff.finite_difference_derivative(t -> sum(compute_density(basis + t*tang, ψ, occupation)), 0.0)
-g1.r_to_G_normalization ≈ g2
-
-tang = Tangent{typeof(basis)}(;G_to_r_normalization=1.0)
-FiniteDiff.finite_difference_derivative(t -> sum(compute_density(basis + t*tang, ψ, occupation)), 0.0)
-FiniteDiff.finite_difference_derivative(t -> sum(DFTK._autodiff_compute_density(basis + t*tang, ψ, occupation)), 0.0)
-g1.G_to_r_normalization # wrong! TODO
-
-
+# TODO move these over to test/chainrules.jl
 kpt = basis.kpoints[1]
 kpt.mapping
 x = rand(ComplexF64,259)
 y = rand(20,20,20)
 w = rand(ComplexF64,20,20,20)
-
-## r_to_G, G_to_r rules w.r.t. basis
- 
-# r_to_G
-f(a) = abs2(sum(r_to_G(make_basis(a), y) .* y))
-Zygote.gradient(f, a)
-FiniteDiff.finite_difference_derivative(f, a)
-# looks good
-
-# r_to_G kpt
-f(a) = abs2(sum(r_to_G(make_basis(a), kpt, w) .* x))
-Zygote.gradient(f, a)
-FiniteDiff.finite_difference_derivative(f, a)
-# looks wrong
-
-# G_to_r
-f(a) = abs2(sum(G_to_r(make_basis(a), w) .* w))
-Zygote.gradient(f, a)
-FiniteDiff.finite_difference_derivative(f, a)
-# looks wrong
-
-# G_to_r kpt
-f(a) = abs2(sum(G_to_r(make_basis(a), kpt, x) .* y))
-Zygote.gradient(f, a)
-FiniteDiff.finite_difference_derivative(f, a)
-# looks wrong
 
 function f(a)
     # a = real(a)
@@ -193,32 +107,6 @@ end
 Zygote.gradient(f, a)
 FiniteDiff.finite_difference_derivative(f, a)
 # looks wrong, TODO
-
-# r_to_G w.r.t. f_real
-f(y) = abs2(sum(r_to_G(basis, y) .* w))
-Zygote.gradient(f, y)[1]
-FiniteDiff.finite_difference_gradient(f, y)
-# looks good
-
-# r_to_G kpt w.r.t. f_real
-f(w) = abs2(sum(r_to_G(basis, kpt, w) .* x))
-Zygote.gradient(f, w)[1]
-FiniteDiff.finite_difference_gradient(f, w)
-# looks good
-
-# G_to_r w.r.t. f_fourier
-f(w) = abs2(sum(G_to_r(basis, w) .* y))
-Zygote.gradient(f, w)[1]
-FiniteDiff.finite_difference_gradient(f, w)
-# looks good
-
-f(x) = abs2(sum(G_to_r(basis, kpt, x) .* y))
-Zygote.gradient(f, x)[1]
-FiniteDiff.finite_difference_gradient(f, x)
-# looks good
-
-
-g2 = Zygote.gradient(basis -> real(sum(DFTK._compute_partial_density(basis, kpt, ψ[1], occupation[1]) .* y)), basis)[1]
 
 using ChainRulesCore
 tang = Tangent{typeof(basis)}(;r_to_G_normalization=1.0)
@@ -230,7 +118,6 @@ tang = Tangent{typeof(basis)}(;G_to_r_normalization=1.0)
 FiniteDiff.finite_difference_derivative(t -> real(sum(DFTK._compute_partial_density(basis + t*tang, kpt, ψ[1], occupation[1]) .* y)), 0.0)
 g2.G_to_r_normalization
 # looks good
-
 
 function HF_energy(basis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
