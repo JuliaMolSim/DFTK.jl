@@ -53,6 +53,7 @@ function HF_energy(basis, ψ, occupation, ρ)
     energies = [DFTK.ene_ops(term, ψ, occupation; ρ=ρ).E for term in basis.terms]
     sum(energies)
 end
+HF_energy(basis::PlaneWaveBasis) = HF_energy(basis, ψ, occupation, scfres.ρ)
 HF_energy(ρ) = HF_energy(basis, ψ, occupation, ρ) # only for debug purposes, TODO delete
 HF_energy(scfres.ρ)
 g1 = Zygote.gradient(HF_energy, scfres.ρ)[1] # works
@@ -79,7 +80,6 @@ typeof.(basis.terms)
 Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[1], ψ, occupation).E, basis)
 Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[2], ψ, occupation; ρ=scfres.ρ).E, basis)
 
-HF_energy(basis::PlaneWaveBasis) = HF_energy(basis, ψ, occupation, scfres.ρ)
 HF_energy(basis) # -4.807121625456233
 g = Zygote.gradient(HF_energy, basis)[1];
 dump(g; maxdepth=2)
@@ -153,23 +153,75 @@ FiniteDiff.finite_difference_derivative(t -> sum(compute_density(basis + t*tang,
 FiniteDiff.finite_difference_derivative(t -> sum(DFTK._autodiff_compute_density(basis + t*tang, ψ, occupation)), 0.0)
 g1.G_to_r_normalization # wrong! TODO
 
-# TODO debug G_to_r_normalization
-_ρ = complex(scfres.ρ)
-w = rand(20,20,20,1)
-Zygote.gradient(a -> sum(G_to_r(make_basis(a), _ρ) .* w), a)
-FiniteDiff.finite_difference_derivative(a -> sum(G_to_r(make_basis(a), _ρ) .* w), a)
-
-# TODO G_to_r_normalization kpt
-G_to_r(make_basis(a), _ρ)
 
 kpt = basis.kpoints[1]
 kpt.mapping
-x = complex(rand(259))
+x = rand(ComplexF64,259)
 y = rand(20,20,20)
-G_to_r(make_basis(a), kpt, x)
-Zygote.gradient(a -> real(sum(G_to_r(make_basis(a), kpt, x) .* y)), a) # -53.48369127605996,
-FiniteDiff.finite_difference_derivative(a -> real(sum(G_to_r(make_basis(a), kpt, x) .* y)), a) # -53.48369127959806
-# ??? this seems to work..
+w = rand(ComplexF64,20,20,20)
+
+## r_to_G, G_to_r rules w.r.t. basis
+# TODO once complex intermediates are around, ∂normalization gets it wrong
+ 
+# r_to_G
+f(a) = abs2(sum(r_to_G(make_basis(a), y) .* y))
+Zygote.gradient(f, a)
+FiniteDiff.finite_difference_derivative(f, a)
+# looks good
+
+# r_to_G kpt
+r_to_G(make_basis(a), kpt, complex(y))
+f(a) = abs2(sum(r_to_G(make_basis(a), kpt, w) .* x))
+Zygote.gradient(f, a)
+FiniteDiff.finite_difference_derivative(f, a)
+# looks wrong
+
+# G_to_r
+f(a) = abs2(sum(G_to_r(make_basis(a), w) .* w))
+Zygote.gradient(f, a)
+FiniteDiff.finite_difference_derivative(f, a)
+# looks wrong
+
+# G_to_r kpt
+f(a) = abs2(sum(G_to_r(make_basis(a), kpt, x) .* y))
+Zygote.gradient(f, a)
+FiniteDiff.finite_difference_derivative(f, a)
+# looks wrong
+
+sum(abs2, r_to_G(basis, G_to_r(basis, kpt, x) .* w) .* w)
+function f(a)
+    # a = real(a)
+    basis = make_basis(a)
+    sum(abs2, r_to_G(basis, G_to_r(basis, kpt, a*x) .* w) .* w)
+end
+Zygote.gradient(f, a)
+FiniteDiff.finite_difference_derivative(f, a)
+# looks wrong
+
+
+# r_to_G w.r.t. f_real
+f(y) = abs2(sum(r_to_G(basis, y) .* w))
+Zygote.gradient(f, y)[1]
+FiniteDiff.finite_difference_gradient(f, y)
+# looks good
+
+# r_to_G kpt w.r.t. f_real
+f(w) = abs2(sum(r_to_G(basis, kpt, w) .* x))
+Zygote.gradient(f, w)[1]
+FiniteDiff.finite_difference_gradient(f, w)
+# looks good
+
+# G_to_r w.r.t. f_fourier
+f(w) = abs2(sum(G_to_r(basis, w) .* y))
+Zygote.gradient(f, w)[1]
+FiniteDiff.finite_difference_gradient(f, w)
+# looks good
+
+f(x) = abs2(sum(G_to_r(basis, kpt, x) .* y))
+Zygote.gradient(f, x)[1]
+FiniteDiff.finite_difference_gradient(f, x)
+# looks good
+
 
 # TODO somewhere inside _compute_partial_density w.r.t basis G_to_r_normalization is wrong
 
@@ -177,26 +229,30 @@ DFTK._compute_partial_density(basis, kpt, ψ[1], occupation[1])
 
 g2 = Zygote.gradient(basis -> real(sum(DFTK._compute_partial_density(basis, kpt, ψ[1], occupation[1]) .* y)), basis)[1]
 
+using ChainRulesCore
 tang = Tangent{typeof(basis)}(;r_to_G_normalization=1.0)
 FiniteDiff.finite_difference_derivative(t -> real(sum(DFTK._compute_partial_density(basis + t*tang, kpt, ψ[1], occupation[1]) .* y)), 0.0)
-g2.r_to_G_normalization # looks correct
+g2.r_to_G_normalization
+# looks wrong
 
 tang = Tangent{typeof(basis)}(;G_to_r_normalization=1.0)
 FiniteDiff.finite_difference_derivative(t -> real(sum(DFTK._compute_partial_density(basis + t*tang, kpt, ψ[1], occupation[1]) .* y)), 0.0)
-g2.G_to_r_normalization # looks wrong
+g2.G_to_r_normalization
+# looks wrong
 
 # try to simplify / narrow down: no-kpt r_to_G after kpt-G_to_r
 
-r_to_G(basis, G_to_r(basis, kpt, x))
 g3 = Zygote.gradient(basis -> real(sum(r_to_G(basis, G_to_r(basis, kpt, x)) .* y)), basis)[1]
 
 tang = Tangent{typeof(basis)}(;r_to_G_normalization=1.0)
-FiniteDiff.finite_difference_derivative(t -> real(sum(r_to_G(basis + t*tang, G_to_r(basis + t*tang, kpt, x)) .* y)), 0.0)
-g3.r_to_G_normalization # looks correct
+FiniteDiff.finite_difference_derivative(t -> real(sum(r_to_G(basis + t*tang, G_to_r(basis + t*tang, kpt, x)) .* y)), 0.0) # 31605.39007812946
+g3.r_to_G_normalization # 31898.347535655652 
+# looks wrong
 
 tang = Tangent{typeof(basis)}(;G_to_r_normalization=1.0)
-FiniteDiff.finite_difference_derivative(t -> real(sum(r_to_G(basis + t*tang, G_to_r(basis + t*tang, kpt, x)) .* y)), 0.0)
-g3.G_to_r_normalization # looks wrong
+FiniteDiff.finite_difference_derivative(t -> real(sum(r_to_G(basis + t*tang, G_to_r(basis + t*tang, kpt, x)) .* y)), 0.0) # 1066.7269291140424
+g3.G_to_r_normalization # 1076.6146605498566 
+# looks wrong
 
 # aside: should G_to_r(basis, kpt, x) also have an assume_real ? currently only G_to_r(basis, x) has
 

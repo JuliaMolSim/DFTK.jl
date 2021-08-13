@@ -10,7 +10,7 @@ function ChainRulesCore.rrule(::typeof(r_to_G), basis::PlaneWaveBasis, f_real::A
         ∂f_real = G_to_r(basis, complex(Δf_fourier)) * basis.r_to_G_normalization / basis.G_to_r_normalization
         ∂normalization = real(sum(∂f_real .* f_real)) / basis.r_to_G_normalization
         ∂basis = Tangent{typeof(basis)}(;r_to_G_normalization=∂normalization)
-        return NoTangent(), ∂basis, ∂f_real
+        return NoTangent(), ∂basis, real(∂f_real)
     end
     return f_fourier, r_to_G_pullback
 end
@@ -31,8 +31,8 @@ function ChainRulesCore.rrule(::typeof(G_to_r), basis::PlaneWaveBasis, f_fourier
     @warn "G_to_r rrule triggered."
     f_real = G_to_r(basis, f_fourier; kwargs...)
     function G_to_r_pullback(Δf_real)
-        ∂f_fourier = r_to_G(basis, Δf_real) * basis.G_to_r_normalization / basis.r_to_G_normalization
-        ∂normalization = real(sum(Δf_real .* f_real)) / basis.G_to_r_normalization
+        ∂f_fourier = r_to_G(basis, real(Δf_real)) * basis.G_to_r_normalization / basis.r_to_G_normalization
+        ∂normalization = real(sum(∂f_fourier .* f_fourier)) / basis.G_to_r_normalization
         ∂basis = Tangent{typeof(basis)}(;G_to_r_normalization=∂normalization)
         return NoTangent(), ∂basis, ∂f_fourier
     end
@@ -42,9 +42,12 @@ end
 function ChainRulesCore.rrule(::typeof(G_to_r), basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector)
     @warn "G_to_r kpoint rrule triggered."
     f_real = G_to_r(basis, kpt, f_fourier)
-    function G_to_r_pullback(Δf_real) # TODO verify soundness
+    function G_to_r_pullback(Δf_real)
         ∂f_fourier = r_to_G(basis, kpt, complex(Δf_real)) * basis.G_to_r_normalization / basis.r_to_G_normalization
-        ∂normalization = real(sum(Δf_real .* f_real)) / basis.G_to_r_normalization
+        ∂normalization = real(sum(∂f_fourier .* f_fourier)) / basis.G_to_r_normalization
+        # @show "Compare, look at sign flips"
+        # @show real(sum(Δf_real .* f_real))
+        # @show real(sum(∂f_fourier .* f_fourier))
         ∂basis = Tangent{typeof(basis)}(;G_to_r_normalization=∂normalization)
         return NoTangent(), ∂basis, NoTangent(), ∂f_fourier
     end
