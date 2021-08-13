@@ -48,27 +48,27 @@ total_energy(scfres.ρ)
 
 # Approach 2: Try direct access to term energies
 
-function HF_energy(basis, ψ, occupation, ρ)
+function HF_energy_debug(basis, ψ, occupation, ρ)
     # TODO ρ = compute_density(basis, ψ, occupation)
     energies = [DFTK.ene_ops(term, ψ, occupation; ρ=ρ).E for term in basis.terms]
     sum(energies)
 end
-HF_energy(basis::PlaneWaveBasis) = HF_energy(basis, ψ, occupation, scfres.ρ)
-HF_energy(ρ) = HF_energy(basis, ψ, occupation, ρ) # only for debug purposes, TODO delete
-HF_energy(scfres.ρ)
-g1 = Zygote.gradient(HF_energy, scfres.ρ)[1] # works
+HF_energy_debug(basis::PlaneWaveBasis) = HF_energy_debug(basis, ψ, occupation, scfres.ρ)
+HF_energy_debug(ρ) = HF_energy_debug(basis, ψ, occupation, ρ) # only for debug purposes, TODO delete
+HF_energy_debug(scfres.ρ)
+g1 = Zygote.gradient(HF_energy_debug, scfres.ρ)[1] # works
 
 # check against finite differences
-g2 = FiniteDiff.finite_difference_gradient(HF_energy, scfres.ρ)
+g2 = FiniteDiff.finite_difference_gradient(HF_energy_debug, scfres.ρ)
 sum(abs, g1 - g2)  # 3.7460628693848023e-7
 
 using BenchmarkTools
-@btime HF_energy(scfres.ρ)  # 215.649 μs (278 allocations: 772.42 KiB)
-@btime Zygote.gradient(HF_energy, scfres.ρ)[1];  # 2.044 ms (3413 allocations: 3.03 MiB)
-@btime FiniteDiff.finite_difference_gradient(HF_energy, scfres.ρ);  # 4.559 s (4463509 allocations: 11.78 GiB)
+@btime HF_energy_debug(scfres.ρ)  # 215.649 μs (278 allocations: 772.42 KiB)
+@btime Zygote.gradient(HF_energy_debug, scfres.ρ)[1];  # 2.044 ms (3413 allocations: 3.03 MiB)
+@btime FiniteDiff.finite_difference_gradient(HF_energy_debug, scfres.ρ);  # 4.559 s (4463509 allocations: 11.78 GiB)
 
 # also try E w.r.t. ψ
-HF_energy_psi(ψ) = HF_energy(basis, ψ, occupation, scfres.ρ)
+HF_energy_psi(ψ) = HF_energy_debug(basis, ψ, occupation, scfres.ρ)
 Zygote.gradient(HF_energy_psi, ψ)
 @btime HF_energy_psi(ψ);  # 192.225 μs (291 allocations: 776.19 KiB)
 @btime Zygote.gradient(HF_energy_psi, ψ);  # 1.823 ms (3464 allocations: 3.11 MiB)
@@ -80,8 +80,8 @@ typeof.(basis.terms)
 Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[1], ψ, occupation).E, basis)
 Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[2], ψ, occupation; ρ=scfres.ρ).E, basis)
 
-HF_energy(basis) # -4.807121625456233
-g = Zygote.gradient(HF_energy, basis)[1];
+HF_energy_debug(basis) # -4.807121625456233
+g = Zygote.gradient(HF_energy_debug, basis)[1];
 dump(g; maxdepth=2)
 # TODO verify result
 # look at forces
@@ -116,8 +116,8 @@ Zygote.gradient(a -> make_basis(a).terms[2].potential[1], a)
 FiniteDiff.finite_difference_derivative(a -> make_basis(a).terms[2].potential[1], a)
 
 # Kinetic + AtomicLocal
-Zygote.gradient(a -> HF_energy(make_basis(a)), a)
-FiniteDiff.finite_difference_derivative(a -> HF_energy(make_basis(a)), a)
+Zygote.gradient(a -> HF_energy_debug(make_basis(a)), a)
+FiniteDiff.finite_difference_derivative(a -> HF_energy_debug(make_basis(a)), a)
 
 # TODO compute_density
 
@@ -232,10 +232,12 @@ g2.G_to_r_normalization
 # looks good
 
 
-function HF_energy_recompute(basis, ψ, occupation)
+function HF_energy(basis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
     energies = [DFTK.ene_ops(term, ψ, occupation; ρ=ρ).E for term in basis.terms]
     sum(energies)
 end
-Zygote.gradient(a -> HF_energy_recompute(make_basis(a), ψ, occupation), a) # -0.22098988721348034,
-FiniteDiff.finite_difference_derivative(a -> HF_energy_recompute(make_basis(a), ψ, occupation), a) # -0.22098988731612818
+Zygote.gradient(a -> HF_energy(make_basis(a), ψ, occupation), a) # -0.22098988721348034,
+FiniteDiff.finite_difference_derivative(a -> HF_energy(make_basis(a), ψ, occupation), a) # -0.22098988731612818
+
+# TODO HF forces
