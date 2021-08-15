@@ -35,7 +35,7 @@ function Base.push!(anderson::AndersonAcceleration{T}, xₙ, αₙ, Pfxₙ) wher
 end
 
 # Gets the current xₙ, Pf(xₙ) and damping αₙ
-function (anderson::AndersonAcceleration{T})(xₙ, αₙ, Pfxₙ) where T
+@timing "Anderson acceleration" function (anderson::AndersonAcceleration{T})(xₙ, αₙ, Pfxₙ) where T
     Torig = eltype(xₙ)
     xs   = anderson.iterates
     Pfxs = anderson.residuals
@@ -66,7 +66,7 @@ function (anderson::AndersonAcceleration{T})(xₙ, αₙ, Pfxₙ) where T
     end
     push!(anderson, xₙ, αₙ, Pfxₙ)
 
-    @assert eltype(xₙ₊₁) isa Torig
+    @assert eltype(xₙ₊₁) == Torig
     reshape(xₙ₊₁, size(xₙ))
 end
 
