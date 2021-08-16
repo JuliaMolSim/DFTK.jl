@@ -14,13 +14,16 @@ Represents the LDOS-based ``χ_0`` model
 where ``D_\text{loc}`` is the local density of states and ``D`` the density of states.
 For details see Herbst, Levitt 2020 arXiv:2009.01665
 """
-struct LdosModel <: χ0Model end
-function (::LdosModel)(basis; eigenvalues, ψ, εF, kwargs...)
+@kwdef struct LdosModel <: χ0Model
+    adjust_temperature = IncreaseMixingTemperature()
+end
+function (χ0::LdosModel)(basis; eigenvalues, ψ, εF, kwargs...)
     n_spin = basis.model.n_spin_components
 
     # Catch cases that will yield no contribution
-    iszero(basis.model.temperature) && return nothing
-    ldos = compute_ldos(εF, basis, eigenvalues, ψ)
+    temperature = χ0.adjust_temperature(basis.model.temperature; kwargs...)
+    iszero(temperature) && return nothing
+    ldos = compute_ldos(εF, basis, eigenvalues, ψ; temperature)
     if maximum(abs, ldos) < eps(eltype(basis))
         return nothing
     end

@@ -91,6 +91,7 @@ Random.seed!(0)
         include("energies_guess_density.jl")
         include("compute_density.jl")
         include("forces.jl")
+        include("stresses.jl")
     end
 
     if "all" in TAGS
@@ -105,10 +106,6 @@ Random.seed!(0)
 
     if "all" in TAGS && mpi_master()
         include("aqua.jl")
-    end
-
-    if "all" in TAGS
-        include("stresses.jl")
     end
 
     ("example" in TAGS) && include("runexamples.jl")

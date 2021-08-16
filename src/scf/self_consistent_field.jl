@@ -48,7 +48,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        n_ep_extra=3,
                                        determine_diagtol=ScfDiagtol(),
                                        damping=0.8,  # Damping parameter
-                                       mixing=SimpleMixing(),
+                                       mixing=LdosMixing(),
                                        is_converged=ScfConvergenceEnergy(tol),
                                        callback=ScfDefaultCallback(),
                                        compute_consistent_energies=true,
@@ -99,7 +99,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         if enforce_symmetry
-            ρout = DFTK.symmetrize(basis, ρout)
+            ρout = DFTK.symmetrize_ρ(basis, ρout)
         end
 
         # Update info with results gathered so far
@@ -118,7 +118,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         δρ = mix_density(mixing, basis, ρout - ρin; info...)
         ρnext = ρin .+ T(damping) .* δρ
         if enforce_symmetry
-            ρnext = DFTK.symmetrize(basis, ρnext)
+            ρnext = DFTK.symmetrize_ρ(basis, ρnext)
         end
         info = merge(info, (; ρnext=ρnext))
 
