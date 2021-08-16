@@ -1,6 +1,6 @@
 import Brillouin
 
-@docs raw"""
+@doc raw"""
 Extract the high-symmetry ``k``-Point path corresponding to the passed model
 using `Brillouin.jl`. Uses the conventions described in
 [Y. Himuma et. al. Comput. Mater. Sci. 128, 140 (2017) DOI 10.1016/j.commatsci.2016.10.015](https://doi.org/10.1016/j.commatsci.2016.10.015).
