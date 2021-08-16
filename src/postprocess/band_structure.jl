@@ -1,6 +1,11 @@
 import Brillouin
 
-# Functionality for computing band structures
+@docs raw"""
+Extract the high-symmetry ``k``-Point path corresponding to the passed model
+using `Brillouin.jl`. Uses the conventions described in
+[Y. Himuma et. al. Comput. Mater. Sci. 128, 140 (2017) DOI 10.1016/j.commatsci.2016.10.015](https://doi.org/10.1016/j.commatsci.2016.10.015).
+Issues a warning in case the passed lattice does not match the expected primitive.
+"""
 function high_symmetry_kpath(model; kline_density=20)
     # Change units from Number of kpoints per inverse Angström (i.e. unit of length)
     # to number of kpoints per inverse bohrs.
@@ -17,21 +22,30 @@ function high_symmetry_kpath(model; kline_density=20)
                 kpath=[["-½", "½"]], kbranches=[1:length(kcoords)])
     end
 
+    # Brillouin.jl follows the convention of the Hinuma et. al. paper,
+    # which is pretty much the International Table of Crystallography Vol A (ITA).
+    # Spglib returns the conventional lattice in the same convention.
+    # However, for the primitive lattice the Hinuma and spglib conventions differ.
+    # TODO Use Brillouin.jl to extract the primitive lattice ...
     conv_latt      = get_spglib_lattice(model; to_primitive=false)
     primitive_latt = get_spglib_lattice(model; to_primitive=true)
     # TODO This produces a segfault ... unify functions later
     # conv_latt, _      = spglib_standardize_cell(model.lattice, model.atoms, primitive=false)
     # primitive_latt, _ = spglib_standardize_cell(model.lattice, model.atoms, primitive=true)
-    primitive_latt ≈ model.lattice || @warn "The DFTK lattice and spglib's primitive lattice do not agree."
+    primitive_latt ≈ model.lattice || @warn(
+        "DFTK's model.lattice and spglib's primitive lattice do not agree. " *
+        "The band structure might not be along the most appropriate kpoint path."
+    )
 
     # Get International Tables for Crystallography (ITA) space group number
-    sgnum = spglib_spacegroup_number(model)
-    Rs    = collect(eachcol(conv_latt))
-    kp    = Brillouin.irrfbz_path(sgnum, Rs)
+    sgnum  = spglib_spacegroup_number(model)
+    Rs     = collect(eachcol(conv_latt))
+    kp     = Brillouin.irrfbz_path(sgnum, Rs)
     kinter = Brillouin.interpolate(kp, density=kline_density)
 
     # Need to double the points whenever a new path starts
     # (for temporary compatibility with pymatgen)
+    # TODO Remove later
     kcoords = empty(first(kinter.kpaths))
     for kbranch in kinter.kpaths
         idcs = findall(k -> any(sum(abs2, k - kcomp) < 1e-5
