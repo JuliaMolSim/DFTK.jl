@@ -125,12 +125,17 @@ end
     Stildes, τtildes
 end
 
+# Returns crystallographic conventional cell if primitive is false, else the primitive
+# cell in the convention by spglib
 function spglib_standardize_cell(lattice::AbstractArray{T}, atoms; correct_symmetry=true,
                                  primitive=false, tol_symmetry=1e-5) where {T}
     # Convert lattice and atoms to spglib and keep the mapping between our atoms
     spg_lattice = copy(Matrix{Float64}(lattice)')
     # and spglibs atoms
     spg_positions, spg_numbers, spg_spins, atommapping = spglib_atoms(atoms)
+
+    # TODO This drops magnetic moments!
+    # TODO What about time-reversal symmetry?
 
     # Ask spglib to standardize the cell (i.e. find a cell, which fits the spglib conventions)
     num_atoms = ccall((:spg_standardize_cell, SPGLIB), Cint,
@@ -165,7 +170,11 @@ end
 
 
 # TODO merge this function into spglib_standardize_cell
+# Returns crystallographic conventional cell if to_primitive is false, else the primitive
+# cell in the convention by spglib
 function get_spglib_lattice(model; to_primitive=false)
+    # TODO This drops magnetic moments!
+    # TODO What about time-reversal symmetry?
     spg_positions, spg_numbers, _ = spglib_atoms(model.atoms)
     structure = Spglib.Cell(transpose(model.lattice), spg_positions, spg_numbers)
     spglib_lattice = Spglib.standardize_cell(structure, to_primitive=to_primitive).lattice
@@ -175,6 +184,8 @@ end
 
 function spglib_spacegroup_number(model)
     # Get spacegroup number according to International Tables for Crystallography (ITA)
+    # TODO Time-reversal symmetry disabled? (not yet available in DFTK)
+    # TODO Are magnetic moments passed?
     spg_positions, spg_numbers, _ = spglib_atoms(model.atoms)
     structure = Spglib.Cell(transpose(model.lattice), spg_positions, spg_numbers)
     spacegroup_number = Spglib.get_spacegroup_number(structure)
