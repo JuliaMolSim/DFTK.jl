@@ -53,20 +53,37 @@ reducible ``k``-points can be deduced from those at the irreducible ``k``-points
 
 ## Symmetrization
 Quantities that are calculated by summing over the reducible ``k`` points can be
-calculated by first summing over the irreducible ``k`` points and then symmetrizing. Let ``f`` be a ``k``-dependent quantity to sum (for instance, energies, densities, forces, etc). ``f`` transforms in a particular way under symmetries: ``f(Sk) = S(f(k))`` where the (linear) action of ``S`` on ``f`` depends on the particular ``f``. Let ``\mathcal S`` the group of all crystal symmetries that leave the Brillouin zone mesh invariant.
+calculated by first summing over the irreducible ``k`` points and then symmetrizing.
+Let ``\mathcal{K}_\text{reducible}`` denote the reducible ``k``-points
+sampling the Brillouin zone,
+``\mathcal{S}`` be the group of all crystal symmetries that leave this BZ mesh invariant
+(``\mathcal{S}\mathcal{K}_\text{reducible} = \mathcal{K}_\text{reducible}``)
+and ``\mathcal{K}`` be the irreducible ``k``-points obtained
+from ``\mathcal{K}_\text{reducible}`` using the symmetries ``\mathcal{S}``.
+Clearly
+```math
+\mathcal{K}_\text{red} = \{Sk \, | \, S \in \mathcal{S}, k \in \mathcal{K}\}.
+```
+
+Let ``Q`` be a ``k``-dependent quantity to sum (for instance, energies, densities, forces, etc).
+``Q`` transforms in a particular way under symmetries: ``Q(Sk) = S(Q(k))`` where the
+(linear) action of ``S`` on ``Q`` depends on the particular ``Q``.
 ```math
 \begin{aligned}
-\sum_{k\ \mathrm{reducible}} f(k)
-&= \sum_{k\ \mathrm{irreducible}} \sum_{S\text{ mapping $k$ to a reducible point}} S(f(k)) \\
-&= \sum_{k\ \mathrm{irreducible}} \frac{1}{N_{S,k}} \sum_{S \in \mathcal S} S(f(k))\\
-&= \frac 1 {N_S} \sum_{S \in \mathcal S} \left(\sum_{k\ \mathrm{irreducible}} \frac{N_S}{N_{S,k}} f(k) \right)
+\sum_{k \in \mathcal{K}_\text{red}} Q(k)
+&= \sum_{k \in \mathcal{K}} \ \sum_{S \text{ with } Sk \in \mathcal{K}_\text{red}} S(Q(k)) \\
+&= \sum_{k \in \mathcal{K}} \frac{1}{N_{\mathcal{S},k}} \sum_{S \in \mathcal{S}} S(Q(k))\\
+&= \frac{1}{N_{\mathcal{S}}} \sum_{S \in \mathcal{S}}
+   \left(\sum_{k \in \mathcal{K}} \frac{N_\mathcal{S}}{N_{\mathcal{S},k}} Q(k) \right)
 \end{aligned}
 ```
-Here, ``N_S = |\mathcal S|`` and ``N_{S,k}`` are the total number of symmetry operations and the
-number of operations such that ``k=Sk``, respectively. The latter operations form
-a subgroup of the group of all symmetry operations, sometimes called
-the "small/little group of ``k``".
-The factor ``\frac{N_S}{N_{S,k}}``, also equal to the ratio of number of reducible points encoded by this particular irreducible ``k`` to the total number of reducible points, determines the weight of each irreducible ``k`` point.
+Here, ``N_\mathcal{S} = |\mathcal{S}|`` is the total number of symmetry operations and
+``N_{\mathcal{S},k}`` denotes the number of operations such that leave ``k`` invariant.
+The latter operations form a subgroup of the group of all symmetry operations,
+sometimes called the *small/little group of ``k``*.
+The factor ``\frac{N_\mathcal{S}}{N_{S,k}}``, also equal to the ratio of number of
+reducible points encoded by this particular irreducible ``k`` to the total number of
+reducible points, determines the weight of each irreducible ``k`` point.
 
 ## Example
 ```@setup symmetries
