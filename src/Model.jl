@@ -76,14 +76,31 @@ external potential breaks some of the passed symmetries. Use `false` to turn off
 symmetries completely.
 """
 function Model(lattice::AbstractMatrix{T};
-               n_electrons=nothing,
-               atoms=[],
-               magnetic_moments=[],
-               terms=[],
-               temperature=T(0.0),
-               smearing=nothing,
-               spin_polarization=default_spin_polarization(magnetic_moments),
-               symmetries=default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization),
+    n_electrons=nothing,
+    atoms=[],
+    magnetic_moments=[],
+    terms=[],
+    temperature=T(0.0),
+    smearing=nothing,
+    spin_polarization=default_spin_polarization(magnetic_moments),
+    symmetries=default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization),
+    ) where {T <: Real}
+    Model(lattice, atoms, terms; n_electrons, magnetic_moments, temperature, smearing, spin_polarization, symmetries)
+end
+
+# Inner positional arg constructor, needed for ChainRules, since currently rrule derivative 
+# definitions with respect to kwargs (such as atoms, terms) are not supported by ChainRules.
+# TODO should more fields be differentiable?
+function Model(lattice::AbstractMatrix{T},
+               atoms,
+               terms,
+               ;   
+               n_electrons,
+               magnetic_moments,
+               temperature,
+               smearing,
+               spin_polarization,
+               symmetries,
                ) where {T <: Real}
     lattice = Mat3{T}(lattice)
     temperature = T(austrip(temperature))

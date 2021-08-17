@@ -82,12 +82,6 @@ typeof.(basis.terms)
 Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[1], ψ, occupation).E, basis)
 Zygote.gradient(basis -> DFTK.ene_ops(basis.terms[2], ψ, occupation; ρ=scfres.ρ).E, basis)
 
-HF_energy_debug(basis) # -4.807121625456233
-g = Zygote.gradient(HF_energy_debug, basis)[1];
-dump(g; maxdepth=2)
-# TODO verify result
-# look at forces
-
 # diff through term construction (pre-computations)
 
 # Kinetic + AtomicLocal

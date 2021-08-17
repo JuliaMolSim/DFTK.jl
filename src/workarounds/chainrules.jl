@@ -63,6 +63,13 @@ end
 ChainRulesCore.@non_differentiable ElementPsp(::Any...)
 ChainRulesCore.@non_differentiable r_vectors(::Any...)
 ChainRulesCore.@non_differentiable G_vectors(::Any...)
+ChainRulesCore.@non_differentiable default_symmetries(::Any...) # TODO perhaps?
+
+# demanded by Zygote
+function ChainRulesCore.rrule(T::Type{Pair{ElementPsp,T2}}, el, x) where {T2}
+    @warn "Pair{ElementPsp,T2} constructor rrule triggered."
+    return T(el, x), ΔTx -> (NoTangent(), NoTangent(), ΔTx.second)
+end
 
 # TODO delete
 @adjoint (T::Type{<:SArray})(x...) = T(x...), y->(y,)
@@ -74,23 +81,23 @@ function ChainRulesCore.rrule(T::Type{Vector{Kpoint{Float64}}}, x)
 end
 
 
-# # simplified version of the Model constructor to
-# # help reverse mode AD to only differentiate the relevant computations.
-# # this excludes assertions (try-catch), and symmetries
-function _autodiff_Model_namedtuple(lattice)
+# simplified version of the Model constructor to
+# help reverse mode AD to only differentiate the relevant computations.
+# this excludes assertions (try-catch), and symmetries
+function _autodiff_Model_namedtuple(lattice, atoms, terms)
     T = eltype(lattice)
     recip_lattice = 2T(π)*inv(lattice')
     unit_cell_volume = abs(det(lattice))
     recip_cell_volume = abs(det(recip_lattice))
-    (;lattice=lattice, recip_lattice=recip_lattice, unit_cell_volume=unit_cell_volume, recip_cell_volume=recip_cell_volume)
+    (;lattice=lattice, recip_lattice=recip_lattice, unit_cell_volume=unit_cell_volume, 
+    recip_cell_volume=recip_cell_volume, atoms=atoms, term_types=terms)
 end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Model}, lattice; kwargs...)
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Model}, lattice, atoms, terms; kwargs...)
     @warn "simplified Model rrule triggered."
-    model = T(lattice; kwargs...)
-    _model, Model_pullback = rrule_via_ad(config, _autodiff_Model_namedtuple, lattice)
+    model = T(lattice, atoms, terms; kwargs...)
+    _model, Model_pullback = rrule_via_ad(config, _autodiff_Model_namedtuple, lattice, atoms, terms)
     # TODO add some assertion that model and _model agree
-    # TODO treat atoms (figure out how to deal with differentiable kwargs)
     return model, Model_pullback
 end
 
