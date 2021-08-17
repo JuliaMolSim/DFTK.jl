@@ -44,8 +44,10 @@ basis = PlaneWaveBasis(model; Ecut, kgrid);
 # our pseudopotential model result in four valence electrons being explicitly
 # treated. Nevertheless this SCF will solve for eight bands by default
 # in order to capture partial occupations beyond the Fermi level due to
-# the employed smearing scheme. In this example we use a damping of `0.8`
-# and Kerker mixing to ease convergence.
+# the employed smearing scheme. In this example we use a damping of `0.8`.
+# The default `LdosMixing` should be suitable to converge metallic systems
+# like the one we model here. For the sake of demonstration we still switch to
+# Kerker mixing here.
 scfres = self_consistent_field(basis, damping=0.8, mixing=KerkerMixing());
 #-
 scfres.occupation[1]
