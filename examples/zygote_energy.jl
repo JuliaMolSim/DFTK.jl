@@ -2,6 +2,8 @@ using DFTK
 using Zygote
 import FiniteDiff
 
+# NOTE: this snippet works on Zygote v0.6.17 but breaks on v0.6.18 (suspicion: due to `basis` argument in PlaneWaveBasis rrule)
+
 a = 10.26
 Si = ElementPsp(:Si, psp=load_psp(:Si, functional="lda"))
 atoms = [Si => [ones(3)/8, -ones(3)/8]]
@@ -109,6 +111,8 @@ FiniteDiff.finite_difference_derivative(f, a)
 # looks wrong, TODO
 
 using ChainRulesCore
+g2 = Zygote.gradient(basis -> real(sum(DFTK._compute_partial_density(basis, kpt, ψ[1], occupation[1]) .* y)), basis)[1]
+
 tang = Tangent{typeof(basis)}(;r_to_G_normalization=1.0)
 FiniteDiff.finite_difference_derivative(t -> real(sum(DFTK._compute_partial_density(basis + t*tang, kpt, ψ[1], occupation[1]) .* y)), 0.0)
 g2.r_to_G_normalization
@@ -127,4 +131,4 @@ end
 Zygote.gradient(a -> HF_energy(make_basis(a), ψ, occupation), a) # -0.22098988721348034,
 FiniteDiff.finite_difference_derivative(a -> HF_energy(make_basis(a), ψ, occupation), a) # -0.22098988731612818
 
-# TODO HF forces
+# TODO HF forces. This needs diff w.r.t. keyword arg Model(...; atoms) which is not supported by ChainRules so far.
