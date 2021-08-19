@@ -34,8 +34,7 @@ atoms = [Si => [ones(3)/8, -ones(3)/8]]
 
 ## Cast to Float32, setup model and basis
 model = model_DFT(Array{Float32}(lattice), atoms, [:lda_x, :lda_c_vwn])
-Ecut = 7
-basis = PlaneWaveBasis(model, Ecut, kgrid=[4, 4, 4])
+basis = PlaneWaveBasis(model, Ecut=7, kgrid=[4, 4, 4])
 
 ## Run the SCF
 scfres = self_consistent_field(basis, tol=1e-4);

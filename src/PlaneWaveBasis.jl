@@ -333,9 +333,6 @@ function PlaneWaveBasis(model::Model;
                    kgrid, kshift, kwargs...)
 end
 
-PlaneWaveBasis(model::Model, Ecut; kwargs...) = PlaneWaveBasis(model; Ecut, kwargs...)
-@deprecate PlaneWaveBasis(model, Ecut; kwargs...) PlaneWaveBasis(model; Ecut, kwargs...)
-
 """
 Return the list of wave vectors (integer coordinates) for the cubic basis set.
 """
