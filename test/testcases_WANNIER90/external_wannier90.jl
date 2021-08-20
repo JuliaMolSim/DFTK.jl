@@ -1,8 +1,10 @@
 using Test
 using DFTK
-using wannier90_jll
 
-if( (mpi_nprocs() == 1) && !(Sys.iswindows()) )
+
+if( (mpi_nprocs() == 1) && !(Sys.iswindows()) && !(Sys.isapple()) )
+
+    using wannier90_jll # Only works on ubuntu
 
     # Classic SCF
     a = 10.26 #a.u.
