@@ -154,11 +154,13 @@ export load_model
 export load_density
 export load_atoms
 export load_magnetic_moments
+export run_wannier90
 include("external/abinit.jl")
 include("external/load_from_python.jl")
 include("external/load_from_file.jl")
 include("external/ase.jl")
 include("external/pymatgen.jl")
+include("external/wannier90.jl")
 
 export compute_bands
 export high_symmetry_kpath
