@@ -74,9 +74,6 @@ julia = "1.6"
 spglib_jll = "1.15"
 Zygote = "0.6.17"
 
-# Some world-age-related issues with JLD2 > 0.4.7 at the moment
-JLD2 = "0.4 - 0.4.7"
-
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 DoubleFloats = "497a8b3b-efae-58df-a0af-a86822472b78"

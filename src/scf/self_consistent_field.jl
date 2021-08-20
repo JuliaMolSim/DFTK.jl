@@ -48,7 +48,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        n_ep_extra=3,
                                        determine_diagtol=ScfDiagtol(),
                                        damping=0.8,  # Damping parameter
-                                       mixing=SimpleMixing(),
+                                       mixing=LdosMixing(),
                                        is_converged=ScfConvergenceEnergy(tol),
                                        callback=ScfDefaultCallback(),
                                        compute_consistent_energies=true,
