@@ -22,12 +22,9 @@ Si = ElementPsp(:Si, psp=load_psp("hgh/pbe/Si-q4"))
 atoms = [ Si => [zeros(3), 0.25*[-1,3,-1]] ]
 
 model = model_PBE(lattice,atoms)
+basis = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 
-kgrid = [4,4,4]
-Ecut = 15
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
-
-scfres = self_consistent_field(basis, tol=1e-12, n_bands = 12);
+scfres = self_consistent_field(basis, tol=1e-12, n_bands=12);
 
 # !!! note "Extra bands."
 #     DFTK automatically adds 3 extra non converged bands for the scf calculation.

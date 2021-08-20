@@ -448,7 +448,6 @@ function run_wannier90(prefix::String, scfres, num_wann::Integer;
                        kwargs...)
 
     @assert guess ∈ ("gaussian", "win")
-    @info "Guess = $guess"
 
     # Unfold scfres to retrieve full k-point list
     scfres_unfold = unfold_bz(scfres)

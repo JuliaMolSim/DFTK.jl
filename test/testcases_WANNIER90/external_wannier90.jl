@@ -13,11 +13,9 @@ if( (mpi_nprocs() == 1) && !(Sys.iswindows()) )
 
     Si = ElementPsp(:Si, psp=load_psp("hgh/pbe/Si-q4"))
     atoms = [ Si => [zeros(3), 0.25*[-1,3,-1]] ]
-    model = model_PBE(lattice,atoms)
 
-    kgrid = [4,4,4] # mp grid
-    Ecut = 5
-    basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+    model = model_PBE(lattice,atoms)
+    basis = PlaneWaveBasis(model, Ecut=5, kgrid=[4, 4, 4])
 
     scfres = self_consistent_field(basis, tol=1e-12, n_bands = 12, n_ep_extra = 0 );
     ψ = scfres.ψ
