@@ -20,11 +20,11 @@ function make_model(a)
         # Entropy(),
         # Hartree()
     ]
-    Model(lattice; atoms=atoms, terms=terms, temperature=1e-3)
+    Model(lattice; atoms, terms, temperature=1e-3)
 end
 kgrid = [1, 1, 1]
 Ecut = 7
-make_basis(model::Model) = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+make_basis(model::Model) = PlaneWaveBasis(model; Ecut, kgrid)
 make_basis(a::Real) = make_basis(make_model(a))
 basis = make_basis(a)
 
