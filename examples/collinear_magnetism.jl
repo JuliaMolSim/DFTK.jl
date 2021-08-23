@@ -23,7 +23,7 @@ atoms = [Fe => [zeros(3)]];
 kgrid = [3, 3, 3]  # k-point grid (Regular Monkhorst-Pack grid)
 Ecut = 15          # kinetic energy cutoff in Hartree
 model_nospin = model_LDA(lattice, atoms, temperature=0.01)
-basis_nospin = PlaneWaveBasis(model_nospin, Ecut; kgrid=kgrid)
+basis_nospin = PlaneWaveBasis(model_nospin; kgrid, Ecut)
 
 scfres_nospin = self_consistent_field(basis_nospin, tol=1e-6, mixing=KerkerMixing());
 #-
@@ -57,7 +57,7 @@ magnetic_moments = [Fe => [4, ]];
 # the non-zero moment and switches to a collinear calculation.
 
 model = model_LDA(lattice, atoms, magnetic_moments=magnetic_moments, temperature=0.01)
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+basis = PlaneWaveBasis(model; Ecut, kgrid)
 ρ0 = guess_density(basis, magnetic_moments)
 scfres = self_consistent_field(basis, tol=1e-6; ρ=ρ0, mixing=KerkerMixing());
 #-

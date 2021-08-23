@@ -75,7 +75,7 @@ if mpi_nprocs() == 1  # not easy to distribute
 
         # Test density is the same in both schemes, and symmetric wrt the basis symmetries
         @test maximum(abs.(ρ_ir - ρ_full)) < 10tol
-        @test maximum(abs, DFTK.symmetrize(ham_ir.basis, ρ_ir; symmetries=symmetries) - ρ_ir) < tol
+        @test maximum(abs, DFTK.symmetrize_ρ(ham_ir.basis, ρ_ir; symmetries=symmetries) - ρ_ir) < tol
 
         # Test local potential is the same in both schemes
         @test maximum(abs, total_local_potential(ham_ir) - total_local_potential(ham_full)) < tol

@@ -38,7 +38,7 @@ end;
 # We first compute the polarizability by finite differences.
 # First compute the dipole moment at rest:
 model = model_LDA(lattice, atoms; symmetries=false)
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+basis = PlaneWaveBasis(model; Ecut, kgrid)
 res = self_consistent_field(basis, tol=tol)
 μref = dipole(basis, res.ρ)
 
@@ -46,7 +46,7 @@ res = self_consistent_field(basis, tol=tol)
 ε = .01
 model_ε = model_LDA(lattice, atoms; extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
                     symmetries=false)
-basis_ε = PlaneWaveBasis(model_ε, Ecut; kgrid=kgrid)
+basis_ε = PlaneWaveBasis(model_ε; Ecut, kgrid)
 res_ε = self_consistent_field(basis_ε, tol=tol)
 με = dipole(basis_ε, res_ε.ρ)
 

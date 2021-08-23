@@ -265,7 +265,7 @@ function apply_χ0(ham, ψ, εF, eigenvalues, δV; kwargs_sternheimer...)
     # could be made to only respect basis.symmetries, but symmetrizing wrt
     # the model symmetry group means that χ0 is unaffected by the
     # use_symmetry kwarg of basis, which is nice)
-    δV = symmetrize(basis, δV) / normδV
+    δV = symmetrize_ρ(basis, δV) / normδV
 
     δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]

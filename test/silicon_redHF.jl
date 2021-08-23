@@ -24,7 +24,8 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
     ]
     ref_etot = -5.440593269861395
 
-    fft_size = grid_size * ones(3)
+    fft_size = fill(grid_size, 3)
+    fft_size = DFTK.next_working_fft_size(T, fft_size) # ad-hoc fix for buggy generic FFTs
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="lda", family="hgh"))
     model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [];
                       temperature=0.05, spin_polarization=spin_polarization)

@@ -119,7 +119,8 @@ end
     ρ0    = guess_density(basis)
     ρ_ref = self_consistent_field(basis, ρ=ρ0, tol=tol).ρ
 
-    for mixing in (KerkerDosMixing(), HybridMixing(RPA=true), HybridMixing(εr=10, RPA=false), )
+    for mixing in (KerkerDosMixing(), HybridMixing(RPA=true), LdosMixing(RPA=false),
+                   HybridMixing(εr=10, RPA=true), )
         @testset "Testing $mixing" begin
             ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol, damping=0.8).ρ
             @test maximum(abs.(ρ_mix - ρ_ref)) < sqrt(tol)
@@ -129,7 +130,6 @@ end
 
 
 @testset "Compare different SCF algorithms (collinear spin, temperature)" begin
-    Ecut = 11
     n_bands = 8
     fft_size = [13, 13, 13]
     tol = 1e-7
@@ -139,7 +139,7 @@ end
     model = model_LDA(iron_bcc.lattice, [Fe => iron_bcc.positions],
                       temperature=0.01, magnetic_moments=magnetic_moments,
                       spin_polarization=:collinear)
-    basis = PlaneWaveBasis(model, Ecut; fft_size=fft_size, kgrid=[3, 3, 3])
+    basis = PlaneWaveBasis(model; Ecut=11, fft_size=fft_size, kgrid=[3, 3, 3])
 
     # Reference: Default algorithm
     ρ0     = guess_density(basis, magnetic_moments)
