@@ -122,7 +122,7 @@ function make_basis(ε, lattice)
     model_ε = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn];  
                         extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
                         symmetries=false)
-    basis_ε = PlaneWaveBasis(model_ε, Ecut; kgrid=kgrid)
+    basis_ε = PlaneWaveBasis(model_ε; Ecut, kgrid)
 end
 make_basis(ε) = make_basis(ε, lattice)
 
