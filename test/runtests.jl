@@ -108,5 +108,9 @@ Random.seed!(0)
         include("aqua.jl")
     end
 
+    if "all" in TAGS
+        include("chainrules.jl")
+    end
+
     ("example" in TAGS) && include("runexamples.jl")
 end
