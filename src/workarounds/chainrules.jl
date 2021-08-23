@@ -217,16 +217,16 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, E::AtomicLoc
     return term, AtomicLocal_pullback
 end
 
-# TODO compute_density rrule
+# compute_density rrule
 
 function _compute_partial_density(basis, kpt, ψk, occupation)
+    # if one directly tries `sum(1:N) do n ... end` one gets "Dimension mismatch" in reverse pass
+    # TODO potential bug in ChainRules sum rrule?
 
-    ρk_real = map(1:size(ψk, 2)) do n
-        ψnk = @views ψk[:, n]
+    ρk_real = sum(zip(eachcol(ψk), occupation)) do (ψnk, occn)
         ψnk_real_tid = G_to_r(basis, kpt, ψnk)
-        occupation[n] .* abs2.(ψnk_real_tid)
+        occn .* abs2.(ψnk_real_tid)
     end
-    ρk_real = sum(ρk_real)
 
     # FFT and return
     r_to_G(basis, ρk_real)
@@ -234,7 +234,7 @@ end
 
 function _accumulate_over_symmetries(ρin, basis, symmetries)
     T = eltype(basis)
-    # # TODO clean-up using enumerate(...) once supported by Zygote or others
+    # trying sum(...) do ... directly here gives a Zygote error
     x = map(
         function (sym)
             S, τ = sym
@@ -244,7 +244,8 @@ function _accumulate_over_symmetries(ρin, basis, symmetries)
                 if isnothing(igired)
                     zero(complex(T))
                 else
-                    cis(-2T(π) * dot(G, τ)) * ρin[igired]
+                    cis(-2T(π) * dot(G, τ)) * ρin[igired] 
+                    # TODO: indexing into large arrays can cause OOM in reverse
                 end
             end
             ρS
@@ -272,24 +273,28 @@ function ChainRulesCore.rrule(::typeof(_lowpass_for_symmetry), ρ, basis; symmet
 end
 
 function _autodiff_compute_density(basis::PlaneWaveBasis, ψ, occupation)
-    n_spin = basis.model.n_spin_components
+    # try one kpoint only (for debug) TODO re-enable all kpoints
+    ρsum = _compute_partial_density(basis, basis.kpoints[1], ψ[1], occupation[1])
+    ρ = reshape(ρsum, size(ρsum)..., 1)
 
-    ρsum = map(eachindex(basis.kpoints)) do ik
-        kpt = basis.kpoints[ik]
-        ρ_k = _compute_partial_density(basis, kpt, ψ[ik], occupation[ik])
-        ρ_k = _lowpass_for_symmetry(ρ_k, basis)
-        ρaccu = _accumulate_over_symmetries(ρ_k, basis, basis.ksymops[ik])
-        ρaccu
-    end
-    ρsum = sum(ρsum)
-    ρaccus = [reshape(ρsum, size(ρsum)..., 1)] # TODO handle n_spin > 1
+    # ρsum = map(eachindex(basis.kpoints)) do ik # TODO re-write without indexing (causes OOM in reverse)
+    #     kpt = basis.kpoints[ik]
+    #     ρ_k = _compute_partial_density(basis, kpt, ψ[ik], occupation[ik])
+    #     ρ_k = _lowpass_for_symmetry(ρ_k, basis)
+    #     ρaccu = _accumulate_over_symmetries(ρ_k, basis, basis.ksymops[ik])
+    #     ρaccu
+    # end
+    # ρsum = sum(ρsum)
+    # ρaccus = [reshape(ρsum, size(ρsum)..., 1)] # TODO handle n_spin > 1
 
-    # Count the number of k-points modulo spin
-    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
-    count = mpi_sum(count, basis.comm_kpts)
+    # # Count the number of k-points modulo spin
+    # n_spin = basis.model.n_spin_components
+    # count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
+    # count = mpi_sum(count, basis.comm_kpts)
 
-    ρ = sum(ρaccus) ./ count
-    # mpi_sum!(ρ, basis.comm_kpts)
+    # ρ = sum(ρaccus) ./ count
+    # # mpi_sum!(ρ, basis.comm_kpts)
+
     G_to_r(basis, ρ)
 end
 
@@ -298,4 +303,23 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(com
     ρ = compute_density(basis, ψ, occupation)
     _ρ, compute_density_pullback = rrule_via_ad(config, _autodiff_compute_density, basis, ψ, occupation)
     return ρ, compute_density_pullback
+end
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis; kwargs...)
+    @warn "self_consistent_field rrule triggered."
+    scfres = self_consistent_field(basis; kwargs...)
+    ψ = scfres.ψ
+    occupation = scfres.occupation
+    function self_consistent_field_pullback(Δscfres)
+        @show typeof(Δscfres)
+        # function Hψ(basis, ψ, occupation)
+        #     ρ = compute_density(basis, ψ, occupation)
+        #     _, H = energy_hamiltonian(basis, ψ, occupation; ρ)
+        #     H*ψ
+        # end
+        # δHψ = rrule_via_ad(config, Hψ, basis, ψ, occupation)[2](Δscfres.ψ)
+        # return NoTangent(), ∂basis
+        return NoTangent(), NoTangent()
+    end
+    return scfres, self_consistent_field_pullback
 end
