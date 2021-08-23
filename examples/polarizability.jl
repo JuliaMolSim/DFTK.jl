@@ -105,14 +105,12 @@ println("Interacting polarizability:     $(dipole(basis, δρ))")
 # result. The non-interacting polarizability is higher.
 
 #=============================================================================#
-# # Dipole moment
+# # Dipole moment using ForwardDiff
 
 using ForwardDiff
 
 function obj(ε)
-    model_ε = model_LDA(lattice, atoms; extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
-                    symmetries=false)
-    basis_ε = PlaneWaveBasis(model_ε, Ecut; kgrid=kgrid)
+    basis_ε = make_basis(ε)
     res_ε = self_consistent_field(basis_ε, tol=tol)
     dipole(basis_ε, res_ε.ρ)
 end
@@ -130,22 +128,6 @@ make_basis(ε) = make_basis(ε, lattice)
 
 # workaround: enforce the Model to promote its type from Float64 to Dual, by promoting the lattice too
 make_basis(ε::T) where T <: ForwardDiff.Dual = make_basis(ε, T.(lattice))
-
-# # frule sketch:
-# function frule(::typeof(self_consistent_field), basis, δbasis; kwargs...)
-#     scfres = self_consistent_field(basis; kwargs...)
-#     ψ = scfres.ψ
-#     function Hψ(basis, ψ)
-#         ρ = compute_density(basis, ψ)
-#         _, H = energy_hamiltonian(basis, ψ, ρ)
-#         H*ψ
-#     end
-#     δHψ = callback_into_ad(H, basis, ψ)(δbasis, nothing)
-#     δψ = solve_ΩplusK(basis, ψ, -δHψ, occupation)
-#     δρ = compute_δρ(basis, ψ, δψ)
-#     δscfres = (ham=δham, basis=δbasis; ...ψ=δψ, ρ=δρ)
-#     (scfres, δscfres)
-# end
 
 # forward mode implicit differentiation of SCF
 
@@ -198,4 +180,4 @@ ForwardDiff.derivative(obj, 0.0) # 1.7725352397017748
 
 let d = 1e-4
     (obj(d) - obj(0.0)) / d
-end # 1.7768028953041282
+end # 1.772091814276788
