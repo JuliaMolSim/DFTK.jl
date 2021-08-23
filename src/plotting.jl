@@ -52,7 +52,7 @@ function plot_band_data(band_data; εF=nothing,
     !isnothing(εF) && is_metal(band_data, εF) && (ylims = [-0.367, 0.367])
     ylims = round.(ylims .* to_unit, sigdigits=2)
     if isnothing(εF)
-        Plots.ylabel!(p, "eigenvalues  ($(string(unit))")
+        Plots.ylabel!(p, "eigenvalues  ($(string(unit)))")
     else
         Plots.ylabel!(p, "eigenvalues - ε_f  ($(string(unit)))")
         Plots.ylims!(p, ylims...)

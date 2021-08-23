@@ -22,9 +22,7 @@ atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="lda")) => pos
 lattice = load_lattice(silicon);
 
 model = model_LDA(lattice, atoms)
-kgrid = [3, 3, 3]  # k-point grid
-Ecut = 5           # kinetic energy cutoff in Hartree
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid);
+basis = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
 
 # DFTK already defines a few callback functions for standard
 # tasks. One example is the usual convergence table,

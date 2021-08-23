@@ -137,16 +137,16 @@ function scf_damping_quadratic_model(info, info_next; modeltol=0.1)
     α_model = -slope / curv
     if minimum_exists && (tight_model || (slope < -eps(T) && trusted_model))
         mpi_master() && @debug "Quadratic model accepted" model_relerror slope curv α_model
-        α_model
+        (α=α_model, relerror=model_relerror)
     else
         mpi_master() && @debug "Quadratic model discarded" model_relerror slope curv α_model
-        nothing  # Model not trustworthy ... better return nothing
+        (α=nothing, relerror=model_relerror) # Model not trustworthy ...
     end
 end
 
 # Adaptive damping using a quadratic model
 @kwdef struct AdaptiveDamping
-    α_min = 0.01        # Minimal damping
+    α_min = 0.05        # Minimal damping
     α_max = 1.0         # Maximal damping
     α_trial_init = 0.8  # Initial trial damping used (i.e. in the first SCF step)
     α_trial_min = 0.2   # Minimal trial damping used in a step
@@ -158,7 +158,7 @@ function AdaptiveDamping(α_trial_min; kwargs...)
     # Select some reasonable defaults.
     # The free tweaking parameter here should be increased a bit for cases,
     # where the Anderson does weird stuff in case of too small damping.
-    AdaptiveDamping(α_min=α_trial_min / 20,
+    AdaptiveDamping(α_min=α_trial_min / 4,
                     α_max=max(1.25α_trial_min, 1.0),
                     α_trial_init=max(α_trial_min, 0.8),
                     α_trial_min=α_trial_min,
@@ -171,8 +171,11 @@ function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
         return info_next.α
     end
 
-    α = scf_damping_quadratic_model(info, info_next; modeltol=damping.modeltol)
-    isnothing(α) && (α = info_next.α / 2)  # Model failed ... use heuristics
+    α, relerror = scf_damping_quadratic_model(info, info_next; modeltol=damping.modeltol)
+    if isnothing(α)
+        # Model failed ... use heuristics: Half for small model error, else use a quarter
+        α = info_next.α / (relerror < 10 ? 2 : 4)
+    end
 
     # Adjust α to stay within desired range
     α_sign = sign(α)
@@ -188,7 +191,7 @@ function trial_damping(damping::AdaptiveDamping, info, info_next, step_successfu
     α_trial = abs(info_next.α)  # By default use the α that worked in this step
     if step_successful && n_backtrack == 1  # First step was good => speed things up
         α_trial ≥ damping.α_max && return damping.α_max  # No need to compute model
-        α_model = scf_damping_quadratic_model(info, info_next; modeltol=damping.modeltol)
+        α_model = scf_damping_quadratic_model(info, info_next; modeltol=damping.modeltol).α
         if !isnothing(α_model)  # Model is meaningful
             α_trial = max(damping.α_trial_enhancement * abs(α_model), α_trial)
         end

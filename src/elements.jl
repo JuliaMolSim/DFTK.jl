@@ -5,15 +5,17 @@ periodic_table = PeriodicTable.elements
 
 # Data structure for chemical element and the potential model via which
 # they interact with electrons. A compensating charge background is
-# always assumed. It is assumed that each implementing struct has the
-# entity Z (for the nuclear charge).
+# always assumed. It is assumed that each implementing struct
+# defines at least the functions `local_potential_fourier` and `local_potential_real`.
+# Very likely `charge_nuclear` and `charge_ionic` need to be defined as well.
 abstract type Element end
 
 """Return the total nuclear charge of an atom type"""
-charge_nuclear(el::Element) = el.Z
+charge_nuclear(::Element) = 0
+# This is a fallback implementation that should be altered as needed.
 
 """Return the total ionic charge of an atom type (nuclear charge - core electrons)"""
-charge_ionic(::Element) = error("Implement charge_ionic")
+charge_ionic(el::Element) = charge_nuclear(el)
 
 """Return the number of valence electrons"""
 n_elec_valence(el::Element) = charge_ionic(el)
@@ -36,7 +38,8 @@ struct ElementCoulomb <: Element
     Z::Int  # Nuclear charge
     symbol  # Element symbol
 end
-charge_ionic(el::ElementCoulomb) = el.Z
+charge_ionic(el::ElementCoulomb)   = el.Z
+charge_nuclear(el::ElementCoulomb) = el.Z
 
 """
 Element interacting with electrons via a bare Coulomb potential
@@ -50,7 +53,7 @@ ElementCoulomb(key) = ElementCoulomb(periodic_table[key].number, Symbol(periodic
 function local_potential_fourier(el::ElementCoulomb, q::T) where {T <: Real}
     q == 0 && return zero(T)  # Compensating charge background
     # General atom => Use default Coulomb potential
-    # We use int_R^3 1/r e^{-i q⋅x} = 4π / |q|^2
+    # We use int_{R^3} -Z/r e^{-i q⋅x} = 4π / |q|^2
     return -4T(π) * el.Z / q^2
 end
 
@@ -71,7 +74,8 @@ or an element name (e.g. `"silicon"`)
 function ElementPsp(key; psp)
     ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp)
 end
-charge_ionic(el::ElementPsp) = el.psp.Zion
+charge_ionic(el::ElementPsp)   = el.psp.Zion
+charge_nuclear(el::ElementPsp) = el.Z
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
     q == 0 && return zero(T)  # Compensating charge background
@@ -90,7 +94,8 @@ struct ElementCohenBergstresser <: Element
     V_sym   # Map |G|^2 (in units of (2π / lattice_constant)^2) to form factors
     lattice_constant  # Lattice constant (in Bohr) which is assumed
 end
-charge_ionic(el::ElementCohenBergstresser) = 2
+charge_ionic(el::ElementCohenBergstresser)   = 2
+charge_nuclear(el::ElementCohenBergstresser) = el.Z
 
 """
 Element where the interaction with electrons is modelled

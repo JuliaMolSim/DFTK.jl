@@ -73,12 +73,13 @@ atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="pbe")) => pos
 lattice = load_lattice(surface);
 
 # We model this surface with (quite large a) temperature of 0.01 Hartree
-# to ease convergence. Try lowering the SCF convergence tolerance (`tol`
-# or the `temperature` to see the full challenge of this system.
+# to ease convergence. Try lowering the SCF convergence tolerance (`tol`)
+# or the `temperature` or try `mixing=KerkerMixing()`
+# to see the full challenge of this system.
 model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe],
                   temperature=0.001, smearing=DFTK.Smearing.Gaussian())
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+basis = PlaneWaveBasis(model; Ecut, kgrid)
 
-scfres = self_consistent_field(basis, tol=1e-4, mixing=KerkerMixing());
+scfres = self_consistent_field(basis, tol=1e-4, mixing=LdosMixing());
 #-
 scfres.energies

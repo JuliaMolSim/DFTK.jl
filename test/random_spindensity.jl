@@ -7,9 +7,7 @@ include("testcases.jl")
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         model = model_PBE(silicon.lattice, [Si => silicon.positions],
                           spin_polarization=spin_polarization, temperature=0.01)
-
-        Ecut = 7
-        basis = PlaneWaveBasis(model, Ecut; kgrid=[2, 2, 2])
+        basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2])
 
         ρtot = total_density(guess_density(basis))
         if spin_polarization == :collinear

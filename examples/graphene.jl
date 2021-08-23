@@ -5,25 +5,26 @@
 #
 
 using DFTK
+setup_threading()
 
 kgrid = [12, 12, 4]
-Tsmear = 0.0009500431544769484
 Ecut = 15
 
-lattice = [4.659533614391621 -2.3297668071958104 0.0;
-           0.0 4.035274479829987 0.0;
-           0.0 0.0 15.117809010356462]
+lattice = [4.66 -2.33 0.00;
+           0.00  4.04 0.00
+           0.00  0.00 15.12]
 C = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4"))
-atoms = [C => [[0.0, 0.0, 0.0], [0.33333333333, 0.66666666667, 0.0]]]
+atoms = [C => [[0.0, 0.0, 0.0], [1//3, 2//3, 0.0]]]
 
-model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe];
-                  temperature=Tsmear, smearing=Smearing.Gaussian())
-basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid)
+model = model_PBE(lattice, atoms; temperature=1e-3, smearing=Smearing.Gaussian())
+basis = PlaneWaveBasis(model; Ecut, kgrid)
 
 # Run SCF
-n_bands = 6
-scfres = self_consistent_field(basis; n_bands=n_bands)
+scfres = self_consistent_field(basis)
+
+println("Carbon forces:")
+println(compute_forces(scfres)[1])
 
 # Print obtained energies
 println()
-display(scfres.energies)
+println(scfres.energies)
