@@ -45,7 +45,7 @@ atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="pbe")) => pos
 # Finally we run the calculation.
 
 model = model_LDA(lattice, atoms, magnetic_moments=magnetic_moments, temperature=0.01)
-basis = PlaneWaveBasis(model, 10; kgrid=(2, 2, 2))
+basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 2, 2))
 ρ0 = guess_density(basis, magnetic_moments)
 scfres = self_consistent_field(basis, tol=1e-4, ρ=ρ0, mixing=KerkerMixing());
 

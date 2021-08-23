@@ -75,7 +75,7 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
 
             Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
             model = model_atomic(silicon.lattice, [Si => silicon.positions])
-            basis = PlaneWaveBasis(model, Ecut, kgrid=[1,1,1])
+            basis = PlaneWaveBasis(model; Ecut, kgrid=[1,1,1])
 
             scfres = self_consistent_field(basis; tol=tol)
             ψ = select_occupied_orbitals(basis, scfres.ψ)
@@ -95,7 +95,7 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
 
             Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
             model = model_LDA(silicon.lattice, [Si => silicon.positions])
-            basis = PlaneWaveBasis(model, Ecut, kgrid=[1,1,1])
+            basis = PlaneWaveBasis(model; Ecut, kgrid=[1,1,1])
 
             scfres = self_consistent_field(basis; tol=tol)
             ψ = select_occupied_orbitals(basis, scfres.ψ)

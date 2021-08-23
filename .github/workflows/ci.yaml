@@ -72,7 +72,7 @@ jobs:
             Pkg.add("MPI"); using MPI; MPI.install_mpiexecjl()
             Pkg.test(; test_args=["quick"])
           '
-          $HOME/.julia/bin/mpiexecjl -np 2 julia --check-bounds=yes --depwarn=yes --project --color=yes --compiled-modules=no -e 'using Pkg; Pkg.test(coverage=true)'
+          $HOME/.julia/bin/mpiexecjl -np 2 julia --check-bounds=yes --depwarn=yes --project --color=yes -e 'using Pkg; Pkg.test(coverage=true)'
         if: ${{ matrix.payload == 'mpi' }}
         continue-on-error: ${{ matrix.version == 'nightly' }}
 
