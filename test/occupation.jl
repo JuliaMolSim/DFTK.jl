@@ -28,7 +28,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
 
     # Emulate an insulator ... prepare energy levels
     energies = [zeros(n_bands) for k in silicon.kcoords]
-    n_occ = div(silicon.n_electrons, 2)
+    n_occ = div(silicon.n_electrons, 2, RoundUp)
     n_k = length(silicon.kcoords)
     for ik in 1:n_k
         energies[ik] = sort(rand(n_bands))
