@@ -56,7 +56,6 @@ end
     @test norm(ψ - TᵇTψ) < eps(eltype(basis))
 
     # TᵇT should be the identity and TTᵇ should be a projection
-    # P and P⁻¹ should be inverses of each other.
     TᵇT = [Tᵇk * Tk  for (Tk, Tᵇk) in zip(T, Tᵇ)]
     @test all(M -> maximum(abs, M-I) < eps(eltype(basis)), TᵇT)
 
