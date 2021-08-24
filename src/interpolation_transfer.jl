@@ -149,7 +149,6 @@ function transfer_matrix(basis_in::PlaneWaveBasis{T}, basis_out::PlaneWaveBasis{
 end
 
 
-
 """
 Transfer an array ψk defined on basis_in kpoint kpt_in to basis_out kpoint kpt_out.
 """
