@@ -18,7 +18,7 @@ function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8, kgrid=[1, 2,
         basis = PlaneWaveBasis(model; Ecut, kgrid, use_symmetry=false)
 
         n_electrons = silicon.n_electrons
-        n_bands = div(n_electrons, 2)
+        n_bands = div(n_electrons, 2, RoundUp)
         filled_occ = DFTK.filled_occupation(model)
 
         ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis.kpoints[ik])), n_bands)).Q)

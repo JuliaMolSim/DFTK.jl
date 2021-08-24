@@ -101,7 +101,7 @@ function compute_occupation_bandgap(basis, energies)
     @assert basis.model.temperature == 0
 
     filled_occ = filled_occupation(basis.model)
-    n_fill = div(n_electrons, filled_occ)
+    n_fill = div(n_electrons, filled_occ, RoundUp)
     @assert filled_occ * n_fill == n_electrons
     @assert n_bands ≥ n_fill
 
