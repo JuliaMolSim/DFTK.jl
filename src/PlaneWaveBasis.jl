@@ -602,9 +602,10 @@ end
 
 # select the occupied orbitals assuming an insulator
 function select_occupied_orbitals(basis::PlaneWaveBasis, ψ)
-    model = basis.model
+    model  = basis.model
     n_spin = model.n_spin_components
-    n_bands = div(model.n_electrons, n_spin * filled_occupation(model))
+    @assert iszero(basis.model.temperature)
+    n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)
     [ψk[:, 1:n_bands] for ψk in ψ]
 end
 

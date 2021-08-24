@@ -12,10 +12,10 @@ if mpi_nprocs() == 1  # not easy to distribute
 @testset "Using BZ symmetry yields identical density" begin
     function get_bands(testcase, kcoords, ksymops, symmetries, atoms; Ecut=5, tol=1e-8, n_rounds=1)
         kwargs = ()
-        n_bands = div(testcase.n_electrons, 2)
+        n_bands = div(testcase.n_electrons, 2, RoundUp)
         if testcase.temperature !== nothing
             kwargs = (temperature=testcase.temperature, smearing=DFTK.Smearing.FermiDirac())
-            n_bands = div(testcase.n_electrons, 2) + 4
+            n_bands = div(testcase.n_electrons, 2, RoundUp) + 4
         end
 
         model = model_DFT(testcase.lattice, atoms, :lda_xc_teter93; kwargs...)
