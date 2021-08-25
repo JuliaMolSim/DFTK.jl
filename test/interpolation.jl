@@ -1,5 +1,6 @@
 using Test
-using DFTK: interpolate_density, transfer_blochwave, transfer_matrix
+using DFTK
+using DFTK: interpolate_density, transfer_blochwave, compute_transfer_matrix
 using LinearAlgebra
 
 include("testcases.jl")
@@ -38,7 +39,7 @@ end
     kgrid = [2, 2, 2]
     basis = PlaneWaveBasis(model; Ecut, kgrid)
 
-    ψ = self_consistent_field(basis; tol=tol, callback=info->nothing).ψ
+    ψ = self_consistent_field(basis; tol=tol, callback=identity).ψ
 
     ## Testing transfers from basis to a bigger_basis and backwards
 
@@ -49,8 +50,8 @@ end
     ψ_bb = transfer_blochwave(ψ_b, bigger_basis, basis)
     @test norm(ψ - ψ_bb) < eps(eltype(basis))
 
-    T    = transfer_matrix(basis, bigger_basis)  # transfer
-    Tᵇ   = transfer_matrix(bigger_basis, basis)  # back-transfer
+    T    = compute_transfer_matrix(basis, bigger_basis)  # transfer
+    Tᵇ   = compute_transfer_matrix(bigger_basis, basis)  # back-transfer
     Tψ   = [Tk * ψk   for (Tk, ψk)   in zip(T, ψ)]
     TᵇTψ = [Tᵇk * Tψk for (Tᵇk, Tψk) in zip(Tᵇ, Tψ)]
     @test norm(ψ - TᵇTψ) < eps(eltype(basis))

@@ -124,12 +124,11 @@ end
 
 
 """
-Return a sparse matrix that maps quantities given in the
-`basis_in` basis and on `kpt_in` to quantities given in the `basis_out` basis
-and on `kpt_out`.
+Return a sparse matrix that maps quantities given on `basis_in` and `kpt_in`
+to quantities on `basis_out` and `kpt_out`.
 """
-function transfer_matrix(basis_in::PlaneWaveBasis{T}, kpt_in::Kpoint,
-                         basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where T
+function compute_transfer_matrix(basis_in::PlaneWaveBasis{T}, kpt_in::Kpoint,
+                                 basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where T
     idcs_in, idcs_out = transfer_mapping(basis_in, kpt_in, basis_out, kpt_out)
     sparse(idcs_out, idcs_in, true)
 end
@@ -139,12 +138,12 @@ end
 Return a list of sparse matrices (one per `k`-Point) that map quantities given in the
 `basis_in` basis to quantities given in the `basis_out` basis.
 """
-function transfer_matrix(basis_in::PlaneWaveBasis{T}, basis_out::PlaneWaveBasis{T}) where T
+function compute_transfer_matrix(basis_in::PlaneWaveBasis{T}, basis_out::PlaneWaveBasis{T}) where T
     @assert basis_in.model.lattice == basis_out.model.lattice
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
                 for ik in 1:length(basis_in.kpoints))
-    [transfer_matrix(basis_in, kpt_in, basis_out, kpt_out)
+    [compute_transfer_matrix(basis_in, kpt_in, basis_out, kpt_out)
      for (kpt_in, kpt_out) in zip(basis_in.kpoints, basis_out.kpoints)]
 end
 
@@ -188,13 +187,10 @@ function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
     # ψ_out[ik] .= ψ_in[ik][idcs_in[ik], :]
 
     ψ_out = empty(ψ_in)
-
     for (ik, kpt_out) in enumerate(basis_out.kpoints)
         kpt_in = basis_in.kpoints[ik]
-        ψk_out = transfer_blochwave_kpt(ψ_in[ik], basis_in, kpt_in,
-                                        basis_out, kpt_out)
+        ψk_out = transfer_blochwave_kpt(ψ_in[ik], basis_in, kpt_in, basis_out, kpt_out)
         push!(ψ_out, ψk_out)
     end
-
     ψ_out
 end
