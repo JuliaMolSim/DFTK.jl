@@ -308,18 +308,30 @@ end
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis; kwargs...)
     @warn "self_consistent_field rrule triggered."
     scfres = self_consistent_field(basis; kwargs...)
-    ψ = scfres.ψ
-    occupation = scfres.occupation
+
+    (energies, H), energy_hamiltonian_pullback = 
+        rrule_via_ad(config, energy_hamiltonian, basis, scfres.ψ, scfres.occupation; scfres.ρ)
+    Hψ, mul_pullback =
+        rrule_via_ad(config, *, H, ψ) # TODO make this work, or write rrule for *(H, ψ)
+    ρ, compute_density_pullback = 
+        rrule_via_ad(config, compute_density, basis, scfres.ψ, scfres.occupation)
+        
     function self_consistent_field_pullback(Δscfres)
-        @show typeof(Δscfres)
-        # function Hψ(basis, ψ, occupation)
-        #     ρ = compute_density(basis, ψ, occupation)
-        #     _, H = energy_hamiltonian(basis, ψ, occupation; ρ)
-        #     H*ψ
-        # end
-        # δHψ = rrule_via_ad(config, Hψ, basis, ψ, occupation)[2](Δscfres.ψ)
-        # return NoTangent(), ∂basis
-        return NoTangent(), NoTangent()
+        δψ = Δscfres.ψ # what to do with this?
+        δoccupation = Δscfres.occupation # what to do with this?
+        δρ = Δscfres.ρ
+        δenergies = Δscfres.energies
+        δbasis = Δscfres.basis # what to do with this?
+        δH = Δscfres.ham # what to do with this?
+
+        _, ∂basis, ∂ψ, _ = compute_density_pullback(δρ)
+        # ∂ψ = ∂ψ + δψ # TODO maybe?
+        ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation) # use self-adjointness of dH ψ -> dψ
+        ∂H, _ = mul_pullback(∂Hψ)
+        # ∂H = ∂H + δH # TODO maybe?
+        _, ∂basis, _, _ = energy_hamiltonian_pullback(δenergies, ∂H)
+
+        return NoTangent(), ∂basis
     end
     return scfres, self_consistent_field_pullback
 end
