@@ -145,10 +145,10 @@ const standardize_atoms = spglib_standardize_cell
 # TODO Maybe maximal spacing is actually a better name as the kpoints are spaced
 #      at most that far apart
 @doc raw"""
-Selects a kgrid_size to ensure a minimal spacing (in inverse Bohrs) between kpoints.
-Default is ``2π * 0.04 \AA^{-1}``.
+Selects a kgrid size to ensure a minimal spacing (in inverse Bohrs) between kpoints.
+A reasonable spacing is `0.25` inverse Bohrs (around ``2π * 0.04 \AA^{-1}``).
 """
-function kgrid_size_from_minimal_spacing(lattice, spacing=2π * 0.022)
+function kgrid_from_minimal_spacing(lattice, spacing)
     lattice = austrip.(lattice)
     spacing = austrip(spacing)
     @assert spacing > 0
@@ -160,5 +160,43 @@ function kgrid_size_from_minimal_spacing(lattice, spacing=2π * 0.022)
         # computation is not correct
     end
     recip_lattice = 2π * inv(lattice')
-    [ceil(Int, norm(recip_lattice[:, i]) ./ spacing) for i = 1:3]
+    [ceil(Int, norm(recip_lattice[:, i]) / spacing) for i = 1:3]
+end
+function kgrid_from_minimal_spacing(model::Model, args...)
+    kgrid_from_minimal_spacing(model.lattice, args...)
+end
+
+@doc raw"""
+Selects a kgrid size which ensures that at least `n_kpoints` ``k``-Points  are used.
+The distribution of ``k``-Points amongst coordinate directions is to reach a
+roughly identical minimal spacing in all directions.
+"""
+function kgrid_from_minimal_kpoints(lattice, n_kpoints)
+    lattice = austrip.(lattice)
+    @assert n_kpoints > 0
+    n_kpoints == 1 && return [1, 1, 1]
+    for d in 1:3
+        # Otherwise the formula for the reciprocal lattice
+        # computation is not correct
+        @assert norm(lattice[:, d]) != 0
+    end
+    recip_lattice = 2π * inv(lattice')
+
+    # Start from a cubic lattice. If it is one, we are done. Otherwise the resulting
+    # spacings in each dimension bracket the ideal kpoint spacing.
+    spacing_per_dim = [norm(recip_lattice[:, i]) / cbrt(n_kpoints) for i in 1:3]
+    min_spacing, max_spacing = extrema(spacing_per_dim)
+    if min_spacing ≈ max_spacing
+        spacing = min_spacing
+    else
+        number_of_kpoints(spacing) = prod(norm(recip_lattice[:, i]) / spacing for i =1:3)
+        @assert number_of_kpoints(min_spacing) + 0.05 ≥ n_kpoints
+        @assert number_of_kpoints(max_spacing) - 0.05 ≤ n_kpoints
+        spacing = Roots.find_zero(sp -> number_of_kpoints(sp) - n_kpoints,
+                                  (min_spacing, max_spacing), atol=0.5)
+    end
+    kgrid_from_minimal_spacing(lattice, spacing)
+end
+function kgrid_from_minimal_kpoints(model::Model, args...)
+    kgrid_from_minimal_kpoints(model.lattice, args...)
 end

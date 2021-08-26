@@ -108,8 +108,8 @@ end
     @test atoms[1][2][1] - atoms[1][2][2] == ones(3) ./ 4
 end
 
-@testset "kgrid_size_from_minimal_spacing" begin
+@testset "kgrid_from_minimal_spacing" begin
     # Test that units are stripped from both the lattice and the spacing
     lattice = [[-1 1 1]; [1 -1  1]; [1 1 -1]]
-    @test kgrid_size_from_minimal_spacing(lattice * u"angstrom", 0.5 / u"angstrom") == [9; 9; 9]
+    @test kgrid_from_minimal_spacing(lattice * u"angstrom", 0.5 / u"angstrom") == [9; 9; 9]
 end
