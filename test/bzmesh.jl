@@ -118,12 +118,12 @@ end
     lattice = [[-1 1 1]; [1 -1  1]; [1 1 -1]]
     @test kgrid_from_minimal_n_kpoints(lattice * u"Å", 1000) == [10, 10, 10]
 
-    @test kgrid_from_minimal_n_kpoints(aluminium_primitive.lattice, 1) == [1, 1, 1]
+    @test kgrid_from_minimal_n_kpoints(magnesium.lattice, 1) == [1, 1, 1]
     for n_kpt in [10, 20, 100, 400, 900, 1200]
-        @test prod(kgrid_from_minimal_n_kpoints(aluminium_primitive.lattice, n_kpt)) ≥ n_kpt
+        @test prod(kgrid_from_minimal_n_kpoints(magnesium.lattice, n_kpt)) ≥ n_kpt
     end
 
     lattice = diagm([4, 10, 0])
-    @test kgrid_from_minimal_n_kpoints(lattice, 1000) = [50, 20, 1]
-    @test kgrid_from_minimal_n_kpoints(diagm([10, 0, 0]), 913) = [913, 1, 1]
+    @test kgrid_from_minimal_n_kpoints(lattice, 1000) == [50, 20, 1]
+    @test kgrid_from_minimal_n_kpoints(diagm([10, 0, 0]), 913) == [913, 1, 1]
 end

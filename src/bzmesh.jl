@@ -187,13 +187,15 @@ function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer)
         number_of_kpoints(spacing) = prod(vec -> norm(vec) / spacing, eachcol(recip_lattice_nD))
         @assert number_of_kpoints(min_spacing) + 0.05 ≥ n_kpoints
         @assert number_of_kpoints(max_spacing) - 0.05 ≤ n_kpoints
+
+        # TODO This is not optimal and sometimes finds too large grids
         spacing = Roots.find_zero(sp -> number_of_kpoints(sp) - n_kpoints,
                                   (min_spacing, max_spacing), Roots.Bisection(),
-                                  xatol=1e-5, atol=0.1, verbose=true)
+                                  xatol=1e-4, atol=0, rtol=0, verbose=true)
 
         # Sanity check: Sometimes root finding is just across the edge towards
         # a larger number of k-Points than needed. This attempts a slightly larger spacing.
-        kgrid_larger = kgrid_from_minimal_spacing(lattice, spacing + 1e-5)
+        kgrid_larger = kgrid_from_minimal_spacing(lattice, spacing + 1e-4)
         if prod(kgrid_larger) ≥ n_kpoints
             return kgrid_larger
         else
