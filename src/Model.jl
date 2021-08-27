@@ -97,7 +97,7 @@ function Model(lattice::AbstractMatrix{T};
     end
 
     # Special handling of 1D and 2D systems, and sanity checks
-    n_dim = 3 - count(iszero, eachcol(lattice))
+    n_dim = count(!iszero, eachcol(lattice))
     n_dim > 0 || error("Check your lattice; we do not do 0D systems")
     for i = n_dim+1:3
         norm(lattice[:, i]) == norm(lattice[i, :]) == 0 || error(
@@ -109,12 +109,11 @@ function Model(lattice::AbstractMatrix{T};
     # Compute reciprocal lattice and volumes.
     # recall that the reciprocal lattice is the set of G vectors such
     # that G.R ∈ 2π ℤ for all R in the lattice
-    recip_lattice = zeros(T, 3, 3)
-    recip_lattice[1:n_dim, 1:n_dim] = 2T(π)*inv(lattice[1:n_dim, 1:n_dim]')
-    recip_lattice = Mat3{T}(recip_lattice)
-    # in the 1D or 2D case, the volume is the length/surface
-    unit_cell_volume  = abs(det(lattice[1:n_dim, 1:n_dim]))
-    recip_cell_volume = abs(det(recip_lattice[1:n_dim, 1:n_dim]))
+    # pinv is used instead of inv in case of 1D and 2D systems.
+    recip_lattice = 2T(π) * Mat3{T}(pinv(lattice))
+    # Note: In the 1D or 2D case, the volume is the length/surface
+    unit_cell_volume  = compute_unit_cell_volume(lattice)
+    recip_cell_volume = compute_unit_cell_volume(recip_lattice)
 
     spin_polarization in (:none, :collinear, :full, :spinless) ||
         error("Only :none, :collinear, :full and :spinless allowed for spin_polarization")
@@ -171,7 +170,7 @@ Default logic to determine the symmetry operations to be used in the model.
 """
 function default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization;
                         tol_symmetry=1e-5)
-    dimension = 3 - count(iszero, eachcol(lattice))
+    dimension = count(!iszero, eachcol(lattice))
     if spin_polarization == :full || dimension != 3
         return [identity_symop()]  # Symmetry not supported in spglib
     elseif spin_polarization == :collinear && isempty(magnetic_moments)
@@ -215,3 +214,12 @@ end
 spin_components(model::Model) = spin_components(model.spin_polarization)
 
 _is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
+
+
+"""
+Compute unit cell volume volume. In case of 1D or 2D case, the volume is the length/surface.
+"""
+function compute_unit_cell_volume(lattice)
+    n_dim = count(!iszero, eachcol(lattice))
+    abs(det(lattice[1:n_dim, 1:n_dim]))
+end

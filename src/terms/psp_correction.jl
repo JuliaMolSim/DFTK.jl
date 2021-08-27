@@ -44,5 +44,5 @@ function energy_psp_correction(lattice, atoms)
         if attype isa ElementPsp
     )
 
-    correction_per_cell / abs(det(lattice))
+    correction_per_cell / compute_unit_cell_volume(lattice)
 end

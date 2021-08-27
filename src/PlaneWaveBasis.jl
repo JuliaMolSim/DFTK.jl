@@ -317,7 +317,7 @@ undefined.
 """
 function PlaneWaveBasis(model::Model;
                         Ecut,
-                        kgrid=kgrid_from_minimal_spacing(model.lattice, 2π * 0.022),
+                        kgrid=kgrid_from_minimal_spacing(model, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
                         use_symmetry=true,
                         kwargs...)

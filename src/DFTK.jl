@@ -129,7 +129,7 @@ export symmetry_operations
 export standardize_atoms
 export bzmesh_uniform
 export bzmesh_ir_wedge
-export kgrid_from_minimal_spacing, kgrid_from_minimal_kpoints
+export kgrid_from_minimal_spacing, kgrid_from_minimal_n_kpoints
 include("symmetry.jl")
 include("bzmesh.jl")
 
