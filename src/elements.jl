@@ -40,6 +40,7 @@ struct ElementCoulomb <: Element
 end
 charge_ionic(el::ElementCoulomb)   = el.Z
 charge_nuclear(el::ElementCoulomb) = el.Z
+Base.show(io::IO, el::ElementCoulomb) = print(io, "ElementCoulomb($(el.symbol))")
 
 """
 Element interacting with electrons via a bare Coulomb potential
@@ -64,6 +65,10 @@ struct ElementPsp <: Element
     Z::Int  # Nuclear charge
     symbol  # Element symbol
     psp     # Pseudopotential data structure
+end
+function Base.show(io::IO, el::ElementPsp)
+    pspid = isempty(el.psp.identifier) ? "custom" : el.psp.identifier
+    print(io, "ElementPsp($(el.symbol), psp=$pspid)")
 end
 
 """
@@ -96,6 +101,10 @@ struct ElementCohenBergstresser <: Element
 end
 charge_ionic(el::ElementCohenBergstresser)   = 2
 charge_nuclear(el::ElementCohenBergstresser) = el.Z
+
+function Base.show(io::IO, el::ElementCohenBergstresser)
+    print(io, "ElementCohenBergstresser($(el.symbol))")
+end
 
 """
 Element where the interaction with electrons is modelled

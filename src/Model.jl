@@ -4,6 +4,9 @@
 # Contains the geometry information, but no discretization parameters.
 # The exact model used is defined by the list of terms.
 struct Model{T <: Real}
+    # Human-readable name for the model (like LDA, PBE, ...)
+    name::String
+
     # Lattice and reciprocal lattice vectors in columns
     lattice::Mat3{T}
     recip_lattice::Mat3{T}
@@ -76,6 +79,7 @@ external potential breaks some of the passed symmetries. Use `false` to turn off
 symmetries completely.
 """
 function Model(lattice::AbstractMatrix{T};
+               name="custom",
                n_electrons=nothing,
                atoms=[],
                magnetic_moments=[],
@@ -95,6 +99,7 @@ function Model(lattice::AbstractMatrix{T};
     else
         @assert n_electrons isa Int
     end
+    isempty(terms) && error("Model without terms not supported.")
 
     # Special handling of 1D and 2D systems, and sanity checks
     n_dim = count(!iszero, eachcol(lattice))
@@ -135,8 +140,9 @@ function Model(lattice::AbstractMatrix{T};
     symmetries == false && (symmetries = [identity_symop()])
     @assert !isempty(symmetries)  # Identity has to be always present.
 
-    Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, n_dim, n_electrons,
-             spin_polarization, n_spin, T(temperature), smearing, atoms, terms, symmetries)
+    Model{T}(name, lattice, recip_lattice, unit_cell_volume, recip_cell_volume, n_dim,
+             n_electrons, spin_polarization, n_spin, T(temperature), smearing,
+             atoms, terms, symmetries)
 end
 Model(lattice::AbstractMatrix{T}; kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
 Model(lattice::AbstractMatrix{Q}; kwargs...) where {Q <: Quantity} = Model(austrip.(lattice); kwargs...)
@@ -239,4 +245,68 @@ Compute unit cell volume volume. In case of 1D or 2D case, the volume is the len
 function compute_unit_cell_volume(lattice)
     n_dim = count(!iszero, eachcol(lattice))
     abs(det(lattice[1:n_dim, 1:n_dim]))
+end
+
+
+function Base.show(io::IO, model::Model)
+    nD = model.n_dim == 3 ? "" : "$(model.n_dim)D, "
+    print(io, "Model(", model.name, ", ", nD,
+          "spin_polarization = ", model.spin_polarization, ")")
+end
+
+
+function Base.show(io::IO, ::MIME"text/plain", model::Model)
+    println(io, "Model(", model.name, ", $(model.n_dim)D):")
+    for i = 1:3
+        header = i==1 ? "lattice (in Bohr)" : ""
+        showfieldln(io, header, (@sprintf "[%-10.6g, %-10.6g, %-10.6g]" model.lattice[i, :]...))
+    end
+    showfieldln(io, "unit cell volume", @sprintf "%.5g Bohr³" model.unit_cell_volume)
+
+    if !isempty(model.atoms)
+        println(io)
+        showfieldln(io, "atoms", sum_formula(model.atoms))
+        elements = first.(model.atoms)
+        for (i, el) in enumerate(elements)
+            header = i==1 ? "atom potentials" : ""
+            showfieldln(io, header, el)
+        end
+    end
+
+    println(io)
+    showfieldln(io, "num. electrons",    model.n_electrons)
+    showfieldln(io, "spin polarization", model.spin_polarization)
+    showfieldln(io, "temperature",       @sprintf "%.5g Ha" model.temperature)
+    if model.temperature > 0
+        showfieldln(io, "smearing",      model.smearing)
+    end
+
+    println(io)
+    for (i, term) in enumerate(model.term_types)
+        header = i==1 ? "terms" : ""
+        showfield(io, header, term)
+        i < length(model.term_types) && println(io)
+    end
+end
+
+
+
+"""
+Returns the sum formula of the atoms list as a string.
+"""
+function sum_formula(atoms)
+    element_count = Dict{Symbol, Int}()
+    for (element, positions) in atoms
+        if element.symbol in keys(element_count)
+            element_count[element.symbol] += length(positions)
+        else
+            element_count[element.symbol] = length(positions)
+        end
+    end
+    formula = join(string(elem) * string(element_count[elem])
+                      for elem in sort(collect(keys(element_count))))
+    for i in 0:9
+        formula = replace(formula, ('0' + i) => ('₀' + i))
+    end
+    formula
 end

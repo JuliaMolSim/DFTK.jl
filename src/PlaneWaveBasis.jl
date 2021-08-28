@@ -115,9 +115,6 @@ end
 import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 
-# Default printing is just too verbose TODO This is too spartanic
-Base.show(io::IO, basis::PlaneWaveBasis) =
-    print(io, "PlaneWaveBasis (Ecut=$(basis.Ecut), $(length(basis.kpoints)) kpoints)")
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
@@ -639,4 +636,37 @@ function unpack_ψ(x, sizes_ψ)
                     pointer(@views x[ends[ik]-lengths[ik]+1:ends[ik]]),
                     sizes_ψ[ik])
     end
+end
+
+# Printing
+function Base.show(io::IO, basis::PlaneWaveBasis)
+    print(io, "PlaneWaveBasis(model = ", basis.model, ", Ecut = ", basis.Ecut, " Ha")
+    if !isnothing(basis.kgrid)
+        print(io, ", kgrid = ", basis.kgrid)
+        if !isnothing(basis.kshift) && !iszero(basis.kshift)
+            print(io, ", kshift = ", basis.kshift)
+        end
+    else
+        print(io, ", num. irred. kpoints = ", length(basis.kcoords_global))
+    end
+    print(io, ")")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
+    println(io, "PlaneWaveBasis discretization:")
+    showfieldln(io, "Ecut",     basis.Ecut, " Ha")
+    showfieldln(io, "fft_size", basis.fft_size)
+    if !basis.variational
+        showfieldln(io, "variational", "false")
+    end
+    showfieldln(io, "kgrid type", "Monkhorst-Pack")
+    showfieldln(io, "kgrid",    basis.kgrid)
+    if !iszero(basis.kshift)
+        showfieldln(io, "kshift",   basis.kshift)
+    end
+    showfieldln(io, "num. irred. kpoints", length(basis.kcoords_global))
+
+    println(io)
+    modelstr = sprint(show, "text/plain", basis.model)
+    print(io, "    Discretized " * replace(modelstr, "\n" => "\n    "))
 end
