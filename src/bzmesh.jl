@@ -151,7 +151,7 @@ A reasonable spacing is `0.25` inverse Bohrs (around ``2π * 0.04 \AA^{-1}``).
 function kgrid_from_minimal_spacing(lattice, spacing)
     lattice       = austrip.(lattice)
     spacing       = austrip(spacing)
-    recip_lattice = 2π * pinv(lattice')
+    recip_lattice = compute_recip_lattice(lattice)
     @assert spacing > 0
     isinf(spacing) && return [1, 1, 1]
 
@@ -191,7 +191,7 @@ function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer)
         # TODO This is not optimal and sometimes finds too large grids
         spacing = Roots.find_zero(sp -> number_of_kpoints(sp) - n_kpoints,
                                   (min_spacing, max_spacing), Roots.Bisection(),
-                                  xatol=1e-4, atol=0, rtol=0, verbose=true)
+                                  xatol=1e-4, atol=0, rtol=0)
 
         # Sanity check: Sometimes root finding is just across the edge towards
         # a larger number of k-Points than needed. This attempts a slightly larger spacing.

@@ -75,7 +75,7 @@ function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
             return T(0)
         end
     end
-    energy_ewald(lattice, T(2π) * pinv(lattice'), charges, positions; η=η, forces=forces)
+    energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions; η, forces)
 end
 
 function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, forces=nothing)

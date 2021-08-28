@@ -106,12 +106,8 @@ function Model(lattice::AbstractMatrix{T};
     _is_well_conditioned(lattice[1:n_dim, 1:n_dim]) || @warn (
         "Your lattice is badly conditioned, the computation is likely to fail.")
 
-    # Compute reciprocal lattice and volumes.
-    # recall that the reciprocal lattice is the set of G vectors such
-    # that G.R ∈ 2π ℤ for all R in the lattice
-    # pinv is used instead of inv in case of 1D and 2D systems.
-    recip_lattice = 2T(π) * Mat3{T}(pinv(lattice))
     # Note: In the 1D or 2D case, the volume is the length/surface
+    recip_lattice = compute_recip_lattice(lattice)
     unit_cell_volume  = compute_unit_cell_volume(lattice)
     recip_cell_volume = compute_unit_cell_volume(recip_lattice)
 
@@ -214,6 +210,27 @@ end
 spin_components(model::Model) = spin_components(model.spin_polarization)
 
 _is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
+
+
+"""
+Compute the reciprocal lattice. Takes special care of 1D or 2D cases.
+We use the convention that the reciprocal lattice is the set of G vectors such
+that G ⋅ R ∈ 2π ℤ for all R in the lattice.
+"""
+function compute_recip_lattice(lattice::AbstractMatrix{T}) where {T}
+    # Note: pinv pretty much does the same, but the implied SVD causes trouble
+    #       with interval arithmetic and dual numbers, so we go for this version.
+    n_dim = count(!iszero, eachcol(lattice))
+    @assert 1 ≤ n_dim ≤ 3
+    if n_dim == 3
+        2T(π) * inv(lattice)
+    else
+        2T(π) * Mat3{T}([
+            inv(lattice[1:n_dim, 1:n_dim]')   zeros(T, n_dim, 3 - n_dim);
+            zeros(T, 3 - n_dim, 3)
+        ])
+    end
+end
 
 
 """
