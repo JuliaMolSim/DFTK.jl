@@ -80,6 +80,11 @@ function compute_occupation(basis::PlaneWaveBasis{T}, energies;
         end
     end
 
+    minocc = maximum(minimum.(compute_occupation(εF)))
+    if temperature > 0 && minocc > 1e-5
+        @warn "One kpoint has a high minimum occupation $minocc. You should probably increase the number of bands."
+    end
+
     (occupation=compute_occupation(εF), εF=εF)
 end
 
