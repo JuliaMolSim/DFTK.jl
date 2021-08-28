@@ -668,5 +668,6 @@ function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
 
     println(io)
     modelstr = sprint(show, "text/plain", basis.model)
-    print(io, "    Discretized " * replace(modelstr, "\n" => "\n    "))
+    indent = " " ^ SHOWINDENTION
+    print(io, indent, "Discretized " * replace(modelstr, "\n" => "\n" * indent))
 end
