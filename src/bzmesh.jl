@@ -145,20 +145,64 @@ const standardize_atoms = spglib_standardize_cell
 # TODO Maybe maximal spacing is actually a better name as the kpoints are spaced
 #      at most that far apart
 @doc raw"""
-Selects a kgrid_size to ensure a minimal spacing (in inverse Bohrs) between kpoints.
-Default is ``2π * 0.04 \AA^{-1}``.
+Selects a kgrid size to ensure a minimal spacing (in inverse Bohrs) between kpoints.
+A reasonable spacing is `0.25` inverse Bohrs (around ``2π * 0.04 \AA^{-1}``).
 """
-function kgrid_size_from_minimal_spacing(lattice, spacing=2π * 0.022)
-    lattice = austrip.(lattice)
-    spacing = austrip(spacing)
+function kgrid_from_minimal_spacing(lattice, spacing)
+    lattice       = austrip.(lattice)
+    spacing       = austrip(spacing)
+    recip_lattice = compute_recip_lattice(lattice)
     @assert spacing > 0
     isinf(spacing) && return [1, 1, 1]
 
-    for d in 1:3
-        @assert norm(lattice[:, d]) != 0
-        # Otherwise the formula for the reciprocal lattice
-        # computation is not correct
+    [max(1, ceil(Int, norm(vec) / spacing)) for vec in eachcol(recip_lattice)]
+end
+function kgrid_from_minimal_spacing(model::Model, args...)
+    kgrid_from_minimal_spacing(model.lattice, args...)
+end
+
+@doc raw"""
+Selects a kgrid size which ensures that at least a `n_kpoints` total number of ``k``-Points
+are used. The distribution of ``k``-Points amongst coordinate directions is as uniformly
+as possible, trying to achieve an identical minimal spacing in all directions.
+"""
+function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer)
+    lattice = austrip.(lattice)
+    n_dim   = count(!iszero, eachcol(lattice))
+    @assert n_kpoints > 0
+    n_kpoints == 1 && return [1, 1, 1]
+    n_dim == 1 && return [n_kpoints, 1, 1]
+
+    # Compute truncated reciprocal lattice
+    recip_lattice_nD = 2π * inv(lattice[1:n_dim, 1:n_dim]')
+    n_kpt_per_dim = n_kpoints^(1/n_dim)
+
+    # Start from a cubic lattice. If it is one, we are done. Otherwise the resulting
+    # spacings in each dimension bracket the ideal kpoint spacing.
+    spacing_per_dim = [norm(vec) / n_kpt_per_dim for vec in eachcol(recip_lattice_nD)]
+    min_spacing, max_spacing = extrema(spacing_per_dim)
+    if min_spacing ≈ max_spacing
+        return kgrid_from_minimal_spacing(lattice, min_spacing)
+    else
+        number_of_kpoints(spacing) = prod(vec -> norm(vec) / spacing, eachcol(recip_lattice_nD))
+        @assert number_of_kpoints(min_spacing) + 0.05 ≥ n_kpoints
+        @assert number_of_kpoints(max_spacing) - 0.05 ≤ n_kpoints
+
+        # TODO This is not optimal and sometimes finds too large grids
+        spacing = Roots.find_zero(sp -> number_of_kpoints(sp) - n_kpoints,
+                                  (min_spacing, max_spacing), Roots.Bisection(),
+                                  xatol=1e-4, atol=0, rtol=0)
+
+        # Sanity check: Sometimes root finding is just across the edge towards
+        # a larger number of k-Points than needed. This attempts a slightly larger spacing.
+        kgrid_larger = kgrid_from_minimal_spacing(lattice, spacing + 1e-4)
+        if prod(kgrid_larger) ≥ n_kpoints
+            return kgrid_larger
+        else
+            return kgrid_from_minimal_spacing(lattice, spacing)
+        end
     end
-    recip_lattice = 2π * inv(lattice')
-    [ceil(Int, norm(recip_lattice[:, i]) ./ spacing) for i = 1:3]
+end
+function kgrid_from_minimal_kpoints(model::Model, args...)
+    kgrid_from_minimal_kpoints(model.lattice, args...)
 end

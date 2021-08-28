@@ -75,7 +75,7 @@ function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
             return T(0)
         end
     end
-    energy_ewald(lattice, T(2π) * inv(lattice'), charges, positions; η=η, forces=forces)
+    energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions; η, forces)
 end
 
 function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, forces=nothing)
@@ -162,9 +162,9 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
         gsh += 1
     end
     # Amend sum_recip by proper scaling factors:
-    sum_recip *= 4T(π) / abs(det(lattice))
+    sum_recip *= 4T(π) / compute_unit_cell_volume(lattice)
     if forces !== nothing
-        forces_recip .*= 4T(π) / abs(det(lattice))
+        forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
     end
 
     #

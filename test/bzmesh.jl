@@ -108,8 +108,22 @@ end
     @test atoms[1][2][1] - atoms[1][2][2] == ones(3) ./ 4
 end
 
-@testset "kgrid_size_from_minimal_spacing" begin
+@testset "kgrid_from_minimal_spacing" begin
     # Test that units are stripped from both the lattice and the spacing
-    lattice = [[-1 1 1]; [1 -1  1]; [1 1 -1]]
-    @test kgrid_size_from_minimal_spacing(lattice * u"angstrom", 0.5 / u"angstrom") == [9; 9; 9]
+    lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
+    @test kgrid_from_minimal_spacing(lattice * u"angstrom", 0.5 / u"angstrom") == [9; 9; 9]
+end
+
+@testset "kgrid_from_minimal_n_kpoints" begin
+    lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
+    @test kgrid_from_minimal_n_kpoints(lattice * u"Å", 1000) == [10, 10, 10]
+
+    @test kgrid_from_minimal_n_kpoints(magnesium.lattice, 1) == [1, 1, 1]
+    for n_kpt in [10, 20, 100, 400, 900, 1200]
+        @test prod(kgrid_from_minimal_n_kpoints(magnesium.lattice, n_kpt)) ≥ n_kpt
+    end
+
+    lattice = diagm([4., 10, 0])
+    @test kgrid_from_minimal_n_kpoints(lattice, 1000) == [50, 20, 1]
+    @test kgrid_from_minimal_n_kpoints(diagm([10, 0, 0]), 913) == [913, 1, 1]
 end

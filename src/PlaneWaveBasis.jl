@@ -306,7 +306,7 @@ end
 Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a Monkhorst-Pack
 kpoint grid. The MP grid can either be specified directly with `kgrid` providing the
 number of points in each dimension and `kshift` the shift (0 or 1/2 in each direction).
-If not specified a grid is generated using `kgrid_size_from_minimal_spacing` with
+If not specified a grid is generated using `kgrid_from_minimal_spacing` with
 a minimal spacing of `2π * 0.022` per Bohr.
 
 If `use_symmetry` is `true` (default) the symmetries of the
@@ -317,7 +317,7 @@ undefined.
 """
 function PlaneWaveBasis(model::Model;
                         Ecut,
-                        kgrid=kgrid_size_from_minimal_spacing(model.lattice, 2π * 0.022),
+                        kgrid=kgrid_from_minimal_spacing(model, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
                         use_symmetry=true,
                         kwargs...)
