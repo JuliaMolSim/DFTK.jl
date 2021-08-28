@@ -14,7 +14,7 @@ include("testcases.jl")
     @test compute_fft_size(silicon.lattice, 30, supersampling=2) == [40, 40, 40]
 
     # Test the model interface as well
-    model = Model(silicon.lattice; n_electrons=silicon.n_electrons)
+    model = Model(silicon.lattice; n_electrons=silicon.n_electrons, terms=[Kinetic()])
     @test compute_fft_size(model, 30) == [40, 40, 40]
     @test compute_fft_size(model, 30, supersampling=1.8) == [36, 36, 36]
 end
@@ -27,7 +27,7 @@ end
 
 @testset "Test compute_fft_size_precise" begin
     atoms = [ElementPsp(:Si, psp=load_psp(silicon.psp)) => silicon.positions]
-    model = Model(silicon.lattice; n_electrons=silicon.n_electrons, atoms=atoms)
+    model = Model(silicon.lattice; n_electrons=silicon.n_electrons, atoms=atoms, terms=[Kinetic()])
 
     function fft_precise(model, kcoords, Ecut; supersampling=2)
         fft_size_fast = compute_fft_size(model.lattice, Ecut, supersampling=supersampling)

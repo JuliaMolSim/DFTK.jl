@@ -83,7 +83,7 @@ function Model(lattice::AbstractMatrix{T};
                n_electrons=nothing,
                atoms=[],
                magnetic_moments=[],
-               terms=[],
+               terms=[Kinetic()],
                temperature=T(0.0),
                smearing=nothing,
                spin_polarization=default_spin_polarization(magnetic_moments),
