@@ -223,7 +223,7 @@ function compute_recip_lattice(lattice::AbstractMatrix{T}) where {T}
     n_dim = count(!iszero, eachcol(lattice))
     @assert 1 ≤ n_dim ≤ 3
     if n_dim == 3
-        2T(π) * inv(lattice)
+        2T(π) * inv(lattice')
     else
         2T(π) * Mat3{T}([
             inv(lattice[1:n_dim, 1:n_dim]')   zeros(T, n_dim, 3 - n_dim);
