@@ -10,7 +10,7 @@
 # and how to access basic information about calculations.
 # Basic familiarity with the concepts of plane-wave density functional theory
 # is assumed throughout. Feel free to take a look at the
-#md # [Periodic problems](@ref)
+#md # [Periodic problems](@ref periodic-problems)
 #nb # [Periodic problems](https://juliamolsim.github.io/DFTK.jl/stable/guide/periodic_problems/)
 # or the
 #md # [density-functional theory](@ref density-functional-theory)

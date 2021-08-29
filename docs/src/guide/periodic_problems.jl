@@ -1,4 +1,4 @@
-# # Introduction to periodic problems and plane-wave discretisations
+# # [Introduction to periodic problems and plane-wave discretisations](@id periodic-problems)
 #md # [![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/guide/@__NAME__.ipynb)
 #md # [![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/guide/@__NAME__.ipynb)
 
@@ -9,15 +9,15 @@
 
 # ## Periodicity and lattices
 # A periodic problem is characterised by being invariant to certain translations.
-# For example the ``sin`` function is periodic with periodicity ``2π``, i.e.
+# For example the ``\sin`` function is periodic with periodicity ``2π``, i.e.
 # ```math
-#    sin(x) = sin(x + n ⋅ 2π) \quad ∀ n ∈ \mathbb{Z},
+#    \sin(x) = \sin(x + n ⋅ 2π) \quad ∀ n ∈ \mathbb{Z},
 # ```
 # which is nothing else than saying that any translation by an integer multiple of ``2π``
 # keeps the ``sin`` function invariant. A more formal way of writing this is using the
 # translation operator ``T_{-2πn}``:
 # ```math
-#    T_{-2πn} sin(x) = sin(x + 2πn) = sin(x).
+#    T_{-2πn} \, \sin(x) = \sin(x + 2πn) = \sin(x).
 # ```
 #
 # Whenever such periodicity exists it offers the potential to save some computational work.
@@ -83,6 +83,7 @@
 #    &= e^{i k⋅x} (-i∇ + k)^2 ψ_{kj}(x) \\
 #    &= e^{i k⋅x} 2H_k ψ_{kj}(x),
 # \end{aligned}
+# ```
 # where we used
 # ```math
 #     H_k = \frac12 (-i∇ + k)^2.

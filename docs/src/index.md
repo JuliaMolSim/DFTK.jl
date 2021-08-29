@@ -17,7 +17,7 @@ codes such as [Abinit](https://www.abinit.org/),
 DFTK's source code is [publicly available on github](https://dftk.org).
 
 If you are new to density-functional theory or plane-wave methods,
-see our notes on [Periodic problems](@ref) and our
+see our notes on [Periodic problems](@ref periodic-problems) and our
 collection of [lectures, workshops and literature on DFT](@ref density-functional-theory).
 
 ## [Package features](@id package-features)
