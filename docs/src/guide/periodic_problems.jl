@@ -78,7 +78,7 @@
 # ```math
 # \begin{aligned}
 # -\Delta \left(e^{i k⋅x} ψ_{kj}(x)\right)
-#    &= k^2 e^{ik⋅x} ψ_{kj}(x) - 2ik e^{ik⋅x} (∇ψ_{kj}(x)) - e^{ik⋅x} (Δψ_{kj}(x))
+#    &= k^2 e^{ik⋅x} ψ_{kj}(x) - 2ik e^{ik⋅x} (∇ψ_{kj}(x)) - e^{ik⋅x} (Δψ_{kj}(x)) \\
 #    &= e^{ik⋅x} (k^2 - 2ik ∇ - Δ) ) ψ_{kj}(x) \\
 #    &= e^{i k⋅x} (-i∇ + k)^2 ψ_{kj}(x) \\
 #    &= e^{i k⋅x} 2H_k ψ_{kj}(x),
@@ -94,7 +94,7 @@
 # ```
 # which in particular implies that
 # ```math
-#    H_k ψ_{kj} = ε_{kj} ψ_{kj} \quad \Rightleftarrow \quad H (e^{i k⋅x} ψ_{kj}) = ε_{kj} (e^{i k⋅x} ψ_{kj}).
+#    H_k ψ_{kj} = ε_{kj} ψ_{kj} \quad ⇔ \quad H (e^{i k⋅x} ψ_{kj}) = ε_{kj} (e^{i k⋅x} ψ_{kj}).
 # ```
 # To seek the eigenpairs of ``H`` we may thus equivalently
 # find the eigenpairs of *all* ``H_k``.
@@ -108,7 +108,7 @@
 # (like the point group symmetry in molecules), the Bloch transform also makes
 # the Hamiltonian ``H`` block-diagonal[^1]:
 # ```math
-#     T_B H T_B^{-1} \longrightarrow \left( \begin{array}{cccc} H_1 \\ &H_2\\&&H_3\\&&&\ddots \right)
+#     T_B H T_B^{-1} ⟶ \left( \begin{array}{cccc} H_1&&&0 \\ &H_2\\&&H_3\\0&&&\ddots \end{array} \right)
 # ```
 # with each block ``H_k`` taking care of one value ``k``.
 # This block-diagonal structure under the basis of Bloch functions lets us
@@ -161,7 +161,7 @@
 #
 # For our 1D example normalised plane waves are defined as the functions
 # ```math
-# e_{G}(x) = \frac{e^{i G x}}{\sqrt{a}}  \qquad G \in b\mathbb{Z} $$
+# e_{G}(x) = \frac{e^{i G x}}{\sqrt{a}}  \qquad G \in b\mathbb{Z}
 # ```
 # and typically one forms basis sets from these by specifying a
 # **kinetic energy cutoff** ``E_\text{cut}``:
@@ -183,7 +183,7 @@
 using DFTK
 
 lattice = zeros(3, 3)
-lattice[1, 1] = 20.
+lattice[1, 1] = 20.;
 
 # Step 2: Select a model. In this case we choose a free-electron model,
 # which is the same as saying that there is only a Kinetic term
@@ -192,19 +192,9 @@ model = Model(lattice; n_electrons=0, terms=[Kinetic()])
 
 # Step 3: Define a plane-wave basis using this model and a cutoff ``E_\text{cut}``
 # of 300 Hartree. The ``k``-point grid is given as a regular grid in the BZ
-# (a so-called **Monkhorst-Pack** grid). Here we select only one ``k``-point (1x1x1).
-basis = PlaneWaveBasis(model; Ecut=300, kgrid=(1, 1, 1));
-
-# !!! note "k-point grids in more complicated models"
-#     You might wonder why we only selected a single ``k``-point (clearly a very crude
-#     and inaccurate approximation). It turns out the `kgrid` parameter specified here
-#     is not actually used for plotting the bands. It is only used when solving more
-#     involved models like density-functional theory (DFT) where the Hamiltonian is
-#     non-linear and before plotting the bands therefore the self-consistent field
-#     equations need to be solved first. This is typically done on a different ``k``-point
-#     grid than the grid used for the bands later on. In our case we don't need
-#     this extra step and therefore the `kgrid` value passed to `PlaneWaveBasis`
-#     is actually arbitrary.
+# (a so-called **Monkhorst-Pack** grid). Here we select only one ``k``-point (1x1x1),
+# see the note below for some details on this choice.
+basis = PlaneWaveBasis(model; Ecut=300, kgrid=(1, 1, 1))
 
 # Step 4: Plot the bands! Select a density of ``k``-points for the ``k``-grid to use
 # for the bandstructure calculation, discretise the problem and diagonalise it.
@@ -217,6 +207,19 @@ using Plots
 n_bands = 6
 ρ0 = guess_density(basis)  # Just dummy, has no meaning in this model
 p  = plot_bandstructure(basis, ρ0, n_bands, kline_density=15, unit=u"hartree")
+
+# !!! note "Selection of k-point grids in `PlaneWaveBasis` construction"
+#     You might wonder why we only selected a single ``k``-point (clearly a very crude
+#     and inaccurate approximation). It turns out the `kgrid` parameter specified here
+#     is not actually used for plotting the bands. It is only used when solving more
+#     involved models like density-functional theory (DFT) where the Hamiltonian is
+#     non-linear and before plotting the bands therefore the self-consistent field
+#     equations need to be solved first. This is typically done on a different ``k``-point
+#     grid than the grid used for the bands later on. In our case we don't need
+#     this extra step and therefore the `kgrid` value passed to `PlaneWaveBasis`
+#     is actually arbitrary.
+
+
 
 # ## Adding potentials
 # So far so good. But free electrons are actually a little boring,
@@ -265,6 +268,7 @@ end
 # A single potential looks like:
 
 using Plots
+using LinearAlgebra
 nucleus = ElementGaussian()
 plot(r -> DFTK.local_potential_real(nucleus, norm(r)), xlims=(-50, 50))
 
