@@ -265,7 +265,7 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
 
     if !isempty(model.atoms)
         println(io)
-        showfieldln(io, "atoms", sum_formula(model.atoms))
+        showfieldln(io, "atoms", chemical_formula(model))
         elements = first.(model.atoms)
         for (i, el) in enumerate(elements)
             header = i==1 ? "atom potentials" : ""
@@ -294,7 +294,7 @@ end
 """
 Returns the sum formula of the atoms list as a string.
 """
-function sum_formula(atoms)
+function chemical_formula(atoms)
     element_count = Dict{Symbol, Int}()
     for (element, positions) in atoms
         if element.symbol in keys(element_count)
@@ -310,3 +310,4 @@ function sum_formula(atoms)
     end
     formula
 end
+chemical_formula(model::Model) = chemical_formula(model.atoms)
