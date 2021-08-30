@@ -1,8 +1,7 @@
 using Test
+using DFTK
 
 if( (mpi_nprocs() == 1) && !(Sys.iswindows()) && !(Sys.isapple()) )
-
-    using DFTK
 
     # Classic SCF
     a = 10.26 #a.u.
@@ -44,26 +43,26 @@ if( (mpi_nprocs() == 1) && !(Sys.iswindows()) && !(Sys.isapple()) )
         rm("testcases_WANNIER90/$(output_file)")
     end
 
-    # run wannier90 with manual guess
-    prefix = "testcases_WANNIER90/W90_guess_Si"
-    wannier90() do exe
-        run(`$exe -pp $prefix`)
-    end
-    nn_kpts, nn_num, projs = DFTK.read_nnkp(prefix)
+    # # run wannier90 with manual guess
+    # prefix = "testcases_WANNIER90/W90_guess_Si"
+    # wannier90() do exe
+    #     run(`$exe -pp $prefix`)
+    # end
+    # nn_kpts, nn_num, projs = DFTK.read_nnkp(prefix)
 
-    scfres_unfold = DFTK.unfold_bz(scfres);
-    DFTK.write_eig(prefix, scfres_unfold)
-    DFTK.write_amn(prefix, scfres_unfold, 8; guess="win", projs=projs)
-    DFTK.write_mmn(prefix, scfres_unfold, nn_kpts, nn_num)
+    # scfres_unfold = DFTK.unfold_bz(scfres);
+    # DFTK.write_eig(prefix, scfres_unfold)
+    # DFTK.write_amn(prefix, scfres_unfold, 8; guess="win", projs=projs)
+    # DFTK.write_mmn(prefix, scfres_unfold, nn_kpts, nn_num)
 
-    @testset "Test production of the .mmn, .amn and .eig files" begin
-        @test isfile("testcases_WANNIER90/W90_guess_Si.mmn")
-        @test isfile("testcases_WANNIER90/W90_guess_Si.amn")
-        @test isfile("testcases_WANNIER90/W90_guess_Si.eig")
-    end
+    # @testset "Test production of the .mmn, .amn and .eig files" begin
+    #     @test isfile("testcases_WANNIER90/W90_guess_Si.mmn")
+    #     @test isfile("testcases_WANNIER90/W90_guess_Si.amn")
+    #     @test isfile("testcases_WANNIER90/W90_guess_Si.eig")
+    # end
 
-    # remove produced files
-    for postfix in ("eig","mmn","amn","wout","nnkp")
-        rm("$(prefix).$(postfix)")
-    end
+    # # remove produced files
+    # for postfix in ("eig","mmn","amn","wout","nnkp")
+    #     rm("$(prefix).$(postfix)")
+    # end
 end
