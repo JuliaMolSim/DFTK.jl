@@ -5,7 +5,7 @@
 # The exact model used is defined by the list of terms.
 struct Model{T <: Real}
     # Human-readable name for the model (like LDA, PBE, ...)
-    name::String
+    model_name::String
 
     # Lattice and reciprocal lattice vectors in columns
     lattice::Mat3{T}
@@ -79,7 +79,7 @@ external potential breaks some of the passed symmetries. Use `false` to turn off
 symmetries completely.
 """
 function Model(lattice::AbstractMatrix{T};
-               name="custom",
+               model_name="custom",
                n_electrons=nothing,
                atoms=[],
                magnetic_moments=[],
@@ -140,12 +140,54 @@ function Model(lattice::AbstractMatrix{T};
     symmetries == false && (symmetries = [identity_symop()])
     @assert !isempty(symmetries)  # Identity has to be always present.
 
-    Model{T}(name, lattice, recip_lattice, unit_cell_volume, recip_cell_volume, n_dim,
+    Model{T}(model_name, lattice, recip_lattice, unit_cell_volume, recip_cell_volume, n_dim,
              n_electrons, spin_polarization, n_spin, T(temperature), smearing,
              atoms, terms, symmetries)
 end
 Model(lattice::AbstractMatrix{T}; kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
 Model(lattice::AbstractMatrix{Q}; kwargs...) where {Q <: Quantity} = Model(austrip.(lattice); kwargs...)
+
+
+function Base.show(io::IO, model::Model)
+    nD = model.n_dim == 3 ? "" : "$(model.n_dim)D, "
+    print(io, "Model(", model.model_name, ", ", nD,
+          "spin_polarization = ", model.spin_polarization, ")")
+end
+
+
+function Base.show(io::IO, ::MIME"text/plain", model::Model)
+    println(io, "Model(", model.model_name, ", $(model.n_dim)D):")
+    for i = 1:3
+        header = i==1 ? "lattice (in Bohr)" : ""
+        showfieldln(io, header, (@sprintf "[%-10.6g, %-10.6g, %-10.6g]" model.lattice[i, :]...))
+    end
+    showfieldln(io, "unit cell volume", @sprintf "%.5g Bohr³" model.unit_cell_volume)
+
+    if !isempty(model.atoms)
+        println(io)
+        showfieldln(io, "atoms", chemical_formula(model))
+        elements = first.(model.atoms)
+        for (i, el) in enumerate(elements)
+            header = i==1 ? "atom potentials" : ""
+            showfieldln(io, header, el)
+        end
+    end
+
+    println(io)
+    showfieldln(io, "num. electrons",    model.n_electrons)
+    showfieldln(io, "spin polarization", model.spin_polarization)
+    showfieldln(io, "temperature",       @sprintf "%.5g Ha" model.temperature)
+    if model.temperature > 0
+        showfieldln(io, "smearing",      model.smearing)
+    end
+
+    println(io)
+    for (i, term) in enumerate(model.term_types)
+        header = i==1 ? "terms" : ""
+        showfield(io, header, term)
+        i < length(model.term_types) && println(io)
+    end
+end
 
 
 normalize_magnetic_moment(::Nothing)  = Vec3{Float64}(zeros(3))
@@ -215,99 +257,5 @@ function spin_components(spin_polarization::Symbol)
 end
 spin_components(model::Model) = spin_components(model.spin_polarization)
 
+
 _is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
-
-
-"""
-Compute the reciprocal lattice. Takes special care of 1D or 2D cases.
-We use the convention that the reciprocal lattice is the set of G vectors such
-that G ⋅ R ∈ 2π ℤ for all R in the lattice.
-"""
-function compute_recip_lattice(lattice::AbstractMatrix{T}) where {T}
-    # Note: pinv pretty much does the same, but the implied SVD causes trouble
-    #       with interval arithmetic and dual numbers, so we go for this version.
-    n_dim = count(!iszero, eachcol(lattice))
-    @assert 1 ≤ n_dim ≤ 3
-    if n_dim == 3
-        2T(π) * inv(lattice')
-    else
-        2T(π) * Mat3{T}([
-            inv(lattice[1:n_dim, 1:n_dim]')   zeros(T, n_dim, 3 - n_dim);
-            zeros(T, 3 - n_dim, 3)
-        ])
-    end
-end
-
-
-"""
-Compute unit cell volume volume. In case of 1D or 2D case, the volume is the length/surface.
-"""
-function compute_unit_cell_volume(lattice)
-    n_dim = count(!iszero, eachcol(lattice))
-    abs(det(lattice[1:n_dim, 1:n_dim]))
-end
-
-
-function Base.show(io::IO, model::Model)
-    nD = model.n_dim == 3 ? "" : "$(model.n_dim)D, "
-    print(io, "Model(", model.name, ", ", nD,
-          "spin_polarization = ", model.spin_polarization, ")")
-end
-
-
-function Base.show(io::IO, ::MIME"text/plain", model::Model)
-    println(io, "Model(", model.name, ", $(model.n_dim)D):")
-    for i = 1:3
-        header = i==1 ? "lattice (in Bohr)" : ""
-        showfieldln(io, header, (@sprintf "[%-10.6g, %-10.6g, %-10.6g]" model.lattice[i, :]...))
-    end
-    showfieldln(io, "unit cell volume", @sprintf "%.5g Bohr³" model.unit_cell_volume)
-
-    if !isempty(model.atoms)
-        println(io)
-        showfieldln(io, "atoms", chemical_formula(model))
-        elements = first.(model.atoms)
-        for (i, el) in enumerate(elements)
-            header = i==1 ? "atom potentials" : ""
-            showfieldln(io, header, el)
-        end
-    end
-
-    println(io)
-    showfieldln(io, "num. electrons",    model.n_electrons)
-    showfieldln(io, "spin polarization", model.spin_polarization)
-    showfieldln(io, "temperature",       @sprintf "%.5g Ha" model.temperature)
-    if model.temperature > 0
-        showfieldln(io, "smearing",      model.smearing)
-    end
-
-    println(io)
-    for (i, term) in enumerate(model.term_types)
-        header = i==1 ? "terms" : ""
-        showfield(io, header, term)
-        i < length(model.term_types) && println(io)
-    end
-end
-
-
-
-"""
-Returns the sum formula of the atoms list as a string.
-"""
-function chemical_formula(atoms)
-    element_count = Dict{Symbol, Int}()
-    for (element, positions) in atoms
-        if element.symbol in keys(element_count)
-            element_count[element.symbol] += length(positions)
-        else
-            element_count[element.symbol] = length(positions)
-        end
-    end
-    formula = join(string(elem) * string(element_count[elem])
-                      for elem in sort(collect(keys(element_count))))
-    for i in 0:9
-        formula = replace(formula, ('0' + i) => ('₀' + i))
-    end
-    formula
-end
-chemical_formula(model::Model) = chemical_formula(model.atoms)
