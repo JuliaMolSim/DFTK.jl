@@ -1,7 +1,7 @@
 using Test
-using DFTK
 
 if( (mpi_nprocs() == 1) && !(Sys.iswindows()) && !(Sys.isapple()) )
+    using DFTK
 
     # Classic SCF
     a = 10.26 #a.u.
