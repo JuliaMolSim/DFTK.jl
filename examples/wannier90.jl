@@ -9,15 +9,15 @@
 # This example shows how to obtain the MLWFs corresponding
 # to the first eight bands of silicon. Since the bands 5 to 8 are entangled,
 # 12 bands are first computed to obtain 8 MLWFs by a disantanglement procedure.
+#
 # We first perfom a SCF calculation.
 
 using DFTK
 
 a = 10.26
-lattice = a / 2*[[-1.  0. -1.];
-                 [ 0   1.  1.];
-                 [ 1   1.  0.]]
-
+lattice = a / 2 * [[0 1 1.];
+                   [1 0 1.];
+                   [1 1 0.]]
 Si = ElementPsp(:Si, psp=load_psp("hgh/pbe/Si-q4"))
 atoms = [ Si => [zeros(3), 0.25*[-1,3,-1]] ]
 
@@ -36,8 +36,8 @@ scfres = self_consistent_field(basis, tol=1e-12, n_bands=12);
 # We now use the `run_wannier90` routine to generate all files needed by
 # wannier90 and to perform the wannierization procedure.
 # In Wannier90's convention, all files are
-# named with the same prefix and only differ by their types.
-# The argument nedded by `run_wannier90` are this prefix, the result
+# named with the same prefix and only differ by their extensions.
+# The arguments nedded by `run_wannier90` are this prefix, the result
 # of the scf computation `scfres` and the number of wanted MLWFs,
 # 8 in our case.
 
@@ -47,7 +47,7 @@ num_wann = 8
 
 # We now simply call:
 
-run_wannier90(prefix, scfres, num_wann,
+run_wannier90(prefix, scfres, num_wann;
               bands_plot=true,
               num_print_cycles=50, num_iter=500,
               dis_win_max       = 17.185257,
@@ -55,8 +55,9 @@ run_wannier90(prefix, scfres, num_wann,
               dis_num_iter      = 120,
               dis_mix_ratio     = 1.0)
 
-# Remark that the parameters of the disentanglement have been added as
-# keyword arguments. All optional parameters can be added as such.
+# Remark that the wannier90's keyword arguments for the disentanglement
+# procedure have been passed to it directly through `run_wannier90`.
+# All optional parameters can be added as such.
 # Also note that `bands_plot = true` generates the ``k``-point path
 # using the [Pymatgen](https://pymatgen.org/) python library in order
 # to generate the bands plot with the MLWFs. The output is contained in
