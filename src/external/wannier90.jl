@@ -5,7 +5,7 @@ using wannier90_jll
     Create a .win file for Wannier90, compatible with the system studied with DFTK.
     Parameters to Wannier90 can be added as kwargs : e.g. num_iter = 500.
 """
-function write_win(prefix::String, basis, ψ,
+function write_win(prefix::String, basis::PlaneWaveBasis, ψ,
                            num_wann::Integer;
                            bands_plot=false,
                            kwargs...
@@ -73,14 +73,17 @@ function write_win(prefix::String, basis, ψ,
             write(f,"bands_plot = T\n\n")
         end
 
-        # Mp grid
+        # MP grid
+        (isnothing(basis.kgrid)) && (@error("The system must be constructed"*
+                                            " from a MP grid"))
         write(f,"mp_grid : $(basis.kgrid[1]) $(basis.kgrid[2]) $(basis.kgrid[3])\n\n")
 
         # kpoints block
         write(f,"begin kpoints"*"\n")
         for i in 1:size(ψ,1)
             coord =  basis.kpoints[i].coordinate
-            write(f,@sprintf("%10.6f %10.6f %10.6f \n",coord[1],coord[2],coord[3]))
+            # "coord" already contains the shift
+            write(f,@sprintf("%10.6f %10.6f %10.6f\n",coord[1],coord[2],coord[3]))
         end
         write(f,"end kpoints\n\n")
     end
@@ -120,29 +123,7 @@ function read_nnkp(prefix::String)
     nn_num = parse(Int,ln[i_nn_kpts[1]+1])          # number of neighbors per k points
     nn_kpts =  [parse.(Int,split(l,' ',keepempty = false))
                 for l in ln[i_nn_kpts[1]+2:i_nn_kpts[2]-1] ]
-
-    # Do we keep wannier90's guesses ?
-    # Extract projections block : needed for win guesses only
-    i_projs = findall(x-> endswith(x,"projections"),ln) # 1st and last line of the block
-    @assert size(i_projs,1) == 2
-    raw_projs = split.(ln[i_projs[1]+1:i_projs[2]-1],' ',keepempty = false)
-
-    n_projs = parse(Int64,only(popfirst!(raw_projs)))     # number of projections
-    @assert(n_projs == size(raw_projs,1)/2)
-
-    # Reshape so that one line gives all infos about one projection
-    raw_projs = reshape(raw_projs,(2,n_projs))
-    # Parse in the format proj = [ [[center],[l,mr,r],[z_axis],[x_axis], α], ... ]
-    projs = []
-    for j in 1:n_projs
-        center = parse.(Float64,raw_projs[1,j][1:3])
-        quantum_numbers = parse.(Int,raw_projs[1,j][4:end])
-        z_axis = parse.(Float64,raw_projs[2,j][1:3])
-        x_axis = parse.(Float64,raw_projs[2,j][4:6])
-        α = parse(Float64,raw_projs[2,j][7])
-        push!(projs, [center,quantum_numbers,z_axis,x_axis,α])
-    end
-    nn_kpts,nn_num,projs
+    nn_kpts,nn_num
 end
 
 
@@ -246,9 +227,9 @@ Given an orbital ``g_n``, the periodized orbital is defined by :
 The  Fourier coefficient of ``g^{per}_n`` at any G
 is given by the value of the Fourier transform of ``g_n`` in G.
 """
-function Ak_matrix_gaussian_guess(basis::PlaneWaveBasis, ψ_k, k_pt,
+function compute_Ak_gaussian_guess(basis::PlaneWaveBasis, ψ_k, k_pt,
                                      n_bands::Integer, num_wann::Integer;
-                                     centers=[], projs=[])
+                                     centers=[])
 
     # associate a center with the fourier transform of the corresponding gaussian
     fourier_gn(center,qs) = [exp(-im*dot(q,center) - dot(q,q)/4) for q in qs]
@@ -275,136 +256,15 @@ function Ak_matrix_gaussian_guess(basis::PlaneWaveBasis, ψ_k, k_pt,
     Ak
 end
 
-@doc raw"""
-    The quantum numbers given by Wannier90 are not in common use.
-    In turn the order in which the orbitals s,p,d and f are given in the Tables 3
-    (see [Wannier90's user guide][http://www.wannier.org/support/] p.54)
-    is not matching the classic order given in spherical_harmonics.jl.
-
-    The purpose of this function is to retrieve the proper quantum number m
-    from the one given in the nnkp file.
-
-    Corresponding m Wannier <-> DFTK:  p  [1,2,3]         <->  [0,1,-1]
-                                       d  [1,2,3,4,5]     <->  [0,1,-1,2,-2]
-                                       f  [1,2,3,4,5,6,7] <->  [0,1,-1,2,-2,3,-3]
-"""
-function retrieve_proper_m(l::Integer,mr::Integer)
-    @assert 0 ≤ l
-    m_p = (0,1,-1); m_d = (0,1,-1,2,-2); m_f = (0,1,-1,2,-2,3,-3)
-    (l == 0) && return 0
-    (l == 1) && return m_p[mr]  # p
-    (l == 2) && return m_d[mr]  # d
-    (l == 3) && return m_f[mr]  # f
-    error("Quantum numbers are not matching any implemented
-                orbital (s,p,d,f)")
-end
-
-@doc raw"""
-    Gives the analytic expression of the integral
-    ``I_l(q) = \int_{\mathbb{R}^+} r^(l+2) exp(-r^2/2) j_l(|q|r)dr``
-    as given in arXiv:1908.07374v2, equation (2.5).
-
-    ``j_l`` is the spherical Bessel function of order l.
-    q is expected in cartesian coordinates
-"""
-function intR_l(l::Integer, norm_q_cart)
-    √(π/2) * (norm_q_cart^l) * exp(-(norm_q_cart^2)/2)
-end
-
-@doc raw"""
-Given quantum numbers and center (in cartesian coordinates), evaluate the fourier
-transform of the corresponding orbital at given reciprocal vector ``q = k + G`` in cartesian
-coordinates, using wannier90 conventions for `l` and `m`.
-
-For the orbital ``g(r) = Rl(r)Y_l^m(r/|r|)`` the fourier transform is given by:
-
-``\hat(g)(q) = 4\pi Y_l^m(-q/|q|)i^l * \int_{\mathbb{R}^+}r^2 R(r)j_l(|q|r)dr``
-             = y_lm * intR_l
-
-Only ``Rl(r) = r^l e^{-r^2/2}`` have been implemented.
-"""
-function eval_fourier_orbital(center, l::Integer, mr::Integer, q_cart)
-    # TODO : Optimise to compute the whole list of q_vectors at once
-    # instead of treating the case |q| = zero separatly
-    if iszero(q_cart)
-        (l == 0) && return (√(2)π)/2  # explicit value of y_0 * intR_0
-        (l != 0) && return zero(eltype(q_cart)) # since j_l(0) = 0 for l≥1.
-    end
-
-    # |G| ≠ 0
-    q_norm = norm(q_cart)
-    arg_ylm = -q_cart ./ q_norm
-
-    # Computes the phase prefactor due to center ≠ [0,0,0]
-    phase_prefac = exp(-im*dot(q_cart,center))
-
-    if l ≥ 0  # s,p,d or f
-        m = retrieve_proper_m(l,mr)
-        return (phase_prefac *
-                (4π*im^l)*DFTK.ylm_real(l,m,arg_ylm) * intR_l(l,q_norm) )
-    else      # hybrid orbitals
-        if l == -3  # sp3
-            s  = √(2π)/2 * q_norm * exp(-q_norm^2/2)
-            px = (4π*im) * DFTK.ylm_real(1,1,arg_ylm)  * intR_l(1,q_norm)
-            py = (4π*im) * DFTK.ylm_real(1,-1,arg_ylm) * intR_l(1,q_norm)
-            pz = (4π*im) * DFTK.ylm_real(1,0,arg_ylm)  * intR_l(1,q_norm)
-
-            (mr==1) && (return phase_prefac * (1/√2)*(s + px + py + pz))
-            (mr==2) && (return phase_prefac * (1/√2)*(s + px - py - pz))
-            (mr==3) && (return phase_prefac * (1/√2)*(s - px + py - pz))
-            (mr==4) && (return phase_prefac * (1/√2)*(s - px - py + pz))
-        end
-    end
-    error("No implemented orbital (s, p, d, f, sp3)
-            match with the given quantum number")
-end
-
-"""
-    Uses the above function to generate one Amn matrix given the projection table and
-    usual informations on the system (basis etc...)
-"""
-function Ak_matrix_win_guess(basis::PlaneWaveBasis, ψ_k,
-                                k_pt, n_bands, num_wann;
-                                projs=[], centers=[], coords="")
-    n_projs = size(projs,1)
-    @assert n_projs == num_wann
-
-    Ak = zeros(eltype(ψ_k), n_bands, n_projs)
-
-    for n in 1:n_projs
-        center, (l,mr,r_qn) = projs[n] #Extract data from projs[n]
-        center = basis.model.lattice * center # lattice coords to cartesian coords
-
-        # Obtain fourier coeff of projection g_n.
-        q_cart = [k_pt.coordinate_cart + G_cart for G_cart in G_vectors_cart(k_pt)]
-        coeffs_gn_per = [eval_fourier_orbital(center, l, mr, q) for q in q_cart]
-
-        # Compute overlaps
-        for m in 1:n_bands
-            Ak[m,n] = @views dot(ψ_k[:,m], coeffs_gn_per)
-        end
-    end
-    Ak
-end
-
 """
 Use the preceding functions on every k to generate the .amn file
 """
 function write_amn(prefix::String, basis::PlaneWaveBasis, ψ, num_wann::Integer;
-                           projs=[], centers=[], guess="")
-    # Select guess
-    if guess == "win"
-        compute_Ak = Ak_matrix_win_guess
-        # Check if the right number of projection is given...
-        @assert num_wann == size(projs,1)
-    else
-        compute_Ak = Ak_matrix_gaussian_guess
-        @assert num_wann == size(centers, 1)   # ... same for the number of centers.
-    end
-
+                           centers=[])
+    # Check if the right number of center is given
+    @assert num_wann == size(centers, 1)
     # general parameters
-    n_bands = size(ψ[1],2)
-    k_size = size(ψ,1)
+    n_bands = size(ψ[1],2); k_size = size(ψ,1);
 
     # write file
     open("$prefix.amn", "w") do f
@@ -415,8 +275,8 @@ function write_amn(prefix::String, basis::PlaneWaveBasis, ψ, num_wann::Integer;
         # Matrices
         for k in 1:k_size
             ψ_k = ψ[k]; k_pt = basis.kpoints[k];
-            Ak = compute_Ak(basis, ψ_k, k_pt, n_bands, num_wann;
-                              centers=centers, projs=projs)
+            Ak = compute_Ak_gaussian_guess(basis, ψ_k, k_pt, n_bands, num_wann;
+                              centers=centers)
             for n in 1:size(Ak,2)
                 for m in 1:size(Ak,1)
                     write(f, @sprintf("%3i %3i %3i  %22.18f %22.18f \n",
@@ -428,9 +288,8 @@ function write_amn(prefix::String, basis::PlaneWaveBasis, ψ, num_wann::Integer;
     return nothing
 end
 
-write_amn(prefix, scfres, num_wann; projs=[], centers=[], guess="") =
-    write_amn(prefix, scfres.basis, scfres.ψ, num_wann, projs=projs, centers=centers,
-              guess=guess)
+write_amn(prefix, scfres, num_wann; centers=[]) =
+    write_amn(prefix, scfres.basis, scfres.ψ, num_wann, centers=centers)
 
 """
    Random gaussian guess for MLWF used as default. Centers are generated in
@@ -443,35 +302,26 @@ random_gaussian_guess(num_wann) = [rand(1,3) for i in 1:num_wann]
 """
 function run_wannier90(prefix::String, scfres, num_wann::Integer;
                        bands_plot=false,
-                       guess="gaussian",
                        centers=random_gaussian_guess(num_wann),
                        kwargs...)
-
-    @assert guess ∈ ("gaussian", "win")
-
     # Unfold scfres to retrieve full k-point list
     scfres_unfold = unfold_bz(scfres)
-
-    # Write wannier90 input file
+    # Write wannier90 input file and launch Wannier90 preprocessing task
     write_win(prefix, scfres_unfold, num_wann; bands_plot=bands_plot, kwargs...)
-
-    # Wannier90 preprocessing task
     wannier90() do exe
         run(`$exe -pp $prefix`)
     end
 
-    nn_kpts, nn_num, projs = read_nnkp(prefix)
-
     # Generate eig, amn and mmn files
+    nn_kpts, nn_num = read_nnkp(prefix)
     write_eig(prefix, scfres_unfold)
-    write_amn(prefix, scfres_unfold, num_wann; centers=centers, projs=projs, guess=guess)
+    write_amn(prefix, scfres_unfold, num_wann; centers=centers)
     write_mmn(prefix, scfres_unfold, nn_kpts, nn_num)
 
-    # Wannierization
+    # Launch wannierization
     wannier90() do exe
         @info "Wannier90 post-processing"
         run(`$exe $prefix`)
     end
-
     return nothing
 end
