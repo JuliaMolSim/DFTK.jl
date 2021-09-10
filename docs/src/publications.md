@@ -8,9 +8,18 @@ Since DFTK is mostly developed as part of academic research,
 we would greatly appreciate if you cite our research papers as appropriate.
 See the [CITATION.bib](https://github.com/JuliaMolSim/DFTK.jl/blob/master/CITATION.bib)
 in the root of the DFTK repo for relevant references.
-To cite DFTK as a software please use
-[![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238).
-
+The current DFTK reference paper to cite is
+```bibtex
+@article{DFTKjcon,
+  author = {Michael F. Herbst and Antoine Levitt and Eric Cancès},
+  doi = {10.21105/jcon.00069},
+  journal = {Proc. JuliaCon Conf.},
+  title = {DFTK: A Julian approach for simulating electrons in solids},
+  volume = {3},
+  pages = {69},
+  year = {2021},
+}
+```
 
 - M. F. Herbst and A. Levitt.
   [*A robust and efficient line search for self-consistent field iterations*](https://arxiv.org/abs/2109.14018)

@@ -52,7 +52,8 @@ Parts of DFTK have also been discussed in published papers.
 If you use our code as part of your research, teaching or other activities,
 we would be grateful if you cite them as appropriate.
 See the [CITATION.bib](CITATION.bib) in the root of this repo for relevant references.
-As a software DFTK can also be cited via [![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238).
+The current DFTK reference paper to cite is
+[![DOI](https://img.shields.io/badge/DOI-10.21105/jcon.00069-blue)](https://doi.org/10.21105/jcon.00069).
 
 ## Funding
 This project has received funding from
