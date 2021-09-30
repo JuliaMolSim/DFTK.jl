@@ -41,6 +41,8 @@ include("testcases.jl")
         _, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
         # Rayleigh-coefficients
         Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
+
+        # Ω is complex-linear and so self-adjoint as a complex operator.
         @test isapprox(
             dot(ϕ, apply_Ω(rhs, ψ, H, Λ)),
             dot(apply_Ω(ϕ, ψ, H, Λ), rhs),
@@ -49,6 +51,8 @@ include("testcases.jl")
     end
 
     @testset "self-adjointness of apply_K" begin
+        # K involves conjugates and is only a real-linear operator, 
+        # hence we test using the real dot product.
         @test isapprox(
             real(dot(ϕ, apply_K(basis, rhs, ψ, ρ, occupation))),
             real(dot(apply_K(basis, ϕ, ψ, ρ, occupation), rhs)),
