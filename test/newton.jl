@@ -42,8 +42,8 @@ include("testcases.jl")
         # Rayleigh-coefficients
         Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
         @test isapprox(
-            real(dot(ϕ, apply_Ω(rhs, ψ, H, Λ))),
-            real(dot(apply_Ω(ϕ, ψ, H, Λ), rhs)),
+            dot(ϕ, apply_Ω(rhs, ψ, H, Λ)),
+            dot(apply_Ω(ϕ, ψ, H, Λ), rhs),
             atol=1e-7
         )
     end
