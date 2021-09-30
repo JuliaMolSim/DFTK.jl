@@ -108,5 +108,9 @@ Random.seed!(0)
         include("aqua.jl")
     end
 
+    if "all" in TAGS && mpi_nprocs() == 1  # Distributed implementation not yet available
+        include("newton.jl")
+    end
+
     ("example" in TAGS) && include("runexamples.jl")
 end
