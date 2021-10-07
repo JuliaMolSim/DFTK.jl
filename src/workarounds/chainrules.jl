@@ -317,18 +317,18 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         rrule_via_ad(config, compute_density, basis, scfres.ψ, scfres.occupation)
         
     function self_consistent_field_pullback(Δscfres)
-        δψ = Δscfres.ψ # what to do with this?
-        δoccupation = Δscfres.occupation # what to do with this?
+        δψ = Δscfres.ψ
+        δoccupation = Δscfres.occupation
         δρ = Δscfres.ρ
         δenergies = Δscfres.energies
         δbasis = Δscfres.basis # what to do with this?
-        δH = Δscfres.ham # what to do with this?
+        δH = Δscfres.ham
 
         _, ∂basis, ∂ψ, _ = compute_density_pullback(δρ)
-        # ∂ψ = ∂ψ + δψ # TODO maybe?
+        ∂ψ = ∂ψ + δψ
         ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation) # use self-adjointness of dH ψ -> dψ
         ∂H, _ = mul_pullback(∂Hψ)
-        # ∂H = ∂H + δH # TODO maybe?
+        ∂H = ∂H + δH
         _, ∂basis, _, _ = energy_hamiltonian_pullback(δenergies, ∂H)
 
         return NoTangent(), ∂basis
