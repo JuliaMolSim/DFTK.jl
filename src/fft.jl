@@ -62,7 +62,7 @@ end
 #      It should be merged with build_kpoints somehow
 function compute_fft_size_precise(lattice::AbstractMatrix{T}, Ecut, kpoints;
                                   supersampling=2, ensure_smallprimes=true) where T
-    recip_lattice = 2T(π)*pinv(lattice')  # pinv in case one of the dimension is trivial
+    recip_lattice  = compute_recip_lattice(lattice)
     recip_diameter = diameter(recip_lattice)
     Glims = [0, 0, 0]
     # get the bounding rectangle that contains all G-G' vectors

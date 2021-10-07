@@ -158,11 +158,11 @@ function AdaptiveDamping(α_trial_min; kwargs...)
     # Select some reasonable defaults.
     # The free tweaking parameter here should be increased a bit for cases,
     # where the Anderson does weird stuff in case of too small damping.
-    AdaptiveDamping(α_min=α_trial_min / 4,
-                    α_max=max(1.25α_trial_min, 1.0),
-                    α_trial_init=max(α_trial_min, 0.8),
-                    α_trial_min=α_trial_min,
-                    kwargs...)
+    AdaptiveDamping(;α_min=α_trial_min / 4,
+                     α_max=max(1.25α_trial_min, 1.0),
+                     α_trial_init=max(α_trial_min, 0.8),
+                     α_trial_min=α_trial_min,
+                     kwargs...)
 end
 
 function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
@@ -179,6 +179,7 @@ function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
 
     # Adjust α to stay within desired range
     α_sign = sign(α)
+    abs(α) < damping.α_min / 5 && (α_sign = +1.0)
     α = clamp(abs(α), damping.α_min, damping.α_max)
     α = min(0.95abs(info_next.α), α)  # Avoid getting stuck
     return α_sign * α

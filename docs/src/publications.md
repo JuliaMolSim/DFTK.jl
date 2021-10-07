@@ -12,6 +12,11 @@ To cite DFTK as a software please use
 [![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238).
 
 
+- M. F. Herbst and A. Levitt.
+  [*A robust and efficient line search for self-consistent field iterations*](https://arxiv.org/abs/2109.14018)
+  (Submitted).
+  [ArXiv:2109.14018](https://arxiv.org/abs/2109.14018).
+  ([Supplementary material and computational scripts](https://github.com/mfherbst/supporting-adaptive-damping/)).
 
 - M. F. Herbst, A. Levitt and E. Cancès.
   [*DFTK: A Julian approach for simulating electrons in solids.*](https://doi.org/10.21105/jcon.00069)

@@ -15,7 +15,7 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
         model = basis.model
         filled_occ = filled_occupation(model)
         n_spin = model.n_spin_components
-        n_bands = div(model.n_electrons, n_spin * filled_occ)
+        n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp)
         @assert n_bands == size(ψ[1], 2)
 
         occupation = [filled_occ * ones(T, n_bands) for kpt = basis.kpoints]

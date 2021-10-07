@@ -88,6 +88,7 @@ export spin_density
 export ρ_from_total_and_spin
 include("densities.jl")
 include("interpolation_transfer.jl")
+export compute_transfer_matrix
 export transfer_blochwave
 export transfer_blochwave_kpt
 
@@ -128,7 +129,7 @@ export symmetry_operations
 export standardize_atoms
 export bzmesh_uniform
 export bzmesh_ir_wedge
-export kgrid_size_from_minimal_spacing
+export kgrid_from_minimal_spacing, kgrid_from_minimal_n_kpoints
 include("symmetry.jl")
 include("bzmesh.jl")
 
