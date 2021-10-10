@@ -1,4 +1,8 @@
-# # Polarizability by linear response using ForwardDiff
+# # Polarizability using automatic differentiation
+#
+# Simple example for computing properties using (forward-mode)
+# automatic differentation. For a more classical approach to compute the
+# polarizability see [Polarizability by linear response](@ref).
 
 using DFTK
 using LinearAlgebra
@@ -16,7 +20,7 @@ tol = 1e-8
 ## dipole moment of a given density (assuming the current geometry)
 function dipole(basis, ρ)
     rr = [a * (r[1] - 1/2) for r in r_vectors(basis)]
-    d = sum(rr .* ρ) * basis.dvol
+    sum(rr .* ρ) * basis.dvol
 end
 
 function dipole(ε)
@@ -26,18 +30,17 @@ function dipole(ε)
 end
 
 function make_basis(ε, lattice)
-    model_ε = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn];  
+    model_ε = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn];
                         extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
                         symmetries=false)
     PlaneWaveBasis(model_ε; Ecut, kgrid)
 end
 make_basis(ε) = make_basis(ε, lattice)
 
-# workaround: enforce the Model to promote its type from Float64 to Dual, by promoting the lattice too
+## workaround: enforce the Model to promote its type from Float64 to Dual, by promoting the lattice too
 make_basis(ε::T) where T <: ForwardDiff.Dual = make_basis(ε, T.(lattice))
 
 # # Forward-mode implicit differentiation of SCF
-
 # We keep both a non-dual basis, and a basis including Duals for easy bookkeeping (but redundant computation)
 function self_consistent_field_dual(basis::PlaneWaveBasis, basis_dual::PlaneWaveBasis{T}; kwargs...) where T <: ForwardDiff.Dual
     scfres = self_consistent_field(basis; kwargs...)
@@ -74,7 +77,7 @@ end
 
 
 polarizability = ForwardDiff.derivative(dipole, 0.0)
-polarizability_ref = let 
+polarizability_ref = let
     ε = 1e-4
     (dipole(ε) - dipole(0.0)) / ε
 end
