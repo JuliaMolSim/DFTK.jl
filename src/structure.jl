@@ -28,6 +28,17 @@ function compute_unit_cell_volume(lattice)
 end
 
 
+"""Compute the diameter of the unit cell"""
+function diameter(lattice::AbstractMatrix)
+    # brute force search
+    diam = zero(eltype(lattice))
+    for vec in Vec3.(Iterators.product(-1:1, -1:1, -1:1))
+        diam = max(diam, norm(lattice * vec))
+    end
+    diam
+end
+
+
 """
 Returns the sum formula of the atoms list as a string.
 """

@@ -251,14 +251,14 @@ end
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops, symmetries=nothing;
                                 fft_size=nothing, variational=true,
-                                optimize_fft_size=false, supersampling=2,
+                                fft_size_algorithm=:fast, supersampling=2,
                                 kgrid=nothing, kshift=nothing,
                                 comm_kpts=MPI.COMM_WORLD) where {T <: Real}
     # Compute or validate fft_size
     if fft_size === nothing
         @assert variational
-        fft_size = compute_fft_size(model::Model{T}, Ecut, supersampling,
-                                    optimize_fft_size, kcoords)
+        fft_size = compute_fft_size(model::Model{T}, Ecut, kcoords;
+                                    supersampling, algorithm=fft_size_algorithm)
     else
         # validate
         if variational
@@ -270,7 +270,7 @@ end
         else
             # ensure no other options are set
             @assert supersampling == 2
-            @assert !optimize_fft_size
+            @assert fft_size_algorithm == :fast
         end
     end
 

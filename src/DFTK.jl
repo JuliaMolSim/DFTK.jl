@@ -55,13 +55,12 @@ export G_to_r
 export G_to_r!
 export r_to_G
 export r_to_G!
-include("structure.jl")
 include("Smearing.jl")
 include("Model.jl")
-include("fft.jl")
-include("G_to_r.jl")
-include("orbitals.jl")
+include("structure.jl")
 include("PlaneWaveBasis.jl")
+include("fft.jl")
+include("orbitals.jl")
 
 export Energies
 include("energies.jl")
