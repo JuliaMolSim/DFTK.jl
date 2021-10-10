@@ -9,24 +9,27 @@ struct Energies{T <: Number}
 end
 
 function Base.show(io::IO, energies::Energies)
-    println(io, "Energy breakdown:")
+    print(io, "Energies(total = $(energies.total))")
+end
+function Base.show(io::IO, ::MIME"text/plain", energies::Energies)
+    println(io, "Energy breakdown (in Ha):")
     for (name, value) in energies.energies
         @printf io "    %-20s%-10.7f\n" string(name) value
     end
-    @printf io "\n    %-20s%-15.12f\n" "total" energies.total
+    @printf io "\n    %-20s%-15.12f" "total" energies.total
 end
 Base.getindex(energies::Energies, i) = energies.energies[i]
-Base.values(energies::Energies) = values(energies.energies)
-Base.keys(energies::Energies) = keys(energies.energies)
-Base.pairs(energies::Energies) = pairs(energies.energies)
-Base.iterate(energies::Energies) = iterate(energies.energies)
+Base.values(energies::Energies)      = values(energies.energies)
+Base.keys(energies::Energies)        = keys(energies.energies)
+Base.pairs(energies::Energies)       = pairs(energies.energies)
+Base.iterate(energies::Energies)     = iterate(energies.energies)
 Base.iterate(energies::Energies, state) = iterate(energies.energies, state)
 Base.haskey(energies::Energies, key) = haskey(energies.energies, key)
 
 function Energies(term_types::Vector, energies::Vector{T}) where {T}
     # nameof is there to get rid of parametric types
     Energies{T}(OrderedDict([string(nameof(typeof(term))) => energies[i]
-                          for (i, term) in enumerate(term_types)]...))
+                             for (i, term) in enumerate(term_types)]...))
 end
 
 function Base.propertynames(energies::Energies, private=false)

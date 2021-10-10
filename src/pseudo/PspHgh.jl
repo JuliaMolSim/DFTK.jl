@@ -39,13 +39,7 @@ function PspHgh(Zion, rloc, cloc, rp, h::Vector{Matrix{T}};
 end
 
 
-"""
-    parse_hgh_file(path; identifier="")
-
-Parse an HGH pseudopotential file and construct the PspHgh object.
-If `identifier` is given, this identifier will be set.
-"""
-function parse_hgh_file(path; identifier="")
+function parse_hgh_file(path; identifier=path)
     lines = readlines(path)
     description = lines[1]
 
@@ -113,8 +107,7 @@ function parse_hgh_file(path; identifier="")
         end
     end
 
-    PspHgh(Zion, rloc, cloc, rp, h; identifier=identifier,
-           description=description)
+    PspHgh(Zion, rloc, cloc, rp, h; identifier, description)
 end
 
 @doc raw"""

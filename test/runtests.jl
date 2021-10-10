@@ -102,6 +102,7 @@ Random.seed!(0)
         include("kernel.jl")
         include("serialisation.jl")
         include("compute_jacobian_eigen.jl")
+        include("printing.jl")
     end
 
     if "all" in TAGS && mpi_master()

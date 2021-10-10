@@ -4,6 +4,9 @@
 # Contains the geometry information, but no discretization parameters.
 # The exact model used is defined by the list of terms.
 struct Model{T <: Real}
+    # Human-readable name for the model (like LDA, PBE, ...)
+    model_name::String
+
     # Lattice and reciprocal lattice vectors in columns
     lattice::Mat3{T}
     recip_lattice::Mat3{T}
@@ -76,10 +79,11 @@ external potential breaks some of the passed symmetries. Use `false` to turn off
 symmetries completely.
 """
 function Model(lattice::AbstractMatrix{T};
+               model_name="custom",
                n_electrons=nothing,
                atoms=[],
                magnetic_moments=[],
-               terms=[],
+               terms=[Kinetic()],
                temperature=T(0.0),
                smearing=nothing,
                spin_polarization=default_spin_polarization(magnetic_moments),
@@ -95,6 +99,7 @@ function Model(lattice::AbstractMatrix{T};
     else
         @assert n_electrons isa Int
     end
+    isempty(terms) && error("Model without terms not supported.")
 
     # Special handling of 1D and 2D systems, and sanity checks
     n_dim = count(!iszero, eachcol(lattice))
@@ -135,8 +140,9 @@ function Model(lattice::AbstractMatrix{T};
     symmetries == false && (symmetries = [identity_symop()])
     @assert !isempty(symmetries)  # Identity has to be always present.
 
-    Model{T}(lattice, recip_lattice, unit_cell_volume, recip_cell_volume, n_dim, n_electrons,
-             spin_polarization, n_spin, T(temperature), smearing, atoms, terms, symmetries)
+    Model{T}(model_name, lattice, recip_lattice, unit_cell_volume, recip_cell_volume, n_dim,
+             n_electrons, spin_polarization, n_spin, T(temperature), smearing,
+             atoms, terms, symmetries)
 end
 Model(lattice::AbstractMatrix{T}; kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
 Model(lattice::AbstractMatrix{Q}; kwargs...) where {Q <: Quantity} = Model(austrip.(lattice); kwargs...)
@@ -209,34 +215,5 @@ function spin_components(spin_polarization::Symbol)
 end
 spin_components(model::Model) = spin_components(model.spin_polarization)
 
+
 _is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
-
-
-"""
-Compute the reciprocal lattice. Takes special care of 1D or 2D cases.
-We use the convention that the reciprocal lattice is the set of G vectors such
-that G ⋅ R ∈ 2π ℤ for all R in the lattice.
-"""
-function compute_recip_lattice(lattice::AbstractMatrix{T}) where {T}
-    # Note: pinv pretty much does the same, but the implied SVD causes trouble
-    #       with interval arithmetic and dual numbers, so we go for this version.
-    n_dim = count(!iszero, eachcol(lattice))
-    @assert 1 ≤ n_dim ≤ 3
-    if n_dim == 3
-        2T(π) * inv(lattice')
-    else
-        2T(π) * Mat3{T}([
-            inv(lattice[1:n_dim, 1:n_dim]')   zeros(T, n_dim, 3 - n_dim);
-            zeros(T, 3 - n_dim, 3)
-        ])
-    end
-end
-
-
-"""
-Compute unit cell volume volume. In case of 1D or 2D case, the volume is the length/surface.
-"""
-function compute_unit_cell_volume(lattice)
-    n_dim = count(!iszero, eachcol(lattice))
-    abs(det(lattice[1:n_dim, 1:n_dim]))
-end

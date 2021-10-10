@@ -1,5 +1,4 @@
 using MPI
-include("fft.jl")
 
 # There are two kinds of plane-wave basis sets used in DFTK.
 # The k-dependent orbitals are discretized on spherical basis sets {G, 1/2 |k+G|^2 ≤ Ecut}.
@@ -111,13 +110,11 @@ struct PlaneWaveBasis{T <: Real}
     terms::Vector{Any}
 end
 
+
 # prevent broadcast on pwbasis
 import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 
-# Default printing is just too verbose TODO This is too spartanic
-Base.show(io::IO, basis::PlaneWaveBasis) =
-    print(io, "PlaneWaveBasis (Ecut=$(basis.Ecut), $(length(basis.kpoints)) kpoints)")
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
@@ -254,14 +251,14 @@ end
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops, symmetries=nothing;
                                 fft_size=nothing, variational=true,
-                                optimize_fft_size=false, supersampling=2,
+                                fft_size_algorithm=:fast, supersampling=2,
                                 kgrid=nothing, kshift=nothing,
                                 comm_kpts=MPI.COMM_WORLD) where {T <: Real}
     # Compute or validate fft_size
     if fft_size === nothing
         @assert variational
-        fft_size = compute_fft_size(model::Model{T}, Ecut, supersampling,
-                                    optimize_fft_size, kcoords)
+        fft_size = compute_fft_size(model::Model{T}, Ecut, kcoords;
+                                    supersampling, algorithm=fft_size_algorithm)
     else
         # validate
         if variational
@@ -273,7 +270,7 @@ end
         else
             # ensure no other options are set
             @assert supersampling == 2
-            @assert !optimize_fft_size
+            @assert fft_size_algorithm == :fast
         end
     end
 
@@ -333,6 +330,7 @@ function PlaneWaveBasis(model::Model;
                    kgrid, kshift, kwargs...)
 end
 
+
 """
 Return the list of wave vectors (integer coordinates) for the cubic basis set.
 """
@@ -343,7 +341,7 @@ function G_vectors(fft_size)
     (Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3])
 end
 G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_size)
-    
+
 function G_vectors_cart(basis::PlaneWaveBasis)
     (basis.model.recip_lattice * G for G in G_vectors(basis.fft_size))
 end
@@ -409,137 +407,6 @@ function weighted_ksum(basis::PlaneWaveBasis, array)
 end
 
 
-#
-# Perform (i)FFTs.
-#
-# We perform two sets of (i)FFTs.
-
-# For densities and potentials defined on the cubic basis set, r_to_G/G_to_r
-# do a simple FFT/IFFT from the cubic basis set to the real-space grid.
-# These function do not take a kpoint as input
-
-# For orbitals, G_to_r converts the orbitals defined on a spherical
-# basis set to the cubic basis set using zero padding, then performs
-# an IFFT to get to the real-space grid. r_to_G performs an FFT, then
-# restricts the output to the spherical basis set. These functions
-# take a kpoint as input.
-
-"""
-In-place version of `G_to_r`.
-"""
-@timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                             f_fourier::AbstractArray3)
-    mul!(f_real, basis.opBFFT, f_fourier)
-    f_real .*= basis.G_to_r_normalization
-end
-@timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                             kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
-    @assert length(f_fourier) == length(kpt.mapping)
-    @assert size(f_real) == basis.fft_size
-
-    # Pad the input data
-    fill!(f_real, 0)
-    f_real[kpt.mapping] = f_fourier
-
-    # Perform an IFFT
-    mul!(f_real, basis.ipBFFT, f_real)
-    normalize && (f_real .*= basis.G_to_r_normalization)
-    f_real
-end
-
-"""
-    G_to_r(basis::PlaneWaveBasis, [kpt::Kpoint, ] f_fourier)
-
-Perform an iFFT to obtain the quantity defined by `f_fourier` defined
-on the k-dependent spherical basis set (if `kpt` is given) or the
-k-independent cubic (if it is not) on the real-space grid.
-"""
-function G_to_r(basis::PlaneWaveBasis, f_fourier::AbstractArray; assume_real=true)
-    # assume_real is true by default because this is the most common usage
-    # (for densities & potentials)
-    f_real = similar(f_fourier)
-    @assert length(size(f_fourier)) ∈ (3, 4)
-    # this exploits trailing index convention
-    for iσ = 1:size(f_fourier, 4)
-        @views G_to_r!(f_real[:, :, :, iσ], basis, f_fourier[:, :, :, iσ])
-    end
-    assume_real ? real(f_real) : f_real
-end
-function G_to_r(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector)
-    G_to_r!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier)
-end
-
-
-
-
-@doc raw"""
-In-place version of `r_to_G!`.
-NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
-"""
-@timing_seq function r_to_G!(f_fourier::AbstractArray3, basis::PlaneWaveBasis,
-                             f_real::AbstractArray3)
-    if isreal(f_real)
-        f_real = complex.(f_real)
-    end
-    mul!(f_fourier, basis.opFFT, f_real)
-    f_fourier .*= basis.r_to_G_normalization
-end
-@timing_seq function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
-                             kpt::Kpoint, f_real::AbstractArray3; normalize=true)
-    @assert size(f_real) == basis.fft_size
-    @assert length(f_fourier) == length(kpt.mapping)
-
-    # FFT
-    mul!(f_real, basis.ipFFT, f_real)
-
-    # Truncate
-    f_fourier .= view(f_real, kpt.mapping)
-    normalize && (f_fourier .*= basis.r_to_G_normalization)
-    f_fourier
-end
-
-"""
-    r_to_G(basis::PlaneWaveBasis, [kpt::Kpoint, ] f_real)
-
-Perform an FFT to obtain the Fourier representation of `f_real`. If
-`kpt` is given, the coefficients are truncated to the k-dependent
-spherical basis set.
-"""
-function r_to_G(basis::PlaneWaveBasis, f_real::AbstractArray)
-    f_fourier = similar(f_real, complex(eltype(f_real)))
-    @assert length(size(f_real)) ∈ (3, 4)
-    # this exploits trailing index convention
-    for iσ = 1:size(f_real, 4)
-        @views r_to_G!(f_fourier[:, :, :, iσ], basis, f_real[:, :, :, iσ])
-    end
-    f_fourier
-end
-# TODO optimize this
-function r_to_G(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3)
-    r_to_G!(similar(f_real, length(kpt.mapping)), basis, kpt, copy(f_real))
-end
-
-# returns matrix representations of the G_to_r and r_to_G matrices. For debug purposes.
-function G_to_r_matrix(basis::PlaneWaveBasis{T}) where {T}
-    ret = zeros(complex(T), prod(basis.fft_size), prod(basis.fft_size))
-    for (iG, G) in enumerate(G_vectors(basis))
-        for (ir, r) in enumerate(r_vectors(basis))
-            ret[ir, iG] = cis(2π * dot(r, G)) / sqrt(basis.model.unit_cell_volume)
-        end
-    end
-    ret
-end
-function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
-    ret = zeros(complex(T), prod(basis.fft_size), prod(basis.fft_size))
-    for (iG, G) in enumerate(G_vectors(basis))
-        for (ir, r) in enumerate(r_vectors(basis))
-            Ω = basis.model.unit_cell_volume
-            ret[iG, ir] = cis(-2π * dot(r, G)) * sqrt(Ω) / prod(basis.fft_size)
-        end
-    end
-    ret
-end
-
 """
 Gather the distributed k-Point data on the master process and return
 it as a `PlaneWaveBasis`. On the other (non-master) processes `nothing` is returned.
@@ -597,46 +464,5 @@ function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
     else
         MPI.send(data, master, tag, basis.comm_kpts)
         nothing
-    end
-end
-
-# select the occupied orbitals assuming an insulator
-function select_occupied_orbitals(basis::PlaneWaveBasis, ψ)
-    model  = basis.model
-    n_spin = model.n_spin_components
-    @assert iszero(basis.model.temperature)
-    n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)
-    [ψk[:, 1:n_bands] for ψk in ψ]
-end
-
-# Packing routines used in direct_minimization and newton algorithms.
-# They pack / unpack sets of ψ's (or compatible arrays, such as hamiltonian
-# applies and gradients) to make them compatible to be used in algorithms
-# from IterativeSolvers.
-# Some care is needed here : some operators (for instance K in newton.jl)
-# are real-linear but not complex-linear. To overcome this difficulty, instead of
-# seeing them as operators from C^N to C^N, we see them as
-# operators from R^2N to R^2N. In practice, this is done with the
-# reinterpret function from julia.
-# /!\ pack_ψ does not share memory while unpack_ψ does
-
-reinterpret_real(x) = reinterpret(real(eltype(x)), x)
-reinterpret_complex(x) = reinterpret(Complex{eltype(x)}, x)
-
-function pack_ψ(ψ)
-    # TODO as an optimization, do that lazily? See LazyArrays
-    vcat([vec(ψk) for ψk in ψ]...)
-end
-
-function unpack_ψ(x, sizes_ψ)
-    n_bands = sizes_ψ[1][2]
-    lengths = prod.(sizes_ψ)
-    ends = cumsum(lengths)
-    # We unsafe_wrap the resulting array to avoid a complicated type for ψ.
-    # The resulting array is valid as long as the original x is still in live memory.
-    map(1:length(sizes_ψ)) do ik
-        unsafe_wrap(Array{complex(eltype(x))},
-                    pointer(@views x[ends[ik]-lengths[ik]+1:ends[ik]]),
-                    sizes_ψ[ik])
     end
 end
