@@ -61,9 +61,10 @@ include("structure.jl")
 include("PlaneWaveBasis.jl")
 include("fft.jl")
 include("orbitals.jl")
+include("show.jl")
 
 export Energies
-include("energies.jl")
+include("Energies.jl")
 
 export Hamiltonian
 export HamiltonianBlock

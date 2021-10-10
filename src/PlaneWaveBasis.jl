@@ -331,40 +331,6 @@ function PlaneWaveBasis(model::Model;
 end
 
 
-function Base.show(io::IO, basis::PlaneWaveBasis)
-    print(io, "PlaneWaveBasis(model = ", basis.model, ", Ecut = ", basis.Ecut, " Ha")
-    if !isnothing(basis.kgrid)
-        print(io, ", kgrid = ", basis.kgrid)
-        if !isnothing(basis.kshift) && !iszero(basis.kshift)
-            print(io, ", kshift = ", basis.kshift)
-        end
-    else
-        print(io, ", num. irred. kpoints = ", length(basis.kcoords_global))
-    end
-    print(io, ")")
-end
-
-function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
-    println(io, "PlaneWaveBasis discretization:")
-    showfieldln(io, "Ecut",     basis.Ecut, " Ha")
-    showfieldln(io, "fft_size", basis.fft_size)
-    if !basis.variational
-        showfieldln(io, "variational", "false")
-    end
-    showfieldln(io, "kgrid type", "Monkhorst-Pack")
-    showfieldln(io, "kgrid",    basis.kgrid)
-    if !iszero(basis.kshift)
-        showfieldln(io, "kshift",   basis.kshift)
-    end
-    showfieldln(io, "num. irred. kpoints", length(basis.kcoords_global))
-
-    println(io)
-    modelstr = sprint(show, "text/plain", basis.model)
-    indent = " " ^ SHOWINDENTION
-    print(io, indent, "Discretized " * replace(modelstr, "\n" => "\n" * indent))
-end
-
-
 """
 Return the list of wave vectors (integer coordinates) for the cubic basis set.
 """

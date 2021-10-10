@@ -19,10 +19,10 @@ function Base.show(io::IO, ::MIME"text/plain", energies::Energies)
     @printf io "\n    %-20s%-15.12f" "total" energies.total
 end
 Base.getindex(energies::Energies, i) = energies.energies[i]
-Base.values(energies::Energies) = values(energies.energies)
-Base.keys(energies::Energies) = keys(energies.energies)
-Base.pairs(energies::Energies) = pairs(energies.energies)
-Base.iterate(energies::Energies) = iterate(energies.energies)
+Base.values(energies::Energies)      = values(energies.energies)
+Base.keys(energies::Energies)        = keys(energies.energies)
+Base.pairs(energies::Energies)       = pairs(energies.energies)
+Base.iterate(energies::Energies)     = iterate(energies.energies)
 Base.iterate(energies::Energies, state) = iterate(energies.energies, state)
 Base.haskey(energies::Energies, key) = haskey(energies.energies, key)
 

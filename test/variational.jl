@@ -13,7 +13,8 @@ function get_scf_energies(testcase, supersampling, functionals)
 
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
     model = model_DFT(testcase.lattice, [spec => testcase.positions], functionals)
-    fft_size = compute_fft_size(model, Ecut, supersampling, ensure_smallprimes=false)
+    fft_size = compute_fft_size(model, Ecut, kcoords;
+                                supersampling, ensure_smallprimes=false, algorithm=:precise)
 
     ksymops = [[DFTK.identity_symop()] for _ in 1:length(kcoords)]
     basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops, [DFTK.identity_symop()]; fft_size)
