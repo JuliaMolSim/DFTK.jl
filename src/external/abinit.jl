@@ -24,7 +24,7 @@ function run_abinit_scf(infile::PyObject, outdir)
 
     # Adjust common infile settings:
     infile.set_vars(
-        paral_kgb=0,    # Parallelization over k-Points and Bands
+        paral_kgb=0,    # Parallelization over k-points and Bands
         iomode=3,       # Use NetCDF output
         istwfk="*1",    # Needed for extracting the wave function later
     )

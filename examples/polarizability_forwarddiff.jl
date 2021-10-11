@@ -9,7 +9,7 @@ lattice = a * I(3)  # cube of ``a`` bohrs
 He = ElementPsp(:He, psp=load_psp("hgh/lda/He-q2"))
 atoms = [He => [[1/2; 1/2; 1/2]]]  # Helium at the center of the box
 
-kgrid = [1, 1, 1]  # no kpoint sampling for an isolated system
+kgrid = [1, 1, 1]  # no k-point sampling for an isolated system
 Ecut = 30
 tol = 1e-8
 

@@ -68,13 +68,13 @@ scfres.energies
 
 # Eigenvalues: 
 hcat(scfres.eigenvalues...)
-# `eigenvalues` is an array (indexed by kpoints) of arrays (indexed by
+# `eigenvalues` is an array (indexed by k-points) of arrays (indexed by
 # eigenvalue number). The "splatting" operation `...` calls `hcat`
 # with all the inner arrays as arguments, which collects them into a
 # matrix.
 #
 # The resulting matrix is 7 (number of computed eigenvalues) by 8
-# (number of kpoints). There are 7 eigenvalues per kpoint because
+# (number of k-points). There are 7 eigenvalues per k-point because
 # there are 4 occupied states in the system (4 valence electrons per
 # silicon atom, two atoms per unit cell, and paired spins), and the
 # eigensolver gives itself some breathing room by computing some extra

@@ -4,7 +4,7 @@ using PyCall
 
 function high_symmetry_kpath(model; kline_density=20)
     if model.n_dim == 1  # Return fast for 1D model
-        # kline_density = Number of kpoint per Angström
+        # kline_density = Number of k-point per Angström
         # Length of the kpath is lattice[1, 1] in 1D
         n_points = ceil(Int, kline_density / austrip(1u"Å") * model.lattice[1, 1])
         return (

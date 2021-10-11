@@ -17,7 +17,7 @@ energy `ε` contributing to the DOS at temperature `T`.
 This quantity is not a physical quantity, but rather a dimensionless approximate measure
 for how well properties near the Fermi surface are sampled with the passed `smearing`
 and temperature `T`. It increases with both `T` and better sampling of the BZ with
-``k``-Points. A value ``\gg 1`` indicates a good sampling of properties near the
+``k``-points. A value ``\gg 1`` indicates a good sampling of properties near the
 Fermi surface.
 """
 function compute_nos(ε, basis, eigenvalues; smearing=basis.model.smearing,
@@ -36,7 +36,7 @@ function compute_nos(ε, basis, eigenvalues; smearing=basis.model.smearing,
     # To explicitly show the similarity with DOS and the temperature dependence we employ
     # -f'((εik - ε)/temperature) = temperature * ( d/dε f_τ(εik - ε') )|_{ε' = ε}
     for σ in 1:basis.model.n_spin_components, ik = krange_spin(basis, σ)
-        n_symeqk = length(basis.ksymops[ik])  # Number of symmetry-equivalent k-Points
+        n_symeqk = length(basis.ksymops[ik])  # Number of symmetry-equivalent k-points
         for (iband, εnk) in enumerate(eigenvalues[ik])
             enred = (εnk - ε) / temperature
             N[σ] -= n_symeqk * Smearing.occupation_derivative(smearing, enred)
@@ -87,7 +87,7 @@ function compute_ldos(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
     end
 
     # Use compute_density routine to compute LDOS, using just the modified
-    # weights (as "occupations") at each kpoint. Note, that this automatically puts in the
+    # weights (as "occupations") at each k-point. Note, that this automatically puts in the
     # required symmetrization with respect to kpoints and BZ symmetry
     compute_density(basis, ψ, weights)
 end

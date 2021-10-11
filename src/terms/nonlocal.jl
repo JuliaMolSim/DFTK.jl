@@ -54,7 +54,7 @@ end
         el isa ElementPsp || continue
 
         C = build_projection_coefficients_(el.psp)
-        # TODO optimize: switch this loop and the kpoint loop
+        # TODO optimize: switch this loop and the k-point loop
         for (ir, r) in enumerate(positions)
             fr = zeros(T, 3)
             for α = 1:3
