@@ -7,16 +7,16 @@ using MPI
 # (as the dual of the cubic basis set).
 
 """
-Discretization information for kpoint-dependent quantities such as orbitals.
-More generally, a kpoint is a block of the Hamiltonian;
+Discretization information for ``k``-point-dependent quantities such as orbitals.
+More generally, a ``k``-point is a block of the Hamiltonian;
 eg collinear spin is treated by doubling the number of kpoints.
 """
 struct Kpoint{T <: Real}
     model::Model{T}               # TODO Should be only lattice/atoms
     spin::Int                     # Spin component can be 1 or 2 as index into what is
                                   # returned by the `spin_components` function
-    coordinate::Vec3{T}           # Fractional coordinate of k-Point
-    coordinate_cart::Vec3{T}      # Cartesian coordinate of k-Point
+    coordinate::Vec3{T}           # Fractional coordinate of k-point
+    coordinate_cart::Vec3{T}      # Cartesian coordinate of k-point
     mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
                                   # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
     mapping_inv::Dict{Int, Int}   # Inverse of `mapping`:
@@ -57,10 +57,10 @@ struct PlaneWaveBasis{T <: Real}
     fft_size::Tuple{Int, Int, Int}
     # factor for integrals in real space: sum(ρ) * dvol ~ ∫ρ
     dvol::T  # = model.unit_cell_volume ./ prod(fft_size)
-    # Information used to construct the kpoint-specific basis
+    # Information used to construct the k-point-specific basis
     # (not used directly after that)
     Ecut::T  # The basis set is defined by {e_{G}, 1/2|k+G|^2 ≤ Ecut}
-    variational::Bool  # Is the k-Point specific basis variationally consistent with
+    variational::Bool  # Is the k-point specific basis variationally consistent with
     #                    the basis used for the density / potential?
 
     ## Plans for forward and backward FFT
@@ -84,16 +84,16 @@ struct PlaneWaveBasis{T <: Real}
     # mapping to points in the reducible BZ
     ksymops::Vector{Vector{SymOp}}
 
-    ## MPI-global information of how the global kpoint grid was constructed
-    # Monkhorst-Pack grid used to generate the k-Points, or nothing for custom k-Points
+    ## MPI-global information of how the global k-point grid was constructed
+    # Monkhorst-Pack grid used to generate the k-points, or nothing for custom k-points
     kgrid::Union{Nothing,Vec3{Int}}
     kshift::Union{Nothing,Vec3{T}}
-    # full list of kpoint coordinates; kpoints.coordinate is a subset of this
+    # full list of k-point coordinates; kpoints.coordinate is a subset of this
     # (possibly doubled because of spin)
     kcoords_global::Vector{Vec3{T}}
     ksymops_global::Vector{Vector{SymOp}}
 
-    # Setup for MPI-distributed processing over k-Points
+    # Setup for MPI-distributed processing over k-points
     comm_kpts::MPI.Comm           # communicator for the kpoints distribution
     krange_thisproc::Vector{Int}  # indices of kpoints treated explicitly by this
     #                               processor in the global kcoords array
@@ -164,7 +164,7 @@ end
     fft_size = Tuple{Int, Int, Int}(fft_size)
     MPI.Init()
 
-    # Compute kpoint information and spread them across processors
+    # Compute k-point information and spread them across processors
     # Right now we split only the kcoords: both spin channels have to be handled
     # by the same process
     n_kpt   = length(kcoords)
@@ -205,7 +205,7 @@ end
     G_to_r_normalization = 1/sqrt(model.unit_cell_volume)
     r_to_G_normalization = sqrt(model.unit_cell_volume) / length(ipFFT)
 
-    # Setup kpoint basis sets
+    # Setup k-point basis sets
     !variational && @warn(
         "Non-variational calculations are experimental. " *
         "Not all features of DFTK may be supported or work as intended."
@@ -301,13 +301,13 @@ end
 
 @doc raw"""
 Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a Monkhorst-Pack
-kpoint grid. The MP grid can either be specified directly with `kgrid` providing the
+``k``-point grid. The MP grid can either be specified directly with `kgrid` providing the
 number of points in each dimension and `kshift` the shift (0 or 1/2 in each direction).
 If not specified a grid is generated using `kgrid_from_minimal_spacing` with
 a minimal spacing of `2π * 0.022` per Bohr.
 
 If `use_symmetry` is `true` (default) the symmetries of the
-crystal are used to reduce the number of ``k``-Points which are
+crystal are used to reduce the number of ``k``-points which are
 treated explicitly. In this case all guess densities and potential
 functions must agree with the crystal symmetries or the result is
 undefined.
@@ -408,7 +408,7 @@ end
 
 
 """
-Gather the distributed k-Point data on the master process and return
+Gather the distributed ``k``-point data on the master process and return
 it as a `PlaneWaveBasis`. On the other (non-master) processes `nothing` is returned.
 The returned object should not be used for computations and only to extract data
 for post-processing and serialisation to disk.
@@ -417,12 +417,12 @@ function gather_kpts(basis::PlaneWaveBasis)
     # No need to allocate and setup a new basis object
     mpi_nprocs(basis.comm_kpts) == 1 && return basis
 
-    # Gather k-Point info on master
+    # Gather k-point info on master
     kcoords = getproperty.(basis.kpoints, :coordinate)
     kcoords = gather_kpts(kcoords, basis)
     ksymops = gather_kpts(basis.ksymops, basis)
 
-    # Number of distinct k-Point coordinates is number of k-Points with spin 1
+    # Number of distinct k-point coordinates is number of k-points with spin 1
     n_spinup_thisproc = count(kpt.spin == 1 for kpt in basis.kpoints)
     n_kcoords = mpi_sum(n_spinup_thisproc, basis.comm_kpts)
 

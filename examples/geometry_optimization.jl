@@ -8,7 +8,7 @@ using Optim
 using LinearAlgebra
 using Printf
 
-kgrid = [1, 1, 1]       # k-Point grid
+kgrid = [1, 1, 1]       # k-point grid
 Ecut = 5                # kinetic energy cutoff in Hartree
 tol = 1e-8              # tolerance for the optimization routine
 a = 10                  # lattice constant in Bohr

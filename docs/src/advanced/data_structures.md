@@ -194,7 +194,7 @@ collect(r_vectors(basis))[1:4]
 
 ## Accessing Bloch waves and densities
 Wavefunctions are stored in an array `scfres.ψ` as `ψ[ik][iG, iband]` where
-`ik` is the index of the kpoint (in `basis.kpoints`), `iG` is the
+`ik` is the index of the ``k``-point (in `basis.kpoints`), `iG` is the
 index of the plane wave (in `G_vectors(basis.kpoints[ik])`) and
 `iband` is the index of the band.
 Densities are stored in real space, as a 4-dimensional array (the third being the spin component).

@@ -7,13 +7,13 @@ import FFTW
 
 # For densities and potentials defined on the cubic basis set, r_to_G/G_to_r
 # do a simple FFT/IFFT from the cubic basis set to the real-space grid.
-# These function do not take a kpoint as input
+# These function do not take a k-point as input
 
 # For orbitals, G_to_r converts the orbitals defined on a spherical
 # basis set to the cubic basis set using zero padding, then performs
 # an IFFT to get to the real-space grid. r_to_G performs an FFT, then
 # restricts the output to the spherical basis set. These functions
-# take a kpoint as input.
+# take a k-point as input.
 
 """
 In-place version of `G_to_r`.
@@ -149,11 +149,11 @@ function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
     elseif algorithm == :precise
         @assert !isnothing(kcoords)
 
-        # We build a temporary set of kpoints here
-        # We don't reuse this kpoint construction for the pwbasis
+        # We build a temporary set of k-points here
+        # We don't reuse this k-point construction for the pwbasis
         # because build_kpoints builds index mapping from the
         # k-point-specific basis to the global basis and thus the
-        # fft_size needs to be final at kpoint construction time
+        # fft_size needs to be final at k-point construction time
         Glims_temp    = compute_Glims_fast(model.lattice, Ecut; kwargs...)
         fft_size_temp = Tuple{Int, Int, Int}(2 .* Glims_temp .+ 1)
         kpoints_temp  = build_kpoints(model, fft_size_temp, kcoords, Ecut)

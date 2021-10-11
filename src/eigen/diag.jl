@@ -2,7 +2,7 @@ using ProgressMeter
 
 @doc raw"""
 Function for diagonalising each ``k``-Point blow of ham one step at a time.
-Some logic for interpolating between ``k``-Points is used if `interpolate_kpoints`
+Some logic for interpolating between ``k``-points is used if `interpolate_kpoints`
 is true and if no guesses are given. `eigensolver` is the iterative eigensolver
 that really does the work, operating on a single ``k``-Block.
 `eigensolver` should support the API `eigensolver(A, X0; prec, tol, maxiter)`
@@ -32,7 +32,7 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
                 # guess provided
                 guessk = guess[ik]
             elseif interpolate_kpoints && ik > 1
-                # use information from previous kpoint
+                # use information from previous k-point
                 X0 = interpolate_kpoint(results[ik - 1].X, kpoints[ik - 1], kpoints[ik])
                 guessk = ortho_qr(X0)  # Re-orthogonalize and renormalize
             else

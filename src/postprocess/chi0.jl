@@ -68,7 +68,7 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
         V = Vs[ik]
         Vr = cat(G_to_r.(Ref(basis), Ref(kpt), eachcol(V))..., dims=4)
         Vr = reshape(Vr, n_fft, N)
-        @showprogress "Computing χ0 for kpoint $ik/$(length(basis.kpoints)) ..." for m = 1:N, n = 1:N
+        @showprogress "Computing χ0 for k-point $ik/$(length(basis.kpoints)) ..." for m = 1:N, n = 1:N
             enred = (E[n] - εF) / temperature
             @assert occ[ik][n] ≈ filled_occ * Smearing.occupation(model.smearing, enred)
             ddiff = Smearing.occupation_divided_difference

@@ -26,14 +26,14 @@ see our collection of [lectures, workshops and literature on DFT](@ref density-f
       and sophisticated LDA/GGA functionals (any functional from the
       [libxc](https://tddft.org/programs/libxc/) library)
     - Analytic potentials or Godecker norm-conserving pseudopotentials (GTH, HGH)
-    - Brillouin zone symmetry for k-Point sampling using [spglib](https://atztogo.github.io/spglib/)
+    - Brillouin zone symmetry for ``k``-point sampling using [spglib](https://atztogo.github.io/spglib/)
     - Smearing functions for metals
     - Collinear spin polarization for magnetic systems
     - Self-consistent field approaches: Damping, Kerker mixing,
       [LDOS mixing](https://doi.org/10.1088/1361-648X/abcbdb), Anderson/Pulay/DIIS acceleration
     - Direct minimization, Newton solver
-    - Multi-level threading (kpoints, eigenvectors, FFTs, linear algebra)
-    - MPI-based distributed parallelism (distribution over kpoints)
+    - Multi-level threading (``k``-points eigenvectors, FFTs, linear algebra)
+    - MPI-based distributed parallelism (distribution over ``k``-points)
     - 1D / 2D / 3D systems
     - Magnetic fields
     - Treat systems beyond 800 electrons

@@ -34,7 +34,7 @@ end
 # Array of preconditioners
 struct DMPreconditioner
     Nk::Int
-    Pks::Vector # Pks[ik] is the preconditioner for kpoint ik
+    Pks::Vector # Pks[ik] is the preconditioner for k-point ik
     unpack::Function
 end
 function LinearAlgebra.ldiv!(p, P::DMPreconditioner, d)

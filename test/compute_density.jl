@@ -80,7 +80,7 @@ if mpi_nprocs() == 1  # not easy to distribute
         # Test local potential is the same in both schemes
         @test maximum(abs, total_local_potential(ham_ir) - total_local_potential(ham_full)) < tol
 
-        # Test equivalent k-Points have the same orbital energies
+        # Test equivalent k-points have the same orbital energies
         for (ik, k) in enumerate(kcoords)
             for (S, τ) in ksymops[ik]
                 ikfull = findfirst(1:length(kfull)) do idx
@@ -98,7 +98,7 @@ if mpi_nprocs() == 1  # not easy to distribute
         end
 
         if eigenvectors
-            # Test applying the symmetry transformation to the irreducible k-Points
+            # Test applying the symmetry transformation to the irreducible k-points
             # yields an eigenfunction of the Hamiltonian
             # Also check that the accumulated partial densities are equal
             # to the returned density.

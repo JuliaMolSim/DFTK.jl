@@ -127,7 +127,7 @@ function load_basis(T, folder::EtsfFolder; magnetic_moments=[])
     Ecut = folder.gsr["kinetic_energy_cutoff"][:]
     kcoords = Vec3{T}.(eachcol(folder.gsr["reduced_coordinates_of_kpoints"]))
 
-    # Try to determine whether this is a shifted kpoint mesh or not
+    # Try to determine whether this is a shifted k-point mesh or not
     if length(kcoords) > 1
         ksmallest = sort(filter(k -> all(k .≥ 0), kcoords), by=norm)[1]
     else

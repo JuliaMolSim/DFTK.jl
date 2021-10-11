@@ -90,10 +90,10 @@ JLD2.writeas(::Type{PlaneWaveBasis{T}}) where {T} = PlaneWaveBasisSerialisation{
 function Base.convert(::Type{PlaneWaveBasisSerialisation{T}},
                       basis::PlaneWaveBasis{T}) where {T}
     # Notice: This function is only meaningful on a basis which has gathered
-    # all k-Point information locally. So before using this in MPI-distributed calculations,
+    # all k-point information locally. So before using this in MPI-distributed calculations,
     # ensure to call `mpi_kgather` on the PlaneWaveBasis object.
 
-    # Number of distinct k-Point coordinates
+    # Number of distinct k-point coordinates
     n_kcoords = div(length(basis.kpoints), basis.model.n_spin_components)
     PlaneWaveBasisSerialisation{T}(
         basis.model,

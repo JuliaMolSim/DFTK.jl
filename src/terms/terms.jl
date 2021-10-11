@@ -10,7 +10,7 @@ include("operators.jl")
 
 # The Hamiltonian is defined as half of the gradient of the energy
 # with respect to the density matrix sum_n fn |ψn><ψn|.
-# In particular, dE/dψn = 2 fn |Hψn> (plus weighting for kpoint sampling)
+# In particular, dE/dψn = 2 fn |Hψn> (plus weighting for k-point sampling)
 abstract type Term end
 
 ### Builders are objects X that store the term parameters, and produce a
@@ -32,7 +32,7 @@ end
 include("Hamiltonian.jl")
 
 # breaks_symmetries on a term builder answers true if this term breaks
-# the symmetries of the lattice/atoms (in which case kpoint reduction
+# the symmetries of the lattice/atoms (in which case k-point reduction
 # is invalid)
 breaks_symmetries(term_builder::Any) = false
 

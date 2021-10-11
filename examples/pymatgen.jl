@@ -25,7 +25,7 @@ lattice = load_lattice(pystruct)
 atoms = [Si => [s.frac_coords for s in pystruct.sites]];
 
 # Setup an LDA model and discretize using
-# a single kpoint and a small `Ecut` of 5 Hartree.
+# a single k-point and a small `Ecut` of 5 Hartree.
 model = model_LDA(lattice, atoms)
 basis = PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1))
 

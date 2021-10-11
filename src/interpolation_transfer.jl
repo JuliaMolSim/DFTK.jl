@@ -64,7 +64,7 @@ function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in
 end
 
 """
-Interpolate some data from one k-Point to another. The interpolation is fast, but not
+Interpolate some data from one ``k``-point to another. The interpolation is fast, but not
 necessarily exact or even normalized. Intended only to construct guesses for iterative
 solvers
 """
@@ -112,7 +112,7 @@ function transfer_mapping(basis_in::PlaneWaveBasis{T},  kpt_in::Kpoint,
 
     # Map to the indices of the corresponding G-vectors in G_vectors(kpt_out)
     # this array might contains some nothings if basis_out has less G_vectors
-    # than basis_in at this kpoint
+    # than basis_in at this k-point
     idcs_out = indexin(idcs_out, kpt_out.mapping)
     if any(isnothing, idcs_out)
         idcs_in  = idcs_in[idcs_out .!= nothing]
@@ -135,7 +135,7 @@ end
 
 
 """
-Return a list of sparse matrices (one per `k`-Point) that map quantities given in the
+Return a list of sparse matrices (one per ``k``-point) that map quantities given in the
 `basis_in` basis to quantities given in the `basis_out` basis.
 """
 function compute_transfer_matrix(basis_in::PlaneWaveBasis{T}, basis_out::PlaneWaveBasis{T}) where T
@@ -149,7 +149,7 @@ end
 
 
 """
-Transfer an array ψk defined on basis_in kpoint kpt_in to basis_out kpoint kpt_out.
+Transfer an array ψk defined on basis_in ``k``-point kpt_in to basis_out ``k``-point kpt_out.
 """
 function transfer_blochwave_kpt(ψk_in, basis_in::PlaneWaveBasis{T}, kpt_in::Kpoint,
                                 basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where T

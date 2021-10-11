@@ -218,7 +218,7 @@ end
     end
 
     B = model.recip_lattice
-    ref_kdist = zeros(3, 3)  # row idx is kpoint, col idx is branch,
+    ref_kdist = zeros(3, 3)  # row idx is k-point, col idx is branch,
     ikpt = 1
     for ibr in 1:3
         ibr != 1 && (ref_kdist[1, ibr] = ref_kdist[end, ibr-1])

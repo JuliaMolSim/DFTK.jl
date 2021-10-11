@@ -14,10 +14,10 @@
 
 # The full (reducible) Brillouin zone is implicitly represented by
 # a set of (irreducible) kpoints (see explanation in docs). Each
-# irreducible kpoint k comes with a list of symmetry operations
+# irreducible k-point k comes with a list of symmetry operations
 # (S,τ) (containing at least the trivial operation (I,0)), where S
 # is a rotation matrix (/!\ not unitary in reduced coordinates)
-# and τ a translation vector. The kpoint is then used to represent
+# and τ a translation vector. The k-point is then used to represent
 # implicitly the information at all the kpoints Sk. The
 # relationship between the Hamiltonians is
 # H_{Sk} = U H_k U*, with
@@ -30,7 +30,7 @@
 # list of symmetry operations `ksymops` allowing the reconstruction of
 # the full (reducible) BZ, and a set of weights `kweights` (summing to
 # 1). The value of an observable (eg energy) per unit cell is given as
-# the value of that observable at each irreducible kpoint, weighted by
+# the value of that observable at each irreducible k-point, weighted by
 # kweight
 
 # There is by decreasing cardinality
@@ -86,13 +86,13 @@ function find_irreducible_kpoints(kcoords, Stildes, τtildes)
     # algorithm.
 
     # Flag which kpoints have already been mapped to another irred.
-    # kpoint or which have been decided to be irreducible.
+    # k-point or which have been decided to be irreducible.
     kcoords_mapped = zeros(Bool, length(kcoords))
     kirreds = empty(kcoords)           # Container for irreducible kpoints
     ksymops = Vector{Vector{SymOp}}()  # Corresponding symops
 
     while !all(kcoords_mapped)
-        # Select next not mapped kpoint as irreducible
+        # Select next not mapped k-point as irreducible
         ik = findfirst(isequal(false), kcoords_mapped)
         push!(kirreds, kcoords[ik])
         thisk_symops = [identity_symop()]
@@ -102,11 +102,11 @@ function find_irreducible_kpoints(kcoords, Stildes, τtildes)
             isym = findfirst(1:length(Stildes)) do isym
                 # If the difference between kred and Stilde' * k == Stilde^{-1} * k
                 # is only integer in fractional reciprocal-space coordinates, then
-                # kred and S' * k are equivalent k-Points
+                # kred and S' * k are equivalent k-points
                 all(isinteger, kcoords[jk] - (Stildes[isym]' * kcoords[ik]))
             end
 
-            if !isnothing(isym)  # Found a reducible kpoint
+            if !isnothing(isym)  # Found a reducible k-point
                 kcoords_mapped[jk] = true
                 S = Stildes[isym]'                  # in fractional reciprocal coordinates
                 τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates
@@ -124,7 +124,7 @@ end
 """
 Apply a symmetry operation to eigenvectors `ψk` at a given `kpoint` to obtain an
 equivalent point in [-0.5, 0.5)^3 and associated eigenvectors (expressed in the
-basis of the new kpoint).
+basis of the new ``k``-point).
 """
 function apply_ksymop(ksymop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     S, τ = ksymop
@@ -139,12 +139,12 @@ function apply_ksymop(ksymop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     kshift = convert.(Int, Sk - Sk_raw)
     @assert all(-0.5 .≤ Sk .< 0.5)
 
-    # Check whether the resulting kpoint is in the basis:
+    # Check whether the resulting k-point is in the basis:
     ikfull = findfirst(1:length(basis.kpoints)) do idx
         all(isinteger, basis.kpoints[idx].coordinate - Sk)
     end
     if isnothing(ikfull)
-        # Build a new kpoint datastructure:
+        # Build a new k-point datastructure:
         Skpoint = build_kpoints(basis, [Sk])[1]
     else
         Skpoint = basis.kpoints[ikfull]
@@ -274,7 +274,7 @@ function unfold_bz(basis::PlaneWaveBasis)
     end
 end
 
-# find where in the irreducible basis `basis_irred` the kpoint `kpt_unfolded` is handled
+# find where in the irreducible basis `basis_irred` the k-point `kpt_unfolded` is handled
 function unfold_mapping(basis_irred, kpt_unfolded)
     for ik_irred = 1:length(basis_irred.kpoints)
         kpt_irred = basis_irred.kpoints[ik_irred]
