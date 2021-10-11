@@ -1,4 +1,5 @@
-import Brillouin
+import Brillouin as BZ              # to shorten the width of the code
+using Brillouin.KPaths: Bravais     # for primitivize function
 
 @doc raw"""
 Extract the high-symmetry ``k``-Point path corresponding to the passed model
@@ -25,23 +26,25 @@ function high_symmetry_kpath(model; kline_density=20)
     # Brillouin.jl follows the convention of the Hinuma et. al. paper,
     # which is pretty much the International Table of Crystallography Vol A (ITA).
     # Spglib returns the conventional lattice in the same convention.
-    # However, for the primitive lattice the Hinuma and spglib conventions differ.
-    # TODO Use Brillouin.jl to extract the primitive lattice ...
     conv_latt      = get_spglib_lattice(model; to_primitive=false)
-    primitive_latt = get_spglib_lattice(model; to_primitive=true)
-    # TODO This produces a segfault ... unify functions later
+    # Get International Tables for Crystallography (ITA) space group number
+    sgnum  = spglib_spacegroup_number(model)
+    Rs     = collect(eachcol(conv_latt))
+    
+    # Using Brillouin.jl to extract the primitive lattice ...
+    primitive_latt = Bravais.primitivize(Bravais.DirectBasis(Rs), Bravais.centering(sgnum, 3))
+    # TODO This produces a segfault ... unify functions later, do we know why?
     # conv_latt, _      = spglib_standardize_cell(model.lattice, model.atoms, primitive=false)
     # primitive_latt, _ = spglib_standardize_cell(model.lattice, model.atoms, primitive=true)
-    primitive_latt ≈ model.lattice || @warn(
+    
+    # trying to not declare a new variable below if this is ok
+    primitive_latt ≈ collect(eachcol(model.lattice)) || @warn(
         "DFTK's model.lattice and spglib's primitive lattice do not agree. " *
         "The band structure might not be along the most appropriate kpoint path."
     )
 
-    # Get International Tables for Crystallography (ITA) space group number
-    sgnum  = spglib_spacegroup_number(model)
-    Rs     = collect(eachcol(conv_latt))
-    kp     = Brillouin.irrfbz_path(sgnum, Rs)
-    kinter = Brillouin.interpolate(kp, density=kline_density)
+    kp     = BZ.irrfbz_path(sgnum, Rs)
+    kinter = BZ.interpolate(kp, density=kline_density)
 
     # Need to double the points whenever a new path starts
     # (for temporary compatibility with pymatgen)
