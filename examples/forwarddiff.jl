@@ -48,11 +48,9 @@ function self_consistent_field_dual(basis::PlaneWaveBasis, basis_dual::PlaneWave
     filled_occ = DFTK.filled_occupation(basis.model)
     n_spin = basis.model.n_spin_components
     n_bands = div(basis.model.n_electrons, n_spin * filled_occ)
-    # number of kpoints and occupation
-    Nk = length(basis.kpoints)
-    occupation = [filled_occ * ones(n_bands) for ik = 1:Nk]
+    occupation = [filled_occ * ones(n_bands) for _ in basis.kpoints]
 
-    # promote everything eagerly to Dual numbers
+    ## promote everything eagerly to Dual numbers
     occupation_dual = [T.(occupation[1])]
     ψ_dual = [Complex.(T.(real(ψ[1])), T.(imag(ψ[1])))]
     ρ_dual = compute_density(basis_dual, ψ_dual, occupation_dual)
