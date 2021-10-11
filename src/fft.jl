@@ -151,7 +151,7 @@ function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
 
         # We build a temporary set of k-points here
         # We don't reuse this k-point construction for the pwbasis
-        # because build_k-points builds index mapping from the
+        # because build_kpoints builds index mapping from the
         # k-point-specific basis to the global basis and thus the
         # fft_size needs to be final at k-point construction time
         Glims_temp    = compute_Glims_fast(model.lattice, Ecut; kwargs...)
