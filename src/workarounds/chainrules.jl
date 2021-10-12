@@ -305,31 +305,106 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(com
     return ρ, compute_density_pullback
 end
 
+# workaround to pass rrule_via_ad kwargs 
+DFTK.energy_hamiltonian(basis, ψ, occ, ρ) = DFTK.energy_hamiltonian(basis, ψ, occ; ρ=ρ)
+
+solve_ΩplusK(basis::PlaneWaveBasis, ψ, ::NoTangent, occupation) = 0ψ
+
+function _autodiff_fast_hblock_mul(fast_hblock, ψ)
+    # generic fallback rule
+    return NoTangent()
+end
+
+function _autodiff_fast_hblock_mul(fast_hblock::NamedTuple, ψ)
+    # a pure version of *(H::HamiltonianBlock, ψ)
+    # TODO this currently only considers kinetic+local
+    H = fast_hblock.H
+    basis = H.basis
+    kpt = H.kpoint
+    nband = size(ψ, 2)
+
+    potential = fast_hblock.real_op.potential
+    potential = potential / prod(basis.fft_size)  # because we use unnormalized plans
+
+    function Hψ(ψk)
+        ψ_real = G_to_r(basis, kpt, ψk) .* potential
+        Hψ_k = r_to_G(basis, kpt, ψ_real)
+        Hψ_k = Hψ_k + fast_hblock.fourier_op.multiplier .* ψk
+        Hψ_k
+    end
+    Hψ = reduce(hcat, map(Hψ, eachcol(ψ)))
+    
+    Hψ
+end
+
+#--- Zygote workaround to use zip inside _autodiff_apply_hamiltonian
+# https://github.com/FluxML/Zygote.jl/pull/785/files
+_tryaxes(x) = axes(x)
+_tryaxes(x::Tuple) = Val(length(x))
+_restore(dx, ax::Tuple) = axes(dx) == ax ? dx : reshape(vcat(dx, falses(prod(length, ax) - length(dx))), ax)
+_restore(dx, ::Val{N}) where {N} = length(dx) < N ? ntuple(i -> get(dx,i,nothing), N) : NTuple{N}(dx)
+Zygote.@adjoint function Iterators.Zip(xs)
+    axs = map(_tryaxes, xs)  # same function used for map
+    back(dy::NamedTuple{(:is,)}) = tuple(dy.is)
+    back(dy::AbstractArray) = ntuple(length(xs)) do d
+      dx = map(Zygote.StaticGetter{d}(), dy)
+      _restore(dx, axs[d])
+    end |> tuple
+    Iterators.Zip(xs), back
+  end
+Zygote.@adjoint function enumerate(xs)
+    back(::AbstractArray{Nothing}) = nothing
+    back(dy::NamedTuple{(:itr,)}) = tuple(dy.itr)
+    back(diys) = (map(last, diys),)
+    enumerate(xs), back
+  end
+#---
+
+function _autodiff_apply_hamiltonian(H::Hamiltonian, ψ)
+    # a pure version of *(H::Hamiltonian, ψ)
+    # [H.blocks[ik] * ψ[ik] for ik in 1:length(H.basis.kpoints)]
+    [_autodiff_fast_hblock_mul(fast_hblock(hblock), ψk) for (hblock, ψk) in zip(H.blocks, ψ)]
+end
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(*), H::Hamiltonian, ψ)
+    @warn "H * ψ rrule triggered."
+    rrule_via_ad(config, _autodiff_apply_hamiltonian, H, ψ)
+end
+
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis; kwargs...)
     @warn "self_consistent_field rrule triggered."
     scfres = self_consistent_field(basis; kwargs...)
 
+    ψ = DFTK.select_occupied_orbitals(basis, scfres.ψ)
+    filled_occ = DFTK.filled_occupation(basis.model)
+    n_spin = basis.model.n_spin_components
+    n_bands = div(basis.model.n_electrons, n_spin * filled_occ)
+    Nk = length(basis.kpoints)
+    occupation = [filled_occ * ones(n_bands) for ik = 1:Nk]
+
     (energies, H), energy_hamiltonian_pullback = 
-        rrule_via_ad(config, energy_hamiltonian, basis, scfres.ψ, scfres.occupation; scfres.ρ)
+        rrule_via_ad(config, energy_hamiltonian, basis, scfres.ψ, scfres.occupation, scfres.ρ)
     Hψ, mul_pullback =
-        rrule_via_ad(config, *, H, ψ) # TODO make this work, or write rrule for *(H, ψ)
+        rrule(config, *, H, ψ) # TODO make this work, or write rrule for *(H, ψ)
     ρ, compute_density_pullback = 
-        rrule_via_ad(config, compute_density, basis, scfres.ψ, scfres.occupation)
+        rrule(config, compute_density, basis, scfres.ψ, scfres.occupation)
         
     function self_consistent_field_pullback(Δscfres)
-        δψ = Δscfres.ψ # what to do with this?
-        δoccupation = Δscfres.occupation # what to do with this?
+        δψ = Δscfres.ψ
+        δoccupation = Δscfres.occupation
         δρ = Δscfres.ρ
         δenergies = Δscfres.energies
-        δbasis = Δscfres.basis # what to do with this?
-        δH = Δscfres.ham # what to do with this?
+        δbasis = Δscfres.basis
+        δH = Δscfres.ham
 
         _, ∂basis, ∂ψ, _ = compute_density_pullback(δρ)
-        # ∂ψ = ∂ψ + δψ # TODO maybe?
+        # TODO think about necessary tangent plane projections below
+        # ∂ψ = ∂ψ + δψ # TODO
         ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation) # use self-adjointness of dH ψ -> dψ
+        # TODO need to do proj_tangent on ∂Hψ
         ∂H, _ = mul_pullback(∂Hψ)
-        # ∂H = ∂H + δH # TODO maybe?
-        _, ∂basis, _, _ = energy_hamiltonian_pullback(δenergies, ∂H)
+        ∂H = ∂H + δH # TODO handle non-NoTangent case
+        _, ∂basis, _, _ = energy_hamiltonian_pullback((δenergies, ∂H))
 
         return NoTangent(), ∂basis
     end

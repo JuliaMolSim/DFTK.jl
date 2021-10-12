@@ -75,14 +75,10 @@ scfres = self_consistent_field(basis, is_converged=DFTK.ScfConvergenceDensity(1e
 
 obj(param) = total_energy(make_basis(CustomXC(make_f(param))))
 FiniteDiff.finite_difference_derivative(obj, 0.05) # 1.9947322350499912
-# TODO 
-# Zygote.gradient(obj, 0.05)
 
 Zygote.gradient(xc -> DFTK.ene_ops(xc(basis), scfres.ψ, scfres.occupation; scfres.ρ).E, xc) # ((f = (param = 1.9947321925091828,),),) # correct
 
 # Zygote.gradient(basis -> sum(compute_density(basis, scfres.ψ, scfres.occupation) .* scfres.ρ), basis) # out of memory
-
-Zygote.gradient(obj, 0.05) # out of memory.. (look at compute_density TODO perhaps smaller setup)
 
 
 DFTK._autodiff_compute_density(basis, scfres.ψ, scfres.occupation)
@@ -99,43 +95,6 @@ p = real(p)
 
 @time Zygote.gradient(basis -> sum(compute_density(basis, scfres.ψ, scfres.occupation)), basis)
 
-
-
-
 # TODO rrule for self_consistent_field
 
-
-# SCF fixed point map f(ρ; basis) = ρ
-# function f(ρ; basis)
-#   energies, ham = energy_hamiltonian(basis, ψ, occ; ρ)
-#   nextstate = next_density(ham)
-#   ψ, eigenvalues, occupation, εF, ρout = nextstate
-#   ρout
-# end
-#
-# function next_density(ham)
-#   eigres = diagonalize(ham)
-#   occupation, εF = compute_occupation(ham.basis, eigres.λ)
-#   ρout = compute_density(ham.basis, eigres.X, occupation)
-#   ρout
-# end
-
-
-# frule(basis, δbasis) sketch:
-# function frule((δbasis,), ::typeof(self_consistent_field), basis; kwargs...)
-#     scfres = self_consistent_field(basis; kwargs...)
-#     ψ, occupation, ρ = scfres
-#     (energies, H), (δenergies, δH) = frule((NoTangent(), δbasis, ZeroTangent(), ZeroTangent()), energy_hamiltonian, basis, ψ, occupation; ρ)
-#     δHψ = δH * ψ
-#     δψ = DFTK.solve_ΩplusK(basis, ψ, -δHψ, occupation)
-#     δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation)
-#     δscfres = (ham=δH, basis=δbasis; ...ψ=δψ, ρ=δρ)
-#     (scfres, δscfres)
-# end
-
-# (basis, δbasis) --o (scfres, δscfres)
-# now try to transpose this as:
-# (basis, ∂scfres) --o (scfres, ∂basis)
-#
-
-
+Zygote.gradient(obj, 0.05) # (1.9947322203506723,)
