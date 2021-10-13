@@ -31,16 +31,16 @@ tol = 1e-8
 ## dipole moment of a given density (assuming the current geometry)
 function dipole(basis, ρ)
     rr = [a * (r[1] - 1/2) for r in r_vectors(basis)]
-    d = sum(rr .* ρ) * basis.dvol
+    sum(rr .* ρ) * basis.dvol
 end;
 
-# ## Polarizability by finite differences
+# ## Using finite differences
 # We first compute the polarizability by finite differences.
 # First compute the dipole moment at rest:
 model = model_LDA(lattice, atoms; symmetries=false)
 basis = PlaneWaveBasis(model; Ecut, kgrid)
-res = self_consistent_field(basis, tol=tol)
-μref = dipole(basis, res.ρ)
+res   = self_consistent_field(basis, tol=tol)
+μref  = dipole(basis, res.ρ)
 
 # Then in a small uniform field:
 ε = .01
@@ -61,7 +61,7 @@ println("Polarizability :   $polarizability")
 # For example [DOI 10.1039/C8CP03569E](https://doi.org/10.1039/C8CP03569E)
 # quotes **1.65** with LSDA and **1.38** with CCSD(T).
 
-# ## Polarizability by linear response
+# ## Using linear response
 # Now we use linear response to compute this analytically; we refer to standard
 # textbooks for the formalism. In the following, ``\chi_0`` is the
 # independent-particle polarizability, and ``K`` the

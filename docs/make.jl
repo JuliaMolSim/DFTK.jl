@@ -107,6 +107,7 @@ makedocs(
             "Tutorial" => "guide/tutorial.md",
             "guide/input_output.md",
             "guide/parallelization.md",
+            "Introduction to periodic problems" => "guide/periodic_problems.md",
             "Density-functional theory" => "guide/density_functional_theory.md",
         ],
         "Examples" => EXAMPLES,

@@ -1,6 +1,7 @@
 [deps]
 DFTK = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 KrylovKit = "0b1a1467-8014-51b9-945f-bf0ae24f4b77"
 LibGit2 = "76f85450-5226-5b5a-8eaa-529ad045b433"
