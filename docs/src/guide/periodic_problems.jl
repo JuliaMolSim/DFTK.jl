@@ -5,40 +5,40 @@
 # In this example we want to show how DFTK can be used to solve simple one-dimensional
 # periodic problems. Along the lines this notebook serves as a concise introduction into
 # the underlying theory and jargon for solving periodic problems using plane-wave
-# discretisations.
+# discretizations.
 
 # ## Periodicity and lattices
-# A periodic problem is characterised by being invariant to certain translations.
+# A periodic problem is characterized by being invariant to certain translations.
 # For example the ``\sin`` function is periodic with periodicity ``2π``, i.e.
 # ```math
-#    \sin(x) = \sin(x + n ⋅ 2π) \quad ∀ n ∈ \mathbb{Z},
+#    \sin(x) = \sin(x + 2πm) \quad ∀ m ∈ \mathbb{Z},
 # ```
-# which is nothing else than saying that any translation by an integer multiple of ``2π``
-# keeps the ``sin`` function invariant. A more formal way of writing this is using the
-# translation operator ``T_{-2πn}``:
+# This is nothing else than saying that any translation by an integer multiple of ``2π``
+# keeps the ``\sin`` function invariant. In a more formal one can use the
+# translation operator ``T_{-2πm}`` to write this as:
 # ```math
-#    T_{-2πn} \, \sin(x) = \sin(x + 2πn) = \sin(x).
+#    T_{-2πm} \, \sin(x) = \sin(x + 2πm) = \sin(x).
 # ```
 #
-# Whenever such periodicity exists it offers the potential to save some computational work.
-# Consider a problem where one wants to find a function ``f : \mathbb{R} → \mathbb{R}``,
-# but one a priori knows this solution to be periodic with periodicity ``a``. As a consequence
-# of said periodicity it is sufficient to know the values of ``f`` for all ``x`` from the
+# Whenever such periodicity exists one can exploit it to save computational work.
+# Consider a problem in which we want to find a function ``f : \mathbb{R} → \mathbb{R}``,
+# but *a priori* the solution is known to be periodic with periodicity ``a``. As a consequence
+# of said periodicity it is sufficient to determine the values of ``f`` for all ``x`` from the
 # interval ``[-a/2, a/2)`` to uniquely define ``f`` on the full real axis. Naturally exploiting
-# the periodicity in a computational procedure thus greatly reduces the amount of work.
+# periodicity in a computational procedure thus greatly reduces the required amount of work.
 #
 # Let us introduce some jargon: The periodicity of our problem implies that we may define
 # a **lattice**
 # ```
-#           -a       -a/2      +a/2       +a
+#         -3a/2      -a/2      +a/2     +3a/2
 #        ... |---------|---------|---------| ...
 #                 a         a         a
 # ```
 # with lattice constant ``a``. Each cell of the lattice is an identical periodic image of
-# any of its neighbours. For finding ``f`` it is thus sufficient to consider only the
-# problem inside the **unit cell** ``[-a/2, a/2)``. In passing we note that the definition
-# of the unit cell is arbitrary up to translations. A choice ``[0, a)``, for example,
-# would have done just as well.
+# any of its neighbors. For finding ``f`` it is thus sufficient to consider only the
+# problem inside a **unit cell** ``[-a/2, a/2)``. In passing we note that the definition
+# of the unit cell is itself only unique up to translations. A choice ``[0, a)``,
+# for example, would have done just as well.
 #
 # ## Periodic operators and the Bloch transform
 # Not only functions, but also operators can feature periodicity.
@@ -46,61 +46,78 @@
 # ```math
 #     H = -\frac12 Δ.
 # ```
-# The free-electron model is a model in which the electron motion is only governed
+# In free-electron model (which gives rise to this Hamiltonian) electron motion is only
 # by their own kinetic energy. As this model features no potential which could make one point
 # in space more preferred than another, we would expect this model to be periodic.
-# If an operator is periodic with respect to a lattice like the one defined above,
+# If an operator is periodic with respect to a lattice such as the one defined above,
 # than it commutes with all lattice translations. For the free-electron case ``H``
 # one can easily show exactly that, i.e.
 # ```math
-#    T_{na} H = H T_{na} \quad  ∀ n ∈ \mathbb{Z}.
+#    T_{ma} H = H T_{ma} \quad  ∀ m ∈ \mathbb{Z}.
 # ```
+# We note in passing that the free-electron model is actually very special in the sense that
+# the choice of ``a`` is completely arbitrary here. In other words ``H`` is periodic
+# with respect to any translation. In general, however, periodicity is only
+# attained with respect to a finite number of translations ``a`` and we will take this
+# viewpoint here.
 #
-# **Bloch's theorem** now tells us that for such types of operators,
+# **Bloch's theorem** now tells us that for periodic operators,
 # the solutions to the eigenproblem
 # ```math
-#     H v_{kj} = ε_{kj} v_{kj}
+#     H ψ_{kn} = ε_{kn} ψ_{kn}
 # ```
-# satisfy a factorisation
+# satisfy a factorization
 # ```math
-#     v_{kj}(x) = e^{i k⋅x} ψ_{kj}(x)
+#     ψ_{kn}(x) = e^{i k⋅x} u_{kn}(x)
 # ```
 # into a plane wave ``e^{i k⋅x}`` and a lattice-periodic function
 # ```math
-#    T_{na} ψ_{kj}(x) = ψ_{kj}(x - na) = ψ_{kj}(x) \quad ∀ n ∈ \mathbb{Z}.
+#    T_{ma} u_{kn}(x) = u_{kn}(x - ma) = u_{kn}(x) \quad ∀ m ∈ \mathbb{Z}.
 # ```
-# In this ``j`` is a labelling integer index and ``k`` is a real number,
+# In this ``n`` is a labeling integer index and ``k`` is a real number,
 # whose details will be clarified in the next section.
-# Functions ``v_{kj}`` satisfying this factorisation are also known as
+# The index ``n`` is sometimes also called the **band index** and
+# functions ``ψ_{kn}`` satisfying this factorization are also known as
 # **Bloch functions** or **Bloch states**.
 #
-# Applying ``2H = -Δ = - \frac{d^2}{d x^2}`` to such a Bloch wave yields
+# Consider the application of ``2H = -Δ = - \frac{d^2}{d x^2}``
+# to such a Bloch wave. First we notice for any function ``f``
+# ```math
+#    -i∇ \left( e^{i k⋅x} f \right) 
+#    = -i\frac{d}{dx} \left( e^{i k⋅x} f \right)
+#    = k e^{i k⋅x} f -i∇ e^{i k⋅x} f = (-i∇ + k) e^{i k⋅x} f.
+# ```
+# Using this result twice one shows that applying ``-Δ`` yields
 # ```math
 # \begin{aligned}
-# -\Delta \left(e^{i k⋅x} ψ_{kj}(x)\right)
-#    &= k^2 e^{ik⋅x} ψ_{kj}(x) - 2ik e^{ik⋅x} (∇ψ_{kj}(x)) - e^{ik⋅x} (Δψ_{kj}(x)) \\
-#    &= e^{ik⋅x} (k^2 - 2ik ∇ - Δ) ) ψ_{kj}(x) \\
-#    &= e^{i k⋅x} (-i∇ + k)^2 ψ_{kj}(x) \\
-#    &= e^{i k⋅x} 2H_k ψ_{kj}(x),
+#    -\Delta \left(e^{i k⋅x} u_{kn}(x)\right)
+#    &= -i∇ ⋅ \left[-i∇ \left(u_{kn}(x) e^{i k⋅x} \right) \right] \\
+#    &= -i∇ ⋅ \left[(-i∇ + k) u_{kn}(x) e^{i k⋅x} \right] \\
+#    &= (-i∇ + k)^2 u_{kn}(x) e^{i k⋅x} \\
+#    &= e^{i k⋅x} 2H_k u_{kn}(x),
 # \end{aligned}
 # ```
-# where we used
+# where we defined
 # ```math
 #     H_k = \frac12 (-i∇ + k)^2.
 # ```
-# The action of this operator on a function ``ψ_{kj}`` is given by
+# The action of this operator on a function ``u_{kn}`` is given by
 # ```math
-#     H_k ψ_{kj} = e^{-i k⋅x} H e^{i k⋅x} ψ_{kj},
+#     H_k u_{kn} = e^{-i k⋅x} H e^{i k⋅x} u_{kn},
 # ```
 # which in particular implies that
 # ```math
-#    H_k ψ_{kj} = ε_{kj} ψ_{kj} \quad ⇔ \quad H (e^{i k⋅x} ψ_{kj}) = ε_{kj} (e^{i k⋅x} ψ_{kj}).
+#    H_k u_{kn} = ε_{kn} u_{kn} \quad ⇔ \quad H (e^{i k⋅x} u_{kn}) = ε_{kn} (e^{i k⋅x} u_{kn}).
 # ```
 # To seek the eigenpairs of ``H`` we may thus equivalently
 # find the eigenpairs of *all* ``H_k``.
+# The point of this is that the eigenfunctions ``u_{kn}`` of ``H_k``
+# are periodic (unlike the eigenfunctions ``ψ_{kn}`` of ``H``).
+# In contrast to ``ψ_{kn}`` the functions ``u_{kn}`` can thus be fully
+# represented considering the eigenproblem only on the unit cell.
 #
-# A more detailed mathematical analysis shows that the transformation from ``H``
-# to the set of all ``H_k`` for a suitable set of values for ``k`` (detailes below)
+# A detailed mathematical analysis shows that the transformation from ``H``
+# to the set of all ``H_k`` for a suitable set of values for ``k`` (details below)
 # is actually a unitary transformation, the so-called **Bloch transform**.
 # This transform brings the Hamiltonian into the symmetry-adapted basis for
 # translational symmetry, which are exactly the Bloch functions.
@@ -112,7 +129,7 @@
 # ```
 # with each block ``H_k`` taking care of one value ``k``.
 # This block-diagonal structure under the basis of Bloch functions lets us
-# completly describe the spectrum of ``H`` by looking only at the the spectrum
+# completely describe the spectrum of ``H`` by looking only at the spectrum
 # of all ``H_k`` blocks.
 #
 # [^1]: Notice that block-diagonal is a bit an abuse of terms here, since the Hamiltonian
@@ -122,9 +139,9 @@
 #
 # ## The Brillouin zone
 #
-# The big mystery in the discussion so far is the parameter ``k`` of the Hamiltonian blocks.
+# We now consider the parameter ``k`` of the Hamiltonian blocks in detail.
 #
-# - As discussed ``k`` is essentially a real number. It turns out, however, that some of
+# - As discussed ``k`` is a real number. It turns out, however, that some of
 #   these ``k∈\mathbb{R}`` give rise to operators related by unitary transformations
 #   (again due to translational symmetry).
 # - Since such operators have the same eigenspectrum, only one version needs to be considered.
@@ -142,24 +159,24 @@
 # - The BZ in our example is thus ``B = [-π/a, π/a)``. The members of ``B``
 #   are typically called ``k``-points.
 #
-# ## Discretisation and plane-wave basis sets
+# ## Discretization and plane-wave basis sets
 #
 # With what we discussed so far the strategy to find all eigenpairs of a periodic
 # Hamiltonian ``H`` thus reduces to finding the eigenpairs of all ``H_k`` with ``k ∈ B``.
 # This requires *two* discretisations:
 #
-#   - ``B`` is an overcountable set. To discretise we first only pick a finite number
-#     of ``k``-points. Usually this **``k``-point samping** is done by picking ``k``-points
-#     along a regular grid inside the BZ, the **``k``-grid**.A
+#   - ``B`` is infinite (and not countable). To discretize we first only pick a finite number
+#     of ``k``-points. Usually this **``k``-point sampling** is done by picking ``k``-points
+#     along a regular grid inside the BZ, the **``k``-grid**.
 #   - Each ``H_k`` is still an infinite-dimensional operator.
 #     Following a standard Ritz-Galerkin ansatz we project the operator into a finite basis
-#     and diagonalise the resulting matrix.
+#     and diagonalize the resulting matrix.
 #
 # For the second step multiple types of bases are used in practice (finite differences,
 # finite elements, Gaussians, ...). In DFTK we currently support only plane-wave
-# discretisations.
+# discretizations.
 #
-# For our 1D example normalised plane waves are defined as the functions
+# For our 1D example normalized plane waves are defined as the functions
 # ```math
 # e_{G}(x) = \frac{e^{i G x}}{\sqrt{a}}  \qquad G \in b\mathbb{Z}
 # ```
@@ -168,6 +185,19 @@
 # ```math
 # \left\{ e_{G} \, \big| \, (G + k)^2 \leq 2E_\text{cut} \right\}
 # ```
+#
+# ## Correspondence of theory to DFTK code
+#
+# Before solving a few example problems numerically in DFTK, a short overview
+# of the correspondence of the introduced quantities to data structures inside DFTK.
+#
+# - ``H`` is represented by a `Hamiltonian` object and variables for hamiltonians are usually called `ham`.
+# - ``H_k`` by a `HamiltonianBlock` and variables are `hamk`.
+# - ``ψ_{kn}`` is usually just called `ψ`.
+#   ``u_{kn}`` is not stored (in favor of ``ψ_{kn}``).
+# - ``ε_{kn}`` is called `eigenvalues`.
+# - ``k``-points are represented by `Kpoint` and respective variables called `kpt`.
+# - The basis of plane waves is managed by `PlaneWaveBasis` and variables usually just called `basis`.
 #
 # ## Solving the free-electron Hamiltonian
 #
@@ -178,7 +208,7 @@
 # Step 1: Build the 1D lattice. DFTK is mostly tailored for 3D problems.
 # Therefore quantities related to the problem space are have a fixed
 # dimension 3. The convention is that for 1D / 2D problems the
-# tailling entries are always zero and ignored in the computation.
+# trailing entries are always zero and ignored in the computation.
 # For the lattice we therefore construct a 3x3 matrix with only one entry.
 using DFTK
 
@@ -197,7 +227,7 @@ model = Model(lattice; n_electrons=0, terms=[Kinetic()])
 basis = PlaneWaveBasis(model; Ecut=300, kgrid=(1, 1, 1))
 
 # Step 4: Plot the bands! Select a density of ``k``-points for the ``k``-grid to use
-# for the bandstructure calculation, discretise the problem and diagonalise it.
+# for the bandstructure calculation, discretize the problem and diagonalize it.
 # Afterwards plot the bands.
 
 using Unitful
@@ -210,22 +240,22 @@ p  = plot_bandstructure(basis, ρ0, n_bands, kline_density=15, unit=u"hartree")
 
 # !!! note "Selection of k-point grids in `PlaneWaveBasis` construction"
 #     You might wonder why we only selected a single ``k``-point (clearly a very crude
-#     and inaccurate approximation). It turns out the `kgrid` parameter specified here
+#     and inaccurate approximation). In this example the `kgrid` parameter specified
+#     in the construction of the `PlaneWaveBasis`
 #     is not actually used for plotting the bands. It is only used when solving more
 #     involved models like density-functional theory (DFT) where the Hamiltonian is
-#     non-linear and before plotting the bands therefore the self-consistent field
-#     equations need to be solved first. This is typically done on a different ``k``-point
-#     grid than the grid used for the bands later on. In our case we don't need
-#     this extra step and therefore the `kgrid` value passed to `PlaneWaveBasis`
-#     is actually arbitrary.
-
+#     non-linear. In these cases before plotting the bands the self-consistent field
+#     equations (SCF) need to be solved first. This is typically done on
+#     a different ``k``-point grid than the grid used for the bands later on.
+#     In our case we don't need this extra step and therefore the `kgrid` value passed
+#     to `PlaneWaveBasis` is actually arbitrary.
 
 
 # ## Adding potentials
 # So far so good. But free electrons are actually a little boring,
 # so let's add a potential interacting with the electrons.
 #
-# - The modified problem we will look at consists of diagonalising
+# - The modified problem we will look at consists of diagonalizing
 #   ```math
 #   H_k = \frac12 (-i \nabla + k)^2 + V
 #   ```
@@ -235,7 +265,7 @@ p  = plot_bandstructure(basis, ρ0, n_bands, kline_density=15, unit=u"hartree")
 #   can be assembled using the `terms` kwarg of the model.
 #   This allows to seamlessly construct
 #
-#   * density-functial theory models for treating electronic structures
+#   * density-functial theory (DFT) models for treating electronic structures
 #     (see the [Tutorial](@ref)).
 #   * Gross-Pitaevskii models for bosonic systems
 #     (see [Gross-Pitaevskii equation in one dimension](@ref))
@@ -286,7 +316,7 @@ lattice = diagm([100., 0, 0])
 nucleus = ElementGaussian()
 atoms = [nucleus => [[0.2, 0, 0], [0.8, 0, 0]]]
 
-## Assemble the model, discretise and build the Hamiltonian
+## Assemble the model, discretize and build the Hamiltonian
 model = Model(lattice; atoms=atoms, terms=[Kinetic(), AtomicLocal()])
 basis = PlaneWaveBasis(model; Ecut=300, kgrid=(1, 1, 1));
 ham   = Hamiltonian(basis)
@@ -297,8 +327,11 @@ rvecs = collect(r_vectors_cart(basis))[:, 1, 1]  # slice along the x axis
 x = [r[1] for r in rvecs]                        # only keep the x coordinate
 plot(x, potential, label="", xlabel="x", ylabel="V(x)")
 
-# Notice how DFTK took care of the periodic wrapping of the potential values going
-# from ``0`` and ``100``.
+# This potential is the sum of two "atomic" potentials (the two "Gaussian" elements).
+# Due to the periodic setting we are considering interactions naturally also occur
+# across the unit cell boundary (i.e. wrapping from `100` over to `0`).
+# The required periodization of the atomic potential is automatically taken care,
+# such that the potential is smooth across the cell boundary at `100`/`0`.
 #
 # With this setup, let's look at the bands:
 
@@ -309,13 +342,16 @@ n_bands = 6
 ρ0 = zeros(eltype(basis), basis.fft_size..., 1)  # Just dummy, has no meaning in this model
 p = plot_bandstructure(basis, ρ0, n_bands, kline_density=15, unit=u"hartree")
 
-# The bands are noticably different.
-#  - The bands no longer overlap, meaning that the spectrum of $H$ is no longer continous
+# The bands are noticeably different.
+#  - The bands no longer overlap, meaning that the spectrum of $H$ is no longer continuous
 #    but has gaps.
 #
-# - The two lowest bands are almost flat, which means that they represent
-#   two tightly bound and localised electrons inside the two Gaussians.
+#  - The two lowest bands are almost flat. This is because they represent
+#    two tightly bound and localized electrons inside the two Gaussians.
 #
-# - The higher the bands, the more curved they become. In other words the higher the
-#   kinetic energy of the electrons the more delocalised they become and the less they feel
-#   the effect of the two Gaussian potentials.
+#  - The higher the bands are in energy, the more free-electron-like they are.
+#    In other words the higher the kinetic energy of the electrons, the less they feel
+#    the effect of the two Gaussian potentials. As it turns out the curvature of the bands,
+#    (the degree to which they are free-electron-like) is highly related to the delocalization
+#    of electrons in these bands: The more curved the more delocalized. In some sense
+#    "free electrons" correspond to perfect delocalization.
