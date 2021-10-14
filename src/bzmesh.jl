@@ -146,7 +146,7 @@ const standardize_atoms = spglib_standardize_cell
 #      at most that far apart
 @doc raw"""
 Selects a kgrid size to ensure a minimal spacing (in inverse Bohrs) between kpoints.
-A reasonable spacing is `0.25` inverse Bohrs (around ``2π * 0.04 \AA^{-1}``).
+A reasonable spacing is `0.13` inverse Bohrs (around ``2π * 0.04 \AA^{-1}``).
 """
 function kgrid_from_minimal_spacing(lattice, spacing)
     lattice       = austrip.(lattice)
