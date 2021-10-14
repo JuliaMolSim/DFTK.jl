@@ -125,6 +125,26 @@ end
     Stildes, τtildes
 end
 
+
+function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;
+                                               is_shift=Vec3(0, 0, 0),
+                                               is_time_reversal=false,
+                                               qpoints=[Vec3(0.0, 0.0, 0.0)])
+    spg_rotations = cat([copy(Cint.(S')) for S in rotations]..., dims=3)
+    nkpt = prod(kgrid_size)
+    mapping = Vector{Cint}(undef, nkpt)
+    grid_address = Matrix{Cint}(undef, 3, nkpt)
+
+    nrot = length(rotations)
+    n_kpts = ccall((:spg_get_stabilized_reciprocal_mesh, SPGLIB), Cint,
+      (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Cint, Cint, Ptr{Cint}, Cint, Ptr{Cdouble}),
+      grid_address, mapping, [Cint.(kgrid_size)...], [Cint.(is_shift)...], Cint(is_time_reversal),
+      Cint(nrot), spg_rotations, Cint(length(qpoints)), Vec3{Float64}.(qpoints))
+
+    return n_kpts, Int.(mapping), [Vec3{Int}(grid_address[:, i]) for i in 1:nkpt]
+end
+
+
 # Returns crystallographic conventional cell if primitive is false, else the primitive
 # cell in the convention by spglib
 function spglib_standardize_cell(lattice::AbstractArray{T}, atoms; correct_symmetry=true,
@@ -150,31 +170,20 @@ function spglib_standardize_cell(lattice::AbstractArray{T}, atoms; correct_symme
     Matrix{T}(spg_lattice), newatoms
 end
 
-function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;
-                                               is_shift=Vec3(0, 0, 0),
-                                               is_time_reversal=false,
-                                               qpoints=[Vec3(0.0, 0.0, 0.0)])
-    spg_rotations = cat([copy(Cint.(S')) for S in rotations]..., dims=3)
-    nkpt = prod(kgrid_size)
-    mapping = Vector{Cint}(undef, nkpt)
-    grid_address = Matrix{Cint}(undef, 3, nkpt)
-
-    nrot = length(rotations)
-    n_kpts = ccall((:spg_get_stabilized_reciprocal_mesh, SPGLIB), Cint,
-      (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Cint, Cint, Ptr{Cint}, Cint, Ptr{Cdouble}),
-      grid_address, mapping, [Cint.(kgrid_size)...], [Cint.(is_shift)...], Cint(is_time_reversal),
-      Cint(nrot), spg_rotations, Cint(length(qpoints)), Vec3{Float64}.(qpoints))
-
-    return n_kpts, Int.(mapping), [Vec3{Int}(grid_address[:, i]) for i in 1:nkpt]
-end
-
-
 # TODO merge this function into spglib_standardize_cell
-# Returns crystallographic conventional cell if to_primitive is false, else the primitive
-# cell in the convention by spglib
+"""
+Returns crystallographic conventional cell according to the International Table of
+Crystallography Vol A (ITA) in case `to_primitive=false`. If `to_primitive=true`
+the primitive lattice is returned in the convention of the reference work of
+Cracknell, Davies, Miller, and Love (CDML). Of note this has minor differences to
+the primitive setting choice made in the ITA.
+"""
 function get_spglib_lattice(model; to_primitive=false)
     # TODO This drops magnetic moments!
-    # TODO What about time-reversal symmetry?
+    # TODO For time-reversal symmetry see the discussion in PR 496.
+    #      https://github.com/JuliaMolSim/DFTK.jl/pull/496/files#r725203554
+    #      Essentially this does not influence the standardisation,
+    #      but it only influences the kpath.
     spg_positions, spg_numbers, _ = spglib_atoms(model.atoms)
     structure = Spglib.Cell(transpose(model.lattice), spg_positions, spg_numbers)
     spglib_lattice = Spglib.standardize_cell(structure, to_primitive=to_primitive).lattice

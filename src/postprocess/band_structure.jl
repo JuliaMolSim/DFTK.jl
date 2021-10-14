@@ -1,10 +1,14 @@
-import Brillouin as BZ              # to shorten the width of the code
-using Brillouin.KPaths: Bravais     # for primitivize function
+import Brillouin
+import Brillouin.KPaths: Bravais
 
 @doc raw"""
 Extract the high-symmetry ``k``-Point path corresponding to the passed model
-using `Brillouin.jl`. Uses the conventions described in
-[Y. Himuma et. al. Comput. Mater. Sci. 128, 140 (2017) DOI 10.1016/j.commatsci.2016.10.015](https://doi.org/10.1016/j.commatsci.2016.10.015).
+using `Brillouin.jl`. Uses the conventions described in the reference work of
+Cracknell, Davies, Miller, and Love (CDML). Of note this has only minor differences to
+the seminal work of
+[Y. Himuma et. al. Comput. Mater. Sci. 128, 140 (2017) DOI 10.1016/j.commatsci.2016.10.015](https://doi.org/10.1016/j.commatsci.2016.10.015)
+--- namely for oA and mC points.
+
 Issues a warning in case the passed lattice does not match the expected primitive.
 """
 function high_symmetry_kpath(model; kline_density=20)
@@ -14,7 +18,11 @@ function high_symmetry_kpath(model; kline_density=20)
     kline_density = kline_density * austrip(1u"Å")
 
     if model.n_dim == 1  # Return fast for 1D model
-        # TODO Is this special-casing of 1D still needed for Brillouin.jl
+        # TODO Is this special-casing of 1D is not needed for Brillouin.jl any more
+        #
+        # Just use irrfbz_path(1, DirectBasis{1}([1.0]))
+        # (see https://github.com/JuliaMolSim/DFTK.jl/pull/496/files#r725205860)
+        #
         # Length of the kpath is recip_lattice[1, 1] in 1D
         n_points = max(2, 1 + ceil(Int, kline_density * model.recip_lattice[1, 1]))
         kcoords  = [@SVector[coord, 0, 0] for coord in range(-1//2, 1//2, length=n_points)]
@@ -23,32 +31,30 @@ function high_symmetry_kpath(model; kline_density=20)
                 kpath=[["-½", "½"]], kbranches=[1:length(kcoords)])
     end
 
-    # Brillouin.jl follows the convention of the Hinuma et. al. paper,
-    # which is pretty much the International Table of Crystallography Vol A (ITA).
-    # Spglib returns the conventional lattice in the same convention.
-    conv_latt      = get_spglib_lattice(model; to_primitive=false)
-    # Get International Tables for Crystallography (ITA) space group number
-    sgnum  = spglib_spacegroup_number(model)
-    Rs     = collect(eachcol(conv_latt))
-    
-    # Using Brillouin.jl to extract the primitive lattice ...
-    primitive_latt = Bravais.primitivize(Bravais.DirectBasis(Rs), Bravais.centering(sgnum, 3))
-    # TODO This produces a segfault ... unify functions later, do we know why?
-    # conv_latt, _      = spglib_standardize_cell(model.lattice, model.atoms, primitive=false)
-    # primitive_latt, _ = spglib_standardize_cell(model.lattice, model.atoms, primitive=true)
-    
-    # trying to not declare a new variable below if this is ok
+    # - Brillouin.jl expects the input direct lattice to be in the conventional lattice
+    #   in the convention of the International Table of Crystallography Vol A (ITA).
+    # - spglib uses this convention for the returned conventional lattice,
+    #   so it can be directly used as input to Brillouin.jl
+    # - The output k-Points and reciprocal lattices will be in the CDML convention.
+    conv_latt = get_spglib_lattice(model; to_primitive=false)
+    sgnum     = spglib_spacegroup_number(model)  # Get ITA space-group number
+    direct_basis   = Bravais.DirectBasis(collect(eachcol(conv_latt)))
+    primitive_latt = Bravais.primitivize(direct_basis, Bravais.centering(sgnum, 3))
+
     primitive_latt ≈ collect(eachcol(model.lattice)) || @warn(
-        "DFTK's model.lattice and spglib's primitive lattice do not agree. " *
-        "The band structure might not be along the most appropriate kpoint path."
+        "DFTK's model.lattice and Brillouin's primitive lattice do not agree. " *
+        "The kpath selected to plot the band structure might not be most appropriate."
     )
 
-    kp     = BZ.irrfbz_path(sgnum, Rs)
-    kinter = BZ.interpolate(kp, density=kline_density)
+    kp     = Brillouin.irrfbz_path(sgnum, Rs)
+    kinter = Brillouin.interpolate(kp, density=kline_density)
+
+    # TODO Need to take care of time-reversal symmetry here!
+    #      See https://github.com/JuliaMolSim/DFTK.jl/pull/496/files#r725203554
 
     # Need to double the points whenever a new path starts
     # (for temporary compatibility with pymatgen)
-    # TODO Remove later
+    # TODO Remove this later
     kcoords = empty(first(kinter.kpaths))
     for kbranch in kinter.kpaths
         idcs = findall(k -> any(sum(abs2, k - kcomp) < 1e-5
