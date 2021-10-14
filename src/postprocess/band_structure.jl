@@ -3,11 +3,10 @@ import Brillouin.KPaths: Bravais
 
 @doc raw"""
 Extract the high-symmetry ``k``-Point path corresponding to the passed model
-using `Brillouin.jl`. Uses the conventions described in the reference work of
-Cracknell, Davies, Miller, and Love (CDML). Of note this has only minor differences to
-the seminal work of
-[Y. Himuma et. al. Comput. Mater. Sci. 128, 140 (2017) DOI 10.1016/j.commatsci.2016.10.015](https://doi.org/10.1016/j.commatsci.2016.10.015)
---- namely for oA and mC points.
+using `Brillouin.jl`. Uses the conventions described in the reference work by
+Cracknell, Davies, Miller, and Love (CDML). Of note, this has minor differences to
+the **k**-path reference ([Y. Himuma et. al. Comput. Mater. Sci. **128**, 140 (2017)](https://doi.org/10.1016/j.commatsci.2016.10.015)) underlying the path-choices of 
+`Brillouin.jl`, specifically for oA and mC Bravais types.
 
 Issues a warning in case the passed lattice does not match the expected primitive.
 """
