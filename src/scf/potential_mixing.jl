@@ -180,8 +180,14 @@ function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
     # Adjust α to stay within desired range
     α_sign = sign(α)
     abs(α) < damping.α_min / 5 && (α_sign = +1.0)
-    α = clamp(abs(α), damping.α_min, damping.α_max)
-    α = min(0.95abs(info_next.α), α)  # Avoid getting stuck
+    if α_sign > 0.0
+        # Avoid getting stuck
+        α = min(0.95abs(info_next.α), abs(α))
+    else
+        # Don't move too far backwards (where model validity cannot be ensured)
+        α = min(0.50abs(info_next.α), abs(α))
+    end
+    α = clamp(α, damping.α_min, damping.α_max)
     return α_sign * α
 end
 
