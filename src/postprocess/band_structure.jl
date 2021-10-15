@@ -5,8 +5,9 @@ import Brillouin.KPaths: Bravais
 Extract the high-symmetry ``k``-Point path corresponding to the passed model
 using `Brillouin.jl`. Uses the conventions described in the reference work by
 Cracknell, Davies, Miller, and Love (CDML). Of note, this has minor differences to
-the **k**-path reference ([Y. Himuma et. al. Comput. Mater. Sci. **128**, 140 (2017)](https://doi.org/10.1016/j.commatsci.2016.10.015)) underlying the path-choices of 
-`Brillouin.jl`, specifically for oA and mC Bravais types.
+the ``k``-path reference
+([Y. Himuma et. al. Comput. Mater. Sci. **128**, 140 (2017)](https://doi.org/10.1016/j.commatsci.2016.10.015))
+underlying the path-choices of `Brillouin.jl`, specifically for oA and mC Bravais types.
 
 Issues a warning in case the passed lattice does not match the expected primitive.
 """
@@ -45,7 +46,7 @@ function high_symmetry_kpath(model; kline_density=20)
         "The kpath selected to plot the band structure might not be most appropriate."
     )
 
-    kp     = Brillouin.irrfbz_path(sgnum, Rs)
+    kp     = Brillouin.irrfbz_path(sgnum, direct_basis)
     kinter = Brillouin.interpolate(kp, density=kline_density)
 
     # TODO Need to take care of time-reversal symmetry here!
