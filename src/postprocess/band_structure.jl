@@ -1,49 +1,85 @@
-using PyCall
+import Brillouin
+import Brillouin.KPaths: Bravais
 
-# Functionality for computing band structures
+@doc raw"""
+Extract the high-symmetry ``k``-Point path corresponding to the passed model
+using `Brillouin.jl`. Uses the conventions described in the reference work by
+Cracknell, Davies, Miller, and Love (CDML). Of note, this has minor differences to
+the ``k``-path reference
+([Y. Himuma et. al. Comput. Mater. Sci. **128**, 140 (2017)](https://doi.org/10.1016/j.commatsci.2016.10.015))
+underlying the path-choices of `Brillouin.jl`, specifically for oA and mC Bravais types.
 
+Issues a warning in case the passed lattice does not match the expected primitive.
+"""
 function high_symmetry_kpath(model; kline_density=20)
+    # Change units from Number of kpoints per inverse Angström (i.e. unit of length)
+    # to number of kpoints per inverse bohrs.
+    # TODO Change interface to atomic units ...
+    kline_density = kline_density * austrip(1u"Å")
+
     if model.n_dim == 1  # Return fast for 1D model
-        # kline_density = Number of k-point per Angström
-        # Length of the kpath is lattice[1, 1] in 1D
-        n_points = ceil(Int, kline_density / austrip(1u"Å") * model.lattice[1, 1])
-        return (
-            kcoords = [[coord, 0, 0] for coord in range(-1//2, 1//2, length=1+n_points)],
-            klabels=Dict("Γ" => zeros(3), "-1/2" => [-0.5, 0.0, 0.0], "1/2" => [0.5, 0, 0]),
-            kpath=[[raw"-1/2", raw"1/2"]],
-        )
+        # TODO Is this special-casing of 1D is not needed for Brillouin.jl any more
+        #
+        # Just use irrfbz_path(1, DirectBasis{1}([1.0]))
+        # (see https://github.com/JuliaMolSim/DFTK.jl/pull/496/files#r725205860)
+        #
+        # Length of the kpath is recip_lattice[1, 1] in 1D
+        n_points = max(2, 1 + ceil(Int, kline_density * model.recip_lattice[1, 1]))
+        kcoords  = [@SVector[coord, 0, 0] for coord in range(-1//2, 1//2, length=n_points)]
+        klabels  = Dict("Γ" => zeros(3), "-½" => [-0.5, 0.0, 0.0], "½" => [0.5, 0, 0])
+        return (kcoords=kcoords, klabels=klabels,
+                kpath=[["-½", "½"]], kbranches=[1:length(kcoords)])
     end
 
-    # TODO This is the last function that hard-depends on pymatgen. The way to solve this
-    # is to use the julia version implemented in
-    # https://github.com/louisponet/DFControl.jl/blob/master/src/structure.jl
-    # but for this the best way to go would be to refactor into a small "CrystalStructure"
-    # julia module which deals with these sort of low-level details everyone can agree on.
-    pystructure = pymatgen_structure(model.lattice, model.atoms)
-    symm_kpath = pyimport("pymatgen.symmetry.bandstructure").HighSymmKpath(pystructure)
-    kcoords, labels = symm_kpath.get_kpoints(kline_density, coords_are_cartesian=false)
+    # - Brillouin.jl expects the input direct lattice to be in the conventional lattice
+    #   in the convention of the International Table of Crystallography Vol A (ITA).
+    # - spglib uses this convention for the returned conventional lattice,
+    #   so it can be directly used as input to Brillouin.jl
+    # - The output k-Points and reciprocal lattices will be in the CDML convention.
+    conv_latt = get_spglib_lattice(model; to_primitive=false)
+    sgnum     = spglib_spacegroup_number(model)  # Get ITA space-group number
+    direct_basis   = Bravais.DirectBasis(collect(eachcol(conv_latt)))
+    primitive_latt = Bravais.primitivize(direct_basis, Bravais.centering(sgnum, 3))
 
-    labels_dict = Dict{String, Vector{eltype(kcoords[1])}}()
-    for (ik, k) in enumerate(kcoords)
-        if length(labels[ik]) > 0
-            labels_dict[detexify_kpoint(labels[ik])] = k
-        end
+    primitive_latt ≈ collect(eachcol(model.lattice)) || @warn(
+        "DFTK's model.lattice and Brillouin's primitive lattice do not agree. " *
+        "The kpath selected to plot the band structure might not be most appropriate."
+    )
+
+    kp     = Brillouin.irrfbz_path(sgnum, direct_basis)
+    kinter = Brillouin.interpolate(kp, density=kline_density)
+
+    # TODO Need to take care of time-reversal symmetry here!
+    #      See https://github.com/JuliaMolSim/DFTK.jl/pull/496/files#r725203554
+
+    # Need to double the points whenever a new path starts
+    # (for temporary compatibility with pymatgen)
+    # TODO Remove this later
+    kcoords = empty(first(kinter.kpaths))
+    for kbranch in kinter.kpaths
+        idcs = findall(k -> any(sum(abs2, k - kcomp) < 1e-5
+                                for kcomp in values(kp.points)), kbranch)
+        @assert length(idcs) ≥ 2
+        idcs = idcs[2:end-1]  # Don't duplicate first and last
+        idcs = sort(append!(idcs, 1:length(kbranch)))
+        append!(kcoords, kbranch[idcs])
     end
 
-    (kcoords=kcoords, klabels=labels_dict, kpath=symm_kpath.kpath["path"])
+    T = eltype(kcoords[1])
+    klabels = Dict{String,Vector{T}}(string(key) => val for (key, val) in kp.points)
+    kpath   = [[string(el) for el in path] for path in kp.paths]
+    (; kcoords, klabels, kpath)
 end
+
 
 @timing function compute_bands(basis, ρ, kcoords, n_bands;
                                eigensolver=lobpcg_hyper,
                                tol=1e-3,
                                show_progress=true,
                                kwargs...)
-    # Create basis with new kpoints, where we cheat by using any symmetry operations.
-    ksymops = [[identity_symop()] for _ in 1:length(kcoords)]
-    # For some reason rationalize(2//3) isn't supported (julia 1.6)
-    myrationalize(x::T) where {T <: AbstractFloat} = rationalize(x, tol=10eps(T))
-    myrationalize(x) = x
-    bs_basis = PlaneWaveBasis(basis, [myrationalize.(k) for k in kcoords], ksymops)
+    # Create basis with new kpoints, where we cheat by not using any symmetry operations.
+    ksymops     = [[identity_symop()] for _ in 1:length(kcoords)]
+    bs_basis    = PlaneWaveBasis(basis, kcoords, ksymops)
     ham = Hamiltonian(bs_basis; ρ=ρ)
 
     band_data = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
@@ -133,6 +169,7 @@ function prepare_band_data(band_data; datakeys=[:λ, :λerror],
      n_bands=n_bands, n_kcoord=n_kcoord, n_spin=n_spin, basis=basis)
 end
 
+
 """
     is_metal(band_data, εF, tol)
 
@@ -150,17 +187,6 @@ function is_metal(band_data, εF, tol=1e-4)
     false
 end
 
-function detexify_kpoint(string)
-    # For some reason Julia doesn't support this naively: https://github.com/JuliaLang/julia/issues/29849
-    replacements = ("\\Gamma" => "Γ",
-                    "\\Delta" => "Δ",
-                    "\\Sigma" => "Σ",
-                    "_1"      => "₁")
-    for r in replacements
-        string = replace(string, r)
-    end
-    string
-end
 
 """
 Compute and plot the band structure. `n_bands` selects the number of bands to compute.
@@ -176,9 +202,9 @@ function plot_bandstructure(basis, ρ, n_bands;
     end
 
     # Band structure calculation along high-symmetry path
-    kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density=kline_density)
+    kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density)
     println("Computing bands along kpath:")
-    println("       ", join(join.(detexify_kpoint.(kpath), " -> "), "  and  "))
+    println("       ", join(join.(kpath, " -> "), "  and  "))
     band_data = compute_bands(basis, ρ, kcoords, n_bands; kwargs...)
 
     plotargs = ()
