@@ -22,10 +22,16 @@ Pkg.add(name="DFTK", rev="master")
 DFTK is continuously tested on Debian, Ubuntu, mac OS and Windows and should work on
 these operating systems out of the box.
 
-## Python dependencies
-Some parts of the code require a working Python installation with the
-[`pymatgen`](https://pymatgen.org/) module.
-Check out which version of python is used by the
+That's it. With this you are all set to
+run the code in the [Tutorial](@ref) or the
+[`examples` directory](https://dftk.org/tree/master/examples).
+
+## Recommended optional python dependencies
+While not strictly speaking required to use DFTK, a large number of convenience
+features (such as reading standard [Input and output formats](@ref))
+are based on ASE, the [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html).
+The installation of the ASE python package is therefore strongly recommended.
+To do so first find out which version of python is used by the
 [PyCall.jl](https://github.com/JuliaPy/PyCall.jl) package.
 You can do this for example with the Julia commands
 ```julia
@@ -33,22 +39,7 @@ using PyCall
 PyCall.python
 ```
 Then use the corresponding package manager (usually `apt`, `pip`, `pip3` or `conda`)
-to install aforementioned libraries, for example
-```
-pip install pymatgen
-```
-or
-```
-conda install -c conda-forge pymatgen
-```
-Afterwards you're all set and should be able to
-run the code in the [`examples` directory](https://dftk.org/tree/master/examples).
-
-## Recommended optional dependencies
-While not strictly speaking required to use DFTK, a large number of convenience
-features (such as reading standard [Input and output formats](@ref))
-are based on ASE, the [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html).
-Its installation is therefore strongly recommended, for example
+to install ASE, for example
 ```
 pip install ase
 ```
