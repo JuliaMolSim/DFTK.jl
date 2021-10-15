@@ -8,7 +8,8 @@
 # defined in pymatgen. Using the `pymatgen_structure` function a conversion
 # from DFTK to pymatgen structures is also possible. In the following we
 # use this to create a silicon supercell and find its LDA ground state
-# using direct minimisation.
+# using direct minimisation. To run this example Julia's `PyCall` package
+# needs to be able to find an installation of `pymatgen`.
 
 # First we setup the silicon lattice in DFTK.
 using DFTK
