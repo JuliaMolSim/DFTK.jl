@@ -95,6 +95,7 @@ Random.seed!(0)
     end
 
     if "all" in TAGS
+        include("adaptive_damping.jl")
         include("variational.jl")
         include("compute_bands.jl")
         include("random_spindensity.jl")

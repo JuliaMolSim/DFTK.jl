@@ -43,7 +43,7 @@ polarizability_fd = let
     (compute_dipole(ε) - compute_dipole(0.0)) / ε
 end
 
-# # Forward-mode implicit differentiation
+# ## Forward-mode implicit differentiation
 #
 # Right now DFTK has no out-of-the-box support for implicit differentiation through the SCF.
 # However one can easily work around this as follows. We keep both a non-dual basis

@@ -101,6 +101,7 @@ struct FunctionPreconditioner
 end
 LinearAlgebra.ldiv!(y::T, P::FunctionPreconditioner, x) where {T} = P.precondition!(y, x)::T
 LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(similar(x), x))
+precondprep!(P::FunctionPreconditioner, ::Any) = P
 
 # Solves Q (H-εn) Q δψn = -Q rhs
 # where Q is the projector on the orthogonal of ψk

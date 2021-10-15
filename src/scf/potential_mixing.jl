@@ -165,24 +165,32 @@ function AdaptiveDamping(α_trial_min; kwargs...)
                      kwargs...)
 end
 
+function ensure_damping_within_range(damping::AdaptiveDamping, α, α_next)
+    α_sign = sign(α_next)
+    abs(α_next) ≤ damping.α_min / 5 && (α_sign = +1.0)
+    if α_sign > 0.0
+        # Avoid getting stuck
+        α_next = min(0.95abs(α), abs(α_next))
+    else
+        # Don't move too far backwards (where model validity cannot be ensured)
+        α_next = min(0.50abs(α), abs(α_next))
+    end
+    α_next = clamp(α_next, damping.α_min, damping.α_max)
+    α_sign * α_next
+end
+
 function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
     if abs(info_next.α) < 1.75damping.α_min
         # Too close to α_min to be worth making another step ... just give up
         return info_next.α
     end
 
-    α, relerror = scf_damping_quadratic_model(info, info_next; modeltol=damping.modeltol)
-    if isnothing(α)
+    α_next, relerror = scf_damping_quadratic_model(info, info_next; modeltol=damping.modeltol)
+    if isnothing(α_next)
         # Model failed ... use heuristics: Half for small model error, else use a quarter
-        α = info_next.α / (relerror < 10 ? 2 : 4)
+        α_next = info_next.α / (relerror < 10 ? 2 : 4)
     end
-
-    # Adjust α to stay within desired range
-    α_sign = sign(α)
-    abs(α) < damping.α_min / 5 && (α_sign = +1.0)
-    α = clamp(abs(α), damping.α_min, damping.α_max)
-    α = min(0.95abs(info_next.α), α)  # Avoid getting stuck
-    return α_sign * α
+    ensure_damping_within_range(damping, info_next.α, α_next)
 end
 
 trial_damping(damping::AdaptiveDamping) = damping.α_trial_init
