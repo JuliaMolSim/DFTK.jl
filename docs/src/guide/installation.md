@@ -22,6 +22,10 @@ Pkg.add(name="DFTK", rev="master")
 DFTK is continuously tested on Debian, Ubuntu, mac OS and Windows and should work on
 these operating systems out of the box.
 
+That's it. With this you are all set to
+run the code in the [Tutorial](@ref) or the
+[`examples` directory](https://dftk.org/tree/master/examples).
+
 ## Recommended optional python dependencies
 While not strictly speaking required to use DFTK, a large number of convenience
 features (such as reading standard [Input and output formats](@ref))
