@@ -236,7 +236,7 @@ using Plots
 
 n_bands = 6
 ρ0 = guess_density(basis)  # Just dummy, has no meaning in this model
-p  = plot_bandstructure(basis, ρ0, n_bands, kline_density=15, unit=u"hartree")
+p  = plot_bandstructure(basis, ρ0, n_bands, kline_density=30)
 
 # !!! note "Selection of k-point grids in `PlaneWaveBasis` construction"
 #     You might wonder why we only selected a single ``k``-point (clearly a very crude
@@ -340,7 +340,7 @@ using UnitfulAtomic
 
 n_bands = 6
 ρ0 = zeros(eltype(basis), basis.fft_size..., 1)  # Just dummy, has no meaning in this model
-p = plot_bandstructure(basis, ρ0, n_bands, kline_density=15, unit=u"hartree")
+p  = plot_bandstructure(basis, ρ0, n_bands, kline_density=15)
 
 # The bands are noticeably different.
 #  - The bands no longer overlap, meaning that the spectrum of $H$ is no longer continuous

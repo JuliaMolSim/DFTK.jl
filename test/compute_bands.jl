@@ -86,7 +86,7 @@ if mpi_nprocs() == 1  # not easy to distribute
 
     spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
     model = model_DFT(silicon.lattice, [spec => testcase.positions], [:lda_xc_teter93])
-    kcoords, klabels, kpath = high_symmetry_kpath(model; kline_density=12)
+    kcoords, klabels, kpath = high_symmetry_kpath(model; kline_density=22.7)
 
     @test length(ref_kcoords) == length(kcoords)
     for ik in 1:length(ref_kcoords)
@@ -105,7 +105,7 @@ end
 @testset "High-symmetry kpath construction for 1D system" begin
     lattice = diagm([8.0, 0, 0])
     model = Model(lattice, n_electrons=1, terms=[Kinetic()])
-    kcoords, klabels, kpath = high_symmetry_kpath(model; kline_density=10.5)
+    kcoords, klabels, kpath = high_symmetry_kpath(model; kline_density=20)
 
     @test length(kcoords) == 17
     @test kcoords[1]  ≈ [-1/2, 0, 0]
