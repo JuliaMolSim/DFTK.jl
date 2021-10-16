@@ -71,16 +71,24 @@ function high_symmetry_kpath(model; kline_density=40)
 end
 
 
-@timing function compute_bands(basis, ρ, kcoords, n_bands;
-                               eigensolver=lobpcg_hyper,
-                               tol=1e-3,
-                               show_progress=true,
-                               kwargs...)
+@timing function compute_bands(basis, kcoords;
+                               n_bands=default_n_bands_bandstructure(basis.model),
+                               ρ=nothing, eigensolver=lobpcg_hyper,
+                               tol=1e-3, show_progress=true, kwargs...)
     # Create basis with new kpoints, where we cheat by not using any symmetry operations.
-    ksymops     = [[identity_symop()] for _ in 1:length(kcoords)]
-    bs_basis    = PlaneWaveBasis(basis, kcoords, ksymops)
-    ham = Hamiltonian(bs_basis; ρ=ρ)
+    ksymops  = [[identity_symop()] for _ in 1:length(kcoords)]
+    bs_basis = PlaneWaveBasis(basis, kcoords, ksymops)
 
+    if isnothing(ρ)
+        if any(t isa TermNonlinear for t in basis.terms)
+            error("If a non-linear term is present in the model the converged density is required " *
+                  "to compute bands. Either pass the self-consistent density as the ρ keyword " *
+                  "argument or use the plot_bandstructure(scfres) function.")
+        end
+        ρ = guess_density(basis)
+    end
+
+    ham = Hamiltonian(bs_basis; ρ)
     band_data = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
                                         n_conv_check=n_bands,
                                         tol=tol, show_progress=show_progress, kwargs...)
@@ -186,6 +194,16 @@ function is_metal(band_data, εF, tol=1e-4)
     false
 end
 
+# Number of bands to compute when plotting the bandstructure
+default_n_bands_bandstructure(n_bands_scf::Int) = ceil(Int, n_bands_scf + 5sqrt(n_bands_scf))
+function default_n_bands_bandstructure(model::Model)
+    default_n_bands_bandstructure(default_n_bands(model))
+end
+function default_n_bands_bandstructure(scfres::NamedTuple)
+    n_bands_scf = length(scfres.occupation[1])
+    default_n_bands_bandstructure(n_bands_scf)
+end
+
 
 """
 Compute and plot the band structure. `n_bands` selects the number of bands to compute.
@@ -196,8 +214,9 @@ by default. Another standard choices is `unit=u"eV"` (electron volts).
 The `kline_density` is given in number of ``k``-points per inverse bohrs (i.e.
 overall in units of length).
 """
-function plot_bandstructure(basis, ρ, n_bands;
-                            εF=nothing, kline_density=40, unit=u"hartree", kwargs...)
+function plot_bandstructure(basis::PlaneWaveBasis;
+                            εF=nothing, kline_density=40u"bohr",
+                            unit=u"hartree", kwargs_plot=(), kwargs...)
     mpi_nprocs() > 1 && error("Band structures with MPI not supported yet")
     if !isdefined(DFTK, :PLOTS_LOADED)
         error("Plots not loaded. Run 'using Plots' before calling plot_bandstructure.")
@@ -207,18 +226,10 @@ function plot_bandstructure(basis, ρ, n_bands;
     kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density)
     println("Computing bands along kpath:")
     println("       ", join(join.(kpath, " -> "), "  and  "))
-    band_data = compute_bands(basis, ρ, kcoords, n_bands; kwargs...)
-
-    plotargs = ()
-    if kline_density ≤ 10
-        plotargs = (markersize=2, markershape=:circle)
-    end
-
-    plot_band_data(band_data; εF=εF, klabels=klabels, unit=unit, plotargs...)
+    band_data = compute_bands(basis, kcoords; kwargs...)
+    plot_band_data(band_data; εF, klabels, unit, kwargs_plot...)
 end
-function plot_bandstructure(scfres; n_bands=nothing, kwargs...)
-    # Convenience wrapper for scfres named tuples
-    n_bands_scf = length(scfres.occupation[1])
-    isnothing(n_bands) && (n_bands = ceil(Int, n_bands_scf + 5sqrt(n_bands_scf)))
-    plot_bandstructure(scfres.basis, scfres.ρ, n_bands; εF=scfres.εF, kwargs...)
+function plot_bandstructure(scfres::NamedTuple;
+                            n_bands=default_n_bands_bandstructure(scfres), kwargs...)
+    plot_bandstructure(scfres.basis; n_bands, ρ=scfres.ρ, εF=scfres.εF, kwargs...)
 end

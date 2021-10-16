@@ -13,6 +13,10 @@ include("operators.jl")
 # In particular, dE/dψn = 2 fn |Hψn> (plus weighting for k-point sampling)
 abstract type Term end
 
+# Terms that are non-linear in the density (i.e. which give rise to a Hamiltonian
+# contribution that is density-dependent or orbital-dependent as well)
+abstract type TermNonlinear <: Term end
+
 ### Builders are objects X that store the term parameters, and produce a
 # XTerm <: Term when instantiated with a `basis`
 

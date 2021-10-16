@@ -131,7 +131,7 @@ end
     eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands + 3, n_conv_check=n_bands,
                                      tol=1e-5)
 
-    band_data = compute_bands(basis, ρ0, [k.coordinate for k in basis.kpoints], n_bands)
+    band_data = compute_bands(basis, [k.coordinate for k in basis.kpoints]; ρ=ρ0, n_bands)
     for ik in 1:length(basis.kpoints)
         @test eigres.λ[ik][1:n_bands] ≈ band_data.λ[ik] atol=1e-5
     end
