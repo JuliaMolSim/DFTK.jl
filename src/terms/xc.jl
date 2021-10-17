@@ -28,7 +28,7 @@ function (xc::Xc)(basis)
     TermXc(basis, functionals, xc.scaling_factor)
 end
 
-struct TermXc <: Term
+struct TermXc <: TermNonlinear
     basis::PlaneWaveBasis
     functionals::Vector{Functional}
     scaling_factor::Real

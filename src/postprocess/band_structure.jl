@@ -2,20 +2,19 @@ import Brillouin
 import Brillouin.KPaths: Bravais
 
 @doc raw"""
-Extract the high-symmetry ``k``-Point path corresponding to the passed model
+Extract the high-symmetry ``k``-point path corresponding to the passed model
 using `Brillouin.jl`. Uses the conventions described in the reference work by
 Cracknell, Davies, Miller, and Love (CDML). Of note, this has minor differences to
 the ``k``-path reference
 ([Y. Himuma et. al. Comput. Mater. Sci. **128**, 140 (2017)](https://doi.org/10.1016/j.commatsci.2016.10.015))
 underlying the path-choices of `Brillouin.jl`, specifically for oA and mC Bravais types.
+The `kline_density` is given in number of ``k``-points per inverse bohrs (i.e.
+overall in units of length).
 
 Issues a warning in case the passed lattice does not match the expected primitive.
 """
-function high_symmetry_kpath(model; kline_density=20)
-    # Change units from Number of kpoints per inverse Angström (i.e. unit of length)
-    # to number of kpoints per inverse bohrs.
-    # TODO Change interface to atomic units ...
-    kline_density = kline_density * austrip(1u"Å")
+function high_symmetry_kpath(model; kline_density=40)
+    kline_density = austrip(kline_density)
 
     if model.n_dim == 1  # Return fast for 1D model
         # TODO Is this special-casing of 1D is not needed for Brillouin.jl any more
@@ -72,16 +71,24 @@ function high_symmetry_kpath(model; kline_density=20)
 end
 
 
-@timing function compute_bands(basis, ρ, kcoords, n_bands;
-                               eigensolver=lobpcg_hyper,
-                               tol=1e-3,
-                               show_progress=true,
-                               kwargs...)
+@timing function compute_bands(basis, kcoords;
+                               n_bands=default_n_bands_bandstructure(basis.model),
+                               ρ=nothing, eigensolver=lobpcg_hyper,
+                               tol=1e-3, show_progress=true, kwargs...)
     # Create basis with new kpoints, where we cheat by not using any symmetry operations.
-    ksymops     = [[identity_symop()] for _ in 1:length(kcoords)]
-    bs_basis    = PlaneWaveBasis(basis, kcoords, ksymops)
-    ham = Hamiltonian(bs_basis; ρ=ρ)
+    ksymops  = [[identity_symop()] for _ in 1:length(kcoords)]
+    bs_basis = PlaneWaveBasis(basis, kcoords, ksymops)
 
+    if isnothing(ρ)
+        if any(t isa TermNonlinear for t in basis.terms)
+            error("If a non-linear term is present in the model the converged density is required " *
+                  "to compute bands. Either pass the self-consistent density as the ρ keyword " *
+                  "argument or use the plot_bandstructure(scfres) function.")
+        end
+        ρ = guess_density(basis)
+    end
+
+    ham = Hamiltonian(bs_basis; ρ)
     band_data = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
                                         n_conv_check=n_bands,
                                         tol=tol, show_progress=show_progress, kwargs...)
@@ -187,15 +194,29 @@ function is_metal(band_data, εF, tol=1e-4)
     false
 end
 
+# Number of bands to compute when plotting the bandstructure
+default_n_bands_bandstructure(n_bands_scf::Int) = ceil(Int, n_bands_scf + 5sqrt(n_bands_scf))
+function default_n_bands_bandstructure(model::Model)
+    default_n_bands_bandstructure(default_n_bands(model))
+end
+function default_n_bands_bandstructure(scfres::NamedTuple)
+    n_bands_scf = length(scfres.occupation[1])
+    default_n_bands_bandstructure(n_bands_scf)
+end
+
 
 """
 Compute and plot the band structure. `n_bands` selects the number of bands to compute.
 If this value is absent and an `scfres` is used to start the calculation a default of
-`n_bands_scf + 5sqrt(n_bands_scf)` is used. Unlike the rest of DFTK bands energies
-are plotted in eV unless a different `unit` (any Unitful unit) is selected.
+`n_bands_scf + 5sqrt(n_bands_scf)` is used. The unit used to plot the bands can
+be selected using the `unit` parameter. Like in the rest of DFTK Hartree is used
+by default. Another standard choices is `unit=u"eV"` (electron volts).
+The `kline_density` is given in number of ``k``-points per inverse bohrs (i.e.
+overall in units of length).
 """
-function plot_bandstructure(basis, ρ, n_bands;
-                            εF=nothing, kline_density=20, unit=u"eV", kwargs...)
+function plot_bandstructure(basis::PlaneWaveBasis;
+                            εF=nothing, kline_density=40u"bohr",
+                            unit=u"hartree", kwargs_plot=(), kwargs...)
     mpi_nprocs() > 1 && error("Band structures with MPI not supported yet")
     if !isdefined(DFTK, :PLOTS_LOADED)
         error("Plots not loaded. Run 'using Plots' before calling plot_bandstructure.")
@@ -205,18 +226,10 @@ function plot_bandstructure(basis, ρ, n_bands;
     kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density)
     println("Computing bands along kpath:")
     println("       ", join(join.(kpath, " -> "), "  and  "))
-    band_data = compute_bands(basis, ρ, kcoords, n_bands; kwargs...)
-
-    plotargs = ()
-    if kline_density ≤ 10
-        plotargs = (markersize=2, markershape=:circle)
-    end
-
-    plot_band_data(band_data; εF=εF, klabels=klabels, unit=unit, plotargs...)
+    band_data = compute_bands(basis, kcoords; kwargs...)
+    plot_band_data(band_data; εF, klabels, unit, kwargs_plot...)
 end
-function plot_bandstructure(scfres; n_bands=nothing, kwargs...)
-    # Convenience wrapper for scfres named tuples
-    n_bands_scf = length(scfres.occupation[1])
-    isnothing(n_bands) && (n_bands = ceil(Int, n_bands_scf + 5sqrt(n_bands_scf)))
-    plot_bandstructure(scfres.basis, scfres.ρ, n_bands; εF=scfres.εF, kwargs...)
+function plot_bandstructure(scfres::NamedTuple;
+                            n_bands=default_n_bands_bandstructure(scfres), kwargs...)
+    plot_bandstructure(scfres.basis; n_bands, ρ=scfres.ρ, εF=scfres.εF, kwargs...)
 end

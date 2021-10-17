@@ -17,7 +17,7 @@ end
 Hartree(; scaling_factor=1) = Hartree(scaling_factor)
 (hartree::Hartree)(basis) = TermHartree(basis, hartree.scaling_factor)
 
-struct TermHartree <: Term
+struct TermHartree <: TermNonlinear
     basis::PlaneWaveBasis
     scaling_factor::Real  # scaling factor, absorbed into poisson_green_coeffs
     # Fourier coefficients of the Green's function of the periodic Poisson equation

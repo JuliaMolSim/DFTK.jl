@@ -26,8 +26,7 @@ eigres = diagonalize_all_kblocks(DFTK.lobpcg_hyper, ham, 6)
 
 # ... and compute and plot 8 bands:
 using Plots
+using Unitful
 
-n_bands = 8
-ρ0 = guess_density(basis)  # Just dummy, has no meaning in this model
-p = plot_bandstructure(basis, ρ0, n_bands, εF=εF, kline_density=10)
+p = plot_bandstructure(basis; n_bands=8, εF, kline_density=10, unit=u"eV")
 ylims!(p, (-5, 6))

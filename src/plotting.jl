@@ -22,12 +22,19 @@ end
 
 
 function plot_band_data(band_data; εF=nothing,
-                        klabels=Dict{String, Vector{Float64}}(), unit=u"eV", kwargs...)
+                        klabels=Dict{String, Vector{Float64}}(), unit=u"hartree", kwargs...)
     eshift = isnothing(εF) ? 0.0 : εF
     data = prepare_band_data(band_data, klabels=klabels)
 
     # Constant to convert from AU to the desired unit
     to_unit = ustrip(auconvert(unit, 1.0))
+
+    markerargs = ()
+    if !(:markersize in keys(kwargs)) && !(:markershape in keys(kwargs))
+        if length(krange_spin(band_data.basis, 1)) < 70
+            markerargs = (markersize=2, markershape=:circle)
+        end
+    end
 
     # For each branch, plot all bands, spins and errors
     p = Plots.plot(xlabel="wave vector")
@@ -39,8 +46,8 @@ function plot_band_data(band_data; εF=nothing,
             end
             energies = (branch.λ[:, iband, σ] .- eshift) .* to_unit
             color = (:blue, :red)[σ]
-            Plots.plot!(p, branch.kdistances, energies; color=color, label="",
-                        yerror=yerror, kwargs...)
+            Plots.plot!(p, branch.kdistances, energies; color, label="",
+                        yerror, markerargs..., kwargs...)
         end
     end
 

@@ -7,7 +7,7 @@ struct PowerNonlinearity
 end
 (P::PowerNonlinearity)(basis) = TermPowerNonlinearity(basis, P.C, P.α)
 
-struct TermPowerNonlinearity <: Term
+struct TermPowerNonlinearity <: TermNonlinear
     basis::PlaneWaveBasis
     C::Real
     α::Real
