@@ -337,8 +337,8 @@ end
 Return the list of wave vectors (integer coordinates) for the cubic basis set.
 """
 function G_vectors(fft_size)
-    start = -ceil.(Int, (Vec3(fft_size) .- 1) ./ 2)
-    stop  = floor.(Int, (Vec3(fft_size) .- 1) ./ 2)
+    start = .- cld.(fft_size .- 1, 2)
+    stop  = fld.(fft_size .- 1, 2)
     axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
     (Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3])
 end
@@ -366,8 +366,8 @@ or the index `i` such that `G_vectors(kpoint)[i] == G`.
 Returns nothing if outside the range of valid wave vectors.
 """
 function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}
-    start = -ceil.(Int, (Vec3(basis.fft_size) .- 1) ./ 2)
-    stop  = floor.(Int, (Vec3(basis.fft_size) .- 1) ./ 2)
+    start = .- cld.(basis.fft_size .- 1, 2)
+    stop  = fld.(basis.fft_size .- 1, 2)
     lengths = stop .- start .+ 1
 
     function mapaxis(lengthi, Gi)
