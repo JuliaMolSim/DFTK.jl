@@ -400,10 +400,27 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         _, ∂basis, ∂ψ, _ = compute_density_pullback(δρ)
         # TODO think about necessary tangent plane projections below
         # ∂ψ = ∂ψ + δψ # TODO
+        @show size(ψ), size.(ψ)
+        @show size(∂ψ), size.(∂ψ)
+        @show size(occupation), size.(occupation)
+
+        # TODO is this correct?
+        ∂ψ = DFTK.select_occupied_orbitals(basis, ∂ψ)
+
+        println("after DFTK.select_occupied_orbitals:")
+        @show size(∂ψ), size.(∂ψ)
+
         ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation) # use self-adjointness of dH ψ -> dψ
+
+        @show size(∂Hψ), size.(∂Hψ)
+
         # TODO need to do proj_tangent on ∂Hψ
         ∂H, _ = mul_pullback(∂Hψ)
         ∂H = ∂H + δH # TODO handle non-NoTangent case
+
+        @show ∂H
+        @show δenergies
+
         _, ∂basis, _, _ = energy_hamiltonian_pullback((δenergies, ∂H))
 
         return NoTangent(), ∂basis

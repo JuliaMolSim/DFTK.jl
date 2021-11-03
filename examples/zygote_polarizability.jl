@@ -52,4 +52,15 @@ end
 
 Zygote.gradient(compute_dipole, 0.0) # TODO
 
+# debug output:
+# (size(ψ), size.(ψ)) = ((1,), [(7809, 1)])
+# (size(∂ψ), size.(∂ψ)) = ((1,), [(7809, 8)])
+# (size(occupation), size.(occupation)) = ((1,), [(1,)])
+# after DFTK.select_occupied_orbitals:
+# (size(∂ψ), size.(∂ψ)) = ((1,), [(7809, 1)])
+# (size(∂Hψ), size.(∂Hψ)) = ((1,), [(7809, 1)])
+# ∂H = ChainRulesCore.NoTangent()
+# δenergies = ChainRulesCore.ZeroTangent()
 
+# TODO next steps:
+# find out why mul_pullback returns NoTangent here for ∂H
