@@ -1,6 +1,8 @@
 # Routines for interaction with spglib
 # Note: spglib/C uses the row-major convention, thus we need to perform transposes
 #       between julia and spglib (https://spglib.github.io/spglib/variable.html)
+#       In contrast, Spglib.jl follows the spglib/python convention, which is the one used
+#       in DFTK. So, when calling Spglib functions, we do not perform transposes.
 import Spglib
 const SPGLIB = spglib_jll.libsymspg
 
@@ -186,8 +188,7 @@ function get_spglib_lattice(model; to_primitive=false)
     #      but it only influences the kpath.
     spg_positions, spg_numbers, _ = spglib_atoms(model.atoms)
     structure = Spglib.Cell(model.lattice, spg_positions, spg_numbers)
-    spglib_lattice = Spglib.standardize_cell(structure, to_primitive=to_primitive).lattice
-    Matrix(spglib_lattice)
+    Matrix(Spglib.standardize_cell(structure, to_primitive=to_primitive).lattice)
 end
 
 
