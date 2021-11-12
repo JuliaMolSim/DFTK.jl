@@ -234,7 +234,7 @@ using Unitful
 using UnitfulAtomic
 using Plots
 
-plot_bandstructure(basis; n_bands=6, kline_density=30)
+plot_bandstructure(basis; n_bands=6, kline_density=100)
 
 # !!! note "Selection of k-point grids in `PlaneWaveBasis` construction"
 #     You might wonder why we only selected a single ``k``-point (clearly a very crude
@@ -277,11 +277,10 @@ plot_bandstructure(basis; n_bands=6, kline_density=30)
 struct ElementGaussian <: DFTK.Element
     α  # Prefactor
     L  # Extend
-    symbol # Dummy symbol to avoid error messages later on
 end
 
 ## Some default values
-ElementGaussian() = ElementGaussian(0.3, 10.0, :dummy_symbol)
+ElementGaussian() = ElementGaussian(0.3, 10.0)
 
 ## Real-space representation of a Gaussian
 function DFTK.local_potential_real(el::ElementGaussian, r::Real)
@@ -337,7 +336,7 @@ plot(x, potential, label="", xlabel="x", ylabel="V(x)")
 using Unitful
 using UnitfulAtomic
 
-plot_bandstructure(basis; n_bands=6, kline_density=50)
+plot_bandstructure(basis; n_bands=6, kline_density=100)
 
 # The bands are noticeably different.
 #  - The bands no longer overlap, meaning that the spectrum of $H$ is no longer continuous
