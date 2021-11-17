@@ -14,7 +14,7 @@
 # It's in particular a favorite model of applied mathematicians because it
 # has a structure simpler than but similar to that of DFT, and displays
 # interesting behavior (especially in higher dimensions with magnetic fields, see
-# [Gross-Pitaevskii equation with magnetism](@ref)).
+# [Gross-Pitaevskii equation with external magnetic field](@ref)).
 
 # We wish to model this equation in 1D using DFTK.
 # First we set up the lattice. For a 1D case we supply two zero lattice vectors,

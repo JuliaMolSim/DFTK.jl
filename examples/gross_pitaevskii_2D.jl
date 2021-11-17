@@ -1,4 +1,4 @@
-# # Gross-Pitaevskii equation with magnetism
+# # Gross-Pitaevskii equation with external magnetic field
 
 # We solve the 2D Gross-Pitaevskii equation with a magnetic field.
 # This is similar to the
