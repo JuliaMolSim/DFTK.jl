@@ -50,7 +50,7 @@ polarizability_fd = let
 end
 # 0.6198098991595362
 
-Zygote.gradient(compute_dipole, 0.0) # TODO
+# Zygote.gradient(compute_dipole, 0.0) # TODO
 
 # debug output:
 # (size(ψ), size.(ψ)) = ((1,), [(7809, 1)])
@@ -64,3 +64,22 @@ Zygote.gradient(compute_dipole, 0.0) # TODO
 
 # TODO next steps:
 # find out why mul_pullback returns NoTangent here for ∂H
+1+1
+
+
+###
+### debug H*ψ
+###
+using ChainRulesCore
+using DFTK: _autodiff_apply_hamiltonian
+scfres = self_consistent_field(make_basis(0.0), tol=1e-8)
+H = scfres.ham;
+dump(H; maxdepth=2)
+ψ = scfres.ψ
+Hψ, mul_pullback =
+    rrule(Zygote.ZygoteRuleConfig(), *, H, ψ)
+
+H * ψ
+Hψ
+Hψ ≈ H*ψ # true
+

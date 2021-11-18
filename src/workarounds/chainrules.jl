@@ -308,12 +308,7 @@ end
 # workaround to pass rrule_via_ad kwargs 
 DFTK.energy_hamiltonian(basis, ψ, occ, ρ) = DFTK.energy_hamiltonian(basis, ψ, occ; ρ=ρ)
 
-solve_ΩplusK(basis::PlaneWaveBasis, ψ, ::NoTangent, occupation) = 0ψ
-
-function _autodiff_fast_hblock_mul(fast_hblock, ψ)
-    # generic fallback rule
-    return NoTangent()
-end
+solve_ΩplusK(basis::PlaneWaveBasis, ψ, ::NoTangent, occupation) = 0ψ 
 
 function _autodiff_fast_hblock_mul(fast_hblock::NamedTuple, ψ)
     # a pure version of *(H::HamiltonianBlock, ψ)
@@ -327,8 +322,8 @@ function _autodiff_fast_hblock_mul(fast_hblock::NamedTuple, ψ)
     potential = potential / prod(basis.fft_size)  # because we use unnormalized plans
 
     function Hψ(ψk)
-        ψ_real = G_to_r(basis, kpt, ψk) .* potential
-        Hψ_k = r_to_G(basis, kpt, ψ_real)
+        ψ_real = G_to_r(basis, kpt, ψk) .* potential ./ basis.G_to_r_normalization
+        Hψ_k = r_to_G(basis, kpt, ψ_real) ./ basis.r_to_G_normalization
         Hψ_k = Hψ_k + fast_hblock.fourier_op.multiplier .* ψk
         Hψ_k
     end
@@ -363,7 +358,19 @@ Zygote.@adjoint function enumerate(xs)
 function _autodiff_apply_hamiltonian(H::Hamiltonian, ψ)
     # a pure version of *(H::Hamiltonian, ψ)
     # [H.blocks[ik] * ψ[ik] for ik in 1:length(H.basis.kpoints)]
-    [_autodiff_fast_hblock_mul(fast_hblock(hblock), ψk) for (hblock, ψk) in zip(H.blocks, ψ)]
+    # [_autodiff_fast_hblock_mul(fast_hblock(hblock), ψk) for (hblock, ψk) in zip(H.blocks, ψ)]
+
+    # TODO 1. do fast_hblock by hand: create the namedtuple here
+    # TODO 2. test by comparing against standard impl
+    
+    return [
+        _autodiff_fast_hblock_mul(
+            # TODO clean up and generalize
+            (fourier_op=hblock.optimized_operators[1], real_op=hblock.optimized_operators[2], H=hblock), 
+            ψk
+        ) 
+        for (hblock, ψk) in zip(H.blocks, ψ)
+    ]
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(*), H::Hamiltonian, ψ)
@@ -388,7 +395,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         rrule(config, *, H, ψ) # TODO make this work, or write rrule for *(H, ψ)
     ρ, compute_density_pullback = 
         rrule(config, compute_density, basis, scfres.ψ, scfres.occupation)
-        
+
     function self_consistent_field_pullback(Δscfres)
         δψ = Δscfres.ψ
         δoccupation = Δscfres.occupation
@@ -400,26 +407,15 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         _, ∂basis, ∂ψ, _ = compute_density_pullback(δρ)
         # TODO think about necessary tangent plane projections below
         # ∂ψ = ∂ψ + δψ # TODO
-        @show size(ψ), size.(ψ)
-        @show size(∂ψ), size.(∂ψ)
-        @show size(occupation), size.(occupation)
 
-        # TODO is this correct?
         ∂ψ = DFTK.select_occupied_orbitals(basis, ∂ψ)
-
-        println("after DFTK.select_occupied_orbitals:")
-        @show size(∂ψ), size.(∂ψ)
 
         ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation) # use self-adjointness of dH ψ -> dψ
 
-        @show size(∂Hψ), size.(∂Hψ)
-
         # TODO need to do proj_tangent on ∂Hψ
         ∂H, _ = mul_pullback(∂Hψ)
-        ∂H = ∂H + δH # TODO handle non-NoTangent case
 
-        @show ∂H
-        @show δenergies
+        ∂H = ∂H + δH # TODO handle non-NoTangent case
 
         _, ∂basis, _, _ = energy_hamiltonian_pullback((δenergies, ∂H))
 
