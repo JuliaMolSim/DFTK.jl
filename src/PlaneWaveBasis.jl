@@ -40,8 +40,8 @@ G_vectors_cart(kpt::Kpoint) = (kpt.model.recip_lattice * G for G in G_vectors(kp
 A plane-wave discretized `Model`.
 Normalization conventions:
 - Things that are expressed in the G basis are normalized so that if ``x`` is the vector,
-  then the actual function is ``sum_G x_G e_G`` with
-  ``e_G(x) = e^{iG x}/sqrt(unit_cell_volume)``.
+  then the actual function is ``\sum_G x_G e_G`` with
+  ``e_G(x) = e^{iG x} / \sqrt(dV)``, where ``dV`` is the unit cell volume.
   This is so that, eg ``norm(ψ) = 1`` gives the correct normalization.
   This also holds for the density and the potentials.
 - Quantities expressed on the real-space grid are in actual values.
