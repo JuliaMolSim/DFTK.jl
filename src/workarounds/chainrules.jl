@@ -357,6 +357,7 @@ Zygote.@adjoint function enumerate(xs)
     back(diys) = (map(last, diys),)
     enumerate(xs), back
   end
+Zygote.@adjoint Iterators.Filter(f, x) = Zygote.pullback(filter, f, collect(x))
 #---
 
 function _autodiff_apply_hamiltonian(H::Hamiltonian, ψ)
@@ -405,18 +406,45 @@ function _autodiff_energy_hamiltonian(basis, ψ, occ, ρ)
     return energies, H
 end
 
+function ChainRulesCore.rrule(T::Type{TermExternal}, basis, potential)
+    @warn "TermExternal rrule triggered."
+    function T_pullback(∂term)
+        return NoTangent(), ∂term.basis, ∂term.potential
+    end
+    return T(basis, potential), T_pullback
+end
+
+function ChainRulesCore.rrule(T::Type{ExternalFromReal}, V)
+    @warn "ExternalFromReal rrule triggered."
+    function T_pullback(∂term)
+        return NoTangent(), ∂term.V
+    end
+    return T(V), T_pullback
+end
+
 function ChainRulesCore.rrule(T::Type{RealSpaceMultiplication}, basis, kpoint, potential)
+    @warn "RealSpaceMultiplication rrule triggered."
     function T_pullback(∂op)
         return NoTangent(), ∂op.basis, ∂op.kpoint, ∂op.potential
     end
     return T(basis, kpoint, potential), T_pullback
 end
 
+function ChainRulesCore.rrule(T::Type{FourierMultiplication}, basis, kpoint, multiplier)
+    @warn "FourierMultiplication rrule triggered."
+    function T_pullback(∂op)
+        return NoTangent(), ∂op.basis, ∂op.kpoint, ∂op.multiplier
+    end
+    return T(basis, kpoint, multiplier), T_pullback
+end
+
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{HamiltonianBlock}, basis, kpt, operators, scratch)
     @warn "HamiltonianBlock rrule triggered."
+    _, optimize_operators_pullback = rrule_via_ad(config, optimize_operators_, operators)
     function T_pullback(∂hblock)
-        # TODO handle optimized_operators...
-        return NoTangent(), ∂hblock.basis, ∂hblock.kpoint, ∂hblock.operators, ∂hblock.scratch
+        _, ∂operators = optimize_operators_pullback(∂hblock.optimized_operators)
+        ∂operators = ∂operators + ∂hblock.operators
+        return NoTangent(), ∂hblock.basis, ∂hblock.kpoint, ∂operators, ∂hblock.scratch
     end
     return T(basis, kpt, operators, scratch), T_pullback
 end
@@ -424,13 +452,13 @@ end
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{HamiltonianBlock}, basis, kpt, operators, optimized_operators, scratch)
     @warn "HamiltonianBlock optimized_operators rrule triggered."
     function T_pullback(∂hblock)
-        # TODO handle optimized_operators...
         return NoTangent(), ∂hblock.basis, ∂hblock.kpoint, ∂hblock.operators, ∂hblock.optimized_operators, ∂hblock.scratch
     end
     return T(basis, kpt, operators, optimized_operators, scratch), T_pullback
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Hamiltonian}, basis, blocks)
+    @warn "Hamiltonian rrule triggered."
     function T_pullback(H)
         return NoTangent(), H.basis, H.blocks
     end
@@ -479,8 +507,6 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         _, ∂H, _ = mul_pullback(∂Hψ)
 
         _, ∂basis, _, _, _ = energy_hamiltonian_pullback((δenergies, ∂H))
-
-        @show ∂basis
 
         return NoTangent(), ∂basis
     end
