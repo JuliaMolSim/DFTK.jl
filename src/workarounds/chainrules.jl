@@ -478,19 +478,6 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         # TODO need to do proj_tangent on ∂Hψ
         _, ∂H, _ = mul_pullback(∂Hψ)
 
-        dump(∂H; maxdepth=2)
-
-        ∂H = ∂H + δH # TODO handle non-NoTangent case
-
-        println("after ∂H + δH")
-        dump(∂H; maxdepth=2)
-
-        
-        @show typeof(δenergies)
-        if δenergies === ()
-           δenergies = zero(energies)
-        end
-
         _, ∂basis, _, _, _ = energy_hamiltonian_pullback((δenergies, ∂H))
 
         @show ∂basis
