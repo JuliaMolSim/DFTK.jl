@@ -166,7 +166,7 @@ function overlap_Mmn_k_kpb(basis::PlaneWaveBasis, ψ, ik::Integer, ikpb::Integer
                           for (iGk, Gk) in enumerate(G_vectors(k))
                           if !isnothing(DFTK.index_G_vectors(basis, kpb, Gk+G_shift)) ]
     iGk = [i[1] for i in map_fourier_modes]   # TODO search for better structure than
-    iGkpb = [i[2] for i in map_fourier_modes] # map_fourier_modes
+    iGkpb = [i[2] for i in map_fourier_modes] # map_fourier_modes (using k_pt.mapping)
 
     # Compute overlaps
     for n in 1:num_bands
@@ -237,23 +237,19 @@ function compute_Ak_gaussian_guess(basis::PlaneWaveBasis, ψ_k, k_pt,
 
     # associate a center with the fourier transform of the corresponding gaussian
     fourier_gn(center,qs) = [exp( 2π*(-im*dot(q,center) - dot(q,q)/4) ) for q in qs]
-    # All q = k+G in reduced coordinates (2π .*)
+    # All q = k+G in reduced coordinates
     q_vec = map(G -> G .+ k_pt.coordinate, collect(G_vectors(basis)))
-    # Indices of the Fourier modes of the Bloch states in the general FFT_grid for given k
-    index = [DFTK.index_G_vectors(basis,G) for G in G_vectors(k_pt)]
     Ak = zeros(eltype(ψ_k), (num_bands, num_wann))
 
     # Compute Ak
     for n in 1:num_wann
-        # center = basis.model.lattice*transpose(centers[n])
         # Functions are l^2 normalized in Fourier, in DFTK conventions.
         norm_gn_per = norm(fourier_gn(centers[n], q_vec), 2)
         # Fourier coeffs of gn_per for q_vectors in common with ψ_k
-        coeffs_gn_per = fourier_gn(centers[n], q_vec[index]) ./ norm_gn_per
+        coeffs_gn_per = fourier_gn(centers[n], q_vec[k_pt.mapping]) ./ norm_gn_per
         # Compute overlap
         for m in 1:num_bands
-            coeffs_ψm = ψ_k[:,m]
-            Ak[m,n] = dot(coeffs_ψm, coeffs_gn_per)
+            Ak[m,n] = dot(ψ_k[:,m], coeffs_gn_per)
         end
     end
     Ak
@@ -305,24 +301,24 @@ random_gaussian_guess(num_wann) = [rand(1,3) for i in 1:num_wann]
 """
 function run_wannier90(prefix::String, scfres, num_wann::Integer;
                        bands_plot=false,
-                       num_bands=size(scfres.ψ[1], 2),
+                       n_bands=size(scfres.ψ[1], 2),
                        centers=random_gaussian_guess(num_wann),
                        kwargs...)
     # Unfold scfres to retrieve full k-point list
     scfres_unfold = unfold_bz(scfres)
     # Write wannier90 input file and launch Wannier90 preprocessing task
-    write_win(prefix, scfres_unfold, num_bands, num_wann;
+    write_win(prefix, scfres_unfold, n_bands, num_wann;
               bands_plot=bands_plot, kwargs...)
-    
+
     wannier90() do exe
         run(`$exe -pp $prefix`)
     end
 
     # Generate eig, amn and mmn files
     nn_kpts, nn_num = read_nnkp(prefix)
-    write_eig(prefix, scfres_unfold, num_bands)
-    write_amn(prefix, scfres_unfold, num_bands, num_wann; centers=centers)
-    write_mmn(prefix, scfres_unfold, num_bands, nn_kpts, nn_num)
+    write_eig(prefix, scfres_unfold, n_bands)
+    write_amn(prefix, scfres_unfold, n_bands, num_wann; centers=centers)
+    write_mmn(prefix, scfres_unfold, n_bands, nn_kpts, nn_num)
 
     # Launch wannierization
     wannier90() do exe
