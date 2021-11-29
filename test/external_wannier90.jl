@@ -20,7 +20,8 @@ if ( !(Sys.iswindows()) && !(Sys.isapple()) )
         n_bands = size(ψ[1],2)
 
         # Run wannierization
-        run_wannier90("testcases_WANNIER90/Si", scfres, 8;
+        mkdir("wannier90_outputs")
+        run_wannier90("wannier90_outputs/Si", scfres, 8; n_bands=12,
                       bands_plot=true, num_print_cycles=50, num_iter=500,
                       dis_win_max       = "17.185257d0",
                       dis_froz_max      =  "6.8318033d0",
@@ -28,18 +29,16 @@ if ( !(Sys.iswindows()) && !(Sys.isapple()) )
                       dis_mix_ratio     = "1d0")
 
         @testset "Test production of the win file " begin
-            @test isfile("testcases_WANNIER90/Si.win")
+            @test isfile("wannier90_outputs/Si.win")
         end
 
         @testset "Test production of the .mmn, .amn and .eig files" begin
-            @test isfile("testcases_WANNIER90/Si.mmn")
-            @test isfile("testcases_WANNIER90/Si.amn")
-            @test isfile("testcases_WANNIER90/Si.eig")
+            @test isfile("wannier90_outputs/Si.mmn")
+            @test isfile("wannier90_outputs/Si.amn")
+            @test isfile("wannier90_outputs/Si.eig")
         end
 
         # remove produced files
-        for output_file in filter(startswith("Si"), readdir("testcases_WANNIER90"))
-            rm("testcases_WANNIER90/$(output_file)")
-        end
+        rm("wannier90_outputs", recursive=true)
     end
 end

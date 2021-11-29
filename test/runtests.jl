@@ -68,7 +68,7 @@ Random.seed!(0)
         include("spglib.jl")
         include("external_pymatgen.jl")
         include("external_ase.jl")
-        include("testcases_WANNIER90/external_wannier90.jl")
+        include("external_wannier90.jl")
     end
 
     if "all" in TAGS
