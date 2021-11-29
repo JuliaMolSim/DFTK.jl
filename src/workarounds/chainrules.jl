@@ -497,7 +497,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
 
         _, ∂basis, ∂ψ, _ = compute_density_pullback(δρ)
         # TODO think about necessary tangent plane projections below
-        # ∂ψ = ∂ψ + δψ # TODO
+        ∂ψ = ∂ψ + δψ
 
         ∂ψ = DFTK.select_occupied_orbitals(basis, ∂ψ)
 
@@ -506,6 +506,8 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         # TODO need to do proj_tangent on ∂Hψ
         _, ∂H, _ = mul_pullback(∂Hψ)
 
+        ∂H = ∂H + δH
+        
         _, ∂basis, _, _, _ = energy_hamiltonian_pullback((δenergies, ∂H))
 
         return NoTangent(), ∂basis
