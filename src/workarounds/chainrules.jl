@@ -110,7 +110,11 @@ function ChainRulesCore.rrule(::typeof(build_kpoints), model::Model{T}, fft_size
     @warn "build_kpoints rrule triggered"
     kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
     function build_kpoints_pullback(Δkpoints)
-        ∂model = sum(Δkpoints).model # TODO double-check.
+        sum_Δkpoints = sum(Δkpoints)
+        if sum_Δkpoints == NoTangent()
+            return NoTangent(), NoTangent(), NoTangent(), NoTangent(), NoTangent()
+        end
+        ∂model = sum_Δkpoints.model # TODO double-check.
         ∂recip_lattice = ∂model.recip_lattice + sum([Δkp.coordinate_cart * kp.coordinate' for (kp, Δkp) in zip(kpoints, Δkpoints) if !(Δkp isa NoTangent)])
         # ∂model.recip_lattice += ∂recip_lattice # Tangents are immutable
         ∂model = _update_tangent(∂model, (;recip_lattice=∂recip_lattice))
@@ -378,6 +382,61 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(*),
     rrule_via_ad(config, _autodiff_apply_hamiltonian, H, ψ)
 end
 
+# avoids Energies OrderedDict struct (incompatible with Zygote)
+function _autodiff_energy_hamiltonian(basis, ψ, occ, ρ)
+    ene_ops_arr = [DFTK.ene_ops(term, ψ, occ; ρ=ρ) for term in basis.terms]
+    energies    = [eh.E for eh in ene_ops_arr]
+    operators   = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
+
+    # flatten the inner arrays in case a term returns more than one operator
+    flatten(arr) = reduce(vcat, map(a -> (a isa Vector) ? a : [a], arr))
+    hks_per_k   = [flatten([blocks[ik] for blocks in operators])
+                   for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
+
+    # Preallocated scratch arrays
+    T = eltype(basis)
+    scratch = (
+        ψ_reals=[zeros(complex(T), basis.fft_size...) for tid = 1:Threads.nthreads()],
+    )
+
+    H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks, scratch)
+                            for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
+    # return (E=energies, H=H)
+    return energies, H
+end
+
+function ChainRulesCore.rrule(T::Type{RealSpaceMultiplication}, basis, kpoint, potential)
+    function T_pullback(∂op)
+        return NoTangent(), ∂op.basis, ∂op.kpoint, ∂op.potential
+    end
+    return T(basis, kpoint, potential), T_pullback
+end
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{HamiltonianBlock}, basis, kpt, operators, scratch)
+    @warn "HamiltonianBlock rrule triggered."
+    function T_pullback(∂hblock)
+        # TODO handle optimized_operators...
+        return NoTangent(), ∂hblock.basis, ∂hblock.kpoint, ∂hblock.operators, ∂hblock.scratch
+    end
+    return T(basis, kpt, operators, scratch), T_pullback
+end
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{HamiltonianBlock}, basis, kpt, operators, optimized_operators, scratch)
+    @warn "HamiltonianBlock optimized_operators rrule triggered."
+    function T_pullback(∂hblock)
+        # TODO handle optimized_operators...
+        return NoTangent(), ∂hblock.basis, ∂hblock.kpoint, ∂hblock.operators, ∂hblock.optimized_operators, ∂hblock.scratch
+    end
+    return T(basis, kpt, operators, optimized_operators, scratch), T_pullback
+end
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Hamiltonian}, basis, blocks)
+    function T_pullback(H)
+        return NoTangent(), H.basis, H.blocks
+    end
+    return T(basis, blocks), T_pullback
+end
+
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis; kwargs...)
     @warn "self_consistent_field rrule triggered."
     scfres = self_consistent_field(basis; kwargs...)
@@ -389,8 +448,12 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
     Nk = length(basis.kpoints)
     occupation = [filled_occ * ones(n_bands) for ik = 1:Nk]
 
+    ## Zygote doesn't like OrderedDict in Energies
+    # (energies, H), energy_hamiltonian_pullback = 
+    #     rrule_via_ad(config, energy_hamiltonian, basis, scfres.ψ, scfres.occupation, scfres.ρ)
+
     (energies, H), energy_hamiltonian_pullback = 
-        rrule_via_ad(config, energy_hamiltonian, basis, scfres.ψ, scfres.occupation, scfres.ρ)
+        rrule_via_ad(config, _autodiff_energy_hamiltonian, basis, scfres.ψ, scfres.occupation, scfres.ρ)
     Hψ, mul_pullback =
         rrule(config, *, H, ψ) # TODO make this work, or write rrule for *(H, ψ)
     ρ, compute_density_pullback = 
@@ -413,11 +476,24 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation) # use self-adjointness of dH ψ -> dψ
 
         # TODO need to do proj_tangent on ∂Hψ
-        ∂H, _ = mul_pullback(∂Hψ)
+        _, ∂H, _ = mul_pullback(∂Hψ)
+
+        dump(∂H; maxdepth=2)
 
         ∂H = ∂H + δH # TODO handle non-NoTangent case
 
-        _, ∂basis, _, _ = energy_hamiltonian_pullback((δenergies, ∂H))
+        println("after ∂H + δH")
+        dump(∂H; maxdepth=2)
+
+        
+        @show typeof(δenergies)
+        if δenergies === ()
+           δenergies = zero(energies)
+        end
+
+        _, ∂basis, _, _, _ = energy_hamiltonian_pullback((δenergies, ∂H))
+
+        @show ∂basis
 
         return NoTangent(), ∂basis
     end
