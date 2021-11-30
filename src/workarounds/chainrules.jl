@@ -160,7 +160,8 @@ end
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{PlaneWaveBasis}, model::Model, Ecut; kwargs...)
     @warn "simplified PlaneWaveBasis rrule triggered."
     basis = T(model, Ecut; kwargs...)
-    _basis, PlaneWaveBasis_pullback = rrule_via_ad(config, _autodiff_PlaneWaveBasis_namedtuple, model, basis)
+    f(model, Ecut) = _autodiff_PlaneWaveBasis_namedtuple(model, basis)
+    _basis, PlaneWaveBasis_pullback = rrule_via_ad(config, f, model, Ecut)
     return basis, PlaneWaveBasis_pullback
 end
 
