@@ -38,6 +38,7 @@ export ElementCohenBergstresser
 export ElementCoulomb
 export charge_nuclear
 export charge_ionic
+export chemical_symbol
 export n_elec_valence
 export n_elec_core
 include("elements.jl")
