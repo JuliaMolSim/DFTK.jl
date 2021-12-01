@@ -45,10 +45,11 @@ Returns the sum formula of the atoms list as a string.
 function chemical_formula(atoms)
     element_count = Dict{Symbol, Int}()
     for (element, positions) in atoms
-        if element.symbol in keys(element_count)
-            element_count[element.symbol] += length(positions)
+        symbol = chemical_symbol(element)
+        if symbol in keys(element_count)
+            element_count[symbol] += length(positions)
         else
-            element_count[element.symbol] = length(positions)
+            element_count[symbol]  = length(positions)
         end
     end
     formula = join(string(elem) * string(element_count[elem])
