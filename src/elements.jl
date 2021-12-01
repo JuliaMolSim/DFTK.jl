@@ -37,7 +37,7 @@ function local_potential_real(el::Element, q::AbstractVector)
 end
 
 # Fallback print function:
-Base.show(io::IO, el::Element) = print(io, "$(typeof(el))($(el.symbol))")
+Base.show(io::IO, el::Element) = print(io, "$(typeof(el))($(chemical_symbol(el)))")
 
 
 struct ElementCoulomb <: Element
