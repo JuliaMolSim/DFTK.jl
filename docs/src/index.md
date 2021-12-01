@@ -36,7 +36,7 @@ collection of [lectures, workshops and literature on DFT](@ref density-functiona
     - Multi-level threading (``k``-points eigenvectors, FFTs, linear algebra)
     - MPI-based distributed parallelism (distribution over ``k``-points)
     - 1D / 2D / 3D systems
-    - Magnetic fields
+    - External magnetic fields
     - Treat systems beyond 800 electrons
 * Ground-state properties and post-processing:
     - Total energy
