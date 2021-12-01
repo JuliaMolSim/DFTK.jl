@@ -7,7 +7,6 @@ include("testcases.jl")
 
 
 @testset "bzmesh_uniform agrees with spglib" begin
-
     function test_against_spglib(kgrid_size; kshift=[0, 0, 0])
         kgrid_size = Vec3(kgrid_size)
         is_shift = ifelse.(kshift .== 0, 0, 1)

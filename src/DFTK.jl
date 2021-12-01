@@ -154,13 +154,11 @@ export load_model
 export load_density
 export load_atoms
 export load_magnetic_moments
-export run_wannier90
 include("external/abinit.jl")
 include("external/load_from_python.jl")
 include("external/load_from_file.jl")
 include("external/ase.jl")
 include("external/pymatgen.jl")
-include("external/wannier90.jl")
 
 export compute_bands
 export high_symmetry_kpath
@@ -187,6 +185,7 @@ include("postprocess/current.jl")
 include("workarounds/dummy_inplace_fft.jl")
 include("workarounds/forwarddiff_rules.jl")
 
+
 function __init__()
     # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
     # DoubleFloats has been loaded (via a "using" or an "import").
@@ -201,11 +200,14 @@ function __init__()
     @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
     end
-    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("plotting.jl")
-    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"  include("external/jld2io.jl")
+    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80"    include("plotting.jl")
+    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"     include("external/jld2io.jl")
     @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" include("external/vtkio.jl")
     @require NCDatasets="85f8d34a-cbdd-5861-8df4-14fed0d494ab" begin
         include("external/etsf_nanoquanta.jl")
+    end
+    @require wannier90_jll="c5400fa0-8d08-52c2-913f-1e3f656c1ce9" begin
+        include("external/wannier90.jl")
     end
 end
 

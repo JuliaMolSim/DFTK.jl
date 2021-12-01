@@ -1,44 +1,35 @@
 using Test
+using DFTK
+include("testcases.jl")
 
-if ( !(Sys.iswindows()) && !(Sys.isapple()) )
-    using DFTK
-    if ( mpi_nprocs() == 1 )
+if !Sys.iswindows() && mpi_nprocs() == 1
+@testset "Test run_wannier90" begin
+    using wannier90_jll
 
-        # Classic SCF
-        a = 10.26
-        lattice = a / 2 * [[0 1 1.];
-                           [1 0 1.];
-                           [1 1 0.]]
-        Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-        atoms = [Si => [ones(3)/8, -ones(3)/8]]
+    Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/Si-q4"))
+    model  = model_LDA(silicon.lattice, [Si => silicon.positions])
+    basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[4, 4, 4])
+    scfres = self_consistent_field(basis, tol=1e-12, n_bands=12)
 
-        model = model_LDA(lattice, atoms)
-        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[4, 4, 4])
+    fileprefix = "wannier90_outputs/Si"
+    run_wannier90(scfres; fileprefix,
+                  n_wannier=8, bands_plot=true,
+                  num_print_cycles=50, num_iter=500,
+                  dis_win_max=17.185257,
+                  dis_froz_max=6.8318033,
+                  dis_num_iter=120,
+                  dis_mix_ratio=1.0)
 
-        scfres = self_consistent_field(basis, tol=1e-12, n_bands = 12, n_ep_extra = 0 );
-        ψ = scfres.ψ
-        n_bands = size(ψ[1],2)
+    @test  isfile("wannier90_outputs/Si.amn")
+    @test  isfile("wannier90_outputs/Si.chk")
+    @test  isfile("wannier90_outputs/Si.eig")
+    @test  isfile("wannier90_outputs/Si.mmn")
+    @test  isfile("wannier90_outputs/Si.nnkp")
+    @test  isfile("wannier90_outputs/Si.win")
+    @test  isfile("wannier90_outputs/Si.wout")
+    @test !isfile("wannier90_outputs/Si.werr")
 
-        # Run wannierization
-        mkdir("wannier90_outputs")
-        run_wannier90("wannier90_outputs/Si", scfres, 8; n_bands=12,
-                      bands_plot=true, num_print_cycles=50, num_iter=500,
-                      dis_win_max       = "17.185257d0",
-                      dis_froz_max      =  "6.8318033d0",
-                      dis_num_iter      =  120,
-                      dis_mix_ratio     = "1d0")
-
-        @testset "Test production of the win file " begin
-            @test isfile("wannier90_outputs/Si.win")
-        end
-
-        @testset "Test production of the .mmn, .amn and .eig files" begin
-            @test isfile("wannier90_outputs/Si.mmn")
-            @test isfile("wannier90_outputs/Si.amn")
-            @test isfile("wannier90_outputs/Si.eig")
-        end
-
-        # remove produced files
-        rm("wannier90_outputs", recursive=true)
-    end
+    # remove produced files
+    rm("wannier90_outputs", recursive=true)
+end
 end
