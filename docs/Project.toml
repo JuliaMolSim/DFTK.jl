@@ -15,6 +15,7 @@ TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 UnitfulAtomic = "a7773ee8-282e-5fa2-be4e-bd808c38a91a"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
+wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
 [compat]
 Documenter = "~0.26"
