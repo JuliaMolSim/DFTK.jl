@@ -18,7 +18,8 @@ if !Sys.iswindows() && mpi_nprocs() == 1
                   dis_win_max=17.185257,
                   dis_froz_max=6.8318033,
                   dis_num_iter=120,
-                  dis_mix_ratio=1.0)
+                  dis_mix_ratio=1.0,
+                  wannier_plot=true)
 
     @test  isfile("wannier90_outputs/Si.amn")
     @test  isfile("wannier90_outputs/Si.chk")
