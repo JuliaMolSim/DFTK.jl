@@ -6,6 +6,10 @@
 # from an initial self consistent field calculation.
 # All processes are handled by calling the routine `run_wannier90`.
 #
+# !!! warning "No guarantees on Wannier90 interface"
+#     This code is at an early stage and has so far not been fully tested.
+#     Bugs are likely and we welcome issues in case you find any!
+#
 # This example shows how to obtain the MLWFs corresponding
 # to the first eight bands of silicon. Since the bands 5 to 8 are entangled,
 # 12 bands are first computed to obtain 8 MLWFs by a disantanglement procedure.
@@ -42,7 +46,8 @@ run_wannier90(scfres;
               dis_win_max=17.185257,
               dis_froz_max=6.8318033,
               dis_num_iter=120,
-              dis_mix_ratio=1.0)
+              dis_mix_ratio=1.0,
+              wannier_plot=true);
 
 # As can be observed standard optional arguments for the disentanglement
 # can be passed directly to `run_wannier90` as keyword arguments.

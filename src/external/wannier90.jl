@@ -5,7 +5,8 @@ export run_wannier90
 Write a win file at the indicated prefix.
 Parameters to Wannier90 can be added as kwargs: e.g. `num_iter=500`.
 """
-function write_w90_win(fileprefix::String, basis::PlaneWaveBasis; bands_plot=false, kwargs...)
+function write_w90_win(fileprefix::String, basis::PlaneWaveBasis;
+                       bands_plot=false, wannier_plot=false, kwargs...)
     kwargs = Dict(kwargs...)
     @assert :num_bands in keys(kwargs)  # Required parameter
     @assert :num_wann  in keys(kwargs)  # Required parameter
@@ -17,6 +18,10 @@ function write_w90_win(fileprefix::String, basis::PlaneWaveBasis; bands_plot=fal
         # Drop parameters
         for (key, value) in pairs(kwargs)
             @printf fp "%-20s =   %-30s\n" key value
+        end
+        if wannier_plot
+            println(fp, "wvfn_formatted = True")
+            println(fp, "wannier_plot   = True")
         end
 
         # Delimiter for system
@@ -115,6 +120,25 @@ function write_w90_eig(fileprefix::String, eigenvalues; n_bands)
     end
     nothing
 end
+
+
+function write_w90_unk(fileprefix::String, basis, ψ; n_bands, spin=1)
+    fft_size = basis.fft_size
+
+    for ik in krange_spin(basis, spin)
+        open(dirname(fileprefix) * (@sprintf "/UNK%05i.%i" ik spin), "w") do fp
+            println(fp, "$(fft_size[1]) $(fft_size[2]) $(fft_size[3]) $ik $n_bands")
+            for iband in 1:n_bands
+                ψnk_real = G_to_r(basis, basis.kpoints[ik], @view ψ[ik][:, iband])
+                for iz in 1:fft_size[3], iy in 1:fft_size[2], ix in 1:fft_size[1]
+                    println(fp, real(ψnk_real[ix, iy, iz]), " ", imag(ψnk_real[ix, iy, iz]))
+                end
+            end
+        end
+    end
+    nothing
+end
+
 
 @doc raw"""
 Computes the matrix ``[M^{k,b}]_{m,n} = \langle u_{m,k} | u_{n,k+b} \rangle``
@@ -246,27 +270,37 @@ function run_wannier90(scfres;
                        n_wannier=n_bands,
                        centers=default_wannier_centres(n_wannier),
                        fileprefix=joinpath("wannier90", "wannier"),
-                       kwargs...)
+                       wannier_plot=false, kwargs...)
+    # TODO None of the routines consider spin at the moment
+    @assert scfres.basis.model.spin_polarization in (:none, :spinless)
     @assert length(centers) == n_wannier
-    if !isdir(dirname(fileprefix))
-        mkdir(dirname(fileprefix))
-    end
 
     # Undo symmetry operations to get full k-point list
     scfres_unfold = unfold_bz(scfres)
     basis = scfres_unfold.basis
     ψ = scfres_unfold.ψ
 
+    # Make wannier directory ...
+    dir, prefix = dirname(fileprefix), basename(fileprefix)
+    mkpath(dir)
+
     # Write input file and launch Wannier90 preprocessing
-    write_w90_win(fileprefix, basis; num_wann=length(centers), num_bands=n_bands, kwargs...)
-    wannier90_jll.wannier90(exe -> run(`$exe -pp $fileprefix`))
+    write_w90_win(fileprefix, basis;
+                  num_wann=length(centers), num_bands=n_bands, wannier_plot, kwargs...)
+    wannier90_jll.wannier90(exe -> run(Cmd(`$exe -pp $prefix`; dir)))
     nnkp = read_w90_nnkp(fileprefix)
 
-    # Generate eig, amn and mmn files
+    # Files for main wannierization run
     write_w90_eig(fileprefix, scfres_unfold.eigenvalues; n_bands)
     write_w90_amn(fileprefix, basis, ψ; n_bands, centers)
     write_w90_mmn(fileprefix, basis, ψ, nnkp; n_bands)
 
-    wannier90_jll.wannier90(exe -> run(`$exe $fileprefix`))  # Launch wannierization
+    # Writing the unk files is expensive (requires FFTs), so only do if needed.
+    if wannier_plot
+        write_w90_unk(fileprefix, basis, ψ; n_bands, spin=1)
+    end
+
+    # Run Wannierisation procedure
+    wannier90_jll.wannier90(exe -> run(Cmd(`$exe $prefix`; dir)))
     fileprefix
 end
