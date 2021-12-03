@@ -12,7 +12,6 @@ More generally, a ``k``-point is a block of the Hamiltonian;
 eg collinear spin is treated by doubling the number of kpoints.
 """
 struct Kpoint{T <: Real}
-    model::Model{T}               # TODO Should be only lattice/atoms
     spin::Int                     # Spin component can be 1 or 2 as index into what is
                                   # returned by the `spin_components` function
     coordinate::Vec3{T}           # Fractional coordinate of k-point
@@ -24,17 +23,6 @@ struct Kpoint{T <: Real}
     G_vectors::Vector{Vec3{Int}}  # Wave vectors in integer coordinates:
                                   # ({G, 1/2 |k+G|^2 ≤ Ecut})
 end
-
-
-"""
-The list of G vectors of a given `basis` or `kpoint`, in reduced coordinates.
-"""
-G_vectors(kpt::Kpoint) = kpt.G_vectors
-
-"""
-The list of G vectors of a given `basis` or `kpoint`, in cartesian coordinates.
-"""
-G_vectors_cart(kpt::Kpoint) = (kpt.model.recip_lattice * G for G in G_vectors(kpt))
 
 @doc raw"""
 A plane-wave discretized `Model`.
@@ -137,8 +125,7 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for iσ = 1:model.n_spin_components
             push!(kpoints_per_spin[iσ],
-                  Kpoint(model,  iσ, k, model.recip_lattice * k,
-                         mapping, mapping_inv, Gvecs_k))
+                  Kpoint(iσ, k, model.recip_lattice * k, mapping, mapping_inv, Gvecs_k))
         end
     end
 
@@ -332,31 +319,76 @@ end
 
 
 """
-Return the list of wave vectors (integer coordinates) for the cubic basis set.
+    G_vectors(fft_size::Tuple)
+
+The wave vectors `G` in reduced (integer) coordinates for a cubic basis set
+of given sizes.
 """
-function G_vectors(fft_size)
+function G_vectors(fft_size::Tuple)
     start = .- cld.(fft_size .- 1, 2)
     stop  = fld.(fft_size .- 1, 2)
     axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
     (Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3])
 end
-G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_size)
 
+@doc raw"""
+    G_vectors(basis::PlaneWaveBasis)
+    G_vectors(kpt::Kpoint)
+
+The list of wave vectors ``G`` in reduced (integer) coordinates of a `basis`
+or a ``k``-point `kpt`.
+"""
+G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_size)
+G_vectors(kpt::Kpoint) = kpt.G_vectors
+
+
+@doc raw"""
+    G_vectors_cart(basis::PlaneWaveBasis)
+    G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
+
+The list of ``G`` vectors of a given `basis` or `kpt`, in cartesian coordinates.
+"""
 function G_vectors_cart(basis::PlaneWaveBasis)
     (basis.model.recip_lattice * G for G in G_vectors(basis.fft_size))
 end
+function G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
+    (basis.model.recip_lattice * G for G in G_vectors(kpt))
+end
 
+@doc raw"""
+    q_vectors(kpt::Kpoint)
+
+The list of ``q = G + k`` vectors, in reduced coordinates.
 """
-Return the list of r vectors, in reduced coordinates. By convention, this is in [0,1)^3.
+q_vectors(kpt::Kpoint) = ((G + kpt.coordinate) for G in G_vectors(kpt))
+
+@doc raw"""
+    q_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
+
+The list of ``q = G + k`` vectors, in cartesian coordinates.
+"""
+function q_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
+    (basis.model.recip_lattice * (G + kpt.coordinate) for G in G_vectors(kpt))
+end
+
+
+@doc raw"""
+    r_vectors(basis::PlaneWaveBasis)
+
+The list of ``r`` vectors, in reduced coordinates. By convention, this is in [0,1)^3.
 """
 function r_vectors(basis::PlaneWaveBasis{T}) where T
     N1, N2, N3 = basis.fft_size
     (Vec3{T}(T(i-1) / N1, T(j-1) / N2, T(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3)
 end
-"""
-Return the list of r vectors, in cartesian coordinates.
+
+@doc raw"""
+    r_vectors_cart(basis::PlaneWaveBasis)
+
+The list of ``r`` vectors, in cartesian coordinates.
 """
 r_vectors_cart(basis::PlaneWaveBasis) = (basis.model.lattice * r for r in r_vectors(basis))
+
 
 """
 Return the index tuple `I` such that `G_vectors(basis)[I] == G`

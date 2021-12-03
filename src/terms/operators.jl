@@ -120,7 +120,7 @@ end
     # TODO this could probably be better optimized
     for α = 1:3
         all(op.Apot[α] .== 0) && continue
-        pα = [(op.basis.model.recip_lattice*(G + op.kpoint.coordinate))[α] for G in G_vectors(op.kpoint)]
+        pα = [q[α] for q in q_vectors_cart(op.basis, op.kpoint)]
         ∂αψ_fourier = pα .* ψ.fourier
         ∂αψ_real = G_to_r(op.basis, op.kpoint, ∂αψ_fourier)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real
