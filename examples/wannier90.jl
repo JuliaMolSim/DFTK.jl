@@ -42,7 +42,7 @@ plot_bandstructure(scfres; kline_density=10)
 # "wannier90/wannier.wout", etc.). A different file prefix can be given with the
 # keyword argument `fileprefix` as shown below.
 #
-# We now solve for 4 MLWF using wannier90:
+# We now solve for 5 MLWF using wannier90:
 
 using wannier90_jll  # Needed to make run_wannier90 available
 run_wannier90(scfres;
@@ -50,12 +50,12 @@ run_wannier90(scfres;
               n_wannier=5,
               num_print_cycles=25,
               num_iter=200,
-              #
+              ##
               dis_win_max=19.0,
               dis_froz_max=0.1,
               dis_num_iter=300,
               dis_mix_ratio=1.0,
-              #
+              ##
               wannier_plot=true,
               wannier_plot_format="cube",
               wannier_plot_supercell=5,
