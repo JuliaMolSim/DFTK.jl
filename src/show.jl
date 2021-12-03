@@ -39,7 +39,7 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     println(io)
     for (i, term) in enumerate(model.term_types)
         header = i==1 ? "terms" : ""
-        showfield(io, header, term)
+        showfield(io, header, sprint(show, "text/plain", term))
         i < length(model.term_types) && println(io)
     end
 end

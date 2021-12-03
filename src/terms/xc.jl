@@ -17,34 +17,36 @@ Xc(symbols::Symbol...; kwargs...) = Xc([symbols...]; kwargs...)
 function Xc(symbols::Vector; scaling_factor=1, density_threshold=nothing)
     Xc(convert.(Symbol, symbols), scaling_factor, density_threshold)
 end
+function Base.show(io::IO, xc::Xc)
+    fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
+    fun = length(xc.functionals) == 1 ? ":$(xc.functionals[1])" : "$(xc.functionals)"
+    print(io, "Xc($fun$fac)")
+end
 
-function (xc::Xc)(basis)
+function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
+    isempty(xc.functionals) && return TermNoop()
     functionals = Functional.(xc.functionals; n_spin=basis.model.n_spin_components)
     if !isnothing(xc.density_threshold)
         for func in functionals
             func.density_threshold = xc.density_threshold
         end
     end
-    TermXc(basis, functionals, xc.scaling_factor)
+    TermXc(functionals, T(xc.scaling_factor))
 end
 
 struct TermXc <: TermNonlinear
-    basis::PlaneWaveBasis
     functionals::Vector{Functional}
     scaling_factor::Real
 end
 
-@views @timing "ene_ops: xc" function ene_ops(term::TermXc, ψ, occ; ρ, kwargs...)
-    basis = term.basis
-    T     = eltype(basis)
-    model = basis.model
+@views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
+                                              ψ, occ; ρ, kwargs...) where {T}
+    @assert !isempty(term.functionals)
+
+    model  = basis.model
     n_spin = model.n_spin_components
     @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
-
-    if isempty(term.functionals)
-        ops = [NoopOperator(term.basis, kpoint) for kpoint in term.basis.kpoints]
-        return (E=0, ops=ops)
-    end
+    @assert all(xc.n_spin == n_spin for xc in term.functionals)
 
     # Take derivatives of the density if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
@@ -54,7 +56,7 @@ end
     terms = evaluate(term.functionals, density)
 
     # Energy contribution (zk == energy per unit particle)
-    E = sum(terms.zk .* ρ) * term.basis.dvol
+    E = sum(terms.zk .* ρ) * basis.dvol
 
     # Map from the tuple of spin indices for the contracted density gradient
     # (s, t) to the index convention used in libxc (i.e. packed symmetry-adapted
@@ -81,8 +83,8 @@ end
         E *= term.scaling_factor
         potential .*= term.scaling_factor
     end
-    ops = [RealSpaceMultiplication(basis, kpoint, potential[:, :, :, kpoint.spin])
-           for kpoint in basis.kpoints]
+    ops = [RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin])
+           for kpt in basis.kpoints]
     (E=E, ops=ops)
 end
 
@@ -239,13 +241,14 @@ function LibxcDensity(basis, max_derivative::Integer, ρ)
 end
 
 
-function compute_kernel(term::TermXc; ρ, kwargs...)
-    density = LibxcDensity(term.basis, 0, ρ)
-    n_spin = term.basis.model.n_spin_components
+function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...)
+    density = LibxcDensity(basis, 0, ρ)
+    n_spin  = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
     if !all(xc.family == :lda for xc in term.functionals)
         error("compute_kernel only implemented for LDA")
     end
+    @assert all(xc.n_spin == n_spin for xc in term.functionals)
 
     kernel = evaluate(term.functionals, density; derivatives=2:2).v2rho2
     fac = term.scaling_factor
@@ -264,12 +267,11 @@ function compute_kernel(term::TermXc; ρ, kwargs...)
 end
 
 
-function apply_kernel(term::TermXc, δρ; ρ, kwargs...)
-    basis  = term.basis
-    T      = eltype(basis)
+function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs...) where {T}
     n_spin = basis.model.n_spin_components
     isempty(term.functionals) && return nothing
     @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
+    @assert all(xc.n_spin == n_spin for xc in term.functionals)
 
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)

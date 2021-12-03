@@ -9,27 +9,26 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis)
              for (elem, positions) in basis.model.atoms
              if elem isa ElementPsp]
 
-    isempty(atoms) && return NoopTerm(basis)
+    isempty(atoms) && return TermNoop()
     ops = map(basis.kpoints) do kpt
         P = build_projection_vectors_(basis, atoms, kpt)
         D = build_projection_coefficients_(basis, atoms)
         NonlocalOperator(basis, kpt, P, D)
     end
-    TermAtomicNonlocal(basis, ops)
+    TermAtomicNonlocal(ops)
 end
 
 struct TermAtomicNonlocal <: Term
-    basis::PlaneWaveBasis
     ops::Vector{NonlocalOperator}
 end
 
-@timing "ene_ops: nonlocal" function ene_ops(term::TermAtomicNonlocal, ψ, occ; kwargs...)
-    basis = term.basis
-    T = eltype(basis)
-    ψ === nothing && return (E=T(Inf), ops=term.ops)
+@timing "ene_ops: nonlocal" function ene_ops(term::TermAtomicNonlocal,
+                                             basis::PlaneWaveBasis{T},
+                                             ψ, occ; kwargs...) where {T}
+    isnothing(ψ) && return (E=T(Inf), ops=term.ops)
 
     E = zero(T)
-    for (ik, k) in enumerate(basis.kpoints)
+    for (ik, kpt) in enumerate(basis.kpoints)
         Pψ = term.ops[ik].P' * ψ[ik]  # nproj x nband
         band_enes = dropdims(sum(real.(conj.(Pψ) .* (term.ops[ik].D * Pψ)), dims=1), dims=1)
         E += basis.kweights[ik] * sum(band_enes .* occ[ik])
@@ -39,9 +38,9 @@ end
     (E=E, ops=term.ops)
 end
 
-@timing "forces: nonlocal" function compute_forces(term::TermAtomicNonlocal, ψ, occ; kwargs...)
-    basis = term.basis
-    T = eltype(basis)
+@timing "forces: nonlocal" function compute_forces(::TermAtomicNonlocal,
+                                                   basis::PlaneWaveBasis{T},
+                                                   ψ, occ; kwargs...) where {T}
     atoms = basis.model.atoms
     unit_cell_volume = basis.model.unit_cell_volume
 

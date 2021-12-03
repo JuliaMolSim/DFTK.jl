@@ -76,7 +76,6 @@ function (A::Anyonic)(basis)
 end
 
 struct TermAnyonic{T <: Real, Tρ, TA} <: Term
-    basis::PlaneWaveBasis{T}
     hbar::T
     β::T
     ρref::Tρ
@@ -96,12 +95,10 @@ function TermAnyonic(basis::PlaneWaveBasis{T}, hbar, β) where {T}
     # Aref is not divergence-free in the finite basis, so we explicitly project it
     # This is because we assume elsewhere (eg to ensure self-adjointness of the Hamiltonian)
     Aref = make_div_free(basis, Aref)
-    TermAnyonic(basis, hbar, β, ρref, Aref)
+    TermAnyonic(hbar, β, ρref, Aref)
 end
 
-function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
-    basis = term.basis
-    T = eltype(basis)
+function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwargs...) where T
     hbar = term.hbar
     β = term.β
     @assert ψ !== nothing # the hamiltonian depends explicitly on ψ
@@ -113,7 +110,7 @@ function ene_ops(term::TermAnyonic, ψ, occ; ρ, kwargs...)
     A1 = zeros(complex(T), basis.fft_size)
     A2 = zeros(complex(T), basis.fft_size)
     ρ_fourier = r_to_G(basis, ρ[:, :, :, 1])
-    ρref_fourier = r_to_G(basis, term.ρref) # TODO optimize
+    ρref_fourier = r_to_G(basis, term.ρref)  # TODO optimize
     for (iG, G) in enumerate(G_vectors_cart(basis))
         G2 = sum(abs2, G)
         if G2 != 0

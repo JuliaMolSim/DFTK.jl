@@ -1,20 +1,18 @@
 ## Local potentials. Can be provided from external potentials, or from `model.atoms`.
 
-# a local potential term. Must have the field `potential`, storing the
+# a local potential term. Must have the field `potential_values`, storing the
 # potential in real space on the grid. If the potential is different in the α and β
 # components then it should be a 4d-array with the last axis running over the
 # two spin components.
 abstract type TermLocalPotential <: Term end
 
-@timing "ene_ops: local" function ene_ops(term::TermLocalPotential, ψ, occ; kwargs...)
-    basis = term.basis
-    T = eltype(basis)
-
+@timing "ene_ops: local" function ene_ops(term::TermLocalPotential,
+                                          basis::PlaneWaveBasis{T}, ψ, occ; kwargs...) where {T}
     potview(data, spin) = ndims(data) == 4 ? (@view data[:, :, :, spin]) : data
-    ops = [RealSpaceMultiplication(basis, kpoint, potview(term.potential, kpoint.spin))
-           for kpoint in basis.kpoints]
+    ops = [RealSpaceMultiplication(basis, kpt, potview(term.potential_values, kpt.spin))
+           for kpt in basis.kpoints]
     if :ρ in keys(kwargs)
-        E = sum(total_density(kwargs[:ρ]) .* term.potential) * term.basis.dvol
+        E = sum(total_density(kwargs[:ρ]) .* term.potential_values) * basis.dvol
     else
         E = T(Inf)
     end
@@ -25,36 +23,34 @@ end
 ## External potentials
 
 struct TermExternal <: TermLocalPotential
-    basis::PlaneWaveBasis
-    potential::AbstractArray
+    potential_values::AbstractArray
 end
 
 """
 External potential from an analytic function `V` (in cartesian coordinates).
 No low-pass filtering is performed.
 """
-struct ExternalFromReal{T <: Function}
-    V::T
+struct ExternalFromReal
+    potential::Function
 end
 
-function (external::ExternalFromReal)(basis::PlaneWaveBasis{T}) where {T}
-    potential = external.V.(r_vectors_cart(basis))
-    TermExternal(basis, potential)
+function (external::ExternalFromReal)(basis::PlaneWaveBasis)
+    TermExternal(external.potential.(r_vectors_cart(basis)))
 end
 
 """
 External potential from the (unnormalized) Fourier coefficients `V(G)`
 G is passed in cartesian coordinates
 """
-struct ExternalFromFourier{T <: Function}
-    V::T
+struct ExternalFromFourier
+    potential::Function
 end
 function (external::ExternalFromFourier)(basis::PlaneWaveBasis)
     unit_cell_volume = basis.model.unit_cell_volume
-    pot_fourier = [complex(external.V(G) / sqrt(unit_cell_volume))
+    pot_fourier = [complex(external.potential(G) / sqrt(unit_cell_volume))
                    for G in G_vectors_cart(basis)]
     pot_real = G_to_r(basis, pot_fourier)
-    TermExternal(basis, real(pot_real))
+    TermExternal(real(pot_real))
 end
 
 
@@ -62,15 +58,14 @@ end
 ## Atomic local potential
 
 struct TermAtomicLocal <: TermLocalPotential
-    basis::PlaneWaveBasis
-    potential::AbstractArray
+    potential_values::AbstractArray
 end
 
 """
 Atomic local potential defined by `model.atoms`.
 """
 struct AtomicLocal end
-function (E::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
+function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
 
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
@@ -91,25 +86,26 @@ function (E::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     end
 
     pot_real = G_to_r(basis, pot_fourier)
-    TermAtomicLocal(basis, real(pot_real))
+    TermAtomicLocal(real(pot_real))
 end
 
-@timing "forces: local" function compute_forces(term::TermAtomicLocal, ψ, occ; ρ, kwargs...)
-    T = eltype(term.basis)
-    atoms = term.basis.model.atoms
-    recip_lattice = term.basis.model.recip_lattice
-    unit_cell_volume = term.basis.model.unit_cell_volume
-    ρ_fourier = r_to_G(term.basis, total_density(ρ))
+@timing "forces: local" function compute_forces(::TermAtomicLocal,
+                                                basis::PlaneWaveBasis{T},
+                                                ψ, occ; ρ, kwargs...) where {T}
+    atoms = basis.model.atoms
+    recip_lattice = basis.model.recip_lattice
+    unit_cell_volume = basis.model.unit_cell_volume
+    ρ_fourier = r_to_G(basis, total_density(ρ))
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
     # where struct_factor(G) = cis(-2π G⋅r)
     forces = [zeros(Vec3{T}, length(positions)) for (el, positions) in atoms]
     for (iel, (el, positions)) in enumerate(atoms)
         form_factors = [Complex{T}(local_potential_fourier(el, norm(recip_lattice * G)))
-                        for G in G_vectors(term.basis)]
+                        for G in G_vectors(basis)]
 
         for (ir, r) in enumerate(positions)
-            forces[iel][ir] = _force_local_internal(term.basis, ρ_fourier, form_factors, r)
+            forces[iel][ir] = _force_local_internal(basis, ρ_fourier, form_factors, r)
         end
     end
     forces
