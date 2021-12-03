@@ -12,7 +12,7 @@
 #
 # This example shows how to obtain the MLWFs corresponding
 # to the first five bands of graphene. Since the bands 2 to 11 are entangled,
-# 15 bands are first computed to obtain 4 MLWFs by a disantanglement procedure.
+# 15 bands are first computed to obtain 5 MLWFs by a disantanglement procedure.
 
 using DFTK
 using Unitful
@@ -47,7 +47,7 @@ plot_bandstructure(scfres; kline_density=10)
 using wannier90_jll  # Needed to make run_wannier90 available
 run_wannier90(scfres;
               fileprefix="wannier/graphene",
-              n_wannier=4,
+              n_wannier=5,
               num_print_cycles=25,
               num_iter=200,
               #
