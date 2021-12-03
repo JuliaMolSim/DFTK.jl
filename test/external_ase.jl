@@ -1,6 +1,8 @@
 using Test
 using PyCall
 using DFTK
+using Unitful
+using UnitfulAtomic
 
 ase = pyimport_e("ase")
 if !ispynull(ase)
