@@ -14,7 +14,7 @@ abstract type Element end
 charge_nuclear(::Element) = 0
 
 """Chemical symbol corresponding to an element"""
-chemical_symbol(::Element) = :X
+atomic_symbol(::Element) = :X
 # The preceeding functions are fallback implementations that should be altered as needed.
 
 """Return the total ionic charge of an atom type (nuclear charge - core electrons)"""
@@ -37,16 +37,16 @@ function local_potential_real(el::Element, q::AbstractVector)
 end
 
 # Fallback print function:
-Base.show(io::IO, el::Element) = print(io, "$(typeof(el))($(chemical_symbol(el)))")
+Base.show(io::IO, el::Element) = print(io, "$(typeof(el))($(atomic_symbol(el)))")
 
 
 struct ElementCoulomb <: Element
     Z::Int  # Nuclear charge
     symbol  # Element symbol
 end
-charge_ionic(el::ElementCoulomb)    = el.Z
-charge_nuclear(el::ElementCoulomb)  = el.Z
-chemical_symbol(el::ElementCoulomb) = el.symbol
+charge_ionic(el::ElementCoulomb)   = el.Z
+charge_nuclear(el::ElementCoulomb) = el.Z
+atomic_symbol(el::ElementCoulomb)  = el.symbol
 
 """
 Element interacting with electrons via a bare Coulomb potential
@@ -85,9 +85,9 @@ or an element name (e.g. `"silicon"`)
 function ElementPsp(key; psp)
     ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp)
 end
-charge_ionic(el::ElementPsp)    = el.psp.Zion
-charge_nuclear(el::ElementPsp)  = el.Z
-chemical_symbol(el::ElementPsp) = el.symbol
+charge_ionic(el::ElementPsp)   = el.psp.Zion
+charge_nuclear(el::ElementPsp) = el.Z
+atomic_symbol(el::ElementPsp)  = el.symbol
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
     q == 0 && return zero(T)  # Compensating charge background
@@ -106,9 +106,9 @@ struct ElementCohenBergstresser <: Element
     V_sym   # Map |G|^2 (in units of (2π / lattice_constant)^2) to form factors
     lattice_constant  # Lattice constant (in Bohr) which is assumed
 end
-charge_ionic(el::ElementCohenBergstresser)    = 2
-charge_nuclear(el::ElementCohenBergstresser)  = el.Z
-chemical_symbol(el::ElementCohenBergstresser) = el.symbol
+charge_ionic(el::ElementCohenBergstresser)   = 2
+charge_nuclear(el::ElementCohenBergstresser) = el.Z
+atomic_symbol(el::ElementCohenBergstresser)  = el.symbol
 
 """
 Element where the interaction with electrons is modelled
