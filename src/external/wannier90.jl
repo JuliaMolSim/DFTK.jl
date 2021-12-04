@@ -206,15 +206,14 @@ function compute_Ak_gaussian_guess(basis::PlaneWaveBasis, ψk, kpt, centers, n_b
 
     # associate a center with the fourier transform of the corresponding gaussian
     fourier_gn(center, qs) = [exp( 2π*(-im*dot(q, center) - dot(q, q) / 4) ) for q in qs]
-    # All q = k+G in reduced coordinates
-    qs = vec(map(G -> G .+ kpt.coordinate, G_vectors(basis)))
+    qs = collect(G₊k_vectors(basis, kpt))  # all q = k+G in reduced coordinates
     Ak = zeros(eltype(ψk), (n_bands, n_wannier))
 
     # Compute Ak
     for n in 1:n_wannier
         # Functions are l^2 normalized in Fourier, in DFTK conventions.
         norm_gn_per = norm(fourier_gn(centers[n], qs), 2)
-        # Fourier coeffs of gn_per for q_vectors in common with ψk
+        # Fourier coeffs of gn_per for k+G in common with ψk
         coeffs_gn_per = fourier_gn(centers[n], qs[kpt.mapping]) ./ norm_gn_per
         # Compute overlap
         for m in 1:n_bands

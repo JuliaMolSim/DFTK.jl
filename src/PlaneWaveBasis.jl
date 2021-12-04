@@ -333,13 +333,13 @@ end
 
 @doc raw"""
     G_vectors(basis::PlaneWaveBasis)
-    G_vectors(kpt::Kpoint)
+    G_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
 
 The list of wave vectors ``G`` in reduced (integer) coordinates of a `basis`
 or a ``k``-point `kpt`.
 """
 G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_size)
-G_vectors(kpt::Kpoint) = kpt.G_vectors
+G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
 
 
 @doc raw"""
@@ -356,18 +356,18 @@ function G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
 end
 
 @doc raw"""
-    q_vectors(kpt::Kpoint)
+    G₊k_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
 
-The list of ``q = G + k`` vectors, in reduced coordinates.
+The list of ``G + k`` vectors, in reduced coordinates.
 """
-q_vectors(kpt::Kpoint) = ((G + kpt.coordinate) for G in G_vectors(kpt))
+G₊k_vectors(::PlaneWaveBasis, kpt::Kpoint) = ((G + kpt.coordinate) for G in G_vectors(kpt))
 
 @doc raw"""
-    q_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
+    G₊k_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
 
-The list of ``q = G + k`` vectors, in cartesian coordinates.
+The list of ``G + k`` vectors, in cartesian coordinates.
 """
-function q_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
+function G₊k_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
     (basis.model.recip_lattice * (G + kpt.coordinate) for G in G_vectors(kpt))
 end
 

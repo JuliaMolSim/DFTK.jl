@@ -120,7 +120,7 @@ end
     # TODO this could probably be better optimized
     for α = 1:3
         all(op.Apot[α] .== 0) && continue
-        pα = [q[α] for q in q_vectors_cart(op.basis, op.kpoint)]
+        pα = [q[α] for q in G₊k_vectors_cart(op.basis, op.kpoint)]
         ∂αψ_fourier = pα .* ψ.fourier
         ∂αψ_real = G_to_r(op.basis, op.kpoint, ∂αψ_fourier)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real

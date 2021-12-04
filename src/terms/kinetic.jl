@@ -13,7 +13,8 @@ struct TermKinetic <: Term
 end
 function TermKinetic(basis::PlaneWaveBasis; scaling_factor=1)
     T = eltype(basis)
-    kinetic_energies = [[T(scaling_factor / 2) * sum(abs2, q) for q in q_vectors_cart(basis, kpt)]
+    factor = scaling_factor / T(2)
+    kinetic_energies = [[factor * sum(abs2, q) for q in G₊k_vectors_cart(basis, kpt)]
                         for kpt in basis.kpoints]
     TermKinetic(basis, kinetic_energies)
 end
