@@ -69,13 +69,12 @@ end
                         Skcoord = Skpoint.coordinate
                         # energy terms are of the form <psi, P C P' psi>,
                         # where P(G) = form_factor(G) * structure_factor(G)
-                        qs = [basis.model.recip_lattice * (Skcoord + G)
-                              for G in G_vectors(Skpoint)]
+                        qs = Gplusk_vectors_cart(basis, Skpoint)
                         form_factors = build_form_factors(el.psp, qs)
-                        structure_factors = [cis(-2T(π) * dot(Skcoord + G, r))
-                                             for G in G_vectors(Skpoint)]
+                        structure_factors = [cis(-2T(π) * dot(q, r))
+                                             for q in Gplusk_vectors(basis, Skpoint)]
                         P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
-                        dPdR = [-2T(π)*im*(Skcoord + G)[α] for G in G_vectors(Skpoint)] .* P
+                        dPdR = [-2T(π)*im*q[α] for q in Gplusk_vectors(basis, Skpoint)] .* P
 
                         dHψSk = P * (C * (dPdR' * ψSk))
                         for iband = 1:size(ψ[ik], 2)
@@ -152,8 +151,8 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, atoms, kpt::Kpoint)
     n_proj = count_n_proj(atoms)
     model = basis.model
 
-    proj_vectors = zeros(Complex{T}, length(G_vectors(kpt)), n_proj)
-    qs = [model.recip_lattice * (kpt.coordinate + G) for G in G_vectors(kpt)]
+    proj_vectors = zeros(Complex{T}, length(G_vectors(basis, kpt)), n_proj)
+    qs = [model.recip_lattice * (kpt.coordinate + G) for G in G_vectors(basis, kpt)]
 
     # Compute the columns of proj_vectors = 1/√Ω pihat(k+G)
     # Since the pi are translates of each others, pihat(k+G) decouples as
@@ -167,7 +166,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, atoms, kpt::Kpoint)
         # Combine with structure factors
         for r in positions
             # k+G in this formula can also be G, this only changes an unimportant phase factor
-            structure_factors = [cis(-2T(π)*dot(kpt.coordinate + G, r)) for G in G_vectors(kpt)]
+            structure_factors = [cis(-2T(π) * dot(q, r)) for q in Gplusk_vectors(basis, kpt)]
             for iproj = 1:count_n_proj(psp)
                 @views proj_vectors[:, offset+iproj] .= (structure_factors
                                                         .* form_factors[:, iproj]

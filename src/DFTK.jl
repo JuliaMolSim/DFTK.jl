@@ -47,7 +47,8 @@ export Smearing
 export Model
 export PlaneWaveBasis
 export compute_fft_size
-export G_vectors, G_vectors_cart, r_vectors, r_vectors_cart, G₊k_vectors, G₊k_vectors_cart
+export G_vectors, G_vectors_cart, r_vectors, r_vectors_cart
+export Gplusk_vectors, Gplusk_vectors_cart
 export Kpoint
 export G_to_r
 export G_to_r!

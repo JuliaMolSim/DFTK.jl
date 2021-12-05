@@ -30,7 +30,7 @@ end
     hamk = ham.blocks[1]
     hamIntk = hamInt.blocks[1]
 
-    x = randn(Complex{T}, length(G_vectors(ham.basis.kpoints[1])))
+    x = randn(Complex{T}, length(G_vectors(ham.basis, ham.basis.kpoints[1])))
     ref = hamk * x
     res = hamIntk * Interval.(x)
 

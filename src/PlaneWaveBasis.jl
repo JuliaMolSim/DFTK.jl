@@ -17,9 +17,9 @@ struct Kpoint{T <: Real}
     coordinate::Vec3{T}           # Fractional coordinate of k-point
     coordinate_cart::Vec3{T}      # Cartesian coordinate of k-point
     mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
-                                  # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
+                                  # G_vectors(bas)[kpt.mapping[i]] == G_vectors(bas, kpt)[i]
     mapping_inv::Dict{Int, Int}   # Inverse of `mapping`:
-                                  # G_vectors(basis)[i] = G_vectors(kpt)[kpt.mapping_inv[i]]
+                                  # G_vectors(bas)[i] == G_vectors(bas, kpt)[kpt.mapping_inv[i]]
     G_vectors::Vector{Vec3{Int}}  # Wave vectors in integer coordinates:
                                   # ({G, 1/2 |k+G|^2 ≤ Ecut})
 end
@@ -131,7 +131,6 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
     vcat(kpoints_per_spin...)  # put all spin up first, then all spin down
 end
-
 function build_kpoints(basis::PlaneWaveBasis, kcoords)
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut;
                   variational=basis.variational)
@@ -324,7 +323,7 @@ end
 The wave vectors `G` in reduced (integer) coordinates for a cubic basis set
 of given sizes.
 """
-function G_vectors(fft_size::Tuple)
+function G_vectors(fft_size::Union{Tuple,AbstractVector})
     start = .- cld.(fft_size .- 1, 2)
     stop  = fld.(fft_size .- 1, 2)
     axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
@@ -352,23 +351,25 @@ function G_vectors_cart(basis::PlaneWaveBasis)
     (basis.model.recip_lattice * G for G in G_vectors(basis.fft_size))
 end
 function G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
-    (basis.model.recip_lattice * G for G in G_vectors(kpt))
+    (basis.model.recip_lattice * G for G in G_vectors(basis, kpt))
 end
 
 @doc raw"""
-    G₊k_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
+    Gplusk_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
 
 The list of ``G + k`` vectors, in reduced coordinates.
 """
-G₊k_vectors(::PlaneWaveBasis, kpt::Kpoint) = ((G + kpt.coordinate) for G in G_vectors(kpt))
+function Gplusk_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
+    ((G + kpt.coordinate) for G in G_vectors(basis, kpt))
+end
 
 @doc raw"""
-    G₊k_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
+    Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
 
 The list of ``G + k`` vectors, in cartesian coordinates.
 """
-function G₊k_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
-    (basis.model.recip_lattice * (G + kpt.coordinate) for G in G_vectors(kpt))
+function Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
+    (basis.model.recip_lattice * (G + kpt.coordinate) for G in G_vectors(basis, kpt))
 end
 
 
@@ -392,7 +393,7 @@ r_vectors_cart(basis::PlaneWaveBasis) = (basis.model.lattice * r for r in r_vect
 
 """
 Return the index tuple `I` such that `G_vectors(basis)[I] == G`
-or the index `i` such that `G_vectors(kpoint)[i] == G`.
+or the index `i` such that `G_vectors(basis, kpoint)[i] == G`.
 Returns nothing if outside the range of valid wave vectors.
 """
 function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}

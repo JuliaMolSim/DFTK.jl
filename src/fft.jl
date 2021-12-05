@@ -179,7 +179,7 @@ end
 # This uses a more precise and slower algorithm than the one above,
 # simply enumerating all G vectors and seeing where their difference
 # is. It needs the kpoints to do so.
-function compute_Glims_precise(lattice::AbstractMatrix{T}, Ecut, kpoints; supersampling=2) where T
+@timing function compute_Glims_precise(lattice::AbstractMatrix{T}, Ecut, kpoints; supersampling=2) where T
     recip_lattice  = compute_recip_lattice(lattice)
     recip_diameter = diameter(recip_lattice)
     Glims = [0, 0, 0]
@@ -187,18 +187,20 @@ function compute_Glims_precise(lattice::AbstractMatrix{T}, Ecut, kpoints; supers
     # (and therefore densities and potentials)
     # This handles the case `supersampling=2`
     for kpt in kpoints
-        for G in G_vectors(kpt)
+        # TODO Hack: kpt.G_vectors is an internal detail, better use G_vectors(basis, kpt)
+        for G in kpt.G_vectors
             if norm(recip_lattice * (G + kpt.coordinate)) ≤ sqrt(2Ecut) - recip_diameter
                 # each of the 8 neighbors (in ∞-norm) also belongs to the grid
                 # so we can safely skip the search knowing at least one of them
-                # will have larger |G-Gp|.
+                # will have larger |G-G′|.
                 # Savings with this trick are surprisingly small :
                 # for silicon, 50% at Ecut 30, 70% at Ecut 100
                 continue
             end
-            for Gp in G_vectors(kpt)
-                for i = 1:3
-                    @inbounds Glims[i] = max(Glims[i], abs(G[i] - Gp[i]))
+            # TODO Hack: kpt.G_vectors is an internal detail, better use G_vectors(basis, kpt)
+            for G′ in kpt.G_vectors
+                for α = 1:3
+                    @inbounds Glims[α] = max(Glims[α], abs(G[α] - G′[α]))
                 end
             end
         end

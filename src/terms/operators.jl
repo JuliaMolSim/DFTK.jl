@@ -56,17 +56,16 @@ end
     Hψ.real .+= op.potential .* ψ.real
 end
 function Matrix(op::RealSpaceMultiplication)
-    # V(G,G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
+    # V(G, G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
     pot_fourier = r_to_G(op.basis, complex.(op.potential))
-    npw = length(G_vectors(op.kpoint))
-    H = zeros(complex(eltype(op.basis)), npw, npw)
-    for i = 1:npw
-        G = G_vectors(op.kpoint)[i]
-        for j = 1:npw
-            Gp = G_vectors(op.kpoint)[j]
-            ΔG = G-Gp
-            # G_vectors(basis)[ind] = ΔG
-            ind = index_G_vectors(op.basis, ΔG)
+    n_G = length(G_vectors(op.basis, op.kpoint))
+    H = zeros(complex(eltype(op.basis)), n_G, n_G)
+    for i = 1:n_G
+        G = G_vectors(op.basis, op.kpoint)[i]
+        for j = 1:n_G
+            G′ = G_vectors(op.basis, op.kpoint)[j]
+            # G_vectors(basis)[ind] = G - G′
+            ind = index_G_vectors(op.basis, G - G′)
             if ind === nothing
                 error("For full matrix construction, the FFT size must be " *
                       "large enough so that Hamiltonian applications are exact")
@@ -120,7 +119,7 @@ end
     # TODO this could probably be better optimized
     for α = 1:3
         all(op.Apot[α] .== 0) && continue
-        pα = [q[α] for q in G₊k_vectors_cart(op.basis, op.kpoint)]
+        pα = [q[α] for q in Gplusk_vectors_cart(op.basis, op.kpoint)]
         ∂αψ_fourier = pα .* ψ.fourier
         ∂αψ_real = G_to_r(op.basis, op.kpoint, ∂αψ_fourier)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real

@@ -54,7 +54,7 @@ is not collinear the spin density is `nothing`.
     @assert n_k == length(ψ)
     @assert n_k == length(occupation)
     for ik in 1:n_k
-        @assert length(G_vectors(basis.kpoints[ik])) == size(ψ[ik], 1)
+        @assert length(G_vectors(basis, basis.kpoints[ik])) == size(ψ[ik], 1)
         @assert length(occupation[ik]) == size(ψ[ik], 2)
     end
     @assert n_k > 0

@@ -14,7 +14,7 @@ end
 function TermKinetic(basis::PlaneWaveBasis; scaling_factor=1)
     T = eltype(basis)
     factor = scaling_factor / T(2)
-    kinetic_energies = [[factor * sum(abs2, q) for q in G₊k_vectors_cart(basis, kpt)]
+    kinetic_energies = [[factor * sum(abs2, q) for q in Gplusk_vectors_cart(basis, kpt)]
                         for kpt in basis.kpoints]
     TermKinetic(basis, kinetic_energies)
 end

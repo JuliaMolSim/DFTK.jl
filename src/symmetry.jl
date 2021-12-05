@@ -155,7 +155,7 @@ function apply_ksymop(ksymop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     # their Fourier transform is related as
     #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
     invS = Mat3{Int}(inv(S))
-    Gs_full = [G + kshift for G in G_vectors(Skpoint)]
+    Gs_full = [G + kshift for G in G_vectors(basis, Skpoint)]
     ψSk = zero(ψk)
     for iband in 1:size(ψk, 2)
         for (ig, G_full) in enumerate(Gs_full)

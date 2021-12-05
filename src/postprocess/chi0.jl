@@ -62,7 +62,7 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
         spinrange = kpt.spin == 1 ? (1:n_fft) : (n_fft+1:2n_fft)
         χ0σσ = @view χ0[spinrange, spinrange]
 
-        N = length(G_vectors(basis.kpoints[ik]))
+        N = length(G_vectors(basis, basis.kpoints[ik]))
         @assert N < 10_000
         E = Es[ik]
         V = Vs[ik]

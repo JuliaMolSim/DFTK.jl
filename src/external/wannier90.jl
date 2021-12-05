@@ -154,7 +154,7 @@ We use here that : ``u_{n(k + G_shift)}(r) = e^{-i*\langle G_shift,r \rangle} u_
     k   = basis.kpoints[ik]
     kpb = basis.kpoints[ikpb]
     equivalent_G_vectors = [(iGk, DFTK.index_G_vectors(basis, kpb, Gk + G_shift))
-                            for (iGk, Gk) in enumerate(G_vectors(k))]
+                            for (iGk, Gk) in enumerate(G_vectors(basis, k))]
     iGk   = [eqG[1] for eqG in equivalent_G_vectors if !isnothing(eqG[2])]
     iGkpb = [eqG[2] for eqG in equivalent_G_vectors if !isnothing(eqG[2])]
 
@@ -202,11 +202,11 @@ is given by the value of the Fourier transform of ``g_n`` in G.
 """
 function compute_Ak_gaussian_guess(basis::PlaneWaveBasis, ψk, kpt, centers, n_bands)
     n_wannier = length(centers)
-    # TODO This file should be improved
+    # TODO This function should be improved in performance
 
     # associate a center with the fourier transform of the corresponding gaussian
     fourier_gn(center, qs) = [exp( 2π*(-im*dot(q, center) - dot(q, q) / 4) ) for q in qs]
-    qs = collect(G₊k_vectors(basis, kpt))  # all q = k+G in reduced coordinates
+    qs = vec(map(G -> G .+ kpt.coordinate, G_vectors(basis)))  # all q = k+G in reduced coordinates
     Ak = zeros(eltype(ψk), (n_bands, n_wannier))
 
     # Compute Ak
