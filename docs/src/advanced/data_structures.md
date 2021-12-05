@@ -162,12 +162,12 @@ The ``G`` vectors of the "spherical", ``k``-dependent grid can be obtained
 with `G_vectors`:
 
 ```@example data_structures
-[length(G_vectors(kpoint)) for kpoint in basis.kpoints]
+[length(G_vectors(basis, kpoint)) for kpoint in basis.kpoints]
 ```
 
 ```@example data_structures
 ik = 1
-G_vectors(basis.kpoints[ik])[1:4]
+G_vectors(basis, basis.kpoints[ik])[1:4]
 ```
 
 The list of ``G`` vectors (Fourier modes) of the "cubic", ``k``-independent basis
@@ -195,7 +195,7 @@ collect(r_vectors(basis))[1:4]
 ## Accessing Bloch waves and densities
 Wavefunctions are stored in an array `scfres.ψ` as `ψ[ik][iG, iband]` where
 `ik` is the index of the ``k``-point (in `basis.kpoints`), `iG` is the
-index of the plane wave (in `G_vectors(basis.kpoints[ik])`) and
+index of the plane wave (in `G_vectors(basis, basis.kpoints[ik])`) and
 `iband` is the index of the band.
 Densities are stored in real space, as a 4-dimensional array (the third being the spin component).
 
