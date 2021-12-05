@@ -60,17 +60,15 @@ function Matrix(op::RealSpaceMultiplication)
     pot_fourier = r_to_G(op.basis, complex.(op.potential))
     n_G = length(G_vectors(op.basis, op.kpoint))
     H = zeros(complex(eltype(op.basis)), n_G, n_G)
-    for i = 1:n_G
-        G = G_vectors(op.basis, op.kpoint)[i]
-        for j = 1:n_G
-            G′ = G_vectors(op.basis, op.kpoint)[j]
-            # G_vectors(basis)[ind] = G - G′
-            ind = index_G_vectors(op.basis, G - G′)
-            if ind === nothing
+    for (i, G) in enumerate(G_vectors(op.basis, op.kpoint))
+        for (j, G′) in enumerate(G_vectors(op.basis, op.kpoint))
+            # G_vectors(basis)[ind_ΔG] = G - G′
+            ind_ΔG = index_G_vectors(op.basis, G - G′)
+            if isnothing(ind_ΔG)
                 error("For full matrix construction, the FFT size must be " *
                       "large enough so that Hamiltonian applications are exact")
             end
-            H[i, j] = pot_fourier[ind] / sqrt(op.basis.model.unit_cell_volume)
+            H[i, j] = pot_fourier[ind_ΔG] / sqrt(op.basis.model.unit_cell_volume)
         end
     end
     H
