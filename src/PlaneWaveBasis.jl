@@ -17,9 +17,9 @@ struct Kpoint{T <: Real}
     coordinate::Vec3{T}           # Fractional coordinate of k-point
     coordinate_cart::Vec3{T}      # Cartesian coordinate of k-point
     mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
-                                  # G_vectors(bas)[kpt.mapping[i]] == G_vectors(bas, kpt)[i]
+                                  # G_vectors(basis)[kpt.mapping[i]] == G_vectors(basis, kpt)[i]
     mapping_inv::Dict{Int, Int}   # Inverse of `mapping`:
-                                  # G_vectors(bas)[i] == G_vectors(bas, kpt)[kpt.mapping_inv[i]]
+                                  # G_vectors(basis)[i] == G_vectors(basis, kpt)[mapping_inv[i]]
     G_vectors::Vector{Vec3{Int}}  # Wave vectors in integer coordinates:
                                   # ({G, 1/2 |k+G|^2 ≤ Ecut})
 end
