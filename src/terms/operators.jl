@@ -56,22 +56,19 @@ end
     Hψ.real .+= op.potential .* ψ.real
 end
 function Matrix(op::RealSpaceMultiplication)
-    # V(G,G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
+    # V(G, G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
     pot_fourier = r_to_G(op.basis, complex.(op.potential))
-    npw = length(G_vectors(op.kpoint))
-    H = zeros(complex(eltype(op.basis)), npw, npw)
-    for i = 1:npw
-        G = G_vectors(op.kpoint)[i]
-        for j = 1:npw
-            Gp = G_vectors(op.kpoint)[j]
-            ΔG = G-Gp
-            # G_vectors(basis)[ind] = ΔG
-            ind = index_G_vectors(op.basis, ΔG)
-            if ind === nothing
+    n_G = length(G_vectors(op.basis, op.kpoint))
+    H = zeros(complex(eltype(op.basis)), n_G, n_G)
+    for (i, G) in enumerate(G_vectors(op.basis, op.kpoint))
+        for (j, G′) in enumerate(G_vectors(op.basis, op.kpoint))
+            # G_vectors(basis)[ind_ΔG] = G - G′
+            ind_ΔG = index_G_vectors(op.basis, G - G′)
+            if isnothing(ind_ΔG)
                 error("For full matrix construction, the FFT size must be " *
                       "large enough so that Hamiltonian applications are exact")
             end
-            H[i, j] = pot_fourier[ind] / sqrt(op.basis.model.unit_cell_volume)
+            H[i, j] = pot_fourier[ind_ΔG] / sqrt(op.basis.model.unit_cell_volume)
         end
     end
     H
@@ -120,7 +117,7 @@ end
     # TODO this could probably be better optimized
     for α = 1:3
         all(op.Apot[α] .== 0) && continue
-        pα = [(op.basis.model.recip_lattice*(G + op.kpoint.coordinate))[α] for G in G_vectors(op.kpoint)]
+        pα = [q[α] for q in Gplusk_vectors_cart(op.basis, op.kpoint)]
         ∂αψ_fourier = pα .* ψ.fourier
         ∂αψ_real = G_to_r(op.basis, op.kpoint, ∂αψ_fourier)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real

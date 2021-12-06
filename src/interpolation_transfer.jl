@@ -68,15 +68,18 @@ Interpolate some data from one ``k``-point to another. The interpolation is fast
 necessarily exact or even normalized. Intended only to construct guesses for iterative
 solvers
 """
-function interpolate_kpoint(data_in::AbstractVecOrMat, kpoint_in::Kpoint, kpoint_out::Kpoint)
+function interpolate_kpoint(data_in::AbstractVecOrMat,
+                            basis_in::PlaneWaveBasis,  kpoint_in::Kpoint,
+                            basis_out::PlaneWaveBasis, kpoint_out::Kpoint)
     # TODO merge with transfer_blochwave_kpt
     if kpoint_in == kpoint_out
         return copy(data_in)
     end
-    @assert length(G_vectors(kpoint_in)) == size(data_in, 1)
+    @assert length(G_vectors(basis_in, kpoint_in)) == size(data_in, 1)
 
-    n_bands = size(data_in, 2)
-    data_out = similar(data_in, length(G_vectors(kpoint_out)), n_bands) .= 0
+    n_bands  = size(data_in, 2)
+    n_Gk_out = length(G_vectors(basis_out, kpoint_out))
+    data_out = similar(data_in, n_Gk_out, n_bands) .= 0
     for iin in 1:size(data_in, 1)
         idx_fft = kpoint_in.mapping[iin]
         idx_fft in keys(kpoint_out.mapping_inv) || continue
@@ -94,11 +97,11 @@ the transfer from `ψkin` (defined on `basis_in` and `kpt_in`) to `ψkout`
 """
 function transfer_mapping(basis_in::PlaneWaveBasis{T},  kpt_in::Kpoint,
                           basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where T
-    idcs_in  = 1:length(G_vectors(kpt_in))  # All entries from idcs_in
+    idcs_in  = 1:length(G_vectors(basis_in, kpt_in))  # All entries from idcs_in
     kpt_in == kpt_out && return idcs_in, idcs_in
 
     # Get indices of the G vectors of the old basis inside the new basis.
-    idcs_out = index_G_vectors.(Ref(basis_out), G_vectors(kpt_in))
+    idcs_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in, kpt_in))
 
     # In the case where G_vectors(basis_in.kpoints[ik]) are bigger than vectors
     # in the fft_size box of basis_out, we need to filter out the "nothings" to
@@ -110,9 +113,9 @@ function transfer_mapping(basis_in::PlaneWaveBasis{T},  kpt_in::Kpoint,
     end
     idcs_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcs_out)
 
-    # Map to the indices of the corresponding G-vectors in G_vectors(kpt_out)
-    # this array might contains some nothings if basis_out has less G_vectors
-    # than basis_in at this k-point
+    # Map to the indices of the corresponding G-vectors in
+    # G_vectors(basis_out, kpt_out) this array might contains some nothings if
+    # basis_out has less G_vectors than basis_in at this k-point
     idcs_out = indexin(idcs_out, kpt_out.mapping)
     if any(isnothing, idcs_out)
         idcs_in  = idcs_in[idcs_out .!= nothing]
@@ -154,11 +157,11 @@ Transfer an array ψk defined on basis_in ``k``-point kpt_in to basis_out ``k``-
 function transfer_blochwave_kpt(ψk_in, basis_in::PlaneWaveBasis{T}, kpt_in::Kpoint,
                                 basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where T
     kpt_in == kpt_out && return copy(ψk_in)
-    @assert length(G_vectors(kpt_in)) == size(ψk_in, 1)
+    @assert length(G_vectors(basis_in, kpt_in)) == size(ψk_in, 1)
     idcsk_in, idcsk_out = transfer_mapping(basis_in, kpt_in, basis_out, kpt_out)
 
     n_bands = size(ψk_in, 2)
-    ψk_out  = similar(ψk_in, length(G_vectors(kpt_out)), n_bands)
+    ψk_out  = similar(ψk_in, length(G_vectors(basis_out, kpt_out)), n_bands)
     ψk_out .= 0
     ψk_out[idcsk_out, :] .= ψk_in[idcsk_in, :]
 

@@ -7,7 +7,7 @@ function compute_kinetic_energy_density(basis::PlaneWaveBasis, ψ, occupation)
     for (ik, kpt) in enumerate(basis.kpoints)
         for (n, ψnk) in enumerate(eachcol(ψ[ik]))
             for α = 1:3
-                dαψnk = [im * (G + kpt.coordinate_cart)[α] for G in G_vectors_cart(kpt)] .* ψnk
+                dαψnk = [im * q[α] for q in Gplusk_vectors_cart(basis, kpt)] .* ψnk
                 dαψnk_real = G_to_r(basis, kpt, dαψnk)
                 ked .+= @. 0.5 * basis.kweights[ik] *
                            occupation[ik][n] * 

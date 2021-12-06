@@ -17,9 +17,11 @@ function HamiltonianBlock(basis, kpt, operators, scratch)
     HamiltonianBlock(basis, kpt, operators, optimize_operators_(operators), scratch)
 end
 Base.eltype(block::HamiltonianBlock) = complex(eltype(block.basis))
-Base.size(block::HamiltonianBlock) =
-    (length(G_vectors(block.kpoint)), length(G_vectors(block.kpoint)))
 Base.size(block::HamiltonianBlock, i::Integer) = i < 3 ? size(block)[i] : 1
+function Base.size(block::HamiltonianBlock)
+    n_G = length(G_vectors(block.basis, block.kpoint))
+    (n_G, n_G)
+end
 
 struct Hamiltonian
     basis::PlaneWaveBasis

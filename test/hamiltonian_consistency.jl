@@ -21,9 +21,9 @@ function test_consistency_term(term; rtol=1e-3, atol=1e-8, ε=1e-8, kgrid=[1, 2,
         n_bands = div(n_electrons, 2, RoundUp)
         filled_occ = DFTK.filled_occupation(model)
 
-        ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis.kpoints[ik])), n_bands)).Q)
-             for ik in 1:length(basis.kpoints)]
-        occupation = [filled_occ * rand(n_bands) for ik in 1:length(basis.kpoints)]
+        ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
+             for kpt in basis.kpoints]
+        occupation = [filled_occ * rand(n_bands) for _ in 1:length(basis.kpoints)]
         occ_scaling = n_electrons / sum(sum(occupation))
         occupation = [occ * occ_scaling for occ in occupation]
         ρ = compute_density(basis, ψ, occupation)

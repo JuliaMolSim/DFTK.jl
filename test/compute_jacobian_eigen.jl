@@ -45,9 +45,11 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
 
         # random starting point on the tangent space to avoid eigenvalue 0
         x0 = map(1:numval) do n
-            xn = proj_tangent([randn(Complex{eltype(basis)}, length(G_vectors(kpt)), n_bands)
-                               for kpt in basis.kpoints], ψ)
-            pack(xn)
+            initial = map(basis.kpoints) do kpt
+                n_Gk = length(G_vectors(basis, kpt))
+                randn(Complex{eltype(basis)}, n_Gk, n_bands)
+            end
+            pack(proj_tangent(initial, ψ))
         end
         x0 = hcat(x0...)
 

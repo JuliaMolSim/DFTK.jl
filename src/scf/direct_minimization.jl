@@ -81,7 +81,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     Nk = length(basis.kpoints)
 
     if ψ0 === nothing
-        ψ0 = [ortho_qr(randn(Complex{T}, length(G_vectors(kpt)), n_bands))
+        ψ0 = [ortho_qr(randn(Complex{T}, length(G_vectors(basis, kpt)), n_bands))
               for kpt in basis.kpoints]
     end
     occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
