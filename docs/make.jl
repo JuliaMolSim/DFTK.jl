@@ -89,7 +89,7 @@ makedocs(
     format = Documenter.HTML(
         # Use clean URLs, unless built as a "local" build
         prettyurls = CONTINUOUS_INTEGRATION,
-        canonical = "https://juliamolsim.github.io/DFTK.jl/stable/",
+        canonical = "https://docs.dftk.org/stable/",
         assets = ["assets/favicon.ico"],
     ),
     sitename = "DFTK.jl",
