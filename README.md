@@ -2,7 +2,7 @@
 
 -----------
 
-#### Summer school 2022
+### Summer school 2022
 
 We will organise a summer school centred around the DFTK code
 and modern approaches to density-functional theory
