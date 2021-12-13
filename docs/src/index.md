@@ -20,6 +20,12 @@ If you are new to density-functional theory or plane-wave methods,
 see our notes on [Periodic problems](@ref periodic-problems) and our
 collection of [lectures, workshops and literature on DFT](@ref density-functional-theory).
 
+!!! tip "DFTK summer school: 29th to 31st August 2022 in Paris, France"
+    We will organise a summer school centred around the DFTK code
+    and modern approaches to density-functional theory
+    from **29 to 31 August 2022** at **Sorbonne Université, Paris**.
+    For more details and registration info see the [school's website](https://school2022.dftk.org).
+
 ## [Package features](@id package-features)
 * Methods and models:
     - Kohn-Sham-like models, with an emphasis on flexibility: compose your own model,
