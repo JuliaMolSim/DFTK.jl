@@ -102,7 +102,7 @@ makedocs(
     ],
     pages = [
         "Home" => "index.md",
-        "school.md",
+        "school2022.md",
         "Getting started" => Any[
             "guide/installation.md",
             "Tutorial" => "guide/tutorial.md",
