@@ -102,6 +102,7 @@ makedocs(
     ],
     pages = [
         "Home" => "index.md",
+        "school2022.md",
         "Getting started" => Any[
             "guide/installation.md",
             "Tutorial" => "guide/tutorial.md",
@@ -120,6 +121,7 @@ makedocs(
         "api.md",
         "publications.md",
     ],
+    checkdocs=:exports,
     strict = !DEBUG,
 )
 
