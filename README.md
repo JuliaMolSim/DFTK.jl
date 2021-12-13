@@ -1,5 +1,16 @@
 <img src="https://raw.githubusercontent.com/JuliaMolSim/DFTK.jl/master/docs/logo/DFTK_750x250.png" alt="dftk logo" height="100px" />
 
+-----------
+
+## DFTK summer school 2022
+
+We will organise a summer school centred around the DFTK code
+and modern approaches to density-functional theory
+from **29 to 31 August 2022** at **Sorbonne Université, Paris**.
+For more details see the [school's website](https://school2022.dftk.org).
+
+-----------
+
 # Density-functional toolkit
 
 | **Documentation**                                                                 | **Build Status**                                |  **License**                     |
@@ -23,17 +34,6 @@
 
 [license-img]: https://img.shields.io/github/license/JuliaMolSim/DFTK.jl.svg?maxAge=2592000
 [license-url]: https://github.com/JuliaMolSim/DFTK.jl/blob/master/LICENSE
-
------------
-
-## DFTK summer school 2022
-
-We will organise a summer school centred around the DFTK code
-and modern approaches to density-functional theory
-from **29 to 31 August 2022** at **Sorbonne Université, Paris**.
-For more details see the [school's website](https://school2022.dftk.org).
-
------------
 
 
 The density-functional toolkit, **DFTK** for short, is a library of
