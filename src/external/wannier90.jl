@@ -1,5 +1,4 @@
 using Dates
-export run_wannier90
 
 """
 Write a win file at the indicated prefix.
@@ -249,20 +248,6 @@ generated in reduced coordinates.
 """
 default_wannier_centres(n_wannier) = [rand(1, 3) for _ in 1:n_wannier]
 
-"""
-Wannerize the obtained bands using wannier90. By default all converged
-bands from the `scfres` are employed (change with `n_bands` kwargs)
-and `n_wannier = n_bands` wannier functions are computed using
-random Gaussians as guesses. All keyword arguments supported by
-Wannier90 for the disentanglement may be added as keyword arguments.
-The function returns the `fileprefix`.
-
-!!! warning "Experimental feature"
-    Currently this is an experimental feature, which has not yet been tested
-    to full depth. The interface is considered unstable and may change
-    incompatibly in the future. Use at your own risk and please report bugs
-    in case you encounter any.
-"""
 @timing function run_wannier90(scfres;
                                n_bands=size(scfres.ψ[1], 2) - scfres.n_ep_extra,
                                n_wannier=n_bands,
