@@ -26,12 +26,12 @@
 
 -----------
 
-## **DFTK summer school 2022: 29th to 31st August 2022 in Paris, France**
+## DFTK summer school 2022
 
 We will organise a summer school centred around the DFTK code
 and modern approaches to density-functional theory
 from **29 to 31 August 2022** at **Sorbonne Université, Paris**.
-For more details and registration info see the [school's website](https://school2022.dftk.org).
+For more details see the [school's website](https://school2022.dftk.org).
 
 -----------
 
