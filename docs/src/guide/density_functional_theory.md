@@ -1,11 +1,5 @@
 # [Introductory resources on density-functional theory and DFTK](@id density-functional-theory)
 
-!!! tip "DFTK summer school: 29th to 31st August 2022 in Paris, France"
-    We will organise a summer school centred around the DFTK code
-    and modern approaches to density-functional theory
-    from **29 to 31 August 2022** at **Sorbonne Université, Paris**.
-    For more details and registration info see the [school's website](https://school2022.dftk.org).
-
 This page collects a bunch of articles, lecture notes, textbooks and recordings
 related to density-functional theory (DFT) and DFTK.
 Since DFTK aims for an interdisciplinary audience the
@@ -13,6 +7,12 @@ level and scope of the referenced works varies.
 They are roughly ordered from beginner to advanced.
 For a list of articles dealing with novel research aspects achieved using DFTK,
 see [Publications](@ref).
+
+- [DFTK school 2022: Numerical methods for density-functional theory simulations](https://school2022.dftk.org):
+  In 2022 we will organise a summer school centred around the DFTK code
+  and modern approaches to density-functional theory
+  from **29 to 31 August 2022** at **Sorbonne Université, Paris**.
+  [More details and registration](https://school2022.dftk.org).
 
 - [DFTK: A Julian approach for simulating electrons in solids](https://www.youtube.com/watch?v=-RomkxjlIcQ) by M. F. Herbst:
   Pre-recorded talk for JuliaCon 2020.

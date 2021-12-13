@@ -2,12 +2,6 @@
 #md # [![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/guide/@__NAME__.ipynb)
 #md # [![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/guide/@__NAME__.ipynb)
 
-#md # !!! tip "DFTK summer school: 29th to 31st August 2022 in Paris, France"
-#md #     We will organise a summer school centred around the DFTK code
-#md #     and modern approaches to density-functional theory
-#md #     from **29 to 31 August 2022** at **Sorbonne Université, Paris**.
-#md #     For more details and registration info see the [school's website](https://school2022.dftk.org).
-
 #nb # DFTK is a Julia package for playing with plane-wave
 #nb # density-functional theory algorithms. In its basic formulation it
 #nb # solves periodic Kohn-Sham equations.
