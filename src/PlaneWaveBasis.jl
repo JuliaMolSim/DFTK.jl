@@ -1,5 +1,9 @@
 using MPI
 
+# Abstract type for all possible bases that can be used in DFTK. Right now this is just
+# one, but this type helps to resolve method ambiguities while avoiding an uninformative ::Any.
+abstract type AbstractBasis{T <: Real} end
+
 # There are two kinds of plane-wave basis sets used in DFTK.
 # The k-dependent orbitals are discretized on spherical basis sets {G, 1/2 |k+G|^2 ≤ Ecut}.
 # Potentials and densities are expressed on cubic basis sets large enough to contain
@@ -36,7 +40,7 @@ Normalization conventions:
 
 `G_to_r` and `r_to_G` convert between these representations.
 """
-struct PlaneWaveBasis{T <: Real}
+struct PlaneWaveBasis{T} <: AbstractBasis{T}
     model::Model{T}
 
     ## Global grid information
@@ -210,13 +214,10 @@ end
     kweights = T.(model.n_spin_components .* kweights) ./ tot_weight
     @assert mpi_sum(sum(kweights), comm_kpts) ≈ model.n_spin_components
 
-    # Create dummy terms array for basis to handle
-    terms = Vector{Any}(undef, length(model.term_types))
-
-    dvol = model.unit_cell_volume ./ prod(fft_size)
-
+    dvol  = model.unit_cell_volume ./ prod(fft_size)
+    terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
     basis = PlaneWaveBasis{T}(
-        model, fft_size, dvol, 
+        model, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
         r_to_G_normalization, G_to_r_normalization,

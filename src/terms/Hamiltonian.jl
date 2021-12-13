@@ -123,9 +123,10 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
 # (eg the density ρ)
 @timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occ; kwargs...)
     # it: index into terms, ik: index into kpoints
-    @timing "ene_ops" ene_ops_arr = [ene_ops(term, ψ, occ; kwargs...) for term in basis.terms]
-    energies    = [eh.E for eh in ene_ops_arr]
-    operators   = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
+    @timing "ene_ops" ene_ops_arr = [ene_ops(term, basis, ψ, occ; kwargs...)
+                                     for term in basis.terms]
+    energies  = [eh.E for eh in ene_ops_arr]
+    operators = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
 
     # flatten the inner arrays in case a term returns more than one operator
     function flatten(arr)

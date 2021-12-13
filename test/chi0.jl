@@ -46,7 +46,7 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
         end
 
         εδV = ε * δV
-        term_builder = basis -> DFTK.TermExternal(basis, εδV)
+        term_builder = basis -> DFTK.TermExternal(εδV)
         model = model_LDA(testcase.lattice, [spec => testcase.positions];
                           model_kwargs..., extra_terms=[term_builder])
         basis = PlaneWaveBasis(model; Ecut, basis_kwargs...)

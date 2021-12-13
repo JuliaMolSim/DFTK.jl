@@ -11,7 +11,7 @@ which has the same structure as the `atoms` object passed to the underlying [`Mo
     T = eltype(basis)
     forces = [zeros(Vec3{T}, length(positions)) for (element, positions) in basis.model.atoms]
     for term in basis.terms
-        f_term = compute_forces(term, ψ, occ; kwargs...)
+        f_term = compute_forces(term, basis, ψ, occ; kwargs...)
         if !isnothing(f_term)
             forces += f_term
         end

@@ -11,10 +11,10 @@
 # Basic familiarity with the concepts of plane-wave density functional theory
 # is assumed throughout. Feel free to take a look at the
 #md # [Periodic problems](@ref periodic-problems)
-#nb # [Periodic problems](https://juliamolsim.github.io/DFTK.jl/stable/guide/periodic_problems/)
+#nb # [Periodic problems](https://docs.dftk.org/stable/guide/periodic_problems/)
 # or the
 #md # [density-functional theory](@ref density-functional-theory)
-#nb # [density-functional theory](https://juliamolsim.github.io/DFTK.jl/stable/guide/density_functional_theory/)
+#nb # [density-functional theory](https://docs.dftk.org/stable/guide/density_functional_theory/)
 # chapters for some introductory material on the topic.
 #
 # !!! note "Convergence parameters in the documentation"
@@ -104,5 +104,5 @@ compute_forces_cart(scfres)[1]  # Select silicon forces
 # ## Where to go from here
 # Take a look at the
 #md # [example index](@ref example-index)
-#nb # [example index](https://juliamolsim.github.io/DFTK.jl/dev/#example-index-1)
+#nb # [example index](https://docs.dftk.org/stable/#example-index-1)
 # to continue exploring DFTK.
