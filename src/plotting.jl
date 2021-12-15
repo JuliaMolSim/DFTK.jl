@@ -21,10 +21,10 @@ function ScfPlotTrace(plt=Plots.plot(yaxis=:log); kwargs...)
 end
 
 
-function plot_band_data(band_data; εF=nothing,
-                        klabels=Dict{String, Vector{Float64}}(), unit=u"hartree", kwargs...)
+function plot_band_data(band_data; εF=nothing, klabels=Dict{String, Vector{Float64}}(),
+                        kbranches=[1:length(band_data.λ)], unit=u"hartree", kwargs...)
     eshift = isnothing(εF) ? 0.0 : εF
-    data = prepare_band_data(band_data, klabels=klabels)
+    data = prepare_band_data(band_data; klabels, kbranches)
 
     # Constant to convert from AU to the desired unit
     to_unit = ustrip(auconvert(unit, 1.0))
@@ -36,23 +36,23 @@ function plot_band_data(band_data; εF=nothing,
         end
     end
 
-    # For each branch, plot all bands, spins and errors
+    # Plot all bands, spins and errors
     p = Plots.plot(xlabel="wave vector")
-    for branch in data.branches
-        for σ in 1:data.n_spin, iband = 1:data.n_bands
-            yerror = nothing
-            if hasproperty(branch, :λerror)
-                yerror = branch.λerror[:, iband, σ] .* to_unit
-            end
-            energies = (branch.λ[:, iband, σ] .- eshift) .* to_unit
-            color = (:blue, :red)[σ]
-            Plots.plot!(p, branch.kdistances, energies; color, label="",
-                        yerror, markerargs..., kwargs...)
+    for σ in 1:data.n_spin, iband = 1:data.n_bands
+        yerror = nothing
+        if hasproperty(data, :λerror)
+            yerror = data.λerror[:, iband, σ] .* to_unit
+        end
+        energies = (data.λ[:, iband, σ] .- eshift) .* to_unit
+        color = (:blue, :red)[σ]
+        for branch in data.kbranches
+            Plots.plot!(p, data.kdistances[branch], energies[branch]; color, label="",
+                        yerror=yerror[branch], markerargs..., kwargs...)
         end
     end
 
     # X-range: 0 to last kdistance value
-    Plots.xlims!(p, (0, data.branches[end].kdistances[end]))
+    Plots.xlims!(p, (0, data.kdistances[end]))
     Plots.xticks!(p, data.ticks.distances, data.ticks.labels)
 
     ylims = [-0.147, 0.147]

@@ -11,9 +11,11 @@ underlying the path-choices of `Brillouin.jl`, specifically for oA and mC Bravai
 The `kline_density` is given in number of ``k``-points per inverse bohrs (i.e.
 overall in units of length).
 
-Issues a warning in case the passed lattice does not match the expected primitive.
+If the cell is a supercell of a smaller primitive cell, the standard ``k``-path of the
+associated primitive cell is returned. So, the high-symmetry ``k`` points are those of the
+primitive cell Brillouin zone, not those of the supercell Brillouin zone.
 """
-function high_symmetry_kpath(model; kline_density=40)
+function high_symmetry_kpath(model; kline_density=40, magnetic_moments=[])
     kline_density = austrip(kline_density)
 
     if model.n_dim == 1  # Return fast for 1D model
@@ -35,39 +37,20 @@ function high_symmetry_kpath(model; kline_density=40)
     # - spglib uses this convention for the returned conventional lattice,
     #   so it can be directly used as input to Brillouin.jl
     # - The output k-Points and reciprocal lattices will be in the CDML convention.
-    conv_latt = spglib_standardize_cell(model; primitive=false,correct_symmetry=false).lattice
-    sgnum     = spglib_spacegroup_number(model)  # Get ITA space-group number
-    direct_basis   = Bravais.DirectBasis(collect(eachcol(conv_latt)))
-    primitive_latt = Bravais.primitivize(direct_basis, Bravais.centering(sgnum, 3))
-
-    primitive_latt ≈ collect(eachcol(model.lattice)) || @warn(
-        "DFTK's model.lattice and Brillouin's primitive lattice do not agree. " *
-        "The kpath selected to plot the band structure might not be most appropriate."
-    )
-
-    kp     = Brillouin.irrfbz_path(sgnum, direct_basis)
+    kp     = Brillouin.irrfbz_path(spglib_cell(model, magnetic_moments))
     kinter = Brillouin.interpolate(kp, density=kline_density)
 
     # TODO Need to take care of time-reversal symmetry here!
     #      See https://github.com/JuliaMolSim/DFTK.jl/pull/496/files#r725203554
 
-    # Need to double the points whenever a new path starts
-    # (for temporary compatibility with pymatgen)
-    # TODO Remove this later
-    kcoords = empty(first(kinter.kpaths))
-    for kbranch in kinter.kpaths
-        idcs = findall(k -> any(sum(abs2, k - kcomp) < 1e-5
-                                for kcomp in values(kp.points)), kbranch)
-        @assert length(idcs) ≥ 2
-        idcs = idcs[2:end-1]  # Don't duplicate first and last
-        idcs = sort(append!(idcs, 1:length(kbranch)))
-        append!(kcoords, kbranch[idcs])
-    end
-
-    T = eltype(kcoords[1])
-    klabels = Dict{String,Vector{T}}(string(key) => val for (key, val) in kp.points)
+    kcoords = vcat(kinter.kpaths...)
+    klabels = kp.points
     kpath   = [[string(el) for el in path] for path in kp.paths]
-    (; kcoords, klabels, kpath)
+    kbranches = [1:length(kinter.kpaths[1])]
+    for n in length.(kinter.kpaths)[2:end]
+        push!(kbranches, kbranches[end].stop+1:kbranches[end].stop+n)
+    end
+    (; kcoords, klabels, kpath, kbranches)
 end
 
 
@@ -99,40 +82,46 @@ end
 end
 
 
-function split_into_branches(kcoords, data::Dict, klabels::Dict)
+function kdistances_and_ticks(kcoords, klabels::Dict, kbranches)
     # kcoords in cartesian coordinates, klabels uses cartesian coordinates
     function getlabel(kcoord; tol=1e-4)
         findfirst(c -> norm(c - kcoord) < tol, klabels)
     end
 
-    branches = Any[(kindices = [0], kdistances=[0.0], ), ]
-    for (ik, kcoord) in enumerate(kcoords)
-        previous_kcoord = ik == 1 ? kcoords[1] : kcoords[ik - 1]
-        if !isnothing(getlabel(kcoord)) && !isnothing(getlabel(previous_kcoord))
-            # New branch encountered
-            previous_distance = branches[end].kdistances[end]
-            push!(branches, (kindices=[ik], kdistances=[previous_distance]))
+    @info kbranches
+    kdistances = eltype(kcoords[1])[]
+    tick_distances = eltype(kcoords[1])[]
+    tick_labels = String[]
+    for (ibranch, kbranch) in enumerate(kbranches)
+        kdistances_branch = cumsum(append!([0.], [norm(kcoords[ik - 1] - kcoords[ik])
+                                                  for ik in kbranch[2:end]]))
+        if ibranch == 1
+            append!(kdistances, kdistances_branch)
         else
-            # Keep adding to current branch
-            distance = branches[end].kdistances[end] + norm(kcoord - kcoords[ik - 1])
-            push!(branches[end].kdistances, distance)
-            push!(branches[end].kindices, ik)
+            append!(kdistances, kdistances_branch .+ kdistances[end][end])
+        end
+        for ik in kbranch
+            kcoord = kcoords[ik]
+            if getlabel(kcoord) !== nothing
+                if ibranch != 1 && ik == kbranch[1]
+                    # New branch encountered. Do not add a new tick point but update label.
+                    tick_labels[end] *= " | " * String(getlabel(kcoord))
+                else
+                    push!(tick_labels, String(getlabel(kcoord)))
+                    push!(tick_distances, kdistances[ik])
+                end
+            end
         end
     end
 
-    map(branches[2:end]) do branch
-        branch_data = Dict(key => data[key][branch.kindices, :, :] for key in keys(data))
-        ret = (klabels=(getlabel(kcoords[branch.kindices[1]]),
-                        getlabel(kcoords[branch.kindices[end]])),
-               kdistances=branch.kdistances,
-               kindices=branch.kindices)
-        merge(ret, (; branch_data...))
-    end
+    ticks = (distances=tick_distances, labels=tick_labels)
+    (; kdistances, ticks)
 end
 
 
 function prepare_band_data(band_data; datakeys=[:λ, :λerror],
-                           klabels=Dict{String, Vector{Float64}}())
+                           klabels=Dict{String, Vector{Float64}}(),
+                           kbranches=[1:length(band_data.λ)])
     basis = band_data.basis
     n_spin   = basis.model.n_spin_components
     n_kcoord = length(basis.kpoints) ÷ n_spin
@@ -155,26 +144,10 @@ function prepare_band_data(band_data; datakeys=[:λ, :λerror],
         data[key] = data_per_kσ
     end
     @assert !isnothing(n_bands)
-    branches = split_into_branches(kcoords_cart, data, klabels_cart)
 
-    tick_labels    = String[branches[1].klabels[1]]
-    tick_distances = Float64[branches[1].kdistances[1]]
-    for (i, br) in enumerate(branches)
-        # Ignore branches with a single k-point
-        branches[i].klabels[1] == branches[i].klabels[2] && continue
+    kdistances, ticks = kdistances_and_ticks(kcoords_cart, klabels_cart, kbranches)
 
-        label    = branches[i].klabels[2]
-        distance = branches[i].kdistances[end]
-        if i != length(branches) && branches[i+1].klabels[1] != label
-            # Next branch is not continuous from the current
-            label = label * " | " * branches[i+1].klabels[1]
-        end
-        push!(tick_labels, label)
-        push!(tick_distances, distance)
-    end
-
-    (branches=branches, ticks=(distances=tick_distances, labels=tick_labels),
-     n_bands=n_bands, n_kcoord=n_kcoord, n_spin=n_spin, basis=basis)
+    (; ticks, kdistances, kbranches, n_bands, n_kcoord, n_spin, basis, data...)
 end
 
 
@@ -224,11 +197,11 @@ function plot_bandstructure(basis::PlaneWaveBasis;
     end
 
     # Band structure calculation along high-symmetry path
-    kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density)
+    kcoords, klabels, kpath, kbranches = high_symmetry_kpath(basis.model; kline_density)
     println("Computing bands along kpath:")
     println("       ", join(join.(kpath, " -> "), "  and  "))
     band_data = compute_bands(basis, kcoords; kwargs...)
-    plot_band_data(band_data; εF, klabels, unit, kwargs_plot...)
+    plot_band_data(band_data; εF, klabels, kbranches, unit, kwargs_plot...)
 end
 function plot_bandstructure(scfres::NamedTuple;
                             n_bands=default_n_bands_bandstructure(scfres), kwargs...)
