@@ -70,7 +70,7 @@ function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
     end
     showfieldln(io, "kgrid type", "Monkhorst-Pack")
     showfieldln(io, "kgrid",    basis.kgrid)
-    if !iszero(basis.kshift)
+    if !isnothing(basis.kshift) && !iszero(basis.kshift)
         showfieldln(io, "kshift",   basis.kshift)
     end
     showfieldln(io, "num. irred. kpoints", length(basis.kcoords_global))
