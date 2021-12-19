@@ -20,7 +20,7 @@ function make_basis(ε::T; a=10., Ecut=20) where T
         # Ewald(),
         # PspCorrection(),
         # Entropy(),
-        # Hartree(),
+        Hartree(),
         ExternalFromReal(r -> -ε * (r[1] - a/2))
     ]
     # model = Model(lattice, atoms, terms; temperature=1e-3, symmetries=false)
@@ -49,10 +49,10 @@ polarizability_fd = let
     ε = 0.001
     (compute_dipole(ε) - compute_dipole(0.0)) / ε
 end
-# 0.6739473798923251
+# 5.927991565017467
 
 Zygote.gradient(compute_dipole, 0.0)
-# 0.6739494110564168
+# 5.929234558961456,
 # incl. compile time: 229 seconds
 # second call:         40 seconds
 

@@ -207,6 +207,9 @@ end
 
 
 # convert generators into arrays (needed for Zygote here)
+function _G_vectors_cart(basis::PlaneWaveBasis)
+    [basis.model.recip_lattice * G for G in G_vectors(basis.fft_size)]
+end
 function _Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
     [basis.model.recip_lattice * (G + kpt.coordinate) for G in G_vectors(basis, kpt)]
 end
@@ -250,6 +253,22 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, E::AtomicLoc
     term = E(basis)
     _term, AtomicLocal_pullback = rrule_via_ad(config, _autodiff_AtomicLocal, basis)
     return term, AtomicLocal_pullback
+end
+
+
+function _autodiff_TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
+    poisson_green_coeffs = map(_G_vectors_cart(basis)) do G
+        abs2G = sum(abs2, G)
+        abs2G > 0. ? 4T(π)/abs2G : 0.
+    end
+    TermHartree(T(scaling_factor), T(scaling_factor) .* poisson_green_coeffs)
+end
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{TermHartree}, basis::PlaneWaveBasis, scaling_factor)
+    @warn "TermHartree rrule triggered."
+    term = T(basis, scaling_factor)
+    _term, TermHartree_pullback = rrule_via_ad(config, _autodiff_TermHartree, basis, scaling_factor)
+    return term, TermHartree_pullback
 end
 
 # compute_density rrule
