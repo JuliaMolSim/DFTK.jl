@@ -10,9 +10,12 @@
 # and how to access basic information about calculations.
 # Basic familiarity with the concepts of plane-wave density functional theory
 # is assumed throughout. Feel free to take a look at the
-#md # [density-functional theory chapter](@ref density-functional-theory)
-#nb # [density-functional theory chapter](https://juliamolsim.github.io/DFTK.jl/dev/#density-functional-theory)
-# for some introductory material on the topic.
+#md # [Periodic problems](@ref periodic-problems)
+#nb # [Periodic problems](https://docs.dftk.org/stable/guide/periodic_problems/)
+# or the
+#md # [density-functional theory](@ref density-functional-theory)
+#nb # [density-functional theory](https://docs.dftk.org/stable/guide/density_functional_theory/)
+# chapters for some introductory material on the topic.
 #
 # !!! note "Convergence parameters in the documentation"
 #     We use rough parameters in order to be able
@@ -68,13 +71,13 @@ scfres.energies
 
 # Eigenvalues: 
 hcat(scfres.eigenvalues...)
-# `eigenvalues` is an array (indexed by kpoints) of arrays (indexed by
+# `eigenvalues` is an array (indexed by k-points) of arrays (indexed by
 # eigenvalue number). The "splatting" operation `...` calls `hcat`
 # with all the inner arrays as arguments, which collects them into a
 # matrix.
 #
 # The resulting matrix is 7 (number of computed eigenvalues) by 8
-# (number of kpoints). There are 7 eigenvalues per kpoint because
+# (number of k-points). There are 7 eigenvalues per k-point because
 # there are 4 occupied states in the system (4 valence electrons per
 # silicon atom, two atoms per unit cell, and paired spins), and the
 # eigensolver gives itself some breathing room by computing some extra
@@ -91,7 +94,7 @@ plot(x, scfres.ρ[1, :, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 
 # We can also perform various postprocessing steps:
 # for instance compute a band structure
-plot_bandstructure(scfres, kline_density=5)
+plot_bandstructure(scfres; kline_density=10)
 # or get the cartesian forces (in Hartree / Bohr)
 compute_forces_cart(scfres)[1]  # Select silicon forces
 # The `[1]` extracts the forces for the first kind of atoms,
@@ -101,5 +104,5 @@ compute_forces_cart(scfres)[1]  # Select silicon forces
 # ## Where to go from here
 # Take a look at the
 #md # [example index](@ref example-index)
-#nb # [example index](https://juliamolsim.github.io/DFTK.jl/dev/#example-index-1)
+#nb # [example index](https://docs.dftk.org/stable/#example-index-1)
 # to continue exploring DFTK.

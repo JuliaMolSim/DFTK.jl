@@ -63,14 +63,6 @@ entropy(S::None, x) = zero(x)
 
 struct FermiDirac <: SmearingFunction end
 occupation(S::FermiDirac, x) = 1 / (1 + exp(x))
-function occupation_derivative(S::FermiDirac, x)
-    # ForwardDiff gets NaNs for large arguments so we help it along
-    if exp(x) > floatmax(typeof(x)) / 1e3
-        zero(x)
-    else
-        -exp(x) / (1+exp(x))^2
-    end
-end
 # entropy(f) = -(f log f + (1-f)log(1-f)), where f = 1/(1+exp(x))
 # this "simplifies" to -(x*exp(x)/(1+exp(x)) - log(1+exp(x)))
 # although that is not especially useful...

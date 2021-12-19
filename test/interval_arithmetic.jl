@@ -15,8 +15,8 @@ function discretized_hamiltonian(T, testcase)
 
     # For interval arithmetic to give useful numbers,
     # the fft_size should be a power of 2
-    fft_size = nextpow.(2, compute_fft_size(model.lattice, Ecut))
-    basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1), fft_size=fft_size)
+    fft_size = nextpow.(2, compute_fft_size(model, Ecut))
+    basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), fft_size=fft_size)
 
     Hamiltonian(basis; ρ=guess_density(basis))
 end
@@ -30,7 +30,7 @@ end
     hamk = ham.blocks[1]
     hamIntk = hamInt.blocks[1]
 
-    x = randn(Complex{T}, length(G_vectors(ham.basis.kpoints[1])))
+    x = randn(Complex{T}, length(G_vectors(ham.basis, ham.basis.kpoints[1])))
     ref = hamk * x
     res = hamIntk * Interval.(x)
 

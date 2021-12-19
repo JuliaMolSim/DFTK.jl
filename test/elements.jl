@@ -14,6 +14,7 @@ using DFTK: local_potential_fourier, local_potential_real
     @test element.Z == 12
     @test element.symbol == :Mg
 
+    @test atomic_symbol(element) == :Mg
     @test charge_nuclear(element) == 12
     @test charge_ionic(element) == 12
     @test n_elec_valence(element) == charge_ionic(element)
@@ -38,6 +39,7 @@ end
     @test element.psp !== nothing
     @test element.psp.identifier == "hgh/lda/c-q4"
 
+    @test atomic_symbol(element) == :C
     @test charge_nuclear(element) == 6
     @test charge_ionic(element) == 4
     @test n_elec_valence(element) == 4
@@ -56,6 +58,7 @@ end
     @test element.Z == 14
     @test element.symbol == :Si
 
+    @test atomic_symbol(element) == :Si
     @test charge_nuclear(element) == 14
     @test charge_ionic(element) == 2
     @test n_elec_valence(element) == 2

@@ -12,7 +12,7 @@ function estimate_time_of_scf_step(basis::PlaneWaveBasis)
     (time_per_FFT_per_grid_point
      * prod(basis.fft_size)
      * length(basis.kpoints)
-     * div(basis.model.n_electrons, filled_occupation(basis.model))
-     * 8  # mean number of FFT steps per state per kpoint per iteration
+     * div(basis.model.n_electrons, filled_occupation(basis.model), RoundUp)
+     * 8  # mean number of FFT steps per state per k-point per iteration
      )
 end

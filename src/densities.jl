@@ -7,7 +7,7 @@ Compute the partial density at the indicated ``k``-Point and return it (in Fouri
 function compute_partial_density!(ρ, basis, kpt, ψk, occupation)
     @assert length(occupation) == size(ψk, 2)
 
-    # Build the partial density ρk_real for this k-Point
+    # Build the partial density ρk_real for this k-point
     ρk_real = [zeros(eltype(basis), basis.fft_size) for it = 1:Threads.nthreads()]
     ψnk_real = [zeros(complex(eltype(basis)), basis.fft_size) for it = 1:Threads.nthreads()]
     Threads.@threads for n = 1:size(ψk, 2)
@@ -42,8 +42,8 @@ end
     compute_density(basis::PlaneWaveBasis, ψ::AbstractVector, occupation::AbstractVector)
 
 Compute the density and spin density for a wave function `ψ` discretized on the plane-wave
-grid `basis`, where the individual k-Points are occupied according to `occupation`.
-`ψ` should be one coefficient matrix per k-Point. If the `Model` underlying the basis
+grid `basis`, where the individual k-points are occupied according to `occupation`.
+`ψ` should be one coefficient matrix per ``k``-point. If the `Model` underlying the basis
 is not collinear the spin density is `nothing`.
 """
 @views @timing function compute_density(basis::PlaneWaveBasis, ψ, occupation)
@@ -54,7 +54,7 @@ is not collinear the spin density is `nothing`.
     @assert n_k == length(ψ)
     @assert n_k == length(occupation)
     for ik in 1:n_k
-        @assert length(G_vectors(basis.kpoints[ik])) == size(ψ[ik], 1)
+        @assert length(G_vectors(basis, basis.kpoints[ik])) == size(ψ[ik], 1)
         @assert length(occupation[ik]) == size(ψ[ik], 2)
     end
     @assert n_k > 0
@@ -64,9 +64,9 @@ is not collinear the spin density is `nothing`.
     ρaccus = [similar(ψ[1], T, (basis.fft_size..., n_spin))
               for ithread in 1:Threads.nthreads()]
 
-    # TODO Better load balancing ... the workload per kpoint depends also on
+    # TODO Better load balancing ... the workload per k-point depends also on
     #      the number of symmetry operations. We know heuristically that the Gamma
-    #      point (first k-Point) has least symmetry operations, so we will put
+    #      point (first k-point) has least symmetry operations, so we will put
     #      some extra workload there if things do not break even
     kpt_per_thread = [ifelse(i <= n_k, [i], Vector{Int}()) for i in 1:Threads.nthreads()]
     if n_k >= Threads.nthreads()

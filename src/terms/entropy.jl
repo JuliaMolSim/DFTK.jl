@@ -5,26 +5,20 @@ This is in particular useful because the free energy,
 not the energy, is minimized at self-consistency.
 """
 struct Entropy end
-(::Entropy)(basis) = TermEntropy(basis)
+(::Entropy)(basis) = TermEntropy()
+struct TermEntropy <: Term end
 
-struct TermEntropy <: Term
-    basis::PlaneWaveBasis
-end
-
-function ene_ops(term::TermEntropy, ψ, occ; kwargs...)
-    basis = term.basis
-    T = eltype(basis)
-    ops = [NoopOperator(term.basis, kpoint) for kpoint in basis.kpoints]
-
-    smearing = basis.model.smearing
+function ene_ops(term::TermEntropy, basis::PlaneWaveBasis{T}, ψ, occ; kwargs...) where {T}
+    ops = [NoopOperator(basis, kpt) for kpt in basis.kpoints]
+    smearing    = basis.model.smearing
     temperature = basis.model.temperature
 
-    temperature == 0 && return (E=zero(T), ops=ops)
-    ψ == nothing && return (E=T(Inf), ops=ops)
+    iszero(temperature) && return (E=zero(T), ops=ops)
+    isnothing(ψ)        && return (E=T(Inf),  ops=ops)
 
-    filled_occ = filled_occupation(basis.model)
-    eigenvalues = kwargs[:eigenvalues]
     εF = kwargs[:εF]
+    eigenvalues = kwargs[:eigenvalues]
+    filled_occ  = filled_occupation(basis.model)
 
     E = zero(T)
     for (ik, k) in enumerate(basis.kpoints)

@@ -28,7 +28,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
 
     # Emulate an insulator ... prepare energy levels
     energies = [zeros(n_bands) for k in silicon.kcoords]
-    n_occ = div(silicon.n_electrons, 2)
+    n_occ = div(silicon.n_electrons, 2, RoundUp)
     n_k = length(silicon.kcoords)
     for ik in 1:n_k
         energies[ik] = sort(rand(n_bands))
@@ -38,7 +38,8 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     εLUMO = minimum(energies[ik][n_occ + 1] for ik in 1:n_k)
 
     # Occupation for zero temperature
-    model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=0.0, smearing=nothing)
+    model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=0.0,
+                  smearing=nothing, terms=[Kinetic()])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     occupation0, εF0 = DFTK.compute_occupation_bandgap(basis, energies)
     @test εHOMO < εF0 < εLUMO
@@ -46,8 +47,9 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
 
     # See that the electron count still works if we add temperature
     Ts = (0, 1e-6, .1, 1.0)
-    for T in Ts, meth in DFTK.Smearing.smearing_methods
-        model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=T, smearing=meth())
+    for temperature in Ts, meth in DFTK.Smearing.smearing_methods
+        model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature,
+                      smearing=meth(), terms=[Kinetic()])
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
         occs, _ = DFTK.compute_occupation(basis, energies)
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
@@ -56,7 +58,8 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     # See that the occupation is largely uneffected with only a bit of temperature
     Ts = (0, 1e-6, 1e-4)
     for T in Ts, meth in DFTK.Smearing.smearing_methods
-        model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=T, smearing=meth())
+        model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=T,
+                      smearing=meth(), terms=[Kinetic()])
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
         occupation, _ = DFTK.compute_occupation(basis, energies)
 
@@ -107,7 +110,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
 
     for (meth, temperature, εF_ref) in parameters
         model = Model(silicon.lattice, n_electrons=testcase.n_electrons;
-                      temperature=temperature, smearing=meth())
+                      temperature=temperature, smearing=meth(), terms=[Kinetic()])
         basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops; fft_size=fft_size)
         occupation, εF = DFTK.compute_occupation(basis, energies)
 

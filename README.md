@@ -24,6 +24,7 @@
 [license-img]: https://img.shields.io/github/license/JuliaMolSim/DFTK.jl.svg?maxAge=2592000
 [license-url]: https://github.com/JuliaMolSim/DFTK.jl/blob/master/LICENSE
 
+
 The density-functional toolkit, **DFTK** for short, is a library of
 Julia routines for experimentation with plane-wave
 density-functional theory (DFT), as implemented in much larger
@@ -35,16 +36,25 @@ The unique feature of this code is its emphasis on simplicity and flexibility
 with the goal of facilitating methodological development and
 interdisciplinary collaboration.
 In about 7k lines of pure Julia code we already support a
-[sizeable set of features](https://juliamolsim.github.io/DFTK.jl/dev/index.html#package-features-1),
+[sizeable set of features](https://docs.dftk.org/stable/index.html#package-features-1),
 after just about two years of development.
 Our performance is of the same order of magnitude as established packages.
 
-For getting started with DFTK, see our documentation:
-- [Installation instructions](https://juliamolsim.github.io/DFTK.jl/dev/guide/installation/)
-- [Tutorial](https://juliamolsim.github.io/DFTK.jl/dev/guide/tutorial/)
-- [Examples](https://juliamolsim.github.io/DFTK.jl/dev/#example-index-1)
+For getting started with DFTK, see [our documentation](https://docs.dftk.org):
+- [Installation instructions](https://docs.dftk.org/stable/guide/installation/)
+- [Tutorial](https://docs.dftk.org/stable/guide/tutorial/)
+- [Examples](https://docs.dftk.org/stable/#example-index-1)
 
 Note that at least **Julia 1.6** is required.
+
+
+## DFTK summer school 2022
+
+We will organise a summer school centred around the DFTK code
+and modern numerical approaches to density-functional theory
+from **29 to 31 August 2022** at **Sorbonne Université, Paris**.
+For more details see the [school's website](https://school2022.dftk.org).
+
 
 ## Support and citation
 DFTK is mostly developed as part of academic research.
@@ -52,7 +62,8 @@ Parts of DFTK have also been discussed in published papers.
 If you use our code as part of your research, teaching or other activities,
 we would be grateful if you cite them as appropriate.
 See the [CITATION.bib](CITATION.bib) in the root of this repo for relevant references.
-As a software DFTK can also be cited via [![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238).
+The current DFTK reference paper to cite is
+[![DOI](https://img.shields.io/badge/DOI-10.21105/jcon.00069-blue)](https://doi.org/10.21105/jcon.00069).
 
 ## Funding
 This project has received funding from

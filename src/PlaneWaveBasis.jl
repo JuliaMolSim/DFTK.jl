@@ -1,5 +1,8 @@
 using MPI
-include("fft.jl")
+
+# Abstract type for all possible bases that can be used in DFTK. Right now this is just
+# one, but this type helps to resolve method ambiguities while avoiding an uninformative ::Any.
+abstract type AbstractBasis{T <: Real} end
 
 # There are two kinds of plane-wave basis sets used in DFTK.
 # The k-dependent orbitals are discretized on spherical basis sets {G, 1/2 |k+G|^2 ≤ Ecut}.
@@ -8,48 +11,36 @@ include("fft.jl")
 # (as the dual of the cubic basis set).
 
 """
-Discretization information for kpoint-dependent quantities such as orbitals.
-More generally, a kpoint is a block of the Hamiltonian;
+Discretization information for ``k``-point-dependent quantities such as orbitals.
+More generally, a ``k``-point is a block of the Hamiltonian;
 eg collinear spin is treated by doubling the number of kpoints.
 """
 struct Kpoint{T <: Real}
-    model::Model{T}               # TODO Should be only lattice/atoms
     spin::Int                     # Spin component can be 1 or 2 as index into what is
                                   # returned by the `spin_components` function
-    coordinate::Vec3{T}           # Fractional coordinate of k-Point
-    coordinate_cart::Vec3{T}      # Cartesian coordinate of k-Point
+    coordinate::Vec3{T}           # Fractional coordinate of k-point
+    coordinate_cart::Vec3{T}      # Cartesian coordinate of k-point
     mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
-                                  # G_vectors(basis)[kpt.mapping[i]] == G_vectors(kpt)[i]
+                                  # G_vectors(basis)[kpt.mapping[i]] == G_vectors(basis, kpt)[i]
     mapping_inv::Dict{Int, Int}   # Inverse of `mapping`:
-                                  # G_vectors(basis)[i] = G_vectors(kpt)[kpt.mapping_inv[i]]
+                                  # G_vectors(basis)[i] == G_vectors(basis, kpt)[mapping_inv[i]]
     G_vectors::Vector{Vec3{Int}}  # Wave vectors in integer coordinates:
                                   # ({G, 1/2 |k+G|^2 ≤ Ecut})
 end
-
-
-"""
-The list of G vectors of a given `basis` or `kpoint`, in reduced coordinates.
-"""
-G_vectors(kpt::Kpoint) = kpt.G_vectors
-
-"""
-The list of G vectors of a given `basis` or `kpoint`, in cartesian coordinates.
-"""
-G_vectors_cart(kpt::Kpoint) = (kpt.model.recip_lattice * G for G in G_vectors(kpt))
 
 @doc raw"""
 A plane-wave discretized `Model`.
 Normalization conventions:
 - Things that are expressed in the G basis are normalized so that if ``x`` is the vector,
-  then the actual function is ``sum_G x_G e_G`` with
-  ``e_G(x) = e^{iG x}/sqrt(unit_cell_volume)``.
+  then the actual function is ``\sum_G x_G e_G`` with
+  ``e_G(x) = e^{iG x} / \sqrt(\Omega)``, where ``\Omega`` is the unit cell volume.
   This is so that, eg ``norm(ψ) = 1`` gives the correct normalization.
   This also holds for the density and the potentials.
 - Quantities expressed on the real-space grid are in actual values.
 
 `G_to_r` and `r_to_G` convert between these representations.
 """
-struct PlaneWaveBasis{T <: Real}
+struct PlaneWaveBasis{T} <: AbstractBasis{T}
     model::Model{T}
 
     ## Global grid information
@@ -58,10 +49,10 @@ struct PlaneWaveBasis{T <: Real}
     fft_size::Tuple{Int, Int, Int}
     # factor for integrals in real space: sum(ρ) * dvol ~ ∫ρ
     dvol::T  # = model.unit_cell_volume ./ prod(fft_size)
-    # Information used to construct the kpoint-specific basis
+    # Information used to construct the k-point-specific basis
     # (not used directly after that)
     Ecut::T  # The basis set is defined by {e_{G}, 1/2|k+G|^2 ≤ Ecut}
-    variational::Bool  # Is the k-Point specific basis variationally consistent with
+    variational::Bool  # Is the k-point specific basis variationally consistent with
     #                    the basis used for the density / potential?
 
     ## Plans for forward and backward FFT
@@ -85,16 +76,16 @@ struct PlaneWaveBasis{T <: Real}
     # mapping to points in the reducible BZ
     ksymops::Vector{Vector{SymOp}}
 
-    ## MPI-global information of how the global kpoint grid was constructed
-    # Monkhorst-Pack grid used to generate the k-Points, or nothing for custom k-Points
+    ## MPI-global information of how the global k-point grid was constructed
+    # Monkhorst-Pack grid used to generate the k-points, or nothing for custom k-points
     kgrid::Union{Nothing,Vec3{Int}}
     kshift::Union{Nothing,Vec3{T}}
-    # full list of kpoint coordinates; kpoints.coordinate is a subset of this
+    # full list of k-point coordinates; kpoints.coordinate is a subset of this
     # (possibly doubled because of spin)
     kcoords_global::Vector{Vec3{T}}
     ksymops_global::Vector{Vector{SymOp}}
 
-    # Setup for MPI-distributed processing over k-Points
+    # Setup for MPI-distributed processing over k-points
     comm_kpts::MPI.Comm           # communicator for the kpoints distribution
     krange_thisproc::Vector{Int}  # indices of kpoints treated explicitly by this
     #                               processor in the global kcoords array
@@ -111,13 +102,11 @@ struct PlaneWaveBasis{T <: Real}
     terms::Vector{Any}
 end
 
+
 # prevent broadcast on pwbasis
 import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 
-# Default printing is just too verbose TODO This is too spartanic
-Base.show(io::IO, basis::PlaneWaveBasis) =
-    print(io, "PlaneWaveBasis (Ecut=$(basis.Ecut), $(length(basis.kpoints)) kpoints)")
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
@@ -140,14 +129,12 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for iσ = 1:model.n_spin_components
             push!(kpoints_per_spin[iσ],
-                  Kpoint(model,  iσ, k, model.recip_lattice * k,
-                         mapping, mapping_inv, Gvecs_k))
+                  Kpoint(iσ, k, model.recip_lattice * k, mapping, mapping_inv, Gvecs_k))
         end
     end
 
     vcat(kpoints_per_spin...)  # put all spin up first, then all spin down
 end
-
 function build_kpoints(basis::PlaneWaveBasis, kcoords)
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut;
                   variational=basis.variational)
@@ -167,7 +154,7 @@ end
     fft_size = Tuple{Int, Int, Int}(fft_size)
     MPI.Init()
 
-    # Compute kpoint information and spread them across processors
+    # Compute k-point information and spread them across processors
     # Right now we split only the kcoords: both spin channels have to be handled
     # by the same process
     n_kpt   = length(kcoords)
@@ -208,7 +195,7 @@ end
     G_to_r_normalization = 1/sqrt(model.unit_cell_volume)
     r_to_G_normalization = sqrt(model.unit_cell_volume) / length(ipFFT)
 
-    # Setup kpoint basis sets
+    # Setup k-point basis sets
     !variational && @warn(
         "Non-variational calculations are experimental. " *
         "Not all features of DFTK may be supported or work as intended."
@@ -227,13 +214,10 @@ end
     kweights = T.(model.n_spin_components .* kweights) ./ tot_weight
     @assert mpi_sum(sum(kweights), comm_kpts) ≈ model.n_spin_components
 
-    # Create dummy terms array for basis to handle
-    terms = Vector{Any}(undef, length(model.term_types))
-
-    dvol = model.unit_cell_volume ./ prod(fft_size)
-
+    dvol  = model.unit_cell_volume ./ prod(fft_size)
+    terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
     basis = PlaneWaveBasis{T}(
-        model, fft_size, dvol, 
+        model, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
         r_to_G_normalization, G_to_r_normalization,
@@ -254,14 +238,14 @@ end
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops, symmetries=nothing;
                                 fft_size=nothing, variational=true,
-                                optimize_fft_size=false, supersampling=2,
+                                fft_size_algorithm=:fast, supersampling=2,
                                 kgrid=nothing, kshift=nothing,
                                 comm_kpts=MPI.COMM_WORLD) where {T <: Real}
     # Compute or validate fft_size
     if fft_size === nothing
         @assert variational
-        fft_size = compute_fft_size(model::Model{T}, Ecut, supersampling,
-                                    optimize_fft_size, kcoords)
+        fft_size = compute_fft_size(model::Model{T}, Ecut, kcoords;
+                                    supersampling, algorithm=fft_size_algorithm)
     else
         # validate
         if variational
@@ -273,7 +257,7 @@ end
         else
             # ensure no other options are set
             @assert supersampling == 2
-            @assert !optimize_fft_size
+            @assert fft_size_algorithm == :fast
         end
     end
 
@@ -296,28 +280,28 @@ function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
                         ksymops::AbstractVector, symmetries=vcat(ksymops...))
     kgrid = kshift = nothing
     PlaneWaveBasis(basis.model, basis.Ecut,
-                   basis.fft_size, basis.variational, 
+                   basis.fft_size, basis.variational,
                    kcoords, ksymops, kgrid, kshift,
-                   basis.symmetries, basis.comm_kpts)
+                   symmetries, basis.comm_kpts)
 end
 
 
 @doc raw"""
 Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a Monkhorst-Pack
-kpoint grid. The MP grid can either be specified directly with `kgrid` providing the
+``k``-point grid. The MP grid can either be specified directly with `kgrid` providing the
 number of points in each dimension and `kshift` the shift (0 or 1/2 in each direction).
-If not specified a grid is generated using `kgrid_size_from_minimal_spacing` with
+If not specified a grid is generated using `kgrid_from_minimal_spacing` with
 a minimal spacing of `2π * 0.022` per Bohr.
 
 If `use_symmetry` is `true` (default) the symmetries of the
-crystal are used to reduce the number of ``k``-Points which are
+crystal are used to reduce the number of ``k``-points which are
 treated explicitly. In this case all guess densities and potential
 functions must agree with the crystal symmetries or the result is
 undefined.
 """
 function PlaneWaveBasis(model::Model;
                         Ecut,
-                        kgrid=kgrid_size_from_minimal_spacing(model.lattice, 2π * 0.022),
+                        kgrid=kgrid_from_minimal_spacing(model, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
                         use_symmetry=true,
                         kwargs...)
@@ -333,44 +317,89 @@ function PlaneWaveBasis(model::Model;
                    kgrid, kshift, kwargs...)
 end
 
-PlaneWaveBasis(model::Model, Ecut; kwargs...) = PlaneWaveBasis(model; Ecut, kwargs...)
-@deprecate PlaneWaveBasis(model, Ecut; kwargs...) PlaneWaveBasis(model; Ecut, kwargs...)
 
 """
-Return the list of wave vectors (integer coordinates) for the cubic basis set.
+    G_vectors(fft_size::Tuple)
+
+The wave vectors `G` in reduced (integer) coordinates for a cubic basis set
+of given sizes.
 """
-function G_vectors(fft_size)
-    start = -ceil.(Int, (Vec3(fft_size) .- 1) ./ 2)
-    stop  = floor.(Int, (Vec3(fft_size) .- 1) ./ 2)
+function G_vectors(fft_size::Union{Tuple,AbstractVector})
+    start = .- cld.(fft_size .- 1, 2)
+    stop  = fld.(fft_size .- 1, 2)
     axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
     (Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3])
 end
+
+@doc raw"""
+    G_vectors(basis::PlaneWaveBasis)
+    G_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
+
+The list of wave vectors ``G`` in reduced (integer) coordinates of a `basis`
+or a ``k``-point `kpt`.
+"""
 G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_size)
-    
+G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
+
+
+@doc raw"""
+    G_vectors_cart(basis::PlaneWaveBasis)
+    G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
+
+The list of ``G`` vectors of a given `basis` or `kpt`, in cartesian coordinates.
+"""
 function G_vectors_cart(basis::PlaneWaveBasis)
     (basis.model.recip_lattice * G for G in G_vectors(basis.fft_size))
 end
+function G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
+    (basis.model.recip_lattice * G for G in G_vectors(basis, kpt))
+end
 
+@doc raw"""
+    Gplusk_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
+
+The list of ``G + k`` vectors, in reduced coordinates.
 """
-Return the list of r vectors, in reduced coordinates. By convention, this is in [0,1)^3.
+function Gplusk_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
+    ((G + kpt.coordinate) for G in G_vectors(basis, kpt))
+end
+
+@doc raw"""
+    Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
+
+The list of ``G + k`` vectors, in cartesian coordinates.
+"""
+function Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
+    (basis.model.recip_lattice * (G + kpt.coordinate) for G in G_vectors(basis, kpt))
+end
+
+
+@doc raw"""
+    r_vectors(basis::PlaneWaveBasis)
+
+The list of ``r`` vectors, in reduced coordinates. By convention, this is in [0,1)^3.
 """
 function r_vectors(basis::PlaneWaveBasis{T}) where T
     N1, N2, N3 = basis.fft_size
     (Vec3{T}(T(i-1) / N1, T(j-1) / N2, T(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3)
 end
-"""
-Return the list of r vectors, in cartesian coordinates.
+
+@doc raw"""
+    r_vectors_cart(basis::PlaneWaveBasis)
+
+The list of ``r`` vectors, in cartesian coordinates.
 """
 r_vectors_cart(basis::PlaneWaveBasis) = (basis.model.lattice * r for r in r_vectors(basis))
 
+
 """
 Return the index tuple `I` such that `G_vectors(basis)[I] == G`
-or the index `i` such that `G_vectors(kpoint)[i] == G`.
+or the index `i` such that `G_vectors(basis, kpoint)[i] == G`.
 Returns nothing if outside the range of valid wave vectors.
 """
 function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}
-    start = -ceil.(Int, (Vec3(basis.fft_size) .- 1) ./ 2)
-    stop  = floor.(Int, (Vec3(basis.fft_size) .- 1) ./ 2)
+    start = .- cld.(basis.fft_size .- 1, 2)
+    stop  = fld.(basis.fft_size .- 1, 2)
     lengths = stop .- start .+ 1
 
     function mapaxis(lengthi, Gi)
@@ -412,139 +441,8 @@ function weighted_ksum(basis::PlaneWaveBasis, array)
 end
 
 
-#
-# Perform (i)FFTs.
-#
-# We perform two sets of (i)FFTs.
-
-# For densities and potentials defined on the cubic basis set, r_to_G/G_to_r
-# do a simple FFT/IFFT from the cubic basis set to the real-space grid.
-# These function do not take a kpoint as input
-
-# For orbitals, G_to_r converts the orbitals defined on a spherical
-# basis set to the cubic basis set using zero padding, then performs
-# an IFFT to get to the real-space grid. r_to_G performs an FFT, then
-# restricts the output to the spherical basis set. These functions
-# take a kpoint as input.
-
 """
-In-place version of `G_to_r`.
-"""
-@timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                             f_fourier::AbstractArray3)
-    mul!(f_real, basis.opBFFT, f_fourier)
-    f_real .*= basis.G_to_r_normalization
-end
-@timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                             kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
-    @assert length(f_fourier) == length(kpt.mapping)
-    @assert size(f_real) == basis.fft_size
-
-    # Pad the input data
-    fill!(f_real, 0)
-    f_real[kpt.mapping] = f_fourier
-
-    # Perform an IFFT
-    mul!(f_real, basis.ipBFFT, f_real)
-    normalize && (f_real .*= basis.G_to_r_normalization)
-    f_real
-end
-
-"""
-    G_to_r(basis::PlaneWaveBasis, [kpt::Kpoint, ] f_fourier)
-
-Perform an iFFT to obtain the quantity defined by `f_fourier` defined
-on the k-dependent spherical basis set (if `kpt` is given) or the
-k-independent cubic (if it is not) on the real-space grid.
-"""
-function G_to_r(basis::PlaneWaveBasis, f_fourier::AbstractArray; assume_real=true)
-    # assume_real is true by default because this is the most common usage
-    # (for densities & potentials)
-    f_real = similar(f_fourier)
-    @assert length(size(f_fourier)) ∈ (3, 4)
-    # this exploits trailing index convention
-    for iσ = 1:size(f_fourier, 4)
-        @views G_to_r!(f_real[:, :, :, iσ], basis, f_fourier[:, :, :, iσ])
-    end
-    assume_real ? real(f_real) : f_real
-end
-function G_to_r(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector)
-    G_to_r!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier)
-end
-
-
-
-
-@doc raw"""
-In-place version of `r_to_G!`.
-NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
-"""
-@timing_seq function r_to_G!(f_fourier::AbstractArray3, basis::PlaneWaveBasis,
-                             f_real::AbstractArray3)
-    if isreal(f_real)
-        f_real = complex.(f_real)
-    end
-    mul!(f_fourier, basis.opFFT, f_real)
-    f_fourier .*= basis.r_to_G_normalization
-end
-@timing_seq function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
-                             kpt::Kpoint, f_real::AbstractArray3; normalize=true)
-    @assert size(f_real) == basis.fft_size
-    @assert length(f_fourier) == length(kpt.mapping)
-
-    # FFT
-    mul!(f_real, basis.ipFFT, f_real)
-
-    # Truncate
-    f_fourier .= view(f_real, kpt.mapping)
-    normalize && (f_fourier .*= basis.r_to_G_normalization)
-    f_fourier
-end
-
-"""
-    r_to_G(basis::PlaneWaveBasis, [kpt::Kpoint, ] f_real)
-
-Perform an FFT to obtain the Fourier representation of `f_real`. If
-`kpt` is given, the coefficients are truncated to the k-dependent
-spherical basis set.
-"""
-function r_to_G(basis::PlaneWaveBasis, f_real::AbstractArray)
-    f_fourier = similar(f_real, complex(eltype(f_real)))
-    @assert length(size(f_real)) ∈ (3, 4)
-    # this exploits trailing index convention
-    for iσ = 1:size(f_real, 4)
-        @views r_to_G!(f_fourier[:, :, :, iσ], basis, f_real[:, :, :, iσ])
-    end
-    f_fourier
-end
-# TODO optimize this
-function r_to_G(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3)
-    r_to_G!(similar(f_real, length(kpt.mapping)), basis, kpt, copy(f_real))
-end
-
-# returns matrix representations of the G_to_r and r_to_G matrices. For debug purposes.
-function G_to_r_matrix(basis::PlaneWaveBasis{T}) where {T}
-    ret = zeros(complex(T), prod(basis.fft_size), prod(basis.fft_size))
-    for (iG, G) in enumerate(G_vectors(basis))
-        for (ir, r) in enumerate(r_vectors(basis))
-            ret[ir, iG] = cis(2π * dot(r, G)) / sqrt(basis.model.unit_cell_volume)
-        end
-    end
-    ret
-end
-function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
-    ret = zeros(complex(T), prod(basis.fft_size), prod(basis.fft_size))
-    for (iG, G) in enumerate(G_vectors(basis))
-        for (ir, r) in enumerate(r_vectors(basis))
-            Ω = basis.model.unit_cell_volume
-            ret[iG, ir] = cis(-2π * dot(r, G)) * sqrt(Ω) / prod(basis.fft_size)
-        end
-    end
-    ret
-end
-
-"""
-Gather the distributed k-Point data on the master process and return
+Gather the distributed ``k``-point data on the master process and return
 it as a `PlaneWaveBasis`. On the other (non-master) processes `nothing` is returned.
 The returned object should not be used for computations and only to extract data
 for post-processing and serialisation to disk.
@@ -553,12 +451,12 @@ function gather_kpts(basis::PlaneWaveBasis)
     # No need to allocate and setup a new basis object
     mpi_nprocs(basis.comm_kpts) == 1 && return basis
 
-    # Gather k-Point info on master
+    # Gather k-point info on master
     kcoords = getproperty.(basis.kpoints, :coordinate)
     kcoords = gather_kpts(kcoords, basis)
     ksymops = gather_kpts(basis.ksymops, basis)
 
-    # Number of distinct k-Point coordinates is number of k-Points with spin 1
+    # Number of distinct k-point coordinates is number of k-points with spin 1
     n_spinup_thisproc = count(kpt.spin == 1 for kpt in basis.kpoints)
     n_kcoords = mpi_sum(n_spinup_thisproc, basis.comm_kpts)
 
@@ -600,45 +498,5 @@ function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
     else
         MPI.send(data, master, tag, basis.comm_kpts)
         nothing
-    end
-end
-
-# select the occupied orbitals assuming an insulator
-function select_occupied_orbitals(basis::PlaneWaveBasis, ψ)
-    model = basis.model
-    n_spin = model.n_spin_components
-    n_bands = div(model.n_electrons, n_spin * filled_occupation(model))
-    [ψk[:, 1:n_bands] for ψk in ψ]
-end
-
-# Packing routines used in direct_minimization and newton algorithms.
-# They pack / unpack sets of ψ's (or compatible arrays, such as hamiltonian
-# applies and gradients) to make them compatible to be used in algorithms
-# from IterativeSolvers.
-# Some care is needed here : some operators (for instance K in newton.jl)
-# are real-linear but not complex-linear. To overcome this difficulty, instead of
-# seeing them as operators from C^N to C^N, we see them as
-# operators from R^2N to R^2N. In practice, this is done with the
-# reinterpret function from julia.
-# /!\ pack_ψ does not share memory while unpack_ψ does
-
-reinterpret_real(x) = reinterpret(real(eltype(x)), x)
-reinterpret_complex(x) = reinterpret(Complex{eltype(x)}, x)
-
-function pack_ψ(ψ)
-    # TODO as an optimization, do that lazily? See LazyArrays
-    vcat([vec(ψk) for ψk in ψ]...)
-end
-
-function unpack_ψ(x, sizes_ψ)
-    n_bands = sizes_ψ[1][2]
-    lengths = prod.(sizes_ψ)
-    ends = cumsum(lengths)
-    # We unsafe_wrap the resulting array to avoid a complicated type for ψ.
-    # The resulting array is valid as long as the original x is still in live memory.
-    map(1:length(sizes_ψ)) do ik
-        unsafe_wrap(Array{complex(eltype(x))},
-                    pointer(@views x[ends[ik]-lengths[ik]+1:ends[ik]]),
-                    sizes_ψ[ik])
     end
 end

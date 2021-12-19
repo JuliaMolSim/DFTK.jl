@@ -1,4 +1,4 @@
-using SpecialFunctions: erfc
+import SpecialFunctions: erfc
 
 """
 Ewald term: electrostatic energy per unit cell of the array of point
@@ -9,27 +9,23 @@ struct Ewald end
 (::Ewald)(basis) = TermEwald(basis)
 
 struct TermEwald <: Term
-    basis::PlaneWaveBasis
     energy::Real  # precomputed energy
 end
-function TermEwald(basis::PlaneWaveBasis)
-    # precompute Ewald energy
-    energy = energy_ewald(basis.model)
-    TermEwald(basis, energy)
+function TermEwald(basis::PlaneWaveBasis{T}) where {T}
+    TermEwald(T(energy_ewald(basis.model)))
 end
 
-function ene_ops(term::TermEwald, ψ, occ; kwargs...)
-    ops = [NoopOperator(term.basis, kpoint) for kpoint in term.basis.kpoints]
-    (E=term.energy, ops=ops)
+function ene_ops(term::TermEwald, basis::PlaneWaveBasis, ψ, occ; kwargs...)
+    (E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
 
-@timing "forces: Ewald" function compute_forces(term::TermEwald, ψ, occ; kwargs...)
-    T = eltype(term.basis)
-    atoms = term.basis.model.atoms
+@timing "forces: Ewald" function compute_forces(term::TermEwald, basis::PlaneWaveBasis{T},
+                                                ψ, occ; kwargs...) where {T}
+    atoms = basis.model.atoms
     # TODO this could be precomputed
     # Compute forces in the "flat" representation used by ewald
     forces_ewald = zeros(Vec3{T}, sum(length(positions) for (elem, positions) in atoms))
-    energy_ewald(term.basis.model; forces=forces_ewald)
+    energy_ewald(basis.model; forces=forces_ewald)
     # translate to the "folded" representation
     f = [zeros(Vec3{T}, length(positions)) for (type, positions) in atoms]
     count = 0
@@ -75,7 +71,7 @@ function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
             return T(0)
         end
     end
-    energy_ewald(lattice, T(2π) * inv(lattice'), charges, positions; η=η, forces=forces)
+    energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions; η, forces)
 end
 
 function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, forces=nothing)
@@ -160,9 +156,9 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
         gsh += 1
     end
     # Amend sum_recip by proper scaling factors:
-    sum_recip *= 4T(π) / abs(det(lattice))
+    sum_recip *= 4T(π) / compute_unit_cell_volume(lattice)
     if forces !== nothing
-        forces_recip .*= 4T(π) / abs(det(lattice))
+        forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
     end
 
     #

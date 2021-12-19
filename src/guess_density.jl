@@ -24,7 +24,7 @@ We take for the guess density a gaussian centered around the atom, of
 length specified by `atom_decay_length`, normalized to get the right number of electrons
 ```math
 \hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
-
+```
 When magnetic moments are provided, construct a symmetry-broken density guess.
 The magnetic moments should be specified in units of ``μ_B``.
 """
@@ -78,8 +78,8 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments) 
             iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
 
             magmom[3] ≤ n_elec_valence(spec) || error(
-                "Magnetic moment $(magmom[3]) too large for element $(spec.symbol) with " *
-                "only $(n_elec_valence(spec)) valence electrons."
+                "Magnetic moment $(magmom[3]) too large for element $(atomic_symbol(spec)) " *
+                "with only $(n_elec_valence(spec)) valence electrons."
             )
             push!(gaussians, (magmom[3], atom_decay_length(spec), r))
         end
@@ -121,7 +121,6 @@ end
 @doc raw"""
 Get the lengthscale of the valence density for an atom with `n_elec_core` core
 and `n_elec_valence` valence electrons.
-```
 """
 function atom_decay_length(n_elec_core, n_elec_valence)
     # Adapted from ABINIT/src/32_util/m_atomdata.F90,

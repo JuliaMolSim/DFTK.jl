@@ -82,7 +82,7 @@ function compute_occupation(basis::PlaneWaveBasis{T}, energies;
 
     minocc = maximum(minimum.(compute_occupation(εF)))
     if temperature > 0 && minocc > 1e-5
-        @warn "One kpoint has a high minimum occupation $minocc. You should probably increase the number of bands."
+        @warn "One k-point has a high minimum occupation $minocc. You should probably increase the number of bands."
     end
 
     (occupation=compute_occupation(εF), εF=εF)
@@ -101,7 +101,7 @@ function compute_occupation_bandgap(basis, energies)
     @assert basis.model.temperature == 0
 
     filled_occ = filled_occupation(basis.model)
-    n_fill = div(n_electrons, filled_occ)
+    n_fill = div(n_electrons, filled_occ, RoundUp)
     @assert filled_occ * n_fill == n_electrons
     @assert n_bands ≥ n_fill
 

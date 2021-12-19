@@ -12,10 +12,10 @@ if mpi_nprocs() == 1  # not easy to distribute
 @testset "Using BZ symmetry yields identical density" begin
     function get_bands(testcase, kcoords, ksymops, symmetries, atoms; Ecut=5, tol=1e-8, n_rounds=1)
         kwargs = ()
-        n_bands = div(testcase.n_electrons, 2)
+        n_bands = div(testcase.n_electrons, 2, RoundUp)
         if testcase.temperature !== nothing
             kwargs = (temperature=testcase.temperature, smearing=DFTK.Smearing.FermiDirac())
-            n_bands = div(testcase.n_electrons, 2) + 4
+            n_bands = div(testcase.n_electrons, 2, RoundUp) + 4
         end
 
         model = model_DFT(testcase.lattice, atoms, :lda_xc_teter93; kwargs...)
@@ -80,7 +80,7 @@ if mpi_nprocs() == 1  # not easy to distribute
         # Test local potential is the same in both schemes
         @test maximum(abs, total_local_potential(ham_ir) - total_local_potential(ham_full)) < tol
 
-        # Test equivalent k-Points have the same orbital energies
+        # Test equivalent k-points have the same orbital energies
         for (ik, k) in enumerate(kcoords)
             for (S, τ) in ksymops[ik]
                 ikfull = findfirst(1:length(kfull)) do idx
@@ -98,7 +98,7 @@ if mpi_nprocs() == 1  # not easy to distribute
         end
 
         if eigenvectors
-            # Test applying the symmetry transformation to the irreducible k-Points
+            # Test applying the symmetry transformation to the irreducible k-points
             # yields an eigenfunction of the Hamiltonian
             # Also check that the accumulated partial densities are equal
             # to the returned density.

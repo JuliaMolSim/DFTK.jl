@@ -2,7 +2,7 @@ using ProgressMeter
 
 @doc raw"""
 Function for diagonalising each ``k``-Point blow of ham one step at a time.
-Some logic for interpolating between ``k``-Points is used if `interpolate_kpoints`
+Some logic for interpolating between ``k``-points is used if `interpolate_kpoints`
 is true and if no guesses are given. `eigensolver` is the iterative eigensolver
 that really does the work, operating on a single ``k``-Block.
 `eigensolver` should support the API `eigensolver(A, X0; prec, tol, maxiter)`
@@ -22,9 +22,10 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         progress = Progress(length(kpoints), desc="Diagonalising Hamiltonian kblocks: ")
     end
     for (ik, kpt) in enumerate(kpoints)
-        if length(G_vectors(kpoints[ik])) < nev_per_kpoint
-            error("The size of the plane wave basis is $(length(G_vectors(kpoints[ik]))), " *
-                  "and you are asking for $nev_per_kpoint eigenvalues. Increase Ecut.")
+        n_Gk = length(G_vectors(ham.basis, kpoints[ik]))
+        if n_Gk < nev_per_kpoint
+            error("The size of the plane wave basis is $n_Gk, and you are asking for " *
+                  "$nev_per_kpoint eigenvalues. Increase Ecut.")
         end
         # Get guessk
         @timing "QR orthonormalization" begin
@@ -32,15 +33,16 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
                 # guess provided
                 guessk = guess[ik]
             elseif interpolate_kpoints && ik > 1
-                # use information from previous kpoint
-                X0 = interpolate_kpoint(results[ik - 1].X, kpoints[ik - 1], kpoints[ik])
+                # use information from previous k-point
+                X0 = interpolate_kpoint(results[ik - 1].X, ham.basis, kpoints[ik - 1],
+                                        ham.basis, kpoints[ik])
                 guessk = ortho_qr(X0)  # Re-orthogonalize and renormalize
             else
                 # random initial guess
-                guessk = ortho_qr(randn(T, length(G_vectors(kpoints[ik])), nev_per_kpoint))
+                guessk = ortho_qr(randn(T, n_Gk, nev_per_kpoint))
             end
         end
-        @assert size(guessk) == (length(G_vectors(kpoints[ik])), nev_per_kpoint)
+        @assert size(guessk) == (n_Gk, nev_per_kpoint)
 
         prec = nothing
         prec_type !== nothing && (prec = prec_type(ham.basis, kpt))

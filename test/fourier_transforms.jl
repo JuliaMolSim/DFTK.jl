@@ -32,7 +32,7 @@ include("testcases.jl")
 
     @testset "Transformation on the spherical basis set" begin
         kpt = pw.kpoints[2]
-        f_G = Array{ComplexF64}(randn(Float64, length(G_vectors(kpt))))
+        f_G = Array{ComplexF64}(randn(Float64, length(G_vectors(pw, kpt))))
 
         f_R = Array{ComplexF64}(undef, pw.fft_size...)
         G_to_r!(f_R, pw, kpt, f_G)

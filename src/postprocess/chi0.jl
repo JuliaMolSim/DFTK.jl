@@ -62,13 +62,13 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
         spinrange = kpt.spin == 1 ? (1:n_fft) : (n_fft+1:2n_fft)
         χ0σσ = @view χ0[spinrange, spinrange]
 
-        N = length(G_vectors(basis.kpoints[ik]))
+        N = length(G_vectors(basis, basis.kpoints[ik]))
         @assert N < 10_000
         E = Es[ik]
         V = Vs[ik]
         Vr = cat(G_to_r.(Ref(basis), Ref(kpt), eachcol(V))..., dims=4)
         Vr = reshape(Vr, n_fft, N)
-        @showprogress "Computing χ0 for kpoint $ik/$(length(basis.kpoints)) ..." for m = 1:N, n = 1:N
+        @showprogress "Computing χ0 for k-point $ik/$(length(basis.kpoints)) ..." for m = 1:N, n = 1:N
             enred = (E[n] - εF) / temperature
             @assert occ[ik][n] ≈ filled_occ * Smearing.occupation(model.smearing, enred)
             ddiff = Smearing.occupation_divided_difference
@@ -101,6 +101,7 @@ struct FunctionPreconditioner
 end
 LinearAlgebra.ldiv!(y::T, P::FunctionPreconditioner, x) where {T} = P.precondition!(y, x)::T
 LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(similar(x), x))
+precondprep!(P::FunctionPreconditioner, ::Any) = P
 
 # Solves Q (H-εn) Q δψn = -Q rhs
 # where Q is the projector on the orthogonal of ψk

@@ -17,9 +17,11 @@ function HamiltonianBlock(basis, kpt, operators, scratch)
     HamiltonianBlock(basis, kpt, operators, optimize_operators_(operators), scratch)
 end
 Base.eltype(block::HamiltonianBlock) = complex(eltype(block.basis))
-Base.size(block::HamiltonianBlock) =
-    (length(G_vectors(block.kpoint)), length(G_vectors(block.kpoint)))
 Base.size(block::HamiltonianBlock, i::Integer) = i < 3 ? size(block)[i] : 1
+function Base.size(block::HamiltonianBlock)
+    n_G = length(G_vectors(block.basis, block.kpoint))
+    (n_G, n_G)
+end
 
 struct Hamiltonian
     basis::PlaneWaveBasis
@@ -121,9 +123,10 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
 # (eg the density ρ)
 @timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occ; kwargs...)
     # it: index into terms, ik: index into kpoints
-    @timing "ene_ops" ene_ops_arr = [ene_ops(term, ψ, occ; kwargs...) for term in basis.terms]
-    energies    = [eh.E for eh in ene_ops_arr]
-    operators   = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
+    @timing "ene_ops" ene_ops_arr = [ene_ops(term, basis, ψ, occ; kwargs...)
+                                     for term in basis.terms]
+    energies  = [eh.E for eh in ene_ops_arr]
+    operators = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
 
     # flatten the inner arrays in case a term returns more than one operator
     flatten(arr) = reduce(vcat, map(a -> (a isa Vector) ? a : [a], arr))

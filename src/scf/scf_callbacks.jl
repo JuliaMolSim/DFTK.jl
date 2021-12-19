@@ -25,9 +25,9 @@ function ScfDefaultCallback()
 
         if show_diag
             # Gather MPI-distributed information
-            # Average number of diagonalizations per k-Point needed for this SCF step
+            # Average number of diagonalizations per k-point needed for this SCF step
             # Note: If two Hamiltonian diagonalizations have been used (e.g. adaptive damping),
-            # the per k-Point values are summed.
+            # the per k-point values are summed.
             diagiter = mpi_mean(sum(mean(diag.iterations) for diag in info.diagonalization),
                                 info.basis.comm_kpts)
         end

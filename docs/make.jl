@@ -89,7 +89,7 @@ makedocs(
     format = Documenter.HTML(
         # Use clean URLs, unless built as a "local" build
         prettyurls = CONTINUOUS_INTEGRATION,
-        canonical = "https://juliamolsim.github.io/DFTK.jl/stable/",
+        canonical = "https://docs.dftk.org/stable/",
         assets = ["assets/favicon.ico"],
     ),
     sitename = "DFTK.jl",
@@ -102,11 +102,13 @@ makedocs(
     ],
     pages = [
         "Home" => "index.md",
+        "school2022.md",
         "Getting started" => Any[
             "guide/installation.md",
             "Tutorial" => "guide/tutorial.md",
             "guide/input_output.md",
             "guide/parallelization.md",
+            "Introduction to periodic problems" => "guide/periodic_problems.md",
             "Density-functional theory" => "guide/density_functional_theory.md",
         ],
         "Examples" => EXAMPLES,
@@ -119,6 +121,7 @@ makedocs(
         "api.md",
         "publications.md",
     ],
+    checkdocs=:exports,
     strict = !DEBUG,
 )
 

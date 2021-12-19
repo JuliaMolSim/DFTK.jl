@@ -9,7 +9,7 @@ function compute_current(basis::PlaneWaveBasis, ψ, occupation)
         for (n, ψnk) in enumerate(eachcol(ψ[ik]))
             ψnk_real = G_to_r(basis, kpt, ψnk)
             for α = 1:3
-                dαψnk = [im*(G+kpt.coordinate_cart)[α] for G in G_vectors_cart(kpt)] .* ψnk
+                dαψnk = [im * q[α] for q in Gplusk_vectors_cart(basis, kpt)] .* ψnk
                 dαψnk_real = G_to_r(basis, kpt, dαψnk)
                 current[α] .+= @. basis.kweights[ik] *
                                   occupation[ik][n] *

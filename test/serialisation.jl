@@ -44,7 +44,7 @@ end
                       magnetic_moments=magnetic_moments, symmetries=false)
 
     kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
-    basis  = PlaneWaveBasis(model, 4; kgrid=kgrid)
+    basis  = PlaneWaveBasis(model; Ecut=4, kgrid=kgrid)
 
     # Run SCF and do checkpointing along the way
     mktempdir() do tmpdir

@@ -67,8 +67,9 @@ auconvert(Å, 1.2)  # 1.2 Bohr in Ångström
 
 ## [Lattices and lattice vectors](@id conventions-lattice)
 Both the real-space lattice (i.e. `model.lattice`) and reciprocal-space lattice
-(`model.recip_lattice`) contain the lattice vectors in columns. If 1D or 2D
-problems are to be treated these arrays are still ``3 \times 3`` matrices,
+(`model.recip_lattice`) contain the lattice vectors in columns.
+For example, `model.lattice[:, 1]` is the first real-space lattice vector.
+If 1D or 2D problems are to be treated these arrays are still ``3 \times 3`` matrices,
 but contain two or one zero-columns, respectively.
 The real-space lattice vectors are sometimes referred to by ``A`` and the
 reciprocal-space lattice vectors by ``B = 2\pi A^{-T}``.

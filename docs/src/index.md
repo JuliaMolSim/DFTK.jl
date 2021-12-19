@@ -17,7 +17,14 @@ codes such as [Abinit](https://www.abinit.org/),
 DFTK's source code is [publicly available on github](https://dftk.org).
 
 If you are new to density-functional theory or plane-wave methods,
-see our collection of [lectures, workshops and literature on DFT](@ref density-functional-theory).
+see our notes on [Periodic problems](@ref periodic-problems) and our
+collection of [lectures, workshops and literature on DFT](@ref density-functional-theory).
+
+!!! tip "DFTK summer school: 29th to 31st August 2022 in Paris, France"
+    We will organise a summer school centred around the DFTK code
+    and modern approaches to density-functional theory
+    from **29 to 31 August 2022** at **Sorbonne Université, Paris**.
+    For more details and registration info see the [school's website](https://school2022.dftk.org).
 
 ## [Package features](@id package-features)
 * Methods and models:
@@ -26,16 +33,16 @@ see our collection of [lectures, workshops and literature on DFT](@ref density-f
       and sophisticated LDA/GGA functionals (any functional from the
       [libxc](https://tddft.org/programs/libxc/) library)
     - Analytic potentials or Godecker norm-conserving pseudopotentials (GTH, HGH)
-    - Brillouin zone symmetry for k-Point sampling using [spglib](https://atztogo.github.io/spglib/)
+    - Brillouin zone symmetry for ``k``-point sampling using [spglib](https://atztogo.github.io/spglib/)
     - Smearing functions for metals
     - Collinear spin polarization for magnetic systems
     - Self-consistent field approaches: Damping, Kerker mixing,
       [LDOS mixing](https://doi.org/10.1088/1361-648X/abcbdb), Anderson/Pulay/DIIS acceleration
     - Direct minimization, Newton solver
-    - Multi-level threading (kpoints, eigenvectors, FFTs, linear algebra)
-    - MPI-based distributed parallelism (distribution over kpoints)
+    - Multi-level threading (``k``-points eigenvectors, FFTs, linear algebra)
+    - MPI-based distributed parallelism (distribution over ``k``-points)
     - 1D / 2D / 3D systems
-    - Magnetic fields
+    - External magnetic fields
     - Treat systems beyond 800 electrons
 * Ground-state properties and post-processing:
     - Total energy
@@ -76,8 +83,10 @@ Pages = [
     "examples/gross_pitaevskii_2D.md",
     "examples/cohen_bergstresser.md",
     "examples/arbitrary_floattype.md",
+    "examples/forwarddiff.md",
     "examples/custom_solvers.md",
     "examples/custom_potential.md",
+    "examples/wannier90.md",
 ]
 Depth = 1
 ```

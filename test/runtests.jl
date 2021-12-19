@@ -65,8 +65,10 @@ Random.seed!(0)
         include("elements.jl")
         include("bzmesh.jl")
         include("bzmesh_symmetry.jl")
+        include("spglib.jl")
         include("external_pymatgen.jl")
         include("external_ase.jl")
+        include("external_wannier90.jl")
     end
 
     if "all" in TAGS
@@ -95,6 +97,7 @@ Random.seed!(0)
     end
 
     if "all" in TAGS
+        include("adaptive_damping.jl")
         include("variational.jl")
         include("compute_bands.jl")
         include("random_spindensity.jl")
@@ -102,10 +105,15 @@ Random.seed!(0)
         include("kernel.jl")
         include("serialisation.jl")
         include("compute_jacobian_eigen.jl")
+        include("printing.jl")
     end
 
     if "all" in TAGS && mpi_master()
         include("aqua.jl")
+    end
+
+    if "all" in TAGS && mpi_nprocs() == 1  # Distributed implementation not yet available
+        include("omegaplusk.jl")
     end
 
     ("example" in TAGS) && include("runexamples.jl")

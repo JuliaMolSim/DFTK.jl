@@ -1,7 +1,7 @@
 include("scf_callbacks.jl")
 
 function default_n_bands(model)
-    min_n_bands = div(model.n_electrons, filled_occupation(model))
+    min_n_bands = div(model.n_electrons, filled_occupation(model), RoundUp)
     n_extra = model.temperature == 0 ? 0 : max(4, ceil(Int, 0.2 * min_n_bands))
     min_n_bands + n_extra
 end
@@ -48,7 +48,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        n_ep_extra=3,
                                        determine_diagtol=ScfDiagtol(),
                                        damping=0.8,  # Damping parameter
-                                       mixing=SimpleMixing(),
+                                       mixing=LdosMixing(),
                                        is_converged=ScfConvergenceEnergy(tol),
                                        callback=ScfDefaultCallback(),
                                        compute_consistent_energies=true,

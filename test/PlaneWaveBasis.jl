@@ -1,15 +1,16 @@
 using Test
-using DFTK: PlaneWaveBasis, Model, G_vectors, index_G_vectors
+using DFTK
+using DFTK: index_G_vectors
 using LinearAlgebra
 
 include("testcases.jl")
 
 function test_pw_cutoffs(testcase, Ecut, fft_size)
     model = Model(testcase.lattice, n_electrons=testcase.n_electrons)
-    pw = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops; fft_size=fft_size)
+    basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops; fft_size=fft_size)
 
-    for (ik, kpt) in enumerate(pw.kpoints)
-        for G in G_vectors(kpt)
+    for (ik, kpt) in enumerate(basis.kpoints)
+        for G in G_vectors(basis, kpt)
             @test sum(abs2, model.recip_lattice * (kpt.coordinate + G)) ≤ 2 * Ecut
         end
     end
@@ -19,31 +20,31 @@ end
     Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
-    pw = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
-    @test pw.model.lattice == silicon.lattice
-    @test pw.model.recip_lattice ≈ 2π * inv(silicon.lattice)
-    @test pw.model.unit_cell_volume ≈ det(silicon.lattice)
-    @test pw.model.recip_cell_volume ≈ (2π)^3 * det(inv(silicon.lattice))
+    @test basis.model.lattice == silicon.lattice
+    @test basis.model.recip_lattice ≈ 2π * inv(silicon.lattice)
+    @test basis.model.unit_cell_volume ≈ det(silicon.lattice)
+    @test basis.model.recip_cell_volume ≈ (2π)^3 * det(inv(silicon.lattice))
 
-    @test pw.Ecut == 3
-    @test pw.fft_size == Tuple(fft_size)
+    @test basis.Ecut == 3
+    @test basis.fft_size == Tuple(fft_size)
 
 
-    g_start = -ceil.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
-    g_stop  = floor.(Int, (Vec3(pw.fft_size) .- 1) ./ 2)
-    g_all = vec(collect(G_vectors(pw)))
+    g_start = -ceil.(Int, (Vec3(basis.fft_size) .- 1) ./ 2)
+    g_stop  = floor.(Int, (Vec3(basis.fft_size) .- 1) ./ 2)
+    g_all = vec(collect(G_vectors(basis)))
 
-    for (ik, kpt) in enumerate(pw.kpoints)
-        kpt = pw.kpoints[ik]
-        @test kpt.coordinate == silicon.kcoords[pw.krange_thisproc[ik]]
+    for (ik, kpt) in enumerate(basis.kpoints)
+        kpt = basis.kpoints[ik]
+        @test kpt.coordinate == silicon.kcoords[basis.krange_thisproc[ik]]
 
-        for (ig, G) in enumerate(G_vectors(kpt))
+        for (ig, G) in enumerate(G_vectors(basis, kpt))
             @test g_start <= G <= g_stop
         end
-        @test g_all[kpt.mapping] == G_vectors(kpt)
+        @test g_all[kpt.mapping] == G_vectors(basis, kpt)
     end
-    @test pw.kweights == ([1, 8, 6, 12] / 27)[pw.krange_thisproc]
+    @test basis.kweights == ([1, 8, 6, 12] / 27)[basis.krange_thisproc]
 end
 
 @testset "PlaneWaveBasis: Energy cutoff is respected" begin
@@ -56,14 +57,14 @@ end
     Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
-    pw = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-    g_all = collect(G_vectors(pw))
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    g_all = collect(G_vectors(basis))
 
     for i in 1:15, j in 1:15, k in 1:15
-        @test index_G_vectors(pw, g_all[i, j, k]) == CartesianIndex(i, j, k)
+        @test index_G_vectors(basis, g_all[i, j, k]) == CartesianIndex(i, j, k)
     end
-    @test index_G_vectors(pw, [15, 1, 1]) === nothing
-    @test index_G_vectors(pw, [-15, 1, 1]) === nothing
+    @test index_G_vectors(basis, [15, 1, 1]) === nothing
+    @test index_G_vectors(basis, [-15, 1, 1]) === nothing
 end
 
 @testset "PlaneWaveBasis: Check index for kpoints" begin
@@ -85,5 +86,51 @@ end
         end
         @test index_G_vectors(basis, kpt, [15, 1, 1]) === nothing
         @test index_G_vectors(basis, kpt, [-15, 1, 1]) === nothing
+    end
+end
+
+@testset "PlaneWaveBasis: kpoint mapping" begin
+    Ecut = 3
+    fft_size = [7, 9, 11]
+    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+
+    for kpt in basis.kpoints
+        Gs_basis = collect(G_vectors(basis))
+        Gs_kpt   = collect(G_vectors(basis, kpt))
+        for i in 1:length(kpt.mapping)
+            @test Gs_basis[kpt.mapping[i]] == Gs_kpt[i]
+        end
+        for i in keys(kpt.mapping_inv)
+            @test Gs_basis[i] == Gs_kpt[kpt.mapping_inv[i]]
+        end
+    end
+end
+
+@testset "PlaneWaveBasis: Check G_vector-like accessor functions" begin
+    Ecut = 3
+    fft_size = [15, 15, 15]
+    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops;
+                           fft_size=fft_size)
+
+    @test length(G_vectors(fft_size)) == prod(fft_size)
+    @test length(r_vectors(basis))    == prod(fft_size)
+
+    @test all(G_vectors(basis)      .== G_vectors(fft_size))
+    @test all(G_vectors_cart(basis) .== map(G -> model.recip_lattice * G,
+                                            G_vectors(fft_size)))
+    @test all(r_vectors_cart(basis) .== map(r -> model.lattice * r,
+                                            r_vectors(basis)))
+
+    for kpt in basis.kpoints
+        @test length(G_vectors(basis, kpt)) == length(kpt.mapping)
+        @test all(G_vectors_cart(basis, kpt) .== map(G -> model.recip_lattice * G,
+                                                     G_vectors(basis, kpt)))
+
+        @test all(Gplusk_vectors(basis, kpt) .== map(G -> G + kpt.coordinate,
+                                                     G_vectors(basis, kpt)))
+        @test all(Gplusk_vectors_cart(basis, kpt) .== map(q -> model.recip_lattice * q,
+                                                          Gplusk_vectors(basis, kpt)))
     end
 end

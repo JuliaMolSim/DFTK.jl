@@ -34,7 +34,7 @@ end
 # Array of preconditioners
 struct DMPreconditioner
     Nk::Int
-    Pks::Vector # Pks[ik] is the preconditioner for kpoint ik
+    Pks::Vector # Pks[ik] is the preconditioner for k-point ik
     unpack::Function
 end
 function LinearAlgebra.ldiv!(p, P::DMPreconditioner, d)
@@ -74,14 +74,14 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
         error("Direct minimization with MPI is not supported yet")
     end
     model = basis.model
-    @assert model.temperature == 0 # temperature is not yet supported
+    @assert model.temperature == 0  # temperature is not yet supported
     filled_occ = filled_occupation(model)
     n_spin = model.n_spin_components
-    n_bands = div(model.n_electrons, n_spin * filled_occ)
+    n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp)
     Nk = length(basis.kpoints)
 
     if ψ0 === nothing
-        ψ0 = [ortho_qr(randn(Complex{T}, length(G_vectors(kpt)), n_bands))
+        ψ0 = [ortho_qr(randn(Complex{T}, length(G_vectors(basis, kpt)), n_bands))
               for kpt in basis.kpoints]
     end
     occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]

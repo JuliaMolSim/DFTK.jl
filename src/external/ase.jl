@@ -66,7 +66,7 @@ function ase_atoms(lattice_or_model, atoms, magnetic_moments=nothing)
     cell = ase_cell(lattice_or_model)
     symbols = String[]
     for (elem, pos) in atoms
-        append!(symbols, fill(string(elem.symbol), length(pos)))
+        append!(symbols, fill(string(atomic_symbol(elem)), length(pos)))
     end
     scaled_positions = vcat([pos for (elem, pos) in atoms]...)
 
