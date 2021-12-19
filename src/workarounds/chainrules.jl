@@ -89,7 +89,7 @@ function _autodiff_Model_namedtuple(lattice, atoms, terms)
     recip_lattice = 2T(π)*inv(lattice')
     unit_cell_volume = abs(det(lattice))
     recip_cell_volume = abs(det(recip_lattice))
-    (;lattice=lattice, recip_lattice=recip_lattice, unit_cell_volume=unit_cell_volume, 
+    (;lattice=lattice, recip_lattice=recip_lattice, unit_cell_volume=unit_cell_volume,
     recip_cell_volume=recip_cell_volume, atoms=atoms, term_types=terms)
 end
 
@@ -124,7 +124,49 @@ function ChainRulesCore.rrule(::typeof(build_kpoints), model::Model{T}, fft_size
     return kpoints, build_kpoints_pullback
 end
 
-# simplified version of PlaneWaveBasis constructor to
+# explicit rule for PlaneWaveBasis inner constructor
+function ChainRulesCore.rrule(PT::Type{PlaneWaveBasis{T}},
+                              model::Model{T},
+                              fft_size::Tuple{Int, Int, Int},
+                              dvol::T,
+                              Ecut::T,
+                              variational::Bool,
+                              opFFT,
+                              ipFFT,
+                              opBFFT,
+                              ipBFFT,
+                              r_to_G_normalization::T,
+                              G_to_r_normalization::T,
+                              kpoints::Vector{Kpoint},
+                              kweights::Vector{T},
+                              ksymops::Vector{Vector{SymOp}},
+                              kgrid::Union{Nothing,Vec3{Int}},
+                              kshift::Union{Nothing,Vec3{T}},
+                              kcoords_global::Vector{Vec3{T}},
+                              ksymops_global::Vector{Vector{SymOp}},
+                              comm_kpts::MPI.Comm,
+                              krange_thisproc::Vector{Int},
+                              krange_allprocs::Vector{Vector{Int}},
+                              symmetries::Vector{SymOp},
+                              terms::Vector{Any}) where {T <: Real}
+    @warn "PlaneWaveBasis inner constructor rrule triggered."
+    basis = PT(
+        model, fft_size, dvol, Ecut, variational, opFFT, ipFFT, opBFFT, ipBFFT,
+        r_to_G_normalization, G_to_r_normalization, kpoints, kweights, ksymops,
+        kgrid, kshift, kcoords_global, ksymops_global, comm_kpts, 
+        krange_thisproc, krange_allprocs, symmetries, terms
+    )
+    function PT_pullback(Δbasis)
+        return (NoTangent(), Δbasis.model, NoTangent(), Δbasis.dvol, Δbasis.Ecut, 
+                NoTangent(), NoTangent(), NoTangent(), NoTangent(), NoTangent(),
+                Δbasis.r_to_G_normalization, Δbasis.G_to_r_normalization, Δbasis.kpoints, Δbasis.kweights, Δbasis.ksymops,
+                NoTangent(), Δbasis.kshift, NoTangent(), Δbasis.ksymops_global, Δbasis.comm_kpts, 
+                NoTangent(), NoTangent(), Δbasis.symmetries, Δbasis.terms)
+    end
+    return basis, PT_pullback
+end
+
+# simplified version of PlaneWaveBasis outer constructor to
 # help reverse mode AD to only differentiate the relevant computations.
 # this excludes assertions (try-catch), MPI handling, and other things
 function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBasis) where {T <: Real}
@@ -143,7 +185,7 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBa
     # To correctly instantiate term types, we do need a full PlaneWaveBasis struct;
     # so we need to interleave re-computed differentiable params, and fixed params in basis
     _basis = PlaneWaveBasis{T}( # this shouldn't hit the rrule below a second time due to more args
-        model, basis.fft_size, dvol, 
+        model, basis.fft_size, dvol,
         basis.Ecut, basis.variational,
         basis.opFFT, basis.ipFFT, basis.opBFFT, basis.ipBFFT,
         r_to_G_normalization, G_to_r_normalization,
@@ -190,7 +232,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Term
     return term, TermKinetic_pullback
 end
 
-Base.zero(::ElementPsp) = ZeroTangent() # TODO 
+Base.zero(::ElementPsp) = ZeroTangent() # TODO
 
 function ChainRulesCore.rrule(T::Type{TermAtomicLocal}, basis, potential)
     TermAtomicLocal_pullback(Δ) = NoTangent(), Δ.basis, Δ.potential
@@ -249,7 +291,7 @@ function _accumulate_over_symmetries(ρin, basis, symmetries)
                 if isnothing(igired)
                     zero(complex(T))
                 else
-                    cis(-2T(π) * dot(G, τ)) * ρin[igired] 
+                    cis(-2T(π) * dot(G, τ)) * ρin[igired]
                     # TODO: indexing into large arrays can cause OOM in reverse
                 end
             end
@@ -310,10 +352,10 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(com
     return ρ, compute_density_pullback
 end
 
-# workaround to pass rrule_via_ad kwargs 
+# workaround to pass rrule_via_ad kwargs
 DFTK.energy_hamiltonian(basis, ψ, occ, ρ) = DFTK.energy_hamiltonian(basis, ψ, occ; ρ=ρ)
 
-solve_ΩplusK(basis::PlaneWaveBasis, ψ, ::NoTangent, occupation) = 0ψ 
+solve_ΩplusK(basis::PlaneWaveBasis, ψ, ::NoTangent, occupation) = 0ψ
 
 function _autodiff_fast_hblock_mul(fast_hblock::NamedTuple, ψ)
     # a pure version of *(H::HamiltonianBlock, ψ)
@@ -333,7 +375,7 @@ function _autodiff_fast_hblock_mul(fast_hblock::NamedTuple, ψ)
         Hψ_k
     end
     Hψ = reduce(hcat, map(Hψ, eachcol(ψ)))
-    
+
     Hψ
 end
 
@@ -361,20 +403,14 @@ Zygote.@adjoint function enumerate(xs)
 Zygote.@adjoint Iterators.Filter(f, x) = Zygote.pullback(filter, f, collect(x))
 #---
 
+# a pure version of *(H::Hamiltonian, ψ)
 function _autodiff_apply_hamiltonian(H::Hamiltonian, ψ)
-    # a pure version of *(H::Hamiltonian, ψ)
-    # [H.blocks[ik] * ψ[ik] for ik in 1:length(H.basis.kpoints)]
-    # [_autodiff_fast_hblock_mul(fast_hblock(hblock), ψk) for (hblock, ψk) in zip(H.blocks, ψ)]
-
-    # TODO 1. do fast_hblock by hand: create the namedtuple here
-    # TODO 2. test by comparing against standard impl
-    
     return [
         _autodiff_fast_hblock_mul(
             # TODO clean up and generalize
-            (fourier_op=hblock.optimized_operators[1], real_op=hblock.optimized_operators[2], H=hblock), 
+            (fourier_op=hblock.optimized_operators[1], real_op=hblock.optimized_operators[2], H=hblock),
             ψk
-        ) 
+        )
         for (hblock, ψk) in zip(H.blocks, ψ)
     ]
 end
@@ -403,7 +439,6 @@ function _autodiff_energy_hamiltonian(basis, ψ, occ, ρ)
 
     H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks, scratch)
                             for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
-    # return (E=energies, H=H)
     return energies, H
 end
 
@@ -450,7 +485,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Hami
     return T(basis, kpt, operators, scratch), T_pullback
 end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{HamiltonianBlock}, basis, kpt, operators, optimized_operators, scratch)
+function ChainRulesCore.rrule(T::Type{HamiltonianBlock}, basis, kpt, operators, optimized_operators, scratch)
     @warn "HamiltonianBlock optimized_operators rrule triggered."
     function T_pullback(∂hblock)
         return NoTangent(), ∂hblock.basis, ∂hblock.kpoint, ∂hblock.operators, ∂hblock.optimized_operators, ∂hblock.scratch
@@ -458,7 +493,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Hami
     return T(basis, kpt, operators, optimized_operators, scratch), T_pullback
 end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Hamiltonian}, basis, blocks)
+function ChainRulesCore.rrule(T::Type{Hamiltonian}, basis, blocks)
     @warn "Hamiltonian rrule triggered."
     function T_pullback(H)
         return NoTangent(), H.basis, H.blocks
@@ -478,14 +513,14 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
     occupation = [filled_occ * ones(n_bands) for ik = 1:Nk]
 
     ## Zygote doesn't like OrderedDict in Energies
-    # (energies, H), energy_hamiltonian_pullback = 
+    # (energies, H), energy_hamiltonian_pullback =
     #     rrule_via_ad(config, energy_hamiltonian, basis, scfres.ψ, scfres.occupation, scfres.ρ)
 
-    (energies, H), energy_hamiltonian_pullback = 
+    (energies, H), energy_hamiltonian_pullback =
         rrule_via_ad(config, _autodiff_energy_hamiltonian, basis, scfres.ψ, scfres.occupation, scfres.ρ)
     Hψ, mul_pullback =
-        rrule(config, *, H, ψ) # TODO make this work, or write rrule for *(H, ψ)
-    ρ, compute_density_pullback = 
+        rrule(config, *, H, ψ)
+    ρ, compute_density_pullback =
         rrule(config, compute_density, basis, scfres.ψ, scfres.occupation)
 
     function self_consistent_field_pullback(Δscfres)
@@ -497,18 +532,14 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         δH = Δscfres.ham
 
         _, ∂basis, ∂ψ, _ = compute_density_pullback(δρ)
-        # TODO think about necessary tangent plane projections below
         ∂ψ = ∂ψ + δψ
-
         ∂ψ = DFTK.select_occupied_orbitals(basis, ∂ψ)
 
         ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation) # use self-adjointness of dH ψ -> dψ
 
         # TODO need to do proj_tangent on ∂Hψ
         _, ∂H, _ = mul_pullback(∂Hψ)
-
         ∂H = ∂H + δH
-        
         _, ∂basis, _, _, _ = energy_hamiltonian_pullback((δenergies, ∂H))
 
         return NoTangent(), ∂basis

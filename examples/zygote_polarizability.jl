@@ -45,10 +45,10 @@ end
 # With this in place we can compute the polarizability from finite differences
 # (just like in the previous example):
 polarizability_fd = let
-    ε = 0.01
+    ε = 0.001
     (compute_dipole(ε) - compute_dipole(0.0)) / ε
 end
-# 0.6740128910348837
+# 0.6739473798923251
 
-Zygote.gradient(compute_dipole, 0.0) # TODO
-# (0.673949426051509 - 2.0713011785935874e-17im,)
+Zygote.gradient(compute_dipole, 0.0)
+# 0.6739494110564168
