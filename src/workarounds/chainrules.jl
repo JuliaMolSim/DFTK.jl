@@ -379,29 +379,6 @@ function _autodiff_fast_hblock_mul(fast_hblock::NamedTuple, ψ)
     Hψ
 end
 
-#--- Zygote workaround to use zip inside _autodiff_apply_hamiltonian
-# https://github.com/FluxML/Zygote.jl/pull/785/files
-_tryaxes(x) = axes(x)
-_tryaxes(x::Tuple) = Val(length(x))
-_restore(dx, ax::Tuple) = axes(dx) == ax ? dx : reshape(vcat(dx, falses(prod(length, ax) - length(dx))), ax)
-_restore(dx, ::Val{N}) where {N} = length(dx) < N ? ntuple(i -> get(dx,i,nothing), N) : NTuple{N}(dx)
-Zygote.@adjoint function Iterators.Zip(xs)
-    axs = map(_tryaxes, xs)  # same function used for map
-    back(dy::NamedTuple{(:is,)}) = tuple(dy.is)
-    back(dy::AbstractArray) = ntuple(length(xs)) do d
-      dx = map(Zygote.StaticGetter{d}(), dy)
-      _restore(dx, axs[d])
-    end |> tuple
-    Iterators.Zip(xs), back
-  end
-Zygote.@adjoint function enumerate(xs)
-    back(::AbstractArray{Nothing}) = nothing
-    back(dy::NamedTuple{(:itr,)}) = tuple(dy.itr)
-    back(diys) = (map(last, diys),)
-    enumerate(xs), back
-  end
-Zygote.@adjoint Iterators.Filter(f, x) = Zygote.pullback(filter, f, collect(x))
-#---
 
 # a pure version of *(H::Hamiltonian, ψ)
 function _autodiff_apply_hamiltonian(H::Hamiltonian, ψ)
