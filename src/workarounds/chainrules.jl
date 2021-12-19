@@ -208,9 +208,6 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Plan
 end
 
 
-# TODO delete (once fixed upstream in Zygote, "difftype_warn not defined")
-Zygote.z2d(x::Union{AbstractZero, Tangent}, ::Any) = x
-
 # convert generators into arrays (needed for Zygote here)
 function _G_vectors_cart(basis::PlaneWaveBasis)
     [basis.model.recip_lattice * G for G in G_vectors(basis.fft_size)]

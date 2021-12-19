@@ -52,3 +52,10 @@ end
 
 Zygote.gradient(compute_dipole, 0.0)
 # 0.6739494110564168
+# incl. compile time: 229 seconds
+# second call:         50 seconds
+
+# using Profile, PProf
+# Profile.clear()
+# @profile Zygote.gradient(compute_dipole, 0.0)
+# pprof()
