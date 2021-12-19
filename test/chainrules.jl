@@ -29,7 +29,7 @@ include("testcases.jl")
                            [1. 0. 1.];
                            [1. 1. 0.]]
         terms = [Kinetic(), AtomicLocal()]
-        Model(lattice; atoms=atoms, terms=terms, temperature=1e-3)
+        Model(lattice, atoms, terms; temperature=1e-3)
     end
     kgrid = [1, 1, 1]
     Ecut = 7

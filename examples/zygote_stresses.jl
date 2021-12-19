@@ -2,7 +2,6 @@ using DFTK
 using Zygote
 import FiniteDiff
 
-# NOTE: this snippet works on Zygote v0.6.17 but breaks on v0.6.18 (suspicion: due to `basis` argument in PlaneWaveBasis rrule)
 
 a = 10.26
 Si = ElementPsp(:Si, psp=load_psp(:Si, functional="lda"))
@@ -20,7 +19,8 @@ function make_model(a)
         # Entropy(),
         # Hartree()
     ]
-    Model(lattice; atoms, terms, temperature=1e-3)
+    # Model(lattice; atoms, terms, temperature=1e-3)
+    Model(lattice, atoms, terms; temperature=1e-3)
 end
 kgrid = [1, 1, 1]
 Ecut = 7
@@ -76,7 +76,7 @@ g2.G_to_r_normalization
 
 function hellmann_feynman_energy(basis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
-    energies = [DFTK.ene_ops(term, ψ, occupation; ρ=ρ).E for term in basis.terms]
+    energies = [DFTK.ene_ops(term, basis, ψ, occupation; ρ=ρ).E for term in basis.terms]
     sum(energies)
 end
 Zygote.gradient(a -> hellmann_feynman_energy(make_basis(a), ψ, occupation), a) # -0.22098988721348034,

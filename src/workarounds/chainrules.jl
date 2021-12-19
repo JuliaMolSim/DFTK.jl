@@ -81,14 +81,18 @@ function ChainRulesCore.rrule(T::Type{Vector{Kpoint{Float64}}}, x)
 end
 
 
+# constructor with all AD-compatible args as positional args
+function Model(lattice, atoms, terms; kwargs...)
+    return Model(lattice; atoms, terms, kwargs...)
+end
+
 # simplified version of the Model constructor to
 # help reverse mode AD to only differentiate the relevant computations.
 # this excludes assertions (try-catch), and symmetries
 function _autodiff_Model_namedtuple(lattice, atoms, terms)
-    T = eltype(lattice)
-    recip_lattice = 2T(π)*inv(lattice')
-    unit_cell_volume = abs(det(lattice))
-    recip_cell_volume = abs(det(recip_lattice))
+    recip_lattice = compute_recip_lattice(lattice)
+    unit_cell_volume  = compute_unit_cell_volume(lattice)
+    recip_cell_volume = compute_unit_cell_volume(recip_lattice)
     (;lattice=lattice, recip_lattice=recip_lattice, unit_cell_volume=unit_cell_volume,
     recip_cell_volume=recip_cell_volume, atoms=atoms, term_types=terms)
 end
@@ -101,23 +105,17 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Mode
     return model, Model_pullback
 end
 
-# a workaround to manually updating immutable Tangent fields
-function _update_tangent(t::Tangent{P,T}, nt::NamedTuple) where {P,T}
-    return Tangent{P,T}(merge(ChainRulesCore.backing(t), nt))
-end
 
 function ChainRulesCore.rrule(::typeof(build_kpoints), model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
     @warn "build_kpoints rrule triggered"
     kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
     function build_kpoints_pullback(Δkpoints)
         sum_Δkpoints = sum(Δkpoints)
-        if sum_Δkpoints == NoTangent()
+        if sum_Δkpoints isa NoTangent
             return NoTangent(), NoTangent(), NoTangent(), NoTangent(), NoTangent()
         end
-        ∂model = sum_Δkpoints.model # TODO double-check.
-        ∂recip_lattice = ∂model.recip_lattice + sum([Δkp.coordinate_cart * kp.coordinate' for (kp, Δkp) in zip(kpoints, Δkpoints) if !(Δkp isa NoTangent)])
-        # ∂model.recip_lattice += ∂recip_lattice # Tangents are immutable
-        ∂model = _update_tangent(∂model, (;recip_lattice=∂recip_lattice))
+        ∂recip_lattice = sum([Δkp.coordinate_cart * kp.coordinate' for (kp, Δkp) in zip(kpoints, Δkpoints) if !(Δkp isa NoTangent)])
+        ∂model = Tangent{typeof(model)}(; recip_lattice=∂recip_lattice)
         ∂kcoords = @not_implemented("TODO")
         return NoTangent(), ∂model, NoTangent(), ∂kcoords, NoTangent()
     end
@@ -160,7 +158,7 @@ function ChainRulesCore.rrule(PT::Type{PlaneWaveBasis{T}},
         return (NoTangent(), Δbasis.model, NoTangent(), Δbasis.dvol, Δbasis.Ecut, 
                 NoTangent(), NoTangent(), NoTangent(), NoTangent(), NoTangent(),
                 Δbasis.r_to_G_normalization, Δbasis.G_to_r_normalization, Δbasis.kpoints, Δbasis.kweights, Δbasis.ksymops,
-                NoTangent(), Δbasis.kshift, NoTangent(), Δbasis.ksymops_global, Δbasis.comm_kpts, 
+                Δbasis.kgrid, Δbasis.kshift, Δbasis.kcoords_global, Δbasis.ksymops_global, Δbasis.comm_kpts, 
                 NoTangent(), NoTangent(), Δbasis.symmetries, Δbasis.terms)
     end
     return basis, PT_pullback
@@ -177,7 +175,7 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBa
     # Create dummy terms array for _basis to handle
     terms = Vector{Any}(undef, length(model.term_types))
 
-    # kpoints have differentiable components (inside model and coordinate_cart)
+    # kpoints have differentiable components (inside coordinate_cart)
     kcoords_thisproc = basis.kcoords_global[basis.krange_thisproc] # TODO which kcoords?
     kpoints = build_kpoints(model, basis.fft_size, kcoords_thisproc, basis.Ecut; basis.variational)
 
@@ -199,42 +197,35 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBa
     (;model=model, kpoints=kpoints, dvol=dvol, terms=terms, G_to_r_normalization=G_to_r_normalization, r_to_G_normalization=r_to_G_normalization)
 end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{PlaneWaveBasis}, model::Model, Ecut; kwargs...)
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{PlaneWaveBasis}, model::Model; kwargs...)
     @warn "simplified PlaneWaveBasis rrule triggered."
-    basis = T(model, Ecut; kwargs...)
-    f(model, Ecut) = _autodiff_PlaneWaveBasis_namedtuple(model, basis)
-    _basis, PlaneWaveBasis_pullback = rrule_via_ad(config, f, model, Ecut)
+    basis = T(model; kwargs...)
+    f(model) = _autodiff_PlaneWaveBasis_namedtuple(model, basis)
+    _basis, PlaneWaveBasis_pullback = rrule_via_ad(config, f, model)
     return basis, PlaneWaveBasis_pullback
 end
 
 
 # convert generators into arrays (needed for Zygote here)
-function _G_vectors_cart(basis::PlaneWaveBasis)
-    [basis.model.recip_lattice * G for G in G_vectors(basis.fft_size)]
+function _Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
+    [basis.model.recip_lattice * (G + kpt.coordinate) for G in G_vectors(basis, kpt)]
 end
-_G_vectors_cart(kpt::Kpoint) = [kpt.model.recip_lattice * G for G in G_vectors(kpt)]
 
-function _autodiff_TermKinetic_namedtuple(basis; scaling_factor=1)
+function _autodiff_TermKinetic_namedtuple(basis, scaling_factor)
     kinetic_energies = [[scaling_factor * sum(abs2, G + kpt.coordinate_cart) / 2
-                         for G in _G_vectors_cart(kpt)]
+                         for G in _Gplusk_vectors_cart(basis, kpt)]
                         for kpt in basis.kpoints]
-    (;basis=basis, kinetic_energies=kinetic_energies)
+    (;scaling_factor=scaling_factor, kinetic_energies=kinetic_energies)
 end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{TermKinetic}, basis::PlaneWaveBasis; kwargs...)
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{TermKinetic}, basis::PlaneWaveBasis, scaling_factor)
     @warn "simplified TermKinetic rrule triggered."
-    term = T(basis; kwargs...)
-    T_simple = (args...) -> _autodiff_TermKinetic_namedtuple(args...; kwargs...)
-    _term, TermKinetic_pullback = rrule_via_ad(config, T_simple, basis)
+    term = T(basis, scaling_factor)
+    _term, TermKinetic_pullback = rrule_via_ad(config, _autodiff_TermKinetic_namedtuple, basis, scaling_factor)
     return term, TermKinetic_pullback
 end
 
 Base.zero(::ElementPsp) = ZeroTangent() # TODO
-
-function ChainRulesCore.rrule(T::Type{TermAtomicLocal}, basis, potential)
-    TermAtomicLocal_pullback(Δ) = NoTangent(), Δ.basis, Δ.potential
-    return T(basis, potential), TermAtomicLocal_pullback
-end
 
 function _autodiff_AtomicLocal(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
@@ -251,7 +242,7 @@ function _autodiff_AtomicLocal(basis::PlaneWaveBasis{T}) where {T}
     end
 
     pot_real = G_to_r(basis, pot_fourier)
-    TermAtomicLocal(basis, real(pot_real))
+    TermAtomicLocal(real(pot_real))
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, E::AtomicLocal, basis::PlaneWaveBasis{T}) where {T}
@@ -396,7 +387,7 @@ end
 
 # avoids Energies OrderedDict struct (incompatible with Zygote)
 function _autodiff_energy_hamiltonian(basis, ψ, occ, ρ)
-    ene_ops_arr = [DFTK.ene_ops(term, ψ, occ; ρ=ρ) for term in basis.terms]
+    ene_ops_arr = [DFTK.ene_ops(term, basis, ψ, occ; ρ=ρ) for term in basis.terms]
     energies    = [eh.E for eh in ene_ops_arr]
     operators   = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
 
@@ -416,37 +407,6 @@ function _autodiff_energy_hamiltonian(basis, ψ, occ, ρ)
     return energies, H
 end
 
-function ChainRulesCore.rrule(T::Type{TermExternal}, basis, potential)
-    @warn "TermExternal rrule triggered."
-    function T_pullback(∂term)
-        return NoTangent(), ∂term.basis, ∂term.potential
-    end
-    return T(basis, potential), T_pullback
-end
-
-function ChainRulesCore.rrule(T::Type{ExternalFromReal}, V)
-    @warn "ExternalFromReal rrule triggered."
-    function T_pullback(∂term)
-        return NoTangent(), ∂term.V
-    end
-    return T(V), T_pullback
-end
-
-function ChainRulesCore.rrule(T::Type{RealSpaceMultiplication}, basis, kpoint, potential)
-    @warn "RealSpaceMultiplication rrule triggered."
-    function T_pullback(∂op)
-        return NoTangent(), ∂op.basis, ∂op.kpoint, ∂op.potential
-    end
-    return T(basis, kpoint, potential), T_pullback
-end
-
-function ChainRulesCore.rrule(T::Type{FourierMultiplication}, basis, kpoint, multiplier)
-    @warn "FourierMultiplication rrule triggered."
-    function T_pullback(∂op)
-        return NoTangent(), ∂op.basis, ∂op.kpoint, ∂op.multiplier
-    end
-    return T(basis, kpoint, multiplier), T_pullback
-end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{HamiltonianBlock}, basis, kpt, operators, scratch)
     @warn "HamiltonianBlock rrule triggered."
@@ -459,21 +419,6 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Hami
     return T(basis, kpt, operators, scratch), T_pullback
 end
 
-function ChainRulesCore.rrule(T::Type{HamiltonianBlock}, basis, kpt, operators, optimized_operators, scratch)
-    @warn "HamiltonianBlock optimized_operators rrule triggered."
-    function T_pullback(∂hblock)
-        return NoTangent(), ∂hblock.basis, ∂hblock.kpoint, ∂hblock.operators, ∂hblock.optimized_operators, ∂hblock.scratch
-    end
-    return T(basis, kpt, operators, optimized_operators, scratch), T_pullback
-end
-
-function ChainRulesCore.rrule(T::Type{Hamiltonian}, basis, blocks)
-    @warn "Hamiltonian rrule triggered."
-    function T_pullback(H)
-        return NoTangent(), H.basis, H.blocks
-    end
-    return T(basis, blocks), T_pullback
-end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis; kwargs...)
     @warn "self_consistent_field rrule triggered."
