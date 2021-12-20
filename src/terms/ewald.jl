@@ -40,8 +40,16 @@ end
 end
 
 function energy_ewald(model::Model; kwargs...)
-    charges   = [charge_ionic(elem) for (elem, positions) in model.atoms for pos in positions]
-    positions = [pos for (_, positions) in model.atoms for pos in positions]
+    # charges   = [charge_ionic(elem) for (elem, positions) in model.atoms for pos in positions]
+    # positions = [pos for (_, positions) in model.atoms for pos in positions]
+
+    # Zygote complains about mutation when one uses chained for-comprehensions without bracketing
+    # TODO this should be avoided or moved into workarounds/chainrules.jl
+    charges   = [[charge_ionic(elem) for pos in positions] for (elem, positions) in model.atoms]
+    charges   = reduce(vcat, charges)
+    positions = [[pos for pos in positions] for (_, positions) in model.atoms]
+    positions = reduce(vcat, positions)
+
     isempty(charges) && return zero(eltype(model.lattice))
 
     # DFTK currently assumes that the compensating charge in the electronic and nuclear

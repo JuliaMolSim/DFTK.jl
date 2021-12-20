@@ -14,10 +14,10 @@ function make_model(a)
         Kinetic(),
         AtomicLocal(),
         # AtomicNonlocal(),
-        # Ewald(),
+        Ewald(),
         # PspCorrection(),
         # Entropy(),
-        # Hartree()
+        Hartree()
     ]
     # Model(lattice; atoms, terms, temperature=1e-3)
     Model(lattice, atoms, terms; temperature=1e-3)
@@ -79,9 +79,8 @@ function hellmann_feynman_energy(basis, ψ, occupation)
     energies = [DFTK.ene_ops(term, basis, ψ, occupation; ρ=ρ).E for term in basis.terms]
     sum(energies)
 end
-Zygote.gradient(a -> hellmann_feynman_energy(make_basis(a), ψ, occupation), a) # -0.22098988721348034,
-FiniteDiff.finite_difference_derivative(a -> hellmann_feynman_energy(make_basis(a), ψ, occupation), a) # -0.22098988731612818
+Zygote.gradient(a -> hellmann_feynman_energy(make_basis(a), ψ, occupation), a) # 0.501817333084525
+FiniteDiff.finite_difference_derivative(a -> hellmann_feynman_energy(make_basis(a), ψ, occupation), a) # 0.501817332882851
 
-# TODO HF forces. This needs diff w.r.t. keyword arg Model(...; atoms) which is not supported by ChainRules so far.
 # TODO make more terms reverse-mode differentiable
 

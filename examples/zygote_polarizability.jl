@@ -17,7 +17,7 @@ function make_basis(ε::T; a=10., Ecut=20) where T
         Kinetic(),
         AtomicLocal(),
         # AtomicNonlocal(),
-        # Ewald(),
+        Ewald(),
         # PspCorrection(),
         # Entropy(),
         Hartree(),
@@ -49,10 +49,10 @@ polarizability_fd = let
     ε = 0.001
     (compute_dipole(ε) - compute_dipole(0.0)) / ε
 end
-# 5.927991565017467
+# 5.927461312097749
 
 Zygote.gradient(compute_dipole, 0.0)
-# 5.929234558961456,
+# 5.928921932722478
 # incl. compile time: 229 seconds
 # second call:         40 seconds
 
