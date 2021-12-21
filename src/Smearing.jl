@@ -8,7 +8,7 @@
 # See also https://www.vasp.at/vasp-workshop/k-points.pdf
 module Smearing
 
-using SpecialFunctions: erf, factorial
+using SpecialFunctions: erf, erfc, factorial
 import ForwardDiff
 
 abstract type SmearingFunction end
@@ -130,10 +130,12 @@ function MethfesselPaxton(order::Integer)
     end
 end
 
-# TODO: Marzari-Vanderbilt "cold smearing"
+struct Cold <: SmearingFunction end
+occupation(S::Cold, x) = 2 - erfc(x - 1/√2) + sqrt(2 / typeof(x)(π)) * exp(-x^2 + √2x - 1/2)
+entropy(S::Cold, x) = 1 / sqrt(2 * typeof(x)(π)) * (x - 1/√2) * exp(-x^2)
 
 # List of available smearing functions
-smearing_methods = (None, FermiDirac, Gaussian, MethfesselPaxton1, MethfesselPaxton2)
+smearing_methods = (None, FermiDirac, Gaussian, MethfesselPaxton1, MethfesselPaxton2, Cold)
 
 # these are not broadcastable
 import Base.Broadcast.broadcastable
