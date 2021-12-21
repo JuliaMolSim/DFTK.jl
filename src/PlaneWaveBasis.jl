@@ -328,7 +328,7 @@ function G_vectors(fft_size::Union{Tuple,AbstractVector})
     start = .- cld.(fft_size .- 1, 2)
     stop  = fld.(fft_size .- 1, 2)
     axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
-    (Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3])
+    [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
 end
 
 @doc raw"""
@@ -349,10 +349,12 @@ G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
 The list of ``G`` vectors of a given `basis` or `kpt`, in cartesian coordinates.
 """
 function G_vectors_cart(basis::PlaneWaveBasis)
-    (basis.model.recip_lattice * G for G in G_vectors(basis.fft_size))
+    map(G -> basis.model.recip_lattice * G,
+        G_vectors(basis.fft_size))
 end
 function G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
-    (basis.model.recip_lattice * G for G in G_vectors(basis, kpt))
+    map(G -> basis.model.recip_lattice * G,
+        G_vectors(basis, kpt))
 end
 
 @doc raw"""
@@ -361,7 +363,8 @@ end
 The list of ``G + k`` vectors, in reduced coordinates.
 """
 function Gplusk_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
-    ((G + kpt.coordinate) for G in G_vectors(basis, kpt))
+    map(G -> G+kpt.coordinate,
+        G_vectors(basis, kpt))
 end
 
 @doc raw"""
@@ -370,7 +373,8 @@ end
 The list of ``G + k`` vectors, in cartesian coordinates.
 """
 function Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
-    (basis.model.recip_lattice * (G + kpt.coordinate) for G in G_vectors(basis, kpt))
+    map(Gplusk -> basis.model.recip_lattice * Gplusk,
+        Gplusk_vectors(basis, kpt))
 end
 
 
@@ -381,7 +385,7 @@ The list of ``r`` vectors, in reduced coordinates. By convention, this is in [0,
 """
 function r_vectors(basis::PlaneWaveBasis{T}) where T
     N1, N2, N3 = basis.fft_size
-    (Vec3{T}(T(i-1) / N1, T(j-1) / N2, T(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3)
+    [Vec3{T}(T(i-1) / N1, T(j-1) / N2, T(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3]
 end
 
 @doc raw"""
@@ -389,7 +393,8 @@ end
 
 The list of ``r`` vectors, in cartesian coordinates.
 """
-r_vectors_cart(basis::PlaneWaveBasis) = (basis.model.lattice * r for r in r_vectors(basis))
+r_vectors_cart(basis::PlaneWaveBasis) = map(r -> basis.model.lattice * r,
+                                            r_vectors(basis))
 
 
 """
