@@ -327,8 +327,14 @@ of given sizes.
 function G_vectors(fft_size::Union{Tuple,AbstractVector})
     start = .- cld.(fft_size .- 1, 2)
     stop  = fld.(fft_size .- 1, 2)
-    axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
+    axes  = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
     [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
+end
+function G_vectors_generator(fft_size::Union{Tuple,AbstractVector})
+    start = .- cld.(fft_size .- 1, 2)
+    stop  = fld.(fft_size .- 1, 2)
+    axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
+    (Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3])
 end
 
 @doc raw"""

@@ -198,7 +198,7 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
         #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
         # equivalently
         #      ̂ρ_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
-        for (ig, G) in enumerate(G_vectors(basis))
+        for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             igired = index_G_vectors(basis, invS * G)
             if igired !== nothing
                 @inbounds ρaccu[ig] += cis(-2T(π) * dot(G, τ)) * ρin[igired]
@@ -212,7 +212,7 @@ end
 function lowpass_for_symmetry!(ρ, basis; symmetries=basis.model.symmetries)
     for (S, τ) in symmetries
         S == I && iszero(τ) && continue
-        for (ig, G) in enumerate(G_vectors(basis))
+        for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             if index_G_vectors(basis, S * G) === nothing
                 ρ[ig] = 0
             end
