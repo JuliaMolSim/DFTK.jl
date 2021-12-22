@@ -142,10 +142,10 @@ end
 
 # Lowest-level constructor. All given parameters must be the same on all processors
 # and are stored in PlaneWaveBasis for easy reconstruction
-@timing function PlaneWaveBasis(model::Model{T},
-                                Ecut::Number, fft_size, variational,
-                                kcoords::AbstractVector, ksymops,
-                                kgrid, kshift, symmetries, comm_kpts) where {T <: Real}
+function PlaneWaveBasis(model::Model{T},
+                        Ecut::Number, fft_size, variational,
+                        kcoords::AbstractVector, ksymops,
+                        kgrid, kshift, symmetries, comm_kpts) where {T <: Real}
     if !(all(fft_size .== next_working_fft_size(T, fft_size)))
         error("Selected fft_size will not work for the buggy generic " *
               "FFT routines; use next_working_fft_size")
@@ -276,8 +276,8 @@ end
 """
 Creates a new basis identical to `basis`, but with a custom set of kpoints
 """
-function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
-                        ksymops::AbstractVector, symmetries=vcat(ksymops...))
+@timing function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
+                                ksymops::AbstractVector, symmetries=vcat(ksymops...))
     kgrid = kshift = nothing
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
@@ -349,12 +349,10 @@ G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
 The list of ``G`` vectors of a given `basis` or `kpt`, in cartesian coordinates.
 """
 function G_vectors_cart(basis::PlaneWaveBasis)
-    map(G -> basis.model.recip_lattice * G,
-        G_vectors(basis.fft_size))
+    map(G -> basis.model.recip_lattice * G, G_vectors(basis))
 end
 function G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
-    map(G -> basis.model.recip_lattice * G,
-        G_vectors(basis, kpt))
+    map(G -> basis.model.recip_lattice * G, G_vectors(basis, kpt))
 end
 
 @doc raw"""
@@ -363,8 +361,7 @@ end
 The list of ``G + k`` vectors, in reduced coordinates.
 """
 function Gplusk_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
-    map(G -> G+kpt.coordinate,
-        G_vectors(basis, kpt))
+    map(G -> G + kpt.coordinate, G_vectors(basis, kpt))
 end
 
 @doc raw"""
@@ -373,8 +370,7 @@ end
 The list of ``G + k`` vectors, in cartesian coordinates.
 """
 function Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
-    map(Gplusk -> basis.model.recip_lattice * Gplusk,
-        Gplusk_vectors(basis, kpt))
+    map(Gplusk -> basis.model.recip_lattice * Gplusk, Gplusk_vectors(basis, kpt))
 end
 
 
@@ -393,8 +389,7 @@ end
 
 The list of ``r`` vectors, in cartesian coordinates.
 """
-r_vectors_cart(basis::PlaneWaveBasis) = map(r -> basis.model.lattice * r,
-                                            r_vectors(basis))
+r_vectors_cart(basis::PlaneWaveBasis) = map(r -> basis.model.lattice * r, r_vectors(basis))
 
 
 """
