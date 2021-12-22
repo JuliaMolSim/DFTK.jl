@@ -3,6 +3,12 @@
 # Ref for the equations:
 #    - M. Methfessel, A. T. Paxton 1989
 #       "High-precision sampling for Brillouin-zone integration in metals"
+#     - http://www.hector.ac.uk/cse/distributedcse/reports/conquest/conquest/node6.html
+#       "Methfessel-Paxton Approximation to Step Function"
+#     - https://gitlab.com/QEF/q-e/-/blob/bcbb9787c58f17a467653707917172ffc4053dd9/Modules/wgauss.f90
+#       Smearing function implementation in Quantum-Espresso
+#     - https://gitlab.com/QEF/q-e/-/blob/bcbb9787c58f17a467653707917172ffc4053dd9/Modules/w0gauss.f90
+#       Occupation derivative and entropy implementations in Quantum-Espresso
 #     - E. Cancès, V. Ehrlacher, D. Gontier, A. Levitt, D. Lombardi
 #       "Numerical quadrature in the brillouin zone for periodic schrodinger operators"
 # See also https://www.vasp.at/vasp-workshop/k-points.pdf
@@ -41,12 +47,12 @@ function occupation_divided_difference(S::SmearingFunction, x, y, εF, temp)
         divided_difference_(f, fder, x, y)
     end
 end
-function divided_difference_(f, fder, x, y)
+function divided_difference_(f, fder, x::T, y) where T
     # (f(x) - f(y))/(x - y) is accurate to ε/|x-y|
     # so for x ~= y we use the approximation (f'(x)+f'(y))/2,
     # which is accurate to |x-y|^2, and therefore better when |x-y| ≤ cbrt(ε)
     # The resulting method is accurate to ε^2/3
-    abs(x-y) < cbrt(eps(typeof(x))) && return (fder(x) + fder(y))/2
+    abs(x-y) < cbrt(eps(T)) && return (fder(x) + fder(y))/2
     (f(x)-f(y)) / (x-y)
 end
 
@@ -63,9 +69,6 @@ entropy(S::None, x) = zero(x)
 
 struct FermiDirac <: SmearingFunction end
 occupation(S::FermiDirac, x) = 1 / (1 + exp(x))
-# entropy(f) = -(f log f + (1-f)log(1-f)), where f = 1/(1+exp(x))
-# this "simplifies" to -(x*exp(x)/(1+exp(x)) - log(1+exp(x)))
-# although that is not especially useful...
 function xlogx(x)
     iszero(x) ? zero(x) : x * log(x)
 end
@@ -94,48 +97,44 @@ end
 
 struct Gaussian <: SmearingFunction end
 occupation(S::Gaussian, x) = (1 - erf(x)) / 2
-entropy(S::Gaussian, x) = 1 / (2sqrt(typeof(x)(pi))) * exp(-x^2)
+entropy(S::Gaussian, x::T) where T = 1 / (2 * sqrt(T(pi))) * exp(-x^2)
 
-H1(x) = 2x
-H2(x) = 4x^2 - 2
-H3(x) = 8x^3 - 12x
-H4(x) = 16x^4 - 48x^2 + 12
-A(n, T=Float64) = (-1)^n / (factorial(n) * 4^n * sqrt(T(π)))
+struct MarzariVanderbilt <: SmearingFunction end
+occupation(S::MarzariVanderbilt, x::T) where T = 2 - erfc(x - 1/sqrt(T(2))) + sqrt(2 / T(π)) * exp(-x^2 + sqrt(T(2)) * x - 1/T(2))
+entropy(S::MarzariVanderbilt, x::T) where T = 1 / sqrt(2 * T(π)) * (x - 1/sqrt(T(2))) * exp(-x^2)
 
-struct MethfesselPaxton1 <: SmearingFunction end
-function occupation(S::MethfesselPaxton1, x)
-    x == Inf && return zero(x)
-    x == -Inf && return one(x)
-    occupation(Gaussian(), x) + A(1, typeof(x))*H1(x)*exp(-x^2)
-end
-entropy(S::MethfesselPaxton1, x) = 1/2 * A(1, typeof(x)) * H2(x) * exp(-x^2)
-
-struct MethfesselPaxton2 <: SmearingFunction end
-function occupation(S::MethfesselPaxton2, x)
-    x == Inf && return zero(x)
-    x == -Inf && return one(x)
-    occupation(MethfesselPaxton1(), x) + A(2, typeof(x))*H3(x)*exp(-x^2)
-end
-entropy(S::MethfesselPaxton2, x) = 1/2 * A(2, typeof(x)) * H4(x) * exp(-x^2)
-
-function MethfesselPaxton(order::Integer)
-    if order == 0
-        Gaussian()
-    elseif order == 1
-        MethfesselPaxton1()
-    elseif order == 2
-        MethfesselPaxton2()
+A(T::Type, n) = (-1)^n / (factorial(n) * 4^n * sqrt(T(π)))
+function H(x, n)
+    if iszero(n)
+        return one(x)
+    elseif isone(n)
+        return 2 * x
     else
-        error("Not implemented")
+        return 2 * x * H(x, n-1) - 2 * (n-1) * H(x, n-2)
     end
 end
 
-struct Cold <: SmearingFunction end
-occupation(S::Cold, x) = 2 - erfc(x - 1/√2) + sqrt(2 / typeof(x)(π)) * exp(-x^2 + √2x - 1/2)
-entropy(S::Cold, x) = 1 / sqrt(2 * typeof(x)(π)) * (x - 1/√2) * exp(-x^2)
+struct MethfesselPaxton <: SmearingFunction
+    order::Int
+end
+function occupation(S::MethfesselPaxton, x::T) where T
+    S₀ = 1/T(2) * erfc(-x)
+    ΣSₙ = zero(x)
+    for i in 1:S.order
+        ΣSₙ -= A(T, i) * H(x, 2i - 1)
+    end
+    return S₀ + ΣSₙ * exp(-x^2)
+end
+function entropy(S::MethfesselPaxton, x::T) where T
+    ΣSₙ = zero(x)
+    for i in 0:S.order
+        ΣSₙ -= A(T, i) * H(x, 2i + 1)
+    end
+    return ΣSₙ * exp(-x^2)
+end
 
 # List of available smearing functions
-smearing_methods = (None, FermiDirac, Gaussian, MethfesselPaxton1, MethfesselPaxton2, Cold)
+smearing_methods = (None, FermiDirac, Gaussian, MarzariVanderbilt, MethfesselPaxton)
 
 # these are not broadcastable
 import Base.Broadcast.broadcastable
