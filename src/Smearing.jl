@@ -96,18 +96,21 @@ function occupation_divided_difference(S::FermiDirac, x, y, εF, temp)
 end
 
 struct Gaussian <: SmearingFunction end
-occupation(S::Gaussian, x) = (1 - erf(x)) / 2
+occupation(S::Gaussian, x) = erfc(x) / 2
 entropy(S::Gaussian, x::T) where T = 1 / (2 * sqrt(T(pi))) * exp(-x^2)
 
 struct MarzariVanderbilt <: SmearingFunction end
-occupation(S::MarzariVanderbilt, x::T) where T = 2 - erfc(x - 1/sqrt(T(2))) + sqrt(2 / T(π)) * exp(-x^2 + sqrt(T(2)) * x - 1/T(2))
-entropy(S::MarzariVanderbilt, x::T) where T = 1 / sqrt(2 * T(π)) * (x - 1/sqrt(T(2))) * exp(-x^2)
+occupation(S::MarzariVanderbilt, x::T) where T = erf(-x - 1/sqrt(T(2))) / 2 + 1/sqrt(2*T(π)) * exp(-(-x - 1/sqrt(T(2)))^2) + 1/T(2)
+entropy(S::MarzariVanderbilt, x::T) where T = -1/sqrt(2*T(π)) * (-x - 1/sqrt(T(2))) * exp(-(-x - 1/sqrt(T(2)))^2)
 
-A(T::Type, n) = (-1)^n / (factorial(n) * 4^n * sqrt(T(π)))
+A(T, n) = (-1)^n / (factorial(n) * 4^n * sqrt(T(π)))
+"""
+Standard Hermite function using physicist's convention.
+"""
 function H(x, n)
-    if iszero(n)
+    if n == 0
         return one(x)
-    elseif isone(n)
+    elseif n == 1
         return 2 * x
     else
         return 2 * x * H(x, n-1) - 2 * (n-1) * H(x, n-2)
@@ -118,23 +121,25 @@ struct MethfesselPaxton <: SmearingFunction
     order::Int
 end
 function occupation(S::MethfesselPaxton, x::T) where T
-    S₀ = 1/T(2) * erfc(-x)
+    x == Inf && return zero(x)
+    x == -Inf && return one(x)
+    S₀ = erfc(x) / 2
     ΣSₙ = zero(x)
     for i in 1:S.order
-        ΣSₙ -= A(T, i) * H(x, 2i - 1)
+        ΣSₙ += A(T, i) * H(x, 2i - 1)
     end
     return S₀ + ΣSₙ * exp(-x^2)
 end
 function entropy(S::MethfesselPaxton, x::T) where T
+    exp_term = exp(-x^2)
+    S₀ = A(T, 0) / 2 * exp_term
     ΣSₙ = zero(x)
-    for i in 0:S.order
-        ΣSₙ -= A(T, i) * H(x, 2i + 1)
+    for i in 1:S.order
+        ΣSₙ += A(T, i) * (H(x, 2i) / 2 + 2i * H(x, 2i - 2))
     end
-    return ΣSₙ * exp(-x^2)
+    return S₀ + ΣSₙ * exp(-x^2)
 end
 
-# List of available smearing functions
-smearing_methods = (None, FermiDirac, Gaussian, MarzariVanderbilt, MethfesselPaxton)
 
 # these are not broadcastable
 import Base.Broadcast.broadcastable
