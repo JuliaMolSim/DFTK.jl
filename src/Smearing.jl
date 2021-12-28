@@ -125,7 +125,6 @@ end
 # NB: the Fermi energy with Methfessel-Paxton smearing is __not__ unique
 struct MethfesselPaxton <: SmearingFunction
     order::Int
-    MethfesselPaxton(order::Int) = order > 14 ? error("Methfessel-Paxton smearing with `order > 14` is unstable.") : new(order)
 end
 function occupation(S::MethfesselPaxton, x::T) where T
     x == Inf && return zero(x)
