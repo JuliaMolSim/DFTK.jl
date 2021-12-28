@@ -99,11 +99,16 @@ struct Gaussian <: SmearingFunction end
 occupation(S::Gaussian, x) = erfc(x) / 2
 entropy(S::Gaussian, x::T) where T = 1 / (2 * sqrt(T(pi))) * exp(-x^2)
 
+# NB: the Fermi energy with Marzari-Vanderbilt smearing is __not__ unique
 struct MarzariVanderbilt <: SmearingFunction end
-occupation(S::MarzariVanderbilt, x::T) where T = erf(-x - 1/sqrt(T(2))) / 2 + 1/sqrt(2*T(π)) * exp(-(-x - 1/sqrt(T(2)))^2) + 1/T(2)
-entropy(S::MarzariVanderbilt, x::T) where T = -1/sqrt(2*T(π)) * (-x - 1/sqrt(T(2))) * exp(-(-x - 1/sqrt(T(2)))^2)
+occupation(S::MarzariVanderbilt, x::T) where T = -erf(x + 1/sqrt(T(2))) / 2 + 1/sqrt(2*T(π)) * exp(-(-x - 1/sqrt(T(2)))^2) + 1/T(2)
+entropy(S::MarzariVanderbilt, x::T) where T = 1/sqrt(2*T(π)) * (x + 1/sqrt(T(2))) * exp(-(-x - 1/sqrt(T(2)))^2)
 
+"""
+`A` term in the Hermite delta expansion
+"""
 A(T, n) = (-1)^n / (factorial(n) * 4^n * sqrt(T(π)))
+
 """
 Standard Hermite function using physicist's convention.
 """
@@ -117,27 +122,30 @@ function H(x, n)
     end
 end
 
+# NB: the Fermi energy with Methfessel-Paxton smearing is __not__ unique
 struct MethfesselPaxton <: SmearingFunction
     order::Int
+    MethfesselPaxton(order::Int) = order > 14 ? error("Methfessel-Paxton smearing with `order > 14` is unstable.") : new(order)
 end
 function occupation(S::MethfesselPaxton, x::T) where T
     x == Inf && return zero(x)
     x == -Inf && return one(x)
-    S₀ = erfc(x) / 2
-    ΣSₙ = zero(x)
+    f₀ = erfc(x) / 2  # 0-order Methfessel-Paxton smearing is Gaussian smearing
+    Σfₙ = zero(x)
     for i in 1:S.order
-        ΣSₙ += A(T, i) * H(x, 2i - 1)
+        Σfₙ += A(T, i) * H(x, 2i - 1)
     end
-    return S₀ + ΣSₙ * exp(-x^2)
+    return f₀ + Σfₙ * exp(-x^2)
 end
 function entropy(S::MethfesselPaxton, x::T) where T
-    exp_term = exp(-x^2)
-    S₀ = A(T, 0) / 2 * exp_term
-    ΣSₙ = zero(x)
+    # Equivalent to A(T, i) * (H(x, 2i) / 2 + 2i * H(x, 2i - 2)), but H(x, i<0) is not defined and gives an error.
+    # Also equivalent to Gaussian entropy (A(0) == 1/√π)
+    s₀ = A(T, 0) / 2 * exp(-x^2)
+    Σsₙ = zero(x)
     for i in 1:S.order
-        ΣSₙ += A(T, i) * (H(x, 2i) / 2 + 2i * H(x, 2i - 2))
+        Σsₙ += A(T, i) * (H(x, 2i) / 2 + 2i * H(x, 2i - 2))
     end
-    return S₀ + ΣSₙ * exp(-x^2)
+    return s₀ + Σsₙ * exp(-x^2)
 end
 
 

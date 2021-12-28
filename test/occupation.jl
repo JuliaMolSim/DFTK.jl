@@ -9,10 +9,7 @@ smearing_methods = (
         DFTK.Smearing.FermiDirac(),
         DFTK.Smearing.Gaussian(),
         DFTK.Smearing.MarzariVanderbilt(),
-        DFTK.Smearing.MethfesselPaxton(1),
-        DFTK.Smearing.MethfesselPaxton(2),
-        DFTK.Smearing.MethfesselPaxton(3),
-        DFTK.Smearing.MethfesselPaxton(4)
+        (DFTK.Smearing.MethfesselPaxton(i) for i in 1:4)...
     )
 
 @testset "Smearing functions" begin
