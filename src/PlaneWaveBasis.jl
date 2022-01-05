@@ -331,6 +331,8 @@ function G_vectors(fft_size::Union{Tuple,AbstractVector})
     [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
 end
 function G_vectors_generator(fft_size::Union{Tuple,AbstractVector})
+    # The generator version is used mainly in symmetry.jl for lowpass_for_symmetry! and
+    # accumulate_over_symmetries!, which are 100-fold slower with G_vector(fft_size).
     start = .- cld.(fft_size .- 1, 2)
     stop  = fld.(fft_size .- 1, 2)
     axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
