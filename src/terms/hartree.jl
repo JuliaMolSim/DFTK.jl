@@ -31,8 +31,7 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
 
     # Solving the Poisson equation ΔV = -4π ρ in Fourier space
     # is multiplying elementwise by 4π / |G|^2.
-    poisson_green_coeffs = 4T(π) ./ [sum(abs2, model.recip_lattice * G)
-                                     for G in G_vectors(basis)]
+    poisson_green_coeffs = 4T(π) ./ [sum(abs2, G) for G in G_vectors_cart(basis)]
     if !isempty(model.atoms)
         # Assume positive charge from nuclei is exactly compensated by the electrons
         sum_charges = sum(length(positions) * charge_ionic(elem)
