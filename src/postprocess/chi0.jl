@@ -160,7 +160,7 @@ end
 # (H-εn) δψn = - P_{ψ^⟂} δH ψn
 
 # The off-diagonal explicit term needs a careful consideration of stability.
-# Let <ψm|δψn> = αmn <δψm|δH|ψn>. αmn has to satisfy
+# Let <ψm|δψn> = αmn <ψm|δH|ψn>. αmn has to satisfy
 # fn αmn + fm αnm = ratio = (fn-fm)/(εn-εm)   (*)
 # The usual way is to impose orthogonality (=> αmn=-αnm),
 # but this means that αmn = 1/(εm-εn), which is unstable
