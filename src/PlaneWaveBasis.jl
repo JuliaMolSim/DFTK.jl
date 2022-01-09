@@ -325,6 +325,8 @@ The wave vectors `G` in reduced (integer) coordinates for a cubic basis set
 of given sizes.
 """
 function G_vectors(fft_size::Union{Tuple,AbstractVector})
+    # Note that a collect(G_vectors_generator(fft_size)) is 100-fold slower
+    # than this implementation, hence the code duplication.
     start = .- cld.(fft_size .- 1, 2)
     stop  = fld.(fft_size .- 1, 2)
     axes  = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
