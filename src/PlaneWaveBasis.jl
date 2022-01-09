@@ -142,10 +142,10 @@ end
 
 # Lowest-level constructor. All given parameters must be the same on all processors
 # and are stored in PlaneWaveBasis for easy reconstruction
-@timing function PlaneWaveBasis(model::Model{T},
-                                Ecut::Number, fft_size, variational,
-                                kcoords::AbstractVector, ksymops,
-                                kgrid, kshift, symmetries, comm_kpts) where {T <: Real}
+function PlaneWaveBasis(model::Model{T},
+                        Ecut::Number, fft_size, variational,
+                        kcoords::AbstractVector, ksymops,
+                        kgrid, kshift, symmetries, comm_kpts) where {T <: Real}
     if !(all(fft_size .== next_working_fft_size(T, fft_size)))
         error("Selected fft_size will not work for the buggy generic " *
               "FFT routines; use next_working_fft_size")
@@ -276,8 +276,8 @@ end
 """
 Creates a new basis identical to `basis`, but with a custom set of kpoints
 """
-function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
-                        ksymops::AbstractVector, symmetries=vcat(ksymops...))
+@timing function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
+                                ksymops::AbstractVector, symmetries=vcat(ksymops...))
     kgrid = kshift = nothing
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
@@ -325,6 +325,16 @@ The wave vectors `G` in reduced (integer) coordinates for a cubic basis set
 of given sizes.
 """
 function G_vectors(fft_size::Union{Tuple,AbstractVector})
+    # Note that a collect(G_vectors_generator(fft_size)) is 100-fold slower
+    # than this implementation, hence the code duplication.
+    start = .- cld.(fft_size .- 1, 2)
+    stop  = fld.(fft_size .- 1, 2)
+    axes  = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
+    [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
+end
+function G_vectors_generator(fft_size::Union{Tuple,AbstractVector})
+    # The generator version is used mainly in symmetry.jl for lowpass_for_symmetry! and
+    # accumulate_over_symmetries!, which are 100-fold slower with G_vector(fft_size).
     start = .- cld.(fft_size .- 1, 2)
     stop  = fld.(fft_size .- 1, 2)
     axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
@@ -349,10 +359,10 @@ G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
 The list of ``G`` vectors of a given `basis` or `kpt`, in cartesian coordinates.
 """
 function G_vectors_cart(basis::PlaneWaveBasis)
-    (basis.model.recip_lattice * G for G in G_vectors(basis.fft_size))
+    map(G -> basis.model.recip_lattice * G, G_vectors(basis))
 end
 function G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
-    (basis.model.recip_lattice * G for G in G_vectors(basis, kpt))
+    map(G -> basis.model.recip_lattice * G, G_vectors(basis, kpt))
 end
 
 @doc raw"""
@@ -361,7 +371,7 @@ end
 The list of ``G + k`` vectors, in reduced coordinates.
 """
 function Gplusk_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
-    ((G + kpt.coordinate) for G in G_vectors(basis, kpt))
+    map(G -> G + kpt.coordinate, G_vectors(basis, kpt))
 end
 
 @doc raw"""
@@ -370,7 +380,7 @@ end
 The list of ``G + k`` vectors, in cartesian coordinates.
 """
 function Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
-    (basis.model.recip_lattice * (G + kpt.coordinate) for G in G_vectors(basis, kpt))
+    map(Gplusk -> basis.model.recip_lattice * Gplusk, Gplusk_vectors(basis, kpt))
 end
 
 
@@ -381,7 +391,7 @@ The list of ``r`` vectors, in reduced coordinates. By convention, this is in [0,
 """
 function r_vectors(basis::PlaneWaveBasis{T}) where T
     N1, N2, N3 = basis.fft_size
-    (Vec3{T}(T(i-1) / N1, T(j-1) / N2, T(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3)
+    [Vec3{T}(T(i-1) / N1, T(j-1) / N2, T(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3]
 end
 
 @doc raw"""
@@ -389,7 +399,7 @@ end
 
 The list of ``r`` vectors, in cartesian coordinates.
 """
-r_vectors_cart(basis::PlaneWaveBasis) = (basis.model.lattice * r for r in r_vectors(basis))
+r_vectors_cart(basis::PlaneWaveBasis) = map(r -> basis.model.lattice * r, r_vectors(basis))
 
 
 """
