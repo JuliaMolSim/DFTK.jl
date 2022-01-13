@@ -85,6 +85,8 @@ end
 test_kernel(:none, PowerNonlinearity(1.2, 2.0))
 test_kernel(:none, Hartree())
 test_kernel(:none, Xc(:lda_xc_teter93))
+test_kernel(:none, Xc(:lda_x))
+test_kernel(:none, Xc(:lda_c_vwn))
 test_kernel(:none, Xc(:gga_c_pbe), test_compute=false)
 test_kernel(:none, Xc(:gga_x_pbe), test_compute=false)
 
