@@ -201,6 +201,7 @@ function __init__()
     @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
     end
+    @require Zygote="e88e6eb3-aa80-5325-afca-941959d7151f"   include("workarounds/chainrules.jl")
     @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80"    include("plotting.jl")
     @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"     include("external/jld2io.jl")
     @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" include("external/vtkio.jl")

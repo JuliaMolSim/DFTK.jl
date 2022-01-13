@@ -129,17 +129,7 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
     operators = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
 
     # flatten the inner arrays in case a term returns more than one operator
-    function flatten(arr)
-        ret = []
-        for a in arr
-            if a isa RealFourierOperator
-                push!(ret, a)
-            else
-                push!(ret, a...)
-            end
-        end
-        ret
-    end
+    flatten(arr) = reduce(vcat, map(a -> (a isa Vector) ? a : [a], arr))
     hks_per_k   = [flatten([blocks[ik] for blocks in operators])
                    for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
 
