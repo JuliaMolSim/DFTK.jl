@@ -13,15 +13,18 @@ function make_basis(ε::T; a=10., Ecut=20) where T
     # model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn];
     #                   extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
     #                   symmetries=false)
+
+    # TODO: make missing terms differentiable
     terms = [
         Kinetic(),
         AtomicLocal(),
-        # AtomicNonlocal(),
+        # AtomicNonlocal(),  # more tricky, but eventually needed for reasonable physics
         Ewald(),
-        # PspCorrection(),
-        # Entropy(),
+        PspCorrection(),   # eventually interesting (psp parameters)
+        Entropy(),         # TODO check numerics with higher temperature and scf higher n_bands kwarg
         Hartree(),
-        ExternalFromReal(r -> -ε * (r[1] - a/2))
+        ExternalFromReal(r -> -ε * (r[1] - a/2)),
+        # XC
     ]
     # model = Model(lattice, atoms, terms; temperature=1e-3, symmetries=false)
     model = Model(lattice, atoms, terms; symmetries=false)

@@ -89,12 +89,11 @@ end
 # simplified version of the Model constructor to
 # help reverse mode AD to only differentiate the relevant computations.
 # this excludes assertions (try-catch), and symmetries
-function _autodiff_Model_namedtuple(lattice, atoms, terms)
+function _autodiff_Model_namedtuple(lattice, atoms, term_types)
     recip_lattice = compute_recip_lattice(lattice)
     unit_cell_volume  = compute_unit_cell_volume(lattice)
     recip_cell_volume = compute_unit_cell_volume(recip_lattice)
-    (;lattice=lattice, recip_lattice=recip_lattice, unit_cell_volume=unit_cell_volume,
-    recip_cell_volume=recip_cell_volume, atoms=atoms, term_types=terms)
+    (; lattice, recip_lattice, unit_cell_volume, recip_cell_volume, atoms, term_types)
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Model}, lattice, atoms, terms; kwargs...)
@@ -489,7 +488,9 @@ end
 # Ewald
 
 # TODO reduce code duplication compared to primal
-# TODO unspecialize from Zygote.dropgrad, Zygote.ignore
+# TODO unspecialize from Zygote.dropgrad, Zygote.ignore -> ChainRulesCore.ignore
+# TODO move shell_indices out of energy_ewald and just globally mark shell_indices 
+#      as ChainRulesCore.@non_differentiable -> this should allow to delete _autodiff_energy_ewald
 function _autodiff_energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, args...)
     T = eltype(lattice)
     @assert T == eltype(recip_lattice)
