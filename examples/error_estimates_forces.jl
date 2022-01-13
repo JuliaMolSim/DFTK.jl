@@ -36,49 +36,46 @@ lattice = [[8.79341  0.0      0.0];
 
 # We apply a small displacement to one of the ``\rm Ti`` atoms to get nonzero forces.
 el, pos = atoms[1]
-atoms[1] = Pair(el, pos .+ [[0.22, -0.28, 0.35] / 5, [0, 0, 0]]);
+atoms[1] = Pair(el, pos .+ [[-0.22, 0.28, 0.35] / 10, [0, 0, 0]]);
 # We build a model with one k-point only, not too high `Ecut_ref` and small tolerance to
 # limit computational time. These parameters can be increased for more precise
 # results.
 model = model_LDA(lattice, atoms)
 kgrid = [1, 1, 1]
-Ecut_ref = 50
-basis_ref = PlaneWaveBasis(model; Ecut=Ecut_ref, kgrid=kgrid)
-tol = 1e-6;
+Ecut_ref = 35
+basis_ref = PlaneWaveBasis(model; Ecut=Ecut_ref, kgrid)
+tol = 1e-8;
 
 # ## Computations
 # We compute the reference solution ``P_*`` from which we will compute the
 # references forces.
 scfres_ref = self_consistent_field(basis_ref, tol=tol, callback=info->nothing)
-ψ_ref = DFTK.select_occupied_orbitals(basis_ref, scfres_ref.ψ)
-filled_occ = DFTK.filled_occupation(model)
-N = div(model.n_electrons, filled_occ)
-Nk = length(basis_ref.kpoints)
-T = eltype(basis_ref)
-occupation = [filled_occ * ones(T, N) for ik = 1:Nk];
+ψ_ref, occupation = DFTK.select_occupied_orbitals(basis_ref, scfres_ref.ψ, scfres_ref.occupation)
 # We compute a variational approximation of the reference solution with
-# smaller `Ecut`. Be careful not to choose `Ecut` to close to `Ecut_ref`.
-Ecut = 20
-basis = PlaneWaveBasis(model; Ecut=Ecut, kgrid=kgrid)
+# smaller `Ecut`. Be careful to choose `Ecut` not too close to `Ecut_ref`.
+# /!\ The current choice `Ecut_ref=35` is such that the reference solution is
+# not converged and `Ecut=15` is such that the asymptotic regime
+# (crucial to validate the approach) is barely established.
+Ecut = 15
+basis = PlaneWaveBasis(model; Ecut=Ecut, kgrid)
 scfres = self_consistent_field(basis, tol=tol, callback=info->nothing)
-ψ = DFTK.select_occupied_orbitals(basis, scfres.ψ)
 ψr = DFTK.transfer_blochwave(scfres.ψ, basis, basis_ref)
 ρr = compute_density(basis_ref, ψr, scfres.occupation)
-_, ham = energy_hamiltonian(basis_ref, ψr, scfres.occupation; ρ=ρr);
+Er, hamr = energy_hamiltonian(basis_ref, ψr, scfres.occupation; ρ=ρr);
 # We then compute several quantities that we need to evaluate the error bounds.
 # - Compute the residual ``R(P)``, and remove the virtual orbitals, as required in [`src/scf/newton.jl`](https://github.com/JuliaMolSim/DFTK.jl/blob/fedc720dab2d194b30d468501acd0f04bd4dd3d6/src/scf/newton.jl#L121).
 res = DFTK.compute_projected_gradient(basis_ref, ψr, scfres.occupation)
-res = DFTK.select_occupied_orbitals(basis_ref, res)
-ψr = DFTK.select_occupied_orbitals(basis_ref, ψr);
-# - Compute the error ``P-P_*`` on the orbitals ``ψ`` and ``ψ_*`` by aligning the eigenvectors: this is done by solving ``\min |ψ - ψ_*U|`` for ``U`` unitary matrix of size ``N\times N`` (``N`` being the number of electrons) whose solution is ``U = S(S^*S)^{-1/2}`` where ``S`` is the overlap matrix ``ψ_*^*ψ``.
+res, _ = DFTK.select_occupied_orbitals(basis_ref, res, scfres.occupation)
+ψr, _ = DFTK.select_occupied_orbitals(basis_ref, ψr, scfres.occupation);
+# - Compute the error ``P-P_*`` on the associated orbitals ``ϕ-ψ`` after aligning them: this is done by solving ``\min |ϕ - ψU|`` for ``U`` unitary matrix of size ``N\times N`` (``N`` being the number of electrons) whose solution is ``U = S(S^*S)^{-1/2}`` where ``S`` is the overlap matrix ``ψ^*ϕ``.
 function compute_error(basis, ϕ, ψ)
     Nk = length(basis.kpoints)
     err = similar(ϕ)
     for ik = 1:Nk
         ϕk = ϕ[ik]
         ψk = ψ[ik]
-        M = ψk'ϕk
-        U = M*(M'M)^(-1/2)
+        S = ψk'ϕk
+        U = S*(S'S)^(-1/2)
         err[ik] = ϕk - ψk*U
     end
     err
@@ -135,14 +132,15 @@ e2 = apply_metric(ψr, P, resHF, apply_inv_M);
 # - Compute the right hand side of the Schur system:
 ## Rayleigh coefficients needed for `apply_Ω`
 Λ = map(enumerate(ψr)) do (ik, ψk)
-    Hk = ham.blocks[ik]
+    Hk = hamr.blocks[ik]
     Hψk = Hk * ψk
     ψk'Hψk
 end
-ΩpKe2 = DFTK.apply_Ω(e2, ψr, ham, Λ) .+ DFTK.apply_K(basis_ref, e2, ψr, ρr, occupation)
+ΩpKe2 = DFTK.apply_Ω(e2, ψr, hamr, Λ) .+ DFTK.apply_K(basis_ref, e2, ψr, ρr, occupation)
 ΩpKe2 = DFTK.transfer_blochwave(ΩpKe2, basis_ref, basis)
 rhs = resLF - ΩpKe2;
 # - Solve the Schur system to compute ``R_{\rm Schur}(P)``: this is the most costly step, but inverting ``\bm{\Omega} + \bm{K}`` on the small space has the same cost than the full SCF cycle on the small grid.
+ψ, _ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 e1 = DFTK.solve_ΩplusK(basis, ψ, rhs, occupation; tol_cg=tol)
 e1 = DFTK.transfer_blochwave(e1, basis, basis_ref)
 res_schur = e1 + Mres;
@@ -161,18 +159,18 @@ println("F(P) = $(f[1][1][1])")
 # ```
 # To this end, we use the `ForwardDiff.jl` package to compute ``{\rm d}F(P)``
 # using automatic differentiation.
-function df(basis, occupation, ψ, δψ)
+function df(basis, occupation, ψ, δψ, ρ)
     δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation)
     function f(ε)
-        compute_forces(basis, ψ .+ ε.*δψ, occupation; ρ=ε.*δρ)
+        compute_forces(basis, ψ .+ ε.*δψ, occupation; ρ=ρ+ε.*δρ)
     end
     ForwardDiff.derivative(f, 0)
 end;
 # - Computation of the forces by a linearization argument if we have access to the actual error ``P-P_*``:
-df_err = df(basis_ref, occupation, ψr, DFTK.proj_tangent(err, ψr))
+df_err = df(basis_ref, occupation, ψr, DFTK.proj_tangent(err, ψr), ρr)
 println("F(P) - df(P).(P-P_*) = $(f[1][1][1]-df_err[1][1][1])")
 # - Computation of the forces by a linearization argument when replacing the error ``P-P_*`` by the modified residual:
-df_schur = df(basis_ref, occupation, ψr, res_schur)
+df_schur = df(basis_ref, occupation, ψr, res_schur, ρr)
 println("F(P) - df(P).Rschur(P) = $(f[1][1][1]-df_schur[1][1][1])")
 # Then, we estimate the error on the forces made by the different computations
 # above:
