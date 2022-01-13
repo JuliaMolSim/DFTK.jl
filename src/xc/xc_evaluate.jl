@@ -28,6 +28,4 @@ function Libxc.evaluate!(func::Functional, ::Val{:lda}, ρ::AbstractArray;
     if v2rho2 !== nothing
         v2rho2 .= fV2.(ρ)
     end
-
-    error("Fallback functional for $(string(func.identifier)) not implemented.")
 end
