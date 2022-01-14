@@ -14,7 +14,10 @@ function Libxc.evaluate!(func::Functional, ::Val{:lda}, ρ::AbstractArray;
         fE = E_lda_x
     elseif func.identifier == :lda_c_vwn
         fE = E_lda_c_vwn
+    else
+        error("Fallback functional for $(string(func.identifier)) not implemented.")
     end
+
     if zk !== nothing
         zk .= fE.(ρ)
     end
