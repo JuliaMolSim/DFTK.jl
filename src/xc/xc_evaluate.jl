@@ -26,7 +26,7 @@ function Libxc.evaluate!(func::Functional, ::Val{:lda}, ρ::AbstractArray;
         vrho .= fV.(ρ)
     end
 
-    fV2(ρ) = ForwardDiff.derivative(fV)
+    fV2(ρ) = ForwardDiff.derivative(fV, ρ)
     if v2rho2 !== nothing
         v2rho2 .= fV2.(ρ)
     end
