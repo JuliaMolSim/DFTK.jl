@@ -1,4 +1,10 @@
+using ForwardDiff
 import Libxc: evaluate!, Functional
+
+function energy_per_particle(::Val{identifier}, args...; kwargs...) where {identifier}
+    error("Fallback functional for $identifier not implemented.")
+end
+
 
 include("lda_x.jl")
 include("lda_c_vwn.jl")
@@ -8,16 +14,9 @@ include("lda_c_vwn.jl")
 function Libxc.evaluate!(func::Functional, ::Val{:lda}, ρ::AbstractArray;
                          zk=nothing, vrho=nothing, v2rho2=nothing)
     func.n_spin == 1  || error("Fallback functionals only for $(func.n_spin) == 1")
-
     zk = reshape(zk, size(ρ))
-    if func.identifier == :lda_x
-        fE = E_lda_x
-    elseif func.identifier == :lda_c_vwn
-        fE = E_lda_c_vwn
-    else
-        error("Fallback functional for $(string(func.identifier)) not implemented.")
-    end
 
+    fE = ρ -> energy_per_particle(Val(func.identifier), ρ)
     if zk !== nothing
         zk .= fE.(ρ)
     end
