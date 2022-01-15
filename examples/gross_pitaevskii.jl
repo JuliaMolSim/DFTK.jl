@@ -31,7 +31,7 @@ lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]];
 pot(x) = (x - a/2)^2;
 
 # We setup each energy term in sequence: kinetic, potential and nonlinear term.
-# For the non-linearity we use the `PowerNonlinearity(C, α)` term of DFTK.
+# For the non-linearity we use the `LocalNonlinearity(f)` term of DFTK, with f(ρ) = C ρ^α.
 # This object introduces an energy term ``C ∫ ρ(r)^α dr``
 # to the total energy functional, thus a potential term ``α C ρ^{α-1}``.
 # In our case we thus need the parameters
@@ -45,7 +45,7 @@ using LinearAlgebra
 n_electrons = 1  # Increase this for fun
 terms = [Kinetic(),
          ExternalFromReal(r -> pot(r[1])),
-         PowerNonlinearity(C, α),
+         LocalNonlinearity(ρ -> C * ρ^α),
 ]
 model = Model(lattice; n_electrons=n_electrons, terms=terms,
               spin_polarization=:spinless);  # use "spinless electrons"

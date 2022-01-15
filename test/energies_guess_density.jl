@@ -44,7 +44,7 @@ include("testcases.jl")
                       [:gga_x_pbe, :gga_c_pbe],
                       extra_terms=[ExternalFromReal(X -> cos(1.2*(X[1]+X[3]))),
                                    ExternalFromFourier(X -> cos(1.3*(X[1]+X[3]))),
-                                   PowerNonlinearity(1.2, 2.4),
+                                   LocalNonlinearity(ρ -> 1.2 * ρ^2.4),
                                    Magnetic(X -> [1, cos(1.4*X[2]), exp(X[3])])]
                       )
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
@@ -60,6 +60,6 @@ include("testcases.jl")
     @test E["PspCorrection"]       ≈ -0.294622067031369   atol=5e-8
     @test E["ExternalFromReal"]    ≈  0.139216686139006   atol=5e-8
     @test E["ExternalFromFourier"] ≈  0.057896835498415   atol=5e-8
-    @test E["PowerNonlinearity"]   ≈  0.142649748399169   atol=5e-8
+    @test E["LocalNonlinearity"]   ≈  0.142649748399169   atol=5e-8
     @test E["Magnetic"]            ≈ -451.5652707506372   atol=5e-7
 end
