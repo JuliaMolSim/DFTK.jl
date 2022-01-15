@@ -82,7 +82,7 @@ function test_kernel_collinear_vs_noncollinear(termtype)
     end
 end
 
-test_kernel(:none, PowerNonlinearity(1.2, 2.0))
+test_kernel(:none, LocalNonlinearity(ρ -> 1.2 * ρ^2))
 test_kernel(:none, Hartree())
 test_kernel(:none, Xc(:lda_xc_teter93))
 test_kernel(:none, Xc(:gga_c_pbe), test_compute=false)
@@ -94,7 +94,7 @@ test_kernel_collinear_vs_noncollinear(Xc(:gga_c_pbe))
 test_kernel_collinear_vs_noncollinear(Xc(:gga_x_pbe))
 
 test_kernel(:collinear, Hartree())
-test_kernel(:collinear, PowerNonlinearity(1.2, 2.5))
+test_kernel(:collinear, LocalNonlinearity(ρ -> 1.2 * ρ^2.5))
 test_kernel(:collinear, Xc(:lda_xc_teter93))
 test_kernel(:collinear, Xc(:gga_c_pbe), test_compute=false)
 test_kernel(:collinear, Xc(:gga_x_pbe), test_compute=false)
