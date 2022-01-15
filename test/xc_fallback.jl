@@ -1,6 +1,6 @@
 using Test
 using Libxc
-using DFTK
+using DFTK: xc_fallback!
 
 @testset "Fallback LDA" begin
     for func_name in (:lda_x, :lda_c_vwn)
@@ -18,7 +18,7 @@ using DFTK
         E    = similar(ρbig)
         V    = similar(ρbig)
         V2   = similar(ρbig)
-        Libxc.evaluate!(func, rho=ρbig, zk=E, vrho=V, v2rho2=V2)
+        xc_fallback!(func, Val(:lda), ρbig; zk=E, vrho=V, v2rho2=V2)
 
         @test E  ≈ Eref  atol=5e-15
         @test V  ≈ Vref  atol=5e-15
