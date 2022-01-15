@@ -5,6 +5,7 @@ Local nonlinearity, with energy ∫f(ρ) where ρ is the density
 struct LocalNonlinearity
     f
 end
+@deprecate PowerNonlinearity(C, α) LocalNonlinearity(ρ -> C * ρ^α)
 struct TermLocalNonlinearity{TF} <: TermNonlinear
     f::TF
 end
