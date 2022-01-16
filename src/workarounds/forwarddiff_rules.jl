@@ -55,7 +55,7 @@ for P in [:Plan, :ScaledPlan]  # need ScaledPlan to avoid ambiguities
 
         LinearAlgebra.mul!(Y::AbstractArray, p::AbstractFFTs.$P, X::AbstractArray{<:ForwardDiff.Dual}) = 
             (Y .= _apply_plan(p, X))
-        
+
         LinearAlgebra.mul!(Y::AbstractArray, p::AbstractFFTs.$P, X::AbstractArray{<:Complex{<:ForwardDiff.Dual}}) =
             (Y .= _apply_plan(p, X))
     end
