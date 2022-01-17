@@ -40,7 +40,7 @@ smearing = DFTK.Smearing.FermiDirac() # Smearing method
 
 model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe];
                   temperature=temperature,
-                  smearing=DFTK.Smearing.FermiDirac())
+                  smearing=smearing)
 kgrid = kgrid_from_minimal_spacing(lattice, kspacing)
 basis = PlaneWaveBasis(model; Ecut, kgrid);
 
