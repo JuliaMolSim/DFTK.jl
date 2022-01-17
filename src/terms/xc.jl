@@ -126,7 +126,7 @@ where s, t ∈ {α, β} are the spin components and we understand
 Now, in contrast to this libxc explicitly uses the symmetry σ_αβ = σ_βα and sets σ
 to be a vector of the three independent components only
     σ = [σ_αα, σ_x, σ_ββ]  where     σ_x = (σ_αβ + σ_βα)/2
-Accordingly Vσ has the compoments
+Accordingly Vσ has the components
     [∂(ρ E)/∂σ_αα, ∂(ρ E)/∂σ_x, ∂(ρ E)/∂σ_ββ]
 where in particular ∂(ρ E)/∂σ_x = (1/2) ∂(ρ E)/∂σ_αβ = (1/2) ∂(ρ E)/∂σ_βα.
 This explains the extra factor (1/2) needed in the GGA term of the XC potential

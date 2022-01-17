@@ -1,18 +1,36 @@
+using ForwardDiff
 import Libxc: evaluate!, Functional
+
+function energy_per_particle(::Val{identifier}, args...; kwargs...) where {identifier}
+    error("Fallback functional for $identifier not implemented.")
+end
 
 include("lda_x.jl")
 include("lda_c_vwn.jl")
 
-# This file extends the evaluate! function from Libxc.jl for cases where the Array type
-# is not a plain Julia array and the Floating point type is not Float64
-function Libxc.evaluate!(func::Functional, ::Val{:lda}, rho::AbstractArray;
-                         zk=nothing, vrho=nothing, v2rho2=nothing)
+# Function that always dispatches to the DFTK fallback implementations
+function xc_fallback!(func::Functional, ::Val{:lda}, ρ::AbstractArray;
+                      zk=nothing, vrho=nothing, v2rho2=nothing)
     func.n_spin == 1  || error("Fallback functionals only for $(func.n_spin) == 1")
-    isnothing(v2rho2) || error("Fallback functionals only for 0-th and 1-st derivative")
+    zk = reshape(zk, size(ρ))
 
-    zk = reshape(zk, size(rho))
-    func.identifier == :lda_x     && return     lda_x!(rho, E=zk, Vρ=vrho)
-    func.identifier == :lda_c_vwn && return lda_c_vwn!(rho, E=zk, Vρ=vrho)
+    fE = ρ -> energy_per_particle(Val(func.identifier), ρ)
+    if zk !== nothing
+        zk .= fE.(ρ)
+    end
 
-    error("Fallback functional for $(string(func.identifier)) not implemented.")
+    fV(ρ) = ForwardDiff.derivative(ρ -> ρ*fE(ρ), ρ)
+    if vrho !== nothing
+        vrho .= fV.(ρ)
+    end
+
+    fV2(ρ) = ForwardDiff.derivative(fV, ρ)
+    if v2rho2 !== nothing
+        v2rho2 .= fV2.(ρ)
+    end
 end
+
+# For cases where the Array type is not a plain Julia array and the Floating point
+# type is not Float64, use xc_fallback! to evaluate the functional.
+# Note: This is type piracy on the evaluate! function from Libxc.jl
+Libxc.evaluate!(args...; kwargs...) = xc_fallback!(args...; kwargs...)

@@ -31,7 +31,7 @@ n_electrons = 1;  # Increase this for fun
 # Collect all the terms, build and run the model
 terms = [Kinetic(),
          ExternalFromReal(X -> pot(X...)),
-         PowerNonlinearity(C, α),
+         LocalNonlinearity(ρ -> C * ρ^α),
          Magnetic(Apot),
 ]
 model = Model(lattice; n_electrons=n_electrons,
