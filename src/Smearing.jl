@@ -3,12 +3,8 @@
 # Ref for the equations:
 #    - M. Methfessel, A. T. Paxton 1989
 #       "High-precision sampling for Brillouin-zone integration in metals"
-#     - http://www.hector.ac.uk/cse/distributedcse/reports/conquest/conquest/node6.html
-#       "Methfessel-Paxton Approximation to Step Function"
-#     - https://gitlab.com/QEF/q-e/-/blob/bcbb9787c58f17a467653707917172ffc4053dd9/Modules/wgauss.f90
-#       Smearing function implementation in Quantum-Espresso
-#     - https://gitlab.com/QEF/q-e/-/blob/bcbb9787c58f17a467653707917172ffc4053dd9/Modules/w0gauss.f90
-#       Occupation derivative and entropy implementations in Quantum-Espresso
+#     - N. Marzari, D. Vanderbilt, A. De Vita, M. C. Payne
+#       "Thermal Contraction and Disordering of the Al(110) Surface"
 #     - E. Cancès, V. Ehrlacher, D. Gontier, A. Levitt, D. Lombardi
 #       "Numerical quadrature in the brillouin zone for periodic schrodinger operators"
 # See also https://www.vasp.at/vasp-workshop/k-points.pdf
@@ -97,12 +93,19 @@ end
 
 struct Gaussian <: SmearingFunction end
 occupation(S::Gaussian, x) = erfc(x) / 2
-entropy(S::Gaussian, x::T) where T = 1 / (2 * sqrt(T(pi))) * exp(-x^2)
+entropy(S::Gaussian, x::T) where T = 1 / (2 * sqrt(T(π))) * exp(-x^2)
 
 # NB: the Fermi energy with Marzari-Vanderbilt smearing is __not__ unique
 struct MarzariVanderbilt <: SmearingFunction end
-occupation(S::MarzariVanderbilt, x::T) where T = -erf(x + 1/sqrt(T(2))) / 2 + 1/sqrt(2*T(π)) * exp(-(-x - 1/sqrt(T(2)))^2) + 1/T(2)
-entropy(S::MarzariVanderbilt, x::T) where T = 1/sqrt(2*T(π)) * (x + 1/sqrt(T(2))) * exp(-(-x - 1/sqrt(T(2)))^2)
+function occupation(S::MarzariVanderbilt, x::T) where T
+    return (
+        -erf(x + 1/sqrt(T(2))) / 2 
+        + 1/sqrt(2*T(π)) * exp(-(-x - 1/sqrt(T(2)))^2) + 1/T(2)
+    )
+end
+function entropy(S::MarzariVanderbilt, x::T) where T
+    return 1/sqrt(2*T(π)) * (x + 1/sqrt(T(2))) * exp(-(-x - 1/sqrt(T(2)))^2)
+end
 
 """
 `A` term in the Hermite delta expansion
@@ -113,10 +116,10 @@ A(T, n) = (-1)^n / (factorial(n) * 4^n * sqrt(T(π)))
 Standard Hermite function using physicist's convention.
 """
 function H(x, n)
-    if n == 0
+    if n < 0
+        return zero(x)
+    elseif n == 0
         return one(x)
-    elseif n == 1
-        return 2 * x
     else
         return 2 * x * H(x, n-1) - 2 * (n-1) * H(x, n-2)
     end
@@ -130,21 +133,11 @@ function occupation(S::MethfesselPaxton, x::T) where T
     x == Inf && return zero(x)
     x == -Inf && return one(x)
     f₀ = erfc(x) / 2  # 0-order Methfessel-Paxton smearing is Gaussian smearing
-    Σfₙ = zero(x)
-    for i in 1:S.order
-        Σfₙ += A(T, i) * H(x, 2i - 1)
-    end
+    Σfₙ = sum(i -> A(T, i) * H(x, 2i - 1), 1:S.order)
     return f₀ + Σfₙ * exp(-x^2)
 end
 function entropy(S::MethfesselPaxton, x::T) where T
-    # Equivalent to A(T, i) * (H(x, 2i) / 2 + 2i * H(x, 2i - 2)), but H(x, i<0) is not defined and gives an error.
-    # Also equivalent to Gaussian entropy (A(0) == 1/√π)
-    s₀ = A(T, 0) / 2 * exp(-x^2)
-    Σsₙ = zero(x)
-    for i in 1:S.order
-        Σsₙ += A(T, i) * (H(x, 2i) / 2 + 2i * H(x, 2i - 2))
-    end
-    return s₀ + Σsₙ * exp(-x^2)
+    return sum(i -> A(T, i) * (H(x, 2i) / 2 + 2i * H(x, 2i - 2)), 0:S.order) * exp(-x^2)
 end
 
 
