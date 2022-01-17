@@ -4,18 +4,26 @@ using SpecialFunctions
 
 include("testcases.jl")
 
+smearing_methods = (
+        DFTK.Smearing.None(),
+        DFTK.Smearing.FermiDirac(),
+        DFTK.Smearing.Gaussian(),
+        DFTK.Smearing.MarzariVanderbilt(),
+        (DFTK.Smearing.MethfesselPaxton(i) for i in 1:4)...
+    )
+
 @testset "Smearing functions" begin
-    for m in DFTK.Smearing.smearing_methods
-        @test DFTK.Smearing.occupation(m(), -Inf) == 1
-        @test DFTK.Smearing.occupation(m(), Inf) == 0
+    for m in smearing_methods
+        @test DFTK.Smearing.occupation(m, -Inf) == 1
+        @test DFTK.Smearing.occupation(m, Inf) == 0
         x = .04
         ε = 1e-8
-        @test abs((DFTK.Smearing.occupation(m(), x+ε) - DFTK.Smearing.occupation(m(), x))/ε -
-                  DFTK.Smearing.occupation_derivative(m(), x)) < 1e-4
+        @test abs((DFTK.Smearing.occupation(m, x+ε) - DFTK.Smearing.occupation(m, x))/ε -
+                  DFTK.Smearing.occupation_derivative(m, x)) < 1e-4
 
         # entropy functions should satisfy s' = x f'
-        sprime = (DFTK.Smearing.entropy(m(), x+ε) - DFTK.Smearing.entropy(m(), x))/ε
-        fprime = (DFTK.Smearing.occupation(m(), x+ε) - DFTK.Smearing.occupation(m(), x))/ε
+        sprime = (DFTK.Smearing.entropy(m, x+ε) - DFTK.Smearing.entropy(m, x))/ε
+        fprime = (DFTK.Smearing.occupation(m, x+ε) - DFTK.Smearing.occupation(m, x))/ε
         @test abs(sprime - x*fprime) < 1e-4
     end
 end
@@ -47,9 +55,9 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
 
     # See that the electron count still works if we add temperature
     Ts = (0, 1e-6, .1, 1.0)
-    for temperature in Ts, meth in DFTK.Smearing.smearing_methods
+    for temperature in Ts, meth in smearing_methods
         model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature,
-                      smearing=meth(), terms=[Kinetic()])
+                      smearing=meth, terms=[Kinetic()])
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
         occs, _ = DFTK.compute_occupation(basis, energies)
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
@@ -57,9 +65,9 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
 
     # See that the occupation is largely uneffected with only a bit of temperature
     Ts = (0, 1e-6, 1e-4)
-    for T in Ts, meth in DFTK.Smearing.smearing_methods
+    for T in Ts, meth in smearing_methods
         model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=T,
-                      smearing=meth(), terms=[Kinetic()])
+                      smearing=meth, terms=[Kinetic()])
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
         occupation, _ = DFTK.compute_occupation(basis, energies)
 
@@ -100,17 +108,17 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     @assert n_k == length(energies)
 
     parameters = (
-        (DFTK.Smearing.FermiDirac,        0.01, 0.17251898225370),
-        (DFTK.Smearing.FermiDirac,        0.02, 0.17020763046058),
-        (DFTK.Smearing.FermiDirac,        0.03, 0.16865552281082),
-        (DFTK.Smearing.MethfesselPaxton1, 0.01, 0.16917895217084),
-        (DFTK.Smearing.MethfesselPaxton1, 0.02, 0.17350869020891),
-        (DFTK.Smearing.MethfesselPaxton1, 0.03, 0.17395190342809),
+        (DFTK.Smearing.FermiDirac(),        0.01, 0.17251898225370),
+        (DFTK.Smearing.FermiDirac(),        0.02, 0.17020763046058),
+        (DFTK.Smearing.FermiDirac(),        0.03, 0.16865552281082),
+        (DFTK.Smearing.MethfesselPaxton(1), 0.01, 0.16917895217084),
+        (DFTK.Smearing.MethfesselPaxton(1), 0.02, 0.17350869020891),
+        (DFTK.Smearing.MethfesselPaxton(1), 0.03, 0.17395190342809),
     )
 
     for (meth, temperature, εF_ref) in parameters
         model = Model(silicon.lattice, n_electrons=testcase.n_electrons;
-                      temperature=temperature, smearing=meth(), terms=[Kinetic()])
+                      temperature=temperature, smearing=meth, terms=[Kinetic()])
         basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops; fft_size=fft_size)
         occupation, εF = DFTK.compute_occupation(basis, energies)
 
