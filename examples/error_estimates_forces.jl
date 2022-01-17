@@ -1,8 +1,8 @@
 # # Practical error bounds for the forces
 #
-# This is a simple example showing how to compute error estimates for the forces on a
-# ``{\rm TiO}_2`` molecule, from which we can either compute asymptotically valid error
-# bounds or increase the precision on the computation of the forces.
+# This is a simple example showing how to compute error estimates for the forces
+# on a ``{\rm TiO}_2`` molecule, from which we can either compute asymptotically
+# valid error bounds or increase the precision on the computation of the forces.
 #
 # The strategy we follow is described with more details in [^CDKL2021] and we
 # will use in comments the density matrices framework. We will also needs
@@ -62,9 +62,9 @@ scfres_ref = self_consistent_field(basis_ref, tol=tol, callback=info->nothing)
 #
 # !!! note "Choice of convergence parameters"
 #     Be careful to choose `Ecut` not too close to `Ecut_ref`.
-#     Note also that the current choice `Ecut_ref = 35` is such that the reference
-#     solution is not converged and `Ecut = 15` is such that the asymptotic regime
-#     (crucial to validate the approach) is barely established.
+#     Note also that the current choice `Ecut_ref = 35` is such that the
+#     reference solution is not converged and `Ecut = 15` is such that the
+#     asymptotic regime (crucial to validate the approach) is barely established.
 Ecut = 15
 basis = PlaneWaveBasis(model; Ecut=Ecut, kgrid)
 scfres = self_consistent_field(basis, tol=tol, callback=info->nothing)
@@ -74,12 +74,16 @@ Er, hamr = energy_hamiltonian(basis_ref, ψr, scfres.occupation; ρ=ρr);
 
 # We then compute several quantities that we need to evaluate the error bounds.
 
-# - Compute the residual ``R(P)``, and remove the virtual orbitals, as required in [`src/scf/newton.jl`](https://github.com/JuliaMolSim/DFTK.jl/blob/fedc720dab2d194b30d468501acd0f04bd4dd3d6/src/scf/newton.jl#L121).
+# - Compute the residual ``R(P)``, and remove the virtual orbitals, as required
+#   in [`src/scf/newton.jl`](https://github.com/JuliaMolSim/DFTK.jl/blob/fedc720dab2d194b30d468501acd0f04bd4dd3d6/src/scf/newton.jl#L121).
 res = DFTK.compute_projected_gradient(basis_ref, ψr, scfres.occupation)
 res, occ = DFTK.select_occupied_orbitals(basis_ref, res, scfres.occupation)
 ψr, _ = DFTK.select_occupied_orbitals(basis_ref, ψr, scfres.occupation);
 
-# - Compute the error ``P-P_*`` on the associated orbitals ``ϕ-ψ`` after aligning them: this is done by solving ``\min |ϕ - ψU|`` for ``U`` unitary matrix of size ``N\times N`` (``N`` being the number of electrons) whose solution is ``U = S(S^*S)^{-1/2}`` where ``S`` is the overlap matrix ``ψ^*ϕ``.
+# - Compute the error ``P-P_*`` on the associated orbitals ``ϕ-ψ`` after aligning
+#   them: this is done by solving ``\min |ϕ - ψU|`` for ``U`` unitary matrix of
+#   size ``N\times N`` (``N`` being the number of electrons) whose solution is
+#   ``U = S(S^*S)^{-1/2}`` where ``S`` is the overlap matrix ``ψ^*ϕ``.
 function compute_error(basis, ϕ, ψ)
     map(zip(ϕ, ψ)) do (ϕk, ψk)
         S = ψk'ϕk
@@ -160,7 +164,9 @@ end
 ΩpKe2 = DFTK.transfer_blochwave(ΩpKe2, basis_ref, basis)
 rhs = resLF - ΩpKe2;
 
-# - Solve the Schur system to compute ``R_{\rm Schur}(P)``: this is the most costly step, but inverting ``\bm{\Omega} + \bm{K}`` on the small space has the same cost than the full SCF cycle on the small grid.
+# - Solve the Schur system to compute ``R_{\rm Schur}(P)``: this is the most
+#   costly step, but inverting ``\bm{\Omega} + \bm{K}`` on the small space has
+#   the same cost than the full SCF cycle on the small grid.
 ψ, _ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 e1 = DFTK.solve_ΩplusK(basis, ψ, rhs, occ; tol_cg=tol)
 e1 = DFTK.transfer_blochwave(e1, basis, basis_ref)
@@ -193,11 +199,13 @@ function df(basis, occupation, ψ, δψ, ρ)
     ForwardDiff.derivative(ε -> compute_forces(basis, ψ.+ε.*δψ, occupation; ρ=ρ+ε.*δρ), 0)
 end;
 
-# - Computation of the forces by a linearization argument if we have access to the actual error ``P-P_*``:
+# - Computation of the forces by a linearization argument if we have access to
+#   the actual error ``P-P_*``:
 df_err = df(basis_ref, occ, ψr, DFTK.proj_tangent(err, ψr), ρr)
 println("F(P) - df(P)⋅(P-P_*) = $(f[1][1][1]-df_err[1][1][1])")
 
-# - Computation of the forces by a linearization argument when replacing the error ``P-P_*`` by the modified residual:
+# - Computation of the forces by a linearization argument when replacing the
+#   error ``P-P_*`` by the modified residual:
 df_schur = df(basis_ref, occ, ψr, res_schur, ρr)
 println("F(P) - df(P)⋅Rschur(P) = $(f[1][1][1]-df_schur[1][1][1])")
 
@@ -207,8 +215,12 @@ println("F(P) - df(P)⋅Rschur(P) = $(f[1][1][1]-df_schur[1][1][1])")
 # - Relative error on the forces with no post-processing:
 println("|F(P) - F(P_*)| / |F(P_*)| = $(norm(f-f_ref)/norm(f_ref))")
 
-# - Relative error made by the linearization ``F(P) - {\rm d}F(P)⋅(P-P_*)`` if we had access to the actual error ``P-P_*``, which is not the case in practice (we are aiming at reaching this precision):
+# - Relative error made by the linearization ``F(P) - {\rm d}F(P)⋅(P-P_*)`` if
+#   we had access to the actual error ``P-P_*``, which is not the case in
+#   practice (we are aiming at reaching this precision):
 println("|F(P) - dF(P)⋅(P-P_*) - F(P_*)| / |F(P_*)| = $(norm(f-df_err-f_ref)/norm(f_ref))")
 
-# - Relative error made by replacing ``P-P_*`` by the modified residual ``R_{\rm Schur}(P)`` (computable in practice) in the linearization (note how closer we are to the previous one):
+# - Relative error made by replacing ``P-P_*`` by the modified residual
+#   ``R_{\rm Schur}(P)`` (computable in practice) in the linearization (note
+#   how closer we are to the previous one):
 println("|F(P) - dF(P)⋅Rschur(P) - F(P_*)| / |F(P_*)| = $(norm(f-df_schur-f_ref)/norm(f_ref))")
