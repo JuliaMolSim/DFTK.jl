@@ -1,10 +1,23 @@
-# select the occupied orbitals assuming an insulator
-function select_occupied_orbitals(basis::PlaneWaveBasis, ψ)
-    model  = basis.model
-    n_spin = model.n_spin_components
-    @assert iszero(basis.model.temperature)
-    n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)
-    [ψk[:, 1:n_bands] for ψk in ψ]
+# Returns the occupied orbitals and the occupation array without virtual states
+# (or states with small occupation level for metals).
+# threshold is a parameter to distinguish between states we want to keep and the
+# others when using temperature. It is set to 0.0 by default, to treat with insulators.
+function select_occupied_orbitals(basis, ψ, occupation; threshold=0.0)
+    N = [findlast(x -> x > threshold, occk) for occk in occupation]
+    selected_ψ = [ψk[:, 1:N[ik]] for (ik,ψk) in enumerate(ψ)]
+    selected_occ = [occk[1:N[ik]] for (ik,occk) in enumerate(occupation)]
+
+    # if we have an insulator, sanity check that the orbitals we kept are the
+    # occupied ones
+    if threshold == 0.0
+        model = basis.model
+        filled_occ = filled_occupation(model)
+        n_spin = model.n_spin_components
+        n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp)
+        @assert n_bands == size(selected_ψ[1], 2)
+    end
+
+    selected_ψ, selected_occ
 end
 
 # Packing routines used in direct_minimization and newton algorithms.
@@ -27,7 +40,6 @@ function pack_ψ(ψ)
 end
 
 function unpack_ψ(x, sizes_ψ)
-    n_bands = sizes_ψ[1][2]
     lengths = prod.(sizes_ψ)
     ends = cumsum(lengths)
     # We unsafe_wrap the resulting array to avoid a complicated type for ψ.

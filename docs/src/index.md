@@ -87,6 +87,7 @@ Pages = [
     "examples/custom_solvers.md",
     "examples/custom_potential.md",
     "examples/wannier90.md",
+    "examples/error_estimates_forces.md",
 ]
 Depth = 1
 ```

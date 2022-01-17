@@ -13,23 +13,15 @@ include("testcases.jl")
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     scfres_start = self_consistent_field(basis, maxiter=1)
 
-    ψ = DFTK.select_occupied_orbitals(basis, scfres_start.ψ)
-
-    occupation = scfres_start.occupation
-    filled_occ = filled_occupation(model)
-    n_spin = model.n_spin_components
-    n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp)
-    @assert n_bands == size(ψ[1], 2)
-    # number of kpoints and occupation
-    Nk = length(basis.kpoints)
-    occupation = [filled_occ * ones(n_bands) for ik = 1:Nk]
+    ψ, occupation = DFTK.select_occupied_orbitals(basis, scfres_start.ψ,
+                                                  scfres_start.occupation)
 
     ρ = compute_density(basis, ψ, occupation)
 
     rhs = compute_projected_gradient(basis, ψ, occupation)
     ϕ = rhs + ψ
 
-    @testset "self-adjointness of solve_ΩplusK" begin 
+    @testset "self-adjointness of solve_ΩplusK" begin
         @test isapprox(
             real(dot(ϕ, solve_ΩplusK(basis, ψ, rhs, occupation))),
             real(dot(solve_ΩplusK(basis, ψ, ϕ, occupation), rhs)),
@@ -51,7 +43,7 @@ include("testcases.jl")
     end
 
     @testset "self-adjointness of apply_K" begin
-        # K involves conjugates and is only a real-linear operator, 
+        # K involves conjugates and is only a real-linear operator,
         # hence we test using the real dot product.
         @test isapprox(
             real(dot(ϕ, apply_K(basis, rhs, ψ, ρ, occupation))),

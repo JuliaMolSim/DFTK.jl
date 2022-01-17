@@ -52,11 +52,7 @@ end
 function self_consistent_field_dual(basis::PlaneWaveBasis, basis_dual::PlaneWaveBasis{T};
                                     kwargs...) where T <: ForwardDiff.Dual
     scfres = self_consistent_field(basis; kwargs...)
-    ψ = DFTK.select_occupied_orbitals(basis, scfres.ψ)
-    filled_occ = DFTK.filled_occupation(basis.model)
-    n_spin = basis.model.n_spin_components
-    n_bands = div(basis.model.n_electrons, n_spin * filled_occ)
-    occupation = [filled_occ * ones(n_bands) for _ in basis.kpoints]
+    ψ, occupation = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 
     ## promote everything eagerly to Dual numbers
     occupation_dual = [T.(occupation[1])]

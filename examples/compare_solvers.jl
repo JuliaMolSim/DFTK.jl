@@ -26,7 +26,7 @@ scfres_dm = direct_minimization(basis, tol=tol)
 # solution of a single iteration SCF
 scfres_start = self_consistent_field(basis, maxiter=1)
 # remove virtual orbitals
-ψ = DFTK.select_occupied_orbitals(basis, scfres_start.ψ)
+ψ, _ = DFTK.select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation)
 scfres_newton = newton(basis, ψ, tol=tol)
 
 println("|ρ_newton - ρ_scf| = ", norm(scfres_newton.ρ - scfres_scf.ρ))
