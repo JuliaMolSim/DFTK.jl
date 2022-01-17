@@ -10,7 +10,7 @@ if mpi_nprocs() == 1  # Direct minimisation does not yet support MPI
     α = 2
     terms = [Kinetic(),
              ExternalFromFourier(G -> pot(G[1])),
-             PowerNonlinearity(C, α),
+             LocalNonlinearity(ρ -> C * ρ^α),
     ]
     model = Model(lattice; n_electrons=1, terms=terms, spin_polarization=:spinless)
 
