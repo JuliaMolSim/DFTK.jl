@@ -195,5 +195,5 @@ function spglib_spacegroup_number(model, magnetic_moments=[]; tol_symmetry=1e-5)
     # TODO Time-reversal symmetry disabled? (not yet available in DFTK)
     # TODO Are magnetic moments passed?
     cell, _ = spglib_cell(model.lattice, model.atoms, magnetic_moments)
-    Spglib.get_spacegroup_number(cell; symprec=tol_symmetry)
+    Spglib.get_spacegroup_number(cell, tol_symmetry)
 end
