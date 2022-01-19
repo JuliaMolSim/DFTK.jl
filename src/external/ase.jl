@@ -38,7 +38,8 @@ function load_magnetic_moments_ase(pyobj::PyObject)
     @assert pyisinstance(pyobj, pyimport("ase").Atoms)
     magmoms = pyobj.get_initial_magnetic_moments()
     map(ase_atoms_translation_map(pyobj)) do (symbol, atom_indices)
-        ElementCoulomb(symbol) => [magmoms[i] for i in atom_indices]
+        ElementCoulomb(symbol) => [normalize_magnetic_moment(magmoms[i])
+                                   for i in atom_indices]
     end
 end
 
