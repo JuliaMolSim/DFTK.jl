@@ -73,6 +73,6 @@ scfres = self_consistent_field(basis, is_converged=DFTK.ScfConvergenceDensity(1e
 obj(param) = total_energy(make_basis(CustomXC(make_f(param))))
 FiniteDiff.finite_difference_derivative(obj, 0.05) # 1.9947322350499912
 
-Zygote.gradient(xc -> DFTK.ene_ops(xc(basis), scfres.ψ, scfres.occupation; scfres.ρ).E, xc) # ((f = (param = 1.9947321925091828,),),) # correct
+Zygote.gradient(xc -> DFTK.ene_ops(xc(basis), basis, scfres.ψ, scfres.occupation; scfres.ρ).E, xc) # ((f = (param = 1.9947321925091828,),),) # correct
 
 Zygote.gradient(obj, 0.05) # (1.9947322203506723,)
