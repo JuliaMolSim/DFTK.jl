@@ -43,7 +43,7 @@ C = 1.0
 n_electrons = 1  # Increase this for fun
 terms = [Kinetic(),
          AtomicLocal(),
-         PowerNonlinearity(C, α),
+         LocalNonlinearity(ρ -> C * ρ^α),
 ]
 model = Model(lattice; atoms=atoms, n_electrons=n_electrons, terms=terms,
               spin_polarization=:spinless);  # use "spinless electrons"

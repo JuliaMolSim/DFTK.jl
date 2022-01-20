@@ -72,7 +72,7 @@ println("Polarizability :   $polarizability")
 # ```
 # which implies
 # ```math
-# \delta\rho = (1-\chi_0 K)^-1 \chi_0 \delta V_{\rm ext}.
+# \delta\rho = (1-\chi_0 K)^{-1} \chi_0 \delta V_{\rm ext}.
 # ```
 # From this we identify the polarizability operator to be ``\chi = (1-\chi_0 K)^{-1} \chi_0``.
 # Numerically, we apply ``\chi`` to ``\delta V = -x`` by solving a linear equation

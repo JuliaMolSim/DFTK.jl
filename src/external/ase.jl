@@ -38,7 +38,8 @@ function load_magnetic_moments_ase(pyobj::PyObject)
     @assert pyisinstance(pyobj, pyimport("ase").Atoms)
     magmoms = pyobj.get_initial_magnetic_moments()
     map(ase_atoms_translation_map(pyobj)) do (symbol, atom_indices)
-        ElementCoulomb(symbol) => [magmoms[i] for i in atom_indices]
+        ElementCoulomb(symbol) => [normalize_magnetic_moment(magmoms[i])
+                                   for i in atom_indices]
     end
 end
 
@@ -62,7 +63,7 @@ ase_cell(lattice) = pyimport("ase").cell.Cell(Array(lattice)' / austrip(1u"Å"))
 ase_cell(model::Model) = ase_cell(model.lattice)
 
 
-function ase_atoms(lattice_or_model, atoms, magnetic_moments=nothing)
+function ase_atoms(lattice_or_model, atoms, magnetic_moments=[])
     cell = ase_cell(lattice_or_model)
     symbols = String[]
     for (elem, pos) in atoms
@@ -71,12 +72,11 @@ function ase_atoms(lattice_or_model, atoms, magnetic_moments=nothing)
     scaled_positions = vcat([pos for (elem, pos) in atoms]...)
 
     magmoms = nothing
-    if !isnothing(magnetic_moments)
+    if !isempty(magnetic_moments)
         @assert length(magnetic_moments) == length(atoms)
-        for (elem, magmom) in magnetic_moments
-            @assert all(m -> m isa Number, magmom)
-        end
-        magmoms = vcat([magmom for (elem, magmom) in magnetic_moments]...)
+        get_z_magmom(m) = normalize_magnetic_moment(m)[3]
+        magmoms = vcat([get_z_magmom.(magmom)
+                        for (elem, magmom) in magnetic_moments]...)
         @assert length(magmoms) == length(scaled_positions)
     end
 

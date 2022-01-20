@@ -3,22 +3,14 @@ using DFTK
 using LinearMaps
 import DFTK: ortho_qr, pack_ψ, unpack_ψ, reinterpret_real, reinterpret_complex
 import DFTK: proj_tangent, proj_tangent!
-import DFTK: apply_K, apply_Ω, filled_occupation, select_occupied_orbitals
+import DFTK: apply_K, apply_Ω, select_occupied_orbitals
 import DFTK: precondprep!, FunctionPreconditioner
 
 include("testcases.jl")
 
 if mpi_nprocs() == 1  # Distributed implementation not yet available
 
-    function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, numval) where T
-        # check that there are no virtual orbitals
-        model = basis.model
-        filled_occ = filled_occupation(model)
-        n_spin = model.n_spin_components
-        n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp)
-        @assert n_bands == size(ψ[1], 2)
-
-        occupation = [filled_occ * ones(T, n_bands) for kpt = basis.kpoints]
+    function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where T
 
         pack(ψ) = reinterpret_real(pack_ψ(ψ))
         unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
@@ -44,6 +36,7 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
         end
 
         # random starting point on the tangent space to avoid eigenvalue 0
+        n_bands = size(ψ[1], 2)
         x0 = map(1:numval) do n
             initial = map(basis.kpoints) do kpt
                 n_Gk = length(G_vectors(basis, kpt))
@@ -80,9 +73,10 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
             basis = PlaneWaveBasis(model; Ecut, kgrid=[1,1,1])
 
             scfres = self_consistent_field(basis; tol=tol)
-            ψ = select_occupied_orbitals(basis, scfres.ψ)
+            ψ, occupation = select_occupied_orbitals(basis, scfres.ψ,
+                                                     scfres.occupation)
 
-            res = eigen_ΩplusK(basis, ψ, numval)
+            res = eigen_ΩplusK(basis, ψ, occupation, numval)
             gap = scfres.eigenvalues[1][5] - scfres.eigenvalues[1][4]
 
             # in the linear case, the smallest eigenvalue of Ω is the gap
@@ -100,9 +94,10 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
             basis = PlaneWaveBasis(model; Ecut, kgrid=[1,1,1])
 
             scfres = self_consistent_field(basis; tol=tol)
-            ψ = select_occupied_orbitals(basis, scfres.ψ)
+            ψ, occupation = select_occupied_orbitals(basis, scfres.ψ,
+                                                     scfres.occupation)
 
-            res = eigen_ΩplusK(basis, ψ, numval)
+            res = eigen_ΩplusK(basis, ψ, occupation, numval)
 
             @test res.λ[1] > 1e-3
         end

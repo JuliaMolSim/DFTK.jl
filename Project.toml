@@ -1,7 +1,7 @@
 name = "DFTK"
 uuid = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
 authors = ["Michael F. Herbst <info@michael-herbst.com>", "Antoine Levitt <antoine.levitt@inria.fr>"]
-version = "0.4.3"
+version = "0.4.4"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"

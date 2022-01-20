@@ -73,6 +73,7 @@ export ExternalFromFourier
 export ExternalFromReal
 export AtomicLocal
 export PowerNonlinearity
+export LocalNonlinearity
 export Hartree
 export Xc
 export AtomicNonlocal

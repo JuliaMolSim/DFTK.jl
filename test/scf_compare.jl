@@ -1,6 +1,6 @@
 using Test
 using DFTK
-import DFTK: Applyχ0Model, filled_occupation, select_occupied_orbitals
+import DFTK: Applyχ0Model, select_occupied_orbitals
 
 include("testcases.jl")
 
@@ -31,7 +31,8 @@ include("testcases.jl")
         @testset "Newton" begin
             scfres_start = self_consistent_field(basis, maxiter=1)
             # remove virtual orbitals
-            ψ0 = select_occupied_orbitals(basis, scfres_start.ψ)
+            ψ0, _ = select_occupied_orbitals(basis, scfres_start.ψ,
+                                             scfres_start.occupation)
             ρ_newton = newton(basis, ψ0; tol=tol).ρ
             @test maximum(abs.(ρ_newton - ρ_nl)) < sqrt(tol) / 10
         end
@@ -97,7 +98,8 @@ end
         @testset "Newton" begin
             scfres_start = self_consistent_field(basis, maxiter=1)
             # remove virtual orbitals
-            ψ0 = select_occupied_orbitals(basis, scfres_start.ψ)
+            ψ0, _ = select_occupied_orbitals(basis, scfres_start.ψ,
+                                             scfres_start.occupation)
             ρ_newton = newton(basis, ψ0; tol=tol).ρ
             @test maximum(abs.(ρ_newton - ρ_nl)) < sqrt(tol) / 10
         end

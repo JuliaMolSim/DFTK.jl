@@ -20,7 +20,7 @@ mapping of the `numbers` to the element objects in DFTK and `collinear` whether
 the atoms mark a case of collinear spin or not. Notice that if `collinear` is false
 then `spins` is garbage.
 """
-function spglib_atoms(atoms, magnetic_moments=[])
+function spglib_atoms(atoms, magnetic_moments)
     n_attypes = isempty(atoms) ? 0 : sum(length(positions) for (typ, positions) in atoms)
     spg_numbers = Vector{Cint}(undef, n_attypes)
     spg_spins = Vector{Cdouble}(undef, n_attypes)
@@ -52,6 +52,13 @@ function spglib_atoms(atoms, magnetic_moments=[])
     collinear = !isempty(magnetic_moments) && !arbitrary_spin && !all(iszero, spg_spins)
     (positions=spg_positions, numbers=spg_numbers, spins=spg_spins,
      mapping=mapping, collinear=collinear)
+end
+
+function spglib_cell(lattice, atoms, magnetic_moments)
+    # Convert lattice and atoms to spglib and keep the mapping between our atoms
+    # and spglibs atoms
+    positions, numbers, spins, atommapping, collinear = spglib_atoms(atoms, magnetic_moments)
+    (; cell=Spglib.Cell(lattice, positions, numbers, spins), atommapping, collinear)
 end
 
 
@@ -147,57 +154,46 @@ function spglib_get_stabilized_reciprocal_mesh(kgrid_size, rotations::Vector;
 end
 
 
-# Returns crystallographic conventional cell if primitive is false, else the primitive
-# cell in the convention by spglib
-function spglib_standardize_cell(lattice::AbstractArray{T}, atoms; correct_symmetry=true,
-                                 primitive=false, tol_symmetry=1e-5) where {T}
-    # Convert lattice and atoms to spglib and keep the mapping between our atoms
-    spg_lattice = copy(Matrix{Float64}(lattice)')
-    # and spglibs atoms
-    spg_positions, spg_numbers, spg_spins, atommapping = spglib_atoms(atoms)
-
-    # TODO This drops magnetic moments!
-    # TODO What about time-reversal symmetry?
-
-    # Ask spglib to standardize the cell (i.e. find a cell, which fits the spglib conventions)
-    num_atoms = ccall((:spg_standardize_cell, SPGLIB), Cint,
-      (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Cint, Cint, Cint, Cdouble),
-      spg_lattice, spg_positions, spg_numbers, length(spg_numbers), Cint(primitive),
-      Cint(!correct_symmetry), tol_symmetry)
-    spg_lattice = copy(spg_lattice')
-
-    newatoms = [(atommapping[iatom]
-                 => T.(spg_positions[findall(isequal(iatom), spg_numbers), :]))
-                for iatom in unique(spg_numbers)]
-    Matrix{T}(spg_lattice), newatoms
-end
-
-# TODO merge this function into spglib_standardize_cell
 """
 Returns crystallographic conventional cell according to the International Table of
-Crystallography Vol A (ITA) in case `to_primitive=false`. If `to_primitive=true`
+Crystallography Vol A (ITA) in case `primitive=false`. If `primitive=true`
 the primitive lattice is returned in the convention of the reference work of
 Cracknell, Davies, Miller, and Love (CDML). Of note this has minor differences to
 the primitive setting choice made in the ITA.
 """
-function get_spglib_lattice(model; to_primitive=false)
-    # TODO This drops magnetic moments!
+function spglib_standardize_cell(lattice::AbstractArray{T}, atoms, magnetic_moments=[];
+                                 correct_symmetry=true,
+                                 primitive=false,
+                                 tol_symmetry=1e-5) where {T}
     # TODO For time-reversal symmetry see the discussion in PR 496.
     #      https://github.com/JuliaMolSim/DFTK.jl/pull/496/files#r725203554
     #      Essentially this does not influence the standardisation,
     #      but it only influences the kpath.
-    spg_positions, spg_numbers, _ = spglib_atoms(model.atoms)
-    structure = Spglib.Cell(model.lattice, spg_positions, spg_numbers)
-    Matrix(Spglib.standardize_cell(structure, to_primitive=to_primitive).lattice)
+    cell, atommapping, _ = spglib_cell(lattice, atoms, magnetic_moments)
+    std_cell = Spglib.standardize_cell(cell; to_primitive=primitive,
+                                       symprec=tol_symmetry,
+                                       no_idealize=!correct_symmetry)
+
+    newatoms = map(unique(std_cell.types)) do iatom
+        ipos = findall(isequal(iatom), std_cell.types)
+        atommapping[iatom] => Vec3{T}.(eachcol(std_cell.positions[:, ipos]))
+    end
+    newmagmoms = map(unique(std_cell.types)) do iatom
+        ipos = findall(isequal(iatom), std_cell.types)
+        atommapping[iatom] => normalize_magnetic_moment.(std_cell.magmoms[ipos])
+    end
+    (; lattice=Matrix{T}(std_cell.lattice), atoms=newatoms, magnetic_moments=newmagmoms)
+end
+function spglib_standardize_cell(model::Model; kwargs...)
+    # TODO This ignores magnetic moments
+    spglib_standardize_cell(model.lattice, model.atoms; kwargs...)
 end
 
 
-function spglib_spacegroup_number(model)
+function spglib_spacegroup_number(model, magnetic_moments=[]; tol_symmetry=1e-5)
     # Get spacegroup number according to International Tables for Crystallography (ITA)
     # TODO Time-reversal symmetry disabled? (not yet available in DFTK)
     # TODO Are magnetic moments passed?
-    spg_positions, spg_numbers, _ = spglib_atoms(model.atoms)
-    structure = Spglib.Cell(model.lattice, spg_positions, spg_numbers)
-    spacegroup_number = Spglib.get_spacegroup_number(structure)
-    spacegroup_number
+    cell, _ = spglib_cell(model.lattice, model.atoms, magnetic_moments)
+    Spglib.get_spacegroup_number(cell, tol_symmetry)
 end
