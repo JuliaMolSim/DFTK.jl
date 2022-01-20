@@ -204,18 +204,9 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Plan
     return basis, PlaneWaveBasis_pullback
 end
 
-
-# convert generators into arrays (needed for Zygote here)
-function _G_vectors_cart(basis::PlaneWaveBasis)
-    [basis.model.recip_lattice * G for G in G_vectors(basis.fft_size)]
-end
-function _Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
-    [basis.model.recip_lattice * (G + kpt.coordinate) for G in G_vectors(basis, kpt)]
-end
-
 function _autodiff_TermKinetic_namedtuple(basis, scaling_factor)
     kinetic_energies = [[scaling_factor * sum(abs2, G + kpt.coordinate_cart) / 2
-                         for G in _Gplusk_vectors_cart(basis, kpt)]
+                         for G in Gplusk_vectors_cart(basis, kpt)]
                         for kpt in basis.kpoints]
     (;scaling_factor=scaling_factor, kinetic_energies=kinetic_energies)
 end
@@ -256,7 +247,7 @@ end
 
 
 function _autodiff_TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
-    poisson_green_coeffs = map(_G_vectors_cart(basis)) do G
+    poisson_green_coeffs = map(G_vectors_cart(basis)) do G
         abs2G = sum(abs2, G)
         abs2G > 0. ? 4T(π)/abs2G : 0.
     end
