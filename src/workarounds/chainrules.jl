@@ -442,12 +442,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
     @warn "self_consistent_field rrule triggered."
     scfres = self_consistent_field(basis; kwargs...)
 
-    ψ = DFTK.select_occupied_orbitals(basis, scfres.ψ)
-    filled_occ = DFTK.filled_occupation(basis.model)
-    n_spin = basis.model.n_spin_components
-    n_bands = div(basis.model.n_electrons, n_spin * filled_occ)
-    Nk = length(basis.kpoints)
-    occupation = [filled_occ * ones(n_bands) for ik = 1:Nk]
+    ψ, occupation = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 
     ## Zygote doesn't like OrderedDict in Energies
     # (energies, H), energy_hamiltonian_pullback =
@@ -470,7 +465,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
 
         _, ∂basis, ∂ψ, _ = compute_density_pullback(δρ)
         ∂ψ = ∂ψ + δψ
-        ∂ψ = DFTK.select_occupied_orbitals(basis, ∂ψ)
+        ∂ψ, occupation = DFTK.select_occupied_orbitals(basis, ∂ψ, occupation)
 
         ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation) # use self-adjointness of dH ψ -> dψ
 
