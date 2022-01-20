@@ -35,7 +35,7 @@ function high_symmetry_kpath(model; kline_density=40)
     # - spglib uses this convention for the returned conventional lattice,
     #   so it can be directly used as input to Brillouin.jl
     # - The output k-Points and reciprocal lattices will be in the CDML convention.
-    conv_latt = get_spglib_lattice(model; to_primitive=false)
+    conv_latt = spglib_standardize_cell(model; primitive=false,correct_symmetry=false).lattice
     sgnum     = spglib_spacegroup_number(model)  # Get ITA space-group number
     direct_basis   = Bravais.DirectBasis(collect(eachcol(conv_latt)))
     primitive_latt = Bravais.primitivize(direct_basis, Bravais.centering(sgnum, 3))
