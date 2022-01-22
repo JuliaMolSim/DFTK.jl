@@ -7,8 +7,8 @@ function energy_per_particle(::Val{:lda_c_vwn}, ρ)
     x0 = -0.10498
     b = 3.72744
     c = 12.9352
-    τ = cbrt(3/(4π*ρ))
-    x = sqrt(τ)
+    rₛ = cbrt(3/(4π*ρ)) # τ in the above link
+    x = sqrt(rₛ)
     Xx = x^2 + b*x + c
     Xx0 = x0^2 + b*x0 + c
     Q = sqrt(4c-b^2)
