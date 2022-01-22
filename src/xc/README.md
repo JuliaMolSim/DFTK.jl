@@ -1,8 +1,5 @@
-Routines for handling exchange-correlation.
+Pure-julia implementations of common exchange-correlation functionals.
 
-The `lda_*` files contain fallback implementations of commonly used
+The files in this folder contain fallback implementations of commonly used
 exchange-correlation functionals, which can be used with any Array or
 floating point type.
-
-The implementations are based upon the Julia code generated using
-the scripts from DFTK.jl/codegen

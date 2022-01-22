@@ -12,7 +12,7 @@ include("testcases.jl")
     function make_basis(lattice, symmetries)
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => silicon.positions]
-        model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn]; symmetries)
+        model = model_PBE(lattice, atoms; symmetries)
         kgrid = [3, 3, 1]
         Ecut = 7
         PlaneWaveBasis(model; Ecut, kgrid)
