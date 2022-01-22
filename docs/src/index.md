@@ -30,7 +30,7 @@ collection of [lectures, workshops and literature on DFT](@ref density-functiona
 * Methods and models:
     - Kohn-Sham-like models, with an emphasis on flexibility: compose your own model,
       from Cohen-Bergstresser linear eigenvalue equations to Gross-Pitaevskii equations
-      and sophisticated LDA/GGA functionals (any functional from the
+      and sophisticated LDA/GGA/meta-GGA functionals (any functional from the
       [libxc](https://tddft.org/programs/libxc/) library)
     - Analytic potentials or Godecker norm-conserving pseudopotentials (GTH, HGH)
     - Brillouin zone symmetry for ``k``-point sampling using [spglib](https://atztogo.github.io/spglib/)

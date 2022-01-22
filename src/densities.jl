@@ -128,7 +128,7 @@ end
     δρ = G_to_r(basis, δρ_fourier) ./ count
     # Check sanity in the density, we should have ∫δρ = 0
     if abs(sum(δρ)) > sqrt(eps(T))
-        @warn "Non-neutral δρ", sum_δρ=sum(δρ)
+        @warn "Non-neutral δρ" sum_δρ=sum(δρ)
     end
     δρ
 end
@@ -136,7 +136,7 @@ end
 
 @views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
     n_spin = basis.model.n_spin_components
-    τ_fourier = zeros(T, basis.fft_size..., n_spin)
+    τ_fourier = zeros(complex(T), basis.fft_size..., n_spin)
     for (ik, kpt) in enumerate(basis.kpoints)
         τk = zeros(T, basis.fft_size)
         for (n, ψnk) in enumerate(eachcol(ψ[ik])), α = 1:3

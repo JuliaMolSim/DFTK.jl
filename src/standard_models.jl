@@ -1,5 +1,7 @@
 # Convenience functions to make standard models
 
+export model_atomic
+export model_DFT, model_PBE, model_LDA, model_TPSS, model_SCAN
 
 """
 Convenience constructor, which builds a standard atomic (kinetic + atomic potential) model.
@@ -44,7 +46,27 @@ end
 
 """
 Build an PBE-GGA model from the specified atoms.
+DOI:10.1103/PhysRevLett.77.3865
 """
 function model_PBE(lattice::AbstractMatrix, atoms::Vector; kwargs...)
     model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe]; kwargs...)
+end
+
+
+"""
+Build a TPSS meta-GGA model from the specified atoms.
+DOI:10.1103/physrevlett.91.146401
+DOI:10.1063/1.1665298
+"""
+function model_TPSS(lattice::AbstractMatrix, atoms::Vector; kwargs...)
+    model_DFT(lattice, atoms, [:mgga_x_tpss, :mgga_c_tpss]; kwargs...)
+end
+
+
+"""
+Build a SCAN meta-GGA model from the specified atoms.
+DOI:10.1103/PhysRevLett.115.036402
+"""
+function model_SCAN(lattice::AbstractMatrix, atoms::Vector; kwargs...)
+    model_DFT(lattice, atoms, [:mgga_x_scan, :mgga_c_scan]; kwargs...)
 end

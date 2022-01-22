@@ -13,9 +13,14 @@ struct HamiltonianBlock
     optimized_operators::Vector  # the optimized list of RealFourierOperator, to be used for applying
     scratch  # Pre-allocated scratch arrays for fast application
 end
-function HamiltonianBlock(basis, kpt, operators, scratch)
+function HamiltonianBlock(basis, kpt, operators, scratch=ham_scratch_(basis))
     HamiltonianBlock(basis, kpt, operators, optimize_operators_(operators), scratch)
 end
+
+function ham_scratch_(basis::PlaneWaveBasis{T}) where {T}
+    (ψ_reals=[zeros(complex(T), basis.fft_size...) for _ = 1:Threads.nthreads()], )
+end
+
 Base.eltype(block::HamiltonianBlock) = complex(eltype(block.basis))
 Base.size(block::HamiltonianBlock, i::Integer) = i < 3 ? size(block)[i] : 1
 function Base.size(block::HamiltonianBlock)
@@ -143,13 +148,7 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
     hks_per_k   = [flatten([blocks[ik] for blocks in operators])
                    for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
 
-    # Preallocated scratch arrays
-    T = eltype(basis)
-    scratch = (
-        ψ_reals=[zeros(complex(T), basis.fft_size...) for tid = 1:Threads.nthreads()],
-    )
-
-    H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks, scratch)
+    H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
                             for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
     E = Energies(basis.model.term_types, energies)
     (E=E, H=H)
@@ -160,10 +159,8 @@ function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occ=nothing, kwargs...)
 end
 
 import Base: Matrix, Array
-function Matrix(block::HamiltonianBlock)
-    sum(Matrix(h) for h in block.optimized_operators)
-end
-Array(block::HamiltonianBlock) = Matrix(block)
+Matrix(block::HamiltonianBlock) = sum(Matrix, block.optimized_operators)
+Array(block::HamiltonianBlock)  = Matrix(block)
 
 """
 Get the total local potential of the given Hamiltonian, in real space

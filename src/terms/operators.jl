@@ -125,6 +125,29 @@ end
 end
 # TODO Implement  Matrix(op::MagneticFieldOperator)
 
+@doc raw"""
+Nonlocal differential operator arising for meta-GGA functionals. Applies
+``∇ ⋅ (V_τ ∇)`` where ``V_τ`` is a potential in real space.
+"""
+struct NonlocalMetaGGA{T <: Real, AT} <: RealFourierOperator
+    basis::PlaneWaveBasis{T}
+    kpoint::Kpoint{T}
+    Vτ::AT
+end
+@timing_seq "apply NonlocalMetaGGA" function apply!(Hψ, op::NonlocalMetaGGA, ψ)
+    # TODO Computed and allocated on every apply
+    G_plus_k = [[q[α] for q in Gplusk_vectors_cart(op.basis, op.kpoint)] for α in 1:3]
+
+    # TODO This allocates *twice* on every apply!
+    for α = 1:3
+        # Note: The two 1im from both derivatives give rise to the .-=
+        ∂αψ_real = G_to_r(op.basis, op.kpoint, G_plus_k[α] .* ψ.fourier)
+        Vτ∇ψ = r_to_G(op.basis, op.kpoint, ∂αψ_real .* op.Vτ)  # allocates!
+        Hψ.fourier .-= G_plus_k[α] .* Vτ∇ψ  # collapses both imaginary units from the derivatives
+    end
+end
+# TODO Implement  Matrix(op::NonlocalMetaGGA)
+
 
 # Optimize RFOs by combining terms that can be combined
 function optimize_operators_(ops)
