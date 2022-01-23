@@ -83,7 +83,7 @@ end
     @views for s in 1:n_spin
         potential[:, :, :, s] .+= terms.vrho[s, :, :, :]
 
-        if haskey(terms, :vsigma) && !all(terms.vsigma .< term.potential_threshold)
+        if haskey(terms, :vsigma) && any(x -> abs(x) ≥ term.potential_threshold, terms.vsigma)
             # Need gradient correction
             # TODO Drop do-block syntax here?
             potential[:, :, :, s] .+= -2divergence_real(density.basis) do α
@@ -101,7 +101,7 @@ end
         potential .*= term.scaling_factor
     end
     ops = map(basis.kpoints) do kpt
-        if haskey(terms, :vtau)  && !all(terms.vtau .< term.potential_threshold)
+        if haskey(terms, :vtau) && any(x -> abs(x) ≥ term.potential_threshold, terms.vtau)
             # Need meta-GGA non-local operator
             # Note: Minus in front of scaling coefficient comes from partial integration
             Vτ = -term.scaling_factor .* permutedims(terms.vtau, (2, 3, 4, 1))
