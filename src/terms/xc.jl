@@ -103,7 +103,8 @@ end
     ops = map(basis.kpoints) do kpt
         if haskey(terms, :vtau)  && !all(terms.vtau .< term.potential_threshold)
             # Need meta-GGA non-local operator
-            Vτ = term.scaling_factor .* permutedims(terms.vtau, (2, 3, 4, 1))
+            # Note: Minus in front of scaling coefficient comes from partial integration
+            Vτ = -term.scaling_factor .* permutedims(terms.vtau, (2, 3, 4, 1))
 
             # TODO Think about this ... does this pattern make a separate copy for every k-Point ????
             [RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin]),
@@ -285,7 +286,7 @@ function LibxcDensity(basis, max_derivative::Integer, ρ)
         error("To be implemented")
     end
 
-    LibxcDensity(basis, max_derivative, ρ_real, ∇ρ_real, ρ_real, Δρ_real)
+    LibxcDensity(basis, max_derivative, ρ_real, ∇ρ_real, σ_real, Δρ_real)
 end
 
 
