@@ -137,12 +137,13 @@ end
 @views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
     n_spin = basis.model.n_spin_components
     τ_fourier = zeros(complex(T), basis.fft_size..., n_spin)
+
     for (ik, kpt) in enumerate(basis.kpoints)
+        G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(basis, kpt)] for α in 1:3]
         τk = zeros(T, basis.fft_size)
         for (n, ψnk) in enumerate(eachcol(ψ[ik])), α = 1:3
-            dαψnk = [im * q[α] for q in Gplusk_vectors_cart(basis, kpt)] .* ψnk
-            dαψnk_real = G_to_r(basis, kpt, dαψnk)
-            τk .+= @. 0.5 * occupation[ik][n] * real(conj(dαψnk_real) * dαψnk_real)
+            dαψnk_real = G_to_r(basis, kpt, im .* G_plus_k[α] .* ψnk)
+            τk .+= @. occupation[ik][n] / 2 * real(conj(dαψnk_real) * dαψnk_real)
         end
         τk_fourier = r_to_G(basis, complex(τk))
         lowpass_for_symmetry!(τk_fourier, basis)

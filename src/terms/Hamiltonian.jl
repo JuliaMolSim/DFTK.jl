@@ -50,7 +50,7 @@ end
     nband = size(ψ, 2)
 
     Hψ_fourier = similar(Hψ[:, 1])
-    ψ_real = zeros(complex(T), basis.fft_size...)
+    ψ_real  = zeros(complex(T), basis.fft_size...)
     Hψ_real = zeros(complex(T), basis.fft_size...)
 
     # take ψi, IFFT it to ψ_real, apply each term to Hψ_fourier and Hψ_real, and add it to Hψ

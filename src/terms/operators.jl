@@ -117,7 +117,7 @@ end
     # TODO this could probably be better optimized
     for α = 1:3
         iszero(op.Apot[α]) && continue
-        pα = [q[α] for q in Gplusk_vectors_cart(op.basis, op.kpoint)]
+        pα = [Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)]
         ∂αψ_fourier = pα .* ψ.fourier
         ∂αψ_real = G_to_r(op.basis, op.kpoint, ∂αψ_fourier)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real
@@ -136,14 +136,13 @@ struct NonlocalMetaGGA{T <: Real, AT} <: RealFourierOperator
 end
 @timing_seq "apply NonlocalMetaGGA" function apply!(Hψ, op::NonlocalMetaGGA, ψ)
     # TODO Computed and allocated on every apply
-    G_plus_k = [[q[α] for q in Gplusk_vectors_cart(op.basis, op.kpoint)] for α in 1:3]
+    G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)] for α in 1:3]
 
     # TODO This allocates *twice* on every apply!
     for α = 1:3
-        # Note: The two 1im from both derivatives give rise to the .-=
-        ∂αψ_real = G_to_r(op.basis, op.kpoint, G_plus_k[α] .* ψ.fourier)
-        Vτ∇ψ = r_to_G(op.basis, op.kpoint, ∂αψ_real .* op.Vτ)  # allocates!
-        Hψ.fourier .-= G_plus_k[α] .* Vτ∇ψ  # collapses both imaginary units from the derivatives
+        ∂αψ_real = G_to_r(op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
+        Vτ∇ψ = r_to_G(op.basis, op.kpoint, ∂αψ_real .* op.Vτ)
+        Hψ.fourier .+= im .* G_plus_k[α] .* Vτ∇ψ
     end
 end
 # TODO Implement  Matrix(op::NonlocalMetaGGA)

@@ -54,7 +54,7 @@ end
 
     # Take derivatives of the density, if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    @assert !any(needs_laplacian, term.functionals)  # TODO Laplacian-depenent mGGAs not yet implemented
+    @assert !any(needs_laplacian, term.functionals)  # TODO Laplacian-dependent mGGAs not yet implemented
     density = LibxcDensity(basis, max_ρ_derivs, ρ)
 
     # Compute kinetic energy density, if needed.
@@ -68,10 +68,8 @@ end
         end
     end
 
-    potential = zero(ρ)
+    # Evaluate terms and energy contribution (zk == energy per unit particle)
     terms = evaluate(term.functionals, density; τ)
-
-    # Energy contribution (zk == energy per unit particle)
     E = sum(terms.zk .* ρ) * basis.dvol
 
     # Map from the tuple of spin indices for the contracted density gradient
@@ -80,6 +78,7 @@ end
     tσ = libxc_spinindex_σ
 
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ)
+    potential = zero(ρ)
     @views for s in 1:n_spin
         potential[:, :, :, s] .+= terms.vrho[s, :, :, :]
 
@@ -104,7 +103,7 @@ end
         if haskey(terms, :vtau) && any(x -> abs(x) ≥ term.potential_threshold, terms.vtau)
             # Need meta-GGA non-local operator
             # Note: Minus in front of scaling coefficient comes from partial integration
-            Vτ = -term.scaling_factor .* permutedims(terms.vtau, (2, 3, 4, 1))
+            Vτ = -term.scaling_factor/2 .* permutedims(terms.vtau, (2, 3, 4, 1))
 
             # TODO Think about this ... does this pattern make a separate copy for every k-Point ????
             [RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin]),
@@ -120,14 +119,14 @@ end
 
 The total energy is
     Etot = ∫ ρ ε(ρ,σ,τ,Δρ)
-where ε(ρ,σ,τ,Δρ) is the energy per unit particle, σ = |∇ρ|², τ = ∑ᵢ |∇ϕᵢ|²
+where ε(ρ,σ,τ,Δρ) is the energy per unit particle, σ = |∇ρ|², τ = ½ ∑ᵢ |∇ϕᵢ|²
 is the kinetic energy density and Δρ is the Laplacian of the density.
 
 Libxc provides the scalars
-    Vρ = ∂(ρ E)/∂ρ
-    Vσ = ∂(ρ E)/∂σ
-    Vτ = ∂(ρ E)/∂σ
-    Vl = ∂(ρ E)/∂Δρ
+    Vρ = ∂(ρ ε)/∂ρ
+    Vσ = ∂(ρ ε)/∂σ
+    Vτ = ∂(ρ ε)/∂τ
+    Vl = ∂(ρ ε)/∂Δρ
 
 Consider a variation δϕᵢ of an orbital (considered real for
 simplicity), and let δEtot be the corresponding variation of the
@@ -135,39 +134,39 @@ energy. Then the potential Vxc is defined by
     δEtot = ∫ Vxc δρ = 2 ∫ Vxc ϕᵢ δϕᵢ
 
     δρ  = 2 ϕᵢ δϕᵢ
-    δσ  = 2 ∇ρ ⋅ ∇δρ = 4 ∇ρ ⋅ ∇(ϕᵢ δϕᵢ)
-    δτ  = 2 ∇ϕᵢ ⋅ ∇δϕᵢ
+    δσ  = 2 ∇ρ  ⋅ ∇δρ = 4 ∇ρ ⋅ ∇(ϕᵢ δϕᵢ)
+    δτ  =   ∇ϕᵢ ⋅ ∇δϕᵢ
     δΔρ = Δδρ = 2 Δ(ϕᵢ δϕᵢ)
-    δEtot = ∫ Vρ δρ + Vσ δσ + Vτ δτ
-          = 2 ∫ Vρ ϕᵢ δϕᵢ + 4 ∫ Vσ ∇ρ ⋅ ∇(ϕᵢ δϕᵢ) + 2 ∫ Vτ ∇ϕᵢ ⋅ ∇δϕᵢ   + 2 ∫   Vl Δ(ϕᵢ δϕᵢ)
-          = 2 ∫ Vρ ϕᵢ δϕᵢ - 4 ∫ div(Vσ ∇ρ) ϕᵢ δϕᵢ - 2 ∫ div(Vτ ∇ϕᵢ) δϕᵢ + 2 ∫ Δ(Vl)  ϕᵢ δϕᵢ
+    δEtot = ∫ Vρ δρ + Vσ δσ + Vτ δτ + Vl δΔρ
+          = 2 ∫ Vρ ϕᵢ δϕᵢ + 4 ∫ Vσ ∇ρ ⋅ ∇(ϕᵢ δϕᵢ) +  ∫ Vτ ∇ϕᵢ ⋅ ∇δϕᵢ   + 2 ∫   Vl Δ(ϕᵢ δϕᵢ)
+          = 2 ∫ Vρ ϕᵢ δϕᵢ - 4 ∫ div(Vσ ∇ρ) ϕᵢ δϕᵢ -  ∫ div(Vτ ∇ϕᵢ) δϕᵢ + 2 ∫ Δ(Vl)  ϕᵢ δϕᵢ
 where we performed an integration by parts in the last tho equations
 (boundary terms drop by periodicity). For GGA functionals we identify
     Vxc = Vρ - 2 div(Vσ ∇ρ),
 see also Richard Martin, Electronic stucture, p. 158. For meta-GGAs an extra term ΔVl appears
-and the Vτ term cannot be cast into a local potential form. We therefore define the potential-orbital
-product as:
-    Vxc ψ = [Vρ - 2 div(Vσ ∇ρ) + Δ(Vl)] ψ - div(Vτ ∇ψ)
+and the Vτ term cannot be cast into a local potential form. We therefore define the
+potential-orbital product as:
+    Vxc ψ = [Vρ - 2 div(Vσ ∇ρ) + Δ(Vl)] ψ + div(-½Vτ ∇ψ)
 =#
 
-#=  Spin-polarised calculations
+#=  Spin-polarised GGA calculations
 TODO Update for meta-GGA
 
 These expressions can be generalised for spin-polarised calculations.
 In this case for example the energy per unit particle becomes
-E(ρ_α, ρ_β, σ_αα, σ_αβ, σ_βα, σ_ββ), where σ_ij = ∇ρ_i ⋅ ∇ρ_j
+ε(ρ_α, ρ_β, σ_αα, σ_αβ, σ_βα, σ_ββ), where σ_ij = ∇ρ_i ⋅ ∇ρ_j
 and the XC potential is analogously
     Vxc_s = Vρ_s - 2 ∑_t div(Vσ_{st} ∇ρ_t)
 where s, t ∈ {α, β} are the spin components and we understand
-    Vρ_s     = ∂(ρ E)/∂(ρ_s)
-    Vσ_{s,t} = ∂(ρ E)/∂(σ_{s,t})
+    Vρ_s     = ∂(ρ ε)/∂(ρ_s)
+    Vσ_{s,t} = ∂(ρ ε)/∂(σ_{s,t})
 
 Now, in contrast to this libxc explicitly uses the symmetry σ_αβ = σ_βα and sets σ
 to be a vector of the three independent components only
     σ = [σ_αα, σ_x, σ_ββ]  where     σ_x = (σ_αβ + σ_βα)/2
 Accordingly Vσ has the components
-    [∂(ρ E)/∂σ_αα, ∂(ρ E)/∂σ_x, ∂(ρ E)/∂σ_ββ]
-where in particular ∂(ρ E)/∂σ_x = (1/2) ∂(ρ E)/∂σ_αβ = (1/2) ∂(ρ E)/∂σ_βα.
+    [∂(ρ ε)/∂σ_αα, ∂(ρ ε)/∂σ_x, ∂(ρ ε)/∂σ_ββ]
+where in particular ∂(ρ ε)/∂σ_x = (1/2) ∂(ρ ε)/∂σ_αβ = (1/2) ∂(ρ ε)/∂σ_βα.
 This explains the extra factor (1/2) needed in the GGA term of the XC potential
 and which pops up in the GGA kernel whenever derivatives wrt. σ are considered.
 =#
@@ -435,9 +434,10 @@ function Libxc.evaluate(xc::Functional, density::LibxcDensity; τ=nothing, kwarg
         evaluate(xc; rho=density.ρ_real, kwargs...)
     elseif xc.family == :gga
         evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, kwargs...)
-    elseif xc.family == :mgga
-        lapl = needs_laplacian(xc) ? (; lapl=density.Δρ_real) : (; )
-        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=τ, lapl..., kwargs...)
+    elseif xc.family == :mgga && !needs_laplacian(xc)
+        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=τ, kwargs...)
+    elseif xc.family == :mgga && needs_laplacian(xc)
+        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=τ, lapl=density.Δρ_real, kwargs...)
     else
         error("Not implemented for functional familiy $(xc.family)")
     end
