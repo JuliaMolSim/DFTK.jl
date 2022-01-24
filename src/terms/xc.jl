@@ -17,7 +17,7 @@ struct Xc
     potential_threshold::Float64
 end
 Xc(symbols::Symbol...; kwargs...) = Xc([symbols...]; kwargs...)
-function Xc(symbols::Vector; scaling_factor=1, density_threshold=nothing, potential_threshold=1e-14)
+function Xc(symbols::Vector; scaling_factor=1, density_threshold=nothing, potential_threshold=0)
     Xc(convert.(Symbol, symbols), scaling_factor, density_threshold, potential_threshold)
 end
 function Base.show(io::IO, xc::Xc)
@@ -44,7 +44,7 @@ struct TermXc <: TermNonlinear
 end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
-                                              ψ, occ; ρ, kwargs...) where {T}
+                                              ψ, occ; ρ, τ=nothing, kwargs...) where {T}
     @assert !isempty(term.functionals)
 
     model  = basis.model
@@ -58,18 +58,19 @@ end
     density = LibxcDensity(basis, max_ρ_derivs, ρ)
 
     # Compute kinetic energy density, if needed.
-    τ = nothing
-    if any(xc.family == :mgga for xc in term.functionals)
+    if isnothing(τ) && any(is_mgga, term.functionals)
         if isnothing(ψ) || isnothing(occ)
             τ = zero(ρ)
         else
-            τ_DFTK = compute_kinetic_energy_density(basis, ψ, occ)
-            τ = permutedims(τ_DFTK, (4, 1, 2, 3))  # τ_DFTK[x, y, z, σ] -> τ[σ, x, y, z]
+            τ = compute_kinetic_energy_density(basis, ψ, occ)
         end
     end
 
+    # τ[x, y, z, σ] -> τ_Libxc[σ, x, y, z]
+    τ_Libxc = isnothing(τ) ? nothing : permutedims(τ, (4, 1, 2, 3))
+
     # Evaluate terms and energy contribution (zk == energy per unit particle)
-    terms = evaluate(term.functionals, density; τ)
+    terms = evaluate(term.functionals, density; τ=τ_Libxc)
     E = sum(terms.zk .* ρ) * basis.dvol
 
     # Map from the tuple of spin indices for the contracted density gradient
@@ -81,11 +82,10 @@ end
     potential = zero(ρ)
     @views for s in 1:n_spin
         potential[:, :, :, s] .+= terms.vrho[s, :, :, :]
-
-        if haskey(terms, :vsigma) && any(x -> abs(x) ≥ term.potential_threshold, terms.vsigma)
+        if haskey(terms, :vsigma) && any(x -> abs(x) > term.potential_threshold, terms.vsigma)
             # Need gradient correction
             # TODO Drop do-block syntax here?
-            potential[:, :, :, s] .+= -2divergence_real(density.basis) do α
+            potential[:, :, :, s] .+= -2divergence_real(basis) do α
                 # Extra factor (1/2) for s != t is needed because libxc only keeps σ_{αβ}
                 # in the energy expression. See comment block below on spin-polarised XC.
                 sum((s == t ? one(T) : one(T)/2)
@@ -100,7 +100,7 @@ end
         potential .*= term.scaling_factor
     end
     ops = map(basis.kpoints) do kpt
-        if haskey(terms, :vtau) && any(x -> abs(x) ≥ term.potential_threshold, terms.vtau)
+        if haskey(terms, :vtau) && any(x -> abs(x) > term.potential_threshold, terms.vtau)
             # Need meta-GGA non-local operator
             # Note: Minus in front of scaling coefficient comes from partial integration
             Vτ = -term.scaling_factor/2 .* permutedims(terms.vtau, (2, 3, 4, 1))
