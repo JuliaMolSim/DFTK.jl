@@ -2,7 +2,10 @@
 # corresponding to each term
 # This is the "high-level" interface, provided for convenience
 
-struct HamiltonianBlock
+abstract type HamiltonianBlock end
+
+# Generic HamiltonianBlock
+struct GenericHamiltonianBlock <: HamiltonianBlock
     basis::PlaneWaveBasis
     kpoint::Kpoint
 
@@ -10,17 +13,47 @@ struct HamiltonianBlock
     # not typed because of type invariance issues.
     operators::Vector  # the original list of RealFourierOperator
                        # (as many as there are terms), kept for easier exploration
-    optimized_operators::Vector  # the optimized list of RealFourierOperator, to be used for applying
+    optimized_operators::Vector  # Optimized list of RealFourierOperator, for application
+
     scratch  # Pre-allocated scratch arrays for fast application
 end
-function HamiltonianBlock(basis, kpt, operators, scratch=ham_allocate_scratch_(basis))
-    HamiltonianBlock(basis, kpt, operators, optimize_operators_(operators), scratch)
+
+# More optimized HamiltonianBlock for the important case of a DFT Hamiltonian
+struct DftHamiltonianBlock <: HamiltonianBlock
+    basis::PlaneWaveBasis
+    kpoint::Kpoint
+    operators::Vector
+    fourier_op::FourierMultiplication
+    real_op::RealSpaceMultiplication
+    nonlocal_op::NonlocalOperator
+    divAgrad_op::Union{Nothing,DivAgradOperator}
+
+    scratch  # Pre-allocated scratch arrays for fast application
 end
 
+function HamiltonianBlock(basis, kpoint, operators, scratch=ham_allocate_scratch_(basis))
+    optimized_operators = optimize_operators_(operators)
+    if length(optimized_operators) in (3, 4)
+        fourier_ops  = filter(o -> o isa FourierMultiplication,   optimized_operators)
+        real_ops     = filter(o -> o isa RealSpaceMultiplication, optimized_operators)
+        nonlocal_ops = filter(o -> o isa NonlocalOperator,        optimized_operators)
+        divAgrid_ops = filter(o -> o isa DivAgradOperator,        optimized_operators)
+        @assert length(divAgrid_ops) < 2
+
+        if (length(fourier_ops) == length(real_ops) == length(nonlocal_ops) == 1)
+            return DftHamiltonianBlock(basis, kpoint, operators,
+                                       only(fourier_ops), only(real_ops), only(nonlocal_ops),
+                                       something(divAgrid_ops..., Some(nothing)),
+                                       scratch)
+        end
+    end
+    HamiltonianBlock(basis, kpoint, operators, optimize_operators_(operators))
+end
 function ham_allocate_scratch_(basis::PlaneWaveBasis{T}) where {T}
     (ψ_reals=[zeros(complex(T), basis.fft_size...) for _ = 1:Threads.nthreads()], )
 end
 
+Base.:*(H::HamiltonianBlock, ψ) = mul!(similar(ψ), H, ψ)
 Base.eltype(block::HamiltonianBlock) = complex(eltype(block.basis))
 Base.size(block::HamiltonianBlock, i::Integer) = i < 3 ? size(block)[i] : 1
 function Base.size(block::HamiltonianBlock)
@@ -33,87 +66,6 @@ struct Hamiltonian
     blocks::Vector{HamiltonianBlock}
 end
 
-
-# Loop through bands, IFFT to get ψ in real space, loop through terms, FFT and accumulate into Hψ
-# This is a fallback function that works for all hamiltonians;
-# for "usual cases", there is a faster implementation below
-@views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
-                                                                        H::HamiltonianBlock,
-                                                                        ψ::AbstractArray)
-    # Special-case of DFT Hamiltonian: go to a fast path
-    fh = fast_hblock(H)
-    fh !== nothing && return fast_hblock_mul!(Hψ, fh, ψ)
-
-    basis = H.basis
-    T = eltype(basis)
-    kpt = H.kpoint
-    nband = size(ψ, 2)
-
-    Hψ_fourier = similar(Hψ[:, 1])
-    ψ_real  = zeros(complex(T), basis.fft_size...)
-    Hψ_real = zeros(complex(T), basis.fft_size...)
-
-    # take ψi, IFFT it to ψ_real, apply each term to Hψ_fourier and Hψ_real, and add it to Hψ
-    for iband = 1:nband
-        Hψ_real .= 0
-        Hψ_fourier .= 0
-        G_to_r!(ψ_real, basis, kpt, ψ[:, iband])
-        for op in H.optimized_operators
-            apply!((fourier=Hψ_fourier, real=Hψ_real),
-                   op,
-                   (fourier=ψ[:, iband], real=ψ_real))
-        end
-        Hψ[:, iband] .= Hψ_fourier
-        r_to_G!(Hψ_fourier, basis, kpt, Hψ_real)
-        Hψ[:, iband] .+= Hψ_fourier
-    end
-
-    Hψ
-end
-Base.:*(H::HamiltonianBlock, ψ) = mul!(similar(ψ), H, ψ)
-
-# Returns a fast path hamiltonian if eligible, nothing if not
-function fast_hblock(H::HamiltonianBlock)
-    length(H.optimized_operators) == 3 || return nothing
-    fourier_ops = filter(o -> o isa FourierMultiplication, H.optimized_operators)
-    real_ops = filter(o -> o isa RealSpaceMultiplication, H.optimized_operators)
-    nonlocal_ops = filter(o -> o isa NonlocalOperator, H.optimized_operators)
-    (length(fourier_ops) == length(real_ops) == length(nonlocal_ops) == 1) || return nothing
-    (fourier_op=only(fourier_ops), real_op=only(real_ops), nonlocal_op=only(nonlocal_ops), H=H)
-end
-
-# Fast version, specialized on DFT models with just 3 operators: real, fourier and nonlocal
-# Minimizes the number of allocations
-@views function fast_hblock_mul!(Hψ::AbstractArray,
-                                 fast_hblock::NamedTuple,
-                                 ψ::AbstractArray)
-    H = fast_hblock.H
-    basis = H.basis
-    kpt = H.kpoint
-    nband = size(ψ, 2)
-
-    potential = fast_hblock.real_op.potential
-    potential /= prod(basis.fft_size)  # because we use unnormalized plans
-    @timing "kinetic+local" begin
-        Threads.@threads for iband = 1:nband
-            tid = Threads.threadid()
-            ψ_real = H.scratch.ψ_reals[tid]
-
-            G_to_r!(ψ_real, basis, kpt, ψ[:, iband]; normalize=false)
-            ψ_real .*= potential
-            r_to_G!(Hψ[:, iband], basis, kpt, ψ_real; normalize=false)  # overwrites ψ_real
-            Hψ[:, iband] .+= fast_hblock.fourier_op.multiplier .* ψ[:, iband]
-        end
-    end
-
-    # Apply the nonlocal operator
-    @timing "nonlocal" begin
-        apply!((fourier=Hψ, real=nothing), fast_hblock.nonlocal_op, (fourier=ψ, real=nothing))
-    end
-
-    Hψ
-end
-
 function LinearAlgebra.mul!(Hψ, H::Hamiltonian, ψ)
     for ik = 1:length(H.basis.kpoints)
         mul!(Hψ[ik], H.blocks[ik], ψ[ik])
@@ -122,6 +74,72 @@ function LinearAlgebra.mul!(Hψ, H::Hamiltonian, ψ)
 end
 # need `deepcopy` here to copy the elements of the array of arrays ψ (not just pointers)
 Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
+
+# Loop through bands, IFFT to get ψ in real space, loop through terms, FFT and accumulate into Hψ
+# For the common DftHamiltonianBlock there is an optimized version below
+@views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
+                                                                        H::HamiltonianBlock,
+                                                                        ψ::AbstractArray)
+    T = eltype(H.basis)
+    n_bands = size(ψ, 2)
+    Hψ_fourier = similar(Hψ[:, 1])
+    ψ_real  = zeros(complex(T), H.basis.fft_size...)
+    Hψ_real = zeros(complex(T), H.basis.fft_size...)
+
+    # take ψi, IFFT it to ψ_real, apply each term to Hψ_fourier and Hψ_real, and add it to Hψ
+    for iband = 1:n_bands
+        Hψ_real .= 0
+        Hψ_fourier .= 0
+        G_to_r!(ψ_real, H.basis, H.kpoint, ψ[:, iband])
+        for op in H.optimized_operators
+            apply!((fourier=Hψ_fourier, real=Hψ_real),
+                   op,
+                   (fourier=ψ[:, iband], real=ψ_real))
+        end
+        Hψ[:, iband] .= Hψ_fourier
+        r_to_G!(Hψ_fourier, H.basis, H.kpoint, Hψ_real)
+        Hψ[:, iband] .+= Hψ_fourier
+    end
+
+    Hψ
+end
+
+# Fast version, specialized on DFT models. Minimizes the number of allocations
+@views @timing "DftHamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
+                                                                           H::DftHamiltonianBlock,
+                                                                           ψ::AbstractArray)
+    n_bands = size(ψ, 2)
+    have_divAgrad = !isnothing(H.divAgrad_op)
+
+    potential = H.real_op.potential
+    potential /= prod(H.basis.fft_size)  # because we use unnormalized plans
+    @timing "kinetic+local$(have_divAgrad ? "+divAgrad" : "")" begin
+        Threads.@threads for iband = 1:n_bands
+            tid = Threads.threadid()
+            ψ_real = H.scratch.ψ_reals[tid]
+
+            G_to_r!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
+            ψ_real .*= potential
+            r_to_G!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
+            Hψ[:, iband] .+= H.fourier_op.multiplier .* ψ[:, iband]
+
+            if !isnothing(H.divAgrad_op)
+                apply!((fourier=Hψ[:, iband], real=nothing),
+                       H.divAgrad_op,
+                       (fourier=ψ[:, iband], real=nothing),
+                       ψ_real)  # ψ_real used as scratch
+            end
+        end
+    end
+
+    # Apply the nonlocal operator
+    @timing "nonlocal" begin
+        apply!((fourier=Hψ, real=nothing), H.nonlocal_op, (fourier=ψ, real=nothing))
+    end
+
+    Hψ
+end
+
 
 # Get energies and Hamiltonian
 # kwargs is additional info that might be useful for the energy terms to precompute

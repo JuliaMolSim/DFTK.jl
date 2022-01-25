@@ -126,26 +126,27 @@ end
 # TODO Implement  Matrix(op::MagneticFieldOperator)
 
 @doc raw"""
-Nonlocal differential operator arising for meta-GGA functionals. Applies
-``∇ ⋅ (V_τ ∇)`` where ``V_τ`` is a potential in real space.
+Nonlocal "divAgrad" operator ``-½ ∇ ⋅ (A ∇)`` where ``A`` is a scalar field on the
+real-space grid. The ``-½`` is included, such that this operator is a generalisation of the
+kinetic energy operator (which is obtained for ``A=1``).
 """
-struct NonlocalMetaGGA{T <: Real, AT} <: RealFourierOperator
+struct DivAgradOperator{T <: Real, AT} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
-    Vτ::AT
+    A::AT
 end
-@timing_seq "apply NonlocalMetaGGA" function apply!(Hψ, op::NonlocalMetaGGA, ψ)
-    # TODO Computed and allocated on every apply
+@timing_seq "apply DivAgradOperator" function apply!(Hψ, op::DivAgradOperator, ψ,
+                                                     ψ_scratch=zeros(complex(eltype(op.basis)),
+                                                                     op.basis.fft_size...))
     G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)] for α in 1:3]
-
-    # TODO This allocates *twice* on every apply!
     for α = 1:3
-        ∂αψ_real = G_to_r(op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
-        Vτ∇ψ     = r_to_G(op.basis, op.kpoint, ∂αψ_real .* op.Vτ)
-        Hψ.fourier .+= im .* G_plus_k[α] .* Vτ∇ψ
+        ∂αψ_real = G_to_r!(ψ_scratch, op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
+        A∇ψ      = r_to_G(op.basis, op.kpoint, ∂αψ_real .* op.A)  # TODO this allocates!
+        Hψ.fourier .-= im .* G_plus_k[α] .* A∇ψ ./ 2
+
     end
 end
-# TODO Implement  Matrix(op::NonlocalMetaGGA)
+# TODO Implement  Matrix(op::DivAgrad)
 
 
 # Optimize RFOs by combining terms that can be combined

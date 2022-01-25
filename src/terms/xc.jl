@@ -95,19 +95,22 @@ end
         end
     end
 
+    # DivAgrad contributions -½ Vτ
+    Vτ = nothing
+    if haskey(terms, :vtau) && any(x -> abs(x) > term.potential_threshold, terms.vtau)
+        # Need meta-GGA non-local operator (Note: -½ part of the definition of DivAgrid)
+        Vτ = term.scaling_factor * permutedims(terms.vtau, (2, 3, 4, 1))
+    end
+
     if term.scaling_factor != 1
         E *= term.scaling_factor
         potential .*= term.scaling_factor
+        !isnothing(Vτ) && (Vτ .*= term.scaling_factor)
     end
     ops = map(basis.kpoints) do kpt
-        if haskey(terms, :vtau) && any(x -> abs(x) > term.potential_threshold, terms.vtau)
-            # Need meta-GGA non-local operator
-            # Note: Minus in front of scaling coefficient comes from partial integration
-            Vτ = -term.scaling_factor/2 .* permutedims(terms.vtau, (2, 3, 4, 1))
-
-            # TODO Think about this ... does this pattern make a separate copy for every k-Point ????
+        if !isnothing(Vτ)
             [RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin]),
-             NonlocalMetaGGA(basis, kpt, Vτ[:, :, :, kpt.spin])]
+             DivAgradOperator(basis, kpt, Vτ[:, :, :, kpt.spin])]
         else
             RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin])
         end

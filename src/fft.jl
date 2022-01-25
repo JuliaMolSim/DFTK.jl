@@ -56,8 +56,8 @@ function G_to_r(basis::PlaneWaveBasis, f_fourier::AbstractArray; assume_real=tru
     end
     assume_real ? real(f_real) : f_real
 end
-function G_to_r(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector)
-    G_to_r!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier)
+function G_to_r(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
+    G_to_r!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
 end
 
 
@@ -104,8 +104,8 @@ function r_to_G(basis::PlaneWaveBasis, f_real::AbstractArray)
     f_fourier
 end
 # TODO optimize this
-function r_to_G(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3)
-    r_to_G!(similar(f_real, length(kpt.mapping)), basis, kpt, copy(f_real))
+function r_to_G(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3; kwargs...)
+    r_to_G!(similar(f_real, length(kpt.mapping)), basis, kpt, copy(f_real); kwargs...)
 end
 
 # returns matrix representations of the G_to_r and r_to_G matrices. For debug purposes.
