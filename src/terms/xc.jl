@@ -52,11 +52,6 @@ end
     @assert all(xc.family in (:lda, :gga, :mgga) for xc in term.functionals)
     @assert all(xc.n_spin == n_spin for xc in term.functionals)
 
-    # Take derivatives of the density, if needed.
-    max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    @assert !any(needs_laplacian, term.functionals)  # TODO Laplacian-dependent mGGAs not yet implemented
-    density = LibxcDensity(basis, max_ρ_derivs, ρ)
-
     # Compute kinetic energy density, if needed.
     if isnothing(τ) && any(is_mgga, term.functionals)
         if isnothing(ψ) || isnothing(occ)
@@ -66,11 +61,13 @@ end
         end
     end
 
-    # τ[x, y, z, σ] -> τ_Libxc[σ, x, y, z]
-    τ_Libxc = isnothing(τ) ? nothing : permutedims(τ, (4, 1, 2, 3))
+    # Take derivatives of the density, if needed.
+    max_ρ_derivs = maximum(max_required_derivative, term.functionals)
+    @assert !any(needs_laplacian, term.functionals)  # TODO Laplacian-dependent mGGAs not yet implemented
+    density = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
 
     # Evaluate terms and energy contribution (zk == energy per unit particle)
-    terms = evaluate(term.functionals, density; τ=τ_Libxc)
+    terms = evaluate(term.functionals, density)
     E = sum(terms.zk .* ρ) * basis.dvol
 
     # Map from the tuple of spin indices for the contracted density gradient
@@ -231,19 +228,20 @@ end
 
 
 # stores the input to libxc in a format it likes
-struct LibxcDensity
+struct LibxcDensities
     basis::PlaneWaveBasis
     max_derivative::Int
     ρ_real    # density ρ[iσ, ix, iy, iz]
     ∇ρ_real   # for GGA, density gradient ∇ρ[iσ, ix, iy, iz, iα]
     σ_real    # for GGA, contracted density gradient σ[iσ, ix, iy, iz]
     Δρ_real   # for (some) mGGA, Laplacian of the density Δρ[iσ, ix, iy, iz]
+    τ_real    # Kinetic-energy density τ[iσ, ix, iy, iz]
 end
 
 """
 Compute density in real space and its derivatives starting from ρ
 """
-function LibxcDensity(basis, max_derivative::Integer, ρ)
+function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
     model = basis.model
     @assert max_derivative in (0, 1)
 
@@ -288,12 +286,14 @@ function LibxcDensity(basis, max_derivative::Integer, ρ)
         error("To be implemented")
     end
 
-    LibxcDensity(basis, max_derivative, ρ_real, ∇ρ_real, σ_real, Δρ_real)
+    # τ[x, y, z, σ] -> τ_Libxc[σ, x, y, z]
+    τ_Libxc = isnothing(τ) ? nothing : permutedims(τ, (4, 1, 2, 3))
+    LibxcDensities(basis, max_derivative, ρ_real, ∇ρ_real, σ_real, Δρ_real, τ_Libxc)
 end
 
 
 function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...)
-    density = LibxcDensity(basis, 0, ρ)
+    density = LibxcDensities(basis, 0, ρ, nothing)
     n_spin  = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
     if !all(xc.family == :lda for xc in term.functionals)
@@ -326,8 +326,8 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs..
 
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    density      = LibxcDensity(basis, max_ρ_derivs, ρ)
-    perturbation = LibxcDensity(basis, max_ρ_derivs, δρ)
+    density      = LibxcDensities(basis, max_ρ_derivs, ρ, nothing)
+    perturbation = LibxcDensities(basis, max_ρ_derivs, δρ, nothing)
 
     ∇ρ  = density.∇ρ_real
     δρ  = perturbation.ρ_real
@@ -432,20 +432,21 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
 end
 
 
-function Libxc.evaluate(xc::Functional, density::LibxcDensity; τ=nothing, kwargs...)
+function Libxc.evaluate(xc::Functional, density::LibxcDensities; kwargs...)
     if xc.family == :lda
         evaluate(xc; rho=density.ρ_real, kwargs...)
     elseif xc.family == :gga
         evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, kwargs...)
     elseif xc.family == :mgga && !needs_laplacian(xc)
-        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=τ, kwargs...)
+        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=density.τ_real, kwargs...)
     elseif xc.family == :mgga && needs_laplacian(xc)
-        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=τ, lapl=density.Δρ_real, kwargs...)
+        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=density.τ_real,
+                 lapl=density.Δρ_real, kwargs...)
     else
         error("Not implemented for functional familiy $(xc.family)")
     end
 end
-function Libxc.evaluate(xcs::Vector{Functional}, density::LibxcDensity; kwargs...)
+function Libxc.evaluate(xcs::Vector{Functional}, density::LibxcDensities; kwargs...)
     isempty(xcs) && return NamedTuple()
     @assert all(xc.family == xcs[1].family for xc in xcs)
 
