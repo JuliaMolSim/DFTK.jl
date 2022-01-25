@@ -21,6 +21,9 @@ struct DftHamiltonianBlock <: HamiltonianBlock
     basis::PlaneWaveBasis
     kpoint::Kpoint
     operators::Vector
+    optimized_operators::Vector
+
+    # Individual operators for easy access
     fourier_op::FourierMultiplication
     real_op::RealSpaceMultiplication
     nonlocal_op::NonlocalOperator
@@ -39,7 +42,7 @@ function HamiltonianBlock(basis, kpoint, operators, scratch=ham_allocate_scratch
         @assert length(divAgrid_ops) < 2
 
         if (length(fourier_ops) == length(real_ops) == length(nonlocal_ops) == 1)
-            return DftHamiltonianBlock(basis, kpoint, operators,
+            return DftHamiltonianBlock(basis, kpoint, operators, optimized_operators,
                                        only(fourier_ops), only(real_ops), only(nonlocal_ops),
                                        something(divAgrid_ops..., Some(nothing)),
                                        scratch)
@@ -58,6 +61,10 @@ function Base.size(block::HamiltonianBlock)
     n_G = length(G_vectors(block.basis, block.kpoint))
     (n_G, n_G)
 end
+
+import Base: Matrix, Array
+Matrix(block::HamiltonianBlock) = sum(Matrix, block.optimized_operators)
+Array(block::HamiltonianBlock)  = Matrix(block)
 
 struct Hamiltonian
     basis::PlaneWaveBasis
@@ -173,10 +180,6 @@ function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occ=nothing, kwargs...)
     _, H = energy_hamiltonian(basis, ψ, occ; kwargs...)
     H
 end
-
-import Base: Matrix, Array
-Matrix(block::HamiltonianBlock) = sum(Matrix, block.optimized_operators)
-Array(block::HamiltonianBlock)  = Matrix(block)
 
 """
 Get the total local potential of the given Hamiltonian, in real space
