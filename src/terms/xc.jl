@@ -12,10 +12,13 @@ struct Xc
     # `nothing` implies that libxc defaults are used (for each functional a different
     # small positive value like 1e-24)
     density_threshold::Union{Nothing,Float64}
+
+    # Threshold for potential terms: Below this value a potential term is counted as zero.
+    potential_threshold::Float64
 end
 Xc(symbols::Symbol...; kwargs...) = Xc([symbols...]; kwargs...)
-function Xc(symbols::Vector; scaling_factor=1, density_threshold=nothing)
-    Xc(convert.(Symbol, symbols), scaling_factor, density_threshold)
+function Xc(symbols::Vector; scaling_factor=1, density_threshold=nothing, potential_threshold=0)
+    Xc(convert.(Symbol, symbols), scaling_factor, density_threshold, potential_threshold)
 end
 function Base.show(io::IO, xc::Xc)
     fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
@@ -31,31 +34,40 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
             func.density_threshold = xc.density_threshold
         end
     end
-    TermXc(functionals, T(xc.scaling_factor))
+    TermXc(functionals, T(xc.scaling_factor), T(xc.potential_threshold))
 end
 
 struct TermXc <: TermNonlinear
     functionals::Vector{Functional}
     scaling_factor::Real
+    potential_threshold::Real
 end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
-                                              ψ, occ; ρ, kwargs...) where {T}
+                                              ψ, occ; ρ, τ=nothing, kwargs...) where {T}
     @assert !isempty(term.functionals)
 
     model  = basis.model
     n_spin = model.n_spin_components
-    @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
+    @assert all(xc.family in (:lda, :gga, :mgga) for xc in term.functionals)
     @assert all(xc.n_spin == n_spin for xc in term.functionals)
 
-    # Take derivatives of the density if needed.
+    # Compute kinetic energy density, if needed.
+    if isnothing(τ) && any(is_mgga, term.functionals)
+        if isnothing(ψ) || isnothing(occ)
+            τ = zero(ρ)
+        else
+            τ = compute_kinetic_energy_density(basis, ψ, occ)
+        end
+    end
+
+    # Take derivatives of the density, if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    density = LibxcDensity(basis, max_ρ_derivs, ρ)
+    @assert !any(needs_laplacian, term.functionals)  # TODO Laplacian-dependent mGGAs not yet implemented
+    density = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
 
-    potential = zero(ρ)
+    # Evaluate terms and energy contribution (zk == energy per unit particle)
     terms = evaluate(term.functionals, density)
-
-    # Energy contribution (zk == energy per unit particle)
     E = sum(terms.zk .* ρ) * basis.dvol
 
     # Map from the tuple of spin indices for the contracted density gradient
@@ -64,12 +76,13 @@ end
     tσ = libxc_spinindex_σ
 
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ)
+    potential = zero(ρ)
     @views for s in 1:n_spin
         potential[:, :, :, s] .+= terms.vrho[s, :, :, :]
-
-        if haskey(terms, :vsigma)  # Need gradient correction
+        if haskey(terms, :vsigma) && any(x -> abs(x) > term.potential_threshold, terms.vsigma)
+            # Need gradient correction
             # TODO Drop do-block syntax here?
-            potential[:, :, :, s] .+= -2divergence_real(density.basis) do α
+            potential[:, :, :, s] .+= -2divergence_real(basis) do α
                 # Extra factor (1/2) for s != t is needed because libxc only keeps σ_{αβ}
                 # in the energy expression. See comment block below on spin-polarised XC.
                 sum((s == t ? one(T) : one(T)/2)
@@ -79,56 +92,81 @@ end
         end
     end
 
+    # DivAgrad contributions -½ Vτ
+    Vτ = nothing
+    if haskey(terms, :vtau) && any(x -> abs(x) > term.potential_threshold, terms.vtau)
+        # Need meta-GGA non-local operator (Note: -½ part of the definition of DivAgrid)
+        Vτ = term.scaling_factor * permutedims(terms.vtau, (2, 3, 4, 1))
+    end
+
     if term.scaling_factor != 1
         E *= term.scaling_factor
         potential .*= term.scaling_factor
+        !isnothing(Vτ) && (Vτ .*= term.scaling_factor)
     end
-    ops = [RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin])
-           for kpt in basis.kpoints]
-    (E=E, ops=ops)
+    ops = map(basis.kpoints) do kpt
+        if !isnothing(Vτ)
+            [RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin]),
+             DivAgradOperator(basis, kpt, Vτ[:, :, :, kpt.spin])]
+        else
+            RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin])
+        end
+    end
+    (; E, ops)
 end
 
-#=  GGA energy and potential
+#=  meta-GGA energy and potential
 
 The total energy is
-Etot = ∫ ρ E(ρ,σ), where σ = |∇ρ|^2 and E(ρ,σ) is the energy per unit particle.
-libxc provides the scalars
-    Vρ = ∂(ρ E)/∂ρ
-    Vσ = ∂(ρ E)/∂σ
+    Etot = ∫ ρ ε(ρ,σ,τ,Δρ)
+where ε(ρ,σ,τ,Δρ) is the energy per unit particle, σ = |∇ρ|², τ = ½ ∑ᵢ |∇ϕᵢ|²
+is the kinetic energy density and Δρ is the Laplacian of the density.
 
-Consider a variation δϕi of an orbital (considered real for
+Libxc provides the scalars
+    Vρ = ∂(ρ ε)/∂ρ
+    Vσ = ∂(ρ ε)/∂σ
+    Vτ = ∂(ρ ε)/∂τ
+    Vl = ∂(ρ ε)/∂Δρ
+
+Consider a variation δϕᵢ of an orbital (considered real for
 simplicity), and let δEtot be the corresponding variation of the
 energy. Then the potential Vxc is defined by
-    δEtot = 2 ∫ Vxc ϕi δϕi
+    δEtot = ∫ Vxc δρ = 2 ∫ Vxc ϕᵢ δϕᵢ
 
-    δρ = 2 ϕi δϕi
-    δσ = 2 ∇ρ ⋅ ∇δρ = 4 ∇ρ ⋅ ∇(ϕi δϕi)
-    δEtot = ∫ Vρ δρ + Vσ δσ
-          = 2 ∫ Vρ ϕi δϕi + 4 ∫ Vσ ∇ρ ⋅ ∇(ϕi δϕi)
-          = 2 ∫ Vρ ϕi δϕi - 4 ∫ div(Vσ ∇ρ) ϕi δϕi
-where we performed an integration by parts in the last equation
-(boundary terms drop by periodicity). Therefore,
-    Vxc = Vρ - 2 div(Vσ ∇ρ)
-See eg Richard Martin, Electronic stucture, p. 158
+    δρ  = 2 ϕᵢ δϕᵢ
+    δσ  = 2 ∇ρ  ⋅ ∇δρ = 4 ∇ρ ⋅ ∇(ϕᵢ δϕᵢ)
+    δτ  =   ∇ϕᵢ ⋅ ∇δϕᵢ
+    δΔρ = Δδρ = 2 Δ(ϕᵢ δϕᵢ)
+    δEtot = ∫ Vρ δρ + Vσ δσ + Vτ δτ + Vl δΔρ
+          = 2 ∫ Vρ ϕᵢ δϕᵢ + 4 ∫ Vσ ∇ρ ⋅ ∇(ϕᵢ δϕᵢ) +  ∫ Vτ ∇ϕᵢ ⋅ ∇δϕᵢ   + 2 ∫   Vl Δ(ϕᵢ δϕᵢ)
+          = 2 ∫ Vρ ϕᵢ δϕᵢ - 4 ∫ div(Vσ ∇ρ) ϕᵢ δϕᵢ -  ∫ div(Vτ ∇ϕᵢ) δϕᵢ + 2 ∫ Δ(Vl)  ϕᵢ δϕᵢ
+where we performed an integration by parts in the last tho equations
+(boundary terms drop by periodicity). For GGA functionals we identify
+    Vxc = Vρ - 2 div(Vσ ∇ρ),
+see also Richard Martin, Electronic stucture, p. 158. For meta-GGAs an extra term ΔVl appears
+and the Vτ term cannot be cast into a local potential form. We therefore define the
+potential-orbital product as:
+    Vxc ψ = [Vρ - 2 div(Vσ ∇ρ) + Δ(Vl)] ψ + div(-½Vτ ∇ψ)
 =#
 
-#=  Spin-polarised calculations
+#=  Spin-polarised GGA calculations
+TODO Update for meta-GGA
 
 These expressions can be generalised for spin-polarised calculations.
 In this case for example the energy per unit particle becomes
-E(ρ_α, ρ_β, σ_αα, σ_αβ, σ_βα, σ_ββ), where σ_ij = ∇ρ_i ⋅ ∇ρ_j
+ε(ρ_α, ρ_β, σ_αα, σ_αβ, σ_βα, σ_ββ), where σ_ij = ∇ρ_i ⋅ ∇ρ_j
 and the XC potential is analogously
     Vxc_s = Vρ_s - 2 ∑_t div(Vσ_{st} ∇ρ_t)
 where s, t ∈ {α, β} are the spin components and we understand
-    Vρ_s     = ∂(ρ E)/∂(ρ_s)
-    Vσ_{s,t} = ∂(ρ E)/∂(σ_{s,t})
+    Vρ_s     = ∂(ρ ε)/∂(ρ_s)
+    Vσ_{s,t} = ∂(ρ ε)/∂(σ_{s,t})
 
 Now, in contrast to this libxc explicitly uses the symmetry σ_αβ = σ_βα and sets σ
 to be a vector of the three independent components only
     σ = [σ_αα, σ_x, σ_ββ]  where     σ_x = (σ_αβ + σ_βα)/2
 Accordingly Vσ has the components
-    [∂(ρ E)/∂σ_αα, ∂(ρ E)/∂σ_x, ∂(ρ E)/∂σ_ββ]
-where in particular ∂(ρ E)/∂σ_x = (1/2) ∂(ρ E)/∂σ_αβ = (1/2) ∂(ρ E)/∂σ_βα.
+    [∂(ρ ε)/∂σ_αα, ∂(ρ ε)/∂σ_x, ∂(ρ ε)/∂σ_ββ]
+where in particular ∂(ρ ε)/∂σ_x = (1/2) ∂(ρ ε)/∂σ_αβ = (1/2) ∂(ρ ε)/∂σ_βα.
 This explains the extra factor (1/2) needed in the GGA term of the XC potential
 and which pops up in the GGA kernel whenever derivatives wrt. σ are considered.
 =#
@@ -182,29 +220,35 @@ end
 function max_required_derivative(functional)
     functional.family == :lda && return 0
     functional.family == :gga && return 1
+    if functional.family == :mgga
+        return needs_laplacian(functional) ? 2 : 1
+    end
     error("Functional family $(functional.family) not known.")
 end
 
 
 # stores the input to libxc in a format it likes
-struct LibxcDensity
-    basis
+struct LibxcDensities
+    basis::PlaneWaveBasis
     max_derivative::Int
     ρ_real    # density ρ[iσ, ix, iy, iz]
     ∇ρ_real   # for GGA, density gradient ∇ρ[iσ, ix, iy, iz, iα]
     σ_real    # for GGA, contracted density gradient σ[iσ, ix, iy, iz]
+    Δρ_real   # for (some) mGGA, Laplacian of the density Δρ[iσ, ix, iy, iz]
+    τ_real    # Kinetic-energy density τ[iσ, ix, iy, iz]
 end
 
 """
 Compute density in real space and its derivatives starting from ρ
 """
-function LibxcDensity(basis, max_derivative::Integer, ρ)
+function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
     model = basis.model
     @assert max_derivative in (0, 1)
 
     n_spin    = model.n_spin_components
     σ_real    = nothing
     ∇ρ_real   = nothing
+    Δρ_real   = nothing
 
     # compute ρ_real and possibly ρ_fourier
     ρ_real = permutedims(ρ, (4, 1, 2, 3))  # ρ[x, y, z, σ] -> ρ_real[σ, x, y, z]
@@ -237,12 +281,19 @@ function LibxcDensity(basis, max_derivative::Integer, ρ)
         end
     end
 
-    LibxcDensity(basis, max_derivative, ρ_real, ∇ρ_real, σ_real)
+    # Compute Δρ
+    if max_derivative > 1
+        error("To be implemented")
+    end
+
+    # τ[x, y, z, σ] -> τ_Libxc[σ, x, y, z]
+    τ_Libxc = isnothing(τ) ? nothing : permutedims(τ, (4, 1, 2, 3))
+    LibxcDensities(basis, max_derivative, ρ_real, ∇ρ_real, σ_real, Δρ_real, τ_Libxc)
 end
 
 
 function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...)
-    density = LibxcDensity(basis, 0, ρ)
+    density = LibxcDensities(basis, 0, ρ, nothing)
     n_spin  = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
     if !all(xc.family == :lda for xc in term.functionals)
@@ -275,8 +326,8 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs..
 
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    density      = LibxcDensity(basis, max_ρ_derivs, ρ)
-    perturbation = LibxcDensity(basis, max_ρ_derivs, δρ)
+    density      = LibxcDensities(basis, max_ρ_derivs, ρ, nothing)
+    perturbation = LibxcDensities(basis, max_ρ_derivs, δρ, nothing)
 
     ∇ρ  = density.∇ρ_real
     δρ  = perturbation.ρ_real
@@ -381,23 +432,28 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
 end
 
 
-function Libxc.evaluate(xc::Functional, density::LibxcDensity; kwargs...)
+function Libxc.evaluate(xc::Functional, density::LibxcDensities; kwargs...)
     if xc.family == :lda
         evaluate(xc; rho=density.ρ_real, kwargs...)
     elseif xc.family == :gga
         evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, kwargs...)
+    elseif xc.family == :mgga && !needs_laplacian(xc)
+        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=density.τ_real, kwargs...)
+    elseif xc.family == :mgga && needs_laplacian(xc)
+        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=density.τ_real,
+                 lapl=density.Δρ_real, kwargs...)
     else
         error("Not implemented for functional familiy $(xc.family)")
     end
 end
-function Libxc.evaluate(xcs::Vector{Functional}, density::LibxcDensity; kwargs...)
+function Libxc.evaluate(xcs::Vector{Functional}, density::LibxcDensities; kwargs...)
     isempty(xcs) && return NamedTuple()
     @assert all(xc.family == xcs[1].family for xc in xcs)
 
     result = evaluate(xcs[1], density; kwargs...)
     for i in 2:length(xcs)
         other = evaluate(xcs[i], density; kwargs...)
-        for (k, v) in pairs(other)
+        for k in keys(other)
             result[k] .+= other[k]
         end
     end

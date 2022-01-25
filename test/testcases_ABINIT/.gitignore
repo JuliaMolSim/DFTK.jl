@@ -1,4 +1,6 @@
 */abinit
+*.abo
+*.log
 
 */*.nc
 */pspmap.json

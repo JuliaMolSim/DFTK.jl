@@ -14,7 +14,8 @@
 # If you are less interested in having access to the full playground of options in DFTK,
 # but more interested in performing analysis in ASE itself,
 # have a look at [asedftk](https://github.com/mfherbst/asedftk).
-# This package provides an ASE-compatible calculator class based on DFTK,
+# This package provides an
+# [ASE-compatible calculator based on DFTK](https://github.com/mfherbst/asedftk),
 # such that one may write the usual Python scripts against ASE,
 # but the calculations are still run in DFTK.
 #

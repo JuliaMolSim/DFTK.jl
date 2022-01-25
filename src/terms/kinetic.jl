@@ -16,8 +16,8 @@ struct TermKinetic <: Term
     kinetic_energies::Vector{<:AbstractVector}  # kinetic energy 1/2|G+k|^2 for every kpoint
 end
 function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
-    kinetic_energies = [[T(scaling_factor) * sum(abs2, q) / 2
-                         for q in Gplusk_vectors_cart(basis, kpt)]
+    kinetic_energies = [[T(scaling_factor) * sum(abs2, Gk) / 2
+                         for Gk in Gplusk_vectors_cart(basis, kpt)]
                         for kpt in basis.kpoints]
     TermKinetic(T(scaling_factor), kinetic_energies)
 end
