@@ -13,11 +13,11 @@ struct HamiltonianBlock
     optimized_operators::Vector  # the optimized list of RealFourierOperator, to be used for applying
     scratch  # Pre-allocated scratch arrays for fast application
 end
-function HamiltonianBlock(basis, kpt, operators, scratch=ham_scratch_(basis))
+function HamiltonianBlock(basis, kpt, operators, scratch=ham_allocate_scratch_(basis))
     HamiltonianBlock(basis, kpt, operators, optimize_operators_(operators), scratch)
 end
 
-function ham_scratch_(basis::PlaneWaveBasis{T}) where {T}
+function ham_allocate_scratch_(basis::PlaneWaveBasis{T}) where {T}
     (ψ_reals=[zeros(complex(T), basis.fft_size...) for _ = 1:Threads.nthreads()], )
 end
 

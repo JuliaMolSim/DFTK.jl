@@ -1,8 +1,5 @@
 # Convenience functions to make standard models
 
-export model_atomic
-export model_DFT, model_PBE, model_LDA, model_TPSS, model_SCAN
-
 """
 Convenience constructor, which builds a standard atomic (kinetic + atomic potential) model.
 Use `extra_terms` to add additional terms.

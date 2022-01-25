@@ -141,7 +141,7 @@ end
     # TODO This allocates *twice* on every apply!
     for α = 1:3
         ∂αψ_real = G_to_r(op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
-        Vτ∇ψ = r_to_G(op.basis, op.kpoint, ∂αψ_real .* op.Vτ)
+        Vτ∇ψ     = r_to_G(op.basis, op.kpoint, ∂αψ_real .* op.Vτ)
         Hψ.fourier .+= im .* G_plus_k[α] .* Vτ∇ψ
     end
 end
