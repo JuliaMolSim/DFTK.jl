@@ -14,8 +14,6 @@ struct GenericHamiltonianBlock <: HamiltonianBlock
     operators::Vector  # the original list of RealFourierOperator
                        # (as many as there are terms), kept for easier exploration
     optimized_operators::Vector  # Optimized list of RealFourierOperator, for application
-
-    scratch  # Pre-allocated scratch arrays for fast application
 end
 
 # More optimized HamiltonianBlock for the important case of a DFT Hamiltonian
@@ -47,7 +45,7 @@ function HamiltonianBlock(basis, kpoint, operators, scratch=ham_allocate_scratch
                                        scratch)
         end
     end
-    HamiltonianBlock(basis, kpoint, operators, optimize_operators_(operators))
+    GenericHamiltonianBlock(basis, kpoint, operators, optimize_operators_(operators))
 end
 function ham_allocate_scratch_(basis::PlaneWaveBasis{T}) where {T}
     (ψ_reals=[zeros(complex(T), basis.fft_size...) for _ = 1:Threads.nthreads()], )
