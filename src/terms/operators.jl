@@ -40,7 +40,8 @@ struct NoopOperator{T <: Real} <: RealFourierOperator
 end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
 function Matrix(op::NoopOperator)
-    zeros(eltype(op.basis), length(G_vectors(op.kpoint)), length(G_vectors(op.kpoint)))
+    n_Gk = length(G_vectors(op.basis, op.kpoint))
+    zeros(eltype(op.basis), n_Gk, n_Gk)
 end
 
 """
