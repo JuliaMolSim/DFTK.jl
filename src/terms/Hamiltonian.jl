@@ -63,11 +63,8 @@ end
 
 import Base: Matrix, Array
 Array(block::HamiltonianBlock)  = Matrix(block)
+Matrix(block::HamiltonianBlock) = sum(Matrix, block.operators)
 Matrix(block::GenericHamiltonianBlock) = sum(Matrix, block.optimized_operators)
-function Matrix(block::DftHamiltonianBlock)
-    base = Matrix(block.fourier_op) .+ Matrix(block.real_op) .+ Matrix(block.nonlocal_op)
-    isnothing(block.divAgrad_op) ? base : base .+ Matrix(block.divAgrad_op)
-end
 
 struct Hamiltonian
     basis::PlaneWaveBasis
