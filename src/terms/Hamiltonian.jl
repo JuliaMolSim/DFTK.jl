@@ -21,7 +21,6 @@ struct DftHamiltonianBlock <: HamiltonianBlock
     basis::PlaneWaveBasis
     kpoint::Kpoint
     operators::Vector
-    optimized_operators::Vector
 
     # Individual operators for easy access
     fourier_op::FourierMultiplication
@@ -34,21 +33,21 @@ end
 
 function HamiltonianBlock(basis, kpoint, operators, scratch=ham_allocate_scratch_(basis))
     optimized_operators = optimize_operators_(operators)
-    if length(optimized_operators) in (3, 4)
-        fourier_ops  = filter(o -> o isa FourierMultiplication,   optimized_operators)
-        real_ops     = filter(o -> o isa RealSpaceMultiplication, optimized_operators)
-        nonlocal_ops = filter(o -> o isa NonlocalOperator,        optimized_operators)
-        divAgrid_ops = filter(o -> o isa DivAgradOperator,        optimized_operators)
-        @assert length(divAgrid_ops) < 2
+    fourier_ops  = filter(o -> o isa FourierMultiplication,   optimized_operators)
+    real_ops     = filter(o -> o isa RealSpaceMultiplication, optimized_operators)
+    nonlocal_ops = filter(o -> o isa NonlocalOperator,        optimized_operators)
+    divAgrid_ops = filter(o -> o isa DivAgradOperator,        optimized_operators)
 
-        if (length(fourier_ops) == length(real_ops) == length(nonlocal_ops) == 1)
-            return DftHamiltonianBlock(basis, kpoint, operators, optimized_operators,
-                                       only(fourier_ops), only(real_ops), only(nonlocal_ops),
-                                       something(divAgrid_ops..., Some(nothing)),
-                                       scratch)
-        end
+    is_dft_ham = (   length(fourier_ops) == length(real_ops) == length(nonlocal_ops) == 1
+                     && length(divAgrid_ops) < 2)
+    if is_dft_ham
+        divAgrid_op = isempty(divAgrid_ops) ? nothing : only(divAgrid_ops)
+        DftHamiltonianBlock(basis, kpoint, operators,
+                            only(fourier_ops), only(real_ops), only(nonlocal_ops),
+                            divAgrid_op, scratch)
+    else
+        GenericHamiltonianBlock(basis, kpoint, operators, optimized_operators)
     end
-    GenericHamiltonianBlock(basis, kpoint, operators, optimize_operators_(operators))
 end
 function ham_allocate_scratch_(basis::PlaneWaveBasis{T}) where {T}
     (ψ_reals=[zeros(complex(T), basis.fft_size...) for _ = 1:Threads.nthreads()], )
@@ -63,8 +62,12 @@ function Base.size(block::HamiltonianBlock)
 end
 
 import Base: Matrix, Array
-Matrix(block::HamiltonianBlock) = sum(Matrix, block.optimized_operators)
 Array(block::HamiltonianBlock)  = Matrix(block)
+Matrix(block::GenericHamiltonianBlock) = sum(Matrix, block.optimized_operators)
+function Matrix(block::DftHamiltonianBlock)
+    base = Matrix(block.fourier_op) .+ Matrix(block.real_op) .+ Matrix(block.nonlocal_op)
+    isnothing(block.divAgrad_op) ? base : base .+ Matrix(block.divAgrad_op)
+end
 
 struct Hamiltonian
     basis::PlaneWaveBasis
@@ -109,7 +112,7 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
     Hψ
 end
 
-# Fast version, specialized on DFT models. Minimizes the number of allocations
+# Fast version, specialized on DFT models. Minimizes the number of FFTs and allocations
 @views @timing "DftHamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
                                                                            H::DftHamiltonianBlock,
                                                                            ψ::AbstractArray)
@@ -117,7 +120,7 @@ end
     have_divAgrad = !isnothing(H.divAgrad_op)
 
     potential = H.real_op.potential
-    potential /= prod(H.basis.fft_size)  # because we use unnormalized plans
+    potential /= prod(H.basis.fft_size)  # because we use unnormalized plans for extra speed
     @timing "kinetic+local$(have_divAgrad ? "+divAgrad" : "")" begin
         Threads.@threads for iband = 1:n_bands
             tid = Threads.threadid()
