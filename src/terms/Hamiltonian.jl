@@ -24,7 +24,7 @@ struct DftHamiltonianBlock <: HamiltonianBlock
 
     # Individual operators for easy access
     fourier_op::FourierMultiplication
-    real_op::RealSpaceMultiplication
+    local_op::RealSpaceMultiplication
     nonlocal_op::NonlocalOperator
     divAgrad_op::Union{Nothing,DivAgradOperator}
 
@@ -116,8 +116,8 @@ end
     n_bands = size(ψ, 2)
     have_divAgrad = !isnothing(H.divAgrad_op)
 
-    potential = H.real_op.potential
-    potential /= prod(H.basis.fft_size)  # because we use unnormalized plans for extra speed
+    # Notice that we use unnormalized plans for extra speed
+    potential = H.local_op.potential / prod(H.basis.fft_size)
     @timing "kinetic+local$(have_divAgrad ? "+divAgrad" : "")" begin
         Threads.@threads for iband = 1:n_bands
             tid = Threads.threadid()
@@ -188,13 +188,16 @@ in the spin components.
 function total_local_potential(ham::Hamiltonian)
     n_spin = ham.basis.model.n_spin_components
     pots = map(1:n_spin) do σ
-        # Get the first Hamiltonian block of this spin component
+        # Get the potential from the first Hamiltonian block of this spin component
         # (works since all local potentials are the same)
-        block = ham.blocks[first(krange_spin(ham.basis, σ))]
-        rs = [o for o in block.optimized_operators if o isa RealSpaceMultiplication]
-        only(rs).potential
+        i_σ = first(krange_spin(ham.basis, σ))
+        total_local_potential(ham.blocks[i_σ])
     end
     cat(pots..., dims=4)
+end
+total_local_potential(Hk::DftHamiltonianBlock) = Hk.local_op.potential
+function total_local_potential(Hk::GenericHamiltonianBlock)
+    only(o for o in Hk.optimized_operators if o isa RealSpaceMultiplication).potential
 end
 
 """
