@@ -72,7 +72,8 @@ end
     test_consistency_term(Xc(:mgga_x_tpss))
     test_consistency_term(Xc(:mgga_x_scan))
     test_consistency_term(Xc(:mgga_c_scan), spin_polarization=:collinear)
-    # test_consistency_term(Xc(:mgga_x_tb09))
+    test_consistency_term(Xc(:mgga_x_b00))
+    test_consistency_term(Xc(:mgga_c_b94), spin_polarization=:collinear)
 
     let
         a = 6

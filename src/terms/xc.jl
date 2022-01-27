@@ -63,19 +63,25 @@ end
 
     # Take derivatives of the density, if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    @assert !any(needs_laplacian, term.functionals)  # TODO Laplacian-dependent mGGAs not yet implemented
     density = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
 
     # Evaluate terms and energy contribution (zk == energy per unit particle)
-    terms = evaluate(term.functionals, density)
-    E = sum(terms.zk .* ρ) * basis.dvol
+    # It may happen that a functional does only provide a potenital and not an energy term
+    # Therefore skip_unsupported_derivatives=true to avoid an error.
+    terms = evaluate(term.functionals, density; skip_unsupported_derivatives=true)
+    @assert haskey(terms, :vrho)
+    if haskey(terms, :zk)
+        E = sum(terms.zk .* ρ) * basis.dvol
+    else
+        E = zero(T)
+    end
 
     # Map from the tuple of spin indices for the contracted density gradient
     # (s, t) to the index convention used in libxc (i.e. packed symmetry-adapted
     # storage), see details on "Spin-polarised calculations" below.
     tσ = libxc_spinindex_σ
 
-    # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ)
+    # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ) + ΔVl
     potential = zero(ρ)
     @views for s in 1:n_spin
         potential[:, :, :, s] .+= terms.vrho[s, :, :, :]
@@ -89,6 +95,12 @@ end
                     .* terms.vsigma[tσ(s, t), :, :, :] .* density.∇ρ_real[t, :, :, :, α]
                     for t in 1:n_spin)
             end
+        end
+        if haskey(terms, :vlapl) && any(x -> abs(x) > term.potential_threshold, terms.vlapl)
+            @warn "Meta-GGAs with a Vlapl term have not yet been thoroughly tested." maxlog=1
+            mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
+            Vl_fourier = r_to_G(basis, terms.vlapl[s, :, :, :])
+            potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
         end
     end
 
@@ -150,9 +162,9 @@ potential-orbital product as:
 =#
 
 #=  Spin-polarised GGA calculations
-TODO Update for meta-GGA
 
 These expressions can be generalised for spin-polarised calculations.
+For simplicity we take GGA as an example, meta-GGA follows similarly.
 In this case for example the energy per unit particle becomes
 ε(ρ_α, ρ_β, σ_αα, σ_αβ, σ_βα, σ_ββ), where σ_ij = ∇ρ_i ⋅ ∇ρ_j
 and the XC potential is analogously
@@ -243,7 +255,7 @@ Compute density in real space and its derivatives starting from ρ
 """
 function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
     model = basis.model
-    @assert max_derivative in (0, 1)
+    @assert max_derivative in (0, 1, 2)
 
     n_spin    = model.n_spin_components
     σ_real    = nothing
@@ -283,7 +295,11 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
 
     # Compute Δρ
     if max_derivative > 1
-        error("To be implemented")
+        Δρ_real = similar(ρ_real, n_spin, basis.fft_size...)
+        mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
+        for σ = 1:n_spin
+            Δρ_real[σ, :, :, :] .= G_to_r(basis, mG² .* @view ρ_fourier[σ, :, :, :])
+        end
     end
 
     # τ[x, y, z, σ] -> τ_Libxc[σ, x, y, z]
@@ -432,29 +448,36 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
 end
 
 
-function Libxc.evaluate(xc::Functional, density::LibxcDensities; kwargs...)
+function Libxc.evaluate(xc::Functional, density::LibxcDensities;
+                        derivatives=0:1, skip_unsupported_derivatives=false, kwargs...)
+    if skip_unsupported_derivatives
+        derivatives = filter(i -> i in supported_derivatives(xc), derivatives)
+    end
     if xc.family == :lda
-        evaluate(xc; rho=density.ρ_real, kwargs...)
+        evaluate(xc; rho=density.ρ_real, derivatives, kwargs...)
     elseif xc.family == :gga
-        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, kwargs...)
+        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, derivatives, kwargs...)
     elseif xc.family == :mgga && !needs_laplacian(xc)
-        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=density.τ_real, kwargs...)
+        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=density.τ_real,
+                 derivatives, kwargs...)
     elseif xc.family == :mgga && needs_laplacian(xc)
         evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=density.τ_real,
-                 lapl=density.Δρ_real, kwargs...)
+                 lapl=density.Δρ_real, derivatives, kwargs...)
     else
         error("Not implemented for functional familiy $(xc.family)")
     end
 end
 function Libxc.evaluate(xcs::Vector{Functional}, density::LibxcDensities; kwargs...)
     isempty(xcs) && return NamedTuple()
-    @assert all(xc.family == xcs[1].family for xc in xcs)
-
     result = evaluate(xcs[1], density; kwargs...)
     for i in 2:length(xcs)
         other = evaluate(xcs[i], density; kwargs...)
-        for k in keys(other)
-            result[k] .+= other[k]
+        for (key, data) in pairs(other)
+            if haskey(result, key)
+                result[key] .+= data
+            else
+                result = merge(result, (key => data, ))
+            end
         end
     end
     result
