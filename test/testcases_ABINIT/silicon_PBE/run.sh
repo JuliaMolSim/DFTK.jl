@@ -1,10 +1,9 @@
 #!/bin/bash
 cd "$(dirname "$0")"
-PREFIX="silicon_TB09"
+PREFIX="silicon_PBE"
 
 rm -f ${PREFIX}.log ${PREFIX}.abo __ABI_MPIABORTFILE__ *.nc
 mpirun -np 4 abinit  ${PREFIX}.abi &> ${PREFIX}.log
-
 FILES=(
 	${PREFIX}o_DEN.nc
 	${PREFIX}o_EBANDS.agr

@@ -51,16 +51,6 @@ end
 
 
 """
-Build a TPSS meta-GGA model from the specified atoms.
-DOI:10.1103/physrevlett.91.146401
-DOI:10.1063/1.1665298
-"""
-function model_TPSS(lattice::AbstractMatrix, atoms::Vector; kwargs...)
-    model_DFT(lattice, atoms, [:mgga_x_tpss, :mgga_c_tpss]; kwargs...)
-end
-
-
-"""
 Build a SCAN meta-GGA model from the specified atoms.
 DOI:10.1103/PhysRevLett.115.036402
 """
