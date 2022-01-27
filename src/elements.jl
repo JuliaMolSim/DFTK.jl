@@ -74,7 +74,7 @@ struct ElementPsp <: Element
 end
 function Base.show(io::IO, el::ElementPsp)
     pspid = isempty(el.psp.identifier) ? "custom" : el.psp.identifier
-    print(io, "ElementPsp($(el.symbol), psp=$pspid)")
+    print(io, "ElementPsp($(el.symbol), psp=\"$pspid\")")
 end
 
 """

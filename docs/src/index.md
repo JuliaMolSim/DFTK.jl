@@ -58,8 +58,8 @@ collection of [lectures, workshops and literature on DFT](@ref density-functiona
 * Runs out of the box on Linux, macOS and Windows
 * Third-party integrations:
     - Seamless integration with many standard [Input and output formats](@ref).
-    - Use structures prepared in [pymatgen](https://pymatgen.org),
-      [ASE](https://wiki.fysik.dtu.dk/ase/) or [abipy](https://abinit.github.io/abipy/).
+    - Use structures prepared in [pymatgen](https://pymatgen.org) or
+      [ASE](https://wiki.fysik.dtu.dk/ase/).
     - [asedftk](https://github.com/mfherbst/asedftk):
       DFTK-based calculator implementation for ASE.
 
