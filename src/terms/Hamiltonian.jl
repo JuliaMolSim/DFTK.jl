@@ -25,7 +25,7 @@ struct DftHamiltonianBlock <: HamiltonianBlock
     # Individual operators for easy access
     fourier_op::FourierMultiplication
     local_op::RealSpaceMultiplication
-    nonlocal_op::NonlocalOperator
+    nonlocal_op::Union{Nothing,NonlocalOperator}
     divAgrad_op::Union{Nothing,DivAgradOperator}
 
     scratch  # Pre-allocated scratch arrays for fast application
@@ -38,13 +38,14 @@ function HamiltonianBlock(basis, kpoint, operators, scratch=ham_allocate_scratch
     nonlocal_ops = filter(o -> o isa NonlocalOperator,        optimized_operators)
     divAgrid_ops = filter(o -> o isa DivAgradOperator,        optimized_operators)
 
-    is_dft_ham = (   length(fourier_ops) == length(real_ops) == length(nonlocal_ops) == 1
-                     && length(divAgrid_ops) < 2)
+    is_dft_ham = (   length(fourier_ops) == 1 && length(real_ops) == 1
+                  && length(nonlocal_ops) < 2 && length(divAgrid_ops) < 2)
     if is_dft_ham
+        nonlocal_op = isempty(nonlocal_ops) ? nothing : only(nonlocal_ops)
         divAgrid_op = isempty(divAgrid_ops) ? nothing : only(divAgrid_ops)
         DftHamiltonianBlock(basis, kpoint, operators,
-                            only(fourier_ops), only(real_ops), only(nonlocal_ops),
-                            divAgrid_op, scratch)
+                            only(fourier_ops), only(real_ops),
+                            nonlocal_op, divAgrid_op, scratch)
     else
         GenericHamiltonianBlock(basis, kpoint, operators, optimized_operators)
     end
@@ -83,7 +84,7 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
 # Loop through bands, IFFT to get ψ in real space, loop through terms, FFT and accumulate into Hψ
 # For the common DftHamiltonianBlock there is an optimized version below
 @views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
-                                                                        H::HamiltonianBlock,
+                                                                        H::GenericHamiltonianBlock,
                                                                         ψ::AbstractArray)
     T = eltype(H.basis)
     n_bands = size(ψ, 2)
@@ -128,7 +129,7 @@ end
             r_to_G!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
             Hψ[:, iband] .+= H.fourier_op.multiplier .* ψ[:, iband]
 
-            if !isnothing(H.divAgrad_op)
+            if have_divAgrad
                 apply!((fourier=Hψ[:, iband], real=nothing),
                        H.divAgrad_op,
                        (fourier=ψ[:, iband], real=nothing),
@@ -138,8 +139,10 @@ end
     end
 
     # Apply the nonlocal operator
-    @timing "nonlocal" begin
-        apply!((fourier=Hψ, real=nothing), H.nonlocal_op, (fourier=ψ, real=nothing))
+    if !isnothing(H.nonlocal_op)
+        @timing "nonlocal" begin
+            apply!((fourier=Hψ, real=nothing), H.nonlocal_op, (fourier=ψ, real=nothing))
+        end
     end
 
     Hψ
