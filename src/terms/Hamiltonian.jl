@@ -98,9 +98,11 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
         Hψ_fourier .= 0
         G_to_r!(ψ_real, H.basis, H.kpoint, ψ[:, iband])
         for op in H.optimized_operators
-            apply!((fourier=Hψ_fourier, real=Hψ_real),
-                   op,
-                   (fourier=ψ[:, iband], real=ψ_real))
+            @timing "$(nameof(typeof(op)))" begin
+                apply!((fourier=Hψ_fourier, real=Hψ_real),
+                       op,
+                       (fourier=ψ[:, iband], real=ψ_real))
+            end
         end
         Hψ[:, iband] .= Hψ_fourier
         r_to_G!(Hψ_fourier, H.basis, H.kpoint, Hψ_real)
@@ -124,12 +126,10 @@ end
         tid = Threads.threadid()
         ψ_real = H.scratch.ψ_reals[tid]
 
-        @timeit to "local" begin
+        @timeit to "local+kinetic" begin
             G_to_r!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
             ψ_real .*= potential
             r_to_G!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
-        end
-        @timeit to "fourier" begin
             Hψ[:, iband] .+= H.fourier_op.multiplier .* ψ[:, iband]
         end
 

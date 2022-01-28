@@ -53,7 +53,7 @@ struct RealSpaceMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOpe
     kpoint::Kpoint{T}
     potential::AT
 end
-@timing_seq "apply RealSpaceMultiplication" function apply!(Hψ, op::RealSpaceMultiplication, ψ)
+function apply!(Hψ, op::RealSpaceMultiplication, ψ)
     Hψ.real .+= op.potential .* ψ.real
 end
 function Matrix(op::RealSpaceMultiplication)
@@ -84,7 +84,7 @@ struct FourierMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOpera
     kpoint::Kpoint{T}
     multiplier::AT
 end
-@timing_seq "apply FourierMultiplication" function apply!(Hψ, op::FourierMultiplication, ψ)
+function apply!(Hψ, op::FourierMultiplication, ψ)
     Hψ.fourier .+= op.multiplier .* ψ.fourier
 end
 Matrix(op::FourierMultiplication) = Array(Diagonal(op.multiplier))
@@ -101,7 +101,7 @@ struct NonlocalOperator{T <: Real, PT, DT} <: RealFourierOperator
     P::PT
     D::DT
 end
-@timing_seq "apply NonlocalOperator" function apply!(Hψ, op::NonlocalOperator, ψ)
+function apply!(Hψ, op::NonlocalOperator, ψ)
     Hψ.fourier .+= op.P * (op.D * (op.P' * ψ.fourier))
 end
 Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
@@ -114,7 +114,7 @@ struct MagneticFieldOperator{T <: Real, AT} <: RealFourierOperator
     kpoint::Kpoint{T}
     Apot::AT  # Apot[α][i,j,k] is the A field in (cartesian) direction α
 end
-@timing_seq "apply MagneticFieldOperator" function apply!(Hψ, op::MagneticFieldOperator, ψ)
+function apply!(Hψ, op::MagneticFieldOperator, ψ)
     # TODO this could probably be better optimized
     for α = 1:3
         iszero(op.Apot[α]) && continue
@@ -136,7 +136,7 @@ struct DivAgradOperator{T <: Real, AT} <: RealFourierOperator
     kpoint::Kpoint{T}
     A::AT
 end
-@timing_seq "apply DivAgradOperator" function apply!(Hψ, op::DivAgradOperator, ψ,
+function apply!(Hψ, op::DivAgradOperator, ψ,
                                                      ψ_scratch=zeros(complex(eltype(op.basis)),
                                                                      op.basis.fft_size...))
     # TODO: Performance improvements: Unscaled plans, avoid remaining allocations
