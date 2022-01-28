@@ -119,23 +119,30 @@ end
 
     # Notice that we use unnormalized plans for extra speed
     potential = H.local_op.potential / prod(H.basis.fft_size)
-    @timing "kinetic+local$(have_divAgrad ? "+divAgrad" : "")" begin
-        Threads.@threads for iband = 1:n_bands
-            tid = Threads.threadid()
-            ψ_real = H.scratch.ψ_reals[tid]
+    Threads.@threads for iband = 1:n_bands
+        to = TimerOutput()  # Thread-local timer output
+        tid = Threads.threadid()
+        ψ_real = H.scratch.ψ_reals[tid]
 
+        @timeit to "local" begin
             G_to_r!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
             ψ_real .*= potential
             r_to_G!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
+        end
+        @timeit to "fourier" begin
             Hψ[:, iband] .+= H.fourier_op.multiplier .* ψ[:, iband]
+        end
 
-            if have_divAgrad
+        if have_divAgrad
+            @timeit to "divAgrad" begin
                 apply!((fourier=Hψ[:, iband], real=nothing),
                        H.divAgrad_op,
                        (fourier=ψ[:, iband], real=nothing),
                        ψ_real)  # ψ_real used as scratch
             end
         end
+
+        merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
     end
 
     # Apply the nonlocal operator
