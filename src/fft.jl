@@ -18,13 +18,12 @@ import FFTW
 """
 In-place version of `G_to_r`.
 """
-@timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                             f_fourier::AbstractArray3)
+function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis, f_fourier::AbstractArray3)
     mul!(f_real, basis.opBFFT, f_fourier)
     f_real .*= basis.G_to_r_normalization
 end
-@timing_seq function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                             kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
+function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
+                 kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
     @assert length(f_fourier) == length(kpt.mapping)
     @assert size(f_real) == basis.fft_size
 
@@ -65,16 +64,15 @@ end
 In-place version of `r_to_G!`.
 NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
 """
-@timing_seq function r_to_G!(f_fourier::AbstractArray3, basis::PlaneWaveBasis,
-                             f_real::AbstractArray3)
+function r_to_G!(f_fourier::AbstractArray3, basis::PlaneWaveBasis, f_real::AbstractArray3)
     if isreal(f_real)
         f_real = complex.(f_real)
     end
     mul!(f_fourier, basis.opFFT, f_real)
     f_fourier .*= basis.r_to_G_normalization
 end
-@timing_seq function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
-                             kpt::Kpoint, f_real::AbstractArray3; normalize=true)
+function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
+                 kpt::Kpoint, f_real::AbstractArray3; normalize=true)
     @assert size(f_real) == basis.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
 

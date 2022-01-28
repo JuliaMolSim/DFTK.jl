@@ -25,7 +25,7 @@ struct DftHamiltonianBlock <: HamiltonianBlock
     # Individual operators for easy access
     fourier_op::FourierMultiplication
     local_op::RealSpaceMultiplication
-    nonlocal_op::NonlocalOperator
+    nonlocal_op::Union{Nothing,NonlocalOperator}
     divAgrad_op::Union{Nothing,DivAgradOperator}
 
     scratch  # Pre-allocated scratch arrays for fast application
@@ -38,13 +38,14 @@ function HamiltonianBlock(basis, kpoint, operators, scratch=ham_allocate_scratch
     nonlocal_ops = filter(o -> o isa NonlocalOperator,        optimized_operators)
     divAgrid_ops = filter(o -> o isa DivAgradOperator,        optimized_operators)
 
-    is_dft_ham = (   length(fourier_ops) == length(real_ops) == length(nonlocal_ops) == 1
-                     && length(divAgrid_ops) < 2)
+    is_dft_ham = (   length(fourier_ops) == 1 && length(real_ops) == 1
+                  && length(nonlocal_ops) < 2 && length(divAgrid_ops) < 2)
     if is_dft_ham
+        nonlocal_op = isempty(nonlocal_ops) ? nothing : only(nonlocal_ops)
         divAgrid_op = isempty(divAgrid_ops) ? nothing : only(divAgrid_ops)
         DftHamiltonianBlock(basis, kpoint, operators,
-                            only(fourier_ops), only(real_ops), only(nonlocal_ops),
-                            divAgrid_op, scratch)
+                            only(fourier_ops), only(real_ops),
+                            nonlocal_op, divAgrid_op, scratch)
     else
         GenericHamiltonianBlock(basis, kpoint, operators, optimized_operators)
     end
@@ -83,7 +84,7 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
 # Loop through bands, IFFT to get ψ in real space, loop through terms, FFT and accumulate into Hψ
 # For the common DftHamiltonianBlock there is an optimized version below
 @views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
-                                                                        H::HamiltonianBlock,
+                                                                        H::GenericHamiltonianBlock,
                                                                         ψ::AbstractArray)
     T = eltype(H.basis)
     n_bands = size(ψ, 2)
@@ -97,9 +98,11 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
         Hψ_fourier .= 0
         G_to_r!(ψ_real, H.basis, H.kpoint, ψ[:, iband])
         for op in H.optimized_operators
-            apply!((fourier=Hψ_fourier, real=Hψ_real),
-                   op,
-                   (fourier=ψ[:, iband], real=ψ_real))
+            @timing "$(nameof(typeof(op)))" begin
+                apply!((fourier=Hψ_fourier, real=Hψ_real),
+                       op,
+                       (fourier=ψ[:, iband], real=ψ_real))
+            end
         end
         Hψ[:, iband] .= Hψ_fourier
         r_to_G!(Hψ_fourier, H.basis, H.kpoint, Hψ_real)
@@ -118,28 +121,35 @@ end
 
     # Notice that we use unnormalized plans for extra speed
     potential = H.local_op.potential / prod(H.basis.fft_size)
-    @timing "kinetic+local$(have_divAgrad ? "+divAgrad" : "")" begin
-        Threads.@threads for iband = 1:n_bands
-            tid = Threads.threadid()
-            ψ_real = H.scratch.ψ_reals[tid]
+    Threads.@threads for iband = 1:n_bands
+        to = TimerOutput()  # Thread-local timer output
+        tid = Threads.threadid()
+        ψ_real = H.scratch.ψ_reals[tid]
 
+        @timeit to "local+kinetic" begin
             G_to_r!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
             ψ_real .*= potential
             r_to_G!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
             Hψ[:, iband] .+= H.fourier_op.multiplier .* ψ[:, iband]
+        end
 
-            if !isnothing(H.divAgrad_op)
+        if have_divAgrad
+            @timeit to "divAgrad" begin
                 apply!((fourier=Hψ[:, iband], real=nothing),
                        H.divAgrad_op,
                        (fourier=ψ[:, iband], real=nothing),
                        ψ_real)  # ψ_real used as scratch
             end
         end
+
+        merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
     end
 
     # Apply the nonlocal operator
-    @timing "nonlocal" begin
-        apply!((fourier=Hψ, real=nothing), H.nonlocal_op, (fourier=ψ, real=nothing))
+    if !isnothing(H.nonlocal_op)
+        @timing "nonlocal" begin
+            apply!((fourier=Hψ, real=nothing), H.nonlocal_op, (fourier=ψ, real=nothing))
+        end
     end
 
     Hψ
