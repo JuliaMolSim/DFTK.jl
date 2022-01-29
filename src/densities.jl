@@ -9,9 +9,9 @@ function _check_positive(ρ)
     minimum(ρ) < 0 && @warn("Negative ρ detected",
                             min_ρ=minimum(ρ))
 end
-function _check_total_charge(basis, ρ, N)
-    n_electrons = sum(ρ) * basis.dvol
-    if abs(n_electrons - N) > sqrt(eps(eltype(basis)))
+function _check_total_charge(dvol, ρ, N)
+    n_electrons = sum(ρ) * dvol
+    if abs(n_electrons - N) > sqrt(eps(eltype(ρ)))
         @warn("Mismatch in number of electrons", sum_ρ=n_electrons, N=N)
     end
 end
@@ -38,7 +38,7 @@ function compute_partial_density!(ρ, basis, kpt, ψk, occupation)
 
     # Check sanity of the density (positive and normalized)
     all(occupation .> 0) && _check_positive(ρk_real)
-    _check_total_charge(basis, ρk_real, sum(occupation))
+    _check_total_charge(basis.dvol, ρk_real, sum(occupation))
 
     # FFT and return
     r_to_G!(ρ, basis, ρk_real)
@@ -120,7 +120,7 @@ end
     count = mpi_sum(count, basis.comm_kpts)
     lowpass_for_symmetry!(δρ_fourier, basis)
     δρ = G_to_r(basis, δρ_fourier) ./ count
-    _check_total_charge(basis, δρ, 0)
+    _check_total_charge(basis.dvol, δρ, 0)
     δρ
 end
 
