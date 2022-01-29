@@ -238,8 +238,45 @@ end
     δρ
 end
 
-@timing "χ0Mixing" function mix_potential(mixing::Mixing, basis::χ0Mixing, δF::AbstractArray; kwargs...)
-    error("Not yet implemented.")
+@timing "χ0Mixing" function mix_potential(mixing::χ0Mixing, basis, δF::AbstractArray; ρin, kwargs...)
+    # Initialise χ0terms and remove nothings (terms that don't yield a contribution)
+    χ0applies = filter(!isnothing, [χ0(basis; ρin=ρin, kwargs...) for χ0 in mixing.χ0terms])
+
+    # If no applies left, do not bother running GMRES and directly do simple mixing
+    isempty(χ0applies) && return mix_potential(SimpleMixing(), basis, δF)
+
+    # Note: Since in the potential-mixing version the χ₀ model is directly applied to δF
+    #       (instead of first being "low-pass" filtered by the 1/G² in the Hartree kernel
+    #       like in the density-mixing version), mix_potential is much more susceptible
+    #       to having a good model. For example when using LdosMixing this means one needs
+    #       to choose a good enough k-Point sampling / high enough smearing temperature.
+    #       I also tried experimenting with some low-pass filtering in the LdosModel, but
+    #       so far without a fully satisfactory result. As of now LdosMixing should be avoided
+    #       with potential mixing.
+    @warn("LdosMixing / χ0Mixing not yet fine-tuned for potential mixing. You're on your own. " *
+          "Make sure to use sufficient k-Point sampling and maybe low-pass filtering.", maxlog=1)
+
+    # Solve ε δV = δF with ε = (1 - vc χ₀) and χ₀ given as the sum of the χ0terms
+    devec(x) = reshape(x, size(δF))
+    function dielectric(δF)
+        δF = devec(δF)
+
+        δρ = zero(δF)
+        for apply_term! in χ0applies
+            apply_term!(δρ, δF)  # δρ .+= χ₀ * δF
+        end
+        δρ .-= mean(δρ)
+        εδF = δF .- apply_kernel(basis, δρ; ρ=ρin, RPA=mixing.RPA)
+        εδF .-= mean(εδF)
+        vec(εδF)
+    end
+
+    DC_δF = mean(δF)
+    δF .-= DC_δF
+    ε  = LinearMap(dielectric, length(δF))
+    δV = devec(gmres(ε, vec(δF), verbose=mixing.verbose, reltol=mixing.reltol))
+    δV .+= DC_δF  # Set DC from δF
+    δV
 end
 
 
@@ -260,9 +297,10 @@ function IncreaseMixingTemperature(; factor=25, above_ρdiff=1e-2, temperature_m
         end
 
         # Continuous piecewise linear function on a logarithmic scale
-        # In [log(above_ρdiff), log(above_ρdiff) + 1] it switches from 1 to factor
+        # In [log(above_ρdiff), log(above_ρdiff) + switch_slope] it switches from 1 to factor
+        switch_slope = 1
         ρdiff = norm(ρout .- ρin)
-        enhancement = clamp(1 + (factor - 1) * log10(ρdiff / above_ρdiff), 1, factor)
+        enhancement = clamp(1 + (factor - 1) / switch_slope * log10(ρdiff / above_ρdiff), 1, factor)
 
         # Between SCF iterations temperature may never grow
         temperature = clamp(enhancement * temperature, temperature, temperature_max)

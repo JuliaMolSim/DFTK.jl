@@ -140,7 +140,7 @@ end
 
     for mixing_str in ("KerkerMixing()", "KerkerDosMixing()", "DielectricMixing(; εr=10)",
                        "HybridMixing(; εr=10)", "χ0Mixing(; χ0terms=[Applyχ0Model()], RPA=false)")
-        @testset "Testing $mixing_str" begin
+        @testset "Testing $mixing_str (density)" begin
             mixing = eval(Meta.parse(mixing_str))
             scfres = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8)
             @test maximum(abs, scfres.ρ - ρ_ref) < 10tol
@@ -148,8 +148,14 @@ end
     end
 
     # Potential mixing
-    scfres = DFTK.scf_potential_mixing(basis; mixing=KerkerMixing(), tol, ρ=ρ0)
-    @test maximum(abs, scfres.ρ - ρ_ref) < 10tol
+    for mixing_str in ("KerkerMixing()", "KerkerDosMixing()", "DielectricMixing(; εr=10)",
+                       "HybridMixing(; εr=10)", "χ0Mixing(; χ0terms=[Applyχ0Model()], RPA=false)")
+        @testset "Testing $mixing_str (potential)" begin
+            mixing = eval(Meta.parse(mixing_str))
+            scfres = DFTK.scf_potential_mixing(basis; ρ=ρ0, mixing, tol, damping=0.8)
+            @test maximum(abs.(scfres.ρ - ρ_ref)) < 10tol
+        end
+    end
 
     # Adaptive potential mixing (started deliberately with the very bad damping
     #          of 1.5 to provoke backtrack steps ... don't do this in production runs!)
