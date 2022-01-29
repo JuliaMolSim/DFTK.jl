@@ -160,6 +160,7 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `RPA`: Is the random-phase approximation used for the kernel (i.e. only Hartree kernel is
   used and not XC kernel)
 - `verbose`: Run the GMRES in verbose mode.
+- `reltol`: Relative tolerance for GMRES
 """
 function HybridMixing(;εr=1.0, kTF=0.8, localization=identity,
                       adjust_temperature=IncreaseMixingTemperature(), kwargs...)
@@ -167,6 +168,24 @@ function HybridMixing(;εr=1.0, kTF=0.8, localization=identity,
                LdosModel(;adjust_temperature)]
     χ0Mixing(; χ0terms=χ0terms, kwargs...)
 end
+
+
+@doc raw"""
+The model for the susceptibility is
+```math
+\begin{aligned}
+    χ_0(r, r') &= (-D_\text{loc}(r) δ(r, r') + D_\text{loc}(r) D_\text{loc}(r') / D)
+\end{aligned}
+```
+where ``D_\text{loc}`` is the local density of states,
+``D`` is the density of states. For details see Herbst, Levitt 2020 arXiv:2009.01665.
+
+Important `kwargs` passed on to [`χ0Mixing`](@ref)
+- `RPA`: Is the random-phase approximation used for the kernel (i.e. only Hartree kernel is
+  used and not XC kernel)
+- `verbose`: Run the GMRES in verbose mode.
+- `reltol`: Relative tolerance for GMRES
+"""
 function LdosMixing(; adjust_temperature=IncreaseMixingTemperature(), kwargs...)
     χ0Mixing(; χ0terms=[LdosModel(;adjust_temperature)], kwargs...)
 end
@@ -182,39 +201,36 @@ real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartr
 @kwdef struct χ0Mixing <: Mixing
     RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     χ0terms   = χ0Model[Applyχ0Model()]  # The terms to use as the model for χ0
-    verbose::Bool = false  # Run the GMRES verbosely
+    verbose::Bool = false   # Run the GMRES verbosely
+    reltol::Float32 = 0.01  # Relative tolerance for GMRES
 end
 
 @views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, basis, δF; ρin, kwargs...)
-    T = eltype(δF)
-
     # Initialise χ0terms and remove nothings (terms that don't yield a contribution)
-    χ0applies = [χ0(basis; ρin=ρin, kwargs...) for χ0 in mixing.χ0terms]
-    χ0applies = [apply for apply in χ0applies if !isnothing(apply)]
+    χ0applies = filter(!isnothing, [χ₀(basis; ρin=ρin, kwargs...) for χ₀ in mixing.χ0terms])
 
     # If no applies left, do not bother running GMRES and directly do simple mixing
     isempty(χ0applies) && return mix_density(SimpleMixing(), basis, δF)
 
-    # Solve J δρ = δF with J = (1 - χ0 vc) and χ_0 given as the sum of the χ0terms
+    # Solve (ε^†) δρ = δF with ε^† = (1 - χ₀ vc) and χ₀ given as the sum of the χ0terms
     devec(x) = reshape(x, size(δF))
-    function Jop(δF)
+    function dielectric_adjoint(δF)
         δF = devec(δF)
         # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
         δV = apply_kernel(basis, δF; ρ=ρin, RPA=mixing.RPA)
         δV .-= mean(δV)
-        JδF = copy(δF)
+        εδF = copy(δF)
         for apply_term! in χ0applies
-            apply_term!(JδF, δV, -1)  # JδF .-= χ0 * δV
+            apply_term!(εδF, δV, -1)  # εδF .-= χ₀ * δV
         end
-        JδF .-= mean(JδF)
-        vec(JδF)
+        εδF .-= mean(εδF)
+        vec(εδF)
     end
 
     DC_δF = mean(δF)
     δF .-= DC_δF
-    J = LinearMap(Jop, length(δF))
-    # TODO Further improvement: Adapt tolerance of gmres to norm(ρ_out - ρ_in)
-    δρ = devec(gmres(J, vec(δF), verbose=mixing.verbose))
+    ε  = LinearMap(dielectric_adjoint, length(δF))
+    δρ = devec(gmres(ε, vec(δF), verbose=mixing.verbose, reltol=mixing.reltol))
     δρ .+= DC_δF  # Set DC from δF
     δρ
 end
