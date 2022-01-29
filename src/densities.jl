@@ -5,6 +5,17 @@
 #        compute_density, compute_δρ, compute_kinetic_energy_density
 #      - Use symmetrization instead of explicit use of symmetry operators
 
+function _check_positive(ρ)
+    minimum(ρ) < 0 && @warn("Negative ρ detected",
+                            min_ρ=minimum(ρ))
+end
+function _check_total_charge(basis, ρ, N)
+    n_electrons = sum(ρ) * basis.dvol
+    if abs(n_electrons - N) > sqrt(eps(eltype(basis)))
+        @warn("Mismatch in number of electrons", sum_ρ=n_electrons, N=N)
+    end
+end
+
 """
 Compute the partial density at the indicated ``k``-Point and return it (in Fourier space).
 """
@@ -25,17 +36,9 @@ function compute_partial_density!(ρ, basis, kpt, ψk, occupation)
     end
     ρk_real = ρk_real[1]
 
-    # Check sanity of the density (real, positive and normalized)
-    T = real(eltype(ρk_real))
-    if all(occupation .> 0)
-        minimum(real(ρk_real)) < 0 && @warn("Negative ρ detected",
-                                            min_ρ=minimum(real(ρk_real)))
-    end
-    n_electrons = sum(ρk_real) * basis.dvol
-    if abs(n_electrons - sum(occupation)) > sqrt(eps(T))
-        @warn("Mismatch in number of electrons", sum_ρ=n_electrons,
-              sum_occupation=sum(occupation))
-    end
+    # Check sanity of the density (positive and normalized)
+    all(occupation .> 0) && _check_positive(ρk_real)
+    _check_total_charge(basis, ρk_real, sum(occupation))
 
     # FFT and return
     r_to_G!(ρ, basis, ρk_real)
@@ -53,15 +56,6 @@ is not collinear the spin density is `nothing`.
 @views @timing function compute_density(basis::PlaneWaveBasis, ψ, occupation)
     n_k = length(basis.kpoints)
     n_spin = basis.model.n_spin_components
-
-    # Sanity checks
-    @assert n_k == length(ψ)
-    @assert n_k == length(occupation)
-    for ik in 1:n_k
-        @assert length(G_vectors(basis, basis.kpoints[ik])) == size(ψ[ik], 1)
-        @assert length(occupation[ik]) == size(ψ[ik], 2)
-    end
-    @assert n_k > 0
 
     # Allocate an accumulator for ρ in each thread for each spin component
     T = promote_type(eltype(basis), eltype(ψ[1]))
@@ -126,10 +120,7 @@ end
     count = mpi_sum(count, basis.comm_kpts)
     lowpass_for_symmetry!(δρ_fourier, basis)
     δρ = G_to_r(basis, δρ_fourier) ./ count
-    # Check sanity in the density, we should have ∫δρ = 0
-    if abs(sum(δρ)) > sqrt(eps(T))
-        @warn "Non-neutral δρ" sum_δρ=sum(δρ)
-    end
+    _check_total_charge(basis, δρ, 0)
     δρ
 end
 
