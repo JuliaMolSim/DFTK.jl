@@ -176,10 +176,6 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
     accept_step=ScfAcceptStepAll(),
     max_backtracks=3,  # Maximal number of backtracking line searches
 )
-    # TODO Test other mixings and lift this
-    @assert (   mixing isa SimpleMixing
-             || mixing isa KerkerMixing
-             || mixing isa KerkerDosMixing)
     damping isa Number && (damping = FixedDamping(damping))
 
     if !isnothing(ψ)
@@ -209,7 +205,8 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
     α_trial   = trial_damping(damping)
     diagtol   = determine_diagtol(diagtolalg, (; ρin=ρ, Vin=V, n_iter))
     info      = EVρ(V; diagtol, ψ)
-    Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; n_iter, info...)
+    Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin;
+                              ρin=ρ, n_iter, info...)
     info      = merge(info, (; α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
                              n_iter, Pinv_δV))
     history_Etot = eltype(ρ)[]
@@ -247,7 +244,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
 
             info_next    = EVρ(Vnext; ψ=guess, diagtol, info.eigenvalues, info.occupation)
             Pinv_δV_next = mix_potential(mixing, basis, info_next.Vout - info_next.Vin;
-                                         n_iter, info_next...)
+                                         ρin=info.ρout, n_iter, info_next...)
             push!(diagonalization, info_next.diagonalization)
             info_next = merge(info_next, (; α, diagonalization, ρin=info.ρout, n_iter,
                                           Pinv_δV=Pinv_δV_next, history_Δρ, history_Etot ))
