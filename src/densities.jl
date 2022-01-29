@@ -88,7 +88,6 @@ is not collinear the spin density is `nothing`.
         for ik in ikpts
             kpt = basis.kpoints[ik]
             compute_partial_density!(ρ_k, basis, kpt, ψ[ik], occupation[ik])
-            lowpass_for_symmetry!(ρ_k, basis)
             # accumulates all the symops of ρ_k into ρaccu
             accumulate_over_symmetries!(ρaccu[:, :, :, kpt.spin], ρ_k, basis, basis.ksymops[ik])
         end
@@ -99,6 +98,7 @@ is not collinear the spin density is `nothing`.
     count = mpi_sum(count, basis.comm_kpts)
     ρ = sum(ρaccus) ./ count
     mpi_sum!(ρ, basis.comm_kpts)
+    lowpass_for_symmetry!(ρ, basis)
     G_to_r(basis, ρ)
 end
 

@@ -211,7 +211,7 @@ end
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
 function lowpass_for_symmetry!(ρ, basis; symmetries=basis.model.symmetries)
     for (S, τ) in symmetries
-        S == I && iszero(τ) && continue
+        S == I && continue
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             if index_G_vectors(basis, S * G) === nothing
                 ρ[ig] = 0
