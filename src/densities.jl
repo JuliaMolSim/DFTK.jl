@@ -118,13 +118,13 @@ end
                      δoccupation[ik][n] .* abs2.(ψnk_real))
         end
         δρk_fourier = r_to_G(basis, complex(δρk))
-        lowpass_for_symmetry!(δρk_fourier, basis)
         accumulate_over_symmetries!(δρ_fourier[:, :, :, kpt.spin], δρk_fourier,
                                     basis, basis.ksymops[ik])
     end
     mpi_sum!(δρ_fourier, basis.comm_kpts)
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
     count = mpi_sum(count, basis.comm_kpts)
+    lowpass_for_symmetry!(δρ_fourier, basis)
     δρ = G_to_r(basis, δρ_fourier) ./ count
     # Check sanity in the density, we should have ∫δρ = 0
     if abs(sum(δρ)) > sqrt(eps(T))
