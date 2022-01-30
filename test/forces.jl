@@ -25,13 +25,15 @@ include("testcases.jl")
     pos1 = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8]  # displace a bit from equilibrium
     disp = rand(3)
     mpi_mean!(disp, MPI.COMM_WORLD)  # must be identical on all processes
-    ε = 1e-7
+    ε = 1e-5
     pos2 = [pos1[1] + ε * disp, pos1[2]]
+    pos3 = [pos1[1] - ε * disp, pos1[2]]
 
     E1, F1, Fc1 = energy_forces(pos1)
     E2,  _,  _  = energy_forces(pos2)
+    E3,  _,  _  = energy_forces(pos3)
 
-    diff_findiff = -(E2 - E1) / ε
+    diff_findiff = -(E2 - E3) / (2ε)
     diff_forces = dot(F1[1][1], disp)
     @test abs(diff_findiff - diff_forces) < 1e-4
 
