@@ -66,12 +66,31 @@ end
 Filter out the symmetry operations that respect the symmetries of the discrete BZ grid
 """
 function symmetries_preserving_kgrid(symmetries, kcoords)
+    kcoords_normalized = normalize_kpoint_coordinate.(kcoords)
+    T = eltype(kcoords[1])
+    tol = T <: Rational ? 0 : sqrt(eps(T))
+    is_approx_in(x, X, tol) = any(y -> norm(x-y) ≤ tol, X)
     function preserves_grid(S)
-        all(normalize_kpoint_coordinate(S * k) in kcoords
-            for k in normalize_kpoint_coordinate.(kcoords))
+        all(is_approx_in(normalize_kpoint_coordinate(S * k), kcoords_normalized, tol)
+            for k in kcoords_normalized)
     end
     filter(symop -> preserves_grid(symop[1]), symmetries)
 end
+
+
+"""
+Find the subset of model symmetries compatible with the grid induced by the given kcoords and ksymops
+"""
+function symmetries_from_kcoords_ksymops(model, kcoords, ksymops)
+    all_kcoords = []
+    for ik=1:length(kcoords)
+        for symop in ksymops[ik]
+            push!(all_kcoords, symop[1]*kcoords[ik])
+        end
+    end
+    symmetries_preserving_kgrid(model.symmetries, all_kcoords)
+end
+
 
 """
 Implements a primitive search to find an irreducible subset of kpoints
