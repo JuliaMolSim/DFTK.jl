@@ -6,8 +6,7 @@
 #      - Use symmetrization instead of explicit use of symmetry operators
 
 function _check_positive(ρ)
-    minimum(ρ) < 0 && @warn("Negative ρ detected",
-                            min_ρ=minimum(ρ))
+    minimum(ρ) < 0 && @warn("Negative ρ detected", min_ρ=minimum(ρ))
 end
 function _check_total_charge(dvol, ρ, N)
     n_electrons = sum(ρ) * dvol
