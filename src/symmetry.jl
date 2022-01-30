@@ -245,11 +245,11 @@ Symmetrize a density by applying all the model symmetries (by default) and formi
 """
 @views function symmetrize_ρ(basis, ρin; symmetries=basis.model.symmetries)
     ρin_fourier = r_to_G(basis, ρin)
-    ρout_fourier = copy(ρin_fourier)
+    ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρin, 4)
         lowpass_for_symmetry!(ρin_fourier[:, :, :, σ], basis; symmetries=symmetries)
-        ρout_fourier[:, :, :, σ] = accumulate_over_symmetries!(zero(ρin_fourier[:, :, :, σ]),
-                                                               ρin_fourier[:, :, :, σ], basis, symmetries)
+        accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
+                                    ρin_fourier[:, :, :, σ], basis, symmetries)
     end
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
