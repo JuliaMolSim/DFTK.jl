@@ -148,8 +148,8 @@ This is a list of all symmetries operations ``(S, \tau)``
 that can be used to map this irreducible ``k``-point to reducible ``k``-points.
 Let's pick the third symmetry operation of this ``k``-point and check.
 ```@example symmetries
-S, τ = basis_sym.ksymops[ikpt_irred][3]
-kpt_red_coord = S * basis_sym.kpoints[ikpt_irred].coordinate
+symop = basis_sym.ksymops[ikpt_irred][3]
+kpt_red_coord = symop.S * basis_sym.kpoints[ikpt_irred].coordinate
 ikpt_red = findfirst(kcoord -> kcoord ≈ kpt_red_coord,
                      [k.coordinate for k in basis_nosym.kpoints])
 [scfres_sym.eigenvalues[ikpt_irred] scfres_nosym.eigenvalues[ikpt_red]]

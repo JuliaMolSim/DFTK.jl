@@ -54,12 +54,10 @@ function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=1
     for isym = 1:length(Stildes)
         S = Stildes[isym]'                  # in fractional reciprocal coordinates
         τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates
-        τ = τ .- floor.(τ)
-        @assert all(0 .≤ τ .< 1)
-        push!(symmetries, (S, τ))
+        push!(symmetries, SymOp(S, τ))
     end
 
-    unique(symmetries)
+    symmetries = unique(symmetries)
 end
 
 """
@@ -70,7 +68,7 @@ function symmetries_preserving_kgrid(symmetries, kcoords)
         all(normalize_kpoint_coordinate(S * k) in kcoords
             for k in normalize_kpoint_coordinate.(kcoords))
     end
-    filter(symop -> preserves_grid(symop[1]), symmetries)
+    symmetries = filter(symop -> preserves_grid(symop.S), symmetries)
 end
 
 """
@@ -94,7 +92,7 @@ function find_irreducible_kpoints(kcoords, Stildes, τtildes)
         # Select next not mapped k-point as irreducible
         ik = findfirst(isequal(false), kcoords_mapped)
         push!(kirreds, kcoords[ik])
-        thisk_symops = [identity_symop()]
+        thisk_symops = [one(SymOp)]
         kcoords_mapped[ik] = true
 
         for jk in findall(.!kcoords_mapped)
@@ -109,9 +107,7 @@ function find_irreducible_kpoints(kcoords, Stildes, τtildes)
                 kcoords_mapped[jk] = true
                 S = Stildes[isym]'                  # in fractional reciprocal coordinates
                 τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates
-                τ = τ .- floor.(τ)
-                @assert all(0 .≤ τ .< 1)
-                push!(thisk_symops, (S, τ))
+                push!(thisk_symops, SymOp(S, τ))
             end
         end  # jk
 
@@ -126,7 +122,7 @@ equivalent point in [-0.5, 0.5)^3 and associated eigenvectors (expressed in the
 basis of the new ``k``-point).
 """
 function apply_ksymop(ksymop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
-    S, τ = ksymop
+    S, τ = ksymop.S, ksymop.τ
     S == I && iszero(τ) && return kpoint, ψk
 
     # Apply S and reduce coordinates to interval [-0.5, 0.5)
@@ -172,7 +168,7 @@ end
 Apply a `k`-point symmetry operation (the tuple (S, τ)) to a partial density.
 """
 function apply_ksymop(symop::SymOp, basis, ρin)
-    S, τ = ksymop
+    S, τ = ksymop.S, ksymop.τ
     S == I && iszero(τ) && return ρin
     symmetrize_ρ(basis, ρin, [symop])
 end
@@ -182,7 +178,8 @@ end
 # No normalization is performed
 function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
     T = eltype(basis)
-    for (S, τ) in symmetries
+    for symop in symmetries
+        S, τ = symop.S, symop.τ
         invS = Mat3{Int}(inv(S))
         # Common special case, where ρin does not need to be processed
         if S == I && iszero(τ)
@@ -204,16 +201,16 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
                 @inbounds ρaccu[ig] += cis(-2T(π) * dot(G, τ)) * ρin[igired]
             end
         end
-    end  # (S, τ)
+    end  # symop
     ρaccu
 end
 
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
 function lowpass_for_symmetry!(ρ, basis; symmetries=basis.model.symmetries)
-    for (S, τ) in symmetries
-        S == I && iszero(τ) && continue
+    for symop in symmetries
+        symop == one(SymOp) && continue
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
-            if index_G_vectors(basis, S * G) === nothing
+            if index_G_vectors(basis, symop.S * G) === nothing
                 ρ[ig] = 0
             end
         end
@@ -237,8 +234,8 @@ end
 # symmetrize the stress tensor, which is a rank-2 contravariant tensor in reduced coordinates
 function symmetrize_stresses(lattice, symmetries, stresses)
     stresses_symmetrized = zero(stresses)
-    for (S, τ) in symmetries
-        S_reduced = inv(lattice) * S * lattice
+    for symop in symmetries
+        S_reduced = inv(lattice) * symop.S * lattice
         stresses_symmetrized += S_reduced' * stresses * S_reduced
     end
     stresses_symmetrized /= length(symmetries)
@@ -262,13 +259,13 @@ function unfold_bz(basis::PlaneWaveBasis)
     else
         kcoords = []
         for (ik, kpt) in enumerate(basis.kcoords_global)
-            for (S, τ) in basis.ksymops_global[ik]
-                push!(kcoords, normalize_kpoint_coordinate(S * kpt))
+            for symop in basis.ksymops_global[ik]
+                push!(kcoords, normalize_kpoint_coordinate(symop.S * kpt))
             end
         end
         new_basis = PlaneWaveBasis(basis.model,
                                    basis.Ecut, basis.fft_size, basis.variational,
-                                   kcoords, [[identity_symop()] for _ in 1:length(kcoords)],
+                                   kcoords, [[one(SymOp)] for _ in 1:length(kcoords)],
                                    basis.kgrid, basis.kshift, basis.symmetries, basis.comm_kpts)
     end
 end
@@ -278,7 +275,7 @@ function unfold_mapping(basis_irred, kpt_unfolded)
     for ik_irred = 1:length(basis_irred.kpoints)
         kpt_irred = basis_irred.kpoints[ik_irred]
         for symop in basis_irred.ksymops[ik_irred]
-            Sk_irred = normalize_kpoint_coordinate(symop[1] * kpt_irred.coordinate)
+            Sk_irred = normalize_kpoint_coordinate(symop.S * kpt_irred.coordinate)
             k_unfolded = normalize_kpoint_coordinate(kpt_unfolded.coordinate)
             if (Sk_irred ≈ k_unfolded) && (kpt_unfolded.spin == kpt_irred.spin)
                 return ik_irred, symop

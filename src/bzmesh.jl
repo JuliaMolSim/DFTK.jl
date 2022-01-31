@@ -34,7 +34,7 @@ returned and all symmetry operations are the identity.
 """
 function bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
     kcoords = kgrid_monkhorst_pack(kgrid_size; kshift=kshift)
-    kcoords, [[identity_symop()] for _ in 1:length(kcoords)], [identity_symop()]
+    kcoords, [[one(SymOp)] for _ in 1:length(kcoords)], [one(SymOp)]
 end
 
 
@@ -65,7 +65,7 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     # Give the remaining symmetries to spglib to compute an irreducible k-point mesh
     # TODO implement time-reversal symmetry and turn the flag to true
     is_shift = Int.(2 * kshift)
-    Stildes = [S' for (S, τ) in symmetries]
+    Stildes = [symop.S' for symop in symmetries]
     _, mapping, grid = spglib_get_stabilized_reciprocal_mesh(
         kgrid_size, Stildes, is_shift=is_shift, is_time_reversal=false
     )
@@ -100,7 +100,7 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
                 # If the difference between kred and Stilde' * k == Stilde^{-1} * k
                 # is only integer in fractional reciprocal-space coordinates, then
                 # kred and S' * k are equivalent k-points
-                S = symop[1]
+                S = symop.S
                 all(isinteger, kred - (S * k))
             end
 
@@ -114,8 +114,8 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
 
     if !isempty(kreds_notmapped)
         # add them as reducible anyway
-        Stildes = [S' for (S, τ) in symmetries]
-        τtildes = [-S' * τ for (S, τ) in symmetries]
+        Stildes = [symop.S' for symop in symmetries]
+        τtildes = [-symop.S' * symop.τ for symop in symmetries]
         eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, Stildes, τtildes)
         @info("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
               "the irreducible kpoints returned by spglib. $(length(eirreds)) of " *
@@ -126,7 +126,7 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     end
 
     # The symmetry operation (S == I and τ == 0) should be present for each k-point
-    @assert all(findfirst(Sτ -> iszero(Sτ[1] - I) && iszero(Sτ[2]), ops) !== nothing
+    @assert all(findfirst(symop -> symop == one(SymOp), ops) !== nothing
                 for ops in ksymops)
 
     kirreds, ksymops, symmetries

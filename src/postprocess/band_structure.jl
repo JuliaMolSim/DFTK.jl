@@ -76,7 +76,7 @@ end
                                ρ=nothing, eigensolver=lobpcg_hyper,
                                tol=1e-3, show_progress=true, kwargs...)
     # Create basis with new kpoints, where we cheat by not using any symmetry operations.
-    ksymops  = [[identity_symop()] for _ in 1:length(kcoords)]
+    ksymops  = [[one(SymOp)] for _ in 1:length(kcoords)]
     bs_basis = PlaneWaveBasis(basis, kcoords, ksymops)
 
     if isnothing(ρ)
