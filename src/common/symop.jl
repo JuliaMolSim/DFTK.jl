@@ -13,13 +13,14 @@ end
 Base.:(==)(op1::SymOp, op2::SymOp) = op1.S == op2.S && isapprox(op1.τ, op2.τ; atol=1e-8)
 Base.one(::Type{SymOp}) = SymOp(Mat3{Int}(I), Vec3(zeros(3)))
 
+# group composition and inverse.
+# Derived either from the formulas for the composition/inverse of Stilde/τtilde
+# then passing to reciprocal, or directly from the symmetry operation in reciprocal space
 function Base.:*(op1, op2)
     S = op1.S * op2.S
     τ = op1.τ + op1.S' \ op2.τ
     SymOp(S, τ)
 end
-
-import Base.inv
 Base.inv(op) = SymOp(inv(op.S), -op.S'*op.τ)
 
 function check_group(symops::Vector)
