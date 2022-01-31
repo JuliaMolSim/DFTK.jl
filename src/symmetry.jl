@@ -79,16 +79,16 @@ end
 
 
 """
-Find the subset of model symmetries compatible with the grid induced by the given kcoords and ksymops
+Find the subset of symmetries compatible with the grid induced by the given kcoords and ksymops
 """
-function symmetries_from_kcoords_ksymops(model, kcoords, ksymops)
+function symmetries_preserving_kcoords_ksymops(symmetries, kcoords, ksymops)
     all_kcoords = []
     for ik=1:length(kcoords)
         for symop in ksymops[ik]
             push!(all_kcoords, symop[1]*kcoords[ik])
         end
     end
-    symmetries_preserving_kgrid(model.symmetries, all_kcoords)
+    symmetries_preserving_kgrid(symmetries, all_kcoords)
 end
 
 
