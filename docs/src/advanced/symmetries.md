@@ -32,7 +32,7 @@ S &= \widetilde{S}^{T}\\
 \tau &= -\widetilde{S}^{-1}\widetilde{\tau}.
 \end{aligned}
 ```
-(these equations being also valid in reduced coordinates).
+(these two last equations being also valid in reduced coordinates).
 
 It follows that the Fourier transform satisfies
 ```math
