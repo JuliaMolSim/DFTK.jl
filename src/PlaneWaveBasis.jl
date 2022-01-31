@@ -95,6 +95,9 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
     # Symmetry operations that leave the reducible Brillouin zone invariant.
     # Subset of model.symmetries, and superset of all the ksymops.
     # Independent of the `use_symmetry` option
+    # Nearly all computations will be done inside this symmetry group;
+    # the exceptions is inexact operations on the FFT grid (ie xc),
+    # which doesn't respect the symmetry
     symmetries::Vector{SymOp}
 
     # Instantiated terms (<: Term), that contain a backreference to basis.
