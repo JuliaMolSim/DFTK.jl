@@ -136,13 +136,13 @@ end
             τk .+= @. occupation[ik][n] / 2 * real(conj(dαψnk_real) * dαψnk_real)
         end
         τk_fourier = r_to_G(basis, complex(τk))
-        lowpass_for_symmetry!(τk_fourier, basis)
         accumulate_over_symmetries!(τ_fourier[:, :, :, kpt.spin], τk_fourier,
                                     basis, basis.ksymops[ik])
     end
     mpi_sum!(τ_fourier, basis.comm_kpts)
     count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
     count = mpi_sum(count, basis.comm_kpts)
+    lowpass_for_symmetry!(τ_fourier, basis)
     G_to_r(basis, τ_fourier) ./ count
 end
 

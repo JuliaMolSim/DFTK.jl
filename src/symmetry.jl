@@ -247,9 +247,9 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
     ρin_fourier = r_to_G(basis, ρin)
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρin, 4)
-        lowpass_for_symmetry!(ρin_fourier[:, :, :, σ], basis; symmetries=symmetries)
         accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
+        lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries=symmetries)
     end
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
