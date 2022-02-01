@@ -51,7 +51,6 @@ function ChainRulesCore.rrule(::typeof(G_to_r), basis::PlaneWaveBasis, kpt::Kpoi
     return f_real, G_to_r_pullback
 end
 
-
 # workaround rrules for mpi: treat as noop
 function ChainRulesCore.rrule(::typeof(mpi_sum), arr, comm)
     function mpi_sum_pullback(Δy)
@@ -372,7 +371,43 @@ function _autodiff_fast_hblock_mul(fast_hblock::NamedTuple, ψ)
         Hψ_k
     end
     Hψ = reduce(hcat, map(Hψ, eachcol(ψ)))
+    Hψ
+end
 
+function _autodiff_slow_hblock_mul(fast_hblock::NamedTuple, ψ)
+    println("slow hblock fallback")
+    H = fast_hblock.H
+
+    basis = H.basis
+    T = eltype(basis)
+    kpt = H.kpoint
+    nband = size(ψ, 2)
+
+    Hψ_fourier = similar(ψ[:, 1])
+    ψ_real = zeros(complex(T), basis.fft_size...)
+    Hψ_real = zeros(complex(T), basis.fft_size...)
+
+    function Hψ(ψk)
+        ψ_real = G_to_r(basis, kpt, ψk)
+        Hψ_fourier = similar(ψ[:, 1])
+        Hψ_real = zeros(complex(T), basis.fft_size...)
+        for op in H.optimized_operators
+            # is the speedup in forward really worth the effort?
+            if op isa RealSpaceMultiplication
+                Hψ_real += op.potential .* ψ_real
+            elseif op isa FourierMultiplication
+                Hψ_fourier += op.multiplier .* ψk
+            elseif op isa NonlocalOperator
+                Hψ_fourier += op.P * (op.D * (op.P' * ψk))
+            else
+                @error "op not reversed"
+            end
+        end
+        Hψ_k = Hψ_fourier + r_to_G(basis, kpt, Hψ_real)
+        Hψ_k
+    end
+    Hψ = reduce(hcat, map(Hψ, eachcol(ψ)))
+    println("chainrule ",norm(Hψ))
     Hψ
 end
 
@@ -380,7 +415,7 @@ end
 # a pure version of *(H::Hamiltonian, ψ)
 function _autodiff_apply_hamiltonian(H::Hamiltonian, ψ)
     return [
-        _autodiff_fast_hblock_mul(
+        _autodiff_slow_hblock_mul(
             # TODO clean up and generalize
             (fourier_op=hblock.optimized_operators[1], real_op=hblock.optimized_operators[2], H=hblock),
             ψk

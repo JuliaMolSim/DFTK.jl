@@ -4,7 +4,9 @@ Nonlocal term coming from norm-conserving pseudopotentials in Kleinmann-Bylander
 """
 struct AtomicNonlocal end
 function (::AtomicNonlocal)(basis::PlaneWaveBasis)
+    #@warn "AtomicNonlocal constructor"
     # keep only pseudopotential atoms
+    println("NonLocal PlaneWaveBasis constructor")
     atoms = [elem.psp => positions
              for (elem, positions) in basis.model.atoms
              if elem isa ElementPsp]
@@ -25,6 +27,7 @@ end
 @timing "ene_ops: nonlocal" function ene_ops(term::TermAtomicNonlocal,
                                              basis::PlaneWaveBasis{T},
                                              ψ, occ; kwargs...) where {T}
+    #@warn "AtomicNonlocal ene_ops"
     isnothing(ψ) && return (E=T(Inf), ops=term.ops)
 
     E = zero(T)
@@ -41,6 +44,8 @@ end
 @timing "forces: nonlocal" function compute_forces(::TermAtomicNonlocal,
                                                    basis::PlaneWaveBasis{TT},
                                                    ψ, occ; kwargs...) where TT
+
+    #@warn "AtomicNonlocal compute_forces"
     T = promote_type(TT, real(eltype(ψ[1])))
     atoms = basis.model.atoms
     unit_cell_volume = basis.model.unit_cell_volume
@@ -115,6 +120,20 @@ function build_projection_coefficients_(basis::PlaneWaveBasis{T}, atoms) where {
     proj_coeffs
 end
 
+function _build_projection_coefficients_(basis::PlaneWaveBasis{T}, atoms) where {T}
+    # TODO In the current version the proj_coeffs still has a lot of zeros.
+    #      One could improve this by storing the blocks as a list or in a
+    #      BlockDiagonal data structure
+    proj_coeffs = zeros(T, 0, 0)
+    n_proj = count_n_proj(atoms)
+    if (n_proj > 0)
+        # avoid nested for (contains mutation)
+        blocks = [[build_projection_coefficients_(psp) for r in positions] for (psp, positions) in atoms]
+        proj_coeffs = reduce((a,b)->cat(a,b,dims=(1,2)), reduce(vcat, blocks))
+    end
+    proj_coeffs
+end
+
 # Builds the projection coefficient matrix for a single atom
 # The ordering of the projector indices is (l,m,i), where l, m are the
 # AM quantum numbers and i is running over all projectors for a given l.
@@ -129,6 +148,13 @@ function build_projection_coefficients_(psp::NormConservingPsp)
         proj_coeffs[range, range] = psp.h[l + 1]
         count += n_proj_l
     end # l, m
+    proj_coeffs
+end
+
+function _build_projection_coefficients_(psp::NormConservingPsp)
+    #@warn "AtomicNonlocal build_projection_coefficients_(psp::NormConservingPsp)"
+    blocks = [[psp.h[l + 1] for m in -l:l] for l in 0:psp.lmax]
+    proj_coeffs = reduce((a,b)->cat(a,b,dims=(1,2)), reduce(vcat,blocks))
     proj_coeffs
 end
 
@@ -147,7 +173,20 @@ where pihat(q) = ∫_R^3 pi(r) e^{-iqr} dr
 
 We store 1/√Ω pihat(k+G) in proj_vectors.
 """
-function build_projection_vectors_(basis::PlaneWaveBasis{T}, atoms, kpt::Kpoint) where {T}
+function build_projection_coefficients_(psp::NormConservingPsp)
+    n_proj = count_n_proj(psp)
+    proj_coeffs = zeros(n_proj, n_proj)
+    count = 0
+    for l in 0:psp.lmax, m in -l:l
+        n_proj_l = size(psp.h[l + 1], 1)  # Number of i's
+        range = count .+ (1:n_proj_l)
+        proj_coeffs[range, range] = psp.h[l + 1]
+        count += n_proj_l
+    end # l, m
+    proj_coeffs
+end
+
+function _build_projection_vectors_(basis::PlaneWaveBasis{T}, atoms, kpt::Kpoint) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
     n_proj = count_n_proj(atoms)
     n_G    = length(G_vectors(basis, kpt))
@@ -178,25 +217,56 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, atoms, kpt::Kpoint)
     proj_vectors
 end
 
+function build_projection_vectors_(basis::PlaneWaveBasis{T}, atoms, kpt::Kpoint) where {T}
+    #@warn "AtomicNonLocal build_projection_vectors_(basis::PlaneWaveBasis{T}, atoms, kpt::Kpoint)"
+    unit_cell_volume = basis.model.unit_cell_volume
+    n_proj = count_n_proj(atoms)
+    #n_G    = length(G_vectors(basis, kpt))
+    proj_vectors = zeros(Complex{T}, 0, 0)
+    
+    # Compute the columns of proj_vectors = 1/√Ω pihat(k+G)
+    # Since the pi are translates of each others, pihat(k+G) decouples as
+    # pihat(q) = ∫ p(r-R) e^{-iqr} dr = e^{-iqR} phat(q).
+    # The first term is the structure factor, the second the form factor.
+    if (n_proj > 0)
+        function structure_factors(r)
+            map(q -> cis(-2T(π) * dot(q, r)), Gplusk_vectors(basis, kpt))
+        end
+        function build_columns(psp, positions)
+            proj_vectors_local = zeros(Complex{T}, 0, 0)
+            # Compute position-independent form factors
+            form_factors = build_form_factors(psp, Gplusk_vectors_cart(basis, kpt))
+            # Combine with structure factors
+            # k+G in this formula can also be G, this only changes an unimportant phase factor
+            cols = [structure_factors(r) .* form_factors[:, iproj] ./ sqrt(unit_cell_volume) for iproj = 1:count_n_proj(psp), r in positions]
+            
+            return reduce(hcat, cols)
+        end
+        proj_vectors = reduce(hcat, [build_columns(psp, positions) for (psp, positions) in atoms])
+    end
+    #@assert offset == n_proj
+    proj_vectors
+end
+
 """
 Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
 function build_form_factors(psp, qs)
+    # @warn "AtomicNonLocal build_form_factors"
     qnorms = norm.(qs)
     T = real(eltype(qnorms))
     # Compute position-independent form factors
-    form_factors = zeros(Complex{T}, length(qs), count_n_proj(psp))
-    count = 1
-    for l in 0:psp.lmax, m in -l:l
+
+    function build_factor(l,m)
         prefac_lm = im^l .* ylm_real.(l, m, qs)
         n_proj_l = size(psp.h[l + 1], 1)
 
-        for iproj in 1:n_proj_l
-            radial_il = eval_psp_projector_fourier.(psp, iproj, l, qnorms)
-            form_factors[:, count] = prefac_lm .* radial_il
-            count += 1
-        end
+        form_factors_local = reduce(hcat, [prefac_lm .* eval_psp_projector_fourier.(psp, iproj, l, qnorms) for iproj in 1:n_proj_l])
+
+        form_factors_local
     end
-    @assert count == count_n_proj(psp) + 1
+    # for avoid nested for loop for Zygote compat
+    form_factors = reduce(hcat, reduce(vcat, [[build_factor(l,m) for m in -l:l] for l in 0:psp.lmax])) 
+
     form_factors
 end
