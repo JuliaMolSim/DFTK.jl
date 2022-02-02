@@ -100,8 +100,7 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
                 # If the difference between kred and Stilde' * k == Stilde^{-1} * k
                 # is only integer in fractional reciprocal-space coordinates, then
                 # kred and S' * k are equivalent k-points
-                S = symop.S
-                all(isinteger, kred - (S * k))
+                all(isinteger, kred - (symop.S * k))
             end
 
             if isym === nothing  # No symop found for $k -> $kred

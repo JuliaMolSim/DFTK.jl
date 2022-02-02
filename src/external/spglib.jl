@@ -62,7 +62,7 @@ function spglib_cell(lattice, atoms, magnetic_moments)
 end
 
 
-@timing function spglib_get_symmetry(lattice, atoms, magnetic_moments=[]; tol_symmetry=1e-5)
+@timing function spglib_get_symmetry(lattice, atoms, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
     lattice = Matrix{Float64}(lattice)  # spglib operates in double precision
 
     if isempty(atoms)

@@ -45,19 +45,17 @@
 @doc raw"""
 Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
-function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=1e-5)
+function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
     symmetries = []
     # Get symmetries from spglib
     Stildes, τtildes = spglib_get_symmetry(lattice, atoms, magnetic_moments;
                                            tol_symmetry=tol_symmetry)
-
     for isym = 1:length(Stildes)
         S = Stildes[isym]'                  # in fractional reciprocal coordinates
         τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates
         push!(symmetries, SymOp(S, τ))
     end
-
-    symmetries = unique(symmetries)
+    unique(symmetries)
 end
 
 """
@@ -68,7 +66,7 @@ function symmetries_preserving_kgrid(symmetries, kcoords)
         all(normalize_kpoint_coordinate(S * k) in kcoords
             for k in normalize_kpoint_coordinate.(kcoords))
     end
-    symmetries = filter(symop -> preserves_grid(symop.S), symmetries)
+    filter(symop -> preserves_grid(symop.S), symmetries)
 end
 
 """
@@ -123,7 +121,7 @@ basis of the new ``k``-point).
 """
 function apply_ksymop(ksymop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     S, τ = ksymop.S, ksymop.τ
-    S == I && iszero(τ) && return kpoint, ψk
+    ksymop == one(SymOp) && return kpoint, ψk
 
     # Apply S and reduce coordinates to interval [-0.5, 0.5)
     # Doing this reduction is important because
@@ -179,10 +177,9 @@ end
 function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
     T = eltype(basis)
     for symop in symmetries
-        S, τ = symop.S, symop.τ
-        invS = Mat3{Int}(inv(S))
+        invS = Mat3{Int}(inv(symop.S))
         # Common special case, where ρin does not need to be processed
-        if S == I && iszero(τ)
+        if symop == one(SymOp)
             ρaccu .+= ρin
             continue
         end
@@ -198,7 +195,7 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             igired = index_G_vectors(basis, invS * G)
             if igired !== nothing
-                @inbounds ρaccu[ig] += cis(-2T(π) * dot(G, τ)) * ρin[igired]
+                @inbounds ρaccu[ig] += cis(-2T(π) * dot(G, symop.τ)) * ρin[igired]
             end
         end
     end  # symop
