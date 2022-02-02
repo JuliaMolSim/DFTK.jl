@@ -68,8 +68,8 @@ Filter out the symmetry operations that respect the symmetries of the discrete B
 function symmetries_preserving_kgrid(symmetries, kcoords)
     kcoords_normalized = normalize_kpoint_coordinate.(kcoords)
     T = eltype(kcoords[1])
-    tol = T <: Rational ? 0 : sqrt(eps(T))
-    is_approx_in(x, X, tol) = any(y -> norm(x-y) ≤ tol, X)
+    atol = T <: Rational ? 0 : sqrt(eps(T))
+    is_approx_in(x, X, tol) = any(y -> isapprox(x, y; atol), X)
     function preserves_grid(S)
         all(is_approx_in(normalize_kpoint_coordinate(S * k), kcoords_normalized, tol)
             for k in kcoords_normalized)
@@ -82,10 +82,10 @@ end
 Find the subset of symmetries compatible with the grid induced by the given kcoords and ksymops
 """
 function symmetries_preserving_kcoords_ksymops(symmetries, kcoords, ksymops)
-    all_kcoords = []
-    for ik=1:length(kcoords)
+    all_kcoords = Vector{SymOp}[]
+    for ik = 1:length(kcoords)
         for symop in ksymops[ik]
-            push!(all_kcoords, symop[1]*kcoords[ik])
+            push!(all_kcoords, symop[1] * kcoords[ik])
         end
     end
     symmetries_preserving_kgrid(symmetries, all_kcoords)

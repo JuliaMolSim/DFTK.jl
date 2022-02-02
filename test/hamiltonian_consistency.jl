@@ -44,7 +44,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
             E.total
         end
 
-        diff = (compute_E(ε)-compute_E(-ε))/(2ε)
+        diff = (compute_E(ε) - compute_E(-ε)) / (2ε)
 
         diff_predicted = 0.0
         for ik in 1:length(basis.kpoints)

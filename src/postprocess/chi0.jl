@@ -254,7 +254,6 @@ function apply_χ0(ham, ψ, εF, eigenvalues, δV; kwargs_sternheimer...)
            Smearing.occupation.(model.smearing, (eigenvalues[ik] .- εF) ./ model.temperature)
            for ik = 1:length(basis.kpoints)]
 
-
     # Make δV respect the basis symmetry group, since we won't be able
     # to compute perturbations that don't anyway
     δV = symmetrize_ρ(basis, δV)
