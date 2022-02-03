@@ -419,20 +419,6 @@ function _autodiff_energy_hamiltonian(basis, ψ, occ, ρ)
     return energies, H
 end
 
-
-# function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{HamiltonianBlock}, basis, kpt, operators, scratch)
-#     @warn "HamiltonianBlock rrule triggered."
-#     _, optimize_operators_pullback = rrule_via_ad(config, optimize_operators_, operators)
-#     function T_pullback(∂hblock)
-#         # TODO accomodate for ∂hblock being a tangent for DftHamiltonianBlock (no optimized_operators field)
-#         _, ∂operators = optimize_operators_pullback(∂hblock.optimized_operators)
-#         ∂operators = ∂operators + ∂hblock.operators
-#         return NoTangent(), ∂hblock.basis, ∂hblock.kpoint, ∂operators, ∂hblock.scratch
-#     end
-#     return T(basis, kpt, operators, scratch), T_pullback
-# end
-
-
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis; kwargs...)
     @warn "self_consistent_field rrule triggered."
     scfres = self_consistent_field(basis; kwargs...)
