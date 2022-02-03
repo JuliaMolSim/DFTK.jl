@@ -8,7 +8,7 @@ using Zygote
 ## Again we take the example of a Helium atom.
 He = ElementPsp(:He, psp=load_psp("hgh/lda/He-q2"))
 atoms = [He => [[1/2; 1/2; 1/2]]]  # Helium at the center of the box
-function make_basis(ε::T; a=10., Ecut=20) where T
+function make_basis(ε::T; a=10., Ecut=5) where T  # too small Ecut, only for efficient debugging
     lattice=T(a) * Mat3(I(3))  # lattice is a cube of ``a`` Bohrs
     # model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn];
     #                   extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
@@ -52,10 +52,10 @@ polarizability_fd = let
     ε = 0.001
     (compute_dipole(ε) - compute_dipole(0.0)) / ε
 end
-# 5.927461312097749
+# 8.08068504649102
 
 Zygote.gradient(compute_dipole, 0.0)
-# 5.928921932722478
+# 8.08068504649102
 # incl. compile time: 229 seconds
 # second call:         40 seconds
 

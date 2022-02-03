@@ -1,5 +1,9 @@
 ## Densities (and potentials) are represented by arrays
 ## ρ[ix,iy,iz,iσ] in real space, where iσ ∈ [1:n_spin_components]
+#
+# TODO - This file needs a bit of cleanup: There is code duplication in
+#        compute_density, compute_δρ, compute_kinetic_energy_density
+#      - Use symmetrization instead of explicit use of symmetry operators
 
 """
 Compute the partial density at the indicated ``k``-Point and return it (in Fourier space).
@@ -124,10 +128,34 @@ end
     δρ = G_to_r(basis, δρ_fourier) ./ count
     # Check sanity in the density, we should have ∫δρ = 0
     if abs(sum(δρ)) > sqrt(eps(T))
-        @warn("Non-neutral δρ", sum_δρ=sum(δρ))
+        @warn "Non-neutral δρ" sum_δρ=sum(δρ)
     end
     δρ
 end
+
+
+@views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
+    n_spin = basis.model.n_spin_components
+    τ_fourier = zeros(complex(T), basis.fft_size..., n_spin)
+
+    for (ik, kpt) in enumerate(basis.kpoints)
+        G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(basis, kpt)] for α in 1:3]
+        τk = zeros(T, basis.fft_size)
+        for (n, ψnk) in enumerate(eachcol(ψ[ik])), α = 1:3
+            dαψnk_real = G_to_r(basis, kpt, im .* G_plus_k[α] .* ψnk)
+            τk .+= @. occupation[ik][n] / 2 * real(conj(dαψnk_real) * dαψnk_real)
+        end
+        τk_fourier = r_to_G(basis, complex(τk))
+        lowpass_for_symmetry!(τk_fourier, basis)
+        accumulate_over_symmetries!(τ_fourier[:, :, :, kpt.spin], τk_fourier,
+                                    basis, basis.ksymops[ik])
+    end
+    mpi_sum!(τ_fourier, basis.comm_kpts)
+    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
+    count = mpi_sum(count, basis.comm_kpts)
+    G_to_r(basis, τ_fourier) ./ count
+end
+
 
 total_density(ρ) = dropdims(sum(ρ; dims=4); dims=4)
 @views function spin_density(ρ)

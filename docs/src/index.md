@@ -28,22 +28,25 @@ collection of [lectures, workshops and literature on DFT](@ref density-functiona
 
 ## [Package features](@id package-features)
 * Methods and models:
-    - Kohn-Sham-like models, with an emphasis on flexibility: compose your own model,
-      from Cohen-Bergstresser linear eigenvalue equations to Gross-Pitaevskii equations
-      and sophisticated LDA/GGA functionals (any functional from the
-      [libxc](https://tddft.org/programs/libxc/) library)
+    - Standard DFT models (LDA, GGA, meta-GGA): Any functional from the
+      [libxc](https://tddft.org/programs/libxc/) library
+    - Flexibility to build your own Kohn-Sham model:
+      Anything from analytic potentials, linear Cohen-Bergstresser models,
+      Gross-Pitaevskii equations, anyonic models, etc.
     - Analytic potentials or Godecker norm-conserving pseudopotentials (GTH, HGH)
     - Brillouin zone symmetry for ``k``-point sampling using [spglib](https://atztogo.github.io/spglib/)
-    - Smearing functions for metals
+    - Standard smearing functions (including Methfessel-Paxton
+      and Marzari-Vanderbilt cold smearing)
     - Collinear spin polarization for magnetic systems
-    - Self-consistent field approaches: Damping, Kerker mixing,
-      [LDOS mixing](https://doi.org/10.1088/1361-648X/abcbdb), Anderson/Pulay/DIIS acceleration
+    - Self-consistent field approaches including Kerker mixing,
+      [LDOS mixing](https://doi.org/10.1088/1361-648X/abcbdb),
+      [adaptive damping](https://arxiv.org/abs/2109.14018)
     - Direct minimization, Newton solver
     - Multi-level threading (``k``-points eigenvectors, FFTs, linear algebra)
     - MPI-based distributed parallelism (distribution over ``k``-points)
     - 1D / 2D / 3D systems
     - External magnetic fields
-    - Treat systems beyond 800 electrons
+    - Treat systems of 1000 electrons
 * Ground-state properties and post-processing:
     - Total energy
     - Forces, stresses
@@ -52,12 +55,11 @@ collection of [lectures, workshops and literature on DFT](@ref density-functiona
     - Easy access to all intermediate quantities (e.g. density, Bloch waves)
 * Support for arbitrary floating point types, including `Float32` (single precision)
   or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)).
-  For DFT this is currently restricted to LDA (with Slater exchange and VWN correlation).
 * Runs out of the box on Linux, macOS and Windows
 * Third-party integrations:
     - Seamless integration with many standard [Input and output formats](@ref).
-    - Use structures prepared in [pymatgen](https://pymatgen.org),
-      [ASE](https://wiki.fysik.dtu.dk/ase/) or [abipy](https://abinit.github.io/abipy/).
+    - Use structures prepared in [pymatgen](https://pymatgen.org) or
+      [ASE](https://wiki.fysik.dtu.dk/ase/).
     - [asedftk](https://github.com/mfherbst/asedftk):
       DFTK-based calculator implementation for ASE.
 

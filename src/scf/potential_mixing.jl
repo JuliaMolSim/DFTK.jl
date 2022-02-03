@@ -6,7 +6,8 @@ using Statistics
 #
 # Accelerates the iterative solution of f(x) = 0 according to a
 # damped preconditioned scheme
-#    xₙ₊₁ = xₙ + αₙ P⁻¹ (f(xₙ) - xₙ)
+#    xₙ₊₁ = xₙ + αₙ P⁻¹ f(xₙ)
+# Where f(x) computes the residual (e.g. SCF(x) - x)
 # Further define
 #    preconditioned residual  Pf(x) = P⁻¹ f(x)
 #    fixed-point map          g(x)  = V + α Pf(x)
