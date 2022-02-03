@@ -382,7 +382,10 @@ function _autodiff_apply_hamiltonian(H::Hamiltonian, ψ)
     return [
         _autodiff_fast_hblock_mul(
             # TODO clean up and generalize
-            (fourier_op=hblock.optimized_operators[1], real_op=hblock.optimized_operators[2], H=hblock),
+            # (fourier_op=hblock.optimized_operators[1], real_op=hblock.optimized_operators[2], H=hblock),
+            
+            # TODO this assumes hblock to be a DftHamiltonianBlock
+            (fourier_op=hblock.fourier_op, real_op=hblock.local_op, H=hblock),
             ψk
         )
         for (hblock, ψk) in zip(H.blocks, ψ)
@@ -417,16 +420,17 @@ function _autodiff_energy_hamiltonian(basis, ψ, occ, ρ)
 end
 
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{HamiltonianBlock}, basis, kpt, operators, scratch)
-    @warn "HamiltonianBlock rrule triggered."
-    _, optimize_operators_pullback = rrule_via_ad(config, optimize_operators_, operators)
-    function T_pullback(∂hblock)
-        _, ∂operators = optimize_operators_pullback(∂hblock.optimized_operators)
-        ∂operators = ∂operators + ∂hblock.operators
-        return NoTangent(), ∂hblock.basis, ∂hblock.kpoint, ∂operators, ∂hblock.scratch
-    end
-    return T(basis, kpt, operators, scratch), T_pullback
-end
+# function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{HamiltonianBlock}, basis, kpt, operators, scratch)
+#     @warn "HamiltonianBlock rrule triggered."
+#     _, optimize_operators_pullback = rrule_via_ad(config, optimize_operators_, operators)
+#     function T_pullback(∂hblock)
+#         # TODO accomodate for ∂hblock being a tangent for DftHamiltonianBlock (no optimized_operators field)
+#         _, ∂operators = optimize_operators_pullback(∂hblock.optimized_operators)
+#         ∂operators = ∂operators + ∂hblock.operators
+#         return NoTangent(), ∂hblock.basis, ∂hblock.kpoint, ∂operators, ∂hblock.scratch
+#     end
+#     return T(basis, kpt, operators, scratch), T_pullback
+# end
 
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis; kwargs...)
