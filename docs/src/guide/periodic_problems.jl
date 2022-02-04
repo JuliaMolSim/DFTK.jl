@@ -85,7 +85,7 @@
 # ```math
 #    -i∇ \left( e^{i k⋅x} f \right) 
 #    = -i\frac{d}{dx} \left( e^{i k⋅x} f \right)
-#    = k e^{i k⋅x} f -i e^{i k⋅x} ∇f = e^{i k⋅x} (-i∇ + k) f.
+#    = k e^{i k⋅x} f + e^{i k⋅x} (-i∇) f = e^{i k⋅x} (-i∇ + k) f.
 # ```
 # Using this result twice one shows that applying ``-Δ`` yields
 # ```math
