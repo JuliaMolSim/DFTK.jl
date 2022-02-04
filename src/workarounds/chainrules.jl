@@ -383,13 +383,13 @@ function _autodiff_slow_hblock_mul(fast_hblock::NamedTuple, ψ)
     kpt = H.kpoint
     nband = size(ψ, 2)
 
-    Hψ_fourier = similar(ψ[:, 1])
-    ψ_real = zeros(complex(T), basis.fft_size...)
-    Hψ_real = zeros(complex(T), basis.fft_size...)
+    #Hψ_fourier = zero(ψ[:, 1])
+    #ψ_real = zeros(complex(T), basis.fft_size...)
+    #Hψ_real = zeros(complex(T), basis.fft_size...)
 
     function Hψ(ψk)
         ψ_real = G_to_r(basis, kpt, ψk)
-        Hψ_fourier = similar(ψ[:, 1])
+        Hψ_fourier = zero(ψ[:, 1])
         Hψ_real = zeros(complex(T), basis.fft_size...)
         for op in H.optimized_operators
             # is the speedup in forward really worth the effort?
@@ -406,7 +406,9 @@ function _autodiff_slow_hblock_mul(fast_hblock::NamedTuple, ψ)
         Hψ_k = Hψ_fourier + r_to_G(basis, kpt, Hψ_real)
         Hψ_k
     end
-    Hψ = reduce(hcat, map(Hψ, eachcol(ψ)))
+    # TODO: do mapreduce?
+    # Hψ = reduce(hcat, map(Hψ, eachcol(ψ)))
+    Hψ = mapreduce(Hψ, hcat, eachcol(ψ))
     println("chainrule ",norm(Hψ))
     Hψ
 end
