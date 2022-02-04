@@ -59,7 +59,7 @@ auconvert(Å, 1.2)  # 1.2 Bohr in Ångström
     are Bohr (used by DFTK) and Ångström (used e.g. by ASE, 1Å ≈ 1.80 Bohr).
     When setting up a calculation for DFTK
     one needs to ensure to convert to Bohr and atomic units.
-    For some Python libraries (currently ASE, pymatgen and abipy)
+    For some Python libraries (currently ASE and pymatgen)
     DFTK directly ships conversion tools in form of the [`load_lattice`](@ref)
     and [`load_atoms`](@ref) functions,
     which take care of such conversions. Examples which demonstrate this

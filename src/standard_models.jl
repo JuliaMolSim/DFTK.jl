@@ -1,6 +1,5 @@
 # Convenience functions to make standard models
 
-
 """
 Convenience constructor, which builds a standard atomic (kinetic + atomic potential) model.
 Use `extra_terms` to add additional terms.
@@ -44,7 +43,17 @@ end
 
 """
 Build an PBE-GGA model from the specified atoms.
+DOI:10.1103/PhysRevLett.77.3865
 """
 function model_PBE(lattice::AbstractMatrix, atoms::Vector; kwargs...)
     model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe]; kwargs...)
+end
+
+
+"""
+Build a SCAN meta-GGA model from the specified atoms.
+DOI:10.1103/PhysRevLett.115.036402
+"""
+function model_SCAN(lattice::AbstractMatrix, atoms::Vector; kwargs...)
+    model_DFT(lattice, atoms, [:mgga_x_scan, :mgga_c_scan]; kwargs...)
 end

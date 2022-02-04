@@ -40,7 +40,8 @@ struct NoopOperator{T <: Real} <: RealFourierOperator
 end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
 function Matrix(op::NoopOperator)
-    zeros(eltype(op.basis), length(G_vectors(op.kpoint)), length(G_vectors(op.kpoint)))
+    n_Gk = length(G_vectors(op.basis, op.kpoint))
+    zeros(eltype(op.basis), n_Gk, n_Gk)
 end
 
 """
@@ -52,7 +53,7 @@ struct RealSpaceMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOpe
     kpoint::Kpoint{T}
     potential::AT
 end
-@timing_seq "apply RealSpaceMultiplication" function apply!(Hψ, op::RealSpaceMultiplication, ψ)
+function apply!(Hψ, op::RealSpaceMultiplication, ψ)
     Hψ.real .+= op.potential .* ψ.real
 end
 function Matrix(op::RealSpaceMultiplication)
@@ -83,7 +84,7 @@ struct FourierMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOpera
     kpoint::Kpoint{T}
     multiplier::AT
 end
-@timing_seq "apply FourierMultiplication" function apply!(Hψ, op::FourierMultiplication, ψ)
+function apply!(Hψ, op::FourierMultiplication, ψ)
     Hψ.fourier .+= op.multiplier .* ψ.fourier
 end
 Matrix(op::FourierMultiplication) = Array(Diagonal(op.multiplier))
@@ -100,7 +101,7 @@ struct NonlocalOperator{T <: Real, PT, DT} <: RealFourierOperator
     P::PT
     D::DT
 end
-@timing_seq "apply NonlocalOperator" function apply!(Hψ, op::NonlocalOperator, ψ)
+function apply!(Hψ, op::NonlocalOperator, ψ)
     Hψ.fourier .+= op.P * (op.D * (op.P' * ψ.fourier))
 end
 Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
@@ -113,17 +114,42 @@ struct MagneticFieldOperator{T <: Real, AT} <: RealFourierOperator
     kpoint::Kpoint{T}
     Apot::AT  # Apot[α][i,j,k] is the A field in (cartesian) direction α
 end
-@timing_seq "apply MagneticFieldOperator" function apply!(Hψ, op::MagneticFieldOperator, ψ)
+function apply!(Hψ, op::MagneticFieldOperator, ψ)
     # TODO this could probably be better optimized
     for α = 1:3
         iszero(op.Apot[α]) && continue
-        pα = [q[α] for q in Gplusk_vectors_cart(op.basis, op.kpoint)]
+        pα = [Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)]
         ∂αψ_fourier = pα .* ψ.fourier
         ∂αψ_real = G_to_r(op.basis, op.kpoint, ∂αψ_fourier)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real
     end
 end
 # TODO Implement  Matrix(op::MagneticFieldOperator)
+
+@doc raw"""
+Nonlocal "divAgrad" operator ``-½ ∇ ⋅ (A ∇)`` where ``A`` is a scalar field on the
+real-space grid. The ``-½`` is included, such that this operator is a generalisation of the
+kinetic energy operator (which is obtained for ``A=1``).
+"""
+struct DivAgradOperator{T <: Real, AT} <: RealFourierOperator
+    basis::PlaneWaveBasis{T}
+    kpoint::Kpoint{T}
+    A::AT
+end
+function apply!(Hψ, op::DivAgradOperator, ψ,
+                                                     ψ_scratch=zeros(complex(eltype(op.basis)),
+                                                                     op.basis.fft_size...))
+    # TODO: Performance improvements: Unscaled plans, avoid remaining allocations
+    #       (which are only on the small k-point-specific Fourier grid
+    G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)] for α in 1:3]
+    for α = 1:3
+        ∂αψ_real = G_to_r!(ψ_scratch, op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
+        A∇ψ      = r_to_G(op.basis, op.kpoint, ∂αψ_real .* op.A)
+        Hψ.fourier .-= im .* G_plus_k[α] .* A∇ψ ./ 2
+
+    end
+end
+# TODO Implement  Matrix(op::DivAgrad)
 
 
 # Optimize RFOs by combining terms that can be combined

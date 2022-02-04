@@ -105,7 +105,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 
 # Solves Q (H-εn) Q δψn = -Q rhs
 # where Q is the projector on the orthogonal of ψk
-@timing_seq function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs; tol_cg=1e-6, verbose=false)
+function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs; tol_cg=1e-6, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
 

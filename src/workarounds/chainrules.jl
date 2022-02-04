@@ -354,21 +354,19 @@ DFTK.energy_hamiltonian(basis, ψ, occ, ρ) = DFTK.energy_hamiltonian(basis, ψ,
 
 solve_ΩplusK(basis::PlaneWaveBasis, ψ, ::NoTangent, occupation) = 0ψ
 
-function _autodiff_fast_hblock_mul(fast_hblock::NamedTuple, ψ)
-    # a pure version of *(H::HamiltonianBlock, ψ)
+function _autodiff_fast_hblock_mul(hblock::DftHamiltonianBlock, ψ)
+    # a pure version of *(H::DftHamiltonianBlock, ψ)
     # TODO this currently only considers kinetic+local
-    H = fast_hblock.H
-    basis = H.basis
-    kpt = H.kpoint
-    nband = size(ψ, 2)
+    basis = hblock.basis
+    kpt = hblock.kpoint
 
-    potential = fast_hblock.real_op.potential
+    potential = hblock.local_op.potential
     potential = potential / prod(basis.fft_size)  # because we use unnormalized plans
 
     function Hψ(ψk)
         ψ_real = G_to_r(basis, kpt, ψk) .* potential ./ basis.G_to_r_normalization
         Hψ_k = r_to_G(basis, kpt, ψ_real) ./ basis.r_to_G_normalization
-        Hψ_k = Hψ_k + fast_hblock.fourier_op.multiplier .* ψk
+        Hψ_k = Hψ_k + hblock.fourier_op.multiplier .* ψk
         Hψ_k
     end
     Hψ = reduce(hcat, map(Hψ, eachcol(ψ)))
@@ -376,17 +374,10 @@ function _autodiff_fast_hblock_mul(fast_hblock::NamedTuple, ψ)
     Hψ
 end
 
-
 # a pure version of *(H::Hamiltonian, ψ)
 function _autodiff_apply_hamiltonian(H::Hamiltonian, ψ)
-    return [
-        _autodiff_fast_hblock_mul(
-            # TODO clean up and generalize
-            (fourier_op=hblock.optimized_operators[1], real_op=hblock.optimized_operators[2], H=hblock),
-            ψk
-        )
-        for (hblock, ψk) in zip(H.blocks, ψ)
-    ]
+    # TODO this currently assumes hblock to be a DftHamiltonianBlock
+    return [_autodiff_fast_hblock_mul(hblock, ψk) for (hblock, ψk) in zip(H.blocks, ψ)]
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(*), H::Hamiltonian, ψ)
@@ -415,19 +406,6 @@ function _autodiff_energy_hamiltonian(basis, ψ, occ, ρ)
                             for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
     return energies, H
 end
-
-
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{HamiltonianBlock}, basis, kpt, operators, scratch)
-    @warn "HamiltonianBlock rrule triggered."
-    _, optimize_operators_pullback = rrule_via_ad(config, optimize_operators_, operators)
-    function T_pullback(∂hblock)
-        _, ∂operators = optimize_operators_pullback(∂hblock.optimized_operators)
-        ∂operators = ∂operators + ∂hblock.operators
-        return NoTangent(), ∂hblock.basis, ∂hblock.kpoint, ∂operators, ∂hblock.scratch
-    end
-    return T(basis, kpt, operators, scratch), T_pullback
-end
-
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis; kwargs...)
     @warn "self_consistent_field rrule triggered."

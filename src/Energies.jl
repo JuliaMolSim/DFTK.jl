@@ -32,7 +32,7 @@ function Energies(term_types::Vector, energies::Vector{T}) where {T}
                              for (i, term) in enumerate(term_types)]...))
 end
 
-function Base.propertynames(energies::Energies, private=false)
+function Base.propertynames(energies::Energies, private::Bool=false)
     ret = keys(energies)
     append!(ret, "total")
     private && append!(ret, "energies")
