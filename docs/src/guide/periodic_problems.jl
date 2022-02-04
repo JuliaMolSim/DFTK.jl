@@ -85,15 +85,15 @@
 # ```math
 #    -i∇ \left( e^{i k⋅x} f \right) 
 #    = -i\frac{d}{dx} \left( e^{i k⋅x} f \right)
-#    = k e^{i k⋅x} f -i∇ e^{i k⋅x} f = (-i∇ + k) e^{i k⋅x} f.
+#    = k e^{i k⋅x} f + e^{i k⋅x} (-i∇) f = e^{i k⋅x} (-i∇ + k) f.
 # ```
 # Using this result twice one shows that applying ``-Δ`` yields
 # ```math
 # \begin{aligned}
 #    -\Delta \left(e^{i k⋅x} u_{kn}(x)\right)
 #    &= -i∇ ⋅ \left[-i∇ \left(u_{kn}(x) e^{i k⋅x} \right) \right] \\
-#    &= -i∇ ⋅ \left[(-i∇ + k) u_{kn}(x) e^{i k⋅x} \right] \\
-#    &= (-i∇ + k)^2 u_{kn}(x) e^{i k⋅x} \\
+#    &= -i∇ ⋅ \left[e^{i k⋅x} (-i∇ + k) u_{kn}(x) \right] \\
+#    &= e^{i k⋅x} (-i∇ + k)^2 u_{kn}(x) \\
 #    &= e^{i k⋅x} 2H_k u_{kn}(x),
 # \end{aligned}
 # ```
