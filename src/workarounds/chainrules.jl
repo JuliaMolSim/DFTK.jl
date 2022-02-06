@@ -51,7 +51,6 @@ function ChainRulesCore.rrule(::typeof(G_to_r), basis::PlaneWaveBasis, kpt::Kpoi
     return f_real, G_to_r_pullback
 end
 
-
 # workaround rrules for mpi: treat as noop
 function ChainRulesCore.rrule(::typeof(mpi_sum), arr, comm)
     function mpi_sum_pullback(Δy)
@@ -354,7 +353,8 @@ DFTK.energy_hamiltonian(basis, ψ, occ, ρ) = DFTK.energy_hamiltonian(basis, ψ,
 
 solve_ΩplusK(basis::PlaneWaveBasis, ψ, ::NoTangent, occupation) = 0ψ
 
-function _autodiff_fast_hblock_mul(hblock::DftHamiltonianBlock, ψ)
+# fast version
+function _autodiff_hblock_mul(hblock::DftHamiltonianBlock, ψ)
     # a pure version of *(H::DftHamiltonianBlock, ψ)
     # TODO this currently only considers kinetic+local
     basis = hblock.basis
@@ -370,14 +370,43 @@ function _autodiff_fast_hblock_mul(hblock::DftHamiltonianBlock, ψ)
         Hψ_k
     end
     Hψ = reduce(hcat, map(Hψ, eachcol(ψ)))
+    Hψ
+end
 
+# slow fallback version
+function _autodiff_hblock_mul(hblock::GenericHamiltonianBlock, ψ)
+    basis = hblock.basis
+    T = eltype(basis)
+    kpt = hblock.kpoint
+    nband = size(ψ, 2)
+
+    function Hψ(ψk)
+        ψ_real = G_to_r(basis, kpt, ψk)
+        Hψ_fourier = zero(ψ[:, 1])
+        Hψ_real = zeros(complex(T), basis.fft_size...)
+        for op in hblock.optimized_operators
+            # is the speedup in forward really worth the effort?
+            if op isa RealSpaceMultiplication
+                Hψ_real += op.potential .* ψ_real
+            elseif op isa FourierMultiplication
+                Hψ_fourier += op.multiplier .* ψk
+            elseif op isa NonlocalOperator
+                Hψ_fourier += op.P * (op.D * (op.P' * ψk))
+            else
+                @error "op not reversed"
+            end
+        end
+        Hψ_k = Hψ_fourier + r_to_G(basis, kpt, Hψ_real)
+        Hψ_k
+    end
+    Hψ = mapreduce(Hψ, hcat, eachcol(ψ))
+    # println("chainrule ",norm(Hψ))
     Hψ
 end
 
 # a pure version of *(H::Hamiltonian, ψ)
 function _autodiff_apply_hamiltonian(H::Hamiltonian, ψ)
-    # TODO this currently assumes hblock to be a DftHamiltonianBlock
-    return [_autodiff_fast_hblock_mul(hblock, ψk) for (hblock, ψk) in zip(H.blocks, ψ)]
+    return [_autodiff_hblock_mul(hblock, ψk) for (hblock, ψk) in zip(H.blocks, ψ)]
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(*), H::Hamiltonian, ψ)
