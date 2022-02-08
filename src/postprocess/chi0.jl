@@ -105,31 +105,92 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 
 # Solves Q (H-εn) Q δψn = -Q rhs
 # where Q is the projector on the orthogonal of ψk
-function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs; tol_cg=1e-6, verbose=false)
+function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
+                            ψk_extra=nothing, eigk_extra=nothing,
+                            tol_cg=1e-12, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
+    model = basis.model
+    temperature = model.temperature
 
-    # we err on the side of caution here by applying Q *a lot*
-    # there are optimizations to be made here
+    # TODO
+    # implement ψk_extra for metals
+    @assert temperature == 0.0 || isnothing(ψk_extra)*isnothing(eigk_extra)
+
+    # projector onto the orthogonal of occupied states
     Q(ϕ) = ϕ - ψk * (ψk' * ϕ)
-    function QHQ(ϕ)
-        Qϕ = Q(ϕ)
-        Q(Hk * Qϕ - εnk * Qϕ)
+
+    if temperature == 0.0 && !isnothing(ψk_extra)
+        # we use a Schur decomposition of the orthogonal of the occupied states
+        # where we still know some information from the partially converged
+        # nonoccupied states (in particular, they are Rayleigh-Ritz wrt to H)
+
+        Y = ψk_extra
+        # put things into the form δψnk = Yαn + Z where δψnk ∈ Ran(Q) is
+        # decomposed into δψnk = Yαn + Z where Y = ψk_extra and Z = δψnk^R ∈ Ran(R)
+        #
+        # <--- P ----><---- Q -----------
+        #                      <--- R ---
+        # |----------|--------|----------
+        # 1          N     N + N_extra
+        # <-- cvg --->
+        # <---- computed ----->
+
+        # projector onto the orthogonal of the computed states
+        R(ϕ) = ϕ - ψk * (ψk' * ϕ) - Y * (Y' * ϕ)
+
+        # Y are not converged but have been Rayleigh-Ritzed
+        # so YHY should be a real diagonal matrix
+        H(ϕ) = Hk * ϕ - εnk * ϕ
+        YHY = real.(Diagonal(Y' * H(Y)))
+        YHYi = inv(YHY)
+        b = -Q(rhs)
+
+        # 1) solve for Z
+        bb = R(b -  H(Y * YHYi * Y' * b))
+        function RAR(ϕ)
+            Rϕ = R(ϕ)
+            ARϕ = H(Rϕ - Y * YHYi * Y' * H(Rϕ))
+            R(ARϕ)
+        end
+        precon = PreconditionerTPA(basis, kpoint)
+        precondprep!(precon, ψnk)
+        function R_ldiv!(x, y)
+            x .= R(precon \ R(y))
+        end
+        J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
+        # tol_cg should not be too tight, and in particular not be
+        # too far below the error in the ψ. Otherwise Q and H
+        # don't commute enough, and an oversolving of the linear
+        # system can lead to spurious solutions
+        Z = cg(J, bb, Pl=FunctionPreconditioner(R_ldiv!),
+               reltol=0, abstol=tol_cg, verbose=verbose)
+
+        # 2) solve for αn
+        αn = YHYi * Y' * (b - H(Z))
+
+        # 3) put things together
+        return Y * αn + Z
+    else
+        function QHQ(ϕ)
+            Qϕ = Q(ϕ)
+            Q(Hk * Qϕ - εnk * Qϕ)
+        end
+        precon = PreconditionerTPA(basis, kpoint)
+        precondprep!(precon, ψnk)
+        function Q_ldiv!(x, y)
+            x .= Q(precon \ Q(y))
+        end
+        J = LinearMap{eltype(ψk)}(QHQ, size(Hk, 1))
+        # tol_cg should not be too tight, and in particular not be
+        # too far below the error in the ψ. Otherwise Q and H
+        # don't commute enough, and an oversolving of the linear
+        # system can lead to spurious solutions
+        rhs = -Q(rhs)
+        δψnk = cg(J, rhs, Pl=FunctionPreconditioner(Q_ldiv!),
+                   reltol=0, abstol=tol_cg, verbose=verbose)
+        return δψnk
     end
-    precon = PreconditionerTPA(basis, kpoint)
-    precondprep!(precon, ψnk)
-    function f_ldiv!(x, y)
-        x .= Q(precon \ Q(y))
-    end
-    J = LinearMap{eltype(ψk)}(QHQ, size(Hk, 1))
-    # tol_cg should not be too tight, and in particular not be
-    # too far below the error in the ψ. Otherwise Q and H
-    # don't commute enough, and an oversolving of the linear
-    # system can lead to spurious solutions
-    rhs = Q(rhs)
-    δψnk = cg(J, rhs, Pl=FunctionPreconditioner(f_ldiv!),
-              reltol=0, abstol=tol_cg, verbose=verbose)
-    δψnk
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
@@ -180,7 +241,9 @@ function compute_αmn(fm, fn, ratio)
     ratio * fn / (fn^2 + fm^2)
 end
 
-@views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer...)
+@views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
+                                    ψ_extra=nothing, eigenvalues_extra=nothing,
+                                    kwargs_sternheimer...)
     basis  = ham.basis
     model = basis.model
     temperature = model.temperature
@@ -192,13 +255,18 @@ end
     δεF = zero(T)
     δocc = [zero(occ[ik]) for ik = 1:Nk]  # = fn' * (δεn - δεF)
     if temperature > 0
+
+        # TODO
+        # ψ_extra not implemented for temperature
+        @assert isnothing(ψ_extra)*isnothing(eigenvalues_extra)
+
         # First compute δocc without self-consistent Fermi δεF
         D = zero(T)
         for ik = 1:Nk
             for (n, εnk) in enumerate(eigenvalues[ik])
                 enred = (εnk - εF) / temperature
                 δεnk = real(dot(ψ[ik][:, n], δHψ[ik][:, n]))
-                fpnk = (filled_occ 
+                fpnk = (filled_occ
                         * Smearing.occupation_derivative(model.smearing, enred)
                         / temperature)
                 δocc[ik][n] = δεnk * fpnk
@@ -221,7 +289,7 @@ end
         for n = 1:length(εk)
             fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n]-εF) / temperature)
 
-            # explicit contributions
+            # explicit contributions (nonzero only for temperature > 0)
             for m = 1:length(εk)
                 fmk = filled_occ * Smearing.occupation(model.smearing, (εk[m]-εF) / temperature)
                 ddiff = Smearing.occupation_divided_difference
@@ -232,7 +300,11 @@ end
 
             # Sternheimer contribution
             # TODO unoccupied orbitals may have a very bad sternheimer solve, be careful about this
-            δψk[:, n] .-= sternheimer_solver(ham.blocks[ik], ψk, ψk[:, n], εk[n], δHψ[ik][:, n];
+            ψk_extra = isnothing(ψ_extra) ? nothing : ψ_extra[ik]
+            eigk_extra = isnothing(eigenvalues_extra) ? nothing : eigenvalues_extra[ik]
+            δψk[:, n] .+= sternheimer_solver(ham.blocks[ik], ψk, ψk[:, n], εk[n], δHψ[ik][:, n];
+                                             ψk_extra=ψk_extra,
+                                             eigk_extra=eigk_extra,
                                              kwargs_sternheimer...)
         end
     end
@@ -245,9 +317,17 @@ Get the density variation δρ corresponding to a total potential variation δV.
 Note: This function assumes that all bands contained in `ψ` and `eigenvalues` are
 sufficiently converged. By default the `self_consistent_field` routine of `DFTK`
 returns `3` extra bands, which are not converged by the eigensolver
-(see `n_ep_extra` parameter). These should be discarded before using this function.
+(see `n_ep_extra` parameter). These should be discarded from `ψ` before using this
+function. However, one can still use additional information from nonconverged bands
+stored in `ψ_extra` (typically, the `3` extra bands returned by default in SCF
+routine).
 """
-function apply_χ0(ham, ψ, εF, eigenvalues, δV; kwargs_sternheimer...)
+function apply_χ0(ham, ψ, εF, eigenvalues, δV;
+                  ψ_extra=nothing, eigenvalues_extra=nothing,
+                  kwargs_sternheimer...)
+    @assert (isnothing(ψ_extra)*isnothing(eigenvalues_extra) ||
+             !isnothing(ψ_extra)*!isnothing(eigenvalues_extra))
+
     basis = ham.basis
     model = basis.model
     occ = [filled_occupation(model) *
@@ -268,9 +348,34 @@ function apply_χ0(ham, ψ, εF, eigenvalues, δV; kwargs_sternheimer...)
     # use_symmetry kwarg of basis, which is nice)
     δV = symmetrize_ρ(basis, δV) / normδV
 
+    # TODO
+    # distinction between ψ and ψ_extra not implemented yet for metals
+    if model.temperature > 0.0 && ψ_extra != nothing
+        ψ = [[ψk ψ_extra[ik]] for (ik, ψk) in enumerate(ψ)]
+        ψ_extra = nothing
+        eigenvalues = [[eigk eigenvalues_extra[ik]]
+                       for (ik, eigk) in enumerate(eigenvalues)]
+        eigenvalues_extra = nothing
+    end
+
     δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
-    δψ = apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ; kwargs_sternheimer...)
+    δψ = apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
+                     ψ_extra=ψ_extra, eigenvalues_extra=eigenvalues_extra,
+                     kwargs_sternheimer...)
     δρ = DFTK.compute_δρ(basis, ψ, δψ, occ)
     δρ * normδV
+end
+function apply_χ0(scfres, δV; kwargs_sternheimer...)
+    n_ep_extra = scfres.n_ep_extra
+
+    ψ = [ψk[:,1:end-n_ep_extra] for ψk in scfres.ψ]
+    ψ_extra = [ψk[:,end-n_ep_extra+1:end] for ψk in scfres.ψ]
+
+    eigenvalues = [eigk[1:end-n_ep_extra] for eigk in scfres.eigenvalues]
+    eigenvalues_extra = [eigk[end-n_ep_extra+1:end] for eigk in scfres.eigenvalues]
+
+    apply_χ0(scfres.ham, ψ, scfres.εF, eigenvalues, δV;
+             ψ_extra=ψ_extra, eigenvalues_extra=eigenvalues_extra,
+             kwargs_sternheimer...)
 end
