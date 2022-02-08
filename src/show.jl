@@ -64,7 +64,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
     println(io, "PlaneWaveBasis discretization:")
     showfieldln(io, "Ecut",     basis.Ecut, " Ha")
-    showfieldln(io, "fft_size", basis.fft_size)
+    showfieldln(io, "fft_size", basis.fft_size, ", ", prod(basis.fft_size), " total points")
     if !basis.variational
         showfieldln(io, "variational", "false")
     end
