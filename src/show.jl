@@ -44,9 +44,9 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     end
 end
 
-
-# TODO show function for the Kpoint struct
-
+function Base.show(io::IO, kpoint::Kpoint)
+    print(io, "k point $(kpoint.coordinate) with spin $(kpoint.spin) and $(length(kpoint.G_vectors)) G vectors")
+end
 
 function Base.show(io::IO, basis::PlaneWaveBasis)
     print(io, "PlaneWaveBasis(model = ", basis.model, ", Ecut = ", basis.Ecut, " Ha")
