@@ -32,6 +32,7 @@ Base.inv(op) = SymOp(inv(op.S), -op.S'*op.τ)
 
 function check_group(symops::Vector; kwargs...)
     is_approx_in_symops(s1) = any(s -> isapprox(s, s1; kwargs...), symops)
+    is_approx_in_symops(one(SymOp)) || error("check_group: no identity element")
     for s in symops
         if !is_approx_in_symops(inv(s))
             error("check_group: symop $s with inverse $(inv(s)) is not in the group")
