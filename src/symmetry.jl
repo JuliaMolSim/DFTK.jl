@@ -166,9 +166,9 @@ end
 Apply a `k`-point symmetry operation (the tuple (S, τ)) to a partial density.
 """
 function apply_ksymop(symop::SymOp, basis, ρin)
-    S, τ = ksymop.S, ksymop.τ
+    S, τ = symop.S, symop.τ
     S == I && iszero(τ) && return ρin
-    symmetrize_ρ(basis, ρin, [symop])
+    symmetrize_ρ(basis, ρin; symmetries=[symop])
 end
 
 
