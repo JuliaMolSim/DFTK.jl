@@ -127,7 +127,9 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
 
         Y = ψk_extra
         # put things into the form δψnk = Yαn + Z where δψnk ∈ Ran(Q) is
-        # decomposed into δψnk = Yαn + Z where Y = ψk_extra and Z = δψnk^R ∈ Ran(R)
+        # decomposed into δψnk = Yαn + Z where Y = ψk_extra and Z = δψnk^R ∈ Ran(R),
+        # R being the projector onto the orthogonal of computed states
+        # this can be summerized with the following:
         #
         # <--- P ----><---- Q -----------
         #                      <--- R ---
