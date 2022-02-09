@@ -106,7 +106,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # Solves Q (H-εn) Q δψn = -Q rhs
 # where Q is the projector on the orthogonal of ψk
 function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
-                            ψk_extra=nothing, eigk_extra=nothing,
+                            ψk_extra=nothing, εk_extra=nothing,
                             tol_cg=1e-12, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
@@ -115,7 +115,7 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
 
     # TODO
     # implement ψk_extra for metals
-    @assert temperature == 0.0 || isnothing(ψk_extra)*isnothing(eigk_extra)
+    @assert temperature == 0.0 || isnothing(ψk_extra)*isnothing(εk_extra)
 
     # projector onto the orthogonal of occupied states
     Q(ϕ) = ϕ - ψk * (ψk' * ϕ)
@@ -301,10 +301,9 @@ end
             # Sternheimer contribution
             # TODO unoccupied orbitals may have a very bad sternheimer solve, be careful about this
             ψk_extra = isnothing(ψ_extra) ? nothing : ψ_extra[ik]
-            eigk_extra = isnothing(eigenvalues_extra) ? nothing : eigenvalues_extra[ik]
+            εk_extra = isnothing(eigenvalues_extra) ? nothing : eigenvalues_extra[ik]
             δψk[:, n] .+= sternheimer_solver(ham.blocks[ik], ψk, ψk[:, n], εk[n], δHψ[ik][:, n];
-                                             ψk_extra=ψk_extra,
-                                             eigk_extra=eigk_extra,
+                                             ψk_extra=ψk_extra, εk_extra=εk_extra,
                                              kwargs_sternheimer...)
         end
     end
@@ -351,10 +350,7 @@ function apply_χ0(ham, ψ, εF, eigenvalues, δV;
     # TODO
     # distinction between ψ and ψ_extra not implemented yet for metals
     if model.temperature > 0.0 && ψ_extra != nothing
-        ψ = [[ψk ψ_extra[ik]] for (ik, ψk) in enumerate(ψ)]
         ψ_extra = nothing
-        eigenvalues = [[eigk eigenvalues_extra[ik]]
-                       for (ik, eigk) in enumerate(eigenvalues)]
         eigenvalues_extra = nothing
     end
 
@@ -366,14 +362,16 @@ function apply_χ0(ham, ψ, εF, eigenvalues, δV;
     δρ = DFTK.compute_δρ(basis, ψ, δψ, occ)
     δρ * normδV
 end
+# we use here the full scfres, with a distinction between converged bands and
+# nonconverged extra bands used in the SCF
 function apply_χ0(scfres, δV; kwargs_sternheimer...)
     n_ep_extra = scfres.n_ep_extra
 
-    ψ = [ψk[:,1:end-n_ep_extra] for ψk in scfres.ψ]
-    ψ_extra = [ψk[:,end-n_ep_extra+1:end] for ψk in scfres.ψ]
+    ψ = [@view ψk[:, 1:end-n_ep_extra] for ψk in scfres.ψ]
+    ψ_extra = [@view ψk[:, end-n_ep_extra+1:end] for ψk in scfres.ψ]
 
-    eigenvalues = [eigk[1:end-n_ep_extra] for eigk in scfres.eigenvalues]
-    eigenvalues_extra = [eigk[end-n_ep_extra+1:end] for eigk in scfres.eigenvalues]
+    eigenvalues = [εk[1:end-n_ep_extra] for εk in scfres.eigenvalues]
+    eigenvalues_extra = [εk[end-n_ep_extra+1:end] for εk in scfres.eigenvalues]
 
     apply_χ0(scfres.ham, ψ, scfres.εF, eigenvalues, δV;
              ψ_extra=ψ_extra, eigenvalues_extra=eigenvalues_extra,

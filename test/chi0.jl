@@ -9,6 +9,7 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
                    kgrid=[3, 1, 1], fft_size=[10, 1, 10], Ecut=3)
     testcase = silicon
     n_bands  = 12
+    n_ep_extra = 3
     tol      = 1e-14
     ε        = 1e-8
     testtol  = 2e-6
@@ -32,7 +33,8 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
 
         ρ0     = guess_density(basis, magnetic_moments)
         energies, ham0 = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-        res = DFTK.next_density(ham0, tol=tol, eigensolver=diag_full, n_bands=n_bands)
+        res = DFTK.next_density(ham0, tol=tol, eigensolver=diag_full,
+                                n_bands=n_bands, n_ep_extra=n_ep_extra)
         ρ1  = res.ρout
 
         # Now we make the same model, but add an artificial external potential ε * δV
@@ -51,17 +53,21 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
                           model_kwargs..., extra_terms=[term_builder])
         basis = PlaneWaveBasis(model; Ecut, basis_kwargs...)
         energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-        res = DFTK.next_density(ham, tol=tol, eigensolver=diag_full, n_bands=n_bands)
+        res = DFTK.next_density(ham, tol=tol, eigensolver=diag_full,
+                                n_bands=n_bands, n_ep_extra=n_ep_extra)
         ρ2     = res.ρout
         diff_findiff = (ρ2 - ρ1) / ε
 
         EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham0.blocks]
         Es = [EV.values[1:n_bands] for EV in EVs]
         Vs = [EV.vectors[:, 1:n_bands] for EV in EVs]
+        Es_extra = [EV.values[n_bands+1:n_bands+n_ep_extra] for EV in EVs]
+        Vs_extra = [EV.vectors[:, n_bands+1:n_bands+n_ep_extra] for EV in EVs]
         occ, εF = DFTK.compute_occupation(basis, Es)
 
         # Test apply_χ0 and compare against finite differences
-        diff_applied_χ0 = apply_χ0(ham0, Vs, εF, Es, δV)
+        diff_applied_χ0 = apply_χ0(ham0, Vs, εF, Es, δV;
+                                   ψ_extra=Vs_extra, eigenvalues_extra=Es_extra)
         @test norm(diff_findiff - diff_applied_χ0) < testtol
 
         # just to cover it here
@@ -80,8 +86,10 @@ function test_chi0(;symmetry=false, use_symmetry=false, temperature=0,
             # Test that apply_χ0 is self-adjoint
             δV1 = randn(eltype(basis), basis.fft_size..., n_spin)
             δV2 = randn(eltype(basis), basis.fft_size..., n_spin)
-            χ0δV1 = apply_χ0(ham0, Vs, εF, Es, δV1)
-            χ0δV2 = apply_χ0(ham0, Vs, εF, Es, δV2)
+            χ0δV1 = apply_χ0(ham0, Vs, εF, Es, δV1;
+                             ψ_extra=Vs_extra, eigenvalues_extra=Es_extra)
+            χ0δV2 = apply_χ0(ham0, Vs, εF, Es, δV2;
+                             ψ_extra=Vs_extra, eigenvalues_extra=Es_extra)
             @test abs(dot(δV1, χ0δV2) - dot(δV2, χ0δV1)) < testtol
         end
     end
