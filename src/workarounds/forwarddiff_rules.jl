@@ -115,6 +115,74 @@ function _is_well_conditioned(A::AbstractArray{<:ForwardDiff.Dual}; kwargs...)
     _is_well_conditioned(ForwardDiff.value.(A); kwargs...)
 end
 
+# Convert and strip off duals if that's the only way
+function convert_dual(::Type{T}, x::ForwardDiff.Dual) where {T}
+    convert(T, ForwardDiff.value(x))
+end
+convert_dual(::Type{T}, x::ForwardDiff.Dual) where {T <: ForwardDiff.Dual} = convert(T, x)
+convert_dual(::Type{T}, x) where {T} = convert(T, x)
+
+
+# TODO
+
+# TODO Should go to Model.jl / PlaneWaveBasis.jl as a constructor and along with it should
+# go a nice convert function to get rid of the annoying conversion thing in the
+# stress computation.
+function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
+    # convert atoms
+    new_atoms = [elem => [ForwardDiff.value.(pos) for pos in positions]
+                 for (elem, positions) in model.atoms]
+    Model(ForwardDiff.value.(model.lattice);
+          model_name=model.model_name,
+          n_electrons=model.n_electrons,
+          atoms=new_atoms,
+          magnetic_moments=[],  # Symmetries given explicitly
+          terms=model.term_types,
+          temperature=ForwardDiff.value(model.temperature),
+          smearing=model.smearing,
+          spin_polarization=model.spin_polarization,
+          symmetries=model.symmetries)
+end
+
+function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
+    new_kshift = isnothing(basis.kshift) ? nothing : ForwardDiff.value.(basis.kshift)
+    PlaneWaveBasis(construct_value(basis.model),
+                   ForwardDiff.value(basis.Ecut),
+                   map(v -> ForwardDiff.value.(v), basis.kcoords_global),
+                   basis.ksymops_global,
+                   basis.symmetries;
+                   fft_size=basis.fft_size,
+                   kgrid=basis.kgrid,
+                   kshift=new_kshift,
+                   variational=basis.variational,
+                   comm_kpts=basis.comm_kpts)
+end
+
+function self_consistent_field(basis_dual::PlaneWaveBasis{T}; kwargs...) where T <: ForwardDiff.Dual
+    # TODO Only a partial implementation for now
+    basis  = construct_value(basis_dual)
+    scfres = self_consistent_field(basis; kwargs...)
+    ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
+
+    ## promote everything eagerly to Dual numbers
+    @assert length(occupation) == 1
+    occupation_dual = [T.(occupation[1])]
+    ψ_dual = [Complex.(T.(real(ψ[1])), T.(imag(ψ[1])))]
+    ρ_dual = compute_density(basis_dual, ψ_dual, occupation_dual)
+
+    _, δH = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual; ρ=ρ_dual)
+    δHψ = δH * ψ_dual
+    δHψ = [ForwardDiff.partials.(δHψ[1], 1)]
+    δψ = solve_ΩplusK(basis, ψ, -δHψ, occupation)
+    δρ = compute_δρ(basis, ψ, δψ, occupation)
+    ρ = ForwardDiff.value.(ρ_dual)
+
+    DT = ForwardDiff.Dual{ForwardDiff.tagtype(occupation_dual[1][1])}
+    ψ_out = [Complex.(DT.(real(ψ[1]), real(δψ[1])), DT.(imag(ψ[1]), imag(δψ[1])))]
+    ρ_out = DT.(ρ, δρ)
+
+    (; basis=basis_dual, ψ=ψ_out, occupation=occupation_dual, ρ=ρ_out)
+end
 
 # other workarounds
 
