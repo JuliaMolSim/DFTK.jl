@@ -346,19 +346,17 @@ function apply_χ0(ham, ψ, εF, eigenvalues, δV;
            Smearing.occupation.(model.smearing, (eigenvalues[ik] .- εF) ./ model.temperature)
            for ik = 1:length(basis.kpoints)]
 
+    # Make δV respect the basis symmetry group, since we won't be able
+    # to compute perturbations that don't anyway
+    δV = symmetrize_ρ(basis, δV)
+
     # Normalize δV to avoid numerical trouble; theoretically should
     # not be necessary, but it simplifies the interaction with the
     # Sternheimer linear solver (it makes the rhs be order 1 even if
     # δV is small)
     normδV = norm(δV)
     normδV < eps(typeof(εF)) && return zero(δV)
-
-    # Make δV respect the full model symmetry group, since it's
-    # invalid to consider perturbations that don't (technically it
-    # could be made to only respect basis.symmetries, but symmetrizing wrt
-    # the model symmetry group means that χ0 is unaffected by the
-    # use_symmetry kwarg of basis, which is nice)
-    δV = symmetrize_ρ(basis, δV) / normδV
+    δV ./= normδV
 
     # TODO
     # distinction between ψ and ψ_extra not implemented yet for metals

@@ -66,12 +66,25 @@ end
 Filter out the symmetry operations that respect the symmetries of the discrete BZ grid
 """
 function symmetries_preserving_kgrid(symmetries, kcoords)
+    kcoords_normalized = normalize_kpoint_coordinate.(kcoords)
+    T = eltype(kcoords[1])
+    atol = T <: Rational ? 0 : sqrt(eps(T))
+    is_approx_in(x, X) = any(y -> isapprox(x, y; atol), X)
     function preserves_grid(S)
-        all(normalize_kpoint_coordinate(S * k) in kcoords
-            for k in normalize_kpoint_coordinate.(kcoords))
+        all(is_approx_in(normalize_kpoint_coordinate(S * k), kcoords_normalized)
+            for k in kcoords_normalized)
     end
     filter(symop -> preserves_grid(symop[1]), symmetries)
 end
+
+
+"""
+Find the subset of symmetries compatible with the grid induced by the given kcoords and ksymops
+"""
+function symmetries_preserving_kgrid(symmetries, kcoords, ksymops)
+    symmetries_preserving_kgrid(symmetries, unfold_kcoords(kcoords, ksymops))
+end
+
 
 """
 Implements a primitive search to find an irreducible subset of kpoints
@@ -209,9 +222,9 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
 end
 
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
-function lowpass_for_symmetry!(ρ, basis; symmetries=basis.model.symmetries)
+function lowpass_for_symmetry!(ρ, basis; symmetries=basis.symmetries)
     for (S, τ) in symmetries
-        S == I && iszero(τ) && continue
+        S == I && continue
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             if index_G_vectors(basis, S * G) === nothing
                 ρ[ig] = 0
@@ -222,15 +235,15 @@ function lowpass_for_symmetry!(ρ, basis; symmetries=basis.model.symmetries)
 end
 
 """
-Symmetrize a density by applying all the model symmetries (by default) and forming the average.
+Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
-@views function symmetrize_ρ(basis, ρin; symmetries=basis.model.symmetries)
+@views function symmetrize_ρ(basis, ρin; symmetries=basis.symmetries)
     ρin_fourier = r_to_G(basis, ρin)
-    ρout_fourier = copy(ρin_fourier)
+    ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρin, 4)
-        lowpass_for_symmetry!(ρin_fourier[:, :, :, σ], basis; symmetries=symmetries)
-        ρout_fourier[:, :, :, σ] = accumulate_over_symmetries!(zero(ρin_fourier[:, :, :, σ]),
-                                                               ρin_fourier[:, :, :, σ], basis, symmetries)
+        accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
+                                    ρin_fourier[:, :, :, σ], basis, symmetries)
+        lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries=symmetries)
     end
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
@@ -245,7 +258,7 @@ function symmetrize_stresses(lattice, symmetries, stresses)
     stresses_symmetrized
 end
 
-function check_symmetric(basis, ρin; tol=1e-10, symmetries=ρin.basis.model.symmetries)
+function check_symmetric(basis, ρin; tol=1e-10, symmetries=ρin.basis.symmetries)
     for symop in symmetries
         @assert norm(symmetrize_ρ(ρin, [symop]) - ρin) < tol
     end
@@ -260,12 +273,7 @@ function unfold_bz(basis::PlaneWaveBasis)
     if all(length.(basis.ksymops_global) .== 1)
         return basis
     else
-        kcoords = []
-        for (ik, kpt) in enumerate(basis.kcoords_global)
-            for (S, τ) in basis.ksymops_global[ik]
-                push!(kcoords, normalize_kpoint_coordinate(S * kpt))
-            end
-        end
+        kcoords = unfold_kcoords(basis.kcoords_global, basis.ksymops_global)
         new_basis = PlaneWaveBasis(basis.model,
                                    basis.Ecut, basis.fft_size, basis.variational,
                                    kcoords, [[identity_symop()] for _ in 1:length(kcoords)],
@@ -324,4 +332,14 @@ function unfold_bz(scfres)
     @assert E.total ≈ scfres.energies.total
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)
     merge(scfres, new_scfres)
+end
+
+function unfold_kcoords(kcoords, ksymops)
+    all_kcoords = eltype(kcoords)[]
+    for ik = 1:length(kcoords)
+        for symop in ksymops[ik]
+            push!(all_kcoords, symop[1] * kcoords[ik])
+        end
+    end
+    normalize_kpoint_coordinate.(all_kcoords)
 end
