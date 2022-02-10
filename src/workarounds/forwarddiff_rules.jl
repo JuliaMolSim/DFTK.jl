@@ -159,29 +159,30 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
 end
 
 function self_consistent_field(basis_dual::PlaneWaveBasis{T}; kwargs...) where T <: ForwardDiff.Dual
-    # TODO Only a partial implementation for now
+    # Primal pass
     basis  = construct_value(basis_dual)
     scfres = self_consistent_field(basis; kwargs...)
+
+    ## promote occupied bands to dual numbers
     ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
+    occupation_dual = [T.(occₖ) for occₖ in occupation]
+    ψ_dual = [Complex.(T.(real(ψₖ)), T.(imag(ψₖ))) for ψₖ in ψ]
+    ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
+    energies_dual, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual; ρ=ρ_dual)
 
-    ## promote everything eagerly to Dual numbers
-    @assert length(occupation) == 1
-    occupation_dual = [T.(occupation[1])]
-    ψ_dual = [Complex.(T.(real(ψ[1])), T.(imag(ψ[1])))]
-    ρ_dual = compute_density(basis_dual, ψ_dual, occupation_dual)
+    ## Implicit differentiation
+    hamψ_dual = ham_dual * ψ_dual
+    δHψ = [ForwardDiff.partials.(δHψₖ, 1) for δHψₖ in hamψ_dual]
+    δψ, response = solve_ΩplusK(basis, ψ, -δHψ, occupation)
+    δρ  = compute_δρ(basis, ψ, δψ, occupation)
 
-    _, δH = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual; ρ=ρ_dual)
-    δHψ = δH * ψ_dual
-    δHψ = [ForwardDiff.partials.(δHψ[1], 1)]
-    δψ = solve_ΩplusK(basis, ψ, -δHψ, occupation)
-    δρ = compute_δρ(basis, ψ, δψ, occupation)
-    ρ = ForwardDiff.value.(ρ_dual)
+    ## Convert, combine and return
+    DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}
+    ψ_out = [Complex.(DT.(real(ψₖ), real(δψₖ)), DT.(imag(ψₖ), imag(δψₖ))) for (ψₖ, δψₖ) in zip(ψ, δψ)]
+    ρ_out = DT.(scfres.ρ, δρ)
 
-    DT = ForwardDiff.Dual{ForwardDiff.tagtype(occupation_dual[1][1])}
-    ψ_out = [Complex.(DT.(real(ψ[1]), real(δψ[1])), DT.(imag(ψ[1]), imag(δψ[1])))]
-    ρ_out = DT.(ρ, δρ)
-
-    (; basis=basis_dual, ψ=ψ_out, occupation=occupation_dual, ρ=ρ_out)
+    merge(scfres, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
+                     occupation=occupation_dual, ρ=ρ_out, response))
 end
 
 # other workarounds

@@ -168,7 +168,7 @@ rhs = resLF - ΩpKe2;
 #   costly step, but inverting ``\bm{\Omega} + \bm{K}`` on the small space has
 #   the same cost than the full SCF cycle on the small grid.
 ψ, _ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
-e1 = DFTK.solve_ΩplusK(basis, ψ, rhs, occ; tol_cg=tol)
+e1 = DFTK.solve_ΩplusK(basis, ψ, rhs, occ; tol_cg=tol).δψ
 e1 = DFTK.transfer_blochwave(e1, basis, basis_ref)
 res_schur = e1 + Mres;
 
