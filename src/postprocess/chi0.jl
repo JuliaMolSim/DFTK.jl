@@ -117,15 +117,19 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
     Q(ϕ) = ϕ - ψk * (ψk' * ϕ)
 
     if iszero(temperature) && !isnothing(ψk_extra)
-        # we use a Schur decomposition of the orthogonal of the occupied states
+        # We use a Schur decomposition of the orthogonal of the occupied states
         # where we still know some information from the partially converged
-        # nonoccupied states (in particular, they are Rayleigh-Ritz wrt to H)
+        # nonoccupied states (in particular, they are Rayleigh-Ritz wrt to H).
+        # /!\ this is only implemented for insulators at the moment, WIP for
+        # /!\ metals (the old sternheimer is still used, see the "else" case)
 
+        # computed but nonconverged bands
         Y = ψk_extra
-        # put things into the form δψnk = Yαn + Z where δψnk ∈ Ran(Q) is
-        # decomposed into δψnk = Yαn + Z where Y = ψk_extra and Z = δψnk^R ∈ Ran(R),
-        # R being the projector onto the orthogonal of computed states
-        # this can be summerized with the following:
+
+        # We put things into the form δψn = Yαn + Z ∈ Ran(Q)
+        # where Y = ψk_extra and Z ∈ Ran(R),
+        # R being the projector onto the orthogonal of computed states.
+        # This can be summerized as the following:
         #
         # <--- P ----><---- Q -----------
         #                      <--- R ---
@@ -150,6 +154,12 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
         b = -Q(rhs)
 
         # 1) solve for Z
+        # --------------
+        # writing αn as a function of Z, we get that Z solves the system (in
+        # Ran(R))
+        #
+        # R * (1 - HYIY) * (H-εn) * R * Z = R * (1 - HYIY) * b
+        #
         bb = R(b -  HYIY * b)
         function RAR(ϕ)
             HRϕ = H(R(ϕ))
@@ -169,7 +179,7 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
         Z = cg(J, bb, Pl=FunctionPreconditioner(R_ldiv!),
                reltol=0, abstol=tol_cg, verbose=verbose)
 
-        # 2) solve for αn
+        # 2) solve for αn now that we know Z
         αn = YHYi * Y' * (b - H(Z))
 
         # 3) put things together
