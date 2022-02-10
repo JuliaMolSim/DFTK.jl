@@ -51,7 +51,7 @@ end
 
 """
     Model(lattice; n_electrons, atoms, magnetic_moments, terms, temperature,
-                   smearing, spin_polarization, symmetry)
+                   smearing, spin_polarization, symmetries)
 
 Creates the physical specification of a model (without any
 discretization information).
