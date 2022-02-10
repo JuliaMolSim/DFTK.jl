@@ -89,6 +89,14 @@ function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::Abst
     _apply_plan(p.p, p.scale * x)
 end
 
+# Convert and strip off duals if that's the only way
+function convert_dual(::Type{T}, x::ForwardDiff.Dual) where {T}
+    convert(T, ForwardDiff.value(x))
+end
+convert_dual(::Type{T}, x::ForwardDiff.Dual) where {T <: ForwardDiff.Dual} = convert(T, x)
+convert_dual(::Type{T}, x) where {T} = convert(T, x)
+
+
 # DFTK setup specific
 
 next_working_fft_size(::Type{<:ForwardDiff.Dual}, size::Int) = size
@@ -114,16 +122,6 @@ end
 function _is_well_conditioned(A::AbstractArray{<:ForwardDiff.Dual}; kwargs...)
     _is_well_conditioned(ForwardDiff.value.(A); kwargs...)
 end
-
-# Convert and strip off duals if that's the only way
-function convert_dual(::Type{T}, x::ForwardDiff.Dual) where {T}
-    convert(T, ForwardDiff.value(x))
-end
-convert_dual(::Type{T}, x::ForwardDiff.Dual) where {T <: ForwardDiff.Dual} = convert(T, x)
-convert_dual(::Type{T}, x) where {T} = convert(T, x)
-
-
-# TODO
 
 # TODO Should go to Model.jl / PlaneWaveBasis.jl as a constructor and along with it should
 # go a nice convert function to get rid of the annoying conversion thing in the
