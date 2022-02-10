@@ -333,6 +333,7 @@ function unfold_bz(scfres)
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)
     merge(scfres, new_scfres)
 end
+
 function unfold_kcoords(kcoords, ksymops)
     all_kcoords = eltype(kcoords)[]
     for ik = 1:length(kcoords)
