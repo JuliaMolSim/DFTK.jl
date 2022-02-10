@@ -142,13 +142,18 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
         H(ϕ) = Hk * ϕ - εnk * ϕ
         YHY = real.(Diagonal(εk_extra .- εnk))
         YHYi = real.(Diagonal(1 ./ (εk_extra .- εnk)))
+
+        # computing products once and for all
+        HY = H(Y)
+        HYIY = HY * YHYi * Y'
+
         b = -Q(rhs)
 
         # 1) solve for Z
-        bb = R(b -  H(Y * YHYi * Y' * b))
+        bb = R(b -  HYIY * b)
         function RAR(ϕ)
-            Rϕ = R(ϕ)
-            ARϕ = H(Rϕ - Y * YHYi * Y' * H(Rϕ))
+            HRϕ = H(R(ϕ))
+            ARϕ = HRϕ - HYIY * HRϕ
             R(ARϕ)
         end
         precon = PreconditionerTPA(basis, kpoint)
