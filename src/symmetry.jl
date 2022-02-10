@@ -82,13 +82,7 @@ end
 Find the subset of symmetries compatible with the grid induced by the given kcoords and ksymops
 """
 function symmetries_preserving_kcoords_ksymops(symmetries, kcoords, ksymops)
-    all_kcoords = Vector{SymOp}[]
-    for ik = 1:length(kcoords)
-        for symop in ksymops[ik]
-            push!(all_kcoords, symop[1] * kcoords[ik])
-        end
-    end
-    symmetries_preserving_kgrid(symmetries, all_kcoords)
+    symmetries_preserving_kgrid(symmetries, unfold_kcoords(kcoords, ksymops))
 end
 
 
@@ -279,12 +273,7 @@ function unfold_bz(basis::PlaneWaveBasis)
     if all(length.(basis.ksymops_global) .== 1)
         return basis
     else
-        kcoords = []
-        for (ik, kpt) in enumerate(basis.kcoords_global)
-            for (S, τ) in basis.ksymops_global[ik]
-                push!(kcoords, normalize_kpoint_coordinate(S * kpt))
-            end
-        end
+        kcoords = unfold_kcoords(basis.kcoords_global, basis.ksymops_global)
         new_basis = PlaneWaveBasis(basis.model,
                                    basis.Ecut, basis.fft_size, basis.variational,
                                    kcoords, [[identity_symop()] for _ in 1:length(kcoords)],
@@ -343,4 +332,13 @@ function unfold_bz(scfres)
     @assert E.total ≈ scfres.energies.total
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)
     merge(scfres, new_scfres)
+end
+function unfold_kcoords(kcoords, ksymops)
+    all_kcoords = eltype(kcoords)[]
+    for ik = 1:length(kcoords)
+        for symop in ksymops[ik]
+            push!(all_kcoords, symop[1] * kcoords[ik])
+        end
+    end
+    all_kcoords
 end
