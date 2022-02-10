@@ -137,7 +137,7 @@ function Model(lattice::AbstractMatrix{T};
     # Determine symmetry operations to use
     symmetries == true  && (symmetries = default_symmetries(lattice, atoms, magnetic_moments,
                                                             terms, spin_polarization))
-    symmetries == false && (symmetries = [identity_symop()])
+    symmetries == false && (symmetries = [one(SymOp)])
     @assert !isempty(symmetries)  # Identity has to be always present.
 
     Model{T}(model_name, lattice, recip_lattice, unit_cell_volume, recip_cell_volume, n_dim,
@@ -174,12 +174,12 @@ function default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polari
                         tol_symmetry=1e-5)
     dimension = count(!iszero, eachcol(lattice))
     if spin_polarization == :full || dimension != 3
-        return [identity_symop()]  # Symmetry not supported in spglib
+        return [one(SymOp)]  # Symmetry not supported in spglib
     elseif spin_polarization == :collinear && isempty(magnetic_moments)
         # Spin-breaking due to initial magnetic moments cannot be determined
-        return [identity_symop()]
+        return [one(SymOp)]
     elseif any(breaks_symmetries, terms)
-        return [identity_symop()]  # Terms break symmetry
+        return [one(SymOp)]  # Terms break symmetry
     else
         magnetic_moments = [el => normalize_magnetic_moment.(magmoms)
                             for (el, magmoms) in magnetic_moments]

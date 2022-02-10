@@ -28,6 +28,8 @@ include("common/split_evenly.jl")
 include("common/mpi.jl")
 include("common/threading.jl")
 include("common/printing.jl")
+export SymOp
+include("common/symop.jl")
 
 export PspHgh
 include("pseudo/NormConservingPsp.jl")
