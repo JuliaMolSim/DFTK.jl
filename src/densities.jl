@@ -119,7 +119,6 @@ end
     count = mpi_sum(count, basis.comm_kpts)
     lowpass_for_symmetry!(δρ_fourier, basis)
     δρ = G_to_r(basis, δρ_fourier) ./ count
-    _check_total_charge(basis.dvol, δρ, 0)
     δρ
 end
 
