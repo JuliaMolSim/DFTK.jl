@@ -113,14 +113,10 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
     model = basis.model
     temperature = model.temperature
 
-    # TODO
-    # implement ψk_extra for metals
-    @assert temperature == 0.0 || isnothing(ψk_extra)*isnothing(εk_extra)
-
     # projector onto the orthogonal of occupied states
     Q(ϕ) = ϕ - ψk * (ψk' * ϕ)
 
-    if temperature == 0.0 && !isnothing(ψk_extra)
+    if iszero(temperature) && !isnothing(ψk_extra)
         # we use a Schur decomposition of the orthogonal of the occupied states
         # where we still know some information from the partially converged
         # nonoccupied states (in particular, they are Rayleigh-Ritz wrt to H)
@@ -144,8 +140,8 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
         # Y are not converged but have been Rayleigh-Ritzed
         # so YHY should be a real diagonal matrix
         H(ϕ) = Hk * ϕ - εnk * ϕ
-        YHY = real.(Diagonal(Y' * H(Y)))
-        YHYi = inv(YHY)
+        YHY = real.(Diagonal(εk_extra .- εnk))
+        YHYi = real.(Diagonal(1 ./ (εk_extra .- εnk)))
         b = -Q(rhs)
 
         # 1) solve for Z
