@@ -21,7 +21,7 @@
 # implicitly the information at all the kpoints Sk. The
 # relationship between the Hamiltonians is
 # H_{Sk} = U H_k U*, with
-# (Uu)(x) = u(Stilde x + τtilde))
+# (Uu)(x) = u(Stilde x + τtilde)
 # or in Fourier space
 # (Uu)(G) = e^{-i G τ} u(S^-1 G)
 # In particular, we can choose the eigenvectors at Sk as u_{Sk} = U u_k

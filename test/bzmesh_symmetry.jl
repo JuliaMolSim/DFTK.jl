@@ -15,6 +15,8 @@ include("testcases.jl")
         model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93)
 
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1), use_symmetry=false, a...)
+        DFTK.check_group(basis.symmetries)
+
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10))
         ρ1 = scfres.ρ
         E1 = scfres.energies.total

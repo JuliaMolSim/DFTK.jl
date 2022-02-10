@@ -10,7 +10,8 @@ struct SymOp
         @assert all(0 .≤ τ .< 1)
         new(S, τ)
     end
-    SymOp(Sτ::Tuple) = SymOp(Sτ...) # compatibility with old stuff, doesn't hurt
+    # compatibility with old stuff, will be removed at some point but doesn't hurt for now
+    SymOp(Sτ::Tuple) = SymOp(Sτ...)
 end
 
 Base.:(==)(op1::SymOp, op2::SymOp) = op1.S == op2.S && op1.τ == op2.τ
