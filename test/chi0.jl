@@ -187,21 +187,11 @@ function test_chi0_scf(testcase; symmetry=false, use_symmetry=false, temperature
 end
 
 for testcase in (silicon, magnesium)
-    if isnothing(testcase.temperature)
-        for temperature in (0, 0.03), spin_polarization in (:none, :collinear)
-            for use_symmetry in (false, true), symmetry in (false, true)
-                test_chi0_scf(testcase; symmetry=symmetry, use_symmetry=use_symmetry,
-                              temperature=temperature,
-                              spin_polarization=spin_polarization)
-            end
-        end
-    else
-        for spin_polarization in (:none, :collinear)
-            for use_symmetry in (false, true), symmetry in (false, true)
-                test_chi0_scf(testcase; symmetry=symmetry, use_symmetry=use_symmetry,
-                              temperature=testcase.temperature,
-                              spin_polarization=spin_polarization)
-            end
+    temp = isnothing(testcase.temperature) ? (0, 0.03) : (testcase.temperature)
+    for temperature in temp, spin_polarization in (:none, :collinear)
+        for use_symmetry in (false, true), symmetry in (false, true)
+            test_chi0_scf(testcase; symmetry=symmetry, use_symmetry=use_symmetry,
+                          temperature=temperature, spin_polarization=spin_polarization)
         end
     end
 end
