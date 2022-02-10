@@ -81,7 +81,7 @@ end
 """
 Find the subset of symmetries compatible with the grid induced by the given kcoords and ksymops
 """
-function symmetries_preserving_kcoords_ksymops(symmetries, kcoords, ksymops)
+function symmetries_preserving_kgrid(symmetries, kcoords, ksymops)
     symmetries_preserving_kgrid(symmetries, unfold_kcoords(kcoords, ksymops))
 end
 
