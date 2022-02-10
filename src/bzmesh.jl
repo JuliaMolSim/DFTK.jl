@@ -65,9 +65,9 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     # Give the remaining symmetries to spglib to compute an irreducible k-point mesh
     # TODO implement time-reversal symmetry and turn the flag to true
     is_shift = Int.(2 * kshift)
-    Stildes = [symop.S' for symop in symmetries]
+    Ws = [symop.S' for symop in symmetries]
     _, mapping, grid = spglib_get_stabilized_reciprocal_mesh(
-        kgrid_size, Stildes, is_shift=is_shift, is_time_reversal=false
+        kgrid_size, Ws, is_shift=is_shift, is_time_reversal=false
     )
     # Convert irreducible k-points to DFTK conventions
     kgrid_size = Vec3{Int}(kgrid_size)
@@ -97,7 +97,7 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
 
             # Note that this relies on the identity coming up first in symmetries
             isym = findfirst(symmetries) do symop
-                # If the difference between kred and Stilde' * k == Stilde^{-1} * k
+                # If the difference between kred and W' * k == W^{-1} * k
                 # is only integer in fractional reciprocal-space coordinates, then
                 # kred and S' * k are equivalent k-points
                 all(isinteger, kred - (symop.S * k))
@@ -113,9 +113,9 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
 
     if !isempty(kreds_notmapped)
         # add them as reducible anyway
-        Stildes = [symop.S' for symop in symmetries]
-        τtildes = [-symop.S' * symop.τ for symop in symmetries]
-        eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, Stildes, τtildes)
+        Ws = [symop.S' for symop in symmetries]
+        ws = [-symop.S' * symop.τ for symop in symmetries]
+        eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, Ws, ws)
         @info("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
               "the irreducible kpoints returned by spglib. $(length(eirreds)) of " *
               "these are added as extra irreducible kpoints.")

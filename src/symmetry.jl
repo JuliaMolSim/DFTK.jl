@@ -1,15 +1,15 @@
 ## This file contains functions to handle the symetries
 
-# A symmetry operation (symop) is a couple (Stilde, τtilde) of a
+# A symmetry operation (symop) is a couple (W, w) of a
 # unitary (in cartesian coordinates, but not in reduced coordinates)
-# matrix Stilde and a translation τtilde such that, for each atom of
-# type A at position a, Stilde a + τtilde is also an atom of type A.
+# matrix W and a translation w such that, for each atom of
+# type A at position a, W a + w is also an atom of type A.
 
 # This induces a symmetry in the Brillouin zone that the Hamiltonian
 # at S k is unitary equivalent to that at k, which we exploit to
 # reduce computations. The relationship is
-# S = Stilde'
-# τ = -Stilde^-1 τtilde
+# S = W'
+# τ = -W^-1 w
 # (valid both in reduced and cartesian coordinates)
 
 # The full (reducible) Brillouin zone is implicitly represented by
@@ -21,7 +21,7 @@
 # implicitly the information at all the kpoints Sk. The
 # relationship between the Hamiltonians is
 # H_{Sk} = U H_k U*, with
-# (Uu)(x) = u(Stilde x + τtilde)
+# (Uu)(x) = u(W x + w)
 # or in Fourier space
 # (Uu)(G) = e^{-i G τ} u(S^-1 G)
 # In particular, we can choose the eigenvectors at Sk as u_{Sk} = U u_k
@@ -48,11 +48,11 @@ Return the ``k``-point symmetry operations associated to a lattice and atoms.
 function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
     symmetries = []
     # Get symmetries from spglib
-    Stildes, τtildes = spglib_get_symmetry(lattice, atoms, magnetic_moments;
+    Ws, ws = spglib_get_symmetry(lattice, atoms, magnetic_moments;
                                            tol_symmetry=tol_symmetry)
-    for isym = 1:length(Stildes)
-        S = Stildes[isym]'                  # in fractional reciprocal coordinates
-        τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates
+    for isym = 1:length(Ws)
+        S = Ws[isym]'                  # in fractional reciprocal coordinates
+        τ = -Ws[isym] \ ws[isym]  # in fractional real-space coordinates
         push!(symmetries, SymOp(S, τ))
     end
     unique(symmetries)
@@ -86,7 +86,7 @@ end
 Implements a primitive search to find an irreducible subset of kpoints
 amongst the provided kpoints.
 """
-function find_irreducible_kpoints(kcoords, Stildes, τtildes)
+function find_irreducible_kpoints(kcoords, Ws, ws)
     # This function is required because spglib sometimes flags kpoints
     # as reducible, where we cannot find a symmetry operation to
     # generate them from the provided irreducible kpoints. This
@@ -107,17 +107,17 @@ function find_irreducible_kpoints(kcoords, Stildes, τtildes)
         kcoords_mapped[ik] = true
 
         for jk in findall(.!kcoords_mapped)
-            isym = findfirst(1:length(Stildes)) do isym
-                # If the difference between kred and Stilde' * k == Stilde^{-1} * k
+            isym = findfirst(1:length(Ws)) do isym
+                # If the difference between kred and W' * k == W^{-1} * k
                 # is only integer in fractional reciprocal-space coordinates, then
                 # kred and S' * k are equivalent k-points
-                all(isinteger, kcoords[jk] - (Stildes[isym]' * kcoords[ik]))
+                all(isinteger, kcoords[jk] - (Ws[isym]' * kcoords[ik]))
             end
 
             if !isnothing(isym)  # Found a reducible k-point
                 kcoords_mapped[jk] = true
-                S = Stildes[isym]'                  # in fractional reciprocal coordinates
-                τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates
+                S = Ws[isym]'                  # in fractional reciprocal coordinates
+                τ = -Ws[isym] \ ws[isym]  # in fractional real-space coordinates
                 push!(thisk_symops, SymOp(S, τ))
             end
         end  # jk

@@ -22,7 +22,7 @@ Base.one(::Type{SymOp}) = SymOp(Mat3{Int}(I), Vec3(zeros(3)))
 Base.one(::SymOp) = one(SymOp)
 
 # group composition and inverse.
-# Derived either from the formulas for the composition/inverse of Stilde/τtilde
+# Derived either from the formulas for the composition/inverse of W/w
 # then passing to reciprocal, or directly from the symmetry operation in reciprocal space
 function Base.:*(op1, op2)
     S = op1.S * op2.S
