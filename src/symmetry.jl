@@ -341,5 +341,5 @@ function unfold_kcoords(kcoords, ksymops)
             push!(all_kcoords, symop[1] * kcoords[ik])
         end
     end
-    all_kcoords
+    normalize_kpoint_coordinate.(all_kcoords)
 end
