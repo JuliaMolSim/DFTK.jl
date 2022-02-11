@@ -156,7 +156,11 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
                    comm_kpts=basis.comm_kpts)
 end
 
-function self_consistent_field(basis_dual::PlaneWaveBasis{T}; kwargs...) where T <: ForwardDiff.Dual
+function self_consistent_field(basis_dual::PlaneWaveBasis{T};
+                               response=(; verbose=false),
+                               kwargs...) where T <: ForwardDiff.Dual
+    # Note: No guarantees on this interface yet.
+
     # Primal pass
     basis  = construct_value(basis_dual)
     scfres = self_consistent_field(basis; kwargs...)
@@ -168,10 +172,13 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T}; kwargs...) where T
     ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
     energies_dual, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual; ρ=ρ_dual)
 
+    response.verbose && println("Solving response problem")
+
     ## Implicit differentiation
     hamψ_dual = ham_dual * ψ_dual
     δHψ = [ForwardDiff.partials.(δHψₖ, 1) for δHψₖ in hamψ_dual]
-    δψ, response = solve_ΩplusK(basis, ψ, -δHψ, occupation)
+    δψ, response = solve_ΩplusK(basis, ψ, -δHψ, occupation;
+                                tol_cg=scfres.norm_Δρ, verbose=response.verbose)
     δρ  = compute_δρ(basis, ψ, δψ, occupation)
 
     ## Convert, combine and return

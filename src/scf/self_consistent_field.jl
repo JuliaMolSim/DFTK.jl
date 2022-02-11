@@ -53,6 +53,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        callback=ScfDefaultCallback(),
                                        compute_consistent_energies=true,
                                        enforce_symmetry=false,
+                                       response=(; )  # Dummy here, only needed
+                                                      # for forward-diff.
                                       )
     T = eltype(basis)
     model = basis.model
@@ -139,11 +141,15 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     energies, ham = energy_hamiltonian(basis, ψ, occupation;
                                        ρ=ρout, eigenvalues=eigenvalues, εF=εF)
 
+    # Measure for the accuracy of the SCF
+    # TODO probably should be tracked all the way ...
+    norm_Δρ = norm(info.ρout - info.ρin) * sqrt(basis.dvol)
+
     # Callback is run one last time with final state to allow callback to clean up
     info = (ham=ham, basis=basis, energies=energies, converged=converged,
             ρ=ρout, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
             n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=ψ, diagonalization=info.diagonalization,
-            stage=:finalize, algorithm="SCF")
+            stage=:finalize, algorithm="SCF", norm_Δρ)
     callback(info)
     info
 end
