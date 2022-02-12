@@ -170,7 +170,11 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     occupation_dual = [T.(occₖ) for occₖ in occupation]
     ψ_dual = [Complex.(T.(real(ψₖ)), T.(imag(ψₖ))) for ψₖ in ψ]
     ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
-    energies_dual, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual; ρ=ρ_dual)
+    εF_dual = T(scfres.εF)  # Only needed for entropy term
+    eigenvalues_dual = [T.(εₖ) for εₖ in scfres.eigenvalues]  # Only needed for entropy term
+    energies_dual, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
+                                                 ρ=ρ_dual, eigenvalues=eigenvalues_dual,
+                                                 εF=εF_dual)
 
     response.verbose && println("Solving response problem")
 
@@ -187,7 +191,8 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     ρ_out = DT.(scfres.ρ, δρ)
 
     merge(scfres, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
-                     occupation=occupation_dual, ρ=ρ_out, response))
+                     occupation=occupation_dual, ρ=ρ_out, eigenvalues=eigenvalues_dual,
+                     εF=εF_dual, response))
 end
 
 # other workarounds
