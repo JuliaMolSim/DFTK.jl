@@ -33,7 +33,16 @@ using DFTK: xc_fallback!, energy_per_particle
 end
 
 @testset "Fallback GGA" begin
-    for func_name in (:gga_x_pbe, :gga_c_pbe, :gga_x_pbe_sol, :gga_c_pbe_sol)
+    gga_fallback = (
+        :gga_x_pbe,     :gga_c_pbe,     :gga_x_pbe_r,
+        :gga_x_pbe_sol, :gga_c_pbe_sol,
+        :gga_x_pbefe,   :gga_c_pbefe,
+        :gga_x_xpbe,    :gga_c_xpbe,
+        :gga_x_pbe_mol, :gga_c_pbe_mol,
+        :gga_x_apbe,    :gga_c_apbe,
+    )
+
+    for func_name in gga_fallback
         func = Libxc.Functional(func_name)
 
         # Create reference
