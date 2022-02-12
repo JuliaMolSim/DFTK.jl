@@ -202,7 +202,7 @@ real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartr
     RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     χ0terms   = χ0Model[Applyχ0Model()]  # The terms to use as the model for χ0
     verbose::Bool = false   # Run the GMRES verbosely
-    reltol::Float32 = 0.01  # Relative tolerance for GMRES
+    reltol::Float64 = 0.01  # Relative tolerance for GMRES
 end
 
 @views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, basis, δF; ρin, kwargs...)
