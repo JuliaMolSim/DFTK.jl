@@ -16,6 +16,9 @@ For details see Herbst, Levitt 2020 arXiv:2009.01665
 """
 @kwdef struct LdosModel <: χ0Model
     adjust_temperature = IncreaseMixingTemperature()
+    characteristic_length = 0  # in Bohr (0 means low-pass filtering is disabled)
+                               # Good values for filtering are between 2 and 0.1 Bohr
+                               # Fluctuations of the LDOS below this length are smoothened.
 end
 function (χ0::LdosModel)(basis; eigenvalues, ψ, εF, kwargs...)
     n_spin = basis.model.n_spin_components
@@ -26,6 +29,16 @@ function (χ0::LdosModel)(basis; eigenvalues, ψ, εF, kwargs...)
     ldos = compute_ldos(εF, basis, eigenvalues, ψ; temperature)
     if maximum(abs, ldos) < eps(eltype(basis))
         return nothing
+    end
+
+    if χ0.characteristic_length > 0
+        wavelength = 2π / χ0.characteristic_length
+        G₀ = 2wavelength / 3
+        Gslope = wavelength / 6
+        f_lowpass(G) = erfc((G - G₀) / Gslope) / 2
+
+        lowpass = [f_lowpass(norm(G)) for G in G_vectors_cart(basis)]
+        ldos = G_to_r(basis, r_to_G(basis, ldos) .* lowpass)
     end
 
     tdos = sum(sum, ldos) * basis.dvol  # Integrate LDOS to form total DOS
@@ -72,8 +85,7 @@ function (χ0::DielectricModel)(basis; kwargs...)
 end
 
 """
-Full χ0 application, optionally dropping terms or disabling Sternheimer.
-All keyword arguments passed to [`apply_χ0`](@ref).
+Full χ0 application. All keyword arguments passed to [`apply_χ0`](@ref).
 """
 struct Applyχ0Model <: χ0Model
     kwargs_apply_χ0
