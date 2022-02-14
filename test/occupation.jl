@@ -47,7 +47,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
 
     # Occupation for zero temperature
     model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=0.0,
-                  smearing=nothing, terms=[Kinetic()])
+                  smearing=nothing, terms=[Kinetic()], silicon.atoms)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     occupation0, εF0 = DFTK.compute_occupation_bandgap(basis, energies)
     @test εHOMO < εF0 < εLUMO
@@ -57,7 +57,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     Ts = (0, 1e-6, .1, 1.0)
     for temperature in Ts, meth in smearing_methods
         model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature,
-                      smearing=meth, terms=[Kinetic()])
+                      smearing=meth, terms=[Kinetic()], silicon.atoms)
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
         occs, _ = DFTK.compute_occupation(basis, energies)
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
@@ -67,7 +67,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     Ts = (0, 1e-6, 1e-4)
     for T in Ts, meth in smearing_methods
         model = Model(silicon.lattice; n_electrons=silicon.n_electrons, temperature=T,
-                      smearing=meth, terms=[Kinetic()])
+                      smearing=meth, terms=[Kinetic()], silicon.atoms)
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
         occupation, _ = DFTK.compute_occupation(basis, energies)
 
@@ -99,8 +99,8 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
                 [ 0.04869672986772,  0.04869672986772, 0.27749728805752, 0.27749728805768],
                 [ 0.10585630776222,  0.10585630776223, 0.22191839818805, 0.22191839818822]]
 
-    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    symmetries = DFTK.symmetry_operations(testcase.lattice, [spec => testcase.positions])
+    Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="lda", family="hgh"))
+    symmetries = DFTK.symmetry_operations(testcase.lattice, [Si => testcase.positions])
     kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, symmetries)
 
     n_bands = length(energies[1])
@@ -108,18 +108,18 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     @assert n_k == length(energies)
 
     parameters = (
-        (DFTK.Smearing.FermiDirac(),        0.01, 0.17251898225370),
-        (DFTK.Smearing.FermiDirac(),        0.02, 0.17020763046058),
-        (DFTK.Smearing.FermiDirac(),        0.03, 0.16865552281082),
-        (DFTK.Smearing.MethfesselPaxton(1), 0.01, 0.16917895217084),
-        (DFTK.Smearing.MethfesselPaxton(1), 0.02, 0.17350869020891),
-        (DFTK.Smearing.MethfesselPaxton(1), 0.03, 0.17395190342809),
+        (DFTK.Smearing.FermiDirac(),        0.01, 0.16163115311626172),
+        (DFTK.Smearing.FermiDirac(),        0.02, 0.1624111568340279),
+        (DFTK.Smearing.FermiDirac(),        0.03, 0.1630075080960013),
+        (DFTK.Smearing.MethfesselPaxton(1), 0.01, 0.16120395021955866),
+        (DFTK.Smearing.MethfesselPaxton(1), 0.02, 0.16153528960704408),
+        (DFTK.Smearing.MethfesselPaxton(1), 0.03, 0.16131173898225953),
     )
 
     for (meth, temperature, εF_ref) in parameters
         model = Model(silicon.lattice, n_electrons=testcase.n_electrons;
-                      temperature=temperature, smearing=meth, terms=[Kinetic()])
-        basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops; fft_size=fft_size)
+                      temperature=temperature, smearing=meth, terms=[Kinetic()], atoms=[Si => silicon.positions])
+        basis = PlaneWaveBasis(model; Ecut, kgrid=kgrid_size, fft_size=fft_size)
         occupation, εF = DFTK.compute_occupation(basis, energies)
 
         @test DFTK.weighted_ksum(basis, sum.(occupation)) ≈ model.n_electrons

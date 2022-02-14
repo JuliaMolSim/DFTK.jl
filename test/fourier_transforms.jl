@@ -6,7 +6,7 @@ include("testcases.jl")
 @testset "FFT and IFFT are an identity" begin
     Ecut = 4.0  # Hartree
     fft_size = [8, 8, 8]
-    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
+    model = Model(silicon.lattice; silicon.atoms)
     pw = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     @testset "Transformation on the cubic basis set" begin

@@ -6,7 +6,7 @@ using LinearAlgebra
 include("testcases.jl")
 
 function test_pw_cutoffs(testcase, Ecut, fft_size)
-    model = Model(testcase.lattice, n_electrons=testcase.n_electrons)
+    model = Model(testcase.lattice; n_electrons=testcase.n_electrons, testcase.atoms)
     basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops; fft_size=fft_size)
 
     for (ik, kpt) in enumerate(basis.kpoints)
@@ -19,7 +19,7 @@ end
 @testset "PlaneWaveBasis: Check struct construction" begin
     Ecut = 3
     fft_size = [15, 15, 15]
-    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
+    model = Model(silicon.lattice; n_electrons=silicon.n_electrons, silicon.atoms)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     @test basis.model.lattice == silicon.lattice
@@ -56,7 +56,7 @@ end
 @testset "PlaneWaveBasis: Check cubic basis and cubic index" begin
     Ecut = 3
     fft_size = [15, 15, 15]
-    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
+    model = Model(silicon.lattice; n_electrons=silicon.n_electrons, silicon.atoms)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     g_all = collect(G_vectors(basis))
 
@@ -70,7 +70,7 @@ end
 @testset "PlaneWaveBasis: Check index for kpoints" begin
     Ecut = 3
     fft_size = [7, 9, 11]
-    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
+    model = Model(silicon.lattice; n_electrons=silicon.n_electrons, silicon.atoms)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
     g_all = collect(G_vectors(basis))
 
@@ -92,7 +92,7 @@ end
 @testset "PlaneWaveBasis: kpoint mapping" begin
     Ecut = 3
     fft_size = [7, 9, 11]
-    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
+    model = Model(silicon.lattice; n_electrons=silicon.n_electrons, silicon.atoms)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     for kpt in basis.kpoints
@@ -110,7 +110,7 @@ end
 @testset "PlaneWaveBasis: Check G_vector-like accessor functions" begin
     Ecut = 3
     fft_size = [15, 15, 15]
-    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
+    model = Model(silicon.lattice; n_electrons=silicon.n_electrons, silicon.atoms)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops;
                            fft_size=fft_size)
 

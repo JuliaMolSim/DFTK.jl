@@ -53,98 +53,63 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
 is not collinear the spin density is `nothing`.
 """
 @views @timing function compute_density(basis::PlaneWaveBasis, ψ, occupation)
-    n_k = length(basis.kpoints)
-    n_spin = basis.model.n_spin_components
-
-    # Allocate an accumulator for ρ in each thread for each spin component
-    T = promote_type(eltype(basis), eltype(ψ[1]))
-    ρaccus = [similar(ψ[1], T, (basis.fft_size..., n_spin))
-              for ithread in 1:Threads.nthreads()]
-
-    # TODO Better load balancing ... the workload per k-point depends also on
-    #      the number of symmetry operations. We know heuristically that the Gamma
-    #      point (first k-point) has least symmetry operations, so we will put
-    #      some extra workload there if things do not break even
-    kpt_per_thread = [ifelse(i <= n_k, [i], Vector{Int}()) for i in 1:Threads.nthreads()]
-    if n_k >= Threads.nthreads()
-        kblock = floor(Int, length(basis.kpoints) / Threads.nthreads())
-        kpt_per_thread = [collect(1:length(basis.kpoints) - (Threads.nthreads() - 1) * kblock)]
-        for ithread in 2:Threads.nthreads()
-            push!(kpt_per_thread, kpt_per_thread[end][end] .+ collect(1:kblock))
-        end
-        @assert kpt_per_thread[end][end] == length(basis.kpoints)
-    end
-
-    Threads.@threads for (ikpts, ρaccu) in collect(zip(kpt_per_thread, ρaccus))
-        ρaccu .= 0
-        ρ_k = similar(ψ[1], T, basis.fft_size)
-        for ik in ikpts
-            kpt = basis.kpoints[ik]
-            compute_partial_density!(ρ_k, basis, kpt, ψ[ik], occupation[ik])
-            # accumulates all the symops of ρ_k into ρaccu
-            accumulate_over_symmetries!(ρaccu[:, :, :, kpt.spin], ρ_k, basis, basis.ksymops[ik])
+    T = promote_type(eltype(basis), real(eltype(ψ[1])))
+    ρ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
+    ρ .= 0
+    ψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
+    for ik = 1:length(basis.kpoints)
+        kpt = basis.kpoints[ik]
+        for n = 1:size(ψ[ik], 2)
+            ψnk = @views ψ[ik][:, n]
+            G_to_r!(ψnk_real, basis, kpt, ψnk)
+            ρ[:, :, :, kpt.spin] .+= occupation[ik][n] .* basis.kweights[ik] .* abs2.(ψnk_real)
         end
     end
-
-    # Count the number of k-points modulo spin
-    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
-    count = mpi_sum(count, basis.comm_kpts)
-    ρ = sum(ρaccus) ./ count
     mpi_sum!(ρ, basis.comm_kpts)
-    lowpass_for_symmetry!(ρ, basis)
-    G_to_r(basis, ρ)
+    symmetrize_ρ(basis, ρ; basis.symmetries)
 end
 
 # Variation in density corresponding to a variation in the orbitals and occupations.
-@views function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ,
-                           occupation, δoccupation=zero.(occupation)) where T
-    n_spin = basis.model.n_spin_components
-
-    δρ_fourier = zeros(complex(T), basis.fft_size..., n_spin)
-    for (ik, kpt) in enumerate(basis.kpoints)
-        δρk = zeros(T, basis.fft_size)
+@views @timing function compute_δρ(basis::PlaneWaveBasis, ψ, δψ, occupation, δoccupation=zero.(occupation))
+    T = promote_type(eltype(basis), real(eltype(ψ[1])))
+    δρ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
+    δρ .= 0
+    ψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
+    δψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
+    for ik = 1:length(basis.kpoints)
+        kpt = basis.kpoints[ik]
         for n = 1:size(ψ[ik], 2)
-            ψnk_real = G_to_r(basis, kpt, ψ[ik][:, n])
-            δψnk_real = G_to_r(basis, kpt, δψ[ik][:, n])
-            δρk .+= (occupation[ik][n] .* (conj.(ψnk_real) .* δψnk_real .+
-                                           conj.(δψnk_real) .* ψnk_real) .+
-                     δoccupation[ik][n] .* abs2.(ψnk_real))
+            ψnk = @views ψ[ik][:, n]
+            δψnk = @views δψ[ik][:, n]
+            G_to_r!(ψnk_real, basis, kpt, ψnk)
+            G_to_r!(δψnk_real, basis, kpt, δψnk)
+            δρ[:, :, :, kpt.spin] .+= occupation[ik][n] .* basis.kweights[ik] .*
+                                        (conj.(ψnk_real) .* δψnk_real .+
+                                        conj.(δψnk_real) .* ψnk_real) .+
+                                        δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(ψnk_real)
         end
-        δρk_fourier = r_to_G(basis, complex(δρk))
-        accumulate_over_symmetries!(δρ_fourier[:, :, :, kpt.spin], δρk_fourier,
-                                    basis, basis.ksymops[ik])
     end
-    mpi_sum!(δρ_fourier, basis.comm_kpts)
-    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
-    count = mpi_sum(count, basis.comm_kpts)
-    lowpass_for_symmetry!(δρ_fourier, basis)
-    δρ = G_to_r(basis, δρ_fourier) ./ count
-    δρ
+    mpi_sum!(δρ, basis.comm_kpts)
+    symmetrize_ρ(basis, δρ; basis.symmetries)
 end
 
-
-@views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
-    n_spin = basis.model.n_spin_components
-    τ_fourier = zeros(complex(T), basis.fft_size..., n_spin)
-
-    for (ik, kpt) in enumerate(basis.kpoints)
+@views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis, ψ, occupation)
+    T = promote_type(eltype(basis), real(eltype(ψ[1])))
+    τ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
+    τ .= 0
+    dαψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
+    for ik = 1:length(basis.kpoints)
+        kpt = basis.kpoints[ik]
         G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(basis, kpt)] for α in 1:3]
-        τk = zeros(T, basis.fft_size)
-        for (n, ψnk) in enumerate(eachcol(ψ[ik])), α = 1:3
-            dαψnk_real = G_to_r(basis, kpt, im .* G_plus_k[α] .* ψnk)
-            τk .+= @. occupation[ik][n] / 2 * real(conj(dαψnk_real) * dαψnk_real)
+        for n = 1:size(ψ[ik], 2), α = 1:3
+            ψnk = @views ψ[ik][:, n]
+            G_to_r!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψnk)
+            τ[:, :, :, kpt.spin] .+= @. basis.kweights[ik] * occupation[ik][n] / 2 * abs2(dαψnk_real)
         end
-        τk_fourier = r_to_G(basis, complex(τk))
-        accumulate_over_symmetries!(τ_fourier[:, :, :, kpt.spin], τk_fourier,
-                                    basis, basis.ksymops[ik])
     end
-    mpi_sum!(τ_fourier, basis.comm_kpts)
-    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
-    count = mpi_sum(count, basis.comm_kpts)
-    lowpass_for_symmetry!(τ_fourier, basis)
-    G_to_r(basis, τ_fourier) ./ count
+    mpi_sum!(τ, basis.comm_kpts)
+    symmetrize_ρ(basis, τ; basis.symmetries)
 end
-
 
 total_density(ρ) = dropdims(sum(ρ; dims=4); dims=4)
 @views function spin_density(ρ)

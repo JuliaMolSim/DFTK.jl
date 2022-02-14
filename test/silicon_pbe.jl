@@ -22,8 +22,14 @@ function run_silicon_pbe(T ;Ecut=5, grid_size=15, spin_polarization=:none, kwarg
 
     fft_size = fill(grid_size, 3)
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="pbe", family="hgh"))
+    if spin_polarization == :collinear
+        magmoms = [el => zero.(pos)
+                   for (el, pos) in [Si => silicon.positions]]
+    else
+        magmoms = []
+    end
     model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [:gga_x_pbe, :gga_c_pbe],
-                      spin_polarization=spin_polarization)
+                      spin_polarization=spin_polarization, magnetic_moments=magmoms)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
 
     spin_polarization == :collinear && (ref_pbe = vcat(ref_pbe, ref_pbe))

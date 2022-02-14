@@ -78,7 +78,12 @@ end
 Find the subset of symmetries compatible with the grid induced by the given kcoords and ksymops
 """
 function symmetries_preserving_kgrid(symmetries, kcoords, ksymops)
-    symmetries_preserving_kgrid(symmetries, unfold_kcoords(kcoords, ksymops))
+    new_symmetries = symmetries_preserving_kgrid(symmetries, unfold_kcoords(kcoords, ksymops))
+    # check for inconsistent ksymops/symmetries
+    if !all(s1 -> any(s2 -> isapprox(s1, s2), new_symmetries), vcat(ksymops...))
+        error("symmetries_preserving_kgrid: ksymops must be a subset of symmetries")
+    end
+    new_symmetries
 end
 
 
