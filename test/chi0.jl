@@ -37,7 +37,7 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
         res = DFTK.next_density(ham0, tol=tol, eigensolver=lobpcg_hyper,
                                 n_ep_extra=n_ep_extra)
         occ, εF = DFTK.compute_occupation(basis, res.eigenvalues)
-        scfres1 = (ham=ham0, res..., n_ep_extra=n_ep_extra)
+        scfres = (ham=ham0, res..., n_ep_extra=n_ep_extra)
 
         # create external small perturbation εδV
         n_spin = model.n_spin_components
@@ -73,7 +73,7 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
         diff_findiff = (ρ2 - ρ1) / (2ε)
 
         # Test apply_χ0 and compare against finite differences
-        diff_applied_χ0 = apply_χ0(scfres1, δV)
+        diff_applied_χ0 = apply_χ0(scfres, δV)
         @test norm(diff_findiff - diff_applied_χ0) < testtol
 
         # just to cover it here
@@ -87,8 +87,8 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
             # Test that apply_χ0 is self-adjoint
             δV1 = randn(eltype(basis), basis.fft_size..., n_spin)
             δV2 = randn(eltype(basis), basis.fft_size..., n_spin)
-            χ0δV1 = apply_χ0(scfres1, δV1)
-            χ0δV2 = apply_χ0(scfres1, δV2)
+            χ0δV1 = apply_χ0(scfres, δV1)
+            χ0δV2 = apply_χ0(scfres, δV2)
             @test abs(dot(δV1, χ0δV2) - dot(δV2, χ0δV1)) < testtol
         end
     end
@@ -98,8 +98,8 @@ for testcase in (silicon, magnesium)
     temp = isnothing(testcase.temperature) ? (0, 0.03) : (testcase.temperature)
     for temperature in temp, spin_polarization in (:none, :collinear)
         for use_symmetry in (false, true), symmetry in (false, true)
-            test_chi0_scf(testcase; symmetry=symmetry, use_symmetry=use_symmetry,
-                          temperature=temperature, spin_polarization=spin_polarization)
+            test_chi0(testcase; symmetry=symmetry, use_symmetry=use_symmetry,
+                      temperature=temperature, spin_polarization=spin_polarization)
         end
     end
 end
