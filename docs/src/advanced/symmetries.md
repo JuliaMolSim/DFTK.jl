@@ -2,18 +2,18 @@
 ## Theory
 In this discussion we will only describe the situation for a monoatomic crystal
 ``\mathcal C \subset \mathbb R^3``, the extension being easy.
-A symmetry of the crystal is an orthogonal matrix ``\widetilde{S}``
-and a real-space vector ``\widetilde{\tau}`` such that
+A symmetry of the crystal is an orthogonal matrix ``W``
+and a real-space vector ``w`` such that
 ```math
-\widetilde{S} \mathcal{C} + \widetilde{\tau} = \mathcal{C}.
+W \mathcal{C} + w = \mathcal{C}.
 ```
-The symmetries where ``\widetilde{S} = 1`` and ``\widetilde{\tau}``
+The symmetries where ``W = 1`` and ``w``
 is a lattice vector are always assumed and ignored in the following.
 
 We can define a corresponding unitary operator ``U`` on ``L^2(\mathbb R^3)``
 with action
 ```math
- (Uu)(x) = u\left( \widetilde{S} x + \widetilde{\tau} \right).
+ (Uu)(x) = u\left( W x + w \right).
 ```
 We assume that the atomic potentials are radial and that any self-consistent potential
 also respects this symmetry, so that ``U`` commutes with the Hamiltonian.
@@ -21,23 +21,22 @@ also respects this symmetry, so that ``U`` commutes with the Hamiltonian.
 This operator acts on a plane-wave as
 ```math
 \begin{aligned}
-(U e^{iq\cdot x}) (x) &= e^{iq \cdot \widetilde{\tau}} e^{i (\widetilde{S}^T q) x}\\
+(U e^{iq\cdot x}) (x) &= e^{iq \cdot w} e^{i (W^T q) x}\\
 &= e^{- i(S q) \cdot \tau } e^{i (S q) \cdot x}
 \end{aligned}
 ```
 where we set
 ```math
 \begin{aligned}
-S &= \widetilde{S}^{T}\\
-\tau &= -\widetilde{S}^{-1}\widetilde{\tau}.
+S &= W^{T}\\
+\tau &= -W^{-1}w.
 \end{aligned}
 ```
-(these equations being also valid in reduced coordinates).
-
 It follows that the Fourier transform satisfies
 ```math
 \widehat{Uu}(q) = e^{- iq \cdot \tau} \widehat u(S^{-1} q)
 ```
+(all of these equations being also valid in reduced coordinates).
 In particular, if ``e^{ik\cdot x} u_{k}(x)`` is an eigenfunction, then by decomposing
 ``u_k`` over plane-waves ``e^{i G \cdot x}`` one can see that
 ``e^{i(S^T k) \cdot x} (U u_k)(x)`` is also an eigenfunction: we can choose
@@ -148,8 +147,8 @@ This is a list of all symmetries operations ``(S, \tau)``
 that can be used to map this irreducible ``k``-point to reducible ``k``-points.
 Let's pick the third symmetry operation of this ``k``-point and check.
 ```@example symmetries
-S, τ = basis_sym.ksymops[ikpt_irred][3]
-kpt_red_coord = S * basis_sym.kpoints[ikpt_irred].coordinate
+symop = basis_sym.ksymops[ikpt_irred][3]
+kpt_red_coord = symop.S * basis_sym.kpoints[ikpt_irred].coordinate
 ikpt_red = findfirst(kcoord -> kcoord ≈ kpt_red_coord,
                      [k.coordinate for k in basis_nosym.kpoints])
 [scfres_sym.eigenvalues[ikpt_irred] scfres_nosym.eigenvalues[ikpt_red]]
