@@ -146,7 +146,7 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
     R(ϕ) = ϕ - P_computed(ϕ)
 
     # We put things into the form
-    # δψkn = ψk_extra * αn + δψkn_uncomputed ∈ Ran(Q)
+    # δψkn = ψk_extra * αkn + δψkn_uncomputed ∈ Ran(Q)
     # where δψkn_uncomputed ∈ Ran(R).
     # Note that, if ψk_extra = [], then 1-P = 1-P_computed and
     # δψkn = δψkn_uncomputed is obtained by inverting the full Sternheimer
@@ -161,31 +161,28 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
     # 1     N_occupied  N_occupied + N_extra
 
 
-    # ψk_extra are not converged but have been Rayleigh-Ritzed
-    # so H(ψk_extra) = ψk_extra'(Hk-εn)ψk_extra should be a real diagonal
-    # matrix.
-    # Note that M is a matrix of size N_occupied x 0 if there is no extra band.
+    # ψk_extra are not converged but have been Rayleigh-Ritzed (they are NOT
+    # eigenvectors of H) so H(ψk_extra) = ψk_extra'(Hk-εn)ψk_extra should be a
+    # real diagonal matrix.
     H(ϕ) = Hk * ϕ - εnk * ϕ
     ψk_exHψk_ex = real.(Diagonal(εk_extra .- εnk))
-    ψk_exHψk_ex_inv = real.(Diagonal(1 ./ (εk_extra .- εnk)))
-    M = H(ψk_extra) * ψk_exHψk_ex_inv * ψk_extra'
 
     # 1) solve for δψkn_uncomputed
     # ----------------------------
-    # writing αn as a function of δψkn_uncomputed, we get that δψkn_uncomputed
+    # writing αkn as a function of δψkn_uncomputed, we get that δψkn_uncomputed
     # solves the system (in Ran(1-P_computed))
     #
-    # R * (1 - M) * (H-εn) * R * δψkn_uncomputed = R * (1 - M) * b
+    # R * (H - εn) * (1 - M * (H - εn)) * R * δψkn_uncomputed = R * (1 - M) * b
     #
-    # where M = (H-εn) * ψk_extra * (ψk_extra'(H-εn)ψk_extra)^{-1} * ψk_extra'
+    # where M = ψk_extra * (ψk_extra'(H-εn)ψk_extra)^{-1} * ψk_extra'
     # is defined above and b is the projection of -rhs onto Ran(Q).
     #
     b = -Q(rhs)
-    bb = R(b -  M * b)
+    bb = R(b -  H(ψk_extra * (ψk_exHψk_ex \ ψk_extra'b)))
     function RAR(ϕ)
-        HRϕ = H(R(ϕ))
-        ARϕ = HRϕ - M * HRϕ
-        R(ARϕ)
+        Rϕ = R(ϕ)
+        ARϕ = Rϕ - ψk_extra * (ψk_exHψk_ex \ ψk_extra'H(Rϕ))
+        R(H(ARϕ))
     end
     precon = PreconditionerTPA(basis, kpoint)
     precondprep!(precon, ψnk)
@@ -196,12 +193,11 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
     δψkn_uncomputed = cg(J, bb, Pl=FunctionPreconditioner(R_ldiv!),
                          reltol=0, abstol=tol_cg, verbose=verbose)
 
-    # 2) solve for αn now that we know δψkn_uncomputed
-    # Note that αn is an empty array if there is no etra bands.
-    αn = ψk_exHψk_ex_inv * ψk_extra' * (b - H(δψkn_uncomputed))
+    # 2) solve for αkn now that we know δψkn_uncomputed
+    # Note that αkn is an empty array if there is no extra bands.
+    αkn = ψk_exHψk_ex \ ψk_extra' * (b - H(δψkn_uncomputed))
 
-    # 3) put things together
-    return ψk_extra * αn + δψkn_uncomputed
+    δψkn = ψk_extra * αkn + δψkn_uncomputed
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
