@@ -1,9 +1,5 @@
 ## Densities (and potentials) are represented by arrays
 ## ρ[ix,iy,iz,iσ] in real space, where iσ ∈ [1:n_spin_components]
-#
-# TODO - This file needs a bit of cleanup: There is code duplication in
-#        compute_density, compute_δρ, compute_kinetic_energy_density
-#      - Use symmetrization instead of explicit use of symmetry operators
 
 function _check_positive(ρ)
     minimum(ρ) < 0 && @warn("Negative ρ detected", min_ρ=minimum(ρ))
@@ -14,35 +10,6 @@ function _check_total_charge(dvol, ρ, N)
         @warn("Mismatch in number of electrons", sum_ρ=n_electrons, N=N)
     end
 end
-
-"""
-Compute the partial density at the indicated ``k``-Point and return it (in Fourier space).
-"""
-function compute_partial_density!(ρ, basis, kpt, ψk, occupation)
-    @assert length(occupation) == size(ψk, 2)
-
-    # Build the partial density ρk_real for this k-point
-    ρk_real = [zeros(eltype(basis), basis.fft_size) for it = 1:Threads.nthreads()]
-    ψnk_real = [zeros(complex(eltype(basis)), basis.fft_size) for it = 1:Threads.nthreads()]
-    Threads.@threads for n = 1:size(ψk, 2)
-        ψnk = @views ψk[:, n]
-        tid = Threads.threadid()
-        G_to_r!(ψnk_real[tid], basis, kpt, ψnk)
-        ρk_real[tid] .+= occupation[n] .* abs2.(ψnk_real[tid])
-    end
-    for it = 2:Threads.nthreads()
-        ρk_real[1] .+= ρk_real[it]
-    end
-    ρk_real = ρk_real[1]
-
-    # Check sanity of the density (positive and normalized)
-    all(occupation .> 0) && _check_positive(ρk_real)
-    _check_total_charge(basis.dvol, ρk_real, sum(occupation))
-
-    # FFT and return
-    r_to_G!(ρ, basis, ρk_real)
-end
-
 
 """
     compute_density(basis::PlaneWaveBasis, ψ::AbstractVector, occupation::AbstractVector)
@@ -66,7 +33,10 @@ is not collinear the spin density is `nothing`.
         end
     end
     mpi_sum!(ρ, basis.comm_kpts)
-    symmetrize_ρ(basis, ρ; basis.symmetries)
+    ρ = symmetrize_ρ(basis, ρ; basis.symmetries)
+    _check_positive(ρ)
+    _check_total_charge(basis.dvol, ρ, model.n_electrons)
+    ρ
 end
 
 # Variation in density corresponding to a variation in the orbitals and occupations.
