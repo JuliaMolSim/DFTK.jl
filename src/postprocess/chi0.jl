@@ -103,107 +103,105 @@ LinearAlgebra.ldiv!(y::T, P::FunctionPreconditioner, x) where {T} = P.preconditi
 LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(similar(x), x))
 precondprep!(P::FunctionPreconditioner, ::Any) = P
 
-# Solves Q (H-εn) Q δψn = -Q rhs
-# where Q is the projector on the orthogonal of ψk
+# Solves (1-P) (H-εn) (1-P) δψn = - (1-P) rhs
+# where 1-P is the projector on the orthogonal of ψk
 function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
-                            ψk_extra=nothing, εk_extra=nothing,
+                            ψk_extra=zeros(size(ψk,1), 0),
+                            εk_extra=zeros(0), schur=true,
                             tol_cg=1e-12, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
     model = basis.model
     temperature = model.temperature
 
-    # projector onto the orthogonal of occupied states
-    Q(ϕ) = ϕ - ψk * (ψk' * ϕ)
+    # We use a Schur decomposition of the orthogonal of the occupied states
+    # where we still know some information from the partially converged
+    # nonoccupied states (in particular, they are Rayleigh-Ritz wrt to Hk).
+    #
+    # /!\ This is only implemented for insulators at the moment, WIP for
+    # metals, in which case we use empty arrays and all computations are
+    # equivalent to invert the Sternheimer system in Ran(1-P) without the Schur
+    # trick.
 
-    if iszero(temperature) && !isnothing(ψk_extra)
-        # We use a Schur decomposition of the orthogonal of the occupied states
-        # where we still know some information from the partially converged
-        # nonoccupied states (in particular, they are Rayleigh-Ritz wrt to H).
-        # /!\ this is only implemented for insulators at the moment, WIP for
-        # /!\ metals (the old sternheimer is still used, see the "else" case)
-
-        # computed but nonconverged bands
-        Y = ψk_extra
-
-        # We put things into the form δψn = Yαn + Z ∈ Ran(Q)
-        # where Y = ψk_extra and Z ∈ Ran(R),
-        # R being the projector onto the orthogonal of computed states.
-        # This can be summerized as the following:
-        #
-        # <--- P ----><---- Q -----------
-        #                      <--- R ---
-        # |----------|--------|----------
-        # 1          N     N + N_extra
-        # <-- cvg --->
-        # <---- computed ----->
-
-        # projector onto the orthogonal of the computed states
-        R(ϕ) = ϕ - ψk * (ψk' * ϕ) - Y * (Y' * ϕ)
-
-        # Y are not converged but have been Rayleigh-Ritzed
-        # so YHY should be a real diagonal matrix
-        H(ϕ) = Hk * ϕ - εnk * ϕ
-        YHY = real.(Diagonal(εk_extra .- εnk))
-        YHYi = real.(Diagonal(1 ./ (εk_extra .- εnk)))
-
-        # computing products once and for all
-        HY = H(Y)
-        HYIY = HY * YHYi * Y'
-
-        b = -Q(rhs)
-
-        # 1) solve for Z
-        # --------------
-        # writing αn as a function of Z, we get that Z solves the system (in
-        # Ran(R))
-        #
-        # R * (1 - HYIY) * (H-εn) * R * Z = R * (1 - HYIY) * b
-        #
-        bb = R(b -  HYIY * b)
-        function RAR(ϕ)
-            HRϕ = H(R(ϕ))
-            ARϕ = HRϕ - HYIY * HRϕ
-            R(ARϕ)
-        end
-        precon = PreconditionerTPA(basis, kpoint)
-        precondprep!(precon, ψnk)
-        function R_ldiv!(x, y)
-            x .= R(precon \ R(y))
-        end
-        J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-        # tol_cg should not be too tight, and in particular not be
-        # too far below the error in the ψ. Otherwise Q and H
-        # don't commute enough, and an oversolving of the linear
-        # system can lead to spurious solutions
-        Z = cg(J, bb, Pl=FunctionPreconditioner(R_ldiv!),
-               reltol=0, abstol=tol_cg, verbose=verbose)
-
-        # 2) solve for αn now that we know Z
-        αn = YHYi * Y' * (b - H(Z))
-
-        # 3) put things together
-        return Y * αn + Z
-    else
-        function QHQ(ϕ)
-            Qϕ = Q(ϕ)
-            Q(Hk * Qϕ - εnk * Qϕ)
-        end
-        precon = PreconditionerTPA(basis, kpoint)
-        precondprep!(precon, ψnk)
-        function Q_ldiv!(x, y)
-            x .= Q(precon \ Q(y))
-        end
-        J = LinearMap{eltype(ψk)}(QHQ, size(Hk, 1))
-        # tol_cg should not be too tight, and in particular not be
-        # too far below the error in the ψ. Otherwise Q and H
-        # don't commute enough, and an oversolving of the linear
-        # system can lead to spurious solutions
-        rhs = -Q(rhs)
-        δψnk = cg(J, rhs, Pl=FunctionPreconditioner(Q_ldiv!),
-                   reltol=0, abstol=tol_cg, verbose=verbose)
-        return δψnk
+    # TODO
+    # finite temperature not supported yet, so we remove extra bands and perform
+    # all the computations with empty arrays
+    if !iszero(temperature) || (schur && (isempty(ψk_extra) || isempty(εk_extra)))
+        ψk_extra = zeros(size(ψk,1), 0)
+        εk_extra = zeros(0)
+        schur = false
     end
+
+    # Projectors:
+    # projector onto the computed and converged states, which are the occupied
+    # states in the case of insulators
+    P(ϕ) = ψk * (ψk' * ϕ)
+    # projector onto the computed but nonconverged states
+    P_free(ϕ) = ψk_extra * (ψk_extra' * ϕ)
+    # projector onto the computed (converged and unconverged) states
+    P_computed(ϕ) = P(ϕ) + P_free(ϕ)
+    # Q = 1-P is the projector onto the orthogonal of converged states
+    Q(ϕ) = ϕ - P(ϕ)
+    # R = 1-P_computed is the projector onto the orthogonal of computed states
+    R(ϕ) = ϕ - P_computed(ϕ)
+
+    # We put things into the form
+    # δψkn = ψk_extra * αn + δψkn_uncomputed ∈ Ran(Q)
+    # where δψkn_uncomputed ∈ Ran(R).
+    # Note that, if ψk_extra = [], then 1-P = 1-P_computed and
+    # δψkn = δψkn_uncomputed is obtained by inverting the full Sternheimer
+    # equations in Ran(Q) = Ran(R)
+    #
+    # This can be summarized as the following:
+    #
+    # <---- P ----><------------ Q = 1-P -----------------
+    #              <-- P_free --->
+    # <--------P_computed -------><-- R = 1-P_computed ---
+    # |-----------|--------------|------------------------
+    # 1     N_occupied  N_occupied + N_extra
+
+
+    # ψk_extra are not converged but have been Rayleigh-Ritzed
+    # so H(ψk_extra) = ψk_extra'(Hk-εn)ψk_extra should be a real diagonal
+    # matrix.
+    # Note that M is a matrix of size N_occupied x 0 if there is no extra band.
+    H(ϕ) = Hk * ϕ - εnk * ϕ
+    ψk_exHψk_ex = real.(Diagonal(εk_extra .- εnk))
+    ψk_exHψk_ex_inv = real.(Diagonal(1 ./ (εk_extra .- εnk)))
+    M = H(ψk_extra) * ψk_exHψk_ex_inv * ψk_extra'
+
+    # 1) solve for δψkn_uncomputed
+    # ----------------------------
+    # writing αn as a function of δψkn_uncomputed, we get that δψkn_uncomputed
+    # solves the system (in Ran(1-P_computed))
+    #
+    # R * (1 - M) * (H-εn) * R * δψkn_uncomputed = R * (1 - M) * b
+    #
+    # where M = (H-εn) * ψk_extra * (ψk_extra'(H-εn)ψk_extra)^{-1} * ψk_extra'
+    # is defined above and b is the projection of -rhs onto Ran(Q).
+    #
+    b = -Q(rhs)
+    bb = R(b -  M * b)
+    function RAR(ϕ)
+        HRϕ = H(R(ϕ))
+        ARϕ = HRϕ - M * HRϕ
+        R(ARϕ)
+    end
+    precon = PreconditionerTPA(basis, kpoint)
+    precondprep!(precon, ψnk)
+    function R_ldiv!(x, y)
+        x .= R(precon \ R(y))
+    end
+    J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
+    δψkn_uncomputed = cg(J, bb, Pl=FunctionPreconditioner(R_ldiv!),
+                         reltol=0, abstol=tol_cg, verbose=verbose)
+
+    # 2) solve for αn now that we know δψkn_uncomputed
+    # Note that αn is an empty array if there is no etra bands.
+    αn = ψk_exHψk_ex_inv * ψk_extra' * (b - H(δψkn_uncomputed))
+
+    # 3) put things together
+    return ψk_extra * αn + δψkn_uncomputed
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
@@ -255,7 +253,8 @@ function compute_αmn(fm, fn, ratio)
 end
 
 @views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
-                                    ψ_extra=nothing, eigenvalues_extra=nothing,
+                                    ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
+                                    ε_extra=[zeros(0) for ψk in ψ],
                                     kwargs_sternheimer...)
     basis  = ham.basis
     model = basis.model
@@ -268,11 +267,6 @@ end
     δεF = zero(T)
     δocc = [zero(occ[ik]) for ik = 1:Nk]  # = fn' * (δεn - δεF)
     if temperature > 0
-
-        # TODO
-        # ψ_extra not implemented for temperature
-        @assert isnothing(ψ_extra)*isnothing(eigenvalues_extra)
-
         # First compute δocc without self-consistent Fermi δεF
         D = zero(T)
         for ik = 1:Nk
@@ -313,10 +307,8 @@ end
 
             # Sternheimer contribution
             # TODO unoccupied orbitals may have a very bad sternheimer solve, be careful about this
-            ψk_extra = isnothing(ψ_extra) ? nothing : ψ_extra[ik]
-            εk_extra = isnothing(eigenvalues_extra) ? nothing : eigenvalues_extra[ik]
             δψk[:, n] .+= sternheimer_solver(ham.blocks[ik], ψk, ψk[:, n], εk[n], δHψ[ik][:, n];
-                                             ψk_extra=ψk_extra, εk_extra=εk_extra,
+                                             ψk_extra=ψ_extra[ik], εk_extra=ε_extra[ik],
                                              kwargs_sternheimer...)
         end
     end
@@ -335,10 +327,9 @@ stored in `ψ_extra` (typically, the `3` extra bands returned by default in SCF
 routine).
 """
 function apply_χ0(ham, ψ, εF, eigenvalues, δV;
-                  ψ_extra=nothing, eigenvalues_extra=nothing,
+                  ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
+                  ε_extra=[zeros(0) for ψk in ψ],
                   kwargs_sternheimer...)
-    @assert (isnothing(ψ_extra)*isnothing(eigenvalues_extra) ||
-             !isnothing(ψ_extra)*!isnothing(eigenvalues_extra))
 
     basis = ham.basis
     model = basis.model
@@ -358,17 +349,10 @@ function apply_χ0(ham, ψ, εF, eigenvalues, δV;
     normδV < eps(typeof(εF)) && return zero(δV)
     δV ./= normδV
 
-    # TODO
-    # distinction between ψ and ψ_extra not implemented yet for metals
-    if model.temperature > 0.0 && ψ_extra != nothing
-        ψ_extra = nothing
-        eigenvalues_extra = nothing
-    end
-
     δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
     δψ = apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
-                     ψ_extra=ψ_extra, eigenvalues_extra=eigenvalues_extra,
+                     ψ_extra=ψ_extra, ε_extra=ε_extra,
                      kwargs_sternheimer...)
     δρ = DFTK.compute_δρ(basis, ψ, δψ, occ)
     δρ * normδV
@@ -382,9 +366,9 @@ function apply_χ0(scfres, δV; kwargs_sternheimer...)
     ψ_extra = [@view ψk[:, end-n_ep_extra+1:end] for ψk in scfres.ψ]
 
     eigenvalues = [εk[1:end-n_ep_extra] for εk in scfres.eigenvalues]
-    eigenvalues_extra = [εk[end-n_ep_extra+1:end] for εk in scfres.eigenvalues]
+    ε_extra = [εk[end-n_ep_extra+1:end] for εk in scfres.eigenvalues]
 
     apply_χ0(scfres.ham, ψ, scfres.εF, eigenvalues, δV;
-             ψ_extra=ψ_extra, eigenvalues_extra=eigenvalues_extra,
+             ψ_extra=ψ_extra, ε_extra=ε_extra,
              kwargs_sternheimer...)
 end
