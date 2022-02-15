@@ -1,5 +1,6 @@
 ## Densities (and potentials) are represented by arrays
 ## ρ[ix,iy,iz,iσ] in real space, where iσ ∈ [1:n_spin_components]
+using ForwardDiff
 
 function _check_positive(ρ)
     minimum(ρ) < 0 && @warn("Negative ρ detected", min_ρ=minimum(ρ))
@@ -14,16 +15,15 @@ end
 """
     compute_density(basis::PlaneWaveBasis, ψ::AbstractVector, occupation::AbstractVector)
 
-Compute the density and spin density for a wave function `ψ` discretized on the plane-wave
+Compute the density for a wave function `ψ` discretized on the plane-wave
 grid `basis`, where the individual k-points are occupied according to `occupation`.
-`ψ` should be one coefficient matrix per ``k``-point. If the `Model` underlying the basis
-is not collinear the spin density is `nothing`.
+`ψ` should be one coefficient matrix per ``k``-point. 
 """
 @views @timing function compute_density(basis::PlaneWaveBasis, ψ, occupation)
     T = promote_type(eltype(basis), real(eltype(ψ[1])))
     ρ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
     ρ .= 0
-    ψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
+    ψnk_real = zeros(complex(T), basis.fft_size)
     for ik = 1:length(basis.kpoints)
         kpt = basis.kpoints[ik]
         for n = 1:size(ψ[ik], 2)
@@ -35,32 +35,17 @@ is not collinear the spin density is `nothing`.
     mpi_sum!(ρ, basis.comm_kpts)
     ρ = symmetrize_ρ(basis, ρ; basis.symmetries)
     _check_positive(ρ)
-    _check_total_charge(basis.dvol, ρ, model.n_electrons)
+    _check_total_charge(basis.dvol, ρ,
+                        sum(basis.kweights[ik] * sum(occupation[ik]) for ik=1:length(basis.kpoints)))
     ρ
 end
 
 # Variation in density corresponding to a variation in the orbitals and occupations.
 @views @timing function compute_δρ(basis::PlaneWaveBasis, ψ, δψ, occupation, δoccupation=zero.(occupation))
-    T = promote_type(eltype(basis), real(eltype(ψ[1])))
-    δρ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
-    δρ .= 0
-    ψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
-    δψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
-    for ik = 1:length(basis.kpoints)
-        kpt = basis.kpoints[ik]
-        for n = 1:size(ψ[ik], 2)
-            ψnk = @views ψ[ik][:, n]
-            δψnk = @views δψ[ik][:, n]
-            G_to_r!(ψnk_real, basis, kpt, ψnk)
-            G_to_r!(δψnk_real, basis, kpt, δψnk)
-            δρ[:, :, :, kpt.spin] .+= occupation[ik][n] .* basis.kweights[ik] .*
-                                        (conj.(ψnk_real) .* δψnk_real .+
-                                        conj.(δψnk_real) .* ψnk_real) .+
-                                        δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(ψnk_real)
-        end
-    end
-    mpi_sum!(δρ, basis.comm_kpts)
-    symmetrize_ρ(basis, δρ; basis.symmetries)
+    ForwardDiff.derivative(ε -> compute_density(basis,
+                                                [ψ[ik] .+ ε .* δψ[ik] for ik = 1:length(ψ)],
+                                                [occupation[ik] .+ ε .* δoccupation[ik] for ik = 1:length(ψ)]),
+                           zero(eltype(basis)))
 end
 
 @views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis, ψ, occupation)
