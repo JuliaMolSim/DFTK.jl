@@ -234,9 +234,9 @@ function lowpass_for_symmetry!(ρ, basis; symmetries=basis.symmetries)
 end
 
 """
-Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
+Symmetrize a density by applying all the model (by default) symmetries and forming the average.
 """
-@views function symmetrize_ρ(basis, ρin; symmetries=basis.symmetries)
+@views function symmetrize_ρ(basis, ρin; symmetries=basis.model.symmetries)
     ρin_fourier = r_to_G(basis, ρin)
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρin, 4)
