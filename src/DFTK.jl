@@ -64,6 +64,7 @@ include("PlaneWaveBasis.jl")
 include("fft.jl")
 include("orbitals.jl")
 include("show.jl")
+include("supercell.jl")
 
 export Energies
 include("Energies.jl")
