@@ -1,3 +1,16 @@
+# A symmetry operation (symop) is a couple (W, w) of a
+# unitary (in cartesian coordinates, but not in reduced coordinates)
+# matrix W and a translation w such that, for each atom of
+# type A at position a, W a + w is also an atom of type A.
+# This induces an operator
+# (Uu)(x) = u(W x + w)
+# or in Fourier space
+# (Uu)(G) = e^{-i G τ} u(S^-1 G)
+# with
+# S = W'
+# τ = -W^-1 w
+# (all these formulas are valid both in reduced and cartesian coordinates)
+
 # Tolerance to consider two atomic positions as equal (in relative coordinates)
 const SYMMETRY_TOLERANCE = 1e-5
 

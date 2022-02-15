@@ -1,11 +1,7 @@
-## This file contains functions to handle the symetries
+# This file contains functions to handle the symetries.
+# The type symop is defined in common/symop.jl
 
-# A symmetry operation (symop) is a couple (W, w) of a
-# unitary (in cartesian coordinates, but not in reduced coordinates)
-# matrix W and a translation w such that, for each atom of
-# type A at position a, W a + w is also an atom of type A.
-
-# This induces a symmetry in the Brillouin zone that the Hamiltonian
+# A symmetry (W,w) (or (S,τ)) induces a symmetry in the Brillouin zone that the Hamiltonian
 # at S k is unitary equivalent to that at k, which we exploit to
 # reduce computations. The relationship is
 # S = W'
@@ -16,10 +12,10 @@
 # a set of (irreducible) kpoints (see explanation in docs). Each
 # irreducible k-point k comes with a list of symmetry operations
 # (S,τ) (containing at least the trivial operation (I,0)), where S
-# is a rotation matrix (/!\ not unitary in reduced coordinates)
+# is a unitary matrix (/!\ in cartesian but not in reduced coordinates)
 # and τ a translation vector. The k-point is then used to represent
-# implicitly the information at all the kpoints Sk. The
-# relationship between the Hamiltonians is
+# implicitly the information at all the kpoints Sk. The relationship
+# between the Hamiltonians is
 # H_{Sk} = U H_k U*, with
 # (Uu)(x) = u(W x + w)
 # or in Fourier space
@@ -221,7 +217,7 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
 end
 
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
-function lowpass_for_symmetry!(ρ, basis; symmetries=basis.symmetries)
+function lowpass_for_symmetry!(ρ, basis; symmetries=basis.model.symmetries)
     for symop in symmetries
         symop == one(SymOp) && continue
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
