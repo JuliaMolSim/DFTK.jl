@@ -60,68 +60,6 @@ function G_to_r(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; k
     G_to_r!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
 end
 
-
-@doc raw"""
-    Replace 0 by 1 in k_shift to avoid NaN in supercell fft.
-"""
-function clean_shift(basis::PlaneWaveBasis)
-    shift = Vector(basis.kshift)
-    for (i,x) in enumerate(shift)
-        iszero(x) && (shift[i] = one(Float64))
-    end
-    shift
-end
-
-@doc raw"""
-    For a given k point `k` return all `k+G`
-    for `G` in `G_vectors(k)` as a G vector of the 
-    supercell in reduced coordinates
-"""
-function kpG_reduced_supercell(basis::PlaneWaveBasis, kpt::Kpoint)
-    weigths =  basis.kgrid ./ clean_shift(basis)
-    map(Gpk -> round.(Int64, Gpk .* weigths), [G .+ kpt.coordinate
-                                         for G in G_vectors(basis, kpt)])
-end
-
-@doc raw"""
-    Construct a PlaneWaveBasis adapted to fft and ifft in the supercell.
-    Its fft_grid contains all the `k+G` vector of the initial given basis.
-    This amouts to take a single `k` point and multiply each fft_size
-    component by the number of unit cell in the supercell, which is
-    equal to `k_grid` with a correction due to an eventual `k_shift`.
-"""
-function cell_to_supercell(basis::PlaneWaveBasis)
-    # Number of unit cell in the supercell on each axis
-    supercell_size = basis.kgrid ./ clean_shift(basis)
-
-    # New basis and model parameters
-    model = basis.model
-    supercell = ( model.lattice' .* supercell_size )'
-    fft_size_supercell = Int64.(basis.fft_size .* supercell_size)
-
-    # Assemble new model and new basis
-    model_supercell = Model(supercell, atoms=model.atoms)
-    PlaneWaveBasis(model_supercell, basis.Ecut, fft_size_supercell,
-                   basis.variational, [zeros(Int64, 3)],
-                   [[one(SymOp)]], # only works with "unfolded" basis
-                   [1,1,1], # k_grid = Γ point only
-                   zeros(Int64, 3), basis.symmetries, basis.comm_kpts)
-end
-
-"""
-    Convert an array of format `[ψ(1), ψ(2), ... ψ(n_kpts)]` into a 3 dimensional
-    tensor adapted to ifft in the supercell.
-"""
-function cell_to_supercell(basis::PlaneWaveBasis, basis_supercell::PlaneWaveBasis,
-                           ψ_fourier)
-    ψ_fourier_supercell = zeros(ComplexF64, Tuple(basis_supercell.fft_size))
-    for (ik, kpt) in enumerate(basis.kpoints)
-        ikpG = DFTK.index_G_vectors.(basis_supercell, kpG_reduced_supercell(basis, kpt))
-        ψ_fourier_supercell[ikpG] .= ψ_fourier[ik]
-    end
-    ψ_fourier_supercell
-end
-
 function G_to_r_supercell(basis::PlaneWaveBasis, ψ_fourier)
     basis_supercell = cell_to_supercell(basis)
     ψ_fourier_supercell = cell_to_supercell(basis, basis_supercell, ψ_fourier)

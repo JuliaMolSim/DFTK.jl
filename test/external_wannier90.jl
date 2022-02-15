@@ -30,6 +30,9 @@ if !Sys.iswindows() && mpi_nprocs() == 1
     @test  isfile("wannier90_outputs/Si.wout")
     @test !isfile("wannier90_outputs/Si.werr")
 
+    plot_wannier_function(scfres, prefix, 1)
+    @test isfile("wannier90_outputs/Si_wannier_1.vts")
+    
     # remove produced files
     rm("wannier90_outputs", recursive=true)
 end
