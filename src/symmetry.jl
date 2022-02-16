@@ -245,8 +245,9 @@ end
 function symmetrize_stresses(lattice, symmetries, stresses)
     stresses_symmetrized = zero(stresses)
     for symop in symmetries
-        S_reduced = inv(lattice) * symop.S * lattice
-        stresses_symmetrized += S_reduced' * stresses * S_reduced
+        W = symop.S'
+        Wcart = lattice * W * inv(lattice)
+        stresses_symmetrized += Wcart * stresses * Wcart'
     end
     stresses_symmetrized /= length(symmetries)
     stresses_symmetrized

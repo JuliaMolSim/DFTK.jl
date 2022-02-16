@@ -13,7 +13,7 @@ include("testcases.jl")
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => silicon.positions]
         model = model_PBE(lattice, atoms; symmetries)
-        kgrid = [3, 3, 1]
+        kgrid = [3, 3, 3]
         Ecut = 7
         PlaneWaveBasis(model; Ecut, kgrid)
     end
@@ -34,7 +34,7 @@ include("testcases.jl")
 
 
     a = 10.0  # slightly compressed
-    lattice = a / 2 * [[0 1 1.];
+    lattice = a / 2 * [[0 1 1.1];
                        [1 0 1.];
                        [1 1 0.]]
     is_converged = DFTK.ScfConvergenceDensity(1e-13)
