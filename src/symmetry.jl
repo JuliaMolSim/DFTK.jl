@@ -243,12 +243,14 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
 end
 # symmetrize the stress tensor, which is a rank-2 contravariant tensor in reduced coordinates
 function symmetrize_stresses(lattice, symmetries, stresses)
-    stresses_symmetrized = zero(stresses)
+    # FIXME: stresses is in Cartesian coordinates, not reduced coordinates.
+    stresses_symmetrized_reduced = zero(stresses)
+    stresses_reduced = inv(lattice) * stresses * lattice
     for symop in symmetries
         W = symop.S'
-        Wcart = lattice * W * inv(lattice)
-        stresses_symmetrized += Wcart * stresses * Wcart'
+        stresses_symmetrized_reduced += W * stresses_reduced * inv(W)
     end
+    stresses_symmetrized = lattice * stresses_symmetrized_reduced * inv(lattice)
     stresses_symmetrized /= length(symmetries)
     stresses_symmetrized
 end
