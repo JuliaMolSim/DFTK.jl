@@ -1,4 +1,5 @@
 import SpecialFunctions: erfc
+using ChainRulesCore
 
 """
 Ewald term: electrostatic energy per unit cell of the array of point
@@ -82,8 +83,14 @@ function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
     energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions; η, forces)
 end
 
-function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, forces=nothing)
-    T = eltype(lattice)
+# Function to return the indices corresponding
+# to a particular shell
+# TODO switch to an O(N) implementation
+function shell_indices(ish)
+    [[i,j,k] for i in -ish:ish for j in -ish:ish for k in -ish:ish if maximum(abs.([i,j,k])) == ish]
+end
+
+function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positions; η=nothing, forces=nothing) where {T}
     @assert T == eltype(recip_lattice)
     @assert length(charges) == length(positions)
     if η === nothing
@@ -91,7 +98,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
         # with a slight bias towards reciprocal summation
         η = sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
     end
-    if forces !== nothing
+    ChainRulesCore.@ignore_derivatives if forces !== nothing
         @assert size(forces) == size(positions)
         forces_real = copy(forces)
         forces_recip = copy(forces)
@@ -105,27 +112,20 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     max_exponent = -log(eps(T)) + 5
 
     # The largest argument to the erfc function for various precisions.
-    # To get an idea:
+    # To get an idea:   
     #   erfc(5) ≈ 1e-12,  erfc(8) ≈ 1e-29,  erfc(10) ≈ 2e-45,  erfc(14) ≈ 3e-87
-    max_erfc_arg = get(
-        Dict(Float32 => 5, Float64 => 8, BigFloat => 14),
-        T,
-        something(findfirst(arg -> 100 * erfc(arg) < eps(T), 1:100), 100) # fallback for not yet implemented cutoffs
-    )
+    # max_erfc_arg = ChainRulesCore.@ignore_derivatives get(
+    #     Dict(Float32 => 5, Float64 => 8),
+    #     T,
+    #     14 # fallback for not yet implemented cutoffs
+    # )
+    max_erfc_arg = 8  # TODO adapt to eps(T)
 
     #
     # Reciprocal space sum
     #
     # Initialize reciprocal sum with correction term for charge neutrality
     sum_recip::T = - (sum(charges)^2 / 4η^2)
-
-    # Function to return the indices corresponding
-    # to a particular shell
-    # TODO switch to an O(N) implementation
-    function shell_indices(ish)
-        [[i,j,k] for i in -ish:ish for j in -ish:ish for k in -ish:ish
-         if maximum(abs.([i,j,k])) == ish]
-    end
 
     # Loop over reciprocal-space shells
     gsh = 1 # Exclude G == 0
@@ -151,7 +151,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
             any_term_contributes = true
             sum_recip += sum_strucfac * exp(-exponent) / Gsq
 
-            if forces !== nothing
+            ChainRulesCore.@ignore_derivatives if forces !== nothing
                 for (ir, r) in enumerate(positions)
                     Z = charges[ir]
                     dc = -Z*2T(π)*G*sin(2T(π) * dot(r, G))
@@ -165,7 +165,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     end
     # Amend sum_recip by proper scaling factors:
     sum_recip *= 4T(π) / compute_unit_cell_volume(lattice)
-    if forces !== nothing
+    ChainRulesCore.@ignore_derivatives if forces !== nothing
         forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
     end
 
@@ -205,7 +205,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
                 any_term_contributes = true
                 energy_contribution = Zi * Zj * erfc(η * dist) / dist
                 sum_real += energy_contribution
-                if forces !== nothing
+                ChainRulesCore.@ignore_derivatives if forces !== nothing
                     # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
                     dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
                     dE_ddist -= energy_contribution
@@ -219,7 +219,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
         rsh += 1
     end
     energy = (sum_recip + sum_real) / 2  # Divide by 2 (because of double counting)
-    if forces !== nothing
+    ChainRulesCore.@ignore_derivatives if forces !== nothing
         forces .= (forces_recip .+ forces_real) ./ 2
     end
     energy

@@ -46,18 +46,22 @@ function compute_dipole(ε; tol=1e-8, kwargs...)
 end
 
 
+f = compute_dipole(0.0)
+
 # With this in place we can compute the polarizability from finite differences
 # (just like in the previous example):
 polarizability_fd = let
     ε = 0.001
-    (compute_dipole(ε) - compute_dipole(0.0)) / ε
+    (compute_dipole(ε) - f) / ε
 end
 # 8.08068504649102
 
-Zygote.gradient(compute_dipole, 0.0)
+g = Zygote.gradient(compute_dipole, 0.0)
 # 8.08068504649102
 # incl. compile time: 229 seconds
 # second call:         40 seconds
+
+println("f: ", f, " fd: ", polarizability_fd, " AD: ", g)
 
 # using Profile, PProf
 # Profile.clear()
