@@ -92,7 +92,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     # Numerical cutoffs to obtain meaningful contributions. These are very conservative.
     # The largest argument to the exp(-x) function
     max_exp_arg = -log(eps(T)) + 5  # add some wiggle room
-    max_erfc_arg = sqrt(max_exp_arg) # erfc(x) ~= exp(-x^2)/(sqrt(π)x) for large x
+    max_erfc_arg = sqrt(max_exp_arg)  # erfc(x) ~= exp(-x^2)/(sqrt(π)x) for large x
 
     #
     # Reciprocal space sum
