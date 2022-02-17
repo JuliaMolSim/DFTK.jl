@@ -243,6 +243,7 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
     end
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
+
 # symmetrize the stress tensor, which is a rank-2 contravariant tensor in reduced coordinates
 function symmetrize_stresses(lattice, symmetries, stresses)
     stresses_symmetrized = zero(stresses)
@@ -254,10 +255,25 @@ function symmetrize_stresses(lattice, symmetries, stresses)
     stresses_symmetrized
 end
 
-function check_symmetric(basis, ρin; tol=1e-10, symmetries=basis.symmetries)
-    for symop in symmetries
-        @assert norm(symmetrize_ρ(ρin, [symop]) - ρin) < tol
+# symmetrize the forces, an array forces[iel][α,i] in reduced coordinates
+function symmetrize_forces(symmetries, forces, atoms)
+    symmetrized_forces = zero.(forces)
+    for (iel, (element, positions)) in enumerate(atoms)
+        for symop in symmetries
+            (W, w) = get_Ww(symop)
+            for (iat, at) in enumerate(positions)
+                # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
+                # (but careful that our symmetries are r -> Wr+w, not R(r+f))
+                other_at = W \ (at - w)
+                i_other_at = findfirst(positions) do a
+                    all(isinteger.(rationalize.(a - other_at; tol=SYMMETRY_TOLERANCE)))
+                end
+                symmetrized_forces[iel][i_other_at] += W * forces[iel][iat]
+            end
+        end
+        symmetrized_forces[iel] /= length(symmetries)
     end
+    symmetrized_forces
 end
 
 """"

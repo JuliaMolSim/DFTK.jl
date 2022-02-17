@@ -16,6 +16,8 @@ which has the same structure as the `atoms` object passed to the underlying [`Mo
             forces += f_term
         end
     end
+     # no explicit symmetrization is performed here, it is the
+     # responsability of each term to return symmetric forces
     forces
 end
 

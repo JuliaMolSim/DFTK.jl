@@ -27,6 +27,12 @@ struct SymOp
     SymOp(Sτ::Tuple) = SymOp(Sτ...)
 end
 
+function get_Ww(op::SymOp)
+    W = op.S'  # S = W'
+    w = -W*op.τ  # τ = -W^-1 w
+    (W, w)
+end
+
 Base.:(==)(op1::SymOp, op2::SymOp) = op1.S == op2.S && op1.τ == op2.τ
 function Base.isapprox(op1::SymOp, op2::SymOp; atol=SYMMETRY_TOLERANCE)
     op1.S == op2.S && isapprox(op1.τ, op2.τ; atol)

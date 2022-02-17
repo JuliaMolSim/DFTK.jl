@@ -54,42 +54,34 @@ end
         el isa ElementPsp || continue
 
         C = build_projection_coefficients_(el.psp)
-        # TODO optimize: switch this loop and the k-point loop
-        for (ir, r) in enumerate(positions)
-            fr = zeros(T, 3)
-            for α = 1:3
-                tot_red_kpt_number = sum([length(symops) for symops in basis.ksymops])
-                tot_red_kpt_number = mpi_sum(tot_red_kpt_number, basis.comm_kpts)
-                for (ik, kpt_irred) in enumerate(basis.kpoints)
-                    # Here we need to do an explicit loop over
-                    # symmetries, because the atom displacement might break them
-                    for isym in 1:length(basis.ksymops[ik])
-                        symop = basis.ksymops[ik][isym]
-                        Skpoint, ψSk = apply_ksymop(symop, basis, kpt_irred, ψ[ik])
-                        Skcoord = Skpoint.coordinate
-                        # energy terms are of the form <psi, P C P' psi>,
-                        # where P(G) = form_factor(G) * structure_factor(G)
-                        qs = Gplusk_vectors_cart(basis, Skpoint)
-                        form_factors = build_form_factors(el.psp, qs)
-                        structure_factors = [cis(-2T(π) * dot(q, r))
-                                             for q in Gplusk_vectors(basis, Skpoint)]
-                        P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
-                        dPdR = [-2T(π)*im*q[α] for q in Gplusk_vectors(basis, Skpoint)] .* P
-
-                        dHψSk = P * (C * (dPdR' * ψSk))
-                        for iband = 1:size(ψ[ik], 2)
-                            @views fr[α] -= (occ[ik][iband] / tot_red_kpt_number
-                                             * basis.model.n_spin_components
-                                             * 2real(  dot(ψSk[:, iband], dHψSk[:, iband])))
-                        end  #iband
-                    end  #isym
-                end  #ik
-            end  #α
-            mpi_sum!(fr, basis.comm_kpts)  # TODO take that out to gain latency
-            forces[iel][ir] += fr
+        for (ik, kpt) in enumerate(basis.kpoints)
+            # we compute the forces from the irreductible BZ; they are symmetrized later
+            qs_cart = Gplusk_vectors_cart(basis, kpt)
+            qs = Gplusk_vectors(basis, kpt)
+            form_factors = build_form_factors(el.psp, qs_cart)
+            for (ir, r) in enumerate(positions)
+                forces[iel][ir] += map(1:3) do α
+                    structure_factors = [cis(-2T(π) * dot(q, r)) for q in qs]
+                    P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
+                    dPdR = [-2T(π)*im*q[α] for q in qs] .* P
+                    ψk = ψ[ik]
+                    dHψk = P * (C * (dPdR' * ψk))
+                    -sum(occ[ik][iband] * basis.kweights[ik] *
+                         2real(dot(ψk[:, iband], dHψk[:, iband]))
+                         for iband=1:size(ψk, 2))
+                end  # α
+            end  # r
+        end  # kpt
+    end  # el
+    for forces_el in forces
+        # vectorize to a plain array to allow MPI to work here
+        f_vec = reduce(hcat, forces_el) # 3 x Nat
+        mpi_sum!(f_vec, basis.comm_kpts)
+        for nat = 1:length(forces_el)
+            forces_el[nat] = f_vec[:, nat]
         end
     end
-    forces
+    symmetrize_forces(basis.symmetries, forces, atoms)
 end
 
 # TODO possibly move over to psp/ ?
