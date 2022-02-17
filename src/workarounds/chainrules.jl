@@ -6,9 +6,9 @@ import AbstractFFTs
 function ChainRulesCore.rrule(::typeof(r_to_G), basis::PlaneWaveBasis, f_real::AbstractArray)
     @warn "r_to_G rrule triggered."
     f_fourier = r_to_G(basis, f_real)
-    function r_to_G_pullback(Δf_fourier)
-        ∂f_real = G_to_r(basis, complex(Δf_fourier)) * basis.r_to_G_normalization / basis.G_to_r_normalization
-        ∂normalization = real(dot(Δf_fourier, f_fourier)) / basis.r_to_G_normalization
+    function r_to_G_pullback(∂f_fourier)
+        ∂f_real = G_to_r(basis, complex(∂f_fourier)) * basis.r_to_G_normalization / basis.G_to_r_normalization
+        ∂normalization = real(dot(∂f_fourier, f_fourier)) / basis.r_to_G_normalization
         ∂basis = Tangent{typeof(basis)}(;r_to_G_normalization=∂normalization)
         return NoTangent(), ∂basis, real(∂f_real)
     end
@@ -18,9 +18,9 @@ end
 function ChainRulesCore.rrule(::typeof(r_to_G), basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray)
     @warn "r_to_G kpoint rrule triggered."
     f_fourier = r_to_G(basis, kpt, f_real)
-    function r_to_G_pullback(Δf_fourier)
-        ∂f_real = G_to_r(basis, kpt, complex(Δf_fourier)) * basis.r_to_G_normalization / basis.G_to_r_normalization
-        ∂normalization = real(dot(Δf_fourier, f_fourier)) / basis.r_to_G_normalization
+    function r_to_G_pullback(∂f_fourier)
+        ∂f_real = G_to_r(basis, kpt, complex(∂f_fourier)) * basis.r_to_G_normalization / basis.G_to_r_normalization
+        ∂normalization = real(dot(∂f_fourier, f_fourier)) / basis.r_to_G_normalization
         ∂basis = Tangent{typeof(basis)}(;r_to_G_normalization=∂normalization)
         return NoTangent(), ∂basis, NoTangent(), ∂f_real
     end
@@ -30,9 +30,9 @@ end
 function ChainRulesCore.rrule(::typeof(G_to_r), basis::PlaneWaveBasis, f_fourier::AbstractArray; kwargs...)
     @warn "G_to_r rrule triggered."
     f_real = G_to_r(basis, f_fourier; kwargs...)
-    function G_to_r_pullback(Δf_real)
-        ∂f_fourier = r_to_G(basis, real(Δf_real)) * basis.G_to_r_normalization / basis.r_to_G_normalization
-        ∂normalization = real(dot(Δf_real, f_real)) / basis.G_to_r_normalization
+    function G_to_r_pullback(∂f_real)
+        ∂f_fourier = r_to_G(basis, real(∂f_real)) * basis.G_to_r_normalization / basis.r_to_G_normalization
+        ∂normalization = real(dot(∂f_real, f_real)) / basis.G_to_r_normalization
         ∂basis = Tangent{typeof(basis)}(;G_to_r_normalization=∂normalization)
         return NoTangent(), ∂basis, ∂f_fourier
     end
@@ -42,9 +42,9 @@ end
 function ChainRulesCore.rrule(::typeof(G_to_r), basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector)
     @warn "G_to_r kpoint rrule triggered."
     f_real = G_to_r(basis, kpt, f_fourier)
-    function G_to_r_pullback(Δf_real)
-        ∂f_fourier = r_to_G(basis, kpt, complex(Δf_real)) * basis.G_to_r_normalization / basis.r_to_G_normalization
-        ∂normalization = real(dot(Δf_real, f_real)) / basis.G_to_r_normalization
+    function G_to_r_pullback(∂f_real)
+        ∂f_fourier = r_to_G(basis, kpt, complex(∂f_real)) * basis.G_to_r_normalization / basis.r_to_G_normalization
+        ∂normalization = real(dot(∂f_real, f_real)) / basis.G_to_r_normalization
         ∂basis = Tangent{typeof(basis)}(;G_to_r_normalization=∂normalization)
         return NoTangent(), ∂basis, NoTangent(), ∂f_fourier
     end
@@ -53,8 +53,8 @@ end
 
 # workaround rrules for mpi: treat as noop
 function ChainRulesCore.rrule(::typeof(mpi_sum), arr, comm)
-    function mpi_sum_pullback(Δy)
-        return NoTangent(), Δy, NoTangent()
+    function mpi_sum_pullback(∂y)
+        return NoTangent(), ∂y, NoTangent()
     end
     return arr, mpi_sum_pullback
 end
@@ -67,7 +67,7 @@ ChainRulesCore.@non_differentiable default_symmetries(::Any...) # TODO perhaps?
 # demanded by Zygote
 function ChainRulesCore.rrule(T::Type{Pair{ElementPsp,T2}}, el, x) where {T2}
     @warn "Pair{ElementPsp,T2} constructor rrule triggered."
-    return T(el, x), ΔTx -> (NoTangent(), NoTangent(), ΔTx.second)
+    return T(el, x), ∂Tx -> (NoTangent(), NoTangent(), ∂Tx.second)
 end
 
 # TODO delete
@@ -76,7 +76,7 @@ end
 # TODO delete, or understand why this is necessary
 function ChainRulesCore.rrule(T::Type{Vector{Kpoint{Float64}}}, x)
     @warn "strange Vector{Kpoint{Float64}} rrule triggered"
-    return T(x), ΔTx -> (NoTangent(), ΔTx)
+    return T(x), ∂Tx -> (NoTangent(), ∂Tx)
 end
 
 
@@ -107,12 +107,12 @@ end
 function ChainRulesCore.rrule(::typeof(build_kpoints), model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
     @warn "build_kpoints rrule triggered"
     kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
-    function build_kpoints_pullback(Δkpoints)
-        sum_Δkpoints = sum(Δkpoints)
-        if sum_Δkpoints isa NoTangent
+    function build_kpoints_pullback(∂kpoints)
+        sum_∂kpoints = sum(∂kpoints)
+        if sum_∂kpoints isa NoTangent
             return NoTangent(), NoTangent(), NoTangent(), NoTangent(), NoTangent()
         end
-        ∂recip_lattice = sum([Δkp.coordinate_cart * kp.coordinate' for (kp, Δkp) in zip(kpoints, Δkpoints) if !(Δkp isa NoTangent)])
+        ∂recip_lattice = sum([∂kp.coordinate_cart * kp.coordinate' for (kp, ∂kp) in zip(kpoints, ∂kpoints) if !(∂kp isa NoTangent)])
         ∂model = Tangent{typeof(model)}(; recip_lattice=∂recip_lattice)
         ∂kcoords = @not_implemented("TODO")
         return NoTangent(), ∂model, NoTangent(), ∂kcoords, NoTangent()
@@ -152,12 +152,12 @@ function ChainRulesCore.rrule(PT::Type{PlaneWaveBasis{T}},
         kgrid, kshift, kcoords_global, ksymops_global, comm_kpts, 
         krange_thisproc, krange_allprocs, symmetries, terms
     )
-    function PT_pullback(Δbasis)
-        return (NoTangent(), Δbasis.model, NoTangent(), Δbasis.dvol, Δbasis.Ecut, 
+    function PT_pullback(∂basis)
+        return (NoTangent(), ∂basis.model, NoTangent(), ∂basis.dvol, ∂basis.Ecut, 
                 NoTangent(), NoTangent(), NoTangent(), NoTangent(), NoTangent(),
-                Δbasis.r_to_G_normalization, Δbasis.G_to_r_normalization, Δbasis.kpoints, Δbasis.kweights, Δbasis.ksymops,
-                Δbasis.kgrid, Δbasis.kshift, Δbasis.kcoords_global, Δbasis.ksymops_global, Δbasis.comm_kpts, 
-                NoTangent(), NoTangent(), Δbasis.symmetries, Δbasis.terms)
+                ∂basis.r_to_G_normalization, ∂basis.G_to_r_normalization, ∂basis.kpoints, ∂basis.kweights, ∂basis.ksymops,
+                ∂basis.kgrid, ∂basis.kshift, ∂basis.kcoords_global, ∂basis.ksymops_global, ∂basis.comm_kpts, 
+                NoTangent(), NoTangent(), ∂basis.symmetries, ∂basis.terms)
     end
     return basis, PT_pullback
 end
@@ -308,8 +308,8 @@ end
 function ChainRulesCore.rrule(::typeof(_lowpass_for_symmetry), ρ, basis; symmetries=basis.model.symmetries)
     @warn "_lowpass_for_symmetry rrule triggered."
     ρnew = _lowpass_for_symmetry(ρ, basis; symmetries)
-    function lowpass_for_symmetry_pullback(Δρ)
-        ∂ρ = _lowpass_for_symmetry(Δρ, basis; symmetries)
+    function lowpass_for_symmetry_pullback(∂ρ)
+        ∂ρ = _lowpass_for_symmetry(∂ρ, basis; symmetries)
         return NoTangent(), ∂ρ, NoTangent()
     end
     return ρnew, lowpass_for_symmetry_pullback
@@ -453,24 +453,24 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
     ρ, compute_density_pullback =
         rrule(config, compute_density, basis, scfres.ψ, scfres.occupation)
 
-    function self_consistent_field_pullback(Δscfres)
-        δψ = Δscfres.ψ
-        δoccupation = Δscfres.occupation
-        δρ = Δscfres.ρ
-        δenergies = Δscfres.energies
-        δbasis = Δscfres.basis
-        δH = Δscfres.ham
+    function self_consistent_field_pullback(∂scfres)
+        ∂ψ = ∂scfres.ψ
+        ∂occupation = ∂scfres.occupation
+        ∂ρ = ∂scfres.ρ
+        ∂energies = ∂scfres.energies
+        ∂basis = ∂scfres.basis
+        ∂H = ∂scfres.ham
 
-        _, ∂basis, ∂ψ, _ = compute_density_pullback(δρ)
-        ∂ψ = ∂ψ + δψ
+        _, ∂basis, ∂ψ_density_pullback, _ = compute_density_pullback(∂ρ)
+        ∂ψ = ∂ψ_density_pullback + ∂ψ
         ∂ψ, occupation = DFTK.select_occupied_orbitals(basis, ∂ψ, occupation)
 
         ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation) # use self-adjointness of dH ψ -> dψ
 
         # TODO need to do proj_tangent on ∂Hψ
-        _, ∂H, _ = mul_pullback(∂Hψ)
-        ∂H = ∂H + δH
-        _, ∂basis, _, _, _ = energy_hamiltonian_pullback((δenergies, ∂H))
+        _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
+        ∂H = ∂H_mul_pullback + ∂H
+        _, ∂basis, _, _, _ = energy_hamiltonian_pullback((∂energies, ∂H))
 
         return NoTangent(), ∂basis
     end
