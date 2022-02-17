@@ -142,7 +142,9 @@ end
             end
         end
 
-        merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
+        if tid == 1
+            merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
+        end
     end
 
     # Apply the nonlocal operator

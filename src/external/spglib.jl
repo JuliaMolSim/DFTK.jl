@@ -62,7 +62,7 @@ function spglib_cell(lattice, atoms, magnetic_moments)
 end
 
 
-@timing function spglib_get_symmetry(lattice, atoms, magnetic_moments=[]; tol_symmetry=1e-5)
+@timing function spglib_get_symmetry(lattice, atoms, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
     lattice = Matrix{Float64}(lattice)  # spglib operates in double precision
 
     if isempty(atoms)
@@ -100,38 +100,38 @@ end
     end
 
     # Note: Transposes are performed to convert between spglib row-major to julia column-major
-    Stildes = [Mat3{Int}(spg_rotations[:, :, i]') for i in 1:spg_n_ops]
-    τtildes = [rationalize.(Vec3{Float64}(spg_translations[:, i]), tol=tol_symmetry)
+    Ws = [Mat3{Int}(spg_rotations[:, :, i]') for i in 1:spg_n_ops]
+    ws = [rationalize.(Vec3{Float64}(spg_translations[:, i]), tol=tol_symmetry)
                for i in 1:spg_n_ops]
 
-    # Checks: (A Stilde A^{-1}) is unitary
-    for Stilde in Stildes
-        Scart = lattice * Stilde * inv(lattice)  # Form S in cartesian coords
+    # Checks: (A W A^{-1}) is unitary
+    for W in Ws
+        Scart = lattice * W * inv(lattice)  # Form S in cartesian coords
         if maximum(abs, Scart'Scart - I) > tol_symmetry
             error("spglib returned bad symmetries: Non-unitary rotation matrix.")
         end
     end
 
-    # Check (Stilde, τtilde) maps atoms to equivalent atoms in the lattice
-    for (Stilde, τtilde) in zip(Stildes, τtildes)
+    # Check (W, w) maps atoms to equivalent atoms in the lattice
+    for (W, w) in zip(Ws, ws)
         for (elem, positions) in atoms
             for coord in positions
-                diffs = [rationalize.(Stilde * coord + τtilde - pos, tol=5*tol_symmetry)
+                diffs = [rationalize.(W * coord + w - pos, tol=5*tol_symmetry)
                          for pos in positions]
 
                 # If all elements of a difference in diffs is integer, then
-                # Stilde * coord + τtilde and pos are equivalent lattice positions
+                # W * coord + w and pos are equivalent lattice positions
                 if !any(all(isinteger, d) for d in diffs)
                     error("spglib returned bad symmetries: Cannot map the atom at position " *
                           "$coord to another atom of the same element under the symmetry " *
-                          "operation (Stilde, τtilde):\n" *
-                          "($Stilde, $τtilde)")
+                          "operation (W, w):\n" *
+                          "($W, $w)")
                 end
             end
         end
     end
 
-    Stildes, τtildes
+    Ws, ws
 end
 
 

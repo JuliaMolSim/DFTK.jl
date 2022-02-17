@@ -64,8 +64,8 @@ end
                     # Here we need to do an explicit loop over
                     # symmetries, because the atom displacement might break them
                     for isym in 1:length(basis.ksymops[ik])
-                        (S, τ) = basis.ksymops[ik][isym]
-                        Skpoint, ψSk = apply_ksymop((S, τ), basis, kpt_irred, ψ[ik])
+                        symop = basis.ksymops[ik][isym]
+                        Skpoint, ψSk = apply_ksymop(symop, basis, kpt_irred, ψ[ik])
                         Skcoord = Skpoint.coordinate
                         # energy terms are of the form <psi, P C P' psi>,
                         # where P(G) = form_factor(G) * structure_factor(G)

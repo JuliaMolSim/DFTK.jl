@@ -106,18 +106,6 @@ function build_fft_plans(T::Type{<:Union{ForwardDiff.Dual,Complex{<:ForwardDiff.
     ipFFT, opFFT, ipBFFT, opBFFT
 end
 
-# PlaneWaveBasis{<:Dual} contains dual-scaled fft, which means that the result f_fourier 
-# must be able to hold complex dual numbers even if f_real is not dual
-function r_to_G(basis::PlaneWaveBasis{T}, f_real::AbstractArray) where {T<:ForwardDiff.Dual}
-    f_fourier = similar(f_real, complex(T))
-    @assert length(size(f_real)) ∈ (3, 4)
-    # this exploits trailing index convention
-    for iσ = 1:size(f_real, 4)
-        @views r_to_G!(f_fourier[:, :, :, iσ], basis, f_real[:, :, :, iσ])
-    end
-    f_fourier
-end
-
 # determine symmetry operations only from primal lattice values
 function spglib_get_symmetry(lattice::Matrix{<:ForwardDiff.Dual}, atoms, magnetic_moments=[]; kwargs...)
     spglib_get_symmetry(ForwardDiff.value.(lattice), atoms, magnetic_moments; kwargs...)
