@@ -33,7 +33,7 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
         end
     end
     mpi_sum!(ρ, basis.comm_kpts)
-    ρ = symmetrize_ρ(basis, ρ; basis.symmetries)
+    ρ = symmetrize_ρ(basis, ρ)
     _check_positive(ρ)
     _check_total_charge(basis.dvol, ρ,
                         sum(basis.kweights[ik] * sum(occupation[ik]) for ik=1:length(basis.kpoints)))
@@ -63,7 +63,7 @@ end
         end
     end
     mpi_sum!(τ, basis.comm_kpts)
-    symmetrize_ρ(basis, τ; basis.symmetries)
+    symmetrize_ρ(basis, τ)
 end
 
 total_density(ρ) = dropdims(sum(ρ; dims=4); dims=4)

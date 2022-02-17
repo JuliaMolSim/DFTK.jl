@@ -217,7 +217,7 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
 end
 
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
-function lowpass_for_symmetry!(ρ, basis; symmetries=basis.model.symmetries)
+function lowpass_for_symmetry!(ρ, basis; symmetries=basis.symmetries)
     for symop in symmetries
         symop == one(SymOp) && continue
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
@@ -232,7 +232,7 @@ end
 """
 Symmetrize a density by applying all the model (by default) symmetries and forming the average.
 """
-@views function symmetrize_ρ(basis, ρin; symmetries=basis.model.symmetries)
+@views function symmetrize_ρ(basis, ρin; symmetries=basis.symmetries)
     ρin_fourier = r_to_G(basis, ρin)
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρin, 4)
