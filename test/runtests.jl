@@ -95,6 +95,7 @@ Random.seed!(0)
         include("compute_density.jl")
         include("forces.jl")
         include("stresses.jl")
+        include("forwarddiff.jl")
     end
 
     if "all" in TAGS
