@@ -95,7 +95,6 @@ Random.seed!(0)
         include("compute_density.jl")
         include("forces.jl")
         include("stresses.jl")
-        include("forwarddiff.jl")
     end
 
     if "all" in TAGS
@@ -114,8 +113,10 @@ Random.seed!(0)
         include("aqua.jl")
     end
 
-    if "all" in TAGS && mpi_nprocs() == 1  # Distributed implementation not yet available
+    # Distributed implementation not yet available
+    if "all" in TAGS && mpi_nprocs() == 1
         include("omegaplusk.jl")
+        include("forwarddiff.jl")
     end
 
     ("example" in TAGS) && include("runexamples.jl")
