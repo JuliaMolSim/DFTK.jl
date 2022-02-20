@@ -180,16 +180,32 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
 
     ## Implicit differentiation
     hamψ_dual = ham_dual * ψ_dual
-    δHψ = [ForwardDiff.partials.(δHψₖ, 1) for δHψₖ in hamψ_dual]
-    δψ, response = solve_ΩplusK(basis, ψ, -δHψ, occupation;
-                                tol_cg=scfres.norm_Δρ, verbose=response.verbose)
-    δρ  = compute_δρ(basis, ψ, δψ, occupation)
+    N = ForwardDiff.npartials(T)
+    δresults = ntuple(N) do j
+        δHψj = [ForwardDiff.partials.(δHψₖ, j) for δHψₖ in hamψ_dual]
+        δψj, responsej = solve_ΩplusK(basis, ψ, -δHψj, occupation;
+                                    tol_cg=scfres.norm_Δρ, verbose=response.verbose)
+        δρj  = compute_δρ(basis, ψ, δψj, occupation)
+        δψj, δρj, responsej
+    end
+    δψ = [δψj for (δψj, δρj, responsej) in δresults]
+    δρ = [δρj for (δψj, δρj, responsej) in δresults]
+    response = [responsej for (δψj, δρj, responsej) in δresults]
 
     ## Convert, combine and return
     DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}
-    ψ_out = [Complex.(DT.(real(ψₖ), real(δψₖ)), DT.(imag(ψₖ), imag(δψₖ))) for (ψₖ, δψₖ) in zip(ψ, δψ)]
-    ρ_out = DT.(scfres.ρ, δρ)
-
+    ψ_out = map(ψ, δψ...) do ψₖ, δψₖ...
+        map(ψₖ, δψₖ...) do ψi, δψi...
+            Complex(
+                DT(real(ψi), map(real, δψi)),
+                DT(imag(ψi), map(imag, δψi)),
+            )
+        end
+    end
+    ρ_out = map(scfres.ρ, δρ...) do ρi, δρi...
+       DT(ρi, δρi) 
+    end
+    
     merge(scfres, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
                      occupation=occupation_dual, ρ=ρ_out, eigenvalues=eigenvalues_dual,
                      εF=εF_dual, response))
