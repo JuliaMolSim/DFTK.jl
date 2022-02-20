@@ -53,7 +53,7 @@ for P in [:Plan, :ScaledPlan]  # need ScaledPlan to avoid ambiguities
         Base.:*(p::AbstractFFTs.$P, x::AbstractArray{<:Complex{<:ForwardDiff.Dual}}) =
             _apply_plan(p, x)
 
-        LinearAlgebra.mul!(Y::AbstractArray, p::AbstractFFTs.$P, X::AbstractArray{<:ForwardDiff.Dual}) = 
+        LinearAlgebra.mul!(Y::AbstractArray, p::AbstractFFTs.$P, X::AbstractArray{<:ForwardDiff.Dual}) =
             (Y .= _apply_plan(p, X))
 
         LinearAlgebra.mul!(Y::AbstractArray, p::AbstractFFTs.$P, X::AbstractArray{<:Complex{<:ForwardDiff.Dual}}) =
@@ -184,8 +184,8 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     δresults = ntuple(N) do j
         δHψj = [ForwardDiff.partials.(δHψₖ, j) for δHψₖ in hamψ_dual]
         δψj, responsej = solve_ΩplusK(basis, ψ, -δHψj, occupation;
-                                    tol_cg=scfres.norm_Δρ, verbose=response.verbose)
-        δρj  = compute_δρ(basis, ψ, δψj, occupation)
+                                      tol_cg=scfres.norm_Δρ, verbose=response.verbose)
+        δρj = compute_δρ(basis, ψ, δψj, occupation)
         δψj, δρj, responsej
     end
     δψ = [δψj for (δψj, δρj, responsej) in δresults]
@@ -203,9 +203,9 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
         end
     end
     ρ_out = map(scfres.ρ, δρ...) do ρi, δρi...
-       DT(ρi, δρi) 
+       DT(ρi, δρi)
     end
-    
+
     merge(scfres, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
                      occupation=occupation_dual, ρ=ρ_out, eigenvalues=eigenvalues_dual,
                      εF=εF_dual, response))
