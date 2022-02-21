@@ -28,10 +28,12 @@ Returns a list of lists of forces
 which has the same structure as the `atoms` object passed to the underlying [`Model`](@ref).
 """
 function compute_forces_cart(basis::PlaneWaveBasis, ψ, occ; kwargs...)
-    lattice = basis.model.lattice
+    # For F / r the force and displacement in reduced coordinates
+    # and F_cart / r_cart in cartesian, we have:
+    # F ⋅ r = F_cart ⋅ r_cart = F_cart ⋅ (L*r) = (Lᵀ F_cart) ⋅ r   =>  F_cart = L⁻ᵀ F
     forces = compute_forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
-    inv_lattice = compute_inverse_lattice(lattice)
-    [[inv_lattice * f for f in forces_for_element] for forces_for_element in forces]
+    inv_lattice = compute_inverse_lattice(basis.model.lattice)
+    [[inv_lattice' * f for f in forces_for_element] for forces_for_element in forces]
 end
 
 function compute_forces(scfres)
