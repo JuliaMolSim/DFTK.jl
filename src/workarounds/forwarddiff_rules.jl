@@ -199,9 +199,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
                     DT(imag(ψi), imag.(δψi)))
         end
     end
-    ρ_out = map(scfres.ρ, δρ...) do ρi, δρi...
-       DT(ρi, δρi)
-    end
+    ρ_out = map((ρi, δρi...) -> DT(ρi, δρi), scfres.ρ, δρ...)
 
     merge(scfres, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
                      occupation=occupation_dual, ρ=ρ_out, eigenvalues=eigenvalues_dual,
