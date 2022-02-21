@@ -53,7 +53,7 @@ for P in [:Plan, :ScaledPlan]  # need ScaledPlan to avoid ambiguities
         Base.:*(p::AbstractFFTs.$P, x::AbstractArray{<:Complex{<:ForwardDiff.Dual}}) =
             _apply_plan(p, x)
 
-        LinearAlgebra.mul!(Y::AbstractArray, p::AbstractFFTs.$P, X::AbstractArray{<:ForwardDiff.Dual}) = 
+        LinearAlgebra.mul!(Y::AbstractArray, p::AbstractFFTs.$P, X::AbstractArray{<:ForwardDiff.Dual}) =
             (Y .= _apply_plan(p, X))
 
         LinearAlgebra.mul!(Y::AbstractArray, p::AbstractFFTs.$P, X::AbstractArray{<:Complex{<:ForwardDiff.Dual}}) =
@@ -180,15 +180,26 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
 
     ## Implicit differentiation
     hamψ_dual = ham_dual * ψ_dual
-    δHψ = [ForwardDiff.partials.(δHψₖ, 1) for δHψₖ in hamψ_dual]
-    δψ, response = solve_ΩplusK(basis, ψ, -δHψ, occupation;
-                                tol_cg=scfres.norm_Δρ, verbose=response.verbose)
-    δρ  = compute_δρ(basis, ψ, δψ, occupation)
+    δresults = ntuple(ForwardDiff.npartials(T)) do α
+        δHψ_α = [ForwardDiff.partials.(δHψk, α) for δHψk in hamψ_dual]
+        δψ_α, response_α = solve_ΩplusK(basis, ψ, -δHψ_α, occupation;
+                                        tol_cg=scfres.norm_Δρ, verbose=response.verbose)
+        δρ_α = compute_δρ(basis, ψ, δψ_α, occupation)
+        δψ_α, δρ_α, response_α
+    end
+    δψ       = [δψ_α       for (δψ_α, δρ_α, response_α) in δresults]
+    δρ       = [δρ_α       for (δψ_α, δρ_α, response_α) in δresults]
+    response = [response_α for (δψ_α, δρ_α, response_α) in δresults]
 
     ## Convert, combine and return
     DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}
-    ψ_out = [Complex.(DT.(real(ψₖ), real(δψₖ)), DT.(imag(ψₖ), imag(δψₖ))) for (ψₖ, δψₖ) in zip(ψ, δψ)]
-    ρ_out = DT.(scfres.ρ, δρ)
+    ψ_out = map(ψ, δψ...) do ψk, δψk...
+        map(ψk, δψk...) do ψi, δψi...
+            Complex(DT(real(ψi), real.(δψi)),
+                    DT(imag(ψi), imag.(δψi)))
+        end
+    end
+    ρ_out = map((ρi, δρi...) -> DT(ρi, δρi), scfres.ρ, δρ...)
 
     merge(scfres, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
                      occupation=occupation_dual, ρ=ρ_out, eigenvalues=eigenvalues_dual,
