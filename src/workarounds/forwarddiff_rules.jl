@@ -181,15 +181,15 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     ## Implicit differentiation
     hamψ_dual = ham_dual * ψ_dual
     δresults = ntuple(ForwardDiff.npartials(T)) do α
-        δHψα = [ForwardDiff.partials.(δHψk, α) for δHψk in hamψ_dual]
-        δψα, responseα = solve_ΩplusK(basis, ψ, -δHψα, occupation;
-                                      tol_cg=scfres.norm_Δρ, verbose=response.verbose)
-        δρα = compute_δρ(basis, ψ, δψα, occupation)
-        δψα, δρα, responseα
+        δHψ_α = [ForwardDiff.partials.(δHψk, α) for δHψk in hamψ_dual]
+        δψ_α, response_α = solve_ΩplusK(basis, ψ, -δHψ_α, occupation;
+                                        tol_cg=scfres.norm_Δρ, verbose=response.verbose)
+        δρ_α = compute_δρ(basis, ψ, δψ_α, occupation)
+        δψ_α, δρ_α, response_α
     end
-    δψ = [δψα for (δψα, δρα, responseα) in δresults]
-    δρ = [δρα for (δψα, δρα, responseα) in δresults]
-    response = [responseα for (δψα, δρα, responseα) in δresults]
+    δψ       = [δψ_α       for (δψ_α, δρ_α, response_α) in δresults]
+    δρ       = [δρ_α       for (δψ_α, δρ_α, response_α) in δresults]
+    response = [response_α for (δψ_α, δρ_α, response_α) in δresults]
 
     ## Convert, combine and return
     DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}
