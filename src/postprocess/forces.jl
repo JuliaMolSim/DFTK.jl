@@ -28,7 +28,7 @@ which has the same structure as the `atoms` object passed to the underlying [`Mo
 function compute_forces_cart(basis::PlaneWaveBasis, ψ, occ; kwargs...)
     lattice = basis.model.lattice
     forces = compute_forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
-    [[lattice \ f for f in forces_for_element] for forces_for_element in forces]
+    [[pinv(lattice)*f for f in forces_for_element] for forces_for_element in forces]
 end
 
 function compute_forces(scfres)
