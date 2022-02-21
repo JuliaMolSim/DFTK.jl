@@ -25,15 +25,22 @@ end
     equal to `k_grid` with a correction due to an eventual `k_shift`.
 """
 function cell_to_supercell(basis::PlaneWaveBasis)
+    size_supercell = supercell_size(basis)
     # New basis and model parameters
     model = basis.model
-    supercell = ( model.lattice' .* supercell_size(basis) )'
-    fft_size_supercell = Int64.(basis.fft_size .* supercell_size(basis))
-
-    # ADD here correction on atoms
+    supercell = ( model.lattice' .* size_supercell )'
+    fft_size_supercell = Int64.(basis.fft_size .* size_supercell)
     
+    # Compute atoms coordinates in the supercell
+    atom_supercell = []; nx, ny, nz = size_supercell
+    for atom in basis.model.atoms
+        atom_coords_supercell = vcat([atom[2] .+ Ref(basis.model.lattice*[i;j;k])
+                                      for i in 0:nx-1, j in 0:ny-1, k in 0:nz-1]...)
+        append!(atom_supercell, [atom[1] => atom_coords_supercell])
+    end
+        
     # Assemble new model and new basis
-    model_supercell = Model(supercell, atoms=model.atoms)
+    model_supercell = Model(supercell, atoms=atom_supercell)
     PlaneWaveBasis(model_supercell, basis.Ecut, fft_size_supercell,
                    basis.variational, [zeros(Int64, 3)],
                    [[one(SymOp)]], # only works with "unfolded" basis
@@ -53,4 +60,21 @@ function cell_to_supercell(basis::PlaneWaveBasis, basis_supercell::PlaneWaveBasi
         ψ_fourier_supercell[ikpG] .= ψ_fourier[ik]
     end
     ψ_fourier_supercell
+end
+
+function cell_to_supercell(scfres::NamedTuple)
+    basis = scfres.basis; ψ = scfres.ψ
+    basis_supercell = cell_to_supercell(basis)
+    
+    # Compute ψ viewed as a single table in the supercell fft_grid
+    @show num_kpG = sum(size(ψk,1) for ψk in ψ); num_bands = size(ψ[1],2)
+    ψ_supercell = zeros(ComplexF64, num_kpG, num_bands)
+    Γ_supercell = only(basis_supercell.kpoints)
+    for (ik, kpt) in enumerate(basis.kpoints)
+        id_kpG_supercell = DFTK.index_G_vectors.(basis_supercell, Ref(Γ_supercell),
+                                                 kpG_reduced_supercell(basis, kpt))
+        ψ_supercell[id_kpG_supercell, :] .= hcat(eachcol(scfres.ψ[ik])...)
+    end
+    # Tmp have to adapt also the density
+    scfres_supercell = merge(scfres, (;ψ=[ψ_supercell], basis=basis_supercell))
 end
