@@ -233,7 +233,7 @@ end
 """
 Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
-@views function symmetrize_ρ(basis, ρin; symmetries=basis.symmetries)
+@views @timing function symmetrize_ρ(basis, ρin; symmetries=basis.symmetries)
     ρin_fourier = r_to_G(basis, ρin)
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρin, 4)
@@ -268,7 +268,7 @@ function symmetrize_forces(symmetries, forces, atoms)
                 i_other_at = findfirst(positions) do a
                     all(isinteger.(rationalize.(a - other_at; tol=SYMMETRY_TOLERANCE)))
                 end
-                symmetrized_forces[iel][i_other_at] += W * forces[iel][iat]
+                symmetrized_forces[iel][iat] += W * forces[iel][i_other_at]
             end
         end
         symmetrized_forces[iel] /= length(symmetries)
