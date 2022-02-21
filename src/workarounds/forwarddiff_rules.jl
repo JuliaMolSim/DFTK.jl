@@ -195,10 +195,8 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}
     ψ_out = map(ψ, δψ...) do ψk, δψk...
         map(ψk, δψk...) do ψi, δψi...
-            Complex(
-                DT(real(ψi), real.(δψi)),
-                DT(imag(ψi), imag.(δψi)),
-            )
+            Complex(DT(real(ψi), real.(δψi)),
+                    DT(imag(ψi), imag.(δψi)))
         end
     end
     ρ_out = map(scfres.ρ, δρ...) do ρi, δρi...
