@@ -72,8 +72,9 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
     kpoints::Vector{Kpoint{T}}
     # BZ integration weights, summing up to model.n_spin_components
     kweights::Vector{T}
-    # ksymops[ik] is a list of symmetry operations (S,τ)
-    # mapping to points in the reducible BZ
+    # ksymops[ik] is a list of symmetry operations (S,τ) mapping to
+    # points in the reducible BZ. Note however that the particular
+    # symmetry operation chosen to map k to Sk is arbitrary
     ksymops::Vector{Vector{SymOp}}
 
     ## MPI-global information of how the global k-point grid was constructed

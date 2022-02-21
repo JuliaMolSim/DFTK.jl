@@ -48,11 +48,6 @@ include("testcases.jl")
         end
     end
 
-    @testset "Enforce symmetry" begin
-        ρ_alg = self_consistent_field(basis; ρ=ρ0, tol=tol, enforce_symmetry=true).ρ
-        @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
-    end
-
     # Run other mixing with default solver (the others are too slow...)
     for mixing in (KerkerMixing(), SimpleMixing(), DielectricMixing(εr=12),
                    KerkerDosMixing(), HybridMixing(), HybridMixing(εr=10, RPA=false),
