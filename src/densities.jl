@@ -25,10 +25,10 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
     ρ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
     ρ .= 0
     ψnk_real = zeros(complex(T), basis.fft_size)
-    for (ik, (weight, kpt)) in enumerate(zip(basis.kweights, basis.kpoints))
+    for (ik, kpt) in enumerate(basis.kpoints)
         for n = 1:size(ψ[ik], 2)
             G_to_r!(ψnk_real, basis, kpt, ψ[ik][:, n])
-            ρ[:, :, :, kpt.spin] .+= occupation[ik][n] .* weight .* abs2.(ψnk_real)
+            ρ[:, :, :, kpt.spin] .+= occupation[ik][n] .* basis.kweights[ik] .* abs2.(ψnk_real)
         end
     end
     mpi_sum!(ρ, basis.comm_kpts)
@@ -56,11 +56,11 @@ end
     τ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
     τ .= 0
     dαψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
-    for (ik, (weight, kpt)) in enumerate(zip(basis.kweights, basis.kpoints))
+    for (ik, kpt) in enumerate(basis.kpoints)
         G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(basis, kpt)] for α in 1:3]
         for n = 1:size(ψ[ik], 2), α = 1:3
             G_to_r!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
-            τ[:, :, :, kpt.spin] .+= occupation[ik][n] .* weight ./ 2 .* abs2.(dαψnk_real)
+            @. τ[:, :, :, kpt.spin] += occupation[ik][n] * basis.kweights[ik] / 2 * abs2(dαψnk_real)
         end
     end
     mpi_sum!(τ, basis.comm_kpts)
