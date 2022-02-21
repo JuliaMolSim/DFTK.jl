@@ -18,7 +18,7 @@ include("testcases.jl")
         compute_forces_cart(scfres)[1]
     end
 
-    F = compute_force(0.0)
+    F = compute_force(0.0, 0.0)
     derivative_ε1_fd = let ε1 = 1e-5
         (compute_force(ε1, 0.0) - F) / ε1
     end
