@@ -127,9 +127,8 @@ end
     @sync for (ichunk, chunk) in enumerate(Iterators.partition(1:n_bands, chunk_length))
         Threads.@spawn for iband in chunk # spawn a task per chunk
             to = TimerOutput()  # Thread-local timer output
-            tid = Threads.threadid()
             ψ_real = H.scratch.ψ_reals[ichunk]
-            
+
             @timeit to "local+kinetic" begin
                 G_to_r!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
                 ψ_real .*= potential
@@ -146,7 +145,7 @@ end
                 end
             end
 
-            if tid == 1
+            if Threads.threadid() == 1
                 merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
             end
        end
