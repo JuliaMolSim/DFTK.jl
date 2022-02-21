@@ -121,30 +121,35 @@ end
 
     # Notice that we use unnormalized plans for extra speed
     potential = H.local_op.potential / prod(H.basis.fft_size)
-    Threads.@threads for iband = 1:n_bands
-        to = TimerOutput()  # Thread-local timer output
-        tid = Threads.threadid()
-        ψ_real = H.scratch.ψ_reals[tid]
 
-        @timeit to "local+kinetic" begin
-            G_to_r!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
-            ψ_real .*= potential
-            r_to_G!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
-            Hψ[:, iband] .+= H.fourier_op.multiplier .* ψ[:, iband]
-        end
-
-        if have_divAgrad
-            @timeit to "divAgrad" begin
-                apply!((fourier=Hψ[:, iband], real=nothing),
-                       H.divAgrad_op,
-                       (fourier=ψ[:, iband], real=nothing),
-                       ψ_real)  # ψ_real used as scratch
+    # parallelize the loop by breaking it into nthreads() chunks. The ψ_reals are chunk-local
+    chunk_length = cld(n_bands, Threads.nthreads())
+    @sync for (ichunk, chunk) in enumerate(Iterators.partition(1:n_bands, chunk_length))
+        Threads.@spawn for iband in chunk # spawn a task per chunk
+            to = TimerOutput()  # Thread-local timer output
+            tid = Threads.threadid()
+            ψ_real = H.scratch.ψ_reals[ichunk]
+            
+            @timeit to "local+kinetic" begin
+                G_to_r!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
+                ψ_real .*= potential
+                r_to_G!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
+                Hψ[:, iband] .+= H.fourier_op.multiplier .* ψ[:, iband]
             end
-        end
 
-        if tid == 1
-            merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
-        end
+            if have_divAgrad
+                @timeit to "divAgrad" begin
+                    apply!((fourier=Hψ[:, iband], real=nothing),
+                           H.divAgrad_op,
+                           (fourier=ψ[:, iband], real=nothing),
+                           ψ_real)  # ψ_real used as scratch
+                end
+            end
+
+            if tid == 1
+                merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
+            end
+       end
     end
 
     # Apply the nonlocal operator
