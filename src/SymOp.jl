@@ -1,4 +1,4 @@
-# A symmetry operation (symop) is a couple (W, w) of a
+# A symmetry operation (SymOp) is a couple (W, w) of a
 # unitary (in cartesian coordinates, but not in reduced coordinates)
 # matrix W and a translation w such that, for each atom of
 # type A at position a, W a + w is also an atom of type A.

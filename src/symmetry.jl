@@ -1,17 +1,19 @@
 # This file contains functions to handle the symetries.
-# The type symop is defined in common/symop.jl
+# The type SymOp is defined in Symop.jl
 
-# A symmetry (W,w) (or (S,τ)) induces a symmetry in the Brillouin zone that the Hamiltonian
-# at S k is unitary equivalent to that at k, which we exploit to
+# A symmetry (W, w) (or (S, τ)) induces a symmetry in the Brillouin zone
+# that the Hamiltonian at S k is unitary equivalent to that at k, which we exploit to
 # reduce computations. The relationship is
 # S = W'
 # τ = -W^-1 w
-# (valid both in reduced and cartesian coordinates)
+# (valid both in reduced and cartesian coordinates). In our notation
+# the rotation matrix W and translation w are such that, for each atom of
+# type A at position a, W a + w is also an atom of type A.
 
 # The full (reducible) Brillouin zone is implicitly represented by
 # a set of (irreducible) kpoints (see explanation in docs). Each
 # irreducible k-point k comes with a list of symmetry operations
-# (S,τ) (containing at least the trivial operation (I,0)), where S
+# (S, τ) (containing at least the trivial operation (I, 0)), where S
 # is a unitary matrix (/!\ in cartesian but not in reduced coordinates)
 # and τ a translation vector. The k-point is then used to represent
 # implicitly the information at all the kpoints Sk. The relationship
@@ -44,8 +46,7 @@ Return the ``k``-point symmetry operations associated to a lattice and atoms.
 function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
     symmetries = []
     # Get symmetries from spglib
-    Ws, ws = spglib_get_symmetry(lattice, atoms, magnetic_moments;
-                                           tol_symmetry=tol_symmetry)
+    Ws, ws = spglib_get_symmetry(lattice, atoms, magnetic_moments; tol_symmetry)
     for isym = 1:length(Ws)
         S = Ws[isym]'                  # in fractional reciprocal coordinates
         τ = -Ws[isym] \ ws[isym]  # in fractional real-space coordinates
@@ -230,7 +231,7 @@ function lowpass_for_symmetry!(ρ, basis; symmetries=basis.symmetries)
 end
 
 """
-Symmetrize a density by applying all the model (by default) symmetries and forming the average.
+Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
 @views function symmetrize_ρ(basis, ρin; symmetries=basis.symmetries)
     ρin_fourier = r_to_G(basis, ρin)
@@ -238,7 +239,7 @@ Symmetrize a density by applying all the model (by default) symmetries and formi
     for σ = 1:size(ρin, 4)
         accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
-        lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries=symmetries)
+        lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
