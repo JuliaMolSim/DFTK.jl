@@ -32,9 +32,8 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
                     for _ = 1:Threads.nthreads()]
     ψnk_real_chunklocal = [zeros(complex(T), basis.fft_size) for _ = 1:Threads.nthreads()]
 
-    @sync for (ichunk, chunk) in enumerate(Iterators.partition(1:total_iters, chunk_length))
-        Threads.@spawn for it in chunk  # spawn a task per chunk
-            ik, n = ik_n[it]
+    @sync for (ichunk, chunk) in enumerate(Iterators.partition(1:length(ik_n), chunk_length))
+        Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
             ψnk_real = ψnk_real_chunklocal[ichunk]
             ρ_loc = ρ_chunklocal[ichunk]
 
