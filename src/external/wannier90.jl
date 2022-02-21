@@ -290,10 +290,10 @@ default_wannier_centres(n_wannier) = [rand(1, 3) for _ in 1:n_wannier]
     fileprefix
 end
 
-function read_mat(file, n_bands_tot)
+function read_wannier90_output_mat(file, n_bands_tot)
     Uks = readdlm(file); num_kpts, num_ψout, num_ψin = Uks[2,1:3];
     len_Uk = num_ψin*num_ψout
-    
+
     list_Uk = []
     for k in 1:num_kpts
         i_Uk = 4 + (k-1)*(len_Uk+1)
@@ -302,10 +302,10 @@ function read_mat(file, n_bands_tot)
         (norm(Uk'Uk - I) > 1e-8) && (error("U matrix has non-orthogonal columns"))
         # Complete U matrices by zero to ease the writing of `apply_U_matrices`
         (n_bands_tot ≠ num_ψin) &&
-            ( Uk = hcat(Uk, zeros(ComplexF64, n_bands_tot - num_ψin, num_ψout)) )
+            ( Uk = vcat(Uk, zeros(ComplexF64, n_bands_tot - num_ψin, num_ψout)) )
         push!(list_Uk, Uk)
     end
-    list_Uk, num_kpts
+    list_Uk
 end
 
 @doc raw"""
@@ -320,7 +320,8 @@ end
 function apply_U_matrices(file, ψ)
     # read .mat file
     n_bands_tot = size(ψ[1], 2)
-    Uks, num_kpts = read_mat(file, n_bands_tot)
+    num_kpts = length(ψ)
+    Uks = read_wannier90_output_mat(file, n_bands_tot)
     [ψ[k]*Uks[k] for k in 1:num_kpts]
 end
 
