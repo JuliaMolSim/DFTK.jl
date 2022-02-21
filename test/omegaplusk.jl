@@ -23,8 +23,8 @@ include("testcases.jl")
 
     @testset "self-adjointness of solve_ΩplusK" begin
         @test isapprox(
-            real(dot(ϕ, solve_ΩplusK(basis, ψ, rhs, occupation))),
-            real(dot(solve_ΩplusK(basis, ψ, ϕ, occupation), rhs)),
+            real(dot(ϕ, solve_ΩplusK(basis, ψ, rhs, occupation).δψ)),
+            real(dot(solve_ΩplusK(basis, ψ, ϕ, occupation).δψ, rhs)),
             atol=1e-7
         )
     end

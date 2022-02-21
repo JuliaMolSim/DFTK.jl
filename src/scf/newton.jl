@@ -158,10 +158,10 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
     J = LinearMap{T}(ΩpK, size(rhs_pack, 1))
 
     # solve (Ω+K) δψ = rhs on the tangent space with CG
-    δψ = cg(J, rhs_pack, Pl=FunctionPreconditioner(f_ldiv!),
-            reltol=0, abstol=tol_cg, verbose=verbose)
+    δψ, history = cg(J, rhs_pack, Pl=FunctionPreconditioner(f_ldiv!),
+                  reltol=0, abstol=tol_cg, verbose=verbose, log=true)
 
-    unpack(δψ)
+    (; δψ=unpack(δψ), history)
 end
 
 
@@ -247,9 +247,8 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
         # compute Newton step and next iteration
         res = compute_projected_gradient(basis, ψ, occupation)
         # solve (Ω+K) δψ = -res so that the Newton step is ψ <- ψ + δψ
-        δψ = solve_ΩplusK(basis, ψ, -res, occupation; tol_cg=tol_cg,
-                          verbose=verbose)
-        ψ = [ortho_qr(ψ[ik] + δψ[ik]) for ik in 1:Nk]
+        δψ = solve_ΩplusK(basis, ψ, -res, occupation; tol_cg, verbose).δψ
+        ψ  = [ortho_qr(ψ[ik] + δψ[ik]) for ik in 1:Nk]
 
         ρ_next = compute_density(basis, ψ, occupation)
         energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ_next)

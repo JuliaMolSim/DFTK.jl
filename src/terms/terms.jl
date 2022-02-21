@@ -98,14 +98,16 @@ as a 4D (i,j,k,σ) array.
     n_spin = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
 
-    δV = zero(δρ)
-    for term in basis.terms
-        # Skip XC term if RPA is selected
-        RPA && term isa TermXc && continue
-
-        δV_term = apply_kernel(term, basis, δρ; kwargs...)
-        if !isnothing(δV_term)
-            δV .+= δV_term
+    if RPA
+        hartree = filter(t -> t isa TermHartree, basis.terms)
+        δV = isempty(hartree) ? zero(δρ) : apply_kernel(only(hartree), basis, δρ; kwargs...)
+    else
+        δV = zero(δρ)
+        for term in basis.terms
+            δV_term = apply_kernel(term, basis, δρ; kwargs...)
+            if !isnothing(δV_term)
+                δV .+= δV_term
+            end
         end
     end
     δV
