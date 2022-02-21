@@ -106,8 +106,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # Solves (1-P) (H-εn) (1-P) δψn = - (1-P) rhs
 # where 1-P is the projector on the orthogonal of ψk
 function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
-                            ψk_extra=zeros(size(ψk,1), 0),
-                            εk_extra=zeros(0), schur=true,
+                            ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
                             tol_cg=1e-12, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
@@ -115,8 +114,8 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
     temperature = model.temperature
 
     # We use a Schur decomposition of the orthogonal of the occupied states
-    # where we still know some information from the partially converged
-    # nonoccupied states (in particular, they are Rayleigh-Ritz wrt to Hk).
+    # into a part where we have the partially converged, non-occupied bands
+    # (which are Rayleigh-Ritz wrt to Hk) and the rest.
     #
     # /!\ This is only implemented for insulators at the moment, WIP for
     # metals, in which case we use empty arrays and all computations are
@@ -124,55 +123,51 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
     # trick.
 
     # TODO
-    # finite temperature not supported yet, so we remove extra bands and perform
-    # all the computations with empty arrays
-    if !iszero(temperature) || (schur && (isempty(ψk_extra) || isempty(εk_extra)))
-        ψk_extra = zeros(size(ψk,1), 0)
+    # finite temperature not supported yet => remove extra bands
+    if !iszero(temperature)
+        ψk_extra = zeros(size(ψk, 1), 0)
         εk_extra = zeros(0)
-        schur = false
     end
 
     # Projectors:
-    # projector onto the computed and converged states, which are the occupied
-    # states in the case of insulators
+    # projector onto the computed and converged states
     P(ϕ) = ψk * (ψk' * ϕ)
     # projector onto the computed but nonconverged states
-    P_free(ϕ) = ψk_extra * (ψk_extra' * ϕ)
+    P_extra(ϕ) = ψk_extra * (ψk_extra' * ϕ)
     # projector onto the computed (converged and unconverged) states
-    P_computed(ϕ) = P(ϕ) + P_free(ϕ)
+    P_computed(ϕ) = P(ϕ) + P_extra(ϕ)
     # Q = 1-P is the projector onto the orthogonal of converged states
     Q(ϕ) = ϕ - P(ϕ)
     # R = 1-P_computed is the projector onto the orthogonal of computed states
     R(ϕ) = ϕ - P_computed(ϕ)
 
     # We put things into the form
-    # δψkn = ψk_extra * αkn + δψkn_uncomputed ∈ Ran(Q)
-    # where δψkn_uncomputed ∈ Ran(R).
+    # δψkn = ψk_extra * αkn + δψknᴿ ∈ Ran(Q)
+    # where δψknᴿ ∈ Ran(R).
     # Note that, if ψk_extra = [], then 1-P = 1-P_computed and
-    # δψkn = δψkn_uncomputed is obtained by inverting the full Sternheimer
+    # δψkn = δψknᴿ is obtained by inverting the full Sternheimer
     # equations in Ran(Q) = Ran(R)
     #
     # This can be summarized as the following:
     #
     # <---- P ----><------------ Q = 1-P -----------------
-    #              <-- P_free --->
+    #              <-- P_extra -->
     # <--------P_computed -------><-- R = 1-P_computed ---
     # |-----------|--------------|------------------------
     # 1     N_occupied  N_occupied + N_extra
 
-
     # ψk_extra are not converged but have been Rayleigh-Ritzed (they are NOT
-    # eigenvectors of H) so H(ψk_extra) = ψk_extra'(Hk-εn)ψk_extra should be a
+    # eigenvectors of H) so H(ψk_extra) = ψk_extra' (Hk-εn) ψk_extra should be a
     # real diagonal matrix.
     H(ϕ) = Hk * ϕ - εnk * ϕ
-    ψk_exHψk_ex = real.(Diagonal(εk_extra .- εnk))
+    ψk_exHψk_ex = Diagonal(real.(εk_extra .- εnk))
 
-    # 1) solve for δψkn_uncomputed
+    # 1) solve for δψknᴿ
     # ----------------------------
-    # writing αkn as a function of δψkn_uncomputed, we get that δψkn_uncomputed
+    # writing αkn as a function of δψknᴿ, we get that δψknᴿ
     # solves the system (in Ran(1-P_computed))
     #
-    # R * (H - εn) * (1 - M * (H - εn)) * R * δψkn_uncomputed = R * (1 - M) * b
+    # R * (H - εn) * (1 - M * (H - εn)) * R * δψknᴿ = R * (1 - M) * b
     #
     # where M = ψk_extra * (ψk_extra'(H-εn)ψk_extra)^{-1} * ψk_extra'
     # is defined above and b is the projection of -rhs onto Ran(Q).
@@ -181,8 +176,8 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
     bb = R(b -  H(ψk_extra * (ψk_exHψk_ex \ ψk_extra'b)))
     function RAR(ϕ)
         Rϕ = R(ϕ)
-        ARϕ = Rϕ - ψk_extra * (ψk_exHψk_ex \ ψk_extra'H(Rϕ))
-        R(H(ARϕ))
+        Rϕ .-= ψk_extra * (ψk_exHψk_ex \ ψk_extra'H(Rϕ))
+        R(H(Rϕ))
     end
     precon = PreconditionerTPA(basis, kpoint)
     precondprep!(precon, ψnk)
@@ -190,14 +185,14 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    δψkn_uncomputed = cg(J, bb, Pl=FunctionPreconditioner(R_ldiv!),
+    δψknᴿ = cg(J, bb, Pl=FunctionPreconditioner(R_ldiv!),
                          reltol=0, abstol=tol_cg, verbose=verbose)
 
-    # 2) solve for αkn now that we know δψkn_uncomputed
+    # 2) solve for αkn now that we know δψknᴿ
     # Note that αkn is an empty array if there is no extra bands.
-    αkn = ψk_exHψk_ex \ ψk_extra' * (b - H(δψkn_uncomputed))
+    αkn = ψk_exHψk_ex \ ψk_extra' * (b - H(δψknᴿ))
 
-    δψkn = ψk_extra * αkn + δψkn_uncomputed
+    δψkn = ψk_extra * αkn + δψknᴿ
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
@@ -249,8 +244,8 @@ function compute_αmn(fm, fn, ratio)
 end
 
 @views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
-                                    ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
-                                    ε_extra=[zeros(0) for ψk in ψ],
+                                    ψ_extra=[zeros(size(ψk, 1), 0) for ψk in ψ],
+                                    ε_extra=[zeros(0) for _ in eigenvalues],
                                     kwargs_sternheimer...)
     basis  = ham.basis
     model = basis.model
@@ -323,8 +318,8 @@ stored in `ψ_extra` (typically, the `3` extra bands returned by default in SCF
 routine).
 """
 function apply_χ0(ham, ψ, εF, eigenvalues, δV;
-                  ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
-                  ε_extra=[zeros(0) for ψk in ψ],
+                  ψ_extra=[zeros(size(ψk, 1), 0) for ψk in ψ],
+                  ε_extra=[zeros(0) for _ in eigenvalues],
                   kwargs_sternheimer...)
 
     basis = ham.basis
@@ -348,23 +343,24 @@ function apply_χ0(ham, ψ, εF, eigenvalues, δV;
     δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
     δψ = apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
-                     ψ_extra=ψ_extra, ε_extra=ε_extra,
-                     kwargs_sternheimer...)
+                     ψ_extra, ε_extra, kwargs_sternheimer...)
     δρ = DFTK.compute_δρ(basis, ψ, δψ, occ)
     δρ * normδV
 end
-# we use here the full scfres, with a distinction between converged bands and
-# nonconverged extra bands used in the SCF
+
+"""
+We use here the full scfres, with a distinction between converged bands and
+nonconverged extra bands used in the SCF.
+"""
 function apply_χ0(scfres, δV; kwargs_sternheimer...)
     n_ep_extra = scfres.n_ep_extra
 
-    ψ = [@view ψk[:, 1:end-n_ep_extra] for ψk in scfres.ψ]
+    ψ       = [@view ψk[:, 1:end-n_ep_extra]     for ψk in scfres.ψ]
     ψ_extra = [@view ψk[:, end-n_ep_extra+1:end] for ψk in scfres.ψ]
 
-    eigenvalues = [εk[1:end-n_ep_extra] for εk in scfres.eigenvalues]
+    ε       = [εk[1:end-n_ep_extra]     for εk in scfres.eigenvalues]
     ε_extra = [εk[end-n_ep_extra+1:end] for εk in scfres.eigenvalues]
 
-    apply_χ0(scfres.ham, ψ, scfres.εF, eigenvalues, δV;
-             ψ_extra=ψ_extra, ε_extra=ε_extra,
+    apply_χ0(scfres.ham, ψ, scfres.εF, ε, δV; ψ_extra, ε_extra,
              kwargs_sternheimer...)
 end

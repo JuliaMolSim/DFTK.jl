@@ -6,23 +6,23 @@ include("testcases.jl")
 
 function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
                    spin_polarization=:none,
-                   kgrid=[3, 1, 1], fft_size=[10, 1, 10], Ecut=10)
+                   kgrid=[3, 1, 1], fft_size=[15, 1, 15], Ecut=3)
 
     tol      = 1e-12
-    ε        = 1e-8
+    ε        = 1e-6
     testtol  = 2e-6
     n_ep_extra = 3
 
     collinear = spin_polarization == :collinear
     is_metal = !isnothing(testcase.temperature)
     label = [
-        is_metal        ? "metal" : "insulator",
+        is_metal        ? "    metal" : "insulator",
         symmetry        ? "   symm" : "no symm",
         use_symmetry    ? "   use" : "no use",
         temperature > 0 ? "temp" : "  0K",
         collinear       ? "coll" : "none",
     ]
-    @testset "Computing χ0 with SCF extra bands ($(join(label, ", ")))" begin
+    @testset "Computing χ0 ($(join(label, ", ")))" begin
         spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
         magnetic_moments = collinear ? [spec => 2rand(2)] : []
         model_kwargs = (temperature=temperature, symmetries=symmetry,
@@ -34,8 +34,7 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
         basis = PlaneWaveBasis(model; Ecut, basis_kwargs...)
         ρ0 = guess_density(basis, magnetic_moments)
         energies, ham0 = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-        res = DFTK.next_density(ham0, tol=tol, eigensolver=lobpcg_hyper,
-                                n_ep_extra=n_ep_extra)
+        res = DFTK.next_density(ham0; tol, n_ep_extra, eigensolver=diag_full)
         occ, εF = DFTK.compute_occupation(basis, res.eigenvalues)
         scfres = (ham=ham0, res..., n_ep_extra=n_ep_extra)
 
@@ -48,28 +47,20 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
         else
             @test δV_sym ≈ δV
         end
-        εδV = ε * δV
 
-        # middle finite difference for more precision
+        function compute_ρ_FD(ε)
+            term_builder = basis -> DFTK.TermExternal(ε * δV)
+            model = model_LDA(testcase.lattice, [spec => testcase.positions];
+                              model_kwargs..., extra_terms=[term_builder])
+            basis = PlaneWaveBasis(model; Ecut, basis_kwargs...)
+            energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
+            res = DFTK.next_density(ham; tol, n_ep_extra, eigensolver=diag_full)
+            res.ρout
+        end
 
-        term_builder = basis -> DFTK.TermExternal(-εδV)
-        model = model_LDA(testcase.lattice, [spec => testcase.positions];
-                          model_kwargs..., extra_terms=[term_builder])
-        basis = PlaneWaveBasis(model; Ecut, basis_kwargs...)
-        energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-        res = DFTK.next_density(ham, tol=tol, eigensolver=lobpcg_hyper,
-                                n_ep_extra=n_ep_extra)
-        ρ1 = res.ρout
-
-        term_builder = basis -> DFTK.TermExternal(εδV)
-        model = model_LDA(testcase.lattice, [spec => testcase.positions];
-                          model_kwargs..., extra_terms=[term_builder])
-        basis = PlaneWaveBasis(model; Ecut, basis_kwargs...)
-        energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-        res = DFTK.next_density(ham, tol=tol, eigensolver=lobpcg_hyper,
-                                n_ep_extra=n_ep_extra)
-        ρ2 = res.ρout
-
+        # middle point finite difference for more precision
+        ρ1 = compute_ρ_FD(-ε)
+        ρ2 = compute_ρ_FD(ε)
         diff_findiff = (ρ2 - ρ1) / (2ε)
 
         # Test apply_χ0 and compare against finite differences
@@ -84,6 +75,11 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
         end
 
         if !symmetry
+            #  Test compute_χ0 against finite differences
+            χ0 = compute_χ0(ham0)
+            diff_computed_χ0 = reshape(χ0 * vec(δV), basis.fft_size..., n_spin)
+            @test norm(diff_findiff - diff_computed_χ0) < testtol
+
             # Test that apply_χ0 is self-adjoint
             δV1 = randn(eltype(basis), basis.fft_size..., n_spin)
             δV2 = randn(eltype(basis), basis.fft_size..., n_spin)
@@ -98,8 +94,8 @@ for testcase in (silicon, magnesium)
     temp = isnothing(testcase.temperature) ? (0, 0.03) : (testcase.temperature)
     for temperature in temp, spin_polarization in (:none, :collinear)
         for use_symmetry in (false, true), symmetry in (false, true)
-            test_chi0(testcase; symmetry=symmetry, use_symmetry=use_symmetry,
-                      temperature=temperature, spin_polarization=spin_polarization)
+            test_chi0(testcase; symmetry, use_symmetry,
+                      temperature, spin_polarization)
         end
     end
 end
