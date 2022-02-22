@@ -8,8 +8,8 @@ include("./testcases.jl")
     # Construct a free-electron Hamiltonian
     Ecut = 5
     fft_size = [15, 15, 15]
-    model = Model(silicon.lattice, n_electrons=silicon.n_electrons, terms=[Kinetic()])  # free-electron model
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    model = Model(silicon.lattice, terms=[Kinetic()], atoms=silicon.atoms)  # free-electron model
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
     ham = Hamiltonian(basis)
 
     tol = 1e-8

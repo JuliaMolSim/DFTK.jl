@@ -11,10 +11,10 @@ struct TermLocalNonlinearity{TF} <: TermNonlinear
 end
 (L::LocalNonlinearity)(::AbstractBasis) = TermLocalNonlinearity(L.f)
 
-function ene_ops(term::TermLocalNonlinearity, basis::PlaneWaveBasis, ψ, occ; ρ, kwargs...)
+function ene_ops(term::TermLocalNonlinearity, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwargs...) where {T}
     fp(ρ) = ForwardDiff.derivative(term.f, ρ)
     E = sum(term.f.(ρ)) * basis.dvol
-    potential = fp.(ρ)
+    potential = convert_dual.(T, fp.(ρ))
 
     # In the case of collinear spin, the potential is spin-dependent
     ops = [RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin])

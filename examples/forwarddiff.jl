@@ -43,43 +43,9 @@ polarizability_fd = let
     (compute_dipole(ε) - compute_dipole(0.0)) / ε
 end
 
-# ## Forward-mode implicit differentiation
-#
-# Right now DFTK has no out-of-the-box support for implicit differentiation through the SCF.
-# However one can easily work around this as follows. We keep both a non-dual basis
-# and a basis including duals for easy bookkeeping (but redundant computation ...).
-
-function self_consistent_field_dual(basis::PlaneWaveBasis, basis_dual::PlaneWaveBasis{T};
-                                    kwargs...) where T <: ForwardDiff.Dual
-    scfres = self_consistent_field(basis; kwargs...)
-    ψ, occupation = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
-
-    ## promote everything eagerly to Dual numbers
-    occupation_dual = [T.(occupation[1])]
-    ψ_dual = [Complex.(T.(real(ψ[1])), T.(imag(ψ[1])))]
-    ρ_dual = compute_density(basis_dual, ψ_dual, occupation_dual)
-
-    _, δH = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual; ρ=ρ_dual)
-    δHψ = δH * ψ_dual
-    δHψ = [ForwardDiff.partials.(δHψ[1], 1)]
-    δψ = DFTK.solve_ΩplusK(basis, ψ, -δHψ, occupation)
-    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation)
-    ρ = ForwardDiff.value.(ρ_dual)
-    ψ, ρ, δψ, δρ
-end;
-
-# This function is now used in the following to provide a dual version
-# for the compute_dipole function:
-function compute_dipole(ε::ForwardDiff.Dual; tol=1e-8, kwargs...)
-    T = ForwardDiff.tagtype(ε)
-    basis = make_basis(ForwardDiff.value(ε); kwargs...)
-    basis_dual = make_basis(ε; kwargs...)
-    ψ, ρ, δψ, δρ = self_consistent_field_dual(basis, basis_dual; tol)
-    ρ_dual = ForwardDiff.Dual{T}.(ρ, δρ)
-    dipole(basis_dual, ρ_dual)
-end;
-
-# This setup allows to compute the polarizability via automatic differentiation:
+# We do the same thing using automatic differentiation. Under the hood this uses
+# custom rules to implicitly differentiate through the self-consistent
+# field fixed-point problem.
 polarizability = ForwardDiff.derivative(compute_dipole, 0.0)
 println()
 println("Polarizability via ForwardDiff:       $polarizability")

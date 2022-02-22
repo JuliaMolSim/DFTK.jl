@@ -45,7 +45,9 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
 end
 
 function Base.show(io::IO, kpoint::Kpoint)
-    print(io, "k point $(kpoint.coordinate) with spin $(kpoint.spin) and $(length(kpoint.G_vectors)) G vectors")
+    print(io, "KPoint(", (@sprintf "[%6.3g, %6.3g, %6.3g]" kpoint.coordinate...),
+          ", spin = $(kpoint.spin), num. G vectors = ",
+          (@sprintf "%5d" length(kpoint.G_vectors)), ")")
 end
 
 function Base.show(io::IO, basis::PlaneWaveBasis)

@@ -1,25 +1,23 @@
-## This file contains functions to handle the symetries
+# This file contains functions to handle the symetries.
+# The type SymOp is defined in Symop.jl
 
-# A symmetry operation (symop) is a couple (W, w) of a
-# unitary (in cartesian coordinates, but not in reduced coordinates)
-# matrix W and a translation w such that, for each atom of
-# type A at position a, W a + w is also an atom of type A.
-
-# This induces a symmetry in the Brillouin zone that the Hamiltonian
-# at S k is unitary equivalent to that at k, which we exploit to
+# A symmetry (W, w) (or (S, τ)) induces a symmetry in the Brillouin zone
+# that the Hamiltonian at S k is unitary equivalent to that at k, which we exploit to
 # reduce computations. The relationship is
 # S = W'
 # τ = -W^-1 w
-# (valid both in reduced and cartesian coordinates)
+# (valid both in reduced and cartesian coordinates). In our notation
+# the rotation matrix W and translation w are such that, for each atom of
+# type A at position a, W a + w is also an atom of type A.
 
 # The full (reducible) Brillouin zone is implicitly represented by
 # a set of (irreducible) kpoints (see explanation in docs). Each
 # irreducible k-point k comes with a list of symmetry operations
-# (S,τ) (containing at least the trivial operation (I,0)), where S
-# is a rotation matrix (/!\ not unitary in reduced coordinates)
+# (S, τ) (containing at least the trivial operation (I, 0)), where S
+# is a unitary matrix (/!\ in cartesian but not in reduced coordinates)
 # and τ a translation vector. The k-point is then used to represent
-# implicitly the information at all the kpoints Sk. The
-# relationship between the Hamiltonians is
+# implicitly the information at all the kpoints Sk. The relationship
+# between the Hamiltonians is
 # H_{Sk} = U H_k U*, with
 # (Uu)(x) = u(W x + w)
 # or in Fourier space
@@ -48,8 +46,7 @@ Return the ``k``-point symmetry operations associated to a lattice and atoms.
 function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
     symmetries = []
     # Get symmetries from spglib
-    Ws, ws = spglib_get_symmetry(lattice, atoms, magnetic_moments;
-                                           tol_symmetry=tol_symmetry)
+    Ws, ws = spglib_get_symmetry(lattice, atoms, magnetic_moments; tol_symmetry)
     for isym = 1:length(Ws)
         S = Ws[isym]'                  # in fractional reciprocal coordinates
         τ = -Ws[isym] \ ws[isym]  # in fractional real-space coordinates
@@ -78,7 +75,12 @@ end
 Find the subset of symmetries compatible with the grid induced by the given kcoords and ksymops
 """
 function symmetries_preserving_kgrid(symmetries, kcoords, ksymops)
-    symmetries_preserving_kgrid(symmetries, unfold_kcoords(kcoords, ksymops))
+    new_symmetries = symmetries_preserving_kgrid(symmetries, unfold_kcoords(kcoords, ksymops))
+    # check for inconsistent ksymops/symmetries
+    if !all(s1 -> any(s2 -> isapprox(s1, s2), new_symmetries), vcat(ksymops...))
+        error("symmetries_preserving_kgrid: ksymops must be a subset of symmetries")
+    end
+    new_symmetries
 end
 
 
@@ -237,7 +239,7 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
     for σ = 1:size(ρin, 4)
         accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
-        lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries=symmetries)
+        lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
