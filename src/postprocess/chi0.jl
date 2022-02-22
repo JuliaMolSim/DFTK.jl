@@ -169,15 +169,17 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
     #
     # R * (H - εn) * (1 - M * (H - εn)) * R * δψknᴿ = R * (1 - M) * b
     #
-    # where M = ψk_extra * (ψk_extra'(H-εn)ψk_extra)^{-1} * ψk_extra'
+    # where M = ψk_extra * (ψk_extra' (H-εn) ψk_extra)^{-1} * ψk_extra'
     # is defined above and b is the projection of -rhs onto Ran(Q).
     #
     b = -Q(rhs)
     bb = R(b -  H(ψk_extra * (ψk_exHψk_ex \ ψk_extra'b)))
     function RAR(ϕ)
         Rϕ = R(ϕ)
-        Rϕ .-= ψk_extra * (ψk_exHψk_ex \ ψk_extra'H(Rϕ))
-        R(H(Rϕ))
+        # A denotes here the Schur complement of (1-P) (H-εn) (1-P)
+        # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
+        ARϕ = Rϕ - ψk_extra * (ψk_exHψk_ex \ ψk_extra'H(Rϕ))
+        R(H(ARϕ))
     end
     precon = PreconditionerTPA(basis, kpoint)
     precondprep!(precon, ψnk)
@@ -186,7 +188,7 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
     δψknᴿ = cg(J, bb, Pl=FunctionPreconditioner(R_ldiv!),
-                         reltol=0, abstol=tol_cg, verbose=verbose)
+               reltol=0, abstol=tol_cg, verbose=verbose)
 
     # 2) solve for αkn now that we know δψknᴿ
     # Note that αkn is an empty array if there is no extra bands.

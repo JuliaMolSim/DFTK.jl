@@ -5,8 +5,8 @@ using LinearAlgebra: norm
 include("testcases.jl")
 
 function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
-                   spin_polarization=:none,
-                   kgrid=[3, 1, 1], fft_size=[15, 1, 15], Ecut=3)
+                   spin_polarization=:none, eigensolver=lobpcg_hyper, Ecut=10,
+                   kgrid=[3, 1, 1], fft_size=[15, 1, 15], compute_full_χ0=false)
 
     tol      = 1e-12
     ε        = 1e-6
@@ -15,8 +15,10 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
 
     collinear = spin_polarization == :collinear
     is_metal = !isnothing(testcase.temperature)
+    eigsol = eigensolver == lobpcg_hyper
     label = [
         is_metal        ? "    metal" : "insulator",
+        eigsol          ? "   lobpcg" : "full diag",
         symmetry        ? "   symm" : "no symm",
         use_symmetry    ? "   use" : "no use",
         temperature > 0 ? "temp" : "  0K",
@@ -34,7 +36,7 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
         basis = PlaneWaveBasis(model; Ecut, basis_kwargs...)
         ρ0 = guess_density(basis, magnetic_moments)
         energies, ham0 = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-        res = DFTK.next_density(ham0; tol, n_ep_extra, eigensolver=diag_full)
+        res = DFTK.next_density(ham0; tol, n_ep_extra, eigensolver)
         occ, εF = DFTK.compute_occupation(basis, res.eigenvalues)
         scfres = (ham=ham0, res..., n_ep_extra=n_ep_extra)
 
@@ -54,7 +56,7 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
                               model_kwargs..., extra_terms=[term_builder])
             basis = PlaneWaveBasis(model; Ecut, basis_kwargs...)
             energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-            res = DFTK.next_density(ham; tol, n_ep_extra, eigensolver=diag_full)
+            res = DFTK.next_density(ham; tol, n_ep_extra, eigensolver)
             res.ρout
         end
 
@@ -76,9 +78,12 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
 
         if !symmetry
             #  Test compute_χ0 against finite differences
-            χ0 = compute_χ0(ham0)
-            diff_computed_χ0 = reshape(χ0 * vec(δV), basis.fft_size..., n_spin)
-            @test norm(diff_findiff - diff_computed_χ0) < testtol
+            #  (only works in reasonable time for small Ecut)
+            if compute_full_χ0
+                χ0 = compute_χ0(ham0)
+                diff_computed_χ0 = reshape(χ0 * vec(δV), basis.fft_size..., n_spin)
+                @test norm(diff_findiff - diff_computed_χ0) < testtol
+            end
 
             # Test that apply_χ0 is self-adjoint
             δV1 = randn(eltype(basis), basis.fft_size..., n_spin)
@@ -90,12 +95,16 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
     end
 end
 
-for testcase in (silicon, magnesium)
-    temp = isnothing(testcase.temperature) ? (0, 0.03) : (testcase.temperature)
-    for temperature in temp, spin_polarization in (:none, :collinear)
+for (case, temperatures) in [(silicon, (0, 0.03)), (magnesium, (0.01, ))]
+    for temperature in temperatures, spin_polarization in (:none, :collinear)
         for use_symmetry in (false, true), symmetry in (false, true)
-            test_chi0(testcase; symmetry, use_symmetry,
-                      temperature, spin_polarization)
+            test_chi0(case; symmetry, use_symmetry, temperature, spin_polarization)
+            # additional test for compute_χ0 in some specific cases
+            if iszero(temperature) && !symmetry
+                test_chi0(case; symmetry, use_symmetry, temperature, spin_polarization,
+                          eigensolver=diag_full, Ecut=3, fft_size=[10, 1, 10],
+                          compute_full_χ0=true)
+            end
         end
     end
 end
