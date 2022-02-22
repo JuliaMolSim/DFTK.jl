@@ -10,8 +10,8 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
                    spin_polarization=:none, eigensolver=lobpcg_hyper, Ecut=10,
                    kgrid=[3, 1, 1], fft_size=[15, 1, 15], compute_full_χ0=false)
 
-    tol      = 1e-12
-    ε        = 1e-6
+    tol      = 1e-11
+    ε        = 1e-7
     testtol  = 2e-6
     n_ep_extra = 3
 
@@ -28,7 +28,7 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
     ]
     @testset "Computing χ0 ($(join(label, ", ")))" begin
         spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-        magnetic_moments = collinear ? [spec => 2rand(2)] : []
+        magnetic_moments = collinear ? [spec => [0.3, 0.7]] : []
         model_kwargs = (temperature=temperature, symmetries=symmetry,
                         magnetic_moments=magnetic_moments,
                         spin_polarization=spin_polarization)
