@@ -1,20 +1,34 @@
-"""
-Pairwise terms: For example Van der Waals energies, such as Lennard—Jones. The potential is
-dependent on the pairwise atomic types.
+@doc raw"""
+Pairwise terms: Pairwise potential between nuclei, e.g., Van der Waals potentials, such as
+Lennard—Jones terms.
+The potential is dependent on the distance between to atomic positions and the pairwise
+atomic types:
+For a distance `d` between to atoms `A` and `B`, the potential is `V(d, params[(A, B)])`.
+The energy is of the form
+```math
+    ℰ = ∑_{1⩽i<j⩽N} V_{i,j} \left( \frac{1}{|r_i - r_j|} \right).
+```
+The parameters `max_radius` is of `100` by default, and gives the maximum distance between
+nuclei for which we consider interactions.
 """
 struct PairwisePotential
     V
     params
+    max_radius
 end
-(P::PairwisePotential)(basis::AbstractBasis) = TermPairwisePotential(P.V, P.params, basis)
+function PairwisePotential(V, params; max_radius=100.0)
+    PairwisePotential(V, params, max_radius)
+end
+(P::PairwisePotential)(basis::AbstractBasis) = TermPairwisePotential(P.V, P.params, P.max_radius, basis)
 
 struct TermPairwisePotential{TV, Tparams} <:Term
     V::TV
     params::Tparams
+    max_radius::Real
     energy::Real
 end
-function TermPairwisePotential(V::TV, params::Tparams, basis::PlaneWaveBasis{T}) where {TV, Tparams, T}
-    TermPairwisePotential(V, params, T(energy_pairwise(basis.model, V, params)))
+function TermPairwisePotential(V, params, max_radius, basis::PlaneWaveBasis{T}) where {T}
+    TermPairwisePotential(V, params, max_radius, T(energy_pairwise(basis.model, V, params, max_radius)))
 end
 
 function ene_ops(term::TermPairwisePotential, basis::PlaneWaveBasis, ψ, occ; kwargs...)
@@ -26,7 +40,7 @@ end
                                                    kwargs...) where {T}
     atoms = basis.model.atoms
     forces_pairwise = zeros(Vec3{T}, sum(length(positions) for (elem, positions) in atoms))
-    energy_pairwise(basis.model, term.V, term.params; forces=forces_pairwise)
+    energy_pairwise(basis.model, term.V, term.params, term.max_radius; forces=forces_pairwise)
     # translate to the "folded" representation
     f = [zeros(Vec3{T}, length(positions)) for (type, positions) in atoms]
     count = 0
@@ -40,11 +54,11 @@ end
     f
 end
 
-function energy_pairwise(model::Model, V, params; kwargs...)
+function energy_pairwise(model::Model, V, params, max_radius; kwargs...)
     atom_types = [element for (element, positions) in model.atoms for _ in positions]
     positions = [pos for (_, positions) in model.atoms for pos in positions]
 
-    energy_pairwise(model.lattice, atom_types, positions, V, params; kwargs...)
+    energy_pairwise(model.lattice, atom_types, positions, V, params, max_radius; kwargs...)
 end
 
 """
@@ -53,8 +67,7 @@ not nothing, minus the derivatives of the energy with respect to `positions` is 
 The potential is expected to decrease quickly at infinity, so the reciprocal energy is not
 computed.
 """
-function energy_pairwise(lattice, atom_types, positions, V, params; forces=nothing,
-                         max_radius=100)
+function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; forces=nothing)
     T = eltype(lattice)
     @assert length(atom_types) == length(positions)
 
