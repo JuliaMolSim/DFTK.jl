@@ -7,10 +7,10 @@ function compute_inverse_lattice(lattice::AbstractMatrix{T}) where {T}
     n_dim = count(!iszero, eachcol(lattice))
     @assert 1 ≤ n_dim ≤ 3
     if n_dim == 3
-        inv(lattice')
+        inv(lattice)
     else
         Mat3{T}([
-            inv(lattice[1:n_dim, 1:n_dim]')   zeros(T, n_dim, 3 - n_dim);
+            inv(lattice[1:n_dim, 1:n_dim])   zeros(T, n_dim, 3 - n_dim);
             zeros(T, 3 - n_dim, 3)
         ])
     end
@@ -23,7 +23,7 @@ We use the convention that the reciprocal lattice is the set of G vectors such
 that G ⋅ R ∈ 2π ℤ for all R in the lattice.
 """
 function compute_recip_lattice(lattice::AbstractMatrix{T}) where {T}
-    2T(π) * compute_inverse_lattice(lattice)
+    2T(π) * compute_inverse_lattice(lattice')
 end
 
 
