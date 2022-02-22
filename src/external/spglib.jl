@@ -161,7 +161,7 @@ the primitive setting choice made in the ITA.
 function spglib_standardize_cell(lattice::AbstractArray{T}, atoms, magnetic_moments=[];
                                  correct_symmetry=true,
                                  primitive=false,
-                                 tol_symmetry=1e-5) where {T}
+                                 tol_symmetry=SYMMETRY_TOLERANCE) where {T}
     # TODO For time-reversal symmetry see the discussion in PR 496.
     #      https://github.com/JuliaMolSim/DFTK.jl/pull/496/files#r725203554
     #      Essentially this does not influence the standardisation,
@@ -187,7 +187,7 @@ function spglib_standardize_cell(model::Model; kwargs...)
 end
 
 
-function spglib_spacegroup_number(model, magnetic_moments=[]; tol_symmetry=1e-5)
+function spglib_spacegroup_number(model, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
     # Get spacegroup number according to International Tables for Crystallography (ITA)
     # TODO Time-reversal symmetry disabled? (not yet available in DFTK)
     # TODO Are magnetic moments passed?
