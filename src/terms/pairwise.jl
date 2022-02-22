@@ -101,7 +101,7 @@ function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; 
         any_term_contributes = false
 
         # Loop over R vectors for this shell patch
-        for R in shell_indices(rsh)
+        for R in shell_indices(rsh, is_dim_trivial)
             for i = 1:length(positions), j = 1:length(positions)
                 param_ij = params[(atom_types[i], atom_types[j])]
                 ti = positions[i]
