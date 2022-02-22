@@ -101,8 +101,7 @@ end
 
     # Note: Transposes are performed to convert between spglib row-major to julia column-major
     Ws = [Mat3{Int}(spg_rotations[:, :, i]') for i in 1:spg_n_ops]
-    ws = [rationalize.(Vec3{Float64}(spg_translations[:, i]), tol=tol_symmetry)
-               for i in 1:spg_n_ops]
+    ws = [Vec3{Float64}(spg_translations[:, i]) for i in 1:spg_n_ops]
 
     # Checks: (A W A^{-1}) is unitary
     for W in Ws
