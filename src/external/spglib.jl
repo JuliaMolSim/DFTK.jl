@@ -115,12 +115,10 @@ end
     for (W, w) in zip(Ws, ws)
         for (elem, positions) in atoms
             for coord in positions
-                diffs = [rationalize.(W * coord + w - pos, tol=5*tol_symmetry)
-                         for pos in positions]
-
                 # If all elements of a difference in diffs is integer, then
                 # W * coord + w and pos are equivalent lattice positions
-                if !any(all(isinteger, d) for d in diffs)
+                is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ tol_symmetry, r)
+                if !any(c -> is_approx_integer(W * coord + w - c), positions)
                     error("spglib returned bad symmetries: Cannot map the atom at position " *
                           "$coord to another atom of the same element under the symmetry " *
                           "operation (W, w):\n" *

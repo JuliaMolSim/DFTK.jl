@@ -265,8 +265,9 @@ function symmetrize_forces(symmetries, forces, atoms)
                 # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
                 # (but careful that our symmetries are r -> Wr+w, not R(r+f))
                 other_at = W \ (at - w)
+                is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ SYMMETRY_TOLERANCE, r)
                 i_other_at = findfirst(positions) do a
-                    all(isinteger.(rationalize.(a - other_at; tol=SYMMETRY_TOLERANCE)))
+                    is_approx_integer(a - other_at)
                 end
                 symmetrized_forces[iel][iat] += W * forces[iel][i_other_at]
             end
