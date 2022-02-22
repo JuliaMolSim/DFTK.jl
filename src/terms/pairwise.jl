@@ -79,21 +79,13 @@ function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; 
         forces_pairwise = copy(forces)
     end
 
+    # Check if some coordinates are not used.
+    is_dim_trivial = [norm(lattice[:,i]) == 0 for i=1:3]
     # Function to return the indices corresponding
     # to a particular shell
-    function shell_indices(nsh)
-        ish = nsh
-        jsh = nsh
-        ksh = nsh
-        if norm(lattice[:, 1]) == 0
-            ish = 0
-        end
-        if norm(lattice[:, 2]) == 0
-            jsh = 0
-        end
-        if norm(lattice[:, 3]) == 0
-            ksh = 0
-        end
+    max_shell(n, trivial) = trivial ? 0 : n
+    function shell_indices(nsh, is_dim_trivial)
+        ish, jsh, ksh = max_shell.(nsh, is_dim_trivial)
         [[i,j,k] for i in -ish:ish for j in -jsh:jsh for k in -ksh:ksh
          if maximum(abs.([i,j,k])) == nsh]
     end
