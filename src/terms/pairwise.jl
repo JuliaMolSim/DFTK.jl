@@ -67,8 +67,8 @@ function energy_pairwise(lattice, atom_types, positions, V, params; forces=nothi
     # to a particular shell
     function shell_indices(nsh)
         ish = nsh
-        jsh = 0
-        ksh = 0
+        jsh = nsh
+        ksh = nsh
         if norm(lattice[:, 1]) == 0
             ish = 0
         end
