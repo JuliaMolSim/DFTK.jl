@@ -11,7 +11,7 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
                    kgrid=[3, 1, 1], fft_size=[15, 1, 15], compute_full_χ0=false)
 
     tol      = 1e-11
-    ε        = 1e-7
+    ε        = 1e-6
     testtol  = 2e-6
     n_ep_extra = 3
 
