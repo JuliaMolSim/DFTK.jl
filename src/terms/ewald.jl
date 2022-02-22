@@ -40,15 +40,16 @@ end
 end
 
 function energy_ewald(model::Model; kwargs...)
-    charges   = [charge_ionic(elem) for (elem, positions) in model.atoms for pos in positions]
-    positions = [pos for (_, positions) in model.atoms for pos in positions]
+    charges    = [charge_ionic(elem) for (elem, positions) in model.atoms for pos in positions]
+    positions  = [pos for (_, positions) in model.atoms for pos in positions]
+    atom_types = [element for (element, positions) in model.atoms for _ in positions]
     isempty(charges) && return zero(eltype(model.lattice))
 
     # DFTK currently assumes that the compensating charge in the electronic and nuclear
     # terms is equal and of opposite sign. See also the PSP correction term, where n_electrons
     # is used synonymously for sum of charges
     @assert sum(charges) == model.n_electrons
-    energy_ewald(model.lattice, charges, positions; kwargs...)
+    energy_ewald(model.lattice, charges, positions, atom_types; kwargs...)
 end
 
 """
@@ -60,7 +61,7 @@ lattice and reciprocal lattice vectors as columns. `charges` and
 arrays) in fractional coordinates. If `forces` is not nothing, minus the derivatives
 of the energy with respect to `positions` is computed.
 """
-function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
+function energy_ewald(lattice, charges, positions, atom_types; η=nothing, forces=nothing)
     T = eltype(lattice)
 
     for i=1:3
@@ -71,10 +72,10 @@ function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
             return T(0)
         end
     end
-    energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions; η, forces)
+    energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions, atom_types; η, forces)
 end
 
-function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, forces=nothing)
+function energy_ewald(lattice, recip_lattice, charges, positions, atom_types; η=nothing, forces=nothing)
     T = eltype(lattice)
     @assert T == eltype(recip_lattice)
     @assert length(charges) == length(positions)
@@ -146,62 +147,34 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     end
     # Amend sum_recip by proper scaling factors:
     sum_recip *= 4T(π) / compute_unit_cell_volume(lattice)
+    sum_recip /= 2 # Divide by 2 (because of double counting)
     if forces !== nothing
         forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
+        forces_recip ./= 2 # Divide by 2 (because of double counting)
     end
 
     #
     # Real-space sum
     #
     # Initialize real-space sum with correction term for uniform background
-    sum_real::T = -2η / sqrt(T(π)) * sum(Z -> Z^2, charges)
-
-    # Loop over real-space shells
-    rsh = 0 # Include R = 0
-    any_term_contributes = true
-    while any_term_contributes || rsh <= 1
-        any_term_contributes = false
-
-        # Loop over R vectors for this shell patch
-        for R in shell_indices(rsh)
-            for i = 1:length(positions), j = 1:length(positions)
-                ti = positions[i]
-                Zi = charges[i]
-                tj = positions[j]
-                Zj = charges[j]
-
-                # Avoid self-interaction
-                if rsh == 0 && ti == tj
-                    continue
-                end
-
-                Δr = lattice * (ti - tj - R)
-                dist = norm(Δr)
-
-                # erfc decays very quickly, so cut off at some point
-                if η * dist > max_erfc_arg
-                    continue
-                end
-
-                any_term_contributes = true
-                energy_contribution = Zi * Zj * erfc(η * dist) / dist
-                sum_real += energy_contribution
-                if forces !== nothing
-                    # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
-                    dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
-                    dE_ddist -= energy_contribution
-                    dE_ddist /= dist
-                    dE_dti = lattice' * ((dE_ddist / dist) * Δr)
-                    forces_real[i] -= dE_dti
-                    forces_real[j] += dE_dti
-                end
-            end # i,j
-        end # R
-        rsh += 1
+    sum_real::T = -η / sqrt(T(π)) * sum(Z -> Z^2, charges)
+    # Ewald potential for real-space
+    V(x, p) = p.prod_charges * erfc(η * x) / x
+    params = Dict()
+    for i = 1:length(positions), j = 1:length(positions)
+        ai = atom_types[i]
+        aj = atom_types[j]
+        params[(ai, aj)] = (; prod_charges = charge_ionic(ai) * charge_ionic(aj))
     end
-    energy = (sum_recip + sum_real) / 2  # Divide by 2 (because of double counting)
+
+    if forces === nothing
+        forces_real = nothing
+    end
+    sum_real += energy_pairwise(lattice, atom_types, positions, V, params, max_erfc_arg; η=η, forces=forces_real)
+
+    energy = sum_recip + sum_real
     if forces !== nothing
-        forces .= (forces_recip .+ forces_real) ./ 2
+        forces .= forces_recip .+ forces_real
     end
     energy
 end
