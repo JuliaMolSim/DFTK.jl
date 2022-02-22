@@ -254,7 +254,7 @@ function symmetrize_stresses(lattice, symmetries, stresses)
     stresses_symmetrized
 end
 
-function check_symmetric(basis, ρin; tol=1e-10, symmetries=ρin.basis.symmetries)
+function check_symmetric(basis, ρin; tol=1e-10, symmetries=basis.symmetries)
     for symop in symmetries
         @assert norm(symmetrize_ρ(ρin, [symop]) - ρin) < tol
     end
