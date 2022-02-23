@@ -243,13 +243,13 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
 
-# symmetrize the stress tensor, which is a rank-2 contravariant tensor in reduced coordinates
-function symmetrize_stresses(lattice, symmetries, stresses)
+# symmetrize the stress tensor, a mtrix in cartesian coordinates
+function symmetrize_stresses(model::Model, stresses, symmetries)
+    # see (A.28) of https://arxiv.org/pdf/0906.2569.pdf
     stresses_symmetrized = zero(stresses)
     for symop in symmetries
         W_red, _ = get_Ww(symop)
-        # get W in cartesian coordinates
-        W = lattice * W_red / lattice
+        W = matrix_red_to_cart(model, W_red)
         stresses_symmetrized += W * stresses / W
     end
     stresses_symmetrized /= length(symmetries)
@@ -257,7 +257,8 @@ function symmetrize_stresses(lattice, symmetries, stresses)
 end
 
 # symmetrize the forces, an array forces[iel][α,i] in reduced coordinates
-function symmetrize_forces(symmetries, forces, atoms)
+function symmetrize_forces(model::Model, forces, symmetries)
+    atoms = model.atoms
     symmetrized_forces = zero.(forces)
     for (iel, (element, positions)) in enumerate(atoms)
         for symop in symmetries

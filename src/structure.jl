@@ -16,7 +16,6 @@ function compute_inverse_lattice(lattice::AbstractMatrix{T}) where {T}
     end
 end
 
-
 """
 Compute the reciprocal lattice.
 We use the convention that the reciprocal lattice is the set of G vectors such
@@ -26,7 +25,6 @@ function compute_recip_lattice(lattice::AbstractMatrix{T}) where {T}
     2T(π) * compute_inverse_lattice(lattice')
 end
 
-
 """
 Compute unit cell volume volume. In case of 1D or 2D case, the volume is the length/surface.
 """
@@ -34,7 +32,6 @@ function compute_unit_cell_volume(lattice)
     n_dim = count(!iszero, eachcol(lattice))
     abs(det(lattice[1:n_dim, 1:n_dim]))
 end
-
 
 """Compute the diameter of the unit cell"""
 function diameter(lattice::AbstractMatrix)
@@ -45,7 +42,6 @@ function diameter(lattice::AbstractMatrix)
     end
     diam
 end
-
 
 """
 Returns the sum formula of the atoms list as a string.

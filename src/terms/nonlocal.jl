@@ -81,7 +81,7 @@ end
             forces_el[nat] = f_vec[:, nat]
         end
     end
-    symmetrize_forces(basis.symmetries, forces, atoms)
+    symmetrize_forces(basis.model, forces, basis.symmetries)
 end
 
 # TODO possibly move over to psp/ ?

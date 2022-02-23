@@ -107,7 +107,7 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
 end
 
 
-# prevent broadcast on pwbasis
+# prevent broadcast
 import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 
@@ -359,11 +359,9 @@ G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
 
 The list of ``G`` vectors of a given `basis` or `kpt`, in cartesian coordinates.
 """
-function G_vectors_cart(basis::PlaneWaveBasis)
-    map(G -> basis.model.recip_lattice * G, G_vectors(basis))
-end
+G_vectors_cart(basis::PlaneWaveBasis) = recip_vector_red_to_cart.(basis.model, G_vectors(basis))
 function G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
-    map(G -> basis.model.recip_lattice * G, G_vectors(basis, kpt))
+    recip_vector_red_to_cart.(basis.model, G_vectors(basis, kpt))
 end
 
 @doc raw"""
@@ -381,9 +379,8 @@ end
 The list of ``G + k`` vectors, in cartesian coordinates.
 """
 function Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
-    map(Gplusk -> basis.model.recip_lattice * Gplusk, Gplusk_vectors(basis, kpt))
+    recip_vector_red_to_cart.(basis.model, Gplusk_vectors(basis, kpt))
 end
-
 
 @doc raw"""
     r_vectors(basis::PlaneWaveBasis)
@@ -400,7 +397,7 @@ end
 
 The list of ``r`` vectors, in cartesian coordinates.
 """
-r_vectors_cart(basis::PlaneWaveBasis) = map(r -> basis.model.lattice * r, r_vectors(basis))
+r_vectors_cart(basis::PlaneWaveBasis) = vector_red_to_cart.(basis.model, r_vectors(basis))
 
 
 """

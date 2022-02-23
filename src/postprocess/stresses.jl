@@ -31,6 +31,6 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
     L = scfres.basis.model.lattice
     Ω = scfres.basis.model.unit_cell_volume
     stresses_not_symmetrized = ForwardDiff.gradient(M -> HF_energy((I+M) * L), zero(L)) / Ω
-    symmetrize_stresses(L, scfres.basis.symmetries, stresses_not_symmetrized)
+    symmetrize_stresses(scfres.basis.model, stresses_not_symmetrized, scfres.basis.symmetries)
 end
 @deprecate compute_stresses(scfres) compute_stresses_cart(scfres)
