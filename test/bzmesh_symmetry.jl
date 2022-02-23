@@ -12,16 +12,17 @@ include("testcases.jl")
     for a in args
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => [(ones(3)) / 8, -ones(3) / 8]]
-        model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93)
 
-        basis = PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1), use_symmetry=false, a...)
+        model_nosym = model_DFT(silicon.lattice, atoms, :lda_xc_teter93, symmetries=false)
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1), a...)
         DFTK.check_group(basis.symmetries)
 
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10))
         ρ1 = scfres.ρ
         E1 = scfres.energies.total
 
-        basis = PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1), use_symmetry=true, a...)
+        model_sym = model_DFT(silicon.lattice, atoms, :lda_xc_teter93)
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1), a...)
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10))
         ρ2 = scfres.ρ
         E2 = scfres.energies.total

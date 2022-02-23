@@ -95,9 +95,8 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
 
     # Symmetry operations that leave the reducible Brillouin zone invariant.
     # Subset of model.symmetries, and superset of all the ksymops.
-    # Independent of the `use_symmetry` option
     # Nearly all computations will be done inside this symmetry group;
-    # the exceptions is inexact operations on the FFT grid (ie xc),
+    # the exception is inexact operations on the FFT grid (ie xc),
     # which doesn't respect the symmetry
     symmetries::Vector{SymOp}
 
@@ -293,27 +292,13 @@ Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a Monkhors
 number of points in each dimension and `kshift` the shift (0 or 1/2 in each direction).
 If not specified a grid is generated using `kgrid_from_minimal_spacing` with
 a minimal spacing of `2π * 0.022` per Bohr.
-
-If `use_symmetry` is `true` (default) the symmetries of the
-crystal are used to reduce the number of ``k``-points which are
-treated explicitly. In this case all guess densities and potential
-functions must agree with the crystal symmetries or the result is
-undefined.
 """
 function PlaneWaveBasis(model::Model;
                         Ecut,
                         kgrid=kgrid_from_minimal_spacing(model, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
-                        use_symmetry=true,
                         kwargs...)
-    if use_symmetry
-        kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
-    else
-        kcoords, ksymops, _ = bzmesh_uniform(kgrid; kshift)
-        # even when not using symmetry to reduce computations, still
-        # store in symmetries the set of kgrid-preserving symmetries
-        symmetries = symmetries_preserving_kgrid(model.symmetries, kcoords)
-    end
+    kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
     PlaneWaveBasis(model, austrip(Ecut), kcoords, ksymops, symmetries;
                    kgrid, kshift, kwargs...)
 end
