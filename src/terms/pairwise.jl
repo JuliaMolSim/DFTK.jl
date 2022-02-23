@@ -16,7 +16,7 @@ struct PairwisePotential
     params
     max_radius
 end
-function PairwisePotential(V, params; max_radius=100.0)
+function PairwisePotential(V, params; max_radius=100)
     PairwisePotential(V, params, max_radius)
 end
 (P::PairwisePotential)(basis::AbstractBasis) = TermPairwisePotential(P.V, P.params, P.max_radius, basis)
@@ -76,12 +76,13 @@ function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; 
         forces_pairwise = copy(forces)
     end
 
-    # Check if some coordinates are not used.
-    is_dim_trivial = [norm(lattice[:,i]) == 0 for i=1:3]
     # Function to return the indices corresponding
     # to a particular shell
+    # Not performance critical, so we do not type the function
     max_shell(n, trivial) = trivial ? 0 : n
-    function shell_indices(nsh, is_dim_trivial)
+    # Check if some coordinates are not used.
+    is_dim_trivial = [norm(lattice[:,i]) == 0 for i=1:3]
+    function shell_indices(nsh)
         ish, jsh, ksh = max_shell.(nsh, is_dim_trivial)
         [[i,j,k] for i in -ish:ish for j in -jsh:jsh for k in -ksh:ksh
          if maximum(abs.([i,j,k])) == nsh]
@@ -105,9 +106,7 @@ function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; 
                 tj = positions[j]
 
                 # Avoid self-interaction
-                if rsh == 0 && ti == tj
-                    continue
-                end
+                rsh == 0 && i == j && continue
 
                 Δr = lattice * (ti .- tj .- R)
                 dist = norm(Δr)

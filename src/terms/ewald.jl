@@ -171,9 +171,7 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
                 Zj = charges[j]
 
                 # Avoid self-interaction
-                if rsh == 0 && ti == tj
-                    continue
-                end
+                rsh == 0 && i == j && continue
 
                 Δr = lattice * (ti - tj - R)
                 dist = norm(Δr)
