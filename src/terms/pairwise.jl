@@ -67,13 +67,10 @@ not nothing, minus the derivatives of the energy with respect to `positions` is 
 The potential is expected to decrease quickly at infinity, so the reciprocal energy is not
 computed.
 """
-function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; η=nothing, forces=nothing)
+function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; forces=nothing)
     T = eltype(lattice)
     @assert length(atom_types) == length(positions)
 
-    if η === nothing
-        η = T(1.0)
-    end
     if forces !== nothing
         @assert size(forces) == size(positions)
         forces_pairwise = copy(forces)
@@ -116,7 +113,7 @@ function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; 
                 dist = norm(Δr)
 
                 # the potential decays very quickly, so cut off at some point
-                if η * dist > max_radius
+                if dist > max_radius
                     continue
                 end
                 any_term_contributes = true
