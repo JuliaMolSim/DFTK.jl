@@ -101,7 +101,10 @@ end
 
     # Note: Transposes are performed to convert between spglib row-major to julia column-major
     Ws = [Mat3{Int}(spg_rotations[:, :, i]') for i in 1:spg_n_ops]
-    ws = [Vec3{Float64}(spg_translations[:, i]) for i in 1:spg_n_ops]
+    ws = [Vec3{eltype(lattice)}(spg_translations[:, i]) for i in 1:spg_n_ops]
+    # here we brutally cast spglib's return value; this implies a
+    # loss of precision if we are currently working in more than Float64
+    # TODO reconstruct w in more precision
 
     # Checks: (A W A^{-1}) is unitary
     for W in Ws
