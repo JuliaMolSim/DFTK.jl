@@ -21,6 +21,7 @@ function PairwisePotential(V, params; max_radius=100)
 end
 (P::PairwisePotential)(basis::AbstractBasis) = TermPairwisePotential(P.V, P.params, P.max_radius, basis)
 
+# We can use `Real` for `max_radius` even if used i
 struct TermPairwisePotential{TV, Tparams} <:Term
     V::TV
     params::Tparams
@@ -77,7 +78,7 @@ function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; 
     end
 
     # Function to return the indices corresponding
-    # to a particular shell
+    # to a particular shell.
     # Not performance critical, so we do not type the function
     max_shell(n, trivial) = trivial ? 0 : n
     # Check if some coordinates are not used.
@@ -99,22 +100,21 @@ function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; 
         any_term_contributes = false
 
         # Loop over R vectors for this shell patch
-        for R in shell_indices(rsh, is_dim_trivial)
+        for R in shell_indices(rsh)
             for i = 1:length(positions), j = 1:length(positions)
+                # Avoid self-interaction
+                rsh == 0 && i == j && continue
+
                 param_ij = params[(atom_types[i], atom_types[j])]
                 ti = positions[i]
                 tj = positions[j]
-
-                # Avoid self-interaction
-                rsh == 0 && i == j && continue
 
                 Δr = lattice * (ti .- tj .- R)
                 dist = norm(Δr)
 
                 # the potential decays very quickly, so cut off at some point
-                if dist > max_radius
-                    continue
-                end
+                dist > max_radius && continue
+
                 any_term_contributes = true
                 energy_contribution = V(dist, param_ij)
                 sum_pairwise += energy_contribution

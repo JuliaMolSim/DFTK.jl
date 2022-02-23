@@ -95,6 +95,7 @@ Random.seed!(0)
         include("energies_guess_density.jl")
         include("compute_density.jl")
         include("forces.jl")
+        include("pairwise.jl")
         include("stresses.jl")
     end
 

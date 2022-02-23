@@ -165,13 +165,13 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
         # Loop over R vectors for this shell patch
         for R in shell_indices(rsh)
             for i = 1:length(positions), j = 1:length(positions)
+                # Avoid self-interaction
+                rsh == 0 && i == j && continue
+
                 ti = positions[i]
                 Zi = charges[i]
                 tj = positions[j]
                 Zj = charges[j]
-
-                # Avoid self-interaction
-                rsh == 0 && i == j && continue
 
                 Δr = lattice * (ti - tj - R)
                 dist = norm(Δr)
