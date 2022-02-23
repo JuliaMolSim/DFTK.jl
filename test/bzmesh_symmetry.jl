@@ -14,7 +14,7 @@ include("testcases.jl")
         atoms = [Si => [(ones(3)) / 8, -ones(3) / 8]]
 
         model_nosym = model_DFT(silicon.lattice, atoms, :lda_xc_teter93, symmetries=false)
-        basis = PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1), a...)
+        basis = PlaneWaveBasis(model_nosym; Ecut=5, kgrid=(1, 1, 1), a...)
         DFTK.check_group(basis.symmetries)
 
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10))
@@ -22,7 +22,7 @@ include("testcases.jl")
         E1 = scfres.energies.total
 
         model_sym = model_DFT(silicon.lattice, atoms, :lda_xc_teter93)
-        basis = PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1), a...)
+        basis = PlaneWaveBasis(model_sym; Ecut=5, kgrid=(1, 1, 1), a...)
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10))
         ρ2 = scfres.ρ
         E2 = scfres.energies.total
