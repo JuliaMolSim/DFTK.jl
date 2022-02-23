@@ -247,8 +247,10 @@ end
 function symmetrize_stresses(lattice, symmetries, stresses)
     stresses_symmetrized = zero(stresses)
     for symop in symmetries
-        S_reduced = inv(lattice) * symop.S * lattice
-        stresses_symmetrized += S_reduced' * stresses * S_reduced
+        W_red, _ = get_Ww(symop)
+        # get W in cartesian coordinates
+        W = lattice * W_red / lattice
+        stresses_symmetrized += W * stresses / W
     end
     stresses_symmetrized /= length(symmetries)
     stresses_symmetrized
