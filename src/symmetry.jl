@@ -243,14 +243,14 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
 
-# symmetrize the stress tensor, a mtrix in cartesian coordinates
+# symmetrize the stress tensor, a matrix in cartesian coordinates
 function symmetrize_stresses(model::Model, stresses, symmetries)
     # see (A.28) of https://arxiv.org/pdf/0906.2569.pdf
     stresses_symmetrized = zero(stresses)
     for symop in symmetries
-        W_red, _ = get_Ww(symop)
-        W = matrix_red_to_cart(model, W_red)
-        stresses_symmetrized += W * stresses / W
+        W, _ = get_Ww(symop) # in reduced coordinates
+        W_cart = matrix_red_to_cart(model, W)
+        stresses_symmetrized += W_cart * stresses / W_cart
     end
     stresses_symmetrized /= length(symmetries)
     stresses_symmetrized

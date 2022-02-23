@@ -236,19 +236,20 @@ There are two types of quantities, depending on how they transform under change 
 
 Positions transform with the lattice: r_cart = lattice * r_red. We term them vectors.
 
-Linear forms on vectors (anything that appears in an expression f⋅r)
-transform with the inverse lattice transpose: f_cart = lattice' \ f_red. We term them covectors.
+Linear forms on vectors (anything that appears in an expression f⋅r) transform
+with the inverse lattice transpose: if f_cart ⋅ r_cart = f_red ⋅ r_red, then
+f_cart = lattice' \ f_red. We term them covectors.
 Examples of covectors are forces.
 
 Reciprocal vectors are a special case: they are covectors, but conventionally have an
 additional factor of 2π in their definition, so they transform rather with 2π times the
 inverse lattice transpose: q_cart = 2π lattice' \ q_red = recip_lattice * q_red.
 =#
-vector_red_to_cart(model::Model, rred) = model.lattice * rred
-vector_cart_to_red(model::Model, rcart) = model.inv_lattice * rcart
-covector_red_to_cart(model::Model, fred) = model.inv_lattice' * fred
-covector_cart_to_red(model::Model, fcart) = model.lattice' * fcart
-recip_vector_red_to_cart(model::Model, qred) = model.recip_lattice * qred
+vector_red_to_cart(model::Model, rred)        = model.lattice * rred
+vector_cart_to_red(model::Model, rcart)       = model.inv_lattice * rcart
+covector_red_to_cart(model::Model, fred)      = model.inv_lattice' * fred
+covector_cart_to_red(model::Model, fcart)     = model.lattice' * fcart
+recip_vector_red_to_cart(model::Model, qred)  = model.recip_lattice * qred
 recip_vector_cart_to_red(model::Model, qcart) = model.inv_recip_lattice * qcart
 
 #=
@@ -256,7 +257,7 @@ Transformations on vectors and covectors are matrices and comatrices.
 Examples of matrices are the symmetries in real space (W)
 Examples of comatrices are the symmetries in reciprocal space (S)
 =#
-matrix_red_to_cart(model::Model, Ared) = model.lattice * Ared * model.inv_lattice
-matrix_cart_to_red(model::Model, Acart) = model.inv_lattice * Acart * model.lattice
-comatrix_red_to_cart(model::Model, Bred) = model.inv_lattice' * Bred * model.lattice'
+matrix_red_to_cart(model::Model, Ared)    = model.lattice * Ared * model.inv_lattice
+matrix_cart_to_red(model::Model, Acart)   = model.inv_lattice * Acart * model.lattice
+comatrix_red_to_cart(model::Model, Bred)  = model.inv_lattice' * Bred * model.lattice'
 comatrix_cart_to_red(model::Model, Bcart) = model.lattice' * Bcart * model.inv_lattice'
