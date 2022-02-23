@@ -34,12 +34,10 @@ end
 
 function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=1) where T
     kinetic_term = [t for t in basis.model.term_types if t isa Kinetic]
-    if length(kinetic_term) >= 1
-        scaling = only(kinetic_term).scaling_factor
-    else
-        # If user do strange computations without a kinetic term.
-        scaling = 1
-    end
+
+    length(kinetic_term) >= 1 || error("Preconditioner should be disabled when no kinetic term is used.")
+
+    scaling = only(kinetic_term).scaling_factor
     kin = Vector{T}([scaling * sum(abs2, q) for q in Gplusk_vectors_cart(basis, kpt)] ./ 2)
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
