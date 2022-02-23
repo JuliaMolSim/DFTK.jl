@@ -29,13 +29,13 @@ end
 function get_Ww(op::SymOp)
     W = op.S'  # S = W'
     w = -W*op.τ  # τ = -W^-1 w
-    (W, w)
+    W, w
 end
 
 Base.:(==)(op1::SymOp, op2::SymOp) = op1.S == op2.S && op1.τ == op2.τ
 function Base.isapprox(op1::SymOp, op2::SymOp; atol=SYMMETRY_TOLERANCE)
     is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ atol, r)
-    op1.S == op2.S && isapprox(op1.τ - op2.τ; atol)
+    op1.S == op2.S && is_approx_integer(op1.τ - op2.τ)
 end
 Base.one(::Type{SymOp}) = SymOp(Mat3{Int}(I), Vec3(zeros(3)))
 Base.one(::SymOp) = one(SymOp)
