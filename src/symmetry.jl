@@ -63,11 +63,11 @@ function symmetries_preserving_kgrid(symmetries, kcoords)
     T = eltype(kcoords[1])
     atol = T <: Rational ? 0 : sqrt(eps(T))
     is_approx_in(x, X) = any(y -> isapprox(x, y; atol), X)
-    function preserves_grid(S)
-        all(is_approx_in(normalize_kpoint_coordinate(S * k), kcoords_normalized)
+    function preserves_grid(symop)
+        all(is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
             for k in kcoords_normalized)
     end
-    filter(symop -> preserves_grid(symop.S), symmetries)
+    filter(preserves_grid, symmetries)
 end
 
 
@@ -77,7 +77,7 @@ Find the subset of symmetries compatible with the grid induced by the given kcoo
 function symmetries_preserving_kgrid(symmetries, kcoords, ksymops)
     new_symmetries = symmetries_preserving_kgrid(symmetries, unfold_kcoords(kcoords, ksymops))
     # check for inconsistent ksymops/symmetries
-    if !all(s1 -> any(s2 -> isapprox(s1, s2), new_symmetries), vcat(ksymops...))
+    if !all(s1 -> any(s2 -> isapprox(s1, s2), new_symmetries), Iterators.flatten(ksymops))
         error("symmetries_preserving_kgrid: ksymops must be a subset of symmetries")
     end
     new_symmetries
@@ -181,8 +181,7 @@ end
 Apply a `k`-point symmetry operation (the tuple (S, τ)) to a partial density.
 """
 function apply_ksymop(symop::SymOp, basis, ρin)
-    S, τ = symop.S, symop.τ
-    S == I && iszero(τ) && return ρin
+    symop == one(SymOp) && return ρin
     symmetrize_ρ(basis, ρin; symmetries=[symop])
 end
 
@@ -192,7 +191,6 @@ end
 function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
     T = eltype(basis)
     for symop in symmetries
-        invS = Mat3{Int}(inv(symop.S))
         # Common special case, where ρin does not need to be processed
         if symop == one(SymOp)
             ρaccu .+= ρin
@@ -206,11 +204,12 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
         # with Fourier transform
         #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
         # equivalently
-        #      ̂ρ_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
+        #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
+        invS = Mat3{Int}(inv(symop.S))
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             igired = index_G_vectors(basis, invS * G)
             if igired !== nothing
-                @inbounds ρaccu[ig] += cis(-2T(π) * dot(G, symop.τ)) * ρin[igired]
+                @inbounds ρaccu[ig] += cis(-2T(π) * T(dot(G, symop.τ))) * ρin[igired]
             end
         end
     end  # symop
@@ -233,7 +232,7 @@ end
 """
 Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
-@views function symmetrize_ρ(basis, ρin; symmetries=basis.symmetries)
+@views @timing function symmetrize_ρ(basis, ρin; symmetries=basis.symmetries)
     ρin_fourier = r_to_G(basis, ρin)
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρin, 4)
@@ -243,6 +242,7 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
     end
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
+
 # symmetrize the stress tensor, which is a rank-2 contravariant tensor in reduced coordinates
 function symmetrize_stresses(lattice, symmetries, stresses)
     stresses_symmetrized = zero(stresses)
@@ -254,10 +254,24 @@ function symmetrize_stresses(lattice, symmetries, stresses)
     stresses_symmetrized
 end
 
-function check_symmetric(basis, ρin; tol=1e-10, symmetries=basis.symmetries)
-    for symop in symmetries
-        @assert norm(symmetrize_ρ(ρin, [symop]) - ρin) < tol
+# symmetrize the forces, an array forces[iel][α,i] in reduced coordinates
+function symmetrize_forces(symmetries, forces, atoms)
+    symmetrized_forces = zero.(forces)
+    for (iel, (element, positions)) in enumerate(atoms)
+        for symop in symmetries
+            W, w = get_Ww(symop)
+            for (iat, at) in enumerate(positions)
+                # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
+                # (but careful that our symmetries are r -> Wr+w, not R(r+f))
+                other_at = W \ (at - w)
+                is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ SYMMETRY_TOLERANCE, r)
+                i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions)
+                symmetrized_forces[iel][iat] += W * forces[iel][i_other_at]
+            end
+        end
+        symmetrized_forces[iel] /= length(symmetries)
     end
+    symmetrized_forces
 end
 
 """"

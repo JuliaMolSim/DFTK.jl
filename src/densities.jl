@@ -48,7 +48,7 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
     ρ = symmetrize_ρ(basis, ρ)
 
     _check_positive(ρ)
-    n_elec_check = sum(weight * sum(occk) for (weight, occk) in zip(basis.kweights, occupation))
+    n_elec_check = weighted_ksum(basis, sum.(occupation))
     _check_total_charge(basis.dvol, ρ, n_elec_check)
 
     ρ
