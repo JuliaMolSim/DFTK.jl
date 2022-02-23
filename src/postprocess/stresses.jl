@@ -2,7 +2,7 @@ using ForwardDiff
 """
 Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF solution.
 """
-@timing function compute_stresses(scfres)
+@timing function compute_stresses_cart(scfres)
     # TODO optimize by only computing derivatives wrt 6 independent parameters
     # compute the Hellmann-Feynman energy (with fixed ψ/occ/ρ)
     function HF_energy(lattice)
@@ -33,3 +33,4 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
     stresses_not_symmetrized = ForwardDiff.gradient(M -> HF_energy((I+M) * L), zero(L)) / Ω
     symmetrize_stresses(L, scfres.basis.symmetries, stresses_not_symmetrized)
 end
+@deprecate compute_stresses(scfres) compute_stresses_cart(scfres)

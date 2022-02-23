@@ -170,7 +170,7 @@ include("postprocess/band_structure.jl")
 export compute_forces
 export compute_forces_cart
 include("postprocess/forces.jl")
-export compute_stresses
+export compute_stresses_cart
 include("postprocess/stresses.jl")
 export compute_dos
 export compute_ldos
