@@ -58,10 +58,6 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     T = eltype(basis)
     model = basis.model
 
-    kinetic_term = [t for t in basis.model.term_types if t isa Kinetic]
-    @assert(length(kinetic_term) > 0,
-            "A kinetic term should be proveded when using the self-consistent field method")
-
     # All these variables will get updated by fixpoint_map
     if ψ !== nothing
         @assert length(ψ) == length(basis.kpoints)
