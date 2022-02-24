@@ -121,14 +121,8 @@ if mpi_nprocs() == 1  # not easy to distribute
                         residual = norm(Hk_full * ψnSk - eigenvalues_ir[ik][iband] * ψnSk)
                         @test residual < 10tol
                     end  # iband
-
-                    n_ρ += 1
-                    ρsum .+= DFTK.compute_partial_density!(copy(ρsum), ham_ir.basis, Skpoint, ψSk, occ_ir[ik])
                 end  # symop
             end  # k
-
-            @test n_ρ == length(kfull)
-            @test maximum(abs, ρsum / n_ρ - r_to_G(ham_ir.basis, ρ_full)) < 10tol
         end # eigenvectors
     end
 

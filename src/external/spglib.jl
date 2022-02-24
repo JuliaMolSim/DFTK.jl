@@ -101,8 +101,10 @@ end
 
     # Note: Transposes are performed to convert between spglib row-major to julia column-major
     Ws = [Mat3{Int}(spg_rotations[:, :, i]') for i in 1:spg_n_ops]
-    ws = [rationalize.(Vec3{Float64}(spg_translations[:, i]), tol=tol_symmetry)
-               for i in 1:spg_n_ops]
+    ws = [Vec3{eltype(lattice)}(spg_translations[:, i]) for i in 1:spg_n_ops]
+    # here we brutally cast spglib's return value; this implies a
+    # loss of precision if we are currently working in more than Float64
+    # TODO reconstruct w in more precision
 
     # Checks: (A W A^{-1}) is unitary
     for W in Ws
@@ -116,12 +118,10 @@ end
     for (W, w) in zip(Ws, ws)
         for (elem, positions) in atoms
             for coord in positions
-                diffs = [rationalize.(W * coord + w - pos, tol=5*tol_symmetry)
-                         for pos in positions]
-
                 # If all elements of a difference in diffs is integer, then
                 # W * coord + w and pos are equivalent lattice positions
-                if !any(all(isinteger, d) for d in diffs)
+                is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ tol_symmetry, r)
+                if !any(c -> is_approx_integer(W * coord + w - c), positions)
                     error("spglib returned bad symmetries: Cannot map the atom at position " *
                           "$coord to another atom of the same element under the symmetry " *
                           "operation (W, w):\n" *
@@ -164,7 +164,7 @@ the primitive setting choice made in the ITA.
 function spglib_standardize_cell(lattice::AbstractArray{T}, atoms, magnetic_moments=[];
                                  correct_symmetry=true,
                                  primitive=false,
-                                 tol_symmetry=1e-5) where {T}
+                                 tol_symmetry=SYMMETRY_TOLERANCE) where {T}
     # TODO For time-reversal symmetry see the discussion in PR 496.
     #      https://github.com/JuliaMolSim/DFTK.jl/pull/496/files#r725203554
     #      Essentially this does not influence the standardisation,
@@ -190,7 +190,7 @@ function spglib_standardize_cell(model::Model; kwargs...)
 end
 
 
-function spglib_spacegroup_number(model, magnetic_moments=[]; tol_symmetry=1e-5)
+function spglib_spacegroup_number(model, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
     # Get spacegroup number according to International Tables for Crystallography (ITA)
     # TODO Time-reversal symmetry disabled? (not yet available in DFTK)
     # TODO Are magnetic moments passed?
