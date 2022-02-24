@@ -6,7 +6,7 @@ using LinearAlgebra: norm
 
 include("testcases.jl")
 
-function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
+function test_chi0(testcase; symmetry=false, temperature=0,
                    spin_polarization=:none, eigensolver=lobpcg_hyper, Ecut=10,
                    kgrid=[3, 1, 1], fft_size=[15, 1, 15], compute_full_χ0=false)
 
@@ -22,7 +22,6 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
         is_metal        ? "    metal" : "insulator",
         eigsol          ? "   lobpcg" : "full diag",
         symmetry        ? "   symm" : "no symm",
-        use_symmetry    ? "   use" : "no use",
         temperature > 0 ? "temp" : "  0K",
         collinear       ? "coll" : "none",
     ]
@@ -32,7 +31,7 @@ function test_chi0(testcase; symmetry=false, use_symmetry=false, temperature=0,
         model_kwargs = (temperature=temperature, symmetries=symmetry,
                         magnetic_moments=magnetic_moments,
                         spin_polarization=spin_polarization)
-        basis_kwargs = (kgrid=kgrid, fft_size=fft_size, use_symmetry=use_symmetry)
+        basis_kwargs = (kgrid=kgrid, fft_size=fft_size)
 
         model = model_LDA(testcase.lattice, [spec => testcase.positions]; model_kwargs...)
         basis = PlaneWaveBasis(model; Ecut, basis_kwargs...)
@@ -104,15 +103,15 @@ end
 @testset "Computing χ0" begin
     for (case, temperatures) in [(silicon, (0, 0.03)), (magnesium, (0.01, ))]
         for temperature in temperatures, spin_polarization in (:none, :collinear)
-            for use_symmetry in (false, true), symmetry in (false, true)
-                test_chi0(case; symmetry, use_symmetry, temperature, spin_polarization)
+            for symmetry in (false, true)
+                test_chi0(case; symmetry, temperature, spin_polarization)
             end
         end
     end
 
-    # additional test for compute_χ0 in some specific cases
-    for spin_polarization in (:none, :collinear), use_symmetry in (false, true)
-        test_chi0(silicon; symmetry=false, use_symmetry, spin_polarization,
+    # additional test for compute_χ0
+    for spin_polarization in (:none, :collinear)
+        test_chi0(silicon; symmetry=false, spin_polarization,
                   eigensolver=diag_full, Ecut=3, fft_size=[10, 1, 10],
                   compute_full_χ0=true)
     end

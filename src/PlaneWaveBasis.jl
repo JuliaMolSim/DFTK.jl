@@ -95,9 +95,8 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
 
     # Symmetry operations that leave the reducible Brillouin zone invariant.
     # Subset of model.symmetries, and superset of all the ksymops.
-    # Independent of the `use_symmetry` option
     # Nearly all computations will be done inside this symmetry group;
-    # the exceptions is inexact operations on the FFT grid (ie xc),
+    # the exception is inexact operations on the FFT grid (ie xc),
     # which doesn't respect the symmetry
     symmetries::Vector{SymOp}
 
@@ -107,7 +106,7 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
 end
 
 
-# prevent broadcast on pwbasis
+# prevent broadcast
 import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 
@@ -238,7 +237,7 @@ function PlaneWaveBasis(model::Model{T},
     basis
 end
 
-# This is the "internal" constructor; the higher-level one below should be preferred
+# This is the "internal" constructor; the higher-level ones below should be preferred
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops,
                                 symmetries=symmetries_preserving_kgrid(model.symmetries,
@@ -276,10 +275,9 @@ end
 Creates a new basis identical to `basis`, but with a custom set of kpoints
 """
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
-                                ksymops::AbstractVector,
-                                symmetries=symmetries_preserving_kgrid(basis.model.symmetries,
-                                                                       kcoords, ksymops))
+                                ksymops::AbstractVector)
     kgrid = kshift = nothing
+    symmetries = symmetries_preserving_kgrid(basis.model.symmetries, kcoords, ksymops)
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
                    kcoords, ksymops, kgrid, kshift,
@@ -293,27 +291,13 @@ Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a Monkhors
 number of points in each dimension and `kshift` the shift (0 or 1/2 in each direction).
 If not specified a grid is generated using `kgrid_from_minimal_spacing` with
 a minimal spacing of `2π * 0.022` per Bohr.
-
-If `use_symmetry` is `true` (default) the symmetries of the
-crystal are used to reduce the number of ``k``-points which are
-treated explicitly. In this case all guess densities and potential
-functions must agree with the crystal symmetries or the result is
-undefined.
 """
 function PlaneWaveBasis(model::Model;
                         Ecut,
                         kgrid=kgrid_from_minimal_spacing(model, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
-                        use_symmetry=true,
                         kwargs...)
-    if use_symmetry
-        kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
-    else
-        kcoords, ksymops, _ = bzmesh_uniform(kgrid; kshift)
-        # even when not using symmetry to reduce computations, still
-        # store in symmetries the set of kgrid-preserving symmetries
-        symmetries = symmetries_preserving_kgrid(model.symmetries, kcoords)
-    end
+    kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
     PlaneWaveBasis(model, austrip(Ecut), kcoords, ksymops, symmetries;
                    kgrid, kshift, kwargs...)
 end
@@ -359,11 +343,9 @@ G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
 
 The list of ``G`` vectors of a given `basis` or `kpt`, in cartesian coordinates.
 """
-function G_vectors_cart(basis::PlaneWaveBasis)
-    map(G -> basis.model.recip_lattice * G, G_vectors(basis))
-end
+G_vectors_cart(basis::PlaneWaveBasis) = recip_vector_red_to_cart.(basis.model, G_vectors(basis))
 function G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
-    map(G -> basis.model.recip_lattice * G, G_vectors(basis, kpt))
+    recip_vector_red_to_cart.(basis.model, G_vectors(basis, kpt))
 end
 
 @doc raw"""
@@ -381,9 +363,8 @@ end
 The list of ``G + k`` vectors, in cartesian coordinates.
 """
 function Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
-    map(Gplusk -> basis.model.recip_lattice * Gplusk, Gplusk_vectors(basis, kpt))
+    recip_vector_red_to_cart.(basis.model, Gplusk_vectors(basis, kpt))
 end
-
 
 @doc raw"""
     r_vectors(basis::PlaneWaveBasis)
@@ -400,7 +381,7 @@ end
 
 The list of ``r`` vectors, in cartesian coordinates.
 """
-r_vectors_cart(basis::PlaneWaveBasis) = map(r -> basis.model.lattice * r, r_vectors(basis))
+r_vectors_cart(basis::PlaneWaveBasis) = vector_red_to_cart.(basis.model, r_vectors(basis))
 
 
 """
