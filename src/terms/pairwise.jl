@@ -21,11 +21,12 @@ function PairwisePotential(V, params; max_radius=100)
 end
 (P::PairwisePotential)(basis::AbstractBasis) = TermPairwisePotential(P.V, P.params, P.max_radius, basis)
 
-# We can use `Real` for `max_radius` even if used i
-struct TermPairwisePotential{TV, Tparams} <:Term
+# Even if the double loop is not performance critical, it is better to explicitely type
+# `max_radius` with `T` and not `Real`.
+struct TermPairwisePotential{TV, Tparams, T} <:Term
     V::TV
     params::Tparams
-    max_radius::Real
+    max_radius::T
     energy::Real
 end
 function TermPairwisePotential(V, params, max_radius, basis::PlaneWaveBasis{T}) where {T}
