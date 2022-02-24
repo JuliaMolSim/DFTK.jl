@@ -232,10 +232,10 @@ end
 """
 Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
-@views @timing function symmetrize_ρ(basis, ρin; symmetries=basis.symmetries)
-    ρin_fourier = r_to_G(basis, ρin)
+@views @timing function symmetrize_ρ(basis, ρ; symmetries=basis.symmetries)
+    ρin_fourier = r_to_G(basis, ρ)
     ρout_fourier = zero(ρin_fourier)
-    for σ = 1:size(ρin, 4)
+    for σ = 1:size(ρ, 4)
         accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
         lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
@@ -243,8 +243,10 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
 
-# symmetrize the stress tensor, a matrix in cartesian coordinates
-function symmetrize_stresses(model::Model, stresses, symmetries)
+"""
+Symmetrize the stress tensor, given as a Matrix in cartesian coordinates
+"""
+function symmetrize_stresses(model::Model, stresses; symmetries)
     # see (A.28) of https://arxiv.org/pdf/0906.2569.pdf
     stresses_symmetrized = zero(stresses)
     for symop in symmetries
@@ -255,9 +257,15 @@ function symmetrize_stresses(model::Model, stresses, symmetries)
     stresses_symmetrized /= length(symmetries)
     stresses_symmetrized
 end
+function symmetrize_stresses(basis::PlaneWaveBasis, stresses)
+    symmetrize_stresses(basis.model, stresses; basis.symmetries)
+end
 
-# symmetrize the forces, an array forces[iel][α,i] in reduced coordinates
-function symmetrize_forces(model::Model, forces, symmetries)
+"""
+Symmetrize the forces in *reduced coordinates*, forces given as an
+array forces[iel][α,i]
+"""
+function symmetrize_forces(model::Model, forces; symmetries)
     atoms = model.atoms
     symmetrized_forces = zero.(forces)
     for (iel, (element, positions)) in enumerate(atoms)
@@ -275,6 +283,9 @@ function symmetrize_forces(model::Model, forces, symmetries)
         symmetrized_forces[iel] /= length(symmetries)
     end
     symmetrized_forces
+end
+function symmetrize_forces(basis::PlaneWaveBasis, forces)
+    symmetrize_forces(basis.model, forces; basis.symmetries)
 end
 
 """"

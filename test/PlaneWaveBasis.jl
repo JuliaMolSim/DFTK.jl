@@ -127,13 +127,4 @@ end
         @test all(Gplusk_vectors_cart(basis, kpt) .== map(q -> model.recip_lattice * q,
                                                           Gplusk_vectors(basis, kpt)))
     end
-
-    rred = randn(3)
-    qred = randn(3)
-    @test dot(DFTK.vector_red_to_cart(model, rred), DFTK.covector_red_to_cart(model, qred)) ≈ dot(rred, qred)
-    @test dot(DFTK.vector_red_to_cart(model, rred), DFTK.recip_vector_red_to_cart(model, qred)) ≈ 2π*dot(rred, qred)
-
-    rcart = randn(3)
-    qcart = randn(3)
-    @test dot(DFTK.vector_cart_to_red(model, rcart), DFTK.covector_cart_to_red(model, qcart)) ≈ dot(rcart, qcart)
 end

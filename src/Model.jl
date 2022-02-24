@@ -253,7 +253,15 @@ recip_vector_red_to_cart(model::Model, qred)  = model.recip_lattice * qred
 recip_vector_cart_to_red(model::Model, qcart) = model.inv_recip_lattice * qcart
 
 #=
-Transformations on vectors and covectors are matrices and comatrices. 
+Transformations on vectors and covectors are matrices and comatrices.
+
+Consider two covectors f and g related by a transformation matrix B. In reduced
+coordinates g_red = B_red f_red and in cartesian coordinates we want g_cart = B_cart f_cart.
+From g_cart = L⁻ᵀ g_red = L⁻ᵀ B_red f_red = L⁻ᵀ B_red Lᵀ f_cart, we see B_cart = L⁻ᵀ B_red Lᵀ.
+
+Similarly for two vectors r and s with s_red = A_red r_red and s_cart = A_cart r_cart:
+s_cart = L s_red = L A_red r_red = L A_red L⁻¹ r_cart, thus A_cart = L A_red L⁻¹.
+
 Examples of matrices are the symmetries in real space (W)
 Examples of comatrices are the symmetries in reciprocal space (S)
 =#

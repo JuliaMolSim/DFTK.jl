@@ -237,7 +237,7 @@ function PlaneWaveBasis(model::Model{T},
     basis
 end
 
-# This is the "internal" constructor; the higher-level one below should be preferred
+# This is the "internal" constructor; the higher-level ones below should be preferred
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops,
                                 symmetries=symmetries_preserving_kgrid(model.symmetries,
@@ -275,10 +275,9 @@ end
 Creates a new basis identical to `basis`, but with a custom set of kpoints
 """
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
-                                ksymops::AbstractVector,
-                                symmetries=symmetries_preserving_kgrid(basis.model.symmetries,
-                                                                       kcoords, ksymops))
+                                ksymops::AbstractVector)
     kgrid = kshift = nothing
+    symmetries = symmetries_preserving_kgrid(basis.model.symmetries, kcoords, ksymops)
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
                    kcoords, ksymops, kgrid, kshift,
