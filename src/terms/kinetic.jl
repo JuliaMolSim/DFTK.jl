@@ -40,3 +40,18 @@ end
 
     (E=E, ops=ops)
 end
+
+struct RegularizedKinetic
+    scaling_factor::Real
+    g_function
+end
+# Defaut is standard Kinetic term
+RegularizedKinetic(; scaling_factor=1, g=x->x'x) = RegularizedKinetic(scaling_factor, g)
+(kin::RegularizedKinetic)(basis) = TermKinetic(basis, kin.scaling_factor, kin.g_function)
+
+function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, g) where {T}
+    kinetic_energies = [[T(scaling_factor) * g(norm(Gk)/√2)
+                         for Gk in Gplusk_vectors_cart(basis, kpt)]
+                        for kpt in basis.kpoints]
+    TermKinetic(T(scaling_factor), kinetic_energies)
+end

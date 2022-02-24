@@ -33,10 +33,12 @@ mutable struct PreconditionerTPA{T <: Real}
 end
 
 function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=1) where T
-    kinetic_term = [t for t in basis.model.term_types if t isa Kinetic]
-    isempty(kinetic_term) && error("Preconditioner should be disabled when no Kinetic term is used.")
-    scaling = only(kinetic_term).scaling_factor
-    kin = Vector{T}([scaling * sum(abs2, q) for q in Gplusk_vectors_cart(basis, kpt)] ./ 2)
+    kinetic_term = only([t for t in basis.model.term_types
+                         if typeof(t) ∈ (Kinetic, RegularizedKinetic)])
+    scaling = kinetic_term.scaling_factor;
+    # Modify g function and Gplusk vectors if the kinetic term is regularized
+    g = x->x'x; (kinetic_term isa RegularizedKinetic) && (g=kinetic_term.g_function)
+    kin = Vector{T}([scaling * g(norm(q)/√2) for q in Gplusk_vectors_cart(basis, kpt)])
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 
