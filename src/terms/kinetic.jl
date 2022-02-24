@@ -45,13 +45,16 @@ struct RegularizedKinetic
     scaling_factor::Real
     g_function
 end
-# Defaut is standard Kinetic term
+# Defaut is standard Kinetic term but with strict inequality in the choice of G_vectors
 RegularizedKinetic(; scaling_factor=1, g=x->x'x) = RegularizedKinetic(scaling_factor, g)
 (kin::RegularizedKinetic)(basis) = TermKinetic(basis, kin.scaling_factor, kin.g_function)
 
 function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, g) where {T}
-    kinetic_energies = [[T(scaling_factor) * g(norm(Gk)/√2)
-                         for Gk in Gplusk_vectors_cart(basis, kpt)]
+    Ecut = basis.Ecut
+    Gplusk_strict_cart(basis, kpt) = [Gpk for Gpk in Gplusk_vectors_cart(basis, kpt)
+                                      if (norm(Gpk)^2/2 < Ecut)]
+    kinetic_energies = [[T(scaling_factor) * Ecut*g(norm(Gk)/√(2*Ecut))
+                         for Gk in Gplusk_strict_cart(basis, kpt)]
                         for kpt in basis.kpoints]
     TermKinetic(T(scaling_factor), kinetic_energies)
 end

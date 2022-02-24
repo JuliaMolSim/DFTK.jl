@@ -36,9 +36,11 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     kinetic_term = only([t for t in basis.model.term_types
                          if typeof(t) ∈ (Kinetic, RegularizedKinetic)])
     scaling = kinetic_term.scaling_factor;
-    # Modify g function and Gplusk vectors if the kinetic term is regularized
+    Ecut = basis.Ecut
+    # Modify g function if the kinetic term is regularized
     g = x->x'x; (kinetic_term isa RegularizedKinetic) && (g=kinetic_term.g_function)
-    kin = Vector{T}([scaling * g(norm(q)/√2) for q in Gplusk_vectors_cart(basis, kpt)])
+    # End modifications
+    kin = Vector{T}([scaling * Ecut*g(norm(q)/√(2*Ecut)) for q in Gplusk_vectors_cart(basis, kpt)])
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 

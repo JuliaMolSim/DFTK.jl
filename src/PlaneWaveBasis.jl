@@ -112,8 +112,18 @@ Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
+# Laurent
+function select_G_vector(model, G, k, Ecut)
+    # Strict inequality for RegularizedKinetic
+    if (model.model_name == "RegularizedKinetic")
+        return  (sum(abs2, model.recip_lattice*(G+k))/2 < Ecut)
+    end
+    (sum(abs2, model.recip_lattice*(G+k))/2 ≤ Ecut)
+end
+
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
                                variational=true) where T
+    # Originial function
     kpoints_per_spin = [Kpoint[] for _ in 1:model.n_spin_components]
     for k in kcoords
         k = Vec3{T}(k)  # rationals are sloooow
@@ -124,7 +134,7 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
         sizehint!(mapping, n_guess)
         sizehint!(Gvecs_k, n_guess)
         for (i, G) in enumerate(G_vectors(fft_size))
-            if !variational || sum(abs2, model.recip_lattice * (G + k)) / 2 ≤ Ecut
+            if !variational || select_G_vector(model, G, k, Ecut)
                 push!(mapping, i)
                 push!(Gvecs_k, G)
             end
