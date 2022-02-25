@@ -44,6 +44,8 @@ silicon = (
                 ([ 1 -1  0;  1  0 -1;  1  0  0], [ 0.0,  0.0, -0.5])])
        ]),
 )
+silicon = merge(silicon,
+                (; atoms=[ElementPsp(silicon.atnum, psp=load_psp(silicon.psp)) => silicon.positions]))
 
 magnesium = (
     lattice = [-3.0179389205999998 -3.0179389205999998 0.0000000000000000;
@@ -90,6 +92,8 @@ magnesium = (
                 ([-1  0  0;  0 -1  0;  0  0 -1], [ 0.0,  0.0,  0.0])]),
     ]),
 )
+magnesium = merge(magnesium,
+                  (; atoms=[ElementPsp(magnesium.atnum, psp=load_psp(silicon.psp)) => magnesium.positions]))
 
 
 aluminium = (

@@ -18,6 +18,9 @@ include("testcases.jl")
     println(basis)
     display("text/plain", basis)
 
+    println(basis.kpoints[1])
+    display("text/plain", basis.kpoints[1])
+
     println(scfres.energies)
     display("text/plain", scfres.energies)
 end

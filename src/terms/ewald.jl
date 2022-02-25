@@ -104,22 +104,10 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
         forces_recip = copy(forces)
     end
 
-    #
-    # Numerical cutoffs
-    #
-    # The largest argument to the exp(-x) function to obtain a numerically
-    # meaningful contribution. The +5 is for safety.
-    max_exponent = -log(eps(T)) + 5
-
-    # The largest argument to the erfc function for various precisions.
-    # To get an idea:   
-    #   erfc(5) ≈ 1e-12,  erfc(8) ≈ 1e-29,  erfc(10) ≈ 2e-45,  erfc(14) ≈ 3e-87
-    # max_erfc_arg = ChainRulesCore.@ignore_derivatives get(
-    #     Dict(Float32 => 5, Float64 => 8),
-    #     T,
-    #     14 # fallback for not yet implemented cutoffs
-    # )
-    max_erfc_arg = 8  # TODO adapt to eps(T)
+    # Numerical cutoffs to obtain meaningful contributions. These are very conservative.
+    # The largest argument to the exp(-x) function
+    max_exp_arg = -log(eps(T)) + 5  # add some wiggle room
+    max_erfc_arg = sqrt(max_exp_arg)  # erfc(x) ~= exp(-x^2)/(sqrt(π)x) for large x
 
     #
     # Reciprocal space sum
@@ -140,7 +128,7 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
             # Check if the Gaussian exponent is small enough
             # for this term to contribute to the reciprocal sum
             exponent = Gsq / 4η^2
-            if exponent > max_exponent
+            if exponent > max_exp_arg
                 continue
             end
 

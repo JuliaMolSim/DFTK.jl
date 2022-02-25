@@ -34,8 +34,9 @@ struct ExternalFromReal
     potential::Function
 end
 
-function (external::ExternalFromReal)(basis::PlaneWaveBasis)
-    TermExternal(external.potential.(r_vectors_cart(basis)))
+function (external::ExternalFromReal)(basis::PlaneWaveBasis{T}) where {T}
+    pot_real = external.potential.(r_vectors_cart(basis))
+    TermExternal(convert_dual.(T, pot_real))
 end
 
 """
@@ -45,12 +46,12 @@ G is passed in cartesian coordinates
 struct ExternalFromFourier
     potential::Function
 end
-function (external::ExternalFromFourier)(basis::PlaneWaveBasis)
+function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
-    pot_fourier = [complex(external.potential(G) / sqrt(unit_cell_volume))
-                   for G in G_vectors_cart(basis)]
-    pot_real = G_to_r(basis, pot_fourier)
-    TermExternal(real(pot_real))
+    pot_fourier = map(G_vectors_cart(basis)) do G
+        convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
+    end
+    TermExternal(G_to_r(basis, pot_fourier))
 end
 
 

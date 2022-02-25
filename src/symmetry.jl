@@ -1,25 +1,23 @@
-## This file contains functions to handle the symetries
+# This file contains functions to handle the symetries.
+# The type SymOp is defined in Symop.jl
 
-# A symmetry operation (symop) is a couple (W, w) of a
-# unitary (in cartesian coordinates, but not in reduced coordinates)
-# matrix W and a translation w such that, for each atom of
-# type A at position a, W a + w is also an atom of type A.
-
-# This induces a symmetry in the Brillouin zone that the Hamiltonian
-# at S k is unitary equivalent to that at k, which we exploit to
+# A symmetry (W, w) (or (S, τ)) induces a symmetry in the Brillouin zone
+# that the Hamiltonian at S k is unitary equivalent to that at k, which we exploit to
 # reduce computations. The relationship is
 # S = W'
 # τ = -W^-1 w
-# (valid both in reduced and cartesian coordinates)
+# (valid both in reduced and cartesian coordinates). In our notation
+# the rotation matrix W and translation w are such that, for each atom of
+# type A at position a, W a + w is also an atom of type A.
 
 # The full (reducible) Brillouin zone is implicitly represented by
 # a set of (irreducible) kpoints (see explanation in docs). Each
 # irreducible k-point k comes with a list of symmetry operations
-# (S,τ) (containing at least the trivial operation (I,0)), where S
-# is a rotation matrix (/!\ not unitary in reduced coordinates)
+# (S, τ) (containing at least the trivial operation (I, 0)), where S
+# is a unitary matrix (/!\ in cartesian but not in reduced coordinates)
 # and τ a translation vector. The k-point is then used to represent
-# implicitly the information at all the kpoints Sk. The
-# relationship between the Hamiltonians is
+# implicitly the information at all the kpoints Sk. The relationship
+# between the Hamiltonians is
 # H_{Sk} = U H_k U*, with
 # (Uu)(x) = u(W x + w)
 # or in Fourier space
@@ -48,8 +46,7 @@ Return the ``k``-point symmetry operations associated to a lattice and atoms.
 function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
     symmetries = []
     # Get symmetries from spglib
-    Ws, ws = spglib_get_symmetry(lattice, atoms, magnetic_moments;
-                                           tol_symmetry=tol_symmetry)
+    Ws, ws = spglib_get_symmetry(lattice, atoms, magnetic_moments; tol_symmetry)
     for isym = 1:length(Ws)
         S = Ws[isym]'                  # in fractional reciprocal coordinates
         τ = -Ws[isym] \ ws[isym]  # in fractional real-space coordinates
@@ -66,11 +63,11 @@ function symmetries_preserving_kgrid(symmetries, kcoords)
     T = eltype(kcoords[1])
     atol = T <: Rational ? 0 : sqrt(eps(T))
     is_approx_in(x, X) = any(y -> isapprox(x, y; atol), X)
-    function preserves_grid(S)
-        all(is_approx_in(normalize_kpoint_coordinate(S * k), kcoords_normalized)
+    function preserves_grid(symop)
+        all(is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
             for k in kcoords_normalized)
     end
-    filter(symop -> preserves_grid(symop.S), symmetries)
+    filter(preserves_grid, symmetries)
 end
 
 
@@ -78,7 +75,12 @@ end
 Find the subset of symmetries compatible with the grid induced by the given kcoords and ksymops
 """
 function symmetries_preserving_kgrid(symmetries, kcoords, ksymops)
-    symmetries_preserving_kgrid(symmetries, unfold_kcoords(kcoords, ksymops))
+    new_symmetries = symmetries_preserving_kgrid(symmetries, unfold_kcoords(kcoords, ksymops))
+    # check for inconsistent ksymops/symmetries
+    if !all(s1 -> any(s2 -> isapprox(s1, s2), new_symmetries), Iterators.flatten(ksymops))
+        error("symmetries_preserving_kgrid: ksymops must be a subset of symmetries")
+    end
+    new_symmetries
 end
 
 
@@ -179,8 +181,7 @@ end
 Apply a `k`-point symmetry operation (the tuple (S, τ)) to a partial density.
 """
 function apply_ksymop(symop::SymOp, basis, ρin)
-    S, τ = symop.S, symop.τ
-    S == I && iszero(τ) && return ρin
+    symop == one(SymOp) && return ρin
     symmetrize_ρ(basis, ρin; symmetries=[symop])
 end
 
@@ -190,7 +191,6 @@ end
 function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
     T = eltype(basis)
     for symop in symmetries
-        invS = Mat3{Int}(inv(symop.S))
         # Common special case, where ρin does not need to be processed
         if symop == one(SymOp)
             ρaccu .+= ρin
@@ -204,11 +204,12 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
         # with Fourier transform
         #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
         # equivalently
-        #      ̂ρ_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
+        #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
+        invS = Mat3{Int}(inv(symop.S))
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             igired = index_G_vectors(basis, invS * G)
             if igired !== nothing
-                @inbounds ρaccu[ig] += cis(-2T(π) * dot(G, symop.τ)) * ρin[igired]
+                @inbounds ρaccu[ig] += cis(-2T(π) * T(dot(G, symop.τ))) * ρin[igired]
             end
         end
     end  # symop
@@ -231,31 +232,60 @@ end
 """
 Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
-@views function symmetrize_ρ(basis, ρin; symmetries=basis.symmetries)
-    ρin_fourier = r_to_G(basis, ρin)
+@views @timing function symmetrize_ρ(basis, ρ; symmetries=basis.symmetries)
+    ρin_fourier = r_to_G(basis, ρ)
     ρout_fourier = zero(ρin_fourier)
-    for σ = 1:size(ρin, 4)
+    for σ = 1:size(ρ, 4)
         accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
-        lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries=symmetries)
+        lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
-# symmetrize the stress tensor, which is a rank-2 contravariant tensor in reduced coordinates
-function symmetrize_stresses(lattice, symmetries, stresses)
+
+"""
+Symmetrize the stress tensor, given as a Matrix in cartesian coordinates
+"""
+function symmetrize_stresses(model::Model, stresses; symmetries)
+    # see (A.28) of https://arxiv.org/pdf/0906.2569.pdf
     stresses_symmetrized = zero(stresses)
     for symop in symmetries
-        S_reduced = inv(lattice) * symop.S * lattice
-        stresses_symmetrized += S_reduced' * stresses * S_reduced
+        W, _ = get_Ww(symop) # in reduced coordinates
+        W_cart = matrix_red_to_cart(model, W)
+        stresses_symmetrized += W_cart * stresses / W_cart
     end
     stresses_symmetrized /= length(symmetries)
     stresses_symmetrized
 end
+function symmetrize_stresses(basis::PlaneWaveBasis, stresses)
+    symmetrize_stresses(basis.model, stresses; basis.symmetries)
+end
 
-function check_symmetric(basis, ρin; tol=1e-10, symmetries=ρin.basis.symmetries)
-    for symop in symmetries
-        @assert norm(symmetrize_ρ(ρin, [symop]) - ρin) < tol
+"""
+Symmetrize the forces in *reduced coordinates*, forces given as an
+array forces[iel][α,i]
+"""
+function symmetrize_forces(model::Model, forces; symmetries)
+    atoms = model.atoms
+    symmetrized_forces = zero.(forces)
+    for (iel, (element, positions)) in enumerate(atoms)
+        for symop in symmetries
+            W, w = get_Ww(symop)
+            for (iat, at) in enumerate(positions)
+                # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
+                # (but careful that our symmetries are r -> Wr+w, not R(r+f))
+                other_at = W \ (at - w)
+                is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ SYMMETRY_TOLERANCE, r)
+                i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions)
+                symmetrized_forces[iel][iat] += W * forces[iel][i_other_at]
+            end
+        end
+        symmetrized_forces[iel] /= length(symmetries)
     end
+    symmetrized_forces
+end
+function symmetrize_forces(basis::PlaneWaveBasis, forces)
+    symmetrize_forces(basis.model, forces; basis.symmetries)
 end
 
 """"

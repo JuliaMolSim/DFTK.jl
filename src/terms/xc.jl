@@ -360,7 +360,7 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs..
 
     # TODO LDA actually only needs the 2nd derivatives for this ... could be optimised
     terms  = evaluate(term.functionals, density, derivatives=1:2)
-    δV = zero(ρ)  # [iσ, ix, iy, iz]
+    δV = zero(ρ)  # [ix, iy, iz, iσ]
 
     tρρ = libxc_spinindex_ρρ
     @views for s in 1:n_spin, t in 1:n_spin  # LDA term
@@ -410,7 +410,7 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
     tρσ = libxc_spinindex_ρσ
     tσσ = libxc_spinindex_σσ
 
-    # Note: δV[iσ, ix, iy, iz] unlike the other quantities ...
+    # Note: δV[ix, iy, iz, iσ] unlike the other quantities ...
     @views for s in 1:n_spin
         for t in 1:n_spin, u in 1:n_spin
             spinfac_tu = (t == u ? one(T) : one(T)/2)

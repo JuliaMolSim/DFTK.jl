@@ -102,14 +102,15 @@ as in [Tutorial](@ref) and to reach a fast execution, we take a small `Ecut` of 
 and a `[4, 4, 4]` Monkhorst-Pack grid.
 First we perform the DFT calculation disabling symmetry handling
 ```@example symmetries
-model = model_LDA(lattice, atoms)
-basis_nosym = PlaneWaveBasis(model; Ecut, kgrid, use_symmetry=false)
+model_nosym = model_LDA(lattice, atoms; symmetries=false)
+basis_nosym = PlaneWaveBasis(model_nosym; Ecut, kgrid)
 scfres_nosym = @time self_consistent_field(basis_nosym, tol=1e-8)
 nothing  # hide
 ```
 and then redo it using symmetry (the default):
 ```@example symmetries
-basis_sym = PlaneWaveBasis(model; Ecut, kgrid)
+model_sym = model_LDA(lattice, atoms)
+basis_sym = PlaneWaveBasis(model_sym; Ecut, kgrid)
 scfres_sym = @time self_consistent_field(basis_sym, tol=1e-8)
 nothing  # hide
 ```

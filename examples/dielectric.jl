@@ -23,7 +23,7 @@ scfres = self_consistent_field(basis, tol=1e-14)
 # Apply ε† = 1 - χ0 (vc + fxc)
 function eps_fun(δρ)
     δV = apply_kernel(basis, δρ; ρ=scfres.ρ)
-    χ0δV = apply_χ0(scfres.ham, scfres.ψ, scfres.εF, scfres.eigenvalues, δV)
+    χ0δV = apply_χ0(scfres, δV)
     δρ - χ0δV
 end
 
