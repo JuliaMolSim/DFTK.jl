@@ -363,14 +363,15 @@ function _autodiff_hblock_mul(hblock::DftHamiltonianBlock, ψ)
 
     potential = hblock.local_op.potential
     potential = potential / prod(basis.fft_size)  # because we use unnormalized plans
+    fourier_op_multiplier = hblock.fourier_op.multiplier
 
-    function Hψ(ψk)
+    function apply_H(ψk)
         ψ_real = G_to_r(basis, kpt, ψk) .* potential ./ basis.G_to_r_normalization
         Hψ_k = r_to_G(basis, kpt, ψ_real) ./ basis.r_to_G_normalization
-        Hψ_k = Hψ_k + hblock.fourier_op.multiplier .* ψk
+        Hψ_k += fourier_op_multiplier .* ψk
         Hψ_k
     end
-    Hψ = reduce(hcat, map(Hψ, eachcol(ψ)))
+    Hψ = mapreduce(apply_H, hcat, eachcol(ψ))
     Hψ
 end
 
@@ -379,9 +380,8 @@ function _autodiff_hblock_mul(hblock::GenericHamiltonianBlock, ψ)
     basis = hblock.basis
     T = eltype(basis)
     kpt = hblock.kpoint
-    nband = size(ψ, 2)
 
-    function Hψ(ψk)
+    function apply_H(ψk)
         ψ_real = G_to_r(basis, kpt, ψk)
         Hψ_fourier = zero(ψ[:, 1])
         Hψ_real = zeros(complex(T), basis.fft_size...)
@@ -400,8 +400,7 @@ function _autodiff_hblock_mul(hblock::GenericHamiltonianBlock, ψ)
         Hψ_k = Hψ_fourier + r_to_G(basis, kpt, Hψ_real)
         Hψ_k
     end
-    Hψ = mapreduce(Hψ, hcat, eachcol(ψ))
-    # println("chainrule ",norm(Hψ))
+    Hψ = mapreduce(apply_H, hcat, eachcol(ψ))
     Hψ
 end
 
@@ -466,7 +465,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         ∂ψ = ∂ψ_density_pullback + ∂ψ
         ∂ψ, occupation = DFTK.select_occupied_orbitals(basis, ∂ψ, occupation)
 
-        ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation) # use self-adjointness of dH ψ -> dψ
+        ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation).δψ # use self-adjointness of dH ψ -> dψ
 
         # TODO need to do proj_tangent on ∂Hψ
         _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
