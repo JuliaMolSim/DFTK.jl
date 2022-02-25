@@ -290,7 +290,7 @@ default_wannier_centres(n_wannier) = [rand(1, 3) for _ in 1:n_wannier]
     fileprefix
 end
 
-function read_wannier90_output_mat(file, n_bands_tot)
+function read_w90_output_mat(file, n_bands_tot)
     Uks = readdlm(file); num_kpts, num_ψout, num_ψin = Uks[2,1:3];
     len_Uk = num_ψin*num_ψout
 
@@ -321,7 +321,7 @@ function apply_U_matrices(file, ψ)
     # read .mat file
     n_bands_tot = size(ψ[1], 2)
     num_kpts = length(ψ)
-    Uks = read_wannier90_output_mat(file, n_bands_tot)
+    Uks = read_w90_output_mat(file, n_bands_tot)
     [ψ[k]*Uks[k] for k in 1:num_kpts]
 end
 
@@ -333,9 +333,8 @@ end
 function extract_wannier_functions(prefix, scfres::NamedTuple)
     scfres_unfold = unfold_bz(scfres); ψ_unfold = scfres_unfold.ψ
     # Apply disentanglement if needed
-    if isfile("$(prefix)_u_dis.mat")
-        ψ_unfold = apply_U_matrices("$(prefix)_u_dis.mat", ψ_unfold)
-    end
+    isfile("$(prefix)_u_dis.mat") && (ψ_unfold =
+                       apply_U_matrices("$(prefix)_u_dis.mat", ψ_unfold))
     # Construct Wannier functions
     apply_U_matrices("$(prefix)_u.mat", ψ_unfold)
 end
@@ -356,10 +355,6 @@ function plot_wannier_function(basis::PlaneWaveBasis, w_fourier, prefix, n_band)
     end
     nothing
 end
-
-"""
-    Same as above but only the prefix of wannierization is given
-"""
 plot_wannier_function(scfres::NamedTuple, prefix::String, n_band) =
     plot_wannier_function(unfold_bz(scfres.basis),
             extract_wannier_functions(prefix, scfres), prefix, n_band)

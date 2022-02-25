@@ -8,20 +8,19 @@ function supercell_size(basis::PlaneWaveBasis)
 end
 
 @doc raw"""
-For a given k point `k` return all `k+G` for `G` in `G_vectors(k)` as a G vector of
+Return all ``k+G`` vectors given by `Gplusk_vectors` as a G vector of
 the supercell fft_grid in reduced coordinates.
 """
-kpG_reduced_supercell(basis::PlaneWaveBasis, kpt::Kpoint) = map(Gpk -> round.(Int64,
-              Gpk .* supercell_size(basis)), G_vectors(basis, kpt) .+ Ref(kpt.coordinate))
-
+Gplusk_vectors_in_supercell(basis::PlaneWaveBasis, kpt::Kpoint) =
+    map(Gpk -> round.(Int64, Gpk .* supercell_size(basis)), Gplusk_vectors(basis, kpt))
 
 @doc raw"""
 Construct a PlaneWaveBasis adapted to fft and ifft in the supercell. Its fft_grid contains
-all the `k+G` vectors of the initial given basis.
+all the ``k+G`` vectors of the initial given basis.
 
-This amounts to take a single `k` point and multiply each fft_size component by the number
-of unit cell in the supercell, which is equal to `k_grid` with a correction due to an
-eventual `k_shift`.
+This amounts to take a single ``k`` point and multiply each fft_size component by the number
+of unit cell in the supercell, which is equal to ``k_grid`` with a correction due to an
+eventual ``k_shift``.
 """
 function cell_to_supercell(basis::PlaneWaveBasis)
     model = basis.model
@@ -52,7 +51,7 @@ function cell_to_supercell(basis::PlaneWaveBasis)
 end
 
 @doc raw"""
-Convert an array of format `[ψ(1), ψ(2), ... ψ(n_kpts)]` into a 3 dimensional
+Convert an array of format ``[ψ(1), ψ(2), ... ψ(n_kpts)]`` into a 3 dimensional
 tensor adapted to ifft in the supercell.
 A ψ[ik][:,n] vector is mapped to ψ_supercell[1][:,(num_kpt*(ik-1)+n)] 
 """
@@ -61,7 +60,7 @@ function cell_to_supercell(ψ, basis::PlaneWaveBasis{T},
     num_kpG = sum(size.(ψ,1)); num_bands = size(ψ[1],2);
     # Maps k+G vector of initial basis to a G vector of basis_supercell
     cell_supercell_mapping(kpt) = index_G_vectors.(basis_supercell,
-                 Ref(basis_supercell.kpoints[1]), kpG_reduced_supercell(basis, kpt))
+                Ref(basis_supercell.kpoints[1]), Gplusk_vectors_in_supercell(basis, kpt))
     # Transfer all ψk independantly and return the hcat of all blocs
     ψ_out_blocs = []
     for (ik, kpt) in enumerate(basis.kpoints)
@@ -78,11 +77,11 @@ Transpose all data from a given self-consistent-field result from unit cell
 to supercell convention. The parameters to adapt are the following:
 
  - ``basis_supercell`` is computed by ``cell_to_supercell(basis)``
- - ``ψ_supercell`` have a single component at Γ-point, gavering all ``ψ_k``, and each
-     ``ψ_nk_supercell`` is normalized over the supercell
+ - ``ψ_supercell`` have a single component at Γ-point, which is the concatenation of 
+   all ``ψ_k``, and each ``ψ_nk_supercell`` is normalized over the supercell
  - occupations ...
  -
- - Energies are multiplied by the number of unit cells in the supercell
+ - energies are multiplied by the number of unit cells in the supercell
 
 Other parameters stay untouched.
 """
@@ -113,7 +112,7 @@ end
     # Γ_point = only(basis_supercell.kpoints)
     # for (ik, kpt) in enumerate(basis.kpoints)
     #     id_kpG_supercell = DFTK.index_G_vectors.(basis_supercell, Ref(Γ_point),
-    #                                              kpG_reduced_supercell(basis, kpt))
+    #                                              Gplusk_vectors_in_supercell(basis, kpt))
     #     ψ_supercell[id_kpG_supercell, :] .= hcat(eachcol(scfres.ψ[ik])...)
     # end
     # # Normalize over the supercell
