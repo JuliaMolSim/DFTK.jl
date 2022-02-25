@@ -467,6 +467,9 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
 
         ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation).δψ # use self-adjointness of dH ψ -> dψ
 
+        @show size(∂Hψ[1]) # (515, 1)
+        @show size(Hψ[1])  # (515,)  # TODO
+
         # TODO need to do proj_tangent on ∂Hψ
         _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
         ∂H = ∂H_mul_pullback + ∂H
