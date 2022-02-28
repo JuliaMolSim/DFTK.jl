@@ -369,7 +369,7 @@ function _autodiff_hblock_mul(hblock::DftHamiltonianBlock, ψ)
         ψ_real = G_to_r(basis, kpt, ψk) .* potential ./ basis.G_to_r_normalization
         Hψ_k = r_to_G(basis, kpt, ψ_real) ./ basis.r_to_G_normalization
         Hψ_k += fourier_op_multiplier .* ψk
-        Hψ_k
+        reshape(Hψ_k, :, size(Hψ_k, 2)) # if Hψ_k a vector, promote to matrix
     end
     Hψ = mapreduce(apply_H, hcat, eachcol(ψ))
     Hψ
@@ -398,7 +398,7 @@ function _autodiff_hblock_mul(hblock::GenericHamiltonianBlock, ψ)
             end
         end
         Hψ_k = Hψ_fourier + r_to_G(basis, kpt, Hψ_real)
-        Hψ_k
+        reshape(Hψ_k, :, size(Hψ_k, 2)) # if Hψ_k a vector, promote to matrix
     end
     Hψ = mapreduce(apply_H, hcat, eachcol(ψ))
     Hψ
@@ -466,9 +466,6 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         ∂ψ, occupation = DFTK.select_occupied_orbitals(basis, ∂ψ, occupation)
 
         ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation).δψ # use self-adjointness of dH ψ -> dψ
-
-        @show size(∂Hψ[1]) # (515, 1)
-        @show size(Hψ[1])  # (515,)  # TODO
 
         # TODO need to do proj_tangent on ∂Hψ
         _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
