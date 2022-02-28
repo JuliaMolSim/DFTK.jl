@@ -4,12 +4,8 @@ Lennard—Jones terms.
 The potential is dependent on the distance between to atomic positions and the pairwise
 atomic types:
 For a distance `d` between to atoms `A` and `B`, the potential is `V(d, params[(A, B)])`.
-The energy is of the form
-```math
-    ℰ = ∑_{1⩽i<j⩽N} V_{i,j} \left( \frac{1}{|r_i - r_j|} \right).
-```
-The parameters `max_radius` is of `100` by default, and gives the maximum distance between
-nuclei for which we consider interactions.
+The parameters `max_radius` is of `100` by default, and gives the maximum (reduced) distance
+between nuclei for which we consider interactions.
 """
 struct PairwisePotential
     V
@@ -21,8 +17,6 @@ function PairwisePotential(V, params; max_radius=100)
 end
 (P::PairwisePotential)(basis::AbstractBasis) = TermPairwisePotential(P.V, P.params, P.max_radius, basis)
 
-# Even if the double loop is not performance critical, it is better to explicitely type
-# `max_radius` with `T` and not `Real`.
 struct TermPairwisePotential{TV, Tparams, T} <:Term
     V::TV
     params::Tparams
@@ -30,7 +24,7 @@ struct TermPairwisePotential{TV, Tparams, T} <:Term
     energy::Real
 end
 function TermPairwisePotential(V, params, max_radius, basis::PlaneWaveBasis{T}) where {T}
-    TermPairwisePotential(V, params, max_radius, T(energy_pairwise(basis.model, V, params, max_radius)))
+    TermPairwisePotential(V, params, max_radius, energy_pairwise(basis.model, V, params, max_radius))
 end
 
 function ene_ops(term::TermPairwisePotential, basis::PlaneWaveBasis, ψ, occ; kwargs...)
@@ -66,8 +60,7 @@ end
 """
 Compute the pairwise interaction energy per unit cell between atomic sites. If `forces` is
 not nothing, minus the derivatives of the energy with respect to `positions` is computed.
-The potential is expected to decrease quickly at infinity, so the reciprocal energy is not
-computed.
+The potential is expected to decrease quickly at infinity.
 """
 function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; forces=nothing)
     T = eltype(lattice)
