@@ -39,11 +39,12 @@ function pack_ψ(ψ)
     vcat([vec(ψk) for ψk in ψ]...)
 end
 
+# Returns pointers into the unpacked ψ
+# /!\ The resulting array is only valid as long as the original x is still in live memory.
 function unpack_ψ(x, sizes_ψ)
     lengths = prod.(sizes_ψ)
     ends = cumsum(lengths)
-    # We unsafe_wrap the resulting array to avoid a complicated type for ψ.
-    # The resulting array is valid as long as the original x is still in live memory.
+    # We unsafe_wrap the resulting array to avoid a complicated type for ψ.    
     map(1:length(sizes_ψ)) do ik
         unsafe_wrap(Array{complex(eltype(x))},
                     pointer(@views x[ends[ik]-lengths[ik]+1:ends[ik]]),
