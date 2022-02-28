@@ -21,7 +21,7 @@ function ScfDefaultCallback()
     function callback(info)
         show_magn = info.basis.model.spin_polarization == :collinear
         show_diag = hasproperty(info, :diagonalization)
-        show_damp = hasproperty(info, :α)
+        show_damp = hasproperty(info, :α) && !hasproperty(info, :ρout)
 
         if show_diag
             # Gather MPI-distributed information
@@ -52,11 +52,16 @@ function ScfDefaultCallback()
         Δρ   = norm(info.ρout - info.ρin) * sqrt(info.basis.dvol)
         magn = sum(spin_density(info.ρout)) * info.basis.dvol
 
-        format_log(e) = @sprintf "%9.2f" log10(abs(e))
+        format_log8(e) = @sprintf "%8.2f" log10(abs(e))
 
         Estr    = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
-        ΔE      = isnan(prev_energy) ? "         " : format_log(E - prev_energy)
-        Δρstr   = format_log(Δρ)
+        if isnan(prev_energy)
+            ΔE = " "^9
+        else
+            sign = E < prev_energy ? " " : "+"
+            ΔE = sign * format_log8(E - prev_energy)
+        end
+        Δρstr   = " " * format_log8(Δρ)
         Mstr    = show_magn ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
         diagstr = show_diag ? "  $(@sprintf "% 5.1f" diagiter)" : ""
 

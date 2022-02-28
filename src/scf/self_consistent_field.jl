@@ -90,18 +90,18 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
             # Note that ρin is not the density of ψ, and the eigenvalues
             # are not the self-consistent ones, which makes this energy non-variational
             energies, ham = energy_hamiltonian(basis, ψ, occupation;
-                                               ρ=ρin, eigenvalues=eigenvalues, εF=εF)
+                                               ρ=ρin, eigenvalues, εF)
         end
 
         # Diagonalize `ham` to get the new state
-        nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver,
+        nextstate = next_density(ham; n_bands, ψ, eigensolver,
                                  miniter=1, tol=determine_diagtol(info),
-                                 n_ep_extra=n_ep_extra)
+                                 n_ep_extra)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # Update info with results gathered so far
-        info = (ham=ham, basis=basis, converged=converged, stage=:iterate, algorithm="SCF",
-                ρin=ρin, ρout=ρout, n_iter=n_iter, n_ep_extra=n_ep_extra,
+        info = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
+                ρin, ρout, α=damping, n_iter, n_ep_extra,
                 nextstate..., diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
@@ -138,9 +138,9 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     norm_Δρ = norm(info.ρout - info.ρin) * sqrt(basis.dvol)
 
     # Callback is run one last time with final state to allow callback to clean up
-    info = (ham=ham, basis=basis, energies=energies, converged=converged,
-            ρ=ρout, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
-            n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=ψ, diagonalization=info.diagonalization,
+    info = (; ham, basis, energies, converged,
+            ρ=ρout, α=damping, eigenvalues, occupation, εF,
+            n_iter, n_ep_extra, ψ, info.diagonalization,
             stage=:finalize, algorithm="SCF", norm_Δρ)
     callback(info)
     info
