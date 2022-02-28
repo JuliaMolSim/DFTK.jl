@@ -40,28 +40,30 @@ function ScfDefaultCallback()
 
         # TODO We should really do this properly ... this is really messy
         if info.n_iter == 1
-            E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
             label_magn = show_magn ? ("   Magnet", "   ------") : ("", "")
             label_damp = show_damp ? ("   α   ", "   ----") : ("", "")
             label_diag = show_diag ? ("   Diag", "   ----") : ("", "")
-            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin" E_label
+            @printf " n         Energy       log10(ΔE)   log10(Δρ)"
             println(label_magn[1], label_damp[1], label_diag[1])
-            @printf "---   ---------------   ---------   --------"
+            @printf "---   ---------------   ---------   ---------"
             println(label_magn[2], label_damp[2], label_diag[2])
         end
         E    = isnothing(info.energies) ? Inf : info.energies.total
         Δρ   = norm(info.ρout - info.ρin) * sqrt(info.basis.dvol)
         magn = sum(spin_density(info.ρout)) * info.basis.dvol
 
+        format_log(e) = @sprintf "%9.2f" log10(abs(e))
+
         Estr    = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
-        ΔE      = isnan(prev_energy) ? "      NaN" : @sprintf "% 3.2e" E - prev_energy
+        ΔE      = isnan(prev_energy) ? "         " : format_log(E - prev_energy)
+        Δρstr   = format_log(Δρ)
         Mstr    = show_magn ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
         diagstr = show_diag ? "  $(@sprintf "% 5.1f" diagiter)" : ""
 
         αstr = ""
         show_damp && (αstr = isnan(info.α) ? "    NaN" : @sprintf "  % 4.2f" info.α)
 
-        @printf "% 3d   %s   %s   %2.2e" info.n_iter Estr ΔE Δρ
+        @printf "% 3d   %s   %s   %s" info.n_iter Estr ΔE Δρstr
         println(Mstr, αstr, diagstr)
         prev_energy = info.energies.total
 
