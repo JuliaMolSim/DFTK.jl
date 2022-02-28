@@ -127,6 +127,7 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
 
     pack(ψ) = reinterpret_real(pack_ψ(ψ))
     unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
+    unsafe_unpack(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ))
 
     # project rhs on the tangent space before starting
     proj_tangent!(rhs, ψ)
@@ -150,7 +151,7 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
 
     # mapping of the linear system on the tangent space
     function ΩpK(x)
-        δψ = unpack(x)
+        δψ = unsafe_unpack(x)
         Kδψ = apply_K(basis, δψ, ψ, ρ, occupation)
         Ωδψ = apply_Ω(δψ, ψ, H, Λ)
         pack(Ωδψ + Kδψ)
