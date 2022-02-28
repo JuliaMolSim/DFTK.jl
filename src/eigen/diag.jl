@@ -11,7 +11,7 @@ that really does the work, operating on a single ``k``-Block.
 function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
                                  guess=nothing,
                                  prec_type=PreconditionerTPA, interpolate_kpoints=true,
-                                 tol=1e-6, miniter=1, maxiter=50, n_conv_check=nothing,
+                                 tol=1e-6, miniter=1, maxiter=100, n_conv_check=nothing,
                                  show_progress=false)
     T = complex(eltype(ham.basis))
     kpoints = ham.basis.kpoints
