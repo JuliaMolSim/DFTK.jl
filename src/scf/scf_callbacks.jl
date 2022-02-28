@@ -16,12 +16,12 @@ function ScfPlotTrace end  # implementation in src/plotting.jl
 """
 Default callback function for `self_consistent_field` and `newton`, which prints a convergence table.
 """
-function ScfDefaultCallback()
+function ScfDefaultCallback(; show_damping=true)
     prev_energy = NaN
     function callback(info)
         show_magn = info.basis.model.spin_polarization == :collinear
         show_diag = hasproperty(info, :diagonalization)
-        show_damp = hasproperty(info, :α)
+        show_damp = hasproperty(info, :α) && show_damping
 
         if show_diag
             # Gather MPI-distributed information
@@ -40,28 +40,35 @@ function ScfDefaultCallback()
 
         # TODO We should really do this properly ... this is really messy
         if info.n_iter == 1
-            E_label = haskey(info.energies, "Entropy") ? "Free energy" : "Energy"
             label_magn = show_magn ? ("   Magnet", "   ------") : ("", "")
             label_damp = show_damp ? ("   α   ", "   ----") : ("", "")
             label_diag = show_diag ? ("   Diag", "   ----") : ("", "")
-            @printf "n     %-12s      Eₙ-Eₙ₋₁     ρout-ρin" E_label
+            @printf "n     Energy            log10(ΔE)   log10(Δρ)"
             println(label_magn[1], label_damp[1], label_diag[1])
-            @printf "---   ---------------   ---------   --------"
+            @printf "---   ---------------   ---------   ---------"
             println(label_magn[2], label_damp[2], label_diag[2])
         end
         E    = isnothing(info.energies) ? Inf : info.energies.total
         Δρ   = norm(info.ρout - info.ρin) * sqrt(info.basis.dvol)
         magn = sum(spin_density(info.ρout)) * info.basis.dvol
 
+        format_log8(e) = @sprintf "%8.2f" log10(abs(e))
+
         Estr    = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
-        ΔE      = isnan(prev_energy) ? "      NaN" : @sprintf "% 3.2e" E - prev_energy
+        if isnan(prev_energy)
+            ΔE = " "^9
+        else
+            sign = E < prev_energy ? " " : "+"
+            ΔE = sign * format_log8(E - prev_energy)
+        end
+        Δρstr   = " " * format_log8(Δρ)
         Mstr    = show_magn ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
         diagstr = show_diag ? "  $(@sprintf "% 5.1f" diagiter)" : ""
 
         αstr = ""
-        show_damp && (αstr = isnan(info.α) ? "    NaN" : @sprintf "  % 4.2f" info.α)
+        show_damp && (αstr = isnan(info.α) ? "       " : @sprintf "  % 4.2f" info.α)
 
-        @printf "% 3d   %s   %s   %2.2e" info.n_iter Estr ΔE Δρ
+        @printf "% 3d   %s   %s   %s" info.n_iter Estr ΔE Δρstr
         println(Mstr, αstr, diagstr)
         prev_energy = info.energies.total
 
