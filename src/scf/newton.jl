@@ -127,6 +127,7 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
 
     pack(ψ) = reinterpret_real(pack_ψ(ψ))
     unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
+    unsafe_unpack(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ))
 
     # project rhs on the tangent space before starting
     proj_tangent!(rhs, ψ)
@@ -150,7 +151,7 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
 
     # mapping of the linear system on the tangent space
     function ΩpK(x)
-        δψ = unpack(x)
+        δψ = unsafe_unpack(x)
         Kδψ = apply_K(basis, δψ, ψ, ρ, occupation)
         Ωδψ = apply_Ω(δψ, ψ, H, Λ)
         pack(Ωδψ + Kδψ)
@@ -161,7 +162,7 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
     δψ, history = cg(J, rhs_pack, Pl=FunctionPreconditioner(f_ldiv!),
                   reltol=0, abstol=tol_cg, verbose=verbose, log=true)
 
-    (; δψ=deepcopy(unpack(δψ)), history)
+    (; δψ=unpack(δψ), history)
 end
 
 
@@ -193,7 +194,7 @@ function solve_ΩplusK_split(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
         pack(δρ - χ0δV)
     end
     J = LinearMap{T}(eps_fun, length(pack(δρ0)))
-    δρ = deepcopy(unpack(gmres(J, pack(δρ0); reltol=0, abstol=tol_dyson, verbose)))
+    δρ = unpack(gmres(J, pack(δρ0); reltol=0, abstol=tol_dyson, verbose))
     δV = apply_kernel(basis, δρ; ρ)
 
     δVψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]

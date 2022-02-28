@@ -41,7 +41,7 @@ end
 
 # Returns pointers into the unpacked ψ
 # /!\ The resulting array is only valid as long as the original x is still in live memory.
-function unpack_ψ(x, sizes_ψ)
+function unsafe_unpack_ψ(x, sizes_ψ)
     lengths = prod.(sizes_ψ)
     ends = cumsum(lengths)
     # We unsafe_wrap the resulting array to avoid a complicated type for ψ.    
@@ -51,3 +51,4 @@ function unpack_ψ(x, sizes_ψ)
                     sizes_ψ[ik])
     end
 end
+unpack_ψ(x, sizes_ψ) = deepcopy(unsafe_unpack_ψ, sizes_ψ)
