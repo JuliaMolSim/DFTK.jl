@@ -274,7 +274,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     α_trial   = trial_damping(damping)
     diagtol   = determine_diagtol((ρin=ρ, Vin=V, n_iter=n_iter))
     info      = EVρ(V; diagtol=diagtol, ψ=ψ)
-    Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; info...)
+    Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; n_iter, info...)
     info      = merge(info, (α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
                              n_iter=n_iter, Pinv_δV=Pinv_δV))
     ΔEdown    = 0.0
@@ -307,7 +307,8 @@ trial_damping(damping::FixedDamping, args...) = damping.α
             Vnext = info.Vin .+ α .* δV
 
             info_next    = EVρ(Vnext; ψ=guess, diagtol=diagtol)
-            Pinv_δV_next = mix_potential(mixing, basis, info_next.Vout - info_next.Vin; info_next...)
+            Pinv_δV_next = mix_potential(mixing, basis, info_next.Vout - info_next.Vin;
+                                         n_iter, info_next...)
             push!(diagonalization, info_next.diagonalization)
             info_next = merge(info_next, (α=α, diagonalization=diagonalization,
                                           ρin=info.ρout, n_iter=n_iter,

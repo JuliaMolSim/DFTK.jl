@@ -16,12 +16,12 @@ function ScfPlotTrace end  # implementation in src/plotting.jl
 """
 Default callback function for `self_consistent_field` and `newton`, which prints a convergence table.
 """
-function ScfDefaultCallback()
+function ScfDefaultCallback(; show_damping=true)
     prev_energy = NaN
     function callback(info)
         show_magn = info.basis.model.spin_polarization == :collinear
         show_diag = hasproperty(info, :diagonalization)
-        show_damp = hasproperty(info, :α) && !hasproperty(info, :ρout)
+        show_damp = hasproperty(info, :α) && show_damping
 
         if show_diag
             # Gather MPI-distributed information
@@ -43,7 +43,7 @@ function ScfDefaultCallback()
             label_magn = show_magn ? ("   Magnet", "   ------") : ("", "")
             label_damp = show_damp ? ("   α   ", "   ----") : ("", "")
             label_diag = show_diag ? ("   Diag", "   ----") : ("", "")
-            @printf " n         Energy       log10(ΔE)   log10(Δρ)"
+            @printf "n     Energy            log10(ΔE)   log10(Δρ)"
             println(label_magn[1], label_damp[1], label_diag[1])
             @printf "---   ---------------   ---------   ---------"
             println(label_magn[2], label_damp[2], label_diag[2])
@@ -66,7 +66,7 @@ function ScfDefaultCallback()
         diagstr = show_diag ? "  $(@sprintf "% 5.1f" diagiter)" : ""
 
         αstr = ""
-        show_damp && (αstr = isnan(info.α) ? "    NaN" : @sprintf "  % 4.2f" info.α)
+        show_damp && (αstr = isnan(info.α) ? "       " : @sprintf "  % 4.2f" info.α)
 
         @printf "% 3d   %s   %s   %s" info.n_iter Estr ΔE Δρstr
         println(Mstr, αstr, diagstr)
