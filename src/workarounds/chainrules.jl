@@ -66,12 +66,6 @@ ChainRulesCore.@non_differentiable G_vectors(::Any...)
 ChainRulesCore.@non_differentiable default_symmetries(::Any...) # TODO perhaps?
 ChainRulesCore.@non_differentiable shell_indices(::Any)  # Ewald
 
-# demanded by Zygote
-function ChainRulesCore.rrule(T::Type{Pair{ElementPsp,T2}}, el, x) where {T2}
-    @warn "Pair{ElementPsp,T2} constructor rrule triggered."
-    return T(el, x), ∂Tx -> (NoTangent(), NoTangent(), ∂Tx.second)
-end
-
 # TODO delete
 @adjoint (T::Type{<:SArray})(x...) = T(x...), y->(y,)
 
