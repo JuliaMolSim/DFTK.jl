@@ -70,6 +70,12 @@ end
     test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
     test_consistency_term(Hartree())
     test_consistency_term(Ewald())
+    V(x, p) = 4*p.ε * ((p.σ/x)^12 - (p.σ/x)^6)
+    params = Dict(
+                  (ElementCoulomb(:Si), ElementCoulomb(:Si)) => (; ε=1e5, σ=0.5),
+                  (ElementPsp(14, psp=load_psp(silicon.psp)), ElementPsp(14, psp=load_psp(silicon.psp))) => (; ε=1e5, σ=0.5),
+                 )
+    test_consistency_term(DFTK.PairwisePotential(V, params))
     test_consistency_term(PspCorrection())
     test_consistency_term(Xc(:lda_xc_teter93))
     test_consistency_term(Xc(:lda_xc_teter93), spin_polarization=:collinear)
