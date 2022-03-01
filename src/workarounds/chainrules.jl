@@ -53,6 +53,7 @@ end
 
 # workaround rrules for mpi: treat as noop
 function ChainRulesCore.rrule(::typeof(mpi_sum), arr, comm)
+    @warn "mpi_sum (ignored) rrule triggered."
     function mpi_sum_pullback(∂y)
         return NoTangent(), ∂y, NoTangent()
     end
@@ -73,13 +74,6 @@ end
 
 # TODO delete
 @adjoint (T::Type{<:SArray})(x...) = T(x...), y->(y,)
-
-# TODO delete, or understand why this is necessary
-function ChainRulesCore.rrule(T::Type{Vector{Kpoint{Float64}}}, x)
-    @warn "strange Vector{Kpoint{Float64}} rrule triggered"
-    return T(x), ∂Tx -> (NoTangent(), ∂Tx)
-end
-
 
 # constructor with all AD-compatible args as positional args
 function Model(lattice, atoms, terms; kwargs...)
