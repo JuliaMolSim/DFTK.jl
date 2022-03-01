@@ -76,6 +76,10 @@ function Base.show(io::IO, el::ElementPsp)
     pspid = isempty(el.psp.identifier) ? "custom" : el.psp.identifier
     print(io, "ElementPsp($(el.symbol), psp=\"$pspid\")")
 end
+function Base.isequal(a::ElementPsp, b::ElementPsp)
+    a.Z == b.Z && a.symbol == b.symbol && a.psp == b.psp
+end
+Base.:(==)(a::ElementPsp, b::ElementPsp) = Base.isequal(a, b)
 
 """
 Element interacting with electrons via a pseudopotential model.

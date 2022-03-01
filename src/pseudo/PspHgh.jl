@@ -12,6 +12,10 @@ struct PspHgh <: NormConservingPsp
     identifier::String          # String identifying the PSP
     description::String         # Descriptive string
 end
+function Base.isequal(a::PspHgh, b::PspHgh)
+    a.Zion == a.Zion && a.rloc == a.rloc && a.cloc == a.cloc && a.lmax == a.lmax && a.rp == a.rp && a.h == a.h && a.identifier == a.identifier && a.description == a.description
+end
+Base.:(==)(a::PspHgh, b::PspHgh) = Base.isequal(a, b)
 
 """
     PspHgh(Zion::Number, rloc::Number, cloc::Vector, rp::Vector, h::Vector;
