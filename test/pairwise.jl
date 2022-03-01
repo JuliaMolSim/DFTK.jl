@@ -2,6 +2,7 @@ using Test
 using DFTK
 using LinearAlgebra
 using Random
+Random.seed!(0)
 
 @testset "Forces" begin
     lattice = [0.0  5.131570667152971 5.131570667152971;
@@ -45,5 +46,5 @@ end
     scfres = self_consistent_field(basis, tol=1e-6)
     @test scfres.energies.total ≈ - 319.7809362482486 atol=1e-6
     forces = DFTK.compute_forces(scfres)
-    @test norm(forces) ≈ 0.00024668644116703707 atol=1e-6
+    @test norm(forces) ≈ 0.000541366326365431 atol=1e-6
 end
