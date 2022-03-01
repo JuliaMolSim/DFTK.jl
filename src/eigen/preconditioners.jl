@@ -67,5 +67,5 @@ end
 (Base.:*)(P::PreconditionerTPA, R) = mul!(copy(R), P, R)
 
 function precondprep!(P::PreconditionerTPA, X)
-    P.mean_kin = [sum(real.(conj.(x) .* P.kin .* x)) for x in eachcol(X)]
+    P.mean_kin = [real(dot(x, Diagonal(P.kin), x) for x in eachcol(X))]
 end
