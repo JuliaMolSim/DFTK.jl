@@ -51,7 +51,7 @@ end
 end
 
 function energy_pairwise(model::Model, V, params, max_radius; kwargs...)
-    atom_types = [element for (element, positions) in model.atoms for _ in positions]
+    atom_types = [element.symbol for (element, positions) in model.atoms for _ in positions]
     positions = [pos for (_, positions) in model.atoms for pos in positions]
 
     energy_pairwise(model.lattice, atom_types, positions, V, params, max_radius; kwargs...)
