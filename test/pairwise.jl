@@ -10,7 +10,7 @@ using Random
     # perturb positions away from equilibrium to get nonzero force
     positions = [ones(3)/8+rand(3)/20, -ones(3)/8]
     charges = [14, 14]
-    atom_types = map(ElementCoulomb, charges)
+    atom_types = map(x -> ElementCoulomb(x).symbol, charges)
     V(x, p) = 4*p.ε * ((p.σ/x)^12 - (p.σ/x)^6)
     params = Dict((atom_types[1], atom_types[1]) => (; ε=1, σ=2))
     term = DFTK.PairwisePotential(V, params)
