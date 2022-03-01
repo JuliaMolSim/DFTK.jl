@@ -60,12 +60,6 @@ function G_to_r(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; k
     G_to_r!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
 end
 
-function G_to_r_supercell(basis::PlaneWaveBasis, ψ_fourier)
-    basis_supercell = cell_to_supercell(basis)
-    ψ_fourier_supercell = cell_to_supercell(basis, basis_supercell, ψ_fourier)
-    G_to_r(basis_supercell, ψ_fourier_supercell)
-end
-
 @doc raw"""
 In-place version of `r_to_G!`.
 NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.

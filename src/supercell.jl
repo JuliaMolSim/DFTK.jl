@@ -41,7 +41,7 @@ function cell_to_supercell(basis::PlaneWaveBasis)
 
     # Assemble new model and new basis
     model_supercell = Model(supercell, atoms=atom_supercell, terms=model.term_types,
-                            symmetries = [one(SymOp)])
+                            symmetries = false)
     PlaneWaveBasis(model_supercell, basis.Ecut, fft_size_supercell,
                    basis.variational, [zeros(Int64, 3)],
                    [[one(SymOp)]], # Single point symmetry
@@ -97,7 +97,8 @@ function cell_to_supercell(scfres::NamedTuple)
     # Supercell Energies
     eigvalues_supercell = [vcat(scfres.eigenvalues...)]
     n_unit_cells = prod(supercell_size(basis))
-    energies_supercell = [n_unit_cells*value for (key,value) in scfres.energies.energies]
+    # REGARDER ICI
+    energies_supercell = [n_unit_cells*value for (key,value) in scfres.energies]
     E_supercell = Energies(basis.model.term_types, energies_supercell)
 
     merge(scfres, (;basis=basis_supercell, ψ=ψ_supercell, energies=E_supercell,
@@ -106,15 +107,23 @@ function cell_to_supercell(scfres::NamedTuple)
           )
 end
 
-# Old cell to supercell mapping
-    # num_kpG = sum(size.(ψ,1)); num_bands = size(ψ[1],2)
-    # ψ_supercell = zeros(ComplexF64, num_kpG, num_bands)
-    # Γ_point = only(basis_supercell.kpoints)
-    # for (ik, kpt) in enumerate(basis.kpoints)
-    #     id_kpG_supercell = DFTK.index_G_vectors.(basis_supercell, Ref(Γ_point),
-    #                                              Gplusk_vectors_in_supercell(basis, kpt))
-    #     ψ_supercell[id_kpG_supercell, :] .= hcat(eachcol(scfres.ψ[ik])...)
-    # end
-    # # Normalize over the supercell
-    # ψ_supercell = hcat([ψn_supercell ./ norm(ψn_supercell)
-    #                     for ψn_supercell in eachcol(ψ_supercell)]...)
+# # Old
+# function G_to_r_supercell(basis::PlaneWaveBasis, ψ_fourier)
+#     basis_supercell = cell_to_supercell(basis)
+#     ψ_fourier_supercell = cell_to_supercell(basis, basis_supercell, ψ_fourier)
+#     G_to_r(basis_supercell, ψ_fourier_supercell)
+# end
+
+# function cell_to_supercell(basis::PlaneWaveBasis, basis_supercell::PlaneWaveBasis, ψ)
+#     num_kpG = sum(size.(ψ,1)); num_bands = size(ψ[1],2)
+#     ψ_supercell = zeros(ComplexF64, num_kpG, num_bands)
+#     Γ_point = only(basis_supercell.kpoints)
+#     for (ik, kpt) in enumerate(basis.kpoints)
+#         id_kpG_supercell = DFTK.index_G_vectors.(basis_supercell, Ref(Γ_point),
+#                                                  Gplusk_vectors_in_supercell(basis, kpt))
+#         ψ_supercell[id_kpG_supercell, :] .= hcat(eachcol(scfres.ψ[ik])...)
+#     end
+#     # Normalize over the supercell
+#     hcat([ψn_supercell ./ norm(ψn_supercell)
+#           for ψn_supercell in eachcol(ψ_supercell)]...)
+# end
