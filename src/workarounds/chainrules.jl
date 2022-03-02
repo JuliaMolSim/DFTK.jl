@@ -6,9 +6,9 @@ import AbstractFFTs
 function ChainRulesCore.rrule(::typeof(r_to_G), basis::PlaneWaveBasis, f_real::AbstractArray)
     @warn "r_to_G rrule triggered."
     f_fourier = r_to_G(basis, f_real)
-    function r_to_G_pullback(Δf_fourier)
-        ∂f_real = G_to_r(basis, complex(Δf_fourier)) * basis.r_to_G_normalization / basis.G_to_r_normalization
-        ∂normalization = real(dot(Δf_fourier, f_fourier)) / basis.r_to_G_normalization
+    function r_to_G_pullback(∂f_fourier)
+        ∂f_real = G_to_r(basis, complex(∂f_fourier)) * basis.r_to_G_normalization / basis.G_to_r_normalization
+        ∂normalization = real(dot(∂f_fourier, f_fourier)) / basis.r_to_G_normalization
         ∂basis = Tangent{typeof(basis)}(;r_to_G_normalization=∂normalization)
         return NoTangent(), ∂basis, real(∂f_real)
     end
@@ -18,9 +18,9 @@ end
 function ChainRulesCore.rrule(::typeof(r_to_G), basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray)
     @warn "r_to_G kpoint rrule triggered."
     f_fourier = r_to_G(basis, kpt, f_real)
-    function r_to_G_pullback(Δf_fourier)
-        ∂f_real = G_to_r(basis, kpt, complex(Δf_fourier)) * basis.r_to_G_normalization / basis.G_to_r_normalization
-        ∂normalization = real(dot(Δf_fourier, f_fourier)) / basis.r_to_G_normalization
+    function r_to_G_pullback(∂f_fourier)
+        ∂f_real = G_to_r(basis, kpt, complex(∂f_fourier)) * basis.r_to_G_normalization / basis.G_to_r_normalization
+        ∂normalization = real(dot(∂f_fourier, f_fourier)) / basis.r_to_G_normalization
         ∂basis = Tangent{typeof(basis)}(;r_to_G_normalization=∂normalization)
         return NoTangent(), ∂basis, NoTangent(), ∂f_real
     end
@@ -30,9 +30,9 @@ end
 function ChainRulesCore.rrule(::typeof(G_to_r), basis::PlaneWaveBasis, f_fourier::AbstractArray; kwargs...)
     @warn "G_to_r rrule triggered."
     f_real = G_to_r(basis, f_fourier; kwargs...)
-    function G_to_r_pullback(Δf_real)
-        ∂f_fourier = r_to_G(basis, real(Δf_real)) * basis.G_to_r_normalization / basis.r_to_G_normalization
-        ∂normalization = real(dot(Δf_real, f_real)) / basis.G_to_r_normalization
+    function G_to_r_pullback(∂f_real)
+        ∂f_fourier = r_to_G(basis, real(∂f_real)) * basis.G_to_r_normalization / basis.r_to_G_normalization
+        ∂normalization = real(dot(∂f_real, f_real)) / basis.G_to_r_normalization
         ∂basis = Tangent{typeof(basis)}(;G_to_r_normalization=∂normalization)
         return NoTangent(), ∂basis, ∂f_fourier
     end
@@ -42,9 +42,9 @@ end
 function ChainRulesCore.rrule(::typeof(G_to_r), basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector)
     @warn "G_to_r kpoint rrule triggered."
     f_real = G_to_r(basis, kpt, f_fourier)
-    function G_to_r_pullback(Δf_real)
-        ∂f_fourier = r_to_G(basis, kpt, complex(Δf_real)) * basis.G_to_r_normalization / basis.r_to_G_normalization
-        ∂normalization = real(dot(Δf_real, f_real)) / basis.G_to_r_normalization
+    function G_to_r_pullback(∂f_real)
+        ∂f_fourier = r_to_G(basis, kpt, complex(∂f_real)) * basis.G_to_r_normalization / basis.r_to_G_normalization
+        ∂normalization = real(dot(∂f_real, f_real)) / basis.G_to_r_normalization
         ∂basis = Tangent{typeof(basis)}(;G_to_r_normalization=∂normalization)
         return NoTangent(), ∂basis, NoTangent(), ∂f_fourier
     end
@@ -53,8 +53,9 @@ end
 
 # workaround rrules for mpi: treat as noop
 function ChainRulesCore.rrule(::typeof(mpi_sum), arr, comm)
-    function mpi_sum_pullback(Δy)
-        return NoTangent(), Δy, NoTangent()
+    @warn "mpi_sum (ignored) rrule triggered."
+    function mpi_sum_pullback(∂y)
+        return NoTangent(), ∂y, NoTangent()
     end
     return arr, mpi_sum_pullback
 end
@@ -63,22 +64,10 @@ ChainRulesCore.@non_differentiable ElementPsp(::Any...)
 ChainRulesCore.@non_differentiable r_vectors(::Any...)
 ChainRulesCore.@non_differentiable G_vectors(::Any...)
 ChainRulesCore.@non_differentiable default_symmetries(::Any...) # TODO perhaps?
-
-# demanded by Zygote
-function ChainRulesCore.rrule(T::Type{Pair{ElementPsp,T2}}, el, x) where {T2}
-    @warn "Pair{ElementPsp,T2} constructor rrule triggered."
-    return T(el, x), ΔTx -> (NoTangent(), NoTangent(), ΔTx.second)
-end
+ChainRulesCore.@non_differentiable shell_indices(::Any)  # Ewald
 
 # TODO delete
 @adjoint (T::Type{<:SArray})(x...) = T(x...), y->(y,)
-
-# TODO delete, or understand why this is necessary
-function ChainRulesCore.rrule(T::Type{Vector{Kpoint{Float64}}}, x)
-    @warn "strange Vector{Kpoint{Float64}} rrule triggered"
-    return T(x), ΔTx -> (NoTangent(), ΔTx)
-end
-
 
 # constructor with all AD-compatible args as positional args
 function Model(lattice, atoms, terms; kwargs...)
@@ -107,12 +96,12 @@ end
 function ChainRulesCore.rrule(::typeof(build_kpoints), model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
     @warn "build_kpoints rrule triggered"
     kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
-    function build_kpoints_pullback(Δkpoints)
-        sum_Δkpoints = sum(Δkpoints)
-        if sum_Δkpoints isa NoTangent
+    function build_kpoints_pullback(∂kpoints)
+        sum_∂kpoints = sum(∂kpoints)
+        if sum_∂kpoints isa NoTangent
             return NoTangent(), NoTangent(), NoTangent(), NoTangent(), NoTangent()
         end
-        ∂recip_lattice = sum([Δkp.coordinate_cart * kp.coordinate' for (kp, Δkp) in zip(kpoints, Δkpoints) if !(Δkp isa NoTangent)])
+        ∂recip_lattice = sum([∂kp.coordinate_cart * kp.coordinate' for (kp, ∂kp) in zip(kpoints, ∂kpoints) if !(∂kp isa NoTangent)])
         ∂model = Tangent{typeof(model)}(; recip_lattice=∂recip_lattice)
         ∂kcoords = @not_implemented("TODO")
         return NoTangent(), ∂model, NoTangent(), ∂kcoords, NoTangent()
@@ -152,12 +141,12 @@ function ChainRulesCore.rrule(PT::Type{PlaneWaveBasis{T}},
         kgrid, kshift, kcoords_global, ksymops_global, comm_kpts, 
         krange_thisproc, krange_allprocs, symmetries, terms
     )
-    function PT_pullback(Δbasis)
-        return (NoTangent(), Δbasis.model, NoTangent(), Δbasis.dvol, Δbasis.Ecut, 
+    function PT_pullback(∂basis)
+        return (NoTangent(), ∂basis.model, NoTangent(), ∂basis.dvol, ∂basis.Ecut, 
                 NoTangent(), NoTangent(), NoTangent(), NoTangent(), NoTangent(),
-                Δbasis.r_to_G_normalization, Δbasis.G_to_r_normalization, Δbasis.kpoints, Δbasis.kweights, Δbasis.ksymops,
-                Δbasis.kgrid, Δbasis.kshift, Δbasis.kcoords_global, Δbasis.ksymops_global, Δbasis.comm_kpts, 
-                NoTangent(), NoTangent(), Δbasis.symmetries, Δbasis.terms)
+                ∂basis.r_to_G_normalization, ∂basis.G_to_r_normalization, ∂basis.kpoints, ∂basis.kweights, ∂basis.ksymops,
+                ∂basis.kgrid, ∂basis.kshift, ∂basis.kcoords_global, ∂basis.ksymops_global, ∂basis.comm_kpts, 
+                NoTangent(), NoTangent(), ∂basis.symmetries, ∂basis.terms)
     end
     return basis, PT_pullback
 end
@@ -308,8 +297,8 @@ end
 function ChainRulesCore.rrule(::typeof(_lowpass_for_symmetry), ρ, basis; symmetries=basis.model.symmetries)
     @warn "_lowpass_for_symmetry rrule triggered."
     ρnew = _lowpass_for_symmetry(ρ, basis; symmetries)
-    function lowpass_for_symmetry_pullback(Δρ)
-        ∂ρ = _lowpass_for_symmetry(Δρ, basis; symmetries)
+    function lowpass_for_symmetry_pullback(∂ρ)
+        ∂ρ = _lowpass_for_symmetry(∂ρ, basis; symmetries)
         return NoTangent(), ∂ρ, NoTangent()
     end
     return ρnew, lowpass_for_symmetry_pullback
@@ -362,14 +351,15 @@ function _autodiff_hblock_mul(hblock::DftHamiltonianBlock, ψ)
 
     potential = hblock.local_op.potential
     potential = potential / prod(basis.fft_size)  # because we use unnormalized plans
+    fourier_op_multiplier = hblock.fourier_op.multiplier
 
-    function Hψ(ψk)
+    function apply_H(ψk)
         ψ_real = G_to_r(basis, kpt, ψk) .* potential ./ basis.G_to_r_normalization
         Hψ_k = r_to_G(basis, kpt, ψ_real) ./ basis.r_to_G_normalization
-        Hψ_k = Hψ_k + hblock.fourier_op.multiplier .* ψk
-        Hψ_k
+        Hψ_k += fourier_op_multiplier .* ψk
+        reshape(Hψ_k, :, size(Hψ_k, 2)) # if Hψ_k a vector, promote to matrix
     end
-    Hψ = reduce(hcat, map(Hψ, eachcol(ψ)))
+    Hψ = mapreduce(apply_H, hcat, eachcol(ψ))
     Hψ
 end
 
@@ -378,9 +368,8 @@ function _autodiff_hblock_mul(hblock::GenericHamiltonianBlock, ψ)
     basis = hblock.basis
     T = eltype(basis)
     kpt = hblock.kpoint
-    nband = size(ψ, 2)
 
-    function Hψ(ψk)
+    function apply_H(ψk)
         ψ_real = G_to_r(basis, kpt, ψk)
         Hψ_fourier = zero(ψ[:, 1])
         Hψ_real = zeros(complex(T), basis.fft_size...)
@@ -397,10 +386,9 @@ function _autodiff_hblock_mul(hblock::GenericHamiltonianBlock, ψ)
             end
         end
         Hψ_k = Hψ_fourier + r_to_G(basis, kpt, Hψ_real)
-        Hψ_k
+        reshape(Hψ_k, :, size(Hψ_k, 2)) # if Hψ_k a vector, promote to matrix
     end
-    Hψ = mapreduce(Hψ, hcat, eachcol(ψ))
-    # println("chainrule ",norm(Hψ))
+    Hψ = mapreduce(apply_H, hcat, eachcol(ψ))
     Hψ
 end
 
@@ -453,154 +441,26 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
     ρ, compute_density_pullback =
         rrule(config, compute_density, basis, scfres.ψ, scfres.occupation)
 
-    function self_consistent_field_pullback(Δscfres)
-        δψ = Δscfres.ψ
-        δoccupation = Δscfres.occupation
-        δρ = Δscfres.ρ
-        δenergies = Δscfres.energies
-        δbasis = Δscfres.basis
-        δH = Δscfres.ham
+    function self_consistent_field_pullback(∂scfres)
+        ∂ψ = ∂scfres.ψ
+        ∂occupation = ∂scfres.occupation
+        ∂ρ = ∂scfres.ρ
+        ∂energies = ∂scfres.energies
+        ∂basis = ∂scfres.basis
+        ∂H = ∂scfres.ham
 
-        _, ∂basis, ∂ψ, _ = compute_density_pullback(δρ)
-        ∂ψ = ∂ψ + δψ
+        _, ∂basis, ∂ψ_density_pullback, _ = compute_density_pullback(∂ρ)
+        ∂ψ = ∂ψ_density_pullback + ∂ψ
         ∂ψ, occupation = DFTK.select_occupied_orbitals(basis, ∂ψ, occupation)
 
-        ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation) # use self-adjointness of dH ψ -> dψ
+        ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation).δψ # use self-adjointness of dH ψ -> dψ
 
         # TODO need to do proj_tangent on ∂Hψ
-        _, ∂H, _ = mul_pullback(∂Hψ)
-        ∂H = ∂H + δH
-        _, ∂basis, _, _, _ = energy_hamiltonian_pullback((δenergies, ∂H))
+        _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
+        ∂H = ∂H_mul_pullback + ∂H
+        _, ∂basis, _, _, _ = energy_hamiltonian_pullback((∂energies, ∂H))
 
         return NoTangent(), ∂basis
     end
     return scfres, self_consistent_field_pullback
 end
-
-
-# Ewald
-
-# TODO reduce code duplication compared to primal
-# TODO unspecialize from Zygote.dropgrad, Zygote.ignore -> ChainRulesCore.ignore
-# TODO move shell_indices out of energy_ewald and just globally mark shell_indices 
-#      as ChainRulesCore.@non_differentiable -> this should allow to delete _autodiff_energy_ewald
-function _autodiff_energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, args...)
-    T = eltype(lattice)
-    @assert T == eltype(recip_lattice)
-    @assert length(charges) == length(positions)
-    if η === nothing
-        # Balance between reciprocal summation and real-space summation
-        # with a slight bias towards reciprocal summation
-        η = sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
-    end
-
-    #
-    # Numerical cutoffs
-    #
-    # The largest argument to the exp(-x) function to obtain a numerically
-    # meaningful contribution. The +5 is for safety.
-    max_exponent = -log(eps(T)) + 5
-
-    # The largest argument to the erfc function for various precisions.
-    # To get an idea:
-    #   erfc(5) ≈ 1e-12,  erfc(8) ≈ 1e-29,  erfc(10) ≈ 2e-45,  erfc(14) ≈ 3e-87
-    max_erfc_arg = get(
-        Dict(Float32 => 5, Float64 => 8, BigFloat => 14),
-        T,
-        something(findfirst(arg -> 100 * erfc(arg) < eps(T), 1:100), 100) # fallback for not yet implemented cutoffs
-    )
-
-    #
-    # Reciprocal space sum
-    #
-    # Initialize reciprocal sum with correction term for charge neutrality
-    sum_recip = - (sum(charges)^2 / 4η^2)
-
-    # Function to return the indices corresponding
-    # to a particular shell
-    # TODO switch to an O(N) implementation
-    function shell_indices(ish)
-        [Vec3(i,j,k) for i in -ish:ish for j in -ish:ish for k in -ish:ish
-        if maximum(abs.((i,j,k))) == ish]
-    end
-
-    # Loop over reciprocal-space shells
-    gsh = 1 # Exclude G == 0
-    any_term_contributes = true
-    while any_term_contributes
-        any_term_contributes = false
-
-        # Compute G vectors and moduli squared for this shell patch
-        for G in (Zygote.@ignore shell_indices(gsh))
-            Gsq = sum(abs2, recip_lattice * Zygote.dropgrad(G))
-
-            # Check if the Gaussian exponent is small enough
-            # for this term to contribute to the reciprocal sum
-            exponent = Gsq / 4η^2
-            if exponent > max_exponent
-                continue
-            end
-
-            cos_strucfac = sum(Z * cos(2T(π) * dot(r, Zygote.dropgrad(G))) for (r, Z) in zip(positions, charges))
-            sin_strucfac = sum(Z * sin(2T(π) * dot(r, Zygote.dropgrad(G))) for (r, Z) in zip(positions, charges))
-            sum_strucfac = cos_strucfac^2 + sin_strucfac^2
-
-            any_term_contributes = true
-            sum_recip += sum_strucfac * exp(-exponent) / Gsq
-
-        end
-        gsh += 1
-    end
-    # Amend sum_recip by proper scaling factors:
-    sum_recip *= 4T(π) / abs(det(lattice))
-
-    #
-    # Real-space sum
-    #
-    # Initialize real-space sum with correction term for uniform background
-    sum_real = -2η / sqrt(T(π)) * sum(Z -> Z^2, charges)
-
-    # Loop over real-space shells
-    rsh = 0 # Include R = 0
-    any_term_contributes = true
-    while any_term_contributes || rsh <= 1
-        any_term_contributes = false
-
-        # Loop over R vectors for this shell patch
-        for R in (Zygote.@ignore shell_indices(rsh))
-            for i = 1:length(positions), j = 1:length(positions)
-                ti = positions[i]
-                Zi = charges[i]
-                tj = positions[j]
-                Zj = charges[j]
-
-                # Avoid self-interaction
-                if rsh == 0 && ti == tj
-                    continue
-                end
-
-                dist = norm(lattice * (ti - tj - Zygote.dropgrad(R)))
-
-                # erfc decays very quickly, so cut off at some point
-                if η * dist > max_erfc_arg
-                    continue
-                end
-
-                any_term_contributes = true
-                sum_real += Zi * Zj * erfc(η * dist) / dist
-            end # i,j
-        end # R
-        rsh += 1
-    end
-    energy = (sum_recip + sum_real) / 2  # Divide by 2 (because of double counting)
-    energy
-end
-
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(energy_ewald), lattice, recip_lattice, charges, positions; args...)
-    @warn "simplified energy_ewald rrule triggered."
-    energy = energy_ewald(lattice, recip_lattice, charges, positions; args...)
-    f(lattice, recip_lattice, charges, positions) = _autodiff_energy_ewald(lattice, recip_lattice, charges, positions; args...)
-    _energy, ewald_pullback = rrule_via_ad(config, f, lattice, recip_lattice, charges, positions)
-    energy, ewald_pullback
-end
-
