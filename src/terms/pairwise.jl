@@ -1,12 +1,3 @@
-@doc raw"""
-Pairwise terms: Pairwise potential between nuclei, e.g., Van der Waals potentials, such as
-Lennard—Jones terms.
-The potential is dependent on the distance between to atomic positions and the pairwise
-atomic types:
-For a distance `d` between to atoms `A` and `B`, the potential is `V(d, params[(A, B)])`.
-The parameters `max_radius` is of `100` by default, and gives the maximum (reduced) distance
-between nuclei for which we consider interactions.
-"""
 struct PairwisePotential
     V
     params
@@ -25,10 +16,14 @@ struct TermPairwisePotential{TV, Tparams, T} <:Term
     energy::Real
 end
 
-"""
-Compute the pairwise interaction energy per unit cell between atomic sites. If `forces` is
-not nothing, minus the derivatives of the energy with respect to `positions` is computed.
-The potential is expected to decrease quickly at infinity.
+@doc raw"""
+Pairwise terms: Pairwise potential between nuclei, e.g., Van der Waals potentials, such as
+Lennard—Jones terms.
+The potential is dependent on the distance between to atomic positions and the pairwise
+atomic types:
+For a distance `d` between to atoms `A` and `B`, the potential is `V(d, params[(A, B)])`.
+The parameters `max_radius` is of `100` by default, and gives the maximum (reduced) distance
+between nuclei for which we consider interactions.
 """
 function TermPairwisePotential(V, params, max_radius, basis::PlaneWaveBasis{T}) where {T}
     TermPairwisePotential(V, params, max_radius,
@@ -58,6 +53,11 @@ end
     f
 end
 
+"""
+Compute the pairwise interaction energy per unit cell between atomic sites. If `forces` is
+not nothing, minus the derivatives of the energy with respect to `positions` is computed.
+The potential is expected to decrease quickly at infinity.
+"""
 function energy_pairwise(model::Model, V, params, max_radius; kwargs...)
     atom_types = [element.symbol for (element, positions) in model.atoms for _ in positions]
     positions = [pos for (_, positions) in model.atoms for pos in positions]
