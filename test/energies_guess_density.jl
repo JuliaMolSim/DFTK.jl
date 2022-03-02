@@ -46,7 +46,7 @@ include("testcases.jl")
                                    ExternalFromFourier(X -> cos(1.3 * (X[1] + X[3]))),
                                    LocalNonlinearity(ρ -> 1.2 * ρ^2.4),
                                    Magnetic(X -> [1, cos(1.4 * X[2]), exp(X[3])]),
-                                   DFTK.PairwisePotential(V, params)],
+                                   PairwisePotential(V, params)],
                       )
     basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size)
     E, H = energy_hamiltonian(basis, res.X, occupation; ρ)

@@ -13,10 +13,16 @@ using Random
     atom_types = map(x -> ElementCoulomb(x).symbol, charges)
     V(x, p) = 4*p.ε * ((p.σ/x)^12 - (p.σ/x)^6)
     params = Dict((atom_types[1], atom_types[1]) => (; ε=1, σ=2))
-    term = DFTK.PairwisePotential(V, params)
+    term = PairwisePotential(V, params)
 
-    forces = zeros(Vec3{Float64}, 2)
-    γ1 = DFTK.energy_pairwise(lattice, atom_types, positions, term.V, term.params, term.max_radius; forces=forces)
+    # We only provide the necessary information.
+    atoms = [ElementCoulomb(14) => positions]
+    model = Model(lattice; atoms=atoms, terms=[term])
+    basis = PlaneWaveBasis(model; Ecut=20, kgrid=(1, 1, 1))
+
+    forces = hcat(compute_forces(basis.terms[1], basis, nothing, nothing)...)
+
+    γ1 = DFTK.energy_pairwise(lattice, atom_types, positions, term.V, term.params, term.max_radius)
 
     # Compare forces to finite differences
     disp = [rand(3)/20, rand(3)/20]
