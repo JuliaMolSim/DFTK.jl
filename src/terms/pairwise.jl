@@ -101,7 +101,9 @@ function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; 
                 # Avoid self-interaction
                 rsh == 0 && i == j && continue
 
-                param_ij = params[(atom_types[i], atom_types[j])]
+                (atom_types[i], atom_types[j]) ∈ keys(params) &&
+                    (param_ij = params[(atom_types[i], atom_types[j])]) ||
+                    (param_ij = params[(atom_types[j], atom_types[i])])
                 ti = positions[i]
                 tj = positions[j]
 
