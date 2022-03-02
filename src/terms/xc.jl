@@ -1,4 +1,5 @@
 using Libxc
+using Infiltrator
 include("../xc/xc_evaluate.jl")
 
 """
@@ -45,7 +46,7 @@ end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
                                               ψ, occ; ρ, τ=nothing, kwargs...) where {T}
-    @assert !isempty(term.functionals)
+    #@assert !isempty(term.functionals)
 
     model  = basis.model
     n_spin = model.n_spin_components
@@ -69,6 +70,12 @@ end
     # It may happen that a functional does only provide a potenital and not an energy term
     # Therefore skip_unsupported_derivatives=true to avoid an error.
     terms = evaluate(term.functionals, density; skip_unsupported_derivatives=true)
+    
+    #xc_fallback!(term.functionals, ρ)
+    #for xc in term.functionals
+    #    xc_fallback!(xc, xc.value, ρ)
+    #end
+    
     @assert haskey(terms, :vrho)
     if haskey(terms, :zk)
         E = sum(terms.zk .* ρ) * basis.dvol
@@ -82,13 +89,23 @@ end
     tσ = libxc_spinindex_σ
 
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ) + ΔVl
-    potential = zero(ρ)
+    #potential = zero(ρ)
+    potential = zero(terms.vrho)
+    
+    #@infiltrate
+
+    #potential = zero(ρ)
+    
+    #potential[s, :, :, :] .+= terms.vrho[s, :, :, :]
+    potential = terms.vrho
     @views for s in 1:n_spin
-        potential[:, :, :, s] .+= terms.vrho[s, :, :, :]
+        #potential[:, :, :, s] .+= terms.vrho[s, :, :, :]
         if haskey(terms, :vsigma) && any(x -> abs(x) > term.potential_threshold, terms.vsigma)
+            @warn "Gradient correction"
             # Need gradient correction
             # TODO Drop do-block syntax here?
-            potential[:, :, :, s] .+= -2divergence_real(basis) do α
+            #potential[:, :, :, s] .+= -2divergence_real(basis) do α
+            potential[s, :, :, :] .+= -2divergence_real(basis) do α
                 # Extra factor (1/2) for s != t is needed because libxc only keeps σ_{αβ}
                 # in the energy expression. See comment block below on spin-polarised XC.
                 sum((s == t ? one(T) : one(T)/2)
@@ -100,28 +117,33 @@ end
             @warn "Meta-GGAs with a Vlapl term have not yet been thoroughly tested." maxlog=1
             mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
             Vl_fourier = r_to_G(basis, terms.vlapl[s, :, :, :])
-            potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
+            #potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
+            potential[s, :, :, :] .+= G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
         end
     end
 
     # DivAgrad contributions -½ Vτ
     Vτ = nothing
     if haskey(terms, :vtau) && any(x -> abs(x) > term.potential_threshold, terms.vtau)
+        @warn "haskey"
         # Need meta-GGA non-local operator (Note: -½ part of the definition of DivAgrid)
         Vτ = term.scaling_factor * permutedims(terms.vtau, (2, 3, 4, 1))
     end
 
     if term.scaling_factor != 1
+        @warn "scalaing"
         E *= term.scaling_factor
         potential .*= term.scaling_factor
         !isnothing(Vτ) && (Vτ .*= term.scaling_factor)
     end
     ops = map(basis.kpoints) do kpt
         if !isnothing(Vτ)
-            [RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin]),
+            #[RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin]),
+            [RealSpaceMultiplication(basis, kpt, potential[kpt.spin, :, :, :]),
              DivAgradOperator(basis, kpt, Vτ[:, :, :, kpt.spin])]
         else
-            RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin])
+            #RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin])
+            RealSpaceMultiplication(basis, kpt, potential[kpt.spin, :, :, :])
         end
     end
     (; E, ops)
@@ -454,13 +476,23 @@ function Libxc.evaluate(xc::Functional, density::LibxcDensities;
         derivatives = filter(i -> i in supported_derivatives(xc), derivatives)
     end
     if xc.family == :lda
+        #@assert false
+        #@warn "xc lda evaluate"
+        #@warn "lda size rho", size(density.ρ_real)
+        #@warn "derivatives",derivatives
+        #zk = similar(density.ρ_real)
+        #xc_fallback!(xc,Val(xc.family),density.ρ_real; zk=zk, kwargs...)
+        #return xc
         evaluate(xc; rho=density.ρ_real, derivatives, kwargs...)
     elseif xc.family == :gga
+        #@warn "xc gga evaluate"
         evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, derivatives, kwargs...)
     elseif xc.family == :mgga && !needs_laplacian(xc)
+        #@warn "xc mgga evaluate"
         evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=density.τ_real,
                  derivatives, kwargs...)
     elseif xc.family == :mgga && needs_laplacian(xc)
+        #@warn "xc mgga evaluate"
         evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=density.τ_real,
                  lapl=density.Δρ_real, derivatives, kwargs...)
     else
@@ -468,11 +500,13 @@ function Libxc.evaluate(xc::Functional, density::LibxcDensities;
     end
 end
 function Libxc.evaluate(xcs::Vector{Functional}, density::LibxcDensities; kwargs...)
+    #@warn "Libxc.evaluate"
     isempty(xcs) && return NamedTuple()
     result = evaluate(xcs[1], density; kwargs...)
     for i in 2:length(xcs)
         other = evaluate(xcs[i], density; kwargs...)
         for (key, data) in pairs(other)
+            #@warn "key ", key
             if haskey(result, key)
                 result[key] .+= data
             else

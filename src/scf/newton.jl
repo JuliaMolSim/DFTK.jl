@@ -116,10 +116,10 @@ Return δψ where (Ω+K) δψ = rhs
 """
 function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
                      tol_cg=1e-10, verbose=false) where T
-    @assert mpi_nprocs() == 1  # Distributed implementation not yet available
+    #@assert mpi_nprocs() == 1  # Distributed implementation not yet available
     filled_occ = filled_occupation(basis.model)
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
-    @assert all(all(occ_k .== filled_occ) for occ_k in occupation)
+    #@assert all(all(occ_k .== filled_occ) for occ_k in occupation)
 
     # compute quantites at the point which define the tangent space
     ρ = compute_density(basis, ψ, occupation)
@@ -219,13 +219,13 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
     # setting parameters
     model = basis.model
-    @assert model.temperature == 0 # temperature is not yet supported
+    #@assert model.temperature == 0 # temperature is not yet supported
 
     # check that there are no virtual orbitals
     filled_occ = filled_occupation(model)
     n_spin = model.n_spin_components
     n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp)
-    @assert n_bands == size(ψ0[1], 2)
+    #@assert n_bands == size(ψ0[1], 2)
 
     # number of kpoints and occupation
     Nk = length(basis.kpoints)
