@@ -9,35 +9,37 @@ include("testcases.jl")
     function energy_forces(pos)
         Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
         atoms = [Si => pos]
-        model = model_DFT(silicon.lattice, atoms, :lda_xc_teter93)
-        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
+        model = model_DFT(silicon.lattice, atoms, [:lda_x, :lda_c_pw])
+        basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
+                               fft_size=(18, 18, 18))  # FFT chosen to match QE
 
-        is_converged = DFTK.ScfConvergenceDensity(1e-10)
+        is_converged = DFTK.ScfConvergenceDensity(1e-11)
         scfres = self_consistent_field(basis; is_converged=is_converged)
         scfres.energies.total, compute_forces(scfres), compute_forces_cart(scfres)
     end
 
     # symmetrical positions, forces should be 0
-    pos0  = [(ones(3)) / 8, -ones(3) / 8]
-    _, F0 = energy_forces(pos0)
+    _, F0, _ = energy_forces([(ones(3)) / 8, -ones(3) / 8])
     @test norm(F0) < 1e-4
 
     pos1 = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8]  # displace a bit from equilibrium
     disp = rand(3)
     mpi_mean!(disp, MPI.COMM_WORLD)  # must be identical on all processes
-    ε = 1e-7
+    ε = 1e-5
     pos2 = [pos1[1] + ε * disp, pos1[2]]
+    pos3 = [pos1[1] - ε * disp, pos1[2]]
 
     E1, F1, Fc1 = energy_forces(pos1)
     E2,  _,  _  = energy_forces(pos2)
+    E3,  _,  _  = energy_forces(pos3)
 
-    diff_findiff = -(E2 - E1) / ε
+    diff_findiff = -(E2 - E3) / (2ε)
     diff_forces = dot(F1[1][1], disp)
-    @test abs(diff_findiff - diff_forces) < 1e-4
+    @test abs(diff_findiff - diff_forces) < 1e-5
 
     # Rough test against QE reference (using PZ functional)
-    reference = [[[-0.005622025, -0.00445816, -0.003278985],
-                  [ 0.005622025,  0.00445816,  0.003278985]]]
+    reference = [[[-5.81108123960e-3, -4.60222477677e-3, -3.37528153911e-3],
+                  [ 5.81108123960e-3,  4.60222477677e-3,  3.37528153911e-3]]]
     @test maximum(v -> maximum(abs, v), reference[1] - Fc1[1]) < 1e-5
 end
 
@@ -67,7 +69,7 @@ end
         E2, _ = silicon_energy_forces(pos2; smearing=smearing())
 
         diff_findiff = -(E2 - E1) / ε
-        diff_forces = dot(F1[1][1], disp)
+        diff_forces  = dot(F1[1][1], disp)
 
         @test abs(diff_findiff - diff_forces) < tol
     end

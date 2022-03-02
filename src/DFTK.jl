@@ -43,6 +43,9 @@ export n_elec_valence
 export n_elec_core
 include("elements.jl")
 
+export SymOp
+include("SymOp.jl")
+
 export Smearing
 export Model
 export PlaneWaveBasis
@@ -167,7 +170,7 @@ include("postprocess/band_structure.jl")
 export compute_forces
 export compute_forces_cart
 include("postprocess/forces.jl")
-export compute_stresses
+export compute_stresses_cart
 include("postprocess/stresses.jl")
 export compute_dos
 export compute_ldos

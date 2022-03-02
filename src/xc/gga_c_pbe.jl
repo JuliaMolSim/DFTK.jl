@@ -1,10 +1,19 @@
 """
 Perdew, Burke, Ernzerhof (DOI: 10.1103/PhysRevLett.77.3865)
 """
-
 function energy_per_particle(::Val{:gga_c_pbe}, ρ, σ)
     β = 0.06672455060314922
     γ = (1 - log(2)) / π^2
+    energy_per_particle_c_pbe(ρ, σ; β, γ)
+end
+
+"""
+Xu, Goddard 2004 (DOI 10.1063/1.1771632)
+"""
+function energy_per_particle(::Val{:gga_c_xpbe}, ρ, σ)
+    β = 0.089809  # Fitted constants, Table I
+    α = 0.197363  # Fitted constants, Table I
+    γ = β^2 / 2α
     energy_per_particle_c_pbe(ρ, σ; β, γ)
 end
 
@@ -14,6 +23,35 @@ Perdew, Ruzsinszky, Csonka and others 2008 (DOI 10.1103/physrevlett.100.136406)
 function energy_per_particle(::Val{:gga_c_pbe_sol}, ρ, σ)
     β = 0.046  # Page 3, left column below figure 1
     γ = (1 - log(2)) / π^2
+    energy_per_particle_c_pbe(ρ, σ; β, γ)
+end
+
+"""
+Constantin, Fabiano, Laricchia 2011 (DOI 10.1103/physrevlett.106.186406)
+"""
+function energy_per_particle(::Val{:gga_c_apbe}, ρ, σ)
+    μ = 0.260   # p. 1, right column, bottom
+    β = 3μ / π^2
+    γ = (1 - log(2)) / π^2  # like in PBE
+    energy_per_particle_c_pbe(ρ, σ; β, γ)
+end
+
+"""
+del Campo, Gazqez, Trickey and others 2012 (DOI 10.1063/1.3691197)
+"""
+function energy_per_particle(::Val{:gga_c_pbe_mol}, ρ, σ)
+    # β made to cancel self-interaction error in hydrogen
+    β = 0.08384             # p. 4, right column, first paragraph
+    γ = (1 - log(2)) / π^2  # like in PBE
+    energy_per_particle_c_pbe(ρ, σ; β, γ)
+end
+
+"""
+Sarmiento-Perez, Silvana, Marques 2015 (DOI 10.1021/acs.jctc.5b00529)
+"""
+function energy_per_particle(::Val{:gga_c_pbefe}, ρ, σ)
+    β = 0.043                    # Fitted constants, Table I
+    γ = 0.031090690869654895034  # Fitted constants, Table I
     energy_per_particle_c_pbe(ρ, σ; β, γ)
 end
 

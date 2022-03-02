@@ -169,8 +169,8 @@ function drop!(X, tol=2eps(real(eltype(X))))
 end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
-function ortho!(X, Y, BY; tol=2eps(real(eltype(X))))
-    T = real(eltype(X))
+@timing "ortho! X vs Y" function ortho!(X, Y, BY; tol=2eps(real(eltype(X))))
+    T = eltype(X)
     # normalize to try to cheaply improve conditioning
     Threads.@threads for i=1:size(X,2)
         n = norm(@views X[:,i])
@@ -322,8 +322,10 @@ end
         end
         vprintln(niter, "   ", resid_history[:, niter+1])
         if precon !== I
-            precondprep!(precon, X) # update preconditioner if needed; defaults to noop
-            ldiv!(precon, new_R)
+            @timing "preconditioning" begin
+                precondprep!(precon, X) # update preconditioner if needed; defaults to noop
+                ldiv!(precon, new_R)
+            end
         end
 
         ### Compute number of locked vectors

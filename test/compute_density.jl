@@ -82,9 +82,9 @@ if mpi_nprocs() == 1  # not easy to distribute
 
         # Test equivalent k-points have the same orbital energies
         for (ik, k) in enumerate(kcoords)
-            for (S, τ) in ksymops[ik]
+            for symop in ksymops[ik]
                 ikfull = findfirst(1:length(kfull)) do idx
-                    all(isinteger, kfull[idx] - S * k)
+                    all(isinteger, kfull[idx] - symop.S * k)
                 end
                 @test ikfull !== nothing
 
@@ -106,8 +106,8 @@ if mpi_nprocs() == 1  # not easy to distribute
             n_ρ = 0
             for (ik, k) in enumerate(kcoords)
                 Hk_ir = ham_ir.blocks[ik]
-                for (S, τ) in ksymops[ik]
-                    Skpoint, ψSk = DFTK.apply_ksymop((S, τ), ham_ir.basis, Hk_ir.kpoint, ψ_ir[ik])
+                for symop in ksymops[ik]
+                    Skpoint, ψSk = DFTK.apply_ksymop(symop, ham_ir.basis, Hk_ir.kpoint, ψ_ir[ik])
 
                     ikfull = findfirst(1:length(kfull)) do idx
                         all(isinteger, round.(kfull[idx] - Skpoint.coordinate, digits=10))
@@ -121,14 +121,8 @@ if mpi_nprocs() == 1  # not easy to distribute
                         residual = norm(Hk_full * ψnSk - eigenvalues_ir[ik][iband] * ψnSk)
                         @test residual < 10tol
                     end  # iband
-
-                    n_ρ += 1
-                    ρsum .+= DFTK.compute_partial_density!(copy(ρsum), ham_ir.basis, Skpoint, ψSk, occ_ir[ik])
-                end  # (S, τ)
+                end  # symop
             end  # k
-
-            @test n_ρ == length(kfull)
-            @test maximum(abs, ρsum / n_ρ - r_to_G(ham_ir.basis, ρ_full)) < 10tol
         end # eigenvectors
     end
 

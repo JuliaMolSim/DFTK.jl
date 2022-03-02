@@ -16,6 +16,8 @@ which has the same structure as the `atoms` object passed to the underlying [`Mo
             forces += f_term
         end
     end
+     # no explicit symmetrization is performed here, it is the
+     # responsability of each term to return symmetric forces
     forces
 end
 
@@ -26,9 +28,8 @@ Returns a list of lists of forces
 which has the same structure as the `atoms` object passed to the underlying [`Model`](@ref).
 """
 function compute_forces_cart(basis::PlaneWaveBasis, ψ, occ; kwargs...)
-    lattice = basis.model.lattice
     forces = compute_forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
-    [[lattice \ f for f in forces_for_element] for forces_for_element in forces]
+    [covector_red_to_cart.(basis.model, forces_for_element) for forces_for_element in forces]
 end
 
 function compute_forces(scfres)

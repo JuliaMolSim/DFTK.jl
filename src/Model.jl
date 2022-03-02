@@ -10,9 +10,14 @@ struct Model{T <: Real}
     # Lattice and reciprocal lattice vectors in columns
     lattice::Mat3{T}
     recip_lattice::Mat3{T}
+    # Dimension of the system; 3 unless `lattice` has zero columns
+    n_dim::Int
+    # Useful for conversions between cartesian and reduced coordinates
+    inv_lattice::Mat3{T}
+    inv_recip_lattice::Mat3{T}
+    # Volumes
     unit_cell_volume::T
     recip_cell_volume::T
-    n_dim::Int  # Dimension of the system; 3 unless `lattice` has zero columns
 
     # Electrons, occupation and smearing function
     n_electrons::Int  # usually consistent with `atoms` field, but doesn't have to
@@ -49,9 +54,11 @@ struct Model{T <: Real}
     symmetries::Vector{SymOp}
 end
 
+_is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
+
 """
     Model(lattice; n_electrons, atoms, magnetic_moments, terms, temperature,
-                   smearing, spin_polarization, symmetry)
+                   smearing, spin_polarization, symmetries)
 
 Creates the physical specification of a model (without any
 discretization information).
@@ -112,7 +119,9 @@ function Model(lattice::AbstractMatrix{T};
         "Your lattice is badly conditioned, the computation is likely to fail.")
 
     # Note: In the 1D or 2D case, the volume is the length/surface
+    inv_lattice = compute_inverse_lattice(lattice)
     recip_lattice = compute_recip_lattice(lattice)
+    inv_recip_lattice = compute_inverse_lattice(recip_lattice)
     unit_cell_volume  = compute_unit_cell_volume(lattice)
     recip_cell_volume = compute_unit_cell_volume(recip_lattice)
 
@@ -137,10 +146,11 @@ function Model(lattice::AbstractMatrix{T};
     # Determine symmetry operations to use
     symmetries == true  && (symmetries = default_symmetries(lattice, atoms, magnetic_moments,
                                                             terms, spin_polarization))
-    symmetries == false && (symmetries = [identity_symop()])
+    symmetries == false && (symmetries = [one(SymOp)])
     @assert !isempty(symmetries)  # Identity has to be always present.
 
-    Model{T}(model_name, lattice, recip_lattice, unit_cell_volume, recip_cell_volume, n_dim,
+    Model{T}(model_name, lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
+             unit_cell_volume, recip_cell_volume,
              n_electrons, spin_polarization, n_spin, T(temperature), smearing,
              atoms, terms, symmetries)
 end
@@ -174,12 +184,12 @@ function default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polari
                         tol_symmetry=1e-5)
     dimension = count(!iszero, eachcol(lattice))
     if spin_polarization == :full || dimension != 3
-        return [identity_symop()]  # Symmetry not supported in spglib
+        return [one(SymOp)]  # Symmetry not supported in spglib
     elseif spin_polarization == :collinear && isempty(magnetic_moments)
         # Spin-breaking due to initial magnetic moments cannot be determined
-        return [identity_symop()]
+        return [one(SymOp)]
     elseif any(breaks_symmetries, terms)
-        return [identity_symop()]  # Terms break symmetry
+        return [one(SymOp)]  # Terms break symmetry
     else
         magnetic_moments = [el => normalize_magnetic_moment.(magmoms)
                             for (el, magmoms) in magnetic_moments]
@@ -216,4 +226,46 @@ end
 spin_components(model::Model) = spin_components(model.spin_polarization)
 
 
-_is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
+# prevent broadcast
+import Base.Broadcast.broadcastable
+Base.Broadcast.broadcastable(model::Model) = Ref(model)
+
+
+#=
+There are two types of quantities, depending on how they transform under change of coordinates.
+
+Positions transform with the lattice: r_cart = lattice * r_red. We term them vectors.
+
+Linear forms on vectors (anything that appears in an expression f⋅r) transform
+with the inverse lattice transpose: if f_cart ⋅ r_cart = f_red ⋅ r_red, then
+f_cart = lattice' \ f_red. We term them covectors.
+Examples of covectors are forces.
+
+Reciprocal vectors are a special case: they are covectors, but conventionally have an
+additional factor of 2π in their definition, so they transform rather with 2π times the
+inverse lattice transpose: q_cart = 2π lattice' \ q_red = recip_lattice * q_red.
+=#
+vector_red_to_cart(model::Model, rred)        = model.lattice * rred
+vector_cart_to_red(model::Model, rcart)       = model.inv_lattice * rcart
+covector_red_to_cart(model::Model, fred)      = model.inv_lattice' * fred
+covector_cart_to_red(model::Model, fcart)     = model.lattice' * fcart
+recip_vector_red_to_cart(model::Model, qred)  = model.recip_lattice * qred
+recip_vector_cart_to_red(model::Model, qcart) = model.inv_recip_lattice * qcart
+
+#=
+Transformations on vectors and covectors are matrices and comatrices.
+
+Consider two covectors f and g related by a transformation matrix B. In reduced
+coordinates g_red = B_red f_red and in cartesian coordinates we want g_cart = B_cart f_cart.
+From g_cart = L⁻ᵀ g_red = L⁻ᵀ B_red f_red = L⁻ᵀ B_red Lᵀ f_cart, we see B_cart = L⁻ᵀ B_red Lᵀ.
+
+Similarly for two vectors r and s with s_red = A_red r_red and s_cart = A_cart r_cart:
+s_cart = L s_red = L A_red r_red = L A_red L⁻¹ r_cart, thus A_cart = L A_red L⁻¹.
+
+Examples of matrices are the symmetries in real space (W)
+Examples of comatrices are the symmetries in reciprocal space (S)
+=#
+matrix_red_to_cart(model::Model, Ared)    = model.lattice * Ared * model.inv_lattice
+matrix_cart_to_red(model::Model, Acart)   = model.inv_lattice * Acart * model.lattice
+comatrix_red_to_cart(model::Model, Bred)  = model.inv_lattice' * Bred * model.lattice'
+comatrix_cart_to_red(model::Model, Bcart) = model.lattice' * Bcart * model.inv_lattice'

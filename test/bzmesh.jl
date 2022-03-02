@@ -54,7 +54,7 @@ end
         # Try to reproduce all kcoords from irred_kcoords
         all_kcoords = Vector{Vec3{Rational{Int}}}()
         for (ik, k) in enumerate(irred_kcoords)
-            append!(all_kcoords, [S * k for (S, τ) in ksymops[ik]])
+            append!(all_kcoords, [symop.S * k for symop in ksymops[ik]])
         end
 
         # Normalize the obtained k-points and test for equality

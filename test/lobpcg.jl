@@ -8,8 +8,8 @@ include("./testcases.jl")
     # Construct a free-electron Hamiltonian
     Ecut = 5
     fft_size = [15, 15, 15]
-    model = Model(silicon.lattice, n_electrons=silicon.n_electrons, terms=[Kinetic()])  # free-electron model
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    model = Model(silicon.lattice, terms=[Kinetic()], atoms=silicon.atoms)  # free-electron model
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
     ham = Hamiltonian(basis)
 
     tol = 1e-8
@@ -27,13 +27,13 @@ include("./testcases.jl")
 
     @test length(ref_λ) == length(silicon.kcoords)
     @testset "without Preconditioner" begin
-        res = diagonalize_all_kblocks(lobpcg_hyper, ham, nev_per_k, tol=tol,
+        res = diagonalize_all_kblocks(lobpcg_hyper, ham, nev_per_k, tol=1e-4,
                                       prec_type=nothing, interpolate_kpoints=false)
 
         @test res.converged
         for ik in 1:length(basis.kpoints)
-            @test ref_λ[basis.krange_thisproc[ik]] ≈ res.λ[ik]
-            @test maximum(res.residual_norms[ik]) < 100tol  # TODO Why the 100?
+            @test ref_λ[basis.krange_thisproc[ik]] ≈ res.λ[ik] atol = 1e-4
+            @test maximum(res.residual_norms[ik]) < 1e-4
             @test res.iterations[ik] < 200
         end
     end

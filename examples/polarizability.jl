@@ -47,7 +47,7 @@ res   = self_consistent_field(basis, tol=tol)
 model_ε = model_LDA(lattice, atoms; extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
                     symmetries=false)
 basis_ε = PlaneWaveBasis(model_ε; Ecut, kgrid)
-res_ε = self_consistent_field(basis_ε, tol=tol)
+res_ε   = self_consistent_field(basis_ε, tol=tol)
 με = dipole(basis_ε, res_ε.ρ)
 
 #-

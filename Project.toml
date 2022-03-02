@@ -1,7 +1,7 @@
 name = "DFTK"
 uuid = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
 authors = ["Michael F. Herbst <info@michael-herbst.com>", "Antoine Levitt <antoine.levitt@inria.fr>"]
-version = "0.4.5"
+version = "0.4.7"
 
 [deps]
 AbbreviatedStackTraces = "ac637c84-cc71-43bf-9c33-c1b4316be3d4"
@@ -66,7 +66,7 @@ NLsolve = "4"
 Optim = "1"
 OrderedCollections = "1"
 PeriodicTable = "1"
-Polynomials = "1, 2"
+Polynomials = "1, 2, 3"
 Primes = "0.4, 0.5"
 ProgressMeter = "1"
 PyCall = "1"

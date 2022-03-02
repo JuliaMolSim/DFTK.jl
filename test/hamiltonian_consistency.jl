@@ -7,7 +7,7 @@ include("testcases.jl")
 using Random
 Random.seed!(0)
 
-function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-8, kgrid=[1, 2, 3],
+function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2, 3],
                                lattice=silicon.lattice, Ecut=10, spin_polarization=:none)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
@@ -15,8 +15,9 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-8, kgrid=[1, 2,
         n_dim = 3 - count(iszero, eachcol(lattice))
         Si = n_dim == 3 ? ElementPsp(14, psp=load_psp(silicon.psp)) : ElementCoulomb(:Si)
         atoms = [Si => silicon.positions]
-        model = Model(lattice; n_electrons=silicon.n_electrons, atoms, terms=[term], spin_polarization)
-        basis = PlaneWaveBasis(model; Ecut, kgrid, use_symmetry=false)
+        model = Model(lattice; n_electrons=silicon.n_electrons, atoms, terms=[term],
+                      spin_polarization, symmetries=true)
+        basis = PlaneWaveBasis(model; Ecut, kgrid)
 
         n_electrons = silicon.n_electrons
         n_bands = div(n_electrons, 2, RoundUp)
@@ -30,17 +31,21 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-8, kgrid=[1, 2,
         ρ = with_logger(NullLogger()) do
             compute_density(basis, ψ, occupation)
         end
-
-        δψ = [randn(ComplexF64, size(ψ[ik])) for ik = 1:length(basis.kpoints)]
-        ψ_trial = ψ .+ ε .* δψ
-        ρ_trial = with_logger(NullLogger()) do
-            compute_density(basis, ψ_trial, occupation)
-        end
+        E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
 
         @assert length(basis.terms) == 1
-        E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
-        E1, _ = energy_hamiltonian(basis, ψ_trial, occupation; ρ=ρ_trial)
-        diff = (E1.total - E0.total)/ε
+
+        δψ = [randn(ComplexF64, size(ψ[ik])) for ik = 1:length(basis.kpoints)]
+        function compute_E(ε)
+            ψ_trial = ψ .+ ε .* δψ
+            ρ_trial = with_logger(NullLogger()) do
+                compute_density(basis, ψ_trial, occupation)
+            end
+            E, _ = energy_hamiltonian(basis, ψ_trial, occupation; ρ=ρ_trial)
+            E.total
+        end
+
+        diff = (compute_E(ε) - compute_E(-ε)) / (2ε)
 
         diff_predicted = 0.0
         for ik in 1:length(basis.kpoints)

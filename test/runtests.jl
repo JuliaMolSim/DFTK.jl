@@ -60,6 +60,7 @@ Random.seed!(0)
         include("compute_fft_size.jl")
         include("fourier_transforms.jl")
         include("PlaneWaveBasis.jl")
+        include("Model.jl")
         include("interpolation.jl")
         include("load_psp.jl")
         include("PspHgh.jl")
@@ -113,8 +114,10 @@ Random.seed!(0)
         include("aqua.jl")
     end
 
-    if "all" in TAGS && mpi_nprocs() == 1  # Distributed implementation not yet available
+    # Distributed implementation not yet available
+    if "all" in TAGS && mpi_nprocs() == 1
         include("omegaplusk.jl")
+        include("forwarddiff.jl")
     end
 
     ("example" in TAGS) && include("runexamples.jl")
