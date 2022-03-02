@@ -170,7 +170,7 @@ end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
 @timing "ortho! X vs Y" function ortho!(X, Y, BY; tol=2eps(real(eltype(X))))
-    T = real(eltype(X))
+    T = eltype(X)
     # normalize to try to cheaply improve conditioning
     Threads.@threads for i=1:size(X,2)
         n = norm(@views X[:,i])
