@@ -15,7 +15,8 @@ end
 function PairwisePotential(V, params; max_radius=100)
     PairwisePotential(V, params, max_radius)
 end
-(P::PairwisePotential)(basis::AbstractBasis) = TermPairwisePotential(P.V, P.params, P.max_radius, basis)
+(P::PairwisePotential)(basis::AbstractBasis) = TermPairwisePotential(P.V, P.params,
+                                                                     P.max_radius, basis)
 
 struct TermPairwisePotential{TV, Tparams, T} <:Term
     V::TV
@@ -23,8 +24,15 @@ struct TermPairwisePotential{TV, Tparams, T} <:Term
     max_radius::T
     energy::Real
 end
+
+"""
+Compute the pairwise interaction energy per unit cell between atomic sites. If `forces` is
+not nothing, minus the derivatives of the energy with respect to `positions` is computed.
+The potential is expected to decrease quickly at infinity.
+"""
 function TermPairwisePotential(V, params, max_radius, basis::PlaneWaveBasis{T}) where {T}
-    TermPairwisePotential(V, params, max_radius, energy_pairwise(basis.model, V, params, max_radius))
+    TermPairwisePotential(V, params, max_radius,
+                          energy_pairwise(basis.model, V, params, max_radius))
 end
 
 function ene_ops(term::TermPairwisePotential, basis::PlaneWaveBasis, ψ, occ; kwargs...)
@@ -53,15 +61,9 @@ end
 function energy_pairwise(model::Model, V, params, max_radius; kwargs...)
     atom_types = [element.symbol for (element, positions) in model.atoms for _ in positions]
     positions = [pos for (_, positions) in model.atoms for pos in positions]
-
     energy_pairwise(model.lattice, atom_types, positions, V, params, max_radius; kwargs...)
 end
 
-"""
-Compute the pairwise interaction energy per unit cell between atomic sites. If `forces` is
-not nothing, minus the derivatives of the energy with respect to `positions` is computed.
-The potential is expected to decrease quickly at infinity.
-"""
 function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; forces=nothing)
     T = eltype(lattice)
     @assert length(atom_types) == length(positions)
