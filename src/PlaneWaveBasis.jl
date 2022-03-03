@@ -19,7 +19,6 @@ struct Kpoint{T <: Real}
     spin::Int                     # Spin component can be 1 or 2 as index into what is
                                   # returned by the `spin_components` function
     coordinate::Vec3{T}           # Fractional coordinate of k-point
-    coordinate_cart::Vec3{T}      # Cartesian coordinate of k-point
     mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
                                   # G_vectors(basis)[kpt.mapping[i]] == G_vectors(basis, kpt)[i]
     mapping_inv::Dict{Int, Int}   # Inverse of `mapping`:
