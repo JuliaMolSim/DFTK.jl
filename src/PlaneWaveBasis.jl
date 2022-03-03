@@ -131,7 +131,7 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for iσ = 1:model.n_spin_components
             push!(kpoints_per_spin[iσ],
-                  Kpoint(iσ, k, model.recip_lattice * k, mapping, mapping_inv, Gvecs_k))
+                  Kpoint(iσ, k, mapping, mapping_inv, Gvecs_k))
         end
     end
 
