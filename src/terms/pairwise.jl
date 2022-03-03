@@ -64,6 +64,8 @@ function energy_pairwise(model::Model, V, params, max_radius; kwargs...)
     energy_pairwise(model.lattice, atom_types, positions, V, params, max_radius; kwargs...)
 end
 
+# This could be factorised with Ewald, but the use of `atom_types` would slow down the
+# computationally intensive Ewald sums. So we leave it as it for now.
 function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; forces=nothing)
     T = eltype(lattice)
     @assert length(atom_types) == length(positions)
