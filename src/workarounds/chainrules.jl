@@ -65,7 +65,7 @@ ChainRulesCore.@non_differentiable r_vectors(::Any...)
 ChainRulesCore.@non_differentiable G_vectors(::Any...)
 ChainRulesCore.@non_differentiable default_symmetries(::Any...) # TODO perhaps?
 ChainRulesCore.@non_differentiable shell_indices(::Any)  # Ewald
-ChainRulesCore.@non_differentiable build_kpoints(::Any...) # TODO remove coordinates_cart from Kpoint
+ChainRulesCore.@non_differentiable build_kpoints(::Any...)
 
 # TODO delete
 @adjoint (T::Type{<:SArray})(x...) = T(x...), y->(y,)
@@ -146,10 +146,6 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBa
     # Create dummy terms array for _basis to handle
     terms = Vector{Any}(undef, length(model.term_types))
 
-    # kpoints have differentiable components (inside coordinate_cart)
-    kcoords_thisproc = basis.kcoords_global[basis.krange_thisproc] # TODO which kcoords?
-    kpoints = build_kpoints(model, basis.fft_size, kcoords_thisproc, basis.Ecut; basis.variational)
-
     # cicularity is getting complicated...
     # To correctly instantiate term types, we do need a full PlaneWaveBasis struct;
     # so we need to interleave re-computed differentiable params, and fixed params in basis
@@ -158,14 +154,14 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBa
         basis.Ecut, basis.variational,
         basis.opFFT, basis.ipFFT, basis.opBFFT, basis.ipBFFT,
         r_to_G_normalization, G_to_r_normalization,
-        kpoints, basis.kweights, basis.ksymops, basis.kgrid, basis.kshift,
+        basis.kpoints, basis.kweights, basis.ksymops, basis.kgrid, basis.kshift,
         basis.kcoords_global, basis.ksymops_global, basis.comm_kpts, basis.krange_thisproc, basis.krange_allprocs,
         basis.symmetries, terms)
 
     # terms = Any[t(_basis) for t in model.term_types]
     terms = vcat([], [t(_basis) for t in model.term_types]) # hack: enforce Vector{Any} without causing reverse mutation
 
-    (;model=model, kpoints=kpoints, dvol=dvol, terms=terms, G_to_r_normalization=G_to_r_normalization, r_to_G_normalization=r_to_G_normalization)
+    (;model=model, dvol=dvol, terms=terms, G_to_r_normalization=G_to_r_normalization, r_to_G_normalization=r_to_G_normalization)
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{PlaneWaveBasis}, model::Model; kwargs...)
@@ -174,20 +170,6 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Plan
     f(model) = _autodiff_PlaneWaveBasis_namedtuple(model, basis)
     _basis, PlaneWaveBasis_pullback = rrule_via_ad(config, f, model)
     return basis, PlaneWaveBasis_pullback
-end
-
-function _autodiff_TermKinetic_namedtuple(basis, scaling_factor)
-    kinetic_energies = [[scaling_factor * sum(abs2, G + kpt.coordinate_cart) / 2
-                         for G in Gplusk_vectors_cart(basis, kpt)]
-                        for kpt in basis.kpoints]
-    (;scaling_factor=scaling_factor, kinetic_energies=kinetic_energies)
-end
-
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{TermKinetic}, basis::PlaneWaveBasis, scaling_factor)
-    @warn "simplified TermKinetic rrule triggered."
-    term = T(basis, scaling_factor)
-    _term, TermKinetic_pullback = rrule_via_ad(config, _autodiff_TermKinetic_namedtuple, basis, scaling_factor)
-    return term, TermKinetic_pullback
 end
 
 Base.zero(::ElementPsp) = ZeroTangent() # TODO
