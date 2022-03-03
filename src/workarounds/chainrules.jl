@@ -65,6 +65,7 @@ ChainRulesCore.@non_differentiable r_vectors(::Any...)
 ChainRulesCore.@non_differentiable G_vectors(::Any...)
 ChainRulesCore.@non_differentiable default_symmetries(::Any...) # TODO perhaps?
 ChainRulesCore.@non_differentiable shell_indices(::Any)  # Ewald
+ChainRulesCore.@non_differentiable build_kpoints(::Any...) # TODO remove coordinates_cart from Kpoint
 
 # TODO delete
 @adjoint (T::Type{<:SArray})(x...) = T(x...), y->(y,)
@@ -90,23 +91,6 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Mode
     _model, Model_pullback = rrule_via_ad(config, _autodiff_Model_namedtuple, lattice, atoms, terms)
     # TODO add some assertion that model and _model agree
     return model, Model_pullback
-end
-
-
-function ChainRulesCore.rrule(::typeof(build_kpoints), model::Model{T}, fft_size, kcoords, Ecut; variational=true) where T
-    @warn "build_kpoints rrule triggered"
-    kpoints = build_kpoints(model, fft_size, kcoords, Ecut; variational=variational)
-    function build_kpoints_pullback(∂kpoints)
-        sum_∂kpoints = sum(∂kpoints)
-        if sum_∂kpoints isa NoTangent
-            return NoTangent(), NoTangent(), NoTangent(), NoTangent(), NoTangent()
-        end
-        ∂recip_lattice = sum([∂kp.coordinate_cart * kp.coordinate' for (kp, ∂kp) in zip(kpoints, ∂kpoints) if !(∂kp isa NoTangent)])
-        ∂model = Tangent{typeof(model)}(; recip_lattice=∂recip_lattice)
-        ∂kcoords = @not_implemented("TODO")
-        return NoTangent(), ∂model, NoTangent(), ∂kcoords, NoTangent()
-    end
-    return kpoints, build_kpoints_pullback
 end
 
 # explicit rule for PlaneWaveBasis inner constructor
