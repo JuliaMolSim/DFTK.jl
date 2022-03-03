@@ -147,7 +147,6 @@ We store 1/√Ω pihat(k+G) in proj_vectors.
 function build_projection_vectors_(basis::PlaneWaveBasis{T}, atoms, kpt::Kpoint) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
     n_proj = count_n_proj(atoms)
-    #n_G    = length(G_vectors(basis, kpt))
     proj_vectors = zeros(Complex{T}, 0, 0)
     
     # Compute the columns of proj_vectors = 1/√Ω pihat(k+G)
@@ -169,9 +168,13 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, atoms, kpt::Kpoint)
             return reduce(hcat, reduce(vcat, cols))
         end
         proj_vectors = reduce(hcat, [build_columns(psp, positions) for (psp, positions) in atoms])
+	return proj_vectors
+    else
+        n_G    = length(G_vectors(basis, kpt))
+        return zeros(Complex{T}, n_G, n_proj)
     end
     #@assert offset == n_proj
-    proj_vectors
+    
 end
 
 """
@@ -191,8 +194,12 @@ function build_form_factors(psp, qs)
         form_factors_local
     end
     # for avoid nested for loop for Zygote compat
-    form_factors = reduce(vcat, [[build_factor(l,m) for m in -l:l] for l in 0:psp.lmax]) # build
-    form_factors = reduce(hcat, form_factors) # concat horizontally
-
-    form_factors
+    if count_n_proj(psp) > 0
+        form_factors = reduce(vcat, [[build_factor(l,m) for m in -l:l] for l in 0:psp.lmax]) # build
+        form_factors = reduce(hcat, form_factors) # concat horizontally
+        return form_factors
+    else
+        form_factors = zeros(Complex{T}, length(qs), count_n_proj(psp))
+        return form_factors
+    end
 end
