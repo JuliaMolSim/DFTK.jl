@@ -5,7 +5,7 @@ using Random
 
 @testset "Pairwise forces" begin
     a = 5.131570667152971
-    lattice = [0 1 1; 1 0 1; 1 1 0]
+    lattice = a .* [0 1 1; 1 0 1; 1 1 0]
     # perturb positions away from equilibrium to get nonzero force
     positions = [ones(3)/8+rand(3)/20, -ones(3)/8]
     charges = [:Si, :Si]
