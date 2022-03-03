@@ -101,11 +101,13 @@ function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; 
                 # Avoid self-interaction
                 rsh == 0 && i == j && continue
 
-                (atom_types[i], atom_types[j]) ∈ keys(params) &&
-                    (param_ij = params[(atom_types[i], atom_types[j])]) ||
-                    (param_ij = params[(atom_types[j], atom_types[i])])
                 ti = positions[i]
                 tj = positions[j]
+                ai = atom_types[i]
+                aj = atom_types[j]
+                (ai, aj) ∈ keys(params) &&
+                    (param_ij = params[(ai, aj)]) ||
+                    (param_ij = params[(aj, ai)])
 
                 Δr = lattice * (ti .- tj .- R)
                 dist = norm(Δr)
