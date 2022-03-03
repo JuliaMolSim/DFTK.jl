@@ -46,7 +46,7 @@ using LinearAlgebra
 using BlockArrays # used for the `mortar` command which makes block matrices
 
 # when X or Y are BlockArrays, this makes the return value be a proper array (not a BlockArray)
-function array_mul(X::AbastractArray{T}, Y) where T
+function array_mul(X::AbstractArray{T}, Y) where T
     Z = zeros(T, size(X, 1), size(Y, 2))
     mul!(Z, X, Y)
 end
