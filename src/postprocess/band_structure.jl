@@ -139,7 +139,8 @@ function prepare_band_data(band_data; datakeys=[:λ, :λerror],
     n_bands  = nothing
 
     # Convert coordinates to Cartesian
-    kcoords_cart = [basis.kpoints[ik].coordinate_cart for ik in krange_spin(basis, 1)]
+    kcoords_cart = [basis.model.recip_lattice * basis.kpoints[ik].coordinate
+                    for ik in krange_spin(basis, 1)]
     klabels_cart = Dict(lal => basis.model.recip_lattice * vec for (lal, vec) in klabels)
 
     # Split data into branches

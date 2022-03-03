@@ -19,7 +19,6 @@ struct Kpoint{T <: Real}
     spin::Int                     # Spin component can be 1 or 2 as index into what is
                                   # returned by the `spin_components` function
     coordinate::Vec3{T}           # Fractional coordinate of k-point
-    coordinate_cart::Vec3{T}      # Cartesian coordinate of k-point
     mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
                                   # G_vectors(basis)[kpt.mapping[i]] == G_vectors(basis, kpt)[i]
     mapping_inv::Dict{Int, Int}   # Inverse of `mapping`:
@@ -132,7 +131,7 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for iσ = 1:model.n_spin_components
             push!(kpoints_per_spin[iσ],
-                  Kpoint(iσ, k, model.recip_lattice * k, mapping, mapping_inv, Gvecs_k))
+                  Kpoint(iσ, k, mapping, mapping_inv, Gvecs_k))
         end
     end
 
