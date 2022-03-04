@@ -2,6 +2,15 @@ struct PairwisePotential
     V
     params
     max_radius
+    PairwisePotential(V, params, max_radius) = begin
+        # We sort the symbols in the keys
+        for (k, v) ∈ params
+            if k[1] > k[2]
+                params[(k[2], k[1])] = pop!(params, k)
+            end
+        end
+        new(V, params, max_radius)
+    end
 end
 function PairwisePotential(V, params; max_radius=100)
     PairwisePotential(V, params, max_radius)
@@ -107,7 +116,7 @@ function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; 
                 tj = positions[j]
                 ai = atom_types[i]
                 aj = atom_types[j]
-                param_ij = params[(ai, aj)]
+                param_ij = ai < aj ? params[(ai, aj)] : params[(aj, ai)]
 
                 Δr = lattice * (ti .- tj .- R)
                 dist = norm(Δr)
