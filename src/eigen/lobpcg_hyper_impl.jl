@@ -47,7 +47,7 @@ using BlockArrays # used for the `mortar` command which makes block matrices
 
 # when X or Y are BlockArrays, this makes the return value be a proper array (not a BlockArray)
 function array_mul(X::AbstractArray{T}, Y) where T
-    Z = zeros(T, size(X, 1), size(Y, 2))
+    Z = Array{T}(undef, size(X, 1), size(Y, 2))
     mul!(Z, X, Y)
 end
 
