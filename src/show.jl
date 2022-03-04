@@ -7,7 +7,7 @@
 function Base.show(io::IO, model::Model)
     nD = model.n_dim == 3 ? "" : "$(model.n_dim)D, "
     print(io, "Model(", model.model_name, ", ", nD,
-          "spin_polarization = ", model.spin_polarization, ")")
+          "spin_polarization = :", model.spin_polarization, ")")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", model::Model)
@@ -21,8 +21,7 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     if !isempty(model.atoms)
         println(io)
         showfieldln(io, "atoms", chemical_formula(model))
-        elements = first.(model.atoms)
-        for (i, el) in enumerate(elements)
+        for (i, el) in enumerate(model.atoms)
             header = i==1 ? "atom potentials" : ""
             showfieldln(io, header, el)
         end

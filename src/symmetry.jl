@@ -41,7 +41,9 @@
 Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
 function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
-    Ws, ws = spglib_get_symmetry(lattice, atoms, magnetic_moments; tol_symmetry)
+    @assert length(atoms) == length(positions)
+    atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
+    Ws, ws = spglib_get_symmetry(lattice, atom_groups, positions, magnetic_moments; tol_symmetry)
     [SymOp(W, w) for (W, w) in zip(Ws, ws)]
 end
 
@@ -102,6 +104,23 @@ function find_irreducible_kpoints(kcoords, symmetries)
     end
     kirreds, ksymops
 end
+
+
+@doc raw"""
+Apply various standardisations to a lattice and a list of atoms. It uses spglib to detect
+symmetries (within `tol_symmetry`), then cleans up the lattice according to the symmetries
+(unless `correct_symmetry` is `false`) and returns the resulting standard lattice
+and atoms. If `primitive` is `true` (default) the primitive unit cell is returned, else
+the conventional unit cell is returned.
+"""
+function standardize_atoms(lattice, atoms, positions, magnetic_moments=[]; kwargs...)
+    @assert length(atoms) == length(positions)
+    @assert isempty(magnetic_moments) || (length(atoms) == length(magnetic_moments))
+    atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
+    ret = spglib_standardize_cell(lattice, atom_groups, positions, magnetic_moments; kwargs...)
+    (; ret.lattice, atoms, ret.positions, ret.magnetic_moments)
+end
+
 
 """
 Apply a symmetry operation to eigenvectors `ψk` at a given `kpoint` to obtain an

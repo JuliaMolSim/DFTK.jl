@@ -130,15 +130,6 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
 end
 
 
-@doc raw"""
-Apply various standardisations to a lattice and a list of atoms. It uses spglib to detect
-symmetries (within `tol_symmetry`), then cleans up the lattice according to the symmetries
-(unless `correct_symmetry` is `false`) and returns the resulting standard lattice
-and atoms. If `primitive` is `true` (default) the primitive unit cell is returned, else
-the conventional unit cell is returned.
-"""
-const standardize_atoms = spglib_standardize_cell
-
 # TODO Maybe maximal spacing is actually a better name as the kpoints are spaced
 #      at most that far apart
 @doc raw"""

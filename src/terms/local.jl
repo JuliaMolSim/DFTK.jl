@@ -58,8 +58,8 @@ end
 
 ## Atomic local potential
 
-struct TermAtomicLocal <: TermLocalPotential
-    potential_values::AbstractArray
+struct TermAtomicLocal{AT} <: TermLocalPotential
+    potential_values::AT
 end
 
 """
@@ -74,20 +74,19 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i Gr}
 
-    pot_fourier = zeros(Complex{T}, basis.fft_size)
-    for (iG, G) in enumerate(G_vectors(basis))
-        pot = zero(T)
-        for (elem, positions) in model.atoms
-            form_factor::T = local_potential_fourier(elem, norm(model.recip_lattice * G))
-            for r in positions
-                pot += cis(-2T(π) * dot(G, r)) * form_factor
-            end
+    pot_fourier = map(G_vectors(basis)) do G
+        pot = sum(model.atom_groups) do group
+            element = model.atoms[first(group)]
+            form_factor::T = local_potential_fourier(element, norm(model.recip_lattice * G))
+            structure_factor = sum(cis(-2T(π) * dot(G, r))
+                                   for r in @view model.positions[group])
+            form_factor * structure_factor
         end
-        pot_fourier[iG] = pot / sqrt(model.unit_cell_volume)
+        pot / sqrt(model.unit_cell_volume)
     end
 
     pot_real = G_to_r(basis, pot_fourier)
-    TermAtomicLocal(real(pot_real))
+    TermAtomicLocal(pot_real)
 end
 
 @timing "forces: local" function compute_forces(::TermAtomicLocal,
