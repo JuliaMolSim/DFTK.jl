@@ -39,11 +39,14 @@ include("testcases.jl")
 
 
     # Now we have a reasonable set of ψ, we make up a crazy model, and check the energies
+    V(x, p) = 4*p.ε * ((p.σ/x)^12 - (p.σ/x)^6)
+    params = Dict( (:Si, :Si) => (; ε=1e5, σ=0.5) )
     model = model_DFT(silicon.lattice, silicon.atoms, [:gga_x_pbe, :gga_c_pbe];
                       extra_terms=[ExternalFromReal(X -> cos(1.2 * (X[1] + X[3]))),
                                    ExternalFromFourier(X -> cos(1.3 * (X[1] + X[3]))),
                                    LocalNonlinearity(ρ -> 1.2 * ρ^2.4),
-                                   Magnetic(X -> [1, cos(1.4 * X[2]), exp(X[3])])],
+                                   Magnetic(X -> [1, cos(1.4 * X[2]), exp(X[3])]),
+                                   PairwisePotential(V, params)],
                       )
     basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size)
     E, H = energy_hamiltonian(basis, res.X, occupation; ρ)
@@ -58,6 +61,7 @@ include("testcases.jl")
     @test E["ExternalFromReal"]    ≈ -0.01756831422361496 atol=5e-8
     @test E["ExternalFromFourier"] ≈  0.06493077052321815 atol=5e-8
     @test E["LocalNonlinearity"]   ≈  0.14685350034704006 atol=5e-8
+    @test E["PairwisePotential"]   ≈ -4.1511598946254615  atol=5e-8
 
     # TODO This is not really a test ... and it does not really work stably.
     # @test E["Magnetic"]            ≈  1.99901120545585e-7 atol=5e-8

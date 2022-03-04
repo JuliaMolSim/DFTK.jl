@@ -74,6 +74,8 @@ function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
     energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions; η, forces)
 end
 
+# This could be factorised with Pairwise, but its use of `atom_types` would slow down this
+# computationally intensive Ewald sums. So we leave it as it for now.
 function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, forces=nothing)
     T = eltype(lattice)
     @assert T == eltype(recip_lattice)
@@ -165,15 +167,13 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
         # Loop over R vectors for this shell patch
         for R in shell_indices(rsh)
             for i = 1:length(positions), j = 1:length(positions)
+                # Avoid self-interaction
+                rsh == 0 && i == j && continue
+
                 ti = positions[i]
                 Zi = charges[i]
                 tj = positions[j]
                 Zj = charges[j]
-
-                # Avoid self-interaction
-                if rsh == 0 && ti == tj
-                    continue
-                end
 
                 Δr = lattice * (ti - tj - R)
                 dist = norm(Δr)

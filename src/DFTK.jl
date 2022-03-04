@@ -84,6 +84,7 @@ export Ewald
 export PspCorrection
 export Entropy
 export Magnetic
+export PairwisePotential
 export Anyonic
 export apply_kernel
 export compute_kernel
