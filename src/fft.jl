@@ -7,7 +7,7 @@ import FFTW
 
 # For densities and potentials defined on the cubic basis set, r_to_G/G_to_r
 # do a simple FFT/IFFT from the cubic basis set to the real-space grid.
-# These function do not take a k-point as input
+# These functions do not take a k-point as input
 
 # For orbitals, G_to_r converts the orbitals defined on a spherical
 # basis set to the cubic basis set using zero padding, then performs
