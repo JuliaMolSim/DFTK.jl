@@ -66,7 +66,7 @@ In-place version of `r_to_G!`.
 NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
 """
 function r_to_G!(f_fourier::AbstractArray3, basis::PlaneWaveBasis, f_real::AbstractArray3)
-    if isreal(f_real)
+    if eltype(f_real) <: Real
         f_real = complex.(f_real)
     end
     mul!(f_fourier, basis.opFFT, f_real)
