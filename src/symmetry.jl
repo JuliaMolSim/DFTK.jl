@@ -118,7 +118,7 @@ function find_irreducible_kpoints(kcoords, Ws, ws)
 
             if !isnothing(isym)  # Found a reducible k-point
                 kcoords_mapped[jk] = true
-                push!(thisk_symops, SymOp(Ws[isym], w[isym]))
+                push!(thisk_symops, SymOp(Ws[isym], ws[isym]))
             end
         end  # jk
 
@@ -176,7 +176,7 @@ function apply_ksymop(ksymop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
 end
 
 """
-Apply a `k`-point symmetry operation (the tuple (S, τ)) to a partial density.
+Apply a symmetry operation to a density.
 """
 function apply_ksymop(symop::SymOp, basis, ρin)
     symop == one(SymOp) && return ρin
