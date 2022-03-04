@@ -3,12 +3,7 @@ struct PairwisePotential
     params
     max_radius
     PairwisePotential(V, params, max_radius) = begin
-        # We sort the symbols in the keys
-        for (k, v) ∈ params
-            if k[1] > k[2]
-                params[(k[2], k[1])] = pop!(params, k)
-            end
-        end
+        params = Dict(minmax(key[1], key[2]) => value for (key, value) in params)
         new(V, params, max_radius)
     end
 end
@@ -114,9 +109,8 @@ function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; 
 
                 ti = positions[i]
                 tj = positions[j]
-                ai = atom_types[i]
-                aj = atom_types[j]
-                param_ij = ai < aj ? params[(ai, aj)] : params[(aj, ai)]
+                ai, aj = minmax(atom_types[i], atom_types[j])
+                param_ij =params[(ai, aj)]
 
                 Δr = lattice * (ti .- tj .- R)
                 dist = norm(Δr)
