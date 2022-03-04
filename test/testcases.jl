@@ -1,7 +1,11 @@
 using DFTK: SymOp
 using LinearAlgebra
 
-symop_from_Sτ(Sτ::Tuple) = symop_from_Sτ(Sτ...)
+function symop_from_Sτ(Sτ::Tuple)
+    W = Sτ[1]'
+    w = -W*Sτ[2]
+    SymOp(W, w)
+end
 
 silicon = (
     lattice = [0.0  5.131570667152971 5.131570667152971;
