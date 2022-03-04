@@ -8,10 +8,9 @@ using Random
     lattice = a .* [0 1 1; 1 0 1; 1 1 0]
     # perturb positions away from equilibrium to get nonzero force
     positions = [ones(3)/8+rand(3)/20, -ones(3)/8]
-    charges = [:Si, :Si]
-    atom_types = map(x -> ElementCoulomb(x).symbol, charges)
+    atom_types = [:Si, :Si]
     V(x, p) = 4*p.ε * ((p.σ/x)^12 - (p.σ/x)^6)
-    params = Dict((atom_types[1], atom_types[1]) => (; ε=1, σ=2))
+    params = Dict((:Si, :Si) => (; ε=1, σ=2))
     term = PairwisePotential(V, params)
 
     atoms = [ElementCoulomb(:Si) => positions]

@@ -74,6 +74,8 @@ function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
     energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions; η, forces)
 end
 
+# This could be factorised with Pairwise, but its use of `atom_types` would slow down this
+# computationally intensive Ewald sums. So we leave it as it for now.
 function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, forces=nothing)
     T = eltype(lattice)
     @assert T == eltype(recip_lattice)
