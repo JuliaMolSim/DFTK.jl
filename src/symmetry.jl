@@ -50,7 +50,7 @@ function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=S
     for isym = 1:length(Ws)
         S = Ws[isym]'                  # in fractional reciprocal coordinates
         τ = -Ws[isym] \ ws[isym]  # in fractional real-space coordinates
-        push!(symmetries, SymOp(S, τ))
+        push!(symmetries, SymOp(Ws[isym], ws[isym]))
     end
     unique(symmetries)
 end
@@ -118,9 +118,7 @@ function find_irreducible_kpoints(kcoords, Ws, ws)
 
             if !isnothing(isym)  # Found a reducible k-point
                 kcoords_mapped[jk] = true
-                S = Ws[isym]'                  # in fractional reciprocal coordinates
-                τ = -Ws[isym] \ ws[isym]  # in fractional real-space coordinates
-                push!(thisk_symops, SymOp(S, τ))
+                push!(thisk_symops, SymOp(Ws[isym], w[isym]))
             end
         end  # jk
 
@@ -250,8 +248,7 @@ function symmetrize_stresses(model::Model, stresses; symmetries)
     # see (A.28) of https://arxiv.org/pdf/0906.2569.pdf
     stresses_symmetrized = zero(stresses)
     for symop in symmetries
-        W, _ = get_Ww(symop) # in reduced coordinates
-        W_cart = matrix_red_to_cart(model, W)
+        W_cart = matrix_red_to_cart(model, symop.W)
         stresses_symmetrized += W_cart * stresses / W_cart
     end
     stresses_symmetrized /= length(symmetries)
@@ -270,7 +267,7 @@ function symmetrize_forces(model::Model, forces; symmetries)
     symmetrized_forces = zero.(forces)
     for (iel, (element, positions)) in enumerate(atoms)
         for symop in symmetries
-            W, w = get_Ww(symop)
+            W = symop.W; w = symop.w
             for (iat, at) in enumerate(positions)
                 # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
                 # (but careful that our symmetries are r -> Wr+w, not R(r+f))
