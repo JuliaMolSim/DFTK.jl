@@ -62,13 +62,13 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     # Filter those symmetry operations (S,τ) that preserve the MP grid
     symmetries = symmetries_preserving_kgrid(symmetries, kpoints_mp)
 
+    is_time_reversal = any(symop -> symop.θ, symmetries)
+
     # Give the remaining symmetries to spglib to compute an irreducible k-point mesh
-    # TODO implement time-reversal symmetry and turn the flag to true
     is_shift = Int.(2 * kshift)
-    Ws = [symop.W for symop in symmetries]
+    Ws = unique([symop.W for symop in symmetries])
     _, mapping, grid = spglib_get_stabilized_reciprocal_mesh(
-        kgrid_size, Ws, is_shift=is_shift, is_time_reversal=false
-    )
+        kgrid_size, Ws; is_shift, is_time_reversal)
     # Convert irreducible k-points to DFTK conventions
     kgrid_size = Vec3{Int}(kgrid_size)
     kirreds = [(kshift .+ grid[ik + 1]) .// kgrid_size

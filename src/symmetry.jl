@@ -38,12 +38,17 @@
 # See https://juliamolsim.github.io/DFTK.jl/stable/advanced/symmetries for details.
 
 @doc raw"""
-Return the ``k``-point symmetry operations associated to a lattice and atoms.
+Return the symmetry operations associated to a lattice and atoms.
 """
-function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
+function symmetry_operations(lattice, atoms, magnetic_moments=[];
+                             is_time_reversal=true, tol_symmetry=SYMMETRY_TOLERANCE)
     Ws, ws = spglib_get_symmetry(lattice, atoms, magnetic_moments; tol_symmetry)
-    symmetries = [SymOp(W, w) for (W, w) in zip(Ws, ws)]
-    unique(symmetries)
+    symmetries = unique([SymOp(W, w) for (W, w) in zip(Ws, ws)])
+    if is_time_reversal
+        symmetries = vcat(symmetries,
+                          [SymOp(symop.W, symop.τ, true) for symop in symmetries])
+    end
+    symmetries
 end
 
 """
