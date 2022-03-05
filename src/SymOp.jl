@@ -56,7 +56,7 @@ function Base.:*(op1, op2)
     w = op1.w + op1.W * op2.w
     SymOp(W, w, xor(op1.θ, op2.θ))
 end
-Base.inv(op) = SymOp(inv(op.W), -op.W\op.w, !op.θ)
+Base.inv(op) = SymOp(inv(op.W), -op.W\op.w, op.θ)
 
 function check_group(symops::Vector; kwargs...)
     is_approx_in_symops(s1) = any(s -> isapprox(s, s1; kwargs...), symops)

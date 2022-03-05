@@ -27,10 +27,10 @@ function _is_well_conditioned(A::AbstractArray{<:Interval}; kwargs...)
 end
 
 function symmetry_operations(lattice::AbstractMatrix{<:Interval}, atoms, magnetic_moments=[];
-                             tol_symmetry=max(SYMMETRY_TOLERANCE, maximum(radius, lattice)))
+                             is_time_reversal=false, tol_symmetry=max(SYMMETRY_TOLERANCE, maximum(radius, lattice)))
     @assert tol_symmetry < 1e-2
     symmetry_operations(IntervalArithmetic.mid.(lattice), atoms, magnetic_moments;
-                        tol_symmetry)
+                        is_time_reversal, tol_symmetry)
 end
 
 function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <: Interval}
