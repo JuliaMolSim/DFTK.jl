@@ -44,14 +44,8 @@
 Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
 function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
-    symmetries = []
-    # Get symmetries from spglib
     Ws, ws = spglib_get_symmetry(lattice, atoms, magnetic_moments; tol_symmetry)
-    for isym = 1:length(Ws)
-        S = Ws[isym]'                  # in fractional reciprocal coordinates
-        τ = -Ws[isym] \ ws[isym]  # in fractional real-space coordinates
-        push!(symmetries, SymOp(S, τ))
-    end
+    symmetries = [SymOp(W, w) for (W, w) in zip(Ws, ws)]
     unique(symmetries)
 end
 
@@ -118,9 +112,7 @@ function find_irreducible_kpoints(kcoords, Ws, ws)
 
             if !isnothing(isym)  # Found a reducible k-point
                 kcoords_mapped[jk] = true
-                S = Ws[isym]'                  # in fractional reciprocal coordinates
-                τ = -Ws[isym] \ ws[isym]  # in fractional real-space coordinates
-                push!(thisk_symops, SymOp(S, τ))
+                push!(thisk_symops, SymOp(Ws[isym], ws[isym]))
             end
         end  # jk
 
@@ -178,7 +170,7 @@ function apply_ksymop(ksymop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
 end
 
 """
-Apply a `k`-point symmetry operation (the tuple (S, τ)) to a partial density.
+Apply a symmetry operation to a density.
 """
 function apply_ksymop(symop::SymOp, basis, ρin)
     symop == one(SymOp) && return ρin
@@ -250,8 +242,7 @@ function symmetrize_stresses(model::Model, stresses; symmetries)
     # see (A.28) of https://arxiv.org/pdf/0906.2569.pdf
     stresses_symmetrized = zero(stresses)
     for symop in symmetries
-        W, _ = get_Ww(symop) # in reduced coordinates
-        W_cart = matrix_red_to_cart(model, W)
+        W_cart = matrix_red_to_cart(model, symop.W)
         stresses_symmetrized += W_cart * stresses / W_cart
     end
     stresses_symmetrized /= length(symmetries)
@@ -270,7 +261,7 @@ function symmetrize_forces(model::Model, forces; symmetries)
     symmetrized_forces = zero.(forces)
     for (iel, (element, positions)) in enumerate(atoms)
         for symop in symmetries
-            W, w = get_Ww(symop)
+            W, w = symop.W, symop.w
             for (iat, at) in enumerate(positions)
                 # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
                 # (but careful that our symmetries are r -> Wr+w, not R(r+f))

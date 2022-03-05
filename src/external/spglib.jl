@@ -106,16 +106,14 @@ end
     # loss of precision if we are currently working in more than Float64
     # TODO reconstruct w in more precision
 
-    # Checks: (A W A^{-1}) is unitary
-    for W in Ws
-        Scart = lattice * W * inv(lattice)  # Form S in cartesian coords
-        if maximum(abs, Scart'Scart - I) > tol_symmetry
-            error("spglib returned bad symmetries: Non-unitary rotation matrix.")
-        end
-    end
-
     # Check (W, w) maps atoms to equivalent atoms in the lattice
     for (W, w) in zip(Ws, ws)
+        # Check (A W A^{-1}) is orthogonal
+        Wcart = lattice * W / lattice
+        if maximum(abs, Wcart'Wcart - I) > tol_symmetry
+            error("spglib returned bad symmetries: Non-orthogonal rotation matrix.")
+        end
+
         for (elem, positions) in atoms
             for coord in positions
                 # If all elements of a difference in diffs is integer, then
