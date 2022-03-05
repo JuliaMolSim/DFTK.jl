@@ -1,5 +1,5 @@
 import SpecialFunctions: erfc
-import IntervalArithmetic: Interval, mid
+const Interval = IntervalArithmetic.Interval
 
 # Monkey-patch a few functions for Intervals
 # ... this is far from proper and a bit specific for our use case here
@@ -14,7 +14,7 @@ function compute_Glims_fast(lattice::AbstractMatrix{<:Interval}, args...; kwargs
     # In this case we just want a reasonable number for Gmax,
     # so replacing the intervals in the lattice with
     # their midpoints should be good.
-    compute_Glims_fast(mid.(lattice), args...; kwargs...)
+    compute_Glims_fast(IntervalArithmetic.mid.(lattice), args...; kwargs...)
 end
 function compute_Glims_precise(::AbstractMatrix{<:Interval}, args...; kwargs...)
     error("fft_size_algorithm :precise not supported with intervals")
@@ -23,18 +23,19 @@ end
 function _is_well_conditioned(A::AbstractArray{<:Interval}; kwargs...)
     # This check is used during the lattice setup, where it frequently fails with intervals
     # (because doing an SVD with intervals leads to a large overestimation of the rounding error)
-    _is_well_conditioned(mid.(A); kwargs...)
+    _is_well_conditioned(IntervalArithmetic.mid.(A); kwargs...)
 end
 
 function symmetry_operations(lattice::AbstractMatrix{<:Interval}, atoms, magnetic_moments=[];
-                             tol_symmetry=max(1e-5, maximum(radius, lattice)))
+                             tol_symmetry=max(SYMMETRY_TOLERANCE, maximum(radius, lattice)))
     @assert tol_symmetry < 1e-2
-    symmetry_operations(mid.(lattice), atoms, magnetic_moments; tol_symmetry)
+    symmetry_operations(IntervalArithmetic.mid.(lattice), atoms, magnetic_moments;
+                        tol_symmetry)
 end
 
 function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <: Interval}
     lor = round(q.lo, digits=5)
     hir = round(q.hi, digits=5)
     @assert iszero(round(lor - hir, digits=3))
-    T(local_potential_fourier(el, mid(q)))
+    T(local_potential_fourier(el, IntervalArithmetic.mid(q)))
 end
