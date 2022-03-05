@@ -44,14 +44,8 @@
 Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
 function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
-    symmetries = []
-    # Get symmetries from spglib
     Ws, ws = spglib_get_symmetry(lattice, atoms, magnetic_moments; tol_symmetry)
-    for isym = 1:length(Ws)
-        S = Ws[isym]'                  # in fractional reciprocal coordinates
-        τ = -Ws[isym] \ ws[isym]  # in fractional real-space coordinates
-        push!(symmetries, SymOp(Ws[isym], ws[isym]))
-    end
+    symmetries = [SymOp(W, w) for (W, w) in zip(Ws, ws)]
     unique(symmetries)
 end
 
@@ -267,7 +261,7 @@ function symmetrize_forces(model::Model, forces; symmetries)
     symmetrized_forces = zero.(forces)
     for (iel, (element, positions)) in enumerate(atoms)
         for symop in symmetries
-            W = symop.W; w = symop.w
+            W, w = symop.W, symop.w
             for (iat, at) in enumerate(positions)
                 # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
                 # (but careful that our symmetries are r -> Wr+w, not R(r+f))

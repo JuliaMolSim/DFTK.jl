@@ -19,20 +19,18 @@
 # Tolerance to consider two atomic positions as equal (in relative coordinates)
 const SYMMETRY_TOLERANCE = 1e-5
 
-# Represents a symmetry (W,w)
 struct SymOp{T <: Real}
     W::Mat3{Int}
     w::Vec3{T}
+
+    S::Mat3{Int}
+    τ::Vec3{T}
     function SymOp(W, w)
         w = mod.(w, 1)
-        new{eltype(w)}(W, w)
+        S = symop.W'
+        τ = -symop.W \symop.w
+        new{eltype(τ)}(W, w, S, τ)
     end
-end
-Base.propertynames(symop::SymOp, private::Bool=false) = ("W", "w", "S", "τ")
-function Base.getproperty(symop::SymOp, name::Symbol)
-    name == :S && return symop.W'
-    name == :τ && return -symop.W \symop.w
-    getfield(symop, name)
 end
 
 Base.:(==)(op1::SymOp, op2::SymOp) = op1.W == op2.W && op1.w == op2.w
