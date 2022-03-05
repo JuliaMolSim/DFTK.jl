@@ -94,7 +94,7 @@ function Model(lattice::AbstractMatrix{T};
                temperature=T(0.0),
                smearing=nothing,
                spin_polarization=default_spin_polarization(magnetic_moments),
-               symmetries=default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization),
+               symmetries=true,
                ) where {T <: Real}
     lattice = Mat3{T}(lattice)
     temperature = T(austrip(temperature))
@@ -181,7 +181,7 @@ end
 Default logic to determine the symmetry operations to be used in the model.
 """
 function default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization;
-                        tol_symmetry=1e-5)
+                        tol_symmetry=SYMMETRY_TOLERANCE)
     dimension = count(!iszero, eachcol(lattice))
     if spin_polarization == :full || dimension != 3
         return [one(SymOp)]  # Symmetry not supported in spglib
@@ -193,8 +193,9 @@ function default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polari
     else
         magnetic_moments = [el => normalize_magnetic_moment.(magmoms)
                             for (el, magmoms) in magnetic_moments]
-        return symmetry_operations(lattice, atoms, magnetic_moments,
-                                   tol_symmetry=tol_symmetry)
+        is_time_reversal = !any(breaks_time_reversal, terms)
+        return symmetry_operations(lattice, atoms, magnetic_moments;
+                                   is_time_reversal, tol_symmetry)
     end
 end
 

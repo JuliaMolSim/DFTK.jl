@@ -32,9 +32,11 @@ end
 include("Hamiltonian.jl")
 
 # breaks_symmetries on a term builder answers true if this term breaks
-# the symmetries of the lattice/atoms (in which case k-point reduction
-# is invalid)
+# the geometrical symmetries of the lattice/atoms (in which case k-point
+# reduction is invalid)
 breaks_symmetries(::Any) = false
+# answers true if the term breaks the time-reversal symmetry
+breaks_time_reversal(::Any) = false
 
 include("kinetic.jl")
 
@@ -53,9 +55,11 @@ include("pairwise.jl")
 
 include("magnetic.jl")
 breaks_symmetries(::Magnetic) = true
+breaks_time_reversal(::Magnetic) = true
 
 include("anyonic.jl")
 breaks_symmetries(::Anyonic) = true
+breaks_time_reversal(::Anyonic) = true
 
 # forces computes either nothing or an array forces[el][at][α]
 compute_forces(::Term, ::AbstractBasis, ψ, occ; kwargs...) = nothing  # by default, no force

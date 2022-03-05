@@ -93,7 +93,7 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
     #                                       respective rank in comm_kpts
 
     # Symmetry operations that leave the reducible Brillouin zone invariant.
-    # Subset of model.symmetries, and superset of all the ksymops.
+    # Subset of model.symmetries.
     # Nearly all computations will be done inside this symmetry group;
     # the exception is inexact operations on the FFT grid (ie xc),
     # which doesn't respect the symmetry
@@ -240,7 +240,7 @@ end
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops,
                                 symmetries=symmetries_preserving_kgrid(model.symmetries,
-                                                                       kcoords, ksymops);
+                                                                       unfold_kcoords(kcoords, vcat(ksymops...)));
                                 fft_size=nothing, variational=true,
                                 fft_size_algorithm=:fast, supersampling=2,
                                 kgrid=nothing, kshift=nothing,
@@ -276,7 +276,8 @@ Creates a new basis identical to `basis`, but with a custom set of kpoints
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
                                 ksymops::AbstractVector)
     kgrid = kshift = nothing
-    symmetries = symmetries_preserving_kgrid(basis.model.symmetries, kcoords, ksymops)
+    symmetries = symmetries_preserving_kgrid(basis.model.symmetries,
+                                             unfold_kcoords(kcoords, basis.model.symmetries))
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
                    kcoords, ksymops, kgrid, kshift,
