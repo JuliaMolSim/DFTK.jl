@@ -174,7 +174,6 @@ export compute_stresses_cart
 include("postprocess/stresses.jl")
 export compute_dos
 export compute_ldos
-export compute_nos
 export plot_dos
 include("postprocess/dos.jl")
 export compute_χ0

@@ -30,8 +30,8 @@ struct SymOp{T <: Real}
 
     function SymOp(W, w)
         w = mod.(w, 1)
-        S = symop.W'
-        τ = -symop.W \symop.w
+        S = W'
+        τ = -W \w
         new{eltype(τ)}(W, w, S, τ)
     end
 end

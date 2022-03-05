@@ -73,7 +73,6 @@ function test_chi0(testcase; symmetry=false, temperature=0,
 
         # just to cover it here
         if temperature > 0
-            N = compute_nos(εF, basis, res.eigenvalues)
             D = compute_dos(εF, basis, res.eigenvalues)
             LDOS = compute_ldos(εF, basis, res.eigenvalues, res.ψ)
         end

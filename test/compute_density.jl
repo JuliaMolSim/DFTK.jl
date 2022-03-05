@@ -107,7 +107,7 @@ if mpi_nprocs() == 1  # not easy to distribute
             for (ik, k) in enumerate(kcoords)
                 Hk_ir = ham_ir.blocks[ik]
                 for symop in ksymops[ik]
-                    Skpoint, ψSk = DFTK.apply_ksymop(symop, ham_ir.basis, Hk_ir.kpoint, ψ_ir[ik])
+                    Skpoint, ψSk = DFTK.apply_symop(symop, ham_ir.basis, Hk_ir.kpoint, ψ_ir[ik])
 
                     ikfull = findfirst(1:length(kfull)) do idx
                         all(isinteger, round.(kfull[idx] - Skpoint.coordinate, digits=10))
