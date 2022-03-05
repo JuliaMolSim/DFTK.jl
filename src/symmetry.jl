@@ -43,7 +43,7 @@ Return the symmetry operations associated to a lattice and atoms.
 function symmetry_operations(lattice, atoms, magnetic_moments=[];
                              is_time_reversal=true, tol_symmetry=SYMMETRY_TOLERANCE)
     Ws, ws = spglib_get_symmetry(lattice, atoms, magnetic_moments; tol_symmetry)
-    symmetries = unique([SymOp(W, w) for (W, w) in zip(Ws, ws)])
+    symmetries = ([SymOp(W, w) for (W, w) in zip(Ws, ws)])
     if is_time_reversal
         symmetries = vcat(symmetries,
                           [SymOp(symop.W, symop.τ, true) for symop in symmetries])
@@ -339,11 +339,8 @@ function unfold_bz(scfres)
 end
 
 function unfold_kcoords(kcoords, symmetries)
-    all_kcoords = eltype(kcoords)[]
-    for ik = 1:length(kcoords)
-        for symop in symmetries
-            push!(all_kcoords, symop.S * kcoords[ik])
-        end
-    end
-    unique(normalize_kpoint_coordinate.(all_kcoords))
+    all_kcoords = [symop.S * kcoord for kcoord in kcoords, symop in symmetries]
+    # the above multiplications introduce an error
+    unique(k -> normalize_kpoint_coordinate(round.(k; digits=ceil(Int, -log10(SYMMETRY_TOLERANCE)))),
+           normalize_kpoint_coordinate.(all_kcoords))
 end
