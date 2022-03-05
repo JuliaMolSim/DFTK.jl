@@ -20,11 +20,14 @@
 const SYMMETRY_TOLERANCE = 1e-5
 
 struct SymOp{T <: Real}
+    # (Uu)(x) = u(W x + w) in real space
     W::Mat3{Int}
     w::Vec3{T}
 
+    # (Uu)(G) = e^{-i G τ} u(S^-1 G) in reciprocal space
     S::Mat3{Int}
     τ::Vec3{T}
+
     function SymOp(W, w)
         w = mod.(w, 1)
         S = symop.W'
