@@ -65,7 +65,7 @@ end
 Implements a primitive search to find an irreducible subset of kpoints
 amongst the provided kpoints.
 """
-function find_irreducible_kpoints(kcoords, Ws, ws)
+function find_irreducible_kpoints(kcoords, symmetries)
     # This function is required because spglib sometimes flags kpoints
     # as reducible, where we cannot find a symmetry operation to
     # generate them from the provided irreducible kpoints. This
@@ -86,16 +86,16 @@ function find_irreducible_kpoints(kcoords, Ws, ws)
         kcoords_mapped[ik] = true
 
         for jk in findall(.!kcoords_mapped)
-            isym = findfirst(1:length(Ws)) do isym
-                # If the difference between kred and W' * k == W^{-1} * k
+            isym = findfirst(1:length(symmetries)) do isym
+                # If the difference between kred and S*k
                 # is only integer in fractional reciprocal-space coordinates, then
-                # kred and S' * k are equivalent k-points
-                all(isinteger, kcoords[jk] - (Ws[isym]' * kcoords[ik]))
+                # kred and S * k are equivalent k-points
+                all(isinteger, kcoords[jk] - (symmetries[isym].S * kcoords[ik]))
             end
 
             if !isnothing(isym)  # Found a reducible k-point
                 kcoords_mapped[jk] = true
-                push!(thisk_symops, SymOp(Ws[isym], ws[isym]))
+                push!(thisk_symops, symmetries[isym])
             end
         end  # jk
 
