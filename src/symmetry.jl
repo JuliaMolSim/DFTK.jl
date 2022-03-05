@@ -41,12 +41,12 @@
 Return the symmetry operations associated to a lattice and atoms.
 """
 function symmetry_operations(lattice, atoms, magnetic_moments=[];
-                             is_time_reversal=true, tol_symmetry=SYMMETRY_TOLERANCE)
+                             is_time_reversal=false, tol_symmetry=SYMMETRY_TOLERANCE)
     Ws, ws = spglib_get_symmetry(lattice, atoms, magnetic_moments; tol_symmetry)
     symmetries = ([SymOp(W, w) for (W, w) in zip(Ws, ws)])
     if is_time_reversal
         symmetries = vcat(symmetries,
-                          [SymOp(symop.W, symop.τ, true) for symop in symmetries])
+                          [SymOp(symop.W, symop.w, true) for symop in symmetries])
     end
     symmetries
 end
@@ -190,7 +190,8 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             igired = index_G_vectors(basis, invS * G)
             if igired !== nothing
-                @inbounds ρaccu[ig] += cis(-2T(π) * T(dot(G, symop.τ))) * ρin[igired]
+                @inbounds ρaccu[ig] += cis(-2T(π) * T(dot(G, symop.τ))) *
+                                       (symop.θ ? conj(ρin[igired]) : ρin[igired])
             end
         end
     end  # symop

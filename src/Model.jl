@@ -94,7 +94,7 @@ function Model(lattice::AbstractMatrix{T};
                temperature=T(0.0),
                smearing=nothing,
                spin_polarization=default_spin_polarization(magnetic_moments),
-               symmetries=default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization),
+               symmetries=true,
                ) where {T <: Real}
     lattice = Mat3{T}(lattice)
     temperature = T(austrip(temperature))
