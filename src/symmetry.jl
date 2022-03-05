@@ -110,7 +110,7 @@ equivalent point in [-0.5, 0.5)^3 and associated eigenvectors (expressed in the
 basis of the new ``k``-point).
 """
 function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
-    S, τ = symop.S, symop.τ
+    S, τ, θ= symop.S, symop.τ, symop.θ
     symop == one(SymOp) && return kpoint, ψk
 
     # Apply S and reduce coordinates to interval [-0.5, 0.5)
@@ -145,7 +145,8 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
         for (ig, G_full) in enumerate(Gs_full)
             igired = index_G_vectors(basis, kpoint, invS * G_full)
             @assert igired !== nothing
-            ψSk[ig, iband] = cis(-2π * dot(G_full, τ)) * ψk[igired, iband]
+            ψSk[ig, iband] = cis(-2π * dot(G_full, τ)) * 
+                             (θ ? conj(ψk[igired, iband]) : ψk[igired, iband])
         end
     end
 
