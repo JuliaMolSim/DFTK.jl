@@ -240,7 +240,8 @@ end
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops,
                                 symmetries=symmetries_preserving_kgrid(model.symmetries,
-                                                                       unfold_kcoords(kcoords, vcat(ksymops...)));
+                                                                       unfold_kcoords(kcoords,
+                                                                                      model.symmetries));
                                 fft_size=nothing, variational=true,
                                 fft_size_algorithm=:fast, supersampling=2,
                                 kgrid=nothing, kshift=nothing,
