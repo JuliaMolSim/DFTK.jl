@@ -21,7 +21,7 @@ function next_density(ham::Hamiltonian;
     end
 
     # Diagonalize
-    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_ep_extra; guess=ψ,
+    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_ep_extra; ψguess=ψ,
                                      n_conv_check=n_bands, kwargs...)
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 

@@ -52,3 +52,7 @@ function unsafe_unpack_ψ(x, sizes_ψ)
     end
 end
 unpack_ψ(x, sizes_ψ) = deepcopy(unsafe_unpack_ψ(x, sizes_ψ))
+
+function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany) where {T}
+    ortho_qr(randn(Complex{T}, length(G_vectors(basis, kpt)), howmany))
+end

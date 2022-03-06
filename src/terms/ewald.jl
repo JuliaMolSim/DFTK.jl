@@ -90,6 +90,8 @@ function shell_indices(ish)
     [[i,j,k] for i in -ish:ish for j in -ish:ish for k in -ish:ish if maximum(abs.([i,j,k])) == ish]
 end
 
+# This could be factorised with Pairwise, but its use of `atom_types` would slow down this
+# computationally intensive Ewald sums. So we leave it as it for now.
 function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positions; η=nothing, forces=nothing) where {T}
     @assert T == eltype(recip_lattice)
     @assert length(charges) == length(positions)
@@ -172,15 +174,13 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
         # Loop over R vectors for this shell patch
         for R in shell_indices(rsh)
             for i = 1:length(positions), j = 1:length(positions)
+                # Avoid self-interaction
+                rsh == 0 && i == j && continue
+
                 ti = positions[i]
                 Zi = charges[i]
                 tj = positions[j]
                 Zj = charges[j]
-
-                # Avoid self-interaction
-                if rsh == 0 && ti == tj
-                    continue
-                end
 
                 Δr = lattice * (ti - tj - R)
                 dist = norm(Δr)
