@@ -31,7 +31,7 @@ The magnetic moments should be specified in units of ``μ_B``.
 function guess_density(basis::PlaneWaveBasis, magnetic_moments=[])
     guess_density(basis, basis.model.atoms, basis.model.positions, magnetic_moments)
 end
-@timing function guess_density(basis::PlaneWaveBasis, atoms, positions, magnetic_moments)
+@timing function guess_density(basis::PlaneWaveBasis, atoms, positions, magnetic_moments=[])
     ρtot = _guess_total_density(basis, atoms, positions)
     if basis.model.n_spin_components == 1
         ρspin = nothing
@@ -62,7 +62,7 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, positions, magneti
         @warn("Returning zero spin density guess, because no initial magnetization has " *
               "been specified in any of the given elements / atoms. Your SCF will likely " *
               "not converge to a spin-broken solution.")
-        return nothing
+        return zeros(T, basis.fft_size)
     end
 
     @assert length(magnetic_moments) == length(atoms) == length(positions)
@@ -72,7 +72,7 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, positions, magneti
             "Magnetic moment $(magmom[3]) too large for element $(atomic_symbol(atom)) " *
             "with only $(n_elec_valence(atom)) valence electrons."
         )
-        magmom[3], T(atom_decay_length(spec))::T, position
+        magmom[3], T(atom_decay_length(atom))::T, position
     end
     gaussian_superposition(basis, gaussians)
 end

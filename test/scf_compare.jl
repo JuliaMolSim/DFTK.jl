@@ -10,9 +10,8 @@ include("testcases.jl")
     fft_size = [9, 9, 9]
     tol = 1e-7
 
-    Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_DFT(silicon.lattice, [Si => silicon.positions], [:lda_xc_teter93])
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
 
     # Run nlsolve without guess
     ρ0 = zeros(basis.fft_size..., 1)
@@ -39,7 +38,7 @@ include("testcases.jl")
     end
 
     # Run other SCFs with SAD guess
-    ρ0 = guess_density(basis, [Si => silicon.positions])
+    ρ0 = guess_density(basis, silicon.atoms, silicon.positions)
     for solver in (scf_nlsolve_solver(), scf_damping_solver(1.2), scf_anderson_solver(),
                    scf_CROP_solver())
         @testset "Testing $solver" begin
@@ -73,11 +72,9 @@ end
     fft_size = [9, 9, 9]
     tol = 1e-7
 
-    Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-    magnetic_moments = [Si => [1, 1]]
-    model = model_DFT(silicon.lattice, [Si => silicon.positions], [:lda_xc_teter93];
-                      magnetic_moments=magnetic_moments)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    magnetic_moments = [1, 1]
+    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions; magnetic_moments)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
     ρ_nl = self_consistent_field(basis; tol=tol).ρ
 
     # Run DM
@@ -107,10 +104,9 @@ end
     fft_size = [9, 9, 9]
     tol = 1e-7
 
-    Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_DFT(silicon.lattice, [Si => silicon.positions], [:lda_xc_teter93],
+    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature=0.01, smearing=Smearing.Gaussian())
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
 
     # Reference: Default algorithm
     ρ0    = guess_density(basis)
@@ -131,17 +127,15 @@ end
     fft_size = [13, 13, 13]
     tol = 1e-7
 
-    Fe = ElementPsp(iron_bcc.atnum, psp=load_psp(iron_bcc.psp))
-    magnetic_moments = [Fe => [4.0]]
-    model = model_LDA(iron_bcc.lattice, [Fe => iron_bcc.positions],
-                      temperature=0.01, magnetic_moments=magnetic_moments,
-                      spin_polarization=:collinear)
+    magnetic_moments = [4.0]
+    model = model_LDA(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;
+                      temperature=0.01, magnetic_moments, spin_polarization=:collinear)
     basis = PlaneWaveBasis(model; Ecut=11, fft_size=fft_size, kgrid=[3, 3, 3])
 
     # Reference: Default algorithm
     ρ0     = guess_density(basis, magnetic_moments)
     scfres = self_consistent_field(basis, ρ=ρ0, tol=tol)
-    ρ_ref = scfres.ρ
+    ρ_ref  = scfres.ρ
 
     for mixing in (KerkerMixing(), KerkerDosMixing(), DielectricMixing(εr=10),
                    HybridMixing(εr=10), χ0Mixing(χ0terms=[Applyχ0Model()], RPA=false),)

@@ -51,7 +51,7 @@ silicon = (
     ]),
 )
 silicon = merge(silicon,
-                (; atoms=[ElementPsp(silicon.atnum, psp=load_psp(silicon.psp)) => silicon.positions]))
+                (; atoms=fill(ElementPsp(silicon.atnum, psp=load_psp(silicon.psp)), 2)))
 
 magnesium = (
     lattice = [-3.0179389205999998 -3.0179389205999998 0.0000000000000000;
@@ -99,7 +99,7 @@ magnesium = (
     ]),
 )
 magnesium = merge(magnesium,
-                  (; atoms=[ElementPsp(magnesium.atnum, psp=load_psp(silicon.psp)) => magnesium.positions]))
+                  (; atoms=fill(ElementPsp(magnesium.atnum, psp=load_psp(magnesium.psp)), 2)))
 
 
 aluminium = (
@@ -111,6 +111,8 @@ aluminium = (
     positions = [[0, 0, 0], [0, 1/2, 1/2], [1/8, 0, 1/2], [1/8, 1/2, 0]],
     temperature = 0.0009500431544769484,
 )
+aluminium = merge(aluminium,
+                  (; atoms=fill(ElementPsp(aluminium.atnum, psp=load_psp(aluminium.psp)), 4)))
 
 
 aluminium_primitive = (
@@ -135,6 +137,8 @@ platinum_hcp = (
     positions = [zeros(3), ones(3) / 3],
     temperature = 0.0009500431544769484,
 )
+platinum_hcp = merge(platinum_hcp,
+                     (; atoms=fill(ElementPsp(platinum_hcp.atnum, psp=load_psp(platinum_hcp.psp)), 2)))
 
 iron_bcc = (
     lattice = 2.71176 .* [[-1 1 1]; [1 -1  1]; [1 1 -1]],
@@ -144,6 +148,7 @@ iron_bcc = (
     positions = [zeros(3)],
     temperature = 0.01,
 )
+iron_bcc = merge(iron_bcc, (; atoms=[ElementPsp(iron_bcc.atnum, psp=load_psp(iron_bcc.psp))]))
 
 o2molecule = (
     lattice = diagm([6.5, 6.5, 9.0]),

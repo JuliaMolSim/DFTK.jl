@@ -5,19 +5,17 @@ import DFTK: filled_occupation, compute_projected_gradient
 
 include("testcases.jl")
 
-@testset "Newton" begin
+@testset "ΩplusK" begin
     Ecut = 3
     fft_size = [9, 9, 9]
-    Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_DFT(silicon.lattice, [Si => silicon.positions], [:lda_xc_teter93])
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
-    scfres_start = self_consistent_field(basis, maxiter=1)
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, [:lda_xc_teter93])
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
+    scfres_start = self_consistent_field(basis; tol=10)
 
     ψ, occupation = DFTK.select_occupied_orbitals(basis, scfres_start.ψ,
                                                   scfres_start.occupation)
 
     ρ = compute_density(basis, ψ, occupation)
-
     rhs = compute_projected_gradient(basis, ψ, occupation)
     ϕ = rhs + ψ
 

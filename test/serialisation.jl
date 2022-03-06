@@ -12,8 +12,8 @@ function test_scfres_agreement(tested, ref)
     @test tested.basis.model.symmetries        == ref.basis.model.symmetries
     @test tested.basis.model.spin_polarization == ref.basis.model.spin_polarization
 
-    @test length(tested.basis.model.atoms) == length(ref.basis.model.atoms)
-    @test tested.basis.model.atoms[1][2]   == ref.basis.model.atoms[1][2]
+    @test tested.basis.model.positions == ref.basis.model.positions
+    @test atomic_symbol.(tested.basis.model.atoms) == atomic_symbol.(ref.basis.model.atoms)
 
     @test tested.basis.Ecut      == ref.basis.Ecut
     @test tested.basis.kweights  == ref.basis.kweights
@@ -38,10 +38,9 @@ end
 
 @testset "Test checkpointing" begin
     O = ElementPsp(o2molecule.atnum, psp=load_psp("hgh/pbe/O-q6.hgh"))
-    magnetic_moments = [O => [1., 1.]]
-    model = model_PBE(o2molecule.lattice, [O => o2molecule.positions],
-                      temperature=0.02, smearing=smearing=Smearing.Gaussian(),
-                      magnetic_moments=magnetic_moments, symmetries=false)
+    model = model_PBE(o2molecule.lattice, [O, O], o2molecule.positions;
+                      temperature=0.02, smearing=Smearing.Gaussian(),
+                      magnetic_moments=[1., 1.], symmetries=false)
 
     kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
     basis  = PlaneWaveBasis(model; Ecut=4, kgrid=kgrid)
@@ -58,9 +57,8 @@ end
 end
 
 @testset "Test serialisation" begin
-    Si = ElementPsp(14, psp=load_psp(silicon.psp))
-    atoms = [Si => silicon.positions]
-    model = model_LDA(silicon.lattice, atoms, spin_polarization=:collinear, temperature=0.01)
+    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions;
+                      spin_polarization=:collinear, temperature=0.01)
     kgrid = [2, 3, 4]
     basis = PlaneWaveBasis(model; Ecut=5, kgrid=kgrid)
     scfres = self_consistent_field(basis)

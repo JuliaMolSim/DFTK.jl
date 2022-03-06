@@ -18,7 +18,7 @@ function PairwisePotential(V, params; max_radius=100)
     PairwisePotential(V, params, max_radius)
 end
 function (P::PairwisePotential)(basis::PlaneWaveBasis{T}) where {T}
-    E = energy_pairwise(basis.model, V, params; max_radius)
+    E = energy_pairwise(basis.model, P.V, P.params; P.max_radius)
     TermPairwisePotential(P.V, P.params, T(P.max_radius), E)
 end
 
@@ -37,7 +37,7 @@ end
                                                    basis::PlaneWaveBasis{T}, ψ, occ;
                                                    kwargs...) where {T}
     forces = zero(basis.model.positions)
-    energy_pairwise(basis.model, V, params; term.max_radius, forces)
+    energy_pairwise(basis.model, term.V, term.params; term.max_radius, forces)
     forces
 end
 
@@ -50,7 +50,7 @@ The potential is expected to decrease quickly at infinity.
 function energy_pairwise(model::Model{T}, V, params; kwargs...) where {T}
     isempty(model.atoms) && return zero(T)
     symbols = Symbol.(atomic_symbol.(model.atoms))
-    energy_pairwise(model.lattice, symbols, positions, V, params; kwargs...)
+    energy_pairwise(model.lattice, symbols, model.positions, V, params; kwargs...)
 end
 
 
