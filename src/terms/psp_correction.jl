@@ -4,8 +4,8 @@ Pseudopotential correction energy. TODO discuss the need for this.
 struct PspCorrection end
 (::PspCorrection)(basis) = TermPspCorrection(basis)
 
-struct TermPspCorrection <: Term
-    energy::Real  # precomputed energy
+struct TermPspCorrection{T} <: Term
+    energy::T  # precomputed energy
 end
 function TermPspCorrection(basis::PlaneWaveBasis)
     model = basis.model

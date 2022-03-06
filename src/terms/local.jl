@@ -78,9 +78,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
         pot = sum(model.atom_groups) do group
             element = model.atoms[first(group)]
             form_factor::T = local_potential_fourier(element, norm(model.recip_lattice * G))
-            structure_factor = sum(cis(-2T(π) * dot(G, r))
-                                   for r in @view model.positions[group])
-            form_factor * structure_factor
+            form_factor * sum(cis(-2T(π) * dot(G, r)) for r in @view model.positions[group])
         end
         pot / sqrt(model.unit_cell_volume)
     end

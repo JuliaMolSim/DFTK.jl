@@ -8,8 +8,8 @@ compensating charge yielding net neutrality.
 struct Ewald end
 (::Ewald)(basis) = TermEwald(basis)
 
-struct TermEwald <: Term
-    energy::Real  # precomputed energy
+struct TermEwald{T} <: Term
+    energy::T  # precomputed energy
 end
 function TermEwald(basis::PlaneWaveBasis{T}) where {T}
     TermEwald(T(energy_ewald(basis.model)))
@@ -39,16 +39,15 @@ end
     f
 end
 
-function energy_ewald(model::Model; kwargs...)
-    charges   = [charge_ionic(elem) for (elem, positions) in model.atoms for pos in positions]
-    positions = [pos for (_, positions) in model.atoms for pos in positions]
-    isempty(charges) && return zero(eltype(model.lattice))
+function energy_ewald(model::Model{T}; kwargs...) where {T}
+    isempty(model.atoms) && return zero(T)
 
     # DFTK currently assumes that the compensating charge in the electronic and nuclear
-    # terms is equal and of opposite sign. See also the PSP correction term, where n_electrons
-    # is used synonymously for sum of charges
+    # terms is equal and of opposite sign. See also the PSP correction term, where
+    # n_electrons is used synonymously for sum of charges
+    charges = T.(charge_ionic.(model.atoms))
     @assert sum(charges) == model.n_electrons
-    energy_ewald(model.lattice, charges, positions; kwargs...)
+    energy_ewald(model.lattice, charges, model.positions; kwargs...)
 end
 
 """

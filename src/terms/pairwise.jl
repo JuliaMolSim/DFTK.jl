@@ -2,22 +2,6 @@ struct PairwisePotential
     V
     params
     max_radius
-    PairwisePotential(V, params, max_radius) = begin
-        params = Dict(minmax(key[1], key[2]) => value for (key, value) in params)
-        new(V, params, max_radius)
-    end
-end
-function PairwisePotential(V, params; max_radius=100)
-    PairwisePotential(V, params, max_radius)
-end
-(P::PairwisePotential)(basis::AbstractBasis) = TermPairwisePotential(P.V, P.params,
-                                                                     P.max_radius, basis)
-
-struct TermPairwisePotential{TV, Tparams, T} <:Term
-    V::TV
-    params::Tparams
-    max_radius::T
-    energy::Real
 end
 
 @doc raw"""
@@ -29,9 +13,20 @@ For a distance `d` between to atoms `A` and `B`, the potential is `V(d, params[(
 The parameters `max_radius` is of `100` by default, and gives the maximum (reduced) distance
 between nuclei for which we consider interactions.
 """
-function TermPairwisePotential(V, params, max_radius, basis::PlaneWaveBasis{T}) where {T}
-    TermPairwisePotential(V, params, max_radius,
-                          energy_pairwise(basis.model, V, params, max_radius))
+function PairwisePotential(V, params; max_radius=100)
+    params = Dict(minmax(key[1], key[2]) => value for (key, value) in params)
+    PairwisePotential(V, params, max_radius)
+end
+function (P::PairwisePotential)(basis::PlaneWaveBasis{T}) where {T}
+    E = energy_pairwise(basis.model, V, params; max_radius)
+    TermPairwisePotential(P.V, P.params, T(P.max_radius), E)
+end
+
+struct TermPairwisePotential{TV, Tparams, T} <:Term
+    V::TV
+    params::Tparams
+    max_radius::T
+    energy::T
 end
 
 function ene_ops(term::TermPairwisePotential, basis::PlaneWaveBasis, ψ, occ; kwargs...)
@@ -43,7 +38,7 @@ end
                                                    kwargs...) where {T}
     atoms = basis.model.atoms
     forces_pairwise = zeros(Vec3{T}, sum(length(positions) for (elem, positions) in atoms))
-    energy_pairwise(basis.model, term.V, term.params, term.max_radius; forces=forces_pairwise)
+    energy_pairwise(basis.model, term.V, term.params; term.max_radius, forces=forces_pairwise)
     # translate to the "folded" representation
     f = [zeros(Vec3{T}, length(positions)) for (type, positions) in atoms]
     count = 0
@@ -57,22 +52,25 @@ end
     f
 end
 
+
 """
 Compute the pairwise interaction energy per unit cell between atomic sites. If `forces` is
 not nothing, minus the derivatives of the energy with respect to `positions` is computed.
 The potential is expected to decrease quickly at infinity.
 """
-function energy_pairwise(model::Model, V, params, max_radius; kwargs...)
-    atom_types = [element.symbol for (element, positions) in model.atoms for _ in positions]
-    positions = [pos for (_, positions) in model.atoms for pos in positions]
-    energy_pairwise(model.lattice, atom_types, positions, V, params, max_radius; kwargs...)
+function energy_pairwise(model::Model{T}, V, params; kwargs...) where {T}
+    isempty(model.atoms) && return zero(T)
+    symbols = Symbol.(atomic_symbol.(model.atoms))
+    energy_pairwise(model.lattice, symbols, positions, V, params; kwargs...)
 end
 
-# This could be factorised with Ewald, but the use of `atom_types` would slow down the
+
+# This could be factorised with Ewald, but the use of `symbols` would slow down the
 # computationally intensive Ewald sums. So we leave it as it for now.
-function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; forces=nothing)
+function energy_pairwise(lattice, symbols, positions, V, params;
+                         max_radius=100, forces=nothing)
     T = eltype(lattice)
-    @assert length(atom_types) == length(positions)
+    @assert length(symbols) == length(positions)
 
     if forces !== nothing
         @assert size(forces) == size(positions)
@@ -109,7 +107,7 @@ function energy_pairwise(lattice, atom_types, positions, V, params, max_radius; 
 
                 ti = positions[i]
                 tj = positions[j]
-                ai, aj = minmax(atom_types[i], atom_types[j])
+                ai, aj = minmax(symbols[i], symbols[j])
                 param_ij =params[(ai, aj)]
 
                 Δr = lattice * (ti .- tj .- R)
