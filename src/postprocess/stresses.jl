@@ -20,7 +20,7 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
                           model.symmetries)
         new_basis = PlaneWaveBasis(new_model,
                                    basis.Ecut, basis.fft_size, basis.variational,
-                                   basis.kcoords_global, basis.ksymops_global,
+                                   basis.kcoords_global, basis.kweights_global,
                                    basis.kgrid, basis.kshift, basis.symmetries,
                                    basis.comm_kpts)
         ρ = DFTK.compute_density(new_basis, scfres.ψ, scfres.occupation)

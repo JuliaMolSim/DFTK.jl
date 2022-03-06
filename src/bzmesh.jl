@@ -26,27 +26,19 @@ end
     bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
 
 Construct a (shifted) uniform Brillouin zone mesh for sampling the ``k``-points.
-The function returns a tuple `(kcoords, ksymops)`, where `kcoords` are the list
-of ``k``-points and `ksymops` are a list of symmetry operations (for interface
-compatibility with `PlaneWaveBasis` and `bzmesh_irreducible`. No symmetry
-reduction is attempted, such that there will be `prod(kgrid_size)` ``k``-points
-returned and all symmetry operations are the identity.
 """
 function bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
     kcoords = kgrid_monkhorst_pack(kgrid_size; kshift=kshift)
-    kcoords, [[one(SymOp)] for _ in 1:length(kcoords)], [one(SymOp)]
+    kcoords, ones(length(kcoords)) ./ length(kcoords), [one(SymOp)]
 end
 
 
 @doc raw"""
      bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
 
-Construct the irreducible wedge of a uniform Brillouin zone mesh for sampling ``k``-points.
-The function returns a tuple `(kcoords, ksymops)`, where `kcoords` are the list of
-irreducible ``k``-points and `ksymops` are a list of symmetry operations for regenerating
-the full mesh. `symmetries` is the tuple returned from
-`symmetry_operations(lattice, atoms, positions, magnetic_moments)`.
-`tol_symmetry` is the tolerance used for searching for symmetry operations.
+Construct the irreducible wedge of a uniform Brillouin zone mesh for sampling ``k``-points,
+given the crystal symmetries `symmetries`. Returns the new `symmetries` compatible with the
+grid, the list of irreducible kpoints and the associated weights.
 """
 function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size; kshift)
@@ -126,7 +118,8 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     @assert all(findfirst(symop -> symop == one(SymOp), ops) !== nothing
                 for ops in ksymops)
 
-    kirreds, ksymops, symmetries
+    kweights = length.(ksymops) / sum(length.(ksymops))
+    kirreds, kweights, symmetries
 end
 
 

@@ -9,7 +9,7 @@ include("testcases.jl")
     Ecut = 3
     fft_size = [9, 9, 9]
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, [:lda_xc_teter93])
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
     scfres_start = self_consistent_field(basis; tol=10)
 
     ψ, occupation = DFTK.select_occupied_orbitals(basis, scfres_start.ψ,

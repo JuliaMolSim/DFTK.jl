@@ -49,7 +49,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     # Occupation for zero temperature
     model = Model(silicon.lattice; silicon.atoms, silicon.positions, temperature=0.0,
                   smearing=nothing, terms=[Kinetic()])
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
     occupation0, εF0 = DFTK.compute_occupation_bandgap(basis, energies)
     @test εHOMO < εF0 < εLUMO
     @test DFTK.weighted_ksum(basis, sum.(occupation0)) ≈ model.n_electrons
@@ -59,7 +59,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     for temperature in Ts, smearing in smearing_methods
         model = Model(silicon.lattice; silicon.atoms, silicon.positions,
                       temperature, smearing, terms=[Kinetic()])
-        basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
+        basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
         occs, _ = with_logger(NullLogger()) do
             DFTK.compute_occupation(basis, energies)
         end
@@ -71,7 +71,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     for temperature in Ts, smearing in smearing_methods
         model = Model(silicon.lattice; silicon.atoms, silicon.positions,
                       temperature, smearing, terms=[Kinetic()])
-        basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
+        basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
         occupation, _ = DFTK.compute_occupation(basis, energies)
 
         for ik in 1:n_k
@@ -103,7 +103,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
                 [ 0.10585630776222,  0.10585630776223, 0.22191839818805, 0.22191839818822]]
 
     symmetries = DFTK.symmetry_operations(testcase.lattice, testcase.atoms, testcase.positions)
-    kcoords, ksymops = bzmesh_ir_wedge(kgrid, symmetries)
+    kcoords, _ = bzmesh_ir_wedge(kgrid, symmetries)
 
     n_bands = length(energies[1])
     n_k = length(kcoords)

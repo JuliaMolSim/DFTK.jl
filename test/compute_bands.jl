@@ -119,7 +119,7 @@ end
     n_bands = 8
 
     model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
-    basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops)
+    basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.kweights)
 
     # Build Hamiltonian just from SAD guess
     ρ0 = guess_density(basis, testcase.atoms, testcase.positions)
@@ -153,8 +153,8 @@ end
         [0.575, 0.150, 0.575],
         [0.500, 0.000, 0.500],
     ]
-    ksymops = [[one(SymOp)] for _ in 1:length(kcoords)]
-    basis = PlaneWaveBasis(model, 5, kcoords, ksymops)
+    kweights = ones(9) ./ 9
+    basis = PlaneWaveBasis(model, 5, kcoords, kweights)
     klabels = Dict("Γ" => [0, 0, 0], "X" => [0.5, 0.0, 0.5],
                    "W" => [0.5, 0.25, 0.75], "U" => [0.625, 0.25, 0.625])
 
@@ -211,7 +211,7 @@ end
     testcase = silicon
     model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
 
-    basis = PlaneWaveBasis(model, 5, testcase.kcoords, testcase.ksymops)
+    basis = PlaneWaveBasis(model, 5, testcase.kcoords, testcase.kweights)
     λ = [[1, 2, 3, 4], [1, 1.5, 3.5, 4.2], [1, 1.1, 3.2, 4.3], [1, 2, 3.3, 4.1]]
 
     @test !DFTK.is_metal((λ=λ, basis=basis), 2.5)

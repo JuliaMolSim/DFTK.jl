@@ -79,7 +79,7 @@ struct PlaneWaveBasisSerialisation{T <: Real}
     Ecut::T
     variational::Bool
     kcoords::Vector{Vec3{T}}
-    ksymops::Vector{Vector{SymOp}}
+    kweights::Vector{T}
     kgrid::Union{Nothing,Vec3{Int}}
     kshift::Union{Nothing,Vec3{T}}
     fft_size::Tuple{Int, Int, Int}
@@ -93,7 +93,7 @@ function Base.convert(::Type{PlaneWaveBasisSerialisation{T}}, basis::PlaneWaveBa
         basis.Ecut,
         basis.variational,
         basis.kcoords_global,
-        basis.ksymops_global,
+        basis.kweights_global,
         basis.kgrid,
         basis.kshift,
         basis.fft_size,
@@ -103,7 +103,7 @@ end
 
 function Base.convert(::Type{PlaneWaveBasis{T}}, serial::PlaneWaveBasisSerialisation{T}) where {T}
     PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords,
-                   serial.ksymops, serial.symmetries;
+                   serial.kweights, serial.symmetries;
                    fft_size=serial.fft_size,
                    kgrid=serial.kgrid, kshift=serial.kshift,
                    variational=serial.variational)
