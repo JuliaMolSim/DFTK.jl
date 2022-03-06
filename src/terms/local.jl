@@ -87,24 +87,23 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     TermAtomicLocal(pot_real)
 end
 
-@timing "forces: local" function compute_forces(::TermAtomicLocal,
-                                                basis::PlaneWaveBasis{TT},
-                                                ψ, occ; ρ, kwargs...) where TT
+@timing "forces: local" function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{TT},
+                                                ψ, occupation; ρ, kwargs...) where TT
     T = promote_type(TT, real(eltype(ψ[1])))
-    atoms = basis.model.atoms
-    recip_lattice = basis.model.recip_lattice
-    unit_cell_volume = basis.model.unit_cell_volume
+    model = basis.model
+    recip_lattice = model.recip_lattice
     ρ_fourier = r_to_G(basis, total_density(ρ))
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
     # where struct_factor(G) = cis(-2π G⋅r)
-    forces = [zeros(Vec3{T}, length(positions)) for (el, positions) in atoms]
-    for (iel, (el, positions)) in enumerate(atoms)
-        form_factors = [Complex{T}(local_potential_fourier(el, norm(recip_lattice * G)))
+    forces = zero(model.positions)
+    for group in model.atom_groups
+        element = model.atoms[first(group)]
+        form_factors = [Complex{T}(local_potential_fourier(element, norm(recip_lattice * G)))
                         for G in G_vectors(basis)]
-
-        for (ir, r) in enumerate(positions)
-            forces[iel][ir] = _force_local_internal(basis, ρ_fourier, form_factors, r)
+        for idx in group
+            r = model.positions[idx]
+            forces[idx] = _force_local_internal(basis, ρ_fourier, form_factors, r)
         end
     end
     forces

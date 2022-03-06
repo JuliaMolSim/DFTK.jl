@@ -4,13 +4,13 @@ Nonlocal term coming from norm-conserving pseudopotentials in Kleinmann-Bylander
 """
 struct AtomicNonlocal end
 function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
-    atoms = basis.model.atoms
-    atom_groups = basis.model.atom_groups
+    model = basis.model
 
     # keep only pseudopotential atoms and positions
-    psp_groups = [group for group in atom_groups if atoms[first(group)] isa ElementPsp]
-    psps          = [atoms[first(group)].psp      for group in psp_groups]
-    psp_positions = [basis.model.positions[group] for group in psp_groups]
+    psp_groups = [group for group in model.atom_groups
+                  if model.atoms[first(group)] isa ElementPsp]
+    psps          = [model.atoms[first(group)].psp      for group in psp_groups]
+    psp_positions = [model.positions[group] for group in psp_groups]
 
     isempty(psp_groups) && return TermNoop()
     ops = map(basis.kpoints) do kpt
@@ -45,27 +45,31 @@ end
                                                    basis::PlaneWaveBasis{TT},
                                                    ψ, occ; kwargs...) where TT
     T = promote_type(TT, real(eltype(ψ[1])))
-    atoms = basis.model.atoms
-    unit_cell_volume = basis.model.unit_cell_volume
+    model = basis.model
+    unit_cell_volume = model.unit_cell_volume
+    psp_groups = [group for group in model.atom_groups
+                  if model.atoms[first(group)] isa ElementPsp]
 
     # early return if no pseudopotential atoms
-    any(attype isa ElementPsp for (attype, positions) in atoms) || return nothing
+    isempty(psp_groups) && return nothing
 
     # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
-    forces = [zeros(Vec3{T}, length(positions)) for (el, positions) in atoms]
-    for (iel, (el, positions)) in enumerate(atoms)
-        el isa ElementPsp || continue
+    forces = zero(model.positions)
+    for group in psp_groups
+        element = model.atoms[first(group)]
 
-        C = build_projection_coefficients_(el.psp)
+        C = build_projection_coefficients_(element.psp)
         for (ik, kpt) in enumerate(basis.kpoints)
             # we compute the forces from the irreductible BZ; they are symmetrized later
             qs_cart = Gplusk_vectors_cart(basis, kpt)
             qs = Gplusk_vectors(basis, kpt)
-            form_factors = build_form_factors(el.psp, qs_cart)
-            for (ir, r) in enumerate(positions)
-                forces[iel][ir] += map(1:3) do α
-                    structure_factors = [cis(-2T(π) * dot(q, r)) for q in qs]
-                    P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
+            form_factors = build_form_factors(element.psp, qs_cart)
+            for idx in group
+                r = model.positions[idx]
+                structure_factors = [cis(-2T(π) * dot(q, r)) for q in qs]
+                P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
+
+                forces[idx] += map(1:3) do α
                     dPdR = [-2T(π)*im*q[α] for q in qs] .* P
                     ψk = ψ[ik]
                     dHψk = P * (C * (dPdR' * ψk))
@@ -75,15 +79,9 @@ end
                 end  # α
             end  # r
         end  # kpt
-    end  # el
-    for forces_el in forces
-        # vectorize to a plain array to allow MPI to work here
-        f_vec = reduce(hcat, forces_el) # 3 x Nat
-        mpi_sum!(f_vec, basis.comm_kpts)
-        for nat = 1:length(forces_el)
-            forces_el[nat] = f_vec[:, nat]
-        end
-    end
+    end  # group
+
+    forces = mpi_sum!(forces, basis.comm_kpts)
     symmetrize_forces(basis, forces)
 end
 

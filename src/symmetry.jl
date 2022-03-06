@@ -258,21 +258,18 @@ Symmetrize the forces in *reduced coordinates*, forces given as an
 array forces[iel][α,i]
 """
 function symmetrize_forces(model::Model, forces; symmetries)
-    atoms = model.atoms
-    symmetrized_forces = zero.(forces)
-    for (iel, (element, positions)) in enumerate(atoms)
-        for symop in symmetries
-            W, w = symop.W, symop.w
-            for (iat, at) in enumerate(positions)
-                # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
-                # (but careful that our symmetries are r -> Wr+w, not R(r+f))
-                other_at = W \ (at - w)
-                is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ SYMMETRY_TOLERANCE, r)
-                i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions)
-                symmetrized_forces[iel][iat] += W * forces[iel][i_other_at]
-            end
+    symmetrized_forces = zero(forces)
+    for group in model.atom_groups, symop in symmetries
+        positions_group = model.positions[group]
+        W, w = symop.W, symop.w
+        for idx in group
+            # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
+            # (but careful that our symmetries are r -> Wr+w, not R(r+f))
+            other_at = W \ (positions_group[idx] - w)
+            is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ SYMMETRY_TOLERANCE, r)
+            i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions_group)
+            symmetrized_forces[idx] += W * forces[group[i_other_at]]
         end
-        symmetrized_forces[iel] /= length(symmetries)
     end
     symmetrized_forces
 end

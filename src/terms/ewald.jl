@@ -21,22 +21,10 @@ end
 
 @timing "forces: Ewald" function compute_forces(term::TermEwald, basis::PlaneWaveBasis{T},
                                                 ψ, occ; kwargs...) where {T}
-    atoms = basis.model.atoms
     # TODO this could be precomputed
-    # Compute forces in the "flat" representation used by ewald
-    forces_ewald = zeros(Vec3{T}, sum(length(positions) for (elem, positions) in atoms))
-    energy_ewald(basis.model; forces=forces_ewald)
-    # translate to the "folded" representation
-    f = [zeros(Vec3{T}, length(positions)) for (type, positions) in atoms]
-    count = 0
-    for i = 1:length(atoms)
-        for j = 1:length(atoms[i][2])
-            count += 1
-            f[i][j] += forces_ewald[count]
-        end
-    end
-    @assert count == sum(at -> length(at[2]), atoms)
-    f
+    forces = zero(basis.model.positions)
+    energy_ewald(basis.model; forces)
+    forces
 end
 
 function energy_ewald(model::Model{T}; kwargs...) where {T}
@@ -53,7 +41,7 @@ end
 """
 Compute the electrostatic interaction energy per unit cell between point
 charges in a uniform background of compensating charge to yield net
-neutrality. the `lattice` and `recip_lattice` should contain the
+neutrality. The `lattice` and `recip_lattice` should contain the
 lattice and reciprocal lattice vectors as columns. `charges` and
 `positions` are the point charges and their positions (as an array of
 arrays) in fractional coordinates. If `forces` is not nothing, minus the derivatives
@@ -61,13 +49,12 @@ of the energy with respect to `positions` is computed.
 """
 function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
     T = eltype(lattice)
-
     for i=1:3
-        if norm(lattice[:,i]) == 0
-            ## TODO should something more clever be done here? For now
-            ## we assume that we are not interested in the Ewald
-            ## energy of non-3D systems
-            return T(0)
+        if iszero(lattice[:, i])
+            # TODO should something more clever be done here? For now
+            # we assume that we are not interested in the Ewald
+            # energy of non-3D systems
+            return zero(T)
         end
     end
     energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions; η, forces)

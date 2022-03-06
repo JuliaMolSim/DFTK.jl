@@ -36,20 +36,9 @@ end
 @timing "forces: Pairwise" function compute_forces(term::TermPairwisePotential,
                                                    basis::PlaneWaveBasis{T}, ψ, occ;
                                                    kwargs...) where {T}
-    atoms = basis.model.atoms
-    forces_pairwise = zeros(Vec3{T}, sum(length(positions) for (elem, positions) in atoms))
-    energy_pairwise(basis.model, term.V, term.params; term.max_radius, forces=forces_pairwise)
-    # translate to the "folded" representation
-    f = [zeros(Vec3{T}, length(positions)) for (type, positions) in atoms]
-    count = 0
-    for i = 1:length(atoms)
-        for j = 1:length(atoms[i][2])
-            count += 1
-            f[i][j] += forces_pairwise[count]
-        end
-    end
-    @assert count == sum(at -> length(at[2]), atoms)
-    f
+    forces = zero(basis.model.positions)
+    energy_pairwise(basis.model, V, params; term.max_radius, forces)
+    forces
 end
 
 
