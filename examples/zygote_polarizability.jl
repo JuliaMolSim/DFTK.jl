@@ -54,12 +54,13 @@ polarizability_fd = let
     ε = 0.001
     (compute_dipole(ε) - f) / ε
 end
-# 8.08068504649102
+# 8.08068504649102    # 0.5 seconds (121.70 k allocations: 180.000 MiB)
 
 g = Zygote.gradient(compute_dipole, 0.0)
-# 8.08068504649102
+# 8.084399146013764,
 # incl. compile time: 229 seconds
-# second call:         40 seconds
+# second call:          4 seconds (7.84 M allocations: 733.864 MiB, 25.31% gc time)
+
 
 println("f: ", f, " fd: ", polarizability_fd, " AD: ", g)
 
