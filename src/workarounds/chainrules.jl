@@ -82,6 +82,7 @@ function _autodiff_Model_namedtuple(lattice, atoms, term_types)
     recip_lattice = compute_recip_lattice(lattice)
     unit_cell_volume  = compute_unit_cell_volume(lattice)
     recip_cell_volume = compute_unit_cell_volume(recip_lattice)
+    # TODO add inv_lattive
     (; lattice, recip_lattice, unit_cell_volume, recip_cell_volume, atoms, term_types)
 end
 
@@ -140,6 +141,9 @@ end
 # this excludes assertions (try-catch), MPI handling, and other things
 function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBasis) where {T <: Real}
     dvol = model.unit_cell_volume ./ prod(basis.fft_size)
+
+    # TODO new volumes (and more)
+
     G_to_r_normalization = 1 / sqrt(model.unit_cell_volume)
     r_to_G_normalization = sqrt(model.unit_cell_volume) / length(basis.ipFFT)
 
@@ -410,7 +414,29 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         ∂H = ∂H_mul_pullback + ∂H
         _, ∂basis, _, _, _ = energy_hamiltonian_pullback((∂energies, ∂H))
 
+        # TODO add ∂basis contributions?
+
         return NoTangent(), ∂basis
     end
     return scfres, self_consistent_field_pullback
 end
+
+# phases to differentiate
+# 1. setup (build model, basis, ...)
+# 2. scf
+# 3. ...
+
+
+# challenges:
+# - foreign code (FFTW)
+# - mutation
+# - try-catch
+
+# 1. direct rrules (r_to_G, ...)
+# 2. alternative primal (rrule_via_ad)
+# 3. SCF rrule
+
+# TODO
+# - multiple kpoints
+# - symmetries
+# - more efficient compute_density rrule (probably by hand)
