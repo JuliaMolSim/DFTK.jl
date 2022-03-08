@@ -338,7 +338,7 @@ function extract_wannier_functions(prefix, scfres::NamedTuple)
     # Construct Wannier functions
     apply_U_matrices("$(prefix)_u.mat", ψ_unfold)
 end
-        
+
 """
 Produce vts files that are readable with Paraview to plot Wannier functions.
 The wannier functions are given as a Bloch decomposition in the unit cell.
