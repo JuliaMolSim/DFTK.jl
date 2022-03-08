@@ -1,67 +1,70 @@
 """
-Returns an array containing the number of unit cell on each axis in the supercell.
+Returns a vector containing the number of unit cells on each axis in the supercell.
 """
-function supercell_size(basis::PlaneWaveBasis)
+function get_supercell_size(basis::PlaneWaveBasis)
     shift = basis.kshift
+    isnothing(shift) && (return basis.kgrid)
     weights_shift = shift .+ eltype(shift).(shift .==0)
     Int64.(basis.kgrid ./ weights_shift)
 end
 
 @doc raw"""
-Return all ``k+G`` vectors given by `Gplusk_vectors` as a G vector of
-the supercell fft_grid in reduced coordinates.
+Returns ``k+G`` vectors of an given basis as ``G`` vectors of the supercell fft_grid,
+in reduced coordinates.
 """
 Gplusk_vectors_in_supercell(basis::PlaneWaveBasis, kpt::Kpoint) =
-    map(Gpk -> round.(Int64, Gpk .* supercell_size(basis)), Gplusk_vectors(basis, kpt))
+   map(Gpk -> round.(Int64, Gpk .* get_supercell_size(basis)), Gplusk_vectors(basis, kpt))
 
 @doc raw"""
-Construct a PlaneWaveBasis adapted to fft and ifft in the supercell. Its fft_grid contains
-all the ``k+G`` vectors of the initial given basis.
-
-This amounts to take a single ``k`` point and multiply each fft_size component by the number
-of unit cell in the supercell, which is equal to ``k_grid`` with a correction due to an
-eventual ``k_shift``.
+Construct a plane-wave basis whose unit cell is the supercell associated to
+an input basis ``kgrid``. All other parameters are modified so that the respective physical
+systems associated to both basis are equivalent.
 """
 function cell_to_supercell(basis::PlaneWaveBasis)
     model = basis.model
 
     # Compute supercell model and basis parameters
-    size_supercell = supercell_size(basis)
-    supercell = size_supercell' .* model.lattice
-    fft_size_supercell = basis.fft_size .* size_supercell
+    supercell_size = get_supercell_size(basis)
+    lattice_supercell = supercell_size' .* model.lattice
+    fft_size_supercell = basis.fft_size .* supercell_size
 
     # Compute atoms reduced coordinates in the supercell
-    atom_supercell = []; nx, ny, nz = size_supercell
+    atom_supercell = []; nx, ny, nz = supercell_size
     supercell_normalization(coord) = coord ./ [nx, ny, nz]
-    for atom in basis.model.atoms
+    for atom in model.atoms
         atom_coords_supercell = vcat([supercell_normalization.(atom[2] .+ Ref([i;j;k]))
                                           for i in 0:nx-1, j in 0:ny-1, k in 0:nz-1]...)
         append!(atom_supercell, [atom[1] => atom_coords_supercell])
     end
 
     # Assemble new model and new basis
-    model_supercell = Model(supercell, atoms=atom_supercell, terms=model.term_types,
-                            symmetries = false)
+    model_supercell = Model(lattice_supercell, atoms=atom_supercell,
+                            terms=model.term_types, symmetries = false)
     PlaneWaveBasis(model_supercell, basis.Ecut, fft_size_supercell,
                    basis.variational, [zeros(Int64, 3)],
                    [[one(SymOp)]], # Single point symmetry
-                   [1,1,1], # k_grid = Γ point only
+                   [1,1,1],        # k_grid = Γ point only
                    zeros(Int64, 3), [one(SymOp)], basis.comm_kpts,
                    )
 end
 
 @doc raw"""
-Convert an array of format ``[ψ(1), ψ(2), ... ψ(n_kpts)]`` into a 3 dimensional
-tensor adapted to ifft in the supercell.
-A ψ[ik][:,n] vector is mapped to ψ_supercell[1][:,(num_kpt*(ik-1)+n)] 
+Re-organize Bloch waves computed in a given basis as Bloch waves of the associated
+supercell basis.
+The output ``ψ_supercell`` have a single component at ``Γ``-point, such that 
+``ψ_supercell[Γ][:,k+n]`` contains ``ψ[k][:,n]``, within normalization on the supercell.
 """
 function cell_to_supercell(ψ, basis::PlaneWaveBasis{T},
                            basis_supercell::PlaneWaveBasis{T}) where {T<:Real}
+    # Ensure that the basis is unfolded.
+    (prod(basis.kgrid) != length(basis.kpoints)) && (error("basis must be unfolded"))
+
     num_kpG = sum(size.(ψ,1)); num_bands = size(ψ[1],2);
     # Maps k+G vector of initial basis to a G vector of basis_supercell
     cell_supercell_mapping(kpt) = index_G_vectors.(basis_supercell,
                 Ref(basis_supercell.kpoints[1]), Gplusk_vectors_in_supercell(basis, kpt))
-    # Transfer all ψk independantly and return the hcat of all blocs
+
+    # Transfer all ψ[k] independantly and return the hcat of all blocs
     ψ_out_blocs = []
     for (ik, kpt) in enumerate(basis.kpoints)
         ψk_supercell = zeros(ComplexF64, num_kpG, num_bands)
@@ -74,31 +77,30 @@ end
 
 @doc raw"""
 Transpose all data from a given self-consistent-field result from unit cell
-to supercell convention. The parameters to adapt are the following:
-
- - ``basis_supercell`` is computed by ``cell_to_supercell(basis)``
- - ``ψ_supercell`` have a single component at Γ-point, which is the concatenation of 
-   all ``ψ_k``, and each ``ψ_nk_supercell`` is normalized over the supercell
- - occupations ...
- -
- - energies are multiplied by the number of unit cells in the supercell
-
+to supercell conventions. The parameters to adapt are the following:
+ - ``basis_supercell`` and ``ψ_supercell`` are computed by the routines above.
+ - The supercell occupations vector is the concatenation of all input occupations vectors.
+ - The supercell density is computed with supercell occupations and ``ψ_supercell``.
+ - Supercell energies are the multiplication of input energies by the number of
+   unit cells in the supercell.
 Other parameters stay untouched.
 """
 function cell_to_supercell(scfres::NamedTuple)
-    basis = scfres.basis; ψ = scfres.ψ
+    # Transfer from cell to supercell need unfolded symmetries.
+    scfres_unfold = unfold_bz(scfres)
+    basis = scfres_unfold.basis; ψ = scfres_unfold.ψ
 
-    # Compute supercell basis, ψ and ρ
+    # Compute supercell basis, ψ, occupations and ρ
     basis_supercell = cell_to_supercell(basis)
     ψ_supercell = [cell_to_supercell(ψ, basis, basis_supercell)]
-    occ_supercell = [vcat(scfres.occupation...)]
+    occ_supercell = [vcat(scfres_unfold.occupation...)]
     ρ_supercell = compute_density(basis_supercell, ψ_supercell, occ_supercell)
 
     # Supercell Energies
-    eigvalues_supercell = [vcat(scfres.eigenvalues...)]
-    n_unit_cells = prod(supercell_size(basis))
-    # REGARDER ICI
-    energies_supercell = [n_unit_cells*value for (key,value) in scfres.energies]
+    eigvalues_supercell = [vcat(scfres_unfold.eigenvalues...)]
+    n_unit_cells = prod(get_supercell_size(basis))
+    energies_supercell = [n_unit_cells*value
+                          for (key,value) in scfres_unfold.energies.energies]
     E_supercell = Energies(basis.model.term_types, energies_supercell)
 
     merge(scfres, (;basis=basis_supercell, ψ=ψ_supercell, energies=E_supercell,
@@ -106,24 +108,3 @@ function cell_to_supercell(scfres::NamedTuple)
                    occupation=occ_supercell)
           )
 end
-
-# # Old
-# function G_to_r_supercell(basis::PlaneWaveBasis, ψ_fourier)
-#     basis_supercell = cell_to_supercell(basis)
-#     ψ_fourier_supercell = cell_to_supercell(basis, basis_supercell, ψ_fourier)
-#     G_to_r(basis_supercell, ψ_fourier_supercell)
-# end
-
-# function cell_to_supercell(basis::PlaneWaveBasis, basis_supercell::PlaneWaveBasis, ψ)
-#     num_kpG = sum(size.(ψ,1)); num_bands = size(ψ[1],2)
-#     ψ_supercell = zeros(ComplexF64, num_kpG, num_bands)
-#     Γ_point = only(basis_supercell.kpoints)
-#     for (ik, kpt) in enumerate(basis.kpoints)
-#         id_kpG_supercell = DFTK.index_G_vectors.(basis_supercell, Ref(Γ_point),
-#                                                  Gplusk_vectors_in_supercell(basis, kpt))
-#         ψ_supercell[id_kpG_supercell, :] .= hcat(eachcol(scfres.ψ[ik])...)
-#     end
-#     # Normalize over the supercell
-#     hcat([ψn_supercell ./ norm(ψn_supercell)
-#           for ψn_supercell in eachcol(ψ_supercell)]...)
-# end

@@ -309,13 +309,13 @@ function read_w90_output_mat(file, n_bands_tot)
 end
 
 @doc raw"""
-    For a given set of bands ``\{Ψ_{nk}\}_{1\leq n \leq N_in}``
-    and a Wannier90 file containing unitary matrices (for disentanglement or
-    wannierization) returns a set of band ``{Ψ_out_{nk}}_{1\leq n \leq N_out}``
-    with:
-    ``Ψ_out_{nk} = \sum\limits_{m=1}^{N_in} U_{mn}Ψ_{nk}``
-    ``N_in > N_out`` for disentanglement.
-    ``N_in = N_out`` for wannierization.
+For a given set of bands ``\{Ψ_{nk}\}_{1\leq n \leq N_in}``
+and a Wannier90 file containing unitary matrices returns a set of band
+``{Ψ_out_{nk}}_{1\leq n \leq N_out}``
+with:
+  - ``Ψ_out_{nk} = \sum\limits_{m=1}^{N_in} U_{mn}Ψ_{nk}``
+  - ``N_in > N_out`` for disentanglement.
+  - ``N_in = N_out`` for wannierization.
 """
 function apply_U_matrices(file, ψ)
     # read .mat file
@@ -326,9 +326,9 @@ function apply_U_matrices(file, ψ)
 end
 
 @doc raw"""
-    Apply wannierization U matrices to return Wannier functions as a table ``W[k][G,n]``
-    The prefix in argument is the one returned by the `run_wannier90` routine above.
-    As in the wannierization process, the scfres has to be unfolded.
+Apply wannierization U matrices to return Wannier functions as a table ``W[k][G,n]``
+The prefix in argument is the one returned by the `run_wannier90` routine above.
+As in the wannierization process, the scfres has to be unfolded.
 """
 function extract_wannier_functions(prefix, scfres::NamedTuple)
     scfres_unfold = unfold_bz(scfres); ψ_unfold = scfres_unfold.ψ
@@ -338,23 +338,30 @@ function extract_wannier_functions(prefix, scfres::NamedTuple)
     # Construct Wannier functions
     apply_U_matrices("$(prefix)_u.mat", ψ_unfold)
 end
+        
+"""
+Produce vts files that are readable with Paraview to plot Wannier functions.
+The wannier functions are given as a Bloch decomposition in the unit cell.
+"""
+function plot_wannier_function(basis, w_unit_cell, prefix, n_band)
+    basis_unfold = DFTK.unfold_bz(basis)
+    basis_supercell = cell_to_supercell(basis_unfold)
 
-"""
-   Produce vts files that are readable with Paraview to plot Wannier functions.
-   The wannier functions are given in Bloch decomposition format.
-"""
-function plot_wannier_function(basis::PlaneWaveBasis, w_fourier, prefix, n_band)
-    basis_supercell = cell_to_supercell(basis)
-    # Extract real supercell grid
+    # Adapt w to the ifft on supercell framework
+    num_kpt = prod(basis.kgrid); num_wann = size(w_unit_cell[1],2)
+    w_supercell = cell_to_supercell(w_unit_cell, basis_unfold, basis_supercell)
+    wn_supercell = sum(w_supercell[:,ik*num_wann + n_band] for ik in 0:num_kpt-1)
+
+    wn_real = G_to_r(basis_supercell, basis_supercell.kpoints[1], wn_supercell)
+
+    # Extract real supercell grid and plot
     r_vec = collect(r_vectors_cart(basis_supercell))
     x = [r[1] for r in r_vec]; y = [r[2] for r in r_vec]; z = [r[3] for r in r_vec];
-    # Perfom ifft
-    wn_real = G_to_r_supercell(basis, [wk[:, n_band] for wk in w_fourier])
     vtk_grid(prefix*"_wannier_$(n_band)", x, y, z) do vtk
-        vtk["value"]=real.(wn_real)
+        vtk["value"]= abs2.(wn_real)
     end
     nothing
 end
 plot_wannier_function(scfres::NamedTuple, prefix::String, n_band) =
-    plot_wannier_function(unfold_bz(scfres.basis),
-            extract_wannier_functions(prefix, scfres), prefix, n_band)
+    plot_wannier_function(scfres.basis, extract_wannier_functions(prefix, scfres),
+                          prefix, n_band)
