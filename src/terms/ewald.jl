@@ -100,10 +100,13 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
         # with a slight bias towards reciprocal summation
         η = sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
     end
-    ChainRulesCore.@ignore_derivatives if forces !== nothing
-        @assert size(forces) == size(positions)
-        forces_real = copy(forces)
-        forces_recip = copy(forces)
+    
+    ChainRulesCore.@ignore_derivatives begin
+        if forces !== nothing
+            @assert size(forces) == size(positions)
+            forces_real = copy(forces)
+            forces_recip = copy(forces)
+        end
     end
 
     # Numerical cutoffs to obtain meaningful contributions. These are very conservative.
@@ -141,13 +144,15 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
             any_term_contributes = true
             sum_recip += sum_strucfac * exp(-exponent) / Gsq
 
-            ChainRulesCore.@ignore_derivatives if forces !== nothing
-                for (ir, r) in enumerate(positions)
-                    Z = charges[ir]
-                    dc = -Z*2T(π)*G*sin(2T(π) * dot(r, G))
-                    ds = +Z*2T(π)*G*cos(2T(π) * dot(r, G))
-                    dsum = 2cos_strucfac*dc + 2sin_strucfac*ds
-                    forces_recip[ir] -= dsum * exp(-exponent)/Gsq
+            ChainRulesCore.@ignore_derivatives begin 
+                if forces !== nothing
+                    for (ir, r) in enumerate(positions)
+                        Z = charges[ir]
+                        dc = -Z*2T(π)*G*sin(2T(π) * dot(r, G))
+                        ds = +Z*2T(π)*G*cos(2T(π) * dot(r, G))
+                        dsum = 2cos_strucfac*dc + 2sin_strucfac*ds
+                        forces_recip[ir] -= dsum * exp(-exponent)/Gsq
+                    end
                 end
             end
         end
@@ -155,8 +160,10 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
     end
     # Amend sum_recip by proper scaling factors:
     sum_recip *= 4T(π) / compute_unit_cell_volume(lattice)
-    ChainRulesCore.@ignore_derivatives if forces !== nothing
-        forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
+    ChainRulesCore.@ignore_derivatives begin
+        if forces !== nothing
+            forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
+        end
     end
 
     #
@@ -193,22 +200,26 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
                 any_term_contributes = true
                 energy_contribution = Zi * Zj * erfc(η * dist) / dist
                 sum_real += energy_contribution
-                ChainRulesCore.@ignore_derivatives if forces !== nothing
-                    # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
-                    dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
-                    dE_ddist -= energy_contribution
-                    dE_ddist /= dist
-                    dE_dti = lattice' * ((dE_ddist / dist) * Δr)
-                    forces_real[i] -= dE_dti
-                    forces_real[j] += dE_dti
+                ChainRulesCore.@ignore_derivatives begin
+                    if forces !== nothing
+                        # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
+                        dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
+                        dE_ddist -= energy_contribution
+                        dE_ddist /= dist
+                        dE_dti = lattice' * ((dE_ddist / dist) * Δr)
+                        forces_real[i] -= dE_dti
+                        forces_real[j] += dE_dti
+                    end
                 end
             end # i,j
         end # R
         rsh += 1
     end
     energy = (sum_recip + sum_real) / 2  # Divide by 2 (because of double counting)
-    ChainRulesCore.@ignore_derivatives if forces !== nothing
-        forces .= (forces_recip .+ forces_real) ./ 2
+    ChainRulesCore.@ignore_derivatives begin
+        if forces !== nothing
+            forces .= (forces_recip .+ forces_real) ./ 2
+        end
     end
     energy
 end
