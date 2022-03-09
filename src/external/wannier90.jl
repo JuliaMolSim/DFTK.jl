@@ -1,6 +1,5 @@
 using Dates
 using DelimitedFiles
-using WriteVTK
 
 """
 Write a win file at the indicated prefix.
@@ -154,7 +153,7 @@ We use here that : ``u_{n(k + G_shift)}(r) = e^{-i*\langle G_shift,r \rangle} u_
     # TODO Check if this can be improved using the G vector mapping in the kpoints
     k   = basis.kpoints[ik]
     kpb = basis.kpoints[ikpb]
-    equivalent_G_vectors = [(iGk, DFTK.index_G_vectors(basis, kpb, Gk + G_shift))
+    equivalent_G_vectors = [(iGk, index_G_vectors(basis, kpb, Gk + G_shift))
                             for (iGk, Gk) in enumerate(G_vectors(basis, k))]
     iGk   = [eqG[1] for eqG in equivalent_G_vectors if !isnothing(eqG[2])]
     iGkpb = [eqG[2] for eqG in equivalent_G_vectors if !isnothing(eqG[2])]
