@@ -28,7 +28,7 @@
 # and a set of weights `kweights` (summing to 1). The value of
 # observables is given by a weighted sum over the irreducible kpoints,
 # plus a symmetrization operation (which depends on the particular way
-# the observable transforms under the symmetry)
+# the observable transforms under the symmetry).
 
 # There is by decreasing cardinality
 # - The group of symmetry operations of the lattice
@@ -85,16 +85,16 @@ function find_irreducible_kpoints(kcoords, symmetries)
         kcoords_mapped[ik] = true
 
         for jk in findall(.!kcoords_mapped)
-            isym = findfirst(1:length(symmetries)) do isym
+            sym = findfirst(symmetries) do sym
                 # If the difference between kred and S*k
                 # is only integer in fractional reciprocal-space coordinates, then
                 # kred and S * k are equivalent k-points
-                all(isinteger, kcoords[jk] - (symmetries[isym].S * kcoords[ik]))
+                all(isinteger, kcoords[jk] - (sym.S * kcoords[ik]))
             end
 
-            if !isnothing(isym)  # Found a reducible k-point
+            if !isnothing(sym)  # Found a reducible k-point
                 kcoords_mapped[jk] = true
-                push!(thisk_symops, symmetries[isym])
+                push!(thisk_symops, sym)
             end
         end  # jk
 
@@ -332,8 +332,12 @@ function unfold_bz(scfres)
 end
 
 function unfold_kcoords(kcoords, symmetries)
-    all_kcoords = [symop.S * kcoord for kcoord in kcoords, symop in symmetries]
+    all_kcoords = [normalize_kpoint_coordinate(symop.S * kcoord)
+                   for kcoord in kcoords, symop in symmetries]
+
     # the above multiplications introduce an error
-    unique(k -> normalize_kpoint_coordinate(round.(k; digits=ceil(Int, -log10(SYMMETRY_TOLERANCE)))),
-           normalize_kpoint_coordinate.(all_kcoords))
+    unique(all_kcoords) do k
+        digits = ceil(Int, -log10(SYMMETRY_TOLERANCE))
+        normalize_kpoint_coordinate(round.(k; digits))
+    end
 end

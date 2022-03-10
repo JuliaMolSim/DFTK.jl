@@ -144,7 +144,7 @@ end
 
 # Lowest-level constructor, should not be called directly.
 # All given parameters must be the same on all processors
-# and are stored in PlaneWaveBasis for easy reconstruction
+# and are stored in PlaneWaveBasis for easy reconstruction.
 function PlaneWaveBasis(model::Model{T},
                         Ecut::Number, fft_size, variational,
                         kcoords::AbstractVector, ksymops,
@@ -242,13 +242,17 @@ end
 # The higher-level one below should be preferred
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops,
-                                symmetries=symmetries_preserving_kgrid(model.symmetries,
-                                                                       unfold_kcoords(kcoords,
-                                                                                      model.symmetries));
+                                symmetries=nothing;
                                 fft_size=nothing, variational=true,
                                 fft_size_algorithm=:fast, supersampling=2,
                                 kgrid=nothing, kshift=nothing,
                                 comm_kpts=MPI.COMM_WORLD) where {T <: Real}
+    # Compute the symmetries preserved by the kcoords.
+    if isnothing(symmetries)
+        all_kcoords = unfold_kcoords(kcoords, model.symmetries)
+        symmetries = symmetries_preserving_kgrid(model.symmetries, all_kcoords)
+    end
+
     # Compute or validate fft_size
     if fft_size === nothing
         @assert variational

@@ -3,7 +3,7 @@
 Computes the *probability* (not charge) current, ∑ fn Im(ψn* ∇ψn)
 """
 function compute_current(basis::PlaneWaveBasis, ψ, occupation)
-    @assert length(basis.symmetries) == 1 # TODO lift this
+    @assert length(basis.symmetries) == 1  # TODO lift this
     current = [zeros(eltype(basis), basis.fft_size) for α = 1:3]
     for (ik, kpt) in enumerate(basis.kpoints)
         for (n, ψnk) in enumerate(eachcol(ψ[ik]))
