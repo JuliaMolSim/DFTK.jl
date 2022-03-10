@@ -7,6 +7,11 @@ struct Model{T <: Real}
     # Human-readable name for the model (like LDA, PBE, ...)
     model_name::String
 
+    # AtomsBase-compatible description of the physical system (for information only)
+    # If the model has been constructed from an AbstractSystem, then this resembles
+    # the passed object as closely as possible.
+    system::AbstractSystem
+
     # Lattice and reciprocal lattice vectors in columns
     lattice::Mat3{T}
     recip_lattice::Mat3{T}
@@ -98,6 +103,7 @@ function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
                spin_polarization=default_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
+               system=construct_atomsbase(lattice, atoms, positions, magnetic_moments),
                ) where {T <: Real}
     lattice = Mat3{T}(lattice)
     temperature = T(austrip(temperature))
@@ -156,7 +162,8 @@ function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
     end
     @assert !isempty(symmetries)  # Identity has to be always present.
 
-    Model{T}(model_name, lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
+    Model{T}(model_name, system,
+             lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
              unit_cell_volume, recip_cell_volume,
              n_electrons, spin_polarization, n_spin, T(temperature), smearing,
              atoms, positions, atom_groups, terms, symmetries)
@@ -166,6 +173,20 @@ function Model(lattice::AbstractMatrix{<: Integer}, args...; kwargs...)
 end
 function Model(lattice::AbstractMatrix{<:Quantity}, args...; kwargs...)
     Model(austrip.(lattice), args...; kwargs...)
+end
+
+
+"""
+    Model(system::AbstractSystem; kwargs...)
+
+AtomsBase-compatible Model constructor. Sets structural information (`atoms`, `positions`,
+`lattice`, `n_electrons` etc.) from the passed `system`.
+"""
+function Model(system::AbstractSystem; kwargs...)
+    @assert !(:system in keys(kwargs))
+    @assert !(:atoms  in keys(kwargs))
+    parsed = parse_atomsbase(system)
+    Model(parsed.lattice; parsed.atoms, parsed.positions, system, parsed.kwargs..., kwargs...)
 end
 
 normalize_magnetic_moment(::Nothing)  = Vec3{Float64}(zeros(3))
@@ -209,7 +230,6 @@ function default_symmetries(lattice, atoms, positions, magnetic_moments, spin_po
     magnetic_moments = normalize_magnetic_moment.(magnetic_moments)
     symmetry_operations(lattice, atoms, positions, magnetic_moments; tol_symmetry)
 end
-
 
 
 """

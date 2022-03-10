@@ -42,12 +42,3 @@ function load_psp(key::AbstractString; identifier=nothing)
               "'$identifier' in directory '$(datadir_psp())'")
     end
 end
-
-
-function load_psp(element::Union{Symbol,Integer}; family="hgh", core=:fullcore, kwargs...)
-    list = list_psp(element; family=family, core=core, kwargs...)
-    if length(list) != 1
-        error("Parameters passed to load_psp do not uniquely identify a PSP file.")
-    end
-    load_psp(list[1].path, identifier=list[1].identifier)
-end

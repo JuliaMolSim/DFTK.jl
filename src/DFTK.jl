@@ -4,9 +4,10 @@ with plane-wave density-functional theory algorithms.
 """
 module DFTK
 
-using Printf
-using Markdown
+using AtomsBase
 using LinearAlgebra
+using Markdown
+using Printf
 using Requires
 using TimerOutputs
 using spglib_jll
@@ -143,9 +144,11 @@ export guess_density
 export random_density
 export load_psp
 export list_psp
+export attach_psp
 include("guess_density.jl")
 include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
+include("pseudo/attach_psp.jl")
 
 export pymatgen_structure
 export ase_atoms

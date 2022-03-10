@@ -1,4 +1,4 @@
-using Interpolations
+import Interpolations: interpolate, BSpline, Quadratic, OnCell
 using SparseArrays
 
 """
@@ -46,7 +46,7 @@ function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in
 
     # interpolate ρ_in_supercell from grid grid_supercell to grid_out
     axes_in = (range(0, 1, length=grid_supercell[i]+1)[1:end-1] for i=1:3)
-    itp = interpolate(ρ_in_supercell, BSpline(Quadratic(Periodic(OnCell()))))
+    itp = interpolate(ρ_in_supercell, BSpline(Quadratic(Interpolations.Periodic(OnCell()))))
     sitp = scale(itp, axes_in...)
     ρ_interp = extrapolate(sitp, Periodic())
     ρ_out = similar(ρ_in, grid_out)
