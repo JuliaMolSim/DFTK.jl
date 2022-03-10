@@ -29,27 +29,26 @@ When magnetic moments are provided, construct a symmetry-broken density guess.
 The magnetic moments should be specified in units of ``μ_B``.
 """
 function guess_density(basis::PlaneWaveBasis, magnetic_moments=[])
-    guess_density(basis, basis.model.atoms, magnetic_moments)
+    guess_density(basis, basis.model.atoms, basis.model.positions, magnetic_moments)
 end
-@timing function guess_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments) where {T}
-    ρtot = _guess_total_density(basis, atoms)
+@timing function guess_density(basis::PlaneWaveBasis, atoms, positions, magnetic_moments=[])
+    ρtot = _guess_total_density(basis, atoms, positions)
     if basis.model.n_spin_components == 1
         ρspin = nothing
     else
-        ρspin = _guess_spin_density(basis, atoms, magnetic_moments)
+        ρspin = _guess_spin_density(basis, atoms, positions, magnetic_moments)
     end
-
     ρ_from_total_and_spin(ρtot, ρspin)
 end
 
-function _guess_total_density(basis::PlaneWaveBasis{T}, atoms) where {T}
-    # build ρtot
-    gaussians_tot = [(T(n_elec_valence(spec)), T(atom_decay_length(spec)), pos)
-                     for (spec, positions) in atoms for pos in positions]
+function _guess_total_density(basis::PlaneWaveBasis{T}, atoms, positions) where {T}
+    @assert length(atoms) == length(positions)
+    gaussians_tot = [(T(n_elec_valence(atom))::T, T(atom_decay_length(atom))::T, position)
+                     for (atom, position) in zip(atoms, positions)]
     ρtot = gaussian_superposition(basis, gaussians_tot)
 end
 
-function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments) where {T}
+function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, positions, magnetic_moments) where {T}
     model = basis.model
     if model.spin_polarization in (:none, :spinless)
         isempty(magnetic_moments) && return nothing
@@ -57,32 +56,23 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, magnetic_moments) 
     end
 
     # If no magnetic moments start with a zero spin density
-    all_magmoms = (normalize_magnetic_moment(magmom) for (_, magmoms) in magnetic_moments
-                   for magmom in magmoms)
-    if all(iszero, all_magmoms)
+    magmoms = Vec3{T}[normalize_magnetic_moment(magmom) for magmom in magnetic_moments]
+    magmoms = filter(!iszero, magmoms)
+    if isempty(magmoms)
         @warn("Returning zero spin density guess, because no initial magnetization has " *
               "been specified in any of the given elements / atoms. Your SCF will likely " *
               "not converge to a spin-broken solution.")
         return zeros(T, basis.fft_size)
     end
 
-    gaussians = Tuple{T, T, Vec3{T}}[]
-    @assert length(magnetic_moments) == length(atoms)
-    for (ispec, (spec, magmoms)) in enumerate(magnetic_moments)
-        positions = atoms[ispec][2]
-        @assert charge_nuclear(spec) == charge_nuclear(atoms[ispec][1])
-        @assert length(magmoms) == length(positions)
-        for (ipos, r) in enumerate(positions)
-            magmom = Vec3{T}(normalize_magnetic_moment(magmoms[ipos]))
-            iszero(magmom) && continue
-            iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
-
-            magmom[3] ≤ n_elec_valence(spec) || error(
-                "Magnetic moment $(magmom[3]) too large for element $(atomic_symbol(spec)) " *
-                "with only $(n_elec_valence(spec)) valence electrons."
-            )
-            push!(gaussians, (magmom[3], atom_decay_length(spec), r))
-        end
+    @assert length(magnetic_moments) == length(atoms) == length(positions)
+    gaussians = map(zip(atoms, positions, magmoms)) do (atom, position, magmom)
+        iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
+        magmom[3] ≤ n_elec_valence(atom) || error(
+            "Magnetic moment $(magmom[3]) too large for element $(atomic_symbol(atom)) " *
+            "with only $(n_elec_valence(atom)) valence electrons."
+        )
+        magmom[3], T(atom_decay_length(atom))::T, position
     end
     gaussian_superposition(basis, gaussians)
 end

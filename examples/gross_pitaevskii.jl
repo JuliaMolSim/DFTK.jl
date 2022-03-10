@@ -47,8 +47,7 @@ terms = [Kinetic(),
          ExternalFromReal(r -> pot(r[1])),
          LocalNonlinearity(ρ -> C * ρ^α),
 ]
-model = Model(lattice; n_electrons=n_electrons, terms=terms,
-              spin_polarization=:spinless);  # use "spinless electrons"
+model = Model(lattice; n_electrons, terms, spin_polarization=:spinless);  # spinless electrons
 
 # We discretize using a moderate Ecut (For 1D values up to `5000` are completely fine)
 # and run a direct minimization algorithm:

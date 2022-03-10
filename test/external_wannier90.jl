@@ -5,9 +5,7 @@ include("testcases.jl")
 if !Sys.iswindows() && mpi_nprocs() == 1
 @testset "Test run_wannier90" begin
     using wannier90_jll
-
-    Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/Si-q4"))
-    model  = model_LDA(silicon.lattice, [Si => silicon.positions])
+    model  = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
     basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[4, 4, 4])
     scfres = self_consistent_field(basis, tol=1e-12, n_bands=12)
 

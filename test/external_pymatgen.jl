@@ -47,16 +47,19 @@ end
 
     reference = py"Structure($reflattice, $species, $positions)"
     atoms = load_atoms(reference)
-    @test length(atoms) == 3
-    @test all(at isa ElementCoulomb for (at, positions) in atoms)
-    @test atoms[1][1].symbol == :H
-    @test atoms[2][1].symbol == :C
-    @test atoms[3][1].symbol == :O
+    @test length(atoms) == 6
+    @test all(at isa ElementCoulomb for at in atoms)
+    @test atoms[1].symbol == :H
+    @test atoms[2].symbol == :H
+    @test atoms[3].symbol == :C
+    @test atoms[4].symbol == :C
+    @test atoms[5].symbol == :C
+    @test atoms[6].symbol == :O
 
-    output = pymatgen_structure(load_lattice(reference), atoms)
+    output = pymatgen_structure(load_lattice(reference), atoms, load_positions(reference))
     @test output.lattice == reflattice
     for i in 1:6
-        @test output.species[i].number == species[i]
+        @test output.species[i].number    == species[i]
         @test output.sites[i].frac_coords == positions[i]
     end
 end
@@ -67,26 +70,26 @@ end
     c = randn(3)
     lattice = [a b c]
 
-    atoms = [
-        ElementCoulomb(1) => [randn(3), randn(3)],
-        ElementCoulomb(6) => [randn(3), randn(3), randn(3)],
-        ElementCoulomb(8) => [randn(3), randn(3)],
+    H = ElementCoulomb(1)
+    O = ElementCoulomb(6)
+    C = ElementCoulomb(8)
+    atoms = [H, H, O, O, O, C, C]
+    positions = [
+        randn(3), randn(3),
+        randn(3), randn(3), randn(3),
+        randn(3), randn(3)
     ]
 
     # Convert the lattice to python, make it flat and convert
     # to Julia array
-    output = pymatgen_structure(lattice, atoms)
+    output  = pymatgen_structure(lattice, atoms, positions)
     outlatt = py"$output.lattice.matrix.ravel()" .+ 0
     @test a ≈ austrip.(outlatt[1:3] * u"Å") atol=1e-14
     @test b ≈ austrip.(outlatt[4:6] * u"Å") atol=1e-14
     @test c ≈ austrip.(outlatt[7:9] * u"Å") atol=1e-14
 
-    specmap = [1, 1, 2, 2, 2, 3, 3]
-    offset = [0, 0, 2, 2, 2, 5, 5]
     for i in 1:6
-        specpair = atoms[specmap[i]]
-        ired = i - offset[i]
-        @test output.species[i].number == specpair.first.Z
-        @test output.sites[i].frac_coords == specpair.second[ired]
+        @test output.species[i].number    == atoms[i].Z
+        @test output.sites[i].frac_coords == positions[i]
     end
 end

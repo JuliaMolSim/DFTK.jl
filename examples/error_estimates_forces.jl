@@ -14,6 +14,7 @@
 #     *Practical error bounds for properties in plane-wave electronic structure
 #     calculations* Preprint, 2021. [arXiv](https://arxiv.org/abs/2111.01470)
 using DFTK
+using Printf
 using LinearAlgebra
 using ForwardDiff
 using LinearMaps
@@ -23,26 +24,26 @@ using IterativeSolvers
 # We setup manually the ``{\rm TiO}_2`` configuration from
 # [Materials Project](https://materialsproject.org/materials/mp-2657/).
 Ti = ElementPsp(:Ti, psp=load_psp("hgh/lda/ti-q4.hgh"))
-O = ElementPsp(:O, psp=load_psp("hgh/lda/o-q6.hgh"))
-atoms = [Ti => [[0.5, 0.5, 0.5],
-                [0.0, 0.0, 0.0]],
-         O  => [[0.19542, 0.80458, 0.5],
-                [0.80458, 0.19542, 0.5],
-                [0.30458, 0.30458, 0.0],
-                [0.69542, 0.69542, 0.0]]]
-lattice = [[8.79341  0.0      0.0];
-           [0.0      8.79341  0.0];
-           [0.0      0.0      5.61098]];
+O  = ElementPsp(:O, psp=load_psp("hgh/lda/o-q6.hgh"))
+atoms     = [Ti, Ti, O, O, O, O]
+positions = [[0.5,     0.5,     0.5],  # Ti
+             [0.0,     0.0,     0.0],  # Ti
+             [0.19542, 0.80458, 0.5],  # O
+             [0.80458, 0.19542, 0.5],  # O
+             [0.30458, 0.30458, 0.0],  # O
+             [0.69542, 0.69542, 0.0]]  # O
+lattice   = [[8.79341  0.0      0.0];
+             [0.0      8.79341  0.0];
+             [0.0      0.0      5.61098]];
 
 # We apply a small displacement to one of the ``\rm Ti`` atoms to get nonzero
 # forces.
-el, pos = atoms[1]
-atoms[1] = Pair(el, pos .+ [[-0.22, 0.28, 0.35] / 10, [0, 0, 0]]);
+positions[1] .+= [-0.022, 0.028, 0.035]
 
 # We build a model with one k-point only, not too high `Ecut_ref` and small
 # tolerance to limit computational time. These parameters can be increased for
 # more precise results.
-model = model_LDA(lattice, atoms)
+model = model_LDA(lattice, atoms, positions)
 kgrid = [1, 1, 1]
 Ecut_ref = 35
 basis_ref = PlaneWaveBasis(model; Ecut=Ecut_ref, kgrid)
@@ -174,17 +175,18 @@ res_schur = e1 + Mres;
 
 # ## Error estimates
 
-# We start with different estimations of the forces on the first ``\rm Ti`` atom,
-# in direction 1.
-# - Forces computed with the reference solution:
+# We start with different estimations of the forces:
+# - Force from the reference solution
 f_ref = compute_forces(scfres_ref)
-## [1][1][1] means that we look at the forces on the first atom type (Ti), the
-## first atom of this type, in the first direction.
-println("F(P_*) = $(f_ref[1][1][1])")
+forces   = Dict("F(P_*)" => f_ref)
+relerror = Dict("F(P_*)" => 0.0)
+compute_relerror(f) = norm(f - f_ref) / norm(f_ref)
 
-# - Forces computed with the variational approximation:
+# - Force from the variational solution and relative error without
+#   any post-processing:
 f = compute_forces(scfres)
-println("F(P) = $(f[1][1][1])")
+forces["F(P)"]   = f
+relerror["F(P)"] = compute_relerror(f)
 
 # We then try to improve ``F(P)`` using the first order linearization:
 #
@@ -200,27 +202,25 @@ function df(basis, occupation, ψ, δψ, ρ)
 end;
 
 # - Computation of the forces by a linearization argument if we have access to
-#   the actual error ``P-P_*``:
+#   the actual error ``P-P_*``. Usually this is of course not the case, but this
+#   is the "best" improvement we can hope for with a linearisation, so we are
+#   aiming for this precision.
 df_err = df(basis_ref, occ, ψr, DFTK.proj_tangent(err, ψr), ρr)
-println("F(P) - df(P)⋅(P-P_*) = $(f[1][1][1]-df_err[1][1][1])")
+forces["F(P) - df(P)⋅(P-P_*)"]   = f - df_err
+relerror["F(P) - df(P)⋅(P-P_*)"] = compute_relerror(f - df_err)
 
 # - Computation of the forces by a linearization argument when replacing the
-#   error ``P-P_*`` by the modified residual:
+#   error ``P-P_*`` by the modified residual ``R_{\rm Schur}(P)``. The latter
+#   quantity is computable in practice.
 df_schur = df(basis_ref, occ, ψr, res_schur, ρr)
-println("F(P) - df(P)⋅Rschur(P) = $(f[1][1][1]-df_schur[1][1][1])")
+forces["F(P) - df(P)⋅Rschur(P)"]   = f - df_schur
+relerror["F(P) - df(P)⋅Rschur(P)"] = compute_relerror(f - df_schur)
 
-# Then, we estimate the error on the forces made by the different computations
-# above:
+# Summary of all forces on the first atom (Ti)
+for (key, value) in pairs(forces)
+    @printf("%30s = [%7.5f, %7.5f, %7.5f]   (rel. error: %7.5f)\n",
+            key, (value[1])..., relerror[key])
+end
 
-# - Relative error on the forces with no post-processing:
-println("|F(P) - F(P_*)| / |F(P_*)| = $(norm(f-f_ref)/norm(f_ref))")
-
-# - Relative error made by the linearization ``F(P) - {\rm d}F(P)⋅(P-P_*)`` if
-#   we had access to the actual error ``P-P_*``, which is not the case in
-#   practice (we are aiming at reaching this precision):
-println("|F(P) - dF(P)⋅(P-P_*) - F(P_*)| / |F(P_*)| = $(norm(f-df_err-f_ref)/norm(f_ref))")
-
-# - Relative error made by replacing ``P-P_*`` by the modified residual
-#   ``R_{\rm Schur}(P)`` (computable in practice) in the linearization (note
-#   how closer we are to the previous one):
-println("|F(P) - dF(P)⋅Rschur(P) - F(P_*)| / |F(P_*)| = $(norm(f-df_schur-f_ref)/norm(f_ref))")
+# Notice how close the computable expression ``F(P) - {\rm d}F(P)⋅R_{\rm Schur}(P)``
+# is to the best linearization ansatz ``F(P) - {\rm d}F(P)⋅(P-P_*)``.

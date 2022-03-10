@@ -57,7 +57,7 @@ breaks_symmetries(::Magnetic) = true
 include("anyonic.jl")
 breaks_symmetries(::Anyonic) = true
 
-# forces computes either nothing or an array forces[el][at][α]
+# forces computes either nothing or an array forces[at][α]
 compute_forces(::Term, ::AbstractBasis, ψ, occ; kwargs...) = nothing  # by default, no force
 
 @doc raw"""

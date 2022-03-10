@@ -84,8 +84,7 @@ if mpi_nprocs() == 1  # not easy to distribute
         "K"=>[0.375, 0.375, 0.75]
     )
 
-    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_DFT(silicon.lattice, [spec => testcase.positions], [:lda_xc_teter93])
+    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
     kcoords, klabels, kpath = high_symmetry_kpath(model; kline_density=22.7)
 
     @test length(ref_kcoords) == length(kcoords)
@@ -119,12 +118,11 @@ end
     Ecut = 7
     n_bands = 8
 
-    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_DFT(silicon.lattice, [spec => testcase.positions], :lda_xc_teter93)
+    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
     basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops)
 
     # Build Hamiltonian just from SAD guess
-    ρ0 = guess_density(basis, [spec => testcase.positions])
+    ρ0 = guess_density(basis, testcase.atoms, testcase.positions)
     ham = Hamiltonian(basis; ρ=ρ0)
 
     # Check that plain diagonalization and compute_bands agree
@@ -139,8 +137,7 @@ end
 
 @testset "prepare_band_data" begin
     testcase = silicon
-    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_DFT(silicon.lattice, [spec => testcase.positions], :lda_xc_teter93)
+    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
 
     # k coordinates simulating two band branches, Γ => X => W and U => X
     kcoords = [
@@ -212,8 +209,7 @@ end
 
 @testset "is_metal" begin
     testcase = silicon
-    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_LDA(silicon.lattice, [spec => testcase.positions])
+    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
 
     basis = PlaneWaveBasis(model, 5, testcase.kcoords, testcase.ksymops)
     λ = [[1, 2, 3, 4], [1, 1.5, 3.5, 4.2], [1, 1.1, 3.2, 4.3], [1, 2, 3.3, 4.1]]

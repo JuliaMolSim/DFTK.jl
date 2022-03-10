@@ -34,8 +34,7 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
     poisson_green_coeffs = 4T(π) ./ [sum(abs2, G) for G in G_vectors_cart(basis)]
     if !isempty(model.atoms)
         # Assume positive charge from nuclei is exactly compensated by the electrons
-        sum_charges = sum(length(positions) * charge_ionic(elem)
-                          for (elem, positions) in model.atoms)
+        sum_charges = sum(charge_ionic, model.atoms)
         @assert sum_charges == model.n_electrons
     end
     poisson_green_coeffs[1] = 0  # Compensating charge background => Zero DC

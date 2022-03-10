@@ -2,23 +2,15 @@
 """
 Compute the forces of an obtained SCF solution. Returns the forces wrt. the fractional
 lattice vectors. To get cartesian forces use [`compute_forces_cart`](@ref).
-Returns a list of lists of forces
-`[[force for atom in positions] for (element, positions) in atoms]`
-which has the same structure as the `atoms` object passed to the underlying [`Model`](@ref).
+Returns a list of lists of forces (as SVector{3}) in the same order as the `atoms`
+and `positions` in the underlying [`Model`](@ref).
 """
-@timing function compute_forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
-    # TODO optimize allocs here
-    T = eltype(basis)
-    forces = [zeros(Vec3{T}, length(positions)) for (element, positions) in basis.model.atoms]
-    for term in basis.terms
-        f_term = compute_forces(term, basis, ψ, occ; kwargs...)
-        if !isnothing(f_term)
-            forces += f_term
-        end
-    end
-     # no explicit symmetrization is performed here, it is the
-     # responsability of each term to return symmetric forces
-    forces
+@timing function compute_forces(basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
+    # no explicit symmetrization is performed here, it is the
+    # responsability of each term to return symmetric forces
+    forces_per_term = [compute_forces(term, basis, ψ, occupation; kwargs...)
+                       for term in basis.terms]
+    sum(filter(!isnothing, forces_per_term))
 end
 
 """
@@ -27,9 +19,9 @@ Returns a list of lists of forces
 `[[force for atom in positions] for (element, positions) in atoms]`
 which has the same structure as the `atoms` object passed to the underlying [`Model`](@ref).
 """
-function compute_forces_cart(basis::PlaneWaveBasis, ψ, occ; kwargs...)
-    forces = compute_forces(basis::PlaneWaveBasis, ψ, occ; kwargs...)
-    [covector_red_to_cart.(basis.model, forces_for_element) for forces_for_element in forces]
+function compute_forces_cart(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+    forces_reduced = compute_forces(basis, ψ, occupation; kwargs...)
+    covector_red_to_cart.(basis.model, forces_reduced)
 end
 
 function compute_forces(scfres)

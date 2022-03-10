@@ -40,8 +40,11 @@
 @doc raw"""
 Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
-function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
-    Ws, ws = spglib_get_symmetry(lattice, atoms, magnetic_moments; tol_symmetry)
+function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
+        tol_symmetry=SYMMETRY_TOLERANCE)
+    @assert length(atoms) == length(positions)
+    atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
+    Ws, ws = spglib_get_symmetry(lattice, atom_groups, positions, magnetic_moments; tol_symmetry)
     [SymOp(W, w) for (W, w) in zip(Ws, ws)]
 end
 
@@ -102,6 +105,23 @@ function find_irreducible_kpoints(kcoords, symmetries)
     end
     kirreds, ksymops
 end
+
+
+@doc raw"""
+Apply various standardisations to a lattice and a list of atoms. It uses spglib to detect
+symmetries (within `tol_symmetry`), then cleans up the lattice according to the symmetries
+(unless `correct_symmetry` is `false`) and returns the resulting standard lattice
+and atoms. If `primitive` is `true` (default) the primitive unit cell is returned, else
+the conventional unit cell is returned.
+"""
+function standardize_atoms(lattice, atoms, positions, magnetic_moments=[]; kwargs...)
+    @assert length(atoms) == length(positions)
+    @assert isempty(magnetic_moments) || (length(atoms) == length(magnetic_moments))
+    atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
+    ret = spglib_standardize_cell(lattice, atom_groups, positions, magnetic_moments; kwargs...)
+    (; ret.lattice, atoms, ret.positions, ret.magnetic_moments)
+end
+
 
 """
 Apply a symmetry operation to eigenvectors `ψk` at a given `kpoint` to obtain an
@@ -239,23 +259,20 @@ Symmetrize the forces in *reduced coordinates*, forces given as an
 array forces[iel][α,i]
 """
 function symmetrize_forces(model::Model, forces; symmetries)
-    atoms = model.atoms
-    symmetrized_forces = zero.(forces)
-    for (iel, (element, positions)) in enumerate(atoms)
-        for symop in symmetries
-            W, w = symop.W, symop.w
-            for (iat, at) in enumerate(positions)
-                # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
-                # (but careful that our symmetries are r -> Wr+w, not R(r+f))
-                other_at = W \ (at - w)
-                is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ SYMMETRY_TOLERANCE, r)
-                i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions)
-                symmetrized_forces[iel][iat] += W * forces[iel][i_other_at]
-            end
+    symmetrized_forces = zero(forces)
+    for group in model.atom_groups, symop in symmetries
+        positions_group = model.positions[group]
+        W, w = symop.W, symop.w
+        for (idx, position) in enumerate(positions_group)
+            # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
+            # (but careful that our symmetries are r -> Wr+w, not R(r+f))
+            other_at = W \ (position - w)
+            is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ SYMMETRY_TOLERANCE, r)
+            i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions_group)
+            symmetrized_forces[idx] += W * forces[group[i_other_at]]
         end
-        symmetrized_forces[iel] /= length(symmetries)
     end
-    symmetrized_forces
+    symmetrized_forces / length(symmetries)
 end
 function symmetrize_forces(basis::PlaneWaveBasis, forces)
     symmetrize_forces(basis.model, forces; basis.symmetries)

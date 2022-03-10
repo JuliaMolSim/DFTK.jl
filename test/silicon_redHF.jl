@@ -27,14 +27,14 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
     fft_size = fill(grid_size, 3)
     fft_size = DFTK.next_working_fft_size(T, fft_size) # ad-hoc fix for buggy generic FFTs
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="lda", family="hgh"))
+    atoms = [Si, Si]
 
-    atoms = [Si => silicon.positions]
     if spin_polarization == :collinear
-        magnetic_moments = [el => zero.(pos) for (el, pos) in atoms]
+        magnetic_moments = zero.(silicon.positions)
     else
         magnetic_moments = []
     end
-    model = model_DFT(Array{T}(silicon.lattice), atoms, [];
+    model = model_DFT(Array{T}(silicon.lattice), atoms, silicon.positions, [];
                       temperature=0.05, spin_polarization, magnetic_moments)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
 

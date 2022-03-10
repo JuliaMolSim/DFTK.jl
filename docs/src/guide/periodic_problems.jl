@@ -311,11 +311,12 @@ lattice = diagm([100., 0, 0])
 
 ## Place them at 20 and 80 in *fractional coordinates*,
 ## that is 0.2 and 0.8, since the lattice is 100 wide.
-nucleus = ElementGaussian()
-atoms = [nucleus => [[0.2, 0, 0], [0.8, 0, 0]]]
+nucleus   = ElementGaussian()
+atoms     = [nucleus, nucleus]
+positions = [[0.2, 0, 0], [0.8, 0, 0]]
 
 ## Assemble the model, discretize and build the Hamiltonian
-model = Model(lattice; atoms=atoms, terms=[Kinetic(), AtomicLocal()])
+model = Model(lattice; atoms, positions, terms=[Kinetic(), AtomicLocal()])
 basis = PlaneWaveBasis(model; Ecut=300, kgrid=(1, 1, 1));
 ham   = Hamiltonian(basis)
 

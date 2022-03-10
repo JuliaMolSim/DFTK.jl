@@ -13,10 +13,11 @@ using ForwardDiff
 ## Again we take the example of a Helium atom.
 function make_basis(ε::T; a=10., Ecut=30) where T
     lattice=T(a) * I(3)  # lattice is a cube of ``a`` Bohrs
-    He = ElementPsp(:He, psp=load_psp("hgh/lda/He-q2"))
-    atoms = [He => [[1/2; 1/2; 1/2]]]  # Helium at the center of the box
+    ## Helium at the center of the box
+    atoms     = [ElementPsp(:He, psp=load_psp("hgh/lda/He-q2"))]
+    positions = [[1/2, 1/2, 1/2]]
 
-    model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn];
+    model = model_DFT(lattice, atoms, positions, [:lda_x, :lda_c_vwn];
                       extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
                       symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])  # No k-point sampling on isolated system

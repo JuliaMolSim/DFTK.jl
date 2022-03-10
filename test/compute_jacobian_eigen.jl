@@ -64,17 +64,12 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
 
     @testset "Compute eigenvalues" begin
         @testset "Compute smallest eigenvalue of Ω" begin
-            Ecut = 5
-            tol = 1e-12
             numval = 3  # number of eigenvalues we want to compute
 
-            Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-            model = model_atomic(silicon.lattice, [Si => silicon.positions])
-            basis = PlaneWaveBasis(model; Ecut, kgrid=[1,1,1])
-
-            scfres = self_consistent_field(basis; tol=tol)
-            ψ, occupation = select_occupied_orbitals(basis, scfres.ψ,
-                                                     scfres.occupation)
+            model  = model_atomic(silicon.lattice, silicon.atoms, silicon.positions)
+            basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1])
+            scfres = self_consistent_field(basis; tol=1e-12)
+            ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 
             res = eigen_ΩplusK(basis, ψ, occupation, numval)
             gap = scfres.eigenvalues[1][5] - scfres.eigenvalues[1][4]
@@ -85,20 +80,15 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
         end
 
         @testset "Compute smallest eigenvalue of Ω+K" begin
-            Ecut = 5
-            tol = 1e-12
             numval = 3  # number of eigenvalues we want to compute
 
-            Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-            model = model_LDA(silicon.lattice, [Si => silicon.positions])
-            basis = PlaneWaveBasis(model; Ecut, kgrid=[1,1,1])
-
-            scfres = self_consistent_field(basis; tol=tol)
+            model  = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
+            basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1])
+            scfres = self_consistent_field(basis; tol=1e-12)
             ψ, occupation = select_occupied_orbitals(basis, scfres.ψ,
                                                      scfres.occupation)
 
             res = eigen_ΩplusK(basis, ψ, occupation, numval)
-
             @test res.λ[1] > 1e-3
         end
     end

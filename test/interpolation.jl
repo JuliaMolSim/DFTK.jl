@@ -34,8 +34,7 @@ end
     tol = 1e-7
     Ecut = 5
 
-    Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_LDA(silicon.lattice, [Si => silicon.positions])
+    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
     kgrid = [2, 2, 2]
     basis = PlaneWaveBasis(model; Ecut, kgrid)
 

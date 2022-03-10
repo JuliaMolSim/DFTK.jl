@@ -17,7 +17,8 @@ b = 5.22722  # bohr
 c = 9.77362  # bohr
 lattice = [[-a -a  0]; [-b  b  0]; [0   0 -c]]
 Mg = ElementPsp(:Mg, psp=load_psp("hgh/pbe/Mg-q2"))
-atoms = [Mg => [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]]];
+atoms     = [Mg, Mg]
+positions = [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]];
 
 # Next we build the PBE model and discretize it.
 # Since magnesium is a metal we apply a small smearing
@@ -38,9 +39,8 @@ smearing = DFTK.Smearing.FermiDirac() # Smearing method
 ##                                      MarzariVanderbilt,
 ##                                      and MethfesselPaxton(order)
 
-model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe];
-                  temperature=temperature,
-                  smearing=smearing)
+model = model_DFT(lattice, atoms, positions, [:gga_x_pbe, :gga_c_pbe];
+                  temperature, smearing)
 kgrid = kgrid_from_minimal_spacing(lattice, kspacing)
 basis = PlaneWaveBasis(model; Ecut, kgrid);
 

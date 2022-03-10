@@ -45,7 +45,7 @@ Construct the irreducible wedge of a uniform Brillouin zone mesh for sampling ``
 The function returns a tuple `(kcoords, ksymops)`, where `kcoords` are the list of
 irreducible ``k``-points and `ksymops` are a list of symmetry operations for regenerating
 the full mesh. `symmetries` is the tuple returned from
-`symmetry_operations(lattice, atoms, magnetic_moments)`.
+`symmetry_operations(lattice, atoms, positions, magnetic_moments)`.
 `tol_symmetry` is the tolerance used for searching for symmetry operations.
 """
 function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
@@ -129,15 +129,6 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     kirreds, ksymops, symmetries
 end
 
-
-@doc raw"""
-Apply various standardisations to a lattice and a list of atoms. It uses spglib to detect
-symmetries (within `tol_symmetry`), then cleans up the lattice according to the symmetries
-(unless `correct_symmetry` is `false`) and returns the resulting standard lattice
-and atoms. If `primitive` is `true` (default) the primitive unit cell is returned, else
-the conventional unit cell is returned.
-"""
-const standardize_atoms = spglib_standardize_cell
 
 # TODO Maybe maximal spacing is actually a better name as the kpoints are spaced
 #      at most that far apart
