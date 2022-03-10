@@ -271,7 +271,7 @@ function symmetrize_forces(model::Model, forces; symmetries)
             symmetrized_forces[idx] += W * forces[group[i_other_at]]
         end
     end
-    symmetrized_forces
+    symmetrized_forces / length(symmetries)
 end
 function symmetrize_forces(basis::PlaneWaveBasis, forces)
     symmetrize_forces(basis.model, forces; basis.symmetries)

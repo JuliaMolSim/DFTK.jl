@@ -5,7 +5,7 @@ using Random
 using MPI
 include("testcases.jl")
 
-@testset "Forces on semiconductor (using total energy)" begin
+@testset "Forces on silicon" begin
     function energy_forces(positions)
         model = model_DFT(silicon.lattice, silicon.atoms, positions, [:lda_x, :lda_c_pw])
         basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
@@ -41,7 +41,7 @@ include("testcases.jl")
     @test maximum(v -> maximum(abs, v), reference - Fc1) < 1e-5
 end
 
-@testset "Forces on metal (using free energy)" begin
+@testset "Forces on silicon with spin and temperature" begin
     function silicon_energy_forces(positions; smearing=Smearing.FermiDirac())
         model = model_DFT(silicon.lattice, silicon.atoms, positions, :lda_xc_teter93;
                           temperature=0.03, smearing, spin_polarization=:collinear)
@@ -68,7 +68,6 @@ end
         @test abs(diff_findiff - diff_forces) < tol
     end
 end
-
 
 @testset "Forces on spin-polarised case" begin
     function oxygen_energy_forces(positions)
