@@ -54,7 +54,7 @@ end
     isempty(psp_groups) && return nothing
 
     # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
-    forces = zero(model.positions)
+    forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
     for group in psp_groups
         element = model.atoms[first(group)]
 

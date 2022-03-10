@@ -96,7 +96,7 @@ end
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
     # where struct_factor(G) = cis(-2π G⋅r)
-    forces = zero(model.positions)
+    forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
     for group in model.atom_groups
         element = model.atoms[first(group)]
         form_factors = [Complex{T}(local_potential_fourier(element, norm(recip_lattice * G)))

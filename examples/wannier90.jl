@@ -25,8 +25,9 @@ lattice = [a  -a/2    0;
            0     0    d]
 
 C = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4"))
-atoms  = [C => [[0.0, 0.0, 0.0], [1//3, 2//3, 0.0]]]
-model  = model_PBE(lattice, atoms)
+atoms     = [C, C]
+positions = [[0.0, 0.0, 0.0], [1//3, 2//3, 0.0]]
+model  = model_PBE(lattice, atoms, positions)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[5, 5, 1])
 scfres = self_consistent_field(basis; n_bands=15, tol=1e-8);
 

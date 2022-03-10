@@ -262,10 +262,10 @@ function symmetrize_forces(model::Model, forces; symmetries)
     for group in model.atom_groups, symop in symmetries
         positions_group = model.positions[group]
         W, w = symop.W, symop.w
-        for idx in group
+        for (idx, position) in enumerate(positions_group)
             # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
             # (but careful that our symmetries are r -> Wr+w, not R(r+f))
-            other_at = W \ (positions_group[idx] - w)
+            other_at = W \ (position - w)
             is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ SYMMETRY_TOLERANCE, r)
             i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions_group)
             symmetrized_forces[idx] += W * forces[group[i_other_at]]
