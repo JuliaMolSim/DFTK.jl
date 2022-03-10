@@ -45,7 +45,7 @@ Construct the irreducible wedge of a uniform Brillouin zone mesh for sampling ``
 The function returns a tuple `(kcoords, ksymops)`, where `kcoords` are the list of
 irreducible ``k``-points and `ksymops` are a list of symmetry operations for regenerating
 the full mesh. `symmetries` is the tuple returned from
-`symmetry_operations(lattice, atoms, magnetic_moments)`.
+`symmetry_operations(lattice, atoms, positions, magnetic_moments)`.
 `tol_symmetry` is the tolerance used for searching for symmetry operations.
 """
 function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])

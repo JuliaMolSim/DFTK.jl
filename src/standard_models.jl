@@ -63,6 +63,7 @@ function model_SCAN(lattice::AbstractMatrix, atoms::Vector, positions::Vector; k
 end
 
 
+# NOTE:  This is a temporary function, which could disappear any time.
 function atoms_compat(oldatoms::Vector{<:Pair})
     atoms = Element[]
     positions = Vec3[]

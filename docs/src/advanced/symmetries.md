@@ -92,24 +92,25 @@ lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
+atoms = [Si, Si]
+positions = [ones(3)/8, -ones(3)/8]
 Ecut = 5
 kgrid = [4, 4, 4]
 ```
 Let us demonstrate this in practice.
-We consider silicon, setup appropriately in the `lattice` and `atoms` objects
-as in [Tutorial](@ref) and to reach a fast execution, we take a small `Ecut` of `5`
+We consider silicon, setup appropriately in the `lattice`, `atoms` and `positions`
+objects as in [Tutorial](@ref) and to reach a fast execution, we take a small `Ecut` of `5`
 and a `[4, 4, 4]` Monkhorst-Pack grid.
 First we perform the DFT calculation disabling symmetry handling
 ```@example symmetries
-model_nosym = model_LDA(lattice, atoms; symmetries=false)
+model_nosym = model_LDA(lattice, atoms, positions; symmetries=false)
 basis_nosym = PlaneWaveBasis(model_nosym; Ecut, kgrid)
 scfres_nosym = @time self_consistent_field(basis_nosym, tol=1e-8)
 nothing  # hide
 ```
 and then redo it using symmetry (the default):
 ```@example symmetries
-model_sym = model_LDA(lattice, atoms)
+model_sym = model_LDA(lattice, atoms, positions)
 basis_sym = PlaneWaveBasis(model_sym; Ecut, kgrid)
 scfres_sym = @time self_consistent_field(basis_sym, tol=1e-8)
 nothing  # hide
