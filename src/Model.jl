@@ -42,10 +42,12 @@ struct Model{T <: Real}
 
     # Particle types (elements) and particle positions and in fractional coordinates.
     # Possibly empty. It's up to the `term_types` to make use of this (or not).
-    # `atom_groups` contains indices of identical atoms (to speed up term instantiation).
+    # `atom_groups` contains the groups of indices into atoms and positions, which
+    # point to identical atoms. It is computed automatically on Model construction and may
+    # be used to optimise the term instantiation.
     atoms::Vector{Element}
-    positions::Vector{Vec3{T}}
-    atom_groups::Vector{Vector{Int}}
+    positions::Vector{Vec3{T}}  # positions[i] is the location of atoms[i] in fract. coords
+    atom_groups::Vector{Vector{Int}}  # atoms[i] == atoms[j] for all i, j in atom_group[α]
 
     # each element t must implement t(basis), which instantiates a
     # term in a given basis and gives back a term (<: Term)
