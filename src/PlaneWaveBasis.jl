@@ -93,7 +93,7 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
     #                                       respective rank in comm_kpts
 
     # Symmetry operations that leave the reducible Brillouin zone invariant.
-    # Subset of model.symmetries, and superset of all the ksymops.
+    # Subset of model.symmetries.
     # Nearly all computations will be done inside this symmetry group;
     # the exception is inexact operations on the FFT grid (ie xc),
     # which doesn't respect the symmetry
@@ -142,8 +142,9 @@ function build_kpoints(basis::PlaneWaveBasis, kcoords)
                   variational=basis.variational)
 end
 
-# Lowest-level constructor. All given parameters must be the same on all processors
-# and are stored in PlaneWaveBasis for easy reconstruction
+# Lowest-level constructor, should not be called directly.
+# All given parameters must be the same on all processors
+# and are stored in PlaneWaveBasis for easy reconstruction.
 function PlaneWaveBasis(model::Model{T},
                         Ecut::Number, fft_size, variational,
                         kcoords::AbstractVector, ksymops,
@@ -236,15 +237,22 @@ function PlaneWaveBasis(model::Model{T},
     basis
 end
 
-# This is the "internal" constructor; the higher-level ones below should be preferred
+# This is an intermediate-level constructor, which allows for the
+# custom specification of k points and G grids.
+# The higher-level one below should be preferred
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords::AbstractVector, ksymops,
-                                symmetries=symmetries_preserving_kgrid(model.symmetries,
-                                                                       kcoords, ksymops);
+                                symmetries=nothing;
                                 fft_size=nothing, variational=true,
                                 fft_size_algorithm=:fast, supersampling=2,
                                 kgrid=nothing, kshift=nothing,
                                 comm_kpts=MPI.COMM_WORLD) where {T <: Real}
+    # Compute the symmetries preserved by the kcoords.
+    if isnothing(symmetries)
+        all_kcoords = unfold_kcoords(kcoords, model.symmetries)
+        symmetries = symmetries_preserving_kgrid(model.symmetries, all_kcoords)
+    end
+
     # Compute or validate fft_size
     if fft_size === nothing
         @assert variational
@@ -270,20 +278,6 @@ end
                    kgrid, kshift, symmetries, comm_kpts)
 end
 
-"""
-Creates a new basis identical to `basis`, but with a custom set of kpoints
-"""
-@timing function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
-                                ksymops::AbstractVector)
-    kgrid = kshift = nothing
-    symmetries = symmetries_preserving_kgrid(basis.model.symmetries, kcoords, ksymops)
-    PlaneWaveBasis(basis.model, basis.Ecut,
-                   basis.fft_size, basis.variational,
-                   kcoords, ksymops, kgrid, kshift,
-                   symmetries, basis.comm_kpts)
-end
-
-
 @doc raw"""
 Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a Monkhorst-Pack
 ``k``-point grid. The MP grid can either be specified directly with `kgrid` providing the
@@ -301,6 +295,19 @@ function PlaneWaveBasis(model::Model;
                    kgrid, kshift, kwargs...)
 end
 
+"""
+Creates a new basis identical to `basis`, but with a custom set of kpoints
+"""
+@timing function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
+                                ksymops::AbstractVector)
+    kgrid = kshift = nothing
+    symmetries = symmetries_preserving_kgrid(basis.model.symmetries,
+                                             unfold_kcoords(kcoords, basis.model.symmetries))
+    PlaneWaveBasis(basis.model, basis.Ecut,
+                   basis.fft_size, basis.variational,
+                   kcoords, ksymops, kgrid, kshift,
+                   symmetries, basis.comm_kpts)
+end
 
 """
     G_vectors(fft_size::Tuple)
