@@ -33,4 +33,3 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
     stresses = ForwardDiff.gradient(M -> HF_energy((I+M) * L), zero(L)) / Ω
     symmetrize_stresses(scfres.basis, stresses)
 end
-@deprecate compute_stresses(scfres) compute_stresses_cart(scfres)
