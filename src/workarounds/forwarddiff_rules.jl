@@ -129,11 +129,10 @@ end
 # go a nice convert function to get rid of the annoying conversion thing in the
 # stress computation.
 function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
-    Model(ForwardDiff.value.(model.lattice);
+    newpositions = [ForwardDiff.value.(pos) for pos in model.positions]
+    Model(ForwardDiff.value.(model.lattice), atoms, positions;
           model_name=model.model_name,
           n_electrons=model.n_electrons,
-          atoms=model.atoms,
-          positions=[ForwardDiff.value.(pos) for pos in model.positions],
           magnetic_moments=[],  # Symmetries given explicitly
           terms=model.term_types,
           temperature=ForwardDiff.value(model.temperature),

@@ -8,7 +8,7 @@ include("./testcases.jl")
     # Construct a free-electron Hamiltonian
     Ecut = 5
     fft_size = [15, 15, 15]
-    model = Model(silicon.lattice; terms=[Kinetic()], silicon.atoms, silicon.positions)
+    model = Model(silicon.lattice, silicon.atoms, silicon.positions; terms=[Kinetic()])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
     ham = Hamiltonian(basis)
 
@@ -57,7 +57,7 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
         fft_size = [33, 33, 33]
 
         Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
-        model = Model(silicon.lattice; silicon.atoms, silicon.positions,
+        model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       terms=[Kinetic(),AtomicLocal()])
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops;
                                fft_size=fft_size)
@@ -86,7 +86,7 @@ end
     fft_size = [21, 21, 21]
 
     Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
-    model = Model(silicon.lattice; silicon.atoms, silicon.positions,
+    model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                   terms=[Kinetic(), AtomicLocal(), AtomicNonlocal()])
 
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)

@@ -16,7 +16,7 @@ function model_atomic(lattice::AbstractMatrix, atoms::Vector, positions::Vector;
     if :temperature in keys(kwargs) && kwargs[:temperature] != 0
         terms = [terms..., Entropy()]
     end
-    Model(lattice; model_name="atomic", atoms, positions, terms, kwargs...)
+    Model(lattice, atoms, positions; model_name="atomic", terms, kwargs...)
 end
 
 

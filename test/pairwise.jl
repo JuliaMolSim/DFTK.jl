@@ -19,7 +19,7 @@ using Random
     # Test that the constructor has ordered the tuples
     @test (:H, :Li) ∈ keys(term.params)
 
-    model = Model(lattice; atoms, positions, terms=[term])
+    model = Model(lattice, atoms, positions; terms=[term])
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=(1, 1, 1))
     forces = compute_forces(basis.terms[1], basis, nothing, nothing)
 
