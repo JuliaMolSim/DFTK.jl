@@ -119,7 +119,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     )
 
     for (smearing, temperature, εF_ref) in parameters
-        model = Model(silicon.lattice; testcase.atoms, testcase.positions;
+        model = Model(silicon.lattice, testcase.atoms, testcase.positions;
                       n_electrons=testcase.n_electrons,
                       temperature, smearing, terms=[Kinetic()])
         basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size)
