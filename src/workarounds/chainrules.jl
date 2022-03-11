@@ -109,7 +109,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Plan
     return basis, PlaneWaveBasis_pullback
 end
 
-Base.zero(::ElementPsp) = ZeroTangent() # TODO
+Base.zero(::ElementPsp) = NoTangent() # TODO
 
 # TODO delete
 function _autodiff_AtomicLocal(basis::PlaneWaveBasis{T}) where {T}
@@ -266,40 +266,14 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(*),
     rrule_via_ad(config, _autodiff_apply_hamiltonian, H, ψ)
 end
 
-# avoids Energies OrderedDict struct (incompatible with Zygote)
-function _autodiff_energy_hamiltonian(basis, ψ, occ, ρ)
-    ene_ops_arr = [DFTK.ene_ops(term, basis, ψ, occ; ρ=ρ) for term in basis.terms]
-    energies    = [eh.E for eh in ene_ops_arr]
-    operators   = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
-
-    # flatten the inner arrays in case a term returns more than one operator
-    flatten(arr) = reduce(vcat, map(a -> (a isa Vector) ? a : [a], arr))
-    hks_per_k   = [flatten([blocks[ik] for blocks in operators])
-                   for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
-
-    # Preallocated scratch arrays
-    T = eltype(basis)
-    scratch = (
-        ψ_reals=[zeros(complex(T), basis.fft_size...) for tid = 1:Threads.nthreads()],
-    )
-
-    H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks, scratch)
-                            for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
-    return energies, H
-end
-
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis; kwargs...)
     @warn "self_consistent_field rrule triggered."
     scfres = self_consistent_field(basis; kwargs...)
 
     ψ, occupation = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 
-    ## Zygote doesn't like OrderedDict in Energies
-    # (energies, H), energy_hamiltonian_pullback =
-    #     rrule_via_ad(config, energy_hamiltonian, basis, scfres.ψ, scfres.occupation, scfres.ρ)
-
-    (energies, H), energy_hamiltonian_pullback =
-        rrule_via_ad(config, _autodiff_energy_hamiltonian, basis, scfres.ψ, scfres.occupation, scfres.ρ)
+    (; E, H), energy_hamiltonian_pullback =
+        rrule_via_ad(config, energy_hamiltonian, basis, scfres.ψ, scfres.occupation, scfres.ρ)
     Hψ, mul_pullback =
         rrule(config, *, H, ψ)
     ρ, compute_density_pullback =
@@ -329,7 +303,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         # TODO need to do proj_tangent on ∂Hψ
         _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
         ∂H = ∂H_mul_pullback + ∂H
-        _, ∂basis3, _, _, _ = energy_hamiltonian_pullback((∂energies, ∂H))
+        _, ∂basis3, _, _, _ = energy_hamiltonian_pullback(Tangent{NamedTuple{(:E, :H), Tuple{Energies{Float64}, Hamiltonian}}}(; E=∂energies, H=∂H))
 
         # @show typeof(∂basis1)
         # @show typeof(∂basis2)
