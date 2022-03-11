@@ -11,7 +11,7 @@ include("testcases.jl")
     tol = 1e-7
 
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
     # Run nlsolve without guess
     ρ0 = zeros(basis.fft_size..., 1)
@@ -74,7 +74,7 @@ end
 
     magnetic_moments = [1, 1]
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions; magnetic_moments)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
     ρ_nl = self_consistent_field(basis; tol=tol).ρ
 
     # Run DM
@@ -106,7 +106,7 @@ end
 
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature=0.01, smearing=Smearing.Gaussian())
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
     # Reference: Default algorithm
     ρ0    = guess_density(basis)

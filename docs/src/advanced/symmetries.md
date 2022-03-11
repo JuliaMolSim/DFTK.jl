@@ -138,20 +138,15 @@ using LinearAlgebra  # hide
  norm(values(scfres_sym.energies) .- values(scfres_nosym.energies)))
 ```
 
-To demonstrate the mapping between `k`-points due to symmetry,
-we pick an arbitrary `k`-point in the irreducible Brillouin zone:
+The symmetries can be used to map reducible to irreducible points:
 ```@example symmetries
-ikpt_irred = 2
-kpt_irred_coord = basis_sym.kpoints[ikpt_irred].coordinate
-basis_sym.ksymops[ikpt_irred]
+ikpt_red = rand(1:length(basis_nosym.kpoints))
+# find a (non-unique) corresponding irreducible point in basis_nosym,
+# and the symmetry that relates them
+ikpt_irred, symop = DFTK.unfold_mapping(basis_sym, basis_nosym.kpoints[ikpt_red])
+[basis_sym.kpoints[ikpt_irred].coordinate symop.S * basis_nosym.kpoints[ikpt_red].coordinate]
 ```
-This is a list of all symmetries operations ``(S, \tau)``
-that can be used to map this irreducible ``k``-point to reducible ``k``-points.
-Let's pick the third symmetry operation of this ``k``-point and check.
+The eigenvalues match also:
 ```@example symmetries
-symop = basis_sym.ksymops[ikpt_irred][3]
-kpt_red_coord = symop.S * basis_sym.kpoints[ikpt_irred].coordinate
-ikpt_red = findfirst(kcoord -> kcoord ≈ kpt_red_coord,
-                     [k.coordinate for k in basis_nosym.kpoints])
 [scfres_sym.eigenvalues[ikpt_irred] scfres_nosym.eigenvalues[ikpt_red]]
 ```

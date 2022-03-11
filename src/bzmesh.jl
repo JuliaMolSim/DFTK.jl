@@ -26,27 +26,21 @@ end
     bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
 
 Construct a (shifted) uniform Brillouin zone mesh for sampling the ``k``-points.
-The function returns a tuple `(kcoords, ksymops)`, where `kcoords` are the list
-of ``k``-points and `ksymops` are a list of symmetry operations (for interface
-compatibility with `PlaneWaveBasis` and `bzmesh_irreducible`. No symmetry
-reduction is attempted, such that there will be `prod(kgrid_size)` ``k``-points
-returned and all symmetry operations are the identity.
+Returns all ``k``-point coordinates, appropriate weights and the identity SymOp.
 """
 function bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
     kcoords = kgrid_monkhorst_pack(kgrid_size; kshift=kshift)
-    kcoords, [[one(SymOp)] for _ in 1:length(kcoords)], [one(SymOp)]
+    kcoords, ones(length(kcoords)) ./ length(kcoords), [one(SymOp)]
 end
 
 
 @doc raw"""
      bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
 
-Construct the irreducible wedge of a uniform Brillouin zone mesh for sampling ``k``-points.
-The function returns a tuple `(kcoords, ksymops)`, where `kcoords` are the list of
-irreducible ``k``-points and `ksymops` are a list of symmetry operations for regenerating
-the full mesh. `symmetries` is the tuple returned from
-`symmetry_operations(lattice, atoms, positions, magnetic_moments)`.
-`tol_symmetry` is the tolerance used for searching for symmetry operations.
+Construct the irreducible wedge of a uniform Brillouin zone mesh for sampling ``k``-points,
+given the crystal symmetries `symmetries`. Returns the list of irreducible ``k``-point
+(fractional) coordinates, the associated weights adn the new `symmetries` compatible with
+the grid.
 """
 function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size; kshift)
@@ -67,7 +61,7 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     is_shift = Int.(2 * kshift)
     Ws = [symop.W for symop in symmetries]
     _, mapping, grid = spglib_get_stabilized_reciprocal_mesh(
-        kgrid_size, Ws, is_shift=is_shift, is_time_reversal=false
+        kgrid_size, Ws; is_shift, is_time_reversal=false
     )
     # Convert irreducible k-points to DFTK conventions
     kgrid_size = Vec3{Int}(kgrid_size)
@@ -112,6 +106,10 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     end
 
     if !isempty(kreds_notmapped)
+        # TODO This fallback has not become active for a long time and has
+        #      not been tested in the CI, so it probably no longer works anyway.
+        #      It should be removed and this function simplified.
+
         # add them as reducible anyway
         eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, symmetries)
         @info("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
@@ -126,7 +124,8 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     @assert all(findfirst(symop -> symop == one(SymOp), ops) !== nothing
                 for ops in ksymops)
 
-    kirreds, ksymops, symmetries
+    kweights = length.(ksymops) / sum(length.(ksymops))
+    kirreds, kweights, symmetries
 end
 
 

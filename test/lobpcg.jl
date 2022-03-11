@@ -9,7 +9,7 @@ include("./testcases.jl")
     Ecut = 5
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.atoms, silicon.positions; terms=[Kinetic()])
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
     ham = Hamiltonian(basis)
 
     tol = 1e-8
@@ -59,7 +59,7 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
         Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       terms=[Kinetic(),AtomicLocal()])
-        basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops;
+        basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights;
                                fft_size=fft_size)
         ham = Hamiltonian(basis)
 
@@ -89,7 +89,7 @@ end
     model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                   terms=[Kinetic(), AtomicLocal(), AtomicNonlocal()])
 
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size=fft_size)
     ham = Hamiltonian(basis)
 
     res = diagonalize_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, interpolate_kpoints=false)
@@ -113,7 +113,7 @@ end
 
     Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
     model = model_DFT(silicon.lattice, [Si => silicon.positions], :lda_xc_teter93)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights)
     ham = Hamiltonian(basis; ρ=guess_density(basis))
 
     res1 = diagonalize_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, interpolate_kpoints=false)

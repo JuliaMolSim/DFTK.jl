@@ -20,7 +20,7 @@ end
     Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
     @test basis.model.lattice == silicon.lattice
     @test basis.model.recip_lattice ≈ 2π * inv(silicon.lattice)
@@ -68,7 +68,7 @@ end
     Ecut = 3
     fft_size = [7, 9, 11]
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
     g_all = collect(G_vectors(basis))
 
     for kpt in basis.kpoints
@@ -106,7 +106,7 @@ end
     Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
     @test length(G_vectors(fft_size)) == prod(fft_size)
     @test length(r_vectors(basis))    == prod(fft_size)
