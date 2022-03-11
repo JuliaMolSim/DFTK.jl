@@ -8,11 +8,9 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
     function HF_energy(lattice::AbstractMatrix{T}) where T
         basis = scfres.basis
         model = basis.model
-        new_model = Model(lattice;
+        new_model = Model(lattice, model.atoms, model.positions;
                           model.n_electrons,
-                          model.atoms,
-                          model.positions,
-                          magnetic_moments=[], # not used because we give symmetries explicitly
+                          magnetic_moments=[], # not used because symmetries explicitly given
                           terms=model.term_types,
                           model.temperature,
                           model.smearing,
