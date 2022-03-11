@@ -52,6 +52,12 @@ function xc_fallback(func::Functional, ::Val{:lda}, ρ::AbstractArray;
     zk=nothing, vrho=nothing, v2rho2=nothing)
     #@warn "xc_fallback lda"
     #func.n_spin == 1  || error("Fallback functionals only for $(func.n_spin) == 1")
+    #@warn "Functional",func.identifier
+    #if func.identifier == :lda_c_vwn && sum([1 for i in ρ if i < 0]) > 0
+    #if !isnothing(findfirst(<=(0), ρ))
+        #println("found negative rho")
+        #return zeros(size(ρ)), zeros(size(ρ)), nothing #zeros(size(ρ))
+    #end
 
     fE(ρ) = energy_per_particle(Val(func.identifier), ρ)
     if !isnothing(zk)
@@ -68,7 +74,7 @@ function xc_fallback(func::Functional, ::Val{:lda}, ρ::AbstractArray;
     if !isnothing(v2rho2)
         v2rho2 = fV2.(ρ)
     end
-    return zk, vrho, v2rho2
+    return zk, vrho, nothing, v2rho2
 end
 
 function xc_fallback!(func::Functional, ::Val{:gga}, ρ::AbstractArray;
@@ -115,7 +121,7 @@ function xc_fallback(func::Functional, ::Val{:gga}, ρ::AbstractArray;
         vrho   = fVρ.(ρ, σ)
         vsigma = fVσ.(ρ, σ)
     end
-    return zk, vrho, vsigma
+    return zk, vrho, vsigma, v2rho2
     #@assert isnothing(v2rho2)
     #@assert isnothing(v2rhosigma)
     #@assert isnothing(v2sigma2)

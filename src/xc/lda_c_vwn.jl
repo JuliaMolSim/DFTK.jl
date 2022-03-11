@@ -2,13 +2,17 @@
 VWN5 LDA correlation according to Vosko, Wilk, and Nusair, (DOI 10.1139/p80-159).
 """
 function energy_per_particle(::Val{:lda_c_vwn}, ρ)
+    if ρ <= 1e-8
+        return 0.0
+    end
     # From https://math.nist.gov/DFTdata/atomdata/node5.html
     A = 0.0310907
     x0 = -0.10498
     b = 3.72744
     c = 12.9352
+    #println("rho ",ρ)
     rₛ = cbrt(3/(4π*ρ)) # τ in the above link
-    x = sqrt(rₛ)
+    x = rₛ > 0 ? sqrt(rₛ) : 0.0
     Xx = x^2 + b*x + c
     Xx0 = x0^2 + b*x0 + c
     Q = sqrt(4c-b^2)
