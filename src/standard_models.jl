@@ -18,7 +18,9 @@ function model_atomic(lattice::AbstractMatrix, atoms::Vector, positions::Vector;
     end
     Model(lattice, atoms, positions; model_name="atomic", terms, kwargs...)
 end
-@generate_abstractsystem_method(model_atomic)
+function model_atomic(system::AbstractSystem; kwargs...)
+    call_with_system(model_atomic, system; kwargs...)
+end
 
 
 """
@@ -34,7 +36,9 @@ function model_DFT(lattice::AbstractMatrix, atoms::Vector, positions::Vector, fu
                    kwargs...)
     model_DFT(lattice, atoms, positions, Xc(functionals); kwargs...)
 end
-@generate_abstractsystem_method(model_DFT)
+function model_DFT(system::AbstractSystem, args...; kwargs...)
+    call_with_system(model_DFT, system, args...; kwargs...)
+end
 
 
 """
@@ -43,7 +47,7 @@ Build an LDA model (Teter93 parametrization) from the specified atoms.
 function model_LDA(lattice::AbstractMatrix, atoms::Vector, positions::Vector; kwargs...)
     model_DFT(lattice, atoms, positions, [:lda_x, :lda_c_pw]; kwargs...)
 end
-@generate_abstractsystem_method(model_LDA)
+model_LDA(system::AbstractSystem; kwargs...) = call_with_system(model_LDA, system; kwargs...)
 
 
 """
@@ -53,7 +57,7 @@ DOI:10.1103/PhysRevLett.77.3865
 function model_PBE(lattice::AbstractMatrix, atoms::Vector, positions::Vector; kwargs...)
     model_DFT(lattice, atoms, positions, [:gga_x_pbe, :gga_c_pbe]; kwargs...)
 end
-@generate_abstractsystem_method(model_PBE)
+model_PBE(system::AbstractSystem; kwargs...) = call_with_system(model_PBE, system; kwargs...)
 
 
 """
@@ -63,7 +67,7 @@ DOI:10.1103/PhysRevLett.115.036402
 function model_SCAN(lattice::AbstractMatrix, atoms::Vector, positions::Vector; kwargs...)
     model_DFT(lattice, atoms, positions, [:mgga_x_scan, :mgga_c_scan]; kwargs...)
 end
-@generate_abstractsystem_method(model_SCAN)
+model_SCAN(system::AbstractSystem; kwargs...) = call_with_system(model_SCAN, system; kwargs...)
 
 
 # NOTE:  This is a temporary function, which could disappear any time.

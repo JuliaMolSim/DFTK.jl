@@ -66,8 +66,6 @@ end
 _is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
 
 """
-    Model(system::AbstractSystem; n_electrons, terms, temperature, smearing,
-          spin_polarization, symmetries)
     Model(lattice, atoms, positions; n_electrons, magnetic_moments, terms, temperature,
           smearing, spin_polarization, symmetries)
 
@@ -177,14 +175,14 @@ function Model(lattice::AbstractMatrix{<:Quantity}, args...; kwargs...)
     Model(austrip.(lattice), args...; kwargs...)
 end
 
-
 """
     Model(system::AbstractSystem; kwargs...)
 
 AtomsBase-compatible Model constructor. Sets structural information (`atoms`, `positions`,
 `lattice`, `n_electrons` etc.) from the passed `system`.
 """
-@generate_abstractsystem_method(Model)
+Model(system::AbstractSystem; kwargs...) = call_with_system(Model, system; kwargs...)
+
 
 normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
 normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)

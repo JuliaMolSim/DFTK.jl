@@ -71,17 +71,14 @@ function parse_system(system::AbstractSystem{D}) where {D}
 end
 
 
-# Macro to generate an equivalent method for the passed function,
-# which takes an AbstractSystem as first argument instead of the args
-# (lattice, atoms, positions)
-macro generate_abstractsystem_method(name)
-    @eval begin
-        function $name(system::AbstractSystem, args...; kwargs...)
-            @assert !(:system in keys(kwargs))
-            @assert !(:magnetic_moments in keys(kwargs))
-            parsed = parse_system(system)
-            $name(parsed.lattice, parsed.atoms, parsed.positions, args...;
-                  system, parsed.magnetic_moments, kwargs...)
-        end
-    end
+"""
+Parse the passed `system` and call the inner function `f` with the result,
+appending additional `args` and `kwargs`.
+"""
+function call_with_system(f, system::AbstractSystem, args...; kwargs...)
+    @assert !(:system in keys(kwargs))
+    @assert !(:magnetic_moments in keys(kwargs))
+    parsed = parse_system(system)
+    f(parsed.lattice, parsed.atoms, parsed.positions, args...;
+      system, parsed.magnetic_moments, kwargs...)
 end
