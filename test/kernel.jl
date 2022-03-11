@@ -4,7 +4,8 @@ using Test
 include("testcases.jl")
 
 function test_kernel(spin_polarization, termtype; test_compute=true)
-    kgrid = [2, 2, 2]
+    kgrid  = [2, 2, 2]
+    kshift = ones(3) / 2
     testcase = silicon
     ε   = 1e-8
     tol = 1e-5
@@ -21,7 +22,7 @@ function test_kernel(spin_polarization, termtype; test_compute=true)
         model = Model(testcase.lattice; testcase.atoms, testcase.positions,
                       terms=[termtype], magnetic_moments, spin_polarization)
         @test model.n_spin_components == n_spin
-        basis = PlaneWaveBasis(model; Ecut=2, kgrid=kgrid)
+        basis = PlaneWaveBasis(model; Ecut=2, kgrid, kshift)
         term  = only(basis.terms)
 
         ρ0 = guess_density(basis, magnetic_moments)
@@ -52,18 +53,19 @@ end
 function test_kernel_collinear_vs_noncollinear(termtype)
     Ecut=2
     kgrid = [2, 2, 2]
+    kshift = ones(3) / 2
     testcase = silicon
 
     xcsym = (termtype isa Xc) ? join(string.(termtype.functionals), " ") : ""
     @testset "Kernel $(typeof(termtype)) $xcsym (coll == noncoll)" begin
         model = Model(testcase.lattice; testcase.atoms, testcase.positions,
                       terms=[termtype])
-        basis = PlaneWaveBasis(model; Ecut, kgrid)
+        basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
         term  = only(basis.terms)
 
         model_col = Model(testcase.lattice; testcase.atoms, testcase.positions,
                           terms=[termtype], spin_polarization=:collinear)
-        basis_col = PlaneWaveBasis(model_col; Ecut, kgrid)
+        basis_col = PlaneWaveBasis(model_col; Ecut, kgrid, kshift)
         term_col  = only(basis_col.terms)
 
         ρ0 = guess_density(basis)

@@ -11,11 +11,12 @@ include("testcases.jl")
     Ecut = 15
     n_bands = 8
     fft_size = [27, 27, 27]
-    kgrid = (1, 2, 3)
+    kgrid  = (1, 2, 3)
+    kshift = (0, 1, 0) / 2
 
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions,
                       [:lda_x, :lda_c_vwn]; symmetries=false)
-    basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size)
+    basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size, kshift)
 
     ρ0 = guess_density(basis, silicon.atoms, silicon.positions)
     E, H = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
@@ -49,7 +50,7 @@ include("testcases.jl")
                                    Magnetic(X -> [1, cos(1.4 * X[2]), exp(X[3])]),
                                    PairwisePotential(V, params)],
                       )
-    basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size)
+    basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size, kshift)
     E, H = energy_hamiltonian(basis, res.X, occupation; ρ)
 
     @test E["Kinetic"]             ≈  3.3824289861522194  atol=5e-8

@@ -288,7 +288,7 @@ a minimal spacing of `2π * 0.022` per Bohr.
 function PlaneWaveBasis(model::Model;
                         Ecut,
                         kgrid=kgrid_from_minimal_spacing(model, 2π * 0.022),
-                        kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
+                        kshift=zeros(3),
                         kwargs...)
     kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
     PlaneWaveBasis(model, austrip(Ecut), kcoords, ksymops, symmetries;

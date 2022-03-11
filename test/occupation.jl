@@ -86,7 +86,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     testcase = magnesium
     Ecut = 5
     fft_size = [15, 15, 15]
-    kgrid = [2, 3, 4]
+    kgrid  = [2, 3, 4]
 
     # Emulate a metal ...
     energies = [[-0.08063210585291,  0.11227915155236, 0.13057816014162, 0.57672256037074],
@@ -122,7 +122,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
         model = Model(silicon.lattice, n_electrons=testcase.n_electrons;
                       temperature, smearing, terms=[Kinetic()],
                       testcase.atoms, testcase.positions)
-        basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size)
+        basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size, kshift=[1, 0, 1]/2)
         occupation, εF = with_logger(NullLogger()) do
             DFTK.compute_occupation(basis, energies)
         end
