@@ -291,7 +291,7 @@ Creates a new basis identical to `basis`, but with a custom set of kpoints
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
                                 kweights::AbstractVector)
     kgrid = kshift = nothing
-    all_kcoords = unfold_kcoords(kcoords, model.symmetries)
+    all_kcoords = unfold_kcoords(kcoords, basis.model.symmetries)
     symmetries  = symmetries_preserving_kgrid(basis.model.symmetries, all_kcoords)
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
