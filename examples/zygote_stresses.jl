@@ -19,8 +19,7 @@ function make_model(a)
         # Entropy(),
         Hartree()
     ]
-    # Model(lattice; atoms, terms, temperature=1e-3)
-    Model(lattice, atoms, terms; temperature=1e-3)
+    Model(lattice; atoms, terms, temperature=1e-3)
 end
 kgrid = [1, 1, 1]
 Ecut = 7

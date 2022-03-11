@@ -1,7 +1,4 @@
 using ChainRulesCore
-using Zygote: @adjoint  # TODO remove, once ChainRules rrules can overrule Zygote
-import AbstractFFTs
-
 
 function ChainRulesCore.rrule(::typeof(r_to_G), basis::PlaneWaveBasis, f_real::AbstractArray)
     @warn "r_to_G rrule triggered."
@@ -66,33 +63,11 @@ ChainRulesCore.@non_differentiable G_vectors(::Any...)
 ChainRulesCore.@non_differentiable default_symmetries(::Any...) # TODO perhaps?
 ChainRulesCore.@non_differentiable shell_indices(::Any)  # Ewald
 ChainRulesCore.@non_differentiable build_kpoints(::Any...)
+ChainRulesCore.@non_differentiable allunique(::Any...) # TODO upstream!
 
-# TODO delete
-@adjoint (T::Type{<:SArray})(x...) = T(x...), y->(y,)
-
-# constructor with all AD-compatible args as positional args
-function Model(lattice, atoms, terms; kwargs...)
-    return Model(lattice; atoms, terms, kwargs...)
-end
-
-# simplified version of the Model constructor to
-# help reverse mode AD to only differentiate the relevant computations.
-# this excludes assertions (try-catch), and symmetries
-function _autodiff_Model_namedtuple(lattice, atoms, term_types)
-    recip_lattice = compute_recip_lattice(lattice)
-    unit_cell_volume  = compute_unit_cell_volume(lattice)
-    recip_cell_volume = compute_unit_cell_volume(recip_lattice)
-    # TODO add inv_lattive
-    (; lattice, recip_lattice, unit_cell_volume, recip_cell_volume, atoms, term_types)
-end
-
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Model}, lattice, atoms, terms; kwargs...)
-    @warn "simplified Model rrule triggered."
-    model = T(lattice, atoms, terms; kwargs...)
-    _model, Model_pullback = rrule_via_ad(config, _autodiff_Model_namedtuple, lattice, atoms, terms)
-    # TODO add some assertion that model and _model agree
-    return model, Model_pullback
-end
+# https://github.com/doddgray/OptiMode.jl/blob/main/src/grad_lib/StaticArrays.jl
+ChainRulesCore.rrule(T::Type{<:SMatrix}, xs::Number...) = ( T(xs...), dv -> (ChainRulesCore.NoTangent(), dv...) )
+ChainRulesCore.rrule(T::Type{<:SMatrix}, x::AbstractMatrix) = ( T(x), dv -> (ChainRulesCore.NoTangent(), dv) )
 
 # explicit rule for PlaneWaveBasis inner constructor
 function ChainRulesCore.rrule(PT::Type{PlaneWaveBasis{T}},
@@ -165,7 +140,7 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBa
     # terms = Any[t(_basis) for t in model.term_types]
     terms = vcat([], [t(_basis) for t in model.term_types]) # hack: enforce Vector{Any} without causing reverse mutation
 
-    (;model=model, dvol=dvol, terms=terms, G_to_r_normalization=G_to_r_normalization, r_to_G_normalization=r_to_G_normalization)
+    (; model=model, dvol=dvol, terms=terms, G_to_r_normalization=G_to_r_normalization, r_to_G_normalization=r_to_G_normalization)
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{PlaneWaveBasis}, model::Model; kwargs...)
@@ -178,6 +153,7 @@ end
 
 Base.zero(::ElementPsp) = ZeroTangent() # TODO
 
+# TODO delete
 function _autodiff_AtomicLocal(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
 
@@ -258,6 +234,7 @@ function ChainRulesCore.rrule(::typeof(_lowpass_for_symmetry), ρ, basis; symmet
     return ρnew, lowpass_for_symmetry_pullback
 end
 
+# TODO this has changed on master
 function _autodiff_compute_density(basis::PlaneWaveBasis, ψ, occupation)
     # try one kpoint only (for debug) TODO re-enable all kpoints
     ρsum = _compute_partial_density(basis, basis.kpoints[1], ψ[1], occupation[1])
@@ -299,47 +276,22 @@ solve_ΩplusK(basis::PlaneWaveBasis, ψ, ::NoTangent, occupation) = 0ψ
 # fast version
 function _autodiff_hblock_mul(hblock::DftHamiltonianBlock, ψ)
     # a pure version of *(H::DftHamiltonianBlock, ψ)
-    # TODO this currently only considers kinetic+local
+    # TODO this currently only considers kinetic+local+nonlocal
     basis = hblock.basis
     kpt = hblock.kpoint
 
     potential = hblock.local_op.potential
     potential = potential / prod(basis.fft_size)  # because we use unnormalized plans
     fourier_op_multiplier = hblock.fourier_op.multiplier
+    nonlocal_op = hblock.nonlocal_op
 
     function apply_H(ψk)
         ψ_real = G_to_r(basis, kpt, ψk) .* potential ./ basis.G_to_r_normalization
         Hψ_k = r_to_G(basis, kpt, ψ_real) ./ basis.r_to_G_normalization
         Hψ_k += fourier_op_multiplier .* ψk
-        reshape(Hψ_k, :, size(Hψ_k, 2)) # if Hψ_k a vector, promote to matrix
-    end
-    Hψ = mapreduce(apply_H, hcat, eachcol(ψ))
-    Hψ
-end
-
-# slow fallback version
-function _autodiff_hblock_mul(hblock::GenericHamiltonianBlock, ψ)
-    basis = hblock.basis
-    T = eltype(basis)
-    kpt = hblock.kpoint
-
-    function apply_H(ψk)
-        ψ_real = G_to_r(basis, kpt, ψk)
-        Hψ_fourier = zero(ψ[:, 1])
-        Hψ_real = zeros(complex(T), basis.fft_size...)
-        for op in hblock.optimized_operators
-            # is the speedup in forward really worth the effort?
-            if op isa RealSpaceMultiplication
-                Hψ_real += op.potential .* ψ_real
-            elseif op isa FourierMultiplication
-                Hψ_fourier += op.multiplier .* ψk
-            elseif op isa NonlocalOperator
-                Hψ_fourier += op.P * (op.D * (op.P' * ψk))
-            else
-                @error "op not reversed"
-            end
+        if !isnothing(nonlocal_op)
+            Hψ_k += nonlocal_op.P * (nonlocal_op.D * (nonlocal_op.P' * ψk))
         end
-        Hψ_k = Hψ_fourier + r_to_G(basis, kpt, Hψ_real)
         reshape(Hψ_k, :, size(Hψ_k, 2)) # if Hψ_k a vector, promote to matrix
     end
     Hψ = mapreduce(apply_H, hcat, eachcol(ψ))
@@ -395,15 +347,22 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
     ρ, compute_density_pullback =
         rrule(config, compute_density, basis, scfres.ψ, scfres.occupation)
 
+    Tscfres = typeof(scfres)
+
     function self_consistent_field_pullback(∂scfres)
+
+        # TODO problem: typeof(∂scfres) == Tangent{Any}
+        ∂scfres_backing = ChainRulesCore.backing(∂scfres)
+        ∂scfres = Tangent{Tscfres, typeof(∂scfres_backing)}(∂scfres_backing)
+
         ∂ψ = ∂scfres.ψ
         ∂occupation = ∂scfres.occupation
         ∂ρ = ∂scfres.ρ
         ∂energies = ∂scfres.energies
-        ∂basis = ∂scfres.basis
+        ∂basis1 = ∂scfres.basis
         ∂H = ∂scfres.ham
 
-        _, ∂basis, ∂ψ_density_pullback, _ = compute_density_pullback(∂ρ)
+        _, ∂basis2, ∂ψ_density_pullback, _ = compute_density_pullback(∂ρ)
         ∂ψ = ∂ψ_density_pullback + ∂ψ
         ∂ψ, occupation = DFTK.select_occupied_orbitals(basis, ∂ψ, occupation)
 
@@ -412,9 +371,13 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         # TODO need to do proj_tangent on ∂Hψ
         _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
         ∂H = ∂H_mul_pullback + ∂H
-        _, ∂basis, _, _, _ = energy_hamiltonian_pullback((∂energies, ∂H))
+        _, ∂basis3, _, _, _ = energy_hamiltonian_pullback((∂energies, ∂H))
 
-        # TODO add ∂basis contributions?
+        # @show typeof(∂basis1)
+        # @show typeof(∂basis2)
+        # @show typeof(∂basis3)
+        ∂basis = ∂basis3
+        # ∂basis = ∂basis1 + ∂basis2 + ∂basis3 # TODO add all contributions
 
         return NoTangent(), ∂basis
     end
@@ -436,7 +399,17 @@ end
 # 2. alternative primal (rrule_via_ad)
 # 3. SCF rrule
 
-# TODO
+# TODO small
+# [x] upstream @non_differentiable allunique(::Any) to ChainRules.jl
+
+# [ ] add basis contributions in SCF rrule (Tangent{Any} problem)
+# [ ] pull master (after Michael's atoms update)
+# [x] remove Model alternative primal (or update with inv_lattice, ...)
+# [ ] replace OrderedDict in Energies with Vector{Pair{String,T}}
+
+# TODO medium-large
+# - generic HamiltonianBlock ? (low prio)
 # - multiple kpoints
 # - symmetries
 # - more efficient compute_density rrule (probably by hand)
+# - mpi

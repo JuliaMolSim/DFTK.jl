@@ -27,7 +27,7 @@ function make_basis(ε::T; a=10., Ecut=5) where T  # too small Ecut, only for ef
         # XC
     ]
     # model = Model(lattice, atoms, terms; temperature=1e-3, symmetries=false)
-    model = Model(lattice, atoms, terms; symmetries=false)
+    model = Model(lattice; atoms, terms, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])  # No k-point sampling on isolated system
 end
 

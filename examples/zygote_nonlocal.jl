@@ -19,7 +19,7 @@ function make_basis(ε::T; a=10., Ecut=5) where T
         AtomicNonlocal(),
         ExternalFromReal(r -> -ε * (r[1] - a/2)),
     ]
-    model = Model(lattice, atoms, terms; symmetries=false)
+    model = Model(lattice; atoms, terms, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])  # No k-point sampling on isolated system
 end
 
@@ -45,6 +45,6 @@ polarizability_fd = let
     (compute_dipole(ε) - compute_dipole(0.0)) / ε
 end
 
-f= compute_dipole(0.0)
+f = compute_dipole(0.0)
 g = Zygote.gradient(compute_dipole, 0.0)
 println("f: ", f, " fd: ",polarizability_fd, " AD: ",g)

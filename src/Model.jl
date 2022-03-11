@@ -1,4 +1,5 @@
 # Contains the physical specification of the model
+using ChainRulesCore
 
 # A physical specification of a model.
 # Contains the geometry information, but no discretization parameters.
@@ -115,8 +116,10 @@ function Model(lattice::AbstractMatrix{T};
         norm(lattice[:, i]) == norm(lattice[i, :]) == 0 || error(
             "For 1D and 2D systems, the non-empty dimensions must come first")
     end
-    _is_well_conditioned(lattice[1:n_dim, 1:n_dim]) || @warn (
-        "Your lattice is badly conditioned, the computation is likely to fail.")
+    ChainRulesCore.@ignore_derivatives begin
+        _is_well_conditioned(lattice[1:n_dim, 1:n_dim]) || @warn (
+            "Your lattice is badly conditioned, the computation is likely to fail.")
+    end
 
     # Note: In the 1D or 2D case, the volume is the length/surface
     inv_lattice = compute_inverse_lattice(lattice)
@@ -125,16 +128,18 @@ function Model(lattice::AbstractMatrix{T};
     unit_cell_volume  = compute_unit_cell_volume(lattice)
     recip_cell_volume = compute_unit_cell_volume(recip_lattice)
 
-    spin_polarization in (:none, :collinear, :full, :spinless) ||
-        error("Only :none, :collinear, :full and :spinless allowed for spin_polarization")
-    spin_polarization == :full && error("Full spin polarization not yet supported")
-    !isempty(magnetic_moments) && !(spin_polarization in (:collinear, :full)) && @warn(
-        "Non-empty magnetic_moments on a Model without spin polarization detected."
-    )
+    ChainRulesCore.@ignore_derivatives begin
+        spin_polarization in (:none, :collinear, :full, :spinless) ||
+            error("Only :none, :collinear, :full and :spinless allowed for spin_polarization")
+        spin_polarization == :full && error("Full spin polarization not yet supported")
+        !isempty(magnetic_moments) && !(spin_polarization in (:collinear, :full)) && @warn(
+            "Non-empty magnetic_moments on a Model without spin polarization detected."
+        )
+    end
     n_spin = length(spin_components(spin_polarization))
 
     if smearing === nothing
-        @assert temperature >= 0
+        temperature >= 0 || error("temperature should be larger or equal to zero.")
         # Default to Fermi-Dirac smearing when finite temperature
         smearing = temperature > 0.0 ? Smearing.FermiDirac() : Smearing.None()
     end
@@ -147,7 +152,7 @@ function Model(lattice::AbstractMatrix{T};
     symmetries == true  && (symmetries = default_symmetries(lattice, atoms, magnetic_moments,
                                                             terms, spin_polarization))
     symmetries == false && (symmetries = [one(SymOp)])
-    @assert !isempty(symmetries)  # Identity has to be always present.
+    isempty(symmetries) && error("Identity symop has to be always present.")
 
     Model{T}(model_name, lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
              unit_cell_volume, recip_cell_volume,
