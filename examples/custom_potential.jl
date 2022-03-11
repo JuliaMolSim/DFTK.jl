@@ -45,7 +45,7 @@ n_electrons = 1  # Increase this for fun
 terms = [Kinetic(),
          AtomicLocal(),
          LocalNonlinearity(ρ -> C * ρ^α)]
-model = Model(lattice; atoms, positions, n_electrons, terms,
+model = Model(lattice, atoms, positions; n_electrons, terms,
               spin_polarization=:spinless);  # use "spinless electrons"
 
 # We discretize using a moderate Ecut and run a SCF algorithm to compute forces

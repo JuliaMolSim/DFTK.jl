@@ -19,7 +19,7 @@ function test_kernel(spin_polarization, termtype; test_compute=true)
             n_spin = 2
         end
 
-        model = Model(testcase.lattice; testcase.atoms, testcase.positions,
+        model = Model(testcase.lattice, testcase.atoms, testcase.positions;
                       terms=[termtype], magnetic_moments, spin_polarization)
         @test model.n_spin_components == n_spin
         basis = PlaneWaveBasis(model; Ecut=2, kgrid, kshift)
@@ -58,12 +58,12 @@ function test_kernel_collinear_vs_noncollinear(termtype)
 
     xcsym = (termtype isa Xc) ? join(string.(termtype.functionals), " ") : ""
     @testset "Kernel $(typeof(termtype)) $xcsym (coll == noncoll)" begin
-        model = Model(testcase.lattice; testcase.atoms, testcase.positions,
+        model = Model(testcase.lattice, testcase.atoms, testcase.positions;
                       terms=[termtype])
         basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
         term  = only(basis.terms)
 
-        model_col = Model(testcase.lattice; testcase.atoms, testcase.positions,
+        model_col = Model(testcase.lattice, testcase.atoms, testcase.positions;
                           terms=[termtype], spin_polarization=:collinear)
         basis_col = PlaneWaveBasis(model_col; Ecut, kgrid, kshift)
         term_col  = only(basis_col.terms)

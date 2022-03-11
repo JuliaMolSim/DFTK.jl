@@ -16,7 +16,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         n_dim = 3 - count(iszero, eachcol(lattice))
         Si = n_dim == 3 ? ElementPsp(14, psp=load_psp(silicon.psp)) : ElementCoulomb(:Si)
         atoms = [Si, Si]
-        model = Model(lattice; n_electrons=silicon.n_electrons, atoms, silicon.positions,
+        model = Model(lattice, atoms, silicon.positions; n_electrons=silicon.n_electrons,
                       terms=[term], spin_polarization, symmetries=true)
         basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
 

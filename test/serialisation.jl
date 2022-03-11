@@ -17,7 +17,6 @@ function test_scfres_agreement(tested, ref)
 
     @test tested.basis.Ecut      == ref.basis.Ecut
     @test tested.basis.kweights  == ref.basis.kweights
-    @test tested.basis.ksymops   == ref.basis.ksymops
     @test tested.basis.fft_size  == ref.basis.fft_size
 
     kcoords_test = getproperty.(tested.basis.kpoints, :coordinate)

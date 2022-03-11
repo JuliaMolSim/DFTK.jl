@@ -10,7 +10,7 @@ include("testcases.jl")
 
 if mpi_nprocs() == 1  # not easy to distribute
 @testset "Using BZ symmetry yields identical density" begin
-    function get_bands(testcase, kcoords, ksymops, symmetries; Ecut=5, tol=1e-8, n_rounds=1)
+    function get_bands(testcase, kcoords, kweights, symmetries; Ecut=5, tol=1e-8, n_rounds=1)
         kwargs = ()
         n_bands = div(testcase.n_electrons, 2, RoundUp)
         if testcase.temperature !== nothing
@@ -20,7 +20,7 @@ if mpi_nprocs() == 1  # not easy to distribute
 
         model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions,
                           :lda_xc_teter93; kwargs...)
-        basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops, symmetries)
+        basis = PlaneWaveBasis(model, Ecut, kcoords, kweights; symmetries)
         ham = Hamiltonian(basis; ρ=guess_density(basis, testcase.atoms, testcase.positions))
 
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol)
@@ -59,15 +59,15 @@ if mpi_nprocs() == 1  # not easy to distribute
 
     function test_full_vs_irreducible(testcase, kgrid_size; Ecut=5, tol=1e-8, n_ignore=0,
                                       kshift=[0, 0, 0], eigenvectors=true)
-        kfull, sym_full, symmetries = bzmesh_uniform(kgrid_size; kshift)
-        res = get_bands(testcase, kfull, sym_full, symmetries; Ecut, tol)
+        kfull, kwfull, symmetries = bzmesh_uniform(kgrid_size; kshift)
+        res = get_bands(testcase, kfull, kwfull, symmetries; Ecut, tol)
         ham_full, ψ_full, eigenvalues_full, ρ_full, occ_full = res
         test_orthonormality(ham_full.basis, ψ_full; tol)
 
         symmetries = DFTK.symmetry_operations(testcase.lattice, testcase.atoms,
                                               testcase.positions)
-        kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid_size, symmetries; kshift)
-        res = get_bands(testcase, kcoords, ksymops, symmetries; Ecut, tol)
+        kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid_size, symmetries; kshift)
+        res = get_bands(testcase, kcoords, kweights, symmetries; Ecut, tol)
         ham_ir, ψ_ir, eigenvalues_ir, ρ_ir, occ_ir = res
         test_orthonormality(ham_ir.basis, ψ_ir; tol)
         @test ham_full.basis.fft_size == ham_ir.basis.fft_size
@@ -81,7 +81,7 @@ if mpi_nprocs() == 1  # not easy to distribute
 
         # Test equivalent k-points have the same orbital energies
         for (ik, k) in enumerate(kcoords)
-            for symop in ksymops[ik]
+            for symop in symmetries
                 ikfull = findfirst(1:length(kfull)) do idx
                     all(isinteger, kfull[idx] - symop.S * k)
                 end
@@ -105,7 +105,7 @@ if mpi_nprocs() == 1  # not easy to distribute
             n_ρ = 0
             for (ik, k) in enumerate(kcoords)
                 Hk_ir = ham_ir.blocks[ik]
-                for symop in ksymops[ik]
+                for symop in symmetries
                     Skpoint, ψSk = DFTK.apply_symop(symop, ham_ir.basis, Hk_ir.kpoint, ψ_ir[ik])
 
                     ikfull = findfirst(1:length(kfull)) do idx

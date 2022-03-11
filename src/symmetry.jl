@@ -290,7 +290,7 @@ function unfold_bz(basis::PlaneWaveBasis)
         kcoords = unfold_kcoords(basis.kcoords_global, basis.symmetries)
         new_basis = PlaneWaveBasis(basis.model,
                                    basis.Ecut, basis.fft_size, basis.variational,
-                                   kcoords, [[one(SymOp)] for _ in 1:length(kcoords)],
+                                   kcoords, [1/length(kcoords) for _ in kcoords],
                                    basis.kgrid, basis.kshift, basis.symmetries, basis.comm_kpts)
     end
 end

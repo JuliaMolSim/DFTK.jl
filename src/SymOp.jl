@@ -45,12 +45,12 @@ Base.one(::Type{SymOp}) = SymOp(Mat3{Int}(I), Vec3(zeros(Bool, 3)))
 Base.one(::SymOp) = one(SymOp)
 
 # group composition and inverse.
-function Base.:*(op1, op2)
+function Base.:*(op1::SymOp, op2::SymOp)
     W = op1.W * op2.W
     w = op1.w + op1.W * op2.w
     SymOp(W, w)
 end
-Base.inv(op) = SymOp(inv(op.W), -op.W\op.w)
+Base.inv(op::SymOp) = SymOp(inv(op.W), -op.W\op.w)
 
 function check_group(symops::Vector; kwargs...)
     is_approx_in_symops(s1) = any(s -> isapprox(s, s1; kwargs...), symops)

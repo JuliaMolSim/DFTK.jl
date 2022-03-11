@@ -217,8 +217,8 @@ lattice[1, 1] = 20.;
 
 # Step 2: Select a model. In this case we choose a free-electron model,
 # which is the same as saying that there is only a Kinetic term
-# (and no potential) in the model. The `n_electrons` is dummy here.
-model = Model(lattice; n_electrons=0, terms=[Kinetic()])
+# (and no potential) in the model.
+model = Model(lattice; terms=[Kinetic()])
 
 # Step 3: Define a plane-wave basis using this model and a cutoff ``E_\text{cut}``
 # of 300 Hartree. The ``k``-point grid is given as a regular grid in the BZ
@@ -316,7 +316,7 @@ atoms     = [nucleus, nucleus]
 positions = [[0.2, 0, 0], [0.8, 0, 0]]
 
 ## Assemble the model, discretize and build the Hamiltonian
-model = Model(lattice; atoms, positions, terms=[Kinetic(), AtomicLocal()])
+model = Model(lattice, atoms, positions; terms=[Kinetic(), AtomicLocal()])
 basis = PlaneWaveBasis(model; Ecut=300, kgrid=(1, 1, 1));
 ham   = Hamiltonian(basis)
 
@@ -337,7 +337,7 @@ plot(x, potential, label="", xlabel="x", ylabel="V(x)")
 using Unitful
 using UnitfulAtomic
 
-plot_bandstructure(basis; n_bands=6, kline_density=100)
+plot_bandstructure(basis; n_bands=6, kline_density=500)
 
 # The bands are noticeably different.
 #  - The bands no longer overlap, meaning that the spectrum of $H$ is no longer continuous

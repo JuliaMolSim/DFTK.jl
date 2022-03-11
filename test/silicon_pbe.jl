@@ -31,7 +31,7 @@ function run_silicon_pbe(T ;Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     end
     model = model_DFT(Array{T}(silicon.lattice), atoms, silicon.positions,
                       [:gga_x_pbe, :gga_c_pbe]; spin_polarization, magnetic_moments)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
     spin_polarization == :collinear && (ref_pbe = vcat(ref_pbe, ref_pbe))
     run_scf_and_compare(T, basis, ref_pbe, ref_etot;

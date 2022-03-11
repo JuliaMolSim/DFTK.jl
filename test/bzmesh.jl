@@ -53,13 +53,14 @@ end
 
         # Try to reproduce all kcoords from irred_kcoords
         all_kcoords = Vector{Vec3{Rational{Int}}}()
+        sym_preserving_grid = DFTK.symmetries_preserving_kgrid(symmetries, red_kcoords)
         for (ik, k) in enumerate(irred_kcoords)
-            append!(all_kcoords, [symop.S * k for symop in ksymops[ik]])
+            append!(all_kcoords, [symop.S * k for symop in sym_preserving_grid])
         end
 
         # Normalize the obtained k-points and test for equality
-        red_kcoords = sort([mod.(k .* kgrid_size, kgrid_size) for k in red_kcoords])
-        all_kcoords = sort([mod.(k .* kgrid_size, kgrid_size) for k in all_kcoords])
+        red_kcoords = unique(sort([mod.(k .* kgrid_size, kgrid_size) for k in red_kcoords]))
+        all_kcoords = unique(sort([mod.(k .* kgrid_size, kgrid_size) for k in all_kcoords]))
         @test all_kcoords == red_kcoords
     end
 

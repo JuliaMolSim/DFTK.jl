@@ -129,11 +129,10 @@ end
 # go a nice convert function to get rid of the annoying conversion thing in the
 # stress computation.
 function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
-    Model(ForwardDiff.value.(model.lattice);
+    newpositions = [ForwardDiff.value.(pos) for pos in model.positions]
+    Model(ForwardDiff.value.(model.lattice), model.atoms, newpositions;
           model_name=model.model_name,
           n_electrons=model.n_electrons,
-          atoms=model.atoms,
-          positions=[ForwardDiff.value.(pos) for pos in model.positions],
           magnetic_moments=[],  # Symmetries given explicitly
           terms=model.term_types,
           temperature=ForwardDiff.value(model.temperature),
@@ -147,8 +146,8 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
     PlaneWaveBasis(construct_value(basis.model),
                    ForwardDiff.value(basis.Ecut),
                    map(v -> ForwardDiff.value.(v), basis.kcoords_global),
-                   basis.ksymops_global,
-                   basis.symmetries;
+                   ForwardDiff.value.(basis.kweights_global);
+                   basis.symmetries,
                    fft_size=basis.fft_size,
                    kgrid=basis.kgrid,
                    kshift=new_kshift,
