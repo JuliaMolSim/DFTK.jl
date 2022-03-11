@@ -9,6 +9,7 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
         basis = scfres.basis
         model = basis.model
         new_model = Model(lattice, model.atoms, model.positions;
+                          model.system,
                           model.n_electrons,
                           magnetic_moments=[], # not used because symmetries explicitly given
                           terms=model.term_types,

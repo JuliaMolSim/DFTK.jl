@@ -18,11 +18,7 @@ function model_atomic(lattice::AbstractMatrix, atoms::Vector, positions::Vector;
     end
     Model(lattice, atoms, positions; model_name="atomic", terms, kwargs...)
 end
-function model_atomic(system::AbstractSystem; kwargs...)
-    parsed = parse_atomsbase(system)
-    model_atomic(parsed.lattice, parsed.atoms, parsed.positions;
-                 system, parsed.kwargs..., kwargs...)
-end
+@generate_abstractsystem_method(model_atomic)
 
 
 """
@@ -38,11 +34,7 @@ function model_DFT(lattice::AbstractMatrix, atoms::Vector, positions::Vector, fu
                    kwargs...)
     model_DFT(lattice, atoms, positions, Xc(functionals); kwargs...)
 end
-function model_DFT(system::AbstractSystem, args...; kwargs...)
-    parsed = parse_atomsbase(system)
-    model_DFT(parsed.lattice, parsed.atoms, parsed.positions, args...;
-              system, parsed.kwargs..., kwargs...)
-end
+@generate_abstractsystem_method(model_DFT)
 
 
 """
@@ -51,11 +43,7 @@ Build an LDA model (Teter93 parametrization) from the specified atoms.
 function model_LDA(lattice::AbstractMatrix, atoms::Vector, positions::Vector; kwargs...)
     model_DFT(lattice, atoms, positions, [:lda_x, :lda_c_pw]; kwargs...)
 end
-function model_LDA(system::AbstractSystem; kwargs...)
-    parsed = parse_atomsbase(system)
-    model_LDA(parsed.lattice, parsed.atoms, parsed.positions;
-              system, parsed.kwargs..., kwargs...)
-end
+@generate_abstractsystem_method(model_LDA)
 
 
 """
@@ -65,11 +53,7 @@ DOI:10.1103/PhysRevLett.77.3865
 function model_PBE(lattice::AbstractMatrix, atoms::Vector, positions::Vector; kwargs...)
     model_DFT(lattice, atoms, positions, [:gga_x_pbe, :gga_c_pbe]; kwargs...)
 end
-function model_PBE(system::AbstractSystem; kwargs...)
-    parsed = parse_atomsbase(system)
-    model_PBE(parsed.lattice, parsed.atoms, parsed.positions;
-              system, parsed.kwargs..., kwargs...)
-end
+@generate_abstractsystem_method(model_PBE)
 
 
 """
@@ -79,11 +63,7 @@ DOI:10.1103/PhysRevLett.115.036402
 function model_SCAN(lattice::AbstractMatrix, atoms::Vector, positions::Vector; kwargs...)
     model_DFT(lattice, atoms, positions, [:mgga_x_scan, :mgga_c_scan]; kwargs...)
 end
-function model_SCAN(system::AbstractSystem; kwargs...)
-    parsed = parse_atomsbase(system)
-    model_SCAN(parsed.lattice, parsed.atoms, parsed.positions;
-               system, parsed.kwargs..., kwargs...)
-end
+@generate_abstractsystem_method(model_SCAN)
 
 
 # NOTE:  This is a temporary function, which could disappear any time.

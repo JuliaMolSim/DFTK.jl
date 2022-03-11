@@ -132,6 +132,7 @@ function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
     newpositions = [ForwardDiff.value.(pos) for pos in model.positions]
     Model(ForwardDiff.value.(model.lattice), model.atoms, newpositions;
           model_name=model.model_name,
+          system=model.system,
           n_electrons=model.n_electrons,
           magnetic_moments=[],  # Symmetries given explicitly
           terms=model.term_types,

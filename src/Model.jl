@@ -66,6 +66,8 @@ end
 _is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
 
 """
+    Model(system::AbstractSystem; n_electrons, terms, temperature, smearing,
+          spin_polarization, symmetries)
     Model(lattice, atoms, positions; n_electrons, magnetic_moments, terms, temperature,
           smearing, spin_polarization, symmetries)
 
@@ -182,16 +184,12 @@ end
 AtomsBase-compatible Model constructor. Sets structural information (`atoms`, `positions`,
 `lattice`, `n_electrons` etc.) from the passed `system`.
 """
-function Model(system::AbstractSystem; kwargs...)
-    @assert !(:system in keys(kwargs))
-    @assert !(:atoms  in keys(kwargs))
-    parsed = parse_atomsbase(system)
-    Model(parsed.lattice; parsed.atoms, parsed.positions, system, parsed.kwargs..., kwargs...)
-end
+@generate_abstractsystem_method(Model)
 
-normalize_magnetic_moment(::Nothing)  = Vec3{Float64}(zeros(3))
-normalize_magnetic_moment(mm::Number) = Vec3{Float64}(0, 0, mm)
-normalize_magnetic_moment(mm::AbstractVector) = Vec3{Float64}(mm)
+normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
+normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)
+normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm
+
 
 """
 :none if no element has a magnetic moment, else :collinear or :full

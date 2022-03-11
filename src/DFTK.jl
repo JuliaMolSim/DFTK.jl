@@ -58,6 +58,7 @@ export G_to_r
 export G_to_r!
 export r_to_G
 export r_to_G!
+include("atomsbase.jl")
 include("Smearing.jl")
 include("Model.jl")
 include("structure.jl")
