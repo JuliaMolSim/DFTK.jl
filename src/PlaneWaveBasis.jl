@@ -1,4 +1,4 @@
-using MPI
+import MPI
 
 # Abstract type for all possible bases that can be used in DFTK. Right now this is just
 # one, but this type helps to resolve method ambiguities while avoiding an uninformative ::Any.
@@ -143,6 +143,10 @@ end
 function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
                         kcoords::AbstractVector, kweights, kgrid, kshift,
                         symmetries, comm_kpts) where {T <: Real}
+    # Store global values for reference
+    MPI.Init()
+    kcoords_global  = kcoords
+    kweights_global = kweights
 
     # Setup fft_size and plans
     if !(all(fft_size .== next_working_fft_size(T, fft_size)))
@@ -160,11 +164,6 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     # The other constant is chosen because FFT * BFFT = N
     G_to_r_normalization = 1/sqrt(model.unit_cell_volume)
     r_to_G_normalization = sqrt(model.unit_cell_volume) / length(ipFFT)
-
-    # Store global values for reference
-    MPI.Init()
-    kcoords_global  = kcoords
-    kweights_global = kweights
 
     # Compute k-point information and spread them across processors
     # Right now we split only the kcoords: both spin channels have to be handled
@@ -440,8 +439,8 @@ function gather_kpts(basis::PlaneWaveBasis)
     mpi_nprocs(basis.comm_kpts) == 1 && return basis
 
     # Gather k-point info on master
-    kcoords = getproperty.(basis.kpoints, :coordinate)
-    kcoords = gather_kpts(kcoords, basis)
+    kcoords  = getproperty.(basis.kpoints, :coordinate)
+    kcoords  = gather_kpts(kcoords, basis)
     kweights = gather_kpts(basis.kweights, basis)
 
     # Number of distinct k-point coordinates is number of k-points with spin 1
@@ -454,8 +453,8 @@ function gather_kpts(basis::PlaneWaveBasis)
         PlaneWaveBasis(basis.model,
                        basis.Ecut,
                        kcoords[1:n_kcoords],
-                       kweights[1:n_kcoords],
-                       basis.symmetries;
+                       kweights[1:n_kcoords];
+                       basis.symmetries,
                        fft_size=basis.fft_size,
                        kgrid=basis.kgrid,
                        kshift=basis.kshift,
