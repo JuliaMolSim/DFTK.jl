@@ -69,48 +69,6 @@ ChainRulesCore.@non_differentiable allunique(::Any...) # TODO upstream!
 ChainRulesCore.rrule(T::Type{<:SMatrix}, xs::Number...) = ( T(xs...), dv -> (ChainRulesCore.NoTangent(), dv...) )
 ChainRulesCore.rrule(T::Type{<:SMatrix}, x::AbstractMatrix) = ( T(x), dv -> (ChainRulesCore.NoTangent(), dv) )
 
-# explicit rule for PlaneWaveBasis inner constructor
-function ChainRulesCore.rrule(PT::Type{PlaneWaveBasis{T}},
-                              model::Model{T},
-                              fft_size::Tuple{Int, Int, Int},
-                              dvol::T,
-                              Ecut::T,
-                              variational::Bool,
-                              opFFT,
-                              ipFFT,
-                              opBFFT,
-                              ipBFFT,
-                              r_to_G_normalization::T,
-                              G_to_r_normalization::T,
-                              kpoints::Vector{Kpoint},
-                              kweights::Vector{T},
-                              ksymops::Vector{Vector{SymOp}},
-                              kgrid::Union{Nothing,Vec3{Int}},
-                              kshift::Union{Nothing,Vec3{T}},
-                              kcoords_global::Vector{Vec3{T}},
-                              ksymops_global::Vector{Vector{SymOp}},
-                              comm_kpts::MPI.Comm,
-                              krange_thisproc::Vector{Int},
-                              krange_allprocs::Vector{Vector{Int}},
-                              symmetries::Vector{SymOp},
-                              terms::Vector{Any}) where {T <: Real}
-    @warn "PlaneWaveBasis inner constructor rrule triggered."
-    basis = PT(
-        model, fft_size, dvol, Ecut, variational, opFFT, ipFFT, opBFFT, ipBFFT,
-        r_to_G_normalization, G_to_r_normalization, kpoints, kweights, ksymops,
-        kgrid, kshift, kcoords_global, ksymops_global, comm_kpts, 
-        krange_thisproc, krange_allprocs, symmetries, terms
-    )
-    function PT_pullback(∂basis)
-        return (NoTangent(), ∂basis.model, NoTangent(), ∂basis.dvol, ∂basis.Ecut, 
-                NoTangent(), NoTangent(), NoTangent(), NoTangent(), NoTangent(),
-                ∂basis.r_to_G_normalization, ∂basis.G_to_r_normalization, ∂basis.kpoints, ∂basis.kweights, ∂basis.ksymops,
-                ∂basis.kgrid, ∂basis.kshift, ∂basis.kcoords_global, ∂basis.ksymops_global, ∂basis.comm_kpts, 
-                NoTangent(), NoTangent(), ∂basis.symmetries, ∂basis.terms)
-    end
-    return basis, PT_pullback
-end
-
 # simplified version of PlaneWaveBasis outer constructor to
 # help reverse mode AD to only differentiate the relevant computations.
 # this excludes assertions (try-catch), MPI handling, and other things
