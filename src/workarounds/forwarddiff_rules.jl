@@ -130,7 +130,7 @@ end
 # stress computation.
 function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
     newpositions = [ForwardDiff.value.(pos) for pos in model.positions]
-    Model(ForwardDiff.value.(model.lattice), atoms, positions;
+    Model(ForwardDiff.value.(model.lattice), model.atoms, model.positions;
           model_name=model.model_name,
           n_electrons=model.n_electrons,
           magnetic_moments=[],  # Symmetries given explicitly
