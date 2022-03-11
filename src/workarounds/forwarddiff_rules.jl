@@ -147,7 +147,7 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
     PlaneWaveBasis(construct_value(basis.model),
                    ForwardDiff.value(basis.Ecut),
                    map(v -> ForwardDiff.value.(v), basis.kcoords_global),
-                   map(v -> ForwardDiff.value.(v), basis.kweights_global),
+                   ForwardDiff.value.(basis.kweights_global),
                    basis.symmetries;
                    fft_size=basis.fft_size,
                    kgrid=basis.kgrid,

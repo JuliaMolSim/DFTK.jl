@@ -26,6 +26,7 @@ end
     bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
 
 Construct a (shifted) uniform Brillouin zone mesh for sampling the ``k``-points.
+Returns all ``k``-point coordinates, appropriate weights and the identity SymOp.
 """
 function bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
     kcoords = kgrid_monkhorst_pack(kgrid_size; kshift=kshift)
@@ -37,8 +38,9 @@ end
      bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
 
 Construct the irreducible wedge of a uniform Brillouin zone mesh for sampling ``k``-points,
-given the crystal symmetries `symmetries`. Returns the new `symmetries` compatible with the
-grid, the list of irreducible kpoints and the associated weights.
+given the crystal symmetries `symmetries`. Returns the list of irreducible ``k``-point
+(fractional) coordinates, the associated weights adn the new `symmetries` compatible with
+the grid.
 """
 function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size; kshift)
@@ -59,7 +61,7 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     is_shift = Int.(2 * kshift)
     Ws = [symop.W for symop in symmetries]
     _, mapping, grid = spglib_get_stabilized_reciprocal_mesh(
-        kgrid_size, Ws, is_shift=is_shift, is_time_reversal=false
+        kgrid_size, Ws; is_shift, is_time_reversal=false
     )
     # Convert irreducible k-points to DFTK conventions
     kgrid_size = Vec3{Int}(kgrid_size)
@@ -104,6 +106,10 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     end
 
     if !isempty(kreds_notmapped)
+        # TODO This fallback has not become active for a long time and has
+        #      not been tested in the CI, so it probably no longer works anyway.
+        #      It should be removed and this function simplified.
+
         # add them as reducible anyway
         eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, symmetries)
         @info("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *

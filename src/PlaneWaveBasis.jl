@@ -140,24 +140,36 @@ end
 # Lowest-level constructor, should not be called directly.
 # All given parameters must be the same on all processors
 # and are stored in PlaneWaveBasis for easy reconstruction.
-function PlaneWaveBasis(model::Model{T},
-                        Ecut::Number, fft_size, variational,
-                        kcoords::AbstractVector, kweights, kgrid,
-                        kshift, symmetries, comm_kpts) where {T <: Real}
+function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
+                        kcoords::AbstractVector, kweights, kgrid, kshift,
+                        symmetries, comm_kpts) where {T <: Real}
+
+    # Setup fft_size and plans
     if !(all(fft_size .== next_working_fft_size(T, fft_size)))
         error("Selected fft_size will not work for the buggy generic " *
               "FFT routines; use next_working_fft_size")
     end
-    # need explicit convert in case it's given as array
-    fft_size = Tuple{Int, Int, Int}(fft_size)
-    MPI.Init()
+    fft_size = Tuple{Int, Int, Int}(fft_size)  # explicit conversion in case passed as array
+    (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans(T, fft_size)
 
-    kcoords_global = kcoords
+    # Normalization constants
+    # r_to_G = r_to_G_normalization * FFT
+    # The convention we want is
+    # ψ(r) = sum_G c_G e^iGr / sqrt(Ω)
+    # so that the G_to_r has to normalized by 1/sqrt(Ω).
+    # The other constant is chosen because FFT * BFFT = N
+    G_to_r_normalization = 1/sqrt(model.unit_cell_volume)
+    r_to_G_normalization = sqrt(model.unit_cell_volume) / length(ipFFT)
+
+    # Store global values for reference
+    MPI.Init()
+    kcoords_global  = kcoords
     kweights_global = kweights
+
     # Compute k-point information and spread them across processors
     # Right now we split only the kcoords: both spin channels have to be handled
     # by the same process
-    n_kpt   = length(kcoords)
+    n_kpt   = length(kcoords_global)
     n_procs = mpi_nprocs(comm_kpts)
     if n_procs > n_kpt
         # XXX Supporting this would require fixing a bunch of "reducing over
@@ -180,18 +192,7 @@ function PlaneWaveBasis(model::Model{T},
         @assert mpi_sum(length(krange_thisproc), comm_kpts) == n_kpt
         @assert !isempty(krange_thisproc)
     end
-
-    # Setup fft_size and plans
-    (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans(T, fft_size)
-
-    # Normalization constants
-    # r_to_G = r_to_G_normalization * FFT
-    # The convention we want is
-    # ψ(r) = sum_G c_G e^iGr / sqrt(Ω)
-    # so that the G_to_r has to normalized by 1/sqrt(Ω).
-    # The other constant is chosen because FFT * BFFT = N
-    G_to_r_normalization = 1/sqrt(model.unit_cell_volume)
-    r_to_G_normalization = sqrt(model.unit_cell_volume) / length(ipFFT)
+    kweights_thisproc = kweights[krange_thisproc]
 
     # Setup k-point basis sets
     !variational && @warn(
@@ -201,13 +202,11 @@ function PlaneWaveBasis(model::Model{T},
     kpoints = build_kpoints(model, fft_size, kcoords_global[krange_thisproc], Ecut; variational)
     # kpoints is now possibly twice the size of krange. Make things consistent
     if model.n_spin_components == 2
-        krange_thisproc = vcat(krange_thisproc, n_kpt .+ krange_thisproc)
-        krange_allprocs = [vcat(range, n_kpt .+ range) for range in krange_allprocs]
-        kweights = vcat(kweights, kweights)
+        krange_thisproc   = vcat(krange_thisproc, n_kpt .+ krange_thisproc)
+        krange_allprocs   = [vcat(range, n_kpt .+ range) for range in krange_allprocs]
+        kweights_thisproc = vcat(kweights_thisproc, kweights_thisproc)
     end
-
-    kweights_thisproc = kweights[krange_thisproc]
-    @assert mpi_sum(sum(kweights_thisproc), comm_kpts) ≈ sum(kweights) ≈ model.n_spin_components
+    @assert mpi_sum(sum(kweights_thisproc), comm_kpts) ≈ model.n_spin_components
     @assert length(kpoints) == length(kweights_thisproc)
 
     dvol  = model.unit_cell_volume ./ prod(fft_size)
@@ -233,8 +232,8 @@ end
 # custom specification of k points and G grids.
 # The higher-level one below should be preferred
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
-                                kcoords::AbstractVector, kweights::AbstractVector,
-                                symmetries=nothing;
+                                kcoords::AbstractVector, kweights::AbstractVector;
+                                symmetries=nothing,
                                 fft_size=nothing, variational=true,
                                 fft_size_algorithm=:fast, supersampling=2,
                                 kgrid=nothing, kshift=nothing,
@@ -242,7 +241,7 @@ end
     # Compute the symmetries preserved by the kcoords.
     if isnothing(symmetries)
         all_kcoords = unfold_kcoords(kcoords, model.symmetries)
-        symmetries = symmetries_preserving_kgrid(model.symmetries, all_kcoords)
+        symmetries  = symmetries_preserving_kgrid(model.symmetries, all_kcoords)
     end
 
     # Compute or validate fft_size
@@ -277,13 +276,11 @@ number of points in each dimension and `kshift` the shift (0 or 1/2 in each dire
 If not specified a grid is generated using `kgrid_from_minimal_spacing` with
 a minimal spacing of `2π * 0.022` per Bohr.
 """
-function PlaneWaveBasis(model::Model{T};
-                        Ecut,
+function PlaneWaveBasis(model::Model{T}; Ecut,
                         kgrid=kgrid_from_minimal_spacing(model, 2π * 0.022),
                         kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
                         kwargs...) where {T}
     kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
-
     PlaneWaveBasis(model, austrip(Ecut), kcoords, kweights, symmetries;
                    kgrid, kshift, kwargs...)
 end
@@ -294,8 +291,8 @@ Creates a new basis identical to `basis`, but with a custom set of kpoints
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
                                 kweights::AbstractVector)
     kgrid = kshift = nothing
-    symmetries = symmetries_preserving_kgrid(basis.model.symmetries,
-                                             unfold_kcoords(kcoords, basis.model.symmetries))
+    all_kcoords = unfold_kcoords(kcoords, model.symmetries)
+    symmetries  = symmetries_preserving_kgrid(basis.model.symmetries, all_kcoords)
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
                    kcoords, kweights, kgrid, kshift,

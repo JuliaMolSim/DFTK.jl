@@ -20,7 +20,7 @@ if mpi_nprocs() == 1  # not easy to distribute
 
         model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions,
                           :lda_xc_teter93; kwargs...)
-        basis = PlaneWaveBasis(model, Ecut, kcoords, kweights, symmetries)
+        basis = PlaneWaveBasis(model, Ecut, kcoords, kweights; symmetries)
         ham = Hamiltonian(basis; ρ=guess_density(basis, testcase.atoms, testcase.positions))
 
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol)
@@ -59,14 +59,14 @@ if mpi_nprocs() == 1  # not easy to distribute
 
     function test_full_vs_irreducible(testcase, kgrid_size; Ecut=5, tol=1e-8, n_ignore=0,
                                       kshift=[0, 0, 0], eigenvectors=true)
-        kfull, kwfull, symmetries = bzmesh_uniform(kgrid_size, kshift)
+        kfull, kwfull, symmetries = bzmesh_uniform(kgrid_size; kshift)
         res = get_bands(testcase, kfull, kwfull, symmetries; Ecut, tol)
         ham_full, ψ_full, eigenvalues_full, ρ_full, occ_full = res
         test_orthonormality(ham_full.basis, ψ_full; tol)
 
         symmetries = DFTK.symmetry_operations(testcase.lattice, testcase.atoms,
                                               testcase.positions)
-        kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid_size, symmetries, kshift)
+        kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid_size, symmetries; kshift)
         res = get_bands(testcase, kcoords, kweights, symmetries; Ecut, tol)
         ham_ir, ψ_ir, eigenvalues_ir, ρ_ir, occ_ir = res
         test_orthonormality(ham_ir.basis, ψ_ir; tol)

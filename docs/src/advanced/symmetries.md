@@ -144,7 +144,7 @@ ikpt_red = rand(1:length(basis_nosym.kpoints))
 # find a (non-unique) corresponding irreducible point in basis_nosym,
 # and the symmetry that relates them
 ikpt_irred, symop = DFTK.unfold_mapping(basis_sym, basis_nosym.kpoints[ikpt_red])
-[basis_sym.kpoints[ikpt_irred].coordinate symop.S*basis_nosym.kpoints[ikpt_red].coordinate]
+[basis_sym.kpoints[ikpt_irred].coordinate symop.S * basis_nosym.kpoints[ikpt_red].coordinate]
 ```
 The eigenvalues match also:
 ```@example symmetries
