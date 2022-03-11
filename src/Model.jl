@@ -106,8 +106,8 @@ function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
     if length(atoms) != length(positions)
         error("Length of atoms and positions vectors need to agree.")
     end
-    n_electrions ≤ 0 && error("n_electrons should be larger zero. Ensure to provide a " *
-                              "non-empty atoms list or an appropriate `n_electrons` kwarg.")
+    n_electrons ≤ 0 && error("n_electrons should be larger zero. Ensure to provide a " *
+                             "non-empty atoms list or an appropriate `n_electrons` kwarg.")
     isempty(terms) && error("Model without terms not supported.")
     atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
 
