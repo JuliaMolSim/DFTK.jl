@@ -7,8 +7,6 @@ Use `extra_terms` to add additional terms.
 function model_atomic(lattice::AbstractMatrix, atoms::Vector, positions::Vector;
                       extra_terms=[], kwargs...)
     @assert !(:terms in keys(kwargs))
-    @assert !(:atoms in keys(kwargs))
-    @assert !(:positions in keys(kwargs))
     terms = [Kinetic(),
              AtomicLocal(),
              AtomicNonlocal(),

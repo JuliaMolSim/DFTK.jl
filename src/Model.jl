@@ -61,7 +61,7 @@ end
 _is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
 
 """
-    Model(lattice; n_electrons, atoms, positions, magnetic_moments, terms, temperature,
+    Model(lattice, atoms, positions; n_electrons, magnetic_moments, terms, temperature,
           smearing, spin_polarization, symmetries)
 
 Creates the physical specification of a model (without any discretization information).
@@ -88,11 +88,9 @@ If you want to pass custom symmetry operations (e.g. a reduced or extended set) 
 external potential breaks some of the passed symmetries. Use `false` to turn off
 symmetries completely.
 """
-function Model(lattice::AbstractMatrix{T};
+function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
                model_name="custom",
-               n_electrons::Union{Nothing,Int}=nothing,
-               atoms=Element[],
-               positions=Vec3{T}[],
+               n_electrons::Int=sum(n_elec_valence, atoms),
                magnetic_moments=[],
                terms=[Kinetic()],
                temperature=T(0.0),
@@ -108,10 +106,8 @@ function Model(lattice::AbstractMatrix{T};
     if length(atoms) != length(positions)
         error("Length of atoms and positions vectors need to agree.")
     end
-    if isnothing(n_electrons)  # Get it from the atoms
-        isempty(atoms) && error("Either n_electrons or a non-empty atoms list should be provided.")
-        n_electrons = sum(n_elec_valence, atoms)
-    end
+    n_electrions ≤ 0 && error("n_electrons should be larger zero. Ensure to provide a " *
+                              "non-empty atoms list or an appropriate `n_electrons` kwarg.")
     isempty(terms) && error("Model without terms not supported.")
     atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
 
@@ -165,8 +161,12 @@ function Model(lattice::AbstractMatrix{T};
              n_electrons, spin_polarization, n_spin, T(temperature), smearing,
              atoms, positions, atom_groups, terms, symmetries)
 end
-Model(lattice::AbstractMatrix{T}; kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
-Model(lattice::AbstractMatrix{Q}; kwargs...) where {Q <: Quantity} = Model(austrip.(lattice); kwargs...)
+function Model(lattice::AbstractMatrix{<: Integer}, args...; kwargs...)
+    Model(Float64.(lattice), args...; kwargs...)
+end
+function Model(lattice::AbstractMatrix{<:Quantity}, args...; kwargs...)
+    Model(austrip.(lattice), args...; kwargs...)
+end
 
 normalize_magnetic_moment(::Nothing)  = Vec3{Float64}(zeros(3))
 normalize_magnetic_moment(mm::Number) = Vec3{Float64}(0, 0, mm)
