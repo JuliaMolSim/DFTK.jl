@@ -217,8 +217,8 @@ lattice[1, 1] = 20.;
 
 # Step 2: Select a model. In this case we choose a free-electron model,
 # which is the same as saying that there is only a Kinetic term
-# (and no potential) in the model. The `n_electrons` is dummy here.
-model = Model(lattice; n_electrons=0, terms=[Kinetic()])
+# (and no potential) in the model. The `n_electrons` argument is dummy here.
+model = Model(lattice; n_electrons=1, terms=[Kinetic()])
 
 # Step 3: Define a plane-wave basis using this model and a cutoff ``E_\text{cut}``
 # of 300 Hartree. The ``k``-point grid is given as a regular grid in the BZ
