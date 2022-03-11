@@ -90,7 +90,7 @@ symmetries completely.
 """
 function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
                model_name="custom",
-               n_electrons::Int=sum(n_elec_valence, atoms),
+               n_electrons::Int=sum(n_elec_valence, atoms; init=0),
                magnetic_moments=[],
                terms=[Kinetic()],
                temperature=T(0.0),
@@ -106,7 +106,7 @@ function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
     if length(atoms) != length(positions)
         error("Length of atoms and positions vectors need to agree.")
     end
-    n_electrons ≤ 0 && error("n_electrons should be larger zero. Ensure to provide a " *
+    n_electrons < 0 && error("n_electrons should be non-negative. Ensure to provide a " *
                              "non-empty atoms list or an appropriate `n_electrons` kwarg.")
     isempty(terms) && error("Model without terms not supported.")
     atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
