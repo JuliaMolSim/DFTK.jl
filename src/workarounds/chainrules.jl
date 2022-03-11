@@ -337,7 +337,7 @@ end
 # [ ] add basis contributions in SCF rrule (Tangent{Any} problem)
 # [ ] pull master (after Michael's atoms update)
 # [x] remove Model alternative primal (or update with inv_lattice, ...)
-# [ ] replace OrderedDict in Energies with Vector{Pair{String,T}}
+# [x] replace OrderedDict in Energies with Vector{Pair{String,T}}
 
 # TODO medium-large
 # - generic HamiltonianBlock ? (low prio)
