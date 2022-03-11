@@ -12,7 +12,7 @@ include("testcases.jl")
     n_bands = 8
     fft_size = [27, 27, 27]
     kgrid  = (1, 2, 3)
-    kshift = (0, 1, 0) / 2
+    kshift = (0, 1/2, 0)
 
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions,
                       [:lda_x, :lda_c_vwn]; symmetries=false)
