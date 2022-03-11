@@ -103,7 +103,7 @@ function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
                spin_polarization=default_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
-               system=construct_atomsbase(lattice, atoms, positions, magnetic_moments),
+               system=construct_system(lattice, atoms, positions, magnetic_moments),
                ) where {T <: Real}
     lattice = Mat3{T}(lattice)
     temperature = T(austrip(temperature))
