@@ -137,85 +137,18 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, E::AtomicLoc
     return term, AtomicLocal_pullback
 end
 
-# compute_density rrule
-
-function _compute_partial_density(basis, kpt, ψk, occupation)
-    # if one directly tries `sum(1:N) do n ... end` one gets "Dimension mismatch" in reverse pass
-    # TODO potential bug in ChainRules sum rrule?
-
-    ρk_real = sum(zip(eachcol(ψk), occupation)) do (ψnk, occn)
-        ψnk_real_tid = G_to_r(basis, kpt, ψnk)
-        occn .* abs2.(ψnk_real_tid)
-    end
-
-    # FFT and return
-    r_to_G(basis, ρk_real)
-end
-
-function _accumulate_over_symmetries(ρin, basis, symmetries)
-    T = eltype(basis)
-    # trying sum(...) do ... directly here gives a Zygote error
-    x = map(
-        function (sym)
-            S, τ = sym
-            invS = Mat3{Int}(inv(S))
-            ρS = map(G_vectors(basis)) do G
-                igired = index_G_vectors(basis, invS * G)
-                if isnothing(igired)
-                    zero(complex(T))
-                else
-                    cis(-2T(π) * dot(G, τ)) * ρin[igired]
-                    # TODO: indexing into large arrays can cause OOM in reverse
-                end
-            end
-            ρS
-        end,
-        symmetries
-    )
-    ρaccu = sum(x)
-    ρaccu
-end
-
-function _lowpass_for_symmetry(ρ, basis; symmetries=basis.model.symmetries)
-    ρnew = deepcopy(ρ)
-    ρnew = lowpass_for_symmetry!(ρnew, basis; symmetries)
-    ρnew
-end
-
-function ChainRulesCore.rrule(::typeof(_lowpass_for_symmetry), ρ, basis; symmetries=basis.model.symmetries)
-    @warn "_lowpass_for_symmetry rrule triggered."
-    ρnew = _lowpass_for_symmetry(ρ, basis; symmetries)
-    function lowpass_for_symmetry_pullback(∂ρ)
-        ∂ρ = _lowpass_for_symmetry(∂ρ, basis; symmetries)
-        return NoTangent(), ∂ρ, NoTangent()
-    end
-    return ρnew, lowpass_for_symmetry_pullback
-end
-
 # TODO this has changed on master
 function _autodiff_compute_density(basis::PlaneWaveBasis, ψ, occupation)
     # try one kpoint only (for debug) TODO re-enable all kpoints
-    ρsum = _compute_partial_density(basis, basis.kpoints[1], ψ[1], occupation[1])
-    ρ = reshape(ρsum, size(ρsum)..., 1)
-
-    # ρsum = map(eachindex(basis.kpoints)) do ik # TODO re-write without indexing (causes OOM in reverse)
-    #     kpt = basis.kpoints[ik]
-    #     ρ_k = _compute_partial_density(basis, kpt, ψ[ik], occupation[ik])
-    #     ρ_k = _lowpass_for_symmetry(ρ_k, basis)
-    #     ρaccu = _accumulate_over_symmetries(ρ_k, basis, basis.ksymops[ik])
-    #     ρaccu
-    # end
-    # ρsum = sum(ρsum)
-    # ρaccus = [reshape(ρsum, size(ρsum)..., 1)] # TODO handle n_spin > 1
-
-    # # Count the number of k-points modulo spin
-    # n_spin = basis.model.n_spin_components
-    # count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
-    # count = mpi_sum(count, basis.comm_kpts)
-
-    # ρ = sum(ρaccus) ./ count
-    # # mpi_sum!(ρ, basis.comm_kpts)
-
+    kpt = basis.kpoints[1]
+    ψk = ψ[1]
+    occk = occupation[1]
+    ρk_real = sum(zip(eachcol(ψk), occk)) do (ψnk, occn)
+        ψnk_real_tid = G_to_r(basis, kpt, ψnk)
+        occn .* abs2.(ψnk_real_tid)
+    end
+    ρ = r_to_G(basis, ρk_real)
+    ρ = reshape(ρ, size(ρ)..., 1)
     G_to_r(basis, ρ)
 end
 
