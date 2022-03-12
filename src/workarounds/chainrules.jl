@@ -232,7 +232,7 @@ end
 # TODO small
 # [x] upstream @non_differentiable allunique(::Any) to ChainRules.jl
 # [x] add basis contributions in SCF rrule (Tangent{Any} problem)
-# [ ] pull master (after Michael's atoms update)
+# [x] pull master (after Michael's atoms update)
 # [x] remove Model alternative primal (or update with inv_lattice, ...)
 # [x] replace OrderedDict in Energies with Vector{Pair{String,T}}
 
