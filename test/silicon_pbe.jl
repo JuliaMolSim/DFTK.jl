@@ -22,16 +22,16 @@ function run_silicon_pbe(T ;Ecut=5, grid_size=15, spin_polarization=:none, kwarg
 
     fft_size = fill(grid_size, 3)
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="pbe", family="hgh"))
+    atoms = [Si, Si]
 
-    atoms = [Si => silicon.positions]
     if spin_polarization == :collinear
-        magnetic_moments = [el => zero.(pos) for (el, pos) in atoms]
+        magnetic_moments = zero.(silicon.positions)
     else
         magnetic_moments = []
     end
-    model = model_DFT(Array{T}(silicon.lattice), atoms, [:gga_x_pbe, :gga_c_pbe];
-                      spin_polarization, magnetic_moments)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size)
+    model = model_DFT(Array{T}(silicon.lattice), atoms, silicon.positions,
+                      [:gga_x_pbe, :gga_c_pbe]; spin_polarization, magnetic_moments)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
     spin_polarization == :collinear && (ref_pbe = vcat(ref_pbe, ref_pbe))
     run_scf_and_compare(T, basis, ref_pbe, ref_etot;

@@ -60,6 +60,7 @@ end
 ChainRulesCore.@non_differentiable ElementPsp(::Any...)
 ChainRulesCore.@non_differentiable r_vectors(::Any...)
 ChainRulesCore.@non_differentiable G_vectors(::Any...)
+ChainRulesCore.@non_differentiable default_n_electrons(::Any...)
 ChainRulesCore.@non_differentiable default_symmetries(::Any...) # TODO perhaps?
 ChainRulesCore.@non_differentiable shell_indices(::Any)  # Ewald
 ChainRulesCore.@non_differentiable build_kpoints(::Any...)
@@ -91,8 +92,8 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBa
         basis.Ecut, basis.variational,
         basis.opFFT, basis.ipFFT, basis.opBFFT, basis.ipBFFT,
         r_to_G_normalization, G_to_r_normalization,
-        basis.kpoints, basis.kweights, basis.ksymops, basis.kgrid, basis.kshift,
-        basis.kcoords_global, basis.ksymops_global, basis.comm_kpts, basis.krange_thisproc, basis.krange_allprocs,
+        basis.kpoints, basis.kweights, basis.kgrid, basis.kshift,
+        basis.kcoords_global, basis.kweights_global, basis.comm_kpts, basis.krange_thisproc, basis.krange_allprocs,
         basis.symmetries, terms)
 
     # terms = Any[t(_basis) for t in model.term_types]
@@ -110,32 +111,6 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, T::Type{Plan
 end
 
 Base.zero(::ElementPsp) = NoTangent() # TODO
-
-# TODO delete
-function _autodiff_AtomicLocal(basis::PlaneWaveBasis{T}) where {T}
-    model = basis.model
-
-    pot_fourier = map(G_vectors(basis)) do G
-        pot = zero(T)
-        for (elem, positions) in model.atoms
-            form_factor::T = local_potential_fourier(elem, norm(model.recip_lattice * G))
-            for r in positions
-                pot += cis(-2T(π) * dot(G, r)) * form_factor
-            end
-        end
-        pot / sqrt(model.unit_cell_volume)
-    end
-
-    pot_real = G_to_r(basis, pot_fourier)
-    TermAtomicLocal(real(pot_real))
-end
-
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, E::AtomicLocal, basis::PlaneWaveBasis{T}) where {T}
-    @warn "simplified AtomicLocal rrule triggered."
-    term = E(basis)
-    _term, AtomicLocal_pullback = rrule_via_ad(config, _autodiff_AtomicLocal, basis)
-    return term, AtomicLocal_pullback
-end
 
 # TODO this has changed on master
 function _autodiff_compute_density(basis::PlaneWaveBasis, ψ, occupation)

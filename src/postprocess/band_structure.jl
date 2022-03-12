@@ -75,9 +75,9 @@ end
                                n_bands=default_n_bands_bandstructure(basis.model),
                                ρ=nothing, eigensolver=lobpcg_hyper,
                                tol=1e-3, show_progress=true, kwargs...)
-    # Create basis with new kpoints, where we cheat by not using any symmetry operations.
-    ksymops  = [[one(SymOp)] for _ in 1:length(kcoords)]
-    bs_basis = PlaneWaveBasis(basis, kcoords, ksymops)
+    # Create basis with new kpoints, without any symmetry operations.
+    kweights = ones(length(kcoords)) ./ length(kcoords)
+    bs_basis = PlaneWaveBasis(basis, kcoords, kweights)
 
     if isnothing(ρ)
         if any(t isa TermNonlinear for t in basis.terms)

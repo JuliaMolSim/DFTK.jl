@@ -34,8 +34,9 @@ lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]];
 # ``0.5`` to break symmetry and get nonzero forces.
 x1 = 0.2
 x2 = 0.8
-nucleus = ElementGaussian(1.0, 0.5)
-atoms = [nucleus => [[x1, 0, 0], [x2, 0, 0]]];
+positions = [[x1, 0, 0], [x2, 0, 0]]
+gauss     = ElementGaussian(1.0, 0.5)
+atoms     = [gauss, gauss]
 
 # We setup a Gross-Pitaevskii model
 C = 1.0
@@ -43,27 +44,27 @@ C = 1.0
 n_electrons = 1  # Increase this for fun
 terms = [Kinetic(),
          AtomicLocal(),
-         LocalNonlinearity(ρ -> C * ρ^α),
-]
-model = Model(lattice; atoms=atoms, n_electrons=n_electrons, terms=terms,
+         LocalNonlinearity(ρ -> C * ρ^α)]
+model = Model(lattice, atoms, positions; n_electrons, terms,
               spin_polarization=:spinless);  # use "spinless electrons"
 
 # We discretize using a moderate Ecut and run a SCF algorithm to compute forces
-# afterwards. As there is no ionic charge associated to `nucleus` we have to specify
+# afterwards. As there is no ionic charge associated to `gauss` we have to specify
 # a starting density and we choose to start from a zero density.
 basis = PlaneWaveBasis(model; Ecut=500, kgrid=(1, 1, 1))
 ρ = zeros(eltype(basis), basis.fft_size..., 1)
-scfres = self_consistent_field(basis, tol=1e-8, ρ=ρ)
+scfres = self_consistent_field(basis; tol=1e-8, ρ=ρ)
 scfres.energies
+
 # Computing the forces can then be done as usual:
-hcat(compute_forces(scfres)...)
+compute_forces(scfres)
 
 # Extract the converged total local potential
 tot_local_pot = DFTK.total_local_potential(scfres.ham)[:, 1, 1]; # use only dimension 1
 
 # Extract other quantities before plotting them
-ρ = scfres.ρ[:, 1, 1, 1]  # converged density, first spin component
-ψ_fourier = scfres.ψ[1][:, 1];    # first k-point, all G components, first eigenvector
+ρ = scfres.ρ[:, 1, 1, 1]        # converged density, first spin component
+ψ_fourier = scfres.ψ[1][:, 1]   # first k-point, all G components, first eigenvector
 ψ = G_to_r(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1]
 ψ /= (ψ[div(end, 2)] / abs(ψ[div(end, 2)]));
 

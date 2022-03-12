@@ -28,20 +28,20 @@ if !ispynull(ase)
         @test load_lattice(py"atoms") == load_lattice(py"atoms.cell")
 
         atoms = load_atoms(py"atoms")
-        @test length(atoms) == 1
-        @test all(at isa ElementCoulomb for (at, positions) in atoms)
-        @test atoms[1][1].symbol == :Mg
-        @test atoms[1][2][1] ≈ [0, 0, 0]
-        @test atoms[1][2][2] ≈ [1/3, 2/3, 1/2] atol=1e-5
+        @test length(atoms) == 2
+        @test all(at isa ElementCoulomb for at in atoms)
+        @test atoms[1].symbol == :Mg
+        @test atoms[2].symbol == :Mg
+
+        positions = load_positions(py"atoms")
+        @test positions[1] ≈ [0, 0, 0]
+        @test positions[2] ≈ [1/3, 2/3, 1/2] atol=1e-5
 
         magnetic_moments = load_magnetic_moments(py"atoms")
-        @test length(magnetic_moments) == 1
-        @test all(at isa ElementCoulomb for (at, magmoms) in magnetic_moments)
-        @test magnetic_moments[1][1].symbol == :Mg
-        @test magnetic_moments[1][2][1] == [0.0, 0.0, 1.0]
-        @test magnetic_moments[1][2][2] == [0.0, 0.0, 2.0]
+        @test magnetic_moments[1] == [0.0, 0.0, 1.0]
+        @test magnetic_moments[2] == [0.0, 0.0, 2.0]
 
-        newatoms = ase_atoms(lattice, atoms, magnetic_moments)
+        newatoms = ase_atoms(lattice, atoms, positions, magnetic_moments)
         @test all(py"$newatoms.cell == atoms.cell")
         @test all(py"$newatoms.symbols == atoms.symbols")
         @test py"$newatoms.get_positions()" ≈  py"atoms.get_positions()"

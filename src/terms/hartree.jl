@@ -38,8 +38,7 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
 
     if !isempty(model.atoms)
         # Assume positive charge from nuclei is exactly compensated by the electrons
-        sum_charges = sum(length(positions) * charge_ionic(elem)
-                          for (elem, positions) in model.atoms)
+        sum_charges = sum(charge_ionic, model.atoms)
         @assert sum_charges == model.n_electrons
     end
 

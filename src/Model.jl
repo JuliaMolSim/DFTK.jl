@@ -41,10 +41,14 @@ struct Model{T <: Real}
     temperature::T
     smearing::Smearing.SmearingFunction # see Smearing.jl for choices
 
-    # Vector of pairs Element => vector of vec3 (positions, fractional coordinates)
-    # Possibly empty. `atoms` just contain the information on the atoms, it's up to
-    # the `terms` to make use of it (or not)
-    atoms::Vector{Pair{Any, Vector{Vec3{T}}}}
+    # Particle types (elements) and particle positions and in fractional coordinates.
+    # Possibly empty. It's up to the `term_types` to make use of this (or not).
+    # `atom_groups` contains the groups of indices into atoms and positions, which
+    # point to identical atoms. It is computed automatically on Model construction and may
+    # be used to optimise the term instantiation.
+    atoms::Vector{Element}
+    positions::Vector{Vec3{T}}  # positions[i] is the location of atoms[i] in fract. coords
+    atom_groups::Vector{Vector{Int}}  # atoms[i] == atoms[j] for all i, j in atom_group[α]
 
     # each element t must implement t(basis), which instantiates a
     # term in a given basis and gives back a term (<: Term)
@@ -58,13 +62,12 @@ end
 _is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
 
 """
-    Model(lattice; n_electrons, atoms, magnetic_moments, terms, temperature,
-                   smearing, spin_polarization, symmetries)
+    Model(lattice, atoms, positions; n_electrons, magnetic_moments, terms, temperature,
+          smearing, spin_polarization, symmetries)
 
-Creates the physical specification of a model (without any
-discretization information).
+Creates the physical specification of a model (without any discretization information).
 
-`n_electrons` is taken from `atoms` if not specified
+`n_electrons` is taken from `atoms` if not specified.
 
 `spin_polarization` is :none by default (paired electrons)
 unless any of the elements has a non-zero initial magnetic moment.
@@ -86,28 +89,32 @@ If you want to pass custom symmetry operations (e.g. a reduced or extended set) 
 external potential breaks some of the passed symmetries. Use `false` to turn off
 symmetries completely.
 """
-function Model(lattice::AbstractMatrix{T};
+function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
                model_name="custom",
-               n_electrons=nothing,
-               atoms=[],
+               n_electrons::Int=default_n_electrons(atoms),
                magnetic_moments=[],
                terms=[Kinetic()],
                temperature=T(0.0),
                smearing=nothing,
                spin_polarization=default_spin_polarization(magnetic_moments),
-               symmetries=default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization),
+               symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
+                                             spin_polarization, terms),
                ) where {T <: Real}
     lattice = Mat3{T}(lattice)
     temperature = T(austrip(temperature))
 
-    if n_electrons === nothing
-        # get it from the atom list
-        isempty(atoms) && error("Either n_electrons or a non-empty atoms list should be provided")
-        n_electrons = sum(length(pos) * n_elec_valence(el) for (el, pos) in atoms)
-    else
-        @assert n_electrons isa Int
+    ChainRulesCore.@ignore_derivatives begin
+        # Atoms and electrons
+        if length(atoms) != length(positions)
+            error("Length of atoms and positions vectors need to agree.")
+        end
+        n_electrons < 0 && error("n_electrons should be non-negative. Ensure to provide a " *
+                                "non-empty atoms list or an appropriate `n_electrons` kwarg.")
+        isempty(terms) && error("Model without terms not supported.")
     end
-    isempty(terms) && error("Model without terms not supported.")
+    atom_groups = ChainRulesCore.@ignore_derivatives begin
+        [findall(Ref(pot) .== atoms) for pot in Set(atoms)] # TODO 
+    end
 
     # Special handling of 1D and 2D systems, and sanity checks
     n_dim = count(!iszero, eachcol(lattice))
@@ -122,8 +129,8 @@ function Model(lattice::AbstractMatrix{T};
     end
 
     # Note: In the 1D or 2D case, the volume is the length/surface
-    inv_lattice = compute_inverse_lattice(lattice)
-    recip_lattice = compute_recip_lattice(lattice)
+    inv_lattice       = compute_inverse_lattice(lattice)
+    recip_lattice     = compute_recip_lattice(lattice)
     inv_recip_lattice = compute_inverse_lattice(recip_lattice)
     unit_cell_volume  = compute_unit_cell_volume(lattice)
     recip_cell_volume = compute_unit_cell_volume(recip_lattice)
@@ -138,7 +145,7 @@ function Model(lattice::AbstractMatrix{T};
     end
     n_spin = length(spin_components(spin_polarization))
 
-    if smearing === nothing
+    if isnothing(smearing)
         temperature >= 0 || error("temperature should be larger or equal to zero.")
         # Default to Fermi-Dirac smearing when finite temperature
         smearing = temperature > 0.0 ? Smearing.FermiDirac() : Smearing.None()
@@ -149,33 +156,38 @@ function Model(lattice::AbstractMatrix{T};
     end
 
     # Determine symmetry operations to use
-    symmetries == true  && (symmetries = default_symmetries(lattice, atoms, magnetic_moments,
-                                                            terms, spin_polarization))
-    symmetries == false && (symmetries = [one(SymOp)])
+    if symmetries === true
+        symmetries = default_symmetries(lattice, atoms, positions, magnetic_moments,
+                                        spin_polarization, terms)
+    elseif symmetries === false
+        symmetries = [one(SymOp)]
+    end
     isempty(symmetries) && error("Identity symop has to be always present.")
 
     Model{T}(model_name, lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
              unit_cell_volume, recip_cell_volume,
              n_electrons, spin_polarization, n_spin, T(temperature), smearing,
-             atoms, terms, symmetries)
+             atoms, positions, atom_groups, terms, symmetries)
 end
-Model(lattice::AbstractMatrix{T}; kwargs...) where {T <: Integer} = Model(Float64.(lattice); kwargs...)
-Model(lattice::AbstractMatrix{Q}; kwargs...) where {Q <: Quantity} = Model(austrip.(lattice); kwargs...)
-
+function Model(lattice::AbstractMatrix{<: Integer}, args...; kwargs...)
+    Model(Float64.(lattice), args...; kwargs...)
+end
+function Model(lattice::AbstractMatrix{<:Quantity}, args...; kwargs...)
+    Model(austrip.(lattice), args...; kwargs...)
+end
 
 normalize_magnetic_moment(::Nothing)  = Vec3{Float64}(zeros(3))
 normalize_magnetic_moment(mm::Number) = Vec3{Float64}(0, 0, mm)
 normalize_magnetic_moment(mm::AbstractVector) = Vec3{Float64}(mm)
+
+default_n_electrons(atoms) = sum(n_elec_valence, atoms; init=0)
 
 """
 :none if no element has a magnetic moment, else :collinear or :full
 """
 function default_spin_polarization(magnetic_moments)
     isempty(magnetic_moments) && return :none
-    all_magmoms = (normalize_magnetic_moment(magmom)
-                   for (_, magmoms) in magnetic_moments
-                   for magmom in magmoms)
-
+    all_magmoms = normalize_magnetic_moment.(magnetic_moments)
     all(iszero, all_magmoms) && return :none
     all(iszero(magmom[1:2]) for magmom in all_magmoms) && return :collinear
 
@@ -185,8 +197,8 @@ end
 """
 Default logic to determine the symmetry operations to be used in the model.
 """
-function default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polarization;
-                        tol_symmetry=1e-5)
+function default_symmetries(lattice, atoms, positions, magnetic_moments, spin_polarization,
+                            terms; tol_symmetry=SYMMETRY_TOLERANCE)
     dimension = count(!iszero, eachcol(lattice))
     if spin_polarization == :full || dimension != 3
         return [one(SymOp)]  # Symmetry not supported in spglib
@@ -195,12 +207,17 @@ function default_symmetries(lattice, atoms, magnetic_moments, terms, spin_polari
         return [one(SymOp)]
     elseif any(breaks_symmetries, terms)
         return [one(SymOp)]  # Terms break symmetry
-    else
-        magnetic_moments = [el => normalize_magnetic_moment.(magmoms)
-                            for (el, magmoms) in magnetic_moments]
-        return symmetry_operations(lattice, atoms, magnetic_moments,
-                                   tol_symmetry=tol_symmetry)
     end
+
+    # Standard case from here on:
+    if length(positions) != length(atoms)
+        error("Length of atoms and positions vectors need to agree.")
+    end
+    if !isempty(magnetic_moments) && length(magnetic_moments) != length(atoms)
+        error("Length of atoms and magnetic_moments vectors need to agree.")
+    end
+    magnetic_moments = normalize_magnetic_moment.(magnetic_moments)
+    symmetry_operations(lattice, atoms, positions, magnetic_moments; tol_symmetry)
 end
 
 

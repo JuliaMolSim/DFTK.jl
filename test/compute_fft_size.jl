@@ -23,8 +23,7 @@ end
 end
 
 @testset "Test compute_fft_size with :precise" begin
-    atoms = [ElementPsp(:Si, psp=load_psp(silicon.psp)) => silicon.positions]
-    model = Model(silicon.lattice; atoms=atoms, terms=[Kinetic()])
+    model = Model(silicon.lattice, silicon.atoms, silicon.positions; terms=[Kinetic()])
 
     function fft_precise(model, kcoords, Ecut; supersampling=2)
         fft_size_fast = compute_fft_size(model, Ecut; supersampling, algorithm=:fast)

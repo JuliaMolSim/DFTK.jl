@@ -10,12 +10,8 @@ include("testcases.jl")
 
 @testset "ForwardDiff stresses on silicon" begin
     function make_basis(lattice, symmetries)
-        Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-        atoms = [Si => silicon.positions]
-        model = model_PBE(lattice, atoms; symmetries)
-        kgrid = [3, 3, 3]
-        Ecut = 7
-        PlaneWaveBasis(model; Ecut, kgrid)
+        model = model_PBE(lattice, silicon.atoms, silicon.positions; symmetries)
+        PlaneWaveBasis(model; Ecut=7, kgrid=(3, 3, 3))
     end
 
     function recompute_energy(lattice, symmetries)

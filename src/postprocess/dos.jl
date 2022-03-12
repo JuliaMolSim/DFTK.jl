@@ -7,45 +7,6 @@
 # LDOS (local density of states)
 # LD = sum_n f_n ψn
 
-@doc raw"""
-    compute_nos(ε, basis, eigenvalues; smearing=basis.model.smearing,
-                temperature=basis.model.temperature)
-
-The number of Kohn-Sham states in a temperature window of width `temperature` around the
-energy `ε` contributing to the DOS at temperature `T`.
-
-This quantity is not a physical quantity, but rather a dimensionless approximate measure
-for how well properties near the Fermi surface are sampled with the passed `smearing`
-and temperature `T`. It increases with both `T` and better sampling of the BZ with
-``k``-points. A value ``\gg 1`` indicates a good sampling of properties near the
-Fermi surface.
-"""
-function compute_nos(ε, basis, eigenvalues; smearing=basis.model.smearing,
-                     temperature=basis.model.temperature)
-    N = zeros(typeof(ε), basis.model.n_spin_components)
-    if (temperature == 0) || smearing isa Smearing.None
-        error("compute_nos only supports finite temperature")
-    end
-
-    # Note the differences to the DOS and LDOS functions: We are not counting states
-    # per BZ volume (like in DOS), but absolute number of states. Therefore n_symeqk
-    # is used instead of kweigths. We count the states inside a temperature window
-    # `temperature` centred about εik. For this the states are weighted by the distribution
-    # -f'((εik - ε)/temperature).
-    #
-    # To explicitly show the similarity with DOS and the temperature dependence we employ
-    # -f'((εik - ε)/temperature) = temperature * ( d/dε f_τ(εik - ε') )|_{ε' = ε}
-    for σ in 1:basis.model.n_spin_components, ik = krange_spin(basis, σ)
-        n_symeqk = length(basis.ksymops[ik])  # Number of symmetry-equivalent k-points
-        for (iband, εnk) in enumerate(eigenvalues[ik])
-            enred = (εnk - ε) / temperature
-            N[σ] -= n_symeqk * Smearing.occupation_derivative(smearing, enred)
-        end
-    end
-    N = mpi_sum(N, basis.comm_kpts)
-end
-
-
 """
 Total density of states at energy ε
 """

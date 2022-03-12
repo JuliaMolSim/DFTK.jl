@@ -39,13 +39,14 @@ using JLD2
 
 d = 2.079  # oxygen-oxygen bondlength
 a = 9.0    # size of the simulation box
-lattice = diagm(a * ones(3))
+lattice = a * I(3)
 O = ElementPsp(:O, psp=load_psp("hgh/pbe/O-q6.hgh"))
-atoms = [O => d / 2a * [[0, 0, 1], [0, 0, -1]]]
-magnetic_moments = [O => [1., 1.]]
+atoms     = [O, O]
+positions = d / 2a * [[0, 0, 1], [0, 0, -1]]
+magnetic_moments = [1., 1.]
 
 Ecut  = 10  # Far too small to be converged
-model = model_PBE(lattice, atoms, temperature=0.02, smearing=smearing=Smearing.Gaussian(),
+model = model_PBE(lattice, atoms, positions; temperature=0.02, smearing=Smearing.Gaussian(),
                   magnetic_moments=magnetic_moments)
 basis = PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])
 

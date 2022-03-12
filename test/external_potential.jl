@@ -2,7 +2,7 @@ using DFTK
 using Test
 
 if mpi_nprocs() == 1  # Direct minimisation does not yet support MPI
-@testset "Externel potential from Fourier coefficients" begin
+@testset "External potential from Fourier coefficients" begin
     lattice = [[10 0 0.]; [0 0 0]; [0 0 0]]
 
     pot(G) = G == 0 ? zero(G) : 1 / abs(G)
@@ -10,9 +10,8 @@ if mpi_nprocs() == 1  # Direct minimisation does not yet support MPI
     α = 2
     terms = [Kinetic(),
              ExternalFromFourier(G -> pot(G[1])),
-             LocalNonlinearity(ρ -> C * ρ^α),
-    ]
-    model = Model(lattice; n_electrons=1, terms=terms, spin_polarization=:spinless)
+             LocalNonlinearity(ρ -> C * ρ^α)]
+    model = Model(lattice; n_electrons=1, terms, spin_polarization=:spinless)
 
     Ecut = 15
     basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))

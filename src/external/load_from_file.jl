@@ -4,37 +4,76 @@
 #
 using PyCall
 
-
-function load_lattice(T, file::AbstractString)
+function load_from_file(payload::Function, file::AbstractString)
     ase = pyimport_e("ase")
     ispynull(ase) && error("Install ASE to load data from exteral files")
-    load_lattice(T, pyimport("ase.io").read(file))
+    payload(pyimport("ase.io").read(file))
 end
+load_lattice(file::AbstractString)   = load_from_file(load_lattice,   file)
+load_atoms(file::AbstractString)     = load_from_file(load_atoms,     file)
+load_positions(file::AbstractString) = load_from_file(load_positions, file)
+load_magnetic_moments(file::AbstractString) = load_from_file(load_magnetic_moments, file)
 
-function load_atoms(T, file::AbstractString)
+
+function load_lattice(pyobj::PyObject)
+    mg = pyimport_e("pymatgen")
     ase = pyimport_e("ase")
-    ispynull(ase) && error("Install ASE to load data from exteral files")
-    load_atoms(T, pyimport("ase.io").read(file))
+
+    if !ispynull(mg)
+        Lattice   = pyimport("pymatgen.core.lattice").Lattice
+        Structure = pyimport("pymatgen.core.structure").Structure
+        if any(pyisinstance(pyobj, s) for s in (Lattice, Structure))
+            return load_lattice_pymatgen(pyobj)
+        end
+    end
+
+    if !ispynull(ase)
+        ase_supported = (ase.Atoms, ase.cell.Cell)
+        if any(pyisinstance(pyobj, s) for s in ase_supported)
+            return load_lattice_ase(pyobj)
+        end
+    end
+
+    error("load_lattice not implemented for python type $pyobj")
 end
 
-function load_magnetic_moments(file::AbstractString)
+function load_atoms(pyobj::PyObject)
+    mg = pyimport_e("pymatgen")
     ase = pyimport_e("ase")
-    ispynull(ase) && error("Install ASE to load data from exteral files")
-    load_magnetic_moments(pyimport("ase.io").read(file))
+
+    if !ispynull(mg)
+        if pyisinstance(pyobj, pyimport("pymatgen.core.structure").Structure)
+            return load_atoms_pymatgen(pyobj)
+        end
+    end
+    if !ispynull(ase) && pyisinstance(pyobj, ase.Atoms)
+        return load_atoms_ase(pyobj)
+    end
+
+    error("load_atoms not implemented for python type $pyobj")
 end
 
-"""
-Return a DFTK-compatible `lattice` object loaded from an ASE `Atoms`, a pymatgen `Structure`
-or a compatible file (e.g. xyz file, cif file etc.)
-"""
-load_lattice(args...; kwargs...) = load_lattice(Float64, args...; kwargs...)
+function load_positions(pyobj::PyObject)
+    mg = pyimport_e("pymatgen")
+    ase = pyimport_e("ase")
 
-"""
-Return a DFTK-compatible `atoms` object loaded from an ASE `Atoms`, a pymatgen `Structure`
-or a compatible file (e.g. xyz file, cif file etc.)
-"""
-load_atoms(  args...; kwargs...) = load_atoms(  Float64, args...; kwargs...)
+    if !ispynull(mg)
+        if pyisinstance(pyobj, pyimport("pymatgen.core.structure").Structure)
+            return load_positions_pymatgen(pyobj)
+        end
+    end
+    if !ispynull(ase) && pyisinstance(pyobj, ase.Atoms)
+        return load_positions_ase(pyobj)
+    end
 
-load_model(  args...; kwargs...) = load_model(  Float64, args...; kwargs...)
-load_basis(  args...; kwargs...) = load_basis(  Float64, args...; kwargs...)
-load_density(args...; kwargs...) = load_density(Float64, args...; kwargs...)
+    error("load_positions not implemented for python type $pyobj")
+end
+
+
+function load_magnetic_moments(pyobj::PyObject)
+    ase = pyimport_e("ase")
+    if !ispynull(ase) && pyisinstance(pyobj, ase.Atoms)
+        return load_magnetic_moments_ase(pyobj)
+    end
+    error("load_magnetic_moments not implemented for python type $pyobj")
+end

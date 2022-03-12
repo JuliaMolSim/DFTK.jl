@@ -60,8 +60,8 @@ auconvert(Å, 1.2)  # 1.2 Bohr in Ångström
     When setting up a calculation for DFTK
     one needs to ensure to convert to Bohr and atomic units.
     For some Python libraries (currently ASE and pymatgen)
-    DFTK directly ships conversion tools in form of the [`load_lattice`](@ref)
-    and [`load_atoms`](@ref) functions,
+    DFTK directly ships conversion tools in form of the `load_lattice`,
+    `load_positions` and `load_atoms` functions,
     which take care of such conversions. Examples which demonstrate this
     are [Creating slabs with ASE](@ref) and [Creating supercells with pymatgen](@ref).
 
@@ -80,8 +80,8 @@ reciprocal-space lattice vectors by ``B = 2\pi A^{-T}``.
     (notably Python and C) use row-major ordering.
     Care therefore needs to be taken to properly
     transpose the unit cell matrices ``A`` before using it with DFTK.
-    For the supported third-party packages `load_lattice`
-    and `load_atoms` again handle such conversion automatically.
+    For the supported third-party packages `load_lattice`,
+    `load_positions` and `load_atoms` again handle such conversion automatically.
 
 We use the convention that the unit cell in real space is
 ``[0, 1)^3`` in reduced coordinates and the unit cell in reciprocal

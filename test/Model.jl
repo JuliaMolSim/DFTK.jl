@@ -6,7 +6,7 @@ include("testcases.jl")
 @testset "Test reduced / cartesian conversion" begin
     Ecut = 3
     fft_size = [13, 15, 14]
-    model = Model(silicon.lattice; silicon.atoms)
+    model = Model(silicon.lattice, silicon.atoms, silicon.positions)
 
     rred = randn(3)  # reduced "position"
     fred = randn(3)  # reduced "force"

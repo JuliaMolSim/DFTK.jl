@@ -51,10 +51,11 @@ lattice = a / 2 * [[0 1 1.];  # Silicon lattice vectors
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 
 ## Specify type and positions of atoms
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
+atoms     = [Si, Si]
+positions = [ones(3)/8, -ones(3)/8]
 
 ## 2. Select model and basis
-model = model_LDA(lattice, atoms)
+model = model_LDA(lattice, atoms, positions)
 kgrid = [4, 4, 4]     # k-point grid (Regular Monkhorst-Pack grid)
 Ecut = 7              # kinetic energy cutoff
 ## Ecut = 190.5u"eV"  # Could also use eV or other energy-compatible units
@@ -96,9 +97,7 @@ plot(x, scfres.ρ[1, :, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 # for instance compute a band structure
 plot_bandstructure(scfres; kline_density=10)
 # or get the cartesian forces (in Hartree / Bohr)
-compute_forces_cart(scfres)[1]  # Select silicon forces
-# The `[1]` extracts the forces for the first kind of atoms,
-# i.e. `Si` (silicon) in the setup of the `atoms` list of step 1 above.
+compute_forces_cart(scfres)
 # As expected, they are almost zero in this highly symmetric configuration.
 
 # ## Where to go from here

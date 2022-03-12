@@ -33,10 +33,8 @@ function write_w90_win(fileprefix::String, basis::PlaneWaveBasis;
         println(fp, "end unit_cell_cart \n")
 
         println(fp, "begin atoms_frac")
-        for (element, positions) in basis.model.atoms
-            for position in positions
-                @printf fp "%-2s %10.6f %10.6f %10.6f \n" element.symbol position...
-            end
+        for (element, position) in zip(basis.model.atoms, basis.model.positions)
+            @printf fp "%-2s %10.6f %10.6f %10.6f \n" element.symbol position...
         end
         println(fp, "end atoms_frac\n")
 

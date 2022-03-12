@@ -75,7 +75,6 @@ export Kinetic
 export ExternalFromFourier
 export ExternalFromReal
 export AtomicLocal
-export PowerNonlinearity
 export LocalNonlinearity
 export Hartree
 export Xc
@@ -151,14 +150,11 @@ include("pseudo/list_psp.jl")
 export pymatgen_structure
 export ase_atoms
 export load_lattice
-export load_basis
-export load_model
-export load_density
 export load_atoms
+export load_positions
 export load_magnetic_moments
 export run_wannier90
 include("external/load_from_file.jl")
-include("external/load_from_python.jl")
 include("external/ase.jl")
 include("external/pymatgen.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
@@ -175,7 +171,6 @@ export compute_stresses_cart
 include("postprocess/stresses.jl")
 export compute_dos
 export compute_ldos
-export compute_nos
 export plot_dos
 include("postprocess/dos.jl")
 export compute_χ0

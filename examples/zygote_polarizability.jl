@@ -7,7 +7,8 @@ using Zygote
 ## Construct PlaneWaveBasis given a particular electric field strength
 ## Again we take the example of a Helium atom.
 He = ElementPsp(:He, psp=load_psp("hgh/lda/He-q2"))
-atoms = [He => [[1/2; 1/2; 1/2]]]  # Helium at the center of the box
+atoms = [He]  # Helium at the center of the box
+positions = [[1/2; 1/2; 1/2]]
 function make_basis(ε::T; a=10., Ecut=5) where T  # too small Ecut, only for efficient debugging
     lattice=T(a) * Mat3(I(3))  # lattice is a cube of ``a`` Bohrs
     # model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn];
@@ -26,8 +27,7 @@ function make_basis(ε::T; a=10., Ecut=5) where T  # too small Ecut, only for ef
         ExternalFromReal(r -> -ε * (r[1] - a/2)),
         # XC
     ]
-    # model = Model(lattice, atoms, terms; temperature=1e-3, symmetries=false)
-    model = Model(lattice; atoms, terms, symmetries=false)
+    model = Model(lattice, atoms, positions; terms, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])  # No k-point sampling on isolated system
 end
 

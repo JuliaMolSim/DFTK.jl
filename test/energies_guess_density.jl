@@ -13,10 +13,11 @@ include("testcases.jl")
     fft_size = [27, 27, 27]
     kgrid = (1, 2, 3)
 
-    model = model_DFT(silicon.lattice, silicon.atoms, [:lda_x, :lda_c_vwn], symmetries=false)
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions,
+                      [:lda_x, :lda_c_vwn]; symmetries=false)
     basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size)
 
-    ρ0 = guess_density(basis, silicon.atoms)
+    ρ0 = guess_density(basis, silicon.atoms, silicon.positions)
     E, H = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
 
     @test E["Hartree"] ≈  0.3527293727197568  atol=5e-8
@@ -41,7 +42,7 @@ include("testcases.jl")
     # Now we have a reasonable set of ψ, we make up a crazy model, and check the energies
     V(x, p) = 4*p.ε * ((p.σ/x)^12 - (p.σ/x)^6)
     params = Dict( (:Si, :Si) => (; ε=1e5, σ=0.5) )
-    model = model_DFT(silicon.lattice, silicon.atoms, [:gga_x_pbe, :gga_c_pbe];
+    model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions;
                       extra_terms=[ExternalFromReal(X -> cos(1.2 * (X[1] + X[3]))),
                                    ExternalFromFourier(X -> cos(1.3 * (X[1] + X[3]))),
                                    LocalNonlinearity(ρ -> 1.2 * ρ^2.4),

@@ -115,8 +115,10 @@ function build_fft_plans(T::Type{<:Union{ForwardDiff.Dual,Complex{<:ForwardDiff.
 end
 
 # determine symmetry operations only from primal lattice values
-function spglib_get_symmetry(lattice::Matrix{<:ForwardDiff.Dual}, atoms, magnetic_moments=[]; kwargs...)
-    spglib_get_symmetry(ForwardDiff.value.(lattice), atoms, magnetic_moments; kwargs...)
+function spglib_get_symmetry(lattice::Matrix{<:ForwardDiff.Dual}, atom_groups, positions,
+                             magnetic_moments=[]; kwargs...)
+    spglib_get_symmetry(ForwardDiff.value.(lattice), atom_groups, positions,
+                        magnetic_moments; kwargs...)
 end
 
 function _is_well_conditioned(A::AbstractArray{<:ForwardDiff.Dual}; kwargs...)
@@ -127,13 +129,10 @@ end
 # go a nice convert function to get rid of the annoying conversion thing in the
 # stress computation.
 function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
-    # convert atoms
-    new_atoms = [elem => [ForwardDiff.value.(pos) for pos in positions]
-                 for (elem, positions) in model.atoms]
-    Model(ForwardDiff.value.(model.lattice);
+    newpositions = [ForwardDiff.value.(pos) for pos in model.positions]
+    Model(ForwardDiff.value.(model.lattice), model.atoms, newpositions;
           model_name=model.model_name,
           n_electrons=model.n_electrons,
-          atoms=new_atoms,
           magnetic_moments=[],  # Symmetries given explicitly
           terms=model.term_types,
           temperature=ForwardDiff.value(model.temperature),
@@ -147,8 +146,8 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
     PlaneWaveBasis(construct_value(basis.model),
                    ForwardDiff.value(basis.Ecut),
                    map(v -> ForwardDiff.value.(v), basis.kcoords_global),
-                   basis.ksymops_global,
-                   basis.symmetries;
+                   ForwardDiff.value.(basis.kweights_global);
+                   basis.symmetries,
                    fft_size=basis.fft_size,
                    kgrid=basis.kgrid,
                    kshift=new_kshift,

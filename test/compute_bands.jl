@@ -84,8 +84,7 @@ if mpi_nprocs() == 1  # not easy to distribute
         "K"=>[0.375, 0.375, 0.75]
     )
 
-    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_DFT(silicon.lattice, [spec => testcase.positions], [:lda_xc_teter93])
+    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
     kcoords, klabels, kpath = high_symmetry_kpath(model; kline_density=22.7)
 
     @test length(ref_kcoords) == length(kcoords)
@@ -104,7 +103,7 @@ end
 
 @testset "High-symmetry kpath construction for 1D system" begin
     lattice = diagm([8.0, 0, 0])
-    model = Model(lattice, n_electrons=1, terms=[Kinetic()])
+    model = Model(lattice; n_electrons=1, terms=[Kinetic()])
     kcoords, klabels, kpath = high_symmetry_kpath(model; kline_density=20)
 
     @test length(kcoords) == 17
@@ -119,12 +118,11 @@ end
     Ecut = 7
     n_bands = 8
 
-    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_DFT(silicon.lattice, [spec => testcase.positions], :lda_xc_teter93)
-    basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.ksymops)
+    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
+    basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.kweights)
 
     # Build Hamiltonian just from SAD guess
-    ρ0 = guess_density(basis, [spec => testcase.positions])
+    ρ0 = guess_density(basis, testcase.atoms, testcase.positions)
     ham = Hamiltonian(basis; ρ=ρ0)
 
     # Check that plain diagonalization and compute_bands agree
@@ -139,8 +137,7 @@ end
 
 @testset "prepare_band_data" begin
     testcase = silicon
-    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_DFT(silicon.lattice, [spec => testcase.positions], :lda_xc_teter93)
+    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
 
     # k coordinates simulating two band branches, Γ => X => W and U => X
     kcoords = [
@@ -156,8 +153,8 @@ end
         [0.575, 0.150, 0.575],
         [0.500, 0.000, 0.500],
     ]
-    ksymops = [[one(SymOp)] for _ in 1:length(kcoords)]
-    basis = PlaneWaveBasis(model, 5, kcoords, ksymops)
+    kweights = ones(9) ./ 9
+    basis = PlaneWaveBasis(model, 5, kcoords, kweights)
     klabels = Dict("Γ" => [0, 0, 0], "X" => [0.5, 0.0, 0.5],
                    "W" => [0.5, 0.25, 0.75], "U" => [0.625, 0.25, 0.625])
 
@@ -212,10 +209,9 @@ end
 
 @testset "is_metal" begin
     testcase = silicon
-    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_LDA(silicon.lattice, [spec => testcase.positions])
+    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
 
-    basis = PlaneWaveBasis(model, 5, testcase.kcoords, testcase.ksymops)
+    basis = PlaneWaveBasis(model, 5, testcase.kcoords, testcase.kweights)
     λ = [[1, 2, 3, 4], [1, 1.5, 3.5, 4.2], [1, 1.1, 3.2, 4.3], [1, 2, 3.3, 4.1]]
 
     @test !DFTK.is_metal((λ=λ, basis=basis), 2.5)
