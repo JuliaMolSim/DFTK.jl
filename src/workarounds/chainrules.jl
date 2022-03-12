@@ -118,13 +118,11 @@ function _autodiff_compute_density(basis::PlaneWaveBasis, ψ, occupation)
     kpt = basis.kpoints[1]
     ψk = ψ[1]
     occk = occupation[1]
-    ρk_real = sum(zip(eachcol(ψk), occk)) do (ψnk, occn)
+    ρ = sum(zip(eachcol(ψk), occk)) do (ψnk, occn)
         ψnk_real_tid = G_to_r(basis, kpt, ψnk)
         occn .* abs2.(ψnk_real_tid)
     end
-    ρ = r_to_G(basis, ρk_real)
     ρ = reshape(ρ, size(ρ)..., 1)
-    G_to_r(basis, ρ)
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(compute_density), basis::PlaneWaveBasis, ψ, occupation)
