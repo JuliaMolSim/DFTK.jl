@@ -199,7 +199,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(*),
     rrule_via_ad(config, _autodiff_apply_hamiltonian, H, ψ)
 end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis; kwargs...)
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis{T}; kwargs...) where {T}
     @warn "self_consistent_field rrule triggered."
     scfres = self_consistent_field(basis; kwargs...)
 
@@ -212,19 +212,13 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
     ρ, compute_density_pullback =
         rrule(config, compute_density, basis, scfres.ψ, scfres.occupation)
 
-    Tscfres = typeof(scfres)
-
     function self_consistent_field_pullback(∂scfres)
-
         # TODO problem: typeof(∂scfres) == Tangent{Any}
-        ∂scfres_backing = ChainRulesCore.backing(∂scfres)
-        ∂scfres = Tangent{Tscfres, typeof(∂scfres_backing)}(∂scfres_backing)
-
         ∂ψ = ∂scfres.ψ
         ∂occupation = ∂scfres.occupation
         ∂ρ = ∂scfres.ρ
         ∂energies = ∂scfres.energies
-        ∂basis1 = ∂scfres.basis
+        ∂basis1 = Tangent{PlaneWaveBasis{T}}(; ChainRulesCore.backing(∂scfres.basis)...)
         ∂H = ∂scfres.ham
 
         _, ∂basis2, ∂ψ_density_pullback, _ = compute_density_pullback(∂ρ)
@@ -238,11 +232,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         ∂H = ∂H_mul_pullback + ∂H
         _, ∂basis3, _, _, _ = energy_hamiltonian_pullback(Tangent{NamedTuple{(:E, :H), Tuple{Energies{Float64}, Hamiltonian}}}(; E=∂energies, H=∂H))
 
-        # @show typeof(∂basis1)
-        # @show typeof(∂basis2)
-        # @show typeof(∂basis3)
-        ∂basis = ∂basis3
-        # ∂basis = ∂basis1 + ∂basis2 + ∂basis3 # TODO add all contributions
+        ∂basis = ∂basis1 + ∂basis2 + ∂basis3
 
         return NoTangent(), ∂basis
     end
@@ -266,8 +256,7 @@ end
 
 # TODO small
 # [x] upstream @non_differentiable allunique(::Any) to ChainRules.jl
-
-# [ ] add basis contributions in SCF rrule (Tangent{Any} problem)
+# [x] add basis contributions in SCF rrule (Tangent{Any} problem)
 # [ ] pull master (after Michael's atoms update)
 # [x] remove Model alternative primal (or update with inv_lattice, ...)
 # [x] replace OrderedDict in Energies with Vector{Pair{String,T}}
