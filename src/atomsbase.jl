@@ -67,7 +67,7 @@ function parse_system(system::AbstractSystem{D}) where {D}
 
     # TODO Use system to determine n_electrons
 
-    (; lattice, atoms, positions, kwargs=(; magnetic_moments))
+    (; lattice, atoms, positions, magnetic_moments)
 end
 
 
