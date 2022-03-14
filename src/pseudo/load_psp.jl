@@ -10,7 +10,7 @@ The file is searched in the directory `datadir_psp()` and by the `key`.
 If the `key` is a path to a valid file, the extension is used to determine
 the type of the pseudopotential file format and a respective class is returned.
 """
-function load_psp(key::AbstractString; identifier=nothing)
+function load_psp(key::AbstractString)
     if startswith(key, "hgh/") || endswith(key, ".hgh")
         parser = parse_hgh_file
         extension = ".hgh"
@@ -19,24 +19,21 @@ function load_psp(key::AbstractString; identifier=nothing)
     end
 
     Sys.iswindows() && (key = replace(key, "/" => "\\"))
-    if isfile(key) # Key is a file ... deduce identifier
+    if isfile(key)  # Key is a file ... deduce identifier
         fullpath = key
-        if isnothing(identifier)
-            identifier = replace(key, "\\" => "/")
-            if startswith(identifier, datadir_psp())
-                identifier = identifier[length(datadir_psp())+1:end]
-            end
+        identifier = replace(key, "\\" => "/")
+        if startswith(identifier, datadir_psp())
+            identifier = identifier[length(datadir_psp())+1:end]
         end
     else
         # Not a file: Treat as identifier, add extension if needed
-        @assert isnothing(identifier)
         fullpath = joinpath(datadir_psp(), lowercase(key))
         isfile(fullpath) || (fullpath = fullpath * extension)
         identifier = replace(lowercase(key), "\\" => "/")
     end
 
     if isfile(fullpath)
-        return parser(fullpath, identifier=identifier)
+        return parser(fullpath; identifier)
     else
         error("Could not find pseudopotential for identifier " *
               "'$identifier' in directory '$(datadir_psp())'")
