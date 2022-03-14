@@ -68,10 +68,15 @@ pyimport("ase.io").write("surface.png", surface * (3, 3, 1),
 
 using DFTK
 
-atoms = load_atoms(surface)
-atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="pbe")) for el in atoms]
 positions = load_positions(surface)
-lattice = load_lattice(surface);
+lattice   = load_lattice(surface)
+atoms = map(load_atoms(surface)) do el
+    if el.symbol == :Ga
+        ElementPsp(:Ga, psp=load_psp("hgh/pbe/ga-q3.hgh"))
+    elseif el.symbol == :As
+        ElementPsp(:As, psp=load_psp("hgh/pbe/as-q5.hgh"))
+    end
+end;
 
 # We model this surface with (quite large a) temperature of 0.01 Hartree
 # to ease convergence. Try lowering the SCF convergence tolerance (`tol`)
