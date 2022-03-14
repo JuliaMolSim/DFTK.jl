@@ -275,7 +275,7 @@ number of points in each dimension and `kshift` the shift (0 or 1/2 in each dire
 If not specified a grid is generated using `kgrid_from_minimal_spacing` with
 a minimal spacing of `2π * 0.022` per Bohr.
 """
-function PlaneWaveBasis(model::Model{T}; Ecut,
+function PlaneWaveBasis(model::Model; Ecut,
                         kgrid=kgrid_from_minimal_spacing(model, 2π * 0.022),
                         kshift=zeros(3),
                         kwargs...)
