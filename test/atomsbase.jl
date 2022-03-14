@@ -3,6 +3,7 @@ using Unitful
 using UnitfulAtomic
 using AtomsBase
 using Test
+import DFTK: compute_pspmap
 
 @testset "DFTK -> AbstractSystem -> DFTK" begin
     Si = ElementCoulomb(:Si)
@@ -97,5 +98,33 @@ end
         @test parsed.atoms[2].psp.identifier == "hgh/lda/si-q4.hgh"
         @test parsed.atoms[3].psp.identifier == "hgh/lda/h-q1.hgh"
         @test parsed.atoms[4].psp.identifier == "hgh/lda/c-q4.hgh"
+    end
+end
+
+
+@testset "Check attach_psp routine selectively" begin
+    symbols = [:Cu, :Au, :Ni]
+
+    let pspmap = compute_pspmap(symbols; functional="lda", family="hgh", core=:semicore)
+        @test pspmap[:Cu] == "hgh/lda/cu-q19.hgh"
+        @test pspmap[:Au] == "hgh/lda/au-q19.hgh"
+        @test pspmap[:Ni] == "hgh/lda/ni-q18.hgh"
+    end
+
+    let pspmap = compute_pspmap(symbols; functional="lda", family="hgh", core=:fullcore)
+        @test pspmap[:Cu] == "hgh/lda/cu-q11.hgh"
+        @test pspmap[:Au] == "hgh/lda/au-q11.hgh"
+        @test pspmap[:Ni] == "hgh/lda/ni-q10.hgh"
+    end
+
+    let pspmap = compute_pspmap([:Cu, :Au]; functional="pbe", family="hgh", core=:semicore)
+        @test pspmap[:Cu] == "hgh/pbe/cu-q19.hgh"
+        @test pspmap[:Au] == "hgh/pbe/au-q19.hgh"
+    end
+
+    let pspmap = compute_pspmap(symbols; functional="pbe", family="hgh", core=:fullcore)
+        @test pspmap[:Cu] == "hgh/pbe/cu-q11.hgh"
+        @test pspmap[:Au] == "hgh/pbe/au-q11.hgh"
+        @test pspmap[:Ni] == "hgh/pbe/ni-q18.hgh"
     end
 end

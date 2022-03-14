@@ -29,6 +29,21 @@ function attach_psp(system::AbstractSystem, pspmap::AbstractDict{Symbol,String})
 end
 
 
+function compute_pspmap(symbols::AbstractVector{Symbol}; core=:fullcore, kwargs...)
+    pspmap = map(unique(sort(symbols))) do symbol
+        list = list_psp(symbol; core, kwargs...)
+        if length(list) != 1
+            error("Parameters passed do not uniquely identify a PSP file for element $symbol.")
+        end
+        symbol => list[1].identifier
+    end
+    Dict(pspmap...)
+end
+function compute_pspmap(system::AbstractSystem; kwargs...)
+    compute_pspmap(atomic_symbol(system); kwargs...)
+end
+
+
 """
     attach_psp(system::AbstractSystem; family=..., functional=..., core=...)
 
@@ -41,14 +56,6 @@ Select HGH pseudopotentials for LDA XC functionals for all atoms in the system.
 julia> attach_psp(system; family="hgh", functional="lda")
 ```
 """
-function attach_psp(system::AbstractSystem; core=:fullcore, kwargs...)
-    symbols = unique(sort(atomic_symbol(system)))
-    pspmap = map(symbols) do symbol
-        list = list_psp(symbol; core, kwargs...)
-        if length(list) != 1
-            error("Parameters passed do not uniquely identify a PSP file for element $symbol.")
-        end
-        symbol => list[1].identifier
-    end
-    attach_psp(system, Dict(pspmap...))
+function attach_psp(system::AbstractSystem; kwargs...)
+    attach_psp(system, compute_pspmap(system; kwargs...))
 end
