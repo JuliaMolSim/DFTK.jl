@@ -279,7 +279,7 @@ function PlaneWaveBasis(model::Model; Ecut,
                         kgrid=kgrid_from_minimal_spacing(model, 2π * 0.022),
                         kshift=zeros(3),
                         kwargs...)
-    kcoords, ksymops, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
+    kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
     PlaneWaveBasis(model, austrip(Ecut), kcoords, kweights;
                    symmetries, kgrid, kshift, kwargs...)
 end
