@@ -15,7 +15,9 @@ julia> attach_psp(system, Dict(:Si => "hgh/lda/si-q4", :O => "hgh/lda/o-q6")
 function attach_psp(system::AbstractSystem, pspmap::AbstractDict{Symbol,String})
     particles = map(system) do atom
         symbol = atomic_symbol(atom)
-        if hasproperty(atom, :pseudopotential)  # Pseudo already set
+
+        # Pseudo or explicit potential already set
+        if hasproperty(atom, :pseudopotential) || hasproperty(atom, :potential)
             Atom(; atom)
         elseif !(symbol in keys(pspmap))
             error("No pseudo identifier given for element $symbol.")
