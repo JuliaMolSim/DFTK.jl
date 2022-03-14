@@ -106,18 +106,8 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     end
 
     if !isempty(kreds_notmapped)
-        # TODO This fallback has not become active for a long time and has
-        #      not been tested in the CI, so it probably no longer works anyway.
-        #      It should be removed and this function simplified.
-
-        # add them as reducible anyway
-        eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, symmetries)
-        @info("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
-              "the irreducible kpoints returned by spglib. $(length(eirreds)) of " *
-              "these are added as extra irreducible kpoints.")
-
-        append!(kirreds, eirreds)
-        append!(ksymops, esymops)
+        error("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
+              "the irreducible kpoints returned by spglib.")
     end
 
     # The symmetry operation (S == I and τ == 0) should be present for each k-point
