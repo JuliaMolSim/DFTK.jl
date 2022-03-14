@@ -34,8 +34,8 @@ function run_iron_lda(T; kwargs...)
     ref_etot = -16.670871429685356
 
     magnetic_moments = [4.0]
-    model = model_LDA(Array{T}(iron_bcc.lattice), iron_bcc.atoms, iron_bcc.positions;
-                      temperature=0.01, magnetic_moments)
+    model = model_DFT(Array{T}(iron_bcc.lattice), iron_bcc.atoms, iron_bcc.positions,
+                      [:lda_xc_teter93]; temperature=0.01, magnetic_moments)
     basis = PlaneWaveBasis(model; Ecut=15, fft_size=[20, 20, 20],
                            kgrid=[4, 4, 4], kshift=[1/2, 1/2, 1/2])
     run_scf_and_compare(T, basis, ref_lda, ref_etot;

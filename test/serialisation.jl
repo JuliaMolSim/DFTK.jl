@@ -42,7 +42,7 @@ end
                       magnetic_moments=[1., 1.], symmetries=false)
 
     kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
-    basis  = PlaneWaveBasis(model; Ecut=4, kgrid=kgrid)
+    basis  = PlaneWaveBasis(model; Ecut=4, kgrid)
 
     # Run SCF and do checkpointing along the way
     mktempdir() do tmpdir
@@ -59,7 +59,7 @@ end
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions;
                       spin_polarization=:collinear, temperature=0.01)
     kgrid = [2, 3, 4]
-    basis = PlaneWaveBasis(model; Ecut=5, kgrid=kgrid)
+    basis = PlaneWaveBasis(model; Ecut=5, kgrid)
     scfres = self_consistent_field(basis)
 
     @test_throws ErrorException save_scfres("MyVTKfile.random", scfres)
