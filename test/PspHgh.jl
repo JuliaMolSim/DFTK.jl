@@ -80,7 +80,7 @@ end
 end
 
 @testset "Check qcut routines" begin
-    psp = load_psp(:Au, functional="pbe", family="hgh")
+    psp = load_psp("hgh/pbe/au-q11.hgh")
     ε = 1e-6
 
     qcut = qcut_psp_local(Float64, psp)

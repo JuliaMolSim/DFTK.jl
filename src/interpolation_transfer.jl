@@ -1,4 +1,5 @@
-import Interpolations: interpolate, BSpline, Quadratic, OnCell
+import Interpolations
+import Interpolations: interpolate, extrapolate, scale, BSpline, Quadratic, OnCell
 using SparseArrays
 
 """
