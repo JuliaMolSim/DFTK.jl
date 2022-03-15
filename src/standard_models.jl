@@ -39,7 +39,7 @@ end
 Build an LDA model (Teter93 parametrization) from the specified atoms.
 """
 function model_LDA(lattice::AbstractMatrix, atoms::Vector, positions::Vector; kwargs...)
-    model_DFT(lattice, atoms, positions, :lda_xc_teter93; kwargs...)
+    model_DFT(lattice, atoms, positions, [:lda_x, :lda_c_pw]; kwargs...)
 end
 
 

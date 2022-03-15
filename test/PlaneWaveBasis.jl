@@ -7,7 +7,7 @@ include("testcases.jl")
 
 function test_pw_cutoffs(testcase, Ecut, fft_size)
     model = Model(testcase.lattice; testcase.n_electrons)
-    basis = PlaneWaveBasis(model; Ecut, fft_size, kgrid=(2, 5, 5))
+    basis = PlaneWaveBasis(model; Ecut, fft_size, kgrid=(2, 5, 5), kshift=[1, 0, 0]/2)
 
     for (ik, kpt) in enumerate(basis.kpoints)
         for G in G_vectors(basis, kpt)
@@ -88,7 +88,8 @@ end
 
 @testset "PlaneWaveBasis: kpoint mapping" begin
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
-    basis = PlaneWaveBasis(model; Ecut=3, kgrid=(2, 2, 2), fft_size=[7, 9, 11])
+    basis = PlaneWaveBasis(model; Ecut=3, kgrid=(2, 2, 2), fft_size=[7, 9, 11],
+                           kshift=ones(3)/2)
 
     for kpt in basis.kpoints
         Gs_basis = collect(G_vectors(basis))
