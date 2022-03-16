@@ -75,6 +75,8 @@ atoms = map(load_atoms(surface)) do el
         ElementPsp(:Ga, psp=load_psp("hgh/pbe/ga-q3.hgh"))
     elseif el.symbol == :As
         ElementPsp(:As, psp=load_psp("hgh/pbe/as-q5.hgh"))
+    else
+        error("Unsupported element: $el")
     end
 end;
 
