@@ -81,7 +81,7 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     kreds_notmapped = empty(kirreds)
 
     # Number of reducible k-points represented by the irreducible k-point `kirreds[ik]`
-    n_equivalent_k = Vector{Int}(0, length(kirreds))
+    n_equivalent_k = zeros(Int, length(kirreds))
     for (ik, k) in enumerate(kirreds)
         for ired in k_all_reducible[ik]
             kred = (kshift .+ grid[ired]) .// kgrid_size
