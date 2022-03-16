@@ -80,12 +80,9 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     # https://github.com/spglib/spglib/issues/101
     kreds_notmapped = empty(kirreds)
 
-    # ksymops will be the list of symmetry operations (for each irreducible k-point)
-    # needed to do the respective mapping irreducible -> reducible to get the respective
-    # entry in `k_all_reducible`.
-    ksymops = Vector{Vector{SymOp}}(undef, length(kirreds))
+    # Number of reducible k-points represented by the irreducible k-point `kirreds[ik]`
+    n_equivalent_k = Vector{Int}(0, length(kirreds))
     for (ik, k) in enumerate(kirreds)
-        ksymops[ik] = Vector{SymOp}()
         for ired in k_all_reducible[ik]
             kred = (kshift .+ grid[ired]) .// kgrid_size
 
@@ -100,7 +97,7 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
             if isym === nothing  # No symop found for $k -> $kred
                 push!(kreds_notmapped, normalize_kpoint_coordinate(kred))
             else
-                push!(ksymops[ik], symmetries[isym])
+                n_equivalent_k[ik] += 1
             end
         end
     end
@@ -110,11 +107,8 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
               "the irreducible kpoints returned by spglib.")
     end
 
-    # The symmetry operation (S == I and τ == 0) should be present for each k-point
-    @assert all(findfirst(symop -> symop == one(SymOp), ops) !== nothing
-                for ops in ksymops)
-
-    kweights = length.(ksymops) / sum(length.(ksymops))
+    @assert sum(n_equivalent_k) == prod(kgrid_size)
+    kweights = n_equivalent_k / sum(n_equivalent_k)
     kirreds, kweights, symmetries
 end
 
