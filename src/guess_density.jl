@@ -16,11 +16,12 @@ end
 
 
 @doc raw"""
-    guess_density(basis, magnetic_moments)
+    guess_density(basis, magnetic_moments=[])
+    guess_density(basis, system)
 
 Build a superposition of atomic densities (SAD) guess density.
 
-We take for the guess density a gaussian centered around the atom, of
+We take for the guess density a Gaussian centered around the atom, of
 length specified by `atom_decay_length`, normalized to get the right number of electrons
 ```math
 \hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
@@ -28,10 +29,14 @@ length specified by `atom_decay_length`, normalized to get the right number of e
 When magnetic moments are provided, construct a symmetry-broken density guess.
 The magnetic moments should be specified in units of ``μ_B``.
 """
-function guess_density(basis::PlaneWaveBasis, magnetic_moments=[])
+function guess_density(basis::PlaneWaveBasis, magnetic_moments)
     guess_density(basis, basis.model.atoms, basis.model.positions, magnetic_moments)
 end
-@timing function guess_density(basis::PlaneWaveBasis, atoms, positions, magnetic_moments=[])
+function guess_density(basis::PlaneWaveBasis, system::AbstractSystem)
+    parsed = parse_system(system)
+    guess_density(basis, parsed.atoms, parsed.positions, parsed.magnetic_moments)
+end
+@timing function guess_density(basis::PlaneWaveBasis, atoms, positions, magnetic_moments)
     ρtot = _guess_total_density(basis, atoms, positions)
     if basis.model.n_spin_components == 1
         ρspin = nothing
