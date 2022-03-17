@@ -13,9 +13,10 @@ normalize_kpoint_coordinate(k::AbstractVector) = normalize_kpoint_coordinate.(k)
 """Construct the coordinates of the ``k``-points in a (shifted) Monkorst-Pack grid"""
 function kgrid_monkhorst_pack(kgrid_size; kshift=[0, 0, 0])
     kgrid_size = Vec3{Int}(kgrid_size)
-    start = -floor.(Int, (kgrid_size .- 1) ./ 2)
-    stop  = ceil.(Int, (kgrid_size .- 1) ./ 2)
-    kshift = Vec3{Rational{Int}}(kshift)
+    kshift     = Vec3{Rational{Int}}(kshift)
+
+    start   = -floor.(Int, (kgrid_size .- 1) ./ 2)
+    stop    = ceil.(Int, (kgrid_size .- 1) ./ 2)
     kcoords = [(kshift .+ Vec3([i, j, k])) .// kgrid_size
                for i=start[1]:stop[1], j=start[2]:stop[2], k=start[3]:stop[3]]
     vec(normalize_kpoint_coordinate.(kcoords))
@@ -45,86 +46,60 @@ the grid.
 function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size; kshift)
 
+    # Filter those symmetry operations (S, τ) that preserve the MP grid
+    kcoords_mp = kgrid_monkhorst_pack(kgrid_size; kshift)
+    symmetries = symmetries_preserving_kgrid(symmetries, kcoords_mp)
+
     # Transform kshift to the convention used in spglib:
     #    If is_shift is set (i.e. integer 1), then a shift of 0.5 is performed,
     #    else no shift is performed along an axis.
     kshift = Vec3{Rational{Int}}(kshift)
-    all(ks in (0, 1//2) for ks in kshift) || error("Only kshifts of 0 or 1//2 implemented.")
-
-    kpoints_mp = kgrid_monkhorst_pack(kgrid_size, kshift=kshift)
-
-    # Filter those symmetry operations (S,τ) that preserve the MP grid
-    symmetries = symmetries_preserving_kgrid(symmetries, kpoints_mp)
+    is_shift = map(kshift) do ks
+        ks in (0, 1//2) || error("Only kshifts of 0 or 1//2 implemented.")
+        convert(Int, 2 * ks)
+    end
 
     # Give the remaining symmetries to spglib to compute an irreducible k-point mesh
     # TODO implement time-reversal symmetry and turn the flag to true
-    is_shift = Int.(2 * kshift)
     Ws = [symop.W for symop in symmetries]
     _, mapping, grid = spglib_get_stabilized_reciprocal_mesh(
         kgrid_size, Ws; is_shift, is_time_reversal=false
     )
     # Convert irreducible k-points to DFTK conventions
     kgrid_size = Vec3{Int}(kgrid_size)
-    kirreds = [(kshift .+ grid[ik + 1]) .// kgrid_size
-               for ik in unique(mapping)]
+    kirreds = [(kshift .+ grid[ik + 1]) .// kgrid_size for ik in unique(mapping)]
     kirreds = normalize_kpoint_coordinate.(kirreds)
 
     # Find the indices of the corresponding reducible k-points in `grid`, which one of the
     # irreducible k-points in `kirreds` generates.
     k_all_reducible = [findall(isequal(elem), mapping) for elem in unique(mapping)]
 
-    # This list collects a list of extra reducible k-points, which could not be
-    # mapped to any irreducible k-point yet even though spglib claims this can be done.
-    # This happens because spglib actually fails for non-ideal cases, resulting
+    # Number of reducible k-points represented by the irreducible k-point `kirreds[ik]`
+    n_equivalent_k = length.(k_all_reducible)
+    @assert sum(n_equivalent_k) == prod(kgrid_size)
+    kweights = n_equivalent_k / sum(n_equivalent_k)
+
+    # This loop checks for reducible k-points, which could not be mapped to any irreducible
+    # k-point yet even though spglib claims this can be done.
+    # This happens because spglib actually fails for some non-ideal lattices, resulting
     # in *wrong results* being returned. See the discussion in
     # https://github.com/spglib/spglib/issues/101
-    kreds_notmapped = empty(kirreds)
+    for (iks_reducible, k) in zip(k_all_reducible, kirreds), ikred in iks_reducible
+        kred = (kshift .+ grid[ikred]) .// kgrid_size
 
-    # ksymops will be the list of symmetry operations (for each irreducible k-point)
-    # needed to do the respective mapping irreducible -> reducible to get the respective
-    # entry in `k_all_reducible`.
-    ksymops = Vector{Vector{SymOp}}(undef, length(kirreds))
-    for (ik, k) in enumerate(kirreds)
-        ksymops[ik] = Vector{SymOp}()
-        for ired in k_all_reducible[ik]
-            kred = (kshift .+ grid[ired]) .// kgrid_size
+        found_mapping = any(symmetries) do symop
+            # If the difference between kred and W' * k == W^{-1} * k
+            # is only integer in fractional reciprocal-space coordinates, then
+            # kred and S' * k are equivalent k-points
+            all(isinteger, kred - (symop.S * k))
+        end
 
-            # Note that this relies on the identity coming up first in symmetries
-            isym = findfirst(symmetries) do symop
-                # If the difference between kred and W' * k == W^{-1} * k
-                # is only integer in fractional reciprocal-space coordinates, then
-                # kred and S' * k are equivalent k-points
-                all(isinteger, kred - (symop.S * k))
-            end
-
-            if isym === nothing  # No symop found for $k -> $kred
-                push!(kreds_notmapped, normalize_kpoint_coordinate(kred))
-            else
-                push!(ksymops[ik], symmetries[isym])
-            end
+        if !found_mapping
+            error("The reducible k-point $kred could not be generated from " *
+                  "the irreducible kpoints. This points to a bug in spglib.")
         end
     end
 
-    if !isempty(kreds_notmapped)
-        # TODO This fallback has not become active for a long time and has
-        #      not been tested in the CI, so it probably no longer works anyway.
-        #      It should be removed and this function simplified.
-
-        # add them as reducible anyway
-        eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, symmetries)
-        @info("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
-              "the irreducible kpoints returned by spglib. $(length(eirreds)) of " *
-              "these are added as extra irreducible kpoints.")
-
-        append!(kirreds, eirreds)
-        append!(ksymops, esymops)
-    end
-
-    # The symmetry operation (S == I and τ == 0) should be present for each k-point
-    @assert all(findfirst(symop -> symop == one(SymOp), ops) !== nothing
-                for ops in ksymops)
-
-    kweights = length.(ksymops) / sum(length.(ksymops))
     kirreds, kweights, symmetries
 end
 

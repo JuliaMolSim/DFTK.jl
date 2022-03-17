@@ -34,9 +34,10 @@ end
     tol = 1e-7
     Ecut = 5
 
-    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
-    kgrid = [2, 2, 2]
-    basis = PlaneWaveBasis(model; Ecut, kgrid)
+    model  = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
+    kgrid  = [2, 2, 2]
+    kshift = [1, 1, 1] / 2
+    basis  = PlaneWaveBasis(model; Ecut, kgrid, kshift)
 
     ψ = self_consistent_field(basis; tol=tol, callback=identity).ψ
 
@@ -44,7 +45,7 @@ end
 
     # Transfer to bigger basis then same basis (both interpolations are
     # tested then)
-    bigger_basis = PlaneWaveBasis(model; Ecut=(Ecut + 5), kgrid)
+    bigger_basis = PlaneWaveBasis(model; Ecut=(Ecut + 5), kgrid, kshift)
     ψ_b = transfer_blochwave(ψ, basis, bigger_basis)
     ψ_bb = transfer_blochwave(ψ_b, bigger_basis, basis)
     @test norm(ψ - ψ_bb) < eps(eltype(basis))
@@ -63,7 +64,7 @@ end
     @test all(M -> M ≈ M*M, TTᵇ)
 
     # Transfer between same basis (not very useful, but is worth testing)
-    bigger_basis = PlaneWaveBasis(model; Ecut, kgrid)
+    bigger_basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
     ψ_b = transfer_blochwave(ψ, basis, bigger_basis)
     ψ_bb = transfer_blochwave(ψ_b, bigger_basis, basis)
     @test norm(ψ-ψ_bb) < eps(eltype(basis))

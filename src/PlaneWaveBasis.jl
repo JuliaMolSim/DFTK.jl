@@ -275,10 +275,10 @@ number of points in each dimension and `kshift` the shift (0 or 1/2 in each dire
 If not specified a grid is generated using `kgrid_from_minimal_spacing` with
 a minimal spacing of `2π * 0.022` per Bohr.
 """
-function PlaneWaveBasis(model::Model{T}; Ecut,
+function PlaneWaveBasis(model::Model; Ecut,
                         kgrid=kgrid_from_minimal_spacing(model, 2π * 0.022),
-                        kshift=[iseven(nk) ? 1/2 : 0 for nk in kgrid],
-                        kwargs...) where {T}
+                        kshift=zeros(3),
+                        kwargs...)
     kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
     PlaneWaveBasis(model, austrip(Ecut), kcoords, kweights;
                    symmetries, kgrid, kshift, kwargs...)

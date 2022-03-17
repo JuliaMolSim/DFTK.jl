@@ -63,49 +63,6 @@ function symmetries_preserving_kgrid(symmetries, kcoords)
     filter(preserves_grid, symmetries)
 end
 
-"""
-Implements a primitive search to find an irreducible subset of kpoints
-amongst the provided kpoints.
-"""
-function find_irreducible_kpoints(kcoords, symmetries)
-    # This function is required because spglib sometimes flags kpoints
-    # as reducible, where we cannot find a symmetry operation to
-    # generate them from the provided irreducible kpoints. This
-    # reimplements that part of spglib, with a possibly very slow
-    # algorithm.
-
-    # Flag which kpoints have already been mapped to another irred.
-    # k-point or which have been decided to be irreducible.
-    kcoords_mapped = zeros(Bool, length(kcoords))
-    kirreds = empty(kcoords)           # Container for irreducible kpoints
-    ksymops = Vector{Vector{SymOp}}()  # Corresponding symops
-
-    while !all(kcoords_mapped)
-        # Select next not mapped k-point as irreducible
-        ik = findfirst(isequal(false), kcoords_mapped)
-        push!(kirreds, kcoords[ik])
-        thisk_symops = [one(SymOp)]
-        kcoords_mapped[ik] = true
-
-        for jk in findall(.!kcoords_mapped)
-            sym = findfirst(symmetries) do sym
-                # If the difference between kred and S*k
-                # is only integer in fractional reciprocal-space coordinates, then
-                # kred and S * k are equivalent k-points
-                all(isinteger, kcoords[jk] - (sym.S * kcoords[ik]))
-            end
-
-            if !isnothing(sym)  # Found a reducible k-point
-                kcoords_mapped[jk] = true
-                push!(thisk_symops, sym)
-            end
-        end  # jk
-
-        push!(ksymops, thisk_symops)
-    end
-    kirreds, ksymops
-end
-
 
 @doc raw"""
 Apply various standardisations to a lattice and a list of atoms. It uses spglib to detect

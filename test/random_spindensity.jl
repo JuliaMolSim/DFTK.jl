@@ -6,7 +6,7 @@ include("testcases.jl")
     function run_silicon(spin_polarization)
         model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions;
                           spin_polarization, temperature=0.01)
-        basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2])
+        basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[1, 1, 1] / 2)
 
         ρtot = total_density(guess_density(basis))
         if spin_polarization == :collinear
