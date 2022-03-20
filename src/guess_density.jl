@@ -29,7 +29,7 @@ length specified by `atom_decay_length`, normalized to get the right number of e
 When magnetic moments are provided, construct a symmetry-broken density guess.
 The magnetic moments should be specified in units of ``μ_B``.
 """
-function guess_density(basis::PlaneWaveBasis, magnetic_moments)
+function guess_density(basis::PlaneWaveBasis, magnetic_moments=[])
     guess_density(basis, basis.model.atoms, basis.model.positions, magnetic_moments)
 end
 function guess_density(basis::PlaneWaveBasis, system::AbstractSystem)

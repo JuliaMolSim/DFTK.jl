@@ -35,11 +35,27 @@ import DFTK: compute_pspmap
     @test parsed.positions ≈ positions atol=1e-14
     @test parsed.magnetic_moments == magnetic_moments
 
-    sys = attach_psp(system; family="hgh", functional="lda")
-    @test sys[1].potential == Si
-    @test sys[2].potential == C
-    @test sys[3].potential == H
-    @test sys[4].potential == C
+    let system = attach_psp(system; family="hgh", functional="lda")
+        for i in 1:4
+            @test system[i].potential       == atoms[i]
+            @test system[i].magnetic_moment == magnetic_moments[i]
+        end
+    end
+
+    for constructor in (Model, model_atomic, model_LDA, model_PBE, model_SCAN)
+        model = constructor(system)
+        @test model.spin_polarization == :collinear
+        newsys = atomic_system(model, magnetic_moments)
+
+        @test atomic_symbol(system)       == atomic_symbol(newsys)
+        @test bounding_box(system)        == bounding_box(newsys)
+        @test boundary_conditions(system) == boundary_conditions(newsys)
+        @test maximum(maximum, position(system) - position(newsys)) < 1e-12u"bohr"
+        for (p, newp) in zip(system, newsys)
+            @test p.magnetic_moment == newp.magnetic_moment
+            @test p.potential       == newp.potential
+        end
+    end
 end
 
 @testset "AbstractSystem -> DFTK" begin
@@ -49,17 +65,16 @@ end
     pos_lattice = austrip.(reduce(hcat, lattice))
     system      = periodic_system(atoms, lattice; fractional=true)
 
-    let
-        parsed = DFTK.parse_system(system)
-        @test parsed.lattice == pos_lattice
-        @test parsed.positions ≈ pos_units atol=1e-14
-        @test isempty(parsed.magnetic_moments)
+    let model = Model(system)
+        @test model.lattice == pos_lattice
+        @test model.positions ≈ pos_units atol=1e-14
+        @test model.spin_polarization == :none
 
-        @test length(parsed.atoms) == 4
-        @test parsed.atoms[1] == ElementCoulomb(:C)
-        @test parsed.atoms[2] == ElementCoulomb(:Si)
-        @test parsed.atoms[3] == ElementCoulomb(:H)
-        @test parsed.atoms[4] == ElementCoulomb(:C)
+        @test length(model.atoms) == 4
+        @test model.atoms[1] == ElementCoulomb(:C)
+        @test model.atoms[2] == ElementCoulomb(:Si)
+        @test model.atoms[3] == ElementCoulomb(:H)
+        @test model.atoms[4] == ElementCoulomb(:C)
     end
 
     let system = attach_psp(system; family="hgh", functional="pbe")
@@ -88,16 +103,16 @@ end
         @test system[3].pseudopotential == "hgh/lda/h-q1.hgh"
         @test system[4].pseudopotential == "hgh/lda/c-q4.hgh"
 
-        parsed = DFTK.parse_system(system)
-        @test parsed.lattice == pos_lattice
-        @test parsed.positions ≈ pos_units atol=1e-14
-        @test isempty(parsed.magnetic_moments)
+        model = Model(system)
+        @test model.lattice == pos_lattice
+        @test model.positions ≈ pos_units atol=1e-14
+        @test model.spin_polarization == :none
 
-        @test length(parsed.atoms) == 4
-        @test parsed.atoms[1].psp.identifier == "hgh/lda/c-q4.hgh"
-        @test parsed.atoms[2].psp.identifier == "hgh/lda/si-q4.hgh"
-        @test parsed.atoms[3].psp.identifier == "hgh/lda/h-q1.hgh"
-        @test parsed.atoms[4].psp.identifier == "hgh/lda/c-q4.hgh"
+        @test length(model.atoms) == 4
+        @test model.atoms[1].psp.identifier == "hgh/lda/c-q4.hgh"
+        @test model.atoms[2].psp.identifier == "hgh/lda/si-q4.hgh"
+        @test model.atoms[3].psp.identifier == "hgh/lda/h-q1.hgh"
+        @test model.atoms[4].psp.identifier == "hgh/lda/c-q4.hgh"
     end
 end
 

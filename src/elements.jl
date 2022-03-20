@@ -1,4 +1,5 @@
 import PeriodicTable
+using AtomsBase
 
 # Alias to avoid similarity of elements and Element in DFTK module namespace
 periodic_table = PeriodicTable.elements

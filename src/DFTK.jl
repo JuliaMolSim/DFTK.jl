@@ -4,7 +4,6 @@ with plane-wave density-functional theory algorithms.
 """
 module DFTK
 
-using AtomsBase
 using LinearAlgebra
 using Markdown
 using Printf
@@ -58,7 +57,6 @@ export G_to_r
 export G_to_r!
 export r_to_G
 export r_to_G!
-include("atomsbase.jl")
 include("Smearing.jl")
 include("Model.jl")
 include("structure.jl")
@@ -158,6 +156,7 @@ export load_atoms
 export load_positions
 export load_magnetic_moments
 export run_wannier90
+include("external/atomsbase.jl")
 include("external/load_from_file.jl")
 include("external/ase.jl")
 include("external/pymatgen.jl")
