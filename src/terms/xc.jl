@@ -1,25 +1,24 @@
-using Libxc
-include("../xc/xc_evaluate.jl")
-
 """
 Exchange-correlation term, defined by a list of functionals and usually evaluated through libxc.
 """
 struct Xc
-    functionals::Vector{Symbol}  # Symbols of the functionals (Libxc.jl / libxc convention)
+    functionals::Vector{Functional}
     scaling_factor::Real         # Scales by an arbitrary factor (useful for exploration)
 
-    # Density cutoff for XC computation: Below this value a gridpoint counts as zero
-    # `nothing` implies that libxc defaults are used (for each functional a different
-    # small positive value like 1e-24)
-    density_threshold::Union{Nothing,Float64}
-
     # Threshold for potential terms: Below this value a potential term is counted as zero.
-    potential_threshold::Float64
+    potential_threshold::Real
 end
-Xc(symbols::Symbol...; kwargs...) = Xc([symbols...]; kwargs...)
-function Xc(symbols::Vector; scaling_factor=1, density_threshold=nothing, potential_threshold=0)
-    Xc(convert.(Symbol, symbols), scaling_factor, density_threshold, potential_threshold)
+function Xc(functionals::AbstractVector{<:Functional}; scaling_factor=1, potential_threshold=0)
+    Xc(functionals, scaling_factor, potential_threshold)
 end
+function Xc(functionals::AbstractVector; kwargs...)
+    fun = map(functionals) do f
+        f isa Functional ? f : DispatchFunctional(f)
+    end
+    Xc(convert(Vector{Functional}, fun); kwargs...)
+end
+Xc(functional; kwargs...) = Xc([functional]; kwargs...)
+
 function Base.show(io::IO, xc::Xc)
     fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
     fun = length(xc.functionals) == 1 ? ":$(xc.functionals[1])" : "$(xc.functionals)"
@@ -28,19 +27,13 @@ end
 
 function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     isempty(xc.functionals) && return TermNoop()
-    functionals = Functional.(xc.functionals; n_spin=basis.model.n_spin_components)
-    if !isnothing(xc.density_threshold)
-        for func in functionals
-            func.density_threshold = xc.density_threshold
-        end
-    end
-    TermXc(functionals, T(xc.scaling_factor), T(xc.potential_threshold))
+    TermXc(xc.functionals, T(xc.scaling_factor), T(xc.potential_threshold))
 end
 
-struct TermXc <: TermNonlinear
+struct TermXc{T} <: TermNonlinear where {T}
     functionals::Vector{Functional}
-    scaling_factor::Real
-    potential_threshold::Real
+    scaling_factor::T
+    potential_threshold::T
 end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
@@ -49,11 +42,11 @@ end
 
     model  = basis.model
     n_spin = model.n_spin_components
-    @assert all(xc.family in (:lda, :gga, :mgga) for xc in term.functionals)
-    @assert all(xc.n_spin == n_spin for xc in term.functionals)
+    @assert all(family(xc) in (:lda, :gga, :mgga, :mgga_lapl)
+                for xc in term.functionals)
 
     # Compute kinetic energy density, if needed.
-    if isnothing(τ) && any(is_mgga, term.functionals)
+    if isnothing(τ) && any(needs_τ, term.functionals)
         if isnothing(ψ) || isnothing(occ)
             τ = zero(ρ)
         else
@@ -68,7 +61,7 @@ end
     # Evaluate terms and energy contribution (zk == energy per unit particle)
     # It may happen that a functional does only provide a potenital and not an energy term
     # Therefore skip_unsupported_derivatives=true to avoid an error.
-    terms = evaluate(term.functionals, density; skip_unsupported_derivatives=true)
+    terms = potential_terms(term.functionals, density)
     @assert haskey(terms, :vrho)
     if haskey(terms, :zk)
         E = sum(terms.zk .* ρ) * basis.dvol
@@ -230,12 +223,11 @@ end
 #      returned from Libxc.evaluate ?
 
 function max_required_derivative(functional)
-    functional.family == :lda && return 0
-    functional.family == :gga && return 1
-    if functional.family == :mgga
-        return needs_laplacian(functional) ? 2 : 1
-    end
-    error("Functional family $(functional.family) not known.")
+    family(functional) == :lda       && return 0
+    family(functional) == :gga       && return 1
+    family(functional) == :mgga      && return 1
+    family(functional) == :mgga_lapl && return 2
+    error("Functional family $(family(functional)) not known.")
 end
 
 
@@ -312,12 +304,11 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...)
     density = LibxcDensities(basis, 0, ρ, nothing)
     n_spin  = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
-    if !all(xc.family == :lda for xc in term.functionals)
+    if !all(family(xc) == :lda for xc in term.functionals)
         error("compute_kernel only implemented for LDA")
     end
-    @assert all(xc.n_spin == n_spin for xc in term.functionals)
 
-    kernel = evaluate(term.functionals, density; derivatives=2:2).v2rho2
+    kernel = kernel_terms(term.functionals, density).v2rho2
     fac = term.scaling_factor
     if n_spin == 1
         Diagonal(vec(fac .* kernel))
@@ -337,8 +328,7 @@ end
 function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs...) where {T}
     n_spin = basis.model.n_spin_components
     isempty(term.functionals) && return nothing
-    @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
-    @assert all(xc.n_spin == n_spin for xc in term.functionals)
+    @assert all(family(xc) in (:lda, :gga) for xc in term.functionals)
 
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
@@ -358,8 +348,7 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs..
         ]
     end
 
-    # TODO LDA actually only needs the 2nd derivatives for this ... could be optimised
-    terms  = evaluate(term.functionals, density, derivatives=1:2)
+    terms = kernel_terms(term.functionals, density)
     δV = zero(ρ)  # [ix, iy, iz, iσ]
 
     tρρ = libxc_spinindex_ρρ
@@ -447,40 +436,32 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
     δV
 end
 
-
-function Libxc.evaluate(xc::Functional, density::LibxcDensities;
-                        derivatives=0:1, skip_unsupported_derivatives=false, kwargs...)
-    if skip_unsupported_derivatives
-        derivatives = filter(i -> i in supported_derivatives(xc), derivatives)
-    end
-    if xc.family == :lda
-        evaluate(xc; rho=density.ρ_real, derivatives, kwargs...)
-    elseif xc.family == :gga
-        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, derivatives, kwargs...)
-    elseif xc.family == :mgga && !needs_laplacian(xc)
-        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=density.τ_real,
-                 derivatives, kwargs...)
-    elseif xc.family == :mgga && needs_laplacian(xc)
-        evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=density.τ_real,
-                 lapl=density.Δρ_real, derivatives, kwargs...)
-    else
-        error("Not implemented for functional familiy $(xc.family)")
-    end
-end
-function Libxc.evaluate(xcs::Vector{Functional}, density::LibxcDensities; kwargs...)
-    isempty(xcs) && return NamedTuple()
-    result = evaluate(xcs[1], density; kwargs...)
-    for i in 2:length(xcs)
-        other = evaluate(xcs[i], density; kwargs...)
-        for (key, data) in pairs(other)
-            if haskey(result, key)
-                result[key] .+= data
-            else
-                result = merge(result, (key => data, ))
-            end
+function mergesum!(nt1::NamedTuple, nt2::NamedTuple)
+    for (key, data) in pairs(nt2)
+        if haskey(nt1, key)
+            nt1 = merge(nt1, (key => (data .+ getproperty(nt1, key)), ))
+        else
+            nt1 = merge(nt1, (key => data, ))
         end
     end
-    result
+    nt1
+end
+
+for fun in (:potential_terms, :kernel_terms)
+    @eval begin
+        function $fun(xc::Functional, density::LibxcDensities)
+            $fun(xc, density.ρ_real, density.σ_real, density.τ_real, density.Δρ_real)
+        end
+
+        function $fun(xcs::Vector{Functional}, density::LibxcDensities)
+            isempty(xcs) && return NamedTuple()
+            result = $fun(xcs[1], density)
+            for i in 2:length(xcs)
+                result = mergesum!(result, $fun(xcs[i], density))
+            end
+            result
+        end
+    end
 end
 
 
