@@ -23,25 +23,6 @@ function construct_system(lattice::AbstractMatrix, atoms::Vector, positions::Vec
     periodic_system(atomsbase_atoms, collect(eachcol(lattice)) * u"bohr")
 end
 
-"""
-    atomic_system(model::DFTK.Model, magnetic_moments=[])
-
-Construct an AtomsBase atomic system from a DFTK model and associated magnetic moments.
-"""
-function AtomsBase.atomic_system(model::Model, magnetic_moments=[])
-    construct_system(model.lattice, model.atoms, model.positions, magnetic_moments)
-end
-
-"""
-    periodic_system(model::DFTK.Model, magnetic_moments=[])
-
-Construct an AtomsBase atomic system from a DFTK model and associated magnetic moments.
-"""
-function AtomsBase.periodic_system(model::Model, magnetic_moments=[])
-    atomic_system(model, magnetic_moments)
-end
-
-
 function parse_system(system::AbstractSystem{D}) where {D}
     if !all(periodicity(system))
         error("DFTK only supports calculations with periodic boundary conditions.")
@@ -114,3 +95,25 @@ for fun in (:model_atomic, :model_DFT, :model_LDA, :model_PBE, :model_SCAN)
         _call_with_system($fun, system, args...; kwargs...)
     end
 end
+
+
+# Extra methods to AtomsBase functions for DFTK data structures
+"""
+    atomic_system(model::DFTK.Model, magnetic_moments=[])
+
+Construct an AtomsBase atomic system from a DFTK model and associated magnetic moments.
+"""
+function AtomsBase.atomic_system(model::Model, magnetic_moments=[])
+    construct_system(model.lattice, model.atoms, model.positions, magnetic_moments)
+end
+
+"""
+    periodic_system(model::DFTK.Model, magnetic_moments=[])
+
+Construct an AtomsBase atomic system from a DFTK model and associated magnetic moments.
+"""
+function AtomsBase.periodic_system(model::Model, magnetic_moments=[])
+    atomic_system(model, magnetic_moments)
+end
+
+AtomsBase.chemical_formula(model::Model) = chemical_formula(atomic_symbol.(model.atoms))
