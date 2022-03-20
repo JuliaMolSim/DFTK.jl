@@ -13,6 +13,7 @@ using spglib_jll
 using Unitful
 using UnitfulAtomic
 using ForwardDiff
+using ChainRulesCore
 
 export Vec3
 export Mat3
@@ -88,6 +89,7 @@ export PairwisePotential
 export Anyonic
 export apply_kernel
 export compute_kernel
+include("xc/functional_interface.jl")
 include("terms/terms.jl")
 
 include("occupation.jl")
