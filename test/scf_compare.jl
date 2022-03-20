@@ -38,7 +38,7 @@ include("testcases.jl")
     end
 
     # Run other SCFs with SAD guess
-    ρ0 = guess_density(basis, silicon.atoms, silicon.positions)
+    ρ0 = guess_density(basis)
     for solver in (scf_nlsolve_solver(), scf_damping_solver(1.2), scf_anderson_solver(),
                    scf_CROP_solver())
         @testset "Testing $solver" begin

@@ -3,8 +3,11 @@ ase_cell(lattice) = pyimport("ase").cell.Cell(Array(lattice)' / austrip(1u"Å"))
 ase_cell(model::Model) = ase_cell(model.lattice)
 
 function ase_atoms(lattice_or_model, atoms, positions, magnetic_moments=[])
-    # Collect Z magnetic moments
-    magmoms = [normalize_magnetic_moment(mom)[3] for mom in magnetic_moments]
+    if isempty(magnetic_moments)  # Collect Z magnetic moments
+        magmoms = nothing
+    else
+        magmoms = [normalize_magnetic_moment(mom)[3] for mom in magnetic_moments]
+    end
     cell    = ase_cell(lattice_or_model)
     symbols = string.(atomic_symbol.(atoms))
     scaled_positions = reduce(hcat, positions)'

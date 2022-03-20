@@ -1,4 +1,6 @@
-# Convenience functions to make standard models
+# High-level convenience functions to make standard models
+# Note: When adding a function here, also add a method taking an AbstractSystem
+#       to external/atomsbase.jl
 
 """
 Convenience constructor, which builds a standard atomic (kinetic + atomic potential) model.

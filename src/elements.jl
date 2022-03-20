@@ -1,4 +1,5 @@
 import PeriodicTable
+using AtomsBase
 
 # Alias to avoid similarity of elements and Element in DFTK module namespace
 periodic_table = PeriodicTable.elements
@@ -14,7 +15,7 @@ abstract type Element end
 charge_nuclear(::Element) = 0
 
 """Chemical symbol corresponding to an element"""
-atomic_symbol(::Element) = :X
+AtomsBase.atomic_symbol(::Element) = :X
 # The preceeding functions are fallback implementations that should be altered as needed.
 
 """Return the total ionic charge of an atom type (nuclear charge - core electrons)"""
@@ -46,7 +47,7 @@ struct ElementCoulomb <: Element
 end
 charge_ionic(el::ElementCoulomb)   = el.Z
 charge_nuclear(el::ElementCoulomb) = el.Z
-atomic_symbol(el::ElementCoulomb)  = el.symbol
+AtomsBase.atomic_symbol(el::ElementCoulomb) = el.symbol
 
 """
 Element interacting with electrons via a bare Coulomb potential
@@ -87,7 +88,7 @@ function ElementPsp(key; psp)
 end
 charge_ionic(el::ElementPsp)   = el.psp.Zion
 charge_nuclear(el::ElementPsp) = el.Z
-atomic_symbol(el::ElementPsp)  = el.symbol
+AtomsBase.atomic_symbol(el::ElementPsp) = el.symbol
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
     q == 0 && return zero(T)  # Compensating charge background
@@ -108,7 +109,7 @@ struct ElementCohenBergstresser <: Element
 end
 charge_ionic(el::ElementCohenBergstresser)   = 2
 charge_nuclear(el::ElementCohenBergstresser) = el.Z
-atomic_symbol(el::ElementCohenBergstresser)  = el.symbol
+AtomsBase.atomic_symbol(el::ElementCohenBergstresser) = el.symbol
 
 """
 Element where the interaction with electrons is modelled
