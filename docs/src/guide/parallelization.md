@@ -53,8 +53,8 @@ as a breakdown over individual routines.
 
 ## Rough timing estimates
 A very (very) rough estimate of the time per SCF step (in seconds)
-can be obtained with the following function (which assumes FFTs are the limiting
-operation):
+can be obtained with the following function. The function assumes
+that FFTs are the limiting operation and that no parallelisation is employed.
 
 ```@example parallelization
 function estimate_time_per_scf_step(basis::PlaneWaveBasis)
@@ -64,12 +64,12 @@ function estimate_time_per_scf_step(basis::PlaneWaveBasis)
     (time_per_FFT_per_grid_point
      * prod(basis.fft_size)
      * length(basis.kpoints)
-     * div(basis.model.n_electrons, filled_occupation(basis.model), RoundUp)
+     * div(basis.model.n_electrons, DFTK.filled_occupation(basis.model), RoundUp)
      * 8  # mean number of FFT steps per state per k-point per iteration
      )
 end
 
-estimate_time_per_scf_step(basis)
+"Time per SCF (s):  $(estimate_time_per_scf_step(basis))"
 ```
 
 ## Options for parallelization
