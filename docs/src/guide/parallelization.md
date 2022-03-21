@@ -51,6 +51,27 @@ as a breakdown over individual routines.
     For this to take effect recompiling all DFTK (including the precompile cache)
     is needed.
 
+## Rough timing estimates
+A very (very) rough estimate of the time per SCF step (in seconds)
+can be obtained with the following function. The function assumes
+that FFTs are the limiting operation and that no parallelisation is employed.
+
+```@example parallelization
+function estimate_time_per_scf_step(basis::PlaneWaveBasis)
+    # Super rough figure from various tests on cluster, laptops, ... on a 128^3 FFT grid.
+    time_per_FFT_per_grid_point = 30 #= ms =# / 1000 / 128^3
+
+    (time_per_FFT_per_grid_point
+     * prod(basis.fft_size)
+     * length(basis.kpoints)
+     * div(basis.model.n_electrons, DFTK.filled_occupation(basis.model), RoundUp)
+     * 8  # mean number of FFT steps per state per k-point per iteration
+     )
+end
+
+"Time per SCF (s):  $(estimate_time_per_scf_step(basis))"
+```
+
 ## Options for parallelization
 At the moment DFTK offers two ways to parallelize a calculation,
 firstly shared-memory parallelism using threading

@@ -19,7 +19,6 @@ export mpi_nprocs
 export mpi_master
 export setup_threading, disable_threading
 include("common/timer.jl")
-include("common/asserting.jl")
 include("common/constants.jl")
 include("common/ortho.jl")
 include("common/types.jl")
