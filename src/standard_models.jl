@@ -5,8 +5,8 @@ Convenience constructor, which builds a standard atomic (kinetic + atomic potent
 Use `extra_terms` to add additional terms.
 """
 function model_atomic(lattice::AbstractMatrix, atoms::Vector; extra_terms=[], kwargs...)
-    @assert !(:terms in keys(kwargs))
-    @assert !(:atoms in keys(kwargs))
+    #@assert !(:terms in keys(kwargs))
+    #@assert !(:atoms in keys(kwargs))
     terms = [Kinetic(),
              AtomicLocal(),
              AtomicNonlocal(),

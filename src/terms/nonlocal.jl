@@ -162,7 +162,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, atoms, kpt::Kpoint)
         proj_vectors = reduce(hcat, [build_columns(psp, positions) for (psp, positions) in atoms])
 	return proj_vectors
     else
-        n_G    = length(G_vectors(basis, kpt))
+        n_G = length(G_vectors(basis, kpt))
         return zeros(Complex{T}, n_G, n_proj)
     end
     #@assert offset == n_proj

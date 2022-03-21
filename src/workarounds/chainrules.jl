@@ -65,6 +65,8 @@ ChainRulesCore.@non_differentiable r_vectors(::Any...)
 ChainRulesCore.@non_differentiable G_vectors(::Any...)
 ChainRulesCore.@non_differentiable default_symmetries(::Any...) # TODO perhaps?
 ChainRulesCore.@non_differentiable shell_indices(::Any)  # Ewald
+ChainRulesCore.@non_differentiable cond(::Any)
+ChainRulesCore.@non_differentiable isempty(::Any)
 
 # TODO delete
 @adjoint (T::Type{<:SArray})(x...) = T(x...), y->(y,)

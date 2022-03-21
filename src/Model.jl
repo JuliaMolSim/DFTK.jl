@@ -139,9 +139,9 @@ function Model(lattice::AbstractMatrix{T};
         smearing = temperature > 0.0 ? Smearing.FermiDirac() : Smearing.None()
     end
 
-    if !allunique(string.(nameof.(typeof.(terms))))
-        error("Having several terms of the same name is not supported.")
-    end
+    #if !allunique(string.(nameof.(typeof.(terms))))
+    #    error("Having several terms of the same name is not supported.")
+    #end
 
     # Determine symmetry operations to use
     symmetries == true  && (symmetries = default_symmetries(lattice, atoms, magnetic_moments,
