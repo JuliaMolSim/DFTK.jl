@@ -61,22 +61,3 @@ DOI:10.1103/PhysRevLett.115.036402
 function model_SCAN(lattice::AbstractMatrix, atoms::Vector, positions::Vector; kwargs...)
     model_DFT(lattice, atoms, positions, [:mgga_x_scan, :mgga_c_scan]; kwargs...)
 end
-
-
-# NOTE:  This is a temporary function, which could disappear any time.
-function atoms_compat(oldatoms::Vector{<:Pair})
-    atoms = Element[]
-    positions = Vec3[]
-    for (at, poses) in oldatoms
-        for pos in poses
-            push!(atoms, at)
-            push!(positions, pos)
-        end
-    end
-    (atoms, positions)
-end
-@deprecate model_atomic(lattice, atoms::Vector{<:Pair}; kwargs...) model_atomic(lattice, DFTK.atoms_compat(atoms)...; kwargs...)
-@deprecate model_DFT(lattice, atoms::Vector{<:Pair}, functionals; kwargs...) model_DFT(lattice, DFTK.atoms_compat(atoms)..., functionals; kwargs...)
-@deprecate model_LDA(lattice, atoms::Vector{<:Pair}; kwargs...)  model_LDA(lattice,  DFTK.atoms_compat(atoms)...; kwargs...)
-@deprecate model_PBE(lattice, atoms::Vector{<:Pair}; kwargs...)  model_PBE(lattice,  DFTK.atoms_compat(atoms)...; kwargs...)
-@deprecate model_SCAN(lattice, atoms::Vector{<:Pair}; kwargs...) model_SCAN(lattice, DFTK.atoms_compat(atoms)...; kwargs...)
