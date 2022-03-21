@@ -4,7 +4,6 @@ authors = ["Michael F. Herbst <info@michael-herbst.com>", "Antoine Levitt <antoi
 version = "0.4.7"
 
 [deps]
-AbbreviatedStackTraces = "ac637c84-cc71-43bf-9c33-c1b4316be3d4"
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 BlockArrays = "8e7c35d0-a365-5155-bbbb-fb81a777f24e"
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"

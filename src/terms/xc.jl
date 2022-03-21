@@ -457,7 +457,7 @@ end
 function Libxc.evaluate(xc::Functional, density::LibxcDensities;
                         derivatives=0:1, skip_unsupported_derivatives=false, kwargs...)
     if skip_unsupported_derivatives
-        derivatives = filter(i -> i in supported_derivatives(xc), derivatives)
+        derivatives = filter(i -> i in Libxc.supported_derivatives(xc), derivatives)
     end
     zk, vrho, vsigma, v2rho2 = nothing, nothing, nothing, nothing
     if xc.family == :lda
@@ -575,6 +575,46 @@ function Libxc.evaluate(func::Functional; derivatives=0:1, rho::AbstractArray, k
     return zk, vrho, vsigma, v2rho2
 end
 
+function Libxc.Functional(identifier::Symbol; n_spin::Integer = 1)
+    n_spin in (1, 2) || error("n_spin needs to be 1 or 2")
+
+    number = Libxc.xc_functional_get_number(string(identifier))
+    number == -1 && error("Functional $identifier is not known.")
+
+    function pointer_cleanup(ptr::Ptr{Libxc.xc_func_type})
+        if ptr != C_NULL
+            Libxc.xc_func_end(ptr)
+            Libxc.xc_func_free(ptr)
+        end
+    end
+
+    pointer = Libxc.xc_func_alloc()
+    ret = Libxc.xc_func_init(pointer, number, n_spin)
+    ret != 0 && error("Something went wrong initialising the functional")
+
+    #try
+        funcinfo = Libxc.xc_func_get_info(pointer)
+        kind     = Libxc.KINDMAP[Libxc.xc_func_info_get_kind(funcinfo)]
+        family   = Libxc.FAMILIYMAP[Libxc.xc_func_info_get_family(funcinfo)]
+        flags    = Libxc.extract_flags(Libxc.xc_func_info_get_flags(funcinfo))
+        name     = unsafe_string(Libxc.xc_func_info_get_name(funcinfo))
+        references = Libxc.extract_references(funcinfo)
+        dimensions = Libxc.unsafe_load(pointer).dim
+
+        # Flags for having 0th to 4th derivative
+        derivative_flags = (:exc, :vxc, :fxc, :kxc, :lxc)
+        derivatives = [i-1 for (i, flag) in enumerate(derivative_flags) if flag in flags]
+
+        # Make functional and attach finalizer for cleaning up the pointer
+        func = Functional(identifier, n_spin, name, kind, family, flags, derivatives,
+                          references, dimensions, pointer)
+        finalizer(cls -> pointer_cleanup(cls.pointer_), func)
+        return func
+    #catch
+    #    pointer_cleanup(pointer)
+    #    rethrow()
+    #end
+end
 
 """
 Compute divergence of an operand function, which returns the cartesian x,y,z
