@@ -9,8 +9,8 @@ using Random
 Random.seed!(0)
 
 Ne = ElementPsp(:Ne, psp=load_psp("hgh/lda/Ne-q8"))
-atoms = [Ne => [[1/2; 1/2; 1/2]]]  # Helium at the center of the box
-
+atoms = [Ne]
+positions = [[1/2; 1/2; 1/2]]
 function make_basis(ε::T; a=10., Ecut=5) where T
     lattice=T(a) * Mat3(I(3))  # lattice is a cube of ``a`` Bohrs
     terms = [
@@ -19,9 +19,8 @@ function make_basis(ε::T; a=10., Ecut=5) where T
         AtomicNonlocal(),
         ExternalFromReal(r -> -ε * (r[1] - a/2)),
         Xc(:lda_x)
-        #Xc(:lda_c_vwn)
     ]
-    model = Model(lattice, atoms, terms; symmetries=false)
+    model = Model(lattice, atoms, positions; terms, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])  # No k-point sampling on isolated system
 end
 
@@ -48,6 +47,5 @@ polarizability_fd = let
 end
 
 f=compute_dipole(0.0)
-#g = 0.0
 g = Zygote.gradient(compute_dipole, 0.0)
 println("f: ", f, " fd: ",polarizability_fd, " AD: ",g)
