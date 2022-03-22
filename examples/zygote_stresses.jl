@@ -5,7 +5,8 @@ import FiniteDiff
 
 a = 10.26
 Si = ElementPsp(:Si, psp=load_psp(:Si, functional="lda"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
+atoms = [Si]
+positions = [ones(3)/8, -ones(3)/8]
 function make_model(a)
     lattice = a / 2 * [[0. 1. 1.];
                        [1. 0. 1.];
@@ -19,8 +20,7 @@ function make_model(a)
         # Entropy(),
         Hartree()
     ]
-    # Model(lattice; atoms, terms, temperature=1e-3)
-    Model(lattice, atoms, terms; temperature=1e-3)
+    Model(lattice, atoms, positions; terms, temperature=1e-3)
 end
 kgrid = [1, 1, 1]
 Ecut = 7

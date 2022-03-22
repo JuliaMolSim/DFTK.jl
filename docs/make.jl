@@ -14,8 +14,9 @@ SRCPATH   = joinpath(@__DIR__, "src")
 BUILDPATH = joinpath(@__DIR__, "build")
 ROOTPATH  = joinpath(@__DIR__, "..")
 CONTINUOUS_INTEGRATION = get(ENV, "CI", nothing) == "true"
-DFTKREV   = LibGit2.head(ROOTPATH)
-DFTKREPO  = "github.com/JuliaMolSim/DFTK.jl.git"
+DFTKREV    = LibGit2.head(ROOTPATH)
+DFTKBRANCH = try LibGit2.branch(LibGit2.GitRepo(ROOTPATH)) catch end
+DFTKREPO   = "github.com/JuliaMolSim/DFTK.jl.git"
 
 # Python and Julia dependencies needed for running the notebooks
 PYDEPS = ["ase", "pymatgen"]
@@ -126,7 +127,7 @@ makedocs(
 )
 
 # Dump files for managing dependencies in binder
-if CONTINUOUS_INTEGRATION
+if CONTINUOUS_INTEGRATION && DFTKBRANCH == "master"
     cd(BUILDPATH) do
         open("environment.yml", "w") do io
             print(io,

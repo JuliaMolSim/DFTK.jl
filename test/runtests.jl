@@ -28,7 +28,7 @@ else
 end
 
 # Setup threading in DFTK
-setup_threading()
+setup_threading(; n_blas=2)
 
 # Initialize seed
 Random.seed!(0)
@@ -51,7 +51,6 @@ Random.seed!(0)
         include("silicon_scan.jl")
         include("scf_compare.jl")
         include("iron_lda.jl")
-        include("oxygen_pbe.jl")
         include("external_potential.jl")
     end
 
@@ -60,6 +59,7 @@ Random.seed!(0)
         include("compute_fft_size.jl")
         include("fourier_transforms.jl")
         include("PlaneWaveBasis.jl")
+        include("Model.jl")
         include("interpolation.jl")
         include("load_psp.jl")
         include("PspHgh.jl")
@@ -94,6 +94,7 @@ Random.seed!(0)
         include("energies_guess_density.jl")
         include("compute_density.jl")
         include("forces.jl")
+        include("pairwise.jl")
         include("stresses.jl")
     end
 
@@ -113,8 +114,10 @@ Random.seed!(0)
         include("aqua.jl")
     end
 
-    if "all" in TAGS && mpi_nprocs() == 1  # Distributed implementation not yet available
+    # Distributed implementation not yet available
+    if "all" in TAGS && mpi_nprocs() == 1
         include("omegaplusk.jl")
+        include("forwarddiff.jl")
     end
 
     ("example" in TAGS) && include("runexamples.jl")

@@ -7,17 +7,17 @@ include("testcases.jl")
 function get_scf_energies(testcase, supersampling, functionals)
     Ecut=3
     grid_size=15
-    scf_tol=1e-10  # Tolerance in total enengy
+    scf_tol=1e-12  # Tolerance in total enengy
     n_bands = 10
     kcoords = [[.2, .3, .4]]
 
-    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    model = model_DFT(testcase.lattice, [spec => testcase.positions], functionals)
+    # force symmetries to false because the symmetrization is weird at low ecuts
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions, functionals; symmetries=false)
     fft_size = compute_fft_size(model, Ecut, kcoords;
                                 supersampling, ensure_smallprimes=false, algorithm=:precise)
 
-    ksymops = [[DFTK.identity_symop()] for _ in 1:length(kcoords)]
-    basis = PlaneWaveBasis(model, Ecut, kcoords, ksymops, [DFTK.identity_symop()]; fft_size)
+    kweights = [1]
+    basis = PlaneWaveBasis(model, Ecut, kcoords, kweights; fft_size)
     scfres = self_consistent_field(basis; tol=scf_tol)
     values(scfres.energies)
 end

@@ -79,7 +79,7 @@ struct PlaneWaveBasisSerialisation{T <: Real}
     Ecut::T
     variational::Bool
     kcoords::Vector{Vec3{T}}
-    ksymops::Vector{Vector{SymOp}}
+    kweights::Vector{T}
     kgrid::Union{Nothing,Vec3{Int}}
     kshift::Union{Nothing,Vec3{T}}
     fft_size::Tuple{Int, Int, Int}
@@ -87,20 +87,13 @@ struct PlaneWaveBasisSerialisation{T <: Real}
 end
 JLD2.writeas(::Type{PlaneWaveBasis{T}}) where {T} = PlaneWaveBasisSerialisation{T}
 
-function Base.convert(::Type{PlaneWaveBasisSerialisation{T}},
-                      basis::PlaneWaveBasis{T}) where {T}
-    # Notice: This function is only meaningful on a basis which has gathered
-    # all k-point information locally. So before using this in MPI-distributed calculations,
-    # ensure to call `mpi_kgather` on the PlaneWaveBasis object.
-
-    # Number of distinct k-point coordinates
-    n_kcoords = div(length(basis.kpoints), basis.model.n_spin_components)
+function Base.convert(::Type{PlaneWaveBasisSerialisation{T}}, basis::PlaneWaveBasis{T}) where {T}
     PlaneWaveBasisSerialisation{T}(
         basis.model,
         basis.Ecut,
         basis.variational,
-        getproperty.(basis.kpoints[1:n_kcoords], :coordinate),
-        basis.ksymops[1:n_kcoords],
+        basis.kcoords_global,
+        basis.kweights_global,
         basis.kgrid,
         basis.kshift,
         basis.fft_size,
@@ -108,10 +101,9 @@ function Base.convert(::Type{PlaneWaveBasisSerialisation{T}},
     )
 end
 
-function Base.convert(::Type{PlaneWaveBasis{T}},
-                      serial::PlaneWaveBasisSerialisation{T}) where {T}
+function Base.convert(::Type{PlaneWaveBasis{T}}, serial::PlaneWaveBasisSerialisation{T}) where {T}
     PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords,
-                   serial.ksymops, serial.symmetries;
+                   serial.kweights; serial.symmetries,
                    fft_size=serial.fft_size,
                    kgrid=serial.kgrid, kshift=serial.kshift,
                    variational=serial.variational)

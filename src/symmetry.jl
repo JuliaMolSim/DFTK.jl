@@ -1,133 +1,93 @@
-## This file contains functions to handle the symetries
+# This file contains functions to handle the symetries.
+# The type SymOp is defined in Symop.jl
 
-# A symmetry operation (symop) is a couple (Stilde, τtilde) of a
-# unitary (in cartesian coordinates, but not in reduced coordinates)
-# matrix Stilde and a translation τtilde such that, for each atom of
-# type A at position a, Stilde a + τtilde is also an atom of type A.
-
-# This induces a symmetry in the Brillouin zone that the Hamiltonian
-# at S k is unitary equivalent to that at k, which we exploit to
+# A symmetry (W, w) (or (S, τ)) induces a symmetry in the Brillouin zone
+# that the Hamiltonian at S k is unitary equivalent to that at k, which we exploit to
 # reduce computations. The relationship is
-# S = Stilde'
-# τ = -Stilde^-1 τtilde
-# (valid both in reduced and cartesian coordinates)
+# S = W'
+# τ = -W^-1 w
+# (valid both in reduced and cartesian coordinates). In our notation
+# the rotation matrix W and translation w are such that, for each atom of
+# type A at position a, W a + w is also an atom of type A.
 
 # The full (reducible) Brillouin zone is implicitly represented by
 # a set of (irreducible) kpoints (see explanation in docs). Each
 # irreducible k-point k comes with a list of symmetry operations
-# (S,τ) (containing at least the trivial operation (I,0)), where S
-# is a rotation matrix (/!\ not unitary in reduced coordinates)
+# (S, τ) (containing at least the trivial operation (I, 0)), where S
+# is a unitary matrix (/!\ in cartesian but not in reduced coordinates)
 # and τ a translation vector. The k-point is then used to represent
-# implicitly the information at all the kpoints Sk. The
-# relationship between the Hamiltonians is
+# implicitly the information at all the kpoints Sk. The relationship
+# between the Hamiltonians is
 # H_{Sk} = U H_k U*, with
-# (Uu)(x) = u(S^-1(x-τ))
+# (Uu)(x) = u(W x + w)
 # or in Fourier space
 # (Uu)(G) = e^{-i G τ} u(S^-1 G)
 # In particular, we can choose the eigenvectors at Sk as u_{Sk} = U u_k
 
-# We represent then the BZ as a set of irreducible points `kpoints`, a
-# list of symmetry operations `ksymops` allowing the reconstruction of
-# the full (reducible) BZ, and a set of weights `kweights` (summing to
-# 1). The value of an observable (eg energy) per unit cell is given as
-# the value of that observable at each irreducible k-point, weighted by
-# kweight
+# We represent then the BZ as a set of irreducible points `kpoints`,
+# and a set of weights `kweights` (summing to 1). The value of
+# observables is given by a weighted sum over the irreducible kpoints,
+# plus a symmetrization operation (which depends on the particular way
+# the observable transforms under the symmetry).
 
 # There is by decreasing cardinality
 # - The group of symmetry operations of the lattice
 # - The group of symmetry operations of the crystal (model.symmetries)
 # - The group of symmetry operations of the crystal that preserves the BZ mesh (basis.symmetries)
-# - The set of symmetry operations that we use to reduce the
-#   reducible Brillouin zone (RBZ) to the irreducible (IBZ) (basis.ksymops)
 
 # See https://juliamolsim.github.io/DFTK.jl/stable/advanced/symmetries for details.
 
 @doc raw"""
 Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
-function symmetry_operations(lattice, atoms, magnetic_moments=[]; tol_symmetry=1e-5)
-    symmetries = []
-    # Get symmetries from spglib
-    Stildes, τtildes = spglib_get_symmetry(lattice, atoms, magnetic_moments;
-                                           tol_symmetry=tol_symmetry)
-
-    for isym = 1:length(Stildes)
-        S = Stildes[isym]'                  # in fractional reciprocal coordinates
-        τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates
-        τ = τ .- floor.(τ)
-        @assert all(0 .≤ τ .< 1)
-        push!(symmetries, (S, τ))
-    end
-
-    unique(symmetries)
+function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
+        tol_symmetry=SYMMETRY_TOLERANCE)
+    @assert length(atoms) == length(positions)
+    atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
+    Ws, ws = spglib_get_symmetry(lattice, atom_groups, positions, magnetic_moments; tol_symmetry)
+    [SymOp(W, w) for (W, w) in zip(Ws, ws)]
 end
 
 """
 Filter out the symmetry operations that respect the symmetries of the discrete BZ grid
 """
 function symmetries_preserving_kgrid(symmetries, kcoords)
-    function preserves_grid(S)
-        all(normalize_kpoint_coordinate(S * k) in kcoords
-            for k in normalize_kpoint_coordinate.(kcoords))
+    kcoords_normalized = normalize_kpoint_coordinate.(kcoords)
+    T = eltype(kcoords[1])
+    atol = T <: Rational ? 0 : sqrt(eps(T))
+    is_approx_in(x, X) = any(y -> isapprox(x, y; atol), X)
+    function preserves_grid(symop)
+        all(is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
+            for k in kcoords_normalized)
     end
-    filter(symop -> preserves_grid(symop[1]), symmetries)
+    filter(preserves_grid, symmetries)
 end
 
+
+@doc raw"""
+Apply various standardisations to a lattice and a list of atoms. It uses spglib to detect
+symmetries (within `tol_symmetry`), then cleans up the lattice according to the symmetries
+(unless `correct_symmetry` is `false`) and returns the resulting standard lattice
+and atoms. If `primitive` is `true` (default) the primitive unit cell is returned, else
+the conventional unit cell is returned.
 """
-Implements a primitive search to find an irreducible subset of kpoints
-amongst the provided kpoints.
-"""
-function find_irreducible_kpoints(kcoords, Stildes, τtildes)
-    # This function is required because spglib sometimes flags kpoints
-    # as reducible, where we cannot find a symmetry operation to
-    # generate them from the provided irreducible kpoints. This
-    # reimplements that part of spglib, with a possibly very slow
-    # algorithm.
-
-    # Flag which kpoints have already been mapped to another irred.
-    # k-point or which have been decided to be irreducible.
-    kcoords_mapped = zeros(Bool, length(kcoords))
-    kirreds = empty(kcoords)           # Container for irreducible kpoints
-    ksymops = Vector{Vector{SymOp}}()  # Corresponding symops
-
-    while !all(kcoords_mapped)
-        # Select next not mapped k-point as irreducible
-        ik = findfirst(isequal(false), kcoords_mapped)
-        push!(kirreds, kcoords[ik])
-        thisk_symops = [identity_symop()]
-        kcoords_mapped[ik] = true
-
-        for jk in findall(.!kcoords_mapped)
-            isym = findfirst(1:length(Stildes)) do isym
-                # If the difference between kred and Stilde' * k == Stilde^{-1} * k
-                # is only integer in fractional reciprocal-space coordinates, then
-                # kred and S' * k are equivalent k-points
-                all(isinteger, kcoords[jk] - (Stildes[isym]' * kcoords[ik]))
-            end
-
-            if !isnothing(isym)  # Found a reducible k-point
-                kcoords_mapped[jk] = true
-                S = Stildes[isym]'                  # in fractional reciprocal coordinates
-                τ = -Stildes[isym] \ τtildes[isym]  # in fractional real-space coordinates
-                τ = τ .- floor.(τ)
-                @assert all(0 .≤ τ .< 1)
-                push!(thisk_symops, (S, τ))
-            end
-        end  # jk
-
-        push!(ksymops, thisk_symops)
-    end
-    kirreds, ksymops
+function standardize_atoms(lattice, atoms, positions, magnetic_moments=[]; kwargs...)
+    @assert length(atoms) == length(positions)
+    @assert isempty(magnetic_moments) || (length(atoms) == length(magnetic_moments))
+    atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
+    ret = spglib_standardize_cell(lattice, atom_groups, positions, magnetic_moments; kwargs...)
+    (; ret.lattice, atoms, ret.positions, ret.magnetic_moments)
 end
+
 
 """
 Apply a symmetry operation to eigenvectors `ψk` at a given `kpoint` to obtain an
 equivalent point in [-0.5, 0.5)^3 and associated eigenvectors (expressed in the
 basis of the new ``k``-point).
 """
-function apply_ksymop(ksymop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
-    S, τ = ksymop
-    S == I && iszero(τ) && return kpoint, ψk
+function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
+    S, τ = symop.S, symop.τ
+    symop == one(SymOp) && return kpoint, ψk
 
     # Apply S and reduce coordinates to interval [-0.5, 0.5)
     # Doing this reduction is important because
@@ -169,12 +129,11 @@ function apply_ksymop(ksymop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
 end
 
 """
-Apply a `k`-point symmetry operation (the tuple (S, τ)) to a partial density.
+Apply a symmetry operation to a density.
 """
-function apply_ksymop(symop::SymOp, basis, ρin)
-    S, τ = ksymop
-    S == I && iszero(τ) && return ρin
-    symmetrize_ρ(basis, ρin, [symop])
+function apply_symop(symop::SymOp, basis, ρin)
+    symop == one(SymOp) && return ρin
+    symmetrize_ρ(basis, ρin; symmetries=[symop])
 end
 
 
@@ -182,10 +141,9 @@ end
 # No normalization is performed
 function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
     T = eltype(basis)
-    for (S, τ) in symmetries
-        invS = Mat3{Int}(inv(S))
+    for symop in symmetries
         # Common special case, where ρin does not need to be processed
-        if S == I && iszero(τ)
+        if symop == one(SymOp)
             ρaccu .+= ρin
             continue
         end
@@ -197,23 +155,24 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
         # with Fourier transform
         #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
         # equivalently
-        #      ̂ρ_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
+        #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
+        invS = Mat3{Int}(inv(symop.S))
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             igired = index_G_vectors(basis, invS * G)
             if igired !== nothing
-                @inbounds ρaccu[ig] += cis(-2T(π) * dot(G, τ)) * ρin[igired]
+                @inbounds ρaccu[ig] += cis(-2T(π) * T(dot(G, symop.τ))) * ρin[igired]
             end
         end
-    end  # (S, τ)
+    end  # symop
     ρaccu
 end
 
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
-function lowpass_for_symmetry!(ρ, basis; symmetries=basis.model.symmetries)
-    for (S, τ) in symmetries
-        S == I && iszero(τ) && continue
+function lowpass_for_symmetry!(ρ, basis; symmetries=basis.symmetries)
+    for symop in symmetries
+        symop == one(SymOp) && continue
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
-            if index_G_vectors(basis, S * G) === nothing
+            if index_G_vectors(basis, symop.S * G) === nothing
                 ρ[ig] = 0
             end
         end
@@ -222,33 +181,58 @@ function lowpass_for_symmetry!(ρ, basis; symmetries=basis.model.symmetries)
 end
 
 """
-Symmetrize a density by applying all the model symmetries (by default) and forming the average.
+Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
-@views function symmetrize_ρ(basis, ρin; symmetries=basis.model.symmetries)
-    ρin_fourier = r_to_G(basis, ρin)
-    ρout_fourier = copy(ρin_fourier)
-    for σ = 1:size(ρin, 4)
-        lowpass_for_symmetry!(ρin_fourier[:, :, :, σ], basis; symmetries=symmetries)
-        ρout_fourier[:, :, :, σ] = accumulate_over_symmetries!(zero(ρin_fourier[:, :, :, σ]),
-                                                               ρin_fourier[:, :, :, σ], basis, symmetries)
+@views @timing function symmetrize_ρ(basis, ρ; symmetries=basis.symmetries)
+    ρin_fourier = r_to_G(basis, ρ)
+    ρout_fourier = zero(ρin_fourier)
+    for σ = 1:size(ρ, 4)
+        accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
+                                    ρin_fourier[:, :, :, σ], basis, symmetries)
+        lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
-# symmetrize the stress tensor, which is a rank-2 contravariant tensor in reduced coordinates
-function symmetrize_stresses(lattice, symmetries, stresses)
+
+"""
+Symmetrize the stress tensor, given as a Matrix in cartesian coordinates
+"""
+function symmetrize_stresses(model::Model, stresses; symmetries)
+    # see (A.28) of https://arxiv.org/pdf/0906.2569.pdf
     stresses_symmetrized = zero(stresses)
-    for (S, τ) in symmetries
-        S_reduced = inv(lattice) * S * lattice
-        stresses_symmetrized += S_reduced' * stresses * S_reduced
+    for symop in symmetries
+        W_cart = matrix_red_to_cart(model, symop.W)
+        stresses_symmetrized += W_cart * stresses / W_cart
     end
     stresses_symmetrized /= length(symmetries)
     stresses_symmetrized
 end
+function symmetrize_stresses(basis::PlaneWaveBasis, stresses)
+    symmetrize_stresses(basis.model, stresses; basis.symmetries)
+end
 
-function check_symmetric(basis, ρin; tol=1e-10, symmetries=ρin.basis.model.symmetries)
-    for symop in symmetries
-        @assert norm(symmetrize_ρ(ρin, [symop]) - ρin) < tol
+"""
+Symmetrize the forces in *reduced coordinates*, forces given as an
+array forces[iel][α,i]
+"""
+function symmetrize_forces(model::Model, forces; symmetries)
+    symmetrized_forces = zero(forces)
+    for group in model.atom_groups, symop in symmetries
+        positions_group = model.positions[group]
+        W, w = symop.W, symop.w
+        for (idx, position) in enumerate(positions_group)
+            # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
+            # (but careful that our symmetries are r -> Wr+w, not R(r+f))
+            other_at = W \ (position - w)
+            is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ SYMMETRY_TOLERANCE, r)
+            i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions_group)
+            symmetrized_forces[idx] += W * forces[group[i_other_at]]
+        end
     end
+    symmetrized_forces / length(symmetries)
+end
+function symmetrize_forces(basis::PlaneWaveBasis, forces)
+    symmetrize_forces(basis.model, forces; basis.symmetries)
 end
 
 """"
@@ -257,18 +241,13 @@ This is mainly useful for debug purposes (e.g. in cases we don't want to
 bother thinking about symmetries).
 """
 function unfold_bz(basis::PlaneWaveBasis)
-    if all(length.(basis.ksymops_global) .== 1)
+    if length(basis.symmetries) == 1
         return basis
     else
-        kcoords = []
-        for (ik, kpt) in enumerate(basis.kcoords_global)
-            for (S, τ) in basis.ksymops_global[ik]
-                push!(kcoords, normalize_kpoint_coordinate(S * kpt))
-            end
-        end
+        kcoords = unfold_kcoords(basis.kcoords_global, basis.symmetries)
         new_basis = PlaneWaveBasis(basis.model,
                                    basis.Ecut, basis.fft_size, basis.variational,
-                                   kcoords, [[identity_symop()] for _ in 1:length(kcoords)],
+                                   kcoords, [1/length(kcoords) for _ in kcoords],
                                    basis.kgrid, basis.kshift, basis.symmetries, basis.comm_kpts)
     end
 end
@@ -277,8 +256,8 @@ end
 function unfold_mapping(basis_irred, kpt_unfolded)
     for ik_irred = 1:length(basis_irred.kpoints)
         kpt_irred = basis_irred.kpoints[ik_irred]
-        for symop in basis_irred.ksymops[ik_irred]
-            Sk_irred = normalize_kpoint_coordinate(symop[1] * kpt_irred.coordinate)
+        for symop in basis_irred.symmetries
+            Sk_irred = normalize_kpoint_coordinate(symop.S * kpt_irred.coordinate)
             k_unfolded = normalize_kpoint_coordinate(kpt_unfolded.coordinate)
             if (Sk_irred ≈ k_unfolded) && (kpt_unfolded.spin == kpt_irred.spin)
                 return ik_irred, symop
@@ -303,7 +282,7 @@ function unfold_array_(basis_irred, basis_unfolded, data, is_ψ)
             # transform ψ_k from data into ψ_Sk in data_unfolded
             kunfold_coord = kpt_unfolded.coordinate
             @assert normalize_kpoint_coordinate(kunfold_coord) ≈ kunfold_coord
-            _, ψSk = apply_ksymop(symop, basis_irred,
+            _, ψSk = apply_symop(symop, basis_irred,
                                   basis_irred.kpoints[ik_irred], data[ik_irred])
             data_unfolded[ik_unfolded] = ψSk
         else
@@ -324,4 +303,15 @@ function unfold_bz(scfres)
     @assert E.total ≈ scfres.energies.total
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)
     merge(scfres, new_scfres)
+end
+
+function unfold_kcoords(kcoords, symmetries)
+    all_kcoords = [normalize_kpoint_coordinate(symop.S * kcoord)
+                   for kcoord in kcoords, symop in symmetries]
+
+    # the above multiplications introduce an error
+    unique(all_kcoords) do k
+        digits = ceil(Int, -log10(SYMMETRY_TOLERANCE))
+        normalize_kpoint_coordinate(round.(k; digits))
+    end
 end

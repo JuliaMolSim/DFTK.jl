@@ -21,7 +21,7 @@ function next_density(ham::Hamiltonian;
     end
 
     # Diagonalize
-    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_ep_extra; guess=ψ,
+    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_ep_extra; ψguess=ψ,
                                      n_conv_check=n_bands, kwargs...)
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
@@ -50,9 +50,10 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        damping=0.8,  # Damping parameter
                                        mixing=LdosMixing(),
                                        is_converged=ScfConvergenceEnergy(tol),
-                                       callback=ScfDefaultCallback(),
+                                       callback=ScfDefaultCallback(; show_damping=false),
                                        compute_consistent_energies=true,
-                                       enforce_symmetry=false,
+                                       response=(; )  # Dummy here, only needed
+                                                      # for forward-diff.
                                       )
     T = eltype(basis)
     model = basis.model
@@ -89,22 +90,18 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
             # Note that ρin is not the density of ψ, and the eigenvalues
             # are not the self-consistent ones, which makes this energy non-variational
             energies, ham = energy_hamiltonian(basis, ψ, occupation;
-                                               ρ=ρin, eigenvalues=eigenvalues, εF=εF)
+                                               ρ=ρin, eigenvalues, εF)
         end
 
         # Diagonalize `ham` to get the new state
-        nextstate = next_density(ham; n_bands=n_bands, ψ=ψ, eigensolver=eigensolver,
+        nextstate = next_density(ham; n_bands, ψ, eigensolver,
                                  miniter=1, tol=determine_diagtol(info),
-                                 n_ep_extra=n_ep_extra)
+                                 n_ep_extra)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
-        if enforce_symmetry
-            ρout = DFTK.symmetrize_ρ(basis, ρout)
-        end
-
         # Update info with results gathered so far
-        info = (ham=ham, basis=basis, converged=converged, stage=:iterate, algorithm="SCF",
-                ρin=ρin, ρout=ρout, α=damping, n_iter=n_iter, n_ep_extra=n_ep_extra,
+        info = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
+                ρin, ρout, α=damping, n_iter, n_ep_extra,
                 nextstate..., diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
@@ -117,9 +114,6 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         # Apply mixing and pass it the full info as kwargs
         δρ = mix_density(mixing, basis, ρout - ρin; info...)
         ρnext = ρin .+ T(damping) .* δρ
-        if enforce_symmetry
-            ρnext = DFTK.symmetrize_ρ(basis, ρnext)
-        end
         info = merge(info, (; ρnext=ρnext))
 
         callback(info)
@@ -139,11 +133,15 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     energies, ham = energy_hamiltonian(basis, ψ, occupation;
                                        ρ=ρout, eigenvalues=eigenvalues, εF=εF)
 
+    # Measure for the accuracy of the SCF
+    # TODO probably should be tracked all the way ...
+    norm_Δρ = norm(info.ρout - info.ρin) * sqrt(basis.dvol)
+
     # Callback is run one last time with final state to allow callback to clean up
-    info = (ham=ham, basis=basis, energies=energies, converged=converged,
-            ρ=ρout, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
-            n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=ψ, diagonalization=info.diagonalization,
-            stage=:finalize, algorithm="SCF")
+    info = (; ham, basis, energies, converged,
+            ρ=ρout, α=damping, eigenvalues, occupation, εF,
+            n_iter, n_ep_extra, ψ, info.diagonalization,
+            stage=:finalize, algorithm="SCF", norm_Δρ)
     callback(info)
     info
 end

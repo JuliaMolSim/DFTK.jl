@@ -49,6 +49,7 @@ include("xc.jl")
 include("ewald.jl")
 include("psp_correction.jl")
 include("entropy.jl")
+include("pairwise.jl")
 
 include("magnetic.jl")
 breaks_symmetries(::Magnetic) = true
@@ -56,7 +57,7 @@ breaks_symmetries(::Magnetic) = true
 include("anyonic.jl")
 breaks_symmetries(::Anyonic) = true
 
-# forces computes either nothing or an array forces[el][at][α]
+# forces computes either nothing or an array forces[at][α]
 compute_forces(::Term, ::AbstractBasis, ψ, occ; kwargs...) = nothing  # by default, no force
 
 @doc raw"""
@@ -98,14 +99,16 @@ as a 4D (i,j,k,σ) array.
     n_spin = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
 
-    δV = zero(δρ)
-    for term in basis.terms
-        # Skip XC term if RPA is selected
-        RPA && term isa TermXc && continue
-
-        δV_term = apply_kernel(term, basis, δρ; kwargs...)
-        if !isnothing(δV_term)
-            δV .+= δV_term
+    if RPA
+        hartree = filter(t -> t isa TermHartree, basis.terms)
+        δV = isempty(hartree) ? zero(δρ) : apply_kernel(only(hartree), basis, δρ; kwargs...)
+    else
+        δV = zero(δρ)
+        for term in basis.terms
+            δV_term = apply_kernel(term, basis, δρ; kwargs...)
+            if !isnothing(δV_term)
+                δV .+= δV_term
+            end
         end
     end
     δV

@@ -23,13 +23,14 @@ include("testcases.jl")
 
     a = 10.26
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-    atoms = [Si => silicon.positions]
+    atoms = [Si]
+    positions = silicon.positions
     function make_model(a)
         lattice = a / 2 * [[0. 1. 1.];
                            [1. 0. 1.];
                            [1. 1. 0.]]
         terms = [Kinetic(), AtomicLocal()]
-        Model(lattice, atoms, terms; temperature=1e-3)
+        Model(lattice, atoms, positions; terms, temperature=1e-3)
     end
     kgrid = [1, 1, 1]
     Ecut = 7

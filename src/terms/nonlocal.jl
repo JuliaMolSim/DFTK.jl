@@ -3,16 +3,19 @@ Nonlocal term coming from norm-conserving pseudopotentials in Kleinmann-Bylander
 ``\text{Energy} = \sum_a \sum_{ij} \sum_{n} f_n <ψ_n|p_{ai}> D_{ij} <p_{aj}|ψ_n>.``
 """
 struct AtomicNonlocal end
-function (::AtomicNonlocal)(basis::PlaneWaveBasis)
-    # keep only pseudopotential atoms
-    atoms = [elem.psp => positions
-             for (elem, positions) in basis.model.atoms
-             if elem isa ElementPsp]
+function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
+    model = basis.model
 
-    isempty(atoms) && return TermNoop()
+    # keep only pseudopotential atoms and positions
+    psp_groups = [group for group in model.atom_groups
+                  if model.atoms[first(group)] isa ElementPsp]
+    psps          = [model.atoms[first(group)].psp      for group in psp_groups]
+    psp_positions = [model.positions[group] for group in psp_groups]
+
+    isempty(psp_groups) && return TermNoop()
     ops = map(basis.kpoints) do kpt
-        P = build_projection_vectors_(basis, atoms, kpt)
-        D = build_projection_coefficients_(basis, atoms)
+        P = build_projection_vectors_(basis, kpt, psps, psp_positions)
+        D = build_projection_coefficients_(T, psps, psp_positions)
         NonlocalOperator(basis, kpt, P, D)
     end
     TermAtomicNonlocal(ops)
@@ -42,54 +45,44 @@ end
                                                    basis::PlaneWaveBasis{TT},
                                                    ψ, occ; kwargs...) where TT
     T = promote_type(TT, real(eltype(ψ[1])))
-    atoms = basis.model.atoms
-    unit_cell_volume = basis.model.unit_cell_volume
+    model = basis.model
+    unit_cell_volume = model.unit_cell_volume
+    psp_groups = [group for group in model.atom_groups
+                  if model.atoms[first(group)] isa ElementPsp]
 
     # early return if no pseudopotential atoms
-    any(attype isa ElementPsp for (attype, positions) in atoms) || return nothing
+    isempty(psp_groups) && return nothing
 
     # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
-    forces = [zeros(Vec3{T}, length(positions)) for (el, positions) in atoms]
-    for (iel, (el, positions)) in enumerate(atoms)
-        el isa ElementPsp || continue
+    forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
+    for group in psp_groups
+        element = model.atoms[first(group)]
 
-        C = build_projection_coefficients_(el.psp)
-        # TODO optimize: switch this loop and the k-point loop
-        for (ir, r) in enumerate(positions)
-            fr = zeros(T, 3)
-            for α = 1:3
-                tot_red_kpt_number = sum([length(symops) for symops in basis.ksymops])
-                tot_red_kpt_number = mpi_sum(tot_red_kpt_number, basis.comm_kpts)
-                for (ik, kpt_irred) in enumerate(basis.kpoints)
-                    # Here we need to do an explicit loop over
-                    # symmetries, because the atom displacement might break them
-                    for isym in 1:length(basis.ksymops[ik])
-                        (S, τ) = basis.ksymops[ik][isym]
-                        Skpoint, ψSk = apply_ksymop((S, τ), basis, kpt_irred, ψ[ik])
-                        Skcoord = Skpoint.coordinate
-                        # energy terms are of the form <psi, P C P' psi>,
-                        # where P(G) = form_factor(G) * structure_factor(G)
-                        qs = Gplusk_vectors_cart(basis, Skpoint)
-                        form_factors = build_form_factors(el.psp, qs)
-                        structure_factors = [cis(-2T(π) * dot(q, r))
-                                             for q in Gplusk_vectors(basis, Skpoint)]
-                        P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
-                        dPdR = [-2T(π)*im*q[α] for q in Gplusk_vectors(basis, Skpoint)] .* P
+        C = build_projection_coefficients_(element.psp)
+        for (ik, kpt) in enumerate(basis.kpoints)
+            # we compute the forces from the irreductible BZ; they are symmetrized later
+            qs_cart = Gplusk_vectors_cart(basis, kpt)
+            qs = Gplusk_vectors(basis, kpt)
+            form_factors = build_form_factors(element.psp, qs_cart)
+            for idx in group
+                r = model.positions[idx]
+                structure_factors = [cis(-2T(π) * dot(q, r)) for q in qs]
+                P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
 
-                        dHψSk = P * (C * (dPdR' * ψSk))
-                        for iband = 1:size(ψ[ik], 2)
-                            @views fr[α] -= (occ[ik][iband] / tot_red_kpt_number
-                                             * basis.model.n_spin_components
-                                             * 2real(  dot(ψSk[:, iband], dHψSk[:, iband])))
-                        end  #iband
-                    end  #isym
-                end  #ik
-            end  #α
-            mpi_sum!(fr, basis.comm_kpts)  # TODO take that out to gain latency
-            forces[iel][ir] += fr
-        end
-    end
-    forces
+                forces[idx] += map(1:3) do α
+                    dPdR = [-2T(π)*im*q[α] for q in qs] .* P
+                    ψk = ψ[ik]
+                    dHψk = P * (C * (dPdR' * ψk))
+                    -sum(occ[ik][iband] * basis.kweights[ik] *
+                         2real(dot(ψk[:, iband], dHψk[:, iband]))
+                         for iband=1:size(ψk, 2))
+                end  # α
+            end  # r
+        end  # kpt
+    end  # group
+
+    forces = mpi_sum!(forces, basis.comm_kpts)
+    symmetrize_forces(basis, forces)
 end
 
 # returns [a 0; 0 b]
@@ -98,24 +91,25 @@ function assemble_block_matrix_(a::Matrix{T}, b::Matrix{T}) where {T}
 end
 
 # TODO possibly move over to psp/ ?
+# TODO possibly move over to pseudo/NormConservingPsp.jl ?
 # Build projection coefficients for a atoms array generated by term_nonlocal
 # The ordering of the projector indices is (A,l,m,i), where A is running over all
 # atoms, l, m are AM quantum numbers and i is running over all projectors for a
 # given l. The matrix is block-diagonal with non-zeros only if A, l and m agree.
-# TODO: BlockArrays ?
-function build_projection_coefficients_(basis::PlaneWaveBasis{T}, atoms) where {T}
+function build_projection_coefficients_(T, psps, psp_positions)
     # TODO In the current version the proj_coeffs still has a lot of zeros.
     #      One could improve this by storing the blocks as a list or in a
     #      BlockDiagonal data structure
     proj_coeffs = zeros(T, 0, 0)
-    n_proj = count_n_proj(atoms)
+    n_proj = count_n_proj(psps, psp_positions)
     if n_proj > 0
         # avoid nested for (contains mutation)
-        blocks = [[build_projection_coefficients_(psp) for r in positions] for (psp, positions) in atoms]
+        blocks = [[build_projection_coefficients_(psp) for r in positions] for (psp, positions) in zip(psps, psp_positions)]
         proj_coeffs = reduce(assemble_block_matrix_, reduce(vcat, blocks))
     end
     proj_coeffs
 end
+
 
 # Builds the projection coefficient matrix for a single atom
 # The ordering of the projector indices is (l,m,i), where l, m are the
@@ -144,9 +138,10 @@ where pihat(q) = ∫_R^3 pi(r) e^{-iqr} dr
 
 We store 1/√Ω pihat(k+G) in proj_vectors.
 """
-function build_projection_vectors_(basis::PlaneWaveBasis{T}, atoms, kpt::Kpoint) where {T}
+function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
+                                   psps, psp_positions) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
-    n_proj = count_n_proj(atoms)
+    n_proj = count_n_proj(psps, psp_positions)
     proj_vectors = zeros(Complex{T}, 0, 0)
     
     # Compute the columns of proj_vectors = 1/√Ω pihat(k+G)
@@ -167,14 +162,10 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, atoms, kpt::Kpoint)
             
             return reduce(hcat, reduce(vcat, cols))
         end
-        proj_vectors = reduce(hcat, [build_columns(psp, positions) for (psp, positions) in atoms])
-	return proj_vectors
-    else
-        n_G    = length(G_vectors(basis, kpt))
-        return zeros(Complex{T}, n_G, n_proj)
+        proj_vectors = reduce(hcat, [build_columns(psp, positions) for (psp, positions) in zip(psps, psp_positions)])
     end
     #@assert offset == n_proj
-    
+    proj_vectors
 end
 
 """
@@ -194,12 +185,8 @@ function build_form_factors(psp, qs)
         form_factors_local
     end
     # for avoid nested for loop for Zygote compat
-    if count_n_proj(psp) > 0
-        form_factors = reduce(vcat, [[build_factor(l,m) for m in -l:l] for l in 0:psp.lmax]) # build
-        form_factors = reduce(hcat, form_factors) # concat horizontally
-        return form_factors
-    else
-        form_factors = zeros(Complex{T}, length(qs), count_n_proj(psp))
-        return form_factors
-    end
+    form_factors = reduce(vcat, [[build_factor(l,m) for m in -l:l] for l in 0:psp.lmax]) # build
+    form_factors = reduce(hcat, form_factors) # concat horizontally
+
+    form_factors
 end

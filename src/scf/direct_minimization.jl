@@ -81,8 +81,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     Nk = length(basis.kpoints)
 
     if ψ0 === nothing
-        ψ0 = [ortho_qr(randn(Complex{T}, length(G_vectors(basis, kpt)), n_bands))
-              for kpt in basis.kpoints]
+        ψ0 = [random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints]
     end
     occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
 
@@ -90,6 +89,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     # TODO raise this issue in Optim.jl
     pack(ψ) = copy(reinterpret_real(pack_ψ(ψ)))
     unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ0))
+    unsafe_unpack(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ0))
 
     # this will get updated along the iterations
     H = nothing
@@ -104,7 +104,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
 
         # The energy has terms like occ * <ψ|H|ψ>, so the gradient is 2occ Hψ
         if G !== nothing
-            G = unpack(G)
+            G = unsafe_unpack(G)
             for ik = 1:Nk
                 mul!(G[ik], H.blocks[ik], ψ[ik])
                 G[ik] .*= 2*filled_occ
@@ -113,10 +113,10 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
         energies.total
     end
 
-    manif = DMManifold(Nk, unpack)
+    manif = DMManifold(Nk, unsafe_unpack)
 
     Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
-    P = DMPreconditioner(Nk, Pks, unpack)
+    P = DMPreconditioner(Nk, Pks, unsafe_unpack)
 
     kwdict = Dict(kwargs)
     optim_options = Optim.Options(; allow_f_increases=true, show_trace=true,
@@ -127,8 +127,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                          optim_solver(P=P, precondprep=precondprep!, manifold=manif,
                                       linesearch=LineSearches.BackTracking()),
                          optim_options)
-    # return copy to ensure we have a plain array
-    ψ = deepcopy(unpack(res.minimizer))
+    ψ = unpack(res.minimizer)
 
     # Final Rayleigh-Ritz (not strictly necessary, but sometimes useful)
     eigenvalues = []

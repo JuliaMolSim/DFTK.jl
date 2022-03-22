@@ -1,5 +1,5 @@
 # Convenience functions for working with MPI
-using MPI
+import MPI
 
 """
 Number of processors used in MPI. Can be called without ensuring initialization.

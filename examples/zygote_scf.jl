@@ -46,12 +46,12 @@ positions = [
     [0.45312500031210007, 1/2, 1/2],
     [0.5468749996028622, 1/2, 1/2],
 ]
-atoms = [H => positions]
+atoms = [H]
 lattice = 16 * Mat3(Diagonal(ones(3)))
 
 function make_model(xc::CustomXC)
     terms = [Kinetic(), AtomicLocal(), xc] # TODO support more term types
-    Model(lattice, atoms, terms)
+    Model(lattice, atoms, positions; terms)
 end
 make_basis(model::Model) = PlaneWaveBasis(model; Ecut, kgrid=kgrid)
 make_basis(xc::CustomXC) = make_basis(make_model(xc))

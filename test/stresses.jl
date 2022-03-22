@@ -10,12 +10,8 @@ include("testcases.jl")
 
 @testset "ForwardDiff stresses on silicon" begin
     function make_basis(lattice, symmetries)
-        Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-        atoms = [Si => silicon.positions]
-        model = model_PBE(lattice, atoms; symmetries)
-        kgrid = [3, 3, 1]
-        Ecut = 7
-        PlaneWaveBasis(model; Ecut, kgrid)
+        model = model_PBE(lattice, silicon.atoms, silicon.positions; symmetries)
+        PlaneWaveBasis(model; Ecut=7, kgrid=(3, 3, 3))
     end
 
     function recompute_energy(lattice, symmetries)
@@ -33,15 +29,15 @@ include("testcases.jl")
     end
 
 
-    a = 10.0  # slightly compressed
-    lattice = a / 2 * [[0 1 1.];
+    a = 10.0  # slightly compressed and twisted
+    lattice = a / 2 * [[0 1 1.1];
                        [1 0 1.];
                        [1 1 0.]]
-    is_converged = DFTK.ScfConvergenceDensity(1e-13)
+    is_converged = DFTK.ScfConvergenceDensity(1e-11)
     scfres = self_consistent_field(make_basis(lattice, true); is_converged)
     scfres_nosym = self_consistent_field(make_basis(lattice, false); is_converged)
-    stresses = compute_stresses(scfres)
-    @test isapprox(stresses, compute_stresses(scfres_nosym), atol=1e-10)
+    stresses = compute_stresses_cart(scfres)
+    @test isapprox(stresses, compute_stresses_cart(scfres_nosym), atol=1e-10)
 
     dir = MPI.bcast(randn(3, 3), 0, MPI.COMM_WORLD)
 

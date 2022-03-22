@@ -16,12 +16,12 @@ using DFTK
 using PyCall
 
 silicon = pyimport("ase.build").bulk("Si")
-atoms = load_atoms(silicon)
-atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="lda")) => position
-         for (el, position) in atoms]
-lattice = load_lattice(silicon);
+atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="lda"))
+         for el in load_atoms(silicon)]
+positions = load_positions(silicon)
+lattice   = load_lattice(silicon);
 
-model = model_LDA(lattice, atoms)
+model = model_LDA(lattice, atoms, positions)
 basis = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
 
 # DFTK already defines a few callback functions for standard

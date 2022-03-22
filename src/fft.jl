@@ -7,7 +7,7 @@ import FFTW
 
 # For densities and potentials defined on the cubic basis set, r_to_G/G_to_r
 # do a simple FFT/IFFT from the cubic basis set to the real-space grid.
-# These function do not take a k-point as input
+# These functions do not take a k-point as input
 
 # For orbitals, G_to_r converts the orbitals defined on a spherical
 # basis set to the cubic basis set using zero padding, then performs
@@ -44,16 +44,17 @@ Perform an iFFT to obtain the quantity defined by `f_fourier` defined
 on the k-dependent spherical basis set (if `kpt` is given) or the
 k-independent cubic (if it is not) on the real-space grid.
 """
-function G_to_r(basis::PlaneWaveBasis, f_fourier::AbstractArray; assume_real=true)
+function G_to_r(basis::PlaneWaveBasis, f_fourier::AbstractArray; assume_real=Val(true))
     # assume_real is true by default because this is the most common usage
-    # (for densities & potentials)
+    # (for densities & potentials). Val(true) to help const-prop;
+    # see https://github.com/JuliaLang/julia/issues/44330
     f_real = similar(f_fourier)
     @assert length(size(f_fourier)) ∈ (3, 4)
     # this exploits trailing index convention
     for iσ = 1:size(f_fourier, 4)
         @views G_to_r!(f_real[:, :, :, iσ], basis, f_fourier[:, :, :, iσ])
     end
-    assume_real ? real(f_real) : f_real
+    (assume_real == Val(true)) ? real(f_real) : f_real
 end
 function G_to_r(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
     G_to_r!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
@@ -65,7 +66,7 @@ In-place version of `r_to_G!`.
 NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
 """
 function r_to_G!(f_fourier::AbstractArray3, basis::PlaneWaveBasis, f_real::AbstractArray3)
-    if isreal(f_real)
+    if eltype(f_real) <: Real
         f_real = complex.(f_real)
     end
     mul!(f_fourier, basis.opFFT, f_real)
@@ -92,8 +93,8 @@ Perform an FFT to obtain the Fourier representation of `f_real`. If
 `kpt` is given, the coefficients are truncated to the k-dependent
 spherical basis set.
 """
-function r_to_G(basis::PlaneWaveBasis, f_real::AbstractArray)
-    f_fourier = similar(f_real, complex(eltype(f_real)))
+function r_to_G(basis::PlaneWaveBasis{T}, f_real::AbstractArray) where T
+    f_fourier = similar(f_real, complex(promote_type(T, eltype(f_real))))
     @assert length(size(f_real)) ∈ (3, 4)
     # this exploits trailing index convention
     for iσ = 1:size(f_real, 4)

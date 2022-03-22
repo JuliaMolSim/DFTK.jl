@@ -2,17 +2,15 @@ using ForwardDiff
 """
 Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF solution.
 """
-@timing function compute_stresses(scfres)
+@timing function compute_stresses_cart(scfres)
     # TODO optimize by only computing derivatives wrt 6 independent parameters
     # compute the Hellmann-Feynman energy (with fixed ψ/occ/ρ)
-    function HF_energy(lattice)
-        T = eltype(lattice)
+    function HF_energy(lattice::AbstractMatrix{T}) where T
         basis = scfres.basis
         model = basis.model
-        new_model = Model(lattice;
+        new_model = Model(lattice, model.atoms, model.positions;
                           model.n_electrons,
-                          model.atoms,
-                          magnetic_moments=[], # not used because we give symmetries explicitly
+                          magnetic_moments=[], # not used because symmetries explicitly given
                           terms=model.term_types,
                           model.temperature,
                           model.smearing,
@@ -20,7 +18,7 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
                           model.symmetries)
         new_basis = PlaneWaveBasis(new_model,
                                    basis.Ecut, basis.fft_size, basis.variational,
-                                   basis.kcoords_global, basis.ksymops_global,
+                                   basis.kcoords_global, basis.kweights_global,
                                    basis.kgrid, basis.kshift, basis.symmetries,
                                    basis.comm_kpts)
         ρ = DFTK.compute_density(new_basis, scfres.ψ, scfres.occupation)
@@ -30,6 +28,6 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
     end
     L = scfres.basis.model.lattice
     Ω = scfres.basis.model.unit_cell_volume
-    stresses_not_symmetrized = ForwardDiff.gradient(M -> HF_energy((I+M) * L), zero(L)) / Ω
-    symmetrize_stresses(L, scfres.basis.symmetries, stresses_not_symmetrized)
+    stresses = ForwardDiff.gradient(M -> HF_energy((I+M) * L), zero(L)) / Ω
+    symmetrize_stresses(scfres.basis, stresses)
 end

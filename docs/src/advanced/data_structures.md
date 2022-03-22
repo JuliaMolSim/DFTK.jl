@@ -7,9 +7,10 @@ lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
+atoms = [Si, Si]
+positions = [ones(3)/8, -ones(3)/8]
 
-model = model_LDA(lattice, atoms)
+model = model_LDA(lattice, atoms, positions)
 kgrid = [4, 4, 4]
 Ecut = 15
 basis = PlaneWaveBasis(model; Ecut, kgrid)
@@ -70,13 +71,13 @@ not limited to DFT. Convenience constructors are provided for common cases:
    [libxc](https://tddft.org/programs/libxc/functionals/) library,
    for example:
    ```
-   model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe])
-   model_DFT(lattice, atoms, :lda_xc_teter93)
+   model_DFT(lattice, atoms, positions, [:gga_x_pbe, :gga_c_pbe])
+   model_DFT(lattice, atoms, positions, :lda_xc_teter93)
    ```
    where the latter is equivalent to `model_LDA`.
    Specifying no functional is the reduced Hartree-Fock model:
    ```
-   model_DFT(lattice, atoms, [])
+   model_DFT(lattice, atoms, positions, [])
    ```
 - `model_atomic`: A linear model, which contains no electron-electron interaction
   (neither Hartree nor XC term).

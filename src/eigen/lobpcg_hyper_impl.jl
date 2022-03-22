@@ -46,8 +46,8 @@ using LinearAlgebra
 using BlockArrays # used for the `mortar` command which makes block matrices
 
 # when X or Y are BlockArrays, this makes the return value be a proper array (not a BlockArray)
-function array_mul(X, Y)
-    Z = zeros(eltype(X), size(X, 1), size(Y, 2))
+function array_mul(X::AbstractArray{T}, Y) where T
+    Z = Array{T}(undef, size(X, 1), size(Y, 2))
     mul!(Z, X, Y)
 end
 
@@ -57,20 +57,11 @@ end
     F.vectors[:,1:N], F.values[1:N]
 end
 
-import LinearAlgebra: cholesky
-function cholesky(X::Union{Matrix{ComplexF16}, Hermitian{ComplexF16,Matrix{ComplexF16}}})
-    # Cholesky factorization above may promote the type
-    # (e.g. Float16 is promoted to Float32. This undoes it)
-    # See https://github.com/JuliaLang/julia/issues/16446
-    U = cholesky(ComplexF32.(X)).U
-    (U=convert.(ComplexF16, U), )
-end
-
 # B-orthogonalize X (in place) using only one B apply.
 # This uses an unstable method which is only OK if X is already
 # orthogonal (not B-orthogonal) and B is relatively well-conditioned
 # (which implies that X'BX is relatively well-conditioned, and
-# therefore that it is safe to cholesky it and reuse the B aply)
+# therefore that it is safe to cholesky it and reuse the B apply)
 function B_ortho!(X, BX)
     O = Hermitian(X'*BX)
     U = cholesky(O).U
@@ -83,7 +74,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been
 # magnified
-@timing function ortho!(X; tol=2eps(real(eltype(X))))
+@timing function ortho!(X::AbstractArray{T}; tol=2eps(real(T))) where T
     local R
 
     # # Uncomment for "gold standard"
@@ -109,7 +100,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
             α = 100
             nbad = 0
             while true
-                O += α*eps(real(eltype(X)))*norm(X)^2*I
+                O += α*eps(real(T))*norm(X)^2*I
                 α *= 10
                 try
                     R = cholesky(O).U
@@ -141,11 +132,11 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
         # condR = 1/LAPACK.trcon!('I', 'U', 'N', Array(R))
         condR = normest(R)*norminvR # in practice this seems to be an OK estimate
 
-        vprintln("Ortho(X) success? $success ", eps(real(eltype(X)))*condR^2, " < $tol")
+        vprintln("Ortho(X) success? $success ", eps(real(T))*condR^2, " < $tol")
 
         # a good a posteriori error is that X'X - I is eps()*κ(R)^2;
         # in practice this seems to be sometimes very overconservative
-        success && eps(real(eltype(X)))*condR^2 < tol && break
+        success && eps(real(T))*condR^2 < tol && break
 
         nchol > 10 && error("Ortho(X) is failing badly, this should never happen")
     end
@@ -156,12 +147,12 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 end
 
 # Randomize the columns of X if the norm is below tol
-function drop!(X, tol=2eps(real(eltype(X))))
+function drop!(X::AbstractArray{T}, tol=2eps(real(T))) where T
     dropped = Int[]
     for i=1:size(X,2)
         n = norm(@views X[:,i])
         if n <= tol
-            X[:,i] = randn(eltype(X), size(X,1))
+            X[:,i] = randn(T, size(X,1))
             push!(dropped, i)
         end
     end
@@ -169,8 +160,7 @@ function drop!(X, tol=2eps(real(eltype(X))))
 end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
-function ortho!(X, Y, BY; tol=2eps(real(eltype(X))))
-    T = real(eltype(X))
+@timing "ortho! X vs Y" function ortho!(X::AbstractArray{T}, Y, BY; tol=2eps(real(T))) where T
     # normalize to try to cheaply improve conditioning
     Threads.@threads for i=1:size(X,2)
         n = norm(@views X[:,i])
@@ -206,7 +196,7 @@ function ortho!(X, Y, BY; tol=2eps(real(eltype(X))))
 
         # If we're at a fixed point, growth_factor is 1 and if tol >
         # eps(), the loop will terminate, even if BY'Y != 0
-        growth_factor*eps(real(eltype(X))) < tol && break
+        growth_factor*eps(real(T)) < tol && break
 
         niter > 10 && error("Ortho(X,Y) is failing badly, this should never happen")
         niter += 1
@@ -322,8 +312,10 @@ end
         end
         vprintln(niter, "   ", resid_history[:, niter+1])
         if precon !== I
-            precondprep!(precon, X) # update preconditioner if needed; defaults to noop
-            ldiv!(precon, new_R)
+            @timing "preconditioning" begin
+                precondprep!(precon, X) # update preconditioner if needed; defaults to noop
+                ldiv!(precon, new_R)
+            end
         end
 
         ### Compute number of locked vectors
