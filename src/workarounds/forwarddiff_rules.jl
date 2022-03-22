@@ -169,7 +169,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     scfres = self_consistent_field(basis; kwargs...)
 
     ## promote occupied bands to dual numbers
-    ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
+    ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation; threshold=1e-10)
     occupation_dual = [T.(occₖ) for occₖ in occupation]
     ψ_dual = [Complex.(T.(real(ψₖ)), T.(imag(ψₖ))) for ψₖ in ψ]
     ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
@@ -185,14 +185,25 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     hamψ_dual = ham_dual * ψ_dual
     δresults = ntuple(ForwardDiff.npartials(T)) do α
         δHψ_α = [ForwardDiff.partials.(δHψk, α) for δHψk in hamψ_dual]
-        δψ_α, response_α = solve_ΩplusK(basis, ψ, -δHψ_α, occupation;
-                                        tol_cg=scfres.norm_Δρ, verbose=response.verbose)
+
+        filled_occ = filled_occupation(basis.model)
+        if all(all(occ_k .== filled_occ) for occ_k in occupation)
+            # Faster version for insulators
+            δψ_α, resp_α = solve_ΩplusK(basis, ψ, -δHψ_α, occupation;
+                                        tol_cg=scfres.norm_Δρ, response.verbose)
+        else
+            δψ_α, resp_α = solve_ΩplusK_split(basis, ψ, -δHψ_α, occupation;
+                                              tol_dyson=scfres.norm_Δρ,
+                                              tol_cg=scfres.norm_Δρ / 10,
+                                              response.verbose)
+        end
+
         δρ_α = compute_δρ(basis, ψ, δψ_α, occupation)
-        δψ_α, δρ_α, response_α
+        δψ_α, δρ_α, resp_α
     end
-    δψ       = [δψ_α       for (δψ_α, δρ_α, response_α) in δresults]
-    δρ       = [δρ_α       for (δψ_α, δρ_α, response_α) in δresults]
-    response = [response_α for (δψ_α, δρ_α, response_α) in δresults]
+    δψ       = [δψ_α   for (δψ_α, δρ_α, resp_α) in δresults]
+    δρ       = [δρ_α   for (δψ_α, δρ_α, resp_α) in δresults]
+    response = [resp_α for (δψ_α, δρ_α, resp_α) in δresults]
 
     ## Convert, combine and return
     DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}

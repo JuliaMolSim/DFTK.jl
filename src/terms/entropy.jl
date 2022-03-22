@@ -16,16 +16,17 @@ function ene_ops(term::TermEntropy, basis::PlaneWaveBasis{T}, ψ, occ; kwargs...
     iszero(temperature) && return (E=zero(T), ops=ops)
     isnothing(ψ)        && return (E=T(Inf),  ops=ops)
 
+    !(:εF in keys(kwargs))          && return (E=T(Inf), ops=ops)
+    !(:eigenvalues in keys(kwargs)) && return (E=T(Inf), ops=ops)
     εF = kwargs[:εF]
     eigenvalues = kwargs[:eigenvalues]
-    filled_occ  = filled_occupation(basis.model)
 
     E = zero(T)
     for (ik, k) in enumerate(basis.kpoints)
         for iband = 1:size(ψ[1], 2)
             E -= (temperature
                   * basis.kweights[ik]
-                  * filled_occ
+                  * filled_occupation(basis.model)
                   * Smearing.entropy(smearing, (eigenvalues[ik][iband] - εF) / temperature))
         end
     end

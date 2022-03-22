@@ -200,7 +200,7 @@ function solve_ΩplusK_split(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
     δVψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
     δψ = apply_χ0_4P(H, ψ, occupation, εF, λ, δVψ; tol_cg, verbose)
-    .- (δψ0 .+ δψ)
+    .- (δψ0 .+ δψ), nothing
 end
 
 
