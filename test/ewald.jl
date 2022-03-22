@@ -24,7 +24,7 @@ end
     @test abs(γ_E - ref) < 1e-8
 end
 
-@testset "Nitrogen molecule" begin
+@testset "Boron molecule" begin
     lattice = 16 * Diagonal(ones(3))
     positions = [[0,0,0], [0.14763485355139283, 0, 0]]
     charges = [5, 5]

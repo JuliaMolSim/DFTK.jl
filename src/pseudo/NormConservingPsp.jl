@@ -88,6 +88,7 @@ end
 function count_n_proj(psp::NormConservingPsp)
     psp.lmax < 0 ? 0 : sum(size(psp.h[l + 1], 1) * (2l + 1) for l in 0:psp.lmax)::Int
 end
-function count_n_proj(atoms)
-    sum(count_n_proj(psp) * length(positions) for (psp, positions) in atoms)::Int
+function count_n_proj(psps, psp_positions)
+    sum(count_n_proj(psp) * length(positions)
+        for (psp, positions) in zip(psps, psp_positions))
 end

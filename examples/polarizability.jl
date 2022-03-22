@@ -21,8 +21,10 @@ using LinearAlgebra
 
 a = 10.
 lattice = a * I(3)  # cube of ``a`` bohrs
-He = ElementPsp(:He, psp=load_psp("hgh/lda/He-q2"))
-atoms = [He => [[1/2; 1/2; 1/2]]]  # Helium at the center of the box
+## Helium at the center of the box
+atoms     = [ElementPsp(:He, psp=load_psp("hgh/lda/He-q2"))]
+positions = [[1/2, 1/2, 1/2]]
+
 
 kgrid = [1, 1, 1]  # no k-point sampling for an isolated system
 Ecut = 30
@@ -37,14 +39,15 @@ end;
 # ## Using finite differences
 # We first compute the polarizability by finite differences.
 # First compute the dipole moment at rest:
-model = model_LDA(lattice, atoms; symmetries=false)
+model = model_LDA(lattice, atoms, positions; symmetries=false)
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 res   = self_consistent_field(basis, tol=tol)
 μref  = dipole(basis, res.ρ)
 
 # Then in a small uniform field:
 ε = .01
-model_ε = model_LDA(lattice, atoms; extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
+model_ε = model_LDA(lattice, atoms, positions;
+                    extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
                     symmetries=false)
 basis_ε = PlaneWaveBasis(model_ε; Ecut, kgrid)
 res_ε   = self_consistent_field(basis_ε, tol=tol)

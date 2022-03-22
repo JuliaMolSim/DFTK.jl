@@ -9,8 +9,8 @@ compensating charge yielding net neutrality.
 struct Ewald end
 (::Ewald)(basis) = TermEwald(basis)
 
-struct TermEwald <: Term
-    energy::Real  # precomputed energy
+struct TermEwald{T} <: Term
+    energy::T  # precomputed energy
 end
 function TermEwald(basis::PlaneWaveBasis{T}) where {T}
     TermEwald(T(energy_ewald(basis.model)))
@@ -22,48 +22,27 @@ end
 
 @timing "forces: Ewald" function compute_forces(term::TermEwald, basis::PlaneWaveBasis{T},
                                                 ψ, occ; kwargs...) where {T}
-    atoms = basis.model.atoms
     # TODO this could be precomputed
-    # Compute forces in the "flat" representation used by ewald
-    forces_ewald = zeros(Vec3{T}, sum(length(positions) for (elem, positions) in atoms))
-    energy_ewald(basis.model; forces=forces_ewald)
-    # translate to the "folded" representation
-    f = [zeros(Vec3{T}, length(positions)) for (type, positions) in atoms]
-    count = 0
-    for i = 1:length(atoms)
-        for j = 1:length(atoms[i][2])
-            count += 1
-            f[i][j] += forces_ewald[count]
-        end
-    end
-    @assert count == sum(at -> length(at[2]), atoms)
-    f
+    forces = zero(basis.model.positions)
+    energy_ewald(basis.model; forces)
+    forces
 end
 
-function energy_ewald(model::Model; kwargs...)
-    # charges   = [charge_ionic(elem) for (elem, positions) in model.atoms for pos in positions]
-    # positions = [pos for (_, positions) in model.atoms for pos in positions]
-
-    # Zygote complains about mutation when one uses chained for-comprehensions without bracketing
-    # TODO this should be avoided or moved into workarounds/chainrules.jl
-    charges   = [[charge_ionic(elem) for pos in positions] for (elem, positions) in model.atoms]
-    charges   = reduce(vcat, charges)
-    positions = [[pos for pos in positions] for (_, positions) in model.atoms]
-    positions = reduce(vcat, positions)
-
-    isempty(charges) && return zero(eltype(model.lattice))
+function energy_ewald(model::Model{T}; kwargs...) where {T}
+    isempty(model.atoms) && return zero(T)
 
     # DFTK currently assumes that the compensating charge in the electronic and nuclear
-    # terms is equal and of opposite sign. See also the PSP correction term, where n_electrons
-    # is used synonymously for sum of charges
+    # terms is equal and of opposite sign. See also the PSP correction term, where
+    # n_electrons is used synonymously for sum of charges
+    charges = T.(charge_ionic.(model.atoms))
     @assert sum(charges) == model.n_electrons
-    energy_ewald(model.lattice, charges, positions; kwargs...)
+    energy_ewald(model.lattice, charges, model.positions; kwargs...)
 end
 
 """
 Compute the electrostatic interaction energy per unit cell between point
 charges in a uniform background of compensating charge to yield net
-neutrality. the `lattice` and `recip_lattice` should contain the
+neutrality. The `lattice` and `recip_lattice` should contain the
 lattice and reciprocal lattice vectors as columns. `charges` and
 `positions` are the point charges and their positions (as an array of
 arrays) in fractional coordinates. If `forces` is not nothing, minus the derivatives
@@ -71,13 +50,12 @@ of the energy with respect to `positions` is computed.
 """
 function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
     T = eltype(lattice)
-
     for i=1:3
-        if norm(lattice[:,i]) == 0
-            ## TODO should something more clever be done here? For now
-            ## we assume that we are not interested in the Ewald
-            ## energy of non-3D systems
-            return T(0)
+        if iszero(lattice[:, i])
+            # TODO should something more clever be done here? For now
+            # we assume that we are not interested in the Ewald
+            # energy of non-3D systems
+            return zero(T)
         end
     end
     energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions; η, forces)
@@ -90,6 +68,8 @@ function shell_indices(ish)
     [[i,j,k] for i in -ish:ish for j in -ish:ish for k in -ish:ish if maximum(abs.([i,j,k])) == ish]
 end
 
+# This could be factorised with Pairwise, but its use of `atom_types` would slow down this
+# computationally intensive Ewald sums. So we leave it as it for now.
 function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positions; η=nothing, forces=nothing) where {T}
     @assert T == eltype(recip_lattice)
     @assert length(charges) == length(positions)
@@ -98,10 +78,13 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
         # with a slight bias towards reciprocal summation
         η = sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
     end
-    ChainRulesCore.@ignore_derivatives if forces !== nothing
-        @assert size(forces) == size(positions)
-        forces_real = copy(forces)
-        forces_recip = copy(forces)
+    
+    ChainRulesCore.@ignore_derivatives begin
+        if forces !== nothing
+            @assert size(forces) == size(positions)
+            forces_real = copy(forces)
+            forces_recip = copy(forces)
+        end
     end
 
     # Numerical cutoffs to obtain meaningful contributions. These are very conservative.
@@ -139,13 +122,15 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
             any_term_contributes = true
             sum_recip += sum_strucfac * exp(-exponent) / Gsq
 
-            ChainRulesCore.@ignore_derivatives if forces !== nothing
-                for (ir, r) in enumerate(positions)
-                    Z = charges[ir]
-                    dc = -Z*2T(π)*G*sin(2T(π) * dot(r, G))
-                    ds = +Z*2T(π)*G*cos(2T(π) * dot(r, G))
-                    dsum = 2cos_strucfac*dc + 2sin_strucfac*ds
-                    forces_recip[ir] -= dsum * exp(-exponent)/Gsq
+            ChainRulesCore.@ignore_derivatives begin 
+                if forces !== nothing
+                    for (ir, r) in enumerate(positions)
+                        Z = charges[ir]
+                        dc = -Z*2T(π)*G*sin(2T(π) * dot(r, G))
+                        ds = +Z*2T(π)*G*cos(2T(π) * dot(r, G))
+                        dsum = 2cos_strucfac*dc + 2sin_strucfac*ds
+                        forces_recip[ir] -= dsum * exp(-exponent)/Gsq
+                    end
                 end
             end
         end
@@ -153,8 +138,10 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
     end
     # Amend sum_recip by proper scaling factors:
     sum_recip *= 4T(π) / compute_unit_cell_volume(lattice)
-    ChainRulesCore.@ignore_derivatives if forces !== nothing
-        forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
+    ChainRulesCore.@ignore_derivatives begin
+        if forces !== nothing
+            forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
+        end
     end
 
     #
@@ -172,15 +159,13 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
         # Loop over R vectors for this shell patch
         for R in shell_indices(rsh)
             for i = 1:length(positions), j = 1:length(positions)
+                # Avoid self-interaction
+                rsh == 0 && i == j && continue
+
                 ti = positions[i]
                 Zi = charges[i]
                 tj = positions[j]
                 Zj = charges[j]
-
-                # Avoid self-interaction
-                if rsh == 0 && ti == tj
-                    continue
-                end
 
                 Δr = lattice * (ti - tj - R)
                 dist = norm(Δr)
@@ -193,22 +178,26 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
                 any_term_contributes = true
                 energy_contribution = Zi * Zj * erfc(η * dist) / dist
                 sum_real += energy_contribution
-                ChainRulesCore.@ignore_derivatives if forces !== nothing
-                    # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
-                    dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
-                    dE_ddist -= energy_contribution
-                    dE_ddist /= dist
-                    dE_dti = lattice' * ((dE_ddist / dist) * Δr)
-                    forces_real[i] -= dE_dti
-                    forces_real[j] += dE_dti
+                ChainRulesCore.@ignore_derivatives begin
+                    if forces !== nothing
+                        # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
+                        dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
+                        dE_ddist -= energy_contribution
+                        dE_ddist /= dist
+                        dE_dti = lattice' * ((dE_ddist / dist) * Δr)
+                        forces_real[i] -= dE_dti
+                        forces_real[j] += dE_dti
+                    end
                 end
             end # i,j
         end # R
         rsh += 1
     end
     energy = (sum_recip + sum_real) / 2  # Divide by 2 (because of double counting)
-    ChainRulesCore.@ignore_derivatives if forces !== nothing
-        forces .= (forces_recip .+ forces_real) ./ 2
+    ChainRulesCore.@ignore_derivatives begin
+        if forces !== nothing
+            forces .= (forces_recip .+ forces_real) ./ 2
+        end
     end
     energy
 end

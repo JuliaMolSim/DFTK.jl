@@ -92,24 +92,25 @@ lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
+atoms = [Si, Si]
+positions = [ones(3)/8, -ones(3)/8]
 Ecut = 5
 kgrid = [4, 4, 4]
 ```
 Let us demonstrate this in practice.
-We consider silicon, setup appropriately in the `lattice` and `atoms` objects
-as in [Tutorial](@ref) and to reach a fast execution, we take a small `Ecut` of `5`
+We consider silicon, setup appropriately in the `lattice`, `atoms` and `positions`
+objects as in [Tutorial](@ref) and to reach a fast execution, we take a small `Ecut` of `5`
 and a `[4, 4, 4]` Monkhorst-Pack grid.
 First we perform the DFT calculation disabling symmetry handling
 ```@example symmetries
-model_nosym = model_LDA(lattice, atoms; symmetries=false)
+model_nosym = model_LDA(lattice, atoms, positions; symmetries=false)
 basis_nosym = PlaneWaveBasis(model_nosym; Ecut, kgrid)
 scfres_nosym = @time self_consistent_field(basis_nosym, tol=1e-8)
 nothing  # hide
 ```
 and then redo it using symmetry (the default):
 ```@example symmetries
-model_sym = model_LDA(lattice, atoms)
+model_sym = model_LDA(lattice, atoms, positions)
 basis_sym = PlaneWaveBasis(model_sym; Ecut, kgrid)
 scfres_sym = @time self_consistent_field(basis_sym, tol=1e-8)
 nothing  # hide
@@ -137,20 +138,15 @@ using LinearAlgebra  # hide
  norm(values(scfres_sym.energies) .- values(scfres_nosym.energies)))
 ```
 
-To demonstrate the mapping between `k`-points due to symmetry,
-we pick an arbitrary `k`-point in the irreducible Brillouin zone:
+The symmetries can be used to map reducible to irreducible points:
 ```@example symmetries
-ikpt_irred = 2
-kpt_irred_coord = basis_sym.kpoints[ikpt_irred].coordinate
-basis_sym.ksymops[ikpt_irred]
+ikpt_red = rand(1:length(basis_nosym.kpoints))
+# find a (non-unique) corresponding irreducible point in basis_nosym,
+# and the symmetry that relates them
+ikpt_irred, symop = DFTK.unfold_mapping(basis_sym, basis_nosym.kpoints[ikpt_red])
+[basis_sym.kpoints[ikpt_irred].coordinate symop.S * basis_nosym.kpoints[ikpt_red].coordinate]
 ```
-This is a list of all symmetries operations ``(S, \tau)``
-that can be used to map this irreducible ``k``-point to reducible ``k``-points.
-Let's pick the third symmetry operation of this ``k``-point and check.
+The eigenvalues match also:
 ```@example symmetries
-symop = basis_sym.ksymops[ikpt_irred][3]
-kpt_red_coord = symop.S * basis_sym.kpoints[ikpt_irred].coordinate
-ikpt_red = findfirst(kcoord -> kcoord ≈ kpt_red_coord,
-                     [k.coordinate for k in basis_nosym.kpoints])
 [scfres_sym.eigenvalues[ikpt_irred] scfres_nosym.eigenvalues[ikpt_red]]
 ```

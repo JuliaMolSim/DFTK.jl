@@ -6,7 +6,7 @@ using LinearAlgebra: norm
 
 include("testcases.jl")
 
-function test_chi0(testcase; symmetry=false, temperature=0,
+function test_chi0(testcase; symmetries=false, temperature=0,
                    spin_polarization=:none, eigensolver=lobpcg_hyper, Ecut=10,
                    kgrid=[3, 1, 1], fft_size=[15, 1, 15], compute_full_χ0=false)
 
@@ -21,32 +21,31 @@ function test_chi0(testcase; symmetry=false, temperature=0,
     label = [
         is_metal        ? "    metal" : "insulator",
         eigsol          ? "   lobpcg" : "full diag",
-        symmetry        ? "   symm" : "no symm",
+        symmetries      ? "   symm" : "no symm",
         temperature > 0 ? "temp" : "  0K",
         collinear       ? "coll" : "none",
     ]
     @testset "Computing χ0 ($(join(label, ", ")))" begin
         spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-        magnetic_moments = collinear ? [spec => [0.3, 0.7]] : []
-        model_kwargs = (temperature=temperature, symmetries=symmetry,
-                        magnetic_moments=magnetic_moments,
-                        spin_polarization=spin_polarization)
-        basis_kwargs = (kgrid=kgrid, fft_size=fft_size)
+        magnetic_moments = collinear ? [0.3, 0.7] : []
+        model_kwargs = (; temperature, symmetries, magnetic_moments, spin_polarization)
+        basis_kwargs = (; kgrid, fft_size, Ecut)
 
-        model = model_LDA(testcase.lattice, [spec => testcase.positions]; model_kwargs...)
-        basis = PlaneWaveBasis(model; Ecut, basis_kwargs...)
+        model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
+                          model_kwargs...)
+        basis = PlaneWaveBasis(model; basis_kwargs...)
         ρ0 = guess_density(basis, magnetic_moments)
         energies, ham0 = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
         res = DFTK.next_density(ham0; tol, n_ep_extra, eigensolver)
         occ, εF = DFTK.compute_occupation(basis, res.eigenvalues)
-        scfres = (ham=ham0, res..., n_ep_extra=n_ep_extra)
+        scfres = (ham=ham0, res..., n_ep_extra)
 
         # create external small perturbation εδV
         n_spin = model.n_spin_components
         δV = randn(eltype(basis), basis.fft_size..., n_spin)
         mpi_mean!(δV, MPI.COMM_WORLD)
         δV_sym = DFTK.symmetrize_ρ(basis, δV, symmetries=model.symmetries)
-        if symmetry
+        if symmetries
             δV = δV_sym
         else
             @test δV_sym ≈ δV
@@ -54,9 +53,9 @@ function test_chi0(testcase; symmetry=false, temperature=0,
 
         function compute_ρ_FD(ε)
             term_builder = basis -> DFTK.TermExternal(ε * δV)
-            model = model_LDA(testcase.lattice, [spec => testcase.positions];
+            model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
                               model_kwargs..., extra_terms=[term_builder])
-            basis = PlaneWaveBasis(model; Ecut, basis_kwargs...)
+            basis = PlaneWaveBasis(model; basis_kwargs...)
             energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
             res = DFTK.next_density(ham; tol, n_ep_extra, eigensolver)
             res.ρout
@@ -73,12 +72,11 @@ function test_chi0(testcase; symmetry=false, temperature=0,
 
         # just to cover it here
         if temperature > 0
-            N = compute_nos(εF, basis, res.eigenvalues)
             D = compute_dos(εF, basis, res.eigenvalues)
             LDOS = compute_ldos(εF, basis, res.eigenvalues, res.ψ)
         end
 
-        if !symmetry
+        if !symmetries
             #  Test compute_χ0 against finite differences
             #  (only works in reasonable time for small Ecut)
             if compute_full_χ0
@@ -103,15 +101,15 @@ end
 @testset "Computing χ0" begin
     for (case, temperatures) in [(silicon, (0, 0.03)), (magnesium, (0.01, ))]
         for temperature in temperatures, spin_polarization in (:none, :collinear)
-            for symmetry in (false, true)
-                test_chi0(case; symmetry, temperature, spin_polarization)
+            for symmetries in (false, true)
+                test_chi0(case; symmetries, temperature, spin_polarization)
             end
         end
     end
 
     # additional test for compute_χ0
     for spin_polarization in (:none, :collinear)
-        test_chi0(silicon; symmetry=false, spin_polarization,
+        test_chi0(silicon; symmetries=false, spin_polarization,
                   eigensolver=diag_full, Ecut=3, fft_size=[10, 1, 10],
                   compute_full_χ0=true)
     end

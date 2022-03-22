@@ -13,9 +13,10 @@ normalize_kpoint_coordinate(k::AbstractVector) = normalize_kpoint_coordinate.(k)
 """Construct the coordinates of the ``k``-points in a (shifted) Monkorst-Pack grid"""
 function kgrid_monkhorst_pack(kgrid_size; kshift=[0, 0, 0])
     kgrid_size = Vec3{Int}(kgrid_size)
-    start = -floor.(Int, (kgrid_size .- 1) ./ 2)
-    stop  = ceil.(Int, (kgrid_size .- 1) ./ 2)
-    kshift = Vec3{Rational{Int}}(kshift)
+    kshift     = Vec3{Rational{Int}}(kshift)
+
+    start   = -floor.(Int, (kgrid_size .- 1) ./ 2)
+    stop    = ceil.(Int, (kgrid_size .- 1) ./ 2)
     kcoords = [(kshift .+ Vec3([i, j, k])) .// kgrid_size
                for i=start[1]:stop[1], j=start[2]:stop[2], k=start[3]:stop[3]]
     vec(normalize_kpoint_coordinate.(kcoords))
@@ -26,120 +27,82 @@ end
     bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
 
 Construct a (shifted) uniform Brillouin zone mesh for sampling the ``k``-points.
-The function returns a tuple `(kcoords, ksymops)`, where `kcoords` are the list
-of ``k``-points and `ksymops` are a list of symmetry operations (for interface
-compatibility with `PlaneWaveBasis` and `bzmesh_irreducible`. No symmetry
-reduction is attempted, such that there will be `prod(kgrid_size)` ``k``-points
-returned and all symmetry operations are the identity.
+Returns all ``k``-point coordinates, appropriate weights and the identity SymOp.
 """
 function bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
     kcoords = kgrid_monkhorst_pack(kgrid_size; kshift=kshift)
-    kcoords, [[one(SymOp)] for _ in 1:length(kcoords)], [one(SymOp)]
+    kcoords, ones(length(kcoords)) ./ length(kcoords), [one(SymOp)]
 end
 
 
 @doc raw"""
      bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
 
-Construct the irreducible wedge of a uniform Brillouin zone mesh for sampling ``k``-points.
-The function returns a tuple `(kcoords, ksymops)`, where `kcoords` are the list of
-irreducible ``k``-points and `ksymops` are a list of symmetry operations for regenerating
-the full mesh. `symmetries` is the tuple returned from
-`symmetry_operations(lattice, atoms, magnetic_moments)`.
-`tol_symmetry` is the tolerance used for searching for symmetry operations.
+Construct the irreducible wedge of a uniform Brillouin zone mesh for sampling ``k``-points,
+given the crystal symmetries `symmetries`. Returns the list of irreducible ``k``-point
+(fractional) coordinates, the associated weights adn the new `symmetries` compatible with
+the grid.
 """
 function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size; kshift)
+
+    # Filter those symmetry operations (S, τ) that preserve the MP grid
+    kcoords_mp = kgrid_monkhorst_pack(kgrid_size; kshift)
+    symmetries = symmetries_preserving_kgrid(symmetries, kcoords_mp)
 
     # Transform kshift to the convention used in spglib:
     #    If is_shift is set (i.e. integer 1), then a shift of 0.5 is performed,
     #    else no shift is performed along an axis.
     kshift = Vec3{Rational{Int}}(kshift)
-    all(ks in (0, 1//2) for ks in kshift) || error("Only kshifts of 0 or 1//2 implemented.")
-
-    kpoints_mp = kgrid_monkhorst_pack(kgrid_size, kshift=kshift)
-
-    # Filter those symmetry operations (S,τ) that preserve the MP grid
-    symmetries = symmetries_preserving_kgrid(symmetries, kpoints_mp)
+    is_shift = map(kshift) do ks
+        ks in (0, 1//2) || error("Only kshifts of 0 or 1//2 implemented.")
+        convert(Int, 2 * ks)
+    end
 
     # Give the remaining symmetries to spglib to compute an irreducible k-point mesh
     # TODO implement time-reversal symmetry and turn the flag to true
-    is_shift = Int.(2 * kshift)
-    Ws = [symop.S' for symop in symmetries]
+    Ws = [symop.W for symop in symmetries]
     _, mapping, grid = spglib_get_stabilized_reciprocal_mesh(
-        kgrid_size, Ws, is_shift=is_shift, is_time_reversal=false
+        kgrid_size, Ws; is_shift, is_time_reversal=false
     )
     # Convert irreducible k-points to DFTK conventions
     kgrid_size = Vec3{Int}(kgrid_size)
-    kirreds = [(kshift .+ grid[ik + 1]) .// kgrid_size
-               for ik in unique(mapping)]
+    kirreds = [(kshift .+ grid[ik + 1]) .// kgrid_size for ik in unique(mapping)]
     kirreds = normalize_kpoint_coordinate.(kirreds)
 
     # Find the indices of the corresponding reducible k-points in `grid`, which one of the
     # irreducible k-points in `kirreds` generates.
     k_all_reducible = [findall(isequal(elem), mapping) for elem in unique(mapping)]
 
-    # This list collects a list of extra reducible k-points, which could not be
-    # mapped to any irreducible k-point yet even though spglib claims this can be done.
-    # This happens because spglib actually fails for non-ideal cases, resulting
+    # Number of reducible k-points represented by the irreducible k-point `kirreds[ik]`
+    n_equivalent_k = length.(k_all_reducible)
+    @assert sum(n_equivalent_k) == prod(kgrid_size)
+    kweights = n_equivalent_k / sum(n_equivalent_k)
+
+    # This loop checks for reducible k-points, which could not be mapped to any irreducible
+    # k-point yet even though spglib claims this can be done.
+    # This happens because spglib actually fails for some non-ideal lattices, resulting
     # in *wrong results* being returned. See the discussion in
     # https://github.com/spglib/spglib/issues/101
-    kreds_notmapped = empty(kirreds)
+    for (iks_reducible, k) in zip(k_all_reducible, kirreds), ikred in iks_reducible
+        kred = (kshift .+ grid[ikred]) .// kgrid_size
 
-    # ksymops will be the list of symmetry operations (for each irreducible k-point)
-    # needed to do the respective mapping irreducible -> reducible to get the respective
-    # entry in `k_all_reducible`.
-    ksymops = Vector{Vector{SymOp}}(undef, length(kirreds))
-    for (ik, k) in enumerate(kirreds)
-        ksymops[ik] = Vector{SymOp}()
-        for ired in k_all_reducible[ik]
-            kred = (kshift .+ grid[ired]) .// kgrid_size
+        found_mapping = any(symmetries) do symop
+            # If the difference between kred and W' * k == W^{-1} * k
+            # is only integer in fractional reciprocal-space coordinates, then
+            # kred and S' * k are equivalent k-points
+            all(isinteger, kred - (symop.S * k))
+        end
 
-            # Note that this relies on the identity coming up first in symmetries
-            isym = findfirst(symmetries) do symop
-                # If the difference between kred and W' * k == W^{-1} * k
-                # is only integer in fractional reciprocal-space coordinates, then
-                # kred and S' * k are equivalent k-points
-                all(isinteger, kred - (symop.S * k))
-            end
-
-            if isym === nothing  # No symop found for $k -> $kred
-                push!(kreds_notmapped, normalize_kpoint_coordinate(kred))
-            else
-                push!(ksymops[ik], symmetries[isym])
-            end
+        if !found_mapping
+            error("The reducible k-point $kred could not be generated from " *
+                  "the irreducible kpoints. This points to a bug in spglib.")
         end
     end
 
-    if !isempty(kreds_notmapped)
-        # add them as reducible anyway
-        Ws = [ symop.S'           for symop in symmetries]
-        ws = [-symop.S' * symop.τ for symop in symmetries]
-        eirreds, esymops = find_irreducible_kpoints(kreds_notmapped, Ws, ws)
-        @info("$(length(kreds_notmapped)) reducible kpoints could not be generated from " *
-              "the irreducible kpoints returned by spglib. $(length(eirreds)) of " *
-              "these are added as extra irreducible kpoints.")
-
-        append!(kirreds, eirreds)
-        append!(ksymops, esymops)
-    end
-
-    # The symmetry operation (S == I and τ == 0) should be present for each k-point
-    @assert all(findfirst(symop -> symop == one(SymOp), ops) !== nothing
-                for ops in ksymops)
-
-    kirreds, ksymops, symmetries
+    kirreds, kweights, symmetries
 end
 
-
-@doc raw"""
-Apply various standardisations to a lattice and a list of atoms. It uses spglib to detect
-symmetries (within `tol_symmetry`), then cleans up the lattice according to the symmetries
-(unless `correct_symmetry` is `false`) and returns the resulting standard lattice
-and atoms. If `primitive` is `true` (default) the primitive unit cell is returned, else
-the conventional unit cell is returned.
-"""
-const standardize_atoms = spglib_standardize_cell
 
 # TODO Maybe maximal spacing is actually a better name as the kpoints are spaced
 #      at most that far apart

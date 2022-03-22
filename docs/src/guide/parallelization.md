@@ -10,9 +10,10 @@ lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
+atoms = [Si, Si]
+positions = [ones(3)/8, -ones(3)/8]
 
-model = model_LDA(lattice, atoms)
+model = model_LDA(lattice, atoms, positions)
 basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
 
 DFTK.reset_timer!(DFTK.timer)

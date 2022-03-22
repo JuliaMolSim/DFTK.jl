@@ -14,18 +14,18 @@ a = 5.42352  # Bohr
 lattice = a / 2 * [[-1  1  1];
                    [ 1 -1  1];
                    [ 1  1 -1]]
-Fe = ElementPsp(:Fe, psp=load_psp("hgh/lda/Fe-q8.hgh"))
-atoms = [Fe => [zeros(3)]];
+atoms     = [ElementPsp(:Fe, psp=load_psp("hgh/lda/Fe-q8.hgh"))]
+positions = [zeros(3)]
 
 # To get the ground-state energy we use an LDA model and rather moderate
 # discretisation parameters.
 
 kgrid = [3, 3, 3]  # k-point grid (Regular Monkhorst-Pack grid)
 Ecut = 15          # kinetic energy cutoff in Hartree
-model_nospin = model_LDA(lattice, atoms, temperature=0.01)
+model_nospin = model_LDA(lattice, atoms, positions, temperature=0.01)
 basis_nospin = PlaneWaveBasis(model_nospin; kgrid, Ecut)
 
-scfres_nospin = self_consistent_field(basis_nospin, tol=1e-6, mixing=KerkerDosMixing());
+scfres_nospin = self_consistent_field(basis_nospin; tol=1e-6, mixing=KerkerDosMixing());
 #-
 scfres_nospin.energies
 
@@ -44,7 +44,7 @@ scfres_nospin.energies
 # The structure (i.e. pair mapping and order) of the `magnetic_moments` array needs to agree
 # with the `atoms` array and `0` magnetic moments need to be specified as well.
 
-magnetic_moments = [Fe => [4, ]];
+magnetic_moments = [4];
 
 # !!! tip "Units of the magnetisation and magnetic moments in DFTK"
 #     Unlike all other quantities magnetisation and magnetic moments in DFTK
@@ -56,7 +56,7 @@ magnetic_moments = [Fe => [4, ]];
 # We repeat the calculation using the same model as before. DFTK now detects
 # the non-zero moment and switches to a collinear calculation.
 
-model = model_LDA(lattice, atoms, magnetic_moments=magnetic_moments, temperature=0.01)
+model = model_LDA(lattice, atoms, positions; magnetic_moments, temperature=0.01)
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 ρ0 = guess_density(basis, magnetic_moments)
 scfres = self_consistent_field(basis, tol=1e-6; ρ=ρ0, mixing=KerkerDosMixing());

@@ -8,16 +8,17 @@ using Random
 Random.seed!(0)
 
 function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2, 3],
-                               lattice=silicon.lattice, Ecut=10, spin_polarization=:none)
+                               kshift=[0, 1, 0]/2, lattice=silicon.lattice,
+                               Ecut=10, spin_polarization=:none)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
         n_dim = 3 - count(iszero, eachcol(lattice))
         Si = n_dim == 3 ? ElementPsp(14, psp=load_psp(silicon.psp)) : ElementCoulomb(:Si)
-        atoms = [Si => silicon.positions]
-        model = Model(lattice; n_electrons=silicon.n_electrons, atoms, terms=[term],
-                      spin_polarization, symmetries=true)
-        basis = PlaneWaveBasis(model; Ecut, kgrid)
+        atoms = [Si, Si]
+        model = Model(lattice, atoms, silicon.positions; n_electrons=silicon.n_electrons,
+                      terms=[term], spin_polarization, symmetries=true)
+        basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
 
         n_electrons = silicon.n_electrons
         n_bands = div(n_electrons, 2, RoundUp)
@@ -85,9 +86,9 @@ end
         pot(x, y, z) = (x - a/2)^2 + (y - a/2)^2
         Apot(x, y, z) = .2 * [y - a/2, -(x - a/2), 0]
         Apot(X) = Apot(X...)
-        test_consistency_term(Magnetic(Apot);
-                              kgrid=[1, 1, 1], lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
-        test_consistency_term(DFTK.Anyonic(2, 3.2);
-                              kgrid=[1, 1, 1], lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
+        test_consistency_term(Magnetic(Apot); kgrid=[1, 1, 1], kshift=[0, 0, 0],
+                              lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
+        test_consistency_term(DFTK.Anyonic(2, 3.2); kgrid=[1, 1, 1], kshift=[0, 0, 0],
+                              lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
     end
 end

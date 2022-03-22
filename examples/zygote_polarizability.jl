@@ -7,7 +7,8 @@ using Zygote
 ## Construct PlaneWaveBasis given a particular electric field strength
 ## Again we take the example of a Helium atom.
 He = ElementPsp(:He, psp=load_psp("hgh/lda/He-q2"))
-atoms = [He => [[1/2; 1/2; 1/2]]]  # Helium at the center of the box
+atoms = [He]  # Helium at the center of the box
+positions = [[1/2; 1/2; 1/2]]
 function make_basis(ε::T; a=10., Ecut=5) where T  # too small Ecut, only for efficient debugging
     lattice=T(a) * Mat3(I(3))  # lattice is a cube of ``a`` Bohrs
     # model = model_DFT(lattice, atoms, [:lda_x, :lda_c_vwn];
@@ -26,8 +27,7 @@ function make_basis(ε::T; a=10., Ecut=5) where T  # too small Ecut, only for ef
         ExternalFromReal(r -> -ε * (r[1] - a/2)),
         # XC
     ]
-    # model = Model(lattice, atoms, terms; temperature=1e-3, symmetries=false)
-    model = Model(lattice, atoms, terms; symmetries=false)
+    model = Model(lattice, atoms, positions; terms, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])  # No k-point sampling on isolated system
 end
 
@@ -54,12 +54,13 @@ polarizability_fd = let
     ε = 0.001
     (compute_dipole(ε) - f) / ε
 end
-# 8.08068504649102
+# 8.08068504649102    # 0.5 seconds (121.70 k allocations: 180.000 MiB)
 
 g = Zygote.gradient(compute_dipole, 0.0)
-# 8.08068504649102
+# 8.084399146013764,
 # incl. compile time: 229 seconds
-# second call:         40 seconds
+# second call:          4 seconds (7.84 M allocations: 733.864 MiB, 25.31% gc time)
+
 
 println("f: ", f, " fd: ", polarizability_fd, " AD: ", g)
 

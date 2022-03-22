@@ -51,10 +51,11 @@ function energy_per_particle(::Val{:gga_x_pbefe}, ρ, σ)
 end
 
 function energy_per_particle_x_pbe(ρ, σ; κ, μ) # eqns refer to PBE paper
-    pbe_x_f(s) = 1 + κ - κ^2 / (κ + μ * s^2)   # (14)
+    pbe_x_f(s²) = 1 + κ - κ^2 / (κ + μ * s²)   # (14)
     # rₛ = cbrt(3 / (4π  * ρ))                 # page 2, left column, top
     # kF = cbrt(3π^2 * ρ)                      # page 2, left column, top
     # s  = sqrt(σ) / (2kF * ρ)                 # below (9)
-    s = sqrt(σ) / ( ρ^(4/3) * 2cbrt(3π^2) )
-    energy_per_particle(Val(:lda_x), ρ) * pbe_x_f(s)  # (10)
+    s² = σ / ( ρ^(4/3) * 2cbrt(3π^2) )^2
+
+    energy_per_particle(Val(:lda_x), ρ) * pbe_x_f(s²)  # (10)
 end

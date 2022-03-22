@@ -59,7 +59,7 @@ pyimport("ase.io").write("surface.png", surface * (3, 3, 1),
 #md # ```
 #nb # <img src="surface.png" width=500 height=500 />
 
-# Use the `load_atoms` and `load_lattice` functions
+# Use the `load_atoms`, `load_positions` and `load_lattice` functions
 # to convert to DFTK datastructures.
 # These two functions not only support importing ASE atoms into DFTK,
 # but a few more third-party datastructures as well.
@@ -69,15 +69,15 @@ pyimport("ase.io").write("surface.png", surface * (3, 3, 1),
 using DFTK
 
 atoms = load_atoms(surface)
-atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="pbe")) => position
-         for (el, position) in atoms]
+atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="pbe")) for el in atoms]
+positions = load_positions(surface)
 lattice = load_lattice(surface);
 
 # We model this surface with (quite large a) temperature of 0.01 Hartree
 # to ease convergence. Try lowering the SCF convergence tolerance (`tol`)
 # or the `temperature` or try `mixing=KerkerMixing()`
 # to see the full challenge of this system.
-model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe],
+model = model_DFT(lattice, atoms, positions, [:gga_x_pbe, :gga_c_pbe],
                   temperature=0.001, smearing=DFTK.Smearing.Gaussian())
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 

@@ -26,9 +26,10 @@
 
 using DFTK
 
-qe_input = "Fe_afm.pwi"
-atoms    = load_atoms(qe_input)
-lattice  = load_lattice(qe_input)
+qe_input  = "Fe_afm.pwi"
+atoms     = load_atoms(qe_input)
+positions = load_positions(qe_input)
+lattice   = load_lattice(qe_input)
 magnetic_moments = load_magnetic_moments(qe_input)
 
 # At this point a file of any format supported by ASE could be passed instead,
@@ -39,12 +40,11 @@ magnetic_moments = load_magnetic_moments(qe_input)
 # not exposed inside the ASE datastructures.
 # See [Creating slabs with ASE](@ref) for more details.
 
-atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="pbe")) => position
-         for (el, position) in atoms];
+atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="pbe")) for el in atoms]
 
 # Finally we run the calculation.
 
-model = model_LDA(lattice, atoms, magnetic_moments=magnetic_moments, temperature=0.01)
+model = model_LDA(lattice, atoms, positions; magnetic_moments, temperature=0.01)
 basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 2, 2))
 ρ0 = guess_density(basis, magnetic_moments)
 scfres = self_consistent_field(basis, tol=1e-4, ρ=ρ0, mixing=KerkerMixing());
