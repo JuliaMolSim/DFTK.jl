@@ -105,8 +105,7 @@ function build_projection_coefficients_(T, psps, psp_positions)
     if n_proj > 0
         # avoid nested for (contains mutation)
         blocks = [[build_projection_coefficients_(psp) for r in positions] for (psp, positions) in zip(psps, psp_positions)]
-        proj_coeffs = reduce(assemble_block_matrix_, reduce(vcat, blocks))
-        return proj_coeffs
+        return reduce(assemble_block_matrix_, reduce(vcat, blocks))
     else
         return zeros(T, 0, 0)
     end
@@ -164,8 +163,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
             
             return reduce(hcat, reduce(vcat, cols))
         end
-        proj_vectors = reduce(hcat, [build_columns(psp, positions) for (psp, positions) in zip(psps, psp_positions)])
-        return proj_vectors
+        return reduce(hcat, [build_columns(psp, positions) for (psp, positions) in zip(psps, psp_positions)])
     else
         return zeros(Complex{T}, n_G, n_proj)
     end
@@ -189,8 +187,7 @@ function build_form_factors(psp, qs)
         end
         # for avoid nested for loop for Zygote compat
         form_factors = reduce(vcat, [[build_factor(l,m) for m in -l:l] for l in 0:psp.lmax]) # build
-        form_factors = reduce(hcat, form_factors) # concat horizontally
-        return form_factors
+        return reduce(hcat, form_factors) # concat horizontally
     else
         return zeros(Complex{T}, length(qs), count_n_proj(psp))
     end
