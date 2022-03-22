@@ -37,7 +37,7 @@ function make_basis_model(ε::T; a=10., Ecut=30) where T
         ExternalFromReal(r -> -ε * (r[1] - a/2)),
         Xc([:lda_x, :lda_c_vwn])
     ]
-    model = Model(lattice, atoms, position; terms, symmetries=false)
+    model = Model(lattice, atoms, positions; terms, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])  # No k-point sampling on isolated system
 end
 
@@ -51,7 +51,7 @@ end
 
 ## Function to compute the dipole for a given field strength
 function compute_dipole(ε; tol=1e-8, kwargs...)
-    scfres = self_consistent_field(make_basis(ε; kwargs...), tol=tol)
+    scfres = self_consistent_field(make_basis_model(ε; kwargs...), tol=tol)
     dipole(scfres.basis, scfres.ρ)
 end;
 
