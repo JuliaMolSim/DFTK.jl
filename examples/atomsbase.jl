@@ -2,7 +2,6 @@ using DFTK
 using AtomsBase
 using Unitful
 using UnitfulAtomic
-using PyCall
 
 # Construct system in the AtomsBase world
 a = 10.26u"bohr"  # Silicon lattice constant
