@@ -45,7 +45,7 @@ import DFTK: compute_pspmap
     for constructor in (Model, model_atomic, model_LDA, model_PBE, model_SCAN)
         model = constructor(system)
         @test model.spin_polarization == :collinear
-        newsys = atomic_system(model, magnetic_moments)
+        newsys = periodic_system(model, magnetic_moments)
 
         @test atomic_symbol(system)       == atomic_symbol(newsys)
         @test bounding_box(system)        == bounding_box(newsys)
