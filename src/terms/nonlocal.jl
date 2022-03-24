@@ -100,14 +100,15 @@ function build_projection_coefficients_(T, psps, psp_positions)
     # TODO In the current version the proj_coeffs still has a lot of zeros.
     #      One could improve this by storing the blocks as a list or in a
     #      BlockDiagonal data structure
-    proj_coeffs = zeros(T, 0, 0)
     n_proj = count_n_proj(psps, psp_positions)
+    
     if n_proj > 0
         # avoid nested for (contains mutation)
         blocks = [[build_projection_coefficients_(psp) for r in positions] for (psp, positions) in zip(psps, psp_positions)]
-        proj_coeffs = reduce(assemble_block_matrix_, reduce(vcat, blocks))
+        return reduce(assemble_block_matrix_, reduce(vcat, blocks))
+    else
+        return zeros(T, 0, 0)
     end
-    proj_coeffs
 end
 
 
@@ -142,7 +143,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
                                    psps, psp_positions) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
     n_proj = count_n_proj(psps, psp_positions)
-    proj_vectors = zeros(Complex{T}, 0, 0)
+    n_G    = length(G_vectors(basis, kpt))
     
     # Compute the columns of proj_vectors = 1/√Ω pihat(k+G)
     # Since the pi are translates of each others, pihat(k+G) decouples as
@@ -162,10 +163,10 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
             
             return reduce(hcat, reduce(vcat, cols))
         end
-        proj_vectors = reduce(hcat, [build_columns(psp, positions) for (psp, positions) in zip(psps, psp_positions)])
+        return reduce(hcat, [build_columns(psp, positions) for (psp, positions) in zip(psps, psp_positions)])
+    else
+        return zeros(Complex{T}, n_G, n_proj)
     end
-    #@assert offset == n_proj
-    proj_vectors
 end
 
 """
@@ -175,18 +176,19 @@ function build_form_factors(psp, qs)
     qnorms = norm.(qs)
     T = real(eltype(qnorms))
     # Compute position-independent form factors
+    if psp.lmax > 0
+        function build_factor(l,m)
+            prefac_lm = im^l .* ylm_real.(l, m, qs)
+            n_proj_l = size(psp.h[l + 1], 1)
 
-    function build_factor(l,m)
-        prefac_lm = im^l .* ylm_real.(l, m, qs)
-        n_proj_l = size(psp.h[l + 1], 1)
+            form_factors_local = reduce(hcat, [prefac_lm .* eval_psp_projector_fourier.(psp, iproj, l, qnorms) for iproj in 1:n_proj_l])
 
-        form_factors_local = reduce(hcat, [prefac_lm .* eval_psp_projector_fourier.(psp, iproj, l, qnorms) for iproj in 1:n_proj_l])
-
-        form_factors_local
+            form_factors_local
+        end
+        # for avoid nested for loop for Zygote compat
+        form_factors = reduce(vcat, [[build_factor(l,m) for m in -l:l] for l in 0:psp.lmax]) # build
+        return reduce(hcat, form_factors) # concat horizontally
+    else
+        return zeros(Complex{T}, length(qs), count_n_proj(psp))
     end
-    # for avoid nested for loop for Zygote compat
-    form_factors = reduce(vcat, [[build_factor(l,m) for m in -l:l] for l in 0:psp.lmax]) # build
-    form_factors = reduce(hcat, form_factors) # concat horizontally
-
-    form_factors
 end
