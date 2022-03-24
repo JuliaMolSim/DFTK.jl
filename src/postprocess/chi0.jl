@@ -253,7 +253,7 @@ end
     model = basis.model
     temperature = model.temperature
     filled_occ = filled_occupation(model)
-    T      = eltype(basis)
+    T = eltype(basis)
     Nk = length(basis.kpoints)
 
     # First compute δεF
