@@ -42,18 +42,3 @@ function diameter(lattice::AbstractMatrix)
     end
     diam
 end
-
-"""
-Returns the sum formula of the atoms list as a string.
-"""
-function chemical_formula(atoms)
-    symbols = atomic_symbol.(atoms)
-    element_count = Dict(sym => count(isequal(sym), symbols) for sym in Set(symbols))
-    formula = join(string(elem) * string(element_count[elem])
-                      for elem in sort(collect(keys(element_count))))
-    for i in 0:9
-        formula = replace(formula, ('0' + i) => ('₀' + i))
-    end
-    formula
-end
-chemical_formula(model::Model) = chemical_formula(model.atoms)

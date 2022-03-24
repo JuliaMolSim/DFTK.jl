@@ -1,10 +1,11 @@
 name = "DFTK"
 uuid = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
 authors = ["Michael F. Herbst <info@michael-herbst.com>", "Antoine Levitt <antoine.levitt@inria.fr>"]
-version = "0.4.7"
+version = "0.5.0"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
+AtomsBase = "a963bdd2-2df7-4f54-a1ee-49d51e6be12a"
 BlockArrays = "8e7c35d0-a365-5155-bbbb-fb81a777f24e"
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
@@ -46,6 +47,7 @@ spglib_jll = "ac4a9f1e-bdb2-5204-990c-47c8b2f70d4e"
 
 [compat]
 AbstractFFTs = "1"
+AtomsBase = "0.2.2"
 BlockArrays = "0.16.2"
 Brillouin = "0.5"
 Conda = "1"
