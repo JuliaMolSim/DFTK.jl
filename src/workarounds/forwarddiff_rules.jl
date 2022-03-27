@@ -160,7 +160,7 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
 end
 
 function self_consistent_field(basis_dual::PlaneWaveBasis{T};
-                               response=(; verbose=false, occupation_threshold=1e-10),
+                               response=ResponseOptions(),
                                kwargs...) where T <: ForwardDiff.Dual
     # Note: No guarantees on this interface yet.
 

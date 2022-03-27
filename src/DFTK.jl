@@ -119,6 +119,7 @@ export scf_damping_solver
 export scf_anderson_solver
 export scf_CROP_solver
 export self_consistent_field
+export ResponseOptions
 export direct_minimization
 export newton
 export load_scfres, save_scfres

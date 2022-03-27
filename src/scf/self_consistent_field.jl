@@ -1,5 +1,12 @@
 include("scf_callbacks.jl")
 
+# Struct to store some options for forward-diff / reverse-diff response
+# (unused in primal calculations)
+@kwdef struct ResponseOptions
+    verbose = false
+    occupation_threshold = 1e-10
+end
+
 function default_n_bands(model)
     min_n_bands = div(model.n_electrons, filled_occupation(model), RoundUp)
     n_extra = model.temperature == 0 ? 0 : max(4, ceil(Int, 0.2 * min_n_bands))
@@ -52,8 +59,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        is_converged=ScfConvergenceEnergy(tol),
                                        callback=ScfDefaultCallback(; show_damping=false),
                                        compute_consistent_energies=true,
-                                       response=(; )  # Dummy here, only needed
-                                                      # for forward-diff.
+                                       response=ResponseOptions()  # Dummy here, only needed
+                                                                   # for forward-diff.
                                       )
     T = eltype(basis)
     model = basis.model
