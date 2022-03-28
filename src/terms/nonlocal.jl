@@ -66,7 +66,7 @@ end
             form_factors = build_form_factors(element.psp, qs_cart)
             for idx in group
                 r = model.positions[idx]
-                structure_factors = [cis(-2T(π) * dot(q, r)) for q in qs]
+                structure_factors = [cis2pi(-dot(q, r)) for q in qs]
                 P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
 
                 forces[idx] += map(1:3) do α
@@ -160,7 +160,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
         # Combine with structure factors
         for r in positions
             # k+G in this formula can also be G, this only changes an unimportant phase factor
-            structure_factors = map(q -> cis(-2T(π) * dot(q, r)), Gplusk_vectors(basis, kpt))
+            structure_factors = map(q -> cis2pi(-dot(q, r)), Gplusk_vectors(basis, kpt))
             @views for iproj = 1:count_n_proj(psp)
                 proj_vectors[:, offset+iproj] .= (
                     structure_factors .* form_factors[:, iproj] ./ sqrt(unit_cell_volume)
