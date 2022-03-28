@@ -1,12 +1,8 @@
-"""Functions to evaluate exp(), cos(), or sin() involving 2π"""
-function cis2pi(z)
-    return cispi(2*z)
-end
+"""Function to compute exp(2π i x)"""
+cis2pi(x) = cispi(2x)
 
-function sin2pi(z)
-    return sinpi(2*z)
-end
+"""Function to compute sin(2π x)"""
+sin2pi(x) = sinpi(2x)
 
-function cos2pi(z)
-    return cospi(2*z)
-end
+"""Function to compute cos(2π x)"""
+cos2pi(x) = cospi(2x)
