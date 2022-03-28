@@ -156,22 +156,21 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     end
     fft_size = Tuple{Int, Int, Int}(fft_size)  # explicit conversion in case passed as array
 
-    # Kpoint grid can be specified either with kcoords/kweights/symmetries (manual kpoints),
-    # or with kgrid/kshift (automatic MP grid)
     if isnothing(kcoords)
-        @assert isnothing(kweights)
-        @assert isnothing(symmetries)
+        # MP grid based on kgrid/kshift
         @assert !isnothing(kgrid)
         @assert !isnothing(kshift)
+        @assert isnothing(kweights)
+        @assert isnothing(symmetries)
         kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
     else
-        @assert !isnothing(kweights)
+        # Manual kpoint set based on kcoords/kweights
+        @assert length(kcoords) == length(kweights)
         if isnothing(symmetries)
             all_kcoords = unfold_kcoords(kcoords, model.symmetries)
             symmetries = symmetries_preserving_kgrid(model.symmetries, all_kcoords)
         end
     end
-    @assert length(kcoords) == length(kweights)
 
     # Init MPI, and store MPI-global values for reference
     MPI.Init()
