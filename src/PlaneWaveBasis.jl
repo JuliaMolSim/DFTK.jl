@@ -73,7 +73,7 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
     kweights::Vector{T}
 
     ## (MPI-global) information on the k-point grid
-    # Not actually used in computation, but can be used to reconstruct a basis
+    ## These fields are not actually used in computation, but can be used to reconstruct a basis
     # Monkhorst-Pack grid used to generate the k-points, or nothing for custom k-points
     kgrid::Union{Nothing,Vec3{Int}}
     kshift::Union{Nothing,Vec3{T}}
@@ -141,18 +141,51 @@ end
 # All given parameters must be the same on all processors
 # and are stored in PlaneWaveBasis for easy reconstruction.
 function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
-                        kcoords::AbstractVector, kweights, kgrid, kshift,
-                        symmetries, comm_kpts) where {T <: Real}
-    # Store global values for reference
-    MPI.Init()
-    kcoords_global  = kcoords
-    kweights_global = kweights
-
-    # Setup fft_size and plans
+                        kcoords, kweights, kgrid, kshift, symmetries, comm_kpts) where {T <: Real}
+    # Validate fft_size
+    if variational
+        max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
+        Ecut > max_E && @warn(
+            "For a variational method, Ecut should be less than the maximal kinetic " *
+                "energy the grid supports ($max_E)"
+        )
+    end
     if !(all(fft_size .== next_working_fft_size(T, fft_size)))
         error("Selected fft_size will not work for the buggy generic " *
               "FFT routines; use next_working_fft_size")
     end
+
+    # Kpoint grid can be specified either with kcoords/kweights/symmetries (manual kpoints),
+    # or with kgrid/kshift (automatic MP grid)
+    if isnothing(kcoords)
+        @assert isnothing(kweights)
+        @assert isnothing(symmetries)
+        @assert !isnothing(kgrid)
+        @assert !isnothing(kshift)
+
+        kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
+    else
+        @assert !isnothing(kweights)
+
+        if isnothing(symmetries)
+            all_kcoords = unfold_kcoords(kcoords, model.symmetries)
+            symmetries = symmetries_preserving_kgrid(model.symmetries, all_kcoords)
+        end
+    end
+    @assert length(kcoords) == length(kweights)
+
+    # Init MPI, and store MPI-global values for reference
+    MPI.Init()
+    kcoords_global  = kcoords
+    kweights_global = kweights
+
+    # If symmetries not passed explicitly, compute them from the kcoords
+    if isnothing(symmetries)
+        all_kcoords = unfold_kcoords(kcoords, model.symmetries)
+        symmetries  = symmetries_preserving_kgrid(model.symmetries, all_kcoords)
+    end
+
+    # Setup fft_size and plans
     fft_size = Tuple{Int, Int, Int}(fft_size)  # explicit conversion in case passed as array
     (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans(T, fft_size)
 
@@ -171,11 +204,11 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     n_kpt   = length(kcoords_global)
     n_procs = mpi_nprocs(comm_kpts)
     if n_procs > n_kpt
-        # XXX Supporting this would require fixing a bunch of "reducing over
-        #     empty collections" errors
+        # XXX Supporting more processors than kpoints would require
+        # fixing a bunch of "reducing over empty collections" errors
+        # In the unit tests it is really annoying that this fails so we hack around it, but
+        # generally it leads to duplicated work that is not in the users interest.
         if parse(Bool, get(ENV, "CI", "false"))
-            # In the unit tests it is really annoying that this fails, but
-            # generally it leads to duplicated work that is not in the users interest.
             comm_kpts = MPI.COMM_SELF
             krange_thisproc = 1:n_kpt
             krange_allprocs = fill(1:n_kpt, n_procs)
@@ -229,41 +262,15 @@ end
 
 # This is an intermediate-level constructor, which allows for the
 # custom specification of k points and G grids.
-# The higher-level one below should be preferred
+# For regular usage, the higher-level one below should be preferred
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
-                                kcoords::AbstractVector, kweights::AbstractVector;
+                                kcoords ::Union{Nothing, AbstractVector},
+                                kweights::Union{Nothing, AbstractVector};
                                 symmetries=nothing,
-                                fft_size=nothing, variational=true,
-                                fft_size_algorithm=:fast, supersampling=2,
+                                variational=true,
+                                fft_size=(@assert variational; compute_fft_size(model, Ecut, kcoords)),
                                 kgrid=nothing, kshift=nothing,
                                 comm_kpts=MPI.COMM_WORLD) where {T <: Real}
-    # Compute the symmetries preserved by the kcoords.
-    if isnothing(symmetries)
-        all_kcoords = unfold_kcoords(kcoords, model.symmetries)
-        symmetries  = symmetries_preserving_kgrid(model.symmetries, all_kcoords)
-    end
-
-    # Compute or validate fft_size
-    if fft_size === nothing
-        @assert variational
-        fft_size = compute_fft_size(model::Model{T}, Ecut, kcoords;
-                                    supersampling, algorithm=fft_size_algorithm)
-    else
-        # validate
-        if variational
-            max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
-            Ecut > max_E && @warn(
-                "For a variational method, Ecut should be less than the maximal kinetic " *
-                    "energy the grid supports ($max_E)"
-            )
-        else
-            # ensure no other options are set
-            @assert supersampling == 2
-            @assert fft_size_algorithm == :fast
-        end
-    end
-
-    @assert length(kcoords) == length(kweights)
     PlaneWaveBasis(model, Ecut, fft_size, variational, kcoords, kweights,
                    kgrid, kshift, symmetries, comm_kpts)
 end
@@ -279,9 +286,8 @@ function PlaneWaveBasis(model::Model; Ecut,
                         kgrid=kgrid_from_minimal_spacing(model, 2π * 0.022),
                         kshift=zeros(3),
                         kwargs...)
-    kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
-    PlaneWaveBasis(model, austrip(Ecut), kcoords, kweights;
-                   symmetries, kgrid, kshift, kwargs...)
+    PlaneWaveBasis(model, austrip(Ecut), nothing, nothing;
+                   kgrid, kshift, kwargs...)
 end
 
 """
