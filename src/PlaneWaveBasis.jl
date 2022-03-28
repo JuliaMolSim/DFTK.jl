@@ -154,6 +154,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         error("Selected fft_size will not work for the buggy generic " *
               "FFT routines; use next_working_fft_size")
     end
+    fft_size = Tuple{Int, Int, Int}(fft_size)  # explicit conversion in case passed as array
 
     # Kpoint grid can be specified either with kcoords/kweights/symmetries (manual kpoints),
     # or with kgrid/kshift (automatic MP grid)
@@ -162,11 +163,9 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         @assert isnothing(symmetries)
         @assert !isnothing(kgrid)
         @assert !isnothing(kshift)
-
         kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
     else
         @assert !isnothing(kweights)
-
         if isnothing(symmetries)
             all_kcoords = unfold_kcoords(kcoords, model.symmetries)
             symmetries = symmetries_preserving_kgrid(model.symmetries, all_kcoords)
@@ -179,14 +178,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     kcoords_global  = kcoords
     kweights_global = kweights
 
-    # If symmetries not passed explicitly, compute them from the kcoords
-    if isnothing(symmetries)
-        all_kcoords = unfold_kcoords(kcoords, model.symmetries)
-        symmetries  = symmetries_preserving_kgrid(model.symmetries, all_kcoords)
-    end
-
-    # Setup fft_size and plans
-    fft_size = Tuple{Int, Int, Int}(fft_size)  # explicit conversion in case passed as array
+    # Setup FFT plans
     (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans(T, fft_size)
 
     # Normalization constants
