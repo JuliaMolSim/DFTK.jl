@@ -1,5 +1,4 @@
 using Libxc
-using Infiltrator
 include("../xc/xc_evaluate.jl")
 
 """
@@ -46,7 +45,7 @@ end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
                                               ψ, occ; ρ, τ=nothing, kwargs...) where {T}
-    #@assert !isempty(term.functionals)
+    @assert !isempty(term.functionals)
 
     model  = basis.model
     n_spin = model.n_spin_components
@@ -85,7 +84,8 @@ end
     tσ = libxc_spinindex_σ
 
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ) + ΔVl
-    potential = vrho #zero(ρ)
+    potential = permutedims(vrho, (2, 3, 4, 1))
+    # not differentiated for now
     #@views for s in 1:n_spin
     #    potential[:, :, :, s] .+= vrho[s, :, :, :]
     #    if !isnothing(vsigma) && any(x -> abs(x) > term.potential_threshold, vsigma)
@@ -115,19 +115,16 @@ end
     #end
 
     if term.scaling_factor != 1
-        @warn "scalaing"
         E *= term.scaling_factor
         potential .*= term.scaling_factor
         !isnothing(Vτ) && (Vτ .*= term.scaling_factor)
     end
     ops = map(basis.kpoints) do kpt
         if !isnothing(Vτ)
-            #[RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin]),
-            [RealSpaceMultiplication(basis, kpt, potential[kpt.spin, :, :, :]),
+            [RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin]),
              DivAgradOperator(basis, kpt, Vτ[:, :, :, kpt.spin])]
         else
-            #RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin])
-            RealSpaceMultiplication(basis, kpt, potential[kpt.spin, :, :, :])
+            RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin])
         end
     end
     (; E, ops)

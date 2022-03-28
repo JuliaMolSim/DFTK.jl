@@ -2,8 +2,8 @@
 VWN5 LDA correlation according to Vosko, Wilk, and Nusair, (DOI 10.1139/p80-159).
 """
 function energy_per_particle(::Val{:lda_c_vwn}, ρ)
-    if ρ <= 1e-8
-        return 0.0
+    if ρ <= 1e-14
+        return zero(ρ)
     end
     # From https://math.nist.gov/DFTdata/atomdata/node5.html
     A = 0.0310907

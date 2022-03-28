@@ -14,52 +14,35 @@ include("gga_c_pbe.jl")
 # Function that always dispatches to the DFTK fallback implementations
 function xc_fallback!(func::Functional, ::Val{:lda}, ρ::AbstractArray;
                       zk=nothing, vrho=nothing, v2rho2=nothing)
-    @warn "xc_fallback! 1"
     func.n_spin == 1  || error("Fallback functionals only for $(func.n_spin) == 1")
-    
+    zk = reshape(zk, size(ρ))
+
     fE(ρ) = energy_per_particle(Val(func.identifier), ρ)
     if !isnothing(zk)
-        zk = reshape(zk, size(ρ))
-        #zk .= fE.(ρ)
-        #zk = reshape(zk, size(ρ))
         zk .= fE.(ρ)
-        #zki = fE.(ρ) #mapreduce(fE,vcat,ρ)
-        #println("zk",zk)
-        #println("zki",zki)
-        #@warn "size zk/zki",size(zk),size(zki)
-        #@assert zk == zki
     end
 
     fV(ρ) = ForwardDiff.derivative(ρ -> ρ*fE(ρ), ρ)
     if !isnothing(vrho)
         vrho .= fV.(ρ)
-        #vrhoi = fV.(ρ)
-        #println("vrho",vrho)
-        #println("vrhoi",vrhoi)
-        #@assert vrho == vrhoi
-        #@warn "size rho",size(vrho)
-        #@assert vrho = mapreduce()
     end
 
     fV2(ρ) = ForwardDiff.derivative(fV, ρ)
     if !isnothing(v2rho2)
         v2rho2 .= fV2.(ρ)
-        #@warn "size v2rho2",size(v2rho2)
     end
 end
 
 function xc_fallback(func::Functional, ::Val{:lda}, ρ::AbstractArray;
     zk=nothing, vrho=nothing, v2rho2=nothing)
-    #@warn "xc_fallback lda"
     #func.n_spin == 1  || error("Fallback functionals only for $(func.n_spin) == 1")
-    #@warn "Functional",func.identifier
-    #if func.identifier == :lda_c_vwn && sum([1 for i in ρ if i < 0]) > 0
-    #if !isnothing(findfirst(<=(0), ρ))
-        #println("found negative rho")
-        #return zeros(size(ρ)), zeros(size(ρ)), nothing #zeros(size(ρ))
-    #end
 
-    fE(ρ) = energy_per_particle(Val(func.identifier), ρ)
+    fE(ρ) = ρ > 1e-14 ? energy_per_particle(Val(func.identifier), ρ) : zero(ρ)
+    if !isnothing(zk)
+        zk = reshape(zk, size(ρ))
+        zk = fE.(ρ)
+    end
+
     if !isnothing(zk)
         zk = reshape(zk, size(ρ))
         zk = fE.(ρ)
@@ -80,7 +63,6 @@ end
 function xc_fallback!(func::Functional, ::Val{:gga}, ρ::AbstractArray;
                       sigma, zk=nothing, vrho=nothing, vsigma=nothing,
                       v2rho2=nothing, v2rhosigma=nothing, v2sigma2=nothing)
-    #@warn "xc_fallback! 2"
     func.n_spin == 1  || error("Fallback functionals only for $(func.n_spin) == 1")
     zk = reshape(zk, size(ρ))
     σ  = sigma
