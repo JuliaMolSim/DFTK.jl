@@ -43,12 +43,8 @@ given the crystal symmetries `symmetries`. Returns the list of irreducible ``k``
 (fractional) coordinates, the associated weights adn the new `symmetries` compatible with
 the grid.
 """
-function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
+function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0], fft_size=nothing)
     all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size; kshift)
-
-    # Filter those symmetry operations (S, τ) that preserve the MP grid
-    kcoords_mp = kgrid_monkhorst_pack(kgrid_size; kshift)
-    symmetries = symmetries_preserving_kgrid(symmetries, kcoords_mp)
 
     # Transform kshift to the convention used in spglib:
     #    If is_shift is set (i.e. integer 1), then a shift of 0.5 is performed,
@@ -57,6 +53,14 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     is_shift = map(kshift) do ks
         ks in (0, 1//2) || error("Only kshifts of 0 or 1//2 implemented.")
         convert(Int, 2 * ks)
+    end
+
+    kcoords_mp = kgrid_monkhorst_pack(kgrid_size; kshift)
+    # Filter those symmetry operations that preserve the MP grid...
+    symmetries = symmetries_preserving_kgrid(symmetries, kcoords_mp)
+    # ... and real-space grid
+    if !isnothing(fft_size)
+        symmetries = symmetries_preserving_rgrid(symmetries, fft_size)
     end
 
     # Give the remaining symmetries to spglib to compute an irreducible k-point mesh

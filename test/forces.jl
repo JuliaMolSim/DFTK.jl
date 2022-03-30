@@ -27,13 +27,14 @@ include("testcases.jl")
     pos2 = [pos1[1] + ε * disp, pos1[2]]
     pos3 = [pos1[1] - ε * disp, pos1[2]]
 
+    # second-order finite differences for accurate comparison; TODO switch the other tests to this too
     E1, F1, Fc1 = energy_forces(pos1)
     E2,  _,  _  = energy_forces(pos2)
     E3,  _,  _  = energy_forces(pos3)
 
     diff_findiff = -(E2 - E3) / (2ε)
     diff_forces = dot(F1[1], disp)
-    @test abs(diff_findiff - diff_forces) < 1e-5
+    @test abs(diff_findiff - diff_forces) < 1e-7
 
     # Rough test against QE reference (using PZ functional)
     reference = [[-5.81108123960e-3, -4.60222477677e-3, -3.37528153911e-3],

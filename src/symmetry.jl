@@ -49,7 +49,7 @@ function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
 end
 
 """
-Filter out the symmetry operations that respect the symmetries of the discrete BZ grid
+Filter out the symmetry operations that don't respect the symmetries of the discrete BZ grid
 """
 function symmetries_preserving_kgrid(symmetries, kcoords)
     kcoords_normalized = normalize_kpoint_coordinate.(kcoords)
@@ -63,6 +63,19 @@ function symmetries_preserving_kgrid(symmetries, kcoords)
     filter(preserves_grid, symmetries)
 end
 
+"""
+Filter out the symmetry operations that don't respect the symmetries of the discrete real-space grid
+"""
+function symmetries_preserving_rgrid(symmetries, fft_size)
+    is_in_grid(r) = all(i -> abs(r[i]*fft_size[i] - round(r[i]*fft_size[i]))/fft_size[i] ≤ SYMMETRY_TOLERANCE,
+                        1:3)
+    one_hot(i, n) = (x=zeros(Bool, n); x[i]=1; x)
+    function preserves_grid(symop)
+        all(is_in_grid(symop.W * one_hot(i, 3) .// fft_size[i] + symop.w) for i=1:3)
+    end
+
+    filter(preserves_grid, symmetries)
+end
 
 @doc raw"""
 Apply various standardisations to a lattice and a list of atoms. It uses spglib to detect

@@ -162,7 +162,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         @assert !isnothing(kshift)
         @assert isnothing(kweights)
         @assert isnothing(symmetries)
-        kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift)
+        kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid, model.symmetries; kshift, fft_size)
     else
         # Manual kpoint set based on kcoords/kweights
         @assert length(kcoords) == length(kweights)
