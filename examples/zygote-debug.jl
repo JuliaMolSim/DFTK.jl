@@ -29,7 +29,7 @@ let terms = [Kinetic(), AtomicLocal(), Ewald(), PspCorrection(), Hartree(),]
     energy = self_consistent_field(basis; tol=1e-14).energies.total
     reference = -19.629878507271652  # From master
     diff = abs(energy - reference)
-    if diff > 1e-8
+    if diff > 2e-8
         @error reference energy diff
     end
 end
@@ -39,7 +39,7 @@ let terms = terms
     energy = self_consistent_field(basis; tol=1e-14).energies.total
     reference = -4.821586293957623  # From master
     diff = abs(energy - reference)
-    if diff > 1e-8
+    if diff > 2e-8
         @error reference energy diff
     end
 end
