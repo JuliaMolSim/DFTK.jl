@@ -51,4 +51,7 @@ function forces_from_basis(basis)
     scfres.energies.total
 end
 
+# primal check
+forces_from_basis(basis)
+# adjoint
 Zygote.gradient(forces_from_basis, basis)
