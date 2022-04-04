@@ -1,4 +1,3 @@
-using OrderedCollections
 """
 A simple struct to contain a vector of energies, and utilities to print them in a nice format.
 """
