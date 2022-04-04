@@ -20,12 +20,13 @@ terms = [
     Hartree(),
 ]
 model = Model(lattice, atoms, positions; terms, symmetries=false)
-basis = PlaneWaveBasis(model; Ecut=15, kgrid=(1, 1, 1), kshift=(0, 0, 0))
+Ecut = 15
+basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), kshift=(0, 0, 0))
 
 # Test primal
 let terms = [Kinetic(), AtomicLocal(), Ewald(), PspCorrection(), Hartree(),]
     model = Model(lattice, atoms, positions; terms, symmetries=false, temperature=1e-3)
-    basis = PlaneWaveBasis(model; Ecut=15, kgrid=(1, 1, 1), kshift=(0, 0, 0))
+    basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), kshift=(0, 0, 0))
     energy = self_consistent_field(basis; tol=1e-14).energies.total
     reference = -19.629878507271652  # From master
     diff = abs(energy - reference)
@@ -35,7 +36,7 @@ let terms = [Kinetic(), AtomicLocal(), Ewald(), PspCorrection(), Hartree(),]
 end
 let terms = terms
     model = Model(lattice, atoms, positions; terms, symmetries=false, temperature=1e-3)
-    basis = PlaneWaveBasis(model; Ecut=15, kgrid=(1, 1, 1), kshift=(0, 0, 0))
+    basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), kshift=(0, 0, 0))
     energy = self_consistent_field(basis; tol=1e-14).energies.total
     reference = -4.821586293957623  # From master
     diff = abs(energy - reference)
@@ -44,11 +45,18 @@ let terms = terms
     end
 end
 
+function energy_from_basis(basis)
+    is_converged = DFTK.ScfConvergenceDensity(1e-8)
+    scfres = self_consistent_field(basis; is_converged)
+    scfres.energies.total
+end
+energy_from_basis(basis)
+Zygote.gradient(energy_from_basis, basis) # TODO
+
 function forces_from_basis(basis)
     is_converged = DFTK.ScfConvergenceDensity(1e-8)
     scfres = self_consistent_field(basis; is_converged)
-    # compute_forces(scfres)[1][1]
-    scfres.energies.total
+    compute_forces(scfres)[1][1]
 end
-
-Zygote.gradient(forces_from_basis, basis)
+forces_from_basis(basis)
+Zygote.gradient(forces_from_basis, basis) # TODO
