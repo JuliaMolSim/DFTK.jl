@@ -142,6 +142,7 @@ We store 1/√Ω pihat(k+G) in proj_vectors.
 function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
                                    psps, psp_positions) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
+    sqrt_v = sqrt(unit_cell_volume)
     n_proj = count_n_proj(psps, psp_positions)
     n_G    = length(G_vectors(basis, kpt))
     
@@ -149,21 +150,24 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     # Since the pi are translates of each others, pihat(k+G) decouples as
     # pihat(q) = ∫ p(r-R) e^{-iqr} dr = e^{-iqR} phat(q).
     # The first term is the structure factor, the second the form factor.
+
     if n_proj > 0
         function structure_factors(r)
             map(q -> cis(-2T(π) * dot(q, r)), Gplusk_vectors(basis, kpt))
         end
+        # produces count_n_proj(psp) columns of the projection vectors
         function build_columns(psp, positions)
-            proj_vectors_local = zeros(Complex{T}, 0, 0)
             # Compute position-independent form factors
             form_factors = build_form_factors(psp, Gplusk_vectors_cart(basis, kpt))
             # Combine with structure factors
             # k+G in this formula can also be G, this only changes an unimportant phase factor
-            cols = [[structure_factors(r) .* form_factors[:, iproj] ./ sqrt(unit_cell_volume) for r in positions] for iproj = 1:count_n_proj(psp)]
-            
+            n_cols = count_n_proj(psp)
+            cols = [[structure_factors(r) .* form_factors[:, i] ./ sqrt_v for i = 1:n_cols] for r in positions]
+            # reduce Vector{Vector{Vector{T}}} to Matrix{T}
             return reduce(hcat, reduce(vcat, cols))
         end
-        return reduce(hcat, [build_columns(psp, positions) for (psp, positions) in zip(psps, psp_positions)])
+        proj_vectors = reduce(hcat, [build_columns(psp, positions) for (psp, positions) in zip(psps, psp_positions)])
+        return proj_vectors
     else
         return zeros(Complex{T}, n_G, n_proj)
     end
