@@ -71,6 +71,7 @@ Random.seed!(0)
         include("external_pymatgen.jl")
         include("external_ase.jl")
         include("external_wannier90.jl")
+        include("external_interatomicpotentials.jl")
     end
 
     if "all" in TAGS
