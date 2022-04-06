@@ -3,25 +3,27 @@ using InteratomicPotentials
 # Integration to use DFTK as an interatomic potential
 # This is useful for AIMD simulations
 
-struct DFTKPotential <: ArbitraryPotential
-    Ecut::Real
-    kgrid::AbstractVector{<:Integer}
-    scf_args::Dict{Symbol,Any}
-    previous_scf::Ref{Any}
+Base.@kwdef struct DFTKPotential <: ArbitraryPotential
+    functionals::Vector{Symbol} = [:gga_x_pbe, :gga_c_pbe] # default to model_PBE
+    model_kwargs::Dict{Symbol,Any} = Dict{Symbol,Any}()
+    basis_kwargs::Dict{Symbol,Any} = Dict{Symbol,Any}()
+    scf_kwargs::Dict{Symbol,Any} = Dict{Symbol,Any}()
 end
-function DFTKPotential(Ecut::Real, kgrid::AbstractVector{<:Integer}; kwargs...)
-    DFTKPotential(Ecut, kgrid, Dict{Symbol,Any}(kwargs...), Ref{Any}())
-end
-function DFTKPotential(Ecut::Unitful.Energy, kgrid::AbstractVector{<:Integer}; kwargs...)
-    DFTKPotential(austrip(Ecut), kgrid, Dict{Symbol,Any}(kwargs...), Ref{Any}())
+function DFTKPotential(Ecut, kgrid; kwargs...)
+    p = DFTKPotential(; kwargs...)
+    p.basis_kwargs[:Ecut] = Ecut
+    p.basis_kwargs[:kgrid] = kgrid
+    p
 end
 
 function InteratomicPotentials.energy_and_force(system::AbstractSystem, potential::DFTKPotential)
-    model = model_LDA(system)
-    basis = PlaneWaveBasis(model; Ecut=potential.Ecut, kgrid=potential.kgrid)
+    model = model_DFT(system, potential.functionals; potential.model_kwargs...)
+    basis = PlaneWaveBasis(model; potential.basis_kwargs...)
 
-    extra_args = isassigned(potential.previous_scf) ? (ψ=potential.previous_scf[].ψ, ρ=potential.previous_scf[].ρ) : (;)
-    scfres = self_consistent_field(basis; potential.scf_args..., extra_args...)
-    potential.previous_scf[] = scfres # cache previous scf as starting point for next calculation
+    scfres = self_consistent_field(basis; potential.scf_kwargs...)
+    # cache ψ and ρ as starting point for next calculation
+    potential.scf_kwargs[:ψ] = scfres.ψ
+    potential.scf_kwargs[:ρ] = scfres.ρ
+
     (; e=scfres.energies.total, f=compute_forces_cart(scfres))
 end
