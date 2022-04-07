@@ -1,22 +1,22 @@
-using InteratomicPotentials
+import InteratomicPotentials: ArbitraryPotential, energy_and_force
 
 # Integration to use DFTK as an interatomic potential
 # This is useful for AIMD simulations
 
 Base.@kwdef struct DFTKPotential <: ArbitraryPotential
-    functionals::Vector{Symbol} = [:gga_x_pbe, :gga_c_pbe] # default to model_PBE
+    functionals::Vector{Symbol}    = [:gga_x_pbe, :gga_c_pbe]  # default to model_PBE
     model_kwargs::Dict{Symbol,Any} = Dict{Symbol,Any}()
     basis_kwargs::Dict{Symbol,Any} = Dict{Symbol,Any}()
-    scf_kwargs::Dict{Symbol,Any} = Dict{Symbol,Any}()
+    scf_kwargs::Dict{Symbol,Any}   = Dict{Symbol,Any}()
 end
 function DFTKPotential(Ecut, kgrid; kwargs...)
     p = DFTKPotential(; kwargs...)
-    p.basis_kwargs[:Ecut] = Ecut
+    p.basis_kwargs[:Ecut]  = Ecut
     p.basis_kwargs[:kgrid] = kgrid
     p
 end
 
-function InteratomicPotentials.energy_and_force(system::AbstractSystem, potential::DFTKPotential)
+function energy_and_force(system::AbstractSystem, potential::DFTKPotential)
     model = model_DFT(system, potential.functionals; potential.model_kwargs...)
     basis = PlaneWaveBasis(model; potential.basis_kwargs...)
 
