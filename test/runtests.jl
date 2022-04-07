@@ -15,7 +15,7 @@ using Random
 # By default run expensive tests, but not if in CI environment
 # If user supplies the "fast" tag
 const FAST_TESTS = ifelse("CI" in keys(ENV), parse(Bool, get(ENV, "CI", "false")),
-    "fast" in ARGS)
+                          "fast" in ARGS)
 
 # Tags supplied by the user ... filter out "fast" (already dealt with)
 TAGS = filter(e -> !(e in ["fast"]), ARGS)
