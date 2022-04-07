@@ -15,7 +15,7 @@ using Random
 # By default run expensive tests, but not if in CI environment
 # If user supplies the "fast" tag
 const FAST_TESTS = ifelse("CI" in keys(ENV), parse(Bool, get(ENV, "CI", "false")),
-                          "fast" in ARGS)
+    "fast" in ARGS)
 
 # Tags supplied by the user ... filter out "fast" (already dealt with)
 TAGS = filter(e -> !(e in ["fast"]), ARGS)
@@ -61,17 +61,20 @@ Random.seed!(0)
         include("PlaneWaveBasis.jl")
         include("Model.jl")
         include("interpolation.jl")
-        include("atomsbase.jl")
         include("list_psp.jl")
         include("PspHgh.jl")
         include("elements.jl")
         include("bzmesh.jl")
         include("bzmesh_symmetry.jl")
-        include("spglib.jl")
-        include("external_pymatgen.jl")
-        include("external_ase.jl")
-        include("external_wannier90.jl")
-        include("external_interatomicpotentials.jl")
+    end
+
+    if "all" in TAGS
+        include("external/ase.jl")
+        include("external/atomsbase.jl")
+        include("external/interatomicpotentials.jl")
+        include("external/pymatgen.jl")
+        include("external/spglib.jl")
+        include("external/wannier90.jl")
     end
 
     if "all" in TAGS

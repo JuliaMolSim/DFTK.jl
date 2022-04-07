@@ -1,6 +1,6 @@
 using Test
 using DFTK
-include("testcases.jl")
+include("../testcases.jl")
 
 if !Sys.iswindows() && mpi_nprocs() == 1
 @testset "Test run_wannier90" begin
