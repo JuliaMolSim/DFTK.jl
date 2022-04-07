@@ -7,6 +7,11 @@ const Interval = IntervalArithmetic.Interval
 # should be done e.g. by changing  the rounding mode ...
 erfc(i::Interval) = Interval(prevfloat(erfc(i.lo)), nextfloat(erfc(i.hi)))
 
+# This is done to avoid using sincospi(x), called by cispi(x),
+# which has not been implemented in IntervalArithmetic
+# see issue #513 on IntervalArithmetic repository
+cis2pi(x::Interval) = exp(2 * (pi * (im * x)))
+
 function compute_Glims_fast(lattice::AbstractMatrix{<:Interval}, args...; kwargs...)
     # This is done to avoid a call like ceil(Int, ::Interval)
     # in the above implementation of compute_fft_size,

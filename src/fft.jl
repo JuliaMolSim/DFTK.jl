@@ -112,7 +112,7 @@ function G_to_r_matrix(basis::PlaneWaveBasis{T}) where {T}
     ret = zeros(complex(T), prod(basis.fft_size), prod(basis.fft_size))
     for (iG, G) in enumerate(G_vectors(basis))
         for (ir, r) in enumerate(r_vectors(basis))
-            ret[ir, iG] = cis(2π * dot(r, G)) / sqrt(basis.model.unit_cell_volume)
+            ret[ir, iG] = cis2pi(dot(r, G)) / sqrt(basis.model.unit_cell_volume)
         end
     end
     ret
@@ -122,7 +122,7 @@ function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
     for (iG, G) in enumerate(G_vectors(basis))
         for (ir, r) in enumerate(r_vectors(basis))
             Ω = basis.model.unit_cell_volume
-            ret[iG, ir] = cis(-2π * dot(r, G)) * sqrt(Ω) / prod(basis.fft_size)
+            ret[iG, ir] = cis2pi(-dot(r, G)) * sqrt(Ω) / prod(basis.fft_size)
         end
     end
     ret

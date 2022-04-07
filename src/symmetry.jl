@@ -121,7 +121,7 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
         for (ig, G_full) in enumerate(Gs_full)
             igired = index_G_vectors(basis, kpoint, invS * G_full)
             @assert igired !== nothing
-            ψSk[ig, iband] = cis(-2π * dot(G_full, τ)) * ψk[igired, iband]
+            ψSk[ig, iband] = cis2pi(-dot(G_full, τ)) * ψk[igired, iband]
         end
     end
 
@@ -160,7 +160,7 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             igired = index_G_vectors(basis, invS * G)
             if igired !== nothing
-                @inbounds ρaccu[ig] += cis(-2T(π) * T(dot(G, symop.τ))) * ρin[igired]
+                @inbounds ρaccu[ig] += cis2pi(-T(dot(G, symop.τ))) * ρin[igired]
             end
         end
     end  # symop
