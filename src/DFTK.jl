@@ -27,6 +27,7 @@ include("common/split_evenly.jl")
 include("common/mpi.jl")
 include("common/threading.jl")
 include("common/printing.jl")
+include("common/cis2pi.jl")
 
 export PspHgh
 include("pseudo/NormConservingPsp.jl")

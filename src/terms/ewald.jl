@@ -113,8 +113,8 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
                 continue
             end
 
-            cos_strucfac = sum(Z * cos(2T(π) * dot(r, G)) for (r, Z) in zip(positions, charges))
-            sin_strucfac = sum(Z * sin(2T(π) * dot(r, G)) for (r, Z) in zip(positions, charges))
+            cos_strucfac = sum(Z * cos2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
+            sin_strucfac = sum(Z * sin2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
             sum_strucfac = cos_strucfac^2 + sin_strucfac^2
 
             any_term_contributes = true
@@ -123,8 +123,8 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
             if forces !== nothing
                 for (ir, r) in enumerate(positions)
                     Z = charges[ir]
-                    dc = -Z*2T(π)*G*sin(2T(π) * dot(r, G))
-                    ds = +Z*2T(π)*G*cos(2T(π) * dot(r, G))
+                    dc = -Z*2T(π)*G*sin2pi(dot(r, G))
+                    ds = +Z*2T(π)*G*cos2pi(dot(r, G))
                     dsum = 2cos_strucfac*dc + 2sin_strucfac*ds
                     forces_recip[ir] -= dsum * exp(-exponent)/Gsq
                 end
