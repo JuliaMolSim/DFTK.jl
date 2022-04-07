@@ -11,20 +11,18 @@ using UnitfulAtomic
     scf_kwargs = Dict(:damping => 0.7, :tol => 1e-4)
     potential = DFTKPotential(5u"hartree", [1, 1, 1]; functionals, scf_kwargs)
 
-    pspkey = list_psp(:Ar, functional="lda")[1].identifier
     particles = [
-        Atom(:Ar, [21.0, 21.0, 21.0]u"bohr"; pseudopotential=pspkey),
-        Atom(:Ar, [7.0, 21.0, 21.0]u"bohr"; pseudopotential=pspkey),
-        Atom(:Ar, [21.0, 7.0, 21.0]u"bohr"; pseudopotential=pspkey),
-        Atom(:Ar, [7.0, 7.0, 21.0]u"bohr"; pseudopotential=pspkey),
-        Atom(:Ar, [21.0, 21.0, 7.0]u"bohr"; pseudopotential=pspkey),
-        Atom(:Ar, [7.0, 21.0, 7.0]u"bohr"; pseudopotential=pspkey),
-        Atom(:Ar, [21.0, 7.0, 7.0]u"bohr"; pseudopotential=pspkey),
-        Atom(:Ar, [7.0, 7.0, 7.0]u"bohr"; pseudopotential=pspkey)
+        :Ar => [21.0, 21.0, 21.0]u"bohr",
+        :Ar => [7.0, 21.0, 21.0]u"bohr",
+        :Ar => [21.0, 7.0, 21.0]u"bohr",
+        :Ar => [7.0, 7.0, 21.0]u"bohr",
+        :Ar => [21.0, 21.0, 7.0]u"bohr",
+        :Ar => [7.0, 21.0, 7.0]u"bohr",
+        :Ar => [21.0, 7.0, 7.0]u"bohr",
+        :Ar => [7.0, 7.0, 7.0]u"bohr"
     ]
     box = [[28.0, 0.0, 0.0], [0.0, 28.0, 0.0], [0.0, 0.0, 28.0]]u"bohr"
-    boundary_conditions = [Periodic(), Periodic(), Periodic()]
-    system = FlexibleSystem(particles, box, boundary_conditions)
+    system = attach_psp(periodic_system(particles, box); functional="lda")
 
     eandf = energy_and_force(system, potential)
     @test eandf.e isa Float64
