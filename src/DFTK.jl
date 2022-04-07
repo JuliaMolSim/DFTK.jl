@@ -149,6 +149,7 @@ include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
 include("pseudo/attach_psp.jl")
 
+export DFTKPotential
 export pymatgen_structure
 export ase_atoms
 export load_lattice
@@ -157,6 +158,7 @@ export load_positions
 export load_magnetic_moments
 export run_wannier90
 include("external/atomsbase.jl")
+include("external/interatomicpotentials.jl")
 include("external/load_from_file.jl")
 include("external/ase.jl")
 include("external/pymatgen.jl")
