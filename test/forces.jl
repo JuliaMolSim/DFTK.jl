@@ -33,7 +33,7 @@ include("testcases.jl")
 
     diff_findiff = -(E2 - E3) / (2ε)
     diff_forces = dot(F1[1], disp)
-    @test abs(diff_findiff - diff_forces) < 1e-8
+    @test abs(diff_findiff - diff_forces) < 1e-7
 
     # Rough test against QE reference (using PZ functional)
     reference = [[-5.81108123960e-3, -4.60222477677e-3, -3.37528153911e-3],
