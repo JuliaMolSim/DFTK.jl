@@ -104,6 +104,6 @@ end
 function Base.convert(::Type{PlaneWaveBasis{T}}, serial::PlaneWaveBasisSerialisation{T}) where {T}
     PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords,
                    serial.kweights; serial.fft_size,
-                   serial.kgrid, serial.kshift, basis.symmetries_rgrid,
+                   serial.kgrid, serial.kshift, serial.symmetries_rgrid,
                    serial.variational)
 end

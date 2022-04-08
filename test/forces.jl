@@ -8,8 +8,7 @@ include("testcases.jl")
 @testset "Forces on silicon" begin
     function energy_forces(positions)
         model = model_DFT(silicon.lattice, silicon.atoms, positions, [:lda_x, :lda_c_pw])
-        basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
-                               fft_size=(18, 18, 18))  # FFT chosen to match QE
+        basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
         is_converged = DFTK.ScfConvergenceDensity(1e-11)
         scfres = self_consistent_field(basis; is_converged)
@@ -34,7 +33,7 @@ include("testcases.jl")
 
     diff_findiff = -(E2 - E3) / (2ε)
     diff_forces = dot(F1[1], disp)
-    @test abs(diff_findiff - diff_forces) < 1e-7
+    @test abs(diff_findiff - diff_forces) < 1e-8
 
     # Rough test against QE reference (using PZ functional)
     reference = [[-5.81108123960e-3, -4.60222477677e-3, -3.37528153911e-3],

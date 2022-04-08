@@ -64,9 +64,6 @@ if mpi_nprocs() == 1  # not easy to distribute
         kfull = [kpt.coordinate for kpt in ham_full.basis.kpoints]
         test_orthonormality(ham_full.basis, ψ_full; tol)
 
-        # symmetries = DFTK.symmetry_operations(testcase.lattice, testcase.atoms,
-                                              # testcase.positions)
-        # kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid_size, symmetries; kshift)
         res = get_bands(testcase, kgrid_size, kshift, true; Ecut, tol)
         ham_ir, ψ_ir, eigenvalues_ir, ρ_ir, occ_ir = res
         test_orthonormality(ham_ir.basis, ψ_ir; tol)

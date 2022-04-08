@@ -158,11 +158,12 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     fft_size = Tuple{Int, Int, Int}(fft_size)  # explicit conversion in case passed as array
 
     # filter out the symmetries that don't preserve the real-space grid
+    symmetries = model.symmetries
     if symmetries_rgrid
-        symmetries = symmetries_preserving_rgrid(model.symmetries, fft_size)
-    else
-        symmetries = model.symmetries
+        symmetries = symmetries_preserving_rgrid(symmetries, fft_size)
     end
+
+    # build or validate the kgrid, and get symmetries preserving the kgrid
     if isnothing(kcoords)
         # MP grid based on kgrid/kshift
         @assert !isnothing(kgrid)
@@ -266,6 +267,9 @@ end
                                 kgrid=nothing, kshift=nothing,
                                 symmetries_rgrid=nothing,
                                 comm_kpts=MPI.COMM_WORLD) where {T <: Real}
+    # if an explicit fft_size is given but symmetries_rgrid is not given explicitly,
+    # assume the user does not care about exact preservation of symmetries.
+    # Otherwise, pick a compatible FFT size
     if isnothing(fft_size)
         @assert variational
         if isnothing(symmetries_rgrid) || symmetries_rgrid
@@ -281,11 +285,11 @@ end
         else
             factors = (1,)
         end
-        fft_size = compute_fft_size(model, Ecut, kcoords; factors=(1,))
         fft_size = compute_fft_size(model, Ecut, kcoords; factors=factors)
     else
-        @assert isnothing(symmetries_rgrid) || !symmetries_rgrid
-        symmetries_rgrid = false
+        if isnothing(symmetries_rgrid)
+            symmetries_rgrid = false
+        end
     end
     PlaneWaveBasis(model, Ecut, fft_size, variational, kcoords, kweights,
                    kgrid, kshift, symmetries_rgrid, comm_kpts)
