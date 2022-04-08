@@ -140,9 +140,11 @@ The function will determine the smallest parallelepiped containing the wave vect
  ``|G|^2/2 \leq E_\text{cut} ⋅ \text{supersampling}^2``.
 For an exact representation of the density resulting from wave functions
 represented in the spherical basis sets, `supersampling` should be at least `2`.
+
+If `factors` is not empty, ensure that the resulting fft_size contains all the factors
 """
 function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
-                          ensure_smallprimes=true, algorithm=:fast, kwargs...) where T
+                          ensure_smallprimes=true, algorithm=:fast, factors=(1), kwargs...) where T
     if algorithm == :fast
         Glims = compute_Glims_fast(model.lattice, Ecut; kwargs...)
     elseif algorithm == :precise
@@ -162,15 +164,28 @@ function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
         error("Unknown fft_size_algorithm :$algorithm, try :fast or :precise")
     end
 
-    # Optimize FFT grid size: Make sure the number factorises in small primes only
     fft_size = Vec3(2 .* Glims .+ 1)
-    if ensure_smallprimes
-        fft_size = nextprod.(Ref([2, 3, 5]), fft_size)
+
+    # sizes must 1) be a product of small primes only 2) contain the factorsju
+    smallprimes = (2, 3, 5)
+    is_product_of_primes(n) = !ensure_smallprimes || (n == nextprod(smallprimes, n)) # could be optimized
+    @assert all(is_product_of_primes.(factors)) # ensures compatibility between the two requirements
+    is_compatible(n) = (rem(n, prod(factors)) == 0) && is_product_of_primes(n)
+    function next_compatible(n)
+        while true
+            is_compatible(n) && return n
+            n += 1
+        end
     end
+    fft_size = next_compatible.(fft_size)
 
     # TODO generic FFT is kind of broken for some fft sizes
     #      ... temporary workaround, see more details in workarounds/fft_generic.jl
+    old_fft_size = fft_size
     fft_size = next_working_fft_size(T, fft_size)
+    if fft_size != old_fft_size
+        @assert factors == (1)
+    end
     Tuple{Int, Int, Int}(fft_size)
 end
 

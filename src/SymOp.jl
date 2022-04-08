@@ -37,9 +37,9 @@ struct SymOp{T <: Real}
 end
 
 Base.:(==)(op1::SymOp, op2::SymOp) = op1.W == op2.W && op1.w == op2.w
+is_approx_integer(r; tol=SYMMETRY_TOLERANCE) = all(ri -> abs(ri - round(ri)) ≤ tol, r)
 function Base.isapprox(op1::SymOp, op2::SymOp; atol=SYMMETRY_TOLERANCE)
-    is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ atol, r)
-    op1.W == op2.W && is_approx_integer(op1.w - op2.w)
+    op1.W == op2.W && is_approx_integer(op1.w - op2.w; tol=atol)
 end
 Base.one(::Type{SymOp}) = SymOp(Mat3{Int}(I), Vec3(zeros(Bool, 3)))
 Base.one(::SymOp) = one(SymOp)

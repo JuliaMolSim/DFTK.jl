@@ -10,7 +10,7 @@ include("testcases.jl")
 
 if mpi_nprocs() == 1  # not easy to distribute
 @testset "Using BZ symmetry yields identical density" begin
-    function get_bands(testcase, kcoords, kweights, symmetries; Ecut=5, tol=1e-8, n_rounds=1)
+    function get_bands(testcase, kgrid, kshift, symmetry; Ecut=5, tol=1e-8, n_rounds=1)
         kwargs = ()
         n_bands = div(testcase.n_electrons, 2, RoundUp)
         if testcase.temperature !== nothing
@@ -19,8 +19,8 @@ if mpi_nprocs() == 1  # not easy to distribute
         end
 
         model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions,
-                          :lda_xc_teter93; kwargs...)
-        basis = PlaneWaveBasis(model, Ecut, kcoords, kweights; symmetries)
+                          :lda_xc_teter93; symmetries=symmetry, kwargs...)
+        basis = PlaneWaveBasis(model; Ecut, kgrid, kshift, symmetries_rgrid=false)
         ham = Hamiltonian(basis; ρ=guess_density(basis))
 
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol)
@@ -59,31 +59,32 @@ if mpi_nprocs() == 1  # not easy to distribute
 
     function test_full_vs_irreducible(testcase, kgrid_size; Ecut=5, tol=1e-8, n_ignore=0,
                                       kshift=[0, 0, 0], eigenvectors=true)
-        kfull, kwfull, symmetries = bzmesh_uniform(kgrid_size; kshift)
-        res = get_bands(testcase, kfull, kwfull, symmetries; Ecut, tol)
+        res = get_bands(testcase, kgrid_size, kshift, false; Ecut, tol)
         ham_full, ψ_full, eigenvalues_full, ρ_full, occ_full = res
+        kfull = [kpt.coordinate for kpt in ham_full.basis.kpoints]
         test_orthonormality(ham_full.basis, ψ_full; tol)
 
-        symmetries = DFTK.symmetry_operations(testcase.lattice, testcase.atoms,
-                                              testcase.positions)
-        kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid_size, symmetries; kshift)
-        res = get_bands(testcase, kcoords, kweights, symmetries; Ecut, tol)
+        # symmetries = DFTK.symmetry_operations(testcase.lattice, testcase.atoms,
+                                              # testcase.positions)
+        # kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid_size, symmetries; kshift)
+        res = get_bands(testcase, kgrid_size, kshift, true; Ecut, tol)
         ham_ir, ψ_ir, eigenvalues_ir, ρ_ir, occ_ir = res
         test_orthonormality(ham_ir.basis, ψ_ir; tol)
         @test ham_full.basis.fft_size == ham_ir.basis.fft_size
 
         # Test density is the same in both schemes, and symmetric wrt the basis symmetries
         @test maximum(abs.(ρ_ir - ρ_full)) < 10tol
-        @test maximum(abs, DFTK.symmetrize_ρ(ham_ir.basis, ρ_ir; symmetries) - ρ_ir) < tol
+        @test maximum(abs, DFTK.symmetrize_ρ(ham_ir.basis, ρ_ir) - ρ_ir) < tol
 
         # Test local potential is the same in both schemes
         @test maximum(abs, total_local_potential(ham_ir) - total_local_potential(ham_full)) < tol
 
         # Test equivalent k-points have the same orbital energies
-        for (ik, k) in enumerate(kcoords)
-            for symop in symmetries
+        for (ik, kpt) in enumerate(ham_ir.basis.kpoints)
+            k = kpt.coordinate
+            for symop in ham_ir.basis.symmetries
                 ikfull = findfirst(1:length(kfull)) do idx
-                    all(isinteger, kfull[idx] - symop.S * k)
+                    all(DFTK.is_approx_integer, kfull[idx] - symop.S * k)
                 end
                 @test ikfull !== nothing
 
@@ -103,13 +104,14 @@ if mpi_nprocs() == 1  # not easy to distribute
             # to the returned density.
             ρsum = zeros(eltype(ψ_ir[1]), ham_ir.basis.fft_size)
             n_ρ = 0
-            for (ik, k) in enumerate(kcoords)
+            for (ik, kpt) in enumerate(ham_ir.basis.kpoints)
+                k = kpt.coordinate
                 Hk_ir = ham_ir.blocks[ik]
-                for symop in symmetries
+                for symop in ham_ir.basis.symmetries
                     Skpoint, ψSk = DFTK.apply_symop(symop, ham_ir.basis, Hk_ir.kpoint, ψ_ir[ik])
 
                     ikfull = findfirst(1:length(kfull)) do idx
-                        all(isinteger, round.(kfull[idx] - Skpoint.coordinate, digits=10))
+                        all(DFTK.is_approx_integer, round.(kfull[idx] - Skpoint.coordinate, digits=10))
                     end
                     @test !isnothing(ikfull)
                     Hk_full = ham_full.blocks[ikfull]
