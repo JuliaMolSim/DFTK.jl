@@ -157,6 +157,7 @@ end
 
 # [GTH98] (1)
 function eval_psp_local_real(psp::PspHgh, r::T) where {T <: Real}
+    r == 0 && return eval_psp_local_real(psp, eps(T)) # quick hack for the division by zero below
     cloc = psp.cloc
     rr = r / psp.rloc
     convert(T,
