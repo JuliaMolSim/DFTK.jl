@@ -32,7 +32,7 @@ tol = 1e-8
 
 ## dipole moment of a given density (assuming the current geometry)
 function dipole(basis, ρ)
-    rr = [a * (r[1] - 1/2) for r in r_vectors(basis)]
+    rr = [(r[1] - a/2) for r in r_vectors_cart(basis)]
     sum(rr .* ρ) * basis.dvol
 end;
 
@@ -92,7 +92,7 @@ end
 
 ## δVext is the potential from a uniform field interacting with the dielectric dipole
 ## of the density.
-δVext = [-a * (r[1] - 1/2) for r in r_vectors(basis)]
+δVext = [-(r[1] - a/2) for r in r_vectors_cart(basis)]
 δVext = cat(δVext; dims=4)
 
 ## Apply χ0 once to get non-interacting dipole
