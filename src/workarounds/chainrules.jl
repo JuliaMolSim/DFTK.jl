@@ -136,9 +136,25 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(com
 end
 
 # workaround to pass rrule_via_ad kwargs
-DFTK.energy_hamiltonian(basis, ψ, occ, ρ) = DFTK.energy_hamiltonian(basis, ψ, occ; ρ=ρ)
+# DFTK.energy_hamiltonian(basis, ψ, occ, ρ) = DFTK.energy_hamiltonian(basis, ψ, occ; ρ=ρ)
 
-solve_ΩplusK(basis::PlaneWaveBasis, ψ, ::NoTangent, occupation) = 0ψ
+# kwargs... splatting is a problem in energy_hamiltonian, Zygote / ChainRulesCore seem confused about types.
+function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occ, ρ)
+    # it: index into terms, ik: index into kpoints
+    ene_ops_arr = [ene_ops(term, basis, ψ, occ; ρ) for term in basis.terms]
+    energies  = [eh.E for eh in ene_ops_arr]
+    operators = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
+
+    # flatten the inner arrays in case a term returns more than one operator
+    flatten(arr) = reduce(vcat, map(a -> (a isa Vector) ? a : [a], arr))
+    hks_per_k   = [flatten([blocks[ik] for blocks in operators])
+                   for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
+
+    H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
+                            for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
+    E = Energies(basis.model.term_types, energies)
+    (E=E, H=H)
+end
 
 # fast version
 function _autodiff_hblock_mul(hblock::DftHamiltonianBlock, ψ)
@@ -175,6 +191,22 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(*),
     rrule_via_ad(config, _autodiff_apply_hamiltonian, H, ψ)
 end
 
+function ChainRulesCore.rrule(TE::Type{Energies{T}}, energies) where T
+    @warn "Energies{T} constructor rrule triggered."
+    E = TE(energies)
+    TE_pullback(∂E::ZeroTangent) = NoTangent(), NoTangent()
+    TE_pullback(∂E) = NoTangent(), ∂E.energies
+    return E, TE_pullback
+end
+
+function ChainRulesCore.rrule(TH::Type{Hamiltonian}, basis, blocks)
+    @warn "Hamiltonian constructor rrule triggered."
+    H = TH(basis, blocks)
+    TH_pullback(∂H::ZeroTangent) = NoTangent(), NoTangent(), NoTangent()
+    TH_pullback(∂H) = NoTangent(), ∂H.basis, ∂H.blocks
+    return H, TH_pullback
+end
+
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis{T}; kwargs...) where {T}
     @warn "self_consistent_field rrule triggered."
     scfres = self_consistent_field(basis; kwargs...)
@@ -188,6 +220,8 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
     ρ, compute_density_pullback =
         rrule(config, compute_density, basis, scfres.ψ, scfres.occupation)
 
+    # TODO rrule_via_ad rayleigh quotient to pull back eigenvalues
+
     function self_consistent_field_pullback(∂scfres)
         # TODO problem: typeof(∂scfres) == Tangent{Any}
         ∂ψ = ∂scfres.ψ
@@ -196,18 +230,24 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         ∂energies = ∂scfres.energies
         ∂basis1 = Tangent{PlaneWaveBasis{T}}(; ChainRulesCore.backing(∂scfres.basis)...)
         ∂H = ∂scfres.ham
+        ∂eigenvalues = ∂scfres.eigenvalues # TODO rayleigh quotient
 
         _, ∂basis2, ∂ψ_density_pullback, _ = compute_density_pullback(∂ρ)
         ∂ψ = ∂ψ_density_pullback + ∂ψ
-        ∂ψ, occupation = DFTK.select_occupied_orbitals(basis, ∂ψ, occupation)
 
-        ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation).δψ # use self-adjointness of dH ψ -> dψ
+        # Otherwise there is no contribution to ∂basis, by linearity.
+        # This also excludes the case when ∂ψ is a NoTangent().
+        if !iszero(∂ψ)
+            ∂ψ, occupation = DFTK.select_occupied_orbitals(basis, ∂ψ, occupation)
 
-        # TODO need to do proj_tangent on ∂Hψ
-        _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
-        ∂H = ∂H_mul_pullback + ∂H
-        _, ∂basis3, _, _, _ = energy_hamiltonian_pullback(Tangent{NamedTuple{(:E, :H), Tuple{Energies{Float64}, Hamiltonian}}}(; E=∂energies, H=∂H))
+            ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation).δψ # use self-adjointness of dH ψ -> dψ
 
+            # TODO need to do proj_tangent on ∂Hψ
+            _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
+            ∂H = ∂H_mul_pullback + ∂H
+        end
+
+        _, ∂basis3, _, _, _ = energy_hamiltonian_pullback((; E=∂energies, H=∂H))
         ∂basis = ∂basis1 + ∂basis2 + ∂basis3
 
         return NoTangent(), ∂basis
@@ -243,3 +283,4 @@ end
 # - symmetries
 # - more efficient compute_density rrule (probably by hand)
 # - mpi
+# - make forces differentiable
