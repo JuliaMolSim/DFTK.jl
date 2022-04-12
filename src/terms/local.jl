@@ -69,21 +69,29 @@ struct AtomicLocal end
 function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
 
-    # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
-    # Since V is a sum of radial functions located at atomic
-    # positions, this involves a form factor (`local_potential_fourier`)
-    # and a structure factor e^{-i Gr}
-
-    pot_fourier = map(G_vectors(basis)) do G
-        pot = sum(model.atom_groups) do group
-            element = model.atoms[first(group)]
-            form_factor::T = local_potential_fourier(element, norm(model.recip_lattice * G))
-            form_factor * sum(cis2pi(-dot(G, r)) for r in @view model.positions[group])
+    if all(model.periodic)
+        # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
+        # Since V is a sum of radial functions located at atomic
+        # positions, this involves a form factor (`local_potential_fourier`)
+        # and a structure factor e^{-i Gr}
+        pot_fourier = map(G_vectors(basis)) do G
+            pot = sum(model.atom_groups) do group
+                element = model.atoms[first(group)]
+                form_factor::T = local_potential_fourier(element, norm(model.recip_lattice * G))
+                form_factor * sum(cis2pi(-dot(G, r)) for r in @view model.positions[group])
+            end
+            pot / sqrt(model.unit_cell_volume)
         end
-        pot / sqrt(model.unit_cell_volume)
+        pot_real = G_to_r(basis, pot_fourier)
+    else
+        @assert all(.!basis.model.periodic)
+        # simple real-space sum
+        pot_real = map(r_vectors(basis)) do r
+            sum(zip(model.atoms, model.positions)) do (element, r_ion)
+                local_potential_real(element, norm(model.lattice * (r-r_ion)))
+            end
+        end
     end
-
-    pot_real = G_to_r(basis, pot_fourier)
     TermAtomicLocal(pot_real)
 end
 
