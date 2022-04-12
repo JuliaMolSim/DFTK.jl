@@ -6,6 +6,7 @@
 using DFTK
 using LinearAlgebra
 using DFTK: FallbackFunctional, LibxcFunctional
+using Zygote
 
 ## Construct PlaneWaveBasis given a particular electric field strength
 ## Again we take the example of a Helium atom.
@@ -41,6 +42,8 @@ function compute_dipole(ε; tol=1e-8, kwargs...)
 end;
 
 compute_dipole(0)
+
+Zygote.gradient(compute_dipole, 0);
 
 # With this in place we can compute the polarizability from finite differences
 # (just like in the previous example):
