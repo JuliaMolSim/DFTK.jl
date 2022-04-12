@@ -95,4 +95,4 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
 [targets]
-test = ["Test", "Aqua", "DoubleFloats", "FiniteDiff", "GenericLinearAlgebra", "IntervalArithmetic", "Plots", "Random", "KrylovKit", "Logging", "JLD2", "WriteVTK", "wannier90_jll"]
+test = ["Test", "Aqua", "DoubleFloats", "FiniteDiff", "GenericLinearAlgebra", "IntervalArithmetic", "Plots", "Random", "KrylovKit", "Logging", "JLD2", "WriteVTK", "wannier90_jll", "QuadGK"]
