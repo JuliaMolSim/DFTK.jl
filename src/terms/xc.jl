@@ -1,25 +1,24 @@
-using Libxc
-include("../xc/xc_evaluate.jl")
-
 """
 Exchange-correlation term, defined by a list of functionals and usually evaluated through libxc.
 """
 struct Xc
-    functionals::Vector{Symbol}  # Symbols of the functionals (Libxc.jl / libxc convention)
+    functionals::Vector{Functional}
     scaling_factor::Real         # Scales by an arbitrary factor (useful for exploration)
 
-    # Density cutoff for XC computation: Below this value a gridpoint counts as zero
-    # `nothing` implies that libxc defaults are used (for each functional a different
-    # small positive value like 1e-24)
-    density_threshold::Union{Nothing,Float64}
-
     # Threshold for potential terms: Below this value a potential term is counted as zero.
-    potential_threshold::Float64
+    potential_threshold::Real
 end
-Xc(symbols::Symbol...; kwargs...) = Xc([symbols...]; kwargs...)
-function Xc(symbols::Vector; scaling_factor=1, density_threshold=nothing, potential_threshold=0)
-    Xc(convert.(Symbol, symbols), scaling_factor, density_threshold, potential_threshold)
+function Xc(functionals::AbstractVector{<:Functional}; scaling_factor=1, potential_threshold=0)
+    Xc(functionals, scaling_factor, potential_threshold)
 end
+function Xc(functionals::AbstractVector; kwargs...)
+    fun = map(functionals) do f
+        f isa Functional ? f : DispatchFunctional(f)
+    end
+    Xc(convert(Vector{Functional}, fun); kwargs...)
+end
+Xc(functional; kwargs...) = Xc([functional]; kwargs...)
+
 function Base.show(io::IO, xc::Xc)
     fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
     fun = length(xc.functionals) == 1 ? ":$(xc.functionals[1])" : "$(xc.functionals)"
@@ -28,19 +27,13 @@ end
 
 function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     isempty(xc.functionals) && return TermNoop()
-    functionals = Functional.(xc.functionals; n_spin=basis.model.n_spin_components)
-    if !isnothing(xc.density_threshold)
-        for func in functionals
-            func.density_threshold = xc.density_threshold
-        end
-    end
-    TermXc(functionals, T(xc.scaling_factor), T(xc.potential_threshold))
+    TermXc(xc.functionals, T(xc.scaling_factor), T(xc.potential_threshold))
 end
 
-struct TermXc <: TermNonlinear
+struct TermXc{T} <: TermNonlinear where {T}
     functionals::Vector{Functional}
-    scaling_factor::Real
-    potential_threshold::Real
+    scaling_factor::T
+    potential_threshold::T
 end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
@@ -49,11 +42,11 @@ end
 
     model  = basis.model
     n_spin = model.n_spin_components
-    @assert all(xc.family in (:lda, :gga, :mgga) for xc in term.functionals)
-    @assert all(xc.n_spin == n_spin for xc in term.functionals)
+    @assert all(family(xc) in (:lda, :gga, :mgga, :mgga_lapl)
+                for xc in term.functionals)
 
     # Compute kinetic energy density, if needed.
-    if isnothing(τ) && any(is_mgga, term.functionals)
+    if isnothing(τ) && any(needs_τ, term.functionals)
         if isnothing(ψ) || isnothing(occ)
             τ = zero(ρ)
         else
@@ -68,12 +61,10 @@ end
     # Evaluate terms and energy contribution (zk == energy per unit particle)
     # It may happen that a functional does only provide a potenital and not an energy term
     # Therefore skip_unsupported_derivatives=true to avoid an error.
-    #terms = evaluate(term.functionals, density; skip_unsupported_derivatives=true)
-    zk, vrho, vsigma, v2rho2 = evaluate(term.functionals, density; skip_unsupported_derivatives=true)
-    #println("vrho ",vrho[1])
-    @assert !isnothing(vrho)
-    if !isnothing(zk)
-        E = sum(zk .* ρ) * basis.dvol
+    terms = potential_terms(term.functionals, density)
+    @assert haskey(terms, :vrho)
+    if haskey(terms, :zk)
+        E = sum(terms.zk .* ρ) * basis.dvol
     else
         E = zero(T)
     end
@@ -84,35 +75,34 @@ end
     tσ = libxc_spinindex_σ
 
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ) + ΔVl
-    potential = permutedims(vrho, (2, 3, 4, 1))
-    # not differentiated for now
-    #@views for s in 1:n_spin
-    #    potential[:, :, :, s] .+= vrho[s, :, :, :]
-    #    if !isnothing(vsigma) && any(x -> abs(x) > term.potential_threshold, vsigma)
-    #        # Need gradient correction
-    #        # TODO Drop do-block syntax here?
-    #        potential[:, :, :, s] .+= -2divergence_real(basis) do α
-    #            # Extra factor (1/2) for s != t is needed because libxc only keeps σ_{αβ}
-    #            # in the energy expression. See comment block below on spin-polarised XC.
-    #            sum((s == t ? one(T) : one(T)/2)
-    #                .* vsigma[tσ(s, t), :, :, :] .* density.∇ρ_real[t, :, :, :, α]
-    #                for t in 1:n_spin)
-    #        end
-    #    end
-    #    #if haskey(terms, :vlapl) && any(x -> abs(x) > term.potential_threshold, terms.vlapl)
-    #    #    @warn "Meta-GGAs with a Vlapl term have not yet been thoroughly tested." maxlog=1
-    #    #    mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
-    #    #    Vl_fourier = r_to_G(basis, terms.vlapl[s, :, :, :])
-    #    #    potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
-    #    #end
-    #end
+    potential = zero(ρ)
+    @views for s in 1:n_spin
+        potential[:, :, :, s] .+= terms.vrho[s, :, :, :]
+        if haskey(terms, :vsigma) && any(x -> abs(x) > term.potential_threshold, terms.vsigma)
+            # Need gradient correction
+            # TODO Drop do-block syntax here?
+            potential[:, :, :, s] .+= -2divergence_real(basis) do α
+                # Extra factor (1/2) for s != t is needed because libxc only keeps σ_{αβ}
+                # in the energy expression. See comment block below on spin-polarised XC.
+                sum((s == t ? one(T) : one(T)/2)
+                    .* terms.vsigma[tσ(s, t), :, :, :] .* density.∇ρ_real[t, :, :, :, α]
+                    for t in 1:n_spin)
+            end
+        end
+        if haskey(terms, :vlapl) && any(x -> abs(x) > term.potential_threshold, terms.vlapl)
+            @warn "Meta-GGAs with a Vlapl term have not yet been thoroughly tested." maxlog=1
+            mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
+            Vl_fourier = r_to_G(basis, terms.vlapl[s, :, :, :])
+            potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
+        end
+    end
 
     # DivAgrad contributions -½ Vτ
     Vτ = nothing
-    #if haskey(terms, :vtau) && any(x -> abs(x) > term.potential_threshold, terms.vtau)
-    #    # Need meta-GGA non-local operator (Note: -½ part of the definition of DivAgrid)
-    #    Vτ = term.scaling_factor * permutedims(terms.vtau, (2, 3, 4, 1))
-    #end
+    if haskey(terms, :vtau) && any(x -> abs(x) > term.potential_threshold, terms.vtau)
+        # Need meta-GGA non-local operator (Note: -½ part of the definition of DivAgrid)
+        Vτ = term.scaling_factor * permutedims(terms.vtau, (2, 3, 4, 1))
+    end
 
     if term.scaling_factor != 1
         E *= term.scaling_factor
@@ -233,12 +223,11 @@ end
 #      returned from Libxc.evaluate ?
 
 function max_required_derivative(functional)
-    functional.family == :lda && return 0
-    functional.family == :gga && return 1
-    if functional.family == :mgga
-        return needs_laplacian(functional) ? 2 : 1
-    end
-    error("Functional family $(functional.family) not known.")
+    family(functional) == :lda       && return 0
+    family(functional) == :gga       && return 1
+    family(functional) == :mgga      && return 1
+    family(functional) == :mgga_lapl && return 2
+    error("Functional family $(family(functional)) not known.")
 end
 
 
@@ -315,12 +304,11 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...)
     density = LibxcDensities(basis, 0, ρ, nothing)
     n_spin  = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
-    if !all(xc.family == :lda for xc in term.functionals)
+    if !all(family(xc) == :lda for xc in term.functionals)
         error("compute_kernel only implemented for LDA")
     end
-    @assert all(xc.n_spin == n_spin for xc in term.functionals)
 
-    kernel = evaluate(term.functionals, density; derivatives=2:2).v2rho2
+    kernel = kernel_terms(term.functionals, density).v2rho2
     fac = term.scaling_factor
     if n_spin == 1
         Diagonal(vec(fac .* kernel))
@@ -340,8 +328,7 @@ end
 function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs...) where {T}
     n_spin = basis.model.n_spin_components
     isempty(term.functionals) && return nothing
-    @assert all(xc.family in (:lda, :gga) for xc in term.functionals)
-    @assert all(xc.n_spin == n_spin for xc in term.functionals)
+    @assert all(family(xc) in (:lda, :gga) for xc in term.functionals)
 
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
@@ -361,17 +348,16 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs..
         ]
     end
 
-    # TODO LDA actually only needs the 2nd derivatives for this ... could be optimised
-    zk, vrho, vsigma, v2rho2  = evaluate(term.functionals, density, derivatives=1:2)
+    terms = kernel_terms(term.functionals, density)
     δV = zero(ρ)  # [ix, iy, iz, iσ]
 
     tρρ = libxc_spinindex_ρρ
     @views for s in 1:n_spin, t in 1:n_spin  # LDA term
-        δV[:, :, :, s] .+= v2rho2[tρρ(s, t), :, :, :] .* δρ[t, :, :, :]
+        δV[:, :, :, s] .+= terms.v2rho2[tρρ(s, t), :, :, :] .* δρ[t, :, :, :]
     end
-    #if haskey(terms, :v2rhosigma)  # GGA term
-    #    add_kernel_gradient_correction!(δV, terms, density, perturbation, cross_derivatives)
-    #end
+    if haskey(terms, :v2rhosigma)  # GGA term
+        add_kernel_gradient_correction!(δV, terms, density, perturbation, cross_derivatives)
+    end
 
     term.scaling_factor * δV
 end
@@ -450,168 +436,34 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
     δV
 end
 
-
-function Libxc.evaluate(xc::Functional, density::LibxcDensities;
-                        derivatives=0:1, skip_unsupported_derivatives=false, kwargs...)
-    if skip_unsupported_derivatives
-        derivatives = filter(i -> i in Libxc.supported_derivatives(xc), derivatives)
-    end
-    zk, vrho, vsigma, v2rho2 = nothing, nothing, nothing, nothing
-    if xc.family == :lda
-        #@warn "xc lda evaluate"
-        zk, vrho, vsigma, v2rho2 = evaluate(xc; rho=density.ρ_real, derivatives, kwargs...)
-    elseif xc.family == :gga
-        #@warn "xc gga evaluate"
-        zk, vrho, vsigma, v2rho2 = evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, derivatives, kwargs...)
-    elseif xc.family == :mgga && !needs_laplacian(xc)
-        #@warn "xc mgga evaluate"
-        zk, vrho, vsigma, v2rho2 = evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=density.τ_real,
-                 derivatives, kwargs...)
-    elseif xc.family == :mgga && needs_laplacian(xc)
-        #@warn "xc mgga evaluate"
-        zk, vrho, vsigma, v2rho2 = evaluate(xc; rho=density.ρ_real, sigma=density.σ_real, tau=density.τ_real,
-                 lapl=density.Δρ_real, derivatives, kwargs...)
-    else
-        error("Not implemented for functional familiy $(xc.family)")
-    end
-    #return (; zk, vrho, v2rho2, vsigma)
-    return zk, vrho, vsigma, v2rho2
-end
-
-function Libxc.evaluate(xcs::Vector{Functional}, density::LibxcDensities; kwargs...)
-    isempty(xcs) && return NamedTuple()
-    # conversion from NamedTuple and back can hopefully be skipped once mergewith is
-    # implemented for NamedTuple in Julia (open PR)
-    #error("xc evaluate")
-
-    zk, vrho, vsigma, v2rho2 = nothing, nothing, nothing, nothing
-
-    for xc in xcs
-        zki, vrhoi, vsigmai, v2rho2i = evaluate(xc, density; kwargs...)
-        zk     = !isnothing(zk)     ? zk + zki : zki
-        vrho   = !isnothing(vrho)   ? vrho + vrhoi : vrhoi
-        vsigma = !isnothing(vsigma) ? vsigma + vsigmai : vsigmai
-        v2rho2 = !isnothing(v2rho2) ? v2rho2 + v2rho2i : v2rho2i
-    end
-    return zk, vrho, vsigma, v2rho2
-end
-
-function Libxc.evaluate(func::Functional; derivatives=0:1, rho::AbstractArray, kwargs...)
-    #@assert all(0 .≤ derivatives .≤ 4)
-    if !all(d in supported_derivatives(func) for d in derivatives)
-        throw(ArgumentError("Functional $(func.identifier) does only support derivatives " *
-                            "of orders $(supported_derivatives(func)), but you " *
-                            "requested $derivatives."))
-    end
-
-    # Determine the gridshape (i.e. the shape of the grid points without the spin components)
-    if ndims(rho) > 1
-        if size(rho, 1) != func.spin_dimensions.rho
-            error("First axis for multidimensional rho array should be equal " *
-                  "to the number of spin components (== $(func.spin_dimensions.rho))")
-        end
-        gridshape = size(rho)[2:end]
-    else
-        if mod(length(rho), func.spin_dimensions.rho) != 0
-            error("Length of linear rho array should be divisible by number of spin " *
-                  "components in rho (== $(func.spin_dimensions.rho)).")
-        end
-        gridshape = (Int(length(rho) / func.spin_dimensions.rho), )
-    end
-
-    # Output arguments, where memory is already allocated
-    outargs_allocated = Dict{Symbol, AbstractArray}()
-    outargs = Dict{Symbol, AbstractArray}()
-    for symbol in vcat(Libxc.ARGUMENTS[func.family][1 .+ derivatives]...)
-        if symbol in keys(kwargs)
-            outargs_allocated[symbol] = kwargs[symbol]
-        elseif symbol == :zk  # For zk keep just the grid shape
-            outargs[symbol] = similar(rho, gridshape)
+function mergesum!(nt1::NamedTuple, nt2::NamedTuple)
+    for (key, data) in pairs(nt2)
+        if haskey(nt1, key)
+            nt1 = merge(nt1, (key => (data .+ getproperty(nt1, key)), ))
         else
-            n_spin = getfield(func.spin_dimensions, symbol)
-            outargs[symbol] = similar(rho, n_spin, gridshape...)
+            nt1 = merge(nt1, (key => data, ))
         end
     end
-
-    use_fallback = true
-    zk, vrho, vsigma, v2rho2 = nothing, nothing, nothing, nothing
-    if use_fallback
-        if func.family == :lda
-            zk, vrho, vsigma, v2rho2 = xc_fallback(func, Val(func.family), rho; kwargs..., outargs...)
-            if !isnothing(zk)
-                outargs[:zk] = zk
-            end
-            if !isnothing(vrho)
-                outargs[:vrho] = vrho
-            end
-            if !isnothing(v2rho2)
-                outargs[:v2rho2] = v2rho2
-            end
-        end
-        if func.family == :gga
-            zk, vrho, vsigma, v2rho2 = xc_fallback(func, Val(func.family), rho; kwargs..., outargs...)
-            if !isnothing(zk)
-                outargs[:zk] = zk
-            end
-            if !isnothing(vrho)
-                outargs[:vrho] = vrho
-            end
-            if !isnothing(vsigma)
-                outargs[:vsigma] = vsigma
-            end
-        end
-    else
-        evaluate!(func; rho=rho, kwargs..., outargs...)
-        println("func family libxc ",func.family,func.identifier," ",keys(outargs))
-        zk     = :zk     in keys(outargs) ? outargs[:zk]     : nothing
-        vrho   = :vrho   in keys(outargs) ? outargs[:vrho]   : nothing
-        vsigma = :vsigma in keys(outargs) ? outargs[:vsigma] : nothing
-        v2rho2 = :v2rho2 in keys(outargs) ? outargs[:v2rho2] : nothing
-        #println(vrho)
-    end
-    return zk, vrho, vsigma, v2rho2
+    nt1
 end
 
-function Libxc.Functional(identifier::Symbol; n_spin::Integer = 1)
-    n_spin in (1, 2) || error("n_spin needs to be 1 or 2")
+for fun in (:potential_terms, :kernel_terms)
+    @eval begin
+        function $fun(xc::Functional, density::LibxcDensities)
+            $fun(xc, density.ρ_real, density.σ_real, density.τ_real, density.Δρ_real)
+        end
 
-    number = Libxc.xc_functional_get_number(string(identifier))
-    number == -1 && error("Functional $identifier is not known.")
-
-    function pointer_cleanup(ptr::Ptr{Libxc.xc_func_type})
-        if ptr != C_NULL
-            Libxc.xc_func_end(ptr)
-            Libxc.xc_func_free(ptr)
+        function $fun(xcs::Vector{Functional}, density::LibxcDensities)
+            isempty(xcs) && return NamedTuple()
+            result = $fun(xcs[1], density)
+            for i in 2:length(xcs)
+                result = mergesum!(result, $fun(xcs[i], density))
+            end
+            result
         end
     end
-
-    pointer = Libxc.xc_func_alloc()
-    ret = Libxc.xc_func_init(pointer, number, n_spin)
-    ret != 0 && error("Something went wrong initialising the functional")
-
-    #try
-        funcinfo = Libxc.xc_func_get_info(pointer)
-        kind     = Libxc.KINDMAP[Libxc.xc_func_info_get_kind(funcinfo)]
-        family   = Libxc.FAMILIYMAP[Libxc.xc_func_info_get_family(funcinfo)]
-        flags    = Libxc.extract_flags(Libxc.xc_func_info_get_flags(funcinfo))
-        name     = unsafe_string(Libxc.xc_func_info_get_name(funcinfo))
-        references = Libxc.extract_references(funcinfo)
-        dimensions = Libxc.unsafe_load(pointer).dim
-
-        # Flags for having 0th to 4th derivative
-        derivative_flags = (:exc, :vxc, :fxc, :kxc, :lxc)
-        derivatives = [i-1 for (i, flag) in enumerate(derivative_flags) if flag in flags]
-
-        # Make functional and attach finalizer for cleaning up the pointer
-        func = Functional(identifier, n_spin, name, kind, family, flags, derivatives,
-                          references, dimensions, pointer)
-        finalizer(cls -> pointer_cleanup(cls.pointer_), func)
-        return func
-    #catch
-    #    pointer_cleanup(pointer)
-    #    rethrow()
-    #end
 end
+
 
 """
 Compute divergence of an operand function, which returns the cartesian x,y,z
