@@ -16,7 +16,7 @@ using DFTK
 using PyCall
 
 silicon = pyimport("ase.build").bulk("Si")
-atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="lda"))
+atoms = [ElementPsp(el.symbol, psp=load_psp("hgh/lda/si-q4.hgh"))
          for el in load_atoms(silicon)]
 positions = load_positions(silicon)
 lattice   = load_lattice(silicon);

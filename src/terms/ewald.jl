@@ -78,6 +78,11 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
         # with a slight bias towards reciprocal summation
         η = sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
     end
+
+    # TODO refactor
+    # This is declared to escape the local scope of ChainRulesCore.@ignore_derivatives
+    forces_real = nothing
+    forces_recip = nothing
     
     ChainRulesCore.@ignore_derivatives begin
         if forces !== nothing

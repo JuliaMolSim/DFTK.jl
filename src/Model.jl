@@ -176,9 +176,11 @@ function Model(lattice::AbstractMatrix{<:Quantity}, args...; kwargs...)
     Model(austrip.(lattice), args...; kwargs...)
 end
 
-normalize_magnetic_moment(::Nothing)  = Vec3{Float64}(zeros(3))
-normalize_magnetic_moment(mm::Number) = Vec3{Float64}(0, 0, mm)
-normalize_magnetic_moment(mm::AbstractVector) = Vec3{Float64}(mm)
+
+normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
+normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)
+normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm
+
 
 default_n_electrons(atoms) = sum(n_elec_valence, atoms; init=0)
 
@@ -219,7 +221,6 @@ function default_symmetries(lattice, atoms, positions, magnetic_moments, spin_po
     magnetic_moments = normalize_magnetic_moment.(magnetic_moments)
     symmetry_operations(lattice, atoms, positions, magnetic_moments; tol_symmetry)
 end
-
 
 
 """
