@@ -43,7 +43,7 @@ end
 const TAGS = isempty(DFTK_TEST_ARGS) ? [:all] : Symbol.(DFTK_TEST_ARGS)
 
 # Tags excluded from the first run of "all" tests
-const EXCLUDED_FROM_ALL = Symbol[:example, :gpu]
+const EXCLUDED_FROM_ALL = Symbol[:example, :gpu, :off]
 :fast ∈ TAGS     && push!(EXCLUDED_FROM_ALL, :slow)
 mpi_nprocs() > 1 && push!(EXCLUDED_FROM_ALL, :dont_test_mpi)
 Sys.iswindows()  && push!(EXCLUDED_FROM_ALL, :dont_test_windows)

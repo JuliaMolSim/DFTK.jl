@@ -14,6 +14,10 @@ struct Model{T <: Real, VT <: Real}
     recip_lattice::Mat3{T}
     # Dimension of the system; 3 unless `lattice` has zero columns
     n_dim::Int
+    # Whether the problem is periodic along each direction
+    # When not periodic, the system is assumed to be centered
+    # at the middle of the cell (1/2)
+    periodic::Vec3{Bool}
     # Useful for conversions between cartesian and reduced coordinates
     inv_lattice::Mat3{T}
     inv_recip_lattice::Mat3{T}
@@ -66,7 +70,7 @@ _is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
 
 """
     Model(lattice, atoms, positions; n_electrons, magnetic_moments, terms, temperature,
-          smearing, spin_polarization, symmetries)
+          smearing, spin_polarization, symmetries, periodic)
 
 Creates the physical specification of a model (without any discretization information).
 
@@ -109,6 +113,7 @@ function Model(lattice::AbstractMatrix{T},
                spin_polarization=default_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
+               periodic=Vec3(true, true, true)
                ) where {T <: Real}
     # Validate εF and n_electrons
     if !isnothing(εF)  # fixed Fermi level
@@ -176,7 +181,8 @@ function Model(lattice::AbstractMatrix{T},
     @assert !isempty(symmetries)  # Identity has to be always present.
 
     Model{T,value_type(T)}(model_name,
-                           lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
+                           lattice, recip_lattice, n_dim, periodic,
+                           inv_lattice, inv_recip_lattice,
                            unit_cell_volume, recip_cell_volume,
                            n_electrons, εF, spin_polarization, n_spin, temperature, smearing,
                            atoms, positions, atom_groups, terms, symmetries)
@@ -218,6 +224,7 @@ function Model{T}(model::Model;
                   kwargs...) where {T <: Real}
     Model(T.(lattice), atoms, positions;
           model.model_name,
+          model.periodic,
           model.n_electrons,
           magnetic_moments=[],  # not used because symmetries explicitly given
           terms=model.term_types,

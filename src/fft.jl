@@ -24,8 +24,8 @@ function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, f_fourier::Abstrac
     mul!(f_real, basis.opBFFT, f_fourier)
     f_real .*= basis.ifft_normalization
 end
-function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                 kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
+function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, kpt::Kpoint,
+               f_fourier::AbstractVector; normalize=true)
     @assert length(f_fourier) == length(kpt.mapping)
     @assert size(f_real) == basis.fft_size
 
@@ -79,8 +79,8 @@ function fft!(f_fourier::AbstractArray3, basis::PlaneWaveBasis, f_real::Abstract
     mul!(f_fourier, basis.opFFT, f_real)
     f_fourier .*= basis.fft_normalization
 end
-function fft!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
-                 kpt::Kpoint, f_real::AbstractArray3; normalize=true)
+function fft!(f_fourier::AbstractVector, basis::PlaneWaveBasis, kpt::Kpoint,
+              f_real::AbstractArray3; normalize=true)
     @assert size(f_real) == basis.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
 
