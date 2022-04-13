@@ -18,7 +18,7 @@ function PairwisePotential(V, params; max_radius=100)
     PairwisePotential(V, params, max_radius)
 end
 function (P::PairwisePotential)(basis::PlaneWaveBasis{T}) where {T}
-    E = energy_pairwise(basis.model, P.V, P.params; P.max_radius)
+    E = energy_pairwise(basis.model, P.V, P.params; P.max_radius, basis.model.periodic)
     TermPairwisePotential(P.V, P.params, T(P.max_radius), E)
 end
 
@@ -57,7 +57,7 @@ end
 # This could be factorised with Ewald, but the use of `symbols` would slow down the
 # computationally intensive Ewald sums. So we leave it as it for now.
 function energy_pairwise(lattice, symbols, positions, V, params;
-                         max_radius=100, forces=nothing)
+                         max_radius=100, forces=nothing, periodic=Vec3(true, true, true))
     T = eltype(lattice)
     @assert length(symbols) == length(positions)
 
@@ -66,14 +66,14 @@ function energy_pairwise(lattice, symbols, positions, V, params;
         forces_pairwise = copy(forces)
     end
 
+    # do we want shells in all directions?
+    is_dim_trivial = [!periodic[d] || norm(lattice[:,d]) == 0 for d=1:3]
     # Function to return the indices corresponding
     # to a particular shell.
-    # Not performance critical, so we do not type the function
-    max_shell(n, trivial) = trivial ? 0 : n
-    # Check if some coordinates are not used.
-    is_dim_trivial = [norm(lattice[:,i]) == 0 for i=1:3]
+    # This is all unstable, but this routine is not particular performance critical
+    max_shell(n, d) = is_dim_trivial[d] ? 0 : n
     function shell_indices(nsh)
-        ish, jsh, ksh = max_shell.(nsh, is_dim_trivial)
+        ish, jsh, ksh = max_shell.(nsh, 1:3)
         [[i,j,k] for i in -ish:ish for j in -jsh:jsh for k in -ksh:ksh
          if maximum(abs.([i,j,k])) == nsh]
     end

@@ -35,7 +35,7 @@ function energy_ewald(model::Model{T}; kwargs...) where {T}
     # n_electrons is used synonymously for sum of charges
     charges = T.(charge_ionic.(model.atoms))
     @assert sum(charges) == model.n_electrons
-    energy_ewald(model.lattice, charges, model.positions; kwargs...)
+    energy_ewald(model.lattice, charges, model.positions; model.periodic, kwargs...)
 end
 
 """
@@ -47,7 +47,7 @@ lattice and reciprocal lattice vectors as columns. `charges` and
 arrays) in fractional coordinates. If `forces` is not nothing, minus the derivatives
 of the energy with respect to `positions` is computed.
 """
-function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
+function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing, periodic=Vec3(true, true, true))
     T = eltype(lattice)
     for i=1:3
         if iszero(lattice[:, i])
@@ -57,12 +57,13 @@ function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
             return zero(T)
         end
     end
-    energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions; η, forces)
+    energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions; η, forces, periodic)
 end
 
 # This could be factorised with Pairwise, but its use of `atom_types` would slow down this
 # computationally intensive Ewald sums. So we leave it as it for now.
-function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, forces=nothing)
+function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, forces=nothing,
+                      periodic=Vec3(true, true, true))
     T = eltype(lattice)
     @assert T == eltype(recip_lattice)
     @assert length(charges) == length(positions)
@@ -71,6 +72,10 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
         # with a slight bias towards reciprocal summation
         η = sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
     end
+    if all(.! periodic)
+        @assert all(periodic) || all(.! periodic) # only periodic or isolated atm
+        η = zero(T) # no Ewald splitting in this case: simple Coulomb for the unit cell only
+    end
     if forces !== nothing
         @assert size(forces) == size(positions)
         forces_real = copy(forces)
@@ -78,15 +83,9 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     end
 
     # Numerical cutoffs to obtain meaningful contributions. These are very conservative.
-    # The largest argument to the exp(-x) function
     max_exp_arg = -log(eps(T)) + 5  # add some wiggle room
     max_erfc_arg = sqrt(max_exp_arg)  # erfc(x) ~= exp(-x^2)/(sqrt(π)x) for large x
 
-    #
-    # Reciprocal space sum
-    #
-    # Initialize reciprocal sum with correction term for charge neutrality
-    sum_recip::T = - (sum(charges)^2 / 4η^2)
 
     # Function to return the indices corresponding
     # to a particular shell
@@ -96,9 +95,19 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
          if maximum(abs.([i,j,k])) == ish]
     end
 
+    #
+    # Reciprocal space sum
+    #
+    if all(periodic)
+        # Initialize reciprocal sum with correction term for charge neutrality
+        sum_recip::T = - (sum(charges)^2 / 4η^2)
+    else
+        sum_recip = zero(T)
+    end
+
     # Loop over reciprocal-space shells
     gsh = 1 # Exclude G == 0
-    any_term_contributes = true
+    any_term_contributes = all(periodic) # if non-periodic, no reciprocal-space contribution
     while any_term_contributes
         any_term_contributes = false
 
@@ -141,14 +150,19 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     #
     # Real-space sum
     #
-    # Initialize real-space sum with correction term for uniform background
-    sum_real::T = -2η / sqrt(T(π)) * sum(Z -> Z^2, charges)
+    if all(periodic)
+        # Initialize real-space sum with correction term for uniform background
+        sum_real::T = -2η / sqrt(T(π)) * sum(Z -> Z^2, charges)
+    else
+        sum_real = zero(T)
+    end
 
     # Loop over real-space shells
     rsh = 0 # Include R = 0
     any_term_contributes = true
     while any_term_contributes || rsh <= 1
         any_term_contributes = false
+        all(.! periodic) && rsh == 1 && break
 
         # Loop over R vectors for this shell patch
         for R in shell_indices(rsh)
