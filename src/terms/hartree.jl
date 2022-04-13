@@ -1,3 +1,4 @@
+using SpecialFunctions
 """
 Hartree term: for a decaying potential V the energy would be
 
@@ -42,12 +43,46 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
     TermHartree(T(scaling_factor), T(scaling_factor) .* poisson_green_coeffs)
 end
 
+# a gaussian of exponent α and integral M
+ρref_real(r::T, M=1, α=1) where {T} = M * exp(-T(1)/2 * (α*r)^2) / ((2T(π)/α)^(T(3)/2))
+# solution of -ΔVref = 4π ρref
+function Vref_real(r::T, M=1, α=1) where {T}
+    r == 0 && return M * 2 / sqrt(T(pi)) * sqrt(α/2)
+    M * erf(sqrt(α/2)*r)/r
+end
+
+
 @timing "ene_ops: hartree" function ene_ops(term::TermHartree, basis::PlaneWaveBasis{T},
                                             ψ, occ; ρ, kwargs...) where {T}
-    ρtot_fourier = r_to_G(basis, total_density(ρ))
-    pot_fourier = term.poisson_green_coeffs .* ρtot_fourier
+    model = basis.model
+    ρ_fourier = r_to_G(basis, total_density(ρ))
+    pot_fourier = term.poisson_green_coeffs .* ρ_fourier
     pot_real = G_to_r(basis, pot_fourier)
-    E = real(dot(pot_fourier, ρtot_fourier) / 2)
+
+    # For isolated systems, the above does not compute a good potential (eg it assumes zero DC component)
+    # We correct it by solving -Δ V = 4πρ in two steps: we split ρ into ρref and ρ-ρref,
+    # where ρref is a gaussian has the same total charge as ρ.
+    # We compute the first potential in real space (explicitly since ρref is known),
+    # and the second (short-range) potential in Fourier space
+    # Compared to the usual scheme (ρref = 0), this results in a correction potential
+    # equal to Vref computed in real space minus Vref computed in Fourier space
+    if any(.!model.periodic)
+        @assert all(.!model.periodic)
+        α = 1 # TODO optimize the radius of ρref
+        # TODO determine center from density?
+        # Although strictly speaking this results in extra terms to guarantee energy/ham consistency
+        center = Vec3(T(1)/2, T(1)/2, T(1)/2)
+
+        Vref = [Vref_real(norm(model.lattice * (r - center)), model.n_electrons, α) for r in r_vectors(basis)]
+        ρref = [ρref_real(norm(model.lattice * (r - center)), model.n_electrons, α) for r in r_vectors(basis)]
+        # TODO possibly optimize FFTs here
+        Vcorr_real = Vref - G_to_r(basis, term.poisson_green_coeffs .* r_to_G(basis, ρref))
+        Vcorr_fourier = r_to_G(basis, Vcorr_real)
+        pot_real .+= Vcorr_real
+        pot_fourier .+= Vcorr_fourier
+    end
+
+    E = real(dot(pot_fourier, ρ_fourier) / 2)
 
     ops = [RealSpaceMultiplication(basis, kpt, pot_real) for kpt in basis.kpoints]
     (E=E, ops=ops)
