@@ -75,9 +75,10 @@ end
     tσ = libxc_spinindex_σ
 
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ) + ΔVl
-    potential = zero(ρ)
+    #potential = zero(ρ)
+    potential = permutedims(terms.vrho, (2,3,4,1)) #[s, :, :, :]
     @views for s in 1:n_spin
-        potential[:, :, :, s] .+= terms.vrho[s, :, :, :]
+        #potential[:, :, :, s] .+= terms.vrho[s, :, :, :]
         if haskey(terms, :vsigma) && any(x -> abs(x) > term.potential_threshold, terms.vsigma)
             # Need gradient correction
             # TODO Drop do-block syntax here?
@@ -437,14 +438,39 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
 end
 
 function mergesum!(nt1::NamedTuple, nt2::NamedTuple)
+    println("mergesum",keys(nt1),keys(nt2))
+    println("union",union(keys(nt1),keys(nt2)))
     for (key, data) in pairs(nt2)
+        println("In nt2:", key)
         if haskey(nt1, key)
+            println("    merging nt1 and nt2:", key)
             nt1 = merge(nt1, (key => (data .+ getproperty(nt1, key)), ))
         else
+            println("    adding key to nt1:", key)
             nt1 = merge(nt1, (key => data, ))
         end
     end
     nt1
+end
+
+# non mutating version of mergesum!
+function mergesum(nt1::NamedTuple, nt2::NamedTuple)
+    all_keys = nothing
+    ChainRulesCore.@ignore_derivatives begin
+        all_keys = Tuple(union(keys(nt1),keys(nt2)))
+    end
+    function merge_key(key)
+        if haskey(nt1, key) && !haskey(nt2, key)
+            return nt1[key]
+        elseif haskey(nt2, key) && !haskey(nt1, key)
+            return nt2[key]
+        else
+            return nt1[key] .+ nt2[key]
+        end
+    end
+    values = map(merge_key, all_keys)
+
+    return NamedTuple{all_keys}(values)
 end
 
 for fun in (:potential_terms, :kernel_terms)
@@ -457,7 +483,7 @@ for fun in (:potential_terms, :kernel_terms)
             isempty(xcs) && return NamedTuple()
             result = $fun(xcs[1], density)
             for i in 2:length(xcs)
-                result = mergesum!(result, $fun(xcs[i], density))
+                result = mergesum(result, $fun(xcs[i], density))
             end
             result
         end
