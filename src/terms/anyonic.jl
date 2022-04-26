@@ -16,7 +16,7 @@
 # This way, ρ-ρref has zero mass, and A_SR is shorter range.
 # The long-range part is computed explicitly
 
-function ρref_real(x::T, y::T, M, σ) where {T <: Real}
+function ρref_real_2D(x::T, y::T, M, σ) where {T <: Real}
     r = hypot(x, y)
     # gaussian normalized to have integral M
     M * exp(-T(1)/2 * (r/σ)^2) / (σ^2 * (2T(π))^(2/2))
@@ -89,7 +89,7 @@ function TermAnyonic(basis::PlaneWaveBasis{T}, hbar, β) where {T}
     σ = 2
     for (ir, r) in enumerate(r_vectors(basis))
         rcart = basis.model.lattice * (r - @SVector[.5, .5, .0])
-        ρref[ir] = ρref_real(rcart[1], rcart[2], M, σ)
+        ρref[ir] = ρref_real_2D(rcart[1], rcart[2], M, σ)
         Aref[1][ir], Aref[2][ir] = magnetic_potential_produced_by_ρref(rcart[1], rcart[2], M, σ)
     end
     # Aref is not divergence-free in the finite basis, so we explicitly project it
