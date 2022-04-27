@@ -25,8 +25,8 @@ using UnitfulAtomic
     system = attach_psp(periodic_system(particles, box); functional="lda")
 
     eandf = energy_and_force(system, potential)
-    @test eandf.e isa Float64
-    @test eandf.f isa AbstractVector{<:SVector{3,<:Float64}}
+    @test eandf.e isa Unitful.Energy
+    @test eandf.f isa AbstractVector{<:SVector{3,<:Unitful.Force}}
 
     @test haskey(potential.scf_kwargs, :ψ)
     @test haskey(potential.scf_kwargs, :ρ)
