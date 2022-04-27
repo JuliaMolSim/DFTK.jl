@@ -1,9 +1,9 @@
-import InteratomicPotentials: ArbitraryPotential, energy_and_force
+import InteratomicPotentials: NonTrainablePotential, energy_and_force
 
 # Integration to use DFTK as an interatomic potential
 # This is useful for AIMD simulations
 
-Base.@kwdef struct DFTKPotential <: ArbitraryPotential
+Base.@kwdef struct DFTKPotential <: NonTrainablePotential
     functionals::Vector{Symbol}    = [:gga_x_pbe, :gga_c_pbe]  # default to model_PBE
     model_kwargs::Dict{Symbol,Any} = Dict{Symbol,Any}()
     basis_kwargs::Dict{Symbol,Any} = Dict{Symbol,Any}()
@@ -25,5 +25,5 @@ function energy_and_force(system::AbstractSystem, potential::DFTKPotential)
     potential.scf_kwargs[:ψ] = scfres.ψ
     potential.scf_kwargs[:ρ] = scfres.ρ
 
-    (; e=scfres.energies.total, f=compute_forces_cart(scfres))
+    (; e=scfres.energies.total * u"hartree", f=compute_forces_cart(scfres) * u"hartree/bohr")
 end
