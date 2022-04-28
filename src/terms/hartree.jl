@@ -44,18 +44,41 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
 end
 
 # a gaussian of exponent α and integral M
-ρref_real(r::T, M=1, α=1) where {T} = M * exp(-T(1)/2 * (α*r)^2) / ((2T(π)/α)^(T(3)/2))
+ρref_real(r::T, M=1, α=1) where {T} = M * exp(-T(1)/2 * (α*r)^2) / ((2T(π))^(T(3)/2)) * α^3
 # solution of -ΔVref = 4π ρref
 function Vref_real(r::T, M=1, α=1) where {T}
-    r == 0 && return M * 2 / sqrt(T(pi)) * sqrt(α/2)
-    M * erf(sqrt(α/2)*r)/r
+    r == 0 && return M * 2 / sqrt(T(pi)) * α / sqrt(2)
+    M * erf(α/sqrt(2)*r)/r
 end
 
+one_hot(i) = Vec3{Bool}(j == i for j=1:3)
+∂f∂α(f, α, r) = ForwardDiff.derivative(ε -> f(r + ε * one_hot(α)), zero(eltype(r)))
+
+function get_center(basis, ρ)
+    sumρ = sum(ρ)
+    center = map(1:3) do α
+        rα = [r[α] for r in r_vectors_cart(basis)]
+        sum(rα .* ρ) / sumρ
+    end
+    Vec3(center...)
+end
+function get_integral(basis, ρ)
+    sum(ρ) * basis.dvol
+end
+function get_dipole(α, center, basis, ρ)
+    rα = [r[α]-center[α] for r in r_vectors_cart(basis)]
+    dot(rα, ρ) * basis.dvol
+end
+function get_variance(center, basis, ρ)
+    rr = [sum(abs2, r-center) for r in r_vectors_cart(basis)]
+    dot(rr, ρ) * basis.dvol
+end
 
 @timing "ene_ops: hartree" function ene_ops(term::TermHartree, basis::PlaneWaveBasis{T},
                                             ψ, occ; ρ, kwargs...) where {T}
     model = basis.model
-    ρ_fourier = r_to_G(basis, total_density(ρ))
+    ρ_real = total_density(ρ)
+    ρ_fourier = r_to_G(basis, ρ_real)
     pot_fourier = term.poisson_green_coeffs .* ρ_fourier
     pot_real = G_to_r(basis, pot_fourier)
 
@@ -68,13 +91,34 @@ end
     # equal to Vref computed in real space minus Vref computed in Fourier space
     if any(.!model.periodic)
         @assert all(.!model.periodic)
-        α = 1 # TODO optimize the radius of ρref
-        # TODO determine center from density?
-        # Although strictly speaking this results in extra terms to guarantee energy/ham consistency
-        center = Vec3(T(1)/2, T(1)/2, T(1)/2)
+        # determine center and width from density
+        # Strictly speaking, these computations should result in extra terms to guarantee energy/ham consistency
+        center = get_center(basis, ρ_real)
+        ρref_11 = [ρref_real(norm(r - center), model.n_electrons, 1) for r in r_vectors_cart(basis)]
+        spread_11 = get_variance(center, basis, ρref_11)
+        spread_ρ = get_variance(center, basis, ρ_real)
+        α = 1/sqrt(spread_ρ/spread_11)
+        # α = 1
 
-        Vref = [Vref_real(norm(model.lattice * (r - center)), model.n_electrons, α) for r in r_vectors(basis)]
-        ρref = [ρref_real(norm(model.lattice * (r - center)), model.n_electrons, α) for r in r_vectors(basis)]
+        ρrad_fun(r) = ρref_real(norm(r - center), model.n_electrons, α)
+        ρrad = ρrad_fun.(r_vectors_cart(basis))
+
+
+        # at this point we've determined a gaussian of same width and center as the original.
+        # Now we get the dipole moments of ρ and match them
+        ρders = [∂f∂α.(ρrad_fun, α, r_vectors_cart(basis)) for α=1:3]
+
+        coeffs_ders = map(1:3) do α
+            get_dipole(α, center, basis, ρ_real) / get_dipole(α, center, basis, ρders[α])
+        end
+        ρref = ρrad + sum([coeffs_ders[α]*ρders[α] for α=1:3])
+
+        # compute corresponding solution of -ΔVref = 4π ρref
+        Vref_rad_fun(r) = Vref_real(norm(r - center), model.n_electrons, α)
+        Vref_rad = Vref_rad_fun.(r_vectors_cart(basis))
+        Vref_ders = [∂f∂α.(Vref_rad_fun, α, r_vectors_cart(basis)) for α=1:3]
+        Vref = Vref_rad + sum([coeffs_ders[α]*Vref_ders[α] for α=1:3])
+
         # TODO possibly optimize FFTs here
         Vcorr_real = Vref - G_to_r(basis, term.poisson_green_coeffs .* r_to_G(basis, ρref))
         Vcorr_fourier = r_to_G(basis, Vcorr_real)

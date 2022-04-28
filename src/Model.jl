@@ -13,6 +13,8 @@ struct Model{T <: Real}
     # Dimension of the system; 3 unless `lattice` has zero columns
     n_dim::Int
     # Whether the problem is periodic along each direction
+    # When not periodic, the system is assumed to be centered
+    # at the middle of the cell (1/2)
     periodic::Vec3{Bool}
     # Useful for conversions between cartesian and reduced coordinates
     inv_lattice::Mat3{T}

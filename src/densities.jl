@@ -4,7 +4,7 @@ using ForwardDiff
 # ρ[ix,iy,iz,iσ] in real space, where iσ ∈ [1:n_spin_components]
 
 function _check_positive(ρ)
-    minimum(ρ) < 0 && @warn("Negative ρ detected", min_ρ=minimum(ρ))
+    minimum(ρ) < -sqrt(eps(eltype(ρ))) && @warn("Negative ρ detected", min_ρ=minimum(ρ))
 end
 function _check_total_charge(dvol, ρ, N)
     n_electrons = sum(ρ) * dvol
