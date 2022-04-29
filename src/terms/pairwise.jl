@@ -70,11 +70,12 @@ end
 # `q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
 # compute the Fourier transform of the force constant matrix.
 function energy_pairwise(lattice, symbols, positions, V, params;
-                         max_radius=1000, forces=nothing, ph_disp=nothing, q=0)
+                         max_radius=1000, forces=nothing, ph_disp=nothing, q=nothing)
     @assert length(symbols) == length(positions)
 
     T = eltype(lattice)
     if ph_disp !== nothing
+        @assert q !== nothing
         T = promote_type(complex(T), eltype(ph_disp[1]))
         @assert size(ph_disp) == size(positions)
     end
