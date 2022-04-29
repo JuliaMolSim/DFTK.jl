@@ -1,3 +1,5 @@
+# We cannot use `LinearAlgebra.norm` with complex numbers due to the need to use its
+# analytic continuation
 function norm_cplx(x)
     # TODO: ForwardDiff bug (https://github.com/JuliaDiff/ForwardDiff.jl/issues/324)
     sqrt(sum(x.*x))
@@ -15,8 +17,8 @@ Lennard—Jones terms.
 The potential is dependent on the distance between to atomic positions and the pairwise
 atomic types:
 For a distance `d` between to atoms `A` and `B`, the potential is `V(d, params[(A, B)])`.
-The parameters `max_radius` is of `1000` by default, and gives the maximum (full,
-non-reduced) distance between nuclei for which we consider interactions.
+The parameters `max_radius` is of `1000` by default, and gives the maximum (Cartesian)
+distance between nuclei for which we consider interactions.
 """
 function PairwisePotential(V, params; max_radius=1000)
     params = Dict(minmax(key[1], key[2]) => value for (key, value) in params)
@@ -64,14 +66,17 @@ end
 # This could be factorised with Ewald, but the use of `symbols` would slow down the
 # computationally intensive Ewald sums. So we leave it as it for now.
 # TODO: *Beware* of using ForwardDiff to derive this function with complex numbers, use
-# multiplications and not powers (https://github.com/JuliaDiff/ForwardDiff.jl/issues/324)
+# multiplications and not powers (https://github.com/JuliaDiff/ForwardDiff.jl/issues/324).
+# `q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
+# compute the Fourier transform of the force constant matrix.
 function energy_pairwise(lattice, symbols, positions, V, params;
                          max_radius=1000, forces=nothing, ph_disp=nothing, q=0)
     @assert length(symbols) == length(positions)
 
-    T = complex(eltype(lattice))
+    T = eltype(lattice)
     if ph_disp !== nothing
-        T = promote_type(T, eltype(ph_disp[1]))
+        T = promote_type(complex(T), eltype(ph_disp[1]))
+        @assert size(ph_disp) == size(positions)
     end
 
     if forces !== nothing
@@ -111,7 +116,8 @@ function energy_pairwise(lattice, symbols, positions, V, params;
                 tj = positions[j]
                 # Phonons `q` points
                 if !isnothing(ph_disp)
-                    ti += ph_disp[i] * cis(2T(π)*dot(q, zeros(3)))
+                    ti += ph_disp[i] # * cis(2T(π)*dot(q, zeros(3))) === 1
+                                     #  as we use the forces at the nuclei in the unit cell
                     tj += ph_disp[j] * cis(2T(π)*dot(q, R)) + R
                 end
                 ai, aj = minmax(symbols[i], symbols[j])
