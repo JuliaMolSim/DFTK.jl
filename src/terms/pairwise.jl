@@ -1,3 +1,8 @@
+function norm_cplx(x)
+    # TODO: ForwardDiff bug (https://github.com/JuliaDiff/ForwardDiff.jl/issues/324)
+    sqrt(sum(x.*x))
+end
+
 struct PairwisePotential
     V
     params
@@ -10,10 +15,10 @@ Lennard—Jones terms.
 The potential is dependent on the distance between to atomic positions and the pairwise
 atomic types:
 For a distance `d` between to atoms `A` and `B`, the potential is `V(d, params[(A, B)])`.
-The parameters `max_radius` is of `100` by default, and gives the maximum (reduced) distance
-between nuclei for which we consider interactions.
+The parameters `max_radius` is of `1000` by default, and gives the maximum (full,
+non-reduced) distance between nuclei for which we consider interactions.
 """
-function PairwisePotential(V, params; max_radius=100)
+function PairwisePotential(V, params; max_radius=1000)
     params = Dict(minmax(key[1], key[2]) => value for (key, value) in params)
     PairwisePotential(V, params, max_radius)
 end
@@ -36,8 +41,10 @@ end
 @timing "forces: Pairwise" function compute_forces(term::TermPairwisePotential,
                                                    basis::PlaneWaveBasis{T}, ψ, occ;
                                                    kwargs...) where {T}
-    forces = zero(basis.model.positions)
-    energy_pairwise(basis.model, term.V, term.params; term.max_radius, forces)
+    TT = eltype(lattice)
+    forces = zero(TT, basis.model.positions)
+    energy_pairwise(basis.model, term.V, term.params; max_radius=term.max_radius,
+                    forces=forces, kwargs...)
     forces
 end
 
@@ -56,10 +63,16 @@ end
 
 # This could be factorised with Ewald, but the use of `symbols` would slow down the
 # computationally intensive Ewald sums. So we leave it as it for now.
+# TODO: *Beware* of using ForwardDiff to derive this function with complex numbers, use
+# multiplications and not powers (https://github.com/JuliaDiff/ForwardDiff.jl/issues/324)
 function energy_pairwise(lattice, symbols, positions, V, params;
-                         max_radius=100, forces=nothing)
-    T = eltype(lattice)
+                         max_radius=1000, forces=nothing, ph_disp=nothing, q=0)
     @assert length(symbols) == length(positions)
+
+    T = complex(eltype(lattice))
+    if ph_disp !== nothing
+        T = promote_type(T, eltype(ph_disp[1]))
+    end
 
     if forces !== nothing
         @assert size(forces) == size(positions)
@@ -96,24 +109,32 @@ function energy_pairwise(lattice, symbols, positions, V, params;
 
                 ti = positions[i]
                 tj = positions[j]
+                # Phonons `q` points
+                if !isnothing(ph_disp)
+                    ti += ph_disp[i] * cis(2T(π)*dot(q, zeros(3)))
+                    tj += ph_disp[j] * cis(2T(π)*dot(q, R)) + R
+                end
                 ai, aj = minmax(symbols[i], symbols[j])
                 param_ij =params[(ai, aj)]
 
-                Δr = lattice * (ti .- tj .- R)
-                dist = norm(Δr)
+                Δr = lattice * (ti .- tj)
+                dist = norm_cplx(Δr)
 
                 # the potential decays very quickly, so cut off at some point
-                dist > max_radius && continue
+                abs(dist) > max_radius && continue
 
                 any_term_contributes = true
-                energy_contribution = V(dist, param_ij)
+                energy_contribution = real(V(dist, param_ij))
                 sum_pairwise += energy_contribution
                 if forces !== nothing
-                    # We use ForwardDiff for the forces
-                    dE_ddist = ForwardDiff.derivative(d -> V(d, param_ij), dist)
-                    dE_dti = lattice' * dE_ddist / dist * Δr
+                    dE_ddist = ForwardDiff.derivative(real(zero(eltype(dist)))) do ε
+                        res = V(dist + ε, param_ij)
+                        [real(res), imag(res)]
+                    end |> x -> complex(x...)
+                    dE_dti = lattice' * ((dE_ddist / dist) * Δr)
+                    # We need to "break" the symmetry for phonons; at equilibrium, expect
+                    # the forces to be zero at machine precision.
                     forces_pairwise[i] -= dE_dti
-                    forces_pairwise[j] += dE_dti
                 end
             end # i,j
         end # R
@@ -121,7 +142,7 @@ function energy_pairwise(lattice, symbols, positions, V, params;
     end
     energy = sum_pairwise / 2  # Divide by 2 (because of double counting)
     if forces !== nothing
-        forces .= forces_pairwise ./ 2
+        forces .= forces_pairwise
     end
     energy
 end
