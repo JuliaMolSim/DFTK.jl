@@ -113,7 +113,7 @@ function energy_pairwise(lattice, symbols, positions, V, params;
                 tj = positions[j] + R
                 # Phonons `q` points
                 if !isnothing(ph_disp)
-                    ti += ph_disp[i] # * cis(2T(π)*dot(q, zeros(3))) === 1
+                    ti += ph_disp[i] # * cis(2T(π)*dot(q, zeros(3))) ≡ 1
                                      #  as we use the forces at the nuclei in the unit cell
                     tj += ph_disp[j] * cis(2T(π)*dot(q, R))
                 end
