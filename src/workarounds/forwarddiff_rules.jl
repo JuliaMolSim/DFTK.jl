@@ -272,3 +272,32 @@ function Smearing.occupation(S::Smearing.FermiDirac, d::ForwardDiff.Dual{T}) whe
     end
     ForwardDiff.Dual{T}(Smearing.occupation(S, x), ∂occ * ForwardDiff.partials(d))
 end
+
+# Workarounds for issue https://github.com/JuliaDiff/ForwardDiff.jl/issues/324
+ForwardDiff.derivative(f, x::Complex) = throw(DimensionMismatch("derivative(f, x) expects that x is a real number (does not support Wirtinger derivatives). Separate real and imaginary parts of the input."))
+@inline ForwardDiff.extract_derivative(::Type{T}, y::Complex) where {T}       = zero(y)
+@inline function ForwardDiff.extract_derivative(::Type{T}, y::Complex{TD}) where {T, TD <: ForwardDiff.Dual}
+    complex(ForwardDiff.partials(T, real(y), 1), ForwardDiff.partials(T, imag(y), 1))
+end
+function Base.:^(x::Complex{ForwardDiff.Dual{T,V,N}}, y::Complex{ForwardDiff.Dual{T,V,N}}) where {T,V,N}
+    xx = complex(ForwardDiff.value(real(x)), ForwardDiff.value(imag(x)))
+    yy = complex(ForwardDiff.value(real(y)), ForwardDiff.value(imag(y)))
+    dx = complex.(ForwardDiff.partials(real(x)), ForwardDiff.partials(imag(x)))
+    dy = complex.(ForwardDiff.partials(real(y)), ForwardDiff.partials(imag(y)))
+
+    expv = xx^yy
+    ∂expv∂x = yy * xx^(yy-1)
+    ∂expv∂y = log(xx) * expv
+    dxexpv = ∂expv∂x * dx
+    # TODO: Fishy and should be checked, but seems to catch most cases
+    if iszero(xx) && ForwardDiff.isconstant(real(y)) && ForwardDiff.isconstant(imag(y)) && imag(y) === zero(imag(y)) && real(y) > 0
+        dexpv = zero(expv)
+    elseif iszero(xx)
+        throw(DomainError(x, "mantissa cannot be zero for complex exponentiation"))
+    else
+        dyexpv = ∂expv∂y * dy
+        dexpv = dxexpv + dyexpv
+    end
+    complex(ForwardDiff.Dual{T,V,N}(real(expv), ForwardDiff.Partials{N,V}(tuple(real(dexpv)...))),
+            ForwardDiff.Dual{T,V,N}(imag(expv), ForwardDiff.Partials{N,V}(tuple(imag(dexpv)...))))
+end
