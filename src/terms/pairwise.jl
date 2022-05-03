@@ -43,7 +43,7 @@ end
 @timing "forces: Pairwise" function compute_forces(term::TermPairwisePotential,
                                                    basis::PlaneWaveBasis{T}, ψ, occ;
                                                    kwargs...) where {T}
-    TT = eltype(lattice)
+    TT = promote_type(T, eltype(basis.model.positions[1]))
     forces = zero(TT, basis.model.positions)
     energy_pairwise(basis.model, term.V, term.params; max_radius=term.max_radius,
                     forces=forces, kwargs...)
