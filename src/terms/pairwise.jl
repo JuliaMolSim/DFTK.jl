@@ -44,7 +44,7 @@ end
                                                    kwargs...) where {T}
     forces = zero(basis.model.positions)
     energy_pairwise(basis.model, term.V, term.params; max_radius=term.max_radius,
-                    forces=forces, kwargs...)
+                    forces=forces)
     forces
 end
 
