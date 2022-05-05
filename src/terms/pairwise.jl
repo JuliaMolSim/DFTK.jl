@@ -127,7 +127,7 @@ function energy_pairwise(lattice, symbols, positions, V, params;
                 abs(dist) > max_radius && continue
 
                 any_term_contributes = true
-                energy_contribution = real(V(dist, param_ij))
+                energy_contribution = V(dist, param_ij)
                 sum_pairwise += energy_contribution
                 if forces !== nothing
                     dE_ddist = ForwardDiff.derivative(real(zero(eltype(dist)))) do ε
