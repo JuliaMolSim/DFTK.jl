@@ -134,8 +134,7 @@ function energy_pairwise(lattice, symbols, positions, V, params;
                         V(dist + ε, param_ij)
                     end
                     dE_dti = lattice' * ((dE_ddist / dist) * Δr)
-                    # We need to "break" the symmetry for phonons; at equilibrium, expect
-                    # the forces to be zero at machine precision.
+                    # For the phonons, we compute the forces only in the unit cell.
                     forces_pairwise[i] -= dE_dti
                 end
             end # i,j
