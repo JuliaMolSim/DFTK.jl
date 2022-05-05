@@ -204,6 +204,14 @@ function ChainRulesCore.rrule(TH::Type{Hamiltonian}, basis, blocks)
     return H, TH_pullback
 end
 
+function eigenvalues_rayleigh_ritz(ψ, Hψ)
+    eigenvalues = map(zip(ψ, Hψ)) do (ψik, Hψik)
+        F = eigen(Hermitian(ψik'Hψik))
+        F.values
+    end
+    return eigenvalues
+end
+
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis{T}; kwargs...) where {T}
     @warn "self_consistent_field rrule triggered."
     scfres = self_consistent_field(basis; kwargs...)
@@ -218,6 +226,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         rrule(config, compute_density, basis, scfres.ψ, scfres.occupation)
 
     # TODO rrule_via_ad rayleigh quotient to pull back eigenvalues
+    eigenvalues, eigenvalues_pullback =  rrule_via_ad(config, eigenvalues_rayleigh_ritz, ψ, Hψ)
 
     function self_consistent_field_pullback(∂scfres)
         # TODO problem: typeof(∂scfres) == Tangent{Any}
@@ -227,18 +236,20 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         ∂energies = ∂scfres.energies
         ∂basis1 = Tangent{PlaneWaveBasis{T}}(; ChainRulesCore.backing(∂scfres.basis)...)
         ∂H = ∂scfres.ham
-        ∂eigenvalues = ∂scfres.eigenvalues # TODO rayleigh quotient
+        ∂eigenvalues = ∂scfres.eigenvalues
 
         _, ∂basis2, ∂ψ_density_pullback, _ = compute_density_pullback(∂ρ)
-        ∂ψ = ∂ψ_density_pullback + ∂ψ
+        ∂ψ += ∂ψ_density_pullback
+
+        _, ∂ψ_rayleigh_ritz, ∂Hψ_rayleigh_ritz = eigenvalues_pullback(∂eigenvalues)
+        ∂ψ += ∂ψ_rayleigh_ritz
 
         # Otherwise there is no contribution to ∂basis, by linearity.
         # This also excludes the case when ∂ψ is a NoTangent().
         if !iszero(∂ψ)
             ∂ψ, occupation = DFTK.select_occupied_orbitals(basis, ∂ψ, occupation)
-
             ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation).δψ # use self-adjointness of dH ψ -> dψ
-
+            ∂Hψ += ∂Hψ_rayleigh_ritz
             # TODO need to do proj_tangent on ∂Hψ
             _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
             ∂H = ∂H_mul_pullback + ∂H
@@ -273,6 +284,7 @@ end
 # [x] pull master (after Michael's atoms update)
 # [x] remove Model alternative primal (or update with inv_lattice, ...)
 # [x] replace OrderedDict in Energies with Vector{Pair{String,T}}
+# [x] recompute rayleigh-ritz for ∂eigenvalues pullback
 
 # TODO medium-large
 # - generic HamiltonianBlock ? (low prio)
