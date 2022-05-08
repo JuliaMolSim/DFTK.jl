@@ -61,3 +61,10 @@ Zygote.gradient(energy_from_basis, basis) # TODO
 # end
 # forces_from_basis(basis)
 # Zygote.gradient(forces_from_basis, basis) # TODO
+
+function eigenvalues_from_basis(basis)
+    is_converged = DFTK.ScfConvergenceDensity(1e-8)
+    scfres = self_consistent_field(basis; is_converged)
+    sum(sum, scfres.eigenvalues)
+end
+Zygote.gradient(eigenvalues_from_basis, basis)

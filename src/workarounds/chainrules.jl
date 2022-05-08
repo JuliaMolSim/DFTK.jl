@@ -216,6 +216,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
     @warn "self_consistent_field rrule triggered."
     scfres = self_consistent_field(basis; kwargs...)
 
+    # TODO remove select_occupied_orbitals
     ψ, occupation = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 
     (; E, H), energy_hamiltonian_pullback =
@@ -225,7 +226,6 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
     ρ, compute_density_pullback =
         rrule(config, compute_density, basis, scfres.ψ, scfres.occupation)
 
-    # TODO rrule_via_ad rayleigh quotient to pull back eigenvalues
     eigenvalues, eigenvalues_pullback =  rrule_via_ad(config, eigenvalues_rayleigh_ritz, ψ, Hψ)
 
     function self_consistent_field_pullback(∂scfres)
@@ -241,6 +241,13 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         _, ∂basis2, ∂ψ_density_pullback, _ = compute_density_pullback(∂ρ)
         ∂ψ += ∂ψ_density_pullback
 
+        if !iszero(∂eigenvalues)
+            # workaround: sizes don't match because of select_occupied_orbitals
+            # TODO delete, once select_occupied_orbitals becomes obsolete
+            N = [findlast(x -> x > 0.0, occk) for occk in scfres.occupation]
+            ∂eigenvalues = [λk[1:N[ik]] for (ik, λk) in enumerate(∂eigenvalues)]
+            @show ∂eigenvalues
+        end
         _, ∂ψ_rayleigh_ritz, ∂Hψ_rayleigh_ritz = eigenvalues_pullback(∂eigenvalues)
         ∂ψ += ∂ψ_rayleigh_ritz
 
