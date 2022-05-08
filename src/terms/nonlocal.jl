@@ -1,3 +1,5 @@
+import Zygote
+
 @doc raw"""
 Nonlocal term coming from norm-conserving pseudopotentials in Kleinmann-Bylander form.
 ``\text{Energy} = \sum_a \sum_{ij} \sum_{n} f_n <ψ_n|p_{ai}> D_{ij} <p_{aj}|ψ_n>.``
@@ -54,7 +56,8 @@ end
     isempty(psp_groups) && return nothing
 
     # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
-    forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
+    # forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
+    forces = Zygote.Buffer(zero(model.positions))
     for group in psp_groups
         element = model.atoms[first(group)]
 
@@ -81,7 +84,8 @@ end
         end  # kpt
     end  # group
 
-    forces = mpi_sum!(forces, basis.comm_kpts)
+    # forces = mpi_sum!(forces, basis.comm_kpts) # TODO Zygote
+    forces = copy(forces) # unpack Zygote.Buffer
     symmetrize_forces(basis, forces)
 end
 

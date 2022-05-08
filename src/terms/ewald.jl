@@ -1,4 +1,5 @@
 import SpecialFunctions: erfc
+import Zygote
 
 """
 Ewald term: electrostatic energy per unit cell of the array of point
@@ -22,8 +23,10 @@ end
 @timing "forces: Ewald" function compute_forces(term::TermEwald, basis::PlaneWaveBasis{T},
                                                 ψ, occ; kwargs...) where {T}
     # TODO this could be precomputed
-    forces = zero(basis.model.positions)
+    # forces = zero(basis.model.positions)
+    forces = Zygote.Buffer(zero(basis.model.positions))
     energy_ewald(basis.model; forces)
+    forces = copy(forces) # unpack Zygote.Buffer
     forces
 end
 
@@ -79,9 +82,11 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
     end
 
     if forces !== nothing
-        @assert size(forces) == size(positions)
-        forces_real = copy(forces)
-        forces_recip = copy(forces)
+        # @assert size(forces) == size(positions)
+        # forces_real = copy(forces)
+        # forces_recip = copy(forces)
+        forces_real = Zygote.Buffer(zero(positions))
+        forces_recip = Zygote.Buffer(zero(positions))
     end
 
     # Numerical cutoffs to obtain meaningful contributions. These are very conservative.
@@ -134,7 +139,10 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
     # Amend sum_recip by proper scaling factors:
     sum_recip *= 4T(π) / compute_unit_cell_volume(lattice)
     if forces !== nothing
-        forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
+        # forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
+        for ir in eachindex(positions)
+            forces_recip[ir] *= 4T(π) / compute_unit_cell_volume(lattice)
+        end
     end
 
     #
@@ -186,7 +194,10 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
     end
     energy = (sum_recip + sum_real) / 2  # Divide by 2 (because of double counting)
     if forces !== nothing
-        forces .= (forces_recip .+ forces_real) ./ 2
+        # forces .= (forces_recip .+ forces_real) ./ 2
+        for ir in eachindex(positions)
+            forces[ir] = (forces_recip[ir] + forces_real[ir]) / 2
+        end
     end
     energy
 end

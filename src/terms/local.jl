@@ -1,5 +1,7 @@
 ## Local potentials. Can be provided from external potentials, or from `model.atoms`.
 
+import Zygote
+
 # a local potential term. Must have the field `potential_values`, storing the
 # potential in real space on the grid. If the potential is different in the α and β
 # components then it should be a 4d-array with the last axis running over the
@@ -96,7 +98,8 @@ end
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
     # where struct_factor(G) = cis(-2π G⋅r)
-    forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
+    # forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
+    forces = Zygote.Buffer(zero(model.positions))
     for group in model.atom_groups
         element = model.atoms[first(group)]
         form_factors = [Complex{T}(local_potential_fourier(element, norm(recip_lattice * G)))
@@ -106,7 +109,7 @@ end
             forces[idx] = _force_local_internal(basis, ρ_fourier, form_factors, r)
         end
     end
-    forces
+    copy(forces) # unpack Zygote.Buffer
 end
 
 # function barrier to work around various type instabilities

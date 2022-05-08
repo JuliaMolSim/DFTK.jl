@@ -52,15 +52,15 @@ function energy_from_basis(basis)
     sum(values(scfres.energies))
 end
 energy_from_basis(basis)
-Zygote.gradient(energy_from_basis, basis) # TODO
+Zygote.gradient(energy_from_basis, basis)
 
-# function forces_from_basis(basis)
-#     is_converged = DFTK.ScfConvergenceDensity(1e-8)
-#     scfres = self_consistent_field(basis; is_converged)
-#     compute_forces(scfres)[1][1]
-# end
-# forces_from_basis(basis)
-# Zygote.gradient(forces_from_basis, basis) # TODO
+function forces_from_basis(basis)
+    is_converged = DFTK.ScfConvergenceDensity(1e-8)
+    scfres = self_consistent_field(basis; is_converged)
+    compute_forces(scfres)[1][1]
+end
+forces_from_basis(basis)
+Zygote.gradient(forces_from_basis, basis)
 
 function eigenvalues_from_basis(basis)
     is_converged = DFTK.ScfConvergenceDensity(1e-8)

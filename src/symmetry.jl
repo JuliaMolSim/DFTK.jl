@@ -37,6 +37,8 @@
 
 # See https://juliamolsim.github.io/DFTK.jl/stable/advanced/symmetries for details.
 
+import Zygote
+
 @doc raw"""
 Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
@@ -216,7 +218,8 @@ Symmetrize the forces in *reduced coordinates*, forces given as an
 array forces[iel][α,i]
 """
 function symmetrize_forces(model::Model, forces; symmetries)
-    symmetrized_forces = zero(forces)
+    # symmetrized_forces = zero(forces)
+    symmetrized_forces = Zygote.Buffer(zero(forces))
     for group in model.atom_groups, symop in symmetries
         positions_group = model.positions[group]
         W, w = symop.W, symop.w
@@ -229,7 +232,8 @@ function symmetrize_forces(model::Model, forces; symmetries)
             symmetrized_forces[idx] += W * forces[group[i_other_at]]
         end
     end
-    symmetrized_forces / length(symmetries)
+    # symmetrized_forces / length(symmetries)
+    copy(symmetrized_forces) / length(symmetries) # unpack Zygote.Buffer
 end
 function symmetrize_forces(basis::PlaneWaveBasis, forces)
     symmetrize_forces(basis.model, forces; basis.symmetries)
