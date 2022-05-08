@@ -246,7 +246,6 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
             # TODO delete, once select_occupied_orbitals becomes obsolete
             N = [findlast(x -> x > 0.0, occk) for occk in scfres.occupation]
             ∂eigenvalues = [λk[1:N[ik]] for (ik, λk) in enumerate(∂eigenvalues)]
-            @show ∂eigenvalues
         end
         _, ∂ψ_rayleigh_ritz, ∂Hψ_rayleigh_ritz = eigenvalues_pullback(∂eigenvalues)
         ∂ψ += ∂ψ_rayleigh_ritz
