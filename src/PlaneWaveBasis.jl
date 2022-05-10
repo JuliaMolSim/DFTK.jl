@@ -471,11 +471,10 @@ function gather_kpts(basis::PlaneWaveBasis)
                        basis.Ecut,
                        kcoords[1:n_kcoords],
                        kweights[1:n_kcoords];
-                       basis.symmetries,
-                       fft_size=basis.fft_size,
-                       kgrid=basis.kgrid,
-                       kshift=basis.kshift,
-                       variational=basis.variational,
+                       basis.variational,
+                       basis.kgrid,
+                       basis.kshift,
+                       basis.symmetries_respect_rgrid,
                        comm_kpts=MPI.COMM_SELF,
                       )
     end
