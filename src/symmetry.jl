@@ -67,11 +67,13 @@ end
 Filter out the symmetry operations that don't respect the symmetries of the discrete real-space grid
 """
 function symmetries_preserving_rgrid(symmetries, fft_size)
-    is_in_grid(r) = all(i -> abs(r[i]*fft_size[i] - round(r[i]*fft_size[i]))/fft_size[i] ≤ SYMMETRY_TOLERANCE,
-                        1:3)
-    one_hot(i, n) = (x=zeros(Bool, n); x[i]=1; x)
+    is_in_grid(r) = all(zip(r, fft_size)) do (ri, size)
+        abs(ri * size - round(ri * size)) / size ≤ SYMMETRY_TOLERANCE
+    end
+
+    onehot3(i) = (x = zeros(Bool, 3); x[i] = true; Vec3(x))
     function preserves_grid(symop)
-        all(is_in_grid(symop.W * one_hot(i, 3) .// fft_size[i] + symop.w) for i=1:3)
+        all(is_in_grid(symop.W * onehot3(i) .// fft_size[i] + symop.w) for i=1:3)
     end
 
     filter(preserves_grid, symmetries)
@@ -257,10 +259,11 @@ function unfold_bz(basis::PlaneWaveBasis)
         return basis
     else
         kcoords = unfold_kcoords(basis.kcoords_global, basis.symmetries)
-        new_basis = PlaneWaveBasis(basis.model,
-                                   basis.Ecut, basis.fft_size, basis.variational,
-                                   kcoords, [1/length(kcoords) for _ in kcoords],
-                                   basis.kgrid, basis.kshift, basis.symmetries_rgrid, basis.comm_kpts)
+        return PlaneWaveBasis(basis.model,
+                              basis.Ecut, basis.fft_size, basis.variational,
+                              kcoords, [1/length(kcoords) for _ in kcoords],
+                              basis.kgrid, basis.kshift,
+                              basis.symmetries_respect_rgrid, basis.comm_kpts)
     end
 end
 

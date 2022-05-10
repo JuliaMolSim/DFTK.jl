@@ -19,6 +19,8 @@
 # Tolerance to consider two atomic positions as equal (in relative coordinates)
 const SYMMETRY_TOLERANCE = 1e-5
 
+is_approx_integer(r; tol=SYMMETRY_TOLERANCE) = all(ri -> abs(ri - round(ri)) ≤ tol, r)
+
 struct SymOp{T <: Real}
     # (Uu)(x) = u(W x + w) in real space
     W::Mat3{Int}
@@ -37,7 +39,6 @@ struct SymOp{T <: Real}
 end
 
 Base.:(==)(op1::SymOp, op2::SymOp) = op1.W == op2.W && op1.w == op2.w
-is_approx_integer(r; tol=SYMMETRY_TOLERANCE) = all(ri -> abs(ri - round(ri)) ≤ tol, r)
 function Base.isapprox(op1::SymOp, op2::SymOp; atol=SYMMETRY_TOLERANCE)
     op1.W == op2.W && is_approx_integer(op1.w - op2.w; tol=atol)
 end

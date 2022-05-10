@@ -8,8 +8,9 @@ include("testcases.jl")
 @testset "Forces on silicon" begin
     function energy_forces(positions)
         model = model_DFT(silicon.lattice, silicon.atoms, positions, [:lda_x, :lda_c_pw])
-        basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0])
-
+        basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
+                               symmetries_respect_rgrid=true,
+                               fft_size=(18, 18, 18))  # FFT chosen to match QE
         is_converged = DFTK.ScfConvergenceDensity(1e-11)
         scfres = self_consistent_field(basis; is_converged)
         scfres.energies.total, compute_forces(scfres), compute_forces_cart(scfres)

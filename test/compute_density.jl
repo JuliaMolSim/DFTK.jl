@@ -1,7 +1,7 @@
 using Test
 using LinearAlgebra
 using DFTK
-import DFTK: total_local_potential
+import DFTK: total_local_potential, is_approx_integer
 include("testcases.jl")
 
 # TODO Once we have converged SCF densities in a file it would be better to instead / also
@@ -10,7 +10,7 @@ include("testcases.jl")
 
 if mpi_nprocs() == 1  # not easy to distribute
 @testset "Using BZ symmetry yields identical density" begin
-    function get_bands(testcase, kgrid, kshift, symmetry; Ecut=5, tol=1e-8, n_rounds=1)
+    function get_bands(testcase, kgrid, kshift; symmetries, Ecut=5, tol=1e-8, n_rounds=1)
         kwargs = ()
         n_bands = div(testcase.n_electrons, 2, RoundUp)
         if testcase.temperature !== nothing
@@ -19,8 +19,8 @@ if mpi_nprocs() == 1  # not easy to distribute
         end
 
         model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions,
-                          :lda_xc_teter93; symmetries=symmetry, kwargs...)
-        basis = PlaneWaveBasis(model; Ecut, kgrid, kshift, symmetries_rgrid=false)
+                          :lda_xc_teter93; symmetries, kwargs...)
+        basis = PlaneWaveBasis(model; Ecut, kgrid, kshift, symmetries_respect_rgrid=false)
         ham = Hamiltonian(basis; ρ=guess_density(basis))
 
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol)
@@ -59,12 +59,12 @@ if mpi_nprocs() == 1  # not easy to distribute
 
     function test_full_vs_irreducible(testcase, kgrid_size; Ecut=5, tol=1e-8, n_ignore=0,
                                       kshift=[0, 0, 0], eigenvectors=true)
-        res = get_bands(testcase, kgrid_size, kshift, false; Ecut, tol)
+        res = get_bands(testcase, kgrid_size, kshift; symmetries=false, Ecut, tol)
         ham_full, ψ_full, eigenvalues_full, ρ_full, occ_full = res
         kfull = [kpt.coordinate for kpt in ham_full.basis.kpoints]
         test_orthonormality(ham_full.basis, ψ_full; tol)
 
-        res = get_bands(testcase, kgrid_size, kshift, true; Ecut, tol)
+        res = get_bands(testcase, kgrid_size, kshift; symmetries=true, Ecut, tol)
         ham_ir, ψ_ir, eigenvalues_ir, ρ_ir, occ_ir = res
         test_orthonormality(ham_ir.basis, ψ_ir; tol)
         @test ham_full.basis.fft_size == ham_ir.basis.fft_size
@@ -78,10 +78,9 @@ if mpi_nprocs() == 1  # not easy to distribute
 
         # Test equivalent k-points have the same orbital energies
         for (ik, kpt) in enumerate(ham_ir.basis.kpoints)
-            k = kpt.coordinate
             for symop in ham_ir.basis.symmetries
                 ikfull = findfirst(1:length(kfull)) do idx
-                    all(DFTK.is_approx_integer, kfull[idx] - symop.S * k)
+                    all(is_approx_integer, kfull[idx] - symop.S * kpt.coordinate)
                 end
                 @test ikfull !== nothing
 
@@ -99,16 +98,13 @@ if mpi_nprocs() == 1  # not easy to distribute
             # yields an eigenfunction of the Hamiltonian
             # Also check that the accumulated partial densities are equal
             # to the returned density.
-            ρsum = zeros(eltype(ψ_ir[1]), ham_ir.basis.fft_size)
-            n_ρ = 0
             for (ik, kpt) in enumerate(ham_ir.basis.kpoints)
-                k = kpt.coordinate
                 Hk_ir = ham_ir.blocks[ik]
                 for symop in ham_ir.basis.symmetries
                     Skpoint, ψSk = DFTK.apply_symop(symop, ham_ir.basis, Hk_ir.kpoint, ψ_ir[ik])
 
                     ikfull = findfirst(1:length(kfull)) do idx
-                        all(DFTK.is_approx_integer, round.(kfull[idx] - Skpoint.coordinate, digits=10))
+                        all(is_approx_integer, round.(kfull[idx] - Skpoint.coordinate, digits=10))
                     end
                     @test !isnothing(ikfull)
                     Hk_full = ham_full.blocks[ikfull]

@@ -98,6 +98,10 @@ convert_dual(::Type{T}, x) where {T} = convert(T, x)
 
 
 # DFTK setup specific
+default_primes(T::Type{<:ForwardDiff.Dual}) = default_primes(ForwardDiff.valtype(T))
+function next_working_fft_size(T::Type{<:ForwardDiff.Dual}, size::Integer)
+    next_working_fft_size(ForwardDiff.valtype(T), size)
+end
 
 next_working_fft_size(::Type{<:ForwardDiff.Dual}, size::Int) = size
 
@@ -147,7 +151,7 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
                    ForwardDiff.value(basis.Ecut),
                    map(v -> ForwardDiff.value.(v), basis.kcoords_global),
                    ForwardDiff.value.(basis.kweights_global);
-                   basis.symmetries_rgrid,
+                   basis.symmetries_respect_rgrid,
                    fft_size=basis.fft_size,
                    kgrid=basis.kgrid,
                    kshift=new_kshift,

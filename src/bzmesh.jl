@@ -55,8 +55,8 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
         convert(Int, 2 * ks)
     end
 
-    kcoords_mp = kgrid_monkhorst_pack(kgrid_size; kshift)
     # Filter those symmetry operations that preserve the MP grid
+    kcoords_mp = kgrid_monkhorst_pack(kgrid_size; kshift)
     symmetries = symmetries_preserving_kgrid(symmetries, kcoords_mp)
 
     # Give the remaining symmetries to spglib to compute an irreducible k-point mesh

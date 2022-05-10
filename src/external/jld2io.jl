@@ -82,7 +82,7 @@ struct PlaneWaveBasisSerialisation{T <: Real}
     kweights::Vector{T}
     kgrid::Union{Nothing,Vec3{Int}}
     kshift::Union{Nothing,Vec3{T}}
-    symmetries_rgrid::Bool
+    symmetries_respect_rgrid::Bool
     fft_size::Tuple{Int, Int, Int}
 end
 JLD2.writeas(::Type{PlaneWaveBasis{T}}) where {T} = PlaneWaveBasisSerialisation{T}
@@ -96,7 +96,7 @@ function Base.convert(::Type{PlaneWaveBasisSerialisation{T}}, basis::PlaneWaveBa
         basis.kweights_global,
         basis.kgrid,
         basis.kshift,
-        basis.symmetries_rgrid,
+        basis.symmetries_respect_rgrid,
         basis.fft_size,
     )
 end
@@ -104,6 +104,6 @@ end
 function Base.convert(::Type{PlaneWaveBasis{T}}, serial::PlaneWaveBasisSerialisation{T}) where {T}
     PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords,
                    serial.kweights; serial.fft_size,
-                   serial.kgrid, serial.kshift, serial.symmetries_rgrid,
+                   serial.kgrid, serial.kshift, serial.symmetries_respect_rgrid,
                    serial.variational)
 end

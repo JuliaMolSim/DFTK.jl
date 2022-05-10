@@ -94,7 +94,7 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
     # Whether the symmetry operations leave the rgrid invariant
     # If this is true, the symmetries are a property of the complete discretized model.
     # Therefore, all quantities should be symmetric to machine precision
-    symmetries_rgrid::Bool
+    symmetries_respect_rgrid::Bool
 
     ## Instantiated terms (<: Term). See Hamiltonian for high-level usage
     terms::Vector{Any}
@@ -142,16 +142,18 @@ end
 # All given parameters must be the same on all processors
 # and are stored in PlaneWaveBasis for easy reconstruction.
 function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
-                        kcoords, kweights, kgrid, kshift, symmetries_rgrid, comm_kpts) where {T <: Real}
+                        kcoords, kweights, kgrid, kshift,
+                        symmetries_respect_rgrid, comm_kpts) where {T <: Real}
     # Validate fft_size
     if variational
         max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
         Ecut > max_E && @warn(
             "For a variational method, Ecut should be less than the maximal kinetic " *
-                "energy the grid supports ($max_E)"
+            "energy the grid supports ($max_E)"
         )
     end
     if !(all(fft_size .== next_working_fft_size(T, fft_size)))
+        @show fft_size next_working_fft_size(T, fft_size)
         error("Selected fft_size will not work for the buggy generic " *
               "FFT routines; use next_working_fft_size")
     end
@@ -159,7 +161,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
 
     # filter out the symmetries that don't preserve the real-space grid
     symmetries = model.symmetries
-    if symmetries_rgrid
+    if symmetries_respect_rgrid
         symmetries = symmetries_preserving_rgrid(symmetries, fft_size)
     end
 
@@ -246,7 +248,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         r_to_G_normalization, G_to_r_normalization,
         kpoints, kweights_thisproc, kgrid, kshift,
         kcoords_global, kweights_global, comm_kpts, krange_thisproc, krange_allprocs,
-        symmetries, symmetries_rgrid, terms)
+        symmetries, symmetries_respect_rgrid, terms)
 
     # Instantiate the terms with the basis
     for (it, t) in enumerate(model.term_types)
@@ -262,37 +264,28 @@ end
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords ::Union{Nothing, AbstractVector},
                                 kweights::Union{Nothing, AbstractVector};
-                                variational=true,
-                                fft_size=nothing,
+                                variational=true, fft_size=nothing,
                                 kgrid=nothing, kshift=nothing,
-                                symmetries_rgrid=nothing,
+                                symmetries_respect_rgrid=isnothing(fft_size),
                                 comm_kpts=MPI.COMM_WORLD) where {T <: Real}
-    # if an explicit fft_size is given but symmetries_rgrid is not given explicitly,
-    # assume the user does not care about exact preservation of symmetries.
-    # Otherwise, pick a compatible FFT size
     if isnothing(fft_size)
         @assert variational
-        if isnothing(symmetries_rgrid) || symmetries_rgrid
-            symmetries_rgrid = true
+        if symmetries_respect_rgrid
             # ensure that the FFT grid is compatible with the "reasonable" symmetries
             # (those with fractional translations with denominators 2, 3, 4, 6,
-            # this set being more or less arbitrary)
-            # by forcing the FFT size to be a multiple of the denominators.
+            #  this set being more or less arbitrary) by forcing the FFT size to be
+            # a multiple of the denominators.
             # See https://github.com/JuliaMolSim/DFTK.jl/pull/642 for discussion
-            denominators = [rationalize(sym.w[i]; tol=SYMMETRY_TOLERANCE).den
+            denominators = [denominator(rationalize(sym.w[i]; tol=SYMMETRY_TOLERANCE))
                             for sym in model.symmetries for i = 1:3]
             factors = intersect((2, 3, 4, 6), denominators)
         else
             factors = (1,)
         end
         fft_size = compute_fft_size(model, Ecut, kcoords; factors=factors)
-    else
-        if isnothing(symmetries_rgrid)
-            symmetries_rgrid = false
-        end
     end
     PlaneWaveBasis(model, Ecut, fft_size, variational, kcoords, kweights,
-                   kgrid, kshift, symmetries_rgrid, comm_kpts)
+                   kgrid, kshift, symmetries_respect_rgrid, comm_kpts)
 end
 
 @doc raw"""
@@ -318,7 +311,8 @@ Creates a new basis identical to `basis`, but with a custom set of kpoints
     kgrid = kshift = nothing
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
-                   kcoords, kweights, kgrid, kshift, basis.symmetries_rgrid, basis.comm_kpts)
+                   kcoords, kweights, kgrid, kshift,
+                   basis.symmetries_respect_rgrid, basis.comm_kpts)
 end
 
 """
