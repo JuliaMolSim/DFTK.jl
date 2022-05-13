@@ -14,18 +14,13 @@ end
 # yet fully compliant with the AbstractFFTs interface and has still
 # various bugs we work around.
 
-function next_working_fft_size(::Any, size)
+function next_working_fft_size(::Any, size::Integer)
     # TODO FourierTransforms has a bug, which is triggered
     #      only in some factorizations, see
     #      https://github.com/JuliaComputing/FourierTransforms.jl/issues/10
-    # To be safe we fall back to powers of two
-
-    adjusted = nextpow(2, size)
-    if adjusted != size
-        @info "Changing fft size to $adjusted (smallest working size for generic FFTs)"
-    end
-    adjusted
+    nextpow(2, size)  # We fall back to powers of two to be safe
 end
+default_primes(::Any) = (2, )
 
 # Generic fallback function, Float32 and Float64 specialization in fft.jl
 function build_fft_plans(T, fft_size)
