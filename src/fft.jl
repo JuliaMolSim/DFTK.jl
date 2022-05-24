@@ -140,9 +140,11 @@ The function will determine the smallest parallelepiped containing the wave vect
  ``|G|^2/2 \leq E_\text{cut} ⋅ \text{supersampling}^2``.
 For an exact representation of the density resulting from wave functions
 represented in the spherical basis sets, `supersampling` should be at least `2`.
+
+If `factors` is not empty, ensure that the resulting fft_size contains all the factors
 """
 function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
-                          ensure_smallprimes=true, algorithm=:fast, kwargs...) where T
+                          ensure_smallprimes=true, algorithm=:fast, factors=1, kwargs...) where T
     if algorithm == :fast
         Glims = compute_Glims_fast(model.lattice, Ecut; kwargs...)
     elseif algorithm == :precise
@@ -162,18 +164,39 @@ function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
         error("Unknown fft_size_algorithm :$algorithm, try :fast or :precise")
     end
 
-    # Optimize FFT grid size: Make sure the number factorises in small primes only
-    fft_size = Vec3(2 .* Glims .+ 1)
+    # TODO Make default small primes type-dependent, since generic FFT is broken for some
+    #      prime factors ... temporary workaround, see more details in workarounds/fft_generic.jl
     if ensure_smallprimes
-        fft_size = nextprod.(Ref([2, 3, 5]), fft_size)
+        smallprimes = default_primes(T)  # Usually (2, 3 ,5)
+    else
+        smallprimes = ()
     end
 
-    # TODO generic FFT is kind of broken for some fft sizes
-    #      ... temporary workaround, see more details in workarounds/fft_generic.jl
-    fft_size = next_working_fft_size(T, fft_size)
+    # Consider only sizes that are (a) a product of small primes and (b) contain the factors
+    fft_size = Vec3(2 .* Glims .+ 1)
+    fft_size = next_compatible_fft_size(fft_size; factors, smallprimes)
     Tuple{Int, Int, Int}(fft_size)
 end
 
+"""
+Find the next compatible FFT size
+Sizes must (a) be a product of small primes only and (b) contain the factors.
+If smallprimes is empty (a) is skipped.
+"""
+function next_compatible_fft_size(size::Int; smallprimes=(2, 3, 5), factors=(1, ))
+    # This could be optimized
+    is_product_of_primes(n) = isempty(smallprimes) || (n == nextprod(smallprimes, n))
+    @assert all(is_product_of_primes, factors) # ensure compatibility between (a) and (b)
+    has_factors(n) = rem(n, prod(factors)) == 0
+
+    while !(has_factors(size) && is_product_of_primes(size))
+        size += 1
+    end
+    size
+end
+function next_compatible_fft_size(sizes::Union{Tuple, AbstractArray}; kwargs...)
+    next_compatible_fft_size.(sizes; kwargs...)
+end
 
 # This uses a more precise and slower algorithm than the one above,
 # simply enumerating all G vectors and seeing where their difference
@@ -255,8 +278,8 @@ end
 
 # TODO Some grid sizes are broken in the generic FFT implementation
 # in FourierTransforms, for more details see workarounds/fft_generic.jl
-# This function is needed to provide a noop fallback for grid adjustment for
-# for floating-point types natively supported by FFTW
+default_primes(::Type{Float32}) = (2, 3, 5)
+default_primes(::Type{Float64}) = default_primes(Float32)
 next_working_fft_size(::Type{Float32}, size::Int) = size
 next_working_fft_size(::Type{Float64}, size::Int) = size
 next_working_fft_size(T, sizes::Union{Tuple, AbstractArray}) = next_working_fft_size.(T, sizes)

@@ -109,8 +109,7 @@ end
             for coord in group_positions
                 # If all elements of a difference in diffs is integer, then
                 # W * coord + w and pos are equivalent lattice positions
-                is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ tol_symmetry, r)
-                if !any(c -> is_approx_integer(W * coord + w - c), group_positions)
+                if !any(c -> is_approx_integer(W * coord + w - c; tol=tol_symmetry), group_positions)
                     error("spglib returned bad symmetries: Cannot map the atom at position " *
                           "$coord to another atom of the same element under the symmetry " *
                           "operation (W, w):\n($W, $w)")
