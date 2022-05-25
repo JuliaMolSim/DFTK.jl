@@ -41,7 +41,7 @@
 Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
 function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
-        tol_symmetry=SYMMETRY_TOLERANCE)
+                             tol_symmetry=SYMMETRY_TOLERANCE)
     @assert length(atoms) == length(positions)
     atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
     Ws, ws = spglib_get_symmetry(lattice, atom_groups, positions, magnetic_moments; tol_symmetry)
