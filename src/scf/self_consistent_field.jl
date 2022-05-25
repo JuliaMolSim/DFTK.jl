@@ -59,8 +59,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        is_converged=ScfConvergenceEnergy(tol),
                                        callback=ScfDefaultCallback(; show_damping=false),
                                        compute_consistent_energies=true,
-                                       response=ResponseOptions()  # Dummy here, only needed
-                                                                   # for forward-diff.
+                                       response=ResponseOptions()  # Dummy here, only for AD
                                       )
     T = eltype(basis)
     model = basis.model

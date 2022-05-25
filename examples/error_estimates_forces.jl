@@ -53,7 +53,7 @@ tol = 1e-8;
 
 # We compute the reference solution ``P_*`` from which we will compute the
 # references forces.
-scfres_ref = self_consistent_field(basis_ref, tol=tol, callback=info->nothing)
+scfres_ref = self_consistent_field(basis_ref; tol, callback=info->nothing)
 ψ_ref, _ = DFTK.select_occupied_orbitals(basis_ref, scfres_ref.ψ,
                                          scfres_ref.occupation);
 
@@ -68,7 +68,7 @@ scfres_ref = self_consistent_field(basis_ref, tol=tol, callback=info->nothing)
 #     asymptotic regime (crucial to validate the approach) is barely established.
 Ecut = 15
 basis = PlaneWaveBasis(model; Ecut=Ecut, kgrid)
-scfres = self_consistent_field(basis, tol=tol, callback=info->nothing)
+scfres = self_consistent_field(basis; tol, callback=info->nothing)
 ψr = DFTK.transfer_blochwave(scfres.ψ, basis, basis_ref)
 ρr = compute_density(basis_ref, ψr, scfres.occupation)
 Er, hamr = energy_hamiltonian(basis_ref, ψr, scfres.occupation; ρ=ρr);
@@ -169,7 +169,7 @@ rhs = resLF - ΩpKe2;
 #   costly step, but inverting ``\bm{\Omega} + \bm{K}`` on the small space has
 #   the same cost than the full SCF cycle on the small grid.
 ψ, _ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
-e1 = DFTK.solve_ΩplusK(basis, ψ, rhs, occ; tol_cg=tol).δψ
+e1 = DFTK.solve_ΩplusK(basis, ψ, rhs, occ; tol).δψ
 e1 = DFTK.transfer_blochwave(e1, basis, basis_ref)
 res_schur = e1 + Mres;
 

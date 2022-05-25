@@ -38,12 +38,12 @@ end
 
 """
     solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, res, occupation;
-                 tol_cg=1e-10, verbose=false) where T
+                 tol=1e-10, verbose=false) where T
 
 Return δψ where (Ω+K) δψ = rhs
 """
 function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
-                      tol_cg=1e-10, verbose=false) where T
+                      tol=1e-10, verbose=false) where T
     @assert mpi_nprocs() == 1  # Distributed implementation not yet available
     filled_occ = filled_occupation(basis.model)
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
@@ -88,7 +88,7 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
 
     # solve (Ω+K) δψ = rhs on the tangent space with CG
     δψ, history = cg(J, rhs_pack, Pl=FunctionPreconditioner(f_ldiv!),
-                  reltol=0, abstol=tol_cg, verbose=verbose, log=true)
+                  reltol=0, abstol=tol, verbose=verbose, log=true)
 
     (; δψ=unpack(δψ), history)
 end
@@ -101,12 +101,13 @@ end
 # (Ω+K)^-1 = -χ04P (1 + E K2P (1 - χ02P K2P)^-1 R χ04P)
 # where χ02P = R χ04P E and K2P = R K E
 function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
-                            eigenvalues, rhs;
-                            tol_dyson=1e-8, tol_cg=1e-12, verbose=false, kwargs...) where T
+                            eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10,
+                            verbose=false, kwargs...) where T
     basis = ham.basis
 
     # compute δρ0 (ignoring interactions)
-    δψ0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, rhs; tol_cg, verbose, kwargs...)
+    δψ0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, rhs;
+                      reltol=0, abstol=tol_sternheimer, kwargs...)
     δρ0 = compute_δρ(basis, ψ, δψ0, occupation)
 
     pack(δρ)   = vec(δρ)
@@ -115,18 +116,22 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
     function eps_fun(δρ)
         δρ = unpack(δρ)
         δV = apply_kernel(basis, δρ; ρ)
-        χ0δV = apply_χ0(ham, ψ, εF, eigenvalues, δV; tol_cg, kwargs...)
+        # Would be nice to play with abstol / reltol etc. to avoid over-solving
+        # for the initial GMRES steps.
+        χ0δV = apply_χ0(ham, ψ, εF, eigenvalues, δV;
+                        abstol=tol_sternheimer, reltol=0, kwargs...)
         pack(δρ - χ0δV)
     end
     J = LinearMap{T}(eps_fun, length(pack(δρ0)))
-    δρ, history = gmres(J, pack(δρ0); reltol=0, abstol=tol_dyson, verbose, log=true)
+    δρ, history = gmres(J, pack(δρ0); reltol=0, abstol=tol, verbose, log=true)
     δV = apply_kernel(basis, unpack(δρ); ρ)
 
     δVψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
-    δψ = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δVψ; tol_cg, verbose, kwargs...)
-    .- (δψ0 .+ δψ), history
-
+    δψ1 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δVψ;
+                      abstol=tol_sternheimer, reltol=0, kwargs...)
+    δψ  = .- (δψ0 .+ δψ1)
+    (; δψ, history)
 end
 
 function solve_ΩplusK_split(basis::PlaneWaveBasis, ψ, rhs, occupation; kwargs...)

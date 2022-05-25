@@ -18,7 +18,8 @@ include("testcases.jl")
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
-        scfres = self_consistent_field(basis; is_converged=is_converged)
+        scfres = self_consistent_field(basis; is_converged,
+                                       response=ResponseOptions(verbose=true))
         compute_forces_cart(scfres)
     end
 

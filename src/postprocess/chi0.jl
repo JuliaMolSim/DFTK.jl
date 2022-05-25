@@ -107,7 +107,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # where 1-P is the projector on the orthogonal of ψk
 function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
-                            tol_cg=1e-12, verbose=false)
+                            abstol=1e-12, reltol=0, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
     model = basis.model
@@ -187,8 +187,7 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    δψknᴿ = cg(J, bb, Pl=FunctionPreconditioner(R_ldiv!),
-               reltol=0, abstol=tol_cg, verbose=verbose)
+    δψknᴿ = cg(J, bb; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol, verbose)
 
     # 2) solve for αkn now that we know δψknᴿ
     # Note that αkn is an empty array if there is no extra bands.

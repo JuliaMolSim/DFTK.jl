@@ -168,8 +168,14 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     basis  = construct_value(basis_dual)
     scfres = self_consistent_field(basis; kwargs...)
 
-    ## promote occupied bands to dual numbers
+    # Split into truncated and extra eigenpairs
     truncated = select_occupied_orbitals(scfres; threshold=response.occupation_threshold)
+    ψ_extra = [@view scfres.ψ[ik][:, length(εkTrunc)+1:end]
+               for (ik, εkTrunc) in enumerate(truncated.eigenvalues)]
+    ε_extra = [@view scfres.eigenvalues[ik][length(εkTrunc)+1:end]
+               for (ik, εkTrunc) in enumerate(truncated.eigenvalues)]
+
+    ## promote occupied bands to dual numbers
     occupation_dual = [T.(occₖ) for occₖ in truncated.occupation]
     ψ_dual = [Complex.(T.(real(ψₖ)), T.(imag(ψₖ))) for ψₖ in truncated.ψ]
     ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
@@ -186,10 +192,8 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     δresults = ntuple(ForwardDiff.npartials(T)) do α
         δHψ_α = [ForwardDiff.partials.(δHψk, α) for δHψk in hamψ_dual]
 
-        δψ_α, resp_α = solve_ΩplusK_split(truncated, -δHψ_α;
-                                          tol_dyson=scfres.norm_Δρ,
-                                          tol_cg=scfres.norm_Δρ / 10,
-                                          response.verbose)
+        δψ_α, resp_α = solve_ΩplusK_split(truncated, -δHψ_α; tol=scfres.norm_Δρ,
+                                          ψ_extra, ε_extra, response.verbose)
         δρ_α = compute_δρ(basis, truncated.ψ, δψ_α, truncated.occupation)
         δψ_α, δρ_α, resp_α
     end
