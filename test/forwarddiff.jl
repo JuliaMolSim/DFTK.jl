@@ -11,9 +11,9 @@ include("testcases.jl")
         if metal
             # Silicon reduced HF is metallic
             model = model_DFT(Matrix{T}(silicon.lattice), silicon.atoms, pos, [];
-                              temperature=1e-3, symmetries=false)
+                              temperature=1e-3)
         else
-            model = model_LDA(Matrix{T}(silicon.lattice), silicon.atoms, pos; symmetries=false)
+            model = model_LDA(Matrix{T}(silicon.lattice), silicon.atoms, pos)
         end
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 

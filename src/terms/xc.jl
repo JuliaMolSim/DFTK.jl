@@ -34,7 +34,7 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
             func.density_threshold = xc.density_threshold
         end
     end
-    TermXc(functionals, T(xc.scaling_factor), T(xc.potential_threshold))
+    TermXc(functionals, convert_dual(T, xc.scaling_factor), T(xc.potential_threshold))
 end
 
 struct TermXc <: TermNonlinear
@@ -71,7 +71,7 @@ end
     terms = evaluate(term.functionals, density; skip_unsupported_derivatives=true)
     @assert haskey(terms, :vrho)
     if haskey(terms, :zk)
-        E = sum(terms.zk .* ρ) * basis.dvol
+        E = term.scaling_factor * sum(terms.zk .* ρ) * basis.dvol
     else
         E = zero(T)
     end
@@ -111,11 +111,9 @@ end
         Vτ = term.scaling_factor * permutedims(terms.vtau, (2, 3, 4, 1))
     end
 
-    if term.scaling_factor != 1
-        E *= term.scaling_factor
-        potential .*= term.scaling_factor
-        !isnothing(Vτ) && (Vτ .*= term.scaling_factor)
-    end
+    # Note: We always have to do this, otherwise we get issues with AD wrt. scaling_factor
+    potential .*= term.scaling_factor
+
     ops = map(basis.kpoints) do kpt
         if !isnothing(Vτ)
             [RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin]),
