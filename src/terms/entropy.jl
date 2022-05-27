@@ -23,7 +23,7 @@ function ene_ops(term::TermEntropy, basis::PlaneWaveBasis{T}, ψ, occ; kwargs...
 
     E = zero(T)
     for (ik, k) in enumerate(basis.kpoints)
-        for iband = 1:size(ψ[1], 2)
+        for iband = 1:size(ψ[ik], 2)
             E -= (temperature
                   * basis.kweights[ik]
                   * filled_occupation(basis.model)
