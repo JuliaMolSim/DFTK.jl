@@ -135,12 +135,21 @@ function _is_well_conditioned(A::AbstractArray{<:ForwardDiff.Dual}; kwargs...)
     _is_well_conditioned(ForwardDiff.value.(A); kwargs...)
 end
 
-# TODO Should go to Model.jl / PlaneWaveBasis.jl as a constructor and along with it should
-# go a nice convert function to get rid of the annoying conversion thing in the
-# stress computation.
+# TODO Should go to Model.jl / PlaneWaveBasis.jl as a constructor.
+#
+# Along with it should go a nice convert function to get rid of the annoying
+# conversion thing in the stress computation.
+#
+# Ideally also upon constructing a Model one would automatically determine that
+# *some* parameter deep inside the terms, psp or sth is a dual and automatically
+# convert the full thing to be based on dual numbers ... note that this requires
+# exposing the element type all the way up ... which is probably needed to do these
+# forward and backward conversion routines between duals and non-duals as well.
 function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
     newpositions = [ForwardDiff.value.(pos) for pos in model.positions]
-    Model(ForwardDiff.value.(model.lattice), model.atoms, newpositions;
+    Model(ForwardDiff.value.(model.lattice),
+          construct_value.(model.atoms),
+          newpositions;
           model_name=model.model_name,
           n_electrons=model.n_electrons,
           magnetic_moments=[],  # Symmetries given explicitly
@@ -150,6 +159,21 @@ function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
           spin_polarization=model.spin_polarization,
           symmetries=model.symmetries)
 end
+
+construct_value(el::Element) = el
+construct_value(el::ElementPsp) = ElementPsp(el.Z, el.symbol, construct_value(el.psp))
+construct_value(psp::PspHgh) = psp
+function construct_value(psp::PspHgh{T}) where {T <: ForwardDiff.Dual}
+    PspHgh(psp.Zion,
+           ForwardDiff.value(psp.rloc),
+           ForwardDiff.value.(psp.cloc),
+           psp.lmax,
+           ForwardDiff.value.(psp.rp),
+           [ForwardDiff.value.(hl) for hl in psp.h],
+           psp.identifier,
+           psp.description)
+end
+
 
 function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
     new_kshift = isnothing(basis.kshift) ? nothing : ForwardDiff.value.(basis.kshift)
@@ -217,9 +241,10 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     end
     ρ_out = map((ρi, δρi...) -> DT(ρi, δρi), scfres.ρ, δρ...)
 
+    # TODO Compute eigenvalue response (return dual eigenvalues and dual εF)
+
     merge(truncated, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
-                        occupation=occupation_dual, ρ=ρ_out, eigenvalues=eigenvalues_dual,
-                        εF=εF_dual, response))
+                        occupation=occupation_dual, ρ=ρ_out, response))
 end
 
 # other workarounds

@@ -86,7 +86,7 @@ or an element name (e.g. `"silicon"`)
 function ElementPsp(key; psp)
     ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp)
 end
-charge_ionic(el::ElementPsp)   = el.psp.Zion
+charge_ionic(el::ElementPsp)   = charge_ionic(el.psp)
 charge_nuclear(el::ElementPsp) = el.Z
 AtomsBase.atomic_symbol(el::ElementPsp) = el.symbol
 

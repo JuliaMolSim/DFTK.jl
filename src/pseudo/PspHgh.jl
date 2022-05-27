@@ -2,16 +2,17 @@ using SpecialFunctions: erf
 using SpecialFunctions: gamma
 using Polynomials
 
-struct PspHgh <: NormConservingPsp
-    Zion::Int                   # Ionic charge (Z - valence electrons)
-    rloc::Float64               # Range of local Gaussian charge distribution
-    cloc::SVector{4,Float64}    # Coefficients for the local part
-    lmax::Int                   # Maximal angular momentum in the non-local part
-    rp::Vector{Float64}         # Projector radius for each angular momentum
-    h::Vector{Matrix{Float64}}  # Projector coupling coefficients per AM channel: h[l][i1,i2]
-    identifier::String          # String identifying the PSP
-    description::String         # Descriptive string
+struct PspHgh{T} <: NormConservingPsp
+    Zion::Int             # Ionic charge (Z - valence electrons)
+    rloc::T               # Range of local Gaussian charge distribution
+    cloc::SVector{4,T}    # Coefficients for the local part
+    lmax::Int             # Maximal angular momentum in the non-local part
+    rp::Vector{T}         # Projector radius for each angular momentum
+    h::Vector{Matrix{T}}  # Projector coupling coefficients per AM channel: h[l][i1,i2]
+    identifier::String    # String identifying the PSP
+    description::String   # Descriptive string
 end
+charge_ionic(psp::PspHgh) = psp.Zion
 
 """
     PspHgh(Zion::Number, rloc::Number, cloc::Vector, rp::Vector, h::Vector;
@@ -24,18 +25,16 @@ Gaussian charge distribution `rloc`, the coefficients for the local part
 `cloc`, the projector radius `rp` (one per AM channel) and the non-local
 coupling coefficients between the projectors `h` (one matrix per AM channel).
 """
-function PspHgh(Zion, rloc, cloc, rp, h::Vector{Matrix{T}};
-                identifier="", description="") where T
-    @assert length(rp) == length(h) "Length of rp and h do not agree"
-    lmax = length(h) - 1
-
-    @assert length(cloc) <= 4 "length(cloc) > 4 not supported."
+function PspHgh(Zion, rloc::T, cloc::AbstractVector, rp, h; identifier="", description="") where {T}
+    length(rp) == length(h) || error("Length of rp and h do not agree.")
+    length(cloc) <= 4 || error("length(cloc) > 4 not supported.")
     if length(cloc) < 4
         n_extra = 4 - length(cloc)
-        cloc = [cloc; zeros(n_extra)]
+        cloc = [cloc; zeros(T, n_extra)]
     end
 
-    PspHgh(Zion, rloc, cloc, lmax, rp, h, identifier, description)
+    lmax = length(h) - 1
+    PspHgh{T}(Zion, rloc, cloc, lmax, rp, h, identifier, description)
 end
 
 
@@ -116,7 +115,7 @@ can be brought to the form ``Q(t) / (t^2 exp(t^2 / 2))``
 where ``t = r_\text{loc} q`` and `Q`
 is a polynomial of at most degree 8. This function returns `Q`.
 """
-@inline function psp_local_polynomial(T, psp::PspHgh, t=Polynomial{T}([0, 1]))
+@inline function psp_local_polynomial(T, psp::PspHgh, t=Polynomial(T[0, 1]))
     rloc::T = psp.rloc
     Zion::T = psp.Zion
 
@@ -141,17 +140,13 @@ end
 Estimate an upper bound for the argument `q` after which
 `abs(eval_psp_local_fourier(psp, q))` is a strictly decreasing function.
 """
-function qcut_psp_local(T, psp::PspHgh)
+function qcut_psp_local(psp::PspHgh{T}) where {T}
     Q = DFTK.psp_local_polynomial(T, psp)  # polynomial in t = q * rloc
 
     # Find the roots of the derivative polynomial:
     res = roots(Polynomial([0, 1]) * derivative(Q) - Polynomial([2, 0, 1]) * Q)
-    res = T[r for r in res if abs(imag(r)) < 1e-14]
-    if length(res) > 0
-        maximum(res) / psp.rloc
-    else
-        zero(T)
-    end
+    res = T[r for r in res if abs(imag(r)) < 100eps(T)]
+    maximum(res, init=zero(T)) / psp.rloc
 end
 
 
@@ -172,7 +167,7 @@ The nonlocal projectors of a HGH pseudopotentials in reciprocal space
 can be brought to the form ``Q(t) exp(-t^2 / 2)`` where ``t = r_l q``
 and `Q` is a polynomial. This function returns `Q`.
 """
-@inline function psp_projector_polynomial(T, psp::PspHgh, i, l, t=Polynomial{T}([0, 1]))
+@inline function psp_projector_polynomial(T, psp::PspHgh, i, l, t=Polynomial(T[0, 1]))
     @assert 0 <= l <= length(psp.rp) - 1
     @assert i > 0
     rp::T = psp.rp[l + 1]
@@ -193,6 +188,8 @@ and `Q` is a polynomial. This function returns `Q`.
     (l == 2 && i == 2) && return common * 2 / 3sqrt(T( 105)) * t^2 * ( 7 -   t^2)
     #
     (l == 3 && i == 1) && return common * 1 /  sqrt(T( 105)) * t^3
+
+    return zero(t)
 end
 
 
@@ -200,23 +197,18 @@ end
 Estimate an upper bound for the argument `q` after which
 `eval_psp_projector_fourier(psp, q)` is a strictly decreasing function.
 """
-function qcut_psp_projector(T, psp::PspHgh, i, l)
+function qcut_psp_projector(psp::PspHgh{T}, i, l) where {T}
     Q = DFTK.psp_projector_polynomial(T, psp, i, l)  # polynomial in q * rp[l + 1]
 
     # Find the roots of the derivative polynomial:
     res = roots(derivative(Q) - Polynomial([0, 1]) * Q)
-    res = T[r for r in res if abs(imag(r)) < 1e-14]
-    if length(res) > 0
-        maximum(res) / psp.rp[l + 1]
-    else
-        zero(T)
-    end
+    res = T[r for r in res if abs(imag(r)) < 100eps(T)]
+    maximum(res, init=zero(T)) / psp.rp[l + 1]
 end
 
 
 # [HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω).
 function eval_psp_projector_fourier(psp::PspHgh, i, l, q::T) where {T <: Real}
-    @assert 0 <= l <= length(psp.rp) - 1
     t::T = q * psp.rp[l + 1]
     psp_projector_polynomial(T, psp, i, l, t) * exp(-t^2 / 2)
 end
@@ -224,8 +216,6 @@ end
 
 # [HGH98] (3)
 function eval_psp_projector_real(psp::PspHgh, i, l, r::T) where {T <: Real}
-    @assert 0 <= l <= length(psp.rp) - 1
-    @assert i > 0
     rp = T(psp.rp[l + 1])
     ired = (4i - 1) / T(2)
     sqrt(T(2)) * r^(l + 2(i - 1)) * exp(-r^2 / 2rp^2) / rp^(l + ired) / sqrt(gamma(l + ired))

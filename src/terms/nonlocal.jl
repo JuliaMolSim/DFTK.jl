@@ -58,7 +58,7 @@ end
     for group in psp_groups
         element = model.atoms[first(group)]
 
-        C = build_projection_coefficients_(element.psp)
+        C = build_projection_coefficients_(T, element.psp)
         for (ik, kpt) in enumerate(basis.kpoints)
             # we compute the forces from the irreductible BZ; they are symmetrized later
             qs_cart = Gplusk_vectors_cart(basis, kpt)
@@ -101,7 +101,7 @@ function build_projection_coefficients_(T, psps, psp_positions)
     for (psp, positions) in zip(psps, psp_positions), _ in positions
         n_proj_psp = count_n_proj(psp)
         block = count+1:count+n_proj_psp
-        proj_coeffs[block, block] = build_projection_coefficients_(psp)
+        proj_coeffs[block, block] = build_projection_coefficients_(T, psp)
         count += n_proj_psp
     end # psp, r
     @assert count == n_proj
@@ -113,9 +113,9 @@ end
 # The ordering of the projector indices is (l,m,i), where l, m are the
 # AM quantum numbers and i is running over all projectors for a given l.
 # The matrix is block-diagonal with non-zeros only if l and m agree.
-function build_projection_coefficients_(psp::NormConservingPsp)
+function build_projection_coefficients_(T, psp::NormConservingPsp)
     n_proj = count_n_proj(psp)
-    proj_coeffs = zeros(n_proj, n_proj)
+    proj_coeffs = zeros(T, n_proj, n_proj)
     count = 0
     for l in 0:psp.lmax, m in -l:l
         n_proj_l = size(psp.h[l + 1], 1)  # Number of i's
