@@ -82,8 +82,12 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     max_exp_arg = -log(eps(T)) + 5  # add some wiggle room
     max_erfc_arg = sqrt(max_exp_arg)  # erfc(x) ~= exp(-x^2)/(sqrt(π)x) for large x
 
-    # let A be the lattice matrix, then if ||Ax|| <= R, 
+    # Precomputing summation bounds from cutoffs.
+    # Let A be the lattice matrix, then if ||Ax|| <= R, 
     # then xi = <ei, A^-1 Ax> = <A^-T ei, Ax> <= ||A^-T ei|| R.
+    #
+    # Reciprocal space:  ||A^-1 G|| / 2η ≤ max_erfc_arg
+    # Real space: ||A(ti - tj - R)|| * η ≤ max_erfc_arg
     Glims = ceil.(Int, [norm(lattice'[:, i]) * max_erfc_arg * 2η  for i in 1:3])
     poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
     Rlims = ceil.(Int, [norm(recip_lattice'[:, i]) * max_erfc_arg / η + poslims[i] for i in 1:3])
