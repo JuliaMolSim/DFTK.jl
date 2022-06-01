@@ -189,7 +189,7 @@ and `Q` is a polynomial. This function returns `Q`.
     #
     (l == 3 && i == 1) && return common * 1 /  sqrt(T( 105)) * t^3
 
-    return zero(t)
+    error("Not implemented for l=$l and i=$i")
 end
 
 

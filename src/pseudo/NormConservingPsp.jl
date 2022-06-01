@@ -11,8 +11,11 @@ abstract type NormConservingPsp end
 #    description::String         # Descriptive string
 
 #### Methods:
-# Ionic charge (Z - valence electrons)
-# charge_ionic(psp::NormConservingPsp) = error()
+# charge_ionic(psp::NormConservingPsp)
+# eval_psp_projector_real(psp::NormConservingPsp, i, l, r::Real)
+# eval_psp_projector_fourier(psp::NormConservingPsp, i, l, q::Real)
+# eval_psp_local_real(psp::NormConservingPsp, r::Real)
+# eval_psp_local_fourier(psp::NormConservingPsp, q::Real)
 
 
 """
@@ -21,7 +24,6 @@ abstract type NormConservingPsp end
 Evaluate the radial part of the `i`-th projector for angular momentum `l`
 in real-space at the vector with modulus `r`.
 """
-# eval_psp_projector_real(psp::NormConservingPsp, i, l, r::Real) = error()
 eval_psp_projector_real(psp::NormConservingPsp, i, l, r::AbstractVector) =
     eval_psp_projector_real(psp, i, l, norm(r))
 
@@ -33,7 +35,6 @@ at the reciprocal vector with modulus `q`:
 p(q) = ∫_R^3 p_{il}(r) e^{-iqr} dr
      = 4π ∫_{R+} r^2 p_{il}(r) j_l(q r) dr
 """
-# eval_psp_projector_fourier(psp::NormConservingPsp, i, l, q::Real) = error()
 eval_psp_projector_fourier(psp::NormConservingPsp, q::AbstractVector) =
     eval_psp_projector_fourier(psp, norm(q))
 
@@ -42,7 +43,6 @@ eval_psp_projector_fourier(psp::NormConservingPsp, q::AbstractVector) =
 
 Evaluate the local part of the pseudopotential in real space.
 """
-# eval_psp_local_real(psp::NormConservingPsp, r::Real) = error()
 eval_psp_local_real(psp::NormConservingPsp, r::AbstractVector) =
     eval_psp_local_real(psp, norm(r))
 
@@ -53,7 +53,6 @@ Evaluate the local part of the pseudopotential in reciprocal space:
 V(q) = ∫_R^3 Vloc(r) e^{-iqr} dr
      = 4π ∫_{R+} Vloc(r) sin(qr)/q r dr
 """
-# eval_psp_local_fourier(psp::NormConservingPsp, q::Real) = error()
 eval_psp_local_fourier(psp::NormConservingPsp, q::AbstractVector) =
     eval_psp_local_fourier(psp, norm(q))
 
