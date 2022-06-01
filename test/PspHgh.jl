@@ -1,6 +1,6 @@
 using Test
 using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
-using DFTK: eval_psp_projector_real, psp_local_polynomial
+using DFTK: eval_psp_projector_real, psp_local_polynomial, eval_psp_local_real
 using DFTK: psp_projector_polynomial, qcut_psp_projector, qcut_psp_local
 using SpecialFunctions: besselj
 using QuadGK
@@ -84,12 +84,12 @@ end
     psp = load_psp("hgh/pbe/au-q11.hgh")
     ε = 1e-6
 
-    qcut = qcut_psp_local(Float64, psp)
+    qcut = qcut_psp_local(psp)
     res = eval_psp_local_fourier.(psp, [qcut - ε, qcut, qcut + ε])
     @test (res[1] < res[2]) == (res[3] < res[2])
 
     for i in 1:2, l in 0:2
-        qcut = qcut_psp_projector(Float64, psp, i, l)
+        qcut = qcut_psp_projector(psp, i, l)
         res = eval_psp_projector_fourier.(psp, i, l, [qcut - ε, qcut, qcut + ε])
         @test (res[1] < res[2]) == (res[3] < res[2])
     end
@@ -146,7 +146,7 @@ end
 @testset "Potentials are consistent in real and Fourier space" begin
     reg_param = 0.001  # divergent integral, needs regularization
     function integrand(psp, q, r)
-        4π*DFTK.eval_psp_local_real(psp, r) * exp(-reg_param * r) * sin(q*r) / q * r
+        4π * eval_psp_local_real(psp, r) * exp(-reg_param * r) * sin(q*r) / q * r
     end
 
     for pspfile in ["Au-q11", "Ba-q10"]
