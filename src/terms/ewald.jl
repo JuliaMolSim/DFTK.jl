@@ -60,6 +60,29 @@ function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
     energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions; η, forces)
 end
 
+function compute_Glims_Rlims_ewald(lattice, recip_lattice, positions, max_exp_arg, max_erfc_arg, η; ceil_int=true)
+    # As a general statement, with A a lattice matrix, then if ||Ax|| <= R, 
+    # then xi = <ei, A^-1 Ax> = <A^-T ei, Ax> <= ||A^-T ei|| R.
+    #
+    # In the reciprocal-space term we have exp(-||B G||^2 / 4η^2), 
+    # where B is the reciprocal-space lattice, and 
+    # thus use the bound  ||B G|| / 2η ≤ sqrt(max_exp_arg)
+    Glims = [norm(inv(recip_lattice')[:, i]) * sqrt(max_exp_arg) * 2η  for i in 1:3]
+
+    # In the real-space term we have erfc(η ||A(rj - rk - R)||), 
+    # where A is the real-space lattice, rj and rk are atomic positions and
+    # thus use the bound  ||A(rj - rk - R)|| * η ≤ max_erfc_arg
+    poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
+    Rlims = [norm(inv(lattice')[:, i]) * max_erfc_arg / η + poslims[i] for i in 1:3]
+    
+    if ceil_int
+        Glims = ceil.(Int, Glims)
+        Rlims = ceil.(Int, Rlims)
+    end
+
+    Glims, Rlims
+end
+
 # This could be factorised with Pairwise, but its use of `atom_types` would slow down this
 # computationally intensive Ewald sums. So we leave it as it for now.
 function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, forces=nothing)
@@ -83,17 +106,8 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     max_erfc_arg = sqrt(max_exp_arg)  # erfc(x) ~= exp(-x^2)/(sqrt(π)x) for large x
 
     # Precomputing summation bounds from cutoffs.
-    # As a general statement, with A a lattice matrix, then if ||Ax|| <= R, 
-    # then xi = <ei, A^-1 Ax> = <A^-T ei, Ax> <= ||A^-T ei|| R.
-    #
-    # Reciprocal space:  ||B G|| / 2η ≤ max_erfc_arg
-    # where B is the reciprocal space lattice
-    # Real space: ||A(rj - rk - R)|| * η ≤ max_erfc_arg
-    # where A is the real-space lattice, rj and rk are atomic positions
-    Glims = ceil.(Int, [norm(inv(recip_lattice')[:, i]) * max_erfc_arg * 2η  for i in 1:3])
-    poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
-    Rlims = ceil.(Int, [norm(inv(lattice')[:, i]) * max_erfc_arg / η + poslims[i] for i in 1:3])
-
+    Glims, Rlims = compute_Glims_Rlims_ewald(lattice, recip_lattice, positions, max_exp_arg, max_erfc_arg, η)
+    
     #
     # Reciprocal space sum
     #
