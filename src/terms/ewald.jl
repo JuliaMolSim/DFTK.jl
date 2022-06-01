@@ -83,11 +83,13 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     max_erfc_arg = sqrt(max_exp_arg)  # erfc(x) ~= exp(-x^2)/(sqrt(π)x) for large x
 
     # Precomputing summation bounds from cutoffs.
-    # Let A be the lattice matrix, then if ||Ax|| <= R, 
+    # As a general statement, with A a lattice matrix, then if ||Ax|| <= R, 
     # then xi = <ei, A^-1 Ax> = <A^-T ei, Ax> <= ||A^-T ei|| R.
     #
-    # Reciprocal space:  ||A^-1 G|| / 2η ≤ max_erfc_arg
+    # Reciprocal space:  ||B G|| / 2η ≤ max_erfc_arg
+    # where B is the reciprocal space lattice
     # Real space: ||A(ti - tj - R)|| * η ≤ max_erfc_arg
+    # where A is the real-space lattice
     Glims = ceil.(Int, [norm(inv(recip_lattice')[:, i]) * max_erfc_arg * 2η  for i in 1:3])
     poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
     Rlims = ceil.(Int, [norm(inv(lattice')[:, i]) * max_erfc_arg / η + poslims[i] for i in 1:3])
@@ -98,25 +100,21 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     # Initialize reciprocal sum with correction term for charge neutrality
     sum_recip::T = - (sum(charges)^2 / 4η^2)
 
-    for G1 in -Glims[1]:Glims[1]
-        for G2 in -Glims[2]:Glims[2]
-            for G3 in -Glims[3]:Glims[3]
-                G = Vec3(G1, G2, G3)
-                (G == zero(G)) && continue
-                Gsq = sum(abs2, recip_lattice * G)
-                cos_strucfac = sum(Z * cos2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
-                sin_strucfac = sum(Z * sin2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
-                sum_strucfac = cos_strucfac^2 + sin_strucfac^2
-                sum_recip += sum_strucfac * exp(-Gsq / 4η^2) / Gsq
-                if forces !== nothing
-                    for (ir, r) in enumerate(positions)
-                        Z = charges[ir]
-                        dc = -Z*2T(π)*G*sin2pi(dot(r, G))
-                        ds = +Z*2T(π)*G*cos2pi(dot(r, G))
-                        dsum = 2cos_strucfac*dc + 2sin_strucfac*ds
-                        forces_recip[ir] -= dsum * exp(-Gsq / 4η^2)/Gsq
-                    end
-                end
+    for G1 in -Glims[1]:Glims[1], G2 in -Glims[2]:Glims[2], G3 in -Glims[3]:Glims[3]
+        G = Vec3(G1, G2, G3)
+        (G == zero(G)) && continue
+        Gsq = sum(abs2, recip_lattice * G)
+        cos_strucfac = sum(Z * cos2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
+        sin_strucfac = sum(Z * sin2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
+        sum_strucfac = cos_strucfac^2 + sin_strucfac^2
+        sum_recip += sum_strucfac * exp(-Gsq / 4η^2) / Gsq
+        if forces !== nothing
+            for (ir, r) in enumerate(positions)
+                Z = charges[ir]
+                dc = -Z*2T(π)*G*sin2pi(dot(r, G))
+                ds = +Z*2T(π)*G*cos2pi(dot(r, G))
+                dsum = 2cos_strucfac*dc + 2sin_strucfac*ds
+                forces_recip[ir] -= dsum * exp(-Gsq / 4η^2)/Gsq
             end
         end
     end
@@ -133,29 +131,25 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     # Initialize real-space sum with correction term for uniform background
     sum_real::T = -2η / sqrt(T(π)) * sum(Z -> Z^2, charges)
 
-    for R1 in -Rlims[1]:Rlims[1]
-        for R2 in -Rlims[2]:Rlims[2]
-            for R3 in -Rlims[3]:Rlims[3]
-                R = Vec3(R1, R2, R3)
-                for i = 1:length(positions), j = 1:length(positions)
-                    # Avoid self-interaction
-                    R == zero(R) && i == j && continue
-                    Zi = charges[i]
-                    Zj = charges[j]
-                    Δr = lattice * (positions[i] - positions[j] - R)
-                    dist = norm(Δr)
-                    energy_contribution = Zi * Zj * erfc(η * dist) / dist
-                    sum_real += energy_contribution
-                    if forces !== nothing
-                        # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
-                        dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
-                        dE_ddist -= energy_contribution
-                        dE_ddist /= dist
-                        dE_dti = lattice' * ((dE_ddist / dist) * Δr)
-                        forces_real[i] -= dE_dti
-                        forces_real[j] += dE_dti
-                    end
-                end
+    for R1 in -Rlims[1]:Rlims[1], R2 in -Rlims[2]:Rlims[2], R3 in -Rlims[3]:Rlims[3]
+        R = Vec3(R1, R2, R3)
+        for i = 1:length(positions), j = 1:length(positions)
+            # Avoid self-interaction
+            R == zero(R) && i == j && continue
+            Zi = charges[i]
+            Zj = charges[j]
+            Δr = lattice * (positions[i] - positions[j] - R)
+            dist = norm(Δr)
+            energy_contribution = Zi * Zj * erfc(η * dist) / dist
+            sum_real += energy_contribution
+            if forces !== nothing
+                # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
+                dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
+                dE_ddist -= energy_contribution
+                dE_ddist /= dist
+                dE_dti = lattice' * ((dE_ddist / dist) * Δr)
+                forces_real[i] -= dE_dti
+                forces_real[j] += dE_dti
             end
         end
     end
