@@ -45,3 +45,13 @@ function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <:
     @assert iszero(round(lor - hir, digits=3))
     T(local_potential_fourier(el, IntervalArithmetic.mid(q)))
 end
+
+function compute_Glims_Rlims_ewald(lattice::AbstractMatrix{<:Interval}, recip_lattice, positions, max_exp_arg, max_erfc_arg, η)
+    # This is done to avoid a call like ceil(Int, ::Interval)
+    # where it is in general cases not clear, what to do.
+    # In this case we just take the largest possible summation bounds.
+    Glims, Rlims = compute_Glims_Rlims_ewald(lattice, recip_lattice, positions, max_exp_arg, max_erfc_arg, η; ceil_int=false)
+    Glims = map(x -> ceil(Int, x.hi), Glims)
+    Rlims = map(x -> ceil(Int, x.hi), Rlims)
+    Glims, Rlims
+end
