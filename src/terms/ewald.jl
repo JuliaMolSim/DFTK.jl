@@ -88,8 +88,8 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     #
     # Reciprocal space:  ||B G|| / 2η ≤ max_erfc_arg
     # where B is the reciprocal space lattice
-    # Real space: ||A(ti - tj - R)|| * η ≤ max_erfc_arg
-    # where A is the real-space lattice
+    # Real space: ||A(rj - rk - R)|| * η ≤ max_erfc_arg
+    # where A is the real-space lattice, rj and rk are atomic positions
     Glims = ceil.(Int, [norm(inv(recip_lattice')[:, i]) * max_erfc_arg * 2η  for i in 1:3])
     poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
     Rlims = ceil.(Int, [norm(inv(lattice')[:, i]) * max_erfc_arg / η + poslims[i] for i in 1:3])
