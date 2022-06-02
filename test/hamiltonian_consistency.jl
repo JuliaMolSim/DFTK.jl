@@ -51,6 +51,9 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         diff_predicted = 0.0
         for ik in 1:length(basis.kpoints)
             Hψ = ham.blocks[ik]*ψ[ik]
+            if ham.blocks[ik].operators isa DFTK.RealSpaceMultiplication
+                @test norm(Matrix(ham.blocks[ik]) * ψ[ik] - Hψ) < atol
+            end
             δψHψ = sum(occupation[ik][iband] * real(dot(δψ[ik][:, iband], Hψ[:, iband]))
                        for iband=1:n_bands)
             diff_predicted += 2 * basis.kweights[ik] * δψHψ
