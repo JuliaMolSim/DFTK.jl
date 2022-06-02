@@ -46,12 +46,20 @@ function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <:
     T(local_potential_fourier(el, IntervalArithmetic.mid(q)))
 end
 
-function compute_Glims_Rlims_ewald(lattice::AbstractMatrix{<:Interval}, recip_lattice, positions, max_exp_arg, max_erfc_arg, η)
-    # This is done to avoid a call like ceil(Int, ::Interval)
-    # where it is in general cases not clear, what to do.
-    # In this case we just take the largest possible summation bounds.
-    Glims, Rlims = compute_Glims_Rlims_ewald(lattice, recip_lattice, positions, max_exp_arg, max_erfc_arg, η; ceil_int=false)
-    Glims = map(x -> ceil(Int, x.hi), Glims)
-    Rlims = map(x -> ceil(Int, x.hi), Rlims)
-    Glims, Rlims
+# function compute_Glims_Rlims_ewald(lattice::AbstractMatrix{<:Interval}, recip_lattice, positions, max_exp_arg, max_erfc_arg, η)
+#     # This is done to avoid a call like ceil(Int, ::Interval)
+#     # where it is in general cases not clear, what to do.
+#     # In this case we just take the largest possible summation bounds.
+#     Glims, Rlims = compute_Glims_Rlims_ewald(lattice, recip_lattice, positions, max_exp_arg, max_erfc_arg, η; ceil_int=false)
+#     Glims = map(x -> ceil(Int, x.hi), Glims)
+#     Rlims = map(x -> ceil(Int, x.hi), Rlims)
+#     Glims, Rlims
+# end
+
+function estimate_integer_lattice_bounds(M::AbstractMatrix{<:Interval}, δ, shift=zeros(3))
+    # As a general statement, with M a lattice matrix, then if ||Mx|| <= δ, 
+    # then xi = <ei, M^-1 Mx> = <M^-T ei, Mx> <= ||M^-T ei|| δ.
+    # Below code does not support non-3D systems.
+    xlims = [norm(inv(M')[:, i]) * δ + shift[i] for i in 1:3]
+    map(x -> ceil(Int, x.hi), xlims)
 end
