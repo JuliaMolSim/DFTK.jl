@@ -12,6 +12,9 @@ erfc(i::Interval) = Interval(prevfloat(erfc(i.lo)), nextfloat(erfc(i.hi)))
 # see issue #513 on IntervalArithmetic repository
 cis2pi(x::Interval) = exp(2 * (pi * (im * x)))
 
+nextfloat(x::Interval) = Interval(nextfloat(x.lo), nextfloat(x.hi))
+prevfloat(x::Interval) = Interval(prevfloat(x.lo), prevfloat(x.hi))
+
 function compute_Glims_fast(lattice::AbstractMatrix{<:Interval}, args...; kwargs...)
     # This is done to avoid a call like ceil(Int, ::Interval)
     # in the above implementation of compute_fft_size,
