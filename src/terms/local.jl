@@ -99,8 +99,8 @@ end
     forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
     for group in model.atom_groups
         element = model.atoms[first(group)]
-        form_factors = [Complex{T}(local_potential_fourier(element, norm(recip_lattice * G)))
-                        for G in G_vectors(basis)]
+        form_factors = [Complex{T}(local_potential_fourier(element, norm(G)))
+                        for G in G_vectors_cart(basis)]
         for idx in group
             r = model.positions[idx]
             forces[idx] = _force_local_internal(basis, ρ_fourier, form_factors, r)

@@ -21,7 +21,9 @@ mapping of the `numbers` to the element objects in DFTK and `collinear` whether
 the atoms mark a case of collinear spin or not. Notice that if `collinear` is false
 then `spins` is garbage.
 """
-function spglib_atoms(atom_groups, positions, magnetic_moments)
+function spglib_atoms(atom_groups,
+                      positions::AbstractVector{<:AbstractVector{<:AbstractFloat}},
+                      magnetic_moments)
     n_attypes = length(positions)
     spg_numbers   = zeros(Cint,    n_attypes)
     spg_spins     = zeros(Cdouble, n_attypes)
@@ -53,7 +55,8 @@ function spglib_cell(lattice, atom_groups, positions, magnetic_moments)
 end
 
 
-@timing function spglib_get_symmetry(lattice, atom_groups, positions, magnetic_moments=[];
+@timing function spglib_get_symmetry(lattice::AbstractMatrix{<:AbstractFloat}, atom_groups,
+                                     positions, magnetic_moments=[];
                                      tol_symmetry=SYMMETRY_TOLERANCE)
     lattice = Matrix{Float64}(lattice)  # spglib operates in double precision
 

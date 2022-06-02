@@ -119,6 +119,7 @@ export scf_damping_solver
 export scf_anderson_solver
 export scf_CROP_solver
 export self_consistent_field
+export ResponseOptions
 export direct_minimization
 export newton
 export load_scfres, save_scfres
@@ -181,6 +182,7 @@ include("postprocess/dos.jl")
 export compute_χ0
 export apply_χ0
 include("postprocess/chi0.jl")
+include("postprocess/omega.jl")
 export compute_current
 include("postprocess/current.jl")
 

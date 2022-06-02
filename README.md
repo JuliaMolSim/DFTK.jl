@@ -31,7 +31,7 @@ The unique feature of this code is its emphasis on simplicity and flexibility
 with the goal of facilitating algorithmic and numerical developments as well as
 interdisciplinary collaboration in solid-state research.
 
-Having started in 2018 we already support a
+Having started in 2019 we already support a
 [sizeable set of features](https://docs.dftk.org/stable/index.html#package-features-1).
 Within the system size currently accessible to our code (ca. 1000 electrons)
 our performance is of the same order of magnitude as more established packages
