@@ -75,7 +75,7 @@ end
     tσ = libxc_spinindex_σ
 
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ) + ΔVl
-    potential = permutedims(vrho, (2, 3, 4, 1))
+    potential = permutedims(terms.vrho, (2, 3, 4, 1))
     # not differentiated for now
     #@views for s in 1:n_spin
     #    potential[:, :, :, s] .+= vrho[s, :, :, :]
