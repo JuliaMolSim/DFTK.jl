@@ -27,6 +27,7 @@ include("common/split_evenly.jl")
 include("common/mpi.jl")
 include("common/threading.jl")
 include("common/printing.jl")
+include("common/cis2pi.jl")
 
 export PspHgh
 include("pseudo/NormConservingPsp.jl")
@@ -118,6 +119,7 @@ export scf_damping_solver
 export scf_anderson_solver
 export scf_CROP_solver
 export self_consistent_field
+export ResponseOptions
 export direct_minimization
 export newton
 export load_scfres, save_scfres
@@ -148,6 +150,7 @@ include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
 include("pseudo/attach_psp.jl")
 
+export DFTKPotential
 export pymatgen_structure
 export ase_atoms
 export load_lattice
@@ -156,6 +159,7 @@ export load_positions
 export load_magnetic_moments
 export run_wannier90
 include("external/atomsbase.jl")
+include("external/interatomicpotentials.jl")
 include("external/load_from_file.jl")
 include("external/ase.jl")
 include("external/pymatgen.jl")
@@ -178,6 +182,7 @@ include("postprocess/dos.jl")
 export compute_χ0
 export apply_χ0
 include("postprocess/chi0.jl")
+include("postprocess/omega.jl")
 export compute_current
 include("postprocess/current.jl")
 

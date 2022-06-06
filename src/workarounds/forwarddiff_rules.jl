@@ -98,6 +98,10 @@ convert_dual(::Type{T}, x) where {T} = convert(T, x)
 
 
 # DFTK setup specific
+default_primes(T::Type{<:ForwardDiff.Dual}) = default_primes(ForwardDiff.valtype(T))
+function next_working_fft_size(T::Type{<:ForwardDiff.Dual}, size::Integer)
+    next_working_fft_size(ForwardDiff.valtype(T), size)
+end
 
 next_working_fft_size(::Type{<:ForwardDiff.Dual}, size::Int) = size
 
@@ -115,22 +119,37 @@ function build_fft_plans(T::Type{<:Union{ForwardDiff.Dual,Complex{<:ForwardDiff.
 end
 
 # determine symmetry operations only from primal lattice values
-function spglib_get_symmetry(lattice::Matrix{<:ForwardDiff.Dual}, atom_groups, positions,
+function spglib_get_symmetry(lattice::AbstractMatrix{<:ForwardDiff.Dual}, atom_groups, positions,
                              magnetic_moments=[]; kwargs...)
     spglib_get_symmetry(ForwardDiff.value.(lattice), atom_groups, positions,
                         magnetic_moments; kwargs...)
+end
+function spglib_atoms(atom_groups,
+                      positions::AbstractVector{<:AbstractVector{<:ForwardDiff.Dual}},
+                      magnetic_moments)
+    positions_value = [ForwardDiff.value.(pos) for pos in positions]
+    spglib_atoms(atom_groups, positions_value, magnetic_moments)
 end
 
 function _is_well_conditioned(A::AbstractArray{<:ForwardDiff.Dual}; kwargs...)
     _is_well_conditioned(ForwardDiff.value.(A); kwargs...)
 end
 
-# TODO Should go to Model.jl / PlaneWaveBasis.jl as a constructor and along with it should
-# go a nice convert function to get rid of the annoying conversion thing in the
-# stress computation.
+# TODO Should go to Model.jl / PlaneWaveBasis.jl as a constructor.
+#
+# Along with it should go a nice convert function to get rid of the annoying
+# conversion thing in the stress computation.
+#
+# Ideally also upon constructing a Model one would automatically determine that
+# *some* parameter deep inside the terms, psp or sth is a dual and automatically
+# convert the full thing to be based on dual numbers ... note that this requires
+# exposing the element type all the way up ... which is probably needed to do these
+# forward and backward conversion routines between duals and non-duals as well.
 function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
     newpositions = [ForwardDiff.value.(pos) for pos in model.positions]
-    Model(ForwardDiff.value.(model.lattice), model.atoms, newpositions;
+    Model(ForwardDiff.value.(model.lattice),
+          construct_value.(model.atoms),
+          newpositions;
           model_name=model.model_name,
           n_electrons=model.n_electrons,
           magnetic_moments=[],  # Symmetries given explicitly
@@ -141,13 +160,28 @@ function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
           symmetries=model.symmetries)
 end
 
+construct_value(el::Element) = el
+construct_value(el::ElementPsp) = ElementPsp(el.Z, el.symbol, construct_value(el.psp))
+construct_value(psp::PspHgh) = psp
+function construct_value(psp::PspHgh{T}) where {T <: ForwardDiff.Dual}
+    PspHgh(psp.Zion,
+           ForwardDiff.value(psp.rloc),
+           ForwardDiff.value.(psp.cloc),
+           psp.lmax,
+           ForwardDiff.value.(psp.rp),
+           [ForwardDiff.value.(hl) for hl in psp.h],
+           psp.identifier,
+           psp.description)
+end
+
+
 function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
     new_kshift = isnothing(basis.kshift) ? nothing : ForwardDiff.value.(basis.kshift)
     PlaneWaveBasis(construct_value(basis.model),
                    ForwardDiff.value(basis.Ecut),
                    map(v -> ForwardDiff.value.(v), basis.kcoords_global),
                    ForwardDiff.value.(basis.kweights_global);
-                   basis.symmetries,
+                   basis.symmetries_respect_rgrid,
                    fft_size=basis.fft_size,
                    kgrid=basis.kgrid,
                    kshift=new_kshift,
@@ -156,7 +190,7 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
 end
 
 function self_consistent_field(basis_dual::PlaneWaveBasis{T};
-                               response=(; verbose=false),
+                               response=ResponseOptions(),
                                kwargs...) where T <: ForwardDiff.Dual
     # Note: No guarantees on this interface yet.
 
@@ -164,13 +198,19 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     basis  = construct_value(basis_dual)
     scfres = self_consistent_field(basis; kwargs...)
 
+    # Split into truncated and extra eigenpairs
+    truncated = select_occupied_orbitals(scfres; threshold=response.occupation_threshold)
+    ψ_extra = [@view scfres.ψ[ik][:, length(εkTrunc)+1:end]
+               for (ik, εkTrunc) in enumerate(truncated.eigenvalues)]
+    ε_extra = [@view scfres.eigenvalues[ik][length(εkTrunc)+1:end]
+               for (ik, εkTrunc) in enumerate(truncated.eigenvalues)]
+
     ## promote occupied bands to dual numbers
-    ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
-    occupation_dual = [T.(occₖ) for occₖ in occupation]
-    ψ_dual = [Complex.(T.(real(ψₖ)), T.(imag(ψₖ))) for ψₖ in ψ]
+    occupation_dual = [T.(occₖ) for occₖ in truncated.occupation]
+    ψ_dual = [Complex.(T.(real(ψₖ)), T.(imag(ψₖ))) for ψₖ in truncated.ψ]
     ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
-    εF_dual = T(scfres.εF)  # Only needed for entropy term
-    eigenvalues_dual = [T.(εₖ) for εₖ in scfres.eigenvalues]  # Only needed for entropy term
+    εF_dual = T(truncated.εF)  # Only needed for entropy term
+    eigenvalues_dual = [T.(εₖ) for εₖ in truncated.eigenvalues]
     energies_dual, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
                                                  ρ=ρ_dual, eigenvalues=eigenvalues_dual,
                                                  εF=εF_dual)
@@ -181,18 +221,19 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     hamψ_dual = ham_dual * ψ_dual
     δresults = ntuple(ForwardDiff.npartials(T)) do α
         δHψ_α = [ForwardDiff.partials.(δHψk, α) for δHψk in hamψ_dual]
-        δψ_α, response_α = solve_ΩplusK(basis, ψ, -δHψ_α, occupation;
-                                        tol_cg=scfres.norm_Δρ, verbose=response.verbose)
-        δρ_α = compute_δρ(basis, ψ, δψ_α, occupation)
-        δψ_α, δρ_α, response_α
+
+        δψ_α, resp_α = solve_ΩplusK_split(truncated, -δHψ_α; tol=scfres.norm_Δρ,
+                                          ψ_extra, ε_extra, response.verbose)
+        δρ_α = compute_δρ(basis, truncated.ψ, δψ_α, truncated.occupation)
+        δψ_α, δρ_α, resp_α
     end
-    δψ       = [δψ_α       for (δψ_α, δρ_α, response_α) in δresults]
-    δρ       = [δρ_α       for (δψ_α, δρ_α, response_α) in δresults]
-    response = [response_α for (δψ_α, δρ_α, response_α) in δresults]
+    δψ       = [δψ_α   for (δψ_α, δρ_α, resp_α) in δresults]
+    δρ       = [δρ_α   for (δψ_α, δρ_α, resp_α) in δresults]
+    response = [resp_α for (δψ_α, δρ_α, resp_α) in δresults]
 
     ## Convert, combine and return
     DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}
-    ψ_out = map(ψ, δψ...) do ψk, δψk...
+    ψ_out = map(truncated.ψ, δψ...) do ψk, δψk...
         map(ψk, δψk...) do ψi, δψi...
             Complex(DT(real(ψi), real.(δψi)),
                     DT(imag(ψi), imag.(δψi)))
@@ -200,9 +241,10 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     end
     ρ_out = map((ρi, δρi...) -> DT(ρi, δρi), scfres.ρ, δρ...)
 
-    merge(scfres, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
-                     occupation=occupation_dual, ρ=ρ_out, eigenvalues=eigenvalues_dual,
-                     εF=εF_dual, response))
+    # TODO Compute eigenvalue response (return dual eigenvalues and dual εF)
+
+    merge(truncated, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
+                        occupation=occupation_dual, ρ=ρ_out, response))
 end
 
 # other workarounds

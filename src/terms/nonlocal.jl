@@ -69,7 +69,7 @@ end
             form_factors = build_form_factors(element.psp, qs_cart)
             for idx in group
                 r = model.positions[idx]
-                structure_factors = [cis(-2T(π) * dot(q, r)) for q in qs]
+                structure_factors = [cis2pi(-dot(q, r)) for q in qs]
                 P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
 
                 forces[idx] += map(1:3) do α

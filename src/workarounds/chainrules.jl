@@ -62,13 +62,12 @@ ChainRulesCore.@non_differentiable r_vectors(::Any...)
 ChainRulesCore.@non_differentiable G_vectors(::Any...)
 ChainRulesCore.@non_differentiable default_n_electrons(::Any...)
 ChainRulesCore.@non_differentiable default_symmetries(::Any...) # TODO perhaps?
-ChainRulesCore.@non_differentiable shell_indices(::Any)  # Ewald
 ChainRulesCore.@non_differentiable build_kpoints(::Any...)
-ChainRulesCore.@non_differentiable allunique(::Any...) # TODO upstream!
 
 # https://github.com/doddgray/OptiMode.jl/blob/main/src/grad_lib/StaticArrays.jl
 ChainRulesCore.rrule(T::Type{<:SMatrix}, xs::Number...) = ( T(xs...), dv -> (ChainRulesCore.NoTangent(), dv...) )
 ChainRulesCore.rrule(T::Type{<:SMatrix}, x::AbstractMatrix) = ( T(x), dv -> (ChainRulesCore.NoTangent(), dv) )
+ChainRulesCore.rrule(T::Type{<:SVector}, xs::Number...) = ( T(xs...), dv -> (ChainRulesCore.NoTangent(), dv...) )
 
 # simplified version of PlaneWaveBasis outer constructor to
 # help reverse mode AD to only differentiate the relevant computations.

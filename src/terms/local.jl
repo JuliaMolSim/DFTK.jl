@@ -80,7 +80,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
         pot = sum(model.atom_groups) do group
             element = model.atoms[first(group)]
             form_factor::T = local_potential_fourier(element, norm(model.recip_lattice * G))
-            form_factor * sum(cis(-2T(π) * dot(G, r)) for r in @view model.positions[group])
+            form_factor * sum(cis2pi(-dot(G, r)) for r in @view model.positions[group])
         end
         pot / sqrt(model.unit_cell_volume)
     end
@@ -102,8 +102,8 @@ end
     forces = Zygote.Buffer(zero(model.positions))
     for group in model.atom_groups
         element = model.atoms[first(group)]
-        form_factors = [Complex{T}(local_potential_fourier(element, norm(recip_lattice * G)))
-                        for G in G_vectors(basis)]
+        form_factors = [Complex{T}(local_potential_fourier(element, norm(G)))
+                        for G in G_vectors_cart(basis)]
         for idx in group
             r = model.positions[idx]
             forces[idx] = _force_local_internal(basis, ρ_fourier, form_factors, r)
@@ -119,7 +119,7 @@ function _force_local_internal(basis, ρ_fourier, form_factors, r)
     for (iG, G) in enumerate(G_vectors(basis))
         f -= real(conj(ρ_fourier[iG])
                   .* form_factors[iG]
-                  .* cis(-2T(π) * dot(G, r))
+                  .* cis2pi(-dot(G, r))
                   .* (-2T(π)) .* G .* im
                   ./ sqrt(basis.model.unit_cell_volume))
     end
