@@ -93,7 +93,7 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBa
         r_to_G_normalization, G_to_r_normalization,
         basis.kpoints, basis.kweights, basis.kgrid, basis.kshift,
         basis.kcoords_global, basis.kweights_global, basis.comm_kpts, basis.krange_thisproc, basis.krange_allprocs,
-        basis.symmetries, terms)
+        basis.symmetries, basis.symmetries_respect_rgrid, terms)
 
     # terms = Any[t(_basis) for t in model.term_types]
     terms = vcat([], [t(_basis) for t in model.term_types]) # hack: enforce Vector{Any} without causing reverse mutation
