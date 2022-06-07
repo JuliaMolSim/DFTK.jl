@@ -11,7 +11,7 @@ function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
     for operator in hamk.operators
         try
             operator_matrix = Matrix(operator)
-            @test norm(operator_matrix * ψk - operator * ψk) < atol
+            @test norm(operator_matrix*ψk - operator*ψk) < atol
         catch e
             allowed_missing_operators = Union{DFTK.DivAgradOperator,
                                               DFTK.MagneticFieldOperator}
