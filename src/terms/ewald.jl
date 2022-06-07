@@ -60,14 +60,6 @@ function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
     energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions; η, forces)
 end
 
-function estimate_integer_lattice_bounds(M, δ, shift=zeros(3))
-    # As a general statement, with M a lattice matrix, then if ||Mx|| <= δ, 
-    # then xi = <ei, M^-1 Mx> = <M^-T ei, Mx> <= ||M^-T ei|| δ.
-    # Below code does not support non-3D systems.
-    xlims = [norm(inv(M')[:, i]) * δ + shift[i] for i in 1:3]
-    ceil.(Int, xlims)
-end
-
 # This could be factorised with Pairwise, but its use of `atom_types` would slow down this
 # computationally intensive Ewald sums. So we leave it as it for now.
 function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, forces=nothing)
