@@ -120,6 +120,7 @@ end
     @test ≈(max_1, max_2, atol=TOLERANCE)
     @test ≈(max_1, max_3, atol=TOLERANCE)
 
+    # Test consistency between supercell method at `q = 0` and direct `q`-points computations
     r1_q0 = test_supercell_q0(; N_scell=1)
     @assert length(r1_q0) == 1
     ph_bands_1_q0 = ph_bands_1[N_POINTS÷2+1]
