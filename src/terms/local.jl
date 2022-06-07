@@ -95,7 +95,7 @@ end
     ρ_fourier = r_to_G(basis, total_density(ρ))
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
-    # where struct_factor(G) = e^{-i G·r}, where r and *G* are in Cartesian coordinates
+    # where struct_factor(G) = e^{-i G·r}
     forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
     for group in model.atom_groups
         element = model.atoms[first(group)]
