@@ -66,7 +66,8 @@ function energy_pairwise(lattice, symbols, positions, V, params;
         forces_pairwise = copy(forces)
     end
 
-    # We use the bound  ||A (ti - tj - R)|| ≤ max_radius
+    # The potential V(dist) decays very quickly with dist = ||A (ri - rj - R)||,
+    # so we cut off at some point. We use the bound  ||A (ri - rj - R)|| ≤ max_radius
     # where A is the real-space lattice, rj and rk are atomic positions.
     poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
     Rlims = estimate_integer_lattice_bounds(lattice, max_radius, poslims)
