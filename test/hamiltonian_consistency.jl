@@ -7,12 +7,12 @@ include("testcases.jl")
 using Random
 Random.seed!(0)
 
-function test_matrix_repr_opererator(hamk, ψk, Hψk; atol=1e-8)
+function test_matrix_repr_opererator(hamk, ψk; atol=1e-8)
     for operator in hamk.operators
         try
-            operator_matrix = Matrix(hamk)
-            @test norm(operator_matrix * ψk - Hψk) < atol
-        catch
+            operator_matrix = Matrix(operator)
+            @test norm(operator_matrix * ψk - operator * ψk) < atol
+        catch e
             @info "Matrix of operator $(typeof(operator)) not yet supported"
         end
     end
@@ -62,7 +62,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         diff_predicted = 0.0
         for ik in 1:length(basis.kpoints)
             Hψk = ham.blocks[ik]*ψ[ik]
-            test_matrix_repr_opererator(ham.blocks[ik], ψ[ik], Hψk; atol=atol)
+            test_matrix_repr_opererator(ham.blocks[ik], ψ[ik]; atol=atol)
             δψkHψk = sum(occupation[ik][iband] * real(dot(δψ[ik][:, iband], Hψk[:, iband]))
                        for iband=1:n_bands)
             diff_predicted += 2 * basis.kweights[ik] * δψkHψk
