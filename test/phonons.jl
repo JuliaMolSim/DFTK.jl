@@ -103,36 +103,22 @@ function test_ph_disp(; case=1)
 end
 
 @testset "Phonon consistency" begin
-    ph_bands_1 = test_ph_disp(; case=1)
-    ph_bands_2 = test_ph_disp(; case=2)
-    ph_bands_3 = test_ph_disp(; case=3)
-
-    min_1 = minimum(hcat(ph_bands_1...))
-    max_1 = maximum(hcat(ph_bands_1...))
-    min_2 = minimum(hcat(ph_bands_2...))
-    max_2 = maximum(hcat(ph_bands_2...))
-    min_3 = minimum(hcat(ph_bands_3...))
-    max_3 = maximum(hcat(ph_bands_3...))
+    ph_bands = []
+    for case in [1, 2, 3]
+        push!(ph_bands, test_ph_disp(; case=case))
+    end
 
     # Recover the same extremum for the system whatever case we test
-    @test ≈(min_1, min_2, atol=TOLERANCE)
-    @test ≈(min_1, min_3, atol=TOLERANCE)
-    @test ≈(max_1, max_2, atol=TOLERANCE)
-    @test ≈(max_1, max_3, atol=TOLERANCE)
+    for case in [2, 3]
+        @test ≈(minimum(fold(ph_bands[1])), minimum(fold(ph_bands[case])), atol=TOLERANCE)
+        @test ≈(maximum(fold(ph_bands[1])), maximum(fold(ph_bands[case])), atol=TOLERANCE)
+    end
 
     # Test consistency between supercell method at `q = 0` and direct `q`-points computations
-    r1_q0 = test_supercell_q0(; N_scell=1)
-    @assert length(r1_q0) == 1
-    ph_bands_1_q0 = ph_bands_1[N_POINTS÷2+1]
-    @test norm(r1_q0 - ph_bands_1_q0) < TOLERANCE
-
-    r2_q0 = sort(test_supercell_q0(; N_scell=2))
-    @assert length(r2_q0) == 2
-    ph_bands_2_q0 = ph_bands_2[N_POINTS÷2+1]
-    @test norm(r2_q0 - ph_bands_2_q0) < TOLERANCE
-
-    r3_q0 = sort(test_supercell_q0(; N_scell=3))
-    @assert length(r3_q0) == 3
-    ph_bands_3_q0 = ph_bands_3[N_POINTS÷2+1]
-    @test norm(r3_q0 - ph_bands_3_q0) < TOLERANCE
+    for N_scell in [1, 2, 3]
+        r_q0 = test_supercell_q0(; N_scell=N_scell)
+        @assert length(r_q0) == N_scell
+        ph_band_q0 = ph_bands[N_scell][N_POINTS÷2+1]
+        @test norm(r_q0 - ph_band_q0) < TOLERANCE
+    end
 end
