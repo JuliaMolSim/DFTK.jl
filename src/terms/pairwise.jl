@@ -69,7 +69,7 @@ function energy_pairwise(lattice, symbols, positions, V, params;
     # We use the bound  ||A (ti - tj - R)|| ≤ max_radius
     # where A is the real-space lattice, rj and rk are atomic positions.
     poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
-    Rlims = estimate_integer_lattice_bounds(lattice, max_radius, poslims)    
+    Rlims = estimate_integer_lattice_bounds(lattice, max_radius, poslims)
 
     #
     # Energy loop

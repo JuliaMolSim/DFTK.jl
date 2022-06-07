@@ -83,17 +83,17 @@ function energy_ewald(lattice, recip_lattice, charges, positions; η=nothing, fo
     max_erfc_arg = sqrt(max_exp_arg)  # erfc(x) ~= exp(-x^2)/(sqrt(π)x) for large x
 
     # Precomputing summation bounds from cutoffs.
-    # In the reciprocal-space term we have exp(-||B G||^2 / 4η^2), 
-    # where B is the reciprocal-space lattice, and 
+    # In the reciprocal-space term we have exp(-||B G||^2 / 4η^2),
+    # where B is the reciprocal-space lattice, and
     # thus use the bound  ||B G|| / 2η ≤ sqrt(max_exp_arg)
     Glims = estimate_integer_lattice_bounds(recip_lattice, sqrt(max_exp_arg) * 2η)
 
-    # In the real-space term we have erfc(η ||A(rj - rk - R)||), 
+    # In the real-space term we have erfc(η ||A(rj - rk - R)||),
     # where A is the real-space lattice, rj and rk are atomic positions and
     # thus use the bound  ||A(rj - rk - R)|| * η ≤ max_erfc_arg
     poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
     Rlims = estimate_integer_lattice_bounds(lattice, max_erfc_arg / η, poslims)
-        
+
     #
     # Reciprocal space sum
     #
