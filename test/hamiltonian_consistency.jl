@@ -8,14 +8,7 @@ using Random
 Random.seed!(0)
 
 function test_matrix_repr_opererator(hamk, ψk, Hψk; atol=1e-8)
-    known_operators = Union{DFTK.RealSpaceMultiplication,
-                            DFTK.DivAgradOperator,
-                            DFTK.MagneticFieldOperator,
-                            DFTK.NoopOperator,
-                            DFTK.NonlocalOperator,
-                            DFTK.FourierMultiplication}
     for operator in hamk.operators
-        @assert operator isa known_operators
         try
             operator_matrix = Matrix(hamk)
             @test norm(operator_matrix * ψk - Hψk) < atol
