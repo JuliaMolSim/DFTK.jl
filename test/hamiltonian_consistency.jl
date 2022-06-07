@@ -21,7 +21,6 @@ function test_matrix_repr_opererator(block, ψ, Hψ; atol=1e-8)
             operator_matrix = Matrix(block)
         catch
             @info "Matrix of operator $(typeof(operator)) not yet supported"
-            return
         end
         if operator_matrix ≠ nothing
             @test norm(operator_matrix * ψ - Hψ) < atol
