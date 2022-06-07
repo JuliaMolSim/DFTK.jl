@@ -58,10 +58,10 @@ function test_supercell_q0(; N_scell=1)
     Φ = Array{eltype(positions[1])}(undef, length(directions), n_atoms)
     for (i, direction) in enumerate(directions)
         Φ[i, :] = - ForwardDiff.derivative(0.0) do ε
-            n_positions = unfold(fold(positions) .+ ε .* s * direction)
+            new_positions = unfold(fold(positions) .+ ε .* s * direction)
             forces = zeros(Vec3{complex(eltype(ε))}, length(positions))
-            DFTK.energy_pairwise(lattice, [:X for _ in positions],
-                                 n_positions, V, params; forces=forces, max_radius=MAX_RADIUS)
+            DFTK.energy_pairwise(lattice, [:X for _ in positions], new_positions, V, params;
+                                 forces=forces, max_radius=MAX_RADIUS)
             [(s * f)[1] for f in forces]
         end
     end
