@@ -7,6 +7,26 @@ include("testcases.jl")
 using Random
 Random.seed!(0)
 
+function test_matrix_repr_opererator(block, ψ, Hψ; atol=1e-8)
+    known_operators = Union{DFTK.RealSpaceMultiplication,
+                            DFTK.DivAgradOperator,
+                            DFTK.MagneticFieldOperator}
+    for operator in block.operators
+        if operator isa known_operators
+            operator_matrix = nothing
+            try
+                operator_matrix = Matrix(block)
+            catch
+                @info "Matrix of operator $(typeof(operator)) not yet supported"
+                return
+            end
+            if operator_matrix ≠ nothing
+                @test norm(operator_matrix * ψ - Hψ) < atol
+            end
+        end
+    end
+end
+
 function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2, 3],
                                kshift=[0, 1, 0]/2, lattice=silicon.lattice,
                                Ecut=10, spin_polarization=:none)
@@ -51,10 +71,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         diff_predicted = 0.0
         for ik in 1:length(basis.kpoints)
             Hψ = ham.blocks[ik]*ψ[ik]
-            if (length(ham.blocks[ik].operators) == 1
-                && ham.blocks[ik].operators[1] isa DFTK.RealSpaceMultiplication)
-                @test norm(Matrix(ham.blocks[ik]) * ψ[ik] - Hψ) < atol
-            end
+            test_matrix_repr_opererator(ham.blocks[ik], ψ[ik], Hψ)
             δψHψ = sum(occupation[ik][iband] * real(dot(δψ[ik][:, iband], Hψ[:, iband]))
                        for iband=1:n_bands)
             diff_predicted += 2 * basis.kweights[ik] * δψHψ
