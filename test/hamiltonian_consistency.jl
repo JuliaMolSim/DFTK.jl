@@ -10,19 +10,21 @@ Random.seed!(0)
 function test_matrix_repr_opererator(block, ψ, Hψ; atol=1e-8)
     known_operators = Union{DFTK.RealSpaceMultiplication,
                             DFTK.DivAgradOperator,
-                            DFTK.MagneticFieldOperator}
+                            DFTK.MagneticFieldOperator,
+                            DFTK.NoopOperator,
+                            DFTK.NonlocalOperator,
+                            DFTK.FourierMultiplication}
     for operator in block.operators
-        if operator isa known_operators
-            operator_matrix = nothing
-            try
-                operator_matrix = Matrix(block)
-            catch
-                @info "Matrix of operator $(typeof(operator)) not yet supported"
-                return
-            end
-            if operator_matrix ≠ nothing
-                @test norm(operator_matrix * ψ - Hψ) < atol
-            end
+        @assert operator isa known_operators
+        operator_matrix = nothing
+        try
+            operator_matrix = Matrix(block)
+        catch
+            @info "Matrix of operator $(typeof(operator)) not yet supported"
+            return
+        end
+        if operator_matrix ≠ nothing
+            @test norm(operator_matrix * ψ - Hψ) < atol
         end
     end
 end
