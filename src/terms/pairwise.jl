@@ -43,8 +43,7 @@ end
                                                    basis::PlaneWaveBasis{T}, ψ, occ;
                                                    kwargs...) where {T}
     forces = zero(basis.model.positions)
-    energy_pairwise(basis.model, term.V, term.params; max_radius=term.max_radius,
-                    forces=forces)
+    energy_pairwise(basis.model, term.V, term.params; term.max_radius, forces)
     forces
 end
 
@@ -67,6 +66,7 @@ end
 # compute the Fourier transform of the force constant matrix.
 function energy_pairwise(lattice, symbols, positions, V, params;
                          max_radius=100, forces=nothing, ph_disp=nothing, q=nothing)
+    isnothing(ph_disp) && @assert isnothing(q)
     @assert length(symbols) == length(positions)
 
     T = eltype(positions[1])
@@ -111,7 +111,6 @@ function energy_pairwise(lattice, symbols, positions, V, params;
 
                 ti = positions[i]
                 tj = positions[j] + R
-                # Phonons `q` points
                 if !isnothing(ph_disp)
                     ti += ph_disp[i] # * cis(2T(π)*dot(q, zeros(3))) ≡ 1
                                      #  as we use the forces at the nuclei in the unit cell
@@ -134,7 +133,6 @@ function energy_pairwise(lattice, symbols, positions, V, params;
                         V(dist + ε, param_ij)
                     end
                     dE_dti = lattice' * ((dE_ddist / dist) * Δr)
-                    # For the phonons, we compute the forces only in the unit cell.
                     forces_pairwise[i] -= dE_dti
                 end
             end # i,j

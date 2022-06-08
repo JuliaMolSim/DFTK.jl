@@ -4,35 +4,21 @@ using LinearAlgebra
 using ForwardDiff
 using StaticArrays
 
-# ## Helper functions
-# Some functions that will be helpful for this example.
+# Convert back and forth between Vec3 and columnwise matrix
 fold(x)   = hcat(x...)
 unfold(x) = Vec3.(eachcol(x))
 
-const MAX_RADIUS = 1e3
-const TOLERANCE = 1e-6
-const N_POINTS = 10
-
-function prepare_system(; case=1)
+function prepare_system(; n_scell=1)
     positions = [[0.,0,0]]
-    for i in 1:case-1
-        push!(positions, i*ones(3)/case)
+    for i in 1:n_scell-1
+        push!(positions, i*ones(3)/n_scell)
     end
 
     a = 5. * length(positions)
     lattice = a * [[1 0 0.]; [0 0 0.]; [0 0 0.]]
 
     s = DFTK.compute_inverse_lattice(lattice)
-    if case === 1
-        directions = [[s * [1,0,0]]]
-    elseif case === 2
-        directions = [[s * [1,0,0], s * [0,0,0]],
-                      [s * [0,0,0], s * [1,0,0]]]
-    elseif case === 3
-        directions = [[s * [1,0,0], s * [0,0,0], s * [0,0,0]],
-                      [s * [0,0,0], s * [1,0,0], s * [0,0,0]],
-                      [s * [0,0,0], s * [0,0,0], s * [1,0,0]]]
-    end
+    directions = [[s * [i==j,0,0] for i in 1:n_scell] for j in 1:n_scell]
 
     params = Dict((:X, :X) => (; ε=1, σ=a / length(positions) /2^(1/6)))
     V(x, p) = 4*p.ε * ((p.σ/x)^12 - (p.σ/x)^6)
@@ -42,8 +28,8 @@ end
 
 # Compute phonons for a one-dimensional pairwise potential for a set of `q = 0` using
 # supercell method
-function test_supercell_q0(; N_scell=1)
-    blob = prepare_system(; case=N_scell)
+function test_supercell_q0(; n_scell=1, max_radius=1e3)
+    blob = prepare_system(; n_scell)
     positions = blob.positions
     lattice = blob.lattice
     directions = blob.directions
@@ -61,7 +47,7 @@ function test_supercell_q0(; N_scell=1)
             new_positions = unfold(fold(positions) .+ ε .* s * direction)
             forces = zeros(Vec3{complex(eltype(ε))}, length(positions))
             DFTK.energy_pairwise(lattice, [:X for _ in positions], new_positions, V, params;
-                                 forces=forces, max_radius=MAX_RADIUS)
+                                 forces, max_radius)
             [(s * f)[1] for f in forces]
         end
     end
@@ -69,8 +55,8 @@ function test_supercell_q0(; N_scell=1)
 end
 
 # Compute phonons for a one-dimensional pairwise potential for a set of `q`-points
-function test_ph_disp(; case=1)
-    blob = prepare_system(; case=case)
+function test_ph_disp(; n_scell=1, max_radius=1e3, n_points=2)
+    blob = prepare_system(; n_scell)
     positions = blob.positions
     lattice = blob.lattice
     directions = blob.directions
@@ -80,17 +66,16 @@ function test_ph_disp(; case=1)
     pairwise_ph = (q, d; forces=nothing) ->
                      DFTK.energy_pairwise(lattice, [:X for _ in positions],
                                           positions, V, params; q=[q, 0, 0],
-                                          ph_disp=d, forces=forces,
-                                          max_radius=MAX_RADIUS)
+                                          ph_disp=d, forces, max_radius)
 
     ph_bands = []
-    qs = -1/2:1/N_POINTS:1/2
+    qs = -1/2:1/n_points:1/2
     for q in qs
         as = ComplexF64[]
         for d in directions
             res = -ForwardDiff.derivative(0.0) do ε
                 forces = zeros(Vec3{complex(eltype(ε))}, length(positions))
-                pairwise_ph(q, ε*d; forces=forces)
+                pairwise_ph(q, ε*d; forces)
                 [DFTK.compute_inverse_lattice(lattice)' *  f for f in forces]
             end
             [push!(as, r[1]) for r in res]
@@ -103,22 +88,26 @@ function test_ph_disp(; case=1)
 end
 
 @testset "Phonon consistency" begin
+    max_radius = 1e3
+    tolerance = 1e-6
+    n_points = 10
+
     ph_bands = []
-    for case in [1, 2, 3]
-        push!(ph_bands, test_ph_disp(; case=case))
+    for n_scell in [1, 2, 3]
+        push!(ph_bands, test_ph_disp(; n_scell, max_radius, n_points))
     end
 
     # Recover the same extremum for the system whatever case we test
-    for case in [2, 3]
-        @test ≈(minimum(fold(ph_bands[1])), minimum(fold(ph_bands[case])), atol=TOLERANCE)
-        @test ≈(maximum(fold(ph_bands[1])), maximum(fold(ph_bands[case])), atol=TOLERANCE)
+    for n_scell in [2, 3]
+        @test ≈(minimum(fold(ph_bands[1])), minimum(fold(ph_bands[n_scell])), atol=tolerance)
+        @test ≈(maximum(fold(ph_bands[1])), maximum(fold(ph_bands[n_scell])), atol=tolerance)
     end
 
     # Test consistency between supercell method at `q = 0` and direct `q`-points computations
-    for N_scell in [1, 2, 3]
-        r_q0 = test_supercell_q0(; N_scell=N_scell)
-        @assert length(r_q0) == N_scell
-        ph_band_q0 = ph_bands[N_scell][N_POINTS÷2+1]
-        @test norm(r_q0 - ph_band_q0) < TOLERANCE
+    for n_scell in [1, 2, 3]
+        r_q0 = test_supercell_q0(; n_scell, max_radius)
+        @assert length(r_q0) == n_scell
+        ph_band_q0 = ph_bands[n_scell][n_points÷2+1]
+        @test norm(r_q0 - ph_band_q0) < tolerance
     end
 end
