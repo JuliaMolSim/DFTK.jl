@@ -302,7 +302,7 @@ function Base.:^(x::Complex{ForwardDiff.Dual{T,V,N}}, y::Int64) where {T,V,N}
     expv = xx^y
     ∂expv∂x = y * xx^(y-1)
     dxexpv = ∂expv∂x * dx
-    if iszero(xx) && isconstant(real(y)) && isconstant(imag(y)) && imag(y) === zero(imag(y)) && real(y) > 0
+    if iszero(xx) && imag(y) === zero(imag(y)) && real(y) > 0
         dexpv = zero(expv)
     elseif iszero(xx)
         throw(DomainError(x, "mantissa cannot be zero for complex exponentiation"))
