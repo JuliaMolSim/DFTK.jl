@@ -92,64 +92,49 @@ function energy_pairwise(lattice, symbols, positions, V, params;
         forces_pairwise = copy(forces)
     end
 
-    # Function to return the indices corresponding
-    # to a particular shell.
-    # Not performance critical, so we do not type the function
-    max_shell(n, trivial) = trivial ? 0 : n
+    # The potential V(dist) decays very quickly with dist = ||A (rj - rk - R)||,
+    # so we cut off at some point. We use the bound  ||A (rj - rk - R)|| ≤ max_radius
+    # where A is the real-space lattice, rj and rk are atomic positions.
+    poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
+    Rlims = estimate_integer_lattice_bounds(lattice, max_radius, poslims)
+
     # Check if some coordinates are not used.
     is_dim_trivial = [norm(lattice[:,i]) == 0 for i=1:3]
-    function shell_indices(nsh)
-        ish, jsh, ksh = max_shell.(nsh, is_dim_trivial)
-        [[i,j,k] for i in -ish:ish for j in -jsh:jsh for k in -ksh:ksh
-         if maximum(abs.([i,j,k])) == nsh]
-    end
+    max_shell(n, trivial) = trivial ? 0 : n
+    Rlims = max_shell.(Rlims, is_dim_trivial)
 
     #
     # Energy loop
     #
     sum_pairwise::T = zero(T)
-    # Loop over real-space shells
-    rsh = 0 # Include R = 0
-    any_term_contributes = true
-    while any_term_contributes || rsh <= 1
-        any_term_contributes = false
-
-        # Loop over R vectors for this shell patch
-        for R in shell_indices(rsh)
-            for i = 1:length(positions), j = 1:length(positions)
-                # Avoid self-interaction
-                rsh == 0 && i == j && continue
-
-                ti = positions[i]
-                tj = positions[j] + R
-                if !isnothing(ph_disp)
-                    ti += ph_disp[i] # * cis(2T(π)*dot(q, zeros(3))) ≡ 1
-                                     #  as we use the forces at the nuclei in the unit cell
-                    tj += ph_disp[j] * cis(2T(π)*dot(q, R))
+    # Loop over real-space
+    for R1 in -Rlims[1]:Rlims[1], R2 in -Rlims[2]:Rlims[2], R3 in -Rlims[3]:Rlims[3]
+        R = Vec3(R1, R2, R3)
+        for i = 1:length(positions), j = 1:length(positions)
+            # Avoid self-interaction
+            R == zero(R) && i == j && continue
+            ai, aj = minmax(symbols[i], symbols[j])
+            param_ij = params[(ai, aj)]
+            ti = positions[i]
+            tj = positions[j] + R
+            if !isnothing(ph_disp)
+                ti += ph_disp[i] # * cis2pi(dot(q, zeros(3))) === 1
+                                 #  as we use the forces at the nuclei in the unit cell
+                tj += ph_disp[j] * cis2pi(dot(q, R))
+            end
+            Δr = lattice * (ti .- tj)
+            dist = norm_cplx(Δr)
+            energy_contribution = V(dist, param_ij)
+            sum_pairwise += energy_contribution
+            if forces !== nothing
+                dE_ddist = ForwardDiff.derivative(real(zero(eltype(dist)))) do ε
+                    V(dist + ε, param_ij)
                 end
-                ai, aj = minmax(symbols[i], symbols[j])
-                param_ij =params[(ai, aj)]
-
-                Δr = lattice * (ti .- tj)
-                dist = norm_cplx(Δr)
-
-                # the potential decays very quickly, so cut off at some point
-                abs(dist) > max_radius && continue
-
-                any_term_contributes = true
-                energy_contribution = V(dist, param_ij)
-                sum_pairwise += energy_contribution
-                if forces !== nothing
-                    dE_ddist = ForwardDiff.derivative(real(zero(eltype(dist)))) do ε
-                        V(dist + ε, param_ij)
-                    end
-                    dE_dti = lattice' * ((dE_ddist / dist) * Δr)
-                    forces_pairwise[i] -= dE_dti
-                end
-            end # i,j
-        end # R
-        rsh += 1
-    end
+                dE_dti = lattice' * dE_ddist / dist * Δr
+                forces_pairwise[i] -= dE_dti
+            end
+        end # i,j
+    end # R
     energy = sum_pairwise / 2  # Divide by 2 (because of double counting)
     if forces !== nothing
         forces .= forces_pairwise

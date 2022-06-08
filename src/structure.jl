@@ -42,3 +42,15 @@ function diameter(lattice::AbstractMatrix)
     end
     diam
 end
+
+"""
+Estimate integer bounds for dense space loops from a given inequality ||Mx|| ≤ δ.
+For 1D and 2D systems the limit will be zero in the auxiliary dimensions.
+"""
+function estimate_integer_lattice_bounds(M, δ, shift=zeros(3))
+    # As a general statement, with M a lattice matrix, then if ||Mx|| <= δ,
+    # then xi = <ei, M^-1 Mx> = <M^-T ei, Mx> <= ||M^-T ei|| δ.
+    inv_lattice_t = compute_inverse_lattice(M')
+    xlims = [norm(inv_lattice_t[:, i]) * δ + shift[i] for i in 1:3]
+    ceil.(Int, xlims)
+end
