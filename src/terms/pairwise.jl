@@ -1,5 +1,11 @@
-# We cannot use `LinearAlgebra.norm` with complex numbers due to the need to use its
-# analytic continuation
+"""
+Complex-analytic extension of `LinearAlgebra.norm(x)` from real to complex inputs.
+Needed for phonons as we want to perform a matrix-vector product `f'(x)·h`, where `f` is
+a real-to-real function and `h` a complex vector. To do this using automatic
+differentiation, we can extend analytically f to accept complex inputs, then differentiate
+`t -> f(x+t·h)`. This will fail if non-analytic functions like norm are used for complex
+inputs, and therefore we have to redefine it.
+"""
 function norm_cplx(x)
     sqrt(sum(x.^2))
 end
@@ -60,18 +66,23 @@ function energy_pairwise(model::Model{T}, V, params; kwargs...) where {T}
 end
 
 
-# This could be factorised with Ewald, but the use of `symbols` would slow down the
-# computationally intensive Ewald sums. So we leave it as it for now.
-# `q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
-# compute the Fourier transform of the force constant matrix.
+"""
+This could be factorised with Ewald, but the use of `symbols` would slow down the
+computationally intensive Ewald sums. So we leave it as it for now.
+`q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
+compute the Fourier transform of the force constant matrix. Only the computations of the
+forces make sense.
+For phonons computations, this gives the forces of particles `ti` in the unit cell w.r.t. to
+a displacement of the particles `tj` of the form `ph_disp·e^{i q·R}`.
+"""
 function energy_pairwise(lattice, symbols, positions, V, params;
                          max_radius=100, forces=nothing, ph_disp=nothing, q=nothing)
     isnothing(ph_disp) && @assert isnothing(q)
     @assert length(symbols) == length(positions)
 
     T = eltype(positions[1])
-    if ph_disp !== nothing
-        @assert q !== nothing
+    if !isnothing(ph_disp)
+        @assert !isnothing(q) && !isnothing(forces)
         T = promote_type(complex(T), eltype(ph_disp[1]))
         @assert size(ph_disp) == size(positions)
     end
