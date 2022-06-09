@@ -295,21 +295,3 @@ function Base.:^(x::Complex{ForwardDiff.Dual{T,V,N}}, y::Complex{ForwardDiff.Dua
     complex(ForwardDiff.Dual{T,V,N}(real(expv), ForwardDiff.Partials{N,V}(tuple(real(dexpv)...))),
             ForwardDiff.Dual{T,V,N}(imag(expv), ForwardDiff.Partials{N,V}(tuple(imag(dexpv)...))))
 end
-function Base.:^(x::Complex{ForwardDiff.Dual{T,V,N}}, y::Int64) where {T,V,N}
-    xx = complex(ForwardDiff.value(real(x)), ForwardDiff.value(imag(x)))
-    dx = complex.(ForwardDiff.partials(real(x)), ForwardDiff.partials(imag(x)))
-
-    expv = xx^y
-    ∂expv∂x = y * xx^(y-1)
-    dxexpv = ∂expv∂x * dx
-    if iszero(xx) && imag(y) === zero(imag(y)) && real(y) > 0
-        dexpv = zero(expv)
-    elseif iszero(xx)
-        throw(DomainError(x, "mantissa cannot be zero for complex exponentiation"))
-    else
-        dexpv = dxexpv
-    end
-    complex(ForwardDiff.Dual{T,V,N}(real(expv), ForwardDiff.Partials{N,V}(tuple(real(dexpv)...))),
-            ForwardDiff.Dual{T,V,N}(imag(expv), ForwardDiff.Partials{N,V}(tuple(imag(dexpv)...))))
-end
-
