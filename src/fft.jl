@@ -238,25 +238,14 @@ end
 # Fast implementation, but sometimes larger than necessary.
 function compute_Glims_fast(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=sqrt(eps(T))) where T
     Gmax = supersampling * sqrt(2 * Ecut)
-    bounding_rectangle(lattice, Gmax; tol=tol)
-end
-
-
-# returns the lengths of the bounding rectangle in reciprocal space
-# that encloses the sphere of radius Gmax
-function bounding_rectangle(lattice::AbstractMatrix{T}, Gmax; tol=sqrt(eps(T))) where {T}
-    # If |B G| ≤ Gmax, then
-    # |Gi| = |e_i^T B^-1 B G| ≤ |B^-T e_i| Gmax = |A_i| Gmax
-    # with B the reciprocal lattice matrix, e_i the i-th canonical
-    # basis vector and A_i the i-th column of the lattice matrix
-    Glims = [norm(lattice[:, i]) / 2T(π) * Gmax for i in 1:3]
+    recip_lattice = compute_recip_lattice(lattice)
+    Glims = estimate_integer_lattice_bounds(recip_lattice, Gmax)
 
     # Round up, unless exactly zero (in which case keep it zero in
     # order to just have one G vector for 1D or 2D systems)
     Glims = [Glim == 0 ? 0 : ceil(Int, Glim .- tol) for Glim in Glims]
     Glims
 end
-
 
 # For Float32 there are issues with aligned FFTW plans, so we
 # fall back to unaligned FFTW plans (which are generally discouraged).
