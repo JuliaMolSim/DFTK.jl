@@ -72,6 +72,11 @@ function energy_pairwise(lattice, symbols, positions, V, params;
     poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
     Rlims = estimate_integer_lattice_bounds(lattice, max_radius, poslims)
 
+    # Check if some coordinates are not used.
+    is_dim_trivial = [norm(lattice[:,i]) == 0 for i=1:3]
+    max_shell(n, trivial) = trivial ? 0 : n
+    Rlims = max_shell.(Rlims, is_dim_trivial)
+
     #
     # Energy loop
     #
