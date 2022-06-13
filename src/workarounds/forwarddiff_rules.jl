@@ -284,7 +284,7 @@ function Base.:^(x::Complex{ForwardDiff.Dual{T,V,N}}, y::Complex{ForwardDiff.Dua
     ∂expv∂x = yy * xx^(yy-1)
     ∂expv∂y = log(xx) * expv
     dxexpv = ∂expv∂x * dx
-    if iszero(xx) && isconstant(real(y)) && isconstant(imag(y)) && imag(y) === zero(imag(y)) && real(y) > 0
+    if iszero(xx) && ForwardDiff.isconstant(real(y)) && ForwardDiff.isconstant(imag(y)) && imag(y) === zero(imag(y)) && real(y) > 0
         dexpv = zero(expv)
     elseif iszero(xx)
         throw(DomainError(x, "mantissa cannot be zero for complex exponentiation"))
