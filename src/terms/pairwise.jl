@@ -66,15 +66,13 @@ function energy_pairwise(model::Model{T}, V, params; kwargs...) where {T}
 end
 
 
-"""
-This could be factorised with Ewald, but the use of `symbols` would slow down the
-computationally intensive Ewald sums. So we leave it as it for now.
-`q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
-compute the Fourier transform of the force constant matrix. Only the computations of the
-forces make sense.
-For phonons computations, this gives the forces of particles `ti` in the unit cell w.r.t. to
-a displacement of the particles `tj` of the form `ph_disp·e^{i q·R}`.
-"""
+# This could be factorised with Ewald, but the use of `symbols` would slow down the
+# computationally intensive Ewald sums. So we leave it as it for now.
+# `q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
+# compute the Fourier transform of the force constant matrix. Only the computations of the
+# forces make sense.
+# Computes the local energy and forces on the atoms of the reference unit cell 0, for an
+# infinite array of atoms at positions r_{iR} = positions[i] + R + ph_disp[i]*e^{iq·R}.
 function energy_pairwise(lattice, symbols, positions, V, params;
                          max_radius=100, forces=nothing, ph_disp=nothing, q=nothing)
     isnothing(ph_disp) && @assert isnothing(q)
