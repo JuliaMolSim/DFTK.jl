@@ -239,11 +239,7 @@ end
 function compute_Glims_fast(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=sqrt(eps(T))) where T
     Gmax = supersampling * sqrt(2 * Ecut)
     recip_lattice = compute_recip_lattice(lattice)
-    Glims = estimate_integer_lattice_bounds(recip_lattice, Gmax)
-
-    # Round up, unless exactly zero (in which case keep it zero in
-    # order to just have one G vector for 1D or 2D systems)
-    Glims = [Glim == 0 ? 0 : ceil(Int, Glim .- tol) for Glim in Glims]
+    Glims = estimate_integer_lattice_bounds(recip_lattice, Gmax; tol=tol)
     Glims
 end
 
