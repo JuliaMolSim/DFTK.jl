@@ -55,7 +55,7 @@ struct Model{T <: Real}
     term_types::Vector
 
     # list of symmetries of the model
-    symmetries::Vector{SymOp}
+    symmetries::Vector{SymOp{T}}
 end
 
 _is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)

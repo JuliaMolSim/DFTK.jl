@@ -90,7 +90,7 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
 
     ## Symmetry operations that leave the discretized model (k and r grids) invariant.
     # Subset of model.symmetries.
-    symmetries::Vector{SymOp}
+    symmetries::Vector{SymOp{T}}
     # Whether the symmetry operations leave the rgrid invariant
     # If this is true, the symmetries are a property of the complete discretized model.
     # Therefore, all quantities should be symmetric to machine precision
