@@ -35,6 +35,7 @@ struct SymOp{T <: Real}
         S = W'
         τ = -W \w
         new{eltype(τ)}(W, w, S, τ)
+        new{eltype(w)}(W, w, S, τ)
     end
 end
 
