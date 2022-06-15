@@ -66,59 +66,42 @@ function energy_pairwise(lattice, symbols, positions, V, params;
         forces_pairwise = copy(forces)
     end
 
-    # Function to return the indices corresponding
-    # to a particular shell.
-    # Not performance critical, so we do not type the function
-    max_shell(n, trivial) = trivial ? 0 : n
+    # The potential V(dist) decays very quickly with dist = ||A (rj - rk - R)||,
+    # so we cut off at some point. We use the bound  ||A (rj - rk - R)|| ≤ max_radius
+    # where A is the real-space lattice, rj and rk are atomic positions.
+    poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
+    Rlims = estimate_integer_lattice_bounds(lattice, max_radius, poslims)
+
     # Check if some coordinates are not used.
     is_dim_trivial = [norm(lattice[:,i]) == 0 for i=1:3]
-    function shell_indices(nsh)
-        ish, jsh, ksh = max_shell.(nsh, is_dim_trivial)
-        [[i,j,k] for i in -ish:ish for j in -jsh:jsh for k in -ksh:ksh
-         if maximum(abs.([i,j,k])) == nsh]
-    end
+    max_shell(n, trivial) = trivial ? 0 : n
+    Rlims = max_shell.(Rlims, is_dim_trivial)
 
     #
     # Energy loop
     #
     sum_pairwise::T = zero(T)
-    # Loop over real-space shells
-    rsh = 0 # Include R = 0
-    any_term_contributes = true
-    while any_term_contributes || rsh <= 1
-        any_term_contributes = false
-
-        # Loop over R vectors for this shell patch
-        for R in shell_indices(rsh)
-            for i = 1:length(positions), j = 1:length(positions)
-                # Avoid self-interaction
-                rsh == 0 && i == j && continue
-
-                ti = positions[i]
-                tj = positions[j]
-                ai, aj = minmax(symbols[i], symbols[j])
-                param_ij =params[(ai, aj)]
-
-                Δr = lattice * (ti .- tj .- R)
-                dist = norm(Δr)
-
-                # the potential decays very quickly, so cut off at some point
-                dist > max_radius && continue
-
-                any_term_contributes = true
-                energy_contribution = V(dist, param_ij)
-                sum_pairwise += energy_contribution
-                if forces !== nothing
-                    # We use ForwardDiff for the forces
-                    dE_ddist = ForwardDiff.derivative(d -> V(d, param_ij), dist)
-                    dE_dti = lattice' * dE_ddist / dist * Δr
-                    forces_pairwise[i] -= dE_dti
-                    forces_pairwise[j] += dE_dti
-                end
-            end # i,j
-        end # R
-        rsh += 1
-    end
+    # Loop over real-space
+    for R1 in -Rlims[1]:Rlims[1], R2 in -Rlims[2]:Rlims[2], R3 in -Rlims[3]:Rlims[3]
+        R = Vec3(R1, R2, R3)
+        for i = 1:length(positions), j = 1:length(positions)
+            # Avoid self-interaction
+            R == zero(R) && i == j && continue
+            ai, aj = minmax(symbols[i], symbols[j])
+            param_ij = params[(ai, aj)]
+            Δr = lattice * (positions[i] - positions[j] - R)
+            dist = norm(Δr)
+            energy_contribution = V(dist, param_ij)
+            sum_pairwise += energy_contribution
+            if forces !== nothing
+                # We use ForwardDiff for the forces
+                dE_ddist = ForwardDiff.derivative(d -> V(d, param_ij), dist)
+                dE_dti = lattice' * dE_ddist / dist * Δr
+                forces_pairwise[i] -= dE_dti
+                forces_pairwise[j] += dE_dti
+            end
+        end # i,j
+    end # R
     energy = sum_pairwise / 2  # Divide by 2 (because of double counting)
     if forces !== nothing
         forces .= forces_pairwise ./ 2
