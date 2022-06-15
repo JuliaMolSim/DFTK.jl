@@ -155,6 +155,7 @@ function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
         symmetries = [one(SymOp)]
     end
     @assert !isempty(symmetries)  # Identity has to be always present.
+    symmetries = [SymOp(symop.W, T.(symop.w)) for symop in symmetries]
 
     Model{T}(model_name, lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
              unit_cell_volume, recip_cell_volume,
