@@ -111,7 +111,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
                 end
                 nbad += 1
                 if nbad > 10
-                    error("Cholesky shifting is failing badly, this should never happen")
+                    error("Cholesky shifting is failing badly, this should never happen")/
                 end
             end
             success = false
@@ -233,8 +233,8 @@ end
     # If N is too small, we will likely get in trouble
     error_message(verb) = "The eigenproblem is too small, and the iterative " *
                            "eigensolver $verb fail; increase the number of " *
-                           "degrees of freedom, or use a dense eigensolver"
-    N > 3M || error("will")
+                           "degrees of freedom, or use a dense eigensolver."
+    N > 3M    || error(error_message("will"))
     N >= 3M+5 || @warn error_message("might")
 
     n_conv_check === nothing && (n_conv_check = M)
