@@ -44,6 +44,8 @@ given the crystal symmetries `symmetries`. Returns the list of irreducible ``k``
 the grid.
 """
 function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
+    all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size; kshift)
+
     # Transform kshift to the convention used in spglib:
     #    If is_shift is set (i.e. integer 1), then a shift of 0.5 is performed,
     #    else no shift is performed along an axis.
