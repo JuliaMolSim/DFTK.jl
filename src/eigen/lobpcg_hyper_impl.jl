@@ -111,7 +111,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
                 end
                 nbad += 1
                 if nbad > 10
-                    error("Cholesky shifting is failing badly, this should never happen")/
+                    error("Cholesky shifting is failing badly, this should never happen")
                 end
             end
             success = false
