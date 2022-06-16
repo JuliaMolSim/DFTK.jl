@@ -39,8 +39,10 @@ Normalization conventions:
 
 `G_to_r` and `r_to_G` convert between these representations.
 """
-struct PlaneWaveBasis{T} <: AbstractBasis{T}
-    model::Model{T}
+struct PlaneWaveBasis{T, VT} <: AbstractBasis{T} where {VT <: Real}
+    # T is the default type, VT always the corresponding bare value type
+    # (e.g. for ForwardDiff)
+    model::Model{T, VT}
 
     ## Global grid information
     # fft_size defines both the G basis on which densities and
@@ -90,7 +92,7 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
 
     ## Symmetry operations that leave the discretized model (k and r grids) invariant.
     # Subset of model.symmetries.
-    symmetries::Vector{SymOp{T}}
+    symmetries::Vector{SymOp{VT}}
     # Whether the symmetry operations leave the rgrid invariant
     # If this is true, the symmetries are a property of the complete discretized model.
     # Therefore, all quantities should be symmetric to machine precision
@@ -176,7 +178,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         # Manual kpoint set based on kcoords/kweights
         @assert length(kcoords) == length(kweights)
         all_kcoords = unfold_kcoords(kcoords, symmetries)
-        symmetries = symmetries_preserving_kgrid(symmetries, all_kcoords)
+        symmetries  = symmetries_preserving_kgrid(symmetries, all_kcoords)
     end
 
     # Init MPI, and store MPI-global values for reference
@@ -241,7 +243,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
 
     dvol  = model.unit_cell_volume ./ prod(fft_size)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
-    basis = PlaneWaveBasis{T}(
+    basis = PlaneWaveBasis{T,ForwardDiff.valtype(T)}(
         model, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
