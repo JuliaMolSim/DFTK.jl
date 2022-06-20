@@ -47,7 +47,6 @@ end
 # And since kgrid only takes discrete values of `k` in `[k,k,k]`, we define a custom function to define its convergence for a given desired tolerance `tol`
 function get_converged_k(energies; tol)
     for i in eachindex(energies)
-        @show energies[i] - energies[i+1]
         if abs(energies[i] - energies[i+1]) < tol
             return i
         end
