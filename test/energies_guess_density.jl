@@ -63,7 +63,7 @@ include("testcases.jl")
     @test E["ExternalFromReal"]    ≈ -0.01756831422361496 atol=5e-8
     @test E["ExternalFromFourier"] ≈  0.06493077052321815 atol=5e-8
     @test E["LocalNonlinearity"]   ≈  0.14685350034704006 atol=5e-8
-    @test E["PairwisePotential"]   ≈ -4.1511598946254615  atol=5e-8
+    @test E["PairwisePotential"]   ≈ -4.151269801749716   atol=5e-8
 
     # TODO This is not really a test ... and it does not really work stably.
     # @test E["Magnetic"]            ≈  1.99901120545585e-7 atol=5e-8

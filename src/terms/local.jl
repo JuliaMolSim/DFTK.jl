@@ -74,7 +74,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
     # Since V is a sum of radial functions located at atomic
     # positions, this involves a form factor (`local_potential_fourier`)
-    # and a structure factor e^{-i Gr}
+    # and a structure factor e^{-i G·r}
 
     pot_fourier = map(G_vectors(basis)) do G
         pot = sum(model.atom_groups) do group
