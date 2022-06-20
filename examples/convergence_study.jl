@@ -10,7 +10,7 @@
 # This study must be performed separately for each value you wish to study (kgrid, Ecut, and even temperature).
 # In this example we will use a Pt system to perform a convergence study for kgrid and Ecut in DFTK.
 #
-# We start by setting up a Pt system
+# We start by setting up a simple cubic Pt system
 
 using DFTK
 using Plots
