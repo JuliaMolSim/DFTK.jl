@@ -26,8 +26,8 @@ temperature = 0.01
 Pt = ElementPsp(:Pt, psp=load_psp("hgh/lda/Pt-q10"));
 atoms = [Pt]
 position = [zeros(3)]
-lattice = a * I(3)
 a = 5.00 # in Bohr
+lattice = a * I(3)
 
 # Then we define a function to compute the total energy of the system for varying values of `Ecut` and `kgrid`
 function compute_Ecut_convergence(Ecut)
