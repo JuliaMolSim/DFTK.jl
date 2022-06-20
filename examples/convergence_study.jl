@@ -53,13 +53,28 @@ function get_converged_k(energies; tol)
     end
 end
 
-# Now we can use `get_converged_k()` and `compute_kgrid_convergence()` to get the converging kgrid and plot it
+# Now we can use `get_converged_k()` and `compute_kgrid_convergence()` to get the converging kgrid
 energies_w_diff_k = [compute_kgrid_convergence(k) for k in 1:10]
 k_conv = get_converged_k(energies_w_diff_k; tol) # 5.0
-plot(compute_kgrid_convergence, 1:1:10)
+
+# and plot it:
+plot(energies_w_diff_k, dpi=300, lw=3, xlabel="k-grid", ylabel="Energy/Atom", label="k")
+scatter!(energies_w_diff_k,label="Data points")
+
+#md # ```@raw html
+#md # <img src="../assets/kgrid.png" width=600 height=400 />
+#md # ```
 
 # And then use `optimize()` from `Optim.jl` to do the same for `Ecut`
 opt_res = optimize(compute_Ecut_convergence, 7, 22) 
 E_cut_conv = Optim.minimizer(opt_res)
 E_cut_conv_H = auconvert(u"eV", E_cut_conv)
-plot(compute_Ecut_convergence, 7:1:22)
+
+# and finally plot Ecut:
+Ecut_convergence = [compute_Ecut_convergence(i) for i in  7:22]
+plot(Ecut_convergence, dpi=300, lw=3, xlabel = "Energy cutoff (Ha)", ylabel="Energy/Atom", label="Ecut")
+scatter!(Ecut_convergence,label="Data points")
+
+#md # ```@raw html
+#md # <img src="../assets/ecut.png" width=600 height=400 />
+#md # ```
