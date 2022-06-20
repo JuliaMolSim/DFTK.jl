@@ -54,7 +54,7 @@ function get_converged_k(energies; tol)
 end
 
 # Now we can use `get_converged_k()` and `compute_kgrid_convergence()` to get the converging kgrid
-energies_w_diff_k = [compute_kgrid_convergence(k) for k in 1:10]
+energies_w_diff_k = [compute_kgrid_convergence(k) for k in 1:7] # change to 10 to get full convergence like in plot
 k_conv = get_converged_k(energies_w_diff_k; tol) # 5.0
 
 # and plot it:
@@ -71,7 +71,7 @@ E_cut_conv = Optim.minimizer(opt_res)
 E_cut_conv_H = auconvert(u"eV", E_cut_conv)
 
 # and finally plot Ecut:
-Ecut_convergence = [compute_Ecut_convergence(i) for i in  7:22]
+Ecut_convergence = [compute_Ecut_convergence(i) for i in  7:14] # change to 22 to get full convergence like in plot
 plot(Ecut_convergence, dpi=300, lw=3, xlabel = "Energy cutoff (Ha)", ylabel="Energy/Atom", label="Ecut")
 scatter!(Ecut_convergence,label="Data points")
 
