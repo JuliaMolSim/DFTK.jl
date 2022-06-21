@@ -4,8 +4,7 @@
 # Contains the geometry information, but no discretization parameters.
 # The exact model used is defined by the list of terms.
 struct Model{T <: Real, VT <: Real}
-    # T is the default type, VT always the corresponding bare value type
-    # (e.g. for ForwardDiff)
+    # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
 
     # Human-readable name for the model (like LDA, PBE, ...)
     model_name::String

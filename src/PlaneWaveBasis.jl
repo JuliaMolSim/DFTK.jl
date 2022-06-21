@@ -40,8 +40,7 @@ Normalization conventions:
 `G_to_r` and `r_to_G` convert between these representations.
 """
 struct PlaneWaveBasis{T, VT} <: AbstractBasis{T} where {VT <: Real}
-    # T is the default type, VT always the corresponding bare value type
-    # (e.g. for ForwardDiff)
+    # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
     model::Model{T, VT}
 
     ## Global grid information
