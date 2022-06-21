@@ -40,7 +40,6 @@ end
 function Base.convert(::Type{SymOp{T}}, S::SymOp{U}) where {U <: Real, T <: Real}
     SymOp{T}(S.W, T.(S.w), S.S, T.(S.τ))
 end
-symop_type(T) = SymOp{T}
 
 Base.:(==)(op1::SymOp, op2::SymOp) = op1.W == op2.W && op1.w == op2.w
 function Base.isapprox(op1::SymOp, op2::SymOp; atol=SYMMETRY_TOLERANCE)
