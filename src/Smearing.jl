@@ -9,9 +9,8 @@
 #       "Numerical quadrature in the brillouin zone for periodic schrodinger operators"
 # See also https://www.vasp.at/vasp-workshop/k-points.pdf
 module Smearing
-
-using SpecialFunctions: erf, erfc, factorial
 import ForwardDiff
+using SpecialFunctions: erf, erfc, factorial
 
 abstract type SmearingFunction end
 

@@ -29,13 +29,16 @@ struct SymOp{T <: Real}
     # (Uu)(G) = e^{-i G τ} u(S^-1 G) in reciprocal space
     S::Mat3{Int}
     τ::Vec3{T}
+end
+function SymOp(W, w::AbstractVector{T}) where {T}
+    w = mod.(w, 1)
+    S = W'
+    τ = -W \ w
+    SymOp{T}(W, w, S, τ)
+end
 
-    function SymOp(W, w)
-        w = mod.(w, 1)
-        S = W'
-        τ = -W \w
-        new{eltype(τ)}(W, w, S, τ)
-    end
+function Base.convert(::Type{SymOp{T}}, S::SymOp{U}) where {U <: Real, T <: Real}
+    SymOp{T}(S.W, T.(S.w), S.S, T.(S.τ))
 end
 
 Base.:(==)(op1::SymOp, op2::SymOp) = op1.W == op2.W && op1.w == op2.w
