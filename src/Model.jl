@@ -3,7 +3,9 @@
 # A physical specification of a model.
 # Contains the geometry information, but no discretization parameters.
 # The exact model used is defined by the list of terms.
-struct Model{T <: Real}
+struct Model{T <: Real, VT <: Real}
+    # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
+
     # Human-readable name for the model (like LDA, PBE, ...)
     model_name::String
 
@@ -55,7 +57,7 @@ struct Model{T <: Real}
     term_types::Vector
 
     # list of symmetries of the model
-    symmetries::Vector{SymOp}
+    symmetries::Vector{SymOp{VT}}
 end
 
 _is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
@@ -156,10 +158,11 @@ function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
     end
     @assert !isempty(symmetries)  # Identity has to be always present.
 
-    Model{T}(model_name, lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
-             unit_cell_volume, recip_cell_volume,
-             n_electrons, spin_polarization, n_spin, T(temperature), smearing,
-             atoms, positions, atom_groups, terms, symmetries)
+    VT = ForwardDiff.valtype(T)
+    Model{T,VT}(model_name, lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
+                unit_cell_volume, recip_cell_volume,
+                n_electrons, spin_polarization, n_spin, T(temperature), smearing,
+                atoms, positions, atom_groups, terms, symmetries)
 end
 function Model(lattice::AbstractMatrix{<: Integer}, args...; kwargs...)
     Model(Float64.(lattice), args...; kwargs...)

@@ -1,5 +1,3 @@
-using ForwardDiff
-
 # Densities (and potentials) are represented by arrays
 # ρ[ix,iy,iz,iσ] in real space, where iσ ∈ [1:n_spin_components]
 

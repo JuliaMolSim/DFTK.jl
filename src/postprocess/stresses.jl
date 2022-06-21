@@ -1,4 +1,3 @@
-using ForwardDiff
 """
 Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF solution.
 """
