@@ -158,11 +158,11 @@ function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
     end
     @assert !isempty(symmetries)  # Identity has to be always present.
 
-    VT = ForwardDiff.valtype(T)
-    Model{T,VT}(model_name, lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
-                unit_cell_volume, recip_cell_volume,
-                n_electrons, spin_polarization, n_spin, T(temperature), smearing,
-                atoms, positions, atom_groups, terms, symmetries)
+    Model{T,value_type(T)}(model_name,
+                           lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
+                           unit_cell_volume, recip_cell_volume,
+                           n_electrons, spin_polarization, n_spin, T(temperature), smearing,
+                           atoms, positions, atom_groups, terms, symmetries)
 end
 function Model(lattice::AbstractMatrix{<: Integer}, args...; kwargs...)
     Model(Float64.(lattice), args...; kwargs...)

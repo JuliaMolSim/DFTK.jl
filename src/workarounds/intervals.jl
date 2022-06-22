@@ -14,6 +14,7 @@ cis2pi(x::Interval) = exp(2 * (pi * (im * x)))
 
 Base.nextfloat(x::Interval) = Interval(nextfloat(x.lo), nextfloat(x.hi))
 Base.prevfloat(x::Interval) = Interval(prevfloat(x.lo), prevfloat(x.hi))
+value_type(::Type{<:Interval{T}}) where {T} = T
 
 function compute_Glims_fast(lattice::AbstractMatrix{<:Interval}, args...; kwargs...)
     # This is done to avoid a call like ceil(Int, ::Interval)

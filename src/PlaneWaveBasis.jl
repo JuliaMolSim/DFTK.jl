@@ -242,7 +242,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
 
     dvol  = model.unit_cell_volume ./ prod(fft_size)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
-    basis = PlaneWaveBasis{T,ForwardDiff.valtype(T)}(
+    basis = PlaneWaveBasis{T,value_type(T)}(
         model, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
