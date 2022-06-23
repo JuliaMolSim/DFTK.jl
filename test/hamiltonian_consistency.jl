@@ -16,7 +16,7 @@ function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
             allowed_missing_operators = Union{DFTK.DivAgradOperator,
                                               DFTK.MagneticFieldOperator}
             @assert operator isa allowed_missing_operators
-            @info "Matrix of operator $(typeof(operator)) not yet supported"
+            @info "Matrix of operator $(nameof(typeof(operator))) not yet supported" maxlog=1
         end
     end
 end

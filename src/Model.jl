@@ -90,12 +90,14 @@ If you want to pass custom symmetry operations (e.g. a reduced or extended set) 
 external potential breaks some of the passed symmetries. Use `false` to turn off
 symmetries completely.
 """
-function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
+function Model(lattice::AbstractMatrix{T},
+               atoms::Vector{<:Element}=Element[],
+               positions::Vector{<:AbstractVector}=Vec3{T}[];
                model_name="custom",
                n_electrons::Int=sum(n_elec_valence, atoms; init=0),
-               magnetic_moments=[],
+               magnetic_moments=T[],
                terms=[Kinetic()],
-               temperature=T(0.0),
+               temperature=zero(T),
                smearing=nothing,
                spin_polarization=default_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
@@ -164,13 +166,14 @@ function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
                            n_electrons, spin_polarization, n_spin, T(temperature), smearing,
                            atoms, positions, atom_groups, terms, symmetries)
 end
-function Model(lattice::AbstractMatrix{<: Integer}, args...; kwargs...)
-    Model(Float64.(lattice), args...; kwargs...)
+function Model(lattice::AbstractMatrix{<:Integer}, atoms::Vector{<:Element},
+               positions::Vector{<:AbstractVector}; kwargs...)
+    Model(Float64.(lattice), atoms, positions; kwargs...)
 end
-function Model(lattice::AbstractMatrix{<:Quantity}, args...; kwargs...)
-    Model(austrip.(lattice), args...; kwargs...)
+function Model(lattice::AbstractMatrix{<:Quantity}, atoms::Vector{<:Element},
+               positions::Vector{<:AbstractVector}; kwargs...)
+    Model(austrip.(lattice), atoms, positions; kwargs...)
 end
-
 
 normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
 normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)
