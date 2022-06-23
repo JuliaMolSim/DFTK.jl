@@ -90,12 +90,14 @@ If you want to pass custom symmetry operations (e.g. a reduced or extended set) 
 external potential breaks some of the passed symmetries. Use `false` to turn off
 symmetries completely.
 """
-function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
+function Model(lattice::AbstractMatrix{T},
+               atoms::Vector{<:Element}=Element[],
+               positions::Vector{<:AbstractVector}=Vec3{T}[];
                model_name="custom",
                n_electrons::Int=sum(n_elec_valence, atoms; init=0),
-               magnetic_moments=[],
+               magnetic_moments=T[],
                terms=[Kinetic()],
-               temperature=T(0.0),
+               temperature=zero(T),
                smearing=nothing,
                spin_polarization=default_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
