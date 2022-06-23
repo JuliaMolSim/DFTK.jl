@@ -64,6 +64,7 @@ scatter!(energies_w_diff_k,label="Data points")
 #md # ```@raw html
 #md # <img src="../assets/kgrid.png" width=600 height=400 />
 #md # ```
+#nb # <img src="../assets/kgrid.png" width=600 height=400 />
 
 # And then use `optimize()` from `Optim.jl` to do the same for `Ecut`
 opt_res = optimize(compute_Ecut_convergence, 7, 22) 
@@ -78,3 +79,4 @@ scatter!(Ecut_convergence,label="Data points")
 #md # ```@raw html
 #md # <img src="../assets/ecut.png" width=600 height=400 />
 #md # ```
+#nb # <img src="../assets/ecut.png" width=600 height=400 />
