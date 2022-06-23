@@ -166,13 +166,14 @@ function Model(lattice::AbstractMatrix{T},
                            n_electrons, spin_polarization, n_spin, T(temperature), smearing,
                            atoms, positions, atom_groups, terms, symmetries)
 end
-function Model(lattice::AbstractMatrix{<: Integer}, args...; kwargs...)
-    Model(Float64.(lattice), args...; kwargs...)
+function Model(lattice::AbstractMatrix{<:Integer}, atoms::Vector{<:Element},
+               positions::Vector{<:AbstractVector}; kwargs...)
+    Model(Float64.(lattice), atoms, positions; kwargs...)
 end
-function Model(lattice::AbstractMatrix{<:Quantity}, args...; kwargs...)
-    Model(austrip.(lattice), args...; kwargs...)
+function Model(lattice::AbstractMatrix{<:Quantity}, atoms::Vector{<:Element},
+               positions::Vector{<:AbstractVector}; kwargs...)
+    Model(austrip.(lattice), atoms, positions; kwargs...)
 end
-
 
 normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
 normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)
