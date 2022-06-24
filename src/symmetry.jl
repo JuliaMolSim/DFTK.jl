@@ -175,7 +175,12 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             igired = index_G_vectors(basis, invS * G)
             if igired !== nothing
-                @inbounds ρaccu[ig] += cis2pi(-T(dot(G, symop.τ))) * ρin[igired]
+                if symop.τ == Vec3(0, 0, 0)
+                    factor = T(1) # saves a bit of computation
+                else
+                    factor = cis2pi(-T(dot(G, symop.τ)))
+                end
+                @inbounds ρaccu[ig] += factor * ρin[igired]
             end
         end
     end  # symop
