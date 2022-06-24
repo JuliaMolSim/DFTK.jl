@@ -43,7 +43,7 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
 
     ρ = sum(ρ_chunklocal)
     mpi_sum!(ρ, basis.comm_kpts)
-    ρ = symmetrize_ρ(basis, ρ)
+    ρ = symmetrize_ρ(basis, ρ; do_lowpass=false)
 
     _check_positive(ρ)
     n_elec_check = weighted_ksum(basis, sum.(occupation))
@@ -75,7 +75,7 @@ end
         end
     end
     mpi_sum!(τ, basis.comm_kpts)
-    symmetrize_ρ(basis, τ)
+    symmetrize_ρ(basis, τ; do_lowpass=false)
 end
 
 total_density(ρ) = dropdims(sum(ρ; dims=4); dims=4)
