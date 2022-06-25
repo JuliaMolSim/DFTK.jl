@@ -18,7 +18,7 @@ Compute the density for a wave function `ψ` discretized on the plane-wave
 grid `basis`, where the individual k-points are occupied according to `occupation`.
 `ψ` should be one coefficient matrix per ``k``-point. 
 """
-@views @timing function compute_density(basis::PlaneWaveBasis, ψ, occupation)
+@views @timing function compute_density(basis, ψ, occupation)
     T = promote_type(eltype(basis), real(eltype(ψ[1])))
 
     # we split the total iteration range (ik, n) in chunks, and parallelize over them
@@ -26,9 +26,10 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
     chunk_length = cld(length(ik_n), Threads.nthreads())
 
     # chunk-local variables
-    ρ_chunklocal = [zeros(T, basis.fft_size..., basis.model.n_spin_components)
-                    for _ = 1:Threads.nthreads()]
-    ψnk_real_chunklocal = [zeros(complex(T), basis.fft_size) for _ = 1:Threads.nthreads()]
+    ρ_chunklocal = Array{T,4}[zeros(T, basis.fft_size..., basis.model.n_spin_components)
+                               for _ = 1:Threads.nthreads()]
+    ψnk_real_chunklocal = Array{complex(T),3}[zeros(complex(T), basis.fft_size)
+                                               for _ = 1:Threads.nthreads()]
 
     @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
         Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
