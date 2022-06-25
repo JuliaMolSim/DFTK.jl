@@ -45,8 +45,10 @@ Base.:(==)(op1::SymOp, op2::SymOp) = op1.W == op2.W && op1.w == op2.w
 function Base.isapprox(op1::SymOp, op2::SymOp; atol=SYMMETRY_TOLERANCE)
     op1.W == op2.W && is_approx_integer(op1.w - op2.w; tol=atol)
 end
-Base.one(::Type{SymOp}) = SymOp(Mat3{Int}(I), Vec3(zeros(Bool, 3)))
-Base.one(::SymOp) = one(SymOp)
+Base.one(::Type{SymOp}) = one(SymOp{Bool})  # Not sure about this method
+Base.one(::Type{SymOp{T}}) where {T} = SymOp(Mat3{Int}(I), Vec3(zeros(T, 3)))
+Base.one(::SymOp{T}) where {T} = one(SymOp{T})
+Base.isone(op::SymOp) = isone(op.W) && iszero(op.w)
 
 # group composition and inverse.
 function Base.:*(op1::SymOp, op2::SymOp)
