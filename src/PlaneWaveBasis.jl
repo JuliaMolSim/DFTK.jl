@@ -317,6 +317,29 @@ Creates a new basis identical to `basis`, but with a custom set of kpoints
 end
 
 """
+    PlaneWaveBasis(basis, lattice, positions)
+    PlaneWaveBasis(basis, lattice)
+    PlaneWaveBasis(basis, positions)
+
+Creates a new basis, identical to `basis`, but different `lattice` or `positions`.
+"""
+function PlaneWaveBasis(basis::PlaneWaveBasis, lattice::AbstractMatrix,
+                        positions::Vector{<:AbstractVector}=basis.model.positions)
+    model = Model(basis.model, lattice, positions)
+    PlaneWaveBasis(model,
+                   basis.Ecut, basis.fft_size, basis.variational,
+                   basis.kcoords_global, basis.kweights_global,
+                   basis.kgrid, basis.kshift, basis.symmetries_respect_rgrid,
+                   basis.comm_kpts)
+end
+function PlaneWaveBasis(basis::PlaneWaveBasis, positions::Vector{<:AbstractVector})
+    PlaneWaveBasis(basis, basis.model.lattice, positions)
+end
+
+
+
+
+"""
     G_vectors(fft_size::Tuple)
 
 The wave vectors `G` in reduced (integer) coordinates for a cubic basis set
