@@ -19,13 +19,13 @@ function make_basis(ε::T; a=10., Ecut=5) where T  # too small Ecut, only for ef
     terms = [
         Kinetic(),
         AtomicLocal(),
-        # AtomicNonlocal(),  # more tricky, but eventually needed for reasonable physics
+        AtomicNonlocal(),
         Ewald(),
         PspCorrection(),   # eventually interesting (psp parameters)
         Entropy(),         # TODO check numerics with higher temperature and scf higher n_bands kwarg
         Hartree(),
         ExternalFromReal(r -> -ε * (r[1] - a/2)),
-        # XC
+        # Xc(:lda_x),
     ]
     model = Model(lattice, atoms, positions; terms, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])  # No k-point sampling on isolated system
