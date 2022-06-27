@@ -71,7 +71,7 @@ ChainRulesCore.rrule(T::Type{<:SVector}, xs::Number...) = ( T(xs...), dv -> (Cha
 # simplified version of PlaneWaveBasis outer constructor to
 # help reverse mode AD to only differentiate the relevant computations.
 # this excludes assertions (try-catch), MPI handling, and other things
-function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBasis) where {T <: Real}
+function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T, VT}, basis::PlaneWaveBasis) where {T <: Real, VT <: Real}
     dvol = model.unit_cell_volume ./ prod(basis.fft_size)
 
     # TODO new volumes (and more)
@@ -85,7 +85,7 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBa
     # cicularity is getting complicated...
     # To correctly instantiate term types, we do need a full PlaneWaveBasis struct;
     # so we need to interleave re-computed differentiable params, and fixed params in basis
-    _basis = PlaneWaveBasis{T}( # this shouldn't hit the rrule below a second time due to more args
+    _basis = PlaneWaveBasis{T,VT}( # this shouldn't hit the rrule below a second time due to more args
         model, basis.fft_size, dvol,
         basis.Ecut, basis.variational,
         basis.opFFT, basis.ipFFT, basis.opBFFT, basis.ipBFFT,

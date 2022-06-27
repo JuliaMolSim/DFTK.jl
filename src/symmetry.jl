@@ -104,7 +104,7 @@ basis of the new ``k``-point).
 """
 function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     S, τ = symop.S, symop.τ
-    symop == one(SymOp) && return kpoint, ψk
+    isone(symop) && return kpoint, ψk
 
     # Apply S and reduce coordinates to interval [-0.5, 0.5)
     # Doing this reduction is important because
@@ -148,19 +148,17 @@ end
 """
 Apply a symmetry operation to a density.
 """
-function apply_symop(symop::SymOp, basis, ρin)
-    symop == one(SymOp) && return ρin
-    symmetrize_ρ(basis, ρin; symmetries=[symop])
+function apply_symop(symop::SymOp, basis, ρin; kwargs...)
+    isone(symop) && return ρin
+    symmetrize_ρ(basis, ρin; symmetries=[symop], kwargs...)
 end
-
 
 # Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
 # No normalization is performed
-function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
-    T = eltype(basis)
+@timing function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
     for symop in symmetries
         # Common special case, where ρin does not need to be processed
-        if symop == one(SymOp)
+        if isone(symop)
             ρaccu .+= ρin
             continue
         end
@@ -176,8 +174,13 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
         invS = Mat3{Int}(inv(symop.S))
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             igired = index_G_vectors(basis, invS * G)
-            if igired !== nothing
-                @inbounds ρaccu[ig] += cis2pi(-T(dot(G, symop.τ))) * ρin[igired]
+            isnothing(igired) && continue
+
+            if iszero(symop.τ)
+                @inbounds ρaccu[ig] += ρin[igired]
+            else
+                factor = cis2pi(-T(dot(G, symop.τ)))
+                @inbounds ρaccu[ig] += factor * ρin[igired]
             end
         end
     end  # symop
@@ -187,7 +190,7 @@ end
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
 function lowpass_for_symmetry!(ρ, basis; symmetries=basis.symmetries)
     for symop in symmetries
-        symop == one(SymOp) && continue
+        isone(symop) && continue
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             if index_G_vectors(basis, symop.S * G) === nothing
                 ρ[ig] = 0
@@ -200,13 +203,13 @@ end
 """
 Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
-@views @timing function symmetrize_ρ(basis, ρ; symmetries=basis.symmetries)
-    ρin_fourier = r_to_G(basis, ρ)
+@views @timing function symmetrize_ρ(basis, ρ; symmetries=basis.symmetries, do_lowpass=true)
+    ρin_fourier  = r_to_G(basis, ρ)
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρ, 4)
         accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
-        lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
+        do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
