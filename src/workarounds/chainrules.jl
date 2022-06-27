@@ -57,7 +57,6 @@ function ChainRulesCore.rrule(::typeof(mpi_sum), arr, comm)
     return arr, mpi_sum_pullback
 end
 
-ChainRulesCore.@non_differentiable ElementPsp(::Any...)
 ChainRulesCore.@non_differentiable r_vectors(::Any...)
 ChainRulesCore.@non_differentiable G_vectors(::Any...)
 ChainRulesCore.@non_differentiable default_n_electrons(::Any...)
