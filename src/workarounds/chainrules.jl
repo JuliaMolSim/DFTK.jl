@@ -131,25 +131,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(com
 end
 
 # workaround to pass rrule_via_ad kwargs
-# DFTK.energy_hamiltonian(basis, ψ, occ, ρ) = DFTK.energy_hamiltonian(basis, ψ, occ; ρ=ρ)
-
-# kwargs... splatting is a problem in energy_hamiltonian, Zygote / ChainRulesCore seem confused about types.
-function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occ, ρ)
-    # it: index into terms, ik: index into kpoints
-    ene_ops_arr = [ene_ops(term, basis, ψ, occ; ρ) for term in basis.terms]
-    energies  = [eh.E for eh in ene_ops_arr]
-    operators = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
-
-    # flatten the inner arrays in case a term returns more than one operator
-    flatten(arr) = reduce(vcat, map(a -> (a isa Vector) ? a : [a], arr))
-    hks_per_k   = [flatten([blocks[ik] for blocks in operators])
-                   for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
-
-    H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
-                            for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
-    E = Energies(basis.model.term_types, energies)
-    (E=E, H=H)
-end
+DFTK.energy_hamiltonian(basis, ψ, occ, ρ) = DFTK.energy_hamiltonian(basis, ψ, occ; ρ=ρ)
 
 # fast version
 function _autodiff_hblock_mul(hblock::DftHamiltonianBlock, ψ)
