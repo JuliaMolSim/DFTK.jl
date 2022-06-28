@@ -69,8 +69,7 @@ end
 # This could be factorised with Ewald, but the use of `symbols` would slow down the
 # computationally intensive Ewald sums. So we leave it as it for now.
 # `q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
-# compute the Fourier transform of the force constant matrix. Only the computations of the
-# forces make sense.
+# compute the Fourier transform of the force constant matrix.
 # Computes the local energy and forces on the atoms of the reference unit cell 0, for an
 # infinite array of atoms at positions r_{iR} = positions[i] + R + ph_disp[i]*e^{iq·R}.
 function energy_pairwise(lattice, symbols, positions, V, params;
