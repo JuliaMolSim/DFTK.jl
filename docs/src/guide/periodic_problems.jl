@@ -50,7 +50,7 @@
 # by their own kinetic energy. As this model features no potential which could make one point
 # in space more preferred than another, we would expect this model to be periodic.
 # If an operator is periodic with respect to a lattice such as the one defined above,
-# than it commutes with all lattice translations. For the free-electron case ``H``
+# then it commutes with all lattice translations. For the free-electron case ``H``
 # one can easily show exactly that, i.e.
 # ```math
 #    T_{ma} H = H T_{ma} \quad  ∀ m ∈ \mathbb{Z}.

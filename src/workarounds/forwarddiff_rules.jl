@@ -135,6 +135,8 @@ function _is_well_conditioned(A::AbstractArray{<:ForwardDiff.Dual}; kwargs...)
     _is_well_conditioned(ForwardDiff.value.(A); kwargs...)
 end
 
+value_type(T::Type{<:ForwardDiff.Dual}) = ForwardDiff.valtype(T)
+
 # TODO Should go to Model.jl / PlaneWaveBasis.jl as a constructor.
 #
 # Along with it should go a nice convert function to get rid of the annoying

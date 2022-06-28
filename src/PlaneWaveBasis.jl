@@ -39,8 +39,9 @@ Normalization conventions:
 
 `G_to_r` and `r_to_G` convert between these representations.
 """
-struct PlaneWaveBasis{T} <: AbstractBasis{T}
-    model::Model{T}
+struct PlaneWaveBasis{T, VT} <: AbstractBasis{T} where {VT <: Real}
+    # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
+    model::Model{T, VT}
 
     ## Global grid information
     # fft_size defines both the G basis on which densities and
@@ -90,7 +91,7 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
 
     ## Symmetry operations that leave the discretized model (k and r grids) invariant.
     # Subset of model.symmetries.
-    symmetries::Vector{SymOp}
+    symmetries::Vector{SymOp{VT}}
     # Whether the symmetry operations leave the rgrid invariant
     # If this is true, the symmetries are a property of the complete discretized model.
     # Therefore, all quantities should be symmetric to machine precision
@@ -176,7 +177,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         # Manual kpoint set based on kcoords/kweights
         @assert length(kcoords) == length(kweights)
         all_kcoords = unfold_kcoords(kcoords, symmetries)
-        symmetries = symmetries_preserving_kgrid(symmetries, all_kcoords)
+        symmetries  = symmetries_preserving_kgrid(symmetries, all_kcoords)
     end
 
     # Init MPI, and store MPI-global values for reference
@@ -241,7 +242,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
 
     dvol  = model.unit_cell_volume ./ prod(fft_size)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
-    basis = PlaneWaveBasis{T}(
+    basis = PlaneWaveBasis{T,value_type(T)}(
         model, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
@@ -401,17 +402,19 @@ Return the index tuple `I` such that `G_vectors(basis)[I] == G`
 or the index `i` such that `G_vectors(basis, kpoint)[i] == G`.
 Returns nothing if outside the range of valid wave vectors.
 """
-function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}
+@inline function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}
+    # the inline declaration encourages the compiler to hoist these (G-independent) precomputations
     start = .- cld.(basis.fft_size .- 1, 2)
     stop  = fld.(basis.fft_size .- 1, 2)
     lengths = stop .- start .+ 1
 
-    function mapaxis(lengthi, Gi)
-        Gi >= 0 && return 1 + Gi
-        return 1 + lengthi + Gi
+    # FFTs store wavevectors as [0 1 2 3 -2 -1] (example for N=5)
+    function G_to_index(length, G)
+        G >= 0 && return 1 + G
+        return 1 + length + G
     end
     if all(start .<= G .<= stop)
-        CartesianIndex(Tuple(mapaxis.(lengths, G)))
+        CartesianIndex(Tuple(G_to_index.(lengths, G)))
     else
         nothing  # Outside range of valid indices
     end
