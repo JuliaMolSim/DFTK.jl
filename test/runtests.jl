@@ -125,5 +125,10 @@ Random.seed!(0)
         include("forwarddiff.jl")
     end
 
+    # Phonons
+    if "all" in TAGS
+        include("phonons.jl")
+    end
+
     ("example" in TAGS) && include("runexamples.jl")
 end
