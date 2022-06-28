@@ -337,8 +337,6 @@ function PlaneWaveBasis(basis::PlaneWaveBasis, positions::Vector{<:AbstractVecto
 end
 
 
-
-
 """
     G_vectors(fft_size::Tuple)
 
