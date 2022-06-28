@@ -1,3 +1,4 @@
+# TODO: Temporary, explanations too dry. To be changed with proper phonon computations.
 using Test
 using DFTK
 using LinearAlgebra
