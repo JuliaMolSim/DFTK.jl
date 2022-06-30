@@ -40,7 +40,10 @@ magnetic_moments = load_magnetic_moments(qe_input)
 # not exposed inside the ASE datastructures.
 # See [Creating slabs with ASE](@ref) for more details.
 
-atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="pbe")) for el in atoms]
+atoms = map(atoms) do el
+    @assert el.symbol == :Fe
+    ElementPsp(:Fe, psp=load_psp("hgh/pbe/fe-q16.hgh"))
+end;
 
 # Finally we run the calculation.
 

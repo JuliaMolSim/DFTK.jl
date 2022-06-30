@@ -4,9 +4,9 @@ with plane-wave density-functional theory algorithms.
 """
 module DFTK
 
-using Printf
-using Markdown
 using LinearAlgebra
+using Markdown
+using Printf
 using Requires
 using TimerOutputs
 using spglib_jll
@@ -19,7 +19,6 @@ export mpi_nprocs
 export mpi_master
 export setup_threading, disable_threading
 include("common/timer.jl")
-include("common/asserting.jl")
 include("common/constants.jl")
 include("common/ortho.jl")
 include("common/types.jl")
@@ -144,9 +143,11 @@ export guess_density
 export random_density
 export load_psp
 export list_psp
+export attach_psp
 include("guess_density.jl")
 include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
+include("pseudo/attach_psp.jl")
 
 export pymatgen_structure
 export ase_atoms
@@ -155,6 +156,7 @@ export load_atoms
 export load_positions
 export load_magnetic_moments
 export run_wannier90
+include("external/atomsbase.jl")
 include("external/load_from_file.jl")
 include("external/ase.jl")
 include("external/pymatgen.jl")

@@ -122,7 +122,7 @@ end
     basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.kweights)
 
     # Build Hamiltonian just from SAD guess
-    ρ0 = guess_density(basis, testcase.atoms, testcase.positions)
+    ρ0 = guess_density(basis)
     ham = Hamiltonian(basis; ρ=ρ0)
 
     # Check that plain diagonalization and compute_bands agree
