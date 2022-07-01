@@ -68,6 +68,17 @@ ChainRulesCore.@non_differentiable allunique(::Any...) # TODO upstream!
 ChainRulesCore.@non_differentiable cond(::Any)
 ChainRulesCore.@non_differentiable isempty(::Any)
 
+# https://github.com/SciML/DiffEqFlux.jl/blob/v1.44.0/src/DiffEqFlux.jl#L60-L74
+Zygote.@adjoint function ForwardDiff.Dual{T}(x, ẋ::Tuple) where T
+    @assert length(ẋ) == 1
+    ForwardDiff.Dual{T}(x, ẋ), ḋ -> (ḋ.partials[1], (ḋ.value,))
+  end
+Zygote.@adjoint Zygote.literal_getproperty(d::ForwardDiff.Dual{T}, ::Val{:partials}) where T =
+    d.partials, ṗ -> (ForwardDiff.Dual{T}(ṗ[1], 0),)
+
+Zygote.@adjoint Zygote.literal_getproperty(d::ForwardDiff.Dual{T}, ::Val{:value}) where T =
+    d.value, ẋ -> (ForwardDiff.Dual{T}(0, ẋ),)
+
 
 # https://github.com/doddgray/OptiMode.jl/blob/main/src/grad_lib/StaticArrays.jl
 ChainRulesCore.rrule(T::Type{<:SMatrix}, xs::Number...) = ( T(xs...), dv -> (ChainRulesCore.NoTangent(), dv...) )
