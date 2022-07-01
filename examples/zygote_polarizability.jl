@@ -29,7 +29,7 @@ function make_basis(ε::T; a=10., Ecut=5) where T
     PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])  # No k-point sampling on isolated system
 end
 
-function make_basis_model(ε::T; a=10., Ecut=5) where T
+function make_basis_model(ε::T; a=10., Ecut=30) where T
     lattice=T(a) * I(3)  # lattice is a cube of ``a`` Bohrs
     He = nothing
     ChainRulesCore.@ignore_derivatives begin
@@ -78,4 +78,4 @@ fd = let
     (compute_dipole(ε) - compute_dipole(0.0)) / ε
 end
 
-println("FD:", fd, "G:", g)
+println("Polarizability (FD): ", fd, " Polarizability(reverse AD): ", g)
