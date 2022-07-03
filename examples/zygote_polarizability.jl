@@ -11,24 +11,6 @@ using ChainRulesCore
 
 ## Construct PlaneWaveBasis given a particular electric field strength
 ## Again we take the example of a Helium atom.
-#function make_basis(ε::T; a=10., Ecut=30) where T
-function make_basis(ε::T; a=10., Ecut=5) where T
-    lattice=T(a) * I(3)  # lattice is a cube of ``a`` Bohrs
-    ## Helium at the center of the box
-    #atoms     = [ElementPsp(:He, psp=load_psp("hgh/lda/He-q2"))]
-    #positions = [[1/2, 1/2, 1/2]]
-
-    #model = model_DFT(lattice, atoms, positions, [:lda_x, :lda_c_vwn];
-    #                  extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
-    #                  symmetries=false)
-
-    model = model_DFT(lattice, atoms, positions, [FallbackFunctional{:lda}(:lda_x), FallbackFunctional{:lda}(:lda_c_vwn)];
-                      extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
-                      symmetries=false)
-
-    PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])  # No k-point sampling on isolated system
-end
-
 function make_basis_model(ε::T; a=10., Ecut=30) where T
     lattice=T(a) * I(3)  # lattice is a cube of ``a`` Bohrs
     He = nothing
@@ -67,10 +49,6 @@ function compute_dipole(ε; tol=1e-8, kwargs...)
     dipole(scfres.basis, scfres.ρ)
 end;
 
-compute_dipole(0)
-
-g = Zygote.gradient(compute_dipole, 0);
-
 # With this in place we can compute the polarizability from finite differences
 # (just like in the previous example):
 fd = let
@@ -78,4 +56,7 @@ fd = let
     (compute_dipole(ε) - compute_dipole(0.0)) / ε
 end
 
-println("Polarizability (FD): ", fd, " Polarizability(reverse AD): ", g)
+g = Zygote.gradient(compute_dipole, 0);
+
+println("Polarizability (FD): ", fd)
+println("Polarizability(reverse AD): ", g)
