@@ -140,7 +140,7 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
         δV = apply_kernel(basis, δρ; ρ)
         # Would be nice to play with abstol / reltol etc. to avoid over-solving
         # for the initial GMRES steps.
-        χ0δV = apply_χ0(ham, ψ, εF, eigenvalues, δV;
+        χ0δV = apply_χ0(ham, ψ, εF, eigenvalues, δV; tol_occ=tol,
                         abstol=tol_sternheimer, reltol=0, kwargs...)
         pack(δρ - χ0δV)
     end
@@ -150,7 +150,7 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
 
     δVψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
-    δψ1 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δVψ;
+    δψ1 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δVψ; tol_occ=tol,
                       abstol=tol_sternheimer, reltol=0, kwargs...)
     δψ  = .- (δψ0 .+ δψ1)
     (; δψ, history)
@@ -167,23 +167,6 @@ function solve_ΩplusK_split(basis::PlaneWaveBasis, ψ, rhs, occupation; kwargs.
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
-    n_ep_extra = scfres.n_ep_extra
-
-    ψ       = [@view ψk[:, 1:end-n_ep_extra]     for ψk in scfres.ψ]
-    ψ_extra = [@view ψk[:, end-n_ep_extra+1:end] for ψk in scfres.ψ]
-
-    evals   = [εk[1:end-n_ep_extra]     for εk in scfres.eigenvalues]
-    ε_extra = [εk[end-n_ep_extra+1:end] for εk in scfres.eigenvalues]
-
-    occupation = [occk[1:end-n_ep_extra]     for occk in scfres.occupation]
-    occ_extra  = [occk[end-n_ep_extra+1:end] for occk in scfres.occupation]
-
-    @assert length(rhs) == length(ψ)
-    rhs_capped = map(zip(ψ, rhs)) do (ψk, rhsk)
-        n_bands = size(ψk, 2)
-        @assert size(rhsk, 2) >= n_bands
-        @view rhsk[:, 1:n_bands]
-    end
-    solve_ΩplusK_split(scfres.ham, scfres.ρ, ψ, occupation, scfres.εF, evals, rhs_capped;
-                       ψ_extra, ε_extra, kwargs...)
+    solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
+                       scfres.εF, scfres.eigenvalues, rhs; kwargs...)
 end
