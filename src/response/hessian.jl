@@ -128,7 +128,8 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
 
     # compute δρ0 (ignoring interactions)
     δψ0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, rhs;
-                      reltol=0, abstol=tol_sternheimer, kwargs...)
+                      reltol=0, abstol=tol_sternheimer, tol_occ=tol,
+                      kwargs...)
     δρ0 = compute_δρ(basis, ψ, δψ0, occupation)
 
     pack(δρ)   = vec(δρ)

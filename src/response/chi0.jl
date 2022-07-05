@@ -107,7 +107,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # where 1-P is the projector on the orthogonal of ψk
 function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
-                            abstol=1e-12, reltol=0, verbose=false)
+                            abstol=1e-9, reltol=0, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
     model = basis.model
@@ -245,9 +245,7 @@ function compute_αmn(fm, fn, ratio)
 end
 
 @views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
-                                    ψ_extra=[zeros(size(ψk, 1), 0) for ψk in ψ],
-                                    ε_extra=[zeros(0) for _ in eigenvalues],
-                                    kwargs_sternheimer...)
+                                    tol_occ=1e-8, kwargs_sternheimer...)
     basis  = ham.basis
     model = basis.model
     temperature = model.temperature
@@ -255,16 +253,52 @@ end
     T = eltype(basis)
     Nk = length(basis.kpoints)
 
+    # We first select orbitals with occupation number higher than tol_occ for
+    # which we compute the associated response δψn, the others being discarded
+    # to ψ_extra / ε_extra.
+    #
+    # Note:
+    # By default the `self_consistent_field` routine of `DFTK`
+    # returns `3` extra bands, which are not converged by the eigensolver
+    # (see `n_ep_extra` parameter) and have 0 occupation number. These should
+    # be discarded from `ψ`, along with bands that have small occupation
+    # numbers for metals, e.g. 1e-12 or less (and therefore small contributions
+    # to `δψ`), before computing the response `δψ` for the remaining states.
+    # However, one can still use additional information from these extra bands,
+    # stored in `ψ_extra`, in particular to enhance the convergence of the
+    # Sternheimer solver with a Schur complement in the orthogonal of `ψ`.
+
+    ψ_occ = map(enumerate(ψ)) do (ik, ψk)
+        occk = occ[ik]
+        hcat([ψk[:,n] for n in 1:length(occk) if occk[n] >= tol_occ]...)
+    end
+    ε_occ = map(enumerate(eigenvalues)) do (ik, εk)
+        occk = occ[ik]
+        [εk[n] for n in 1:length(occk) if occk[n] >= tol_occ]
+    end
+    occ_no_extra = map(enumerate(occ)) do (ik, occk)
+        filter(x -> x >= tol_occ, occk)
+    end
+
+    ψ_extra = map(enumerate(ψ)) do (ik, ψk)
+        occk = occ[ik]
+        hcat([ψk[:,n] for n in 1:length(occk) if occk[n] < tol_occ]...)
+    end
+    ε_extra = map(enumerate(eigenvalues)) do (ik, εk)
+        occk = occ[ik]
+        [εk[n] for n in 1:length(occk) if occk[n] < tol_occ]
+    end
+
     # First compute δεF
     δεF = zero(T)
-    δocc = [zero(occ[ik]) for ik = 1:Nk]  # = fn' * (δεn - δεF)
+    δocc = [zero(occ_no_extra[ik]) for ik = 1:Nk]  # = fn' * (δεn - δεF)
     if temperature > 0
         # First compute δocc without self-consistent Fermi δεF
         D = zero(T)
         for ik = 1:Nk
-            for (n, εnk) in enumerate(eigenvalues[ik])
+            for (n, εnk) in enumerate(ε_occ[ik])
                 enred = (εnk - εF) / temperature
-                δεnk = real(dot(ψ[ik][:, n], δHψ[ik][:, n]))
+                δεnk = real(dot(ψ_occ[ik][:, n], δHψ[ik][:, n]))
                 fpnk = (filled_occ
                         * Smearing.occupation_derivative(model.smearing, enred)
                         / temperature)
@@ -279,12 +313,12 @@ end
     end
 
     # compute δψnk band per band
-    δψ = zero.(ψ)
+    δψ = zero.(ψ_occ)
     for ik = 1:Nk
-        ψk = ψ[ik]
+        ψk = ψ_occ[ik]
         δψk = δψ[ik]
 
-        εk = eigenvalues[ik]
+        εk = ε_occ[ik]
         for n = 1:length(εk)
             fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n]-εF) / temperature)
 
@@ -298,36 +332,24 @@ end
             end
 
             # Sternheimer contribution
-            # TODO unoccupied orbitals may have a very bad sternheimer solve, be careful about this
             δψk[:, n] .+= sternheimer_solver(ham.blocks[ik], ψk, ψk[:, n], εk[n], δHψ[ik][:, n];
                                              ψk_extra=ψ_extra[ik], εk_extra=ε_extra[ik],
                                              kwargs_sternheimer...)
         end
     end
-    δψ
+    # zero padding for discarded states to keep the output δψ with the same size
+    # than the input ψ
+    [[δψ[ik] zero(ψ_extra[ik])] for ik in 1:Nk]
 end
 
 """
 Get the density variation δρ corresponding to a total potential variation δV.
-
-Note: This function assumes that all bands contained in `ψ` and `eigenvalues` are
-sufficiently converged. By default the `self_consistent_field` routine of `DFTK`
-returns `3` extra bands, which are not converged by the eigensolver
-(see `n_ep_extra` parameter). These should be discarded from `ψ` before using this
-function. However, one can still use additional information from nonconverged bands
-stored in `ψ_extra` (typically, the `3` extra bands returned by default in SCF
-routine).
 """
-function apply_χ0(ham, ψ, εF, eigenvalues, δV;
-                  ψ_extra=[zeros(size(ψk, 1), 0) for ψk in ψ],
-                  ε_extra=[zeros(0) for _ in eigenvalues],
-                  kwargs_sternheimer...)
+function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
+        tol_occ=1e-8, kwargs_sternheimer...)
 
     basis = ham.basis
     model = basis.model
-    occ = [filled_occupation(model) *
-           Smearing.occupation.(model.smearing, (eigenvalues[ik] .- εF) ./ model.temperature)
-           for ik = 1:length(basis.kpoints)]
 
     # Make δV respect the basis symmetry group, since we won't be able
     # to compute perturbations that don't anyway
@@ -343,25 +365,13 @@ function apply_χ0(ham, ψ, εF, eigenvalues, δV;
 
     δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
-    δψ = apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
-                     ψ_extra, ε_extra, kwargs_sternheimer...)
-    δρ = DFTK.compute_δρ(basis, ψ, δψ, occ)
+    δψ = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                     tol_occ, kwargs_sternheimer...)
+    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation)
     δρ * normδV
 end
 
-"""
-We use here the full scfres, with a distinction between converged bands and
-nonconverged extra bands used in the SCF.
-"""
-function apply_χ0(scfres, δV; kwargs_sternheimer...)
-    n_ep_extra = scfres.n_ep_extra
-
-    ψ       = [@view ψk[:, 1:end-n_ep_extra]     for ψk in scfres.ψ]
-    ψ_extra = [@view ψk[:, end-n_ep_extra+1:end] for ψk in scfres.ψ]
-
-    ε       = [εk[1:end-n_ep_extra]     for εk in scfres.eigenvalues]
-    ε_extra = [εk[end-n_ep_extra+1:end] for εk in scfres.eigenvalues]
-
-    apply_χ0(scfres.ham, ψ, scfres.εF, ε, δV; ψ_extra, ε_extra,
-             kwargs_sternheimer...)
+function apply_χ0(scfres, δV; tol_occ=1e-8, kwargs_sternheimer...)
+    apply_χ0(scfres.ham, scfres.ψ, scfres.occupation, scfres.εF,
+             scfres.eigenvalues, δV; tol_occ, kwargs_sternheimer...)
 end
