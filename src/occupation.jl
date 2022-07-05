@@ -85,6 +85,7 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
     end
 
     if !isapprox(compute_n_elec(εF), n_electrons)
+        println(compute_n_elec(εF))
         if temperature == 0
             error("Unable to find non-fractional occupations that have the " *
                   "correct number of electrons. You should add a temperature.")
