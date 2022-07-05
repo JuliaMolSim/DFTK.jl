@@ -1,3 +1,24 @@
+# The Hessian of P -> E(P) (E being the energy) is Ω+K, where Ω and K are
+# defined below (cf. [1] for more details).
+#
+# In particular, by linearizing the Kohn-Sham equations, we have
+#
+# δP = -(Ω+K)⁻¹ δH
+#
+# which can be solved either directly (solve_ΩplusK) or by a splitting method
+# (solve_ΩplusK_split), the latter being preferable as it is well defined for
+# both metals and insulators. Solving this equation is a necessary to compute
+# response properties as well as AD chain rules (Ω+K being self-adjoing, it can
+# be used for both forward and reverse mode).
+#
+# [1] Eric Cancès, Gaspard Kemlin, Antoine Levitt. Convergence analysis of
+#     direct minimization and self-consistent iterations.
+#     SIAM Journal on Matrix Analysis and Applications
+#     https://doi.org/10.1137/20M1332864
+#
+# TODO find better names for solve_ΩplusK and solve_ΩplusK_split
+#
+
 """
     apply_Ω(δψ, ψ, H::Hamiltonian, Λ)
 
