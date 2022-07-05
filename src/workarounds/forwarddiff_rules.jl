@@ -200,19 +200,12 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     basis  = construct_value(basis_dual)
     scfres = self_consistent_field(basis; kwargs...)
 
-    # Split into truncated and extra eigenpairs
-    truncated = select_occupied_orbitals(scfres; threshold=response.occupation_threshold)
-    ψ_extra = [@view scfres.ψ[ik][:, length(εkTrunc)+1:end]
-               for (ik, εkTrunc) in enumerate(truncated.eigenvalues)]
-    ε_extra = [@view scfres.eigenvalues[ik][length(εkTrunc)+1:end]
-               for (ik, εkTrunc) in enumerate(truncated.eigenvalues)]
-
     ## promote occupied bands to dual numbers
-    occupation_dual = [T.(occₖ) for occₖ in truncated.occupation]
-    ψ_dual = [Complex.(T.(real(ψₖ)), T.(imag(ψₖ))) for ψₖ in truncated.ψ]
+    occupation_dual = [T.(occₖ) for occₖ in scfres.occupation]
+    ψ_dual = [Complex.(T.(real(ψₖ)), T.(imag(ψₖ))) for ψₖ in scfres.ψ]
     ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
-    εF_dual = T(truncated.εF)  # Only needed for entropy term
-    eigenvalues_dual = [T.(εₖ) for εₖ in truncated.eigenvalues]
+    εF_dual = T(scfres.εF)  # Only needed for entropy term
+    eigenvalues_dual = [T.(εₖ) for εₖ in scfres.eigenvalues]
     energies_dual, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
                                                  ρ=ρ_dual, eigenvalues=eigenvalues_dual,
                                                  εF=εF_dual)
@@ -224,9 +217,9 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     δresults = ntuple(ForwardDiff.npartials(T)) do α
         δHψ_α = [ForwardDiff.partials.(δHψk, α) for δHψk in hamψ_dual]
 
-        δψ_α, resp_α = solve_ΩplusK_split(truncated, -δHψ_α; tol=scfres.norm_Δρ,
-                                          ψ_extra, ε_extra, response.verbose)
-        δρ_α = compute_δρ(basis, truncated.ψ, δψ_α, truncated.occupation)
+        δψ_α, resp_α = solve_ΩplusK_split(scfres, -δHψ_α; tol=scfres.norm_Δρ,
+                                          response.verbose, response.occupation_threshold)
+        δρ_α = compute_δρ(basis, scfres.ψ, δψ_α, scfres.occupation)
         δψ_α, δρ_α, resp_α
     end
     δψ       = [δψ_α   for (δψ_α, δρ_α, resp_α) in δresults]
@@ -235,7 +228,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
 
     ## Convert, combine and return
     DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}
-    ψ_out = map(truncated.ψ, δψ...) do ψk, δψk...
+    ψ_out = map(scfres.ψ, δψ...) do ψk, δψk...
         map(ψk, δψk...) do ψi, δψi...
             Complex(DT(real(ψi), real.(δψi)),
                     DT(imag(ψi), imag.(δψi)))
@@ -245,7 +238,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
 
     # TODO Compute eigenvalue response (return dual eigenvalues and dual εF)
 
-    merge(truncated, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
+    merge(scfres, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
                         occupation=occupation_dual, ρ=ρ_out, response))
 end
 

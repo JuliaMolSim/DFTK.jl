@@ -141,8 +141,9 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
         δV = apply_kernel(basis, δρ; ρ)
         # Would be nice to play with abstol / reltol etc. to avoid over-solving
         # for the initial GMRES steps.
-        χ0δV = apply_χ0(ham, ψ, εF, eigenvalues, δV; occupation_threshold,
-                        abstol=tol_sternheimer, reltol=0, kwargs...)
+        χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
+                        occupation_threshold, abstol=tol_sternheimer, reltol=0,
+                        kwargs...)
         pack(δρ - χ0δV)
     end
     J = LinearMap{T}(eps_fun, length(pack(δρ0)))

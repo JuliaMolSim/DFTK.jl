@@ -4,6 +4,7 @@ include("scf_callbacks.jl")
 # (unused in primal calculations)
 @kwdef struct ResponseOptions
     verbose = false
+    occupation_threshold = 1e-10
 end
 
 function default_n_bands(model)
@@ -62,7 +63,6 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        callback=ScfDefaultCallback(; show_damping=false),
                                        compute_consistent_energies=true,
                                        response=ResponseOptions(),  # Dummy here, only for AD
-                                       occupation_threshold=1e-10
                                       )
     T = eltype(basis)
     model = basis.model
@@ -105,7 +105,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham; n_bands, ψ, eigensolver,
                                  miniter=1, tol=determine_diagtol(info),
-                                 n_ep_extra, occupation_threshold)
+                                 n_ep_extra, response.occupation_threshold)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # Update info with results gathered so far
