@@ -269,17 +269,8 @@ end
     # stored in `ψ_extra`, in particular to enhance the convergence of the
     # Sternheimer solver with a Schur complement in the orthogonal of `ψ`.
 
-    ψ_occ = map(enumerate(ψ)) do (ik, ψk)
-        occk = occ[ik]
-        hcat([ψk[:,n] for n in 1:length(occk) if occk[n] >= occupation_threshold]...)
-    end
-    ε_occ = map(enumerate(eigenvalues)) do (ik, εk)
-        occk = occ[ik]
-        [εk[n] for n in 1:length(occk) if occk[n] >= occupation_threshold]
-    end
-    occ_no_extra = map(enumerate(occ)) do (ik, occk)
-        filter(x -> x >= occupation_threshold, occk)
-    end
+    ψ_occ, occ_no_extra, ε_occ = select_occupied_orbitals(basis, ψ, occ, eigenvalues;
+                                                          threshold=occupation_threshold)
 
     ψ_extra = map(enumerate(ψ)) do (ik, ψk)
         occk = occ[ik]
