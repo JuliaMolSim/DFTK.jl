@@ -123,13 +123,14 @@ end
 # where χ02P = R χ04P E and K2P = R K E
 function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
                             eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10,
-                            verbose=false, kwargs...) where T
+                            verbose=false, occupation_threshold=1e-10,
+                            kwargs...) where T
     basis = ham.basis
 
     # compute δρ0 (ignoring interactions)
     δψ0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, rhs;
-                      reltol=0, abstol=tol_sternheimer, tol_occ=tol,
-                      kwargs...)
+                      reltol=0, abstol=tol_sternheimer,
+                      occupation_threshold, kwargs...)
     δρ0 = compute_δρ(basis, ψ, δψ0, occupation)
 
     pack(δρ)   = vec(δρ)
@@ -140,7 +141,7 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
         δV = apply_kernel(basis, δρ; ρ)
         # Would be nice to play with abstol / reltol etc. to avoid over-solving
         # for the initial GMRES steps.
-        χ0δV = apply_χ0(ham, ψ, εF, eigenvalues, δV; tol_occ=tol,
+        χ0δV = apply_χ0(ham, ψ, εF, eigenvalues, δV; occupation_threshold,
                         abstol=tol_sternheimer, reltol=0, kwargs...)
         pack(δρ - χ0δV)
     end
@@ -150,8 +151,9 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
 
     δVψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
-    δψ1 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δVψ; tol_occ=tol,
-                      abstol=tol_sternheimer, reltol=0, kwargs...)
+    δψ1 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δVψ;
+                      occupation_threshold, abstol=tol_sternheimer, reltol=0,
+                      kwargs...)
     δψ  = .- (δψ0 .+ δψ1)
     (; δψ, history)
 end
@@ -161,7 +163,8 @@ function solve_ΩplusK_split(basis::PlaneWaveBasis, ψ, rhs, occupation; kwargs.
     _, H = energy_hamiltonian(basis, ψ, occupation; ρ)
 
     eigenvalues = [real.(eigvals(ψk'Hψk)) for (ψk, Hψk) in zip(ψ, H * ψ)]
-    occupation, εF = compute_occupation(basis, eigenvalues)
+    occupation_threshold = kwargs.occupation_threshold
+    occupation, εF = compute_occupation(basis, eigenvalues; occupation_threshold)
 
     solve_ΩplusK_split(H, ρ, ψ, occupation, εF, eigenvalues, rhs; kwargs...)
 end

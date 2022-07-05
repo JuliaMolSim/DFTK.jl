@@ -53,7 +53,7 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
     Vs = [EV.vectors for EV in EVs]
-    occ, εF = compute_occupation(basis, Es, temperature=temperature)
+    occ, εF = compute_occupation(basis, Es; temperature)
 
     χ0 = zeros(eltype(basis), n_spin * n_fft, n_spin * n_fft)
     for (ik, kpt) in enumerate(basis.kpoints)
@@ -245,7 +245,8 @@ function compute_αmn(fm, fn, ratio)
 end
 
 @views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
-                                    tol_occ=1e-8, kwargs_sternheimer...)
+                                    occupation_threshold,
+                                    kwargs_sternheimer...)
     basis  = ham.basis
     model = basis.model
     temperature = model.temperature
@@ -253,9 +254,9 @@ end
     T = eltype(basis)
     Nk = length(basis.kpoints)
 
-    # We first select orbitals with occupation number higher than tol_occ for
-    # which we compute the associated response δψn, the others being discarded
-    # to ψ_extra / ε_extra.
+    # We first select orbitals with occupation number higher than
+    # occupation_threshold for which we compute the associated response δψn,
+    # the others being discarded to ψ_extra / ε_extra.
     #
     # Note:
     # By default the `self_consistent_field` routine of `DFTK`
@@ -270,23 +271,23 @@ end
 
     ψ_occ = map(enumerate(ψ)) do (ik, ψk)
         occk = occ[ik]
-        hcat([ψk[:,n] for n in 1:length(occk) if occk[n] >= tol_occ]...)
+        hcat([ψk[:,n] for n in 1:length(occk) if occk[n] >= occupation_threshold]...)
     end
     ε_occ = map(enumerate(eigenvalues)) do (ik, εk)
         occk = occ[ik]
-        [εk[n] for n in 1:length(occk) if occk[n] >= tol_occ]
+        [εk[n] for n in 1:length(occk) if occk[n] >= occupation_threshold]
     end
     occ_no_extra = map(enumerate(occ)) do (ik, occk)
-        filter(x -> x >= tol_occ, occk)
+        filter(x -> x >= occupation_threshold, occk)
     end
 
     ψ_extra = map(enumerate(ψ)) do (ik, ψk)
         occk = occ[ik]
-        hcat([ψk[:,n] for n in 1:length(occk) if occk[n] < tol_occ]...)
+        hcat([ψk[:,n] for n in 1:length(occk) if occk[n] < occupation_threshold]...)
     end
     ε_extra = map(enumerate(eigenvalues)) do (ik, εk)
         occk = occ[ik]
-        [εk[n] for n in 1:length(occk) if occk[n] < tol_occ]
+        [εk[n] for n in 1:length(occk) if occk[n] < occupation_threshold]
     end
 
     # First compute δεF
@@ -346,7 +347,7 @@ end
 Get the density variation δρ corresponding to a total potential variation δV.
 """
 function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-        tol_occ=1e-8, kwargs_sternheimer...)
+                  occupation_threshold=1e-10, kwargs_sternheimer...)
 
     basis = ham.basis
     model = basis.model
@@ -366,12 +367,12 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
     δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
     δψ = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                     tol_occ, kwargs_sternheimer...)
+                     occupation_threshold, kwargs_sternheimer...)
     δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation)
     δρ * normδV
 end
 
-function apply_χ0(scfres, δV; tol_occ=1e-8, kwargs_sternheimer...)
+function apply_χ0(scfres, δV; occupation_threshold=1e-10, kwargs_sternheimer...)
     apply_χ0(scfres.ham, scfres.ψ, scfres.occupation, scfres.εF,
-             scfres.eigenvalues, δV; tol_occ, kwargs_sternheimer...)
+             scfres.eigenvalues, δV; occupation_threshold, kwargs_sternheimer...)
 end
