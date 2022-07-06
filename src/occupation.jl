@@ -2,11 +2,6 @@
 
 import Roots
 
-"""
-Find the Fermi level.
-"""
-fermi_level(basis, eigenvalues) = compute_occupation(basis, eigenvalues).εF
-
 """Compute the occupations, given eigenenergies and a Fermi level"""
 function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues, εF;
                             temperature=basis.model.temperature,
