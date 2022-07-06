@@ -13,6 +13,8 @@ using spglib_jll
 using Unitful
 using UnitfulAtomic
 using ForwardDiff
+using GPUArrays
+using CUDA
 
 export Vec3
 export Mat3

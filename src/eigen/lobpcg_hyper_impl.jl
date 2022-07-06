@@ -44,19 +44,24 @@ vprintln(args...) = nothing
 
 using LinearAlgebra
 using BlockArrays # used for the `mortar` command which makes block matrices
-
+using CUDA
+using GPUArrays
 # when X or Y are BlockArrays, this makes the return value be a proper array (not a BlockArray)
-function array_mul(X::AbstractArray{T}, Y) where T
-    Z = Array{T}(undef, size(X, 1), size(Y, 2))
+function array_mul(X::AbstractArray, Y::AbstractArray)
+    Z = similar(X, size(X, 1), size(Y, 2))
     mul!(Z, X, Y)
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
-@timing function rayleigh_ritz(X, AX, N)
+@timing function rayleigh_ritz(X::AbstractArray, AX::AbstractArray, N)
     F = eigen(Hermitian(array_mul(X', AX)))
     F.vectors[:,1:N], F.values[1:N]
 end
 
+@timing function rayleigh_ritz(X::CuArray, AX::CuArray, N)
+    vals, vects = CUDA.CUSOLVER.syevd!('V','U',X'AX)
+    vects[:,1:N], vals[1:N]
+end
 # B-orthogonalize X (in place) using only one B apply.
 # This uses an unstable method which is only OK if X is already
 # orthogonal (not B-orthogonal) and B is relatively well-conditioned
@@ -178,7 +183,9 @@ end
         # as can happen in extreme cases in the ortho!(cP, cX)
         dropped = drop!(X)
         if dropped != []
-            @views mul!(X[:, dropped], Y, BY' * (X[:, dropped]), -one(T), one(T)) # X -= Y*BY'X
+            Z = similar(X[:, dropped])
+            mul!(Z, Y, BY' * (X[:, dropped]), -one(T), one(T)) # X -= Y*BY'X
+            X[:, dropped] = Z# X -= Y*BY'X
         end
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
@@ -213,12 +220,11 @@ end
 function final_retval(X, AX, resid_history, niter, n_matvec)
     λ = real(diag(X' * AX))
     residuals = AX .- X*Diagonal(λ)
-    (λ=λ, X=X,
+    (λ=Array(λ), X=Array(X),
      residual_norms=[norm(residuals[:, i]) for i in 1:size(residuals, 2)],
      residual_history=resid_history[:, 1:niter+1],
      n_matvec=n_matvec)
 end
-
 
 ### The algorithm is Xn+1 = rayleigh_ritz(hcat(Xn, A*Xn, Xn-Xn-1))
 ### We follow the strategy of Hetmaniuk and Lehoucq, and maintain a B-orthonormal basis Y = (X,R,P)
@@ -230,12 +236,14 @@ end
                         miniter=1, ortho_tol=2eps(real(eltype(X))),
                         n_conv_check=nothing, display_progress=false)
     N, M = size(X)
+    typearray = typeof(X)
+
     # If N is too small, we will likely get in trouble
     error_message(verb) = "The eigenproblem is too small, and the iterative " *
-                           "eigensolver $verb fail; increase the number of " *
-                           "degrees of freedom, or use a dense eigensolver."
-    N > 3M    || error(error_message("will"))
-    N >= 3M+5 || @warn error_message("might")
+                            "eigensolver $verb fail; increase the number of " *
+                            "degrees of freedom, or use a dense eigensolver."
+     N > 3M    || error(error_message("will"))
+     N >= 3M+5 || @warn error_message("might")
 
     n_conv_check === nothing && (n_conv_check = M)
     resid_history = zeros(real(eltype(X)), M, maxiter+1)
@@ -271,6 +279,7 @@ end
     nlocked = 0
     niter = 0  # the first iteration is fake
     λs = @views [(X[:,n]'*AX[:,n]) / (X[:,n]'BX[:,n]) for n=1:M]
+    λs = oftype(X[:,1], λs) #Offload to GPU if needed
     new_X = X
     new_AX = AX
     new_BX = BX
@@ -286,13 +295,13 @@ end
 
             # Form Rayleigh-Ritz subspace
             if niter > 1
-                Y = mortar((X, R, P))
-                AY = mortar((AX, AR, AP))
-                BY = mortar((BX, BR, BP))  # data shared with (X, R, P) in non-general case
+                Y = hcat(X, R, P)
+                AY = hcat(AX, AR, AP)
+                BY = hcat(BX, BR, BP)  # data shared with (X, R, P) in non-general case
             else
-                Y  = mortar((X, R))
-                AY = mortar((AX, AR))
-                BY = mortar((BX, BR))  # data shared with (X, R) in non-general case
+                Y  = hcat(X, R)
+                AY = hcat(AX, AR)
+                BY = hcat(BX, BR)  # data shared with (X, R) in non-general case
             end
             cX, λs = rayleigh_ritz(Y, AY, M-nlocked)
 
@@ -360,6 +369,8 @@ end
             for i in 1:length(Xn_indices)
                 e[Xn_indices[i], i] = 1
             end
+            e = convert(typearray,e)
+
             cP = cX .- e
             cP = cP[:, Xn_indices]
             # orthogonalize against all Xn (including newly locked)
@@ -414,8 +425,8 @@ end
 
         # Orthogonalize R wrt all X, newly active P
         if niter > 0
-            Z  = mortar((full_X, P))
-            BZ = mortar((full_BX, BP))  # data shared with (full_X, P) in non-general case
+            Z  = hcat(full_X, P)
+            BZ = hcat(full_BX, BP) # data shared with (full_X, P) in non-general case
         else
             Z  = full_X
             BZ = full_BX
