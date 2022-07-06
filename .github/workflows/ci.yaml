@@ -8,6 +8,11 @@ on:
   pull_request:
   schedule:
     - cron:  '0 4 * * 6'  # Run every Sunday
+concurrency:
+  # Skip intermediate builds: always.
+  # Cancel intermediate builds: only if it is a pull request build.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 
 jobs:
   #
@@ -37,16 +42,7 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: x64
-      - uses: actions/cache@v1
-        env:
-          cache-name: cache-artifacts
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-test-${{ env.cache-name }}-
-            ${{ runner.os }}-test-
-            ${{ runner.os }}-
+      - uses: julia-actions/cache@v1
       - name: Install Conda dependencies
         shell: bash
         run: |
@@ -56,10 +52,10 @@ jobs:
             !Sys.iswindows() && (pkgs = append!(["libblas=*=*netlib", "nomkl"], pkgs))
             Conda.add(pkgs; channel="conda-forge")
           '
-      - uses: julia-actions/julia-buildpkg@latest
+      - uses: julia-actions/julia-buildpkg@v1
 
       - name: Execute serial tests
-        uses: julia-actions/julia-runtest@latest
+        uses: julia-actions/julia-runtest@v1
         if: ${{ matrix.payload == 'serial' }}
         continue-on-error: ${{ matrix.version == 'nightly' }}
 
@@ -75,7 +71,7 @@ jobs:
         continue-on-error: ${{ matrix.version == 'nightly' }}
 
       - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v1
+      - uses: codecov/codecov-action@v2
         with:
           file: lcov.info
   #
@@ -98,14 +94,5 @@ jobs:
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1.6'
-      - uses: actions/cache@v1
-        env:
-          cache-name: cache-artifacts
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-test-${{ env.cache-name }}-
-            ${{ runner.os }}-test-
-            ${{ runner.os }}-
+      - uses: julia-actions/cache@v1
       - run: julia --color=yes --project -e 'using Pkg; Pkg.test(test_args = ["example"])'
