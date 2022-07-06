@@ -4,7 +4,6 @@ include("scf_callbacks.jl")
 # (unused in primal calculations)
 @kwdef struct ResponseOptions
     verbose = false
-    occupation_threshold = 1e-10
 end
 
 function default_n_bands(model)
@@ -12,6 +11,7 @@ function default_n_bands(model)
     n_extra = model.temperature == 0 ? 0 : max(4, ceil(Int, 0.2 * min_n_bands))
     min_n_bands + n_extra
 end
+default_occupation_threshold() = 1e-10
 
 """
 Obtain new density ρ by diagonalizing `ham`.
@@ -20,7 +20,7 @@ function next_density(ham::Hamiltonian;
                       n_bands=default_n_bands(ham.basis.model),
                       ψ=nothing, n_ep_extra=3,
                       eigensolver=lobpcg_hyper,
-                      occupation_threshold=1e-10,
+                      occupation_threshold,
                       kwargs...)
     if ψ !== nothing
         @assert length(ψ) == length(ham.basis.kpoints)
@@ -63,6 +63,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        callback=ScfDefaultCallback(; show_damping=false),
                                        compute_consistent_energies=true,
                                        response=ResponseOptions(),  # Dummy here, only for AD
+                                       occupation_threshold=default_occupation_threshold() # 1e-10
                                       )
     T = eltype(basis)
     model = basis.model
@@ -105,7 +106,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham; n_bands, ψ, eigensolver,
                                  miniter=1, tol=determine_diagtol(info),
-                                 n_ep_extra, response.occupation_threshold)
+                                 n_ep_extra, occupation_threshold)
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # Update info with results gathered so far
@@ -121,7 +122,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         info = merge(info, (energies=energies, ))
 
         # Apply mixing and pass it the full info as kwargs
-        δρ = mix_density(mixing, basis, ρout - ρin; info...)
+        δρ = mix_density(mixing, basis, ρout - ρin; occupation_threshold, info...)
         ρnext = ρin .+ T(damping) .* δρ
         info = merge(info, (; ρnext=ρnext))
 
@@ -147,7 +148,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     norm_Δρ = norm(info.ρout - info.ρin) * sqrt(basis.dvol)
 
     # Callback is run one last time with final state to allow callback to clean up
-    info = (; ham, basis, energies, converged,
+    info = (; ham, basis, energies, converged, occupation_threshold,
             ρ=ρout, α=damping, eigenvalues, occupation, εF,
             n_iter, n_ep_extra, ψ, info.diagonalization,
             stage=:finalize, algorithm="SCF", norm_Δρ)

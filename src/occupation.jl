@@ -24,8 +24,8 @@ end
 Find the occupation and Fermi level.
 """
 function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
-                            occupation_threshold=1e-10,
-                            temperature=basis.model.temperature) where {T}
+                            temperature=basis.model.temperature,
+                            occupation_threshold) where {T}
     n_electrons = basis.model.n_electrons
 
     # Maximum occupation per state
@@ -85,7 +85,6 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
     end
 
     if !isapprox(compute_n_elec(εF), n_electrons)
-        println(compute_n_elec(εF))
         if temperature == 0
             error("Unable to find non-fractional occupations that have the " *
                   "correct number of electrons. You should add a temperature.")

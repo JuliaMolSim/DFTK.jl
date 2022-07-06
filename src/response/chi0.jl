@@ -16,7 +16,8 @@ In this case the matrix has effectively 4 blocks, which are:
 \end{array}\right)
 ```
 """
-function compute_χ0(ham; temperature=ham.basis.model.temperature)
+function compute_χ0(ham; temperature=ham.basis.model.temperature,
+                    occupation_threshold)
     # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
     # where (up to normalizations)
     # ρ = ∑_nk f(εnk - εF) |ψnk|^2
@@ -53,7 +54,7 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
     Vs = [EV.vectors for EV in EVs]
-    occ, εF = compute_occupation(basis, Es; temperature)
+    occ, εF = compute_occupation(basis, Es; temperature, occupation_threshold)
 
     χ0 = zeros(eltype(basis), n_spin * n_fft, n_spin * n_fft)
     for (ik, kpt) in enumerate(basis.kpoints)
@@ -257,33 +258,33 @@ end
     # We first select orbitals with occupation number higher than
     # occupation_threshold for which we compute the associated response δψn,
     # the others being discarded to ψ_extra / ε_extra.
-    #
-    # Note:
-    # By default the `self_consistent_field` routine of `DFTK`
-    # returns `3` extra bands, which are not converged by the eigensolver
-    # (see `n_ep_extra` parameter) and have 0 occupation number. These should
-    # be discarded from `ψ`, along with bands that have small occupation
-    # numbers for metals, e.g. 1e-12 or less (and therefore small contributions
-    # to `δψ`), before computing the response `δψ` for the remaining states.
-    # However, one can still use additional information from these extra bands,
-    # stored in `ψ_extra`, in particular to enhance the convergence of the
-    # Sternheimer solver with a Schur complement in the orthogonal of `ψ`.
+    # We then use the extra information we have from these additional bands,
+    # non-necessarily converged, to split the sternheimer_solver with a Schur
+    # complement.
 
-    ψ_occ, occ_no_extra, ε_occ = select_occupied_orbitals(basis, ψ, occ, eigenvalues;
-                                                          threshold=occupation_threshold)
-
-    ψ_extra = map(enumerate(ψ)) do (ik, ψk)
+    ψ_occ   = []
+    ε_occ   = []
+    occ_occ = []
+    ψ_extra = []
+    ε_extra = []
+    for (ik, ψk) in enumerate(ψ)
+        εk   = eigenvalues[ik]
         occk = occ[ik]
-        hcat([ψk[:,n] for n in 1:length(occk) if occk[n] < occupation_threshold]...)
-    end
-    ε_extra = map(enumerate(eigenvalues)) do (ik, εk)
-        occk = occ[ik]
-        [εk[n] for n in 1:length(occk) if occk[n] < occupation_threshold]
+        push!(ψ_occ, hcat([ψk[:,n] for n in 1:length(occk)
+                           if occk[n] >= occupation_threshold]...))
+        push!(ε_occ, [εk[n] for n in 1:length(occk)
+                      if occk[n] >= occupation_threshold])
+        push!(occ_occ, [occk[n] for n in 1:length(occk)
+                        if occk[n] >= occupation_threshold])
+        push!(ψ_extra, hcat([ψk[:,n] for n in 1:length(occk)
+                             if occk[n] < occupation_threshold]...))
+        push!(ε_extra, [εk[n] for n in 1:length(occk)
+                        if occk[n] < occupation_threshold])
     end
 
     # First compute δεF
     δεF = zero(T)
-    δocc = [zero(occ_no_extra[ik]) for ik = 1:Nk]  # = fn' * (δεn - δεF)
+    δocc = [zero(occ_occ[ik]) for ik = 1:Nk]  # = fn' * (δεn - δεF)
     if temperature > 0
         # First compute δocc without self-consistent Fermi δεF
         D = zero(T)
@@ -338,7 +339,7 @@ end
 Get the density variation δρ corresponding to a total potential variation δV.
 """
 function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                  occupation_threshold=1e-10, kwargs_sternheimer...)
+                  occupation_threshold, kwargs_sternheimer...)
 
     basis = ham.basis
     model = basis.model
@@ -363,7 +364,8 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
     δρ * normδV
 end
 
-function apply_χ0(scfres, δV; occupation_threshold=1e-10, kwargs_sternheimer...)
+function apply_χ0(scfres, δV; kwargs_sternheimer...)
     apply_χ0(scfres.ham, scfres.ψ, scfres.occupation, scfres.εF,
-             scfres.eigenvalues, δV; occupation_threshold, kwargs_sternheimer...)
+             scfres.eigenvalues, δV; scfres.occupation_threshold,
+             kwargs_sternheimer...)
 end

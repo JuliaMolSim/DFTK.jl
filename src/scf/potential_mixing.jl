@@ -240,6 +240,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     acceleration=AndersonAcceleration(;m=10),
     accept_step=ScfAcceptStepAll(),
     max_backtracks=3,  # Maximal number of backtracking line searches
+    occupation_threshold=default_occupation_threshold(),
 )
     # TODO Test other mixings and lift this
     @assert (   mixing isa SimpleMixing
@@ -261,7 +262,8 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     function EVρ(Vin; diagtol=tol / 10, ψ=nothing)
         ham_V = hamiltonian_with_total_potential(ham, Vin)
         res_V = next_density(ham_V; n_bands=n_bands, ψ=ψ, n_ep_extra=n_ep_extra,
-                             miniter=diag_miniter, tol=diagtol, eigensolver=eigensolver)
+                             miniter=diag_miniter, tol=diagtol, eigensolver=eigensolver,
+                             occupation_threshold)
         new_E, new_ham = energy_hamiltonian(basis, res_V.ψ, res_V.occupation;
                                             ρ=res_V.ρout, eigenvalues=res_V.eigenvalues,
                                             εF=res_V.εF)

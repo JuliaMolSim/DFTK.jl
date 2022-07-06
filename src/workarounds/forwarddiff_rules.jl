@@ -193,6 +193,7 @@ end
 
 function self_consistent_field(basis_dual::PlaneWaveBasis{T};
                                response=ResponseOptions(),
+                               occupation_threshold=default_occupation_threshold(),
                                kwargs...) where T <: ForwardDiff.Dual
     # Note: No guarantees on this interface yet.
 
@@ -218,7 +219,8 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
         δHψ_α = [ForwardDiff.partials.(δHψk, α) for δHψk in hamψ_dual]
 
         δψ_α, resp_α = solve_ΩplusK_split(scfres, -δHψ_α; tol=scfres.norm_Δρ,
-                                          response.verbose, response.occupation_threshold)
+                                          response.verbose,
+                                          occupation_threshold)
         δρ_α = compute_δρ(basis, scfres.ψ, δψ_α, scfres.occupation)
         δψ_α, δρ_α, resp_α
     end

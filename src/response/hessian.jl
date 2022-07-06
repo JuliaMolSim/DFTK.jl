@@ -8,7 +8,7 @@
 # which can be solved either directly (solve_ΩplusK) or by a splitting method
 # (solve_ΩplusK_split), the latter being preferable as it is well defined for
 # both metals and insulators. Solving this equation is a necessary to compute
-# response properties as well as AD chain rules (Ω+K being self-adjoing, it can
+# response properties as well as AD chain rules (Ω+K being self-adjoint, it can
 # be used for both forward and reverse mode).
 #
 # [1] Eric Cancès, Gaspard Kemlin, Antoine Levitt. Convergence analysis of
@@ -123,7 +123,7 @@ end
 # where χ02P = R χ04P E and K2P = R K E
 function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
                             eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10,
-                            verbose=false, occupation_threshold=1e-10,
+                            verbose=false, occupation_threshold,
                             kwargs...) where T
     basis = ham.basis
 
@@ -172,5 +172,6 @@ end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
     solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
-                       scfres.εF, scfres.eigenvalues, rhs; kwargs...)
+                       scfres.εF, scfres.eigenvalues, rhs;
+                       scfres.occupation_threshold, kwargs...)
 end
