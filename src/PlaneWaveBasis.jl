@@ -244,18 +244,18 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     @assert mpi_sum(sum(kweights_thisproc), comm_kpts) ≈ model.n_spin_components
     @assert length(kpoints) == length(kweights_thisproc)
 
+    VT = value_type(T)
     dvol  = model.unit_cell_volume ./ prod(fft_size)
+    r_vectors = [Vec3{VT}(VT(i-1) / N1, VT(j-1) / N2, VT(k-1) / N3)
+                 for i = 1:fft_size[1], j = 1:fft_size[2], k = 1:fft_size[3]]
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
-    Gvecs = G_vectors(fft_size)
-    N1, N2, N3 = fft_size
-    rvecs = [Vec3{T}(T(i-1) / N1, T(j-1) / N2, T(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3]
 
     basis = PlaneWaveBasis{T,value_type(T)}(
         model, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
         r_to_G_normalization, G_to_r_normalization,
-        Gvecs, rvecs,
+        G_vectors(fft_size), r_vectors,
         kpoints, kweights_thisproc, kgrid, kshift,
         kcoords_global, kweights_global, comm_kpts, krange_thisproc, krange_allprocs,
         symmetries, symmetries_respect_rgrid, terms)
