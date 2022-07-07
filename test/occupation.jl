@@ -34,7 +34,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     Ecut = 5
     n_bands = 10
     fft_size = [15, 15, 15]
-    occupation_threshold = DFTK.default_occupation_threshold()
+    occupation_threshold = 1e-5
 
     # Emulate an insulator ... prepare energy levels
     energies = [zeros(n_bands) for k in silicon.kcoords]
@@ -88,7 +88,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     Ecut = 5
     fft_size = [15, 15, 15]
     kgrid  = [2, 3, 4]
-    occupation_threshold = DFTK.default_occupation_threshold()
+    occupation_threshold = 1e-5
 
     # Emulate a metal ...
     energies = [[-0.08063210585291,  0.11227915155236, 0.13057816014162, 0.57672256037074],

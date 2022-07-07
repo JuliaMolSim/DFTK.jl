@@ -14,7 +14,7 @@ function test_chi0(testcase; symmetries=false, temperature=0,
     ε        = 1e-6
     testtol  = 2e-6
     n_ep_extra = 3
-    occupation_threshold = 1e-10
+    occupation_threshold = DFTK.default_occupation_threshold()
 
     collinear = spin_polarization == :collinear
     is_metal = !isnothing(testcase.temperature)
