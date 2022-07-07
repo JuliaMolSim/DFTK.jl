@@ -230,13 +230,15 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         _, ∂ψ_rayleigh_ritz, ∂Hψ_rayleigh_ritz = eigenvalues_pullback(∂eigenvalues)
         ∂ψ += ∂ψ_rayleigh_ritz
 
+        # TODO use omegaplusk_split instead and do not select_occupied_orbitals
+
         # Otherwise there is no contribution to ∂basis, by linearity.
         # This also excludes the case when ∂ψ is a NoTangent().
         if !iszero(∂ψ)
             ∂ψ, occupation = DFTK.select_occupied_orbitals(basis, ∂ψ, occupation)
             ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation).δψ # use self-adjointness of dH ψ -> dψ
             ∂Hψ += ∂Hψ_rayleigh_ritz
-            # TODO need to do proj_tangent on ∂Hψ
+            # TODO need to do proj_tangent on ∂Hψ <--- can delete this TODO
             _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
             ∂H = ∂H_mul_pullback + ∂H
         end
