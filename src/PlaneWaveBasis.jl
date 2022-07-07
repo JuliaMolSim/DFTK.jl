@@ -162,7 +162,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         error("Selected fft_size will not work for the buggy generic " *
               "FFT routines; use next_working_fft_size")
     end
-    fft_size = Tuple{Int, Int, Int}(fft_size)  # explicit conversion in case passed as array
+    fft_size   = Tuple{Int, Int, Int}(fft_size)  # explicit conversion in case passed as array
+    N1, N2, N3 = fft_size
 
     # filter out the symmetries that don't preserve the real-space grid
     symmetries = model.symmetries
@@ -246,8 +247,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
 
     VT = value_type(T)
     dvol  = model.unit_cell_volume ./ prod(fft_size)
-    r_vectors = [Vec3{VT}(VT(i-1) / N1, VT(j-1) / N2, VT(k-1) / N3)
-                 for i = 1:fft_size[1], j = 1:fft_size[2], k = 1:fft_size[3]]
+    r_vectors = [Vec3{VT}(VT(i-1) / N1, VT(j-1) / N2, VT(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3]
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
     basis = PlaneWaveBasis{T,value_type(T)}(
