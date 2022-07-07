@@ -89,7 +89,7 @@ export PairwisePotential
 export Anyonic
 export apply_kernel
 export compute_kernel
-include("xc/functional_interface.jl")
+include("DispatchFunctional.jl")
 include("terms/terms.jl")
 
 include("occupation.jl")

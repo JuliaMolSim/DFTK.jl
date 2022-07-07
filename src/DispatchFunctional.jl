@@ -131,9 +131,11 @@ function DftFunctionals.kernel_terms(func::LibxcFunctional{:gga}, ρ::Matrix{Flo
 end
 
 #
-# Automatically dispatching between both
+# Automatic dispatching between Libxc (where possible) and the generic implementation
+# in DftFunctionals (where needed).
 # TODO Could be done by default for LibxcFunctionals ?
 #      Could also be used to implement r-rules for LibxcFunctionals (via alternative primals)
+#      Could also be moved into a package on its own?
 struct DispatchFunctional{Family,Kind} <: Functional{Family,Kind}
     inner::LibxcFunctional{Family,Kind}
 end
