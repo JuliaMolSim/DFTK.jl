@@ -7,7 +7,7 @@
 #
 # which can be solved either directly (solve_ΩplusK) or by a splitting method
 # (solve_ΩplusK_split), the latter being preferable as it is well defined for
-# both metals and insulators. Solving this equation is a necessary to compute
+# both metals and insulators. Solving this equation is necessary to compute
 # response properties as well as AD chain rules (Ω+K being self-adjoint, it can
 # be used for both forward and reverse mode).
 #
