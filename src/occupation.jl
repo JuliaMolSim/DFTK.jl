@@ -2,11 +2,6 @@
 
 import Roots
 
-"""
-Find the Fermi level.
-"""
-fermi_level(basis, eigenvalues) = compute_occupation(basis, eigenvalues).εF
-
 """Compute the occupations, given eigenenergies and a Fermi level"""
 function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues, εF;
                             temperature=basis.model.temperature,
@@ -24,7 +19,8 @@ end
 Find the occupation and Fermi level.
 """
 function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
-                            temperature=basis.model.temperature) where {T}
+                            temperature=basis.model.temperature,
+                            occupation_threshold) where {T}
     n_electrons = basis.model.n_electrons
 
     # Maximum occupation per state
@@ -94,7 +90,7 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
 
     occupation = compute_occupation(basis, eigenvalues, εF)
     minocc = maximum(minimum, occupation)
-    if temperature > 0 && minocc > 1e-5
+    if temperature > 0 && minocc > occupation_threshold
         @warn "One k-point has a high minimum occupation $minocc. You should probably increase the number of bands."
     end
 

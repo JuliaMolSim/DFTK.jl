@@ -45,6 +45,7 @@ Feel free to drop us a line if you want your work to be added here.
   [*Practical error bounds for properties in plane-wave electronic structure calculations*](https://arxiv.org/abs/2111.01470)
   (Submitted).
   [ArXiv:2111.01470](https://arxiv.org/abs/2111.01470).
+  ([Supplementary material and computational scripts](https://github.com/gkemlin/paper-forces-estimator)).
 
 - E. Cancès, G. Kemlin and A. Levitt.
   [*Convergence analysis of direct minimization and self-consistent iterations*](https://doi.org/10.1137/20M1332864)

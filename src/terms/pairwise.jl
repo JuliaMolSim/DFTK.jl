@@ -1,3 +1,15 @@
+"""
+Complex-analytic extension of `LinearAlgebra.norm(x)` from real to complex inputs.
+Needed for phonons as we want to perform a matrix-vector product `f'(x)·h`, where `f` is
+a real-to-real function and `h` a complex vector. To do this using automatic
+differentiation, we can extend analytically f to accept complex inputs, then differentiate
+`t -> f(x+t·h)`. This will fail if non-analytic functions like norm are used for complex
+inputs, and therefore we have to redefine it.
+"""
+function norm_cplx(x)
+    sqrt(sum(x.^2))
+end
+
 struct PairwisePotential
     V
     params
@@ -10,8 +22,8 @@ Lennard—Jones terms.
 The potential is dependent on the distance between to atomic positions and the pairwise
 atomic types:
 For a distance `d` between to atoms `A` and `B`, the potential is `V(d, params[(A, B)])`.
-The parameters `max_radius` is of `100` by default, and gives the maximum (reduced) distance
-between nuclei for which we consider interactions.
+The parameters `max_radius` is of `100` by default, and gives the maximum distance (in
+Cartesian coordinates) between nuclei for which we consider interactions.
 """
 function PairwisePotential(V, params; max_radius=100)
     params = Dict(minmax(key[1], key[2]) => value for (key, value) in params)
@@ -56,10 +68,21 @@ end
 
 # This could be factorised with Ewald, but the use of `symbols` would slow down the
 # computationally intensive Ewald sums. So we leave it as it for now.
+# `q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
+# compute the Fourier transform of the force constant matrix.
+# Computes the local energy and forces on the atoms of the reference unit cell 0, for an
+# infinite array of atoms at positions r_{iR} = positions[i] + R + ph_disp[i]*e^{iq·R}.
 function energy_pairwise(lattice, symbols, positions, V, params;
-                         max_radius=100, forces=nothing)
-    T = eltype(lattice)
+                         max_radius=100, forces=nothing, ph_disp=nothing, q=nothing)
+    isnothing(ph_disp) && @assert isnothing(q)
     @assert length(symbols) == length(positions)
+
+    T = eltype(positions[1])
+    if !isnothing(ph_disp)
+        @assert !isnothing(q) && !isnothing(forces)
+        T = promote_type(complex(T), eltype(ph_disp[1]))
+        @assert size(ph_disp) == size(positions)
+    end
 
     if forces !== nothing
         @assert size(forces) == size(positions)
@@ -89,22 +112,29 @@ function energy_pairwise(lattice, symbols, positions, V, params;
             R == zero(R) && i == j && continue
             ai, aj = minmax(symbols[i], symbols[j])
             param_ij = params[(ai, aj)]
-            Δr = lattice * (positions[i] - positions[j] - R)
-            dist = norm(Δr)
+            ti = positions[i]
+            tj = positions[j] + R
+            if !isnothing(ph_disp)
+                ti += ph_disp[i] # * cis2pi(dot(q, zeros(3))) === 1
+                                 #  as we use the forces at the nuclei in the unit cell
+                tj += ph_disp[j] * cis2pi(dot(q, R))
+            end
+            Δr = lattice * (ti .- tj)
+            dist = norm_cplx(Δr)
             energy_contribution = V(dist, param_ij)
             sum_pairwise += energy_contribution
             if forces !== nothing
-                # We use ForwardDiff for the forces
-                dE_ddist = ForwardDiff.derivative(d -> V(d, param_ij), dist)
+                dE_ddist = ForwardDiff.derivative(real(zero(eltype(dist)))) do ε
+                    V(dist + ε, param_ij)
+                end
                 dE_dti = lattice' * dE_ddist / dist * Δr
                 forces_pairwise[i] -= dE_dti
-                forces_pairwise[j] += dE_dti
             end
         end # i,j
     end # R
     energy = sum_pairwise / 2  # Divide by 2 (because of double counting)
     if forces !== nothing
-        forces .= forces_pairwise ./ 2
+        forces .= forces_pairwise
     end
     energy
 end
