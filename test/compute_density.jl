@@ -17,6 +17,7 @@ if mpi_nprocs() == 1  # not easy to distribute
             kwargs = (temperature=testcase.temperature, smearing=DFTK.Smearing.FermiDirac())
             n_bands = div(testcase.n_electrons, 2, RoundUp) + 4
         end
+        occupation_threshold = DFTK.default_occupation_threshold()
 
         model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions,
                           :lda_xc_teter93; symmetries, kwargs...)
@@ -24,14 +25,14 @@ if mpi_nprocs() == 1  # not easy to distribute
         ham = Hamiltonian(basis; ρ=guess_density(basis))
 
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol)
-        occ, εF = DFTK.compute_occupation(basis, res.λ)
+        occ, εF = DFTK.compute_occupation(basis, res.λ; occupation_threshold)
         ρnew = compute_density(basis, res.X, occ)
 
         for it in 1:n_rounds
             ham = Hamiltonian(basis; ρ=ρnew)
             res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol=tol, ψguess=res.X)
 
-            occ, εF = DFTK.compute_occupation(basis, res.λ)
+            occ, εF = DFTK.compute_occupation(basis, res.λ; occupation_threshold)
             ρnew = compute_density(basis, res.X, occ)
         end
 
