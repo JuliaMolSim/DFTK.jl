@@ -106,6 +106,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 
 # Solves (1-P) (H-εn) (1-P) δψn = - (1-P) rhs
 # where 1-P is the projector on the orthogonal of ψk
+# ψnk is used only to precondition the CG
 function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
                             abstol=1e-9, reltol=0, verbose=false)
@@ -117,18 +118,6 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
     # We use a Schur decomposition of the orthogonal of the occupied states
     # into a part where we have the partially converged, non-occupied bands
     # (which are Rayleigh-Ritz wrt to Hk) and the rest.
-    #
-    # /!\ This is only implemented for insulators at the moment, WIP for
-    # metals, in which case we use empty arrays and all computations are
-    # equivalent to invert the Sternheimer system in Ran(1-P) without the Schur
-    # trick.
-
-    # TODO
-    # finite temperature not supported yet => remove extra bands
-    if !iszero(temperature)
-        ψk_extra = zeros(size(ψk, 1), 0)
-        εk_extra = zeros(0)
-    end
 
     # Projectors:
     # projector onto the computed and converged states
