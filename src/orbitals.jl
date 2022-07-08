@@ -2,7 +2,7 @@
 # virtual states (or states with small occupation level for metals).
 # threshold is a parameter to distinguish between states we want to keep and the
 # others when using temperature. It is set to 0.0 by default, to treat with insulators.
-function select_occupied_orbitals(basis, ψ, occupation, eigenvalues=nothing; threshold=0.0)
+function select_occupied_orbitals(basis, ψ, occupation; threshold=0.0)
     N = [something(findlast(x -> x > threshold, occk), 0) for occk in occupation]
     selected_ψ   = [@view ψk[:, 1:N[ik]] for (ik, ψk)   in enumerate(ψ)]
     selected_occ = [      occk[1:N[ik]]  for (ik, occk) in enumerate(occupation)]
@@ -15,22 +15,7 @@ function select_occupied_orbitals(basis, ψ, occupation, eigenvalues=nothing; th
         n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)
         @assert n_bands == size(selected_ψ[1], 2)
     end
-
-    if isnothing(eigenvalues)
-        (ψ=selected_ψ, occupation=selected_occ)
-    else
-        selected_evals = [evalk[1:N[ik]] for (ik, evalk) in enumerate(eigenvalues)]
-        (ψ=selected_ψ, occupation=selected_occ, eigenvalues=selected_evals)
-    end
-end
-
-function select_occupied_orbitals(scfres::NamedTuple; threshold=0.0)
-    truncated = select_occupied_orbitals(scfres.basis, scfres.ψ, scfres.occupation,
-                                         scfres.eigenvalues; threshold)
-
-    min_trunc_bands = minimum(length, scfres.occupation) - maximum(length, truncated.occupation)
-    @assert min_trunc_bands ≥ scfres.n_ep_extra  # Ensure extra bands are truncated
-    merge(scfres, truncated, (; n_ep_extra=0))
+    (ψ=selected_ψ, occupation=selected_occ)
 end
 
 # Packing routines used in direct_minimization and newton algorithms.
