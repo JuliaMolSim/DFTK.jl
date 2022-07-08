@@ -16,7 +16,8 @@ In this case the matrix has effectively 4 blocks, which are:
 \end{array}\right)
 ```
 """
-function compute_χ0(ham; temperature=ham.basis.model.temperature)
+function compute_χ0(ham; temperature=ham.basis.model.temperature,
+                    occupation_threshold=default_occupation_threshold())
     # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
     # where (up to normalizations)
     # ρ = ∑_nk f(εnk - εF) |ψnk|^2
@@ -53,7 +54,7 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
     Vs = [EV.vectors for EV in EVs]
-    occ, εF = compute_occupation(basis, Es, temperature=temperature)
+    occ, εF = compute_occupation(basis, Es; temperature, occupation_threshold)
 
     χ0 = zeros(eltype(basis), n_spin * n_fft, n_spin * n_fft)
     for (ik, kpt) in enumerate(basis.kpoints)
@@ -105,9 +106,10 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 
 # Solves (1-P) (H-εn) (1-P) δψn = - (1-P) rhs
 # where 1-P is the projector on the orthogonal of ψk
-function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
+# n is used for the preconditioning with ψk[:,n] and the optional callback
+function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
-                            abstol=1e-12, reltol=0, verbose=false)
+                            abstol=1e-9, reltol=0, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
     model = basis.model
@@ -116,18 +118,6 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
     # We use a Schur decomposition of the orthogonal of the occupied states
     # into a part where we have the partially converged, non-occupied bands
     # (which are Rayleigh-Ritz wrt to Hk) and the rest.
-    #
-    # /!\ This is only implemented for insulators at the moment, WIP for
-    # metals, in which case we use empty arrays and all computations are
-    # equivalent to invert the Sternheimer system in Ran(1-P) without the Schur
-    # trick.
-
-    # TODO
-    # finite temperature not supported yet => remove extra bands
-    if !iszero(temperature)
-        ψk_extra = zeros(size(ψk, 1), 0)
-        εk_extra = zeros(0)
-    end
 
     # Projectors:
     # projector onto the computed and converged states
@@ -182,12 +172,15 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
         R(H(ARϕ))
     end
     precon = PreconditionerTPA(basis, kpoint)
-    precondprep!(precon, ψnk)
+    precondprep!(precon, ψk[:, n])
     function R_ldiv!(x, y)
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    δψknᴿ = cg(J, bb; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol, verbose)
+    δψknᴿ, ch = cg(J, bb; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol,
+                   verbose, log=true)
+    info = (; basis=basis, kpoint=kpoint, ch=ch, n=n)
+    callback(info)
 
     # 2) solve for αkn now that we know δψknᴿ
     # Note that αkn is an empty array if there is no extra bands.
@@ -245,9 +238,7 @@ function compute_αmn(fm, fn, ratio)
 end
 
 @views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
-                                    ψ_extra=[zeros(size(ψk, 1), 0) for ψk in ψ],
-                                    ε_extra=[zeros(0) for _ in eigenvalues],
-                                    kwargs_sternheimer...)
+                                    occupation_threshold, kwargs_sternheimer...)
     basis  = ham.basis
     model = basis.model
     temperature = model.temperature
@@ -255,16 +246,34 @@ end
     T = eltype(basis)
     Nk = length(basis.kpoints)
 
+    # We first select orbitals with occupation number higher than
+    # occupation_threshold for which we compute the associated response δψn,
+    # the others being discarded to ψ_extra / ε_extra.
+    # We then use the extra information we have from these additional bands,
+    # non-necessarily converged, to split the sternheimer_solver with a Schur
+    # complement.
+
+    mask_occ   = map(occk -> isless.(occupation_threshold, occk), occ)
+    mask_extra = map(occk -> (!isless).(occupation_threshold, occk), occ)
+
+    ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
+    ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
+
+    ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
+    ε_extra = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_extra)]
+
+    occ_occ = [occ[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
+
     # First compute δεF
     δεF = zero(T)
-    δocc = [zero(occ[ik]) for ik = 1:Nk]  # = fn' * (δεn - δεF)
+    δocc = [zero(occ_occ[ik]) for ik = 1:Nk]  # = fn' * (δεn - δεF)
     if temperature > 0
         # First compute δocc without self-consistent Fermi δεF
         D = zero(T)
         for ik = 1:Nk
-            for (n, εnk) in enumerate(eigenvalues[ik])
+            for (n, εnk) in enumerate(ε_occ[ik])
                 enred = (εnk - εF) / temperature
-                δεnk = real(dot(ψ[ik][:, n], δHψ[ik][:, n]))
+                δεnk = real(dot(ψ_occ[ik][:, n], δHψ[ik][:, n]))
                 fpnk = (filled_occ
                         * Smearing.occupation_derivative(model.smearing, enred)
                         / temperature)
@@ -281,10 +290,10 @@ end
     # compute δψnk band per band
     δψ = zero.(ψ)
     for ik = 1:Nk
-        ψk = ψ[ik]
+        ψk = ψ_occ[ik]
         δψk = δψ[ik]
 
-        εk = eigenvalues[ik]
+        εk = ε_occ[ik]
         for n = 1:length(εk)
             fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n]-εF) / temperature)
 
@@ -298,36 +307,25 @@ end
             end
 
             # Sternheimer contribution
-            # TODO unoccupied orbitals may have a very bad sternheimer solve, be careful about this
-            δψk[:, n] .+= sternheimer_solver(ham.blocks[ik], ψk, ψk[:, n], εk[n], δHψ[ik][:, n];
+            δψk[:, n] .+= sternheimer_solver(ham.blocks[ik], ψk, εk[n], δHψ[ik][:, n], n;
                                              ψk_extra=ψ_extra[ik], εk_extra=ε_extra[ik],
                                              kwargs_sternheimer...)
         end
     end
+    # keeping zeros for extra bands to keep the output δψ with the same size
+    # than the input ψ
     δψ
 end
 
 """
 Get the density variation δρ corresponding to a total potential variation δV.
-
-Note: This function assumes that all bands contained in `ψ` and `eigenvalues` are
-sufficiently converged. By default the `self_consistent_field` routine of `DFTK`
-returns `3` extra bands, which are not converged by the eigensolver
-(see `n_ep_extra` parameter). These should be discarded from `ψ` before using this
-function. However, one can still use additional information from nonconverged bands
-stored in `ψ_extra` (typically, the `3` extra bands returned by default in SCF
-routine).
 """
-function apply_χ0(ham, ψ, εF, eigenvalues, δV;
-                  ψ_extra=[zeros(size(ψk, 1), 0) for ψk in ψ],
-                  ε_extra=[zeros(0) for _ in eigenvalues],
+function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
+                  occupation_threshold=default_occupation_threshold(),
                   kwargs_sternheimer...)
 
     basis = ham.basis
     model = basis.model
-    occ = [filled_occupation(model) *
-           Smearing.occupation.(model.smearing, (eigenvalues[ik] .- εF) ./ model.temperature)
-           for ik = 1:length(basis.kpoints)]
 
     # Make δV respect the basis symmetry group, since we won't be able
     # to compute perturbations that don't anyway
@@ -343,25 +341,14 @@ function apply_χ0(ham, ψ, εF, eigenvalues, δV;
 
     δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
-    δψ = apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
-                     ψ_extra, ε_extra, kwargs_sternheimer...)
-    δρ = DFTK.compute_δρ(basis, ψ, δψ, occ)
+    δψ = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                     occupation_threshold, kwargs_sternheimer...)
+    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation)
     δρ * normδV
 end
 
-"""
-We use here the full scfres, with a distinction between converged bands and
-nonconverged extra bands used in the SCF.
-"""
 function apply_χ0(scfres, δV; kwargs_sternheimer...)
-    n_ep_extra = scfres.n_ep_extra
-
-    ψ       = [@view ψk[:, 1:end-n_ep_extra]     for ψk in scfres.ψ]
-    ψ_extra = [@view ψk[:, end-n_ep_extra+1:end] for ψk in scfres.ψ]
-
-    ε       = [εk[1:end-n_ep_extra]     for εk in scfres.eigenvalues]
-    ε_extra = [εk[end-n_ep_extra+1:end] for εk in scfres.eigenvalues]
-
-    apply_χ0(scfres.ham, ψ, scfres.εF, ε, δV; ψ_extra, ε_extra,
+    apply_χ0(scfres.ham, scfres.ψ, scfres.occupation, scfres.εF,
+             scfres.eigenvalues, δV; scfres.occupation_threshold,
              kwargs_sternheimer...)
 end

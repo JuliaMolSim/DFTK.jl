@@ -47,7 +47,8 @@ end
 
     eigenvalues = [[-0.17268859, 0.26999098, 0.2699912, 0.2699914, 0.35897297, 0.3589743],
                    [-0.08567941, 0.00889772, 0.2246137, 0.2246138, 0.31941655, 0.3870046]]
-    occupations, εF = DFTK.compute_occupation(basis, Vector{Interval{Float64}}.(eigenvalues))
+    occupations, εF = DFTK.compute_occupation(basis, Vector{Interval{Float64}}.(eigenvalues);
+                                              occupation_threshold=1e-7)
 
 
     @test mid.(εF) ≈ 0.2246137 atol=1e-6

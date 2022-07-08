@@ -1,3 +1,24 @@
+# The Hessian of P -> E(P) (E being the energy) is Ω+K, where Ω and K are
+# defined below (cf. [1] for more details).
+#
+# In particular, by linearizing the Kohn-Sham equations, we have
+#
+# δP = -(Ω+K)⁻¹ δH
+#
+# which can be solved either directly (solve_ΩplusK) or by a splitting method
+# (solve_ΩplusK_split), the latter being preferable as it is well defined for
+# both metals and insulators. Solving this equation is necessary to compute
+# response properties as well as AD chain rules (Ω+K being self-adjoint, it can
+# be used for both forward and reverse mode).
+#
+# [1] Eric Cancès, Gaspard Kemlin, Antoine Levitt. Convergence analysis of
+#     direct minimization and self-consistent iterations.
+#     SIAM Journal on Matrix Analysis and Applications
+#     https://doi.org/10.1137/20M1332864
+#
+# TODO find better names for solve_ΩplusK and solve_ΩplusK_split
+#
+
 """
     apply_Ω(δψ, ψ, H::Hamiltonian, Λ)
 
@@ -102,12 +123,14 @@ end
 # where χ02P = R χ04P E and K2P = R K E
 function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
                             eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10,
-                            verbose=false, kwargs...) where T
+                            verbose=false, occupation_threshold,
+                            kwargs...) where T
     basis = ham.basis
 
     # compute δρ0 (ignoring interactions)
     δψ0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, rhs;
-                      reltol=0, abstol=tol_sternheimer, kwargs...)
+                      reltol=0, abstol=tol_sternheimer,
+                      occupation_threshold, kwargs...)
     δρ0 = compute_δρ(basis, ψ, δψ0, occupation)
 
     pack(δρ)   = vec(δρ)
@@ -118,8 +141,9 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
         δV = apply_kernel(basis, δρ; ρ)
         # Would be nice to play with abstol / reltol etc. to avoid over-solving
         # for the initial GMRES steps.
-        χ0δV = apply_χ0(ham, ψ, εF, eigenvalues, δV;
-                        abstol=tol_sternheimer, reltol=0, kwargs...)
+        χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
+                        occupation_threshold, abstol=tol_sternheimer, reltol=0,
+                        kwargs...)
         pack(δρ - χ0δV)
     end
     J = LinearMap{T}(eps_fun, length(pack(δρ0)))
@@ -129,7 +153,8 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
     δVψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
     δψ1 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δVψ;
-                      abstol=tol_sternheimer, reltol=0, kwargs...)
+                      occupation_threshold, abstol=tol_sternheimer, reltol=0,
+                      kwargs...)
     δψ  = .- (δψ0 .+ δψ1)
     (; δψ, history)
 end
@@ -139,29 +164,14 @@ function solve_ΩplusK_split(basis::PlaneWaveBasis, ψ, rhs, occupation; kwargs.
     _, H = energy_hamiltonian(basis, ψ, occupation; ρ)
 
     eigenvalues = [real.(eigvals(ψk'Hψk)) for (ψk, Hψk) in zip(ψ, H * ψ)]
-    occupation, εF = compute_occupation(basis, eigenvalues)
+    occupation_threshold = kwargs.occupation_threshold
+    occupation, εF = compute_occupation(basis, eigenvalues; occupation_threshold)
 
     solve_ΩplusK_split(H, ρ, ψ, occupation, εF, eigenvalues, rhs; kwargs...)
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
-    n_ep_extra = scfres.n_ep_extra
-
-    ψ       = [@view ψk[:, 1:end-n_ep_extra]     for ψk in scfres.ψ]
-    ψ_extra = [@view ψk[:, end-n_ep_extra+1:end] for ψk in scfres.ψ]
-
-    evals   = [εk[1:end-n_ep_extra]     for εk in scfres.eigenvalues]
-    ε_extra = [εk[end-n_ep_extra+1:end] for εk in scfres.eigenvalues]
-
-    occupation = [occk[1:end-n_ep_extra]     for occk in scfres.occupation]
-    occ_extra  = [occk[end-n_ep_extra+1:end] for occk in scfres.occupation]
-
-    @assert length(rhs) == length(ψ)
-    rhs_capped = map(zip(ψ, rhs)) do (ψk, rhsk)
-        n_bands = size(ψk, 2)
-        @assert size(rhsk, 2) >= n_bands
-        @view rhsk[:, 1:n_bands]
-    end
-    solve_ΩplusK_split(scfres.ham, scfres.ρ, ψ, occupation, scfres.εF, evals, rhs_capped;
-                       ψ_extra, ε_extra, kwargs...)
+    solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
+                       scfres.εF, scfres.eigenvalues, rhs;
+                       scfres.occupation_threshold, kwargs...)
 end
