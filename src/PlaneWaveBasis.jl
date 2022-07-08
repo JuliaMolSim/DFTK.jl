@@ -66,6 +66,10 @@ struct PlaneWaveBasis{T, VT} <: AbstractBasis{T} where {VT <: Real}
     r_to_G_normalization::T  # r_to_G = r_to_G_normalization * FFT
     G_to_r_normalization::T  # G_to_r = G_to_r_normalization * BFFT
 
+    # "cubic" basis in reciprocal and real space, on which potentials and densities are stored
+    G_vectors::Array{Vec3{Int}, 3}
+    r_vectors::Array{Vec3{VT }, 3}
+
     ## MPI-local information of the kpoints this processor treats
     # Irreducible kpoints. In the case of collinear spin,
     # this lists all the spin up, then all the spin down
@@ -158,7 +162,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         error("Selected fft_size will not work for the buggy generic " *
               "FFT routines; use next_working_fft_size")
     end
-    fft_size = Tuple{Int, Int, Int}(fft_size)  # explicit conversion in case passed as array
+    fft_size   = Tuple{Int, Int, Int}(fft_size)  # explicit conversion in case passed as array
+    N1, N2, N3 = fft_size
 
     # filter out the symmetries that don't preserve the real-space grid
     symmetries = model.symmetries
@@ -240,13 +245,17 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     @assert mpi_sum(sum(kweights_thisproc), comm_kpts) ≈ model.n_spin_components
     @assert length(kpoints) == length(kweights_thisproc)
 
+    VT = value_type(T)
     dvol  = model.unit_cell_volume ./ prod(fft_size)
+    r_vectors = [Vec3{VT}(VT(i-1) / N1, VT(j-1) / N2, VT(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3]
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
+
     basis = PlaneWaveBasis{T,value_type(T)}(
         model, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
         r_to_G_normalization, G_to_r_normalization,
+        G_vectors(fft_size), r_vectors,
         kpoints, kweights_thisproc, kgrid, kshift,
         kcoords_global, kweights_global, comm_kpts, krange_thisproc, krange_allprocs,
         symmetries, symmetries_respect_rgrid, terms)
@@ -346,7 +355,7 @@ end
 The list of wave vectors ``G`` in reduced (integer) coordinates of a `basis`
 or a ``k``-point `kpt`.
 """
-G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_size)
+G_vectors(basis::PlaneWaveBasis) = basis.G_vectors
 G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
 
 
@@ -384,10 +393,7 @@ end
 
 The list of ``r`` vectors, in reduced coordinates. By convention, this is in [0,1)^3.
 """
-function r_vectors(basis::PlaneWaveBasis{T}) where T
-    N1, N2, N3 = basis.fft_size
-    [Vec3{T}(T(i-1) / N1, T(j-1) / N2, T(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3]
-end
+r_vectors(basis::PlaneWaveBasis) = basis.r_vectors
 
 @doc raw"""
     r_vectors_cart(basis::PlaneWaveBasis)
