@@ -106,8 +106,8 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 
 # Solves (1-P) (H-εn) (1-P) δψn = - (1-P) rhs
 # where 1-P is the projector on the orthogonal of ψk
-# ψnk is used only to precondition the CG
-function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
+# n is used for the preconditioning with ψk[:,n] and the optional callback
+function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
                             abstol=1e-9, reltol=0, verbose=false)
     basis = Hk.basis
@@ -172,12 +172,15 @@ function sternheimer_solver(Hk, ψk, ψnk, εnk, rhs;
         R(H(ARϕ))
     end
     precon = PreconditionerTPA(basis, kpoint)
-    precondprep!(precon, ψnk)
+    precondprep!(precon, ψk[:, n])
     function R_ldiv!(x, y)
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    δψknᴿ = cg(J, bb; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol, verbose)
+    δψknᴿ, ch = cg(J, bb; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol,
+                   verbose, log=true)
+    info = (; basis=basis, kpoint=kpoint, ch=ch, n=n)
+    callback(info)
 
     # 2) solve for αkn now that we know δψknᴿ
     # Note that αkn is an empty array if there is no extra bands.
@@ -235,8 +238,7 @@ function compute_αmn(fm, fn, ratio)
 end
 
 @views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
-                                    occupation_threshold,
-                                    kwargs_sternheimer...)
+                                    occupation_threshold, kwargs_sternheimer...)
     basis  = ham.basis
     model = basis.model
     temperature = model.temperature
@@ -251,25 +253,16 @@ end
     # non-necessarily converged, to split the sternheimer_solver with a Schur
     # complement.
 
-    ψ_occ   = []
-    ε_occ   = []
-    occ_occ = []
-    ψ_extra = []
-    ε_extra = []
-    for (ik, ψk) in enumerate(ψ)
-        εk   = eigenvalues[ik]
-        occk = occ[ik]
-        push!(ψ_occ, hcat([ψk[:,n] for n in 1:length(occk)
-                           if occk[n] >= occupation_threshold]...))
-        push!(ε_occ, [εk[n] for n in 1:length(occk)
-                      if occk[n] >= occupation_threshold])
-        push!(occ_occ, [occk[n] for n in 1:length(occk)
-                        if occk[n] >= occupation_threshold])
-        push!(ψ_extra, hcat([ψk[:,n] for n in 1:length(occk)
-                             if occk[n] < occupation_threshold]...))
-        push!(ε_extra, [εk[n] for n in 1:length(occk)
-                        if occk[n] < occupation_threshold])
-    end
+    mask_occ   = map(occk -> isless.(occupation_threshold, occk), occ)
+    mask_extra = map(occk -> (!isless).(occupation_threshold, occk), occ)
+
+    ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
+    ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
+
+    ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
+    ε_extra = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_extra)]
+
+    occ_occ = [occ[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
 
     # First compute δεF
     δεF = zero(T)
@@ -314,12 +307,12 @@ end
             end
 
             # Sternheimer contribution
-            δψk[:, n] .+= sternheimer_solver(ham.blocks[ik], ψk, ψk[:, n], εk[n], δHψ[ik][:, n];
+            δψk[:, n] .+= sternheimer_solver(ham.blocks[ik], ψk, εk[n], δHψ[ik][:, n], n;
                                              ψk_extra=ψ_extra[ik], εk_extra=ε_extra[ik],
                                              kwargs_sternheimer...)
         end
     end
-    # keeping zero for discarded states to keep the output δψ with the same size
+    # keeping zeros for extra bands to keep the output δψ with the same size
     # than the input ψ
     δψ
 end
