@@ -17,7 +17,7 @@ if mpi_nprocs() == 1  # not easy to distribute
             kwargs = (temperature=testcase.temperature, smearing=DFTK.Smearing.FermiDirac())
             n_bands = div(testcase.n_electrons, 2, RoundUp) + 4
         end
-        occupation_threshold = 1e-5
+        occupation_threshold = 1e-7
 
         model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions,
                           :lda_xc_teter93; symmetries, kwargs...)

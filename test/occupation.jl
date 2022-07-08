@@ -34,7 +34,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     Ecut = 5
     n_bands = 10
     fft_size = [15, 15, 15]
-    occupation_threshold = 1e-5
+    occupation_threshold = 1e-7
 
     # Emulate an insulator ... prepare energy levels
     energies = [zeros(n_bands) for k in silicon.kcoords]

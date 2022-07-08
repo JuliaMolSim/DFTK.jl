@@ -37,11 +37,9 @@ function test_chi0(testcase; symmetries=false, temperature=0,
         basis = PlaneWaveBasis(model; basis_kwargs...)
         ρ0 = guess_density(basis, magnetic_moments)
         energies, ham0 = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-        res = DFTK.next_density(ham0; tol, n_ep_extra, eigensolver,
-                                occupation_threshold)
-        occ, εF = DFTK.compute_occupation(basis, res.eigenvalues;
-                                          occupation_threshold)
-        scfres = (ham=ham0, res..., n_ep_extra,occupation_threshold)
+        res = DFTK.next_density(ham0; tol, n_ep_extra, eigensolver, occupation_threshold)
+        occ, εF = DFTK.compute_occupation(basis, res.eigenvalues; occupation_threshold)
+        scfres = (ham=ham0, res..., n_ep_extra, occupation_threshold)
 
         # create external small perturbation εδV
         n_spin = model.n_spin_components

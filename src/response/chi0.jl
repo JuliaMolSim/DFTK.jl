@@ -17,7 +17,7 @@ In this case the matrix has effectively 4 blocks, which are:
 ```
 """
 function compute_χ0(ham; temperature=ham.basis.model.temperature,
-                    occupation_threshold)
+                    occupation_threshold=default_occupation_threshold())
     # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
     # where (up to normalizations)
     # ρ = ∑_nk f(εnk - εF) |ψnk|^2
@@ -295,7 +295,7 @@ end
     end
 
     # compute δψnk band per band
-    δψ = zero.(ψ_occ)
+    δψ = zero.(ψ)
     for ik = 1:Nk
         ψk = ψ_occ[ik]
         δψk = δψ[ik]
@@ -319,16 +319,17 @@ end
                                              kwargs_sternheimer...)
         end
     end
-    # zero padding for discarded states to keep the output δψ with the same size
+    # keeping zero for discarded states to keep the output δψ with the same size
     # than the input ψ
-    [[δψ[ik] zero(ψ_extra[ik])] for ik in 1:Nk]
+    δψ
 end
 
 """
 Get the density variation δρ corresponding to a total potential variation δV.
 """
 function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                  occupation_threshold, kwargs_sternheimer...)
+                  occupation_threshold=default_occupation_threshold(),
+                  kwargs_sternheimer...)
 
     basis = ham.basis
     model = basis.model

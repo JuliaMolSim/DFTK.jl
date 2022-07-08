@@ -217,8 +217,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     δresults = ntuple(ForwardDiff.npartials(T)) do α
         δHψ_α = [ForwardDiff.partials.(δHψk, α) for δHψk in hamψ_dual]
 
-        δψ_α, resp_α = solve_ΩplusK_split(scfres, -δHψ_α; tol=scfres.norm_Δρ,
-                                          response.verbose)
+        δψ_α, resp_α = solve_ΩplusK_split(scfres, -δHψ_α; tol=scfres.norm_Δρ, response.verbose)
         δρ_α = compute_δρ(basis, scfres.ψ, δψ_α, scfres.occupation)
         δψ_α, δρ_α, resp_α
     end
@@ -239,7 +238,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     # TODO Compute eigenvalue response (return dual eigenvalues and dual εF)
 
     merge(scfres, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
-                        occupation=occupation_dual, ρ=ρ_out, response))
+                   occupation=occupation_dual, ρ=ρ_out, response))
 end
 
 # other workarounds
