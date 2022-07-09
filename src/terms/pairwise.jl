@@ -6,9 +6,7 @@ differentiation, we can extend analytically f to accept complex inputs, then dif
 `t -> f(x+t·h)`. This will fail if non-analytic functions like norm are used for complex
 inputs, and therefore we have to redefine it.
 """
-function norm_cplx(x)
-    sqrt(sum(x.^2))
-end
+norm_cplx(x) = sqrt(sum(i -> i*i, x))
 
 struct PairwisePotential
     V
@@ -84,7 +82,7 @@ function energy_pairwise(lattice, symbols, positions, V, params;
         @assert size(ph_disp) == size(positions)
     end
 
-    if forces !== nothing
+    if !isnothing(forces)
         @assert size(forces) == size(positions)
         forces_pairwise = copy(forces)
     end
@@ -115,16 +113,16 @@ function energy_pairwise(lattice, symbols, positions, V, params;
             ti = positions[i]
             tj = positions[j] + R
             if !isnothing(ph_disp)
-                ti += ph_disp[i] # * cis2pi(dot(q, zeros(3))) === 1
-                                 #  as we use the forces at the nuclei in the unit cell
+                ti += ph_disp[i]  # * cis2pi(dot(q, zeros(3))) === 1
+                                  #  as we use the forces at the nuclei in the unit cell
                 tj += ph_disp[j] * cis2pi(dot(q, R))
             end
             Δr = lattice * (ti .- tj)
             dist = norm_cplx(Δr)
             energy_contribution = V(dist, param_ij)
             sum_pairwise += energy_contribution
-            if forces !== nothing
-                dE_ddist = ForwardDiff.derivative(real(zero(eltype(dist)))) do ε
+            if !isnothing(forces)
+                dE_ddist = ForwardDiff.derivative(zero(real(eltype(dist)))) do ε
                     V(dist + ε, param_ij)
                 end
                 dE_dti = lattice' * dE_ddist / dist * Δr
@@ -133,7 +131,7 @@ function energy_pairwise(lattice, symbols, positions, V, params;
         end # i,j
     end # R
     energy = sum_pairwise / 2  # Divide by 2 (because of double counting)
-    if forces !== nothing
+    if !isnothing(forces)
         forces .= forces_pairwise
     end
     energy
