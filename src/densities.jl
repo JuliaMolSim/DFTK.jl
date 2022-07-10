@@ -4,9 +4,9 @@
 function _check_positive(ρ)
     minimum(ρ) < 0 && @warn("Negative ρ detected", min_ρ=minimum(ρ))
 end
-function _check_total_charge(dvol, ρ, N)
+function _check_total_charge(dvol, ρ::AbstractArray{T}, N) where {T}
     n_electrons = sum(ρ) * dvol
-    if abs(n_electrons - N) > sqrt(eps(eltype(ρ)))
+    if abs(n_electrons - N) > max(sqrt(eps(T)), T(1e-10))
         @warn("Mismatch in number of electrons", sum_ρ=n_electrons, N=N)
     end
 end
