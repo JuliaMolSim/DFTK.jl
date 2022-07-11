@@ -11,37 +11,49 @@ pages = [
     "Getting started" => [
         "guide/installation.md",
         "Tutorial" => "guide/tutorial.md",
-        "guide/input_output.md",
-        "guide/parallelization.md",
-        "Introduction to periodic problems" => "guide/periodic_problems.md",
-        "Density-functional theory" => "guide/density_functional_theory.md",
     ],
-    "Examples" => [
+    "Theory" => [
+        "Density-functional theory" => "guide/density_functional_theory.md",
+        "Introduction to periodic problems" => "guide/periodic_problems.md",
+    ]
+    "Basic DFT examples" => [
         "Tutorial" => "guide/tutorial.md",
         "examples/metallic_systems.md",
-        "examples/pymatgen.md",
-        "examples/ase.md",
         "examples/collinear_magnetism.md",
-        "examples/geometry_optimization.md",
-        "examples/scf_callbacks.md",
-        "examples/scf_checkpoints.md",
-        "examples/polarizability.md",
-        "examples/gross_pitaevskii.md",
-        "examples/gross_pitaevskii_2D.md",
-        "examples/cohen_bergstresser.md",
-        "examples/arbitrary_floattype.md",
-        "examples/forwarddiff.md",
-        "examples/custom_solvers.md",
-        "examples/custom_potential.md",
-        "examples/wannier90.md",
-        "examples/error_estimates_forces.md",
         "examples/graphene.md",
     ],
-    "Advanced topics" => Any[
+    "Properties" => [
+        "examples/geometry_optimization.md",
+        "examples/polarizability.md",
+        "examples/forwarddiff.md",
+    ]
+    "Solvers" => [
+        "examples/custom_solvers.md",
+        "examples/scf_callbacks.md",
+    ]
+    "Nonstandard models" => [
+        "examples/gross_pitaevskii.md",
+        "examples/gross_pitaevskii_2D.md",
+        "examples/custom_potential.md",
+        "examples/cohen_bergstresser.md",
+    ]
+    "Interacting with other packages" => [
+        "examples/pymatgen.md",
+        "examples/ase.md",
+        "examples/wannier90.md",
+        "guide/input_output.md",
+    ]
+    "Error control" => [
+        "examples/arbitrary_floattype.md",
+        "examples/error_estimates_forces.md",
+    ]
+    "Advanced topics" => [
         "advanced/conventions.md",
         "advanced/data_structures.md",
         "advanced/useful_formulas.md",
         "advanced/symmetries.md",
+        "guide/parallelization.md",
+        "examples/scf_checkpoints.md",
     ],
     "api.md",
     "publications.md",

@@ -99,9 +99,3 @@ plot_bandstructure(scfres; kline_density=10)
 # or get the cartesian forces (in Hartree / Bohr)
 compute_forces_cart(scfres)
 # As expected, they are almost zero in this highly symmetric configuration.
-
-# ## Where to go from here
-# Take a look at the
-#md # [example index](@ref example-index)
-#nb # [example index](https://docs.dftk.org/stable/#example-index-1)
-# to continue exploring DFTK.

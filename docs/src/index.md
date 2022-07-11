@@ -26,7 +26,7 @@ collection of [lectures, workshops and literature on DFT](@ref density-functiona
     from **29 to 31 August 2022** at **Sorbonne Université, Paris**.
     For more details and registration info see the [school's website](https://school2022.dftk.org).
 
-## [Package features](@id package-features)
+# [Package features](@id package-features)
 * Methods and models:
     - Standard DFT models (LDA, GGA, meta-GGA): Any functional from the
       [libxc](https://tddft.org/programs/libxc/) library
@@ -66,11 +66,10 @@ collection of [lectures, workshops and literature on DFT](@ref density-functiona
 Missing a feature? Look for an open issue or [create a new one](https://github.com/JuliaMolSim/DFTK.jl/issues).
 Want to contribute? See our [contributing notes](https://github.com/JuliaMolSim/DFTK.jl#contributing).
 
-## [Getting started](@id getting-started)
+# [Getting started](@id getting-started)
 First, new users should take a look at the [Installation](@ref) and
 [Tutorial](@ref) sections. Then, make your way through the various
-examples. More can be found in the [`examples`
-directory](https://dftk.org/tree/master/examples) of the main code.
+examples.
 
 !!! note "Convergence parameters in the documentation"
     In the documentation we use very rough convergence parameters to be able
@@ -79,5 +78,5 @@ directory](https://dftk.org/tree/master/examples) of the main code.
     Tighter thresholds and larger grids should be used for
     more realistic results.
 
-If you have a great example you think would fit here,
-please open a [pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)!
+If you have an idea for an addition to the docs or see something wrong,
+please open an [issue](https://github.com/JuliaMolSim/DFTK.jl/issues) or [pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)!
