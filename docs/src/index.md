@@ -66,38 +66,11 @@ collection of [lectures, workshops and literature on DFT](@ref density-functiona
 Missing a feature? Look for an open issue or [create a new one](https://github.com/JuliaMolSim/DFTK.jl/issues).
 Want to contribute? See our [contributing notes](https://github.com/JuliaMolSim/DFTK.jl#contributing).
 
-## [Example index](@id example-index)
-First, new users should take a look at the [Installation](@ref)
-and [Tutorial](@ref) sections. More details about DFTK are explained
-in the examples as we go along:
-
-```@contents
-Pages = [
-    "examples/metallic_systems.md",
-    "examples/pymatgen.md",
-    "examples/ase.md",
-    "examples/collinear_magnetism.md",
-    "examples/geometry_optimization.md",
-    "examples/scf_callbacks.md",
-    "examples/scf_checkpoints.md",
-    "examples/polarizability.md",
-    "examples/gross_pitaevskii.md",
-    "examples/gross_pitaevskii_2D.md",
-    "examples/cohen_bergstresser.md",
-    "examples/arbitrary_floattype.md",
-    "examples/forwarddiff.md",
-    "examples/custom_solvers.md",
-    "examples/custom_potential.md",
-    "examples/wannier90.md",
-    "examples/error_estimates_forces.md",
-    "examples/graphene.md",
-]
-Depth = 1
-```
-
-These and more examples can be found in the
-[`examples` directory](https://dftk.org/tree/master/examples) of the main code.
-
+## [Getting started](@id getting-started)
+First, new users should take a look at the [Installation](@ref) and
+[Tutorial](@ref) sections. Then, make your way through the various
+examples. More can be found in the [`examples`
+directory](https://dftk.org/tree/master/examples) of the main code.
 
 !!! note "Convergence parameters in the documentation"
     In the documentation we use very rough convergence parameters to be able
