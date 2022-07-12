@@ -112,8 +112,6 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
                             abstol=1e-9, reltol=0, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
-    model = basis.model
-    temperature = model.temperature
 
     # We use a Schur decomposition of the orthogonal of the occupied states
     # into a part where we have the partially converged, non-occupied bands
