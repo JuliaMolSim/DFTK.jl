@@ -6,7 +6,7 @@ differentiation, we can extend analytically f to accept complex inputs, then dif
 `t -> f(x+t·h)`. This will fail if non-analytic functions like norm are used for complex
 inputs, and therefore we have to redefine it.
 """
-norm_cplx(x) = sqrt(sum(i -> i*i, x))
+norm_cplx(x) = sqrt(sum(xx -> xx * xx, x))
 
 struct PairwisePotential
     V
