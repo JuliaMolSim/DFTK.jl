@@ -1,4 +1,4 @@
-# TODO: Temporary, explanations too dry. To be changed with proper phonon computations.
+# TODO: Temporary, explanations too scarce. To be changed with proper phonon computations.
 using Test
 using DFTK
 using LinearAlgebra
@@ -20,8 +20,8 @@ function prepare_system(; n_scell=1)
     a = 5. * length(positions)
     lattice = a * [[1 0 0.]; [0 0 0.]; [0 0 0.]]
 
-    L⁻¹ = DFTK.compute_inverse_lattice(lattice)
-    directions = [[L⁻¹ * [i==j, 0.0, 0.0] for i in 1:n_scell] for j in 1:n_scell]
+    Linv = DFTK.compute_inverse_lattice(lattice)
+    directions = [[Linv * [i==j, 0.0, 0.0] for i in 1:n_scell] for j in 1:n_scell]
 
     params = Dict((:X, :X) => (; ε=1, σ=a / length(positions) /2^(1/6)))
     V(x, p) = 4*p.ε * ((p.σ/x)^12 - (p.σ/x)^6)
@@ -33,7 +33,7 @@ end
 # supercell method
 function test_supercell_q0(; n_scell=1, max_radius=1e3)
     case = prepare_system(; n_scell)
-    L⁻¹  = DFTK.compute_inverse_lattice(case.lattice)
+    Linv  = DFTK.compute_inverse_lattice(case.lattice)
     n_atoms = length(case.positions)
 
     directions = [reshape(vcat([[i==j, 0.0, 0.0] for i in 1:n_atoms]...), 3, :)
@@ -42,12 +42,12 @@ function test_supercell_q0(; n_scell=1, max_radius=1e3)
     Φ = zeros(length(directions), n_atoms)
     for (i, direction) in enumerate(directions)
         Φ[i, :] = - ForwardDiff.derivative(0.0) do ε
-            new_positions = unfold(fold(case.positions) .+ ε .* L⁻¹ * direction)
+            new_positions = unfold(fold(case.positions) .+ ε .* Linv * direction)
             forces = zeros(Vec3{complex(eltype(ε))}, n_atoms)
             DFTK.energy_pairwise(case.lattice, fill(:X, n_atoms),
                                  new_positions, case.V, case.params;
                                  forces, max_radius)
-            [(L⁻¹ * f)[1] for f in forces]
+            [(Linv * f)[1] for f in forces]
         end
     end
     sqrt.(abs.(eigvals(Φ)))
@@ -56,7 +56,7 @@ end
 # Compute phonons for a one-dimensional pairwise potential for a set of `q`-points
 function test_ph_disp(; n_scell=1, max_radius=1e3, n_points=2)
     case = prepare_system(; n_scell)
-    L⁻¹  = DFTK.compute_inverse_lattice(case.lattice)
+    Linv  = DFTK.compute_inverse_lattice(case.lattice)
     n_atoms = length(case.positions)
 
     function pairwise_ph(q, d; forces=nothing)
@@ -72,7 +72,7 @@ function test_ph_disp(; n_scell=1, max_radius=1e3, n_points=2)
             res = -ForwardDiff.derivative(0.0) do ε
                 forces = zeros(Vec3{complex(eltype(ε))}, n_atoms)
                 pairwise_ph(q, ε*d; forces)
-                [(L⁻¹)' * f for f in forces]
+                [Linv' * f for f in forces]
             end
             [push!(as, r[1]) for r in res]
         end
