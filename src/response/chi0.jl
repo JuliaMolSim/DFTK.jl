@@ -107,6 +107,9 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # Solves (1-P) (H-εn) (1-P) δψn = - (1-P) rhs
 # where 1-P is the projector on the orthogonal of ψk
 # n is used for the preconditioning with ψk[:,n] and the optional callback
+# /!\ for the solver to return the good output, εk_extra needs to be equal to
+# the diagonal of ψk_extra'Hk*ψk_extra (when not empty), which is the case by
+# default when using the extra eigenvalues
 function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
                             abstol=1e-9, reltol=0, verbose=false)
