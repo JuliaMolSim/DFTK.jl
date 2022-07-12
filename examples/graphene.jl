@@ -31,8 +31,9 @@ scfres = self_consistent_field(basis)
 
 ## Choose the points of the band diagram, in reduced coordinates (in the (b1,b2) basis)
 Γ = [0, 0, 0]
-K = [1, 1, 0]/3
-M = (K1 + K2)/2
+K = [ 1, 1, 0]/3
+Kp= [-1, 2, 0]/3
+M = (K + Kp)/2
 kpath_coords = [Γ, K, M, Γ]
 kpath_names = ["Γ", "K", "M", "Γ"]
 
