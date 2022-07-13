@@ -7,19 +7,23 @@ abstract type NormConservingPsp end
 
 #    lmax::Int                   # Maximal angular momentum in the non-local part
 #    h::Vector{Matrix{Float64}}  # Projector coupling coefficients per AM channel: h[l][i1,i2]
-#    Zion::Int                   # Ionic charge (Z - valence electrons)
 #    identifier::String          # String identifying the PSP
 #    description::String         # Descriptive string
 
 #### Methods:
+# charge_ionic(psp::NormConservingPsp)
+# eval_psp_projector_real(psp::NormConservingPsp, i, l, r::Real)
+# eval_psp_projector_fourier(psp::NormConservingPsp, i, l, q::Real)
+# eval_psp_local_real(psp::NormConservingPsp, r::Real)
+# eval_psp_local_fourier(psp::NormConservingPsp, q::Real)
+
+
 """
     eval_psp_projector_real(psp, i, l, r)
 
 Evaluate the radial part of the `i`-th projector for angular momentum `l`
 in real-space at the vector with modulus `r`.
 """
-eval_psp_projector_real(psp::NormConservingPsp, i, l, r::Real) =
-    error("Not implemented")
 eval_psp_projector_real(psp::NormConservingPsp, i, l, r::AbstractVector) =
     eval_psp_projector_real(psp, i, l, norm(r))
 
@@ -31,8 +35,6 @@ at the reciprocal vector with modulus `q`:
 p(q) = ∫_R^3 p_{il}(r) e^{-iqr} dr
      = 4π ∫_{R+} r^2 p_{il}(r) j_l(q r) dr
 """
-eval_psp_projector_fourier(psp::NormConservingPsp, i, l, q::Real) =
-    error("Not implemented")
 eval_psp_projector_fourier(psp::NormConservingPsp, q::AbstractVector) =
     eval_psp_projector_fourier(psp, norm(q))
 
@@ -41,8 +43,6 @@ eval_psp_projector_fourier(psp::NormConservingPsp, q::AbstractVector) =
 
 Evaluate the local part of the pseudopotential in real space.
 """
-eval_psp_local_real(psp::NormConservingPsp, r::Real) =
-    error("Not implemented")
 eval_psp_local_real(psp::NormConservingPsp, r::AbstractVector) =
     eval_psp_local_real(psp, norm(r))
 
@@ -51,10 +51,8 @@ eval_psp_local_real(psp::NormConservingPsp, r::AbstractVector) =
 
 Evaluate the local part of the pseudopotential in reciprocal space:
 V(q) = ∫_R^3 Vloc(r) e^{-iqr} dr
-     = 4π ∫_{R+} sin(qr)/q r e^{-iqr} dr
+     = 4π ∫_{R+} Vloc(r) sin(qr)/q r dr
 """
-eval_psp_local_fourier(psp::NormConservingPsp, q::Real) =
-    error("Not implemented")
 eval_psp_local_fourier(psp::NormConservingPsp, q::AbstractVector) =
     eval_psp_local_fourier(psp, norm(q))
 
@@ -80,14 +78,14 @@ import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(psp::NormConservingPsp) = Ref(psp)
 
 function projector_indices(psp::NormConservingPsp)
-    ((i, l, m) for l in 0:psp.lmax for i in 1:size(psp.h[l+1], 1)
-     for m = -l:l)
+    ((i, l, m) for l in 0:psp.lmax for i in 1:size(psp.h[l+1], 1) for m = -l:l)
 end
 
 # Number of projection vectors per atom
 function count_n_proj(psp::NormConservingPsp)
     psp.lmax < 0 ? 0 : sum(size(psp.h[l + 1], 1) * (2l + 1) for l in 0:psp.lmax)::Int
 end
-function count_n_proj(atoms)
-    sum(count_n_proj(psp) * length(positions) for (psp, positions) in atoms)::Int
+function count_n_proj(psps, psp_positions)
+    sum(count_n_proj(psp) * length(positions)
+        for (psp, positions) in zip(psps, psp_positions))
 end

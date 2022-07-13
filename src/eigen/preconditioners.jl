@@ -33,10 +33,10 @@ mutable struct PreconditionerTPA{T <: Real}
 end
 
 function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=1) where T
-    scaling = only([t for t in basis.model.term_types if t isa Kinetic]).scaling_factor
-    kin = Vector{T}([scaling * sum(abs2, G + kpt.coordinate_cart)
-                     for G in G_vectors_cart(kpt)] ./ 2)
-    @assert basis.model.spin_polarization in (:none, :collinear, :spinless)
+    kinetic_term = [t for t in basis.model.term_types if t isa Kinetic]
+    isempty(kinetic_term) && error("Preconditioner should be disabled when no Kinetic term is used.")
+    scaling = only(kinetic_term).scaling_factor
+    kin = Vector{T}([scaling * sum(abs2, q) for q in Gplusk_vectors_cart(basis, kpt)] ./ 2)
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 
@@ -67,5 +67,5 @@ end
 (Base.:*)(P::PreconditionerTPA, R) = mul!(copy(R), P, R)
 
 function precondprep!(P::PreconditionerTPA, X)
-    P.mean_kin = [sum(real.(conj.(x) .* P.kin .* x)) for x in eachcol(X)]
+    P.mean_kin = [real(dot(x, Diagonal(P.kin), x)) for x in eachcol(X)]
 end

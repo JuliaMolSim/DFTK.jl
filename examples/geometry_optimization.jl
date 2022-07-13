@@ -8,12 +8,13 @@ using Optim
 using LinearAlgebra
 using Printf
 
-kgrid = [1, 1, 1]       # k-Point grid
+kgrid = [1, 1, 1]       # k-point grid
 Ecut = 5                # kinetic energy cutoff in Hartree
 tol = 1e-8              # tolerance for the optimization routine
 a = 10                  # lattice constant in Bohr
-lattice = a * Diagonal(ones(3))
+lattice = a * I(3)
 H = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1"));
+atoms = [H, H]
 
 # We define a blochwave and a density to be used as global variables so that we
 # can transfer the solution from one iteration to another and therefore reduce
@@ -31,11 +32,10 @@ H = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1"));
 # We also update `ψ` and `ρ` for the next iteration.
 
 function compute_scfres(x)
-    atoms = [H => [x[1:3], x[4:6]]]
-    model = model_LDA(lattice, atoms)
-    basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+    model = model_LDA(lattice, atoms, [x[1:3], x[4:6]])
+    basis = PlaneWaveBasis(model; Ecut, kgrid)
     global ψ, ρ
-    if ρ === nothing
+    if isnothing(ρ)
         ρ = guess_density(basis)
     end
     scfres = self_consistent_field(basis; ψ=ψ, ρ=ρ,
@@ -54,7 +54,7 @@ function fg!(F, G, x)
     scfres = compute_scfres(x)
     if G != nothing
         grad = compute_forces(scfres)
-        G .= -[grad[1][1]; grad[1][2]]
+        G .= -[grad[1]; grad[2]]
     end
     scfres.energies.total
 end;

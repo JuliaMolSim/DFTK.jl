@@ -17,7 +17,8 @@ b = 5.22722  # bohr
 c = 9.77362  # bohr
 lattice = [[-a -a  0]; [-b  b  0]; [0   0 -c]]
 Mg = ElementPsp(:Mg, psp=load_psp("hgh/pbe/Mg-q2"))
-atoms = [Mg => [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]]];
+atoms     = [Mg, Mg]
+positions = [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]];
 
 # Next we build the PBE model and discretize it.
 # Since magnesium is a metal we apply a small smearing
@@ -29,24 +30,29 @@ atoms = [Mg => [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]]];
 # By default `PlaneWaveBasis` chooses a `kspacing`
 # of `2π * 0.022` inverse Bohrs, which is much more reasonable.
 
-kspacing = 0.945 / u"angstrom"  # Minimal spacing of k-points, 
-##                                in units of wavevectors (inverse Bohrs)
-Ecut = 5                        # kinetic energy cutoff in Hartree
-temperature = 0.01              # Smearing temperature in Hartree
+kspacing = 0.945 / u"angstrom"        # Minimal spacing of k-points, 
+##                                      in units of wavevectors (inverse Bohrs)
+Ecut = 5                              # Kinetic energy cutoff in Hartree
+temperature = 0.01                    # Smearing temperature in Hartree
+smearing = DFTK.Smearing.FermiDirac() # Smearing method 
+##                                      also supported: Gaussian,
+##                                      MarzariVanderbilt,
+##                                      and MethfesselPaxton(order)
 
-model = model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe];
-                  temperature=temperature,
-                  smearing=DFTK.Smearing.FermiDirac())
-kgrid = kgrid_size_from_minimal_spacing(lattice, kspacing)
-basis = PlaneWaveBasis(model, Ecut, kgrid=kgrid);
+model = model_DFT(lattice, atoms, positions, [:gga_x_pbe, :gga_c_pbe];
+                  temperature, smearing)
+kgrid = kgrid_from_minimal_spacing(lattice, kspacing)
+basis = PlaneWaveBasis(model; Ecut, kgrid);
 
 # Finally we run the SCF. Two magnesium atoms in
 # our pseudopotential model result in four valence electrons being explicitly
 # treated. Nevertheless this SCF will solve for eight bands by default
 # in order to capture partial occupations beyond the Fermi level due to
-# the employed smearing scheme. In this example we use a damping of `0.8`
-# and Kerker mixing to ease convergence.
-scfres = self_consistent_field(basis, α=0.8, mixing=KerkerMixing());
+# the employed smearing scheme. In this example we use a damping of `0.8`.
+# The default `LdosMixing` should be suitable to converge metallic systems
+# like the one we model here. For the sake of demonstration we still switch to
+# Kerker mixing here.
+scfres = self_consistent_field(basis, damping=0.8, mixing=KerkerMixing());
 #-
 scfres.occupation[1]
 #-

@@ -47,12 +47,12 @@ function run_iron_pbe(T; kwargs...)
     ref_magn = 2.98199463
 
     # Produce reference data and guess for this configuration
-    Ecut = 20
     Fe = ElementPsp(iron_bcc.atnum, psp=load_psp("hgh/lda/Fe-q8.hgh"))
-    magnetic_moments = [Fe => [4.0]]
-    model = model_PBE(Array{T}(iron_bcc.lattice), [Fe => iron_bcc.positions],
-                      temperature=0.01, magnetic_moments=magnetic_moments)
-    basis = PlaneWaveBasis(model, Ecut; fft_size=[20, 20, 20],
+    atoms, positions = [Fe], [zeros(3)]
+    magnetic_moments = [4.0]
+    model = model_PBE(Array{T}(iron_bcc.lattice), iron_bcc.atoms, iron_bcc.positions;
+                      temperature=0.01, magnetic_moments)
+    basis = PlaneWaveBasis(model; Ecut=20, fft_size=[20, 20, 20],
                            kgrid=[4, 4, 4], kshift=[1/2, 1/2, 1/2])
 
     scfres = run_scf_and_compare(T, basis, ref_evals, ref_etot;
@@ -66,6 +66,6 @@ end
 
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     @testset "Iron PBE (Float64)" begin
-        run_iron_pbe(Float64, test_tol=5e-6, scf_tol=1e-9)
+        run_iron_pbe(Float64, test_tol=5e-6, scf_tol=1e-12)
     end
 end

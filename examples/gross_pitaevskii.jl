@@ -14,7 +14,7 @@
 # It's in particular a favorite model of applied mathematicians because it
 # has a structure simpler than but similar to that of DFT, and displays
 # interesting behavior (especially in higher dimensions with magnetic fields, see
-# [Gross-Pitaevskii equation with magnetism](@ref)).
+# [Gross-Pitaevskii equation with external magnetic field](@ref)).
 
 # We wish to model this equation in 1D using DFTK.
 # First we set up the lattice. For a 1D case we supply two zero lattice vectors,
@@ -31,7 +31,7 @@ lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]];
 pot(x) = (x - a/2)^2;
 
 # We setup each energy term in sequence: kinetic, potential and nonlinear term.
-# For the non-linearity we use the `PowerNonlinearity(C, α)` term of DFTK.
+# For the non-linearity we use the `LocalNonlinearity(f)` term of DFTK, with f(ρ) = C ρ^α.
 # This object introduces an energy term ``C ∫ ρ(r)^α dr``
 # to the total energy functional, thus a potential term ``α C ρ^{α-1}``.
 # In our case we thus need the parameters
@@ -45,15 +45,13 @@ using LinearAlgebra
 n_electrons = 1  # Increase this for fun
 terms = [Kinetic(),
          ExternalFromReal(r -> pot(r[1])),
-         PowerNonlinearity(C, α),
+         LocalNonlinearity(ρ -> C * ρ^α),
 ]
-model = Model(lattice; n_electrons=n_electrons, terms=terms,
-              spin_polarization=:spinless);  # use "spinless electrons"
+model = Model(lattice; n_electrons, terms, spin_polarization=:spinless);  # spinless electrons
 
 # We discretize using a moderate Ecut (For 1D values up to `5000` are completely fine)
 # and run a direct minimization algorithm:
-Ecut = 500
-basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1))
+basis = PlaneWaveBasis(model, Ecut=500, kgrid=(1, 1, 1))
 scfres = direct_minimization(basis, tol=1e-8) # This is a constrained preconditioned LBFGS
 scfres.energies
 
@@ -62,7 +60,7 @@ scfres.energies
 #
 # Extract the converged density and the obtained wave function:
 ρ = real(scfres.ρ)[:, 1, 1, 1]  # converged density, first spin component
-ψ_fourier = scfres.ψ[1][:, 1];    # first kpoint, all G components, first eigenvector
+ψ_fourier = scfres.ψ[1][:, 1];    # first k-point, all G components, first eigenvector
 
 # Transform the wave function to real space and fix the phase:
 ψ = G_to_r(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1]
@@ -92,11 +90,11 @@ plot!(p, x, ρ, label="ρ")
 E, ham = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
 @assert E.total == scfres.energies.total
 
-# Now the Hamiltonian contains all the blocks corresponding to kpoints. Here, we just have one kpoint:
+# Now the Hamiltonian contains all the blocks corresponding to k-points. Here, we just have one k-point:
 H = ham.blocks[1];
 
 # `H` can be used as a linear operator (efficiently using FFTs), or converted to a dense matrix:
-ψ11 = scfres.ψ[1][:, 1] # first kpoint, first eigenvector
+ψ11 = scfres.ψ[1][:, 1] # first k-point, first eigenvector
 Hmat = Array(H) # This is now just a plain Julia matrix, 
 ##                which we can compute and store in this simple 1D example
 @assert norm(Hmat * ψ11 - H * ψ11) < 1e-10

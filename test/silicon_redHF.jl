@@ -24,16 +24,22 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
     ]
     ref_etot = -5.440593269861395
 
-    fft_size = grid_size * ones(3)
-    Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.atnum, functional="lda", family="hgh"))
-    model = model_DFT(Array{T}(silicon.lattice), [Si => silicon.positions], [];
-                      temperature=0.05, spin_polarization=spin_polarization)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    fft_size = fill(grid_size, 3)
+    fft_size = DFTK.next_working_fft_size(T, fft_size) # ad-hoc fix for buggy generic FFTs
+    Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
+    atoms = [Si, Si]
+
+    if spin_polarization == :collinear
+        magnetic_moments = zero.(silicon.positions)
+    else
+        magnetic_moments = []
+    end
+    model = model_DFT(Array{T}(silicon.lattice), atoms, silicon.positions, [];
+                      temperature=0.05, spin_polarization, magnetic_moments)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
     spin_polarization == :collinear && (ref_redHF = vcat(ref_redHF, ref_redHF))
-    run_scf_and_compare(T, basis, ref_redHF, ref_etot;
-                        ρ=guess_density(basis),
-                        kwargs...)
+    run_scf_and_compare(T, basis, ref_redHF, ref_etot; ρ=guess_density(basis), kwargs...)
 end
 
 

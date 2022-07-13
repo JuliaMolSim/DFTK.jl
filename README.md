@@ -2,9 +2,9 @@
 
 # Density-functional toolkit
 
-| **Documentation**                                                                   | **Build Status**                                |  **License**                     |
-|:----------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
-| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][gitter-img]][gitter-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
+| **Documentation**                                                                 | **Build Status**                                |  **License**                     |
+|:--------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
+| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][slack-img]][slack-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
 
 [ddocs-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [ddocs-url]: https://docs.dftk.org/dev
@@ -12,8 +12,8 @@
 [docs-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-url]: https://docs.dftk.org/stable
 
-[gitter-img]: https://badges.gitter.im/DFTK-jl/community.svg
-[gitter-url]: https://gitter.im/DFTK-jl/community
+[slack-img]: https://img.shields.io/badge/chat-on_slack-808493.svg?logo=slack
+[slack-url]: https://join.slack.com/t/juliamolsim/shared_invite/zt-tc060co0-HgiKApazzsQzBHDlQ58A7g
 
 [ci-img]: https://github.com/JuliaMolSim/DFTK.jl/workflows/CI/badge.svg?branch=master&event=push
 [ci-url]: https://github.com/JuliaMolSim/DFTK.jl/actions
@@ -24,42 +24,50 @@
 [license-img]: https://img.shields.io/github/license/JuliaMolSim/DFTK.jl.svg?maxAge=2592000
 [license-url]: https://github.com/JuliaMolSim/DFTK.jl/blob/master/LICENSE
 
-The density-functional toolkit, **DFTK** for short, is a library of
-Julia routines for experimentation with plane-wave
-density-functional theory (DFT), as implemented in much larger
-production codes such as [Abinit](https://www.abinit.org/),
-[Quantum Espresso](http://quantum-espresso.org/) and
-[VASP](https://www.vasp.at/).
 
+The density-functional toolkit, **DFTK** for short, is a collection of
+Julia routines for experimentation with plane-wave density-functional theory (DFT).
 The unique feature of this code is its emphasis on simplicity and flexibility
-with the goal of facilitating methodological development and
-interdisciplinary collaboration.
-In about 5k lines of pure Julia code we already support a
-[sizeable set of features](https://juliamolsim.github.io/DFTK.jl/dev/index.html#package-features-1),
-after just about two years of development.
-Our performance is of the same order of magnitude as established packages.
+with the goal of facilitating algorithmic and numerical developments as well as
+interdisciplinary collaboration in solid-state research.
 
-For getting started with DFTK, see our documentation:
-- [Installation instructions](https://juliamolsim.github.io/DFTK.jl/dev/guide/installation/)
-- [Tutorial](https://juliamolsim.github.io/DFTK.jl/dev/guide/tutorial/)
-- [Examples](https://juliamolsim.github.io/DFTK.jl/dev/#example-index-1)
+Having started in 2019 we already support a
+[sizeable set of features](https://docs.dftk.org/stable/index.html#package-features-1).
+Within the system size currently accessible to our code (ca. 1000 electrons)
+our performance is of the same order of magnitude as more established packages
+such as [Abinit](https://www.abinit.org/) or 
+[Quantum Espresso](http://quantum-espresso.org/).
+
+For getting started with DFTK, see [our documentation](https://docs.dftk.org):
+- [Installation instructions](https://docs.dftk.org/stable/guide/installation/)
+- [Tutorial](https://docs.dftk.org/stable/guide/tutorial/)
+- [Examples](https://docs.dftk.org/stable/#example-index-1)
 
 Note that at least **Julia 1.6** is required.
 
+
+## DFTK summer school 2022
+
+We will organise a summer school centred around the DFTK code
+and modern numerical approaches to density-functional theory
+from **29 to 31 August 2022** at **Sorbonne Université, Paris**.
+For more details see the [school's website](https://school2022.dftk.org).
+
+
 ## Support and citation
 DFTK is mostly developed as part of academic research.
-If you like our work please consider starring this repository as such metrics
-may help us to secure funding in the future.
 Parts of DFTK have also been discussed in published papers.
 If you use our code as part of your research, teaching or other activities,
 we would be grateful if you cite them as appropriate.
 See the [CITATION.bib](CITATION.bib) in the root of this repo for relevant references.
-As a software DFTK can also be cited via [![DOI](https://zenodo.org/badge/181734238.svg)](https://zenodo.org/badge/latestdoi/181734238).
+The current DFTK reference paper to cite is
+[![DOI](https://img.shields.io/badge/DOI-10.21105/jcon.00069-blue)](https://doi.org/10.21105/jcon.00069).
 
 ## Funding
 This project has received funding from
 the [Institute of computing and data sciences (ISCD, Sorbonne Université)](https://iscd.sorbonne-universite.fr/),
-[École des Ponts ParisTech](https://enpc.fr), [Inria Research Centre Paris](https://www.inria.fr/fr/centre-inria-de-paris)
+[École des Ponts ParisTech](https://enpc.fr), [Inria Research Centre Paris](https://www.inria.fr/fr/centre-inria-de-paris),
+[RWTH Aachen University](https://rwth-aachen.de/),
 and from the European Research Council (ERC) under the European Union's Horizon 2020 research and
 innovation program ([grant agreement No 810367](https://cordis.europa.eu/project/id/810367)).
 
@@ -77,4 +85,4 @@ on github. If you want to contribute but are unsure where to start, take a look
 at the list of issues tagged [good first issue](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 (relatively easy tasks suitable for newcomers) or [help wanted](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 (more sizeable but well-defined and isolated).
-Don't hesitate to ask for help, through github, email or the [gitter chat](https://gitter.im/DFTK-jl/community).
+Don't hesitate to ask for help, through github, email or the [JuliaMolSim slack][slack-url].

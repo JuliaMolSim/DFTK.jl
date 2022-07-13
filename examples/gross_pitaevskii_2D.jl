@@ -1,4 +1,4 @@
-# # Gross-Pitaevskii equation with magnetism
+# # Gross-Pitaevskii equation with external magnetic field
 
 # We solve the 2D Gross-Pitaevskii equation with a magnetic field.
 # This is similar to the
@@ -31,11 +31,10 @@ n_electrons = 1;  # Increase this for fun
 # Collect all the terms, build and run the model
 terms = [Kinetic(),
          ExternalFromReal(X -> pot(X...)),
-         PowerNonlinearity(C, α),
+         LocalNonlinearity(ρ -> C * ρ^α),
          Magnetic(Apot),
 ]
-model = Model(lattice; n_electrons=n_electrons,
-              terms=terms, spin_polarization=:spinless)  # "spinless electrons"
-basis = PlaneWaveBasis(model, Ecut, kgrid=(1, 1, 1))
+model = Model(lattice; n_electrons, terms, spin_polarization=:spinless)  # spinless electrons
+basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
 scfres = direct_minimization(basis, tol=1e-5)  # Reduce tol for production
 heatmap(scfres.ρ[:, :, 1, 1], c=:blues)

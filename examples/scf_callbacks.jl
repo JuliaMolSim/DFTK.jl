@@ -16,15 +16,13 @@ using DFTK
 using PyCall
 
 silicon = pyimport("ase.build").bulk("Si")
-atoms = load_atoms(silicon)
-atoms = [ElementPsp(el.symbol, psp=load_psp(el.symbol, functional="lda")) => position
-         for (el, position) in atoms]
-lattice = load_lattice(silicon);
+atoms = [ElementPsp(el.symbol, psp=load_psp("hgh/lda/si-q4.hgh"))
+         for el in load_atoms(silicon)]
+positions = load_positions(silicon)
+lattice   = load_lattice(silicon);
 
-model = model_LDA(lattice, atoms)
-kgrid = [3, 3, 3]  # k-point grid
-Ecut = 5           # kinetic energy cutoff in Hartree
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid);
+model = model_LDA(lattice, atoms, positions)
+basis = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
 
 # DFTK already defines a few callback functions for standard
 # tasks. One example is the usual convergence table,

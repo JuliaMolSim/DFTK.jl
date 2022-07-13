@@ -10,17 +10,16 @@ import Pkg
 DEBUG = false
 
 # Where to get files from and where to build them
-SRCPATH = joinpath(@__DIR__, "src")
+SRCPATH   = joinpath(@__DIR__, "src")
 BUILDPATH = joinpath(@__DIR__, "build")
-ROOTPATH = joinpath(@__DIR__, "..")
+ROOTPATH  = joinpath(@__DIR__, "..")
 CONTINUOUS_INTEGRATION = get(ENV, "CI", nothing) == "true"
+DFTKREV    = LibGit2.head(ROOTPATH)
+DFTKBRANCH = try LibGit2.branch(LibGit2.GitRepo(ROOTPATH)) catch end
+DFTKREPO   = "github.com/JuliaMolSim/DFTK.jl.git"
 
 # Python and Julia dependencies needed for running the notebooks
 PYDEPS = ["ase", "pymatgen"]
-JLDEPS = [
-    Pkg.PackageSpec(url="https://github.com/JuliaMolSim/DFTK.jl.git",
-                    rev=LibGit2.head(ROOTPATH)),  # The current DFTK
-]
 
 # Setup julia dependencies for docs generation if not yet done
 Pkg.activate(@__DIR__)
@@ -91,7 +90,7 @@ makedocs(
     format = Documenter.HTML(
         # Use clean URLs, unless built as a "local" build
         prettyurls = CONTINUOUS_INTEGRATION,
-        canonical = "https://juliamolsim.github.io/DFTK.jl/stable/",
+        canonical = "https://docs.dftk.org/stable/",
         assets = ["assets/favicon.ico"],
     ),
     sitename = "DFTK.jl",
@@ -104,11 +103,13 @@ makedocs(
     ],
     pages = [
         "Home" => "index.md",
+        "school2022.md",
         "Getting started" => Any[
             "guide/installation.md",
             "Tutorial" => "guide/tutorial.md",
             "guide/input_output.md",
             "guide/parallelization.md",
+            "Introduction to periodic problems" => "guide/periodic_problems.md",
             "Density-functional theory" => "guide/density_functional_theory.md",
         ],
         "Examples" => EXAMPLES,
@@ -121,11 +122,12 @@ makedocs(
         "api.md",
         "publications.md",
     ],
+    checkdocs=:exports,
     strict = !DEBUG,
 )
 
 # Dump files for managing dependencies in binder
-if CONTINUOUS_INTEGRATION
+if CONTINUOUS_INTEGRATION && DFTKBRANCH == "master"
     cd(BUILDPATH) do
         open("environment.yml", "w") do io
             print(io,
@@ -143,17 +145,14 @@ if CONTINUOUS_INTEGRATION
 
         # Install Julia dependencies into build
         Pkg.activate(".")
-        for dep in JLDEPS
-            Pkg.add(dep)
-        end
+        Pkg.add(Pkg.PackageSpec(url="https://" * DFTKREPO, rev=DFTKREV))
+        cp(joinpath(@__DIR__, "Project.toml"), joinpath(BUILDPATH, "Project.toml"), force=true)
     end
     Pkg.activate(@__DIR__)  # Back to Literate / Documenter environment
 end
 
 # Deploy docs to gh-pages branch
-deploydocs(
-    repo = "github.com/JuliaMolSim/DFTK.jl.git",
-)
+deploydocs(; repo=DFTKREPO)
 
 # Remove generated example files
 if !DEBUG

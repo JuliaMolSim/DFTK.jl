@@ -59,16 +59,17 @@ auconvert(Å, 1.2)  # 1.2 Bohr in Ångström
     are Bohr (used by DFTK) and Ångström (used e.g. by ASE, 1Å ≈ 1.80 Bohr).
     When setting up a calculation for DFTK
     one needs to ensure to convert to Bohr and atomic units.
-    For some Python libraries (currently ASE, pymatgen and abipy)
-    DFTK directly ships conversion tools in form of the [`load_lattice`](@ref)
-    and [`load_atoms`](@ref) functions,
+    For some Python libraries (currently ASE and pymatgen)
+    DFTK directly ships conversion tools in form of the `load_lattice`,
+    `load_positions` and `load_atoms` functions,
     which take care of such conversions. Examples which demonstrate this
     are [Creating slabs with ASE](@ref) and [Creating supercells with pymatgen](@ref).
 
 ## [Lattices and lattice vectors](@id conventions-lattice)
 Both the real-space lattice (i.e. `model.lattice`) and reciprocal-space lattice
-(`model.recip_lattice`) contain the lattice vectors in columns. If 1D or 2D
-problems are to be treated these arrays are still ``3 \times 3`` matrices,
+(`model.recip_lattice`) contain the lattice vectors in columns.
+For example, `model.lattice[:, 1]` is the first real-space lattice vector.
+If 1D or 2D problems are to be treated these arrays are still ``3 \times 3`` matrices,
 but contain two or one zero-columns, respectively.
 The real-space lattice vectors are sometimes referred to by ``A`` and the
 reciprocal-space lattice vectors by ``B = 2\pi A^{-T}``.
@@ -79,8 +80,8 @@ reciprocal-space lattice vectors by ``B = 2\pi A^{-T}``.
     (notably Python and C) use row-major ordering.
     Care therefore needs to be taken to properly
     transpose the unit cell matrices ``A`` before using it with DFTK.
-    For the supported third-party packages `load_lattice`
-    and `load_atoms` again handle such conversion automatically.
+    For the supported third-party packages `load_lattice`,
+    `load_positions` and `load_atoms` again handle such conversion automatically.
 
 We use the convention that the unit cell in real space is
 ``[0, 1)^3`` in reduced coordinates and the unit cell in reciprocal

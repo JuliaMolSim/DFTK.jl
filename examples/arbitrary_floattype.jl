@@ -29,13 +29,13 @@ using DFTK
 ## Setup silicon lattice
 a = 10.263141334305942  # lattice constant in Bohr
 lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
-Si = ElementPsp(:Si, psp=load_psp(:Si, functional="lda"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
+Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+atoms = [Si, Si]
+positions = [ones(3)/8, -ones(3)/8]
 
 ## Cast to Float32, setup model and basis
-model = model_DFT(Array{Float32}(lattice), atoms, [:lda_x, :lda_c_vwn])
-Ecut = 7
-basis = PlaneWaveBasis(model, Ecut, kgrid=[4, 4, 4])
+model = model_DFT(Array{Float32}(lattice), atoms, positions, [:lda_x, :lda_c_vwn])
+basis = PlaneWaveBasis(model, Ecut=7, kgrid=[4, 4, 4])
 
 ## Run the SCF
 scfres = self_consistent_field(basis, tol=1e-4);

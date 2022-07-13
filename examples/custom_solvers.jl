@@ -8,13 +8,12 @@ lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
+atoms = [Si, Si]
+positions =  [ones(3)/8, -ones(3)/8]
 
 ## We take very (very) crude parameters
-model = model_LDA(lattice, atoms)
-kgrid = [1, 1, 1]
-Ecut = 5
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid);
+model = model_LDA(lattice, atoms, positions)
+basis = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1]);
 
 # We define our custom fix-point solver: simply a damped fixed-point
 function my_fp_solver(f, x0, max_iter; tol)
@@ -54,12 +53,12 @@ struct MyMixing
 end
 MyMixing() = MyMixing(2)
 
-function DFTK.mix(mixing::MyMixing, basis, δF; n_iter, kwargs...)
+function DFTK.mix_density(mixing::MyMixing, basis, δF; n_iter, kwargs...)
     if n_iter <= mixing.n_simple
         return δF  # Simple mixing -> Do not modify update at all
     else
         ## Use the default KerkerMixing from DFTK
-        DFTK.mix(KerkerMixing(), basis, δF; kwargs...)
+        DFTK.mix_density(KerkerMixing(), basis, δF; kwargs...)
     end
 end
 

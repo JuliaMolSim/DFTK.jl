@@ -10,12 +10,11 @@ lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
+atoms = [Si, Si]
+positions = [ones(3)/8, -ones(3)/8]
 
-model = model_LDA(lattice, atoms)
-kgrid = [2, 2, 2]
-Ecut = 5
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+model = model_LDA(lattice, atoms, positions)
+basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
 
 DFTK.reset_timer!(DFTK.timer)
 scfres = self_consistent_field(basis, tol=1e-8)
@@ -52,19 +51,34 @@ as a breakdown over individual routines.
     For this to take effect recompiling all DFTK (including the precompile cache)
     is needed.
 
-!!! note "Timing measurements and threading"
-    Unfortunately measuring timings in `TimerOutputs` is not yet thread-safe.
-    Therefore taking timings of threaded parts of the code will be disabled
-    unless you set `DFTK_TIMING` to `"all"`. In this case you must not use
-    Julia threading (see section below) or otherwise undefined behaviour results.
+## Rough timing estimates
+A very (very) rough estimate of the time per SCF step (in seconds)
+can be obtained with the following function. The function assumes
+that FFTs are the limiting operation and that no parallelisation is employed.
+
+```@example parallelization
+function estimate_time_per_scf_step(basis::PlaneWaveBasis)
+    # Super rough figure from various tests on cluster, laptops, ... on a 128^3 FFT grid.
+    time_per_FFT_per_grid_point = 30 #= ms =# / 1000 / 128^3
+
+    (time_per_FFT_per_grid_point
+     * prod(basis.fft_size)
+     * length(basis.kpoints)
+     * div(basis.model.n_electrons, DFTK.filled_occupation(basis.model), RoundUp)
+     * 8  # mean number of FFT steps per state per k-point per iteration
+     )
+end
+
+"Time per SCF (s):  $(estimate_time_per_scf_step(basis))"
+```
 
 ## Options for parallelization
 At the moment DFTK offers two ways to parallelize a calculation,
 firstly shared-memory parallelism using threading
 and secondly multiprocessing using MPI
 (via the [MPI.jl](https://github.com/JuliaParallel/MPI.jl) Julia interface).
-MPI-based parallelism is currently only over `k`-Points,
-such that it cannot be used for calculations with only a single `k`-Point.
+MPI-based parallelism is currently only over ``k``-points,
+such that it cannot be used for calculations with only a single ``k``-point.
 Otherwise combining both forms of parallelism is possible as well.
 
 The scaling of both forms of parallelism for a number of test cases
@@ -83,8 +97,8 @@ and should be preferred if available.
 
 
 ## MPI-based parallelism
-Currently DFTK uses MPI to distribute on `k`-Points only.
-This implies that calculations with only a single `k`-Point
+Currently DFTK uses MPI to distribute on ``k``-points only.
+This implies that calculations with only a single ``k``-point
 cannot use make use of this.
 For details on setting up and configuring MPI with Julia
 see the [MPI.jl documentation](https://juliaparallel.github.io/MPI.jl/stable/configuration).
@@ -111,15 +125,18 @@ DFTK.mpi_master() || (redirect_stdout(); redirect_stderr())
 ```
 at the top of your script to disable printing on all processes but one.
 
-!!! warning "MPI-based parallelism is experimental"
-    Even though MPI-based parallelism shows the better scaling it is still
-    experimental and some routines (e.g. band structure and direct minimization)
-    are not compatible with it yet.
+!!! info "MPI-based parallelism not fully supported"
+    While standard procedures (such as the SCF or band structure calculations)
+    fully support MPI, not all routines of DFTK are compatible with MPI yet
+    and will throw an error when being called in an MPI-parallel run.
+    In most cases there is no intrinsic limitation it just has not yet been
+    implemented. If you require MPI in one of our routines, where this is not
+    yet supported, feel free to open an issue on github or otherwise get in touch.
 
 ## Thread-based parallelism
 Threading in DFTK currently happens on multiple layers
 distributing the workload
-over different ``k``-Points, bands or within
+over different ``k``-points, bands or within
 an FFT or BLAS call between threads.
 At its current stage our scaling for thread-based parallelism
 is worse compared MPI-based and therefore the parallelism
@@ -141,7 +158,7 @@ To use thread-based parallelism proceed as follows:
    julia -t 8 myscript.jl
    ```
 
-For some cases (e.g. a single `k`-Point, fewish bands and a large FFT grid)
+For some cases (e.g. a single ``k``-point, fewish bands and a large FFT grid)
 it can be advantageous to add threading inside the FFTs as well. One example
 is the Caffeine calculation in the above scaling plot. In order to do so
 just call `setup_threading(n_fft=2)`, which will select two FFT threads.
@@ -180,7 +197,7 @@ or (from Julia 1.6) simply `BLAS.get_num_threads()`.
 
 ### Julia threads
 On top of BLAS threading DFTK uses Julia threads (`Thread.@threads`)
-in a couple of places to parallelize over `k`-Points (density computation)
+in a couple of places to parallelize over ``k``-points (density computation)
 or bands (Hamiltonian application).
 The number of threads used for these aspects is controlled by the
 flag `-t` passed to Julia or the *environment variable* `JULIA_NUM_THREADS`.

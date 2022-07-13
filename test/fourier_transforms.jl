@@ -4,10 +4,8 @@ using DFTK: PlaneWaveBasis, G_to_r!, r_to_G!, G_to_r, r_to_G
 include("testcases.jl")
 
 @testset "FFT and IFFT are an identity" begin
-    Ecut = 4.0  # Hartree
-    fft_size = [8, 8, 8]
-    model = Model(silicon.lattice, n_electrons=silicon.n_electrons)
-    pw = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.ksymops; fft_size=fft_size)
+    model = Model(silicon.lattice; silicon.n_electrons)
+    pw    = PlaneWaveBasis(model; Ecut=4.0, fft_size=(8, 8, 8))
 
     @testset "Transformation on the cubic basis set" begin
         f_G = Array{ComplexF64}(randn(Float64, pw.fft_size...))
@@ -16,7 +14,7 @@ include("testcases.jl")
         G_to_r!(f_R, pw, f_G)
 
         f2_G = r_to_G(pw, f_R)
-        f2_R = G_to_r(pw, f2_G; assume_real=false)
+        f2_R = G_to_r(pw, f2_G; assume_real=Val(false))
         f3_G = r_to_G!(similar(f_R), pw, f_R)
 
         @test maximum(abs.(f2_G - f_G)) < 1e-12
@@ -32,7 +30,7 @@ include("testcases.jl")
 
     @testset "Transformation on the spherical basis set" begin
         kpt = pw.kpoints[2]
-        f_G = Array{ComplexF64}(randn(Float64, length(G_vectors(kpt))))
+        f_G = Array{ComplexF64}(randn(Float64, length(G_vectors(pw, kpt))))
 
         f_R = Array{ComplexF64}(undef, pw.fft_size...)
         G_to_r!(f_R, pw, kpt, f_G)

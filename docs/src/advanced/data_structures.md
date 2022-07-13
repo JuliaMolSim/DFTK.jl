@@ -7,12 +7,13 @@ lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
+atoms = [Si, Si]
+positions = [ones(3)/8, -ones(3)/8]
 
-model = model_LDA(lattice, atoms)
+model = model_LDA(lattice, atoms, positions)
 kgrid = [4, 4, 4]
 Ecut = 15
-basis = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+basis = PlaneWaveBasis(model; Ecut, kgrid)
 scfres = self_consistent_field(basis, tol=1e-8);
 ```
 
@@ -70,13 +71,13 @@ not limited to DFT. Convenience constructors are provided for common cases:
    [libxc](https://tddft.org/programs/libxc/functionals/) library,
    for example:
    ```
-   model_DFT(lattice, atoms, [:gga_x_pbe, :gga_c_pbe])
-   model_DFT(lattice, atoms, :lda_xc_teter93)
+   model_DFT(lattice, atoms, positions, [:gga_x_pbe, :gga_c_pbe])
+   model_DFT(lattice, atoms, positions, :lda_xc_teter93)
    ```
    where the latter is equivalent to `model_LDA`.
    Specifying no functional is the reduced Hartree-Fock model:
    ```
-   model_DFT(lattice, atoms, [])
+   model_DFT(lattice, atoms, positions, [])
    ```
 - `model_atomic`: A linear model, which contains no electron-electron interaction
   (neither Hartree nor XC term).
@@ -94,7 +95,7 @@ of `PlaneWaveBasis`, the latter is controlled by the
 cutoff energy parameter `Ecut`:
 
 ```@example data_structures
-PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+PlaneWaveBasis(model; Ecut, kgrid)
 ```
 
 The `PlaneWaveBasis` by default uses symmetry to reduce the number of
@@ -162,12 +163,12 @@ The ``G`` vectors of the "spherical", ``k``-dependent grid can be obtained
 with `G_vectors`:
 
 ```@example data_structures
-[length(G_vectors(kpoint)) for kpoint in basis.kpoints]
+[length(G_vectors(basis, kpoint)) for kpoint in basis.kpoints]
 ```
 
 ```@example data_structures
 ik = 1
-G_vectors(basis.kpoints[ik])[1:4]
+G_vectors(basis, basis.kpoints[ik])[1:4]
 ```
 
 The list of ``G`` vectors (Fourier modes) of the "cubic", ``k``-independent basis
@@ -194,8 +195,8 @@ collect(r_vectors(basis))[1:4]
 
 ## Accessing Bloch waves and densities
 Wavefunctions are stored in an array `scfres.ψ` as `ψ[ik][iG, iband]` where
-`ik` is the index of the kpoint (in `basis.kpoints`), `iG` is the
-index of the plane wave (in `G_vectors(basis.kpoints[ik])`) and
+`ik` is the index of the ``k``-point (in `basis.kpoints`), `iG` is the
+index of the plane wave (in `G_vectors(basis, basis.kpoints[ik])`) and
 `iband` is the index of the band.
 Densities are stored in real space, as a 4-dimensional array (the third being the spin component).
 

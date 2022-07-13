@@ -2,18 +2,18 @@
 ## Theory
 In this discussion we will only describe the situation for a monoatomic crystal
 ``\mathcal C \subset \mathbb R^3``, the extension being easy.
-A symmetry of the crystal is an orthogonal matrix ``\widetilde{S}``
-and a real-space vector ``\widetilde{\tau}`` such that
+A symmetry of the crystal is an orthogonal matrix ``W``
+and a real-space vector ``w`` such that
 ```math
-\widetilde{S} \mathcal{C} + \widetilde{\tau} = \mathcal{C}.
+W \mathcal{C} + w = \mathcal{C}.
 ```
-The symmetries where ``\widetilde{S} = 1`` and ``\widetilde{\tau}``
+The symmetries where ``W = 1`` and ``w``
 is a lattice vector are always assumed and ignored in the following.
 
 We can define a corresponding unitary operator ``U`` on ``L^2(\mathbb R^3)``
 with action
 ```math
- (Uu)(x) = u\left( \widetilde{S} x + \widetilde{\tau} \right).
+ (Uu)(x) = u\left( W x + w \right).
 ```
 We assume that the atomic potentials are radial and that any self-consistent potential
 also respects this symmetry, so that ``U`` commutes with the Hamiltonian.
@@ -21,23 +21,22 @@ also respects this symmetry, so that ``U`` commutes with the Hamiltonian.
 This operator acts on a plane-wave as
 ```math
 \begin{aligned}
-(U e^{iq\cdot x}) (x) &= e^{iq \cdot \widetilde{\tau}} e^{i (\widetilde{S}^T q) x}\\
+(U e^{iq\cdot x}) (x) &= e^{iq \cdot w} e^{i (W^T q) x}\\
 &= e^{- i(S q) \cdot \tau } e^{i (S q) \cdot x}
 \end{aligned}
 ```
 where we set
 ```math
 \begin{aligned}
-S &= \widetilde{S}^{T}\\
-\tau &= -\widetilde{S}^{-1}\widetilde{\tau}.
+S &= W^{T}\\
+\tau &= -W^{-1}w.
 \end{aligned}
 ```
-(these equations being also valid in reduced coordinates).
-
 It follows that the Fourier transform satisfies
 ```math
 \widehat{Uu}(q) = e^{- iq \cdot \tau} \widehat u(S^{-1} q)
 ```
+(all of these equations being also valid in reduced coordinates).
 In particular, if ``e^{ik\cdot x} u_{k}(x)`` is an eigenfunction, then by decomposing
 ``u_k`` over plane-waves ``e^{i G \cdot x}`` one can see that
 ``e^{i(S^T k) \cdot x} (U u_k)(x)`` is also an eigenfunction: we can choose
@@ -51,6 +50,40 @@ one can find a reduced set of ``k``-points
 (the *irreducible ``k``-points*) such that the eigenvectors at the
 reducible ``k``-points can be deduced from those at the irreducible ``k``-points.
 
+## Symmetrization
+Quantities that are calculated by summing over the reducible ``k`` points can be
+calculated by first summing over the irreducible ``k`` points and then symmetrizing.
+Let ``\mathcal{K}_\text{reducible}`` denote the reducible ``k``-points
+sampling the Brillouin zone,
+``\mathcal{S}`` be the group of all crystal symmetries that leave this BZ mesh invariant
+(``\mathcal{S}\mathcal{K}_\text{reducible} = \mathcal{K}_\text{reducible}``)
+and ``\mathcal{K}`` be the irreducible ``k``-points obtained
+from ``\mathcal{K}_\text{reducible}`` using the symmetries ``\mathcal{S}``.
+Clearly
+```math
+\mathcal{K}_\text{red} = \{Sk \, | \, S \in \mathcal{S}, k \in \mathcal{K}\}.
+```
+
+Let ``Q`` be a ``k``-dependent quantity to sum (for instance, energies, densities, forces, etc).
+``Q`` transforms in a particular way under symmetries: ``Q(Sk) = S(Q(k))`` where the
+(linear) action of ``S`` on ``Q`` depends on the particular ``Q``.
+```math
+\begin{aligned}
+\sum_{k \in \mathcal{K}_\text{red}} Q(k)
+&= \sum_{k \in \mathcal{K}} \ \sum_{S \text{ with } Sk \in \mathcal{K}_\text{red}} S(Q(k)) \\
+&= \sum_{k \in \mathcal{K}} \frac{1}{N_{\mathcal{S},k}} \sum_{S \in \mathcal{S}} S(Q(k))\\
+&= \frac{1}{N_{\mathcal{S}}} \sum_{S \in \mathcal{S}}
+   \left(\sum_{k \in \mathcal{K}} \frac{N_\mathcal{S}}{N_{\mathcal{S},k}} Q(k) \right)
+\end{aligned}
+```
+Here, ``N_\mathcal{S} = |\mathcal{S}|`` is the total number of symmetry operations and
+``N_{\mathcal{S},k}`` denotes the number of operations such that leave ``k`` invariant.
+The latter operations form a subgroup of the group of all symmetry operations,
+sometimes called the *small/little group of ``k``*.
+The factor ``\frac{N_\mathcal{S}}{N_{S,k}}``, also equal to the ratio of number of
+reducible points encoded by this particular irreducible ``k`` to the total number of
+reducible points, determines the weight of each irreducible ``k`` point.
+
 ## Example
 ```@setup symmetries
 using DFTK
@@ -59,24 +92,26 @@ lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si => [ones(3)/8, -ones(3)/8]]
+atoms = [Si, Si]
+positions = [ones(3)/8, -ones(3)/8]
 Ecut = 5
 kgrid = [4, 4, 4]
 ```
 Let us demonstrate this in practice.
-We consider silicon, setup appropriately in the `lattice` and `atoms` objects
-as in [Tutorial](@ref) and to reach a fast execution, we take a small `Ecut` of `5`
+We consider silicon, setup appropriately in the `lattice`, `atoms` and `positions`
+objects as in [Tutorial](@ref) and to reach a fast execution, we take a small `Ecut` of `5`
 and a `[4, 4, 4]` Monkhorst-Pack grid.
 First we perform the DFT calculation disabling symmetry handling
 ```@example symmetries
-model = model_LDA(lattice, atoms)
-basis_nosym = PlaneWaveBasis(model, Ecut; kgrid=kgrid, use_symmetry=false)
+model_nosym = model_LDA(lattice, atoms, positions; symmetries=false)
+basis_nosym = PlaneWaveBasis(model_nosym; Ecut, kgrid)
 scfres_nosym = @time self_consistent_field(basis_nosym, tol=1e-8)
 nothing  # hide
 ```
 and then redo it using symmetry (the default):
 ```@example symmetries
-basis_sym = PlaneWaveBasis(model, Ecut; kgrid=kgrid)
+model_sym = model_LDA(lattice, atoms, positions)
+basis_sym = PlaneWaveBasis(model_sym; Ecut, kgrid)
 scfres_sym = @time self_consistent_field(basis_sym, tol=1e-8)
 nothing  # hide
 ```
@@ -103,20 +138,15 @@ using LinearAlgebra  # hide
  norm(values(scfres_sym.energies) .- values(scfres_nosym.energies)))
 ```
 
-To demonstrate the mapping between `k`-points due to symmetry,
-we pick an arbitrary `k`-point in the irreducible Brillouin zone:
+The symmetries can be used to map reducible to irreducible points:
 ```@example symmetries
-ikpt_irred = 2
-kpt_irred_coord = basis_sym.kpoints[ikpt_irred].coordinate
-basis_sym.ksymops[ikpt_irred]
+ikpt_red = rand(1:length(basis_nosym.kpoints))
+# find a (non-unique) corresponding irreducible point in basis_nosym,
+# and the symmetry that relates them
+ikpt_irred, symop = DFTK.unfold_mapping(basis_sym, basis_nosym.kpoints[ikpt_red])
+[basis_sym.kpoints[ikpt_irred].coordinate symop.S * basis_nosym.kpoints[ikpt_red].coordinate]
 ```
-This is a list of all symmetries operations ``(S, \tau)``
-that can be used to map this irreducible ``k``-point to reducible ``k``-points.
-Let's pick the third symmetry operation of this ``k``-point and check.
+The eigenvalues match also:
 ```@example symmetries
-S, τ = basis_sym.ksymops[ikpt_irred][3]
-kpt_red_coord = S * basis_sym.kpoints[ikpt_irred].coordinate
-ikpt_red = findfirst(kcoord -> kcoord ≈ kpt_red_coord,
-                     [k.coordinate for k in basis_nosym.kpoints])
 [scfres_sym.eigenvalues[ikpt_irred] scfres_nosym.eigenvalues[ikpt_red]]
 ```

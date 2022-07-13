@@ -1,7 +1,7 @@
 function gather_kpts_scfres(scfres::NamedTuple)
     # TODO Rename this to gather_kpts once scfres gets its proper type
 
-    # Need gathering over k-Points:
+    # Need gathering over k-points:
     kpt_properties = (:ψ, :occupation, :eigenvalues)
     scfdict = Dict{Symbol, Any}()
     for symbol in kpt_properties

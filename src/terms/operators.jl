@@ -34,44 +34,42 @@ Base.:*(op::RealFourierOperator, ψ) = mul!(similar(ψ), op, ψ)
 Noop operation: don't do anything.
 Useful for energy terms that don't depend on the orbitals at all (eg nuclei-nuclei interaction).
 """
-struct NoopOperator <: RealFourierOperator
-    basis
-    kpoint
+struct NoopOperator{T <: Real} <: RealFourierOperator
+    basis::PlaneWaveBasis{T}
+    kpoint::Kpoint{T}
 end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
 function Matrix(op::NoopOperator)
-    zeros(eltype(op.basis), length(G_vectors(op.kpoint)), length(G_vectors(op.kpoint)))
+    n_Gk = length(G_vectors(op.basis, op.kpoint))
+    zeros(eltype(op.basis), n_Gk, n_Gk)
 end
 
 """
 Real space multiplication by a potential:
 (Hψ)(r) V(r) ψ(r)
 """
-struct RealSpaceMultiplication <: RealFourierOperator
-    basis
-    kpoint
-    potential::AbstractArray
+struct RealSpaceMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOperator
+    basis::PlaneWaveBasis{T}
+    kpoint::Kpoint{T}
+    potential::AT
 end
-@timing_seq "apply RealSpaceMultiplication" function apply!(Hψ, op::RealSpaceMultiplication, ψ)
+function apply!(Hψ, op::RealSpaceMultiplication, ψ)
     Hψ.real .+= op.potential .* ψ.real
 end
 function Matrix(op::RealSpaceMultiplication)
-    # V(G,G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
-    pot_fourier = r_to_G(op.basis, complex.(op.potential))
-    npw = length(G_vectors(op.kpoint))
-    H = zeros(complex(eltype(op.basis)), npw, npw)
-    for i = 1:npw
-        G = G_vectors(op.kpoint)[i]
-        for j = 1:npw
-            Gp = G_vectors(op.kpoint)[j]
-            ΔG = G-Gp
-            # G_vectors(basis)[ind] = ΔG
-            ind = index_G_vectors(op.basis, ΔG)
-            if ind === nothing
+    # V(G, G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
+    pot_fourier = r_to_G(op.basis, op.potential)
+    n_G = length(G_vectors(op.basis, op.kpoint))
+    H = zeros(complex(eltype(op.basis)), n_G, n_G)
+    for (i, G) in enumerate(G_vectors(op.basis, op.kpoint))
+        for (j, G′) in enumerate(G_vectors(op.basis, op.kpoint))
+            # G_vectors(basis)[ind_ΔG] = G - G′
+            ind_ΔG = index_G_vectors(op.basis, G - G′)
+            if isnothing(ind_ΔG)
                 error("For full matrix construction, the FFT size must be " *
                       "large enough so that Hamiltonian applications are exact")
             end
-            H[i, j] = pot_fourier[ind] / sqrt(op.basis.model.unit_cell_volume)
+            H[i, j] = pot_fourier[ind_ΔG] / sqrt(op.basis.model.unit_cell_volume)
         end
     end
     H
@@ -81,12 +79,12 @@ end
 Fourier space multiplication, like a kinetic energy term:
 (Hψ)(G) = multiplier(G) ψ(G)
 """
-struct FourierMultiplication <: RealFourierOperator
-    basis
-    kpoint
-    multiplier::AbstractArray
+struct FourierMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOperator
+    basis::PlaneWaveBasis{T}
+    kpoint::Kpoint{T}
+    multiplier::AT
 end
-@timing_seq "apply FourierMultiplication" function apply!(Hψ, op::FourierMultiplication, ψ)
+function apply!(Hψ, op::FourierMultiplication, ψ)
     Hψ.fourier .+= op.multiplier .* ψ.fourier
 end
 Matrix(op::FourierMultiplication) = Array(Diagonal(op.multiplier))
@@ -96,14 +94,14 @@ Nonlocal operator in Fourier space in Kleinman-Bylander format,
 defined by its projectors P matrix and coupling terms D:
 Hψ = PDP' ψ
 """
-struct NonlocalOperator <: RealFourierOperator
-    basis
-    kpoint
+struct NonlocalOperator{T <: Real, PT, DT} <: RealFourierOperator
+    basis::PlaneWaveBasis{T}
+    kpoint::Kpoint{T}
     # not typed, can be anything that supports PDP'ψ
-    P
-    D
+    P::PT
+    D::DT
 end
-@timing_seq "apply NonlocalOperator" function apply!(Hψ, op::NonlocalOperator, ψ)
+function apply!(Hψ, op::NonlocalOperator, ψ)
     Hψ.fourier .+= op.P * (op.D * (op.P' * ψ.fourier))
 end
 Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
@@ -111,22 +109,47 @@ Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
 """
 Magnetic field operator A⋅(-i∇).
 """
-struct MagneticFieldOperator{T <: Real} <: RealFourierOperator
+struct MagneticFieldOperator{T <: Real, AT} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
-    Apot  # Apot[α][i,j,k] is the A field in (cartesian) direction α
+    Apot::AT  # Apot[α][i,j,k] is the A field in (cartesian) direction α
 end
-@timing_seq "apply MagneticFieldOperator" function apply!(Hψ, op::MagneticFieldOperator, ψ)
+function apply!(Hψ, op::MagneticFieldOperator, ψ)
     # TODO this could probably be better optimized
     for α = 1:3
-        all(op.Apot[α] .== 0) && continue
-        pα = [(op.basis.model.recip_lattice*(G + op.kpoint.coordinate))[α] for G in G_vectors(op.kpoint)]
+        iszero(op.Apot[α]) && continue
+        pα = [Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)]
         ∂αψ_fourier = pα .* ψ.fourier
         ∂αψ_real = G_to_r(op.basis, op.kpoint, ∂αψ_fourier)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real
     end
 end
-Matrix(op::MagneticFieldOperator) = error("Not implemented")
+# TODO Implement  Matrix(op::MagneticFieldOperator)
+
+@doc raw"""
+Nonlocal "divAgrad" operator ``-½ ∇ ⋅ (A ∇)`` where ``A`` is a scalar field on the
+real-space grid. The ``-½`` is included, such that this operator is a generalisation of the
+kinetic energy operator (which is obtained for ``A=1``).
+"""
+struct DivAgradOperator{T <: Real, AT} <: RealFourierOperator
+    basis::PlaneWaveBasis{T}
+    kpoint::Kpoint{T}
+    A::AT
+end
+function apply!(Hψ, op::DivAgradOperator, ψ,
+                                                     ψ_scratch=zeros(complex(eltype(op.basis)),
+                                                                     op.basis.fft_size...))
+    # TODO: Performance improvements: Unscaled plans, avoid remaining allocations
+    #       (which are only on the small k-point-specific Fourier grid
+    G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)] for α in 1:3]
+    for α = 1:3
+        ∂αψ_real = G_to_r!(ψ_scratch, op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
+        A∇ψ      = r_to_G(op.basis, op.kpoint, ∂αψ_real .* op.A)
+        Hψ.fourier .-= im .* G_plus_k[α] .* A∇ψ ./ 2
+
+    end
+end
+# TODO Implement  Matrix(op::DivAgrad)
 
 
 # Optimize RFOs by combining terms that can be combined

@@ -7,48 +7,6 @@
 # LDOS (local density of states)
 # LD = sum_n f_n ψn
 
-using ForwardDiff
-
-@doc raw"""
-    compute_nos(ε, basis, eigenvalues; smearing=basis.model.smearing,
-                temperature=basis.model.temperature)
-
-The number of Kohn-Sham states in a temperature window of width `temperature` around the
-energy `ε` contributing to the DOS at temperature `T`.
-
-This quantity is not a physical quantity, but rather a dimensionless approximate measure
-for how well properties near the Fermi surface are sampled with the passed `smearing`
-and temperature `T`. It increases with both `T` and better sampling of the BZ with
-``k``-Points. A value ``\gg 1`` indicates a good sampling of properties near the
-Fermi surface.
-"""
-function compute_nos(ε, basis, eigenvalues; smearing=basis.model.smearing,
-                     temperature=basis.model.temperature)
-    N = zeros(typeof(ε), basis.model.n_spin_components)
-    if (temperature == 0) || smearing isa Smearing.None
-        error("compute_nos only supports finite temperature")
-    end
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
-
-    # Note the differences to the DOS and LDOS functions: We are not counting states
-    # per BZ volume (like in DOS), but absolute number of states. Therefore n_symeqk
-    # is used instead of kweigths. We count the states inside a temperature window
-    # `temperature` centred about εik. For this the states are weighted by the distribution
-    # -f'((εik - ε)/temperature).
-    #
-    # To explicitly show the similarity with DOS and the temperature dependence we employ
-    # -f'((εik - ε)/temperature) = temperature * ( d/dε f_τ(εik - ε') )|_{ε' = ε}
-    for σ in 1:basis.model.n_spin_components, ik = krange_spin(basis, σ)
-        n_symeqk = length(basis.ksymops[ik])  # Number of symmetry-equivalent k-Points
-        for (iband, εnk) in enumerate(eigenvalues[ik])
-            enred = (εnk - ε) / temperature
-            N[σ] -= n_symeqk * Smearing.occupation_derivative(smearing, enred)
-        end
-    end
-    N = mpi_sum(N, basis.comm_kpts)
-end
-
-
 """
 Total density of states at energy ε
 """
@@ -57,7 +15,6 @@ function compute_dos(ε, basis, eigenvalues; smearing=basis.model.smearing,
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_dos only supports finite temperature")
     end
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     filled_occ = filled_occupation(basis.model)
 
     D = zeros(typeof(ε), basis.model.n_spin_components)
@@ -79,7 +36,6 @@ function compute_ldos(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_ldos only supports finite temperature")
     end
-    @assert basis.model.spin_polarization in (:none, :spinless, :collinear)
     filled_occ = filled_occupation(basis.model)
 
     weights = deepcopy(eigenvalues)
@@ -92,7 +48,7 @@ function compute_ldos(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
     end
 
     # Use compute_density routine to compute LDOS, using just the modified
-    # weights (as "occupations") at each kpoint. Note, that this automatically puts in the
+    # weights (as "occupations") at each k-point. Note, that this automatically puts in the
     # required symmetrization with respect to kpoints and BZ symmetry
     compute_density(basis, ψ, weights)
 end

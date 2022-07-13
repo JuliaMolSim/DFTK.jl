@@ -4,12 +4,9 @@ include("testcases.jl")
 
 @testset "Spin-broken silicon setup relaxes to spin-paired ground state" begin
     function run_silicon(spin_polarization)
-        Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-        model = model_PBE(silicon.lattice, [Si => silicon.positions],
-                          spin_polarization=spin_polarization, temperature=0.01)
-
-        Ecut = 7
-        basis = PlaneWaveBasis(model, Ecut; kgrid=[2, 2, 2])
+        model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions;
+                          spin_polarization, temperature=0.01)
+        basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[1, 1, 1] / 2)
 
         ρtot = total_density(guess_density(basis))
         if spin_polarization == :collinear

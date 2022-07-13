@@ -1,100 +1,82 @@
-## Densities (and potentials) are represented by arrays
-## ρ[ix,iy,iz,iσ] in real space, where iσ ∈ [1:n_spin_components]
+# Densities (and potentials) are represented by arrays
+# ρ[ix,iy,iz,iσ] in real space, where iσ ∈ [1:n_spin_components]
 
-"""
-Compute the partial density at the indicated ``k``-Point and return it (in Fourier space).
-"""
-function compute_partial_density!(ρ, basis, kpt, ψk, occupation)
-    @assert length(occupation) == size(ψk, 2)
-
-    # Build the partial density ρk_real for this k-Point
-    ρk_real = [zeros(eltype(basis), basis.fft_size) for it = 1:Threads.nthreads()]
-    ψnk_real = [zeros(complex(eltype(basis)), basis.fft_size) for it = 1:Threads.nthreads()]
-    Threads.@threads for n = 1:size(ψk, 2)
-        ψnk = @views ψk[:, n]
-        tid = Threads.threadid()
-        G_to_r!(ψnk_real[tid], basis, kpt, ψnk)
-        ρk_real[tid] .+= occupation[n] .* abs2.(ψnk_real[tid])
-    end
-    for it = 2:Threads.nthreads()
-        ρk_real[1] .+= ρk_real[it]
-    end
-    ρk_real = ρk_real[1]
-
-    # Check sanity of the density (real, positive and normalized)
-    T = real(eltype(ρk_real))
-    if all(occupation .> 0)
-        minimum(real(ρk_real)) < 0 && @warn("Negative ρ detected",
-                                            min_ρ=minimum(real(ρk_real)))
-    end
-    n_electrons = sum(ρk_real) * basis.dvol
-    if abs(n_electrons - sum(occupation)) > sqrt(eps(T))
-        @warn("Mismatch in number of electrons", sum_ρ=n_electrons,
-              sum_occupation=sum(occupation))
-    end
-
-    # FFT and return
-    r_to_G!(ρ, basis, ρk_real)
+function _check_positive(ρ)
+    minimum(ρ) < 0 && @warn("Negative ρ detected", min_ρ=minimum(ρ))
 end
-
+function _check_total_charge(dvol, ρ::AbstractArray{T}, N) where {T}
+    n_electrons = sum(ρ) * dvol
+    if abs(n_electrons - N) > max(sqrt(eps(T)), T(1e-10))
+        @warn("Mismatch in number of electrons", sum_ρ=n_electrons, N=N)
+    end
+end
 
 """
     compute_density(basis::PlaneWaveBasis, ψ::AbstractVector, occupation::AbstractVector)
 
-Compute the density and spin density for a wave function `ψ` discretized on the plane-wave
-grid `basis`, where the individual k-Points are occupied according to `occupation`.
-`ψ` should be one coefficient matrix per k-Point. If the `Model` underlying the basis
-is not collinear the spin density is `nothing`.
+Compute the density for a wave function `ψ` discretized on the plane-wave
+grid `basis`, where the individual k-points are occupied according to `occupation`.
+`ψ` should be one coefficient matrix per ``k``-point. 
 """
-@views @timing function compute_density(basis::PlaneWaveBasis, ψ, occupation)
-    n_k = length(basis.kpoints)
-    n_spin = basis.model.n_spin_components
+@views @timing function compute_density(basis, ψ, occupation)
+    T = promote_type(eltype(basis), real(eltype(ψ[1])))
 
-    # Sanity checks
-    @assert n_k == length(ψ)
-    @assert n_k == length(occupation)
-    for ik in 1:n_k
-        @assert length(G_vectors(basis.kpoints[ik])) == size(ψ[ik], 1)
-        @assert length(occupation[ik]) == size(ψ[ik], 2)
-    end
-    @assert n_k > 0
+    # we split the total iteration range (ik, n) in chunks, and parallelize over them
+    ik_n = [(ik, n) for ik = 1:length(basis.kpoints) for n = 1:size(ψ[ik], 2)]
+    chunk_length = cld(length(ik_n), Threads.nthreads())
 
-    # Allocate an accumulator for ρ in each thread for each spin component
-    ρaccus = [similar(view(ψ[1], :, 1), (basis.fft_size..., n_spin))
-              for ithread in 1:Threads.nthreads()]
+    # chunk-local variables
+    ρ_chunklocal = Array{T,4}[zeros(T, basis.fft_size..., basis.model.n_spin_components)
+                               for _ = 1:Threads.nthreads()]
+    ψnk_real_chunklocal = Array{complex(T),3}[zeros(complex(T), basis.fft_size)
+                                               for _ = 1:Threads.nthreads()]
 
-    # TODO Better load balancing ... the workload per kpoint depends also on
-    #      the number of symmetry operations. We know heuristically that the Gamma
-    #      point (first k-Point) has least symmetry operations, so we will put
-    #      some extra workload there if things do not break even
-    kpt_per_thread = [ifelse(i <= n_k, [i], Vector{Int}()) for i in 1:Threads.nthreads()]
-    if n_k >= Threads.nthreads()
-        kblock = floor(Int, length(basis.kpoints) / Threads.nthreads())
-        kpt_per_thread = [collect(1:length(basis.kpoints) - (Threads.nthreads() - 1) * kblock)]
-        for ithread in 2:Threads.nthreads()
-            push!(kpt_per_thread, kpt_per_thread[end][end] .+ collect(1:kblock))
-        end
-        @assert kpt_per_thread[end][end] == length(basis.kpoints)
-    end
+    @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
+        Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
+            ψnk_real = ψnk_real_chunklocal[ichunk]
+            ρ_loc = ρ_chunklocal[ichunk]
 
-    Threads.@threads for (ikpts, ρaccu) in collect(zip(kpt_per_thread, ρaccus))
-        ρaccu .= 0
-        ρ_k = similar(ψ[1][:, 1], basis.fft_size)
-        for ik in ikpts
             kpt = basis.kpoints[ik]
-            compute_partial_density!(ρ_k, basis, kpt, ψ[ik], occupation[ik])
-            lowpass_for_symmetry!(ρ_k, basis)
-            # accumulates all the symops of ρ_k into ρaccu
-            accumulate_over_symmetries!(ρaccu[:, :, :, kpt.spin], ρ_k, basis, basis.ksymops[ik])
+            G_to_r!(ψnk_real, basis, kpt, ψ[ik][:, n])
+            ρ_loc[:, :, :, kpt.spin] .+= occupation[ik][n] .* basis.kweights[ik] .* abs2.(ψnk_real)
         end
     end
 
-    # Count the number of k-points modulo spin
-    count = sum(length(basis.ksymops[ik]) for ik in 1:length(basis.kpoints)) ÷ n_spin
-    count = mpi_sum(count, basis.comm_kpts)
-    ρ = sum(ρaccus) ./ count
+    ρ = sum(ρ_chunklocal)
     mpi_sum!(ρ, basis.comm_kpts)
-    G_to_r(basis, ρ)
+    ρ = symmetrize_ρ(basis, ρ; do_lowpass=false)
+
+    _check_positive(ρ)
+    n_elec_check = weighted_ksum(basis, sum.(occupation))
+    _check_total_charge(basis.dvol, ρ, n_elec_check)
+
+    ρ
+end
+
+# Variation in density corresponding to a variation in the orbitals and occupations.
+@views @timing function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ,
+                                   occupation, δoccupation=zero.(occupation)) where T
+    ForwardDiff.derivative(zero(T)) do ε
+        ψ_ε   = [ψk   .+ ε .* δψk   for (ψk,   δψk)   in zip(ψ, δψ)]
+        occ_ε = [occk .+ ε .* δocck for (occk, δocck) in zip(occupation, δoccupation)]
+        compute_density(basis, ψ_ε, occ_ε)
+    end
+end
+
+@views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis, ψ, occupation)
+    T = promote_type(eltype(basis), real(eltype(ψ[1])))
+    τ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
+    τ .= 0
+    dαψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
+    for (ik, kpt) in enumerate(basis.kpoints)
+        G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(basis, kpt)] for α in 1:3]
+        for n = 1:size(ψ[ik], 2), α = 1:3
+            G_to_r!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
+            @. τ[:, :, :, kpt.spin] += occupation[ik][n] * basis.kweights[ik] / 2 * abs2(dαψnk_real)
+        end
+    end
+    mpi_sum!(τ, basis.comm_kpts)
+    symmetrize_ρ(basis, τ; do_lowpass=false)
 end
 
 total_density(ρ) = dropdims(sum(ρ; dims=4); dims=4)
@@ -107,13 +89,11 @@ total_density(ρ) = dropdims(sum(ρ; dims=4); dims=4)
 end
 
 function ρ_from_total_and_spin(ρtot, ρspin=nothing)
-    n_spin = ρspin === nothing ? 1 : 2
-    ρ = similar(ρtot, size(ρtot)..., n_spin)
-    if n_spin == 1
-        ρ .= ρtot
+    if ρspin === nothing
+        # Val used to ensure inferability
+        cat(ρtot; dims=Val(4))  # copy for consistency with other case
     else
-        ρ[:, :, :, 1] .= (ρtot .+ ρspin) ./ 2
-        ρ[:, :, :, 2] .= (ρtot .- ρspin) ./ 2
+        cat((ρtot .+ ρspin) ./ 2,
+            (ρtot .- ρspin) ./ 2; dims=Val(4))
     end
-    ρ
 end

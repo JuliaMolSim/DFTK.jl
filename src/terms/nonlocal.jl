@@ -3,33 +3,35 @@ Nonlocal term coming from norm-conserving pseudopotentials in Kleinmann-Bylander
 ``\text{Energy} = \sum_a \sum_{ij} \sum_{n} f_n <ψ_n|p_{ai}> D_{ij} <p_{aj}|ψ_n>.``
 """
 struct AtomicNonlocal end
-function (::AtomicNonlocal)(basis::PlaneWaveBasis)
-    # keep only pseudopotential atoms
-    atoms = [elem.psp => positions
-             for (elem, positions) in basis.model.atoms
-             if elem isa ElementPsp]
+function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
+    model = basis.model
 
-    isempty(atoms) && return NoopTerm(basis)
+    # keep only pseudopotential atoms and positions
+    psp_groups = [group for group in model.atom_groups
+                  if model.atoms[first(group)] isa ElementPsp]
+    psps          = [model.atoms[first(group)].psp      for group in psp_groups]
+    psp_positions = [model.positions[group] for group in psp_groups]
+
+    isempty(psp_groups) && return TermNoop()
     ops = map(basis.kpoints) do kpt
-        P = build_projection_vectors_(basis, atoms, kpt)
-        D = build_projection_coefficients_(basis, atoms)
+        P = build_projection_vectors_(basis, kpt, psps, psp_positions)
+        D = build_projection_coefficients_(T, psps, psp_positions)
         NonlocalOperator(basis, kpt, P, D)
     end
-    TermAtomicNonlocal(basis, ops)
+    TermAtomicNonlocal(ops)
 end
 
 struct TermAtomicNonlocal <: Term
-    basis::PlaneWaveBasis
     ops::Vector{NonlocalOperator}
 end
 
-@timing "ene_ops: nonlocal" function ene_ops(term::TermAtomicNonlocal, ψ, occ; kwargs...)
-    basis = term.basis
-    T = eltype(basis)
-    ψ === nothing && return (E=T(Inf), ops=term.ops)
+@timing "ene_ops: nonlocal" function ene_ops(term::TermAtomicNonlocal,
+                                             basis::PlaneWaveBasis{T},
+                                             ψ, occ; kwargs...) where {T}
+    isnothing(ψ) && return (E=T(Inf), ops=term.ops)
 
     E = zero(T)
-    for (ik, k) in enumerate(basis.kpoints)
+    for (ik, kpt) in enumerate(basis.kpoints)
         Pψ = term.ops[ik].P' * ψ[ik]  # nproj x nband
         band_enes = dropdims(sum(real.(conj.(Pψ) .* (term.ops[ik].D * Pψ)), dims=1), dims=1)
         E += basis.kweights[ik] * sum(band_enes .* occ[ik])
@@ -39,76 +41,67 @@ end
     (E=E, ops=term.ops)
 end
 
-@timing "forces: nonlocal" function compute_forces(term::TermAtomicNonlocal, ψ, occ; kwargs...)
-    basis = term.basis
-    T = eltype(basis)
-    atoms = basis.model.atoms
-    unit_cell_volume = basis.model.unit_cell_volume
+@timing "forces: nonlocal" function compute_forces(::TermAtomicNonlocal,
+                                                   basis::PlaneWaveBasis{TT},
+                                                   ψ, occ; kwargs...) where TT
+    T = promote_type(TT, real(eltype(ψ[1])))
+    model = basis.model
+    unit_cell_volume = model.unit_cell_volume
+    psp_groups = [group for group in model.atom_groups
+                  if model.atoms[first(group)] isa ElementPsp]
 
     # early return if no pseudopotential atoms
-    any(attype isa ElementPsp for (attype, positions) in atoms) || return nothing
+    isempty(psp_groups) && return nothing
 
     # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
-    forces = [zeros(Vec3{T}, length(positions)) for (el, positions) in atoms]
-    for (iel, (el, positions)) in enumerate(atoms)
-        el isa ElementPsp || continue
+    forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
+    for group in psp_groups
+        element = model.atoms[first(group)]
 
-        C = build_projection_coefficients_(el.psp)
-        # TODO optimize: switch this loop and the kpoint loop
-        for (ir, r) in enumerate(positions)
-            fr = zeros(T, 3)
-            for α = 1:3
-                tot_red_kpt_number = sum([length(symops) for symops in basis.ksymops])
-                tot_red_kpt_number = mpi_sum(tot_red_kpt_number, basis.comm_kpts)
-                for (ik, kpt_irred) in enumerate(basis.kpoints)
-                    # Here we need to do an explicit loop over
-                    # symmetries, because the atom displacement might break them
-                    for isym in 1:length(basis.ksymops[ik])
-                        (S, τ) = basis.ksymops[ik][isym]
-                        Skpoint, ψSk = apply_ksymop((S, τ), basis, kpt_irred, ψ[ik])
-                        Skcoord = Skpoint.coordinate
-                        # energy terms are of the form <psi, P C P' psi>,
-                        # where P(G) = form_factor(G) * structure_factor(G)
-                        qs = [basis.model.recip_lattice * (Skcoord + G)
-                              for G in G_vectors(Skpoint)]
-                        form_factors = build_form_factors(el.psp, qs)
-                        structure_factors = [cis(-2T(π) * dot(Skcoord + G, r))
-                                             for G in G_vectors(Skpoint)]
-                        P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
-                        dPdR = [-2T(π)*im*(Skcoord + G)[α] for G in G_vectors(Skpoint)] .* P
+        C = build_projection_coefficients_(T, element.psp)
+        for (ik, kpt) in enumerate(basis.kpoints)
+            # we compute the forces from the irreductible BZ; they are symmetrized later
+            qs_cart = Gplusk_vectors_cart(basis, kpt)
+            qs = Gplusk_vectors(basis, kpt)
+            form_factors = build_form_factors(element.psp, qs_cart)
+            for idx in group
+                r = model.positions[idx]
+                structure_factors = [cis2pi(-dot(q, r)) for q in qs]
+                P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
 
-                        dHψSk = P * (C * (dPdR' * ψSk))
-                        for iband = 1:size(ψ[ik], 2)
-                            @views fr[α] -= (occ[ik][iband] / tot_red_kpt_number
-                                             * basis.model.n_spin_components
-                                             * 2real(  dot(ψSk[:, iband], dHψSk[:, iband])))
-                        end  #iband
-                    end  #isym
-                end  #ik
-            end  #α
-            mpi_sum!(fr, basis.comm_kpts)  # TODO take that out to gain latency
-            forces[iel][ir] += fr
-        end
-    end
-    forces
+                forces[idx] += map(1:3) do α
+                    dPdR = [-2T(π)*im*q[α] for q in qs] .* P
+                    ψk = ψ[ik]
+                    dHψk = P * (C * (dPdR' * ψk))
+                    -sum(occ[ik][iband] * basis.kweights[ik] *
+                         2real(dot(ψk[:, iband], dHψk[:, iband]))
+                         for iband=1:size(ψk, 2))
+                end  # α
+            end  # r
+        end  # kpt
+    end  # group
+
+    forces = mpi_sum!(forces, basis.comm_kpts)
+    symmetrize_forces(basis, forces)
 end
 
-# TODO possibly move over to psp/ ?
+# TODO possibly move over to pseudo/NormConservingPsp.jl ?
 # Build projection coefficients for a atoms array generated by term_nonlocal
 # The ordering of the projector indices is (A,l,m,i), where A is running over all
 # atoms, l, m are AM quantum numbers and i is running over all projectors for a
 # given l. The matrix is block-diagonal with non-zeros only if A, l and m agree.
-function build_projection_coefficients_(basis::PlaneWaveBasis{T}, atoms) where {T}
+function build_projection_coefficients_(T, psps, psp_positions)
     # TODO In the current version the proj_coeffs still has a lot of zeros.
     #      One could improve this by storing the blocks as a list or in a
     #      BlockDiagonal data structure
-    n_proj = count_n_proj(atoms)
+    n_proj = count_n_proj(psps, psp_positions)
     proj_coeffs = zeros(T, n_proj, n_proj)
 
     count = 0
-    for (psp, positions) in atoms, r in positions
+    for (psp, positions) in zip(psps, psp_positions), _ in positions
         n_proj_psp = count_n_proj(psp)
-        proj_coeffs[count+1:count+n_proj_psp, count+1:count+n_proj_psp] = build_projection_coefficients_(psp)
+        block = count+1:count+n_proj_psp
+        proj_coeffs[block, block] = build_projection_coefficients_(T, psp)
         count += n_proj_psp
     end # psp, r
     @assert count == n_proj
@@ -120,9 +113,9 @@ end
 # The ordering of the projector indices is (l,m,i), where l, m are the
 # AM quantum numbers and i is running over all projectors for a given l.
 # The matrix is block-diagonal with non-zeros only if l and m agree.
-function build_projection_coefficients_(psp::NormConservingPsp)
+function build_projection_coefficients_(T, psp::NormConservingPsp)
     n_proj = count_n_proj(psp)
-    proj_coeffs = zeros(n_proj, n_proj)
+    proj_coeffs = zeros(T, n_proj, n_proj)
     count = 0
     for l in 0:psp.lmax, m in -l:l
         n_proj_l = size(psp.h[l + 1], 1)  # Number of i's
@@ -148,30 +141,30 @@ where pihat(q) = ∫_R^3 pi(r) e^{-iqr} dr
 
 We store 1/√Ω pihat(k+G) in proj_vectors.
 """
-function build_projection_vectors_(basis::PlaneWaveBasis{T}, atoms, kpt::Kpoint) where {T}
-    n_proj = count_n_proj(atoms)
-    model = basis.model
-
-    proj_vectors = zeros(Complex{T}, length(G_vectors(kpt)), n_proj)
-    qs = [model.recip_lattice * (kpt.coordinate + G) for G in G_vectors(kpt)]
+function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
+                                   psps, psp_positions) where {T}
+    unit_cell_volume = basis.model.unit_cell_volume
+    n_proj = count_n_proj(psps, psp_positions)
+    n_G    = length(G_vectors(basis, kpt))
+    proj_vectors = zeros(Complex{T}, n_G, n_proj)
 
     # Compute the columns of proj_vectors = 1/√Ω pihat(k+G)
     # Since the pi are translates of each others, pihat(k+G) decouples as
     # pihat(q) = ∫ p(r-R) e^{-iqr} dr = e^{-iqR} phat(q).
     # The first term is the structure factor, the second the form factor.
-    offset = 0 # offset into proj_vectors
-    for (psp, positions) in atoms
+    offset = 0  # offset into proj_vectors
+    for (psp, positions) in zip(psps, psp_positions)
         # Compute position-independent form factors
-        form_factors = build_form_factors(psp, qs)
+        form_factors = build_form_factors(psp, Gplusk_vectors_cart(basis, kpt))
 
         # Combine with structure factors
         for r in positions
             # k+G in this formula can also be G, this only changes an unimportant phase factor
-            structure_factors = [cis(-2T(π)*dot(kpt.coordinate + G, r)) for G in G_vectors(kpt)]
-            for iproj = 1:count_n_proj(psp)
-                @views proj_vectors[:, offset+iproj] .= (structure_factors
-                                                        .* form_factors[:, iproj]
-                                                        ./ sqrt(model.unit_cell_volume))
+            structure_factors = map(q -> cis2pi(-dot(q, r)), Gplusk_vectors(basis, kpt))
+            @views for iproj = 1:count_n_proj(psp)
+                proj_vectors[:, offset+iproj] .= (
+                    structure_factors .* form_factors[:, iproj] ./ sqrt(unit_cell_volume)
+                )
             end
             offset += count_n_proj(psp)
         end
