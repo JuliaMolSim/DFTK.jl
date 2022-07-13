@@ -83,3 +83,15 @@ function eigenvalues_from_basis(basis)
     sum(sum, scfres.eigenvalues)
 end
 Zygote.gradient(eigenvalues_from_basis, basis)
+
+function eigenvalues_from_lattice(lattice)
+    model = Model(lattice, atoms, positions; terms, symmetries=false)
+    basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), kshift=(0, 0, 0))
+    is_converged = DFTK.ScfConvergenceDensity(1e-8)
+    scfres = self_consistent_field(basis; is_converged)
+    sum(sum, scfres.eigenvalues)
+end
+Zygote.gradient(eigenvalues_from_lattice, lattice) # TODO debug values
+
+using FiniteDiff
+FiniteDiff.finite_difference_gradient(eigenvalues_from_lattice, lattice)
