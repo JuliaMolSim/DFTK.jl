@@ -167,7 +167,8 @@ end
 # (eg the density ρ)
 @timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     # it: index into terms, ik: index into kpoints
-    @timing "ene_ops" ene_ops_arr = [ene_ops(term, basis, ψ, occupation; kwargs...)
+    ρ = kwargs[:ρ]
+    @timing "ene_ops" ene_ops_arr = [ene_ops(term, basis, ψ, occupation; kwargs..., ρ)
                                      for term in basis.terms]
     energies  = [eh.E for eh in ene_ops_arr]
     operators = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]

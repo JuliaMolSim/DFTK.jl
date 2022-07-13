@@ -171,7 +171,7 @@ end
 function ChainRulesCore.rrule(TE::Type{Energies{T}}, energies) where T
     @warn "Energies{T} constructor rrule triggered."
     E = TE(energies)
-    TE_pullback(∂E::ZeroTangent) = NoTangent(), NoTangent()
+    TE_pullback(∂E::AbstractZero) = NoTangent(), NoTangent()
     TE_pullback(∂E) = NoTangent(), ∂E.energies
     return E, TE_pullback
 end
@@ -179,7 +179,7 @@ end
 function ChainRulesCore.rrule(TH::Type{Hamiltonian}, basis, blocks)
     @warn "Hamiltonian constructor rrule triggered."
     H = TH(basis, blocks)
-    TH_pullback(∂H::ZeroTangent) = NoTangent(), NoTangent(), NoTangent()
+    TH_pullback(∂H::AbstractZero) = NoTangent(), NoTangent(), NoTangent()
     TH_pullback(∂H) = NoTangent(), ∂H.basis, ∂H.blocks
     return H, TH_pullback
 end
@@ -195,6 +195,7 @@ end
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis{T}; kwargs...) where {T}
     @warn "self_consistent_field rrule triggered."
     scfres = self_consistent_field(basis; kwargs...)
+    project_to_scfres = ProjectTo(scfres)
 
     # TODO remove select_occupied_orbitals
     ψ, occupation = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
@@ -206,15 +207,15 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
     ρ, compute_density_pullback =
         rrule(config, compute_density, basis, scfres.ψ, scfres.occupation)
 
-    eigenvalues, eigenvalues_pullback =  rrule_via_ad(config, eigenvalues_rayleigh_ritz, ψ, Hψ)
+    eigenvalues, eigenvalues_pullback = rrule_via_ad(config, eigenvalues_rayleigh_ritz, ψ, Hψ)
 
     function self_consistent_field_pullback(∂scfres)
-        # TODO problem: typeof(∂scfres) == Tangent{Any}
+        ∂scfres = project_to_scfres(∂scfres)
         ∂ψ = ∂scfres.ψ
         ∂occupation = ∂scfres.occupation
         ∂ρ = ∂scfres.ρ
         ∂energies = ∂scfres.energies
-        ∂basis1 = Tangent{PlaneWaveBasis{T}}(; ChainRulesCore.backing(∂scfres.basis)...)
+        ∂basis1 = ∂scfres.basis
         ∂H = ∂scfres.ham
         ∂eigenvalues = ∂scfres.eigenvalues
 
