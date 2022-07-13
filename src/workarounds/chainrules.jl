@@ -192,22 +192,19 @@ function eigenvalues_rayleigh_ritz(ψ, Hψ)
     return eigenvalues
 end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis{T}; kwargs...) where {T}
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis{T,VT}; kwargs...) where {T,VT}
     @warn "self_consistent_field rrule triggered."
     scfres = self_consistent_field(basis; kwargs...)
     project_to_scfres = ProjectTo(scfres)
 
-    # TODO remove select_occupied_orbitals
-    ψ, occupation = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
-
     (; E, H), energy_hamiltonian_pullback =
         rrule_via_ad(config, energy_hamiltonian, basis, scfres.ψ, scfres.occupation, scfres.ρ)
     Hψ, mul_pullback =
-        rrule(config, *, H, ψ)
+        rrule(config, *, H, scfres.ψ)
     ρ, compute_density_pullback =
         rrule(config, compute_density, basis, scfres.ψ, scfres.occupation)
 
-    eigenvalues, eigenvalues_pullback = rrule_via_ad(config, eigenvalues_rayleigh_ritz, ψ, Hψ)
+    eigenvalues, eigenvalues_pullback = rrule_via_ad(config, eigenvalues_rayleigh_ritz, scfres.ψ, Hψ)
 
     function self_consistent_field_pullback(∂scfres)
         ∂scfres = project_to_scfres(∂scfres)
@@ -215,36 +212,27 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         ∂occupation = ∂scfres.occupation
         ∂ρ = ∂scfres.ρ
         ∂energies = ∂scfres.energies
-        ∂basis1 = ∂scfres.basis
+        ∂basis1 = Tangent{PlaneWaveBasis{T,VT}}(; ChainRulesCore.backing(∂scfres.basis)...)
         ∂H = ∂scfres.ham
         ∂eigenvalues = ∂scfres.eigenvalues
 
         _, ∂basis2, ∂ψ_density_pullback, _ = compute_density_pullback(∂ρ)
         ∂ψ += ∂ψ_density_pullback
-
-        if !iszero(∂eigenvalues)
-            # workaround: sizes don't match because of select_occupied_orbitals
-            # TODO delete, once select_occupied_orbitals becomes obsolete
-            N = [findlast(x -> x > 0.0, occk) for occk in scfres.occupation]
-            ∂eigenvalues = [λk[1:N[ik]] for (ik, λk) in enumerate(∂eigenvalues)]
-        end
         _, ∂ψ_rayleigh_ritz, ∂Hψ_rayleigh_ritz = eigenvalues_pullback(∂eigenvalues)
         ∂ψ += ∂ψ_rayleigh_ritz
-
-        # TODO use omegaplusk_split instead and do not select_occupied_orbitals
 
         # Otherwise there is no contribution to ∂basis, by linearity.
         # This also excludes the case when ∂ψ is a NoTangent().
         if !iszero(∂ψ)
-            ∂ψ, occupation = DFTK.select_occupied_orbitals(basis, ∂ψ, occupation)
-            ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation).δψ # use self-adjointness of dH ψ -> dψ
+            occupation_threshold = DFTK.default_occupation_threshold()
+            ∂Hψ = solve_ΩplusK_split(basis, scfres.ψ, -∂ψ, scfres.occupation; occupation_threshold).δψ # use self-adjointness of dH ψ -> dψ
             ∂Hψ += ∂Hψ_rayleigh_ritz
-            # TODO need to do proj_tangent on ∂Hψ <--- can delete this TODO
             _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
             ∂H = ∂H_mul_pullback + ∂H
         end
 
         _, ∂basis3, _, _, _ = energy_hamiltonian_pullback((; E=∂energies, H=∂H))
+        
         ∂basis = ∂basis1 + ∂basis2 + ∂basis3
 
         return NoTangent(), ∂basis
