@@ -1,5 +1,6 @@
 using DFTK
 using Zygote
+using FiniteDiff
 setup_threading(n_blas=1)
 
 # Specify structure for silicon lattice
@@ -87,11 +88,16 @@ Zygote.gradient(eigenvalues_from_basis, basis)
 function eigenvalues_from_lattice(lattice)
     model = Model(lattice, atoms, positions; terms, symmetries=false)
     basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), kshift=(0, 0, 0))
-    is_converged = DFTK.ScfConvergenceDensity(1e-8)
-    scfres = self_consistent_field(basis; is_converged)
-    sum(sum, scfres.eigenvalues)
+    eigenvalues_from_basis(basis)
 end
 Zygote.gradient(eigenvalues_from_lattice, lattice) # TODO debug values
-
-using FiniteDiff
 FiniteDiff.finite_difference_gradient(eigenvalues_from_lattice, lattice)
+
+function forces_from_lattice(lattice)
+    model = Model(lattice, atoms, positions; terms, symmetries=false)
+    basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), kshift=(0, 0, 0))
+    forces_from_basis(basis)
+end
+forces_from_lattice(lattice)
+Zygote.gradient(forces_from_lattice, lattice) # TODO debug values
+FiniteDiff.finite_difference_gradient(forces_from_lattice, lattice)
