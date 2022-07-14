@@ -191,6 +191,7 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
                    comm_kpts=basis.comm_kpts)
 end
 
+
 function self_consistent_field(basis_dual::PlaneWaveBasis{T};
                                response=ResponseOptions(),
                                kwargs...) where T <: ForwardDiff.Dual
@@ -200,22 +201,20 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     basis  = construct_value(basis_dual)
     scfres = self_consistent_field(basis; kwargs...)
 
-    ## promote occupied bands to dual numbers
-    occupation_dual = [T.(occₖ) for occₖ in scfres.occupation]
-    ψ_dual = [Complex.(T.(real(ψₖ)), T.(imag(ψₖ))) for ψₖ in scfres.ψ]
+    ## Promote to dual numbers
+    occupation_dual = [T.(occk) for occk in scfres.occupation]
+    ψ_dual = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
     ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
     εF_dual = T(scfres.εF)  # Only needed for entropy term
-    eigenvalues_dual = [T.(εₖ) for εₖ in scfres.eigenvalues]
-    energies_dual, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
-                                                 ρ=ρ_dual, eigenvalues=eigenvalues_dual,
-                                                 εF=εF_dual)
-
-    response.verbose && println("Solving response problem")
+    eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
+    _, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
+                                     ρ=ρ_dual, eigenvalues=eigenvalues_dual, εF=εF_dual)
 
     ## Implicit differentiation
-    hamψ_dual = ham_dual * ψ_dual
+    response.verbose && println("Solving response problem")
+    Hψ_dual= ham_dual * ψ_dual
     δresults = ntuple(ForwardDiff.npartials(T)) do α
-        δHψ_α = [ForwardDiff.partials.(δHψk, α) for δHψk in hamψ_dual]
+        δHψ_α = [ForwardDiff.partials.(Hψk, α) for Hψk in Hψ_dual]
 
         δψ_α, resp_α = solve_ΩplusK_split(scfres, -δHψ_α; tol=scfres.norm_Δρ, response.verbose)
         δρ_α = compute_δρ(basis, scfres.ψ, δψ_α, scfres.occupation)
@@ -225,7 +224,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     δρ       = [δρ_α   for (δψ_α, δρ_α, resp_α) in δresults]
     response = [resp_α for (δψ_α, δρ_α, resp_α) in δresults]
 
-    ## Convert, combine and return
+    ## Convert and combine
     DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}
     ψ_out = map(scfres.ψ, δψ...) do ψk, δψk...
         map(ψk, δψk...) do ψi, δψi...
@@ -235,10 +234,20 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     end
     ρ_out = map((ρi, δρi...) -> DT(ρi, δρi), scfres.ρ, δρ...)
 
-    # TODO Compute eigenvalue response (return dual eigenvalues and dual εF)
+    ## Build consistent Hamiltonian and band energies
+    energies_out, ham_out = energy_hamiltonian(basis_dual, ψ_out, occupation_dual;
+                                               ρ=ρ_out, eigenvalues=eigenvalues_dual,
+                                               εF=εF_dual)
 
-    merge(scfres, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
-                   occupation=occupation_dual, ρ=ρ_out, response))
+    eigenvalues_out = map(scfres.eigenvalues, ψ_out, ham_out * ψ_out) do εk, ψk, Hψk
+        # Primal and 1st order change due to updated orbitals
+        # The second term accounts for the loss of orthogonality in the
+        # orbitals due to the perturbation (We don't enforce δψnk ⟂ ψnk)
+        eigvals(Hermitian(ψk'Hψk + Diagonal(εk) * (I - ψk'ψk)))
+    end
+
+    merge(scfres, (; ham=ham_out, basis=basis_dual, energies=energies_out, ψ=ψ_out,
+                     eigenvalues=eigenvalues_out, ρ=ρ_out, response))
 end
 
 # other workarounds
