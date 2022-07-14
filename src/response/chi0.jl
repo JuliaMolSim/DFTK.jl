@@ -107,13 +107,13 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # Solves (1-P) (H-εn) (1-P) δψn = - (1-P) rhs
 # where 1-P is the projector on the orthogonal of ψk
 # n is used for the preconditioning with ψk[:,n] and the optional callback
+# /!\ It is assumed (and not checked) that ψk'Hk*ψk = Diagonal(εk) (extra states
+# included).
 function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
                             abstol=1e-9, reltol=0, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
-    model = basis.model
-    temperature = model.temperature
 
     # We use a Schur decomposition of the orthogonal of the occupied states
     # into a part where we have the partially converged, non-occupied bands
