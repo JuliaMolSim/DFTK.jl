@@ -50,19 +50,17 @@ Zygote.gradient(eigenvalues_from_basis, basis)
 
 # Comparison to FiniteDiff
 
-function eigenvalues_from_lattice(lattice)
+function basis_from_lattice(lattice)
     model = Model(lattice, atoms, positions; terms, symmetries=false)
-    basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), kshift=(0, 0, 0))
-    eigenvalues_from_basis(basis)
+    PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), kshift=(0, 0, 0))
 end
-Zygote.gradient(eigenvalues_from_lattice, lattice) # TODO debug values
-FiniteDiff.finite_difference_gradient(eigenvalues_from_lattice, lattice)
 
-function forces_from_lattice(lattice)
-    model = Model(lattice, atoms, positions; terms, symmetries=false)
-    basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), kshift=(0, 0, 0))
-    forces_from_basis(basis)
-end
+forces_from_lattice(lattice) = forces_from_basis(basis_from_lattice(lattice)) 
 forces_from_lattice(lattice)
 Zygote.gradient(forces_from_lattice, lattice) # TODO debug values
 FiniteDiff.finite_difference_gradient(forces_from_lattice, lattice)
+
+eigenvalues_from_lattice(lattice) = eigenvalues_from_basis(basis_from_lattice(lattice))
+eigenvalues_from_lattice(lattice)
+Zygote.gradient(eigenvalues_from_lattice, lattice) # TODO debug values
+FiniteDiff.finite_difference_gradient(eigenvalues_from_lattice, lattice)
