@@ -224,7 +224,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         # Otherwise there is no contribution to ∂basis, by linearity.
         # This also excludes the case when ∂ψ is a NoTangent().
         if !iszero(∂ψ)
-            occupation_threshold = DFTK.default_occupation_threshold()
+            occupation_threshold = scfres.occupation_threshold
             ∂Hψ = solve_ΩplusK_split(basis, scfres.ψ, -∂ψ, scfres.occupation; occupation_threshold).δψ # use self-adjointness of dH ψ -> dψ
             ∂Hψ += ∂Hψ_rayleigh_ritz
             _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
