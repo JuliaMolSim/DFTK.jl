@@ -198,56 +198,62 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     # Note: No guarantees on this interface yet.
 
     # Primal pass
-    basis  = construct_value(basis_dual)
-    scfres = self_consistent_field(basis; kwargs...)
+    basis_primal  = construct_value(basis_dual)
+    scfres = self_consistent_field(basis_primal; kwargs...)
 
-    ## Promote to dual numbers
-    occupation_dual = [T.(occk) for occk in scfres.occupation]
-    ψ_dual = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
-    ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
-    εF_dual = T(scfres.εF)  # Only needed for entropy term
-    eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
-    _, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
-                                     ρ=ρ_dual, eigenvalues=eigenvalues_dual, εF=εF_dual)
+    ## Compute external perturbing potential δV_{ext} (contained in δH)
+    ## and form the matrix-vector product with the bands
+    δH, δHψ = let
+        occupation_dual = [T.(occk) for occk in scfres.occupation]
+        ψ_dual = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
+        ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
+        εF_dual = T(scfres.εF)  # Only needed for entropy term
+        eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
+        _, δH = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
+                                   ρ=ρ_dual, eigenvalues=eigenvalues_dual, εF=εF_dual)
+        δH, δH * ψ_dual
+    end
 
     ## Implicit differentiation
     response.verbose && println("Solving response problem")
-    Hψ_dual= ham_dual * ψ_dual
     δresults = ntuple(ForwardDiff.npartials(T)) do α
-        δHψ_α = [ForwardDiff.partials.(Hψk, α) for Hψk in Hψ_dual]
+        δHψ_α = [ForwardDiff.partials.(δHψk, α) for δHψk in δHψ]
 
-        δψ_α, resp_α = solve_ΩplusK_split(scfres, -δHψ_α; tol=scfres.norm_Δρ, response.verbose)
-        δρ_α = compute_δρ(basis, scfres.ψ, δψ_α, scfres.occupation)
-        δψ_α, δρ_α, resp_α
+        δψ, resp = solve_ΩplusK_split(scfres, -δHψ_α; tol=scfres.norm_Δρ, response.verbose)
+        δρ = compute_δρ(basis_primal, scfres.ψ, δψ, scfres.occupation)
+
+        # TODO Stuff this back into δH to build a δH, by amending the stored total local
+        #      potential. This forms a δH, which has the total variation, which could be
+        #      returned.
+        δVresp   = apply_kernel(basis_primal, δρ; scfres.ρ)  # response potential ε^{-1} V_{ext}
+
+        δevalues = map(basis_primal.kpoints, scfres.ψ, δHψ_α) do kpt, ψk, δHψk
+            # compute δε_{nk} = <ψnk | δVtot | ψnk> = <ψnk | δVext + δVresp | ψnk>
+            map(eachcol(ψk), eachcol(δHψk)) do ψnk, δHψnk
+                # TODO Neither memory efficient nor properly parallelised over k-points
+                ψnk_real = G_to_r(basis_primal, kpt, ψnk)
+                sum(δVresp .* abs2.(ψnk_real)) * basis_primal.dvol + real(dot(ψnk, δHψnk))
+            end
+        end
+
+        (; δψ, δρ, resp, δVresp, δevalues)
     end
-    δψ       = [δψ_α   for (δψ_α, δρ_α, resp_α) in δresults]
-    δρ       = [δρ_α   for (δψ_α, δρ_α, resp_α) in δresults]
-    response = [resp_α for (δψ_α, δρ_α, resp_α) in δresults]
 
     ## Convert and combine
     DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}
-    ψ_out = map(scfres.ψ, δψ...) do ψk, δψk...
-        map(ψk, δψk...) do ψi, δψi...
-            Complex(DT(real(ψi), real.(δψi)),
-                    DT(imag(ψi), imag.(δψi)))
+    ψ = map(scfres.ψ, getfield.(δresults, :δψ)...) do ψk, δψk...
+        map(ψk, δψk...) do ψnk, δψnk...
+            Complex(DT(real(ψnk), real.(δψnk)),
+                    DT(imag(ψnk), imag.(δψnk)))
         end
     end
-    ρ_out = map((ρi, δρi...) -> DT(ρi, δρi), scfres.ρ, δρ...)
-
-    ## Build consistent Hamiltonian and band energies
-    energies_out, ham_out = energy_hamiltonian(basis_dual, ψ_out, occupation_dual;
-                                               ρ=ρ_out, eigenvalues=eigenvalues_dual,
-                                               εF=εF_dual)
-
-    eigenvalues_out = map(scfres.eigenvalues, ψ_out, ham_out * ψ_out) do εk, ψk, Hψk
-        # Primal and 1st order change due to updated orbitals
-        # The second term accounts for the loss of orthogonality in the
-        # orbitals due to the perturbation (We don't enforce δψnk ⟂ ψnk)
-        eigvals(Hermitian(ψk'Hψk + Diagonal(εk) * (I - ψk'ψk)))
+    ρ = map((ρi, δρi...) -> DT(ρi, δρi), scfres.ρ, getfield.(δresults, :δρ)...)
+    eigenvalues = map(scfres.eigenvalues, getfield.(δresults, :δevalues)...) do εk, δεk...
+        map((εnk, δεnk...) -> DT(εnk, δεnk), εk, δεk...)
     end
 
-    merge(scfres, (; ham=ham_out, basis=basis_dual, energies=energies_out, ψ=ψ_out,
-                     eigenvalues=eigenvalues_out, ρ=ρ_out, response))
+    merge(scfres, (; ψ, ρ, eigenvalues,
+                     basis=basis_dual, response=getfield.(δresults, :resp)))
 end
 
 # other workarounds

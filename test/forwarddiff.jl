@@ -1,7 +1,6 @@
 using DFTK
 using ForwardDiff
 using Test
-using ComponentArrays
 
 include("testcases.jl")
 
@@ -57,7 +56,7 @@ include("testcases.jl")
     end
 end
 
-@testset "scfres pseudo-sensitivity using ForwardDiff" begin
+@testset "scfres PSP sensitivity using ForwardDiff" begin
     function compute_band_energies(ε::T) where {T}
         psp  = load_psp("hgh/lda/al-q3")
         rloc = convert(T, psp.rloc)
@@ -74,11 +73,7 @@ end
         scfres = self_consistent_field(basis; is_converged, mixing=KerkerMixing(),
                                        damping=0.6, response=ResponseOptions(verbose=true))
 
-        # TODO: Fixme Entropy derivative does not yet work properly
-        ComponentArray(
-            energies=[scfres.energies[k] for k in keys(scfres.energies) if k != "Entropy"],
-            eigenvalues=hcat([ev[1:end-3] for ev in scfres.eigenvalues]...),
-        )
+        hcat([ev[1:end-3] for ev in scfres.eigenvalues]...)
     end
 
     derivative_ε = let ε = 1e-4

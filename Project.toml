@@ -84,7 +84,6 @@ spglib_jll = "1.15"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
-ComponentArrays = "b0b7db55-cfe3-40fc-9ded-d10e2dbeff66"
 DoubleFloats = "497a8b3b-efae-58df-a0af-a86822472b78"
 FiniteDiff = "6a86dc24-6348-571c-b903-95158fe2bd41"
 GenericLinearAlgebra = "14197337-ba66-59df-a3e3-ca00e7dcff7a"
@@ -100,4 +99,4 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
 [targets]
-test = ["Test", "Aqua", "DoubleFloats", "FiniteDiff", "GenericLinearAlgebra", "IntervalArithmetic", "Plots", "Random", "KrylovKit", "Logging", "JLD2", "WriteVTK", "wannier90_jll", "QuadGK", "ComponentArrays"]
+test = ["Test", "Aqua", "DoubleFloats", "FiniteDiff", "GenericLinearAlgebra", "IntervalArithmetic", "Plots", "Random", "KrylovKit", "Logging", "JLD2", "WriteVTK", "wannier90_jll", "QuadGK"]
