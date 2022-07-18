@@ -33,17 +33,27 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
 
     @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
         Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
-            ψnk_real = ψnk_real_chunklocal[ichunk]
-            ρ_loc = ρ_chunklocal[ichunk]
-
             kpt = basis.kpoints[ik]
-            G_to_r!(ψnk_real, basis, kpt, ψ[ik][:, n])
-            ρ_loc[:, :, :, kpt.spin] .+= occupation[ik][n] .* basis.kweights[ik] .* abs2.(ψnk_real)
+            #TODO: is this the right way to got? Probably rewrite compute_density for GPUArrays
+            if typeof(basis.G_vectors) <:AbstractGPUArray
+                ψnk_real = similar(basis.G_vectors, complex(T), basis.fft_size)
+                G_to_r!(ψnk_real, basis, kpt, ψ[ik][:, n])
+                ρ_loc = ρ_chunklocal[ichunk]
+                ρ_loc[:, :, :, kpt.spin] .+= occupation[ik][n] .* basis.kweights[ik] .* Array(abs2.(ψnk_real))
+            else
+                ψnk_real = ψnk_real_chunklocal[ichunk]
+                ρ_loc = ρ_chunklocal[ichunk]
+
+                G_to_r!(ψnk_real, basis, kpt, ψ[ik][:, n])
+                ρ_loc[:, :, :, kpt.spin] .+= occupation[ik][n] .* basis.kweights[ik] .* abs2.(ψnk_real)
+            end
         end
     end
 
     ρ = sum(ρ_chunklocal)
     mpi_sum!(ρ, basis.comm_kpts)
+    array_type = typeof(similar(basis.G_vectors,complex(T), size(ρ)))
+    ρ = convert(array_type, ρ)
     ρ = symmetrize_ρ(basis, ρ; do_lowpass=false)
 
     _check_positive(ρ)

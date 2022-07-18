@@ -27,7 +27,7 @@ PreconditionerNone(basis, kpt) = I
 mutable struct PreconditionerTPA{T <: Real}
     basis::PlaneWaveBasis
     kpt::Kpoint
-    kin::Vector{T}  # kinetic energy of every G
+    kin::AbstractVector{T}  # kinetic energy of every G
     mean_kin::Union{Nothing, Vector{T}}  # mean kinetic energy of every band
     default_shift::T # if mean_kin is not set by `precondprep!`, this will be used for the shift
 end
@@ -37,6 +37,8 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     isempty(kinetic_term) && error("Preconditioner should be disabled when no Kinetic term is used.")
     scaling = only(kinetic_term).scaling_factor
     kin = Vector{T}([scaling * sum(abs2, q) for q in Gplusk_vectors_cart(basis, kpt)] ./ 2)
+    array_type = typeof(similar(basis.G_vectors, T, size(kin)))
+    kin = convert(array_type, kin)
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 
@@ -68,4 +70,11 @@ end
 
 function precondprep!(P::PreconditionerTPA, X)
     P.mean_kin = [real(dot(x, Diagonal(P.kin), x)) for x in eachcol(X)]
+    array_type = typeof(similar(X,eltype(X),size(P.mean_kin)))
+    P.mean_kin = convert(array_type, P.mean_kin)
 end
+
+#TODO: remove this if it implemented in GPUArrays
+import LinearAlgebra.dot
+using GPUArrays
+LinearAlgebra.dot(x::AbstractGPUArray, D::Diagonal,y::AbstractGPUArray) = x'*(D*y)

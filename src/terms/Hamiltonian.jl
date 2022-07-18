@@ -89,9 +89,8 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
     T = eltype(H.basis)
     n_bands = size(ψ, 2)
     Hψ_fourier = similar(Hψ[:, 1])
-    ψ_real  = zeros(complex(T), H.basis.fft_size...)
-    Hψ_real = zeros(complex(T), H.basis.fft_size...)
-
+    ψ_real  = similar(ψ, complex(T), H.basis.fft_size...)
+    Hψ_real = similar(Hψ, complex(T), H.basis.fft_size...)
     # take ψi, IFFT it to ψ_real, apply each term to Hψ_fourier and Hψ_real, and add it to Hψ
     for iband = 1:n_bands
         Hψ_real .= 0

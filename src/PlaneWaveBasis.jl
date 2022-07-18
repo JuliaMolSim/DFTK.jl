@@ -67,8 +67,8 @@ struct PlaneWaveBasis{T, VT} <: AbstractBasis{T} where {VT <: Real}
     G_to_r_normalization::T  # G_to_r = G_to_r_normalization * BFFT
 
     # "cubic" basis in reciprocal and real space, on which potentials and densities are stored
-    G_vectors::Array{Vec3{Int}, 3}
-    r_vectors::Array{Vec3{VT }, 3}
+    G_vectors::AbstractArray{Vec3{Int}, 3}
+    r_vectors::AbstractArray{Vec3{VT }, 3}
 
     ## MPI-local information of the kpoints this processor treats
     # Irreducible kpoints. In the case of collinear spin,
@@ -148,7 +148,7 @@ end
 # and are stored in PlaneWaveBasis for easy reconstruction.
 function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
                         kcoords, kweights, kgrid, kshift,
-                        symmetries_respect_rgrid, comm_kpts) where {T <: Real}
+                        symmetries_respect_rgrid, comm_kpts, array_type = Array) where {T <: Real}
     # Validate fft_size
     if variational
         max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
@@ -191,7 +191,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     kweights_global = kweights
 
     # Setup FFT plans
-    (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans(T, fft_size)
+    G_vects = G_vectors(fft_size, array_type)
+    (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans(similar(G_vects,T), fft_size)
 
     # Normalization constants
     # r_to_G = r_to_G_normalization * FFT
@@ -255,15 +256,14 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
         r_to_G_normalization, G_to_r_normalization,
-        G_vectors(fft_size), r_vectors,
+        G_vects, r_vectors,
         kpoints, kweights_thisproc, kgrid, kshift,
         kcoords_global, kweights_global, comm_kpts, krange_thisproc, krange_allprocs,
         symmetries, symmetries_respect_rgrid, terms)
-
     # Instantiate the terms with the basis
     for (it, t) in enumerate(model.term_types)
         term_name = string(nameof(typeof(t)))
-        @timing "Instantiation $term_name" basis.terms[it] = t(basis)
+        @timing "Instantiation $term_name" basis.terms[it] = t(basis, array_type = array_type)
     end
     basis
 end
@@ -277,7 +277,7 @@ end
                                 variational=true, fft_size=nothing,
                                 kgrid=nothing, kshift=nothing,
                                 symmetries_respect_rgrid=isnothing(fft_size),
-                                comm_kpts=MPI.COMM_WORLD) where {T <: Real}
+                                comm_kpts=MPI.COMM_WORLD, array_type = Array) where {T <: Real}
     if isnothing(fft_size)
         @assert variational
         if symmetries_respect_rgrid
@@ -295,7 +295,7 @@ end
         fft_size = compute_fft_size(model, Ecut, kcoords; factors=factors)
     end
     PlaneWaveBasis(model, Ecut, fft_size, variational, kcoords, kweights,
-                   kgrid, kshift, symmetries_respect_rgrid, comm_kpts)
+                   kgrid, kshift, symmetries_respect_rgrid, comm_kpts, array_type)
 end
 
 @doc raw"""
@@ -317,12 +317,12 @@ end
 Creates a new basis identical to `basis`, but with a custom set of kpoints
 """
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
-                                kweights::AbstractVector)
+                                kweights::AbstractVector; array_type = Array)
     kgrid = kshift = nothing
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
                    kcoords, kweights, kgrid, kshift,
-                   basis.symmetries_respect_rgrid, basis.comm_kpts)
+                   basis.symmetries_respect_rgrid, basis.comm_kpts, array_type)
 end
 
 """
@@ -331,6 +331,11 @@ end
 The wave vectors `G` in reduced (integer) coordinates for a cubic basis set
 of given sizes.
 """
+function G_vectors(fft_size::Union{Tuple,AbstractVector}, array_type::UnionAll)
+    #This functions allows to convert the G_vectors (currently being built on the CPU) to a GPU Array.
+    convert(array_type, G_vectors(fft_size))
+end
+
 function G_vectors(fft_size::Union{Tuple,AbstractVector})
     # Note that a collect(G_vectors_generator(fft_size)) is 100-fold slower
     # than this implementation, hence the code duplication.

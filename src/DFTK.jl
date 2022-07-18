@@ -13,8 +13,10 @@ using spglib_jll
 using Unitful
 using UnitfulAtomic
 using ForwardDiff
+using AbstractFFTs
 using GPUArrays
 using CUDA
+using Random
 
 export Vec3
 export Mat3

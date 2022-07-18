@@ -66,6 +66,9 @@ function unsafe_unpack_ψ(x, sizes_ψ)
 end
 unpack_ψ(x, sizes_ψ) = deepcopy(unsafe_unpack_ψ(x, sizes_ψ))
 
+using Random
 function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany) where {T}
-    ortho_qr(randn(Complex{T}, length(G_vectors(basis, kpt)), howmany))
+    orbitals = similar(basis.G_vectors, Complex{T}, length(G_vectors(basis, kpt)), howmany)
+    randn!(TaskLocalRNG(), orbitals) #Force the use of GPUArrays.jl's random function if using the GPU
+    ortho_qr(orbitals)
 end

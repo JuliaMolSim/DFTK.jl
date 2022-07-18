@@ -59,7 +59,12 @@ end
 end
 
 @timing function rayleigh_ritz(X::CuArray, AX::CuArray, N)
-    vals, vects = CUDA.CUSOLVER.syevd!('V','U',X'AX)
+    #TODO: this is wacky and should be changed
+    if eltype(X) == ComplexF32 || eltype(X) == ComplexF64
+        vals, vects = CUDA.CUSOLVER.heevd!('V','U',X'AX)
+    else
+        vals, vects = CUDA.CUSOLVER.syevd!('V','U',X'AX)
+    end
     vects[:,1:N], vals[1:N]
 end
 # B-orthogonalize X (in place) using only one B apply.
@@ -220,10 +225,10 @@ end
 function final_retval(X, AX, resid_history, niter, n_matvec)
     λ = real(diag(X' * AX))
     residuals = AX .- X*Diagonal(λ)
-    (λ=Array(λ), X=Array(X),
+    (λ=Array(λ), X=X,
      residual_norms=[norm(residuals[:, i]) for i in 1:size(residuals, 2)],
-     residual_history=resid_history[:, 1:niter+1],
-     n_matvec=n_matvec)
+     residual_history=resid_history[:, 1:niter+1], n_matvec=n_matvec)
+    #λ doesn't have to be on the GPU, but X does (ψ should always be on GPU throughout the code).
 end
 
 ### The algorithm is Xn+1 = rayleigh_ritz(hcat(Xn, A*Xn, Xn-Xn-1))

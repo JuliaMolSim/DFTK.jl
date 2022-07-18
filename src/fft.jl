@@ -1,5 +1,7 @@
 import FFTW
-
+import CUDA
+import GPUArrays
+import AbstractFFTs
 #
 # Perform (i)FFTs.
 #
@@ -253,14 +255,16 @@ _fftw_flags(::Type{Float64}) = FFTW.MEASURE
 Plan a FFT of type `T` and size `fft_size`, spending some time on finding an
 optimal algorithm. (Inplace, out-of-place) x (forward, backward) FFT plans are returned.
 """
-function build_fft_plans(T::Union{Type{Float32}, Type{Float64}}, fft_size)
-    tmp = Array{Complex{T}}(undef, fft_size...)
-    ipFFT = FFTW.plan_fft!(tmp, flags=_fftw_flags(T))
-    opFFT = FFTW.plan_fft(tmp, flags=_fftw_flags(T))
+#Removed the flags as CUDA's plan_fft doesn't need flags. If this is a performance issue, we should check array_type's type then call either FFTW.plan_fft(tmp, flags = ...) or CUDA.plan_fft(tmp)
+function build_fft_plans(array_type::AbstractArray{T}, fft_size) where {T<:Union{Float32,Float64}}
+    tmp = similar(array_type, Complex{Float64}, fft_size...)
+    ipFFT = AbstractFFTs.plan_fft!(tmp)
+    opFFT = AbstractFFTs.plan_fft(tmp)
     # backward by inverting and stripping off normalizations
     ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
 end
 
+LinearAlgebra.mul!(Y::AbstractGPUArray, p::AbstractFFTs.Plan, X::AbstractGPUArray) = Y .= p *X
 
 # TODO Some grid sizes are broken in the generic FFT implementation
 # in FourierTransforms, for more details see workarounds/fft_generic.jl

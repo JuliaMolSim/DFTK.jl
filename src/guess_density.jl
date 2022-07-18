@@ -67,7 +67,8 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, positions, magneti
         @warn("Returning zero spin density guess, because no initial magnetization has " *
               "been specified in any of the given elements / atoms. Your SCF will likely " *
               "not converge to a spin-broken solution.")
-        return zeros(T, basis.fft_size)
+        array_type = typeof(similar(basis.G_vectors, T, basis.fft_size))
+        return convert(array_type,zeros(T, basis.fft_size))
     end
 
     @assert length(magnetic_moments) == length(atoms) == length(positions)
@@ -93,23 +94,23 @@ which follow the functional form
 and are placed at `position` (in fractional coordinates).
 """
 function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
-    ρ = zeros(complex(T), basis.fft_size)
-    isempty(gaussians) && return G_to_r(basis, ρ)
-
-    # Fill ρ with the (unnormalized) Fourier transform, i.e. ∫ e^{-iGx} f(x) dx,
-    # where f(x) is a weighted gaussian
-    #
-    # is formed from a superposition of atomic densities, each scaled by a prefactor
-    for (iG, G) in enumerate(G_vectors(basis))
-        Gsq = sum(abs2, basis.model.recip_lattice * G)
+    ρ = deepcopy(basis.G_vectors)
+    #These copies are required so that recip_lattice and gaussians are isbits (GPU compatibility)
+    recip_lattice = basis.model.recip_lattice
+    gaussians = SVector{size(gaussians)[1]}(gaussians)
+    function build_ρ(G)
+        Gsq = sum(abs2, recip_lattice * G)
+        res = zero(complex(T))
         for (coeff, decay_length, r) in gaussians
             form_factor::T = exp(-Gsq * T(decay_length)^2)
-            ρ[iG] += T(coeff) * form_factor * cis2pi(-dot(G, r))
+            res += T(coeff) * form_factor* cis2pi(-dot(G, r))
         end
+        res
     end
+    ρ = map(build_ρ, ρ)/ sqrt(basis.model.unit_cell_volume) #Can't use map! as we are converting an array of Vec3 to an array of complex
 
     # projection in the normalized plane wave basis
-    G_to_r(basis, ρ / sqrt(basis.model.unit_cell_volume))
+    G_to_r(basis, ρ)
 end
 
 
