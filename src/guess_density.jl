@@ -62,8 +62,7 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, positions, magneti
 
     # If no magnetic moments start with a zero spin density
     magmoms = Vec3{T}[normalize_magnetic_moment(magmom) for magmom in magnetic_moments]
-    magmoms = filter(!iszero, magmoms)
-    if isempty(magmoms)
+    if all(iszero, magmoms)
         @warn("Returning zero spin density guess, because no initial magnetization has " *
               "been specified in any of the given elements / atoms. Your SCF will likely " *
               "not converge to a spin-broken solution.")
@@ -71,7 +70,7 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, positions, magneti
         return convert(array_type,zeros(T, basis.fft_size))
     end
 
-    @assert length(magnetic_moments) == length(atoms) == length(positions)
+    @assert length(magmoms) == length(atoms) == length(positions)
     gaussians = map(zip(atoms, positions, magmoms)) do (atom, position, magmom)
         iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
         magmom[3] ≤ n_elec_valence(atom) || error(
@@ -80,6 +79,7 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, positions, magneti
         )
         magmom[3], T(atom_decay_length(atom))::T, position
     end
+    gaussians = filter(g -> !iszero(g[1]), gaussians)
     gaussian_superposition(basis, gaussians)
 end
 
