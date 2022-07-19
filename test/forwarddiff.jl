@@ -1,6 +1,7 @@
 using DFTK
 using ForwardDiff
 using Test
+using ComponentArrays
 
 include("testcases.jl")
 
@@ -73,13 +74,15 @@ end
         scfres = self_consistent_field(basis; is_converged, mixing=KerkerMixing(),
                                        damping=0.6, response=ResponseOptions(verbose=true))
 
-        hcat([ev[1:end-3] for ev in scfres.eigenvalues]...)
+        ComponentArray(
+           eigenvalues=hcat([ev[1:end-3] for ev in scfres.eigenvalues]...),
+           ρ=scfres.ρ
+        )
     end
 
     derivative_ε = let ε = 1e-4
         (compute_band_energies(ε) - compute_band_energies(-ε)) / 2ε
     end
     derivative_fd = ForwardDiff.derivative(compute_band_energies, 0.0)
-
     @test norm(derivative_fd - derivative_ε) < 1e-4
 end

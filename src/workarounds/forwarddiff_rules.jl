@@ -201,42 +201,23 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     basis_primal  = construct_value(basis_dual)
     scfres = self_consistent_field(basis_primal; kwargs...)
 
-    ## Compute external perturbing potential δV_{ext} (contained in δH)
-    ## and form the matrix-vector product with the bands
-    δH, δHψ = let
+    ## Compute external perturbation (contained in ham_dual) and from matvec with bands
+    ham_dual, Hψ_dual = let
         occupation_dual = [T.(occk) for occk in scfres.occupation]
         ψ_dual = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
         ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
         εF_dual = T(scfres.εF)  # Only needed for entropy term
         eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
-        _, δH = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
-                                   ρ=ρ_dual, eigenvalues=eigenvalues_dual, εF=εF_dual)
-        δH, δH * ψ_dual
+        _, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
+                                         ρ=ρ_dual, eigenvalues=eigenvalues_dual, εF=εF_dual)
+        ham_dual, ham_dual * ψ_dual
     end
 
     ## Implicit differentiation
     response.verbose && println("Solving response problem")
     δresults = ntuple(ForwardDiff.npartials(T)) do α
-        δHψ_α = [ForwardDiff.partials.(δHψk, α) for δHψk in δHψ]
-
-        δψ, resp = solve_ΩplusK_split(scfres, -δHψ_α; tol=scfres.norm_Δρ, response.verbose)
-        δρ = compute_δρ(basis_primal, scfres.ψ, δψ, scfres.occupation)
-
-        # TODO Stuff this back into δH to build a δH, by amending the stored total local
-        #      potential. This forms a δH, which has the total variation, which could be
-        #      returned.
-        δVresp   = apply_kernel(basis_primal, δρ; scfres.ρ)  # response potential ε^{-1} V_{ext}
-
-        δevalues = map(basis_primal.kpoints, scfres.ψ, δHψ_α) do kpt, ψk, δHψk
-            # compute δε_{nk} = <ψnk | δVtot | ψnk> = <ψnk | δVext + δVresp | ψnk>
-            map(eachcol(ψk), eachcol(δHψk)) do ψnk, δHψnk
-                # TODO Neither memory efficient nor properly parallelised over k-points
-                ψnk_real = G_to_r(basis_primal, kpt, ψnk)
-                sum(δVresp .* abs2.(ψnk_real)) * basis_primal.dvol + real(dot(ψnk, δHψnk))
-            end
-        end
-
-        (; δψ, δρ, resp, δVresp, δevalues)
+        δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
+        solve_ΩplusK_split(scfres, -δHextψ; tol=scfres.norm_Δρ, response.verbose)
     end
 
     ## Convert and combine
@@ -248,12 +229,15 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
         end
     end
     ρ = map((ρi, δρi...) -> DT(ρi, δρi), scfres.ρ, getfield.(δresults, :δρ)...)
-    eigenvalues = map(scfres.eigenvalues, getfield.(δresults, :δevalues)...) do εk, δεk...
+    eigenvalues = map(scfres.eigenvalues, getfield.(δresults, :δeigenvalues)...) do εk, δεk...
         map((εnk, δεnk...) -> DT(εnk, δεnk), εk, δεk...)
     end
 
-    merge(scfres, (; ψ, ρ, eigenvalues,
-                     basis=basis_dual, response=getfield.(δresults, :resp)))
+    # TODO Could add δresults[α].δVind the dual part of the total local potential in ham_dual
+    # and in this way return a ham that represents also the total change in Hamiltonian
+
+    merge(scfres, (; ψ, ρ, eigenvalues, basis=basis_dual,
+                   response=getfield.(δresults, :history)))
 end
 
 # other workarounds

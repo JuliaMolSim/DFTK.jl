@@ -120,7 +120,7 @@ Random.seed!(0)
 
     # Distributed implementation not yet available
     if "all" in TAGS && mpi_nprocs() == 1
-        include("omegaplusk.jl")
+        include("hessian.jl")
         include("forwarddiff.jl")
     end
 
