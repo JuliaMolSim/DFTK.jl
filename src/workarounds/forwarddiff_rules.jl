@@ -191,54 +191,53 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
                    comm_kpts=basis.comm_kpts)
 end
 
+
 function self_consistent_field(basis_dual::PlaneWaveBasis{T};
                                response=ResponseOptions(),
                                kwargs...) where T <: ForwardDiff.Dual
     # Note: No guarantees on this interface yet.
 
     # Primal pass
-    basis  = construct_value(basis_dual)
-    scfres = self_consistent_field(basis; kwargs...)
+    basis_primal  = construct_value(basis_dual)
+    scfres = self_consistent_field(basis_primal; kwargs...)
 
-    ## promote occupied bands to dual numbers
-    occupation_dual = [T.(occₖ) for occₖ in scfres.occupation]
-    ψ_dual = [Complex.(T.(real(ψₖ)), T.(imag(ψₖ))) for ψₖ in scfres.ψ]
-    ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
-    εF_dual = T(scfres.εF)  # Only needed for entropy term
-    eigenvalues_dual = [T.(εₖ) for εₖ in scfres.eigenvalues]
-    energies_dual, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
-                                                 ρ=ρ_dual, eigenvalues=eigenvalues_dual,
-                                                 εF=εF_dual)
-
-    response.verbose && println("Solving response problem")
+    ## Compute external perturbation (contained in ham_dual) and from matvec with bands
+    ham_dual, Hψ_dual = let
+        occupation_dual = [T.(occk) for occk in scfres.occupation]
+        ψ_dual = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
+        ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
+        εF_dual = T(scfres.εF)  # Only needed for entropy term
+        eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
+        _, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
+                                         ρ=ρ_dual, eigenvalues=eigenvalues_dual, εF=εF_dual)
+        ham_dual, ham_dual * ψ_dual
+    end
 
     ## Implicit differentiation
-    hamψ_dual = ham_dual * ψ_dual
+    response.verbose && println("Solving response problem")
     δresults = ntuple(ForwardDiff.npartials(T)) do α
-        δHψ_α = [ForwardDiff.partials.(δHψk, α) for δHψk in hamψ_dual]
-
-        δψ_α, resp_α = solve_ΩplusK_split(scfres, -δHψ_α; tol=scfres.norm_Δρ, response.verbose)
-        δρ_α = compute_δρ(basis, scfres.ψ, δψ_α, scfres.occupation)
-        δψ_α, δρ_α, resp_α
+        δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
+        solve_ΩplusK_split(scfres, -δHextψ; tol=scfres.norm_Δρ, response.verbose)
     end
-    δψ       = [δψ_α   for (δψ_α, δρ_α, resp_α) in δresults]
-    δρ       = [δρ_α   for (δψ_α, δρ_α, resp_α) in δresults]
-    response = [resp_α for (δψ_α, δρ_α, resp_α) in δresults]
 
-    ## Convert, combine and return
+    ## Convert and combine
     DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}
-    ψ_out = map(scfres.ψ, δψ...) do ψk, δψk...
-        map(ψk, δψk...) do ψi, δψi...
-            Complex(DT(real(ψi), real.(δψi)),
-                    DT(imag(ψi), imag.(δψi)))
+    ψ = map(scfres.ψ, getfield.(δresults, :δψ)...) do ψk, δψk...
+        map(ψk, δψk...) do ψnk, δψnk...
+            Complex(DT(real(ψnk), real.(δψnk)),
+                    DT(imag(ψnk), imag.(δψnk)))
         end
     end
-    ρ_out = map((ρi, δρi...) -> DT(ρi, δρi), scfres.ρ, δρ...)
+    ρ = map((ρi, δρi...) -> DT(ρi, δρi), scfres.ρ, getfield.(δresults, :δρ)...)
+    eigenvalues = map(scfres.eigenvalues, getfield.(δresults, :δeigenvalues)...) do εk, δεk...
+        map((εnk, δεnk...) -> DT(εnk, δεnk), εk, δεk...)
+    end
 
-    # TODO Compute eigenvalue response (return dual eigenvalues and dual εF)
+    # TODO Could add δresults[α].δVind the dual part of the total local potential in ham_dual
+    # and in this way return a ham that represents also the total change in Hamiltonian
 
-    merge(scfres, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
-                   occupation=occupation_dual, ρ=ρ_out, response))
+    merge(scfres, (; ψ, ρ, eigenvalues, basis=basis_dual,
+                   response=getfield.(δresults, :history)))
 end
 
 # other workarounds

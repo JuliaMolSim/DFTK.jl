@@ -97,8 +97,8 @@ end
 
 
 # make ldiv! act as a given function
-struct FunctionPreconditioner
-    precondition!  # precondition!(y, x) applies f to x and puts it into y
+struct FunctionPreconditioner{T}
+    precondition!::T  # precondition!(y, x) applies f to x and puts it into y
 end
 LinearAlgebra.ldiv!(y::T, P::FunctionPreconditioner, x) where {T} = P.precondition!(y, x)::T
 LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(similar(x), x))
