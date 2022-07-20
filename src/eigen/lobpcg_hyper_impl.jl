@@ -43,27 +43,94 @@
 vprintln(args...) = nothing
 
 using LinearAlgebra
-using BlockArrays # used for the `mortar` command which makes block matrices
 using CUDA
 using GPUArrays
-# when X or Y are BlockArrays, this makes the return value be a proper array (not a BlockArray)
-function array_mul(X::AbstractArray, Y::AbstractArray)
-    Z = similar(X, size(X, 1), size(Y, 2))
-    mul!(Z, X, Y)
+
+
+# For now, BlockVector can store arrays of different types (for example, an element of type views and one of type Matrix). Maybe for performance issues it should only store arrays of the same type?
+
+struct BlockVector
+    blocks::Tuple
+    size::Tuple{Int64,Int64}
 end
 
+"""
+Build a BlockVector containing the given arrays, from left to right.
+This function will fail (for now) if:
+    -the arrays do not all have the same "height" (ie size[1] must match).
+"""
+function make_block_vector(arrays::AbstractArray...)
+    length(arrays) ==0 && error("Empty BlockVector is not currently implemented")
+    n_ref= size(arrays[1])[1]
+    m=0
+    for array in arrays
+        n_i, m_i = size(array)
+        n_ref != n_i && error("The given arrays do not have matching 'height': cannot build a BlockVector out of them.")
+        m += m_i
+    end
+    BlockVector(arrays, (n_ref,m))
+end
+
+
+"""
+Given A and B as two BlockVectors [A1, A2, A3], [B1, B2, B3] form the matrix
+A'B (which is not a BlockVector). block_overlap also has compatible versions with two Arrays. 
+block_overlap always compute some form of adjoint, ie the product A'*B.
+"""
+@views function block_overlap(A::BlockVector, B::BlockVector)
+    rows = A.size[2]
+    cols = B.size[2]
+    ret = similar(A.blocks[1], rows, cols)
+
+    orow = 0  # row offset
+    for (iA, blA) in enumerate(A.blocks)
+        ocol = 0  # column offset
+        for (iB, blB) in enumerate(B.blocks)
+            ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] = blA' * blB
+            ocol += size(blB, 2)
+        end
+        orow += size(blA, 2)
+    end
+    ret
+end
+
+block_overlap(blocksA::BlockVector, B) = block_overlap(blocksA, make_block_vector(B))
+block_overlap(A, B) = A' * B #Default fallback method. Note the adjoint.
+
+"""Given A as a BlockVector [A1, A2, A3] this forms the matrix-matrix product
+A * B avoiding a concatenation of the blocks to a dense array. block_mul has compatible versions with two Arrays.
+block_overlap always compute  product A*B (no adjoint).
+"""
+@views function block_mul(Ablock::BlockVector, B)
+    res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
+    offset = size(Ablock.blocks[1], 2)
+    for block in Ablock.blocks[2:end]
+        mul!(res, block, B[offset .+ (1:size(block, 2)), :], 1, 1)
+        offset += size(block, 2)
+    end
+    res
+end
+
+block_mul(A, Bblock::BlockVector) = error("Not implemented")
+block_mul(A::Tuple, B::Tuple) = error("not implemented")
+block_mul(A, B) = A * B #Default fallback method.
+
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
-@timing function rayleigh_ritz(X::AbstractArray, AX::AbstractArray, N)
-    F = eigen(Hermitian(array_mul(X', AX)))
+@timing function rayleigh_ritz(X::BlockVector, AX::BlockVector, N)
+    rayleigh_ritz(block_overlap(X, AX), N) #block_overlap(X,AX) is an AbstractArray, not a BlockVector
+end
+
+@timing function rayleigh_ritz(XAX::AbstractArray, N)
+    F = eigen(Hermitian(XAX))
     F.vectors[:,1:N], F.values[1:N]
 end
 
-@timing function rayleigh_ritz(X::CuArray, AX::CuArray, N)
+@timing function rayleigh_ritz(XAX::CuArray, N)
     #TODO: this is wacky and should be changed
-    if eltype(X) == ComplexF32 || eltype(X) == ComplexF64
-        vals, vects = CUDA.CUSOLVER.heevd!('V','U',X'AX)
+    if eltype(XAX) == ComplexF32 || eltype(XAX) == ComplexF64
+        vals, vects = CUDA.CUSOLVER.heevd!('V','U',XAX)
     else
-        vals, vects = CUDA.CUSOLVER.syevd!('V','U',X'AX)
+        vals, vects = CUDA.CUSOLVER.syevd!('V','U',XAX)
     end
     vects[:,1:N], vals[1:N]
 end
@@ -180,17 +247,16 @@ end
     niter = 1
     ninners = zeros(Int,0)
     while true
-        BYX = BY'X
-        # XXX the one(T) instead of plain old 1 is because of https://github.com/JuliaArrays/BlockArrays.jl/issues/176
-        mul!(X, Y, BYX, -one(T), one(T)) # X -= Y*BY'X
+        BYX = block_overlap(BY,X) # = BY' X
+        X .-= block_mul(Y, BYX) #X = X -Y * BYX
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho!(cP, cX)
         dropped = drop!(X)
         if dropped != []
             Z = similar(X[:, dropped])
-            mul!(Z, Y, BY' * (X[:, dropped]), -one(T), one(T)) # X -= Y*BY'X
-            X[:, dropped] = Z# X -= Y*BY'X
+            Z = X[:, dropped] .- block_mul(Y, block_overlap(BY,X[:, dropped]))
+            X[:, dropped] = Z
         end
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
@@ -300,13 +366,13 @@ end
 
             # Form Rayleigh-Ritz subspace
             if niter > 1
-                Y = hcat(X, R, P)
-                AY = hcat(AX, AR, AP)
-                BY = hcat(BX, BR, BP)  # data shared with (X, R, P) in non-general case
+                Y = make_block_vector(X, R, P)
+                AY = make_block_vector(AX, AR, AP)
+                BY = make_block_vector(BX, BR, BP)  # data shared with (X, R, P) in non-general case
             else
-                Y  = hcat(X, R)
-                AY = hcat(AX, AR)
-                BY = hcat(BX, BR)  # data shared with (X, R) in non-general case
+                Y  = make_block_vector(X, R)
+                AY = make_block_vector(AX, AR)
+                BY = make_block_vector(BX, BR)  # data shared with (X, R) in non-general case
             end
             cX, λs = rayleigh_ritz(Y, AY, M-nlocked)
 
@@ -314,9 +380,9 @@ end
             # wait on updating P because we have to know which vectors
             # to lock (and therefore the residuals) before computing P
             # only for the unlocked vectors. This results in better convergence.
-            new_X  = array_mul(Y, cX)
-            new_AX = array_mul(AY, cX)  # no accuracy loss, since cX orthogonal
-            new_BX = (B == I) ? new_X : array_mul(BY, cX)
+            new_X  = block_mul(Y, cX)
+            new_AX = block_mul(AY, cX)  # no accuracy loss, since cX orthogonal
+            new_BX = (B == I) ? new_X : block_mul(BY, cX)
         end
 
         ### Compute new residuals
@@ -382,10 +448,10 @@ end
             ortho!(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
-            new_P  = array_mul( Y, cP)
-            new_AP = array_mul(AY, cP)
+            new_P  = block_mul( Y, cP)
+            new_AP = block_mul(AY, cP)
             if B != I
-                new_BP = array_mul(BY, cP)
+                new_BP = block_mul(BY, cP)
             else
                 new_BP = new_P
             end
@@ -430,8 +496,8 @@ end
 
         # Orthogonalize R wrt all X, newly active P
         if niter > 0
-            Z  = hcat(full_X, P)
-            BZ = hcat(full_BX, BP) # data shared with (full_X, P) in non-general case
+            Z  = make_block_vector(full_X, P)
+            BZ = make_block_vector(full_BX, BP) # data shared with (full_X, P) in non-general case
         else
             Z  = full_X
             BZ = full_BX
