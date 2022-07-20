@@ -93,7 +93,7 @@ end
             mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
             Vl  = reshape(terms.Vl, n_spin, basis.fft_size...)
             Vl_fourier = r_to_G(basis, Vl[s, :, :, :])
-            potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
+            potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier; assume_real=Val(true))  # ΔVl
         end
     end
 
@@ -227,7 +227,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
         for α = 1:3
             iGα = [im * G[α] for G in G_vectors_cart(basis)]
             for σ = 1:n_spin
-                ∇ρ_real[σ, :, :, :, α] .= G_to_r(basis, iGα .* @view ρ_fourier[σ, :, :, :])
+                ∇ρ_real[σ, :, :, :, α] .= G_to_r(basis, iGα .* @view ρ_fourier[σ, :, :, :]; assume_real=Val(true))
             end
         end
 
@@ -247,7 +247,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
         Δρ_real = similar(ρ_real, n_spin, basis.fft_size...)
         mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
         for σ = 1:n_spin
-            Δρ_real[σ, :, :, :] .= G_to_r(basis, mG² .* @view ρ_fourier[σ, :, :, :])
+            Δρ_real[σ, :, :, :] .= G_to_r(basis, mG² .* @view ρ_fourier[σ, :, :, :]; assume_real=Val(true))
         end
     end
 
@@ -439,5 +439,5 @@ function divergence_real(operand, basis)
         del_α = im * [G[α] for G in G_vectors_cart(basis)]
         del_α .* operand_α
     end
-    G_to_r(basis, gradsum)
+    G_to_r(basis, gradsum; assume_real=Val(true))
 end

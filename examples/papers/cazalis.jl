@@ -17,7 +17,7 @@ function DFTK.ene_ops(term::Term2DHartree, basis::PlaneWaveBasis{T},
 
     ρtot_fourier = r_to_G(basis, total_density(ρ))
     pot_fourier = poisson_green_coeffs .* ρtot_fourier
-    pot_real = G_to_r(basis, pot_fourier)
+    pot_real = G_to_r(basis, pot_fourier; assume_real=Val(true))
     E = real(dot(pot_fourier, ρtot_fourier) / 2)
     ops = [DFTK.RealSpaceMultiplication(basis, kpt, pot_real) for kpt in basis.kpoints]
     (E=E, ops=ops)

@@ -46,7 +46,7 @@ end
                                             ψ, occ; ρ, kwargs...) where {T}
     ρtot_fourier = r_to_G(basis, total_density(ρ))
     pot_fourier = term.poisson_green_coeffs .* ρtot_fourier
-    pot_real = G_to_r(basis, pot_fourier)
+    pot_real = G_to_r(basis, pot_fourier; assume_real=Val(true))
     E = real(dot(pot_fourier, ρtot_fourier) / 2)
 
     ops = [RealSpaceMultiplication(basis, kpt, pot_real) for kpt in basis.kpoints]
@@ -64,5 +64,5 @@ function apply_kernel(term::TermHartree, basis::PlaneWaveBasis, δρ; kwargs...)
     δV = zero(δρ)
     δρtot = total_density(δρ)
     # note broadcast here: δV is 4D, and all its spin components get the same potential
-    δV .= G_to_r(basis, term.poisson_green_coeffs .* r_to_G(basis, δρtot))
+    δV .= G_to_r(basis, term.poisson_green_coeffs .* r_to_G(basis, δρtot); assume_real=Val(true))
 end

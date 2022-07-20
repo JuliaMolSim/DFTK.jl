@@ -51,7 +51,7 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end
-    TermExternal(G_to_r(basis, pot_fourier))
+    TermExternal(G_to_r(basis, pot_fourier); assume_real=Val(true))
 end
 
 
@@ -83,7 +83,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
         pot / sqrt(model.unit_cell_volume)
     end
 
-    pot_real = G_to_r(basis, pot_fourier)
+    pot_real = G_to_r(basis, pot_fourier; assume_real=Val(true))
     TermAtomicLocal(pot_real)
 end
 
