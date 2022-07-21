@@ -206,7 +206,8 @@ real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartr
 end
 
 @views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, basis, δF::AbstractArray{T};
-                                               ρin, kwargs...) where {T}
+                                               ρin, abstol=zero(T), reltol=T(mixing.reltol),
+                                               kwargs...) where {T}
     # Initialise χ0terms and remove nothings (terms that don't yield a contribution)
     χ0applies = filter(!isnothing, [χ₀(basis; ρin=ρin, kwargs...) for χ₀ in mixing.χ0terms])
 
@@ -218,7 +219,8 @@ end
     function dielectric_adjoint(δF)
         δF = devec(δF)
         # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
-        δV = apply_kernel(basis, δF; ρ=ρin, RPA=mixing.RPA)
+        δV = apply_kernel(basis, δF; ρ=ρin, mixing.RPA)
+        δV = symmetrize_ρ(basis, δV)
         δV .-= mean(δV)
         εδF = copy(δF)
         for apply_term! in χ0applies
@@ -231,7 +233,7 @@ end
     DC_δF = mean(δF)
     δF .-= DC_δF
     ε  = LinearMap{T}(dielectric_adjoint, length(δF))
-    δρ = devec(gmres(ε, vec(δF), verbose=mixing.verbose, reltol=T(mixing.reltol)))
+    δρ = devec(gmres(ε, vec(δF); mixing.verbose, reltol, abstol))
     δρ .+= DC_δF  # Set DC from δF
     δρ
 end
@@ -248,10 +250,10 @@ within the model as the SCF converges. Once the density change is below `above_�
 mixing temperature is equal to the model temperature.
 """
 function IncreaseMixingTemperature(;factor=25, above_ρdiff=1e-2, temperature_max=0.5)
-    function callback(temperature; n_iter, ρin=nothing, ρout=nothing, info...)
+    function callback(temperature; n_iter=nothing, ρin=nothing, ρout=nothing, info...)
         if iszero(temperature) || temperature > temperature_max
             return temperature
-        elseif isnothing(ρin) || isnothing(ρout)
+        elseif isnothing(ρin) || isnothing(ρout) || isnothing(n_iter)
             return temperature
         elseif n_iter ≤ 1
             return factor * temperature

@@ -349,7 +349,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
             ρ=info.ρout, eigenvalues=info.eigenvalues, occupation=info.occupation,
             εF=info.εF, n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=info.ψ,
             diagonalization=info.diagonalization, stage=:finalize, algorithm="SCF",
-            occupation_threshold=info.occupation_threshold)
+            occupation_threshold=info.occupation_threshold, mixing)
     callback(info)
     info
 end

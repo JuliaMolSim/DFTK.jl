@@ -149,7 +149,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
     # Callback is run one last time with final state to allow callback to clean up
     info = (; ham, basis, energies, converged, occupation_threshold,
             ρ=ρout, α=damping, eigenvalues, occupation, εF,
-            n_iter, n_ep_extra, ψ, info.diagonalization,
+            n_iter, n_ep_extra, ψ, info.diagonalization, mixing,
             stage=:finalize, algorithm="SCF", norm_Δρ)
     callback(info)
     info
