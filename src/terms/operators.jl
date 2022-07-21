@@ -13,7 +13,7 @@ abstract type RealFourierOperator end
 # Unoptimized fallback, intended for exploratory use only.
 # For performance, call through Hamiltonian which saves FFTs.
 function LinearAlgebra.mul!(Hψ::AbstractVector, op::RealFourierOperator, ψ::AbstractVector)
-    ψ_real = G_to_r(op.basis, op.kpoint, ψ; assume_real=Val(true))
+    ψ_real = G_to_r(op.basis, op.kpoint, ψ)
     Hψ_fourier = similar(ψ)
     Hψ_real = similar(ψ_real)
     Hψ_fourier .= 0
@@ -120,7 +120,7 @@ function apply!(Hψ, op::MagneticFieldOperator, ψ)
         iszero(op.Apot[α]) && continue
         pα = [Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)]
         ∂αψ_fourier = pα .* ψ.fourier
-        ∂αψ_real = G_to_r(op.basis, op.kpoint, ∂αψ_fourier; assume_real=Val(true))
+        ∂αψ_real = G_to_r(op.basis, op.kpoint, ∂αψ_fourier)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real
     end
 end

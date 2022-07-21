@@ -149,7 +149,7 @@ passed because ψ is expressed on the ``k``-dependent basis.
 Again the function is normalised:
 
 ```@example data_structures
-ψreal = G_to_r(basis, basis.kpoints[1], ψtest; assume_real=Val(true))
+ψreal = G_to_r(basis, basis.kpoints[1], ψtest)
 sum(abs2.(ψreal)) * basis.dvol
 ```
 

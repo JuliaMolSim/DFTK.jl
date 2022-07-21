@@ -125,7 +125,7 @@ end
         open(dirname(fileprefix) * (@sprintf "/UNK%05i.%i" ik spin), "w") do fp
             println(fp, "$(fft_size[1]) $(fft_size[2]) $(fft_size[3]) $ik $n_bands")
             for iband in 1:n_bands
-                ψnk_real = G_to_r(basis, basis.kpoints[ik], @view ψ[ik][:, iband]; assume_real=Val(true))
+                ψnk_real = G_to_r(basis, basis.kpoints[ik], @view ψ[ik][:, iband])
                 for iz in 1:fft_size[3], iy in 1:fft_size[2], ix in 1:fft_size[1]
                     println(fp, real(ψnk_real[ix, iy, iz]), " ", imag(ψnk_real[ix, iy, iz]))
                 end
