@@ -44,9 +44,11 @@ Perform an iFFT to obtain the quantity defined by `f_fourier` defined
 on the k-dependent spherical basis set (if `kpt` is given) or the
 k-independent cubic (if it is not) on the real-space grid.
 """
-function G_to_r(basis::PlaneWaveBasis, f_fourier::AbstractArray; assume_real=Val(true))
-    # assume_real is true by default because this is the most common usage
-    # (for densities & potentials). Val(true) to help const-prop;
+function G_to_r(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray;
+                assume_real=Val(:check)) where {T}
+    # Returns real by default because this is the most common usage
+    # (for densities & potentials). For performance, use Val(true).
+    # Val(:check|true|false) to help const-prop;
     # see https://github.com/JuliaLang/julia/issues/44330
     f_real = similar(f_fourier)
     @assert length(size(f_fourier)) ∈ (3, 4)
@@ -54,7 +56,16 @@ function G_to_r(basis::PlaneWaveBasis, f_fourier::AbstractArray; assume_real=Val
     for iσ = 1:size(f_fourier, 4)
         @views G_to_r!(f_real[:, :, :, iσ], basis, f_fourier[:, :, :, iσ])
     end
-    (assume_real == Val(true)) ? real(f_real) : f_real
+    if assume_real == Val(:check)
+        @assert ≈(norm(imag(f_real)), 0.0, atol=sqrt(eps(T)))
+        real(f_real)
+    elseif assume_real == Val(true)
+        real(f_real)
+    elseif assume_real == Val(false)
+        f_real
+    else
+        error("Wrong value provided for `assume_real`.")
+    end
 end
 function G_to_r(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
     G_to_r!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
