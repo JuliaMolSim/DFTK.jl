@@ -155,8 +155,11 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
     DFTK.reset_timer!(DFTK.timer)
 
     # Config
-    dynamic_tolerance = true
+    dynamic_tolerance = false
+    dynamic_anderson = false
     innertol = Ref(1e-6)
+
+    fixed_anderson = true
 
     initial_solve = false
     initial_tol_sternheimer = 1e-3
@@ -168,7 +171,6 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
             δρ0 .-= mean(δρ0)
             δρ0 = unpack(δρ0)
             δV = apply_kernel(basis, δρ0; ρ)
-            @show norm(δV)
             χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
                             occupation_threshold, abstol=innertol[] / norm(δV), reltol=zero(T),
                             kwargs...)
@@ -176,6 +178,32 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
             δρ .-= mean(δρ)
             pack(δρ)
         end
+    end
+
+    Pinv = I
+
+    if dynamic_anderson
+        δρ = let
+            β = 0.6
+            maxiter = 100
+            x0 = pack(δρ)
+            ε = dynamic_adjoint()
+            b = pack(δρ0)
+            fp_solver = scf_nlsolve_solver(; m=10, method=:anderson)
+            # fp_solver = scf_anderson_solver(; m=10)
+            i = 0
+
+            res = fp_solver(x0, maxiter; tol) do x
+                i += 1
+                residual = Pinv * (b - ε * x)
+                rnorm = norm(residual)
+                innertol[] = max(tol_sternheimer, min(innertol[], rnorm / 100))
+                println(i, "   ", rnorm,  "   ", innertol[])
+                x + β * residual
+            end
+            unpack(res.x)
+        end
+        initially_zero = false
     end
 
     if dynamic_tolerance
@@ -195,7 +223,6 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
             δρ0 .-= mean(δρ0)
             δρ0 = unpack(δρ0)
             δV = apply_kernel(basis, δρ0; ρ)
-            @show norm(δV)
             χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
                             occupation_threshold, abstol, reltol=zero(T),
                             kwargs...)
@@ -212,6 +239,31 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
                                      initially_zero, verbose)
         initially_zero = false
     end
+
+    if fixed_anderson
+        δρ = let
+            β = 0.6
+            maxiter = 100
+            x0 = pack(δρ)
+            ε = dielectric_adjoint(tol_sternheimer)
+            b = pack(δρ0)
+            fp_solver = scf_nlsolve_solver(; m=10, method=:anderson)
+            # fp_solver = scf_anderson_solver(; m=10)
+            i = 0
+
+            res = fp_solver(x0, maxiter; tol) do x
+                i += 1
+                residual = Pinv * (b - ε * x)
+                rnorm = norm(residual)
+                rnorm = norm(residual)
+                println(i, "   ", rnorm)
+                x + β * residual
+            end
+            unpack(res.x)
+        end
+        initially_zero = false
+    end
+
 
     # Full solve to desired target tolerance
     δρ, history = IterativeSolvers.gmres!(δρ, dielectric_adjoint(tol_sternheimer), pack(δρ0);
