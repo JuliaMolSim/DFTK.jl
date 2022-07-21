@@ -93,8 +93,8 @@ end
             mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
             Vl  = reshape(terms.Vl, n_spin, basis.fft_size...)
             Vl_fourier = r_to_G(basis, Vl[s, :, :, :])
-            potential[:, :, :, s] .+= G_to_r(basis,
-                                             force_real!(mG² .* Vl_fourier, basis))  # ΔVl
+            force_real!(Vl_fourier, basis)
+            potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
         end
     end
 
@@ -228,8 +228,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
         for α = 1:3
             iGα = [im * G[α] for G in G_vectors_cart(basis)]
             for σ = 1:n_spin
-                ∇ρ_real[σ, :, :, :, α] .= G_to_r(basis,
-                                                 force_real!(iGα .* (@view ρ_fourier[σ, :, :, :]), basis))
+                ∇ρ_real[σ, :, :, :, α] .= G_to_r(basis, iGα .* (@view ρ_fourier[σ, :, :, :]))
             end
         end
 
