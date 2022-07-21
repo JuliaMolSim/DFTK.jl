@@ -51,6 +51,10 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end
+    # filter the wavevectors that don't have an opposite,
+    # to ensure pot_fourier is real in real space
+    lowpass_for_symmetry!(pot_fourier, basis;
+                          symmetries=[SymOp(-Mat3(I), Vec3(0, 0, 0))])
     TermExternal(G_to_r(basis, pot_fourier))
 end
 
