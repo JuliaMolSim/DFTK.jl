@@ -216,7 +216,6 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
     if max_derivative > 0
         ρf = r_to_G(basis, ρ)
         ρ_fourier = permutedims(ρf, (4, 1, 2, 3))  # ρ_fourier[σ, x, y, z]
-        force_real!(ρ_fourier, basis)
     end
 
     # compute ∇ρ and σ
@@ -228,7 +227,8 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
         for α = 1:3
             iGα = [im * G[α] for G in G_vectors_cart(basis)]
             for σ = 1:n_spin
-                ∇ρ_real[σ, :, :, :, α] .= G_to_r(basis, iGα .* @view ρ_fourier[σ, :, :, :])
+                ∇ρ_real[σ, :, :, :, α] .= G_to_r(basis,
+                                                 force_real!(iGα .* (@view ρ_fourier[σ, :, :, :]), basis))
             end
         end
 
