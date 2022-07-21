@@ -38,10 +38,7 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
         @assert sum_charges == model.n_electrons
     end
     poisson_green_coeffs[1] = 0  # Compensating charge background => Zero DC
-    # filter the wavevectors that don't have an opposite,
-    # to ensure poisson_green_coeffs is real in real space
-    lowpass_for_symmetry!(poisson_green_coeffs, basis;
-                          symmetries=[SymOp(-Mat3(I), Vec3(0, 0, 0))])
+    force_real!(poisson_green_coeffs, basis) # If no opposite G, no reason for real result
 
     TermHartree(T(scaling_factor), T(scaling_factor) .* poisson_green_coeffs)
 end

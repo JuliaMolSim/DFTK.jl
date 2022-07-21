@@ -333,3 +333,8 @@ function unfold_kcoords(kcoords, symmetries)
         normalize_kpoint_coordinate(round.(k; digits))
     end
 end
+
+# filter the wavevectors that don't have an opposite, to ensure pot_fourier is real in real space
+function force_real!(pot_fourier, basis)
+    lowpass_for_symmetry!(pot_fourier, basis; symmetries=[SymOp(-Mat3(I), Vec3(0, 0, 0))])
+end
