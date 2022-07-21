@@ -127,7 +127,7 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
 """
 function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
                             eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10,
-                            verbose=false, occupation_threshold,
+                            verbose=false, occupation_threshold, mixing=LdosMixing(),
                             kwargs...) where T
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
     # (Ω+K)^-1 =  Ω^-1 ( 1 -   K   (1 + Ω^-1 K  )^-1    Ω^-1  )
@@ -143,23 +143,83 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
                       occupation_threshold, kwargs...)  # = -χ04P * rhs
     δρ0 = compute_δρ(basis, ψ, δψ0, occupation)
 
-    # compute total δρ
+    # Remove DC component (we add it back on later)
+    DC_δρ0 = mean(δρ0)
+    δρ0 .-= DC_δρ0
+
+    # Compute δρ0
     pack(δρ)   = vec(δρ)
     unpack(δρ) = reshape(δρ, size(ρ))
-    function eps_fun(δρ)
-        δρ = unpack(δρ)
-        δV = apply_kernel(basis, δρ; ρ)
-        # TODO
-        # Would be nice to play with abstol / reltol etc. to avoid over-solving
-        # for the initial GMRES steps.
-        χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                        occupation_threshold, abstol=tol_sternheimer, reltol=0,
-                        kwargs...)
-        pack(δρ - χ0δV)
+    δρ = pack(zero(δρ0))
+    initially_zero = true
+    DFTK.reset_timer!(DFTK.timer)
+
+    # Config
+    dynamic_tolerance = true
+    innertol = Ref(1e-6)
+
+    initial_solve = false
+    initial_tol_sternheimer = 1e-3
+    # end
+
+
+    function dynamic_adjoint()
+        LinearMap{T}(prod(size(δρ0))) do δρ0
+            δρ0 .-= mean(δρ0)
+            δρ0 = unpack(δρ0)
+            δV = apply_kernel(basis, δρ0; ρ)
+            @show norm(δV)
+            χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
+                            occupation_threshold, abstol=innertol[] / norm(δV), reltol=zero(T),
+                            kwargs...)
+            δρ = symmetrize_ρ(basis, δρ0 - χ0δV)
+            δρ .-= mean(δρ)
+            pack(δρ)
+        end
     end
-    J = LinearMap{T}(eps_fun, prod(size(δρ0)))
-    δρ, history = gmres(J, pack(δρ0); reltol=0, abstol=tol, verbose, log=true)
+
+    if dynamic_tolerance
+        iterable = IterativeSolvers.gmres_iterable!(δρ, dynamic_adjoint(), pack(δρ0);
+                                                    reltol=0, abstol=tol, restart=10, initially_zero)
+        for (i, residual) in enumerate(iterable)
+            innertol[] = max(tol_sternheimer, min(innertol[], residual / 100))
+            println(i, "   ", residual,  "   ", innertol[])
+        end
+        δρ = iterable.x
+        initially_zero = false
+    end
+
+    # compute total δρ by solving ε^† δρ = δρ0 with ε^† = (1 - χ₀ K)
+    function dielectric_adjoint(abstol)
+        LinearMap{T}(prod(size(δρ0))) do δρ0
+            δρ0 .-= mean(δρ0)
+            δρ0 = unpack(δρ0)
+            δV = apply_kernel(basis, δρ0; ρ)
+            @show norm(δV)
+            χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
+                            occupation_threshold, abstol, reltol=zero(T),
+                            kwargs...)
+            δρ = symmetrize_ρ(basis, δρ0 - χ0δV)
+            δρ .-= mean(δρ)
+            pack(δρ)
+        end
+    end
+
+    # Crude initial solve using rough Sternheimer tolerance to get good initial guess
+    if initial_solve
+        δρ = IterativeSolvers.gmres!(δρ, dielectric_adjoint(initial_tol_sternheimer/10),
+                                     pack(δρ0); reltol=0, abstol=initial_tol_sternheimer,
+                                     initially_zero, verbose)
+        initially_zero = false
+    end
+
+    # Full solve to desired target tolerance
+    δρ, history = IterativeSolvers.gmres!(δρ, dielectric_adjoint(tol_sternheimer), pack(δρ0);
+                                          reltol=0, abstol=tol, verbose, initially_zero, log=true)
+    println(DFTK.timer)
+
     δρ = unpack(δρ)
+    δρ .+= DC_δρ0  # Set DC from δρ0
 
     # Compute total change in Hamiltonian applied to ψ
     δVind = apply_kernel(basis, δρ; ρ)  # Change in potential induced by δρ
@@ -192,7 +252,8 @@ function solve_ΩplusK_split(basis::PlaneWaveBasis, ψ, rhs, occupation; kwargs.
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
+    @assert scfres.algorithm == "SCF"  # Otherwise no mixing field.
     solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
                        scfres.εF, scfres.eigenvalues, rhs;
-                       scfres.occupation_threshold, kwargs...)
+                       scfres.occupation_threshold, scfres.mixing, kwargs...)
 end
