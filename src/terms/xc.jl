@@ -439,5 +439,6 @@ function divergence_real(operand, basis)
         del_α = im * [G[α] for G in G_vectors_cart(basis)]
         del_α .* operand_α
     end
+    force_real!(gradsum, basis) # If no opposite G, no reason for real result
     G_to_r(basis, gradsum)
 end

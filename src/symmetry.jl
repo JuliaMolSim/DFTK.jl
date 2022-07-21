@@ -334,7 +334,7 @@ function unfold_kcoords(kcoords, symmetries)
     end
 end
 
-# filter the wavevectors that don't have an opposite, to ensure pot_fourier is real in real space
-function force_real!(pot_fourier, basis)
-    lowpass_for_symmetry!(pot_fourier, basis; symmetries=[SymOp(-Mat3(I), Vec3(0, 0, 0))])
+# Filter the wavevectors that don't have an opposite, to ensure fourier_coeffs is real in real space
+function force_real!(fourier_coeffs, basis)
+    lowpass_for_symmetry!(fourier_coeffs, basis; symmetries=[SymOp(-Mat3(I), Vec3(0, 0, 0))])
 end
