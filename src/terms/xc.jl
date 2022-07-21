@@ -216,6 +216,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
     if max_derivative > 0
         ρf = r_to_G(basis, ρ)
         ρ_fourier = permutedims(ρf, (4, 1, 2, 3))  # ρ_fourier[σ, x, y, z]
+        force_real!(ρ_fourier, basis)
     end
 
     # compute ∇ρ and σ
@@ -439,6 +440,6 @@ function divergence_real(operand, basis)
         del_α = im * [G[α] for G in G_vectors_cart(basis)]
         del_α .* operand_α
     end
-    force_real!(gradsum, basis) # If no opposite G, no reason for real result
+    force_real!(gradsum, basis)
     G_to_r(basis, gradsum)
 end
