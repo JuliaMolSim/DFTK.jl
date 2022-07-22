@@ -44,4 +44,19 @@ include("testcases.jl")
         @test maximum(abs.(f2_G - f_G)) < 1e-12
         @test maximum(abs.(f2_R - f_R)) < 1e-12
     end
+
+    @testset "G_to_r routine" begin
+        f_R = Array{Float64}(randn(pw.fft_size))
+        f_G = r_to_G(pw, f_R)
+
+        f2_R = G_to_r(pw, f_G; assume_real=Val(true))
+        f3_R = G_to_r(pw, f_G; assume_real=Val(false))
+        f4_R = G_to_r(pw, f_G; assume_real=Val(:check))
+
+        @test maximum(abs.(f2_R - f_R)) < 1e-12
+        @test maximum(abs.(f3_R - f_R)) < 1e-12
+        @test maximum(abs.(f4_R - f_R)) < 1e-12
+
+        @test_throws ErrorException G_to_r(pw, f_G; assume_real=Val(:test))
+    end
 end
