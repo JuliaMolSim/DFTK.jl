@@ -22,6 +22,33 @@ function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
     TermKinetic(T(scaling_factor), kinetic_energies)
 end
 
+"""
+Modified Kinetic energy: Doc to do
+"""
+struct ModifiedKinetic
+    scaling_factor::Real
+    blow_up_function
+end
+ModifiedKinetic(; scaling_factor=1, blow_up_rate=2) =
+    ModifiedKinetic(scaling_factor, blow_up_function(blow_up_rate))
+(kin::ModifiedKinetic)(basis) = TermKinetic(basis, kin.scaling_factor,
+                                            kin.blow_up_function)
+function Base.show(io::IO, kin::ModifiedKinetic)
+    fac = isone(kin.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
+    print(io, "ModifiedKinetic($fac)")
+end
+
+function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, Gm) where {T}
+    Ecut = basis.Ecut
+    # Modified kinetic needs strict inequality in the selection of G vectors
+    Gplusk_strict_cart(basis, kpt) = [Gpk for Gpk in Gplusk_vectors_cart(basis, kpt)
+                                      if (norm(Gpk)^2/2 < Ecut)]
+    kinetic_energies = [[T(scaling_factor) * Ecut*Gm(norm(Gk)/√(2*Ecut))
+                         for Gk in Gplusk_strict_cart(basis, kpt)]
+                        for kpt in basis.kpoints]
+    TermKinetic(T(scaling_factor), kinetic_energies)
+end
+
 @timing "ene_ops: kinetic" function ene_ops(term::TermKinetic, basis::PlaneWaveBasis{T},
                                             ψ, occ; kwargs...) where {T}
     ops = [FourierMultiplication(basis, kpoint, term.kinetic_energies[ik])
@@ -39,22 +66,4 @@ end
     E = mpi_sum(E, basis.comm_kpts)
 
     (E=E, ops=ops)
-end
-
-struct RegularizedKinetic
-    scaling_factor::Real
-    g_function
-end
-# Defaut is standard Kinetic term but with strict inequality in the choice of G_vectors
-RegularizedKinetic(; scaling_factor=1, g=x->x'x) = RegularizedKinetic(scaling_factor, g)
-(kin::RegularizedKinetic)(basis) = TermKinetic(basis, kin.scaling_factor, kin.g_function)
-
-function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, g) where {T}
-    Ecut = basis.Ecut
-    Gplusk_strict_cart(basis, kpt) = [Gpk for Gpk in Gplusk_vectors_cart(basis, kpt)
-                                      if (norm(Gpk)^2/2 < Ecut)]
-    kinetic_energies = [[T(scaling_factor) * Ecut*g(norm(Gk)/√(2*Ecut))
-                         for Gk in Gplusk_strict_cart(basis, kpt)]
-                        for kpt in basis.kpoints]
-    TermKinetic(T(scaling_factor), kinetic_energies)
 end

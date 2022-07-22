@@ -74,7 +74,7 @@ export Hamiltonian
 export HamiltonianBlock
 export energy_hamiltonian
 export Kinetic
-export RegularizedKinetic
+export ModifiedKinetic
 export ExternalFromFourier
 export ExternalFromReal
 export AtomicLocal
