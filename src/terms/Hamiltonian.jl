@@ -51,7 +51,8 @@ function HamiltonianBlock(basis, kpoint, operators, scratch=ham_allocate_scratch
     end
 end
 function ham_allocate_scratch_(basis::PlaneWaveBasis{T}) where {T}
-    (ψ_reals=[zeros(complex(T), basis.fft_size...) for _ = 1:Threads.nthreads()], )
+    array_type = typeof(similar(basis.G_vectors,complex(T), basis.fft_size...))
+    (ψ_reals=[convert(array_type, zeros(complex(T), basis.fft_size...)) for _ = 1:Threads.nthreads()], )
 end
 
 Base.:*(H::HamiltonianBlock, ψ) = mul!(similar(ψ), H, ψ)

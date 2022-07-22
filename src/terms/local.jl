@@ -66,7 +66,7 @@ end
 Atomic local potential defined by `model.atoms`.
 """
 struct AtomicLocal end
-function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
+function (::AtomicLocal)(basis::PlaneWaveBasis{T}; array_type = Array) where {T}
     model = basis.model
 
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
@@ -74,7 +74,8 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
 
-    pot_fourier = map(G_vectors(basis)) do G
+    #This operation needs to be done only once, so let's try to make it happen on CPU (else we needs to isbitsify the pseudopotentials)
+    pot_fourier = map(Array(G_vectors(basis))) do G
         pot = sum(model.atom_groups) do group
             element = model.atoms[first(group)]
             form_factor::T = local_potential_fourier(element, norm(model.recip_lattice * G))
@@ -82,8 +83,8 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
         end
         pot / sqrt(model.unit_cell_volume)
     end
-
-    pot_real = G_to_r(basis, pot_fourier)
+    #If needed, send to the GPU the atomic local term.
+    pot_real = G_to_r(basis, convert(array_type,pot_fourier))
     TermAtomicLocal(pot_real)
 end
 
