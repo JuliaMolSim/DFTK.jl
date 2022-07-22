@@ -7,8 +7,9 @@ include("scf_callbacks.jl")
 end
 
 function default_n_bands(model)
-    min_n_bands = div(model.n_electrons, filled_occupation(model), RoundUp)
-    n_extra = model.temperature == 0 ? 0 : max(4, ceil(Int, 0.2 * min_n_bands))
+    n_spin = model.n_spin_components
+    min_n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)
+    n_extra = model.temperature == 0 ? 0 : max(4, ceil(Int, 0.2 * n_spin * min_n_bands))
     min_n_bands + n_extra
 end
 default_occupation_threshold() = 1e-6
