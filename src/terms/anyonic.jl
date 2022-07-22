@@ -54,8 +54,7 @@ function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
             out[1][iG], out[2][iG] = vec
         end
     end
-    [force_real!(out[α], basis) for α = 1:2]
-    [G_to_r(basis, out[α]) for α = 1:2]
+    [G_to_r(basis, out[α]; assume_real=Val(true)) for α = 1:2]
 end
 
 struct Anyonic
@@ -147,8 +146,7 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwarg
             eff_pot_fourier[iG] += +4T(π)*β * im * G[1] / G2 * eff_current_fourier[2][iG]
         end
     end
-    force_real!(eff_pot_fourier, basis)
-    eff_pot_real = G_to_r(basis, eff_pot_fourier)
+    eff_pot_real = G_to_r(basis, eff_pot_fourier; assume_real=Val(true))
     ops_ham = [ops_energy..., RealSpaceMultiplication(basis, basis.kpoints[1], eff_pot_real)]
 
     E = zero(T)
