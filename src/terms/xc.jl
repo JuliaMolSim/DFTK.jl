@@ -226,6 +226,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
 
         for α = 1:3
             iGα = [im * G[α] for G in G_vectors_cart(basis)]
+            # TODO: See https://github.com/JuliaMolSim/DFTK.jl/issues/694
             for σ = 1:n_spin
                 ∇ρ_real[σ, :, :, :, α] .= G_to_r(basis, iGα .* @view ρ_fourier[σ, :, :, :];
                                                  assume_real=Val(true))
@@ -440,5 +441,6 @@ function divergence_real(operand, basis)
         del_α = im * [G[α] for G in G_vectors_cart(basis)]
         del_α .* operand_α
     end
+    # TODO: See https://github.com/JuliaMolSim/DFTK.jl/issues/694
     G_to_r(basis, gradsum; assume_real=Val(true))
 end

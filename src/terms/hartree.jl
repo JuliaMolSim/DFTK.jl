@@ -38,7 +38,7 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
         @assert sum_charges == model.n_electrons
     end
     poisson_green_coeffs[1] = 0  # Compensating charge background => Zero DC
-    force_real!(poisson_green_coeffs, basis) # If no opposite G, no reason for real result
+    force_real!(poisson_green_coeffs, basis)  # If no opposite G, no reason for real result
 
     TermHartree(T(scaling_factor), T(scaling_factor) .* poisson_green_coeffs)
 end

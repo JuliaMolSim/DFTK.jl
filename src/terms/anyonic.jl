@@ -54,6 +54,7 @@ function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
             out[1][iG], out[2][iG] = vec
         end
     end
+    # TODO: See https://github.com/JuliaMolSim/DFTK.jl/issues/694
     [G_to_r(basis, out[α]; assume_real=Val(true)) for α = 1:2]
 end
 
@@ -118,9 +119,9 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwarg
             A2[iG] = -2T(π) * G[1] / G2 * (ρ_fourier[iG] - ρref_fourier[iG]) * im
         end
     end
-    [force_real!(A, basis) for A = (A1, A2)]
-    Areal = [G_to_r(basis, A1) + term.Aref[1],
-             G_to_r(basis, A2) + term.Aref[2],
+    # TODO: See https://github.com/JuliaMolSim/DFTK.jl/issues/694
+    Areal = [G_to_r(basis, A1; assume_real=Val(true)) + term.Aref[1],
+             G_to_r(basis, A2; assume_real=Val(true)) + term.Aref[2],
              zeros(T, basis.fft_size)]
 
     # 2 hbar β (-i∇)⋅A + β^2 |A|^2
@@ -146,6 +147,7 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwarg
             eff_pot_fourier[iG] += +4T(π)*β * im * G[1] / G2 * eff_current_fourier[2][iG]
         end
     end
+    # TODO: See https://github.com/JuliaMolSim/DFTK.jl/issues/694
     eff_pot_real = G_to_r(basis, eff_pot_fourier; assume_real=Val(true))
     ops_ham = [ops_energy..., RealSpaceMultiplication(basis, basis.kpoints[1], eff_pot_real)]
 
