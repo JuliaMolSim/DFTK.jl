@@ -93,7 +93,9 @@ end
             mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
             Vl  = reshape(terms.Vl, n_spin, basis.fft_size...)
             Vl_fourier = r_to_G(basis, Vl[s, :, :, :])
-            potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
+            # not sure why, see https://github.com/JuliaMolSim/DFTK.jl/issues/694
+            potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier;
+                                             assume_real=Val(true))  # ΔVl
         end
     end
 
