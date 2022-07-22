@@ -29,8 +29,8 @@ struct ModifiedKinetic
     scaling_factor::Real
     blow_up_function
 end
-ModifiedKinetic(; scaling_factor=1, blow_up_rate=2) =
-    ModifiedKinetic(scaling_factor, blow_up_function(blow_up_rate))
+ModifiedKinetic(; scaling_factor=1, blow_up_rate=2, interval=[0.85, 0.90]) =
+    ModifiedKinetic(scaling_factor, blow_up_function(blow_up_rate; inverval))
 (kin::ModifiedKinetic)(basis) = TermKinetic(basis, kin.scaling_factor,
                                             kin.blow_up_function)
 function Base.show(io::IO, kin::ModifiedKinetic)
