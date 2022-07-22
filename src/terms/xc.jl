@@ -78,7 +78,7 @@ end
         if haskey(terms, :Vσ) && any(x -> abs(x) > term.potential_threshold, terms.Vσ)
             # Need gradient correction
             # TODO Drop do-block syntax here?
-            potential[:, :, :, s] .+= -2divergence_real(basis) do α
+            potential[:, :, :, s] .+= -2*divergence_real(basis) do α
                 Vσ = reshape(terms.Vσ, :, basis.fft_size...)
 
                 # Extra factor (1/2) for s != t is needed because libxc only keeps σ_{αβ}
@@ -93,7 +93,6 @@ end
             mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
             Vl  = reshape(terms.Vl, n_spin, basis.fft_size...)
             Vl_fourier = r_to_G(basis, Vl[s, :, :, :])
-            force_real!(Vl_fourier, basis)
             potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
         end
     end
@@ -227,9 +226,9 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
 
         for α = 1:3
             iGα = [im * G[α] for G in G_vectors_cart(basis)]
-            force_real!(iGα, basis)
             for σ = 1:n_spin
-                ∇ρ_real[σ, :, :, :, α] .= G_to_r(basis, iGα .* @view ρ_fourier[σ, :, :, :])
+                ∇ρ_real[σ, :, :, :, α] .= G_to_r(basis, iGα .* @view ρ_fourier[σ, :, :, :];
+                                                 assume_real=Val(true))
             end
         end
 
@@ -441,6 +440,5 @@ function divergence_real(operand, basis)
         del_α = im * [G[α] for G in G_vectors_cart(basis)]
         del_α .* operand_α
     end
-    force_real!(gradsum, basis)
-    G_to_r(basis, gradsum)
+    G_to_r(basis, gradsum; assume_real=Val(true))
 end
