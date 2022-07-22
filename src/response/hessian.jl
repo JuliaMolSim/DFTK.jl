@@ -156,10 +156,10 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
 
     # Config
     dynamic_tolerance = false
-    dynamic_anderson = false
-    innertol = Ref(1e-6)
+    dynamic_anderson = true
+    innertol = Ref(1e-2)
 
-    fixed_anderson = true
+    fixed_anderson = false
 
     initial_solve = false
     initial_tol_sternheimer = 1e-3
@@ -180,10 +180,16 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
         end
     end
 
+    Pinv = LinearMap{T}(prod(size(δρ0))) do δρ0
+        δρ = mix_density(mixing, basis, unpack(δρ0); ρin=ρ, occupation, occupation_threshold,
+                         εF, ψ, eigenvalues)
+        pack(δρ)
+    end
     Pinv = I
 
     if dynamic_anderson
         δρ = let
+            converged = false
             β = 0.6
             maxiter = 100
             x0 = pack(δρ)
@@ -192,17 +198,25 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
             fp_solver = scf_nlsolve_solver(; m=10, method=:anderson)
             # fp_solver = scf_anderson_solver(; m=10)
             i = 0
+            determine_diagtol = ScfDiagtol(; # ratio_ρdiff=0.01, diagtol_max=1e-3,
+                                           diagtol_min=tol_sternheimer)
 
+            innertol[] = determine_diagtol((; ρin=δρ0, ρout=nothing, basis, n_iter=0))
             res = fp_solver(x0, maxiter; tol) do x
+                converged && return x
                 i += 1
                 residual = Pinv * (b - ε * x)
                 rnorm = norm(residual)
-                innertol[] = max(tol_sternheimer, min(innertol[], rnorm / 100))
+                rnorm < tol && (converged = true)
+
+                diagtol = determine_diagtol((; ρin=unpack(x), ρout=unpack(x+β*residual), basis, n_iter=i))
+                innertol[] = diagtol
                 println(i, "   ", rnorm,  "   ", innertol[])
                 x + β * residual
             end
-            unpack(res.x)
+            unpack(res.fixpoint)
         end
+        δρ = pack(δρ)
         initially_zero = false
     end
 
@@ -244,6 +258,7 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
         δρ = let
             β = 0.6
             maxiter = 100
+            converged = false
             x0 = pack(δρ)
             ε = dielectric_adjoint(tol_sternheimer)
             b = pack(δρ0)
@@ -252,15 +267,18 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
             i = 0
 
             res = fp_solver(x0, maxiter; tol) do x
+                converged && return x
                 i += 1
                 residual = Pinv * (b - ε * x)
                 rnorm = norm(residual)
-                rnorm = norm(residual)
+                rnorm < tol && (converged = true)
+
                 println(i, "   ", rnorm)
                 x + β * residual
             end
-            unpack(res.x)
+            unpack(res.fixpoint)
         end
+        δρ = pack(δρ)
         initially_zero = false
     end
 
