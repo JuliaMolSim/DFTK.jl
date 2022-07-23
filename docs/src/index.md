@@ -18,7 +18,7 @@ DFTK's source code is [publicly available on github](https://dftk.org).
 
 If you are new to density-functional theory or plane-wave methods,
 see our notes on [Periodic problems](@ref periodic-problems) and our
-collection of [Introductory resources](@ref).
+collection of [Introductory resources](@ref introductory-resources).
 
 !!! tip "DFTK summer school: 29th to 31st August 2022 in Paris, France"
     We will organise a summer school centred around the DFTK code

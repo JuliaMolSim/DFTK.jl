@@ -1,4 +1,4 @@
-# [Introductory resources](@id density-functional-theory)
+# [Introductory resources](@id introductory-resources)
 
 This page collects a bunch of articles, lecture notes, textbooks and recordings
 related to density-functional theory (DFT) and DFTK.

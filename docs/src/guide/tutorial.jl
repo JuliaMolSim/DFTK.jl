@@ -13,8 +13,8 @@
 #md # [Periodic problems](@ref periodic-problems)
 #nb # [Periodic problems](https://docs.dftk.org/stable/guide/periodic_problems/)
 # or the
-#md # [density-functional theory](@ref density-functional-theory)
-#nb # [density-functional theory](https://docs.dftk.org/stable/guide/density_functional_theory/)
+#md # [Introductory resources](@ref introductory-resources)
+#nb # [Introductory resources](https://docs.dftk.org/stable/guide/introductory_resources/)
 # chapters for some introductory material on the topic.
 #
 # !!! note "Convergence parameters in the documentation"

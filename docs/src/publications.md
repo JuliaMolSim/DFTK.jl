@@ -51,7 +51,7 @@ Feel free to drop us a line if you want your work to be added here.
   [*Convergence analysis of direct minimization and self-consistent iterations*](https://doi.org/10.1137/20M1332864)
   SIAM Journal on Matrix Analysis and Applications, **42**, 243 (2021).
   [ArXiv:2004.09088](https://arxiv.org/abs/2004.09088).
-  ([Computational script](https://github.com/JuliaMolSim/DFTK.jl/blob/master/examples/silicon_scf_convergence.jl)).
+  ([Computational script](https://github.com/JuliaMolSim/DFTK.jl/blob/80c7452ef728f5e9f413f70e6d5eb4f8357075bc/examples/silicon_scf_convergence.jl)).
 
 - M. F. Herbst, A. Levitt and E. Cancès.
   [*A posteriori error estimation for the non-self-consistent Kohn-Sham equations.*](https://doi.org/10.1039/D0FD00048E)
