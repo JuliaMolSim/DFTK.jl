@@ -68,8 +68,8 @@ Want to contribute? See our [contributing notes](https://github.com/JuliaMolSim/
 
 # [Getting started](@id getting-started)
 First, new users should take a look at the [Installation](@ref) and
-[Tutorial](@ref) sections. Then, make your way through the various
-examples.
+[Tutorial](@ref) sections. Then, make your way through the various examples.
+An ideal starting point are the [Examples on basic DFT calculations](@ref metallic-systems).
 
 !!! note "Convergence parameters in the documentation"
     In the documentation we use very rough convergence parameters to be able

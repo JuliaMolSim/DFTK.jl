@@ -12,19 +12,8 @@ function list_examples()
     res
 end
 
-function example_tags(fullpath)
-    open(fullpath) do fp
-        for l in readlines(fp)
-            regex = "^#src tags:"
-            isnothing(match(Regex(regex), l)) || return split(l[length(regex):end])
-        end
-        return Vector{String}()
-    end
-end
-
 @testset "Run examples" begin
     for file in list_examples()
-        "long" in example_tags(file) && continue
         @testset "$(file)" begin
             include(file)
         end
