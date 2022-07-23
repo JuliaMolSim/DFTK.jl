@@ -18,53 +18,13 @@ DFTK's source code is [publicly available on github](https://dftk.org).
 
 If you are new to density-functional theory or plane-wave methods,
 see our notes on [Periodic problems](@ref periodic-problems) and our
-collection of [lectures, workshops and literature on DFT](@ref density-functional-theory).
+collection of [Introductory resources](@ref).
 
 !!! tip "DFTK summer school: 29th to 31st August 2022 in Paris, France"
     We will organise a summer school centred around the DFTK code
     and modern approaches to density-functional theory
     from **29 to 31 August 2022** at **Sorbonne Université, Paris**.
     For more details and registration info see the [school's website](https://school2022.dftk.org).
-
-# [Package features](@id package-features)
-* Methods and models:
-    - Standard DFT models (LDA, GGA, meta-GGA): Any functional from the
-      [libxc](https://tddft.org/programs/libxc/) library
-    - Flexibility to build your own Kohn-Sham model:
-      Anything from analytic potentials, linear Cohen-Bergstresser models,
-      Gross-Pitaevskii equations, anyonic models, etc.
-    - Analytic potentials or Godecker norm-conserving pseudopotentials (GTH, HGH)
-    - Brillouin zone symmetry for ``k``-point sampling using [spglib](https://atztogo.github.io/spglib/)
-    - Standard smearing functions (including Methfessel-Paxton
-      and Marzari-Vanderbilt cold smearing)
-    - Collinear spin polarization for magnetic systems
-    - Self-consistent field approaches including Kerker mixing,
-      [LDOS mixing](https://doi.org/10.1088/1361-648X/abcbdb),
-      [adaptive damping](https://arxiv.org/abs/2109.14018)
-    - Direct minimization, Newton solver
-    - Multi-level threading (``k``-points eigenvectors, FFTs, linear algebra)
-    - MPI-based distributed parallelism (distribution over ``k``-points)
-    - 1D / 2D / 3D systems
-    - External magnetic fields
-    - Treat systems of 1000 electrons
-* Ground-state properties and post-processing:
-    - Total energy
-    - Forces, stresses
-    - Density of states (DOS), local density of states (LDOS)
-    - Band structures
-    - Easy access to all intermediate quantities (e.g. density, Bloch waves)
-* Support for arbitrary floating point types, including `Float32` (single precision)
-  or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)).
-* Runs out of the box on Linux, macOS and Windows
-* Third-party integrations:
-    - Seamless integration with many standard [Input and output formats](@ref).
-    - Use structures prepared in [pymatgen](https://pymatgen.org) or
-      [ASE](https://wiki.fysik.dtu.dk/ase/).
-    - [asedftk](https://github.com/mfherbst/asedftk):
-      DFTK-based calculator implementation for ASE.
-
-Missing a feature? Look for an open issue or [create a new one](https://github.com/JuliaMolSim/DFTK.jl/issues).
-Want to contribute? See our [contributing notes](https://github.com/JuliaMolSim/DFTK.jl#contributing).
 
 # [Getting started](@id getting-started)
 First, new users should take a look at the [Installation](@ref) and
@@ -79,4 +39,5 @@ An ideal starting point are the [Examples on basic DFT calculations](@ref metall
     more realistic results.
 
 If you have an idea for an addition to the docs or see something wrong,
-please open an [issue](https://github.com/JuliaMolSim/DFTK.jl/issues) or [pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)!
+please open an [issue](https://github.com/JuliaMolSim/DFTK.jl/issues)
+or [pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)!

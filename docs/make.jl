@@ -12,6 +12,79 @@
 #        with Literate.jl and a *.md to be included as is.
 #     2. Add the file to the PAGES variable below. You don't need to track the assets.
 
+# Structure of the docs. List files as *.jl or *.md here. All files
+# ending in *.jl will be processed to *.md with Literate.
+PAGES = [
+    "Home" => "index.md",
+    "school2022.md",
+    "features.md",
+    "Getting started" => [
+        # Installing DFTK, tutorial, theoretical background
+        "guide/installation.md",
+        "Tutorial" => "guide/tutorial.jl",
+        "guide/periodic_problems.jl",
+        "guide/introductory_resources.md",
+    ],
+    "Basic DFT calculations" => [
+        # Ground-state DFT calculations, standard problems and modelling techniques
+        # Some basic show cases; may feature integration of DFTK with other packages.
+        "examples/metallic_systems.jl",
+        "examples/collinear_magnetism.jl",
+        "examples/supercells.jl",
+        "examples/gaas_surface.jl",
+        "examples/graphene.jl",
+        "examples/geometry_optimization.jl",
+    ],
+    "Response and properties" => [
+        "examples/polarizability.jl",
+        "examples/forwarddiff.jl",
+        "examples/dielectric.jl",
+    ],
+    "Ecosystem integration" => [
+        # This concerns the discussion of interfaces, IO and integration
+        # options we have
+        "examples/atomsbase.jl",
+        "examples/input_output.jl",
+        "examples/wannier90.jl",
+    ],
+    "Tipps and tricks" => [
+        # Resolving convergence issues, what solver to use, improving performance or
+        # reliability of calculations.
+        "tricks/parallelization.md",
+        "tricks/scf_checkpoints.jl",
+    ],
+    "Solvers" => [
+        "examples/custom_solvers.jl",
+        "examples/scf_callbacks.jl",
+        "examples/compare_solvers.jl",
+    ],
+    "Nonstandard models" => [
+        "examples/gross_pitaevskii.jl",
+        "examples/gross_pitaevskii_2D.jl",
+        "examples/custom_potential.jl",
+        "examples/cohen_bergstresser.jl",
+        "examples/anyons.jl",
+    ],
+    "Error control" => [
+        "examples/arbitrary_floattype.jl",
+        "examples/error_estimates_forces.jl",
+    ],
+    "Developer resources" => [
+        "developer/conventions.md",
+        "developer/data_structures.md",
+        "developer/useful_formulas.md",
+        "developer/symmetries.md",
+    ],
+    "api.md",
+    "publications.md",
+]
+
+# Files from the /examples folder that need to be copied over to the docs
+# (typically images, input or data files etc.)
+EXAMPLE_ASSETS = [
+    "examples/Fe_afm.pwi",
+]
+
 #
 # Configuration and setup
 #
@@ -48,92 +121,25 @@ using DFTK
 using Documenter
 using Literate
 
-# Structure of the docs. List files as *.jl or *.md here. All files
-# ending in *.jl will be processed to *.md with Literate.
-PAGES = [
-    "Home" => "index.md",
-    "school2022.md",
-    "Getting started" => [
-        # Installing DFTK, tutorial, theoretical background
-        "guide/installation.md",
-        "Tutorial" => "guide/tutorial.jl",
-        "guide/periodic_problems.jl",
-        "guide/introductory_resources.md",
-    ],
-    "Basic DFT calculations" => [
-        # Ground-state DFT calculations, standard problems and modelling techniques
-        # Some basic show cases; may feature integration of DFTK with other packages.
-        "examples/metallic_systems.jl",
-        "examples/collinear_magnetism.jl",
-        "examples/supercells.jl",
-        "examples/gaas_surface.jl",
-        "examples/graphene.jl",
-        "examples/geometry_optimization.jl",
-    ],
-    "Response and properties" => [
-        "examples/polarizability.jl",
-        "examples/forwarddiff.jl",
-    ],
-    "Ecosystem integration" => [
-        # This concerns the discussion of interfaces, IO and integration
-        # options we have
-        "examples/input_output.jl",
-        "examples/wannier90.jl",
-    ],
-    "Tipps and tricks" => [
-        # Resolving convergence issues, what solver to use, improving performance or
-        # reliability of calculations.
-        "tricks/parallelization.md",
-        "tricks/scf_checkpoints.jl",
-    ],
-    "Solvers" => [
-        "examples/custom_solvers.jl",
-        "examples/scf_callbacks.jl",
-    ],
-    "Nonstandard models" => [
-        "examples/gross_pitaevskii.jl",
-        "examples/gross_pitaevskii_2D.jl",
-        "examples/custom_potential.jl",
-        "examples/cohen_bergstresser.jl",
-    ],
-    "Error control" => [
-        "examples/arbitrary_floattype.jl",
-        "examples/error_estimates_forces.jl",
-    ],
-    "Developer resources" => [
-        "developer/conventions.md",
-        "developer/data_structures.md",
-        "developer/useful_formulas.md",
-        "developer/symmetries.md",
-    ],
-    "api.md",
-    "publications.md",
-    # hide("Publication code", [
-    #     "examples/silicon_scf_convergence.jl",
-    # ]),
-]
-
-# Files from the /examples folder that need to be copied over to the docs
-# (typically images, input or data files etc.)
-EXAMPLE_ASSETS = [
-    "examples/Fe_afm.pwi",
-]
-
 #
 # Generate the docs
 #
+
+# Get list of files from PAGES
+extract_paths(pages::AbstractArray) = collect(Iterators.flatten(extract_paths.(pages)))
+extract_paths(file::AbstractString) = [file]
+extract_paths(pair::Pair) = extract_paths(pair.second)
+
+# Transform files to *.md
+transform_to_md(pages::AbstractArray) = transform_to_md.(pages)
+transform_to_md(file::AbstractString) = first(splitext(file)) * ".md"
+transform_to_md(pair::Pair) = (pair.first => transform_to_md(pair.second))
 
 # Copy assets over
 mkpath(joinpath(SRCPATH, "examples"))
 for asset in EXAMPLE_ASSETS
     cp(joinpath(ROOTPATH, asset), joinpath(SRCPATH, asset), force=true)
 end
-
-# Get list of files from PAGES
-extract_paths(pages::AbstractArray) = collect(Iterators.flatten(extract_paths.(pages)))
-extract_paths(file::AbstractString) = [file]
-extract_paths(hidden::Tuple) = hidden[1] ? extract_paths(hidden[4]) : [hidden[3]]
-extract_paths(pair::Pair) = extract_paths(pair.second)
 
 # Collect files to treat with Literate (i.e. the examples and the .jl files in the docs)
 # The examples go to docs/literate_build/examples, the .jl files stay where they are
@@ -189,9 +195,9 @@ makedocs(;
         # login screen and cause a warning:
         r"https://github.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/edit(.*)",
     ],
-    pages,
+    pages=transform_to_md(PAGES),
     checkdocs=:exports,
-    strict = !DEBUG,
+    strict=!DEBUG,
 )
 
 # Dump files for managing dependencies in binder

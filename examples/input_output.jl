@@ -37,7 +37,6 @@ magnetic_moments = load_magnetic_moments(qe_input)
 
 # Next we attach the pseudopotential information, since this information is currently
 # not exposed inside the ASE datastructures.
-# See [Creating slabs with ASE](@ref) for more details.
 
 atoms = map(atoms) do el
     @assert el.symbol == :Fe

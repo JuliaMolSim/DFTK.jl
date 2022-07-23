@@ -266,7 +266,7 @@ plot_bandstructure(basis; n_bands=6, kline_density=100)
 #   * density-functial theory (DFT) models for treating electronic structures
 #     (see the [Tutorial](@ref)).
 #   * Gross-Pitaevskii models for bosonic systems
-#     (see [Gross-Pitaevskii equation in one dimension](@ref))
+#     (see [Gross-Pitaevskii equation in one dimension](@ref gross-pitaevskii))
 #   * even some more unusual cases like anyonic models.
 #
 # In this tutorial we will go a little more low-level and directly provide
