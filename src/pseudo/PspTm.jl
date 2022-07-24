@@ -1,31 +1,31 @@
 using SpecialFunctions: besselj
-using Interpolations: interpolate, Gridded, Linear
-using Plots: plot, plot!
+using Interpolations: interpolate, Gridded, Linear, GriddedInterpolation
 using QuadGK: quadgk, quadgk!, gauss
 import PeriodicTable
-using BenchmarkTools: @benchmark
+using TimerOutputs
 
 struct PspTm <: NormConservingPsp
-    Zion::              Int                           # Atomic number of atom
-    valenceElectrons::  Int                           # Number of valence electrons
-    lmax::              Int                           # Maximal angular momentum in the non-local part
-    lloc::              Int                           # Angular momentum used for local part
-    numGridPoints::     Int                           # Number of grid points used in the radial grid
-    numProjectorFctns::     Vector{Int}               # Number of projector functions used for each angular momentum
-    pspCoreRadius::         Vector{Float64}           # Pseudopotential core radius per angular momentum
-    rms::                   Vector{Float64}           # Measure of pseudopotential quality reflecting the value of the penalty function in designing the potential per angular momentum
-    energiesKB::            Vector{Vector{Float64}}   # ekb are Kleinman-Bylander energies for each projection function for each angular momentum
-    epsatm::                Vector{Float64}           # The integral ∫^∞_0 4πr*(r*V(r)+valenceElectrons)dr
-    rchrg::             Float64                       # the Core charge radius for additional core charge used to match the xc contribution
-    fchrg::             Float64                       # The prefactor of the core charge expression
-    totCoreChrg::       Float64                       # The total (integrated) core charge
-    radialGrid::            Vector{Float64}           # grid used to generate the pseudopotential and the pseudowaves [100*((x/numGridPoints)+0.1)^5-1e-8 for x in 0:numGridPoints]
-    pseudoPotentials::      Vector{Vector{Float64}}   # Radial pseudopotential values for each angular momentum
-    projectorVals::         Vector{Vector{Vector{Float64}}}   # First and second Radial projection values for each angular momentum
-    h::                     Array{Float64,2}          # h coefficients
-    identifier::        String                        # String identifying the PSP
-    description::       String                        # Descriptive string
+    Zion::             Int                           # Atomic number of atom
+    valenceElectrons:: Int                           # Number of valence electrons
+    lmax::             Int                           # Maximal angular momentum in the non-local part
+    lloc::             Int                           # Angular momentum used for local part
+    numGridPoints::    Int                           # Number of grid points used in the radial grid
+    numProjectorFctns::Vector{Int}                   # Number of projector functions used for each angular momentum
+    pspCoreRadius::    Vector{Float64}               # Pseudopotential core radius per angular momentum
+    rms::              Vector{Float64}               # Measure of pseudopotential quality reflecting the value of the penalty function in designing the potential per angular momentum
+    energiesKB::       Vector{Vector{Float64}}       # ekb are Kleinman-Bylander energies for each projection function for each angular momentum
+    epsatm::           Vector{Float64}               # The integral ∫^∞_0 4πr*(r*V(r)+valenceElectrons)dr
+    rchrg::            Float64                       # the Core charge radius for additional core charge used to match the xc contribution
+    fchrg::            Float64                       # The prefactor of the core charge expression
+    totCoreChrg::      Float64                       # The total (integrated) core charge
+    radialGrid::       Vector{Float64}               # grid used to generate the pseudopotential and the pseudowaves [100*((x/numGridPoints)+0.1)^5-1e-8 for x in 0:numGridPoints]
+    pseudoPotentials:: Vector{GriddedInterpolation}  # Interpolated Function to calculate radial pseudopotential values for each angular momentum
+    projectorVals::    Vector{Vector{GriddedInterpolation}} # Interpolated Function to calculate first and second Radial projection values for each angular momentum
+    h::                Array{Float64,2}              # h coefficients
+    identifier::       String                        # String identifying the PSP
+    description::      String                        # Descriptive string
 end
+charge_ionic(psp::PspTm) = psp.Zion
 
 function parse_tm_file(path; identifier="")
     #Information for where to find information about this pseudopotential file format can be found at https://docs.abinit.org/developers/psp1_info/, and all files were retrieved from https://www.abinit.org/sites/default/files/PrevAtomicData/psp-links/lda_tm.html. The example file used is hydrogen.
@@ -89,7 +89,7 @@ function parse_tm_file(path; identifier="")
     @assert length(projectorVals[2]) == count(x -> x > 1, numProjectorFctns)
 
     h = zeros(2,4)
-    function hCoefficients(radialGrid,pseudoPotentials,projectorVals,projector, angularMomentum)
+    function hCoefficients(radialGrid, pseudoPotentials, projectorVals, projector, angularMomentum)
         f(r) = interpolate((radialGrid,),pseudoPotentials[angularMomentum+1], Gridded(Linear()))(r) * 
                 (interpolate((radialGrid,),projectorVals[projector][angularMomentum+1],Gridded(Linear()))(r))^2
         return inv(first(quadgk(f,radialGrid[1],radialGrid[end]; order = 17, rtol = 1e-7)))
@@ -111,6 +111,16 @@ function parse_tm_file(path; identifier="")
         end
     end
     
+    pseudoPotentialsFuncs = map(pseudoPotentials) do psp
+        interpolate((radialGrid,), psp, Gridded(Linear()))
+    end
+
+    projectorValsFuncs = map(eachindex(projectorVals)) do idxp
+        map(eachindex(projectorVals[idxp])) do idxl
+            interpolate((radialGrid,), projectorVals[idxp][idxl], Gridded(Linear()))
+        end
+    end
+
     PspTm(
         Zatom, Zion,
         maximumAngularMomentum, localAngularMomentum, numGridPoints,
@@ -118,64 +128,76 @@ function parse_tm_file(path; identifier="")
         rms, energiesKB, epsatm,
         rchrg, fchrg, totCoreChrg,
         radialGrid,
-        pseudoPotentials,
-        projectorVals,
+        pseudoPotentialsFuncs,
+        projectorValsFuncs,
         h,
         identifier,
         description
     )
 end
 
-function eval_pseudoWaveFunction_real(psp::PspTm, projector::Int, angularMomentum::Int, r::T) where {T <: Real}
+function eval_pseudoWaveFunction_real(psp::PspTm, projector::Int, angularMomentum::Int)
     @assert 0 <= projector <= 2
-    projector == 2 && (return interpolate((psp.radialGrid,), psp.secondProjectorVals[angularMomentum + 1], Gridded(Linear()))(r))
-    return interpolate((psp.radialGrid,), psp.projectorVals[projector][angularMomentum + 1], Gridded(Linear()))(r)
+    return psp.projectorVals[projector][angularMomentum + 1]
 end
 
 """
 This is just creating a function from the pseudopotential that came from the file. See [m_psp1](https://github.com/abinit/abinit/blob/master/src/64_psp/m_psp1.F90) Line: 257 and 240
 I have no real justification for using the mean pseudopotential instead of the pseudopotentials for an angular momentum. It's just more convienent (no angularMomentum input variable), and when taking the difference between a given pseudopotential of an angular momentum none of the potentials are zero.
 """
-eval_psp_local_real(psp::PspTm, r::T) where {T <: Real} = interpolate((psp.radialGrid,), psp.pseudoPotentials[psp.lloc+1], Gridded(Linear()))(r)
+function eval_psp_local_real(psp::PspTm; to = TimerOutput())
+    localReal = @timeit to "interpolate" psp.pseudoPotentials[psp.lloc + 1]
+    return localReal
+end
+
+eval_psp_momentum_real(psp::PspTm, l; to = TimerOutput()) = @timeit to "eval_psp_momentum_real" psp.pseudoPotentials[l + 1]
 
 #This was how ABINIT calculated their local fourier potential. See https://github.com/abinit/abinit/blob/master/src/64_psp/m_psp1.F90 Lines: 434,435
 @doc raw"""
 Local potential in inverse space. Calculated with the Hankel transformation: 4π∫(\frac{sin(2π q r)}{2π q r})(r^2 v(r)+r Zv)dr.
 """
-function eval_psp_local_fourier(psp::PspTm, q::T) where {T <: Real} #This is increadibly slow
-    j0(r) = sin(2π * q * r)/(2π * q)
-    f(r) = j0(r) * (r * eval_psp_local_real(psp,r) + psp.Zion)
-    return 4π * quadgk(f, psp.radialGrid[1],psp.radialGrid[end]; order = 17, rtol = 1e-8)[1]
+function eval_psp_local_fourier(psp::PspTm, q::T; to = TimerOutput()) where {T <: Real} #This is increadibly slow
+    @timeit to "besselFirst" j0(r) = sin(2π * q * r)/(2π * q)
+    func = eval_psp_local_real(psp; to = to)
+    @timeit to "Replacement" f(r) = j0(r) * (r * func(r) + psp.Zion)
+    # @timeit to "local Bessel" f(r) = j0(r) * (r * eval_psp_local_real(psp,r; to = to) + psp.Zion)
+    return @timeit to "return" 4π * quadgk(f, psp.radialGrid[1], psp.radialGrid[end]; order = 17, rtol = 1e-8)[1]
 end
 
-function approx(psp,q,N)
-    W(r) = sin(2π * q * r)/(2π * q)
-    g(r) = r * eval_psp_local_real(psp,r) + psp.Zion
-    r,w = gauss(N,psp.radialGrid[1], psp.radialGrid[end])
-    return dot(W.(r),w)
+function approx(psp, q, N; to = TimerOutput())
+    W(r) = @timeit to "W" sin(2π * q * r)/(2π * q)
+    func = eval_psp_local_real(psp; to = to)
+    g(r) = @timeit to "g" r * func(r) + psp.Zion
+    r,w = @timeit to "gauss" gauss(N,psp.radialGrid[1], psp.radialGrid[end])
+    return @timeit to "dot" dot(W.(r),w)
 end
 
 """
 This is just the difference between the pseudopotentials of different angularMomentum and the average of the pseudopotentials
 """
-function eval_psp_semilocal_real(psp::PspTm, r::T, angularMomentum::Int) where {T <: Real}
-    angularMomentum == psp.lloc && (return 0.0)
-    psp_l = interpolate((psp.radialGrid,), psp.pseudoPotentials[angularMomentum + 1], Gridded(Linear()))
-    return psp_l(r) - eval_psp_local_real(psp,r)
+function eval_psp_semilocal_real(psp::PspTm, angularMomentum::Int; to = TimerOutput())
+    angularMomentum == psp.lloc && (return @timeit to "nothing" x -> 0.0)
+    psp_l = @timeit to "psp_l" eval_psp_momentum_real(psp, angularMomentum; to = to)
+    localReal = @timeit to "eval_psp_local_real" eval_psp_local_real(psp; to = to)
+    return x -> psp_l(x) - localReal(x)
 end
 
-function eval_psp_energy_correction(psp::PspTm,r::T,angularMomentum::Int) where {T <: Real} #From https://github.com/abinit/abinit/blob/master/src/64_psp/m_psp1.F90 Line: 658 in the psp1nl function
-    f(r) = (eval_pseudoWaveFunction_real(psp,projector,angularMomentum,r) * eval_psp_semilocal_real(r)
-    )^2
-    return first(quadgk(f, psp.radialGrid[1], psp.radialGrid[end]; rtol = 1e-1))
+function eval_psp_energy_correction(psp::PspTm, angularMomentum::Int; to = TimerOutput()) #From https://github.com/abinit/abinit/blob/master/src/64_psp/m_psp1.F90 Line: 658 in the psp1nl function
+    pseudoWave = eval_pseudoWaveFunction_real(psp,projector,angularMomentum)
+    semiLocal = eval_psp_semilocal_real(psp, angularMomentum; to = to)
+    f(r) = @timeit to "f" (pseudoWave(r) * semiLocal(r))^2
+    return @timeit to "quadgk" first(quadgk(f, psp.radialGrid[1], psp.radialGrid[end]; rtol = 1e-5))
 end
 
 #This is the normalizer that ABINIT uses for their nonlocal K-B potential
 # https://github.com/abinit/abinit/blob/master/src/64_psp/m_psp1.F90 Line: 696-713
-function normalizer(psp, projector, angularMomentum)
+function normalizer(psp, projector, angularMomentum; to = TimerOutput())
     #The normalizer should have a square root, but it will be squared later on.
     angularMomentum == psp.lloc && (return 1.0)
-    return quadgk(x -> (eval_pseudoWaveFunction_real(psp,projector,angularMomentum,x) * eval_psp_semilocal_real(psp,x,angularMomentum))^2, psp.radialGrid[1], psp.radialGrid[end]; rtol = 1e-1) |> first
+    # return @timeit to "quadgk" quadgk(x -> (eval_pseudoWaveFunction_real(psp,projector,angularMomentum,x) * eval_psp_semilocal_real(psp,x,angularMomentum))^2, psp.radialGrid[1], psp.radialGrid[end]; rtol = 1e-1) |> first
+    semiLocal = eval_psp_semilocal_real(psp, angularMomentum; to = to)
+    pseudoWave = eval_pseudoWaveFunction_real(psp, projector, angularMomentum)
+    return @timeit to "norm quadgk" quadgk(x -> (pseudoWave(x) * semiLocal(x))^2, psp.radialGrid[1], psp.radialGrid[end]; rtol = 1e-5) |> first
 end
 
 
@@ -184,9 +206,11 @@ Creating the projector function described in eq. 10 in the [Troullier-Martins](h
     Eq. 10: 
 More information on how ABINIT parses the file, see the [m_psp1](https://github.com/abinit/abinit/blob/master/src/64_psp/m_psp1.F90) page Lines: 695 - 724
 """
-function eval_psp_projector_real(psp::PspTm, projector::Int, angularMomentum::Int, r::T) where {T <: Real}
+function eval_psp_projector_real(psp::PspTm, projector::Int, angularMomentum::Int, r::T; to = TimerOutput()) where {T <: Real}
     psp.lloc == angularMomentum && (return 0.0)
-    nonLocalPotential = (eval_pseudoWaveFunction_real(psp,projector,angularMomentum,r) * eval_psp_semilocal_real(psp,r,angularMomentum))^2 / normalizer(psp, projector, angularMomentum)
+    semiLocal = eval_psp_semilocal_real(psp, angularMomentum; to = to)
+    pseudoWave = eval_pseudoWaveFunction_real(psp, projector, angularMomentum)
+    @timeit to "nonLocalPotential" nonLocalPotential = (pseudoWave(r) * semiLocal(r))^2 / normalizer(psp, projector, angularMomentum; to = to)
     return nonLocalPotential * psp.h[projector,angularMomentum+1]
 end
 
@@ -195,14 +219,14 @@ Creating the projector function described in eq. 19 in the [Troullier-Martins](h
 Also in the paper, they additionally normalized by Ω.
 More information on how ABINIT parses the file, see the [m_psp1](https://github.com/abinit/abinit/blob/master/src/64_psp/m_psp1.F90) page Lines: 800 - 825
 """
-function eval_psp_projector_fourier(psp::PspTm, projector::Int, angularMomentum::Int, q::T) where {T <: Real} 
+function eval_psp_projector_fourier(psp::PspTm, projector::Int, angularMomentum::Int, q::T; to = TimerOutput()) where {T <: Real} 
     angularMomentum == psp.lloc && (return 0.0)
     x(r) = 2π * r * q 
-    rDependencies(r) = r^2 * eval_psp_projector_real(psp, projector, angularMomentum, r)
+    rDependencies(r) = @timeit to "rDep" r^2 * eval_psp_projector_real(psp, projector, angularMomentum, r; to = to)
     bess(r) = if angularMomentum == 0
-        -besselj(1,x(r))
+        @timeit to "zero Bess" -besselj(1,x(r))
     else
-        besselj(angularMomentum-1,x(r)) - (angularMomentum+1) * besselj(angularMomentum,x(r))/x(r)
+        @timeit to "nonzero Bess" besselj(angularMomentum-1,x(r)) - (angularMomentum+1) * besselj(angularMomentum,x(r))/x(r)
     end
-    return quadgk(r -> 2π * rDependencies(r) * bess(r), psp.radialGrid[1], psp.radialGrid[end]; rtol = 1e-1)|>first#, atol = 1e0)|> first
+    return @timeit to "quadgk" quadgk(r -> 2π * rDependencies(r) * bess(r), psp.radialGrid[1], psp.radialGrid[end]; rtol = 1e-5)|>first#, atol = 1e0)|> first
 end
