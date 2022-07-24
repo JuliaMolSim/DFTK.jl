@@ -20,6 +20,10 @@ If you are new to density-functional theory or plane-wave methods,
 see our notes on [Periodic problems](@ref periodic-problems) and our
 collection of [Introductory resources](@ref introductory-resources).
 
+Found a bug, missing a feature? Look for an open issue or
+[create a new one](https://github.com/JuliaMolSim/DFTK.jl/issues).
+Want to contribute? See our [contributing notes](https://github.com/JuliaMolSim/DFTK.jl#contributing).
+
 !!! tip "DFTK summer school: 29th to 31st August 2022 in Paris, France"
     We will organise a summer school centred around the DFTK code
     and modern approaches to density-functional theory
