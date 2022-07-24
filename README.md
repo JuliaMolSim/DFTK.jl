@@ -41,7 +41,7 @@ such as [Abinit](https://www.abinit.org/) or
 For getting started with DFTK, see [our documentation](https://docs.dftk.org):
 - [Installation instructions](https://docs.dftk.org/stable/guide/installation/)
 - [Tutorial](https://docs.dftk.org/stable/guide/tutorial/)
-- [Basic DFT examples](https://docs.dftk.org/stable/metallic_systems/)
+- [Basic DFT examples](https://docs.dftk.org/stable/examples/metallic_systems/)
 
 Note that at least **Julia 1.6** is required.
 
