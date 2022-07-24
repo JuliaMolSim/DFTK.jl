@@ -27,7 +27,19 @@ end
 
 function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     isempty(xc.functionals) && return TermNoop()
-    TermXc(xc.functionals, convert_dual(T, xc.scaling_factor), T(xc.potential_threshold))
+    fun = strip_dual.(T, xc.functionals)
+    TermXc(convert(Vector{Functional}, fun),
+           convert_dual(T, xc.scaling_factor),
+           T(xc.potential_threshold))
+end
+
+# TODO Hack
+strip_dual(fun::Functional) = fun
+function strip_dual(T::Type, fun::PbeExchange)
+    PbeExchange(fun.identifier; κ=convert_dual(T, fun.κ), μ=convert_dual(T, fun.μ))
+end
+function strip_dual(T::Type, fun::PbeCorrelation)
+    PbeCorrelation(fun.identifier; fun.lda, β=convert_dual(T, fun.β), γ=convert_dual(T, fun.γ))
 end
 
 struct TermXc{T} <: TermNonlinear where {T}
