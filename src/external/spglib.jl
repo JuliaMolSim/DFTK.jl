@@ -21,9 +21,7 @@ mapping of the `numbers` to the element objects in DFTK and `collinear` whether
 the atoms mark a case of collinear spin or not. Notice that if `collinear` is false
 then `spins` is garbage.
 """
-function spglib_atoms(atom_groups,
-                      positions::AbstractVector{<:AbstractVector{<:AbstractFloat}},
-                      magnetic_moments)
+function spglib_atoms(atom_groups, positions, magnetic_moments)
     n_attypes = length(positions)
     spg_numbers   = zeros(Cint,    n_attypes)
     spg_spins     = zeros(Cdouble, n_attypes)
@@ -55,8 +53,7 @@ function spglib_cell(lattice, atom_groups, positions, magnetic_moments)
 end
 
 
-@timing function spglib_get_symmetry(lattice::AbstractMatrix{<:AbstractFloat}, atom_groups,
-                                     positions, magnetic_moments=[];
+@timing function spglib_get_symmetry(lattice, atom_groups, positions, magnetic_moments=[];
                                      tol_symmetry=SYMMETRY_TOLERANCE)
     lattice = Matrix{Float64}(lattice)  # spglib operates in double precision
 
@@ -112,7 +109,8 @@ end
             for coord in group_positions
                 # If all elements of a difference in diffs is integer, then
                 # W * coord + w and pos are equivalent lattice positions
-                if !any(c -> is_approx_integer(W * coord + w - c; tol=tol_symmetry), group_positions)
+                is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ tol_symmetry, r)
+                if !any(c -> is_approx_integer(W * coord + w - c), group_positions)
                     error("spglib returned bad symmetries: Cannot map the atom at position " *
                           "$coord to another atom of the same element under the symmetry " *
                           "operation (W, w):\n($W, $w)")

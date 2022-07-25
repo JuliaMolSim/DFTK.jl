@@ -93,16 +93,15 @@ Perform an FFT to obtain the Fourier representation of `f_real`. If
 `kpt` is given, the coefficients are truncated to the k-dependent
 spherical basis set.
 """
-function r_to_G(basis::PlaneWaveBasis{T}, f_real::AbstractArray{U}) where {T, U}
-    f_fourier = similar(f_real, complex(promote_type(T, U)))
+function r_to_G(basis::PlaneWaveBasis{T}, f_real::AbstractArray) where T
+    f_fourier = similar(f_real, complex(promote_type(T, eltype(f_real))))
     @assert length(size(f_real)) ∈ (3, 4)
-    for iσ = 1:size(f_real, 4)  # this exploits trailing index convention
+    # this exploits trailing index convention
+    for iσ = 1:size(f_real, 4)
         @views r_to_G!(f_fourier[:, :, :, iσ], basis, f_real[:, :, :, iσ])
     end
     f_fourier
 end
-
-
 # TODO optimize this
 function r_to_G(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3; kwargs...)
     r_to_G!(similar(f_real, length(kpt.mapping)), basis, kpt, copy(f_real); kwargs...)
@@ -113,7 +112,7 @@ function G_to_r_matrix(basis::PlaneWaveBasis{T}) where {T}
     ret = zeros(complex(T), prod(basis.fft_size), prod(basis.fft_size))
     for (iG, G) in enumerate(G_vectors(basis))
         for (ir, r) in enumerate(r_vectors(basis))
-            ret[ir, iG] = cis2pi(dot(r, G)) / sqrt(basis.model.unit_cell_volume)
+            ret[ir, iG] = cis(2π * dot(r, G)) / sqrt(basis.model.unit_cell_volume)
         end
     end
     ret
@@ -123,7 +122,7 @@ function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
     for (iG, G) in enumerate(G_vectors(basis))
         for (ir, r) in enumerate(r_vectors(basis))
             Ω = basis.model.unit_cell_volume
-            ret[iG, ir] = cis2pi(-dot(r, G)) * sqrt(Ω) / prod(basis.fft_size)
+            ret[iG, ir] = cis(-2π * dot(r, G)) * sqrt(Ω) / prod(basis.fft_size)
         end
     end
     ret
@@ -141,11 +140,9 @@ The function will determine the smallest parallelepiped containing the wave vect
  ``|G|^2/2 \leq E_\text{cut} ⋅ \text{supersampling}^2``.
 For an exact representation of the density resulting from wave functions
 represented in the spherical basis sets, `supersampling` should be at least `2`.
-
-If `factors` is not empty, ensure that the resulting fft_size contains all the factors
 """
 function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
-                          ensure_smallprimes=true, algorithm=:fast, factors=1, kwargs...) where T
+                          ensure_smallprimes=true, algorithm=:fast, kwargs...) where T
     if algorithm == :fast
         Glims = compute_Glims_fast(model.lattice, Ecut; kwargs...)
     elseif algorithm == :precise
@@ -165,39 +162,18 @@ function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
         error("Unknown fft_size_algorithm :$algorithm, try :fast or :precise")
     end
 
-    # TODO Make default small primes type-dependent, since generic FFT is broken for some
-    #      prime factors ... temporary workaround, see more details in workarounds/fft_generic.jl
+    # Optimize FFT grid size: Make sure the number factorises in small primes only
+    fft_size = Vec3(2 .* Glims .+ 1)
     if ensure_smallprimes
-        smallprimes = default_primes(T)  # Usually (2, 3 ,5)
-    else
-        smallprimes = ()
+        fft_size = nextprod.(Ref([2, 3, 5]), fft_size)
     end
 
-    # Consider only sizes that are (a) a product of small primes and (b) contain the factors
-    fft_size = Vec3(2 .* Glims .+ 1)
-    fft_size = next_compatible_fft_size(fft_size; factors, smallprimes)
+    # TODO generic FFT is kind of broken for some fft sizes
+    #      ... temporary workaround, see more details in workarounds/fft_generic.jl
+    fft_size = next_working_fft_size(T, fft_size)
     Tuple{Int, Int, Int}(fft_size)
 end
 
-"""
-Find the next compatible FFT size
-Sizes must (a) be a product of small primes only and (b) contain the factors.
-If smallprimes is empty (a) is skipped.
-"""
-function next_compatible_fft_size(size::Int; smallprimes=(2, 3, 5), factors=(1, ))
-    # This could be optimized
-    is_product_of_primes(n) = isempty(smallprimes) || (n == nextprod(smallprimes, n))
-    @assert all(is_product_of_primes, factors) # ensure compatibility between (a) and (b)
-    has_factors(n) = rem(n, prod(factors)) == 0
-
-    while !(has_factors(size) && is_product_of_primes(size))
-        size += 1
-    end
-    size
-end
-function next_compatible_fft_size(sizes::Union{Tuple, AbstractArray}; kwargs...)
-    next_compatible_fft_size.(sizes; kwargs...)
-end
 
 # This uses a more precise and slower algorithm than the one above,
 # simply enumerating all G vectors and seeing where their difference
@@ -239,10 +215,25 @@ end
 # Fast implementation, but sometimes larger than necessary.
 function compute_Glims_fast(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=sqrt(eps(T))) where T
     Gmax = supersampling * sqrt(2 * Ecut)
-    recip_lattice = compute_recip_lattice(lattice)
-    Glims = estimate_integer_lattice_bounds(recip_lattice, Gmax; tol=tol)
+    bounding_rectangle(lattice, Gmax; tol=tol)
+end
+
+
+# returns the lengths of the bounding rectangle in reciprocal space
+# that encloses the sphere of radius Gmax
+function bounding_rectangle(lattice::AbstractMatrix{T}, Gmax; tol=sqrt(eps(T))) where {T}
+    # If |B G| ≤ Gmax, then
+    # |Gi| = |e_i^T B^-1 B G| ≤ |B^-T e_i| Gmax = |A_i| Gmax
+    # with B the reciprocal lattice matrix, e_i the i-th canonical
+    # basis vector and A_i the i-th column of the lattice matrix
+    Glims = [norm(lattice[:, i]) / 2T(π) * Gmax for i in 1:3]
+
+    # Round up, unless exactly zero (in which case keep it zero in
+    # order to just have one G vector for 1D or 2D systems)
+    Glims = [Glim == 0 ? 0 : ceil(Int, Glim .- tol) for Glim in Glims]
     Glims
 end
+
 
 # For Float32 there are issues with aligned FFTW plans, so we
 # fall back to unaligned FFTW plans (which are generally discouraged).
@@ -264,8 +255,8 @@ end
 
 # TODO Some grid sizes are broken in the generic FFT implementation
 # in FourierTransforms, for more details see workarounds/fft_generic.jl
-default_primes(::Type{Float32}) = (2, 3, 5)
-default_primes(::Type{Float64}) = default_primes(Float32)
+# This function is needed to provide a noop fallback for grid adjustment for
+# for floating-point types natively supported by FFTW
 next_working_fft_size(::Type{Float32}, size::Int) = size
 next_working_fft_size(::Type{Float64}, size::Int) = size
 next_working_fft_size(T, sizes::Union{Tuple, AbstractArray}) = next_working_fft_size.(T, sizes)

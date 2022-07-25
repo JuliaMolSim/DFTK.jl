@@ -7,15 +7,6 @@ const Interval = IntervalArithmetic.Interval
 # should be done e.g. by changing  the rounding mode ...
 erfc(i::Interval) = Interval(prevfloat(erfc(i.lo)), nextfloat(erfc(i.hi)))
 
-# This is done to avoid using sincospi(x), called by cispi(x),
-# which has not been implemented in IntervalArithmetic
-# see issue #513 on IntervalArithmetic repository
-cis2pi(x::Interval) = exp(2 * (pi * (im * x)))
-
-Base.nextfloat(x::Interval) = Interval(nextfloat(x.lo), nextfloat(x.hi))
-Base.prevfloat(x::Interval) = Interval(prevfloat(x.lo), prevfloat(x.hi))
-value_type(::Type{<:Interval{T}}) where {T} = T
-
 function compute_Glims_fast(lattice::AbstractMatrix{<:Interval}, args...; kwargs...)
     # This is done to avoid a call like ceil(Int, ::Interval)
     # in the above implementation of compute_fft_size,
@@ -48,12 +39,4 @@ function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <:
     hir = round(q.hi, digits=5)
     @assert iszero(round(lor - hir, digits=3))
     T(local_potential_fourier(el, IntervalArithmetic.mid(q)))
-end
-
-function estimate_integer_lattice_bounds(M::AbstractMatrix{<:Interval}, δ, shift=zeros(3))
-    # As a general statement, with M a lattice matrix, then if ||Mx|| <= δ, 
-    # then xi = <ei, M^-1 Mx> = <M^-T ei, Mx> <= ||M^-T ei|| δ.
-    # Below code does not support non-3D systems.
-    xlims = [norm(inv(M')[:, i]) * δ + shift[i] for i in 1:3]
-    map(x -> ceil(Int, x.hi), xlims)
 end

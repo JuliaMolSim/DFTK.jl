@@ -19,8 +19,6 @@
 # Tolerance to consider two atomic positions as equal (in relative coordinates)
 const SYMMETRY_TOLERANCE = 1e-5
 
-is_approx_integer(r; tol=SYMMETRY_TOLERANCE) = all(ri -> abs(ri - round(ri)) ≤ tol, r)
-
 struct SymOp{T <: Real}
     # (Uu)(x) = u(W x + w) in real space
     W::Mat3{Int}
@@ -29,26 +27,22 @@ struct SymOp{T <: Real}
     # (Uu)(G) = e^{-i G τ} u(S^-1 G) in reciprocal space
     S::Mat3{Int}
     τ::Vec3{T}
-end
-function SymOp(W, w::AbstractVector{T}) where {T}
-    w = mod.(w, 1)
-    S = W'
-    τ = -W \ w
-    SymOp{T}(W, w, S, τ)
-end
 
-function Base.convert(::Type{SymOp{T}}, S::SymOp{U}) where {U <: Real, T <: Real}
-    SymOp{T}(S.W, T.(S.w), S.S, T.(S.τ))
+    function SymOp(W, w)
+        w = mod.(w, 1)
+        S = W'
+        τ = -W \w
+        new{eltype(τ)}(W, w, S, τ)
+    end
 end
 
 Base.:(==)(op1::SymOp, op2::SymOp) = op1.W == op2.W && op1.w == op2.w
 function Base.isapprox(op1::SymOp, op2::SymOp; atol=SYMMETRY_TOLERANCE)
-    op1.W == op2.W && is_approx_integer(op1.w - op2.w; tol=atol)
+    is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ atol, r)
+    op1.W == op2.W && is_approx_integer(op1.w - op2.w)
 end
-Base.one(::Type{SymOp}) = one(SymOp{Bool})  # Not sure about this method
-Base.one(::Type{SymOp{T}}) where {T} = SymOp(Mat3{Int}(I), Vec3(zeros(T, 3)))
-Base.one(::SymOp{T}) where {T} = one(SymOp{T})
-Base.isone(op::SymOp) = isone(op.W) && iszero(op.w)
+Base.one(::Type{SymOp}) = SymOp(Mat3{Int}(I), Vec3(zeros(Bool, 3)))
+Base.one(::SymOp) = one(SymOp)
 
 # group composition and inverse.
 function Base.:*(op1::SymOp, op2::SymOp)

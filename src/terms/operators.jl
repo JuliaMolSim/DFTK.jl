@@ -58,7 +58,7 @@ function apply!(Hψ, op::RealSpaceMultiplication, ψ)
 end
 function Matrix(op::RealSpaceMultiplication)
     # V(G, G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
-    pot_fourier = r_to_G(op.basis, op.potential)
+    pot_fourier = r_to_G(op.basis, complex.(op.potential))
     n_G = length(G_vectors(op.basis, op.kpoint))
     H = zeros(complex(eltype(op.basis)), n_G, n_G)
     for (i, G) in enumerate(G_vectors(op.basis, op.kpoint))

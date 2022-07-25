@@ -4,9 +4,7 @@ using ChainRulesCore
 # A physical specification of a model.
 # Contains the geometry information, but no discretization parameters.
 # The exact model used is defined by the list of terms.
-struct Model{T <: Real, VT <: Real}
-    # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
-
+struct Model{T <: Real}
     # Human-readable name for the model (like LDA, PBE, ...)
     model_name::String
 
@@ -58,7 +56,7 @@ struct Model{T <: Real, VT <: Real}
     term_types::Vector
 
     # list of symmetries of the model
-    symmetries::Vector{SymOp{VT}}
+    symmetries::Vector{SymOp}
 end
 
 _is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
@@ -91,14 +89,12 @@ If you want to pass custom symmetry operations (e.g. a reduced or extended set) 
 external potential breaks some of the passed symmetries. Use `false` to turn off
 symmetries completely.
 """
-function Model(lattice::AbstractMatrix{T},
-               atoms::Vector{<:Element}=Element[],
-               positions::Vector{<:AbstractVector}=Vec3{T}[];
+function Model(lattice::AbstractMatrix{T}, atoms=Element[], positions=Vec3{T}[];
                model_name="custom",
                n_electrons::Int=default_n_electrons(atoms),
-               magnetic_moments=T[],
+               magnetic_moments=[],
                terms=[Kinetic()],
-               temperature=zero(T),
+               temperature=T(0.0),
                smearing=nothing,
                spin_polarization=default_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
@@ -168,20 +164,18 @@ function Model(lattice::AbstractMatrix{T},
     end
     isempty(symmetries) && error("Identity symop has to be always present.")
 
-    Model{T,value_type(T)}(model_name,
-                           lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
-                           unit_cell_volume, recip_cell_volume,
-                           n_electrons, spin_polarization, n_spin, T(temperature), smearing,
-                           atoms, positions, atom_groups, terms, symmetries)
+    Model{T}(model_name, lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
+             unit_cell_volume, recip_cell_volume,
+             n_electrons, spin_polarization, n_spin, T(temperature), smearing,
+             atoms, positions, atom_groups, terms, symmetries)
 end
-function Model(lattice::AbstractMatrix{<:Integer}, atoms::Vector{<:Element},
-               positions::Vector{<:AbstractVector}; kwargs...)
-    Model(Float64.(lattice), atoms, positions; kwargs...)
+function Model(lattice::AbstractMatrix{<: Integer}, args...; kwargs...)
+    Model(Float64.(lattice), args...; kwargs...)
 end
-function Model(lattice::AbstractMatrix{<:Quantity}, atoms::Vector{<:Element},
-               positions::Vector{<:AbstractVector}; kwargs...)
-    Model(austrip.(lattice), atoms, positions; kwargs...)
+function Model(lattice::AbstractMatrix{<:Quantity}, args...; kwargs...)
+    Model(austrip.(lattice), args...; kwargs...)
 end
+
 
 normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
 normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)

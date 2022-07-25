@@ -1,7 +1,5 @@
 ## Local potentials. Can be provided from external potentials, or from `model.atoms`.
 
-import Zygote
-
 # a local potential term. Must have the field `potential_values`, storing the
 # potential in real space on the grid. If the potential is different in the α and β
 # components then it should be a 4d-array with the last axis running over the
@@ -74,13 +72,13 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
     # Since V is a sum of radial functions located at atomic
     # positions, this involves a form factor (`local_potential_fourier`)
-    # and a structure factor e^{-i G·r}
+    # and a structure factor e^{-i Gr}
 
     pot_fourier = map(G_vectors(basis)) do G
         pot = sum(model.atom_groups) do group
             element = model.atoms[first(group)]
             form_factor::T = local_potential_fourier(element, norm(model.recip_lattice * G))
-            form_factor * sum(cis2pi(-dot(G, r)) for r in @view model.positions[group])
+            form_factor * sum(cis(-2T(π) * dot(G, r)) for r in @view model.positions[group])
         end
         pot / sqrt(model.unit_cell_volume)
     end
@@ -98,18 +96,17 @@ end
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
     # where struct_factor(G) = cis(-2π G⋅r)
-    # forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
-    forces = Zygote.Buffer(zero(model.positions))
+    forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
     for group in model.atom_groups
         element = model.atoms[first(group)]
-        form_factors = [Complex{T}(local_potential_fourier(element, norm(G)))
-                        for G in G_vectors_cart(basis)]
+        form_factors = [Complex{T}(local_potential_fourier(element, norm(recip_lattice * G)))
+                        for G in G_vectors(basis)]
         for idx in group
             r = model.positions[idx]
             forces[idx] = _force_local_internal(basis, ρ_fourier, form_factors, r)
         end
     end
-    copy(forces) # unpack Zygote.Buffer
+    forces
 end
 
 # function barrier to work around various type instabilities
@@ -119,7 +116,7 @@ function _force_local_internal(basis, ρ_fourier, form_factors, r)
     for (iG, G) in enumerate(G_vectors(basis))
         f -= real(conj(ρ_fourier[iG])
                   .* form_factors[iG]
-                  .* cis2pi(-dot(G, r))
+                  .* cis(-2T(π) * dot(G, r))
                   .* (-2T(π)) .* G .* im
                   ./ sqrt(basis.model.unit_cell_volume))
     end

@@ -1,5 +1,5 @@
 import SpecialFunctions: erfc
-import Zygote
+using ChainRulesCore
 
 """
 Ewald term: electrostatic energy per unit cell of the array of point
@@ -23,10 +23,8 @@ end
 @timing "forces: Ewald" function compute_forces(term::TermEwald, basis::PlaneWaveBasis{T},
                                                 ψ, occ; kwargs...) where {T}
     # TODO this could be precomputed
-    # forces = zero(basis.model.positions)
-    forces = Zygote.Buffer(zero(basis.model.positions))
+    forces = zero(basis.model.positions)
     energy_ewald(basis.model; forces)
-    forces = copy(forces) # unpack Zygote.Buffer
     forces
 end
 
@@ -63,6 +61,13 @@ function energy_ewald(lattice, charges, positions; η=nothing, forces=nothing)
     energy_ewald(lattice, compute_recip_lattice(lattice), charges, positions; η, forces)
 end
 
+# Function to return the indices corresponding
+# to a particular shell
+# TODO switch to an O(N) implementation
+function shell_indices(ish)
+    [[i,j,k] for i in -ish:ish for j in -ish:ish for k in -ish:ish if maximum(abs.([i,j,k])) == ish]
+end
+
 # This could be factorised with Pairwise, but its use of `atom_types` would slow down this
 # computationally intensive Ewald sums. So we leave it as it for now.
 function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positions; η=nothing, forces=nothing) where {T}
@@ -74,12 +79,17 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
         η = sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
     end
 
-    if forces !== nothing
-        # @assert size(forces) == size(positions)
-        # forces_real = copy(forces)
-        # forces_recip = copy(forces)
-        forces_real = Zygote.Buffer(zero(positions))
-        forces_recip = Zygote.Buffer(zero(positions))
+    # TODO refactor
+    # This is declared to escape the local scope of ChainRulesCore.@ignore_derivatives
+    forces_real = nothing
+    forces_recip = nothing
+    
+    ChainRulesCore.@ignore_derivatives begin
+        if forces !== nothing
+            @assert size(forces) == size(positions)
+            forces_real = copy(forces)
+            forces_recip = copy(forces)
+        end
     end
 
     # Numerical cutoffs to obtain meaningful contributions. These are very conservative.
@@ -87,49 +97,55 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
     max_exp_arg = -log(eps(T)) + 5  # add some wiggle room
     max_erfc_arg = sqrt(max_exp_arg)  # erfc(x) ~= exp(-x^2)/(sqrt(π)x) for large x
 
-    # Precomputing summation bounds from cutoffs.
-    # In the reciprocal-space term we have exp(-||B G||^2 / 4η^2),
-    # where B is the reciprocal-space lattice, and
-    # thus use the bound  ||B G|| / 2η ≤ sqrt(max_exp_arg)
-    Glims = estimate_integer_lattice_bounds(recip_lattice, sqrt(max_exp_arg) * 2η)
-
-    # In the real-space term we have erfc(η ||A(rj - rk - R)||),
-    # where A is the real-space lattice, rj and rk are atomic positions and
-    # thus use the bound  ||A(rj - rk - R)|| * η ≤ max_erfc_arg
-    poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
-    Rlims = estimate_integer_lattice_bounds(lattice, max_erfc_arg / η, poslims)
-
     #
     # Reciprocal space sum
     #
     # Initialize reciprocal sum with correction term for charge neutrality
     sum_recip::T = - (sum(charges)^2 / 4η^2)
 
-    for G1 in -Glims[1]:Glims[1], G2 in -Glims[2]:Glims[2], G3 in -Glims[3]:Glims[3]
-        G = Vec3(G1, G2, G3)
-        (G == zero(G)) && continue
-        Gsq = sum(abs2, recip_lattice * G)
-        cos_strucfac = sum(Z * cos2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
-        sin_strucfac = sum(Z * sin2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
-        sum_strucfac = cos_strucfac^2 + sin_strucfac^2
-        sum_recip += sum_strucfac * exp(-Gsq / 4η^2) / Gsq
-        if forces !== nothing
-            for (ir, r) in enumerate(positions)
-                Z = charges[ir]
-                dc = -Z*2T(π)*G*sin2pi(dot(r, G))
-                ds = +Z*2T(π)*G*cos2pi(dot(r, G))
-                dsum = 2cos_strucfac*dc + 2sin_strucfac*ds
-                forces_recip[ir] -= dsum * exp(-Gsq / 4η^2)/Gsq
+    # Loop over reciprocal-space shells
+    gsh = 1 # Exclude G == 0
+    any_term_contributes = true
+    while any_term_contributes
+        any_term_contributes = false
+
+        # Compute G vectors and moduli squared for this shell patch
+        for G in shell_indices(gsh)
+            Gsq = sum(abs2, recip_lattice * G)
+
+            # Check if the Gaussian exponent is small enough
+            # for this term to contribute to the reciprocal sum
+            exponent = Gsq / 4η^2
+            if exponent > max_exp_arg
+                continue
+            end
+
+            cos_strucfac = sum(Z * cos(2T(π) * dot(r, G)) for (r, Z) in zip(positions, charges))
+            sin_strucfac = sum(Z * sin(2T(π) * dot(r, G)) for (r, Z) in zip(positions, charges))
+            sum_strucfac = cos_strucfac^2 + sin_strucfac^2
+
+            any_term_contributes = true
+            sum_recip += sum_strucfac * exp(-exponent) / Gsq
+
+            ChainRulesCore.@ignore_derivatives begin 
+                if forces !== nothing
+                    for (ir, r) in enumerate(positions)
+                        Z = charges[ir]
+                        dc = -Z*2T(π)*G*sin(2T(π) * dot(r, G))
+                        ds = +Z*2T(π)*G*cos(2T(π) * dot(r, G))
+                        dsum = 2cos_strucfac*dc + 2sin_strucfac*ds
+                        forces_recip[ir] -= dsum * exp(-exponent)/Gsq
+                    end
+                end
             end
         end
+        gsh += 1
     end
-
     # Amend sum_recip by proper scaling factors:
     sum_recip *= 4T(π) / compute_unit_cell_volume(lattice)
-    if forces !== nothing
-        # forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
-        for ir in eachindex(positions)
-            forces_recip[ir] *= 4T(π) / compute_unit_cell_volume(lattice)
+    ChainRulesCore.@ignore_derivatives begin
+        if forces !== nothing
+            forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
         end
     end
 
@@ -139,33 +155,53 @@ function energy_ewald(lattice::AbstractMatrix{T}, recip_lattice, charges, positi
     # Initialize real-space sum with correction term for uniform background
     sum_real::T = -2η / sqrt(T(π)) * sum(Z -> Z^2, charges)
 
-    for R1 in -Rlims[1]:Rlims[1], R2 in -Rlims[2]:Rlims[2], R3 in -Rlims[3]:Rlims[3]
-        R = Vec3(R1, R2, R3)
-        for i = 1:length(positions), j = 1:length(positions)
-            # Avoid self-interaction
-            R == zero(R) && i == j && continue
-            Zi = charges[i]
-            Zj = charges[j]
-            Δr = lattice * (positions[i] - positions[j] - R)
-            dist = norm(Δr)
-            energy_contribution = Zi * Zj * erfc(η * dist) / dist
-            sum_real += energy_contribution
-            if forces !== nothing
-                # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
-                dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
-                dE_ddist -= energy_contribution
-                dE_ddist /= dist
-                dE_dti = lattice' * ((dE_ddist / dist) * Δr)
-                forces_real[i] -= dE_dti
-                forces_real[j] += dE_dti
-            end
-        end
+    # Loop over real-space shells
+    rsh = 0 # Include R = 0
+    any_term_contributes = true
+    while any_term_contributes || rsh <= 1
+        any_term_contributes = false
+
+        # Loop over R vectors for this shell patch
+        for R in shell_indices(rsh)
+            for i = 1:length(positions), j = 1:length(positions)
+                # Avoid self-interaction
+                rsh == 0 && i == j && continue
+
+                ti = positions[i]
+                Zi = charges[i]
+                tj = positions[j]
+                Zj = charges[j]
+
+                Δr = lattice * (ti - tj - R)
+                dist = norm(Δr)
+
+                # erfc decays very quickly, so cut off at some point
+                if η * dist > max_erfc_arg
+                    continue
+                end
+
+                any_term_contributes = true
+                energy_contribution = Zi * Zj * erfc(η * dist) / dist
+                sum_real += energy_contribution
+                ChainRulesCore.@ignore_derivatives begin
+                    if forces !== nothing
+                        # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
+                        dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
+                        dE_ddist -= energy_contribution
+                        dE_ddist /= dist
+                        dE_dti = lattice' * ((dE_ddist / dist) * Δr)
+                        forces_real[i] -= dE_dti
+                        forces_real[j] += dE_dti
+                    end
+                end
+            end # i,j
+        end # R
+        rsh += 1
     end
     energy = (sum_recip + sum_real) / 2  # Divide by 2 (because of double counting)
-    if forces !== nothing
-        # forces .= (forces_recip .+ forces_real) ./ 2
-        for ir in eachindex(positions)
-            forces[ir] = (forces_recip[ir] + forces_real[ir]) / 2
+    ChainRulesCore.@ignore_derivatives begin
+        if forces !== nothing
+            forces .= (forces_recip .+ forces_real) ./ 2
         end
     end
     energy
