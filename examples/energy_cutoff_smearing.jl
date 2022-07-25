@@ -40,7 +40,8 @@ end
 # We can now compute the ground state of silicon for standard and modified
 # kinetic term for each given parameter ``a``.
 # We use the CHV blow-up function introduced in [REF] which ensures ``C^2``
-# regularity of the energy bands.
+# regularity of the energy bands. DFTK also features the blow-up function
+# as implemented in Abinit [REF].
 
 Ecut = 5
 kgrid = [8,8,8]
