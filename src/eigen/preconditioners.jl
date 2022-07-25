@@ -34,7 +34,7 @@ end
 
 function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=1) where T
     kinetic_term = only([t for t in basis.model.term_types
-                         if typeof(t) ∈ (Kinetic, RegularizedKinetic)])
+                         if typeof(t) ∈ (Kinetic, ModifiedKinetic)])
     scaling = kinetic_term.scaling_factor;
     Ecut = basis.Ecut
     # Modify g function if the kinetic term is regularized
