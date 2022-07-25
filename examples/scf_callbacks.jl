@@ -11,7 +11,7 @@
 
 # We setup silicon in an LDA model using the ASE interface
 # to build the silicon lattice,
-# see [Creating slabs with ASE](@ref) for more details.
+# see [Input and output formats](@ref) for more details.
 using DFTK
 using PyCall
 

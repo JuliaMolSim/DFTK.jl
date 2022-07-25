@@ -1,14 +1,97 @@
+# To manually generate the docs:
+#     1. Install all python dependencies from the PYDEPS array below.
+#     2. Run "julia make.jl"
+#
+# To add a new example to the docs:
+#     1. Add the *.jl file to /examples, along with assets you require (e.g. input files,
+#        images, plots etc.)
+#     2. Add the example to the PAGES variable below, the asset files to EXAMPLE_ASSETS.
+#
+# To add a new page to the docs (not an example):
+#     1. Add the file to /docs/src, along with all assets. It can be a *.jl to be processed
+#        with Literate.jl and a *.md to be included as is.
+#     2. Add the file to the PAGES variable below. You don't need to track the assets.
+
+# Structure of the docs. List files as *.jl or *.md here. All files
+# ending in *.jl will be processed to *.md with Literate.
+PAGES = [
+    "Home" => "index.md",
+    "school2022.md",
+    "features.md",
+    "Getting started" => [
+        # Installing DFTK, tutorial, theoretical background
+        "guide/installation.md",
+        "Tutorial" => "guide/tutorial.jl",
+        "guide/periodic_problems.jl",
+        "guide/introductory_resources.md",
+    ],
+    "Basic DFT calculations" => [
+        # Ground-state DFT calculations, standard problems and modelling techniques
+        # Some basic show cases; may feature integration of DFTK with other packages.
+        "examples/metallic_systems.jl",
+        "examples/collinear_magnetism.jl",
+        "examples/supercells.jl",
+        "examples/gaas_surface.jl",
+        "examples/graphene.jl",
+        "examples/geometry_optimization.jl",
+    ],
+    "Response and properties" => [
+        "examples/polarizability.jl",
+        "examples/forwarddiff.jl",
+        "examples/dielectric.jl",
+    ],
+    "Ecosystem integration" => [
+        # This concerns the discussion of interfaces, IO and integration
+        # options we have
+        "examples/atomsbase.jl",
+        "examples/input_output.jl",
+        "examples/wannier90.jl",
+    ],
+    "Tipps and tricks" => [
+        # Resolving convergence issues, what solver to use, improving performance or
+        # reliability of calculations.
+        "tricks/parallelization.md",
+        "tricks/scf_checkpoints.jl",
+    ],
+    "Solvers" => [
+        "examples/custom_solvers.jl",
+        "examples/scf_callbacks.jl",
+        "examples/compare_solvers.jl",
+    ],
+    "Nonstandard models" => [
+        "examples/gross_pitaevskii.jl",
+        "examples/gross_pitaevskii_2D.jl",
+        "examples/custom_potential.jl",
+        "examples/cohen_bergstresser.jl",
+        "examples/anyons.jl",
+    ],
+    "Error control" => [
+        "examples/arbitrary_floattype.jl",
+        "examples/error_estimates_forces.jl",
+    ],
+    "Developer resources" => [
+        "developer/conventions.md",
+        "developer/data_structures.md",
+        "developer/useful_formulas.md",
+        "developer/symmetries.md",
+    ],
+    "api.md",
+    "publications.md",
+]
+
+# Files from the /examples folder that need to be copied over to the docs
+# (typically images, input or data files etc.)
+EXAMPLE_ASSETS = [
+    "examples/Fe_afm.pwi",
+]
+
+#
+# Configuration and setup
+#
+DEBUG = false  # Set to true to disable some checks and cleanup
+
 import LibGit2
 import Pkg
-
-# To manually generate the docs:
-#
-# 1. Install all python dependencies from the PYDEPS array below.
-# 2. Run "julia make.jl" to generate the docs
-
-# Set to true to disable some checks and cleanup
-DEBUG = false
-
 # Where to get files from and where to build them
 SRCPATH   = joinpath(@__DIR__, "src")
 BUILDPATH = joinpath(@__DIR__, "build")
@@ -18,8 +101,8 @@ DFTKREV    = LibGit2.head(ROOTPATH)
 DFTKBRANCH = try LibGit2.branch(LibGit2.GitRepo(ROOTPATH)) catch end
 DFTKREPO   = "github.com/JuliaMolSim/DFTK.jl.git"
 
-# Python and Julia dependencies needed for running the notebooks
-PYDEPS = ["ase", "pymatgen"]
+# Python dependencies needed for running the notebooks
+PYDEPS = ["ase"]
 
 # Setup julia dependencies for docs generation if not yet done
 Pkg.activate(@__DIR__)
@@ -38,23 +121,33 @@ using DFTK
 using Documenter
 using Literate
 
-# Collect examples from the example index (src/index.md)
-# The chosen examples are taken from the examples/ folder to be processed by Literate
-EXAMPLES = [String(m[1])
-            for m in match.(r"\"(examples/[^\"]+.md)\"",
-                            readlines(joinpath(SRCPATH, "index.md")))
-            if !isnothing(m)]
+#
+# Generate the docs
+#
+
+# Get list of files from PAGES
+extract_paths(pages::AbstractArray) = collect(Iterators.flatten(extract_paths.(pages)))
+extract_paths(file::AbstractString) = [file]
+extract_paths(pair::Pair) = extract_paths(pair.second)
+
+# Transform files to *.md
+transform_to_md(pages::AbstractArray) = transform_to_md.(pages)
+transform_to_md(file::AbstractString) = first(splitext(file)) * ".md"
+transform_to_md(pair::Pair) = (pair.first => transform_to_md(pair.second))
+
+# Copy assets over
+mkpath(joinpath(SRCPATH, "examples"))
+for asset in EXAMPLE_ASSETS
+    cp(joinpath(ROOTPATH, asset), joinpath(SRCPATH, asset), force=true)
+end
 
 # Collect files to treat with Literate (i.e. the examples and the .jl files in the docs)
 # The examples go to docs/literate_build/examples, the .jl files stay where they are
-literate_files = [(src=joinpath(ROOTPATH, splitext(file)[1] * ".jl"),
-                   dest=joinpath(SRCPATH, "examples"), example=true)
-                  for file in EXAMPLES]
-for (dir, directories, files) in walkdir(SRCPATH)
-    for file in files
-        if endswith(file, ".jl")
-            push!(literate_files, (src=joinpath(dir, file), dest=dir, example=false))
-        end
+literate_files = map(filter!(endswith(".jl"), extract_paths(PAGES))) do file
+    if startswith(file, "examples/")
+        (src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "examples"), example=true)
+    else
+        (src=joinpath(SRCPATH, file), dest=joinpath(SRCPATH, dirname(file)), example=false)
     end
 end
 
@@ -78,16 +171,17 @@ end
 # Run Literate on them all
 for file in literate_files
     preprocess = file.example ? add_badges : identity
-    Literate.markdown(file.src, file.dest; documenter=true, credit=false,
-                      preprocess=preprocess)
+    Literate.markdown(file.src, file.dest;
+                      flavor=Literate.DocumenterFlavor(),
+                      credit=false, preprocess)
     Literate.notebook(file.src, file.dest; credit=false,
                       execute=CONTINUOUS_INTEGRATION || DEBUG)
 end
 
 # Generate the docs in BUILDPATH
-makedocs(
-    modules = [DFTK],
-    format = Documenter.HTML(
+makedocs(;
+    modules=[DFTK],
+    format=Documenter.HTML(
         # Use clean URLs, unless built as a "local" build
         prettyurls = CONTINUOUS_INTEGRATION,
         canonical = "https://docs.dftk.org/stable/",
@@ -101,29 +195,9 @@ makedocs(
         # login screen and cause a warning:
         r"https://github.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/edit(.*)",
     ],
-    pages = [
-        "Home" => "index.md",
-        "school2022.md",
-        "Getting started" => Any[
-            "guide/installation.md",
-            "Tutorial" => "guide/tutorial.md",
-            "guide/input_output.md",
-            "guide/parallelization.md",
-            "Introduction to periodic problems" => "guide/periodic_problems.md",
-            "Density-functional theory" => "guide/density_functional_theory.md",
-        ],
-        "Examples" => EXAMPLES,
-        "Advanced topics" => Any[
-            "advanced/conventions.md",
-            "advanced/data_structures.md",
-            "advanced/useful_formulas.md",
-            "advanced/symmetries.md",
-        ],
-        "api.md",
-        "publications.md",
-    ],
+    pages=transform_to_md(PAGES),
     checkdocs=:exports,
-    strict = !DEBUG,
+    strict=!DEBUG,
 )
 
 # Dump files for managing dependencies in binder
@@ -131,13 +205,13 @@ if CONTINUOUS_INTEGRATION && DFTKBRANCH == "master"
     cd(BUILDPATH) do
         open("environment.yml", "w") do io
             print(io,
-                    """
-                    name: dftk
-                    channels:
-                      - defaults
-                      - conda-forge
-                    dependencies:
-                    """)
+                  """
+                  name: dftk
+                  channels:
+                    - defaults
+                    - conda-forge
+                  dependencies:
+                  """)
             for dep in PYDEPS
                 println(io, "  - " * dep)
             end
