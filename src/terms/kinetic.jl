@@ -22,8 +22,11 @@ function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
     TermKinetic(T(scaling_factor), kinetic_energies)
 end
 
-"""
-Modified Kinetic energy: Doc to do
+@doc raw"""
+For a given cutoff energy ``E_{\rm cut}`` and for all ``k``-point and
+``G``-vector such that ``|k+G|^2 < 2E_{\rm cut}``, modified kinetic energies are given by
+``E_{\rm cut} G_p(|G+k|/\sqrt(2E_{\rm cut}))``
+where ``G_p`` is a blow-up function defined in `modified_kinetic_blow_up_function.jl`.
 """
 struct ModifiedKinetic
     scaling_factor::Real
@@ -38,12 +41,12 @@ function Base.show(io::IO, kin::ModifiedKinetic)
     print(io, "ModifiedKinetic($fac)")
 end
 
-function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, Gm) where {T}
+function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, Gp) where {T}
     Ecut = basis.Ecut
     # Modified kinetic needs strict inequality in the selection of G vectors
     Gplusk_strict_cart(basis, kpt) = [Gpk for Gpk in Gplusk_vectors_cart(basis, kpt)
                                       if (norm(Gpk)^2/2 < Ecut)]
-    kinetic_energies = [[T(scaling_factor) * Ecut*Gm(norm(Gk)/√(2*Ecut))
+    kinetic_energies = [[T(scaling_factor) * Ecut*Gp(norm(Gk)/√(2*Ecut))
                          for Gk in Gplusk_strict_cart(basis, kpt)]
                         for kpt in basis.kpoints]
     TermKinetic(T(scaling_factor), kinetic_energies)
