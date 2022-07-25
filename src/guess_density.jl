@@ -104,7 +104,7 @@ function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
         Gsq = sum(abs2, basis.model.recip_lattice * G)
         for (coeff, decay_length, r) in gaussians
             form_factor::T = exp(-Gsq * T(decay_length)^2)
-            ρ[iG] += T(coeff) * form_factor * cis2pi(-dot(G, r))
+            ρ[iG] += T(coeff) * form_factor * cis(-2T(π) * dot(G, r))
         end
     end
 

@@ -15,6 +15,6 @@ using Test
             - DFTK.magnetic_potential_produced_by_ρref(x, y,     M, σ)) / ε
     curlA = dAdx[2] - dAdy[1]
     divA = dAdx[1] + dAdy[2]
-    @test norm(curlA - 2π*DFTK.ρref_real_2D(x, y, M, σ)) < 1e-4
+    @test norm(curlA - 2π*DFTK.ρref_real(x, y, M, σ)) < 1e-4
     @test abs(divA) < 1e-6
 end

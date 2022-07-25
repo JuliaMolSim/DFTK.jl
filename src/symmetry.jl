@@ -37,13 +37,11 @@
 
 # See https://juliamolsim.github.io/DFTK.jl/stable/advanced/symmetries for details.
 
-import Zygote
-
 @doc raw"""
 Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
 function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
-                             tol_symmetry=SYMMETRY_TOLERANCE)
+        tol_symmetry=SYMMETRY_TOLERANCE)
     @assert length(atoms) == length(positions)
     atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
     Ws, ws = spglib_get_symmetry(lattice, atom_groups, positions, magnetic_moments; tol_symmetry)
@@ -51,7 +49,7 @@ function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
 end
 
 """
-Filter out the symmetry operations that don't respect the symmetries of the discrete BZ grid
+Filter out the symmetry operations that respect the symmetries of the discrete BZ grid
 """
 function symmetries_preserving_kgrid(symmetries, kcoords)
     kcoords_normalized = normalize_kpoint_coordinate.(kcoords)
@@ -65,21 +63,6 @@ function symmetries_preserving_kgrid(symmetries, kcoords)
     filter(preserves_grid, symmetries)
 end
 
-"""
-Filter out the symmetry operations that don't respect the symmetries of the discrete real-space grid
-"""
-function symmetries_preserving_rgrid(symmetries, fft_size)
-    is_in_grid(r) = all(zip(r, fft_size)) do (ri, size)
-        abs(ri * size - round(ri * size)) / size ≤ SYMMETRY_TOLERANCE
-    end
-
-    onehot3(i) = (x = zeros(Bool, 3); x[i] = true; Vec3(x))
-    function preserves_grid(symop)
-        all(is_in_grid(symop.W * onehot3(i) .// fft_size[i] + symop.w) for i=1:3)
-    end
-
-    filter(preserves_grid, symmetries)
-end
 
 @doc raw"""
 Apply various standardisations to a lattice and a list of atoms. It uses spglib to detect
@@ -104,7 +87,7 @@ basis of the new ``k``-point).
 """
 function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     S, τ = symop.S, symop.τ
-    isone(symop) && return kpoint, ψk
+    symop == one(SymOp) && return kpoint, ψk
 
     # Apply S and reduce coordinates to interval [-0.5, 0.5)
     # Doing this reduction is important because
@@ -138,7 +121,7 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
         for (ig, G_full) in enumerate(Gs_full)
             igired = index_G_vectors(basis, kpoint, invS * G_full)
             @assert igired !== nothing
-            ψSk[ig, iband] = cis2pi(-dot(G_full, τ)) * ψk[igired, iband]
+            ψSk[ig, iband] = cis(-2π * dot(G_full, τ)) * ψk[igired, iband]
         end
     end
 
@@ -148,17 +131,19 @@ end
 """
 Apply a symmetry operation to a density.
 """
-function apply_symop(symop::SymOp, basis, ρin; kwargs...)
-    isone(symop) && return ρin
-    symmetrize_ρ(basis, ρin; symmetries=[symop], kwargs...)
+function apply_symop(symop::SymOp, basis, ρin)
+    symop == one(SymOp) && return ρin
+    symmetrize_ρ(basis, ρin; symmetries=[symop])
 end
+
 
 # Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
 # No normalization is performed
-@timing function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
+function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
+    T = eltype(basis)
     for symop in symmetries
         # Common special case, where ρin does not need to be processed
-        if isone(symop)
+        if symop == one(SymOp)
             ρaccu .+= ρin
             continue
         end
@@ -174,13 +159,8 @@ end
         invS = Mat3{Int}(inv(symop.S))
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             igired = index_G_vectors(basis, invS * G)
-            isnothing(igired) && continue
-
-            if iszero(symop.τ)
-                @inbounds ρaccu[ig] += ρin[igired]
-            else
-                factor = cis2pi(-T(dot(G, symop.τ)))
-                @inbounds ρaccu[ig] += factor * ρin[igired]
+            if igired !== nothing
+                @inbounds ρaccu[ig] += cis(-2T(π) * T(dot(G, symop.τ))) * ρin[igired]
             end
         end
     end  # symop
@@ -190,7 +170,7 @@ end
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
 function lowpass_for_symmetry!(ρ, basis; symmetries=basis.symmetries)
     for symop in symmetries
-        isone(symop) && continue
+        symop == one(SymOp) && continue
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
             if index_G_vectors(basis, symop.S * G) === nothing
                 ρ[ig] = 0
@@ -203,13 +183,13 @@ end
 """
 Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
-@views @timing function symmetrize_ρ(basis, ρ; symmetries=basis.symmetries, do_lowpass=true)
-    ρin_fourier  = r_to_G(basis, ρ)
+@views @timing function symmetrize_ρ(basis, ρ; symmetries=basis.symmetries)
+    ρin_fourier = r_to_G(basis, ρ)
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρ, 4)
         accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
-        do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
+        lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
     G_to_r(basis, ρout_fourier ./ length(symmetries))
 end
@@ -236,8 +216,7 @@ Symmetrize the forces in *reduced coordinates*, forces given as an
 array forces[iel][α,i]
 """
 function symmetrize_forces(model::Model, forces; symmetries)
-    # symmetrized_forces = zero(forces)
-    symmetrized_forces = Zygote.Buffer(zero(forces))
+    symmetrized_forces = zero(forces)
     for group in model.atom_groups, symop in symmetries
         positions_group = model.positions[group]
         W, w = symop.W, symop.w
@@ -245,12 +224,12 @@ function symmetrize_forces(model::Model, forces; symmetries)
             # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
             # (but careful that our symmetries are r -> Wr+w, not R(r+f))
             other_at = W \ (position - w)
+            is_approx_integer(r) = all(ri -> abs(ri - round(ri)) ≤ SYMMETRY_TOLERANCE, r)
             i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions_group)
             symmetrized_forces[idx] += W * forces[group[i_other_at]]
         end
     end
-    # symmetrized_forces / length(symmetries)
-    copy(symmetrized_forces) / length(symmetries) # unpack Zygote.Buffer
+    symmetrized_forces / length(symmetries)
 end
 function symmetrize_forces(basis::PlaneWaveBasis, forces)
     symmetrize_forces(basis.model, forces; basis.symmetries)
@@ -266,11 +245,10 @@ function unfold_bz(basis::PlaneWaveBasis)
         return basis
     else
         kcoords = unfold_kcoords(basis.kcoords_global, basis.symmetries)
-        return PlaneWaveBasis(basis.model,
-                              basis.Ecut, basis.fft_size, basis.variational,
-                              kcoords, [1/length(kcoords) for _ in kcoords],
-                              basis.kgrid, basis.kshift,
-                              basis.symmetries_respect_rgrid, basis.comm_kpts)
+        new_basis = PlaneWaveBasis(basis.model,
+                                   basis.Ecut, basis.fft_size, basis.variational,
+                                   kcoords, [1/length(kcoords) for _ in kcoords],
+                                   basis.kgrid, basis.kshift, basis.symmetries, basis.comm_kpts)
     end
 end
 

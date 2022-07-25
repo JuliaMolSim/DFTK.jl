@@ -30,7 +30,7 @@ end
 
     E = zero(T)
     for (ik, k) in enumerate(basis.kpoints)
-        for iband = 1:size(ψ[ik], 2)
+        for iband = 1:size(ψ[1], 2)
             ψnk = @views ψ[ik][:, iband]
             E += (basis.kweights[ik] * occ[ik][iband]
                   * real(dot(ψnk, Diagonal(term.kinetic_energies[ik]), ψnk)))

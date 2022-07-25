@@ -230,12 +230,10 @@ end
                         miniter=1, ortho_tol=2eps(real(eltype(X))),
                         n_conv_check=nothing, display_progress=false)
     N, M = size(X)
+
     # If N is too small, we will likely get in trouble
-    error_message(verb) = "The eigenproblem is too small, and the iterative " *
-                           "eigensolver $verb fail; increase the number of " *
-                           "degrees of freedom, or use a dense eigensolver."
-    N > 3M    || error(error_message("will"))
-    N >= 3M+5 || @warn error_message("might")
+    N >= 3M || @warn "Your problem is too small, and LOBPCG might
+        fail; use a full diagonalization instead"
 
     n_conv_check === nothing && (n_conv_check = M)
     resid_history = zeros(real(eltype(X)), M, maxiter+1)
@@ -251,7 +249,6 @@ end
     n_matvec = M   # Count number of matrix-vector products
     AX = similar(X)
     AX = mul!(AX, A, X)
-    @assert all(!isnan, AX)
     # full_X/AX/BX will always store the full (including locked) X.
     # X/AX/BX only point to the active part
     P = zero(X)

@@ -205,8 +205,7 @@ real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartr
     reltol::Float64 = 0.01  # Relative tolerance for GMRES
 end
 
-@views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, basis, δF::AbstractArray{T};
-                                               ρin, kwargs...) where {T}
+@views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, basis, δF; ρin, kwargs...)
     # Initialise χ0terms and remove nothings (terms that don't yield a contribution)
     χ0applies = filter(!isnothing, [χ₀(basis; ρin=ρin, kwargs...) for χ₀ in mixing.χ0terms])
 
@@ -230,8 +229,8 @@ end
 
     DC_δF = mean(δF)
     δF .-= DC_δF
-    ε  = LinearMap{T}(dielectric_adjoint, length(δF))
-    δρ = devec(gmres(ε, vec(δF), verbose=mixing.verbose, reltol=T(mixing.reltol)))
+    ε  = LinearMap(dielectric_adjoint, length(δF))
+    δρ = devec(gmres(ε, vec(δF), verbose=mixing.verbose, reltol=mixing.reltol))
     δρ .+= DC_δF  # Set DC from δF
     δρ
 end

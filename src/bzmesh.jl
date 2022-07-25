@@ -40,11 +40,15 @@ end
 
 Construct the irreducible wedge of a uniform Brillouin zone mesh for sampling ``k``-points,
 given the crystal symmetries `symmetries`. Returns the list of irreducible ``k``-point
-(fractional) coordinates, the associated weights and the new `symmetries` compatible with
+(fractional) coordinates, the associated weights adn the new `symmetries` compatible with
 the grid.
 """
 function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size; kshift)
+
+    # Filter those symmetry operations (S, τ) that preserve the MP grid
+    kcoords_mp = kgrid_monkhorst_pack(kgrid_size; kshift)
+    symmetries = symmetries_preserving_kgrid(symmetries, kcoords_mp)
 
     # Transform kshift to the convention used in spglib:
     #    If is_shift is set (i.e. integer 1), then a shift of 0.5 is performed,
@@ -54,10 +58,6 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
         ks in (0, 1//2) || error("Only kshifts of 0 or 1//2 implemented.")
         convert(Int, 2 * ks)
     end
-
-    # Filter those symmetry operations that preserve the MP grid
-    kcoords_mp = kgrid_monkhorst_pack(kgrid_size; kshift)
-    symmetries = symmetries_preserving_kgrid(symmetries, kcoords_mp)
 
     # Give the remaining symmetries to spglib to compute an irreducible k-point mesh
     # TODO implement time-reversal symmetry and turn the flag to true
