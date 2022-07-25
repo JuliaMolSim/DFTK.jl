@@ -1,4 +1,4 @@
-# # [Introduction to periodic problems and plane-wave discretisations](@id periodic-problems)
+# # [Problems and plane-wave discretisations](@id periodic-problems)
 #md # [![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/guide/@__NAME__.ipynb)
 #md # [![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/guide/@__NAME__.ipynb)
 
@@ -14,10 +14,10 @@
 #    \sin(x) = \sin(x + 2πm) \quad ∀ m ∈ \mathbb{Z},
 # ```
 # This is nothing else than saying that any translation by an integer multiple of ``2π``
-# keeps the ``\sin`` function invariant. In a more formal one can use the
-# translation operator ``T_{-2πm}`` to write this as:
+# keeps the ``\sin`` function invariant. More formally, one can use the
+# translation operator ``T_{2πm}`` to write this as:
 # ```math
-#    T_{-2πm} \, \sin(x) = \sin(x + 2πm) = \sin(x).
+#    T_{2πm} \, \sin(x) = \sin(x - 2πm) = \sin(x).
 # ```
 #
 # Whenever such periodicity exists one can exploit it to save computational work.
@@ -36,9 +36,7 @@
 # ```
 # with lattice constant ``a``. Each cell of the lattice is an identical periodic image of
 # any of its neighbors. For finding ``f`` it is thus sufficient to consider only the
-# problem inside a **unit cell** ``[-a/2, a/2)``. In passing we note that the definition
-# of the unit cell is itself only unique up to translations. A choice ``[0, a)``,
-# for example, would have done just as well.
+# problem inside a **unit cell** ``[-a/2, a/2)`` (this is the convention used by DFTK, but this is arbitrary, and for instance ``[0,a)`` would have worked just as well).
 #
 # ## Periodic operators and the Bloch transform
 # Not only functions, but also operators can feature periodicity.
@@ -133,7 +131,7 @@
 # of all ``H_k`` blocks.
 #
 # [^1]: Notice that block-diagonal is a bit an abuse of terms here, since the Hamiltonian
-#       is not a matrix but an operator and the number of blocks is essentially infinite.
+#       is not a matrix but an operator and the number of blocks is infinite.
 #       The mathematically precise term is that the Bloch transform reveals the fibers
 #       of the Hamiltonian.
 #
@@ -266,7 +264,7 @@ plot_bandstructure(basis; n_bands=6, kline_density=100)
 #   * density-functial theory (DFT) models for treating electronic structures
 #     (see the [Tutorial](@ref)).
 #   * Gross-Pitaevskii models for bosonic systems
-#     (see [Gross-Pitaevskii equation in one dimension](@ref))
+#     (see [Gross-Pitaevskii equation in one dimension](@ref gross-pitaevskii))
 #   * even some more unusual cases like anyonic models.
 #
 # In this tutorial we will go a little more low-level and directly provide

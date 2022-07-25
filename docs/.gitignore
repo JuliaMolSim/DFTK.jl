@@ -1,11 +1,9 @@
 build/
 site/
-src/examples/*.md
-src/examples/*.ipynb
+src/examples/
 src/guide/tutorial.md
 src/guide/tutorial.ipynb
-src/guide/input_output.md
-src/guide/input_output.ipynb
 src/guide/periodic_problems.ipynb
 src/guide/periodic_problems.md
-
+src/tricks/scf_checkpoints.ipynb
+src/tricks/scf_checkpoints.md

@@ -1,4 +1,4 @@
-# # Anyons
+# # Anyonic models
 
 # We solve the almost-bosonic anyon model of https://arxiv.org/pdf/1901.10739.pdf
 
@@ -6,14 +6,14 @@ using DFTK
 using StaticArrays
 using Plots
 
-# Unit cell. Having one of the lattice vectors as zero means a 2D system
+## Unit cell. Having one of the lattice vectors as zero means a 2D system
 a = 14
 lattice = a .* [[1 0 0.]; [0 1 0]; [0 0 0]];
 
-# Confining scalar potential
+## Confining scalar potential
 pot(x, y, z) = ((x - a/2)^2 + (y - a/2)^2)
 
-# Parameters
+## Parameters
 Ecut = 50
 n_electrons = 1
 β = 5

@@ -1,8 +1,8 @@
-# # Custom potential
+# # [Custom potential](@id custom-potential)
 
 # We solve the 1D Gross-Pitaevskii equation with a custom potential.
-# This is similar to [Gross-Pitaevskii equation in one dimension](@ref) and we
-# show how to define local potentials attached to atoms, which allows for
+# This is similar to [Gross-Pitaevskii equation in 1D example](@ref gross-pitaevskii)
+# and we show how to define local potentials attached to atoms, which allows for
 # instance to compute forces.
 using DFTK
 using LinearAlgebra

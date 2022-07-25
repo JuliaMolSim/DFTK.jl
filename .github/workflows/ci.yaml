@@ -99,7 +99,7 @@ jobs:
         with:
           python-version: '3.7'
       - name: Install python dependencies
-        run: pip install ase pymatgen
+        run: pip install ase
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1.6'
@@ -113,4 +113,4 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - run: julia --color=yes --project -e 'using Pkg; Pkg.test(test_args = ["example"])'
+      - run: julia --color=yes --project -e 'using Pkg; Pkg.test(test_args=["example"])'
