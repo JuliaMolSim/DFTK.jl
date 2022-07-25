@@ -40,7 +40,7 @@ function C2_pol_interpolation(g3; interval=[0.85, 0.90])
          0 0 2    6*b   12*b^2 20*b^3]
     B = [x1, x2, y1, y2, z1, z2]                      
     C = A\B
-
+    println(C)
     # Assemble polynomial
     x -> C'*((x * ones(6)) .^(0:5))
 end
@@ -87,6 +87,6 @@ function optimal_g3(p, interval)
         norm(out,1) .+ norm(out[out .< 0],1)*1e3
     end
     # Optimize with auto-differentiation.
-    a_opti = only(optimize(f, [0.3], LBFGS()).minimizer)
+    @show a_opti = only(optimize(f, [0.3], LBFGS()).minimizer)
     g3(a_opti, p)
 end

@@ -1,11 +1,13 @@
 """
-Kinetic energy: 1/2 sum_n f_n ∫ |∇ψn|^2.
+Kinetic energy: 1/2 sum_n f_n ∫ Blowup_function(|∇ψn|).
 """
 struct Kinetic
     scaling_factor::Real
+    Blowup_function # blow-up fonction to smooth energy bands. Defaut is x↦x^2.
 end
-Kinetic(; scaling_factor=1) = Kinetic(scaling_factor)
-(kin::Kinetic)(basis) = TermKinetic(basis, kin.scaling_factor)
+Kinetic(; scaling_factor=1, Blowup_function=x->sum(abs2, x)) = Kinetic(scaling_factor,
+                                                                       Blowup_function)
+(kin::Kinetic)(basis) = TermKinetic(basis, kin.scaling_factor, kin.Blowup_function)
 function Base.show(io::IO, kin::Kinetic)
     fac = isone(kin.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
     print(io, "Kinetic($fac)")
@@ -13,41 +15,13 @@ end
 
 struct TermKinetic <: Term
     scaling_factor::Real  # scaling factor, absorbed into kinetic_energies
-    kinetic_energies::Vector{<:AbstractVector}  # kinetic energy 1/2|G+k|^2 for every kpoint
+    # kinetic energy Ecut*Blowup_function(|G+k|/√(2Ecut)) for every kpoint
+    kinetic_energies::Vector{<:AbstractVector}
 end
-function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
-    kinetic_energies = [[T(scaling_factor) * sum(abs2, Gk) / 2
-                         for Gk in Gplusk_vectors_cart(basis, kpt)]
-                        for kpt in basis.kpoints]
-    TermKinetic(T(scaling_factor), kinetic_energies)
-end
-
-@doc raw"""
-For a given cutoff energy ``E_{\rm cut}`` and for all ``k``-point and
-``G``-vector such that ``|k+G|^2 < 2E_{\rm cut}``, modified kinetic energies are given by
-``E_{\rm cut} G_p(|G+k|/\sqrt(2E_{\rm cut}))``
-where ``G_p`` is a blow-up function defined in `modified_kinetic_blow_up_function.jl`.
-"""
-struct ModifiedKinetic
-    scaling_factor::Real
-    blow_up_function
-end
-ModifiedKinetic(; scaling_factor=1, blow_up_rate=2, interval=[0.85, 0.90]) =
-    ModifiedKinetic(scaling_factor, blow_up_function(blow_up_rate; interval))
-(kin::ModifiedKinetic)(basis) = TermKinetic(basis, kin.scaling_factor,
-                                            kin.blow_up_function)
-function Base.show(io::IO, kin::ModifiedKinetic)
-    fac = isone(kin.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
-    print(io, "ModifiedKinetic($fac)")
-end
-
-function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, Gp) where {T}
+function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, Blowup_function) where {T}
     Ecut = basis.Ecut
-    # Modified kinetic needs strict inequality in the selection of G vectors
-    Gplusk_strict_cart(basis, kpt) = [Gpk for Gpk in Gplusk_vectors_cart(basis, kpt)
-                                      if (norm(Gpk)^2/2 < Ecut)]
-    kinetic_energies = [[T(scaling_factor) * Ecut*Gp(norm(Gk)/√(2*Ecut))
-                         for Gk in Gplusk_strict_cart(basis, kpt)]
+    kinetic_energies = [[T(scaling_factor) * Ecut * Blowup_function(norm(Gk)/√(2*Ecut))
+                         for Gk in Gplusk_vectors_cart(basis, kpt)]
                         for kpt in basis.kpoints]
     TermKinetic(T(scaling_factor), kinetic_energies)
 end
@@ -69,4 +43,45 @@ end
     E = mpi_sum(E, basis.comm_kpts)
 
     (E=E, ops=ops)
+end
+
+"""
+Blow-up function as proposed in [REF paper Cancès, Hassan, Vidal to be submitted]
+"""
+function Blowup_function_CHV()
+    g1(x) = sum(abs2, x)
+    # C^2 interpolation part
+    C = [7449.468883604184, -50230.90030429237, 135207.0860245428,
+         -181568.08750464107, 121624.06499834878, -32503.74733526006]
+    g2(x) = C'*((x * ones(6)) .^(0:5))
+    # Blow-up part
+    Ca(a) = (3/2)*(a^2)*(1-a)^(2)
+    a_opti = 0.1792973510040141
+    g3(x) = Ca(a_opti)/( (1-x)^(2) )
+
+    # Assemble all parts
+    function Blowup_function(x)
+        x1, x2 = [0.7, 0.8]
+        (0 ≤ x < x1)   && (return g1(x))
+        (x1 ≤ x < x2)  && (return g2(x))
+        (x2 ≤ x < 1)   && (return g3(x))
+        (x==1) && (return 1e6) # Handle |G+k|^2 = E_cut case
+        error("The blow-up function is defined on [0,1). Did you devide by √Ecut ?")
+    end
+    Blowup_function
+end
+
+"""
+Blow-up function as implemented in the Abinit code [ref code].
+"""
+function Blowup_function_Abinit(Ecut, Ecutsm)
+    function Blowup_function(x)
+        kin_x = sum(abs2, x)
+        (0 ≤ x ≤ Ecutsm/Ecut) && (return kin_x)
+        (x > 1) && (error("The blow-up function is defined on [0,1)."*
+                          " Did you devide by √Ecut ?"))
+        y = Ecut*(1-kin_x)/Ecutsm
+        return kin_x/(y^2*(3+y-6*y^2+3*y^3))
+    end
+    Blowup_function
 end

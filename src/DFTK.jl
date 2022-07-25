@@ -74,7 +74,6 @@ export Hamiltonian
 export HamiltonianBlock
 export energy_hamiltonian
 export Kinetic
-export ModifiedKinetic
 export ExternalFromFourier
 export ExternalFromReal
 export AtomicLocal
@@ -90,6 +89,7 @@ export PairwisePotential
 export Anyonic
 export apply_kernel
 export compute_kernel
+export Blowup_function_CHV
 include("DispatchFunctional.jl")
 include("terms/terms.jl")
 

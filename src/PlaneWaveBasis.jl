@@ -112,14 +112,6 @@ Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
-function select_G_vector(model, G, k, Ecut)
-    # Strict inequality for ModifiedKinetic
-    if (model.model_name == "ModifiedKinetic")
-        return  (sum(abs2, model.recip_lattice*(G+k))/2 < Ecut)
-    end
-    (sum(abs2, model.recip_lattice*(G+k))/2 ≤ Ecut)
-end
-
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
                                variational=true) where T
     # Originial function
@@ -133,7 +125,7 @@ end
         sizehint!(mapping, n_guess)
         sizehint!(Gvecs_k, n_guess)
         for (i, G) in enumerate(G_vectors(fft_size))
-            if !variational || select_G_vector(model, G, k, Ecut)
+            if !variational || sum(abs2, model.recip_lattice * (G + k)) / 2 ≤ Ecut
                 push!(mapping, i)
                 push!(Gvecs_k, G)
             end
