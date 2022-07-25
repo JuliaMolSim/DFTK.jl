@@ -9,7 +9,7 @@ using Plots
 
 # Lattice constant of silicon in bohr
 a_eq = 10.26
-a_list = LinRange(a_eq - 0.2, a_eq + 0.2, 2) # only two points for the first PR.
+a_list = LinRange(a_eq - 0.2, a_eq + 0.2, 40)
 
 PBE_terms(KineticTerm) = [KineticTerm, AtomicLocal(), AtomicNonlocal(),
         Ewald(), PspCorrection(), Hartree(), Xc([:gga_x_pbe, :gga_c_pbe])]
