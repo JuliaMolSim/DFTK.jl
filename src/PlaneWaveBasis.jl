@@ -114,7 +114,6 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
                                variational=true) where T
-    # Originial function
     kpoints_per_spin = [Kpoint[] for _ in 1:model.n_spin_components]
     for k in kcoords
         k = Vec3{T}(k)  # rationals are sloooow

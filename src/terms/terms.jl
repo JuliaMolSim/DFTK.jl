@@ -37,7 +37,6 @@ include("Hamiltonian.jl")
 breaks_symmetries(::Any) = false
 
 include("kinetic.jl")
-include("modified_kinetic_blow_up_function.jl")
 
 include("local.jl")
 breaks_symmetries(::ExternalFromReal) = true
