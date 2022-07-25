@@ -126,8 +126,7 @@ end
 end
 
 @timing function rayleigh_ritz(XAX::CuArray, N)
-    #TODO: this is wacky and should be changed
-    if eltype(XAX) == ComplexF32 || eltype(XAX) == ComplexF64
+    if eltype(XAX) <: Complex
         vals, vects = CUDA.CUSOLVER.heevd!('V','U',XAX)
     else
         vals, vects = CUDA.CUSOLVER.syevd!('V','U',XAX)
@@ -254,10 +253,9 @@ end
         # as can happen in extreme cases in the ortho!(cP, cX)
         dropped = drop!(X)
         if dropped != []
-            Z = similar(X[:, dropped])
-            Z = X[:, dropped] .- block_mul(Y, block_overlap(BY,X[:, dropped]))
-            X[:, dropped] = Z
+            X[:, dropped] .-= block_mul(Y, block_overlap(BY,X[:, dropped])) #X = X - Y'*BY*X
         end
+
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
             break

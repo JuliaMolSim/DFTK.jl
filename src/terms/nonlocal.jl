@@ -3,7 +3,7 @@ Nonlocal term coming from norm-conserving pseudopotentials in Kleinmann-Bylander
 ``\text{Energy} = \sum_a \sum_{ij} \sum_{n} f_n <ψ_n|p_{ai}> D_{ij} <p_{aj}|ψ_n>.``
 """
 struct AtomicNonlocal end
-function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
+function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}; array_type = Array) where {T}
     model = basis.model
 
     # keep only pseudopotential atoms and positions
@@ -14,8 +14,8 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
 
     isempty(psp_groups) && return TermNoop()
     ops = map(basis.kpoints) do kpt
-        P = build_projection_vectors_(basis, kpt, psps, psp_positions)
-        D = build_projection_coefficients_(T, psps, psp_positions)
+        P = build_projection_vectors_(basis, kpt, psps, psp_positions, array_type=array_type)
+        D = build_projection_coefficients_(T, psps, psp_positions, array_type = array_type)
         NonlocalOperator(basis, kpt, P, D)
     end
     TermAtomicNonlocal(ops)
@@ -31,6 +31,9 @@ end
     isnothing(ψ) && return (E=T(Inf), ops=term.ops)
 
     E = zero(T)
+    array_type = typeof(similar(G_vectors(basis), T, length(occ)))
+    occ = [convert(array_type, oc) for oc in occ]
+
     for (ik, kpt) in enumerate(basis.kpoints)
         Pψ = term.ops[ik].P' * ψ[ik]  # nproj x nband
         band_enes = dropdims(sum(real.(conj.(Pψ) .* (term.ops[ik].D * Pψ)), dims=1), dims=1)
@@ -90,7 +93,7 @@ end
 # The ordering of the projector indices is (A,l,m,i), where A is running over all
 # atoms, l, m are AM quantum numbers and i is running over all projectors for a
 # given l. The matrix is block-diagonal with non-zeros only if A, l and m agree.
-function build_projection_coefficients_(T, psps, psp_positions)
+function build_projection_coefficients_(T, psps, psp_positions; array_type = array_type)
     # TODO In the current version the proj_coeffs still has a lot of zeros.
     #      One could improve this by storing the blocks as a list or in a
     #      BlockDiagonal data structure
@@ -106,7 +109,7 @@ function build_projection_coefficients_(T, psps, psp_positions)
     end # psp, r
     @assert count == n_proj
 
-    proj_coeffs
+    convert(array_type,proj_coeffs)
 end
 
 # Builds the projection coefficient matrix for a single atom
@@ -142,7 +145,7 @@ where pihat(q) = ∫_R^3 pi(r) e^{-iqr} dr
 We store 1/√Ω pihat(k+G) in proj_vectors.
 """
 function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
-                                   psps, psp_positions) where {T}
+                                   psps, psp_positions; array_type = Array) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
     n_proj = count_n_proj(psps, psp_positions)
     n_G    = length(G_vectors(basis, kpt))
@@ -170,7 +173,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
         end
     end
     @assert offset == n_proj
-    proj_vectors
+    convert(array_type, proj_vectors)
 end
 
 """
