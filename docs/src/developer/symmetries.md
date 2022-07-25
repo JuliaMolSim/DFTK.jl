@@ -1,4 +1,4 @@
-# Crystal symmetries
+# [Crystal symmetries](@id crystal-symmetries)
 ## Theory
 In this discussion we will only describe the situation for a monoatomic crystal
 ``\mathcal C \subset \mathbb R^3``, the extension being easy.
