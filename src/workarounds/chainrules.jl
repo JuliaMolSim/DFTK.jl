@@ -57,21 +57,37 @@ function ChainRulesCore.rrule(::typeof(mpi_sum), arr, comm)
     return arr, mpi_sum_pullback
 end
 
+ChainRulesCore.@non_differentiable ElementPsp(::Any...)
 ChainRulesCore.@non_differentiable r_vectors(::Any...)
 ChainRulesCore.@non_differentiable G_vectors(::Any...)
 ChainRulesCore.@non_differentiable default_n_electrons(::Any...)
 ChainRulesCore.@non_differentiable default_symmetries(::Any...) # TODO perhaps?
+ChainRulesCore.@non_differentiable shell_indices(::Any)  # Ewald
 ChainRulesCore.@non_differentiable build_kpoints(::Any...)
+ChainRulesCore.@non_differentiable allunique(::Any...) # TODO upstream!
+ChainRulesCore.@non_differentiable cond(::Any)
+ChainRulesCore.@non_differentiable isempty(::Any)
+
+# https://github.com/SciML/DiffEqFlux.jl/blob/v1.44.0/src/DiffEqFlux.jl#L60-L74
+Zygote.@adjoint function ForwardDiff.Dual{T}(x, ẋ::Tuple) where T
+    @assert length(ẋ) == 1
+    ForwardDiff.Dual{T}(x, ẋ), ḋ -> (ḋ.partials[1], (ḋ.value,))
+  end
+Zygote.@adjoint Zygote.literal_getproperty(d::ForwardDiff.Dual{T}, ::Val{:partials}) where T =
+    d.partials, ṗ -> (ForwardDiff.Dual{T}(ṗ[1], 0),)
+
+Zygote.@adjoint Zygote.literal_getproperty(d::ForwardDiff.Dual{T}, ::Val{:value}) where T =
+    d.value, ẋ -> (ForwardDiff.Dual{T}(0, ẋ),)
+
 
 # https://github.com/doddgray/OptiMode.jl/blob/main/src/grad_lib/StaticArrays.jl
 ChainRulesCore.rrule(T::Type{<:SMatrix}, xs::Number...) = ( T(xs...), dv -> (ChainRulesCore.NoTangent(), dv...) )
 ChainRulesCore.rrule(T::Type{<:SMatrix}, x::AbstractMatrix) = ( T(x), dv -> (ChainRulesCore.NoTangent(), dv) )
-ChainRulesCore.rrule(T::Type{<:SVector}, xs::Number...) = ( T(xs...), dv -> (ChainRulesCore.NoTangent(), dv...) )
 
 # simplified version of PlaneWaveBasis outer constructor to
 # help reverse mode AD to only differentiate the relevant computations.
 # this excludes assertions (try-catch), MPI handling, and other things
-function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T, VT}, basis::PlaneWaveBasis) where {T <: Real, VT <: Real}
+function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T}, basis::PlaneWaveBasis) where {T <: Real}
     dvol = model.unit_cell_volume ./ prod(basis.fft_size)
 
     # TODO new volumes (and more)
@@ -85,14 +101,14 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T, VT}, basis::PlaneWa
     # cicularity is getting complicated...
     # To correctly instantiate term types, we do need a full PlaneWaveBasis struct;
     # so we need to interleave re-computed differentiable params, and fixed params in basis
-    _basis = PlaneWaveBasis{T,VT}( # this shouldn't hit the rrule below a second time due to more args
+    _basis = PlaneWaveBasis{T}( # this shouldn't hit the rrule below a second time due to more args
         model, basis.fft_size, dvol,
         basis.Ecut, basis.variational,
         basis.opFFT, basis.ipFFT, basis.opBFFT, basis.ipBFFT,
         r_to_G_normalization, G_to_r_normalization,
         basis.kpoints, basis.kweights, basis.kgrid, basis.kshift,
         basis.kcoords_global, basis.kweights_global, basis.comm_kpts, basis.krange_thisproc, basis.krange_allprocs,
-        basis.symmetries, basis.symmetries_respect_rgrid, terms)
+        basis.symmetries, terms)
 
     # terms = Any[t(_basis) for t in model.term_types]
     terms = vcat([], [t(_basis) for t in model.term_types]) # hack: enforce Vector{Any} without causing reverse mutation
@@ -131,7 +147,25 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(com
 end
 
 # workaround to pass rrule_via_ad kwargs
-DFTK.energy_hamiltonian(basis, ψ, occ, ρ) = DFTK.energy_hamiltonian(basis, ψ, occ; ρ=ρ)
+# DFTK.energy_hamiltonian(basis, ψ, occ, ρ) = DFTK.energy_hamiltonian(basis, ψ, occ; ρ=ρ)
+
+# kwargs... splatting is a problem in energy_hamiltonian, Zygote / ChainRulesCore seem confused about types.
+function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occ, ρ)
+    # it: index into terms, ik: index into kpoints
+    ene_ops_arr = [ene_ops(term, basis, ψ, occ; ρ) for term in basis.terms]
+    energies  = [eh.E for eh in ene_ops_arr]
+    operators = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
+
+    # flatten the inner arrays in case a term returns more than one operator
+    flatten(arr) = reduce(vcat, map(a -> (a isa Vector) ? a : [a], arr))
+    hks_per_k   = [flatten([blocks[ik] for blocks in operators])
+                   for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
+
+    H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
+                            for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
+    E = Energies(basis.model.term_types, energies)
+    (E=E, H=H)
+end
 
 # fast version
 function _autodiff_hblock_mul(hblock::DftHamiltonianBlock, ψ)
@@ -184,19 +218,10 @@ function ChainRulesCore.rrule(TH::Type{Hamiltonian}, basis, blocks)
     return H, TH_pullback
 end
 
-function eigenvalues_rayleigh_ritz(ψ, Hψ)
-    eigenvalues = map(zip(ψ, Hψ)) do (ψik, Hψik)
-        F = eigen(Hermitian(ψik'Hψik))
-        F.values
-    end
-    return eigenvalues
-end
-
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(self_consistent_field), basis::PlaneWaveBasis{T}; kwargs...) where {T}
     @warn "self_consistent_field rrule triggered."
     scfres = self_consistent_field(basis; kwargs...)
 
-    # TODO remove select_occupied_orbitals
     ψ, occupation = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 
     (; E, H), energy_hamiltonian_pullback =
@@ -206,7 +231,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
     ρ, compute_density_pullback =
         rrule(config, compute_density, basis, scfres.ψ, scfres.occupation)
 
-    eigenvalues, eigenvalues_pullback =  rrule_via_ad(config, eigenvalues_rayleigh_ritz, ψ, Hψ)
+    # TODO rrule_via_ad rayleigh quotient to pull back eigenvalues
 
     function self_consistent_field_pullback(∂scfres)
         # TODO problem: typeof(∂scfres) == Tangent{Any}
@@ -216,26 +241,18 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         ∂energies = ∂scfres.energies
         ∂basis1 = Tangent{PlaneWaveBasis{T}}(; ChainRulesCore.backing(∂scfres.basis)...)
         ∂H = ∂scfres.ham
-        ∂eigenvalues = ∂scfres.eigenvalues
+        ∂eigenvalues = ∂scfres.eigenvalues # TODO rayleigh quotient
 
         _, ∂basis2, ∂ψ_density_pullback, _ = compute_density_pullback(∂ρ)
-        ∂ψ += ∂ψ_density_pullback
-
-        if !iszero(∂eigenvalues)
-            # workaround: sizes don't match because of select_occupied_orbitals
-            # TODO delete, once select_occupied_orbitals becomes obsolete
-            N = [findlast(x -> x > 0.0, occk) for occk in scfres.occupation]
-            ∂eigenvalues = [λk[1:N[ik]] for (ik, λk) in enumerate(∂eigenvalues)]
-        end
-        _, ∂ψ_rayleigh_ritz, ∂Hψ_rayleigh_ritz = eigenvalues_pullback(∂eigenvalues)
-        ∂ψ += ∂ψ_rayleigh_ritz
+        ∂ψ = ∂ψ_density_pullback + ∂ψ
 
         # Otherwise there is no contribution to ∂basis, by linearity.
         # This also excludes the case when ∂ψ is a NoTangent().
         if !iszero(∂ψ)
             ∂ψ, occupation = DFTK.select_occupied_orbitals(basis, ∂ψ, occupation)
+
             ∂Hψ = solve_ΩplusK(basis, ψ, -∂ψ, occupation).δψ # use self-adjointness of dH ψ -> dψ
-            ∂Hψ += ∂Hψ_rayleigh_ritz
+
             # TODO need to do proj_tangent on ∂Hψ
             _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
             ∂H = ∂H_mul_pullback + ∂H
@@ -270,7 +287,6 @@ end
 # [x] pull master (after Michael's atoms update)
 # [x] remove Model alternative primal (or update with inv_lattice, ...)
 # [x] replace OrderedDict in Energies with Vector{Pair{String,T}}
-# [x] recompute rayleigh-ritz for ∂eigenvalues pullback
 
 # TODO medium-large
 # - generic HamiltonianBlock ? (low prio)
