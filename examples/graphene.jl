@@ -1,6 +1,8 @@
 # # Graphene band structure
 
-# This example plots the band structure of graphene, a 2D material. 2D band structures are not supported natively (yet), so we manually build a custom path in reciprocal space.
+# This example plots the band structure of graphene, a 2D material. 2D band
+# structures are not supported natively (yet), so we manually build a custom
+# path in reciprocal space.
 
 using DFTK
 using Unitful

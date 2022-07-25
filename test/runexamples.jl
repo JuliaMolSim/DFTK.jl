@@ -2,31 +2,23 @@ using Test
 
 function list_examples()
     res = String[]
-    basedir = joinpath(@__DIR__, "..", "examples")
-    for file in readdir(basedir)
-        fullpath = joinpath(basedir, file)
-        if isfile(fullpath) && endswith(file, ".jl")
-            push!(res, fullpath)
+    for (root, dirs, files) in walkdir(joinpath(@__DIR__, "..", "examples"))
+        for file in files
+            if endswith(file, ".jl")
+                push!(res, joinpath(root, file))
+            end
         end
     end
     res
 end
 
-function example_tags(fullpath)
-    open(fullpath) do fp
-        for l in readlines(fp)
-            regex = "^#src tags:"
-            isnothing(match(Regex(regex), l)) || return split(l[length(regex):end])
-        end
-        return Vector{String}()
-    end
-end
-
 @testset "Run examples" begin
-    for file in list_examples()
-        "long" in example_tags(file) && continue
+    for path in list_examples()
+        dir, file = splitdir(path)
         @testset "$(file)" begin
-            include(file)
+            cd(dir) do
+                include(path)
+            end
         end
     end
 end

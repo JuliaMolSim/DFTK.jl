@@ -13,8 +13,8 @@
 #md # [Periodic problems](@ref periodic-problems)
 #nb # [Periodic problems](https://docs.dftk.org/stable/guide/periodic_problems/)
 # or the
-#md # [density-functional theory](@ref density-functional-theory)
-#nb # [density-functional theory](https://docs.dftk.org/stable/guide/density_functional_theory/)
+#md # [Introductory resources](@ref introductory-resources)
+#nb # [Introductory resources](https://docs.dftk.org/stable/guide/introductory_resources/)
 # chapters for some introductory material on the topic.
 #
 # !!! note "Convergence parameters in the documentation"
@@ -99,9 +99,3 @@ plot_bandstructure(scfres; kline_density=10)
 # or get the cartesian forces (in Hartree / Bohr)
 compute_forces_cart(scfres)
 # As expected, they are almost zero in this highly symmetric configuration.
-
-# ## Where to go from here
-# Take a look at the
-#md # [example index](@ref example-index)
-#nb # [example index](https://docs.dftk.org/stable/#example-index-1)
-# to continue exploring DFTK.
