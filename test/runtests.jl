@@ -28,7 +28,7 @@ else
 end
 
 # Setup threading in DFTK
-setup_threading(; n_blas=2)
+setup_threading()
 
 # Initialize seed
 Random.seed!(0)
