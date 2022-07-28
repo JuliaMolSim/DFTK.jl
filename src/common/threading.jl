@@ -1,8 +1,20 @@
 import FFTW
 using LinearAlgebra
 
-function setup_threading(;n_fft=1, n_blas=Threads.nthreads())
+function setup_threading(;n_fft=1, n_blas=nothing)
     n_julia = Threads.nthreads()
+
+    # Note: Threading in MKL and openblas behave rather differently.
+    # See the details in
+    # https://carstenbauer.github.io/ThreadPinning.jl/dev/explanations/blas/
+    if isnothing(n_blas)
+        libblas = basename(first(BLAS.get_config().loaded_libs).libname)
+        if contains(libblas, "openblas")
+            n_blas = 1
+        else
+            n_blas = n_julia
+        end
+    end
     FFTW.set_num_threads(n_fft)
     BLAS.set_num_threads(n_blas)
     mpi_master() && @info "Threading setup:" n_fft n_blas n_julia
