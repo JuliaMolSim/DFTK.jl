@@ -34,7 +34,7 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
 end
 
 # TODO Hack
-strip_dual(fun::Functional) = fun
+strip_dual(T::Type, fun::DftFunctionals.Functional) = fun
 function strip_dual(T::Type, fun::PbeExchange)
     PbeExchange(fun.identifier; κ=convert_dual(T, fun.κ), μ=convert_dual(T, fun.μ))
 end
