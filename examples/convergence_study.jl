@@ -39,13 +39,8 @@ function compute_convergence(Ecut = 500, nkpts::Integer = 8, tol = 1e-2)
 end
 
 # And since nkpts only takes discrete values of `k` in `[k,k,k]`, we define a custom function to define its convergence for a given desired tolerance `tol`
-function get_converged_k(energies; tol)
-    for i in eachindex(energies)
-        if abs(energies[i] - energies[i+1]) < tol
-            return i
-        end
-    end
-end
+get_converged_k(energies; tol) = findfirst(abs(i - j) < tol for (i, j) in zip(energies, energies[1:end]))
+
 
 # Now we can use `get_converged_k()` and `compute_convergence()` to get the converging nkpts
 energies_w_diff_k = [compute_kgrid_convergence(k) for k in 1:7] # change to 10 to get full convergence like in plot
