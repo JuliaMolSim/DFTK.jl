@@ -93,15 +93,16 @@ Perform an FFT to obtain the Fourier representation of `f_real`. If
 `kpt` is given, the coefficients are truncated to the k-dependent
 spherical basis set.
 """
-function r_to_G(basis::PlaneWaveBasis{T}, f_real::AbstractArray) where T
-    f_fourier = similar(f_real, complex(promote_type(T, eltype(f_real))))
+function r_to_G(basis::PlaneWaveBasis{T}, f_real::AbstractArray{U}) where {T, U}
+    f_fourier = similar(f_real, complex(promote_type(T, U)))
     @assert length(size(f_real)) ∈ (3, 4)
-    # this exploits trailing index convention
-    for iσ = 1:size(f_real, 4)
+    for iσ = 1:size(f_real, 4)  # this exploits trailing index convention
         @views r_to_G!(f_fourier[:, :, :, iσ], basis, f_real[:, :, :, iσ])
     end
     f_fourier
 end
+
+
 # TODO optimize this
 function r_to_G(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3; kwargs...)
     r_to_G!(similar(f_real, length(kpt.mapping)), basis, kpt, copy(f_real); kwargs...)

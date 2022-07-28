@@ -75,12 +75,16 @@ end
     magnetic_moments = [1, 1]
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions; magnetic_moments)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
-    ρ_nl = self_consistent_field(basis; tol=tol).ρ
+    ρ0   = guess_density(basis, magnetic_moments)
+    ρ_nl = self_consistent_field(basis; tol=tol, ρ=ρ0).ρ
+    scfres_start = self_consistent_field(basis, maxiter=1, ρ=ρ0)
+    ψ0, _ = select_occupied_orbitals(basis, scfres_start.ψ,
+                                     scfres_start.occupation)
 
     # Run DM
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Direct minimization" begin
-            ρ_dm = direct_minimization(basis; g_tol=tol).ρ
+            ρ_dm = direct_minimization(basis, ψ0; g_tol=tol).ρ
             @test maximum(abs.(ρ_dm - ρ_nl)) < sqrt(tol) / 10
         end
     end
@@ -88,10 +92,6 @@ end
     # Run Newton algorithm
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Newton" begin
-            scfres_start = self_consistent_field(basis, maxiter=1)
-            # remove virtual orbitals
-            ψ0, _ = select_occupied_orbitals(basis, scfres_start.ψ,
-                                             scfres_start.occupation)
             ρ_newton = newton(basis, ψ0; tol=tol).ρ
             @test maximum(abs.(ρ_newton - ρ_nl)) < sqrt(tol) / 10
         end

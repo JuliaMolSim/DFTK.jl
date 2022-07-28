@@ -12,6 +12,8 @@ using TimerOutputs
 using spglib_jll
 using Unitful
 using UnitfulAtomic
+using ForwardDiff
+using ChainRulesCore
 
 export Vec3
 export Mat3
@@ -87,6 +89,7 @@ export PairwisePotential
 export Anyonic
 export apply_kernel
 export compute_kernel
+include("DispatchFunctional.jl")
 include("terms/terms.jl")
 
 include("occupation.jl")
@@ -181,8 +184,8 @@ export plot_dos
 include("postprocess/dos.jl")
 export compute_χ0
 export apply_χ0
-include("postprocess/chi0.jl")
-include("postprocess/omega.jl")
+include("response/chi0.jl")
+include("response/hessian.jl")
 export compute_current
 include("postprocess/current.jl")
 

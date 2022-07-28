@@ -6,13 +6,12 @@ using IntervalArithmetic
 include("testcases.jl")
 
 function discretized_hamiltonian(T, testcase)
-    Ecut = 10  # Hartree
-
     model = model_DFT(Array{T}(testcase.lattice), testcase.atoms,
                       testcase.positions, [:lda_x, :lda_c_vwn])
 
     # For interval arithmetic to give useful numbers,
     # the fft_size should be a power of 2
+    Ecut = 10
     fft_size = nextpow.(2, compute_fft_size(model, Ecut))
     basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), fft_size)
 
@@ -37,4 +36,21 @@ end
 
     # Small error determined by interval arithmetic
     @test maximum(radius, abs.(res)) < 1e-9
+end
+
+@testset "compute_occupation with Intervals" begin
+    testcase = silicon
+
+    model = model_LDA(Matrix{Interval{Float64}}(testcase.lattice),
+                      testcase.atoms, testcase.positions)
+    basis = PlaneWaveBasis(model; Ecut=10, kgrid=(1, 1, 1))
+
+    eigenvalues = [[-0.17268859, 0.26999098, 0.2699912, 0.2699914, 0.35897297, 0.3589743],
+                   [-0.08567941, 0.00889772, 0.2246137, 0.2246138, 0.31941655, 0.3870046]]
+    occupations, εF = DFTK.compute_occupation(basis, Vector{Interval{Float64}}.(eigenvalues);
+                                              occupation_threshold=1e-7)
+
+
+    @test mid.(εF) ≈ 0.2246137 atol=1e-6
+    @test mid.(sum(sum, occupations)) ≈ 8.0
 end

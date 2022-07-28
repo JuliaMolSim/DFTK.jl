@@ -39,8 +39,9 @@ Normalization conventions:
 
 `G_to_r` and `r_to_G` convert between these representations.
 """
-struct PlaneWaveBasis{T} <: AbstractBasis{T}
-    model::Model{T}
+struct PlaneWaveBasis{T, VT} <: AbstractBasis{T} where {VT <: Real}
+    # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
+    model::Model{T, VT}
 
     ## Global grid information
     # fft_size defines both the G basis on which densities and
@@ -64,6 +65,10 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
     ipBFFT
     r_to_G_normalization::T  # r_to_G = r_to_G_normalization * FFT
     G_to_r_normalization::T  # G_to_r = G_to_r_normalization * BFFT
+
+    # "cubic" basis in reciprocal and real space, on which potentials and densities are stored
+    G_vectors::Array{Vec3{Int}, 3}
+    r_vectors::Array{Vec3{VT }, 3}
 
     ## MPI-local information of the kpoints this processor treats
     # Irreducible kpoints. In the case of collinear spin,
@@ -90,7 +95,7 @@ struct PlaneWaveBasis{T} <: AbstractBasis{T}
 
     ## Symmetry operations that leave the discretized model (k and r grids) invariant.
     # Subset of model.symmetries.
-    symmetries::Vector{SymOp}
+    symmetries::Vector{SymOp{VT}}
     # Whether the symmetry operations leave the rgrid invariant
     # If this is true, the symmetries are a property of the complete discretized model.
     # Therefore, all quantities should be symmetric to machine precision
@@ -157,7 +162,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         error("Selected fft_size will not work for the buggy generic " *
               "FFT routines; use next_working_fft_size")
     end
-    fft_size = Tuple{Int, Int, Int}(fft_size)  # explicit conversion in case passed as array
+    fft_size   = Tuple{Int, Int, Int}(fft_size)  # explicit conversion in case passed as array
+    N1, N2, N3 = fft_size
 
     # filter out the symmetries that don't preserve the real-space grid
     symmetries = model.symmetries
@@ -176,7 +182,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         # Manual kpoint set based on kcoords/kweights
         @assert length(kcoords) == length(kweights)
         all_kcoords = unfold_kcoords(kcoords, symmetries)
-        symmetries = symmetries_preserving_kgrid(symmetries, all_kcoords)
+        symmetries  = symmetries_preserving_kgrid(symmetries, all_kcoords)
     end
 
     # Init MPI, and store MPI-global values for reference
@@ -239,13 +245,17 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     @assert mpi_sum(sum(kweights_thisproc), comm_kpts) ≈ model.n_spin_components
     @assert length(kpoints) == length(kweights_thisproc)
 
+    VT = value_type(T)
     dvol  = model.unit_cell_volume ./ prod(fft_size)
+    r_vectors = [Vec3{VT}(VT(i-1) / N1, VT(j-1) / N2, VT(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3]
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
-    basis = PlaneWaveBasis{T}(
+
+    basis = PlaneWaveBasis{T,value_type(T)}(
         model, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
         r_to_G_normalization, G_to_r_normalization,
+        G_vectors(fft_size), r_vectors,
         kpoints, kweights_thisproc, kgrid, kshift,
         kcoords_global, kweights_global, comm_kpts, krange_thisproc, krange_allprocs,
         symmetries, symmetries_respect_rgrid, terms)
@@ -345,7 +355,7 @@ end
 The list of wave vectors ``G`` in reduced (integer) coordinates of a `basis`
 or a ``k``-point `kpt`.
 """
-G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_size)
+G_vectors(basis::PlaneWaveBasis) = basis.G_vectors
 G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
 
 
@@ -383,10 +393,7 @@ end
 
 The list of ``r`` vectors, in reduced coordinates. By convention, this is in [0,1)^3.
 """
-function r_vectors(basis::PlaneWaveBasis{T}) where T
-    N1, N2, N3 = basis.fft_size
-    [Vec3{T}(T(i-1) / N1, T(j-1) / N2, T(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3]
-end
+r_vectors(basis::PlaneWaveBasis) = basis.r_vectors
 
 @doc raw"""
     r_vectors_cart(basis::PlaneWaveBasis)
@@ -401,17 +408,19 @@ Return the index tuple `I` such that `G_vectors(basis)[I] == G`
 or the index `i` such that `G_vectors(basis, kpoint)[i] == G`.
 Returns nothing if outside the range of valid wave vectors.
 """
-function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}
+@inline function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}
+    # the inline declaration encourages the compiler to hoist these (G-independent) precomputations
     start = .- cld.(basis.fft_size .- 1, 2)
     stop  = fld.(basis.fft_size .- 1, 2)
     lengths = stop .- start .+ 1
 
-    function mapaxis(lengthi, Gi)
-        Gi >= 0 && return 1 + Gi
-        return 1 + lengthi + Gi
+    # FFTs store wavevectors as [0 1 2 3 -2 -1] (example for N=5)
+    function G_to_index(length, G)
+        G >= 0 && return 1 + G
+        return 1 + length + G
     end
     if all(start .<= G .<= stop)
-        CartesianIndex(Tuple(mapaxis.(lengths, G)))
+        CartesianIndex(Tuple(G_to_index.(lengths, G)))
     else
         nothing  # Outside range of valid indices
     end

@@ -1,31 +1,12 @@
-# # Creating slabs with ASE
+# # Modelling a gallium arsenide surface
 #
-# ASE is short for the
+# This example shows how to use the
 # [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html),
-# a Python package to simplify the process of setting up, running and
-# analysing results from atomistic simulations across different programs.
-# Extremely powerful in this respect are the routines this code provides
-# for setting up complicated systems (including surface-adsorption scenarios,
-# defects, nanotubes, etc).
-# See also the [ASE installation instructions](https://wiki.fysik.dtu.dk/ase/install.html).
-#
-# This example shows how to use ASE to setup a particular gallium arsenide surface
+# or ASE for short,
+# to set up a particular gallium arsenide surface
 # and run the resulting calculation in DFTK.
-# If you are less interested in having access to the full playground of options in DFTK,
-# but more interested in performing analysis in ASE itself,
-# have a look at [asedftk](https://github.com/mfherbst/asedftk).
-# This package provides an
-# [ASE-compatible calculator based on DFTK](https://github.com/mfherbst/asedftk),
-# such that one may write the usual Python scripts against ASE,
-# but the calculations are still run in DFTK.
+# The particular example we consider the (1, 1, 0) GaAs surface separated by vacuum.
 #
-# The particular example we consider the (1, 1, 0) GaAs surface separated by vacuum
-# with the setup slightly adapted from [^RCW2001].
-#
-# [^RCW2001]:
-#     D. Raczkowski, A. Canning, and L. W. Wang
-#     *Thomas-Fermi charge mixing for obtaining self-consistency in density functional calculations*
-#     Phys. Rev. B **64**, 121101(R).
 
 # Parameters of the calculation. Since this surface is far from easy to converge,
 # we made the problem simpler by choosing a smaller `Ecut` and smaller values

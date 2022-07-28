@@ -34,6 +34,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     Ecut = 5
     n_bands = 10
     fft_size = [15, 15, 15]
+    occupation_threshold = 1e-7
 
     # Emulate an insulator ... prepare energy levels
     energies = [zeros(n_bands) for k in silicon.kcoords]
@@ -61,7 +62,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
                       temperature, smearing, terms=[Kinetic()])
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
         occs, _ = with_logger(NullLogger()) do
-            DFTK.compute_occupation(basis, energies)
+            DFTK.compute_occupation(basis, energies; occupation_threshold)
         end
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
     end
@@ -72,7 +73,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature, smearing, terms=[Kinetic()])
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
-        occupation, _ = DFTK.compute_occupation(basis, energies)
+        occupation, _ = DFTK.compute_occupation(basis, energies; occupation_threshold)
 
         for ik in 1:n_k
             @test all(isapprox.(occupation[ik], occupation0[ik], atol=1e-2))
@@ -87,6 +88,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     Ecut = 5
     fft_size = [15, 15, 15]
     kgrid  = [2, 3, 4]
+    occupation_threshold = 1e-7
 
     # Emulate a metal ...
     energies = [[-0.08063210585291,  0.11227915155236, 0.13057816014162, 0.57672256037074],
@@ -124,7 +126,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
                       temperature, smearing, terms=[Kinetic()])
         basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size, kshift=[1, 0, 1]/2)
         occupation, εF = with_logger(NullLogger()) do
-            DFTK.compute_occupation(basis, energies)
+            DFTK.compute_occupation(basis, energies; occupation_threshold)
         end
 
         @test DFTK.weighted_ksum(basis, sum.(occupation)) ≈ model.n_electrons

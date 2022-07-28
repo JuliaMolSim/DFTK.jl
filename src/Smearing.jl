@@ -9,16 +9,19 @@
 #       "Numerical quadrature in the brillouin zone for periodic schrodinger operators"
 # See also https://www.vasp.at/vasp-workshop/k-points.pdf
 module Smearing
-
-using SpecialFunctions: erf, erfc, factorial
 import ForwardDiff
+using SpecialFunctions: erf, erfc, factorial
 
 abstract type SmearingFunction end
 
 """
-Occupation at `x`, where in practice x = (ε - εF) / T.
+    occupation(S::SmearingFunction, x)
+
+Occupation at `x`, where in practice `x = (ε - εF) / temperature`.
+If temperature is zero, `(ε-εF)/temperature  = ±∞`.
+The occupation function is required to give 1 and 0 respectively in these cases.
 """
-occupation(S::SmearingFunction, x) = error()
+function occupation end
 
 """
 Derivative of the occupation function, approximation to minus the delta function.

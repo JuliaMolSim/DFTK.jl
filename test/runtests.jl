@@ -84,7 +84,6 @@ Random.seed!(0)
     if "all" in TAGS
         include("lobpcg.jl")
         include("diag_compare.jl")
-        include("xc_fallback.jl")
 
         # This fails with multiple MPI procs, seems like a race condition
         # with MPI + DoubleFloats. TODO debug
@@ -121,8 +120,13 @@ Random.seed!(0)
 
     # Distributed implementation not yet available
     if "all" in TAGS && mpi_nprocs() == 1
-        include("omegaplusk.jl")
+        include("hessian.jl")
         include("forwarddiff.jl")
+    end
+
+    # Phonons
+    if "all" in TAGS
+        include("phonons.jl")
     end
 
     ("example" in TAGS) && include("runexamples.jl")
