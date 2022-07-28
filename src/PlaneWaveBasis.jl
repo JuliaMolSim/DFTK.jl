@@ -191,8 +191,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     kweights_global = kweights
 
     # Setup FFT plans
-    G_vects = G_vectors(fft_size, array_type)
-    (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans(similar(G_vects,T), fft_size)
+    G_vec = G_vectors(fft_size, array_type)
+    (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans(similar(G_vec,T), fft_size)
 
     # Normalization constants
     # r_to_G = r_to_G_normalization * FFT
@@ -256,7 +256,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
         r_to_G_normalization, G_to_r_normalization,
-        G_vects, r_vectors,
+        G_vec, r_vectors,
         kpoints, kweights_thisproc, kgrid, kshift,
         kcoords_global, kweights_global, comm_kpts, krange_thisproc, krange_allprocs,
         symmetries, symmetries_respect_rgrid, terms)
@@ -331,7 +331,7 @@ end
 The wave vectors `G` in reduced (integer) coordinates for a cubic basis set
 of given sizes.
 """
-function G_vectors(fft_size::Union{Tuple,AbstractVector}, array_type::UnionAll)
+function G_vectors(fft_size::Union{Tuple,AbstractVector}, array_type::Type)
     #This functions allows to convert the G_vectors (currently being built on the CPU) to a GPU Array.
     convert(array_type, G_vectors(fft_size))
 end

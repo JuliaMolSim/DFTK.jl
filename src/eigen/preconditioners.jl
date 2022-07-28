@@ -73,8 +73,3 @@ function precondprep!(P::PreconditionerTPA, X)
     array_type = typeof(similar(X,eltype(X),size(P.mean_kin)))
     P.mean_kin = convert(array_type, P.mean_kin)
 end
-
-#TODO: remove this if it implemented in GPUArrays
-import LinearAlgebra.dot
-using GPUArrays
-LinearAlgebra.dot(x::AbstractGPUArray, D::Diagonal,y::AbstractGPUArray) = x'*(D*y)

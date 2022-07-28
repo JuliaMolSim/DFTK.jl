@@ -45,7 +45,7 @@ vprintln(args...) = nothing
 using LinearAlgebra
 using CUDA
 using GPUArrays
-
+include("../workarounds/gpu_computations.jl")
 
 # For now, BlockVector can store arrays of different types (for example, an element of type views and one of type Matrix). Maybe for performance issues it should only store arrays of the same type?
 
@@ -114,6 +114,10 @@ end
 block_mul(A, Bblock::BlockVector) = error("Not implemented")
 block_mul(A::Tuple, B::Tuple) = error("not implemented")
 block_mul(A, B) = A * B #Default fallback method.
+
+function LinearAlgebra.mul!(res,A::BlockVector,B::AbstractArray,alpha,beta)
+    mul!(res, block_mul(A, B), I, alpha, beta)
+end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X::BlockVector, AX::BlockVector, N)
@@ -247,7 +251,7 @@ end
     ninners = zeros(Int,0)
     while true
         BYX = block_overlap(BY,X) # = BY' X
-        X .-= block_mul(Y, BYX) #X = X -Y * BYX
+        mul!(X, Y, BYX, -one(T), one(T)) # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho!(cP, cX)
@@ -289,7 +293,7 @@ end
 function final_retval(X, AX, resid_history, niter, n_matvec)
     λ = real(diag(X' * AX))
     residuals = AX .- X*Diagonal(λ)
-    (λ=Array(λ), X=X,
+    (λ=λ, X=X,
      residual_norms=[norm(residuals[:, i]) for i in 1:size(residuals, 2)],
      residual_history=resid_history[:, 1:niter+1], n_matvec=n_matvec)
     #λ doesn't have to be on the GPU, but X does (ψ should always be on GPU throughout the code).

@@ -94,10 +94,15 @@ which follow the functional form
 and are placed at `position` (in fractional coordinates).
 """
 function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
+    isempty(gaussians) && return G_to_r(basis, similar(G_vectors(basis),complex(T), basis.fft_size))
+
     ρ = deepcopy(basis.G_vectors)
     #These copies are required so that recip_lattice and gaussians are isbits (GPU compatibility)
     recip_lattice = basis.model.recip_lattice
     gaussians = SVector{size(gaussians)[1]}(gaussians)
+
+    # Fill ρ with the (unnormalized) Fourier transform, i.e. ∫ e^{-iGx} f(x) dx,
+    # where f(x) is a weighted gaussian
     function build_ρ(G)
         Gsq = sum(abs2, recip_lattice * G)
         res = zero(complex(T))
