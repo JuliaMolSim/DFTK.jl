@@ -25,9 +25,16 @@ function Base.show(io::IO, xc::Xc)
     print(io, "Xc($fun$fac)")
 end
 
-function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
+function (xc::Xc)(::PlaneWaveBasis{T}) where {T}
     isempty(xc.functionals) && return TermNoop()
-    TermXc(xc.functionals, convert_dual(T, xc.scaling_factor), T(xc.potential_threshold))
+    functionals = map(xc.functionals) do fun
+        # Strip duals from functional parameters if needed
+        newparams = convert_dual.(T, parameters(fun))
+        change_parameters(fun, newparams; keep_identifier=true)
+    end
+    TermXc(convert(Vector{Functional}, functionals),
+           convert_dual(T, xc.scaling_factor),
+           T(xc.potential_threshold))
 end
 
 struct TermXc{T} <: TermNonlinear where {T}
