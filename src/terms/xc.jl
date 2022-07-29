@@ -30,9 +30,11 @@ function (xc::Xc)(::PlaneWaveBasis{T}) where {T}
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
         newparams = convert_dual.(T, parameters(fun))
-        convert(Functional, change_parameters(fun, newparams))
+        change_parameters(fun, newparams; keep_identifier=true)
     end
-    TermXc(functionals, convert_dual(T, xc.scaling_factor), T(xc.potential_threshold))
+    TermXc(convert(Vector{Functional}, functionals),
+           convert_dual(T, xc.scaling_factor),
+           T(xc.potential_threshold))
 end
 
 struct TermXc{T} <: TermNonlinear where {T}
