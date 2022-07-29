@@ -175,6 +175,26 @@ function Model(lattice::AbstractMatrix{<:Quantity}, atoms::Vector{<:Element},
     Model(austrip.(lattice), atoms, positions; kwargs...)
 end
 
+"""
+    Model(model, lattice, positions)
+    Model(model, lattice)
+    Model(model, positions)
+
+Construct an identical model to `model` with the option to change `lattice` or `positions`
+(useful for geometry or lattice optimisations).
+"""
+function Model(model::Model{T}, lattice::AbstractMatrix{U},
+               positions::Vector{<:AbstractVector}=model.positions) where {T, U}
+    TT = promote_type(T, U, eltype(positions[1]))
+    Model(TT.(lattice), model.atoms, positions;
+          model.model_name, model.n_electrons, magnetic_moments=[], terms=model.term_types,
+          model.temperature, model.smearing, model.spin_polarization, model.symmetries)
+end
+function Model(model::Model, positions::Vector{<:AbstractVector})
+    Model(model, model.lattice, positions)
+end
+
+
 normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
 normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)
 normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm
