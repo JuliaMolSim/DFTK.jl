@@ -1,7 +1,6 @@
 using Test
 using DFTK
 using GenericLinearAlgebra
-using IntervalArithmetic
 
 include("testcases.jl")
 
@@ -19,6 +18,8 @@ function discretized_hamiltonian(T, testcase)
 end
 
 @testset "Application of an LDA Hamiltonian with Intervals" begin
+    import IntervalArithmetic: Interval, radius, mid
+
     T = Float64
     ham    = discretized_hamiltonian(T, silicon)
     hamInt = discretized_hamiltonian(Interval{T}, silicon)
@@ -39,6 +40,7 @@ end
 end
 
 @testset "compute_occupation with Intervals" begin
+    import IntervalArithmetic: Interval, mid
     testcase = silicon
 
     model = model_LDA(Matrix{Interval{Float64}}(testcase.lattice),
