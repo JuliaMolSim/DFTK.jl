@@ -25,21 +25,14 @@ function Base.show(io::IO, xc::Xc)
     print(io, "Xc($fun$fac)")
 end
 
-function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
+function (xc::Xc)(::PlaneWaveBasis{T}) where {T}
     isempty(xc.functionals) && return TermNoop()
-    fun = strip_dual.(T, xc.functionals)
-    TermXc(convert(Vector{Functional}, fun),
-           convert_dual(T, xc.scaling_factor),
-           T(xc.potential_threshold))
-end
-
-# TODO Hack
-strip_dual(T::Type, fun::DftFunctionals.Functional) = fun
-function strip_dual(T::Type, fun::PbeExchange)
-    PbeExchange(fun.identifier; κ=convert_dual(T, fun.κ), μ=convert_dual(T, fun.μ))
-end
-function strip_dual(T::Type, fun::PbeCorrelation)
-    PbeCorrelation(fun.identifier; fun.lda, β=convert_dual(T, fun.β), γ=convert_dual(T, fun.γ))
+    functionals = map(xc.functionals) do fun
+        # Strip duals from functional parameters if needed
+        newparams = convert_dual.(T, parameters(fun))
+        convert(Functional, change_parameters(fun, newparams))
+    end
+    TermXc(functionals, convert_dual(T, xc.scaling_factor), T(xc.potential_threshold))
 end
 
 struct TermXc{T} <: TermNonlinear where {T}
