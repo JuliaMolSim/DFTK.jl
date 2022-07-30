@@ -34,6 +34,7 @@ PAGES = [
         "examples/gaas_surface.jl",
         "examples/graphene.jl",
         "examples/geometry_optimization.jl",
+        "examples/convergence_study.jl",
     ],
     "Response and properties" => [
         "examples/polarizability.jl",
@@ -83,6 +84,8 @@ PAGES = [
 # (typically images, input or data files etc.)
 EXAMPLE_ASSETS = [
     "examples/Fe_afm.pwi",
+    "examples/ecut.png",
+    "examples/kgrid.png",
 ]
 
 #
@@ -93,13 +96,16 @@ DEBUG = false  # Set to true to disable some checks and cleanup
 import LibGit2
 import Pkg
 # Where to get files from and where to build them
-SRCPATH   = joinpath(@__DIR__, "src")
+SRCPATH = joinpath(@__DIR__, "src")
 BUILDPATH = joinpath(@__DIR__, "build")
-ROOTPATH  = joinpath(@__DIR__, "..")
+ROOTPATH = joinpath(@__DIR__, "..")
 CONTINUOUS_INTEGRATION = get(ENV, "CI", nothing) == "true"
-DFTKREV    = LibGit2.head(ROOTPATH)
-DFTKBRANCH = try LibGit2.branch(LibGit2.GitRepo(ROOTPATH)) catch end
-DFTKREPO   = "github.com/JuliaMolSim/DFTK.jl.git"
+DFTKREV = LibGit2.head(ROOTPATH)
+DFTKBRANCH = try
+    LibGit2.branch(LibGit2.GitRepo(ROOTPATH))
+catch
+end
+DFTKREPO = "github.com/JuliaMolSim/DFTK.jl.git"
 
 # Python dependencies needed for running the notebooks
 PYDEPS = ["ase"]
@@ -107,7 +113,7 @@ PYDEPS = ["ase"]
 # Setup julia dependencies for docs generation if not yet done
 Pkg.activate(@__DIR__)
 if !isfile(joinpath(@__DIR__, "Manifest.toml"))
-    Pkg.develop(Pkg.PackageSpec(path=ROOTPATH))
+    Pkg.develop(Pkg.PackageSpec(path = ROOTPATH))
     Pkg.instantiate()
 end
 
@@ -138,16 +144,16 @@ transform_to_md(pair::Pair) = (pair.first => transform_to_md(pair.second))
 # Copy assets over
 mkpath(joinpath(SRCPATH, "examples"))
 for asset in EXAMPLE_ASSETS
-    cp(joinpath(ROOTPATH, asset), joinpath(SRCPATH, asset), force=true)
+    cp(joinpath(ROOTPATH, asset), joinpath(SRCPATH, asset), force = true)
 end
 
 # Collect files to treat with Literate (i.e. the examples and the .jl files in the docs)
 # The examples go to docs/literate_build/examples, the .jl files stay where they are
 literate_files = map(filter!(endswith(".jl"), extract_paths(PAGES))) do file
     if startswith(file, "examples/")
-        (src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "examples"), example=true)
+        (src = joinpath(ROOTPATH, file), dest = joinpath(SRCPATH, "examples"), example = true)
     else
-        (src=joinpath(SRCPATH, file), dest=joinpath(SRCPATH, dirname(file)), example=false)
+        (src = joinpath(SRCPATH, file), dest = joinpath(SRCPATH, dirname(file)), example = false)
     end
 end
 
@@ -172,16 +178,16 @@ end
 for file in literate_files
     preprocess = file.example ? add_badges : identity
     Literate.markdown(file.src, file.dest;
-                      flavor=Literate.DocumenterFlavor(),
-                      credit=false, preprocess)
-    Literate.notebook(file.src, file.dest; credit=false,
-                      execute=CONTINUOUS_INTEGRATION || DEBUG)
+        flavor = Literate.DocumenterFlavor(),
+        credit = false, preprocess)
+    Literate.notebook(file.src, file.dest; credit = false,
+        execute = CONTINUOUS_INTEGRATION || DEBUG)
 end
 
 # Generate the docs in BUILDPATH
 makedocs(;
-    modules=[DFTK],
-    format=Documenter.HTML(
+    modules = [DFTK],
+    format = Documenter.HTML(
         # Use clean URLs, unless built as a "local" build
         prettyurls = CONTINUOUS_INTEGRATION,
         canonical = "https://docs.dftk.org/stable/",
@@ -195,9 +201,9 @@ makedocs(;
         # login screen and cause a warning:
         r"https://github.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/edit(.*)",
     ],
-    pages=transform_to_md(PAGES),
-    checkdocs=:exports,
-    strict=!DEBUG,
+    pages = transform_to_md(PAGES),
+    checkdocs = :exports,
+    strict = !DEBUG
 )
 
 # Dump files for managing dependencies in binder
@@ -205,13 +211,13 @@ if CONTINUOUS_INTEGRATION && DFTKBRANCH == "master"
     cd(BUILDPATH) do
         open("environment.yml", "w") do io
             print(io,
-                  """
-                  name: dftk
-                  channels:
-                    - defaults
-                    - conda-forge
-                  dependencies:
-                  """)
+                """
+                name: dftk
+                channels:
+                  - defaults
+                  - conda-forge
+                dependencies:
+                """)
             for dep in PYDEPS
                 println(io, "  - " * dep)
             end
@@ -219,21 +225,21 @@ if CONTINUOUS_INTEGRATION && DFTKBRANCH == "master"
 
         # Install Julia dependencies into build
         Pkg.activate(".")
-        Pkg.add(Pkg.PackageSpec(url="https://" * DFTKREPO, rev=DFTKREV))
-        cp(joinpath(@__DIR__, "Project.toml"), joinpath(BUILDPATH, "Project.toml"), force=true)
+        Pkg.add(Pkg.PackageSpec(url = "https://" * DFTKREPO, rev = DFTKREV))
+        cp(joinpath(@__DIR__, "Project.toml"), joinpath(BUILDPATH, "Project.toml"), force = true)
     end
     Pkg.activate(@__DIR__)  # Back to Literate / Documenter environment
 end
 
 # Deploy docs to gh-pages branch
-deploydocs(; repo=DFTKREPO)
+deploydocs(; repo = DFTKREPO)
 
 # Remove generated example files
 if !DEBUG
     for file in literate_files
         base = splitext(basename(file.src))[1]
         for ext in [".ipynb", ".md"]
-            rm(joinpath(file.dest, base * ext), force=true)
+            rm(joinpath(file.dest, base * ext), force = true)
         end
     end
 end
