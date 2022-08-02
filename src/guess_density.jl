@@ -96,7 +96,6 @@ and are placed at `position` (in fractional coordinates).
 function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
     isempty(gaussians) && return G_to_r(basis, similar(G_vectors(basis),complex(T), basis.fft_size))
 
-    ρ = deepcopy(basis.G_vectors)
     #These copies are required so that recip_lattice and gaussians are isbits (GPU compatibility)
     recip_lattice = basis.model.recip_lattice
     gaussians = SVector{size(gaussians)[1]}(gaussians)
@@ -112,7 +111,7 @@ function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
         end
         res
     end
-    ρ = map(build_ρ, ρ)/ sqrt(basis.model.unit_cell_volume) #Can't use map! as we are converting an array of Vec3 to an array of complex
+    ρ = map(build_ρ, basis.G_vectors)/ sqrt(basis.model.unit_cell_volume) #Can't use map! as we are converting an array of Vec3 to an array of complex
 
     # projection in the normalized plane wave basis
     G_to_r(basis, ρ)

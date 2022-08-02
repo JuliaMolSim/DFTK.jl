@@ -12,7 +12,6 @@ function lobpcg_hyper(A, X0; maxiter=100, prec=nothing,
 
     converged = maximum(result.residual_norms[1:n_conv_check]) < tol
     iterations = size(result.residual_history, 2) - 1
-    λ = Array(result.λ) #TODO: offload this to gpu? Careful then, as self_consistent_field's eigenvalues will be a CuArray -> due to the Smearing.occupation function, occupation will also be a CuArray, so no scalar indexing (in ene_ops, in compute_density...)
 
-    merge(result, (iterations=iterations, converged=converged, λ=λ))
+    merge(result, (iterations=iterations, converged=converged))
 end

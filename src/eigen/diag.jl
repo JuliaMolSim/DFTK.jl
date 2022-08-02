@@ -54,7 +54,10 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
     end
 
     # Transform results into a nicer datastructure
-    (λ=[real.(res.λ) for res in results],
+    # TODO: keep λ on the gpu? Careful then, as self_consistent_field's eigenvalues
+    # will be a CuArray -> due to the Smearing.occupation function, occupation will also
+    # be a CuArray, so no scalar indexing (in ene_ops, in compute_density...)
+    (λ=[Array(real.(res.λ)) for res in results],
      X=[res.X for res in results],
      residual_norms=[res.residual_norms for res in results],
      iterations=[res.iterations for res in results],

@@ -191,8 +191,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     kweights_global = kweights
 
     # Setup FFT plans
-    G_vec = G_vectors(fft_size, array_type)
-    (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans(similar(G_vec,T), fft_size)
+    Gs = G_vectors(fft_size, array_type)
+    (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans(similar(Gs,T), fft_size)
 
     # Normalization constants
     # r_to_G = r_to_G_normalization * FFT
@@ -245,6 +245,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     end
     @assert mpi_sum(sum(kweights_thisproc), comm_kpts) ≈ model.n_spin_components
     @assert length(kpoints) == length(kweights_thisproc)
+    Threads.nthreads() != 1 && Gs isa AbstractGPUArray && error("Can't mix multi-threading and GPU computations yet.")
 
     VT = value_type(T)
     dvol  = model.unit_cell_volume ./ prod(fft_size)
@@ -256,7 +257,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
         r_to_G_normalization, G_to_r_normalization,
-        G_vec, r_vectors,
+        Gs, r_vectors,
         kpoints, kweights_thisproc, kgrid, kshift,
         kcoords_global, kweights_global, comm_kpts, krange_thisproc, krange_allprocs,
         symmetries, symmetries_respect_rgrid, terms)
@@ -331,18 +332,15 @@ end
 The wave vectors `G` in reduced (integer) coordinates for a cubic basis set
 of given sizes.
 """
-function G_vectors(fft_size::Union{Tuple,AbstractVector}, array_type::Type)
-    #This functions allows to convert the G_vectors (currently being built on the CPU) to a GPU Array.
-    convert(array_type, G_vectors(fft_size))
-end
 
-function G_vectors(fft_size::Union{Tuple,AbstractVector})
+function G_vectors(fft_size::Union{Tuple,AbstractVector}, array_type = Array)
     # Note that a collect(G_vectors_generator(fft_size)) is 100-fold slower
     # than this implementation, hence the code duplication.
     start = .- cld.(fft_size .- 1, 2)
     stop  = fld.(fft_size .- 1, 2)
     axes  = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
-    [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
+    Gs = [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
+    convert(array_type, Gs) #Offload to GPU if needed.
 end
 function G_vectors_generator(fft_size::Union{Tuple,AbstractVector})
     # The generator version is used mainly in symmetry.jl for lowpass_for_symmetry! and

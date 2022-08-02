@@ -45,7 +45,7 @@ vprintln(args...) = nothing
 using LinearAlgebra
 using CUDA
 using GPUArrays
-include("../workarounds/gpu_computations.jl")
+include("../workarounds/gpu_arrays.jl")
 
 # For now, BlockVector can store arrays of different types (for example, an element of type views and one of type Matrix). Maybe for performance issues it should only store arrays of the same type?
 
@@ -113,15 +113,16 @@ end
 
 block_mul(A, Bblock::BlockVector) = error("Not implemented")
 block_mul(A::Tuple, B::Tuple) = error("not implemented")
-block_mul(A, B) = A * B #Default fallback method.
+block_mul(A, B) = A * B # Default fallback method.
 
-function LinearAlgebra.mul!(res,A::BlockVector,B::AbstractArray,alpha,beta)
-    mul!(res, block_mul(A, B), I, alpha, beta)
+function LinearAlgebra.mul!(res,A::BlockVector,B::AbstractArray,α,β)
+    # Has slightly better performances than a naive res = α*block_mul(A,B) - β*res
+    mul!(res, block_mul(A, B), I, α, β)
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X::BlockVector, AX::BlockVector, N)
-    rayleigh_ritz(block_overlap(X, AX), N) #block_overlap(X,AX) is an AbstractArray, not a BlockVector
+    rayleigh_ritz(block_overlap(X, AX), N) # block_overlap(X,AX) is an AbstractArray, not a BlockVector
 end
 
 @timing function rayleigh_ritz(XAX::AbstractArray, N)

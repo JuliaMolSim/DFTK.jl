@@ -19,7 +19,6 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
 `ψ` should be one coefficient matrix per ``k``-point. 
 """
 @views @timing function compute_density(basis, ψ, occupation)
-    Threads.nthreads() !=1 && G_vectors(basis) isa AbstractGPUArray && error("Can't mix multi-threading and GPU computations yet.") #We assume there is only 1 thread
     T = promote_type(eltype(basis), real(eltype(ψ[1])))
 
     # we split the total iteration range (ik, n) in chunks, and parallelize over them
@@ -29,10 +28,10 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
     # chunk-local variables
     array_type = typeof(similar(G_vectors(basis),T, basis.fft_size..., basis.model.n_spin_components))
     ρ_chunklocal = [convert(array_type, zeros(T, basis.fft_size..., basis.model.n_spin_components))
-                               for _ = 1:Threads.nthreads()]
+                    for _ = 1:Threads.nthreads()]
     array_type = typeof(similar(G_vectors(basis),complex(T), basis.fft_size))
     ψnk_real_chunklocal = [convert(array_type, zeros(complex(T), basis.fft_size)) 
-                                for _ = 1:Threads.nthreads()]
+                            for _ = 1:Threads.nthreads()]
 
     @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
         Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
