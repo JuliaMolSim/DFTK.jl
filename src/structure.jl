@@ -52,7 +52,7 @@ function estimate_integer_lattice_bounds(M::AbstractMatrix{T}, δ, shift=zeros(3
     # then xi = <ei, M^-1 Mx> = <M^-T ei, Mx> <= ||M^-T ei|| δ.
     inv_lattice_t = compute_inverse_lattice(M')
     xlims = [norm(inv_lattice_t[:, i]) * δ + shift[i] for i in 1:3]
-    
+
     # Round up, unless exactly zero (in which case keep it zero in
     # order to just have one x vector for 1D or 2D systems)
     xlims = [xlim == 0 ? 0 : ceil(Int, xlim .- tol) for xlim in xlims]

@@ -13,8 +13,8 @@
 #md # [Periodic problems](@ref periodic-problems)
 #nb # [Periodic problems](https://docs.dftk.org/stable/guide/periodic_problems/)
 # or the
-#md # [density-functional theory](@ref density-functional-theory)
-#nb # [density-functional theory](https://docs.dftk.org/stable/guide/density_functional_theory/)
+#md # [Introductory resources](@ref introductory-resources)
+#nb # [Introductory resources](https://docs.dftk.org/stable/guide/introductory_resources/)
 # chapters for some introductory material on the topic.
 #
 # !!! note "Convergence parameters in the documentation"
@@ -37,7 +37,7 @@ using UnitfulAtomic
 a = 5.431u"angstrom"          # Silicon lattice constant
 lattice = a / 2 * [[0 1 1.];  # Silicon lattice vectors
                    [1 0 1.];  # specified column by column
-                   [1 1 0.]]
+                   [1 1 0.]];
 
 # By default, all numbers passed as arguments are assumed to be in atomic
 # units.  Quantities such as temperature, energy cutoffs, lattice vectors, and
@@ -78,11 +78,17 @@ hcat(scfres.eigenvalues...)
 # matrix.
 #
 # The resulting matrix is 7 (number of computed eigenvalues) by 8
-# (number of k-points). There are 7 eigenvalues per k-point because
-# there are 4 occupied states in the system (4 valence electrons per
-# silicon atom, two atoms per unit cell, and paired spins), and the
-# eigensolver gives itself some breathing room by computing some extra
-# states (see `n_ep_extra` argument to `self_consistent_field`).
+# (number of irreducible k-points). There are 7 eigenvalues per
+# k-point because there are 4 occupied states in the system (4 valence
+# electrons per silicon atom, two atoms per unit cell, and paired
+# spins), and the eigensolver gives itself some breathing room by
+# computing some extra states (see `n_ep_extra` argument to
+# `self_consistent_field`). There are only 8 k-points (instead of
+# 4x4x4) because symmetry has been used to reduce the amount of
+# computations to just the irreducible k-points (see
+#md # [Crystal symmetries](@ref)
+#nb # [Crystal symmetries](https://docs.dftk.org/stable/developer/symmetries/)
+# for details).
 #
 # We can check the occupations ...
 hcat(scfres.occupation...)
@@ -98,10 +104,4 @@ plot(x, scfres.ρ[1, :, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 plot_bandstructure(scfres; kline_density=10)
 # or get the cartesian forces (in Hartree / Bohr)
 compute_forces_cart(scfres)
-# As expected, they are almost zero in this highly symmetric configuration.
-
-# ## Where to go from here
-# Take a look at the
-#md # [example index](@ref example-index)
-#nb # [example index](https://docs.dftk.org/stable/#example-index-1)
-# to continue exploring DFTK.
+# As expected, they are numerically zero in this highly symmetric configuration.

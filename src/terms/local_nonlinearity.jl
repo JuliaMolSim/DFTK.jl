@@ -1,4 +1,3 @@
-using ForwardDiff
 """
 Local nonlinearity, with energy ∫f(ρ) where ρ is the density
 """

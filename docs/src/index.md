@@ -18,7 +18,11 @@ DFTK's source code is [publicly available on github](https://dftk.org).
 
 If you are new to density-functional theory or plane-wave methods,
 see our notes on [Periodic problems](@ref periodic-problems) and our
-collection of [lectures, workshops and literature on DFT](@ref density-functional-theory).
+collection of [Introductory resources](@ref introductory-resources).
+
+Found a bug, missing a feature? Look for an open issue or
+[create a new one](https://github.com/JuliaMolSim/DFTK.jl/issues).
+Want to contribute? See our [contributing notes](https://github.com/JuliaMolSim/DFTK.jl#contributing).
 
 !!! tip "DFTK summer school: 29th to 31st August 2022 in Paris, France"
     We will organise a summer school centred around the DFTK code
@@ -98,7 +102,6 @@ Depth = 1
 These and more examples can be found in the
 [`examples` directory](https://dftk.org/tree/master/examples) of the main code.
 
-
 !!! note "Convergence parameters in the documentation"
     In the documentation we use very rough convergence parameters to be able
     to automatically generate this documentation very quickly.
@@ -106,5 +109,6 @@ These and more examples can be found in the
     Tighter thresholds and larger grids should be used for
     more realistic results.
 
-If you have a great example you think would fit here,
-please open a [pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)!
+If you have an idea for an addition to the docs or see something wrong,
+please open an [issue](https://github.com/JuliaMolSim/DFTK.jl/issues)
+or [pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)!

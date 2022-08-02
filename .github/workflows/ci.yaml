@@ -8,6 +8,11 @@ on:
   pull_request:
   schedule:
     - cron:  '0 4 * * 6'  # Run every Sunday
+concurrency:
+  # Skip intermediate builds: always.
+  # Cancel intermediate builds: only if it is a pull request build.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 
 jobs:
   #
@@ -56,10 +61,10 @@ jobs:
             !Sys.iswindows() && (pkgs = append!(["libblas=*=*netlib", "nomkl"], pkgs))
             Conda.add(pkgs; channel="conda-forge")
           '
-      - uses: julia-actions/julia-buildpkg@latest
+      - uses: julia-actions/julia-buildpkg@v1
 
       - name: Execute serial tests
-        uses: julia-actions/julia-runtest@latest
+        uses: julia-actions/julia-runtest@v1
         if: ${{ matrix.payload == 'serial' }}
         continue-on-error: ${{ matrix.version == 'nightly' }}
 
@@ -75,7 +80,7 @@ jobs:
         continue-on-error: ${{ matrix.version == 'nightly' }}
 
       - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v1
+      - uses: codecov/codecov-action@v2
         with:
           file: lcov.info
   #
@@ -94,7 +99,7 @@ jobs:
         with:
           python-version: '3.7'
       - name: Install python dependencies
-        run: pip install ase pymatgen
+        run: pip install ase
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1.6'
@@ -108,4 +113,4 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - run: julia --color=yes --project -e 'using Pkg; Pkg.test(test_args = ["example"])'
+      - run: julia --color=yes --project -e 'using Pkg; Pkg.test(test_args=["example"])'

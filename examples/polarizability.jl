@@ -86,7 +86,7 @@ using KrylovKit
 ## Apply (1- χ0 K)
 function dielectric_operator(δρ)
     δV = apply_kernel(basis, δρ; ρ=res.ρ)
-    χ0δV = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, δV)
+    χ0δV = apply_χ0(res, δV)
     δρ - χ0δV
 end
 
@@ -96,7 +96,7 @@ end
 δVext = cat(δVext; dims=4)
 
 ## Apply χ0 once to get non-interacting dipole
-δρ_nointeract = apply_χ0(res.ham, res.ψ, res.εF, res.eigenvalues, δVext)
+δρ_nointeract = apply_χ0(res, δVext)
 
 ## Solve Dyson equation to get interacting dipole
 δρ = linsolve(dielectric_operator, δρ_nointeract, verbosity=3)[1]

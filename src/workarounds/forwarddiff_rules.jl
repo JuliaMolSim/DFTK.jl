@@ -135,6 +135,8 @@ function _is_well_conditioned(A::AbstractArray{<:ForwardDiff.Dual}; kwargs...)
     _is_well_conditioned(ForwardDiff.value.(A); kwargs...)
 end
 
+value_type(T::Type{<:ForwardDiff.Dual}) = value_type(ForwardDiff.valtype(T))
+
 # TODO Should go to Model.jl / PlaneWaveBasis.jl as a constructor.
 #
 # Along with it should go a nice convert function to get rid of the annoying
@@ -189,62 +191,53 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
                    comm_kpts=basis.comm_kpts)
 end
 
+
 function self_consistent_field(basis_dual::PlaneWaveBasis{T};
                                response=ResponseOptions(),
                                kwargs...) where T <: ForwardDiff.Dual
     # Note: No guarantees on this interface yet.
 
     # Primal pass
-    basis  = construct_value(basis_dual)
-    scfres = self_consistent_field(basis; kwargs...)
+    basis_primal  = construct_value(basis_dual)
+    scfres = self_consistent_field(basis_primal; kwargs...)
 
-    # Split into truncated and extra eigenpairs
-    truncated = select_occupied_orbitals(scfres; threshold=response.occupation_threshold)
-    ψ_extra = [@view scfres.ψ[ik][:, length(εkTrunc)+1:end]
-               for (ik, εkTrunc) in enumerate(truncated.eigenvalues)]
-    ε_extra = [@view scfres.eigenvalues[ik][length(εkTrunc)+1:end]
-               for (ik, εkTrunc) in enumerate(truncated.eigenvalues)]
-
-    ## promote occupied bands to dual numbers
-    occupation_dual = [T.(occₖ) for occₖ in truncated.occupation]
-    ψ_dual = [Complex.(T.(real(ψₖ)), T.(imag(ψₖ))) for ψₖ in truncated.ψ]
-    ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
-    εF_dual = T(truncated.εF)  # Only needed for entropy term
-    eigenvalues_dual = [T.(εₖ) for εₖ in truncated.eigenvalues]
-    energies_dual, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
-                                                 ρ=ρ_dual, eigenvalues=eigenvalues_dual,
-                                                 εF=εF_dual)
-
-    response.verbose && println("Solving response problem")
+    ## Compute external perturbation (contained in ham_dual) and from matvec with bands
+    ham_dual, Hψ_dual = let
+        occupation_dual = [T.(occk) for occk in scfres.occupation]
+        ψ_dual = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
+        ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
+        εF_dual = T(scfres.εF)  # Only needed for entropy term
+        eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
+        _, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
+                                         ρ=ρ_dual, eigenvalues=eigenvalues_dual, εF=εF_dual)
+        ham_dual, ham_dual * ψ_dual
+    end
 
     ## Implicit differentiation
-    hamψ_dual = ham_dual * ψ_dual
+    response.verbose && println("Solving response problem")
     δresults = ntuple(ForwardDiff.npartials(T)) do α
-        δHψ_α = [ForwardDiff.partials.(δHψk, α) for δHψk in hamψ_dual]
-
-        δψ_α, resp_α = solve_ΩplusK_split(truncated, -δHψ_α; tol=scfres.norm_Δρ,
-                                          ψ_extra, ε_extra, response.verbose)
-        δρ_α = compute_δρ(basis, truncated.ψ, δψ_α, truncated.occupation)
-        δψ_α, δρ_α, resp_α
+        δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
+        solve_ΩplusK_split(scfres, -δHextψ; tol=scfres.norm_Δρ, response.verbose)
     end
-    δψ       = [δψ_α   for (δψ_α, δρ_α, resp_α) in δresults]
-    δρ       = [δρ_α   for (δψ_α, δρ_α, resp_α) in δresults]
-    response = [resp_α for (δψ_α, δρ_α, resp_α) in δresults]
 
-    ## Convert, combine and return
+    ## Convert and combine
     DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}
-    ψ_out = map(truncated.ψ, δψ...) do ψk, δψk...
-        map(ψk, δψk...) do ψi, δψi...
-            Complex(DT(real(ψi), real.(δψi)),
-                    DT(imag(ψi), imag.(δψi)))
+    ψ = map(scfres.ψ, getfield.(δresults, :δψ)...) do ψk, δψk...
+        map(ψk, δψk...) do ψnk, δψnk...
+            Complex(DT(real(ψnk), real.(δψnk)),
+                    DT(imag(ψnk), imag.(δψnk)))
         end
     end
-    ρ_out = map((ρi, δρi...) -> DT(ρi, δρi), scfres.ρ, δρ...)
+    ρ = map((ρi, δρi...) -> DT(ρi, δρi), scfres.ρ, getfield.(δresults, :δρ)...)
+    eigenvalues = map(scfres.eigenvalues, getfield.(δresults, :δeigenvalues)...) do εk, δεk...
+        map((εnk, δεnk...) -> DT(εnk, δεnk), εk, δεk...)
+    end
 
-    # TODO Compute eigenvalue response (return dual eigenvalues and dual εF)
+    # TODO Could add δresults[α].δVind the dual part of the total local potential in ham_dual
+    # and in this way return a ham that represents also the total change in Hamiltonian
 
-    merge(truncated, (; ham=ham_dual, basis=basis_dual, energies=energies_dual, ψ=ψ_out,
-                        occupation=occupation_dual, ρ=ρ_out, response))
+    merge(scfres, (; ψ, ρ, eigenvalues, basis=basis_dual,
+                   response=getfield.(δresults, :history)))
 end
 
 # other workarounds
@@ -271,4 +264,27 @@ function Smearing.occupation(S::Smearing.FermiDirac, d::ForwardDiff.Dual{T}) whe
         ∂occ = -exp(x) / (1 + exp(x))^2
     end
     ForwardDiff.Dual{T}(Smearing.occupation(S, x), ∂occ * ForwardDiff.partials(d))
+end
+
+# Fix for https://github.com/JuliaDiff/ForwardDiff.jl/issues/514
+function Base.:^(x::Complex{ForwardDiff.Dual{T,V,N}}, y::Complex{ForwardDiff.Dual{T,V,N}}) where {T,V,N}
+    xx = complex(ForwardDiff.value(real(x)), ForwardDiff.value(imag(x)))
+    yy = complex(ForwardDiff.value(real(y)), ForwardDiff.value(imag(y)))
+    dx = complex.(ForwardDiff.partials(real(x)), ForwardDiff.partials(imag(x)))
+    dy = complex.(ForwardDiff.partials(real(y)), ForwardDiff.partials(imag(y)))
+
+    expv = xx^yy
+    ∂expv∂x = yy * xx^(yy-1)
+    ∂expv∂y = log(xx) * expv
+    dxexpv = ∂expv∂x * dx
+    if iszero(xx) && ForwardDiff.isconstant(real(y)) && ForwardDiff.isconstant(imag(y)) && imag(y) === zero(imag(y)) && real(y) > 0
+        dexpv = zero(expv)
+    elseif iszero(xx)
+        throw(DomainError(x, "mantissa cannot be zero for complex exponentiation"))
+    else
+        dyexpv = ∂expv∂y * dy
+        dexpv = dxexpv + dyexpv
+    end
+    complex(ForwardDiff.Dual{T,V,N}(real(expv), ForwardDiff.Partials{N,V}(tuple(real(dexpv)...))),
+            ForwardDiff.Dual{T,V,N}(imag(expv), ForwardDiff.Partials{N,V}(tuple(imag(dexpv)...))))
 end
