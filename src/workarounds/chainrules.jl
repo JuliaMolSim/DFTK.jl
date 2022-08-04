@@ -1,4 +1,5 @@
 using ChainRulesCore
+using Infiltrator
 
 function ChainRulesCore.rrule(::typeof(r_to_G), basis::PlaneWaveBasis, f_real::AbstractArray)
     @warn "r_to_G rrule triggered."
