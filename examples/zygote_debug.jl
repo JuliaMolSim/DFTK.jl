@@ -1,6 +1,7 @@
 using DFTK
 using Zygote
 using FiniteDiff
+using ForwardDiff
 setup_threading(n_blas=1)
 
 # Specify structure for silicon lattice
@@ -10,8 +11,7 @@ lattice = a / 2 * [[0 1 1.];
                    [1 1 0.]]
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms     = [Si,        Si        ]
-positions = [ones(3)/8, -ones(3)/8]# + 0.1rand(3)]
-
+positions = [ones(3)/8, -ones(3)/8]
 terms = [
     Kinetic(),
     AtomicLocal(),
@@ -63,23 +63,35 @@ function basis_from_lattice(lattice)
     PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), kshift=(0, 0, 0))
 end
 
-energy_from_lattice(lattice) = energy_from_basis(basis_from_lattice(lattice))
-e = energy_from_lattice(lattice)
-e_zg, (grad_e_zg,) = Zygote.withgradient(energy_from_lattice, lattice)
-grad_e_fd = FiniteDiff.finite_difference_gradient(energy_from_lattice, lattice)
-println("energy error ", abs(e - e_zg))
-println("energy w.r.t. lattice error ", abs.(grad_e_fd - grad_e_zg))
+function energy_from_a(a)
+    lattice = a / 2 * [[0 1 1.];
+                       [1 0 1.];
+                       [1 1 0.]]
+    basis = basis_from_lattice(lattice)
+    energy_from_basis(basis)
+end
+FiniteDiff.finite_difference_derivative(energy_from_a, a)
+ForwardDiff.derivative(energy_from_a, a)
+Zygote.withgradient(energy_from_a, a)
+# TODO: there seems to be a factor 2 in Zygote
 
-forces_from_lattice(lattice) = forces_from_basis(basis_from_lattice(lattice)) 
-f = forces_from_lattice(lattice)
-f_zg, (grad_f_zg,) = Zygote.withgradient(forces_from_lattice, lattice) # TODO debug values
-grad_f_fd = FiniteDiff.finite_difference_gradient(forces_from_lattice, lattice)
-println("force error ", abs(f - f_zg))
-println("force w.r.t. lattice error ", abs.(grad_f_fd - grad_f_zg))
+using LinearAlgebra
+using ChainRulesCore
 
-eigenvalues_from_lattice(lattice) = eigenvalues_from_basis(basis_from_lattice(lattice))
-ev = eigenvalues_from_lattice(lattice)
-ev_zg, (grad_ev_zg,) = Zygote.withgradient(eigenvalues_from_lattice, lattice) # TODO debug values
-grad_ev_fd = FiniteDiff.finite_difference_gradient(eigenvalues_from_lattice, lattice)
-println("eigenvalues error ", abs(ev - ev_zg))
-println("eigenvalues w.r.t. lattice error ", abs.(grad_ev_fd - grad_ev_zg))
+density_from_lattice(lattice) = compute_density(basis_from_lattice(lattice), scfres.ψ, scfres.occupation)
+rho = density_from_lattice(lattice)
+rho_zg, back = rrule_via_ad(Zygote.ZygoteRuleConfig(), density_from_lattice, lattice)
+jvp = FiniteDiff.finite_difference_derivative(ε -> density_from_lattice(lattice + ε*lattice), 0.0)
+dot(lattice, back(rho)[2]) # correct
+dot(jvp, rho)
+
+
+∂energies = Tangent{Any}(energies = Tangent{Any, NamedTuple{(:first, :second), Tuple{ZeroTangent, Float64}}}[Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0)],)
+# (; E, H), energy_hamiltonian_pullback =
+#         rrule_via_ad(config, energy_hamiltonian, basis, scfres.ψ, scfres.occupation, scfres.ρ)
+energy_hamiltonian_from_lattice(lattice) = energy_hamiltonian(basis_from_lattice(lattice), scfres.ψ, scfres.occupation, scfres.ρ)
+(; E, H) = energy_hamiltonian_from_lattice(lattice)
+(; E, H), energy_hamiltonian_pullback =
+        rrule_via_ad(Zygote.ZygoteRuleConfig(), energy_hamiltonian_from_lattice, lattice)
+energy_hamiltonian_pullback((; E=∂energies, H=NoTangent())) # result is same as grad(energy_from_lattice)
+# TODO debug
