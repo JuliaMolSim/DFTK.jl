@@ -33,21 +33,6 @@ end
 energy_from_basis(basis)
 Zygote.gradient(energy_from_basis, basis)
 
-function forces_from_basis(basis)
-    is_converged = DFTK.ScfConvergenceDensity(1e-8)
-    scfres = self_consistent_field(basis; is_converged)
-    compute_forces(scfres)[1][1]
-end
-forces_from_basis(basis)
-Zygote.gradient(forces_from_basis, basis)
-
-function eigenvalues_from_basis(basis)
-    is_converged = DFTK.ScfConvergenceDensity(1e-8)
-    scfres = self_consistent_field(basis; is_converged)
-    sum(sum, scfres.eigenvalues)
-end
-Zygote.gradient(eigenvalues_from_basis, basis)
-
 # Comparison to FiniteDiff
 
 function basis_from_lattice(lattice)
@@ -75,9 +60,25 @@ ForwardDiff.derivative(energy_from_a, a)
 Zygote.withgradient(energy_from_a, a)
 # TODO: there seems to be a factor 2 in Zygote
 
+# function forces_from_basis(basis)
+#     is_converged = DFTK.ScfConvergenceDensity(1e-8)
+#     scfres = self_consistent_field(basis; is_converged)
+#     compute_forces(scfres)[1][1]
+# end
+# forces_from_basis(basis)
+# Zygote.gradient(forces_from_basis, basis)
+#
+# function eigenvalues_from_basis(basis)
+#     is_converged = DFTK.ScfConvergenceDensity(1e-8)
+#     scfres = self_consistent_field(basis; is_converged)
+#     sum(sum, scfres.eigenvalues)
+# end
+# Zygote.gradient(eigenvalues_from_basis, basis)
+
 using LinearAlgebra
 using ChainRulesCore
 
+scfres = self_consistent_field(basis; tol=1e-8)
 density_from_lattice(lattice) = compute_density(basis_from_lattice(lattice), scfres.ψ, scfres.occupation)
 rho = density_from_lattice(lattice)
 rho_zg, back = rrule_via_ad(Zygote.ZygoteRuleConfig(), density_from_lattice, lattice)
@@ -87,11 +88,13 @@ dot(jvp, rho)
 
 
 ∂energies = Tangent{Any}(energies = Tangent{Any, NamedTuple{(:first, :second), Tuple{ZeroTangent, Float64}}}[Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0)],)
-# (; E, H), energy_hamiltonian_pullback =
-#         rrule_via_ad(config, energy_hamiltonian, basis, scfres.ψ, scfres.occupation, scfres.ρ)
 energy_hamiltonian_from_lattice(lattice) = energy_hamiltonian(basis_from_lattice(lattice), scfres.ψ, scfres.occupation, scfres.ρ)
 (; E, H) = energy_hamiltonian_from_lattice(lattice)
 (; E, H), energy_hamiltonian_pullback =
         rrule_via_ad(Zygote.ZygoteRuleConfig(), energy_hamiltonian_from_lattice, lattice)
 energy_hamiltonian_pullback((; E=∂energies, H=NoTangent())) # result is same as grad(energy_from_lattice)
 # TODO debug
+
+f(a) = sum(values(energy_hamiltonian(basis_from_lattice(a / 2 * [[0 1 1.]; [1 0 1.]; [1 1 0.]]), scfres.ψ, scfres.occupation, scfres.ρ).E))
+FiniteDiff.finite_difference_derivative(f, a)
+Zygote.gradient(f, a) # works
