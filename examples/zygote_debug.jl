@@ -87,14 +87,39 @@ dot(lattice, back(rho)[2]) # correct
 dot(jvp, rho)
 
 
-∂energies = Tangent{Any}(energies = Tangent{Any, NamedTuple{(:first, :second), Tuple{ZeroTangent, Float64}}}[Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0), Tangent{Any}(first = ZeroTangent(), second = 1.0)],)
-energy_hamiltonian_from_lattice(lattice) = energy_hamiltonian(basis_from_lattice(lattice), scfres.ψ, scfres.occupation, scfres.ρ)
-(; E, H) = energy_hamiltonian_from_lattice(lattice)
-(; E, H), energy_hamiltonian_pullback =
-        rrule_via_ad(Zygote.ZygoteRuleConfig(), energy_hamiltonian_from_lattice, lattice)
-energy_hamiltonian_pullback((; E=∂energies, H=NoTangent())) # result is same as grad(energy_from_lattice)
-# TODO debug
-
-f(a) = sum(values(energy_hamiltonian(basis_from_lattice(a / 2 * [[0 1 1.]; [1 0 1.]; [1 1 0.]]), scfres.ψ, scfres.occupation, scfres.ρ).E))
+make_lattice(a) = a / 2 * [[0 1 1.]; [1 0 1.]; [1 1 0.]]
+f(a) = sum(values(energy_hamiltonian(basis_from_lattice(make_lattice(a)), scfres.ψ, scfres.occupation, scfres.ρ).E))
 FiniteDiff.finite_difference_derivative(f, a)
 Zygote.gradient(f, a) # works
+
+using Infiltrator
+infiltrate_deriv(x) = x
+function ChainRulesCore.rrule(::typeof(infiltrate_deriv), x)
+    function infiltrate_pb(dx)
+        @infiltrate
+        return NoTangent(), dx
+    end
+    return x, infiltrate_pb
+end
+
+function hellmann_feynman_energy(scfres, lattice)
+    basis = basis_from_lattice(lattice)
+    ρ = DFTK.compute_density(basis, scfres.ψ, scfres.occupation)
+    energies, H = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ)
+    energies.total
+end
+# ForwardDiff.derivative(a -> hellmann_feynman_energy(scfres, make_lattice(a)), a)
+FiniteDiff.finite_difference_derivative(a -> hellmann_feynman_energy(scfres, make_lattice(a)), a)
+Zygote.gradient(a -> hellmann_feynman_energy(scfres, make_lattice(a)), a) # wrong
+
+f2(a) = sum(density_from_lattice(make_lattice(a)))
+FiniteDiff.finite_difference_derivative(f2, a)
+ForwardDiff.derivative(f2, a)
+Zygote.gradient(f2, a) # correct
+
+f3(ρ) = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ).E.total
+f4(h) = f3(scfres.ρ + h*scfres.ρ)
+FiniteDiff.finite_difference_derivative(f4, 0.0)
+ForwardDiff.derivative(f4, 0.0)
+Zygote.gradient(f4, 0.0) # wrong
+
