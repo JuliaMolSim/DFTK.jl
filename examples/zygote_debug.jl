@@ -118,8 +118,28 @@ ForwardDiff.derivative(f2, a)
 Zygote.gradient(f2, a) # correct
 
 f3(ρ) = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ).E.total
-f4(h) = f3(scfres.ρ + h*scfres.ρ)
-FiniteDiff.finite_difference_derivative(f4, 0.0)
-ForwardDiff.derivative(f4, 0.0)
-Zygote.gradient(f4, 0.0) # wrong
-
+# f3(ρ) = sum(values(energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ).E))
+f3(ρ; k) = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ).E[k]
+for k in keys(scfres.energies)
+    println(k)
+    f4(h) = f3(scfres.ρ + h*scfres.ρ; k)
+    g1 = FiniteDiff.finite_difference_derivative(f4, 0.0)
+    g2 = ForwardDiff.derivative(f4, 0.0)
+    g3 = only(Zygote.gradient(f4, 0.0)) # wrong
+    println(" FinDiff: ", g1, " ForwardDiff: ", g2, " Zygote: ", g3)
+end
+# Kinetic
+#  FinDiff: 0.0 ForwardDiff: 0.0 Zygote: 0.0
+# AtomicLocal
+#  FinDiff: -2.1687148211557647 ForwardDiff: -2.1687148211339324 Zygote: -4.337429642267865
+# AtomicNonlocal
+#  FinDiff: 0.0 ForwardDiff: 0.0 Zygote: 0.0
+# Ewald
+#  FinDiff: 0.0 ForwardDiff: 0.0 Zygote: 0.0
+# PspCorrection
+#  FinDiff: 0.0 ForwardDiff: 0.0 Zygote: 0.0
+# Hartree
+#  FinDiff: 1.2590922290980915 ForwardDiff: 1.259092229051408 Zygote: 1.259092229051417
+#
+# looks like the incorrectness lies in AtomicLocal! and it is indeed a factor of 2
+# TODO
