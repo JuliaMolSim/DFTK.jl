@@ -1,6 +1,8 @@
 using DFTK
 using ForwardDiff
 using Test
+using ComponentArrays
+
 include("testcases.jl")
 
 
@@ -55,31 +57,58 @@ include("testcases.jl")
     end
 end
 
-
-@testset "Force pseudo-sensitivity using ForwardDiff" begin
-    # TODO Maybe later change to a band-energy test once eigenvalue derivatives work.
-    function compute_force(ε::T) where {T}
-        psp = load_psp("hgh/lda/si-q4")
+@testset "scfres PSP sensitivity using ForwardDiff" begin
+    function compute_band_energies(ε::T) where {T}
+        psp  = load_psp("hgh/lda/al-q3")
         rloc = convert(T, psp.rloc)
 
         pspmod = PspHgh(psp.Zion, rloc,
                         psp.cloc, psp.rp .+ [0, ε], psp.h;
                         psp.identifier, psp.description)
-        elem  = ElementPsp(silicon.atnum, psp=pspmod)
-        atoms = [elem, elem]
-        positions = [[1.01, 1.02, 1.03] / 8, -ones(3) / 8]
-        model = model_LDA(Matrix{T}(silicon.lattice), atoms, positions)
+        atoms = fill(ElementPsp(aluminium.atnum, psp=pspmod), length(aluminium.positions))
+        model = model_LDA(Matrix{T}(aluminium.lattice), atoms, aluminium.positions,
+                          temperature=1e-2, smearing=Smearing.Gaussian())
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
-        scfres = self_consistent_field(basis; is_converged,
-                                       response=ResponseOptions(verbose=true))
+        scfres = self_consistent_field(basis; is_converged, mixing=KerkerMixing(),
+                                       damping=0.6, response=ResponseOptions(verbose=true))
+
+        ComponentArray(
+           eigenvalues=hcat([ev[1:end-3] for ev in scfres.eigenvalues]...),
+           ρ=scfres.ρ
+        )
+    end
+
+    derivative_ε = let ε = 1e-4
+        (compute_band_energies(ε) - compute_band_energies(-ε)) / 2ε
+    end
+    derivative_fd = ForwardDiff.derivative(compute_band_energies, 0.0)
+    @test norm(derivative_fd - derivative_ε) < 1e-4
+end
+
+@testset "Functional force sensitivity using ForwardDiff" begin
+    using DftFunctionals
+
+    function compute_force(ε1::T) where {T}
+        pos = [[1.01, 1.02, 1.03] / 8, -ones(3) / 8]
+        pbec = DftFunctional(:gga_c_pbe)
+        pbex = DftFunctional(:gga_x_pbe)
+        pbex = change_parameters(pbex, parameters(pbex) + ComponentArray(κ=0, μ=ε1))
+
+        model = model_DFT(Matrix{T}(silicon.lattice), silicon.atoms, pos, [pbex, pbec])
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
+
+        is_converged = DFTK.ScfConvergenceDensity(1e-10)
+        scfres = self_consistent_field(basis;
+                                       is_converged, response=ResponseOptions(verbose=true))
         compute_forces_cart(scfres)
     end
 
-    derivative_fd = let ε = 1e-5
+    derivative_ε = let ε = 1e-5
         (compute_force(ε) - compute_force(-ε)) / 2ε
     end
-    derivative_ε = ForwardDiff.derivative(compute_force, 0.0)
-    @test norm(derivative_fd - derivative_ε) < 1e-4
+    derivative_fd = ForwardDiff.derivative(compute_force, 0.0)
+    @show derivative_ε derivative_fd
+    @test norm(derivative_ε - derivative_fd) < 1e-4
 end

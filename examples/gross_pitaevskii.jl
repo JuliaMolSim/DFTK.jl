@@ -1,4 +1,4 @@
-# # Gross-Pitaevskii equation in one dimension
+# # [Gross-Pitaevskii equation in one dimension](@id gross-pitaevskii)
 # In this example we will use DFTK to solve
 # the Gross-Pitaevskii equation, and use this opportunity to explore a few internals.
 

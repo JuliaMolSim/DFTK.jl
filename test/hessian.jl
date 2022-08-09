@@ -6,15 +6,14 @@ import DFTK: select_occupied_orbitals
 
 include("testcases.jl")
 
-@testset "ΩplusK" begin
+@testset "SCF hessian" begin
     Ecut = 3
     fft_size = [9, 9, 9]
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, [:lda_xc_teter93])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
     scfres = self_consistent_field(basis; tol=10)
 
-    ψ, occupation = select_occupied_orbitals(basis, scfres.ψ,
-                                             scfres.occupation)
+    ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 
     ρ = compute_density(basis, ψ, occupation)
     rhs = compute_projected_gradient(basis, ψ, occupation)
@@ -63,21 +62,18 @@ include("testcases.jl")
         ϕ = rhs + ψ
 
         @testset "self-adjointness of solve_ΩplusK_split" begin
-            @test isapprox(
-                           real(dot(ϕ, solve_ΩplusK_split(scfres, rhs).δψ)),
+            @test isapprox(real(dot(ϕ, solve_ΩplusK_split(scfres, rhs).δψ)),
                            real(dot(solve_ΩplusK_split(scfres, ϕ).δψ, rhs)),
-                           atol=1e-7
-                          )
+                           atol=1e-7)
         end
 
         @testset "solve_ΩplusK_split <=> solve_ΩplusK" begin
             scfres = self_consistent_field(basis; tol=1e-10)
-            ψ, occupation = select_occupied_orbitals(basis, scfres.ψ,
-                                                     scfres.occupation)
+            δψ1 = solve_ΩplusK_split(scfres, rhs).δψ
+            δψ1, _ = select_occupied_orbitals(basis, δψ1, occupation)
+            ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
             rhs, _ = select_occupied_orbitals(basis, rhs, occupation)
-            δψ1 = solve_ΩplusK(basis, ψ, rhs, occupation).δψ
-            δψ2 = solve_ΩplusK_split(scfres, rhs).δψ
-            δψ2, _ = select_occupied_orbitals(basis, δψ2, occupation)
+            δψ2 = solve_ΩplusK(basis, ψ, rhs, occupation).δψ
             @test norm(δψ1 - δψ2) < 1e-7
         end
 
@@ -97,11 +93,9 @@ include("testcases.jl")
         ϕ = rhs + ψ
 
         @testset "self-adjointness of solve_ΩplusK_split" begin
-            @test isapprox(
-                           real(dot(ϕ, solve_ΩplusK_split(scfres, rhs).δψ)),
+            @test isapprox(real(dot(ϕ, solve_ΩplusK_split(scfres, rhs).δψ)),
                            real(dot(solve_ΩplusK_split(scfres, ϕ).δψ, rhs)),
-                           atol=1e-7
-                          )
+                           atol=1e-7)
         end
 
     end

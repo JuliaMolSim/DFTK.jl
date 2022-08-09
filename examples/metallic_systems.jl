@@ -1,4 +1,4 @@
-# # Temperature and metallic systems
+# # [Temperature and metallic systems](@id metallic-systems)
 #
 # In this example we consider the modeling of a magnesium lattice
 # as a simple example for a metallic system.

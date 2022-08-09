@@ -267,8 +267,8 @@ trial_damping(damping::FixedDamping, args...) = damping.α
         new_E, new_ham = energy_hamiltonian(basis, res_V.ψ, res_V.occupation;
                                             ρ=res_V.ρout, eigenvalues=res_V.eigenvalues,
                                             εF=res_V.εF)
-        (basis=basis, ham=new_ham, energies=new_E, Vin=Vin,
-         Vout=total_local_potential(new_ham), res_V...)
+        (basis=basis, ham=new_ham, energies=new_E, occupation_threshold=occupation_threshold,
+         Vin=Vin, Vout=total_local_potential(new_ham), res_V...)
     end
 
     n_iter    = 1
@@ -348,7 +348,8 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     info = (ham=ham, basis=basis, energies=info.energies, converged=converged,
             ρ=info.ρout, eigenvalues=info.eigenvalues, occupation=info.occupation,
             εF=info.εF, n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=info.ψ,
-            diagonalization=info.diagonalization, stage=:finalize, algorithm="SCF")
+            diagonalization=info.diagonalization, stage=:finalize, algorithm="SCF",
+            occupation_threshold=info.occupation_threshold)
     callback(info)
     info
 end

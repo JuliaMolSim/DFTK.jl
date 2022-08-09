@@ -59,11 +59,10 @@ auconvert(Å, 1.2)  # 1.2 Bohr in Ångström
     are Bohr (used by DFTK) and Ångström (used e.g. by ASE, 1Å ≈ 1.80 Bohr).
     When setting up a calculation for DFTK
     one needs to ensure to convert to Bohr and atomic units.
-    For some Python libraries (currently ASE and pymatgen)
-    DFTK directly ships conversion tools in form of the `load_lattice`,
-    `load_positions` and `load_atoms` functions,
-    which take care of such conversions. Examples which demonstrate this
-    are [Creating slabs with ASE](@ref) and [Creating supercells with pymatgen](@ref).
+    When structures are provided
+    as [AtomsBase.jl](https://github.com/JuliaMolSim/AtomsBase.jl)-compatible
+    objects, this unit conversion is automatically performed behind the scenes.
+    See [AtomsBase integration](@ref) for details.
 
 ## [Lattices and lattice vectors](@id conventions-lattice)
 Both the real-space lattice (i.e. `model.lattice`) and reciprocal-space lattice
