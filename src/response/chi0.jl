@@ -315,7 +315,8 @@ end
     end
     # keeping zeros for extra bands to keep the output δψ with the same size
     # than the input ψ
-    δψ
+    # δψ
+    [[δψ[ik] zero(ψ_extra[ik])] for ik in 1:Nk]
 end
 
 """
