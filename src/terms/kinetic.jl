@@ -5,7 +5,7 @@ struct Kinetic
     scaling_factor::Real
 end
 Kinetic(; scaling_factor=1) = Kinetic(scaling_factor)
-(kin::Kinetic)(basis; array_type = Array) = TermKinetic(basis, kin.scaling_factor, array_type)
+(kin::Kinetic)(basis) = TermKinetic(basis, kin.scaling_factor)
 function Base.show(io::IO, kin::Kinetic)
     fac = isone(kin.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
     print(io, "Kinetic($fac)")
@@ -15,8 +15,8 @@ struct TermKinetic <: Term
     scaling_factor::Real  # scaling factor, absorbed into kinetic_energies
     kinetic_energies::Vector{<:AbstractVector}  # kinetic energy 1/2|G+k|^2 for every kpoint
 end
-function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, array_type = Array) where {T}
-    kinetic_energies = [convert(array_type,
+function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
+    kinetic_energies = [convert(array_type(basis),
                             [T(scaling_factor) * sum(abs2, Gk) / 2
                             for Gk in Gplusk_vectors_cart(basis, kpt)])
                             for kpt in basis.kpoints]

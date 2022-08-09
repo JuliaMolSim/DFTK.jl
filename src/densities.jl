@@ -26,11 +26,9 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
     chunk_length = cld(length(ik_n), Threads.nthreads())
 
     # chunk-local variables
-    array_type = typeof(similar(G_vectors(basis),T, basis.fft_size..., basis.model.n_spin_components))
-    ρ_chunklocal = [convert(array_type, zeros(T, basis.fft_size..., basis.model.n_spin_components))
+    ρ_chunklocal = [convert(array_type(basis), zeros(T, basis.fft_size..., basis.model.n_spin_components))
                     for _ = 1:Threads.nthreads()]
-    array_type = typeof(similar(G_vectors(basis),complex(T), basis.fft_size))
-    ψnk_real_chunklocal = [convert(array_type, zeros(complex(T), basis.fft_size)) 
+    ψnk_real_chunklocal = [convert(array_type(basis), zeros(complex(T), basis.fft_size)) 
                             for _ = 1:Threads.nthreads()]
 
     @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))

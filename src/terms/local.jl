@@ -66,7 +66,7 @@ end
 Atomic local potential defined by `model.atoms`.
 """
 struct AtomicLocal end
-function (::AtomicLocal)(basis::PlaneWaveBasis{T}; array_type = Array) where {T}
+function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
 
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
@@ -84,7 +84,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}; array_type = Array) where {T}
         pot / sqrt(model.unit_cell_volume)
     end
     #If needed, send to the GPU the atomic local term.
-    pot_real = G_to_r(basis, convert(array_type,pot_fourier))
+    pot_real = G_to_r(basis, convert(array_type(basis),pot_fourier))
     TermAtomicLocal(pot_real)
 end
 

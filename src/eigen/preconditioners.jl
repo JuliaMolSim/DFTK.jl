@@ -37,8 +37,7 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     isempty(kinetic_term) && error("Preconditioner should be disabled when no Kinetic term is used.")
     scaling = only(kinetic_term).scaling_factor
     kin = Vector{T}([scaling * sum(abs2, q) for q in Gplusk_vectors_cart(basis, kpt)] ./ 2)
-    array_type = typeof(similar(basis.G_vectors, T, size(kin)))
-    kin = convert(array_type, kin)
+    kin = convert(array_type(basis), kin)
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 
@@ -70,6 +69,5 @@ end
 
 function precondprep!(P::PreconditionerTPA, X)
     P.mean_kin = [real(dot(x, Diagonal(P.kin), x)) for x in eachcol(X)]
-    array_type = typeof(similar(X,eltype(X),size(P.mean_kin)))
-    P.mean_kin = convert(array_type, P.mean_kin)
+    P.mean_kin = convert(array_type(P.basis), P.mean_kin)
 end

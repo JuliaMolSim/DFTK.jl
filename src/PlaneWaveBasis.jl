@@ -39,7 +39,7 @@ Normalization conventions:
 
 `G_to_r` and `r_to_G` convert between these representations.
 """
-struct PlaneWaveBasis{T, VT} <: AbstractBasis{T} where {VT <: Real}
+struct PlaneWaveBasis{T, VT, AT, GT, RT} <: AbstractBasis{T} where {VT <: Real, GT <: AT, RT <: AT, AT <: AbstractArray}
     # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
     model::Model{T, VT}
 
@@ -67,8 +67,8 @@ struct PlaneWaveBasis{T, VT} <: AbstractBasis{T} where {VT <: Real}
     G_to_r_normalization::T  # G_to_r = G_to_r_normalization * BFFT
 
     # "cubic" basis in reciprocal and real space, on which potentials and densities are stored
-    G_vectors::AbstractArray{Vec3{Int}, 3}
-    r_vectors::AbstractArray{Vec3{VT }, 3}
+    G_vectors::GT
+    r_vectors::RT
 
     ## MPI-local information of the kpoints this processor treats
     # Irreducible kpoints. In the case of collinear spin,
@@ -252,7 +252,10 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     r_vectors = [Vec3{VT}(VT(i-1) / N1, VT(j-1) / N2, VT(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3]
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
-    basis = PlaneWaveBasis{T,value_type(T)}(
+    RT = array_type{Vec3{VT }, 3}
+    GT = array_type{Vec3{Int }, 3}
+
+    basis = PlaneWaveBasis{T,value_type(T), array_type, GT, RT}(
         model, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
@@ -264,7 +267,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     # Instantiate the terms with the basis
     for (it, t) in enumerate(model.term_types)
         term_name = string(nameof(typeof(t)))
-        @timing "Instantiation $term_name" basis.terms[it] = t(basis, array_type = array_type)
+        @timing "Instantiation $term_name" basis.terms[it] = t(basis)
     end
     basis
 end
@@ -318,12 +321,12 @@ end
 Creates a new basis identical to `basis`, but with a custom set of kpoints
 """
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
-                                kweights::AbstractVector; array_type = Array)
+                                kweights::AbstractVector)
     kgrid = kshift = nothing
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
                    kcoords, kweights, kgrid, kshift,
-                   basis.symmetries_respect_rgrid, basis.comm_kpts, array_type)
+                   basis.symmetries_respect_rgrid, basis.comm_kpts, array_type = array_type(basis))
 end
 
 """
@@ -360,6 +363,12 @@ or a ``k``-point `kpt`.
 """
 G_vectors(basis::PlaneWaveBasis) = basis.G_vectors
 G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
+
+"""
+Return the type of array used for computations (Array if on CPU, CuArray, 
+ROCArray... if on GPU).
+"""
+array_type(basis::PlaneWaveBasis{T,VT,AT}) where {T, VT, AT} = AT
 
 
 @doc raw"""
