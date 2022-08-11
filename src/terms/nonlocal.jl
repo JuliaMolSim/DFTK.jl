@@ -108,7 +108,7 @@ function build_projection_coefficients_(T, psps, psp_positions)
     
     if n_proj > 0
         # avoid nested for (contains mutation)
-        blocks = [[build_projection_coefficients_(psp) for r in positions] for (psp, positions) in zip(psps, psp_positions)]
+        blocks = [[T.(build_projection_coefficients_(psp)) for r in positions] for (psp, positions) in zip(psps, psp_positions)]
         return reduce(assemble_block_matrix_, reduce(vcat, blocks))
     else
         return zeros(T, 0, 0)
@@ -123,7 +123,7 @@ end
 
 function build_projection_coefficients_(psp::NormConservingPsp)
     #@warn "AtomicNonlocal build_projection_coefficients_(psp::NormConservingPsp)"
-    blocks = [[psp.h[l + 1] for m in -l:l] for l in 0:psp.lmax]
+    blocks = [[psp.h[l + 1] for m in -l:l] for l in 0:psp.lmax] # TODO fix f64 implicit conversion
     proj_coeffs = reduce(assemble_block_matrix_, reduce(vcat,blocks))
     proj_coeffs
 end
