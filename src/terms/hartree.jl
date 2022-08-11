@@ -33,7 +33,7 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
     # is multiplying elementwise by 4π / |G|^2.
     poisson_green_coeffs = map(G_vectors_cart(basis)) do G
         abs2G = sum(abs2, G)
-        abs2G > 0. ? 4T(π)/abs2G : 0. # Compensating charge background => Zero DC
+        abs2G > 0. ? 4T(π)/abs2G : zero(T) # Compensating charge background => Zero DC
     end
 
     if !isempty(model.atoms)
