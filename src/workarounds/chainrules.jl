@@ -199,7 +199,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
     scfres = self_consistent_field(basis; kwargs...)
     project_to_scfres = ProjectTo(scfres)
 
-    (; E, H), energy_hamiltonian_pullback =
+    (E, H), energy_hamiltonian_pullback =
         rrule_via_ad(config, energy_hamiltonian, basis, scfres.ψ, scfres.occupation, scfres.ρ)
     Hψ, mul_pullback =
         rrule(config, *, H, scfres.ψ)
