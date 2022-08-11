@@ -1,6 +1,4 @@
 # # Input and output formats
-#md # [![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/guide/@__NAME__.ipynb)
-#md # [![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/guide/@__NAME__.ipynb)
 
 # This section provides an overview of the input and output formats
 # supported by DFTK, usually via integration with a third-party library.
@@ -22,7 +20,8 @@
 # For more details about calculations on magnetic systems
 # using collinear spin, see [Collinear spin and magnetic systems](@ref).
 #
-# First we parse the Quantum Espresso input file to DFTK datastructures:
+# First we parse the Quantum Espresso input file to DFTK datastructures using
+# the `load_atoms`, `load_positions` and `load_lattice` functions.
 
 using DFTK
 
@@ -38,7 +37,6 @@ magnetic_moments = load_magnetic_moments(qe_input)
 
 # Next we attach the pseudopotential information, since this information is currently
 # not exposed inside the ASE datastructures.
-# See [Creating slabs with ASE](@ref) for more details.
 
 atoms = map(atoms) do el
     @assert el.symbol == :Fe
@@ -52,11 +50,6 @@ basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 2, 2))
 ρ0 = guess_density(basis, magnetic_moments)
 scfres = self_consistent_field(basis, tol=1e-4, ρ=ρ0, mixing=KerkerMixing());
 
-# !!! note "DFTK and ASE"
-#     DFTK also supports using ASE to setup a calculation
-#     and provides two-way conversion routines between key DFTK
-#     and ASE datastructures. See [Creating slabs with ASE](@ref) for details.
-#
 # ## Writing VTK files for visualization
 # For visualizing the density or the Kohn-Sham orbitals DFTK supports storing
 # the result of an SCF calculations in the form of VTK files.

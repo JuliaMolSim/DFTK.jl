@@ -7,11 +7,12 @@ include("scf_callbacks.jl")
 end
 
 function default_n_bands(model)
-    min_n_bands = div(model.n_electrons, filled_occupation(model), RoundUp)
-    n_extra = model.temperature == 0 ? 0 : max(4, ceil(Int, 0.2 * min_n_bands))
+    n_spin = model.n_spin_components
+    min_n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)
+    n_extra = model.temperature == 0 ? 0 : max(4, ceil(Int, 0.2 * n_spin * min_n_bands))
     min_n_bands + n_extra
 end
-default_occupation_threshold() = 1e-10
+default_occupation_threshold() = 1e-6
 
 """
 Obtain new density ρ by diagonalizing `ham`.
@@ -35,8 +36,7 @@ function next_density(ham::Hamiltonian;
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Update density from new ψ
-    occupation, εF = compute_occupation(ham.basis, eigres.λ;
-                                        occupation_threshold)
+    occupation, εF = compute_occupation(ham.basis, eigres.λ; occupation_threshold)
     ρout = compute_density(ham.basis, eigres.X, occupation)
 
     (ψ=eigres.X, eigenvalues=eigres.λ, occupation=occupation, εF=εF,
@@ -62,8 +62,8 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
                                        is_converged=ScfConvergenceEnergy(tol),
                                        callback=ScfDefaultCallback(; show_damping=false),
                                        compute_consistent_energies=true,
+                                       occupation_threshold=default_occupation_threshold(), # 1e-10
                                        response=ResponseOptions(),  # Dummy here, only for AD
-                                       occupation_threshold=default_occupation_threshold() # 1e-10
                                       )
     T = eltype(basis)
     model = basis.model
@@ -111,7 +111,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 
         # Update info with results gathered so far
         info = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
-                ρin, ρout, α=damping, n_iter, n_ep_extra,
+                ρin, ρout, α=damping, n_iter, n_ep_extra, occupation_threshold,
                 nextstate..., diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state

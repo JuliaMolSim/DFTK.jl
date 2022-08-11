@@ -80,10 +80,10 @@ struct Applyχ0Model <: χ0Model
 end
 Applyχ0Model(; kwargs_apply_χ0...) = Applyχ0Model(kwargs_apply_χ0)
 function (χ0::Applyχ0Model)(basis; ham, eigenvalues, ψ, occupation, εF,
-                            occupation_threshold, kwargs...)
+                            kwargs...)
     function apply!(δρ, δV, α=1)
         χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                        occupation_threshold, χ0.kwargs_apply_χ0...)
+                        χ0.kwargs_apply_χ0...)
         δρ .+= α .* χ0δV
     end
 end

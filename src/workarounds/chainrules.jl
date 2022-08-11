@@ -91,6 +91,7 @@ function _autodiff_PlaneWaveBasis_namedtuple(model::Model{T, VT}, basis::PlaneWa
         basis.Ecut, basis.variational,
         basis.opFFT, basis.ipFFT, basis.opBFFT, basis.ipBFFT,
         r_to_G_normalization, G_to_r_normalization,
+        basis.G_vectors, basis.r_vectors,
         basis.kpoints, basis.kweights, basis.kgrid, basis.kshift,
         basis.kcoords_global, basis.kweights_global, basis.comm_kpts, basis.krange_thisproc, basis.krange_allprocs,
         basis.symmetries, basis.symmetries_respect_rgrid, terms)

@@ -32,7 +32,7 @@ function model_DFT(lattice::AbstractMatrix,
                    positions::Vector{<:AbstractVector},
                    xc::Xc;
                    extra_terms=[], kwargs...)
-    model_name = isempty(xc.functionals) ? "rHF" : join(xc.functionals, "+")
+    model_name = isempty(xc.functionals) ? "rHF" : join(string.(xc.functionals), "+")
     model_atomic(lattice, atoms, positions;
                  extra_terms=[Hartree(), xc, extra_terms...], model_name, kwargs...)
 end
