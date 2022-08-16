@@ -28,6 +28,9 @@ function spglib_atoms(atom_groups,
     spg_numbers   = zeros(Cint,    n_attypes)
     spg_spins     = zeros(Cdouble, n_attypes)
     spg_positions = zeros(Cdouble, 3, n_attypes)
+    # Note: The storage format now used in Spglib.Cell is vector of vectors of length 3
+    #       but we stick to the matrix-based storage format for now to keep compatibility
+    #       spglib_jll.libsymspg.
 
     arbitrary_spin = false
     offset = 0
@@ -164,7 +167,7 @@ function spglib_standardize_cell(lattice::AbstractArray{T}, atom_groups, positio
                                        no_idealize=!correct_symmetry)
 
     lattice   = Matrix{T}(std_cell.lattice)
-    positions = Vec3{T}.(eachcol(std_cell.positions))
+    positions = Vec3{T}.(std_cell.positions)
     magnetic_moments = normalize_magnetic_moment.(std_cell.magmoms)
     (; lattice, atom_groups, positions, magnetic_moments)
 end
