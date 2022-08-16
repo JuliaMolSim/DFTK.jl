@@ -1,15 +1,15 @@
 #TODO: remove this when it is implemented in GPUArrays
-import LinearAlgebra.dot
+import LinearAlgebra.dot, LinearAlgebra.eigen, LinearAlgebra.RealHermSymComplexHerm
 using LinearAlgebra
 using GPUArrays
-import Base.iszero, Base.isone
 
 LinearAlgebra.dot(x::AbstractGPUArray, D::Diagonal,y::AbstractGPUArray) = x'*(D*y)
 
-Base.iszero(x::AbstractGPUMatrix{T}) where {T} = all(iszero, x)
-
-function Base.isone(x::AbstractGPUMatrix{T}) where {T}
-    n,m = size(x)
-    m != n && return false
-    all(iszero, x-I)
+function LinearAlgebra.eigen(A::RealHermSymComplexHerm{T,AT}) where {T,AT <: CuArray}
+    if eltype(A) <: Complex
+        vals, vects = CUDA.CUSOLVER.heevd!('V','U', A.data)
+    else
+        vals, vects = CUDA.CUSOLVER.syevd!('V','U',A.data)
+    end
+    (vectors = vects, values = vals)
 end

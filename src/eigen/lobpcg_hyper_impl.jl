@@ -122,22 +122,10 @@ end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X::BlockVector, AX::BlockVector, N)
-    rayleigh_ritz(block_overlap(X, AX), N) # block_overlap(X,AX) is an AbstractArray, not a BlockVector
-end
-
-@timing function rayleigh_ritz(XAX::AbstractArray, N)
-    F = eigen(Hermitian(XAX))
+    F = eigen(Hermitian(block_overlap(X, AX))) # block_overlap(X,AX) is an AbstractArray, not a BlockVector
     F.vectors[:,1:N], F.values[1:N]
 end
 
-@timing function rayleigh_ritz(XAX::CuArray, N)
-    if eltype(XAX) <: Complex
-        vals, vects = CUDA.CUSOLVER.heevd!('V','U',XAX)
-    else
-        vals, vects = CUDA.CUSOLVER.syevd!('V','U',XAX)
-    end
-    vects[:,1:N], vals[1:N]
-end
 # B-orthogonalize X (in place) using only one B apply.
 # This uses an unstable method which is only OK if X is already
 # orthogonal (not B-orthogonal) and B is relatively well-conditioned
