@@ -56,7 +56,7 @@ function energy_from_a(a)
     energy_from_basis(basis)
 end
 FiniteDiff.finite_difference_derivative(energy_from_a, a)
-ForwardDiff.derivative(energy_from_a, a)
+ForwardDiff.derivative(energy_from_a, a) # gives 0.0 ?! TODO
 Zygote.withgradient(energy_from_a, a)
 # TODO: there seems to be a factor 2 in Zygote
 
