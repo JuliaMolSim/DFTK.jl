@@ -144,12 +144,6 @@ end
 f6(x; kwargs...) = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; kwargs..., ρ=kwargs[:ρ]).E.total
 f7(ρ) = f6(0.0; ρ=ρ)
 FiniteDiff.finite_difference_derivative(h -> f7(scfres.ρ + h*scfres.ρ), 0.0)
-Zygote.gradient(h -> f7(scfres.ρ + h*scfres.ρ), 0.0) # incorrect by factor 2
+ForwardDiff.derivative(h -> f7(scfres.ρ + h*scfres.ρ), 0.0)
+Zygote.gradient(h -> f7(scfres.ρ + h*scfres.ρ), 0.0) # correct
 
-f1(; kwargs...) = kwargs[:x]
-f2(; kwargs...) = f1(; kwargs..., x=kwargs[:x])
-f3(x) = f2(; x)
-FiniteDiff.finite_difference_derivative(f3, 0.0) # 1.0
-ForwardDiff.derivative(f3, 0.0) # 1.0
-Zygote.gradient(f3, 0.0) # (2.0,) aha!
-# --> opened a new issue https://github.com/FluxML/Zygote.jl/issues/1284
