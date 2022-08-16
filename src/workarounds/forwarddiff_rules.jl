@@ -198,19 +198,19 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     # Note: No guarantees on this interface yet.
 
     # Primal pass
-    basis_primal  = construct_value(basis_dual)
+    basis_primal = construct_value(basis_dual)
     scfres = self_consistent_field(basis_primal; kwargs...)
 
     ## Compute external perturbation (contained in ham_dual) and from matvec with bands
-    ham_dual, Hψ_dual = let
+    energies_dual, ham_dual, Hψ_dual = let
         occupation_dual = [T.(occk) for occk in scfres.occupation]
         ψ_dual = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
         ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
         εF_dual = T(scfres.εF)  # Only needed for entropy term
         eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
-        _, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
+        energies_dual, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
                                          ρ=ρ_dual, eigenvalues=eigenvalues_dual, εF=εF_dual)
-        ham_dual, ham_dual * ψ_dual
+        energies_dual, ham_dual, ham_dual * ψ_dual
     end
 
     ## Implicit differentiation
@@ -237,6 +237,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     # and in this way return a ham that represents also the total change in Hamiltonian
 
     merge(scfres, (; ψ, ρ, eigenvalues, basis=basis_dual,
+                   energies=energies_dual, ham=ham_dual,
                    response=getfield.(δresults, :history)))
 end
 
