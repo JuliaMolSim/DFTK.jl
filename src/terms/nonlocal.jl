@@ -123,7 +123,7 @@ end
 
 function build_projection_coefficients_(psp::NormConservingPsp)
     #@warn "AtomicNonlocal build_projection_coefficients_(psp::NormConservingPsp)"
-    blocks = [[psp.h[l + 1] for m in -l:l] for l in 0:psp.lmax] # TODO fix f64 implicit conversion
+    blocks = [[psp.h[l + 1] for m in -l:l] for l in 0:psp.lmax]
     proj_coeffs = reduce(assemble_block_matrix_, reduce(vcat,blocks))
     proj_coeffs
 end
