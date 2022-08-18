@@ -3,7 +3,7 @@ Kinetic energy: 1/2 sum_n f_n ∫ Blowup_function(|∇ψn|).
 """
 Base.@kwdef struct Kinetic{F}
     scaling_factor::Real = 1
-    blowup::F = BlowupKineticEnergy() # blow-up fonction to smooth energy bands. Defaut is x↦x^2.
+    blowup::F = BlowupKineticEnergy() # blow-up function to smooth energy bands. Defaut is x↦x^2.
 end
 
 (kin::Kinetic)(basis) = TermKinetic(basis, kin.scaling_factor, kin.blowup)
@@ -23,15 +23,19 @@ struct BlowupAbinit
     Ecutsm::Real
 end
 
-function blowup_function(x, Ecut, blowup)
-    @assert( typeof(blowup) ∈ [BlowupKineticEnergy, BlowupCHV, BlowupAbinit] )
-    (blowup isa BlowupKineticEnergy) && (return sum(abs2, x))
-    (blowup isa BlowupCHV) && (return blowup_function_CHV(x))
-    (blowup isa BlowupAbinit) && (return blowup_function_Abinit(x, Ecut, blowup.Ecutsm))
+"""
+Chooses between standard and modified kinetic energies, acording to the blow-up type.
+"""
+function blowup_function(x, blowup)
+    @assert( typeof(blowup) ∈ [BlowupKineticEnergy, BlowupCHV] )
+    (blowup isa BlowupKineticEnergy) && (return sum(abs2, x)) # Standard kinetic term
+    (blowup isa BlowupCHV) && (return blowup_function_CHV(x)) # Modified kinetic term
 end
 
 """
 Blow-up function as proposed in [REF paper Cancès, Hassan, Vidal to be submitted]
+Parameters have been computed to ensure C^2 regularity of the energies bands
+away from crossings and Lipschitz continuity at crossings.
 """
 function blowup_function_CHV(x)
     @assert (0 ≤ x < 1) "The blow-up function is defined on [0,1)"
@@ -54,45 +58,15 @@ function blowup_function_CHV(x)
     (x==1) && return 1e6 # Handle |G+k|^2 = E_cut case
 end
 
-"""
-Blow-up function as implemented in the Abinit code [ref code].
-"""
-function blowup_function_Abinit(x, Ecut, Ecutsm)
-    kin_x = sum(abs2, x)
-    (0 ≤ x ≤ Ecutsm/Ecut) && (return kin_x)
-    (x > 1) && (error("The blow-up function is defined on [0,1)."*
-                      " Did you devide by √Ecut ?"))
-    y = Ecut*(1-kin_x)/Ecutsm
-    kin_x/(y^2*(3+y-6*y^2+3*y^3))
-end
-
 struct TermKinetic <: Term
     scaling_factor::Real  # scaling factor, absorbed into kinetic_energies
     # kinetic energy Ecut*blowup_function(|G+k|/√(2Ecut)) for every kpoint
     kinetic_energies::Vector{<:AbstractVector}
 end
-function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor,
-                     blowup::BlowupKineticEnergy) where {T}
-    kinetic_energies = [[T(scaling_factor) * sum(abs2, Gk) / 2
-                         for Gk in Gplusk_vectors_cart(basis, kpt)]
-                        for kpt in basis.kpoints]
-    TermKinetic(T(scaling_factor), kinetic_energies)
-end
-function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor,
-                     blowup::BlowupCHV) where {T}
+function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, blowup) where {T}
     Ecut = basis.Ecut
     kinetic_energies = [[T(scaling_factor) *
-                         Ecut * blowup_function_CHV(norm(Gk)/√(2*Ecut))
-                         for Gk in Gplusk_vectors_cart(basis, kpt)]
-                        for kpt in basis.kpoints]
-    TermKinetic(T(scaling_factor), kinetic_energies)
-end
-function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor,
-                     blowup::BlowupAbinit) where {T}
-    Ecut = basis.Ecut
-    Ecutsm = blowup.Ecutsm
-    kinetic_energies = [[T(scaling_factor) *
-                         Ecut * blowup_function_abinit(norm(Gk)/√(2*Ecut), Ecut, Ecutsm)
+                         Ecut * blowup_function(norm(Gk)/√(2*Ecut), blowup)
                          for Gk in Gplusk_vectors_cart(basis, kpt)]
                         for kpt in basis.kpoints]
     TermKinetic(T(scaling_factor), kinetic_energies)
