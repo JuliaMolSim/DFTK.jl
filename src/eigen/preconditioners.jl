@@ -36,9 +36,11 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     kinetic_term = [t for t in basis.model.term_types if t isa Kinetic]
     isempty(kinetic_term) && error("Preconditioner should be disabled when no Kinetic term is used.")
     scaling = only(kinetic_term).scaling_factor
-    Blowup_function = only(kinetic_term).Blowup_function
+
+    # Choose blow-up function for cutoff smearing
     Ecut = basis.Ecut
-    kin = Vector{T}([scaling * Ecut* Blowup_function(norm(q)/√(2*Ecut))
+    blowup = only(kinetic_term).blowup
+    kin = Vector{T}([scaling * Ecut * blowup_function(norm(q)/√(2*Ecut), Ecut, blowup)
                      for q in Gplusk_vectors_cart(basis, kpt)])
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end

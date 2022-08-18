@@ -1,8 +1,9 @@
 # # Ensure energy bands regularity with energy cutoff smearing.
-#
-# ROUGH TEXT: Compute ground state E_0 as a function of the lattice parameter, for a
-# small Ecut for silicon, using the standard kinetic term and the modified
-# kinetic term. The modified term gives a smooth band.
+# TODO::::
+# The standard planewave basis depends on the domain and k point.
+# The size of the basis can vary a lot and induce energy irregularities
+# w.r. to kpoints of unit cell volume. DFTK features modified kinetic
+# terms that allow to target wanted regularity.
 
 using DFTK
 using Plots
@@ -44,14 +45,14 @@ end
 # as implemented in Abinit [REF].
 
 Ecut = 5
-kgrid = [8,8,8]
+kgrid = [4,4,4]
 n_bands = 8
-Blowup_function = Blowup_function_CHV()
+blowup=BlowupCHV()
 silicon = silicon_PBE(; kgrid, Ecut)
 
 # Compute total energies w.r. to the lattice parameter.
 E0_std = silicon.compute_GS.(Ref(Kinetic()), a_list; n_bands)
-E0_mod = silicon.compute_GS.(Ref(Kinetic(; Blowup_function)), a_list; n_bands)
+E0_mod = silicon.compute_GS.(Ref(Kinetic(; blowup)), a_list; n_bands)
 
 # We now plot the result of the computation. The ground state energy for the
 # modified kinetic term is shifted for the legibility of the plot.
@@ -60,10 +61,7 @@ p = plot()
 default(linewidth=1.2, framestyle=:box, grid=:true, size=(500,500))
 shift = sum(abs.(E0_std .- E0_mod)) / length(a_list)
 plot!(p, a_list, E0_std, label="Standard E_0")
-plot!(p, a_list, E0_mod .- shift, label="Modified E_0")
-vline!(p, [10.26], label="Experimental a_0", linestyle=:dash)
-vline!(p, [a_list[findmin(E0_std)[2]]], label="Estimated a_0 (std)", linestyle=:dash)
-vline!(p, [a_list[findmin(E0_mod)[2]]], label="Estimated a_0 (mod)", linestyle=:dash)
+plot!(p, a_list, E0_mod .- shift, label="Modified shifted E_0")
 xlabel!(p, "Lattice constant (bohr)")
 ylabel!(p, "Total energy (hartree)")
 
