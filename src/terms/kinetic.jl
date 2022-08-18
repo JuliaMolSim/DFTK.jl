@@ -19,9 +19,6 @@ ADD REFs
 """
 struct BlowupKineticEnergy end
 struct BlowupCHV end
-struct BlowupAbinit
-    Ecutsm::Real
-end
 
 """
 Chooses between standard and modified kinetic energies, acording to the blow-up type.

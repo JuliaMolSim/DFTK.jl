@@ -1,16 +1,36 @@
 # # Ensure energy bands regularity with energy cutoff smearing.
-# TODO::::
-# The standard planewave basis depends on the domain and k point.
-# The size of the basis can vary a lot and induce energy irregularities
-# w.r. to kpoints of unit cell volume. DFTK features modified kinetic
-# terms that allow to target wanted regularity.
+#
+# For a given system, the size of the standard ``k``-point dependant
+# plane-wave discretization basis is highly dependant of the chosen ``k``-point, cut-off
+# energy ``E_c`` as well as the size of the system's unit cell. As a result, energy bands
+# computed along a ``k``-path in the Brillouin zone, or with respect to the system's
+# unit cell volume - in the case of geometry optimization for example -
+# display big irregularities when ``E_c`` is taken to small. The problem can be tackled by
+# introducing  a modified kinetic term in the Hamiltonian.
+# 
+# A modified kinetic term is implemeneted in DFTK, that is mathematicaly ensured to provide
+# C^2 regularity of the energy bands. Let us give a brief example of the usage of such a modified
+# term in the case of the numerical estimation of the lattice constant of face centered
+# crytaline (FCC) silicon.
 
 using DFTK
 using Plots
 
-# Lattice constant of silicon in bohr
-a_0 = 10.26
-a_list = LinRange(a_0 - 0.2, a_0 + 0.2, 20)
+# The lattice of FCC silicon only depends on a single parameter ``a``. We want to
+# plot the variation of the ground state energy with respect to ``a`` to estimate the
+# constant of minimal energy ``a_0``. For this example, let us centered the plot
+# around the experimental value of ``a_0``.
+
+a_0 = 10.26 # Experimental lattice constant of silicon in bohr
+
+# TODO: I put only two points here because the full computation for 100 points
+# is a bit heavy and I didn't managed to directly put the plot as a pdf file.
+# I have to do that in the next commit..
+a_list = LinRange(a_0 - 0.2, a_0 + 0.2, 2)
+
+# In order to easily compare the performances of standard and modified terms,
+# we define the silicon model and plane-wave basis direcly as functions of the
+# kinetic term and lattice parameter ``a``.
 
 PBE_terms(KineticTerm) = [KineticTerm, AtomicLocal(), AtomicNonlocal(),
         Ewald(), PspCorrection(), Hartree(), Xc([:gga_x_pbe, :gga_c_pbe])]
@@ -38,13 +58,11 @@ function silicon_PBE(; basis_kwargs...)
     (;compute_GS=compute_GS, basis=basis_silicon, model=model_silicon)
 end
 
-# We can now compute the ground state of silicon for standard and modified
-# kinetic term for each given parameter ``a``.
+# We can now compute the wanted energies for standard and modified kinetic term.
 # We use the CHV blow-up function introduced in [REF] which ensures ``C^2``
-# regularity of the energy bands. DFTK also features the blow-up function
-# as implemented in Abinit [REF].
+# regularity of the energy bands.
 
-Ecut = 5
+Ecut = 5 # very low Ecut to display big irregularities
 kgrid = [4,4,4]
 n_bands = 8
 blowup=BlowupCHV()
@@ -54,9 +72,9 @@ silicon = silicon_PBE(; kgrid, Ecut)
 E0_std = silicon.compute_GS.(Ref(Kinetic()), a_list; n_bands)
 E0_mod = silicon.compute_GS.(Ref(Kinetic(; blowup)), a_list; n_bands)
 
-# We now plot the result of the computation. The ground state energy for the
+# Let us plot the result of the computation. The ground state energy for the
 # modified kinetic term is shifted for the legibility of the plot.
-
+# TODO: replace by a precomputed pdf file.
 p = plot()
 default(linewidth=1.2, framestyle=:box, grid=:true, size=(500,500))
 shift = sum(abs.(E0_std .- E0_mod)) / length(a_list)
