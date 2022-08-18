@@ -77,7 +77,6 @@ end
         ComponentArray(
            eigenvalues=hcat([ev[1:end-3] for ev in scfres.eigenvalues]...),
            ρ=scfres.ρ,
-           ψ=scfres.ψ,
            energies=collect(values(scfres.energies)),
         )
     end
