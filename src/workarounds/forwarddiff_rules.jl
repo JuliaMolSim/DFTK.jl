@@ -236,6 +236,8 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     # TODO Could add δresults[α].δVind the dual part of the total local potential in ham_dual
     # and in this way return a ham that represents also the total change in Hamiltonian
 
+    # TODO differentiate occupation = compute_occupation(...)
+
     merge(scfres, (; ψ, ρ, eigenvalues, basis=basis_dual,
                    energies=energies_dual, ham=ham_dual,
                    response=getfield.(δresults, :history)))
