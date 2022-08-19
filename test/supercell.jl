@@ -8,11 +8,11 @@ include("testcases.jl")
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_LDA(silicon.lattice, [Si, Si], silicon.positions)
     basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
-    basis_supercell = DFTK.cell_to_supercell(basis)
+    basis_supercell = cell_to_supercell(basis)
     # SCF
     scfres = self_consistent_field(basis, tol=tol)
     scfres_supercell_manual = self_consistent_field(basis_supercell, tol=tol)
-    scfres_supercell = DFTK.cell_to_supercell(scfres)
+    scfres_supercell = cell_to_supercell(scfres)
 
     # Compare energies
     @test norm(scfres.energies.total*prod(kgrid) -
@@ -21,6 +21,6 @@ include("testcases.jl")
 
     # Compare densities
     ρ_ref = DFTK.interpolate_density(dropdims(scfres.ρ, dims=4), basis, basis_supercell)
-    @test norm(ρ_ref .- scfres_supercell.ρ) < 1e-4
+    @test norm(ρ_ref .- scfres_supercell.ρ) < 1e-5
     @test norm(ρ_ref .- scfres_supercell_manual.ρ) < 1e-3
 end

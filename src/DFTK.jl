@@ -61,6 +61,7 @@ export irfft
 export ifft!
 export fft
 export fft!
+export cell_to_supercell
 include("Smearing.jl")
 include("Model.jl")
 include("structure.jl")
@@ -68,6 +69,7 @@ include("PlaneWaveBasis.jl")
 include("fft.jl")
 include("orbitals.jl")
 include("show.jl")
+include("supercell.jl")
 
 export Energies
 include("Energies.jl")

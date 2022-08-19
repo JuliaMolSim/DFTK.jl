@@ -13,8 +13,8 @@ function cell_to_supercell(basis::PlaneWaveBasis)
     fft_size_supercell = basis.fft_size .* supercell_size
 
     # Compute atoms reduced coordinates in the supercell
-    atoms_supercell = []
-    positions_supercell = []
+    atoms_supercell = eltype(model.atoms)[]
+    positions_supercell = eltype(model.positions)[]
     nx, ny, nz = supercell_size
 
     for (atom, position) in zip(model.atoms, model.positions)
@@ -24,14 +24,14 @@ function cell_to_supercell(basis::PlaneWaveBasis)
     end
     # Assemble new model and new basis
     model_supercell = Model(lattice_supercell, atoms_supercell, positions_supercell;
-                            terms=model.term_types, symmetries = false)
+                            terms=model.term_types, symmetries=false)
     PlaneWaveBasis(model_supercell, basis.Ecut, fft_size_supercell,
                    basis.variational,
-                   [zeros(Int64, 3)], # kcoords
-                   [one(Float64)],    # kweights
-                   [1,1,1],           # kgrid = Γ point only
-                   zeros(Int64, 3),   # kshift
-                   [one(SymOp)],    # single point symmetry                   
+                   [zeros(Float64, 3)],  # kcoords
+                   [one(Float64)],       # kweights
+                   [1,1,1],              # kgrid = Γ point only
+                   zeros(Int64, 3),      # kshift
+                   false,                # single point symmetry
                    basis.comm_kpts,
                    )
 end
