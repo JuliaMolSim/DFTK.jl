@@ -66,6 +66,7 @@ Random.seed!(0)
         include("elements.jl")
         include("bzmesh.jl")
         include("bzmesh_symmetry.jl")
+        include("supercell.jl")
     end
 
     if "all" in TAGS
