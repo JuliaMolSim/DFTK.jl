@@ -1,5 +1,6 @@
 """
-Kinetic energy: 1/2 sum_n f_n ∫ Blowup_function(|∇ψn|).
+Kinetic energy: 1/2 sum_n f_n ∫ |∇ψn|^2.
+             or 1/2 sum_n f_n ∫ blowup_function(-i∇Ψ)^2 for modified kinetic term  
 """
 Base.@kwdef struct Kinetic{F}
     scaling_factor::Real = 1
@@ -13,7 +14,7 @@ function Base.show(io::IO, kin::Kinetic)
 end
 
 """
-Define different energy cutoff strategy. BlowupKineticEnergy corresponds
+Define different energy cutoff strategies. BlowupKineticEnergy corresponds
 to standard kinetic energies.
 ADD REFs
 """

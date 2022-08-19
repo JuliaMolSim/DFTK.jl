@@ -91,7 +91,6 @@ export apply_kernel
 export compute_kernel
 export BlowupKineticEnergy
 export BlowupCHV
-export BlowupAbinit
 include("DispatchFunctional.jl")
 include("terms/terms.jl")
 
