@@ -6,8 +6,8 @@ include("testcases.jl")
     Ecut = 4; kgrid = [3,3,3]; tol=1e-7; kshift=zeros(3);
     # Parameters
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
-    model = model_DFT(silicon.lattice, [Si, Si], silicon.positions, [:lda_xc_teter93])
-    basis = PlaneWaveBasis(model; Ecut=Ecut, kgrid=kgrid, kshift=kshift)
+    model = model_LDA(silicon.lattice, [Si, Si], silicon.positions)
+    basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
     basis_supercell = DFTK.cell_to_supercell(basis)
     # SCF
     scfres = self_consistent_field(basis, tol=tol)
