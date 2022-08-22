@@ -65,6 +65,7 @@ end
 function B_ortho!(X, BX)
     O = Hermitian(X'*BX)
     U = cholesky(O).U
+    any(isnan, U) && error("B_ortho!(X,BX) fails because cholesky decomposition has NaNs.")
     rdiv!(X, U)
     rdiv!(BX, U)
 end
@@ -94,6 +95,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
         catch err
             @assert isa(err, PosDefException)
             vprintln("fail")
+            any(isnan, R) && error("Ortho(X) fails because cholesky decomposition has NaNs.")
             # see https://arxiv.org/pdf/1809.11085.pdf for a nice analysis
             # We are not being very clever here; but this should very rarely happen
             # so it should be OK
@@ -109,6 +111,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
                 catch err
                     @assert isa(err, PosDefException)
                 end
+                any(isnan, R) && error("Cholesky shifting fails because cholesky decomposition has NaNs.")
                 nbad += 1
                 if nbad > 10
                     error("Cholesky shifting is failing badly, this should never happen")
@@ -132,6 +135,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
         # condR = 1/LAPACK.trcon!('I', 'U', 'N', Array(R))
         condR = normest(R)*norminvR # in practice this seems to be an OK estimate
 
+        any(isnan, condR) && error("The condition number of R is NaN. Check R's norm.")
         vprintln("Ortho(X) success? $success ", eps(real(T))*condR^2, " < $tol")
 
         # a good a posteriori error is that X'X - I is eps()*κ(R)^2;
@@ -388,6 +392,7 @@ end
                 error("LOBPCG is badly failing to keep the vectors normalized; this should never happen")
             end
         end
+        any(isnan, X) && error("LOBPCG is failing because X has NaNs.")
 
         # Restrict all views to active
         @views begin
