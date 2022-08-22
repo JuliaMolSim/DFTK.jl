@@ -45,6 +45,7 @@ vprintln(args...) = nothing
 using LinearAlgebra
 using CUDA
 using GPUArrays
+import Base: *
 include("../workarounds/gpu_arrays.jl")
 
 # For now, BlockVector can store arrays of different types (for example, an element of type views and one of type Matrix). Maybe for performance issues it should only store arrays of the same type?
@@ -98,10 +99,10 @@ block_overlap(blocksA::BlockVector, B) = block_overlap(blocksA, make_block_vecto
 block_overlap(A, B) = A' * B #Default fallback method. Note the adjoint.
 
 """Given A as a BlockVector [A1, A2, A3] this forms the matrix-matrix product
-A * B avoiding a concatenation of the blocks to a dense array. block_mul has compatible versions with two Arrays.
-block_overlap always compute  product A*B (no adjoint).
+A * B avoiding a concatenation of the blocks to a dense array. 
+There is also a compatible versions with two Arrays.
 """
-@views function block_mul(Ablock::BlockVector, B)
+@views function *(Ablock::BlockVector, B)
     res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
     offset = size(Ablock.blocks[1], 2)
     for block in Ablock.blocks[2:end]
@@ -111,13 +112,9 @@ block_overlap always compute  product A*B (no adjoint).
     res
 end
 
-block_mul(A, Bblock::BlockVector) = error("Not implemented")
-block_mul(A::Tuple, B::Tuple) = error("not implemented")
-block_mul(A, B) = A * B # Default fallback method.
-
 function LinearAlgebra.mul!(res,A::BlockVector,B::AbstractArray,α,β)
-    # Has slightly better performances than a naive res = α*block_mul(A,B) - β*res
-    mul!(res, block_mul(A, B), I, α, β)
+    # Has slightly better performances than a naive res = α*A*B - β*res
+    mul!(res, A*B, I, α, β)
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
@@ -246,7 +243,7 @@ end
         # as can happen in extreme cases in the ortho!(cP, cX)
         dropped = drop!(X)
         if dropped != []
-            X[:, dropped] .-= block_mul(Y, block_overlap(BY,X[:, dropped])) #X = X - Y'*BY*X
+            X[:, dropped] .-= Y * block_overlap(BY,X[:, dropped]) #X = X - Y'*BY*X
         end
 
         if norm(BYX) < tol && niter > 1
@@ -298,7 +295,6 @@ end
                         miniter=1, ortho_tol=2eps(real(eltype(X))),
                         n_conv_check=nothing, display_progress=false)
     N, M = size(X)
-    typearray = typeof(X)
 
     # If N is too small, we will likely get in trouble
     error_message(verb) = "The eigenproblem is too small, and the iterative " *
@@ -371,9 +367,9 @@ end
             # wait on updating P because we have to know which vectors
             # to lock (and therefore the residuals) before computing P
             # only for the unlocked vectors. This results in better convergence.
-            new_X  = block_mul(Y, cX)
-            new_AX = block_mul(AY, cX)  # no accuracy loss, since cX orthogonal
-            new_BX = (B == I) ? new_X : block_mul(BY, cX)
+            new_X  = Y * cX
+            new_AX = AY * cX  # no accuracy loss, since cX orthogonal
+            new_BX = (B == I) ? new_X : BY * cX
         end
 
         ### Compute new residuals
@@ -427,11 +423,12 @@ end
             # orthogonalization, see Hetmaniuk & Lehoucq, and Duersch et. al.
             # cP = copy(cX)
             # cP[Xn_indices,:] .= 0
-            e = zeros(eltype(X), size(cX, 1), M - prev_nlocked)
-            for i in 1:length(Xn_indices)
-                e[Xn_indices[i], i] = 1
-            end
-            e = convert(typearray,e)
+
+            lenXn = length(Xn_indices)
+            e = zero(similar(X, size(cX, 1), M - prev_nlocked))
+            lower_diag = one(similar(X, lenXn, lenXn))
+            #e has zeros everywhere except on one of its lower diagonal
+            e[Xn_indices[1] : last(Xn_indices), 1 : lenXn] = lower_diag
 
             cP = cX .- e
             cP = cP[:, Xn_indices]
@@ -439,10 +436,10 @@ end
             ortho!(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
-            new_P  = block_mul( Y, cP)
-            new_AP = block_mul(AY, cP)
+            new_P  = Y * cP
+            new_AP = AY * cP
             if B != I
-                new_BP = block_mul(BY, cP)
+                new_BP = BY * cP
             else
                 new_BP = new_P
             end
