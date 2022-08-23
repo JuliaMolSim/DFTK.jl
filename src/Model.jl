@@ -263,13 +263,48 @@ Examples of covectors are forces.
 Reciprocal vectors are a special case: they are covectors, but conventionally have an
 additional factor of 2π in their definition, so they transform rather with 2π times the
 inverse lattice transpose: q_cart = 2π lattice' \ q_red = recip_lattice * q_red.
+
+The trans_mat functions return the transition matrices required to do such a change of basis.
 =#
-vector_red_to_cart(model::Model, rred)        = model.lattice * rred
-vector_cart_to_red(model::Model, rcart)       = model.inv_lattice * rcart
-covector_red_to_cart(model::Model, fred)      = model.inv_lattice' * fred
-covector_cart_to_red(model::Model, fcart)     = model.lattice' * fcart
-recip_vector_red_to_cart(model::Model, qred)  = model.recip_lattice * qred
-recip_vector_cart_to_red(model::Model, qcart) = model.inv_recip_lattice * qcart
+
+trans_mat_vector_red_to_cart(model::Model) = model.lattice
+trans_mat_vector_cart_to_red(model::Model)   = model.inv_lattice
+trans_mat_covector_red_to_cart(model::Model)      = model.inv_lattice'
+trans_mat_covector_cart_to_red(model::Model)     = model.lattice'
+trans_mat_recip_vector_red_to_cart(model::Model)  = model.recip_lattice 
+trans_mat_recip_vector_cart_to_red(model::Model) = model.inv_recip_lattice
+
+fun_mat_list =(:vector_red_to_cart,
+                :vector_cart_to_red,
+                :covector_red_to_cart,
+                :covector_cart_to_red,
+                :recip_vector_red_to_cart,
+                :recip_vector_cart_to_red
+)
+
+for fun1 in fun_mat_list
+    #=
+    The following functions compute the change of basis for a given vector. To do so,
+    they call the trans_mat functions to get the corresponding transition matrix.
+    These functions can be broadcasted over an Array of vectors: however, they are
+    not GPU compatible, as they require the model, which is no isbits.
+    =#
+    @eval $fun1(model::Model, vec) = $(Symbol("trans_mat_"*string(fun1)))(model::Model) * vec
+    #=
+    The following functions take an AbstractArray of vectors and compute the change of basis
+    for every vector in the AbstractArray: they return an AbstractArray of the same type
+    and size as the input, but containing the vectors in a new basis.
+    These functions are GPU compatible (ie the AbstractArray can be a GPUArray), since
+    they use a map and the transition matrices are static arrays.
+    =#
+    @eval function $(Symbol("map_"*string(fun1)))(model::Model, A::AbstractArray)
+        trans_matrix = $(Symbol("trans_mat_"*string(fun1)))(model)
+        in_new_basis = map(A) do Ai
+            trans_matrix  * Ai
+        end
+        in_new_basis
+    end
+end
 
 #=
 Transformations on vectors and covectors are matrices and comatrices.
