@@ -377,7 +377,7 @@ array_type(basis::PlaneWaveBasis{T,VT,AT}) where {T, VT, AT} = AT
 
 The list of ``G`` vectors of a given `basis` or `kpt`, in cartesian coordinates.
 """
-G_vectors_cart(basis::PlaneWaveBasis) = recip_vector_red_to_cart.(basis.model, G_vectors(basis))
+G_vectors_cart(basis::PlaneWaveBasis) = map_recip_vector_red_to_cart(basis.model, G_vectors(basis))
 function G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
     recip_vector_red_to_cart.(basis.model, G_vectors(basis, kpt))
 end

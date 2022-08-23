@@ -297,7 +297,7 @@ for fun1 in fun_mat_list
     These functions are GPU compatible (ie the AbstractArray can be a GPUArray), since
     they use a map and the transition matrices are static arrays.
     =#
-    @eval function $(Symbol("map_"*string(fun1)))(model::Model, A::AbstractArray)
+    @eval function $(Symbol("map_"*string(fun1)))(model::Model, A::AbstractArray{AT}) where {AT <: Vec3}
         trans_matrix = $(Symbol("trans_mat_"*string(fun1)))(model)
         in_new_basis = map(A) do Ai
             trans_matrix  * Ai
