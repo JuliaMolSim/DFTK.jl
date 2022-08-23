@@ -296,7 +296,7 @@ end
         else
             factors = (1,)
         end
-        fft_size = compute_fft_size(model, Ecut, kcoords; factors=factors)
+        fft_size = compute_fft_size(model, Ecut, kcoords; factors)
     end
     PlaneWaveBasis(model, Ecut, fft_size, variational, kcoords, kweights,
                    kgrid, kshift, symmetries_respect_rgrid, comm_kpts, array_type)

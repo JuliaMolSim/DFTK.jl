@@ -86,3 +86,29 @@ end
     derivative_fd = ForwardDiff.derivative(compute_band_energies, 0.0)
     @test norm(derivative_fd - derivative_ε) < 1e-4
 end
+
+@testset "Functional force sensitivity using ForwardDiff" begin
+    using DftFunctionals
+
+    function compute_force(ε1::T) where {T}
+        pos = [[1.01, 1.02, 1.03] / 8, -ones(3) / 8]
+        pbec = DftFunctional(:gga_c_pbe)
+        pbex = DftFunctional(:gga_x_pbe)
+        pbex = change_parameters(pbex, parameters(pbex) + ComponentArray(κ=0, μ=ε1))
+
+        model = model_DFT(Matrix{T}(silicon.lattice), silicon.atoms, pos, [pbex, pbec])
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
+
+        is_converged = DFTK.ScfConvergenceDensity(1e-10)
+        scfres = self_consistent_field(basis;
+                                       is_converged, response=ResponseOptions(verbose=true))
+        compute_forces_cart(scfres)
+    end
+
+    derivative_ε = let ε = 1e-5
+        (compute_force(ε) - compute_force(-ε)) / 2ε
+    end
+    derivative_fd = ForwardDiff.derivative(compute_force, 0.0)
+    @show derivative_ε derivative_fd
+    @test norm(derivative_ε - derivative_fd) < 1e-4
+end
