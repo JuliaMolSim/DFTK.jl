@@ -43,42 +43,42 @@
 vprintln(args...) = nothing
 
 using LinearAlgebra
-using CUDA
-using GPUArrays
 import Base: *
 include("../workarounds/gpu_arrays.jl")
 
-# For now, BlockVector can store arrays of different types (for example, an element of type views and one of type Matrix). Maybe for performance issues it should only store arrays of the same type?
+# For now, BlockMatrix can store arrays of different types (for example, an element 
+# of type views and one of type Matrix). Maybe for performance issues it should only
+# store arrays of the same type?
 
-struct BlockVector
+struct BlockMatrix
     blocks::Tuple
     size::Tuple{Int64,Int64}
 end
 
 """
-Build a BlockVector containing the given arrays, from left to right.
+Build a BlockMatrix containing the given arrays, from left to right.
 This function will fail (for now) if:
     -the arrays do not all have the same "height" (ie size[1] must match).
 """
 function make_block_vector(arrays::AbstractArray...)
-    length(arrays) ==0 && error("Empty BlockVector is not currently implemented")
+    length(arrays) ==0 && error("Empty BlockMatrix is not currently implemented")
     n_ref= size(arrays[1])[1]
     m=0
     for array in arrays
         n_i, m_i = size(array)
-        n_ref != n_i && error("The given arrays do not have matching 'height': cannot build a BlockVector out of them.")
+        n_ref != n_i && error("The given arrays do not have matching 'height': cannot build a BlockMatrix out of them.")
         m += m_i
     end
-    BlockVector(arrays, (n_ref,m))
+    BlockMatrix(arrays, (n_ref,m))
 end
 
 
 """
-Given A and B as two BlockVectors [A1, A2, A3], [B1, B2, B3] form the matrix
-A'B (which is not a BlockVector). block_overlap also has compatible versions with two Arrays. 
+Given A and B as two BlockMatrixs [A1, A2, A3], [B1, B2, B3] form the matrix
+A'B (which is not a BlockMatrix). block_overlap also has compatible versions with two Arrays. 
 block_overlap always compute some form of adjoint, ie the product A'*B.
 """
-@views function block_overlap(A::BlockVector, B::BlockVector)
+@views function block_overlap(A::BlockMatrix, B::BlockMatrix)
     rows = A.size[2]
     cols = B.size[2]
     ret = similar(A.blocks[1], rows, cols)
@@ -95,14 +95,14 @@ block_overlap always compute some form of adjoint, ie the product A'*B.
     ret
 end
 
-block_overlap(blocksA::BlockVector, B) = block_overlap(blocksA, make_block_vector(B))
-block_overlap(A, B) = A' * B #Default fallback method. Note the adjoint.
+block_overlap(blocksA::BlockMatrix, B) = block_overlap(blocksA, make_block_vector(B))
+block_overlap(A, B) = A' * B # Default fallback method. Note the adjoint.
 
-"""Given A as a BlockVector [A1, A2, A3] this forms the matrix-matrix product
-A * B avoiding a concatenation of the blocks to a dense array. 
-There is also a compatible versions with two Arrays.
 """
-@views function *(Ablock::BlockVector, B)
+Given A as a BlockMatrix [A1, A2, A3] and B a Matrix, compute the matrix-matrix product
+A * B avoiding a concatenation of the blocks to a dense array. 
+"""
+@views function *(Ablock::BlockMatrix, B)
     res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
     offset = size(Ablock.blocks[1], 2)
     for block in Ablock.blocks[2:end]
@@ -112,14 +112,14 @@ There is also a compatible versions with two Arrays.
     res
 end
 
-function LinearAlgebra.mul!(res,A::BlockVector,B::AbstractArray,α,β)
+function LinearAlgebra.mul!(res,A::BlockMatrix,B::AbstractArray,α,β)
     # Has slightly better performances than a naive res = α*A*B - β*res
     mul!(res, A*B, I, α, β)
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
-@timing function rayleigh_ritz(X::BlockVector, AX::BlockVector, N)
-    F = eigen(Hermitian(block_overlap(X, AX))) # block_overlap(X,AX) is an AbstractArray, not a BlockVector
+@timing function rayleigh_ritz(X::BlockMatrix, AX::BlockMatrix, N)
+    F = eigen(Hermitian(block_overlap(X, AX))) # block_overlap(X,AX) is an AbstractArray, not a BlockMatrix
     F.vectors[:,1:N], F.values[1:N]
 end
 

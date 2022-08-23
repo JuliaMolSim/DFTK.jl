@@ -2,6 +2,7 @@
 import LinearAlgebra.dot, LinearAlgebra.eigen, LinearAlgebra.RealHermSymComplexHerm
 using LinearAlgebra
 using GPUArrays
+using CUDA
 
 LinearAlgebra.dot(x::AbstractGPUArray, D::Diagonal,y::AbstractGPUArray) = x'*(D*y)
 
