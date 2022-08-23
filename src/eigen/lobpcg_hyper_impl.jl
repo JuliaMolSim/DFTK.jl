@@ -41,6 +41,8 @@
 
 # vprintln(args...) = println(args...)  # Uncomment for output
 vprintln(args...) = nothing
+# check_nan(X, msg) = any(isnan,X) && error(msg) # Uncomment for NaN checks.
+check_nan(args...) = nothing
 
 using LinearAlgebra
 using BlockArrays # used for the `mortar` command which makes block matrices
@@ -65,7 +67,7 @@ end
 function B_ortho!(X, BX)
     O = Hermitian(X'*BX)
     U = cholesky(O).U
-    any(isnan, U) && error("B_ortho!(X,BX) fails because cholesky decomposition has NaNs.")
+    check_nan(U, "B_ortho! fails because cholesky decomposition has NaNs.")
     rdiv!(X, U)
     rdiv!(BX, U)
 end
@@ -95,7 +97,6 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
         catch err
             @assert isa(err, PosDefException)
             vprintln("fail")
-            any(isnan, R) && error("Ortho(X) fails because cholesky decomposition has NaNs.")
             # see https://arxiv.org/pdf/1809.11085.pdf for a nice analysis
             # We are not being very clever here; but this should very rarely happen
             # so it should be OK
@@ -111,7 +112,6 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
                 catch err
                     @assert isa(err, PosDefException)
                 end
-                any(isnan, R) && error("Cholesky shifting fails because cholesky decomposition has NaNs.")
                 nbad += 1
                 if nbad > 10
                     error("Cholesky shifting is failing badly, this should never happen")
@@ -120,6 +120,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
             success = false
         end
         invR = inv(R)
+        check_nan(invR, "Ortho(X) fails because invR has NaNs.")
         rmul!(X, invR) # we do not use X/R because we use invR next
 
         # We would like growth_factor *= opnorm(inv(R)) but it's too
@@ -135,7 +136,6 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
         # condR = 1/LAPACK.trcon!('I', 'U', 'N', Array(R))
         condR = normest(R)*norminvR # in practice this seems to be an OK estimate
 
-        any(isnan, condR) && error("The condition number of R is NaN. Check R's norm.")
         vprintln("Ortho(X) success? $success ", eps(real(T))*condR^2, " < $tol")
 
         # a good a posteriori error is that X'X - I is eps()*κ(R)^2;
@@ -286,6 +286,7 @@ end
         if niter > 0 # first iteration is just to compute the residuals (no X update)
             ###  Perform the Rayleigh-Ritz
             mul!(AR, A, R)
+            check_nan(AR, "AR has NaNs after applying A.")
             n_matvec += size(R, 2)
 
             # Form Rayleigh-Ritz subspace
@@ -322,6 +323,7 @@ end
             @timing "preconditioning" begin
                 precondprep!(precon, X) # update preconditioner if needed; defaults to noop
                 ldiv!(precon, new_R)
+                check_nan(new_R, "new_R has NaNs after applying the preconditioner.")
             end
         end
 
@@ -392,7 +394,6 @@ end
                 error("LOBPCG is badly failing to keep the vectors normalized; this should never happen")
             end
         end
-        any(isnan, X) && error("LOBPCG is failing because X has NaNs.")
 
         # Restrict all views to active
         @views begin
@@ -428,6 +429,7 @@ end
         ortho!(R, Z, BZ; tol=ortho_tol)
         if B != I
             mul!(BR, B, R)
+            check_nan(BR, "BR has NaNs after applying B.")
             B_ortho!(R, BR)
         end
 
