@@ -55,5 +55,5 @@ using Random
 function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany) where {T}
     orbitals = similar(basis.G_vectors, Complex{T}, length(G_vectors(basis, kpt)), howmany)
     randn!(TaskLocalRNG(), orbitals) #Force the use of GPUArrays.jl's random function if using the GPU
-    ortho_qr(orbitals)
+    ortho_qr(orbitals; array_type = array_type(basis))
 end
