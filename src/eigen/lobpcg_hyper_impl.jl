@@ -43,17 +43,83 @@
 vprintln(args...) = nothing
 
 using LinearAlgebra
-using BlockArrays # used for the `mortar` command which makes block matrices
+import Base: *
+include("../workarounds/gpu_arrays.jl")
 
-# when X or Y are BlockArrays, this makes the return value be a proper array (not a BlockArray)
-function array_mul(X::AbstractArray{T}, Y) where T
-    Z = Array{T}(undef, size(X, 1), size(Y, 2))
-    mul!(Z, X, Y)
+# For now, BlockMatrix can store arrays of different types (for example, an element 
+# of type views and one of type Matrix). Maybe for performance issues it should only
+# store arrays of the same type?
+
+struct BlockMatrix
+    blocks::Tuple
+    size::Tuple{Int64,Int64}
+end
+
+"""
+Build a BlockMatrix containing the given arrays, from left to right.
+This function will fail (for now) if:
+    -the arrays do not all have the same "height" (ie size[1] must match).
+"""
+function make_block_vector(arrays::AbstractArray...)
+    length(arrays) ==0 && error("Empty BlockMatrix is not currently implemented")
+    n_ref= size(arrays[1])[1]
+    m=0
+    for array in arrays
+        n_i, m_i = size(array)
+        n_ref != n_i && error("The given arrays do not have matching 'height': cannot build a BlockMatrix out of them.")
+        m += m_i
+    end
+    BlockMatrix(arrays, (n_ref,m))
+end
+
+
+"""
+Given A and B as two BlockMatrixs [A1, A2, A3], [B1, B2, B3] form the matrix
+A'B (which is not a BlockMatrix). block_overlap also has compatible versions with two Arrays. 
+block_overlap always compute some form of adjoint, ie the product A'*B.
+"""
+@views function block_overlap(A::BlockMatrix, B::BlockMatrix)
+    rows = A.size[2]
+    cols = B.size[2]
+    ret = similar(A.blocks[1], rows, cols)
+
+    orow = 0  # row offset
+    for (iA, blA) in enumerate(A.blocks)
+        ocol = 0  # column offset
+        for (iB, blB) in enumerate(B.blocks)
+            ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] = blA' * blB
+            ocol += size(blB, 2)
+        end
+        orow += size(blA, 2)
+    end
+    ret
+end
+
+block_overlap(blocksA::BlockMatrix, B) = block_overlap(blocksA, make_block_vector(B))
+block_overlap(A, B) = A' * B # Default fallback method. Note the adjoint.
+
+"""
+Given A as a BlockMatrix [A1, A2, A3] and B a Matrix, compute the matrix-matrix product
+A * B avoiding a concatenation of the blocks to a dense array. 
+"""
+@views function *(Ablock::BlockMatrix, B)
+    res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
+    offset = size(Ablock.blocks[1], 2)
+    for block in Ablock.blocks[2:end]
+        mul!(res, block, B[offset .+ (1:size(block, 2)), :], 1, 1)
+        offset += size(block, 2)
+    end
+    res
+end
+
+function LinearAlgebra.mul!(res,A::BlockMatrix,B::AbstractArray,α,β)
+    # Has slightly better performances than a naive res = α*A*B - β*res
+    mul!(res, A*B, I, α, β)
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
-@timing function rayleigh_ritz(X, AX, N)
-    F = eigen(Hermitian(array_mul(X', AX)))
+@timing function rayleigh_ritz(X::BlockMatrix, AX::BlockMatrix, N)
+    F = eigen(Hermitian(block_overlap(X, AX))) # block_overlap(X,AX) is an AbstractArray, not a BlockMatrix
     F.vectors[:,1:N], F.values[1:N]
 end
 
@@ -170,16 +236,16 @@ end
     niter = 1
     ninners = zeros(Int,0)
     while true
-        BYX = BY'X
-        # XXX the one(T) instead of plain old 1 is because of https://github.com/JuliaArrays/BlockArrays.jl/issues/176
+        BYX = block_overlap(BY,X) # = BY' X
         mul!(X, Y, BYX, -one(T), one(T)) # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho!(cP, cX)
         dropped = drop!(X)
         if dropped != []
-            @views mul!(X[:, dropped], Y, BY' * (X[:, dropped]), -one(T), one(T)) # X -= Y*BY'X
+            X[:, dropped] .-= Y * block_overlap(BY,X[:, dropped]) #X = X - Y'*BY*X
         end
+
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
             break
@@ -215,10 +281,9 @@ function final_retval(X, AX, resid_history, niter, n_matvec)
     residuals = AX .- X*Diagonal(λ)
     (λ=λ, X=X,
      residual_norms=[norm(residuals[:, i]) for i in 1:size(residuals, 2)],
-     residual_history=resid_history[:, 1:niter+1],
-     n_matvec=n_matvec)
+     residual_history=resid_history[:, 1:niter+1], n_matvec=n_matvec)
+    #λ doesn't have to be on the GPU, but X does (ψ should always be on GPU throughout the code).
 end
-
 
 ### The algorithm is Xn+1 = rayleigh_ritz(hcat(Xn, A*Xn, Xn-Xn-1))
 ### We follow the strategy of Hetmaniuk and Lehoucq, and maintain a B-orthonormal basis Y = (X,R,P)
@@ -230,12 +295,13 @@ end
                         miniter=1, ortho_tol=2eps(real(eltype(X))),
                         n_conv_check=nothing, display_progress=false)
     N, M = size(X)
+
     # If N is too small, we will likely get in trouble
     error_message(verb) = "The eigenproblem is too small, and the iterative " *
-                           "eigensolver $verb fail; increase the number of " *
-                           "degrees of freedom, or use a dense eigensolver."
-    N > 3M    || error(error_message("will"))
-    N >= 3M+5 || @warn error_message("might")
+                            "eigensolver $verb fail; increase the number of " *
+                            "degrees of freedom, or use a dense eigensolver."
+     N > 3M    || error(error_message("will"))
+     N >= 3M+5 || @warn error_message("might")
 
     n_conv_check === nothing && (n_conv_check = M)
     resid_history = zeros(real(eltype(X)), M, maxiter+1)
@@ -271,6 +337,7 @@ end
     nlocked = 0
     niter = 0  # the first iteration is fake
     λs = @views [(X[:,n]'*AX[:,n]) / (X[:,n]'BX[:,n]) for n=1:M]
+    λs = oftype(X[:,1], λs) #Offload to GPU if needed
     new_X = X
     new_AX = AX
     new_BX = BX
@@ -286,13 +353,13 @@ end
 
             # Form Rayleigh-Ritz subspace
             if niter > 1
-                Y = mortar((X, R, P))
-                AY = mortar((AX, AR, AP))
-                BY = mortar((BX, BR, BP))  # data shared with (X, R, P) in non-general case
+                Y = make_block_vector(X, R, P)
+                AY = make_block_vector(AX, AR, AP)
+                BY = make_block_vector(BX, BR, BP)  # data shared with (X, R, P) in non-general case
             else
-                Y  = mortar((X, R))
-                AY = mortar((AX, AR))
-                BY = mortar((BX, BR))  # data shared with (X, R) in non-general case
+                Y  = make_block_vector(X, R)
+                AY = make_block_vector(AX, AR)
+                BY = make_block_vector(BX, BR)  # data shared with (X, R) in non-general case
             end
             cX, λs = rayleigh_ritz(Y, AY, M-nlocked)
 
@@ -300,9 +367,9 @@ end
             # wait on updating P because we have to know which vectors
             # to lock (and therefore the residuals) before computing P
             # only for the unlocked vectors. This results in better convergence.
-            new_X  = array_mul(Y, cX)
-            new_AX = array_mul(AY, cX)  # no accuracy loss, since cX orthogonal
-            new_BX = (B == I) ? new_X : array_mul(BY, cX)
+            new_X  = Y * cX
+            new_AX = AY * cX  # no accuracy loss, since cX orthogonal
+            new_BX = (B == I) ? new_X : BY * cX
         end
 
         ### Compute new residuals
@@ -356,20 +423,23 @@ end
             # orthogonalization, see Hetmaniuk & Lehoucq, and Duersch et. al.
             # cP = copy(cX)
             # cP[Xn_indices,:] .= 0
-            e = zeros(eltype(X), size(cX, 1), M - prev_nlocked)
-            for i in 1:length(Xn_indices)
-                e[Xn_indices[i], i] = 1
-            end
+
+            lenXn = length(Xn_indices)
+            e = zero(similar(X, size(cX, 1), M - prev_nlocked))
+            lower_diag = one(similar(X, lenXn, lenXn))
+            #e has zeros everywhere except on one of its lower diagonal
+            e[Xn_indices[1] : last(Xn_indices), 1 : lenXn] = lower_diag
+
             cP = cX .- e
             cP = cP[:, Xn_indices]
             # orthogonalize against all Xn (including newly locked)
             ortho!(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
-            new_P  = array_mul( Y, cP)
-            new_AP = array_mul(AY, cP)
+            new_P  = Y * cP
+            new_AP = AY * cP
             if B != I
-                new_BP = array_mul(BY, cP)
+                new_BP = BY * cP
             else
                 new_BP = new_P
             end
@@ -414,8 +484,8 @@ end
 
         # Orthogonalize R wrt all X, newly active P
         if niter > 0
-            Z  = mortar((full_X, P))
-            BZ = mortar((full_BX, BP))  # data shared with (full_X, P) in non-general case
+            Z  = make_block_vector(full_X, P)
+            BZ = make_block_vector(full_BX, BP) # data shared with (full_X, P) in non-general case
         else
             Z  = full_X
             BZ = full_BX
