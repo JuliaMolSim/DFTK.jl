@@ -41,8 +41,7 @@
 
 # vprintln(args...) = println(args...)  # Uncomment for output
 vprintln(args...) = nothing
-# check_nan(X, msg) = any(isnan, X) && error(msg)  # Uncomment for NaN checks.
-check_nan(args...) = nothing
+check_nan(X, msg) = any(isnan, X) && error(msg)
 
 using LinearAlgebra
 using BlockArrays # used for the `mortar` command which makes block matrices
@@ -55,7 +54,9 @@ end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X, AX, N)
-    F = eigen(Hermitian(array_mul(X', AX)))
+    XAX = array_mul(X', AX)
+    check_nan(XAX, "Rayleigh-Ritz fails because X'AX has NaNs.")
+    F = eigen(Hermitian(XAX))
     F.vectors[:,1:N], F.values[1:N]
 end
 
@@ -286,7 +287,6 @@ end
         if niter > 0 # first iteration is just to compute the residuals (no X update)
             ###  Perform the Rayleigh-Ritz
             mul!(AR, A, R)
-            check_nan(AR, "AR has NaNs after applying A.")
             n_matvec += size(R, 2)
 
             # Form Rayleigh-Ritz subspace
@@ -323,7 +323,6 @@ end
             @timing "preconditioning" begin
                 precondprep!(precon, X) # update preconditioner if needed; defaults to noop
                 ldiv!(precon, new_R)
-                check_nan(new_R, "new_R has NaNs after applying the preconditioner.")
             end
         end
 
@@ -429,7 +428,6 @@ end
         ortho!(R, Z, BZ; tol=ortho_tol)
         if B != I
             mul!(BR, B, R)
-            check_nan(BR, "BR has NaNs after applying B.")
             B_ortho!(R, BR)
         end
 
