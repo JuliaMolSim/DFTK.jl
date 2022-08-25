@@ -41,7 +41,7 @@
 
 # vprintln(args...) = println(args...)  # Uncomment for output
 vprintln(args...) = nothing
-# check_nan(X, msg) = any(isnan,X) && error(msg) # Uncomment for NaN checks.
+# check_nan(X, msg) = any(isnan, X) && error(msg)  # Uncomment for NaN checks.
 check_nan(args...) = nothing
 
 using LinearAlgebra
