@@ -5,7 +5,7 @@
 # DOS (density of states)
 # D(ε) = N'(ε)
 # LDOS (local density of states)
-# LD = sum_n f_n ψn
+# LD = sum_n f_n |ψn|^2
 
 """
 Total density of states at energy ε
@@ -54,6 +54,6 @@ function compute_ldos(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
 end
 
 """
-Plot the density of states over a reasonable range
+Plot the density of states over a reasonable range. Requires to load `Plots.jl` beforehand.
 """
 function plot_dos end

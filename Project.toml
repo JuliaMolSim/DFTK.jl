@@ -1,7 +1,7 @@
 name = "DFTK"
 uuid = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
 authors = ["Michael F. Herbst <info@michael-herbst.com>", "Antoine Levitt <antoine.levitt@inria.fr>"]
-version = "0.5.5"
+version = "0.5.6"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -74,7 +74,7 @@ PyCall = "1"
 Requires = "1"
 Roots = "1, 2"
 SpecialFunctions = "1, 2"
-Spglib = "0.5"
+Spglib = "0.6"
 StaticArrays = "1"
 TimerOutputs = "0.5.11"
 Unitful = "1"
