@@ -209,7 +209,8 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
         εF_dual = T(scfres.εF)  # Only needed for entropy term
         eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
         energies_dual, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
-                                         ρ=ρ_dual, eigenvalues=eigenvalues_dual, εF=εF_dual)
+                                                     ρ=ρ_dual, eigenvalues=eigenvalues_dual, 
+                                                     εF=εF_dual)
         energies_dual, ham_dual, ham_dual * ψ_dual
     end
 
