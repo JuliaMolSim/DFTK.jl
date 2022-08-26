@@ -78,6 +78,8 @@ end
            eigenvalues=hcat([ev[1:end-3] for ev in scfres.eigenvalues]...),
            ρ=scfres.ρ,
            energies=collect(values(scfres.energies)),
+           εF=scfres.εF,
+           # occupation=vcat(scfres.occupation...),
         )
     end
 

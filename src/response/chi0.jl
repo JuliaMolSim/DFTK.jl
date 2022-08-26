@@ -312,9 +312,16 @@ end
                                              kwargs_sternheimer...)
         end
     end
+
+    # pad δoccupation TODO is this correct?
+    δoccupation = zero.(occ)
+    for (ik, maskk) in enumerate(mask_occ)
+        δoccupation[ik][maskk] .+= δocc[ik]
+    end
+
     # keeping zeros for extra bands to keep the output δψ with the same size
     # than the input ψ
-    δψ
+    δψ, δoccupation, δεF
 end
 
 """
@@ -341,8 +348,8 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
 
     δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
-    δψ = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                     occupation_threshold, kwargs_sternheimer...)
+    δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                                       occupation_threshold, kwargs_sternheimer...)
     δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation)
     δρ * normδV
 end
