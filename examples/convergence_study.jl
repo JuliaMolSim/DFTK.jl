@@ -32,15 +32,15 @@ function run_scf(; a=5.0, Ecut, nkpt, tol)
     basis  = PlaneWaveBasis(model; Ecut, kgrid=(nkpt, nkpt, nkpt))
     println("nkpt = $nkpt Ecut = $Ecut")
     self_consistent_field(basis; tol)
-end
+end;
 
 # Moreover we define some parameters. To make the calculations run fast for the
 # automatic generation of this documentation we target only a convergence to
 # 1e-2. In practice smaller tolerances (and thus larger upper bounds for
 # `nkpts` and `Ecuts` are likely needed.
-tol   = 1e-2     # Tolerance to which we target to converge
-nkpts = 1:7      # K-point range checked for convergence
-Ecuts = 10:2:24  # Energy cutoff range checked for convergence
+tol   = 1e-2      # Tolerance to which we target to converge
+nkpts = 1:7       # K-point range checked for convergence
+Ecuts = 10:2:24;  # Energy cutoff range checked for convergence
 
 # As the first step we converge in the number of kpoints employed in each
 # dimension of the Brillouin zone.
@@ -72,17 +72,17 @@ Ecut_conv = result.Ecut_conv
 plot(result.Ecuts, result.errors, dpi=300, lw=3, m=:o, yaxis=:log,
      xlabel="Ecut", ylabel="energy absolute error")
 
-## A more realistic example.
-# Repeating the above exercise for more realistic settings, namely
+# ## A more realistic example.
+# Repeating the above exercise for more realistic settings, namely ...
 tol   = 1e-4  # Tolerance to which we target to converge
 nkpts = 1:20  # K-point range checked for convergence
-Ecuts = 20:1:50
+Ecuts = 20:1:50;
 
-# one obtains the following two plots for the convergence in `kpoints` and `Ecut`.
+# ...one obtains the following two plots for the convergence in `kpoints` and `Ecut`.
 
 #md # ```@raw html
-#md # <img src="../assets/pregenerated/convergence_study_kgrid.png" width=600 height=400 />
-#md # <img src="../assets/pregenerated/convergence_study_ecut.png"  width=600 height=400 />
+#md # <img src="../../assets/convergence_study_kgrid.png" width=600 height=400 />
+#md # <img src="../../assets/convergence_study_ecut.png"  width=600 height=400 />
 #md # ```
-#nb # <img src="../assets/pregenerated/convergence_study_kgrid.png" width=600 height=400 />
-#nb # <img src="../assets/pregenerated/convergence_study_ecut.png"  width=600 height=400 />
+#nb # <img src="https://docs.dftk.org/stable/assets/convergence_study_kgrid.png" width=600 height=400 />
+#nb # <img src="https://docs.dftk.org/stable/assets/convergence_study_ecut.png"  width=600 height=400 />

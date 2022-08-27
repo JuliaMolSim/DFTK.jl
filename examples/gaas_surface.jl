@@ -38,7 +38,7 @@ pyimport("ase.io").write("surface.png", surface * (3, 3, 1),
 #md # ```@raw html
 #md # <img src="../surface.png" width=500 height=500 />
 #md # ```
-#nb # <img src="surface.png" width=500 height=500 />
+#nb # <img src="https://docs.dftk.org/stable/surface.png" width=500 height=500 />
 
 # Use the `load_atoms`, `load_positions` and `load_lattice` functions
 # to convert to DFTK datastructures.
