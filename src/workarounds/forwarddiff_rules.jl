@@ -202,7 +202,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     scfres = self_consistent_field(basis_primal; kwargs...)
 
     ## Compute external perturbation (contained in ham_dual) and from matvec with bands
-    _, ham_dual, Hψ_dual = let
+    _, _, Hψ_dual = let
         occupation_dual = [T.(occk) for occk in scfres.occupation]
         ψ_dual = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
         ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
