@@ -24,11 +24,8 @@ struct BlowupCHV end
 """
 Chooses between standard and modified kinetic energies, acording to the blow-up type.
 """
-function blowup_function(x, blowup)
-    @assert( typeof(blowup) ∈ [BlowupKineticEnergy, BlowupCHV] )
-    (blowup isa BlowupKineticEnergy) && (return sum(abs2, x)) # Standard kinetic term
-    (blowup isa BlowupCHV) && (return blowup_function_CHV(x)) # Modified kinetic term
-end
+blowup_function(x, blowup::BlowupKineticEnergy) = sum(abs2, x)
+blowup_function(x, blowup::BlowupCHV) = blowup_function_CHV(x)
 
 """
 Blow-up function as proposed in [REF paper Cancès, Hassan, Vidal to be submitted]
@@ -58,10 +55,17 @@ end
 
 struct TermKinetic <: Term
     scaling_factor::Real  # scaling factor, absorbed into kinetic_energies
-    # kinetic energy Ecut*blowup_function(|G+k|/√(2Ecut)) for every kpoint
+    # kinetic energies 1/2(k+G)^2 (or Ecut*blowup_function(|k+G|/√2Ecut) for energy
+    # cutoff smearing methods) for each k-point
     kinetic_energies::Vector{<:AbstractVector}
 end
-function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, blowup) where {T}
+function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, blowup::BlowupKineticEnergy) where {T}
+    kinetic_energies = [[T(scaling_factor) * sum(abs2, Gk) / 2
+                         for Gk in Gplusk_vectors_cart(basis, kpt)]
+                        for kpt in basis.kpoints]
+    TermKinetic(T(scaling_factor), kinetic_energies)
+end
+function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, blowup::BlowupCHV) where {T}
     Ecut = basis.Ecut
     kinetic_energies = [[T(scaling_factor) *
                          Ecut * blowup_function(norm(Gk)/√(2*Ecut), blowup)

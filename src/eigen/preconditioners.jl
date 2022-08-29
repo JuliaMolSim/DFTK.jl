@@ -19,7 +19,6 @@ No preconditioning
 struct PreconditionerNone end
 PreconditionerNone(basis, kpt) = I
 
-
 """
 (simplified version of) Tetter-Payne-Allan preconditioning
 ↑ M.P. Teter, M.C. Payne and D.C. Allan, Phys. Rev. B 40, 12255 (1989).
@@ -36,7 +35,6 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     kinetic_term = [t for t in basis.model.term_types if t isa Kinetic]
     isempty(kinetic_term) && error("Preconditioner should be disabled when no Kinetic term is used.")
     scaling = only(kinetic_term).scaling_factor
-
     # Choose blow-up function for cutoff smearing
     Ecut = basis.Ecut
     blowup = only(kinetic_term).blowup
