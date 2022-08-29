@@ -36,7 +36,7 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
                 # use information from previous k-point
                 X0 = interpolate_kpoint(results[ik - 1].X, ham.basis, kpoints[ik - 1],
                                         ham.basis, kpoints[ik])
-                ψguessk = ortho_qr(X0; array_type = array_type(basis))  # Re-orthogonalize and renormalize
+                ψguessk = ortho_qr(X0; array_type = array_type(ham.basis))  # Re-orthogonalize and renormalize
             else
                 ψguessk = random_orbitals(ham.basis, kpt, nev_per_kpoint)
             end

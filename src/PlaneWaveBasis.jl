@@ -326,7 +326,7 @@ Creates a new basis identical to `basis`, but with a custom set of kpoints
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
                    kcoords, kweights, kgrid, kshift,
-                   basis.symmetries_respect_rgrid, basis.comm_kpts, array_type = array_type(basis))
+                   basis.symmetries_respect_rgrid, basis.comm_kpts, array_type(basis))
 end
 
 """
@@ -412,7 +412,7 @@ r_vectors(basis::PlaneWaveBasis) = basis.r_vectors
 
 The list of ``r`` vectors, in cartesian coordinates.
 """
-r_vectors_cart(basis::PlaneWaveBasis) = vector_red_to_cart.(basis.model, r_vectors(basis))
+r_vectors_cart(basis::PlaneWaveBasis) = map_recip_vector_red_to_cart(basis.model, r_vectors(basis))
 
 
 """
