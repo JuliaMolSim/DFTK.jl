@@ -4,8 +4,8 @@ import FiniteDiff
 
 
 a = 10.26
-Si = ElementPsp(:Si, psp=load_psp(:Si, functional="lda"))
-atoms = [Si]
+Si = ElementPsp(:Si, psp=load_psp("hgh/lda/He-q2"))
+atoms = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 function make_model(a)
     lattice = a / 2 * [[0. 1. 1.];
@@ -34,7 +34,7 @@ occupation = scfres.occupation
 
 function total_energy(ρ)
     energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
-    sum(values(getfield(energies, :energies)))
+    sum(values(energies))
 end
 
 total_energy(scfres.ρ)
