@@ -104,7 +104,8 @@ export total_density
 export spin_density
 export ρ_from_total_and_spin
 include("densities.jl")
-include("interpolation_transfer.jl")
+include("transfer.jl")
+include("interpolation.jl")
 export compute_transfer_matrix
 export transfer_blochwave
 export transfer_blochwave_kpt
