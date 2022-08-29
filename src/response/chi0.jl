@@ -331,7 +331,7 @@ end
 
     # keeping zeros for extra bands to keep the output δψ with the same size
     # than the input ψ
-    δψ, δoccupation, δεF # TODO NamedTuple
+    (; δψ, δoccupation, δεF)
 end
 
 """
