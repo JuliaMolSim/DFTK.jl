@@ -48,7 +48,7 @@ ase_atoms(setup.model).write("al_supercell.png")
 #md # ```@raw html
 #md # <img src="../al_supercell.png" width=500 height=500 />
 #md # ```
-#nb # <img src="al_supercell.png" width=500 height=500 />
+#nb # <img src="https://docs.dftk.org/stable/examples/al_supercell.png" width=500 height=500 />
 
 # As we will see in this notebook the modelling of a system generally becomes
 # harder if the system becomes larger.
