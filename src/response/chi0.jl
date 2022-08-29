@@ -285,6 +285,16 @@ end
         D = mpi_sum(D, basis.comm_kpts)  # equal to minus the total DOS
         δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
         δεF = δocc_tot / D
+        # recompute δocc
+        for ik = 1:Nk
+            for (n, εnk) in enumerate(ε_occ[ik])
+                enred = (εnk - εF) / temperature
+                fpnk = (filled_occ
+                        * Smearing.occupation_derivative(model.smearing, enred)
+                        / temperature)
+                δocc[ik][n] -= fpnk * δεF
+            end
+        end
     end
 
     # compute δψnk band per band
@@ -303,7 +313,7 @@ end
                 ddiff = Smearing.occupation_divided_difference
                 ratio = filled_occ * ddiff(model.smearing, εk[m], εk[n], εF, temperature)
                 αmn = compute_αmn(fmk, fnk, ratio)  # fnk * αmn + fmk * αnm = ratio
-                δψk[:, n] .+= ψk[:, m] .* αmn .* (dot(ψk[:, m], δHψ[ik][:, n]) - (n == m) * δεF)
+                δψk[:, n] .+= ψk[:, m] .* αmn .* (dot(ψk[:, m], δHψ[ik][:, n]) * (n != m))
             end
 
             # Sternheimer contribution
@@ -313,7 +323,7 @@ end
         end
     end
 
-    # pad δoccupation TODO is this correct?
+    # pad δoccupation
     δoccupation = zero.(occ)
     for (ik, maskk) in enumerate(mask_occ)
         δoccupation[ik][maskk] .+= δocc[ik]
@@ -321,7 +331,7 @@ end
 
     # keeping zeros for extra bands to keep the output δψ with the same size
     # than the input ψ
-    δψ, δoccupation, δεF
+    δψ, δoccupation, δεF # TODO NamedTuple
 end
 
 """
@@ -350,7 +360,7 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
            for (ik, kpt) in enumerate(basis.kpoints)]
     δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                        occupation_threshold, kwargs_sternheimer...)
-    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation)
+    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation, δoccupation)
     δρ * normδV
 end
 

@@ -202,16 +202,16 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     scfres = self_consistent_field(basis_primal; kwargs...)
 
     ## Compute external perturbation (contained in ham_dual) and from matvec with bands
-    _, _, Hψ_dual = let
+    Hψ_dual = let
         occupation_dual = [T.(occk) for occk in scfres.occupation]
         ψ_dual = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
         ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
         εF_dual = T(scfres.εF)  # Only needed for entropy term
         eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
-        energies_dual, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
-                                                     ρ=ρ_dual, eigenvalues=eigenvalues_dual, 
-                                                     εF=εF_dual)
-        energies_dual, ham_dual, ham_dual * ψ_dual
+        _, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
+                                         ρ=ρ_dual, eigenvalues=eigenvalues_dual, 
+                                         εF=εF_dual)
+        ham_dual * ψ_dual
     end
 
     ## Implicit differentiation
@@ -241,13 +241,10 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     # TODO Could add δresults[α].δVind the dual part of the total local potential in ham_dual
     # and in this way return a ham that represents also the total change in Hamiltonian
 
-    # TODO use dual occupation below (or not?)
-    energies, ham = energy_hamiltonian(basis_dual, ψ, scfres.occupation; ρ, eigenvalues, εF)
+    energies, ham = energy_hamiltonian(basis_dual, ψ, occupation; ρ, eigenvalues, εF)
 
-    # TODO return dual occupation
-    merge(scfres, (; ψ, ρ, eigenvalues, energies, εF,
+    merge(scfres, (; ψ, ρ, eigenvalues, energies, εF, ham, occupation,
                      basis=basis_dual,
-                     ham=ham,
                      response=getfield.(δresults, :history)))
 end
 

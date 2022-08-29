@@ -79,7 +79,7 @@ end
            ρ=scfres.ρ,
            energies=collect(values(scfres.energies)),
            εF=scfres.εF,
-           # occupation=vcat(scfres.occupation...),
+           occupation=vcat(scfres.occupation...),
         )
     end
 
@@ -87,7 +87,7 @@ end
         (compute_band_energies(ε) - compute_band_energies(-ε)) / 2ε
     end
     derivative_fd = ForwardDiff.derivative(compute_band_energies, 0.0)
-    @test norm(derivative_fd - derivative_ε) < 1e-4
+    @test norm(derivative_fd - derivative_ε) < 5e-4
 end
 
 @testset "Functional force sensitivity using ForwardDiff" begin
