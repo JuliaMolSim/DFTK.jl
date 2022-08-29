@@ -61,6 +61,8 @@ g = Zygote.gradient(compute_dipole, 0.0)
 # incl. compile time: 229 seconds
 # second call:          4 seconds (7.84 M allocations: 733.864 MiB, 25.31% gc time)
 
+# TODO pending https://github.com/FluxML/Zygote.jl/pull/1295
+
 
 println("f: ", f, " fd: ", polarizability_fd, " AD: ", g)
 
