@@ -201,7 +201,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     basis_primal  = construct_value(basis_dual)
     scfres = self_consistent_field(basis_primal; kwargs...)
 
-    ## Compute external perturbation (contained in ham_dual) and from matvec with bands
+    ## Compute external perturbation (contained in ham_dual) and form matvec with bands
     ham_dual, Hψ_dual = let
         occupation_dual = [T.(occk) for occk in scfres.occupation]
         ψ_dual = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
