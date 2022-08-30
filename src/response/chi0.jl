@@ -270,30 +270,26 @@ end
     if temperature > 0
         # First compute δocc without self-consistent Fermi δεF
         D = zero(T)
-        for ik = 1:Nk
-            for (n, εnk) in enumerate(ε_occ[ik])
-                enred = (εnk - εF) / temperature
-                δεnk = real(dot(ψ_occ[ik][:, n], δHψ[ik][:, n]))
-                fpnk = (filled_occ
-                        * Smearing.occupation_derivative(model.smearing, enred)
-                        / temperature)
-                δocc[ik][n] = δεnk * fpnk
-                D += fpnk * basis.kweights[ik]
-            end
+        for ik = 1:Nk, (n, εnk) in enumerate(ε_occ[ik])
+            enred = (εnk - εF) / temperature
+            δεnk = real(dot(ψ_occ[ik][:, n], δHψ[ik][:, n]))
+            fpnk = (filled_occ
+                    * Smearing.occupation_derivative(model.smearing, enred)
+                    / temperature)
+            δocc[ik][n] = δεnk * fpnk
+            D += fpnk * basis.kweights[ik]
         end
         # compute δεF
         D = mpi_sum(D, basis.comm_kpts)  # equal to minus the total DOS
         δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
         δεF = δocc_tot / D
         # recompute δocc
-        for ik = 1:Nk
-            for (n, εnk) in enumerate(ε_occ[ik])
-                enred = (εnk - εF) / temperature
-                fpnk = (filled_occ
-                        * Smearing.occupation_derivative(model.smearing, enred)
-                        / temperature)
-                δocc[ik][n] -= fpnk * δεF
-            end
+        for ik = 1:Nk, (n, εnk) in enumerate(ε_occ[ik])
+            enred = (εnk - εF) / temperature
+            fpnk = (filled_occ
+                    * Smearing.occupation_derivative(model.smearing, enred)
+                    / temperature)
+            δocc[ik][n] -= fpnk * δεF
         end
     end
 
