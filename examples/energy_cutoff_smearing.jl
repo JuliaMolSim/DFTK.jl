@@ -29,11 +29,11 @@ a_list = LinRange(a_0 - 1/2, a_0 + 1/2, 20) # 20 points around a0
 # we define the silicon model and plane-wave basis direcly as functions of the
 # kinetic term and lattice parameter ``a``.
 
-LDA_terms(KineticTerm) = [KineticTerm, AtomicLocal(), AtomicNonlocal(),
-        Ewald(), PspCorrection(), Hartree(), Xc([:lda_x, :lda_c_pw])]
+PBE_terms(KineticTerm) = [KineticTerm, AtomicLocal(), AtomicNonlocal(),
+        Ewald(), PspCorrection(), Hartree(), Xc([:gga_x_pbe, :gga_c_pbe])]
 
-function silicon_LDA(; basis_kwargs...)
-    # Defines a model for silicon with LDA functional given kinetic term and
+function silicon_PBE(; basis_kwargs...)
+    # Defines a model for silicon with PBE functional given kinetic term and
     # lattice parameter a
     function model_silicon(KineticTerm, a)
         lattice = a / 2 * [[0 1 1.];
@@ -42,7 +42,7 @@ function silicon_LDA(; basis_kwargs...)
         Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
         atoms = [Si, Si]
         positions = [ones(3)/8, -ones(3)/8]
-        Model(lattice, atoms, positions; terms=LDA_terms(KineticTerm),
+        Model(lattice, atoms, positions; terms=PBE_terms(KineticTerm),
               model_name="custom")
     end
     # Construct a plane-wave basis given a kinetic term using model_silicon
@@ -82,12 +82,13 @@ Ecut = 5        # very low Ecut to display big irregularities
 kgrid = [2,2,2] # very sparse k-grid to fasten convergence
 n_bands = 8
 blowup=BlowupCHV()
-silicon = silicon_LDA(; kgrid, Ecut)
+silicon = silicon_PBE(; kgrid, Ecut)
 
 # We now compute total energies with respect to the lattice parameter...
 
-E0_std = silicon.compute_GS.(Ref(Kinetic()), a_list; n_bands)
-E0_mod = silicon.compute_GS.(Ref(Kinetic(; blowup)), a_list; n_bands)
+callback = info -> nothing # mute each scf cycle
+E0_std = silicon.compute_GS.(Ref(Kinetic()), a_list; n_bands, callback)
+E0_mod = silicon.compute_GS.(Ref(Kinetic(; blowup)), a_list; n_bands, callback)
 
 # ... and plot the result of the computations. The ground state energy for the
 # modified kinetic term is shifted for the legibility of the plot.
@@ -102,5 +103,5 @@ ylabel!(p, "Total energy (hartree)")
 
 # The smoothed curve allow to clearly designate a minimal value of the energy with
 # respect to ``a``. Note that this estimate still suffers from errors relative to
-# the LDA approximation and the choice of sparse k-grid, for which one benefits however
+# the PBE approximation and the choice of sparse k-grid, for which one benefits however
 # from error estimates.
