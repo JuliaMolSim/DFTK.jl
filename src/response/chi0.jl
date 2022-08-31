@@ -270,21 +270,27 @@ end
     if temperature > 0
         # First compute δocc without self-consistent Fermi δεF
         D = zero(T)
-        for ik = 1:Nk
-            for (n, εnk) in enumerate(ε_occ[ik])
-                enred = (εnk - εF) / temperature
-                δεnk = real(dot(ψ_occ[ik][:, n], δHψ[ik][:, n]))
-                fpnk = (filled_occ
-                        * Smearing.occupation_derivative(model.smearing, enred)
-                        / temperature)
-                δocc[ik][n] = δεnk * fpnk
-                D += fpnk * basis.kweights[ik]
-            end
+        for ik = 1:Nk, (n, εnk) in enumerate(ε_occ[ik])
+            enred = (εnk - εF) / temperature
+            δεnk = real(dot(ψ_occ[ik][:, n], δHψ[ik][:, n]))
+            fpnk = (filled_occ
+                    * Smearing.occupation_derivative(model.smearing, enred)
+                    / temperature)
+            δocc[ik][n] = δεnk * fpnk
+            D += fpnk * basis.kweights[ik]
         end
         # compute δεF
         D = mpi_sum(D, basis.comm_kpts)  # equal to minus the total DOS
         δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
         δεF = δocc_tot / D
+        # recompute δocc
+        for ik = 1:Nk, (n, εnk) in enumerate(ε_occ[ik])
+            enred = (εnk - εF) / temperature
+            fpnk = (filled_occ
+                    * Smearing.occupation_derivative(model.smearing, enred)
+                    / temperature)
+            δocc[ik][n] -= fpnk * δεF
+        end
     end
 
     # compute δψnk band per band
@@ -303,7 +309,7 @@ end
                 ddiff = Smearing.occupation_divided_difference
                 ratio = filled_occ * ddiff(model.smearing, εk[m], εk[n], εF, temperature)
                 αmn = compute_αmn(fmk, fnk, ratio)  # fnk * αmn + fmk * αnm = ratio
-                δψk[:, n] .+= ψk[:, m] .* αmn .* (dot(ψk[:, m], δHψ[ik][:, n]) - (n == m) * δεF)
+                δψk[:, n] .+= ψk[:, m] .* αmn .* (dot(ψk[:, m], δHψ[ik][:, n]) * (n != m))
             end
 
             # Sternheimer contribution
@@ -312,9 +318,16 @@ end
                                              kwargs_sternheimer...)
         end
     end
+
+    # pad δoccupation
+    δoccupation = zero.(occ)
+    for (ik, maskk) in enumerate(mask_occ)
+        δoccupation[ik][maskk] .+= δocc[ik]
+    end
+
     # keeping zeros for extra bands to keep the output δψ with the same size
     # than the input ψ
-    δψ
+    (; δψ, δoccupation, δεF)
 end
 
 """
@@ -341,9 +354,9 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
 
     δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
-    δψ = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                     occupation_threshold, kwargs_sternheimer...)
-    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation)
+    δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                                       occupation_threshold, kwargs_sternheimer...)
+    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation, δoccupation)
     δρ * normδV
 end
 
