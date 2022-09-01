@@ -1,65 +1,77 @@
 # # Ensure energy bands regularity with energy cutoff smearing.
 #
-# For a given system, the size of the standard ``k``-point dependant
-# plane-wave discretization basis is highly dependant of the chosen ``k``-point, cut-off
-# energy ``E_c`` as well as the size of the system's unit cell. As a result, energy bands
-# computed along a ``k``-path in the Brillouin zone, or with respect to the system's
-# unit cell volume - in the case of geometry optimization for example -
-# display big irregularities when ``E_c`` is taken to small. The problem can be tackled by
-# introducing a modified kinetic term in the Hamiltonian.
-# 
-# A modified kinetic term is implemeneted in DFTK, that is mathematicaly
-# ensured to provide C^2 regularity of the energy bands.
-# Let us give a brief example of the usage of such a modified term in the case
-# of the numerical estimation of the lattice constant of face centered
-# crytaline (FCC) silicon.
+# As recalled in the
+# [Problems and plane-wave discretization](https://docs.dftk.org/stable/guide/periodic_problems/)
+# section, the energy of periodic systems is computed by solving eigenvalue
+# problems of the form
+#
+#```math
+# \begin{equation}
+# H_ku_k=\varepsilon_k u_k
+# \end{equation}
+# ```
+#
+# for each ``k``-point in the first Brillouin zone of the system.
+# Each of these eigenvalue problem is discretized with a plane-wave basis
+# ``\mathcal{B}_k^{E_c}=\{x\mapsto e^{iG\cdot x} \;\;|\;G\in\mathcal{R}^*,\;\; |k+G|^2\leq 2E_c\}``
+# whose size highly depends on the choice of ``k``-point, cutoff energy ``\rm E_c`` or
+# cell size.  As a result, energy bands computed along a ``k``-path in the Brillouin zone
+# or with respect to the system's unit cell volume - in the case of geometry optimization
+# for example - display big irregularities when ``E_c`` is taken too small.
+#
+# Here is for example the variation of the ground state energy of face cubic centered
+# (FCC) silicon with respect to its lattice parameter,
+# around the experimental lattice constant.
 
 using DFTK
-using Plots
 
-# The lattice of FCC silicon only depends on a single parameter ``a``. We want to
-# plot the variation of the ground state energy with respect to ``a`` to estimate the
-# constant of minimal energy ``a_0``. For this example, let us centered the plot
-# around the experimental value of ``a_0``.
+a0 = 10.26 # Experimental lattice constant of silicon in bohr
+a_list = LinRange(a0 - 1/2, a0 + 1/2, 20) # 20 points around a0
 
-a_0 = 10.26 # Experimental lattice constant of silicon in bohr
-a_list = LinRange(a_0 - 1/2, a_0 + 1/2, 20) # 20 points around a0
+Ecut = 5        # very low Ecut to display big irregularities
+kgrid = [2,2,2] # very sparse k-grid to fasten convergence
+n_bands = 8     # Standard number of bands for silicon
 
-# In order to easily compare the performances of standard and modified terms,
-# we define the silicon model and plane-wave basis direcly as functions of the
-# kinetic term and lattice parameter ``a``.
-
-PBE_terms(KineticTerm) = [KineticTerm, AtomicLocal(), AtomicNonlocal(),
-        Ewald(), PspCorrection(), Hartree(), Xc([:gga_x_pbe, :gga_c_pbe])]
-
-function silicon_PBE(; basis_kwargs...)
-    # Defines a model for silicon with PBE functional given kinetic term and
-    # lattice parameter a
-    function model_silicon(KineticTerm, a)
+function compute_ground_state_energy(a; Ecut, kgrid, kwargs...)
+    function model(a)
         lattice = a / 2 * [[0 1 1.];
                            [1 0 1.];
                            [1 1 0.]]
         Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
         atoms = [Si, Si]
         positions = [ones(3)/8, -ones(3)/8]
-        Model(lattice, atoms, positions; terms=PBE_terms(KineticTerm),
-              model_name="custom")
+        model_PBE(lattice, atoms, positions)
     end
-    # Construct a plane-wave basis given a kinetic term using model_silicon
-    basis_silicon(KineticTerm, a; kwargs...) =
-        PlaneWaveBasis(model_silicon(KineticTerm, a); kwargs...)
-    # Compute the ground state given the kinetic term and lattice parameter a
-    compute_GS(KineticTerm, a; kwargs...) =
-        self_consistent_field(basis_silicon(KineticTerm, a; basis_kwargs...);
-                              kwargs...).energies.total
-    (;compute_GS=compute_GS, basis=basis_silicon, model=model_silicon)
+    basis(a) = PlaneWaveBasis(model(a); Ecut, kgrid)
+    self_consistent_field(basis(a); kwargs...).energies.total
 end
 
-# We can now compute the wanted energies for standard and modified kinetic term.
-# The modified energies are defined through the data of a blow-up function.
-# We use the CHV blow-up function introduced in [REF] which coefficients chosen
-# to ensures ``C^2`` regularity of the energy bands. More details on properties
-# of the blow-up function can be found in the same reference.
+callback = info->nothing # set SCF to non verbose
+E0_naive = compute_ground_state_energy.(a_list; Ecut, kgrid, n_bands, callback);
+
+# To be compared with the same computation for a high `Ecut=100`. The naive approximation
+# of the energy is shifted for the legibility of the plot.
+E0_ref = [-7.839775223322127, -7.843031658146996, -7.845961005280923,
+                -7.848576991754026, -7.850892888614151, -7.852921532056932,
+                -7.854675317792186, -7.85616622262217, -7.85740584131599,
+                -7.858405359984107, -7.859175611288143, -7.859727053496513,
+                -7.860069804791132, -7.860213631865354, -7.8601679947736915,
+                -7.859942011410533, -7.859544518721661, -7.858984032385052,
+                -7.858268793303855, -7.857406769423708]
+
+using Plots
+shift = sum(abs.(E0_naive .- E0_ref)) / 20
+p = plot(a_list, E0_naive .- shift, label="Ecut=5 Ha", xlabel="lattice parameter a (bohr)",
+         ylabel="Ground state energy (Ha)")
+plot!(p, a_list, E0_ref, label="Ecut=100 Ha")
+
+# The problem of non-smoothness of the approximated energy is typically avoided by
+# taking a large enough `Ecut`, at the cost of a high computation time.
+# Another method consist in introducing a modified kinetic term defined through
+# the data of a blow-up funtion, a method which is also refered to as "energy cutoff
+# smearing". DFTK features energy cutoff smearing using the CHV blow-up
+# function introduced in [REF of the paper to be submitted],
+# that is mathematicaly ensured to provide C^2 regularity of the energy bands.
 
 # !!! note "Other energy cutoff options"
 #     The quantum chemistry codes Qbox [^Qbox] and Abinit [^Abinit] also feature
@@ -76,32 +88,47 @@ end
 #    Abinit software suite [user guide](https://docs.abinit.org/variables/rlx/#ecutsm)
 #
 
-# Let us set up the parameters of the SCF cycles.
+# Let us lauch the computation again with the modified kinetic term.
 
-Ecut = 5        # very low Ecut to display big irregularities
-kgrid = [2,2,2] # very sparse k-grid to fasten convergence
-n_bands = 8
-blowup=BlowupCHV()
-silicon = silicon_PBE(; kgrid, Ecut)
+blowup = BlowupCHV() # Choose blowup function
+modified_PBE_terms = [Kinetic(;blowup), AtomicLocal(), AtomicNonlocal(),
+                      Ewald(), PspCorrection(), Hartree(), Xc([:gga_x_pbe, :gga_c_pbe])]
 
-# We now compute total energies with respect to the lattice parameter...
+function compute_ground_state_energy_modified(a; Ecut, kgrid, kwargs...)
+    function model(a)
+        lattice = a / 2 * [[0 1 1.];
+                           [1 0 1.];
+                           [1 1 0.]]
+        Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+        atoms = [Si, Si]
+        positions = [ones(3)/8, -ones(3)/8]
+        Model(lattice, atoms, positions; terms=modified_PBE_terms)
+    end
+    basis(a) = PlaneWaveBasis(model(a); Ecut, kgrid)
+    self_consistent_field(basis(a); kwargs...).energies.total
+end
 
-callback = info -> nothing # mute each scf cycle
-E0_std = silicon.compute_GS.(Ref(Kinetic()), a_list; n_bands, callback)
-E0_mod = silicon.compute_GS.(Ref(Kinetic(; blowup)), a_list; n_bands, callback)
+E0_modified = compute_ground_state_energy_modified.(a_list; Ecut, kgrid,
+                                                    n_bands, callback);
 
-# ... and plot the result of the computations. The ground state energy for the
-# modified kinetic term is shifted for the legibility of the plot.
+# We can know compare the approximation of the energy as well as the estimated
+# lattice constant for each strategy.
 
-p = plot()
-default(linewidth=1.2, framestyle=:box, grid=:true, size=(600,400))
-shift = sum(abs.(E0_std .- E0_mod)) / length(a_list)
-plot!(p, a_list, E0_std, label="Standard E_0")
-plot!(p, a_list, E0_mod .- shift, label="Modified shifted E_0")
-xlabel!(p, "Lattice constant (bohr)")
-ylabel!(p, "Total energy (hartree)")
+estimate_a0(E0_values) = a_list[findmin(E0_values)[2]]
+a0_naive, a0_ref, a0_modified = estimate_a0.([E0_naive, E0_ref, E0_modified])
 
-# The smoothed curve allow to clearly designate a minimal value of the energy with
-# respect to ``a``. Note that this estimate still suffers from errors relative to
-# the PBE approximation and the choice of sparse k-grid, for which one benefits however
-# from error estimates.
+shift = sum(abs.(E0_modified .- E0_ref)) / 20 # again, shift for legibility of the plot
+
+plot!(p, a_list, E0_modified .- shift, label="Ecut=5 Ha | modified kinetic term")
+vline!(p, [a0], label="experimental a0", linestyle=:dash, linecolor=:black)
+vline!(p, [a0_naive], label="a0 Ecut=5", linestyle=:dash)
+vline!(p, [a0_ref], label="a0 Ecut=100", linestyle=:dash)
+vline!(p, [a0_modified], label="a0 Ecut=5 | modified kinetic term", linestyle=:dash)
+
+# The smoothed curve obtained with the modified kinetic term allow to clearly designate
+# a minimal value of the energy with respect to the lattice parameter ``a``, even with
+# the low `Ecut=5` Ha. It matches the approximation of the lattice constant obtained
+# with `Ecut=100` Ha within an error of 0.5%.
+
+println("Error of approximation of the reference a0 with modified kinetic term:"*
+        " $((a0_modified - a0_ref)*100/a0_ref)")

@@ -1,6 +1,6 @@
 """
-Kinetic energy: 1/2 sum_n f_n ∫ |∇ψn|^2.
-             or 1/2 sum_n f_n ∫ blowup_function(-i∇Ψ)^2 for modified kinetic term  
+Kinetic energy: 1/2 sum_n f_n ∫ |∇ψn|^2 (standard)
+             or 1/2 sum_n f_n ∫ blowup(-i∇Ψ)^2 (modified kinetic term).
 """
 Base.@kwdef struct Kinetic{F}
     scaling_factor::Real = 1
@@ -14,19 +14,22 @@ function Base.show(io::IO, kin::Kinetic)
 end
 
 """
-Define different energy cutoff strategies. BlowupKineticEnergy corresponds
-to standard kinetic energies.
-ADD REFs
+Define different energy cutoff strategies.
+ADD REF when the paper is published.
 """
 struct BlowupKineticEnergy end
 struct BlowupCHV end
 
+"""
+Default blow-up, x->x^2, corresponding to the standard kinetic energies.
+"""
 (blowup::BlowupKineticEnergy)(x) = sum(abs2, x)
 
 """
 Blow-up function as proposed in [REF paper Cancès, Hassan, Vidal to be submitted]
 Parameters have been computed to ensure C^2 regularity of the energies bands
 away from crossings and Lipschitz continuity at crossings.
+TODO: find a better C^2 interpolation.
 """
 function (blowup::BlowupCHV)(x)
     @assert (0 ≤ x < 1) "The blow-up function is defined on [0,1)"
@@ -52,8 +55,8 @@ end
 
 struct TermKinetic <: Term
     scaling_factor::Real  # scaling factor, absorbed into kinetic_energies
-    # kinetic energies 1/2(k+G)^2 (or Ecut*blowup_function(|k+G|/√(2Ecut)) for energy
-    # cutoff smearing methods) for each k-point
+    # kinetic energies 1/2(k+G)^2 (or Ecut*blowup(|k+G|/√(2Ecut)) for energy
+    # cutoff smearing methods) for each k-point.
     kinetic_energies::Vector{<:AbstractVector}
 end
 function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, blowup) where {T}
