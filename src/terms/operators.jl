@@ -163,3 +163,24 @@ function optimize_operators_(ops)
                                                sum([op.potential for op in RSmults]))
     [nonRSmults..., combined_RSmults]
 end
+
+struct ExchangeOperator <: RealFourierOperator
+    ψocc
+    poisson_green_coeffs
+    poisson_green_coeffs_kpt
+    basis
+    kpoint
+end
+
+function apply!(Hψ, op::ExchangeOperator, ψ)
+    for ψ_n in eachcol(op.ψocc)
+         integral_fourier = op.poisson_green_coeffs_kpt .* ψ_n .* ψ.fourier
+         integral_real = G_to_r(op.basis, op.kpoint, integral_fourier)
+         psi_n_real = G_to_r(op.basis, op.kpoint, ψ_n)
+         Hψ.real .-= integral_real .* psi_n_real
+    end
+end
+
+function Matrix(op::ExchangeOperator)
+    # TODO - implement this for testing/debugging purposes
+end

@@ -44,5 +44,6 @@ end
         end
     end
 
+    ops = [ExchangeOperator(ψ[ik], poisson_green_coeffs, poisson_green_coeffs_kpt, basis, kpt) for (ik,kpt) in enumerate(basis.kpoints)]
     (E=E, ops=ops)
 end
