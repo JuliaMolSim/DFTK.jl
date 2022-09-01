@@ -45,15 +45,6 @@ For getting started with DFTK, see [our documentation](https://docs.dftk.org):
 
 Note that at least **Julia 1.6** is required.
 
-
-## DFTK summer school 2022
-
-We will organise a summer school centred around the DFTK code
-and modern numerical approaches to density-functional theory
-from **29 to 31 August 2022** at **Sorbonne Université, Paris**.
-For more details see the [school's website](https://school2022.dftk.org).
-
-
 ## Support and citation
 DFTK is mostly developed as part of academic research.
 Parts of DFTK have also been discussed in published papers.
