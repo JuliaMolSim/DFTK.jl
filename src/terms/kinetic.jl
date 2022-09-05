@@ -23,34 +23,31 @@ struct BlowupCHV end
 """
 Default blow-up, x->x^2, corresponding to the standard kinetic energies.
 """
-(blowup::BlowupKineticEnergy)(x) = sum(abs2, x)
+(blowup::BlowupKineticEnergy)(x) = x^2
 
 """
 Blow-up function as proposed in [REF paper Cancès, Hassan, Vidal to be submitted]
-Parameters have been computed to ensure C^2 regularity of the energies bands
+The blow-up order of the function is fixed to ensure C^2 regularity of the energies bands
 away from crossings and Lipschitz continuity at crossings.
-TODO: find a better C^2 interpolation.
 """
-function (blowup::BlowupCHV)(x)
+@inline function (blowup::BlowupCHV)(x)
     @assert (0 ≤ x < 1) "The blow-up function is defined on [0,1)"
-    # Define the three parts of the blow-up function
-    g1(x) = sum(abs2, x)
-    # C^2 interpolation part. The coefficients have been obtained by solving a
-    # linear system.
-    C = [7449.468883604184, -50230.90030429237, 135207.0860245428,
-         -181568.08750464107, 121624.06499834878, -32503.74733526006]
-    g2(x) = C'*((x * ones(6)) .^(0:5))
-    # Blow-up part
-    Ca(a) = (3/2)*(a^2)*(1-a)^(2)
-    a_opti = 0.1792973510040141
-    g3(x) = Ca(a_opti)/( (1-x)^(2) )
+    x1, x2 = 0.85, 0.90 # Interval of interpolation
 
-    # Assemble all parts
-    x1, x2 = 0.7, 0.8
-    (0 ≤ x < x1)   && return g1(x)
-    (x1 ≤ x < x2)  && return g2(x)
-    (x2 ≤ x < 1)   && return g3(x)
-    (x==1) && return 1e6 # Handle |G+k|^2 = E_cut case
+    # Define blow-up part
+    Ca_opt = 0.013952310177257383 # optimized to match the x->x^2 curve the most
+    blowup_part(x) = Ca_opt/( (1-x)^(2) )
+
+    if (0 ≤ x < x1)
+        return x^2
+    elseif (x1 ≤ x < x2)
+        f(x) = (x==0) ? 0 : exp(-1/x)
+        step(x) = f((x-x1)/(x2-x1)) / (f((x-x1)/(x2-x1)) + f(1-(x-x1)/(x2-x1)))
+        return (1-step(x))*x^2 + step(x)*blowup_part(x)
+    else
+        return blowup_part(x)
+    end
+    Inf # Handle |G+k|^2 = E_cut case
 end
 
 struct TermKinetic <: Term
@@ -60,9 +57,9 @@ struct TermKinetic <: Term
     kinetic_energies::Vector{<:AbstractVector}
 end
 function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, blowup) where {T}
-    kinetic_energies = [[T(scaling_factor) * basis.Ecut * blowup(norm(Gk)/√(2Ecut))*
-                         for Gk in Gplusk_vectors_cart(basis, kpt)]
-                        for kpt in basis.kpoints]
+    Ecut = basis.Ecut
+    kinetic_energies = [[T(scaling_factor) * Ecut * blowup(norm(Gk)/√(2Ecut))
+                   for Gk in Gplusk_vectors_cart(basis, kpt)] for kpt in basis.kpoints]
     TermKinetic(T(scaling_factor), kinetic_energies)
 end
 
