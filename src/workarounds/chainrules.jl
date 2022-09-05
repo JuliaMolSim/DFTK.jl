@@ -228,18 +228,96 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(sel
         if !iszero(∂ψ)
             occupation_threshold = scfres.occupation_threshold
             ∂Hψ = solve_ΩplusK_split(basis, scfres.ψ, -∂ψ, scfres.occupation; occupation_threshold).δψ # use self-adjointness of dH ψ -> dψ
-            ∂Hψ += ∂Hψ_rayleigh_ritz
+            #∂Hψ += ∂Hψ_rayleigh_ritz
             _, ∂H_mul_pullback, _ = mul_pullback(∂Hψ)
             ∂H = ∂H_mul_pullback + ∂H
         end
 
         _, ∂basis3, _, _, _ = energy_hamiltonian_pullback((; E=∂energies, H=∂H))
         
-        ∂basis = ∂basis1 + ∂basis2 + ∂basis3
+        # ∂basis = ∂basis1 + ∂basis2 + ∂basis3
+        ∂basis = ∂basis2 + ∂basis3
 
         return NoTangent(), ∂basis
     end
     return scfres, self_consistent_field_pullback
+end
+
+
+function _autodiff_LibxcDensities(basis, max_derivative::Integer, ρ, τ)
+    model = basis.model
+    @assert max_derivative in (0, 1, 2)
+
+    n_spin    = model.n_spin_components
+    σ_real    = nothing
+    ∇ρ_real   = nothing
+    Δρ_real   = nothing
+
+    # compute ρ_real and possibly ρ_fourier
+    ρ_real = permutedims(ρ, (4, 1, 2, 3))  # ρ[x, y, z, σ] -> ρ_real[σ, x, y, z]
+    if max_derivative > 0
+        ρf = r_to_G(basis, ρ)
+        ρ_fourier = permutedims(ρf, (4, 1, 2, 3))  # ρ_fourier[σ, x, y, z]
+    end
+
+    # compute ∇ρ and σ
+    if max_derivative > 0
+        n_spin_σ = div((n_spin + 1) * n_spin, 2)
+        ∇ρ_real = similar(ρ_real, n_spin, basis.fft_size..., 3)
+        σ_real  = similar(ρ_real, n_spin_σ, basis.fft_size...)
+        # ∇ρ_real ∈ n_spin x (N x N x N) x 3
+        ∇ρ_real = 
+        mapreduce((x...) -> cat(x...; dims=4), α for α in 1:3) do α
+            iGα = [im * G[α] for G in G_vectors_cart(basis)]
+            mapreduce((x...) -> cat(x...; dims=1), σ for σ = 1:n_spin) do σ
+                G_to_r(basis, iGα .* @view ρ_fourier[σ, :, :, :])
+            end
+        end
+        # restore leading dimension
+        ∇ρ_real = reshape(∇ρ_real, (n_spin, basis.fft_size..., 3)) 
+        
+        #for α in 1:3
+        #    iGα = [im * G[α] for G in G_vectors_cart(basis)]
+        #    for σ = 1:n_spin
+        #        ∇ρ_real[σ, :, :, :, α] .= G_to_r(basis, iGα .* @view ρ_fourier[σ, :, :, :])
+        #    end
+        #end
+
+        tσ = DftFunctionals.spinindex_σ  # Spin index transformation (s, t) => st as expected by Libxc
+        #σ_real .= 0
+        @assert(n_spin == 1)
+        σ_real = mapreduce(+, α for α in 1:3) do α
+            ∇ρ_real[1, :, :, :, α] .* ∇ρ_real[1, :, :, :, α]
+        end
+        σ_real = reshape(σ_real,(n_spin, basis.fft_size...))
+
+        #σ_real .= 0
+        #@views for α in 1:3
+        #    σ_real[tσ(1, 1), :, :, :] .+= ∇ρ_real[1, :, :, :, α] .* ∇ρ_real[1, :, :, :, α]
+        #    if n_spin > 1
+        #        σ_real[tσ(1, 2), :, :, :] .+= ∇ρ_real[1, :, :, :, α] .* ∇ρ_real[2, :, :, :, α]
+        #        σ_real[tσ(2, 2), :, :, :] .+= ∇ρ_real[2, :, :, :, α] .* ∇ρ_real[2, :, :, :, α]
+        #    end
+        #end
+    end
+
+    # Compute Δρ (currently not used apparently)
+    if max_derivative > 1
+        Δρ_real = similar(ρ_real, n_spin, basis.fft_size...)
+        mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
+        for σ = 1:n_spin
+            Δρ_real[σ, :, :, :] .= G_to_r(basis, mG² .* @view ρ_fourier[σ, :, :, :])
+        end
+    end
+
+    # τ[x, y, z, σ] -> τ_Libxc[σ, x, y, z]
+    τ_Libxc = isnothing(τ) ? nothing : permutedims(τ, (4, 1, 2, 3))
+    LibxcDensities(basis, max_derivative, ρ_real, ∇ρ_real, σ_real, Δρ_real, τ_Libxc)
+end
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(LibxcDensities), basis, max_derivative::Integer, ρ, τ)
+    @warn "LibxcDensities rrule triggered."
+    rrule_via_ad(config, _autodiff_LibxcDensities, basis, max_derivative, ρ, τ)
 end
 
 # phases to differentiate

@@ -77,15 +77,17 @@ end
     tσ = DftFunctionals.spinindex_σ
 
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ) + ΔVl
-    potential = zero(ρ)
-    @views for s in 1:n_spin
-        Vρ = reshape(terms.Vρ, n_spin, basis.fft_size...)
-
-        potential[:, :, :, s] .+= Vρ[s, :, :, :]
+    # potential = zero(ρ)
+    Vρ = reshape(terms.Vρ, n_spin, basis.fft_size...)
+    potential = permutedims(Vρ, (2,3,4,1)) #potential[:, :, :, s] = Vρ[s, :, :, :]
+    #@views for s in 1:n_spin
+    potential = mapreduce(hcat, (potential[:, :, :, s], s) for s = 1:n_spin) do (potential_s, s)
+        #Vρ = reshape(terms.Vρ, n_spin, basis.fft_size...)
+        #potential[:, :, :, s] .+= Vρ[s, :, :, :]
         if haskey(terms, :Vσ) && any(x -> abs(x) > term.potential_threshold, terms.Vσ)
             # Need gradient correction
             # TODO Drop do-block syntax here?
-            potential[:, :, :, s] .+= -2divergence_real(basis) do α
+            potential_s += -2divergence_real(basis) do α
                 Vσ = reshape(terms.Vσ, :, basis.fft_size...)
 
                 # Extra factor (1/2) for s != t is needed because libxc only keeps σ_{αβ}
@@ -100,8 +102,9 @@ end
             mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
             Vl  = reshape(terms.Vl, n_spin, basis.fft_size...)
             Vl_fourier = r_to_G(basis, Vl[s, :, :, :])
-            potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
+            potential_s += G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
         end
+        potential_s
     end
 
     # DivAgrad contributions -½ Vτ
@@ -113,7 +116,7 @@ end
     end
 
     # Note: We always have to do this, otherwise we get issues with AD wrt. scaling_factor
-    potential .*= term.scaling_factor
+    potential *= term.scaling_factor
 
     ops = map(basis.kpoints) do kpt
         if !isnothing(Vτ)
