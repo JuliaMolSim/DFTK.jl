@@ -20,7 +20,7 @@ end
 Xc(functional; kwargs...) = Xc([functional]; kwargs...)
 
 function Base.show(io::IO, xc::Xc)
-    fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
+    fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$(xc.scaling_factor)"
     fun = length(xc.functionals) == 1 ? ":$(xc.functionals[1])" : "$(xc.functionals)"
     print(io, "Xc($fun$fac)")
 end
@@ -187,11 +187,11 @@ for derivatives wrt. σ_αβ or σ_βα.
 =#
 
 function max_required_derivative(functional)
-    family(functional) == :lda   && return 0
-    family(functional) == :gga   && return 1
-    family(functional) == :hyb_gga   && return 1
-    family(functional) == :mgga  && return 1
-    family(functional) == :mggal && return 2
+    family(functional) == :lda      && return 0
+    family(functional) == :gga      && return 1
+    family(functional) == :hyb_gga  && return 1
+    family(functional) == :mgga     && return 1
+    family(functional) == :mggal    && return 2
     error("Functional family $(family(functional)) not known.")
 end
 

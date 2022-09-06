@@ -7,7 +7,7 @@ end
 Kinetic(; scaling_factor=1) = Kinetic(scaling_factor)
 (kin::Kinetic)(basis) = TermKinetic(basis, kin.scaling_factor)
 function Base.show(io::IO, kin::Kinetic)
-    fac = isone(kin.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
+    fac = isone(kin.scaling_factor) ? "" : "scaling_factor=$(kin.scaling_factor)"
     print(io, "Kinetic($fac)")
 end
 
