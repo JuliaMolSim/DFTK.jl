@@ -55,6 +55,19 @@ function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
     end
 
     push!(anderson, xₙ, αₙ, Pfxₙ)
+    #remove large residuals 
+    min_err = minimum(anderson.error)
+    throw_index  = Int[]
+    for i in eachindex(anderson.error)
+        if anderson.δ*anderson.error[i] > min_err #ensure δ|Pfxᵢ| ≤ minᵢ |Pfxᵢ| 
+            push!(throw_index,i)
+        end
+    end
+    deleteat!(anderson,throw_index)
+
+    # Special case where the history is of size 1
+    length(anderson.error) == 1 && return xₙ .+ αₙ .* Pfxₙ
+
     M =  hcat(Pfxs[2:end]...) - hcat(Pfxs[1:end-1]...)  # Mᵢⱼ = (Pfxⱼ₊₁)ᵢ - (Pfxⱼ)ᵢ
     # We need to solve 0 = M' Pfxₙ + M'M βs <=> βs = - (M'M)⁻¹ M' Pfxₙ
 
