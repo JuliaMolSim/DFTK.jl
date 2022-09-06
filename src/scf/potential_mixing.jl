@@ -13,25 +13,32 @@ using Statistics
 #    fixed-point map          g(x)  = V + α Pf(x)
 # where the α may vary between steps.
 #
-# Finds the linear combination xₙ₊₁ = g(xₙ) + ∑ᵢ βᵢ (g(xᵢ) - g(xₙ))
-# such that |Pf(xₙ) + ∑ᵢ βᵢ (Pf(xᵢ) - Pf(xₙ))|² is minimal
+# Finds the linear combination xₙ₊₁ = g(xₙ) + ∑ᵢ βᵢ (g(xᵢ₊₁) - g(xᵢ))
+# such that |Pf(xₙ) + ∑ᵢ βᵢ (Pf(xᵢ₊₁) - Pf(xᵢ))|² is minimal
 struct AndersonAcceleration
     m::Int                  # maximal history size
     iterates::Vector{Any}   # xₙ
     residuals::Vector{Any}  # Pf(xₙ)
+    error::Vector{Real}     # \|Pf(xₙ)\|
+    δ::Real                 # Adaptive parameter in AD-DIIS
     maxcond::Real           # Maximal condition number for Anderson matrix
 end
-AndersonAcceleration(;m=10, maxcond=1e6) = AndersonAcceleration(m, [], [], maxcond)
+AndersonAcceleration(;m=10, δ=1e-4, maxcond=Inf) = AndersonAcceleration(m, [], [], [], δ, maxcond)
+
+function Base.deleteat!(anderson::AndersonAcceleration,key)
+    AndersonAcceleration(anderson.m, deleteat!(anderson.iterates,key), deleteat!(anderson.residuals,key), deleteat!(anderson.error,key), anderson.δ, anderson.maxcond)
+end
 
 function Base.push!(anderson::AndersonAcceleration, xₙ, αₙ, Pfxₙ)
     push!(anderson.iterates,  vec(xₙ))
     push!(anderson.residuals, vec(Pfxₙ))
+    push!(anderson.error, norm(Pfxₙ))
     if length(anderson.iterates) > anderson.m
-        popfirst!(anderson.iterates)
-        popfirst!(anderson.residuals)
+        deleteat!(anderson,1)
     end
     @assert length(anderson.iterates) <= anderson.m
     @assert length(anderson.iterates) == length(anderson.residuals)
+    @assert length(anderson.iterates) == length(anderson.error)
     anderson
 end
 
@@ -47,25 +54,24 @@ function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
         return xₙ .+ αₙ .* Pfxₙ
     end
 
-    M = hcat(Pfxs...) .- vec(Pfxₙ)  # Mᵢⱼ = (Pfxⱼ)ᵢ - (Pfxₙ)ᵢ
+    push!(anderson, xₙ, αₙ, Pfxₙ)
+    M =  hcat(Pfxs[2:end]...) - hcat(Pfxs[1:end-1]...)  # Mᵢⱼ = (Pfxⱼ₊₁)ᵢ - (Pfxⱼ)ᵢ
     # We need to solve 0 = M' Pfxₙ + M'M βs <=> βs = - (M'M)⁻¹ M' Pfxₙ
 
     # Ensure the condition number of M stays below maxcond, else prune the history
     Mfac = qr(M)
     while size(M, 2) > 1 && cond(Mfac.R) > anderson.maxcond
         M = M[:, 2:end]  # Drop oldest entry in history
-        popfirst!(anderson.iterates)
-        popfirst!(anderson.residuals)
+        deleteat!(anderson,1)
         Mfac = qr(M)
     end
 
     xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
     βs   = -(Mfac \ vec(Pfxₙ))
     for (iβ, β) in enumerate(βs)
-        xₙ₊₁ .+= β .* (xs[iβ] .- vec(xₙ) .+ αₙ .* (Pfxs[iβ] .- vec(Pfxₙ)))
+        xₙ₊₁ .+= β .* (xs[iβ+1] .- xs[iβ] .+ αₙ .* (Pfxs[iβ+1] .- Pfxs[iβ]))
     end
 
-    push!(anderson, xₙ, αₙ, Pfxₙ)
     reshape(xₙ₊₁, size(xₙ))
 end
 
