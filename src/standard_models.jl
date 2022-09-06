@@ -72,3 +72,16 @@ function model_SCAN(lattice::AbstractMatrix, atoms::Vector{<:Element},
                     positions::Vector{<:AbstractVector}; kwargs...)
     model_DFT(lattice, atoms, positions, [:mgga_x_scan, :mgga_c_scan]; kwargs...)
 end
+
+"""
+Build an PBE0 model from the specified atoms.
+DOI:10.1103/PhysRevLett.77.3865
+https://www.vasp.at/tutorials/latest/hybrids/part1/
+"""
+function model_PBE0(lattice::AbstractMatrix, atoms::Vector{<:Element},
+                   positions::Vector{<:AbstractVector}; kwargs...)
+    functional = DispatchFunctional(:hyb_gga_xc_pbeh)
+    libxcfun = Libxc.Functional(:hyb_gga_xc_pbeh)
+    scaling_factor = getproperty(libxcfun, :exx_coefficient)
+    model_DFT(lattice, atoms, positions, Xc([functional]), extra_terms=[FockExchange(; scaling_factor = scaling_factor)]; kwargs...)
+end

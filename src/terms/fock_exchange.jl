@@ -6,15 +6,21 @@ Exact exchange term: the Hartree-Fock exchange energy of the orbitals
 
 """
 struct FockExchange
+    scaling_factor::Real  # to scale by an arbitrary factor (useful for hybrid models)
 end
-(fock_exchange::FockExchange)(basis)   = TermFockExchange(basis)
-
+FockExchange(; scaling_factor=1) = FockExchange(scaling_factor)
+(exchange::FockExchange)(basis)   = TermFockExchange(basis, exchange.scaling_factor)
+function Base.show(io::IO, exchange::FockExchange)
+    fac = isone(exchange.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
+    print(io, "FockExchange($fac)")
+end
 struct TermFockExchange <: Term
+    scaling_factor::Real  # scaling factor, absorbed into poisson_green_coeffs
 end
-function TermFockExchange(basis::PlaneWaveBasis{T}) where T
+function TermFockExchange(basis::PlaneWaveBasis{T}, scaling_factor) where T
     model = basis.model
 
-    TermFockExchange()
+    TermFockExchange(T(scaling_factor))
 end
 
 @timing "ene_ops: FockExchange" function ene_ops(term::TermFockExchange, basis::PlaneWaveBasis{T},
@@ -27,8 +33,8 @@ end
 
     # @assert length(ψ) == 1 # TODO: make it work for more kpoints
 
-    poisson_green_coeffs = 4T(π) ./ [sum(abs2, G) for G in G_vectors_cart(basis)]
-    poisson_green_coeffs_kpt = 4T(π) ./ [sum(abs2, G) for G in G_vectors_cart(basis, basis.kpoints[1])]
+    poisson_green_coeffs = term.scaling_factor * 4T(π) ./ [sum(abs2, G) for G in G_vectors_cart(basis)]
+    poisson_green_coeffs_kpt = term.scaling_factor * 4T(π) ./ [sum(abs2, G) for G in G_vectors_cart(basis, basis.kpoints[1])]
 
     E = T(0)
     for psi_i in eachcol(ψ[1])
