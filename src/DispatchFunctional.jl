@@ -12,7 +12,7 @@ function LibxcFunctional(identifier::Symbol)
     @assert fun.kind   in (:exchange, :correlation, :exchange_correlation)
     kind = Dict(:exchange => :x, :correlation => :c, :exchange_correlation => :xc)[fun.kind]
 
-    @assert fun.family in (:lda, :gga, :mgga)  # Hybrids not supported yet.
+    @assert fun.family in (:lda, :gga, :hyb_gga, :mgga)
     if fun.family == :mgga && Libxc.needs_laplacian(fun)
         family = :mggal
     else
@@ -65,6 +65,18 @@ function DftFunctionals.potential_terms(func::LibxcFunctional{:lda}, ρ::Matrix{
 end
 function DftFunctionals.potential_terms(func::LibxcFunctional{:gga}, ρ::Matrix{Float64},
                                         σ::Matrix{Float64})
+    s_ρ, n_p = size(ρ)
+    s_σ = size(σ, 1)
+    fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
+    derivatives = filter(in(Libxc.supported_derivatives(fun)), 0:1)
+    terms = Libxc.evaluate(fun; rho=ρ, sigma=σ, derivatives)
+    e  = libxc_energy(terms, ρ)
+    Vρ = reshape(terms.vrho,   s_ρ, n_p)
+    Vσ = reshape(terms.vsigma, s_σ, n_p)
+    (; e, Vρ, Vσ)
+end
+function DftFunctionals.potential_terms(func::LibxcFunctional{:hyb_gga}, ρ::Matrix{Float64},
+    σ::Matrix{Float64})
     s_ρ, n_p = size(ρ)
     s_σ = size(σ, 1)
     fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
@@ -129,7 +141,21 @@ function DftFunctionals.kernel_terms(func::LibxcFunctional{:gga}, ρ::Matrix{Flo
     Vσσ = libxc_unfold_spin(terms.v2sigma2, s_σ)
     (; e, Vρ, Vσ, Vρρ, Vρσ, Vσσ)
 end
-
+function DftFunctionals.kernel_terms(func::LibxcFunctional{:hyb_gga}, ρ::Matrix{Float64},
+    σ::Matrix{Float64})
+s_ρ, n_p = size(ρ)
+s_σ = size(σ, 1)
+fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
+derivatives = filter(in(Libxc.supported_derivatives(fun)), 0:2)
+terms = Libxc.evaluate(fun; rho=ρ, sigma=σ, derivatives)
+e   = libxc_energy(terms, ρ)
+Vρ  = reshape(terms.vrho,   s_ρ, n_p)
+Vσ  = reshape(terms.vsigma, s_σ, n_p)
+Vρρ = libxc_unfold_spin(terms.v2rho2,   s_ρ)
+Vρσ = permutedims(reshape(terms.v2rhosigma, s_σ, s_ρ, n_p), (2, 1, 3))
+Vσσ = libxc_unfold_spin(terms.v2sigma2, s_σ)
+(; e, Vρ, Vσ, Vρρ, Vρσ, Vσσ)
+end
 #
 # Automatic dispatching between Libxc (where possible) and the generic implementation
 # in DftFunctionals (where needed).
