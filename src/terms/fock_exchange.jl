@@ -9,15 +9,16 @@ struct FockExchange
     scaling_factor::Real  # to scale by an arbitrary factor (useful for hybrid models)
 end
 FockExchange(; scaling_factor=1) = FockExchange(scaling_factor)
-(exchange::FockExchange)(basis)   = TermFockExchange(basis, exchange.scaling_factor)
+(exchange::FockExchange)(basis) = TermFockExchange(basis, exchange.scaling_factor)
 function Base.show(io::IO, exchange::FockExchange)
-    fac = isone(exchange.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
+    fac = isone(exchange.scaling_factor) ? "" : "scaling_factor=$(exchange.scaling_factor)"
     print(io, "FockExchange($fac)")
 end
 struct TermFockExchange <: Term
     scaling_factor::Real  # scaling factor, absorbed into poisson_green_coeffs
 end
 function TermFockExchange(basis::PlaneWaveBasis{T}, scaling_factor) where T
+    println("scaling=$(scaling_factor)")
     model = basis.model
 
     TermFockExchange(T(scaling_factor))
