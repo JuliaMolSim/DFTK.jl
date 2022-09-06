@@ -13,11 +13,11 @@ function test_addiis(testcase; temperature=0, Ecut=10,
                     model_kwargs...)
   basis = PlaneWaveBasis(model; basis_kwargs...)
   scf_res_addiis = self_consistent_field(basis;solver = scf_anderson_solver(;δ=δ),mixing=SimpleMixing(),tol=tol)
-  scf_res_rdiis = self_consistent_field(basis;solver = scf_anderson_solver(;δ=0.0,maxcond=1e-6),mixing=SimpleMixing(),tol=tol,maxiter=30) #restarted DIIS
+  scf_res_rdiis = self_consistent_field(basis;solver = scf_anderson_solver(;δ=0.0,maxcond=1e6),mixing=SimpleMixing(),tol=tol,maxiter=30) #restarted DIIS
   if scf_res_rdiis.converged
     @test isapprox(scf_res_rdiis.energies.total, scf_res_addiis.energies.total; rtol=tol)
   else
-    scf_res_rdiis = self_consistent_field(basis;solver = scf_anderson_solver(;δ=0.0,maxcond=1e-6),mixing=LdosMixing(),tol=tol,maxiter=30) #restarted DIIS
+    scf_res_rdiis = self_consistent_field(basis;solver = scf_anderson_solver(;δ=0.0,maxcond=1e6),mixing=LdosMixing(),tol=tol,maxiter=30) #restarted DIIS
     @test isapprox(scf_res_rdiis.energies.total, scf_res_addiis.energies.total; rtol=tol)
   end
 end
