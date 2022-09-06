@@ -108,6 +108,7 @@ function build_projection_coefficients_(T, psps, psp_positions; array_type = Arr
     end # psp, r
     @assert count == n_proj
 
+    # GPU computation only : build the coefficients on CPU then offload them to the GPU
     convert(array_type,proj_coeffs)
 end
 
@@ -172,6 +173,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
         end
     end
     @assert offset == n_proj
+    # GPU computation only : build the vectors on CPU then offload them to the GPU
     convert(array_type(basis), proj_vectors)
 end
 

@@ -37,7 +37,7 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     isempty(kinetic_term) && error("Preconditioner should be disabled when no Kinetic term is used.")
     scaling = only(kinetic_term).scaling_factor
     kin = Vector{T}([scaling * sum(abs2, q) for q in Gplusk_vectors_cart(basis, kpt)] ./ 2)
-    kin = convert(array_type(basis), kin)
+    kin = convert(array_type(basis), kin)  # GPU computation only : offload kinetic energies to the GPU
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 
@@ -69,5 +69,4 @@ end
 
 function precondprep!(P::PreconditionerTPA, X)
     P.mean_kin = [real(dot(x, Diagonal(P.kin), x)) for x in eachcol(X)]
-    P.mean_kin = convert(array_type(P.basis), P.mean_kin)
 end

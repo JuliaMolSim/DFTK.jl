@@ -16,6 +16,7 @@ struct TermKinetic <: Term
     kinetic_energies::Vector{<:AbstractVector}  # kinetic energy 1/2|G+k|^2 for every kpoint
 end
 function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
+    # GPU computation only : build the kinetic energies on CPU then offload them to GPU
     kinetic_energies = [convert(array_type(basis),
                             [T(scaling_factor) * sum(abs2, Gk) / 2
                             for Gk in Gplusk_vectors_cart(basis, kpt)])

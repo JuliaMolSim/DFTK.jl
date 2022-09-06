@@ -343,7 +343,7 @@ function G_vectors(fft_size::Union{Tuple,AbstractVector}, array_type = Array)
     stop  = fld.(fft_size .- 1, 2)
     axes  = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
     Gs = [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
-    convert(array_type, Gs) #Offload to GPU if needed.
+    convert(array_type, Gs)  # GPU computation only : offload the Gs to the GPU.
 end
 function G_vectors_generator(fft_size::Union{Tuple,AbstractVector})
     # The generator version is used mainly in symmetry.jl for lowpass_for_symmetry! and
