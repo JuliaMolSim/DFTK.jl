@@ -41,7 +41,6 @@
 
 # vprintln(args...) = println(args...)  # Uncomment for output
 vprintln(args...) = nothing
-check_nan(X, msg) = any(isnan, X) && error(msg)
 
 using LinearAlgebra
 using BlockArrays # used for the `mortar` command which makes block matrices
@@ -55,7 +54,7 @@ end
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X, AX, N)
     XAX = array_mul(X', AX)
-    check_nan(XAX, "Rayleigh-Ritz fails because X'AX has NaNs.")
+    @assert all(!isnan, XAX)
     F = eigen(Hermitian(XAX))
     F.vectors[:,1:N], F.values[1:N]
 end
@@ -68,7 +67,7 @@ end
 function B_ortho!(X, BX)
     O = Hermitian(X'*BX)
     U = cholesky(O).U
-    check_nan(U, "B_ortho! fails because cholesky decomposition has NaNs.")
+    @assert all(!isnan, U)
     rdiv!(X, U)
     rdiv!(BX, U)
 end
@@ -121,7 +120,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
             success = false
         end
         invR = inv(R)
-        check_nan(invR, "Ortho(X) fails because invR has NaNs.")
+        @assert all(!isnan, invR)
         rmul!(X, invR) # we do not use X/R because we use invR next
 
         # We would like growth_factor *= opnorm(inv(R)) but it's too
