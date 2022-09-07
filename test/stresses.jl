@@ -45,6 +45,11 @@ include("testcases.jl")
     ref_recompute = FiniteDiff.finite_difference_derivative(0.0) do ε
         recompute_energy(lattice + ε*dir*lattice, false)
     end
+    ref_scfres = FiniteDiff.finite_difference_derivative(0.0) do ε
+        basis = make_basis(lattice + ε*dir*lattice, false)
+        scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-13))
+        scfres.energies.total
+    end
     ref_HF = FiniteDiff.finite_difference_derivative(0.0) do ε
         hellmann_feynman_energy(scfres_nosym, lattice+ε*dir*lattice, false)
     end
@@ -52,6 +57,7 @@ include("testcases.jl")
         hellmann_feynman_energy(scfres_nosym, lattice+ε*(dir*lattice), false)
     end
 
+    @test isapprox(ref_recompute, ref_scfres, atol=1e-8)
     @test isapprox(ref_HF, ref_recompute, atol=1e-5)
     @test isapprox(ref_HF, FD_HF, atol=1e-5)
     @test isapprox(dE_stresses, ref_recompute, atol=1e-5)
