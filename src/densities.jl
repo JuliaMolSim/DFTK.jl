@@ -20,6 +20,7 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
 """
 @views @timing function compute_density(basis, ψ, occupation)
     T = promote_type(eltype(basis), real(eltype(ψ[1])))
+    occupation = [Array(oc) for oc in occupation]  # GPU computation only: offload to CPU
 
     # we split the total iteration range (ik, n) in chunks, and parallelize over them
     ik_n = [(ik, n) for ik = 1:length(basis.kpoints) for n = 1:size(ψ[ik], 2)]

@@ -31,7 +31,6 @@ end
     isnothing(ψ) && return (E=T(Inf), ops=term.ops)
 
     E = zero(T)
-    occ = [convert(array_type(basis), oc) for oc in occ]
 
     for (ik, kpt) in enumerate(basis.kpoints)
         Pψ = term.ops[ik].P' * ψ[ik]  # nproj x nband

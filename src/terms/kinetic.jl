@@ -32,6 +32,7 @@ end
     ops = [FourierMultiplication(basis, kpoint, term.kinetic_energies[ik])
            for (ik, kpoint) in enumerate(basis.kpoints)]
     isnothing(ψ) && return (E=T(Inf), ops=ops)
+    occ = [Array(oc) for oc in occ]  # GPU computation only: put the occupations back on CPU
 
     E = zero(T)
     for (ik, k) in enumerate(basis.kpoints)
