@@ -198,19 +198,20 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     # Note: No guarantees on this interface yet.
 
     # Primal pass
-    basis_primal  = construct_value(basis_dual)
+    basis_primal = construct_value(basis_dual)
     scfres = self_consistent_field(basis_primal; kwargs...)
 
     ## Compute external perturbation (contained in ham_dual) and from matvec with bands
-    ham_dual, Hψ_dual = let
+    Hψ_dual = let
         occupation_dual = [T.(occk) for occk in scfres.occupation]
         ψ_dual = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
         ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
         εF_dual = T(scfres.εF)  # Only needed for entropy term
         eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
         _, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
-                                         ρ=ρ_dual, eigenvalues=eigenvalues_dual, εF=εF_dual)
-        ham_dual, ham_dual * ψ_dual
+                                         ρ=ρ_dual, eigenvalues=eigenvalues_dual, 
+                                         εF=εF_dual)
+        ham_dual * ψ_dual
     end
 
     ## Implicit differentiation
@@ -232,12 +233,23 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     eigenvalues = map(scfres.eigenvalues, getfield.(δresults, :δeigenvalues)...) do εk, δεk...
         map((εnk, δεnk...) -> DT(εnk, δεnk), εk, δεk...)
     end
+    occupation = map(scfres.occupation, getfield.(δresults, :δoccupation)...) do occk, δocck...
+        map((occnk, δoccnk...) -> DT(occnk, δoccnk), occk, δocck...)
+    end
+    εF = DT(scfres.εF, getfield.(δresults, :δεF)...)
 
     # TODO Could add δresults[α].δVind the dual part of the total local potential in ham_dual
     # and in this way return a ham that represents also the total change in Hamiltonian
 
-    merge(scfres, (; ψ, ρ, eigenvalues, basis=basis_dual,
-                   response=getfield.(δresults, :history)))
+    energies, ham = energy_hamiltonian(basis_dual, ψ, occupation; ρ, eigenvalues, εF)
+
+    # This has to be changed whenever the scfres structure changes
+    (; ham, basis=basis_dual, energies, ρ, eigenvalues, occupation, εF, ψ, 
+       # non-differentiable metadata:
+       response=getfield.(δresults, :history),
+       scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter, 
+       scfres.n_ep_extra, scfres.diagonalization, scfres.stage,
+       scfres.algorithm, scfres.norm_Δρ)
 end
 
 # other workarounds

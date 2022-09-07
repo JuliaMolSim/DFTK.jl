@@ -98,6 +98,13 @@ include("testcases.jl")
                            atol=1e-7)
         end
 
+        @testset "solve_ΩplusK_split convenience methods" begin
+            δψ1 = solve_ΩplusK_split(scfres, rhs).δψ
+            δψ2 = solve_ΩplusK_split(basis, ψ, rhs, scfres.occupation;
+                                     occupation_threshold=scfres.occupation_threshold).δψ
+            @test norm(δψ1 - δψ2) < 1e-7
+        end
+
     end
 
 end

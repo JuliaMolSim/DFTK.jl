@@ -16,7 +16,6 @@
 # ending in *.jl will be processed to *.md with Literate.
 PAGES = [
     "Home" => "index.md",
-    "school2022.md",
     "features.md",
     "Getting started" => [
         # Installing DFTK, tutorial, theoretical background
@@ -24,12 +23,14 @@ PAGES = [
         "Tutorial" => "guide/tutorial.jl",
         "guide/periodic_problems.jl",
         "guide/introductory_resources.md",
+        "school2022.md",
     ],
     "Basic DFT calculations" => [
         # Ground-state DFT calculations, standard problems and modelling techniques
         # Some basic show cases; may feature integration of DFTK with other packages.
         "examples/metallic_systems.jl",
         "examples/collinear_magnetism.jl",
+        "examples/convergence_study.jl",
         "examples/supercells.jl",
         "examples/gaas_surface.jl",
         "examples/graphene.jl",
