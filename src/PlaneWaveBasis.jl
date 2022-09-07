@@ -419,7 +419,7 @@ r_vectors(basis::PlaneWaveBasis) = basis.r_vectors
 
 The list of ``r`` vectors, in cartesian coordinates.
 """
-r_vectors_cart(basis::PlaneWaveBasis) = map_recip_vector_red_to_cart(basis.model, r_vectors(basis))
+r_vectors_cart(basis::PlaneWaveBasis) = map_vector_red_to_cart(basis.model, r_vectors(basis))
 
 
 """
