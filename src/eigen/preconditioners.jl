@@ -36,8 +36,9 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     kinetic_term = [t for t in basis.model.term_types if t isa Kinetic]
     isempty(kinetic_term) && error("Preconditioner should be disabled when no Kinetic term is used.")
     scaling = only(kinetic_term).scaling_factor
-    kin = Vector{T}([scaling * sum(abs2, q) for q in Gplusk_vectors_cart(basis, kpt)] ./ 2)
-    kin = convert(array_type(basis), kin)  # GPU computation only : offload kinetic energies to the GPU
+    kin = map(Gplusk_vectors_cart(basis, kpt)) do q
+        scaling * sum(abs2, q) /2
+    end
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 

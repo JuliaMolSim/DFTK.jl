@@ -15,7 +15,7 @@ Discretization information for ``k``-point-dependent quantities such as orbitals
 More generally, a ``k``-point is a block of the Hamiltonian;
 eg collinear spin is treated by doubling the number of kpoints.
 """
-struct Kpoint{T <: Real}
+struct Kpoint{T<:Real, AT <: AbstractArray, GT <: AT}
     spin::Int                     # Spin component can be 1 or 2 as index into what is
                                   # returned by the `spin_components` function
     coordinate::Vec3{T}           # Fractional coordinate of k-point
@@ -23,8 +23,9 @@ struct Kpoint{T <: Real}
                                   # G_vectors(basis)[kpt.mapping[i]] == G_vectors(basis, kpt)[i]
     mapping_inv::Dict{Int, Int}   # Inverse of `mapping`:
                                   # G_vectors(basis)[i] == G_vectors(basis, kpt)[mapping_inv[i]]
-    G_vectors::Vector{Vec3{Int}}  # Wave vectors in integer coordinates:
+    G_vectors::GT                 # Wave vectors in integer coordinates:
                                   # ({G, 1/2 |k+G|^2 ≤ Ecut})
+                                  # The G_vectors are a 1D array of Vec3 of Ints
 end
 
 @doc raw"""
@@ -113,7 +114,7 @@ Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
-                               variational=true) where T
+                               variational=true, array_type = Array) where T
     kpoints_per_spin = [Kpoint[] for _ in 1:model.n_spin_components]
     for k in kcoords
         k = Vec3{T}(k)  # rationals are sloooow
@@ -129,10 +130,14 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
                 push!(Gvecs_k, G)
             end
         end
+        Gvecs_k = convert(array_type, Gvecs_k)  # GPU computation only: offload the Gs to the GPU
+        AT = array_type
+        GT = array_type{Vec3{Int }}
+
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for iσ = 1:model.n_spin_components
             push!(kpoints_per_spin[iσ],
-                  Kpoint(iσ, k, mapping, mapping_inv, Gvecs_k))
+                  Kpoint{T,AT,GT}(iσ, k, mapping, mapping_inv, Gvecs_k))
         end
     end
 
@@ -140,7 +145,7 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 end
 function build_kpoints(basis::PlaneWaveBasis, kcoords)
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut;
-                  variational=basis.variational)
+                  variational=basis.variational, array_type = array_type(basis))
 end
 
 # Lowest-level constructor, should not be called directly.
@@ -236,7 +241,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         "Non-variational calculations are experimental. " *
         "Not all features of DFTK may be supported or work as intended."
     )
-    kpoints = build_kpoints(model, fft_size, kcoords_global[krange_thisproc], Ecut; variational)
+    kpoints = build_kpoints(model, fft_size, kcoords_global[krange_thisproc], Ecut; variational, array_type)
     # kpoints is now possibly twice the size of krange. Make things consistent
     if model.n_spin_components == 2
         krange_thisproc   = vcat(krange_thisproc, n_kpt .+ krange_thisproc)
@@ -388,7 +393,9 @@ end
 The list of ``G + k`` vectors, in reduced coordinates.
 """
 function Gplusk_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
-    map(G -> G + kpt.coordinate, G_vectors(basis, kpt))
+    coordinate = kpt.coordinate
+    Gs = G_vectors(basis,kpt)
+    map(G -> G + coordinate, Gs)
 end
 
 @doc raw"""
@@ -397,7 +404,7 @@ end
 The list of ``G + k`` vectors, in cartesian coordinates.
 """
 function Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
-    recip_vector_red_to_cart.(basis.model, Gplusk_vectors(basis, kpt))
+    map_recip_vector_red_to_cart(basis.model, Gplusk_vectors(basis, kpt))
 end
 
 @doc raw"""

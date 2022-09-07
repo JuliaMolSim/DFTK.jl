@@ -163,7 +163,8 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
         # Combine with structure factors
         for r in positions
             # k+G in this formula can also be G, this only changes an unimportant phase factor
-            structure_factors = map(q -> cis2pi(-dot(q, r)), Gplusk_vectors(basis, kpt))
+            Gs = Array(Gplusk_vectors(basis, kpt))  # GPU computation only: get Gs on CPU for the following map
+            structure_factors = map(q -> cis2pi(-dot(q, r)), Gs)
             @views for iproj = 1:count_n_proj(psp)
                 proj_vectors[:, offset+iproj] .= (
                     structure_factors .* form_factors[:, iproj] ./ sqrt(unit_cell_volume)
@@ -181,6 +182,7 @@ end
 Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
 function build_form_factors(psp, qs)
+    qs = Array(qs)  # GPU computation only : get qs back on CPU
     qnorms = norm.(qs)
     T = real(eltype(qnorms))
     # Compute position-independent form factors
