@@ -67,7 +67,7 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature,
         @assert N < 10_000
         E = Es[ik]
         V = Vs[ik]
-        Vr = cat(G_to_r.(Ref(basis), Ref(kpt), eachcol(V))..., dims=4)
+        Vr = cat(ifft.(Ref(basis), Ref(kpt), eachcol(V))..., dims=4)
         Vr = reshape(Vr, n_fft, N)
         @showprogress "Computing χ0 for k-point $ik/$(length(basis.kpoints)) ..." for m = 1:N, n = 1:N
             enred = (E[n] - εF) / temperature

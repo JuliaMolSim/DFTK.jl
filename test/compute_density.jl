@@ -47,7 +47,7 @@ if mpi_nprocs() == 1  # not easy to distribute
         for (ik, kpt) in enumerate(basis.kpoints)
             # Fourier-transform the wave functions to real space
             ψk = ψ[ik]
-            ψk_real = cat((DFTK.G_to_r(basis, kpt, ψik) for ψik in eachcol(ψk))..., dims=4)
+            ψk_real = cat((DFTK.ifft(basis, kpt, ψik) for ψik in eachcol(ψk))..., dims=4)
 
             T = real(eltype(ψk_real))
             ψk_real_mat = reshape(ψk_real, n_fft, n_states)

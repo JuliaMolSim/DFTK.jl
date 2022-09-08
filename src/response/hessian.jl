@@ -47,9 +47,9 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
         δVψk = similar(ψk)
 
         for n = 1:size(ψk, 2)
-            ψnk_real = G_to_r(basis, kpt, ψk[:, n])
+            ψnk_real = ifft(basis, kpt, ψk[:, n])
             δVψnk_real = δV[:, :, :, kpt.spin] .* ψnk_real
-            δVψk[:, n] = r_to_G(basis, kpt, δVψnk_real)
+            δVψk[:, n] = fft(basis, kpt, δVψnk_real)
         end
         δVψk
     end
