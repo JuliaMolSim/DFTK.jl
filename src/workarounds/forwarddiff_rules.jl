@@ -301,6 +301,7 @@ function Base.:^(x::Complex{ForwardDiff.Dual{T,V,N}}, y::Complex{ForwardDiff.Dua
             ForwardDiff.Dual{T,V,N}(imag(expv), ForwardDiff.Partials{N,V}(tuple(imag(dexpv)...))))
 end
 
+# Waiting for https://github.com/JuliaDiff/DiffRules.jl/pull/37 to be merged
 function erfc(x::Complex{ForwardDiff.Dual{T,V,N}}) where {T,V,N}
     xx = complex(ForwardDiff.value(real(x)), ForwardDiff.value(imag(x)))
     dx = complex.(ForwardDiff.partials(real(x)), ForwardDiff.partials(imag(x)))
