@@ -115,3 +115,16 @@ end
     @show derivative_ε derivative_fd
     @test norm(derivative_ε - derivative_fd) < 1e-4
 end
+
+@testset "Derivative of complex function" begin
+    using SpecialFunctions, FiniteDifferences
+
+    tol = 1e-10
+    fact=randn(ComplexF64)
+    value=randn()
+
+    fd1 = ForwardDiff.derivative(x -> erfc(x*fact) , value)
+    ForwardDiff.derivative(x -> erfc(x*fact) , value)
+    fd2 = FiniteDifferences.central_fdm(5,1)(x -> erfc(x*fact), value)
+    @test isapprox(norm(fd1 - fd2), 0, atol=tol)
+end
