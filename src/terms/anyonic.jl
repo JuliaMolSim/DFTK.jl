@@ -54,7 +54,8 @@ function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
             out[1][iG], out[2][iG] = vec
         end
     end
-    [ifft(basis, out[α]) for α = 1:2]
+    # TODO: see https://github.com/JuliaMolSim/DFTK.jl/pull/722
+    [irfft(basis, out[α]; check=Val(false)) for α = 1:2]
 end
 
 struct Anyonic
@@ -118,8 +119,9 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwarg
             A2[iG] = -2T(π) * G[1] / G2 * (ρ_fourier[iG] - ρref_fourier[iG]) * im
         end
     end
-    Areal = [ifft(basis, A1) + term.Aref[1],
-             ifft(basis, A2) + term.Aref[2],
+    # TODO: see https://github.com/JuliaMolSim/DFTK.jl/pull/722
+    Areal = [irfft(basis, A1; check=Val(false)) + term.Aref[1],
+             irfft(basis, A2; check=Val(false)) + term.Aref[2],
              zeros(T, basis.fft_size)]
 
     # 2 hbar β (-i∇)⋅A + β^2 |A|^2
@@ -145,7 +147,8 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwarg
             eff_pot_fourier[iG] += +4T(π)*β * im * G[1] / G2 * eff_current_fourier[2][iG]
         end
     end
-    eff_pot_real = ifft(basis, eff_pot_fourier)
+    # TODO: see https://github.com/JuliaMolSim/DFTK.jl/pull/722
+    eff_pot_real = irfft(basis, eff_pot_fourier; check=Val(false))
     ops_ham = [ops_energy..., RealSpaceMultiplication(basis, basis.kpoints[1], eff_pot_real)]
 
     E = zero(T)

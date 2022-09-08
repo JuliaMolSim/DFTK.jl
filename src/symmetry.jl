@@ -209,7 +209,7 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
         do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
-    ifft(basis, ρout_fourier ./ length(symmetries))
+    irfft(basis, ρout_fourier ./ length(symmetries))
 end
 
 """
@@ -332,4 +332,10 @@ function unfold_kcoords(kcoords, symmetries)
         digits = ceil(Int, -log10(SYMMETRY_TOLERANCE))
         normalize_kpoint_coordinate(round.(k; digits))
     end
+end
+
+# Filter the wavevectors that don't have an opposite, to ensure fourier_coeffs is real in
+# real space
+function force_real!(fourier_coeffs, basis)
+    lowpass_for_symmetry!(fourier_coeffs, basis; symmetries=[SymOp(-Mat3(I), Vec3(0, 0, 0))])
 end
