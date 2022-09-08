@@ -58,5 +58,8 @@ include("testcases.jl")
         @test maximum(abs.(f4_R - f_R)) < 1e-12
 
         @test_throws ErrorException G_to_r(pw, f_G; assume_real=Val(:test))
+
+        f_R = Array{ComplexF64}(randn(pw.fft_size))
+        @test_throws AssertionError G_to_r(pw, f_R; assume_real=Val(:check))
     end
 end
