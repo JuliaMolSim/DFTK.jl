@@ -95,8 +95,7 @@ end
             Vl_fourier = r_to_G(basis, Vl[s, :, :, :])
             # not sure why `assume_real` is needed here
             # see https://github.com/JuliaMolSim/DFTK.jl/issues/694
-            potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier;
-                                             assume_real=Val(true))  # ΔVl
+            potential[:, :, :, s] .+= real_G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
         end
     end
 
@@ -231,8 +230,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
             iGα = [im * G[α] for G in G_vectors_cart(basis)]
             # TODO: See https://github.com/JuliaMolSim/DFTK.jl/issues/694
             for σ = 1:n_spin
-                ∇ρ_real[σ, :, :, :, α] .= G_to_r(basis, iGα .* @view ρ_fourier[σ, :, :, :];
-                                                 assume_real=Val(true))
+                ∇ρ_real[σ, :, :, :, α] .= real_G_to_r(basis, iGα .* @view ρ_fourier[σ, :, :, :])
             end
         end
 
@@ -445,5 +443,5 @@ function divergence_real(operand, basis)
         del_α .* operand_α
     end
     # TODO: See https://github.com/JuliaMolSim/DFTK.jl/issues/694
-    G_to_r(basis, gradsum; assume_real=Val(true))
+    real_G_to_r(basis, gradsum)
 end

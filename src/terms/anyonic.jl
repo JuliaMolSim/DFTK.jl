@@ -55,7 +55,7 @@ function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
         end
     end
     # TODO: See https://github.com/JuliaMolSim/DFTK.jl/issues/694
-    [G_to_r(basis, out[α]; assume_real=Val(true)) for α = 1:2]
+    [real_G_to_r(basis, out[α]) for α = 1:2]
 end
 
 struct Anyonic
@@ -120,8 +120,8 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwarg
         end
     end
     # TODO: See https://github.com/JuliaMolSim/DFTK.jl/issues/694
-    Areal = [G_to_r(basis, A1; assume_real=Val(true)) + term.Aref[1],
-             G_to_r(basis, A2; assume_real=Val(true)) + term.Aref[2],
+    Areal = [real_G_to_r(basis, A1) + term.Aref[1],
+             real_G_to_r(basis, A2) + term.Aref[2],
              zeros(T, basis.fft_size)]
 
     # 2 hbar β (-i∇)⋅A + β^2 |A|^2
@@ -148,7 +148,7 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwarg
         end
     end
     # TODO: See https://github.com/JuliaMolSim/DFTK.jl/issues/694
-    eff_pot_real = G_to_r(basis, eff_pot_fourier; assume_real=Val(true))
+    eff_pot_real = real_G_to_r(basis, eff_pot_fourier)
     ops_ham = [ops_energy..., RealSpaceMultiplication(basis, basis.kpoints[1], eff_pot_real)]
 
     E = zero(T)

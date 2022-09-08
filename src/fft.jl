@@ -67,6 +67,9 @@ function G_to_r(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray;
         error("Wrong value provided for `assume_real`.")
     end
 end
+function real_G_to_r(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray) where {T}
+    G_to_r(basis, f_fourier; assume_real=Val(true))
+end
 function G_to_r(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
     G_to_r!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
 end
