@@ -12,8 +12,8 @@ function LibxcFunctional(identifier::Symbol)
     @assert fun.kind   in (:exchange, :correlation, :exchange_correlation)
     kind = Dict(:exchange => :x, :correlation => :c, :exchange_correlation => :xc)[fun.kind]
 
-    @assert fun.family in (:lda, :gga, :hyb_gga, :mgga)
-    if fun.family == :mgga && Libxc.needs_laplacian(fun)
+    @assert fun.family in (:lda, :hyb_lda, :gga, :hyb_gga, :mgga, :hyb_mgga)
+    if (fun.family == :mgga || fun.family == :hyb_mgga) && Libxc.needs_laplacian(fun)
         family = :mggal
     else
         family = fun.family
@@ -54,7 +54,7 @@ end
 
 libxc_energy(terms, ρ) = haskey(terms, :zk) ? reshape(terms.zk, 1, size(ρ, 2)) .* ρ : false
 
-function DftFunctionals.potential_terms(func::LibxcFunctional{:lda}, ρ::Matrix{Float64})
+function DftFunctionals.potential_terms(func::Union{LibxcFunctional{:lda},LibxcFunctional{:hyb_lda}}, ρ::Matrix{Float64})
     s_ρ, n_p = size(ρ)
     fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
     derivatives = filter(in(Libxc.supported_derivatives(fun)), 0:1)
@@ -63,7 +63,7 @@ function DftFunctionals.potential_terms(func::LibxcFunctional{:lda}, ρ::Matrix{
     Vρ = reshape(terms.vrho, s_ρ, n_p)
     (; e, Vρ)
 end
-function DftFunctionals.potential_terms(func::LibxcFunctional{:gga}, ρ::Matrix{Float64},
+function DftFunctionals.potential_terms(func::Union{LibxcFunctional{:gga},LibxcFunctional{:hyb_gga}}, ρ::Matrix{Float64},
                                         σ::Matrix{Float64})
     s_ρ, n_p = size(ρ)
     s_σ = size(σ, 1)
@@ -75,19 +75,7 @@ function DftFunctionals.potential_terms(func::LibxcFunctional{:gga}, ρ::Matrix{
     Vσ = reshape(terms.vsigma, s_σ, n_p)
     (; e, Vρ, Vσ)
 end
-function DftFunctionals.potential_terms(func::LibxcFunctional{:hyb_gga}, ρ::Matrix{Float64},
-    σ::Matrix{Float64})
-    s_ρ, n_p = size(ρ)
-    s_σ = size(σ, 1)
-    fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
-    derivatives = filter(in(Libxc.supported_derivatives(fun)), 0:1)
-    terms = Libxc.evaluate(fun; rho=ρ, sigma=σ, derivatives)
-    e  = libxc_energy(terms, ρ)
-    Vρ = reshape(terms.vrho,   s_ρ, n_p)
-    Vσ = reshape(terms.vsigma, s_σ, n_p)
-    (; e, Vρ, Vσ)
-end
-function DftFunctionals.potential_terms(func::LibxcFunctional{:mgga}, ρ::Matrix{Float64},
+function DftFunctionals.potential_terms(func::Union{LibxcFunctional{:mgga},LibxcFunctional{:hyb_mgga}}, ρ::Matrix{Float64},
                                         σ::Matrix{Float64}, τ::Matrix{Float64})
     s_ρ, n_p = size(ρ)
     s_σ = size(σ, 1)
@@ -116,7 +104,7 @@ function DftFunctionals.potential_terms(func::LibxcFunctional{:mggal}, ρ::Matri
     (; e, Vρ, Vσ, Vτ, Vl)
 end
 
-function DftFunctionals.kernel_terms(func::LibxcFunctional{:lda}, ρ::Matrix{Float64})
+function DftFunctionals.kernel_terms(func::Union{LibxcFunctional{:lda},LibxcFunctional{:hyb_lda}}, ρ::Matrix{Float64})
     s_ρ, n_p = size(ρ)
     fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
     derivatives = filter(in(Libxc.supported_derivatives(fun)), 0:2)
@@ -126,7 +114,7 @@ function DftFunctionals.kernel_terms(func::LibxcFunctional{:lda}, ρ::Matrix{Flo
     Vρρ = libxc_unfold_spin(terms.v2rho2, s_ρ)
     (; e, Vρ, Vρρ)
 end
-function DftFunctionals.kernel_terms(func::LibxcFunctional{:gga}, ρ::Matrix{Float64},
+function DftFunctionals.kernel_terms(func::Union{LibxcFunctional{:gga},LibxcFunctional{:hyb_gga}}, ρ::Matrix{Float64},
                                      σ::Matrix{Float64})
     s_ρ, n_p = size(ρ)
     s_σ = size(σ, 1)
@@ -140,21 +128,6 @@ function DftFunctionals.kernel_terms(func::LibxcFunctional{:gga}, ρ::Matrix{Flo
     Vρσ = permutedims(reshape(terms.v2rhosigma, s_σ, s_ρ, n_p), (2, 1, 3))
     Vσσ = libxc_unfold_spin(terms.v2sigma2, s_σ)
     (; e, Vρ, Vσ, Vρρ, Vρσ, Vσσ)
-end
-function DftFunctionals.kernel_terms(func::LibxcFunctional{:hyb_gga}, ρ::Matrix{Float64},
-    σ::Matrix{Float64})
-s_ρ, n_p = size(ρ)
-s_σ = size(σ, 1)
-fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
-derivatives = filter(in(Libxc.supported_derivatives(fun)), 0:2)
-terms = Libxc.evaluate(fun; rho=ρ, sigma=σ, derivatives)
-e   = libxc_energy(terms, ρ)
-Vρ  = reshape(terms.vrho,   s_ρ, n_p)
-Vσ  = reshape(terms.vsigma, s_σ, n_p)
-Vρρ = libxc_unfold_spin(terms.v2rho2,   s_ρ)
-Vρσ = permutedims(reshape(terms.v2rhosigma, s_σ, s_ρ, n_p), (2, 1, 3))
-Vσσ = libxc_unfold_spin(terms.v2sigma2, s_σ)
-(; e, Vρ, Vσ, Vρρ, Vρσ, Vσσ)
 end
 #
 # Automatic dispatching between Libxc (where possible) and the generic implementation
