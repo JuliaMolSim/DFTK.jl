@@ -16,12 +16,20 @@ function Base.show(io::IO, exchange::FockExchange)
 end
 struct TermFockExchange <: Term
     scaling_factor::Real  # scaling factor, absorbed into poisson_green_coeffs
+    poisson_green_coeffs::AbstractArray
+    poisson_green_coeffs_kpt::AbstractArray
 end
 function TermFockExchange(basis::PlaneWaveBasis{T}, scaling_factor) where T
-    println("scaling=$(scaling_factor)")
     model = basis.model
 
-    TermFockExchange(T(scaling_factor))
+    poisson_green_coeffs = scaling_factor * 4T(π) ./ [sum(abs2, G) for G in G_vectors_cart(basis)]
+    poisson_green_coeffs_kpt = scaling_factor * 4T(π) ./ [sum(abs2, G) for G in G_vectors_cart(basis, basis.kpoints[1])]
+    
+    # Compensating charge background => Zero DC
+    poisson_green_coeffs[1] = 0
+    poisson_green_coeffs_kpt[1] = 0
+
+    TermFockExchange(T(scaling_factor), poisson_green_coeffs, poisson_green_coeffs_kpt)
 end
 
 @timing "ene_ops: FockExchange" function ene_ops(term::TermFockExchange, basis::PlaneWaveBasis{T},
@@ -34,9 +42,6 @@ end
 
     # @assert length(ψ) == 1 # TODO: make it work for more kpoints
 
-    poisson_green_coeffs = term.scaling_factor * 4T(π) ./ [sum(abs2, G) for G in G_vectors_cart(basis)]
-    poisson_green_coeffs_kpt = term.scaling_factor * 4T(π) ./ [sum(abs2, G) for G in G_vectors_cart(basis, basis.kpoints[1])]
-
     E = T(0)
     for psi_i in eachcol(ψ[1])
         for psi_j in eachcol(ψ[1])
@@ -46,11 +51,10 @@ end
             rho_ij_four = r_to_G(basis, rho_ij_real)
             rho_ij_four_conj = r_to_G(basis, rho_ij_real_conj)
 
-            vij_fourier = rho_ij_four_conj .* poisson_green_coeffs
+            vij_fourier = rho_ij_four_conj .* term.poisson_green_coeffs
             E += real(dot(rho_ij_four, vij_fourier))
         end
     end
-
-    ops = [ExchangeOperator(ψ[ik], poisson_green_coeffs, poisson_green_coeffs_kpt, basis, kpt) for (ik,kpt) in enumerate(basis.kpoints)]
+    ops = [ExchangeOperator(ψ[ik], term.poisson_green_coeffs, term.poisson_green_coeffs_kpt, basis, kpt) for (ik,kpt) in enumerate(basis.kpoints)]
     (E=E, ops=ops)
 end
