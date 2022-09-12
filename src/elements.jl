@@ -164,3 +164,24 @@ function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <:
     qsq_pi = Int(round(q^2 / (2π / el.lattice_constant)^2, digits=2))
     T(get(el.V_sym, qsq_pi, 0.0))
 end
+
+
+struct ElementGaussian <: Element
+    α       # Prefactor
+    L       # Width of the Gaussian nucleus
+    symbol  # Element symbol
+end
+
+"""
+Element interacting with electrons via a Gaussian potential.
+"""
+function ElementGaussian(α, L; symbol=nothing)
+    ElementGaussian(α, L, symbol)
+end
+function local_potential_real(el::ElementGaussian, r)
+    -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
+end
+function local_potential_fourier(el::ElementGaussian, q::Real)
+    # = ∫_ℝ³ V(x) exp(-ix⋅q) dx
+    -el.α * exp(- (q * el.L)^2 / 2)
+end

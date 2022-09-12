@@ -38,6 +38,7 @@ include("pseudo/PspHgh.jl")
 export ElementPsp
 export ElementCohenBergstresser
 export ElementCoulomb
+export ElementGaussian
 export charge_nuclear
 export charge_ionic
 export atomic_symbol
