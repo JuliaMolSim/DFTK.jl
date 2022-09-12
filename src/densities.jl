@@ -37,7 +37,7 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
             ρ_loc = ρ_chunklocal[ichunk]
 
             kpt = basis.kpoints[ik]
-            G_to_r!(ψnk_real, basis, kpt, ψ[ik][:, n])
+            ifft!(ψnk_real, basis, kpt, ψ[ik][:, n])
             ρ_loc[:, :, :, kpt.spin] .+= occupation[ik][n] .* basis.kweights[ik] .* abs2.(ψnk_real)
         end
     end
@@ -71,7 +71,7 @@ end
     for (ik, kpt) in enumerate(basis.kpoints)
         G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(basis, kpt)] for α in 1:3]
         for n = 1:size(ψ[ik], 2), α = 1:3
-            G_to_r!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
+            ifft!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
             @. τ[:, :, :, kpt.spin] += occupation[ik][n] * basis.kweights[ik] / 2 * abs2(dαψnk_real)
         end
     end
