@@ -1,4 +1,5 @@
 import FFTW
+import AbstractFFTs: fft, fft!, ifft, ifft!
 
 #
 # Perform (i)FFTs.
