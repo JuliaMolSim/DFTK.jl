@@ -167,13 +167,15 @@ end
 
 
 struct ElementGaussian <: Element
-    α       # Prefactor
-    L       # Width of the Gaussian nucleus
-    symbol  # Element symbol
+    α                               # Prefactor
+    L                               # Width of the Gaussian nucleus
+    symbol::Union{Nothing, Symbol}  # Element symbol
 end
+AtomsBase.atomic_symbol(el::ElementGaussian) = el.symbol
 
 """
 Element interacting with electrons via a Gaussian potential.
+Symbol is non-mandatory.
 """
 function ElementGaussian(α, L; symbol=nothing)
     ElementGaussian(α, L, symbol)
