@@ -63,7 +63,7 @@ struct PlaneWaveBasis{T, VT} <: AbstractBasis{T} where {VT <: Real}
     ipFFT   # in-place FFT plan
     opBFFT  # inverse plans (unnormalized plan; backward in FFTW terminology)
     ipBFFT
-    fft_normalization::T  # fft = fft_normalization * FFT
+    fft_normalization::T   # fft = fft_normalization * FFT
     ifft_normalization::T  # ifft = ifft_normalization * BFFT
 
     # "cubic" basis in reciprocal and real space, on which potentials and densities are stored
@@ -200,7 +200,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     # so that the ifft has to normalized by 1/sqrt(Ω).
     # The other constant is chosen because FFT * BFFT = N
     ifft_normalization = 1/sqrt(model.unit_cell_volume)
-    fft_normalization = sqrt(model.unit_cell_volume) / length(ipFFT)
+    fft_normalization  = sqrt(model.unit_cell_volume) / length(ipFFT)
 
     # Compute k-point information and spread them across processors
     # Right now we split only the kcoords: both spin channels have to be handled
