@@ -120,11 +120,12 @@ end
     using SpecialFunctions, FiniteDifferences
 
     tol = 1e-10
-    fact=randn(ComplexF64)
-    value=randn()
+    α=randn(ComplexF64)
+    erfcα = x -> erfc(α*x)
+    x0=randn()
 
-    fd1 = ForwardDiff.derivative(x -> erfc(x*fact) , value)
-    ForwardDiff.derivative(x -> erfc(x*fact) , value)
-    fd2 = FiniteDifferences.central_fdm(5,1)(x -> erfc(x*fact), value)
+    fd1 = ForwardDiff.derivative(erfcα , x0)
+    ForwardDiff.derivative(erfcα , x0)
+    fd2 = FiniteDifferences.central_fdm(5,1)(erfcα, x0)
     @test isapprox(norm(fd1 - fd2), 0, atol=tol)
 end
