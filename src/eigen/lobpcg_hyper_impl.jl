@@ -53,7 +53,9 @@ end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X, AX, N)
-    F = eigen(Hermitian(array_mul(X', AX)))
+    XAX = array_mul(X', AX)
+    @assert all(!isnan, XAX)
+    F = eigen(Hermitian(XAX))
     F.vectors[:,1:N], F.values[1:N]
 end
 
@@ -65,6 +67,7 @@ end
 function B_ortho!(X, BX)
     O = Hermitian(X'*BX)
     U = cholesky(O).U
+    @assert all(!isnan, U)
     rdiv!(X, U)
     rdiv!(BX, U)
 end
@@ -117,6 +120,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
             success = false
         end
         invR = inv(R)
+        @assert all(!isnan, invR)
         rmul!(X, invR) # we do not use X/R because we use invR next
 
         # We would like growth_factor *= opnorm(inv(R)) but it's too
