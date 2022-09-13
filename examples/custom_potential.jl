@@ -4,8 +4,30 @@
 # This is similar to [Gross-Pitaevskii equation in 1D example](@ref gross-pitaevskii)
 # and we show how to define local potentials attached to atoms, which allows for
 # instance to compute forces.
+# The custom potential is actually already defined as `ElementGaussian` in DFTK, and could
+# be used as is.
 using DFTK
 using LinearAlgebra
+
+# First, we define a new element which represents a nucleus generating
+# a Gaussian potential.
+struct CustomPotential <: DFTK.Element
+    α  # Prefactor
+    L  # Width of the Gaussian nucleus
+end
+
+# Some default values
+CustomPotential() = CustomPotential(1.0, 0.5)
+
+# We extend the two methods providing access to the real and Fourier
+# representation of the potential to DFTK.
+function DFTK.local_potential_real(el::CustomPotential, r::Real)
+    -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
+end
+function DFTK.local_potential_fourier(el::CustomPotential, q::Real)
+    ## = ∫ V(r) exp(-ix⋅q) dx
+    -el.α * exp(- (q * el.L)^2 / 2)
+end
 
 # We set up the lattice. For a 1D case we supply two zero lattice vectors
 a = 10
@@ -18,9 +40,7 @@ lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]];
 x1 = 0.2
 x2 = 0.8
 positions = [[x1, 0, 0], [x2, 0, 0]]
-# We use an element which represents a nucleus geenrating a Gaussian potential of prefactor
-# `1.0` and width `0.5`.
-gauss     = ElementGaussian(1.0, 0.5)
+gauss     = CustomPotential()
 atoms     = [gauss, gauss]
 
 # We setup a Gross-Pitaevskii model
