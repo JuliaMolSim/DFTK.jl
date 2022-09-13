@@ -54,7 +54,7 @@ function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
             out[1][iG], out[2][iG] = vec
         end
     end
-    # TODO: see https://github.com/JuliaMolSim/DFTK.jl/pull/722
+    # TODO: forcing real-valued ifft; should be enforced at creation of array
     [irfft(basis, out[α]; check=Val(false)) for α = 1:2]
 end
 
@@ -119,7 +119,7 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwarg
             A2[iG] = -2T(π) * G[1] / G2 * (ρ_fourier[iG] - ρref_fourier[iG]) * im
         end
     end
-    # TODO: see https://github.com/JuliaMolSim/DFTK.jl/pull/722
+    # TODO: forcing real-valued ifft; should be enforced at creation of array
     Areal = [irfft(basis, A1; check=Val(false)) + term.Aref[1],
              irfft(basis, A2; check=Val(false)) + term.Aref[2],
              zeros(T, basis.fft_size)]
@@ -147,7 +147,7 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwarg
             eff_pot_fourier[iG] += +4T(π)*β * im * G[1] / G2 * eff_current_fourier[2][iG]
         end
     end
-    # TODO: see https://github.com/JuliaMolSim/DFTK.jl/pull/722
+    # TODO: forcing real-valued ifft; should be enforced at creation of array
     eff_pot_real = irfft(basis, eff_pot_fourier; check=Val(false))
     ops_ham = [ops_energy..., RealSpaceMultiplication(basis, basis.kpoints[1], eff_pot_real)]
 
