@@ -60,13 +60,14 @@ Build a BlockMatrix containing the given arrays, from left to right.
 This function will fail (for now) if:
     -the arrays do not all have the same "height" (ie size[1] must match).
 """
-function make_block_vector(arrays::AbstractArray...)
+function BlockMatrix(arrays::AbstractArray...)
     length(arrays) ==0 && error("Empty BlockMatrix is not currently implemented")
     n_ref= size(arrays[1])[1]
     m=0
     for array in arrays
         n_i, m_i = size(array)
-        n_ref != n_i && error("The given arrays do not have matching 'height': cannot build a BlockMatrix out of them.")
+        n_ref != n_i && error("The given arrays do not have matching 'height': "*
+        "cannot build a BlockMatrix out of them.")
         m += m_i
     end
     BlockMatrix(arrays, (n_ref,m))
@@ -95,8 +96,8 @@ block_overlap always compute some form of adjoint, ie the product A'*B.
     ret
 end
 
-block_overlap(blocksA::BlockMatrix, B) = block_overlap(blocksA, make_block_vector(B))
-block_overlap(A, B) = A' * B # Default fallback method. Note the adjoint.
+block_overlap(blocksA::BlockMatrix, B) = block_overlap(blocksA, BlockMatrix(B))
+block_overlap(A, B) = A' * B  # Default fallback method. Note the adjoint.
 
 """
 Given A as a BlockMatrix [A1, A2, A3] and B a Matrix, compute the matrix-matrix product
@@ -119,7 +120,8 @@ end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X::BlockMatrix, AX::BlockMatrix, N)
-    F = eigen(Hermitian(block_overlap(X, AX))) # block_overlap(X,AX) is an AbstractArray, not a BlockMatrix
+    # block_overlap(X,AX) is an AbstractArray, not a BlockMatrix
+    F = eigen(Hermitian(block_overlap(X, AX)))
     F.vectors[:,1:N], F.values[1:N]
 end
 
@@ -236,14 +238,14 @@ end
     niter = 1
     ninners = zeros(Int,0)
     while true
-        BYX = block_overlap(BY,X) # = BY' X
-        mul!(X, Y, BYX, -one(T), one(T)) # X -= Y*BY'X
+        BYX = block_overlap(BY,X)  # = BY' X
+        mul!(X, Y, BYX, -one(T), one(T))  # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho!(cP, cX)
         dropped = drop!(X)
         if dropped != []
-            X[:, dropped] .-= Y * block_overlap(BY,X[:, dropped]) #X = X - Y'*BY*X
+            X[:, dropped] .-= Y * block_overlap(BY,X[:, dropped])  # X = X - Y'*BY*X
         end
 
         if norm(BYX) < tol && niter > 1
@@ -282,7 +284,6 @@ function final_retval(X, AX, resid_history, niter, n_matvec)
     (λ=λ, X=X,
      residual_norms=[norm(residuals[:, i]) for i in 1:size(residuals, 2)],
      residual_history=resid_history[:, 1:niter+1], n_matvec=n_matvec)
-    #λ doesn't have to be on the GPU, but X does (ψ should always be on GPU throughout the code).
 end
 
 ### The algorithm is Xn+1 = rayleigh_ritz(hcat(Xn, A*Xn, Xn-Xn-1))
@@ -298,10 +299,10 @@ end
 
     # If N is too small, we will likely get in trouble
     error_message(verb) = "The eigenproblem is too small, and the iterative " *
-                            "eigensolver $verb fail; increase the number of " *
-                            "degrees of freedom, or use a dense eigensolver."
-     N > 3M    || error(error_message("will"))
-     N >= 3M+5 || @warn error_message("might")
+                           "eigensolver $verb fail; increase the number of " *
+                           "degrees of freedom, or use a dense eigensolver."
+    N > 3M    || error(error_message("will"))
+    N >= 3M+5 || @warn error_message("might")
 
     n_conv_check === nothing && (n_conv_check = M)
     resid_history = zeros(real(eltype(X)), M, maxiter+1)
@@ -314,7 +315,7 @@ end
         B_ortho!(X, BX)
     end
 
-    n_matvec = M   # Count number of matrix-vector products
+    n_matvec = M  # Count number of matrix-vector products
     AX = similar(X)
     AX = mul!(AX, A, X)
     @assert all(!isnan, AX)
@@ -337,7 +338,7 @@ end
     nlocked = 0
     niter = 0  # the first iteration is fake
     λs = @views [(X[:,n]'*AX[:,n]) / (X[:,n]'BX[:,n]) for n=1:M]
-    λs = oftype(X[:,1], λs) #Offload to GPU if needed
+    λs = oftype(X[:,1], λs)  # Offload to GPU if needed
     new_X = X
     new_AX = AX
     new_BX = BX
@@ -353,13 +354,13 @@ end
 
             # Form Rayleigh-Ritz subspace
             if niter > 1
-                Y = make_block_vector(X, R, P)
-                AY = make_block_vector(AX, AR, AP)
-                BY = make_block_vector(BX, BR, BP)  # data shared with (X, R, P) in non-general case
+                Y = BlockMatrix(X, R, P)
+                AY = BlockMatrix(AX, AR, AP)
+                BY = BlockMatrix(BX, BR, BP)  # data shared with (X, R, P) in non-general case
             else
-                Y  = make_block_vector(X, R)
-                AY = make_block_vector(AX, AR)
-                BY = make_block_vector(BX, BR)  # data shared with (X, R) in non-general case
+                Y  = BlockMatrix(X, R)
+                AY = BlockMatrix(AX, AR)
+                BY = BlockMatrix(BX, BR)  # data shared with (X, R) in non-general case
             end
             cX, λs = rayleigh_ritz(Y, AY, M-nlocked)
 
@@ -383,7 +384,7 @@ end
         vprintln(niter, "   ", resid_history[:, niter+1])
         if precon !== I
             @timing "preconditioning" begin
-                precondprep!(precon, X) # update preconditioner if needed; defaults to noop
+                precondprep!(precon, X)  # update preconditioner if needed; defaults to noop
                 ldiv!(precon, new_R)
             end
         end
@@ -427,7 +428,7 @@ end
             lenXn = length(Xn_indices)
             e = zero(similar(X, size(cX, 1), M - prev_nlocked))
             lower_diag = one(similar(X, lenXn, lenXn))
-            #e has zeros everywhere except on one of its lower diagonal
+            # e has zeros everywhere except on one of its lower diagonal
             e[Xn_indices[1] : last(Xn_indices), 1 : lenXn] = lower_diag
 
             cP = cX .- e
@@ -484,8 +485,8 @@ end
 
         # Orthogonalize R wrt all X, newly active P
         if niter > 0
-            Z  = make_block_vector(full_X, P)
-            BZ = make_block_vector(full_BX, BP) # data shared with (full_X, P) in non-general case
+            Z  = BlockMatrix(full_X, P)
+            BZ = BlockMatrix(full_BX, BP) # data shared with (full_X, P) in non-general case
         else
             Z  = full_X
             BZ = full_BX
