@@ -98,7 +98,7 @@ function TermAnyonic(basis::PlaneWaveBasis{T}, hbar, β) where {T}
     TermAnyonic(hbar, β, ρref, Aref)
 end
 
-function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwargs...) where T
+function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwargs...) where {T}
     hbar = term.hbar
     β = term.β
     @assert ψ !== nothing # the hamiltonian depends explicitly on ψ

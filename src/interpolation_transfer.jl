@@ -97,7 +97,7 @@ the transfer from `ψkin` (defined on `basis_in` and `kpt_in`) to `ψkout`
 (defined on `basis_out` and `kpt_out`).
 """
 function transfer_mapping(basis_in::PlaneWaveBasis{T},  kpt_in::Kpoint,
-                          basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where T
+                          basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where {T}
     idcs_in  = 1:length(G_vectors(basis_in, kpt_in))  # All entries from idcs_in
     kpt_in == kpt_out && return idcs_in, idcs_in
 
@@ -132,7 +132,7 @@ Return a sparse matrix that maps quantities given on `basis_in` and `kpt_in`
 to quantities on `basis_out` and `kpt_out`.
 """
 function compute_transfer_matrix(basis_in::PlaneWaveBasis{T}, kpt_in::Kpoint,
-                                 basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where T
+                                 basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where {T}
     idcs_in, idcs_out = transfer_mapping(basis_in, kpt_in, basis_out, kpt_out)
     sparse(idcs_out, idcs_in, true)
 end
@@ -142,7 +142,7 @@ end
 Return a list of sparse matrices (one per ``k``-point) that map quantities given in the
 `basis_in` basis to quantities given in the `basis_out` basis.
 """
-function compute_transfer_matrix(basis_in::PlaneWaveBasis{T}, basis_out::PlaneWaveBasis{T}) where T
+function compute_transfer_matrix(basis_in::PlaneWaveBasis{T}, basis_out::PlaneWaveBasis{T}) where {T}
     @assert basis_in.model.lattice == basis_out.model.lattice
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
@@ -156,7 +156,7 @@ end
 Transfer an array ψk defined on basis_in ``k``-point kpt_in to basis_out ``k``-point kpt_out.
 """
 function transfer_blochwave_kpt(ψk_in, basis_in::PlaneWaveBasis{T}, kpt_in::Kpoint,
-                                basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where T
+                                basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where {T}
     kpt_in == kpt_out && return copy(ψk_in)
     @assert length(G_vectors(basis_in, kpt_in)) == size(ψk_in, 1)
     idcsk_in, idcsk_out = transfer_mapping(basis_in, kpt_in, basis_out, kpt_out)
@@ -173,7 +173,7 @@ end
 Transfer Bloch wave between two basis sets. Limited feature set.
 """
 function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
-                            basis_out::PlaneWaveBasis{T}) where T
+                            basis_out::PlaneWaveBasis{T}) where {T}
     @assert basis_in.model.lattice == basis_out.model.lattice
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
