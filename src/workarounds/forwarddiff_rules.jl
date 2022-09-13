@@ -305,8 +305,7 @@ end
 function erfc(x::Complex{ForwardDiff.Dual{T,V,N}}) where {T,V,N}
     xx = complex(ForwardDiff.value(real(x)), ForwardDiff.value(imag(x)))
     dx = complex.(ForwardDiff.partials(real(x)), ForwardDiff.partials(imag(x)))
-    Tx = typeof(xx)
-    dgamma = -2*exp(-xx^2)/sqrt(Tx(π)) * dx
+    dgamma = -2*exp(-xx^2)/sqrt(V(π)) * dx
     complex(ForwardDiff.Dual{T,V,N}(real(erfc(xx)), ForwardDiff.Partials{N,V}(tuple(real(dgamma)...))),
             ForwardDiff.Dual{T,V,N}(imag(erfc(xx)), ForwardDiff.Partials{N,V}(tuple(imag(dgamma)...))))
 end
