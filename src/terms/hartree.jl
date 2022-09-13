@@ -38,7 +38,7 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
         @assert sum_charges == model.n_electrons
     end
     poisson_green_coeffs[1] = 0  # Compensating charge background => Zero DC
-    force_real!(poisson_green_coeffs, basis)  # Symmetrize Fourier coeffs to have real iFFT
+    force_real!(basis, poisson_green_coeffs)  # Symmetrize Fourier coeffs to have real iFFT
 
     TermHartree(T(scaling_factor), T(scaling_factor) .* poisson_green_coeffs)
 end
