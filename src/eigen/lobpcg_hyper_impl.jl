@@ -46,7 +46,7 @@ using LinearAlgebra
 using BlockArrays # used for the `mortar` command which makes block matrices
 
 # when X or Y are BlockArrays, this makes the return value be a proper array (not a BlockArray)
-function array_mul(X::AbstractArray{T}, Y) where T
+function array_mul(X::AbstractArray{T}, Y) where {T}
     Z = Array{T}(undef, size(X, 1), size(Y, 2))
     mul!(Z, X, Y)
 end
@@ -77,7 +77,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been
 # magnified
-@timing function ortho!(X::AbstractArray{T}; tol=2eps(real(T))) where T
+@timing function ortho!(X::AbstractArray{T}; tol=2eps(real(T))) where {T}
     local R
 
     # # Uncomment for "gold standard"
@@ -151,7 +151,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 end
 
 # Randomize the columns of X if the norm is below tol
-function drop!(X::AbstractArray{T}, tol=2eps(real(T))) where T
+function drop!(X::AbstractArray{T}, tol=2eps(real(T))) where {T}
     dropped = Int[]
     for i=1:size(X,2)
         n = norm(@views X[:,i])
@@ -164,7 +164,7 @@ function drop!(X::AbstractArray{T}, tol=2eps(real(T))) where T
 end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
-@timing "ortho! X vs Y" function ortho!(X::AbstractArray{T}, Y, BY; tol=2eps(real(T))) where T
+@timing "ortho! X vs Y" function ortho!(X::AbstractArray{T}, Y, BY; tol=2eps(real(T))) where {T}
     # normalize to try to cheaply improve conditioning
     Threads.@threads for i=1:size(X,2)
         n = norm(@views X[:,i])

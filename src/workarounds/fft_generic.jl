@@ -70,17 +70,17 @@ LinearAlgebra.ldiv!(Y, p::GenericPlan, X) = Y .= p \ X
 import Base: *, \, inv, length
 length(p::GenericPlan) = prod(length, p.subplans)
 *(p::GenericPlan, X::AbstractArray) = generic_apply(p, X)
-*(p::GenericPlan{T}, fac::Number) where T = GenericPlan{T}(p.subplans, p.factor * T(fac))
-*(fac::Number, p::GenericPlan{T}) where T = p * fac
+*(p::GenericPlan{T}, fac::Number) where {T} = GenericPlan{T}(p.subplans, p.factor * T(fac))
+*(fac::Number, p::GenericPlan{T}) where {T} = p * fac
 \(p::GenericPlan, X) = inv(p) * X
-inv(p::GenericPlan{T}) where T = GenericPlan{T}(inv.(p.subplans), 1 / p.factor)
+inv(p::GenericPlan{T}) where {T} = GenericPlan{T}(inv.(p.subplans), 1 / p.factor)
 
-function generic_plan_fft(data::AbstractArray{T, 3}) where T
+function generic_plan_fft(data::AbstractArray{T, 3}) where {T}
     GenericPlan{T}([FourierTransforms.plan_fft(data[:, 1, 1]),
                     FourierTransforms.plan_fft(data[1, :, 1]),
                     FourierTransforms.plan_fft(data[1, 1, :])], T(1))
 end
-function generic_plan_bfft(data::AbstractArray{T, 3}) where T
+function generic_plan_bfft(data::AbstractArray{T, 3}) where {T}
     GenericPlan{T}([FourierTransforms.plan_bfft(data[:, 1, 1]),
                     FourierTransforms.plan_bfft(data[1, :, 1]),
                     FourierTransforms.plan_bfft(data[1, 1, :])], T(1))

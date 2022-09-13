@@ -88,7 +88,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
 end
 
 @timing "forces: local" function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{TT},
-                                                ψ, occupation; ρ, kwargs...) where TT
+                                                ψ, occupation; ρ, kwargs...) where {TT}
     T = promote_type(TT, real(eltype(ψ[1])))
     model = basis.model
     recip_lattice = model.recip_lattice

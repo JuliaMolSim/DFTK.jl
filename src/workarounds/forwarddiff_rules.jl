@@ -64,7 +64,7 @@ end
 LinearAlgebra.mul!(Y::AbstractArray{<:Complex{<:ForwardDiff.Dual}}, p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, X::AbstractArray{<:ComplexF64}) where {T,P} =
     (Y .= _apply_plan(p, X))
 
-function _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where T
+function _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where {T}
     # TODO do we want x::AbstractArray{<:ForwardDiff.Dual{T}} too?
     xtil = p * ForwardDiff.value.(x)
     dxtils = ntuple(ForwardDiff.npartials(eltype(x))) do n
@@ -83,7 +83,7 @@ function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::Abst
 end
 
 # this is to avoid method ambiguities between these two:
-#   _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where T
+#   _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where {T}
 #   _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray) where {T,P}
 function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{Tg}}}) where {T,P,Tg}
     _apply_plan(p.p, p.scale * x)
@@ -194,7 +194,7 @@ end
 
 function self_consistent_field(basis_dual::PlaneWaveBasis{T};
                                response=ResponseOptions(),
-                               kwargs...) where T <: ForwardDiff.Dual
+                               kwargs...) where {T <: ForwardDiff.Dual}
     # Note: No guarantees on this interface yet.
 
     # Primal pass

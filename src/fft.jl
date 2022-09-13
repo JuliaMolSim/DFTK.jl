@@ -153,7 +153,7 @@ represented in the spherical basis sets, `supersampling` should be at least `2`.
 If `factors` is not empty, ensure that the resulting fft_size contains all the factors
 """
 function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
-                          ensure_smallprimes=true, algorithm=:fast, factors=1, kwargs...) where T
+                          ensure_smallprimes=true, algorithm=:fast, factors=1, kwargs...) where {T}
     if algorithm == :fast
         Glims = compute_Glims_fast(model.lattice, Ecut; kwargs...)
     elseif algorithm == :precise
@@ -210,7 +210,7 @@ end
 # This uses a more precise and slower algorithm than the one above,
 # simply enumerating all G vectors and seeing where their difference
 # is. It needs the kpoints to do so.
-@timing function compute_Glims_precise(lattice::AbstractMatrix{T}, Ecut, kpoints; supersampling=2) where T
+@timing function compute_Glims_precise(lattice::AbstractMatrix{T}, Ecut, kpoints; supersampling=2) where {T}
     recip_lattice  = compute_recip_lattice(lattice)
     recip_diameter = diameter(recip_lattice)
     Glims = [0, 0, 0]
@@ -245,7 +245,7 @@ end
 end
 
 # Fast implementation, but sometimes larger than necessary.
-function compute_Glims_fast(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=sqrt(eps(T))) where T
+function compute_Glims_fast(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=sqrt(eps(T))) where {T}
     Gmax = supersampling * sqrt(2 * Ecut)
     recip_lattice = compute_recip_lattice(lattice)
     Glims = estimate_integer_lattice_bounds(recip_lattice, Gmax; tol=tol)

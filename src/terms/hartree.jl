@@ -26,7 +26,7 @@ struct TermHartree <: TermNonlinear
     # Fourier coefficients of the Green's function of the periodic Poisson equation
     poisson_green_coeffs::AbstractArray
 end
-function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
+function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
     model = basis.model
 
     # Solving the Poisson equation ΔV = -4π ρ in Fourier space
