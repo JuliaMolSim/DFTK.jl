@@ -62,11 +62,11 @@ function ifft(basis::PlaneWaveBasis, f_fourier::AbstractArray)
     f_real
 end
 """
-Perform a real valued iFFT; see `ifft`.
+Perform a real valued iFFT; see [`ifft`](@ref).
 """
 function irfft(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray; check=Val(true)) where {T}
     f_real = ifft(basis, f_fourier)
-    (check == Val(true)) && @assert isapprox(norm(imag(f_real)), 0.0, atol=sqrt(eps(T)))
+    (check == Val(true)) && @assert norm(imag(f_real)) < sqrt(eps(T))
     real(f_real)
 end
 function ifft(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
