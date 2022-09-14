@@ -68,3 +68,13 @@ end
     q3 = sqrt(3) * 2π / element.lattice_constant
     @test local_potential_fourier(element, q3) == -14.180625963358901
 end
+
+@testset "Check constructing ElementGaussian" begin
+    element = ElementGaussian(1.0, 0.5; symbol=:X1)
+
+    @test atomic_symbol(element) == :X1
+
+    @test local_potential_fourier(element, 0.0) == -1.0
+    @test local_potential_fourier(element, 2.0) == -0.6065306597126334
+    @test local_potential_real(element, 2.0) == -0.00026766045152977074
+end
