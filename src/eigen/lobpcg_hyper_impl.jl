@@ -44,7 +44,8 @@ vprintln(args...) = nothing
 
 using LinearAlgebra
 import Base: *
-import Base.size, Base.adjoint
+import Base.size, Base.adjoint, Base.Array
+
 include("../workarounds/gpu_arrays.jl")
 
 # For now, BlockMatrix can store arrays of different types (for example, an element 
@@ -79,6 +80,8 @@ function Base.size(A::BlockMatrix)
     m = sum(size(block, 2) for block in A.blocks)
     (n,m)
 end
+
+Base.Array(A::BlockMatrix)  = hcat(A.blocks...)
 
 Base.adjoint(A::BlockMatrix) = Adjoint(A)
 
