@@ -44,15 +44,15 @@ vprintln(args...) = nothing
 
 using LinearAlgebra
 import Base: *
+import Base.size
 include("../workarounds/gpu_arrays.jl")
 
 # For now, BlockMatrix can store arrays of different types (for example, an element 
 # of type views and one of type Matrix). Maybe for performance issues it should only
 # store arrays of the same type?
 
-struct BlockMatrix
-    blocks::Tuple
-    size::Tuple{Int64,Int64}
+struct BlockMatrix{T <: Number, D <: Tuple} <: AbstractMatrix{T}
+    blocks::D
 end
 
 """
@@ -62,26 +62,31 @@ This function will fail (for now) if:
 """
 function BlockMatrix(arrays::AbstractArray...)
     length(arrays) ==0 && error("Empty BlockMatrix is not currently implemented")
-    n_ref= size(arrays[1])[1]
-    m=0
+    n_ref= size(arrays[1],1)
     for array in arrays
-        n_i, m_i = size(array)
+        n_i = size(array, 1)
         n_ref != n_i && error("The given arrays do not have matching 'height': "*
         "cannot build a BlockMatrix out of them.")
-        m += m_i
     end
-    BlockMatrix(arrays, (n_ref,m))
+
+    T = promote_type(map(eltype, arrays)...)
+
+    BlockMatrix{T, typeof(arrays)}(arrays)
 end
 
-
+function Base.size(A::BlockMatrix)
+    n = size(A.blocks[1],1)
+    m = sum(size(block,2) for block in A.blocks)
+    (n,m)
+end
 """
 Given A and B as two BlockMatrixs [A1, A2, A3], [B1, B2, B3] form the matrix
 A'B (which is not a BlockMatrix). block_overlap also has compatible versions with two Arrays. 
 block_overlap always compute some form of adjoint, ie the product A'*B.
 """
 @views function block_overlap(A::BlockMatrix, B::BlockMatrix)
-    rows = A.size[2]
-    cols = B.size[2]
+    rows = size(A)[2]
+    cols = size(B)[2]
     ret = similar(A.blocks[1], rows, cols)
 
     orow = 0  # row offset
@@ -103,7 +108,7 @@ block_overlap(A, B) = A' * B  # Default fallback method. Note the adjoint.
 Given A as a BlockMatrix [A1, A2, A3] and B a Matrix, compute the matrix-matrix product
 A * B avoiding a concatenation of the blocks to a dense array. 
 """
-@views function *(Ablock::BlockMatrix, B)
+@views function *(Ablock::BlockMatrix, B::AbstractMatrix)
     res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
     offset = size(Ablock.blocks[1], 2)
     for block in Ablock.blocks[2:end]
@@ -113,7 +118,7 @@ A * B avoiding a concatenation of the blocks to a dense array.
     res
 end
 
-function LinearAlgebra.mul!(res,A::BlockMatrix,B::AbstractArray,α,β)
+function LinearAlgebra.mul!(res::AbstractMatrix,A::BlockMatrix,B::AbstractVecOrMat,α::Number,β::Number)
     # Has slightly better performances than a naive res = α*A*B - β*res
     mul!(res, A*B, I, α, β)
 end
