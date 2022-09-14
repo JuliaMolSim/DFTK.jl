@@ -26,7 +26,8 @@
 using DFTK
 
 a0 = 10.26 # Experimental lattice constant of silicon in bohr
-a_list = LinRange(a0 - 1/2, a0 + 1/2, 20) # 20 points around a0
+n_sample = 20
+a_list = LinRange(a0 - 1/2, a0 + 1/2, n_sample) # 20 points around a0
 
 Ecut = 5        # very low Ecut to display big irregularities
 kgrid = [2,2,2] # very sparse k-grid to fasten convergence
@@ -60,7 +61,7 @@ E0_ref = [-7.839775223322127, -7.843031658146996, -7.845961005280923,
           -7.858268793303855, -7.857406769423708]
 
 using Plots
-shift = sum(abs.(E0_naive .- E0_ref)) / 20
+shift = sum(abs.(E0_naive .- E0_ref)) / n_sample
 p = plot(a_list, E0_naive .- shift, label="Ecut=5 Ha", xlabel="lattice parameter a (bohr)",
          ylabel="Ground state energy (Ha)")
 plot!(p, a_list, E0_ref, label="Ecut=100 Ha")
@@ -72,27 +73,28 @@ plot!(p, a_list, E0_ref, label="Ecut=100 Ha")
 # smearing". DFTK features energy cutoff smearing using the CHV blow-up
 # function introduced in [REF of the paper to be submitted],
 # that is mathematicaly ensured to provide C^2 regularity of the energy bands.
-
-# !!! note "Other energy cutoff options"
-#     The quantum chemistry codes Qbox [^Qbox] and Abinit [^Abinit] also feature
-#     energy cutoff smearing options. The Abinit blow-up function corresponds to
-#     the CHV one, with a choice of coefficients ensuring ``C^1`` regularity. The Qbox
-#     implementation however doesn't use a proper blow-up function which in turn has no
-#     mathematical proof of regularization of the energy bands.
-#
-
-# [^Qbox]:
-#    Qbox first principles molecular dynamics
-#    [documentation](http://qboxcode.org/doc/html/usage/variables.html#ecuts-var)
-# [^Abinit]:
-#    Abinit software suite [user guide](https://docs.abinit.org/variables/rlx/#ecutsm)
-#
-
-# Let us lauch the computation again with the modified kinetic term.
+# The modified kinetic term is simply defined with
 
 blowup = BlowupCHV() # Choose blowup function
 modified_PBE_terms = [Kinetic(;blowup), AtomicLocal(), AtomicNonlocal(),
                       Ewald(), PspCorrection(), Hartree(), Xc([:gga_x_pbe, :gga_c_pbe])]
+
+# !!! note "Abinit energy cutoff smearing option"
+#     For the sake of completeness, DFTK also provides the blow-up function proposed
+#     in the Abinit [^Abinit] quantum chemistry code. This function depends on a parameter
+#     `Ecutsm` fixed by the user. Note that for the right choice of `Ecutsm`, the Abinit
+#     blow-up function corresponds to the CHV one with a choice of coefficients
+#     ensuring ``C^1`` regularity. The Abinit options is chosen with:
+# 
+
+# [^Abinit]:
+#    Abinit software suite [user guide](https://docs.abinit.org/variables/rlx/#ecutsm)
+#
+
+Ecutsm = 3
+blowup_Abinit = BlowupAbinit(Ecutsm)
+
+# Let us lauch the computation again with the modified kinetic term.
 
 function compute_ground_state_energy_modified(a; Ecut, kgrid, kwargs...)
     function model(a)
@@ -117,7 +119,7 @@ E0_modified = compute_ground_state_energy_modified.(a_list; Ecut, kgrid,
 estimate_a0(E0_values) = a_list[findmin(E0_values)[2]]
 a0_naive, a0_ref, a0_modified = estimate_a0.([E0_naive, E0_ref, E0_modified])
 
-shift = sum(abs.(E0_modified .- E0_ref)) / 20 # again, shift for legibility of the plot
+shift = sum(abs.(E0_modified .- E0_ref)) / n_sample # again, shift for legibility of the plot
 
 plot!(p, a_list, E0_modified .- shift, label="Ecut=5 Ha | modified kinetic term")
 vline!(p, [a0], label="experimental a0", linestyle=:dash, linecolor=:black)
@@ -127,8 +129,8 @@ vline!(p, [a0_modified], label="a0 Ecut=5 | modified kinetic term", linestyle=:d
 
 # The smoothed curve obtained with the modified kinetic term allow to clearly designate
 # a minimal value of the energy with respect to the lattice parameter ``a``, even with
-# the low `Ecut=5` Ha. It matches the approximation of the lattice constant obtained
-# with `Ecut=100` Ha within an error of 0.5%.
+# the low `Ecut=5` Ha.
 
 println("Error of approximation of the reference a0 with modified kinetic term:"*
-        " $((a0_modified - a0_ref)*100/a0_ref)")
+        " $(round((a0_modified - a0_ref)*100/a0_ref, digits=5))%")
+

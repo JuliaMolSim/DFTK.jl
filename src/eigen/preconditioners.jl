@@ -37,7 +37,7 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     kinetic_term = only(kinetic_term)
     scaling = kinetic_term.scaling_factor
     blowup = kinetic_term.blowup     # blowup for energy cut-off smearing
-    kin = Vector{T}([scaling * basis.Ecut * blowup(norm(q)/√(2*basis.Ecut))
+    kin = Vector{T}([scaling * sum(abs2, q)/2 * blowup(norm(q), basis.Ecut)
                      for q in Gplusk_vectors_cart(basis, kpt)])
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
