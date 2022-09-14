@@ -71,6 +71,16 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
                              Roots.Bisection(), atol=eps(T))
     end
 
+    if iszero(temperature)
+        # At zero temperature, we make sure that the Fermi level lies strictly
+        # inside the band gap
+        HOMO = maximum(maximum.(filter.(x->x<εF, eigenvalues)))
+        HOMO = mpi_max(HOMO, basis.comm_kpts)
+        LUMO = minimum(minimum.(filter.(x->x≥εF, eigenvalues)))
+        LUMO = mpi_min(LUMO, basis.comm_kpts)
+        εF = ( HOMO + LUMO ) / 2
+    end
+
     if !isapprox(compute_n_elec(εF), n_electrons)
         # For insulators it can happen that bisection stops in a final interval (a, b) where
         # `compute_n_elec(a) ≈ n_electrons` and `compute_n_elec(b) > n_electrons`, but where
