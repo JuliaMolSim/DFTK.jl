@@ -44,7 +44,7 @@ vprintln(args...) = nothing
 
 using LinearAlgebra
 import Base: *
-import Base.size
+import Base.size, Base.adjoint
 include("../workarounds/gpu_arrays.jl")
 
 # For now, BlockMatrix can store arrays of different types (for example, an element 
@@ -62,7 +62,7 @@ This function will fail (for now) if:
 """
 function BlockMatrix(arrays::AbstractArray...)
     length(arrays) ==0 && error("Empty BlockMatrix is not currently implemented")
-    n_ref= size(arrays[1],1)
+    n_ref= size(arrays[1], 1)
     for array in arrays
         n_i = size(array, 1)
         n_ref != n_i && error("The given arrays do not have matching 'height': "*
@@ -75,16 +75,19 @@ function BlockMatrix(arrays::AbstractArray...)
 end
 
 function Base.size(A::BlockMatrix)
-    n = size(A.blocks[1],1)
-    m = sum(size(block,2) for block in A.blocks)
+    n = size(A.blocks[1], 1)
+    m = sum(size(block, 2) for block in A.blocks)
     (n,m)
 end
+
+Base.adjoint(A::BlockMatrix) = Adjoint(A)
+
 """
-Given A and B as two BlockMatrixs [A1, A2, A3], [B1, B2, B3] form the matrix
-A'B (which is not a BlockMatrix). block_overlap also has compatible versions with two Arrays. 
-block_overlap always compute some form of adjoint, ie the product A'*B.
+Given A and B as two BlockMatrices [A1, A2, A3], [B1, B2, B3] form the matrix
+A'B. Return an array, not a BlockMatrix.
 """
-@views function block_overlap(A::BlockMatrix, B::BlockMatrix)
+@views function Base.:*(Aadj::Adjoint{T, <: BlockMatrix}, B::BlockMatrix) where {T}
+    A = Aadj.parent
     rows = size(A)[2]
     cols = size(B)[2]
     ret = similar(A.blocks[1], rows, cols)
@@ -101,12 +104,11 @@ block_overlap always compute some form of adjoint, ie the product A'*B.
     ret
 end
 
-block_overlap(blocksA::BlockMatrix, B) = block_overlap(blocksA, BlockMatrix(B))
-block_overlap(A, B) = A' * B  # Default fallback method. Note the adjoint.
+Base.:*(Aadj::Adjoint{T, <: BlockMatrix}, B::AbstractMatrix) where {T} = Aadj * BlockMatrix(B)
 
 """
 Given A as a BlockMatrix [A1, A2, A3] and B a Matrix, compute the matrix-matrix product
-A * B avoiding a concatenation of the blocks to a dense array. 
+A * B avoiding a concatenation of A's blocks to a dense array.
 """
 @views function *(Ablock::BlockMatrix, B::AbstractMatrix)
     res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
@@ -118,15 +120,16 @@ A * B avoiding a concatenation of the blocks to a dense array.
     res
 end
 
-function LinearAlgebra.mul!(res::AbstractMatrix,A::BlockMatrix,B::AbstractVecOrMat,α::Number,β::Number)
+function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::BlockMatrix,
+                            B::AbstractVecOrMat, α::Number, β::Number)
     # Has slightly better performances than a naive res = α*A*B - β*res
-    mul!(res, A*B, I, α, β)
+    mul!(res, Ablock*B, I, α, β)
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X::BlockMatrix, AX::BlockMatrix, N)
-    # block_overlap(X,AX) is an AbstractArray, not a BlockMatrix
-    F = eigen(Hermitian(block_overlap(X, AX)))
+    # Multiplying two BlockMatrices yields an array, not a BlockMatrix
+    F = eigen(Hermitian(X' * AX))
     F.vectors[:,1:N], F.values[1:N]
 end
 
@@ -243,14 +246,14 @@ end
     niter = 1
     ninners = zeros(Int,0)
     while true
-        BYX = block_overlap(BY,X)  # = BY' X
+        BYX = BY' * X
         mul!(X, Y, BYX, -one(T), one(T))  # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho!(cP, cX)
         dropped = drop!(X)
         if dropped != []
-            X[:, dropped] .-= Y * block_overlap(BY,X[:, dropped])  # X = X - Y'*BY*X
+            X[:, dropped] .-= Y * (BY' * X[:, dropped])  # X = X - Y*BY'*X
         end
 
         if norm(BYX) < tol && niter > 1
