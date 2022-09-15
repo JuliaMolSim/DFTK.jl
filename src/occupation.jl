@@ -74,9 +74,9 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
     if iszero(temperature)
         # At zero temperature, we make sure that the Fermi level lies strictly
         # inside the band gap
-        HOMO = maximum(maximum.(filter.(x->x<εF, eigenvalues)))
+        HOMO = maximum(maximum.(filter.(x->x≤εF, eigenvalues)))
         HOMO = mpi_max(HOMO, basis.comm_kpts)
-        LUMO = minimum(minimum.(filter.(x->x≥εF, eigenvalues)))
+        LUMO = minimum(minimum.(filter.(x->x>εF, eigenvalues); init=HOMO))
         LUMO = mpi_min(LUMO, basis.comm_kpts)
         εF = ( HOMO + LUMO ) / 2
     end
