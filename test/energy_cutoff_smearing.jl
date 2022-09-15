@@ -10,6 +10,7 @@ using DFTK
 
 include("testcases.jl")
 
+if mpi_nprocs() == 1
 @testset "Energy cutoff smearing on silicon LDA" begin
     # Compute reference ground state density and fft_grid    
     Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
@@ -31,10 +32,6 @@ include("testcases.jl")
     λ_std = vcat(compute_bands(basis_std, kcoords, n_bands=1, ρ=scfres.ρ).λ...)
     ∂2λ_std = [(λ_std[i+1] - 2*λ_std[i] + λ_std[i-1])/δk^2 for i in 2:num_k-1]
 
-    @testset "Checking for standard discontinuity" begin
-        @test norm(∂2λ_std) > 1e5 # Band with a discontinuity
-    end
-
     # Compute band for given blow-up and test regularity
     function test_blowup(blowup)
         terms_mod = [Kinetic(;blowup), AtomicLocal(), AtomicNonlocal(),
@@ -45,12 +42,13 @@ include("testcases.jl")
 
         λ_mod = vcat(compute_bands(basis_mod, kcoords, n_bands=1, ρ=scfres.ρ).λ...)        
         ∂2λ_mod = [(λ_mod[i+1] - 2*λ_mod[i] + λ_mod[i-1])/δk^2 for i in 2:num_k-1]
-        @test norm(∂2λ_mod) < 10  # Smooth band
+        @test norm(∂2λ_std) / norm(∂2λ_mod) > 1e4
+        nothing
     end
-
     for blowup in (BlowupCHV(), BlowupAbinit())
         @testset "Testing $(typeof(blowup))" begin
             test_blowup(blowup)
         end
     end
+end
 end

@@ -18,7 +18,7 @@ Ecut = 50
 n_electrons = 1
 β = 5
 
-terms = [Kinetic(2),
+terms = [Kinetic(;scaling_factor=2),
          ExternalFromReal(X -> pot(X...)),
          Anyonic(1, β)
 ]
