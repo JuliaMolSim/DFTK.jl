@@ -30,7 +30,7 @@ using DFTK
 using Statistics
 
 a0 = 10.26 # Experimental lattice constant of silicon in bohr
-a_list = range(a0 - 1/2, a0 + 1/2, 20)
+a_list = range(a0 - 1/2, a0 + 1/2; length=20)
 
 Ecut    = 5         # very low Ecut to display big irregularities
 kgrid   = (2, 2, 2) # very sparse k-grid to fasten convergence
