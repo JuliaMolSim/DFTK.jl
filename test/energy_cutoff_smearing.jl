@@ -35,7 +35,9 @@ if mpi_nprocs() == 1
         nothing
     end
     for blowup in (BlowupCHV(), BlowupAbinit())
-        @testset "Testing $(typeof(blowup))" test_blowup(blowup)
+        @testset "Testing $(typeof(blowup))" begin
+            test_blowup(blowup)
+        end
     end
 end
 end
