@@ -52,17 +52,22 @@ Perform an iFFT to obtain the quantity defined by `f_fourier` defined
 on the k-dependent spherical basis set (if `kpt` is given) or the
 k-independent cubic (if it is not) on the real-space grid.
 """
-function ifft(basis::PlaneWaveBasis, f_fourier::AbstractArray; assume_real=Val(true))
-    # assume_real is true by default because this is the most common usage
-    # (for densities & potentials). Val(true) to help const-prop;
-    # see https://github.com/JuliaLang/julia/issues/44330
+function ifft(basis::PlaneWaveBasis, f_fourier::AbstractArray)
     f_real = similar(f_fourier)
     @assert length(size(f_fourier)) ∈ (3, 4)
     # this exploits trailing index convention
     for iσ = 1:size(f_fourier, 4)
         @views ifft!(f_real[:, :, :, iσ], basis, f_fourier[:, :, :, iσ])
     end
-    (assume_real == Val(true)) ? real(f_real) : f_real
+    f_real
+end
+"""
+Perform a real valued iFFT; see [`ifft`](@ref).
+"""
+function irfft(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray; check=Val(true)) where {T}
+    f_real = ifft(basis, f_fourier)
+    (check == Val(true)) && @assert norm(imag(f_real)) < sqrt(eps(T))
+    real(f_real)
 end
 function ifft(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
     ifft!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
