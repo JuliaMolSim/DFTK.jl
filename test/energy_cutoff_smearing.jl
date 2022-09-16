@@ -16,7 +16,7 @@ if mpi_nprocs() == 1
     # Kpath around one discontinuity of the first band of silicon (between X and U points)
     k_start = [0.5274, 0.0548, 0.5274]
     k_end   = [0.5287, 0.0573, 0.5287]
-    kcoords = map(x->(1-x)*k_start .+ x*k_end, range(0, 1, 100))
+    kcoords = map(x->(1-x)*k_start .+ x*k_end, range(0, 1; length=100))
     δk = norm(kcoords[2] .- kcoords[1], 1)
 
     # Test irregularity of the standard band through its second finite diff derivative
