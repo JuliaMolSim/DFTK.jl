@@ -1,78 +1,26 @@
 """
-Kinetic energy: 1/2 sum_n f_n ∫ |∇ψn|^2 (standard)
-             or 1/2 sum_n f_n ∫ |∇ψn|^2 * blowup(-i∇Ψ) (modified kinetic term).
+Kinetic energy: 1/2 sum_n f_n ∫ |∇ψn|^2 * blowup(-i∇Ψ).
 """
 Base.@kwdef struct Kinetic{F}
     scaling_factor::Real = 1
-    blowup::F = BlowupKineticEnergy() # blow-up function to smooth energy bands. Defaut is x↦x^2.
+    blowup::F = BlowupIdentity()  # Blow-up to smooth energy bands.
 end
 
 (kin::Kinetic)(basis) = TermKinetic(basis, kin.scaling_factor, kin.blowup)
 function Base.show(io::IO, kin::Kinetic)
-    fac = isone(kin.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
-    print(io, "Kinetic($fac)")
-end
-
-"""
-Define different energy cutoff strategies.
-ADD REF when the paper is published.
-"""
-struct BlowupKineticEnergy end
-struct BlowupCHV end
-Base.@kwdef struct BlowupAbinit
-    Ecutsm::Float64 = 1/2 # Recommanded value in Abinit documentation
-end
-
-"""
-Default blow-up corresponding to the standard kinetic energies.
-"""
-(blowup::BlowupKineticEnergy)(x, Ecut) = 1
-
-"""
-Blow-up function as proposed in [REF paper Cancès, Hassan, Vidal to be submitted]
-The blow-up order of the function is fixed to ensure C^2 regularity of the energies bands
-away from crossings and Lipschitz continuity at crossings.
-"""
-@inline function (blowup::BlowupCHV)(y, Ecut)
-    E_kin = y^2/2
-    x = y / √(2Ecut) # x in [0,1]
-    x1, x2 = 0.85, 0.90 # Interval of interpolation
-
-    # Define blow-up part
-    Ca_opt = 0.013952310177257383 # optimized to match the x->x^2 curve the most
-    blowup_part(x) = Ca_opt/( (1-x)^2 )
-
-    if (0 ≤ x < x1)
-        return 1
-    elseif (x1 ≤ x < x2) # smooth interpolation between 1 and blowup_part
-        f(x) = (x==0) ? 0 : exp(-1/x)
-        smooth_step(x) = f((x-x1)/(x2-x1)) / (f((x-x1)/(x2-x1)) + f(1-(x-x1)/(x2-x1)))
-        return (Ecut/E_kin) * ((1-smooth_step(x))*x^2 + smooth_step(x)*blowup_part(x))
-    else
-        return (Ecut/E_kin) * blowup_part(x)
-    end
-    Inf # Handle |G+k|^2 = E_cut case
-end
-
-@inline function (blowup::BlowupAbinit)(y, Ecut)
-    Ecutsm = Ecut * blowup.Ecutsm
-    @assert( Ecutsm < Ecut )
-    ( y ≤ √(2*(Ecut-Ecutsm)) ) && (return 1)
-    E_kin = y^2/2
-    x = (Ecut - E_kin) / Ecutsm
-    1/(x^2 * (3 + x - 6x^2 + 3x^2))
+    bup = kin.blowup isa BlowupIdentity ? "" : ", blowup=$(kin.blowup)"
+    fac = isone(kin.scaling_factor) ? "" : ", scaling_factor=$(kin.scaling_factor)"
+    print(io, "Kinetic($bup$fac)")
 end
 
 struct TermKinetic <: Term
     scaling_factor::Real  # scaling factor, absorbed into kinetic_energies
-    # kinetic energies 1/2(k+G)^2 (or Ecut*blowup(|k+G|/√(2Ecut)) for energy
-    # cutoff smearing methods) for each k-point.
+    # kinetic energies 1/2(k+G)^2 *blowup(|k+G|, Ecut) for each k-point.
     kinetic_energies::Vector{<:AbstractVector}
 end
 function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, blowup) where {T}
-    Ecut = basis.Ecut
-    kinetic_energies = [[T(scaling_factor) * sum(abs2, Gk)/2 * blowup(norm(Gk), Ecut)
-                   for Gk in Gplusk_vectors_cart(basis, kpt)] for kpt in basis.kpoints]
+    kinetic_energies = [[T(scaling_factor) * sum(abs2, Gk)/2 * blowup(norm(Gk), basis.Ecut)
+                         for Gk in Gplusk_vectors_cart(basis, kpt)] for kpt in basis.kpoints]
     TermKinetic(T(scaling_factor), kinetic_energies)
 end
 
@@ -93,4 +41,58 @@ end
     E = mpi_sum(E, basis.comm_kpts)
 
     (E=E, ops=ops)
+end
+
+
+"""
+Default blow-up corresponding to the standard kinetic energies.
+"""
+struct BlowupIdentity end
+(blowup::BlowupIdentity)(x, Ecut) = one(x)
+
+
+"""
+Blow-up function as proposed in [REF paper Cancès, Hassan, Vidal to be submitted]
+The blow-up order of the function is fixed to ensure C^2 regularity of the energies bands
+away from crossings and Lipschitz continuity at crossings.
+"""
+struct BlowupCHV end
+function (blowup::BlowupCHV)(y::T, Ecut) where {T}
+    Ekin = y^2 / 2
+    x = y / √(2Ecut)  # x in [0,1]
+    x1, x2 = T(0.85), T(0.90)  # Interval of interpolation
+
+    # Define blow-up part
+    Ca_opt = 0.013952310177257383  # optimized to best match the x->x^2 curve
+    blowup_part(x) = Ca_opt / (1-x)^2
+
+    if (0 ≤ x < x1)
+        return one(T)
+    elseif (x1 ≤ x < x2) # smooth interpolation between 1 and blowup_part
+        f(x::T) = iszero(x) ? zero(T) : exp(-1 / x)
+        smooth_step(x) = f((x-x1)/(x2-x1)) / (f((x-x1)/(x2-x1)) + f(1 - (x-x1)/(x2-x1)))
+        return (Ecut/Ekin) * ((1-smooth_step(x)) * x^2 + smooth_step(x) * blowup_part(x))
+    else
+        return (Ecut/Ekin) * blowup_part(x)
+    end
+end
+
+
+"""
+Blow-up function as used in Abinit.
+"""
+Base.@kwdef struct BlowupAbinit
+    Ecutsm::Float64 = 0.5  # Recommended value in Abinit documentation
+end
+function (blowup::BlowupAbinit)(y::T, Ecut) where {T}
+    Ekin   = y^2/2
+    Ecutsm = Ecut * blowup.Ecutsm
+    @assert Ecutsm < Ecut
+
+    if y ≤ sqrt(2 * (Ecut - Ecutsm))
+        return one(T)
+    else
+        x = (Ecut - Ekin) / Ecutsm
+        1/(x^2 * (3 + x - 6x^2 + 3x^2))
+    end
 end

@@ -34,6 +34,9 @@ end
 function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=1) where T
     kinetic_term = [t for t in basis.model.term_types if t isa Kinetic]
     isempty(kinetic_term) && error("Preconditioner should be disabled when no Kinetic term is used.")
+
+    # TODO Annoying that one has to recompute the kinetic energies here. Perhaps
+    #      it's better to pass a HamiltonianBlock directly and read the computed values.
     kinetic_term = only(kinetic_term)
     scaling = kinetic_term.scaling_factor
     blowup = kinetic_term.blowup     # blowup for energy cut-off smearing

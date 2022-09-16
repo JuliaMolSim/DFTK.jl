@@ -18,12 +18,11 @@ Ecut = 50
 n_electrons = 1
 β = 5
 
-terms = [Kinetic(;scaling_factor=2),
+terms = [Kinetic(; scaling_factor=2),
          ExternalFromReal(X -> pot(X...)),
          Anyonic(1, β)
 ]
-model = Model(lattice; n_electrons=n_electrons,
-              terms=terms, spin_polarization=:spinless)  # "spinless electrons"
+model = Model(lattice; n_electrons, terms, spin_polarization=:spinless)  # "spinless electrons"
 basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
 scfres = direct_minimization(basis, tol=1e-14)  # Reduce tol for production
 E = scfres.energies.total

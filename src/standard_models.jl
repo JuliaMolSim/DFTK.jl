@@ -9,9 +9,9 @@ Use `extra_terms` to add additional terms.
 function model_atomic(lattice::AbstractMatrix,
                       atoms::Vector{<:Element},
                       positions::Vector{<:AbstractVector};
-                      extra_terms=[], kwargs...)
+                      extra_terms=[], kinetic_blowup=BlowupIdentity(), kwargs...)
     @assert !(:terms in keys(kwargs))
-    terms = [Kinetic(),
+    terms = [Kinetic(; blowup=kinetic_blowup),
              AtomicLocal(),
              AtomicNonlocal(),
              Ewald(),

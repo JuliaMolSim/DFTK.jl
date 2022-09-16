@@ -89,7 +89,7 @@ export PairwisePotential
 export Anyonic
 export apply_kernel
 export compute_kernel
-export BlowupKineticEnergy
+export BlowupIdentity
 export BlowupCHV
 export BlowupAbinit
 include("DispatchFunctional.jl")
