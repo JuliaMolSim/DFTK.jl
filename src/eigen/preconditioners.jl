@@ -31,7 +31,7 @@ mutable struct PreconditionerTPA{T <: Real}
     default_shift::T # if mean_kin is not set by `precondprep!`, this will be used for the shift
 end
 
-function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=1) where T
+function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=1) where {T}
     kinetic_term = [t for t in basis.model.term_types if t isa Kinetic]
     isempty(kinetic_term) && error("Preconditioner should be disabled when no Kinetic term is used.")
 

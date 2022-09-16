@@ -38,6 +38,7 @@ include("pseudo/PspHgh.jl")
 export ElementPsp
 export ElementCohenBergstresser
 export ElementCoulomb
+export ElementGaussian
 export charge_nuclear
 export charge_ionic
 export atomic_symbol
@@ -55,10 +56,10 @@ export compute_fft_size
 export G_vectors, G_vectors_cart, r_vectors, r_vectors_cart
 export Gplusk_vectors, Gplusk_vectors_cart
 export Kpoint
-export G_to_r
-export G_to_r!
-export r_to_G
-export r_to_G!
+export ifft
+export ifft!
+export fft
+export fft!
 include("Smearing.jl")
 include("Model.jl")
 include("structure.jl")

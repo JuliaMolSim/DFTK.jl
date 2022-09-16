@@ -99,8 +99,8 @@ end
             @warn "Meta-GGAs with a Δρ term have not yet been thoroughly tested." maxlog=1
             mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
             Vl  = reshape(terms.Vl, n_spin, basis.fft_size...)
-            Vl_fourier = r_to_G(basis, Vl[s, :, :, :])
-            potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
+            Vl_fourier = fft(basis, Vl[s, :, :, :])
+            potential[:, :, :, s] .+= ifft(basis, mG² .* Vl_fourier)  # ΔVl
         end
     end
 
@@ -221,7 +221,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
     # compute ρ_real and possibly ρ_fourier
     ρ_real = permutedims(ρ, (4, 1, 2, 3))  # ρ[x, y, z, σ] -> ρ_real[σ, x, y, z]
     if max_derivative > 0
-        ρf = r_to_G(basis, ρ)
+        ρf = fft(basis, ρ)
         ρ_fourier = permutedims(ρf, (4, 1, 2, 3))  # ρ_fourier[σ, x, y, z]
     end
 
@@ -234,7 +234,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
         for α = 1:3
             iGα = [im * G[α] for G in G_vectors_cart(basis)]
             for σ = 1:n_spin
-                ∇ρ_real[σ, :, :, :, α] .= G_to_r(basis, iGα .* @view ρ_fourier[σ, :, :, :])
+                ∇ρ_real[σ, :, :, :, α] .= ifft(basis, iGα .* @view ρ_fourier[σ, :, :, :])
             end
         end
 
@@ -254,7 +254,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
         Δρ_real = similar(ρ_real, n_spin, basis.fft_size...)
         mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
         for σ = 1:n_spin
-            Δρ_real[σ, :, :, :] .= G_to_r(basis, mG² .* @view ρ_fourier[σ, :, :, :])
+            Δρ_real[σ, :, :, :] .= ifft(basis, mG² .* @view ρ_fourier[σ, :, :, :])
         end
     end
 
@@ -442,9 +442,9 @@ The divergence is also returned as a real-space array.
 """
 function divergence_real(operand, basis)
     gradsum = sum(1:3) do α
-        operand_α = r_to_G(basis, operand(α))
+        operand_α = fft(basis, operand(α))
         del_α = im * [G[α] for G in G_vectors_cart(basis)]
         del_α .* operand_α
     end
-    G_to_r(basis, gradsum)
+    ifft(basis, gradsum)
 end

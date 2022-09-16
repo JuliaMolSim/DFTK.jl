@@ -51,7 +51,7 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end
-    TermExternal(G_to_r(basis, pot_fourier))
+    TermExternal(ifft(basis, pot_fourier))
 end
 
 
@@ -83,16 +83,16 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
         pot / sqrt(model.unit_cell_volume)
     end
 
-    pot_real = G_to_r(basis, pot_fourier)
+    pot_real = ifft(basis, pot_fourier)
     TermAtomicLocal(pot_real)
 end
 
 @timing "forces: local" function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{TT},
-                                                ψ, occupation; ρ, kwargs...) where TT
+                                                ψ, occupation; ρ, kwargs...) where {TT}
     T = promote_type(TT, real(eltype(ψ[1])))
     model = basis.model
     recip_lattice = model.recip_lattice
-    ρ_fourier = r_to_G(basis, total_density(ρ))
+    ρ_fourier = fft(basis, total_density(ρ))
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
     # where struct_factor(G) = e^{-i G·r}

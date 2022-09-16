@@ -46,7 +46,7 @@ function occupation_divided_difference(S::SmearingFunction, x, y, εF, temp)
         divided_difference_(f, fder, x, y)
     end
 end
-function divided_difference_(f, fder, x::T, y) where T
+function divided_difference_(f, fder, x::T, y) where {T}
     # (f(x) - f(y))/(x - y) is accurate to ε/|x-y|
     # so for x ~= y we use the approximation (f'(x)+f'(y))/2,
     # which is accurate to |x-y|^2, and therefore better when |x-y| ≤ cbrt(ε)
@@ -96,17 +96,17 @@ end
 
 struct Gaussian <: SmearingFunction end
 occupation(S::Gaussian, x) = erfc(x) / 2
-entropy(S::Gaussian, x::T) where T = 1 / (2 * sqrt(T(π))) * exp(-x^2)
+entropy(S::Gaussian, x::T) where {T} = 1 / (2 * sqrt(T(π))) * exp(-x^2)
 
 # NB: the Fermi energy with Marzari-Vanderbilt smearing is __not__ unique
 struct MarzariVanderbilt <: SmearingFunction end
-function occupation(S::MarzariVanderbilt, x::T) where T
+function occupation(S::MarzariVanderbilt, x::T) where {T}
     return (
         -erf(x + 1/sqrt(T(2))) / 2 
         + 1/sqrt(2*T(π)) * exp(-(-x - 1/sqrt(T(2)))^2) + 1/T(2)
     )
 end
-function entropy(S::MarzariVanderbilt, x::T) where T
+function entropy(S::MarzariVanderbilt, x::T) where {T}
     return 1/sqrt(2*T(π)) * (x + 1/sqrt(T(2))) * exp(-(-x - 1/sqrt(T(2)))^2)
 end
 
@@ -132,14 +132,14 @@ end
 struct MethfesselPaxton <: SmearingFunction
     order::Int
 end
-function occupation(S::MethfesselPaxton, x::T) where T
+function occupation(S::MethfesselPaxton, x::T) where {T}
     x == Inf && return zero(x)
     x == -Inf && return one(x)
     f₀ = erfc(x) / 2  # 0-order Methfessel-Paxton smearing is Gaussian smearing
     Σfₙ = sum(i -> A(T, i) * H(x, 2i - 1), 1:S.order)
     return f₀ + Σfₙ * exp(-x^2)
 end
-function entropy(S::MethfesselPaxton, x::T) where T
+function entropy(S::MethfesselPaxton, x::T) where {T}
     return sum(i -> A(T, i) * (H(x, 2i) / 2 + 2i * H(x, 2i - 2)), 0:S.order) * exp(-x^2)
 end
 

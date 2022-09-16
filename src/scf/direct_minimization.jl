@@ -68,7 +68,7 @@ necessarily eigenvectors of the Hamiltonian.
 direct_minimization(basis::PlaneWaveBasis; kwargs...) = direct_minimization(basis, nothing; kwargs...)
 function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                              prec_type=PreconditionerTPA,
-                             optim_solver=Optim.LBFGS, tol=1e-6, kwargs...) where T
+                             optim_solver=Optim.LBFGS, tol=1e-6, kwargs...) where {T}
     if mpi_nprocs() > 1
         # need synchronization in Optim
         error("Direct minimization with MPI is not supported yet")

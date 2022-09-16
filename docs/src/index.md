@@ -24,12 +24,6 @@ Found a bug, missing a feature? Look for an open issue or
 [create a new one](https://github.com/JuliaMolSim/DFTK.jl/issues).
 Want to contribute? See our [contributing notes](https://github.com/JuliaMolSim/DFTK.jl#contributing).
 
-!!! tip "DFTK summer school: 29th to 31st August 2022 in Paris, France"
-    We will organise a summer school centred around the DFTK code
-    and modern approaches to density-functional theory
-    from **29 to 31 August 2022** at **Sorbonne Université, Paris**.
-    For more details and registration info see the [school's website](https://school2022.dftk.org).
-
 # [Getting started](@id getting-started)
 First, new users should take a look at the [Installation](@ref) and
 [Tutorial](@ref) sections. Then, make your way through the various examples.

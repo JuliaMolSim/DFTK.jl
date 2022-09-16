@@ -14,7 +14,7 @@ struct TermMagnetic <: Term
     # Apotential[α] is an array of size fft_size for α=1:3
     Apotential::Vector{<:AbstractArray}
 end
-function TermMagnetic(basis::PlaneWaveBasis{T}, Afunction::Function) where T
+function TermMagnetic(basis::PlaneWaveBasis{T}, Afunction::Function) where {T}
     Apotential = [zeros(T, basis.fft_size) for α = 1:3]
     N1, N2, N3 = basis.fft_size
     rvecs = collect(r_vectors_cart(basis))

@@ -25,7 +25,7 @@ abstract type TermNonlinear <: Term end
 A term with a constant zero energy.
 """
 struct TermNoop <: Term end
-function ene_ops(term::TermNoop, basis::PlaneWaveBasis{T}, ψ, occ; kwargs...) where T
+function ene_ops(term::TermNoop, basis::PlaneWaveBasis{T}, ψ, occ; kwargs...) where {T}
     (E=zero(eltype(T)), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
 
