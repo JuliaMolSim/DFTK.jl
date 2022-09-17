@@ -35,6 +35,7 @@ PAGES = [
         "examples/gaas_surface.jl",
         "examples/graphene.jl",
         "examples/geometry_optimization.jl",
+        "examples/energy_cutoff_smearing.jl",
     ],
     "Response and properties" => [
         "examples/polarizability.jl",

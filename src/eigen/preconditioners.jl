@@ -19,7 +19,6 @@ No preconditioning
 struct PreconditionerNone end
 PreconditionerNone(basis, kpt) = I
 
-
 """
 (simplified version of) Tetter-Payne-Allan preconditioning
 ↑ M.P. Teter, M.C. Payne and D.C. Allan, Phys. Rev. B 40, 12255 (1989).
@@ -35,8 +34,14 @@ end
 function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=1) where {T}
     kinetic_term = [t for t in basis.model.term_types if t isa Kinetic]
     isempty(kinetic_term) && error("Preconditioner should be disabled when no Kinetic term is used.")
-    scaling = only(kinetic_term).scaling_factor
-    kin = Vector{T}([scaling * sum(abs2, q) for q in Gplusk_vectors_cart(basis, kpt)] ./ 2)
+
+    # TODO Annoying that one has to recompute the kinetic energies here. Perhaps
+    #      it's better to pass a HamiltonianBlock directly and read the computed values.
+    kinetic_term = only(kinetic_term)
+    scaling = kinetic_term.scaling_factor
+    blowup = kinetic_term.blowup     # blowup for energy cut-off smearing
+    kin = Vector{T}([scaling * sum(abs2, q)/2 * blowup(norm(q), basis.Ecut)
+                     for q in Gplusk_vectors_cart(basis, kpt)])
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 
