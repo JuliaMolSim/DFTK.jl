@@ -8,21 +8,20 @@
 # section, the energy of periodic systems is computed by solving eigenvalue
 # problems of the form
 #
-#```math
-# \begin{equation}
-# H_ku_k=\varepsilon_k u_k
-# \end{equation}
+# ```math
+# H_k u_k = \varepsilon_k u_k
 # ```
 #
 # for each ``k``-point in the first Brillouin zone of the system.
 # Each of these eigenvalue problem is discretized with a plane-wave basis
 # ``\mathcal{B}_k^{E_c}=\{x\mapsto e^{iG\cdot x} \;\;|\;G\in\mathcal{R}^*,\;\; |k+G|^2\leq 2E_c\}``
-# whose size highly depends on the choice of ``k``-point, cutoff energy ``\rm E_c`` or
-# cell size.  As a result, energy bands computed along a ``k``-path in the Brillouin zone
+# whose size highly depends on the choice of ``k``-point, cell size or
+# cutoff energy ``\rm E_c`` (the `Ecut` parameter of DFTK).
+# As a result, energy bands computed along a ``k``-path in the Brillouin zone
 # or with respect to the system's unit cell volume - in the case of geometry optimization
-# for example - display big irregularities when ``E_c`` is taken too small.
+# for example - display big irregularities when `Ecut` is taken too small.
 #
-# Here is for example the variation of the ground state energy of face cubic centered
+# Here is for example the variation of the ground state energy of face cubic centred
 # (FCC) silicon with respect to its lattice parameter,
 # around the experimental lattice constant.
 
@@ -81,15 +80,13 @@ E0_modified = compute_ground_state_energy.(a_list; kinetic_blowup=BlowupCHV(),
                                            Ecut, kgrid, n_bands, callback, );
 
 # !!! note "Abinit energy cutoff smearing option"
-#     For the sake of completeness, DFTK also provides the blow-up function proposed
-#     in the Abinit [^Abinit] quantum chemistry code. This function depends on a parameter
-#     `Ecutsm` fixed by the user. Note that for the right choice of `Ecutsm`, the Abinit
-#     blow-up function corresponds to the CHV one with a choice of coefficients
-#     ensuring ``C^1`` regularity. The Abinit options is chosen
-#     with `kinetic_blowup=BlowupAbinit(Ecutsm)`
-#
-# [^Abinit]:
-#    Abinit software suite [user guide](https://docs.abinit.org/variables/rlx/#ecutsm)
+#     For the sake of completeness, DFTK also provides the blow-up function `BlowupAbinit`
+#     proposed in the Abinit quantum chemistry code. This function depends on a parameter
+#     `Ecutsm` fixed by the user
+#     (see [Abinit user guide](https://docs.abinit.org/variables/rlx/#ecutsm)).
+#     For the right choice of `Ecutsm`, `BlowupAbinit` corresponds to the `BlowupCHV` approach
+#     with coefficients ensuring ``C^1`` regularity. To choose `BlowupAbinit`, pass
+#     `kinetic_blowup=BlowupAbinit(Ecutsm)` to the model constructors.
 #
 
 # We can know compare the approximation of the energy as well as the estimated
