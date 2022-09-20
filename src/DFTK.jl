@@ -32,8 +32,10 @@ include("common/printing.jl")
 include("common/cis2pi.jl")
 
 export PspHgh
+export PspUpf
 include("pseudo/NormConservingPsp.jl")
 include("pseudo/PspHgh.jl")
+include("pseudo/PspUpf.jl")
 
 export ElementPsp
 export ElementCohenBergstresser

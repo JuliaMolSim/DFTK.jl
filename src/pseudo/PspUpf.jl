@@ -1,6 +1,7 @@
 using Interpolations: cubic_spline_interpolation
 using SpecialFunctions: besselj
 using QuadGK: quadgk
+using UPF: load_upf
 
 struct PspUpf{T} <: NormConservingPsp
     Zion::Int             # Ionic charge (Z - valence electrons)
@@ -10,13 +11,67 @@ struct PspUpf{T} <: NormConservingPsp
     projs::Vector{Vector{Vector{T}}} # BKB projector per AM per projector
     h::Vector{Matrix{T}}  # Projector coupling coefficients per AM channel: h[l][i1,i2]
     identifier::String    # String identifying the PSP
-    description::String   # Descriptive string
 end
 charge_ionic(psp::PspHgh) = psp.Zion
 
+"""
+    PspUpf
+    (norm conversiong only at the moment)
+"""
+function PspUpf(Zion, lmax, rgrid, lpot::Vector{T}, projs, h; identifier="") where {T}
+    # TODO: validate the dim of arguments
+    lmax = length(h) - 1
+    PspUpf{T}(Zion, lmax, rgrid, lpot, projs, h, identifier)
+end
+
 function parse_upf_file(path; identifier=path)
-    # use UPF.jl by austin
-    # h <- dij
+    pseudo = load_upf(path)
+
+    lmax = pseudo["header"]["l_max"] 
+    tot_num_projs = pseudo["header"]["number_of_proj"]
+    beta_projectors = pseudo["beta_projectors"]
+    Zion = Int(pseudo["header"]["z_valence"])
+
+    # get number of projects for each AM
+    n_projs = zeros(Int, lmax+1)
+    for i in 1:tot_num_projs
+        beta = beta_projectors[i]
+
+        l = beta["angular_momentum"]
+        n_projs[l+1] += 1
+    end
+
+    # rgrid
+    rgrid = pseudo["radial_grid"]
+
+    # lpot
+    lpot = pseudo["local_potential"]
+
+    # projectors
+    projs = []
+    idx = 1
+    for l in 0:lmax
+        l_projs = []
+        for _ in 1:n_projs[l+1]
+            beta = beta_projectors[idx]
+            rdata = beta["radial_function"]
+            push!(l_projs, rdata)
+            idx += 1
+        end
+        push!(projs, l_projs)
+    end
+    
+    # dij -> h
+    dij = pseudo["D_ion"]
+    n = 1
+    h = []
+    for l in 0:lmax
+        nprojs = n_projs[l+1]
+        push!(h, dij[n:n+nprojs-1, n:n+nprojs-1])
+        n += nprojs
+    end
+
+    PspUpf(Zion, lmax, rgrid, lpot, projs, h; identifier)
 end
 
 """
