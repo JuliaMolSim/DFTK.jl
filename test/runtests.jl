@@ -112,6 +112,7 @@ Random.seed!(0)
         include("serialisation.jl")
         include("compute_jacobian_eigen.jl")
         include("printing.jl")
+        include("energy_cutoff_smearing.jl")
     end
 
     if "all" in TAGS && mpi_master()

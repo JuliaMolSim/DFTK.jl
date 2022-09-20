@@ -14,7 +14,7 @@ include("testcases.jl")
         ifft!(f_R, pw, f_G)
 
         f2_G = fft(pw, f_R)
-        f2_R = ifft(pw, f2_G; assume_real=Val(false))
+        f2_R = ifft(pw, f2_G)
         f3_G = fft!(similar(f_R), pw, f_R)
 
         @test maximum(abs.(f2_G - f_G)) < 1e-12
