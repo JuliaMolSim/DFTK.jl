@@ -1,4 +1,4 @@
-using Interpolations: cubic_spline_interpolation
+using Interpolations: interpolate, Gridded, Cubic, Linear
 using SpecialFunctions: besselj
 using QuadGK: quadgk
 using UPF: load_upf
@@ -12,7 +12,7 @@ struct PspUpf{T} <: NormConservingPsp
     h::Vector{Matrix{T}}  # Projector coupling coefficients per AM channel: h[l][i1,i2]
     identifier::String    # String identifying the PSP
 end
-charge_ionic(psp::PspHgh) = psp.Zion
+charge_ionic(psp::PspUpf) = psp.Zion
 
 """
     PspUpf
@@ -79,7 +79,7 @@ Read and interpolate value of projector in real space at r.
 i-th projector of AM l. stored in file. Read from UPF file and interpolate.
 """
 function eval_psp_projector_real(psp::PspUpf, i, l, r::T) where {T <: Real}
-    interp = cubic_spline_interpolation(psp.rgrid, psp.projs[l][i])
+    interp = interpolate((psp.rgrid,), psp.projs[l+1][i], Gridded(Linear()))
     interp(r)
 end
 
@@ -98,11 +98,11 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T) where {T <: Real}
         bess(r) = besselj(l-1, x(r)) - (l+1) * besselj(l,x(r))/x(r)
     end
 
-    return @timeit to "integ psp local projector" quadgk(r -> 2π * rdep(r) * bess(r), psp.rgrid[1], psp.rgrid[end]; rtol = 1e-5)[1]
+    quadgk(r -> 2π * rdep(r) * bess(r), psp.rgrid[1], psp.rgrid[end]; rtol = 1e-5)[1]
 end
 
 function eval_psp_local_real(psp::PspUpf, r::T) where {T <: Real}
-    interp = cubic_spline_interpolation(psp.rgrid, psp.lpot)
+    interp = interpolate((psp.rgrid,), psp.lpot, Gridded(Linear()))
     interp(r)
 end
 
@@ -119,5 +119,5 @@ function eval_psp_local_fourier(psp::PspUpf, q::T) where {T <: Real}
     f(r) = j0(r) * (r * eval_psp_local_real(psp, r) + psp.Zion)
 
     # return the integral
-    @timeit to "integ psp local fourier" 4π * quadgk(f, psp.rgrid[1], psp.rgrid[end]; order = 17, rtol = 1e-8)[1]
+    4π * quadgk(f, psp.rgrid[1], psp.rgrid[end]; order = 17, rtol = 1e-8)[1]
 end
