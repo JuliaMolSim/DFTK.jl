@@ -73,12 +73,31 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
 
     if iszero(temperature)
         # At zero temperature, we make sure that the Fermi level lies strictly
-        # inside the band gap
-        HOMO = maximum(maximum.(filter.(x->x≤εF, eigenvalues)))
+        # inside the band gap because the bisection might end up with a Fermi
+        # level very close to the valence or conduction bands, even for
+        # insulators, which is not desirable.
+
+        # HOMO is the highest occupied eigenvalue, ie below εF
+        HOMO = maximum(maximum.(filter.(x->x<εF, eigenvalues)))
         HOMO = mpi_max(HOMO, basis.comm_kpts)
-        LUMO = minimum(minimum.(filter.(x->x>εF, eigenvalues); init=HOMO))
-        LUMO = mpi_min(LUMO, basis.comm_kpts)
-        εF = ( HOMO + LUMO ) / 2
+
+        # LUMO is the lowest unoccupied eigenvalue, ie above εF
+        # but it can happen that the array of eigenvalue above εF is empty,
+        # which is why we deal with LUMO a bit differently to avoid these issues
+        if all(isempty.(filter.(x->x>εF, eigenvalues)))
+            # if eigenvalues above εF are empty for all k-points we artificially
+            # set LUMO to εF
+            LUMO = εF
+        else
+            # else, we remove the k-points for which there are no eigenvalues
+            # above εF and take the minimum over the remaining ones
+            eigenvalues_reduced = filter(!isempty, filter.(x->x>εF, eigenvalues))
+            LUMO = minimum(minimum.(eigenvalues_reduced))
+            LUMO = mpi_min(LUMO, basis.comm_kpts)
+        end
+
+        # return the Fermi level so that it stricly lies in the band gap
+        εF = (HOMO + LUMO) / 2
     end
 
     if !isapprox(compute_n_elec(εF), n_electrons)
