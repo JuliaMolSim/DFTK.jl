@@ -33,8 +33,10 @@ include("common/cis2pi.jl")
 include("common/zeros_like.jl")
 
 export PspHgh
+export PspUpf
 include("pseudo/NormConservingPsp.jl")
 include("pseudo/PspHgh.jl")
+include("pseudo/PspUpf.jl")
 
 export ElementPsp
 export ElementCohenBergstresser
