@@ -52,6 +52,6 @@ end
                                               occupation_threshold=1e-7)
 
 
-    @test mid.(εF) ≈ (eigenvalues[1][4] + eigenvalues[1][5]) /2 atol=1e-6
+    @test mid.(εF) ≈ (eigenvalues[1][4] + eigenvalues[1][5]) / 2 atol=1e-6
     @test mid.(sum(sum, occupations)) ≈ 8.0
 end

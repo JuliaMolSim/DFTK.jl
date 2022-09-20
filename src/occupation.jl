@@ -64,9 +64,13 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
         # εF as the midpoint between valence and conduction bands.
         if compute_n_elec(max_ε) ≈ n_electrons
             εF = max_ε
+            println(1)
         else
             # The sanity check above ensures that n_fill is well defined
             n_fill = div(n_electrons, n_spin * filled_occ, RoundUp)
+            println(n_electrons)
+            println(n_spin)
+            println(filled_occ)
             # highest occupied energy level
             HOMO = maximum([εk[n_fill] for εk in eigenvalues])
             HOMO = mpi_max(HOMO, basis.comm_kpts)
