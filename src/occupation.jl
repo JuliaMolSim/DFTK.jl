@@ -75,7 +75,7 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
             # of that by specifying init to minimum
             LUMO = minimum(minimum.([εk[n_fill+1:end] for εk in eigenvalues]; init=T(Inf)))
             LUMO = mpi_min(LUMO, basis.comm_kpts)
-            εF = (HOMO + LUMO)/2
+            εF = (HOMO + LUMO) / 2
         end
     else
         # For finite temperature, just use bisection; note that with MP smearing
