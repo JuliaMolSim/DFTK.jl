@@ -28,7 +28,7 @@ function eps_fun(δρ)
     δV = apply_kernel(basis, δρ; ρ=scfres.ρ)
     χ0δV = apply_χ0(scfres, δV)
     δρ - χ0δV
-end
+end;
 
-# eager diagonalizes the subspace matrix at each iteration
+# Eager diagonalizes the subspace matrix at each iteration
 eigsolve(eps_fun, randn(size(scfres.ρ)), 5, :LM; eager=true, verbosity=3);
