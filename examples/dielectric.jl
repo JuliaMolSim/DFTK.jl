@@ -23,12 +23,12 @@ model = model_LDA(lattice, atoms, positions, symmetries=false)
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 scfres = self_consistent_field(basis, tol=1e-14);
 
-# Apply ε† = 1 - χ0 (vc + fxc)
+# Applying ε† = 1 - χ0 (vc + fxc)
 function eps_fun(δρ)
     δV = apply_kernel(basis, δρ; ρ=scfres.ρ)
     χ0δV = apply_χ0(scfres, δV)
     δρ - χ0δV
 end;
 
-# Eager diagonalizes the subspace matrix at each iteration
+# eagerly diagonalizes the subspace matrix at each iteration
 eigsolve(eps_fun, randn(size(scfres.ρ)), 5, :LM; eager=true, verbosity=3);
