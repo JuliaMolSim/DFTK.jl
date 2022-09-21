@@ -15,7 +15,7 @@ lattice = a / 2 * [[0, 1, 1.],  # Lattice as vector of vectors
                    [1, 0, 1.],
                    [1, 1, 0.]]
 atoms  = [:Si => ones(3)/8, :Si => -ones(3)/8]
-system = periodic_system(atoms, lattice; fractional=true)
+system = periodic_system(atoms, lattice; fractional=true);
 
 # System is an AtomsBase-compatible system. To use it in DFTK,
 # we attach pseudopotentials, construct a DFT model, discretise and solve:
@@ -27,4 +27,4 @@ scfres = self_consistent_field(basis, tol=1e-8);
 
 # At any point we can also get back the DFTK model as an
 # AtomsBase-compatible `AbstractSystem`:
-newsystem = atomic_system(model)
+newsystem = atomic_system(model);

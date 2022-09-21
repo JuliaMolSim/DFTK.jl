@@ -15,7 +15,7 @@ lattice = a / 2 * [[-1  1  1];
                    [ 1 -1  1];
                    [ 1  1 -1]]
 atoms     = [ElementPsp(:Fe, psp=load_psp("hgh/lda/Fe-q8.hgh"))]
-positions = [zeros(3)]
+positions = [zeros(3)];
 
 # To get the ground-state energy we use an LDA model and rather moderate
 # discretisation parameters.

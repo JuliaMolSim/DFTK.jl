@@ -180,13 +180,13 @@ res_schur = e1 + Mres;
 f_ref = compute_forces(scfres_ref)
 forces   = Dict("F(P_*)" => f_ref)
 relerror = Dict("F(P_*)" => 0.0)
-compute_relerror(f) = norm(f - f_ref) / norm(f_ref)
+compute_relerror(f) = norm(f - f_ref) / norm(f_ref);
 
 # - Force from the variational solution and relative error without
 #   any post-processing:
 f = compute_forces(scfres)
 forces["F(P)"]   = f
-relerror["F(P)"] = compute_relerror(f)
+relerror["F(P)"] = compute_relerror(f);
 
 # We then try to improve ``F(P)`` using the first order linearization:
 #
@@ -207,14 +207,14 @@ end;
 #   aiming for this precision.
 df_err = df(basis_ref, occ, ψr, DFTK.proj_tangent(err, ψr), ρr)
 forces["F(P) - df(P)⋅(P-P_*)"]   = f - df_err
-relerror["F(P) - df(P)⋅(P-P_*)"] = compute_relerror(f - df_err)
+relerror["F(P) - df(P)⋅(P-P_*)"] = compute_relerror(f - df_err);
 
 # - Computation of the forces by a linearization argument when replacing the
 #   error ``P-P_*`` by the modified residual ``R_{\rm Schur}(P)``. The latter
 #   quantity is computable in practice.
 df_schur = df(basis_ref, occ, ψr, res_schur, ρr)
 forces["F(P) - df(P)⋅Rschur(P)"]   = f - df_schur
-relerror["F(P) - df(P)⋅Rschur(P)"] = compute_relerror(f - df_schur)
+relerror["F(P) - df(P)⋅Rschur(P)"] = compute_relerror(f - df_schur);
 
 # Summary of all forces on the first atom (Ti)
 for (key, value) in pairs(forces)

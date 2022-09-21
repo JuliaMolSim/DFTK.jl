@@ -67,5 +67,5 @@ run_wannier90(scfres;
 # As can be observed standard optional arguments for the disentanglement
 # can be passed directly to `run_wannier90` as keyword arguments.
 
-# delete temporary files:
+# (Delete temporary files.)
 rm("wannier", recursive=true)

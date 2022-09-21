@@ -6,18 +6,19 @@ using DFTK
 using StaticArrays
 using Plots
 
-## Unit cell. Having one of the lattice vectors as zero means a 2D system
+# Unit cell. Having one of the lattice vectors as zero means a 2D system
 a = 14
 lattice = a .* [[1 0 0.]; [0 1 0]; [0 0 0]];
 
-## Confining scalar potential
-pot(x, y, z) = ((x - a/2)^2 + (y - a/2)^2)
+# Confining scalar potential
+pot(x, y, z) = ((x - a/2)^2 + (y - a/2)^2);
 
-## Parameters
+# Parameters
 Ecut = 50
 n_electrons = 1
-β = 5
+β = 5;
 
+# Collect all the terms, build and run the model
 terms = [Kinetic(; scaling_factor=2),
          ExternalFromReal(X -> pot(X...)),
          Anyonic(1, β)
