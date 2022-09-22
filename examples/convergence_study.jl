@@ -6,7 +6,7 @@
 # accuracy tolerance.
 #
 # Such a convergence study is generally performed by starting with a
-# reasonalbe base line value for `kgrid` and `Ecut` and then increasing these
+# reasonable base line value for `kgrid` and `Ecut` and then increasing these
 # parameters (i.e. using finer discretisations) until a desired property (such
 # as the energy) changes less than the tolerance.
 #
@@ -14,10 +14,11 @@
 # the `Ecut` and the `kgrid` also convergence in the smearing temperature or
 # other numerical parameters should be checked. For simplicity we will neglect
 # this aspect in this example and concentrate on `Ecut` and `kgrid`. Moreover
-# we will restrict ourselves to using the same number of $k$-points in each
+# we will restrict ourselves to using the same number of ``k``-points in each
 # dimension of the Brillouin zone.
 #
-# As the objective of this study we consider bulk platinum. For running the SCF conveniently we define a function:
+# As the objective of this study we consider bulk platinum. For running the SCF
+# conveniently we define a function:
 
 using DFTK
 using LinearAlgebra
@@ -42,7 +43,7 @@ tol   = 1e-2      # Tolerance to which we target to converge
 nkpts = 1:7       # K-point range checked for convergence
 Ecuts = 10:2:24;  # Energy cutoff range checked for convergence
 
-# As the first step we converge in the number of kpoints employed in each
+# As the first step we converge in the number of ``k``-points employed in each
 # dimension of the Brillouin zone.
 function converge_kgrid(nkpts; Ecut, tol)
     energies = [run_scf(; nkpt, tol=tol/10, Ecut).energies.total for nkpt in nkpts]
@@ -58,7 +59,7 @@ using Plots
 plot(result.nkpts, result.errors, dpi=300, lw=3, m=:o, yaxis=:log,
      xlabel="k-grid", ylabel="energy absolute error")
 
-# We continue to do the convergence in Ecut using the suggested k-point grid.
+# We continue to do the convergence in Ecut using the suggested ``k``-point grid.
 function converge_Ecut(Ecuts; nkpt, tol)
     energies = [run_scf(; nkpt, tol=tol/100, Ecut).energies.total for Ecut in Ecuts]
     errors = abs.(energies[1:end-1] .- energies[end])

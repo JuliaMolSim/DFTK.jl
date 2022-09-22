@@ -83,19 +83,19 @@ println("Polarizability :   $polarizability")
 
 using KrylovKit
 
-## Apply (1- χ0 K)
+## Apply ``(1- \chi_0 K)``
 function dielectric_operator(δρ)
     δV = apply_kernel(basis, δρ; ρ=res.ρ)
     χ0δV = apply_χ0(res, δV)
     δρ - χ0δV
 end
 
-## δVext is the potential from a uniform field interacting with the dielectric dipole
+## `δVext` is the potential from a uniform field interacting with the dielectric dipole
 ## of the density.
 δVext = [-(r[1] - a/2) for r in r_vectors_cart(basis)]
 δVext = cat(δVext; dims=4)
 
-## Apply χ0 once to get non-interacting dipole
+## Apply ``\chi_0`` once to get non-interacting dipole
 δρ_nointeract = apply_χ0(res, δVext)
 
 ## Solve Dyson equation to get interacting dipole

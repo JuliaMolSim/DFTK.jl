@@ -40,7 +40,7 @@ lattice   = [[8.79341  0.0      0.0];
 # forces.
 positions[1] .+= [-0.022, 0.028, 0.035]
 
-# We build a model with one k-point only, not too high `Ecut_ref` and small
+# We build a model with one ``k``-point only, not too high `Ecut_ref` and small
 # tolerance to limit computational time. These parameters can be increased for
 # more precise results.
 model = model_LDA(lattice, atoms, positions)

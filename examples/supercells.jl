@@ -53,7 +53,7 @@ ase_atoms(setup.model).write("al_supercell.png")
 # As we will see in this notebook the modelling of a system generally becomes
 # harder if the system becomes larger.
 #
-# - This sounds like a trival statement as *per se* the cost per SCF step increases
+# - This sounds like a trivial statement as *per se* the cost per SCF step increases
 #   as the system (and thus $N$) gets larger.
 # - But there is more to it:
 #   If one is not careful also the *number of SCF iterations* increases

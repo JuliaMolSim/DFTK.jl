@@ -93,7 +93,7 @@ idown = iup + length(scfres.basis.kpoints) ÷ 2
 @show scfres.eigenvalues[iup][1:7]
 @show scfres.eigenvalues[idown][1:7];
 
-# !!! note "k-points in collinear calculations"
+# !!! note "``k``-points in collinear calculations"
 #     For collinear calculations the `kpoints` field of the `PlaneWaveBasis` object contains
 #     each ``k``-point coordinate twice, once associated with spin-up and once with down-down.
 #     The list first contains all spin-up ``k``-points and then all spin-down ``k``-points,

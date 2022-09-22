@@ -16,7 +16,7 @@ lattice = a * I(3)
 H = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1"));
 atoms = [H, H];
 
-# We define a blochwave and a density to be used as global variables so that we
+# We define a Bloch wave and a density to be used as global variables so that we
 # can transfer the solution from one iteration to another and therefore reduce
 # the optimization time.
 
@@ -64,7 +64,7 @@ end;
 # in Optim. We start from `x0`, which is a first guess for the coordinates. By
 # default, `optimize` traces the output of the optimization algorithm during the
 # iterations. Once we have the minimizer `xmin`, we compute the bond length in
-# cartesian coordinates.
+# Cartesian coordinates.
 
 x0 = vcat(lattice \ [0., 0., 0.], lattice \ [1.4, 0., 0.])
 xres = optimize(Optim.only_fg!(fg!), x0, LBFGS(),
