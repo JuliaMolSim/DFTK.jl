@@ -70,10 +70,10 @@ callback = DFTK.ScfDefaultCallback() ∘ plot_callback;
 # Notice that for constructing the `callback` function we chained the `plot_callback`
 # (which does the plotting) with the `ScfDefaultCallback`, such that when using
 # the `plot_callback` function with `self_consistent_field` we still get the usual
-# convergence table printed. We run the SCF with this callback ...
+# convergence table printed. We run the SCF with this callback …
 scfres = self_consistent_field(basis, tol=1e-8, callback=callback);
 
-# ... and show the plot
+# … and show the plot
 p
 
 # The `info` object passed to the callback contains not just the densities

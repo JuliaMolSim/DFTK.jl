@@ -10,7 +10,7 @@
 # analysing results from atomistic simulations across different programs.
 # If it is installed it is automatically used by DFTK in order to read a wide range
 # of input files, such as xyz, CIF, input files of various other codes
-# (e.g. Quantum Espresso, VASP, ABINIT, CASTEP, ...).
+# (e.g. Quantum Espresso, VASP, ABINIT, CASTEP, …).
 # The full list of formats
 # can be found in the [ASE IO documentation](https://wiki.fysik.dtu.dk/ase/ase/io/io.html).
 #

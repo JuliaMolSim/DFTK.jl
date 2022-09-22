@@ -38,7 +38,7 @@ pot(x) = (x - a/2)^2;
 C = 1.0
 α = 2;
 
-# ... and with this build the model
+# … and with this build the model
 using DFTK
 using LinearAlgebra
 

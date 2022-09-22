@@ -44,7 +44,7 @@ nkpts = 1:7       # K-point range checked for convergence
 Ecuts = 10:2:24;  # Energy cutoff range checked for convergence
 
 # As the first step we converge in the number of ``k``-points employed in each
-# dimension of the Brillouin zone.
+# dimension of the Brillouin zone …
 function converge_kgrid(nkpts; Ecut, tol)
     energies = [run_scf(; nkpt, tol=tol/10, Ecut).energies.total for nkpt in nkpts]
     errors = abs.(energies[1:end-1] .- energies[end])
@@ -54,7 +54,7 @@ end
 result = converge_kgrid(nkpts; Ecut=mean(Ecuts), tol)
 nkpt_conv = result.nkpt_conv
 
-# ... and plot the obtained convergence:
+# … and plot the obtained convergence:
 using Plots
 plot(result.nkpts, result.errors, dpi=300, lw=3, m=:o, yaxis=:log,
      xlabel="k-grid", ylabel="energy absolute error")
@@ -69,17 +69,17 @@ end
 result = converge_Ecut(Ecuts; nkpt=nkpt_conv, tol)
 Ecut_conv = result.Ecut_conv
 
-# ... and plot it:
+# … and plot it:
 plot(result.Ecuts, result.errors, dpi=300, lw=3, m=:o, yaxis=:log,
      xlabel="Ecut", ylabel="energy absolute error")
 
 # ## A more realistic example.
-# Repeating the above exercise for more realistic settings, namely ...
+# Repeating the above exercise for more realistic settings, namely …
 tol   = 1e-4  # Tolerance to which we target to converge
 nkpts = 1:20  # K-point range checked for convergence
 Ecuts = 20:1:50;
 
-# ...one obtains the following two plots for the convergence in `kpoints` and `Ecut`.
+# …one obtains the following two plots for the convergence in `kpoints` and `Ecut`.
 
 #md # ```@raw html
 #md # <img src="../../assets/convergence_study_kgrid.png" width=600 height=400 />
