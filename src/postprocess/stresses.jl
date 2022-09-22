@@ -4,7 +4,7 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
 @timing function compute_stresses_cart(scfres)
     # TODO optimize by only computing derivatives wrt 6 independent parameters
     # compute the Hellmann-Feynman energy (with fixed ψ/occ/ρ)
-    function HF_energy(lattice::AbstractMatrix{T}) where T
+    function HF_energy(lattice::AbstractMatrix{T}) where {T}
         basis = scfres.basis
         model = basis.model
         new_model = Model(lattice, model.atoms, model.positions;

@@ -83,7 +83,7 @@ from the solution.
 function newton(basis::PlaneWaveBasis{T}, ψ0;
                 tol=1e-6, tol_cg=tol / 100, maxiter=20, verbose=false,
                 callback=ScfDefaultCallback(),
-                is_converged=ScfConvergenceDensity(tol)) where T
+                is_converged=ScfConvergenceDensity(tol)) where {T}
 
     # setting parameters
     model = basis.model

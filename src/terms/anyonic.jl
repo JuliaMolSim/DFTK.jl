@@ -42,7 +42,7 @@ end
 
 function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
     out = [zeros(complex(T), basis.fft_size), zeros(complex(T), basis.fft_size)]
-    A_fourier = [r_to_G(basis, A[α]) for α = 1:2]
+    A_fourier = [fft(basis, A[α]) for α = 1:2]
     for (iG, G) in enumerate(G_vectors(basis))
         vec = [A_fourier[1][iG], A_fourier[2][iG]]
         G = [G[1], G[2]]
@@ -54,7 +54,8 @@ function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
             out[1][iG], out[2][iG] = vec
         end
     end
-    [G_to_r(basis, out[α]) for α = 1:2]
+    # TODO: forcing real-valued ifft; should be enforced at creation of array
+    [irfft(basis, out[α]; check=Val(false)) for α = 1:2]
 end
 
 struct Anyonic
@@ -98,7 +99,7 @@ function TermAnyonic(basis::PlaneWaveBasis{T}, hbar, β) where {T}
     TermAnyonic(hbar, β, ρref, Aref)
 end
 
-function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwargs...) where T
+function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwargs...) where {T}
     hbar = term.hbar
     β = term.β
     @assert ψ !== nothing # the hamiltonian depends explicitly on ψ
@@ -109,8 +110,8 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwarg
     # => A(G1, G2) = -2π i ρ(G1, G2) * [-G2;G1;0]/(G1^2 + G2^2)
     A1 = zeros(complex(T), basis.fft_size)
     A2 = zeros(complex(T), basis.fft_size)
-    ρ_fourier = r_to_G(basis, ρ[:, :, :, 1])
-    ρref_fourier = r_to_G(basis, term.ρref)  # TODO optimize
+    ρ_fourier = fft(basis, ρ[:, :, :, 1])
+    ρref_fourier = fft(basis, term.ρref)  # TODO optimize
     for (iG, G) in enumerate(G_vectors_cart(basis))
         G2 = sum(abs2, G)
         if G2 != 0
@@ -118,8 +119,9 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwarg
             A2[iG] = -2T(π) * G[1] / G2 * (ρ_fourier[iG] - ρref_fourier[iG]) * im
         end
     end
-    Areal = [G_to_r(basis, A1) + term.Aref[1],
-             G_to_r(basis, A2) + term.Aref[2],
+    # TODO: forcing real-valued ifft; should be enforced at creation of array
+    Areal = [irfft(basis, A1; check=Val(false)) + term.Aref[1],
+             irfft(basis, A2; check=Val(false)) + term.Aref[2],
              zeros(T, basis.fft_size)]
 
     # 2 hbar β (-i∇)⋅A + β^2 |A|^2
@@ -132,7 +134,7 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwarg
     J = compute_current(basis, ψ, occ)
     eff_current = [hbar .* J[α] .+
                    β .* ρ .* Areal[α] for α = 1:2]
-    eff_current_fourier = [r_to_G(basis, eff_current[α]) for α = 1:2]
+    eff_current_fourier = [fft(basis, eff_current[α]) for α = 1:2]
     # eff_pot = - 2β x^⟂/|x|² ∗ eff_current
     # => ∇∧eff_pot = -4πβ eff_current
     # => eff_pot(G1, G2) = 4πβ i eff_current(G1, G2) * [-G2;G1;0]/(G1^2 + G2^2)
@@ -145,7 +147,8 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occ; ρ, kwarg
             eff_pot_fourier[iG] += +4T(π)*β * im * G[1] / G2 * eff_current_fourier[2][iG]
         end
     end
-    eff_pot_real = G_to_r(basis, eff_pot_fourier)
+    # TODO: forcing real-valued ifft; should be enforced at creation of array
+    eff_pot_real = irfft(basis, eff_pot_fourier; check=Val(false))
     ops_ham = [ops_energy..., RealSpaceMultiplication(basis, basis.kpoints[1], eff_pot_real)]
 
     E = zero(T)

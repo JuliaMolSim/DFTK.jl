@@ -47,9 +47,9 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
         δVψk = similar(ψk)
 
         for n = 1:size(ψk, 2)
-            ψnk_real = G_to_r(basis, kpt, ψk[:, n])
+            ψnk_real = ifft(basis, kpt, ψk[:, n])
             δVψnk_real = δV[:, :, :, kpt.spin] .* ψnk_real
-            δVψk[:, n] = r_to_G(basis, kpt, δVψnk_real)
+            δVψk[:, n] = fft(basis, kpt, δVψnk_real)
         end
         δVψk
     end
@@ -59,12 +59,12 @@ end
 
 """
     solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, res, occupation;
-                 tol=1e-10, verbose=false) where T
+                 tol=1e-10, verbose=false) where {T}
 
 Return δψ where (Ω+K) δψ = rhs
 """
 function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
-                      tol=1e-10, verbose=false) where T
+                      tol=1e-10, verbose=false) where {T}
     @assert mpi_nprocs() == 1  # Distributed implementation not yet available
     filled_occ = filled_occupation(basis.model)
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
@@ -128,7 +128,7 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
 function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
                             eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10,
                             verbose=false, occupation_threshold,
-                            kwargs...) where T
+                            kwargs...) where {T}
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
     # (Ω+K)^-1 =  Ω^-1 ( 1 -   K   (1 + Ω^-1 K  )^-1    Ω^-1  )
     #          = -χ04P ( 1 -   K   (1 - χ04P K  )^-1   (-χ04P))
