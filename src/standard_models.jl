@@ -81,7 +81,6 @@ https://www.vasp.at/tutorials/latest/hybrids/part1/
 function model_PBE0(lattice::AbstractMatrix, atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector}; kwargs...)
     functional = DispatchFunctional(:hyb_gga_xc_pbeh)
-    libxcfun = Libxc.Functional(:hyb_gga_xc_pbeh)
-    scaling_factor = getproperty(libxcfun, :exx_coefficient)
-    model_DFT(lattice, atoms, positions, Xc([functional]), extra_terms=[FockExchange(; scaling_factor = scaling_factor)]; kwargs...)
+    model_DFT(lattice, atoms, positions, Xc([functional]), 
+    extra_terms=[ExactExchange(; scaling_factor = 0.25)]; kwargs...)
 end

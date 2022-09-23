@@ -49,7 +49,7 @@ end
 
     model    = basis.model
     n_spin   = model.n_spin_components
-    @assert all(family(xc) in (:lda, :hyb_lda, :gga, :hyb_gga, :mgga, :hyb_mgga, :mggal) for xc in term.functionals)
+    @assert all(family(xc) in (:lda, :gga, :mgga, :mggal) for xc in term.functionals)
 
     # Compute kinetic energy density, if needed.
     if isnothing(τ) && any(needs_τ, term.functionals)
@@ -187,13 +187,10 @@ for derivatives wrt. σ_αβ or σ_βα.
 =#
 
 function max_required_derivative(functional)
-    family(functional) == :lda      && return 0
-    family(functional) == :hyb_lda      && return 0
-    family(functional) == :gga      && return 1
-    family(functional) == :hyb_gga  && return 1
-    family(functional) == :mgga     && return 1
-    family(functional) == :hyb_mgga     && return 1
-    family(functional) == :mggal    && return 2
+    family(functional) == :lda   && return 0
+    family(functional) == :gga   && return 1
+    family(functional) == :mgga  && return 1
+    family(functional) == :mggal && return 2
     error("Functional family $(family(functional)) not known.")
 end
 
@@ -295,7 +292,7 @@ end
 function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs...) where {T}
     n_spin = basis.model.n_spin_components
     isempty(term.functionals) && return nothing
-    @assert all(family(xc) in (:lda, :hyb_lda, :gga, :hyb_gga) for xc in term.functionals)
+    @assert all(family(xc) in (:lda, :gga) for xc in term.functionals)
 
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)

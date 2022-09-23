@@ -14,7 +14,8 @@ function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
             @test norm(operator_matrix*ψk - operator*ψk) < atol
         catch e
             allowed_missing_operators = Union{DFTK.DivAgradOperator,
-                                              DFTK.MagneticFieldOperator}
+                                              DFTK.MagneticFieldOperator,
+                                              DFTK.ExchangeOperator}
             @assert operator isa allowed_missing_operators
             @info "Matrix of operator $(nameof(typeof(operator))) not yet supported" maxlog=1
         end
@@ -87,7 +88,7 @@ end
     test_consistency_term(Hartree())
     test_consistency_term(Ewald())
     test_consistency_term(PspCorrection())
-    test_consistency_term(FockExchange())
+    test_consistency_term(ExactExchange(), kgrid=[1,1,1])
     test_consistency_term(Xc(:lda_xc_teter93))
     test_consistency_term(Xc(:lda_xc_teter93), spin_polarization=:collinear)
     test_consistency_term(Xc(:gga_x_pbe), spin_polarization=:collinear)

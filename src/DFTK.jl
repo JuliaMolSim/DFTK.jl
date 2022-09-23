@@ -74,7 +74,7 @@ export Hamiltonian
 export HamiltonianBlock
 export energy_hamiltonian
 export Kinetic
-export FockExchange
+export ExactExchange
 export ExternalFromFourier
 export ExternalFromReal
 export AtomicLocal

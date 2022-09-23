@@ -12,11 +12,20 @@ function LibxcFunctional(identifier::Symbol)
     @assert fun.kind   in (:exchange, :correlation, :exchange_correlation)
     kind = Dict(:exchange => :x, :correlation => :c, :exchange_correlation => :xc)[fun.kind]
 
-    @assert fun.family in (:lda, :hyb_lda, :gga, :hyb_gga, :mgga, :hyb_mgga)
-    if (fun.family == :mgga || fun.family == :hyb_mgga) && Libxc.needs_laplacian(fun)
-        family = :mggal
+    # Libxc maintains the distinction between hybrid and non-hybrid equivalents,
+    # but this distinction is not relevant for the functional interface
+    if fun.family == :hyb_lda
+        family = :lda
+    elseif fun.family == :hyb_gga
+        family = :gga
+    elseif fun.family == :hyb_mgga
+        family = :mgga
     else
         family = fun.family
+    end
+    
+    if family == :mgga && Libxc.needs_laplacian(fun)
+        family = :mggal
     end
     LibxcFunctional{family,kind}(identifier)
 end
@@ -54,7 +63,7 @@ end
 
 libxc_energy(terms, ρ) = haskey(terms, :zk) ? reshape(terms.zk, 1, size(ρ, 2)) .* ρ : false
 
-function DftFunctionals.potential_terms(func::Union{LibxcFunctional{:lda},LibxcFunctional{:hyb_lda}}, ρ::Matrix{Float64})
+function DftFunctionals.potential_terms(func::LibxcFunctional{:lda}, ρ::Matrix{Float64})
     s_ρ, n_p = size(ρ)
     fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
     derivatives = filter(in(Libxc.supported_derivatives(fun)), 0:1)
@@ -63,7 +72,7 @@ function DftFunctionals.potential_terms(func::Union{LibxcFunctional{:lda},LibxcF
     Vρ = reshape(terms.vrho, s_ρ, n_p)
     (; e, Vρ)
 end
-function DftFunctionals.potential_terms(func::Union{LibxcFunctional{:gga},LibxcFunctional{:hyb_gga}}, ρ::Matrix{Float64},
+function DftFunctionals.potential_terms(func::LibxcFunctional{:gga}, ρ::Matrix{Float64},
                                         σ::Matrix{Float64})
     s_ρ, n_p = size(ρ)
     s_σ = size(σ, 1)
@@ -75,7 +84,7 @@ function DftFunctionals.potential_terms(func::Union{LibxcFunctional{:gga},LibxcF
     Vσ = reshape(terms.vsigma, s_σ, n_p)
     (; e, Vρ, Vσ)
 end
-function DftFunctionals.potential_terms(func::Union{LibxcFunctional{:mgga},LibxcFunctional{:hyb_mgga}}, ρ::Matrix{Float64},
+function DftFunctionals.potential_terms(func::LibxcFunctional{:mgga}, ρ::Matrix{Float64},
                                         σ::Matrix{Float64}, τ::Matrix{Float64})
     s_ρ, n_p = size(ρ)
     s_σ = size(σ, 1)
@@ -104,7 +113,7 @@ function DftFunctionals.potential_terms(func::LibxcFunctional{:mggal}, ρ::Matri
     (; e, Vρ, Vσ, Vτ, Vl)
 end
 
-function DftFunctionals.kernel_terms(func::Union{LibxcFunctional{:lda},LibxcFunctional{:hyb_lda}}, ρ::Matrix{Float64})
+function DftFunctionals.kernel_terms(func::LibxcFunctional{:lda}, ρ::Matrix{Float64})
     s_ρ, n_p = size(ρ)
     fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
     derivatives = filter(in(Libxc.supported_derivatives(fun)), 0:2)
@@ -114,7 +123,7 @@ function DftFunctionals.kernel_terms(func::Union{LibxcFunctional{:lda},LibxcFunc
     Vρρ = libxc_unfold_spin(terms.v2rho2, s_ρ)
     (; e, Vρ, Vρρ)
 end
-function DftFunctionals.kernel_terms(func::Union{LibxcFunctional{:gga},LibxcFunctional{:hyb_gga}}, ρ::Matrix{Float64},
+function DftFunctionals.kernel_terms(func::LibxcFunctional{:gga}, ρ::Matrix{Float64},
                                      σ::Matrix{Float64})
     s_ρ, n_p = size(ρ)
     s_σ = size(σ, 1)
@@ -129,6 +138,7 @@ function DftFunctionals.kernel_terms(func::Union{LibxcFunctional{:gga},LibxcFunc
     Vσσ = libxc_unfold_spin(terms.v2sigma2, s_σ)
     (; e, Vρ, Vσ, Vρρ, Vρσ, Vσσ)
 end
+
 #
 # Automatic dispatching between Libxc (where possible) and the generic implementation
 # in DftFunctionals (where needed).
