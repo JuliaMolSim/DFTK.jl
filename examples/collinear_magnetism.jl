@@ -15,7 +15,7 @@ lattice = a / 2 * [[-1  1  1];
                    [ 1 -1  1];
                    [ 1  1 -1]]
 atoms     = [ElementPsp(:Fe, psp=load_psp("hgh/lda/Fe-q8.hgh"))]
-positions = [zeros(3)]
+positions = [zeros(3)];
 
 # To get the ground-state energy we use an LDA model and rather moderate
 # discretisation parameters.
@@ -93,7 +93,7 @@ idown = iup + length(scfres.basis.kpoints) ÷ 2
 @show scfres.eigenvalues[iup][1:7]
 @show scfres.eigenvalues[idown][1:7];
 
-# !!! note "k-points in collinear calculations"
+# !!! note "``k``-points in collinear calculations"
 #     For collinear calculations the `kpoints` field of the `PlaneWaveBasis` object contains
 #     each ``k``-point coordinate twice, once associated with spin-up and once with down-down.
 #     The list first contains all spin-up ``k``-points and then all spin-down ``k``-points,

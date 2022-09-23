@@ -38,7 +38,7 @@ pot(x) = (x - a/2)^2;
 C = 1.0
 α = 2;
 
-# ... and with this build the model
+# … and with this build the model
 using DFTK
 using LinearAlgebra
 
@@ -90,7 +90,8 @@ plot!(p, x, ρ, label="ρ")
 E, ham = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
 @assert E.total == scfres.energies.total
 
-# Now the Hamiltonian contains all the blocks corresponding to k-points. Here, we just have one k-point:
+# Now the Hamiltonian contains all the blocks corresponding to ``k``-points. Here, we just
+# have one ``k``-point:
 H = ham.blocks[1];
 
 # `H` can be used as a linear operator (efficiently using FFTs), or converted to a dense matrix:

@@ -41,9 +41,9 @@ pyimport("ase.io").write("surface.png", surface * (3, 3, 1),
 #nb # <img src="https://docs.dftk.org/stable/surface.png" width=500 height=500 />
 
 # Use the `load_atoms`, `load_positions` and `load_lattice` functions
-# to convert to DFTK datastructures.
+# to convert to DFTK data structures.
 # These two functions not only support importing ASE atoms into DFTK,
-# but a few more third-party datastructures as well.
+# but a few more third-party data structures as well.
 # Typically the imported `atoms` use a bare Coulomb potential,
 # such that appropriate pseudopotentials need to be attached in a post-step:
 
