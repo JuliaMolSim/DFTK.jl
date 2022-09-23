@@ -29,7 +29,7 @@ qe_input  = "Fe_afm.pwi"
 atoms     = load_atoms(qe_input)
 positions = load_positions(qe_input)
 lattice   = load_lattice(qe_input)
-magnetic_moments = load_magnetic_moments(qe_input);
+magnetic_moments = load_magnetic_moments(qe_input)
 
 # At this point a file of any format supported by ASE could be passed instead,
 # e.g. an `xyz` file or an ABINIT input file. Behind the scenes ASE takes care
