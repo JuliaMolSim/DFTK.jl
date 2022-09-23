@@ -3,7 +3,7 @@
 # We compute the polarizability of a Helium atom. The polarizability
 # is defined as the change in dipole moment
 # ```math
-# \mu = \int r ρ(r) dr
+# μ = ∫ r ρ(r) dr
 # ```
 # with respect to a small uniform electric field ``E = -x``.
 #
@@ -66,19 +66,19 @@ println("Polarizability :   $polarizability")
 
 # ## Using linear response
 # Now we use linear response to compute this analytically; we refer to standard
-# textbooks for the formalism. In the following, ``\chi_0`` is the
+# textbooks for the formalism. In the following, ``χ_0`` is the
 # independent-particle polarizability, and ``K`` the
-# Hartree-exchange-correlation kernel. We denote with ``\delta V_{\rm ext}`` an external
+# Hartree-exchange-correlation kernel. We denote with ``δV_{\rm ext}`` an external
 # perturbing potential (like in this case the uniform electric field). Then:
 # ```math
-# \delta\rho = \chi_0 \delta V = \chi_0 (\delta V_{\rm ext} + K \delta\rho),
+# δρ = χ_0 δV = χ_0 (δV_{\rm ext} + K δρ),
 # ```
 # which implies
 # ```math
-# \delta\rho = (1-\chi_0 K)^{-1} \chi_0 \delta V_{\rm ext}.
+# δρ = (1-χ_0 K)^{-1} χ_0 δV_{\rm ext}.
 # ```
-# From this we identify the polarizability operator to be ``\chi = (1-\chi_0 K)^{-1} \chi_0``.
-# Numerically, we apply ``\chi`` to ``\delta V = -x`` by solving a linear equation
+# From this we identify the polarizability operator to be ``χ = (1-χ_0 K)^{-1} χ_0``.
+# Numerically, we apply ``χ`` to ``δV = -x`` by solving a linear equation
 # (the Dyson equation) iteratively.
 
 using KrylovKit

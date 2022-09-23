@@ -24,7 +24,7 @@ atoms = [H, H];
 ρ = nothing
 
 # First, we create a function that computes the solution associated to the
-# position ``x \in \mathbb{R}^6`` of the atoms in reduced coordinates
+# position ``x ∈ ℝ^6`` of the atoms in reduced coordinates
 # (cf. [Reduced and cartesian coordinates](@ref) for more
 # details on the coordinates system).
 # They are stored as a vector: `x[1:3]` represents the position of the

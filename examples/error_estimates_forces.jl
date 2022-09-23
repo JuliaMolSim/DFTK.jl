@@ -83,7 +83,7 @@ res, occ = DFTK.select_occupied_orbitals(basis_ref, res, scfres.occupation)
 
 # - Compute the error ``P-P_*`` on the associated orbitals ``ϕ-ψ`` after aligning
 #   them: this is done by solving ``\min |ϕ - ψU|`` for ``U`` unitary matrix of
-#   size ``N\times N`` (``N`` being the number of electrons) whose solution is
+#   size ``N×N`` (``N`` being the number of electrons) whose solution is
 #   ``U = S(S^*S)^{-1/2}`` where ``S`` is the overlap matrix ``ψ^*ϕ``.
 function compute_error(basis, ϕ, ψ)
     map(zip(ϕ, ψ)) do (ϕk, ψk)
@@ -136,7 +136,7 @@ Mres = apply_metric(ψr, P, res, apply_inv_M);
 #
 # ```math
 # \begin{bmatrix}
-# (\bm \Omega + \bm K)_{11} & (\bm \Omega + \bm K)_{12} \\
+# (\bm Ω + \bm K)_{11} & (\bm Ω + \bm K)_{12} \\
 # 0 & {\bm M}_{22}
 # \end{bmatrix}
 # \begin{bmatrix}
@@ -166,7 +166,7 @@ end
 rhs = resLF - ΩpKe2;
 
 # - Solve the Schur system to compute ``R_{\rm Schur}(P)``: this is the most
-#   costly step, but inverting ``\bm{\Omega} + \bm{K}`` on the small space has
+#   costly step, but inverting ``\bm{Ω} + \bm{K}`` on the small space has
 #   the same cost than the full SCF cycle on the small grid.
 ψ, _ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 e1 = DFTK.solve_ΩplusK(basis, ψ, rhs, occ; tol).δψ
@@ -191,7 +191,7 @@ relerror["F(P)"] = compute_relerror(f);
 # We then try to improve ``F(P)`` using the first order linearization:
 #
 # ```math
-# F(P) = F(P_*) + {\rm d}F(P)\cdot(P-P_*).
+# F(P) = F(P_*) + {\rm d}F(P)·(P-P_*).
 # ```
 
 # To this end, we use the `ForwardDiff.jl` package to compute ``{\rm d}F(P)``
