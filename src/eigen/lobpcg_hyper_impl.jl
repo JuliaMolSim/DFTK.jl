@@ -48,27 +48,22 @@ import Base.size, Base.adjoint, Base.Array
 
 include("../workarounds/gpu_arrays.jl")
 
-# For now, BlockMatrix can store arrays of different types (for example, an element 
-# of type views and one of type Matrix). Maybe for performance issues it should only
-# store arrays of the same type?
-
+"""
+Simple wrapper to represent a matrix formed by the concatenation of column blocks:
+it is mostly equivalent to hcat, but doesn't allocate the full matrix.
+BlockMatrix only supports a few multiplication routines: furthermore, a multiplication
+involving this structure will always yield a plain array (and not a BlockMatrix).
+BlockMatrix is a lightweight subset of BlockArrays.jl's functionalities, but has the
+advantage to be able to store GPU Arrays (BlockArrays is heavily built on Julia's CPU Array).
+"""
 struct BlockMatrix{T <: Number, D <: Tuple} <: AbstractMatrix{T}
     blocks::D
 end
 
-"""
-Build a BlockMatrix containing the given arrays, from left to right.
-This function will fail (for now) if:
-    -the arrays do not all have the same "height" (ie size[1] must match).
-"""
 function BlockMatrix(arrays::AbstractArray...)
-    length(arrays) ==0 && error("Empty BlockMatrix is not currently implemented")
+    @assert length(arrays) != 0
     n_ref= size(arrays[1], 1)
-    for array in arrays
-        n_i = size(array, 1)
-        n_ref != n_i && error("The given arrays do not have matching 'height': "*
-        "cannot build a BlockMatrix out of them.")
-    end
+    @assert  all(size.(arrays, 1) .== n_ref)
 
     T = promote_type(map(eltype, arrays)...)
 
@@ -85,10 +80,6 @@ Base.Array(A::BlockMatrix)  = hcat(A.blocks...)
 
 Base.adjoint(A::BlockMatrix) = Adjoint(A)
 
-"""
-Given A and B as two BlockMatrices [A1, A2, A3], [B1, B2, B3] form the matrix
-A'B. Return an array, not a BlockMatrix.
-"""
 @views function Base.:*(Aadj::Adjoint{T, <: BlockMatrix}, B::BlockMatrix) where {T}
     A = Aadj.parent
     rows = size(A)[2]
@@ -99,7 +90,7 @@ A'B. Return an array, not a BlockMatrix.
     for (iA, blA) in enumerate(A.blocks)
         ocol = 0  # column offset
         for (iB, blB) in enumerate(B.blocks)
-            ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] = blA' * blB
+            ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] .= blA' * blB
             ocol += size(blB, 2)
         end
         orow += size(blA, 2)
@@ -109,10 +100,6 @@ end
 
 Base.:*(Aadj::Adjoint{T, <: BlockMatrix}, B::AbstractMatrix) where {T} = Aadj * BlockMatrix(B)
 
-"""
-Given A as a BlockMatrix [A1, A2, A3] and B a Matrix, compute the matrix-matrix product
-A * B avoiding a concatenation of A's blocks to a dense array.
-"""
 @views function *(Ablock::BlockMatrix, B::AbstractMatrix)
     res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
     offset = size(Ablock.blocks[1], 2)
@@ -125,13 +112,11 @@ end
 
 function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::BlockMatrix,
                             B::AbstractVecOrMat, α::Number, β::Number)
-    # Has slightly better performances than a naive res = α*A*B - β*res
     mul!(res, Ablock*B, I, α, β)
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
-@timing function rayleigh_ritz(X::BlockMatrix, AX::BlockMatrix, N)
-    # Multiplying two BlockMatrices yields an array, not a BlockMatrix
+@timing function rayleigh_ritz(X, AX, N)
     F = eigen(Hermitian(X' * AX))
     F.vectors[:,1:N], F.values[1:N]
 end
@@ -252,13 +237,13 @@ end
     ninners = zeros(Int,0)
     while true
         BYX = BY' * X
-        mul!(X, Y, BYX, -one(T), one(T))  # X -= Y*BY'X
+        mul!(X, Y, BYX, -1, 1)  # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho!(cP, cX)
         dropped = drop!(X)
         if dropped != []
-            X[:, dropped] .-= Y * (BY' * X[:, dropped])  # X = X - Y*BY'*X
+            X[:, dropped] .-= Y * (BY' * X[:, dropped])
         end
 
         if norm(BYX) < tol && niter > 1
