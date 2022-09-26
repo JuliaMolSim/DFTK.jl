@@ -40,7 +40,7 @@ lattice   = [[8.79341  0.0      0.0];
 # forces.
 positions[1] .+= [-0.022, 0.028, 0.035]
 
-# We build a model with one k-point only, not too high `Ecut_ref` and small
+# We build a model with one ``k``-point only, not too high `Ecut_ref` and small
 # tolerance to limit computational time. These parameters can be increased for
 # more precise results.
 model = model_LDA(lattice, atoms, positions)
@@ -83,7 +83,7 @@ res, occ = DFTK.select_occupied_orbitals(basis_ref, res, scfres.occupation)
 
 # - Compute the error ``P-P_*`` on the associated orbitals ``ϕ-ψ`` after aligning
 #   them: this is done by solving ``\min |ϕ - ψU|`` for ``U`` unitary matrix of
-#   size ``N\times N`` (``N`` being the number of electrons) whose solution is
+#   size ``N×N`` (``N`` being the number of electrons) whose solution is
 #   ``U = S(S^*S)^{-1/2}`` where ``S`` is the overlap matrix ``ψ^*ϕ``.
 function compute_error(basis, ϕ, ψ)
     map(zip(ϕ, ψ)) do (ϕk, ψk)
@@ -136,7 +136,7 @@ Mres = apply_metric(ψr, P, res, apply_inv_M);
 #
 # ```math
 # \begin{bmatrix}
-# (\bm \Omega + \bm K)_{11} & (\bm \Omega + \bm K)_{12} \\
+# (\bm Ω + \bm K)_{11} & (\bm Ω + \bm K)_{12} \\
 # 0 & {\bm M}_{22}
 # \end{bmatrix}
 # \begin{bmatrix}
@@ -166,7 +166,7 @@ end
 rhs = resLF - ΩpKe2;
 
 # - Solve the Schur system to compute ``R_{\rm Schur}(P)``: this is the most
-#   costly step, but inverting ``\bm{\Omega} + \bm{K}`` on the small space has
+#   costly step, but inverting ``\bm{Ω} + \bm{K}`` on the small space has
 #   the same cost than the full SCF cycle on the small grid.
 ψ, _ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 e1 = DFTK.solve_ΩplusK(basis, ψ, rhs, occ; tol).δψ
@@ -180,18 +180,18 @@ res_schur = e1 + Mres;
 f_ref = compute_forces(scfres_ref)
 forces   = Dict("F(P_*)" => f_ref)
 relerror = Dict("F(P_*)" => 0.0)
-compute_relerror(f) = norm(f - f_ref) / norm(f_ref)
+compute_relerror(f) = norm(f - f_ref) / norm(f_ref);
 
 # - Force from the variational solution and relative error without
 #   any post-processing:
 f = compute_forces(scfres)
 forces["F(P)"]   = f
-relerror["F(P)"] = compute_relerror(f)
+relerror["F(P)"] = compute_relerror(f);
 
 # We then try to improve ``F(P)`` using the first order linearization:
 #
 # ```math
-# F(P) = F(P_*) + {\rm d}F(P)\cdot(P-P_*).
+# F(P) = F(P_*) + {\rm d}F(P)·(P-P_*).
 # ```
 
 # To this end, we use the `ForwardDiff.jl` package to compute ``{\rm d}F(P)``
@@ -207,14 +207,14 @@ end;
 #   aiming for this precision.
 df_err = df(basis_ref, occ, ψr, DFTK.proj_tangent(err, ψr), ρr)
 forces["F(P) - df(P)⋅(P-P_*)"]   = f - df_err
-relerror["F(P) - df(P)⋅(P-P_*)"] = compute_relerror(f - df_err)
+relerror["F(P) - df(P)⋅(P-P_*)"] = compute_relerror(f - df_err);
 
 # - Computation of the forces by a linearization argument when replacing the
 #   error ``P-P_*`` by the modified residual ``R_{\rm Schur}(P)``. The latter
 #   quantity is computable in practice.
 df_schur = df(basis_ref, occ, ψr, res_schur, ρr)
 forces["F(P) - df(P)⋅Rschur(P)"]   = f - df_schur
-relerror["F(P) - df(P)⋅Rschur(P)"] = compute_relerror(f - df_schur)
+relerror["F(P) - df(P)⋅Rschur(P)"] = compute_relerror(f - df_schur);
 
 # Summary of all forces on the first atom (Ti)
 for (key, value) in pairs(forces)

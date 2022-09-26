@@ -11,13 +11,14 @@ a = 14
 lattice = a .* [[1 0 0.]; [0 1 0]; [0 0 0]];
 
 ## Confining scalar potential
-pot(x, y, z) = ((x - a/2)^2 + (y - a/2)^2)
+pot(x, y, z) = ((x - a/2)^2 + (y - a/2)^2);
 
 ## Parameters
 Ecut = 50
 n_electrons = 1
-β = 5
+β = 5;
 
+## Collect all the terms, build and run the model
 terms = [Kinetic(; scaling_factor=2),
          ExternalFromReal(X -> pot(X...)),
          Anyonic(1, β)
@@ -29,4 +30,4 @@ E = scfres.energies.total
 s = 2
 E11 = π/2 * (2(s+1)/s)^((s+2)/s) * (s/(s+2))^(2(s+1)/s) * E^((s+2)/s) / β
 println("e(1,1) / (2π)= ", E11 / (2π))
-display(heatmap(scfres.ρ[:, :, 1, 1], c=:blues))
+heatmap(scfres.ρ[:, :, 1, 1], c=:blues)

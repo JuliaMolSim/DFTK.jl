@@ -14,9 +14,9 @@ tol = 1e-8              # tolerance for the optimization routine
 a = 10                  # lattice constant in Bohr
 lattice = a * I(3)
 H = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1"));
-atoms = [H, H]
+atoms = [H, H];
 
-# We define a blochwave and a density to be used as global variables so that we
+# We define a Bloch wave and a density to be used as global variables so that we
 # can transfer the solution from one iteration to another and therefore reduce
 # the optimization time.
 
@@ -24,7 +24,7 @@ atoms = [H, H]
 ρ = nothing
 
 # First, we create a function that computes the solution associated to the
-# position ``x \in \mathbb{R}^6`` of the atoms in reduced coordinates
+# position ``x ∈ ℝ^6`` of the atoms in reduced coordinates
 # (cf. [Reduced and cartesian coordinates](@ref) for more
 # details on the coordinates system).
 # They are stored as a vector: `x[1:3]` represents the position of the
@@ -64,7 +64,7 @@ end;
 # in Optim. We start from `x0`, which is a first guess for the coordinates. By
 # default, `optimize` traces the output of the optimization algorithm during the
 # iterations. Once we have the minimizer `xmin`, we compute the bond length in
-# cartesian coordinates.
+# Cartesian coordinates.
 
 x0 = vcat(lattice \ [0., 0., 0.], lattice \ [1.4, 0., 0.])
 xres = optimize(Optim.only_fg!(fg!), x0, LBFGS(),
