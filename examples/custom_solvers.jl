@@ -70,7 +70,7 @@ scfres = self_consistent_field(basis;
                                mixing=MyMixing());
 # Note that the default convergence criterion is on the difference of
 # energy from one step to the other; when this gets below `tol`, the
-# "driver" `self_consistent_field` artificially makes the fixpoint
+# "driver" `self_consistent_field` artificially makes the fixed-point
 # solver think it's converged by forcing `f(x) = x`. You can customize
 # this with the `is_converged` keyword argument to
 # `self_consistent_field`.

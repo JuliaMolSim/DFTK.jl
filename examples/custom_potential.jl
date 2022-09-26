@@ -17,7 +17,7 @@ struct CustomPotential <: DFTK.Element
 end
 
 # Some default values
-CustomPotential() = CustomPotential(1.0, 0.5)
+CustomPotential() = CustomPotential(1.0, 0.5);
 
 # We extend the two methods providing access to the real and Fourier
 # representation of the potential to DFTK.
@@ -41,7 +41,7 @@ x1 = 0.2
 x2 = 0.8
 positions = [[x1, 0, 0], [x2, 0, 0]]
 gauss     = CustomPotential()
-atoms     = [gauss, gauss]
+atoms     = [gauss, gauss];
 
 # We setup a Gross-Pitaevskii model
 C = 1.0

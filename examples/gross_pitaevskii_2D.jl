@@ -10,25 +10,25 @@ using DFTK
 using StaticArrays
 using Plots
 
-# Unit cell. Having one of the lattice vectors as zero means a 2D system
+## Unit cell. Having one of the lattice vectors as zero means a 2D system
 a = 15
 lattice = a .* [[1 0 0.]; [0 1 0]; [0 0 0]];
 
-# Confining scalar potential, and magnetic vector potential
+## Confining scalar potential, and magnetic vector potential
 pot(x, y, z) = ((x - a/2)^2 + (y - a/2)^2)/2
 ω = .6
 Apot(x, y, z) = ω * @SVector [y - a/2, -(x - a/2), 0]
 Apot(X) = Apot(X...);
 
 
-# Parameters
+## Parameters
 Ecut = 20  # Increase this for production
 η = 500
 C = η/2
 α = 2
 n_electrons = 1;  # Increase this for fun
 
-# Collect all the terms, build and run the model
+## Collect all the terms, build and run the model
 terms = [Kinetic(),
          ExternalFromReal(X -> pot(X...)),
          LocalNonlinearity(ρ -> C * ρ^α),

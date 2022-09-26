@@ -1,7 +1,7 @@
 # # Polarizability using automatic differentiation
 #
 # Simple example for computing properties using (forward-mode)
-# automatic differentation.
+# automatic differentiation.
 # For a more classical approach and more details about computing polarizabilities,
 # see [Polarizability by linear response](@ref).
 

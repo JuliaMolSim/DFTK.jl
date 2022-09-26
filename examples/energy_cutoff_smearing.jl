@@ -7,14 +7,12 @@
 # [Problems and plane-wave discretization](https://docs.dftk.org/stable/guide/periodic_problems/)
 # section, the energy of periodic systems is computed by solving eigenvalue
 # problems of the form
-#
 # ```math
-# H_k u_k = \varepsilon_k u_k
+# H_k u_k = ε_k u_k,
 # ```
-#
 # for each ``k``-point in the first Brillouin zone of the system.
 # Each of these eigenvalue problem is discretized with a plane-wave basis
-# ``\mathcal{B}_k^{E_c}=\{x\mapsto e^{iG\cdot x} \;\;|\;G\in\mathcal{R}^*,\;\; |k+G|^2\leq 2E_c\}``
+# ``\mathcal{B}_k^{E_c}=\{x ↦ e^{iG · x} \;\;|\;G ∈ \mathcal{R}^*,\;\; |k+G|^2 ≤ 2E_c\}``
 # whose size highly depends on the choice of ``k``-point, cell size or
 # cutoff energy ``\rm E_c`` (the `Ecut` parameter of DFTK).
 # As a result, energy bands computed along a ``k``-path in the Brillouin zone
