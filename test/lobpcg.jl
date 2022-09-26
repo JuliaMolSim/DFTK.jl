@@ -131,8 +131,8 @@ end
     b2 = rand(10,2)
     A = hcat(a1,a2,a3)
     B = hcat(b1,b2)
-    Ablock = DFTK.BlockMatrix(a1, a2, a3)
-    Bblock = DFTK.BlockMatrix(b1,b2)
+    Ablock = DFTK.LazyHcat(a1, a2, a3)
+    Bblock = DFTK.LazyHcat(b1,b2)
     @test Ablock'*Bblock ≈ A'*B
     @test Ablock'*B ≈ A'*B
 

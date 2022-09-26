@@ -51,36 +51,36 @@ include("../workarounds/gpu_arrays.jl")
 """
 Simple wrapper to represent a matrix formed by the concatenation of column blocks:
 it is mostly equivalent to hcat, but doesn't allocate the full matrix.
-BlockMatrix only supports a few multiplication routines: furthermore, a multiplication
-involving this structure will always yield a plain array (and not a BlockMatrix).
-BlockMatrix is a lightweight subset of BlockArrays.jl's functionalities, but has the
+LazyHcat only supports a few multiplication routines: furthermore, a multiplication
+involving this structure will always yield a plain array (and not a LazyHcat structure).
+LazyHcat is a lightweight subset of BlockArrays.jl's functionalities, but has the
 advantage to be able to store GPU Arrays (BlockArrays is heavily built on Julia's CPU Array).
 """
-struct BlockMatrix{T <: Number, D <: Tuple} <: AbstractMatrix{T}
+struct LazyHcat{T <: Number, D <: Tuple} <: AbstractMatrix{T}
     blocks::D
 end
 
-function BlockMatrix(arrays::AbstractArray...)
+function LazyHcat(arrays::AbstractArray...)
     @assert length(arrays) != 0
     n_ref= size(arrays[1], 1)
     @assert  all(size.(arrays, 1) .== n_ref)
 
     T = promote_type(map(eltype, arrays)...)
 
-    BlockMatrix{T, typeof(arrays)}(arrays)
+    LazyHcat{T, typeof(arrays)}(arrays)
 end
 
-function Base.size(A::BlockMatrix)
+function Base.size(A::LazyHcat)
     n = size(A.blocks[1], 1)
     m = sum(size(block, 2) for block in A.blocks)
     (n,m)
 end
 
-Base.Array(A::BlockMatrix)  = hcat(A.blocks...)
+Base.Array(A::LazyHcat)  = hcat(A.blocks...)
 
-Base.adjoint(A::BlockMatrix) = Adjoint(A)
+Base.adjoint(A::LazyHcat) = Adjoint(A)
 
-@views function Base.:*(Aadj::Adjoint{T, <: BlockMatrix}, B::BlockMatrix) where {T}
+@views function Base.:*(Aadj::Adjoint{T, <: LazyHcat}, B::LazyHcat) where {T}
     A = Aadj.parent
     rows = size(A)[2]
     cols = size(B)[2]
@@ -98,9 +98,9 @@ Base.adjoint(A::BlockMatrix) = Adjoint(A)
     ret
 end
 
-Base.:*(Aadj::Adjoint{T, <: BlockMatrix}, B::AbstractMatrix) where {T} = Aadj * BlockMatrix(B)
+Base.:*(Aadj::Adjoint{T, <: LazyHcat}, B::AbstractMatrix) where {T} = Aadj * LazyHcat(B)
 
-@views function *(Ablock::BlockMatrix, B::AbstractMatrix)
+@views function *(Ablock::LazyHcat, B::AbstractMatrix)
     res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
     offset = size(Ablock.blocks[1], 2)
     for block in Ablock.blocks[2:end]
@@ -110,7 +110,7 @@ Base.:*(Aadj::Adjoint{T, <: BlockMatrix}, B::AbstractMatrix) where {T} = Aadj * 
     res
 end
 
-function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::BlockMatrix,
+function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
                             B::AbstractVecOrMat, α::Number, β::Number)
     mul!(res, Ablock*B, I, α, β)
 end
@@ -352,13 +352,13 @@ end
 
             # Form Rayleigh-Ritz subspace
             if niter > 1
-                Y = BlockMatrix(X, R, P)
-                AY = BlockMatrix(AX, AR, AP)
-                BY = BlockMatrix(BX, BR, BP)  # data shared with (X, R, P) in non-general case
+                Y = LazyHcat(X, R, P)
+                AY = LazyHcat(AX, AR, AP)
+                BY = LazyHcat(BX, BR, BP)  # data shared with (X, R, P) in non-general case
             else
-                Y  = BlockMatrix(X, R)
-                AY = BlockMatrix(AX, AR)
-                BY = BlockMatrix(BX, BR)  # data shared with (X, R) in non-general case
+                Y  = LazyHcat(X, R)
+                AY = LazyHcat(AX, AR)
+                BY = LazyHcat(BX, BR)  # data shared with (X, R) in non-general case
             end
             cX, λs = rayleigh_ritz(Y, AY, M-nlocked)
 
@@ -424,6 +424,8 @@ end
             # cP[Xn_indices,:] .= 0
 
             lenXn = length(Xn_indices)
+            # TODO: two allocations needed for zero(similar(...)). Create a zero_like
+            # function which only does one allocation.
             e = zero(similar(X, size(cX, 1), M - prev_nlocked))
             lower_diag = one(similar(X, lenXn, lenXn))
             # e has zeros everywhere except on one of its lower diagonal
@@ -483,8 +485,8 @@ end
 
         # Orthogonalize R wrt all X, newly active P
         if niter > 0
-            Z  = BlockMatrix(full_X, P)
-            BZ = BlockMatrix(full_BX, BP) # data shared with (full_X, P) in non-general case
+            Z  = LazyHcat(full_X, P)
+            BZ = LazyHcat(full_BX, BP) # data shared with (full_X, P) in non-general case
         else
             Z  = full_X
             BZ = full_BX
