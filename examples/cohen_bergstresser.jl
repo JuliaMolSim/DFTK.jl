@@ -17,7 +17,7 @@ positions = [ones(3)/8, -ones(3)/8]
 lattice = Si.lattice_constant / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]];
 
 # Next we build the rather simple model and discretize it with moderate `Ecut`:
-model = Model(lattice, atoms, positions; terms=[Kinetic(), AtomicLocal()], spin_polarization=:spinless)
+model = Model(lattice, atoms, positions; terms=[Kinetic(), AtomicLocal()])
 basis = PlaneWaveBasis(model, Ecut=10.0, kgrid=(2, 2, 2));
 
 # We diagonalise at the Gamma point to find a Fermi level …

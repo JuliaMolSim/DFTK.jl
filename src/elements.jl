@@ -107,7 +107,7 @@ struct ElementCohenBergstresser <: Element
     V_sym   # Map |G|^2 (in units of (2π / lattice_constant)^2) to form factors
     lattice_constant  # Lattice constant (in Bohr) which is assumed
 end
-charge_ionic(el::ElementCohenBergstresser)   = 2
+charge_ionic(el::ElementCohenBergstresser)   = 4
 charge_nuclear(el::ElementCohenBergstresser) = el.Z
 AtomsBase.atomic_symbol(el::ElementCohenBergstresser) = el.symbol
 

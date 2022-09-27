@@ -49,15 +49,12 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
 
     if iszero(temperature)
         # Sanity check that we can indeed fill the appropriate number of states
-        if n_electrons % filled_occ != 0
+        if n_electrons % (n_spin * filled_occ) != 0
             error("$n_electrons electrons cannot be attained by filling states with " *
                   "occupation $filled_occ. Typically this indicates that you need to put " *
                   "a temperature or switch to a calculation with collinear spin polarization.")
-        elseif n_spin != 1 && n_electrons % (n_spin * filled_occ) != 0
-            error("$n_electrons electrons cannot be attained by filling states with " *
-                  "occupation $n_spin x $filled_occ. Typically this indicates that you need to put " *
-                  "a temperature.")
         end
+
         # For zero temperature, two cases arise: either there are as many bands
         # as electrons, in which case we set εF to the highest energy level
         # reached, or there are unoccupied conduction bands and we take
