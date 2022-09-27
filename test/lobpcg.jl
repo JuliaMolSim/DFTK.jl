@@ -136,7 +136,7 @@ end
     @test Ablock'*Bblock ≈ A'*B
     @test Ablock'*B ≈ A'*B
 
-    C = rand(14,4)
+    C = rand(14, 4)
     @test Ablock*C ≈ A*C
 
     D = rand(10, 4)
