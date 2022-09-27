@@ -45,7 +45,7 @@ vprintln(args...) = nothing
 using LinearAlgebra
 import Base: *
 import Base.size, Base.adjoint, Base.Array
-
+import DFTK:zeros_like
 include("../workarounds/gpu_arrays.jl")
 
 """
@@ -71,7 +71,7 @@ function LazyHcat(arrays::AbstractArray...)
 end
 
 function Base.size(A::LazyHcat)
-    n = size(A.blocks[1] , 1)
+    n = size(A.blocks[1], 1)
     m = sum(size(block, 2) for block in A.blocks)
     (n,m)
 end

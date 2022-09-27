@@ -17,11 +17,3 @@ function LinearAlgebra.eigen(A::Hermitian{T,AT}) where {T <: Real,AT <: CuArray}
     vals, vects = CUDA.CUSOLVER.syevd!('V','U', A.data)
     (vectors = vects, values = vals)
 end
-
-# Create an array of same type as X filled with zeros, minimizing the number
-# of allocations.
-function zeros_like(X, n, m)
-    Z = similar(X, n, m)
-    Z .= 0
-    Z
-end

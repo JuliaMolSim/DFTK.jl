@@ -30,6 +30,7 @@ include("common/mpi.jl")
 include("common/threading.jl")
 include("common/printing.jl")
 include("common/cis2pi.jl")
+include("common/zeros_like.jl")
 
 export PspHgh
 include("pseudo/NormConservingPsp.jl")
