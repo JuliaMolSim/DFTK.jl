@@ -138,9 +138,9 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
     @assert size(rhs[1]) == size(ψ[1])  # Assume the same number of bands in ψ and rhs
 
     # compute δρ0 (ignoring interactions)
-    δψ0, δoccupation0, δεF0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
-                                          reltol=0, abstol=tol_sternheimer,
-                                          occupation_threshold, kwargs...)  # = -χ04P * rhs
+    δψ0, δoccupation0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
+                                    reltol=0, abstol=tol_sternheimer,
+                                    occupation_threshold, kwargs...)  # = -χ04P * rhs
     δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0)
 
     # compute total δρ
