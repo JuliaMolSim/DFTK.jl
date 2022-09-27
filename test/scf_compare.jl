@@ -6,7 +6,6 @@ include("testcases.jl")
 
 @testset "Compare different SCF algorithms (no spin, no temperature)" begin
     Ecut = 3
-    n_bands = 6
     fft_size = [9, 9, 9]
     tol = 1e-7
 
@@ -15,13 +14,13 @@ include("testcases.jl")
 
     # Run nlsolve without guess
     ρ0 = zeros(basis.fft_size..., 1)
-    ρ_nl = self_consistent_field(basis; ρ=ρ0, tol=tol).ρ
+    ρ_nl = self_consistent_field(basis; ρ=ρ0, tol).ρ
 
     # Run DM
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Direct minimization" begin
-            ρ_dm = direct_minimization(basis; g_tol=tol).ρ
-            @test maximum(abs.(ρ_dm - ρ_nl)) < sqrt(tol) / 10
+            ρ_dm = direct_minimization(basis; tol).ρ
+            @test maximum(abs, ρ_dm - ρ_nl) < sqrt(tol) / 10
         end
     end
 
@@ -68,7 +67,6 @@ end
 
 @testset "Compare different SCF algorithms (collinear spin, no temperature)" begin
     Ecut = 3
-    n_bands = 6
     fft_size = [9, 9, 9]
     tol = 1e-7
 
@@ -100,7 +98,6 @@ end
 
 @testset "Compare different SCF algorithms (no spin, temperature)" begin
     Ecut = 3
-    n_bands = 6
     fft_size = [9, 9, 9]
     tol = 1e-7
 
@@ -123,7 +120,6 @@ end
 
 
 @testset "Compare different SCF algorithms (collinear spin, temperature)" begin
-    n_bands = 8
     fft_size = [13, 13, 13]
     tol = 1e-7
 

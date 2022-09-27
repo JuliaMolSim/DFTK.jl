@@ -123,6 +123,7 @@ include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
 export LdosMixing, HybridMixing, χ0Mixing
+export FixedBands, AdaptiveBands
 export scf_nlsolve_solver
 export scf_damping_solver
 export scf_anderson_solver

@@ -19,8 +19,7 @@ end
 Find the occupation and Fermi level.
 """
 function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
-                            temperature=basis.model.temperature,
-                            occupation_threshold) where {T}
+                            temperature=basis.model.temperature) where {T}
     n_electrons = basis.model.n_electrons
     n_spin      = basis.model.n_spin_components
 
@@ -94,10 +93,5 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
     end
 
     occupation = compute_occupation(basis, eigenvalues, εF)
-    minocc = maximum(minimum, occupation)
-    if !iszero(temperature) && minocc > occupation_threshold
-        @warn "One k-point has a high minimum occupation $minocc. You should probably increase the number of bands."
-    end
-
     (; occupation, εF)
 end

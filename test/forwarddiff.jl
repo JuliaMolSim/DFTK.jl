@@ -72,10 +72,11 @@ end
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
         scfres = self_consistent_field(basis; is_converged, mixing=KerkerMixing(),
+                                       bands=FixedBands(; n_bands=10, n_bands_compute=13),
                                        damping=0.6, response=ResponseOptions(verbose=true))
 
         ComponentArray(
-           eigenvalues=hcat([ev[1:end-3] for ev in scfres.eigenvalues]...),
+           eigenvalues=hcat([ev[1:10] for ev in scfres.eigenvalues]...),
            ρ=scfres.ρ,
            energies=collect(values(scfres.energies)),
            εF=scfres.εF,

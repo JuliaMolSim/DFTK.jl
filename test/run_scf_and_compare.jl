@@ -4,11 +4,12 @@ import DFTK: mpi_sum
 
 function run_scf_and_compare(T, basis, ref_evals, ref_etot;
                              n_ignored=0, test_tol=1e-6, scf_tol=1e-6, test_etot=true, kwargs...)
-    n_kpt = length(ref_evals)
-    n_bands = length(ref_evals[1])
+    n_kpt    = length(ref_evals)
+    n_bands  = length(ref_evals[1])
     kpt_done = zeros(Bool, n_kpt)
 
-    scfres = self_consistent_field(basis; tol=scf_tol, n_bands=n_bands, kwargs...)
+    bands  = AdaptiveBands(basis.model, n_bands_converge_min=n_bands)
+    scfres = self_consistent_field(basis; tol=scf_tol, bands, kwargs...)
     for (ik, ik_global) in enumerate(basis.krange_thisproc)
         @test eltype(scfres.eigenvalues[ik]) == T
         @test eltype(scfres.ψ[ik]) == Complex{T}

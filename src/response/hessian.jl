@@ -185,10 +185,8 @@ end
 function solve_ΩplusK_split(basis::PlaneWaveBasis, ψ, rhs, occupation; kwargs...)
     ρ = compute_density(basis, ψ, occupation)
     _, H = energy_hamiltonian(basis, ψ, occupation; ρ)
-
     eigenvalues = [real.(eigvals(ψk'Hψk)) for (ψk, Hψk) in zip(ψ, H * ψ)]
-    occupation_threshold = kwargs[:occupation_threshold]
-    occupation, εF = compute_occupation(basis, eigenvalues; occupation_threshold)
+    occupation, εF = compute_occupation(basis, eigenvalues)
 
     solve_ΩplusK_split(H, ρ, ψ, occupation, εF, eigenvalues, rhs; kwargs...)
 end

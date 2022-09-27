@@ -16,7 +16,7 @@ include("testcases.jl")
             ρspin = nothing
         end
         ρ = ρ_from_total_and_spin(ρtot, ρspin)
-        self_consistent_field(basis, tol=5e-6, ρ=ρ, n_bands=10);
+        self_consistent_field(basis, tol=5e-6, ρ=ρ, bands=8);
     end
 
     scfres        = run_silicon(:none)
