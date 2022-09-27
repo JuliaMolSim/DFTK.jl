@@ -109,7 +109,8 @@ function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
     end
 
     # projection in the normalized plane wave basis
-    irfft(basis, ρ / sqrt(basis.model.unit_cell_volume))
+    # (ignore real check here as fft-grid can contain G-vectors without their -G counterpart)
+    irfft(basis, ρ / sqrt(basis.model.unit_cell_volume), check=Val(false))
 end
 
 

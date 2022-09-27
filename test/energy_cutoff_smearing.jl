@@ -11,7 +11,7 @@ if mpi_nprocs() == 1
 
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
     basis = PlaneWaveBasis(model, 5, silicon.kcoords, silicon.kweights)
-    scfres = self_consistent_field(basis; n_bands=8, callback=info->nothing)
+    scfres = self_consistent_field(basis; callback=identity)
 
     # Kpath around one discontinuity of the first band of silicon (between X and U points)
     k_start = [0.5274, 0.0548, 0.5274]

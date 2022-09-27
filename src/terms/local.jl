@@ -7,7 +7,8 @@
 abstract type TermLocalPotential <: Term end
 
 @timing "ene_ops: local" function ene_ops(term::TermLocalPotential,
-                                          basis::PlaneWaveBasis{T}, ψ, occ; kwargs...) where {T}
+                                          basis::PlaneWaveBasis{T}, ψ, occupation;
+                                          kwargs...) where {T}
     potview(data, spin) = ndims(data) == 4 ? (@view data[:, :, :, spin]) : data
     ops = [RealSpaceMultiplication(basis, kpt, potview(term.potential_values, kpt.spin))
            for kpt in basis.kpoints]
