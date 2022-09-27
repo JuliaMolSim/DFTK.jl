@@ -426,9 +426,7 @@ end
             # cP[Xn_indices,:] .= 0
 
             lenXn = length(Xn_indices)
-            # TODO: two allocations needed for zero(similar(...)). Create a zero_like
-            # function which only does one allocation.
-            e = zero(similar(X, size(cX, 1), M - prev_nlocked))
+            e = zeros_like(X, size(cX, 1), M - prev_nlocked)
             lower_diag = one(similar(X, lenXn, lenXn))
             # e has zeros everywhere except on one of its lower diagonal
             e[Xn_indices[1]:last(Xn_indices), 1:lenXn] = lower_diag
