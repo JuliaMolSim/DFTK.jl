@@ -337,8 +337,8 @@ end
     end
     nlocked = 0
     niter = 0  # the first iteration is fake
-    λs = @views [(X[:,n]'*AX[:,n]) / (X[:,n]'BX[:,n]) for n=1:M]
-    λs = oftype(X[:,1], λs)  # Offload to GPU if needed
+    λs = @views [(X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n]) for n=1:M]
+    λs = oftype(X[:, 1], λs)  # Offload to GPU if needed
     new_X = X
     new_AX = AX
     new_BX = BX
