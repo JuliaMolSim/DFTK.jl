@@ -62,7 +62,7 @@ end
 
 function LazyHcat(arrays::AbstractArray...)
     @assert length(arrays) != 0
-    n_ref= size(arrays[1], 1)
+    n_ref = size(arrays[1], 1)
     @assert  all(size.(arrays, 1) .== n_ref)
 
     T = promote_type(map(eltype, arrays)...)
@@ -71,7 +71,7 @@ function LazyHcat(arrays::AbstractArray...)
 end
 
 function Base.size(A::LazyHcat)
-    n = size(A.blocks[1], 1)
+    n = size(A.blocks[1] , 1)
     m = sum(size(block, 2) for block in A.blocks)
     (n,m)
 end
@@ -117,7 +117,9 @@ end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X, AX, N)
-    F = eigen(Hermitian(X' * AX))
+    XAX = X' * AX
+    @assert all(!isnan, XAX)
+    F = eigen(Hermitian(XAX))
     F.vectors[:,1:N], F.values[1:N]
 end
 
@@ -429,7 +431,7 @@ end
             e = zero(similar(X, size(cX, 1), M - prev_nlocked))
             lower_diag = one(similar(X, lenXn, lenXn))
             # e has zeros everywhere except on one of its lower diagonal
-            e[Xn_indices[1] : last(Xn_indices), 1 : lenXn] = lower_diag
+            e[Xn_indices[1]:last(Xn_indices), 1:lenXn] = lower_diag
 
             cP = cX .- e
             cP = cP[:, Xn_indices]
