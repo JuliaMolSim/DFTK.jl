@@ -45,7 +45,6 @@ vprintln(args...) = nothing
 using LinearAlgebra
 import Base: *
 import Base.size, Base.adjoint, Base.Array
-import DFTK:zeros_like
 include("../workarounds/gpu_arrays.jl")
 
 """
