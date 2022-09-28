@@ -1,4 +1,4 @@
-using Interpolations: interpolate, Gridded, Cubic, Linear
+using Interpolations: interpolate, Gridded, Cubic, Linear, BSpline
 using SpecialFunctions: besselj
 using QuadGK: quadgk
 using UPF: load_upf
@@ -49,7 +49,7 @@ function parse_upf_file(path; identifier=path)
     dr = pseudo["radial_grid_derivative"][1]
 
     # lpot
-    lpot = pseudo["local_potential"]
+    lpot = pseudo["local_potential"] ./ 2  # Ry -> Ha
 
     # projectors
     projs = []
@@ -123,74 +123,110 @@ function eval_psp_local_real(psp::PspUpf, r::T) where {T <: Real}
 end
 
 """
+Calculate:
 4π ∫[sin(2π*q*r) / (2π*q*r) * (V(r) + Z/r) * r^2 dr]
+``
+4 \\pi \\int{\\frac{sin(2 \\pi q r)}{2 \\pi q r} (V(r) + \\frac{Z}{r}) r^2 dr}
+``
+Implemented as:
+4π ∫[sin(2π*q*r) / (2π*q) * (r*V(r) + Z) dr]
+``
+4 \\pi \\int{\\frac{sin(2 \\pi q r)}{2 \\pi q} (r V(r) + Z) dr}
+``
 """
 function eval_psp_local_fourier_naive(psp::PspUpf, q::T)::T where {T <: Real}
-    sin_term = sin.(2T(π) * q .* psp.rgrid) ./ (2T(π) * q)
-    integrand = sin_term .* psp.rgrid .* (psp.rgrid .* psp.lpot .+ psp.Zion)
-    return 4T(π) * ctrap(integrand, psp.dr)
+    rgrid = psp.rgrid[2:end]
+    lpot = psp.lpot[2:end]
+    sin_ignd = sin.(2π * q .* rgrid) ./ (2π * q)
+    pot_ignd = rgrid .* lpot .+ psp.Zion
+    ignd = sin_ignd .* pot_ignd
+    vloc = 4π * ctrap(ignd, psp.dr)
+    return vloc
 end
 
 """
-if q == 0
-    4π ∫[(V(r) + Z/r) * r^2 dr]
-else
-    4π ( ∫[sin(r*√q) / q * (r*V(r) + Z*erf(r)) dr] - Z*exp(-q/4) / q)
+Calculate:
+4π ∫[sin(2π*q*r) / (2π*q*r) * (V(r) + Z*erf(r)/r) * r^2 dr]
+``
+4 \\pi \\int{\\frac{sin(2 \\pi q r)}{2 \\pi q r} (V(r) + \\frac{Z erf(r)}{r}) r^2 dr}
+``
+Implemented as:
+4π ∫[sin(2π*q*r) / (2π*q) * (r*V(r) + Z*erf(r)) dr]
+``
+4 \\pi ( \\int{\\frac{sin(2 \\pi q r)}{2 \\pi q} (r V(r) + Z) dr}
+- \\frac{Z \exp(-q^2 / 4)}{q^2} )
+``
 """
 function eval_psp_local_fourier_qe(psp::PspUpf, q::T)::T where {T <: Real}
     if iszero(q)
         # aux(ir) = r(ir) * (r(ir) * vloc_at(ir) + zp * e2)
-        integrand = psp.rgrid .* (psp.rgrid .* psp.lpot .+ psp.Zion)
         # call simpson(msh, aux, rab, vlcp)
         # vloc(1) = vlcp
-        v_loc = ctrap(integrand, psp.dr)
+        ignd = psp.rgrid .* (psp.rgrid .* psp.lpot .+ psp.Zion)
+        vloc = ctrap(ignd, psp.dr)
     else
-        # do ir = 1,msh
-        #     aux1(ir) = r(ir) * vloc_at(ir) + zp * e2 * erf(r(ir))
-        # end do
-        pot_term = (psp.rgrid .* psp.lpot .+ psp.Zion .* erf.(psp.rgrid))
         # gx = sqrt(gl(igl) * tpiba2)  # sqrt(q * 2π/alat)
         # do ir = 1,msh
         #     aux(ir) = aux1(ir) * sin(gx * r(ir)) / gx
         # end do
-        sin_term = (sin.(sqrt(q) .* psp.rgrid) ./ sqrt(q))
-        integrand = sin_term .* pot_term
+        # do ir = 1,msh
+        #     aux1(ir) = r(ir) * vloc_at(ir) + zp * e2 * erf(r(ir))
+        # end do
         # call simpson(msh, aux, rab, vlcp)
-        v_loc = ctrap(integrand, psp.dr)
         # fac = zp * e2 / tpiba2  # zp * elec_chg^2 / (2π/alat)
         # vlcp = vlcp - fac * exp(-gl(igl) * tpiba2 * 0.25) / gl(igl)
-        v_loc -= psp.Zion * exp(-q / 4) / q
+        # vloc = vloc * fpi / omega
+        sin_ignd = sin.(2π * q .* psp.rgrid) ./ (2π * q)
+        pot_ignd = psp.rgrid .* psp.lpot .+ psp.Zion .* erf.(psp.rgrid)
+        ignd = sin_ignd .* pot_ignd
+        corr = -psp.Zion / (π * q^2) * exp(-(π * q)^2)
+        vloc = 4π * ctrap(ignd, psp.dr) + corr
     end
-    # vloc = vloc * fpi / omega
-    return 4T(π) * v_loc
+    return vloc
 end
 
 """
-if q == 0
-    -Z / π
-else
-    (2q * ∫[sin(2π*q*r) * (rV(r) + Z) dr] - Z / π) / q^2
+Calculate:
+q^2 4π ∫[sin(2π*q*r) / (2π*q*r) * (V(r) + Z/r) * r^2 dr]
+``
+q^2 4 \\pi \\int{\\frac{sin(2 \\pi q r)}{2 \\pi q r} (V(r) + \\frac{Z erf(r)}{r}) r^2 dr}
+``
+Implemented as:
+4π ( 2q * ∫[sin(2π*q*r) / (2π*q) * (r*V(r) + Z) dr] - Z/π)
+``
+4 \\pi ( 2 q \\int{\\frac{sin(2 \\pi q r)}{2 \\pi q} (r V(r) + Z) dr}
+- \\frac{Z \exp(-q^2 / 4)}{q^2} )
+``
 """
 function eval_psp_local_fourier_abinit(psp::PspUpf, q::T)::T where {T <: Real}
     if iszero(q)
         # q2vq(1) = -zion / pi
-        v_loc = -psp.Zion / T(π)
+        vloc = -psp.Zion / π
     else
-        # do ir=1,mmax
-        #     rvlpz(ir) = rad(ir) * vloc(ir) + zion
-        # end do
         # arg = 2.d0 * pi * qgrid(iq)
         # do ir = 1,mmax
         #     work(ir) = sin(arg * rad(ir)) * rvlpz(ir)
         # end do
-        integrand = sin.(2T(π)q .* psp.rgrid) .* (psp.rgrid .* psp.lpot .+ psp.Zion)
+        # do ir=1,mmax
+        #     rvlpz(ir) = rad(ir) * vloc(ir) + zion
+        # end do
         # call ctrap(mmax, work, amesh, result)
-        result = ctrap(integrand, psp.dr)
         # q2vq(iq) = q2vq(1) + 2.d0 * qgrid(iq) * result
-        qsq_v_loc = -psp.Zion / T(π) + 2q * result
-        v_loc = qsq_v_loc / q^2
+
+        # sin_ignd = sin.(2π * q .* psp.rgrid) ./ q
+        # pot_ignd = psp.rgrid .* psp.lpot .+ psp.Zion
+        # ignd = sin_ignd .* pot_ignd
+        # corr = -psp.Zion / π
+        # q2vloc = 2 * q * ctrap(ignd, psp.dr) + corr
+        # vloc = q2vloc / q^2
+
+        sin_ignd = sin.(2π * q .* psp.rgrid) ./ (2π * q)
+        pot_ignd = psp.rgrid .* psp.lpot .+ psp.Zion
+        ignd = sin_ignd .* pot_ignd
+        corr = -psp.Zion / (π * q^2)
+        vloc = 4π * ctrap(ignd, psp.dr) + corr
     end
-    return v_loc
+    return vloc 
 end
 
 """
