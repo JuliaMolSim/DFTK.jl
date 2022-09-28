@@ -180,14 +180,15 @@ function sternheimer_solver(Hk, ψk, εk, n::Integer, rhs;
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
     δψknᴿ, history = cg(J, bb; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol,
                         verbose, log=true)
+
     # 2) solve for αkn now that we know δψknᴿ
     # Note that αkn is an empty array if there is no extra bands.
     αkn = ψk_exHψk_ex \ ψk_extra' * (b - H(δψknᴿ))
     δψkn = ψk_extra * αkn + δψknᴿ
     n_matvec += 1
 
-    (; Hk, basis, kpoint, history, δψkn, n, iterations=niters(history), n_matvec,
-     converged=history.isconverged, residual_norms=last(history[:resnorm]))
+    (; δψkn, history, iterations=niters(history), n_matvec, converged=history.isconverged,
+     residual_norm=iszero(niters(history)) ? zero(real(eltype(ψk))) : last(history[:resnorm]))
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
@@ -239,8 +240,7 @@ function compute_αmn(fm, fn, ratio)
 end
 
 @views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
-                                    occupation_threshold, callback=identity,
-                                    kwargs_sternheimer...)
+                                    occupation_threshold, kwargs_sternheimer...)
     basis  = ham.basis
     model = basis.model
     temperature = model.temperature
@@ -300,10 +300,11 @@ end
     sternres = []
     for ik = 1:Nk
         ψk = ψ_occ[ik]
+        εk = ε_occ[ik]
         δψk = δψ[ik]
         Hψk_extra = ham.blocks[ik] * ψ_extra[ik]
 
-        εk = ε_occ[ik]
+        sternres_k = []
         for n = 1:length(εk)
             fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n]-εF) / temperature)
 
@@ -320,9 +321,11 @@ end
             res = sternheimer_solver(ham.blocks[ik], ψk, εk, n, δHψ[ik][:, n];
                                      ψk_extra=ψ_extra[ik], εk_extra=ε_extra[ik],
                                      Hψk_extra, kwargs_sternheimer...)
-            push!(sternres, res)
-            δψk[:, n] .+= sternres.δψkn
+            res.converged || @warn "Sternheimer solver not converged" ik n res.iterations
+            push!(sternres_k, res)
+            δψk[:, n] .+= res.δψkn
         end
+        push!(sternres, sternres_k)
     end
 
     # Pad δoccupation
@@ -331,11 +334,12 @@ end
         δoccupation[ik][maskk] .+= δocc[ik]
     end
 
-    (; δψ, δoccupation, δεF,
-     residual_norms=[res.residual_norms for res in sternres],
-     iterations=[res.iterations for res in sternres],
-     converged=all(res.converged for res in sternres),
-     n_matvec=sum(res.n_matvec for res in sternres))
+    # Reorder entries in sternres
+    residual_norms = [[resnk.residual_norm for resnk in resk] for resk in sternres]
+    iterations     = [[resnk.iterations    for resnk in resk] for resk in sternres]
+    converged      = all(resk -> all(resnk.converged for resnk in resk), sternres)
+    n_matvec       = sum(resk -> sum(resnk.n_matvec  for resnk in resk), sternres)
+    (; δψ, δoccupation, δεF, residual_norms, iterations, converged, n_matvec)
 end
 
 """
@@ -353,7 +357,9 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
     # Sternheimer linear solver (it makes the rhs be order 1 even if
     # δV is small)
     normδV = norm(δV)
-    normδV < eps(typeof(εF)) && return zero(δV)
+    if normδV < eps(typeof(εF))
+        return (; δρ=zero(δV), n_matvec=0, iterations=0, converged=true)
+    end
     δV ./= normδV
 
     δHψ = [DFTK.RealSpaceMultiplication(ham.basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
