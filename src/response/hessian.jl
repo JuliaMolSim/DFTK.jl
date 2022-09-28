@@ -148,7 +148,7 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
 
     # compute δρ0 (ignoring interactions)
     χ0res = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;      # = -χ04P * rhs
-                        reltol=0, abstol=tol, occupation_threshold, kwargs...)
+                        reltol=0, abstol=tol/10, occupation_threshold, kwargs...)
     δρ0 = compute_δρ(basis, ψ, χ0res.δψ, occupation, χ0res.δoccupation)
     if verbose && mpi_master()
         avg_iter = mpi_mean(mean(sum, χ0res.iterations), basis.comm_kpts)
@@ -211,7 +211,7 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
     end
 
     χ0res = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                        occupation_threshold, abstol=tol, reltol=0, kwargs...)
+                        occupation_threshold, abstol=tol/10, reltol=0, kwargs...)
     if verbose && mpi_master()
         avg_iter = mpi_mean(mean(sum, χ0res.iterations), basis.comm_kpts)
         @printf "%s%6.1f  Interacting response\n" " "^27 avg_iter
