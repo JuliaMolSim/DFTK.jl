@@ -72,6 +72,17 @@ function test_chi0(testcase; symmetries=false, temperature=0,
         diff_applied_χ0 = apply_χ0(scfres, δV)
         @test norm(diff_findiff - diff_applied_χ0) < testtol
 
+        # Test apply_χ0 without extra bands
+        ψ_occ, occ_occ = DFTK.select_occupied_orbitals(basis,
+                                                       scfres.ψ,
+                                                       scfres.occupation;
+                                                       threshold=scfres.occupation_threshold)
+        ε_occ = [scfres.eigenvalues[ik][1:size(ψk,2)] for (ik, ψk) in enumerate(ψ_occ)]
+
+        diff_applied_χ0_noextra = apply_χ0(scfres.ham, ψ_occ, occ_occ, scfres.εF,
+                                           ε_occ, δV; scfres.occupation_threshold)
+        @test norm(diff_applied_χ0_noextra - diff_applied_χ0) < testtol
+
         # just to cover it here
         if temperature > 0
             D = compute_dos(εF, basis, res.eigenvalues)

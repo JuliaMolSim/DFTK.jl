@@ -163,13 +163,13 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
     # is defined above and b is the projection of -rhs onto Ran(Q).
     #
     b = -Q(rhs)
-    bb = R(b -  H(ψk_extra * (ψk_exHψk_ex \ ψk_extra'b)))
+    Hψk_extra = H(ψk_extra)
+    bb = R(b -  Hψk_extra * (ψk_exHψk_ex \ ψk_extra'b))
     function RAR(ϕ)
         Rϕ = R(ϕ)
-        # A denotes here the Schur complement of (1-P) (H-εn) (1-P)
+        # Schur complement of (1-P) (H-εn) (1-P)
         # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
-        ARϕ = Rϕ - ψk_extra * (ψk_exHψk_ex \ ψk_extra'H(Rϕ))
-        R(H(ARϕ))
+        R(H(Rϕ)) - R(Hψk_extra) * (ψk_exHψk_ex \ Hψk_extra'Rϕ)
     end
     precon = PreconditionerTPA(basis, kpoint)
     precondprep!(precon, ψk[:, n])
