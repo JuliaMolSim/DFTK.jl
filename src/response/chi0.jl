@@ -111,6 +111,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # included).
 function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
+                            Hψk_extra=zeros(size(ψk,1), 0),
                             abstol=1e-9, reltol=0, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
@@ -163,7 +164,6 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
     # is defined above and b is the projection of -rhs onto Ran(Q).
     #
     b = -Q(rhs)
-    Hψk_extra = H(ψk_extra)
     bb = R(b -  Hψk_extra * (ψk_exHψk_ex \ ψk_extra'b))
     function RAR(ϕ)
         Rϕ = R(ϕ)
@@ -295,6 +295,7 @@ end
 
     # compute δψnk band per band
     δψ = zero.(ψ)
+    Hψ_extra = ham * ψ_extra
     for ik = 1:Nk
         ψk = ψ_occ[ik]
         δψk = δψ[ik]
@@ -315,7 +316,7 @@ end
             # Sternheimer contribution
             δψk[:, n] .+= sternheimer_solver(ham.blocks[ik], ψk, εk[n], δHψ[ik][:, n], n;
                                              ψk_extra=ψ_extra[ik], εk_extra=ε_extra[ik],
-                                             kwargs_sternheimer...)
+                                             Hψk_extra=Hψ_extra[ik], kwargs_sternheimer...)
         end
     end
 
