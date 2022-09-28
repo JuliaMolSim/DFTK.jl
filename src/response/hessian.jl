@@ -138,27 +138,23 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
     @assert size(rhs[1]) == size(ψ[1])  # Assume the same number of bands in ψ and rhs
 
     # compute δρ0 (ignoring interactions)
-    δψ0, δoccupation0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
-                                    reltol=0, abstol=tol_sternheimer,
-                                    occupation_threshold, kwargs...)  # = -χ04P * rhs
-    δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0)
+    χ0res = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
+                        reltol=0, abstol=tol_sternheimer,
+                        occupation_threshold, kwargs...)  # = -χ04P * rhs
+    δρ0 = compute_δρ(basis, ψ, χ0res.δψ0, occupation, χ0res.δoccupation0)
 
     # compute total δρ
     pack(δρ)   = vec(δρ)
     unpack(δρ) = reshape(δρ, size(ρ))
-    function eps_fun(δρ)
+    epsilon = LinearMap{T}(prod(size(δρ0))) do δρ
         δρ = unpack(δρ)
         δV = apply_kernel(basis, δρ; ρ)
-        # TODO
-        # Would be nice to play with abstol / reltol etc. to avoid over-solving
-        # for the initial GMRES steps.
         χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                        occupation_threshold, abstol=tol_sternheimer, reltol=0,
-                        kwargs...)
+                        occupation_threshold, abstol=χ0tol[], reltol=0, kwargs...).δρ
         pack(δρ - χ0δV)
     end
-    J = LinearMap{T}(eps_fun, prod(size(δρ0)))
-    δρ, history = gmres(J, pack(δρ0); reltol=0, abstol=tol, verbose, log=true)
+
+    δρ, history = gmres(epsilon, pack(δρ0); reltol=0, abstol=tol, verbose, log=true)
     δρ = unpack(δρ)
 
     # Compute total change in Hamiltonian applied to ψ
@@ -175,11 +171,11 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
         end
     end
 
-    δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                                       occupation_threshold, abstol=tol_sternheimer, 
-                                       reltol=0, kwargs...)
+    χ0res = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                        occupation_threshold, abstol=tol_sternheimer,
+                        reltol=0, kwargs...)
 
-    (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, history)
+    (; χ0res.δψ, δρ, δHψ, δVind, δeigenvalues, χ0res.δoccupation, χ0res.δεF, history)
 end
 
 function solve_ΩplusK_split(basis::PlaneWaveBasis, ψ, rhs, occupation; kwargs...)

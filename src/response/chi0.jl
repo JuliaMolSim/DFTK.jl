@@ -105,15 +105,16 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 
 # Solves (1-P) (H-εn) (1-P) δψn = - (1-P) rhs
 # where 1-P is the projector on the orthogonal of ψk
-# n is used for the preconditioning with ψk[:,n] and the optional callback
+# The band index n is used for the preconditioning with ψk[:,n]
 # /!\ It is assumed (and not checked) that ψk'Hk*ψk = Diagonal(εk) (extra states
 # included).
-function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
+function sternheimer_solver(Hk, ψk, εk, n::Integer, rhs;
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
                             Hψk_extra=zeros(size(ψk,1), 0),
                             abstol=1e-9, reltol=0, verbose=false)
-    basis = Hk.basis
+    basis  = Hk.basis
     kpoint = Hk.kpoint
+    n_matvec = 0
 
     # We use a Schur decomposition of the orthogonal of the occupied states
     # into a part where we have the partially converged, non-occupied bands
@@ -149,8 +150,8 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
     # ψk_extra are not converged but have been Rayleigh-Ritzed (they are NOT
     # eigenvectors of H) so H(ψk_extra) = ψk_extra' (Hk-εn) ψk_extra should be a
     # real diagonal matrix.
-    H(ϕ) = Hk * ϕ - εnk * ϕ
-    ψk_exHψk_ex = Diagonal(real.(εk_extra .- εnk))
+    H(ϕ) = Hk * ϕ - εk[n] * ϕ
+    ψk_exHψk_ex = Diagonal(real.(εk_extra .- εk[n]))
 
     # 1) solve for δψknᴿ
     # ----------------------------
@@ -165,6 +166,7 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
     b = -Q(rhs)
     bb = R(b -  Hψk_extra * (ψk_exHψk_ex \ ψk_extra'b))
     function RAR(ϕ)
+        n_matvec += 1
         Rϕ = R(ϕ)
         # Schur complement of (1-P) (H-εn) (1-P)
         # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
@@ -176,16 +178,16 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    δψknᴿ, ch = cg(J, bb; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol,
-                   verbose, log=true)
-    info = (; basis=basis, kpoint=kpoint, ch=ch, n=n)
-    callback(info)
-
+    δψknᴿ, history = cg(J, bb; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol,
+                        verbose, log=true)
     # 2) solve for αkn now that we know δψknᴿ
     # Note that αkn is an empty array if there is no extra bands.
     αkn = ψk_exHψk_ex \ ψk_extra' * (b - H(δψknᴿ))
-
     δψkn = ψk_extra * αkn + δψknᴿ
+    n_matvec += 1
+
+    (; Hk, basis, kpoint, history, δψkn, n, iterations=niters(history), n_matvec,
+     converged=history.isconverged, residual_norms=last(history[:resnorm]))
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
@@ -237,7 +239,8 @@ function compute_αmn(fm, fn, ratio)
 end
 
 @views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
-                                    occupation_threshold, kwargs_sternheimer...)
+                                    occupation_threshold, callback=identity,
+                                    kwargs_sternheimer...)
     basis  = ham.basis
     model = basis.model
     temperature = model.temperature
@@ -294,6 +297,7 @@ end
 
     # compute δψnk band per band
     δψ = zero.(ψ)
+    sternres = []
     for ik = 1:Nk
         ψk = ψ_occ[ik]
         δψk = δψ[ik]
@@ -313,21 +317,25 @@ end
             end
 
             # Sternheimer contribution
-            δψk[:, n] .+= sternheimer_solver(ham.blocks[ik], ψk, εk[n], δHψ[ik][:, n], n;
-                                             ψk_extra=ψ_extra[ik], εk_extra=ε_extra[ik],
-                                             Hψk_extra, kwargs_sternheimer...)
+            res = sternheimer_solver(ham.blocks[ik], ψk, εk, n, δHψ[ik][:, n];
+                                     ψk_extra=ψ_extra[ik], εk_extra=ε_extra[ik],
+                                     Hψk_extra, kwargs_sternheimer...)
+            push!(sternres, res)
+            δψk[:, n] .+= sternres.δψkn
         end
     end
 
-    # pad δoccupation
+    # Pad δoccupation
     δoccupation = zero.(occ)
     for (ik, maskk) in enumerate(mask_occ)
         δoccupation[ik][maskk] .+= δocc[ik]
     end
 
-    # keeping zeros for extra bands to keep the output δψ with the same size
-    # than the input ψ
-    (; δψ, δoccupation, δεF)
+    (; δψ, δoccupation, δεF,
+     residual_norms=[res.residual_norms for res in sternres],
+     iterations=[res.iterations for res in sternres],
+     converged=all(res.converged for res in sternres),
+     n_matvec=sum(res.n_matvec for res in sternres))
 end
 
 """
@@ -336,13 +344,9 @@ Get the density variation δρ corresponding to a total potential variation δV.
 function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
                   occupation_threshold=default_occupation_threshold(),
                   kwargs_sternheimer...)
-
-    basis = ham.basis
-    model = basis.model
-
     # Make δV respect the basis symmetry group, since we won't be able
     # to compute perturbations that don't anyway
-    δV = symmetrize_ρ(basis, δV)
+    δV = symmetrize_ρ(ham.basis, δV)
 
     # Normalize δV to avoid numerical trouble; theoretically should
     # not be necessary, but it simplifies the interaction with the
@@ -352,12 +356,12 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
     normδV < eps(typeof(εF)) && return zero(δV)
     δV ./= normδV
 
-    δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
-           for (ik, kpt) in enumerate(basis.kpoints)]
-    δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                                       occupation_threshold, kwargs_sternheimer...)
-    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation, δoccupation)
-    δρ * normδV
+    δHψ = [DFTK.RealSpaceMultiplication(ham.basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
+           for (ik, kpt) in enumerate(ham.basis.kpoints)]
+    χ0res = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                        occupation_threshold, kwargs_sternheimer...)
+    δρ = normδV * DFTK.compute_δρ(ham.basis, ψ, χ0res.δψ, occupation, χ0res.δoccupation)
+    (; δρ, χ0res...)
 end
 
 function apply_χ0(scfres, δV; kwargs_sternheimer...)
