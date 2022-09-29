@@ -224,7 +224,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
 @timing function scf_potential_mixing(
     basis::PlaneWaveBasis;
     damping=FixedDamping(0.8),
-    bands=AdaptiveBands(basis.model),
+    bands=AdaptiveBands(basis),
     ρ=guess_density(basis),
     V=nothing,
     ψ=nothing,
@@ -244,8 +244,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     @assert (   mixing isa SimpleMixing
              || mixing isa KerkerMixing
              || mixing isa KerkerDosMixing)
-    damping isa Number  && (damping = FixedDamping(damping))
-    bands   isa Integer && (bands   = AdaptiveBands(basis.model; n_bands_converge_min=bands))
+    damping isa Number && (damping = FixedDamping(damping))
 
     if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)

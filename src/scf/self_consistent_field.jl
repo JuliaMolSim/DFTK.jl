@@ -9,16 +9,13 @@ end
 """
 Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
 
-- `bands`: By default DFTK uses an adaptive algorithm to determine the number of bands
-  to compute. If `bands` is an integer, it specifies the minimal number of bands to be
-  computed. Also directly accepts [`FixedBands`](@ref) or [`AdaptiveBands`](@ref)
-  (the default), which allow full configuration of how DFTK adjusts the bands (including
-  always running with a fixed number.
+- `bands`: By default DFTK uses `bands=AdaptiveBands(basis)`, which adaptively determines
+  the number of bands to compute. If you want to influence this algorithm or use a predefined
+  number of bands in each SCF step, pass a [`FixedBands`](@ref) or [`AdaptiveBands`](@ref).
 """
 @timing function self_consistent_field(basis::PlaneWaveBasis{T};
                                        n_bands=nothing,    # TODO For backwards compatibility.
                                        n_ep_extra=nothing, # TODO For backwards compatibility.
-                                       bands=AdaptiveBands(basis),
                                        ρ=guess_density(basis),
                                        ψ=nothing,
                                        tol=1e-6,
@@ -29,6 +26,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
                                        damping=0.8,  # Damping parameter
                                        mixing=LdosMixing(),
                                        is_converged=ScfConvergenceEnergy(tol),
+                                       bands=AdaptiveBands(basis),
                                        callback=ScfDefaultCallback(; show_damping=false),
                                        compute_consistent_energies=true,
                                        response=ResponseOptions(),  # Dummy here, only for AD
@@ -40,7 +38,6 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
         n_bands = something(n_bands, FixedBands(basis.model).n_bands)
         bands = FixedBands(;n_bands, n_bands_compute=n_bands + something(n_ep_extra, 3))
     end
-    bands isa Integer && (bands = AdaptiveBands(basis.model; n_bands_converge_min=bands))
 
     # All these variables will get updated by fixpoint_map
     if !isnothing(ψ)
@@ -151,8 +148,8 @@ function next_density(ham::Hamiltonian, bands=AdaptiveBands(ham.basis.model);
     if !increased_n_bands && minocc > bands.occupation_threshold
         @warn("Detected large minimal occupation $minocc. SCF could be unstable. " *
               "Try switching to adaptive band selection (`bands=AdaptiveBands(model)`) " *
-              "or request more converged bands than $n_bands_converge (e.g. " *"
-              `bands=$(n_bands_converge + 3)`)")
+              "or request more converged bands than $n_bands_converge (e.g. " *
+              "`bands=AdaptiveBands(model; n_bands_converge=$(n_bands_converge + 3)`)")
     end
 
     # TODO We should probably set occupation values below occupation_threshold explicitly
@@ -204,27 +201,26 @@ of the eigensolver a gap between the eigenvalues of the last occupied orbital an
 computed (but not converged) orbital of `gap_min` is ensured.
 """
 @kwdef struct AdaptiveBands
-    n_bands_converge_min::Int
-    n_bands_compute_min::Int
+    n_bands_converge::Int  # Minimal number of bands to converge
+    n_bands_compute::Int   # Minimal number of bands to compute
     occupation_threshold::Float64 = default_occupation_threshold()
     gap_min::Float64 = 1e-3   # Minimal gap between converged and computed bands
 end
-function AdaptiveBands(model::Model; n_bands_converge_min=default_n_bands(model), kwargs...)
-    n_extra = iszero(model.temperature) ? 3 : max(4, ceil(Int, 0.05 * n_bands_converge_min))
-    AdaptiveBands(; n_bands_converge_min,
-                  n_bands_compute_min=n_bands_converge_min + n_extra, kwargs...)
+function AdaptiveBands(model::Model; n_bands_converge=default_n_bands(model), kwargs...)
+    n_extra = iszero(model.temperature) ? 3 : max(4, ceil(Int, 0.05 * n_bands_converge))
+    AdaptiveBands(; n_bands_converge, n_bands_compute=n_bands_converge + n_extra, kwargs...)
 end
 AdaptiveBands(basis::PlaneWaveBasis; kwargs...) = AdaptiveBands(basis.model; kwargs...)
 
 function determine_n_bands(bands::AdaptiveBands, occupation::Nothing, eigenvalues, ψ)
     if isnothing(ψ)
-        n_bands_compute = bands.n_bands_compute_min
+        n_bands_compute = bands.n_bands_compute
     else
-        n_bands_compute = max(bands.n_bands_compute_min, maximum(ψk -> size(ψk, 2), ψ))
+        n_bands_compute = max(bands.n_bands_compute, maximum(ψk -> size(ψk, 2), ψ))
     end
     # Boost number of bands to converge to have more information around in the next step
     # and to thus make a better decision on the number of bands we actually care about.
-    n_bands_converge = floor(Int, (bands.n_bands_converge_min + bands.n_bands_compute_min) / 2)
+    n_bands_converge = floor(Int, (bands.n_bands_converge + bands.n_bands_compute) / 2)
     (; n_bands_converge, n_bands_compute)
 end
 function determine_n_bands(bands::AdaptiveBands, occupation::AbstractVector,
@@ -235,14 +231,14 @@ function determine_n_bands(bands::AdaptiveBands, occupation::AbstractVector,
     n_bands_occ = maximum(occupation) do occk
         something(findlast(onk -> onk ≥ bands.occupation_threshold, occk), length(occk) + 1)
     end
-    n_bands_converge = max(bands.n_bands_converge_min, n_bands_occ)
+    n_bands_converge = max(bands.n_bands_converge, n_bands_occ)
 
     # Determine number of bands to be computed
     n_bands_compute_ε = maximum(eigenvalues) do εk
         something(findlast(εnk -> εnk ≥ εk[n_bands_converge] + bands.gap_min, εk),
                   length(εk) + 1)
     end
-    n_bands_compute = max(bands.n_bands_compute_min, n_bands_compute_ε, n_bands_converge + 3)
+    n_bands_compute = max(bands.n_bands_compute, n_bands_compute_ε, n_bands_converge + 3)
     if !isnothing(ψ)
         n_bands_compute = max(n_bands_compute, maximum(ψk -> size(ψk, 2), ψ))
     end
