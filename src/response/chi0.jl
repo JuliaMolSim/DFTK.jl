@@ -110,6 +110,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # included).
 function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
+                            Hψk_extra=zeros(size(ψk,1), 0),
                             abstol=1e-9, reltol=0, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
@@ -162,13 +163,12 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
     # is defined above and b is the projection of -rhs onto Ran(Q).
     #
     b = -Q(rhs)
-    bb = R(b -  H(ψk_extra * (ψk_exHψk_ex \ ψk_extra'b)))
+    bb = R(b -  Hψk_extra * (ψk_exHψk_ex \ ψk_extra'b))
     function RAR(ϕ)
         Rϕ = R(ϕ)
-        # A denotes here the Schur complement of (1-P) (H-εn) (1-P)
+        # Schur complement of (1-P) (H-εn) (1-P)
         # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
-        ARϕ = Rϕ - ψk_extra * (ψk_exHψk_ex \ ψk_extra'H(Rϕ))
-        R(H(ARϕ))
+        R(H(Rϕ) - Hψk_extra * (ψk_exHψk_ex \ Hψk_extra'Rϕ))
     end
     precon = PreconditionerTPA(basis, kpoint)
     precondprep!(precon, ψk[:, n])
@@ -297,6 +297,7 @@ end
     for ik = 1:Nk
         ψk = ψ_occ[ik]
         δψk = δψ[ik]
+        Hψk_extra = ham.blocks[ik] * ψ_extra[ik]
 
         εk = ε_occ[ik]
         for n = 1:length(εk)
@@ -314,7 +315,7 @@ end
             # Sternheimer contribution
             δψk[:, n] .+= sternheimer_solver(ham.blocks[ik], ψk, εk[n], δHψ[ik][:, n], n;
                                              ψk_extra=ψ_extra[ik], εk_extra=ε_extra[ik],
-                                             kwargs_sternheimer...)
+                                             Hψk_extra, kwargs_sternheimer...)
         end
     end
 
