@@ -169,7 +169,7 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
         Rϕ = R(ϕ)
         # Schur complement of (1-P) (H-εn) (1-P)
         # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
-        R(H(Rϕ)) - R(Hψk_extra) * (ψk_exHψk_ex \ Hψk_extra'Rϕ)
+        R(H(Rϕ) - Hψk_extra * (ψk_exHψk_ex \ Hψk_extra'Rϕ))
     end
     precon = PreconditionerTPA(basis, kpoint)
     precondprep!(precon, ψk[:, n])
