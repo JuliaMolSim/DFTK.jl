@@ -72,7 +72,7 @@ end
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
         scfres = self_consistent_field(basis; is_converged, mixing=KerkerMixing(),
-                                       bands=FixedBands(; n_bands=10, n_bands_compute=13),
+                                       bands=FixedBands(; n_bands_converge=10),
                                        damping=0.6, response=ResponseOptions(verbose=true))
 
         ComponentArray(

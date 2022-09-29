@@ -50,7 +50,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     model = Model(silicon.lattice, silicon.atoms, silicon.positions; temperature=0.0,
                   smearing=nothing, terms=[Kinetic()])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
-    occupation0, εF0 = DFTK.compute_occupation(basis, energies; occupation_threshold)
+    occupation0, εF0 = DFTK.compute_occupation(basis, energies)
     @test εHOMO < εF0 < εLUMO
     @test DFTK.weighted_ksum(basis, sum.(occupation0)) ≈ model.n_electrons
 
