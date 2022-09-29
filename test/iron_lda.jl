@@ -43,5 +43,5 @@ function run_iron_lda(T; kwargs...)
 end
 
 @testset "Iron LDA (Float64)" begin
-    run_iron_lda(Float64, test_tol=5e-6, scf_tol=1e-10)
+    run_iron_lda(Float64, test_tol=5e-6, scf_tol=1e-11)
 end

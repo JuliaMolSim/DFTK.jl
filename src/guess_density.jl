@@ -101,14 +101,18 @@ function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
     #
     # is formed from a superposition of atomic densities, each scaled by a prefactor
     for (iG, G) in enumerate(G_vectors(basis))
+        # Ensure that we only set G-vectors that have a -G counterpart
+        if isnothing(index_G_vectors(basis, -G))
+            ρ[iG] = zero(complex(T))
+            continue
+        end
+
         Gsq = sum(abs2, basis.model.recip_lattice * G)
         for (coeff, decay_length, r) in gaussians
             form_factor::T = exp(-Gsq * T(decay_length)^2)
             ρ[iG] += T(coeff) * form_factor * cis2pi(-dot(G, r))
         end
     end
-
-    # projection in the normalized plane wave basis
     irfft(basis, ρ / sqrt(basis.model.unit_cell_volume))
 end
 

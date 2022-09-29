@@ -39,12 +39,12 @@ struct TermPairwisePotential{TV, Tparams, T} <:Term
     energy::T
 end
 
-function ene_ops(term::TermPairwisePotential, basis::PlaneWaveBasis, ψ, occ; kwargs...)
+function ene_ops(term::TermPairwisePotential, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     (E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
 
 @timing "forces: Pairwise" function compute_forces(term::TermPairwisePotential,
-                                                   basis::PlaneWaveBasis{T}, ψ, occ;
+                                                   basis::PlaneWaveBasis{T}, ψ, occupation;
                                                    kwargs...) where {T}
     forces = zero(basis.model.positions)
     energy_pairwise(basis.model, term.V, term.params; term.max_radius, forces)

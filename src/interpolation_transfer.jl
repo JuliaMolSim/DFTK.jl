@@ -66,8 +66,7 @@ end
 
 """
 Interpolate some data from one ``k``-point to another. The interpolation is fast, but not
-necessarily exact or even normalized. Intended only to construct guesses for iterative
-solvers
+necessarily exact. Intended only to construct guesses for iterative solvers.
 """
 function interpolate_kpoint(data_in::AbstractVecOrMat,
                             basis_in::PlaneWaveBasis,  kpoint_in::Kpoint,
@@ -87,7 +86,7 @@ function interpolate_kpoint(data_in::AbstractVecOrMat,
         iout = kpoint_out.mapping_inv[idx_fft]
         data_out[iout, :] = data_in[iin, :]
     end
-    data_out
+    ortho_qr(data_out)  # Re-orthogonalize and renormalize
 end
 
 """

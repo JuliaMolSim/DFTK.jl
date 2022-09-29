@@ -42,7 +42,7 @@ include("testcases.jl")
     for solver in (scf_nlsolve_solver(), scf_damping_solver(1.2), scf_anderson_solver(),
                    scf_CROP_solver())
         @testset "Testing $solver" begin
-            ρ_alg = self_consistent_field(basis; ρ=ρ0, solver=solver, tol=tol).ρ
+            ρ_alg = self_consistent_field(basis; ρ=ρ0, solver, tol).ρ
             @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
         end
     end

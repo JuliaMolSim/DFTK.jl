@@ -15,7 +15,7 @@ function TermPspCorrection(basis::PlaneWaveBasis)
     TermPspCorrection(energy_psp_correction(model))
 end
 
-function ene_ops(term::TermPspCorrection, basis::PlaneWaveBasis, ψ, occ; kwargs...)
+function ene_ops(term::TermPspCorrection, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     (E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
 
