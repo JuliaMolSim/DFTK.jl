@@ -119,7 +119,7 @@ end
     n_bands = size(ψ, 2)
     # return empty array if ψ is empty
     if iszero(n_bands)
-        return zeros(size(ψ,1), 0)
+        return zeros(eltype(ψ), size(ψ,1), 0)
     end
     have_divAgrad = !isnothing(H.divAgrad_op)
 
