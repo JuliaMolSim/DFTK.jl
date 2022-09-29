@@ -8,8 +8,8 @@ function run_scf_and_compare(T, basis, ref_evals, ref_etot;
     n_bands  = length(ref_evals[1])
     kpt_done = zeros(Bool, n_kpt)
 
-    bands  = AdaptiveBands(basis.model, n_bands_converge=n_bands)
-    scfres = self_consistent_field(basis; tol=scf_tol, bands, kwargs...)
+    bandspol = AdaptiveBands(basis.model, n_bands_converge=n_bands)
+    scfres = self_consistent_field(basis; tol=scf_tol, bandspol, kwargs...)
     for (ik, ik_global) in enumerate(basis.krange_thisproc)
         @test eltype(scfres.eigenvalues[ik]) == T
         @test eltype(scfres.ψ[ik]) == Complex{T}
