@@ -37,30 +37,28 @@ end
 
 
 @testset "Silicon LDA (small, Float64)" begin
-    run_silicon_lda(Float64, Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17, scf_tol=1e-5,
-                    n_ep_extra=0)
+    run_silicon_lda(Float64, Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17, scf_tol=1e-5)
 end
 
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     @testset "Silicon LDA (large, Float64)" begin
-        run_silicon_lda(Float64, Ecut=25, test_tol=1e-5, n_ignored=0,
-                        grid_size=33, scf_tol=1e-7, n_ep_extra=0)
+        run_silicon_lda(Float64, Ecut=25, test_tol=1e-5, n_ignored=0, grid_size=33,
+                        scf_tol=1e-7)
     end
 end
 
 @testset "Silicon LDA (small, Float32)" begin
-    run_silicon_lda(Float32, Ecut=7, test_tol=0.03, n_ignored=1, grid_size=19, scf_tol=1e-4,
-                    n_ep_extra=1)
+    run_silicon_lda(Float32, Ecut=7, test_tol=0.03, n_ignored=1, grid_size=19, scf_tol=1e-4)
 end
 
 @testset "Silicon LDA (small, collinear spin)" begin
     run_silicon_lda(Float64, Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17,
-                    scf_tol=1e-5, n_ep_extra=0, spin_polarization=:collinear)
+                    scf_tol=1e-5, spin_polarization=:collinear)
 end
 
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     @testset "Silicon LDA (large, collinear spin)" begin
         run_silicon_lda(Float64, Ecut=25, test_tol=1e-5, n_ignored=0,
-                        grid_size=33, scf_tol=1e-7, n_ep_extra=0, spin_polarization=:collinear)
+                        grid_size=33, scf_tol=1e-7, spin_polarization=:collinear)
     end
 end
