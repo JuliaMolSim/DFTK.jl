@@ -2,6 +2,7 @@ using Test
 using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
 using DFTK: eval_psp_projector_real, psp_local_polynomial, eval_psp_local_real
 using DFTK: psp_projector_polynomial, qcut_psp_projector, qcut_psp_local
+using DFTK: eval_psp_energy_correction
 using SpecialFunctions: besselj
 using QuadGK
 
@@ -144,7 +145,7 @@ end
 end
 
 @testset "Potentials are consistent in real and Fourier space" begin
-    reg_param = 0.001  # divergent integral, needs regularization
+    reg_param = 1e-3  # divergent integral, needs regularization
     function integrand(psp, q, r)
         4π * eval_psp_local_real(psp, r) * exp(-reg_param * r) * sin(q*r) / q * r
     end
@@ -155,5 +156,34 @@ end
             reference = quadgk(r -> integrand(psp, q, r), 0, Inf)[1]
             @test reference ≈ eval_psp_local_fourier(psp, q) rtol=.1 atol = .1
         end
+    end
+end
+
+@testset "PSP energy correction is consistent with real-space potential" begin
+    reg_param = 1e-6  # divergent integral, needs regularization
+    q_small = 1e-6    # We are interested in q→0 term
+    function integrand(psp, n_electrons, r)
+        # Difference of potential of point-like atom (what is assumed in Ewald)
+        # versus actual structure of the pseudo potential
+        coulomb = -psp.Zion / r
+        diff = n_electrons * (eval_psp_local_real(psp, r) - coulomb)
+        4π * diff * exp(-reg_param * r) * sin(q_small*r) / q_small * r
+    end
+
+    n_electrons = 20
+    for pspfile in ["Au-q11", "Ba-q10"]
+        psp = load_psp("hgh/lda/" * pspfile)
+        reference = quadgk(r -> integrand(psp, n_electrons, r), 0, Inf)[1]
+        @test reference ≈ eval_psp_energy_correction(psp, n_electrons) atol=1e-2
+    end
+end
+
+@testset "PSP energy correction is consistent with fourier-space potential" begin
+    q_small = 1e-3    # We are interested in q→0 term
+    for pspfile in ["Au-q11", "Ba-q10"]
+        psp = load_psp("hgh/lda/" * pspfile)
+        coulomb = -4π * psp.Zion / q_small^2
+        reference = eval_psp_local_fourier(psp, q_small) - coulomb
+        @test reference ≈ eval_psp_energy_correction(psp, 1) atol=1e-3
     end
 end
