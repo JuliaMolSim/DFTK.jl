@@ -45,7 +45,6 @@ vprintln(args...) = nothing
 using LinearAlgebra
 import Base: *
 import Base.size, Base.adjoint, Base.Array
-include("../workarounds/gpu_arrays.jl")
 
 """
 Simple wrapper to represent a matrix formed by the concatenation of column blocks:
