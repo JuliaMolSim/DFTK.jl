@@ -224,7 +224,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
 @timing function scf_potential_mixing(
     basis::PlaneWaveBasis;
     damping=FixedDamping(0.8),
-    bandspol::BandsPolicy=AdaptiveBands(basis),
+    nbandsalg::NbandsAlgorithm=AdaptiveBands(basis),
     ρ=guess_density(basis),
     V=nothing,
     ψ=nothing,
@@ -257,7 +257,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     function EVρ(Vin; diagtol=tol / 10, ψ=nothing, eigenvalues=nothing, occupation=nothing)
         ham_V = hamiltonian_with_total_potential(ham, Vin)
 
-        res_V = next_density(ham_V, bandspol; eigensolver, ψ, eigenvalues,
+        res_V = next_density(ham_V, nbandsalg; eigensolver, ψ, eigenvalues,
                              occupation, miniter=diag_miniter, tol=diagtol)
         new_E, new_ham = energy_hamiltonian(basis, res_V.ψ, res_V.occupation;
                                             ρ=res_V.ρout, eigenvalues=res_V.eigenvalues,

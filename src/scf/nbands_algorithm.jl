@@ -1,5 +1,8 @@
-"""BandsPolicy subtypes determine how many bands to compute and converge in each SCF step"""
-abstract type BandsPolicy end
+"""
+NbandsAlgorithm subtypes determine how many bands to compute and converge
+in each SCF step.
+"""
+abstract type NbandsAlgorithm end
 
 function default_n_bands(model)
     n_spin = model.n_spin_components
@@ -9,11 +12,12 @@ function default_n_bands(model)
 end
 default_occupation_threshold() = 1e-6
 
+
 """
 In each SCF step converge exactly `n_bands_converge`, computing along the way exactly
 `n_bands_compute` (usually a few more to ease convergence in systems with small gaps).
 """
-@kwdef struct FixedBands <: BandsPolicy
+@kwdef struct FixedBands <: NbandsAlgorithm
     n_bands_converge::Int # Number of bands to converge
     n_bands_compute::Int = n_bands_converge + 3 # bands to compute (not always converged)
     # Threshold for orbital to be counted as occupied
@@ -36,7 +40,7 @@ occupation are occupied to at most `occupation_threshold`. To obtain rapid conve
 of the eigensolver a gap between the eigenvalues of the last occupied orbital and the last
 computed (but not converged) orbital of `gap_min` is ensured.
 """
-@kwdef struct AdaptiveBands <: BandsPolicy
+@kwdef struct AdaptiveBands <: NbandsAlgorithm
     n_bands_converge::Int  # Minimal number of bands to converge
     n_bands_compute::Int   # Minimal number of bands to compute
     occupation_threshold::Float64 = default_occupation_threshold()

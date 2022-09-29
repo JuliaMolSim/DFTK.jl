@@ -10,10 +10,12 @@ end
 Obtain new density ρ by diagonalizing `ham`. Follows the policy imposed by the `bands`
 data structure to determine and adjust the number of bands to be computed.
 """
-function next_density(ham::Hamiltonian, bandspol::BandsPolicy=AdaptiveBands(ham.basis.model);
+function next_density(ham::Hamiltonian,
+                      nbandsalg::NbandsAlgorithm=AdaptiveBands(ham.basis.model);
                       eigensolver=lobpcg_hyper, ψ=nothing, eigenvalues=nothing,
                       occupation=nothing, kwargs...)
-    n_bands_converge, n_bands_compute = determine_n_bands(bandspol, occupation, eigenvalues, ψ)
+    n_bands_converge, n_bands_compute = determine_n_bands(nbandsalg, occupation,
+                                                          eigenvalues, ψ)
 
     if isnothing(ψ)
         increased_n_bands = true
@@ -27,8 +29,8 @@ function next_density(ham::Hamiltonian, bandspol::BandsPolicy=AdaptiveBands(ham.
     #      computed for each k-Point
     n_bands_compute = mpi_max(n_bands_compute, ham.basis.comm_kpts)
 
-    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands_compute; ψguess=ψ,
-                                     n_conv_check=n_bands_converge, kwargs...)
+    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands_compute;
+                                     ψguess=ψ, n_conv_check=n_bands_converge, kwargs...)
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Check maximal occupation of the unconverged bands is sensible.
@@ -38,23 +40,23 @@ function next_density(ham::Hamiltonian, bandspol::BandsPolicy=AdaptiveBands(ham.
     # TODO This is a bit hackish, but needed right now as we increase the number of bands
     #      to be computed only between SCF steps. Should be revisited once we have a better
     #      way to deal with such things in LOBPCG.
-    if !increased_n_bands && minocc > bandspol.occupation_threshold
+    if !increased_n_bands && minocc > nbandsalg.occupation_threshold
         @warn("Detected large minimal occupation $minocc. SCF could be unstable. " *
-              "Try switching to adaptive band selection (`bandspol=AdaptiveBands(basis)`) " *
+              "Try switching to adaptive band selection (`nbandsalg=AdaptiveBands(basis)`) " *
               "or request more converged bands than $n_bands_converge (e.g. " *
-              "`bandspol=AdaptiveBands(basis; n_bands_converge=$(n_bands_converge + 3)`)")
+              "`nbandsalg=AdaptiveBands(basis; n_bands_converge=$(n_bands_converge + 3)`)")
     end
 
     ρout = compute_density(ham.basis, eigres.X, occupation)
     (ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, ρout, diagonalization=eigres,
-     n_bands_converge, bandspol.occupation_threshold)
+     n_bands_converge, nbandsalg.occupation_threshold)
 end
 
 
 """
 Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
 
-- `bandspol`: By default DFTK uses `bandspol=AdaptiveBands(basis)`, which adaptively determines
+- `nbandsalg`: By default DFTK uses `nbandsalg=AdaptiveBands(basis)`, which adaptively determines
   the number of bands to compute. If you want to influence this algorithm or use a predefined
   number of bands in each SCF step, pass a [`FixedBands`](@ref) or [`AdaptiveBands`](@ref).
 """
@@ -71,7 +73,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
                                        damping=0.8,  # Damping parameter
                                        mixing=LdosMixing(),
                                        is_converged=ScfConvergenceEnergy(tol),
-                                       bandspol::BandsPolicy=AdaptiveBands(basis),
+                                       nbandsalg::NbandsAlgorithm=AdaptiveBands(basis),
                                        callback=ScfDefaultCallback(; show_damping=false),
                                        compute_consistent_energies=true,
                                        response=ResponseOptions(),  # Dummy here, only for AD
@@ -79,9 +81,10 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
     if !isnothing(n_bands) || !isnothing(n_ep_extra)
         # TODO Backwards compatibility ... emulates exactly how bands worked before
         @warn("The options n_bands and n_ep_extra of self_consistent_field are deprecated. " *
-              "Use `bands` instead.")
-        n_bands = something(n_bands, FixedBands(basis.model).n_bands)
-        bandspol = FixedBands(;n_bands, n_bands_compute=n_bands + something(n_ep_extra, 3))
+              "Use `nbandsalg` instead to influence number of bands to compute.")
+        n_bands_converge = something(n_bands, FixedBands(basis.model).n_bands_converge)
+        nbandsalg = FixedBands(; n_bands_converge,
+                               n_bands_compute=n_bands_converge + something(n_ep_extra, 3))
     end
 
     # All these variables will get updated by fixpoint_map
@@ -109,13 +112,13 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
         energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, eigenvalues, εF)
 
         # Diagonalize `ham` to get the new state
-        nextstate = next_density(ham, bandspol; eigensolver, ψ, eigenvalues,
+        nextstate = next_density(ham, nbandsalg; eigensolver, ψ, eigenvalues,
                                  occupation, miniter=1, tol=determine_diagtol(info))
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # Update info with results gathered so far
         info = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
-                ρin, ρout, α=damping, n_iter, bandspol.occupation_threshold,
+                ρin, ρout, α=damping, n_iter, nbandsalg.occupation_threshold,
                 nextstate..., diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
@@ -149,7 +152,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
     norm_Δρ = norm(info.ρout - info.ρin) * sqrt(basis.dvol)
 
     # Callback is run one last time with final state to allow callback to clean up
-    info = (; ham, basis, energies, converged, bandspol.occupation_threshold,
+    info = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
             ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
             n_iter, ψ, info.diagonalization, stage=:finalize,
             algorithm="SCF", norm_Δρ)
