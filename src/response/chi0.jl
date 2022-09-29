@@ -16,8 +16,7 @@ In this case the matrix has effectively 4 blocks, which are:
 \end{array}\right)
 ```
 """
-function compute_χ0(ham; temperature=ham.basis.model.temperature,
-                    occupation_threshold=default_occupation_threshold())
+function compute_χ0(ham; temperature=ham.basis.model.temperature)
     # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
     # where (up to normalizations)
     # ρ = ∑_nk f(εnk - εF) |ψnk|^2
@@ -54,7 +53,7 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature,
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
     Vs = [EV.vectors for EV in EVs]
-    occ, εF = compute_occupation(basis, Es; temperature, occupation_threshold)
+    occ, εF = compute_occupation(basis, Es; temperature)
 
     χ0 = zeros(eltype(basis), n_spin * n_fft, n_spin * n_fft)
     for (ik, kpt) in enumerate(basis.kpoints)

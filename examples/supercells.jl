@@ -84,7 +84,7 @@ self_consistent_field(aluminium_setup(2); is_converged);
 
 #-
 
-self_consistent_field(aluminium_setup(4); is_converged, n_bands=30);
+self_consistent_field(aluminium_setup(4); is_converged);
 
 # When switching off explicitly the `LdosMixing`, by selecting `mixing=SimpleMixing()`,
 # the performance of number of required SCF steps starts to increase as we increase
@@ -94,7 +94,7 @@ self_consistent_field(aluminium_setup(1); is_converged, mixing=SimpleMixing());
 
 #-
 
-self_consistent_field(aluminium_setup(4); is_converged, mixing=SimpleMixing(), n_bands=30);
+self_consistent_field(aluminium_setup(4); is_converged, mixing=SimpleMixing());
 
 # For completion let us note that the more traditional `mixing=KerkerMixing()` 
 # approach would also help in this particular setting to obtain a constant
