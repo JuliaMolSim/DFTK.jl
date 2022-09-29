@@ -77,7 +77,7 @@ function test_chi0(testcase; symmetries=false, temperature=0,
                                                        scfres.ψ,
                                                        scfres.occupation;
                                                        threshold=scfres.occupation_threshold)
-        ε_occ = [scfres.eigenvalues[ik][1:size(ψk,2)] for (ik, ψk) in enumerate(ψ_occ)]
+        ε_occ = [scfres.eigenvalues[ik][1:size(ψk, 2)] for (ik, ψk) in enumerate(ψ_occ)]
 
         diff_applied_χ0_noextra = apply_χ0(scfres.ham, ψ_occ, occ_occ, scfres.εF,
                                            ε_occ, δV; scfres.occupation_threshold)

@@ -295,10 +295,10 @@ end
 
     # compute δψnk band per band
     δψ = zero.(ψ)
-    Hψ_extra = ham * ψ_extra
     for ik = 1:Nk
         ψk = ψ_occ[ik]
         δψk = δψ[ik]
+        Hψk_extra = ham.blocks[ik] * ψ_extra[ik]
 
         εk = ε_occ[ik]
         for n = 1:length(εk)
@@ -316,7 +316,7 @@ end
             # Sternheimer contribution
             δψk[:, n] .+= sternheimer_solver(ham.blocks[ik], ψk, εk[n], δHψ[ik][:, n], n;
                                              ψk_extra=ψ_extra[ik], εk_extra=ε_extra[ik],
-                                             Hψk_extra=Hψ_extra[ik], kwargs_sternheimer...)
+                                             Hψk_extra, kwargs_sternheimer...)
         end
     end
 
