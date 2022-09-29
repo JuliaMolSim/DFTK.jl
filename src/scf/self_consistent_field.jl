@@ -147,9 +147,9 @@ function next_density(ham::Hamiltonian, bands=AdaptiveBands(ham.basis.model);
     #      way to deal with such things in LOBPCG.
     if !increased_n_bands && minocc > bands.occupation_threshold
         @warn("Detected large minimal occupation $minocc. SCF could be unstable. " *
-              "Try switching to adaptive band selection (`bands=AdaptiveBands(model)`) " *
+              "Try switching to adaptive band selection (`bands=AdaptiveBands(basis)`) " *
               "or request more converged bands than $n_bands_converge (e.g. " *
-              "`bands=AdaptiveBands(model; n_bands_converge=$(n_bands_converge + 3)`)")
+              "`bands=AdaptiveBands(basis; n_bands_converge=$(n_bands_converge + 3)`)")
     end
 
     # TODO We should probably set occupation values below occupation_threshold explicitly

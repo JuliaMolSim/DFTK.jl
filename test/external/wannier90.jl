@@ -7,8 +7,8 @@ if !Sys.iswindows() && mpi_nprocs() == 1
     using wannier90_jll
     model  = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
     basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[4, 4, 4], kshift=[1, 1, 1]/2)
-    scfres = self_consistent_field(basis; tol=1e-12,
-                                   bands=AdaptiveBands(n_bands_converge=12))
+    bands  = AdaptiveBands(model; n_bands_converge=12)
+    scfres = self_consistent_field(basis; bands, tol=1e-12)
 
     fileprefix = "wannier90_outputs/Si"
     run_wannier90(scfres; fileprefix,
