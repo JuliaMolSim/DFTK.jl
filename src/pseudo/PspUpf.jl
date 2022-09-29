@@ -8,6 +8,7 @@ using UPF: load_upf
 # TODO: Accuracy
 # TODO:   - why does ABINIT's ctrap give better agreement w/ erf correction?
 # TODO:   - why is there an oscillation in Vloc after unit conversion to Ha?
+# TODO:     - why doesn't a spline fix this?
 # TODO: Code separation
 # TODO:   - should the Vloc corection go in a separate function like HGH?
 
@@ -15,9 +16,9 @@ struct PspUpf{T} <: NormConservingPsp
     Zion::Int                         # Ionic charge (Z - valence electrons)
     lmax::Int                         # Maximal angular momentum in the non-local part
     rgrid::Vector{T}                  # Radial grid
-    rmin::T
-    rmax::T
-    dr::T                             # Grid spacing
+    rmin::T                           # Minimum r in radial grid
+    rmax::T                           # Maximum r in radial grid
+    dr::T                             # Radial grid spacing
     vloc::Vector{T}                   # Local potential on the radial grid
     projs::Vector{Vector{Vector{T}}}  # Kleinman-Bylander β projectors: projs[l][i]
     h::Vector{Matrix{T}}              # Projector coupling coefficients per AM channel: h[l][i1,i2]
@@ -64,7 +65,7 @@ function parse_upf_file(path; identifier=path)
     # Radial grid integration coefficient
     dr = pseudo["radial_grid_derivative"][1]
     # Local potential
-    vloc = pseudo["local_potential"] # ./ 2  # Ry -> Ha
+    vloc = pseudo["local_potential"]  # ./ 2  # Ry -> Ha
     # Kleinman-Bylander β projectors
     projs = []
     idx = 1
@@ -175,6 +176,7 @@ Calculate:
 4 \\pi \\int{\\frac{sin(2 \\pi q r)}{2 \\pi q r} (V(r) + \\frac{Z erf(r)}{r}) r^2 dr}
 ``
 Implemented as:
+NB: r^ is multiplied through and canceled
 NB: We take the 1/2πq term out of the integral and combine it with the 4π prefactor, giving 2/q,
 to improve numerical behavior.
 2/q ∫[sin(2π*q*r) * (r*V(r) + Z*erf(r)) dr] - Z*exp(-(πq)^2)/(π*q^2)
@@ -187,8 +189,6 @@ function eval_psp_local_fourier_erf(psp::PspUpf, q::T)::T where {T <: Real}
     if iszero(q)
         vloc = -Inf
     else
-        # sin_integrand = sin.(2T(π) * q .* psp.rgrid) ./ (2T(π) * q)
-        # vloc = 4T(π) * ctrap(integrand, psp.dr) + correction
         sin_integrand = sin.(2T(π) * q .* psp.rgrid)
         pot_integrand = psp.rgrid .* psp.vloc .+ psp.Zion .* erf.(psp.rgrid)
         integrand = sin_integrand .* pot_integrand
@@ -205,6 +205,7 @@ Calculate:
 4 \\pi \\int{\\frac{sin(2 \\pi q r)}{2 \\pi q r} (V(r) + \\frac{Z erf(r)}{r}) r^2 dr}
 ``
 Implemented as:
+NB: r^ is multiplied through and canceled
 NB: We take the 1/2πq term out of the integral and combine it with the 4π prefactor, giving 2/q,
 to improve numerical behavior.
 2/q ∫[sin(2π*q*r) * (r*V(r) + Z) dr] - Z/(π*q^2)
