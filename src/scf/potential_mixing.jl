@@ -248,7 +248,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
              || mixing isa KerkerDosMixing)
     damping isa Number && (damping = FixedDamping(damping))
 
-    if ψ !== nothing
+    if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
         for ik in 1:length(basis.kpoints)
             @assert size(ψ[ik], 2) == n_bands + n_ep_extra
@@ -275,7 +275,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     converged = false
     α_trial   = trial_damping(damping)
     diagtol   = determine_diagtol((ρin=ρ, Vin=V, n_iter=n_iter))
-    info      = EVρ(V; diagtol=diagtol, ψ=ψ)
+    info      = EVρ(V; diagtol, ψ)
     Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; n_iter, info...)
     info      = merge(info, (α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
                              n_iter=n_iter, Pinv_δV=Pinv_δV))
@@ -297,7 +297,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
         δV = (acceleration(info.Vin, α_trial, info.Pinv_δV) - info.Vin) / α_trial
 
         # Determine damping and take next step
-        guess   = ψ
+        guess   = info.ψ
         α       = α_trial
         successful  = false  # Successful line search (final step is considered good)
         n_backtrack = 1
@@ -331,7 +331,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
             end
 
             # Adjust to guess fitting α best:
-            guess = α_next > α / 2 ? info_next.ψ : ψ
+            guess = α_next > α / 2 ? info_next.ψ : info.ψ
             α = α_next
         end
 

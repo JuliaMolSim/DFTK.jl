@@ -27,14 +27,16 @@ end
 
 @timing "ene_ops: nonlocal" function ene_ops(term::TermAtomicNonlocal,
                                              basis::PlaneWaveBasis{T},
-                                             ψ, occ; kwargs...) where {T}
-    isnothing(ψ) && return (E=T(Inf), ops=term.ops)
+                                             ψ, occupation; kwargs...) where {T}
+    if isnothing(ψ) || isnothing(occupation)
+        return (E=T(Inf), ops=term.ops)
+    end
 
     E = zero(T)
-    for (ik, kpt) in enumerate(basis.kpoints)
-        Pψ = term.ops[ik].P' * ψ[ik]  # nproj x nband
-        band_enes = dropdims(sum(real.(conj.(Pψ) .* (term.ops[ik].D * Pψ)), dims=1), dims=1)
-        E += basis.kweights[ik] * sum(band_enes .* occ[ik])
+    for (ik, ψk) in enumerate(ψ)
+        Pψk = term.ops[ik].P' * ψk  # nproj x nband
+        band_enes = dropdims(sum(real.(conj.(Pψk) .* (term.ops[ik].D * Pψk)), dims=1), dims=1)
+        E += basis.kweights[ik] * sum(band_enes .* occupation[ik])
     end
     E = mpi_sum(E, basis.comm_kpts)
 
@@ -43,7 +45,7 @@ end
 
 @timing "forces: nonlocal" function compute_forces(::TermAtomicNonlocal,
                                                    basis::PlaneWaveBasis{TT},
-                                                   ψ, occ; kwargs...) where {TT}
+                                                   ψ, occupation; kwargs...) where {TT}
     T = promote_type(TT, real(eltype(ψ[1])))
     model = basis.model
     unit_cell_volume = model.unit_cell_volume
@@ -73,7 +75,7 @@ end
                     dPdR = [-2T(π)*im*q[α] for q in qs] .* P
                     ψk = ψ[ik]
                     dHψk = P * (C * (dPdR' * ψk))
-                    -sum(occ[ik][iband] * basis.kweights[ik] *
+                    -sum(occupation[ik][iband] * basis.kweights[ik] *
                          2real(dot(ψk[:, iband], dHψk[:, iband]))
                          for iband=1:size(ψk, 2))
                 end  # α

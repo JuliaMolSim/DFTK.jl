@@ -16,7 +16,7 @@ function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{
     # Storing the bloch waves
     if save_ψ
         for ik in 1:length(basis.kpoints)
-            for iband in 1:size(scfres.ψ[1])[2]
+            for iband in 1:size(scfres.ψ[ik])[2]
                 ψnk_real = ifft(basis, basis.kpoints[ik], scfres.ψ[ik][:, iband])
                 vtkfile["ψ_k$(ik)_band$(iband)_real"] = real.(ψnk_real)
                 vtkfile["ψ_k$(ik)_band$(iband)_imag"] = imag.(ψnk_real)
