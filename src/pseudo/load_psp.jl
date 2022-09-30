@@ -16,6 +16,7 @@ function load_psp(key::AbstractString)
         extension = ".hgh"
     elseif endswith(key, ".upf")
         parser = parse_upf_file
+        extension = ".upf"
     else
         error("Could not determine pseudopotential family of '$key'")
     end
