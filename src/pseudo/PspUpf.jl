@@ -19,7 +19,6 @@ struct PspUpf{T} <: NormConservingPsp
     rab::Vector{T}
     vloc::Vector{T}                   # Local potential on the radial grid
     projs::Vector{Vector{Vector{T}}}  # Kleinman-Bylander β projectors: projs[l][i]
-    ircut_projs::Vector{Vector{Int}}  # Cutoff radius index for each β projector
     h::Vector{Matrix{T}}              # Projector coupling coefficients per AM channel: h[l][i1,i2]
     identifier::String                # String identifying the PSP
 end
@@ -33,14 +32,13 @@ Construct a Unified Pseudopotential Format pseudopotential. Currently only
 norm-conserving potentials are supported.
 """
 function PspUpf(Zion, lmax, rgrid, rab,
-                vloc::Vector{T}, projs, ircut_projs, h; identifier="") where {T}
+                vloc::Vector{T}, projs, h; identifier="") where {T}
     length(projs) == length(h) || error("Length of projs and h do not agree.")
 
-    PspUpf{T}(Zion, lmax, rgrid, rab, vloc, projs, ircut_projs, h, identifier)
+    PspUpf{T}(Zion, lmax, rgrid, rab, vloc, projs, h, identifier)
 end
 
 function parse_upf_file(path; identifier=path)
-    tol = 1e-10
     pseudo = load_upf(path)
 
     # Maximum angular momentum channel
@@ -75,14 +73,6 @@ function parse_upf_file(path; identifier=path)
         end
         push!(projs, l_projs)
     end
-    ircut_projs = Vector{Vector{Int}}(undef, length(projs))
-    for l = 0:lmax
-        ircut_proj = Vector{Int}(undef, length(projs[l+1]))
-        for i = eachindex(projs[l+1])
-            ircut_proj[i] = sum(abs.(projs[l+1][i]) .> tol)
-        end
-        ircut_projs[l+1] = ircut_proj
-    end
     # Dij -> h
     dij = pseudo["D_ion"]
     n = 1
@@ -93,7 +83,7 @@ function parse_upf_file(path; identifier=path)
         n += nprojs
     end
 
-    PspUpf(Zion, lmax, rgrid, rab, vloc, projs, ircut_projs, h; identifier)
+    PspUpf(Zion, lmax, rgrid, rab, vloc, projs, h; identifier)
 end
 
 abstract type LocalCorrection end
@@ -131,8 +121,8 @@ via cubic spline interpolation on the real-space mesh.
 UPFs store `rgrid[i] * β[l,n](rgrid[i])`, so we must divide by `r`.
 """
 function eval_psp_projector_real(psp::PspUpf, i, l, r::T) where {T <: Real}
-    ir_max = length(psp.projs[l+1][i])
-    linear_interpolation((psp.rgrid[1:ir_max],), psp.projs[l+1][i])(r) / r
+    ir_cut = length(psp.projs[l+1][i])
+    linear_interpolation((psp.rgrid[1:ir_cut],), psp.projs[l+1][i])(r) / r
 end
 
 """
@@ -143,7 +133,7 @@ Evaluate the ith Kleinman-Bylander β projector with angular momentum l in at k-
 UPFs store `rgrid[i] * β[l,n](rgrid[i])`, so the integrand has `r` instead of `r^2`
 """
 function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real}
-    ir_cut = psp.ircut_projs[l+1][i]
+    ir_cut = length(psp.projs[l+1][i])
     rgrid = view(psp.rgrid, 1:ir_cut)
     proj = view(psp.projs[l+1][i], 1:ir_cut)
     x = q .* rgrid
