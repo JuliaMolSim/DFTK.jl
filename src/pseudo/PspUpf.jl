@@ -1,4 +1,4 @@
-using Interpolations: cubic_spline_interpolation
+using Interpolations: linear_interpolation
 using SpecialFunctions: sphericalbesselj
 using UPF: load_upf
 
@@ -16,11 +16,10 @@ struct PspUpf{T} <: NormConservingPsp
     Zion::Int                         # Ionic charge (Z - valence electrons)
     lmax::Int                         # Maximal angular momentum in the non-local part
     rgrid::Vector{T}                  # Radial grid
-    rmin::T                           # Minimum r in radial grid
-    rmax::T                           # Maximum r in radial grid
-    dr::T                             # Radial grid spacing
+    rab::Vector{T}
     vloc::Vector{T}                   # Local potential on the radial grid
     projs::Vector{Vector{Vector{T}}}  # Kleinman-Bylander β projectors: projs[l][i]
+    ircut_projs::Vector{Vector{Int}}  # Cutoff radius index for each β projector
     h::Vector{Matrix{T}}              # Projector coupling coefficients per AM channel: h[l][i1,i2]
     identifier::String                # String identifying the PSP
 end
@@ -33,15 +32,15 @@ charge_ionic(psp::PspUpf) = psp.Zion
 Construct a Unified Pseudopotential Format pseudopotential. Currently only
 norm-conserving potentials are supported.
 """
-function PspUpf(Zion, lmax, rgrid, rmin, rmax, dr,
-                vloc::Vector{T}, projs, h; identifier="") where {T}
+function PspUpf(Zion, lmax, rgrid, rab,
+                vloc::Vector{T}, projs, ircut_projs, h; identifier="") where {T}
     length(projs) == length(h) || error("Length of projs and h do not agree.")
-    rgrid[2] - rgrid[1] == dr || error("dr doesn't match first difference in rgrid")
 
-    PspUpf{T}(Zion, lmax, rgrid, rmin, rmax, dr, vloc, projs, h, identifier)
+    PspUpf{T}(Zion, lmax, rgrid, rab, vloc, projs, ircut_projs, h, identifier)
 end
 
 function parse_upf_file(path; identifier=path)
+    tol = 1e-10
     pseudo = load_upf(path)
 
     # Maximum angular momentum channel
@@ -60,12 +59,9 @@ function parse_upf_file(path; identifier=path)
     end
     # Radial grid
     rgrid = pseudo["radial_grid"]
-    rmin = rgrid[begin]
-    rmax = rgrid[end]
-    # Radial grid integration coefficient
-    dr = pseudo["radial_grid_derivative"][1]
+    rab = pseudo["radial_grid_derivative"]
     # Local potential
-    vloc = pseudo["local_potential"]  # ./ 2  # Ry -> Ha
+    vloc = pseudo["local_potential"]
     # Kleinman-Bylander β projectors
     projs = []
     idx = 1
@@ -79,6 +75,14 @@ function parse_upf_file(path; identifier=path)
         end
         push!(projs, l_projs)
     end
+    ircut_projs = Vector{Vector{Int}}(undef, length(projs))
+    for l = 0:lmax
+        ircut_proj = Vector{Int}(undef, length(projs[l+1]))
+        for i = eachindex(projs[l+1])
+            ircut_proj[i] = sum(abs.(projs[l+1][i]) .> tol)
+        end
+        ircut_projs[l+1] = ircut_proj
+    end
     # Dij -> h
     dij = pseudo["D_ion"]
     n = 1
@@ -89,8 +93,33 @@ function parse_upf_file(path; identifier=path)
         n += nprojs
     end
 
-    PspUpf(Zion, lmax, rgrid, rmin, rmax, dr, vloc, projs, h; identifier)
+    PspUpf(Zion, lmax, rgrid, rab, vloc, projs, ircut_projs, h; identifier)
 end
+
+abstract type LocalCorrection end
+function correction_real(C::LocalCorrection, psp::PspUpf{T})::T where {T <: Real}
+    return zero(T)
+end
+function correction_fourier(C::LocalCorrection, psp::PspUpf{T}, q::T)::T where {T <: Real}
+    return zero(T)
+end
+struct InvrCorrection <: LocalCorrection end
+function correction_real(C::InvrCorrection, psp::PspUpf{T}, r::T)::T where {T <: Real}
+    return -(2*psp.Zion)
+end
+function correction_fourier(C::InvrCorrection, psp::PspUpf{T}, q::T)::T where {T <: Real}
+    return -(2*psp.Zion) / q^2
+end
+struct ErfrInvrCorrection <: LocalCorrection end
+function correction_real(C::ErfrInvrCorrection, psp::PspUpf{T}, r::T)::T where {T <: Real}
+    return -(2*psp.Zion) * erf(r)
+end
+function correction_fourier(C::ErfrInvrCorrection, psp::PspUpf{T}, q::T)::T where {T <: Real}
+    return -(2*psp.Zion) * exp(-q^2) / q^2
+end
+
+import Base.Broadcast.broadcastable
+Base.Broadcast.broadcastable(C::LocalCorrection) = Ref(C)
 
 """
     eval_psp_projector_real(psp::PspUpf, i::Number, l::Number, r::Number)
@@ -102,8 +131,8 @@ via cubic spline interpolation on the real-space mesh.
 UPFs store `rgrid[i] * β[l,n](rgrid[i])`, so we must divide by `r`.
 """
 function eval_psp_projector_real(psp::PspUpf, i, l, r::T) where {T <: Real}
-    interp = cubic_spline_interpolation(psp.rmin:psp.dr:psp.rmax, psp.projs[l+1][i])
-    interp(r) / r
+    ir_max = length(psp.projs[l+1][i])
+    linear_interpolation((psp.rgrid[1:ir_max],), psp.projs[l+1][i])(r) / r
 end
 
 """
@@ -114,13 +143,7 @@ Evaluate the ith Kleinman-Bylander β projector with angular momentum l in at k-
 UPFs store `rgrid[i] * β[l,n](rgrid[i])`, so the integrand has `r` instead of `r^2`
 """
 function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real}
-    # ir_cut = sum(abs.(psp.projs[l+1][i]) .> 1e-10)
-    ir_cut = 0
-    for ir in eachindex(psp.projs[l+1][i])
-        if psp.projs[l+1][i][ir] > 1e-10
-            ir_cut += 1
-        end
-    end
+    ir_cut = psp.ircut_projs[l+1][i]
     rgrid = view(psp.rgrid, 1:ir_cut)
     proj = view(psp.projs[l+1][i], 1:ir_cut)
     x = q .* rgrid
@@ -130,7 +153,7 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real
         jl = sphericalbesselj.(l, x)
     end
     integrand = jl .* proj .* rgrid  # jl(qr) * rβ * r
-    proj_q = 4T(π) * ctrap(integrand, psp.dr)
+    proj_q = 4T(π) * ctrap(integrand, psp.rab)
     return proj_q
 end
 
@@ -141,94 +164,42 @@ Evaluate the local potential at real-space distance r via cubic spline interpola
 real-space mesh.
 """
 function eval_psp_local_real(psp::PspUpf, r::T) where {T <: Real}
-    interp = cubic_spline_interpolation(psp.rmin:psp.dr:psp.rmax, psp.vloc)
-    interp(r)
-end
-
-"""
-Calculate:
-4π ∫[sin(2π*q*r) / (2π*q*r) * (V(r) + Z/r) * r^2 dr]
-``
-4 \\pi \\int{\\frac{sin(2 \\pi q r)}{2 \\pi q r} (V(r) + \\frac{Z}{r}) r^2 dr}
-``
-Implemented as:
-4π ∫[sin(2π*q*r) / (2π*q) * (r*V(r) + Z) dr]
-``
-4 \\pi \\int{\\frac{sin(2 \\pi q r)}{2 \\pi q} (r V(r) + Z) dr}
-``
-"""
-function eval_psp_local_fourier_naive(psp::PspUpf, q::T)::T where {T <: Real}
-    if iszero(q)
-        -Inf
-    else
-        sin_integrand = sin.(2T(π) * q .* psp.rgrid) ./ (2T(π) * q)
-        pot_integrand = psp.rgrid .* psp.vloc .+ psp.Zion
-        integrand = sin_integrand .* pot_integrand
-        vloc = 4T(π) * ctrap(integrand, psp.dr)
-    end
-    return vloc
-end
-
-"""
-Calculate:
-4π ∫[sin(2π*q*r) / (2π*q*r) * (V(r) + Z*erf(r)/r) * r^2 dr]
-``
-4 \\pi \\int{\\frac{sin(2 \\pi q r)}{2 \\pi q r} (V(r) + \\frac{Z erf(r)}{r}) r^2 dr}
-``
-Implemented as:
-NB: r^ is multiplied through and canceled
-NB: We take the 1/2πq term out of the integral and combine it with the 4π prefactor, giving 2/q,
-to improve numerical behavior.
-2/q ∫[sin(2π*q*r) * (r*V(r) + Z*erf(r)) dr] - Z*exp(-(πq)^2)/(π*q^2)
-``
-\frac{2}{q} ( \\int{sin(2 \\pi q r) (r V(r) + Z) dr}
-- \\frac{Z \exp(-(\\pi q)^2)}{\\pi q^2} )
-``
-"""
-function eval_psp_local_fourier_erf(psp::PspUpf, q::T)::T where {T <: Real}
-    if iszero(q)
-        vloc = -Inf
-    else
-        sin_integrand = sin.(2T(π) * q .* psp.rgrid)
-        pot_integrand = psp.rgrid .* psp.vloc .+ psp.Zion .* erf.(psp.rgrid)
-        integrand = sin_integrand .* pot_integrand
-        correction = -psp.Zion / (T(π) * q^2) * exp(-(T(π) * q)^2)
-        vloc = 2/q * ctrap(integrand, psp.dr) + correction
-    end
-    return vloc
-end
-
-"""
-Calculate:
-4π ∫[sin(2π*q*r) / (2π*q*r) * (V(r) + Z/r) * r^2 dr]
-``
-4 \\pi \\int{\\frac{sin(2 \\pi q r)}{2 \\pi q r} (V(r) + \\frac{Z erf(r)}{r}) r^2 dr}
-``
-Implemented as:
-NB: r^ is multiplied through and canceled
-NB: We take the 1/2πq term out of the integral and combine it with the 4π prefactor, giving 2/q,
-to improve numerical behavior.
-2/q ∫[sin(2π*q*r) * (r*V(r) + Z) dr] - Z/(π*q^2)
-``
-\frac{2}{q} ( \\int{sin(2 \\pi q r) (r V(r) + Z) dr}
-- \\frac{Z}{\\pi q^2} )
-``
-"""
-function eval_psp_local_fourier_invr(psp::PspUpf, q::T)::T where {T <: Real}
-    if iszero(q)
-        vloc = -Inf
-    else
-        sin_integrand = sin.(2T(π) * q .* psp.rgrid)
-        pot_integrand = psp.rgrid .* psp.vloc .+ psp.Zion
-        integrand = sin_integrand .* pot_integrand
-        correction = -psp.Zion / (T(π) * q^2)
-        vloc = 2/q * ctrap_abinit(integrand, psp.dr) + correction
-    end
-    return vloc
+    linear_interpolation((psp.rgrid,), psp.vloc)(r) / 2  # Ry -> Ha
 end
 
 function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T <: Real}
-    return eval_psp_local_fourier_erf(psp, q)
+    vloc = psp.vloc  # in Rydberg
+    Z = psp.Zion * 2 # for some strange reason
+    # -Z/r correction (canceling `r` in the code):
+    #   F[V(r) - -Z/r] / 4π = ∫ sin(qr) / (qr) * (V(r) - -Z/r) r^2
+    sin_term = sin.(q .* psp.rgrid) ./ q 
+    pot_term = psp.rgrid .* vloc
+    corr_real = -Z
+    vloc_corr_ignd = sin_term .* (pot_term .- corr_real)
+    vloc_corr_itgl = ctrap(vloc_corr_ignd, psp.rab)
+    # F[-Z/r] / 4π = -Z / q^2
+    corr_fourier = -Z / q^2
+    vloc = 4T(π) * (vloc_corr_itgl + corr_fourier)
+    return vloc / 2  # in Ha
+end
+
+function eval_psp_local_fourier(
+    c::LocalCorrection,
+    integrator::Function,
+    psp::PspUpf,
+    q::T
+)::T where {T <: Real}
+    vloc = psp.vloc  # in Rydberg
+    # F[V(r) - correction(r)] / 4π = ∫ sin(qr) / (qr) * (V(r) - correction(r)) r^2
+    sin_term = sin.(q .* psp.rgrid) ./ q  # 1/r canceled with r^2
+    # correction contains 1/r, and this is canceled with the remaining r
+    pot_term = (psp.rgrid .* vloc)
+    corr_real =correction_real.(c, psp, psp.rgrid)
+    vloc_corr_ignd = sin_term .* (pot_term .- corr_real)
+    vloc_corr_itgl = integrator(vloc_corr_ignd, psp.rab)
+    corr_fourier = correction_fourier(c, psp, q)
+    vloc = 4T(π) * (vloc_corr_itgl + corr_fourier)  # still in Rydberg
+    return vloc / 2  # in Hartree
 end
 
 """
@@ -242,18 +213,24 @@ function ctrap(f::Vector{T}, dx::T)::T where {T <: Real}
     return a + b
 end
 
+function ctrap(f::Vector{T}, dx::Vector{T})::T where {T <: Real}
+    a = sum(i -> f[i] * dx[i], 1:length(f)-1)
+    b = 1/T(2) * (f[begin]*dx[begin] + f[end]*dx[end])
+    return a + b
+end
+
 """
     simpson_qe(f::Vector, dr::Number)
 
 Simpson's method as implemented in QuantumESPRESSO.
 """
-function simpson_qe(f::Vector{T}, dx::T)::T where {T <: Real}
+function simpson_qe(f::Vector{T}, dx::Vector{T})::T where {T <: Real}
     nr = length(f)
-    res = sum(i -> 2 * abs(i % 2 - 2) * f[i] * dx, 1:nr)
+    res = sum(i -> 2 * abs(i % 2 - 2) * f[i] * dx[i], 1:nr)
     if nr % 2 == 1
-        res += (f[1] * dx + f[nr] * dx) / 3.
+        res += (f[1] * dx[1] + f[nr] * dx[nr]) / 3.
     else
-        res += (f[1] * dx + f[nr-1] * dx) / 3.
+        res += (f[1] * dx[1] + f[nr-1] * dx[nr]) / 3.
     end
     return res
 end
