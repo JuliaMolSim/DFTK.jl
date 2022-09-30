@@ -2,16 +2,6 @@ using Interpolations: linear_interpolation
 using SpecialFunctions: sphericalbesselj
 using UPF: load_upf
 
-# TODO: Performance
-# TODO:   - r * Vloc + Z should only be calculated once (not for every q)
-# TODO:   - projector cutoffs should be stored, not computed for every q
-# TODO: Accuracy
-# TODO:   - why does ABINIT's ctrap give better agreement w/ erf correction?
-# TODO:   - why is there an oscillation in Vloc after unit conversion to Ha?
-# TODO:     - why doesn't a spline fix this?
-# TODO: Code separation
-# TODO:   - should the Vloc corection go in a separate function like HGH?
-
 struct PspUpf{T} <: NormConservingPsp
     Zion::Int                         # Ionic charge (Z - valence electrons)
     lmax::Int                         # Maximal angular momentum in the non-local part
@@ -190,6 +180,15 @@ function eval_psp_local_fourier(
     corr_fourier = correction_fourier(c, psp, q)
     vloc = 4T(π) * (vloc_corr_itgl + corr_fourier)  # still in Rydberg
     return vloc / 2  # in Hartree
+end
+
+function eval_psp_energy_correction(psp::PspUpf{T}, n_electrons)::T where {T <: Real}
+    Z = psp.Zion * T(2)  # for some strange reason
+    q_small = T(1e-10)  # interested in q -> 0
+    sin_term = sin.(q_small .* psp.rgrid) ./ q_small
+    pot_term = (psp.rgrid .* psp.vloc .- -Z)
+    ignd = sin_term .* n_electrons .* pot_term 
+    return 4T(π) * ctrap(ignd, psp.rab) / T(2)
 end
 
 """
