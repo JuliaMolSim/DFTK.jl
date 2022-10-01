@@ -182,12 +182,10 @@ function eval_psp_local_fourier(
     return vloc / 2  # in Hartree
 end
 
-function eval_psp_energy_correction(psp::PspUpf{T}, n_electrons)::T where {T <: Real}
+function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
     Z = psp.Zion * T(2)  # for some strange reason
-    q_small = T(1e-10)  # interested in q -> 0
-    sin_term = sin.(q_small .* psp.rgrid) ./ q_small
-    pot_term = (psp.rgrid .* psp.vloc .- -Z)
-    ignd = sin_term .* n_electrons .* pot_term 
+    pot_term = psp.rgrid .* (psp.rgrid .* psp.vloc .- -Z)
+    ignd = n_electrons .* pot_term
     return 4T(π) * ctrap(ignd, psp.rab) / T(2)
 end
 
