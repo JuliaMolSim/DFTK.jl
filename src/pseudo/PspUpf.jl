@@ -6,7 +6,7 @@ struct PspUpf{T} <: NormConservingPsp
     Zion::Int                         # Ionic charge (Z - valence electrons)
     lmax::Int                         # Maximal angular momentum in the non-local part
     rgrid::Vector{T}                  # Radial grid
-    rab::Vector{T}
+    rab::Vector{T}                    # Radial grid derivative / integration factor
     vloc::Vector{T}                   # Local potential on the radial grid
     projs::Vector{Vector{Vector{T}}}  # Kleinman-Bylander β projectors: projs[l][i]
     h::Vector{Matrix{T}}              # Projector coupling coefficients per AM channel: h[l][i1,i2]
@@ -69,7 +69,7 @@ function parse_upf_file(path; identifier=path)
     h = []
     for l in 0:lmax
         nprojs = n_projs[l+1]
-        push!(h, dij[n:n+nprojs-1, n:n+nprojs-1])
+        push!(h, dij[n:n+nprojs-1, n:n+nprojs-1] * 2)
         n += nprojs
     end
 
@@ -134,21 +134,27 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real
     end
     integrand = jl .* proj .* rgrid  # jl(qr) * rβ * r
     proj_q = 4T(π) * ctrap(integrand, psp.rab)
-    return proj_q
+    return proj_q / 2  # Ry^-1 -> Ha^-1
 end
 
 """
     eval_psp_local_real(psp::PspUpf, r::Number)
 
-Evaluate the local potential at real-space distance r via cubic spline interpolation on the
+Evaluate the local potential at real-space distance `r` via linear interpolation on the
 real-space mesh.
 """
 function eval_psp_local_real(psp::PspUpf, r::T) where {T <: Real}
     linear_interpolation((psp.rgrid,), psp.vloc)(r) / 2  # Ry -> Ha
 end
 
+"""
+    eval_psp_local_fourier(psp::PspUpf, q::Number)
+
+Evaluate the local potential at fourier-space distance `q` using a Coulomb correction term
+`-Z/r`.
+"""
 function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T <: Real}
-    vloc = psp.vloc  # in Rydberg
+    vloc = psp.vloc  # in Ry
     Z = psp.Zion * 2 # for some strange reason
     # -Z/r correction (canceling `r` in the code):
     #   F[V(r) - -Z/r] / 4π = ∫ sin(qr) / (qr) * (V(r) - -Z/r) r^2
@@ -160,16 +166,22 @@ function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T <: Real}
     # F[-Z/r] / 4π = -Z / q^2
     corr_fourier = -Z / q^2
     vloc = 4T(π) * (vloc_corr_itgl + corr_fourier)
-    return vloc / 2  # in Ha
+    return vloc / 2  # Ry -> Ha
 end
 
+"""
+    eval_psp_local_fourier(psp::PspUpf, q::Number)
+
+Evaluate the local potential at fourier-space distance `q` using the correction term `c` and
+the on-grid integrator `integrator`.
+"""
 function eval_psp_local_fourier(
     c::LocalCorrection,
     integrator::Function,
     psp::PspUpf,
     q::T
 )::T where {T <: Real}
-    vloc = psp.vloc  # in Rydberg
+    vloc = psp.vloc  # in Ry
     # F[V(r) - correction(r)] / 4π = ∫ sin(qr) / (qr) * (V(r) - correction(r)) r^2
     sin_term = sin.(q .* psp.rgrid) ./ q  # 1/r canceled with r^2
     # correction contains 1/r, and this is canceled with the remaining r
@@ -178,21 +190,21 @@ function eval_psp_local_fourier(
     vloc_corr_ignd = sin_term .* (pot_term .- corr_real)
     vloc_corr_itgl = integrator(vloc_corr_ignd, psp.rab)
     corr_fourier = correction_fourier(c, psp, q)
-    vloc = 4T(π) * (vloc_corr_itgl + corr_fourier)  # still in Rydberg
-    return vloc / 2  # in Hartree
+    vloc = 4T(π) * (vloc_corr_itgl + corr_fourier)  # still in Ry
+    return vloc / T(2)  # Ry -> Ha
 end
 
 function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
     Z = psp.Zion * T(2)  # for some strange reason
     pot_term = psp.rgrid .* (psp.rgrid .* psp.vloc .- -Z)
     ignd = n_electrons .* pot_term
-    return 4T(π) * ctrap(ignd, psp.rab) / T(2)
+    return 4T(π) * ctrap(ignd, psp.rab) / T(2)  # Ry -> Ha
 end
 
 """
     ctrap(f::Vector, dx::Number)
 
-Corrected trapezoidal method.
+Corrected trapezoidal method for a linear grid.
 """
 function ctrap(f::Vector{T}, dx::T)::T where {T <: Real}
     a = dx * sum(i -> f[i], 1:length(f)-1)
@@ -200,6 +212,11 @@ function ctrap(f::Vector{T}, dx::T)::T where {T <: Real}
     return a + b
 end
 
+"""
+    ctrap(f::Vector, dx::Vector)
+
+Corrected trapezoidal method for a non-linear grid.
+"""
 function ctrap(f::Vector{T}, dx::Vector{T})::T where {T <: Real}
     a = sum(i -> f[i] * dx[i], 1:length(f)-1)
     b = 1/T(2) * (f[begin]*dx[begin] + f[end]*dx[end])
@@ -207,9 +224,9 @@ function ctrap(f::Vector{T}, dx::Vector{T})::T where {T <: Real}
 end
 
 """
-    simpson_qe(f::Vector, dr::Number)
+    simpson_qe(f::Vector, dr::Vector)
 
-Simpson's method as implemented in QuantumESPRESSO.
+Simpson's method for a non-linear grid as implemented in QuantumESPRESSO.
 """
 function simpson_qe(f::Vector{T}, dx::Vector{T})::T where {T <: Real}
     nr = length(f)
@@ -225,7 +242,7 @@ end
 """
     ctrap_abinit(f::Vector, dx::Number)
 
-Corrected trapezoidal method as implemented in Abinit.
+Corrected trapezoidal method for a linear grid as implemented in Abinit.
 """
 function ctrap_abinit(f::Vector{T}, dx::T)::T where {T <: Real}
     nf = length(f)
