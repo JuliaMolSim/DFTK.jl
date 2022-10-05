@@ -61,6 +61,7 @@ function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
 
     xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
     βs   = -(Mfac \ vec(Pfxₙ))
+    βs = Array(βs)  # GPU computation only : get βs back on the CPU so we can iterate through it
     for (iβ, β) in enumerate(βs)
         xₙ₊₁ .+= β .* (xs[iβ] .- vec(xₙ) .+ αₙ .* (Pfxs[iβ] .- vec(Pfxₙ)))
     end
