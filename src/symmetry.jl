@@ -243,7 +243,9 @@ function symmetrize_forces(model::Model, forces; symmetries)
             # (but careful that our symmetries are r -> Wr+w, not R(r+f))
             other_at = W \ (position - w)
             i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions_group)
-            symmetrized_forces[idx] += W * forces[group[i_other_at]]
+            # (A.27) is in cartesian coordinates, and since Wcart is orthogonal,
+            # Fsymcart = Wcart * Fcart <=> Fsymred = inv(Wred') Fred
+            symmetrized_forces[idx] += inv(W') * forces[group[i_other_at]]
         end
     end
     symmetrized_forces / length(symmetries)

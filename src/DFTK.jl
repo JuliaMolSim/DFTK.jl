@@ -127,6 +127,7 @@ include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
 export LdosMixing, HybridMixing, χ0Mixing
+export FixedBands, AdaptiveBands
 export scf_nlsolve_solver
 export scf_damping_solver
 export scf_anderson_solver
@@ -139,6 +140,7 @@ export load_scfres, save_scfres
 include("scf/chi0models.jl")
 include("scf/mixing.jl")
 include("scf/scf_solvers.jl")
+include("scf/nbands_algorithm.jl")
 include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
 include("scf/newton.jl")

@@ -13,8 +13,6 @@ function test_chi0(testcase; symmetries=false, temperature=0,
     tol      = 1e-11
     ε        = 1e-6
     testtol  = 2e-6
-    n_ep_extra = 3
-    occupation_threshold = DFTK.default_occupation_threshold()
 
     collinear = spin_polarization == :collinear
     is_metal = !isnothing(testcase.temperature)
@@ -37,9 +35,8 @@ function test_chi0(testcase; symmetries=false, temperature=0,
         basis = PlaneWaveBasis(model; basis_kwargs...)
         ρ0 = guess_density(basis, magnetic_moments)
         energies, ham0 = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-        res = DFTK.next_density(ham0; tol, n_ep_extra, eigensolver, occupation_threshold)
-        occ, εF = DFTK.compute_occupation(basis, res.eigenvalues; occupation_threshold)
-        scfres = (ham=ham0, res..., n_ep_extra, occupation_threshold)
+        res = DFTK.next_density(ham0; tol, eigensolver)
+        scfres = (ham=ham0, res...)
 
         # create external small perturbation εδV
         n_spin = model.n_spin_components
@@ -58,8 +55,7 @@ function test_chi0(testcase; symmetries=false, temperature=0,
                               model_kwargs..., extra_terms=[term_builder])
             basis = PlaneWaveBasis(model; basis_kwargs...)
             energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
-            res = DFTK.next_density(ham; tol, n_ep_extra, eigensolver,
-                                    occupation_threshold)
+            res = DFTK.next_density(ham; tol, eigensolver)
             res.ρout
         end
 
@@ -72,17 +68,28 @@ function test_chi0(testcase; symmetries=false, temperature=0,
         diff_applied_χ0 = apply_χ0(scfres, δV)
         @test norm(diff_findiff - diff_applied_χ0) < testtol
 
+        # Test apply_χ0 without extra bands
+        ψ_occ, occ_occ = DFTK.select_occupied_orbitals(basis,
+                                                       scfres.ψ,
+                                                       scfres.occupation;
+                                                       threshold=scfres.occupation_threshold)
+        ε_occ = [scfres.eigenvalues[ik][1:size(ψk, 2)] for (ik, ψk) in enumerate(ψ_occ)]
+
+        diff_applied_χ0_noextra = apply_χ0(scfres.ham, ψ_occ, occ_occ, scfres.εF,
+                                           ε_occ, δV; scfres.occupation_threshold)
+        @test norm(diff_applied_χ0_noextra - diff_applied_χ0) < testtol
+
         # just to cover it here
         if temperature > 0
-            D = compute_dos(εF, basis, res.eigenvalues)
-            LDOS = compute_ldos(εF, basis, res.eigenvalues, res.ψ)
+            D = compute_dos(res.εF, basis, res.eigenvalues)
+            LDOS = compute_ldos(res.εF, basis, res.eigenvalues, res.ψ)
         end
 
         if !symmetries
             #  Test compute_χ0 against finite differences
             #  (only works in reasonable time for small Ecut)
             if compute_full_χ0
-                χ0 = compute_χ0(ham0; occupation_threshold)
+                χ0 = compute_χ0(ham0)
                 diff_computed_χ0 = reshape(χ0 * vec(δV), basis.fft_size..., n_spin)
                 @test norm(diff_findiff - diff_computed_χ0) < testtol
             end

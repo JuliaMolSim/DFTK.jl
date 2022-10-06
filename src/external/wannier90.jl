@@ -247,7 +247,7 @@ generated in reduced coordinates.
 default_wannier_centres(n_wannier) = [rand(1, 3) for _ in 1:n_wannier]
 
 @timing function run_wannier90(scfres;
-                               n_bands=size(scfres.ψ[1], 2) - scfres.n_ep_extra,
+                               n_bands=scfres.n_bands_converge,
                                n_wannier=n_bands,
                                centers=default_wannier_centres(n_wannier),
                                fileprefix=joinpath("wannier90", "wannier"),
