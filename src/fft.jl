@@ -1,6 +1,4 @@
 import FFTW
-import CUDA
-import GPUArrays
 import AbstractFFTs
 
 #
@@ -256,7 +254,8 @@ _fftw_flags(::Type{Float64}) = FFTW.MEASURE
 Plan a FFT of type `T` and size `fft_size`, spending some time on finding an
 optimal algorithm. (Inplace, out-of-place) x (forward, backward) FFT plans are returned.
 """
-#Removed the flags as CUDA's plan_fft doesn't need flags. If this is a performance issue, we should check array_type's type then call either FFTW.plan_fft(tmp, flags = ...) or CUDA.plan_fft(tmp)
+# Removed the flags as CUDA's plan_fft doesn't need flags. If this is a performance issue, we should
+# check array_type's type then call either FFTW.plan_fft(tmp, flags = ...) or CUDA.plan_fft(tmp)
 function build_fft_plans(array_type::AbstractArray{T}, fft_size) where {T<:Union{Float32,Float64}}
     tmp = similar(array_type, Complex{T}, fft_size...)
     ipFFT = AbstractFFTs.plan_fft!(tmp)
