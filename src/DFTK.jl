@@ -14,7 +14,7 @@ using Unitful
 using UnitfulAtomic
 using ForwardDiff
 using AbstractFFTs
-using GPUArrays
+using GPUArraysCore
 using CUDA
 using Random
 using ChainRulesCore
@@ -34,6 +34,7 @@ include("common/mpi.jl")
 include("common/threading.jl")
 include("common/printing.jl")
 include("common/cis2pi.jl")
+include("common/zeros_like.jl")
 
 export PspHgh
 include("pseudo/NormConservingPsp.jl")

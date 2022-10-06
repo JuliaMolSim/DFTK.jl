@@ -44,50 +44,52 @@ vprintln(args...) = nothing
 
 using LinearAlgebra
 import Base: *
+import Base.size, Base.adjoint, Base.Array
 include("../workarounds/gpu_arrays.jl")
 
-# For now, BlockMatrix can store arrays of different types (for example, an element
-# of type views and one of type Matrix). Maybe for performance issues it should only
-# store arrays of the same type?
-
-struct BlockMatrix
-    blocks::Tuple
-    size::Tuple{Int64,Int64}
+"""
+Simple wrapper to represent a matrix formed by the concatenation of column blocks:
+it is mostly equivalent to hcat, but doesn't allocate the full matrix.
+LazyHcat only supports a few multiplication routines: furthermore, a multiplication
+involving this structure will always yield a plain array (and not a LazyHcat structure).
+LazyHcat is a lightweight subset of BlockArrays.jl's functionalities, but has the
+advantage to be able to store GPU Arrays (BlockArrays is heavily built on Julia's CPU Array).
+"""
+struct LazyHcat{T <: Number, D <: Tuple} <: AbstractMatrix{T}
+    blocks::D
 end
 
-"""
-Build a BlockMatrix containing the given arrays, from left to right.
-This function will fail (for now) if:
-    -the arrays do not all have the same "height" (ie size[1] must match).
-"""
-function make_block_vector(arrays::AbstractArray...)
-    length(arrays) ==0 && error("Empty BlockMatrix is not currently implemented")
-    n_ref= size(arrays[1])[1]
-    m=0
-    for array in arrays
-        n_i, m_i = size(array)
-        n_ref != n_i && error("The given arrays do not have matching 'height': cannot build a BlockMatrix out of them.")
-        m += m_i
-    end
-    BlockMatrix(arrays, (n_ref,m))
+function LazyHcat(arrays::AbstractArray...)
+    @assert length(arrays) != 0
+    n_ref = size(arrays[1], 1)
+    @assert  all(size.(arrays, 1) .== n_ref)
+
+    T = promote_type(map(eltype, arrays)...)
+
+    LazyHcat{T, typeof(arrays)}(arrays)
 end
 
+function Base.size(A::LazyHcat)
+    n = size(A.blocks[1], 1)
+    m = sum(size(block, 2) for block in A.blocks)
+    (n,m)
+end
 
-"""
-Given A and B as two BlockMatrixs [A1, A2, A3], [B1, B2, B3] form the matrix
-A'B (which is not a BlockMatrix). block_overlap also has compatible versions with two Arrays.
-block_overlap always compute some form of adjoint, ie the product A'*B.
-"""
-@views function block_overlap(A::BlockMatrix, B::BlockMatrix)
-    rows = A.size[2]
-    cols = B.size[2]
+Base.Array(A::LazyHcat)  = hcat(A.blocks...)
+
+Base.adjoint(A::LazyHcat) = Adjoint(A)
+
+@views function Base.:*(Aadj::Adjoint{T, <: LazyHcat}, B::LazyHcat) where {T}
+    A = Aadj.parent
+    rows = size(A)[2]
+    cols = size(B)[2]
     ret = similar(A.blocks[1], rows, cols)
 
     orow = 0  # row offset
     for (iA, blA) in enumerate(A.blocks)
         ocol = 0  # column offset
         for (iB, blB) in enumerate(B.blocks)
-            ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] = blA' * blB
+            ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] .= blA' * blB
             ocol += size(blB, 2)
         end
         orow += size(blA, 2)
@@ -95,14 +97,9 @@ block_overlap always compute some form of adjoint, ie the product A'*B.
     ret
 end
 
-block_overlap(blocksA::BlockMatrix, B) = block_overlap(blocksA, make_block_vector(B))
-block_overlap(A, B) = A' * B # Default fallback method. Note the adjoint.
+Base.:*(Aadj::Adjoint{T, <: LazyHcat}, B::AbstractMatrix) where {T} = Aadj * LazyHcat(B)
 
-"""
-Given A as a BlockMatrix [A1, A2, A3] and B a Matrix, compute the matrix-matrix product
-A * B avoiding a concatenation of the blocks to a dense array.
-"""
-@views function *(Ablock::BlockMatrix, B)
+@views function *(Ablock::LazyHcat, B::AbstractMatrix)
     res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
     offset = size(Ablock.blocks[1], 2)
     for block in Ablock.blocks[2:end]
@@ -112,14 +109,14 @@ A * B avoiding a concatenation of the blocks to a dense array.
     res
 end
 
-function LinearAlgebra.mul!(res,A::BlockMatrix,B::AbstractArray,α,β)
-    # Has slightly better performances than a naive res = α*A*B - β*res
-    mul!(res, A*B, I, α, β)
+function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
+                            B::AbstractVecOrMat, α::Number, β::Number)
+    mul!(res, Ablock*B, I, α, β)
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X, AX, N)
-    XAX = block_overlap(X, AX)
+    XAX = X' * AX
     @assert all(!isnan, XAX)
     F = eigen(Hermitian(XAX))
     F.vectors[:,1:N], F.values[1:N]
@@ -240,14 +237,14 @@ end
     niter = 1
     ninners = zeros(Int,0)
     while true
-        BYX = block_overlap(BY,X) # = BY' X
-        mul!(X, Y, BYX, -one(T), one(T)) # X -= Y*BY'X
+        BYX = BY' * X
+        mul!(X, Y, BYX, -1, 1)  # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho!(cP, cX)
         dropped = drop!(X)
         if dropped != []
-            X[:, dropped] .-= Y * block_overlap(BY,X[:, dropped]) #X = X - Y'*BY*X
+            X[:, dropped] .-= Y * (BY' * X[:, dropped])
         end
 
         if norm(BYX) < tol && niter > 1
@@ -286,7 +283,6 @@ function final_retval(X, AX, resid_history, niter, n_matvec)
     (λ=λ, X=X,
      residual_norms=[norm(residuals[:, i]) for i in 1:size(residuals, 2)],
      residual_history=resid_history[:, 1:niter+1], n_matvec=n_matvec)
-    #λ doesn't have to be on the GPU, but X does (ψ should always be on GPU throughout the code).
 end
 
 ### The algorithm is Xn+1 = rayleigh_ritz(hcat(Xn, A*Xn, Xn-Xn-1))
@@ -302,10 +298,10 @@ end
 
     # If N is too small, we will likely get in trouble
     error_message(verb) = "The eigenproblem is too small, and the iterative " *
-                            "eigensolver $verb fail; increase the number of " *
-                            "degrees of freedom, or use a dense eigensolver."
-     N > 3M    || error(error_message("will"))
-     N >= 3M+5 || @warn error_message("might")
+                           "eigensolver $verb fail; increase the number of " *
+                           "degrees of freedom, or use a dense eigensolver."
+    N > 3M    || error(error_message("will"))
+    N >= 3M+5 || @warn error_message("might")
 
     n_conv_check === nothing && (n_conv_check = M)
     resid_history = zeros(real(eltype(X)), M, maxiter+1)
@@ -318,7 +314,7 @@ end
         B_ortho!(X, BX)
     end
 
-    n_matvec = M   # Count number of matrix-vector products
+    n_matvec = M  # Count number of matrix-vector products
     AX = similar(X)
     AX = mul!(AX, A, X)
     @assert all(!isnan, AX)
@@ -340,8 +336,8 @@ end
     end
     nlocked = 0
     niter = 0  # the first iteration is fake
-    λs = @views [(X[:,n]'*AX[:,n]) / (X[:,n]'BX[:,n]) for n=1:M]
-    λs = oftype(X[:,1], λs) #Offload to GPU if needed
+    λs = @views [(X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n]) for n=1:M]
+    λs = oftype(X[:, 1], λs)  # Offload to GPU if needed
     new_X = X
     new_AX = AX
     new_BX = BX
@@ -357,13 +353,13 @@ end
 
             # Form Rayleigh-Ritz subspace
             if niter > 1
-                Y = make_block_vector(X, R, P)
-                AY = make_block_vector(AX, AR, AP)
-                BY = make_block_vector(BX, BR, BP)  # data shared with (X, R, P) in non-general case
+                Y = LazyHcat(X, R, P)
+                AY = LazyHcat(AX, AR, AP)
+                BY = LazyHcat(BX, BR, BP)  # data shared with (X, R, P) in non-general case
             else
-                Y  = make_block_vector(X, R)
-                AY = make_block_vector(AX, AR)
-                BY = make_block_vector(BX, BR)  # data shared with (X, R) in non-general case
+                Y  = LazyHcat(X, R)
+                AY = LazyHcat(AX, AR)
+                BY = LazyHcat(BX, BR)  # data shared with (X, R) in non-general case
             end
             cX, λs = rayleigh_ritz(Y, AY, M-nlocked)
 
@@ -387,7 +383,7 @@ end
         vprintln(niter, "   ", resid_history[:, niter+1])
         if precon !== I
             @timing "preconditioning" begin
-                precondprep!(precon, X) # update preconditioner if needed; defaults to noop
+                precondprep!(precon, X)  # update preconditioner if needed; defaults to noop
                 ldiv!(precon, new_R)
             end
         end
@@ -429,10 +425,10 @@ end
             # cP[Xn_indices,:] .= 0
 
             lenXn = length(Xn_indices)
-            e = zero(similar(X, size(cX, 1), M - prev_nlocked))
+            e = zeros_like(X, size(cX, 1), M - prev_nlocked)
             lower_diag = one(similar(X, lenXn, lenXn))
-            #e has zeros everywhere except on one of its lower diagonal
-            e[Xn_indices[1] : last(Xn_indices), 1 : lenXn] = lower_diag
+            # e has zeros everywhere except on one of its lower diagonal
+            e[Xn_indices[1]:last(Xn_indices), 1:lenXn] = lower_diag
 
             cP = cX .- e
             cP = cP[:, Xn_indices]
@@ -488,8 +484,8 @@ end
 
         # Orthogonalize R wrt all X, newly active P
         if niter > 0
-            Z  = make_block_vector(full_X, P)
-            BZ = make_block_vector(full_BX, BP) # data shared with (full_X, P) in non-general case
+            Z  = LazyHcat(full_X, P)
+            BZ = LazyHcat(full_BX, BP) # data shared with (full_X, P) in non-general case
         else
             Z  = full_X
             BZ = full_BX
