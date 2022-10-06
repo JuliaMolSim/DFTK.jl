@@ -42,7 +42,7 @@ end
 function unsafe_unpack_ψ(x, sizes_ψ)
     lengths = prod.(sizes_ψ)
     ends = cumsum(lengths)
-    # We unsafe_wrap the resulting array to avoid a complicated type for ψ.    
+    # We unsafe_wrap the resulting array to avoid a complicated type for ψ.
     map(1:length(sizes_ψ)) do ik
         unsafe_wrap(Array{complex(eltype(x))},
                     pointer(@views x[ends[ik]-lengths[ik]+1:ends[ik]]),
@@ -54,6 +54,6 @@ unpack_ψ(x, sizes_ψ) = deepcopy(unsafe_unpack_ψ(x, sizes_ψ))
 using Random
 function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany) where {T}
     orbitals = similar(basis.G_vectors, Complex{T}, length(G_vectors(basis, kpt)), howmany)
-    randn!(TaskLocalRNG(), orbitals) #Force the use of GPUArrays.jl's random function if using the GPU
+    randn!(TaskLocalRNG(), orbitals)  # Force the use of GPUArrays.jl's random function if using the GPU
     ortho_qr(orbitals; array_type = array_type(basis))
 end

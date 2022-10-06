@@ -28,7 +28,7 @@ mutable struct PreconditionerTPA{T <: Real}
     kpt::Kpoint
     kin::AbstractVector{T}  # kinetic energy of every G
     mean_kin::Union{Nothing, Vector{T}}  # mean kinetic energy of every band
-    default_shift::T # if mean_kin is not set by `precondprep!`, this will be used for the shift
+    default_shift::T  # if mean_kin is not set by `precondprep!`, this will be used for the shift
 end
 
 function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=1) where {T}

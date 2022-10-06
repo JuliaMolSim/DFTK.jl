@@ -427,10 +427,9 @@ Return the index tuple `I` such that `G_vectors(basis)[I] == G`
 or the index `i` such that `G_vectors(basis, kpoint)[i] == G`.
 Returns nothing if outside the range of valid wave vectors.
 """
-@inline function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}
-    # the inline declaration encourages the compiler to hoist these (G-independent) precomputations
-    start = .- cld.(basis.fft_size .- 1, 2)
-    stop  = fld.(basis.fft_size .- 1, 2)
+@inline function index_G_vectors(fft_size::Tuple, G::AbstractVector{T}) where {T <: Integer}
+    start = .- cld.(fft_size .- 1, 2)
+    stop  = fld.(fft_size .- 1, 2)
     lengths = stop .- start .+ 1
 
     # FFTs store wavevectors as [0 1 2 3 -2 -1] (example for N=5)
@@ -443,6 +442,10 @@ Returns nothing if outside the range of valid wave vectors.
     else
         nothing  # Outside range of valid indices
     end
+end
+
+@inline function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{T}) where {T <: Integer}
+    index_G_vectors(basis.fft_size, G)
 end
 
 function index_G_vectors(basis::PlaneWaveBasis, kpoint::Kpoint,

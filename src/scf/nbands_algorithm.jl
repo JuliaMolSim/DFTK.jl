@@ -69,7 +69,7 @@ function determine_n_bands(bands::AdaptiveBands, occupation::AbstractVector,
 
     # Determine number of bands to be actually converged
 
-    occupation = map(Array, occupation) # GPU computation only: bring occupation back
+    occupation = map(Array, occupation)  # GPU computation only: bring occupation back
     # on the CPU, or maximum (following line) will fail
     n_bands_occ = maximum(occupation) do occk
         something(findlast(fnk -> fnk ≥ bands.occupation_threshold, occk), length(occk) + 1)

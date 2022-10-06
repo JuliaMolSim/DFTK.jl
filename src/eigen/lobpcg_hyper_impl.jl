@@ -183,7 +183,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
         end
         invR = inv(R)
         @assert all(!isnan, invR)
-        rmul!(X, invR) # we do not use X/R because we use invR next
+        rmul!(X, invR)  # we do not use X/R because we use invR next
 
         # We would like growth_factor *= opnorm(inv(R)) but it's too
         # expensive, so we use an upper bound which is sharp enough to
@@ -196,7 +196,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
         growth_factor *= norminvR
 
         # condR = 1/LAPACK.trcon!('I', 'U', 'N', Array(R))
-        condR = normest(R)*norminvR # in practice this seems to be an OK estimate
+        condR = normest(R)*norminvR  # in practice this seems to be an OK estimate
 
         vprintln("Ortho(X) success? $success ", eps(real(T))*condR^2, " < $tol")
 
@@ -267,7 +267,7 @@ end
         niter > 10 && error("Ortho(X,Y) is failing badly, this should never happen")
         niter += 1
     end
-    vprintln("ortho choleskys: ", ninners) # get how many Choleskys are performed
+    vprintln("ortho choleskys: ", ninners)  # get how many Choleskys are performed
 
     # @assert (norm(BY'X)) < tol
     # @assert (norm(X'X-I)) < tol
@@ -345,7 +345,7 @@ end
     full_BX = BX
 
     while true
-        if niter > 0 # first iteration is just to compute the residuals (no X update)
+        if niter > 0  # first iteration is just to compute the residuals (no X update)
             ###  Perform the Rayleigh-Ritz
             mul!(AR, A, R)
             n_matvec += size(R, 2)
@@ -413,7 +413,7 @@ end
             return final_retval(full_X, full_AX, resid_history, niter, n_matvec)
         end
         newly_locked = nlocked - prev_nlocked
-        active = newly_locked+1:size(X,2) # newly active vectors
+        active = newly_locked+1:size(X,2)  # newly active vectors
 
         if niter > 0
             ### compute P = Y*cP only for the newly active vectors
@@ -484,7 +484,7 @@ end
         # Orthogonalize R wrt all X, newly active P
         if niter > 0
             Z  = LazyHcat(full_X, P)
-            BZ = LazyHcat(full_BX, BP) # data shared with (full_X, P) in non-general case
+            BZ = LazyHcat(full_BX, BP)  # data shared with (full_X, P) in non-general case
         else
             Z  = full_X
             BZ = full_BX
