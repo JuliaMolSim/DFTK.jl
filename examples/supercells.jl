@@ -33,7 +33,7 @@ function aluminium_setup(repeat=1; Ecut=7.0, kgrid=[2, 2, 2])
     ##       instabilities we want to trigger here.
     model = model_LDA(lattice, atoms, positions; temperature=1e-3, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid)
-end
+end;
 
 # As part of the code we are using a routine inside the ASE,
 # the [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html)
@@ -53,7 +53,7 @@ ase_atoms(setup.model).write("al_supercell.png")
 # As we will see in this notebook the modelling of a system generally becomes
 # harder if the system becomes larger.
 #
-# - This sounds like a trival statement as *per se* the cost per SCF step increases
+# - This sounds like a trivial statement as *per se* the cost per SCF step increases
 #   as the system (and thus $N$) gets larger.
 # - But there is more to it:
 #   If one is not careful also the *number of SCF iterations* increases

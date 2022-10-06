@@ -42,7 +42,9 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
     poisson_green_coeffs[1:1,1:1,1:1] .= zero(similar(G_vectors(basis), T, 1,1,1))
     ## Hackish way to do the following
     # poisson_green_coeffs[1] = 0  # Compensating charge background => Zero DC
+    poisson_green_coeffs = Array(poisson_green_coeffs)
     force_real!(basis, poisson_green_coeffs)  # Symmetrize Fourier coeffs to have real iFFT
+    poisson_green_coeffs = convert(array_type(basis), poisson_green_coeffs)
 
     TermHartree(T(scaling_factor), T(scaling_factor) .* poisson_green_coeffs)
 end

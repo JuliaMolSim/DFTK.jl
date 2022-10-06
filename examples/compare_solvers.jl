@@ -20,26 +20,28 @@ basis = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3])
 
 ## Convergence we desire
 tol = 1e-12
-is_converged = DFTK.ScfConvergenceDensity(tol)
+is_converged = DFTK.ScfConvergenceDensity(tol);
 
 # ## Density-based self-consistent field
-scfres_scf = self_consistent_field(basis; is_converged)
+scfres_scf = self_consistent_field(basis; is_converged);
 
 # ## Potential-based SCF
-scfres_scfv = DFTK.scf_potential_mixing(basis; is_converged)
+scfres_scfv = DFTK.scf_potential_mixing(basis; is_converged);
 
 # ## Direct minimization
-scfres_dm = direct_minimization(basis; tol)
+scfres_dm = direct_minimization(basis; tol);
 
-## Newton algorithm
+# ## Newton algorithm
+
 # Start not too far from the solution to ensure convergence:
 # We run first a very crude SCF to get close and then switch to Newton.
-scfres_start = self_consistent_field(basis; tol=1e-1)
+scfres_start = self_consistent_field(basis; tol=1e-1);
+
 # Remove the virtual orbitals (which Newton cannot treat yet)
 ψ, _ = DFTK.select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation)
-scfres_newton = newton(basis, ψ; tol)
+scfres_newton = newton(basis, ψ; tol);
 
-## Comparison of results
+# ## Comparison of results
 
 println("|ρ_newton - ρ_scf|  = ", norm(scfres_newton.ρ - scfres_scf.ρ))
 println("|ρ_newton - ρ_scfv| = ", norm(scfres_newton.ρ - scfres_scfv.ρ))
