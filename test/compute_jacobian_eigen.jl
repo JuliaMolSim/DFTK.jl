@@ -10,7 +10,7 @@ include("testcases.jl")
 
 if mpi_nprocs() == 1  # Distributed implementation not yet available
 
-    function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where T
+    function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where {T}
 
         pack(ψ) = reinterpret_real(pack_ψ(ψ))
         unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))

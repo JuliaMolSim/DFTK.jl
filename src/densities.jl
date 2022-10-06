@@ -57,7 +57,7 @@ end
 
 # Variation in density corresponding to a variation in the orbitals and occupations.
 @views @timing function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ,
-                                   occupation, δoccupation=zero.(occupation)) where T
+                                   occupation, δoccupation=zero.(occupation)) where {T}
     ForwardDiff.derivative(zero(T)) do ε
         ψ_ε   = [ψk   .+ ε .* δψk   for (ψk,   δψk)   in zip(ψ, δψ)]
         occ_ε = [occk .+ ε .* δocck for (occk, δocck) in zip(occupation, δoccupation)]

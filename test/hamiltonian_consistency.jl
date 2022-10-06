@@ -82,7 +82,7 @@ end
     test_consistency_term(AtomicLocal())
     test_consistency_term(AtomicNonlocal())
     test_consistency_term(ExternalFromReal(X -> cos(X[1])))
-    test_consistency_term(ExternalFromFourier(X -> randn()))
+    test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
     test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
     test_consistency_term(Hartree())
     test_consistency_term(Ewald())

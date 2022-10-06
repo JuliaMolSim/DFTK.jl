@@ -66,7 +66,7 @@ function (χ0::DielectricModel)(basis; kwargs...)
     function apply!(δρ, δV, α=1)
         loc_δV = fft(basis, apply_sqrtL(δV))
         dielectric_loc_δV = @. C0 * kTF^2 * Gsq / 4T(π) / (kTF^2 - C0 * Gsq) * loc_δV
-        δρ .+= α .* apply_sqrtL(ifft(basis, dielectric_loc_δV))
+        δρ .+= α .* apply_sqrtL(irfft(basis, dielectric_loc_δV))
         δρ
     end
 end

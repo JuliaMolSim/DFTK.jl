@@ -51,7 +51,8 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end
-    TermExternal(ifft(basis, pot_fourier))
+    force_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
+    TermExternal(irfft(basis, pot_fourier))
 end
 
 
@@ -86,13 +87,15 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
         end
         pot / sqrt(model.unit_cell_volume)
     end
+    force_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
     # GPU computation only : build the potential values on CPU then offload them to GPU
-    pot_real = ifft(basis, convert(array_type(basis),pot_fourier))
+    pot_real = irfft(basis, convert(array_type(basis),pot_fourier))
+
     TermAtomicLocal(pot_real)
 end
 
 @timing "forces: local" function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{TT},
-                                                ψ, occupation; ρ, kwargs...) where TT
+                                                ψ, occupation; ρ, kwargs...) where {TT}
     T = promote_type(TT, real(eltype(ψ[1])))
     model = basis.model
     recip_lattice = model.recip_lattice

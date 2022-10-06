@@ -267,35 +267,15 @@ plot_bandstructure(basis; n_bands=6, kline_density=100)
 #     (see [Gross-Pitaevskii equation in one dimension](@ref gross-pitaevskii))
 #   * even some more unusual cases like anyonic models.
 #
-# In this tutorial we will go a little more low-level and directly provide
-# an analytic potential describing the interaction with the electrons to DFTK.
+# We will use `ElementGaussian`, which is an analytic potential describing a Gaussian
+# interaction with the electrons to DFTK. See [Custom potential](@ref custom-potential) for
+# how to create a custom potential.
 #
-# First we define a custom Gaussian potential as a new "element" inside DFTK:
-
-struct ElementGaussian <: DFTK.Element
-    α  # Prefactor
-    L  # Extend
-end
-
-## Some default values
-ElementGaussian() = ElementGaussian(0.3, 10.0)
-
-## Real-space representation of a Gaussian
-function DFTK.local_potential_real(el::ElementGaussian, r::Real)
-    -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
-end
-
-## Fourier-space representation of the Gaussian
-function DFTK.local_potential_fourier(el::ElementGaussian, q::Real)
-    ## = ∫ -α exp(-(r/L)^2 exp(-ir⋅q) dr
-    -el.α * exp(- (q * el.L)^2 / 2)
-end
-
 # A single potential looks like:
 
 using Plots
 using LinearAlgebra
-nucleus = ElementGaussian()
+nucleus = ElementGaussian(0.3, 10.0)
 plot(r -> DFTK.local_potential_real(nucleus, norm(r)), xlims=(-50, 50))
 
 # With this element at hand we can easily construct a setting
@@ -309,7 +289,7 @@ lattice = diagm([100., 0, 0])
 
 ## Place them at 20 and 80 in *fractional coordinates*,
 ## that is 0.2 and 0.8, since the lattice is 100 wide.
-nucleus   = ElementGaussian()
+nucleus   = ElementGaussian(0.3, 10.0)
 atoms     = [nucleus, nucleus]
 positions = [[0.2, 0, 0], [0.8, 0, 0]]
 

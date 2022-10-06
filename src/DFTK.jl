@@ -42,6 +42,7 @@ include("pseudo/PspHgh.jl")
 export ElementPsp
 export ElementCohenBergstresser
 export ElementCoulomb
+export ElementGaussian
 export charge_nuclear
 export charge_ionic
 export atomic_symbol
@@ -60,6 +61,7 @@ export G_vectors, G_vectors_cart, r_vectors, r_vectors_cart
 export Gplusk_vectors, Gplusk_vectors_cart
 export Kpoint
 export ifft
+export irfft
 export ifft!
 export fft
 export fft!

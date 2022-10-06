@@ -64,7 +64,7 @@ end
 LinearAlgebra.mul!(Y::AbstractArray{<:Complex{<:ForwardDiff.Dual}}, p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, X::AbstractArray{<:ComplexF64}) where {T,P} =
     (Y .= _apply_plan(p, X))
 
-function _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where T
+function _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where {T}
     # TODO do we want x::AbstractArray{<:ForwardDiff.Dual{T}} too?
     xtil = p * ForwardDiff.value.(x)
     dxtils = ntuple(ForwardDiff.npartials(eltype(x))) do n
@@ -83,7 +83,7 @@ function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::Abst
 end
 
 # this is to avoid method ambiguities between these two:
-#   _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where T
+#   _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where {T}
 #   _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray) where {T,P}
 function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{Tg}}}) where {T,P,Tg}
     _apply_plan(p.p, p.scale * x)
@@ -194,7 +194,7 @@ end
 
 function self_consistent_field(basis_dual::PlaneWaveBasis{T};
                                response=ResponseOptions(),
-                               kwargs...) where T <: ForwardDiff.Dual
+                               kwargs...) where {T <: ForwardDiff.Dual}
     # Note: No guarantees on this interface yet.
 
     # Primal pass
@@ -305,7 +305,7 @@ end
 function erfc(x::Complex{ForwardDiff.Dual{T,V,N}}) where {T,V,N}
     xx = complex(ForwardDiff.value(real(x)), ForwardDiff.value(imag(x)))
     dx = complex.(ForwardDiff.partials(real(x)), ForwardDiff.partials(imag(x)))
-    dgamma = -2*exp(-xx^2)/sqrt(π) * dx
-    complex(ForwardDiff.Dual{T,V,N}(real(gamma(0.5, xx^2)), ForwardDiff.Partials{N,V}(tuple(real(dgamma)...))),
-            ForwardDiff.Dual{T,V,N}(imag(gamma(0.5, xx^2)), ForwardDiff.Partials{N,V}(tuple(imag(dgamma)...))))
+    dgamma = -2*exp(-xx^2)/sqrt(V(π)) * dx
+    complex(ForwardDiff.Dual{T,V,N}(real(erfc(xx)), ForwardDiff.Partials{N,V}(tuple(real(dgamma)...))),
+            ForwardDiff.Dual{T,V,N}(imag(erfc(xx)), ForwardDiff.Partials{N,V}(tuple(imag(dgamma)...))))
 end

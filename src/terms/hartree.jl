@@ -26,7 +26,7 @@ struct TermHartree <: TermNonlinear
     # Fourier coefficients of the Green's function of the periodic Poisson equation
     poisson_green_coeffs::AbstractArray
 end
-function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
+function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
     model = basis.model
 
     # Solving the Poisson equation ΔV = -4π ρ in Fourier space
@@ -42,6 +42,7 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where T
     poisson_green_coeffs[1:1,1:1,1:1] .= zero(similar(G_vectors(basis), T, 1,1,1))
     ## Hackish way to do the following
     # poisson_green_coeffs[1] = 0  # Compensating charge background => Zero DC
+    force_real!(basis, poisson_green_coeffs)  # Symmetrize Fourier coeffs to have real iFFT
 
     TermHartree(T(scaling_factor), T(scaling_factor) .* poisson_green_coeffs)
 end
@@ -50,7 +51,7 @@ end
                                             ψ, occ; ρ, kwargs...) where {T}
     ρtot_fourier = fft(basis, total_density(ρ))
     pot_fourier = term.poisson_green_coeffs .* ρtot_fourier
-    pot_real = ifft(basis, pot_fourier)
+    pot_real = irfft(basis, pot_fourier)
     E = real(dot(pot_fourier, ρtot_fourier) / 2)
 
     ops = [RealSpaceMultiplication(basis, kpt, pot_real) for kpt in basis.kpoints]
@@ -68,5 +69,5 @@ function apply_kernel(term::TermHartree, basis::PlaneWaveBasis, δρ; kwargs...)
     δV = zero(δρ)
     δρtot = total_density(δρ)
     # note broadcast here: δV is 4D, and all its spin components get the same potential
-    δV .= ifft(basis, term.poisson_green_coeffs .* fft(basis, δρtot))
+    δV .= irfft(basis, term.poisson_green_coeffs .* fft(basis, δρtot))
 end

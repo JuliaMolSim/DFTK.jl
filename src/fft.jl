@@ -52,17 +52,22 @@ Perform an iFFT to obtain the quantity defined by `f_fourier` defined
 on the k-dependent spherical basis set (if `kpt` is given) or the
 k-independent cubic (if it is not) on the real-space grid.
 """
-function ifft(basis::PlaneWaveBasis, f_fourier::AbstractArray; assume_real=Val(true))
-    # assume_real is true by default because this is the most common usage
-    # (for densities & potentials). Val(true) to help const-prop;
-    # see https://github.com/JuliaLang/julia/issues/44330
+function ifft(basis::PlaneWaveBasis, f_fourier::AbstractArray)
     f_real = similar(f_fourier)
     @assert length(size(f_fourier)) ∈ (3, 4)
     # this exploits trailing index convention
     for iσ = 1:size(f_fourier, 4)
         @views ifft!(f_real[:, :, :, iσ], basis, f_fourier[:, :, :, iσ])
     end
-    (assume_real == Val(true)) ? real(f_real) : f_real
+    f_real
+end
+"""
+Perform a real valued iFFT; see [`ifft`](@ref).
+"""
+function irfft(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray; check=Val(true)) where {T}
+    f_real = ifft(basis, f_fourier)
+    (check == Val(true)) && @assert norm(imag(f_real)) < sqrt(eps(T))
+    real(f_real)
 end
 function ifft(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
     ifft!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
@@ -153,7 +158,7 @@ represented in the spherical basis sets, `supersampling` should be at least `2`.
 If `factors` is not empty, ensure that the resulting fft_size contains all the factors
 """
 function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
-                          ensure_smallprimes=true, algorithm=:fast, factors=1, kwargs...) where T
+                          ensure_smallprimes=true, algorithm=:fast, factors=1, kwargs...) where {T}
     if algorithm == :fast
         Glims = compute_Glims_fast(model.lattice, Ecut; kwargs...)
     elseif algorithm == :precise
@@ -210,7 +215,7 @@ end
 # This uses a more precise and slower algorithm than the one above,
 # simply enumerating all G vectors and seeing where their difference
 # is. It needs the kpoints to do so.
-@timing function compute_Glims_precise(lattice::AbstractMatrix{T}, Ecut, kpoints; supersampling=2) where T
+@timing function compute_Glims_precise(lattice::AbstractMatrix{T}, Ecut, kpoints; supersampling=2) where {T}
     recip_lattice  = compute_recip_lattice(lattice)
     recip_diameter = diameter(recip_lattice)
     Glims = [0, 0, 0]
@@ -245,7 +250,7 @@ end
 end
 
 # Fast implementation, but sometimes larger than necessary.
-function compute_Glims_fast(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=sqrt(eps(T))) where T
+function compute_Glims_fast(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=sqrt(eps(T))) where {T}
     Gmax = supersampling * sqrt(2 * Ecut)
     recip_lattice = compute_recip_lattice(lattice)
     Glims = estimate_integer_lattice_bounds(recip_lattice, Gmax; tol=tol)
