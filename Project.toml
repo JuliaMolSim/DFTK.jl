@@ -7,7 +7,6 @@ version = "0.5.8"
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 AtomsBase = "a963bdd2-2df7-4f54-a1ee-49d51e6be12a"
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
@@ -50,10 +49,9 @@ spglib_jll = "ac4a9f1e-bdb2-5204-990c-47c8b2f70d4e"
 [compat]
 AbstractFFTs = "1"
 AtomsBase = "0.2.2"
-Brillouin = "0.5 - 0.5.8"  # Upper bound temporary until memory bug resolved.
+Brillouin = "0.5"
 ChainRulesCore = "1.15"
 Conda = "1"
-CUDA = "3"
 DftFunctionals = "0.2"
 FFTW = "1"
 ForwardDiff = "0.10"
@@ -87,6 +85,7 @@ spglib_jll = "1.15"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 ComponentArrays = "b0b7db55-cfe3-40fc-9ded-d10e2dbeff66"
 DoubleFloats = "497a8b3b-efae-58df-a0af-a86822472b78"
 FiniteDiff = "6a86dc24-6348-571c-b903-95158fe2bd41"
@@ -104,4 +103,4 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
 [targets]
-test = ["Test", "Aqua", "DoubleFloats", "FiniteDiff", "FiniteDifferences", "GenericLinearAlgebra", "IntervalArithmetic", "Plots", "Random", "KrylovKit", "Logging", "JLD2", "WriteVTK", "wannier90_jll", "QuadGK", "ComponentArrays"]
+test = ["Test", "Aqua", "CUDA", "DoubleFloats", "FiniteDiff", "FiniteDifferences", "GenericLinearAlgebra", "IntervalArithmetic", "Plots", "Random", "KrylovKit", "Logging", "JLD2", "WriteVTK", "wannier90_jll", "QuadGK", "ComponentArrays"]

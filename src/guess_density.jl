@@ -104,18 +104,23 @@ function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
 
     # Fill ρ with the (unnormalized) Fourier transform, i.e. ∫ e^{-iGx} f(x) dx,
     # where f(x) is a weighted gaussian
-    function build_ρ(G)
-        Gsq = sum(abs2, recip_lattice * G)
-        res = zero(complex(T))
+    #
+    # is formed from a superposition of atomic densities, each scaled by a prefactor
+    ρ = Array(ρ)
+    for (iG, G) in enumerate(Array(G_vectors(basis)))
+        # Ensure that we only set G-vectors that have a -G counterpart
+        if isnothing(index_G_vectors(basis, -G))
+            ρ[iG] = zero(complex(T))
+            continue
+        end
+
+        Gsq = sum(abs2, basis.model.recip_lattice * G)
         for (coeff, decay_length, r) in gaussians
             form_factor::T = exp(-Gsq * T(decay_length)^2)
-            res += T(coeff) * form_factor* cis2pi(-dot(G, r))
+            ρ[iG] += T(coeff) * form_factor * cis2pi(-dot(G, r))
         end
-        res
     end
-    ρ = map(build_ρ, basis.G_vectors)/ sqrt(basis.model.unit_cell_volume) #Can't use map! as we are converting an array of Vec3 to an array of complex
-
-    # projection in the normalized plane wave basis
+    ρ = convert(array_type(basis), ρ)
     irfft(basis, ρ / sqrt(basis.model.unit_cell_volume))
 end
 

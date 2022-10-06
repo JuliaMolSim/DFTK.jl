@@ -112,7 +112,6 @@ end
         (compute_force(ε) - compute_force(-ε)) / 2ε
     end
     derivative_fd = ForwardDiff.derivative(compute_force, 0.0)
-    @show derivative_ε derivative_fd
     @test norm(derivative_ε - derivative_fd) < 1e-4
 end
 

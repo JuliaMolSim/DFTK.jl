@@ -9,7 +9,7 @@ function select_occupied_orbitals(basis, ψ, occupation; threshold=0.0)
 
     # if we have an insulator, sanity check that the orbitals we kept are the
     # occupied ones
-    if threshold == 0.0
+    if iszero(threshold)
         model   = basis.model
         n_spin  = model.n_spin_components
         n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)

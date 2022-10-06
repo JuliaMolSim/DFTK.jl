@@ -224,7 +224,7 @@ end
 function eval_psp_energy_correction(T, psp::PspHgh, n_electrons)
     # By construction we need to compute the DC component of the difference
     # of the Coulomb potential (-Z/G^2 in Fourier space) and the pseudopotential
-    # i.e. -Z/(ΔG)^2 -  eval_psp_local_fourier(psp, ΔG) for ΔG → 0. This is:
+    # i.e. -4πZ/(ΔG)^2 -  eval_psp_local_fourier(psp, ΔG) for ΔG → 0. This is:
     cloc_coeffs = T[1, 3, 15, 105]
     difference_DC = (T(psp.Zion) * T(psp.rloc)^2 / 2
                      + sqrt(T(π)/2) * T(psp.rloc)^3 * T(sum(cloc_coeffs .* psp.cloc)))

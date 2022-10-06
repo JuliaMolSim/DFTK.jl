@@ -4,7 +4,8 @@ include("operators.jl")
 # - A Term is something that, given a state, returns a named tuple (E, hams) with an energy
 #   and a list of RealFourierOperator (for each kpoint).
 # - Each term must overload
-#     `ene_ops(term, basis, ψ, occ; kwargs...)` -> (E::Real, ops::Vector{RealFourierOperator}).
+#     `ene_ops(term, basis, ψ, occupation; kwargs...)`
+#         -> (E::Real, ops::Vector{RealFourierOperator}).
 # - Note that terms are allowed to hold on to references to ψ (eg Fock term),
 #   so ψ should not mutated after ene_ops
 
@@ -25,7 +26,7 @@ abstract type TermNonlinear <: Term end
 A term with a constant zero energy.
 """
 struct TermNoop <: Term end
-function ene_ops(term::TermNoop, basis::PlaneWaveBasis{T}, ψ, occ; kwargs...) where {T}
+function ene_ops(term::TermNoop, basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
     (E=zero(eltype(T)), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
 
@@ -57,8 +58,8 @@ breaks_symmetries(::Magnetic) = true
 include("anyonic.jl")
 breaks_symmetries(::Anyonic) = true
 
-# forces computes either nothing or an array forces[at][α]
-compute_forces(::Term, ::AbstractBasis, ψ, occ; kwargs...) = nothing  # by default, no force
+# forces computes either nothing or an array forces[at][α] (by default no forces)
+compute_forces(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
 
 @doc raw"""
     compute_kernel(basis::PlaneWaveBasis; kwargs...)
