@@ -119,7 +119,7 @@ end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X, AX, N)
-    XAX = array_mul(X', AX)
+    XAX = block_overlap(X, AX)
     @assert all(!isnan, XAX)
     F = eigen(Hermitian(XAX))
     F.vectors[:,1:N], F.values[1:N]

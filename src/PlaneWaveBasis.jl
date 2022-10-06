@@ -38,7 +38,7 @@ Normalization conventions:
   This also holds for the density and the potentials.
 - Quantities expressed on the real-space grid are in actual values.
 
-`G_to_r` and `r_to_G` convert between these representations.
+`ifft` and `fft` convert between these representations.
 """
 struct PlaneWaveBasis{T, VT, AT, GT, RT} <: AbstractBasis{T} where {VT <: Real, GT <: AT, RT <: AT, AT <: AbstractArray}
     # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
@@ -58,14 +58,14 @@ struct PlaneWaveBasis{T, VT, AT, GT, RT} <: AbstractBasis{T} where {VT <: Real, 
 
     ## Plans for forward and backward FFT
     # All these plans are *completely unnormalized* (eg FFT * BFFT != I)
-    # The normalizations are performed in G_to_r/r_to_G according to
+    # The normalizations are performed in ifft/fft according to
     # the DFTK conventions (see above)
     opFFT   # out-of-place FFT plan
     ipFFT   # in-place FFT plan
     opBFFT  # inverse plans (unnormalized plan; backward in FFTW terminology)
     ipBFFT
-    r_to_G_normalization::T  # r_to_G = r_to_G_normalization * FFT
-    G_to_r_normalization::T  # G_to_r = G_to_r_normalization * BFFT
+    fft_normalization::T   # fft = fft_normalization * FFT
+    ifft_normalization::T  # ifft = ifft_normalization * BFFT
 
     # "cubic" basis in reciprocal and real space, on which potentials and densities are stored
     G_vectors::GT
@@ -200,13 +200,13 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans(similar(Gs,T), fft_size)
 
     # Normalization constants
-    # r_to_G = r_to_G_normalization * FFT
+    # fft = fft_normalization * FFT
     # The convention we want is
     # ψ(r) = sum_G c_G e^iGr / sqrt(Ω)
-    # so that the G_to_r has to normalized by 1/sqrt(Ω).
+    # so that the ifft has to normalized by 1/sqrt(Ω).
     # The other constant is chosen because FFT * BFFT = N
-    G_to_r_normalization = 1/sqrt(model.unit_cell_volume)
-    r_to_G_normalization = sqrt(model.unit_cell_volume) / length(ipFFT)
+    ifft_normalization = 1/sqrt(model.unit_cell_volume)
+    fft_normalization  = sqrt(model.unit_cell_volume) / length(ipFFT)
 
     # Compute k-point information and spread them across processors
     # Right now we split only the kcoords: both spin channels have to be handled
@@ -264,7 +264,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         model, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
-        r_to_G_normalization, G_to_r_normalization,
+        fft_normalization, ifft_normalization,
         Gs, r_vectors,
         kpoints, kweights_thisproc, kgrid, kshift,
         kcoords_global, kweights_global, comm_kpts, krange_thisproc, krange_allprocs,
@@ -370,7 +370,7 @@ G_vectors(basis::PlaneWaveBasis) = basis.G_vectors
 G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
 
 """
-Return the type of array used for computations (Array if on CPU, CuArray, 
+Return the type of array used for computations (Array if on CPU, CuArray,
 ROCArray... if on GPU).
 """
 array_type(basis::PlaneWaveBasis{T,VT,AT}) where {T, VT, AT} = AT

@@ -71,11 +71,11 @@ end
     #     δρtot  = G² δFtot / (G² + kTF²)
     #     δρspin = δFspin - 4π * ΔDOS / (G² + kTF²) δFtot
 
-    δF_fourier     = r_to_G(basis, δF)
+    δF_fourier     = fft(basis, δF)
     δFtot_fourier  = total_density(δF_fourier)
     δFspin_fourier = spin_density(δF_fourier)
     δρtot_fourier = δFtot_fourier .* G² ./ (kTF.^2 .+ G²)
-    δρtot = G_to_r(basis, δρtot_fourier)
+    δρtot = ifft(basis, δρtot_fourier)
 
     # Copy DC component, otherwise it never gets updated
     δρtot .+= mean(total_density(δF)) .- mean(δρtot)
@@ -84,7 +84,7 @@ end
         ρ_from_total_and_spin(δρtot, nothing)
     else
         δρspin_fourier = @. δFspin_fourier - δFtot_fourier * (4π * ΔDOS_Ω) / (kTF^2 + G²)
-        δρspin = G_to_r(basis, δρspin_fourier)
+        δρspin = ifft(basis, δρspin_fourier)
         ρ_from_total_and_spin(δρtot, δρspin)
     end
 end
@@ -139,9 +139,9 @@ end
     Gsq = map(G_vectors_cart(basis)) do G
         sum(abs2, G)
     end
-    δF_fourier = r_to_G(basis, δF)
+    δF_fourier = fft(basis, δF)
     δρ = @. δF_fourier * (kTF^2 - C0 * Gsq) / (εr * kTF^2 - C0 * Gsq)
-    δρ = G_to_r(basis, δρ)
+    δρ = ifft(basis, δρ)
     δρ .+= mean(δF) .- mean(δρ)
 end
 

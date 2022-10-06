@@ -16,7 +16,7 @@ end
 
 Compute the density for a wave function `ψ` discretized on the plane-wave
 grid `basis`, where the individual k-points are occupied according to `occupation`.
-`ψ` should be one coefficient matrix per ``k``-point. 
+`ψ` should be one coefficient matrix per ``k``-point.
 """
 @views @timing function compute_density(basis, ψ, occupation)
     T = promote_type(eltype(basis), real(eltype(ψ[1])))
@@ -29,7 +29,7 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
     # chunk-local variables
     ρ_chunklocal = [convert(array_type(basis), zeros(T, basis.fft_size..., basis.model.n_spin_components))
                     for _ = 1:Threads.nthreads()]
-    ψnk_real_chunklocal = [convert(array_type(basis), zeros(complex(T), basis.fft_size)) 
+    ψnk_real_chunklocal = [convert(array_type(basis), zeros(complex(T), basis.fft_size))
                             for _ = 1:Threads.nthreads()]
 
     @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
@@ -38,7 +38,8 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
             ψnk_real = ψnk_real_chunklocal[ichunk]
             ρ_loc = ρ_chunklocal[ichunk]
 
-            G_to_r!(ψnk_real, basis, kpt, ψ[ik][:, n])            
+            kpt = basis.kpoints[ik]
+            ifft!(ψnk_real, basis, kpt, ψ[ik][:, n])
             ρ_loc[:, :, :, kpt.spin] .+= occupation[ik][n] .* basis.kweights[ik] .* abs2.(ψnk_real)
         end
     end
@@ -72,7 +73,7 @@ end
     for (ik, kpt) in enumerate(basis.kpoints)
         G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(basis, kpt)] for α in 1:3]
         for n = 1:size(ψ[ik], 2), α = 1:3
-            G_to_r!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
+            ifft!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
             @. τ[:, :, :, kpt.spin] += occupation[ik][n] * basis.kweights[ik] / 2 * abs2(dαψnk_real)
         end
     end
