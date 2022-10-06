@@ -46,7 +46,7 @@ using LinearAlgebra
 import Base: *
 include("../workarounds/gpu_arrays.jl")
 
-# For now, BlockMatrix can store arrays of different types (for example, an element 
+# For now, BlockMatrix can store arrays of different types (for example, an element
 # of type views and one of type Matrix). Maybe for performance issues it should only
 # store arrays of the same type?
 
@@ -75,7 +75,7 @@ end
 
 """
 Given A and B as two BlockMatrixs [A1, A2, A3], [B1, B2, B3] form the matrix
-A'B (which is not a BlockMatrix). block_overlap also has compatible versions with two Arrays. 
+A'B (which is not a BlockMatrix). block_overlap also has compatible versions with two Arrays.
 block_overlap always compute some form of adjoint, ie the product A'*B.
 """
 @views function block_overlap(A::BlockMatrix, B::BlockMatrix)
@@ -100,7 +100,7 @@ block_overlap(A, B) = A' * B # Default fallback method. Note the adjoint.
 
 """
 Given A as a BlockMatrix [A1, A2, A3] and B a Matrix, compute the matrix-matrix product
-A * B avoiding a concatenation of the blocks to a dense array. 
+A * B avoiding a concatenation of the blocks to a dense array.
 """
 @views function *(Ablock::BlockMatrix, B)
     res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
@@ -118,8 +118,10 @@ function LinearAlgebra.mul!(res,A::BlockMatrix,B::AbstractArray,α,β)
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
-@timing function rayleigh_ritz(X::BlockMatrix, AX::BlockMatrix, N)
-    F = eigen(Hermitian(block_overlap(X, AX))) # block_overlap(X,AX) is an AbstractArray, not a BlockMatrix
+@timing function rayleigh_ritz(X, AX, N)
+    XAX = array_mul(X', AX)
+    @assert all(!isnan, XAX)
+    F = eigen(Hermitian(XAX))
     F.vectors[:,1:N], F.values[1:N]
 end
 
@@ -131,6 +133,7 @@ end
 function B_ortho!(X, BX)
     O = Hermitian(X'*BX)
     U = cholesky(O).U
+    @assert all(!isnan, U)
     rdiv!(X, U)
     rdiv!(BX, U)
 end
@@ -183,6 +186,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
             success = false
         end
         invR = inv(R)
+        @assert all(!isnan, invR)
         rmul!(X, invR) # we do not use X/R because we use invR next
 
         # We would like growth_factor *= opnorm(inv(R)) but it's too
