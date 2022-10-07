@@ -1,5 +1,5 @@
 # Model of graphene confined to 2 spatial dimensions studied
-# in the paper by Cazalis (arxiv, 2022, TODO add ref)
+# in the paper by Cazalis (arxiv, 2022, https://arxiv.org/abs/2207.09893)
 # The pure 3D Coulomb 1/|x| interaction is used, without pseudopotential.
 
 using DFTK
