@@ -29,12 +29,8 @@ end
 
 function energy_ewald(model::Model{T}; kwargs...) where {T}
     isempty(model.atoms) && return zero(T)
-
-    # DFTK currently assumes that the compensating charge in the electronic and nuclear
-    # terms is equal and of opposite sign. See also the PSP correction term, where
-    # n_electrons is used synonymously for sum of charges
+    assert_consistent_electrostatics(model)
     charges = T.(charge_ionic.(model.atoms))
-    @assert sum(charges) == model.n_electrons
     energy_ewald(model.lattice, charges, model.positions; kwargs...)
 end
 

@@ -1,7 +1,7 @@
 using Test
 using DFTK
 import DFTK: solve_ΩplusK, apply_Ω, apply_K, solve_ΩplusK_split
-import DFTK: filled_occupation, compute_projected_gradient, compute_occupation
+import DFTK: compute_projected_gradient
 import DFTK: select_occupied_orbitals
 
 include("testcases.jl")

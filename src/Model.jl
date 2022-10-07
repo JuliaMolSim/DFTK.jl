@@ -21,8 +21,14 @@ struct Model{T <: Real, VT <: Real}
     unit_cell_volume::T
     recip_cell_volume::T
 
-    # Electrons, occupation and smearing function
-    n_electrons::Int  # usually consistent with `atoms` field, but doesn't have to
+    # If not `nothing` then do computations in the canonical ensemble, where
+    # `n_electrons` is fixed; electron count usually consistent with `atoms` field.
+    n_electrons::Union{Int, Nothing}
+    # Expert option: If not `nothing` then do computations in the grand-canonical ensemble,
+    # where `εF` is fixed. Computations with Coulomb electrostatics will fail by default.
+    # Use `check_electrostatics=false` to disable these checks.
+    εF::Union{T, Nothing}
+    check_electrostatics::Bool  # Enables checks that electrostatics is consistent (default)
 
     # spin_polarization values:
     #     :none       No spin polarization, αα and ββ density identical,
@@ -94,28 +100,50 @@ function Model(lattice::AbstractMatrix{T},
                atoms::Vector{<:Element}=Element[],
                positions::Vector{<:AbstractVector}=Vec3{T}[];
                model_name="custom",
-               n_electrons::Int=sum(n_elec_valence, atoms; init=0),
+               n_electrons::Union{Int, Nothing}=nothing,
+               εF=nothing,
+               check_electrostatics=true,  # Don't disable unless you know what you do
                magnetic_moments=T[],
                terms=[Kinetic()],
                temperature=zero(T),
-               smearing=nothing,
+               smearing=default_smearing(temperature),
                spin_polarization=default_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
                ) where {T <: Real}
-    lattice = Mat3{T}(lattice)
-    temperature = T(austrip(temperature))
+    # Ensembles and electrons
+    if isnothing(n_electrons) && isnothing(εF)  # Default: NVT with electrons given by atoms
+        n_electrons = default_n_electrons(atoms)
+    end
 
-    # Atoms and electrons
+    is_μVT = !isnothing(εF)           # Grand-canonical ensemble
+    is_NVT = !isnothing(n_electrons)  # Canonical ensemble (default)
+    is_μVT && is_NVT && error("`n_electrons` is incompatible with fixed Fermi level `εF`.")
+    something(n_electrons, 0) < 0 && error("n_electrons should be non-negative.")
+
+    if is_μVT && check_electrostatics
+        if extrema(charge_ionic, atoms) != (0, 0)
+            error("DFTK is currently unable to do Coulomb electrostratics in the " *
+                  "grand-canonical ensemble. To disable this check use " *
+                  "`check_electrostatics=false`")
+        end
+    end
+    if is_NVT && !isempty(atoms) && check_electrostatics
+        if sum(charge_ionic, atoms) != n_electrons
+            error("DFTK is currently unable to consistently simulate non-neutral cells. " *
+                  "To disable this check use `check_electrostatics=false`")
+        end
+    end
+
+    # Atoms and terms
     if length(atoms) != length(positions)
         error("Length of atoms and positions vectors need to agree.")
     end
-    n_electrons < 0 && error("n_electrons should be non-negative. Ensure to provide a " *
-                             "non-empty atoms list or an appropriate `n_electrons` kwarg.")
     isempty(terms) && error("Model without terms not supported.")
     atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
 
     # Special handling of 1D and 2D systems, and sanity checks
+    lattice = Mat3{T}(lattice)
     n_dim = count(!iszero, eachcol(lattice))
     n_dim > 0 || error("Check your lattice; we do not do 0D systems")
     for i = n_dim+1:3
@@ -141,11 +169,8 @@ function Model(lattice::AbstractMatrix{T},
     )
     n_spin = length(spin_components(spin_polarization))
 
-    if isnothing(smearing)
-        @assert temperature >= 0
-        # Default to Fermi-Dirac smearing when finite temperature
-        smearing = temperature > 0.0 ? Smearing.FermiDirac() : Smearing.None()
-    end
+    temperature = T(austrip(temperature))
+    temperature < 0 && error("temperature must be non-negative")
 
     if !allunique(string.(nameof.(typeof.(terms))))
         error("Having several terms of the same name is not supported.")
@@ -163,7 +188,8 @@ function Model(lattice::AbstractMatrix{T},
     Model{T,value_type(T)}(model_name,
                            lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
                            unit_cell_volume, recip_cell_volume,
-                           n_electrons, spin_polarization, n_spin, T(temperature), smearing,
+                           n_electrons, εF, check_electrostatics,
+                           spin_polarization, n_spin, temperature, smearing,
                            atoms, positions, atom_groups, terms, symmetries)
 end
 function Model(lattice::AbstractMatrix{<:Integer}, atoms::Vector{<:Element},
@@ -180,8 +206,14 @@ normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)
 normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm
 
 
+"""Defaults to Fermi-Dirac smearing when finite temperature."""
+default_smearing(temperature) = temperature > 0 ? Smearing.FermiDirac() : Smearing.None()
+
+"""Defaults to the number of valence electrons."""
+default_n_electrons(atoms)    = sum(n_elec_valence, atoms; init=0)
+
 """
-:none if no element has a magnetic moment, else :collinear or :full
+`:none` if no element has a magnetic moment, else `:collinear` or `:full`.
 """
 function default_spin_polarization(magnetic_moments)
     isempty(magnetic_moments) && return :none
@@ -243,6 +275,20 @@ function spin_components(spin_polarization::Symbol)
     spin_polarization == :full      && return (:undefined, )
 end
 spin_components(model::Model) = spin_components(model.spin_polarization)
+
+# Ensembles
+is_NVT(model::Model) = !isnothing(model.n_electrons)
+is_μVT(model::Model) = !isnothing(model.εF)
+
+function assert_consistent_electrostatics(model::Model)
+    # DFTK currently assumes in a number of terms that the compensating charge
+    # in the electronic and nuclear terms is equal and of opposite sign.
+    # See also the PSP correction term, where n_electrons is used synonymously
+    # for sum of charges.
+    if model.check_electrostatics && !isempty(model.atoms)
+        @assert sum(charge_ionic, model.atoms) == model.n_electrons
+    end
+end
 
 
 # prevent broadcast

@@ -87,7 +87,8 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
     # setting parameters
     model = basis.model
-    @assert model.temperature == 0 # temperature is not yet supported
+    @assert iszero(model.temperature)  # temperature is not yet supported
+    @assert is_NVT(model)              # neither are non-Canonical ensembles
 
     # check that there are no virtual orbitals
     filled_occ = filled_occupation(model)

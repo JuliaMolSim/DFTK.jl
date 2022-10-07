@@ -2,6 +2,23 @@
 
 import Roots
 
+
+"""
+Find the occupation and Fermi level.
+"""
+function compute_occupation(basis::PlaneWaveBasis, eigenvalues;
+                            temperature=basis.model.temperature)
+    if is_μVT(basis.model)
+        εF = basis.model.εF
+    else
+        εF = compute_fermi_level(basis, eigenvalues; temperature)
+    end
+    occupation = compute_occupation(basis, eigenvalues, εF; temperature)
+
+    (; occupation, εF)
+end
+
+
 """Compute the occupations, given eigenenergies and a Fermi level"""
 function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues, εF;
                             temperature=basis.model.temperature,
@@ -11,15 +28,12 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues, εF;
     inverse_temperature = iszero(temperature) ? T(Inf) : 1/temperature
 
     filled_occ = filled_occupation(basis.model)
-    [filled_occ * Smearing.occupation.(smearing, (εk .- εF) .* inverse_temperature)
-     for εk in eigenvalues]
+    occupation = [filled_occ * Smearing.occupation.(smearing, (εk .- εF) .* inverse_temperature)
+                  for εk in eigenvalues]
+    occupation
 end
 
-"""
-Find the occupation and Fermi level.
-"""
-function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
-                            temperature=basis.model.temperature) where {T}
+function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues; temperature) where {T}
     n_electrons = basis.model.n_electrons
     n_spin      = basis.model.n_spin_components
 
@@ -91,7 +105,5 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
             error("This should not happen, debug me!")
         end
     end
-
-    occupation = compute_occupation(basis, eigenvalues, εF)
-    (; occupation, εF)
+    εF
 end

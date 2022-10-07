@@ -266,28 +266,25 @@ end
     # First compute δεF
     δεF = zero(T)
     δocc = [zero(occ_occ[ik]) for ik = 1:Nk]  # = fn' * (δεn - δεF)
+    smearing = model.smearing
     if temperature > 0
         # First compute δocc without self-consistent Fermi δεF
         D = zero(T)
         for ik = 1:Nk, (n, εnk) in enumerate(ε_occ[ik])
             enred = (εnk - εF) / temperature
             δεnk = real(dot(ψ_occ[ik][:, n], δHψ[ik][:, n]))
-            fpnk = (filled_occ
-                    * Smearing.occupation_derivative(model.smearing, enred)
-                    / temperature)
+            fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
             δocc[ik][n] = δεnk * fpnk
             D += fpnk * basis.kweights[ik]
         end
         # compute δεF
         D = mpi_sum(D, basis.comm_kpts)  # equal to minus the total DOS
         δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
-        δεF = δocc_tot / D
+        δεF = is_μVT(model) ? zero(δεF) : δocc_tot / D
         # recompute δocc
         for ik = 1:Nk, (n, εnk) in enumerate(ε_occ[ik])
             enred = (εnk - εF) / temperature
-            fpnk = (filled_occ
-                    * Smearing.occupation_derivative(model.smearing, enred)
-                    / temperature)
+            fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
             δocc[ik][n] -= fpnk * δεF
         end
     end
@@ -301,13 +298,13 @@ end
 
         εk = ε_occ[ik]
         for n = 1:length(εk)
-            fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n]-εF) / temperature)
+            fnk = filled_occ * Smearing.occupation(smearing, (εk[n]-εF) / temperature)
 
             # explicit contributions (nonzero only for temperature > 0)
             for m = 1:length(εk)
-                fmk = filled_occ * Smearing.occupation(model.smearing, (εk[m]-εF) / temperature)
+                fmk = filled_occ * Smearing.occupation(smearing, (εk[m]-εF) / temperature)
                 ddiff = Smearing.occupation_divided_difference
-                ratio = filled_occ * ddiff(model.smearing, εk[m], εk[n], εF, temperature)
+                ratio = filled_occ * ddiff(smearing, εk[m], εk[n], εF, temperature)
                 αmn = compute_αmn(fmk, fnk, ratio)  # fnk * αmn + fmk * αnm = ratio
                 δψk[:, n] .+= ψk[:, m] .* αmn .* (dot(ψk[:, m], δHψ[ik][:, n]) * (n != m))
             end
@@ -322,7 +319,7 @@ end
     # pad δoccupation
     δoccupation = zero.(occ)
     for (ik, maskk) in enumerate(mask_occ)
-        δoccupation[ik][maskk] .+= δocc[ik]
+        δoccupation[ik][maskk] .= δocc[ik]
     end
 
     # keeping zeros for extra bands to keep the output δψ with the same size
@@ -338,7 +335,6 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
                   kwargs_sternheimer...)
 
     basis = ham.basis
-    model = basis.model
 
     # Make δV respect the basis symmetry group, since we won't be able
     # to compute perturbations that don't anyway

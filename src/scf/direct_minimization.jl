@@ -74,7 +74,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
         error("Direct minimization with MPI is not supported yet")
     end
     model = basis.model
-    @assert model.temperature == 0  # temperature is not yet supported
+    @assert iszero(model.temperature)  # temperature is not yet supported
+    @assert is_NVT(model)              # neither are non-Canonical ensembles
     filled_occ = filled_occupation(model)
     n_spin = model.n_spin_components
     n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp)

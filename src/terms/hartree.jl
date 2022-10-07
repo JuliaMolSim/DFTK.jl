@@ -32,11 +32,7 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
     # Solving the Poisson equation ΔV = -4π ρ in Fourier space
     # is multiplying elementwise by 4π / |G|^2.
     poisson_green_coeffs = 4T(π) ./ [sum(abs2, G) for G in G_vectors_cart(basis)]
-    if !isempty(model.atoms)
-        # Assume positive charge from nuclei is exactly compensated by the electrons
-        sum_charges = sum(charge_ionic, model.atoms)
-        @assert sum_charges == model.n_electrons
-    end
+    assert_consistent_electrostatics(model)
     poisson_green_coeffs[1] = 0  # Compensating charge background => Zero DC
     force_real!(basis, poisson_green_coeffs)  # Symmetrize Fourier coeffs to have real iFFT
 

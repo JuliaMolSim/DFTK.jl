@@ -109,23 +109,25 @@ end
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
+    # `isapprox` and not `==` because of https://github.com/JuliaLang/julia/issues/46849
+    atol = 20eps(eltype(basis))
+
     @test length(G_vectors(fft_size)) == prod(fft_size)
     @test length(r_vectors(basis))    == prod(fft_size)
 
-    @test all(G_vectors(basis)      .== G_vectors(fft_size))
-    @test all(G_vectors_cart(basis) .== map(G -> model.recip_lattice * G,
-                                            G_vectors(fft_size)))
-    @test all(r_vectors_cart(basis) .== map(r -> model.lattice * r,
-                                            r_vectors(basis)))
+    @test G_vectors(basis)      ≈ G_vectors(fft_size) atol=atol
+    @test G_vectors_cart(basis) ≈ map(G -> model.recip_lattice * G,
+                                      G_vectors(fft_size)) atol=atol
+    @test r_vectors_cart(basis) ≈ map(r -> model.lattice * r, r_vectors(basis)) atol=atol
 
     for kpt in basis.kpoints
         @test length(G_vectors(basis, kpt)) == length(kpt.mapping)
-        @test all(G_vectors_cart(basis, kpt) .== map(G -> model.recip_lattice * G,
-                                                     G_vectors(basis, kpt)))
 
-        @test all(Gplusk_vectors(basis, kpt) .== map(G -> G + kpt.coordinate,
-                                                     G_vectors(basis, kpt)))
-        @test all(Gplusk_vectors_cart(basis, kpt) .== map(q -> model.recip_lattice * q,
-                                                          Gplusk_vectors(basis, kpt)))
+        @test G_vectors_cart(basis, kpt)      ≈ map(G -> model.recip_lattice * G,
+                                                    G_vectors(basis, kpt))      atol=atol
+        @test Gplusk_vectors(basis, kpt)      ≈ map(G -> G + kpt.coordinate,
+                                                    G_vectors(basis, kpt))      atol=atol
+        @test Gplusk_vectors_cart(basis, kpt) ≈ map(q -> model.recip_lattice * q,
+                                                    Gplusk_vectors(basis, kpt)) atol=atol
     end
 end

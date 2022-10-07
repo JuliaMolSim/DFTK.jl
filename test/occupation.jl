@@ -48,7 +48,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
 
     # Occupation for zero temperature
     model = Model(silicon.lattice, silicon.atoms, silicon.positions; temperature=0.0,
-                  smearing=nothing, terms=[Kinetic()])
+                  terms=[Kinetic()])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
     occupation0, εF0 = DFTK.compute_occupation(basis, energies)
     @test εHOMO < εF0 < εLUMO
@@ -129,5 +129,38 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
         @test DFTK.weighted_ksum(basis, sum.(occupation)) ≈ model.n_electrons
         @test εF ≈ εF_ref
     end
+end
+end
+
+if mpi_nprocs() == 1 # can't be bothered to convert the tests
+@testset "Fixed Fermi level" begin
+    testcase = magnesium
+    atoms = fill(ElementGaussian(1.0, 0.5), length(testcase.positions))
+    temperature = 0.01
+
+    compute_scfres(εF=nothing) = begin
+        comput = isnothing(εF) ? Dict(:n_electrons=>testcase.n_electrons) : Dict(:εF=>εF)
+        model = Model(silicon.lattice, atoms, testcase.positions; temperature, comput...,
+                      check_electrostatics=false)
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
+        self_consistent_field(basis; nbandsalg=FixedBands(; n_bands_converge=8))
+    end
+    scfres_ref = compute_scfres()
+    εF_ref = scfres_ref.εF
+    n_electrons_ref = scfres_ref.basis.model.n_electrons
+    @test n_electrons_ref == testcase.n_electrons
+
+    δεF = εF_ref / 4
+    for εF in [εF_ref - δεF, εF_ref + δεF]
+        scfres = compute_scfres(εF)
+        @test εF ≈ scfres.εF
+        n_electrons = DFTK.weighted_ksum(scfres.basis, sum.(scfres.occupation))
+        εF > εF_ref && @test n_electrons > n_electrons_ref
+        εF < εF_ref && @test n_electrons < n_electrons_ref
+    end
+
+    # Violates charge neutrality:
+    @test_throws ErrorException model_atomic(silicon.lattice, testcase.atoms,
+                                             testcase.positions; temperature, εF=0.1)
 end
 end
