@@ -282,7 +282,7 @@ function assert_consistent_electrostatics(model::Model)
     # See also the PSP correction term, where n_electrons is used synonymously
     # for sum of charges.
     if model.check_electrostatics
-        @assert !is_μVT
+        @assert !is_μVT(model)
         @assert sum(charge_ionic, model.atoms) == model.n_electrons
     end
 end
