@@ -28,7 +28,7 @@ struct Model{T <: Real, VT <: Real}
     # where `εF` is fixed. Computations with Coulomb electrostatics will fail by default.
     # Use `check_electrostatics=false` to disable these checks.
     εF::Union{T, Nothing}
-    check_electrostatics::Bool  # Enables checks that electrostatics is consistent (default)
+    check_electrostatics::Bool  # Enables checks that electrostatics is consistent
 
     # spin_polarization values:
     #     :none       No spin polarization, αα and ββ density identical,
@@ -102,7 +102,7 @@ function Model(lattice::AbstractMatrix{T},
                model_name="custom",
                n_electrons::Union{Int, Nothing}=nothing,
                εF=nothing,
-               check_electrostatics=true,  # Don't disable unless you know what you do
+               check_electrostatics=any(!iszero, charge_ionic.(atoms)),
                magnetic_moments=T[],
                terms=[Kinetic()],
                temperature=zero(T),
@@ -121,17 +121,13 @@ function Model(lattice::AbstractMatrix{T},
     is_μVT && is_NVT && error("`n_electrons` is incompatible with fixed Fermi level `εF`.")
     something(n_electrons, 0) < 0 && error("n_electrons should be non-negative.")
 
-    if is_μVT && check_electrostatics
-        if extrema(charge_ionic, atoms) != (0, 0)
+    if check_electrostatics
+        if is_μVT && any(!iszero, charge_ionic.(atoms))
             error("DFTK is currently unable to do Coulomb electrostratics in the " *
-                  "grand-canonical ensemble. To disable this check use " *
-                  "`check_electrostatics=false`")
+                  "grand-canonical ensemble. Don't use any charged atoms.")
         end
-    end
-    if is_NVT && !isempty(atoms) && check_electrostatics
-        if sum(charge_ionic, atoms) != n_electrons
-            error("DFTK is currently unable to consistently simulate non-neutral cells. " *
-                  "To disable this check use `check_electrostatics=false`")
+        if is_NVT && sum(charge_ionic, atoms; init=0) != n_electrons
+            error("DFTK is currently unable to consistently simulate non-neutral cells.")
         end
     end
 
@@ -285,7 +281,8 @@ function assert_consistent_electrostatics(model::Model)
     # in the electronic and nuclear terms is equal and of opposite sign.
     # See also the PSP correction term, where n_electrons is used synonymously
     # for sum of charges.
-    if model.check_electrostatics && !isempty(model.atoms)
+    if model.check_electrostatics
+        @assert !is_μVT
         @assert sum(charge_ionic, model.atoms) == model.n_electrons
     end
 end

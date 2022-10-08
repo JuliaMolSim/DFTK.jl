@@ -70,6 +70,7 @@ Atomic local potential defined by `model.atoms`.
 struct AtomicLocal end
 function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
+    assert_consistent_electrostatics(model)
 
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
     # Since V is a sum of radial functions located at atomic
