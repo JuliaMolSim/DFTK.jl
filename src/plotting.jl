@@ -21,34 +21,30 @@ function ScfPlotTrace(plt=Plots.plot(yaxis=:log); kwargs...)
 end
 
 
-function plot_band_data(band_data; εF=nothing, klabels=Dict{String, Vector{Float64}}(),
-                        kbranches=[1:length(band_data.λ)], unit=u"hartree", kwargs...)
+function plot_band_data(kpath::KPathInterpolant, band_data;
+                        εF=nothing, unit=u"hartree", kwargs...)
     eshift = isnothing(εF) ? 0.0 : εF
-    data = prepare_band_data(band_data; klabels, kbranches)
+    data = data_for_plotting(kpath, band_data)
 
     # Constant to convert from AU to the desired unit
     to_unit = ustrip(auconvert(unit, 1.0))
 
-    markerargs = ()
-    if !(:markersize in keys(kwargs)) && !(:markershape in keys(kwargs))
-        if length(krange_spin(band_data.basis, 1)) < 70
-            markerargs = (markersize=2, markershape=:circle)
-        end
-    end
-
     # Plot all bands, spins and errors
     p = Plots.plot(xlabel="wave vector")
-    for σ in 1:data.n_spin, iband = 1:data.n_bands
+    margs = length(kpath) < 70 ? (; markersize=2, markershape=:circle) : (; )
+    for σ in 1:data.n_spin, iband = 1:data.n_bands, branch in data.kbranches
         yerror = nothing
         if hasproperty(data, :λerror)
-            yerror = data.λerror[:, iband, σ] .* to_unit
+            yerror = data.λerror[:, iband, σ][branch] .* to_unit
         end
-        energies = (data.λ[:, iband, σ] .- eshift) .* to_unit
-        color = (:blue, :red)[σ]
-        for branch in data.kbranches
-            Plots.plot!(p, data.kdistances[branch], energies[branch]; color, label="",
-                        yerror=yerror[branch], markerargs..., kwargs...)
-        end
+        energies = (data.λ[:, iband, σ][branch] .- eshift) .* to_unit
+        Plots.plot!(p, data.kdistances[branch], energies;
+                    label="", yerror, color=(:blue, :red)[σ], margs..., kwargs...)
+    end
+
+    # Delimiter for branches
+    for branch in data.kbranches[1:end-1]
+        Plots.vline!(p, [data.kdistances[last(branch)]], color=:black, label="")
     end
 
     # X-range: 0 to last kdistance value
