@@ -1,5 +1,5 @@
-using Brillouin
-import Brillouin.KPaths: Bravais
+import Brillouin
+import Brillouin.KPaths: KPath, KPathInterpolant
 
 @doc raw"""
 Extract the high-symmetry ``k``-point path corresponding to the passed model
@@ -19,7 +19,7 @@ Due to lacking support in `Spglib.jl` for two-dimensional lattices it is (a) ass
 `model.lattice` is a *conventional* lattice and (b) required to pass the space group
 number using the `sgnum` keyword argument.
 """
-function high_symmetry_kpath(model; kline_density=40, sgnum=nothing, magnetic_moments=[])
+function high_symmetry_kpath(model; sgnum=nothing, magnetic_moments=[])
     if !isnothing(sgnum) && model.n_dim in (1, 3)
         @warn("sgnum keyword argument unused in `high_symmetry_kpath` unused " *
               "unless a 2-dimensional lattice is encountered.")
@@ -32,29 +32,28 @@ function high_symmetry_kpath(model; kline_density=40, sgnum=nothing, magnetic_mo
     # in the CDML convention.
     if model.n_dim == 1
         # Only one space group; avoid spglib here
-        kp = Brillouin.irrfbz_path(1, [[model.lattice[1, 1]]], Val(1))
+        kpath = Brillouin.irrfbz_path(1, [[model.lattice[1, 1]]], Val(1))
     elseif model.n_dim == 2
         if isnothing(sgnum)
-            error("sgnum keyword argument (specifying the ITA space ""group number) " *
+            error("sgnum keyword argument (specifying the ITA space group number) " *
                   "is required for band structure plots in 2D lattices.")
         end
         # TODO We assume to have the conventional lattice here.
-        direct_basis = Bravais.DirectBasis(collect(eachcol(model.lattice)))
-        kp = Brillouin.irrfbz_path(sgnum, direct_basis)
+        lattice_2d = [model.lattice[1:2, 1], model.lattice[1:2, 2]]
+        kpath = Brillouin.irrfbz_path(sgnum, lattice_2d, Val(2))
     elseif model.n_dim == 3
         # Brillouin.jl has an interface to Spglib.jl to directly reduce the passed
         # lattice to the ITA conventional lattice and so the Spglib cell can be
         # directly used as an input.
         cell, _ = spglib_cell(model, magnetic_moments)
-        kp      = Brillouin.irrfbz_path(cell)
+        kpath      = Brillouin.irrfbz_path(cell)
     end
-    kinter  = Brillouin.interpolate(kp, density=austrip(kline_density))
 
     # TODO In case of absence of time-reversal symmetry we need to explicitly
     #      add the inverted kpath here!
     #      See https://github.com/JuliaMolSim/DFTK.jl/pull/496/files#r725203554
 
-    kinter
+    kpath
 end
 
 """Return kpoint coordinates in reduced coordinates"""
@@ -209,7 +208,7 @@ overall in units of length).
 function plot_bandstructure(basis::PlaneWaveBasis;
                             εF=nothing, kline_density=40u"bohr",
                             unit=u"hartree", kwargs_plot=(; ),
-                            kpath=high_symmetry_kpath(basis.model; kline_density)
+                            kpath::KPath=high_symmetry_kpath(basis.model; kline_density),
                             kwargs...)
     mpi_nprocs() > 1 && error("Band structures with MPI not supported yet")
     if !isdefined(DFTK, :PLOTS_LOADED)
@@ -217,11 +216,12 @@ function plot_bandstructure(basis::PlaneWaveBasis;
     end
 
     # Band structure calculation along high-symmetry path
+    kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
     println("Computing bands along kpath:")
-    sortlabels = map(bl -> last.(sort(collect(pairs(bl)))), kpath.labels)
+    sortlabels = map(bl -> last.(sort(collect(pairs(bl)))), kinter.labels)
     println("       ", join(join.(sortlabels, " -> "), "  and  "))
-    band_data = compute_bands(basis, kpath; kwargs...)
-    plot_band_data(kpath, band_data; εF, unit, kwargs_plot...)
+    band_data = compute_bands(basis, kinter; kwargs...)
+    plot_band_data(kinter, band_data; εF, unit, kwargs_plot...)
 end
 function plot_bandstructure(scfres::NamedTuple;
                             n_bands=default_n_bands_bandstructure(scfres), kwargs...)
