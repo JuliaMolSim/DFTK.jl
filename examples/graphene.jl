@@ -8,7 +8,6 @@ using DFTK
 using Unitful
 using UnitfulAtomic
 using LinearAlgebra
-import Brillouin
 
 ## Define the convergence parameters (these should be increased in production)
 L = 20  # height of the simulation box
@@ -35,6 +34,5 @@ scfres = self_consistent_field(basis)
 
 ## Construct 2D path through Brillouin zone
 sgnum = 13  # Graphene space group number
-lattice_2d = [lattice[1:2, 1], lattice[1:2, 2]]
-kpath = Brillouin.irrfbz_path(sgnum, lattice_2d, length(lattice_2d))
+kpath = irrfbz_path(model; dim=2, sgnum)
 plot_bandstructure(scfres; kpath, kline_density=20)

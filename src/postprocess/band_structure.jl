@@ -1,27 +1,36 @@
 import Brillouin
-import Brillouin.KPaths: KPath, KPathInterpolant
+import Brillouin.KPaths: KPath, KPathInterpolant, irrfbz_path
 
 @doc raw"""
-Extract the high-symmetry ``k``-point path corresponding to the passed model
-using `Brillouin.jl`. Uses the conventions described in the reference work by
+Extract the high-symmetry ``k``-point path corresponding to the passed `model`
+using `Brillouin`. Uses the conventions described in the reference work by
 Cracknell, Davies, Miller, and Love (CDML). Of note, this has minor differences to
 the ``k``-path reference
 ([Y. Himuma et. al. Comput. Mater. Sci. **128**, 140 (2017)](https://doi.org/10.1016/j.commatsci.2016.10.015))
 underlying the path-choices of `Brillouin.jl`, specifically for oA and mC Bravais types.
-The `kline_density` is given in number of ``k``-points per inverse bohrs (i.e.
-overall in units of length).
 
 If the cell is a supercell of a smaller primitive cell, the standard ``k``-path of the
 associated primitive cell is returned. So, the high-symmetry ``k`` points are those of the
 primitive cell Brillouin zone, not those of the supercell Brillouin zone.
 
+The `dim` argument allows to artificially truncate the dimension of the employed model,
+e.g. allowing to plot a 2D bandstructure of a 3D model (useful for example for plotting
+band structures of sheets with `dim=2`).
+
 Due to lacking support in `Spglib.jl` for two-dimensional lattices it is (a) assumed that
 `model.lattice` is a *conventional* lattice and (b) required to pass the space group
 number using the `sgnum` keyword argument.
 """
-function high_symmetry_kpath(model; sgnum=nothing, magnetic_moments=[])
-    if !isnothing(sgnum) && model.n_dim in (1, 3)
-        @warn("sgnum keyword argument unused in `high_symmetry_kpath` unused " *
+function irrfbz_path(model; dim::Integer=model.n_dim, sgnum=nothing, magnetic_moments=[])
+    @assert dim ≤ model.n_dim
+    for i in dim:3, j in dim:3
+        if i != j && !iszero(model.lattice[i, j])
+            error("Reducing the dimension for band structure plotting only allowed " *
+                  "if the dropped dimensions are orthogonal to the remaining ones.")
+        end
+    end
+    if !isnothing(sgnum) && dim ∈ (1, 3)
+        @warn("sgnum keyword argument unused in `irrfbz_path` unused " *
               "unless a 2-dimensional lattice is encountered.")
     end
 
@@ -30,10 +39,10 @@ function high_symmetry_kpath(model; sgnum=nothing, magnetic_moments=[])
     #
     # The output of Brillouin.jl are k-Points and reciprocal lattice vectors
     # in the CDML convention.
-    if model.n_dim == 1
+    if dim == 1
         # Only one space group; avoid spglib here
         kpath = Brillouin.irrfbz_path(1, [[model.lattice[1, 1]]], Val(1))
-    elseif model.n_dim == 2
+    elseif dim == 2
         if isnothing(sgnum)
             error("sgnum keyword argument (specifying the ITA space group number) " *
                   "is required for band structure plots in 2D lattices.")
@@ -41,12 +50,12 @@ function high_symmetry_kpath(model; sgnum=nothing, magnetic_moments=[])
         # TODO We assume to have the conventional lattice here.
         lattice_2d = [model.lattice[1:2, 1], model.lattice[1:2, 2]]
         kpath = Brillouin.irrfbz_path(sgnum, lattice_2d, Val(2))
-    elseif model.n_dim == 3
+    elseif dim == 3
         # Brillouin.jl has an interface to Spglib.jl to directly reduce the passed
         # lattice to the ITA conventional lattice and so the Spglib cell can be
         # directly used as an input.
         cell, _ = spglib_cell(model, magnetic_moments)
-        kpath      = Brillouin.irrfbz_path(cell)
+        kpath = Brillouin.irrfbz_path(cell)
     end
 
     # TODO In case of absence of time-reversal symmetry we need to explicitly
@@ -208,7 +217,7 @@ overall in units of length).
 function plot_bandstructure(basis::PlaneWaveBasis;
                             εF=nothing, kline_density=40u"bohr",
                             unit=u"hartree", kwargs_plot=(; ),
-                            kpath::KPath=high_symmetry_kpath(basis.model; kline_density),
+                            kpath::KPath=irrfbz_path(basis.model),
                             kwargs...)
     mpi_nprocs() > 1 && error("Band structures with MPI not supported yet")
     if !isdefined(DFTK, :PLOTS_LOADED)

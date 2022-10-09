@@ -1,5 +1,6 @@
 using Test
 using DFTK
+import Brillouin: interpolate
 
 include("testcases.jl")
 
@@ -72,44 +73,45 @@ if mpi_nprocs() == 1  # not easy to distribute
     ]
 
     ref_klabels = Dict(
-        :U=>[0.625, 0.25, 0.625],
-        :W=>[0.5, 0.25, 0.75],
-        :X=>[0.5, 0.0, 0.5],
-        :Γ=>[0.0, 0.0, 0.0],
-        :L=>[0.5, 0.5, 0.5],
-        :K=>[0.375, 0.375, 0.75]
+        :U => [0.625, 0.25, 0.625],
+        :W => [0.5, 0.25, 0.75],
+        :X => [0.5, 0.0, 0.5],
+        :Γ => [0.0, 0.0, 0.0],
+        :L => [0.5, 0.5, 0.5],
+        :K => [0.375, 0.375, 0.75]
     )
 
     model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
-    kcoords, klabels, kpath, kbranches = high_symmetry_kpath(model; kline_density=22.7)
+    kpath = irrfbz_path(model)
 
-    @test length(ref_kcoords) == length(kcoords)
-    for ik in 1:length(ref_kcoords)
-        @test ref_kcoords[ik] ≈ kcoords[ik] atol=1e-11
-    end
-
-    @test length(klabels) == length(ref_klabels)
+    @test length(kpath.points) == length(ref_klabels)
     for key in keys(ref_klabels)
-        @test klabels[key] ≈ ref_klabels[key] atol=1e-15
+        @test kpath.points[key] ≈ ref_klabels[key] atol=1e-15
     end
+    @test kpath.paths[1] == [:Γ, :X, :U]
+    @test kpath.paths[2] == [:K, :Γ, :L, :W, :X]
 
-    @test kpath[1] == ["Γ", "X", "U"]
-    @test kpath[2] == ["K", "Γ", "L", "W", "X"]
-
-    @test kbranches == [1:18, 19:60]
+    # Interpolate the path and check
+    kinter = interpolate(kpath, density=22.7)
+    @test ref_kcoords ≈ kinter  atol=1e-11
+    @test length.(kinter.kpaths) == [18, 42]
 end
 
 @testset "High-symmetry kpath construction for 1D system" begin
     lattice = diagm([8.0, 0, 0])
-    model = Model(lattice; n_electrons=1, terms=[Kinetic()])
-    kcoords, klabels, kpath, kbranches = high_symmetry_kpath(model; kline_density=20)
+    model   = Model(lattice; n_electrons=1, terms=[Kinetic()])
+    kpath   = irrfbz_path(model)
 
-    @test length(kcoords) == 17
-    @test kcoords[1]  ≈ [-1/2, 0, 0]
-    @test kcoords[9]  ≈ [   0, 0, 0]
-    @test kcoords[17] ≈ [ 1/2, 0, 0]
-    @test length(kpath) == 1
-    @test kbranches == [1:17]
+    @test length(kpath.paths)  == 1
+    @test length(kpath.points) == 2
+    @test kpath.paths == [[:Γ, :X]]
+    @test kpath.points[:Γ] == [0.0]
+    @test kpath.points[:X] == [0.5]
+
+    kinter = interpolate(kpath, density=20)
+    @test length(kinter) == 8
+    @test kinter[1] == [0.0]
+    @test kinter[8] == [0.5]
 end
 
 @testset "Compute bands for silicon" begin
@@ -117,18 +119,18 @@ end
     Ecut = 7
     n_bands = 8
 
-    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
-    basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.kweights)
-
-    # Build Hamiltonian just from SAD guess
-    ρ0 = guess_density(basis)
-    ham = Hamiltonian(basis; ρ=ρ0)
+    model    = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
+    kinter   = interpolate(irrfbz_path(model), density=3)
+    kweights = ones(length(kinter)) ./ length(kinter)
+    basis    = PlaneWaveBasis(model, Ecut, kinter, kweights)
 
     # Check that plain diagonalization and compute_bands agree
-    eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands + 3, n_conv_check=n_bands,
-                                     tol=1e-5)
+    ρ   = guess_density(basis)
+    ham = Hamiltonian(basis; ρ)
+    band_data = compute_bands(basis, kinter; ρ, n_bands)
 
-    band_data = compute_bands(basis, [k.coordinate for k in basis.kpoints]; ρ=ρ0, n_bands)
+    eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands + 3,
+                                     n_conv_check=n_bands, tol=1e-5)
     for ik in 1:length(basis.kpoints)
         @test eigres.λ[ik][1:n_bands] ≈ band_data.λ[ik] atol=1e-5
     end
@@ -136,31 +138,17 @@ end
 
 @testset "prepare_band_data" begin
     testcase = silicon
-    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
-
-    # k coordinates simulating two band branches, Γ => X => W and U => X
-    kcoords = [
-        [0.000, 0.000, 0.000], # Γ
-        [0.250, 0.000, 0.250],
-        [0.500, 0.000, 0.500], # X
-        [0.500, 0.125, 0.625],
-        [0.500, 0.250, 0.750], # W
-        #
-        [0.625, 0.250, 0.625], # U
-        [0.575, 0.150, 0.575],
-        [0.500, 0.000, 0.500], # X
-    ]
-    kweights = ones(9) ./ 9
-    basis = PlaneWaveBasis(model, 5, kcoords, kweights)
-    klabels = Dict("Γ" => [0, 0, 0], "X" => [0.5, 0.0, 0.5],
-                   "W" => [0.5, 0.25, 0.75], "U" => [0.625, 0.25, 0.625])
-    kbranches = [1:5, 6:8]
+    model    = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
+    kpath    = irrfbz_path(model)
+    kinter   = interpolate(irrfbz_path(model), density=3)
+    kweights = ones(length(kinter)) ./ length(kinter)
+    basis    = PlaneWaveBasis(model, 5, kinter, kweights)
 
     # Setup some dummy data
-    λ = [10ik .+ collect(1:4) for ik = 1:length(kcoords)]  # Simulate 4 computed bands
-    λerror = [λ[ik]./100 for ik = 1:length(kcoords)]       # ... and 4 errors
-
-    ret = DFTK.prepare_band_data((basis=basis, λ=λ, λerror=λerror), klabels=klabels, kbranches=kbranches)
+    λ = [10ik .+ collect(1:4) for ik = 1:length(kinter)]
+    λerror = [λ[ik]./100 for ik = 1:length(kinter)]
+    band_data = (; basis, λ, λerror)
+    ret = DFTK.data_for_plotting(kinter, band_data)
 
     @test ret.n_spin   == 1
     @test ret.n_kcoord == 8
@@ -174,53 +162,50 @@ end
     B = model.recip_lattice
     ref_kdist = [0.0]
     for ik in 2:8
-        if ik != 6
-            push!(ref_kdist, ref_kdist[end] + norm(B * (kcoords[ik-1] - kcoords[ik])))
+        if ik != 4
+            push!(ref_kdist, ref_kdist[end] + norm(B * (kinter[ik-1] - kinter[ik])))
         else
             # At ik = 6, the branch changes so kdistance does not increase.
             push!(ref_kdist, ref_kdist[end])
         end
     end
     @test ret.kdistances == ref_kdist
-    @test ret.ticks.labels == ["Γ", "X", "W | U", "X"]
-    @test ret.ticks.distances == ref_kdist[[1, 3, 5, 8]]
-    @test ret.kbranches == kbranches
+    @test ret.ticks.labels == ["Γ", "X", "U | K", "Γ", "L", "W", "X"]
+    @test ret.ticks.distances == ref_kdist[[1, 2, 3, 5, 6, 7, 8]]
+    @test ret.kbranches == [1:3, 4:8]
 end
 
 @testset "is_metal" begin
     testcase = silicon
     model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
-
     basis = PlaneWaveBasis(model, 5, testcase.kcoords, testcase.kweights)
     λ = [[1, 2, 3, 4], [1, 1.5, 3.5, 4.2], [1, 1.1, 3.2, 4.3], [1, 2, 3.3, 4.1]]
 
-    @test !DFTK.is_metal((λ=λ, basis=basis), 2.5)
-    @test DFTK.is_metal((λ=λ, basis=basis), 3.2)
+    @test !DFTK.is_metal((; λ, basis), 2.5)
+    @test DFTK.is_metal((; λ, basis), 3.2)
 end
 
 @testset "High-symmetry kpath for nonstandard lattice" begin
-    testcase = silicon
-    spec = ElementPsp(testcase.atnum, psp=load_psp(testcase.psp))
-    lattice_standard = [0 1 1; 1 0 1; 1 1 0] .* 5.13
-    model_standard = model_LDA(lattice_standard, [spec => [ones(3)/8, -ones(3)/8]])
+    lattice_std = [0 1 1; 1 0 1; 1 1 0] .* 5.13
+    model_std   = model_LDA(lattice_std, silicon.atoms, silicon.positions)
 
     # Non-standard lattice parameters that describe the same system as model_standard.
-    lattice_nonstandard = copy(lattice_standard)
-    lattice_nonstandard[:, 3] .+= lattice_nonstandard[:, 1] .* 3
-    model_nonstandard = model_LDA(lattice_nonstandard,
-                                  [spec => [[-2, 1, 1]/8, -[-2, 1, 1]/8]])
+    lattice_nst = copy(lattice_std)
+    lattice_nst[:, 3] .+= lattice_nst[:, 1] .* 3
+    position_nst = [[-2, 1, 1]/8, -[-2, 1, 1]/8]
+    model_nst = model_LDA(lattice_nst, silicon.atoms, position_nst)
 
-    data_standard = high_symmetry_kpath(model_standard)
-    data_nonstandard = high_symmetry_kpath(model_nonstandard)
+    kpath_std = irrfbz_path(model_std)
+    kpath_nst = irrfbz_path(model_nst)
+    @test Set(keys(kpath_std.points)) == Set(keys(kpath_nst.points))
+    @test kpath_std.paths == kpath_nst.paths
 
     # Check the k points are the same in Cartesian coordinates.
-    for (k_standard, k_nonstandard) in zip(data_standard.kcoords, data_nonstandard.kcoords)
-        @test(  model_standard.recip_lattice    * k_standard
-              ≈ model_nonstandard.recip_lattice * k_nonstandard)
+    kinter_std = interpolate(kpath_std; density=20)
+    kinter_nst = interpolate(kpath_nst; density=20)
+    for (k_std, k_nst) in zip(kinter_std, kinter_nst)
+        @test(  model_std.recip_lattice * k_std
+              ≈ model_nst.recip_lattice * k_nst)
     end
-    @test Set(keys(data_standard.klabels)) == Set(keys(data_nonstandard.klabels))
-    @test data_standard.kpath == data_nonstandard.kpath
-    @test data_standard.kbranches == data_nonstandard.kbranches
 end
 end
-
