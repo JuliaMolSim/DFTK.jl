@@ -100,7 +100,7 @@ end
     merge((; basis=bs_basis), select_eigenpairs_all_kblocks(eigres, 1:n_bands))
 end
 function compute_bands(basis::PlaneWaveBasis, kpath::KPathInterpolant; kwargs...)
-    compute_bands(basis, kpath_get_kcoords(kpath))
+    compute_bands(basis, kpath_get_kcoords(kpath); kwargs...)
 end
 
 

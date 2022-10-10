@@ -169,9 +169,9 @@ end
             push!(ref_kdist, ref_kdist[end])
         end
     end
-    @test ret.kdistances ≈ ref_kdist tol=1e-14
+    @test ret.kdistances ≈ ref_kdist atol=1e-14
     @test ret.ticks.labels == ["Γ", "X", "U | K", "Γ", "L", "W", "X"]
-    @test ret.ticks.distances ≈ ref_kdist[[1, 2, 3, 5, 6, 7, 8]] tol=1e-14
+    @test ret.ticks.distances ≈ ref_kdist[[1, 2, 3, 5, 6, 7, 8]] atol=1e-14
     @test ret.kbranches == [1:3, 4:8]
 end
 
