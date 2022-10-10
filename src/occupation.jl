@@ -8,7 +8,7 @@ Find the occupation and Fermi level.
 """
 function compute_occupation(basis::PlaneWaveBasis, eigenvalues;
                             temperature=basis.model.temperature)
-    if is_μVT(basis.model)
+    if is_μ_fixed(basis.model)
         εF = basis.model.εF
     else
         εF = compute_fermi_level(basis, eigenvalues; temperature)

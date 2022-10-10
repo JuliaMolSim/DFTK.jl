@@ -280,7 +280,7 @@ end
         # compute δεF
         D = mpi_sum(D, basis.comm_kpts)  # equal to minus the total DOS
         δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
-        δεF = is_μVT(model) ? zero(δεF) : δocc_tot / D
+        δεF = is_μ_fixed(model) ? zero(δεF) : δocc_tot / D
         # recompute δocc
         for ik = 1:Nk, (n, εnk) in enumerate(ε_occ[ik])
             enred = (εnk - εF) / temperature

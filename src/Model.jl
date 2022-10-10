@@ -26,9 +26,7 @@ struct Model{T <: Real, VT <: Real}
     n_electrons::Union{Int, Nothing}
     # Expert option: If not `nothing` then do computations in the grand-canonical ensemble,
     # where `εF` is fixed. Computations with Coulomb electrostatics will fail by default.
-    # Use `check_electrostatics=false` to disable these checks.
     εF::Union{T, Nothing}
-    check_electrostatics::Bool  # Enables checks that electrostatics is consistent
 
     # spin_polarization values:
     #     :none       No spin polarization, αα and ββ density identical,
@@ -111,25 +109,28 @@ function Model(lattice::AbstractMatrix{T},
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
                ) where {T <: Real}
-    # Ensembles and electrons
-    if isnothing(n_electrons) && isnothing(εF)  # Default: NVT with electrons given by atoms
+    # Electrons and Fermi level
+    if isnothing(n_electrons) && isnothing(εF)
+        # Default: fixed number of electrons given by atoms
         n_electrons = default_n_electrons(atoms)
+    else
+        is_μ_fixed = !isnothing(εF)           # Fixed Fermi level
+        is_n_fixed = !isnothing(n_electrons)  # Fixed number of electrons
+        is_μ_fixed && is_n_fixed && error("`n_electrons` is incompatible with fixed Fermi " *
+                                          "level `εF`.")
+        something(n_electrons, 0) < 0 && error("n_electrons should be non-negative.")
+
+        if check_electrostatics
+            if is_μ_fixed && any(!iszero, charge_ionic.(atoms))
+                error("DFTK is currently unable to do Coulomb electrostratics in the " *
+                      "grand-canonical ensemble. Don't use any charged atoms.")
+            end
+            if is_n_fixed && sum(charge_ionic, atoms; init=0) != n_electrons
+                error("DFTK is currently unable to consistently simulate non-neutral cells.")
+            end
+        end
     end
 
-    is_μVT = !isnothing(εF)           # Grand-canonical ensemble
-    is_NVT = !isnothing(n_electrons)  # Canonical ensemble (default)
-    is_μVT && is_NVT && error("`n_electrons` is incompatible with fixed Fermi level `εF`.")
-    something(n_electrons, 0) < 0 && error("n_electrons should be non-negative.")
-
-    if check_electrostatics
-        if is_μVT && any(!iszero, charge_ionic.(atoms))
-            error("DFTK is currently unable to do Coulomb electrostratics in the " *
-                  "grand-canonical ensemble. Don't use any charged atoms.")
-        end
-        if is_NVT && sum(charge_ionic, atoms; init=0) != n_electrons
-            error("DFTK is currently unable to consistently simulate non-neutral cells.")
-        end
-    end
 
     # Atoms and terms
     if length(atoms) != length(positions)
@@ -184,8 +185,7 @@ function Model(lattice::AbstractMatrix{T},
     Model{T,value_type(T)}(model_name,
                            lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
                            unit_cell_volume, recip_cell_volume,
-                           n_electrons, εF, check_electrostatics,
-                           spin_polarization, n_spin, temperature, smearing,
+                           n_electrons, εF, spin_polarization, n_spin, temperature, smearing,
                            atoms, positions, atom_groups, terms, symmetries)
 end
 function Model(lattice::AbstractMatrix{<:Integer}, atoms::Vector{<:Element},
@@ -273,18 +273,18 @@ end
 spin_components(model::Model) = spin_components(model.spin_polarization)
 
 # Ensembles
-is_NVT(model::Model) = !isnothing(model.n_electrons)
-is_μVT(model::Model) = !isnothing(model.εF)
+is_n_fixed(model::Model) = !isnothing(model.n_electrons)
+is_μ_fixed(model::Model) = !isnothing(model.εF)
 
 function assert_consistent_electrostatics(model::Model)
     # DFTK currently assumes in a number of terms that the compensating charge
     # in the electronic and nuclear terms is equal and of opposite sign.
     # See also the PSP correction term, where n_electrons is used synonymously
     # for sum of charges.
-    if model.check_electrostatics
-        @assert !is_μVT(model)
-        @assert sum(charge_ionic, model.atoms) == model.n_electrons
-    end
+    is_consistent = ( sum(charge_ionic, model.atoms) == model.n_electrons )
+    is_n_fixed(model) && @assert is_consistent
+    is_μ_fixed(model) && @debug "You are doing electrostatics computations with fixed " *
+                                "Fermi level: don't expect computations to be meaningful."
 end
 
 
