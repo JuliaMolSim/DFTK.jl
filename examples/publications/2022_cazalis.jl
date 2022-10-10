@@ -61,7 +61,7 @@ scfres = self_consistent_field(basis, tol=1e-10)
 
 ## Plot bands
 sgnum = 13  # Graphene space group number
-p = plot_bandstructure(scfres; kpath=irrfbz_path(model; sgnum), n_bands=5)
+p = plot_bandstructure(scfres, irrfbz_path(model; sgnum); n_bands=5)
 Plots.hline!(p, [scfres.εF], label="", color="black")
 Plots.ylims!(p, (-Inf, Inf))
 p

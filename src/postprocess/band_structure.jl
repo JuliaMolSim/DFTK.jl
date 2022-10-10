@@ -73,10 +73,11 @@ function kpath_get_branch(kpath::KPathInterpolant{D}, ibranch::Integer) where {D
     map(k -> vcat(k, zeros_like(k, 3 - D)), kpath.kpaths[ibranch])
 end
 
-@timing function compute_bands(basis::PlaneWaveBasis, kpath::KPathInterpolant;
+@timing function compute_bands(basis::PlaneWaveBasis, kcoords::AbstractVector;
                                n_bands=default_n_bands_bandstructure(basis.model),
                                ρ=nothing, eigensolver=lobpcg_hyper,
                                tol=1e-3, show_progress=true, kwargs...)
+    # kcoords are the kpoint coordinates in fractional coordinates
     if isnothing(ρ)
         if any(t isa TermNonlinear for t in basis.terms)
             error("If a non-linear term is present in the model the converged density is required " *
@@ -87,7 +88,6 @@ end
     end
 
     # Create basis with new kpoints, without any symmetry operations.
-    kcoords  = kpath_get_kcoords(kpath)
     kweights = ones(length(kcoords)) ./ length(kcoords)
     bs_basis = PlaneWaveBasis(basis, kcoords, kweights)
 
@@ -98,6 +98,9 @@ end
         @warn "Eigensolver not converged" iterations=band_data.iterations
     end
     merge((; basis=bs_basis), select_eigenpairs_all_kblocks(eigres, 1:n_bands))
+end
+function compute_bands(basis::PlaneWaveBasis, kpath::KPathInterpolant; kwargs...)
+    compute_bands(basis, kpath_get_kcoords(kpath))
 end
 
 
@@ -214,10 +217,9 @@ by default. Another standard choices is `unit=u"eV"` (electron volts).
 The `kline_density` is given in number of ``k``-points per inverse bohrs (i.e.
 overall in units of length).
 """
-function plot_bandstructure(basis::PlaneWaveBasis;
+function plot_bandstructure(basis::PlaneWaveBasis, kpath::KPath=irrfbz_path(basis.model);
                             εF=nothing, kline_density=40u"bohr",
                             unit=u"hartree", kwargs_plot=(; ),
-                            kpath::KPath=irrfbz_path(basis.model),
                             kwargs...)
     mpi_nprocs() > 1 && error("Band structures with MPI not supported yet")
     if !isdefined(DFTK, :PLOTS_LOADED)
@@ -232,7 +234,7 @@ function plot_bandstructure(basis::PlaneWaveBasis;
     band_data = compute_bands(basis, kinter; kwargs...)
     plot_band_data(kinter, band_data; εF, unit, kwargs_plot...)
 end
-function plot_bandstructure(scfres::NamedTuple;
+function plot_bandstructure(scfres::NamedTuple, kpath::KPath=irrfbz_path(scfres.basis.model);
                             n_bands=default_n_bands_bandstructure(scfres), kwargs...)
-    plot_bandstructure(scfres.basis; n_bands, ρ=scfres.ρ, εF=scfres.εF, kwargs...)
+    plot_bandstructure(scfres.basis, kpath; n_bands, ρ=scfres.ρ, εF=scfres.εF, kwargs...)
 end
