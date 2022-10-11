@@ -4,7 +4,7 @@ using DFTK: PlaneWaveBasis, ifft!, fft!, ifft, fft
 include("testcases.jl")
 
 @testset "FFT and IFFT are an identity" begin
-    model = Model(silicon.lattice; silicon.n_electrons)
+    model = Model(silicon.lattice; silicon.n_electrons, disable_electrostatics_check=true)
     pw    = PlaneWaveBasis(model; Ecut=4.0, fft_size=(8, 8, 8))
 
     @testset "Transformation on the cubic basis set" begin

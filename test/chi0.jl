@@ -24,12 +24,12 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         symmetries      ? "   symm" : "no symm",
         temperature > 0 ? "temp" : "  0K",
         collinear       ? "coll" : "none",
-        is_εF_fixed     ? "NVT" : "μVT",
+        is_εF_fixed     ? "  εF" : "none",
     ]
     @testset "Computing χ0 ($(join(label, ", ")))" begin
         magnetic_moments = collinear ? [0.3, 0.7] : []
         model_kwargs = (; symmetries, magnetic_moments, spin_polarization, temperature, εF,
-                        force_electrostatics=true)
+                        disable_electrostatics_check=true)
         basis_kwargs = (; kgrid, fft_size, Ecut)
 
         model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;

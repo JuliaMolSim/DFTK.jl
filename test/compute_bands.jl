@@ -99,7 +99,8 @@ end
 
 @testset "High-symmetry kpath construction for 1D system" begin
     lattice = diagm([8.0, 0, 0])
-    model   = Model(lattice; n_electrons=1, terms=[Kinetic()])
+    model   = Model(lattice; n_electrons=1, terms=[Kinetic()],
+                    disable_electrostatics_check=true)
     kpath   = irrfbz_path(model)
 
     @test length(kpath.paths)  == 1

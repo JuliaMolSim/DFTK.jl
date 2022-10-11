@@ -11,7 +11,8 @@ if mpi_nprocs() == 1  # Direct minimisation does not yet support MPI
     terms = [Kinetic(),
              ExternalFromFourier(G -> pot(G[1])),
              LocalNonlinearity(ρ -> C * ρ^α)]
-    model = Model(lattice; n_electrons=1, terms, spin_polarization=:spinless)
+    model = Model(lattice; n_electrons=1, terms, spin_polarization=:spinless,
+                  disable_electrostatics_check=true)
 
     Ecut = 15
     basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))

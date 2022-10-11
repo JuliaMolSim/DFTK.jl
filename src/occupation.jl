@@ -7,13 +7,14 @@ import Roots
 Find the occupation and Fermi level.
 """
 function compute_occupation(basis::PlaneWaveBasis, eigenvalues;
-                            temperature=basis.model.temperature)
-    if !isnothing(model.εF) # fixed Fermi level
+                            temperature=basis.model.temperature,
+                            smearing=basis.model.smearing)
+    if !isnothing(basis.model.εF)  # fixed Fermi level
         εF = basis.model.εF
-    else # fixed n_electrons
+    else  # fixed n_electrons
         εF = compute_fermi_level(basis, eigenvalues; temperature)
     end
-    occupation = compute_occupation(basis, eigenvalues, εF; temperature)
+    occupation = compute_occupation(basis, eigenvalues, εF; temperature, smearing)
 
     (; occupation, εF)
 end
@@ -28,9 +29,8 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues, εF;
     inverse_temperature = iszero(temperature) ? T(Inf) : 1/temperature
 
     filled_occ = filled_occupation(basis.model)
-    occupation = [filled_occ * Smearing.occupation.(smearing, (εk .- εF) .* inverse_temperature)
-                  for εk in eigenvalues]
-    occupation
+    [filled_occ * Smearing.occupation.(smearing, (εk .- εF) .* inverse_temperature)
+     for εk in eigenvalues]
 end
 
 function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues; temperature) where {T}

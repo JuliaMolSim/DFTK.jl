@@ -97,9 +97,10 @@ function Model(lattice::AbstractMatrix{T},
                positions::Vector{<:AbstractVector}=Vec3{T}[];
                model_name="custom",
                εF=nothing,
-               n_electrons=isnothing(εF) ? n_electrons_from_atoms(atoms) : nothing,
-                # force electrostatics with non-neutral cells; results not guaranteed
-               force_electrostatics=false,
+               n_electrons::Union{Int,Nothing}=isnothing(εF) ?
+                                               n_electrons_from_atoms(atoms) : nothing,
+               # force electrostatics with non-neutral cells; results not guaranteed
+               disable_electrostatics_check=false,
                magnetic_moments=T[],
                terms=[Kinetic()],
                temperature=zero(T),
@@ -109,18 +110,17 @@ function Model(lattice::AbstractMatrix{T},
                                              spin_polarization, terms),
                ) where {T <: Real}
     # validate εF and n_electrons
-    if !isnothing(εF) # fixed Fermi level
+    if !isnothing(εF)  # fixed Fermi level
         if !isnothing(n_electrons)
             error("`n_electrons` is incompatible with fixed Fermi " *
                   "level `εF`.")
         end
-        if !force_electrostatics && any(!iszero, charge_ionic.(atoms))
-                error("Coulomb electrostatics is incompatible with fixed Fermi level.")
-            end
+        if !disable_electrostatics_check && any(!iszero, charge_ionic.(atoms))
+            error("Coulomb electrostatics is incompatible with fixed Fermi level.")
         end
     else # fixed number of electrons
         n_electrons < 0 && error("n_electrons should be non-negative.")
-        if !force_electrostatics && sum(charge_ionic, atoms; init=0) != n_electrons
+        if !disable_electrostatics_check && n_electrons_from_atoms(atoms) != n_electrons
             error("Support for non-neutral cells is experimental and likely broken.")
         end
     end
@@ -195,7 +195,7 @@ normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)
 normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm
 
 """Number of valence electrons."""
-n_electrons_from_atoms(atoms)    = sum(n_elec_valence, atoms; init=0)
+n_electrons_from_atoms(atoms) = sum(n_elec_valence, atoms; init=0)
 
 """
 `:none` if no element has a magnetic moment, else `:collinear` or `:full`.
