@@ -21,11 +21,9 @@ struct Model{T <: Real, VT <: Real}
     unit_cell_volume::T
     recip_cell_volume::T
 
-    # If not `nothing` then do computations in the canonical ensemble, where
-    # `n_electrons` is fixed; electron count usually consistent with `atoms` field.
+    # Computations can be performed at fixed `n_electrons` (`n_electrons` Int, `εF` nothing),
+    # or fixed Fermi level (expert option, `n_electrons` nothing, `εF` T)
     n_electrons::Union{Int, Nothing}
-    # Expert option: If not `nothing` then do computations in the grand-canonical ensemble,
-    # where `εF` is fixed. Computations with Coulomb electrostatics will fail by default.
     εF::Union{T, Nothing}
 
     # spin_polarization values:
@@ -98,39 +96,34 @@ function Model(lattice::AbstractMatrix{T},
                atoms::Vector{<:Element}=Element[],
                positions::Vector{<:AbstractVector}=Vec3{T}[];
                model_name="custom",
-               n_electrons::Union{Int, Nothing}=nothing,
                εF=nothing,
-               check_electrostatics=any(!iszero, charge_ionic.(atoms)),
+               n_electrons=isnothing(εF) ? n_electrons_from_atoms(atoms) : nothing,
+                # force electrostatics with non-neutral cells; results not guaranteed
+               force_electrostatics=false,
                magnetic_moments=T[],
                terms=[Kinetic()],
                temperature=zero(T),
-               smearing=default_smearing(temperature),
+               smearing=temperature > 0 ? Smearing.FermiDirac() : Smearing.None(),
                spin_polarization=default_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
                ) where {T <: Real}
-    # Electrons and Fermi level
-    if isnothing(n_electrons) && isnothing(εF)
-        # Default: fixed number of electrons given by atoms
-        n_electrons = default_n_electrons(atoms)
-    else
-        is_μ_fixed = !isnothing(εF)           # Fixed Fermi level
-        is_n_fixed = !isnothing(n_electrons)  # Fixed number of electrons
-        is_μ_fixed && is_n_fixed && error("`n_electrons` is incompatible with fixed Fermi " *
-                                          "level `εF`.")
-        something(n_electrons, 0) < 0 && error("n_electrons should be non-negative.")
-
-        if check_electrostatics
-            if is_μ_fixed && any(!iszero, charge_ionic.(atoms))
-                error("DFTK is currently unable to do Coulomb electrostratics in the " *
-                      "grand-canonical ensemble. Don't use any charged atoms.")
-            end
-            if is_n_fixed && sum(charge_ionic, atoms; init=0) != n_electrons
-                error("DFTK is currently unable to consistently simulate non-neutral cells.")
+    # validate εF and n_electrons
+    if !isnothing(εF) # fixed Fermi level
+        if !isnothing(n_electrons)
+            error("`n_electrons` is incompatible with fixed Fermi " *
+                  "level `εF`.")
+        end
+        if !force_electrostatics && any(!iszero, charge_ionic.(atoms))
+                error("Coulomb electrostatics is incompatible with fixed Fermi level.")
             end
         end
+    else # fixed number of electrons
+        n_electrons < 0 && error("n_electrons should be non-negative.")
+        if !force_electrostatics && sum(charge_ionic, atoms; init=0) != n_electrons
+            error("Support for non-neutral cells is experimental and likely broken.")
+        end
     end
-
 
     # Atoms and terms
     if length(atoms) != length(positions)
@@ -201,12 +194,8 @@ normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
 normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)
 normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm
 
-
-"""Defaults to Fermi-Dirac smearing when finite temperature."""
-default_smearing(temperature) = temperature > 0 ? Smearing.FermiDirac() : Smearing.None()
-
-"""Defaults to the number of valence electrons."""
-default_n_electrons(atoms)    = sum(n_elec_valence, atoms; init=0)
+"""Number of valence electrons."""
+n_electrons_from_atoms(atoms)    = sum(n_elec_valence, atoms; init=0)
 
 """
 `:none` if no element has a magnetic moment, else `:collinear` or `:full`.
@@ -271,22 +260,6 @@ function spin_components(spin_polarization::Symbol)
     spin_polarization == :full      && return (:undefined, )
 end
 spin_components(model::Model) = spin_components(model.spin_polarization)
-
-# Ensembles
-is_n_fixed(model::Model) = !isnothing(model.n_electrons)
-is_μ_fixed(model::Model) = !isnothing(model.εF)
-
-function assert_consistent_electrostatics(model::Model)
-    # DFTK currently assumes in a number of terms that the compensating charge
-    # in the electronic and nuclear terms is equal and of opposite sign.
-    # See also the PSP correction term, where n_electrons is used synonymously
-    # for sum of charges.
-    is_consistent = ( sum(charge_ionic, model.atoms) == model.n_electrons )
-    is_n_fixed(model) && @assert is_consistent
-    is_μ_fixed(model) && @debug "You are doing electrostatics computations with fixed " *
-                                "Fermi level: don't expect computations to be meaningful."
-end
-
 
 # prevent broadcast
 import Base.Broadcast.broadcastable

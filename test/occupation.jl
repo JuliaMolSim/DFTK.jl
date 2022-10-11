@@ -141,7 +141,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     compute_scfres(εF=nothing) = begin
         comput = isnothing(εF) ? Dict(:n_electrons=>testcase.n_electrons) : Dict(:εF=>εF)
         model = Model(silicon.lattice, atoms, testcase.positions; temperature, comput...,
-                      check_electrostatics=false)
+                      force_electrostatics=true)
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
         self_consistent_field(basis; nbandsalg=FixedBands(; n_bands_converge=8))
     end

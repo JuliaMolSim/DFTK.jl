@@ -88,7 +88,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     # setting parameters
     model = basis.model
     @assert iszero(model.temperature)  # temperature is not yet supported
-    @assert is_n_fixed(model)          # neither are computations with variable `n_electrons`
+    @assert isnothing(model.εF)        # neither are computations with fixed Fermi level
 
     # check that there are no virtual orbitals
     filled_occ = filled_occupation(model)

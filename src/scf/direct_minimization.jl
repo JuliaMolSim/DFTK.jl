@@ -75,7 +75,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     end
     model = basis.model
     @assert iszero(model.temperature)  # temperature is not yet supported
-    @assert is_n_fixed(model)          # neither are computations with variable `n_electrons`
+    @assert isnothing(model.εF)        # neither are computations with fixed Fermi level
     filled_occ = filled_occupation(model)
     n_spin = model.n_spin_components
     n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp)

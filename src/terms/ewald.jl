@@ -29,7 +29,6 @@ end
 
 function energy_ewald(model::Model{T}; kwargs...) where {T}
     isempty(model.atoms) && return zero(T)
-    assert_consistent_electrostatics(model)
     charges = T.(charge_ionic.(model.atoms))
     energy_ewald(model.lattice, charges, model.positions; kwargs...)
 end
