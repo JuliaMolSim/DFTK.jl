@@ -276,6 +276,7 @@ function build_fft_plans(array_type::AbstractArray{T}, fft_size) where {T<:Union
     ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
 end
 
+
 # TODO Some grid sizes are broken in the generic FFT implementation
 # in FourierTransforms, for more details see workarounds/fft_generic.jl
 default_primes(::Type{Float32}) = (2, 3, 5)

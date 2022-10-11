@@ -36,7 +36,7 @@ end
     if isnothing(ψ) || isnothing(occupation)
         return (E=T(Inf), ops=ops)
     end
-    occupation = map(Array, occupation)  # GPU computation only: put the occupations back on CPU
+    occupation = [Array(oc) for oc in occupation]  # GPU computation only: put the occupations back on CPU
 
     E = zero(T)
     for (ik, ψk) in enumerate(ψ)

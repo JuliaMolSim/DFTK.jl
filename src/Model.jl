@@ -267,11 +267,11 @@ inverse lattice transpose: q_cart = 2π lattice' \ q_red = recip_lattice * q_red
 The trans_mat functions return the transition matrices required to do such a change of basis.
 =#
 
-trans_mat_vector_red_to_cart(model::Model) = model.lattice
-trans_mat_vector_cart_to_red(model::Model)   = model.inv_lattice
-trans_mat_covector_red_to_cart(model::Model)      = model.inv_lattice'
+trans_mat_vector_red_to_cart(model::Model)       = model.lattice
+trans_mat_vector_cart_to_red(model::Model)       = model.inv_lattice
+trans_mat_covector_red_to_cart(model::Model)     = model.inv_lattice'
 trans_mat_covector_cart_to_red(model::Model)     = model.lattice'
-trans_mat_recip_vector_red_to_cart(model::Model)  = model.recip_lattice 
+trans_mat_recip_vector_red_to_cart(model::Model) = model.recip_lattice
 trans_mat_recip_vector_cart_to_red(model::Model) = model.inv_recip_lattice
 
 fun_mat_list =(:vector_red_to_cart,
@@ -287,7 +287,7 @@ for fun1 in fun_mat_list
     The following functions compute the change of basis for a given vector. To do so,
     they call the trans_mat functions to get the corresponding transition matrix.
     These functions can be broadcasted over an Array of vectors: however, they are
-    not GPU compatible, as they require the model, which is no isbits.
+    not GPU compatible, as they require the model, which is not isbits.
     =#
     @eval $fun1(model::Model, vec) = $(Symbol("trans_mat_"*string(fun1)))(model::Model) * vec
     #=

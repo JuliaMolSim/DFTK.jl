@@ -109,7 +109,7 @@ function build_projection_coefficients_(T, psps, psp_positions; array_type = Arr
     @assert count == n_proj
 
     # GPU computation only : build the coefficients on CPU then offload them to the GPU
-    convert(array_type,proj_coeffs)
+    convert(array_type, proj_coeffs)
 end
 
 # Builds the projection coefficient matrix for a single atom

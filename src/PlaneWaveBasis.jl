@@ -15,7 +15,7 @@ Discretization information for ``k``-point-dependent quantities such as orbitals
 More generally, a ``k``-point is a block of the Hamiltonian;
 eg collinear spin is treated by doubling the number of kpoints.
 """
-struct Kpoint{T<:Real, AT <: AbstractArray, GT <: AT}
+struct Kpoint{T <: Real, AT <: AbstractArray, GT <: AT}
     spin::Int                     # Spin component can be 1 or 2 as index into what is
                                   # returned by the `spin_components` function
     coordinate::Vec3{T}           # Fractional coordinate of k-point
