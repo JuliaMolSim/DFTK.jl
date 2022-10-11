@@ -181,8 +181,8 @@ include("external/pymatgen.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
 
 export compute_bands
-export high_symmetry_kpath
 export plot_bandstructure
+export irrfbz_path
 include("postprocess/band_structure.jl")
 
 export compute_forces
