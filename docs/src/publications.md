@@ -46,6 +46,11 @@ Additionally the following publications describe DFTK or one of its algorithms:
 The following publications report research employing DFTK as a core component.
 Feel free to drop us a line if you want your work to be added here.
 
+- E. Cancès, M. F. Herbst, G. Kemlin, A. Levitt, B. Stamm.
+  [*Numerical stability and efficiency of response property calculations in density functional theory*](https://arxiv.org/abs/2210.04512)
+  [ArXiv:2210.04512](https://arxiv.org/abs/2210.04512)
+  ([Supplementary materials and computational scripts](https://github.com/gkemlin/response-calculations-metals)
+  
 - J. Cazalis.
   [*Dirac cones for a mean-field model of graphene*](https://arxiv.org/abs/2207.09893)
   (Submitted).
