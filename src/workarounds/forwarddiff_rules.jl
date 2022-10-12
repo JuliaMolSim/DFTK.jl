@@ -209,7 +209,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
         εF_dual = T(scfres.εF)  # Only needed for entropy term
         eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
         _, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
-                                         ρ=ρ_dual, eigenvalues=eigenvalues_dual, 
+                                         ρ=ρ_dual, eigenvalues=eigenvalues_dual,
                                          εF=εF_dual)
         ham_dual * ψ_dual
     end
@@ -218,7 +218,19 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     response.verbose && println("Solving response problem")
     δresults = ntuple(ForwardDiff.npartials(T)) do α
         δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
-        solve_ΩplusK_split(scfres, -δHextψ; tol=scfres.norm_Δρ, response.verbose)
+        # compute tolerance for the sternheimer solver as the maximum residual
+        # on the occupied eigenvectors, because asking the sternheimer solver to
+        # converge below this tolerance can lead to oversolving issues
+        residual_norms = scfres.diagonalization[1].residual_norms
+        # first, select only fully converged eigenvectors above the occupation
+        # threshold
+        mask_occ   = map(occk -> isless.(scfres.occupation_threshold, occk),
+                         scfres.occupation)
+        residual_norms_occ = [residual_norms[ik][maskk]
+                              for (ik, maskk) in enumerate(mask_occ)]
+        tol_sternheimer = maximum(maximum.(residual_norms_occ))
+        solve_ΩplusK_split(scfres, -δHextψ; tol=scfres.norm_Δρ,
+                           tol_sternheimer, response.verbose)
     end
 
     ## Convert and combine

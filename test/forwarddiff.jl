@@ -44,7 +44,7 @@ include("testcases.jl")
         @test abs(grad[2] - derivative_ε2[1][1]) < 1e-4
 
         jac = ForwardDiff.jacobian(v -> compute_force(v...)[1], [0.0, 0.0])
-        @test norm(grad - jac[1, :]) < 1e-10
+        @test norm(grad - jac[1, :]) < 1e-9
     end
 
     @testset "Derivative for metals" begin
