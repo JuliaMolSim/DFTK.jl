@@ -106,16 +106,16 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 
 # custom cg to ensure that the iterates stay in Ran(R), taken from
 # https://github.com/JuliaLinearAlgebra/IterativeSolvers.jl/blob/master/src/cg.jl
-function cg(A, b, R=Identity();
-            x=zero(b),
-            abstol::Real=zero(real(eltype(b))),
-            reltol::Real=sqrt(eps(real(eltype(b)))),
-            maxiter::Int=size(A, 2),
-            log::Bool=false,
-            statevars::CGStateVariables=CGStateVariables(zero(x), similar(x), similar(x)),
-            verbose::Bool=false,
-            Pl=Identity(),
-            kwargs...)
+function sternheimer_cg(A, b, R=Identity();
+                        x=zero(b),
+                        abstol::Real=zero(real(eltype(b))),
+                        reltol::Real=sqrt(eps(real(eltype(b)))),
+                        maxiter::Int=size(A, 2),
+                        log::Bool=false,
+                        statevars::CGStateVariables=CGStateVariables(zero(x), similar(x), similar(x)),
+                        verbose::Bool=false,
+                        Pl=Identity(),
+                        kwargs...)
     history = ConvergenceHistory(partial = !log)
     history[:abstol] = abstol
     history[:reltol] = reltol
@@ -218,8 +218,8 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    δψknᴿ, ch = cg(J, bb, R; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol,
-                   verbose, log=true)
+    δψknᴿ, ch = sternheimer_cg(J, bb, R; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol,
+                               verbose, log=true)
     info = (; basis=basis, kpoint=kpoint, ch=ch, n=n)
     callback(info)
 
