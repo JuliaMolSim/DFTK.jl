@@ -126,8 +126,7 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
       to get `δHψ`).
 """
 function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
-                            eigenvalues, rhs; tol=1e-8, max_residual=0,
-                            tol_sternheimer=max(max_residual, tol/10),
+                            eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10,
                             verbose=false, occupation_threshold, kwargs...) where {T}
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
     # (Ω+K)^-1 =  Ω^-1 ( 1 -   K   (1 + Ω^-1 K  )^-1    Ω^-1  )

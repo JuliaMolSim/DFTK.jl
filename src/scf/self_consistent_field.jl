@@ -147,21 +147,15 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
     # to return a correct variational energy
     energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, eigenvalues, εF)
 
-    # Different measures for the accuracy of the SCF:
+    # Measure for the accuracy of the SCF
     # TODO probably should be tracked all the way ...
-    # 1 - norm of Δρ
     norm_Δρ = norm(info.ρout - info.ρin) * sqrt(basis.dvol)
-    # 2 - maximum residual of orbitals with occupation above the threshold
-    residual_norms = info.diagonalization[1].residual_norms
-    mask_occ   = map(occk -> isless.(nbandsalg.occupation_threshold, occk), occupation)
-    residual_norms_occ = [residual_norms[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    max_residual = maximum(maximum.(residual_norms_occ))
 
     # Callback is run one last time with final state to allow callback to clean up
     info = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
             ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
             n_iter, ψ, info.diagonalization, stage=:finalize,
-            algorithm="SCF", norm_Δρ, max_residual)
+            algorithm="SCF", norm_Δρ)
     callback(info)
     info
 end

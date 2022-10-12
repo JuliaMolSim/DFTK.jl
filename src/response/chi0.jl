@@ -1,5 +1,6 @@
 using LinearMaps
 using IterativeSolvers
+import IterativeSolvers: ConvergenceHistory, reserve!, nextiter!, setconv, shrink!
 using ProgressMeter
 
 @doc raw"""
@@ -103,6 +104,47 @@ LinearAlgebra.ldiv!(y::T, P::FunctionPreconditioner, x) where {T} = P.preconditi
 LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(similar(x), x))
 precondprep!(P::FunctionPreconditioner, ::Any) = P
 
+# custom cg to ensure that the iterates stay in Ran(R), taken from
+# https://github.com/JuliaLinearAlgebra/IterativeSolvers.jl/blob/master/src/cg.jl
+function cg(A, b, R=Identity();
+            x=zero(b),
+            abstol::Real=zero(real(eltype(b))),
+            reltol::Real=sqrt(eps(real(eltype(b)))),
+            maxiter::Int=size(A, 2),
+            log::Bool=false,
+            statevars::CGStateVariables=CGStateVariables(zero(x), similar(x), similar(x)),
+            verbose::Bool=false,
+            Pl=Identity(),
+            kwargs...)
+    history = ConvergenceHistory(partial = !log)
+    history[:abstol] = abstol
+    history[:reltol] = reltol
+    log && reserve!(history, :resnorm, maxiter + 1)
+
+    # Actually perform CG
+    iterable = cg_iterator!(x, A, b, Pl; abstol, reltol, maxiter, statevars, kwargs...)
+    if log
+        history.mvps = iterable.mv_products
+    end
+    for (iteration, item) = enumerate(iterable)
+        # project back the current iterate and residual onto Ran(R)
+        # error accumulation in descent direction is then automatically avoided
+        iterable.x .= R(iterable.x)
+        iterable.r .= R(iterable.r)
+        if log
+            nextiter!(history, mvps = 1)
+            push!(history, :resnorm, iterable.residual)
+        end
+        verbose && @printf("%3d\t%1.2e\n", iteration, iterable.residual)
+    end
+
+    verbose && println()
+    log && setconv(history, IterativeSolvers.converged(iterable))
+    log && shrink!(history)
+
+    log ? (iterable.x, history) : iterable.x
+end
+
 # Solves (1-P) (H-εn) (1-P) δψn = - (1-P) rhs
 # where 1-P is the projector on the orthogonal of ψk
 # n is used for the preconditioning with ψk[:,n] and the optional callback
@@ -176,7 +218,7 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    δψknᴿ, ch = cg(J, bb; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol,
+    δψknᴿ, ch = cg(J, bb, R; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol,
                    verbose, log=true)
     info = (; basis=basis, kpoint=kpoint, ch=ch, n=n)
     callback(info)
