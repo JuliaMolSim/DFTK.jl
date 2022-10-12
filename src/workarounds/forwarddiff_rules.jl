@@ -218,19 +218,8 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     response.verbose && println("Solving response problem")
     δresults = ntuple(ForwardDiff.npartials(T)) do α
         δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
-        # compute tolerance for the sternheimer solver as the maximum residual
-        # on the occupied eigenvectors, because asking the sternheimer solver to
-        # converge below this tolerance can lead to oversolving issues
-        residual_norms = scfres.diagonalization[1].residual_norms
-        # first, select only fully converged eigenvectors above the occupation
-        # threshold
-        mask_occ   = map(occk -> isless.(scfres.occupation_threshold, occk),
-                         scfres.occupation)
-        residual_norms_occ = [residual_norms[ik][maskk]
-                              for (ik, maskk) in enumerate(mask_occ)]
-        tol_sternheimer = maximum(maximum.(residual_norms_occ))
         solve_ΩplusK_split(scfres, -δHextψ; tol=scfres.norm_Δρ,
-                           tol_sternheimer, response.verbose)
+                           scfres.max_residual, response.verbose)
     end
 
     ## Convert and combine
