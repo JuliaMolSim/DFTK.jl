@@ -11,7 +11,17 @@ function ase_atoms(lattice_or_model, atoms, positions, magnetic_moments=[])
     cell    = ase_cell(lattice_or_model)
     symbols = string.(atomic_symbol.(atoms))
     scaled_positions = reduce(hcat, positions)'
-    pyimport("ase").Atoms(;symbols, cell, pbc=true, scaled_positions, magmoms)
+    # Hack using `info` to be able to determine the elements with `load_atoms`.
+    # Two elements with same atomic symbol should be equal.
+    element_mapping = Dict()
+    for atom in atoms
+        symbol = atomic_symbol(atom)
+        @assert !isnothing(symbol)
+        symbol ∈ keys(element_mapping) && @assert element_mapping[symbol] == atom
+        element_mapping[symbol] = atom
+    end
+    pyimport("ase").Atoms(;symbols, cell, pbc=true, scaled_positions, magmoms,
+                          info=element_mapping)
 end
 function ase_atoms(model::Model, magnetic_moments=[])
     ase_atoms(model.lattice, model.atoms, model.positions, magnetic_moments)
@@ -41,7 +51,16 @@ end
 function load_atoms_ase(pyobj::PyObject)
     @assert pyisinstance(pyobj, pyimport("ase").Atoms)
     # TODO Be smarter and look at the calculator to determine the psps
-    [ElementCoulomb(number) for number in pyobj.get_atomic_numbers()]
+    # We try to give the correct `Element` types by looking at the `info` field.
+    # If it is not possible, we give back `ElementCoulomb` by default.
+    info = pyobj.info
+    if typeof(info) <: Dict && !isempty(info)
+        @assert all(isa.(keys(info), String))
+        @assert all(isa.(values(info), Element))
+        [info[symbol] for symbol in pyobj.get_chemical_symbols()]
+    else
+        [ElementCoulomb(number) for number in pyobj.get_atomic_numbers()]
+    end
 end
 
 
