@@ -1,5 +1,4 @@
 using LinearMaps
-using IterativeSolvers
 using ProgressMeter
 
 @doc raw"""
@@ -111,7 +110,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
                             Hψk_extra=zeros(size(ψk,1), 0),
-                            abstol=1e-9, reltol=0, verbose=false)
+                            tol=1e-9, verbose=false)
     basis = Hk.basis
     kpoint = Hk.kpoint
 
@@ -176,8 +175,9 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    δψknᴿ, ch = cg(J, bb; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol,
-                   verbose, log=true)
+    δψknᴿ, ch = CG(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
+                   verbose)
+    !ch.isconverged && println(ch.residual_history)
     info = (; basis=basis, kpoint=kpoint, ch=ch, n=n)
     callback(info)
 
