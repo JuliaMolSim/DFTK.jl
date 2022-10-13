@@ -41,6 +41,11 @@ Additionally the following publications describe DFTK or one of its algorithms:
   [ArXiv:2009.01665](https://arxiv.org/abs/2009.01665).
   ([Supplementary material and computational scripts](https://github.com/mfherbst/supporting-ldos-preconditioning/)).
 
+- E. Cancès, M. F. Herbst, G. Kemlin, A. Levitt and B. Stamm.
+  [*Numerical stability and efficiency of response property calculations in density functional theory*](https://arxiv.org/abs/2210.04512)
+  [ArXiv:2210.04512](https://arxiv.org/abs/2210.04512)
+  ([Supplementary materials and computational scripts](https://github.com/gkemlin/response-calculations-metals)
+
 
 ## Research conducted with DFTK
 The following publications report research employing DFTK as a core component.
