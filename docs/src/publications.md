@@ -20,8 +20,14 @@ The current DFTK reference paper to cite is
 
 Additionally the following publications describe DFTK or one of its algorithms:
 
+- E. Cancès, M. F. Herbst, G. Kemlin, A. Levitt and B. Stamm.
+  [*Numerical stability and efficiency of response property calculations in density functional theory*](https://arxiv.org/abs/2210.04512)
+  (Submitted).
+  [ArXiv:2210.04512](https://arxiv.org/abs/2210.04512).
+  ([Supplementary material and computational scripts](https://github.com/gkemlin/response-calculations-metals)).
+
 - E. Cancès, M. Hassan and L. Vidal.
-  [*Modified-Operator Method for the Calculation of Band Diagrams of Crystalline Materials.*](https://hal.archives-ouvertes.fr/hal-03794000))
+  [*Modified-Operator Method for the Calculation of Band Diagrams of Crystalline Materials.*](https://hal.archives-ouvertes.fr/hal-03794000)
   (Submitted).
   [hal-03794000](https://hal.archives-ouvertes.fr/hal-03794000).
 
