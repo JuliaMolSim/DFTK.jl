@@ -4,7 +4,7 @@
 
 | **Documentation**                                                                 | **Build Status**                                |  **License**                     |
 |:--------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
-| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][slack-img]][slack-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
+| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][zulip-img]][zulip-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
 
 [ddocs-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [ddocs-url]: https://docs.dftk.org/dev
@@ -12,8 +12,8 @@
 [docs-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-url]: https://docs.dftk.org/stable
 
-[slack-img]: https://img.shields.io/badge/chat-on_slack-808493.svg?logo=slack
-[slack-url]: https://join.slack.com/t/juliamolsim/shared_invite/zt-tc060co0-HgiKApazzsQzBHDlQ58A7g
+[zulip-img]: https://img.shields.io/badge/chat-on_zulip-808493.svg?logo=zulip
+[zulip-url]: https://juliamolsim.zulipchat.com/#narrow/stream/332493-dftk
 
 [ci-img]: https://github.com/JuliaMolSim/DFTK.jl/workflows/CI/badge.svg?branch=master&event=push
 [ci-url]: https://github.com/JuliaMolSim/DFTK.jl/actions
@@ -76,4 +76,4 @@ on github. If you want to contribute but are unsure where to start, take a look
 at the list of issues tagged [good first issue](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 (relatively easy tasks suitable for newcomers) or [help wanted](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 (more sizeable but well-defined and isolated).
-Don't hesitate to ask for help, through github, email or the [JuliaMolSim slack][slack-url].
+Don't hesitate to ask for help, through github, email or the [JuliaMolSim zulip chat][zulip-url].
