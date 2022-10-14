@@ -54,6 +54,12 @@ Random.seed!(0)
         include("external_potential.jl")
     end
 
+    if "all" in TAGS || "psp" in TAGS
+        include("list_psp.jl")
+        include("PspHgh.jl")
+        include("PspUpf.jl")
+    end
+
     if "all" in TAGS
         include("split_evenly.jl")
         include("compute_fft_size.jl")
@@ -61,9 +67,6 @@ Random.seed!(0)
         include("PlaneWaveBasis.jl")
         include("Model.jl")
         include("interpolation.jl")
-        include("list_psp.jl")
-        include("PspHgh.jl")
-        include("PspUpf.jl")
         include("elements.jl")
         include("bzmesh.jl")
         include("bzmesh_symmetry.jl")

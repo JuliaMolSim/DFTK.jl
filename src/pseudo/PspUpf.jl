@@ -1,291 +1,251 @@
+using LinearAlgebra
 using Interpolations: linear_interpolation
-using SpecialFunctions: sphericalbesselj
-using UPF: load_upf
+using PseudoPotentialIO: load_upf
 
 struct PspUpf{T} <: NormConservingPsp
-    Zion::Int                         # Ionic charge (Z - valence electrons)
-    lmax::Int                         # Maximal angular momentum in the non-local part
-    rgrid::Vector{T}                  # Radial grid
-    rab::Vector{T}                    # Radial grid derivative / integration factor
-    vloc::Vector{T}                   # Local potential on the radial grid
-    projs::Vector{Vector{Vector{T}}}  # Kleinman-Bylander β projectors: projs[l][i]
-    h::Vector{Matrix{T}}              # Projector coupling coefficients per AM channel: h[l][i1,i2]
-    identifier::String                # String identifying the PSP
+    Zion::Int                             # Ionic charge (Z - valence electrons)
+    lmax::Int                             # Maximal angular momentum in the non-local part
+    
+    rgrid::Vector{T}                      # Radial grid
+    drgrid::Vector{T}                     # Radial grid derivative / integration factor
+    
+    vloc::Vector{T}                       # Local potential on the radial grid
+    vloc_interp                           # Local potential interpolator
+    
+    projs::Vector{Vector{Vector{T}}}      # Kleinman-Bylander β projectors: projs[l+1][i]
+    projs_interp                          # Projector interpolator
+    h::Vector{Matrix{T}}                  # Projector coupling coefficients per AM channel: h[l+1][i1,i2]
+    
+    pswfcs::Vector{Vector{T}}             # Pseudo-atomic wavefunctions
+    pswfc_ang_moms::Vector{Int}           # Angular momenta of the pseudo-atomic wavefunctions
+    pswfc_occs::Vector{T}                 # Occupations of the pseudo-atomic wavefunctions
+
+    rhoatom::Vector{T}                    # Pseudo-atomic charge density
+
+    rvlocpzdr::Vector{T}                  # (r_i V_{loc}(r_i) + Z) dr_i
+    r2projsdr::Vector{Vector{Vector{T}}}  # r_j^2 β_{li}(r_j) dr_i
+    
+    identifier::String                    # String identifying the PSP
 end
-charge_ionic(psp::PspUpf) = psp.Zion
 
 """
-    PspUpf(Zion::Number, lmax::Number, rgrid::Vector, vloc::Vector,
-           projs::Vector{Vector{Vector}}, h::Vector{Matrix}; identifier="")
+    PspUpf(Zion::Number, lmax::Number, rgrid::Vector, drgrid::Vector, vloc::Vector,
+           vloc_interp, projs::Vector{Vector{Vector}}, projs_interp, h::Vector{Matrix},
+           pswfcs::Vector{Vector}, pswfc_ang_moms::Vector, pswfc_occs::Vector, rhoatom::Vector,
+           rvlocpzdr::Vector, r2projsdr::Vector{Vector{Vector}}; identifier="")
 
 Construct a Unified Pseudopotential Format pseudopotential. Currently only
 norm-conserving potentials are supported.
 """
-function PspUpf(Zion, lmax, rgrid, rab,
-                vloc::Vector{T}, projs, h; identifier="") where {T}
+function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, vloc_interp, projs, projs_interp, h,
+                pswfcs, pswfc_ang_moms, pswfc_occs, rhoatom, rvlocpzdr, r2projsdr;
+                identifier="") where {T}
     length(projs) == length(h) || error("Length of projs and h do not agree.")
+    length(r2projsdr) == length(h) || error("Length of rgrid * projs * dr and h do not agree.")
+    length(pswfcs) == length(pswfc_ang_moms) || error("Length of pseudo wfcs and pseudo wfc" *
+                                                      "angular momenta do not agree.")
+    length(pswfcs) == length(pswfc_occs) || error("Length of pseudo wfcs and pseudo wfc" *
+                                                      "occupations do not agree.")
 
-    PspUpf{T}(Zion, lmax, rgrid, rab, vloc, projs, h, identifier)
+    return PspUpf{T}(Zion, lmax, rgrid, drgrid, vloc, vloc_interp, projs, projs_interp, h,
+                     pswfcs, pswfc_ang_moms, pswfc_occs, rhoatom, rvlocpzdr, r2projsdr, identifier)
 end
 
 function parse_upf_file(path; identifier=path)
     pseudo = load_upf(path)
 
-    # Maximum angular momentum channel
-    lmax = pseudo["header"]["l_max"] 
-    # Number of Kleinman-Bylander β projectors
-    nproj = pseudo["header"]["number_of_proj"]
+    unsupported = []
+    pseudo["header"]["core_correction"] && push!(unsupported, "nonlinear core correction")
+    pseudo["header"]["has_so"] && push!(unsupported, "spin-orbit coupling")
+    pseudo["header"]["pseudo_type"] == "SL" && push!(unsupported, "semilocal potential")
+    pseudo["header"]["pseudo_type"] == "US" && push!(unsupported, "ultrasoft")
+    pseudo["header"]["pseudo_type"] == "PAW" && push!(unsupported, "plane-augmented wave")
+    pseudo["header"]["has_gipaw"] && push!(unsupported, "gipaw reconstruction data")
+    pseudo["header"]["pseudo_type"] == "1/r" && push!(unsupported, "Coulomb")
+    length(unsupported) > 0 && error("Pseudopotential contains the following unsupported "
+                                        * "features/quantities: $unsupported")
+
+    Zion = Int(pseudo["header"]["z_valence"])           # Pseudo-ion charge
+    rgrid = pseudo["radial_grid"]                       # Radial grid
+    drgrid = pseudo["radial_grid_derivative"]           # Grid derivative / integration coeff.s
+    lmax = pseudo["header"]["l_max"]                    # Maximum angular momentum channel
+    nproj = pseudo["header"]["number_of_proj"]          # Number of Kleinman-Bylander β projectors
+    nwfc = pseudo["header"]["number_of_wfc"]            # Number of pseudo-atomic wavefunctions
+    vloc = pseudo["local_potential"] ./ 2               # Local potential (Ry -> Ha)
+    vloc_interp = linear_interpolation((rgrid,), vloc)  # Interpolator for the local potential
+
     # Kleinman-Bylander β projectors
-    beta_projectors = pseudo["beta_projectors"]
-    # Pseudo-ion charge
-    Zion = Int(pseudo["header"]["z_valence"])
-    # Number of projectors for each angular momentum channel
-    n_projs = zeros(Int, lmax+1)
-    for i in 1:nproj
-        l = beta_projectors[i]["angular_momentum"]
-        n_projs[l+1] += 1
+    # From the UPF, we get a flat vector of the projectors, which need to be put into a nested
+    # vector projs[l+1][i][ir] where l is the angular momentum, i is the index over projectors
+    # for one angular momentum channel, and ir is the grid index.
+    # We also initialize linear interpolators for each projector, used in `eval_psp_projector_real`.
+    # NB: UPFs store rβ, not just β
+    projs = [Vector[] for _ = 0:lmax]   # Projectors on the grid
+    projs_interp = [[] for _ = 0:lmax]  # Interpolators for the non-local projectors
+    for i = 1:nproj
+        proj_data = pseudo["beta_projectors"][i]
+        l = proj_data["angular_momentum"]
+        proj = proj_data["radial_function"] ./ 2  # Ry -> Ha
+        ir_start = iszero(rgrid[1]) ? 2 : 1  # Some grids start at 0., so (rβ)[1]/r[1] is undefined
+        ir_cut = length(proj)  # Projectors are cut off by the UPF parser @ ir_cut given by the UPF
+        proj_interp = linear_interpolation((rgrid[ir_start:ir_cut],), proj[ir_start:ir_cut])
+        push!(projs[l+1], proj)
+        push!(projs_interp[l+1], proj_interp)
     end
-    # Radial grid
-    rgrid = pseudo["radial_grid"]
-    rab = pseudo["radial_grid_derivative"]
-    # Local potential
-    vloc = pseudo["local_potential"]
-    # Kleinman-Bylander β projectors
-    projs = []
-    idx = 1
-    for l in 0:lmax
-        l_projs = []
-        for _ in 1:n_projs[l+1]
-            beta = beta_projectors[idx]
-            rdata = beta["radial_function"]
-            push!(l_projs, rdata)
-            idx += 1
-        end
-        push!(projs, l_projs)
-    end
-    # Dij -> h
-    dij = pseudo["D_ion"]
+
+    # β-projector coupling coefficients
+    # From the UPF, we get a matrix `Dij` of the coupling coefficients between each projector
+    # where i,j are indices corresponding to the order in which the projectors are listed in the
+    # UPF. Similar to how we lay out the projectors above, we make a vector of matrices, one for
+    # each angular momentum channel, containing the corresponding block from the full `Dij` matrix.
+    h = Matrix[]
     n = 1
-    h = []
-    for l in 0:lmax
-        nprojs = n_projs[l+1]
-        push!(h, dij[n:n+nprojs-1, n:n+nprojs-1] * 2)
-        n += nprojs
+    for l = 0:lmax
+        nproj_l = length(projs[l+1])
+        Dij_l = pseudo["D_ion"][n:n+nproj_l-1, n:n+nproj_l-1] .* 2  # 1/Ry -> 1/Ha
+        push!(h, Dij_l)
+        n += nproj_l
     end
 
-    PspUpf(Zion, lmax, rgrid, rab, vloc, projs, h; identifier)
+    # Pseudo-atomic wavefunctions
+    # The pseudo-atomic wavefunctions (χ) are not currently used in DFTK, but they are can be
+    # used for initializing the starting wavefunction and as projectors for projected densities
+    # of states, projected wavefunctions, and DFT+U(+V)
+    pswfcs = Vector{Vector}(undef, nwfc)
+    pswfc_ang_moms = Vector(undef, nwfc)
+    pswfc_occs = Vector(undef, nwfc)
+    for i = 1:nwfc
+        pswfc_data = pseudo["atomic_wave_functions"][i]
+        pswfcs[i] = pswfc_data["radial_function"]
+        pswfc_ang_moms[i] = pswfc_data["angular_momentum"]
+        pswfc_occs[i] = pswfc_data["occupation"]
+    end
+
+    # Pseudo-atomic charge density
+    # The pseudo-atomic charge density (ρ_{atom}) is not currenctly used in DFTK, but it can be
+    # used for initializing the starting guess density.
+    rhoatom = pseudo["total_charge_density"]
+
+    # Useful precomputed quantities
+    rvlocpzdr = (rgrid .* vloc .+ Zion) .* drgrid  # q-independent part of the integrand for the Fourier-transform of Vloc
+    r2projsdr = [Vector[] for _ = 0:lmax]  # q-independent part of the integrand for the Fourier-transform of the projectors
+    for l = 0:lmax
+        for proj in projs[l+1]
+            push!(r2projsdr[l+1],
+                  proj .* view(rgrid, 1:length(proj)) .* view(drgrid, 1:length(proj)))
+        end
+    end
+
+    PspUpf(Zion, lmax, rgrid, drgrid, vloc, vloc_interp, projs, projs_interp, h,
+           pswfcs, pswfc_ang_moms, pswfc_occs, rhoatom, rvlocpzdr, r2projsdr; identifier)
 end
 
-abstract type LocalCorrection end
-function correction_real(C::LocalCorrection, psp::PspUpf{T})::T where {T <: Real}
-    return zero(T)
-end
-function correction_fourier(C::LocalCorrection, psp::PspUpf{T}, q::T)::T where {T <: Real}
-    return zero(T)
-end
-struct InvrCorrection <: LocalCorrection end
-function correction_real(C::InvrCorrection, psp::PspUpf{T}, r::T)::T where {T <: Real}
-    return -(2*psp.Zion)
-end
-function correction_fourier(C::InvrCorrection, psp::PspUpf{T}, q::T)::T where {T <: Real}
-    return -(2*psp.Zion) / q^2
-end
-struct ErfrInvrCorrection <: LocalCorrection end
-function correction_real(C::ErfrInvrCorrection, psp::PspUpf{T}, r::T)::T where {T <: Real}
-    return -(2*psp.Zion) * erf(r)
-end
-function correction_fourier(C::ErfrInvrCorrection, psp::PspUpf{T}, q::T)::T where {T <: Real}
-    return -(2*psp.Zion) * exp(-q^2) / q^2
-end
-
-import Base.Broadcast.broadcastable
-Base.Broadcast.broadcastable(C::LocalCorrection) = Ref(C)
+charge_ionic(psp::PspUpf) = psp.Zion
+nprojs(psp::PspUpf) = sum(l -> nprojs(psp, l), 0:psp.lmax)
+nprojs(psp::PspUpf, l) = length(psp.projs[l+1])
 
 """
     eval_psp_projector_real(psp::PspUpf, i::Number, l::Number, r::Number)
 
 Evaluate the ith Kleinman-Bylander β projector with angular momentum l at real-space distance r
-via cubic spline interpolation on the real-space mesh.
+via linear interpolation on the real-space mesh.
 
-!!! Note
-UPFs store `rgrid[i] * β[l,n](rgrid[i])`, so we must divide by `r`.
+Note: UPFs store `r[i] p_{il}(r[i])`
 """
 function eval_psp_projector_real(psp::PspUpf, i, l, r::T) where {T <: Real}
-    ir_cut = length(psp.projs[l+1][i])
-    linear_interpolation((psp.rgrid[1:ir_cut],), psp.projs[l+1][i])(r) / r
+    # NB: the definition of the interpolator in `parse_upf_file` will restrict the domain of the
+    # interpolation to exclude r=0 so that this division is well-defined.
+    psp.projs_interp[l+1][i](r) / r
 end
 
 """
     eval_psp_projector_fourier(psp::PspUPF, i::Number, l::Number, q::Number)
-Evaluate the ith Kleinman-Bylander β projector with angular momentum l in at k-space distance q.
 
-!!! Note
-UPFs store `rgrid[i] * β[l,n](rgrid[i])`, so the integrand has `r` instead of `r^2`
+
+Evaluate the radial part of the i-th projector for angular momentum l at the reciprocal vector
+with modulus q:
+p(q) 
+= ∫R^3 p{il}(r) e^{-iqr} dr
+= 4π ∫{R+} r^2 p_{il}(r) j_l(q r) dr
+= 4π Σ{i} r[i]^2 p_{il}(r[i]) j_l(q r[i]) dr[i]
+
+Note: UPFs store `r[i] p_{il}(r[i])`
 """
 function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real}
-    ir_cut = length(psp.projs[l+1][i])
-    rgrid = view(psp.rgrid, 1:ir_cut)
-    proj = view(psp.projs[l+1][i], 1:ir_cut)
-    x = q .* rgrid
+    eval_psp_projector_fourier(psp, i, Val(l), q)
+end
+
+function eval_psp_projector_fourier(psp::PspUpf, i, val_l::Val{l}, q::T)::T where {T <: Real, l}
     if iszero(q)
-        jl = sphericalbesselj.(1, x)
-    else
-        jl = sphericalbesselj.(l, x)
+        # When q=0: 4π Σ[ j_{l}(0) * r[ir]^2 * β_{li}[ir] * dr[ir] ]
+        #           where j_{l=0}(0) = 1 -> 4π Σ[ r[ir]^2 * β_{li}[ir] * dr[ir] ]
+        #                 j_{l>0}(0) = 0 -> 0
+        return iszero(l) ? 4T(π) * sum(psp.r2projsdr[l+1][i]) : zero(T)
     end
-    integrand = jl .* proj .* rgrid  # jl(qr) * rβ * r
-    proj_q = 4T(π) * ctrap(integrand, psp.rab)
-    return proj_q / 2  # Ry^-1 -> Ha^-1
+
+    if iszero(psp.rgrid[begin])
+        # When the r-grid starts at 0, treat the first index specially to avoid
+        # divide-by-zero NaNs from sphericalbesselj.
+        s = iszero(l) ? one(T) * psp.r2projsdr[l+1][i][begin] : zero(T)
+        ir_start = firstindex(psp.rgrid) + 1
+    else
+        s = zero(T)
+        ir_start = firstindex(psp.rgrid)
+    end
+    
+    ir_cut = lastindex(psp.r2projsdr[l+1][i])
+    @inbounds for ir = ir_start:ir_cut
+        s += sphericalbesselj(val_l, q * psp.rgrid[ir]) * psp.r2projsdr[l+1][i][ir]
+    end
+    
+    return 4T(π) * s
 end
 
 """
-    eval_psp_local_real(psp::PspUpf, r::Number)
+     eval_psp_local_real(psp::PspUpf, r::Number)
 
-Evaluate the local potential at real-space distance `r` via linear interpolation on the
-real-space mesh.
-"""
+ Evaluate the local potential at real-space distance `r` via linear interpolation on the
+ real-space mesh.
+ """
 function eval_psp_local_real(psp::PspUpf, r::T) where {T <: Real}
-    linear_interpolation((psp.rgrid,), psp.vloc)(r) / 2  # Ry -> Ha
+    psp.vloc_interp(r)
 end
 
 """
     eval_psp_local_fourier(psp::PspUpf, q::Number)
 
-Evaluate the local potential at fourier-space distance `q` using a Coulomb correction term
-`-Z/r`.
+Evaluate the local part of the pseudopotential in reciprocal space using a Coulomb correction
+term -Z/r:
+V(q)
+= ∫{R^3} (Vloc(r) + Z/r) e^{-iqr} dr
+= 4π ∫{R+} (Vloc(r) + Z/r) sin(qr)/qr r^2 dr
+= 4π/q Σ{i} sin(q r[i]) (r[i] V(r[i]) + Z) dr[i]
 """
 function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T <: Real}
-    vloc = psp.vloc  # in Ry
-    Z = psp.Zion * 2 # for some strange reason
-    # -Z/r correction (canceling `r` in the code):
-    #   F[V(r) - -Z/r] / 4π = ∫ sin(qr) / (qr) * (V(r) - -Z/r) r^2
-    sin_term = sin.(q .* psp.rgrid) ./ q 
-    pot_term = psp.rgrid .* vloc
-    corr_real = -Z
-    vloc_corr_ignd = sin_term .* (pot_term .- corr_real)
-    vloc_corr_itgl = ctrap(vloc_corr_ignd, psp.rab)
-    # F[-Z/r] / 4π = -Z / q^2
-    corr_fourier = -Z / q^2
-    vloc = 4T(π) * (vloc_corr_itgl + corr_fourier)
-    return vloc / 2  # Ry -> Ha
+    s = zero(T)
+    @inbounds @fastmath for ir = eachindex(psp.rvlocpzdr)
+        s += sin(q * psp.rgrid[ir]) * psp.rvlocpzdr[ir]
+    end
+    4T(π) * (s - psp.Zion/q) / q
 end
 
 """
-    eval_psp_local_fourier(psp::PspUpf, q::Number)
+    eval_psp_energy_correction(T::Type, psp::PspUpf, n_electrons::Number)
 
-Evaluate the local potential at fourier-space distance `q` using the correction term `c` and
-the on-grid integrator `integrator`.
+Evaluate the energy correction to the Ewald electrostatic interaction energy of one unit cell,
+which is required compared the Ewald expression for point-like nuclei.
+n_electrons is the number of electrons per unit cell.
+This defines the uniform compensating background charge, which is assumed here.
+
+Notice: The returned result is the energy per unit cell and not the energy per volume.
+To obtain the latter, the caller needs to divide by the unit cell volume.
+
+The energy correction is defined as the limit of the Fourier-transform of the local potential as
+q -> 0:
+lim{q->0} 4π Nelec ∫{R+} (V(r) + Z/r) sin(qr)/qr r^2 dr
+= 4π Nelec ∫{R+} (V(r) + Z/r) r^2 dr
+= 4π Nelec Σ{i} r[i] (r[i] V(r[i]) + Z) dr[i]
 """
-function eval_psp_local_fourier(
-    c::LocalCorrection,
-    integrator::Function,
-    psp::PspUpf,
-    q::T
-)::T where {T <: Real}
-    vloc = psp.vloc  # in Ry
-    # F[V(r) - correction(r)] / 4π = ∫ sin(qr) / (qr) * (V(r) - correction(r)) r^2
-    sin_term = sin.(q .* psp.rgrid) ./ q  # 1/r canceled with r^2
-    # correction contains 1/r, and this is canceled with the remaining r
-    pot_term = (psp.rgrid .* vloc)
-    corr_real =correction_real.(c, psp, psp.rgrid)
-    vloc_corr_ignd = sin_term .* (pot_term .- corr_real)
-    vloc_corr_itgl = integrator(vloc_corr_ignd, psp.rab)
-    corr_fourier = correction_fourier(c, psp, q)
-    vloc = 4T(π) * (vloc_corr_itgl + corr_fourier)  # still in Ry
-    return vloc / T(2)  # Ry -> Ha
-end
-
 function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
-    Z = psp.Zion * T(2)  # for some strange reason
-    pot_term = psp.rgrid .* (psp.rgrid .* psp.vloc .- -Z)
-    ignd = n_electrons .* pot_term
-    return 4T(π) * ctrap(ignd, psp.rab) / T(2)  # Ry -> Ha
-end
-
-"""
-    ctrap(f::Vector, dx::Number)
-
-Corrected trapezoidal method for a linear grid.
-"""
-function ctrap(f::Vector{T}, dx::T)::T where {T <: Real}
-    a = dx * sum(i -> f[i], 1:length(f)-1)
-    b = dx/2 * (f[begin] + f[end])
-    return a + b
-end
-
-"""
-    ctrap(f::Vector, dx::Vector)
-
-Corrected trapezoidal method for a non-linear grid.
-"""
-function ctrap(f::Vector{T}, dx::Vector{T})::T where {T <: Real}
-    a = sum(i -> f[i] * dx[i], 1:length(f)-1)
-    b = 1/T(2) * (f[begin]*dx[begin] + f[end]*dx[end])
-    return a + b
-end
-
-"""
-    simpson_qe(f::Vector, dr::Vector)
-
-Simpson's method for a non-linear grid as implemented in QuantumESPRESSO.
-"""
-function simpson_qe(f::Vector{T}, dx::Vector{T})::T where {T <: Real}
-    nr = length(f)
-    res = sum(i -> 2 * abs(i % 2 - 2) * f[i] * dx[i], 1:nr)
-    if nr % 2 == 1
-        res += (f[1] * dx[1] + f[nr] * dx[nr]) / 3.
-    else
-        res += (f[1] * dx[1] + f[nr-1] * dx[nr]) / 3.
-    end
-    return res
-end
-
-"""
-    ctrap_abinit(f::Vector, dx::Number)
-
-Corrected trapezoidal method for a linear grid as implemented in Abinit.
-"""
-function ctrap_abinit(f::Vector{T}, dx::T)::T where {T <: Real}
-    nf = length(f)
-    if nf >= 10
-        endpt = (
-            T(23.75) * (f[1] + f[nf    ]) + 
-            T(95.10) * (f[2] + f[nf - 1]) +
-            T(55.20) * (f[3] + f[nf - 2]) +
-            T(79.30) * (f[4] + f[nf - 3]) +
-            T(70.65) * (f[5] + f[nf - 4])
-        ) / 72
-        
-        if nf > 10
-            ans = (sum(f[6:nf-5]) + endpt) * dx
-        else
-            ans = endpt * dx
-        end
-    elseif nf >= 8
-        endpt = (
-            17(f[1] + f[nf    ]) +
-            59(f[2] + f[nf - 1]) +
-            43(f[3] + f[nf - 2]) +
-            49(f[4] + f[nf - 3])
-        ) / 48
-        if nf == 9
-            ans = (f[5] + endpt) * dx
-        else
-            ans = endpt * dx
-        end
-    elseif nf == 7
-        ans = (17(f[1] + f[7]) + 59(f[2] + f[6]) + 43(f[3] + f[5]) + 50(f[4])) / 48 * dx
-    elseif nf == 6
-        ans = (17(f[1] + f[6]) + 59(f[2] + f[5]) + 44(f[3] + f[4])           ) / 48 * dx
-    elseif nf == 5
-        ans = (  (f[1] + f[5]) +  4(f[2] + f[4]) +  2(f[3]       )           ) /  3 * dx
-    elseif nf == 4
-        ans = ( 3(f[1] + f[4]) +  9(f[2] + f[3])                             ) /  8 * dx
-    elseif nf == 3
-        ans = (  (f[1] + f[3]) +  4(f[2]       )                             ) /  3 * dx
-    elseif nf == 2
-        ans = (  (f[1] + f[2])                                               ) /  2 * dx
-    elseif nf == 1
-        ans = (  (f[1]       )                                               )      * dx
-    end
-    return ans
+    4T(π) * n_electrons * dot(psp.rgrid, psp.rvlocpzdr)
 end
