@@ -76,34 +76,34 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
 
-    Gvecs = G_vectors(basis)
-    qnorms = map(G -> norm(model.recip_lattice * G), Gvecs)
-    uqnorms = unique(qnorms)
-    iuq2iq = map(iuq -> findall(qnorm -> isequal(qnorm, uqnorms[iuq]), qnorms), 1:length(uqnorms))
-
-    form_factors = Vector{T}(undef, length(model.atom_groups))
-    pot_fourier = Array{Complex{T}, 3}(undef, size(Gvecs))
-    
-    for iuq = eachindex(uqnorms)
-        for iag = eachindex(model.atom_groups)
-            group = model.atom_groups[iag]
-            element = model.atoms[first(group)]
-            form_factors[iag] = local_potential_fourier(element, uqnorms[iuq])
-        end
-        for iq in iuq2iq[iuq]
-            pot = zero(T)
-            for iag = eachindex(model.atom_groups)
-                structure_factor = zero(T)
-                for ia in model.atom_groups[iag]
-                    structure_factor += cis2pi(-dot(Gvecs[iq], model.positions[ia]))
-                end
-                pot += form_factors[iag] * structure_factor
+    # Calculate the atomic form factors for each species at every cartesian G-vector
+    # for unique values of |G|. We store these in a hash map indexed by (species, |G|)
+    # for O(1) lookup below.
+    form_factors = Dict{Tuple{Int,T},T}()
+    for (igroup, group) in enumerate(model.atom_groups)
+        element = model.atoms[first(group)]
+        for G in G_vectors_cart(basis)
+            q = norm(G)
+            if !haskey(form_factors, (igroup, q))
+                form_factors[(igroup, q)] = local_potential_fourier(element, q)
             end
-            pot_fourier[iq] = pot / sqrt(model.unit_cell_volume)
         end
     end
-    force_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
 
+    # Calculate the Fourier transform of the local pseudopotential for every
+    # G-vector. The structure factor requires the fractional G-vector, while
+    # we need the norm of the cartesian G-vector for form factor lookup.
+    pot_fourier = Array{Complex{T}, 3}(undef, size(G_vectors(basis)))
+    for (iG, G) in enumerate(G_vectors(basis))
+        q = norm(model.recip_lattice * G)
+        pot = sum(enumerate(model.atom_groups)) do (igroup, group)
+            structure_factor = sum(r -> cis2pi(-dot(G, r)), view(model.positions, group))
+            form_factors[(igroup, q)] * structure_factor
+        end
+        pot_fourier[iG] = pot / sqrt(model.unit_cell_volume)
+    end
+    force_real!(basis, pot_fourier) # Symmetrize Fourier coeffs to have real iFFT
+    
     pot_real = irfft(basis, pot_fourier)
     TermAtomicLocal(pot_real)
 end

@@ -194,8 +194,9 @@ function eval_psp_projector_fourier(psp::PspUpf, i, val_l::Val{l}, q::T)::T wher
     end
     
     ir_cut = lastindex(psp.r2projsdr[l+1][i])
+    r2projdr = psp.r2projsdr[l+1][i]
     @inbounds for ir = ir_start:ir_cut
-        s += sphericalbesselj(val_l, q * psp.rgrid[ir]) * psp.r2projsdr[l+1][i][ir]
+        s += sphericalbesselj(val_l, q * psp.rgrid[ir]) * r2projdr[ir]
     end
     
     return 4T(π) * s

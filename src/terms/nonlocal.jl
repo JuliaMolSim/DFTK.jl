@@ -178,34 +178,38 @@ end
 """
 Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
-function build_form_factors(psp, qs)
-    # The radial part of the form factor only depends on |G + k|, so we find all the unique values
-    # of |G + k|
-    qnorms = norm.(qs)
-    uqnorms = unique(qnorms)
-    # The angular part of the form factor depends on G + k, so we need to be able to map back from
-    # the unique values of |G + k| to their original G + k. iuq2iq (index of uniuqe `q` to index
-    # of `q`) contains a vector of `q` indices for each unique `q`.
-    iuq2iq = map(iuq -> findall(qnorm -> isequal(qnorm, uqnorms[iuq]), qnorms), 1:length(uqnorms))
-    T = real(eltype(qnorms))
-    # Compute position-independent form factors
-    form_factors = zeros(Complex{T}, length(qs), count_n_proj(psp))
-    radial_il = Vector{T}(undef, length(qs))
-    count = 1
-    for l in 0:psp.lmax, m in -l:l
-        prefac_lm = im^l .* ylm_real.(l, m, qs)
-        n_proj_l = size(psp.h[l + 1], 1)
-        for iproj in 1:n_proj_l
-            # For each unique |G + k|, calculate the radial part and set the values in the
-            # locations for  of `radial_il`.
-            for iuq = eachindex(uqnorms)
-                pq = eval_psp_projector_fourier(psp, iproj, l, uqnorms[iuq])
-                radial_il[iuq2iq[iuq]] .= pq
+function build_form_factors(psp, G_plus_ks)
+    T = typeof(psp).parameters[1]
+
+    pq = Dict{T,Matrix{T}}()
+    for Gpk in G_plus_ks
+        q = norm(Gpk)
+        if !haskey(pq, q)
+            nproj_max = maximum(l -> size(psp.h[l+1], 1), 0:psp.lmax)
+            pq_il = Matrix{T}(undef, nproj_max, psp.lmax+1)
+            for l in 0:psp.lmax
+                for iproj_l in axes(psp.h[l+1], 1)
+                    pq_il[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q)
+                end
             end
-            form_factors[:, count] = prefac_lm .* radial_il
-            count += 1
+            pq[q] = pq_il
         end
     end
-    @assert count == count_n_proj(psp) + 1
-    form_factors
+
+    form_factors = zeros(Complex{T}, length(G_plus_ks), count_n_proj(psp))
+    for (iGpk, Gpk) in enumerate(G_plus_ks)
+        q = norm(Gpk)
+        pq_il = pq[q]
+        count = 1
+        for l in 0:psp.lmax, m in -l:l
+            prefac_lm = im^l * ylm_real(l, m, Gpk)
+            for iproj_l in axes(psp.h[l+1], 1)
+                form_factors[iGpk, count] = prefac_lm * pq_il[iproj_l, l+1]
+                count += 1
+            end
+        end
+        @assert count == count_n_proj(psp) + 1
+    end
+    return form_factors
+
 end
