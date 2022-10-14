@@ -18,7 +18,6 @@ if mpi_nprocs() == 1  # Direct minimisation does not yet support MPI
     basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
     scfres_dm = direct_minimization(basis, tol=1e-10)
     scfres_scf = self_consistent_field(basis, tol=1e-10)
-    @show scfres_scf.energies.total
     @test abs(scfres_scf.energies.total - scfres_dm.energies.total) < 1e-6
 end
 end

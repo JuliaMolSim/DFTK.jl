@@ -139,7 +139,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     temperature = 0.01
 
     compute_scfres(εF=nothing) = begin
-        comput = isnothing(εF) ? Dict(:n_electrons=>testcase.n_electrons) : Dict(:εF=>εF)
+        comput = isnothing(εF) ? (; n_electrons=testcase.n_electrons) : (; εF=εF)
         model = Model(silicon.lattice, atoms, testcase.positions; temperature, comput...,
                       disable_electrostatics_check=true)
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
