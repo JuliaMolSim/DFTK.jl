@@ -76,9 +76,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
 
-    # Calculate the atomic form factors for each species at every cartesian G-vector
-    # for unique values of |G|. We store these in a hash map indexed by (species, |G|)
-    # for O(1) lookup below.
+    # Calculate only at unique |G|, and store in a hash map for O(1) lookup.
     form_factors = Dict{Tuple{Int,T},T}()
     for (igroup, group) in enumerate(model.atom_groups)
         element = model.atoms[first(group)]
@@ -90,12 +88,9 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
         end
     end
 
-    # Calculate the Fourier transform of the local pseudopotential for every
-    # G-vector. The structure factor requires the fractional G-vector, while
-    # we need the norm of the cartesian G-vector for form factor lookup.
     pot_fourier = Array{Complex{T}, 3}(undef, size(G_vectors(basis)))
     for (iG, G) in enumerate(G_vectors(basis))
-        q = norm(model.recip_lattice * G)
+        q = norm(model.recip_lattice * G)  # Needed for lookup; fractional G used for SF
         pot = sum(enumerate(model.atom_groups)) do (igroup, group)
             structure_factor = sum(r -> cis2pi(-dot(G, r)), view(model.positions, group))
             form_factors[(igroup, q)] * structure_factor
