@@ -179,7 +179,7 @@ end
 Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
 function build_form_factors(psp, G_plus_ks)
-    T = typeof(psp).parameters[1]
+    T = real(typeof(norm(first(G_plus_ks))))
 
     # Precompute radial parts at unique |G| and store them in a hash map for O(1) lookup.
     pq = Dict{T,Matrix{T}}()
