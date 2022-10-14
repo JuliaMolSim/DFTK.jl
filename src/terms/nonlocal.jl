@@ -181,16 +181,15 @@ Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 function build_form_factors(psp, G_plus_ks)
     T = typeof(psp).parameters[1]
 
+    # Precompute radial parts at unique |G| and store them in a hash map for O(1) lookup.
     pq = Dict{T,Matrix{T}}()
     for Gpk in G_plus_ks
         q = norm(Gpk)
         if !haskey(pq, q)
             nproj_max = maximum(l -> size(psp.h[l+1], 1), 0:psp.lmax)
             pq_il = Matrix{T}(undef, nproj_max, psp.lmax+1)
-            for l in 0:psp.lmax
-                for iproj_l in axes(psp.h[l+1], 1)
+            for l in 0:psp.lmax, iproj_l in axes(psp.h[l+1], 1)
                     pq_il[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q)
-                end
             end
             pq[q] = pq_il
         end
@@ -210,6 +209,5 @@ function build_form_factors(psp, G_plus_ks)
         end
         @assert count == count_n_proj(psp) + 1
     end
-    return form_factors
-
+    form_factors
 end
