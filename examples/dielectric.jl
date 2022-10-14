@@ -26,7 +26,7 @@ scfres = self_consistent_field(basis, tol=1e-14);
 # Applying ``ε^† ≔ (1- χ_0 K)`` …
 function eps_fun(δρ)
     δV = apply_kernel(basis, δρ; ρ=scfres.ρ)
-    χ0δV = apply_χ0(scfres, δV)
+    χ0δV = apply_χ0(scfres, δV).δρ
     δρ - χ0δV
 end;
 

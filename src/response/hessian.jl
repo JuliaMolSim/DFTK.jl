@@ -125,10 +125,13 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
     - `δVind`: Change in potential induced by `δρ` (the term needed on top of `δHextψ`
       to get `δHψ`).
 """
-function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
-                            eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10,
-                            verbose=false, occupation_threshold,
-                            kwargs...) where {T}
+@timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
+                                    eigenvalues, rhs;
+                                    tol=1e-8, verbose=false, occupation_threshold,
+                                    tol_sternheimer_max=max(tol, 1e-2),  # Least accuracy
+                                    λmin_epsilon=T(0.3),  # Very conservative lower
+                                    # bound to the spectrum of the dielectric operator
+                                    kwargs...) where {T}
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
     # (Ω+K)^-1 =  Ω^-1 ( 1 -   K   (1 + Ω^-1 K  )^-1    Ω^-1  )
     #          = -χ04P ( 1 -   K   (1 - χ04P K  )^-1   (-χ04P))
@@ -136,30 +139,62 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
     # where χ02P = R χ04P E and K2P = R K E
     basis = ham.basis
     @assert size(rhs[1]) == size(ψ[1])  # Assume the same number of bands in ψ and rhs
+    @assert tol_sternheimer_max ≥ tol
+
+    if verbose
+        println("n     Arnoldi   Residual    CG     Comment")
+        println("---   -------   --------    -----  -------")
+    end
 
     # compute δρ0 (ignoring interactions)
-    δψ0, δoccupation0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
-                                    reltol=0, abstol=tol_sternheimer,
-                                    occupation_threshold, kwargs...)  # = -χ04P * rhs
-    δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0)
+    χ0res = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;      # = -χ04P * rhs
+                        reltol=0, abstol=tol, occupation_threshold, kwargs...)
+    δρ0 = compute_δρ(basis, ψ, χ0res.δψ, occupation, χ0res.δoccupation)
+    if verbose && mpi_master()
+        avg_iter = mpi_mean(mean(sum, χ0res.iterations), basis.comm_kpts)
+        @printf "%s%6.1f  Non-interacting response\n" " "^27 avg_iter
+    end
 
-    # compute total δρ
+    # Solve for total δρ (Dyson equation)
+    # Adaptive tolerance following Simoncini and Szyld (2007), DOI 10.1002/nla.499
+    χ0tol   = Ref(min(tol / 10, λmin_epsilon * tol / norm(δρ0)))
+    χ0niter = Ref(0.0)  # Extract average number of iterations
+
+    # Dielectric operator
     pack(δρ)   = vec(δρ)
     unpack(δρ) = reshape(δρ, size(ρ))
-    function eps_fun(δρ)
+    epsilon = LinearMap{T}(prod(size(δρ0))) do δρ
         δρ = unpack(δρ)
         δV = apply_kernel(basis, δρ; ρ)
-        # TODO
-        # Would be nice to play with abstol / reltol etc. to avoid over-solving
-        # for the initial GMRES steps.
-        χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                        occupation_threshold, abstol=tol_sternheimer, reltol=0,
-                        kwargs...)
-        pack(δρ - χ0δV)
+        χ0res = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
+                        occupation_threshold, abstol=χ0tol[], reltol=0, kwargs...)
+
+        # Addition because operator might be called multiple times between outputs
+        χ0niter[] += mpi_mean(mean(sum, χ0res.iterations), basis.comm_kpts)
+
+        pack(δρ - χ0res.δρ)
     end
-    J = LinearMap{T}(eps_fun, prod(size(δρ0)))
-    δρ, history = gmres(J, pack(δρ0); reltol=0, abstol=tol, verbose, log=true)
-    δρ = unpack(δρ)
+
+    # Note: δρ is updated in-place by gmres_iterable!
+    δρ = zero(δρ0)
+    iter = IterativeSolvers.gmres_iterable!(pack(δρ), epsilon, pack(δρ0);
+                                            reltol=0, abstol=tol, initially_zero=true)
+    n_iter = 0
+    for residual in iter
+        n_iter += 1
+        if verbose && mpi_master() && !IterativeSolvers.converged(iter)
+            @printf "% 3d    % 6d   %8.2f   %6.1f  " n_iter iter.k log10(residual) χ0niter[]
+            println(n_iter == 1 ? "Solving Dyson equation" : "")
+        end
+        χ0niter[] = 0.0
+
+        will_restart = iter.k == iter.restart
+        if will_restart  # Whenever we restart we need a more accurate solve
+            χ0tol[] = tol / 10
+        else
+            χ0tol[] = min(tol_sternheimer_max, λmin_epsilon * tol / residual)
+        end
+    end
 
     # Compute total change in Hamiltonian applied to ψ
     δVind = apply_kernel(basis, δρ; ρ)  # Change in potential induced by δρ
@@ -175,11 +210,14 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
         end
     end
 
-    δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                                       occupation_threshold, abstol=tol_sternheimer, 
-                                       reltol=0, kwargs...)
+    χ0res = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                        occupation_threshold, abstol=tol, reltol=0, kwargs...)
+    if verbose && mpi_master()
+        avg_iter = mpi_mean(mean(sum, χ0res.iterations), basis.comm_kpts)
+        @printf "%s%6.1f  Interacting response\n" " "^27 avg_iter
+    end
 
-    (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, history)
+    (; χ0res.δψ, δρ, δHψ, δVind, δeigenvalues, χ0res.δoccupation, χ0res.δεF)
 end
 
 function solve_ΩplusK_split(basis::PlaneWaveBasis, ψ, rhs, occupation; kwargs...)

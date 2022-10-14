@@ -65,7 +65,7 @@ function test_chi0(testcase; symmetries=false, temperature=0,
         diff_findiff = (ρ2 - ρ1) / (2ε)
 
         # Test apply_χ0 and compare against finite differences
-        diff_applied_χ0 = apply_χ0(scfres, δV)
+        diff_applied_χ0 = apply_χ0(scfres, δV).δρ
         @test norm(diff_findiff - diff_applied_χ0) < testtol
 
         # Test apply_χ0 without extra bands
@@ -100,8 +100,8 @@ function test_chi0(testcase; symmetries=false, temperature=0,
             mpi_mean!(δV1, MPI.COMM_WORLD)
             mpi_mean!(δV2, MPI.COMM_WORLD)
 
-            χ0δV1 = apply_χ0(scfres, δV1)
-            χ0δV2 = apply_χ0(scfres, δV2)
+            χ0δV1 = apply_χ0(scfres, δV1).δρ
+            χ0δV2 = apply_χ0(scfres, δV2).δρ
             @test abs(dot(δV1, χ0δV2) - dot(δV2, χ0δV1)) < testtol
         end
     end
