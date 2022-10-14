@@ -213,7 +213,7 @@ function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T <: Real}
     @inbounds for ir = eachindex(psp.rvlocpzdr)
         s += sin(q * psp.rgrid[ir]) * psp.rvlocpzdr[ir]
     end
-    4T(π) * (s - psp.Zion/q) / q
+    4T(π) * (s - psp.Zion / q) / q
 end
 
 """

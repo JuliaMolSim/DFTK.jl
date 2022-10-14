@@ -187,7 +187,7 @@ function build_form_factors(psp, G_plus_ks)
         q = norm(Gpk)
         if !haskey(pq, q)
             nproj_max = maximum(l -> size(psp.h[l+1], 1), 0:psp.lmax)
-            pq_il = Matrix{T}(undef, nproj_max, psp.lmax+1)
+            pq_il = Matrix{T}(undef, nproj_max, psp.lmax + 1)
             for l in 0:psp.lmax, iproj_l in axes(psp.h[l+1], 1)
                     pq_il[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q)
             end
