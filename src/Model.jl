@@ -109,7 +109,7 @@ function Model(lattice::AbstractMatrix{T},
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
                ) where {T <: Real}
-    # validate εF and n_electrons
+    # Validate εF and n_electrons
     if !isnothing(εF)  # fixed Fermi level
         if !isnothing(n_electrons)
             error("`n_electrons` is incompatible with fixed Fermi " *
@@ -118,9 +118,10 @@ function Model(lattice::AbstractMatrix{T},
         if !disable_electrostatics_check && any(!iszero, charge_ionic.(atoms))
             error("Coulomb electrostatics is incompatible with fixed Fermi level.")
         end
-    else # fixed number of electrons
+    else  # fixed number of electrons
         n_electrons < 0 && error("n_electrons should be non-negative.")
-        if !disable_electrostatics_check && n_electrons_from_atoms(atoms) != n_electrons
+        if !disable_electrostatics_check && any(!iszero, charge_ionic.(atoms)) &&
+                n_electrons_from_atoms(atoms) != n_electrons
             error("Support for non-neutral cells is experimental and likely broken.")
         end
     end
