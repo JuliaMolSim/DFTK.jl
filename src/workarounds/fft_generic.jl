@@ -23,7 +23,7 @@ end
 default_primes(::Any) = (2, )
 
 # Generic fallback function, Float32 and Float64 specialization in fft.jl
-function build_fft_plans(T, fft_size)
+function build_fft_plans(array_type::AbstractArray{T}, fft_size) where {T}
     tmp = Array{Complex{T}}(undef, fft_size...)
 
     # Note: FourierTransforms has no support for in-place FFTs at the moment
