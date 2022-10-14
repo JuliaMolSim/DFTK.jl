@@ -99,8 +99,9 @@ function Model(lattice::AbstractMatrix{T},
                εF=nothing,
                n_electrons::Union{Int,Nothing}=isnothing(εF) ?
                                                n_electrons_from_atoms(atoms) : nothing,
-               # force electrostatics with non-neutral cells; results not guaranteed
-               disable_electrostatics_check=false,
+               # Force electrostatics with non-neutral cells; results not guaranteed.
+               # Set to `true` by default for charged systems.
+               disable_electrostatics_check=any(!iszero, charge_ionic.(atoms)),
                magnetic_moments=T[],
                terms=[Kinetic()],
                temperature=zero(T),
@@ -115,13 +116,12 @@ function Model(lattice::AbstractMatrix{T},
             error("`n_electrons` is incompatible with fixed Fermi " *
                   "level `εF`.")
         end
-        if !disable_electrostatics_check && any(!iszero, charge_ionic.(atoms))
+        if !disable_electrostatics_check
             error("Coulomb electrostatics is incompatible with fixed Fermi level.")
         end
     else  # fixed number of electrons
         n_electrons < 0 && error("n_electrons should be non-negative.")
-        if !disable_electrostatics_check && any(!iszero, charge_ionic.(atoms)) &&
-                n_electrons_from_atoms(atoms) != n_electrons
+        if !disable_electrostatics_check && n_electrons_from_atoms(atoms) != n_electrons
             error("Support for non-neutral cells is experimental and likely broken.")
         end
     end
