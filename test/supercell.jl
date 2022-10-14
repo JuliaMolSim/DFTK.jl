@@ -4,7 +4,7 @@ include("testcases.jl")
 
 @testset "Compare scf results in unit cell and supercell" begin
     Ecut = 4; kgrid = [3,3,3]; tol=1e-12; kshift=zeros(3);
-    scf_tol = (; tol, is_converged=DFTK.ScfConvergenceDensity(tol))
+    scf_tol = (; is_converged=DFTK.ScfConvergenceDensity(tol))
     # Parameters
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
     model = model_LDA(silicon.lattice, [Si, Si], silicon.positions)
