@@ -107,7 +107,7 @@ next_working_fft_size(::Type{<:ForwardDiff.Dual}, size::Int) = size
 
 _fftw_flags(::Type{<:ForwardDiff.Dual}) = FFTW.MEASURE | FFTW.UNALIGNED
 
-function build_fft_plans(T::Type{<:Union{ForwardDiff.Dual,Complex{<:ForwardDiff.Dual}}}, fft_size)
+function build_fft_plans(array_type::AbstractArray{T}, fft_size) where {T<:Union{ForwardDiff.Dual,Complex{<:ForwardDiff.Dual}}}
     tmp = Array{complex(T)}(undef, fft_size...) # TODO think about other Array types
     opFFT  = FFTW.plan_fft(tmp, flags=_fftw_flags(T))
     opBFFT = FFTW.plan_bfft(tmp, flags=_fftw_flags(T))
@@ -209,7 +209,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
         εF_dual = T(scfres.εF)  # Only needed for entropy term
         eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
         _, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
-                                         ρ=ρ_dual, eigenvalues=eigenvalues_dual, 
+                                         ρ=ρ_dual, eigenvalues=eigenvalues_dual,
                                          εF=εF_dual)
         ham_dual * ψ_dual
     end
