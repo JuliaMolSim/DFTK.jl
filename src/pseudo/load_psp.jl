@@ -11,10 +11,10 @@ If the `key` is a path to a valid file, the extension is used to determine
 the type of the pseudopotential file format and a respective class is returned.
 """
 function load_psp(key::AbstractString)
-    if startswith(key, "hgh/") || endswith(key, ".hgh")
+    if startswith(key, "hgh/") || endswith(lowercase(key), ".hgh")
         parser = parse_hgh_file
         extension = ".hgh"
-    elseif endswith(key, ".upf") || endswith(key, ".UPF")
+    elseif endswith(lowercase(key), ".upf")
         parser = parse_upf_file
         extension = ".upf"
     else
