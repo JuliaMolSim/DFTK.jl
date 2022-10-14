@@ -1,3 +1,5 @@
+using Random  # Used to have a generic API for CPU and GPU computations alike: see random_orbitals
+
 # Returns the occupied orbitals, the occupation array and optionally the eigenvalues without
 # virtual states (or states with small occupation level for metals).
 # threshold is a parameter to distinguish between states we want to keep and the
@@ -51,7 +53,6 @@ function unsafe_unpack_ψ(x, sizes_ψ)
 end
 unpack_ψ(x, sizes_ψ) = deepcopy(unsafe_unpack_ψ(x, sizes_ψ))
 
-using Random
 function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany) where {T}
     orbitals = similar(basis.G_vectors, Complex{T}, length(G_vectors(basis, kpt)), howmany)
     randn!(TaskLocalRNG(), orbitals)  # Force the use of GPUArrays.jl's random function if using the GPU

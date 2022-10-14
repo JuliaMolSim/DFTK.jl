@@ -13,9 +13,6 @@ using spglib_jll
 using Unitful
 using UnitfulAtomic
 using ForwardDiff
-using AbstractFFTs
-using GPUArraysCore
-using CUDA
 using Random
 using ChainRulesCore
 
