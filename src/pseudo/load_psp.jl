@@ -14,7 +14,7 @@ function load_psp(key::AbstractString)
     if startswith(key, "hgh/") || endswith(key, ".hgh")
         parser = parse_hgh_file
         extension = ".hgh"
-    elseif endswith(key, ".upf")
+    elseif endswith(key, ".upf") || endswith(key, ".UPF")
         parser = parse_upf_file
         extension = ".upf"
     else
@@ -30,7 +30,7 @@ function load_psp(key::AbstractString)
         end
     else
         # Not a file: Treat as identifier, add extension if needed
-        fullpath = joinpath(datadir_psp(), key)
+        fullpath = joinpath(datadir_psp(), lowercase(key))
         isfile(fullpath) || (fullpath = fullpath * extension)
         identifier = replace(lowercase(key), "\\" => "/")
     end

@@ -1,4 +1,5 @@
 using Test
+using LinearAlgebra
 using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
 using DFTK: eval_psp_projector_real, psp_local_polynomial, eval_psp_local_real
 using DFTK: psp_projector_polynomial, qcut_psp_projector, qcut_psp_local

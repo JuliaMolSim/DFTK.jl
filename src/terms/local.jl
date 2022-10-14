@@ -75,13 +75,31 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
 
-    pot_fourier = map(G_vectors(basis)) do G
-        pot = sum(model.atom_groups) do group
+    Gvecs = G_vectors(basis)
+    qnorms = map(G -> norm(model.recip_lattice * G), Gvecs)
+    uqnorms = unique(qnorms)
+    iuq2iq = map(iuq -> findall(qnorm -> isequal(qnorm, uqnorms[iuq]), qnorms), 1:length(uqnorms))
+
+    form_factors = Vector{T}(undef, length(model.atom_groups))
+    pot_fourier = Array{Complex{T}, 3}(undef, size(Gvecs))
+    
+    for iuq = eachindex(uqnorms)
+        for iag = eachindex(model.atom_groups)
+            group = model.atom_groups[iag]
             element = model.atoms[first(group)]
-            form_factor::T = local_potential_fourier(element, norm(model.recip_lattice * G))
-            form_factor * sum(cis2pi(-dot(G, r)) for r in @view model.positions[group])
+            form_factors[iag] = local_potential_fourier(element, uqnorms[iuq])
         end
-        pot / sqrt(model.unit_cell_volume)
+        for iq in iuq2iq[iuq]
+            pot = zero(T)
+            for iag = eachindex(model.atom_groups)
+                structure_factor = zero(T)
+                for ia in model.atom_groups[iag]
+                    structure_factor += cis2pi(-dot(Gvecs[iq], model.positions[ia]))
+                end
+                pot += form_factors[iag] * structure_factor
+            end
+            pot_fourier[iq] = pot / sqrt(model.unit_cell_volume)
+        end
     end
     enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
 
