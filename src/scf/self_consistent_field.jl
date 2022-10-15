@@ -80,8 +80,9 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
                                       ) where {T}
     if !isnothing(n_bands) || !isnothing(n_ep_extra)
         # TODO Backwards compatibility ... emulates exactly how bands worked before
-        @warn("The options n_bands and n_ep_extra of self_consistent_field are deprecated. " *
-              "Use `nbandsalg` instead to influence number of bands to compute.")
+        Base.depwarn("The options n_bands and n_ep_extra of self_consistent_field " *
+                     "are deprecated. Use `nbandsalg` instead to influence number of " *
+                     "bands to compute.", :self_consistent_field)
         n_bands_converge = something(n_bands, FixedBands(basis.model).n_bands_converge)
         nbandsalg = FixedBands(; n_bands_converge,
                                n_bands_compute=n_bands_converge + something(n_ep_extra, 3))

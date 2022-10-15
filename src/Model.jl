@@ -21,8 +21,10 @@ struct Model{T <: Real, VT <: Real}
     unit_cell_volume::T
     recip_cell_volume::T
 
-    # Electrons, occupation and smearing function
-    n_electrons::Int  # usually consistent with `atoms` field, but doesn't have to
+    # Computations can be performed at fixed `n_electrons` (`n_electrons` Int, `εF` nothing),
+    # or fixed Fermi level (expert option, `n_electrons` nothing, `εF` T)
+    n_electrons::Union{Int, Nothing}
+    εF::Union{T, Nothing}
 
     # spin_polarization values:
     #     :none       No spin polarization, αα and ββ density identical,
@@ -94,28 +96,44 @@ function Model(lattice::AbstractMatrix{T},
                atoms::Vector{<:Element}=Element[],
                positions::Vector{<:AbstractVector}=Vec3{T}[];
                model_name="custom",
-               n_electrons::Int=sum(n_elec_valence, atoms; init=0),
+               εF=nothing,
+               n_electrons::Union{Int,Nothing}=isnothing(εF) ?
+                                               n_electrons_from_atoms(atoms) : nothing,
+               # Force electrostatics with non-neutral cells; results not guaranteed.
+               # Set to `true` by default for charged systems.
+               disable_electrostatics_check=all(iszero, charge_ionic.(atoms)),
                magnetic_moments=T[],
                terms=[Kinetic()],
                temperature=zero(T),
-               smearing=nothing,
+               smearing=temperature > 0 ? Smearing.FermiDirac() : Smearing.None(),
                spin_polarization=default_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
                ) where {T <: Real}
-    lattice = Mat3{T}(lattice)
-    temperature = T(austrip(temperature))
+    # Validate εF and n_electrons
+    if !isnothing(εF)  # fixed Fermi level
+        if !isnothing(n_electrons)
+            error("Cannot have both a given `n_electrons` and a fixed Fermi level `εF`.")
+        end
+        if !disable_electrostatics_check
+            error("Coulomb electrostatics is incompatible with fixed Fermi level.")
+        end
+    else  # fixed number of electrons
+        n_electrons < 0 && error("n_electrons should be non-negative.")
+        if !disable_electrostatics_check && n_electrons_from_atoms(atoms) != n_electrons
+            error("Support for non-neutral cells is experimental and likely broken.")
+        end
+    end
 
-    # Atoms and electrons
+    # Atoms and terms
     if length(atoms) != length(positions)
         error("Length of atoms and positions vectors need to agree.")
     end
-    n_electrons < 0 && error("n_electrons should be non-negative. Ensure to provide a " *
-                             "non-empty atoms list or an appropriate `n_electrons` kwarg.")
     isempty(terms) && error("Model without terms not supported.")
     atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
 
     # Special handling of 1D and 2D systems, and sanity checks
+    lattice = Mat3{T}(lattice)
     n_dim = count(!iszero, eachcol(lattice))
     n_dim > 0 || error("Check your lattice; we do not do 0D systems")
     for i = n_dim+1:3
@@ -141,11 +159,8 @@ function Model(lattice::AbstractMatrix{T},
     )
     n_spin = length(spin_components(spin_polarization))
 
-    if isnothing(smearing)
-        @assert temperature >= 0
-        # Default to Fermi-Dirac smearing when finite temperature
-        smearing = temperature > 0.0 ? Smearing.FermiDirac() : Smearing.None()
-    end
+    temperature = T(austrip(temperature))
+    temperature < 0 && error("temperature must be non-negative")
 
     if !allunique(string.(nameof.(typeof.(terms))))
         error("Having several terms of the same name is not supported.")
@@ -163,7 +178,7 @@ function Model(lattice::AbstractMatrix{T},
     Model{T,value_type(T)}(model_name,
                            lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
                            unit_cell_volume, recip_cell_volume,
-                           n_electrons, spin_polarization, n_spin, T(temperature), smearing,
+                           n_electrons, εF, spin_polarization, n_spin, temperature, smearing,
                            atoms, positions, atom_groups, terms, symmetries)
 end
 function Model(lattice::AbstractMatrix{<:Integer}, atoms::Vector{<:Element},
@@ -179,9 +194,11 @@ normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
 normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)
 normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm
 
+"""Number of valence electrons."""
+n_electrons_from_atoms(atoms) = sum(n_elec_valence, atoms; init=0)
 
 """
-:none if no element has a magnetic moment, else :collinear or :full
+`:none` if no element has a magnetic moment, else `:collinear` or `:full`.
 """
 function default_spin_polarization(magnetic_moments)
     isempty(magnetic_moments) && return :none
@@ -243,7 +260,6 @@ function spin_components(spin_polarization::Symbol)
     spin_polarization == :full      && return (:undefined, )
 end
 spin_components(model::Model) = spin_components(model.spin_polarization)
-
 
 # prevent broadcast
 import Base.Broadcast.broadcastable
