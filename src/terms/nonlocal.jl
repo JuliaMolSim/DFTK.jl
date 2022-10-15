@@ -182,28 +182,28 @@ function build_form_factors(psp, G_plus_ks)
     T = real(typeof(norm(first(G_plus_ks))))
 
     # Precompute radial parts at unique |G| and store them in a hash map for O(1) lookup.
-    pq = Dict{T,Matrix{T}}()
+    radial = Dict{T,Matrix{T}}()
     for Gpk in G_plus_ks
         q = norm(Gpk)
-        if !haskey(pq, q)
+        if !haskey(radial, q)
             nproj_max = maximum(l -> size(psp.h[l+1], 1), 0:psp.lmax)
-            pq_il = Matrix{T}(undef, nproj_max, psp.lmax + 1)
+            radial_q = Matrix{T}(undef, nproj_max, psp.lmax + 1)
             for l in 0:psp.lmax, iproj_l in axes(psp.h[l+1], 1)
-                    pq_il[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q)
+                    radial_q[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q)
             end
-            pq[q] = pq_il
+            radial[q] = radial_q
         end
     end
 
     form_factors = zeros(Complex{T}, length(G_plus_ks), count_n_proj(psp))
     for (iGpk, Gpk) in enumerate(G_plus_ks)
         q = norm(Gpk)
-        pq_il = pq[q]
+        radial_q = radial[q]
         count = 1
         for l in 0:psp.lmax, m in -l:l
-            prefac_lm = im^l * ylm_real(l, m, Gpk)
+            angular_Glm = im^l * ylm_real(l, m, Gpk)
             for iproj_l in axes(psp.h[l+1], 1)
-                form_factors[iGpk, count] = prefac_lm * pq_il[iproj_l, l+1]
+                form_factors[iGpk, count] = angular_Glm * radial_q[iproj_l, l+1]
                 count += 1
             end
         end
