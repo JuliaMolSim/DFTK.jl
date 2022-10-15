@@ -113,8 +113,7 @@ function Model(lattice::AbstractMatrix{T},
     # Validate εF and n_electrons
     if !isnothing(εF)  # fixed Fermi level
         if !isnothing(n_electrons)
-            error("`n_electrons` is incompatible with fixed Fermi " *
-                  "level `εF`.")
+            error("Cannot have both a given `n_electrons` and a fixed Fermi level `εF`.")
         end
         if !disable_electrostatics_check
             error("Coulomb electrostatics is incompatible with fixed Fermi level.")
