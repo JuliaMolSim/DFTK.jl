@@ -41,8 +41,8 @@ end
     Model(silicon.lattice; n_electrons=1)
 
     # Violation of charge neutrality should throw for models with atoms.
-    @test_throws "Coulomb electrostatics" model_LDA(silicon.lattice, silicon.atoms,
-                                                    silicon.positions; εF=0.1)
-    @test_throws "non-neutral cell" model_LDA(silicon.lattice, silicon.atoms,
-                                              silicon.positions; n_electrons=1)
+    @test_throws ErrorException model_LDA(silicon.lattice, silicon.atoms,
+                                          silicon.positions; εF=0.1)
+    @test_throws ErrorException model_LDA(silicon.lattice, silicon.atoms,
+                                          silicon.positions; n_electrons=1)
 end
