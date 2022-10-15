@@ -69,30 +69,28 @@ Atomic local potential defined by `model.atoms`.
 """
 struct AtomicLocal end
 function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
+<<<<<<< HEAD
     model = basis.model
+=======
+>>>>>>> b7ed8590 (Inlining)
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
     # Since V is a sum of radial functions located at atomic
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
+    model = basis.model
+    G_frac = G_vectors(basis)
+    G_cart = G_vectors_cart(basis)
 
-    # Calculate only at unique |G|, and store in a hash map for O(1) lookup.
     form_factors = Dict{Tuple{Int,T},T}()
-    for (igroup, group) in enumerate(model.atom_groups)
-        element = model.atoms[first(group)]
-        for G in G_vectors_cart(basis)
-            q = norm(G)
-            if !haskey(form_factors, (igroup, q))
-                form_factors[(igroup, q)] = local_potential_fourier(element, q)
-            end
-        end
-    end
-
-    pot_fourier = Array{Complex{T}, 3}(undef, size(G_vectors(basis)))
-    for (iG, G) in enumerate(G_vectors(basis))
-        q = norm(model.recip_lattice * G)  # Needed for lookup; fractional G used for SF
+    pot_fourier = Array{Complex{T}, 3}(undef, size(G_frac))
+    for (iG, G) in enumerate(G_frac)
+        q = norm(G_cart[iG])
         pot = sum(enumerate(model.atom_groups)) do (igroup, group)
+            form_factor = get!(form_factors, (igroup, q)) do
+                local_potential_fourier(model.atoms[first(group)], q)
+            end
             structure_factor = sum(r -> cis2pi(-dot(G, r)), view(model.positions, group))
-            form_factors[(igroup, q)] * structure_factor
+            form_factor * structure_factor
         end
         pot_fourier[iG] = pot / sqrt(model.unit_cell_volume)
     end
