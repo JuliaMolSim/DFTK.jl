@@ -181,24 +181,19 @@ Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 function build_form_factors(psp, G_plus_ks)
     T = real(typeof(norm(first(G_plus_ks))))
 
-    # Precompute radial parts at unique |G| and store them in a hash map for O(1) lookup.
+    nproj_max = maximum(l -> size(psp.h[l+1], 1), 0:psp.lmax)
     radial = Dict{T,Matrix{T}}()
-    for Gpk in G_plus_ks
-        q = norm(Gpk)
-        if !haskey(radial, q)
-            nproj_max = maximum(l -> size(psp.h[l+1], 1), 0:psp.lmax)
-            radial_q = Matrix{T}(undef, nproj_max, psp.lmax + 1)
-            for l in 0:psp.lmax, iproj_l in axes(psp.h[l+1], 1)
-                    radial_q[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q)
-            end
-            radial[q] = radial_q
-        end
-    end
-
     form_factors = zeros(Complex{T}, length(G_plus_ks), count_n_proj(psp))
     for (iGpk, Gpk) in enumerate(G_plus_ks)
         q = norm(Gpk)
-        radial_q = radial[q]
+        radial_q = get!(radial, q) do
+            radial_tmp = Matrix{T}(undef, nproj_max, psp.lmax + 1)
+            for l in 0:psp.lmax, iproj_l in axes(psp.h[l+1], 1)
+                radial_tmp[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q)
+            end
+            radial_tmp
+        end
+
         count = 1
         for l in 0:psp.lmax, m in -l:l
             angular_Glm = im^l * ylm_real(l, m, Gpk)
