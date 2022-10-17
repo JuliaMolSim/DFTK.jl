@@ -48,14 +48,16 @@ function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
     [SymOp(W, w) for (W, w) in zip(Ws, ws)]
 end
 
+# test approximate equality between two vectors
+# this can be performance-critical, so we optimize in the case of rationals
+_test_approx(x::AbstractArray{T}, y::AbstractArray{T}) where {T <: Rational} = (x == y)
+_test_approx(x::AbstractArray{T}, y::AbstractArray{T}) where T = isapprox(x, y; atol=sqrt(eps(T)))
 """
 Filter out the symmetry operations that don't respect the symmetries of the discrete BZ grid
 """
 function symmetries_preserving_kgrid(symmetries, kcoords)
     kcoords_normalized = normalize_kpoint_coordinate.(kcoords)
-    T = eltype(kcoords[1])
-    atol = T <: Rational ? 0 : sqrt(eps(T))
-    is_approx_in(x, X) = any(y -> isapprox(x, y; atol), X)
+    is_approx_in(x, X) = any(y -> _test_approx(x, y), X)
     function preserves_grid(symop)
         all(is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
             for k in kcoords_normalized)
