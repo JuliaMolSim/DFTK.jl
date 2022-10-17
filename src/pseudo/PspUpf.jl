@@ -2,7 +2,7 @@ using LinearAlgebra
 using Interpolations: linear_interpolation
 using PseudoPotentialIO: load_upf
 
-struct PspUpf{T} <: NormConservingPsp
+struct PspUpf{T,IT} <: NormConservingPsp
     Zion::Int                             # Ionic charge (Z - valence electrons)
     lmax::Int                             # Maximal angular momentum in the non-local part
     
@@ -10,10 +10,10 @@ struct PspUpf{T} <: NormConservingPsp
     drgrid::Vector{T}                     # Radial grid derivative / integration factor
     
     vloc::Vector{T}                       # Local potential on the radial grid
-    vloc_interp                           # Local potential interpolator
+    vloc_interp::IT                       # Local potential interpolator
     
     projs::Vector{Vector{Vector{T}}}      # Kleinman-Bylander β projectors: projs[l+1][i]
-    projs_interp                          # Projector interpolator
+    projs_interp::Vector{Vector{IT}}      # Projector interpolator
     h::Vector{Matrix{T}}                  # Projector coupling coefficients per AM channel: h[l+1][i1,i2]
     
     pswfcs::Vector{Vector{T}}             # Pseudo-atomic wavefunctions
@@ -38,16 +38,16 @@ end
 Construct a Unified Pseudopotential Format pseudopotential. Currently only
 norm-conserving potentials are supported.
 """
-function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, vloc_interp, projs, projs_interp,
-                h, pswfcs, pswfc_ang_moms, pswfc_occs, rhoatom, rvlocpzdr, r2projsdr;
-                identifier="") where {T}
+function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, vloc_interp::IT, projs,
+                projs_interp, h, pswfcs, pswfc_ang_moms, pswfc_occs, rhoatom, rvlocpzdr,
+                r2projsdr; identifier="") where {T, IT}
     length(projs)  == length(h)              || error("Length of projs and h do not agree.")
     length(pswfcs) == length(pswfc_ang_moms) || error("Length of pseudo wfcs and pseudo" *
                                                       " wfc angular momenta do not agree.")
     length(pswfcs) == length(pswfc_occs)     || error("Length of pseudo wfcs and pseudo" *
                                                       " wfc occupations do not agree.")
 
-    return PspUpf{T}(Zion, lmax, rgrid, drgrid, vloc, vloc_interp, projs, projs_interp, h,
+    return PspUpf{T,IT}(Zion, lmax, rgrid, drgrid, vloc, vloc_interp, projs, projs_interp, h,
                      pswfcs, pswfc_ang_moms, pswfc_occs, rhoatom, rvlocpzdr, r2projsdr,
                      identifier)
 end
@@ -74,11 +74,12 @@ function parse_upf_file(path; identifier=path)
     nwfc        = pseudo["header"]["number_of_wfc"]     # Number of pseudo-atomic ψ
     vloc        = pseudo["local_potential"] ./ 2        # Local potential (Ry -> Ha)
     vloc_interp = linear_interpolation((rgrid,), vloc)  # Interp.or for the local potential
+    IT = typeof(vloc_interp)
 
     # Kleinman-Bylander β projectors projs[l+1][i][ir]
     # NB: UPFs store rβ, not just β
     projs = [Vector[] for _ = 0:lmax]   # Projectors on the grid
-    projs_interp = [[] for _ = 0:lmax]  # Interpolators for the non-local projectors
+    projs_interp = [IT[] for _ = 0:lmax]  # Interpolators for the non-local projectors
     for i = 1:nproj
         proj_data = pseudo["beta_projectors"][i]
         l = proj_data["angular_momentum"]
@@ -160,11 +161,6 @@ p(q)
 Note: UPFs store `r[i] p_{il}(r[i])`
 """
 function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real}
-    eval_psp_projector_fourier(psp, i, Val(l), q)
-end
-
-function eval_psp_projector_fourier(psp::PspUpf, i,
-    val_l::Val{l}, q::T)::T where {T <: Real, l}
     if iszero(q)
         # When q=0: 4π Σ[ j_{l}(0) * r[ir]^2 * β_{li}[ir] * dr[ir] ]
         #           where j_{l=0}(0) = 1 -> 4π Σ[ r[ir]^2 * β_{li}[ir] * dr[ir] ]
@@ -183,8 +179,8 @@ function eval_psp_projector_fourier(psp::PspUpf, i,
     
     ir_cut = lastindex(psp.r2projsdr[l+1][i])
     r2projdr = psp.r2projsdr[l+1][i]
-    @inbounds for ir = ir_start:ir_cut
-        s += sphericalbesselj(val_l, q * psp.rgrid[ir]) * r2projdr[ir]
+    @inbounds @simd for ir = ir_start:ir_cut
+        s += sphericalbesselj(l, q * psp.rgrid[ir]) * r2projdr[ir]
     end
     
     4T(π) * s
