@@ -76,7 +76,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
     G_cart = G_vectors_cart(basis)
 
-    form_factors = Dict{Tuple{Int,T},T}()
+    form_factors = IdDict{Tuple{Int,T},T}()
     for G in G_cart
         q = norm(G)
         for (igroup, group) in enumerate(model.atom_groups)

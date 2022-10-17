@@ -1,7 +1,7 @@
 using Test
 using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
 using DFTK: eval_psp_projector_real, eval_psp_local_real, eval_psp_energy_correction
-using DFTK: parse_upf_file
+using DFTK: parse_upf_file, count_n_proj_radial
 using SpecialFunctions: sphericalbesselj
 using QuadGK
 
@@ -30,7 +30,7 @@ end
         rand_r = rand(5) .* abs(upf.rgrid[end] - upf.rgrid[1]) .+ upf.rgrid[1]
         for r in [upf.rgrid[1], rand_r..., upf.rgrid[end]]
             reference_hgh = eval_psp_local_real(hgh, r)
-            @test reference_hgh ≈ eval_psp_local_real(upf, r) rtol=1e-8 atol=1e-8
+            @test reference_hgh ≈ eval_psp_local_real(upf, r) rtol=1e-3 atol=1e-3
         end
     end
 end
@@ -50,18 +50,23 @@ end
     for pspfile in hgh_upf_files
         upf = parse_upf_file("psp/$(pspfile).upf")
         hgh = load_psp("hgh/pbe/$(pspfile).hgh")
-        for (l, i) in [(0, 1), (0, 2), (0, 3), (1, 1), (1, 2), (1, 3),
-                       (2, 1), (2, 2), (3, 1)]
-            l > upf.lmax - 1 && continue  # Overshooting available AM
-            i > length(upf.projs[l+1]) && continue  # Overshooting available projectors at AM
+
+        @test upf.lmax == hgh.lmax
+        for l in 0:upf.lmax
+            @test count_n_proj_radial(upf, l) == count_n_proj_radial(hgh, l)
+        end
+
+        for l in 0:upf.lmax, i in count_n_proj_radial(upf, l)
             ircut = length(upf.projs[l+1][i])
             for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
                 reference_hgh = eval_psp_projector_fourier(hgh, i, l, q)
-                @test reference_hgh ≈ eval_psp_projector_fourier(upf, i, l, q) atol=1e-7 rtol=1e-7
+                proj_upf = eval_psp_projector_fourier(upf, i, l, q)
+                @test reference_hgh ≈ proj_upf atol=1e-7 rtol=1e-7
             end
             for r in [upf.rgrid[1], upf.rgrid[ircut]]
                 reference_hgh = eval_psp_projector_real(hgh, i, l, r)
-                @test reference_hgh ≈ eval_psp_projector_real(upf, i, l, r) atol=1e-7 rtol=1e-7
+                proj_upf = eval_psp_projector_real(upf, i, l, r)
+                @test reference_hgh ≈ proj_upf atol=1e-7 rtol=1e-7
             end
         end
     end
@@ -101,14 +106,11 @@ end
     for pspfile in all_upf_files
         psp = parse_upf_file("psp/$(pspfile).upf")
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1 
-        for (l, i) in [(0, 1), (0, 2), (0, 3), (1, 1), (1, 2), (1, 3),
-                       (2, 1), (2, 2), (3, 1)]
-            l > psp.lmax - 1 && continue  # Overshooting available AM
-            i > length(psp.projs[l+1]) && continue  # Overshooting available projectors at AM
+        for l in 0:psp.lmax, i in count_n_proj_radial(psp, l)
             ir_cut = length(psp.projs[l+1][i])
             for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
-                reference = quadgk(
-                    r -> integrand(psp, i, l, q, r), psp.rgrid[ir_start], psp.rgrid[ir_cut])[1]
+                reference = quadgk(r -> integrand(psp, i, l, q, r),
+                                   psp.rgrid[ir_start], psp.rgrid[ir_cut])[1]
                 @test reference ≈ eval_psp_projector_fourier(psp, i, l, q) atol=1e-2 rtol=1e-2
             end
         end

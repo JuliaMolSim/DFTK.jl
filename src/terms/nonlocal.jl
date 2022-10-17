@@ -182,7 +182,7 @@ function build_form_factors(psp, G_plus_ks)
     T = real(eltype(first(G_plus_ks)))
 
     n_proj_max = maximum(l -> size(psp.h[l+1], 1), 0:psp.lmax)
-    radials = Dict{T,Matrix{T}}()
+    radials = IdDict{T,Matrix{T}}()
     for Gpk in G_plus_ks
         q = norm(Gpk)
         if !haskey(radials, q)
