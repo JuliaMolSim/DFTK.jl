@@ -105,7 +105,7 @@ function build_projection_coefficients_(T, psps, psp_positions)
         block = count+1:count+n_proj_psp
         proj_coeffs[block, block] = build_projection_coefficients_(T, psp)
         count += n_proj_psp
-    end # psp, r
+    end  # psp, r
     @assert count == n_proj
 
     proj_coeffs
@@ -120,7 +120,7 @@ function build_projection_coefficients_(T, psp::NormConservingPsp)
     proj_coeffs = zeros(T, n_proj, n_proj)
     count = 0
     for l in 0:psp.lmax, m in -l:l
-        n_proj_l = size(psp.h[l + 1], 1)  # Number of i's
+        n_proj_l = count_n_proj_radial(psp, l)  # Number of i's
         range = count .+ (1:n_proj_l)
         proj_coeffs[range, range] = psp.h[l + 1]
         count += n_proj_l
@@ -181,13 +181,13 @@ Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 function build_form_factors(psp, G_plus_ks)
     T = real(eltype(first(G_plus_ks)))
 
-    n_proj_max = maximum(l -> size(psp.h[l+1], 1), 0:psp.lmax; init=0)
+    n_proj_max = maximum(l -> count_n_proj_radial(psp, l), 0:psp.lmax; init=0)
     radials = IdDict{T,Matrix{T}}()
     for Gpk in G_plus_ks
         q = norm(Gpk)
         if !haskey(radials, q)
             radials_q = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
-            for l in 0:psp.lmax, iproj_l in axes(psp.h[l+1], 1)
+            for l in 0:psp.lmax, iproj_l in 1:count_n_proj_radial(psp, l)
                 radials_q[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q)
             end
             radials[q] = radials_q
@@ -200,7 +200,7 @@ function build_form_factors(psp, G_plus_ks)
         count = 1
         for l in 0:psp.lmax, m in -l:l
             angular_Glm = im^l * ylm_real(l, m, Gpk)
-            for iproj_l in axes(psp.h[l+1], 1)
+            for iproj_l in 1:count_n_proj_radial(psp, l)
                 form_factors[iGpk, count] = angular_Glm * radials_q[iproj_l, l+1]
                 count += 1
             end
