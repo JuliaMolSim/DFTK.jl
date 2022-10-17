@@ -5,51 +5,42 @@ using PseudoPotentialIO: load_upf
 struct PspUpf{T,IT} <: NormConservingPsp
     Zion::Int                             # Ionic charge (Z - valence electrons)
     lmax::Int                             # Maximal angular momentum in the non-local part
-    
+
     rgrid::Vector{T}                      # Radial grid
     drgrid::Vector{T}                     # Radial grid derivative / integration factor
-    
+
     vloc::Vector{T}                       # Local potential on the radial grid
     vloc_interp::IT                       # Local potential interpolator
-    
+
     projs::Vector{Vector{Vector{T}}}      # Kleinman-Bylander β projectors: projs[l+1][i]
     projs_interp::Vector{Vector{IT}}      # Projector interpolator
     h::Vector{Matrix{T}}                  # Projector coupling coefficients per AM channel: h[l+1][i1,i2]
-    
-    pswfcs::Vector{Vector{T}}             # Pseudo-atomic wavefunctions
-    pswfc_ang_moms::Vector{Int}           # Angular momenta of the pseudo-atomic wavefunctions
-    pswfc_occs::Vector{T}                 # Occupations of the pseudo-atomic wavefunctions
+
+    pswfcs::Vector{Vector{Vector{T}}}     # Pseudo-atomic wavefunctions
+    pswfc_occs::Vector{Vector{T}}         # Occupations of the pseudo-atomic wavefunctions
 
     rhoatom::Vector{T}                    # Pseudo-atomic charge density
 
     rvlocpzdr::Vector{T}                  # (r_i V_{loc}(r_i) + Z) dr_i
     r2projsdr::Vector{Vector{Vector{T}}}  # r_j^2 β_{li}(r_j) dr_i
-    
+
     identifier::String                    # String identifying the PSP
 end
 
 """
     PspUpf(Zion::Number, lmax::Number, rgrid::Vector, drgrid::Vector, vloc::Vector,
            vloc_interp, projs::Vector{Vector{Vector}}, projs_interp, h::Vector{Matrix},
-           pswfcs::Vector{Vector}, pswfc_ang_moms::Vector, pswfc_occs::Vector,
-           rhoatom::Vector, rvlocpzdr::Vector, r2projsdr::Vector{Vector{Vector}};
-           identifier="")
+           pswfcs::Vector{Vector}, pswfc_occs::Vector, rhoatom::Vector, rvlocpzdr::Vector,
+           r2projsdr::Vector{Vector{Vector}}; identifier="")
 
 Construct a Unified Pseudopotential Format pseudopotential. Currently only
 norm-conserving potentials are supported.
 """
 function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, vloc_interp::IT, projs,
-                projs_interp, h, pswfcs, pswfc_ang_moms, pswfc_occs, rhoatom, rvlocpzdr,
-                r2projsdr; identifier="") where {T, IT}
-    length(projs)  == length(h)              || error("Length of projs and h do not agree.")
-    length(pswfcs) == length(pswfc_ang_moms) || error("Length of pseudo wfcs and pseudo" *
-                                                      " wfc angular momenta do not agree.")
-    length(pswfcs) == length(pswfc_occs)     || error("Length of pseudo wfcs and pseudo" *
-                                                      " wfc occupations do not agree.")
-
-    return PspUpf{T,IT}(Zion, lmax, rgrid, drgrid, vloc, vloc_interp, projs, projs_interp, h,
-                     pswfcs, pswfc_ang_moms, pswfc_occs, rhoatom, rvlocpzdr, r2projsdr,
-                     identifier)
+                projs_interp, h, pswfcs, pswfc_occs, rhoatom, rvlocpzdr, r2projsdr;
+                identifier="") where {T, IT}
+    PspUpf{T,IT}(Zion, lmax, rgrid, drgrid, vloc, vloc_interp, projs, projs_interp, h,
+                 pswfcs, pswfc_occs, rhoatom, rvlocpzdr, r2projsdr, identifier)
 end
 
 function parse_upf_file(path; identifier=path)
@@ -66,29 +57,24 @@ function parse_upf_file(path; identifier=path)
     length(unsupported) > 0 && error("Pseudopotential contains the following unsupported" *
                                      " features/quantities: $unsupported")
 
-    Zion        = Int(pseudo["header"]["z_valence"])    # Pseudo-ion charge
-    rgrid       = pseudo["radial_grid"]                 # Radial grid
-    drgrid      = pseudo["radial_grid_derivative"]      # Integration coeff.s
-    lmax        = pseudo["header"]["l_max"]             # Maximum angular momentum channel
-    nproj       = pseudo["header"]["number_of_proj"]    # Number of BKB projectors
-    nwfc        = pseudo["header"]["number_of_wfc"]     # Number of pseudo-atomic ψ
-    vloc        = pseudo["local_potential"] ./ 2        # Local potential (Ry -> Ha)
-    vloc_interp = linear_interpolation((rgrid,), vloc)  # Interp.or for the local potential
-    IT = typeof(vloc_interp)
+    Zion        = Int(pseudo["header"]["z_valence"])     # Pseudo-ion charge
+    rgrid       = pseudo["radial_grid"]                  # Radial grid
+    drgrid      = pseudo["radial_grid_derivative"]       # Integration coeff.s
+    lmax        = pseudo["header"]["l_max"]              # Maximum angular momentum channel
+    vloc        = pseudo["local_potential"] ./ 2         # Local potential (Ry -> Ha)
+    vloc_interp = linear_interpolation((rgrid, ), vloc)  # Interp.or for the local potential
 
     # Kleinman-Bylander β projectors projs[l+1][i][ir]
     # NB: UPFs store rβ, not just β
-    projs = [Vector[] for _ = 0:lmax]   # Projectors on the grid
-    projs_interp = [IT[] for _ = 0:lmax]  # Interpolators for the non-local projectors
-    for i = 1:nproj
-        proj_data = pseudo["beta_projectors"][i]
-        l = proj_data["angular_momentum"]
-        proj = proj_data["radial_function"] ./ 2  # Ry -> Ha
-        ir_start = iszero(rgrid[1]) ? 2 : 1  # Some grids start at 0., so (rβ)[1]/r[1] is undefined
-        ir_cut = length(proj)  # Projectors are cut off by the UPF parser @ ir_cut given by the UPF
-        proj_interp = linear_interpolation((rgrid[ir_start:ir_cut],), proj[ir_start:ir_cut])
-        push!(projs[l+1], proj)
-        push!(projs_interp[l+1], proj_interp)
+    projs = map(0:lmax) do l
+        betas_l = filter(beta -> beta["angular_momentum"] == l, pseudo["beta_projectors"])
+        map(beta -> beta["radial_function"] ./ 2, betas_l)  # Ry -> Ha
+    end
+    projs_interp = map(projs) do projs_l
+        map(projs_l) do proj
+            ir_cut = lastindex(proj)
+            linear_interpolation((rgrid[1:ir_cut], ), proj)
+        end
     end
 
     # β-projector coupling coefficients h[l+1][i,j] (also called e_{KB}, D_{ij})
@@ -103,37 +89,37 @@ function parse_upf_file(path; identifier=path)
 
     # Pseudo-atomic wavefunctions
     # Currently not used; can be used for initializing the starting wavefunction and as
-    # projectors for projected densities of states, projected wavefunctions, and DFT+U(+V)
-    pswfcs = Vector{Vector}(undef, nwfc)
-    pswfc_ang_moms = Vector(undef, nwfc)
-    pswfc_occs = Vector(undef, nwfc)
-    for i = 1:nwfc
-        pswfc_data = pseudo["atomic_wave_functions"][i]
-        pswfcs[i] = pswfc_data["radial_function"]
-        pswfc_ang_moms[i] = pswfc_data["angular_momentum"]
-        pswfc_occs[i] = pswfc_data["occupation"]
+    # projectors for projected densities of states, projected wavefunctions, and DFT+U(+V).
+    pswfcs = map(0:lmax - 1) do l
+        pswfcs_l = filter(pseudo["atomic_wave_functions"]) do pswfc
+            pswfc["angular_momentum"] == l
+        end
+        map(pswfc -> pswfc["radial_function"], pswfcs_l)
+    end
+    pswfc_occs = map(0:lmax - 1) do l
+        pswfcs_l = filter(pseudo["atomic_wave_functions"]) do pswfc
+            pswfc["angular_momentum"] == l
+        end
+        map(pswfc -> pswfc["occupation"], pswfcs_l)
     end
 
-    # Currenctly used; can be used for initializing the starting guess density.
+    # Currently not used; can be used for initializing the starting guess density.
     rhoatom = pseudo["total_charge_density"]
 
     # Useful precomputed quantities (q-independent parts of Fourier transform integrands)
     rvlocpzdr = (rgrid .* vloc .+ Zion) .* drgrid
-    r2projsdr = [Vector[] for _ = 0:lmax]
-    for l = 0:lmax
-        for proj in projs[l+1]
-            push!(r2projsdr[l+1],
-                  proj .* view(rgrid, 1:length(proj)) .* view(drgrid, 1:length(proj)))
+    r2projsdr = map(projs) do projs_l
+        map(projs_l) do proj
+            ir_cut = lastindex(proj)
+            rgrid[1:ir_cut] .* proj .* drgrid[1:ir_cut]
         end
     end
 
-    PspUpf(Zion, lmax, rgrid, drgrid, vloc, vloc_interp, projs, projs_interp, h,
-           pswfcs, pswfc_ang_moms, pswfc_occs, rhoatom, rvlocpzdr, r2projsdr; identifier)
+    PspUpf(Zion, lmax, rgrid, drgrid, vloc, vloc_interp, projs, projs_interp, h, pswfcs,
+           pswfc_occs, rhoatom, rvlocpzdr, r2projsdr; identifier)
 end
 
 charge_ionic(psp::PspUpf) = psp.Zion
-nprojs(psp::PspUpf) = sum(l -> nprojs(psp, l), 0:psp.lmax)
-nprojs(psp::PspUpf, l) = length(psp.projs[l+1])
 
 """
     eval_psp_projector_real(psp::PspUpf, i::Number, l::Number, r::Number)
@@ -153,21 +139,16 @@ end
 
 Evaluate the radial part of the i-th projector for angular momentum l at the
 reciprocal vector with modulus q:
-p(q) 
-= ∫R^3 p{il}(r) e^{-iqr} dr
-= 4π ∫{R+} r^2 p_{il}(r) j_l(q r) dr
-= 4π Σ{i} r[i]^2 p_{il}(r[i]) j_l(q r[i]) dr[i]
+p(q) = ∫R^3 p{il}(r) e^{-iqr} dr
+     = 4π ∫{R+} r^2 p_{il}(r) j_l(q r) dr
+     = 4π Σ{i} r[i]^2 p_{il}(r[i]) j_l(q r[i]) dr[i]
 
 Note: UPFs store `r[i] p_{il}(r[i])`
 """
 function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real}
-    eval_psp_projector_fourier(psp, i, Val(l), q)
-end
-
-function eval_psp_projector_fourier(psp::PspUpf, i, nu::Val{l}, q::T)::T where {T <: Real, l}
     s = zero(T)
     @inbounds for ir = eachindex(psp.r2projsdr[l+1][i])
-        s += sphericalbesselj_fast(nu, q * psp.rgrid[ir]) * psp.r2projsdr[l+1][i][ir]
+        s += sphericalbesselj_fast(l, q * psp.rgrid[ir]) * psp.r2projsdr[l+1][i][ir]
     end
     4T(π) * s
 end
@@ -185,10 +166,9 @@ eval_psp_local_real(psp::PspUpf, r::T) where {T <: Real} = psp.vloc_interp(r)
 
 Evaluate the local part of the pseudopotential in reciprocal space
 using a Coulomb correction term -Z/r:
-V(q)
-= ∫{R^3} (Vloc(r) + Z/r) e^{-iqr} dr
-= 4π ∫{R+} (Vloc(r) + Z/r) sin(qr)/qr r^2 dr
-= 4π/q Σ{i} sin(q r[i]) (r[i] V(r[i]) + Z) dr[i]
+V(q) = ∫{R^3} (Vloc(r) + Z/r) e^{-iqr} dr
+     = 4π ∫{R+} (Vloc(r) + Z/r) sin(qr)/qr r^2 dr
+     = 4π/q Σ{i} sin(q r[i]) (r[i] V(r[i]) + Z) dr[i]
 """
 function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T <: Real}
     s = zero(T)

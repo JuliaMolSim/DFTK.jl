@@ -27,7 +27,8 @@ end
     for pspfile in hgh_upf_files
         upf = parse_upf_file("psp/$(pspfile).upf")
         hgh = load_psp("hgh/pbe/$(pspfile).hgh")
-        for r in [upf.rgrid[1], upf.rgrid[end]]
+        rand_r = rand(5) .* abs(upf.rgrid[end] - upf.rgrid[1]) .+ upf.rgrid[1]
+        for r in [upf.rgrid[1], rand_r..., upf.rgrid[end]]
             reference_hgh = eval_psp_local_real(hgh, r)
             @test reference_hgh ≈ eval_psp_local_real(upf, r) rtol=1e-8 atol=1e-8
         end
@@ -38,7 +39,7 @@ end
     for pspfile in hgh_upf_files
         upf = parse_upf_file("psp/$(pspfile).upf")
         hgh = load_psp("hgh/pbe/$(pspfile).hgh")
-        for q in [0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.]
+        for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference_hgh = eval_psp_local_fourier(hgh, q)
             @test reference_hgh ≈ eval_psp_local_fourier(upf, q) rtol=1e-5 atol=1e-5
         end
@@ -54,7 +55,7 @@ end
             l > upf.lmax - 1 && continue  # Overshooting available AM
             i > length(upf.projs[l+1]) && continue  # Overshooting available projectors at AM
             ircut = length(upf.projs[l+1][i])
-            for q in [0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.]
+            for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
                 reference_hgh = eval_psp_projector_fourier(hgh, i, l, q)
                 @test reference_hgh ≈ eval_psp_projector_fourier(upf, i, l, q) atol=1e-7 rtol=1e-7
             end
@@ -82,7 +83,7 @@ end
     end
     for pspfile in all_upf_files
         psp = parse_upf_file("psp/$(pspfile).upf")
-        for q in [0.01, 0.1, 0.2, 0.5, 1, 2, 5, 10]
+        for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[begin], psp.rgrid[end])[1]
             correction = 4π * psp.Zion / q^2
             @test (reference - correction) ≈ eval_psp_local_fourier(psp, q) rtol=1. atol=1.
@@ -105,7 +106,7 @@ end
             l > psp.lmax - 1 && continue  # Overshooting available AM
             i > length(psp.projs[l+1]) && continue  # Overshooting available projectors at AM
             ir_cut = length(psp.projs[l+1][i])
-            for q in [0.01, 0.1, 0.2, 0.5, 1, 2, 5, 10]
+            for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
                 reference = quadgk(
                     r -> integrand(psp, i, l, q, r), psp.rgrid[ir_start], psp.rgrid[ir_cut])[1]
                 @test reference ≈ eval_psp_projector_fourier(psp, i, l, q) atol=1e-2 rtol=1e-2

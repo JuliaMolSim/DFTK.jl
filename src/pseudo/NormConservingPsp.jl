@@ -82,9 +82,19 @@ function projector_indices(psp::NormConservingPsp)
     ((i, l, m) for l in 0:psp.lmax for i in 1:size(psp.h[l+1], 1) for m = -l:l)
 end
 
+# Number of radial projection functions per atom
+function count_n_proj_radial(psp::NormConservingPsp, l::Integer)
+     psp.lmax < l < 0 ? 0 : size(psp.h[l + 1], 1)
+end
+function count_n_proj_radial(psp::NormConservingPsp)
+    sum(count_n_proj(psp, l) for l in 0:psp.lmax)::Int
+end
 # Number of projection vectors per atom
+function count_n_proj(psp::NormConservingPsp, l::Integer)
+    count_n_proj_radial(psp, l) * (2l + 1)
+end
 function count_n_proj(psp::NormConservingPsp)
-    psp.lmax < 0 ? 0 : sum(size(psp.h[l + 1], 1) * (2l + 1) for l in 0:psp.lmax)::Int
+    sum(count_n_proj(psp, l) for l in 0:psp.lmax)::Int
 end
 function count_n_proj(psps, psp_positions)
     sum(count_n_proj(psp) * length(positions)

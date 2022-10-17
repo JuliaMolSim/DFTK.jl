@@ -179,7 +179,7 @@ end
 Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
 function build_form_factors(psp, G_plus_ks)
-    T = real(typeof(norm(first(G_plus_ks))))
+    T = real(eltype(first(G_plus_ks)))
 
     n_proj_max = maximum(l -> size(psp.h[l+1], 1), 0:psp.lmax)
     radials = Dict{T,Matrix{T}}()
@@ -196,8 +196,7 @@ function build_form_factors(psp, G_plus_ks)
 
     form_factors = Matrix{Complex{T}}(undef, length(G_plus_ks), count_n_proj(psp))
     for (iGpk, Gpk) in enumerate(G_plus_ks)
-        q = norm(Gpk)
-        radials_q = radials[q]
+        radials_q = radials[norm(Gpk)]
         count = 1
         for l in 0:psp.lmax, m in -l:l
             angular_Glm = im^l * ylm_real(l, m, Gpk)
