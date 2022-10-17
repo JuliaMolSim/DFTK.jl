@@ -22,7 +22,7 @@ struct PspUpf{T,IT} <: NormConservingPsp
     rhoatom::Vector{T}                    # Pseudo-atomic charge density
 
     rvlocpzdr::Vector{T}                  # (r_i V_{loc}(r_i) + Z) dr_i
-    r2projsdr::Vector{Vector{Vector{T}}}  # r_j^2 β_{li}(r_j) dr_i
+    r2projsdr::Vector{Vector{Vector{T}}}  # r_j^2 β_{li}(r_j) dr_j
 
     identifier::String                    # String identifying the PSP
 end
