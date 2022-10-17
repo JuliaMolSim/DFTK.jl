@@ -11,7 +11,7 @@ using DFTK
     end
 
     lattice = Float64[5 0 0; 0 0 0; 0 0 0]
-    model = Model(lattice; n_electrons=4, terms=[Kinetic()])
+    model = Model(lattice; terms=[Kinetic()])
     basis = PlaneWaveBasis(model; Ecut=100, kgrid=(1, 1, 1))
     ham = Hamiltonian(basis)
     reference = merge(diagonalize_all_kblocks(diag_full, ham, 6), (ham=ham,))
