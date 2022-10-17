@@ -74,7 +74,7 @@ load_scfres(file::AbstractString) = JLD2.jldopen(load_scfres, file, "r")
 #
 # Custom serialisations
 #
-struct PlaneWaveBasisSerialisation{T <: Real}
+struct PlaneWaveBasisSerialisation{T <: Real, AT <: AbstractArray}
     model::Model{T,T}
     Ecut::T
     variational::Bool
@@ -85,10 +85,13 @@ struct PlaneWaveBasisSerialisation{T <: Real}
     symmetries_respect_rgrid::Bool
     fft_size::Tuple{Int, Int, Int}
 end
-JLD2.writeas(::Type{PlaneWaveBasis{T,T}}) where {T} = PlaneWaveBasisSerialisation{T}
+function JLD2.writeas(::Type{PlaneWaveBasis{T,T,AT,GT,RT}}) where {T,AT,GT,RT}
+    PlaneWaveBasisSerialisation{T,AT}
+end
 
-function Base.convert(::Type{PlaneWaveBasisSerialisation{T}}, basis::PlaneWaveBasis{T,T}) where {T}
-    PlaneWaveBasisSerialisation{T}(
+function Base.convert(::Type{PlaneWaveBasisSerialisation{T,AT}},
+                      basis::PlaneWaveBasis{T,T,AT}) where {T,AT}
+    PlaneWaveBasisSerialisation{T,AT}(
         basis.model,
         basis.Ecut,
         basis.variational,
@@ -101,9 +104,13 @@ function Base.convert(::Type{PlaneWaveBasisSerialisation{T}}, basis::PlaneWaveBa
     )
 end
 
-function Base.convert(::Type{PlaneWaveBasis{T,T}}, serial::PlaneWaveBasisSerialisation{T}) where {T}
-    PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords,
-                   serial.kweights; serial.fft_size,
-                   serial.kgrid, serial.kshift, serial.symmetries_respect_rgrid,
-                   serial.variational)
+function Base.convert(::Type{PlaneWaveBasis{T,T,AT,GT,RT}},
+                      serial::PlaneWaveBasisSerialisation{T,AT}) where {T,AT,GT,RT}
+    PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords, serial.kweights;
+                   serial.fft_size,
+                   serial.kgrid,
+                   serial.kshift,
+                   serial.symmetries_respect_rgrid,
+                   serial.variational,
+                   array_type=AT)
 end

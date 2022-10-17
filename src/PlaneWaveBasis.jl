@@ -15,7 +15,7 @@ Discretization information for ``k``-point-dependent quantities such as orbitals
 More generally, a ``k``-point is a block of the Hamiltonian;
 eg collinear spin is treated by doubling the number of kpoints.
 """
-struct Kpoint{T <: Real, AT <: AbstractArray, GT <: AT}
+struct Kpoint{T <: Real, GT <: AbstractArray}
     spin::Int                     # Spin component can be 1 or 2 as index into what is
                                   # returned by the `spin_components` function
     coordinate::Vec3{T}           # Fractional coordinate of k-point
@@ -40,7 +40,7 @@ Normalization conventions:
 
 `ifft` and `fft` convert between these representations.
 """
-struct PlaneWaveBasis{T, VT, AT, GT, RT} <: AbstractBasis{T} where {VT <: Real, GT <: AT, RT <: AT, AT <: AbstractArray}
+struct PlaneWaveBasis{T, VT, AT, GT, RT} <: AbstractBasis{T} where {VT <: Real, GT, RT, AT <: AbstractArray}
     # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
     model::Model{T, VT}
 
@@ -111,10 +111,15 @@ end
 import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 
+"""
+Return the type of array used for computations (Array if on CPU, CuArray,
+ROCArray... if on GPU).
+"""
+array_type(basis::PlaneWaveBasis{T,VT,AT}) where {T, VT, AT} = AT
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
-                               variational=true, array_type = Array) where {T}
+                               variational=true, array_type::Type=Array) where {T}
     kpoints_per_spin = [Kpoint[] for _ in 1:model.n_spin_components]
     for k in kcoords
         k = Vec3{T}(k)  # rationals are sloooow
@@ -131,13 +136,12 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
             end
         end
         Gvecs_k = convert(array_type, Gvecs_k)  # GPU computation only: offload the Gs to the GPU
-        AT = array_type
-        GT = array_type{Vec3{Int }}
+        GT = array_type{Vec3{Int}}
 
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for iσ = 1:model.n_spin_components
             push!(kpoints_per_spin[iσ],
-                  Kpoint{T,AT,GT}(iσ, k, mapping, mapping_inv, Gvecs_k))
+                  Kpoint{T,GT}(iσ, k, mapping, mapping_inv, Gvecs_k))
         end
     end
 
@@ -153,7 +157,7 @@ end
 # and are stored in PlaneWaveBasis for easy reconstruction.
 function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
                         kcoords, kweights, kgrid, kshift,
-                        symmetries_respect_rgrid, comm_kpts, array_type = Array) where {T <: Real}
+                        symmetries_respect_rgrid, comm_kpts, array_type::Type) where {T <: Real}
     # Validate fft_size
     if variational
         max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
@@ -257,9 +261,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     r_vectors = [Vec3{VT}(VT(i-1) / N1, VT(j-1) / N2, VT(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3]
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
-    RT = array_type{Vec3{VT }, 3}
-    GT = array_type{Vec3{Int }, 3}
-
+    RT = array_type{Vec3{VT}, 3}
+    GT = array_type{Vec3{Int}, 3}
     basis = PlaneWaveBasis{T,value_type(T), array_type, GT, RT}(
         model, fft_size, dvol,
         Ecut, variational,
@@ -286,7 +289,7 @@ end
                                 variational=true, fft_size=nothing,
                                 kgrid=nothing, kshift=nothing,
                                 symmetries_respect_rgrid=isnothing(fft_size),
-                                comm_kpts=MPI.COMM_WORLD, array_type = Array) where {T <: Real}
+                                comm_kpts=MPI.COMM_WORLD, array_type=Array) where {T <: Real}
     if isnothing(fft_size)
         @assert variational
         if symmetries_respect_rgrid
@@ -314,7 +317,8 @@ number of points in each dimension and `kshift` the shift (0 or 1/2 in each dire
 If not specified a grid is generated using `kgrid_from_minimal_spacing` with
 a minimal spacing of `2π * 0.022` per Bohr.
 """
-function PlaneWaveBasis(model::Model; Ecut,
+function PlaneWaveBasis(model::Model;
+                        Ecut,
                         kgrid=kgrid_from_minimal_spacing(model, 2π * 0.022),
                         kshift=zeros(3),
                         kwargs...)
@@ -369,11 +373,6 @@ or a ``k``-point `kpt`.
 G_vectors(basis::PlaneWaveBasis) = basis.G_vectors
 G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
 
-"""
-Return the type of array used for computations (Array if on CPU, CuArray,
-ROCArray... if on GPU).
-"""
-array_type(basis::PlaneWaveBasis{T,VT,AT}) where {T, VT, AT} = AT
 
 
 @doc raw"""
@@ -482,7 +481,7 @@ it as a `PlaneWaveBasis`. On the other (non-master) processes `nothing` is retur
 The returned object should not be used for computations and only to extract data
 for post-processing and serialisation to disk.
 """
-function gather_kpts(basis::PlaneWaveBasis)
+function gather_kpts(basis)
     # No need to allocate and setup a new basis object
     mpi_nprocs(basis.comm_kpts) == 1 && return basis
 
@@ -507,7 +506,7 @@ function gather_kpts(basis::PlaneWaveBasis)
                        basis.kshift,
                        basis.symmetries_respect_rgrid,
                        comm_kpts=MPI.COMM_SELF,
-                      )
+                       array_type=DFTK.array_type(basis))
     end
 end
 
