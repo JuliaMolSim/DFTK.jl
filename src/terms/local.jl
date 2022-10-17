@@ -90,12 +90,12 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     pot_fourier = map(enumerate(G_vectors(basis))) do (iG, G)
         q = norm(G_cart[iG])
         pot = sum(enumerate(model.atom_groups)) do (igroup, group)
-            structure_factor = sum(r -> cis2pi(-dot(G, r)), view(model.positions, group))
+            structure_factor = sum(r -> cis2pi(-dot(G, r)), @view model.positions[group])
             form_factors[(igroup, q)] * structure_factor
         end
         pot / sqrt(model.unit_cell_volume)
     end
-    enforce_real!(basis, pot_fourier) # Symmetrize Fourier coeffs to have real iFFT
+    enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
 
     pot_real = irfft(basis, pot_fourier)
     TermAtomicLocal(pot_real)

@@ -181,7 +181,7 @@ Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 function build_form_factors(psp, G_plus_ks)
     T = real(eltype(first(G_plus_ks)))
 
-    n_proj_max = maximum(l -> size(psp.h[l+1], 1), 0:psp.lmax)
+    n_proj_max = maximum(l -> size(psp.h[l+1], 1), 0:psp.lmax; init=0)
     radials = IdDict{T,Matrix{T}}()
     for Gpk in G_plus_ks
         q = norm(Gpk)
