@@ -52,7 +52,7 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end
-    force_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
+    enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
     TermExternal(irfft(basis, pot_fourier))
 end
 
@@ -70,7 +70,6 @@ Atomic local potential defined by `model.atoms`.
 struct AtomicLocal end
 function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
-
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
     # Since V is a sum of radial functions located at atomic
     # positions, this involves a form factor (`local_potential_fourier`)
@@ -88,7 +87,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
         end
         pot / sqrt(model.unit_cell_volume)
     end
-    force_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
+    enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
     # GPU computation only : build the potential values on CPU then offload them to GPU
     pot_real = irfft(basis, convert(array_type(basis), pot_fourier))
 

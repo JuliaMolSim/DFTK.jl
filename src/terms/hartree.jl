@@ -34,11 +34,6 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
     poisson_green_coeffs = map(G_vectors_cart(basis)) do G
         4T(π) /sum(abs2, G)
     end
-    if !isempty(model.atoms)
-        # Assume positive charge from nuclei is exactly compensated by the electrons
-        sum_charges = sum(charge_ionic, model.atoms)
-        @assert sum_charges == model.n_electrons
-    end
     poisson_green_coeffs[1:1,1:1,1:1] .= zero(similar(G_vectors(basis), T, 1,1,1))
     ## Hackish way to do the following
     # poisson_green_coeffs[1] = 0  # Compensating charge background => Zero DC
@@ -46,7 +41,7 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
     # force_real! is currently not GPU compatible, so we have to do this very ugly thing
     # of calling back the array on CPU, running force_real!, then putting it back on GPU
     poisson_green_coeffs = Array(poisson_green_coeffs)
-    force_real!(basis, poisson_green_coeffs)  # Symmetrize Fourier coeffs to have real iFFT
+    enforce_real!(basis, poisson_green_coeffs)  # Symmetrize Fourier coeffs to have real iFFT
     poisson_green_coeffs = convert(array_type(basis), poisson_green_coeffs)
 
     TermHartree(T(scaling_factor), T(scaling_factor) .* poisson_green_coeffs)

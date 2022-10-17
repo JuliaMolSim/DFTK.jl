@@ -78,7 +78,7 @@ end
     # force_real! is currently not GPU compatible, so we have to do this very ugly thing
     # of calling back the array on CPU, running force_real!, then putting it back on GPU
     δρtot_fourier = Array(δρtot_fourier)
-    force_real!(basis, δρtot_fourier)
+    enforce_real!(basis, δρtot_fourier)
     δρtot_fourier = convert(array_type(basis), δρtot_fourier)
 
     δρtot = irfft(basis, δρtot_fourier)
@@ -90,7 +90,7 @@ end
         ρ_from_total_and_spin(δρtot, nothing)
     else
         δρspin_fourier = @. δFspin_fourier - δFtot_fourier * (4π * ΔDOS_Ω) / (kTF^2 + G²)
-        force_real!(basis, δρspin_fourier)
+        enforce_real!(basis, δρspin_fourier)
         δρspin = irfft(basis, δρspin_fourier)
         ρ_from_total_and_spin(δρtot, δρspin)
     end
