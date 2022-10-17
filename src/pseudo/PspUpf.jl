@@ -161,28 +161,14 @@ p(q)
 Note: UPFs store `r[i] p_{il}(r[i])`
 """
 function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real}
-    if iszero(q)
-        # When q=0: 4π Σ[ j_{l}(0) * r[ir]^2 * β_{li}[ir] * dr[ir] ]
-        #           where j_{l=0}(0) = 1 -> 4π Σ[ r[ir]^2 * β_{li}[ir] * dr[ir] ]
-        #                 j_{l>0}(0) = 0 -> 0
-        return iszero(l) ? 4T(π) * sum(psp.r2projsdr[l+1][i]) : zero(T)
-    end
+    eval_psp_projector_fourier(psp, i, Val(l), q)
+end
 
-    if iszero(psp.rgrid[begin])
-        # Avoid divide-by-zero NaNs from sphericalbesselj.
-        s = iszero(l) ? one(T) * psp.r2projsdr[l+1][i][begin] : zero(T)
-        ir_start = firstindex(psp.rgrid) + 1
-    else
-        s = zero(T)
-        ir_start = firstindex(psp.rgrid)
+function eval_psp_projector_fourier(psp::PspUpf, i, nu::Val{l}, q::T)::T where {T <: Real, l}
+    s = zero(T)
+    @inbounds for ir = eachindex(psp.r2projsdr[l+1][i])
+        s += sphericalbesselj_fast(nu, q * psp.rgrid[ir]) * psp.r2projsdr[l+1][i][ir]
     end
-    
-    ir_cut = lastindex(psp.r2projsdr[l+1][i])
-    r2projdr = psp.r2projsdr[l+1][i]
-    @inbounds @simd for ir = ir_start:ir_cut
-        s += sphericalbesselj(l, q * psp.rgrid[ir]) * r2projdr[ir]
-    end
-    
     4T(π) * s
 end
 
