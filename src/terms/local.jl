@@ -76,7 +76,10 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
     G_cart = G_vectors_cart(basis)
 
-    form_factors = IdDict{Tuple{Int,T},T}()
+    # Pre-compute the form factors at unique values of |G| to speed up
+    # the potential Fourier transform (by a lot). Using a hash map gives O(1)
+    # lookup.
+    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
     for G in G_cart
         q = norm(G)
         for (igroup, group) in enumerate(model.atom_groups)

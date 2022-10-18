@@ -178,30 +178,36 @@ end
 """
 Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
-function build_form_factors(psp, G_plus_ks)
-    T = real(eltype(first(G_plus_ks)))
+function build_form_factors(psp, qs)
+    T = real(eltype(first(qs)))
 
+    # Pre-compute the radial parts at unique |q| to speed up the form factor
+    # calculation (by a lot). Using a hash map gives O(1) lookup.
+
+    # Maximum number of projectors over angular momenta so that form factors
+    # for a given `q` can be stored in an `nproj x (lmax + 1)` matrix.
     n_proj_max = maximum(l -> count_n_proj_radial(psp, l), 0:psp.lmax; init=0)
-    radials = IdDict{T,Matrix{T}}()
-    for Gpk in G_plus_ks
-        q = norm(Gpk)
-        if !haskey(radials, q)
+
+    radials = IdDict{T,Matrix{T}}()  # IdDict for Dual compatability
+    for q in qs
+        q_norm = norm(q)
+        if !haskey(radials, q_norm)
             radials_q = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
             for l in 0:psp.lmax, iproj_l in 1:count_n_proj_radial(psp, l)
-                radials_q[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q)
+                radials_q[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q_norm)
             end
-            radials[q] = radials_q
+            radials[q_norm] = radials_q
         end
     end
 
-    form_factors = Matrix{Complex{T}}(undef, length(G_plus_ks), count_n_proj(psp))
-    for (iGpk, Gpk) in enumerate(G_plus_ks)
-        radials_q = radials[norm(Gpk)]
+    form_factors = Matrix{Complex{T}}(undef, length(qs), count_n_proj(psp))
+    for (iq, q) in enumerate(qs)
+        radials_q = radials[norm(q)]
         count = 1
         for l in 0:psp.lmax, m in -l:l
-            angular_Glm = im^l * ylm_real(l, m, Gpk)
+            angular = im^l * ylm_real(l, m, q)
             for iproj_l in 1:count_n_proj_radial(psp, l)
-                form_factors[iGpk, count] = angular_Glm * radials_q[iproj_l, l+1]
+                form_factors[iq, count] = radials_q[iproj_l, l+1] * angular
                 count += 1
             end
         end
