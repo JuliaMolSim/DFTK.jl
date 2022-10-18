@@ -13,7 +13,7 @@ using LinearAlgebra: norm
 
     res = DFTK.cg(A, b; tol, maxiter=2n)
 
-    @test norm(A*res.x - b) ≤ 1e-10
+    @test norm(A*res.x - b) ≤ tol
     @test res.converged
     @test res.iterations == n+1
     @test typeof(res.residual_norm) == T
