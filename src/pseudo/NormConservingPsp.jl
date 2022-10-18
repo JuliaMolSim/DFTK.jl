@@ -71,7 +71,7 @@ charge, which is assumed here.
 Notice: The returned result is the *energy per unit cell* and not the energy per volume.
 To obtain the latter, the caller needs to divide by the unit cell volume.
 
-he energy correction is defined as the limit of the Fourier-transform of the local
+The energy correction is defined as the limit of the Fourier-transform of the local
 potential as q -> 0, using the same correction as in the Fourier-transform of the local
 potential:
 lim{q->0} 4π Nelec ∫{R+} (V(r) - C(r)) sin(qr)/qr r^2 dr + F[C(r)]
