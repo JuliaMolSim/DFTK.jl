@@ -28,7 +28,7 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
 
     # convergence history
     converged = false
-    residual_history = AbstractVector{real(T)}([])
+    residual_history = real(T)[]
 
     # preconditioned conjugate gradient
     while n_iter < maxiter

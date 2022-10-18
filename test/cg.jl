@@ -3,7 +3,7 @@ using Test
 using IterativeSolvers
 using LinearAlgebra: norm
 
-@testset "Test conjugate gradient method" begin
+@testset "Test conjugate gradient method convergence" begin
     T = Float64
     n = 10
     A = rand(Complex{T}, n, n)
@@ -16,6 +16,22 @@ using LinearAlgebra: norm
     @test norm(A*res.x - b) ≤ tol
     @test res.converged
     @test res.iterations == n+1
-    @test typeof(res.residual_norm) == T
-    @test eltype(res.residual_history) == T
+end
+
+@testset "Test conjugate gradient method type stability" begin
+    T = Float32
+    n = 10
+    A = rand(Complex{T}, n, n)
+    A = A' * A + I
+    b = rand(Complex{T}, n)
+    tol = 1e-5
+    x = A \ b
+
+    f(b) = DFTK.cg(A, b; tol, maxiter=2n).x
+    g(b) = DFTK.cg(A, b; tol, maxiter=2n).residual_norm
+    h(b) = eltype(DFTK.cg(A, b; tol, maxiter=2n).residual_history)
+
+    @test x ≈ @inferred f(b)
+    @test tol ≥ @inferred g(b)
+    @test T == @inferred h(b)
 end
