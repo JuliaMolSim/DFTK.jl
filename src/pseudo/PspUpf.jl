@@ -82,11 +82,18 @@ function parse_upf_file(path; identifier=path)
     ###
     ### Quantities from file
     ###
-    Zion        = Int(pseudo["header"]["z_valence"])
-    rgrid       = pseudo["radial_grid"]
-    drgrid      = pseudo["radial_grid_derivative"]
-    lmax        = pseudo["header"]["l_max"]
-    vloc        = pseudo["local_potential"] ./ 2  # (Ry -> Ha)
+    Zion   = Int(pseudo["header"]["z_valence"])
+    rgrid  = pseudo["radial_grid"]
+    drgrid = pseudo["radial_grid_derivative"]
+    lmax   = pseudo["header"]["l_max"]
+    vloc   = pseudo["local_potential"] ./ 2  # (Ry -> Ha)
+
+    # There are two possible units schemes for the projectors and coupling coefficients:
+    # β [Ry Bohr^{-1/2}]  h [Ry^{-1}]
+    # β [Bohr^{-1/2}]     h [Ry]
+    # The quantity that's used in calculations is β h β, so the units don't practically
+    # matter. However, HGH pseudos in UPF format use the first units, so we assume them
+    # to facilitate comparison of the intermediate quantities with analytical HGH.
 
     projs = map(0:lmax) do l
         betas_l = filter(beta -> beta["angular_momentum"] == l, pseudo["beta_projectors"])
