@@ -181,8 +181,8 @@ Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 function build_form_factors(psp, qs)
     T = real(eltype(first(qs)))
 
-    # Pre-compute the radial parts at unique |q| to speed up the form factor
-    # calculation (by a lot). Using a hash map gives O(1) lookup.
+    # Pre-compute the radial parts of the non-local projectors at unique |q| to speed up
+    # the form factor calculation (by a lot). Using a hash map gives O(1) lookup.
 
     # Maximum number of projectors over angular momenta so that form factors
     # for a given `q` can be stored in an `nproj x (lmax + 1)` matrix.
