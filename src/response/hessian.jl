@@ -113,9 +113,10 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
         proj_tangent!(δψ, ψ)
         pack(δψ)
     end
-    δψ, ch = CG(J, rhs_pack; precon=FunctionPreconditioner(f_ldiv!),
-                proj, tol, verbose)
-    (; δψ=unpack(δψ), ch)
+    res = cg(J, rhs_pack; precon=FunctionPreconditioner(f_ldiv!),
+             proj, tol, verbose)
+    (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
+     res.residual_history, res.iterations)
 end
 
 

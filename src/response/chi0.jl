@@ -175,10 +175,13 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    δψknᴿ, ch = CG(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
-                   verbose)
-    !ch.isconverged && println(ch.residual_history)
-    info = (; basis=basis, kpoint=kpoint, ch=ch, n=n)
+    res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
+             verbose)
+    !res.converged && @warn("Sternheimer CG not converged",
+                            iterations=res.iterations, tol=res.tol,
+                            residual_norm=res.residual_norm)
+    δψknᴿ = res.x
+    info = (; basis, kpoint, res, n)
     callback(info)
 
     # 2) solve for αkn now that we know δψknᴿ

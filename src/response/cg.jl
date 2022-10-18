@@ -1,13 +1,10 @@
-# Implementation of the preconditioned conjugate gradient method, which allows
-# for projection operations, in order to solve linear systems in fixed subspace
-# of the whole space.
-
 """
 Implementation of the conjugate gradient method which allows for preconditioning
 and projection operations along iterations.
 """
-function CG!(x, A, b; precon=I, proj=ϕ->ϕ,
-             tol=1e-10, maxiter=100, miniter=1, verbose=false)
+function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
+             precon=I, proj=identity, callback=info->nothing,
+             tol=1e-10, maxiter=100, miniter=1, verbose=false) where {T}
 
     # initialisation
     # r = b - Ax is the residual
@@ -24,28 +21,31 @@ function CG!(x, A, b; precon=I, proj=ϕ->ϕ,
     γ = dot(r, c)
     # p is the descent direction
     p = copy(c)
-    niter = 0
+    n_iter = 0
+    residual_norm = zero(real(T))
 
     # convergence history
-    isconverged = false
-    residual_history = []
+    converged = false
+    residual_history = AbstractVector{real(T)}([])
 
     # preconditioned conjugate gradient
-    while niter < maxiter
-        niter += 1
+    while n_iter < maxiter
+        n_iter += 1
         mul!(c, A, p)
         α = γ / dot(p, c)
 
         # update iterate and residual while ensuring they stay in Ran(proj)
         x .= proj(x .+ α .* p)
         r .= proj(r .- α .* c)
-        resnorm = norm(r)
+        residual_norm = norm(r)
 
         # output
-        verbose && @printf("%3d\t%1.2e\n", niter, resnorm)
-        push!(residual_history, resnorm)
-        if (niter > miniter) && resnorm <= tol
-            isconverged = true
+        verbose && @printf("%3d\t%1.2e\n", n_iter, residual_norm)
+        push!(residual_history, residual_norm)
+        info = (; n_iter, x, r, A, b)
+        callback(info)
+        if (n_iter > miniter) && residual_norm <= tol
+            converged = true
             break
         end
 
@@ -56,7 +56,9 @@ function CG!(x, A, b; precon=I, proj=ϕ->ϕ,
         p .= proj(c .+ β .* p)
     end
 
-    ch = (; isconverged, tol, residual_history, niter)
-    (x, ch)
+    (; x, converged, tol, residual_norm, residual_history,
+     iterations=n_iter, maxiter)
 end
-CG(A, b; kwargs...) = CG!(zero(b), A, b; kwargs...)
+cg(x::AbstractVector, A::AbstractMatrix, b::AbstractVector; kwargs...) = cg!(x, LinearMap(A), b; kwargs...)
+cg(A::LinearMap, b::AbstractVector; kwargs...) = cg!(zero(b), A, b; kwargs...)
+cg(A::AbstractMatrix, b::AbstractVector; kwargs...) = cg(LinearMap(A), b; kwargs...)
