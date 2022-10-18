@@ -1,3 +1,5 @@
+using LinearMaps
+
 """
 Implementation of the conjugate gradient method which allows for preconditioning
 and projection operations along iterations.
