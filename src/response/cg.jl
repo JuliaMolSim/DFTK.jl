@@ -1,12 +1,16 @@
 using LinearMaps
 
+function default_cg_callback(info; verbose=false)
+    verbose && @printf("%3d\t%1.2e\n", info.n_iter, info.residual_norm)
+end
+
 """
 Implementation of the conjugate gradient method which allows for preconditioning
 and projection operations along iterations.
 """
 function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
-             precon=I, proj=identity, callback=info->nothing,
-             tol=1e-10, maxiter=100, miniter=1, verbose=false) where {T}
+             precon=I, proj=identity, callback=default_cg_callback,
+             tol=1e-10, maxiter=100, miniter=1) where {T}
 
     # initialisation
     # r = b - Ax is the residual
@@ -28,7 +32,6 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
 
     # convergence history
     converged = false
-    residual_history = real(T)[]
 
     # preconditioned conjugate gradient
     while n_iter < maxiter
@@ -42,9 +45,7 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
         residual_norm = norm(r)
 
         # output
-        verbose && @printf("%3d\t%1.2e\n", n_iter, residual_norm)
-        push!(residual_history, residual_norm)
-        info = (; n_iter, x, r, A, b)
+        info = (; A, b, n_iter, x, r, residual_norm)
         callback(info)
         if (n_iter > miniter) && residual_norm <= tol
             converged = true
@@ -58,9 +59,8 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
         p .= proj(c .+ β .* p)
     end
 
-    (; x, converged, tol, residual_norm, residual_history,
-     iterations=n_iter, maxiter)
+    (; x, converged, tol, residual_norm, iterations=n_iter, maxiter)
 end
-cg(x::AbstractVector, A::AbstractMatrix, b::AbstractVector; kwargs...) = cg!(x, LinearMap(A), b; kwargs...)
+cg!(x::AbstractVector, A::AbstractMatrix, b::AbstractVector; kwargs...) = cg!(x, LinearMap(A), b; kwargs...)
 cg(A::LinearMap, b::AbstractVector; kwargs...) = cg!(zero(b), A, b; kwargs...)
 cg(A::AbstractMatrix, b::AbstractVector; kwargs...) = cg(LinearMap(A), b; kwargs...)

@@ -64,7 +64,7 @@ end
 Return δψ where (Ω+K) δψ = rhs
 """
 function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
-                      tol=1e-10, verbose=false) where {T}
+                      tol=1e-10) where {T}
     @assert mpi_nprocs() == 1  # Distributed implementation not yet available
     filled_occ = filled_occupation(basis.model)
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
@@ -113,10 +113,9 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
         proj_tangent!(δψ, ψ)
         pack(δψ)
     end
-    res = cg(J, rhs_pack; precon=FunctionPreconditioner(f_ldiv!),
-             proj, tol, verbose)
+    res = cg(J, rhs_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol)
     (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
-     res.residual_history, res.iterations)
+     res.iterations)
 end
 
 
