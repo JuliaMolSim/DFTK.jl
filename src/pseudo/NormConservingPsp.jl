@@ -16,7 +16,7 @@ abstract type NormConservingPsp end
 # eval_psp_projector_fourier(psp::NormConservingPsp, i, l, q::Real)
 # eval_psp_local_real(psp::NormConservingPsp, r::Real)
 # eval_psp_local_fourier(psp::NormConservingPsp, q::Real)
-
+# eval_psp_energy_correction(T::Type, psp::NormConservingPsp, n_electrons::Integer)
 
 """
     eval_psp_projector_real(psp, i, l, r)
@@ -77,7 +77,9 @@ potential:
 lim{q->0} 4π Nelec ∫{R+} (V(r) - C(r)) sin(qr)/qr r^2 dr + F[C(r)]
 = 4π Nelec ∫{R+} (V(r) + Z/r) r^2 dr
 """
-eval_psp_energy_correction(T, psp::NormConservingPsp, n_electrons) = zero(T)
+function eval_psp_energy_correction(T, psp::NormConservingPsp, n_electrons)
+    error("`eval_psp_energy_correction not implemented for $(typeof(psp))")
+end
 # by default, no correction, see PspHgh implementation and tests
 # for details on what to implement
 eval_psp_energy_correction(psp::NormConservingPsp, n_electrons) =
