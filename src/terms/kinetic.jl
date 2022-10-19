@@ -52,7 +52,7 @@ struct BlowupIdentity end
 
 
 """
-Blow-up function as proposed in [REF paper Cancès, Hassan, Vidal to be submitted]
+Blow-up function as proposed in [https://arxiv.org/abs/2210.00442]
 The blow-up order of the function is fixed to ensure C^2 regularity of the energies bands
 away from crossings and Lipschitz continuity at crossings.
 """
