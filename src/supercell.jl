@@ -1,3 +1,24 @@
+"""
+Construct a supercell of size `supercell_size` from a unit cell described by its `lattice`,
+`atoms` and their `positions`.
+"""
+function create_supercell(lattice, atoms, positions, supercell_size)
+    lattice_supercell = reduce(hcat, supercell_size .* eachcol(lattice))
+
+    # Compute atoms reduced coordinates in the supercell
+    atoms_supercell = eltype(atoms)[]
+    positions_supercell = eltype(positions)[]
+    nx, ny, nz = supercell_size
+
+    for (atom, position) in zip(atoms, positions)
+        append!(positions_supercell, [(position .+ [i;j;k]) ./ [nx, ny, nz]
+                                      for i in 0:nx-1, j in 0:ny-1, k in 0:nz-1])
+        append!(atoms_supercell, vcat([atom for _ in 1:nx*ny*nz]...))
+    end
+
+    (; lattice=lattice_supercell, atoms=atoms_supercell, positions=positions_supercell)
+end
+
 @doc raw"""
 Construct a plane-wave basis whose unit cell is the supercell associated to
 an input basis ``kgrid``. All other parameters are modified so that the respective physical
@@ -8,24 +29,13 @@ function cell_to_supercell(basis::PlaneWaveBasis)
     model = basis.model
 
     # Compute supercell model and basis parameters
-    supercell_size = Int64.(basis.kgrid) # Renaming for clarity
-    lattice_supercell = reduce(hcat, supercell_size .* eachcol(model.lattice))
-    fft_size_supercell = basis.fft_size .* supercell_size
-
-    # Compute atoms reduced coordinates in the supercell
-    atoms_supercell = eltype(model.atoms)[]
-    positions_supercell = eltype(model.positions)[]
-    nx, ny, nz = supercell_size
-
-    for (atom, position) in zip(model.atoms, model.positions)
-        append!(positions_supercell, [(position .+ [i;j;k]) ./ [nx, ny, nz]
-                                      for i in 0:nx-1, j in 0:ny-1, k in 0:nz-1])
-        append!(atoms_supercell, vcat([atom for _ in 1:nx*ny*nz]...))
-    end
+    supercell_size = Int64.(basis.kgrid)  # Renaming for clarity
+    supercell = create_supercell(model.lattice, model.atoms, model.positions, supercell_size)
+    supercell_fft_size = basis.fft_size .* supercell_size
     # Assemble new model and new basis
-    model_supercell = Model(lattice_supercell, atoms_supercell, positions_supercell;
+    model_supercell = Model(supercell.lattice, supercell.atoms, supercell.positions;
                             terms=model.term_types, symmetries=false)
-    PlaneWaveBasis(model_supercell, basis.Ecut, fft_size_supercell,
+    PlaneWaveBasis(model_supercell, basis.Ecut, supercell_fft_size,
                    basis.variational,
                    [zeros(Float64, 3)],  # kcoords
                    [one(Float64)],       # kweights
