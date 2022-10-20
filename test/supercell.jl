@@ -2,7 +2,7 @@ using Test
 using DFTK
 include("testcases.jl")
 
-if mpi_nprocs() == 1 # can't be bothered to convert the tests
+if mpi_nprocs() == 1  # can't be bothered to convert the tests
 
 @testset "Compare scf results in unit cell and supercell" begin
     Ecut    = 4
