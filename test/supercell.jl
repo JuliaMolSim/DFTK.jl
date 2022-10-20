@@ -3,7 +3,10 @@ using DFTK
 include("testcases.jl")
 
 @testset "Compare scf results in unit cell and supercell" begin
-    Ecut = 4; kgrid = [3,3,3]; tol=1e-12; kshift=zeros(3);
+    Ecut    = 4
+    kgrid   = [3, 3, 3]
+    kshift  = zeros(3)
+    tol     = 1e-12
     scf_tol = (; is_converged=DFTK.ScfConvergenceDensity(tol))
     # Parameters
     Si = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp))
@@ -16,9 +19,9 @@ include("testcases.jl")
     scfres_supercell = cell_to_supercell(scfres)
 
     # Compare energies
-    @test norm(scfres.energies.total*prod(kgrid) -
+    @test norm(scfres.energies.total * prod(kgrid) -
                scfres_supercell_manual.energies.total) < 1e-8
-    @test scfres.energies.total*prod(kgrid) ≈ scfres_supercell.energies.total
+    @test scfres.energies.total * prod(kgrid) ≈ scfres_supercell.energies.total
 
     # Compare densities
     ρ_ref = DFTK.interpolate_density(dropdims(scfres.ρ, dims=4), basis, basis_supercell)

@@ -25,11 +25,11 @@ an input basis ``kgrid``. All other parameters are modified so that the respecti
 systems associated to both basis are equivalent.
 """
 function cell_to_supercell(basis::PlaneWaveBasis)
-    @assert(iszero(basis.kshift))
+    iszero(basis.kshift) || error("Only kshift of 0 implemented.")
     model = basis.model
 
     # Compute supercell model and basis parameters
-    supercell_size = Int64.(basis.kgrid)  # Renaming for clarity
+    supercell_size = basis.kgrid  # Renaming for clarity
     supercell = create_supercell(model.lattice, model.atoms, model.positions, supercell_size)
     supercell_fft_size = basis.fft_size .* supercell_size
     # Assemble new model and new basis
@@ -39,8 +39,8 @@ function cell_to_supercell(basis::PlaneWaveBasis)
                    basis.variational,
                    [zeros(Float64, 3)],  # kcoords
                    [one(Float64)],       # kweights
-                   [1,1,1],              # kgrid = Γ point only
-                   zeros(Int64, 3),      # kshift
+                   ones(3),              # kgrid = Γ point only
+                   basis.kshift,         # kshift
                    false,                # single point symmetry
                    basis.comm_kpts,
                    )
@@ -50,8 +50,8 @@ end
 Maps all ``k+G`` vectors of an given basis as ``G`` vectors of the supercell basis,
 in reduced coordinates.
 """
-function Gplusk_vectors_in_supercell(basis::PlaneWaveBasis,
-                                     basis_supercell::PlaneWaveBasis, kpt::Kpoint)
+function Gplusk_vectors_in_supercell(basis::PlaneWaveBasis, basis_supercell::PlaneWaveBasis,
+                                     kpt::Kpoint)
     inv_recip_superlattice = compute_inverse_lattice(basis_supercell.model.recip_lattice)
     map(Gpk -> round.(Int64, inv_recip_superlattice*Gpk), Gplusk_vectors_cart(basis, kpt))
 end
@@ -63,12 +63,12 @@ The output ``ψ_supercell`` have a single component at ``Γ``-point, such that
 ``ψ_supercell[Γ][:,k+n]`` contains ``ψ[k][:,n]``, within normalization on the supercell.
 """
 function cell_to_supercell(ψ, basis::PlaneWaveBasis{T},
-                           basis_supercell::PlaneWaveBasis{T}) where {T<:Real}
+                           basis_supercell::PlaneWaveBasis{T}) where {T <: Real}
     # Ensure that the basis is unfolded.
     (prod(basis.kgrid) != length(basis.kpoints)) && (error("basis must be unfolded"))
 
-    num_kpG = sum(size.(ψ,1))
-    num_bands = size(ψ[1],2)
+    num_kpG   = sum(size.(ψ, 1))
+    num_bands = size(ψ[1], 2)
 
     # Maps k+G vector of initial basis to a G vector of basis_supercell
     cell_supercell_mapping(kpt) = index_G_vectors.(basis_supercell,
