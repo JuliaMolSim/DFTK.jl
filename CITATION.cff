@@ -1,0 +1,27 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: 'DFTK: The Density-functional toolkit'
+message: Cite this paper whenever you use DFTK.
+type: software
+authors:
+  - email: herbst@acom.rwth-aachen.de
+    given-names: Michael F.
+    family-names: Herbst
+    affiliation: RWTH Aachen University
+    orcid: 'https://orcid.org/0000-0003-0378-7921'
+  - family-names: Levitt
+    given-names: Antoine
+    email: antoine.levitt@inria.fr
+    affiliation: Inria Paris
+  - given-names: Eric
+    family-names: Cancès
+    email: eric.cances@enpc.fr
+    affiliation: 'CERMICS, Ecole des Ponts'
+identifiers:
+  - type: doi
+    value: 10.21105/jcon.00069
+    description: Extended abstract describing the software
+url: 'https://dftk.org'
+license: MIT

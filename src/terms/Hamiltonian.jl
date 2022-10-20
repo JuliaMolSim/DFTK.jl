@@ -117,6 +117,7 @@ end
                                                                            H::DftHamiltonianBlock,
                                                                            ψ::AbstractArray)
     n_bands = size(ψ, 2)
+    iszero(n_bands) && return Hψ  # Nothing to do if ψ empty
     have_divAgrad = !isnothing(H.divAgrad_op)
 
     # Notice that we use unnormalized plans for extra speed

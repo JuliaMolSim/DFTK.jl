@@ -72,10 +72,11 @@ end
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
         scfres = self_consistent_field(basis; is_converged, mixing=KerkerMixing(),
+                                       nbandsalg=FixedBands(; n_bands_converge=10),
                                        damping=0.6, response=ResponseOptions(verbose=true))
 
         ComponentArray(
-           eigenvalues=hcat([ev[1:end-3] for ev in scfres.eigenvalues]...),
+           eigenvalues=hcat([ev[1:10] for ev in scfres.eigenvalues]...),
            ρ=scfres.ρ,
            energies=collect(values(scfres.energies)),
            εF=scfres.εF,
@@ -112,7 +113,6 @@ end
         (compute_force(ε) - compute_force(-ε)) / 2ε
     end
     derivative_fd = ForwardDiff.derivative(compute_force, 0.0)
-    @show derivative_ε derivative_fd
     @test norm(derivative_ε - derivative_fd) < 1e-4
 end
 

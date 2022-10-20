@@ -25,16 +25,18 @@ function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, blowup) where {T}
 end
 
 @timing "ene_ops: kinetic" function ene_ops(term::TermKinetic, basis::PlaneWaveBasis{T},
-                                            ψ, occ; kwargs...) where {T}
+                                            ψ, occupation; kwargs...) where {T}
     ops = [FourierMultiplication(basis, kpoint, term.kinetic_energies[ik])
            for (ik, kpoint) in enumerate(basis.kpoints)]
-    isnothing(ψ) && return (E=T(Inf), ops=ops)
+    if isnothing(ψ) || isnothing(occupation)
+        return (E=T(Inf), ops=ops)
+    end
 
     E = zero(T)
-    for (ik, k) in enumerate(basis.kpoints)
-        for iband = 1:size(ψ[ik], 2)
-            ψnk = @views ψ[ik][:, iband]
-            E += (basis.kweights[ik] * occ[ik][iband]
+    for (ik, ψk) in enumerate(ψ)
+        for iband = 1:size(ψk, 2)
+            ψnk = @views ψk[:, iband]
+            E += (basis.kweights[ik] * occupation[ik][iband]
                   * real(dot(ψnk, Diagonal(term.kinetic_energies[ik]), ψnk)))
         end
     end
@@ -52,7 +54,7 @@ struct BlowupIdentity end
 
 
 """
-Blow-up function as proposed in [https://arxiv.org/abs/2210.00442]
+Blow-up function as proposed in https://arxiv.org/abs/2210.00442
 The blow-up order of the function is fixed to ensure C^2 regularity of the energies bands
 away from crossings and Lipschitz continuity at crossings.
 """

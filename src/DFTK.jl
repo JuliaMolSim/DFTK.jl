@@ -30,6 +30,7 @@ include("common/mpi.jl")
 include("common/threading.jl")
 include("common/printing.jl")
 include("common/cis2pi.jl")
+include("common/zeros_like.jl")
 
 export PspHgh
 include("pseudo/NormConservingPsp.jl")
@@ -103,7 +104,8 @@ export total_density
 export spin_density
 export ρ_from_total_and_spin
 include("densities.jl")
-include("interpolation_transfer.jl")
+include("transfer.jl")
+include("interpolation.jl")
 export compute_transfer_matrix
 export transfer_blochwave
 export transfer_blochwave_kpt
@@ -122,6 +124,7 @@ include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
 export LdosMixing, HybridMixing, χ0Mixing
+export FixedBands, AdaptiveBands
 export scf_nlsolve_solver
 export scf_damping_solver
 export scf_anderson_solver
@@ -134,6 +137,7 @@ export load_scfres, save_scfres
 include("scf/chi0models.jl")
 include("scf/mixing.jl")
 include("scf/scf_solvers.jl")
+include("scf/nbands_algorithm.jl")
 include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
 include("scf/newton.jl")
@@ -174,8 +178,8 @@ include("external/pymatgen.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
 
 export compute_bands
-export high_symmetry_kpath
 export plot_bandstructure
+export irrfbz_path
 include("postprocess/band_structure.jl")
 
 export compute_forces
@@ -189,14 +193,16 @@ export plot_dos
 include("postprocess/dos.jl")
 export compute_χ0
 export apply_χ0
+include("response/cg.jl")
 include("response/chi0.jl")
 include("response/hessian.jl")
 export compute_current
 include("postprocess/current.jl")
 
-# ForwardDiff workarounds
+# Workarounds
 include("workarounds/dummy_inplace_fft.jl")
 include("workarounds/forwarddiff_rules.jl")
+include("workarounds/gpu_arrays.jl")
 
 
 function __init__()
@@ -213,11 +219,14 @@ function __init__()
     @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
     end
-    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80"    include("plotting.jl")
-    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"     include("external/jld2io.jl")
+    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("plotting.jl")
+    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"  include("external/jld2io.jl")
     @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" include("external/vtkio.jl")
     @require wannier90_jll="c5400fa0-8d08-52c2-913f-1e3f656c1ce9" begin
         include("external/wannier90.jl")
+    end
+    @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba"  begin
+        include("workarounds/cuda_arrays.jl")
     end
 end
 

@@ -48,16 +48,17 @@ function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
     [SymOp(W, w) for (W, w) in zip(Ws, ws)]
 end
 
+# Approximate in; can be performance-critical, so we optimize in case of rationals
+is_approx_in_(x::AbstractArray{<:Rational}, X) = any(isequal(x), X)
+is_approx_in_(x::AbstractArray{T}, X) where T  = any(y -> isapprox(x, y; atol=sqrt(eps(T))), X)
+
 """
 Filter out the symmetry operations that don't respect the symmetries of the discrete BZ grid
 """
 function symmetries_preserving_kgrid(symmetries, kcoords)
     kcoords_normalized = normalize_kpoint_coordinate.(kcoords)
-    T = eltype(kcoords[1])
-    atol = T <: Rational ? 0 : sqrt(eps(T))
-    is_approx_in(x, X) = any(y -> isapprox(x, y; atol), X)
     function preserves_grid(symop)
-        all(is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
+        all(is_approx_in_(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
             for k in kcoords_normalized)
     end
     filter(preserves_grid, symmetries)
@@ -243,7 +244,9 @@ function symmetrize_forces(model::Model, forces; symmetries)
             # (but careful that our symmetries are r -> Wr+w, not R(r+f))
             other_at = W \ (position - w)
             i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions_group)
-            symmetrized_forces[idx] += W * forces[group[i_other_at]]
+            # (A.27) is in cartesian coordinates, and since Wcart is orthogonal,
+            # Fsymcart = Wcart * Fcart <=> Fsymred = inv(Wred') Fred
+            symmetrized_forces[idx] += inv(W') * forces[group[i_other_at]]
         end
     end
     symmetrized_forces / length(symmetries)
@@ -338,6 +341,6 @@ end
 Ensure its real-space equivalent of passed Fourier-space representation is entirely real by
 removing wavevectors `G` that don't have a `-G` counterpart in the basis.
 """
-function force_real!(basis, fourier_coeffs)
+@timing function enforce_real!(basis, fourier_coeffs)
     lowpass_for_symmetry!(fourier_coeffs, basis; symmetries=[SymOp(-Mat3(I), Vec3(0, 0, 0))])
 end

@@ -31,6 +31,8 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
     ψnk_real_chunklocal = Array{complex(T),3}[zeros(complex(T), basis.fft_size)
                                                for _ = 1:Threads.nthreads()]
 
+    # TODO We should probably pass occupation_threshold here and ignore bands
+    #      below this threshold in the density computation
     @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
         Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
             ψnk_real = ψnk_real_chunklocal[ichunk]

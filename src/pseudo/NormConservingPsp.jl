@@ -68,7 +68,8 @@ Notice: The returned result is the *energy per unit cell* and not the energy per
 To obtain the latter, the caller needs to divide by the unit cell volume.
 """
 eval_psp_energy_correction(T, psp::NormConservingPsp, n_electrons) = zero(T)
-# by default, no correction
+# by default, no correction, see PspHgh implementation and tests
+# for details on what to implement
 eval_psp_energy_correction(psp::NormConservingPsp, n_electrons) =
     eval_psp_energy_correction(Float64, psp, n_electrons)
 

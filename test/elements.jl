@@ -60,9 +60,9 @@ end
 
     @test atomic_symbol(element) == :Si
     @test charge_nuclear(element) == 14
-    @test charge_ionic(element) == 2
-    @test n_elec_valence(element) == 2
-    @test n_elec_core(element) == 12
+    @test charge_ionic(element) == 4
+    @test n_elec_valence(element) == 4
+    @test n_elec_core(element) == 10
 
     @test local_potential_fourier(element, 0.0) == 0.0
     q3 = sqrt(3) * 2π / element.lattice_constant

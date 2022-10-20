@@ -56,6 +56,9 @@ function spglib_cell(lattice, atom_groups, positions, magnetic_moments)
     spg = spglib_atoms(atom_groups, positions, magnetic_moments)
     (; cell=Spglib.Cell(lattice, spg.positions, spg.numbers, spg.spins), spg.collinear)
 end
+function spglib_cell(model::Model, magnetic_moments)
+    spglib_cell(model.lattice, model.atom_groups, model.positions, magnetic_moments)
+end
 
 
 @timing function spglib_get_symmetry(lattice::AbstractMatrix{<:AbstractFloat}, atom_groups,
@@ -180,6 +183,6 @@ end
 function spglib_spacegroup_number(model, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
     # Get spacegroup number according to International Tables for Crystallography (ITA)
     # TODO Time-reversal symmetry disabled? (not yet available in DFTK)
-    cell, _ = spglib_cell(model.lattice, model.atom_groups, model.positions, magnetic_moments)
+    cell, _ = spglib_cell(model, magnetic_moments)
     Spglib.get_spacegroup_number(cell, tol_symmetry)
 end

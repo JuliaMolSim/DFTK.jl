@@ -7,7 +7,8 @@
 abstract type TermLocalPotential <: Term end
 
 @timing "ene_ops: local" function ene_ops(term::TermLocalPotential,
-                                          basis::PlaneWaveBasis{T}, ψ, occ; kwargs...) where {T}
+                                          basis::PlaneWaveBasis{T}, ψ, occupation;
+                                          kwargs...) where {T}
     potview(data, spin) = ndims(data) == 4 ? (@view data[:, :, :, spin]) : data
     ops = [RealSpaceMultiplication(basis, kpt, potview(term.potential_values, kpt.spin))
            for kpt in basis.kpoints]
@@ -51,7 +52,7 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end
-    force_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
+    enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
     TermExternal(irfft(basis, pot_fourier))
 end
 
@@ -69,7 +70,6 @@ Atomic local potential defined by `model.atoms`.
 struct AtomicLocal end
 function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
-
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
     # Since V is a sum of radial functions located at atomic
     # positions, this involves a form factor (`local_potential_fourier`)
@@ -83,7 +83,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
         end
         pot / sqrt(model.unit_cell_volume)
     end
-    force_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
+    enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
 
     pot_real = irfft(basis, pot_fourier)
     TermAtomicLocal(pot_real)

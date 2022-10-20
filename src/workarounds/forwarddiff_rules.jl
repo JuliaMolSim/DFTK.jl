@@ -244,11 +244,11 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     energies, ham = energy_hamiltonian(basis_dual, ψ, occupation; ρ, eigenvalues, εF)
 
     # This has to be changed whenever the scfres structure changes
-    (; ham, basis=basis_dual, energies, ρ, eigenvalues, occupation, εF, ψ, 
+    (; ham, basis=basis_dual, energies, ρ, eigenvalues, occupation, εF, ψ,
        # non-differentiable metadata:
        response=getfield.(δresults, :history),
-       scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter, 
-       scfres.n_ep_extra, scfres.diagonalization, scfres.stage,
+       scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
+       scfres.n_bands_converge, scfres.diagonalization, scfres.stage,
        scfres.algorithm, scfres.norm_Δρ)
 end
 

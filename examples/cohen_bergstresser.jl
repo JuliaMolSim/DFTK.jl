@@ -18,12 +18,12 @@ lattice = Si.lattice_constant / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]];
 
 # Next we build the rather simple model and discretize it with moderate `Ecut`:
 model = Model(lattice, atoms, positions; terms=[Kinetic(), AtomicLocal()])
-basis = PlaneWaveBasis(model, Ecut=10.0, kgrid=(1, 1, 1));
+basis = PlaneWaveBasis(model, Ecut=10.0, kgrid=(2, 2, 2));
 
 # We diagonalise at the Gamma point to find a Fermi level …
 ham = Hamiltonian(basis)
 eigres = diagonalize_all_kblocks(DFTK.lobpcg_hyper, ham, 6)
-εF = DFTK.compute_occupation(basis, eigres.λ; occupation_threshold=0).εF
+εF = DFTK.compute_occupation(basis, eigres.λ).εF
 
 # … and compute and plot 8 bands:
 using Plots

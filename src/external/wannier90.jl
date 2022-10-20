@@ -42,16 +42,16 @@ function write_w90_win(fileprefix::String, basis::PlaneWaveBasis;
         println(fp, "!"^20 * " k_points\n")
 
         if bands_plot
-            kpathdata = high_symmetry_kpath(basis.model)
-            length(kpathdata.kpath) > 1 || @warn(
+            kpath  = irrfbz_path(basis.model)
+            length(kpath.paths) > 1 || @warn(
                 "Only first kpath branch considered in write_w90_win")
-            path = kpathdata.kpath[1]
+            path = kpath.paths[1]
 
             println(fp, "begin kpoint_path")
             for i in 1:length(path)-1
                 A, B = path[i:i+1]  # write segment A -> B
-                @printf(fp, "%s %10.6f %10.6f %10.6f  ", A, round.(kpathdata.klabels[A], digits=5)...)
-                @printf(fp, "%s %10.6f %10.6f %10.6f\n", B, round.(kpathdata.klabels[B], digits=5)...)
+                @printf(fp, "%s %10.6f %10.6f %10.6f  ", A, round.(kpath.points[A], digits=5)...)
+                @printf(fp, "%s %10.6f %10.6f %10.6f\n", B, round.(kpath.points[B], digits=5)...)
             end
             println(fp, "end kpoint_path")
             println(fp, "bands_plot = true\n")
@@ -247,7 +247,7 @@ generated in reduced coordinates.
 default_wannier_centres(n_wannier) = [rand(1, 3) for _ in 1:n_wannier]
 
 @timing function run_wannier90(scfres;
-                               n_bands=size(scfres.ψ[1], 2) - scfres.n_ep_extra,
+                               n_bands=scfres.n_bands_converge,
                                n_wannier=n_bands,
                                centers=default_wannier_centres(n_wannier),
                                fileprefix=joinpath("wannier90", "wannier"),
