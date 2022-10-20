@@ -66,8 +66,14 @@ plot!(p, a_list, E0_ref, label="Ecut=100", color=2)
 # Another method consist in introducing a modified kinetic term defined through
 # the data of a blow-up function, a method which is also referred to as "energy cutoff
 # smearing". DFTK features energy cutoff smearing using the CHV blow-up
-# function introduced in [REF of the paper to be submitted],
-# that is mathematically ensured to provide ``C^2`` regularity of the energy bands.
+# function introduced in [^CHV2022] that is mathematically ensured to provide ``C^2``
+# regularity of the energy bands.
+#
+# [^CHV2022]:
+#    Éric Cancès, Muhammad Hassan and Laurent Vidal
+#    *Modified-operator method for the calculation of band diagrams of
+#    crystalline materials*, 2022.
+#    [arXiv preprint.](https://arxiv.org/abs/2210.00442)
 
 # Let us lauch the computation again with the modified kinetic term.
 E0_modified = compute_ground_state_energy.(a_list; kinetic_blowup=BlowupCHV(), Ecut, kgrid,);
