@@ -9,7 +9,7 @@ function create_supercell(lattice, atoms, positions, supercell_size)
     atoms_supercell = eltype(atoms)[]
     positions_supercell = eltype(positions)[]
     nx, ny, nz = supercell_size
-    
+
     for (atom, position) in zip(atoms, positions)
         append!(positions_supercell, [(position .+ [i;j;k]) ./ [nx, ny, nz]
                                       for i in 0:nx-1, j in 0:ny-1, k in 0:nz-1])
