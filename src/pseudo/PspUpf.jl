@@ -35,7 +35,8 @@ struct PspUpf{T,I} <: NormConservingPsp
     r2_projs_dr::Vector{Vector{Vector{T}}}
 
     ## Extras
-    identifier::String  # String identifying the pseudopotential.
+    identifier::String   # String identifying the pseudopotential.
+    description::String  # Descriptive string. UPF: `comment`
 end
 
 """
@@ -66,11 +67,12 @@ function PspUpf(path; identifier=path)
     length(unsupported) > 0 && error("Pseudopotential contains the following unsupported" *
                                      " features/quantities: $(join(unsupported, ","))")
 
-    Zion   = Int(pseudo["header"]["z_valence"])
-    rgrid  = pseudo["radial_grid"]
-    drgrid = pseudo["radial_grid_derivative"]
-    lmax   = pseudo["header"]["l_max"]
-    vloc   = pseudo["local_potential"] ./ 2  # (Ry -> Ha)
+    Zion        = Int(pseudo["header"]["z_valence"])
+    rgrid       = pseudo["radial_grid"]
+    drgrid      = pseudo["radial_grid_derivative"]
+    lmax        = pseudo["header"]["l_max"]
+    vloc        = pseudo["local_potential"] ./ 2  # (Ry -> Ha)
+    description = get(pseudo["header"], "comment", "")
 
     # There are two possible units schemes for the projectors and coupling coefficients:
     # β [Ry Bohr^{-1/2}]  h [Ry^{-1}]
@@ -110,11 +112,11 @@ function PspUpf(path; identifier=path)
     rhoatom = pseudo["total_charge_density"]
 
     return PspUpf(Zion, lmax, rgrid, drgrid, vloc, r_projs, h, pswfcs, pswfc_occs, rhoatom;
-                  identifier)
+                  identifier, description)
 end
 
 function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, r_projs, h, pswfcs, pswfc_occs,
-                rhoatom; identifier="") where {T <: Real}
+                rhoatom; identifier="", description="") where {T <: Real}
 
     vloc_interp = linear_interpolation((rgrid, ), vloc)
     r_projs_interp = map(r_projs) do r_projs_l
@@ -134,7 +136,7 @@ function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, r_projs, h, pswfcs, 
 
     PspUpf{T,typeof(vloc_interp)}(Zion, lmax, rgrid, drgrid, vloc, r_projs, h, pswfcs,
                                   pswfc_occs, rhoatom, vloc_interp, r_projs_interp,
-                                  r_vloc_corr_dr, r2_projs_dr, identifier)
+                                  r_vloc_corr_dr, r2_projs_dr, identifier, description)
 end
 
 charge_ionic(psp::PspUpf) = psp.Zion
