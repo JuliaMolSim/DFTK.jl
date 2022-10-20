@@ -64,8 +64,8 @@ Feel free to drop us a line if you want your work to be added here.
   [ArXiv:2206.05685](https://arxiv.org/abs/2206.05685).
 
 - E. Cancès, G. Dusson, G. Kemlin and A. Levitt.
-  [*Practical error bounds for properties in plane-wave electronic structure calculations*](https://arxiv.org/abs/2111.01470)
-  (Submitted).
+  [*Practical error bounds for properties in plane-wave electronic structure calculations*](https://doi.org/10.1137/21M1456224)
+  SIAM Journal on Scientific Computing, **44**, B1312 (2022).
   [ArXiv:2111.01470](https://arxiv.org/abs/2111.01470).
   ([Supplementary material and computational scripts](https://github.com/gkemlin/paper-forces-estimator)).
 

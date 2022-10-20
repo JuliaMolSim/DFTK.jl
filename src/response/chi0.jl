@@ -107,7 +107,8 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # n is used for the preconditioning with ψk[:,n] and the optional callback
 # /!\ It is assumed (and not checked) that ψk'Hk*ψk = Diagonal(εk) (extra states
 # included).
-function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
+function sternheimer_solver(Hk, ψk, εnk, rhs, n;
+                            callback=identity, cg_callback=identity,
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
                             Hψk_extra=zeros(size(ψk,1), 0), tol=1e-9)
     basis = Hk.basis
@@ -174,7 +175,8 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R)
+    res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
+             callback=cg_callback)
     !res.converged && @warn("Sternheimer CG not converged",
                             iterations=res.iterations, tol=res.tol,
                             residual_norm=res.residual_norm)
