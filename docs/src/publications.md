@@ -27,9 +27,9 @@ Additionally the following publications describe DFTK or one of its algorithms:
   ([Supplementary material and computational scripts](https://github.com/gkemlin/response-calculations-metals)).
 
 - E. Cancès, M. Hassan and L. Vidal.
-  [*Modified-Operator Method for the Calculation of Band Diagrams of Crystalline Materials.*](https://hal.archives-ouvertes.fr/hal-03794000)
+  [*Modified-Operator Method for the Calculation of Band Diagrams of Crystalline Materials.*](https://arxiv.org/abs/2210.00442)
   (Submitted).
-  [hal-03794000](https://hal.archives-ouvertes.fr/hal-03794000).
+  [ArXiv:2210.00442](https://arxiv.org/abs/2210.00442).
 
 - M. F. Herbst and A. Levitt.
   [*A robust and efficient line search for self-consistent field iterations*](https://arxiv.org/abs/2109.14018)
