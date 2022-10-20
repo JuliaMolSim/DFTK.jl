@@ -2,6 +2,24 @@
 
 import Roots
 
+
+"""
+Find the occupation and Fermi level.
+"""
+function compute_occupation(basis::PlaneWaveBasis, eigenvalues;
+                            temperature=basis.model.temperature,
+                            smearing=basis.model.smearing)
+    if !isnothing(basis.model.εF)  # fixed Fermi level
+        εF = basis.model.εF
+    else  # fixed n_electrons
+        εF = compute_fermi_level(basis, eigenvalues; temperature)
+    end
+    occupation = compute_occupation(basis, eigenvalues, εF; temperature, smearing)
+
+    (; occupation, εF)
+end
+
+
 """Compute the occupations, given eigenenergies and a Fermi level"""
 function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues, εF;
                             temperature=basis.model.temperature,
@@ -15,22 +33,12 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues, εF;
      for εk in eigenvalues]
 end
 
-"""
-Find the occupation and Fermi level.
-"""
-function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
-                            temperature=basis.model.temperature,
-                            occupation_threshold) where {T}
+function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues; temperature) where {T}
     n_electrons = basis.model.n_electrons
+    n_spin      = basis.model.n_spin_components
 
     # Maximum occupation per state
     filled_occ = filled_occupation(basis.model)
-
-    if temperature == 0 && n_electrons % filled_occ != 0
-        error("$n_electrons electron cannot be attained by filling states with " *
-              "occupation $filled_occ. Typically this indicates that you need to put " *
-              "a temperature or switch to a calculation with collinear spin polarization.")
-    end
 
     # The goal is to find εF so that
     # n_i = filled_occ * f((εi-εF)/θ) with θ = temperature
@@ -47,97 +55,55 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues;
     end
 
     # Get rough bounds to bracket εF
-    min_ε = minimum(minimum.(eigenvalues)) - 1
+    min_ε = minimum(minimum, eigenvalues) - 1
     min_ε = mpi_min(min_ε, basis.comm_kpts)
-    max_ε = maximum(maximum.(eigenvalues)) + 1
+    max_ε = maximum(maximum, eigenvalues) + 1
     max_ε = mpi_max(max_ε, basis.comm_kpts)
-    if temperature != 0
-        @assert compute_n_elec(min_ε) < n_electrons < compute_n_elec(max_ε)
-    end
 
-    if compute_n_elec(max_ε) ≈ n_electrons
-        # This branch takes care of the case of insulators at zero
-        # temperature with as many bands as electrons; there it is
-        # possible that compute_n_elec(max_ε) ≈ n_electrons but
-        # compute_n_elec(max_ε) < n_electrons, so that bisection does
-        # not work
-        εF = max_ε
+    if iszero(temperature)
+        # Sanity check that we can indeed fill the appropriate number of states
+        if n_electrons % (n_spin * filled_occ) != 0
+            error("$n_electrons electrons cannot be attained by filling states with " *
+                  "occupation $filled_occ. Typically this indicates that you need to put " *
+                  "a temperature or switch to a calculation with collinear spin polarization.")
+        end
+
+        # For zero temperature, two cases arise: either there are as many bands
+        # as electrons, in which case we set εF to the highest energy level
+        # reached, or there are unoccupied conduction bands and we take
+        # εF as the midpoint between valence and conduction bands.
+        if compute_n_elec(max_ε) ≈ n_electrons
+            εF = max_ε
+        else
+            # The sanity check above ensures that n_fill is well defined
+            n_fill = div(n_electrons, n_spin * filled_occ, RoundUp)
+            # highest occupied energy level
+            HOMO = maximum([εk[n_fill] for εk in eigenvalues])
+            HOMO = mpi_max(HOMO, basis.comm_kpts)
+            # lowest unoccupied energy level, be careful that not all k-points
+            # might have at least n_fill+1 energy levels so we have to take care
+            # of that by specifying init to minimum
+            LUMO = minimum(minimum.([εk[n_fill+1:end] for εk in eigenvalues]; init=T(Inf)))
+            LUMO = mpi_min(LUMO, basis.comm_kpts)
+            εF = (HOMO + LUMO) / 2
+        end
     else
-        # Just use bisection here; note that with MP smearing there might
-        # be multiple possible Fermi levels. This could be sped up with more
-        # advanced methods (e.g. false position), but more care has to be
-        # taken with convergence criteria and the like
+        # For finite temperature, just use bisection; note that with MP smearing
+        # there might be multiple possible Fermi levels. This could be sped up
+        # with more advanced methods (e.g. false position), but more care has to
+        # be taken with convergence criteria and the like
+        @assert compute_n_elec(min_ε) < n_electrons < compute_n_elec(max_ε)
         εF = Roots.find_zero(εF -> compute_n_elec(εF) - n_electrons, (min_ε, max_ε),
                              Roots.Bisection(), atol=eps(T))
     end
 
     if !isapprox(compute_n_elec(εF), n_electrons)
-        # For insulators it can happen that bisection stops in a final interval (a, b) where
-        # `compute_n_elec(a) ≈ n_electrons` and `compute_n_elec(b) > n_electrons`, but where
-        # the returned `(a+b)/2` is rounded to `b`, such that `εF` gives a too
-        # large electron count. To make sure this is not the case, make εF a little smaller.
-        εF -= eps(εF)
-    end
-
-    if !isapprox(compute_n_elec(εF), n_electrons)
-        if temperature == 0
+        if iszero(temperature)
             error("Unable to find non-fractional occupations that have the " *
                   "correct number of electrons. You should add a temperature.")
         else
             error("This should not happen, debug me!")
         end
     end
-
-    occupation = compute_occupation(basis, eigenvalues, εF)
-    minocc = maximum(minimum, occupation)
-    if temperature > 0 && minocc > occupation_threshold
-        @warn "One k-point has a high minimum occupation $minocc. You should probably increase the number of bands."
-    end
-
-    (; occupation, εF)
-end
-
-"""
-Find Fermi level and occupation for the given parameters, assuming a band gap
-and zero temperature. This function is for DEBUG purposes only, and the
-finite-temperature version with 0 temperature should be preferred.
-"""
-function compute_occupation_bandgap(basis, eigenvalues)
-    n_bands = length(eigenvalues[1])
-    @assert all(e -> length(e) == n_bands, eigenvalues)
-    n_electrons = basis.model.n_electrons
-    T = eltype(basis)
-    @assert basis.model.temperature == 0
-
-    filled_occ = filled_occupation(basis.model)
-    n_fill = div(n_electrons, filled_occ, RoundUp)
-    @assert filled_occ * n_fill == n_electrons
-    @assert n_bands ≥ n_fill
-
-    # We need to fill n_fill states with occupation filled_occ
-    # Find HOMO and LUMO
-    HOMO = -Inf # highest occupied energy state
-    LUMO = Inf  # lowest unoccupied energy state
-    occupation = similar(basis.kpoints, Vector{T})
-    for ik in 1:length(occupation)
-        occupation[ik] = zeros(T, n_bands)
-        occupation[ik][1:n_fill] .= filled_occ
-        HOMO = max(HOMO, eigenvalues[ik][n_fill])
-        if n_fill < n_bands
-            LUMO = min(LUMO, eigenvalues[ik][n_fill + 1])
-        end
-    end
-    LUMO = mpi_min(LUMO, basis.comm_kpts)
-    HOMO = mpi_max(HOMO, basis.comm_kpts)
-    @assert weighted_ksum(basis, sum.(occupation)) ≈ n_electrons
-
-    # Put Fermi level between HOMO and LUMO, to ensure that HOMO < εF < LUMO
-    εF = (HOMO + LUMO) / 2
-    if εF ≥ LUMO || εF ≤ HOMO
-        @warn("`compute_occupation_bandgap` assumes an insulator, but the " *
-              "system seems metallic. Try specifying a temperature and a smearing function.",
-              HOMO, LUMO, εF)
-    end
-
-    (occupation=occupation, εF=εF)
+    εF
 end

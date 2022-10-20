@@ -1,6 +1,6 @@
 % Extended abstract describing DFTK along with a short summary of its features
 @article{DFTKjcon,
-  author = {Michael F. Herbst and Antoine Levitt and Eric Cancès},
+  author = {Herbst, Michael F. and Levitt, Antoine and Cancès, Eric},
   doi = {10.21105/jcon.00069},
   journal = {Proc. JuliaCon Conf.},
   title = {DFTK: A Julian approach for simulating electrons in solids},
@@ -9,13 +9,33 @@
   year = {2021},
 }
 
+% Paper describing the calculation of response properties in DFTK.
+% Used for forward-diff derivatives, `solve_ΩplusK_split` and `apply_χ0` functions.
+@unpublished{ResponseCalculations,
+  author = {Cancès, Eric and Herbst, Michael F. and Kemlin, Gaspard and Levitt, Antoine and Stamm, Benjamin},
+  title = {Numerical Stability and Efficiency of Response Property Calculations in Density Functional Theory},
+  year = {Submitted},
+  note = {https://arxiv.org/abs/2210.04512},
+}
+
+% Paper describing the energy cutoff smearing method `BlowupCHV`
+@unpublished{BlowupCHV,
+  author = {Cancès, Eric and Hassan, Muhammad and Vidal, Laurent Vidal},
+  title = {Modified-Operator Method for the Calculation of Band Diagrams of Crystalline Materials},
+  year = {Submitted},
+  note = {https://hal.archives-ouvertes.fr/hal-03794000/},
+}
+
 % Paper describing the adaptive damping strategy implemented by
 % the scf_potential_mixing_adaptive function
-@unpublished{AdaptiveDamping,
+@article{AdaptiveDamping,
   author = {Herbst, Michael F. and Levitt, Antoine},
+  doi = {10.1016/j.jcp.2022.111127},
+  journal = {Journal of Computational Physics},
   title = {A robust and efficient line search for self-consistent field iterations},
-  year = {submitted},
-  note = {arXiv:2109.14018},
+  volume = {459},
+  pages = {111127},
+  year = {2022},
 }
 
 % Paper describing the HybridMixing, DielectricMixing and LdosMixing SCF preconditioners

@@ -1,84 +1,83 @@
 import Brillouin
-import Brillouin.KPaths: Bravais
+import Brillouin.KPaths: KPath, KPathInterpolant, irrfbz_path
 
 @doc raw"""
-Extract the high-symmetry ``k``-point path corresponding to the passed model
-using `Brillouin.jl`. Uses the conventions described in the reference work by
+Extract the high-symmetry ``k``-point path corresponding to the passed `model`
+using `Brillouin`. Uses the conventions described in the reference work by
 Cracknell, Davies, Miller, and Love (CDML). Of note, this has minor differences to
 the ``k``-path reference
 ([Y. Himuma et. al. Comput. Mater. Sci. **128**, 140 (2017)](https://doi.org/10.1016/j.commatsci.2016.10.015))
 underlying the path-choices of `Brillouin.jl`, specifically for oA and mC Bravais types.
-The `kline_density` is given in number of ``k``-points per inverse bohrs (i.e.
-overall in units of length).
 
-Issues a warning in case the passed lattice does not match the expected primitive.
+If the cell is a supercell of a smaller primitive cell, the standard ``k``-path of the
+associated primitive cell is returned. So, the high-symmetry ``k`` points are those of the
+primitive cell Brillouin zone, not those of the supercell Brillouin zone.
+
+The `dim` argument allows to artificially truncate the dimension of the employed model,
+e.g. allowing to plot a 2D bandstructure of a 3D model (useful for example for plotting
+band structures of sheets with `dim=2`).
+
+Due to lacking support in `Spglib.jl` for two-dimensional lattices it is (a) assumed that
+`model.lattice` is a *conventional* lattice and (b) required to pass the space group
+number using the `sgnum` keyword argument.
 """
-function high_symmetry_kpath(model; kline_density=40)
-    kline_density = austrip(kline_density)
-
-    if model.n_dim == 1  # Return fast for 1D model
-        # TODO Is this special-casing of 1D is not needed for Brillouin.jl any more
-        #
-        # Just use irrfbz_path(1, DirectBasis{1}([1.0]))
-        # (see https://github.com/JuliaMolSim/DFTK.jl/pull/496/files#r725205860)
-        #
-        # Length of the kpath is recip_lattice[1, 1] in 1D
-        n_points = max(2, 1 + ceil(Int, kline_density * model.recip_lattice[1, 1]))
-        kcoords  = [@SVector[coord, 0, 0] for coord in range(-1//2, 1//2, length=n_points)]
-        klabels  = Dict("Γ" => zeros(3), "-½" => [-0.5, 0.0, 0.0], "½" => [0.5, 0, 0])
-        return (kcoords=kcoords, klabels=klabels,
-                kpath=[["-½", "½"]], kbranches=[1:length(kcoords)])
+function irrfbz_path(model; dim::Integer=model.n_dim, sgnum=nothing, magnetic_moments=[])
+    @assert dim ≤ model.n_dim
+    for i in dim:3, j in dim:3
+        if i != j && !iszero(model.lattice[i, j])
+            error("Reducing the dimension for band structure plotting only allowed " *
+                  "if the dropped dimensions are orthogonal to the remaining ones.")
+        end
+    end
+    if !isnothing(sgnum) && dim ∈ (1, 3)
+        @warn("sgnum keyword argument unused in `irrfbz_path` unused " *
+              "unless a 2-dimensional lattice is encountered.")
     end
 
-    # - Brillouin.jl expects the input direct lattice to be in the conventional lattice
-    #   in the convention of the International Table of Crystallography Vol A (ITA).
-    # - spglib uses this convention for the returned conventional lattice,
-    #   so it can be directly used as input to Brillouin.jl
-    # - The output k-Points and reciprocal lattices will be in the CDML convention.
-    conv_latt = spglib_standardize_cell(model; primitive=false,correct_symmetry=false).lattice
-    sgnum     = spglib_spacegroup_number(model)  # Get ITA space-group number
-    direct_basis   = Bravais.DirectBasis(collect(eachcol(conv_latt)))
-    primitive_latt = Bravais.primitivize(direct_basis, Bravais.centering(sgnum, 3))
+    # Brillouin.jl expects the input direct lattice to be in the conventional lattice
+    # in the convention of the International Table of Crystallography Vol A (ITA).
+    #
+    # The output of Brillouin.jl are k-Points and reciprocal lattice vectors
+    # in the CDML convention.
+    if dim == 1
+        # Only one space group; avoid spglib here
+        kpath = Brillouin.irrfbz_path(1, [[model.lattice[1, 1]]], Val(1))
+    elseif dim == 2
+        if isnothing(sgnum)
+            error("sgnum keyword argument (specifying the ITA space group number) " *
+                  "is required for band structure plots in 2D lattices.")
+        end
+        # TODO We assume to have the conventional lattice here.
+        lattice_2d = [model.lattice[1:2, 1], model.lattice[1:2, 2]]
+        kpath = Brillouin.irrfbz_path(sgnum, lattice_2d, Val(2))
+    elseif dim == 3
+        # Brillouin.jl has an interface to Spglib.jl to directly reduce the passed
+        # lattice to the ITA conventional lattice and so the Spglib cell can be
+        # directly used as an input.
+        cell, _ = spglib_cell(model, magnetic_moments)
+        kpath = Brillouin.irrfbz_path(cell)
+    end
 
-    primitive_latt ≈ collect(eachcol(model.lattice)) || @warn(
-        "DFTK's model.lattice and Brillouin's primitive lattice do not agree. " *
-        "The kpath selected to plot the band structure might not be most appropriate."
-    )
-
-    kp     = Brillouin.irrfbz_path(sgnum, direct_basis)
-    kinter = Brillouin.interpolate(kp, density=kline_density)
-
-    # TODO Need to take care of time-reversal symmetry here!
+    # TODO In case of absence of time-reversal symmetry we need to explicitly
+    #      add the inverted kpath here!
     #      See https://github.com/JuliaMolSim/DFTK.jl/pull/496/files#r725203554
 
-    # Need to double the points whenever a new path starts
-    # (for temporary compatibility with pymatgen)
-    # TODO Remove this later
-    kcoords = empty(first(kinter.kpaths))
-    for kbranch in kinter.kpaths
-        idcs = findall(k -> any(sum(abs2, k - kcomp) < 1e-5
-                                for kcomp in values(kp.points)), kbranch)
-        @assert length(idcs) ≥ 2
-        idcs = idcs[2:end-1]  # Don't duplicate first and last
-        idcs = sort(append!(idcs, 1:length(kbranch)))
-        append!(kcoords, kbranch[idcs])
-    end
-
-    T = eltype(kcoords[1])
-    klabels = Dict{String,Vector{T}}(string(key) => val for (key, val) in kp.points)
-    kpath   = [[string(el) for el in path] for path in kp.paths]
-    (; kcoords, klabels, kpath)
+    kpath
 end
 
+"""Return kpoint coordinates in reduced coordinates"""
+function kpath_get_kcoords(kpath::KPathInterpolant{D}) where {D}
+    map(k -> vcat(k, zeros_like(k, 3 - D)), kpath)
+end
+function kpath_get_branch(kpath::KPathInterpolant{D}, ibranch::Integer) where {D}
+    map(k -> vcat(k, zeros_like(k, 3 - D)), kpath.kpaths[ibranch])
+end
 
-@timing function compute_bands(basis, kcoords;
+@timing function compute_bands(basis::PlaneWaveBasis, kcoords::AbstractVector;
                                n_bands=default_n_bands_bandstructure(basis.model),
                                ρ=nothing, eigensolver=lobpcg_hyper,
                                tol=1e-3, show_progress=true, kwargs...)
-    # Create basis with new kpoints, without any symmetry operations.
-    kweights = ones(length(kcoords)) ./ length(kcoords)
-    bs_basis = PlaneWaveBasis(basis, kcoords, kweights)
-
+    # kcoords are the kpoint coordinates in fractional coordinates
     if isnothing(ρ)
         if any(t isa TermNonlinear for t in basis.terms)
             error("If a non-linear term is present in the model the converged density is required " *
@@ -88,60 +87,80 @@ end
         ρ = guess_density(basis)
     end
 
+    # Create basis with new kpoints, without any symmetry operations.
+    kweights = ones(length(kcoords)) ./ length(kcoords)
+    bs_basis = PlaneWaveBasis(basis, kcoords, kweights)
+
     ham = Hamiltonian(bs_basis; ρ)
-    band_data = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
-                                        n_conv_check=n_bands,
-                                        tol=tol, show_progress=show_progress, kwargs...)
-    if !band_data.converged
+    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
+                                     n_conv_check=n_bands, tol, show_progress, kwargs...)
+    if !eigres.converged
         @warn "Eigensolver not converged" iterations=band_data.iterations
     end
-    merge((basis=bs_basis, ), select_eigenpairs_all_kblocks(band_data, 1:n_bands))
+    merge((; basis=bs_basis), select_eigenpairs_all_kblocks(eigres, 1:n_bands))
+end
+function compute_bands(basis::PlaneWaveBasis, kpath::KPathInterpolant; kwargs...)
+    compute_bands(basis, kpath_get_kcoords(kpath); kwargs...)
 end
 
 
-function split_into_branches(kcoords, data::Dict, klabels::Dict)
+function kdistances_and_ticks(kcoords, klabels::Dict, kbranches)
     # kcoords in cartesian coordinates, klabels uses cartesian coordinates
     function getlabel(kcoord; tol=1e-4)
         findfirst(c -> norm(c - kcoord) < tol, klabels)
     end
 
-    branches = Any[(kindices = [0], kdistances=[0.0], ), ]
-    for (ik, kcoord) in enumerate(kcoords)
-        previous_kcoord = ik == 1 ? kcoords[1] : kcoords[ik - 1]
-        if !isnothing(getlabel(kcoord)) && !isnothing(getlabel(previous_kcoord))
-            # New branch encountered
-            previous_distance = branches[end].kdistances[end]
-            push!(branches, (kindices=[ik], kdistances=[previous_distance]))
+    kdistances = eltype(kcoords[1])[]
+    tick_distances = eltype(kcoords[1])[]
+    tick_labels = String[]
+    for (ibranch, kbranch) in enumerate(kbranches)
+        kdistances_branch = cumsum(append!([0.], [norm(kcoords[ik - 1] - kcoords[ik])
+                                                  for ik in kbranch[2:end]]))
+        if ibranch == 1
+            append!(kdistances, kdistances_branch)
         else
-            # Keep adding to current branch
-            distance = branches[end].kdistances[end] + norm(kcoord - kcoords[ik - 1])
-            push!(branches[end].kdistances, distance)
-            push!(branches[end].kindices, ik)
+            append!(kdistances, kdistances_branch .+ kdistances[end][end])
+        end
+        for ik in kbranch
+            kcoord = kcoords[ik]
+            if getlabel(kcoord) !== nothing
+                if ibranch != 1 && ik == kbranch[1]
+                    # New branch encountered. Do not add a new tick point but update label.
+                    tick_labels[end] *= " | " * String(getlabel(kcoord))
+                else
+                    push!(tick_labels, String(getlabel(kcoord)))
+                    push!(tick_distances, kdistances[ik])
+                end
+            end
         end
     end
-
-    map(branches[2:end]) do branch
-        branch_data = Dict(key => data[key][branch.kindices, :, :] for key in keys(data))
-        ret = (klabels=(getlabel(kcoords[branch.kindices[1]]),
-                        getlabel(kcoords[branch.kindices[end]])),
-               kdistances=branch.kdistances,
-               kindices=branch.kindices)
-        merge(ret, (; branch_data...))
-    end
+    ticks = (distances=tick_distances, labels=tick_labels)
+    (; kdistances, ticks)
 end
 
 
-function prepare_band_data(band_data; datakeys=[:λ, :λerror],
-                           klabels=Dict{String, Vector{Float64}}())
-    basis = band_data.basis
+function data_for_plotting(kpath::KPathInterpolant, band_data; datakeys=[:λ, :λerror])
+    basis    = band_data.basis
     n_spin   = basis.model.n_spin_components
     n_kcoord = length(basis.kpoints) ÷ n_spin
     n_bands  = nothing
 
+    # XXX Convert KPathInterpolant => kbranches, klabels
+    kbranches = [1:length(kpath.kpaths[1])]
+    for n in length.(kpath.kpaths)[2:end]
+        push!(kbranches, kbranches[end].stop+1:kbranches[end].stop+n)
+    end
+    klabels = Dict{Symbol, Vec3{eltype(kpath[1])}}()
+    for (ibranch, labels) in enumerate(kpath.labels)
+        for (k, v) in pairs(labels)
+            # Convert to Cartesian and add to labels
+            klabels[v] = basis.model.recip_lattice * kpath_get_branch(kpath, ibranch)[k]
+        end
+    end
+
     # Convert coordinates to Cartesian
     kcoords_cart = [basis.model.recip_lattice * basis.kpoints[ik].coordinate
                     for ik in krange_spin(basis, 1)]
-    klabels_cart = Dict(lal => basis.model.recip_lattice * vec for (lal, vec) in klabels)
 
     # Split data into branches
     data = Dict{Symbol, Any}()
@@ -155,26 +174,9 @@ function prepare_band_data(band_data; datakeys=[:λ, :λerror],
         data[key] = data_per_kσ
     end
     @assert !isnothing(n_bands)
-    branches = split_into_branches(kcoords_cart, data, klabels_cart)
 
-    tick_labels    = String[branches[1].klabels[1]]
-    tick_distances = Float64[branches[1].kdistances[1]]
-    for (i, br) in enumerate(branches)
-        # Ignore branches with a single k-point
-        branches[i].klabels[1] == branches[i].klabels[2] && continue
-
-        label    = branches[i].klabels[2]
-        distance = branches[i].kdistances[end]
-        if i != length(branches) && branches[i+1].klabels[1] != label
-            # Next branch is not continuous from the current
-            label = label * " | " * branches[i+1].klabels[1]
-        end
-        push!(tick_labels, label)
-        push!(tick_distances, distance)
-    end
-
-    (branches=branches, ticks=(distances=tick_distances, labels=tick_labels),
-     n_bands=n_bands, n_kcoord=n_kcoord, n_spin=n_spin, basis=basis)
+    kdistances, ticks = kdistances_and_ticks(kcoords_cart, klabels, kbranches)
+    (; ticks, kdistances, kbranches, n_bands, n_kcoord, n_spin, data...)
 end
 
 
@@ -215,22 +217,24 @@ by default. Another standard choices is `unit=u"eV"` (electron volts).
 The `kline_density` is given in number of ``k``-points per inverse bohrs (i.e.
 overall in units of length).
 """
-function plot_bandstructure(basis::PlaneWaveBasis;
+function plot_bandstructure(basis::PlaneWaveBasis, kpath::KPath=irrfbz_path(basis.model);
                             εF=nothing, kline_density=40u"bohr",
-                            unit=u"hartree", kwargs_plot=(), kwargs...)
+                            unit=u"hartree", kwargs_plot=(; ),
+                            kwargs...)
     mpi_nprocs() > 1 && error("Band structures with MPI not supported yet")
     if !isdefined(DFTK, :PLOTS_LOADED)
         error("Plots not loaded. Run 'using Plots' before calling plot_bandstructure.")
     end
 
     # Band structure calculation along high-symmetry path
-    kcoords, klabels, kpath = high_symmetry_kpath(basis.model; kline_density)
+    kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
     println("Computing bands along kpath:")
-    println("       ", join(join.(kpath, " -> "), "  and  "))
-    band_data = compute_bands(basis, kcoords; kwargs...)
-    plot_band_data(band_data; εF, klabels, unit, kwargs_plot...)
+    sortlabels = map(bl -> last.(sort(collect(pairs(bl)))), kinter.labels)
+    println("       ", join(join.(sortlabels, " -> "), "  and  "))
+    band_data = compute_bands(basis, kinter; kwargs...)
+    plot_band_data(kinter, band_data; εF, unit, kwargs_plot...)
 end
-function plot_bandstructure(scfres::NamedTuple;
+function plot_bandstructure(scfres::NamedTuple, kpath::KPath=irrfbz_path(scfres.basis.model);
                             n_bands=default_n_bands_bandstructure(scfres), kwargs...)
-    plot_bandstructure(scfres.basis; n_bands, ρ=scfres.ρ, εF=scfres.εF, kwargs...)
+    plot_bandstructure(scfres.basis, kpath; n_bands, ρ=scfres.ρ, εF=scfres.εF, kwargs...)
 end

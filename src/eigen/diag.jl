@@ -13,7 +13,6 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
                                  prec_type=PreconditionerTPA, interpolate_kpoints=true,
                                  tol=1e-6, miniter=1, maxiter=100, n_conv_check=nothing,
                                  show_progress=false)
-    T = complex(eltype(ham.basis))
     kpoints = ham.basis.kpoints
     results = Vector{Any}(undef, length(kpoints))
 
@@ -28,26 +27,31 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
                   "$nev_per_kpoint eigenvalues. Increase Ecut.")
         end
         # Get ψguessk
-        @timing "QR orthonormalization" begin
-            if ψguess !== nothing
-                # ψguess provided
+        if !isnothing(ψguess)
+            nev_guess = size(ψguess[ik], 2)
+            if nev_guess > nev_per_kpoint
+                ψguessk = ψguess[ik][:, 1:nev_per_kpoint]
+            elseif nev_guess == nev_per_kpoint
                 ψguessk = ψguess[ik]
-            elseif interpolate_kpoints && ik > 1
-                # use information from previous k-point
-                X0 = interpolate_kpoint(results[ik - 1].X, ham.basis, kpoints[ik - 1],
-                                        ham.basis, kpoints[ik])
-                ψguessk = ortho_qr(X0)  # Re-orthogonalize and renormalize
             else
-                ψguessk = random_orbitals(ham.basis, kpt, nev_per_kpoint)
+                X0 = similar(ψguess[ik], n_Gk, nev_per_kpoint)
+                X0[:, 1:nev_guess] = ψguess[ik]
+                X0[:, nev_guess+1:end] = randn(eltype(X0), n_Gk, nev_per_kpoint - nev_guess)
+                ψguessk = ortho_qr(X0)
             end
+        elseif interpolate_kpoints && ik > 1
+            # use information from previous k-point
+            ψguessk = interpolate_kpoint(results[ik - 1].X, ham.basis, kpoints[ik - 1],
+                                         ham.basis, kpoints[ik])
+        else
+            ψguessk = random_orbitals(ham.basis, kpt, nev_per_kpoint)
         end
         @assert size(ψguessk) == (n_Gk, nev_per_kpoint)
 
         prec = nothing
-        prec_type !== nothing && (prec = prec_type(ham.basis, kpt))
+        !isnothing(prec_type) && (prec = prec_type(ham.basis, kpt))
         results[ik] = eigensolver(ham.blocks[ik], ψguessk;
-                                  prec=prec, tol=tol, miniter=miniter, maxiter=maxiter,
-                                  n_conv_check=n_conv_check)
+                                  prec, tol, miniter, maxiter, n_conv_check)
 
         # Update progress bar if desired
         !isnothing(progress) && next!(progress)
