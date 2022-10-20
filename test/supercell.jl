@@ -2,6 +2,8 @@ using Test
 using DFTK
 include("testcases.jl")
 
+if mpi_nprocs() == 1 # can't be bothered to convert the tests
+
 @testset "Compare scf results in unit cell and supercell" begin
     Ecut    = 4
     kgrid   = [3, 3, 3]
@@ -27,4 +29,6 @@ include("testcases.jl")
     ρ_ref = DFTK.interpolate_density(dropdims(scfres.ρ, dims=4), basis, basis_supercell)
     @test norm(ρ_ref .- scfres_supercell.ρ) < 10*tol
     @test norm(ρ_ref .- scfres_supercell_manual.ρ) < 10*tol
+end
+
 end
