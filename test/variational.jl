@@ -8,7 +8,6 @@ function get_scf_energies(testcase, supersampling, functionals)
     Ecut=3
     grid_size=15
     scf_tol=1e-12  # Tolerance in total enengy
-    n_bands = 10
     kcoords = [[.2, .3, .4]]
 
     # force symmetries to false because the symmetrization is weird at low ecuts

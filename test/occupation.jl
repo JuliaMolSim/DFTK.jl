@@ -34,7 +34,6 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     Ecut = 5
     n_bands = 10
     fft_size = [15, 15, 15]
-    occupation_threshold = 1e-7
 
     # Emulate an insulator ... prepare energy levels
     energies = [zeros(n_bands) for k in silicon.kcoords]
@@ -49,9 +48,9 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
 
     # Occupation for zero temperature
     model = Model(silicon.lattice, silicon.atoms, silicon.positions; temperature=0.0,
-                  smearing=nothing, terms=[Kinetic()])
+                  terms=[Kinetic()])
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
-    occupation0, εF0 = DFTK.compute_occupation_bandgap(basis, energies)
+    occupation0, εF0 = DFTK.compute_occupation(basis, energies)
     @test εHOMO < εF0 < εLUMO
     @test DFTK.weighted_ksum(basis, sum.(occupation0)) ≈ model.n_electrons
 
@@ -62,7 +61,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
                       temperature, smearing, terms=[Kinetic()])
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
         occs, _ = with_logger(NullLogger()) do
-            DFTK.compute_occupation(basis, energies; occupation_threshold)
+            DFTK.compute_occupation(basis, energies)
         end
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
     end
@@ -73,7 +72,7 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature, smearing, terms=[Kinetic()])
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
-        occupation, _ = DFTK.compute_occupation(basis, energies; occupation_threshold)
+        occupation, _ = DFTK.compute_occupation(basis, energies)
 
         for ik in 1:n_k
             @test all(isapprox.(occupation[ik], occupation0[ik], atol=1e-2))
@@ -88,7 +87,6 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     Ecut = 5
     fft_size = [15, 15, 15]
     kgrid  = [2, 3, 4]
-    occupation_threshold = 1e-7
 
     # Emulate a metal ...
     energies = [[-0.08063210585291,  0.11227915155236, 0.13057816014162, 0.57672256037074],
@@ -107,7 +105,6 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
     symmetries = DFTK.symmetry_operations(testcase.lattice, testcase.atoms, testcase.positions)
     kcoords, _ = bzmesh_ir_wedge(kgrid, symmetries)
 
-    n_bands = length(energies[1])
     n_k = length(kcoords)
     @assert n_k == length(energies)
 
@@ -126,11 +123,38 @@ if mpi_nprocs() == 1 # can't be bothered to convert the tests
                       temperature, smearing, terms=[Kinetic()])
         basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size, kshift=[1, 0, 1]/2)
         occupation, εF = with_logger(NullLogger()) do
-            DFTK.compute_occupation(basis, energies; occupation_threshold)
+            DFTK.compute_occupation(basis, energies)
         end
 
         @test DFTK.weighted_ksum(basis, sum.(occupation)) ≈ model.n_electrons
         @test εF ≈ εF_ref
+    end
+end
+end
+
+if mpi_nprocs() == 1 # can't be bothered to convert the tests
+@testset "Fixed Fermi level" begin
+    testcase = magnesium
+
+    function run_scf(; kwargs...)
+        atoms = fill(ElementGaussian(1.0, 0.5), length(testcase.positions))
+        model = Model(testcase.lattice, atoms, testcase.positions;
+                      temperature=0.01, disable_electrostatics_check=true, kwargs...)
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=(2, 2, 2))
+        self_consistent_field(basis; nbandsalg=FixedBands(; n_bands_converge=8))
+    end
+    scfres_ref = run_scf(; testcase.n_electrons)
+    εF_ref = scfres_ref.εF
+    n_electrons_ref = scfres_ref.basis.model.n_electrons
+    @test n_electrons_ref == testcase.n_electrons
+
+    δεF = εF_ref / 4
+    for εF in [εF_ref - δεF, εF_ref + δεF]
+        scfres = run_scf(; εF)
+        @test εF ≈ scfres.εF
+        n_electrons = DFTK.weighted_ksum(scfres.basis, sum.(scfres.occupation))
+        εF > εF_ref && @test n_electrons > n_electrons_ref
+        εF < εF_ref && @test n_electrons < n_electrons_ref
     end
 end
 end

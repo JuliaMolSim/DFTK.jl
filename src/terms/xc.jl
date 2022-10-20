@@ -44,7 +44,7 @@ struct TermXc{T} <: TermNonlinear where {T}
 end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
-                                              ψ, occ; ρ, τ=nothing, kwargs...) where {T}
+                                              ψ, occupation; ρ, τ=nothing, kwargs...) where {T}
     @assert !isempty(term.functionals)
 
     model    = basis.model
@@ -53,10 +53,10 @@ end
 
     # Compute kinetic energy density, if needed.
     if isnothing(τ) && any(needs_τ, term.functionals)
-        if isnothing(ψ) || isnothing(occ)
+        if isnothing(ψ) || isnothing(occupation)
             τ = zero(ρ)
         else
-            τ = compute_kinetic_energy_density(basis, ψ, occ)
+            τ = compute_kinetic_energy_density(basis, ψ, occupation)
         end
     end
 

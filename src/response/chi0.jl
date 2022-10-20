@@ -1,5 +1,4 @@
 using LinearMaps
-using IterativeSolvers
 using ProgressMeter
 
 @doc raw"""
@@ -16,8 +15,7 @@ In this case the matrix has effectively 4 blocks, which are:
 \end{array}\right)
 ```
 """
-function compute_χ0(ham; temperature=ham.basis.model.temperature,
-                    occupation_threshold=default_occupation_threshold())
+function compute_χ0(ham; temperature=ham.basis.model.temperature)
     # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
     # where (up to normalizations)
     # ρ = ∑_nk f(εnk - εF) |ψnk|^2
@@ -54,7 +52,7 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature,
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
     Vs = [EV.vectors for EV in EVs]
-    occ, εF = compute_occupation(basis, Es; temperature, occupation_threshold)
+    occ, εF = compute_occupation(basis, Es; temperature)
 
     χ0 = zeros(eltype(basis), n_spin * n_fft, n_spin * n_fft)
     for (ik, kpt) in enumerate(basis.kpoints)
@@ -111,7 +109,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # included).
 function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
-                            abstol=1e-9, reltol=0, verbose=false)
+                            Hψk_extra=zeros(size(ψk,1), 0), tol=1e-9)
     basis = Hk.basis
     kpoint = Hk.kpoint
 
@@ -163,13 +161,12 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
     # is defined above and b is the projection of -rhs onto Ran(Q).
     #
     b = -Q(rhs)
-    bb = R(b -  H(ψk_extra * (ψk_exHψk_ex \ ψk_extra'b)))
+    bb = R(b -  Hψk_extra * (ψk_exHψk_ex \ ψk_extra'b))
     function RAR(ϕ)
         Rϕ = R(ϕ)
-        # A denotes here the Schur complement of (1-P) (H-εn) (1-P)
+        # Schur complement of (1-P) (H-εn) (1-P)
         # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
-        ARϕ = Rϕ - ψk_extra * (ψk_exHψk_ex \ ψk_extra'H(Rϕ))
-        R(H(ARϕ))
+        R(H(Rϕ) - Hψk_extra * (ψk_exHψk_ex \ Hψk_extra'Rϕ))
     end
     precon = PreconditionerTPA(basis, kpoint)
     precondprep!(precon, ψk[:, n])
@@ -177,9 +174,12 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    δψknᴿ, ch = cg(J, bb; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol,
-                   verbose, log=true)
-    info = (; basis=basis, kpoint=kpoint, ch=ch, n=n)
+    res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R)
+    !res.converged && @warn("Sternheimer CG not converged",
+                            iterations=res.iterations, tol=res.tol,
+                            residual_norm=res.residual_norm)
+    δψknᴿ = res.x
+    info = (; basis, kpoint, res, n)
     callback(info)
 
     # 2) solve for αkn now that we know δψknᴿ
@@ -267,28 +267,25 @@ end
     # First compute δεF
     δεF = zero(T)
     δocc = [zero(occ_occ[ik]) for ik = 1:Nk]  # = fn' * (δεn - δεF)
+    smearing = model.smearing
     if temperature > 0
         # First compute δocc without self-consistent Fermi δεF
         D = zero(T)
         for ik = 1:Nk, (n, εnk) in enumerate(ε_occ[ik])
             enred = (εnk - εF) / temperature
             δεnk = real(dot(ψ_occ[ik][:, n], δHψ[ik][:, n]))
-            fpnk = (filled_occ
-                    * Smearing.occupation_derivative(model.smearing, enred)
-                    / temperature)
+            fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
             δocc[ik][n] = δεnk * fpnk
             D += fpnk * basis.kweights[ik]
         end
         # compute δεF
         D = mpi_sum(D, basis.comm_kpts)  # equal to minus the total DOS
         δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
-        δεF = δocc_tot / D
+        δεF = !isnothing(model.εF) ? zero(δεF) : δocc_tot / D  # no δεF when Fermi level is fixed
         # recompute δocc
         for ik = 1:Nk, (n, εnk) in enumerate(ε_occ[ik])
             enred = (εnk - εF) / temperature
-            fpnk = (filled_occ
-                    * Smearing.occupation_derivative(model.smearing, enred)
-                    / temperature)
+            fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
             δocc[ik][n] -= fpnk * δεF
         end
     end
@@ -298,16 +295,17 @@ end
     for ik = 1:Nk
         ψk = ψ_occ[ik]
         δψk = δψ[ik]
+        Hψk_extra = ham.blocks[ik] * ψ_extra[ik]
 
         εk = ε_occ[ik]
         for n = 1:length(εk)
-            fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n]-εF) / temperature)
+            fnk = filled_occ * Smearing.occupation(smearing, (εk[n]-εF) / temperature)
 
             # explicit contributions (nonzero only for temperature > 0)
             for m = 1:length(εk)
-                fmk = filled_occ * Smearing.occupation(model.smearing, (εk[m]-εF) / temperature)
+                fmk = filled_occ * Smearing.occupation(smearing, (εk[m]-εF) / temperature)
                 ddiff = Smearing.occupation_divided_difference
-                ratio = filled_occ * ddiff(model.smearing, εk[m], εk[n], εF, temperature)
+                ratio = filled_occ * ddiff(smearing, εk[m], εk[n], εF, temperature)
                 αmn = compute_αmn(fmk, fnk, ratio)  # fnk * αmn + fmk * αnm = ratio
                 δψk[:, n] .+= ψk[:, m] .* αmn .* (dot(ψk[:, m], δHψ[ik][:, n]) * (n != m))
             end
@@ -315,14 +313,14 @@ end
             # Sternheimer contribution
             δψk[:, n] .+= sternheimer_solver(ham.blocks[ik], ψk, εk[n], δHψ[ik][:, n], n;
                                              ψk_extra=ψ_extra[ik], εk_extra=ε_extra[ik],
-                                             kwargs_sternheimer...)
+                                             Hψk_extra, kwargs_sternheimer...)
         end
     end
 
     # pad δoccupation
     δoccupation = zero.(occ)
     for (ik, maskk) in enumerate(mask_occ)
-        δoccupation[ik][maskk] .+= δocc[ik]
+        δoccupation[ik][maskk] .= δocc[ik]
     end
 
     # keeping zeros for extra bands to keep the output δψ with the same size
@@ -338,7 +336,6 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
                   kwargs_sternheimer...)
 
     basis = ham.basis
-    model = basis.model
 
     # Make δV respect the basis symmetry group, since we won't be able
     # to compute perturbations that don't anyway
