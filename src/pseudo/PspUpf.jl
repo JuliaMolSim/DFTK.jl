@@ -4,11 +4,11 @@ using PseudoPotentialIO: load_upf
 
 struct PspUpf{T,I} <: NormConservingPsp
     ## From file
-    Zion::Int  # Pseudo-atomic (valence) charge. UPF: `z_valence`
-    lmax::Int  # Maximal angular momentum in the non-local part. UPF: `l_max`
-    rgrid::Vector{T}  # Radial grid, can be linear or logarithmic. UPF: `PP_MESH/PP_R`
+    Zion::Int          # Pseudo-atomic (valence) charge. UPF: `z_valence`
+    lmax::Int          # Maximal angular momentum in the non-local part. UPF: `l_max`
+    rgrid::Vector{T}   # Radial grid, can be linear or logarithmic. UPF: `PP_MESH/PP_R`
     drgrid::Vector{T}  # Radial grid derivative / integration factors. UPF: `PP_MESH/PP_RAB`
-    vloc::Vector{T}  # Local part of the potential on the radial grid. UPF: `PP_LOCAL`
+    vloc::Vector{T}    # Local part of the potential on the radial grid. UPF: `PP_LOCAL`
     # r * β where β are Kleinman-Bylander non-local projectors on the radial grid.
     # UPF: `PP_NONLOCAL/PP_BETA.i`
     r_projs::Vector{Vector{Vector{T}}}

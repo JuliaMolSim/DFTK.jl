@@ -1,7 +1,7 @@
 using Test
-using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
+using DFTK: eval_psp_projector_fourier, eval_psp_local_fourier
 using DFTK: eval_psp_projector_real, eval_psp_local_real, eval_psp_energy_correction
-using DFTK: load_psp, count_n_proj_radial
+using DFTK: count_n_proj_radial
 using SpecialFunctions: sphericalbesselj
 using QuadGK
 

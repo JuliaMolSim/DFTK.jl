@@ -12,10 +12,10 @@ the type of the pseudopotential file format and a respective class is returned.
 """
 function load_psp(key::AbstractString)
     if startswith(key, "hgh/") || endswith(lowercase(key), ".hgh")
-        parser = parse_hgh_file
+        pseudo_type = PspHgh
         extension = ".hgh"
     elseif endswith(lowercase(key), ".upf")
-        parser = PspUpf
+        pseudo_type = PspUpf
         extension = ".upf"
     else
         error("Could not determine pseudopotential family of '$key'")
@@ -36,7 +36,7 @@ function load_psp(key::AbstractString)
     end
 
     if isfile(fullpath)
-        return parser(fullpath; identifier)
+        return pseudo_type(fullpath; identifier)
     else
         error("Could not find pseudopotential for identifier " *
               "'$identifier' in directory '$(datadir_psp())'")

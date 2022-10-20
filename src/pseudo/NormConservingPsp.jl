@@ -77,9 +77,7 @@ potential:
 lim{q->0} 4π Nelec ∫{R+} (V(r) - C(r)) sin(qr)/qr r^2 dr + F[C(r)]
 = 4π Nelec ∫{R+} (V(r) + Z/r) r^2 dr
 """
-function eval_psp_energy_correction(T, psp::NormConservingPsp, n_electrons)
-    error("`eval_psp_energy_correction not implemented for $(typeof(psp))")
-end
+function eval_psp_energy_correction end
 # by default, no correction, see PspHgh implementation and tests
 # for details on what to implement
 eval_psp_energy_correction(psp::NormConservingPsp, n_electrons) =
