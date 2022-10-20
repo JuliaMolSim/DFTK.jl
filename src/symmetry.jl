@@ -49,8 +49,8 @@ function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
 end
 
 # Approximate in; can be performance-critical, so we optimize in case of rationals
-is_approx_in_(x::AbstractArray{<:Rational}, X) = any(isequal(x), X)
-is_approx_in_(x::AbstractArray{T}, X) where T  = any(y -> isapprox(x, y; atol=sqrt(eps(T))), X)
+is_approx_in_(x::AbstractArray{<:Rational}, X)  = any(isequal(x), X)
+is_approx_in_(x::AbstractArray{T}, X) where {T} = any(y -> isapprox(x, y; atol=sqrt(eps(T))), X)
 
 """
 Filter out the symmetry operations that don't respect the symmetries of the discrete BZ grid
