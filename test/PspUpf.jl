@@ -1,32 +1,44 @@
 using Test
+using Downloads
 using DFTK: eval_psp_projector_fourier, eval_psp_local_fourier
 using DFTK: eval_psp_projector_real, eval_psp_local_real, eval_psp_energy_correction
 using DFTK: count_n_proj_radial
 using SpecialFunctions: sphericalbesselj
 using QuadGK
 
-hgh_upf_files = ["si-q4", "tl-q13"]
-oncv_upf_files = ["si-nc-sr-standard-04", "hf-sp-oncvpsp"]
-all_upf_files = vcat(hgh_upf_files, oncv_upf_files)
+base_url = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary/main/pseudos/"
 
-@testset "Check reading 'si-nc-sr-standard-04.upf'" begin
-    psp = load_psp("psp/si-nc-sr-standard-04.upf")
+upf_urls = [
+    joinpath(base_url, "hgh_pbe_upf/Si.pbe-hgh.UPF"),
+    joinpath(base_url, "hgh_pbe_upf/Tl.pbe-d-hgh.UPF"),
+    joinpath(base_url, "pd_nc_sr_lda_standard_04_upf/Li.upf"),
+    joinpath(base_url, "pd_nc_sr_pbe_standard_04_upf/Mg.upf")
+]
+hgh_pseudos = [
+    (hgh="hgh/pbe/si-q4.hgh", upf=upf_urls[1]),
+    (hgh="hgh/pbe/tl-q13.hgh", upf=upf_urls[2])
+]
 
-    @test psp.lmax == 2
-    @test psp.Zion == 4
-    @test length(psp.rgrid) == 1510
-    @test length(psp.vloc) == 1510
+@testset "Check reading PseudoDojo Li UPF" begin
+    psp = load_psp(Downloads.download(upf_urls[3], joinpath(tempdir(), "psp.upf")))
+
+    @test psp.lmax == 1
+    @test psp.Zion == 3
+    @test length(psp.rgrid) == 1944
+    @test length(psp.vloc) == 1944
     for m in psp.h
         @test size(m) == (2, 2)
     end
 
-    @test psp.r_projs[1][1][1] ≈ -5.6328824383E-09 / 2
+    @test psp.vloc[1] ≈ -1.2501238567E+01 / 2
+    @test psp.h[1][1,1] ≈ -9.7091222353E+0 * 2
+    @test psp.r_projs[1][1][1] ≈ -7.5698070034E-10 / 2
 end
 
 @testset "Real potentials are consistent with HGH" begin
-    for pspfile in hgh_upf_files
-        upf = load_psp("psp/$(pspfile).upf")
-        hgh = load_psp("hgh/pbe/$(pspfile).hgh")
+    for psp_pair in hgh_pseudos
+        upf = load_psp(Downloads.download(psp_pair.upf, joinpath(tempdir(), "psp.upf")))
+        hgh = load_psp(psp_pair.hgh)
         rand_r = rand(5) .* abs(upf.rgrid[end] - upf.rgrid[1]) .+ upf.rgrid[1]
         for r in [upf.rgrid[1], rand_r..., upf.rgrid[end]]
             reference_hgh = eval_psp_local_real(hgh, r)
@@ -36,9 +48,9 @@ end
 end
 
 @testset "Fourier potentials are consistent with HGH" begin
-    for pspfile in hgh_upf_files
-        upf = load_psp("psp/$(pspfile).upf")
-        hgh = load_psp("hgh/pbe/$(pspfile).hgh")
+    for psp_pair in hgh_pseudos
+        upf = load_psp(Downloads.download(psp_pair.upf, joinpath(tempdir(), "psp.upf")))
+        hgh = load_psp(psp_pair.hgh)
         for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference_hgh = eval_psp_local_fourier(hgh, q)
             @test reference_hgh ≈ eval_psp_local_fourier(upf, q) rtol=1e-5 atol=1e-5
@@ -47,9 +59,9 @@ end
 end
 
 @testset "Projectors are consistent with HGH in real and Fourier space" begin
-    for pspfile in hgh_upf_files
-        upf = load_psp("psp/$(pspfile).upf")
-        hgh = load_psp("hgh/pbe/$(pspfile).hgh")
+    for psp_pair in hgh_pseudos
+        upf = load_psp(Downloads.download(psp_pair.upf, joinpath(tempdir(), "psp.upf")))
+        hgh = load_psp(psp_pair.hgh)
 
         @test upf.lmax == hgh.lmax
         for l in 0:upf.lmax
@@ -73,9 +85,9 @@ end
 end
 
 @testset "Energy correction is consistent with HGH" begin
-    for pspfile in hgh_upf_files
-        upf = load_psp("psp/$(pspfile).upf")
-        hgh = load_psp("hgh/pbe/$(pspfile).hgh")
+    for psp_pair in hgh_pseudos
+        upf = load_psp(Downloads.download(psp_pair.upf, joinpath(tempdir(), "psp.upf")))
+        hgh = load_psp(psp_pair.hgh)
         n_electrons = 3
         reference_hgh = eval_psp_energy_correction(hgh, n_electrons)
         @test reference_hgh ≈ eval_psp_energy_correction(upf, n_electrons) rtol=1e-5 atol=1e-5
@@ -86,8 +98,8 @@ end
     function integrand(psp, q, r)
         4π * (eval_psp_local_real(psp, r) + psp.Zion / r) * sin(q * r) / (q * r) * r^2
     end
-    for pspfile in all_upf_files
-        psp = load_psp("psp/$(pspfile).upf")
+    for upf_url in upf_urls
+        psp = load_psp(Downloads.download(upf_url, joinpath(tempdir(), "psp.upf")))
         for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[begin], psp.rgrid[end])[1]
             correction = 4π * psp.Zion / q^2
@@ -103,8 +115,8 @@ end
         4π * x^2 * eval_psp_projector_real(psp, i, l, x) * sphericalbesselj(l, q*x)
     end
 
-    for pspfile in all_upf_files
-        psp = load_psp("psp/$(pspfile).upf")
+    for upf_url in upf_urls
+        psp = load_psp(Downloads.download(upf_url, joinpath(tempdir(), "psp.upf")))
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1 
         for l in 0:psp.lmax, i in count_n_proj_radial(psp, l)
             ir_cut = length(psp.r_projs[l+1][i])
@@ -119,8 +131,8 @@ end
 
 @testset "PSP energy correction is consistent with fourier-space potential" begin
     q_small = 1e-3    # We are interested in q→0 term
-    for pspfile in all_upf_files
-        psp = load_psp("psp/$(pspfile).upf")
+    for upf_url in upf_urls
+        psp = load_psp(Downloads.download(upf_url, joinpath(tempdir(), "psp.upf")))
         coulomb = -4π * (psp.Zion) / q_small^2
         reference = eval_psp_local_fourier(psp, q_small) - coulomb
         @test reference ≈ eval_psp_energy_correction(psp, 1) atol=1e-3
