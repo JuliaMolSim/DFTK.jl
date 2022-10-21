@@ -19,6 +19,10 @@ hgh_pseudos = [
     (hgh="hgh/pbe/tl-q13.hgh", upf=upf_urls[2])
 ]
 
+if mpi_nprocs() == 1
+# Downloads.download causes a race condition with multiple MPI processes
+# TODO enable this test if we move to artefacts
+
 @testset "Check reading PseudoDojo Li UPF" begin
     psp = load_psp(Downloads.download(upf_urls[3], joinpath(tempdir(), "psp.upf")))
 
@@ -137,4 +141,6 @@ end
         reference = eval_psp_local_fourier(psp, q_small) - coulomb
         @test reference ≈ eval_psp_energy_correction(psp, 1) atol=1e-3
     end
+end
+
 end
