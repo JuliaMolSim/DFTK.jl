@@ -1,5 +1,6 @@
 using MKL
 using DFTK
+using LinearAlgebra
 setup_threading(n_blas=2)
 
 let
@@ -17,7 +18,7 @@ let
     savefig(p, "convergence_study_ecut.png")
 end
 
-let
+begin
     include("../../../../examples/pseudopotentials.jl")
 
     function run_scf(Ecut, psp, tol)
@@ -37,7 +38,8 @@ let
         energies = [run_scf(Ecut, psp, tol/100).energies.total for Ecut in Ecuts]
         errors = abs.(energies[begin:end-1] .- energies[end])
         iconv = findfirst(errors .< tol)
-        (Ecuts=Ecuts[begin:end-1], errors, Ecut_conv=Ecuts[iconv])
+        (Ecuts=Ecuts[begin:end-1], errors=errors,
+         Ecut_conv=Ecuts[iconv], error_conv=errors[iconv])
     end
 
     Ecuts = 20:4:96
@@ -46,12 +48,19 @@ let
     conv_hgh = converge_Ecut(Ecuts, psp_hgh, tol)
     conv_upf = converge_Ecut(Ecuts, psp_upf, tol)
 
-    println("HGH: $(onv_hgh.Ecut_conv)")
+    println("HGH: $(conv_hgh.Ecut_conv)")
     println("UPF: $(conv_upf.Ecut_conv)")
 
-    plt = plot(xlabel="Ecut [Ha]", ylabel="Error [Ha]")
-    plot!(plt, conv_hgh.Ecuts, conv_hgh.errors, label="HGH")
-    plot!(plt, conv_upf.Ecuts, conv_upf.errors, label="PseudoDojo UPF")
-    hline!(plt, [tol], label="tol", color=:grey, linestyle=:dash)
+    plt = plot(yaxis=:log10, xlabel="Ecut [Eh]", ylabel="Error [Eh]")
+    plot!(plt, conv_hgh.Ecuts, conv_hgh.errors, label="HGH",
+          markers=true, linewidth=3)
+    plot!(plt, conv_upf.Ecuts, conv_upf.errors, label="PseudoDojo UPF",
+          markers=true, linewidth=3)
+    hline!(plt, [tol], label="tol = $tol Eh", color=:grey, linestyle=:dash)
+    scatter!(plt, [conv_hgh.Ecut_conv, conv_upf.Ecut_conv],
+             [conv_hgh.error_conv, conv_upf.error_conv],
+             color=:grey, label="", markers=:star, markersize=7)
+    yticks!(plt, [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8])
     savefig(plt, "li_pseudos_ecut_convergence.png")
+    plt
 end
