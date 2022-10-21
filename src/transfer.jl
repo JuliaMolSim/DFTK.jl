@@ -97,38 +97,6 @@ function transfer_blochwave_kpt(ψk_in, basis::PlaneWaveBasis, kpt_in, kpt_out, 
 end
 
 """
-Find the equivalent index of the coordinate `kcoord` ∈ ℝ³ in a list `kcoords` ∈ [-½, ½)³.
-`ΔG` is the vector of ℤ³ such that `kcoords[index] = kcoord + ΔG`.
-"""
-function find_equivalent_kpt(kcoords::Vector{Vec3{T}}, kcoord; tol=100*eps(T)) where {T}
-    kcoord_normalized = mod.(Vector(kcoord), 1)  # coordinate in [0, 1)³
-    kcoord_normalized[kcoord_normalized .≥ 0.5  - tol] .-= 1  # coordinate in [-½, ½)
-
-    indices = findall(e -> is_approx_integer(e - kcoord_normalized; tol), kcoords)
-    index = only(indices)
-
-    ΔG = kcoord_normalized - kcoord
-
-    # ΔG should be an integer.
-    @assert all(is_approx_integer.(ΔG; tol))
-    ΔG = round.(Int, ΔG)
-
-    return (; index, ΔG)
-end
-
-"""
-Return the Fourier coefficients for `ψk · e^{i q·r}` in the basis of `kpt_out`, where `ψk`
-is defined on a basis `kpt_in`.
-"""
-function multiply_by_expiqr(basis, kpt_in, q, ψk; transfer_fn=transfer_blochwave_kpt)
-    kcoords = getfield.(basis.kpoints, :coordinate)
-    shifted_kcoord = kpt_in.coordinate .+ q  # coordinate of ``k``-point in ℝ
-    (index, ΔG) = find_equivalent_kpt(kcoords, shifted_kcoord)
-    kpt_out = basis.kpoints[index]
-    return transfer_fn(ψk, basis, kpt_in, kpt_out, ΔG)
-end
-
-"""
 Transfer Bloch wave between two basis sets. Limited feature set.
 """
 function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
@@ -152,4 +120,48 @@ function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
     map(enumerate(basis_out.kpoints)) do (ik, kpt_out)
         transfer_blochwave_kpt(ψ_in[ik], basis_in, basis_in.kpoints[ik], basis_out, kpt_out)
     end
+end
+
+"""
+Find the equivalent index of the coordinate `kcoord` ∈ ℝ³ in a list `kcoords` ∈ [-½, ½)³.
+`ΔG` is the vector of ℤ³ such that `kcoords[index] = kcoord + ΔG`.
+"""
+function find_equivalent_kpt(kpoints::Vector{Kpoint{T}}, kcoord, spin; tol=sqrt(eps(T))) where {T}
+    kcoord_red = map(kcoord) do k
+                     k = mod(k, 1)              # coordinate in [0, 1)³
+                     k ≥ 0.5 - tol ? k - 1 : k  # coordinate in [-½, ½)³
+                 end
+
+    ΔG = kcoord_red - kcoord
+    # ΔG should be an integer.
+    @assert all(is_approx_integer.(ΔG))
+    ΔG = round.(Int, ΔG)
+
+    index::Int = findfirst(k -> k.spin == spin && isapprox(k.coordinate, kcoord_red; atol=tol),
+                           kpoints)  # unique by construction
+
+    return (; index, ΔG)
+end
+
+"""
+Return the Fourier coefficients for `ψk · e^{i q·r}` in the basis of `kpt_out`, where `ψk`
+is defined on a basis `kpt_in`.
+"""
+function multiply_by_expiqr(basis, kpt_in, q, ψk)
+    shifted_kcoord = kpt_in.coordinate .+ q  # coordinate of ``k``-point in ℝ
+    index, ΔG = find_equivalent_kpt(basis.kpoints, shifted_kcoord, kpt_in.spin)
+    kpt_out = basis.kpoints[index]
+    return transfer_blochwave_kpt(ψk, basis, kpt_in, kpt_out, ΔG)
+end
+
+"""
+Return an `ordering` function that reorders the `kpoints`. That is for each `kpoint` of the
+`basis`: `kpoints[ik].coordinate + q = ordering(kpoints)[ik].coordinate`.
+"""
+function kpoints_ordering(basis::PlaneWaveBasis, qcoord)
+    kpoints = basis.kpoints
+    indices = [find_equivalent_kpt(kpoints, kpt.coordinate + qcoord, kpt.spin).index
+               for kpt in kpoints]
+    @assert sort(indices) == 1:length(kpoints)
+    x -> view(x, indices)
 end
