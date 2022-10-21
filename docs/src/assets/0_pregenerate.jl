@@ -51,16 +51,16 @@ let
          Ecut_conv=Ecuts[iconv], error_conv=errors[iconv])
     end
 
-    Ecuts = 20:4:140
-    tol   = 3.675e-5 / 1  # 1.0 meV / atom
+    n_atoms    = 1
+    Ecuts      = 20:4:140
+    tol_mev_at = 1.0u"meV" / n_atoms
+    tol        = austrip(tol_mev_at)
 
     conv_upf = converge_Ecut(Ecuts, psp_upf, tol)
     println("UPF: $(conv_upf.Ecut_conv)")
 
     conv_hgh = converge_Ecut(Ecuts, psp_hgh, tol)
     println("HGH: $(conv_hgh.Ecut_conv)")
-
-    tol_mev_at = uconvert(u"meV", tol*u"Eh_au") / 1  # 1 atom
 
     plt = plot(yaxis=:log10, xlabel="Ecut [Eh]", ylabel="Error [Eh]")
     plot!(plt, conv_hgh.Ecuts, conv_hgh.errors, label="HGH",
