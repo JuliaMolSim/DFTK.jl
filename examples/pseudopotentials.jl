@@ -50,13 +50,15 @@ path_upf = Downloads.download(URL_UPF, joinpath(tempdir(), "Li.upf"))
 psp_upf = load_psp(path_upf);
 
 # First, we'll take a look at the energy cutoff convergence of these two pseudopotentials.
+# For both pseudos, a reference energy is calculated with a cutoff of 140 Hartree, and
+# SCF calculations are run at increasing cutoffs until 1 meV / atom convergence is reached.
 
 #md # ```@raw html
 #md # <img src="../../assets/li_pseudos_ecut_convergence.png" width=600 height=400 />
 #md # ```
 #nb # <img src="https://docs.dftk.org/stable/assets/li_pseudos_ecut_convergence.png" width=600 height=400 />
 
-# The converged cutoffs with a tolerance of 1e-3 Hartree are 84 Ha and 32 Ha for the HGH
+# The converged cutoffs are 128 Ha and 36 Ha for the HGH
 # and UPF pseudos respectively. We see that the HGH pseudopotential
 # is much *harder*, i.e. it requires a higher energy cutoff, than the UPF PSP. In general,
 # numeric pseudopotentials tend to be softer than analytical pseudos because of the
@@ -64,7 +66,7 @@ psp_upf = load_psp(path_upf);
 
 # Next, to see that the different pseudopotentials give reasonbly similar results,
 # we'll look at the bandstructures calculated using the HGH and UPF PSPs. Even though
-# the convered cutoffs are 84 and 32 Ha, we perform these calculations with a cutoff of
+# the convered cutoffs are 128 and 36 Ha, we perform these calculations with a cutoff of
 # 24 Ha for both PSPs.
 
 function run_bands(psp)
