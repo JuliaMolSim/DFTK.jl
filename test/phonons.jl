@@ -4,7 +4,9 @@ using DFTK
 using LinearAlgebra
 using ForwardDiff
 using StaticArrays
+using Random
 
+if mpi_nprocs() == 1 # can't be bothered to convert the tests
 @testset "Phonons" begin
 
 # Convert back and forth between Vec3 and columnwise matrix
@@ -27,6 +29,18 @@ function prepare_system(; n_scell=1)
     V(x, p) = 4*p.ε * ((p.σ/x)^12 - (p.σ/x)^6)
 
     (; positions, lattice, directions, params, V)
+end
+
+function prepare_3d_system(; n_scell=1)
+    positions = [[0.0, 0.0, 0.0]]
+    for i in 1:n_scell-1
+        push!(positions, i * ones(3) / n_scell)
+    end
+
+    a = 5. * length(positions)
+    lattice = a * rand(3, 3)
+
+    (; positions, lattice)
 end
 
 # Compute phonons for a one-dimensional pairwise potential for a set of `q = 0` using
@@ -83,6 +97,19 @@ function test_ph_disp(; n_scell=1, max_radius=1e3, n_points=2)
     ph_bands
 end
 
+"""
+Real-space equivalent of `transfer_blochwave_kpt`.
+"""
+function transfer_blochwave_kpt_real(ψk_in, basis::PlaneWaveBasis, kpt_in, kpt_out, ΔG)
+    ψk_out = zeros(eltype(ψk_in), length(kpt_out.G_vectors), size(ψk_in, 2))
+    exp_ΔGr = DFTK.cis2pi.(-dot.(Ref(ΔG), r_vectors(basis)))
+    for n in 1:size(ψk_in, 2)
+        ψk_out[:, n] = fft(basis, kpt_out, exp_ΔGr .* ifft(basis, kpt_in, ψk_in[:, n]))
+    end
+    ψk_out
+end
+
+
 @testset "Phonon consistency" begin
     max_radius = 1e3
     tolerance = 1e-6
@@ -105,4 +132,41 @@ end
     end
 end
 
+@testset "Test shifting function" begin
+    Random.seed!()
+    tolerance = 1e-12
+
+    case = prepare_3d_system()
+
+    X = ElementGaussian(1.0, 0.5, :X)
+    atoms = [X for _ in case.positions]
+    n_atoms = length(case.positions)
+
+    model = Model(case.lattice, atoms, case.positions; n_electrons=n_atoms,
+                  symmetries=false, spin_polarization=:spinless)
+    kgrid = rand(2:20, 3)
+    k1, k2, k3 = kgrid
+    basis = PlaneWaveBasis(model; Ecut=100, kgrid=kgrid)
+
+    # We consider a smooth periodic function with Fourier coefficients given if the basis
+    # e^(iG·x)
+    ψ = rand(ComplexF64, size(r_vectors(basis)))
+
+    # Random `q` shift
+    q0 = rand(basis.kpoints).coordinate
+    ishift = [rand(-k1*2:k1*2), rand(-k2*2:k2*2), rand(-k3*2:k3*2)]
+    q = q0 .* ishift
+    for kpt in unique(rand(basis.kpoints, 4))
+        ψk = fft(basis, kpt, ψ)
+
+        ψk_out_four = DFTK.multiply_by_expiqr(basis, kpt, q, ψk)
+        ψk_out_real = DFTK.multiply_by_expiqr(basis, kpt, q, ψk;
+                                              transfer_fn=transfer_blochwave_kpt_real)
+        @testset "Testing kpoint $(kpt.coordinate) on kgrid $kgrid" begin
+            @test norm(ψk_out_four - ψk_out_real) < tolerance
+        end
+    end
+end
+
+end
 end

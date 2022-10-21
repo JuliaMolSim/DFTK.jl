@@ -64,7 +64,7 @@ end
 Return δψ where (Ω+K) δψ = rhs
 """
 function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
-                      tol=1e-10, verbose=false) where {T}
+                      callback=identity, tol=1e-10) where {T}
     @assert mpi_nprocs() == 1  # Distributed implementation not yet available
     filled_occ = filled_occupation(basis.model)
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
@@ -108,10 +108,15 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
     J = LinearMap{T}(ΩpK, size(rhs_pack, 1))
 
     # solve (Ω+K) δψ = rhs on the tangent space with CG
-    δψ, history = cg(J, rhs_pack, Pl=FunctionPreconditioner(f_ldiv!),
-                  reltol=0, abstol=tol, verbose=verbose, log=true)
-
-    (; δψ=unpack(δψ), history)
+    function proj(x)
+        δψ = unpack(x)
+        proj_tangent!(δψ, ψ)
+        pack(δψ)
+    end
+    res = cg(J, rhs_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
+             callback)
+    (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
+     res.iterations)
 end
 
 
@@ -139,8 +144,8 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
 
     # compute δρ0 (ignoring interactions)
     δψ0, δoccupation0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
-                                    reltol=0, abstol=tol_sternheimer,
-                                    occupation_threshold, kwargs...)  # = -χ04P * rhs
+                                    tol=tol_sternheimer, occupation_threshold,
+                                    kwargs...)  # = -χ04P * rhs
     δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0)
 
     # compute total δρ
@@ -153,8 +158,7 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
         # Would be nice to play with abstol / reltol etc. to avoid over-solving
         # for the initial GMRES steps.
         χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                        occupation_threshold, abstol=tol_sternheimer, reltol=0,
-                        kwargs...)
+                        occupation_threshold, tol=tol_sternheimer, kwargs...)
         pack(δρ - χ0δV)
     end
     J = LinearMap{T}(eps_fun, prod(size(δρ0)))
@@ -176,8 +180,8 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
     end
 
     δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                                       occupation_threshold, abstol=tol_sternheimer, 
-                                       reltol=0, kwargs...)
+                                       occupation_threshold, tol=tol_sternheimer,
+                                       kwargs...)
 
     (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, history)
 end

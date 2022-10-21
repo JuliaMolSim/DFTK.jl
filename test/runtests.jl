@@ -70,6 +70,7 @@ Random.seed!(0)
         include("elements.jl")
         include("bzmesh.jl")
         include("bzmesh_symmetry.jl")
+        include("supercell.jl")
     end
 
     if "all" in TAGS
@@ -111,6 +112,7 @@ Random.seed!(0)
         include("variational.jl")
         include("compute_bands.jl")
         include("random_spindensity.jl")
+        include("cg.jl")
         include("chi0.jl")
         include("kernel.jl")
         include("serialisation.jl")
