@@ -74,5 +74,4 @@ let
              color=:grey, label="", markers=:star, markersize=7)
     yticks!(plt, [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8])
     savefig(plt, "li_pseudos_ecut_convergence.png")
-    plt
 end
