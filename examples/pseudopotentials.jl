@@ -40,7 +40,7 @@ using Plots
 using GZip
 
 # Here, we will use Perdew-Wang LDA PSP from PseudoDojo
-URL_UPF = "http://www.pseudo-dojo.org/pseudos/nc-sr-04_pw_standard/Mg.upf.gz"
+URL_UPF = "http://www.pseudo-dojo.org/pseudos/nc-sr-04_pw_standard/Li.upf.gz"
 
 function download_gunzip_upf(url)
     path_gz = download(url, joinpath(tempdir(), "psp.upf.gz"))
@@ -58,8 +58,8 @@ function run_scf(Ecut, psp, tol)
     println("Ecut = $Ecut")
     println("----------------------------------------------------")
     a = 5.0
-    lattice = a * Matrix(I, 3, 3)
-    atoms     = [ElementPsp(:Mg, psp=psp)]
+    lattice   = a * Matrix(I, 3, 3)
+    atoms     = [ElementPsp(:Li, psp=psp)]
     positions = [zeros(3)]
 
     model = model_LDA(lattice, atoms, positions; temperature=1e-2)
@@ -77,7 +77,7 @@ end
 # We load the HGH and UPF PSPs using `load_psp`, which determines the
 # file format using the file extension.
 
-psp_hgh = load_psp("hgh/lda/mg-q2.hgh");
+psp_hgh = load_psp("hgh/lda/li-q3.hgh");
 psp_upf = load_psp(download_gunzip_upf(URL_UPF));
 
 # Next, we define some parameters for the energy cutoff convergence.
@@ -85,30 +85,53 @@ psp_upf = load_psp(download_gunzip_upf(URL_UPF));
 # and higher cutoffs might be needed. The PseudoDojo provides recommended
 # cutoffs for its pseudopotentials as notes on the periodic table.
 # Ecuts = 28:4:64
-Ecuts = 52:4:76
-tol   = 1e-4
+Ecuts = 20:4:68
+tol   = 1e-2
 
 conv_hgh = converge_Ecut(Ecuts, psp_hgh, tol)
 conv_upf = converge_Ecut(Ecuts, psp_upf, tol)
 
-function run_bands(Ecut, psp)
-    a = -1.6015138650u"Å"
-    b = -2.7739033832u"Å"
-    c = -5.1266910000u"Å"
+# From this small convergence study, we can look at the difference in convergence w.r.t.
+# `Ecut` between the analytical and numeric pseudos. We see that the HGH pseudopotential
+# is much *harder*, i.e. it requires a higher energy cutoff, than the UPF PSP. In general,
+# numeric pseudopotentials tend to be softer than analytical pseudos because of the
+# flexibility of sampling an arbitrary functions on a grid. 
+
+begin
+    plt = plot(xlabel="Ecut [Ha]", ylabel="Error [Ha]")
+    plot!(plt, conv_hgh.Ecuts, conv_hgh.errors, label="HGH")
+    plot!(plt, conv_upf.Ecuts, conv_upf.errors, label="PseudoDojo UPF")
+    hline!(plt, [tol], label="tol", color=:grey, linestyle=:dash)
+end
+
+#md # ```@raw html
+#md # <img src="../../assets/Li_convergence.png" width=600 height=400 />
+#md # ```
+#nb # <img src="https://docs.dftk.org/stable/assets/Li_convergence.png" width=600 height=400 />
+
+# Next, we can look at bandstructures calculated using the converged parameters we've just
+# found. Because both potentials are converged to the same extent, we expect the
+# bands diagrams to look quite similar. First, we'll define a function to run the SCF
+# and bands calculations.
+
+function run_bands(Ecut, psp, tol)
+    a = -1.5387691950u"Å"
+    b = -2.6652264269u"Å"
+    c = -4.9229470000u"Å"
     lattice = [
-        [ a, a,  0];
-        [-b, b,  0];
-        [ 0, 0, -c]
+        [ a a  0];
+        [-b b  0];
+        [ 0 0 -c]
     ]
-    Mg = ElementPsp(:Mg, psp=psp)
-    atoms     = [Mg, Mg]
+    Li = ElementPsp(:Li, psp=psp)
+    atoms     = [Li, Li]
     positions = [[1/3, 2/3, 1/4],
                  [2/3, 1/3, 3/4]]
 
-    model = model_LDA(lattice, atoms, positions)
+    model = model_LDA(lattice, atoms, positions; temperature=1e-2)
     basis = PlaneWaveBasis(model; Ecut=Ecut, kgrid=[8, 8, 5])
     
-    scfres = self_consistent_field(basis, tol=1e-8)
+    scfres = self_consistent_field(basis, tol=tol/100)
     bandplot = plot_bandstructure(scfres)
     
     return (basis=basis, scfres=scfres, bandplot=bandplot)
@@ -116,10 +139,15 @@ end
 
 # The SCF and bandstructure calculations can then be performed using
 # the two PSPs ...
-
-result_hgh = run_bands(psp_hgh, conv_hgh.Ecut_conv);
-result_upf = run_bands(psp_upf, conv_upf.Ecut_conv);
+ 
+result_hgh = run_bands(conv_hgh.Ecut_conv, psp_hgh, tol);
+result_upf = run_bands(conv_upf.Ecut_conv, psp_upf, tol);
 
 # ... and the respective bandstructures are plotted:
 
 plot(result_hgh.bandplot, result_upf.bandplot, titles=["HGH" "UPF"], size=(800,400))
+
+#md # ```@raw html
+#md # <img src="../../assets/Li_bandstructure.png" width=600 height=400 />
+#md # ```
+#nb # <img src="https://docs.dftk.org/stable/assets/Li_bandstructure.png" width=600 height=400 />
