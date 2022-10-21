@@ -18,10 +18,10 @@ let
     savefig(p, "convergence_study_ecut.png")
 end
 
-begin
+let
     include("../../../../examples/pseudopotentials.jl")
 
-    function run_scf(Ecut, psp, tol)
+    function run_scf(Ecut, psp)
         println("Ecut = $Ecut")
         println("----------------------------------------------------")
         a = 5.0
@@ -31,32 +31,44 @@ begin
     
         model = model_LDA(lattice, atoms, positions; temperature=1e-2)
         basis = PlaneWaveBasis(model; Ecut=Ecut, kgrid=[8, 8, 8])
-        self_consistent_field(basis; tol)
+        self_consistent_field(basis; tol=1e-12)
     end
     
     function converge_Ecut(Ecuts, psp, tol)
-        energies = [run_scf(Ecut, psp, tol/100).energies.total for Ecut in Ecuts]
-        errors = abs.(energies[begin:end-1] .- energies[end])
+        energy_ref = run_scf(Ecuts[end], psp).energies.total
+        energies = []
+        for Ecut in Ecuts
+            energy = run_scf(Ecut, psp).energies.total
+            push!(energies, energy)
+            if abs(energy - energy_ref) < tol
+                break
+            end
+        end
+        n_energies = length(energies)
+        errors = abs.(energies .- energy_ref)
         iconv = findfirst(errors .< tol)
-        (Ecuts=Ecuts[begin:end-1], errors=errors,
+        (Ecuts=Ecuts[begin:n_energies], errors=errors,
          Ecut_conv=Ecuts[iconv], error_conv=errors[iconv])
     end
 
-    Ecuts = 20:4:96
-    tol   = 1e-3
+    Ecuts = 20:4:140
+    tol   = 3.675e-5 / 1  # 1.0 meV / atom
+
+    conv_upf = converge_Ecut(Ecuts, psp_upf, tol)
+    println("UPF: $(conv_upf.Ecut_conv)")
 
     conv_hgh = converge_Ecut(Ecuts, psp_hgh, tol)
-    conv_upf = converge_Ecut(Ecuts, psp_upf, tol)
-
     println("HGH: $(conv_hgh.Ecut_conv)")
-    println("UPF: $(conv_upf.Ecut_conv)")
+
+    tol_mev_at = uconvert(u"meV", tol*u"Eh_au") / 1  # 1 atom
 
     plt = plot(yaxis=:log10, xlabel="Ecut [Eh]", ylabel="Error [Eh]")
     plot!(plt, conv_hgh.Ecuts, conv_hgh.errors, label="HGH",
           markers=true, linewidth=3)
     plot!(plt, conv_upf.Ecuts, conv_upf.errors, label="PseudoDojo UPF",
           markers=true, linewidth=3)
-    hline!(plt, [tol], label="tol = $tol Eh", color=:grey, linestyle=:dash)
+    hline!(plt, [tol], label="tol = $(round(typeof(1u"meV"), tol_mev_at, digits=3)) / atom",
+           color=:grey, linestyle=:dash)
     scatter!(plt, [conv_hgh.Ecut_conv, conv_upf.Ecut_conv],
              [conv_hgh.error_conv, conv_upf.error_conv],
              color=:grey, label="", markers=:star, markersize=7)
