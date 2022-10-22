@@ -38,9 +38,11 @@ using Unitful
 using UnitfulAtomic
 using Plots
 
-# Here, we will use Perdew-Wang LDA PSP from PseudoDojo
+# Here, we will use Perdew-Wang LDA PSP from PseudoDojo, which is available
+# in the JuliaMolSim [PseudoLibrary](https://github.com/JuliaMolSim/PseudoLibrary).
 
-URL_UPF = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary/main/pseudos/pd_nc_sr_lda_standard_04_upf/Li.upf"
+PSEUDOLIB = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary"
+URL_UPF = PSEUDOLIB * "/main/pseudos/pd_nc_sr_lda_standard_04_upf/Li.upf"
 
 # We load the HGH and UPF PSPs using `load_psp`, which determines the
 # file format using the file extension.
@@ -83,7 +85,7 @@ function run_bands(psp)
     positions = [[1/3, 2/3, 1/4],
                  [2/3, 1/3, 3/4]]
 
-    # These are (as you saw above) completely unconverged parameters
+    ## These are (as you saw above) completely unconverged parameters
     model = model_LDA(lattice, atoms, positions; temperature=1e-2)
     basis = PlaneWaveBasis(model; Ecut=24, kgrid=(6, 6, 4))
 
