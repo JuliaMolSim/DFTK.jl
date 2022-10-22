@@ -28,28 +28,28 @@
 # http://pseudopotentials.quantum-espresso.org/home/unified-pseudopotential-format.
 #
 # In this example, we will compare the convergence of an analytical HGH PSP with
-# a modern UPF PSP from PseudoDojo (http://www.pseudo-dojo.org/).
+# a modern UPF PSP from [PseudoDojo](http://www.pseudo-dojo.org/).
 # Then, we will compare the bandstructure at the converged parameters calculated
 # using the two PSPs.
 
 using DFTK
 using Downloads
 using Unitful
-using UnitfulAtomic
 using Plots
 
-# Here, we will use Perdew-Wang LDA PSP from PseudoDojo, which is available
-# in the JuliaMolSim [PseudoLibrary](https://github.com/JuliaMolSim/PseudoLibrary).
+# Here, we will use Perdew-Wang LDA PSP from [PseudoDojo](http://www.pseudo-dojo.org/),
+# which is available in the JuliaMolSim
+# [PseudoLibrary](https://github.com/JuliaMolSim/PseudoLibrary).
 
 PSEUDOLIB = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary"
-URL_UPF = PSEUDOLIB * "/main/pseudos/pd_nc_sr_lda_standard_04_upf/Li.upf"
+URL_UPF = PSEUDOLIB * "/main/pseudos/pd_nc_sr_lda_standard_04_upf/Li.upf";
 
 # We load the HGH and UPF PSPs using `load_psp`, which determines the
 # file format using the file extension.
 
-psp_hgh = load_psp("hgh/lda/li-q3.hgh");
+psp_hgh  = load_psp("hgh/lda/li-q3.hgh");
 path_upf = Downloads.download(URL_UPF, joinpath(tempdir(), "Li.upf"))
-psp_upf = load_psp(path_upf);
+psp_upf  = load_psp(path_upf);
 
 # First, we'll take a look at the energy cutoff convergence of these two pseudopotentials.
 # For both pseudos, a reference energy is calculated with a cutoff of 140 Hartree, and
@@ -72,15 +72,13 @@ psp_upf = load_psp(path_upf);
 # 24 Ha for both PSPs.
 
 function run_bands(psp)
-    a = -1.5387691950u"Å"
-    b = -2.6652264269u"Å"
-    c = -4.9229470000u"Å"
-    lattice = [
-        [ a a  0];
-        [-b b  0];
-        [ 0 0 -c]
-    ]
-    Li = ElementPsp(:Li, psp=psp)
+    a = -1.53877u"Å"
+    b = -2.66523u"Å"
+    c = -4.92295u"Å"
+    lattice = [ a  a  0;
+               -b  b  0;
+                0  0 -c]
+    Li = ElementPsp(:Li; psp)
     atoms     = [Li, Li]
     positions = [[1/3, 2/3, 1/4],
                  [2/3, 1/3, 3/4]]
@@ -89,18 +87,19 @@ function run_bands(psp)
     model = model_LDA(lattice, atoms, positions; temperature=1e-2)
     basis = PlaneWaveBasis(model; Ecut=24, kgrid=(6, 6, 4))
 
-    scfres = self_consistent_field(basis, tol=1e-6)
+    scfres   = self_consistent_field(basis, tol=1e-6)
     bandplot = plot_bandstructure(scfres)
-
-    (; basis, scfres, bandplot)
+    (; scfres, bandplot)
 end;
 
-# The SCF and bandstructure calculations can then be performed using
-# the two PSPs ...
-
+# The SCF and bandstructure calculations can then be performed using the two PSPs,
+# where we notice in particular the difference in total energies.
 result_hgh = run_bands(psp_hgh)
-result_upf = run_bands(psp_upf);
+result_hgh.scfres.energies
+#-
+result_upf = run_bands(psp_upf)
+result_upf.scfres.energies
 
-# ... and the respective bandstructures are plotted:
-
+# But while total energies are not physical and thus allowed to differ,
+# the bands (as an example for a physical quantity) are very similar for both pseudos:
 plot(result_hgh.bandplot, result_upf.bandplot, titles=["HGH" "UPF"], size=(800, 400))
