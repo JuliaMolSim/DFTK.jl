@@ -1,4 +1,4 @@
-# # [Pseudopotentials](@id pseudopotentials)
+# # Pseudopotentials
 #
 # In this example, we'll look at how to use various pseudopotential (PSP)
 # formats in DFTK and discuss briefly the utility and importance of
@@ -38,9 +38,11 @@ using Unitful
 using UnitfulAtomic
 using Plots
 
-# Here, we will use Perdew-Wang LDA PSP from PseudoDojo
+# Here, we will use Perdew-Wang LDA PSP from PseudoDojo, which is available
+# in the JuliaMolSim [PseudoLibrary](https://github.com/JuliaMolSim/PseudoLibrary).
 
-URL_UPF = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary/main/pseudos/pd_nc_sr_lda_standard_04_upf/Li.upf"
+PSEUDOLIB = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary"
+URL_UPF = PSEUDOLIB * "/main/pseudos/pd_nc_sr_lda_standard_04_upf/Li.upf"
 
 # We load the HGH and UPF PSPs using `load_psp`, which determines the
 # file format using the file extension.
@@ -83,22 +85,22 @@ function run_bands(psp)
     positions = [[1/3, 2/3, 1/4],
                  [2/3, 1/3, 3/4]]
 
-    # These are (as you saw above) completely unconverged parameters
+    ## These are (as you saw above) completely unconverged parameters
     model = model_LDA(lattice, atoms, positions; temperature=1e-2)
-    basis = PlaneWaveBasis(model; Ecut=24, kgrid=[6, 6, 4])
-    
+    basis = PlaneWaveBasis(model; Ecut=24, kgrid=(6, 6, 4))
+
     scfres = self_consistent_field(basis, tol=1e-6)
     bandplot = plot_bandstructure(scfres)
-    
-    return (basis=basis, scfres=scfres, bandplot=bandplot)
-end
+
+    (; basis, scfres, bandplot)
+end;
 
 # The SCF and bandstructure calculations can then be performed using
 # the two PSPs ...
 
-result_hgh = run_bands(psp_hgh);
+result_hgh = run_bands(psp_hgh)
 result_upf = run_bands(psp_upf);
 
 # ... and the respective bandstructures are plotted:
 
-plot(result_hgh.bandplot, result_upf.bandplot, titles=["HGH" "UPF"], size=(800,400))
+plot(result_hgh.bandplot, result_upf.bandplot, titles=["HGH" "UPF"], size=(800, 400))
