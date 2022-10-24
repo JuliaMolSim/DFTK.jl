@@ -19,7 +19,7 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
                                    basis.Ecut, basis.fft_size, basis.variational,
                                    basis.kcoords_global, basis.kweights_global,
                                    basis.kgrid, basis.kshift, basis.symmetries_respect_rgrid,
-                                   basis.comm_kpts)
+                                   basis.comm_kpts, array_type(basis))
         ρ = DFTK.compute_density(new_basis, scfres.ψ, scfres.occupation)
         energies, _ = energy_hamiltonian(new_basis, scfres.ψ, scfres.occupation;
                                          ρ, scfres.eigenvalues, scfres.εF)
