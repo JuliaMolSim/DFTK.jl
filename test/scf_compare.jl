@@ -134,7 +134,7 @@ end
     ρ_ref  = scfres.ρ
 
     for mixing in (KerkerMixing(), KerkerDosMixing(), DielectricMixing(εr=10),
-                   HybridMixing(εr=10), χ0Mixing(χ0terms=[Applyχ0Model()], RPA=false),)
+                   HybridMixing(εr=10), χ0Mixing(; χ0terms=[Applyχ0Model()], RPA=false))
         @testset "Testing $mixing" begin
             scfres = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8)
             @test maximum(abs.(scfres.ρ - ρ_ref)) < 2sqrt(tol)
