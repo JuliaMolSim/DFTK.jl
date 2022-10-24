@@ -102,12 +102,11 @@ LinearAlgebra.ldiv!(y::T, P::FunctionPreconditioner, x) where {T} = P.preconditi
 LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(similar(x), x))
 precondprep!(P::FunctionPreconditioner, ::Any) = P
 
-# Solves (1-P) (H-μ) (1-P) δψn = - (1-P) rhs
+# Solves (1-P) (H-ε) (1-P) δψn = - (1-P) rhs
 # where 1-P is the projector on the orthogonal of ψk
-# n is used for the optional callback
 # /!\ It is assumed (and not checked) that ψk'Hk*ψk = Diagonal(εk) (extra states
 # included).
-function sternheimer_solver(Hk, ψk, μ, rhs, n;
+function sternheimer_solver(Hk, ψk, ε, rhs;
                             callback=identity, cg_callback=identity,
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
                             Hψk_extra=zeros(size(ψk,1), 0), tol=1e-9)
@@ -146,32 +145,31 @@ function sternheimer_solver(Hk, ψk, μ, rhs, n;
     # 1     N_occupied  N_occupied + N_extra
 
     # ψk_extra are not converged but have been Rayleigh-Ritzed (they are NOT
-    # eigenvectors of H) so H(ψk_extra) = ψk_extra' (Hk-μ) ψk_extra should be a
+    # eigenvectors of H) so H(ψk_extra) = ψk_extra' (Hk-ε) ψk_extra should be a
     # real diagonal matrix.
-    H(ϕ) = Hk * ϕ - μ * ϕ
-    ψk_exHψk_ex = Diagonal(real.(εk_extra .- μ))
+    H(ϕ) = Hk * ϕ - ε * ϕ
+    ψk_exHψk_ex = Diagonal(real.(εk_extra .- ε))
 
     # 1) solve for δψknᴿ
     # ----------------------------
     # writing αkn as a function of δψknᴿ, we get that δψknᴿ
     # solves the system (in Ran(1-P_computed))
     #
-    # R * (H - μ) * (1 - M * (H - μ)) * R * δψknᴿ = R * (1 - M) * b
+    # R * (H - ε) * (1 - M * (H - ε)) * R * δψknᴿ = R * (1 - M) * b
     #
-    # where M = ψk_extra * (ψk_extra' (H-μ) ψk_extra)^{-1} * ψk_extra'
+    # where M = ψk_extra * (ψk_extra' (H-ε) ψk_extra)^{-1} * ψk_extra'
     # is defined above and b is the projection of -rhs onto Ran(Q).
     #
     b = -Q(rhs)
     bb = R(b -  Hψk_extra * (ψk_exHψk_ex \ ψk_extra'b))
     function RAR(ϕ)
         Rϕ = R(ϕ)
-        # Schur complement of (1-P) (H-μ) (1-P)
+        # Schur complement of (1-P) (H-ε) (1-P)
         # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
         R(H(Rϕ) - Hψk_extra * (ψk_exHψk_ex \ Hψk_extra'Rϕ))
     end
     precon = PreconditionerTPA(basis, kpoint)
-    # First column: For phonons, we compute δψpn (p=k-q), whose columns may differ from the
-    # ones in ψk.
+    # First column of ψk as there is no natural kinetic energy.
     precondprep!(precon, ψk[:, 1])
     function R_ldiv!(x, y)
         x .= R(precon \ R(y))
@@ -183,7 +181,7 @@ function sternheimer_solver(Hk, ψk, μ, rhs, n;
                             iterations=res.iterations, tol=res.tol,
                             residual_norm=res.residual_norm)
     δψknᴿ = res.x
-    info = (; basis, kpoint, res, n)
+    info = (; basis, kpoint, res)
     callback(info)
 
     # 2) solve for αkn now that we know δψknᴿ
@@ -242,9 +240,9 @@ function compute_αmn(fm, fn, ratio)
 end
 
 """
-Compute the derivatives of the Fermi level and of the occupations.
+Compute the derivatives of the occupations (and of the Fermi level).
 """
-function compute_δocc(basis, εF::T; ψ, ε, δHψ, occ) where {T}
+function compute_δocc(basis, εF::T, ψ, ε, δHψ, occ) where {T}
     model = basis.model
     temperature = model.temperature
     smearing = model.smearing
@@ -254,7 +252,7 @@ function compute_δocc(basis, εF::T; ψ, ε, δHψ, occ) where {T}
     δεF = zero(T)
     δocc = [zero(occ[ik]) for ik = 1:Nk]  # = fn' * (δεn - δεF)
     if temperature > 0
-        # First compute δocc without self-consistent Fermi δεF
+        # First compute δocc without self-consistent Fermi δεF.
         D = zero(T)
         for ik = 1:Nk, (n, εnk) in enumerate(ε[ik])
             enred = (εnk - εF) / temperature
@@ -263,11 +261,11 @@ function compute_δocc(basis, εF::T; ψ, ε, δHψ, occ) where {T}
             δocc[ik][n] = δεnk * fpnk
             D += fpnk * basis.kweights[ik]
         end
-        # Compute δεF
+        # Compute δεF…
         D = mpi_sum(D, basis.comm_kpts)  # equal to minus the total DOS
         δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
         δεF = !isnothing(model.εF) ? zero(δεF) : δocc_tot / D  # no δεF when Fermi level is fixed
-        # Recompute δocc
+        # … and recompute δocc, taking into account δεF.
         for ik = 1:Nk, (n, εnk) in enumerate(ε[ik])
             enred = (εnk - εF) / temperature
             fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
@@ -282,7 +280,7 @@ end
 Compute the derivatives of the wave functions by solving a Sternheimer equation for each
 `k`-points.
 """
-function compute_δψ(basis, εF; H, ψ, ε, δHψ, ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
+function compute_δψ(basis, εF, H, ψ, ε, δHψ; ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
                     kwargs_sternheimer...)
     model = basis.model
     temperature = model.temperature
@@ -298,8 +296,9 @@ function compute_δψ(basis, εF; H, ψ, ε, δHψ, ψ_extra=[zeros(size(ψk,1),
         εk  = ε[ik]
         δψk = δψ[ik]
 
-        Hψk_extra = Hk * ψ_extra[ik]
-        εk_extra  = diag(real.(ψ_extra[ik]' * (Hk * ψ_extra[ik])))
+        ψk_extra = ψ_extra[ik]
+        Hψk_extra = Hk * ψk_extra
+        εk_extra  = diag(real.(ψk_extra' * Hψk_extra))
         for n = 1:length(εk)
             fnk = filled_occ * Smearing.occupation(smearing, (εk[n]-εF) / temperature)
 
@@ -314,9 +313,8 @@ function compute_δψ(basis, εF; H, ψ, ε, δHψ, ψ_extra=[zeros(size(ψk,1),
             end
 
             # Sternheimer contribution
-            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk[n], δHψ[ik][:, n], n;
-                                             ψk_extra=ψ_extra[ik], εk_extra, Hψk_extra,
-                                             kwargs_sternheimer...)
+            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk[n], δHψ[ik][:, n]; ψk_extra,
+                                             εk_extra, Hψk_extra, kwargs_sternheimer...)
         end
     end
     δψ
@@ -344,7 +342,7 @@ end
     occ_occ = [occ[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
 
     # First we compute δoccupation and δεF
-    δocc, δεF = compute_δocc(basis, εF; ψ=ψ_occ, ε=ε_occ, occ=occ_occ, δHψ)
+    δocc, δεF = compute_δocc(basis, εF, ψ_occ, ε_occ, occ_occ, δHψ)
     # Pad δoccupation
     δoccupation = zero.(occ)
     for (ik, maskk) in enumerate(mask_occ)
@@ -352,8 +350,7 @@ end
     end
 
     # Keeping zeros for extra bands to keep the output δψ with the same size than the input ψ
-    δψ = compute_δψ(basis, εF; H=ham.blocks, ψ=ψ_occ, ε=ε_occ, δHψ, ψ_extra,
-                    kwargs_sternheimer...)
+    δψ = compute_δψ(basis, εF, ham.blocks, ψ_occ, ε_occ, δHψ; ψ_extra, kwargs_sternheimer...)
 
     (; δψ, δoccupation, δεF)
 end
