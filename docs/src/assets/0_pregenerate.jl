@@ -28,12 +28,12 @@ let
         lattice   = a * Matrix(I, 3, 3)
         atoms     = [ElementPsp(:Li, psp=psp)]
         positions = [zeros(3)]
-    
+
         model = model_LDA(lattice, atoms, positions; temperature=1e-2)
         basis = PlaneWaveBasis(model; Ecut=Ecut, kgrid=[8, 8, 8])
         self_consistent_field(basis; tol=1e-12)
     end
-    
+
     function converge_Ecut(Ecuts, psp, tol)
         energy_ref = run_scf(Ecuts[end], psp).energies.total
         energies = []

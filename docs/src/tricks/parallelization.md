@@ -115,7 +115,7 @@ see the [MPI.jl documentation](https://juliaparallel.github.io/MPI.jl/stable/con
    mpiexecjl -np 16 julia myscript.jl
    ```
    In this `-np 16` tells MPI to use 16 processes and `-t 1` tells Julia
-   to use one thread only.  
+   to use one thread only.
    Notice that we use `mpiexecjl` to automatically select the `mpiexec`
    compatible with the MPI version used by MPI.jl.
 

@@ -16,7 +16,7 @@ end
 
 Compute the density for a wave function `ψ` discretized on the plane-wave
 grid `basis`, where the individual k-points are occupied according to `occupation`.
-`ψ` should be one coefficient matrix per ``k``-point. 
+`ψ` should be one coefficient matrix per ``k``-point.
 """
 @views @timing function compute_density(basis, ψ, occupation)
     T = promote_type(eltype(basis), real(eltype(ψ[1])))
