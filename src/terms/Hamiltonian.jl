@@ -194,8 +194,7 @@ end
     (; E, H)
 end
 function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occupation=nothing, kwargs...)
-    _, H = energy_hamiltonian(basis, ψ, occupation; kwargs...)
-    H
+    energy_hamiltonian(basis, ψ, occupation; kwargs...).H
 end
 
 """

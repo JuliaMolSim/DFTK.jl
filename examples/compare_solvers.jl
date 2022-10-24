@@ -38,7 +38,7 @@ scfres_dm = direct_minimization(basis; tol);
 scfres_start = self_consistent_field(basis; tol=1e-1);
 
 # Remove the virtual orbitals (which Newton cannot treat yet)
-ψ, _ = DFTK.select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation)
+ψ = DFTK.select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation).ψ
 scfres_newton = newton(basis, ψ; tol);
 
 # ## Comparison of results
