@@ -105,7 +105,7 @@ function build_projection_coefficients_(T, psps, psp_positions; array_type = Arr
         block = count+1:count+n_proj_psp
         proj_coeffs[block, block] = build_projection_coefficients_(T, psp)
         count += n_proj_psp
-    end # psp, r
+    end  # psp, r
     @assert count == n_proj
 
     # GPU computation only : build the coefficients on CPU then offload them to the GPU
@@ -121,7 +121,7 @@ function build_projection_coefficients_(T, psp::NormConservingPsp)
     proj_coeffs = zeros(T, n_proj, n_proj)
     count = 0
     for l in 0:psp.lmax, m in -l:l
-        n_proj_l = size(psp.h[l + 1], 1)  # Number of i's
+        n_proj_l = count_n_proj_radial(psp, l)  # Number of i's
         range = count .+ (1:n_proj_l)
         proj_coeffs[range, range] = psp.h[l + 1]
         count += n_proj_l
@@ -183,21 +183,39 @@ Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
 function build_form_factors(psp, qs)
     qs = Array(qs)  # GPU computation only : get qs back on CPU
-    qnorms = norm.(qs)
-    T = real(eltype(qnorms))
-    # Compute position-independent form factors
-    form_factors = zeros(Complex{T}, length(qs), count_n_proj(psp))
-    count = 1
-    for l in 0:psp.lmax, m in -l:l
-        prefac_lm = im^l .* ylm_real.(l, m, qs)
-        n_proj_l = size(psp.h[l + 1], 1)
+    T = real(eltype(first(qs)))
 
-        for iproj in 1:n_proj_l
-            radial_il = eval_psp_projector_fourier.(psp, iproj, l, qnorms)
-            form_factors[:, count] = prefac_lm .* radial_il
-            count += 1
+    # Pre-compute the radial parts of the non-local projectors at unique |q| to speed up
+    # the form factor calculation (by a lot). Using a hash map gives O(1) lookup.
+
+    # Maximum number of projectors over angular momenta so that form factors
+    # for a given `q` can be stored in an `nproj x (lmax + 1)` matrix.
+    n_proj_max = maximum(l -> count_n_proj_radial(psp, l), 0:psp.lmax; init=0)
+
+    radials = IdDict{T,Matrix{T}}()  # IdDict for Dual compatability
+    for q in qs
+        q_norm = norm(q)
+        if !haskey(radials, q_norm)
+            radials_q = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
+            for l in 0:psp.lmax, iproj_l in 1:count_n_proj_radial(psp, l)
+                radials_q[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q_norm)
+            end
+            radials[q_norm] = radials_q
         end
     end
-    @assert count == count_n_proj(psp) + 1
+
+    form_factors = Matrix{Complex{T}}(undef, length(qs), count_n_proj(psp))
+    for (iq, q) in enumerate(qs)
+        radials_q = radials[norm(q)]
+        count = 1
+        for l in 0:psp.lmax, m in -l:l
+            angular = im^l * ylm_real(l, m, q)
+            for iproj_l in 1:count_n_proj_radial(psp, l)
+                form_factors[iq, count] = radials_q[iproj_l, l+1] * angular
+                count += 1
+            end
+        end
+        @assert count == count_n_proj(psp) + 1
+    end
     form_factors
 end

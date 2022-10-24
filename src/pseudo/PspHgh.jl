@@ -15,30 +15,12 @@ end
 charge_ionic(psp::PspHgh) = psp.Zion
 
 """
-    PspHgh(Zion::Number, rloc::Number, cloc::Vector, rp::Vector, h::Vector;
-           identifier="", description="")
+    PspHgh(path[, identifier, description])
 
-Construct a Hartwigsen, Goedecker, Teter, Hutter separable dual-space
-Gaussian pseudopotential (1998). The required parameters are the ionic
-charge `Zion` (total charge - valence electrons), the range for the local
-Gaussian charge distribution `rloc`, the coefficients for the local part
-`cloc`, the projector radius `rp` (one per AM channel) and the non-local
-coupling coefficients between the projectors `h` (one matrix per AM channel).
+Construct a Hartwigsen, Goedecker, Teter, Hutter separable dual-space Gaussian
+pseudopotential (1998) from file.
 """
-function PspHgh(Zion, rloc::T, cloc::AbstractVector, rp, h; identifier="", description="") where {T}
-    length(rp) == length(h) || error("Length of rp and h do not agree.")
-    length(cloc) <= 4 || error("length(cloc) > 4 not supported.")
-    if length(cloc) < 4
-        n_extra = 4 - length(cloc)
-        cloc = [cloc; zeros(T, n_extra)]
-    end
-
-    lmax = length(h) - 1
-    PspHgh{T}(Zion, rloc, cloc, lmax, rp, h, identifier, description)
-end
-
-
-function parse_hgh_file(path; identifier=path)
+function PspHgh(path; identifier=path)
     lines = readlines(path)
     description = lines[1]
 
@@ -107,6 +89,19 @@ function parse_hgh_file(path; identifier=path)
     end
 
     PspHgh(Zion, rloc, cloc, rp, h; identifier, description)
+end
+
+function PspHgh(Zion, rloc::T, cloc::AbstractVector, rp, h;
+                identifier="", description="") where {T}
+    length(rp) == length(h) || error("Length of rp and h do not agree.")
+    length(cloc) <= 4 || error("length(cloc) > 4 not supported.")
+    if length(cloc) < 4
+        n_extra = 4 - length(cloc)
+        cloc = [cloc; zeros(T, n_extra)]
+    end
+
+    lmax = length(h) - 1
+    PspHgh{T}(Zion, rloc, cloc, lmax, rp, h, identifier, description)
 end
 
 @doc raw"""
