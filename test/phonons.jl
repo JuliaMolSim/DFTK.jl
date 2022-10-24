@@ -146,7 +146,7 @@ end
                   symmetries=false, spin_polarization=:spinless)
     kgrid = rand(2:20, 3)
     k1, k2, k3 = kgrid
-    basis = PlaneWaveBasis(model; Ecut=100, kgrid=kgrid)
+    basis = PlaneWaveBasis(model; Ecut=100, kgrid)
 
     # We consider a smooth periodic function with Fourier coefficients given if the basis
     # e^(iG·x)

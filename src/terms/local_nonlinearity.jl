@@ -18,7 +18,7 @@ function ene_ops(term::TermLocalNonlinearity, basis::PlaneWaveBasis{T}, ψ, occu
     # In the case of collinear spin, the potential is spin-dependent
     ops = [RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin])
            for kpt in basis.kpoints]
-    (E=E, ops=ops)
+    (; E, ops)
 end
 
 

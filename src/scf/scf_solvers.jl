@@ -15,9 +15,9 @@ NLSolve documentation for details about the other parameters and methods.
 """
 function scf_nlsolve_solver(m=10, method=:anderson; kwargs...)
     function fp_solver(f, x0, max_iter; tol=1e-6)
-        res = nlsolve(x -> f(x) - x, x0; method=method, m=m, xtol=tol,
+        res = nlsolve(x -> f(x) - x, x0; method, m, xtol=tol,
                       ftol=0.0, show_trace=false, iterations=max_iter, kwargs...)
-        (fixpoint=res.zero, converged=converged(res))
+        (; fixpoint=res.zero, converged=converged(res))
     end
     fp_solver
 end
@@ -41,7 +41,7 @@ function scf_damping_solver(β=0.2)
 
             x = @. β * x_new + (1 - β) * x
         end
-        (fixpoint=x, converged=converged)
+        (; fixpoint=x, converged)
     end
     fp_solver
 end
@@ -56,14 +56,14 @@ function scf_anderson_solver(m=10; kwargs...)
         x = x0
 
         converged = false
-        acceleration = AndersonAcceleration(;m=m, kwargs...)
+        acceleration = AndersonAcceleration(; m, kwargs...)
         for n = 1:max_iter
             residual = f(x) - x
             converged = norm(residual) < tol
             converged && break
             x = acceleration(x, one(T), residual)
         end
-        (fixpoint=x, converged=converged)
+        (; fixpoint=x, converged)
     end
 end
 

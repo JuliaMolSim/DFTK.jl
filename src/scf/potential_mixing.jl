@@ -162,7 +162,7 @@ function AdaptiveDamping(α_trial_min; kwargs...)
     AdaptiveDamping(;α_min=α_trial_min / 4,
                      α_max=max(1.25α_trial_min, 1.0),
                      α_trial_init=max(α_trial_min, 0.8),
-                     α_trial_min=α_trial_min,
+                     α_trial_min,
                      kwargs...)
 end
 
@@ -251,7 +251,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     end
 
     # Initial guess for V (if none given)
-    energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ)
+    energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ)
     isnothing(V) && (V = total_local_potential(ham))
 
     function EVρ(Vin; diagtol=tol / 10, ψ=nothing, eigenvalues=nothing, occupation=nothing)
@@ -269,15 +269,15 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     n_iter    = 1
     converged = false
     α_trial   = trial_damping(damping)
-    diagtol   = determine_diagtol((ρin=ρ, Vin=V, n_iter=n_iter))
+    diagtol   = determine_diagtol((; ρin=ρ, Vin=V, n_iter))
     info      = EVρ(V; diagtol, ψ)
     Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; n_iter, info...)
-    info      = merge(info, (α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
-                             n_iter=n_iter, Pinv_δV=Pinv_δV))
+    info      = merge(info, (; α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
+                             n_iter, Pinv_δV))
     ΔEdown    = 0.0
 
     while n_iter < maxiter
-        info = merge(info, (stage=:iterate, algorithm="SCF", converged=converged))
+        info = merge(info, (; stage=:iterate, algorithm="SCF", converged))
         callback(info)
         if MPI.bcast(is_converged(info), 0, MPI.COMM_WORLD)
             # TODO Debug why these MPI broadcasts are needed
@@ -285,7 +285,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
             break
         end
         n_iter += 1
-        info = merge(info, (n_iter=n_iter, ))
+        info = merge(info, (; n_iter, ))
 
         # Ensure same α on all processors
         α_trial = MPI.bcast(α_trial, 0, MPI.COMM_WORLD)
@@ -307,8 +307,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
             Pinv_δV_next = mix_potential(mixing, basis, info_next.Vout - info_next.Vin;
                                          n_iter, info_next...)
             push!(diagonalization, info_next.diagonalization)
-            info_next = merge(info_next, (α=α, diagonalization=diagonalization,
-                                          ρin=info.ρout, n_iter=n_iter,
+            info_next = merge(info_next, (; α, diagonalization, ρin=info.ρout, n_iter,
                                           Pinv_δV=Pinv_δV_next))
 
             successful = accept_step(info, info_next)
@@ -340,11 +339,9 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     end
 
     ham  = hamiltonian_with_total_potential(ham, info.Vout)
-    info = (ham=ham, basis=basis, energies=info.energies, converged=converged,
-            ρ=info.ρout, eigenvalues=info.eigenvalues, occupation=info.occupation,
-            εF=info.εF, n_iter=n_iter, ψ=info.ψ, info.n_bands_converge,
-            diagonalization=info.diagonalization, stage=:finalize, algorithm="SCF",
-            occupation_threshold=info.occupation_threshold)
+    info = (; ham, basis, info.energies, converged, ρ=info.ρout, info.eigenvalues,
+            info.occupation, info.εF, n_iter, info.ψ, info.n_bands_converge,
+            info.diagonalization, stage=:finalize, algorithm="SCF", info.occupation_threshold)
     callback(info)
     info
 end
@@ -353,8 +350,8 @@ end
 # Wrapper function setting a few good defaults for adaptive damping
 function scf_potential_mixing_adaptive(basis; tol=1e-6, damping=AdaptiveDamping(), kwargs...)
     @assert damping isa AdaptiveDamping
-    scf_potential_mixing(basis; tol=tol, diag_miniter=2,
+    scf_potential_mixing(basis; tol, diag_miniter=2,
                          accept_step=ScfAcceptImprovingStep(max_energy_change=tol),
                          determine_diagtol=ScfDiagtol(ratio_ρdiff=0.03, diagtol_max=5e-3),
-                         damping=damping, kwargs...)
+                         damping, kwargs...)
 end

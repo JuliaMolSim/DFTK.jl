@@ -71,7 +71,7 @@ callback = DFTK.ScfDefaultCallback() ∘ plot_callback;
 # (which does the plotting) with the `ScfDefaultCallback`, such that when using
 # the `plot_callback` function with `self_consistent_field` we still get the usual
 # convergence table printed. We run the SCF with this callback …
-scfres = self_consistent_field(basis, tol=1e-8, callback=callback);
+scfres = self_consistent_field(basis; tol=1e-8, callback);
 
 # … and show the plot
 p

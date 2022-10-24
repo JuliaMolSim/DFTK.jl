@@ -28,7 +28,7 @@ include("testcases.jl")
     end
 
     @testset "self-adjointness of apply_Ω" begin
-        _, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+        _, H = energy_hamiltonian(basis, ψ, occupation; ρ)
         # Rayleigh-coefficients
         Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
 

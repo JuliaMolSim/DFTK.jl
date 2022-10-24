@@ -31,7 +31,7 @@ include("testcases.jl")
             # remove virtual orbitals
             ψ0, _ = select_occupied_orbitals(basis, scfres_start.ψ,
                                              scfres_start.occupation)
-            ρ_newton = newton(basis, ψ0; tol=tol).ρ
+            ρ_newton = newton(basis, ψ0; tol).ρ
             @test maximum(abs.(ρ_newton - ρ_nl)) < sqrt(tol) / 10
         end
     end
@@ -51,17 +51,17 @@ include("testcases.jl")
                    KerkerDosMixing(), HybridMixing(), HybridMixing(εr=10, RPA=false),
                    χ0Mixing(χ0terms=[Applyχ0Model()], RPA=true))
         @testset "Testing $mixing" begin
-            ρ_alg = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol, damping=0.8).ρ
+            ρ_alg = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8).ρ
             @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
         end
     end
 
     # Potential mixing
-    scfres = DFTK.scf_potential_mixing(basis, mixing=KerkerMixing(), tol=tol, ρ=ρ0)
+    scfres = DFTK.scf_potential_mixing(basis; mixing=KerkerMixing(), tol, ρ=ρ0)
     @test maximum(abs.(scfres.ρ - ρ_nl)) < sqrt(tol) / 10
 
     # Adaptive potential mixing
-    scfres = DFTK.scf_potential_mixing_adaptive(basis, mixing=SimpleMixing(), tol=tol, ρ=ρ0)
+    scfres = DFTK.scf_potential_mixing_adaptive(basis; mixing=SimpleMixing(), tol, ρ=ρ0)
     @test maximum(abs.(scfres.ρ - ρ_nl)) < sqrt(tol) / 10
 end
 
@@ -74,7 +74,7 @@ end
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions; magnetic_moments)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
     ρ0   = guess_density(basis, magnetic_moments)
-    ρ_nl = self_consistent_field(basis; tol=tol, ρ=ρ0).ρ
+    ρ_nl = self_consistent_field(basis; tol, ρ=ρ0).ρ
     scfres_start = self_consistent_field(basis, maxiter=1, ρ=ρ0)
     ψ0, _ = select_occupied_orbitals(basis, scfres_start.ψ,
                                      scfres_start.occupation)
@@ -90,7 +90,7 @@ end
     # Run Newton algorithm
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Newton" begin
-            ρ_newton = newton(basis, ψ0; tol=tol).ρ
+            ρ_newton = newton(basis, ψ0; tol).ρ
             @test maximum(abs.(ρ_newton - ρ_nl)) < sqrt(tol) / 10
         end
     end
@@ -107,12 +107,12 @@ end
 
     # Reference: Default algorithm
     ρ0    = guess_density(basis)
-    ρ_ref = self_consistent_field(basis, ρ=ρ0, tol=tol).ρ
+    ρ_ref = self_consistent_field(basis; ρ=ρ0, tol).ρ
 
     for mixing in (KerkerDosMixing(), HybridMixing(RPA=true), LdosMixing(RPA=false),
                    HybridMixing(εr=10, RPA=true), )
         @testset "Testing $mixing" begin
-            ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol, damping=0.8).ρ
+            ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8).ρ
             @test maximum(abs.(ρ_mix - ρ_ref)) < sqrt(tol)
         end
     end
@@ -126,28 +126,28 @@ end
     magnetic_moments = [4.0]
     model = model_LDA(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;
                       temperature=0.01, magnetic_moments, spin_polarization=:collinear)
-    basis = PlaneWaveBasis(model; Ecut=11, fft_size=fft_size, kgrid=[3, 3, 3])
+    basis = PlaneWaveBasis(model; Ecut=11, fft_size, kgrid=[3, 3, 3])
 
     # Reference: Default algorithm
     ρ0     = guess_density(basis, magnetic_moments)
-    scfres = self_consistent_field(basis, ρ=ρ0, tol=tol)
+    scfres = self_consistent_field(basis; ρ=ρ0, tol)
     ρ_ref  = scfres.ρ
 
     for mixing in (KerkerMixing(), KerkerDosMixing(), DielectricMixing(εr=10),
                    HybridMixing(εr=10), χ0Mixing(χ0terms=[Applyχ0Model()], RPA=false),)
         @testset "Testing $mixing" begin
-            scfres = self_consistent_field(basis; ρ=ρ0, mixing=mixing, tol=tol, damping=0.8)
+            scfres = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8)
             @test maximum(abs.(scfres.ρ - ρ_ref)) < 2sqrt(tol)
         end
     end
 
     # Potential mixing
-    scfres = DFTK.scf_potential_mixing(basis, mixing=KerkerMixing(), tol=tol, ρ=ρ0)
+    scfres = DFTK.scf_potential_mixing(basis; mixing=KerkerMixing(), tol, ρ=ρ0)
     @test maximum(abs.(scfres.ρ - ρ_ref)) < sqrt(tol)
 
     # Adaptive potential mixing (started deliberately with the very bad damping
     #          of 1.5 to provoke backtrack steps ... don't do this in production runs!)
-    scfres = DFTK.scf_potential_mixing_adaptive(basis, mixing=SimpleMixing(), tol=tol, ρ=ρ0,
+    scfres = DFTK.scf_potential_mixing_adaptive(basis; mixing=SimpleMixing(), tol, ρ=ρ0,
                                                 damping=DFTK.AdaptiveDamping(1.5))
     @test maximum(abs.(scfres.ρ - ρ_ref)) < sqrt(tol)
 end

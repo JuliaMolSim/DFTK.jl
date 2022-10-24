@@ -29,7 +29,7 @@ end
     ops = [FourierMultiplication(basis, kpoint, term.kinetic_energies[ik])
            for (ik, kpoint) in enumerate(basis.kpoints)]
     if isnothing(ψ) || isnothing(occupation)
-        return (E=T(Inf), ops=ops)
+        return (; E=T(Inf), ops)
     end
 
     E = zero(T)
@@ -42,7 +42,7 @@ end
     end
     E = mpi_sum(E, basis.comm_kpts)
 
-    (E=E, ops=ops)
+    (; E, ops)
 end
 
 

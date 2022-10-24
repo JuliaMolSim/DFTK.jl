@@ -41,7 +41,7 @@ end;
 # First compute the dipole moment at rest:
 model = model_LDA(lattice, atoms, positions; symmetries=false)
 basis = PlaneWaveBasis(model; Ecut, kgrid)
-res   = self_consistent_field(basis, tol=tol)
+res   = self_consistent_field(basis; tol)
 μref  = dipole(basis, res.ρ)
 
 # Then in a small uniform field:
@@ -50,7 +50,7 @@ model_ε = model_LDA(lattice, atoms, positions;
                     extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
                     symmetries=false)
 basis_ε = PlaneWaveBasis(model_ε; Ecut, kgrid)
-res_ε   = self_consistent_field(basis_ε, tol=tol)
+res_ε   = self_consistent_field(basis_ε; tol)
 με = dipole(basis_ε, res_ε.ρ)
 
 #-

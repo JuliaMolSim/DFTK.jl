@@ -56,7 +56,7 @@ end
     charges = [14, 14]
 
     forces = zeros(Vec3{Float64}, 2)
-    γ1 = energy_ewald(lattice, charges, positions, forces=forces)
+    γ1 = energy_ewald(lattice, charges, positions; forces)
 
     # Compare forces to finite differences
     disp = [rand(3)/20, rand(3)/20]

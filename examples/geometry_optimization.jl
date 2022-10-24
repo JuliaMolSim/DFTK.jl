@@ -38,8 +38,7 @@ function compute_scfres(x)
     if isnothing(ρ)
         ρ = guess_density(basis)
     end
-    scfres = self_consistent_field(basis; ψ=ψ, ρ=ρ,
-                                   tol=tol / 10, callback=info->nothing)
+    scfres = self_consistent_field(basis; ψ, ρ, tol / 10, callback=info->nothing)
     ψ = scfres.ψ
     ρ = scfres.ρ
     scfres

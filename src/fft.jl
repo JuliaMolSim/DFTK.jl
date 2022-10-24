@@ -253,7 +253,7 @@ end
 function compute_Glims_fast(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=sqrt(eps(T))) where {T}
     Gmax = supersampling * sqrt(2 * Ecut)
     recip_lattice = compute_recip_lattice(lattice)
-    Glims = estimate_integer_lattice_bounds(recip_lattice, Gmax; tol=tol)
+    Glims = estimate_integer_lattice_bounds(recip_lattice, Gmax; tol)
     Glims
 end
 

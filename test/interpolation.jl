@@ -39,7 +39,7 @@ end
     kshift = [1, 1, 1] / 2
     basis  = PlaneWaveBasis(model; Ecut, kgrid, kshift)
 
-    ψ = self_consistent_field(basis; tol=tol, callback=identity).ψ
+    ψ = self_consistent_field(basis; tol, callback=identity).ψ
 
     ## Testing transfers from basis to a bigger_basis and backwards
 

@@ -109,7 +109,7 @@ end
         dos_per_vol  = compute_dos(εF, basis, eigenvalues; temperature) ./ Ω
         kTF  = sqrt(4π * sum(dos_per_vol))
         ΔDOS_Ω = n_spin == 2 ? dos_per_vol[1] - dos_per_vol[2] : 0.0
-        mix_density(KerkerMixing(kTF=kTF, ΔDOS_Ω=ΔDOS_Ω), basis, δF)
+        mix_density(KerkerMixing(; kTF, ΔDOS_Ω), basis, δF)
     end
 end
 
@@ -134,7 +134,7 @@ end
     εr = T(mixing.εr)
     kTF = T(mixing.kTF)
     εr == 1               && return mix_density(SimpleMixing(), basis, δF)
-    εr > 1 / sqrt(eps(T)) && return mix_density(KerkerMixing(kTF=kTF), basis, δF)
+    εr > 1 / sqrt(eps(T)) && return mix_density(KerkerMixing(; kTF), basis, δF)
 
     C0 = 1 - εr
     Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
@@ -166,9 +166,9 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 """
 function HybridMixing(;εr=1.0, kTF=0.8, localization=identity,
                       adjust_temperature=IncreaseMixingTemperature(), kwargs...)
-    χ0terms = [DielectricModel(εr=εr, kTF=kTF, localization=localization),
+    χ0terms = [DielectricModel(; εr, kTF, localization),
                LdosModel(;adjust_temperature)]
-    χ0Mixing(; χ0terms=χ0terms, kwargs...)
+    χ0Mixing(; χ0terms, kwargs...)
 end
 
 
@@ -210,7 +210,7 @@ end
 @views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, basis, δF::AbstractArray{T};
                                                ρin, kwargs...) where {T}
     # Initialise χ0terms and remove nothings (terms that don't yield a contribution)
-    χ0applies = filter(!isnothing, [χ₀(basis; ρin=ρin, kwargs...) for χ₀ in mixing.χ0terms])
+    χ0applies = filter(!isnothing, [χ₀(basis; ρin, kwargs...) for χ₀ in mixing.χ0terms])
 
     # If no applies left, do not bother running GMRES and directly do simple mixing
     isempty(χ0applies) && return mix_density(SimpleMixing(), basis, δF)

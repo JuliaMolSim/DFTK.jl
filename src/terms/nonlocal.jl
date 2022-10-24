@@ -40,7 +40,7 @@ end
     end
     E = mpi_sum(E, basis.comm_kpts)
 
-    (E=E, ops=term.ops)
+    (; E, term.ops)
 end
 
 @timing "forces: nonlocal" function compute_forces(::TermAtomicNonlocal,

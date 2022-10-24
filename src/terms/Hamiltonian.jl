@@ -191,7 +191,7 @@ end
     H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
                             for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
     E = Energies(basis.model.term_types, energies)
-    (E=E, H=H)
+    (; E, H)
 end
 function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occupation=nothing, kwargs...)
     _, H = energy_hamiltonian(basis, ψ, occupation; kwargs...)

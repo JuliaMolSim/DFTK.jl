@@ -14,7 +14,7 @@ using DFTK
     model = Model(lattice; terms=[Kinetic()])
     basis = PlaneWaveBasis(model; Ecut=100, kgrid=(1, 1, 1))
     ham = Hamiltonian(basis)
-    reference = merge(diagonalize_all_kblocks(diag_full, ham, 6), (ham=ham,))
+    reference = merge(diagonalize_all_kblocks(diag_full, ham, 6), (; ham,))
 
     test_solver(reference, diag_full,    PreconditionerTPA)
     test_solver(reference, diag_full,    PreconditionerNone)

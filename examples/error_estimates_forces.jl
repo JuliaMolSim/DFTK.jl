@@ -67,7 +67,7 @@ scfres_ref = self_consistent_field(basis_ref; tol, callback=info->nothing)
 #     reference solution is not converged and `Ecut = 15` is such that the
 #     asymptotic regime (crucial to validate the approach) is barely established.
 Ecut = 15
-basis = PlaneWaveBasis(model; Ecut=Ecut, kgrid)
+basis = PlaneWaveBasis(model; Ecut, kgrid)
 scfres = self_consistent_field(basis; tol, callback=info->nothing)
 ψr = DFTK.transfer_blochwave(scfres.ψ, basis, basis_ref)
 ρr = compute_density(basis_ref, ψr, scfres.occupation)
