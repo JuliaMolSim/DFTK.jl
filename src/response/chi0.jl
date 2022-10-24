@@ -242,7 +242,7 @@ end
 """
 Compute the derivatives of the occupations (and of the Fermi level).
 """
-function compute_δocc(basis, εF::T, ψ, ε, δHψ, occ) where {T}
+function compute_δocc(basis, ψ, occ, εF::T, ε, δHψ) where {T}
     model = basis.model
     temperature = model.temperature
     smearing = model.smearing
@@ -280,7 +280,7 @@ end
 Compute the derivatives of the wave functions by solving a Sternheimer equation for each
 `k`-points.
 """
-function compute_δψ(basis, εF, H, ψ, ε, δHψ; ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
+function compute_δψ(basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
                     kwargs_sternheimer...)
     model = basis.model
     temperature = model.temperature
@@ -342,7 +342,7 @@ end
     occ_occ = [occ[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
 
     # First we compute δoccupation and δεF
-    δocc, δεF = compute_δocc(basis, εF, ψ_occ, ε_occ, occ_occ, δHψ)
+    δocc, δεF = compute_δocc(basis, ψ_occ, occ_occ, εF, ε_occ, δHψ)
     # Pad δoccupation
     δoccupation = zero.(occ)
     for (ik, maskk) in enumerate(mask_occ)
@@ -350,7 +350,7 @@ end
     end
 
     # Keeping zeros for extra bands to keep the output δψ with the same size than the input ψ
-    δψ = compute_δψ(basis, εF, ham.blocks, ψ_occ, ε_occ, δHψ; ψ_extra, kwargs_sternheimer...)
+    δψ = compute_δψ(basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ; ψ_extra, kwargs_sternheimer...)
 
     (; δψ, δoccupation, δεF)
 end
