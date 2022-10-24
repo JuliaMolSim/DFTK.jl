@@ -3,7 +3,9 @@
 * Standard methods and models:
     - Standard DFT models (LDA, GGA, meta-GGA): Any functional from the
       [libxc](https://tddft.org/programs/libxc/) library
-    - Godecker norm-conserving pseudopotentials (GTH, HGH)
+    - Norm-conserving pseudopotentials: Goedecker-type (GTH, HGH)
+      or numerical (in UPF pseudopotential format),
+      see [Pseudopotentials](@ref) for details.
     - Brillouin zone symmetry for ``k``-point sampling using [spglib](https://atztogo.github.io/spglib/)
     - Standard smearing functions (including Methfessel-Paxton
       and Marzari-Vanderbilt cold smearing)
