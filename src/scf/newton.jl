@@ -72,16 +72,15 @@ end
 
 
 """
-    newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
-           tol=1e-6, tol_=1e-10, maxiter=20, verbose=false,
-           callback=NewtonDefaultCallback(),
-           is_converged=NewtonConvergenceDensity(tol))
+    newton(basis::PlaneWaveBasis{T}, ψ0;
+           tol=1e-6, tol_cg=tol / 100, maxiter=20, callback=ScfDefaultCallback(),
+           is_converged=ScfConvergenceDensity(tol))
 
 Newton algorithm. Be careful that the starting point needs to be not too far
 from the solution.
 """
 function newton(basis::PlaneWaveBasis{T}, ψ0;
-                tol=1e-6, tol_cg=tol / 100, maxiter=20, verbose=false,
+                tol=1e-6, tol_cg=tol / 100, maxiter=20,
                 callback=ScfDefaultCallback(),
                 is_converged=ScfConvergenceDensity(tol)) where {T}
 
@@ -116,7 +115,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
         # compute Newton step and next iteration
         res = compute_projected_gradient(basis, ψ, occupation)
         # solve (Ω+K) δψ = -res so that the Newton step is ψ <- ψ + δψ
-        δψ = solve_ΩplusK(basis, ψ, -res, occupation; tol=tol_cg, verbose).δψ
+        δψ = solve_ΩplusK(basis, ψ, -res, occupation; tol=tol_cg).δψ
         ψ  = [ortho_qr(ψ[ik] + δψ[ik]) for ik in 1:Nk]
 
         ρ_next = compute_density(basis, ψ, occupation)

@@ -107,7 +107,8 @@ export total_density
 export spin_density
 export ρ_from_total_and_spin
 include("densities.jl")
-include("interpolation_transfer.jl")
+include("transfer.jl")
+include("interpolation.jl")
 export compute_transfer_matrix
 export transfer_blochwave
 export transfer_blochwave_kpt
@@ -195,6 +196,7 @@ export plot_dos
 include("postprocess/dos.jl")
 export compute_χ0
 export apply_χ0
+include("response/cg.jl")
 include("response/chi0.jl")
 include("response/hessian.jl")
 export compute_current
