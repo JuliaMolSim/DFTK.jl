@@ -192,34 +192,41 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
-# Returns δψ corresponding to a change in *total* Hamiltonian δH
+# Returns (δψ, δocc, δεF) corresponding to a change in *total* Hamiltonian δV
 # We start from
-# P = f(H-εF), tr(P) = N
-# where P is the density matrix, f the occupation function
+# P = f(H-εF) = ∑_n fn |ψn><ψn|, tr(P) = N
+# where P is the density matrix, f the occupation function.
+# Charge conservation yields δεF as follows:
 # δεn = <ψn|δV|ψn>
 # 0 = ∑_n fn' (δεn - δεF) determines δεF
-# where fn' = f'((εn-εF)/T)/T
+# where fn' = f'((εn-εF)/T)/T.
 
-# Then <ψm|δP|ψn> = (fm-fn)/(εm-εn) <ψm|δH|ψn>
-# Except for the diagonal which is
-# <ψn|δP|ψn> = (fn'-δεF) <ψn|δH|ψn>
+# Then <ψm|δP|ψn> = (fm-fn)/(εm-εn) <ψm|δV|ψn>,
+# except for the diagonal which is
+# <ψn|δP|ψn> = (fn'-δεF) δεn.
 
-# We want to represent this with a δψ. We do *not* impose that
-# δψ is orthogonal at finite temperature.
-# We get
-# δP = ∑_k fk (|δψk><ψk| + |ψk><δψk|)
-# Identifying with <ψm|δP|ψn> we get for the diagonal terms
-# <ψn|δψn> fn = fn'<ψn|δH-δεF|ψn>
-# and for the off-diagonal
-# (fm-fn)/(εm-εn) <ψm|δH|ψn> = fm <δψm|ψn> + fn <ψm|δψn>
+# We want to represent δP with a tuple (δψ, δf). We do *not* impose that
+# δψ is orthogonal at finite temperature. A formal differentiation yields
+# δP = ∑_n fn (|δψn><ψn| + |ψn><δψn|) + δfn |ψn><ψn|.
+# Identifying with <ψm|δP|ψn> we get for the off-diagonal terms
+# (fm-fn)/(εm-εn) <ψm|δV|ψn> = fm <δψm|ψn> + fn <ψm|δψn>.
+# For the diagonal terms, n==m and we obtain
+# 0 = ∑_n Re (fn <ψn|δψn>) + δfn,
+# so that a gauge choice has to be made here. We choose to set <ψn|δψn> = 0 and
+# δfn = fn' (δεn - δεF) ensures the summation to 0 with the definition of δεF as
+# above.
+
+# We therefore need to compute all the δfn: this is done with compute_δocc.
+# Regarding the δψ, they are computed with compute_δψ as follows. We refer to
+# the paper https://arxiv.org/abs/2210.04512 for more details.
 
 # We split the computation of δψn in two contributions:
 # for the already-computed states, we add an explicit contribution
 # for the empty states, we solve a Sternheimer equation
-# (H-εn) δψn = - P_{ψ^⟂} δH ψn
+# (H-εn) δψn = - P_{ψ^⟂} δV ψn
 
 # The off-diagonal explicit term needs a careful consideration of stability.
-# Let <ψm|δψn> = αmn <ψm|δH|ψn>. αmn has to satisfy
+# Let <ψm|δψn> = αmn <ψm|δV|ψn>. αmn has to satisfy
 # fn αmn + fm αnm = ratio = (fn-fm)/(εn-εm)   (*)
 # The usual way is to impose orthogonality (=> αmn=-αnm),
 # but this means that αmn = 1/(εm-εn), which is unstable
@@ -242,7 +249,7 @@ end
 """
 Compute the derivatives of the occupations (and of the Fermi level).
 """
-function compute_δocc(basis, ψ, occ, εF::T, ε, δHψ) where {T}
+function compute_δocc(basis, ψ, occ, εF::T, ε, δVψ) where {T}
     model = basis.model
     temperature = model.temperature
     smearing = model.smearing
@@ -256,7 +263,7 @@ function compute_δocc(basis, ψ, occ, εF::T, ε, δHψ) where {T}
         D = zero(T)
         for ik = 1:Nk, (n, εnk) in enumerate(ε[ik])
             enred = (εnk - εF) / temperature
-            δεnk = real(dot(ψ[ik][:, n], δHψ[ik][:, n]))
+            δεnk = real(dot(ψ[ik][:, n], δVψ[ik][:, n]))
             fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
             δocc[ik][n] = δεnk * fpnk
             D += fpnk * basis.kweights[ik]
@@ -280,7 +287,7 @@ end
 Compute the derivatives of the wave functions by solving a Sternheimer equation for each
 `k`-points.
 """
-function compute_δψ(basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
+function compute_δψ(basis, H, ψ, εF, ε, δVψ; ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
                     kwargs_sternheimer...)
     model = basis.model
     temperature = model.temperature
@@ -289,7 +296,7 @@ function compute_δψ(basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1),
     Nk = length(basis.kpoints)
 
     # Compute δψnk band per band
-    δψ = zero.(δHψ)
+    δψ = zero.(δVψ)
     for ik = 1:Nk
         Hk  = H[ik]
         ψk  = ψ[ik]
@@ -304,23 +311,25 @@ function compute_δψ(basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1),
 
             # Explicit contributions (nonzero only for temperature > 0)
             for m = 1:length(εk)
+                # the n == m contribution in compute_δρ is obtained through
+                # δoccupation, see the explanation above
                 m == n && continue
                 fmk = filled_occ * Smearing.occupation(smearing, (εk[m]-εF) / temperature)
                 ddiff = Smearing.occupation_divided_difference
                 ratio = filled_occ * ddiff(smearing, εk[m], εk[n], εF, temperature)
                 αmn = compute_αmn(fmk, fnk, ratio)  # fnk * αmn + fmk * αnm = ratio
-                δψk[:, n] .+= ψk[:, m] .* αmn .* dot(ψk[:, m], δHψ[ik][:, n])
+                δψk[:, n] .+= ψk[:, m] .* αmn .* dot(ψk[:, m], δVψ[ik][:, n])
             end
 
             # Sternheimer contribution
-            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk[n], δHψ[ik][:, n]; ψk_extra,
+            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk[n], δVψ[ik][:, n]; ψk_extra,
                                              εk_extra, Hψk_extra, kwargs_sternheimer...)
         end
     end
     δψ
 end
 
-@views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
+@views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δVψ;
                                     occupation_threshold, kwargs_sternheimer...)
     basis  = ham.basis
 
@@ -342,7 +351,7 @@ end
     occ_occ = [occ[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
 
     # First we compute δoccupation and δεF
-    δocc, δεF = compute_δocc(basis, ψ_occ, occ_occ, εF, ε_occ, δHψ)
+    δocc, δεF = compute_δocc(basis, ψ_occ, occ_occ, εF, ε_occ, δVψ)
     # Pad δoccupation
     δoccupation = zero.(occ)
     for (ik, maskk) in enumerate(mask_occ)
@@ -350,7 +359,7 @@ end
     end
 
     # Keeping zeros for extra bands to keep the output δψ with the same size than the input ψ
-    δψ = compute_δψ(basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ; ψ_extra, kwargs_sternheimer...)
+    δψ = compute_δψ(basis, ham.blocks, ψ_occ, εF, ε_occ, δVψ; ψ_extra, kwargs_sternheimer...)
 
     (; δψ, δoccupation, δεF)
 end
@@ -376,9 +385,9 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
     normδV < eps(typeof(εF)) && return zero(δV)
     δV ./= normδV
 
-    δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
+    δVψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
-    δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+    δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δVψ;
                                        occupation_threshold, kwargs_sternheimer...)
     δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation, δoccupation)
     δρ * normδV
