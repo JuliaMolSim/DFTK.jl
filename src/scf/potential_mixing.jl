@@ -251,7 +251,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     end
 
     # Initial guess for V (if none given)
-    energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ)
+    ham = energy_hamiltonian(basis, nothing, nothing; ρ).ham
     isnothing(V) && (V = total_local_potential(ham))
 
     function EVρ(Vin; diagtol=tol / 10, ψ=nothing, eigenvalues=nothing, occupation=nothing)
@@ -341,7 +341,8 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     ham  = hamiltonian_with_total_potential(ham, info.Vout)
     info = (; ham, basis, info.energies, converged, ρ=info.ρout, info.eigenvalues,
             info.occupation, info.εF, n_iter, info.ψ, info.n_bands_converge,
-            info.diagonalization, stage=:finalize, algorithm="SCF", info.occupation_threshold)
+            info.diagonalization, stage=:finalize, algorithm="SCF",
+            info.occupation_threshold)
     callback(info)
     info
 end

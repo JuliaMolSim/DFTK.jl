@@ -56,7 +56,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
             ρ_trial = with_logger(NullLogger()) do
                 compute_density(basis, ψ_trial, occupation)
             end
-            E, _ = energy_hamiltonian(basis, ψ_trial, occupation; ρ=ρ_trial)
+            E = energy_hamiltonian(basis, ψ_trial, occupation; ρ=ρ_trial).energies
             E.total
         end
 

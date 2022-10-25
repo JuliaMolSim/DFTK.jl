@@ -51,7 +51,7 @@ using IterativeSolvers
 #  to the ψ.
 function compute_projected_gradient(basis::PlaneWaveBasis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
-    H = energy_hamiltonian(basis, ψ, occupation; ρ).H
+    H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
 
     [proj_tangent_kpt(H.blocks[ik] * ψk, ψk) for (ik, ψk) in enumerate(ψ)]
 end

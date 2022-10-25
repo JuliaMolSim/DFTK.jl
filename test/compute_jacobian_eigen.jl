@@ -17,7 +17,7 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
 
         # compute quantites at the point which define the tangent space
         ρ = compute_density(basis, ψ, occupation)
-        H = energy_hamiltonian(basis, ψ, occupation; ρ).H
+        H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
 
         # preconditioner
         Pks = [PreconditionerTPA(basis, kpt) for kpt in basis.kpoints]

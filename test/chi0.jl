@@ -35,8 +35,8 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
                           model_kwargs...)
         basis = PlaneWaveBasis(model; basis_kwargs...)
-        ρ0 = guess_density(basis, magnetic_moments)
-        _, ham0   = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
+        ρ0    = guess_density(basis, magnetic_moments)
+        ham0  = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
         nbandsalg = is_εF_fixed ? FixedBands(; n_bands_converge=6) : AdaptiveBands(model)
         res = DFTK.next_density(ham0, nbandsalg; tol, eigensolver)
         scfres = (ham=ham0, res...)
@@ -57,7 +57,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
             model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
                               model_kwargs..., extra_terms=[term_builder])
             basis = PlaneWaveBasis(model; basis_kwargs...)
-            _, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
+            ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
             res = DFTK.next_density(ham, nbandsalg; tol, eigensolver)
             res.ρout
         end
