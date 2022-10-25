@@ -24,6 +24,7 @@ include("common/timer.jl")
 include("common/constants.jl")
 include("common/ortho.jl")
 include("common/types.jl")
+include("common/spherical_bessels.jl")
 include("common/spherical_harmonics.jl")
 include("common/split_evenly.jl")
 include("common/mpi.jl")
@@ -33,8 +34,10 @@ include("common/cis2pi.jl")
 include("common/zeros_like.jl")
 
 export PspHgh
+export PspUpf
 include("pseudo/NormConservingPsp.jl")
 include("pseudo/PspHgh.jl")
+include("pseudo/PspUpf.jl")
 
 export ElementPsp
 export ElementCohenBergstresser
