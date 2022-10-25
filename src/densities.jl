@@ -25,7 +25,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     S = promote_type(T, real(eltype(ψ[1])))
 
     # we split the total iteration range (ik, n) in chunks, and parallelize over them
-    mask_occ   = map(occk -> findall(isless.(occupation_threshold, occk)), occupation)
+    mask_occ = map(occk -> findall(isless.(occupation_threshold, occk)), occupation)
     ik_n = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
     chunk_length = cld(length(ik_n), Threads.nthreads())
 
