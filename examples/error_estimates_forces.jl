@@ -53,7 +53,7 @@ tol = 1e-8;
 
 # We compute the reference solution ``P_*`` from which we will compute the
 # references forces.
-scfres_ref = self_consistent_field(basis_ref; tol, callback=identity)
+scfres_ref = self_consistent_field(basis_ref; tol, callback=info->nothing)
 ψ_ref, _ = DFTK.select_occupied_orbitals(basis_ref, scfres_ref.ψ,
                                          scfres_ref.occupation);
 
@@ -68,7 +68,7 @@ scfres_ref = self_consistent_field(basis_ref; tol, callback=identity)
 #     asymptotic regime (crucial to validate the approach) is barely established.
 Ecut = 15
 basis = PlaneWaveBasis(model; Ecut, kgrid)
-scfres = self_consistent_field(basis; tol, callback=identity)
+scfres = self_consistent_field(basis; tol, callback=info->nothing)
 ψr = DFTK.transfer_blochwave(scfres.ψ, basis, basis_ref)
 ρr = compute_density(basis_ref, ψr, scfres.occupation)
 Er, hamr = energy_hamiltonian(basis_ref, ψr, scfres.occupation; ρ=ρr);
