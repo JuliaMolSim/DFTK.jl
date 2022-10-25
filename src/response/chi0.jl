@@ -304,7 +304,7 @@ function compute_δψ(basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1),
 
             # Explicit contributions (nonzero only for temperature > 0)
             for m = 1:length(εk)
-                εk[m] == εk[n] && continue
+                m == n && continue
                 fmk = filled_occ * Smearing.occupation(smearing, (εk[m]-εF) / temperature)
                 ddiff = Smearing.occupation_divided_difference
                 ratio = filled_occ * ddiff(smearing, εk[m], εk[n], εF, temperature)
