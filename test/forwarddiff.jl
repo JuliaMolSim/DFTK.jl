@@ -20,11 +20,10 @@ include("testcases.jl")
         end
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
-        mixing       = χ0Mixing(χ0terms=[DFTK.Applyχ0Model(; tol)])
         response     = ResponseOptions(verbose=true)
         is_converged = DFTK.ScfConvergenceDensity(tol)
 
-        scfres = self_consistent_field(basis; is_converged, mixing, response)
+        scfres = self_consistent_field(basis; is_converged, response)
         compute_forces_cart(scfres)
     end
 
