@@ -365,7 +365,7 @@ end
 end
 
 """
-Get the density variation δρ corresponding to a total potential variation δV.
+Get the density variation δρ corresponding to a potential variation δV.
 """
 function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
                   occupation_threshold=default_occupation_threshold(),
