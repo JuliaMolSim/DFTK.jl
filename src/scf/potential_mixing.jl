@@ -186,7 +186,7 @@ function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
         return info_next.α
     end
 
-    α_next, relerror = scf_damping_quadratic_model(info, info_next; modeltol=damping.modeltol)
+    α_next, relerror = scf_damping_quadratic_model(info, info_next; damping.modeltol)
     if isnothing(α_next)
         # Model failed ... use heuristics: Half for small model error, else use a quarter
         α_next = info_next.α / (relerror < 10 ? 2 : 4)
@@ -201,7 +201,7 @@ function trial_damping(damping::AdaptiveDamping, info, info_next, step_successfu
     α_trial = abs(info_next.α)  # By default use the α that worked in this step
     if step_successful && n_backtrack == 1  # First step was good => speed things up
         α_trial ≥ damping.α_max && return damping.α_max  # No need to compute model
-        α_model = scf_damping_quadratic_model(info, info_next; modeltol=damping.modeltol).α
+        α_model = scf_damping_quadratic_model(info, info_next; damping.modeltol).α
         if !isnothing(α_model)  # Model is meaningful
             α_trial = max(damping.α_trial_enhancement * abs(α_model), α_trial)
         end

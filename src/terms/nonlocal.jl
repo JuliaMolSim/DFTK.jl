@@ -29,7 +29,7 @@ end
                                              basis::PlaneWaveBasis{T},
                                              ψ, occupation; kwargs...) where {T}
     if isnothing(ψ) || isnothing(occupation)
-        return (E=T(Inf), ops=term.ops)
+        return (; E=T(Inf), term.ops)
     end
 
     E = zero(T)

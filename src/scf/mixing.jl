@@ -220,7 +220,7 @@ end
     function dielectric_adjoint(δF)
         δF = devec(δF)
         # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
-        δV = apply_kernel(basis, δF; ρ=ρin, RPA=mixing.RPA)
+        δV = apply_kernel(basis, δF; ρ=ρin, mixing.RPA)
         δV .-= mean(δV)
         εδF = copy(δF)
         for apply_term! in χ0applies
@@ -233,7 +233,7 @@ end
     DC_δF = mean(δF)
     δF .-= DC_δF
     ε  = LinearMap{T}(dielectric_adjoint, length(δF))
-    δρ = devec(gmres(ε, vec(δF), verbose=mixing.verbose, reltol=T(mixing.reltol)))
+    δρ = devec(gmres(ε, vec(δF); mixing.verbose, reltol=T(mixing.reltol)))
     δρ .+= DC_δF  # Set DC from δF
     δρ
 end

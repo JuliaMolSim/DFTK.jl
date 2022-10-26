@@ -84,4 +84,4 @@ function plot_dos(basis, eigenvalues; εF=nothing, kwargs...)
     end
     p
 end
-plot_dos(scfres; kwargs...) = plot_dos(scfres.basis, scfres.eigenvalues; εF=scfres.εF, kwargs...)
+plot_dos(scfres; kwargs...) = plot_dos(scfres.basis, scfres.eigenvalues; scfres.εF, kwargs...)
