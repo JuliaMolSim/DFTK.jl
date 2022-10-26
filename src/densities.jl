@@ -4,9 +4,9 @@
 function _check_positive(ρ)
     minimum(ρ) < 0 && @warn("Negative ρ detected", min_ρ=minimum(ρ))
 end
-function _check_total_charge(dvol, ρ::AbstractArray{T}, N) where {T}
+function _check_total_charge(dvol, ρ::AbstractArray{T}, N; tol=T(1e-10)) where {T}
     n_electrons = sum(ρ) * dvol
-    if abs(n_electrons - N) > max(sqrt(eps(T)), T(1e-10))
+    if abs(n_electrons - N) > max(sqrt(eps(T)), tol)
         @warn("Mismatch in number of electrons", sum_ρ=n_electrons, N=N)
     end
 end
@@ -52,7 +52,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 
     _check_positive(ρ)
     n_elec_check = weighted_ksum(basis, sum.(occupation))
-    _check_total_charge(basis.dvol, ρ, n_elec_check)
+    _check_total_charge(basis.dvol, ρ, n_elec_check; tol=occupation_threshold)
 
     ρ
 end
