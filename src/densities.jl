@@ -16,7 +16,7 @@ end
 
 Compute the density for a wave function `ψ` discretized on the plane-wave
 grid `basis`, where the individual k-points are occupied according to `occupation`.
-`ψ` should be one coefficient matrix per ``k``-point. 
+`ψ` should be one coefficient matrix per ``k``-point.
 It is possible to ask only for occupations higher than a certain level to be computed by
 using an optional `occupation_threshold`. By default all occupation numbers are considered.
 """
