@@ -58,11 +58,9 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 end
 
 # Variation in density corresponding to a variation in the orbitals and occupations.
-# The initial value of `occupation_threshold` corresponds to the one for which the δψkn are
-# converged by default.
 @views @timing function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ,
                                    occupation, δoccupation=zero.(occupation);
-                                   occupation_threshold=default_occupation_threshold()) where {T}
+                                   occupation_threshold=zero(T)) where {T}
     ForwardDiff.derivative(zero(T)) do ε
         ψ_ε   = [ψk   .+ ε .* δψk   for (ψk,   δψk)   in zip(ψ, δψ)]
         occ_ε = [occk .+ ε .* δocck for (occk, δocck) in zip(occupation, δoccupation)]
