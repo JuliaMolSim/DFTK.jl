@@ -7,6 +7,7 @@ include("testcases.jl")
 
 
 @testset "Force derivatives using ForwardDiff" begin
+    tol = 1e-10
     function compute_force(ε1, ε2; metal=false)
         T = promote_type(typeof(ε1), typeof(ε2))
         pos = [[1.01, 1.02, 1.03] / 8, -ones(3) / 8 + ε1 * [1., 0, 0] + ε2 * [0, 1., 0]]
@@ -19,9 +20,10 @@ include("testcases.jl")
         end
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
-        is_converged = DFTK.ScfConvergenceDensity(1e-10)
-        scfres = self_consistent_field(basis; is_converged,
-                                       response=ResponseOptions(verbose=true))
+        response     = ResponseOptions(verbose=true)
+        is_converged = DFTK.ScfConvergenceDensity(tol)
+
+        scfres = self_consistent_field(basis; is_converged, response)
         compute_forces_cart(scfres)
     end
 
@@ -44,7 +46,7 @@ include("testcases.jl")
         @test abs(grad[2] - derivative_ε2[1][1]) < 1e-4
 
         jac = ForwardDiff.jacobian(v -> compute_force(v...)[1], [0.0, 0.0])
-        @test norm(grad - jac[1, :]) < 1e-10
+        @test norm(grad - jac[1, :]) < tol
     end
 
     @testset "Derivative for metals" begin

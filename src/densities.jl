@@ -4,9 +4,10 @@
 function _check_positive(ρ)
     minimum(ρ) < 0 && @warn("Negative ρ detected", min_ρ=minimum(ρ))
 end
-function _check_total_charge(dvol, ρ::AbstractArray{T}, N) where {T}
+function _check_total_charge(dvol, ρ::AbstractArray{T}, N; tol=T(1e-10)) where {T}
     n_electrons = sum(ρ) * dvol
-    if abs(n_electrons - N) > max(sqrt(eps(T)), T(1e-10))
+
+    if abs(n_electrons - N) > max(sqrt(eps(T)), tol)
         @warn("Mismatch in number of electrons", sum_ρ=n_electrons, N)
     end
 end
@@ -16,23 +17,25 @@ end
 
 Compute the density for a wave function `ψ` discretized on the plane-wave
 grid `basis`, where the individual k-points are occupied according to `occupation`.
-`ψ` should be one coefficient matrix per ``k``-point.
+`ψ` should be one coefficient matrix per ``k``-point. 
+It is possible to ask only for occupations higher than a certain level to be computed by
+using an optional `occupation_threshold`. By default all occupation numbers are considered.
 """
-@views @timing function compute_density(basis, ψ, occupation)
-    T = promote_type(eltype(basis), real(eltype(ψ[1])))
+@views @timing function compute_density(basis::PlaneWaveBasis{T}, ψ, occupation;
+                                        occupation_threshold=zero(T)) where {T}
+    S = promote_type(T, real(eltype(ψ[1])))
 
     # we split the total iteration range (ik, n) in chunks, and parallelize over them
-    ik_n = [(ik, n) for ik = 1:length(basis.kpoints) for n = 1:size(ψ[ik], 2)]
+    mask_occ = map(occk -> findall(isless.(occupation_threshold, occk)), occupation)
+    ik_n = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
     chunk_length = cld(length(ik_n), Threads.nthreads())
 
     # chunk-local variables
-    ρ_chunklocal = Array{T,4}[zeros(T, basis.fft_size..., basis.model.n_spin_components)
+    ρ_chunklocal = Array{S,4}[zeros(S, basis.fft_size..., basis.model.n_spin_components)
                                for _ = 1:Threads.nthreads()]
-    ψnk_real_chunklocal = Array{complex(T),3}[zeros(complex(T), basis.fft_size)
+    ψnk_real_chunklocal = Array{complex(S),3}[zeros(complex(S), basis.fft_size)
                                                for _ = 1:Threads.nthreads()]
 
-    # TODO We should probably pass occupation_threshold here and ignore bands
-    #      below this threshold in the density computation
     @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
         Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
             ψnk_real = ψnk_real_chunklocal[ichunk]
@@ -50,18 +53,19 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
 
     _check_positive(ρ)
     n_elec_check = weighted_ksum(basis, sum.(occupation))
-    _check_total_charge(basis.dvol, ρ, n_elec_check)
+    _check_total_charge(basis.dvol, ρ, n_elec_check; tol=occupation_threshold)
 
     ρ
 end
 
 # Variation in density corresponding to a variation in the orbitals and occupations.
 @views @timing function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ,
-                                   occupation, δoccupation=zero.(occupation)) where {T}
+                                   occupation, δoccupation=zero.(occupation);
+                                   occupation_threshold=zero(T)) where {T}
     ForwardDiff.derivative(zero(T)) do ε
         ψ_ε   = [ψk   .+ ε .* δψk   for (ψk,   δψk)   in zip(ψ, δψ)]
         occ_ε = [occk .+ ε .* δocck for (occk, δocck) in zip(occupation, δoccupation)]
-        compute_density(basis, ψ_ε, occ_ε)
+        compute_density(basis, ψ_ε, occ_ε; occupation_threshold)
     end
 end
 
