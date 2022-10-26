@@ -192,26 +192,33 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
-# Returns δψ corresponding to a change in *total* Hamiltonian δH
+# Returns (δψ, δocc, δεF) corresponding to a change in *total* Hamiltonian δH
 # We start from
-# P = f(H-εF), tr(P) = N
-# where P is the density matrix, f the occupation function
-# δεn = <ψn|δV|ψn>
+# P = f(H-εF) = ∑_n fn |ψn><ψn|, tr(P) = N
+# where P is the density matrix, f the occupation function.
+# Charge conservation yields δεF as follows:
+# δεn = <ψn|δH|ψn>
 # 0 = ∑_n fn' (δεn - δεF) determines δεF
-# where fn' = f'((εn-εF)/T)/T
+# where fn' = f'((εn-εF)/T)/T.
 
-# Then <ψm|δP|ψn> = (fm-fn)/(εm-εn) <ψm|δH|ψn>
-# Except for the diagonal which is
-# <ψn|δP|ψn> = (fn'-δεF) <ψn|δH|ψn>
+# Then <ψm|δP|ψn> = (fm-fn)/(εm-εn) <ψm|δH|ψn>,
+# except for the diagonal which is
+# <ψn|δP|ψn> = (fn'-δεF) δεn.
 
-# We want to represent this with a δψ. We do *not* impose that
-# δψ is orthogonal at finite temperature.
-# We get
-# δP = ∑_k fk (|δψk><ψk| + |ψk><δψk|)
-# Identifying with <ψm|δP|ψn> we get for the diagonal terms
-# <ψn|δψn> fn = fn'<ψn|δH-δεF|ψn>
-# and for the off-diagonal
-# (fm-fn)/(εm-εn) <ψm|δH|ψn> = fm <δψm|ψn> + fn <ψm|δψn>
+# We want to represent δP with a tuple (δψ, δf). We do *not* impose that
+# δψ is orthogonal at finite temperature. A formal differentiation yields
+# δP = ∑_n fn (|δψn><ψn| + |ψn><δψn|) + δfn |ψn><ψn|.
+# Identifying with <ψm|δP|ψn> we get for the off-diagonal terms
+# (fm-fn)/(εm-εn) <ψm|δH|ψn> = fm <δψm|ψn> + fn <ψm|δψn>.
+# For the diagonal terms, n==m and we obtain
+# 0 = ∑_n Re (fn <ψn|δψn>) + δfn,
+# so that a gauge choice has to be made here. We choose to set <ψn|δψn> = 0 and
+# δfn = fn' (δεn - δεF) ensures the summation to 0 with the definition of δεF as
+# above.
+
+# We therefore need to compute all the δfn: this is done with compute_δocc.
+# Regarding the δψ, they are computed with compute_δψ as follows. We refer to
+# the paper https://arxiv.org/abs/2210.04512 for more details.
 
 # We split the computation of δψn in two contributions:
 # for the already-computed states, we add an explicit contribution
@@ -304,6 +311,8 @@ function compute_δψ(basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1),
 
             # Explicit contributions (nonzero only for temperature > 0)
             for m = 1:length(εk)
+                # the n == m contribution in compute_δρ is obtained through
+                # δoccupation, see the explanation above
                 m == n && continue
                 fmk = filled_occ * Smearing.occupation(smearing, (εk[m]-εF) / temperature)
                 ddiff = Smearing.occupation_divided_difference
@@ -356,7 +365,7 @@ end
 end
 
 """
-Get the density variation δρ corresponding to a total potential variation δV.
+Get the density variation δρ corresponding to a potential variation δV.
 """
 function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
                   occupation_threshold=default_occupation_threshold(),
