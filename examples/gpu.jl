@@ -14,10 +14,9 @@ terms = [Kinetic(),
             Entropy(),
             Hartree()]
 # Now, build a supercell to have a larger system
-pystruct = pymatgen_structure(lattice, atoms, positions)
-pystruct.make_supercell([4,2,2])
-lattice   = load_lattice(pystruct)
-positions = load_positions(pystruct)
+supercell = ase_atoms(lattice, atoms, positions) * (repeat, 1, 1)
+lattice   = load_lattice(supercell)
+positions = load_positions(supercell)
 atoms     = fill(Si, length(positions))
 
 model = Model(lattice, atoms, positions; terms=terms, temperature=1e-3, symmetries=false)
