@@ -6,7 +6,6 @@ function _check_positive(ρ)
 end
 function _check_total_charge(dvol, ρ::AbstractArray{T}, N; tol=T(1e-10)) where {T}
     n_electrons = sum(ρ) * dvol
-
     if abs(n_electrons - N) > max(sqrt(eps(T)), tol)
         @warn("Mismatch in number of electrons", sum_ρ=n_electrons, N)
     end
