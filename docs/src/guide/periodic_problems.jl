@@ -81,7 +81,7 @@
 # Consider the application of ``2H = -Δ = - \frac{d^2}{d x^2}``
 # to such a Bloch wave. First we notice for any function ``f``
 # ```math
-#    -i∇ \left( e^{i k⋅x} f \right) 
+#    -i∇ \left( e^{i k⋅x} f \right)
 #    = -i\frac{d}{dx} \left( e^{i k⋅x} f \right)
 #    = k e^{i k⋅x} f + e^{i k⋅x} (-i∇) f = e^{i k⋅x} (-i∇ + k) f.
 # ```

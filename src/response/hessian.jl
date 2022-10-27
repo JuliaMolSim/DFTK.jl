@@ -40,7 +40,7 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
 @views function apply_K(basis::PlaneWaveBasis, δψ, ψ, ρ, occupation)
     δψ = proj_tangent(δψ, ψ)
     δρ = compute_δρ(basis, ψ, δψ, occupation)
-    δV = apply_kernel(basis, δρ; ρ=ρ)
+    δV = apply_kernel(basis, δρ; ρ)
 
     Kδψ = map(enumerate(ψ)) do (ik, ψk)
         kpt = basis.kpoints[ik]
@@ -72,7 +72,7 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
 
     # compute quantites at the point which define the tangent space
     ρ = compute_density(basis, ψ, occupation)
-    _, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+    H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
 
     pack(ψ) = reinterpret_real(pack_ψ(ψ))
     unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
@@ -187,7 +187,7 @@ end
 
 function solve_ΩplusK_split(basis::PlaneWaveBasis, ψ, rhs, occupation; kwargs...)
     ρ = compute_density(basis, ψ, occupation)
-    _, H = energy_hamiltonian(basis, ψ, occupation; ρ)
+    H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
     eigenvalues = [real.(eigvals(ψk'Hψk)) for (ψk, Hψk) in zip(ψ, H * ψ)]
     occupation, εF = compute_occupation(basis, eigenvalues)
 

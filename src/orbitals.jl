@@ -15,7 +15,7 @@ function select_occupied_orbitals(basis, ψ, occupation; threshold=0.0)
         n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)
         @assert n_bands == size(selected_ψ[1], 2)
     end
-    (ψ=selected_ψ, occupation=selected_occ)
+    (; ψ=selected_ψ, occupation=selected_occ)
 end
 
 # Packing routines used in direct_minimization and newton algorithms.
@@ -42,7 +42,7 @@ end
 function unsafe_unpack_ψ(x, sizes_ψ)
     lengths = prod.(sizes_ψ)
     ends = cumsum(lengths)
-    # We unsafe_wrap the resulting array to avoid a complicated type for ψ.    
+    # We unsafe_wrap the resulting array to avoid a complicated type for ψ.
     map(1:length(sizes_ψ)) do ik
         unsafe_wrap(Array{complex(eltype(x))},
                     pointer(@views x[ends[ik]-lengths[ik]+1:ends[ik]]),

@@ -96,7 +96,7 @@ self_consistent_field(aluminium_setup(1); is_converged, mixing=SimpleMixing());
 
 self_consistent_field(aluminium_setup(4); is_converged, mixing=SimpleMixing());
 
-# For completion let us note that the more traditional `mixing=KerkerMixing()` 
+# For completion let us note that the more traditional `mixing=KerkerMixing()`
 # approach would also help in this particular setting to obtain a constant
 # number of SCF iterations for an increasing system size (try it!). In contrast
 # to `LdosMixing`, however, `KerkerMixing` is only suitable to model bulk metallic

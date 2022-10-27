@@ -7,7 +7,7 @@ end
 function _check_total_charge(dvol, ρ::AbstractArray{T}, N; tol=T(1e-10)) where {T}
     n_electrons = sum(ρ) * dvol
     if abs(n_electrons - N) > max(sqrt(eps(T)), tol)
-        @warn("Mismatch in number of electrons", sum_ρ=n_electrons, N=N)
+        @warn("Mismatch in number of electrons", sum_ρ=n_electrons, N)
     end
 end
 
@@ -16,7 +16,7 @@ end
 
 Compute the density for a wave function `ψ` discretized on the plane-wave
 grid `basis`, where the individual k-points are occupied according to `occupation`.
-`ψ` should be one coefficient matrix per ``k``-point. 
+`ψ` should be one coefficient matrix per ``k``-point.
 It is possible to ask only for occupations higher than a certain level to be computed by
 using an optional `occupation_threshold`. By default all occupation numbers are considered.
 """

@@ -14,13 +14,13 @@ function ene_ops(term::TermEntropy, basis::PlaneWaveBasis{T}, ψ, occupation;
     smearing    = basis.model.smearing
     temperature = basis.model.temperature
 
-    iszero(temperature) && return (E=zero(T), ops=ops)
+    iszero(temperature) && return (; E=zero(T), ops)
     if isnothing(ψ) || isnothing(occupation)
-        return (E=T(Inf), ops=ops)
+        return (; E=T(Inf), ops)
     end
 
-    !(:εF in keys(kwargs))          && return (E=T(Inf), ops=ops)
-    !(:eigenvalues in keys(kwargs)) && return (E=T(Inf), ops=ops)
+    !(:εF in keys(kwargs))          && return (; E=T(Inf), ops)
+    !(:eigenvalues in keys(kwargs)) && return (; E=T(Inf), ops)
     εF = kwargs[:εF]
     eigenvalues = kwargs[:eigenvalues]
 
@@ -35,5 +35,5 @@ function ene_ops(term::TermEntropy, basis::PlaneWaveBasis{T}, ψ, occupation;
     end
     E = mpi_sum(E, basis.comm_kpts)
 
-    (E=E, ops=ops)
+    (; E, ops)
 end

@@ -77,11 +77,11 @@ function plot_dos(basis, eigenvalues; εF=nothing, kwargs...)
     for σ in 1:n_spin
         D = [Dσ[σ] for Dσ in Dεs]
         label = n_spin > 1 ? "DOS $(spinlabels[σ]) spin" : "DOS"
-        Plots.plot!(p, εs, D, label=label, color=colors[σ])
+        Plots.plot!(p, εs, D; label, color=colors[σ])
     end
     if !isnothing(εF)
         Plots.vline!(p, [εF], label="εF", color=:green, lw=1.5)
     end
     p
 end
-plot_dos(scfres; kwargs...) = plot_dos(scfres.basis, scfres.eigenvalues; εF=scfres.εF, kwargs...)
+plot_dos(scfres; kwargs...) = plot_dos(scfres.basis, scfres.eigenvalues; scfres.εF, kwargs...)

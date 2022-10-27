@@ -121,7 +121,7 @@ end
 
     for upf_url in upf_urls
         psp = load_psp(Downloads.download(upf_url, joinpath(tempdir(), "psp.upf")))
-        ir_start = iszero(psp.rgrid[1]) ? 2 : 1 
+        ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for l in 0:psp.lmax, i in count_n_proj_radial(psp, l)
             ir_cut = length(psp.r_projs[l+1][i])
             for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)

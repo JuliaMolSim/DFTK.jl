@@ -35,7 +35,7 @@ function ene_ops(term::TermMagnetic, basis::PlaneWaveBasis{T}, ψ, occupation;
     ops = [MagneticFieldOperator(basis, kpoint, term.Apotential)
            for (ik, kpoint) in enumerate(basis.kpoints)]
     if isnothing(ψ) || isnothing(occupation)
-        return (E=T(Inf), ops=ops)
+        return (; E=T(Inf), ops)
     end
 
     E = zero(T)
@@ -48,5 +48,5 @@ function ene_ops(term::TermMagnetic, basis::PlaneWaveBasis{T}, ψ, occupation;
     end
     E = mpi_sum(E, basis.comm_kpts)
 
-    (E=E, ops=ops)
+    (; E, ops)
 end

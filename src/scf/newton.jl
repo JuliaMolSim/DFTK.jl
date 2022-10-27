@@ -51,7 +51,7 @@ using IterativeSolvers
 #  to the ψ.
 function compute_projected_gradient(basis::PlaneWaveBasis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
-    _, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+    H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
 
     [proj_tangent_kpt(H.blocks[ik] * ψk, ψk) for (ik, ψk) in enumerate(ψ)]
 end
@@ -105,7 +105,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     # orbitals, densities and energies to be updated along the iterations
     ψ = deepcopy(ψ0)
     ρ = compute_density(basis, ψ, occupation)
-    energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+    energies, H = energy_hamiltonian(basis, ψ, occupation; ρ)
     converged = false
 
     # perform iterations
@@ -120,8 +120,8 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
         ρ_next = compute_density(basis, ψ, occupation)
         energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ_next)
-        info = (ham=H, basis=basis, converged=converged, stage=:iterate,
-                ρin=ρ, ρout=ρ_next, n_iter=n_iter, energies=energies, algorithm="Newton")
+        info = (; ham=H, basis, converged, stage=:iterate, ρin=ρ, ρout=ρ_next, n_iter,
+                energies, algorithm="Newton")
         callback(info)
 
         # update and test convergence
@@ -143,9 +143,8 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
     # return results and call callback one last time with final state for clean
     # up
-    info = (ham=H, basis=basis, energies=energies, converged=converged,
-            ρ=ρ, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
-            n_iter=n_iter, ψ=ψ, stage=:finalize, algorithm="Newton")
+    info = (; ham=H, basis, energies, converged, ρ, eigenvalues, occupation, εF, n_iter, ψ,
+            stage=:finalize, algorithm="Newton")
     callback(info)
     info
 end

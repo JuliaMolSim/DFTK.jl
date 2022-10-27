@@ -124,14 +124,15 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
 
         # Compute the energy of the new state
         if compute_consistent_energies
-            energies, _ = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, eigenvalues, εF)
+            energies = energy_hamiltonian(basis, ψ, occupation;
+                                          ρ=ρout, eigenvalues, εF).energies
         end
-        info = merge(info, (energies=energies, ))
+        info = merge(info, (; energies, ))
 
         # Apply mixing and pass it the full info as kwargs
         δρ = mix_density(mixing, basis, ρout - ρin; info...)
         ρnext = ρin .+ T(damping) .* δρ
-        info = merge(info, (; ρnext=ρnext))
+        info = merge(info, (; ρnext))
 
         callback(info)
         is_converged(info) && (converged = true)

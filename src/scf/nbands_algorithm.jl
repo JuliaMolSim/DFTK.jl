@@ -30,7 +30,7 @@ function FixedBands(model::Model)
 end
 FixedBands(basis::PlaneWaveBasis; kwargs...) = FixedBands(basis.model; kwargs...)
 function determine_n_bands(bands::FixedBands, occupation, eigenvalues, ψ)
-    (; n_bands_converge=bands.n_bands_converge, bands.n_bands_compute)
+    (; bands.n_bands_converge, bands.n_bands_compute)
 end
 
 

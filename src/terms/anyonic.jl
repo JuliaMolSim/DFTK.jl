@@ -161,5 +161,5 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occupation;
         end
     end
 
-    (E=E, ops=[ops_ham])
+    (; E, ops=[ops_ham])
 end

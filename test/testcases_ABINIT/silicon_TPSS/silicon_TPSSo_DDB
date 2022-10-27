@@ -1,5 +1,5 @@
 
- **** DERIVATIVE DATABASE ****    
+ **** DERIVATIVE DATABASE ****
 +DDB, Version number    100401
 
   Note : temporary (transfer) database
@@ -147,15 +147,15 @@
            -0.12500000000000D+00 -0.12500000000000D+00 -0.12500000000000D+00
      znucl  0.14000000000000D+02
       zion  0.40000000000000D+01
- 
- No information on the potentials yet 
- 
+
+ No information on the potentials yet
+
  **** Database of total energy derivatives ****
  Number of data blocks=    2
-  
+
  Total energy                 - # elements :       1
  -0.78446833069335D+01  0.00000000000000D+00
-  
+
  1st derivatives              - # elements :      12
    1   1  0.00000000000000D+00  0.00000000000000D+00
    2   1  0.00000000000000D+00  0.00000000000000D+00

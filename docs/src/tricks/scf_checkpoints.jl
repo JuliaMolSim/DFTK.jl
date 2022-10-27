@@ -47,7 +47,7 @@ magnetic_moments = [1., 1.]
 
 Ecut  = 10  # Far too small to be converged
 model = model_PBE(lattice, atoms, positions; temperature=0.02, smearing=Smearing.Gaussian(),
-                  magnetic_moments=magnetic_moments)
+                  magnetic_moments)
 basis = PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])
 
 scfres = self_consistent_field(basis, tol=1e-2, ρ=guess_density(basis, magnetic_moments))
@@ -82,7 +82,7 @@ loaded.energies
 
 callback = DFTK.ScfSaveCheckpoints()
 scfres = self_consistent_field(basis; ρ=guess_density(basis, magnetic_moments),
-                               tol=1e-2, callback=callback);
+                               tol=1e-2, callback);
 
 # Notice that using this callback makes the SCF go silent since the passed
 # callback parameter overwrites the default value (namely `DefaultScfCallback()`)
@@ -91,7 +91,7 @@ scfres = self_consistent_field(basis; ρ=guess_density(basis, magnetic_moments),
 # both callbacks:
 callback = DFTK.ScfDefaultCallback() ∘ DFTK.ScfSaveCheckpoints(keep=true)
 scfres = self_consistent_field(basis; ρ=guess_density(basis, magnetic_moments),
-                               tol=1e-2, callback=callback);
+                               tol=1e-2, callback);
 
 # For more details on using callbacks with DFTK's `self_consistent_field` function
 # see [Monitoring self-consistent field calculations](@ref).

@@ -250,7 +250,7 @@ end
             push!(ninners, 0)
             break
         end
-        X, ninner, growth_factor = ortho!(X, tol=tol)
+        X, ninner, growth_factor = ortho!(X; tol)
         push!(ninners, ninner)
 
         # norm(BY'X) < tol && break should be the proper check, but
@@ -279,9 +279,9 @@ end
 function final_retval(X, AX, resid_history, niter, n_matvec)
     λ = real(diag(X' * AX))
     residuals = AX .- X*Diagonal(λ)
-    (λ=λ, X=X,
+    (; λ, X,
      residual_norms=[norm(residuals[:, i]) for i in 1:size(residuals, 2)],
-     residual_history=resid_history[:, 1:niter+1], n_matvec=n_matvec)
+     residual_history=resid_history[:, 1:niter+1], n_matvec)
 end
 
 ### The algorithm is Xn+1 = rayleigh_ritz(hcat(Xn, A*Xn, Xn-Xn-1))

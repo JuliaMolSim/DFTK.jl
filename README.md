@@ -35,7 +35,7 @@ Having started in 2019 we already support a
 [sizeable set of features](https://docs.dftk.org/stable/features/).
 Within the system size currently accessible to our code (ca. 1000 electrons)
 our performance is of the same order of magnitude as more established packages
-such as [Abinit](https://www.abinit.org/) or 
+such as [Abinit](https://www.abinit.org/) or
 [Quantum Espresso](http://quantum-espresso.org/).
 
 For getting started with DFTK, see [our documentation](https://docs.dftk.org):

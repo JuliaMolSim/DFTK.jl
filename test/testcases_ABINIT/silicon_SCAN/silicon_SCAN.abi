@@ -5,7 +5,7 @@ ngkpt 3 3 3
 kptopt 1
 iomode 3
 nshiftk 1
-shiftk 0.0 0.0 0.0 
+shiftk 0.0 0.0 0.0
 nband 8
 # ecut 50
 ecut 15

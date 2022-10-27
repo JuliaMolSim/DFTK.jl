@@ -33,7 +33,7 @@ end
 
 ## Function to compute the dipole for a given field strength
 function compute_dipole(ε; tol=1e-8, kwargs...)
-    scfres = self_consistent_field(make_basis(ε; kwargs...), tol=tol)
+    scfres = self_consistent_field(make_basis(ε; kwargs...); tol)
     dipole(scfres.basis, scfres.ρ)
 end;
 

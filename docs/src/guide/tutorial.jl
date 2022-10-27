@@ -70,7 +70,7 @@ scfres = self_consistent_field(basis, tol=1e-8);
 # For instance, the different components of the energy:
 scfres.energies
 
-# Eigenvalues: 
+# Eigenvalues:
 hcat(scfres.eigenvalues...)
 # `eigenvalues` is an array (indexed by k-points) of arrays (indexed by
 # eigenvalue number). The "splatting" operation `...` calls `hcat`
