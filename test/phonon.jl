@@ -6,7 +6,6 @@ using ForwardDiff
 using StaticArrays
 using Random
 
-if mpi_nprocs() == 1 # can't be bothered to convert the tests
 @testset "Phonons" begin
 
 # Convert back and forth between Vec3 and columnwise matrix
@@ -168,5 +167,4 @@ end
     end
 end
 
-end
 end
