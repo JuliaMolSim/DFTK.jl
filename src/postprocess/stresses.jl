@@ -13,8 +13,11 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
                           terms=model.term_types,
                           model.temperature,
                           model.smearing,
+                          model.εF,
                           model.spin_polarization,
-                          model.symmetries)
+                          model.symmetries,
+                          # Can be safely disabled: this has been checked for basis.model
+                          disable_electrostatics_check=true)
         new_basis = PlaneWaveBasis(new_model,
                                    basis.Ecut, basis.fft_size, basis.variational,
                                    basis.kcoords_global, basis.kweights_global,

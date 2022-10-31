@@ -147,14 +147,17 @@ function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
     Model(ForwardDiff.value.(model.lattice),
           construct_value.(model.atoms),
           newpositions;
-          model_name=model.model_name,
-          n_electrons=model.n_electrons,
+          model.model_name,
+          model.n_electrons,
           magnetic_moments=[],  # Symmetries given explicitly
           terms=model.term_types,
           temperature=ForwardDiff.value(model.temperature),
-          smearing=model.smearing,
-          spin_polarization=model.spin_polarization,
-          symmetries=model.symmetries)
+          model.smearing,
+          εF=ForwardDiff.value(model.εF),
+          model.spin_polarization,
+          model.symmetries,
+          # Can be safely disabled: this has been checked for basis.model
+          disable_electrostatics_check=true)
 end
 
 construct_value(el::Element) = el

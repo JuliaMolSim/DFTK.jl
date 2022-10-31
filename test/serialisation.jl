@@ -8,7 +8,9 @@ include("testcases.jl")
 
 function test_scfres_agreement(tested, ref)
     @test tested.basis.model.lattice           == ref.basis.model.lattice
+    @test tested.basis.model.temperature       == ref.basis.model.temperature
     @test tested.basis.model.smearing          == ref.basis.model.smearing
+    @test tested.basis.model.εF                == ref.basis.model.εF
     @test tested.basis.model.symmetries        == ref.basis.model.symmetries
     @test tested.basis.model.spin_polarization == ref.basis.model.spin_polarization
 
@@ -36,10 +38,10 @@ end
 
 
 @testset "Test checkpointing" begin
-    O = ElementPsp(o2molecule.atnum, psp=load_psp("hgh/pbe/O-q6.hgh"))
-    model = model_PBE(o2molecule.lattice, [O, O], o2molecule.positions;
-                      temperature=0.02, smearing=Smearing.Gaussian(),
-                      magnetic_moments=[1., 1.], symmetries=false)
+    model = model_PBE(o2molecule.lattice, o2molecule.atoms, o2molecule.positions;
+                      temperature=0.02, smearing=Smearing.Gaussian(), εF=0.5,
+                      magnetic_moments=[1., 1.], symmetries=false,
+                      disable_electrostatics_check=true)
 
     kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
     basis  = PlaneWaveBasis(model; Ecut=4, kgrid)
@@ -49,18 +51,20 @@ end
         checkpointfile = joinpath(tmpdir, "scfres.jld2")
         checkpointfile = MPI.bcast(checkpointfile, 0, MPI.COMM_WORLD)  # master -> everyone
 
-        callback = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
-        scfres = self_consistent_field(basis; tol=5e-2, callback)
+        callback  = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
+        nbandsalg = FixedBands(; n_bands_converge=20)
+        scfres = self_consistent_field(basis; tol=5e-2, nbandsalg, callback)
         test_scfres_agreement(scfres, load_scfres(checkpointfile))
     end
 end
 
 @testset "Test serialisation" begin
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions;
-                      spin_polarization=:collinear, temperature=0.01)
+                      spin_polarization=:collinear, temperature=0.01, εF=0.5,
+                      disable_electrostatics_check=true)
     kgrid = [2, 3, 4]
     basis = PlaneWaveBasis(model; Ecut=5, kgrid)
-    scfres = self_consistent_field(basis)
+    scfres = self_consistent_field(basis; nbandsalg=FixedBands(; n_bands_converge=20))
 
     @test_throws ErrorException save_scfres("MyVTKfile.random", scfres)
     @test_throws ErrorException save_scfres("MyVTKfile", scfres)

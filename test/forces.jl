@@ -69,9 +69,8 @@ end
 
 @testset "Forces on spin-polarised case" begin
     function oxygen_energy_forces(positions)
-        O = ElementPsp(o2molecule.atnum, psp=load_psp("hgh/pbe/O-q6.hgh"))
         magnetic_moments = [1.0, 1.0]
-        model = model_PBE(diagm([7.0, 7.0, 7.0]), [O, O], positions;
+        model = model_PBE(diagm([7.0, 7.0, 7.0]), o2molecule.atoms, positions;
                           temperature=0.02, smearing=Smearing.Gaussian(), magnetic_moments)
         basis = PlaneWaveBasis(model; Ecut=4, kgrid=[1, 1, 1])
 
