@@ -33,7 +33,7 @@ function energy_ewald(model::Model{T}; kwargs...) where {T}
     energy_ewald(model.lattice, charges, model.positions; kwargs...)
 end
 
-# This could be factorised with Pairwise, but its use of `atom_types` would slow down this
+# This could be merged with Pairwise, but its use of `atom_types` would slow down this
 # computationally intensive Ewald sums. So we leave it as it for now.
 """
 Compute the electrostatic interaction energy per unit cell between point
@@ -52,7 +52,6 @@ function energy_ewald(lattice::AbstractArray{T}, charges, positions;
     any(iszero.(eachcol(lattice))) && return zero(T)
 
     recip_lattice = compute_recip_lattice(lattice)
-    @assert T == eltype(recip_lattice)
     @assert length(charges) == length(positions)
     if isnothing(η)
         # Balance between reciprocal summation and real-space summation

@@ -147,7 +147,7 @@ end
             end
 
             if Threads.threadid() == 1
-                merge!(timer, to; tree_point=[t.name for t in timer.timer_stack])
+                merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
             end
        end
     end

@@ -54,7 +54,7 @@ function energy_pairwise(model::Model{T}, V, params; kwargs...) where {T}
 end
 
 
-# This could be factorised with Ewald, but the use of `symbols` would slow down the
+# This could be merged with Ewald, but the use of `symbols` would slow down the
 # computationally intensive Ewald sums. So we leave it as it for now.
 # `q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
 # compute the Fourier transform of the force constant matrix.
@@ -84,7 +84,7 @@ function energy_pairwise(lattice, symbols, positions, V, params;
     Rlims = estimate_integer_lattice_bounds(lattice, max_radius, poslims)
 
     # Check if some coordinates are not used.
-    is_dim_trivial = [iszero(norm(lattice[:,i])) for i=1:3]
+    is_dim_trivial = iszero.(eachcol(lattice))
     max_shell(n, trivial) = trivial ? 0 : n
     Rlims = max_shell.(Rlims, is_dim_trivial)
 

@@ -32,7 +32,7 @@ include("common/threading.jl")
 include("common/printing.jl")
 include("common/cis2pi.jl")
 include("common/zeros_like.jl")
-include("common/phonon.jl")
+include("common/norm.jl")
 
 export PspHgh
 export PspUpf
