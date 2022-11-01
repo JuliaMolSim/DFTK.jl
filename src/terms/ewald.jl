@@ -36,13 +36,11 @@ end
 # This could be merged with Pairwise, but its use of `atom_types` would slow down this
 # computationally intensive Ewald sums. So we leave it as it for now.
 """
-Compute the electrostatic interaction energy per unit cell between point
-charges in a uniform background of compensating charge to yield net
-neutrality. The `lattice` and `recip_lattice` should contain the
-lattice and reciprocal lattice vectors as columns. `charges` and
-`positions` are the point charges and their positions (as an array of
-arrays) in fractional coordinates. If `forces` is not nothing, minus the derivatives
-of the energy with respect to `positions` is computed.
+Compute the electrostatic interaction energy per unit cell between point charges in
+a uniform background of compensating charge to yield net neutrality.`lattice` should
+contain the lattice vectors as columns. `charges` and `positions` are the point charges and
+their positions (as an array of arrays) in fractional coordinates. If `forces` is not
+nothing, minus the derivatives of the energy with respect to `positions` is computed.
 """
 function energy_ewald(lattice::AbstractArray{T}, charges, positions;
                       η=nothing, forces=nothing) where {T}
