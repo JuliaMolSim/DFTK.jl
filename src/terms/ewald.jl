@@ -46,6 +46,11 @@ of the energy with respect to `positions` is computed.
 """
 function energy_ewald(lattice::AbstractArray{T}, charges, positions;
                       η=nothing, forces=nothing) where {T}
+    # TODO should something more clever be done here? For now
+    # we assume that we are not interested in the Ewald
+    # energy of non-3D systems
+    any(iszero.(eachcol(lattice))) && return zero(T)
+
     recip_lattice = compute_recip_lattice(lattice)
     @assert length(charges) == length(positions)
     if isnothing(η)
@@ -75,11 +80,6 @@ function energy_ewald(lattice::AbstractArray{T}, charges, positions;
     # thus use the bound  ||A(rj - rk - R)|| * η ≤ max_erfc_arg
     poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
     Rlims = estimate_integer_lattice_bounds(lattice, max_erfc_arg / η, poslims)
-
-    # Check if some coordinates are not used.
-    is_dim_trivial = iszero.(eachcol(lattice))
-    max_shell(n, trivial) = trivial ? 0 : n
-    Rlims = max_shell.(Rlims, is_dim_trivial)
 
     #
     # Reciprocal space sum
