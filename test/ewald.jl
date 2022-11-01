@@ -2,6 +2,16 @@ using Test
 using DFTK: energy_ewald
 using LinearAlgebra
 
+@testset "Ewald in 1D" begin
+    lattice = [1.0 0 0; 0 0 0; 0 0 0]
+    charges = [1]
+    positions = [[0,0,0]]
+
+    ref = -4.67579376684418
+    γ_E = energy_ewald(lattice, charges, positions)
+    @test abs(γ_E - ref) < 1e-8
+end
+
 @testset "Hydrogen atom" begin
     lattice = 16 * Diagonal(ones(3))
     charges = [1]
