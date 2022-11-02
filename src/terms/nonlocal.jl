@@ -175,7 +175,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     end
     @assert offset == n_proj
     # GPU computation only : build the vectors on CPU then offload them to the GPU
-    convert(array_type(basis), proj_vectors)
+    copy_like(basis.G_vectors, proj_vectors)
 end
 
 """

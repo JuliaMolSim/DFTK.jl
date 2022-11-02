@@ -27,9 +27,9 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
     chunk_length = cld(length(ik_n), Threads.nthreads())
 
     # chunk-local variables
-    ρ_chunklocal = [convert(array_type(basis), zeros(T, basis.fft_size..., basis.model.n_spin_components))
+    ρ_chunklocal = [zeros_like(basis.G_vectors, T, basis.fft_size..., basis.model.n_spin_components)
                     for _ = 1:Threads.nthreads()]
-    ψnk_real_chunklocal = [convert(array_type(basis), zeros(complex(T), basis.fft_size))
+    ψnk_real_chunklocal = [zeros_like(basis.G_vectors, complex(T), basis.fft_size...)
                             for _ = 1:Threads.nthreads()]
 
     # TODO We should probably pass occupation_threshold here and ignore bands

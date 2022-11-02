@@ -57,7 +57,7 @@ function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany) where {
     @static if VERSION < v"1.7"
         # Don't use TaskLocalRNG as it is not available.
         orbitals = randn(Complex{T}, length(G_vectors(basis, kpt)), howmany)
-        orbitals = convert(array_type(basis), orbitals)
+        orbitals = copy_like(basis.G_vectors, orbitals)
     else
         orbitals = similar(basis.G_vectors, Complex{T}, length(G_vectors(basis, kpt)), howmany)
         randn!(TaskLocalRNG(), orbitals)  # Force the use of GPUArrays.jl's random function if using the GPU

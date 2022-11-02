@@ -40,7 +40,7 @@ Normalization conventions:
 
 `ifft` and `fft` convert between these representations.
 """
-struct PlaneWaveBasis{T, VT, AT, GT, RT} <: AbstractBasis{T} where {VT <: Real, GT, RT, AT <: AbstractArray}
+struct PlaneWaveBasis{T, VT, GT, RT} <: AbstractBasis{T} where {VT <: Real, GT <: AbstractArray, RT <: AbstractArray}
     # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
     model::Model{T, VT}
 
@@ -115,7 +115,10 @@ Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 Return the type of array used for computations (Array if on CPU, CuArray,
 ROCArray... if on GPU).
 """
-array_type(basis::PlaneWaveBasis{T,VT,AT}) where {T, VT, AT} = AT
+function array_type(basis::PlaneWaveBasis)
+    Base.typename(typeof(basis.G_vectors)).wrapper
+end
+
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
@@ -263,7 +266,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
 
     RT = array_type{Vec3{VT}, 3}
     GT = array_type{Vec3{Int}, 3}
-    basis = PlaneWaveBasis{T,value_type(T), array_type, GT, RT}(
+    basis = PlaneWaveBasis{T,value_type(T), GT, RT}(
         model, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,

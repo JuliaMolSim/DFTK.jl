@@ -42,7 +42,7 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
     # of calling back the array on CPU, running force_real!, then putting it back on GPU
     poisson_green_coeffs = Array(poisson_green_coeffs)
     enforce_real!(basis, poisson_green_coeffs)  # Symmetrize Fourier coeffs to have real iFFT
-    poisson_green_coeffs = convert(array_type(basis), poisson_green_coeffs)
+    poisson_green_coeffs = copy_like(basis.G_vectors,poisson_green_coeffs)
 
     TermHartree(T(scaling_factor), T(scaling_factor) .* poisson_green_coeffs)
 end
