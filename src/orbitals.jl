@@ -17,7 +17,7 @@ function select_occupied_orbitals(basis, ψ, occupation; threshold=0.0)
         n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)
         @assert n_bands == size(selected_ψ[1], 2)
     end
-    (ψ=selected_ψ, occupation=selected_occ)
+    (; ψ=selected_ψ, occupation=selected_occ)
 end
 
 # Packing routines used in direct_minimization and newton algorithms.

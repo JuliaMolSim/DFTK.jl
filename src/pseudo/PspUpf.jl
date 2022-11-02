@@ -85,7 +85,7 @@ function PspUpf(path; identifier=path)
         betas_l = filter(beta -> beta["angular_momentum"] == l, pseudo["beta_projectors"])
         map(beta -> beta["radial_function"] ./ 2, betas_l)  # Ry -> Ha
     end
-    
+
     h = Matrix[]
     count = 1
     for l = 0:lmax
@@ -101,14 +101,14 @@ function PspUpf(path; identifier=path)
         end
         map(pswfc -> pswfc["radial_function"], pswfcs_l)
     end
-    
+
     pswfc_occs = map(0:lmax - 1) do l
         pswfcs_l = filter(pseudo["atomic_wave_functions"]) do pswfc
             pswfc["angular_momentum"] == l
         end
         map(pswfc -> pswfc["occupation"], pswfcs_l)
     end
-    
+
     rhoatom = pseudo["total_charge_density"]
 
     return PspUpf(Zion, lmax, rgrid, drgrid, vloc, r_projs, h, pswfcs, pswfc_occs, rhoatom;

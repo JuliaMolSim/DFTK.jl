@@ -55,7 +55,7 @@ end
     E = real(dot(pot_fourier, ρtot_fourier) / 2)
 
     ops = [RealSpaceMultiplication(basis, kpt, pot_real) for kpt in basis.kpoints]
-    (E=E, ops=ops)
+    (; E, ops)
 end
 
 function compute_kernel(term::TermHartree, basis::PlaneWaveBasis; kwargs...)

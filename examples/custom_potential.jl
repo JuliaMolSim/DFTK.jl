@@ -58,7 +58,7 @@ model = Model(lattice, atoms, positions; n_electrons, terms,
 # a starting density and we choose to start from a zero density.
 basis = PlaneWaveBasis(model; Ecut=500, kgrid=(1, 1, 1))
 ρ = zeros(eltype(basis), basis.fft_size..., 1)
-scfres = self_consistent_field(basis; tol=1e-8, ρ=ρ)
+scfres = self_consistent_field(basis; tol=1e-8, ρ)
 scfres.energies
 
 # Computing the forces can then be done as usual:

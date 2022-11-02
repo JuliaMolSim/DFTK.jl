@@ -18,7 +18,7 @@ abstract type TermLocalPotential <: Term end
         E = T(Inf)
     end
 
-    (E=E, ops=ops)
+    (; E, ops)
 end
 
 ## External potentials

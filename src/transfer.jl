@@ -113,7 +113,7 @@ function find_equivalent_kpt(kcoords::Vector{Vec3{T}}, kcoord; tol=100*eps(T)) w
     @assert all(is_approx_integer.(ΔG; tol))
     ΔG = round.(Int, ΔG)
 
-    return (; index=index, ΔG)
+    return (; index, ΔG)
 end
 
 """

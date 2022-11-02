@@ -76,7 +76,7 @@ plot!(p, a_list, E0_ref, label="Ecut=100", color=2)
 #    [arXiv preprint.](https://arxiv.org/abs/2210.00442)
 
 # Let us lauch the computation again with the modified kinetic term.
-E0_modified = compute_ground_state_energy.(a_list; kinetic_blowup=BlowupCHV(), Ecut, kgrid,);
+E0_modified = compute_ground_state_energy.(a_list; kinetic_blowup=BlowupCHV(), Ecut, kgrid);
 
 # !!! note "Abinit energy cutoff smearing option"
 #     For the sake of completeness, DFTK also provides the blow-up function `BlowupAbinit`

@@ -25,8 +25,8 @@ function compute_forces_cart(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
 end
 
 function compute_forces(scfres)
-    compute_forces(scfres.basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
+    compute_forces(scfres.basis, scfres.ψ, scfres.occupation; scfres.ρ)
 end
 function compute_forces_cart(scfres)
-    compute_forces_cart(scfres.basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
+    compute_forces_cart(scfres.basis, scfres.ψ, scfres.occupation; scfres.ρ)
 end

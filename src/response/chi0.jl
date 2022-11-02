@@ -177,9 +177,8 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
     res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
              callback=cg_callback)
-    !res.converged && @warn("Sternheimer CG not converged",
-                            iterations=res.iterations, tol=res.tol,
-                            residual_norm=res.residual_norm)
+    !res.converged && @warn("Sternheimer CG not converged", res.iterations,
+                            res.tol, res.residual_norm)
     δψknᴿ = res.x
     info = (; basis, kpoint, res)
     callback(info)
@@ -389,7 +388,7 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
            for (ik, kpt) in enumerate(basis.kpoints)]
     δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                        occupation_threshold, kwargs_sternheimer...)
-    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation, δoccupation)
+    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation, δoccupation; occupation_threshold)
     δρ * normδV
 end
 

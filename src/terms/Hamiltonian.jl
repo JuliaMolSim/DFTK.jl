@@ -187,14 +187,13 @@ end
     hks_per_k   = [flatten([blocks[ik] for blocks in operators])
                    for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
 
-    H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
-                            for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
-    E = Energies(basis.model.term_types, energies)
-    (E=E, H=H)
+    ham = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
+                              for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
+    energies = Energies(basis.model.term_types, energies)
+    (; energies, ham)
 end
 function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occupation=nothing, kwargs...)
-    _, H = energy_hamiltonian(basis, ψ, occupation; kwargs...)
-    H
+    energy_hamiltonian(basis, ψ, occupation; kwargs...).ham
 end
 
 """

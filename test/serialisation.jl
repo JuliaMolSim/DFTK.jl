@@ -50,7 +50,7 @@ end
         checkpointfile = MPI.bcast(checkpointfile, 0, MPI.COMM_WORLD)  # master -> everyone
 
         callback = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
-        scfres = self_consistent_field(basis, tol=5e-2, callback=callback)
+        scfres = self_consistent_field(basis; tol=5e-2, callback)
         test_scfres_agreement(scfres, load_scfres(checkpointfile))
     end
 end

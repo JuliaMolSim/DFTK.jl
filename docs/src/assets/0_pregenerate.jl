@@ -26,14 +26,14 @@ let
         println("----------------------------------------------------")
         a = 5.0
         lattice   = a * Matrix(I, 3, 3)
-        atoms     = [ElementPsp(:Li, psp=psp)]
+        atoms     = [ElementPsp(:Li; psp)]
         positions = [zeros(3)]
-    
+
         model = model_LDA(lattice, atoms, positions; temperature=1e-2)
-        basis = PlaneWaveBasis(model; Ecut=Ecut, kgrid=[8, 8, 8])
+        basis = PlaneWaveBasis(model; Ecut, kgrid=[8, 8, 8])
         self_consistent_field(basis; tol=1e-12)
     end
-    
+
     function converge_Ecut(Ecuts, psp, tol)
         energy_ref = run_scf(Ecuts[end], psp).energies.total
         energies = []
@@ -47,7 +47,7 @@ let
         n_energies = length(energies)
         errors = abs.(energies .- energy_ref)
         iconv = findfirst(errors .< tol)
-        (Ecuts=Ecuts[begin:n_energies], errors=errors,
+        (; Ecuts=Ecuts[begin:n_energies], errors,
          Ecut_conv=Ecuts[iconv], error_conv=errors[iconv])
     end
 

@@ -96,7 +96,7 @@ H = ham.blocks[1];
 
 # `H` can be used as a linear operator (efficiently using FFTs), or converted to a dense matrix:
 ψ11 = scfres.ψ[1][:, 1] # first k-point, first eigenvector
-Hmat = Array(H) # This is now just a plain Julia matrix, 
+Hmat = Array(H) # This is now just a plain Julia matrix,
 ##                which we can compute and store in this simple 1D example
 @assert norm(Hmat * ψ11 - H * ψ11) < 1e-10
 

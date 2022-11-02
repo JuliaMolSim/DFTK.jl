@@ -30,11 +30,11 @@ positions = [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]];
 # By default `PlaneWaveBasis` chooses a `kspacing`
 # of `2π * 0.022` inverse Bohrs, which is much more reasonable.
 
-kspacing = 0.945 / u"angstrom"        # Minimal spacing of k-points, 
+kspacing = 0.945 / u"angstrom"        # Minimal spacing of k-points,
 ##                                      in units of wavevectors (inverse Bohrs)
 Ecut = 5                              # Kinetic energy cutoff in Hartree
 temperature = 0.01                    # Smearing temperature in Hartree
-smearing = DFTK.Smearing.FermiDirac() # Smearing method 
+smearing = DFTK.Smearing.FermiDirac() # Smearing method
 ##                                      also supported: Gaussian,
 ##                                      MarzariVanderbilt,
 ##                                      and MethfesselPaxton(order)

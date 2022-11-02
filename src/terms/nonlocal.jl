@@ -29,7 +29,7 @@ end
                                              basis::PlaneWaveBasis{T},
                                              ψ, occupation; kwargs...) where {T}
     if isnothing(ψ) || isnothing(occupation)
-        return (E=T(Inf), ops=term.ops)
+        return (; E=T(Inf), term.ops)
     end
 
     E = zero(T)
@@ -40,7 +40,7 @@ end
     end
     E = mpi_sum(E, basis.comm_kpts)
 
-    (E=E, ops=term.ops)
+    (; E, term.ops)
 end
 
 @timing "forces: nonlocal" function compute_forces(::TermAtomicNonlocal,

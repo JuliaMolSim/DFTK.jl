@@ -18,7 +18,7 @@ include("testcases.jl")
         kcoords_spglib = DFTK.normalize_kpoint_coordinate.(kcoords_spglib)
         sort!(kcoords_spglib)
 
-        kcoords, _ = bzmesh_uniform(kgrid_size, kshift=kshift)
+        kcoords, _ = bzmesh_uniform(kgrid_size; kshift)
         sort!(kcoords)
 
         @test kcoords == kcoords_spglib

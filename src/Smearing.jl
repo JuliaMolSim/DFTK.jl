@@ -102,7 +102,7 @@ entropy(S::Gaussian, x::T) where {T} = 1 / (2 * sqrt(T(π))) * exp(-x^2)
 struct MarzariVanderbilt <: SmearingFunction end
 function occupation(S::MarzariVanderbilt, x::T) where {T}
     return (
-        -erf(x + 1/sqrt(T(2))) / 2 
+        -erf(x + 1/sqrt(T(2))) / 2
         + 1/sqrt(2*T(π)) * exp(-(-x - 1/sqrt(T(2)))^2) + 1/T(2)
     )
 end

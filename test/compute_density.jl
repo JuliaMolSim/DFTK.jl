@@ -29,7 +29,7 @@ if mpi_nprocs() == 1  # not easy to distribute
 
         for it in 1:n_rounds
             ham = Hamiltonian(basis; ρ=ρnew)
-            res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol=tol, ψguess=res.X)
+            res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol, ψguess=res.X)
 
             occ, εF = DFTK.compute_occupation(basis, res.λ)
             ρnew = compute_density(basis, res.X, occ)

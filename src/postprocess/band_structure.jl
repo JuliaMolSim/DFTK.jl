@@ -236,5 +236,5 @@ function plot_bandstructure(basis::PlaneWaveBasis, kpath::KPath=irrfbz_path(basi
 end
 function plot_bandstructure(scfres::NamedTuple, kpath::KPath=irrfbz_path(scfres.basis.model);
                             n_bands=default_n_bands_bandstructure(scfres), kwargs...)
-    plot_bandstructure(scfres.basis, kpath; n_bands, ρ=scfres.ρ, εF=scfres.εF, kwargs...)
+    plot_bandstructure(scfres.basis, kpath; n_bands, scfres.ρ, scfres.εF, kwargs...)
 end

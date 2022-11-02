@@ -24,7 +24,7 @@ using PyCall
 
 ase_build = pyimport("ase.build")
 a = 5.6537  # GaAs lattice parameter in Ångström (because ASE uses Å as length unit)
-gaas = ase_build.bulk("GaAs", "zincblende", a=a)
+gaas = ase_build.bulk("GaAs", "zincblende"; a)
 surface = ase_build.surface(gaas, miller, n_GaAs, 0, periodic=true);
 
 # Get the amount of vacuum in Ångström we need to add

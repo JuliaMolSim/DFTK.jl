@@ -319,9 +319,9 @@ function unfold_bz(scfres)
     ψ = unfold_array_(scfres.basis, basis_unfolded, scfres.ψ, true)
     eigenvalues = unfold_array_(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
     occupation = unfold_array_(scfres.basis, basis_unfolded, scfres.occupation, false)
-    E, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
-                                scfres.ρ, eigenvalues, scfres.εF)
-    @assert E.total ≈ scfres.energies.total
+    energies, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
+                                       scfres.ρ, eigenvalues, scfres.εF)
+    @assert energies.total ≈ scfres.energies.total
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)
     merge(scfres, new_scfres)
 end
