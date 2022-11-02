@@ -15,6 +15,10 @@ end
 
 copy_like(array_model::Array, src::Array) = src
 
+function copy_like(array_model::Type, src::AbstractArray)
+    convert(array_model, src)
+end
+
 # function copy_like(array_model::Array, src::Array, T::Type=eltype(src), dims::Integer...=size(src)...)
 #     T == eltype(src) && dims == size(src) && src
 #     copy_like(array_model, src, T, dims...)

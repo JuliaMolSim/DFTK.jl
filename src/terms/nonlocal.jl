@@ -15,7 +15,7 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
     isempty(psp_groups) && return TermNoop()
     ops = map(basis.kpoints) do kpt
         P = build_projection_vectors_(basis, kpt, psps, psp_positions)
-        D = build_projection_coefficients_(T, psps, psp_positions, array_type = array_type(basis))
+        D = build_projection_coefficients_(T, psps, psp_positions, array_type = basis.G_vectors)
         NonlocalOperator(basis, kpt, P, D)
     end
     TermAtomicNonlocal(ops)
@@ -109,7 +109,7 @@ function build_projection_coefficients_(T, psps, psp_positions; array_type = Arr
     @assert count == n_proj
 
     # GPU computation only : build the coefficients on CPU then offload them to the GPU
-    convert(array_type, proj_coeffs)
+    copy_like(array_type, proj_coeffs)
 end
 
 # Builds the projection coefficient matrix for a single atom

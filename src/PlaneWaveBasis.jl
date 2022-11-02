@@ -122,7 +122,8 @@ end
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
-                               variational=true, array_type::Type=Array) where {T}
+                               variational=true,
+                               array_type::Union{Type,AbstractArray} = Array) where {T}
     kpoints_per_spin = [Kpoint[] for _ in 1:model.n_spin_components]
     for k in kcoords
         k = Vec3{T}(k)  # rationals are sloooow
@@ -138,13 +139,12 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
                 push!(Gvecs_k, G)
             end
         end
-        Gvecs_k = convert(array_type, Gvecs_k)  # GPU computation only: offload the Gs to the GPU
-        GT = array_type{Vec3{Int}}
+        Gvecs_k = copy_like(array_type, Gvecs_k)  # GPU computation only: offload the Gs to the GPU
 
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for iσ = 1:model.n_spin_components
             push!(kpoints_per_spin[iσ],
-                  Kpoint{T,GT}(iσ, k, mapping, mapping_inv, Gvecs_k))
+                  Kpoint{T,typeof(Gvecs_k)}(iσ, k, mapping, mapping_inv, Gvecs_k))
         end
     end
 
@@ -152,7 +152,7 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 end
 function build_kpoints(basis::PlaneWaveBasis, kcoords)
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut;
-                  variational=basis.variational, array_type = array_type(basis))
+                  variational=basis.variational, array_type = basis.G_vectors)
 end
 
 # Lowest-level constructor, should not be called directly.
@@ -160,7 +160,8 @@ end
 # and are stored in PlaneWaveBasis for easy reconstruction.
 function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
                         kcoords, kweights, kgrid, kshift,
-                        symmetries_respect_rgrid, comm_kpts, array_type::Type) where {T <: Real}
+                        symmetries_respect_rgrid, comm_kpts,
+                        array_type::Union{Type,AbstractArray} = Array) where {T <: Real}
     # Validate fft_size
     if variational
         max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
@@ -262,11 +263,10 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     VT = value_type(T)
     dvol  = model.unit_cell_volume ./ prod(fft_size)
     r_vectors = [Vec3{VT}(VT(i-1) / N1, VT(j-1) / N2, VT(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3]
+    r_vectors = copy_like(array_type, r_vectors)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
-    RT = array_type{Vec3{VT}, 3}
-    GT = array_type{Vec3{Int}, 3}
-    basis = PlaneWaveBasis{T,value_type(T), GT, RT}(
+    basis = PlaneWaveBasis{T,value_type(T), typeof(Gs), typeof(r_vectors)}(
         model, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
@@ -338,7 +338,7 @@ Creates a new basis identical to `basis`, but with a custom set of kpoints
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
                    kcoords, kweights, kgrid, kshift,
-                   basis.symmetries_respect_rgrid, basis.comm_kpts, array_type(basis))
+                   basis.symmetries_respect_rgrid, basis.comm_kpts, basis.G_vectors)
 end
 
 """
@@ -348,14 +348,14 @@ The wave vectors `G` in reduced (integer) coordinates for a cubic basis set
 of given sizes.
 """
 
-function G_vectors(fft_size::Union{Tuple,AbstractVector}, array_type = Array)
+function G_vectors(fft_size::Union{Tuple,AbstractVector}, array_type::Union{Type,AbstractArray} = Array)
     # Note that a collect(G_vectors_generator(fft_size)) is 100-fold slower
     # than this implementation, hence the code duplication.
     start = .- cld.(fft_size .- 1, 2)
     stop  = fld.(fft_size .- 1, 2)
     axes  = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
     Gs = [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
-    convert(array_type, Gs)  # GPU computation only : offload the Gs to the GPU.
+    copy_like(array_type, Gs)  # GPU computation only : offload the Gs to the GPU.
 end
 function G_vectors_generator(fft_size::Union{Tuple,AbstractVector})
     # The generator version is used mainly in symmetry.jl for lowpass_for_symmetry! and
@@ -509,7 +509,7 @@ function gather_kpts(basis)
                        basis.kshift,
                        basis.symmetries_respect_rgrid,
                        comm_kpts=MPI.COMM_SELF,
-                       array_type=DFTK.array_type(basis))
+                       array_type=basis.G_vectors)
     end
 end
 

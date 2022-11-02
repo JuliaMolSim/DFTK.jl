@@ -43,7 +43,7 @@ function cell_to_supercell(basis::PlaneWaveBasis)
                    ones(3),              # kgrid = Γ point only
                    basis.kshift,         # kshift
                    symmetries_respect_rgrid,
-                   basis.comm_kpts, array_type(basis))
+                   basis.comm_kpts, basis.G_vectors)
 end
 
 @doc raw"""
