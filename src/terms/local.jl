@@ -104,7 +104,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     end
     enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
     # GPU computation only : build the potential values on CPU then offload them to GPU
-    pot_real = irfft(basis, copy_like(basis.G_vectors, pot_fourier))
+    pot_real = irfft(basis, convert_like(basis.G_vectors, pot_fourier))
 
     TermAtomicLocal(pot_real)
 end

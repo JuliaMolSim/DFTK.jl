@@ -74,7 +74,7 @@ load_scfres(file::AbstractString) = JLD2.jldopen(load_scfres, file, "r")
 #
 # Custom serialisations
 #
-struct PlaneWaveBasisSerialisation{T <: Real, AT <: AbstractArray}
+struct PlaneWaveBasisSerialisation{T <: Real, GT <: AbstractArray}
     model::Model{T,T}
     Ecut::T
     variational::Bool
@@ -85,13 +85,13 @@ struct PlaneWaveBasisSerialisation{T <: Real, AT <: AbstractArray}
     symmetries_respect_rgrid::Bool
     fft_size::Tuple{Int, Int, Int}
 end
-function JLD2.writeas(::Type{PlaneWaveBasis{T,T,AT,GT,RT}}) where {T,AT,GT,RT}
-    PlaneWaveBasisSerialisation{T,AT}
+function JLD2.writeas(::Type{PlaneWaveBasis{T,T,GT,RT}}) where {T,GT,RT}
+    PlaneWaveBasisSerialisation{T,GT}
 end
 
-function Base.convert(::Type{PlaneWaveBasisSerialisation{T,AT}},
-                      basis::PlaneWaveBasis{T,T,AT}) where {T,AT}
-    PlaneWaveBasisSerialisation{T,AT}(
+function Base.convert(::Type{PlaneWaveBasisSerialisation{T,GT}},
+                      basis::PlaneWaveBasis{T,T,GT}) where {T,GT}
+    PlaneWaveBasisSerialisation{T,GT}(
         basis.model,
         basis.Ecut,
         basis.variational,
@@ -104,13 +104,16 @@ function Base.convert(::Type{PlaneWaveBasisSerialisation{T,AT}},
     )
 end
 
-function Base.convert(::Type{PlaneWaveBasis{T,T,AT,GT,RT}},
-                      serial::PlaneWaveBasisSerialisation{T,AT}) where {T,AT,GT,RT}
+function Base.convert(::Type{PlaneWaveBasis{T,T,GT,RT}},
+                      serial::PlaneWaveBasisSerialisation{T,GT}) where {T,GT,RT}
     PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords, serial.kweights;
                    serial.fft_size,
                    serial.kgrid,
                    serial.kshift,
                    serial.symmetries_respect_rgrid,
                    serial.variational,
-                   array_type=AT)
+                   array_type=similar(GT, 1, 1, 1))
+                   # Can't use GT directly as it is Array{type, 2} instead of Array
+                   # so we build an array with type GT. GT is the G_vectors'type, so it
+                   # represents 3-dimensional arrays, hence the three 1's.
 end

@@ -79,7 +79,7 @@ end
     # of calling back the array on CPU, running force_real!, then putting it back on GPU
     δρtot_fourier = Array(δρtot_fourier)
     enforce_real!(basis, δρtot_fourier)
-    δρtot_fourier = copy_like(basis.G_vectors, δρtot_fourier)
+    δρtot_fourier = convert_like(basis.G_vectors, δρtot_fourier)
 
     δρtot = irfft(basis, δρtot_fourier)
 

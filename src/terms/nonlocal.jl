@@ -109,7 +109,7 @@ function build_projection_coefficients_(T, psps, psp_positions; array_type = Arr
     @assert count == n_proj
 
     # GPU computation only : build the coefficients on CPU then offload them to the GPU
-    copy_like(array_type, proj_coeffs)
+    convert_like(array_type, proj_coeffs)
 end
 
 # Builds the projection coefficient matrix for a single atom
@@ -175,7 +175,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     end
     @assert offset == n_proj
     # GPU computation only : build the vectors on CPU then offload them to the GPU
-    copy_like(basis.G_vectors, proj_vectors)
+    convert_like(basis.G_vectors, proj_vectors)
 end
 
 """

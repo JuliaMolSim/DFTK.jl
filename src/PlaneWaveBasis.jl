@@ -115,9 +115,6 @@ Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 Return the type of array used for computations (Array if on CPU, CuArray,
 ROCArray... if on GPU).
 """
-function array_type(basis::PlaneWaveBasis)
-    Base.typename(typeof(basis.G_vectors)).wrapper
-end
 
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
@@ -139,7 +136,7 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
                 push!(Gvecs_k, G)
             end
         end
-        Gvecs_k = copy_like(array_type, Gvecs_k)  # GPU computation only: offload the Gs to the GPU
+        Gvecs_k = convert_like(array_type, Gvecs_k)  # GPU computation only: offload the Gs to the GPU
 
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for iσ = 1:model.n_spin_components
@@ -263,7 +260,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     VT = value_type(T)
     dvol  = model.unit_cell_volume ./ prod(fft_size)
     r_vectors = [Vec3{VT}(VT(i-1) / N1, VT(j-1) / N2, VT(k-1) / N3) for i = 1:N1, j = 1:N2, k = 1:N3]
-    r_vectors = copy_like(array_type, r_vectors)
+    r_vectors = convert_like(array_type, r_vectors)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
     basis = PlaneWaveBasis{T,value_type(T), typeof(Gs), typeof(r_vectors)}(
@@ -355,7 +352,7 @@ function G_vectors(fft_size::Union{Tuple,AbstractVector}, array_type::Union{Type
     stop  = fld.(fft_size .- 1, 2)
     axes  = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
     Gs = [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
-    copy_like(array_type, Gs)  # GPU computation only : offload the Gs to the GPU.
+    convert_like(array_type, Gs)  # GPU computation only : offload the Gs to the GPU.
 end
 function G_vectors_generator(fft_size::Union{Tuple,AbstractVector})
     # The generator version is used mainly in symmetry.jl for lowpass_for_symmetry! and
