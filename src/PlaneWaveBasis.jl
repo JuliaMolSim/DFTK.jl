@@ -40,7 +40,8 @@ Normalization conventions:
 
 `ifft` and `fft` convert between these representations.
 """
-struct PlaneWaveBasis{T, VT, GT, RT} <: AbstractBasis{T} where {VT <: Real, GT <: AbstractArray, RT <: AbstractArray}
+struct PlaneWaveBasis{T, VT, GT, RT, KGT} <: AbstractBasis{T} where {VT <: Real, GT <: AbstractArray,
+                                                                    RT <: AbstractArray, KGT <: AbstractArray}
     # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
     model::Model{T, VT}
 
@@ -74,7 +75,7 @@ struct PlaneWaveBasis{T, VT, GT, RT} <: AbstractBasis{T} where {VT <: Real, GT <
     ## MPI-local information of the kpoints this processor treats
     # Irreducible kpoints. In the case of collinear spin,
     # this lists all the spin up, then all the spin down
-    kpoints::Vector{Kpoint{T}}
+    kpoints::Vector{Kpoint{T, KGT}}
     # BZ integration weights, summing up to model.n_spin_components
     kweights::Vector{T}
 
@@ -151,6 +152,8 @@ function build_kpoints(basis::PlaneWaveBasis, kcoords)
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut;
                   variational=basis.variational, array_type = basis.G_vectors)
 end
+
+kpt_array_type(A::Kpoint{T, GT}) where {T,GT} = GT
 
 # Lowest-level constructor, should not be called directly.
 # All given parameters must be the same on all processors
@@ -263,7 +266,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     r_vectors = convert_like(array_type, r_vectors)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
-    basis = PlaneWaveBasis{T,value_type(T), typeof(Gs), typeof(r_vectors)}(
+    basis = PlaneWaveBasis{T,value_type(T), typeof(Gs), typeof(r_vectors), kpt_array_type(kpoints[1])}(
         model, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
