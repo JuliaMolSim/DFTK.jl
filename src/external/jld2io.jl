@@ -85,7 +85,7 @@ struct PlaneWaveBasisSerialisation{T <: Real, GT <: AbstractArray}
     symmetries_respect_rgrid::Bool
     fft_size::Tuple{Int, Int, Int}
 end
-function JLD2.writeas(::Type{PlaneWaveBasis{T,T,GT,RT}}) where {T,GT,RT}
+function JLD2.writeas(::Type{PlaneWaveBasis{T,T,GT,RT,KGT}}) where {T,GT,RT,KGT}
     PlaneWaveBasisSerialisation{T,GT}
 end
 
@@ -104,8 +104,8 @@ function Base.convert(::Type{PlaneWaveBasisSerialisation{T,GT}},
     )
 end
 
-function Base.convert(::Type{PlaneWaveBasis{T,T,GT,RT}},
-                      serial::PlaneWaveBasisSerialisation{T,GT}) where {T,GT,RT}
+function Base.convert(::Type{PlaneWaveBasis{T,T,GT,RT,KGT}},
+                      serial::PlaneWaveBasisSerialisation{T,GT}) where {T,GT,RT,KGT}
     PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords, serial.kweights;
                    serial.fft_size,
                    serial.kgrid,
