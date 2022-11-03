@@ -13,6 +13,7 @@ function ene_ops(term::TermLocalNonlinearity, basis::PlaneWaveBasis{T}, ψ, occu
                  ρ, kwargs...) where {T}
     fp(ρ) = ForwardDiff.derivative(term.f, ρ)
     E = sum(term.f.(ρ)) * basis.dvol
+    E = convert_dual(T, E)
     potential = convert_dual.(T, fp.(ρ))
 
     # In the case of collinear spin, the potential is spin-dependent
@@ -22,14 +23,14 @@ function ene_ops(term::TermLocalNonlinearity, basis::PlaneWaveBasis{T}, ψ, occu
 end
 
 
-function compute_kernel(term::TermLocalNonlinearity, ::AbstractBasis; ρ, kwargs...)
+function compute_kernel(term::TermLocalNonlinearity, ::PlaneWaveBasis{T}; ρ, kwargs...) where {T}
     fp(ρ) = ForwardDiff.derivative(term.f, ρ)
     fpp(ρ) = ForwardDiff.derivative(fp, ρ)
-    Diagonal(vec(fpp.(ρ)))
+    Diagonal(vec(convert_dual.(T, fpp.(ρ))))
 end
 
-function apply_kernel(term::TermLocalNonlinearity, ::AbstractBasis, δρ; ρ, kwargs...)
+function apply_kernel(term::TermLocalNonlinearity, ::PlaneWaveBasis{T}, δρ; ρ, kwargs...) where {T}
     fp(ρ) = ForwardDiff.derivative(term.f, ρ)
     fpp(ρ) = ForwardDiff.derivative(fp, ρ)
-    fpp.(ρ) .* δρ
+    convert_dual.(T, fpp.(ρ) .* δρ)
 end

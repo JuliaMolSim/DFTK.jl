@@ -130,3 +130,30 @@ end
     fd2 = FiniteDifferences.central_fdm(5, 1)(erfcα, x0)
     @test norm(fd1 - fd2) < tol
 end
+
+@testset "LocalNonlinearity sensitivity using ForwardDiff" begin
+    function compute_force(ε::T) where {T}
+        # solve the 1D Gross-Pitaevskii equation with ElementGaussian potential
+        a = 10.0
+        lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]]
+        positions = [[0.2, 0, 0], [0.8, 0, 0]]
+        gauss = ElementGaussian(1.0, 0.5)
+        atoms = [gauss, gauss]
+        C = 1.0
+        α = 2
+        n_electrons = 1
+        terms = [Kinetic(), AtomicLocal(), LocalNonlinearity(ρ -> (C + ε) * ρ^α)]
+        model = Model(Matrix{T}(lattice), atoms, positions;
+                      n_electrons, terms, spin_polarization=:spinless)
+        basis = PlaneWaveBasis(model; Ecut=500, kgrid=(1, 1, 1))
+        ρ = zeros(Float64, basis.fft_size..., 1)
+        scfres = self_consistent_field(basis; tol=1e-8, ρ,
+                                       response=ResponseOptions(verbose=true))
+        compute_forces_cart(scfres)
+    end
+    derivative_ε = let ε = 1e-5
+        (compute_force(ε) - compute_force(-ε)) / 2ε
+    end
+    derivative_fd = ForwardDiff.derivative(compute_force, 0.0)
+    @test norm(derivative_ε - derivative_fd) < 1e-4
+end
