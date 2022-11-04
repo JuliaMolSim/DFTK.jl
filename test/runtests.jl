@@ -82,7 +82,6 @@ Random.seed!(0)
         include("external/ase.jl")
         include("external/atomsbase.jl")
         include("external/interatomicpotentials.jl")
-        include("external/pymatgen.jl")
         include("external/spglib.jl")
         include("external/wannier90.jl")
     end

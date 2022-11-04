@@ -41,7 +41,7 @@
     - Seamless integration with many standard [Input and output formats](@ref).
     - Integration with [ASE](https://wiki.fysik.dtu.dk/ase/) and
       [AtomsBase](https://github.com/JuliaMolSim/AtomsBase.jl) for passing
-      atomic structures.
+      atomic structures (see [AtomsBase integration](@ref)).
     - [Wannierization using Wannier90](@ref)
 
 

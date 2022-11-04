@@ -173,18 +173,11 @@ include("pseudo/list_psp.jl")
 include("pseudo/attach_psp.jl")
 
 export DFTKPotential
-export pymatgen_structure
-export ase_atoms
-export load_lattice
-export load_atoms
-export load_positions
-export load_magnetic_moments
+export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
 include("external/atomsbase.jl")
 include("external/interatomicpotentials.jl")
-include("external/load_from_file.jl")
-include("external/ase.jl")
-include("external/pymatgen.jl")
+# include("external/ase.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
 
 export compute_bands

@@ -165,6 +165,6 @@ function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer)
         end
     end
 end
-function kgrid_from_minimal_kpoints(model::Model, args...)
-    kgrid_from_minimal_kpoints(model.lattice, args...)
+function kgrid_from_minimal_n_kpoints(model::Model, args...)
+    kgrid_from_minimal_n_kpoints(model.lattice, args...)
 end

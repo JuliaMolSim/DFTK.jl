@@ -17,7 +17,7 @@ function attach_psp(system::AbstractSystem, pspmap::AbstractDict{Symbol,String})
         symbol = atomic_symbol(atom)
 
         # Pseudo or explicit potential already set
-        if hasproperty(atom, :pseudopotential) || hasproperty(atom, :potential)
+        if hasproperty(atom, :pseudopotential) && !isempty(atom.pseudopotential)
             Atom(; atom)
         elseif !(symbol in keys(pspmap))
             error("No pseudo identifier given for element $symbol.")

@@ -3,51 +3,40 @@
 # This section provides an overview of the input and output formats
 # supported by DFTK, usually via integration with a third-party library.
 #
-# ## Reading input formats supported by ASE
-# ASE is short for the
-# [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html),
-# a Python package to simplify the process of setting up, running and
-# analysing results from atomistic simulations across different programs.
-# If it is installed it is automatically used by DFTK in order to read a wide range
-# of input files, such as xyz, CIF, input files of various other codes
-# (e.g. Quantum Espresso, VASP, ABINIT, CASTEP, …).
-# The full list of formats
-# can be found in the [ASE IO documentation](https://wiki.fysik.dtu.dk/ase/ase/io/io.html).
+# ## Reading / writing files supported by AtomsIO
+# [AtomsIO](https://github.com/mfherbst/AtomsIO.jl) is a Julia package, which allows
+# to read / write atomistic structures from / to a large range of file formats.
+# Supported formats include Crystallographic Information Framework (CIF),
+# XYZ and extxyz files, ASE / Gromacs / LAMMPS / Amber trajectory files
+# or input files of various other codes (e.g. Quantum Espresso, VASP, ABINIT, CASTEP, …).
+# The full list of formatis is available in the
+# [AtomsIO documentation](https://mfherbst.github.io/AtomsIO.jl/stable).
 #
 # As an example we start the calculation of a simple antiferromagnetic iron crystal
 # using a Quantum-Espresso input file, [Fe_afm.pwi](Fe_afm.pwi).
-# From this file the lattice, atomic positions and the initial magnetisation are read.
 # For more details about calculations on magnetic systems
 # using collinear spin, see [Collinear spin and magnetic systems](@ref).
 #
-# First we parse the Quantum Espresso input file to DFTK datastructures using
-# the `load_atoms`, `load_positions` and `load_lattice` functions.
+# First we parse the Quantum Espresso input file using AtomsIO,
+# which reads the lattice, atomic positions and initial magnetisation
+# from the input file and returns it as an
+# [AtomsBase](https://github.com/JuliaMolSim/AtomsBase.jl) `AbstractSystem`,
+# the JuliaMolSim community standard for representing atomic systems.
+
+using AtomsIO
+system = load_system("Fe_afm.pwi")
+
+# Next we attach pseudopotential information, since currently the parser is not
+# yet capable to read this information from the file.
 
 using DFTK
+system = attach_psp(system, Fe="hgh/pbe/fe-q16.hgh")
 
-qe_input  = "Fe_afm.pwi"
-atoms     = load_atoms(qe_input)
-positions = load_positions(qe_input)
-lattice   = load_lattice(qe_input)
-magnetic_moments = load_magnetic_moments(qe_input)
+# Finally we make use of DFTK's [AtomsBase integration](@ref) to run the calculation.
 
-# At this point a file of any format supported by ASE could be passed instead,
-# e.g. an `xyz` file or an ABINIT input file. Behind the scenes ASE takes care
-# to select the right parser and extract the required structural information.
-
-# Next we attach the pseudopotential information, since this information is currently
-# not exposed inside the ASE datastructures.
-
-atoms = map(atoms) do el
-    @assert el.symbol == :Fe
-    ElementPsp(:Fe, psp=load_psp("hgh/pbe/fe-q16.hgh"))
-end;
-
-# Finally we run the calculation.
-
-model = model_LDA(lattice, atoms, positions; magnetic_moments, temperature=0.01)
+model = model_LDA(system; temperature=0.01)
 basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 2, 2))
-ρ0 = guess_density(basis, magnetic_moments)
+ρ0 = guess_density(basis, system)
 scfres = self_consistent_field(basis, tol=1e-3, ρ=ρ0, mixing=KerkerMixing());
 
 # ## Writing VTK files for visualization

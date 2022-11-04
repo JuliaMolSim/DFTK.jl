@@ -1,6 +1,5 @@
 using DFTK
 using LinearAlgebra
-using PyCall
 using Test
 using Unitful
 include("testcases.jl")
