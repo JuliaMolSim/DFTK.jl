@@ -10,7 +10,7 @@ pymatgen_lattice(model::Model) = pymatgen_lattice(model.lattice)
 
 function pymatgen_structure(model_or_lattice, atoms, positions)
     @warn("pymatgen_structure is planned to be discontinued in DFTK 0.6.0. " *
-          "If you rely on this feature please open an issue at https://dftk.org/issues "
+          "If you rely on this feature please open an issue at https://dftk.org/issues " *
           "to discuss.")
     Structure = pyimport("pymatgen.core.structure").Structure
     Structure(pymatgen_lattice(model_or_lattice),
