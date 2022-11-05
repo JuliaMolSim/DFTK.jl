@@ -136,7 +136,7 @@ Estimate an upper bound for the argument `q` after which
 `abs(eval_psp_local_fourier(psp, q))` is a strictly decreasing function.
 """
 function qcut_psp_local(psp::PspHgh{T}) where {T}
-    Q = DFTK.psp_local_polynomial(T, psp)  # polynomial in t = q * rloc
+    Q = psp_local_polynomial(T, psp)  # polynomial in t = q * rloc
 
     # Find the roots of the derivative polynomial:
     res = roots(Polynomial([0, 1]) * derivative(Q) - Polynomial([2, 0, 1]) * Q)
@@ -193,7 +193,7 @@ Estimate an upper bound for the argument `q` after which
 `eval_psp_projector_fourier(psp, q)` is a strictly decreasing function.
 """
 function qcut_psp_projector(psp::PspHgh{T}, i, l) where {T}
-    Q = DFTK.psp_projector_polynomial(T, psp, i, l)  # polynomial in q * rp[l + 1]
+    Q = psp_projector_polynomial(T, psp, i, l)  # polynomial in q * rp[l + 1]
 
     # Find the roots of the derivative polynomial:
     res = roots(derivative(Q) - Polynomial([0, 1]) * Q)

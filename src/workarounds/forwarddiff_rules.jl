@@ -205,7 +205,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     Hψ_dual = let
         occupation_dual = [T.(occk) for occk in scfres.occupation]
         ψ_dual = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
-        ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
+        ρ_dual = compute_density(basis_dual, ψ_dual, occupation_dual)
         εF_dual = T(scfres.εF)  # Only needed for entropy term
         eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
         ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;

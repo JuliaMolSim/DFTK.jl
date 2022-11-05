@@ -129,11 +129,7 @@ Random.seed!(0)
     if "all" in TAGS && mpi_nprocs() == 1
         include("hessian.jl")
         include("forwarddiff.jl")
-    end
-
-    # Phonons
-    if "all" in TAGS
-        include("phonons.jl")
+        include("phonon.jl")
     end
 
     ("example" in TAGS) && include("runexamples.jl")
