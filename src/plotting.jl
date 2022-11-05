@@ -65,10 +65,13 @@ function plot_band_data(kpath::KPathInterpolant, band_data;
 end
 
 
-function plot_dos(basis, eigenvalues; εF=nothing, kwargs...)
+function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree", kwargs...)
     n_spin = basis.model.n_spin_components
     εs = range(minimum(minimum(eigenvalues)) - .5,
                maximum(maximum(eigenvalues)) + .5, length=1000)
+
+     # Constant to convert from AU to the desired unit
+     to_unit = ustrip(auconvert(unit, 1.0))
 
     p = Plots.plot(;kwargs...)
     spinlabels = spin_components(basis.model)
@@ -77,11 +80,12 @@ function plot_dos(basis, eigenvalues; εF=nothing, kwargs...)
     for σ in 1:n_spin
         D = [Dσ[σ] for Dσ in Dεs]
         label = n_spin > 1 ? "DOS $(spinlabels[σ]) spin" : "DOS"
-        Plots.plot!(p, εs, D; label, color=colors[σ])
+        Plots.plot!(p, εs .* to_unit, D; label, color=colors[σ])
     end
     if !isnothing(εF)
-        Plots.vline!(p, [εF], label="εF", color=:green, lw=1.5)
+        Plots.vline!(p, [εF * to_unit], label="εF", color=:green, lw=1.5)
     end
+    Plots.xlabel!(p, "eigenvalues  ($(string(unit)))")
     p
 end
 plot_dos(scfres; kwargs...) = plot_dos(scfres.basis, scfres.eigenvalues; scfres.εF, kwargs...)
