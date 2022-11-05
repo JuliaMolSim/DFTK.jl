@@ -9,6 +9,9 @@ pymatgen_lattice(model::Model) = pymatgen_lattice(model.lattice)
 
 
 function pymatgen_structure(model_or_lattice, atoms, positions)
+    @warn("pymatgen_structure is planned to be discontinued in DFTK 0.6.0. " *
+          "If you rely on this feature please open an issue at https://dftk.org/issues "
+          "to discuss.")
     Structure = pyimport("pymatgen.core.structure").Structure
     Structure(pymatgen_lattice(model_or_lattice),
               charge_nuclear.(atoms),
@@ -18,6 +21,9 @@ pymatgen_structure(model::Model) = pymatgen_structure(model, model.atoms, model.
 
 
 function load_lattice_pymatgen(pyobj::PyObject)
+    @warn("load_lattice, load_atoms and load_positions using pymatgen data structures " *
+          "is planned to be discontinued in DFTK 0.6.0. If you rely on this feature " *
+          "please open an issue at https://dftk.org/issues to discuss.")
     Structure = pyimport("pymatgen.core.structure").Structure
     Lattice   = pyimport("pymatgen.core.lattice").Lattice
 
@@ -36,12 +42,18 @@ end
 
 
 function load_atoms_pymatgen(pyobj::PyObject)
+    @warn("load_lattice, load_atoms and load_positions using pymatgen data structures " *
+          "is planned to be discontinued in DFTK 0.6.0. If you rely on this feature " *
+          "please open an issue at https://dftk.org/issues to discuss.")
     @assert pyisinstance(pyobj, pyimport("pymatgen.core.structure").Structure)
     [ElementCoulomb(spec.number) for spec in pyobj.species]
 end
 
 
 function load_positions_pymatgen(pyobj::PyObject)
+    @warn("load_lattice, load_atoms and load_positions using pymatgen data structures " *
+          "is planned to be discontinued in DFTK 0.6.0. If you rely on this feature " *
+          "please open an issue at https://dftk.org/issues to discuss.")
     @assert pyisinstance(pyobj, pyimport("pymatgen.core.structure").Structure)
     [Vec3{Float64}(site.frac_coords) for site in pyobj.sites]
 end
