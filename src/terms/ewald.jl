@@ -41,6 +41,9 @@ a uniform background of compensating charge to yield net neutrality.`lattice` sh
 contain the lattice vectors as columns. `charges` and `positions` are the point charges and
 their positions (as an array of arrays) in fractional coordinates. If `forces` is not
 nothing, minus the derivatives of the energy with respect to `positions` is computed.
+
+For now this function returns zero energy and force on non-3D systems. Use a pairwise
+potential term if you want to customise this treatment.
 """
 function energy_ewald(lattice::AbstractArray{T}, charges, positions;
                       η=nothing, forces=nothing) where {T}
