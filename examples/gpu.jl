@@ -1,27 +1,24 @@
 using DFTK
 using CUDA
 
-a = 10.263141334305942  # Lattice constant in Bohr
-lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
+a = 10.26  # Silicon lattice constant in Bohr
+lattice = a / 2 * [[0 1 1.];
+                   [1 0 1.];
+                   [1 1 0.]]
 Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms     = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
-terms = [Kinetic(),
-            AtomicLocal(),
-            AtomicNonlocal(),
-            Ewald(),
-            PspCorrection(),
-            Entropy(),
-            Hartree()]
-# Now, build a supercell to have a larger system
-supercell = ase_atoms(lattice, atoms, positions) * (repeat, 1, 1)
-lattice   = load_lattice(supercell)
-positions = load_positions(supercell)
-atoms     = fill(Si, length(positions))
+model = model_DFT(lattice, atoms, positions, []; temperature=1e-3)
 
-model = Model(lattice, atoms, positions; terms=terms, temperature=1e-3, symmetries=false)
-# Notice the only difference in the code, with the optional argument array_type
-basis_gpu = PlaneWaveBasis(model; Ecut=30, kgrid=(1, 1, 1), array_type = CuArray)
-# You can now check that some of the fields of the basis, such as the G_vectors, are CuArrays
+if has_cuda()
+    # Use CUDA to store DFT quantities and perform main computations
+    # For this we set the array_type for storing DFT quantities to a GPU array type
+    array_type = CuArray
+else
+    array_type = Array  # Keep using the CPU
+end
 
-scfres = self_consistent_field(basis_gpu; tol=1e-3, solver=scf_anderson_solver(), mixing = KerkerMixing())
+basis  = PlaneWaveBasis(model; Ecut=30, kgrid=(1, 1, 1), array_type)
+scfres = self_consistent_field(basis; tol=1e-3,
+                               solver=scf_anderson_solver(),
+                               mixing=KerkerMixing())
