@@ -27,8 +27,6 @@ struct TermHartree <: TermNonlinear
     poisson_green_coeffs::AbstractArray
 end
 function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
-    model = basis.model
-
     # Solving the Poisson equation ΔV = -4π ρ in Fourier space
     # is multiplying elementwise by 4π / |G|^2.
     poisson_green_coeffs = 4T(π) ./ [sum(abs2, G) for G in G_vectors_cart(basis)]
