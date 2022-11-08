@@ -23,13 +23,13 @@ end
 default_primes(::Any) = (2, )
 
 # Generic fallback function, Float32 and Float64 specialization in fft.jl
-function build_fft_plans!(tmp::AbstractArray{T}) where {T <: Complex}
+function build_fft_plans!(tmp::AbstractArray{<:Complex})
     # Note: FourierTransforms has no support for in-place FFTs at the moment
     # ... also it's extension to multi-dimensional arrays is broken and
     #     the algo only works for some cases
     @assert all(ispow2, size(tmp))
 
-    # opFFT = FourierTransforms.plan_fft(tmp)   # TODO When multidim works
+    # opFFT = AbstractFFTs.plan_fft(tmp)   # TODO When multidim works
     # opBFFT = inv(opFFT).p
     opFFT  = generic_plan_fft(tmp)               # Fallback for now
     opBFFT = generic_plan_bfft(tmp)

@@ -264,8 +264,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     r_vectors = convert_like(array_type, r_vectors)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
-    basis = PlaneWaveBasis{T,value_type(T),typeof(Gs),typeof(r_vectors),
-                           typeof(G_vectors(kpoints[1]))}(
+    basis = PlaneWaveBasis{T, value_type(T), typeof(Gs), typeof(r_vectors),
+                           typeof(kpoints[1].G_vectors)}(
         model, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
@@ -341,11 +341,12 @@ Creates a new basis identical to `basis`, but with a custom set of kpoints
 end
 
 """
-    G_vectors(fft_size::Tuple)
+    G_vectors([array_type=Vector], fft_size::Tuple)
 
 The wave vectors `G` in reduced (integer) coordinates for a cubic basis set
 of given sizes.
 """
+G_vectors(fft_size::Union{Tuple,AbstractVector}) = G_vectors(Array, fft_size)
 function G_vectors(array_type::Union{Type,AbstractArray}, fft_size::Union{Tuple,AbstractVector})
     # Note that a collect(G_vectors_generator(fft_size)) is 100-fold slower
     # than this implementation, hence the code duplication.
@@ -353,8 +354,9 @@ function G_vectors(array_type::Union{Type,AbstractArray}, fft_size::Union{Tuple,
     stop  = fld.(fft_size .- 1, 2)
     axes  = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
     Gs = [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
-    convert_like(array_type, Gs)  # GPU computation only : offload the Gs to the GPU.
+    convert_like(array_type, Gs)  # Put data on the device (like GPU)
 end
+
 function G_vectors_generator(fft_size::Union{Tuple,AbstractVector})
     # The generator version is used mainly in symmetry.jl for lowpass_for_symmetry! and
     # accumulate_over_symmetries!, which are 100-fold slower with G_vector(fft_size).
@@ -363,6 +365,7 @@ function G_vectors_generator(fft_size::Union{Tuple,AbstractVector})
     axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
     (Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3])
 end
+
 
 @doc raw"""
     G_vectors(basis::PlaneWaveBasis)

@@ -257,19 +257,28 @@ function compute_Glims_fast(lattice::AbstractMatrix{T}, Ecut; supersampling=2, t
     Glims
 end
 
-# For Float32 there are issues with aligned FFTW plans, so we
-# fall back to unaligned FFTW plans (which are generally discouraged).
-_fftw_flags(::Type{Float32}) = FFTW.MEASURE | FFTW.UNALIGNED
-_fftw_flags(::Type{Float64}) = FFTW.MEASURE
-
 """
 Plan a FFT of type `T` and size `fft_size`, spending some time on finding an
 optimal algorithm. (Inplace, out-of-place) x (forward, backward) FFT plans are returned.
 """
+function build_fft_plans!(tmp::Array{Complex{Float64}})
+    ipFFT = FFTW.plan_fft!(tmp; flags=FFTW.MEASURE)
+    opFFT = FFTW.plan_fft(tmp;  flags=FFTW.MEASURE)
+    # backwards-FFT by inverting and stripping off normalizations
+    ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
+end
+function build_fft_plans!(tmp::Array{Complex{Float32}})
+    # For Float32 there are issues with aligned FFTW plans, so we
+    # fall back to unaligned FFTW plans (which are generally discouraged).
+    ipFFT = FFTW.plan_fft!(tmp; flags=FFTW.MEASURE | FFTW.UNALIGNED)
+    opFFT = FFTW.plan_fft(tmp;  flags=FFTW.MEASURE | FFTW.UNALIGNED)
+    # backwards-FFT by inverting and stripping off normalizations
+    ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
+end
 function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:Union{Float32,Float64}}
-    ipFFT = AbstractFFTs.plan_fft!(tmp; flags=_fftw_flags(T))
-    opFFT = AbstractFFTs.plan_fft(tmp;  flags=_fftw_flags(T))
-    # backward by inverting and stripping off normalizations
+    ipFFT = AbstractFFTs.plan_fft!(tmp)
+    opFFT = AbstractFFTs.plan_fft(tmp)
+    # backwards-FFT by inverting and stripping off normalizations
     ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
 end
 
