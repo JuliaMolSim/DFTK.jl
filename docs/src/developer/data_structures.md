@@ -210,7 +210,7 @@ plot(x, scfres.ρ[:, 1, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 ```@example data_structures
 G_energies = [sum(abs2.(model.recip_lattice * G)) ./ 2 for G in G_vectors(basis)][:]
 scatter(G_energies, abs.(fft(basis, scfres.ρ)[:]);
-        yscale=:log10, ylims=(1e-12, 1), label="", xlabel="Energy", ylabel="|ρ|^2")
+        yscale=:log10, ylims=(1e-12, 1), label="", xlabel="Energy", ylabel="|ρ|")
 ```
 
 Note that the density has no components on wavevectors above a certain energy,
