@@ -280,47 +280,24 @@ Reciprocal vectors are a special case: they are covectors, but conventionally ha
 additional factor of 2π in their definition, so they transform rather with 2π times the
 inverse lattice transpose: q_cart = 2π lattice' \ q_red = recip_lattice * q_red.
 
-The trans_mat functions return the transition matrices required to do such a change of basis.
+For each of the function there is a one-argument version (returning a function to do the
+transformation) and a two-argument version applying the transformation to a passed vector.
 =#
+_closure_matmul(mat) = vec -> mat * vec
 
-trans_mat_vector_red_to_cart(model::Model)       = model.lattice
-trans_mat_vector_cart_to_red(model::Model)       = model.inv_lattice
-trans_mat_covector_red_to_cart(model::Model)     = model.inv_lattice'
-trans_mat_covector_cart_to_red(model::Model)     = model.lattice'
-trans_mat_recip_vector_red_to_cart(model::Model) = model.recip_lattice
-trans_mat_recip_vector_cart_to_red(model::Model) = model.inv_recip_lattice
+vector_red_to_cart(model::Model)       = _closure_matmul(model.lattice)
+vector_cart_to_red(model::Model)       = _closure_matmul(model.inv_lattice)
+covector_red_to_cart(model::Model)     = _closure_matmul(model.inv_lattice')
+covector_cart_to_red(model::Model)     = _closure_matmul(model.lattice')
+recip_vector_red_to_cart(model::Model) = _closure_matmul(model.recip_lattice)
+recip_vector_cart_to_red(model::Model) = _closure_matmul(model.inv_recip_lattice)
 
-fun_mat_list =(:vector_red_to_cart,
-                :vector_cart_to_red,
-                :covector_red_to_cart,
-                :covector_cart_to_red,
-                :recip_vector_red_to_cart,
-                :recip_vector_cart_to_red
-)
-
-for fun1 in fun_mat_list
-    #=
-    The following functions compute the change of basis for a given vector. To do so,
-    they call the trans_mat functions to get the corresponding transition matrix.
-    These functions can be broadcasted over an Array of vectors: however, they are
-    not GPU compatible, as they require the model, which is not isbits.
-    =#
-    @eval $fun1(model::Model, vec) = $(Symbol("trans_mat_"*string(fun1)))(model::Model) * vec
-    #=
-    The following functions take an AbstractArray of vectors and compute the change of basis
-    for every vector in the AbstractArray: they return an AbstractArray of the same type
-    and size as the input, but containing the vectors in a new basis.
-    These functions are GPU compatible (ie the AbstractArray can be a GPUArray), since
-    they use a map and the transition matrices are static arrays.
-    =#
-    @eval function $(Symbol("map_"*string(fun1)))(model::Model, A::AbstractArray{AT}) where {AT <: Vec3}
-        trans_matrix = $(Symbol("trans_mat_"*string(fun1)))(model)
-        in_new_basis = map(A) do Ai
-            trans_matrix  * Ai
-        end
-        in_new_basis
-    end
-end
+vector_red_to_cart(model::Model, vec)       = vector_red_to_cart(model)(vec)
+vector_cart_to_red(model::Model, vec)       = vector_cart_to_red(model)(vec)
+covector_red_to_cart(model::Model, vec)     = covector_red_to_cart(model)(vec)
+covector_cart_to_red(model::Model, vec)     = covector_cart_to_red(model)(vec)
+recip_vector_red_to_cart(model::Model, vec) = recip_vector_red_to_cart(model)(vec)
+recip_vector_cart_to_red(model::Model, vec) = recip_vector_cart_to_red(model)(vec)
 
 #=
 Transformations on vectors and covectors are matrices and comatrices.
@@ -335,7 +312,14 @@ s_cart = L s_red = L A_red r_red = L A_red L⁻¹ r_cart, thus A_cart = L A_red 
 Examples of matrices are the symmetries in real space (W)
 Examples of comatrices are the symmetries in reciprocal space (S)
 =#
-matrix_red_to_cart(model::Model, Ared)    = model.lattice * Ared * model.inv_lattice
-matrix_cart_to_red(model::Model, Acart)   = model.inv_lattice * Acart * model.lattice
-comatrix_red_to_cart(model::Model, Bred)  = model.inv_lattice' * Bred * model.lattice'
-comatrix_cart_to_red(model::Model, Bcart) = model.lattice' * Bcart * model.inv_lattice'
+_closure_matmatmul(M, Minv) = mat -> M * mat * Minv
+
+matrix_red_to_cart(model::Model)   = _closure_matmatmul(model.lattice,      model.inv_lattice)
+matrix_cart_to_red(model::Model)   = _closure_matmatmul(model.inv_lattice,  model.lattice)
+comatrix_red_to_cart(model::Model) = _closure_matmatmul(model.inv_lattice', model.lattice')
+comatrix_cart_to_red(model::Model) = _closure_matmatmul(model.lattice',     model.inv_lattice')
+
+matrix_red_to_cart(model::Model, Ared)    = matrix_red_to_cart(model)(Ared)
+matrix_cart_to_red(model::Model, Acart)   = matrix_cart_to_red(model)(Acart)
+comatrix_red_to_cart(model::Model, Bred)  = comatrix_red_to_cart(model)(Bred)
+comatrix_cart_to_red(model::Model, Bcart) = comatrix_cart_to_red(model)(Bcart)
