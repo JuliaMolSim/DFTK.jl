@@ -1,4 +1,3 @@
-
 function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2"; keep=false, overwrite=false)
     # TODO Save only every 30 minutes or so
     function callback(info)

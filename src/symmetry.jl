@@ -187,7 +187,7 @@ end
 end
 
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
-function lowpass_for_symmetry!(ρ, basis; symmetries=basis.symmetries)
+function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmetries)
     for symop in symmetries
         isone(symop) && continue
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
@@ -197,6 +197,15 @@ function lowpass_for_symmetry!(ρ, basis; symmetries=basis.symmetries)
         end
     end
     ρ
+end
+function lowpass_for_symmetry!(ρ::AT, basis;
+                               symmetries=basis.symmetries) where {AT <: AbstractGPUArray}
+    all(isone, symmetries) && return ρ
+    # lowpass_for_symmetry! currently uses scalar indexing, so we have to do this very ugly
+    # thing for cases where ρ sits on a device (e.g. GPU)
+    ρ_CPU = Array(ρ)
+    ρ_CPU = lowpass_for_symmetry!(ρ_CPU, basis; symmetries)
+    convert(AT, ρ_CPU)
 end
 
 """

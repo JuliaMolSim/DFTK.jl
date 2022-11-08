@@ -107,11 +107,9 @@ next_working_fft_size(::Type{<:ForwardDiff.Dual}, size::Int) = size
 
 _fftw_flags(::Type{<:ForwardDiff.Dual}) = FFTW.MEASURE | FFTW.UNALIGNED
 
-function build_fft_plans(array_type::AbstractArray{T}, fft_size) where {T<:Union{ForwardDiff.Dual,Complex{<:ForwardDiff.Dual}}}
-    tmp = Array{complex(T)}(undef, fft_size...) # TODO think about other Array types
+function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:ForwardDiff.Dual}
     opFFT  = FFTW.plan_fft(tmp, flags=_fftw_flags(T))
     opBFFT = FFTW.plan_bfft(tmp, flags=_fftw_flags(T))
-
     ipFFT  = DummyInplace{typeof(opFFT)}(opFFT)
     ipBFFT = DummyInplace{typeof(opBFFT)}(opBFFT)
     # backward by inverting and stripping off normalizations

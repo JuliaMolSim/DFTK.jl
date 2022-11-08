@@ -49,10 +49,8 @@ end
 
 @timing "KerkerMixing" function mix_density(mixing::KerkerMixing, basis::PlaneWaveBasis,
                                             δF; kwargs...)
-    T      = eltype(δF)
-    G²     = map(G_vectors_cart(basis)) do G
-                sum(abs2, G)
-            end
+    T  = eltype(δF)
+    G² = map(G -> sum(abs2, G), G_vectors_cart(basis))
     kTF    = T.(mixing.kTF)
     ΔDOS_Ω = T.(mixing.ΔDOS_Ω)
 
@@ -75,12 +73,7 @@ end
     δFtot_fourier  = total_density(δF_fourier)
     δFspin_fourier = spin_density(δF_fourier)
     δρtot_fourier = δFtot_fourier .* G² ./ (kTF.^2 .+ G²)
-    # force_real! is currently not GPU compatible, so we have to do this very ugly thing
-    # of calling back the array on CPU, running force_real!, then putting it back on GPU
-    δρtot_fourier = Array(δρtot_fourier)
     enforce_real!(basis, δρtot_fourier)
-    δρtot_fourier = convert_like(basis.G_vectors, δρtot_fourier)
-
     δρtot = irfft(basis, δρtot_fourier)
 
     # Copy DC component, otherwise it never gets updated
@@ -143,9 +136,7 @@ end
     εr > 1 / sqrt(eps(T)) && return mix_density(KerkerMixing(; kTF), basis, δF)
 
     C0 = 1 - εr
-    Gsq = map(G_vectors_cart(basis)) do G
-        sum(abs2, G)
-    end
+    Gsq = map(G -> sum(abs2, G), G_vectors_cart(basis))
     δF_fourier = fft(basis, δF)
     δρ = @. δF_fourier * (kTF^2 - C0 * Gsq) / (εr * kTF^2 - C0 * Gsq)
     δρ = irfft(basis, δρ)

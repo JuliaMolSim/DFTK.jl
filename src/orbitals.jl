@@ -54,13 +54,12 @@ end
 unpack_ψ(x, sizes_ψ) = deepcopy(unsafe_unpack_ψ(x, sizes_ψ))
 
 function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany) where {T}
-    @static if VERSION < v"1.7"
-        # Don't use TaskLocalRNG as it is not available.
+    @static if VERSION < v"1.7"  # TaskLocalRNG not yet available.
         orbitals = randn(Complex{T}, length(G_vectors(basis, kpt)), howmany)
         orbitals = convert_like(basis.G_vectors, orbitals)
     else
         orbitals = similar(basis.G_vectors, Complex{T}, length(G_vectors(basis, kpt)), howmany)
-        randn!(TaskLocalRNG(), orbitals)  # Force the use of GPUArrays.jl's random function if using the GPU
+        randn!(TaskLocalRNG(), orbitals)  # use the RNG on the device if we're using a GPU
     end
     ortho_qr(orbitals)
 end

@@ -19,8 +19,8 @@ struct TermKinetic <: Term
     kinetic_energies::Vector{<:AbstractVector}
 end
 function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, blowup) where {T}
-    function build_kin(Gs, Ecut)
-        map(Gs) do Gk
+    function build_kin(Gks, Ecut)
+        map(Gks) do Gk
             T(scaling_factor) * sum(abs2, Gk) / 2 * blowup(norm(Gk), Ecut)
         end
     end
@@ -36,7 +36,7 @@ end
     if isnothing(ψ) || isnothing(occupation)
         return (; E=T(Inf), ops)
     end
-    occupation = [Array(oc) for oc in occupation]  # GPU computation only: put the occupations back on CPU
+    occupation = [Array(occk) for occk in occupation]  # Bring occupation to CPU memory
 
     E = zero(T)
     for (ik, ψk) in enumerate(ψ)

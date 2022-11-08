@@ -74,9 +74,10 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
     model = basis.model
-    # GPU computation only : put the Gs on CPU for compatibility with the
-    # pseudopotentials which are not isbits
     G_cart = Array(G_vectors_cart(basis))
+    # TODO Bring G_cart on the CPU for compatibility with the pseudopotentials which
+    #      are not isbits ... might be able to solve this by restructuring the loop
+
 
     # Pre-compute the form factors at unique values of |G| to speed up
     # the potential Fourier transform (by a lot). Using a hash map gives O(1)
@@ -91,9 +92,8 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
             end
         end
     end
-    # GPU computation only : put the Gs on CPU for compatibility with the
-    # pseudopotentials which are not isbits
-    Gs = Array(G_vectors(basis))
+
+    Gs = Array(G_vectors(basis))  # TODO Again for GPU compatibility
     pot_fourier = map(enumerate(Gs)) do (iG, G)
         q = norm(G_cart[iG])
         pot = sum(enumerate(model.atom_groups)) do (igroup, group)
@@ -103,7 +103,8 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
         pot / sqrt(model.unit_cell_volume)
     end
     enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
-    # GPU computation only : build the potential values on CPU then offload them to GPU
+
+    # Offload potential values to a device (like a GPU) and do the FFT
     pot_real = irfft(basis, convert_like(basis.G_vectors, pot_fourier))
 
     TermAtomicLocal(pot_real)

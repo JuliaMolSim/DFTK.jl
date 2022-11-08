@@ -15,7 +15,7 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
     isempty(psp_groups) && return TermNoop()
     ops = map(basis.kpoints) do kpt
         P = build_projection_vectors_(basis, kpt, psps, psp_positions)
-        D = build_projection_coefficients_(T, psps, psp_positions, array_type = basis.G_vectors)
+        D = build_projection_coefficients_(T, psps, psp_positions, array_type=basis.G_vectors)
         NonlocalOperator(basis, kpt, P, D)
     end
     TermAtomicNonlocal(ops)
@@ -63,8 +63,8 @@ end
         C = build_projection_coefficients_(T, element.psp)
         for (ik, kpt) in enumerate(basis.kpoints)
             # we compute the forces from the irreductible BZ; they are symmetrized later
-            qs_cart = Gplusk_vectors_cart(basis, kpt)
             qs = Gplusk_vectors(basis, kpt)
+            qs_cart = Array(Gplusk_vectors_cart(basis, kpt))  # Get on the CPU
             form_factors = build_form_factors(element.psp, qs_cart)
             for idx in group
                 r = model.positions[idx]
@@ -92,7 +92,7 @@ end
 # The ordering of the projector indices is (A,l,m,i), where A is running over all
 # atoms, l, m are AM quantum numbers and i is running over all projectors for a
 # given l. The matrix is block-diagonal with non-zeros only if A, l and m agree.
-function build_projection_coefficients_(T, psps, psp_positions; array_type = Array)
+function build_projection_coefficients_(T, psps, psp_positions; array_type=Array)
     # TODO In the current version the proj_coeffs still has a lot of zeros.
     #      One could improve this by storing the blocks as a list or in a
     #      BlockDiagonal data structure
@@ -150,6 +150,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     n_proj = count_n_proj(psps, psp_positions)
     n_G    = length(G_vectors(basis, kpt))
     proj_vectors = zeros(Complex{T}, n_G, n_proj)
+    qs = Array(Gplusk_vectors(basis, kpt))  # Get Gs on the CPU if computed on a device
 
     # Compute the columns of proj_vectors = 1/√Ω pihat(k+G)
     # Since the pi are translates of each others, pihat(k+G) decouples as
@@ -158,13 +159,13 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     offset = 0  # offset into proj_vectors
     for (psp, positions) in zip(psps, psp_positions)
         # Compute position-independent form factors
-        form_factors = build_form_factors(psp, Gplusk_vectors_cart(basis, kpt))
+        qs_cart = Array(Gplusk_vectors_cart(basis, kpt))  # Get on the CPU if computed on device
+        form_factors = build_form_factors(psp, qs_cart)
 
         # Combine with structure factors
         for r in positions
             # k+G in this formula can also be G, this only changes an unimportant phase factor
-            Gs = Array(Gplusk_vectors(basis, kpt))  # GPU computation only: get Gs on CPU for the following map
-            structure_factors = map(q -> cis2pi(-dot(q, r)), Gs)
+            structure_factors = map(q -> cis2pi(-dot(q, r)), qs)
             @views for iproj = 1:count_n_proj(psp)
                 proj_vectors[:, offset+iproj] .= (
                     structure_factors .* form_factors[:, iproj] ./ sqrt(unit_cell_volume)
@@ -174,15 +175,15 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
         end
     end
     @assert offset == n_proj
-    # GPU computation only : build the vectors on CPU then offload them to the GPU
+
+    # Offload potential values to a device (like a GPU)
     convert_like(basis.G_vectors, proj_vectors)
 end
 
 """
 Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
-function build_form_factors(psp, qs)
-    qs = Array(qs)  # GPU computation only : get qs back on CPU
+function build_form_factors(psp, qs::Array)
     T = real(eltype(first(qs)))
 
     # Pre-compute the radial parts of the non-local projectors at unique |q| to speed up

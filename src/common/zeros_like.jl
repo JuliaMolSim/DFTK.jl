@@ -2,7 +2,7 @@
 # of allocations.
 function zeros_like(X::AbstractArray, T::Type=eltype(X), dims::Integer...=size(X)...)
     Z = similar(X, T, dims...)
-    Z .= 0
+    Z .= false
     Z
 end
 zeros_like(X::AbstractArray, dims::Integer...) = zeros_like(X, eltype(X), dims...)
@@ -12,14 +12,5 @@ zeros_like(X::StaticArray, T::Type=eltype(X), dims::Integer...=size(X)...) = @SA
 function convert_like(array_model::AbstractArray, src::AbstractArray)
     copy!(similar(array_model, eltype(src), size(src)...), src)
 end
-
 convert_like(array_model::Array, src::Array) = src
-
-function convert_like(array_model::Type, src::AbstractArray)
-    convert(array_model, src)
-end
-
-# function convert_like(array_model::Array, src::Array, T::Type=eltype(src), dims::Integer...=size(src)...)
-#     T == eltype(src) && dims == size(src) && src
-#     convert_like(array_model, src, T, dims...)
-# end
+convert_like(array_model::Type,  src::AbstractArray) = convert(array_model, src)

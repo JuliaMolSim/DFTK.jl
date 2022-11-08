@@ -68,8 +68,7 @@ function determine_n_bands(bands::AdaptiveBands, occupation::AbstractVector,
     # TODO Could return different bands per k-Points
 
     # Determine number of bands to be actually converged
-
-    occupation = [Array(oc) for oc in occupation]  # GPU computation only: bring occupation back
+    occupation = [Array(occk) for occk in occupation]  # Bring occupation to CPU memory
     # on the CPU, or maximum (following line) will fail
     n_bands_occ = maximum(occupation) do occk
         something(findlast(fnk -> fnk ≥ bands.occupation_threshold, occk), length(occk) + 1)

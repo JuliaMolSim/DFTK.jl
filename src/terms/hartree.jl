@@ -30,17 +30,13 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
     # Solving the Poisson equation ΔV = -4π ρ in Fourier space
     # is multiplying elementwise by 4π / |G|^2.
     poisson_green_coeffs = map(G_vectors_cart(basis)) do G
-        4T(π) /sum(abs2, G)
+        if iszero(G)
+            zero(T)  # Compensating charge background => zero DC
+        else
+            4T(π) / sum(abs2, G)
+        end
     end
-    poisson_green_coeffs[1:1,1:1,1:1] .= zero(similar(G_vectors(basis), T, 1,1,1))
-    ## Hackish way to do the following
-    # poisson_green_coeffs[1] = 0  # Compensating charge background => Zero DC
-
-    # force_real! is currently not GPU compatible, so we have to do this very ugly thing
-    # of calling back the array on CPU, running force_real!, then putting it back on GPU
-    poisson_green_coeffs = Array(poisson_green_coeffs)
     enforce_real!(basis, poisson_green_coeffs)  # Symmetrize Fourier coeffs to have real iFFT
-    poisson_green_coeffs = convert_like(basis.G_vectors,poisson_green_coeffs)
 
     TermHartree(T(scaling_factor), T(scaling_factor) .* poisson_green_coeffs)
 end

@@ -93,20 +93,20 @@ which follow the functional form
 and are placed at `position` (in fractional coordinates).
 """
 function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
-    ρ = zeros_like(G_vectors(basis), complex(T), basis.fft_size...)
+    recip_lattice = basis.model.recip_lattice
+    fft_size      = basis.fft_size
+    ρ = zeros_like(G_vectors(basis), complex(T), fft_size...)
 
     isempty(gaussians) && return irfft(basis, ρ)
 
-    #These copies are required so that recip_lattice and gaussians are isbits (GPU compatibility)
-    recip_lattice = basis.model.recip_lattice
+    # This copy is required such that gaussians is isbits and can be transferred to the GPU
+    # TODO See if there is a better option here ... this feels non-ideal for larger systems
     gaussians = SVector{size(gaussians)[1]}(gaussians)
 
     # Fill ρ with the (unnormalized) Fourier transform, i.e. ∫ e^{-iGx} f(x) dx,
     # where f(x) is a weighted gaussian
     #
     # is formed from a superposition of atomic densities, each scaled by a prefactor
-
-    fft_size = basis.fft_size
     function build_ρ(G)
         if isnothing(index_G_vectors(fft_size, -G))
             return zero(complex(T))
