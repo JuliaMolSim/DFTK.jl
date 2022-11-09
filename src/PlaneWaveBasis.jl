@@ -156,7 +156,7 @@ end
 function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
                         kcoords, kweights, kgrid, kshift,
                         symmetries_respect_rgrid, comm_kpts,
-                        architecture::AbstractArchitecture=CPU()) where {T <: Real}
+                        architecture::AbstractArchitecture) where {T <: Real}
     # Validate fft_size
     if variational
         max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
@@ -339,7 +339,7 @@ Creates a new basis identical to `basis`, but with a custom set of kpoints
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
                    kcoords, kweights, kgrid, kshift,
-                   basis.symmetries_respect_rgrid, basis.comm_kpts, basis.G_vectors)
+                   basis.symmetries_respect_rgrid, basis.comm_kpts, basis.architecture)
 end
 
 """
