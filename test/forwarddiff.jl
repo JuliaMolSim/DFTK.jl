@@ -147,11 +147,12 @@ end
                       n_electrons, terms, spin_polarization=:spinless)
         basis = PlaneWaveBasis(model; Ecut=500, kgrid=(1, 1, 1))
         ρ = zeros(Float64, basis.fft_size..., 1)
-        scfres = self_consistent_field(basis; tol=1e-8, ρ,
+        is_converged = DFTK.ScfConvergenceDensity(1e-10)
+        scfres = self_consistent_field(basis; ρ, is_converged,
                                        response=ResponseOptions(verbose=true))
         compute_forces_cart(scfres)
     end
-    derivative_ε = let ε = 1e-2
+    derivative_ε = let ε = 1e-5
         (compute_force(ε) - compute_force(-ε)) / 2ε
     end
     derivative_fd = ForwardDiff.derivative(compute_force, 0.0)
