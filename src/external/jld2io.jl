@@ -83,6 +83,7 @@ struct PlaneWaveBasisSerialisation{T <: Real, GT <: AbstractArray}
     kshift::Union{Nothing,Vec3{T}}
     symmetries_respect_rgrid::Bool
     fft_size::Tuple{Int, Int, Int}
+    architecture::AbstractArchitecture
 end
 function JLD2.writeas(::Type{PlaneWaveBasis{T,T,GT,RT,KGT}}) where {T,GT,RT,KGT}
     PlaneWaveBasisSerialisation{T,GT}
@@ -100,6 +101,7 @@ function Base.convert(::Type{PlaneWaveBasisSerialisation{T,GT}},
         basis.kshift,
         basis.symmetries_respect_rgrid,
         basis.fft_size,
+        basis.architecture
     )
 end
 
@@ -111,8 +113,5 @@ function Base.convert(::Type{PlaneWaveBasis{T,T,GT,RT,KGT}},
                    serial.kshift,
                    serial.symmetries_respect_rgrid,
                    serial.variational,
-                   array_type=similar(GT, 1, 1, 1))
-                   # Can't use GT directly as it is Array{type, 2} instead of Array
-                   # so we build an array with type GT. GT is the G_vectors'type, so it
-                   # represents 3-dimensional arrays, hence the three 1's.
+                   architecture=serial.architecture)
 end

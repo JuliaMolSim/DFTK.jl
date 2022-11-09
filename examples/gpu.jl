@@ -12,9 +12,9 @@ model = model_DFT(lattice, atoms, positions, []; temperature=1e-3)
 
 # If available use CUDA to store DFT quantities and perform main computations
 # This is triggered by setting the array_type for storing DFT quantities
-array_type = has_cuda() ? CuArray : Array
+architecture = has_cuda() ? GPU(CuArray) : CPU()
 
-basis  = PlaneWaveBasis(model; Ecut=30, kgrid=(1, 1, 1), array_type)
+basis  = PlaneWaveBasis(model; Ecut=30, kgrid=(1, 1, 1), architecture)
 scfres = self_consistent_field(basis; tol=1e-3,
                                solver=scf_damping_solver(),
                                mixing=KerkerMixing())

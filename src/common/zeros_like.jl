@@ -14,3 +14,7 @@ function convert_like(array_model::AbstractArray, src::AbstractArray)
 end
 convert_like(array_model::Array, src::Array) = src
 convert_like(array_model::Type,  src::AbstractArray) = convert(array_model, src)
+
+function convert_like(array_model::AbstractArchitecture, src::AbstractArray)
+    convert_like(get_array_type(array_model), src)
+end

@@ -23,6 +23,7 @@ export Mat3
 export mpi_nprocs
 export mpi_master
 export setup_threading, disable_threading
+export CPU, GPU
 include("common/timer.jl")
 include("common/constants.jl")
 include("common/ortho.jl")
@@ -34,6 +35,7 @@ include("common/mpi.jl")
 include("common/threading.jl")
 include("common/printing.jl")
 include("common/cis2pi.jl")
+include("architecture.jl")
 include("common/zeros_like.jl")
 include("common/norm.jl")
 
@@ -237,6 +239,7 @@ function __init__()
     end
     @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba"  begin
         include("workarounds/cuda_arrays.jl")
+        include("cuda_architecture.jl")
     end
 end
 
