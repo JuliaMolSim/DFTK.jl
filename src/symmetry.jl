@@ -278,7 +278,7 @@ function unfold_bz(basis::PlaneWaveBasis)
                               basis.Ecut, basis.fft_size, basis.variational,
                               kcoords, [1/length(kcoords) for _ in kcoords],
                               basis.kgrid, basis.kshift,
-                              basis.symmetries_respect_rgrid, basis.comm_kpts, basis.G_vectors)
+                              basis.symmetries_respect_rgrid, basis.comm_kpts, basis.architecture)
     end
 end
 
