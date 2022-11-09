@@ -151,7 +151,7 @@ end
                                        response=ResponseOptions(verbose=true))
         compute_forces_cart(scfres)
     end
-    derivative_ε = let ε = 1e-5
+    derivative_ε = let ε = 1e-2
         (compute_force(ε) - compute_force(-ε)) / 2ε
     end
     derivative_fd = ForwardDiff.derivative(compute_force, 0.0)
