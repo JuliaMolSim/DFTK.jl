@@ -1,13 +1,3 @@
-"""
-Complex-analytic extension of `LinearAlgebra.norm(x)` from real to complex inputs.
-Needed for phonons as we want to perform a matrix-vector product `f'(x)·h`, where `f` is
-a real-to-real function and `h` a complex vector. To do this using automatic
-differentiation, we can extend analytically f to accept complex inputs, then differentiate
-`t -> f(x+t·h)`. This will fail if non-analytic functions like norm are used for complex
-inputs, and therefore we have to redefine it.
-"""
-norm_cplx(x) = sqrt(sum(xx -> xx * xx, x))
-
 struct PairwisePotential
     V
     params
@@ -64,7 +54,7 @@ function energy_pairwise(model::Model{T}, V, params; kwargs...) where {T}
 end
 
 
-# This could be factorised with Ewald, but the use of `symbols` would slow down the
+# This could be merged with Ewald, but the use of `symbols` would slow down the
 # computationally intensive Ewald sums. So we leave it as it for now.
 # `q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
 # compute the Fourier transform of the force constant matrix.
@@ -94,7 +84,7 @@ function energy_pairwise(lattice, symbols, positions, V, params;
     Rlims = estimate_integer_lattice_bounds(lattice, max_radius, poslims)
 
     # Check if some coordinates are not used.
-    is_dim_trivial = [norm(lattice[:,i]) == 0 for i=1:3]
+    is_dim_trivial = iszero.(eachcol(lattice))
     max_shell(n, trivial) = trivial ? 0 : n
     Rlims = max_shell.(Rlims, is_dim_trivial)
 
@@ -107,7 +97,7 @@ function energy_pairwise(lattice, symbols, positions, V, params;
         R = Vec3(R1, R2, R3)
         for i = 1:length(positions), j = 1:length(positions)
             # Avoid self-interaction
-            R == zero(R) && i == j && continue
+            iszero(R) && i == j && continue
             ai, aj = minmax(symbols[i], symbols[j])
             param_ij = params[(ai, aj)]
             ti = positions[i]

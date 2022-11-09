@@ -1,6 +1,6 @@
 ## Local potentials. Can be provided from external potentials, or from `model.atoms`.
 
-# a local potential term. Must have the field `potential_values`, storing the
+# A local potential term. Must have the field `potential_values`, storing the
 # potential in real space on the grid. If the potential is different in the α and β
 # components then it should be a 4d-array with the last axis running over the
 # two spin components.

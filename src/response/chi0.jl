@@ -384,11 +384,11 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
     normδV < eps(typeof(εF)) && return zero(δV)
     δV ./= normδV
 
-    δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
+    δHψ = [RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
     δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                        occupation_threshold, kwargs_sternheimer...)
-    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation, δoccupation; occupation_threshold)
+    δρ = compute_δρ(basis, ψ, δψ, occupation, δoccupation; occupation_threshold)
     δρ * normδV
 end
 
