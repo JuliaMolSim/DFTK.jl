@@ -143,7 +143,7 @@ end
 
     model = Model(case.lattice, atoms, case.positions; n_electrons=n_atoms,
                   symmetries=false, spin_polarization=:collinear)
-    kgrid = rand(2:20, 3)
+    kgrid = rand(2:10, 3)
     k1, k2, k3 = kgrid
     basis = PlaneWaveBasis(model; Ecut=100, kgrid)
 
@@ -162,7 +162,7 @@ end
             ψk_out_four = DFTK.multiply_by_expiqr(basis, kpt, q, ψk)
             ψk_out_real = begin
                 shifted_kcoord = kpt.coordinate .+ q
-                index, ΔG = DFTK.find_equivalent_kpt(basis.kpoints, shifted_kcoord, kpt.spin)
+                index, ΔG = DFTK.find_equivalent_kpt(basis, shifted_kcoord, kpt.spin)
                 kpt_out = basis.kpoints[index]
                 transfer_blochwave_kpt_real(ψk, basis, kpt, kpt_out, ΔG)
             end
@@ -173,10 +173,13 @@ end
     end
 
     @testset "Ordering function" begin
-        ordering = DFTK.kpoints_ordering(basis, q)
-        kcoords = getfield.(basis.kpoints, :coordinate)
-        for (ik, kcoord) in enumerate(kcoords)
-            @test mod1.(kcoord + q .- tol, 1) ≈ mod1.(ordering(kcoords)[ik] .- tol, 1)
+        @time begin
+            kpoints_plus_q = DFTK.kpoints_ordering(basis, q)
+            ordering(kdata) = kdata[kpoints_plus_q]
+            kcoords = getfield.(basis.kpoints, :coordinate)
+            for (ik, kcoord) in enumerate(kcoords)
+                @test mod.(kcoord + q .- tol, 1) ≈ mod.(ordering(kcoords)[ik] .- tol, 1)
+            end
         end
     end
 end

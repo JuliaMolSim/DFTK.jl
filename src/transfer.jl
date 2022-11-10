@@ -126,7 +126,7 @@ end
 Find the equivalent index of the coordinate `kcoord` ∈ ℝ³ in a list `kcoords` ∈ [-½, ½)³.
 `ΔG` is the vector of ℤ³ such that `kcoords[index] = kcoord + ΔG`.
 """
-function find_equivalent_kpt(kpoints::Vector{Kpoint{T}}, kcoord, spin; tol=sqrt(eps(T))) where {T}
+function find_equivalent_kpt(basis::PlaneWaveBasis{T}, kcoord, spin; tol=sqrt(eps(T))) where {T}
     kcoord_red = map(kcoord) do k
                      k = mod(k, 1)              # coordinate in [0, 1)³
                      k ≥ 0.5 - tol ? k - 1 : k  # coordinate in [-½, ½)³
@@ -137,8 +137,9 @@ function find_equivalent_kpt(kpoints::Vector{Kpoint{T}}, kcoord, spin; tol=sqrt(
     @assert all(is_approx_integer.(ΔG))
     ΔG = round.(Int, ΔG)
 
-    index::Int = findfirst(k -> k.spin == spin && isapprox(k.coordinate, kcoord_red; atol=tol),
-                           kpoints)  # unique by construction
+    indices_σ = krange_spin(basis, spin)
+    kcoords_σ = getfield.(basis.kpoints[indices_σ], :coordinate)
+    index::Int = findfirst(isapprox.(kcoords_σ, Ref(kcoord_red); atol=tol)) + indices_σ[1]-1
 
     return (; index, ΔG)
 end
@@ -149,7 +150,7 @@ is defined on a basis `kpt_in`.
 """
 function multiply_by_expiqr(basis, kpt_in, q, ψk)
     shifted_kcoord = kpt_in.coordinate .+ q  # coordinate of ``k``-point in ℝ
-    index, ΔG = find_equivalent_kpt(basis.kpoints, shifted_kcoord, kpt_in.spin)
+    index, ΔG = find_equivalent_kpt(basis, shifted_kcoord, kpt_in.spin)
     kpt_out = basis.kpoints[index]
     return transfer_blochwave_kpt(ψk, basis, kpt_in, kpt_out, ΔG)
 end
@@ -160,8 +161,8 @@ Return an `ordering` function that reorders the `kpoints`. That is for each `kpo
 """
 function kpoints_ordering(basis::PlaneWaveBasis, qcoord)
     kpoints = basis.kpoints
-    indices = [find_equivalent_kpt(kpoints, kpt.coordinate + qcoord, kpt.spin).index
+    indices = [find_equivalent_kpt(basis, kpt.coordinate + qcoord, kpt.spin).index
                for kpt in kpoints]
-    @assert sort(indices) == 1:length(kpoints)
-    x -> view(x, indices)
+    @assert sort(indices) == 1:length(basis.kpoints)
+    indices
 end
