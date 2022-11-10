@@ -87,7 +87,7 @@ In this case the matrix has effectively 4 blocks
     end
     kernel
 end
-compute_kernel(::Term, ::AbstractBasis; kwargs...) = nothing  # By default no kernel
+compute_kernel(::Term, ::AbstractBasis{T}; kwargs...) where {T} = nothing  # By default no kernel
 
 
 """
