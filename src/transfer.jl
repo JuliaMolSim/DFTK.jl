@@ -139,6 +139,7 @@ function find_equivalent_kpt(basis::PlaneWaveBasis{T}, kcoord, spin; tol=sqrt(ep
 
     indices_σ = krange_spin(basis, spin)
     kcoords_σ = getfield.(basis.kpoints[indices_σ], :coordinate)
+    # Unique by construction.
     index::Int = findfirst(isapprox.(kcoords_σ, Ref(kcoord_red); atol=tol)) + indices_σ[1]-1
 
     return (; index, ΔG)
