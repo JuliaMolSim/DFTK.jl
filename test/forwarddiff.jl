@@ -134,15 +134,12 @@ end
 @testset "LocalNonlinearity sensitivity using ForwardDiff" begin
     function compute_force(ε::T) where {T}
         # solve the 1D Gross-Pitaevskii equation with ElementGaussian potential
-        a = 10.0
-        lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]]
+        lattice = 10.0 .* [[1 0 0.]; [0 0 0]; [0 0 0]]
         positions = [[0.2, 0, 0], [0.8, 0, 0]]
         gauss = ElementGaussian(1.0, 0.5)
         atoms = [gauss, gauss]
-        C = 1.0
-        α = 2
         n_electrons = 1
-        terms = [Kinetic(), AtomicLocal(), LocalNonlinearity(ρ -> (C + ε) * ρ^α)]
+        terms = [Kinetic(), AtomicLocal(), LocalNonlinearity(ρ -> (1.0 + ε) * ρ^2)]
         model = Model(Matrix{T}(lattice), atoms, positions;
                       n_electrons, terms, spin_polarization=:spinless)
         basis = PlaneWaveBasis(model; Ecut=500, kgrid=(1, 1, 1))
