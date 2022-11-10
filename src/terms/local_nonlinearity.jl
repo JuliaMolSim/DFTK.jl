@@ -23,13 +23,13 @@ function ene_ops(term::TermLocalNonlinearity, basis::PlaneWaveBasis{T}, ψ, occu
 end
 
 
-function compute_kernel(term::TermLocalNonlinearity, ::PlaneWaveBasis{T}; ρ, kwargs...) where {T}
+function compute_kernel(term::TermLocalNonlinearity, ::AbstractBasis{T}; ρ, kwargs...) where {T}
     fp(ρ) = ForwardDiff.derivative(term.f, ρ)
     fpp(ρ) = ForwardDiff.derivative(fp, ρ)
     Diagonal(vec(convert_dual.(T, fpp.(ρ))))
 end
 
-function apply_kernel(term::TermLocalNonlinearity, ::PlaneWaveBasis{T}, δρ; ρ, kwargs...) where {T}
+function apply_kernel(term::TermLocalNonlinearity, ::AbstractBasis{T}, δρ; ρ, kwargs...) where {T}
     fp(ρ) = ForwardDiff.derivative(term.f, ρ)
     fpp(ρ) = ForwardDiff.derivative(fp, ρ)
     convert_dual.(T, fpp.(ρ) .* δρ)
