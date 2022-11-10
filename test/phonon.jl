@@ -173,13 +173,11 @@ end
     end
 
     @testset "Ordering function" begin
-        @time begin
-            kpoints_plus_q = DFTK.kpoints_ordering(basis, q)
-            ordering(kdata) = kdata[kpoints_plus_q]
-            kcoords = getfield.(basis.kpoints, :coordinate)
-            for (ik, kcoord) in enumerate(kcoords)
-                @test mod.(kcoord + q .- tol, 1) ≈ mod.(ordering(kcoords)[ik] .- tol, 1)
-            end
+        kpoints_plus_q = DFTK.kpoints_ordering(basis, q)
+        ordering(kdata) = kdata[kpoints_plus_q]
+        kcoords = getfield.(basis.kpoints, :coordinate)
+        for (ik, kcoord) in enumerate(kcoords)
+            @test mod.(kcoord + q .- tol, 1) ≈ mod.(ordering(kcoords)[ik] .- tol, 1)
         end
     end
 end
