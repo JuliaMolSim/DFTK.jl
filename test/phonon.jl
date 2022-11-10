@@ -160,7 +160,7 @@ end
             ψk = fft(basis, kpt, ψ)
 
             ψk_out_four = DFTK.multiply_by_expiqr(basis, kpt, q, ψk)
-            ψk_out_real = begin
+            ψk_out_real = let
                 shifted_kcoord = kpt.coordinate .+ q
                 index, ΔG = DFTK.find_equivalent_kpt(basis, shifted_kcoord, kpt.spin)
                 kpt_out = basis.kpoints[index]
