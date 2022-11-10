@@ -114,4 +114,4 @@ as a 4D (i,j,k,σ) array.
     end
     δV
 end
-apply_kernel(::Term, ::AbstractBasis, δρ; kwargs...) = nothing  # by default, no kernel
+apply_kernel(::Term, ::AbstractBasis{T}, δρ; kwargs...) where {T} = nothing  # by default, no kernel
