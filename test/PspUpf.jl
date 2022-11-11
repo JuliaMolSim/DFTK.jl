@@ -6,7 +6,8 @@ using DFTK: count_n_proj_radial
 using SpecialFunctions: sphericalbesselj
 using QuadGK
 
-base_url = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary/main/pseudos/"
+commit   = "56d1774708e1adfff35d30a403004cb98de4224b"
+base_url = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary/$commit/pseudos/"
 
 upf_urls = [
     joinpath(base_url, "hgh_pbe_upf/Si.pbe-hgh.UPF"),

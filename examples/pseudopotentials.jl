@@ -41,8 +41,9 @@ using Plots
 # which is available in the JuliaMolSim
 # [PseudoLibrary](https://github.com/JuliaMolSim/PseudoLibrary).
 
+COMMIT    = "56d1774708e1adfff35d30a403004cb98de4224b"
 PSEUDOLIB = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary"
-URL_UPF = PSEUDOLIB * "/main/pseudos/pd_nc_sr_lda_standard_04_upf/Li.upf";
+URL_UPF = PSEUDOLIB * "/$COMMIT/pseudos/pd_nc_sr_lda_standard_04_upf/Li.upf";
 
 # We load the HGH and UPF PSPs using `load_psp`, which determines the
 # file format using the file extension.
