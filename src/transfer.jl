@@ -157,10 +157,10 @@ function multiply_by_expiqr(basis, kpt_in, q, ψk)
 end
 
 """
-Return an `ordering` function that reorders the `kpoints`. That is for each `kpoint` of the
-`basis`: `kpoints[ik].coordinate + q = ordering(kpoints)[ik].coordinate`.
+Return the indices of the `kpoints` shifted by `q`. That is for each `kpoint` of the `basis`:
+`kpoints[ik].coordinate + q = kpoints[indices[ik]].coordinate`.
 """
-function kpoints_ordering(basis::PlaneWaveBasis, qcoord)
+function k_to_kpq_mapping(basis::PlaneWaveBasis, qcoord)
     kpoints = basis.kpoints
     indices = [find_equivalent_kpt(basis, kpt.coordinate + qcoord, kpt.spin).index
                for kpt in kpoints]

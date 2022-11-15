@@ -173,7 +173,7 @@ end
     end
 
     @testset "Ordering function" begin
-        kpoints_plus_q = DFTK.kpoints_ordering(basis, q)
+        kpoints_plus_q = DFTK.k_to_kpq_mapping(basis, q)
         ordering(kdata) = kdata[kpoints_plus_q]
         kcoords = getfield.(basis.kpoints, :coordinate)
         for (ik, kcoord) in enumerate(kcoords)
