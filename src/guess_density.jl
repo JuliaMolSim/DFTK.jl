@@ -99,7 +99,7 @@ function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
 
     isempty(gaussians) && return irfft(basis, ρ)
 
-    # This copy is required such that gaussians is isbits and can be transferred to the GPU
+    # This copy is required so that `gaussians` is isbits and can be transferred to the GPU
     # TODO See if there is a better option here ... this feels non-ideal for larger systems
     gaussians = SVector{size(gaussians)[1]}(gaussians)
 
@@ -107,6 +107,7 @@ function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
     # where f(x) is a weighted gaussian
     #
     # is formed from a superposition of atomic densities, each scaled by a prefactor
+    # Ensure that we only set G-vectors that have a -G counterpart to ensure ρ is real.
     function build_ρ(G)
         if isnothing(index_G_vectors(fft_size, -G))
             return zero(complex(T))
@@ -119,7 +120,6 @@ function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
         end
         res
     end
-    #  Can't use map! as the Gs are converted from an array of Vec3 to an array of complex
     ρ = map(build_ρ, basis.G_vectors)
 
     irfft(basis, ρ / sqrt(basis.model.unit_cell_volume))

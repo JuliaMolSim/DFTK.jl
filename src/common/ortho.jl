@@ -6,3 +6,6 @@
     # See https://github.com/JuliaGPU/CUDA.jl/pull/1662
     Q[:, 1:size(φk, 2)]
 end
+
+# CPU specialisation to go a bit faster
+@timing ortho_qr(φk::ArrayType) where {ArrayType <: Array} = Array(qr(φk).Q)

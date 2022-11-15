@@ -39,9 +39,10 @@ Normalization conventions:
 
 `ifft` and `fft` convert between these representations.
 """
-struct PlaneWaveBasis{T, VT, GT, RT, KGT} <: AbstractBasis{
+struct PlaneWaveBasis{T, VT, T_G_vectors, T_r_vectors, T_kpt_G_vecs} <: AbstractBasis{
     T
-} where {VT <: Real, GT <: AbstractArray, RT <: AbstractArray, KGT <: AbstractArray}
+} where {VT <: Real, T_G_vectors <: AbstractArray{Vec3{Int}}, T_r_vectors <: AbstractArray,
+         T_kpt_G_vecs <: AbstractVector{Vec3{Int}}}
     # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
     model::Model{T, VT}
 
@@ -69,13 +70,13 @@ struct PlaneWaveBasis{T, VT, GT, RT, KGT} <: AbstractBasis{
     ifft_normalization::T  # ifft = ifft_normalization * BFFT
 
     # "cubic" basis in reciprocal and real space, on which potentials and densities are stored
-    G_vectors::GT
-    r_vectors::RT
+    G_vectors::T_G_vectors
+    r_vectors::T_r_vectors
 
     ## MPI-local information of the kpoints this processor treats
     # Irreducible kpoints. In the case of collinear spin,
     # this lists all the spin up, then all the spin down
-    kpoints::Vector{Kpoint{T, KGT}}
+    kpoints::Vector{Kpoint{T, T_kpt_G_vecs}}
     # BZ integration weights, summing up to model.n_spin_components
     kweights::Vector{T}
 
@@ -434,6 +435,7 @@ or the index `i` such that `G_vectors(basis, kpoint)[i] == G`.
 Returns nothing if outside the range of valid wave vectors.
 """
 @inline function index_G_vectors(fft_size::Tuple, G::AbstractVector{<:Integer})
+    # the inline declaration encourages the compiler to hoist these (G-independent) precomputations
     start = .- cld.(fft_size .- 1, 2)
     stop  = fld.(fft_size .- 1, 2)
     lengths = stop .- start .+ 1
