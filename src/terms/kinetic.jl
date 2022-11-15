@@ -19,14 +19,17 @@ struct TermKinetic <: Term
     kinetic_energies::Vector{<:AbstractVector}
 end
 function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, blowup) where {T}
-    function build_kin(Gks, Ecut)
-        map(Gks) do Gk
-            T(scaling_factor) * sum(abs2, Gk) / 2 * blowup(norm(Gk), Ecut)
-        end
-    end
-    kinetic_energies = [build_kin(Gplusk_vectors_cart(basis, kpt), basis.Ecut)
+
+    kinetic_energies = [kinetic_energy(Gplusk_vectors_cart(basis, kpt), scaling_factor,
+                                        blowup, basis.Ecut, T)
                         for kpt in basis.kpoints]
     TermKinetic(T(scaling_factor), kinetic_energies)
+end
+
+function kinetic_energy(q, scaling_factor, blowup, Ecut, ::Type{T}) where {T}
+    map(q) do qk
+        T(scaling_factor) * sum(abs2, qk) / 2 * blowup(norm(qk), Ecut)
+    end
 end
 
 @timing "ene_ops: kinetic" function ene_ops(term::TermKinetic, basis::PlaneWaveBasis{T},
