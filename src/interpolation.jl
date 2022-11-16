@@ -11,10 +11,35 @@ function interpolate_density(ρ_in, basis_in::PlaneWaveBasis, basis_out::PlaneWa
                                 basis_in.model.lattice, basis_out.model.lattice)
 end
 
-# TODO Specialization for the common case lattice_out = lattice_in
-function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in, lattice_out=lattice_in)
+# Interpolate ρ_in_supercell from grid grid_supercell to grid_out.
+function interpolate_density_supercell(ρ_in_supercell::AbstractArray, grid_supercell,
+                                       grid_out)
+    axes_in = (range(0, 1, length=grid_supercell[i]+1)[1:end-1] for i=1:3)
+    itp = interpolate(ρ_in_supercell, BSpline(Quadratic(Interpolations.Periodic(OnCell()))))
+    sitp = scale(itp, axes_in...)
+    ρ_interp = extrapolate(sitp, Periodic())
+    ρ_out = similar(ρ_in_supercell, grid_out)
+    for i = 1:grid_out[1]
+        for j = 1:grid_out[2]
+            for k = 1:grid_out[3]
+                ρ_out[i, j, k] = ρ_interp((i-1)/grid_out[1],
+                                          (j-1)/grid_out[2],
+                                          (k-1)/grid_out[3])
+            end
+        end
+    end
+
+    ρ_out
+end
+
+function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in,
+                             lattice_out=lattice_in)
     T = real(eltype(ρ_in))
     @assert size(ρ_in) == grid_in
+
+    # Early exit if same lattice for input and output
+    lattice_in == lattice_out &&
+        return ρ_out = interpolate_density_supercell(ρ_in, grid_in, grid_out)
 
     # First, build supercell, array of 3 ints
     supercell = zeros(Int, 3)
@@ -44,23 +69,7 @@ function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in
         end
     end
 
-    # interpolate ρ_in_supercell from grid grid_supercell to grid_out
-    axes_in = (range(0, 1, length=grid_supercell[i]+1)[1:end-1] for i=1:3)
-    itp = interpolate(ρ_in_supercell, BSpline(Quadratic(Interpolations.Periodic(OnCell()))))
-    sitp = scale(itp, axes_in...)
-    ρ_interp = extrapolate(sitp, Periodic())
-    ρ_out = similar(ρ_in, grid_out)
-    for i = 1:grid_out[1]
-        for j = 1:grid_out[2]
-            for k = 1:grid_out[3]
-                ρ_out[i, j, k] = ρ_interp((i-1)/grid_out[1],
-                                          (j-1)/grid_out[2],
-                                          (k-1)/grid_out[3])
-            end
-        end
-    end
-
-    ρ_out
+    ρ_out = interpolate_density_supercell(ρ_in_supercell, grid_supercell, grid_out)
 end
 
 """
