@@ -34,25 +34,25 @@ end
 
 function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in,
                              lattice_out=lattice_in)
-    T = real(eltype(ρ_in))
     @assert size(ρ_in) == grid_in
 
     # Early exit if same lattice for input and output
     lattice_in == lattice_out &&
         return ρ_out = interpolate_density_supercell(ρ_in, grid_in, grid_out)
 
+    # The two lattices should have the same dimension.
+    @assert iszero.(eachcol(lattice_in)) == iszero.(eachcol(lattice_out))
+
     # First, build supercell, array of 3 ints
-    supercell = zeros(Int, 3)
-    for i = 1:3
-        if norm(lattice_in[:, i]) == 0
-            @assert norm(lattice_out[:, i]) == 0
-            supercell[i] = 1
-        else
-            supercell[i] = round(Int, norm(lattice_out[:, i]) / norm(lattice_in[:, i]))
-        end
-        if norm(lattice_out[:, i] - supercell[i]*lattice_in[:, i]) > .3*norm(lattice_out[:, i])
-            @warn "In direction $i, the output lattice is very different from the input lattice"
-        end
+    supercell = map(zip(eachcol(lattice_in), eachcol(lattice_out))) do (col_in, col_out)
+        iszero(col_in) ? 1 : round(Int, norm(col_out) / norm(col_in))
+    end
+
+    # Find if the deformation of the lattice in some directions may pose a problem.
+    suspicious_directions = findall(norm.(eachcol(lattice_out - supercell .* lattice_in))
+                                    .> 0.3*norm.(eachcol(lattice_out)))
+    for i in suspicious_directions
+        @warn "In direction $i, the output lattice is very different from the input lattice"
     end
 
     # ρ_in represents a periodic function, on a grid 0, 1/N, ... (N-1)/N
