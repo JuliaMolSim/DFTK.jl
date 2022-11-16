@@ -9,6 +9,6 @@ inputs, and therefore we have to redefine it.
 norm_cplx(x) = sqrt(sum(xx -> xx * xx, x))
 
 """
-Compute the square of the ℓ²-norm for instances of our static structure Vec3.
+Square of the ℓ²-norm.
 """
-norm2(G::Vec3) = sum(abs2, G)
+norm2(G::AbstractArray) = sum(abs2, G)
