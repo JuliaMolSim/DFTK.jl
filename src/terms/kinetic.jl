@@ -28,7 +28,7 @@ end
 
 function kinetic_energy(q, scaling_factor, blowup, Ecut, ::Type{T}) where {T}
     map(q) do qk
-        T(scaling_factor) * sum(abs2, qk) / 2 * blowup(norm(qk), Ecut)
+        T(scaling_factor) * norm2(qk) / 2 * blowup(norm(qk), Ecut)
     end
 end
 

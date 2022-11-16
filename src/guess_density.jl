@@ -112,7 +112,7 @@ function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
         if isnothing(index_G_vectors(fft_size, -G))
             return zero(complex(T))
         end
-        Gsq = sum(abs2, recip_lattice * G)
+        Gsq = norm2(recip_lattice * G)
         res = zero(complex(T))
         for (coeff, decay_length, r) in gaussians
             form_factor::T = exp(-Gsq * T(decay_length)^2)

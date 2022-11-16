@@ -55,7 +55,7 @@ function (χ0::DielectricModel)(basis; kwargs...)
     C0  = 1 - εr
     iszero(C0) && return nothing  # Will yield no contribution
 
-    Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
+    Gsq = [norm2(G) for G in G_vectors_cart(basis)]
     apply_sqrtL = identity
     if χ0.localization != identity
         sqrtL = sqrt.(χ0.localization.(r_vectors(basis)))

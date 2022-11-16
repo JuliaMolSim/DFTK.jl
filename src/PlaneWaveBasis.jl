@@ -131,7 +131,7 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
         sizehint!(mapping, n_guess)
         sizehint!(Gvecs_k, n_guess)
         for (i, G) in enumerate(G_vectors(fft_size))
-            if !variational || sum(abs2, model.recip_lattice * (G + k)) / 2 ≤ Ecut
+            if !variational || norm2(model.recip_lattice * (G + k)) / 2 ≤ Ecut
                 push!(mapping, i)
                 push!(Gvecs_k, G)
             end
@@ -160,7 +160,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
                         architecture::AbstractArchitecture) where {T <: Real}
     # Validate fft_size
     if variational
-        max_E = sum(abs2, model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
+        max_E = norm2(model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
         Ecut > max_E && @warn(
             "For a variational method, Ecut should be less than the maximal kinetic " *
             "energy the grid supports ($max_E)"
