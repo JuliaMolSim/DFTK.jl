@@ -39,7 +39,7 @@ end
     if isnothing(ψ) || isnothing(occupation)
         return (; E=T(Inf), ops)
     end
-    occupation = [Array(occk) for occk in occupation]  # Bring occupation to CPU memory
+    occupation = [to_cpu(occk) for occk in occupation]
 
     E = zero(T)
     for (ik, ψk) in enumerate(ψ)

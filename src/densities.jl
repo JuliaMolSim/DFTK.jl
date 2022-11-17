@@ -23,7 +23,8 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 @views @timing function compute_density(basis::PlaneWaveBasis{T}, ψ, occupation;
                                         occupation_threshold=zero(T)) where {T}
     S = promote_type(T, real(eltype(ψ[1])))
-    occupation = [Array(oc) for oc in occupation]  # Bring to CPU if not yet done
+    # occupation should be on the CPU as we are going to be doing scalar indexing.
+    occupation = [to_cpu(oc) for oc in occupation]
 
     # we split the total iteration range (ik, n) in chunks, and parallelize over them
     mask_occ = map(occk -> findall(isless.(occupation_threshold, occk)), occupation)

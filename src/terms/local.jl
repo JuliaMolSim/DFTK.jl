@@ -74,7 +74,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
     model = basis.model
-    G_cart = Array(G_vectors_cart(basis))
+    G_cart = to_cpu(G_vectors_cart(basis))
     # TODO Bring G_cart on the CPU for compatibility with the pseudopotentials which
     #      are not isbits ... might be able to solve this by restructuring the loop
 
@@ -93,7 +93,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
         end
     end
 
-    Gs = Array(G_vectors(basis))  # TODO Again for GPU compatibility
+    Gs = to_cpu(G_vectors(basis))  # TODO Again for GPU compatibility
     pot_fourier = map(enumerate(Gs)) do (iG, G)
         q = norm(G_cart[iG])
         pot = sum(enumerate(model.atom_groups)) do (igroup, group)

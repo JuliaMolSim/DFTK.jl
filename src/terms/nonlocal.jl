@@ -64,7 +64,7 @@ end
         for (ik, kpt) in enumerate(basis.kpoints)
             # we compute the forces from the irreductible BZ; they are symmetrized later
             qs = Gplusk_vectors(basis, kpt)
-            qs_cart = Array(Gplusk_vectors_cart(basis, kpt))  # Get on the CPU
+            qs_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
             form_factors = build_form_factors(element.psp, qs_cart)
             for idx in group
                 r = model.positions[idx]
@@ -149,7 +149,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     n_proj = count_n_proj(psps, psp_positions)
     n_G    = length(G_vectors(basis, kpt))
     proj_vectors = zeros(Complex{T}, n_G, n_proj)
-    qs = Array(Gplusk_vectors(basis, kpt))  # Get Gs on the CPU if computed on a device
+    qs = to_cpu(Gplusk_vectors(basis, kpt))
 
     # Compute the columns of proj_vectors = 1/√Ω pihat(k+G)
     # Since the pi are translates of each others, pihat(k+G) decouples as
@@ -158,7 +158,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     offset = 0  # offset into proj_vectors
     for (psp, positions) in zip(psps, psp_positions)
         # Compute position-independent form factors
-        qs_cart = Array(Gplusk_vectors_cart(basis, kpt))  # Get on the CPU if computed on device
+        qs_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
         form_factors = build_form_factors(psp, qs_cart)
 
         # Combine with structure factors
