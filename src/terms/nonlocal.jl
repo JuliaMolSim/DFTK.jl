@@ -108,7 +108,6 @@ function build_projection_coefficients_(T, psps, psp_positions; architecture=CPU
     end  # psp, r
     @assert count == n_proj
 
-    # GPU computation only : build the coefficients on CPU then offload them to the GPU
     to_device(architecture, proj_coeffs)
 end
 

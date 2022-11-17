@@ -357,7 +357,7 @@ function G_vectors(architecture::AbstractArchitecture, fft_size::Union{Tuple,Abs
     stop  = fld.(fft_size .- 1, 2)
     axes  = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
     Gs = [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
-    to_device(architecture, Gs)  # Put data on the device (like GPU)
+    to_device(architecture, Gs)
 end
 
 function G_vectors_generator(fft_size::Union{Tuple,AbstractVector})

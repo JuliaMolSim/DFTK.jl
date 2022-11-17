@@ -23,7 +23,6 @@ export Mat3
 export mpi_nprocs
 export mpi_master
 export setup_threading, disable_threading
-export CPU, GPU
 include("common/timer.jl")
 include("common/constants.jl")
 include("common/ortho.jl")

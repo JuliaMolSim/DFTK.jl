@@ -29,7 +29,7 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues, εF;
     inverse_temperature = iszero(temperature) ? T(Inf) : 1/temperature
 
     filled_occ = filled_occupation(basis.model)
-    [to_device(basis.architecture,  # Put onto the GPU if we're using it
+    [to_device(basis.architecture,
         filled_occ * Smearing.occupation.(smearing, (εk .- εF) .* inverse_temperature))
         for εk in eigenvalues]
 end

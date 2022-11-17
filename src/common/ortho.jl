@@ -7,5 +7,5 @@
     Q[:, 1:size(φk, 2)]
 end
 
-# CPU specialisation to go a bit faster
+# CPU specialisation to go a bit faster (skip the slicing)
 @timing ortho_qr(φk::ArrayType) where {ArrayType <: Array} = Array(qr(φk).Q)

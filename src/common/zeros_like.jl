@@ -1,5 +1,5 @@
 """
-Create an array of same type as X filled with zeros, minimizing the number
+Create an array of same "array type" as X filled with zeros, minimizing the number
 of allocations. This unifies CPU and GPU code, as the output will always be on the
 same device as the input.
 """
