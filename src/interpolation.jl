@@ -2,9 +2,9 @@ import Interpolations
 import Interpolations: interpolate, extrapolate, scale, BSpline, Quadratic, OnCell
 
 """
-Interpolate a function expressed in a basis `basis_in` to a basis `basis_out`
-This interpolation uses a very basic real-space algorithm, and makes
-a DWIM-y attempt to take into account the fact that basis_out can be a supercell of basis_in
+Interpolate a function expressed in a basis `basis_in` to a basis `basis_out`.
+This interpolation uses a very basic real-space algorithm, and makes a DWIM-y attempt to
+take into account the fact that `basis_out` can be a supercell of `basis_in`.
 """
 function interpolate_density(ρ_in, basis_in::PlaneWaveBasis, basis_out::PlaneWaveBasis)
     ρ_out = interpolate_density(ρ_in, basis_in.fft_size, basis_out.fft_size,
@@ -12,7 +12,8 @@ function interpolate_density(ρ_in, basis_in::PlaneWaveBasis, basis_out::PlaneWa
 end
 
 # Interpolate ρ_in from grid grid_in to grid_out.
-function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out)
+function interpolate_density(ρ_in::AbstractArray, grid_in::TA,
+                             grid_out::TB) where {TA, TB <: Union{Tuple, AbstractArray}}
     axes_in = (range(0, 1, length=grid_in[i]+1)[1:end-1] for i=1:3)
     itp = interpolate(ρ_in, BSpline(Quadratic(Interpolations.Periodic(OnCell()))))
     sitp = scale(itp, axes_in...)
@@ -31,7 +32,8 @@ function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out)
     ρ_out
 end
 
-# Interpolate ρ_in from grid grid_in of lattice_in to grid_out of lattice_out.
+# Interpolate ρ_in from grid grid_in of lattice_in to grid_out of lattice_out. lattice_out
+# is expected to have a size comparable or bigger than lattice_in.
 function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in,
                              lattice_out=lattice_in)
     @assert size(ρ_in) == grid_in
@@ -48,7 +50,7 @@ function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in
         iszero(col_in) ? 1 : round(Int, norm(col_out) / norm(col_in))
     end
 
-    # Find if the deformation of the lattice in some directions may pose a problem.
+    # Check if some directions of lattice_in is not too big compared to lattice_out.
     suspicious_directions = findall(norm.(eachcol(lattice_out - supercell .* lattice_in))
                                     .> 0.3*norm.(eachcol(lattice_out)))
     for i in suspicious_directions
