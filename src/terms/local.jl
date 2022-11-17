@@ -105,7 +105,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
 
     # Offload potential values to a device (like a GPU) and do the FFT
-    pot_real = irfft(basis, convert_like(basis.G_vectors, pot_fourier))
+    pot_real = irfft(basis, to_device(basis.architecture, pot_fourier))
 
     TermAtomicLocal(pot_real)
 end

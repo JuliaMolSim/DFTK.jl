@@ -11,7 +11,7 @@ positions = [ones(3)/8, -ones(3)/8]
 model = model_DFT(lattice, atoms, positions, []; temperature=1e-3)
 
 # If available use CUDA to store DFT quantities and perform main computations
-# This is triggered by setting the array_type for storing DFT quantities
+# This is triggered by setting the array type for storing DFT quantities
 architecture = has_cuda() ? GPU(CuArray) : CPU()
 
 basis  = PlaneWaveBasis(model; Ecut=30, kgrid=(1, 1, 1), architecture)

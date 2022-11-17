@@ -15,7 +15,7 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
     isempty(psp_groups) && return TermNoop()
     ops = map(basis.kpoints) do kpt
         P = build_projection_vectors_(basis, kpt, psps, psp_positions)
-        D = build_projection_coefficients_(T, psps, psp_positions, array_type=basis.G_vectors)
+        D = build_projection_coefficients_(T, psps, psp_positions, architecture=basis.architecture)
         NonlocalOperator(basis, kpt, P, D)
     end
     TermAtomicNonlocal(ops)
@@ -92,7 +92,7 @@ end
 # The ordering of the projector indices is (A,l,m,i), where A is running over all
 # atoms, l, m are AM quantum numbers and i is running over all projectors for a
 # given l. The matrix is block-diagonal with non-zeros only if A, l and m agree.
-function build_projection_coefficients_(T, psps, psp_positions; array_type=Array)
+function build_projection_coefficients_(T, psps, psp_positions; architecture=CPU())
     # TODO In the current version the proj_coeffs still has a lot of zeros.
     #      One could improve this by storing the blocks as a list or in a
     #      BlockDiagonal data structure
@@ -109,7 +109,7 @@ function build_projection_coefficients_(T, psps, psp_positions; array_type=Array
     @assert count == n_proj
 
     # GPU computation only : build the coefficients on CPU then offload them to the GPU
-    convert_like(array_type, proj_coeffs)
+    to_device(architecture, proj_coeffs)
 end
 
 # Builds the projection coefficient matrix for a single atom
@@ -177,7 +177,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     @assert offset == n_proj
 
     # Offload potential values to a device (like a GPU)
-    convert_like(basis.G_vectors, proj_vectors)
+    to_device(basis.architecture, proj_vectors)
 end
 
 """

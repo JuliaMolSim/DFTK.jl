@@ -37,7 +37,7 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
         poisson_green_coeffs[1] = 0  # Compensating charge background => Zero DC
     end
     enforce_real!(basis, poisson_green_coeffs)  # Symmetrize Fourier coeffs to have real iFFT
-    poisson_green_coeffs = convert_like(basis.G_vectors, poisson_green_coeffs) # Move to GPU
+    poisson_green_coeffs = to_device(basis.architecture, poisson_green_coeffs) # Move to GPU
 
     TermHartree(T(scaling_factor), T(scaling_factor) .* poisson_green_coeffs)
 end
