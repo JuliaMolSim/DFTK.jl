@@ -11,14 +11,13 @@ function interpolate_density(ρ_in, basis_in::PlaneWaveBasis, basis_out::PlaneWa
                                 basis_in.model.lattice, basis_out.model.lattice)
 end
 
-# Interpolate ρ_in_supercell from grid grid_supercell to grid_out.
-function interpolate_density_supercell(ρ_in_supercell::AbstractArray, grid_supercell,
-                                       grid_out)
-    axes_in = (range(0, 1, length=grid_supercell[i]+1)[1:end-1] for i=1:3)
-    itp = interpolate(ρ_in_supercell, BSpline(Quadratic(Interpolations.Periodic(OnCell()))))
+# Interpolate ρ_in from grid grid_in to grid_out.
+function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out)
+    axes_in = (range(0, 1, length=grid_in[i]+1)[1:end-1] for i=1:3)
+    itp = interpolate(ρ_in, BSpline(Quadratic(Interpolations.Periodic(OnCell()))))
     sitp = scale(itp, axes_in...)
     ρ_interp = extrapolate(sitp, Periodic())
-    ρ_out = similar(ρ_in_supercell, grid_out)
+    ρ_out = similar(ρ_in, grid_out)
     for i = 1:grid_out[1]
         for j = 1:grid_out[2]
             for k = 1:grid_out[3]
@@ -32,18 +31,19 @@ function interpolate_density_supercell(ρ_in_supercell::AbstractArray, grid_supe
     ρ_out
 end
 
+# Interpolate ρ_in from grid grid_in of lattice_in to grid_out of lattice_out.
 function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in,
                              lattice_out=lattice_in)
     @assert size(ρ_in) == grid_in
 
     # Early exit if same lattice for input and output
     lattice_in == lattice_out &&
-        return ρ_out = interpolate_density_supercell(ρ_in, grid_in, grid_out)
+        return ρ_out = interpolate_density(ρ_in, grid_in, grid_out)
 
     # The two lattices should have the same dimension.
     @assert iszero.(eachcol(lattice_in)) == iszero.(eachcol(lattice_out))
 
-    # First, build supercell, array of 3 ints
+    # First, build supercell, array of 3 integers
     supercell = map(zip(eachcol(lattice_in), eachcol(lattice_out))) do (col_in, col_out)
         iszero(col_in) ? 1 : round(Int, norm(col_out) / norm(col_in))
     end
@@ -57,7 +57,7 @@ function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in
 
     # ρ_in represents a periodic function, on a grid 0, 1/N, ... (N-1)/N
     grid_supercell = grid_in .* supercell
-    ρ_in_supercell = similar(ρ_in, (grid_supercell...))
+    ρ_in_supercell = similar(ρ_in, grid_supercell...)
     for i = 1:supercell[1]
         for j = 1:supercell[2]
             for k = 1:supercell[3]
@@ -69,7 +69,7 @@ function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in
         end
     end
 
-    ρ_out = interpolate_density_supercell(ρ_in_supercell, grid_supercell, grid_out)
+    ρ_out = interpolate_density(ρ_in_supercell, grid_supercell, grid_out)
 end
 
 """
