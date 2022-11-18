@@ -73,7 +73,7 @@ load_scfres(file::AbstractString) = JLD2.jldopen(load_scfres, file, "r")
 #
 # Custom serialisations
 #
-struct PlaneWaveBasisSerialisation{T <: Real, GT <: AbstractArray}
+struct PlaneWaveBasisSerialisation{T <: Real}
     model::Model{T,T}
     Ecut::T
     variational::Bool
@@ -86,12 +86,14 @@ struct PlaneWaveBasisSerialisation{T <: Real, GT <: AbstractArray}
     architecture::AbstractArchitecture
 end
 function JLD2.writeas(::Type{PlaneWaveBasis{T,T,GT,RT,KGT}}) where {T,GT,RT,KGT}
-    PlaneWaveBasisSerialisation{T,GT}
+    # The GT, GT, KGT are uniquely determined by the architecture,
+    # which is stored in the basis.
+    PlaneWaveBasisSerialisation{T}
 end
 
-function Base.convert(::Type{PlaneWaveBasisSerialisation{T,GT}},
-                      basis::PlaneWaveBasis{T,T,GT}) where {T,GT}
-    PlaneWaveBasisSerialisation{T,GT}(
+function Base.convert(::Type{PlaneWaveBasisSerialisation{T}},
+                      basis::PlaneWaveBasis{T,T}) where {T}
+    PlaneWaveBasisSerialisation{T}(
         basis.model,
         basis.Ecut,
         basis.variational,
@@ -106,7 +108,7 @@ function Base.convert(::Type{PlaneWaveBasisSerialisation{T,GT}},
 end
 
 function Base.convert(::Type{PlaneWaveBasis{T,T,GT,RT,KGT}},
-                      serial::PlaneWaveBasisSerialisation{T,GT}) where {T,GT,RT,KGT}
+                      serial::PlaneWaveBasisSerialisation{T}) where {T,GT,RT,KGT}
     PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords, serial.kweights;
                    serial.fft_size,
                    serial.kgrid,
