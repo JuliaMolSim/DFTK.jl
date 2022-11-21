@@ -29,9 +29,10 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues, εF;
     inverse_temperature = iszero(temperature) ? T(Inf) : 1/temperature
 
     filled_occ = filled_occupation(basis.model)
-    [to_device(basis.architecture,
-        filled_occ * Smearing.occupation.(smearing, (εk .- εF) .* inverse_temperature))
-        for εk in eigenvalues]
+    map(eigenvalues) do εk
+        occ = filled_occ * Smearing.occupation.(smearing, (εk .- εF) .* inverse_temperature)
+        to_device(basis.architecture, occ)
+    end
 end
 
 function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues; temperature) where {T}

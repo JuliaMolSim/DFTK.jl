@@ -11,4 +11,4 @@ norm_cplx(x) = sqrt(sum(xx -> xx * xx, x))
 """
 Square of the ℓ²-norm.
 """
-norm2(G::AbstractArray) = sum(abs2, G)
+norm2(G) = sum(abs2, G)

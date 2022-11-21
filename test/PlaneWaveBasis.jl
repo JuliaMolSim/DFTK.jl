@@ -11,7 +11,7 @@ function test_pw_cutoffs(testcase, Ecut, fft_size)
 
     for (ik, kpt) in enumerate(basis.kpoints)
         for G in G_vectors(basis, kpt)
-            @test sum(abs2,model.recip_lattice * (kpt.coordinate + G)) ≤ 2 * Ecut
+            @test sum(abs2, model.recip_lattice * (kpt.coordinate + G)) ≤ 2 * Ecut
         end
     end
 end

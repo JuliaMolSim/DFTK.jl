@@ -256,7 +256,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     @assert mpi_sum(sum(kweights_thisproc), comm_kpts) ≈ model.n_spin_components
     @assert length(kpoints) == length(kweights_thisproc)
 
-    if Gs isa AbstractGPUArray && Threads.nthreads() > 1
+    if architecture isa GPU && Threads.nthreads() > 1
         error("Can't mix multi-threading and GPU computations yet.")
     end
 

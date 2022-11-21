@@ -1,5 +1,3 @@
-using GPUArraysCore
-
 """
 Hartree term: for a decaying potential V the energy would be
 

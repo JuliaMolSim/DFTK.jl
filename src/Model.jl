@@ -283,7 +283,7 @@ inverse lattice transpose: q_cart = 2π lattice' \ q_red = recip_lattice * q_red
 For each of the function there is a one-argument version (returning a function to do the
 transformation) and a two-argument version applying the transformation to a passed vector.
 =#
-_closure_matmul(mat) = vec -> mat * vec
+@inline _closure_matmul(mat) = vec -> mat * vec
 
 vector_red_to_cart(model::Model)       = _closure_matmul(model.lattice)
 vector_cart_to_red(model::Model)       = _closure_matmul(model.inv_lattice)
