@@ -238,7 +238,6 @@ function __init__()
     end
     @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba"  begin
         include("workarounds/cuda_arrays.jl")
-        include("cuda_architecture.jl")
     end
 end
 
