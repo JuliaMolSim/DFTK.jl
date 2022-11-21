@@ -38,12 +38,7 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     # TODO Annoying that one has to recompute the kinetic energies here. Perhaps
     #      it's better to pass a HamiltonianBlock directly and read the computed values.
     kinetic_term = only(kinetic_term)
-    scaling = kinetic_term.scaling_factor
-    blowup = kinetic_term.blowup     # blowup for energy cut-off smearing
-    Ecut = basis.Ecut
-    kin = map(Gplusk_vectors_cart(basis, kpt)) do q
-        scaling * norm2(q) /2 * blowup(norm(q), Ecut)
-    end
+    kin = kinetic_energy(kinetic_term, basis.Ecut, Gplusk_vectors_cart(basis, kpt))
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 

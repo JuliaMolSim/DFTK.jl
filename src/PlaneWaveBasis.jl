@@ -200,7 +200,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     kweights_global = kweights
 
     # Setup FFT plans
-    Gs = G_vectors(architecture, fft_size)
+    Gs = to_device(architecture, G_vectors(fft_size))
     (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans!(similar(Gs, Complex{T}, fft_size))
 
     # Normalization constants
@@ -349,15 +349,13 @@ end
 The wave vectors `G` in reduced (integer) coordinates for a cubic basis set
 of given sizes.
 """
-G_vectors(fft_size::Union{Tuple,AbstractVector}) = G_vectors(CPU(), fft_size)
-function G_vectors(architecture::AbstractArchitecture, fft_size::Union{Tuple,AbstractVector})
+function G_vectors(fft_size::Union{Tuple,AbstractVector})
     # Note that a collect(G_vectors_generator(fft_size)) is 100-fold slower
     # than this implementation, hence the code duplication.
     start = .- cld.(fft_size .- 1, 2)
     stop  = fld.(fft_size .- 1, 2)
     axes  = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
-    Gs = [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
-    to_device(architecture, Gs)
+    [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
 end
 
 function G_vectors_generator(fft_size::Union{Tuple,AbstractVector})
