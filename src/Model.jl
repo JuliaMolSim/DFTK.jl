@@ -312,7 +312,7 @@ s_cart = L s_red = L A_red r_red = L A_red L⁻¹ r_cart, thus A_cart = L A_red 
 Examples of matrices are the symmetries in real space (W)
 Examples of comatrices are the symmetries in reciprocal space (S)
 =#
-_closure_matmatmul(M, Minv) = mat -> M * mat * Minv
+@inline _closure_matmatmul(M, Minv) = mat -> M * mat * Minv
 
 matrix_red_to_cart(model::Model)   = _closure_matmatmul(model.lattice,      model.inv_lattice)
 matrix_cart_to_red(model::Model)   = _closure_matmatmul(model.inv_lattice,  model.lattice)
