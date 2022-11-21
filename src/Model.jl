@@ -283,14 +283,14 @@ inverse lattice transpose: q_cart = 2π lattice' \ q_red = recip_lattice * q_red
 For each of the function there is a one-argument version (returning a function to do the
 transformation) and a two-argument version applying the transformation to a passed vector.
 =#
-@inline _closure_matmul(mat) = vec -> mat * vec
+@inline _gen_matmul(mat) = vec -> mat * vec
 
-vector_red_to_cart(model::Model)       = _closure_matmul(model.lattice)
-vector_cart_to_red(model::Model)       = _closure_matmul(model.inv_lattice)
-covector_red_to_cart(model::Model)     = _closure_matmul(model.inv_lattice')
-covector_cart_to_red(model::Model)     = _closure_matmul(model.lattice')
-recip_vector_red_to_cart(model::Model) = _closure_matmul(model.recip_lattice)
-recip_vector_cart_to_red(model::Model) = _closure_matmul(model.inv_recip_lattice)
+vector_red_to_cart(model::Model)       = _gen_matmul(model.lattice)
+vector_cart_to_red(model::Model)       = _gen_matmul(model.inv_lattice)
+covector_red_to_cart(model::Model)     = _gen_matmul(model.inv_lattice')
+covector_cart_to_red(model::Model)     = _gen_matmul(model.lattice')
+recip_vector_red_to_cart(model::Model) = _gen_matmul(model.recip_lattice)
+recip_vector_cart_to_red(model::Model) = _gen_matmul(model.inv_recip_lattice)
 
 vector_red_to_cart(model::Model, vec)       = vector_red_to_cart(model)(vec)
 vector_cart_to_red(model::Model, vec)       = vector_cart_to_red(model)(vec)
@@ -312,12 +312,12 @@ s_cart = L s_red = L A_red r_red = L A_red L⁻¹ r_cart, thus A_cart = L A_red 
 Examples of matrices are the symmetries in real space (W)
 Examples of comatrices are the symmetries in reciprocal space (S)
 =#
-@inline _closure_matmatmul(M, Minv) = mat -> M * mat * Minv
+@inline _gen_matmatmul(M, Minv) = mat -> M * mat * Minv
 
-matrix_red_to_cart(model::Model)   = _closure_matmatmul(model.lattice,      model.inv_lattice)
-matrix_cart_to_red(model::Model)   = _closure_matmatmul(model.inv_lattice,  model.lattice)
-comatrix_red_to_cart(model::Model) = _closure_matmatmul(model.inv_lattice', model.lattice')
-comatrix_cart_to_red(model::Model) = _closure_matmatmul(model.lattice',     model.inv_lattice')
+matrix_red_to_cart(model::Model)   = _gen_matmatmul(model.lattice,      model.inv_lattice)
+matrix_cart_to_red(model::Model)   = _gen_matmatmul(model.inv_lattice,  model.lattice)
+comatrix_red_to_cart(model::Model) = _gen_matmatmul(model.inv_lattice', model.lattice')
+comatrix_cart_to_red(model::Model) = _gen_matmatmul(model.lattice',     model.inv_lattice')
 
 matrix_red_to_cart(model::Model, Ared)    = matrix_red_to_cart(model)(Ared)
 matrix_cart_to_red(model::Model, Acart)   = matrix_cart_to_red(model)(Acart)

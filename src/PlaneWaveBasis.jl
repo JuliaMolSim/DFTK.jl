@@ -120,7 +120,7 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
                                variational=true,
-                               architecture::AbstractArchitecture=CPU()) where {T}
+                               architecture::AbstractArchitecture) where {T}
     kpoints_per_spin = [Kpoint[] for _ in 1:model.n_spin_components]
     for k in kcoords
         k = Vec3{T}(k)  # rationals are sloooow
@@ -148,7 +148,7 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 end
 function build_kpoints(basis::PlaneWaveBasis, kcoords)
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut;
-                  variational=basis.variational, architecture = basis.architecture)
+                  variational=basis.variational, basis.architecture)
 end
 
 # Lowest-level constructor, should not be called directly.
