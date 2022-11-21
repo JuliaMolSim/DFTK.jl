@@ -51,11 +51,10 @@ function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in
         end
 
         # Check if some directions of lattice_in is not too big compared to lattice_out.
-        lattice_in_super = supercell .* lattice_in
-        suspicious_directions = findall(eachcol(lattice_in_super), eachcol(lattice_out)) do as_in, a_out
+        is_suspicious_direction = map(supercell .* lattice_in, lattice_out) do as_in, a_out
             norm(as_in - a_out) > 0.3 norm(a_out)
         end
-        for i in suspicious_directions
+        for i in findall(is_suspicious_direction)
             @warn "In direction $i, the output lattice is very different from the input lattice"
         end
 
