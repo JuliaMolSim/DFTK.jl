@@ -38,40 +38,43 @@ function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in
                              lattice_out=lattice_in)
     @assert size(ρ_in) == grid_in
 
-    # Early exit if same lattice for input and output
-    lattice_in == lattice_out &&
-        return ρ_out = interpolate_density(ρ_in, grid_in, grid_out)
+    if lattice_in == lattice_out
+        # Early exit if same lattice for input and output
+        ρ_out = interpolate_density(ρ_in, grid_in, grid_out)
+    else
+        # The two lattices should have the same dimension.
+        @assert iszero.(eachcol(lattice_in)) == iszero.(eachcol(lattice_out))
 
-    # The two lattices should have the same dimension.
-    @assert iszero.(eachcol(lattice_in)) == iszero.(eachcol(lattice_out))
+        # First, build supercell, array of 3 integers
+        supercell = map(eachcol(lattice_in), eachcol(lattice_out)) do col_in, col_out
+            iszero(col_in) ? 1 : round(Int, norm(col_out) / norm(col_in))
+        end
 
-    # First, build supercell, array of 3 integers
-    supercell = map(zip(eachcol(lattice_in), eachcol(lattice_out))) do (col_in, col_out)
-        iszero(col_in) ? 1 : round(Int, norm(col_out) / norm(col_in))
-    end
+        # Check if some directions of lattice_in is not too big compared to lattice_out.
+        map(enumerate(eachcol(supercell .* lattice_in)),
+            eachcol(lattice_out)) do (i, scaled_col_in), col_out
+            norm(col_out - scaled_col_in) > 0.3 * norm(col_out) &&
+                @warn "In direction $i, the output lattice is very different from the " *
+                       "input lattice"
+        end
 
-    # Check if some directions of lattice_in is not too big compared to lattice_out.
-    suspicious_directions = findall(norm.(eachcol(lattice_out - supercell .* lattice_in))
-                                    .> 0.3*norm.(eachcol(lattice_out)))
-    for i in suspicious_directions
-        @warn "In direction $i, the output lattice is very different from the input lattice"
-    end
-
-    # ρ_in represents a periodic function, on a grid 0, 1/N, ... (N-1)/N
-    grid_supercell = grid_in .* supercell
-    ρ_in_supercell = similar(ρ_in, grid_supercell...)
-    for i = 1:supercell[1]
-        for j = 1:supercell[2]
-            for k = 1:supercell[3]
-                ρ_in_supercell[
-                    1 + (i-1)*grid_in[1] : i*grid_in[1],
-                    1 + (j-1)*grid_in[2] : j*grid_in[2],
-                    1 + (k-1)*grid_in[3] : k*grid_in[3]] = ρ_in
+        # ρ_in represents a periodic function, on a grid 0, 1/N, ... (N-1)/N
+        grid_supercell = grid_in .* supercell
+        ρ_in_supercell = similar(ρ_in, grid_supercell...)
+        for i = 1:supercell[1]
+            for j = 1:supercell[2]
+                for k = 1:supercell[3]
+                    ρ_in_supercell[
+                        1 + (i-1)*grid_in[1] : i*grid_in[1],
+                        1 + (j-1)*grid_in[2] : j*grid_in[2],
+                        1 + (k-1)*grid_in[3] : k*grid_in[3]] = ρ_in
+                end
             end
         end
-    end
 
-    ρ_out = interpolate_density(ρ_in_supercell, grid_supercell, grid_out)
+        ρ_out = interpolate_density(ρ_in_supercell, grid_supercell, grid_out)
+    end
+    ρ_out
 end
 
 """
