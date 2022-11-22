@@ -16,8 +16,8 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
         header = i==1 ? "lattice (in Bohr)" : ""
         showfieldln(io, header, (@sprintf "[%-10.6g, %-10.6g, %-10.6g]" model.lattice[i, :]...))
     end
-    showfieldln(io, "unit cell volume", @sprintf "%.5g Bohr" model.unit_cell_volume,
-                get(Dict(1 => "", 2 => "²", 3 => "³"), model.n_dim, ""))
+    dimexp = get(Dict(1 => "", 2 => "²", 3 => "³"), model.n_dim, "")
+    showfieldln(io, "unit cell volume", @sprintf "%.5g Bohr%s" model.unit_cell_volume dimexp)
 
     if !isempty(model.atoms)
         println(io)
