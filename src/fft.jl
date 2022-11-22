@@ -159,7 +159,7 @@ If `factors` is not empty, ensure that the resulting fft_size contains all the f
 """
 function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
                           ensure_smallprimes=true, algorithm=:fast, factors=1,
-                          architecture = CPU(), kwargs...) where {T}
+                          kwargs...) where {T}
     if algorithm == :fast
         Glims = compute_Glims_fast(model.lattice, Ecut; kwargs...)
     elseif algorithm == :precise
@@ -172,7 +172,7 @@ function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
         # fft_size needs to be final at k-point construction time
         Glims_temp    = compute_Glims_fast(model.lattice, Ecut; kwargs...)
         fft_size_temp = Tuple{Int, Int, Int}(2 .* Glims_temp .+ 1)
-        kpoints_temp  = build_kpoints(model, fft_size_temp, kcoords, Ecut; architecture)
+        kpoints_temp  = build_kpoints(model, fft_size_temp, kcoords, Ecut; architecture=CPU())
 
         Glims = compute_Glims_precise(model.lattice, Ecut, kpoints_temp; kwargs...)
     else
