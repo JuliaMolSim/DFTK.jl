@@ -35,7 +35,7 @@ end
 
 function plot_band_data(kpath::KPathInterpolant, band_data;
                         εF=nothing, unit=u"hartree", kwargs...)
-    eshift = isnothing(εF) ? 0.0 : εF
+    eshift = something(εF, 0.0)
     data = data_for_plotting(kpath, band_data)
 
     # Constant to convert from AU to the desired unit
@@ -66,7 +66,7 @@ function plot_band_data(kpath::KPathInterpolant, band_data;
         Plots.hline!(p, [0.0], label="εF", color=:green, lw=1.5)
     end
 
-    ylims = to_unit .* (default_band_εrange(band_data.λ; εF) .- εF)
+    ylims = to_unit .* (default_band_εrange(band_data.λ; εF) .- eshift)
     Plots.ylims!(p, round.(ylims, sigdigits=2)...)
     if isnothing(εF)
         Plots.ylabel!(p, "eigenvalues  ($(string(unit)))")
@@ -80,7 +80,7 @@ end
 function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
                   εrange=default_band_εrange(eigenvalues; εF), n_points=1000, kwargs...)
     n_spin = basis.model.n_spin_components
-    eshift = isnothing(εF) ? 0.0 : εF
+    eshift = something(εF, 0.0)
     εs = range(austrip.(εrange)..., length=n_points)
 
     # Constant to convert from AU to the desired unit
