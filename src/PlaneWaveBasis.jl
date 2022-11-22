@@ -42,7 +42,7 @@ Normalization conventions:
 struct PlaneWaveBasis{T,
                       VT <: Real,
                       T_G_vectors  <: AbstractArray{Vec3{Int}, 3},
-                      T_r_vectors  <: AbstractArray{Vec3{T},   3},
+                      T_r_vectors  <: AbstractArray{Vec3{VT},  3},
                       T_kpt_G_vecs <: AbstractVector{Vec3{Int}}
                      } <: AbstractBasis{T}
 
