@@ -15,7 +15,7 @@ Discretization information for ``k``-point-dependent quantities such as orbitals
 More generally, a ``k``-point is a block of the Hamiltonian;
 eg collinear spin is treated by doubling the number of kpoints.
 """
-struct Kpoint{T <: Real, GT <: AbstractArray}
+struct Kpoint{T <: Real, GT <: AbstractVector{Vec3{Int}}}
     spin::Int                     # Spin component can be 1 or 2 as index into what is
     #                             # returned by the `spin_components` function
     coordinate::Vec3{T}           # Fractional coordinate of k-point
@@ -39,10 +39,9 @@ Normalization conventions:
 
 `ifft` and `fft` convert between these representations.
 """
-struct PlaneWaveBasis{T, VT, T_G_vectors, T_r_vectors, T_kpt_G_vecs} <: AbstractBasis{
-    T
-} where {VT <: Real, T_G_vectors <: AbstractArray{Vec3{Int}}, T_r_vectors <: AbstractArray,
-         T_kpt_G_vecs <: AbstractVector{Vec3{Int}}}
+struct PlaneWaveBasis{T, VT, T_G_vectors, T_r_vectors, T_kpt_G_vecs} <: AbstractBasis{T} where
+    {VT <: Real, T_G_vectors <: AbstractArray{Vec3{Int}},
+    T_r_vectors <: AbstractArray{Vec3}, T_kpt_G_vecs <: AbstractVector{Vec3{Int}}}
     # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
     model::Model{T, VT}
 
@@ -141,7 +140,7 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
         mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
         for iσ = 1:model.n_spin_components
             push!(kpoints_per_spin[iσ],
-                  Kpoint{T,typeof(Gvecs_k)}(iσ, k, mapping, mapping_inv, Gvecs_k))
+                  Kpoint(iσ, k, mapping, mapping_inv, Gvecs_k))
         end
     end
     vcat(kpoints_per_spin...)  # put all spin up first, then all spin down
@@ -399,7 +398,7 @@ end
 The list of ``G + k`` vectors, in reduced coordinates.
 """
 function Gplusk_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
-    coordinate = kpt.coordinate  # Avoid closure on kpt (not isbits)
+    coordinate = kpt.coordinate  # Accelerator: avoid closure on kpt (not isbits)
     map(G -> G + coordinate, G_vectors(basis, kpt))
 end
 
@@ -450,7 +449,7 @@ Returns nothing if outside the range of valid wave vectors.
     end
 end
 
-@inline function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{<:Integer})
+function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{<:Integer})
     index_G_vectors(basis.fft_size, G)
 end
 

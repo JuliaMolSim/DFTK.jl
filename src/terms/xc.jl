@@ -97,7 +97,7 @@ end
         end
         if haskey(terms, :Vl) && any(x -> abs(x) > term.potential_threshold, terms.Vl)
             @warn "Meta-GGAs with a Δρ term have not yet been thoroughly tested." maxlog=1
-            mG² = [-norm2(G) for G in G_vectors_cart(basis)]
+            mG² = -norm2.(G_vectors_cart(basis))
             Vl  = reshape(terms.Vl, n_spin, basis.fft_size...)
             Vl_fourier = fft(basis, Vl[s, :, :, :])
             # TODO: forcing real-valued ifft; should be enforced at creation of array
@@ -255,7 +255,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
     # Compute Δρ
     if max_derivative > 1
         Δρ_real = similar(ρ_real, n_spin, basis.fft_size...)
-        mG² = [-norm2(G) for G in G_vectors_cart(basis)]
+        mG² = -norm2.(G_vectors_cart(basis))
         for σ = 1:n_spin
             # TODO: forcing real-valued ifft; should be enforced at creation of array
             Δρ_real[σ, :, :, :] .= irfft(basis, mG² .* @view ρ_fourier[σ, :, :, :];

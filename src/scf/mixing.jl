@@ -50,7 +50,7 @@ end
 @timing "KerkerMixing" function mix_density(mixing::KerkerMixing, basis::PlaneWaveBasis,
                                             δF; kwargs...)
     T      = eltype(δF)
-    G²     = map(norm2, G_vectors_cart(basis))
+    G²     = norm2.(G_vectors_cart(basis))
     kTF    = T.(mixing.kTF)
     ΔDOS_Ω = T.(mixing.ΔDOS_Ω)
 
