@@ -20,7 +20,7 @@ end
 Xc(functional; kwargs...) = Xc([functional]; kwargs...)
 
 function Base.show(io::IO, xc::Xc)
-    fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
+    fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$(xc.scaling_factor)"
     fun = length(xc.functionals) == 1 ? ":$(xc.functionals[1])" : "$(xc.functionals)"
     print(io, "Xc($fun$fac)")
 end
