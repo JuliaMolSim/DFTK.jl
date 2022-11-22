@@ -39,9 +39,13 @@ Normalization conventions:
 
 `ifft` and `fft` convert between these representations.
 """
-struct PlaneWaveBasis{T, VT, T_G_vectors, T_r_vectors, T_kpt_G_vecs} <: AbstractBasis{T} where
-    {VT <: Real, T_G_vectors <: AbstractArray{Vec3{Int}},
-    T_r_vectors <: AbstractArray{Vec3}, T_kpt_G_vecs <: AbstractVector{Vec3{Int}}}
+struct PlaneWaveBasis{T,
+                      VT <: Real,
+                      T_G_vectors  <: AbstractArray{Vec3{Int}, 3},
+                      T_r_vectors  <: AbstractArray{Vec3{T},   3},
+                      T_kpt_G_vecs <: AbstractVector{Vec3{Int}}
+                     } <: AbstractBasis{T}
+
     # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
     model::Model{T, VT}
 
