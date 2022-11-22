@@ -12,7 +12,7 @@ function compute_occupation(basis::PlaneWaveBasis, eigenvalues;
     if !isnothing(basis.model.εF)  # fixed Fermi level
         εF = basis.model.εF
     else  # fixed n_electrons
-        εF = compute_fermi_level(basis, eigenvalues; temperature)
+        εF = compute_fermi_level(basis, eigenvalues; temperature, smearing)
     end
     occupation = compute_occupation(basis, eigenvalues, εF; temperature, smearing)
 
@@ -35,7 +35,8 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues, εF;
     end
 end
 
-function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues; temperature) where {T}
+function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues;
+                             temperature, smearing) where {T}
     n_electrons = basis.model.n_electrons
     n_spin      = basis.model.n_spin_components
 
@@ -48,7 +49,8 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues; temperature)
     # If temperature is zero, (εi-εF)/θ = ±∞.
     # The occupation function is required to give 1 and 0 respectively in these cases.
     function compute_n_elec(εF)
-        weighted_ksum(basis, sum.(compute_occupation(basis, eigenvalues, εF; temperature)))
+        weighted_ksum(basis, sum.(compute_occupation(basis, eigenvalues, εF;
+                                                     smearing, temperature)))
     end
 
     if filled_occ * weighted_ksum(basis, length.(eigenvalues)) < (n_electrons - sqrt(eps(T)))

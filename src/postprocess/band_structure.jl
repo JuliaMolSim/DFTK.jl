@@ -181,17 +181,16 @@ end
 
 
 """
-    is_metal(band_data, εF, tol)
+    is_metal(eigenvalues, εF; tol)
 
 Determine whether the provided bands indicate the material is a metal,
 i.e. where bands are cut by the Fermi level.
 """
-function is_metal(band_data, εF, tol=1e-4)
-    n_bands = length(band_data.λ[1])
-    n_kpoints = length(band_data.λ)
+function is_metal(eigenvalues, εF; tol=1e-4)
+    n_bands = length(eigenvalues[1])
     for ib in 1:n_bands
-        some_larger = any(band_data.λ[ik][ib] - εF < -tol for ik in 1:n_kpoints)
-        some_smaller = any(εF - band_data.λ[ik][ib] < -tol for ik in 1:n_kpoints)
+        some_larger  = any(εk[ib] > εF + tol for εk in eigenvalues)
+        some_smaller = any(εk[ib] < εF - tol for εk in eigenvalues)
         some_larger && some_smaller && return true
     end
     false

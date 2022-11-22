@@ -21,6 +21,18 @@ function ScfPlotTrace(plt=Plots.plot(yaxis=:log); kwargs...)
 end
 
 
+function default_band_εrange(eigenvalues; εF=nothing)
+    if isnothing(εF)
+        # Can't decide where the interesting region is. Just plot everything
+        (minimum(minimum, eigenvalues), maximum(maximum, eigenvalues))
+    elseif is_metal(eigenvalues, εF)
+        εF .+ (-0.367, 0.367)
+    else
+        εF .+ (-0.147, 0.147)
+    end
+end
+
+
 function plot_band_data(kpath::KPathInterpolant, band_data;
                         εF=nothing, unit=u"hartree", kwargs...)
     eshift = isnothing(εF) ? 0.0 : εF
@@ -50,42 +62,48 @@ function plot_band_data(kpath::KPathInterpolant, band_data;
     # X-range: 0 to last kdistance value
     Plots.xlims!(p, (0, data.kdistances[end]))
     Plots.xticks!(p, data.ticks.distances, data.ticks.labels)
+    if !isnothing(εF)
+        Plots.hline!(p, [0.0], label="εF", color=:green, lw=1.5)
+    end
 
-    ylims = [-0.147, 0.147]
-    !isnothing(εF) && is_metal(band_data, εF) && (ylims = [-0.367, 0.367])
-    ylims = round.(ylims .* to_unit, sigdigits=2)
+    ylims = to_unit .* (default_band_εrange(band_data.λ; εF) .- εF)
+    Plots.ylims!(p, round.(ylims, sigdigits=2)...)
     if isnothing(εF)
         Plots.ylabel!(p, "eigenvalues  ($(string(unit)))")
     else
         Plots.ylabel!(p, "eigenvalues - ε_f  ($(string(unit)))")
-        Plots.ylims!(p, ylims...)
     end
 
     p
 end
 
-
-function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree", kwargs...)
+function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
+                  εrange=default_band_εrange(eigenvalues; εF), n_points=1000, kwargs...)
     n_spin = basis.model.n_spin_components
-    εs = range(minimum(minimum(eigenvalues)) - .5,
-               maximum(maximum(eigenvalues)) + .5, length=1000)
+    eshift = isnothing(εF) ? 0.0 : εF
+    εs = range(austrip.(εrange)..., length=n_points)
 
-     # Constant to convert from AU to the desired unit
-     to_unit = ustrip(auconvert(unit, 1.0))
+    # Constant to convert from AU to the desired unit
+    to_unit = ustrip(auconvert(unit, 1.0))
 
-    p = Plots.plot(;kwargs...)
+    p = Plots.plot(; kwargs...)
     spinlabels = spin_components(basis.model)
     colors = [:blue, :red]
     Dεs = compute_dos.(εs, Ref(basis), Ref(eigenvalues))
     for σ in 1:n_spin
         D = [Dσ[σ] for Dσ in Dεs]
         label = n_spin > 1 ? "DOS $(spinlabels[σ]) spin" : "DOS"
-        Plots.plot!(p, εs .* to_unit, D; label, color=colors[σ])
+        Plots.plot!(p, (εs .- eshift) .* to_unit, D; label, color=colors[σ])
     end
     if !isnothing(εF)
-        Plots.vline!(p, [εF * to_unit], label="εF", color=:green, lw=1.5)
+        Plots.vline!(p, [0.0], label="εF", color=:green, lw=1.5)
     end
-    Plots.xlabel!(p, "eigenvalues  ($(string(unit)))")
+
+    if isnothing(εF)
+        Plots.xlabel!(p, "eigenvalues  ($(string(unit)))")
+    else
+        Plots.xlabel!(p, "eigenvalues -ε_F  ($(string(unit)))")
+    end
     p
 end
 plot_dos(scfres; kwargs...) = plot_dos(scfres.basis, scfres.eigenvalues; scfres.εF, kwargs...)
