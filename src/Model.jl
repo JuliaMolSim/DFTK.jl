@@ -279,13 +279,25 @@ Examples of covectors are forces.
 Reciprocal vectors are a special case: they are covectors, but conventionally have an
 additional factor of 2π in their definition, so they transform rather with 2π times the
 inverse lattice transpose: q_cart = 2π lattice' \ q_red = recip_lattice * q_red.
+
+For each of the function there is a one-argument version (returning a function to do the
+transformation) and a two-argument version applying the transformation to a passed vector.
 =#
-vector_red_to_cart(model::Model, rred)        = model.lattice * rred
-vector_cart_to_red(model::Model, rcart)       = model.inv_lattice * rcart
-covector_red_to_cart(model::Model, fred)      = model.inv_lattice' * fred
-covector_cart_to_red(model::Model, fcart)     = model.lattice' * fcart
-recip_vector_red_to_cart(model::Model, qred)  = model.recip_lattice * qred
-recip_vector_cart_to_red(model::Model, qcart) = model.inv_recip_lattice * qcart
+@inline _gen_matmul(mat) = vec -> mat * vec
+
+vector_red_to_cart(model::Model)       = _gen_matmul(model.lattice)
+vector_cart_to_red(model::Model)       = _gen_matmul(model.inv_lattice)
+covector_red_to_cart(model::Model)     = _gen_matmul(model.inv_lattice')
+covector_cart_to_red(model::Model)     = _gen_matmul(model.lattice')
+recip_vector_red_to_cart(model::Model) = _gen_matmul(model.recip_lattice)
+recip_vector_cart_to_red(model::Model) = _gen_matmul(model.inv_recip_lattice)
+
+vector_red_to_cart(model::Model, vec)       = vector_red_to_cart(model)(vec)
+vector_cart_to_red(model::Model, vec)       = vector_cart_to_red(model)(vec)
+covector_red_to_cart(model::Model, vec)     = covector_red_to_cart(model)(vec)
+covector_cart_to_red(model::Model, vec)     = covector_cart_to_red(model)(vec)
+recip_vector_red_to_cart(model::Model, vec) = recip_vector_red_to_cart(model)(vec)
+recip_vector_cart_to_red(model::Model, vec) = recip_vector_cart_to_red(model)(vec)
 
 #=
 Transformations on vectors and covectors are matrices and comatrices.
@@ -300,7 +312,14 @@ s_cart = L s_red = L A_red r_red = L A_red L⁻¹ r_cart, thus A_cart = L A_red 
 Examples of matrices are the symmetries in real space (W)
 Examples of comatrices are the symmetries in reciprocal space (S)
 =#
-matrix_red_to_cart(model::Model, Ared)    = model.lattice * Ared * model.inv_lattice
-matrix_cart_to_red(model::Model, Acart)   = model.inv_lattice * Acart * model.lattice
-comatrix_red_to_cart(model::Model, Bred)  = model.inv_lattice' * Bred * model.lattice'
-comatrix_cart_to_red(model::Model, Bcart) = model.lattice' * Bcart * model.inv_lattice'
+@inline _gen_matmatmul(M, Minv) = mat -> M * mat * Minv
+
+matrix_red_to_cart(model::Model)   = _gen_matmatmul(model.lattice,      model.inv_lattice)
+matrix_cart_to_red(model::Model)   = _gen_matmatmul(model.inv_lattice,  model.lattice)
+comatrix_red_to_cart(model::Model) = _gen_matmatmul(model.inv_lattice', model.lattice')
+comatrix_cart_to_red(model::Model) = _gen_matmatmul(model.lattice',     model.inv_lattice')
+
+matrix_red_to_cart(model::Model, Ared)    = matrix_red_to_cart(model)(Ared)
+matrix_cart_to_red(model::Model, Acart)   = matrix_cart_to_red(model)(Acart)
+comatrix_red_to_cart(model::Model, Bred)  = comatrix_red_to_cart(model)(Bred)
+comatrix_cart_to_red(model::Model, Bcart) = comatrix_cart_to_red(model)(Bcart)

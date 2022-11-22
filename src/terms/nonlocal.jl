@@ -16,7 +16,7 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
     ops = map(basis.kpoints) do kpt
         P = build_projection_vectors_(basis, kpt, psps, psp_positions)
         D = build_projection_coefficients_(T, psps, psp_positions)
-        NonlocalOperator(basis, kpt, P, D)
+        NonlocalOperator(basis, kpt, P, to_device(basis.architecture, D))
     end
     TermAtomicNonlocal(ops)
 end
@@ -63,8 +63,8 @@ end
         C = build_projection_coefficients_(T, element.psp)
         for (ik, kpt) in enumerate(basis.kpoints)
             # we compute the forces from the irreductible BZ; they are symmetrized later
-            qs_cart = Gplusk_vectors_cart(basis, kpt)
             qs = Gplusk_vectors(basis, kpt)
+            qs_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
             form_factors = build_form_factors(element.psp, qs_cart)
             for idx in group
                 r = model.positions[idx]
@@ -149,6 +149,7 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     n_proj = count_n_proj(psps, psp_positions)
     n_G    = length(G_vectors(basis, kpt))
     proj_vectors = zeros(Complex{T}, n_G, n_proj)
+    qs = to_cpu(Gplusk_vectors(basis, kpt))
 
     # Compute the columns of proj_vectors = 1/√Ω pihat(k+G)
     # Since the pi are translates of each others, pihat(k+G) decouples as
@@ -157,12 +158,13 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     offset = 0  # offset into proj_vectors
     for (psp, positions) in zip(psps, psp_positions)
         # Compute position-independent form factors
-        form_factors = build_form_factors(psp, Gplusk_vectors_cart(basis, kpt))
+        qs_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
+        form_factors = build_form_factors(psp, qs_cart)
 
         # Combine with structure factors
         for r in positions
             # k+G in this formula can also be G, this only changes an unimportant phase factor
-            structure_factors = map(q -> cis2pi(-dot(q, r)), Gplusk_vectors(basis, kpt))
+            structure_factors = map(q -> cis2pi(-dot(q, r)), qs)
             @views for iproj = 1:count_n_proj(psp)
                 proj_vectors[:, offset+iproj] .= (
                     structure_factors .* form_factors[:, iproj] ./ sqrt(unit_cell_volume)
@@ -172,13 +174,15 @@ function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
         end
     end
     @assert offset == n_proj
-    proj_vectors
+
+    # Offload potential values to a device (like a GPU)
+    to_device(basis.architecture, proj_vectors)
 end
 
 """
 Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
-function build_form_factors(psp, qs)
+function build_form_factors(psp, qs::Array)
     T = real(eltype(first(qs)))
 
     # Pre-compute the radial parts of the non-local projectors at unique |q| to speed up

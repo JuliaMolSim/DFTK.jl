@@ -1,3 +1,5 @@
+using Random  # Used to have a generic API for CPU and GPU computations alike: see random_orbitals
+
 # Returns the occupied orbitals, the occupation array and optionally the eigenvalues without
 # virtual states (or states with small occupation level for metals).
 # threshold is a parameter to distinguish between states we want to keep and the
@@ -52,5 +54,12 @@ end
 unpack_ψ(x, sizes_ψ) = deepcopy(unsafe_unpack_ψ(x, sizes_ψ))
 
 function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany) where {T}
-    ortho_qr(randn(Complex{T}, length(G_vectors(basis, kpt)), howmany))
+    @static if VERSION < v"1.7"  # TaskLocalRNG not yet available.
+        orbitals = randn(Complex{T}, length(G_vectors(basis, kpt)), howmany)
+        orbitals = to_device(basis.architecture, orbitals)
+    else
+        orbitals = similar(basis.G_vectors, Complex{T}, length(G_vectors(basis, kpt)), howmany)
+        randn!(TaskLocalRNG(), orbitals)  # use the RNG on the device if we're using a GPU
+    end
+    ortho_qr(orbitals)
 end

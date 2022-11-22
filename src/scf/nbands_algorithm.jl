@@ -68,6 +68,8 @@ function determine_n_bands(bands::AdaptiveBands, occupation::AbstractVector,
     # TODO Could return different bands per k-Points
 
     # Determine number of bands to be actually converged
+    # Bring occupation on the CPU, or findlast will fail
+    occupation = [to_cpu(occk) for occk in occupation]
     n_bands_occ = maximum(occupation) do occk
         something(findlast(fnk -> fnk ≥ bands.occupation_threshold, occk), length(occk) + 1)
     end

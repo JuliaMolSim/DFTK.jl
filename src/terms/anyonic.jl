@@ -49,7 +49,7 @@ function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
         # project on divergence free fields, ie in Fourier
         # project A(G) on the orthogonal of G
         if iG != 1
-            out[1][iG], out[2][iG] = vec - (G'vec) * G / sum(abs2, G)
+            out[1][iG], out[2][iG] = vec - (G'vec) * G / norm2(G)
         else
             out[1][iG], out[2][iG] = vec
         end
@@ -114,7 +114,7 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occupation;
     ρ_fourier = fft(basis, ρ[:, :, :, 1])
     ρref_fourier = fft(basis, term.ρref)  # TODO optimize
     for (iG, G) in enumerate(G_vectors_cart(basis))
-        G2 = sum(abs2, G)
+        G2 = norm2(G)
         if G2 != 0
             A1[iG] = +2T(π) * G[2] / G2 * (ρ_fourier[iG] - ρref_fourier[iG]) * im
             A2[iG] = -2T(π) * G[1] / G2 * (ρ_fourier[iG] - ρref_fourier[iG]) * im
@@ -142,7 +142,7 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occupation;
     eff_pot_fourier = zeros(complex(T), basis.fft_size)
     for (iG, Gred) in enumerate(G_vectors(basis))
         G = basis.model.recip_lattice * Gred
-        G2 = sum(abs2, G)
+        G2 = norm2(G)
         if G2 != 0
             eff_pot_fourier[iG] += -4T(π)*β * im * G[2] / G2 * eff_current_fourier[1][iG]
             eff_pot_fourier[iG] += +4T(π)*β * im * G[1] / G2 * eff_current_fourier[2][iG]

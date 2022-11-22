@@ -94,6 +94,7 @@ function interpolate_kpoint(data_in::AbstractVecOrMat,
     n_bands  = size(data_in, 2)
     n_Gk_out = length(G_vectors(basis_out, kpoint_out))
     data_out = similar(data_in, n_Gk_out, n_bands) .= 0
+    # TODO: use a map, or this will not be GPU compatible (scalar indexing)
     for iin in 1:size(data_in, 1)
         idx_fft = kpoint_in.mapping[iin]
         idx_fft in keys(kpoint_out.mapping_inv) || continue

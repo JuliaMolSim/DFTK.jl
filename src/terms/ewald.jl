@@ -91,7 +91,7 @@ function energy_ewald(lattice::AbstractArray{T}, charges, positions;
     for G1 in -Glims[1]:Glims[1], G2 in -Glims[2]:Glims[2], G3 in -Glims[3]:Glims[3]
         G = Vec3(G1, G2, G3)
         iszero(G) && continue
-        Gsq = sum(abs2, recip_lattice * G)
+        Gsq = norm2(recip_lattice * G)
         cos_strucfac = sum(Z * cos2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
         sin_strucfac = sum(Z * sin2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
         sum_strucfac = cos_strucfac^2 + sin_strucfac^2

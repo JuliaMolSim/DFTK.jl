@@ -1,2 +1,2 @@
 # Orthonormalize
-@timing ortho_qr(φk) = Matrix(qr(φk).Q)
+@timing ortho_qr(φk::ArrayType) where {ArrayType <: AbstractArray} = convert(ArrayType, qr(φk).Q)

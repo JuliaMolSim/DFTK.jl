@@ -50,7 +50,7 @@ end
 @timing "KerkerMixing" function mix_density(mixing::KerkerMixing, basis::PlaneWaveBasis,
                                             δF; kwargs...)
     T      = eltype(δF)
-    G²     = [sum(abs2, G) for G in G_vectors_cart(basis)]
+    G²     = norm2.(G_vectors_cart(basis))
     kTF    = T.(mixing.kTF)
     ΔDOS_Ω = T.(mixing.ΔDOS_Ω)
 
@@ -72,7 +72,6 @@ end
     δF_fourier     = fft(basis, δF)
     δFtot_fourier  = total_density(δF_fourier)
     δFspin_fourier = spin_density(δF_fourier)
-
     δρtot_fourier = δFtot_fourier .* G² ./ (kTF.^2 .+ G²)
     enforce_real!(basis, δρtot_fourier)
     δρtot = irfft(basis, δρtot_fourier)
@@ -137,7 +136,7 @@ end
     εr > 1 / sqrt(eps(T)) && return mix_density(KerkerMixing(; kTF), basis, δF)
 
     C0 = 1 - εr
-    Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
+    Gsq = map(G -> norm2(G), G_vectors_cart(basis))
     δF_fourier = fft(basis, δF)
     δρ = @. δF_fourier * (kTF^2 - C0 * Gsq) / (εr * kTF^2 - C0 * Gsq)
     δρ = irfft(basis, δρ)

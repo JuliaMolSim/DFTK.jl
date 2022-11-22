@@ -58,7 +58,9 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
     end
 
     # Transform results into a nicer datastructure
-    (λ=[real.(res.λ) for res in results],
+    # TODO It feels inconsistent to put λ onto the CPU here but none of the other objects.
+    #      Better have this handled by the caller of diagonalize_all_kblocks.
+    (λ=[to_cpu(real.(res.λ)) for res in results],  # Always get onto the CPU
      X=[res.X for res in results],
      residual_norms=[res.residual_norms for res in results],
      iterations=[res.iterations for res in results],

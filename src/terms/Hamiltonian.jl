@@ -51,7 +51,7 @@ function HamiltonianBlock(basis, kpoint, operators, scratch=ham_allocate_scratch
     end
 end
 function ham_allocate_scratch_(basis::PlaneWaveBasis{T}) where {T}
-    (ψ_reals=[zeros(complex(T), basis.fft_size...) for _ = 1:Threads.nthreads()], )
+    (ψ_reals=[zeros_like(basis.G_vectors, complex(T), basis.fft_size...) for _ = 1:Threads.nthreads()], )
 end
 
 Base.:*(H::HamiltonianBlock, ψ) = mul!(similar(ψ), H, ψ)
@@ -89,9 +89,8 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
     T = eltype(H.basis)
     n_bands = size(ψ, 2)
     Hψ_fourier = similar(Hψ[:, 1])
-    ψ_real  = zeros(complex(T), H.basis.fft_size...)
-    Hψ_real = zeros(complex(T), H.basis.fft_size...)
-
+    ψ_real  = similar(ψ, complex(T), H.basis.fft_size...)
+    Hψ_real = similar(Hψ, complex(T), H.basis.fft_size...)
     # take ψi, IFFT it to ψ_real, apply each term to Hψ_fourier and Hψ_real, and add it to Hψ
     for iband = 1:n_bands
         Hψ_real .= 0

@@ -158,7 +158,8 @@ represented in the spherical basis sets, `supersampling` should be at least `2`.
 If `factors` is not empty, ensure that the resulting fft_size contains all the factors
 """
 function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
-                          ensure_smallprimes=true, algorithm=:fast, factors=1, kwargs...) where {T}
+                          ensure_smallprimes=true, algorithm=:fast, factors=1,
+                          kwargs...) where {T}
     if algorithm == :fast
         Glims = compute_Glims_fast(model.lattice, Ecut; kwargs...)
     elseif algorithm == :precise
@@ -171,7 +172,7 @@ function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
         # fft_size needs to be final at k-point construction time
         Glims_temp    = compute_Glims_fast(model.lattice, Ecut; kwargs...)
         fft_size_temp = Tuple{Int, Int, Int}(2 .* Glims_temp .+ 1)
-        kpoints_temp  = build_kpoints(model, fft_size_temp, kcoords, Ecut)
+        kpoints_temp  = build_kpoints(model, fft_size_temp, kcoords, Ecut; architecture=CPU())
 
         Glims = compute_Glims_precise(model.lattice, Ecut, kpoints_temp; kwargs...)
     else
@@ -257,23 +258,30 @@ function compute_Glims_fast(lattice::AbstractMatrix{T}, Ecut; supersampling=2, t
     Glims
 end
 
-# For Float32 there are issues with aligned FFTW plans, so we
-# fall back to unaligned FFTW plans (which are generally discouraged).
-_fftw_flags(::Type{Float32}) = FFTW.MEASURE | FFTW.UNALIGNED
-_fftw_flags(::Type{Float64}) = FFTW.MEASURE
-
 """
 Plan a FFT of type `T` and size `fft_size`, spending some time on finding an
 optimal algorithm. (Inplace, out-of-place) x (forward, backward) FFT plans are returned.
 """
-function build_fft_plans(T::Union{Type{Float32}, Type{Float64}}, fft_size)
-    tmp = Array{Complex{T}}(undef, fft_size...)
-    ipFFT = FFTW.plan_fft!(tmp, flags=_fftw_flags(T))
-    opFFT = FFTW.plan_fft(tmp, flags=_fftw_flags(T))
-    # backward by inverting and stripping off normalizations
+function build_fft_plans!(tmp::Array{Complex{Float64}})
+    ipFFT = FFTW.plan_fft!(tmp; flags=FFTW.MEASURE)
+    opFFT = FFTW.plan_fft(tmp;  flags=FFTW.MEASURE)
+    # backwards-FFT by inverting and stripping off normalizations
     ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
 end
-
+function build_fft_plans!(tmp::Array{Complex{Float32}})
+    # For Float32 there are issues with aligned FFTW plans, so we
+    # fall back to unaligned FFTW plans (which are generally discouraged).
+    ipFFT = FFTW.plan_fft!(tmp; flags=FFTW.MEASURE | FFTW.UNALIGNED)
+    opFFT = FFTW.plan_fft(tmp;  flags=FFTW.MEASURE | FFTW.UNALIGNED)
+    # backwards-FFT by inverting and stripping off normalizations
+    ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
+end
+function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:Union{Float32,Float64}}
+    ipFFT = AbstractFFTs.plan_fft!(tmp)
+    opFFT = AbstractFFTs.plan_fft(tmp)
+    # backwards-FFT by inverting and stripping off normalizations
+    ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
+end
 
 # TODO Some grid sizes are broken in the generic FFT implementation
 # in FourierTransforms, for more details see workarounds/fft_generic.jl

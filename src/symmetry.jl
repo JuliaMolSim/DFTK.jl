@@ -187,7 +187,7 @@ end
 end
 
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
-function lowpass_for_symmetry!(ρ, basis; symmetries=basis.symmetries)
+function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmetries)
     for symop in symmetries
         isone(symop) && continue
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
@@ -269,7 +269,7 @@ function unfold_bz(basis::PlaneWaveBasis)
                               basis.Ecut, basis.fft_size, basis.variational,
                               kcoords, [1/length(kcoords) for _ in kcoords],
                               basis.kgrid, basis.kshift,
-                              basis.symmetries_respect_rgrid, basis.comm_kpts)
+                              basis.symmetries_respect_rgrid, basis.comm_kpts, basis.architecture)
     end
 end
 

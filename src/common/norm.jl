@@ -7,3 +7,8 @@ differentiation, we can extend analytically f to accept complex inputs, then dif
 inputs, and therefore we have to redefine it.
 """
 norm_cplx(x) = sqrt(sum(xx -> xx * xx, x))
+
+"""
+Square of the ℓ²-norm.
+"""
+norm2(G) = sum(abs2, G)

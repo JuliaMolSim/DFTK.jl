@@ -23,6 +23,8 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 @views @timing function compute_density(basis::PlaneWaveBasis{T}, ψ, occupation;
                                         occupation_threshold=zero(T)) where {T}
     S = promote_type(T, real(eltype(ψ[1])))
+    # occupation should be on the CPU as we are going to be doing scalar indexing.
+    occupation = [to_cpu(oc) for oc in occupation]
 
     # we split the total iteration range (ik, n) in chunks, and parallelize over them
     mask_occ = map(occk -> findall(isless.(occupation_threshold, occk)), occupation)
@@ -30,17 +32,17 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     chunk_length = cld(length(ik_n), Threads.nthreads())
 
     # chunk-local variables
-    ρ_chunklocal = Array{S,4}[zeros(S, basis.fft_size..., basis.model.n_spin_components)
+    ρ_chunklocal = [zeros_like(basis.G_vectors, S, basis.fft_size..., basis.model.n_spin_components)
                                for _ = 1:Threads.nthreads()]
-    ψnk_real_chunklocal = Array{complex(S),3}[zeros(complex(S), basis.fft_size)
-                                               for _ = 1:Threads.nthreads()]
+    ψnk_real_chunklocal = [zeros_like(basis.G_vectors, complex(S), basis.fft_size...)
+                                for _ = 1:Threads.nthreads()]
 
     @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
         Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
             ψnk_real = ψnk_real_chunklocal[ichunk]
             ρ_loc = ρ_chunklocal[ichunk]
-
             kpt = basis.kpoints[ik]
+
             ifft!(ψnk_real, basis, kpt, ψ[ik][:, n])
             ρ_loc[:, :, :, kpt.spin] .+= occupation[ik][n] .* basis.kweights[ik] .* abs2.(ψnk_real)
         end

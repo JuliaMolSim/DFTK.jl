@@ -13,6 +13,9 @@ using spglib_jll
 using Unitful
 using UnitfulAtomic
 using ForwardDiff
+using AbstractFFTs
+using GPUArraysCore
+using Random
 using ChainRulesCore
 
 export Vec3
@@ -31,6 +34,7 @@ include("common/mpi.jl")
 include("common/threading.jl")
 include("common/printing.jl")
 include("common/cis2pi.jl")
+include("architecture.jl")
 include("common/zeros_like.jl")
 include("common/norm.jl")
 
