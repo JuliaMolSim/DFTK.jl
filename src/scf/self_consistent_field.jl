@@ -11,9 +11,10 @@ Obtain new density ρ by diagonalizing `ham`. Follows the policy imposed by the 
 data structure to determine and adjust the number of bands to be computed.
 """
 function next_density(ham::Hamiltonian,
-                      nbandsalg::NbandsAlgorithm=AdaptiveBands(ham.basis.model);
+                      nbandsalg::NbandsAlgorithm=AdaptiveBands(ham.basis.model),
+                      fermialg::FermiAlgorithm=default_fermialg(ham.basis);
                       eigensolver=lobpcg_hyper, ψ=nothing, eigenvalues=nothing,
-                      occupation=nothing, kwargs...)
+                      occupation=nothing, tol=1e-6, kwargs...)
     n_bands_converge, n_bands_compute = determine_n_bands(nbandsalg, occupation,
                                                           eigenvalues, ψ)
 
@@ -30,12 +31,12 @@ function next_density(ham::Hamiltonian,
     n_bands_compute = mpi_max(n_bands_compute, ham.basis.comm_kpts)
 
     eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands_compute;
-                                     ψguess=ψ, n_conv_check=n_bands_converge, kwargs...)
+                                     ψguess=ψ, n_conv_check=n_bands_converge, tol, kwargs...)
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Check maximal occupation of the unconverged bands is sensible.
-    occupation, εF = compute_occupation(ham.basis, eigres.λ)
-    occupation = [to_device(basis.architecture, occk) for occk in occupation]
+    occupation, εF = compute_occupation(ham.basis, eigres.λ, fermialg;
+                                        tol_n_elec=nbandsalg.occupation_threshold)
     minocc = maximum(minimum, occupation)
 
     # TODO This is a bit hackish, but needed right now as we increase the number of bands
@@ -48,7 +49,7 @@ function next_density(ham::Hamiltonian,
               "`nbandsalg=AdaptiveBands(basis; n_bands_converge=$(n_bands_converge + 3)`)")
     end
 
-    ρout = compute_density(ham.basis, eigres.X, occupation)
+    ρout = compute_density(ham.basis, eigres.X, occupation; nbandsalg.occupation_threshold)
     (; ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, ρout, diagonalization=eigres,
      n_bands_converge, nbandsalg.occupation_threshold)
 end
@@ -91,6 +92,7 @@ Overview of parameters:
                                        eigensolver=lobpcg_hyper,
                                        determine_diagtol=ScfDiagtol(),
                                        nbandsalg::NbandsAlgorithm=AdaptiveBands(basis),
+                                       fermialg::FermiAlgorithm=default_fermialg(basis),
                                        callback=ScfDefaultCallback(; show_damping=false),
                                        compute_consistent_energies=true,
                                        response=ResponseOptions(),  # Dummy here, only for AD
@@ -120,7 +122,7 @@ Overview of parameters:
         energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, eigenvalues, εF)
 
         # Diagonalize `ham` to get the new state
-        nextstate = next_density(ham, nbandsalg; eigensolver, ψ, eigenvalues,
+        nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
                                  occupation, miniter=1, tol=determine_diagtol(info))
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 

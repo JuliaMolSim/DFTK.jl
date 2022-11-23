@@ -27,6 +27,9 @@ function compute_dos(ε, basis, eigenvalues; smearing=basis.model.smearing,
     end
     D = mpi_sum(D, basis.comm_kpts)
 end
+function compute_dos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
+        compute_dos(ε, scfres.basis, scfres.eigenvalues; kwargs...)
+end
 
 """
 Local density of states, in real space
@@ -51,6 +54,9 @@ function compute_ldos(ε, basis, eigenvalues, ψ; smearing=basis.model.smearing,
     # weights (as "occupations") at each k-point. Note, that this automatically puts in the
     # required symmetrization with respect to kpoints and BZ symmetry
     compute_density(basis, ψ, weights)
+end
+function compute_ldos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
+        compute_ldos(ε, scfres.basis, scfres.eigenvalues, scfres.ψ; kwargs...)
 end
 
 """

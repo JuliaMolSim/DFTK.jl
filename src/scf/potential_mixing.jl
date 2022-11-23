@@ -226,6 +226,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     basis::PlaneWaveBasis;
     damping=FixedDamping(0.8),
     nbandsalg::NbandsAlgorithm=AdaptiveBands(basis),
+    fermialg::FermiAlgorithm=default_fermialg(basis),
     ρ=guess_density(basis),
     V=nothing,
     ψ=nothing,
@@ -258,7 +259,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     function EVρ(Vin; diagtol=tol / 10, ψ=nothing, eigenvalues=nothing, occupation=nothing)
         ham_V = hamiltonian_with_total_potential(ham, Vin)
 
-        res_V = next_density(ham_V, nbandsalg; eigensolver, ψ, eigenvalues,
+        res_V = next_density(ham_V, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
                              occupation, miniter=diag_miniter, tol=diagtol)
         new_E, new_ham = energy_hamiltonian(basis, res_V.ψ, res_V.occupation;
                                             ρ=res_V.ρout, eigenvalues=res_V.eigenvalues,

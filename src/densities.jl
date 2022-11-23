@@ -1,8 +1,8 @@
 # Densities (and potentials) are represented by arrays
 # ρ[ix,iy,iz,iσ] in real space, where iσ ∈ [1:n_spin_components]
 
-function _check_positive(ρ)
-    minimum(ρ) < 0 && @warn("Negative ρ detected", min_ρ=minimum(ρ))
+function _check_positive(ρ::AbstractArray{T}; tol=eps(T)) where {T}
+    minimum(ρ) < -tol && @warn("Negative ρ detected", min_ρ=minimum(ρ))
 end
 function _check_total_charge(dvol, ρ::AbstractArray{T}, N; tol=T(1e-10)) where {T}
     n_electrons = sum(ρ) * dvol
@@ -26,7 +26,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     # occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]
 
-    mask_occ = map(occk -> findall(isless.(occupation_threshold, occk)), occupation)
+    mask_occ = map(occk -> findall(occnk -> abs(occnk) ≥ occupation_threshold, occk), occupation)
     if all(isempty, mask_occ)  # No non-zero occupations => return zero density
         return zeros_like(basis.G_vectors, S, basis.fft_size..., basis.model.n_spin_components)
     end
@@ -56,7 +56,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     mpi_sum!(ρ, basis.comm_kpts)
     ρ = symmetrize_ρ(basis, ρ; do_lowpass=false)
 
-    _check_positive(ρ)
+    _check_positive(ρ; tol=occupation_threshold)
     n_elec_check = weighted_ksum(basis, sum.(occupation))
     _check_total_charge(basis.dvol, ρ, n_elec_check; tol=occupation_threshold)
 

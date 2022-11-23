@@ -110,6 +110,7 @@ export BlowupAbinit
 include("DispatchFunctional.jl")
 include("terms/terms.jl")
 
+export FermiAlgorithm, FermiBisection, FermiTwoStage
 include("occupation.jl")
 export compute_density
 export total_density

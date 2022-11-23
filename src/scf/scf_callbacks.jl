@@ -16,6 +16,7 @@ function ScfPlotTrace end  # implementation in src/plotting.jl
 """
 Default callback function for `self_consistent_field` and `newton`, which prints a convergence table.
 """
+<<<<<<< HEAD
 function ScfDefaultCallback(; show_damping=true, show_time=true)
     prev_time   = nothing
     prev_energy = NaN
