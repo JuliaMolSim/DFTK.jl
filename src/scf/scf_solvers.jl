@@ -28,6 +28,7 @@ Create a damped SCF solver updating the density as
 """
 function scf_damping_solver(β=0.2)
     function fp_solver(f, x0, max_iter; tol=1e-6)
+        β = convert(eltype(x0), β)
         converged = false
         x = copy(x0)
         for i in 1:max_iter
