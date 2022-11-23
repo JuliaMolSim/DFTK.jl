@@ -67,7 +67,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
                                        ψ=nothing,
                                        tol=1e-6,
                                        maxiter=100,
-                                       solver=scf_nlsolve_solver(),
+                                       solver=scf_anderson_solver(),
                                        eigensolver=lobpcg_hyper,
                                        determine_diagtol=ScfDiagtol(),
                                        damping=0.8,  # Damping parameter

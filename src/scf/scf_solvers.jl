@@ -4,23 +4,7 @@
 # maxiter), where f(x) is the fixed-point map. It must return an
 # object supporting res.sol and res.converged
 
-using NLsolve
-
 # TODO max_iter could go to the solver generator function arguments
-
-"""
-Create a NLSolve-based SCF solver, by default using an Anderson-accelerated
-fixed-point scheme, keeping `m` steps for Anderson acceleration. See the
-NLSolve documentation for details about the other parameters and methods.
-"""
-function scf_nlsolve_solver(m=10, method=:anderson; kwargs...)
-    function fp_solver(f, x0, max_iter; tol=1e-6)
-        res = nlsolve(x -> f(x) - x, x0; method, m, xtol=tol,
-                      ftol=0.0, show_trace=false, iterations=max_iter, kwargs...)
-        (; fixpoint=res.zero, converged=converged(res))
-    end
-    fp_solver
-end
 
 """
 Create a damped SCF solver updating the density as
