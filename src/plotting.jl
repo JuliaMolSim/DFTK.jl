@@ -25,10 +25,10 @@ function default_band_εrange(eigenvalues; εF=nothing)
     if isnothing(εF)
         # Can't decide where the interesting region is. Just plot everything
         (minimum(minimum, eigenvalues), maximum(maximum, eigenvalues))
-    elseif is_metal(eigenvalues, εF)
-        εF .+ (-0.367, 0.367)
     else
-        εF .+ (-0.147, 0.147)
+        # Stolen from Pymatgen
+        width = is_metal(eigenvalues, εF) ? 10u"eV" : 4u"eV"
+        (εF - austrip(width), εF + austrip(width))
     end
 end
 
