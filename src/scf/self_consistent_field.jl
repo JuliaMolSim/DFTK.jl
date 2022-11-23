@@ -35,6 +35,7 @@ function next_density(ham::Hamiltonian,
 
     # Check maximal occupation of the unconverged bands is sensible.
     occupation, εF = compute_occupation(ham.basis, eigres.λ)
+    occupation = [to_device(basis.architecture, occk) for occk in occupation]
     minocc = maximum(minimum, occupation)
 
     # TODO This is a bit hackish, but needed right now as we increase the number of bands
