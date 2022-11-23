@@ -176,13 +176,9 @@ end
 end
 
 @testset "is_metal" begin
-    testcase = silicon
-    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
-    basis = PlaneWaveBasis(model, 5, testcase.kcoords, testcase.kweights)
     λ = [[1, 2, 3, 4], [1, 1.5, 3.5, 4.2], [1, 1.1, 3.2, 4.3], [1, 2, 3.3, 4.1]]
-
-    @test !DFTK.is_metal((; λ, basis), 2.5)
-    @test DFTK.is_metal((; λ, basis), 3.2)
+    @test !DFTK.is_metal(λ, 2.5)
+    @test  DFTK.is_metal(λ, 3.2)
 end
 
 @testset "High-symmetry kpath for nonstandard lattice" begin
