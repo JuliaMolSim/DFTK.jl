@@ -50,7 +50,7 @@ function interpolate_density(ρ_in::AbstractArray, grid_in, grid_out, lattice_in
             iszero(col_in) ? 1 : round(Int, norm(col_out) / norm(col_in))
         end
 
-        # Check if some directions of lattice_in is not too big compared to lattice_out.
+        # Check if some direction of lattice_in is not too big compared to lattice_out.
         supercell_in = supercell .* lattice_in
         is_suspicious_direction = map(eachcol(supercell_in), eachcol(lattice_out)) do s_in, a_out
             norm(s_in - a_out) > 0.3*norm(a_out)
