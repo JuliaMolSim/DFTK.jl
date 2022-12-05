@@ -99,7 +99,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
     n_iter = 0
     energies = nothing
     ham = nothing
-    info = (n_iter=0, ρin=ρ)   # Populate info with initial values
+    info = (; n_iter=0, ρin=ρ)  # Populate info with initial values
     converged = false
 
     # We do density mixing in the real representation
@@ -127,7 +127,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
             energies = energy_hamiltonian(basis, ψ, occupation;
                                           ρ=ρout, eigenvalues, εF).energies
         end
-        info = merge(info, (; energies, ))
+        info = merge(info, (; energies))
 
         # Apply mixing and pass it the full info as kwargs
         δρ = mix_density(mixing, basis, ρout - ρin; info...)
