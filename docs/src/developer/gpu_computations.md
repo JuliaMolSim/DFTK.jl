@@ -1,7 +1,7 @@
 # GPU computations
 
-GPU computations in DFTK is a work in progress. The goal is to build on
-Julia's multiple dispatch to have the same code base for CPU and GPU. Our current
+Performing GPU computations in DFTK is still work in progress. The goal is to build
+on Julia's multiple dispatch to have the same code base for CPU and GPU. Our current
 approach is to aim at decent performance without writing any custom kernels at all,
 relying only on the high level functionalities implemented in the GPU packages.
 
@@ -25,8 +25,9 @@ but `GPU` requires the type of array which will be used for GPU computations.
 PlaneWaveBasis(model; Ecut, kgrid, architecture = DFTK.CPU())
 PlaneWaveBasis(model; Ecut, kgrid, architecture = DFTK.GPU(CuArray))
 ```
-**It is very likely that this API will change.**, based on the evolution of the
-Julia ecosystem concerning distributed architectures.
+!!! note "GPU API is experimental"
+    It is very likely that this API will change, based on the evolution of the
+    Julia ecosystem concerning distributed architectures.
 
 Not all terms can be used when doing GPU computations: currently, the `Anyonic`,
 `Magnetic`, `TermPairwisePotential` and `Xc` terms are not supported. Some mixings,
@@ -46,22 +47,23 @@ to be used.
 ```julia
 cuda_gpu = DFTK.GPU(CuArray)
 cpu_architecture = DFTK.CPU()
-A = rand(10) # A is on the CPU
-B = DFTK.to_device(cuda_gpu, A) # B is a copy of A on the CUDA GPU
+A = rand(10)  # A is on the CPU
+B = DFTK.to_device(cuda_gpu, A)  # B is a copy of A on the CUDA GPU
 B .+= 1.
-C = DFTK.to_cpu(B) # C is a copy of B on the CPU
-D = DFTK.to_device(cpu_architecture, B) # Equivalent to the previous line, but      should be avoided as it is less clear
+C = DFTK.to_cpu(B)  # C is a copy of B on the CPU
+D = DFTK.to_device(cpu_architecture, B)  # Equivalent to the previous line, but
+                                         # should be avoided as it is less clear
 ```
 *Note:* `similar` could also be used, but then a reference array
-(one which already lives on the device) needs to be available at any time.
+(one which already lives on the device) needs to be available at call time.
 This was done previously, with helper functions to easily build new arrays
 on a given architecture: see for example
 [`zeros_like`](https://github.com/JuliaMolSim/DFTK.jl/pull/711/commits/ce5da66009440bd8552429eb8cfe96944da16564).
 - Functions which will get executed on the GPU should always have arguments
-which are isbits (immutable and contains no references to other values).
-When using `map`, also make sure that every structure used is also isbits.
+which are `isbits` (immutable and contains no references to other values).
+When using `map`, also make sure that every structure used is also `isbits`.
 For example, the following map will fail, as `model` contains strings and
-arrays which are not on the GPU.
+arrays which are not `isbits`.
 ```julia
 function map_lattice(model::Model, Gs::AbstractArray{Vec3})
     # model is not isbits
