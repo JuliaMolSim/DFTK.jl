@@ -46,7 +46,8 @@ end
 
 
 """
-Build an LDA model (Teter93 parametrization) from the specified atoms.
+Build an LDA model (Perdew & Wang parametrization) from the specified atoms.
+DOI:10.1103/PhysRevB.45.13244
 """
 function model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector}; kwargs...)
