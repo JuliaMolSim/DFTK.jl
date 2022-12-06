@@ -77,6 +77,7 @@ PAGES = [
         "developer/data_structures.md",
         "developer/useful_formulas.md",
         "developer/symmetries.md",
+        "developer/gpu_computations.md"
     ],
     "api.md",
     "publications.md",
