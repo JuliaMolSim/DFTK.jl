@@ -8,16 +8,15 @@ if mpi_nprocs() == 1  # can't be bothered to convert the tests
 @testset "Supercell copy" begin
     Ecut    = 4
     kgrid   = [2, 1, 1]
-    # Parameters
+
     model = model_LDA(magnesium.lattice, magnesium.atoms, magnesium.positions;
                       magnesium.temperature, εF=0.5, spin_polarization=:spinless,
                       disable_electrostatics_check=true)
     basis = PlaneWaveBasis(model; Ecut, kgrid)
-    # SCF
+
     scfres = self_consistent_field(basis; nbandsalg=FixedBands(; n_bands_converge=20))
     scfres_supercell = cell_to_supercell(scfres)
 
-    # Compare energies
     @test scfres.energies.total * prod(kgrid) ≈ scfres_supercell.energies.total
 end
 
@@ -27,11 +26,11 @@ end
     kshift  = zeros(3)
     tol     = 1e-12
     scf_tol = (; is_converged=DFTK.ScfConvergenceDensity(tol))
-    # Parameters
+
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
     basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
     basis_supercell = cell_to_supercell(basis)
-    # SCF
+
     scfres = self_consistent_field(basis; scf_tol...)
     scfres_supercell_manual = self_consistent_field(basis_supercell; scf_tol...)
     scfres_supercell = cell_to_supercell(scfres)
@@ -50,37 +49,33 @@ end
 @testset "Supercell response" begin
     Ecut    = 5.0
     kgrid   = [2, 1, 1]
-    scf_kw  = (; is_converged=DFTK.ScfConvergenceDensity(1e-9),
-               determine_diagtol=DFTK.ScfDiagtol(diagtol_max=1e-9),
-               eigensolver=diag_full,
-               callback=identity)
 
     for system in (silicon, magnesium), extra_terms in ([], [Hartree()])
-        @testset "$(system.psp) with $extra_terms" begin
+        @testset "$(DFTK.periodic_table[system.atnum].symbol) with $extra_terms" begin
             model = model_atomic(system.lattice, system.atoms, system.positions;
-                                 symmetries=false, system.temperature, extra_terms)
+                                 system.temperature, extra_terms)
             basis = PlaneWaveBasis(model; Ecut, kgrid)
-            scfres = self_consistent_field(basis; scf_kw...)
+            scfres = self_consistent_field(basis)
 
             n_spin = model.n_spin_components
-            δV = ifft(basis, fft(basis, randn(eltype(basis), basis.fft_size..., n_spin)))
+            δV = guess_density(basis)
             δV_supercell = vcat(δV, δV)
 
             # Unit cell computations.
             δρ = apply_χ0(scfres, δV)
 
             # Supercell with manually unpacking scfres.
-            scfres_supercell₁ = cell_to_supercell(scfres)
-            δρ_supercell₁ = apply_χ0(scfres_supercell₁, δV_supercell)
+            scfres_supercell_1 = cell_to_supercell(scfres)
+            δρ_supercell_1 = apply_χ0(scfres_supercell_1, δV_supercell)
 
-            @test norm(δρ - δρ_supercell₁[1:size(δρ, 1), :, :]) < 1e-5
+            @test norm(δρ - δρ_supercell_1[1:size(δρ, 1), :, :]) < 1e-4
 
-            # Supercell with manually empacking only basis.
+            # Supercell with manually unpacking only basis.
             basis_supercell = cell_to_supercell(basis)
-            scfres_supercell₂ = self_consistent_field(basis_supercell; scf_kw...)
-            δρ_supercell₂ = apply_χ0(scfres_supercell₂, δV_supercell)
+            scfres_supercell_2 = self_consistent_field(basis_supercell)
+            δρ_supercell_2 = apply_χ0(scfres_supercell_2, δV_supercell)
 
-            @test norm(δρ - δρ_supercell₂[1:size(δρ, 1), :, :]) < 1e-5
+            @test norm(δρ - δρ_supercell_2[1:size(δρ, 1), :, :]) < 1e-4
         end
     end
 end

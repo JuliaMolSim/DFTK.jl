@@ -29,11 +29,13 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     end
 
     println(io)
-    showfieldln(io, "num. electrons",        model.n_electrons)
-    showfieldln(io, "spin polarization",     model.spin_polarization)
-    showfieldln(io, "temperature",           @sprintf "%.5g Ha" model.temperature)
+    if !isnothing(model.n_electrons)
+        showfieldln(io, "num. electrons", model.n_electrons)
+    end
+    showfieldln(io, "spin polarization",  model.spin_polarization)
+    showfieldln(io, "temperature",        @sprintf "%.5g Ha" model.temperature)
     if model.temperature > 0
-        showfieldln(io, "smearing",          model.smearing)
+        showfieldln(io, "smearing",       model.smearing)
     end
     if !isnothing(model.εF)
         showfieldln(io, "fixed Fermi level", model.εF)
