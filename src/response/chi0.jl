@@ -283,11 +283,11 @@ function compute_δocc(basis, ψ, occ, εF::T, ε, δHψ) where {T}
 end
 
 """
-Compute the derivatives of the wave functions by solving a Sternheimer equation for each
-`k`-points.
+Perform in-place computations of the derivatives of the wave functions by solving
+a Sternheimer equation for each `k`-points.
 """
-function compute_δψ(basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
-                    kwargs_sternheimer...)
+function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
+                     kwargs_sternheimer...)
     model = basis.model
     temperature = model.temperature
     smearing = model.smearing
@@ -295,7 +295,6 @@ function compute_δψ(basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1),
     Nk = length(basis.kpoints)
 
     # Compute δψnk band per band
-    δψ = zero.(δHψ)
     for ik = 1:Nk
         Hk  = H[ik]
         ψk  = ψ[ik]
@@ -325,6 +324,12 @@ function compute_δψ(basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1),
                                              εk_extra, Hψk_extra, kwargs_sternheimer...)
         end
     end
+end
+
+function compute_δψ(basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
+                    kwargs_sternheimer...)
+    δψ = zero.(δHψ)
+    compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ; ψ_extra, kwargs_sternheimer...)
     δψ
 end
 
@@ -352,18 +357,18 @@ end
 
     # First we compute δoccupation and δεF for the occupied orbitals…
     δocc, δεF = compute_δocc(basis, ψ_occ, occ_occ, εF, ε_occ, δHψ_occ)
-
-    # … then δψ for the occupied orbitals.
-    δψ_occ = compute_δψ(basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_occ; ψ_extra,
-                        kwargs_sternheimer...)
-
-    # Pad δoccupation and δψ.
+    # … and pad δoccupation.
     δoccupation = zero.(occ)
-    δψ = zero.(ψ)
     for (ik, maskk) in enumerate(mask_occ)
         δoccupation[ik][maskk] .= δocc[ik]
-        δψ[ik][:, maskk] .= δψ_occ[ik][:, 1:count(maskk)]
     end
+
+    # Then we compute δψ for the occupied orbitals and write them directly in the padded δψ
+    # to prevent too much unnecessary copies.
+    δψ = zero.(ψ)
+    δψ_occ = [@views δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
+    compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_occ; ψ_extra,
+                kwargs_sternheimer...)
 
     (; δψ, δoccupation, δεF)
 end
