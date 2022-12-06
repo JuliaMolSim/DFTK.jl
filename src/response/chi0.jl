@@ -350,14 +350,14 @@ end
 
     occ_occ = [occ[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
 
-    # First we compute masked δoccupation and δεF…
+    # First we compute δoccupation and δεF for the occupied orbitals…
     δocc, δεF = compute_δocc(basis, ψ_occ, occ_occ, εF, ε_occ, δHψ_occ)
 
-    # … then masked δψ
+    # … then δψ for the occupied orbitals.
     δψ_occ = compute_δψ(basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_occ; ψ_extra,
                         kwargs_sternheimer...)
 
-    # Pad δoccupation and δψ
+    # Pad δoccupation and δψ.
     δoccupation = zero.(occ)
     δψ = zero.(ψ)
     for (ik, maskk) in enumerate(mask_occ)
