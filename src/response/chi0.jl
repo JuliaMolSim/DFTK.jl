@@ -346,19 +346,24 @@ end
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
 
     ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
+    δHψ_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
 
     occ_occ = [occ[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
 
-    # First we compute δoccupation and δεF
-    δocc, δεF = compute_δocc(basis, ψ_occ, occ_occ, εF, ε_occ, δHψ)
-    # Pad δoccupation
+    # First we compute masked δoccupation and δεF…
+    δocc, δεF = compute_δocc(basis, ψ_occ, occ_occ, εF, ε_occ, δHψ_occ)
+
+    # … then masked δψ
+    δψ_occ = compute_δψ(basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_occ; ψ_extra,
+                        kwargs_sternheimer...)
+
+    # Pad δoccupation and δψ
     δoccupation = zero.(occ)
+    δψ = zero.(ψ)
     for (ik, maskk) in enumerate(mask_occ)
         δoccupation[ik][maskk] .= δocc[ik]
+        δψ[ik][:, maskk] .= δψ_occ[ik][:, 1:count(maskk)]
     end
-
-    # Keeping zeros for extra bands to keep the output δψ with the same size than the input ψ
-    δψ = compute_δψ(basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ; ψ_extra, kwargs_sternheimer...)
 
     (; δψ, δoccupation, δεF)
 end
