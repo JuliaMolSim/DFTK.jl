@@ -12,7 +12,8 @@ include("testcases.jl")
         # model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions)
         model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, [];
                           temperature=1e-3, smearing=Smearing.Gaussian())
-        basis = PlaneWaveBasis(model; Ecut=10, kgrid=(3, 3, 3), architecture)
+        # basis = PlaneWaveBasis(model; Ecut=10, kgrid=(3, 3, 3), architecture)
+        basis = PlaneWaveBasis(model; Ecut=10, kgrid=(1, 1, 1), architecture)
         self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10),
                               mixing=KerkerMixing(), solver=scf_damping_solver(1.0))
     end
