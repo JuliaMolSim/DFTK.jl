@@ -1,6 +1,9 @@
 stages:
   - test
 
+# TODO More fine-grained rule setup
+# TODO Coverage
+
 # This job tests DFTK.jl with Julia 1.8 on Noctua 2
 julia/1.8-n2:
   stage: test
