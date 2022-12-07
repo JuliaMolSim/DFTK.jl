@@ -17,8 +17,8 @@ include("testcases.jl")
 
     scfres_cpu = run_problem(; architecture=DFTK.CPU())
     scfres_gpu = run_problem(; architecture=DFTK.GPU(CuArray))
-    @show norm(scfres_cpu.ρ - scfres_gpu.ρ)
     @test abs(scfres_cpu.energies.total - scfres_gpu.energies.total) < 1e-10
+    @show norm(scfres_cpu.ρ - Array(scfres_gpu.ρ))
 end
 
 # TODO Disabled, because not yet supported ...
