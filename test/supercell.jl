@@ -49,13 +49,15 @@ end
 @testset "Supercell response" begin
     Ecut    = 5.0
     kgrid   = [2, 1, 1]
+    tol     = 1e-6
+    scf_tol = (; is_converged=DFTK.ScfConvergenceDensity(tol))
 
     for system in (silicon, magnesium), extra_terms in ([], [Hartree()])
         @testset "$(DFTK.periodic_table[system.atnum].symbol) with $extra_terms" begin
             model = model_atomic(system.lattice, system.atoms, system.positions;
                                  system.temperature, extra_terms)
             basis = PlaneWaveBasis(model; Ecut, kgrid)
-            scfres = self_consistent_field(basis)
+            scfres = self_consistent_field(basis; scf_tol...)
 
             n_spin = model.n_spin_components
             δV = guess_density(basis)
@@ -68,14 +70,14 @@ end
             scfres_supercell_1 = cell_to_supercell(scfres)
             δρ_supercell_1 = apply_χ0(scfres_supercell_1, δV_supercell)
 
-            @test norm(δρ - δρ_supercell_1[1:size(δρ, 1), :, :]) < 1e-4
+            @test norm(δρ - δρ_supercell_1[1:size(δρ, 1), :, :]) < 10*tol
 
             # Supercell with manually unpacking only basis.
             basis_supercell = cell_to_supercell(basis)
-            scfres_supercell_2 = self_consistent_field(basis_supercell)
+            scfres_supercell_2 = self_consistent_field(basis_supercell; scf_tol...)
             δρ_supercell_2 = apply_χ0(scfres_supercell_2, δV_supercell)
 
-            @test norm(δρ - δρ_supercell_2[1:size(δρ, 1), :, :]) < 1e-4
+            @test norm(δρ - δρ_supercell_2[1:size(δρ, 1), :, :]) < 10*tol
         end
     end
 end
