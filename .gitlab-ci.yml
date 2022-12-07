@@ -19,7 +19,7 @@ julia/1.8-n2:
   #   #   - "docs/make.jl"
   #   #   - "docs/build_docs.jl"
   #   #   when: never
-    - when: on_success
+  #   - when: on_success
   script:
     - module load lang/JuliaHPC/1.8.3-foss-2022a-CUDA-11.7.0
     - julia --color=yes --project=. -e '
