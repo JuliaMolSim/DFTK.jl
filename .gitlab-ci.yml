@@ -12,16 +12,15 @@ julia/1.8-n2:
     - external_pull_requests
     - tags
     - master
-  rules:
-    - changes:
-      - "README.md"
-    #   - "docs/**/*.md"
-    #   - "docs/make.jl"
-    #   - "docs/build_docs.jl"
-    #   when: never
+  # rules:
+  #   - changes:
+  #     - "README.md"
+  #   #   - "docs/**/*.md"
+  #   #   - "docs/make.jl"
+  #   #   - "docs/build_docs.jl"
+  #   #   when: never
     - when: on_success
   script:
-    # - /bin/bash -l
     - module load lang/JuliaHPC/1.8.3-foss-2022a-CUDA-11.7.0
     - julia --color=yes --project=. -e '
         using Pkg;
