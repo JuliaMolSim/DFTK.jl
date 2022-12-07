@@ -9,10 +9,10 @@ include("testcases.jl")
 @testset "CUDA silicon functionality test" begin
     function run_problem(; architecture)
         model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, [];
-                          temperature=1e-3, smearing=Smearing.Gaussian())
+                          temperature=1e-2, smearing=Smearing.Gaussian())
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=(1, 1, 1), architecture)
         self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10),
-                              mixing=KerkerMixing(), solver=scf_damping_solver(1.0))
+                              mixing=KerkerMixing(), solver=scf_damping_solver(0.4))
     end
 
     scfres_cpu = run_problem(; architecture=DFTK.CPU())
