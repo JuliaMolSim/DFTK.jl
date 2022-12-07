@@ -35,6 +35,10 @@ Random.seed!(0)
 
 # Wrap in an outer testset to get a full report if one test fails
 @testset "DFTK.jl" begin
+    if "gpu" in TAGS
+        include("gpu.jl")
+    end
+
     # Super quick tests
     if "all" in TAGS || "quick" in TAGS
         include("helium_all_electron.jl")
