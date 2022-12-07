@@ -8,10 +8,10 @@ julia/1.8-n2:
     SCHEDULER_PARAMETERS: "-N 1 -n 1 -c 16 --gres=gpu:a100:1 -t 00:15:00 -A hpc-prf-dftkjl -p gpu"
     JULIA_NUM_THREADS: "1"  # GPU and multi-threading not yet compatible
   coverage: '/\(\d+.\d+\%\) covered/'
-  # only:
-  #   - external_pull_requests
-  #   - tags
-  #   - master
+  only:
+    - external_pull_requests
+    - tags
+    - master
   rules:
     - changes:
       - "README.md"
