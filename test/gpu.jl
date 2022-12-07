@@ -6,13 +6,10 @@ include("testcases.jl")
 # These are not yet the best tests, but just to ensure our GPU support
 # does not just break randomly
 
-
 @testset "CUDA silicon functionality test" begin
     function run_problem(; architecture)
-        # model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions)
         model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, [];
                           temperature=1e-3, smearing=Smearing.Gaussian())
-        # basis = PlaneWaveBasis(model; Ecut=10, kgrid=(3, 3, 3), architecture)
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=(1, 1, 1), architecture)
         self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10),
                               mixing=KerkerMixing(), solver=scf_damping_solver(1.0))
@@ -23,6 +20,21 @@ include("testcases.jl")
     @test abs(scfres_cpu.energies.total - scfres_gpu.energies.total) < 1e-10
     @test norm(scfres_cpu.ρ - scfres_gpu.ρ) < 1e-9
 end
+
+# TODO Disabled, because not yet supported ...
+# @testset "CUDA silicon functionality test" begin
+#     function run_problem(; architecture)
+#         model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions)
+#         basis = PlaneWaveBasis(model; Ecut=10, kgrid=(3, 3, 3), architecture)
+#         self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10),
+#                               mixing=KerkerMixing(), solver=scf_damping_solver(1.0))
+#     end
+#
+#     scfres_cpu = run_problem(; architecture=DFTK.CPU())
+#     scfres_gpu = run_problem(; architecture=DFTK.GPU(CuArray))
+#     @test abs(scfres_cpu.energies.total - scfres_gpu.energies.total) < 1e-10
+#     @test norm(scfres_cpu.ρ - scfres_gpu.ρ) < 1e-9
+# end
 
 # TODO Disabled, because not yet supported ...
 # @testset "CUDA iron functionality test" begin
