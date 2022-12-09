@@ -326,13 +326,6 @@ function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(
     end
 end
 
-function compute_δψ(basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
-                    kwargs_sternheimer...)
-    δψ = zero.(δHψ)
-    compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ; ψ_extra, kwargs_sternheimer...)
-    δψ
-end
-
 @views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
                                     occupation_threshold, kwargs_sternheimer...)
     basis  = ham.basis
