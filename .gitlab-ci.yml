@@ -27,7 +27,6 @@ julia/1.8-n2:
     - module load lang/JuliaHPC/1.8.3-foss-2022a-CUDA-11.7.0
     - julia --color=yes --project=. -e '
         using Pkg;
-        Pkg.build(verbose=true);
         Pkg.test(; coverage=true, test_args=["gpu"])
       '
     - julia --color=yes --project=test/coverage -e 'import Pkg; Pkg.instantiate()'
