@@ -30,5 +30,5 @@ julia/1.8-n2:
         Pkg.build(verbose=true);
         Pkg.test(; coverage=true, test_args=["gpu"])
       '
-    #- julia --color=yes --project=test/coverage -e 'import Pkg; Pkg.instantiate()'
-    #- julia --color=yes --project=test/coverage test/coverage/coverage.jl
+    - julia --color=yes --project=test/coverage -e 'import Pkg; Pkg.instantiate()'
+    - julia --color=yes --project=test/coverage test/coverage/coverage.jl
