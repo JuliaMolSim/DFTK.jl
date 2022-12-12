@@ -12,15 +12,15 @@ include("testcases.jl")
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
-    # Run nlsolve without guess
+    # Run default solver without guess
     ρ0 = zeros(basis.fft_size..., 1)
-    ρ_nl = self_consistent_field(basis; ρ=ρ0, tol).ρ
+    ρ_def = self_consistent_field(basis; ρ=ρ0, tol).ρ
 
     # Run DM
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Direct minimization" begin
             ρ_dm = direct_minimization(basis; tol).ρ
-            @test maximum(abs, ρ_dm - ρ_nl) < sqrt(tol) / 10
+            @test maximum(abs, ρ_dm - ρ_def) < sqrt(tol) / 10
         end
     end
 
@@ -32,17 +32,16 @@ include("testcases.jl")
             ψ0, _ = select_occupied_orbitals(basis, scfres_start.ψ,
                                              scfres_start.occupation)
             ρ_newton = newton(basis, ψ0; tol).ρ
-            @test maximum(abs.(ρ_newton - ρ_nl)) < sqrt(tol) / 10
+            @test maximum(abs.(ρ_newton - ρ_def)) < sqrt(tol) / 10
         end
     end
 
     # Run other SCFs with SAD guess
     ρ0 = guess_density(basis)
-    for solver in (scf_nlsolve_solver(), scf_damping_solver(1.2), scf_anderson_solver(),
-                   scf_CROP_solver())
+    for solver in (scf_anderson_solver(), scf_damping_solver(1.2), scf_CROP_solver())
         @testset "Testing $solver" begin
             ρ_alg = self_consistent_field(basis; ρ=ρ0, solver, tol).ρ
-            @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
+            @test maximum(abs.(ρ_alg - ρ_def)) < sqrt(tol) / 10
         end
     end
 
@@ -52,17 +51,17 @@ include("testcases.jl")
                    χ0Mixing(χ0terms=[Applyχ0Model()], RPA=true))
         @testset "Testing $mixing" begin
             ρ_alg = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8).ρ
-            @test maximum(abs.(ρ_alg - ρ_nl)) < sqrt(tol) / 10
+            @test maximum(abs.(ρ_alg - ρ_def)) < sqrt(tol) / 10
         end
     end
 
     # Potential mixing
     scfres = DFTK.scf_potential_mixing(basis; mixing=KerkerMixing(), tol, ρ=ρ0)
-    @test maximum(abs.(scfres.ρ - ρ_nl)) < sqrt(tol) / 10
+    @test maximum(abs.(scfres.ρ - ρ_def)) < sqrt(tol) / 10
 
     # Adaptive potential mixing
     scfres = DFTK.scf_potential_mixing_adaptive(basis; mixing=SimpleMixing(), tol, ρ=ρ0)
-    @test maximum(abs.(scfres.ρ - ρ_nl)) < sqrt(tol) / 10
+    @test maximum(abs.(scfres.ρ - ρ_def)) < sqrt(tol) / 10
 end
 
 @testset "Compare different SCF algorithms (collinear spin, no temperature)" begin
@@ -73,8 +72,8 @@ end
     magnetic_moments = [1, 1]
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions; magnetic_moments)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
-    ρ0   = guess_density(basis, magnetic_moments)
-    ρ_nl = self_consistent_field(basis; tol, ρ=ρ0).ρ
+    ρ0    = guess_density(basis, magnetic_moments)
+    ρ_def = self_consistent_field(basis; tol, ρ=ρ0).ρ
     scfres_start = self_consistent_field(basis, maxiter=1, ρ=ρ0)
     ψ0, _ = select_occupied_orbitals(basis, scfres_start.ψ,
                                      scfres_start.occupation)
@@ -83,7 +82,7 @@ end
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Direct minimization" begin
             ρ_dm = direct_minimization(basis, ψ0; g_tol=tol).ρ
-            @test maximum(abs.(ρ_dm - ρ_nl)) < sqrt(tol) / 10
+            @test maximum(abs.(ρ_dm - ρ_def)) < sqrt(tol) / 10
         end
     end
 
@@ -91,7 +90,7 @@ end
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Newton" begin
             ρ_newton = newton(basis, ψ0; tol).ρ
-            @test maximum(abs.(ρ_newton - ρ_nl)) < sqrt(tol) / 10
+            @test maximum(abs.(ρ_newton - ρ_def)) < sqrt(tol) / 10
         end
     end
 end

@@ -25,7 +25,6 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LinearMaps = "7a12625a-238d-50fd-b39a-03d52299707e"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
-NLsolve = "2774e3e8-f4cf-5e23-947b-6d7e65073b56"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 PeriodicTable = "7b2266bf-644c-5ea3-82d8-af4bbd25a884"
@@ -66,7 +65,6 @@ Libxc = "0.3.9"
 LineSearches = "7"
 LinearMaps = "3"
 MPI = "0.19, 0.20"
-NLsolve = "4"
 Optim = "1"
 OrderedCollections = "1"
 PeriodicTable = "1"
@@ -106,4 +104,4 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
 [targets]
-test = ["Test", "Aqua", "CUDA", "DoubleFloats", "FiniteDiff", "FiniteDifferences", "GenericLinearAlgebra", "IntervalArithmetic", "Plots", "Random", "KrylovKit", "Logging", "JLD2", "WriteVTK", "wannier90_jll", "QuadGK", "ComponentArrays"]
+test = ["Test", "Aqua", "CUDA", "ComponentArrays", "DoubleFloats", "FiniteDiff", "FiniteDifferences", "GenericLinearAlgebra", "IntervalArithmetic", "JLD2", "Logging", "Plots", "QuadGK", "Random", "KrylovKit", "WriteVTK", "wannier90_jll"]
