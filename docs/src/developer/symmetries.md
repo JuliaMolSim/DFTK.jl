@@ -105,14 +105,14 @@ First we perform the DFT calculation disabling symmetry handling
 ```@example symmetries
 model_nosym = model_LDA(lattice, atoms, positions; symmetries=false)
 basis_nosym = PlaneWaveBasis(model_nosym; Ecut, kgrid)
-scfres_nosym = @time self_consistent_field(basis_nosym, tol=1e-8)
+scfres_nosym = @time self_consistent_field(basis_nosym, tol=1e-6)
 nothing  # hide
 ```
 and then redo it using symmetry (the default):
 ```@example symmetries
 model_sym = model_LDA(lattice, atoms, positions)
 basis_sym = PlaneWaveBasis(model_sym; Ecut, kgrid)
-scfres_sym = @time self_consistent_field(basis_sym, tol=1e-8)
+scfres_sym = @time self_consistent_field(basis_sym, tol=1e-6)
 nothing  # hide
 ```
 Clearly both yield the same energy

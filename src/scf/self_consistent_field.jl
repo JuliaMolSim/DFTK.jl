@@ -72,7 +72,7 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
                                        determine_diagtol=ScfDiagtol(),
                                        damping=0.8,  # Damping parameter
                                        mixing=LdosMixing(),
-                                       is_converged=ScfConvergenceEnergy(tol),
+                                       is_converged=ScfConvergenceDensity(tol),
                                        nbandsalg::NbandsAlgorithm=AdaptiveBands(basis),
                                        callback=ScfDefaultCallback(; show_damping=false),
                                        compute_consistent_energies=true,

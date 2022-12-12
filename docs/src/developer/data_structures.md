@@ -14,7 +14,7 @@ model = model_LDA(lattice, atoms, positions)
 kgrid = [4, 4, 4]
 Ecut = 15
 basis = PlaneWaveBasis(model; Ecut, kgrid)
-scfres = self_consistent_field(basis, tol=1e-8);
+scfres = self_consistent_field(basis; tol=1e-4);
 ```
 
 In this section we assume a calculation of silicon LDA model

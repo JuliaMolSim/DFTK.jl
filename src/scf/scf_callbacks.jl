@@ -77,12 +77,14 @@ function ScfDefaultCallback(; show_damping=true)
     end
 end
 
+# TODO Convergence ideas:
+#      - Flag convergence only after two subsequent steps converged
+
 """
 Flag convergence as soon as total energy change drops below tolerance
 """
 function ScfConvergenceEnergy(tolerance)
-    energy_total = NaN
-
+    previous_energy = NaN
     function is_converged(info)
         info.energies === nothing && return false # first iteration
 
@@ -91,11 +93,10 @@ function ScfConvergenceEnergy(tolerance)
             return false
         end
 
-        etot_old = energy_total
-        energy_total = info.energies.total
-        abs(energy_total - etot_old) < tolerance
+        error = abs(info.energies.total - previous_energy)
+        previous_energy = info.energies.total
+        error < tolerance
     end
-    return is_converged
 end
 
 """
@@ -105,6 +106,20 @@ input density and unpreconditioned output density (ρout)
 function ScfConvergenceDensity(tolerance)
     info -> (norm(info.ρout - info.ρin) * sqrt(info.basis.dvol) < tolerance)
 end
+
+"""
+Flag convergence on the change in cartesian force between two iterations.
+"""
+function ScfConvergenceForce(tolerance)
+    previous_force = nothing
+    function is_converged(info)
+        force = compute_forces_cart(info.basis, info.ψ, info.occupation; ρ=info.ρout)
+        error = isnothing(previous_force) ? NaN : norm(previous_force - force)
+        previous_force = force
+        error < tolerance
+    end
+end
+
 
 """
 Determine the tolerance used for the next diagonalization. This function takes

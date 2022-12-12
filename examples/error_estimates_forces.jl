@@ -47,7 +47,7 @@ model = model_LDA(lattice, atoms, positions)
 kgrid = [1, 1, 1]
 Ecut_ref = 35
 basis_ref = PlaneWaveBasis(model; Ecut=Ecut_ref, kgrid)
-tol = 1e-8;
+tol = 1e-5;
 
 # ## Computations
 
