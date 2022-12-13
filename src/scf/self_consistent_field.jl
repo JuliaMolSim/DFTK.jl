@@ -53,12 +53,30 @@ function next_density(ham::Hamiltonian,
 end
 
 
-"""
-Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
+@doc raw"""
+    self_consistent_field(basis; [tol, mixing, damping, ρ, ψ])
 
+Solve the Kohn-Sham equations with a density-based SCF algorithm using damped, preconditioned
+iterations where ``ρ_\text{next} = α P^{-1} (ρ_\text{out} - ρ_\text{in})``.
+
+Overview of parameters:
+- `ρ`:   Initial density
+- `ψ`:   Initial orbitals
+- `tol`: Tolerance for the density change (``\|ρ_\text{out} - ρ_\text{in}\|``)
+  to flag convergence. Default is `1e-6`.
+- `is_converged`: Convergence control callback. Typical objects passed here are
+  `DFTK.ScfConvergenceDensity(tol)` (the default), `DFTK.ScfConvergenceEnergy(tol)`
+  or `DFTK.ScfConvergenceForce(tol)`.
+- `maxiter`: Maximal number of SCF iterations
+- `mixing`: Mixing method, which determines the preconditioner ``P^{-1}`` in the above equation.
+  Typical mixings are [`LdosMixing`](@ref), [`KerkerMixing`](@ref), [`SimpleMixing`](@ref)
+  or [`DielectricMixing`](@ref). Default is `LdosMixing()`
+- `damping`: Damping parameter ``α`` in the above equation. Default is `0.8`.
 - `nbandsalg`: By default DFTK uses `nbandsalg=AdaptiveBands(basis)`, which adaptively determines
   the number of bands to compute. If you want to influence this algorithm or use a predefined
   number of bands in each SCF step, pass a [`FixedBands`](@ref) or [`AdaptiveBands`](@ref).
+- `callback`: Function called at each SCF iteration. Usually takes care of printing the
+  intermediate state.
 """
 @timing function self_consistent_field(basis::PlaneWaveBasis{T};
                                        n_bands=nothing,    # TODO For backwards compatibility.
@@ -66,13 +84,13 @@ Solve the Kohn-Sham equations with a SCF algorithm, starting at `ρ`.
                                        ρ=guess_density(basis),
                                        ψ=nothing,
                                        tol=1e-6,
+                                       is_converged=ScfConvergenceDensity(tol),
                                        maxiter=100,
+                                       mixing=LdosMixing(),
+                                       damping=0.8,
                                        solver=scf_anderson_solver(),
                                        eigensolver=lobpcg_hyper,
                                        determine_diagtol=ScfDiagtol(),
-                                       damping=0.8,  # Damping parameter
-                                       mixing=LdosMixing(),
-                                       is_converged=ScfConvergenceDensity(tol),
                                        nbandsalg::NbandsAlgorithm=AdaptiveBands(basis),
                                        callback=ScfDefaultCallback(; show_damping=false),
                                        compute_consistent_energies=true,
