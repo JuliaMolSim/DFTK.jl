@@ -57,7 +57,7 @@ model = Model(lattice, atoms, positions; temperature=1e-4, smearing=Smearing.Gau
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 
 ## Run SCF
-scfres = self_consistent_field(basis, tol=1e-10)
+scfres = self_consistent_field(basis, is_converged=DFTK.ScfConvergenceEnergy(1e-10))
 
 ## Plot bands
 sgnum = 13  # Graphene space group number

@@ -31,7 +31,7 @@ let
 
         model = model_LDA(lattice, atoms, positions; temperature=1e-2)
         basis = PlaneWaveBasis(model; Ecut, kgrid=[8, 8, 8])
-        self_consistent_field(basis; tol=1e-12)
+        self_consistent_field(basis; tol=1e-8)
     end
 
     function converge_Ecut(Ecuts, psp, tol)

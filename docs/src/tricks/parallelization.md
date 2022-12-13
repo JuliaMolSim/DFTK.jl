@@ -17,7 +17,7 @@ model = model_LDA(lattice, atoms, positions)
 basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
 
 DFTK.reset_timer!(DFTK.timer)
-scfres = self_consistent_field(basis, tol=1e-8)
+scfres = self_consistent_field(basis, tol=1e-5)
 ```
 
 ## Timing measurements
@@ -32,7 +32,7 @@ this timer before running the calculation of interest.
 For example to measure the timing of an SCF:
 ```@example parallelization
 DFTK.reset_timer!(DFTK.timer)
-scfres = self_consistent_field(basis, tol=1e-8)
+scfres = self_consistent_field(basis, tol=1e-5)
 
 DFTK.timer
 ```

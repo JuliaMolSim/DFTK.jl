@@ -8,7 +8,7 @@ include("testcases.jl")
 @testset "Test printing" begin
     model  = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
     basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 3, 2], kshift=[0, 0, 0])
-    scfres = self_consistent_field(basis, tol=1e-2)
+    scfres = self_consistent_field(basis, tol=1e-1)
 
     println(model)
     display("text/plain", model)

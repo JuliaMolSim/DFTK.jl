@@ -38,7 +38,7 @@ model = model_DFT(Array{Float32}(lattice), atoms, positions, [:lda_x, :lda_c_vwn
 basis = PlaneWaveBasis(model, Ecut=7, kgrid=[4, 4, 4])
 
 ## Run the SCF
-scfres = self_consistent_field(basis, tol=1e-4);
+scfres = self_consistent_field(basis, tol=1e-3);
 
 # To check the calculation has really run in Float32,
 # we check the energies and density are expressed in this floating-point type:

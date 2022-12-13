@@ -64,7 +64,7 @@ basis = PlaneWaveBasis(model; Ecut, kgrid)
 ## this is equivalent to PlaneWaveBasis(model; Ecut=Ecut, kgrid=kgrid)
 
 ## 3. Run the SCF procedure to obtain the ground state
-scfres = self_consistent_field(basis, tol=1e-8);
+scfres = self_consistent_field(basis, tol=1e-5);
 
 # That's it! Now you can get various quantities from the result of the SCF.
 # For instance, the different components of the energy:

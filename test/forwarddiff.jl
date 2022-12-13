@@ -7,8 +7,7 @@ include("testcases.jl")
 
 
 @testset "Force derivatives using ForwardDiff" begin
-    tol = 1e-10
-    function compute_force(ε1, ε2; metal=false)
+    function compute_force(ε1, ε2; metal=false, tol=1e-10)
         T = promote_type(typeof(ε1), typeof(ε2))
         pos = [[1.01, 1.02, 1.03] / 8, -ones(3) / 8 + ε1 * [1., 0, 0] + ε2 * [0, 1., 0]]
         if metal
@@ -21,8 +20,7 @@ include("testcases.jl")
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
         response     = ResponseOptions(verbose=true)
-        is_converged = DFTK.ScfConvergenceDensity(tol)
-
+        is_converged = DFTK.ScfConvergenceForce(tol)
         scfres = self_consistent_field(basis; is_converged, response)
         compute_forces_cart(scfres)
     end
@@ -46,7 +44,7 @@ include("testcases.jl")
         @test abs(grad[2] - derivative_ε2[1][1]) < 1e-4
 
         jac = ForwardDiff.jacobian(v -> compute_force(v...)[1], [0.0, 0.0])
-        @test norm(grad - jac[1, :]) < tol
+        @test norm(grad - jac[1, :]) < 1e-10
     end
 
     @testset "Derivative for metals" begin
@@ -120,15 +118,13 @@ end
 
 @testset "Derivative of complex function" begin
     using SpecialFunctions, FiniteDifferences
-
-    tol = 1e-10
     α = randn(ComplexF64)
     erfcα = x -> erfc(α * x)
 
     x0  = randn()
     fd1 = ForwardDiff.derivative(erfcα , x0)
     fd2 = FiniteDifferences.central_fdm(5, 1)(erfcα, x0)
-    @test norm(fd1 - fd2) < tol
+    @test norm(fd1 - fd2) < 1e-10
 end
 
 @testset "LocalNonlinearity sensitivity using ForwardDiff" begin

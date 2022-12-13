@@ -11,8 +11,8 @@ include("testcases.jl")
         model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, [];
                           temperature=1e-2, smearing=Smearing.Gaussian())
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=(1, 1, 1), architecture)
-        self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10),
-                              mixing=KerkerMixing(), solver=scf_damping_solver(0.4))
+        self_consistent_field(basis; tol=1e-10, mixing=KerkerMixing(),
+                              solver=scf_damping_solver(0.4))
     end
 
     scfres_cpu = run_problem(; architecture=DFTK.CPU())
@@ -20,6 +20,8 @@ include("testcases.jl")
     @test abs(scfres_cpu.energies.total - scfres_gpu.energies.total) < 1e-10
     @test norm(scfres_cpu.ρ - Array(scfres_gpu.ρ)) < 1e-10
 end
+
+# TODO Float32
 
 # TODO Disabled, because not yet supported ...
 # @testset "CUDA silicon functionality test" begin

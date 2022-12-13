@@ -235,7 +235,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     diag_miniter=1,
     determine_diagtol=ScfDiagtol(),
     mixing=SimpleMixing(),
-    is_converged=ScfConvergenceEnergy(tol),
+    is_converged=ScfConvergenceDensity(tol),
     callback=ScfDefaultCallback(),
     acceleration=AndersonAcceleration(;m=10),
     accept_step=ScfAcceptStepAll(),

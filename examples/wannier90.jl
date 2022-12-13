@@ -30,7 +30,7 @@ positions = [[0.0, 0.0, 0.0], [1//3, 2//3, 0.0]]
 model  = model_PBE(lattice, atoms, positions)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[5, 5, 1])
 nbandsalg = AdaptiveBands(basis; n_bands_converge=15)
-scfres = self_consistent_field(basis; nbandsalg, tol=1e-8);
+scfres = self_consistent_field(basis; nbandsalg, tol=1e-5);
 
 # Plot bandstructure of the system
 
