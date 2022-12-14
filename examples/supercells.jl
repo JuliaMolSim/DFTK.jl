@@ -75,26 +75,25 @@ ase_atoms(setup.model).write("al_supercell.png")
 #    J. Phys. Cond. Matt *33* 085503 (2021). [ArXiv:2009.01665](https://arxiv.org/abs/2009.01665)
 #
 
-is_converged = DFTK.ScfConvergenceDensity(1e-4)  # Flag convergence based on density
-self_consistent_field(aluminium_setup(1); is_converged);
+self_consistent_field(aluminium_setup(1); tol=1e-4);
 
 #-
 
-self_consistent_field(aluminium_setup(2); is_converged);
+self_consistent_field(aluminium_setup(2); tol=1e-4);
 
 #-
 
-self_consistent_field(aluminium_setup(4); is_converged);
+self_consistent_field(aluminium_setup(4); tol=1e-4);
 
 # When switching off explicitly the `LdosMixing`, by selecting `mixing=SimpleMixing()`,
 # the performance of number of required SCF steps starts to increase as we increase
 # the size of the modelled problem:
 
-self_consistent_field(aluminium_setup(1); is_converged, mixing=SimpleMixing());
+self_consistent_field(aluminium_setup(1); tol=1e-4, mixing=SimpleMixing());
 
 #-
 
-self_consistent_field(aluminium_setup(4); is_converged, mixing=SimpleMixing());
+self_consistent_field(aluminium_setup(4); tol=1e-4, mixing=SimpleMixing());
 
 # For completion let us note that the more traditional `mixing=KerkerMixing()`
 # approach would also help in this particular setting to obtain a constant

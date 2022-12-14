@@ -38,7 +38,8 @@ function compute_scfres(x)
     if isnothing(ρ)
         ρ = guess_density(basis)
     end
-    scfres = self_consistent_field(basis; ψ, ρ, tol=tol / 10, callback=identity)
+    is_converged = DFTK.ScfConvergenceForce(tol / 10)
+    scfres = self_consistent_field(basis; ψ, ρ, is_converged, callback=identity)
     ψ = scfres.ψ
     ρ = scfres.ρ
     scfres
@@ -51,7 +52,7 @@ end;
 
 function fg!(F, G, x)
     scfres = compute_scfres(x)
-    if G != nothing
+    if !isnothing(G)
         grad = compute_forces(scfres)
         G .= -[grad[1]; grad[2]]
     end

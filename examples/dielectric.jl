@@ -19,9 +19,9 @@ atoms     = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 
 ## Compute the dielectric operator without symmetries
-model = model_LDA(lattice, atoms, positions, symmetries=false)
-basis = PlaneWaveBasis(model; Ecut, kgrid)
-scfres = self_consistent_field(basis, tol=1e-14);
+model  = model_LDA(lattice, atoms, positions, symmetries=false)
+basis  = PlaneWaveBasis(model; Ecut, kgrid)
+scfres = self_consistent_field(basis, tol=1e-8);
 
 # Applying ``ε^† ≔ (1- χ_0 K)`` …
 function eps_fun(δρ)

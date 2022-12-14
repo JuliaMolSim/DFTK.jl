@@ -55,7 +55,7 @@ function test_checkpointing(; εF=nothing)
 
             callback  = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
             nbandsalg = FixedBands(; n_bands_converge=20)
-            scfres = self_consistent_field(basis; tol=5e-2, nbandsalg, callback)
+            scfres = self_consistent_field(basis; tol=1e-2, nbandsalg, callback)
             test_scfres_agreement(scfres, load_scfres(checkpointfile))
         end
     end
@@ -69,7 +69,8 @@ function test_serialisation(; εF=nothing)
                           disable_electrostatics_check=true)
         kgrid = [2, 3, 4]
         basis = PlaneWaveBasis(model; Ecut=5, kgrid)
-        scfres = self_consistent_field(basis; nbandsalg=FixedBands(; n_bands_converge=20))
+        nbandsalg = FixedBands(; n_bands_converge=20)
+        scfres = self_consistent_field(basis; tol=1e-2, nbandsalg)
 
         @test_throws ErrorException save_scfres("MyVTKfile.random", scfres)
         @test_throws ErrorException save_scfres("MyVTKfile", scfres)

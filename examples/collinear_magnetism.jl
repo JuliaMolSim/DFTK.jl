@@ -25,7 +25,7 @@ Ecut = 15          # kinetic energy cutoff in Hartree
 model_nospin = model_LDA(lattice, atoms, positions, temperature=0.01)
 basis_nospin = PlaneWaveBasis(model_nospin; kgrid, Ecut)
 
-scfres_nospin = self_consistent_field(basis_nospin; tol=1e-6, mixing=KerkerDosMixing());
+scfres_nospin = self_consistent_field(basis_nospin; tol=1e-4, mixing=KerkerDosMixing());
 #-
 scfres_nospin.energies
 
@@ -59,7 +59,7 @@ magnetic_moments = [4];
 model = model_LDA(lattice, atoms, positions; magnetic_moments, temperature=0.01)
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 ρ0 = guess_density(basis, magnetic_moments)
-scfres = self_consistent_field(basis, tol=1e-6; ρ=ρ0, mixing=KerkerDosMixing());
+scfres = self_consistent_field(basis, tol=1e-4; ρ=ρ0, mixing=KerkerDosMixing());
 #-
 scfres.energies
 

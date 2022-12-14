@@ -23,7 +23,7 @@ system = attach_psp(system; family="hgh", functional="lda")
 
 model  = model_LDA(system; temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
-scfres = self_consistent_field(basis, tol=1e-8);
+scfres = self_consistent_field(basis, tol=1e-4);
 
 # At any point we can also get back the DFTK model as an
 # AtomsBase-compatible `AbstractSystem`:

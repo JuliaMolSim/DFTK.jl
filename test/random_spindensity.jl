@@ -16,8 +16,8 @@ include("testcases.jl")
             ρspin = nothing
         end
         ρ = ρ_from_total_and_spin(ρtot, ρspin)
-        self_consistent_field(basis; tol=5e-6, ρ,
-                              nbandsalg=FixedBands(; n_bands_converge=10));
+        self_consistent_field(basis; is_converged=DFTK.ScfConvergenceEnergy(5e-6),
+                              ρ, nbandsalg=FixedBands(; n_bands_converge=10));
     end
 
     scfres        = run_silicon(:none)

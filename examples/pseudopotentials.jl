@@ -88,7 +88,7 @@ function run_bands(psp)
     model = model_LDA(lattice, atoms, positions; temperature=1e-2)
     basis = PlaneWaveBasis(model; Ecut=24, kgrid=(6, 6, 4))
 
-    scfres   = self_consistent_field(basis, tol=1e-6)
+    scfres   = self_consistent_field(basis; tol=1e-4)
     bandplot = plot_bandstructure(scfres)
     (; scfres, bandplot)
 end;

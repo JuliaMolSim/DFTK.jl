@@ -14,6 +14,6 @@ model = model_DFT(lattice, atoms, positions, []; temperature=1e-3)
 architecture = has_cuda() ? DFTK.GPU(CuArray) : DFTK.CPU()
 
 basis  = PlaneWaveBasis(model; Ecut=30, kgrid=(1, 1, 1), architecture)
-scfres = self_consistent_field(basis; tol=1e-3,
+scfres = self_consistent_field(basis; tol=1e-2,
                                solver=scf_damping_solver(),
                                mixing=KerkerMixing())

@@ -11,7 +11,7 @@ include("testcases.jl")
                            magnesium.temperature, εF, disable_electrostatics_check=true)
         basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 3, 2], kshift=[0, 0, 0])
         scfres = self_consistent_field(basis; nbandsalg=FixedBands(; n_bands_converge=6),
-                                       tol=1e-2)
+                                       tol=1e-3)
 
         println(model)
         display("text/plain", model)
