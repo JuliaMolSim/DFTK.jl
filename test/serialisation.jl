@@ -37,75 +37,64 @@ function test_scfres_agreement(tested, ref)
 end
 
 
-function test_checkpointing(; εF=nothing)
-    label = !isnothing(εF) ? "  εF" : "none"
-    @testset "$label" begin
-        model = model_PBE(o2molecule.lattice, o2molecule.atoms, o2molecule.positions;
-                          temperature=0.02, smearing=Smearing.Gaussian(), εF,
-                          magnetic_moments=[1., 1.], symmetries=false,
-                          disable_electrostatics_check=true)
+@testset "SCF checkpointing" begin
+    model = model_PBE(o2molecule.lattice, o2molecule.atoms, o2molecule.positions;
+                      temperature=0.02, smearing=Smearing.Gaussian(),
+                      magnetic_moments=[1., 1.], symmetries=false)
 
-        kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
-        basis  = PlaneWaveBasis(model; Ecut=4, kgrid)
+    kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
+    basis  = PlaneWaveBasis(model; Ecut=4, kgrid)
 
-        # Run SCF and do checkpointing along the way
-        mktempdir() do tmpdir
-            checkpointfile = joinpath(tmpdir, "scfres.jld2")
-            checkpointfile = MPI.bcast(checkpointfile, 0, MPI.COMM_WORLD)  # master -> everyone
+    # Run SCF and do checkpointing along the way
+    mktempdir() do tmpdir
+        checkpointfile = joinpath(tmpdir, "scfres.jld2")
+        checkpointfile = MPI.bcast(checkpointfile, 0, MPI.COMM_WORLD)  # master -> everyone
 
-            callback  = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
-            nbandsalg = FixedBands(; n_bands_converge=20)
-            scfres = self_consistent_field(basis; tol=1e-2, nbandsalg, callback)
-            test_scfres_agreement(scfres, load_scfres(checkpointfile))
-        end
-    end
-end
-
-function test_serialisation(; εF=nothing)
-    label = !isnothing(εF) ? "  εF" : "none"
-    @testset "$label" begin
-        model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions;
-                          spin_polarization=:collinear, temperature=0.01, εF=0.5,
-                          disable_electrostatics_check=true)
-        kgrid = [2, 3, 4]
-        basis = PlaneWaveBasis(model; Ecut=5, kgrid)
+        callback  = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
         nbandsalg = FixedBands(; n_bands_converge=20)
-        scfres = self_consistent_field(basis; tol=1e-2, nbandsalg)
+        scfres = self_consistent_field(basis; tol=1e-2, nbandsalg, callback)
+        test_scfres_agreement(scfres, load_scfres(checkpointfile))
+    end
+end
 
-        @test_throws ErrorException save_scfres("MyVTKfile.random", scfres)
-        @test_throws ErrorException save_scfres("MyVTKfile", scfres)
+function test_serialisation(label;
+                            modelargs=(; spin_polarization=:collinear, temperature=0.01),
+                            basisargs=(; Ecut=5, kgrid=(2, 3, 4)))
+    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions; modelargs...)
+    basis = PlaneWaveBasis(model; basisargs...)
+    nbandsalg = FixedBands(; n_bands_converge=20)
+    scfres = self_consistent_field(basis; tol=1e-1, nbandsalg)
 
-        @testset "JLD2" begin
-            mktempdir() do tmpdir
-                dumpfile = joinpath(tmpdir, "scfres.jld2")
-                dumpfile = MPI.bcast(dumpfile, 0, MPI.COMM_WORLD)  # master -> everyone
+    @test_throws ErrorException save_scfres("MyVTKfile.random", scfres)
+    @test_throws ErrorException save_scfres("MyVTKfile", scfres)
 
-                save_scfres(dumpfile, scfres)
-                @test isfile(dumpfile)
-                test_scfres_agreement(scfres, load_scfres(dumpfile))
-            end
+    @testset "JLD2 ($label)" begin
+        mktempdir() do tmpdir
+            dumpfile = joinpath(tmpdir, "scfres.jld2")
+            dumpfile = MPI.bcast(dumpfile, 0, MPI.COMM_WORLD)  # master -> everyone
+
+            save_scfres(dumpfile, scfres)
+            @test isfile(dumpfile)
+            test_scfres_agreement(scfres, load_scfres(dumpfile))
         end
+    end
 
-        @testset "VTK" begin
-            mktempdir() do tmpdir
-                dumpfile = joinpath(tmpdir, "scfres.vts")
-                dumpfile = MPI.bcast(dumpfile, 0, MPI.COMM_WORLD)  # master -> everyone
+    @testset "VTK ($label)" begin
+        mktempdir() do tmpdir
+            dumpfile = joinpath(tmpdir, "scfres.vts")
+            dumpfile = MPI.bcast(dumpfile, 0, MPI.COMM_WORLD)  # master -> everyone
 
-                save_scfres(dumpfile, scfres; save_ψ=true)
-                @test isfile(dumpfile)
-            end
+            save_scfres(dumpfile, scfres; save_ψ=true)
+            @test isfile(dumpfile)
         end
     end
 end
 
-@testset "Test checkpointing" begin
-    for εF in (nothing, 0.5)
-        test_checkpointing(; εF)
-    end
-end
-
-@testset "Test serialisation" begin
-    for εF in (nothing, 0.5)
-        test_serialisation(; εF)
-    end
+@testset "Serialisation" begin
+    test_serialisation("nospin notemp")
+    test_serialisation("collinear temp";
+                       modelargs=(; spin_polarization=:collinear, temperature=0.01))
+    test_serialisation("fixed Fermi";
+                       modelargs=(; εF=0.5, disable_electrostatics_check=true,
+                                  temperature=1e-3))
 end

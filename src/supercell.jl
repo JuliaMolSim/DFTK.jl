@@ -32,8 +32,12 @@ function cell_to_supercell(basis::PlaneWaveBasis)
     supercell_size = basis.kgrid
     supercell = create_supercell(model.lattice, model.atoms, model.positions, supercell_size)
     supercell_fft_size = basis.fft_size .* supercell_size
-    n_electrons_supercell = isnothing(model.n_electrons) ?
-                                nothing : prod(supercell_size) * model.n_electrons
+    if isnothing(model.n_electrons)
+        n_electrons_supercell = nothing
+    else
+        n_electrons_supercell = prod(supercell_size) * model.n_electrons
+    end
+
     # Assemble new model and new basis
     model_supercell = Model(supercell.lattice, supercell.atoms, supercell.positions;
                             n_electrons=n_electrons_supercell,
