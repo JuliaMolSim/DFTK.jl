@@ -48,7 +48,7 @@ function next_density(ham::Hamiltonian,
     end
 
     ρout = compute_density(ham.basis, eigres.X, occupation)
-    (ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, ρout, diagonalization=eigres,
+    (; ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, ρout, diagonalization=eigres,
      n_bands_converge, nbandsalg.occupation_threshold)
 end
 

@@ -215,8 +215,8 @@ end
 # δfn = fn' (δεn - δεF) ensures the summation to 0 with the definition of δεF as
 # above.
 
-# We therefore need to compute all the δfn: this is done with compute_δocc.
-# Regarding the δψ, they are computed with compute_δψ as follows. We refer to
+# We therefore need to compute all the δfn: this is done with compute_δocc!.
+# Regarding the δψ, they are computed with compute_δψ! as follows. We refer to
 # the paper https://arxiv.org/abs/2210.04512 for more details.
 
 # We split the computation of δψn in two contributions:
@@ -247,16 +247,19 @@ end
 
 """
 Compute the derivatives of the occupations (and of the Fermi level).
+The derivatives of the occupations are in-place stored in δocc.
+The tuple (; δocc, δεF) is returned. It is assumed the passed `δocc`
+are initialised to zero.
 """
-function compute_δocc(basis, ψ, occ, εF::T, ε, δHψ) where {T}
+function compute_δocc!(δocc, basis, ψ, occ, εF::T, ε, δHψ) where {T}
     model = basis.model
     temperature = model.temperature
     smearing = model.smearing
     filled_occ = filled_occupation(model)
     Nk = length(basis.kpoints)
 
+    # δocc = fn' * (δεn - δεF)
     δεF = zero(T)
-    δocc = [zero(occ[ik]) for ik = 1:Nk]  # = fn' * (δεn - δεF)
     if temperature > 0
         # First compute δocc without self-consistent Fermi δεF.
         D = zero(T)
@@ -283,11 +286,12 @@ function compute_δocc(basis, ψ, occ, εF::T, ε, δHψ) where {T}
 end
 
 """
-Compute the derivatives of the wave functions by solving a Sternheimer equation for each
-`k`-points.
+Perform in-place computations of the derivatives of the wave functions by solving
+a Sternheimer equation for each `k`-points. It is assumed the passed `δψ` are initialised
+to zero.
 """
-function compute_δψ(basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
-                    kwargs_sternheimer...)
+function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
+                     kwargs_sternheimer...)
     model = basis.model
     temperature = model.temperature
     smearing = model.smearing
@@ -295,7 +299,6 @@ function compute_δψ(basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1),
     Nk = length(basis.kpoints)
 
     # Compute δψnk band per band
-    δψ = zero.(δHψ)
     for ik = 1:Nk
         Hk  = H[ik]
         ψk  = ψ[ik]
@@ -325,7 +328,6 @@ function compute_δψ(basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1),
                                              εk_extra, Hψk_extra, kwargs_sternheimer...)
         end
     end
-    δψ
 end
 
 @views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
@@ -346,19 +348,23 @@ end
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
 
     ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
+    δHψ_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
 
     occ_occ = [occ[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
 
-    # First we compute δoccupation and δεF
-    δocc, δεF = compute_δocc(basis, ψ_occ, occ_occ, εF, ε_occ, δHψ)
-    # Pad δoccupation
+    # First we compute δoccupation. We only need to do this for the actually occupied
+    # orbitals. So we make a fresh array padded with zeros, but only alter the elements
+    # corresponding to the occupied orbitals. (Note both compute_δocc! and compute_δψ!
+    # assume that the first array argument has already been initialised to zero).
     δoccupation = zero.(occ)
-    for (ik, maskk) in enumerate(mask_occ)
-        δoccupation[ik][maskk] .= δocc[ik]
-    end
+    δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
+    δεF = compute_δocc!(δocc_occ, basis, ψ_occ, occ_occ, εF, ε_occ, δHψ_occ).δεF
 
-    # Keeping zeros for extra bands to keep the output δψ with the same size than the input ψ
-    δψ = compute_δψ(basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ; ψ_extra, kwargs_sternheimer...)
+    # Then we compute δψ, again in-place into a zero-padded array
+    δψ = zero.(ψ)
+    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
+    compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_occ; ψ_extra,
+                kwargs_sternheimer...)
 
     (; δψ, δoccupation, δεF)
 end

@@ -6,7 +6,7 @@ silicon = (
                5.131570667152971 5.131570667152971  0.0],
     atnum = 14,
     n_electrons = 8,
-    temperature = nothing,
+    temperature = 0.0,
     psp = "hgh/lda/si-q4",
     positions = [ones(3)/8, -ones(3)/8],  # in fractional coordinates
     kcoords = [[   0,   0, 0],  # in fractional coordinates
@@ -95,3 +95,5 @@ o2molecule = (
     positions = 0.1155 * [[0, 0, 1], [0, 0, -1]],
     temperature = 0.02,
 )
+o2molecule = merge(o2molecule,
+                   (; atoms=fill(ElementPsp(o2molecule.atnum, psp=load_psp(o2molecule.psp)), 2)))

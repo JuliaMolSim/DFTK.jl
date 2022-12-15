@@ -32,9 +32,23 @@ function cell_to_supercell(basis::PlaneWaveBasis)
     supercell_size = basis.kgrid
     supercell = create_supercell(model.lattice, model.atoms, model.positions, supercell_size)
     supercell_fft_size = basis.fft_size .* supercell_size
+    if isnothing(model.n_electrons)
+        n_electrons_supercell = nothing
+    else
+        n_electrons_supercell = prod(supercell_size) * model.n_electrons
+    end
+
     # Assemble new model and new basis
     model_supercell = Model(supercell.lattice, supercell.atoms, supercell.positions;
-                            terms=model.term_types, symmetries=false)
+                            n_electrons=n_electrons_supercell,
+                            terms=model.term_types,
+                            model.temperature,
+                            model.smearing,
+                            model.εF,
+                            model.spin_polarization,
+                            symmetries=false,
+                            # Can be safely disabled: this has been checked for basis.model
+                            disable_electrostatics_check=true)
     symmetries_respect_rgrid = false  # single point symmetry
     PlaneWaveBasis(model_supercell, basis.Ecut, supercell_fft_size,
                    basis.variational,
@@ -106,16 +120,15 @@ function cell_to_supercell(scfres::NamedTuple)
     # Compute supercell basis, ψ, occupations and ρ
     basis_supercell = cell_to_supercell(basis)
     ψ_supercell     = [cell_to_supercell(ψ, basis, basis_supercell)]
-    occ_supercell   = [vcat(scfres_unfold.occupation...)]
+    eigs_supercell  = [vcat(scfres_unfold.eigenvalues...)]
+    occ_supercell   = compute_occupation(basis_supercell, eigs_supercell, scfres.εF)
     ρ_supercell     = compute_density(basis_supercell, ψ_supercell, occ_supercell)
 
     # Supercell Energies
-    eigvalues_supercell = [vcat(scfres_unfold.eigenvalues...)]
-    n_unit_cells = prod(basis.kgrid)
-    energies_supercell = [n_unit_cells * v for v in values(scfres_unfold.energies)]
-    E_supercell = Energies(basis.model.term_types, energies_supercell)
+    Eham_supercell = energy_hamiltonian(basis_supercell, ψ_supercell, occ_supercell;
+                                        ρ=ρ_supercell, eigenvalues=eigs_supercell, scfres.εF)
 
-    merge(scfres, (; basis=basis_supercell, ψ=ψ_supercell, energies=E_supercell,
-                   ρ=ρ_supercell, eigenvalues=eigvalues_supercell,
-                   occupation=occ_supercell))
+    merge(scfres, (; ham=Eham_supercell.ham, basis=basis_supercell, ψ=ψ_supercell,
+                   energies=Eham_supercell.energies, ρ=ρ_supercell,
+                   eigenvalues=eigs_supercell, occupation=occ_supercell))
 end
