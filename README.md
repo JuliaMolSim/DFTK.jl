@@ -4,7 +4,7 @@
 
 | **Documentation**                                                                 | **Build Status**                                |  **License**                     |
 |:--------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
-| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][zulip-img]][zulip-url] | [![][ci-img]][ci-url] ![][cigpu-img] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
+| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][zulip-img]][zulip-url] | [![][ci-img]][ci-url] [![][cigpu-img]][cigpu-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
 
 [ddocs-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [ddocs-url]: https://docs.dftk.org/dev
@@ -19,6 +19,7 @@
 [ci-url]: https://github.com/JuliaMolSim/DFTK.jl/actions
 
 [cigpu-img]: https://git.uni-paderborn.de/herbstm/DFTK.jl/badges/master/pipeline.svg?key_text=GPU%20CI
+[cigpu-url]: https://git.uni-paderborn.de/herbstm/DFTK.jl/-/pipelines
 
 [ccov-img]: https://codecov.io/gh/JuliaMolSim/DFTK.jl/branch/master/graph/badge.svg?token=A23M0VZ8PQ
 [ccov-url]: https://codecov.io/gh/JuliaMolSim/DFTK.jl
