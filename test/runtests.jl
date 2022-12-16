@@ -12,14 +12,20 @@ using Random
 # runs all tests plus the "example" tests.
 #
 
-# By default run expensive tests, but not if in CI environment
-# If user supplies the "fast" tag
-const FAST_TESTS = ifelse("CI" in keys(ENV), parse(Bool, get(ENV, "CI", "false")),
-                          "fast" in ARGS)
+const DFTK_TEST_ARGS = let
+    if "DFTK_TEST_ARGS" in keys(ENV)
+        append!(split(get(ENV, "DFTK_TEST_ARGS"), ","), ARGS)
+    else
+        ARGS
+    end
+end
 
-# Tags supplied by the user ... filter out "fast" (already dealt with)
-TAGS = filter(e -> !(e in ["fast"]), ARGS)
-isempty(TAGS) && (TAGS = ["all"])
+const FAST_TESTS = "fast" in DFTK_TEST_ARGS
+const TAGS = let
+    # Tags supplied by the user ... filter out "fast" (already dealt with)
+    tags = filter(e -> !(e in ["fast"]), DFTK_TEST_ARGS)
+    isempty(tags) ? ["all"] : tags
+end
 
 if FAST_TESTS
     println("   Running fast tests (TAGS = $(join(TAGS, ", "))).")
