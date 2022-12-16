@@ -16,7 +16,7 @@ using DFTK
 using ASEconvert
 
 system = pyconvert(AbstractSystem, ase.build.bulk("Si"))
-model  = model_LDA(attach_psp(system; Si=load_psp("hgh/pbe/si-q4.hgh")))
+model  = model_LDA(attach_psp(system; Si="hgh/pbe/si-q4.hgh"))
 basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
 
 # DFTK already defines a few callback functions for standard

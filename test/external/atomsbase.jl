@@ -15,7 +15,7 @@ import DFTK: compute_pspmap
     positions = [rand(3) for _ in 1:4]
     magnetic_moments = DFTK.normalize_magnetic_moment.(rand(4))
 
-    system = DFTK.construct_system(lattice, atoms, positions, magnetic_moments)
+    system = atomic_system(lattice, atoms, positions, magnetic_moments)
     @test atomic_symbol(system) == [:Si, :C, :H, :C]
     @test bounding_box(system)  == collect(eachcol(lattice)) * u"bohr"
     @test position(system)      == [lattice * p * u"bohr" for p in positions]
@@ -35,7 +35,7 @@ import DFTK: compute_pspmap
     @test parsed.positions ≈ positions atol=1e-14
     @test parsed.magnetic_moments == magnetic_moments
 
-    let system = attach_psp(system; family="hgh", functional="lda")
+    let system = attach_psp(system; Si="hgh/lda/si-q4.hgh")
         for i in 1:4
             @test system[i].potential       == atoms[i]
             @test system[i].magnetic_moment == magnetic_moments[i]
@@ -77,7 +77,9 @@ end
         @test model.atoms[4] == ElementCoulomb(:C)
     end
 
-    let system = attach_psp(system; family="hgh", functional="pbe")
+    pbemap = Dict(:H => "hgh/pbe/h-q1.hgh", :Si => "hgh/pbe/si-q4.hgh",
+                  :C => "hgh/pbe/c-q4.hgh")
+    let system = attach_psp(system, pbemap)
         @test length(system) == 4
         @test system[1].pseudopotential == "hgh/pbe/c-q4.hgh"
         @test system[2].pseudopotential == "hgh/pbe/si-q4.hgh"
@@ -96,7 +98,8 @@ end
         @test parsed.atoms[4].psp.identifier == "hgh/pbe/c-q4.hgh"
     end
 
-    let system = attach_psp(system; family="hgh", functional="lda")
+    let system = attach_psp(system; C="hgh/lda/c-q4.hgh", H="hgh/lda/h-q1.hgh",
+                                    Si="hgh/lda/si-q4.hgh")
         @test length(system) == 4
         @test system[1].pseudopotential == "hgh/lda/c-q4.hgh"
         @test system[2].pseudopotential == "hgh/lda/si-q4.hgh"
@@ -118,28 +121,19 @@ end
 
 
 @testset "Check attach_psp routine selectively" begin
-    symbols = [:Cu, :Au, :Ni]
+    Si = ElementCoulomb(:Si)
+    C  = ElementCoulomb(:C)
+    H  = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1.hgh"))
+    lattice   = randn(3, 3)
+    atoms     = [Si, C, H, C]
+    positions = [rand(3) for _ in 1:4]
+    system    = atomic_system(lattice, atoms, positions)
 
-    let pspmap = compute_pspmap(symbols; functional="lda", family="hgh", core=:semicore)
-        @test pspmap[:Cu] == "hgh/lda/cu-q19.hgh"
-        @test pspmap[:Au] == "hgh/lda/au-q19.hgh"
-        @test pspmap[:Ni] == "hgh/lda/ni-q18.hgh"
-    end
-
-    let pspmap = compute_pspmap(symbols; functional="lda", family="hgh", core=:fullcore)
-        @test pspmap[:Cu] == "hgh/lda/cu-q11.hgh"
-        @test pspmap[:Au] == "hgh/lda/au-q11.hgh"
-        @test pspmap[:Ni] == "hgh/lda/ni-q10.hgh"
-    end
-
-    let pspmap = compute_pspmap([:Cu, :Au]; functional="pbe", family="hgh", core=:semicore)
-        @test pspmap[:Cu] == "hgh/pbe/cu-q19.hgh"
-        @test pspmap[:Au] == "hgh/pbe/au-q19.hgh"
-    end
-
-    let pspmap = compute_pspmap(symbols; functional="pbe", family="hgh", core=:fullcore)
-        @test pspmap[:Cu] == "hgh/pbe/cu-q11.hgh"
-        @test pspmap[:Au] == "hgh/pbe/au-q11.hgh"
-        @test pspmap[:Ni] == "hgh/pbe/ni-q18.hgh"
-    end
+    @test_throws ErrorException attach_psp(system; Si="hgh/pbe/si-q4.hgh")
+    newsys = attach_psp(system; Si="hgh/pbe/si-q4.hgh", H="hgh/pbe/h-q1.hgh",
+                                C="hgh/pbe/c-q4.hgh")
+    @test newsys[1].pseudopotential == "hgh/pbe/si-q4.hgh"
+    @test newsys[2].pseudopotential == "hgh/pbe/c-q4.hgh"
+    @test newsys[3].pseudopotential == "hgh/lda/h-q1.hgh"
+    @test newsys[4].pseudopotential == "hgh/pbe/c-q4.hgh"
 end

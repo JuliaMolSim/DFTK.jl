@@ -85,7 +85,6 @@ Random.seed!(0)
     end
 
     if "all" in TAGS
-        include("external/ase.jl")
         include("external/atomsbase.jl")
         include("external/interatomicpotentials.jl")
         include("external/spglib.jl")

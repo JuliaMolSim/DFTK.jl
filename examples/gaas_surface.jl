@@ -36,7 +36,7 @@ d_vacuum = maximum(maximum, surface.cell) / n_GaAs * n_vacuum
 surface = ase.build.surface(gaas, miller, n_GaAs, d_vacuum, periodic=true);
 
 # Write an image of the surface and embed it as a nice illustration:
-ase.io.write("surface.png", surface * (3, 3, 1), rotation="-90x, 30y, -75z")
+ase.io.write("surface.png", surface * pytuple((3, 3, 1)), rotation="-90x, 30y, -75z")
 
 #md # ```@raw html
 #md # <img src="../surface.png" width=500 height=500 />
@@ -51,8 +51,8 @@ ase.io.write("surface.png", surface * (3, 3, 1), rotation="-90x, 30y, -75z")
 
 using DFTK
 system = attach_psp(pyconvert(AbstractSystem, surface);
-                    Ga=load_psp("hgh/pbe/ga-q3.hgh"),
-                    As=load_psp("hgh/pbe/as-q5.hgh"))
+                    Ga="hgh/pbe/ga-q3.hgh",
+                    As="hgh/pbe/as-q5.hgh")
 
 # We model this surface with (quite large a) temperature of 0.01 Hartree
 # to ease convergence. Try lowering the SCF convergence tolerance (`tol`)

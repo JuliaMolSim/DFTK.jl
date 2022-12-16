@@ -19,7 +19,7 @@ system = pyconvert(AbstractSystem, system_ase)
 
 # To use an AbstractSystem in DFTK, we attach pseudopotentials, construct a DFT model,
 # discretise and solve:
-system = attach_psp(system; family="hgh", functional="lda")
+system = attach_psp(system; Si="hgh/lda/si-q4")
 
 model  = model_LDA(system; temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
@@ -34,10 +34,10 @@ using AtomsIO
 
 ## Read a file using [AtomsIO](https://github.com/mfherbst/AtomsIO.jl),
 # which directly yields an AbstractSystem.
-system = read_system("Si.extxyz")
+system = load_system("Si.extxyz")
 
 ## Now run the LDA calculation:
-system = attach_psp(system; family="hgh", functional="lda")
+system = attach_psp(system; Si="hgh/lda/si-q4")
 model  = model_LDA(system; temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis, tol=1e-8);
@@ -61,7 +61,7 @@ atoms  = [:Si => ones(3)/8, :Si => -ones(3)/8]
 system = periodic_system(atoms, lattice; fractional=true)
 
 ## Now run the LDA calculation:
-system = attach_psp(system; family="hgh", functional="lda")
+system = attach_psp(system; Si="hgh/lda/si-q4")
 model  = model_LDA(system; temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis, tol=1e-4);

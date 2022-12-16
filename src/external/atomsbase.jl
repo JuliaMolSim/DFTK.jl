@@ -83,8 +83,10 @@ or from the usual `lattice`, `atoms` and `positions` list used in DFTK plus magn
 """
 function AtomsBase.atomic_system(lattice::AbstractMatrix{<:Number},
                                  atoms::Vector{<:Element},
-                                 positions::AbstractVector{<:AbstractVector},
+                                 positions::AbstractVector,
                                  magnetic_moments::AbstractVector=[])
+    lattice = austrip.(lattice)
+
     @assert length(atoms) == length(positions)
     @assert isempty(magnetic_moments) || length(magnetic_moments) == length(atoms)
     atomsbase_atoms = map(enumerate(atoms)) do (i, element)

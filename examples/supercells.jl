@@ -24,7 +24,7 @@ function aluminium_setup(repeat=1; Ecut=7.0, kgrid=[2, 2, 2])
     ## Make supercell in ASE:
     ## We convert our lattice to the conventions used in ASE, make the supercell
     ## and then convert back ...
-    supercell_ase = convert_ase(unit_cell) * (repeat, 1, 1)
+    supercell_ase = convert_ase(unit_cell) * pytuple((repeat, 1, 1))
     supercell     = pyconvert(AbstractSystem, supercell_ase)
 
     ## Unfortunately right now the conversion to ASE drops the pseudopotential information,
