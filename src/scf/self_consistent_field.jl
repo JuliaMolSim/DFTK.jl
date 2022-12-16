@@ -113,9 +113,7 @@ Overview of parameters:
     # We do density mixing in the real representation
     # TODO support other mixing types
     function fixpoint_map(ρin, info)
-
         (; ψ, occupation, eigenvalues, εF, n_iter, converged) = info
-
         converged && return ρin, info  # No more iterations if convergence flagged
         n_iter += 1
 
