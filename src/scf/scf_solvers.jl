@@ -12,6 +12,7 @@ Create a damped SCF solver updating the density as
 """
 function scf_damping_solver(β=0.2)
     function fp_solver(f, x0, max_iter; tol=1e-6)
+        # TODO API
         β = convert(eltype(x0), β)
         converged = false
         x = copy(x0)
@@ -36,19 +37,21 @@ Create a simple anderson-accelerated SCF solver. `m` specifies the number
 of steps to keep the history of.
 """
 function scf_anderson_solver(m=10; kwargs...)
-    function anderson(f, x0, max_iter; tol=1e-6)
+    function anderson(f, x0, info0, max_iter; tol=1e-6)
         T = eltype(x0)
         x = x0
+        info = info0
 
         converged = false
         acceleration = AndersonAcceleration(; m, kwargs...)
         for n = 1:max_iter
-            residual = f(x) - x
+            fx, info = f(x, info)
+            residual = fx - x
             converged = norm(residual) < tol
             converged && break
             x = acceleration(x, one(T), residual)
         end
-        (; fixpoint=x, converged)
+        (; fixpoint=x, info, converged)
     end
 end
 
@@ -58,6 +61,8 @@ a history of `m` steps. Optionally `warming` specifies the number of non-acceler
 steps to perform for warming up the history.
 """
 function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
+    # TODO API
+
     # CROP iterates maintain xn and fn (/!\ fn != f(xn)).
     # xtn+1 = xn + fn
     # ftn+1 = f(xtn+1)

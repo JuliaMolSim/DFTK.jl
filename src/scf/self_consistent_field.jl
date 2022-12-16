@@ -106,24 +106,17 @@ Overview of parameters:
                                n_bands_compute=n_bands_converge + something(n_ep_extra, 3))
     end
 
-    # All these variables will get updated by fixpoint_map
     if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
     end
-    occupation = nothing
-    eigenvalues = nothing
-    ρout = ρ
-    εF = nothing
-    n_iter = 0
-    energies = nothing
-    ham = nothing
-    info = (; n_iter=0, ρin=ρ)  # Populate info with initial values
-    converged = false
 
     # We do density mixing in the real representation
     # TODO support other mixing types
-    function fixpoint_map(ρin)
-        converged && return ρin  # No more iterations if convergence flagged
+    function fixpoint_map(ρin, info)
+
+        (; ψ, occupation, eigenvalues, εF, n_iter, converged) = info
+
+        converged && return ρin, info  # No more iterations if convergence flagged
         n_iter += 1
 
         # Note that ρin is not the density of ψ, and the eigenvalues
@@ -136,7 +129,7 @@ Overview of parameters:
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 
         # Update info with results gathered so far
-        info = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
+        info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
                 ρin, ρout, α=damping, n_iter, nbandsalg.occupation_threshold,
                 nextstate..., diagonalization=[nextstate.diagonalization])
 
@@ -145,37 +138,43 @@ Overview of parameters:
             energies = energy_hamiltonian(basis, ψ, occupation;
                                           ρ=ρout, eigenvalues, εF).energies
         end
-        info = merge(info, (; energies))
+        info_next = merge(info_next, (; energies))
 
         # Apply mixing and pass it the full info as kwargs
-        δρ = mix_density(mixing, basis, ρout - ρin; info...)
-        ρnext = ρin .+ T(damping) .* δρ
-        info = merge(info, (; ρnext))
+        Δρ = mix_density(mixing, basis, ρout - ρin; info_next...)
+        ρnext = ρin .+ T(damping) .* Δρ
+        info_next = merge(info_next, (; ρnext))
 
-        callback(info)
-        is_converged(info) && (converged = true)
+        callback(info_next)
+        if is_converged(info_next)
+          info_next = merge(info_next, (; converged=true))
+        end
 
-        ρnext
+        ρnext, info_next
     end
+
+    info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing, 
+                   n_iter=0, converged=false)
 
     # Tolerance and maxiter are only dummy here: Convergence is flagged by is_converged
     # inside the fixpoint_map.
-    solver(fixpoint_map, ρout, maxiter; tol=eps(T))
-
+    _, info = solver(fixpoint_map, ρ, info_init, maxiter; tol=eps(T)) # TODO ?? why dummy?
+    
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation
     # to return a correct variational energy
+    (; ρin, ρout, ψ, occupation, eigenvalues, εF, converged) = info
     energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, eigenvalues, εF)
 
     # Measure for the accuracy of the SCF
     # TODO probably should be tracked all the way ...
-    norm_Δρ = norm(info.ρout - info.ρin) * sqrt(basis.dvol)
+    norm_Δρ = norm(ρout - ρin) * sqrt(basis.dvol)
 
     # Callback is run one last time with final state to allow callback to clean up
-    info = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
+    scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
             ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
-            n_iter, ψ, info.diagonalization, stage=:finalize,
+            info.n_iter, ψ, info.diagonalization, stage=:finalize,
             algorithm="SCF", norm_Δρ)
-    callback(info)
-    info
+    callback(scfres)
+    scfres
 end
