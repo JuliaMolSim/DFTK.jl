@@ -177,7 +177,7 @@ export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
 include("external/atomsbase.jl")
 include("external/interatomicpotentials.jl")
-# include("external/ase.jl")
+include("external/ase.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
 
 export compute_bands
