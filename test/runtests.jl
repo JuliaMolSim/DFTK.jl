@@ -14,7 +14,7 @@ using Random
 
 const DFTK_TEST_ARGS = let
     if "DFTK_TEST_ARGS" in keys(ENV)
-        append!(split(get(ENV, "DFTK_TEST_ARGS"), ","), ARGS)
+        append!(split(ENV["DFTK_TEST_ARGS"], ","), ARGS)
     else
         ARGS
     end
