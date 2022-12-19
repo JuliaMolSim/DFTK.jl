@@ -191,12 +191,6 @@ makedocs(;
     ),
     sitename = "DFTK.jl",
     authors = "Michael F. Herbst, Antoine Levitt and contributors.",
-    linkcheck = false,  # TODO
-    linkcheck_ignore = [
-        # Ignore links that point to GitHub's edit pages, as they redirect to the
-        # login screen and cause a warning:
-        r"https://github.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/edit(.*)",
-    ],
     pages=transform_to_md(PAGES),
     checkdocs=:exports,
     strict=!DEBUG,
