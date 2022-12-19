@@ -27,6 +27,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+      - name: Setup PyCall to use python executable from PythonCall
+        # Note: This is needed to ensure PyCall and PythonCall are using
+        #       exactly the same python version.
+        run: |
+          julia --project -e '
+            import Pkg
+            Pkg.add(["PyCall", "PythonCall"])
+            import PythonCall
+            ENV["PYTHON"] = PythonCall.C.CTX.exe_path
+            Pkg.build("PyCall")'
       - name: Run doctests
         run: |
           julia --project=docs -e '
