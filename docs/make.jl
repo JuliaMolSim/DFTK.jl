@@ -196,13 +196,7 @@ makedocs(;
 
 # Dump files for managing dependencies in binder
 if CONTINUOUS_INTEGRATION && DFTKBRANCH == "master"
-    cd(BUILDPATH) do
-        # Install Julia dependencies into build
-        Pkg.activate(".")
-        Pkg.add(Pkg.PackageSpec(url="https://" * DFTKREPO, rev=DFTKREV))
-        cp(joinpath(@__DIR__, "Project.toml"), joinpath(BUILDPATH, "Project.toml"), force=true)
-    end
-    Pkg.activate(@__DIR__)  # Back to Literate / Documenter environment
+    cp(joinpath(@__DIR__, "Project.toml"), joinpath(BUILDPATH, "Project.toml"), force=true)
 end
 
 # Deploy docs to gh-pages branch
