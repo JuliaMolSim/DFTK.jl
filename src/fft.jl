@@ -16,12 +16,6 @@ import AbstractFFTs: fft, fft!, ifft, ifft!
 # restricts the output to the spherical basis set. These functions
 # take a k-point as input.
 
-@deprecate G_to_r! ifft!
-@deprecate G_to_r ifft
-@deprecate r_to_G! fft!
-@deprecate r_to_G fft
-@deprecate G_to_r_matrix ifft_matrix
-@deprecate r_to_G_matrix fft_matrix
 
 """
 In-place version of `ifft`.
