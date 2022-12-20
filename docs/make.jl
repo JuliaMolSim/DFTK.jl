@@ -84,9 +84,7 @@ PAGES = [
 
 # Files from the /examples folder that need to be copied over to the docs
 # (typically images, input or data files etc.)
-EXAMPLE_ASSETS = [
-    "examples/Fe_afm.pwi",
-]
+EXAMPLE_ASSETS = ["examples/Fe_afm.pwi", "examples/Si.extxyz"]
 
 #
 # Configuration and setup
