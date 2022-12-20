@@ -1,7 +1,7 @@
 name = "DFTK"
 uuid = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
 authors = ["Michael F. Herbst <info@michael-herbst.com>", "Antoine Levitt <antoine.levitt@inria.fr>"]
-version = "0.5.15"
+version = "0.6.0"
 
 [deps]
 ASEconvert = "3da9722f-58c2-4165-81be-b4d7253e8fd2"
@@ -78,7 +78,7 @@ Roots = "2"
 SpecialFunctions = "2"
 Spglib = "0.6"
 StaticArrays = "1"
-TimerOutputs = "0.5.15"
+TimerOutputs = "0.6.0"
 Unitful = "1"
 UnitfulAtomic = "1"
 julia = "1.6"
