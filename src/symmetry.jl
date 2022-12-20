@@ -47,6 +47,10 @@ function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
     Ws, ws = spglib_get_symmetry(lattice, atom_groups, positions, magnetic_moments; tol_symmetry)
     [SymOp(W, w) for (W, w) in zip(Ws, ws)]
 end
+function symmetry_operations(system::AbstractSystem)
+    parsed = parse_system(system)
+    symmetry_operations(parsed.lattice, parsed.atoms, parsed.positions, parsed.magnetic_moments)
+end
 
 # Approximate in; can be performance-critical, so we optimize in case of rationals
 is_approx_in_(x::AbstractArray{<:Rational}, X)  = any(isequal(x), X)

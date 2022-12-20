@@ -26,8 +26,12 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     # occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]
 
-    # we split the total iteration range (ik, n) in chunks, and parallelize over them
     mask_occ = map(occk -> findall(isless.(occupation_threshold, occk)), occupation)
+    if all(isempty, mask_occ)  # No non-zero occupations => return zero density
+        return zeros_like(basis.G_vectors, S, basis.fft_size..., basis.model.n_spin_components)
+    end
+
+    # we split the total iteration range (ik, n) in chunks, and parallelize over them
     ik_n = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
     chunk_length = cld(length(ik_n), Threads.nthreads())
 

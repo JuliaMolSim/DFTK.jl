@@ -18,23 +18,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
-        with:
-          python-version: '3.7'
-      - name: Install python dependencies
-        run: pip install ase pymatgen
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1'
-      - name: Instantiate and build packages
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-docdeploy@v1
+        timeout-minutes: 40
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+      - name: Setup PyCall to use python executable from PythonCall
+        # Note: This is needed to ensure PyCall and PythonCall are using
+        #       exactly the same python version.
         run: |
-          julia --project=docs -e '
-            using Pkg
-            Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.instantiate()
-            Pkg.precompile()
-            Pkg.build("DFTK")
-          '
+          julia --project -e '
+            import Pkg
+            Pkg.add(["PyCall", "PythonCall"])
+            import PythonCall
+            ENV["PYTHON"] = PythonCall.C.CTX.exe_path
+            Pkg.build("PyCall")'
       - name: Run doctests
         run: |
           julia --project=docs -e '
@@ -42,9 +44,3 @@ jobs:
             using DFTK
             DocMeta.setdocmeta!(DFTK, :DocTestSetup, :(using DFTK); recursive=true)
             doctest(DFTK)'
-      - name: Generate docs
-        run: julia --project=docs docs/make.jl
-        timeout-minutes: 30
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
