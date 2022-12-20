@@ -197,7 +197,11 @@ end
 AtomsBase-compatible Model constructor. Sets structural information (`atoms`, `positions`,
 `lattice`, `n_electrons` etc.) from the passed `system`.
 """
-Model(system::AbstractSystem; kwargs...) = _call_with_system(Model, system; kwargs...)
+function Model(system::AbstractSystem; kwargs...)
+    @assert !(:magnetic_moments in keys(kwargs))
+    parsed = parse_system(system)
+    Model(parsed.lattice, parsed.atoms, parsed.positions; parsed.magnetic_moments, kwargs...)
+end
 
 normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
 normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)

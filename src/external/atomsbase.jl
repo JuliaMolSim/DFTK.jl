@@ -65,14 +65,6 @@ function parse_system(system::AbstractSystem{D}) where {D}
 end
 
 
-function _call_with_system(f, system::AbstractSystem, args...; kwargs...)
-    @assert !(:magnetic_moments in keys(kwargs))
-    parsed = parse_system(system)
-    f(parsed.lattice, parsed.atoms, parsed.positions, args...;
-      parsed.magnetic_moments, kwargs...)
-end
-
-
 # Extra methods to AtomsBase functions for DFTK data structures
 """
     atomic_system(model::DFTK.Model, magnetic_moments=[])

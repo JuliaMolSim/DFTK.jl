@@ -4,8 +4,8 @@
 # supported by DFTK, usually via integration with a third-party library.
 #
 # ## Reading / writing files supported by AtomsIO
-# [AtomsIO](https://github.com/mfherbst/AtomsIO.jl) is a Julia package, which allows
-# to read / write atomistic structures from / to a large range of file formats.
+# [AtomsIO](https://github.com/mfherbst/AtomsIO.jl) is a Julia package which supports
+# reading / writing atomistic structures from / to a large range of file formats.
 # Supported formats include Crystallographic Information Framework (CIF),
 # XYZ and extxyz files, ASE / Gromacs / LAMMPS / Amber trajectory files
 # or input files of various other codes (e.g. Quantum Espresso, VASP, ABINIT, CASTEP, …).

@@ -4,14 +4,13 @@
 # [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html),
 # or ASE for short,
 # to set up and run a particular calculation of a gallium arsenide surface.
-# ASE is a Python package which intents to simplify the process of setting up,
+# ASE is a Python package to simplify the process of setting up,
 # running and analysing results from atomistic simulations across different simulation codes.
 # By means of [ASEconvert](https://github.com/mfherbst/ASEconvert.jl) it is seamlessly
 # integrated with the AtomsBase ecosystem and thus available to DFTK via our own
 # [AtomsBase integration](@ref).
 #
-# In this example we will consider modelling the (1, 1, 0) GaAs surface separated by vacuum
-# using density-functional theory.
+# In this example we will consider modelling the (1, 1, 0) GaAs surface separated by vacuum.
 
 # Parameters of the calculation. Since this surface is far from easy to converge,
 # we made the problem simpler by choosing a smaller `Ecut` and smaller values

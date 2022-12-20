@@ -25,8 +25,8 @@ model  = model_LDA(system; temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis, tol=1e-8);
 
-# If we did not want to use ASE we could of course use any other package,
-# which yields an AbstractSystem object, this includes:
+# If we did not want to use ASE we could of course use any other package
+# which yields an AbstractSystem object. This includes:
 
 # ### Reading a system using AtomsIO
 #
