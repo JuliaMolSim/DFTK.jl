@@ -28,31 +28,34 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 
     mask_occ = map(occk -> findall(occnk -> abs(occnk) ≥ occupation_threshold, occk), occupation)
     if all(isempty, mask_occ)  # No non-zero occupations => return zero density
-        return zeros_like(basis.G_vectors, S, basis.fft_size..., basis.model.n_spin_components)
-    end
+        ρ = zeros_like(basis.G_vectors, S, basis.fft_size..., basis.model.n_spin_components)
+    else
+        # we split the total iteration range (ik, n) in chunks, and parallelize over them
+        ik_n = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
+        chunk_length = cld(length(ik_n), Threads.nthreads())
 
-    # we split the total iteration range (ik, n) in chunks, and parallelize over them
-    ik_n = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
-    chunk_length = cld(length(ik_n), Threads.nthreads())
-
-    # chunk-local variables
-    ρ_chunklocal = [zeros_like(basis.G_vectors, S, basis.fft_size..., basis.model.n_spin_components)
-                               for _ = 1:Threads.nthreads()]
-    ψnk_real_chunklocal = [zeros_like(basis.G_vectors, complex(S), basis.fft_size...)
-                                for _ = 1:Threads.nthreads()]
-
-    @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
-        Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
-            ψnk_real = ψnk_real_chunklocal[ichunk]
-            ρ_loc = ρ_chunklocal[ichunk]
-            kpt = basis.kpoints[ik]
-
-            ifft!(ψnk_real, basis, kpt, ψ[ik][:, n])
-            ρ_loc[:, :, :, kpt.spin] .+= occupation[ik][n] .* basis.kweights[ik] .* abs2.(ψnk_real)
+        # chunk-local variables
+        ρ_chunklocal = map(1:Threads.nthreads()) do i
+            zeros_like(basis.G_vectors, S, basis.fft_size..., basis.model.n_spin_components)
         end
+        ψnk_real_chunklocal = [zeros_like(basis.G_vectors, complex(S), basis.fft_size...)
+                               for _ = 1:Threads.nthreads()]
+
+        @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
+            Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
+                ψnk_real = ψnk_real_chunklocal[ichunk]
+                ρ_loc = ρ_chunklocal[ichunk]
+                kpt = basis.kpoints[ik]
+
+                ifft!(ψnk_real, basis, kpt, ψ[ik][:, n])
+                ρ_loc[:, :, :, kpt.spin] .+= (occupation[ik][n] .* basis.kweights[ik]
+                                              .* abs2.(ψnk_real))
+            end
+        end
+
+        ρ = sum(ρ_chunklocal)
     end
 
-    ρ = sum(ρ_chunklocal)
     mpi_sum!(ρ, basis.comm_kpts)
     ρ = symmetrize_ρ(basis, ρ; do_lowpass=false)
 
