@@ -14,7 +14,7 @@ function next_density(ham::Hamiltonian,
                       nbandsalg::NbandsAlgorithm=AdaptiveBands(ham.basis.model),
                       fermialg::FermiAlgorithm=default_fermialg(ham.basis);
                       eigensolver=lobpcg_hyper, ψ=nothing, eigenvalues=nothing,
-                      occupation=nothing, tol=1e-6, kwargs...)
+                      occupation=nothing, kwargs...)
     n_bands_converge, n_bands_compute = determine_n_bands(nbandsalg, occupation,
                                                           eigenvalues, ψ)
 
@@ -31,7 +31,7 @@ function next_density(ham::Hamiltonian,
     n_bands_compute = mpi_max(n_bands_compute, ham.basis.comm_kpts)
 
     eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands_compute;
-                                     ψguess=ψ, n_conv_check=n_bands_converge, tol, kwargs...)
+                                     ψguess=ψ, n_conv_check=n_bands_converge, kwargs...)
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Check maximal occupation of the unconverged bands is sensible.
