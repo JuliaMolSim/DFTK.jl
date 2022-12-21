@@ -23,7 +23,7 @@ basis = PlaneWaveBasis(model, Ecut=10.0, kgrid=(2, 2, 2));
 # We diagonalise at the Gamma point to find a Fermi level …
 ham = Hamiltonian(basis)
 eigres = diagonalize_all_kblocks(DFTK.lobpcg_hyper, ham, 6)
-εF = DFTK.compute_occupation(basis, eigres.λ).εF
+εF = DFTK.compute_occupation(basis, eigres.λ, FermiBisection()).εF
 
 # … and compute and plot 8 bands:
 using Plots

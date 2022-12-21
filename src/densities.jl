@@ -56,9 +56,9 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     mpi_sum!(ρ, basis.comm_kpts)
     ρ = symmetrize_ρ(basis, ρ; do_lowpass=false)
 
-    _check_positive(ρ; tol=occupation_threshold)
+    _check_positive(ρ; tol=5occupation_threshold)
     n_elec_check = weighted_ksum(basis, sum.(occupation))
-    _check_total_charge(basis.dvol, ρ, n_elec_check; tol=occupation_threshold)
+    _check_total_charge(basis.dvol, ρ, n_elec_check; tol=5occupation_threshold)
 
     ρ
 end

@@ -7,13 +7,12 @@ if mpi_nprocs() == 1  # can't be bothered to convert the tests
 # Quick test to make sure temperature, smearing and Fermi level are correctly propagated
 @testset "Supercell copy" begin
     Ecut    = 4
-    kgrid   = [2, 1, 1]
+    kgrid   = [2, 3, 1]
 
     model = model_LDA(magnesium.lattice, magnesium.atoms, magnesium.positions;
                       magnesium.temperature, εF=0.5, spin_polarization=:spinless,
                       disable_electrostatics_check=true)
     basis = PlaneWaveBasis(model; Ecut, kgrid)
-
     scfres = self_consistent_field(basis; nbandsalg=FixedBands(; n_bands_converge=20))
     scfres_supercell = cell_to_supercell(scfres)
 
@@ -24,15 +23,14 @@ end
     Ecut    = 4
     kgrid   = [3, 3, 3]
     kshift  = zeros(3)
-    tol     = 1e-12
-    scf_tol = (; is_converged=DFTK.ScfConvergenceDensity(tol))
+    tol     = 1e-10
 
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
     basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
     basis_supercell = cell_to_supercell(basis)
 
-    scfres = self_consistent_field(basis; scf_tol...)
-    scfres_supercell_manual = self_consistent_field(basis_supercell; scf_tol...)
+    scfres = self_consistent_field(basis; tol)
+    scfres_supercell_manual = self_consistent_field(basis_supercell; tol)
     scfres_supercell = cell_to_supercell(scfres)
 
     # Compare energies
@@ -50,14 +48,13 @@ end
     Ecut    = 5.0
     kgrid   = [2, 1, 1]
     tol     = 1e-6
-    scf_tol = (; is_converged=DFTK.ScfConvergenceDensity(tol))
 
     for system in (silicon, magnesium), extra_terms in ([], [Hartree()])
         @testset "$(DFTK.periodic_table[system.atnum].symbol) with $extra_terms" begin
             model = model_atomic(system.lattice, system.atoms, system.positions;
                                  system.temperature, extra_terms)
             basis = PlaneWaveBasis(model; Ecut, kgrid)
-            scfres = self_consistent_field(basis; scf_tol...)
+            scfres = self_consistent_field(basis; tol)
 
             n_spin = model.n_spin_components
             δV = guess_density(basis)
@@ -74,7 +71,7 @@ end
 
             # Supercell with manually unpacking only basis.
             basis_supercell = cell_to_supercell(basis)
-            scfres_supercell_2 = self_consistent_field(basis_supercell; scf_tol...)
+            scfres_supercell_2 = self_consistent_field(basis_supercell; tol)
             δρ_supercell_2 = apply_χ0(scfres_supercell_2, δV_supercell)
 
             @test norm(δρ - δρ_supercell_2[1:size(δρ, 1), :, :]) < 10*tol

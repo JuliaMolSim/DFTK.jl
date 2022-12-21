@@ -121,8 +121,9 @@ function cell_to_supercell(scfres::NamedTuple)
     basis_supercell = cell_to_supercell(basis)
     ψ_supercell     = [cell_to_supercell(ψ, basis, basis_supercell)]
     eigs_supercell  = [vcat(scfres_unfold.eigenvalues...)]
-    occ_supercell   = compute_occupation(basis_supercell, eigs_supercell, scfres.εF)
-    ρ_supercell     = compute_density(basis_supercell, ψ_supercell, occ_supercell)
+    occ_supercell   = compute_occupation(basis_supercell, eigs_supercell, scfres.εF).occupation
+    ρ_supercell     = compute_density(basis_supercell, ψ_supercell, occ_supercell;
+                                      scfres.occupation_threshold)
 
     # Supercell Energies
     Eham_supercell = energy_hamiltonian(basis_supercell, ψ_supercell, occ_supercell;

@@ -24,14 +24,14 @@ if mpi_nprocs() == 1  # not easy to distribute
         ham = Hamiltonian(basis; ρ=guess_density(basis))
 
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol)
-        occ, εF = DFTK.compute_occupation(basis, res.λ)
+        occ, εF = DFTK.compute_occupation(basis, res.λ, FermiBisection())
         ρnew = compute_density(basis, res.X, occ)
 
         for it in 1:n_rounds
             ham = Hamiltonian(basis; ρ=ρnew)
             res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol, ψguess=res.X)
 
-            occ, εF = DFTK.compute_occupation(basis, res.λ)
+            occ, εF = DFTK.compute_occupation(basis, res.λ, FermiBisection())
             ρnew = compute_density(basis, res.X, occ)
         end
 

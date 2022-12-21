@@ -41,18 +41,19 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
     # δρ = LDOS δεF + ∑_{n,m} (fn-fm) ρnm <ρmn|δV> / (εn-εm)
     # Therefore the kernel is LDOS(r) LDOS(r') / DOS + ∑_{n,m} (fn-fm)/(εn-εm) ρnm(r) ρmn(r')
     basis = ham.basis
-    model = basis.model
-    filled_occ = filled_occupation(model)
+    filled_occ = filled_occupation(basis.model)
+    smearing = basis.model.smearing
     n_spin   = basis.model.n_spin_components
-    fft_size = basis.fft_size
-    n_fft    = prod(fft_size)
+    n_fft    = prod(basis.fft_size)
+    fermialg = default_fermialg(smearing)
 
-    length(model.symmetries) == 1 || error("Disable symmetries completely for computing χ0")
+    length(basis.model.symmetries) == 1 || error("Disable symmetries for computing χ0")
 
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
     Vs = [EV.vectors for EV in EVs]
-    occupation, εF = compute_occupation(basis, Es; temperature)
+    T  = eltype(basis)
+    occupation, εF = compute_occupation(basis, Es, fermialg; temperature, tol_n_elec=10eps(T))
 
     χ0 = zeros(eltype(basis), n_spin * n_fft, n_spin * n_fft)
     for (ik, kpt) in enumerate(basis.kpoints)
@@ -69,9 +70,9 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
         Vr = reshape(Vr, n_fft, N)
         @showprogress "Computing χ0 for k-point $ik/$(length(basis.kpoints)) ..." for m = 1:N, n = 1:N
             enred = (E[n] - εF) / temperature
-            @assert occupation[ik][n] ≈ filled_occ * Smearing.occupation(model.smearing, enred)
+            @assert occupation[ik][n] ≈ filled_occ * Smearing.occupation(smearing, enred)
             ddiff = Smearing.occupation_divided_difference
-            ratio = filled_occ * ddiff(model.smearing, E[m], E[n], εF, temperature)
+            ratio = filled_occ * ddiff(smearing, E[m], E[n], εF, temperature)
             # dvol because inner products have a dvol in them
             # so that the dual gets one : |f> -> <dvol f|
             # can take the real part here because the nm term is complex conjugate of mn
