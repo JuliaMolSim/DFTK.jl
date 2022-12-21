@@ -129,6 +129,157 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiTwoSt
     Roots.find_zero(excess, εF, Roots.Secant(), Roots.Bisection(); atol=eps(T))
 end
 
+"""
+Implementation of the Fermi level determination algorithm suggested
+in [arxiv 2212.07988](https://arxiv.org/abs/2212.07988).
+"""
+@kwdef struct FermiNewton <: FermiAlgorithm
+    tol_newton_accept = 1e-2
+end
+
+# Note: The reference QuantumEspresso implementation uses tol_n_elec=1e-2, which seems
+#       very large. They argue this is fine to reach a more physical Fermi level albeit
+#       introducing a mismatch on the electron count. We are more conservative here
+#       and use the occupation threshold as a value for orientation.
+function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, fermialg::FermiNewton;
+                             temperature, smearing, tol_n_elec) where {T}
+    if iszero(temperature)
+        return compute_fermi_level(basis, eigenvalues, FermiZeroTemperature();
+                                   temperature, smearing, tol_n_elec)
+    end
+
+    # Compute a guess using Gaussian smearing
+    εF = compute_fermi_level(basis, eigenvalues, FermiBisection();
+                             temperature, tol_n_elec, smearing=Smearing.Gaussian())
+
+    excess(εF) = excess_n_electrons(basis, eigenvalues, εF; smearing, temperature)
+    abs(excess(εF)) < tol_n_elec && return εF  # Early exit
+
+    # Using the square of the smearing function makes the Newton iterations more reliable.
+    # We should additionally square the tolerance, thus limiting the maximally attainable
+    # accuracy in the electron count, but this is not done in the original paper, so we
+    # are also not doing it here.
+    objective(εF)  = abs2(excess(εF))
+    function dobjective(εF::T)
+        deriv = ForwardDiff.derivative(objective, εF)
+        # Force Newton iteration to stop if derivative is small
+        return deriv < tol_n_elec ? zero(T) : deriv
+    end
+
+    try
+        εF = Roots.find_zero((objective, dobjective), εF, Roots.Newton(); atol=tol_n_elec)
+    catch e
+        (e isa Roots.ConvergenceFailed) || rethrow()
+    end
+    if abs(excess(εF)) < fermialg.tol_newton_accept
+        return εF
+    else
+        @warn "Newton algorithm failed to determine Fermi level. Falling back to Bisection."
+        return compute_fermi_level(basis, eigenvalues, FermiBisection();
+                                   temperature, smearing, tol_n_elec)
+    end
+end
+
+
+# FermiExtrapolation works by extrapolating the Fermi level found using a monotonic smearing
+# (f₀) to the Fermi level of the desired smearing function f₁.
+#     g₀(εF) = ∑_i f₀((ε-εF) / T) - N
+#     g₁(εF) = ∑_i f₁((ε-εF) / T) - N
+#
+#     g(εF, α) = (1-α) g₀(εF) + g₁(εF)
+#
+# The constraint g(εF, α) = 0 defines an implicit function εF(α). By differentiating the
+# constraint twice we find εF' and εF''.
+#
+# 0 = dg/dα = (∂g/∂εF) (∂εF/∂α) + (∂g/∂α) (∂α/∂α)
+# thus
+#     grad = (∂εF/∂α) = - (∂g/∂εF)^{-1} * (∂g/∂α)
+#
+# 0 = d²g/d²α =   (∂/∂εF) [(∂g/∂εF) (∂εF/∂α) + (∂g/∂α)] (∂εF/∂α)
+#               + (∂/∂α)  [(∂g/∂εF) (∂εF/∂α) + (∂g/∂α)] (∂α/∂α)
+#             =   [(∂²g/∂²εF)  (∂εF/∂α) + (∂²g/∂α∂εF)] (∂εF/∂α)
+#               + [(∂²g/∂α∂εF) (∂εF/∂α) + (∂g/∂εF) (∂²εF/∂²α) + (∂²g/∂α²)]
+#             = [(∂²g/∂²εF) (∂εF/∂α) + 2 (∂²g/∂α∂εF)] (∂εF/∂α) + (∂g/∂εF) (∂²εF/∂²α)
+# since (∂²g/∂α²) = 0
+# thus
+#     hess = (∂²εF/∂²α) = - (∂g/∂εF)^{-1} (∂εF/∂α) [(∂²g/∂²εF) (∂εF/∂α) + 2 (∂²g/∂α∂εF)]
+# which makes up a model
+#     model(α) = εF₀ + δεF(α) = εF₀ + grad * (α - α₀) + 1/2 hess (α - α₀)^2
+#
+# To ensure the validity of the second-order model, we check that g(εF(α), α) does not get
+# too large.
+#
+Base.@kwdef struct FermiExtrapolation <: FermiAlgorithm
+    maxiter  = 10
+    modeltol = 1e-3
+    verbose  = false
+end
+function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, method::FermiExtrapolation;
+                             temperature, smearing, tol_n_elec) where {T}
+    if iszero(temperature)
+        return compute_fermi_level(basis, eigenvalues, FermiZeroTemperature();
+                                   temperature, smearing, tol_n_elec)
+    end
+
+    # The excess of electrons function and its derivatives
+    function g(α, εF)
+        ((1-α) * excess_n_electrons(basis, eigenvalues, εF;
+                                    temperature, smearing=Smearing.Gaussian())
+         +   α * excess_n_electrons(basis, eigenvalues, εF; smearing, temperature))
+    end
+    g_ε(α, εF)  = ForwardDiff.derivative(εF ->   g(α, εF), εF)
+    g_εε(α, εF) = ForwardDiff.derivative(εF -> g_ε(α, εF), εF)
+    g_α(α, εF)  = ForwardDiff.derivative(α  ->   g(α, εF), α)
+    g_αε(α, εF) = ForwardDiff.derivative(α  -> g_ε(α, εF), α)
+
+    # Compute a guess using Gaussian smearing
+    εF = compute_fermi_level(basis, eigenvalues, FermiBisection();
+                             temperature, tol_n_elec, smearing=Smearing.Gaussian())
+    abs(g(1.0, εF)) < tol_n_elec && return εF  # Early exit
+
+    αF = 0.0
+    for i in 1:method.maxiter
+        if method.verbose && mpi_master()
+            println("")
+            println("-------  Iter $i -- αF=$αF εF=$εF --------")
+            println("")
+        end
+
+        # Construct model for εF(α)
+        grad = - g_α(αF, εF) / g_ε(αF, εF)
+        hess = - grad * (g_εε(αF, εF) * grad + 2g_αε(αF, εF)) / g_ε(αF, εF)
+        model_εF = α -> εF + grad * (α-αF) + hess * (α-αF)^2 / 2
+
+        # Find a range for which the model is valid
+        α_trials = [α for α in range(0.1, 1.0, length=method.maxiter) if α > αF]
+        αF = α_trials[1]
+        for α_trial in α_trials
+            error = g(α_trial,   model_εF(α_trial))
+            deriv = g_ε(α_trial, model_εF(α_trial))
+            if abs(error) ≥ method.modeltol || deriv ≥ -method.modeltol
+                break  # Don't trust model any more
+            else
+                αF = α_trial
+            end
+        end
+
+        εF = model_εF(αF)
+        if αF < 1.0
+            εF = Roots.find_zero(εF -> g(αF, εF), εF, Roots.Order0();
+                                 atol=method.modeltol / 10, method.verbose)
+        else
+            break
+        end
+    end
+
+    if method.verbose && mpi_master()
+        println("")
+        println("-------  Finish  εF=$εF --------")
+        println("")
+    end
+    Roots.find_zero(εF -> g(αF, εF), εF, Roots.Order0(); atol=tol_n_elec, method.verbose)
+end
+
 
 # Note: This is not exported, but only called by the above algorithms for
 # the zero-temperature case.
