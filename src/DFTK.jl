@@ -232,4 +232,22 @@ function __init__()
     end
 end
 
+# Precompilation block with a basic workflow
+using SnoopPrecompile
+if VERSION ≥ v"1.9alpha" && isnothing(get(ENV, "DFTK_NO_PRECOMPILATION", nothing))
+    @precompile_all_calls begin
+        # simple silicon ground state example
+        a = 10.26
+        lattice = a / 2 * [[0 1 1.];
+                           [1 0 1.];
+                           [1 1 0.]]
+        Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+        atoms     = [Si, Si]
+        positions = [ones(3)/8, -ones(3)/8]
+
+        model = model_LDA(lattice, atoms, positions)
+        basis = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
+        scfres = self_consistent_field(basis, tol=1e-2)
+    end
+end
 end # module DFTK
