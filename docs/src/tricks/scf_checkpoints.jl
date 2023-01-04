@@ -95,14 +95,14 @@ loaded.energies
 # or orbitals from the checkpoint file. For example:
 
 checkpointargs = kwargs_scf_checkpoints(basis; ρ=guess_density(basis, magnetic_moments))
-scfres = self_consistent_field(basis; tol=1e-2, checkpointargs...)
+scfres = self_consistent_field(basis; tol=1e-2, checkpointargs...);
 
 # Notice that the `ρ` argument is now passed to kwargs_scf_checkpoints instead.
 # If we run in the same folder the SCF again (here using a tighter tolerance),
 # the calculation just continues.
 
 checkpointargs = kwargs_scf_checkpoints(basis; ρ=guess_density(basis, magnetic_moments))
-scfres = self_consistent_field(basis; tol=1e-3, checkpointargs...)
+scfres = self_consistent_field(basis; tol=1e-3, checkpointargs...);
 
 # Since only the density is stored in a checkpoint
 # (and not the Bloch waves), the first step needs a slightly elevated number

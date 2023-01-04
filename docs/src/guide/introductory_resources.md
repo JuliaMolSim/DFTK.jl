@@ -2,6 +2,12 @@
 
 This page collects a bunch of articles, lecture notes, textbooks and recordings
 related to density-functional theory (DFT) and DFTK.
+Most introductory aspects of the code and the theory behind it are also covered
+in the "Getting started" section of the documentation, e.g.
+[Periodic problems and plane-wave discretisations](@ref periodic-problems),
+[Introduction to density-functional theory](@ref)
+or [Self-consistent field methods](@ref).
+
 Since DFTK aims for an interdisciplinary audience the
 level and scope of the referenced works varies.
 They are roughly ordered from beginner to advanced.
