@@ -55,7 +55,7 @@ function ScfDefaultCallback(; show_damping=true, show_time=true)
         magn = sum(spin_density(info.ρout)) * info.basis.dvol
 
         tstr = " "^9
-        if !isnothing(prev_time)
+        if show_time && !isnothing(prev_time)
             tstr = @sprintf "   % 6s" TimerOutputs.prettytime(time_ns() - prev_time)
         end
 
