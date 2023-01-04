@@ -247,7 +247,7 @@ if VERSION ≥ v"1.9alpha" && isnothing(get(ENV, "DFTK_NO_PRECOMPILATION", nothi
 
         model = model_LDA(lattice, atoms, positions, temperature=0.1, spin_polarization=:collinear)
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
-        scfres = self_consistent_field(basis, tol=10)
+        scfres = self_consistent_field(basis, tol=1e-2, maxiter=3)
     end
 end
 end # module DFTK
