@@ -17,6 +17,7 @@ using AbstractFFTs
 using GPUArraysCore
 using Random
 using ChainRulesCore
+using SnoopPrecompile
 
 export Vec3
 export Mat3
@@ -233,7 +234,6 @@ function __init__()
 end
 
 # Precompilation block with a basic workflow
-using SnoopPrecompile
 if VERSION ≥ v"1.9alpha" && isnothing(get(ENV, "DFTK_NO_PRECOMPILATION", nothing))
     @precompile_all_calls begin
         # very artificial silicon ground state example
