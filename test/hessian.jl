@@ -85,7 +85,7 @@ include("testcases.jl")
         model = model_DFT(magnesium.lattice, magnesium.atoms, magnesium.positions,
                           [:lda_xc_teter93]; magnesium.temperature)
         basis = PlaneWaveBasis(model, Ecut, magnesium.kcoords, magnesium.kweights; fft_size)
-        nbandsalg = AdaptiveBands(basis; occupation_threshold=1e-10)
+        nbandsalg = AdaptiveBands(basis.model; occupation_threshold=1e-10)
         scfres = self_consistent_field(basis; tol=1e-12, nbandsalg)
 
         ψ = scfres.ψ

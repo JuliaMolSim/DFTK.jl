@@ -12,7 +12,7 @@ data structure to determine and adjust the number of bands to be computed.
 """
 function next_density(ham::Hamiltonian,
                       nbandsalg::NbandsAlgorithm=AdaptiveBands(ham.basis.model),
-                      fermialg::FermiAlgorithm=default_fermialg(ham.basis);
+                      fermialg::FermiAlgorithm=default_fermialg(ham.basis.model);
                       eigensolver=lobpcg_hyper, ψ=nothing, eigenvalues=nothing,
                       occupation=nothing, kwargs...)
     n_bands_converge, n_bands_compute = determine_n_bands(nbandsalg, occupation,
@@ -44,9 +44,9 @@ function next_density(ham::Hamiltonian,
     #      way to deal with such things in LOBPCG.
     if !increased_n_bands && minocc > nbandsalg.occupation_threshold
         @warn("Detected large minimal occupation $minocc. SCF could be unstable. " *
-              "Try switching to adaptive band selection (`nbandsalg=AdaptiveBands(basis)`) " *
+              "Try switching to adaptive band selection (`nbandsalg=AdaptiveBands(model)`) " *
               "or request more converged bands than $n_bands_converge (e.g. " *
-              "`nbandsalg=AdaptiveBands(basis; n_bands_converge=$(n_bands_converge + 3)`)")
+              "`nbandsalg=AdaptiveBands(model; n_bands_converge=$(n_bands_converge + 3)`)")
     end
 
     ρout = compute_density(ham.basis, eigres.X, occupation; nbandsalg.occupation_threshold)
@@ -74,7 +74,7 @@ Overview of parameters:
   Typical mixings are [`LdosMixing`](@ref), [`KerkerMixing`](@ref), [`SimpleMixing`](@ref)
   or [`DielectricMixing`](@ref). Default is `LdosMixing()`
 - `damping`: Damping parameter ``α`` in the above equation. Default is `0.8`.
-- `nbandsalg`: By default DFTK uses `nbandsalg=AdaptiveBands(basis)`, which adaptively determines
+- `nbandsalg`: By default DFTK uses `nbandsalg=AdaptiveBands(model)`, which adaptively determines
   the number of bands to compute. If you want to influence this algorithm or use a predefined
   number of bands in each SCF step, pass a [`FixedBands`](@ref) or [`AdaptiveBands`](@ref).
 - `callback`: Function called at each SCF iteration. Usually takes care of printing the
@@ -91,7 +91,7 @@ Overview of parameters:
                                        solver=scf_anderson_solver(),
                                        eigensolver=lobpcg_hyper,
                                        determine_diagtol=ScfDiagtol(),
-                                       nbandsalg::NbandsAlgorithm=AdaptiveBands(basis),
+                                       nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
                                        fermialg::FermiAlgorithm=default_fermialg(basis),
                                        callback=ScfDefaultCallback(; show_damping=false),
                                        compute_consistent_energies=true,

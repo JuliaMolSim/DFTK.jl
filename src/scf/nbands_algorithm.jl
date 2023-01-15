@@ -28,7 +28,6 @@ function FixedBands(model::Model)
     n_bands_converge += iszero(model.temperature) ? 0 : ceil(Int, 0.05 * n_bands_converge)
     FixedBands(; n_bands_converge, n_bands_compute=n_bands_converge + 3)
 end
-FixedBands(basis::PlaneWaveBasis; kwargs...) = FixedBands(basis.model; kwargs...)
 function determine_n_bands(bands::FixedBands, occupation, eigenvalues, ψ)
     (; bands.n_bands_converge, bands.n_bands_compute)
 end
@@ -50,7 +49,6 @@ function AdaptiveBands(model::Model; n_bands_converge=default_n_bands(model), kw
     n_extra = iszero(model.temperature) ? 3 : max(4, ceil(Int, 0.05 * n_bands_converge))
     AdaptiveBands(; n_bands_converge, n_bands_compute=n_bands_converge + n_extra, kwargs...)
 end
-AdaptiveBands(basis::PlaneWaveBasis; kwargs...) = AdaptiveBands(basis.model; kwargs...)
 
 function determine_n_bands(bands::AdaptiveBands, occupation::Nothing, eigenvalues, ψ)
     if isnothing(ψ)

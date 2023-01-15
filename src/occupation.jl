@@ -7,20 +7,18 @@ import Roots
 # If temperature is zero, (εi-εF)/θ = ±∞.
 # The occupation function is required to give 1 and 0 respectively in these cases.
 #
-# For finite temperature we right now just use bisection; note that with MP smearing
-# there might be multiple possible Fermi levels. This could be sped up
-# with more advanced methods (e.g. false position), but more care has to
-# be taken with convergence criteria and the like
+# For monotonic smearing functions (like Gaussian or Fermi-Dirac) we right now just
+# use FermiBisection. For non-monototic functions (like MP, MV) with possibly multiple
+# Fermi levels we use a two-stage process (FermiTwoStage) trying to avoid non-physical
+# Fermi levels (see https://arxiv.org/abs/2212.07988).
 
-abstract type FermiAlgorithm end
+abstract type AbstractFermiAlgorithm end
 
 """Default selection of a Fermi level determination algorithm"""
-default_fermialg(::Type{<: Smearing.SmearingFunction}) = FermiTwoStage()
-default_fermialg(::Type{Smearing.Gaussian})   = FermiBisection()  # Monotonic smearing
-default_fermialg(::Type{Smearing.FermiDirac}) = FermiBisection()  # Monotonic smearing
-default_fermialg(::T) where {T <: Smearing.SmearingFunction} = default_fermialg(T)
-default_fermialg(model::Model) = default_fermialg(model.smearing)
-default_fermialg(basis::AbstractBasis) = default_fermialg(basis.model)
+default_fermialg(::Smearing.SmearingFunction) = FermiTwoStage()
+default_fermialg(::Smearing.Gaussian)   = FermiBisection()  # Monotonic smearing
+default_fermialg(::Smearing.FermiDirac) = FermiBisection()  # Monotonic smearing
+default_fermialg(model::Model)          = default_fermialg(model.smearing)
 
 function excess_n_electrons(basis::PlaneWaveBasis, eigenvalues, εF; smearing, temperature)
     occupation = compute_occupation(basis, eigenvalues, εF;
@@ -48,7 +46,7 @@ end
 The `tol_n_elec` gives the accuracy on the electron count which should be at least achieved.
 """
 function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues::AbstractVector,
-                            fermialg::FermiAlgorithm;
+                            fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model);
                             tol_n_elec=default_occupation_threshold(),
                             temperature=basis.model.temperature,
                             smearing=basis.model.smearing) where {T}
@@ -63,11 +61,8 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues::AbstractVecto
                   "Increase n_bands.")
         end
 
-        @timing "compute_fermi_level" begin
-            εF = compute_fermi_level(basis, eigenvalues, fermialg;
-                                     tol_n_elec, temperature, smearing)
-        end
-
+        εF = compute_fermi_level(basis, eigenvalues, fermialg;
+                                 tol_n_elec, temperature, smearing)
         excess  = excess_n_electrons(basis, eigenvalues, εF; smearing, temperature)
         dexcess = ForwardDiff.derivative(εF) do εF
             excess_n_electrons(basis, eigenvalues, εF; smearing, temperature)
@@ -79,16 +74,17 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues::AbstractVecto
                   "or using a different smearing function.")
         end
         if dexcess < -sqrt(eps(T))
-            @warn("Negative electron versus Fermi level derivative in compute_occupation. " *
-                  "This may lead to an unphysical solution. Try decreasing the temperature " *
-                  "or using a different smearing function.")
+            @warn("Negative density of states (electron count versus Fermi level derivative) " *
+                  "encountered in compute_occupation. This may lead to an unphysical " *
+                  "solution. Try decreasing the temperature or using a different smearing " *
+                  "function.")
         end
     end
     compute_occupation(basis, eigenvalues, εF; temperature, smearing)
 end
 
 
-struct FermiBisection <: FermiAlgorithm end
+struct FermiBisection <: AbstractFermiAlgorithm end
 function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiBisection;
                              temperature, smearing, tol_n_elec) where {T}
     if iszero(temperature)
@@ -113,7 +109,7 @@ end
 """
 Two-stage Fermi level finding algorithm starting from a Gaussian-smearing guess.
 """
-struct FermiTwoStage <: FermiAlgorithm end
+struct FermiTwoStage <: AbstractFermiAlgorithm end
 function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiTwoStage;
                              temperature, smearing, tol_n_elec) where {T}
     if iszero(temperature)
@@ -136,7 +132,7 @@ end
 
 # Note: This is not exported, but only called by the above algorithms for
 # the zero-temperature case.
-struct FermiZeroTemperature <: FermiAlgorithm end
+struct FermiZeroTemperature <: AbstractFermiAlgorithm end
 function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroTemperature;
                              temperature, smearing, tol_n_elec) where {T}
     filled_occ  = filled_occupation(basis.model)

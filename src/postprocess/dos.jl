@@ -32,7 +32,8 @@ function compute_dos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
 end
 
 """
-Local density of states, in real space
+Local density of states, in real space. `weight_threshold` is a threshold
+to screen away small contributions to the LDOS.
 """
 function compute_ldos(ε, basis::PlaneWaveBasis{T}, eigenvalues, ψ;
                       smearing=basis.model.smearing,
