@@ -226,7 +226,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     basis::PlaneWaveBasis;
     damping=FixedDamping(0.8),
     nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
-    fermialg::FermiAlgorithm=default_fermialg(basis.model),
+    fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model),
     ρ=guess_density(basis),
     V=nothing,
     ψ=nothing,

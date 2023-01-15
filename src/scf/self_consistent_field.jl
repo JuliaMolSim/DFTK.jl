@@ -12,7 +12,7 @@ data structure to determine and adjust the number of bands to be computed.
 """
 function next_density(ham::Hamiltonian,
                       nbandsalg::NbandsAlgorithm=AdaptiveBands(ham.basis.model),
-                      fermialg::FermiAlgorithm=default_fermialg(ham.basis.model);
+                      fermialg::AbstractFermiAlgorithm=default_fermialg(ham.basis.model);
                       eigensolver=lobpcg_hyper, ψ=nothing, eigenvalues=nothing,
                       occupation=nothing, kwargs...)
     n_bands_converge, n_bands_compute = determine_n_bands(nbandsalg, occupation,
@@ -80,23 +80,24 @@ Overview of parameters:
 - `callback`: Function called at each SCF iteration. Usually takes care of printing the
   intermediate state.
 """
-@timing function self_consistent_field(basis::PlaneWaveBasis{T};
-                                       ρ=guess_density(basis),
-                                       ψ=nothing,
-                                       tol=1e-6,
-                                       is_converged=ScfConvergenceDensity(tol),
-                                       maxiter=100,
-                                       mixing=LdosMixing(),
-                                       damping=0.8,
-                                       solver=scf_anderson_solver(),
-                                       eigensolver=lobpcg_hyper,
-                                       determine_diagtol=ScfDiagtol(),
-                                       nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
-                                       fermialg::FermiAlgorithm=default_fermialg(basis),
-                                       callback=ScfDefaultCallback(; show_damping=false),
-                                       compute_consistent_energies=true,
-                                       response=ResponseOptions(),  # Dummy here, only for AD
-                                      ) where {T}
+@timing function self_consistent_field(
+    basis::PlaneWaveBasis{T};
+    ρ=guess_density(basis),
+    ψ=nothing,
+    tol=1e-6,
+    is_converged=ScfConvergenceDensity(tol),
+    maxiter=100,
+    mixing=LdosMixing(),
+    damping=0.8,
+    solver=scf_anderson_solver(),
+    eigensolver=lobpcg_hyper,
+    determine_diagtol=ScfDiagtol(),
+    nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
+    fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model),
+    callback=ScfDefaultCallback(; show_damping=false),
+    compute_consistent_energies=true,
+    response=ResponseOptions(),  # Dummy here, only for AD
+) where {T}
     # All these variables will get updated by fixpoint_map
     if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
