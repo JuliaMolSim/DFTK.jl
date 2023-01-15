@@ -33,7 +33,7 @@ scfres = self_consistent_field(basis, tol=1e-8);
 using AtomsIO
 
 ## Read a file using [AtomsIO](https://github.com/mfherbst/AtomsIO.jl),
-# which directly yields an AbstractSystem.
+## which directly yields an AbstractSystem.
 system = load_system("Si.extxyz")
 
 ## Now run the LDA calculation:

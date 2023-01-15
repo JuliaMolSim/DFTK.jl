@@ -48,11 +48,11 @@ include("testcases.jl")
     end
 
     @testset "Derivative for metals" begin
-        F = compute_force(0.0, 0.0; metal=true)
+        metal = true
         derivative_ε1_fd = let ε1 = 1e-5
-            (compute_force(ε1, 0.0; metal=true) - F) / ε1
+            (compute_force(ε1, 0.0; metal) - compute_force(-ε1, 0.0; metal)) / 2ε1
         end
-        derivative_ε1 = ForwardDiff.derivative(ε1 -> compute_force(ε1, 0.0; metal=true), 0.0)
+        derivative_ε1 = ForwardDiff.derivative(ε1 -> compute_force(ε1, 0.0; metal), 0.0)
         @test norm(derivative_ε1 - derivative_ε1_fd) < 1e-4
     end
 end

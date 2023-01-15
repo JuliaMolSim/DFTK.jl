@@ -41,18 +41,19 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
     # δρ = LDOS δεF + ∑_{n,m} (fn-fm) ρnm <ρmn|δV> / (εn-εm)
     # Therefore the kernel is LDOS(r) LDOS(r') / DOS + ∑_{n,m} (fn-fm)/(εn-εm) ρnm(r) ρmn(r')
     basis = ham.basis
-    model = basis.model
-    filled_occ = filled_occupation(model)
+    filled_occ = filled_occupation(basis.model)
+    smearing = basis.model.smearing
     n_spin   = basis.model.n_spin_components
-    fft_size = basis.fft_size
-    n_fft    = prod(fft_size)
+    n_fft    = prod(basis.fft_size)
+    fermialg = default_fermialg(smearing)
 
-    length(model.symmetries) == 1 || error("Disable symmetries completely for computing χ0")
+    length(basis.model.symmetries) == 1 || error("Disable symmetries for computing χ0")
 
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
     Vs = [EV.vectors for EV in EVs]
-    occ, εF = compute_occupation(basis, Es; temperature)
+    T  = eltype(basis)
+    occupation, εF = compute_occupation(basis, Es, fermialg; temperature, tol_n_elec=10eps(T))
 
     χ0 = zeros(eltype(basis), n_spin * n_fft, n_spin * n_fft)
     for (ik, kpt) in enumerate(basis.kpoints)
@@ -69,9 +70,9 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
         Vr = reshape(Vr, n_fft, N)
         @showprogress "Computing χ0 for k-point $ik/$(length(basis.kpoints)) ..." for m = 1:N, n = 1:N
             enred = (E[n] - εF) / temperature
-            @assert occ[ik][n] ≈ filled_occ * Smearing.occupation(model.smearing, enred)
+            @assert occupation[ik][n] ≈ filled_occ * Smearing.occupation(smearing, enred)
             ddiff = Smearing.occupation_divided_difference
-            ratio = filled_occ * ddiff(model.smearing, E[m], E[n], εF, temperature)
+            ratio = filled_occ * ddiff(smearing, E[m], E[n], εF, temperature)
             # dvol because inner products have a dvol in them
             # so that the dual gets one : |f> -> <dvol f|
             # can take the real part here because the nm term is complex conjugate of mn
@@ -251,7 +252,7 @@ The derivatives of the occupations are in-place stored in δocc.
 The tuple (; δocc, δεF) is returned. It is assumed the passed `δocc`
 are initialised to zero.
 """
-function compute_δocc!(δocc, basis, ψ, occ, εF::T, ε, δHψ) where {T}
+function compute_δocc!(δocc, basis, ψ, εF::T, ε, δHψ) where {T}
     model = basis.model
     temperature = model.temperature
     smearing = model.smearing
@@ -330,9 +331,9 @@ function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(
     end
 end
 
-@views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
+@views @timing function apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                     occupation_threshold, kwargs_sternheimer...)
-    basis  = ham.basis
+    basis = ham.basis
 
     # We first select orbitals with occupation number higher than
     # occupation_threshold for which we compute the associated response δψn,
@@ -340,9 +341,9 @@ end
     # We then use the extra information we have from these additional bands,
     # non-necessarily converged, to split the sternheimer_solver with a Schur
     # complement.
-
-    mask_occ   = map(occk -> isless.(occupation_threshold, occk), occ)
-    mask_extra = map(occk -> (!isless).(occupation_threshold, occk), occ)
+    occ_thresh = occupation_threshold
+    mask_occ   = map(occk -> findall(occnk -> abs(occnk) ≥ occ_thresh, occk), occupation)
+    mask_extra = map(occk -> findall(occnk -> abs(occnk) < occ_thresh, occk), occupation)
 
     ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
@@ -350,15 +351,13 @@ end
     ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
     δHψ_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
 
-    occ_occ = [occ[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-
     # First we compute δoccupation. We only need to do this for the actually occupied
     # orbitals. So we make a fresh array padded with zeros, but only alter the elements
     # corresponding to the occupied orbitals. (Note both compute_δocc! and compute_δψ!
     # assume that the first array argument has already been initialised to zero).
-    δoccupation = zero.(occ)
+    δoccupation = zero.(occupation)
     δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    δεF = compute_δocc!(δocc_occ, basis, ψ_occ, occ_occ, εF, ε_occ, δHψ_occ).δεF
+    δεF = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_occ).δεF
 
     # Then we compute δψ, again in-place into a zero-padded array
     δψ = zero.(ψ)

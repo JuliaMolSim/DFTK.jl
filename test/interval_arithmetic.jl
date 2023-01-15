@@ -47,9 +47,11 @@ end
                       testcase.atoms, testcase.positions)
     basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 1, 1))
 
+    fermialg = DFTK.default_fermialg(basis.model)
     eigenvalues = [[-0.17268859, 0.26999098, 0.2699912, 0.2699914, 0.35897297, 0.3589743],
                    [-0.08567941, 0.00889772, 0.2246137, 0.2246138, 0.31941655, 0.3870046]]
-    occupations, εF = DFTK.compute_occupation(basis, Vector{Interval{Float64}}.(eigenvalues))
+    evals_inter = Vector{Interval{Float64}}.(eigenvalues)
+    occupations, εF = DFTK.compute_occupation(basis, evals_inter, fermialg)
 
     @test mid(εF) ≈ (eigenvalues[1][4] + eigenvalues[2][5]) / 2 atol=1e-6
     @test mid(sum(DFTK.weighted_ksum(basis, occupations))) ≈ 8.0

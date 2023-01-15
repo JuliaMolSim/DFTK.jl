@@ -185,15 +185,6 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
     (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, history)
 end
 
-function solve_ΩplusK_split(basis::PlaneWaveBasis, ψ, rhs, occupation; kwargs...)
-    ρ = compute_density(basis, ψ, occupation)
-    H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
-    eigenvalues = [real.(eigvals(ψk'Hψk)) for (ψk, Hψk) in zip(ψ, H * ψ)]
-    occupation, εF = compute_occupation(basis, eigenvalues)
-
-    solve_ΩplusK_split(H, ρ, ψ, occupation, εF, eigenvalues, rhs; kwargs...)
-end
-
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
     solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
                        scfres.εF, scfres.eigenvalues, rhs;
