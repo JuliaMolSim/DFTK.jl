@@ -145,6 +145,7 @@ DftFunctionals.has_energy(fun::DispatchFunctional) = has_energy(fun.inner)
 
 for fun in (:potential_terms, :kernel_terms)
     @eval begin
+        # Note: CuMatrix dispatch to Libxc.jl is defined in src/workarounds/cuda_arrays.jl
         function DftFunctionals.$fun(fun::DispatchFunctional, ρ::Matrix{Float64}, args...)
             $fun(fun.inner, ρ, args...)
         end

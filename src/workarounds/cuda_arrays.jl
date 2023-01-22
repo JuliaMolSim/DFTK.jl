@@ -10,3 +10,11 @@ function LinearAlgebra.eigen(A::Hermitian{T,AT}) where {T<:Real,AT<:CUDA.CuArray
     vals, vects = CUDA.CUSOLVER.syevd!('V', 'U', A.data)
     (vectors = vects, values = vals)
 end
+
+
+for fun in (:potential_terms, :kernel_terms)
+    @eval function DftFunctionals.$fun(fun::DispatchFunctional,
+                                       ρ::CUDA.CuMatrix{Float64}, args...)
+        $fun(fun.inner, ρ, args...)
+    end
+end
