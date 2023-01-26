@@ -158,7 +158,7 @@ end
 
 # Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
 # No normalization is performed
-@timing function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
+function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
     for symop in symmetries
         # Common special case, where ρin does not need to be processed
         if isone(symop)
@@ -207,14 +207,15 @@ end
 Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
 @views @timing function symmetrize_ρ(basis, ρ; symmetries=basis.symmetries, do_lowpass=true)
-    ρin_fourier  = fft(basis, ρ)
+    all(isone, symmetries) && return ρ
+    ρin_fourier  = to_cpu(fft(basis, ρ))
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρ, 4)
         accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
         do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
-    irfft(basis, ρout_fourier ./ length(symmetries))
+    irfft(basis, to_device(basis.architecture, ρout_fourier) ./ length(symmetries))
 end
 
 """
