@@ -36,10 +36,13 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
         ψnk_real_chunklocal = [zeros_like(basis.G_vectors, complex(S), basis.fft_size...)
                                for _ = 1:Threads.nthreads()]
 
-        @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
-            Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
-                ψnk_real = ψnk_real_chunklocal[ichunk]
+        # TODO This causes weird behaviour with GPUs ...
+        # @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
+        #    Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
+        for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
+            for (ik, n) in chunk  # spawn a task per chunk
                 ρ_loc = ρ_chunklocal[ichunk]
+                ψnk_real = ψnk_real_chunklocal[ichunk]
                 kpt = basis.kpoints[ik]
 
                 ifft!(ψnk_real, basis, kpt, ψ[ik][:, n])

@@ -8,7 +8,8 @@ include("testcases.jl")
 
 @testset "CUDA silicon functionality test" begin
     function run_problem(; architecture)
-        model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
+        model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions;
+                          spin_polarization=:collinear, temperature=1e-3)
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=(1, 1, 1), architecture)
         self_consistent_field(basis; tol=1e-10, mixing=SimpleMixing(),
                               solver=scf_damping_solver(0.4))
