@@ -29,5 +29,4 @@ to_device(::GPU{ArrayType}, x::ArrayType)     where {ArrayType} = x
 Synchronize data and finish all operations on the execution stream of the device.
 This needs to be called explicitly before a task finishes (e.g. in an `@spawn` block).
 """
-synchronize_device(::CPU) = nothing
-synchronize_device(::GPU{<:AbstractArray}) = nothing
+synchronize_device(::AbstractArchitecture) = nothing
