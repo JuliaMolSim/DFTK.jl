@@ -207,7 +207,6 @@ end
 Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
 @views @timing function symmetrize_ρ(basis, ρ; symmetries=basis.symmetries, do_lowpass=true)
-    all(isone, symmetries) && return ρ
     ρin_fourier  = to_cpu(fft(basis, ρ))
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρ, 4)
