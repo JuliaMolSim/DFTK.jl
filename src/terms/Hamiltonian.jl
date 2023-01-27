@@ -149,7 +149,7 @@ end
                 merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
             end
 
-            synchronize_device(basis.architecture)
+            synchronize_device(H.basis.architecture)
        end
     end
 
