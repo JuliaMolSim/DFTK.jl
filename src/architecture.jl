@@ -24,3 +24,10 @@ Transfer an array to a particular device (typically a GPU)
 to_device(::CPU, x) = to_cpu(x)
 to_device(::GPU{ArrayType}, x::AbstractArray) where {ArrayType} = ArrayType(x)
 to_device(::GPU{ArrayType}, x::ArrayType)     where {ArrayType} = x
+
+"""
+Synchronize data and finish all operations on the execution stream of the device.
+This needs to be called explicitly before a task finishes (e.g. in an `@spawn` block).
+"""
+synchronize_device(::CPU) = nothing
+synchronize_device(::GPU{<:AbstractArray}) = nothing
