@@ -29,11 +29,10 @@ PlaneWaveBasis(model; Ecut, kgrid, architecture = DFTK.GPU(CuArray))
     It is very likely that this API will change, based on the evolution of the
     Julia ecosystem concerning distributed architectures.
 
-Not all terms can be used when doing GPU computations: currently, the `Anyonic`,
-`Magnetic`, `TermPairwisePotential` and `Xc` terms are not supported. Some mixings,
-such as `χ0Mixing` are also not yet supported. GPU features are not yet exhaustively
- tested, and it is likely that some aspects of the code such as automatic
- differentiation or stresses will not work.
+Not all terms can be used when doing GPU computations. As of January 2023 this
+concerns `Anyonic`, `Magnetic` and `TermPairwisePotential`. Similarly GPU features are
+not yet exhaustively tested, and it is likely that some aspects of the code such as
+automatic differentiation or stresses will not work.
 
 ## Pitfalls
 There are a few things to keep in mind when doing GPU programming in DFTK.

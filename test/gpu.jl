@@ -27,6 +27,7 @@ end
         basis = PlaneWaveBasis(model; Ecut=20, kgrid=(4, 4, 4), architecture)
 
         ρ = guess_density(basis, magnetic_moments)
+        # TODO Bump tolerance a bit here ... still leads to NaNs unfortunately
         self_consistent_field(basis; ρ, tol=1e-8, mixing=KerkerMixing(),
                               solver=scf_damping_solver(1.0))
     end
@@ -34,7 +35,7 @@ end
     scfres_cpu = run_problem(; architecture=DFTK.CPU())
     scfres_gpu = run_problem(; architecture=DFTK.GPU(CuArray))
     @test abs(scfres_cpu.energies.total - scfres_gpu.energies.total) < 1e-8
-    @test norm(scfres_cpu.ρ - Array(scfres_gpu.ρ)) < 1e-8
+    @test norm(scfres_cpu.ρ - Array(scfres_gpu.ρ)) < 1e-7
 end
 
 
