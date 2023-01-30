@@ -38,13 +38,15 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 
         @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
             Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
-                ψnk_real = ψnk_real_chunklocal[ichunk]
                 ρ_loc = ρ_chunklocal[ichunk]
+                ψnk_real = ψnk_real_chunklocal[ichunk]
                 kpt = basis.kpoints[ik]
 
                 ifft!(ψnk_real, basis, kpt, ψ[ik][:, n])
                 ρ_loc[:, :, :, kpt.spin] .+= (occupation[ik][n] .* basis.kweights[ik]
                                               .* abs2.(ψnk_real))
+
+                synchronize_device(basis.architecture)
             end
         end
 

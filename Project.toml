@@ -1,7 +1,7 @@
 name = "DFTK"
 uuid = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
 authors = ["Michael F. Herbst <info@michael-herbst.com>", "Antoine Levitt <antoine.levitt@inria.fr>"]
-version = "0.6.2"
+version = "0.6.3"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -59,7 +59,7 @@ InteratomicPotentials = "0.2"
 Interpolations = "0.14"
 IterTools = "1"
 IterativeSolvers = "0.9"
-Libxc = "0.3.9"
+Libxc = "0.3.14"
 LineSearches = "7"
 LinearMaps = "3"
 MPI = "0.19, 0.20"
@@ -79,7 +79,7 @@ StaticArrays = "1"
 TimerOutputs = "0.5.12"
 Unitful = "1"
 UnitfulAtomic = "1"
-julia = "1.6"
+julia = "1.7"
 spglib_jll = "1.15"
 
 [extras]
