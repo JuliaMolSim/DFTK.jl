@@ -3,7 +3,6 @@ using Unitful
 using UnitfulAtomic
 using AtomsBase
 using Test
-import DFTK: compute_pspmap
 
 @testset "DFTK -> AbstractSystem -> DFTK" begin
     Si = ElementCoulomb(:Si)
@@ -20,14 +19,10 @@ import DFTK: compute_pspmap
     @test bounding_box(system)  == collect(eachcol(lattice)) * u"bohr"
     @test position(system)      == [lattice * p * u"bohr" for p in positions]
 
-    @test system[1].pseudopotential == ""
-    @test system[2].pseudopotential == "hgh/pbe/c-q4.hgh"
-    @test system[3].pseudopotential == "hgh/lda/h-q1.hgh"
-    @test system[4].pseudopotential == "hgh/pbe/c-q4.hgh"
-
-    for i in 1:4
-        @test system[i].magnetic_moment == magnetic_moments[i]
-    end
+    @test system[:, :pseudopotential] == [
+        "", "hgh/pbe/c-q4.hgh", "hgh/lda/h-q1.hgh", "hgh/pbe/c-q4.hgh"
+    ]
+    @test system[:, :magnetic_moment] == magnetic_moments
 
     parsed = DFTK.parse_system(system)
     @test parsed.lattice   == lattice
@@ -44,14 +39,11 @@ import DFTK: compute_pspmap
 
     let system = attach_psp(system; Si="hgh/lda/si-q4.hgh")
         @test length(system) == 4
-        @test system[1].pseudopotential == "hgh/lda/si-q4.hgh"
-        @test system[2].pseudopotential == "hgh/pbe/c-q4.hgh"
-        @test system[3].pseudopotential == "hgh/lda/h-q1.hgh"
-        @test system[4].pseudopotential == "hgh/pbe/c-q4.hgh"
-
-        for i in 1:4
-            @test system[i].magnetic_moment == magnetic_moments[i]
-        end
+        @test system[1, :pseudopotential] == "hgh/lda/si-q4.hgh"
+        @test system[2, :pseudopotential] == "hgh/pbe/c-q4.hgh"
+        @test system[3, :pseudopotential] == "hgh/lda/h-q1.hgh"
+        @test system[4, :pseudopotential] == "hgh/pbe/c-q4.hgh"
+        @test system[:, :magnetic_moment] == magnetic_moments
     end
 
     for constructor in (Model, model_atomic, model_LDA, model_PBE, model_SCAN)
@@ -63,10 +55,8 @@ import DFTK: compute_pspmap
         @test bounding_box(system)        == bounding_box(newsys)
         @test boundary_conditions(system) == boundary_conditions(newsys)
         @test maximum(maximum, position(system) - position(newsys)) < 1e-12u"bohr"
-        for (p, newp) in zip(system, newsys)
-            @test p.magnetic_moment == newp.magnetic_moment
-            @test p.pseudopotential == newp.pseudopotential
-        end
+        @test system[:, :magnetic_moment] == newsys[:, :magnetic_moment]
+        @test system[:, :pseudopotential] == newsys[:, :pseudopotential]
     end
 end
 
@@ -76,8 +66,7 @@ end
     positions = [rand(3) for _ in 1:2]
     magnetic_moments = [rand(3), rand(3)]
     system = atomic_system(lattice, atoms, positions, magnetic_moments)
-    @test system[1].magnetic_moment == magnetic_moments[1]
-    @test system[2].magnetic_moment == magnetic_moments[2]
+    @test system[:, :magnetic_moment] == magnetic_moments
 end
 
 @testset "charged AbstractSystem -> DFTK" begin
@@ -129,10 +118,10 @@ end
                   :C => "hgh/pbe/c-q4.hgh")
     let system = attach_psp(system, pbemap)
         @test length(system) == 4
-        @test system[1].pseudopotential == "hgh/pbe/c-q4.hgh"
-        @test system[2].pseudopotential == "hgh/pbe/si-q4.hgh"
-        @test system[3].pseudopotential == "hgh/pbe/h-q1.hgh"
-        @test system[4].pseudopotential == "hgh/pbe/c-q4.hgh"
+        @test system[1, :pseudopotential] == "hgh/pbe/c-q4.hgh"
+        @test system[2, :pseudopotential] == "hgh/pbe/si-q4.hgh"
+        @test system[3, :pseudopotential] == "hgh/pbe/h-q1.hgh"
+        @test system[4, :pseudopotential] == "hgh/pbe/c-q4.hgh"
 
         parsed = DFTK.parse_system(system)
         @test parsed.lattice == pos_lattice
@@ -149,10 +138,10 @@ end
     let system = attach_psp(system; C="hgh/lda/c-q4.hgh", H="hgh/lda/h-q1.hgh",
                                     Si="hgh/lda/si-q4.hgh")
         @test length(system) == 4
-        @test system[1].pseudopotential == "hgh/lda/c-q4.hgh"
-        @test system[2].pseudopotential == "hgh/lda/si-q4.hgh"
-        @test system[3].pseudopotential == "hgh/lda/h-q1.hgh"
-        @test system[4].pseudopotential == "hgh/lda/c-q4.hgh"
+        @test system[1, :pseudopotential] == "hgh/lda/c-q4.hgh"
+        @test system[2, :pseudopotential] == "hgh/lda/si-q4.hgh"
+        @test system[3, :pseudopotential] == "hgh/lda/h-q1.hgh"
+        @test system[4, :pseudopotential] == "hgh/lda/c-q4.hgh"
 
         model = Model(system)
         @test model.lattice == pos_lattice
@@ -180,8 +169,8 @@ end
     @test_throws ErrorException attach_psp(system; Si="hgh/pbe/si-q4.hgh")
     newsys = attach_psp(system; Si="hgh/pbe/si-q4.hgh", H="hgh/pbe/h-q1.hgh",
                                 C="hgh/pbe/c-q4.hgh")
-    @test newsys[1].pseudopotential == "hgh/pbe/si-q4.hgh"
-    @test newsys[2].pseudopotential == "hgh/pbe/c-q4.hgh"
-    @test newsys[3].pseudopotential == "hgh/lda/h-q1.hgh"
-    @test newsys[4].pseudopotential == "hgh/pbe/c-q4.hgh"
+    @test newsys[1, :pseudopotential] == "hgh/pbe/si-q4.hgh"
+    @test newsys[2, :pseudopotential] == "hgh/pbe/c-q4.hgh"
+    @test newsys[3, :pseudopotential] == "hgh/lda/h-q1.hgh"
+    @test newsys[4, :pseudopotential] == "hgh/pbe/c-q4.hgh"
 end
