@@ -17,12 +17,13 @@ function parse_system(system::AbstractSystem{D}) where {D}
     # to deduce the atom_groups.
     cached_pspelements = Dict{String, ElementPsp}()
     atoms = map(system) do atom
-        if hasproperty(atom, :pseudopotential) && !isempty(atom.pseudopotential)
-            get!(cached_pspelements, atom.pseudopotential) do
-                ElementPsp(atomic_symbol(atom); psp=load_psp(atom.pseudopotential))
-            end
-        else
+        pseudo = get(atom, :pseudopotential, "")
+        if isempty(pseudo)
             ElementCoulomb(atomic_symbol(atom))
+        else
+            get!(cached_pspelements, pseudo) do
+                ElementPsp(atomic_symbol(atom); psp=load_psp(pseudo))
+            end
         end
     end
 
@@ -33,8 +34,7 @@ function parse_system(system::AbstractSystem{D}) where {D}
     end
 
     magnetic_moments = map(system) do atom
-        hasproperty(atom, :magnetic_moment) || return nothing
-        getproperty(atom, :magnetic_moment)
+        get(atom, :magnetic_moment, nothing)
     end
     if all(m -> isnothing(m) || iszero(m) || isempty(m), magnetic_moments)
         empty!(magnetic_moments)
@@ -42,22 +42,17 @@ function parse_system(system::AbstractSystem{D}) where {D}
         magnetic_moments = normalize_magnetic_moment.(magnetic_moments)
     end
 
-    sum_atomic_charge = sum(system) do atom
-        hasproperty(atom, :charge) ? atom.charge : 0.0u"e_au"
-    end
+    sum_atomic_charge = sum(atom -> get(atom, :charge, 0.0u"e_au"), system)
     if abs(sum_atomic_charge) > 1e-6u"e_au"
         error("Charged systems not yet supported in DFTK.")
     end
 
-    # TODO Use system to determine n_electrons
-    if system isa FlexibleSystem
-        if :charge in keys(system.data) && !iszero(system.data[:charge])
-            error("Charged systems not yet supported in DFTK.")
-        end
-        for k in (:multiplicity, )
-            if k in keys(system.data)
-                @warn "System property $k not supported and ignored in DFTK."
-            end
+    if !iszero(get(system, :charge, 0.0u"e_au"))
+        error("Charged systems not yet supported in DFTK.")
+    end
+    for k in (:multiplicity, )
+        if haskey(system, k)
+            @warn "System property $k not supported and ignored in DFTK."
         end
     end
 

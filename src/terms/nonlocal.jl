@@ -183,7 +183,7 @@ end
 Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
 function build_form_factors(psp, qs::Array)
-    T = real(eltype(first(qs)))
+    T = real(eltype(eltype(qs)))
 
     # Pre-compute the radial parts of the non-local projectors at unique |q| to speed up
     # the form factor calculation (by a lot). Using a hash map gives O(1) lookup.
