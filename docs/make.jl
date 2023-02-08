@@ -188,9 +188,9 @@ makedocs(;
         assets = ["assets/favicon.ico"],
         mathengine = Documenter.MathJax(Dict(:TeX => Dict(
             :Macros => Dict(
-                :ket => ["|#1\\rangle", 1],
-                :bra => ["\\langle#1|", 1],
-                :mel => ["\\langle#1|#2|#3\\rangle", 3],
+                :ket    => [raw"\left|#1\right\rangle", 1],
+                :bra    => [raw"\left\langle#1\right|", 1],
+                :braket => [raw"\left\langle#1\middle|#2\right\rangle", 2],
             ),
         ))),
     ),
