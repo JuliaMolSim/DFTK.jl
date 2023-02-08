@@ -237,7 +237,7 @@ function Model(model::Model{T};
                positions::Vector{<:AbstractVector}=model.positions,
                kwargs...) where {T, U}
     TT = promote_type(T, U, eltype(positions[1]))
-    Model{TT}(model; lattice, positions, atoms, kwargs...)
+    Model{TT}(model; lattice, positions, kwargs...)
 end
 
 Base.convert(::Type{Model{T}}, model::Model{T}) where {T}    = model
