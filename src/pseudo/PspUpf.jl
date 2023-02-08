@@ -147,7 +147,7 @@ charge_ionic(psp::PspUpf) = psp.Zion
 Evaluate the ith Kleinman-Bylander β projector with angular momentum l at real-space
 distance r via linear interpolation on the real-space mesh.
 
-Note: UPFs store ``r_j β_{li}(r_j)`, so ``r=0`` is undefined and will error.
+Note: UPFs store ``r_j β_{li}(r_j)``, so ``r=0`` is undefined and will error.
 """
 function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T <: Real}
     psp.r_projs_interp[l+1][i](r) / r
