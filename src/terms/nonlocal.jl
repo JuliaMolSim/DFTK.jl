@@ -141,7 +141,7 @@ H_{\rm per} &= \sum_R \sum_{ij} C_{ij} \ket{p_i(x-R)} \bra{p_j(x-R)}
 
 ```math
 \begin{aligned}
-\mel{e_k(G')}{H_{\rm per}}{e_k(G)}
+\braket{e_k(G') \middle| H_{\rm per}}{e_k(G)}
         &= \ldots \\
         &= \frac{1}{Ω} \sum_{ij} C_{ij} \hat p_i(k+G') \hat p_j^*(k+G),
 \end{aligned}
