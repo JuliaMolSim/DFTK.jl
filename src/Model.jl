@@ -203,6 +203,42 @@ function Model(system::AbstractSystem; kwargs...)
     Model(parsed.lattice, parsed.atoms, parsed.positions; parsed.magnetic_moments, kwargs...)
 end
 
+"""
+    Model(model;
+          lattice=model.lattice,
+          positions=model.positions,
+          atoms=model.atoms, kwargs...)
+
+Construct an identical model to `model` with the option to change some of the contained
+parameters. Especially changing `lattice` or `positions` is useful for geometry or
+lattice optimisations.
+"""
+function Model(model::Model{T};
+               lattice::AbstractMatrix{U}=model.lattice,
+               positions::Vector{<:AbstractVector}=model.positions,
+               atoms=model.atoms,
+               kwargs...) where {T, U}
+    TT = promote_type(T, U, eltype(positions[1]))
+    Model(TT.(lattice), atoms, positions;
+          model.model_name,
+          model.n_electrons,
+          magnetic_moments=[],  # not used because symmetries explicitly given
+          terms=model.term_types,
+          model.temperature,
+          model.smearing,
+          model.εF,
+          model.spin_polarization,
+          model.symmetries,
+          # Can be safely disabled: this has been checked for model
+          disable_electrostatics_check=true,
+          kwargs...
+    )
+end
+
+function convert(::Type{Model{U}}, model::Model{T}) where {T, U}
+    Model(model; lattice=convert(Mat3{U}, model.lattice))
+end
+
 normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
 normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)
 normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm
