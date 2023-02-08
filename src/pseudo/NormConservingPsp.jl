@@ -27,13 +27,17 @@ in real-space at the vector with modulus `r`.
 eval_psp_projector_real(psp::NormConservingPsp, i, l, r::AbstractVector) =
     eval_psp_projector_real(psp, i, l, norm(r))
 
-"""
+@doc raw"""
     eval_psp_projector_fourier(psp, i, l, q)
 
 Evaluate the radial part of the `i`-th projector for angular momentum `l`
 at the reciprocal vector with modulus `q`:
-p(q) = ∫_R^3 p_{il}(r) e^{-iqr} dr
-     = 4π ∫_{R+} r^2 p_{il}(r) j_l(q r) dr
+```math
+\begin{aligned}
+p(q) &= ∫_{ℝ^3} p_{il}(r) e^{-iq·r} dr \\
+     &= 4π ∫_{ℝ_+} r^2 p_{il}(r) j_l(qr) dr
+\end{aligned}
+```
 """
 eval_psp_projector_fourier(psp::NormConservingPsp, q::AbstractVector) =
     eval_psp_projector_fourier(psp, norm(q))
@@ -46,21 +50,29 @@ Evaluate the local part of the pseudopotential in real space.
 eval_psp_local_real(psp::NormConservingPsp, r::AbstractVector) =
     eval_psp_local_real(psp, norm(r))
 
-"""
+@doc raw"""
     eval_psp_local_fourier(psp, q)
 
 Evaluate the local part of the pseudopotential in reciprocal space:
-Vloc(q) = ∫_{R^3} Vloc(r) e^{-iqr} dr
-        = 4π ∫_{R+} Vloc(r) sin(qr)/q r dr
-In practice, the local potential should be corrected using a Coulomb-like term C(r) = -Z/r
-to remove the long-range tail of Vloc(r) from the integral:
-Vloc(q) = (∫_{R^3} (Vloc(r) - C(r)) e^{-iqr} dr) + F[C(r)]
-        = 4π ∫{R+} (Vloc(r) + Z/r) sin(qr)/qr r^2 dr - Z/q^2
+```math
+\begin{aligned}
+V_{\rm loc}(q) &= ∫_{ℝ^3} V_{\rm loc}(r) e^{-iqr} dr \\
+               &= 4π ∫_{ℝ_+} V_{\rm loc}(r) \frac{\sin(qr)}{q} r dr
+\end{aligned}
+```
+In practice, the local potential should be corrected using a Coulomb-like term ``C(r) = -Z/r``
+to remove the long-range tail of ``V_{\rm loc}(r)`` from the integral:
+```math
+\begin{aligned}
+V_{\rm loc}(q) &= ∫_{ℝ^3} (V_{\rm loc}(r) - C(r)) e^{-iq·r} dr + F[C(r)] \\
+               &= 4π ∫_{ℝ_+} (V_{\rm loc}(r) + Z/r) \frac{\sin(qr)}{qr} r^2 dr - Z/q^2
+\end{aligned}
+```
 """
 eval_psp_local_fourier(psp::NormConservingPsp, q::AbstractVector) =
     eval_psp_local_fourier(psp, norm(q))
 
-"""
+@doc raw"""
     eval_psp_energy_correction([T=Float64,] psp, n_electrons)
 
 Evaluate the energy correction to the Ewald electrostatic interaction energy of one unit
@@ -72,10 +84,12 @@ Notice: The returned result is the *energy per unit cell* and not the energy per
 To obtain the latter, the caller needs to divide by the unit cell volume.
 
 The energy correction is defined as the limit of the Fourier-transform of the local
-potential as q -> 0, using the same correction as in the Fourier-transform of the local
+potential as ``q \to 0``, using the same correction as in the Fourier-transform of the local
 potential:
-lim{q->0} 4π Nelec ∫{R+} (V(r) - C(r)) sin(qr)/qr r^2 dr + F[C(r)]
-= 4π Nelec ∫{R+} (V(r) + Z/r) r^2 dr
+```math
+\lim_{q \to 0} 4π N_{\rm elec} ∫_{ℝ_+} (V(r) - C(r)) \frac{\sin(qr)}{qr} r^2 dr + F[C(r)]
+ = 4π N_{\rm elec} ∫_{ℝ_+} (V(r) + Z/r) r^2 dr
+ ```
 """
 function eval_psp_energy_correction end
 # by default, no correction, see PspHgh implementation and tests
@@ -111,7 +125,7 @@ end
 """
     count_n_proj(psp, l)
 
-Number of projector functions for angular momentum `l`, including angular parts from -m:m.
+Number of projector functions for angular momentum `l`, including angular parts from `-m:m`.
 """
 count_n_proj(psp::NormConservingPsp, l::Integer) = count_n_proj_radial(psp, l) * (2l + 1)
 
@@ -119,7 +133,7 @@ count_n_proj(psp::NormConservingPsp, l::Integer) = count_n_proj_radial(psp, l) *
     count_n_proj(psp)
 
 Number of projector functions for all angular momenta up to `psp.lmax`, including
-angular parts from -m:m.
+angular parts from `-m:m`.
 """
 function count_n_proj(psp::NormConservingPsp)
     sum(l -> count_n_proj(psp, l), 0:psp.lmax; init=0)::Int
@@ -129,7 +143,7 @@ end
     count_n_proj(psps, psp_positions)
 
 Number of projector functions for all angular momenta up to `psp.lmax` and for all
-atoms in the system, including angular parts from -m:m.
+atoms in the system, including angular parts from `-m:m`.
 """
 function count_n_proj(psps, psp_positions)
     sum(count_n_proj(psp) * length(positions)
