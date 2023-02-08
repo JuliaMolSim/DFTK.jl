@@ -204,22 +204,20 @@ function Model(system::AbstractSystem; kwargs...)
 end
 
 """
-    Model(model;
-          lattice=model.lattice,
-          positions=model.positions,
-          atoms=model.atoms, kwargs...)
+    Model(model; [lattice, positions, atoms, kwargs...])
+    Model{T}(model; [lattice, positions, atoms, kwargs...])
 
 Construct an identical model to `model` with the option to change some of the contained
-parameters. Especially changing `lattice` or `positions` is useful for geometry or
-lattice optimisations.
+parameters. If one of `lattice`, `positions`, `atoms` is missing, the respective value
+from `model` is used. This constructor is useful for changing the data type in the model
+or for changing `lattice` or `positions` in geometry/lattice optimisations.
 """
-function Model(model::Model{T};
-               lattice::AbstractMatrix{U}=model.lattice,
-               positions::Vector{<:AbstractVector}=model.positions,
-               atoms=model.atoms,
-               kwargs...) where {T, U}
-    TT = promote_type(T, U, eltype(positions[1]))
-    Model(TT.(lattice), atoms, positions;
+function Model{T}(model::Model;
+                  lattice::AbstractMatrix=model.lattice,
+                  positions::Vector{<:AbstractVector}=model.positions,
+                  atoms::Vector{<:Element}=model.atoms,
+                  kwargs...) where {T <: Real}
+    Model(T.(lattice), atoms, positions;
           model.model_name,
           model.n_electrons,
           magnetic_moments=[],  # not used because symmetries explicitly given
@@ -234,10 +232,16 @@ function Model(model::Model{T};
           kwargs...
     )
 end
-
-function convert(::Type{Model{U}}, model::Model{T}) where {T, U}
-    Model(model; lattice=convert(Mat3{U}, model.lattice))
+function Model(model::Model{T};
+               lattice::AbstractMatrix{U}=model.lattice,
+               positions::Vector{<:AbstractVector}=model.positions,
+               kwargs...) where {T, U}
+    TT = promote_type(T, U, eltype(positions[1]))
+    Model{TT}(model; lattice, positions, atoms, kwargs...)
 end
+
+Base.convert(::Type{Model{T}}, model::Model{T}) where {T}    = model
+Base.convert(::Type{Model{U}}, model::Model{T}) where {T, U} = Model{U}(model)
 
 normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
 normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)
