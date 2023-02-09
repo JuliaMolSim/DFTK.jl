@@ -29,8 +29,9 @@ function run_silicon_pbe(T ;Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     else
         magnetic_moments = []
     end
-    model = model_DFT(Array{T}(silicon.lattice), atoms, silicon.positions,
-                      [:gga_x_pbe, :gga_c_pbe]; spin_polarization, magnetic_moments)
+    model = model_PBE(silicon.lattice, atoms, silicon.positions;
+                      spin_polarization, magnetic_moments)
+    model = convert(Model{T}, model)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
     spin_polarization == :collinear && (ref_pbe = vcat(ref_pbe, ref_pbe))

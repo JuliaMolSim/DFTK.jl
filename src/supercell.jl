@@ -39,16 +39,8 @@ function cell_to_supercell(basis::PlaneWaveBasis)
     end
 
     # Assemble new model and new basis
-    model_supercell = Model(supercell.lattice, supercell.atoms, supercell.positions;
-                            n_electrons=n_electrons_supercell,
-                            terms=model.term_types,
-                            model.temperature,
-                            model.smearing,
-                            model.εF,
-                            model.spin_polarization,
-                            symmetries=false,
-                            # Can be safely disabled: this has been checked for basis.model
-                            disable_electrostatics_check=true)
+    model_supercell = Model(model; supercell.lattice, supercell.atoms, supercell.positions,
+                            n_electrons=n_electrons_supercell, symmetries=false)
     symmetries_respect_rgrid = false  # single point symmetry
     PlaneWaveBasis(model_supercell, basis.Ecut, supercell_fft_size,
                    basis.variational,

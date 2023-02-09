@@ -25,8 +25,9 @@ function run_silicon_lda(T ;Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     else
         magnetic_moments = []
     end
-    model = model_DFT(Array{T}(silicon.lattice), atoms, silicon.positions,
-                      [:lda_x, :lda_c_vwn]; spin_polarization, magnetic_moments)
+    model = model_DFT(silicon.lattice, atoms, silicon.positions, [:lda_x, :lda_c_vwn];
+                      spin_polarization, magnetic_moments)
+    model = convert(Model{T}, model)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
     spin_polarization == :collinear && (ref_lda = vcat(ref_lda, ref_lda))
