@@ -21,7 +21,7 @@ end
 
 @doc raw"""
 Construct a plane-wave basis whose unit cell is the supercell associated to
-an input basis ``kgrid``. All other parameters are modified so that the respective physical
+an input basis ``k``-grid. All other parameters are modified so that the respective physical
 systems associated to both basis are equivalent.
 """
 function cell_to_supercell(basis::PlaneWaveBasis)
@@ -73,8 +73,8 @@ end
 @doc raw"""
 Re-organize Bloch waves computed in a given basis as Bloch waves of the associated
 supercell basis.
-The output ``ψ_supercell`` have a single component at ``Γ``-point, such that
-``ψ_supercell[Γ][:, k+n]`` contains ``ψ[k][:, n]``, within normalization on the supercell.
+The output `ψ_supercell` have a single component at ``Γ``-point, such that
+`ψ_supercell[Γ][:, k+n]` contains `ψ[k][:, n]`, within normalization on the supercell.
 """
 function cell_to_supercell(ψ, basis::PlaneWaveBasis{T},
                            basis_supercell::PlaneWaveBasis{T}) where {T <: Real}
@@ -104,9 +104,9 @@ end
 @doc raw"""
 Transpose all data from a given self-consistent-field result from unit cell
 to supercell conventions. The parameters to adapt are the following:
- - ``basis_supercell`` and ``ψ_supercell`` are computed by the routines above.
+ - `basis_supercell` and `ψ_supercell` are computed by the routines above.
  - The supercell occupations vector is the concatenation of all input occupations vectors.
- - The supercell density is computed with supercell occupations and ``ψ_supercell``.
+ - The supercell density is computed with supercell occupations and `ψ_supercell`.
  - Supercell energies are the multiplication of input energies by the number of
    unit cells in the supercell.
 Other parameters stay untouched.

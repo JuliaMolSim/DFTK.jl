@@ -186,6 +186,13 @@ makedocs(;
         canonical = "https://docs.dftk.org/stable/",
         edit_link = "master",
         assets = ["assets/favicon.ico"],
+        mathengine = Documenter.MathJax(Dict(:TeX => Dict(
+            :Macros => Dict(
+                :ket    => [raw"\left|#1\right\rangle", 1],
+                :bra    => [raw"\left\langle#1\right|", 1],
+                :braket => [raw"\left\langle#1\middle|#2\right\rangle", 2],
+            ),
+        ))),
     ),
     sitename = "DFTK.jl",
     authors = "Michael F. Herbst, Antoine Levitt and contributors.",
