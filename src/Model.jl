@@ -208,8 +208,7 @@ end
     Model{T}(model; [lattice, positions, atoms, kwargs...])
 
 Construct an identical model to `model` with the option to change some of the contained
-parameters. If one of `lattice`, `positions`, `atoms` is missing, the respective value
-from `model` is used. This constructor is useful for changing the data type in the model
+parameters. This constructor is useful for changing the data type in the model
 or for changing `lattice` or `positions` in geometry/lattice optimisations.
 """
 function Model{T}(model::Model;
