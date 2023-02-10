@@ -202,6 +202,11 @@ include("response/chi0.jl")
 include("response/hessian.jl")
 export compute_current
 include("postprocess/current.jl")
+# TODO: WIP for phonons, will be merged at some point.
+export compute_dynmat_ad
+export phonon_eigenvalues
+include("response/phonon/ad.jl")
+include("response/phonon/commons.jl")
 
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")
