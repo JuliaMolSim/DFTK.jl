@@ -220,6 +220,9 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     # by the same process
     n_kpt   = length(kcoords_global)
     n_procs = mpi_nprocs(comm_kpts)
+    if Base.Sys.ARCH == :aarch64 && n_procs > 1
+        error("MPI not supported on aarch64")
+    end
     if n_procs > n_kpt
         # XXX Supporting more processors than kpoints would require
         # fixing a bunch of "reducing over empty collections" errors
