@@ -36,7 +36,7 @@ system = attach_psp(system, Fe="hgh/pbe/fe-q16.hgh")
 
 model = model_LDA(system; temperature=0.01)
 basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 2, 2))
-ρ0 = guess_density(basis, system)
+ρ0 = guess_density(basis)
 scfres = self_consistent_field(basis, tol=1e-4, ρ=ρ0, mixing=KerkerMixing());
 
 # ## Writing VTK files for visualization
