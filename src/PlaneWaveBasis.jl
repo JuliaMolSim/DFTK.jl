@@ -221,37 +221,35 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     n_kpt   = length(kcoords_global)
     n_procs = mpi_nprocs(comm_kpts)
     
-    @static if Base.Sys.ARCH != :aarch64
-        if n_procs > n_kpt
-            # XXX Supporting more processors than kpoints would require
-            # fixing a bunch of "reducing over empty collections" errors
-            # In the unit tests it is really annoying that this fails so we hack around it, but
-            # generally it leads to duplicated work that is not in the users interest.
-            if parse(Bool, get(ENV, "CI", "false"))
-                comm_kpts = MPI.COMM_SELF
-                krange_thisproc = 1:n_kpt
-                krange_allprocs = fill(1:n_kpt, n_procs)
-            else
-                error("No point in trying to parallelize $n_kpt kpoints over $n_procs " *
-                    "processes; reduce the number of MPI processes.")
-            end
-        end
-    else
-        if n_procs > 1
-            # Custom reduction operators for MPI are currently not working on aarch64, so
-            # fallbacks are defined in common/mpi.jl. For them to work, there cannot be more
-            # than 1 MPI process.
-            error("MPI not supported on aarch64 " *
-                  "(see https://github.com/JuliaParallel/MPI.jl/issues/404)")
-        end
+    # Custom reduction operators for MPI are currently not working on aarch64, so
+    # fallbacks are defined in common/mpi.jl. For them to work, there cannot be more
+    # than 1 MPI process.
+    if Base.Sys.ARCH == :aarch64 && n_procs > 1
+        error("MPI not supported on aarch64 " *
+              "(see https://github.com/JuliaParallel/MPI.jl/issues/404)")
     end
 
-    # get the slice of 1:n_kpt to be handled by this process
-    # Note: MPI ranks are 0-based
-    krange_allprocs = split_evenly(1:n_kpt, n_procs)
-    krange_thisproc = krange_allprocs[1 + MPI.Comm_rank(comm_kpts)]
-    @assert mpi_sum(length(krange_thisproc), comm_kpts) == n_kpt
-    @assert !isempty(krange_thisproc)
+    if n_procs > n_kpt
+        # XXX Supporting more processors than kpoints would require
+        # fixing a bunch of "reducing over empty collections" errors
+        # In the unit tests it is really annoying that this fails so we hack around it, but
+        # generally it leads to duplicated work that is not in the users interest.
+        if parse(Bool, get(ENV, "CI", "false"))
+            comm_kpts = MPI.COMM_SELF
+            krange_thisproc = 1:n_kpt
+            krange_allprocs = fill(1:n_kpt, n_procs)
+        else
+            error("No point in trying to parallelize $n_kpt kpoints over $n_procs " *
+                  "processes; reduce the number of MPI processes.")
+        end
+    else
+        # get the slice of 1:n_kpt to be handled by this process
+        # Note: MPI ranks are 0-based
+        krange_allprocs = split_evenly(1:n_kpt, n_procs)
+        krange_thisproc = krange_allprocs[1 + MPI.Comm_rank(comm_kpts)]
+        @assert mpi_sum(length(krange_thisproc), comm_kpts) == n_kpt
+        @assert !isempty(krange_thisproc)
+    end
     kweights_thisproc = kweights[krange_thisproc]
 
     # Setup k-point basis sets
