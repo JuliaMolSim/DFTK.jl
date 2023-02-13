@@ -19,7 +19,7 @@ function compute_dynmat_fd(basis::PlaneWaveBasis{T}; scf_kwargs...) where {T}
     cell = (; model.lattice, model.atoms, model.positions)
     n_atoms = length(model.positions)
     n_dim = model.n_dim
-    dynamical_matrix = zeros(ComplexF64, (n_dim, n_atoms, n_dim, n_atoms))
+    dynamical_matrix = zeros(eltype(basis), (n_dim, n_atoms, n_dim, n_atoms))
     for τ in 1:n_atoms
         for γ in 1:n_dim
             displacement = zero.(model.positions)

@@ -352,7 +352,7 @@ Creates a new basis identical to `basis`, but with an updated model.
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis, new_model::Model)
     PlaneWaveBasis(new_model, basis.Ecut, basis.fft_size,
                    basis.variational, basis.kcoords_global,
-                   basis.kweights, basis.kgrid, basis.kshift,
+                   basis.kweights_global, basis.kgrid, basis.kshift,
                    basis.symmetries_respect_rgrid, basis.comm_kpts,
                    basis.architecture)
 end

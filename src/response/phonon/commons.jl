@@ -1,6 +1,3 @@
-dalton_to_amu   = austrip(1u"u")
-hartree_to_cm⁻¹ = ustrip(u"cm^-1", 1u"bohr^-1") ./ austrip(1u"c0") / 2π
-
 # Create a ``(n_{\rm atoms}×n_{\rm dim})^2`` diagonal matrix with the atomic masses of the
 # atoms.
 function get_mass_matrix(basis)
@@ -9,19 +6,14 @@ function get_mass_matrix(basis)
     n_atoms = length(positions)
     n_dim = model.n_dim
 
-    charges = charge_nuclear.(model.atoms)
+    charges = atomic_mass.(model.atoms)
+    any(iszero.(charges)) && @error "Some elements have unknown masses"
     # Some elements may be unknown (for example when using ElementGaussian).
-    mass_matrix = zeros(ComplexF64, n_dim*n_atoms, n_dim*n_atoms)
-    if !iszero(minimum(charges))
-        for iτ in eachindex(charges)
-            for γ in 1:n_dim
-                mass_τγ = ustrip(periodic_table[charges[iτ]].atomic_mass) * dalton_to_amu
-                mass_matrix[γ + (iτ - 1)*n_dim, γ + (iτ - 1)*n_dim] = mass_τγ
-            end
+    mass_matrix = Diagonal(zeros(eltype(basis), n_dim*n_atoms, n_dim*n_atoms))
+    for iτ in eachindex(charges)
+        for γ in 1:n_dim
+            mass_matrix[γ + (iτ - 1)*n_dim, γ + (iτ - 1)*n_dim] = charges[iτ]
         end
-    else
-        @warn "Some elements have unknown masses"
-        mass_matrix[diagind(mass_matrix)] .= dalton_to_amu
     end
 
     mass_matrix
@@ -53,7 +45,9 @@ function phonon_eigenvalues(basis, dynamical_matrix)
     mass_matrix = get_mass_matrix(basis)
     cart_mat = dynmat_to_cart(basis, dynamical_matrix)
 
-    eigenvalues = eigvals(cart_mat, mass_matrix)'
+    # Is equivalent to `eigvals(cart_mat, Matrix(mass_matrix))` with `mass_matrix` diagonal.
+    ismass_matrix = inv(sqrt(mass_matrix))
+    eigenvalues = eigvals(ismass_matrix * cart_mat * ismass_matrix)'
     norm(imag(eigenvalues)) > 1e-10 && @warn norm(imag(eigenvalues))
     signs = sign.(real.(eigenvalues))
     signs .* hartree_to_cm⁻¹ .* sqrt.(abs.(real.(eigenvalues)))
