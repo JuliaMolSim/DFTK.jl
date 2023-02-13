@@ -9,18 +9,17 @@ using SpecialFunctions: sphericalbesselj
 using QuadGK
 using LazyArtifacts
 
-upf_urls = Dict(
+upf_pseudos = Dict(
     # Converged from HGH
-    :Si => joinpath(artifact"hgh_pbe_upf", "Si.pbe-hgh.UPF"),
-    :Tl => joinpath(artifact"hgh_pbe_upf", "Tl.pbe-d-hgh.UPF"),
+    :Si => load_psp(artifact"hgh_pbe_upf", "Si.pbe-hgh.UPF"),
+    :Tl => load_psp(artifact"hgh_pbe_upf", "Tl.pbe-d-hgh.UPF"),
     # No NLCC
-    :Li => joinpath(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
-    :Mg => joinpath(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf"),
+    :Li => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
+    :Mg => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf"),
     # With NLCC
-    :Co => joinpath(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Co.upf"),
-    :Ge => joinpath(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Ge.upf"),
+    :Co => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Co.upf"),
+    :Ge => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Ge.upf"),
 )
-upf_pseudos = Dict(symbol => load_psp(url) for (symbol, url) in upf_urls)
 hgh_pseudos = [
     (hgh=load_psp("hgh/pbe/si-q4.hgh"), upf=upf_pseudos[:Si]),
     (hgh=load_psp("hgh/pbe/tl-q13.hgh"), upf=upf_pseudos[:Tl])
@@ -178,7 +177,7 @@ end
         atoms = [ElementPsp(element, psp=psp)]
         model = model_LDA(lattice, atoms, positions)
         basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
-        ρ_val = guess_density(basis; method=PspGuessDensity())
+        ρ_val = guess_density(basis, ValenceNumericalDensity())
         ρ_val_neg = abs(sum(ρ_val[ρ_val .< 0]))
         @test ρ_val_neg * model.unit_cell_volume / prod(basis.fft_size) < 1e-6
     end
@@ -192,7 +191,7 @@ end
             atoms = [ElementPsp(element, psp=psp)]
             model = model_LDA(lattice, atoms, positions)
             basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
-            ρ_val = guess_density(basis; method=PspGuessDensity())
+            ρ_val = guess_density(basis, ValenceNumericalDensity())
             Z_valence = sum(ρ_val) * model.unit_cell_volume / prod(basis.fft_size)
             @test Z_valence ≈ charge_ionic(psp) rtol=1e-5 atol=1e-5
         end

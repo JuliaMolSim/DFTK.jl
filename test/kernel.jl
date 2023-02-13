@@ -25,7 +25,7 @@ function test_kernel(spin_polarization, termtype; test_compute=true)
         basis = PlaneWaveBasis(model; Ecut=2, kgrid, kshift)
         term  = only(basis.terms)
 
-        ρ0 = guess_density(basis; magnetic_moments)
+        ρ0 = guess_density(basis, magnetic_moments)
         δρ = randn(size(ρ0))
         ρ_minus     = ρ0 - ε * δρ
         ρ_plus      = ρ0 + ε * δρ

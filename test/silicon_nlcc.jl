@@ -20,8 +20,7 @@ function run_silicon_nlcc(T; Ecut=5, grid_size=15, spin_polarization=:none, kwar
 
     fft_size = fill(grid_size, 3)
     Si = ElementPsp(silicon.atnum,
-                    psp=load_psp(joinpath(psp_base_url,
-                                          "pd_nc_sr_lda_standard_04_upf/Si.upf")))
+                    psp=load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf"))
     atoms = [Si, Si]
 
     if spin_polarization == :collinear
