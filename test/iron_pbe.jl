@@ -57,7 +57,7 @@ function run_iron_pbe(T; kwargs...)
                            kgrid=[4, 4, 4], kshift=[1/2, 1/2, 1/2])
 
     scfres = run_scf_and_compare(T, basis, ref_evals, ref_etot;
-                                 ρ=guess_density(basis, magnetic_moments),
+                                 ρ=guess_density(basis; magnetic_moments),
                                  kwargs...)
 
     magnetisation = sum(spin_density(scfres.ρ)) * basis.dvol

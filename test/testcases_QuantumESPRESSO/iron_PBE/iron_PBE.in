@@ -1,0 +1,40 @@
+&CONTROL
+    calculation = 'scf'
+    verbosity = 'high'
+    tstress = .true.
+    tprnfor = .true.
+    outdir = './'
+    prefix = 'iron_PBE'
+    disk_io = 'nowf'
+    pseudo_dir = './'
+/
+
+&SYSTEM
+    ibrav = -3
+    celldm(1) = 5.42352000
+    nat = 1
+    ntyp = 1
+    nbnd = 14
+    starting_magnetization(1) = 0.25
+    ecutwfc = 40.0
+    occupations = 'smearing'
+    degauss = 0.02
+    smearing = 'fermi-dirac'
+    nspin = 2
+    ! input_dft = 'sla+pw+pbx+pbc'
+    input_dft = 'xc-000i-000i-101l-130l'  ! gga_c_pbe + gga_x_pbe
+/
+
+&ELECTRONS
+    electron_maxstep = 100
+    conv_thr = 2.0d-14
+/
+
+ATOMIC_SPECIES
+    Fe 55.8452 Fe.pbe-sp-hgh.UPF
+
+ATOMIC_POSITIONS crystal
+    Fe  0.00  0.00  0.00
+
+K_POINTS automatic
+    11 11 11 0 0 0

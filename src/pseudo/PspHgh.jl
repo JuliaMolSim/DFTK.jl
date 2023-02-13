@@ -13,6 +13,8 @@ struct PspHgh{T} <: NormConservingPsp
     description::String   # Descriptive string
 end
 charge_ionic(psp::PspHgh) = psp.Zion
+has_density_valence(psp::PspHgh) = false
+has_density_core(psp::PspHgh) = false
 
 """
     PspHgh(path[, identifier, description])

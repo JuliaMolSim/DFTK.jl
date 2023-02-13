@@ -3,12 +3,13 @@ Exchange-correlation term, defined by a list of functionals and usually evaluate
 """
 struct Xc
     functionals::Vector{Functional}
-    scaling_factor::Real         # Scales by an arbitrary factor (useful for exploration)
+    scaling_factor::Real  # Scales by an arbitrary factor (useful for exploration)
 
     # Threshold for potential terms: Below this value a potential term is counted as zero.
     potential_threshold::Real
 end
-function Xc(functionals::AbstractVector{<:Functional}; scaling_factor=1, potential_threshold=0)
+function Xc(functionals::AbstractVector{<:Functional}; scaling_factor=1,
+            potential_threshold=0)
     Xc(functionals, scaling_factor, potential_threshold)
 end
 function Xc(functionals::AbstractVector; kwargs...)
@@ -25,8 +26,21 @@ function Base.show(io::IO, xc::Xc)
     print(io, "Xc($fun$fac)")
 end
 
-function (xc::Xc)(::PlaneWaveBasis{T}) where {T}
+function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     isempty(xc.functionals) && return TermNoop()
+    # Charge density for non-linear core correction
+    if any(use_nlcc, basis.model.atoms)
+        form_factors = _core_density_form_factors(basis)
+        ρcore_tot = atomic_density_superposition(basis, form_factors)
+        if basis.model.spin_polarization in (:none, :spinless)
+            ρcore_spin = nothing
+        else
+            ρcore_spin = zeros(T, basis.fft_size)
+        end
+        ρcore = ρ_from_total_and_spin(ρcore_tot, ρcore_spin)
+    else
+        ρcore = nothing
+    end
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
         newparams = convert_dual.(T, parameters(fun))
@@ -34,23 +48,29 @@ function (xc::Xc)(::PlaneWaveBasis{T}) where {T}
     end
     TermXc(convert(Vector{Functional}, functionals),
            convert_dual(T, xc.scaling_factor),
-           T(xc.potential_threshold))
+           T(xc.potential_threshold), ρcore)
 end
 
 struct TermXc{T} <: TermNonlinear where {T}
     functionals::Vector{Functional}
     scaling_factor::T
     potential_threshold::T
+    ρcore::Union{Nothing, Array{T,4}}
 end
 
-@views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
-                                              ψ, occupation; ρ, τ=nothing, kwargs...) where {T}
+function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
+                           ρ, τ=nothing) where {T}
     @assert !isempty(term.functionals)
 
     model    = basis.model
     n_spin   = model.n_spin_components
     potential_threshold = term.potential_threshold
     @assert all(family(xc) in (:lda, :gga, :mgga, :mggal) for xc in term.functionals)
+
+    # Add the model core charge density (non-linear core correction) if available
+    if !isnothing(term.ρcore)
+        ρ = ρ + term.ρcore
+    end
 
     # Compute kinetic energy density, if needed.
     if isnothing(τ) && any(needs_τ, term.functionals)
@@ -117,15 +137,66 @@ end
     # Note: We always have to do this, otherwise we get issues with AD wrt. scaling_factor
     potential .*= term.scaling_factor
 
+    (; E, potential, Vτ)
+end
+
+@views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
+                                              ψ, occupation; ρ, τ=nothing,
+                                              kwargs...) where {T}
+    E, Vxc, Vτ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+
     ops = map(basis.kpoints) do kpt
         if !isnothing(Vτ)
-            [RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin]),
+            [RealSpaceMultiplication(basis, kpt, Vxc[:, :, :, kpt.spin]),
              DivAgradOperator(basis, kpt, Vτ[:, :, :, kpt.spin])]
         else
-            RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin])
+            RealSpaceMultiplication(basis, kpt, Vxc[:, :, :, kpt.spin])
         end
     end
     (; E, ops)
+end
+
+@timing "forces: xc" function compute_forces(term::TermXc, basis::PlaneWaveBasis{T},
+                                             ψ, occupation; ρ, τ=nothing,
+                                             kwargs...) where {T}
+    # the only non-zero force contribution is from the nlcc core charge
+    # early return if nlcc is disabled / no elements have model core charges
+    isnothing(term.ρcore) && return nothing
+
+    _, Vxc_real, _ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+    if basis.model.spin_polarization in (:none, :spinless)
+        Vxc_fourier = fft(basis, Vxc_real[:,:,:,1])
+    else
+        Vxc_fourier = fft(basis, mean(Vxc_real, dims=4))
+    end
+
+    model = basis.model
+    form_factors = _core_density_form_factors(basis)
+    nlcc_groups = [(igroup, group) for (igroup, group) in enumerate(basis.model.atom_groups)
+                   if has_density_core(model.atoms[first(group)])]
+    @assert !isnothing(nlcc_groups)
+
+    forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
+    for (igroup, group) in nlcc_groups
+        for iatom in group
+            r = model.positions[iatom]
+            forces[iatom] = _force_xc_internal(basis, Vxc_fourier, form_factors, igroup, r)
+        end
+    end
+    forces
+end
+
+function _force_xc_internal(basis, Vxc_fourier, form_factors, igroup, r)
+    T = real(eltype(basis))
+    f = zero(Vec3{T})
+    for (iG, (G, G_cart)) in enumerate(zip(G_vectors(basis), G_vectors_cart(basis)))
+        f -= real(conj(Vxc_fourier[iG])
+                  .* form_factors[(igroup, norm(G_cart))]
+                  .* cis2pi(-dot(G, r))
+                  .* (-2T(π)) .* G .* im
+                  ./ sqrt(basis.model.unit_cell_volume))
+    end
+    f
 end
 
 #=  meta-GGA energy and potential
@@ -455,4 +526,55 @@ function divergence_real(operand, basis)
     end
     # TODO: forcing real-valued ifft; should be enforced at creation of array
     irfft(basis, gradsum; check=Val(false))
+end
+
+"""
+Compute the form factors (Fourier transforms of the core charge density) at all unique
+`q` in `qs` for an atom centered at 0.`
+"""
+function core_density_form_factors(el::Element, qs::AbstractArray{T})::IdDict{T,T} where {T}
+    form_factors = IdDict{T,T}()
+    for q in qs
+        if !haskey(form_factors, q)
+            form_factors[q] = core_charge_density_fourier(el, q)
+        end
+    end
+    form_factors
+end
+
+"""
+Compute the core charge density for non-linear core correction as a superposition
+of atomic core charge densities.
+"""
+function core_density_superposition(basis::PlaneWaveBasis{T})::Array{T,4} where {T}
+    model = basis.model
+    G_cart = G_vectors_cart(basis)
+
+    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
+    for G in G_cart
+        Gnorm = norm(G)
+        for (igroup, group) in enumerate(model.atom_groups)
+            if !haskey(form_factors, (igroup, Gnorm))
+                element = model.atoms[first(group)]
+                form_factors[(igroup, Gnorm)] = core_charge_density_fourier(element, Gnorm)
+            end
+        end
+    end
+
+    ρcore_fourier = map(enumerate(G_vectors(basis))) do (iG, G)
+        Gnorm = norm(G_cart[iG])
+        ρ_iG = sum(enumerate(model.atom_groups)) do (igroup, group)
+            structure_factor = sum(r -> cis2pi(-dot(G, r)), @view model.positions[group])
+            form_factors[(igroup, Gnorm)] * structure_factor
+        end
+        ρ_iG / sqrt(model.unit_cell_volume)
+    end
+    enforce_real!(basis, ρcore_fourier)  # Symmetrize Fourier coeffs to have real iFFT
+    ρcore_real = irfft(basis, ρcore_fourier)
+    if model.spin_polarization in (:none, :spinless)
+        ρspin = nothing
+    else
+        ρspin = zeros(T, basis.fft_size)
+    end
+    ρ_from_total_and_spin(ρcore_real, ρspin)
 end

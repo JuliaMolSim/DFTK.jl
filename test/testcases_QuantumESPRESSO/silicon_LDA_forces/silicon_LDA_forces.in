@@ -1,0 +1,39 @@
+&CONTROL
+    calculation = 'scf'
+    verbosity = 'high'
+    tstress = .true.
+    tprnfor = .true.
+    outdir = './'
+    prefix = 'silicon_LDA_forces'
+    disk_io = 'nowf'
+    pseudo_dir = './'
+/
+
+&SYSTEM
+    ibrav = 0
+    nat = 2
+    ntyp = 1
+    ecutwfc = 14.0
+    occupations = 'fixed'
+    input_dft = 'xc-001l-012l'  ! lda_x + lda_c_pw
+/
+
+&ELECTRONS
+    electron_maxstep = 100
+    conv_thr = 2.0d-11
+/
+
+ATOMIC_SPECIES
+    Si 28.085 Si.pz-hgh.UPF
+
+ATOMIC_POSITIONS crystal
+    Si  0.12625  0.12750  0.12875
+    Si -0.12500 -0.12500 -0.12500
+
+K_POINTS automatic
+    2 2 2 0 0 0
+
+CELL_PARAMETERS bohr
+     0.000000000000000  5.131570667152971  5.131570667152971
+     5.131570667152971  0.000000000000000  5.131570667152971
+     5.131570667152971  5.131570667152971  0.000000000000000

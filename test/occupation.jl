@@ -190,7 +190,7 @@ end
     model = model_PBE(testcase.lattice, testcase.atoms, testcase.positions;
                       temperature=1e-2, smearing=Smearing.Gaussian(), magnetic_moments)
     basis = PlaneWaveBasis(model; Ecut=10, kgrid=[4, 4, 4])
-    scfres = self_consistent_field(basis; ρ=guess_density(basis, magnetic_moments), tol=1e-4)
+    scfres = self_consistent_field(basis; ρ=guess_density(basis; magnetic_moments), tol=1e-4)
 
     for temperature in (1e-4, 1e-3, 1e-2), smearing in smearing_methods, alg in fermialgs
         smearing isa Smearing.None && continue

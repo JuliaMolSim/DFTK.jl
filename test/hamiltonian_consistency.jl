@@ -28,7 +28,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
         n_dim = 3 - count(iszero, eachcol(lattice))
-        Si = n_dim == 3 ? ElementPsp(14, psp=load_psp(silicon.psp)) : ElementCoulomb(:Si)
+        Si = n_dim == 3 ? ElementPsp(14, psp=load_psp(silicon.psp_hgh)) : ElementCoulomb(:Si)
         atoms = [Si, Si]
         model = Model(lattice, atoms, silicon.positions;
                       terms=[term], spin_polarization, symmetries=true)

@@ -20,19 +20,31 @@ struct PspUpf{T,I} <: NormConservingPsp
     # (UNUSED) Occupations of the pseudo-atomic wavefunctions.
     # UPF: `PP_PSWFC/PP_CHI.i['occupation']`
     pswfc_occs::Vector{Vector{T}}
-    # (UNUSED) Pseudo-atomic (valence) charge density on the radial grid.
-    # Can be used for charge density initialization. UPF: `PP_RHOATOM`
-    rhoatom::Vector{T}
+    # (UNUSED) Pseudo-atomic (valence) charge density on the radial grid multiplied by
+    # 4πr^2. Can be used for charge density initialization. UPF: `PP_RHOATOM`
+    r2_4π_ρion::Vector{T}
+    # Atomic core charge density on the radial grid, used for non-linear core correction.
+    # Unlike the pseudo-atomic valence charge density, this is a true charge density with
+    # no prefactor. UPF: `PP_NLCC`
+    ρcore::Vector{T}
 
     ## Precomputed for performance
     # (USED IN TESTS) Local potential interpolator, stored for performance.
     vloc_interp::I
     # (USED IN TESTS) Projector interpolators, stored for performance.
     r_projs_interp::Vector{Vector{I}}
+    # (USED IN TESTS) Valence charge density interpolator, stored for performance.
+    r2_4π_ρion_interp::I
+    # (USED IN TESTS) Core charge density interpolator, stored for performance.
+    ρcore_interp::I
     # r_i V_{corr}(r_i) dr_i where V_{corr} = (V_{local}(r_i) + Z / r_i)
     r_vloc_corr_dr::Vector{T}
     # r_j^2 β_{il}(r_j) dr_j
     r2_projs_dr::Vector{Vector{Vector{T}}}
+    # 4π r_i^2 ρion_i dr_i
+    r2_4π_ρion_dr::Vector{T}
+    # r_i^2 ρcore_i dr_i
+    r2_ρcore_dr::Vector{T}
 
     ## Extras
     identifier::String   # String identifying the pseudopotential.
@@ -57,7 +69,6 @@ function PspUpf(path; identifier=path)
     pseudo = load_upf(path)
 
     unsupported = []
-    pseudo["header"]["core_correction"]      && push!(unsupported, "non-lin. core correction")
     pseudo["header"]["has_so"]               && push!(unsupported, "spin-orbit coupling")
     pseudo["header"]["pseudo_type"] == "SL"  && push!(unsupported, "semilocal potential")
     pseudo["header"]["pseudo_type"] == "US"  && push!(unsupported, "ultrasoft")
@@ -108,16 +119,21 @@ function PspUpf(path; identifier=path)
         end
         map(pswfc -> pswfc["occupation"], pswfcs_l)
     end
+    
+    r2_4π_ρion = pseudo["total_charge_density"]
 
-    rhoatom = pseudo["total_charge_density"]
+    if pseudo["header"]["core_correction"]
+        ρcore = pseudo["core_charge_density"]
+    else
+        ρcore = zeros(Float64, length(rgrid))
+    end
 
-    return PspUpf(Zion, lmax, rgrid, drgrid, vloc, r_projs, h, pswfcs, pswfc_occs, rhoatom;
-                  identifier, description)
+    return PspUpf(Zion, lmax, rgrid, drgrid, vloc, r_projs, h, pswfcs, pswfc_occs,
+                  r2_4π_ρion, ρcore; identifier, description)
 end
 
 function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, r_projs, h, pswfcs, pswfc_occs,
-                rhoatom; identifier="", description="") where {T <: Real}
-
+                r2_4π_ρion, ρcore; identifier="", description="") where {T <: Real}
     vloc_interp = linear_interpolation((rgrid, ), vloc)
     r_projs_interp = map(r_projs) do r_projs_l
         map(r_projs_l) do r_proj  # Can't use views here; have to match `vloc_interp`'s type
@@ -125,6 +141,8 @@ function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, r_projs, h, pswfcs, 
             linear_interpolation((rgrid[1:ir_cut], ), r_proj)
         end
     end
+    r2_4π_ρion_interp = linear_interpolation((rgrid, ), r2_4π_ρion)
+    ρcore_interp = linear_interpolation((rgrid, ), ρcore)
 
     r_vloc_corr_dr = (rgrid .* vloc .+ Zion) .* drgrid
     r2_projs_dr = map(r_projs) do r_projs_l
@@ -133,32 +151,27 @@ function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, r_projs, h, pswfcs, 
             rgrid[1:ir_cut] .* r_proj .* drgrid[1:ir_cut]
         end
     end
+    r2_4π_ρion_dr = r2_4π_ρion .* drgrid
+    r2_ρcore_dr = rgrid.^2 .* ρcore .* drgrid
 
     PspUpf{T,typeof(vloc_interp)}(Zion, lmax, rgrid, drgrid, vloc, r_projs, h, pswfcs,
-                                  pswfc_occs, rhoatom, vloc_interp, r_projs_interp,
-                                  r_vloc_corr_dr, r2_projs_dr, identifier, description)
+                                  pswfc_occs, r2_4π_ρion, ρcore, vloc_interp, r_projs_interp,
+                                  r2_4π_ρion_interp, ρcore_interp, r_vloc_corr_dr,
+                                  r2_projs_dr, r2_4π_ρion_dr, r2_ρcore_dr,
+                                  identifier, description)
 end
 
 charge_ionic(psp::PspUpf) = psp.Zion
+has_density_valence(psp::PspUpf) = !all(iszero, psp.r2_4π_ρion)
+has_density_core(psp::PspUpf) = !all(iszero, psp.ρcore)
 
-"""
-    eval_psp_projector_real(psp::PspUpf, i::Number, l::Number, r<:Real)
-
-Evaluate the ith Kleinman-Bylander β projector with angular momentum l at real-space
-distance r via linear interpolation on the real-space mesh.
-
-Note: UPFs store ``r_j β_{li}(r_j)``, so ``r=0`` is undefined and will error.
-"""
+# Note: UPFs store `r[j] β_{li}(r[j])`, so r=0 is undefined and will error.
 function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T <: Real}
     psp.r_projs_interp[l+1][i](r) / r
 end
 
-@doc raw"""
-    eval_psp_projector_fourier(psp::PspUPF, i::Number, l::Number, q<:Real)
-
-For UPFs, the integral is transformed to the following sum:
-``4π \sum_k j_l(q r_k) (r_k^2 p_{il}(r_k) dr_k)``.
-"""
+# For UPFs, the integral is transformed to the following sum:
+# 4π Σ{k} j_l(q r[k]) (r[k]^2 p_{il}(r[k]) dr[k])
 function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real}
     r2_proj_dr = psp.r2_projs_dr[l+1][i]
     s = zero(T)
@@ -168,20 +181,10 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real
     4T(π) * s
 end
 
-"""
-     eval_psp_local_real(psp::PspUpf, r<:Real)
-
-Evaluate the local potential at real-space distance `r` via linear
-interpolation on the real-space mesh.
- """
 eval_psp_local_real(psp::PspUpf, r::T) where {T <: Real} = psp.vloc_interp(r)
 
-@doc raw"""
-    eval_psp_local_fourier(psp::PspUpf, q<:Real)
-
-for UPFs, the integral is transformed to the following sum:
-``4π/q (\sum_i \sin(q r_i) (r_i V(r_i) + Z) dr_i - Z/q)``.
-"""
+# For UPFs, the integral is transformed to the following sum:
+# 4π/q (Σ{i} sin(q r[i]) (r[i] V(r[i]) + Z) dr[i] - Z/q)
 function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T <: Real}
     s = zero(T)
     @inbounds for ir = eachindex(psp.r_vloc_corr_dr)
@@ -190,12 +193,36 @@ function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T <: Real}
     4T(π) * (s - psp.Zion / q) / q
 end
 
-@doc raw"""
-    eval_psp_energy_correction(T::Type, psp::PspUpf, n_electrons::Number)
+function eval_psp_density_valence_real(psp::PspUpf, r::T) where {T <: Real}
+    psp.r2_4π_ρion_interp(r) / (r^2 * 4T(π))
+end
 
-For UPFs, the integral is transformed to the following sum:
-``4π N_{\rm elec} \sum_i r_i (r_i V(r_i) + Z) dr_i``.
-"""
+# For UPFs, the integral is transformed into the following sum:
+# Σ{i} j_0(q r[i]) r^2 4π ρval[i] dr[i]
+function eval_psp_density_valence_fourier(psp::PspUpf, q::T) where {T <: Real}
+    s = zero(T)
+    @inbounds for ir = eachindex(psp.r2_4π_ρion_dr)
+        s += sphericalbesselj_fast(0, q * psp.rgrid[ir]) * psp.r2_4π_ρion_dr[ir]
+    end
+    s
+end
+
+function eval_psp_density_core_real(psp::PspUpf, r::T) where {T <: Real}
+    psp.ρcore_interp(r)
+end
+
+# For UPFs, the integral is transformed into the following sum:
+# 4π Σ{i} j_0(q r[i]) r^2 ρcore[i] dr[i]
+function eval_psp_density_core_fourier(psp::PspUpf, q::T) where {T <: Real}
+    s = zero(T)
+    @inbounds for ir = eachindex(psp.r2_ρcore_dr)
+        s += sphericalbesselj_fast(0, q * psp.rgrid[ir]) * psp.r2_ρcore_dr[ir]
+    end
+    4T(π) * s
+end
+
+# For UPFs, the integral is transformed to the following sum:
+# 4π Nelec Σ{i} r[i] (r[i] V(r[i]) + Z) dr[i]
 function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
     4T(π) * n_electrons * dot(psp.rgrid, psp.r_vloc_corr_dr)
 end
