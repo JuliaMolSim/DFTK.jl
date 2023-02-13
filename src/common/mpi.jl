@@ -8,6 +8,9 @@ mpi_nprocs(comm=MPI.COMM_WORLD) = (MPI.Init(); MPI.Comm_size(comm))
 mpi_master(comm=MPI.COMM_WORLD) = (MPI.Init(); MPI.Comm_rank(comm) == 0)
 
 @static if Base.Sys.ARCH == :aarch64
+    # Custom reduction operators are not supported on aarch64 (see
+    # https://github.com/JuliaParallel/MPI.jl/issues/404), so we define fallback no-op
+    # mpi_* functions to get things working while waiting for an upstream solution.
     mpi_sum(  arr, ::MPI.Comm) = arr
     mpi_sum!( arr, ::MPI.Comm) = arr
     mpi_min(  arr, ::MPI.Comm) = arr
