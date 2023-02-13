@@ -54,6 +54,9 @@ export charge_ionic
 export atomic_symbol
 export n_elec_valence
 export n_elec_core
+export has_density_core
+export has_density_valence
+export use_nlcc
 include("elements.jl")
 
 export SymOp
@@ -164,12 +167,16 @@ export kgrid_from_minimal_spacing, kgrid_from_minimal_n_kpoints
 include("symmetry.jl")
 include("bzmesh.jl")
 
+export RandomGuessDensity
+export GaussianGuessDensity
+export PspGuessDensity
+export AutoGuessDensity
 export guess_density
-export random_density
+include("atomic_densities.jl")
+
 export load_psp
 export list_psp
 export attach_psp
-include("guess_density.jl")
 include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
 include("pseudo/attach_psp.jl")

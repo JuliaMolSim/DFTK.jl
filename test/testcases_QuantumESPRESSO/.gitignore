@@ -1,0 +1,6 @@
+*/CRASH
+*/__ABI_MPIABORTFILE__
+*/*.out
+*/*.save/
+*/*/*.wfc
+*/*/*.dat

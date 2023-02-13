@@ -1,0 +1,42 @@
+&CONTROL
+    calculation = 'scf'
+    verbosity = 'high'
+    tstress = .true.
+    tprnfor = .true.
+    outdir = './'
+    prefix = 'oxygen_PBE'
+    disk_io = 'nowf'
+    pseudo_dir = './'
+/
+
+&SYSTEM
+    ibrav = 6
+    celldm(1) = 6.5
+    celldm(3) = 1.3846153846153846
+    nat = 2
+    ntyp = 1
+    nbnd = 10
+    starting_magnetization(1) = 0.16666666666666666
+    ecutwfc = 30.0
+    occupations = 'smearing'
+    degauss = 0.04
+    smearing = 'gaussian'
+    nspin = 2
+    ! input_dft = 'sla+pw+pbx+pbc'
+    input_dft = 'xc-000i-000i-101l-130l'  ! gga_c_pbe + gga_x_pbe
+/
+
+&ELECTRONS
+    electron_maxstep = 100
+    conv_thr = 2.0d-14
+/
+
+ATOMIC_SPECIES
+    O 15.999 O.pbe-hgh.UPF
+
+ATOMIC_POSITIONS crystal
+    O  0.0000  0.0000  0.1155
+    O  0.0000  0.0000 -0.1155
+
+K_POINTS automatic
+    1 1 1 0 0 0
