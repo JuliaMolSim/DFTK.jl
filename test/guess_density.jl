@@ -13,56 +13,32 @@ include("testcases.jl")
 
     Si_upf = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp_upf))
     Si_hgh = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp_hgh))
+    magnetic_moments = [1.0, -1.0]
+    methods = [ValenceGaussianDensity(), ValenceNumericalDensity(), ValenceAutoDensity()]
+    elements = [[Si_upf, Si_hgh], [Si_upf, Si_upf], [Si_upf, Si_hgh]]
 
     @testset "Random" begin
+        method = RandomDensity()
         basis = build_basis([Si_upf, Si_hgh], :none)
-        ρ = guess_density(basis; method=RandomGuessDensity())
+        ρ = guess_density(basis, method)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     
         basis = build_basis([Si_upf, Si_hgh], :collinear)
-        ρ = guess_density(basis; method=RandomGuessDensity())
+        ρ = guess_density(basis, method)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     end
 
-    @testset "Gaussian" begin
-        basis = build_basis([Si_upf, Si_hgh], :none)
-        ρ = guess_density(basis; method=GaussianGuessDensity())
+    @testset "Atomic $(string(typeof(method)))" for (method, elements) in zip(methods, elements)
+        basis = build_basis(elements, :none)
+        ρ = guess_density(basis, method)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     
-        basis = build_basis([Si_upf, Si_hgh], :collinear)
-        ρ = guess_density(basis; method=GaussianGuessDensity())
+        basis = build_basis(elements, :collinear)
+        ρ = guess_density(basis, method)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     
         basis = basis
-        ρ = guess_density(basis; method=GaussianGuessDensity(), magnetic_moments=[1.0, -1.0])
-        @test total_charge(basis, ρ) ≈ basis.model.n_electrons
-    end
-
-    @testset "Pseudopotential" begin
-        basis = build_basis([Si_upf, Si_upf], :none)
-        ρ = guess_density(basis; method=PspGuessDensity())
-        @test total_charge(basis, ρ) ≈ basis.model.n_electrons
-    
-        basis = build_basis([Si_upf, Si_upf], :collinear)
-        ρ = guess_density(basis; method=PspGuessDensity())
-        @test total_charge(basis, ρ) ≈ basis.model.n_electrons
-    
-        basis = build_basis([Si_upf, Si_upf], :collinear)
-        ρ = guess_density(basis; method=PspGuessDensity(), magnetic_moments=[1.0, -1.0])
-        @test total_charge(basis, ρ) ≈ basis.model.n_electrons
-    end
-
-    @testset "Auto" begin
-        basis = build_basis([Si_upf, Si_hgh], :none)
-        ρ = guess_density(basis; method=AutoGuessDensity())
-        @test total_charge(basis, ρ) ≈ basis.model.n_electrons
-    
-        basis = build_basis([Si_upf, Si_hgh], :collinear)
-        ρ = guess_density(basis; method=AutoGuessDensity())
-        @test total_charge(basis, ρ) ≈ basis.model.n_electrons
-    
-        basis = build_basis([Si_upf, Si_hgh], :collinear)
-        ρ = guess_density(basis; method=AutoGuessDensity(), magnetic_moments=[1.0, -1.0])
+        ρ = guess_density(basis, method, magnetic_moments)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     end
 end

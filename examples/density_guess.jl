@@ -12,7 +12,7 @@ using LazyArtifacts
 # [PseudoDojo](http://www.pseudo-dojo.org/) v0.4 scalar-relativistic LDA standard stringency
 # family because it contains valence charge density which can be used for a more tailored
 # density guess.
-UPF_PATH = joinpath(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf")
+UPF_PATH = load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf")
 
 function silicon_scf(method)
     a = 10.26  # Silicon lattice constant in Bohr
@@ -26,7 +26,7 @@ function silicon_scf(method)
     model = model_LDA(lattice, atoms, positions)
     basis = PlaneWaveBasis(model; Ecut=12, kgrid=[4, 4, 4])
 
-    ρguess = guess_density(basis; method)
+    ρguess = guess_density(basis, method)
 
     is_converged = DFTK.ScfConvergenceEnergy(1e-10)
     self_consistent_field(basis; is_converged, ρ=ρguess)

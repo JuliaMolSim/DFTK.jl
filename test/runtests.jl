@@ -143,5 +143,33 @@ Random.seed!(0)
         include("phonon.jl")
     end
 
+    if "density" in TAGS
+        include("energies_guess_density.jl")
+        include("guess_density.jl")
+        include("chi0.jl")
+        include("forces.jl")
+        include("interval_arithmetic.jl")
+        include("iron_lda.jl")
+        include("iron_pbe.jl")
+        include("kernel.jl")
+        include("lobpcg.jl")
+        include("occupation.jl")
+        include("PspUpf.jl")
+        include("scf_compare.jl")
+        include("silicon_lda.jl")
+        include("silicon_nlcc.jl")
+        include("silicon_pbe.jl")
+        include("silicon_redHF.jl")
+        include("supercell.jl")
+        include("nlcc.jl")
+    end
+
+    if "nlcc" in TAGS
+        include("nlcc.jl")
+        include("stresses.jl")
+        include("forces.jl")
+        include("silicon_nlcc.jl")
+    end
+
     ("example" in TAGS) && include("runexamples.jl")
 end

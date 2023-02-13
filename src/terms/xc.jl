@@ -30,8 +30,7 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     isempty(xc.functionals) && return TermNoop()
     # Charge density for non-linear core correction
     if any(use_nlcc, basis.model.atoms)
-        form_factors = _core_density_form_factors(basis)
-        ρcore_tot = atomic_density_superposition(basis, form_factors)
+        ρcore_tot = atomic_total_density(basis, CoreDensity())
         if basis.model.spin_polarization in (:none, :spinless)
             ρcore_spin = nothing
         else
@@ -171,7 +170,7 @@ end
     end
 
     model = basis.model
-    form_factors = _core_density_form_factors(basis)
+    form_factors = atomic_density_form_factors(basis, CoreDensity())
     nlcc_groups = [(igroup, group) for (igroup, group) in enumerate(basis.model.atom_groups)
                    if has_density_core(model.atoms[first(group)])]
     @assert !isnothing(nlcc_groups)
@@ -526,55 +525,4 @@ function divergence_real(operand, basis)
     end
     # TODO: forcing real-valued ifft; should be enforced at creation of array
     irfft(basis, gradsum; check=Val(false))
-end
-
-"""
-Compute the form factors (Fourier transforms of the core charge density) at all unique
-`q` in `qs` for an atom centered at 0.`
-"""
-function core_density_form_factors(el::Element, qs::AbstractArray{T})::IdDict{T,T} where {T}
-    form_factors = IdDict{T,T}()
-    for q in qs
-        if !haskey(form_factors, q)
-            form_factors[q] = core_charge_density_fourier(el, q)
-        end
-    end
-    form_factors
-end
-
-"""
-Compute the core charge density for non-linear core correction as a superposition
-of atomic core charge densities.
-"""
-function core_density_superposition(basis::PlaneWaveBasis{T})::Array{T,4} where {T}
-    model = basis.model
-    G_cart = G_vectors_cart(basis)
-
-    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
-    for G in G_cart
-        Gnorm = norm(G)
-        for (igroup, group) in enumerate(model.atom_groups)
-            if !haskey(form_factors, (igroup, Gnorm))
-                element = model.atoms[first(group)]
-                form_factors[(igroup, Gnorm)] = core_charge_density_fourier(element, Gnorm)
-            end
-        end
-    end
-
-    ρcore_fourier = map(enumerate(G_vectors(basis))) do (iG, G)
-        Gnorm = norm(G_cart[iG])
-        ρ_iG = sum(enumerate(model.atom_groups)) do (igroup, group)
-            structure_factor = sum(r -> cis2pi(-dot(G, r)), @view model.positions[group])
-            form_factors[(igroup, Gnorm)] * structure_factor
-        end
-        ρ_iG / sqrt(model.unit_cell_volume)
-    end
-    enforce_real!(basis, ρcore_fourier)  # Symmetrize Fourier coeffs to have real iFFT
-    ρcore_real = irfft(basis, ρcore_fourier)
-    if model.spin_polarization in (:none, :spinless)
-        ρspin = nothing
-    else
-        ρspin = zeros(T, basis.fft_size)
-    end
-    ρ_from_total_and_spin(ρcore_real, ρspin)
 end
