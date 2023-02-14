@@ -29,6 +29,15 @@ function dynmat_to_cart(basis, dynamical_matrix)
     inv_lattice = compute_inverse_lattice(lattice)[1:n_dim, 1:n_dim]
 
     cart_mat = zero.(dynamical_matrix)
+    # The dynamical matrix acts on vectors `dr` and give a covector `dF` (hence it is not
+    # a comatrix).
+    # To transform `dynamical_matrix` from reduced coordinates to `cart_mat` in Cartesian
+    # coordinates, we write
+    #   dr_cart = lattice · dr_red
+    #   dr_cartᵀ · dF_cart · dr_cart = dr_redᵀ · latticeᵀ · dF_cart · lattice · dr_red
+    #                                = dr_redᵀ · dF_red · dr_red
+    #   ⇒ dF_cart = latticeᵀ · dF_red · lattice
+    #   ⇒ dF_red = lattice⁻ᵀ · dF_cart · lattice⁻¹
     for i in 1:n_dim:n_dim*n_atoms
         for j in 1:n_dim:n_dim*n_atoms
             sub_matrix = dynamical_matrix[i:i+(n_dim-1), j:j+(n_dim-1)]
