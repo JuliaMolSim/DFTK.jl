@@ -13,6 +13,9 @@ function guess_density(basis::PlaneWaveBasis, ::RandomDensity;
     random_density(basis, n_electrons)
 end
 
+@doc raw"""
+Build a random charge density normalized to the provided number of electrons.
+"""
 function random_density(basis::PlaneWaveBasis{T}, n_electrons) where {T}
     ρtot  = rand(T, basis.fft_size)
     ρtot  = ρtot .* n_electrons ./ (sum(ρtot) * basis.dvol)  # Integration to n_electrons
@@ -30,11 +33,41 @@ function guess_density(basis::PlaneWaveBasis, magnetic_moments=[],
     atomic_density(basis, ValenceAutoDensity(), magnetic_moments, n_electrons)
 end
 
+@doc raw"""
+    guess_density(basis::PlaneWaveBasis, method::DensityMethod,
+                  magnetic_moments=[]; n_electrons=basis.model.n_electrons)
+
+Build a superposition of atomic densities (SAD) guess density.
+
+The guess atomic densities are taken as one of the following depending on the input
+`method`:
+
+-`RandomDensity()`: A random density, normalized to the number of electrons
+`basis.model.n_electrons`. Does not support magnetic moments.
+-`ValenceAutoDensity()`: A combination of the `ValenceGaussianDensity` and
+`ValenceNumericalDensity` methods where elements whose pseudopotentials provide numeric
+valence charge density data use them and elements without use Gaussians.
+-`ValenceGaussianDensity()`: Gaussians of length specified by `atom_decay_length`
+normalized for the correct number of electrons:
+```math
+\hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
+```
+- `ValenceNumericalDensity()`: Numerical pseudo-atomic valence charge densities from the
+pseudopotentials. Will fail if one or more elements in the system has a pseudopotential
+that does not have valence charge density data.
+
+When magnetic moments are provided, construct a symmetry-broken density guess.
+The magnetic moments should be specified in units of ``μ_B``.
+"""
 function guess_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_moments=[];
                        n_electrons=basis.model.n_electrons)
     atomic_density(basis, method, magnetic_moments, n_electrons)
 end
 
+@doc raw"""
+Build a charge density from total and spin densities constructed as superpositions of atomic
+densities.
+"""
 function atomic_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_moments,
                         n_electrons)
     ρtot = atomic_total_density(basis, method)
@@ -49,12 +82,20 @@ function atomic_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_m
     ρ
 end
 
+@doc raw"""
+Build a total charge density without spin information from a superposition of atomic
+densities.
+"""
 function atomic_total_density(basis::PlaneWaveBasis{T}, method::AtomicDensity;
                               coefficients=ones(T, length(basis.model.atoms))) where {T}
     form_factors = atomic_density_form_factors(basis, method)
     atomic_density_superposition(basis, form_factors; coefficients)
 end
 
+@doc raw"""
+Build a spin density from a superposition of atomic densities and provided magnetic moments
+(with units ``μ_B``).
+"""
 function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
                              magnetic_moments) where {T}
     model = basis.model
@@ -86,6 +127,11 @@ function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
     atomic_density_superposition(basis, form_factors; coefficients)    
 end
 
+@doc raw"""
+Perform an atomic density superposition. The density is constructed in reciprocal space
+using the provided atomic form-factors and coefficients and applying an inverse Fourier
+transform to yield the real-space density.
+"""
 function atomic_density_superposition(basis::PlaneWaveBasis{T},
                                       form_factors::IdDict{Tuple{Int,T},T};
                                       coefficients=ones(T, length(basis.model.atoms))
