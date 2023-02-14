@@ -17,7 +17,7 @@ function compute_dynmat_ad(basis::PlaneWaveBasis{T}; scf_kwargs...) where {T}
             displacement = zero.(model.positions)
             displacement[τ] = setindex(displacement[τ], one(T), γ)
             dynamical_matrix_τγ = -ForwardDiff.derivative(zero(T)) do ε
-                cell_disp = (; lattice=eltype(ε).(cell.lattice), cell.atoms,
+                cell_disp = (; cell.lattice, cell.atoms,
                              positions=ε*displacement .+ cell.positions)
                 model_disp = Model(convert(Model{eltype(ε)}, model); cell_disp...)
                 basis_disp = PlaneWaveBasis(basis, model_disp)
