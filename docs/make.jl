@@ -133,6 +133,9 @@ transform_to_md(pages::AbstractArray) = transform_to_md.(pages)
 transform_to_md(file::AbstractString) = first(splitext(file)) * ".md"
 transform_to_md(pair::Pair) = (pair.first => transform_to_md(pair.second))
 
+# Copy Artifacts.toml over
+cp(joinpath(ROOTPATH, "Artifacts.toml"), joinpath(@__DIR__, "Artifacts.toml"))
+
 # Copy assets over
 mkpath(joinpath(SRCPATH, "examples"))
 for asset in EXAMPLE_ASSETS
