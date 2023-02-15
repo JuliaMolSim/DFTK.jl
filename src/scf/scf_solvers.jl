@@ -1,8 +1,8 @@
-# these provide fixed-point solvers that can be passed to scf()
+# these provide fixed-point solvers that can be passed to self_consistent_field()
 
-# the fp_solver function must accept being called like fp_solver(f, x0, tol,
-# maxiter), where f(x) is the fixed-point map. It must return an
-# object supporting res.sol and res.converged
+# the fp_solver function must accept being called like
+# fp_solver(f, x0, info0, tol, maxiter), where f(x, info) is the fixed-point map. 
+# It must return an object supporting res.fixpoint, res.info and res.converged
 
 # TODO max_iter could go to the solver generator function arguments
 
