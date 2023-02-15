@@ -7,20 +7,20 @@
 using DFTK
 using LinearAlgebra
 using LazyArtifacts
+import Main: @artifact_str # hide
 
 # We use a numeric norm-conserving PSP in UPF format from the
 # [PseudoDojo](http://www.pseudo-dojo.org/) v0.4 scalar-relativistic LDA standard stringency
 # family because it contains valence charge density which can be used for a more tailored
 # density guess.
-UPF_DIR = artifact"pd_nc_sr_lda_standard_0.4.1_upf"
-UPF_FILENAME = "Si.upf"
+UPF_PSEUDO = @artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf"
 
 function silicon_scf(method)
     a = 10.26  # Silicon lattice constant in Bohr
     lattice = a / 2 * [[0 1 1.];
                     [1 0 1.];
                     [1 1 0.]]
-    Si = ElementPsp(:Si; psp=load_psp(UPF_DIR, UPF_FILENAME))
+    Si = ElementPsp(:Si; psp=load_psp(UPF_PSEUDO))
     atoms     = [Si, Si]
     positions = [ones(3)/8, -ones(3)/8]
 
