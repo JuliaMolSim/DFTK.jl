@@ -27,7 +27,7 @@ n_elec_valence(el::Element) = charge_ionic(el)
 """Return the number of core electrons"""
 n_elec_core(el::Element) = charge_nuclear(el) - charge_ionic(el)
 
-"""Radial local potential, in Fourier space: V(q) = int_{R^3} V(x) e^{-iqx} dx."""
+"""Radial local potential, in Fourier space: ```V(q) = ∫_{ℝ^3} V(x) e^{-iq·x} dx``."""
 function local_potential_fourier(el::Element, q::AbstractVector)
     local_potential_fourier(el, norm(q))
 end

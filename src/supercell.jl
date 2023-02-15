@@ -21,7 +21,7 @@ end
 
 @doc raw"""
 Construct a plane-wave basis whose unit cell is the supercell associated to
-an input basis ``kgrid``. All other parameters are modified so that the respective physical
+an input basis ``k``-grid. All other parameters are modified so that the respective physical
 systems associated to both basis are equivalent.
 """
 function cell_to_supercell(basis::PlaneWaveBasis)
@@ -32,9 +32,15 @@ function cell_to_supercell(basis::PlaneWaveBasis)
     supercell_size = basis.kgrid
     supercell = create_supercell(model.lattice, model.atoms, model.positions, supercell_size)
     supercell_fft_size = basis.fft_size .* supercell_size
+    if isnothing(model.n_electrons)
+        n_electrons_supercell = nothing
+    else
+        n_electrons_supercell = prod(supercell_size) * model.n_electrons
+    end
+
     # Assemble new model and new basis
-    model_supercell = Model(supercell.lattice, supercell.atoms, supercell.positions;
-                            terms=model.term_types, symmetries=false)
+    model_supercell = Model(model; supercell.lattice, supercell.atoms, supercell.positions,
+                            n_electrons=n_electrons_supercell, symmetries=false)
     symmetries_respect_rgrid = false  # single point symmetry
     PlaneWaveBasis(model_supercell, basis.Ecut, supercell_fft_size,
                    basis.variational,
@@ -59,8 +65,8 @@ end
 @doc raw"""
 Re-organize Bloch waves computed in a given basis as Bloch waves of the associated
 supercell basis.
-The output ``ψ_supercell`` have a single component at ``Γ``-point, such that
-``ψ_supercell[Γ][:, k+n]`` contains ``ψ[k][:, n]``, within normalization on the supercell.
+The output `ψ_supercell` have a single component at ``Γ``-point, such that
+`ψ_supercell[Γ][:, k+n]` contains `ψ[k][:, n]`, within normalization on the supercell.
 """
 function cell_to_supercell(ψ, basis::PlaneWaveBasis{T},
                            basis_supercell::PlaneWaveBasis{T}) where {T <: Real}
@@ -90,9 +96,9 @@ end
 @doc raw"""
 Transpose all data from a given self-consistent-field result from unit cell
 to supercell conventions. The parameters to adapt are the following:
- - ``basis_supercell`` and ``ψ_supercell`` are computed by the routines above.
+ - `basis_supercell` and `ψ_supercell` are computed by the routines above.
  - The supercell occupations vector is the concatenation of all input occupations vectors.
- - The supercell density is computed with supercell occupations and ``ψ_supercell``.
+ - The supercell density is computed with supercell occupations and `ψ_supercell`.
  - Supercell energies are the multiplication of input energies by the number of
    unit cells in the supercell.
 Other parameters stay untouched.
@@ -106,16 +112,16 @@ function cell_to_supercell(scfres::NamedTuple)
     # Compute supercell basis, ψ, occupations and ρ
     basis_supercell = cell_to_supercell(basis)
     ψ_supercell     = [cell_to_supercell(ψ, basis, basis_supercell)]
-    occ_supercell   = [vcat(scfres_unfold.occupation...)]
-    ρ_supercell     = compute_density(basis_supercell, ψ_supercell, occ_supercell)
+    eigs_supercell  = [vcat(scfres_unfold.eigenvalues...)]
+    occ_supercell   = compute_occupation(basis_supercell, eigs_supercell, scfres.εF).occupation
+    ρ_supercell     = compute_density(basis_supercell, ψ_supercell, occ_supercell;
+                                      scfres.occupation_threshold)
 
     # Supercell Energies
-    eigvalues_supercell = [vcat(scfres_unfold.eigenvalues...)]
-    n_unit_cells = prod(basis.kgrid)
-    energies_supercell = [n_unit_cells * v for v in values(scfres_unfold.energies)]
-    E_supercell = Energies(basis.model.term_types, energies_supercell)
+    Eham_supercell = energy_hamiltonian(basis_supercell, ψ_supercell, occ_supercell;
+                                        ρ=ρ_supercell, eigenvalues=eigs_supercell, scfres.εF)
 
-    merge(scfres, (; basis=basis_supercell, ψ=ψ_supercell, energies=E_supercell,
-                   ρ=ρ_supercell, eigenvalues=eigvalues_supercell,
-                   occupation=occ_supercell))
+    merge(scfres, (; ham=Eham_supercell.ham, basis=basis_supercell, ψ=ψ_supercell,
+                   energies=Eham_supercell.energies, ρ=ρ_supercell,
+                   eigenvalues=eigs_supercell, occupation=occ_supercell))
 end

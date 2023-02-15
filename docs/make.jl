@@ -1,6 +1,5 @@
 # To manually generate the docs:
-#     1. Install all python dependencies from the PYDEPS array below.
-#     2. Run "julia make.jl"
+#     1. Run "julia make.jl"
 #
 # To add a new example to the docs:
 #     1. Add the *.jl file to /examples, along with assets you require (e.g. input files,
@@ -85,9 +84,7 @@ PAGES = [
 
 # Files from the /examples folder that need to be copied over to the docs
 # (typically images, input or data files etc.)
-EXAMPLE_ASSETS = [
-    "examples/Fe_afm.pwi",
-]
+EXAMPLE_ASSETS = ["examples/Fe_afm.pwi", "examples/Si.extxyz"]
 
 #
 # Configuration and setup
@@ -104,9 +101,6 @@ CONTINUOUS_INTEGRATION = get(ENV, "CI", nothing) == "true"
 DFTKREV    = LibGit2.head(ROOTPATH)
 DFTKBRANCH = try LibGit2.branch(LibGit2.GitRepo(ROOTPATH)) catch end
 DFTKREPO   = "github.com/JuliaMolSim/DFTK.jl.git"
-
-# Python dependencies needed for running the notebooks
-PYDEPS = ["ase"]
 
 # Setup julia dependencies for docs generation if not yet done
 Pkg.activate(@__DIR__)
@@ -185,20 +179,23 @@ end
 # Generate the docs in BUILDPATH
 makedocs(;
     modules=[DFTK],
+    repo="https://" * DFTKREPO * "/blob/{commit}{path}#{line}",
     format=Documenter.HTML(
         # Use clean URLs, unless built as a "local" build
         prettyurls = CONTINUOUS_INTEGRATION,
         canonical = "https://docs.dftk.org/stable/",
+        edit_link = "master",
         assets = ["assets/favicon.ico"],
+        mathengine = Documenter.MathJax(Dict(:TeX => Dict(
+            :Macros => Dict(
+                :ket    => [raw"\left|#1\right\rangle", 1],
+                :bra    => [raw"\left\langle#1\right|", 1],
+                :braket => [raw"\left\langle#1\middle|#2\right\rangle", 2],
+            ),
+        ))),
     ),
     sitename = "DFTK.jl",
     authors = "Michael F. Herbst, Antoine Levitt and contributors.",
-    linkcheck = false,  # TODO
-    linkcheck_ignore = [
-        # Ignore links that point to GitHub's edit pages, as they redirect to the
-        # login screen and cause a warning:
-        r"https://github.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/edit(.*)",
-    ],
     pages=transform_to_md(PAGES),
     checkdocs=:exports,
     strict=!DEBUG,
@@ -206,31 +203,11 @@ makedocs(;
 
 # Dump files for managing dependencies in binder
 if CONTINUOUS_INTEGRATION && DFTKBRANCH == "master"
-    cd(BUILDPATH) do
-        open("environment.yml", "w") do io
-            print(io,
-                  """
-                  name: dftk
-                  channels:
-                    - defaults
-                    - conda-forge
-                  dependencies:
-                  """)
-            for dep in PYDEPS
-                println(io, "  - " * dep)
-            end
-        end
-
-        # Install Julia dependencies into build
-        Pkg.activate(".")
-        Pkg.add(Pkg.PackageSpec(url="https://" * DFTKREPO, rev=DFTKREV))
-        cp(joinpath(@__DIR__, "Project.toml"), joinpath(BUILDPATH, "Project.toml"), force=true)
-    end
-    Pkg.activate(@__DIR__)  # Back to Literate / Documenter environment
+    cp(joinpath(@__DIR__, "Project.toml"), joinpath(BUILDPATH, "Project.toml"), force=true)
 end
 
 # Deploy docs to gh-pages branch
-deploydocs(; repo=DFTKREPO)
+deploydocs(; repo=DFTKREPO, devbranch="master")
 
 # Remove generated example files
 if !DEBUG

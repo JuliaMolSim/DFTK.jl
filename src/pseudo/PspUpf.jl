@@ -147,17 +147,17 @@ charge_ionic(psp::PspUpf) = psp.Zion
 Evaluate the ith Kleinman-Bylander β projector with angular momentum l at real-space
 distance r via linear interpolation on the real-space mesh.
 
-Note: UPFs store `r[j] β_{li}(r[j])`, so r=0 is undefined and will error.
+Note: UPFs store ``r_j β_{li}(r_j)``, so ``r=0`` is undefined and will error.
 """
 function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T <: Real}
     psp.r_projs_interp[l+1][i](r) / r
 end
 
-"""
+@doc raw"""
     eval_psp_projector_fourier(psp::PspUPF, i::Number, l::Number, q<:Real)
 
 For UPFs, the integral is transformed to the following sum:
-4π Σ{k} j_l(q r[k]) (r[k]^2 p_{il}(r[k]) dr[k])
+``4π \sum_k j_l(q r_k) (r_k^2 p_{il}(r_k) dr_k)``.
 """
 function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real}
     r2_proj_dr = psp.r2_projs_dr[l+1][i]
@@ -176,11 +176,11 @@ interpolation on the real-space mesh.
  """
 eval_psp_local_real(psp::PspUpf, r::T) where {T <: Real} = psp.vloc_interp(r)
 
-"""
+@doc raw"""
     eval_psp_local_fourier(psp::PspUpf, q<:Real)
 
 for UPFs, the integral is transformed to the following sum:
-4π/q (Σ{i} sin(q r[i]) (r[i] V(r[i]) + Z) dr[i] - Z/q)
+``4π/q (\sum_i \sin(q r_i) (r_i V(r_i) + Z) dr_i - Z/q)``.
 """
 function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T <: Real}
     s = zero(T)
@@ -190,11 +190,11 @@ function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T <: Real}
     4T(π) * (s - psp.Zion / q) / q
 end
 
-"""
+@doc raw"""
     eval_psp_energy_correction(T::Type, psp::PspUpf, n_electrons::Number)
 
 For UPFs, the integral is transformed to the following sum:
-4π Nelec Σ{i} r[i] (r[i] V(r[i]) + Z) dr[i]
+``4π N_{\rm elec} \sum_i r_i (r_i V(r_i) + Z) dr_i``.
 """
 function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
     4T(π) * n_electrons * dot(psp.rgrid, psp.r_vloc_corr_dr)

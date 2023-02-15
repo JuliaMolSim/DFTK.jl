@@ -1,10 +1,10 @@
 using DFTK
 using LinearAlgebra
-using PyCall
 using Test
 using Unitful
+using ASEconvert
+using Logging
 include("testcases.jl")
-
 
 @testset "bzmesh_uniform agrees with spglib" begin
     function test_against_spglib(kgrid_size; kshift=[0, 0, 0])
@@ -33,21 +33,18 @@ end
 
 @testset "bzmesh_ir_wedge is correct reduction" begin
     function test_reduction(testcase, kgrid_size, kirredsize;
-                            supercell=[1, 1, 1], kshift=[0, 0, 0])
-        lattice   = testcase.lattice
-        atoms     = testcase.atoms
-        positions = testcase.positions
+                            supercell=(1, 1, 1), kshift=[0, 0, 0])
+        system = atomic_system(testcase.lattice, testcase.atoms, testcase.positions)
 
-        if supercell != (1, 1, 1)  # Make a supercell
-            ase       = ase_atoms(lattice, atoms, positions) * supercell
-            lattice   = load_lattice(ase)
-            atoms     = load_atoms(ase)
-            positions = load_positions(ase)
+        # Make supercell
+        if supercell != (1, 1, 1)
+            ase_atoms = with_logger(() -> convert_ase(system), NullLogger())
+            system = pyconvert(AbstractSystem, ase_atoms * pytuple(supercell))
         end
 
         red_kcoords, _ = bzmesh_uniform(kgrid_size; kshift)
-        symmetries = DFTK.symmetry_operations(lattice, atoms, positions)
-        irred_kcoords, ksymops = bzmesh_ir_wedge(kgrid_size, symmetries; kshift)
+        symmetries = symmetry_operations(system)
+        irred_kcoords, _ = bzmesh_ir_wedge(kgrid_size, symmetries; kshift)
 
         @test length(irred_kcoords) == kirredsize
 

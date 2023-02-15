@@ -73,3 +73,14 @@ function model_SCAN(lattice::AbstractMatrix, atoms::Vector{<:Element},
                     positions::Vector{<:AbstractVector}; kwargs...)
     model_DFT(lattice, atoms, positions, [:mgga_x_scan, :mgga_c_scan]; kwargs...)
 end
+
+
+# Generate equivalent functions for AtomsBase
+for fun in (:model_atomic, :model_DFT, :model_LDA, :model_PBE, :model_SCAN)
+    @eval function $fun(system::AbstractSystem, args...; kwargs...)
+        @assert !(:magnetic_moments in keys(kwargs))
+        parsed = parse_system(system)
+        $fun(parsed.lattice, parsed.atoms, parsed.positions, args...;
+             parsed.magnetic_moments, kwargs...)
+    end
+end

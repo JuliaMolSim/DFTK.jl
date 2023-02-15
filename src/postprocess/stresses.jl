@@ -6,15 +6,7 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
     # compute the Hellmann-Feynman energy (with fixed ψ/occ/ρ)
     function HF_energy(lattice::AbstractMatrix{T}) where {T}
         basis = scfres.basis
-        model = basis.model
-        new_model = Model(lattice, model.atoms, model.positions;
-                          model.n_electrons,
-                          magnetic_moments=[], # not used because symmetries explicitly given
-                          terms=model.term_types,
-                          model.temperature,
-                          model.smearing,
-                          model.spin_polarization,
-                          model.symmetries)
+        new_model = Model(basis.model; lattice)
         new_basis = PlaneWaveBasis(new_model,
                                    basis.Ecut, basis.fft_size, basis.variational,
                                    basis.kcoords_global, basis.kweights_global,

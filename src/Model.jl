@@ -190,6 +190,58 @@ function Model(lattice::AbstractMatrix{<:Quantity}, atoms::Vector{<:Element},
     Model(austrip.(lattice), atoms, positions; kwargs...)
 end
 
+
+"""
+    Model(system::AbstractSystem; kwargs...)
+
+AtomsBase-compatible Model constructor. Sets structural information (`atoms`, `positions`,
+`lattice`, `n_electrons` etc.) from the passed `system`.
+"""
+function Model(system::AbstractSystem; kwargs...)
+    @assert !(:magnetic_moments in keys(kwargs))
+    parsed = parse_system(system)
+    Model(parsed.lattice, parsed.atoms, parsed.positions; parsed.magnetic_moments, kwargs...)
+end
+
+"""
+    Model(model; [lattice, positions, atoms, kwargs...])
+    Model{T}(model; [lattice, positions, atoms, kwargs...])
+
+Construct an identical model to `model` with the option to change some of the contained
+parameters. This constructor is useful for changing the data type in the model
+or for changing `lattice` or `positions` in geometry/lattice optimisations.
+"""
+function Model{T}(model::Model;
+                  lattice::AbstractMatrix=model.lattice,
+                  positions::Vector{<:AbstractVector}=model.positions,
+                  atoms::Vector{<:Element}=model.atoms,
+                  kwargs...) where {T <: Real}
+    Model(T.(lattice), atoms, positions;
+          model.model_name,
+          model.n_electrons,
+          magnetic_moments=[],  # not used because symmetries explicitly given
+          terms=model.term_types,
+          model.temperature,
+          model.smearing,
+          model.εF,
+          model.spin_polarization,
+          model.symmetries,
+          # Can be safely disabled: this has been checked for model
+          disable_electrostatics_check=true,
+          kwargs...
+    )
+end
+function Model(model::Model{T};
+               lattice::AbstractMatrix{U}=model.lattice,
+               positions::Vector{<:AbstractVector}=model.positions,
+               kwargs...) where {T, U}
+    TT = promote_type(T, U, eltype(positions[1]))
+    Model{TT}(model; lattice, positions, kwargs...)
+end
+
+Base.convert(::Type{Model{T}}, model::Model{T}) where {T}    = model
+Base.convert(::Type{Model{U}}, model::Model{T}) where {T, U} = Model{U}(model)
+
 normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
 normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)
 normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm

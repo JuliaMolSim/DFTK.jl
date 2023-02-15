@@ -49,6 +49,7 @@ end
 
     model    = basis.model
     n_spin   = model.n_spin_components
+    potential_threshold = term.potential_threshold
     @assert all(family(xc) in (:lda, :gga, :mgga, :mggal) for xc in term.functionals)
 
     # Compute kinetic energy density, if needed.
@@ -82,7 +83,7 @@ end
         Vρ = reshape(terms.Vρ, n_spin, basis.fft_size...)
 
         potential[:, :, :, s] .+= Vρ[s, :, :, :]
-        if haskey(terms, :Vσ) && any(x -> abs(x) > term.potential_threshold, terms.Vσ)
+        if haskey(terms, :Vσ) && any(x -> abs(x) > potential_threshold, terms.Vσ)
             # Need gradient correction
             # TODO Drop do-block syntax here?
             potential[:, :, :, s] .+= -2divergence_real(basis) do α
@@ -95,7 +96,7 @@ end
                     for t in 1:n_spin)
             end
         end
-        if haskey(terms, :Vl) && any(x -> abs(x) > term.potential_threshold, terms.Vl)
+        if haskey(terms, :Vl) && any(x -> abs(x) > potential_threshold, terms.Vl)
             @warn "Meta-GGAs with a Δρ term have not yet been thoroughly tested." maxlog=1
             mG² = .-norm2.(G_vectors_cart(basis))
             Vl  = reshape(terms.Vl, n_spin, basis.fft_size...)
@@ -107,7 +108,7 @@ end
 
     # DivAgrad contributions -½ Vτ
     Vτ = nothing
-    if haskey(terms, :Vτ) && any(x -> abs(x) > term.potential_threshold, terms.Vτ)
+    if haskey(terms, :Vτ) && any(x -> abs(x) > potential_threshold, terms.Vτ)
         # Need meta-GGA non-local operator (Note: -½ part of the definition of DivAgrid)
         Vτ = reshape(terms.Vτ, n_spin, basis.fft_size...)
         Vτ = term.scaling_factor * permutedims(Vτ, (2, 3, 4, 1))
@@ -233,7 +234,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
         σ_real  = similar(ρ_real, n_spin_σ, basis.fft_size...)
 
         for α = 1:3
-            iGα = [im * G[α] for G in G_vectors_cart(basis)]
+            iGα = map(G -> im * G[α], G_vectors_cart(basis))
             for σ = 1:n_spin
                 # TODO: forcing real-valued ifft; should be enforced at creation of array
                 ∇ρ_real[σ, :, :, :, α] .= irfft(basis, iGα .* @view ρ_fourier[σ, :, :, :];
@@ -448,8 +449,9 @@ The divergence is also returned as a real-space array.
 function divergence_real(operand, basis)
     gradsum = sum(1:3) do α
         operand_α = fft(basis, operand(α))
-        del_α = im * [G[α] for G in G_vectors_cart(basis)]
-        del_α .* operand_α
+        map(G_vectors_cart(basis), operand_α) do G, operand_αG
+            im * G[α] * operand_αG  # ∇_α * operand_α
+        end
     end
     # TODO: forcing real-valued ifft; should be enforced at creation of array
     irfft(basis, gradsum; check=Val(false))

@@ -138,12 +138,13 @@ end
 
 @doc raw"""
 Computes the matrix ``[M^{k,b}]_{m,n} = \langle u_{m,k} | u_{n,k+b} \rangle``
-for given k, kpb = k+b.
+for given `k`, `kpb` = ``k+b``.
 
 `G_shift` is the "shifting" vector, correction due to the periodicity conditions
-imposed on k -> ψ_k.
-It is non zero if kpb is taken in another unit cell of the reciprocal lattice.
-We use here that : ``u_{n(k + G_shift)}(r) = e^{-i*\langle G_shift,r \rangle} u_{nk}``
+imposed on ``k \to  ψ_k``.
+It is non zero if `kpb` is taken in another unit cell of the reciprocal lattice.
+We use here that:
+``u_{n(k + G_{\rm shift})}(r) = e^{-i*\langle G_{\rm shift},r \rangle} u_{nk}``.
 """
 @views function overlap_Mmn_k_kpb(basis::PlaneWaveBasis, ψ, ik, ikpb, G_shift, n_bands)
     # Search for common Fourier modes and their resp. indices in Bloch states k and kpb

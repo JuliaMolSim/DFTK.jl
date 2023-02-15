@@ -17,16 +17,14 @@ For details see Herbst, Levitt 2020 arXiv:2009.01665
 @kwdef struct LdosModel <: χ0Model
     adjust_temperature = IncreaseMixingTemperature()
 end
-function (χ0::LdosModel)(basis; eigenvalues, ψ, εF, kwargs...)
+function (χ0::LdosModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs...) where {T}
     n_spin = basis.model.n_spin_components
 
     # Catch cases that will yield no contribution
     temperature = χ0.adjust_temperature(basis.model.temperature; kwargs...)
     iszero(temperature) && return nothing
     ldos = compute_ldos(εF, basis, eigenvalues, ψ; temperature)
-    if maximum(abs, ldos) < eps(eltype(basis))
-        return nothing
-    end
+    maximum(abs, ldos) < sqrt(eps(T)) && return nothing
 
     tdos = sum(sum, ldos) * basis.dvol  # Integrate LDOS to form total DOS
     function apply!(δρ, δV, α=1)

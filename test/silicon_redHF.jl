@@ -34,8 +34,9 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
     else
         magnetic_moments = []
     end
-    model = model_DFT(Array{T}(silicon.lattice), atoms, silicon.positions, [];
+    model = model_DFT(silicon.lattice, atoms, silicon.positions, [];
                       temperature=0.05, spin_polarization, magnetic_moments)
+    model = convert(Model{T}, model)  # Ensure the selected floating-point type is used
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
     spin_polarization == :collinear && (ref_redHF = vcat(ref_redHF, ref_redHF))

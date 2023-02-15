@@ -83,9 +83,9 @@ include("testcases.jl")
         Ecut = 5
         fft_size = [9, 9, 9]
         model = model_DFT(magnesium.lattice, magnesium.atoms, magnesium.positions,
-                          [:lda_xc_teter93]; temperature=magnesium.temperature)
+                          [:lda_xc_teter93]; magnesium.temperature)
         basis = PlaneWaveBasis(model, Ecut, magnesium.kcoords, magnesium.kweights; fft_size)
-        nbandsalg = AdaptiveBands(basis; occupation_threshold=1e-10)
+        nbandsalg = AdaptiveBands(basis.model; occupation_threshold=1e-10)
         scfres = self_consistent_field(basis; tol=1e-12, nbandsalg)
 
         ψ = scfres.ψ
@@ -97,15 +97,5 @@ include("testcases.jl")
                            real(dot(solve_ΩplusK_split(scfres, ϕ).δψ, rhs)),
                            atol=1e-7)
         end
-
-        @testset "solve_ΩplusK_split convenience methods" begin
-            δψ1 = solve_ΩplusK_split(scfres, rhs).δψ
-            δψ2 = solve_ΩplusK_split(basis, ψ, rhs, scfres.occupation;
-                                     occupation_threshold=scfres.occupation_threshold).δψ
-            @test norm(δψ1 - δψ2) < 1e-7
-        end
-
     end
-
 end
-

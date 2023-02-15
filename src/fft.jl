@@ -16,12 +16,6 @@ import AbstractFFTs: fft, fft!, ifft, ifft!
 # restricts the output to the spherical basis set. These functions
 # take a k-point as input.
 
-@deprecate G_to_r! ifft!
-@deprecate G_to_r ifft
-@deprecate r_to_G! fft!
-@deprecate r_to_G fft
-@deprecate G_to_r_matrix ifft_matrix
-@deprecate r_to_G_matrix fft_matrix
 
 """
 In-place version of `ifft`.
@@ -66,7 +60,7 @@ Perform a real valued iFFT; see [`ifft`](@ref).
 """
 function irfft(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray; check=Val(true)) where {T}
     f_real = ifft(basis, f_fourier)
-    (check == Val(true)) && @assert norm(imag(f_real)) < sqrt(eps(T))
+    (check == Val(true)) && @assert norm(imag(f_real)) < max(1e-12, sqrt(eps(T)))
     real(f_real)
 end
 function ifft(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)

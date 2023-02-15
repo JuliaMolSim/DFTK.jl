@@ -85,8 +85,7 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
             model  = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
             basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1])
             scfres = self_consistent_field(basis; tol=1e-8)
-            ψ, occupation = select_occupied_orbitals(basis, scfres.ψ,
-                                                     scfres.occupation)
+            ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 
             res = eigen_ΩplusK(basis, ψ, occupation, numval)
             @test res.λ[1] > 1e-3

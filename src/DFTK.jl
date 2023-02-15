@@ -17,6 +17,7 @@ using AbstractFFTs
 using GPUArraysCore
 using Random
 using ChainRulesCore
+using SnoopPrecompile
 
 export Vec3
 export Mat3
@@ -109,6 +110,7 @@ export BlowupAbinit
 include("DispatchFunctional.jl")
 include("terms/terms.jl")
 
+export AbstractFermiAlgorithm, FermiBisection, FermiTwoStage
 include("occupation.jl")
 export compute_density
 export total_density
@@ -173,18 +175,10 @@ include("pseudo/list_psp.jl")
 include("pseudo/attach_psp.jl")
 
 export DFTKPotential
-export pymatgen_structure
-export ase_atoms
-export load_lattice
-export load_atoms
-export load_positions
-export load_magnetic_moments
+export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
 include("external/atomsbase.jl")
 include("external/interatomicpotentials.jl")
-include("external/load_from_file.jl")
-include("external/ase.jl")
-include("external/pymatgen.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
 
 export compute_bands
@@ -240,4 +234,21 @@ function __init__()
     end
 end
 
+# Precompilation block with a basic workflow
+if VERSION ≥ v"1.9alpha" && isnothing(get(ENV, "DFTK_NO_PRECOMPILATION", nothing))
+    @precompile_all_calls begin
+        # very artificial silicon ground state example
+        a = 10.26
+        lattice = a / 2 * [[0 1 1.];
+                           [1 0 1.];
+                           [1 1 0.]]
+        Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+        atoms     = [Si, Si]
+        positions = [ones(3)/8, -ones(3)/8]
+
+        model = model_LDA(lattice, atoms, positions, temperature=0.1, spin_polarization=:collinear)
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
+        scfres = self_consistent_field(basis, tol=1e-2, maxiter=3, callback=identity)
+    end
+end
 end # module DFTK

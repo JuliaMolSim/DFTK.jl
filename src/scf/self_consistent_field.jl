@@ -11,7 +11,8 @@ Obtain new density ρ by diagonalizing `ham`. Follows the policy imposed by the 
 data structure to determine and adjust the number of bands to be computed.
 """
 function next_density(ham::Hamiltonian,
-                      nbandsalg::NbandsAlgorithm=AdaptiveBands(ham.basis.model);
+                      nbandsalg::NbandsAlgorithm=AdaptiveBands(ham.basis.model),
+                      fermialg::AbstractFermiAlgorithm=default_fermialg(ham.basis.model);
                       eigensolver=lobpcg_hyper, ψ=nothing, eigenvalues=nothing,
                       occupation=nothing, kwargs...)
     n_bands_converge, n_bands_compute = determine_n_bands(nbandsalg, occupation,
@@ -34,7 +35,8 @@ function next_density(ham::Hamiltonian,
     eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
 
     # Check maximal occupation of the unconverged bands is sensible.
-    occupation, εF = compute_occupation(ham.basis, eigres.λ)
+    occupation, εF = compute_occupation(ham.basis, eigres.λ, fermialg;
+                                        tol_n_elec=nbandsalg.occupation_threshold)
     minocc = maximum(minimum, occupation)
 
     # TODO This is a bit hackish, but needed right now as we increase the number of bands
@@ -42,13 +44,13 @@ function next_density(ham::Hamiltonian,
     #      way to deal with such things in LOBPCG.
     if !increased_n_bands && minocc > nbandsalg.occupation_threshold
         @warn("Detected large minimal occupation $minocc. SCF could be unstable. " *
-              "Try switching to adaptive band selection (`nbandsalg=AdaptiveBands(basis)`) " *
+              "Try switching to adaptive band selection (`nbandsalg=AdaptiveBands(model)`) " *
               "or request more converged bands than $n_bands_converge (e.g. " *
-              "`nbandsalg=AdaptiveBands(basis; n_bands_converge=$(n_bands_converge + 3)`)")
+              "`nbandsalg=AdaptiveBands(model; n_bands_converge=$(n_bands_converge + 3)`)")
     end
 
-    ρout = compute_density(ham.basis, eigres.X, occupation)
-    (ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, ρout, diagonalization=eigres,
+    ρout = compute_density(ham.basis, eigres.X, occupation; nbandsalg.occupation_threshold)
+    (; ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, ρout, diagonalization=eigres,
      n_bands_converge, nbandsalg.occupation_threshold)
 end
 
@@ -72,40 +74,31 @@ Overview of parameters:
   Typical mixings are [`LdosMixing`](@ref), [`KerkerMixing`](@ref), [`SimpleMixing`](@ref)
   or [`DielectricMixing`](@ref). Default is `LdosMixing()`
 - `damping`: Damping parameter ``α`` in the above equation. Default is `0.8`.
-- `nbandsalg`: By default DFTK uses `nbandsalg=AdaptiveBands(basis)`, which adaptively determines
+- `nbandsalg`: By default DFTK uses `nbandsalg=AdaptiveBands(model)`, which adaptively determines
   the number of bands to compute. If you want to influence this algorithm or use a predefined
   number of bands in each SCF step, pass a [`FixedBands`](@ref) or [`AdaptiveBands`](@ref).
 - `callback`: Function called at each SCF iteration. Usually takes care of printing the
   intermediate state.
 """
-@timing function self_consistent_field(basis::PlaneWaveBasis{T};
-                                       n_bands=nothing,    # TODO For backwards compatibility.
-                                       n_ep_extra=nothing, # TODO For backwards compatibility.
-                                       ρ=guess_density(basis),
-                                       ψ=nothing,
-                                       tol=1e-6,
-                                       is_converged=ScfConvergenceDensity(tol),
-                                       maxiter=100,
-                                       mixing=LdosMixing(),
-                                       damping=0.8,
-                                       solver=scf_anderson_solver(),
-                                       eigensolver=lobpcg_hyper,
-                                       determine_diagtol=ScfDiagtol(),
-                                       nbandsalg::NbandsAlgorithm=AdaptiveBands(basis),
-                                       callback=ScfDefaultCallback(; show_damping=false),
-                                       compute_consistent_energies=true,
-                                       response=ResponseOptions(),  # Dummy here, only for AD
-                                      ) where {T}
-    if !isnothing(n_bands) || !isnothing(n_ep_extra)
-        # TODO Backwards compatibility ... emulates exactly how bands worked before
-        Base.depwarn("The options n_bands and n_ep_extra of self_consistent_field " *
-                     "are deprecated. Use `nbandsalg` instead to influence number of " *
-                     "bands to compute.", :self_consistent_field)
-        n_bands_converge = something(n_bands, FixedBands(basis.model).n_bands_converge)
-        nbandsalg = FixedBands(; n_bands_converge,
-                               n_bands_compute=n_bands_converge + something(n_ep_extra, 3))
-    end
-
+@timing function self_consistent_field(
+    basis::PlaneWaveBasis{T};
+    ρ=guess_density(basis),
+    ψ=nothing,
+    tol=1e-6,
+    is_converged=ScfConvergenceDensity(tol),
+    maxiter=100,
+    mixing=LdosMixing(),
+    damping=0.8,
+    solver=scf_anderson_solver(),
+    eigensolver=lobpcg_hyper,
+    determine_diagtol=ScfDiagtol(),
+    nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
+    fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model),
+    callback=ScfDefaultCallback(; show_damping=false),
+    compute_consistent_energies=true,
+    response=ResponseOptions(),  # Dummy here, only for AD
+) where {T}
+    # All these variables will get updated by fixpoint_map
     if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
     end
@@ -122,7 +115,7 @@ Overview of parameters:
         energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, eigenvalues, εF)
 
         # Diagonalize `ham` to get the new state
-        nextstate = next_density(ham, nbandsalg; eigensolver, ψ, eigenvalues,
+        nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
                                  occupation, miniter=1, tol=determine_diagtol(info))
         ψ, eigenvalues, occupation, εF, ρout = nextstate
 

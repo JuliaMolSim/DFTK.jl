@@ -184,13 +184,13 @@ of the full FFT grid, but rather only in a subspace
 such that parallelization is either anyway disabled by the BLAS library
 or not very effective.
 To **set the number of BLAS threads** use
-```
+```julia
 using LinearAlgebra
 BLAS.set_num_threads(N)
 ```
 where `N` is the number of threads you desire.
 To **check the number of BLAS threads** currently used, you can use
-```
+```julia
 Int(ccall((BLAS.@blasfunc(openblas_get_num_threads), BLAS.libblas), Cint, ()))
 ```
 or (from Julia 1.6) simply `BLAS.get_num_threads()`.
@@ -208,7 +208,7 @@ Since FFT threading is only used in DFTK inside the regions already parallelized
 by Julia threads, setting FFT threads to something larger than `1` is
 rarely useful if a sensible number of Julia threads has been chosen.
 Still, to explicitly **set the FFT threads** use
-```
+```julia
 using FFTW
 FFTW.set_num_threads(N)
 ```

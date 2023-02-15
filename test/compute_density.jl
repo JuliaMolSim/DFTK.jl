@@ -24,14 +24,14 @@ if mpi_nprocs() == 1  # not easy to distribute
         ham = Hamiltonian(basis; ρ=guess_density(basis))
 
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol)
-        occ, εF = DFTK.compute_occupation(basis, res.λ)
+        occ, εF = DFTK.compute_occupation(basis, res.λ, FermiBisection())
         ρnew = compute_density(basis, res.X, occ)
 
         for it in 1:n_rounds
             ham = Hamiltonian(basis; ρ=ρnew)
             res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol, ψguess=res.X)
 
-            occ, εF = DFTK.compute_occupation(basis, res.λ)
+            occ, εF = DFTK.compute_occupation(basis, res.λ, FermiBisection())
             ρnew = compute_density(basis, res.X, occ)
         end
 
@@ -57,8 +57,10 @@ if mpi_nprocs() == 1  # not easy to distribute
         end
     end
 
-    function test_full_vs_irreducible(testcase, kgrid_size; Ecut=5, tol=1e-8, n_ignore=0,
-                                      kshift=[0, 0, 0], eigenvectors=true)
+    function test_full_vs_irreducible(label, testcase, kgrid_size; Ecut=5, tol=1e-8,
+                                      n_ignore=0, kshift=[0, 0, 0], eigenvectors=true)
+        @testset "$label" begin
+
         res = get_bands(testcase, kgrid_size, kshift; symmetries=false, Ecut, tol)
         ham_full, ψ_full, eigenvalues_full, ρ_full, occ_full = res
         kfull = [kpt.coordinate for kpt in ham_full.basis.kpoints]
@@ -118,18 +120,18 @@ if mpi_nprocs() == 1  # not easy to distribute
                 end  # symop
             end  # k
         end # eigenvectors
+        end # testset
     end
 
-    test_full_vs_irreducible(silicon, [3, 2, 3], Ecut=5, tol=1e-10)
-
-    test_full_vs_irreducible(silicon, [3, 3, 3], Ecut=5, tol=1e-6)
-    test_full_vs_irreducible(silicon, [3, 3, 3], Ecut=5, tol=1e-6, kshift=[1/2, 1/2, 1/2])
-    test_full_vs_irreducible(silicon, [3, 3, 3], Ecut=5, tol=1e-6, kshift=[1/2, 0, 1/2])
-    test_full_vs_irreducible(silicon, [3, 3, 3], Ecut=5, tol=1e-6, kshift=[0, 1/2, 0])
-
-    test_full_vs_irreducible(silicon, [2, 3, 4], Ecut=5, tol=1e-6)
-    test_full_vs_irreducible(magnesium, [2, 3, 4], Ecut=5, tol=1e-6, n_ignore=1)
-    test_full_vs_irreducible(aluminium, [1, 3, 5], Ecut=3, tol=1e-5, n_ignore=3,
-                             eigenvectors=false)
+    test_full_vs_irreducible("silicon (3,2,3)", silicon, [3, 2, 3], Ecut=5, tol=1e-10)
+    test_full_vs_irreducible("silicon (2,3,4)", silicon, [2, 3, 4], Ecut=5, tol=1e-10)
+    for kshift in ([0,0,0], [1/2, 1/2, 1/2], [1/2, 0, 1/2], [0, 1/2, 0])
+        test_full_vs_irreducible("silicon (3,3,3) $kshift", silicon, [3, 3, 3];
+                                 Ecut=5, tol=1e-6, kshift)
+    end
+    test_full_vs_irreducible("magnesium (2,3,4)", magnesium, [2, 3, 4]; Ecut=5, tol=1e-6,
+                             n_ignore=1)
+    test_full_vs_irreducible("aluminium (1,3,5)", aluminium, [1, 3, 5]; Ecut=3, tol=1e-5,
+                             n_ignore=3, eigenvectors=false)
 end
 end

@@ -46,7 +46,7 @@ end
 
 """
 Real space multiplication by a potential:
-(Hψ)(r) V(r) ψ(r)
+(Hψ)(r) = V(r) ψ(r).
 """
 struct RealSpaceMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
@@ -77,7 +77,7 @@ end
 
 """
 Fourier space multiplication, like a kinetic energy term:
-(Hψ)(G) = multiplier(G) ψ(G)
+(Hψ)(G) = multiplier(G) ψ(G).
 """
 struct FourierMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
@@ -92,7 +92,7 @@ Matrix(op::FourierMultiplication) = Array(Diagonal(op.multiplier))
 """
 Nonlocal operator in Fourier space in Kleinman-Bylander format,
 defined by its projectors P matrix and coupling terms D:
-Hψ = PDP' ψ
+Hψ = PDP' ψ.
 """
 struct NonlocalOperator{T <: Real, PT, DT} <: RealFourierOperator
     basis::PlaneWaveBasis{T}

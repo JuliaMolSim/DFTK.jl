@@ -15,7 +15,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
     testtol  = 2e-6
 
     collinear   = spin_polarization == :collinear
-    is_metal    = !isnothing(testcase.temperature)
+    is_metal    = !iszero(testcase.temperature)
     is_εF_fixed = !isnothing(εF)
     eigsol = eigensolver == lobpcg_hyper
     label = [
@@ -45,7 +45,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         n_spin = model.n_spin_components
         δV = randn(eltype(basis), basis.fft_size..., n_spin)
         mpi_mean!(δV, MPI.COMM_WORLD)
-        δV_sym = DFTK.symmetrize_ρ(basis, δV, symmetries=model.symmetries)
+        δV_sym = DFTK.symmetrize_ρ(basis, δV; model.symmetries)
         if symmetries
             δV = δV_sym
         else
