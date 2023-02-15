@@ -11,13 +11,13 @@ Create a damped SCF solver updating the density as
 `x = β * x_new + (1 - β) * x`
 """
 function scf_damping_solver(β=0.2)
-    function fp_solver(f, x0, max_iter; tol=1e-6)
-        # TODO API
+    function fp_solver(f, x0, info0, max_iter; tol=1e-6)
         β = convert(eltype(x0), β)
         converged = false
         x = copy(x0)
+        info = info0
         for i in 1:max_iter
-            x_new = f(x)
+            x_new, info = f(x, info)
 
             if norm(x_new - x) < tol
                 x = x_new
@@ -27,7 +27,7 @@ function scf_damping_solver(β=0.2)
 
             x = @. β * x_new + (1 - β) * x
         end
-        (; fixpoint=x, converged)
+        (; fixpoint=x, info, converged)
     end
     fp_solver
 end
