@@ -60,9 +60,7 @@ CROP-accelerated root-finding iteration for `f`, starting from `x0` and keeping
 a history of `m` steps. Optionally `warming` specifies the number of non-accelerated
 steps to perform for warming up the history.
 """
-function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
-    # TODO API
-
+function CROP(f, x0, info0, m::Int, max_iter::Int, tol::Real, warming=0)
     # CROP iterates maintain xn and fn (/!\ fn != f(xn)).
     # xtn+1 = xn + fn
     # ftn+1 = f(xtn+1)
@@ -75,21 +73,25 @@ function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
 
     # Cheat support for multidimensional arrays
     if length(size(x0)) != 1
-        x, conv= CROP(x -> vec(f(reshape(x, size(x0)...))), vec(x0), m, max_iter, tol, warming)
-        return (fixpoint=reshape(x, size(x0)...), converged=conv)
+        function vec_f(x, info)
+            x, info = f(reshape(x, size(x0)...), info)
+            vec(x), info
+        end
+        x, info, conv = CROP(vec_f, vec(x0), info0, m, max_iter, tol, warming)
+        return (; fixpoint=reshape(x, size(x0)...), info, converged=conv)
     end
-    N = size(x0,1)
+    N = size(x0, 1)
     T = eltype(x0)
     xs = zeros(T, N, m+1)  # Ring buffers storing the iterates
     fs = zeros(T, N, m+1)  # newest to oldest
     xs[:,1] = x0
-    fs[:,1] = f(x0)        # Residual
+    fs[:,1], info = f(x0, info0)        # Residual
     errs = zeros(max_iter)
     err = Inf
 
     for n = 1:max_iter
         xtnp1 = xs[:, 1] + fs[:, 1]  # Richardson update
-        ftnp1 = f(xtnp1)             # Residual
+        ftnp1, info = f(xtnp1, info)             # Residual
         err = norm(ftnp1)
         errs[n] = err
         if err < tol
@@ -115,6 +117,14 @@ function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
         fs[:,1] = ftnp1
         # fs[:,1] = f(xs[:,1])
     end
-    (fixpoint=xs[:, 1], converged=err < tol)
+    (; fixpoint=xs[:, 1], info, converged=err < tol)
 end
-scf_CROP_solver(m=10) = (f, x0, max_iter; tol=1e-6) -> CROP(x -> f(x) - x, x0, m, max_iter, tol)
+function scf_CROP_solver(m=10)
+    function(f, x0, info0, max_iter; tol=1e-6)
+        function residual_f(x, info)
+            fx, info = f(x, info)
+            (fx - x, info)
+        end
+        CROP(residual_f, x0, info0, m, max_iter, tol)
+    end
+end
