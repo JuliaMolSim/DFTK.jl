@@ -120,11 +120,12 @@ function CROP(f, x0, info0, m::Int, max_iter::Int, tol::Real, warming=0)
     (; fixpoint=xs[:, 1], info, converged=err < tol)
 end
 function scf_CROP_solver(m=10)
-    function(f, x0, info0, max_iter; tol=1e-6)
+    function crop_solver(f, x0, info0, max_iter; tol=1e-6)
         function residual_f(x, info)
             fx, info = f(x, info)
             (fx - x, info)
         end
         CROP(residual_f, x0, info0, m, max_iter, tol)
     end
+    crop_solver
 end
