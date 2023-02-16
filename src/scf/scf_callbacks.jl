@@ -151,8 +151,7 @@ function ScfDiagtol(;ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.03)
         @assert isfinite(diagtol)
 
         # Adjust maximum to ensure diagtol may only shrink during an SCF
-        diagtol_max = min(diagtol, diagtol_max)
-        diagtol
+        min(diagtol, diagtol_max)
     end
 end
 
