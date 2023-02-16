@@ -50,7 +50,7 @@ import Main: @artifact_str # hide
 # file format using the file extension.
 
 psp_hgh  = load_psp("hgh/lda/si-q4.hgh");
-psp_upf  = load_psp(@artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf");
+psp_upf  = load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf");
 
 # First, we'll take a look at the energy cutoff convergence of these two pseudopotentials.
 # For both pseudos, a reference energy is calculated with a cutoff of 140 Hartree, and

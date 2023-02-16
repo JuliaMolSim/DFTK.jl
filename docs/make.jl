@@ -136,7 +136,7 @@ transform_to_md(pair::Pair) = (pair.first => transform_to_md(pair.second))
 
 # Setup Artifacts.toml system
 macro artifact_str(s)
-    Artifacts.@artifact_str(s)
+    @eval Artifacts.@artifact_str $s
 end
 cp(joinpath(ROOTPATH, "Artifacts.toml"), joinpath(@__DIR__, "Artifacts.toml"), force=true)
 

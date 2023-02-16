@@ -13,7 +13,7 @@ import Main: @artifact_str # hide
 # [PseudoDojo](http://www.pseudo-dojo.org/) v0.4 scalar-relativistic LDA standard stringency
 # family because it contains valence charge density which can be used for a more tailored
 # density guess.
-UPF_PSEUDO = @artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf"
+UPF_PSEUDO = artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf"
 
 function silicon_scf(method)
     a = 10.26  # Silicon lattice constant in Bohr
