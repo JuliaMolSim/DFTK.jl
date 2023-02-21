@@ -61,3 +61,26 @@ function phonon_eigenvalues(basis, dynamical_matrix)
     signs = sign.(real.(eigenvalues))
     signs .* hartree_to_cm⁻¹ .* sqrt.(abs.(real.(eigenvalues)))
 end
+
+function compute_δρ(scfres::NamedTuple; q=zero(Vec3{eltype(scfres.basis)}),
+                    tol=1e-15, verbose=false)
+    basis = scfres.basis
+    model = basis.model
+    positions = model.positions
+    n_atoms = length(positions)
+    n_dim = model.n_dim
+
+    δHψs = compute_δHψ(scfres; q)
+    δρs = Array{Array{complex(eltype(scfres.basis)), 4}, 2}(undef, n_dim, n_atoms)
+    δoccupations = [zero.(scfres.occupation) for _ in 1:n_dim, _ in 1:n_atoms]
+    δψs = [zero.(scfres.ψ) for _ in 1:n_dim, _ in 1:n_atoms]
+    for τ in 1:n_atoms
+        for γ in 1:n_dim
+            δψ, δρ, δoccupation = solve_ΩplusK_split(scfres, -δHψs[γ, τ]; q=q, tol, verbose)
+            δoccupations[γ, τ] = δoccupation
+            δρs[γ, τ] = δρ
+            δψs[γ, τ] = δψ
+        end
+    end
+    (; δρs, δψs, δoccupations)
+end

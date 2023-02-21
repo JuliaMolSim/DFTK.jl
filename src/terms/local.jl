@@ -109,38 +109,221 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     TermAtomicLocal(pot_real)
 end
 
-@timing "forces: local" function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{TT},
-                                                ψ, occupation; ρ, kwargs...) where {TT}
-    T = promote_type(TT, real(eltype(ψ[1])))
+@timing "forces: local" function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{T},
+                                                ψ, occupation; ρ, q=zeros(3),
+                                                kwargs...) where {T}
+
+    cast = iszero(q) ? real : complex
+    S = promote_type(T, cast(eltype(ψ[1])))
     model = basis.model
     recip_lattice = model.recip_lattice
     ρ_fourier = fft(basis, total_density(ρ))
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
     # where struct_factor(G) = e^{-i G·r}
-    forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
+    forces = [zero(Vec3{S}) for _ in 1:length(model.positions)]
     for group in model.atom_groups
         element = model.atoms[first(group)]
-        form_factors = [Complex{T}(local_potential_fourier(element, norm(G)))
-                        for G in G_vectors_cart(basis)]
+        form_factors = [S(local_potential_fourier(element, norm(recip_lattice * (G + q))))
+                        for G in G_vectors(basis)]
         for idx in group
             r = model.positions[idx]
-            forces[idx] = _force_local_internal(basis, ρ_fourier, form_factors, r)
+            forces[idx] = _force_local_internal(basis, ρ_fourier, form_factors, r; q)
         end
     end
     forces
 end
 
 # function barrier to work around various type instabilities
-function _force_local_internal(basis, ρ_fourier, form_factors, r)
-    T = real(eltype(ρ_fourier))
-    f = zero(Vec3{T})
+function _force_local_internal(basis::PlaneWaveBasis{T}, ρ_fourier, form_factors, r;
+                               q=zero(Vec3{T})) where {T}
+    cast = iszero(q) ? real : complex
+    S = cast(eltype(ρ_fourier))
+    f = zero(Vec3{S})
     for (iG, G) in enumerate(G_vectors(basis))
-        f -= real(conj(ρ_fourier[iG])
-                  .* form_factors[iG]
-                  .* cis2pi(-dot(G, r))
-                  .* (-2T(π)) .* G .* im
-                  ./ sqrt(basis.model.unit_cell_volume))
+        f -= cast(conj(ρ_fourier[iG])
+                      .* form_factors[iG]
+                      .* cis2pi(-dot(G + q, r))
+                      .* (-2T(π) .* (G + q) .* im)
+                      ./ sqrt(basis.model.unit_cell_volume))
     end
     f
+end
+
+function compute_δV(basis::PlaneWaveBasis{T}, pσ, γ, pg; q=zero(Vec3{T})) where {T}
+    model = basis.model
+    # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
+    # Since V is a sum of radial functions located at atomic
+    # positions, this involves a form factor (`local_potential_fourier`)
+    # and a structure factor e^{-i Gr}
+
+    pot_fourier = map(G_vectors(basis)) do G
+        pot = let
+            element = model.atoms[pg]
+            form_factor::T = local_potential_fourier(element, norm(model.recip_lattice * (G + q)))
+            form_factor * (-2T(π) * im * (G[γ] + q[γ])) * cis2pi(-dot(G + q, pσ))
+        end
+        pot / sqrt(model.unit_cell_volume)
+    end
+
+    ifft(basis, pot_fourier)
+end
+
+function compute_δ²V(basis::PlaneWaveBasis{T}, σ, τ, γ, η) where {T}
+    model = basis.model
+    pσ = model.positions[σ]
+    # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
+    # Since V is a sum of radial functions located at atomic
+    # positions, this involves a form factor (`local_potential_fourier`)
+    # and a structure factor e^{-i Gr}
+
+    σ ≢ τ && return zeros(complex(T), basis.fft_size...)
+    pot_fourier = map(G_vectors(basis)) do G
+        pot = let
+            element = model.atoms[σ]
+            local_potential_fourier(element, norm(model.recip_lattice * G))
+        end
+        pot *= (-2T(π) * im * G[γ]) .* (-2T(π) * im * G[η]) * cis2pi(-dot(G, pσ))
+        pot / sqrt(model.unit_cell_volume)
+    end
+
+    ifft(basis, pot_fourier)
+end
+
+function compute_δ²V_fourier(basis::PlaneWaveBasis{T}, σ, τ, γ, η) where {T}
+    model = basis.model
+    pσ = model.positions[σ]
+    # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
+    # Since V is a sum of radial functions located at atomic
+    # positions, this involves a form factor (`local_potential_fourier`)
+    # and a structure factor e^{-i Gr}
+
+    σ ≢ τ && return zeros(complex(T), basis.fft_size...)
+    pot_fourier = map(G_vectors(basis)) do G
+        pot = let
+            element = model.atoms[σ]
+            local_potential_fourier(element, norm(model.recip_lattice * G))
+        end
+        pot *= (-2T(π) * im * G[γ]) .* (-2T(π) * im * G[η]) * cis2pi(-dot(G, pσ))
+        pot / sqrt(model.unit_cell_volume)
+    end
+
+    pot_fourier
+end
+
+function compute_δV(::TermAtomicLocal, basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) where {T}
+    S = complex(T)
+    model = basis.model
+    positions = model.positions
+    n_atoms = length(positions)
+    n_dim = model.n_dim
+    spins = model.n_spin_components
+
+    δV = Array{Array{S, 4}, 2}(undef, n_dim, n_atoms)
+    for (τ, position) in enumerate(positions)
+        for γ in 1:n_dim
+            δV_τγ = compute_δV(basis, position, γ, τ; q=q)
+            temp = Array{S, 4}(undef, (basis.fft_size..., spins))
+            for spin in 1:spins
+                temp[:, :, :, spin] = δV_τγ
+            end
+            δV[γ, τ] = temp
+        end
+    end
+    δV
+end
+
+function compute_∫δρδV(term::TermAtomicLocal, scfres::NamedTuple, δρs, δψs, δoccupations;
+                       q=zero(Vec3{eltype(scfres.basis)}))
+    basis = scfres.basis
+    S = complex(eltype(basis))
+    model = basis.model
+    positions = model.positions
+    n_atoms = length(positions)
+    n_dim = model.n_dim
+
+    ∫δρδV_loc_term = zeros(S, (n_dim, n_atoms, n_dim, n_atoms))
+    for τ in 1:n_atoms
+        for γ in 1:n_dim
+            ∫δρδV_τγ = -compute_forces(term, basis, scfres.ψ, scfres.occupation;
+                                    ρ=δρs[γ, τ], δψ=δψs[γ, τ], δoccupation=δoccupations[γ, τ],
+                                    q=q, qpt=q)
+            ∫δρδV_loc_term[:, :, γ, τ] .+= hcat(∫δρδV_τγ...)[1:n_dim, :]
+        end
+    end
+
+    reshape(∫δρδV_loc_term, n_dim*n_atoms, n_dim*n_atoms)
+end
+
+function compute_δ²V_loc(basis::PlaneWaveBasis{T}) where {T}
+    S = complex(T)
+    model = basis.model
+    positions = model.positions
+    n_atoms = length(positions)
+    n_dim = model.n_dim
+
+    δ²V = zeros(S, (basis.fft_size..., n_dim, n_atoms, n_dim, n_atoms))
+    for τ in 1:n_atoms
+        for γ in 1:n_dim
+            for σ in 1:n_atoms
+                for η in 1:n_dim
+                    δ²V_στγη = compute_δ²V(basis, σ, τ, γ, η)
+                    δ²V[:, :, :, η, σ, γ, τ] = δ²V_στγη
+                end
+            end
+        end
+    end
+    δ²V
+end
+
+function compute_∫ρδ²V(::TermAtomicLocal, scfres::NamedTuple)
+    basis = scfres.basis
+    S = complex(eltype(basis))
+    model = basis.model
+    positions = model.positions
+    n_atoms = length(positions)
+    n_dim = model.n_dim
+    ρ_fourier = fft(basis, total_density(scfres.ρ))
+
+
+    ∫ρδ²V_loc_term = zeros(S, (n_dim, n_atoms, n_dim, n_atoms))
+    δ²V_loc = compute_δ²V_loc(basis)
+    for τ in 1:n_atoms
+        for σ in 1:n_atoms
+            for γ in 1:n_dim
+                for η in 1:n_dim
+                    δ²V_fourier = fft(basis, δ²V_loc[:, :, :, η, σ, γ, τ])
+                    ∫ρδ²V_τσγ = sum(conj(ρ_fourier) .* δ²V_fourier)
+                    ∫ρδ²V_loc_term[η, σ, γ, τ] = ∫ρδ²V_τσγ
+                end
+            end
+        end
+    end
+    reshape(∫ρδ²V_loc_term, n_dim*n_atoms, n_dim*n_atoms)
+end
+
+function compute_dynmat(term::TermAtomicLocal, scfres::NamedTuple; δρs, δψs, δoccupations,
+                        q=zero(Vec3{eltype(scfres.basis)}))
+    ∫δρδV = compute_∫δρδV(term, scfres, δρs, δψs, δoccupations; q=q)
+    ∫ρδ²V = compute_∫ρδ²V(term, scfres)
+    return ∫δρδV + ∫ρδ²V
+end
+
+function compute_δHψ(term::TermAtomicLocal, scfres::NamedTuple;
+                     q=zero(Vec3{eltype(scfres.basis)}))
+    basis = scfres.basis
+    model = basis.model
+    positions = model.positions
+    n_atoms = length(positions)
+    n_dim = model.n_dim
+
+    δV_loc = compute_δV(term, basis; q=q)
+    δHψ = [zero.(scfres.ψ) for _ in 1:n_dim, _ in 1:n_atoms]
+    for τ in 1:n_atoms
+        for γ in 1:n_dim
+            δHψ_τγ = multiply_by_δV_expiqr_fourier(basis, -q, scfres.ψ, δV_loc[γ, τ])
+            δHψ[γ, τ] .+= δHψ_τγ
+       end
+   end
+   δHψ
 end

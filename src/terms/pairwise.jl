@@ -126,3 +126,29 @@ function energy_pairwise(lattice, symbols, positions, V, params;
     end
     energy
 end
+
+function compute_dynmat(term::TermPairwisePotential, scfres::NamedTuple;
+                        q=zero(Vec3{eltype(scfres.basis)}), kwargs...)
+    T = eltype(scfres.basis)
+    S = complex(T)
+    model = scfres.basis.model
+    positions = model.positions
+    n_atoms = length(positions)
+    n_dim = model.n_dim
+
+    dynmat = zeros(S, (n_dim, n_atoms, n_dim, n_atoms))
+    for τ in 1:n_atoms
+        for γ in 1:n_dim
+            displacement = zero.(model.positions)
+            displacement[τ] = StaticArrays.setindex(displacement[τ], one(T), γ)
+            dynmat_τγ = -ForwardDiff.derivative(zero(T)) do ε
+                forces = zeros(Vec3{complex(eltype(ε))}, n_atoms)
+                energy_pairwise(model, term.V, term.params;
+                                forces, ph_disp=ε .* displacement, q=-q)
+                hcat(Array.(forces)...)
+            end
+            dynmat[1:n_dim, :, γ, τ] = dynmat_τγ[1:n_dim, :]
+        end
+    end
+    reshape(dynmat, n_dim*n_atoms, n_dim*n_atoms)
+end

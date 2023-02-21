@@ -141,6 +141,7 @@ Random.seed!(0)
         # TODO: WIP, will be merged and cleaned.
         include("phonon.jl")
         include("phonon/ad.jl")
+        include("phonon/local.jl")
     end
 
     ("example" in TAGS) && include("runexamples.jl")

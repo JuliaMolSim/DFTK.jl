@@ -26,17 +26,26 @@ struct TermHartree <: TermNonlinear
     # Fourier coefficients of the Green's function of the periodic Poisson equation
     poisson_green_coeffs::AbstractArray
 end
-function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
+function coeffs_poisson_hartree(basis::PlaneWaveBasis{T}, scaling_factor;
+                                q=zero(Vec3{T})) where {T}
+    model = basis.model
+
     # Solving the Poisson equation ΔV = -4π ρ in Fourier space
     # is multiplying elementwise by 4π / |G|^2.
-
-    poisson_green_coeffs = 4T(π) ./ norm2.(G_vectors_cart(basis))
-    GPUArraysCore.@allowscalar poisson_green_coeffs[1] = 0  # Compensating charge background => Zero DC
-
-    enforce_real!(basis, poisson_green_coeffs)  # Symmetrize Fourier coeffs to have real iFFT
+    poisson_green_coeffs = 4T(π) ./ [sum(abs2, model.recip_lattice * (G + q))
+                                     for G in G_vectors(basis)]
+    if iszero(q)
+        # Compensating charge background => Zero DC.
+        GPUArraysCore.@allowscalar poisson_green_coeffs[1] = 0
+        # Symmetrize Fourier coeffs to have real iFFT.
+        enforce_real!(basis, poisson_green_coeffs)
+    end
     poisson_green_coeffs = to_device(basis.architecture, poisson_green_coeffs)
-
-    TermHartree(T(scaling_factor), T(scaling_factor) .* poisson_green_coeffs)
+    return scaling_factor .* poisson_green_coeffs
+end
+function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
+    poisson_green_coeffs = coeffs_poisson_hartree(basis, scaling_factor)
+    TermHartree(T(scaling_factor), poisson_green_coeffs)
 end
 
 @timing "ene_ops: hartree" function ene_ops(term::TermHartree, basis::PlaneWaveBasis{T},
@@ -57,9 +66,17 @@ function compute_kernel(term::TermHartree, basis::PlaneWaveBasis; kwargs...)
     basis.model.n_spin_components == 1 ? K : [K K; K K]
 end
 
-function apply_kernel(term::TermHartree, basis::PlaneWaveBasis, δρ; kwargs...)
+function apply_kernel(term::TermHartree, basis::PlaneWaveBasis{T}, δρ; q=zero(Vec3{T}),
+                      kwargs...) where {T}
     δV = zero(δρ)
     δρtot = total_density(δρ)
     # note broadcast here: δV is 4D, and all its spin components get the same potential
-    δV .= irfft(basis, term.poisson_green_coeffs .* fft(basis, δρtot))
+    if iszero(q)
+        # We have the information in memory.
+        coeffs = term.poisson_green_coeffs
+    else
+        coeffs = coeffs_poisson_hartree(basis, term.scaling_factor; q)
+    end
+    _ifft = iszero(q) ? irfft : ifft
+    δV .= _ifft(basis, coeffs .* fft(basis, δρtot))
 end

@@ -60,6 +60,9 @@ breaks_symmetries(::Anyonic) = true
 
 # forces computes either nothing or an array forces[at][α] (by default no forces)
 compute_forces(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
+# same idea for phonon quantities
+compute_δHψ(::Term, ::NamedTuple; kwargs...) = nothing
+compute_dynmat(::Term, ::NamedTuple; kwargs...) = nothing
 
 @doc raw"""
     compute_kernel(basis::PlaneWaveBasis; kwargs...)

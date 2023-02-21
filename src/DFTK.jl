@@ -204,9 +204,13 @@ export compute_current
 include("postprocess/current.jl")
 # TODO: WIP for phonons, will be merged at some point.
 export compute_dynmat_ad
+export compute_dynmat_cart_ad
 export phonon_eigenvalues
 include("response/phonon/ad.jl")
 include("response/phonon/commons.jl")
+export compute_dynmat
+export compute_dynmat_cart
+include("postprocess/phonon.jl")
 
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")

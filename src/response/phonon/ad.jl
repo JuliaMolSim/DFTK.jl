@@ -30,3 +30,8 @@ function compute_dynmat_ad(basis::PlaneWaveBasis{T}; scf_kwargs...) where {T}
     end
     reshape(dynamical_matrix, n_dim*n_atoms, n_dim*n_atoms)
 end
+
+function compute_dynmat_cart_ad(basis::PlaneWaveBasis{T}; kwargs...) where {T}
+    dynmats_reduced = compute_dynmat_ad(basis; kwargs...)
+    dynmat_to_cart(basis, dynmats_reduced)
+end

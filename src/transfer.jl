@@ -167,3 +167,35 @@ function k_to_kpq_mapping(basis::PlaneWaveBasis, qcoord)
     @assert sort(indices) == 1:length(basis.kpoints)
     indices
 end
+
+function multiply_by_δV_expiqr_fourier(basis, q, ψ, δV)
+    δHψ = zero.(ψ)
+    for (ik, kpt) in enumerate(basis.kpoints)
+        kpt_plus_q = kpt.coordinate + q
+        equiv_kpoints_plus_q = DFTK.k_to_kpq_mapping(basis, q)
+        ordering(kdata) = kdata[equiv_kpoints_plus_q]
+        equiv_kpt_plus_q = ordering(basis.kpoints)[ik]
+        ΔG = DFTK.find_equivalent_kpt(basis, kpt_plus_q, kpt.spin).ΔG
+        @assert basis.kpoints[equiv_kpoints_plus_q[ik]] == equiv_kpt_plus_q
+        @assert kpt.coordinate + q + ΔG ≈ equiv_kpt_plus_q.coordinate
+        @assert kpt.coordinate + q ≈ equiv_kpt_plus_q.coordinate - ΔG
+
+        kpt_temp = DFTK.build_kpoints(basis, [kpt_plus_q])[1]
+        δHψ[equiv_kpoints_plus_q[ik]] = transfer_blochwave_kpt(ψ[equiv_kpoints_plus_q[ik]],
+                                                            basis, equiv_kpt_plus_q,
+                                                            kpt_temp, -ΔG)
+    end
+    δHψ_δV = zero.(δHψ)
+    for (ik, kpt) in enumerate(basis.kpoints)
+        kpt_plus_q = kpt.coordinate + q
+        equiv_kpoints_plus_q = DFTK.k_to_kpq_mapping(basis, q)
+        ordering(kdata) = kdata[equiv_kpoints_plus_q]
+        kpt_temp = DFTK.build_kpoints(basis, [kpt_plus_q])[1]
+        for n in 1:size(ψ[ik], 2)
+            δHψ_δV[ik][:, n] = fft(basis, kpt, ifft(basis, kpt_temp,
+                                                    δHψ[equiv_kpoints_plus_q[ik]][:, n]) .*
+                                                    δV[:, :, :, kpt.spin])
+        end
+    end
+    δHψ_δV
+end

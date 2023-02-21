@@ -132,7 +132,8 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
 """
 function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
                             eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10,
-                            verbose=false, occupation_threshold, kwargs...) where {T}
+                            verbose=false, occupation_threshold, q=zero(Vec3{real(T)}),
+                            kwargs...) where {T}
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
     # (Ω+K)^-1 =  Ω^-1 ( 1 -   K   (1 + Ω^-1 K  )^-1    Ω^-1  )
     #          = -χ04P ( 1 -   K   (1 - χ04P K  )^-1   (-χ04P))
@@ -142,22 +143,24 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
     @assert size(rhs[1]) == size(ψ[1])  # Assume the same number of bands in ψ and rhs
 
     # compute δρ0 (ignoring interactions)
-    δψ0, δoccupation0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
-                                    tol=tol_sternheimer, occupation_threshold,
-                                    kwargs...)  # = -χ04P * rhs
-    δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0; occupation_threshold)
+    δψ0, δoccupation0, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
+                                         tol=tol_sternheimer, occupation_threshold,
+                                         q, kwargs...)  # = -χ04P * rhs
+    _ifft = iszero(q) ? irfft : ifft
+    δρ0 = compute_analytical_δρ(basis, ψ, δψ0, occupation, δoccupation0;
+                                occupation_threshold, _ifft, q)
 
     # compute total δρ
     pack(δρ)   = vec(δρ)
     unpack(δρ) = reshape(δρ, size(ρ))
     function eps_fun(δρ)
         δρ = unpack(δρ)
-        δV = apply_kernel(basis, δρ; ρ)
+        δV = apply_kernel(basis, δρ; ρ, q=q)
         # TODO
         # Would be nice to play with abstol / reltol etc. to avoid over-solving
         # for the initial GMRES steps.
         χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                        occupation_threshold, tol=tol_sternheimer, kwargs...)
+                        occupation_threshold, tol=tol_sternheimer, q, kwargs...).δρ
         pack(δρ - χ0δV)
     end
     J = LinearMap{T}(eps_fun, prod(size(δρ0)))
@@ -165,11 +168,9 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
     δρ = unpack(δρ)
 
     # Compute total change in Hamiltonian applied to ψ
-    δVind = apply_kernel(basis, δρ; ρ)  # Change in potential induced by δρ
-    δHψ = @views map(basis.kpoints, ψ, rhs) do kpt, ψk, rhsk
-        δVindψk = RealSpaceMultiplication(basis, kpt, δVind[:, :, :, kpt.spin]) * ψk
-        δVindψk - rhsk
-    end
+    δVind = apply_kernel(basis, δρ; ρ, q=q)  # Change in potential induced by δρ
+    δHψ_b = multiply_by_δV_expiqr_fourier(basis, -q, ψ, δVind)
+    δHψ = δHψ_b - rhs
 
     # Compute total change in eigenvalues
     δeigenvalues = map(ψ, δHψ) do ψk, δHψk
@@ -180,9 +181,26 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
 
     δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                        occupation_threshold, tol=tol_sternheimer,
-                                       kwargs...)
+                                       q, kwargs...)
+    # Consistency check. It was useful for tests, should I remove it completely?
+    let
+        δρ1 = compute_analytical_δρ(basis, ψ, δψ, occupation, δoccupation;
+                                    occupation_threshold, _ifft, q)
+        if norm(δρ1 - δρ) > sqrt(tol_sternheimer)
+            @warn "Consistency check for linear response seems high:" norm(δρ1 - δρ)
+        end
+    end
 
-    (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, history)
+    (; δψ, δρ, δoccupation, δHψ, δVind, δeigenvalues, δεF, history)
+end
+
+function solve_ΩplusK_split(basis::PlaneWaveBasis, ψ, rhs, occupation; kwargs...)
+    ρ = compute_density(basis, ψ, occupation)
+    H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
+    eigenvalues = [real.(eigvals(ψk'Hψk)) for (ψk, Hψk) in zip(ψ, H * ψ)]
+    occupation, εF = compute_occupation(basis, eigenvalues)
+
+    solve_ΩplusK_split(H, ρ, ψ, occupation, εF, eigenvalues, rhs; kwargs...)
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
