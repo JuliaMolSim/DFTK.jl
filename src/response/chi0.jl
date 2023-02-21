@@ -340,7 +340,7 @@ function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ, εp=ε, ψp=ψ;
     end
 end
 
-@views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
+@views @timing function apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                     occupation_threshold, q=zero(Vec3{eltype(ham.basis)}),
                                     kwargs_sternheimer...)
     basis  = ham.basis
@@ -353,17 +353,20 @@ end
     # We then use the extra information we have from these additional bands,
     # non-necessarily converged, to split the sternheimer_solver with a Schur
     # complement.
+    occ_thresh = occupation_threshold
 
     # Values at `k - q` points
-    mask_occp   = map(occp -> isless.(occupation_threshold, occp), ordering(occ))
-    mask_extrap = map(occk -> (!isless).(occupation_threshold, occk), ordering(occ))
+    mask_occp   = map(occk -> findall(occnk -> abs(occnk) ≥ occ_thresh, occk),
+                      ordering(occupation))
+    mask_extrap = map(occk -> findall(occnk -> abs(occnk) < occ_thresh, occk),
+                      ordering(occupation))
 
     ε_occp   = [ordering(eigenvalues)[ip][maskp] for (ip, maskp) in enumerate(mask_occp)]
-    occ_occp = [occ[ik][maskk] for (ik, maskk) in enumerate(mask_occp)]
+    occ_occp = [occupation[ik][maskk] for (ik, maskk) in enumerate(mask_occp)]
 
     # Values at `k` points
-    mask_occ   = map(occk -> isless.(occupation_threshold, occk), occ)
-    mask_extra = map(occk -> (!isless).(occupation_threshold, occk), occ)
+    mask_occ   = map(occk -> findall(occnk -> abs(occnk) ≥ occ_thresh, occk), occupation)
+    mask_extra = map(occk -> findall(occnk -> abs(occnk) < occ_thresh, occk), occupation)
 
     # ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
     ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
@@ -377,7 +380,7 @@ end
     # orbitals. So we make a fresh array padded with zeros, but only alter the elements
     # corresponding to the occupied orbitals. (Note both compute_δocc! and compute_δψ!
     # assume that the first array argument has already been initialised to zero).
-    δoccupation = zero.(occ)
+    δoccupation = zero.(occupation)
     if iszero(q)
         δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occp)]
         δεF = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_occ).δεF
