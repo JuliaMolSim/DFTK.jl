@@ -61,18 +61,18 @@ end
             δV_supercell = vcat(δV, δV)
 
             # Unit cell computations.
-            δρ = apply_χ0(scfres, δV)
+            δρ = apply_χ0(scfres, δV).δρ
 
             # Supercell with manually unpacking scfres.
             scfres_supercell_1 = cell_to_supercell(scfres)
-            δρ_supercell_1 = apply_χ0(scfres_supercell_1, δV_supercell)
+            δρ_supercell_1 = apply_χ0(scfres_supercell_1, δV_supercell).δρ
 
             @test norm(δρ - δρ_supercell_1[1:size(δρ, 1), :, :]) < 10*tol
 
             # Supercell with manually unpacking only basis.
             basis_supercell = cell_to_supercell(basis)
             scfres_supercell_2 = self_consistent_field(basis_supercell; tol)
-            δρ_supercell_2 = apply_χ0(scfres_supercell_2, δV_supercell)
+            δρ_supercell_2 = apply_χ0(scfres_supercell_2, δV_supercell).δρ
 
             @test norm(δρ - δρ_supercell_2[1:size(δρ, 1), :, :]) < 10*tol
         end
