@@ -74,6 +74,10 @@ end
                                               occupation, δoccupation=zero.(occupation);
                                               occupation_threshold=zero(T),
                                               _ifft=irfft, q=zero(Vec3{T})) where {T}
+    # TODO: Should not be necessary, but without this, the sanity check in `symmetrize_ρ`
+    # fails. PR should not be merged before understanding what happens.
+    iszero(q) && return compute_δρ(basis, ψ, δψ, occupation, δoccupation; occupation_threshold)
+
     S = promote_type(eltype(basis), complex(eltype(ψ[1])))
 
     # we split the total iteration range (ik, n) in chunks, and parallelize over them
