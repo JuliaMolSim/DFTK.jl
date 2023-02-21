@@ -361,7 +361,6 @@ end
     mask_extrap = map(occk -> findall(occnk -> abs(occnk) < occ_thresh, occk),
                       ordering(occupation))
 
-    ε_occp   = [ordering(eigenvalues)[ip][maskp] for (ip, maskp) in enumerate(mask_occp)]
     occ_occp = [occupation[ik][maskk] for (ik, maskk) in enumerate(mask_occp)]
 
     # Values at `k` points
@@ -369,10 +368,12 @@ end
     mask_extra = map(occk -> findall(occnk -> abs(occnk) < occ_thresh, occk), occupation)
 
     # ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
     δHψ_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occp)]
     ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occp)]
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extrap)]
+    ε_occp   = [eigenvalues[ip][maskp] for (ip, maskp) in enumerate(mask_occ)]
+
+    ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
     ψp_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
     ψp_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
 
@@ -391,9 +392,9 @@ end
     # Then we compute δψ, again in-place into a zero-padded array
     δψ = zero.(δHψ)
     δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occp)]
-    compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ordering(ε_occp), δHψ_occ, ordering(ε_occ),
-                ψp_occ; ψ_extra=ψ_extra, ψp_extra=ψp_extra, skip_check=!iszero(q), ε_occ,
-                kwargs_sternheimer...)
+    compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occp, δHψ_occ,
+                ordering(ε_occ), ψp_occ; ψ_extra=ψ_extra, ψp_extra=ψp_extra,
+                skip_check=!iszero(q), ε_occ, kwargs_sternheimer...)
 
     (; δψ, δoccupation, δεF)
 end
