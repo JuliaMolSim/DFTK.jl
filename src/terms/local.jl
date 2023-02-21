@@ -242,20 +242,20 @@ function compute_∫δρδV(term::TermAtomicLocal, scfres::NamedTuple, δρs, δ
     n_atoms = length(positions)
     n_dim = model.n_dim
 
-    ∫δρδV_loc_term = zeros(S, (n_dim, n_atoms, n_dim, n_atoms))
+    ∫δρδV_term = zeros(S, (n_dim, n_atoms, n_dim, n_atoms))
     for τ in 1:n_atoms
         for γ in 1:n_dim
             ∫δρδV_τγ = -compute_forces(term, basis, scfres.ψ, scfres.occupation;
                                     ρ=δρs[γ, τ], δψ=δψs[γ, τ], δoccupation=δoccupations[γ, τ],
                                     q=q, qpt=q)
-            ∫δρδV_loc_term[:, :, γ, τ] .+= hcat(∫δρδV_τγ...)[1:n_dim, :]
+            ∫δρδV_term[:, :, γ, τ] .+= hcat(∫δρδV_τγ...)[1:n_dim, :]
         end
     end
 
-    reshape(∫δρδV_loc_term, n_dim*n_atoms, n_dim*n_atoms)
+    reshape(∫δρδV_term, n_dim*n_atoms, n_dim*n_atoms)
 end
 
-function compute_δ²V_loc(basis::PlaneWaveBasis{T}) where {T}
+function compute_δ²V(::TermAtomicLocal, basis::PlaneWaveBasis{T}) where {T}
     S = complex(T)
     model = basis.model
     positions = model.positions
@@ -276,7 +276,7 @@ function compute_δ²V_loc(basis::PlaneWaveBasis{T}) where {T}
     δ²V
 end
 
-function compute_∫ρδ²V(::TermAtomicLocal, scfres::NamedTuple)
+function compute_∫ρδ²V(term::TermAtomicLocal, scfres::NamedTuple)
     basis = scfres.basis
     S = complex(eltype(basis))
     model = basis.model
@@ -286,20 +286,20 @@ function compute_∫ρδ²V(::TermAtomicLocal, scfres::NamedTuple)
     ρ_fourier = fft(basis, total_density(scfres.ρ))
 
 
-    ∫ρδ²V_loc_term = zeros(S, (n_dim, n_atoms, n_dim, n_atoms))
-    δ²V_loc = compute_δ²V_loc(basis)
+    ∫ρδ²V_term = zeros(S, (n_dim, n_atoms, n_dim, n_atoms))
+    δ²V = compute_δ²V(term, basis)
     for τ in 1:n_atoms
         for σ in 1:n_atoms
             for γ in 1:n_dim
                 for η in 1:n_dim
-                    δ²V_fourier = fft(basis, δ²V_loc[:, :, :, η, σ, γ, τ])
+                    δ²V_fourier = fft(basis, δ²V[:, :, :, η, σ, γ, τ])
                     ∫ρδ²V_τσγ = sum(conj(ρ_fourier) .* δ²V_fourier)
-                    ∫ρδ²V_loc_term[η, σ, γ, τ] = ∫ρδ²V_τσγ
+                    ∫ρδ²V_term[η, σ, γ, τ] = ∫ρδ²V_τσγ
                 end
             end
         end
     end
-    reshape(∫ρδ²V_loc_term, n_dim*n_atoms, n_dim*n_atoms)
+    reshape(∫ρδ²V_term, n_dim*n_atoms, n_dim*n_atoms)
 end
 
 function compute_dynmat(term::TermAtomicLocal, scfres::NamedTuple; δρs, δψs, δoccupations,
@@ -317,11 +317,11 @@ function compute_δHψ(term::TermAtomicLocal, scfres::NamedTuple;
     n_atoms = length(positions)
     n_dim = model.n_dim
 
-    δV_loc = compute_δV(term, basis; q=q)
+    δV = compute_δV(term, basis; q=q)
     δHψ = [zero.(scfres.ψ) for _ in 1:n_dim, _ in 1:n_atoms]
     for τ in 1:n_atoms
         for γ in 1:n_dim
-            δHψ_τγ = multiply_by_δV_expiqr_fourier(basis, -q, scfres.ψ, δV_loc[γ, τ])
+            δHψ_τγ = multiply_by_δV_expiqr_fourier(basis, -q, scfres.ψ, δV[γ, τ])
             δHψ[γ, τ] .+= δHψ_τγ
        end
    end
