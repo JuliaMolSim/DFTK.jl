@@ -296,7 +296,7 @@ Perform in-place computations of the derivatives of the wave functions by solvin
 a Sternheimer equation for each `k`-points. It is assumed the passed `δψ` are initialised
 to zero.
 """
-function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ, εp=ε, ψp=ψ;
+function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ, εp=ε;
                      ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
                      ψp_extra=ψ_extra,
                      ε_occ=nothing,
@@ -309,12 +309,12 @@ function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ, εp=ε, ψp=ψ;
     # Compute δψnk band per band
     for ik = 1:length(ψ)
         Hk  = H[ik]
-        ψpk  = ψp[ik]
+        ψk  = ψ[ik]
         εk  = ε[ik]
         εpk = εp[ik]
         δψk = δψ[ik]
 
-        ψk_extra = ψp_extra[ik]
+        ψk_extra = ψ_extra[ik]
         Hψk_extra = Hk * ψk_extra
         εk_extra  = diag(real.(ψk_extra' * Hψk_extra))
         for n = 1:length(εpk)
@@ -329,11 +329,11 @@ function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ, εp=ε, ψp=ψ;
                 ddiff = Smearing.occupation_divided_difference
                 ratio = filled_occ * ddiff(smearing, εk[m], εpk[n], εF, temperature)
                 αmn = compute_αmn(fmk, fnk, ratio)  # fnk * αmn + fmk * αnm = ratio
-                δψk[:, n] .+= ψpk[:, m] .* αmn .* dot(ψpk[:, m], δHψ[ik][:, n])
+                δψk[:, n] .+= ψk[:, m] .* αmn .* dot(ψk[:, m], δHψ[ik][:, n])
             end
 
             # Sternheimer contribution
-            δψk[:, n] .+= sternheimer_solver(Hk, ψpk, εpk[n], δHψ[ik][:, n];
+            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εpk[n], δHψ[ik][:, n];
                                              ψk_extra, εk_extra, Hψk_extra,
                                              kwargs_sternheimer...)
         end
@@ -344,7 +344,7 @@ end
                                     occupation_threshold, q=zero(Vec3{eltype(ham.basis)}),
                                     kwargs_sternheimer...)
     basis  = ham.basis
-    kpoints_minus_q = k_to_kpq_mapping(basis, q)
+    kpoints_minus_q = k_to_kpq_mapping(basis, -q)
     ordering(kdata) = kdata[kpoints_minus_q]
 
     # We first select orbitals with occupation number higher than
@@ -355,27 +355,14 @@ end
     # complement.
     occ_thresh = occupation_threshold
 
-    # Values at `k - q` points
-    mask_occp   = map(occk -> findall(occnk -> abs(occnk) ≥ occ_thresh, occk),
-                      ordering(occupation))
-    mask_extrap = map(occk -> findall(occnk -> abs(occnk) < occ_thresh, occk),
-                      ordering(occupation))
-
-    occ_occp = [occupation[ik][maskk] for (ik, maskk) in enumerate(mask_occp)]
-
-    # Values at `k` points
     mask_occ   = map(occk -> findall(occnk -> abs(occnk) ≥ occ_thresh, occk), occupation)
     mask_extra = map(occk -> findall(occnk -> abs(occnk) < occ_thresh, occk), occupation)
 
-    # ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    δHψ_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occp)]
-    ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occp)]
-    ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extrap)]
-    ε_occp   = [eigenvalues[ip][maskp] for (ip, maskp) in enumerate(mask_occ)]
-
-    ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    ψp_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
-    ψp_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
+    δHψ_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
+    ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
+    ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
+    εp_occ   = ordering([eigenvalues[ip][maskp] for (ip, maskp) in enumerate(mask_occ)])
+    ε_occ   = [eigenvalues[ip][maskp] for (ip, maskp) in enumerate(mask_occ)]
 
     # First we compute δoccupation. We only need to do this for the actually occupied
     # orbitals. So we make a fresh array padded with zeros, but only alter the elements
@@ -383,7 +370,7 @@ end
     # assume that the first array argument has already been initialised to zero).
     δoccupation = zero.(occupation)
     if iszero(q)
-        δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occp)]
+        δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
         δεF = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_occ).δεF
     else
         δεF = zero(εF)
@@ -391,9 +378,9 @@ end
 
     # Then we compute δψ, again in-place into a zero-padded array
     δψ = zero.(δHψ)
-    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occp)]
-    compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occp, δHψ_occ,
-                ordering(ε_occ), ψp_occ; ψ_extra=ψ_extra, ψp_extra=ψp_extra,
+    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
+    compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_occ,
+                εp_occ; ψ_extra=ψ_extra, ψp_extra=ψ_extra,
                 skip_check=!iszero(q), ε_occ, kwargs_sternheimer...)
 
     (; δψ, δoccupation, δεF)

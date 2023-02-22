@@ -155,7 +155,7 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
     unpack(δρ) = reshape(δρ, size(ρ))
     function eps_fun(δρ)
         δρ = unpack(δρ)
-        δV = apply_kernel(basis, δρ; ρ, q=q)
+        δV = apply_kernel(basis, δρ; ρ, q)
         # TODO
         # Would be nice to play with abstol / reltol etc. to avoid over-solving
         # for the initial GMRES steps.
@@ -168,7 +168,7 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
     δρ = unpack(δρ)
 
     # Compute total change in Hamiltonian applied to ψ
-    δVind = apply_kernel(basis, δρ; ρ, q=q)  # Change in potential induced by δρ
+    δVind = apply_kernel(basis, δρ; ρ, q)  # Change in potential induced by δρ
     δHψ_b = multiply_by_δV_expiqr_fourier(basis, -q, ψ, δVind)
     δHψ = δHψ_b - rhs
 

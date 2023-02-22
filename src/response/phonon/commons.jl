@@ -76,7 +76,7 @@ function compute_δρ(scfres::NamedTuple; q=zero(Vec3{eltype(scfres.basis)}),
     δψs = [zero.(scfres.ψ) for _ in 1:n_dim, _ in 1:n_atoms]
     for τ in 1:n_atoms
         for γ in 1:n_dim
-            δψ, δρ, δoccupation = solve_ΩplusK_split(scfres, -δHψs[γ, τ]; q=q, tol, verbose)
+            δψ, δρ, δoccupation = solve_ΩplusK_split(scfres, -δHψs[γ, τ]; q, tol, verbose)
             δoccupations[γ, τ] = δoccupation
             δρs[γ, τ] = δρ
             δψs[γ, τ] = δψ

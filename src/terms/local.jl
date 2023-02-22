@@ -222,7 +222,7 @@ function compute_δV(::TermAtomicLocal, basis::PlaneWaveBasis{T}; q=zero(Vec3{T}
     δV = Array{Array{S, 4}, 2}(undef, n_dim, n_atoms)
     for (τ, position) in enumerate(positions)
         for γ in 1:n_dim
-            δV_τγ = compute_δV(basis, position, γ, τ; q=q)
+            δV_τγ = compute_δV(basis, position, γ, τ; q)
             temp = Array{S, 4}(undef, (basis.fft_size..., spins))
             for spin in 1:spins
                 temp[:, :, :, spin] = δV_τγ
@@ -247,7 +247,7 @@ function compute_∫δρδV(term::TermAtomicLocal, scfres::NamedTuple, δρs, δ
         for γ in 1:n_dim
             ∫δρδV_τγ = -compute_forces(term, basis, scfres.ψ, scfres.occupation;
                                     ρ=δρs[γ, τ], δψ=δψs[γ, τ], δoccupation=δoccupations[γ, τ],
-                                    q=q, qpt=q)
+                                    q, qpt=q)
             ∫δρδV_term[:, :, γ, τ] .+= hcat(∫δρδV_τγ...)[1:n_dim, :]
         end
     end
@@ -304,7 +304,7 @@ end
 
 function compute_dynmat(term::TermAtomicLocal, scfres::NamedTuple; δρs, δψs, δoccupations,
                         q=zero(Vec3{eltype(scfres.basis)}))
-    ∫δρδV = compute_∫δρδV(term, scfres, δρs, δψs, δoccupations; q=q)
+    ∫δρδV = compute_∫δρδV(term, scfres, δρs, δψs, δoccupations; q)
     ∫ρδ²V = compute_∫ρδ²V(term, scfres)
     return ∫δρδV + ∫ρδ²V
 end
@@ -317,7 +317,7 @@ function compute_δHψ(term::TermAtomicLocal, scfres::NamedTuple;
     n_atoms = length(positions)
     n_dim = model.n_dim
 
-    δV = compute_δV(term, basis; q=q)
+    δV = compute_δV(term, basis; q)
     δHψ = [zero.(scfres.ψ) for _ in 1:n_dim, _ in 1:n_atoms]
     for τ in 1:n_atoms
         for γ in 1:n_dim

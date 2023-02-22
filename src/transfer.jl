@@ -177,8 +177,7 @@ function multiply_by_δV_expiqr_fourier(basis, q, ψ, δV)
         equiv_kpt_plus_q = ordering(basis.kpoints)[ik]
         ΔG = DFTK.find_equivalent_kpt(basis, kpt_plus_q, kpt.spin).ΔG
         @assert basis.kpoints[equiv_kpoints_plus_q[ik]] == equiv_kpt_plus_q
-        @assert kpt.coordinate + q + ΔG ≈ equiv_kpt_plus_q.coordinate
-        @assert kpt.coordinate + q ≈ equiv_kpt_plus_q.coordinate - ΔG
+        @assert norm(kpt.coordinate + q + ΔG - equiv_kpt_plus_q.coordinate) < 1e-10
 
         kpt_temp = DFTK.build_kpoints(basis, [kpt_plus_q])[1]
         δHψ[equiv_kpoints_plus_q[ik]] = transfer_blochwave_kpt(ψ[equiv_kpoints_plus_q[ik]],
