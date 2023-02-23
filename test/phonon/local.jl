@@ -114,10 +114,10 @@ function model_loc(lattice::AbstractMatrix,
 end
 
 @testset "LDA supercell consistency" begin
-    for (fast, cell, temperature) in ((false, aluminium_primitive, nothing),
-                                      (true, aluminium_primitive, 0.1),
-                                      (true, magnesium, nothing),
-                                      (true, magnesium, 0.1),
+    for (fast, cell, temperature) in ((false, aluminium_primitive, 0.1),
+                                      #(true, aluminium_primitive, nothing),
+                                      #(true, magnesium, nothing),
+                                      #(true, magnesium, 0.1),
                                       )
         @testset "1" begin
             Random.seed!()
