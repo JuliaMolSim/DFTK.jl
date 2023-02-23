@@ -22,8 +22,9 @@ end
 
 const FAST_TESTS = "fast" in DFTK_TEST_ARGS
 const TAGS = let
-    # Tags supplied by the user ... filter out "fast" (already dealt with)
-    tags = filter(e -> !(e in ["fast"]), DFTK_TEST_ARGS)
+    # Tags supplied by the user.
+    # Replace "fast" with "all": the notice for quick checks has been dealt with above.
+    tags = replace(e -> e == "fast" ? "all" : e, DFTK_TEST_ARGS)
     isempty(tags) ? ["all"] : tags
 end
 
