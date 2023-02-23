@@ -19,8 +19,8 @@ function model_pw(lattice::AbstractMatrix,
     Model(lattice, atoms, positions; model_name="atomic", terms, kwargs...)
 end
 
-function compute_ω_1d(; n_scell=1, q=0.0, Ecut=20, kgrid=[1, 1, 1], εF=nothing, temperature=0,
-                      nonlinear_term=false, ad=false, kwargs...)
+function compute_ω_1d(; n_scell=1, q=0.0, Ecut=20, kgrid=[1, 1, 1], εF=nothing,
+                      temperature=0, ad=false, kwargs...)
     a= 5.0
     scf_kwargs = (; callback=identity, tol=1e-9)
 
@@ -34,7 +34,8 @@ function compute_ω_1d(; n_scell=1, q=0.0, Ecut=20, kgrid=[1, 1, 1], εF=nothing
 
     q = Vec3([q, 0, 0])
     supercell_size = [n_scell, 1, 1]
-    cell = create_supercell(unit_cell.lattice, unit_cell.atoms, unit_cell.positions, supercell_size)
+    cell = create_supercell(unit_cell.lattice, unit_cell.atoms, unit_cell.positions,
+                            supercell_size)
     # We use a simple Lennard-Jones potential.
     V(x, p) = 4*p.ε * ((p.σ/x)^12 - (p.σ/x)^6)
     params = Dict((:X, :X) => (; ε=1, σ=a / 2^(1/6)))
@@ -113,14 +114,14 @@ function model_loc(lattice::AbstractMatrix,
 end
 
 @testset "LDA supercell consistency" begin
-    for (is_fast, cell, temperature) in ((false, aluminium_primitive, nothing),
-                                         (true, magnesium, nothing),
-                                         (true, magnesium, 0.1)
-                                        )
+    for (fast, cell, temperature) in ((false, aluminium_primitive, nothing),
+                                      (true, aluminium_primitive, 0.1),
+                                      (true, magnesium, nothing),
+                                      (true, magnesium, 0.1),
+                                      )
         @testset "1" begin
             Random.seed!()
-            fast = false
-            Ecut  = 5
+            Ecut  = 7
             kgrid = fast ? [2, 1, 1] : [2, 3, 2]
             if !isnothing(temperature)
                 cell = merge(cell, (; temperature))
@@ -129,7 +130,7 @@ end
             is_converged = DFTK.ScfConvergenceDensity(scf_tol)
             determine_diagtol = DFTK.ScfDiagtol(diagtol_max=scf_tol)
 
-            scf_kwargs = (; is_converged, determine_diagtol, callback=identity)
+            scf_kwargs = (; is_converged, determine_diagtol)
 
             if fast
                 supercell_size = [2, 1, 1]
@@ -150,7 +151,8 @@ end
             end
 
             ω_uc = []
-            model = model_loc(cell.lattice, cell.atoms, cell.positions; symmetries=false, cell.temperature)
+            model = model_loc(cell.lattice, cell.atoms, cell.positions; symmetries=false,
+                              cell.temperature)
             nbandsalg = AdaptiveBands(model; occupation_threshold=1e-10)
             scf_kwargs = merge(scf_kwargs, (; nbandsalg))
             basis = PlaneWaveBasis(model; Ecut, kgrid)
@@ -162,8 +164,11 @@ end
                 ω_uc = hcat(ω_uc..., ω_q)
             end
 
-            supercell = create_supercell(cell.lattice, cell.atoms, cell.positions, supercell_size)
-            model_supercell = model_loc(supercell.lattice, supercell.atoms, supercell.positions; symmetries=false, cell.temperature)
+            supercell = create_supercell(cell.lattice, cell.atoms, cell.positions,
+                                         supercell_size)
+            model_supercell = model_loc(supercell.lattice, supercell.atoms,
+                                        supercell.positions; symmetries=false,
+                                        cell.temperature)
             nbandsalg = AdaptiveBands(model_supercell; occupation_threshold=1e-10)
             scf_kwargs = merge(scf_kwargs, (; nbandsalg))
             basis_supercell = PlaneWaveBasis(model_supercell; Ecut, kgrid=kgrid_supercell)
@@ -176,10 +181,10 @@ end
             dynamical_matrix_ad = compute_dynmat_ad(basis_supercell; scf_kwargs...)
             ω_ad = sort(phonon_eigenvalues(basis_supercell, dynamical_matrix_ad); dims=2)
 
-            # Because three eigenvalues should be close to zero and the square root near zero
-            # decrease machine accuracy, we expect at least ``3×2×2 - 3 = 9`` eigenvalues to have
-            # norm related to the accuracy of the SCF convergence parameter and the rest to be
-            # larger.
+            # Because three eigenvalues should be close to zero and the square root near
+            # zero decrease machine accuracy, we expect at least ``3×2×2 - 3 = 9``
+            # eigenvalues to have norm related to the accuracy of the SCF convergence
+            # parameter and the rest to be larger.
             n_atoms = length(basis_supercell.model.positions)
             n_dim = basis_supercell.model.n_dim
             for ω_ref in (ω_sc, ω_ad)
