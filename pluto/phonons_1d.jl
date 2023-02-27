@@ -17,9 +17,9 @@ end
 # ╔═╡ 1d1035e2-a2d9-4879-ae02-01775731fb61
 begin
 	import Pkg
-	# Pkg.add(url="https://github.com/epolack/DFTK.jl", rev="phonon")
-	using Revise
-	Pkg.develop(path="/home/maths/worktree/DFTK.jl/phonon_example_1d")
+	Pkg.add(url="https://github.com/epolack/DFTK.jl", rev="phonon")
+	# using Revise
+	# Pkg.develop(path="/home/maths/worktree/DFTK.jl/phonon_example_1d")
 end;
 
 # ╔═╡ b53cf69c-3cf8-44bf-8fef-5483ab1b382d
