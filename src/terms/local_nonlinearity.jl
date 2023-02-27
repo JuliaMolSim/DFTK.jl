@@ -11,9 +11,10 @@ end
 
 function ene_ops(term::TermLocalNonlinearity, basis::PlaneWaveBasis{T}, ψ, occupation;
                  ρ, kwargs...) where {T}
+    S = complex(T)
     fp(ρ) = ForwardDiff.derivative(term.f, ρ)
-    E = sum(fρ -> convert_dual(T, fρ), term.f.(ρ)) * basis.dvol
-    potential = convert_dual.(T, fp.(ρ))
+    E = sum(fρ -> convert_dual(S, fρ), term.f.(ρ)) * basis.dvol
+    potential = convert_dual.(S, fp.(ρ))
 
     # In the case of collinear spin, the potential is spin-dependent
     ops = [RealSpaceMultiplication(basis, kpt, potential[:, :, :, kpt.spin])
