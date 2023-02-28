@@ -522,7 +522,7 @@ begin
 end;
 
 # ╔═╡ 29b4e3e8-932f-45d9-aceb-b22b824f46c4
-@bind iψ Slider(1:length(figures_ψ), default = 1)
+@bind iψ Slider(1:length(figures_ψ), default = 2)
 
 # ╔═╡ 4e959952-f314-47cd-8ded-f8d4213e3d45
 figures_ψ[iψ]
@@ -574,7 +574,7 @@ begin
 end;
 
 # ╔═╡ ecb42815-7acd-4187-a90b-a69c74d9f60e
-@bind iδV Slider(1:length(figures_δV), default = 1)
+@bind iδV Slider(1:length(figures_δV), default = 2)
 
 # ╔═╡ 690d54d5-83e6-4e95-8626-c19c3cdce214
 figures_δV[iδV]
@@ -626,7 +626,7 @@ begin
 end;
 
 # ╔═╡ 0b19dd51-563b-4168-8a65-4423d1fe0cc3
-@bind iδρ Slider(1:length(figures_δρ), default = 1)
+@bind iδρ Slider(1:length(figures_δρ), default = 2)
 
 # ╔═╡ ae502d85-01a6-4b8a-b2a8-b1806df9dcc2
 figures_δρ[iδρ]
