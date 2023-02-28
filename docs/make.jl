@@ -187,10 +187,8 @@ for file in literate_files
         open(file.dest * "/" * name * ".md", "w") do io
             println(io, """
                 ```@raw html
-                <iframe style="border:none; width:100%;" sandbox="allow-same-origin
-                allow-scripts" frameborder="0" scrolling="no"
-                onload="this.style.height=(this.contentWindow.document.body.scrollHeight+20)+'px';"
-                src="$(name)_export.html"></iframe>
+                <iframe style="height:100vh; width:100vw;" sandbox="allow-same-origin
+                allow-scripts" src="$(name)_export.html"></iframe>
                 ```
                 """)
         end
