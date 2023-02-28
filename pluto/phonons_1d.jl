@@ -228,7 +228,7 @@ First, let's create a supercell from the unit cell computations. For simplicity,
 """
 
 # ╔═╡ 313c7db0-a7d5-440c-867c-98167771a4d4
-dynmat = compute_dynmat_ad(cell_to_supercell(scfres.basis), tol=1e-9);
+dynmat = compute_dynmat_ad(cell_to_supercell(scfres.basis); tol=1e-9);
 
 # ╔═╡ bece2b2d-9885-437d-92ea-017ed4056515
 md"""
@@ -404,14 +404,16 @@ end;
 # ╔═╡ 1b9ef7e0-6333-4e02-bfb9-51ae6e987830
 md"""
 Finally, we will modify a bit the raw results to easily be able to plot the quantities. We map everything to plot in the supercell.
+
+This will allow us to see that for ``q≠0``, hence for perturbation that carry over the unit cell, we can still represent the perturbation using unit cell computations.
 """
 
 # ╔═╡ 07cdbbf2-2441-4ee2-b6d1-800ec74a58b9
-function cell_to_supercell_qoe(qoe, supercell_size)
+function cell_to_supercell_qoe(qoe; supercell_size=(1, 1, 1))
 	# Number of copies to do.
 	n = prod(supercell_size)
 
-	scfes = qoe.scfres
+	scfres = qoe.scfres
 	ψ = scfres.ψ
 	basis = scfres.basis
 
@@ -430,53 +432,36 @@ function cell_to_supercell_qoe(qoe, supercell_size)
 	for _ in 1:n-1
 		V = vcat2(V)
 	end
-
-	ψ_real = [Array{eltype(ψ[ik])}(undef, (length(x_coords), size(ψ[ik], 2))) for ik in 1:length(ψ)]
+	
+	ψ_real = [Array{eltype(ψ[ik])}(undef, (n*length(r_vectors(basis)), size(ψ[ik], 2))) for ik in 1:length(ψ)]
 	for (ik, kpt) in enumerate(basis.kpoints)
-		for n in 1:size(ψ[ik], 2)
-			ψ_real[ik][:, n] = normalize(vcat2(ifft(basis, kpt, ψ[ik][:, n])))
+		for j in 1:size(ψ[ik], 2)
+			ψ_real_ikj = ifft(basis, kpt, ψ[ik][:, j])
+			for _ in 1:n-1
+				ψ_real_ikj = vcat2(ψ_real_ikj)
+			end
+			ψ_real[ik][:, j] = normalize(ψ_real_ikj)
 		end
 	end
 
 	local_term = only(filter(e -> typeof(e) <: DFTK.TermAtomicLocal, basis.terms))
-	δVs = [DFTK.compute_δV(local_term, basis; q) for q in qoe.qpoints]
-	δVs = [[vcat2(δV[:]) for δV in δVq] for δVq in δVs]
+	δVs = [[δV[:] for δV in DFTK.compute_δV(local_term, basis; q)] for q in qoe.qpoints]
+	for _ in 1:n-1
+		δVs = [[vcat2(δV) for δV in δVq] for δVq in δVs]
+	end
 
-	δρs = [DFTK.compute_δρ(scfres; q).δρs for q in qoe.qpoints]
-	δρs = [[vcat2(δρ[:]) for δρ in δρq] for δρq in δρs]
+	δρs = [[δρ[:] for δρ in DFTK.compute_δρ(scfres; q).δρs] for q in qoe.qpoints]
+	for _ in 1:n-1
+		δρs = [[vcat2(δρ) for δρ in δρq] for δρq in δρs]
+	end
 	
 	(; x_coords, V, ρ, ψ=ψ_real, δVs, δρs)
 end;
 
-# ╔═╡ 8baa886b-6652-4008-b628-ecb7eb4b60c7
-function supercell_to_supercell_qoe(qoe)
-	x_coords = qoe.x_coords
-	ρ = qoe.ρ
-	V = qoe.V
-
-	scfres = qoe.scfres
-	ψ = scfres.ψ
-	basis = scfres.basis
-
-	ψ_real = [Array{eltype(ψ[ik])}(undef, (length(x_coords), size(ψ[ik], 2))) for ik in 1:length(ψ)]
-	for (ik, kpt) in enumerate(basis.kpoints)
-		for n in 1:size(ψ[ik], 2)
-			ψ_real[ik][:, n] = normalize(ifft(basis, kpt, ψ[ik][:, n]))
-		end
-	end
-
-	local_term = only(filter(e -> typeof(e) <: DFTK.TermAtomicLocal, basis.terms))
-	δVs = [δV[:] for δV in DFTK.compute_δV(local_term, basis)]
-
-	δρs = [δρ[:] for δρ in DFTK.compute_δρ(scfres).δρs]
-
-	(; x_coords, ρ, V, ψ=ψ_real, δVs, δρs)
-end;
-
 # ╔═╡ c0192298-72e1-49d0-a5dd-00d90fdff393
 begin
-	tcell_qoe = cell_to_supercell_qoe(cell_qoe, supercell_size)
-	tsupercell_qoe = supercell_to_supercell_qoe(supercell_qoe)
+	tcell_qoe = cell_to_supercell_qoe(cell_qoe; supercell_size)
+	tsupercell_qoe = cell_to_supercell_qoe(supercell_qoe)
 end;
 
 # ╔═╡ 90d592e4-e76a-41ec-b5ae-9efde9572e83
@@ -554,7 +539,7 @@ begin
 	for ik in 1:length(tcell_qoe.δVs)
 		δV_cell = sum(factors[ik].cell[n] .* tcell_qoe.δVs[ik][n] for n in 1:size(tcell_qoe.δVs[ik], 2)) .* exp_iqx[ik]
 
-		δV_supercell = sum(factors[ik].supercell[n] .* tsupercell_qoe.δVs[n] for n in 1:length(factors[ik].supercell)) / prod(supercell_size)
+		δV_supercell = sum(factors[ik].supercell[n] .* tsupercell_qoe.δVs[1][n] for n in 1:length(factors[ik].supercell)) / prod(supercell_size)
 
 		push!(figures_δV, figure())
 		suptitle(L"$δV_{"*string(cell_qoe.qpoints[ik][1])*L"}$")
@@ -606,7 +591,7 @@ begin
 	for ik in 1:length(tcell_qoe.δρs)
 		δρ_cell = sum(factors[ik].cell[n] .* tcell_qoe.δρs[ik][n] for n in 1:size(tcell_qoe.δρs[ik], 2)) .* exp_iqx[ik]
 
-		δρ_supercell = sum(factors[ik].supercell[n] .* tsupercell_qoe.δρs[n] for n in 1:length(factors[ik].supercell)) / prod(supercell_size)
+		δρ_supercell = sum(factors[ik].supercell[n] .* tsupercell_qoe.δρs[1][n] for n in 1:length(factors[ik].supercell)) / prod(supercell_size)
 
 		push!(figures_δρ, figure())
 		suptitle(L"$δρ_{"*string(cell_qoe.qpoints[ik][1])*L"}$")
@@ -777,7 +762,7 @@ end
 # ╠═4cd360f1-8ced-404f-8f81-596aa84f9e48
 # ╟─a32990c9-7f5c-48ec-b2c4-ad7c65e0d964
 # ╠═b7e3129e-4c7e-4b18-aa4a-e35cb8de8cbd
-# ╠═ab2a6c4c-36a6-4fbd-8df4-cdb232b3e8b3
+# ╟─ab2a6c4c-36a6-4fbd-8df4-cdb232b3e8b3
 # ╠═a094da30-42cd-4d9d-bb3d-d8a27c87cb81
 # ╟─d6d87cb2-ae0d-4039-8e76-a200620c7802
 # ╟─39f57c52-8674-41f8-9a99-a4fae1ecc9ee
@@ -786,7 +771,6 @@ end
 # ╠═9df324fd-400d-4fa6-be10-5420d37950c2
 # ╟─1b9ef7e0-6333-4e02-bfb9-51ae6e987830
 # ╠═07cdbbf2-2441-4ee2-b6d1-800ec74a58b9
-# ╠═8baa886b-6652-4008-b628-ecb7eb4b60c7
 # ╠═c0192298-72e1-49d0-a5dd-00d90fdff393
 # ╟─90d592e4-e76a-41ec-b5ae-9efde9572e83
 # ╟─51c30baf-4136-47ff-91f4-73059cd52066
