@@ -17,9 +17,12 @@ end
 # ╔═╡ 1d1035e2-a2d9-4879-ae02-01775731fb61
 begin
 	import Pkg
-	Pkg.add(url="https://github.com/epolack/DFTK.jl", rev="phonon")
-	# using Revise
-	# Pkg.develop(path="/home/maths/worktree/DFTK.jl/phonon_example_1d")
+	if isdir("/home/maths/worktree/DFTK.jl/phonon_example_1d")
+		using Revise
+		Pkg.develop(path="/home/maths/worktree/DFTK.jl/phonon_example_1d")
+	else
+		Pkg.add(url="https://github.com/epolack/DFTK.jl", rev="phonon")
+	end
 end;
 
 # ╔═╡ b53cf69c-3cf8-44bf-8fef-5483ab1b382d
@@ -27,13 +30,13 @@ begin
 	using DFTK
 	using LinearAlgebra
 	using PyPlot
-	using PlutoUI  # Can't plot in a loop…
+	using PlutoUI
 	using LaTeXStrings
 end
 
 # ╔═╡ 2d4bea83-e31c-424f-b73e-30c0b7e97ce7
 md"""
-# Example of phonon bands computations for a one-dimensional periodic system.
+# Example of phonon bands computations for a one-dimensional periodic system
 """
 
 # ╔═╡ a24e6313-0e18-4e05-99ce-8ca6133fde33
@@ -80,6 +83,8 @@ This collective movements of the atoms can for example explain the speed of prop
 # ╔═╡ 6dc3d7de-c435-4092-8057-5721188a71db
 md"""
 ### The unit cell
+
+We create an arbitrary initial system with a pairwise potential that is parameterised for it to be at equilibrium.
 """
 
 # ╔═╡ 8b3215b4-8e02-40dc-83d3-95521c21fbdc
@@ -132,7 +137,7 @@ All the comparaison we will do here should be exact at machine precision for any
 """
 
 # ╔═╡ 757cec4b-9d48-4001-9f8c-174d292a5c78
-function get_convergence_parameters(n_atoms=2; kgrid=(n_atoms, 1, 1))
+function get_convergence_parameters(n_atoms=2; kgrid=(2, 1, 1))
 	Ecut = 20
 	fft_size = [25*n_atoms, 1, 1]
 	basis_kwargs = (; Ecut, kgrid, fft_size)
@@ -152,7 +157,7 @@ We have everything we need to compute the ground state of the system. We use the
 """
 
 # ╔═╡ da30a8bd-cb64-4b34-a4bc-1f60da4aa827
-function compute_scfres(n_atoms, εF; kgrid=(n_atoms, 1, 1), kwargs...)
+function compute_scfres(n_atoms, εF; kgrid=(2, 1, 1), kwargs...)
 	cell, extra_terms, modes = prepare_unit_cell(n_atoms; kwargs...)
 	basis_kwargs, scf_kwargs = get_convergence_parameters(n_atoms; kgrid)
 
@@ -199,14 +204,14 @@ Let's see what the density and potential look like.
 
 # ╔═╡ 41e7b0e6-5e51-469e-93b7-08daa57b4fec
 let
+	fig = figure()
 	x_coords = [x for (x, y, z) in r_vectors_cart(scfres.basis)][:]
-	clf()
 	local_term = only(filter(e -> typeof(e) <: DFTK.TermAtomicLocal, scfres.basis.terms))
 	V = local_term.potential_values[:]
-	plot(x_coords, V, label=L"$V$")
-	plot(x_coords, scfres.ρ[:], label=L"$ρ$")
+	plot(x_coords, V, label=L"V")
+	plot(x_coords, scfres.ρ[:], label=L"ρ")
 	legend()
-	gcf()
+	fig
 end
 
 # ╔═╡ 5058b801-4a85-48b9-ad26-8a2e4099aef2
@@ -228,22 +233,25 @@ First, let's create a supercell from the unit cell computations. For simplicity,
 """
 
 # ╔═╡ 313c7db0-a7d5-440c-867c-98167771a4d4
-dynmat = compute_dynmat_ad(cell_to_supercell(scfres.basis); tol=1e-9);
+begin
+	supercell_basis = cell_to_supercell(scfres.basis)
+	dynmat_ad = compute_dynmat_ad(supercell_basis; tol=1e-9)
+end;
 
 # ╔═╡ bece2b2d-9885-437d-92ea-017ed4056515
 md"""
-As we can see from the output, for a one-dimensional problem, we need to do ``n_{\rm atoms}×n_{\rm supercell}`` self-consistent field computations on a ``n_{\rm supercell}`` larger system.
+As we can see from the output, for a one-dimensional problem, we need to do ``n_{\rm atoms}×n_{\rm supercell}`` self-consistent field computations on an ``n_{\rm supercell}`` larger system.
 
 Hence the computational complexity increases significantly, even for a few perturbations.
 
-Non the less, from the dynamical matrix, we can compute the discrete collective modes of vibrations of the system. In the case with a supercell of size `2`, the ones that have the periodicity of the unit cell and twice that.
+Nonetheless, from the dynamical matrix, we can compute the discrete collective modes of vibrations of the system. In the case with a supercell of size ``2``, the ones that have the periodicity of the unit cell and twice that.
 """
 
 # ╔═╡ 77a753ff-f4bc-4f81-981e-f556f8c7b31a
 phonons = let
-	λs, Vs = eigen(dynmat)
+	λs, Vs = eigen(dynmat_ad)
 	λs[abs.(λs) .< 1e-6] .= 0 
-	[Dict(:λ => sqrt(λs[i]), :d => Vs[:, i]) for i in eachindex(λs)]
+	[Dict(:λ => sqrt(λs[i]), :d => Vs[sortperm(supercell_basis.model.positions), i]) for i in eachindex(λs)]
 end;
 
 # ╔═╡ ce55bc11-57d1-4b43-82da-a31e368945eb
@@ -253,7 +261,7 @@ To each eigenvalue ``λ`` in Hartree, is associated a displacement of the nuclei
 For example for a system with ``2`` atoms and a supercell of ``4`` atoms, the lowest eigenvalue ``0`` corresponds to the movements of all the atoms in the same direction 
 * $(join(round.(phonons[1][:d]; digits=2), ", ") |> Text)
 and the highest one to movements of the atoms in the first unit cell in one direction and the other one in the opposite
-* $(join(round.(phonons[end][:d]; digits=2), ", ") |> Text)
+* $(join(round.(phonons[2][:d]; digits=2), ", ") |> Text)
 
 We note that the first eigenvalue could have been obtained with computations on the unit cell, but not the second.
 """
@@ -323,9 +331,9 @@ function get_quantities_of_interest(scfres)
 	# the perturbations δψ,
 	δψs = [DFTK.compute_δρ(scfres; q).δψs for q in qpoints]
 	# and finally the perturbations of the density.
-	δρs = [DFTK.compute_δρ(scfres; q).δρs for q in qpoints]
+	δρs, δoccupations = collect(zip([DFTK.compute_δρ(scfres; q) for q in qpoints]...))
 
-	(; x_coords, V, ψ, ρ, qpoints, δVs, δVψs, δψs, δρs, scfres, mask_occ)
+	(; x_coords, V, ψ, ρ, qpoints, δVs, δVψs, δψs, δρs, scfres, mask_occ, δoccupations)
 end;
 
 # ╔═╡ a32990c9-7f5c-48ec-b2c4-ad7c65e0d964
@@ -486,7 +494,7 @@ begin
 			push!(figures_ψ, figure())
 			idx = n + (ik-1)*(length(cell_qoe.mask_occ[ik]))
 
-			suptitle(L"$ψ_{"*string(idx)*L"}$")
+			suptitle(L"ψ_{%$(string(idx))}")
 
 			mask = supercell_qoe.mask_occ[1][idx]
 
@@ -522,7 +530,7 @@ begin
 end;
 
 # ╔═╡ 29b4e3e8-932f-45d9-aceb-b22b824f46c4
-@bind iψ Slider(1:length(figures_ψ), default = 2)
+@bind iψ Slider(1:length(figures_ψ); default=length(figures_ψ))
 
 # ╔═╡ 4e959952-f314-47cd-8ded-f8d4213e3d45
 figures_ψ[iψ]
@@ -542,7 +550,7 @@ begin
 		δV_supercell = sum(factors[ik].supercell[n] .* tsupercell_qoe.δVs[1][n] for n in 1:length(factors[ik].supercell)) / prod(supercell_size)
 
 		push!(figures_δV, figure())
-		suptitle(L"$δV_{"*string(cell_qoe.qpoints[ik][1])*L"}$")
+		suptitle(L"δV_{%$(string(cell_qoe.qpoints[ik][1]))}")
 
 		res_cell = δV_cell
 		res_supercell = δV_supercell
@@ -574,7 +582,7 @@ begin
 end;
 
 # ╔═╡ ecb42815-7acd-4187-a90b-a69c74d9f60e
-@bind iδV Slider(1:length(figures_δV), default = 2)
+@bind iδV Slider(1:length(figures_δV); default=length(figures_δV))
 
 # ╔═╡ 690d54d5-83e6-4e95-8626-c19c3cdce214
 figures_δV[iδV]
@@ -594,7 +602,7 @@ begin
 		δρ_supercell = sum(factors[ik].supercell[n] .* tsupercell_qoe.δρs[1][n] for n in 1:length(factors[ik].supercell)) / prod(supercell_size)
 
 		push!(figures_δρ, figure())
-		suptitle(L"$δρ_{"*string(cell_qoe.qpoints[ik][1])*L"}$")
+		suptitle(L"δρ_{%$(string(cell_qoe.qpoints[ik][1]))}")
 
 		res_cell = δρ_cell
 		res_supercell = δρ_supercell
@@ -626,7 +634,7 @@ begin
 end;
 
 # ╔═╡ 0b19dd51-563b-4168-8a65-4423d1fe0cc3
-@bind iδρ Slider(1:length(figures_δρ), default = 2)
+@bind iδρ Slider(1:length(figures_δρ); default=length(figures_δρ))
 
 # ╔═╡ ae502d85-01a6-4b8a-b2a8-b1806df9dcc2
 figures_δρ[iδρ]
@@ -636,6 +644,71 @@ md"""
 ##### Other quantities
 
 We could also plot the right-hand side ``δV^qψ_{n,k-q}``, the projection of the right-hand side on occupied space, and the ``δψ``.
+"""
+
+# ╔═╡ c293a530-bead-4564-b1ec-94f110ba4232
+md"""
+### Comparison to the ground truth
+"""
+
+# ╔═╡ 1667cf43-7573-4d53-b569-c2d537bcd5cd
+md"""
+First, we compare the results from automatic differentiation to the computations with analytic formulæ.
+
+We remember that the dynamical matrix computed with automatic differentiation is
+"""
+
+# ╔═╡ 264dc0c2-76c5-4ea0-a039-3ee6bc0118bf
+dynmat_ad
+
+# ╔═╡ 43f0b519-7cde-40d8-ac50-a130c0a37843
+md"""
+And the analytical one is
+"""
+
+# ╔═╡ fbe4ae27-a426-4a8b-9e91-96e1df9f23cd
+begin
+	supercell_dynmat = compute_dynmat(supercell_qoe.scfres; δρs=supercell_qoe.δρs[1], 
+	δψs=supercell_qoe.δψs[1], δoccupations=supercell_qoe.δoccupations[1])
+	@assert norm(imag(supercell_dynmat)) < 1e-10
+	supercell_dynmat = real(supercell_dynmat)
+	supercell_dynmat[abs.(supercell_dynmat) .< 1e-5] .= 0
+	supercell_dynmat
+end
+
+# ╔═╡ ac9abf17-df29-46e0-80e5-55a4a75f9859
+md"""
+This give us an error of $(norm(dynmat_ad - supercell_dynmat)).
+"""
+
+# ╔═╡ afa03d72-9ade-4d0c-802a-2f2e9eb827a0
+md"""
+To compare the results of with the unit cell, it is not possible anymore to have we need to look at the normal modes by computing the solutions to the eigenproblems for each ``q``-point.
+
+The supercell modes (in cm⁻¹) are
+"""
+
+# ╔═╡ aee17718-3a51-426a-9e75-95c5ac13ecab
+begin
+	supercell_ω = DFTK.phonon_eigenvalues(supercell_qoe.scfres.basis, supercell_dynmat)[:]
+end
+
+# ╔═╡ f837bad0-4d42-471b-9a2e-e2f4b641b416
+md"""
+The ones in the unit cell computations are
+"""
+
+# ╔═╡ 73a1ead0-49fa-46db-90a9-2fffec15bcd0
+begin
+	cell_dynmat = [compute_dynmat(cell_qoe.scfres; δρs=cell_qoe.δρs[ik], 
+	δψs=cell_qoe.δψs[ik], δoccupations=cell_qoe.δoccupations[ik], q) for (ik, q) in enumerate(cell_qoe.qpoints)]
+	cell_ω = [DFTK.phonon_eigenvalues(cell_qoe.scfres.basis, dynmat) for dynmat in cell_dynmat]
+	cell_ω = sort(hcat(cell_ω...); dims=2)[:]
+end
+
+# ╔═╡ 999ec2c6-dac0-4e2d-81b0-edca2fcfea35
+md"""
+With an error of $(norm(cell_ω[2:end] - supercell_ω[2:end])) for the non-zero values (because the error at zero is squared the to the singularity of the square root at the origin).
 """
 
 # ╔═╡ 95b6d1cc-78f0-481b-8f93-ec6d1694a8d4
@@ -690,8 +763,8 @@ function myplot(terms, x_coords, qoe, factors; scale=identity, qpoint=zeros(3), 
 end;
 
 # ╔═╡ 73cabca3-5eb8-484c-ad30-0d3f42fd0cd5
-begin
-	clf()
+let
+	fig = figure()
 	suptitle("Supercell")
 
 	subplot(221)
@@ -707,12 +780,12 @@ begin
 	subplot(223)
 	myplot([:modes], supercell_qoe.x_coords, cell_qoe, factors, celltype=:cell, qpoint=cell_qoe.qpoints[1])
 	myplot([:modes], supercell_qoe.x_coords, cell_qoe, factors, celltype=:cell, qpoint=cell_qoe.qpoints[2])
-	gcf()
+	fig
 end
 
 # ╔═╡ 0c3db408-ce32-40e0-bcf4-3c23da0b1d90
-begin
-	clf()
+let
+	fig = figure()
 	suptitle("Unit cell")
 
 	subplot(121)
@@ -724,7 +797,7 @@ begin
 	myplot([:V, :ρ, :imag, :modes], supercell_qoe.x_coords, cell_qoe, factors; scale=vcat2, celltype=:supercell)
 	legend()
 	title("Imaginary part")
-	gcf()
+	fig
 end
 
 # ╔═╡ Cell order:
@@ -732,14 +805,14 @@ end
 # ╟─a24e6313-0e18-4e05-99ce-8ca6133fde33
 # ╠═1d1035e2-a2d9-4879-ae02-01775731fb61
 # ╠═b53cf69c-3cf8-44bf-8fef-5483ab1b382d
-# ╠═b7594e68-a789-433f-acc8-c0bc9ba432a2
+# ╟─b7594e68-a789-433f-acc8-c0bc9ba432a2
 # ╟─e4b5ebfa-ff93-4945-888a-fa8e69d80aa8
 # ╠═01debbd5-357a-4494-8586-3ff98883dd34
 # ╟─bbae56f8-0e3d-4497-97cd-704f5d2c6124
 # ╟─f741a53c-7bb6-4f80-bdf6-551aeef1fec7
 # ╟─6dc3d7de-c435-4092-8057-5721188a71db
 # ╠═8b3215b4-8e02-40dc-83d3-95521c21fbdc
-# ╠═98c1a080-b41c-492e-aec6-a4da292677fd
+# ╟─98c1a080-b41c-492e-aec6-a4da292677fd
 # ╠═971eb748-090c-47aa-9033-2c180abb2b63
 # ╟─ed7200df-7f9b-47b4-a6bd-666676ca883c
 # ╠═757cec4b-9d48-4001-9f8c-174d292a5c78
@@ -786,6 +859,17 @@ end
 # ╠═0b19dd51-563b-4168-8a65-4423d1fe0cc3
 # ╠═ae502d85-01a6-4b8a-b2a8-b1806df9dcc2
 # ╟─741e8787-0f24-463f-91c1-cecb6b765002
+# ╟─c293a530-bead-4564-b1ec-94f110ba4232
+# ╟─1667cf43-7573-4d53-b569-c2d537bcd5cd
+# ╟─264dc0c2-76c5-4ea0-a039-3ee6bc0118bf
+# ╟─43f0b519-7cde-40d8-ac50-a130c0a37843
+# ╟─fbe4ae27-a426-4a8b-9e91-96e1df9f23cd
+# ╟─ac9abf17-df29-46e0-80e5-55a4a75f9859
+# ╟─afa03d72-9ade-4d0c-802a-2f2e9eb827a0
+# ╟─aee17718-3a51-426a-9e75-95c5ac13ecab
+# ╟─f837bad0-4d42-471b-9a2e-e2f4b641b416
+# ╟─73a1ead0-49fa-46db-90a9-2fffec15bcd0
+# ╟─999ec2c6-dac0-4e2d-81b0-edca2fcfea35
 # ╟─95b6d1cc-78f0-481b-8f93-ec6d1694a8d4
 # ╠═9b9b6789-ad05-410a-b18c-5db7732c3288
 # ╠═73cabca3-5eb8-484c-ad30-0d3f42fd0cd5
