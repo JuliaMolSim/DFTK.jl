@@ -231,5 +231,5 @@ end
 function hamiltonian_with_total_potential(Hk::HamiltonianBlock, V)
     operators = [op for op in Hk.operators if !(op isa RealSpaceMultiplication)]
     push!(operators, RealSpaceMultiplication(Hk.basis, Hk.kpoint, V))
-    HamiltonianBlock(Hk.basis, Hk.kpoint, operators, Hk.scratch)
+    HamiltonianBlock(Hk.basis, Hk.kpoint, operators)
 end
