@@ -36,16 +36,18 @@ function HamiltonianBlock(basis, kpoint, operators, scratch=ham_allocate_scratch
     fourier_ops  = filter(o -> o isa FourierMultiplication,   optimized_operators)
     real_ops     = filter(o -> o isa RealSpaceMultiplication, optimized_operators)
     nonlocal_ops = filter(o -> o isa NonlocalOperator,        optimized_operators)
-    divAgrid_ops = filter(o -> o isa DivAgradOperator,        optimized_operators)
+    divAgrad_ops = filter(o -> o isa DivAgradOperator,        optimized_operators)
 
     is_dft_ham = (   length(fourier_ops) == 1 && length(real_ops) == 1
-                  && length(nonlocal_ops) < 2 && length(divAgrid_ops) < 2)
+                  && length(nonlocal_ops) < 2 && length(divAgrad_ops) < 2
+                  && length(fourier_ops) + length(real_ops) + length(nonlocal_ops) + length(divAgrad_ops) == length(optimized_operators))
+    is_dft_ham = false
     if is_dft_ham
         nonlocal_op = isempty(nonlocal_ops) ? nothing : only(nonlocal_ops)
-        divAgrid_op = isempty(divAgrid_ops) ? nothing : only(divAgrid_ops)
+        divAgrad_op = isempty(divAgrad_ops) ? nothing : only(divAgrad_ops)
         DftHamiltonianBlock(basis, kpoint, operators,
                             only(fourier_ops), only(real_ops),
-                            nonlocal_op, divAgrid_op, scratch)
+                            nonlocal_op, divAgrad_op, scratch)
     else
         GenericHamiltonianBlock(basis, kpoint, operators, optimized_operators)
     end
