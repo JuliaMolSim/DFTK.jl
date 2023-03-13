@@ -24,7 +24,7 @@ Construct a plane-wave basis whose unit cell is the supercell associated to
 an input basis ``k``-grid. All other parameters are modified so that the respective physical
 systems associated to both basis are equivalent.
 """
-function cell_to_supercell(basis::PlaneWaveBasis)
+function cell_to_supercell(basis::PlaneWaveBasis{T}) where {T}
     iszero(basis.kshift) || error("Only kshift of 0 implemented.")
     model = basis.model
 
@@ -44,10 +44,10 @@ function cell_to_supercell(basis::PlaneWaveBasis)
     symmetries_respect_rgrid = false  # single point symmetry
     PlaneWaveBasis(model_supercell, basis.Ecut, supercell_fft_size,
                    basis.variational,
-                   [zeros(Float64, 3)],  # kcoords
-                   [one(Float64)],       # kweights
-                   ones(3),              # kgrid = Γ point only
-                   basis.kshift,         # kshift
+                   [zeros(T, 3)],  # kcoords
+                   [one(T)],       # kweights
+                   ones(3),        # kgrid = Γ point only
+                   basis.kshift,   # kshift
                    symmetries_respect_rgrid,
                    basis.comm_kpts, basis.architecture)
 end
@@ -85,7 +85,7 @@ function cell_to_supercell(ψ, basis::PlaneWaveBasis{T},
     # Transfer all ψ[k] independantly and return the hcat of all blocs
     ψ_out_blocs = []
     for (ik, kpt) in enumerate(basis.kpoints)
-        ψk_supercell = zeros(ComplexF64, num_kpG, num_bands)
+        ψk_supercell = zeros(complex(T), num_kpG, num_bands)
         ψk_supercell[cell_supercell_mapping(kpt), :] .= ψ[ik]
         push!(ψ_out_blocs, ψk_supercell)
     end
