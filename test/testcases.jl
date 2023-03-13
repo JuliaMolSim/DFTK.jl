@@ -67,9 +67,12 @@ aluminium_primitive = (
     n_electrons = 3,
     psp_hgh = joinpath(hgh_lda_family, "al-q3.hgh"),
     psp_upf = joinpath(pd_lda_family, "Al.upf"),
-    positions = [[0, 0, 0]],
+    positions = [zeros(3)],
     temperature = 0.0009500431544769484,
 )
+aluminium_primitive = merge(aluminium_primitive,
+                            (; atoms=fill(ElementPsp(aluminium_primitive.atnum,
+                                                     psp=load_psp(aluminium_primitive.psp)), 1)))
 
 
 platinum_hcp = (
