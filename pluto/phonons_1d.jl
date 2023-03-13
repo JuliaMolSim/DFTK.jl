@@ -19,7 +19,7 @@ begin
 	import Pkg
 	if isdir("/home/maths/worktree/DFTK.jl/phonon_example_1d")
 		using Revise
-		Pkg.develop(path="/home/maths/worktree/DFTK.jl/phonon_example_1d")
+		Pkg.develop(path="/home/maths/worktree/DFTK.jl/phonon_loc")
 	else
 		Pkg.add(url="https://github.com/epolack/DFTK.jl", rev="phonon")
 	end
@@ -73,8 +73,6 @@ md"""
 
 # ╔═╡ f741a53c-7bb6-4f80-bdf6-551aeef1fec7
 md"""
-We create a `prepare_unit_cell` function that takes the number of unit cell atoms we want to model and the modes associated to them (`+` or `-` for a one-dimensional system).
-
 In phonon computations, we are interested in normal modes. That is discrete collective variables obtained from diagonalising the second-derivative of the energy (the Hessian) for displacements of the atoms in the infinite system.
 
 This collective movements of the atoms can for example explain the speed of propagation of sound waves in materials.
@@ -84,7 +82,7 @@ This collective movements of the atoms can for example explain the speed of prop
 md"""
 ### The unit cell
 
-We create an arbitrary initial system with a pairwise potential that is parameterised for it to be at equilibrium.
+We create a `prepare_unit_cell` function that takes the number of unit cell atoms we want to model and the modes associated to them (`+` or `-` for a one-dimensional system).
 """
 
 # ╔═╡ 8b3215b4-8e02-40dc-83d3-95521c21fbdc
@@ -249,7 +247,7 @@ Nonetheless, from the dynamical matrix, we can compute the discrete collective m
 
 # ╔═╡ 77a753ff-f4bc-4f81-981e-f556f8c7b31a
 phonons = let
-	λs, Vs = eigen(dynmat_ad)
+	λs, Vs = eigen(reshape(dynmat_ad, prod(size(dynmat_ad)[1:2]), prod(size(dynmat_ad)[3:4])))
 	λs[abs.(λs) .< 1e-6] .= 0 
 	[Dict(:λ => sqrt(λs[i]), :d => Vs[sortperm(supercell_basis.model.positions), i]) for i in eachindex(λs)]
 end;
@@ -260,7 +258,7 @@ To each eigenvalue ``λ`` in Hartree, is associated a displacement of the nuclei
 
 For example for a system with ``2`` atoms and a supercell of ``4`` atoms, the lowest eigenvalue ``0`` corresponds to the movements of all the atoms in the same direction 
 * $(join(round.(phonons[1][:d]; digits=2), ", ") |> Text)
-and the highest one to movements of the atoms in the first unit cell in one direction and the other one in the opposite
+and second one to movements of the atoms in the first unit cell in one direction and the other one in the opposite
 * $(join(round.(phonons[2][:d]; digits=2), ", ") |> Text)
 
 We note that the first eigenvalue could have been obtained with computations on the unit cell, but not the second.
@@ -304,8 +302,18 @@ md"""
 
 #### Preparatory work
 
-We now compare the supercell results with results obtained from perturbation theory. For this, we need to extract from the results at the ground state the quantities we want to compare. This is done with `get_quantities_of_interest`.
+We now compare the supercell results with results obtained from perturbation theory. For this, we need to extract from the results at the ground state the quantities we want to compare. This is done with `get_quantities_of_interest`. We also introduce the function `compute_δV` that compute at once the derivative of the local potential for all directions.
 """
+
+# ╔═╡ 0de3ad89-7387-4316-b704-8293d920367a
+function compute_δV(term, basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) where {T}
+	n_atoms = length(basis.model.positions)
+	δV = [zeros(complex(T), length(DFTK.r_vectors(basis)[:, 1, 1])) for _ in 1:n_atoms]
+	for τ in 1:n_atoms
+		δV[τ] = DFTK.compute_δV(term, basis, 1, τ; q)[:]
+	end
+	δV
+end;
 
 # ╔═╡ 4cd360f1-8ced-404f-8f81-596aa84f9e48
 function get_quantities_of_interest(scfres)
@@ -324,14 +332,14 @@ function get_quantities_of_interest(scfres)
 	# And the perturbations of different quatities with repspect to independent displacements of the atoms.
 	# The displacements we can study are the ones of the form ``e^{iq·x}``, where ``q`` is in the ``k``-points.
 	qpoints = getfield.(scfres.basis.kpoints, :coordinate)
-	δVs = [DFTK.compute_δV(local_term, scfres.basis; q) for q in qpoints]
+	δVs = [compute_δV(local_term, scfres.basis; q) for q in qpoints]
 
 	# The quantities ``δV_q ψ_{k-q}``,
 	δVψs = [DFTK.compute_δHψ(scfres; q) for q in qpoints]
 	# the perturbations δψ,
-	δψs = [DFTK.compute_δρ(scfres; q).δψs for q in qpoints]
+	δψs = [DFTK.compute_dynmat(scfres; q).δψs for q in qpoints]
 	# and finally the perturbations of the density.
-	δρs, δoccupations = collect(zip([DFTK.compute_δρ(scfres; q) for q in qpoints]...))
+	_, δρs, _, δoccupations = collect(zip([DFTK.compute_dynmat(scfres; q) for q in qpoints]...))
 
 	(; x_coords, V, ψ, ρ, qpoints, δVs, δVψs, δψs, δρs, scfres, mask_occ, δoccupations)
 end;
@@ -453,12 +461,12 @@ function cell_to_supercell_qoe(qoe; supercell_size=(1, 1, 1))
 	end
 
 	local_term = only(filter(e -> typeof(e) <: DFTK.TermAtomicLocal, basis.terms))
-	δVs = [[δV[:] for δV in DFTK.compute_δV(local_term, basis; q)] for q in qoe.qpoints]
+	δVs = [[δV for δV in compute_δV(local_term, basis; q)] for q in qoe.qpoints]
 	for _ in 1:n-1
 		δVs = [[vcat2(δV) for δV in δVq] for δVq in δVs]
 	end
 
-	δρs = [[δρ[:] for δρ in DFTK.compute_δρ(scfres; q).δρs] for q in qoe.qpoints]
+	δρs = [[δρ[:] for δρ in DFTK.compute_dynmat(scfres; q).δρs] for q in qoe.qpoints]
 	for _ in 1:n-1
 		δρs = [[vcat2(δρ) for δρ in δρq] for δρq in δρs]
 	end
@@ -659,7 +667,7 @@ We remember that the dynamical matrix computed with automatic differentiation is
 """
 
 # ╔═╡ 264dc0c2-76c5-4ea0-a039-3ee6bc0118bf
-dynmat_ad
+dynmat_ad[1, :, 1, :]
 
 # ╔═╡ 43f0b519-7cde-40d8-ac50-a130c0a37843
 md"""
@@ -668,12 +676,11 @@ And the analytical one is
 
 # ╔═╡ fbe4ae27-a426-4a8b-9e91-96e1df9f23cd
 begin
-	supercell_dynmat = compute_dynmat(supercell_qoe.scfres; δρs=supercell_qoe.δρs[1], 
-	δψs=supercell_qoe.δψs[1], δoccupations=supercell_qoe.δoccupations[1])
+	supercell_dynmat = compute_dynmat(supercell_qoe.scfres).dynmat
 	@assert norm(imag(supercell_dynmat)) < 1e-10
 	supercell_dynmat = real(supercell_dynmat)
 	supercell_dynmat[abs.(supercell_dynmat) .< 1e-5] .= 0
-	supercell_dynmat
+	supercell_dynmat[1, :, 1, :]
 end
 
 # ╔═╡ ac9abf17-df29-46e0-80e5-55a4a75f9859
@@ -690,7 +697,8 @@ The supercell modes (in cm⁻¹) are
 
 # ╔═╡ aee17718-3a51-426a-9e75-95c5ac13ecab
 begin
-	supercell_ω = DFTK.phonon_eigenvalues(supercell_qoe.scfres.basis, supercell_dynmat)[:]
+	DFTK.atomic_mass(::ElementGaussian) = DFTK.dalton_to_au
+	supercell_ω = DFTK.phonon_eigvals(supercell_qoe.scfres.basis, supercell_dynmat; reduce_dim=true)[:]
 end
 
 # ╔═╡ f837bad0-4d42-471b-9a2e-e2f4b641b416
@@ -700,15 +708,14 @@ The ones in the unit cell computations are
 
 # ╔═╡ 73a1ead0-49fa-46db-90a9-2fffec15bcd0
 begin
-	cell_dynmat = [compute_dynmat(cell_qoe.scfres; δρs=cell_qoe.δρs[ik], 
-	δψs=cell_qoe.δψs[ik], δoccupations=cell_qoe.δoccupations[ik], q) for (ik, q) in enumerate(cell_qoe.qpoints)]
-	cell_ω = [DFTK.phonon_eigenvalues(cell_qoe.scfres.basis, dynmat) for dynmat in cell_dynmat]
-	cell_ω = sort(hcat(cell_ω...); dims=2)[:]
+	cell_dynmat = [compute_dynmat(cell_qoe.scfres;  q).dynmat for q in cell_qoe.qpoints]
+	cell_ω = [DFTK.phonon_eigvals(cell_qoe.scfres.basis, dynmat; reduce_dim=true) for dynmat in cell_dynmat]
+	cell_ω = sort(vcat(cell_ω...))[:]
 end
 
 # ╔═╡ 999ec2c6-dac0-4e2d-81b0-edca2fcfea35
 md"""
-With an error of $(norm(cell_ω[2:end] - supercell_ω[2:end])) for the non-zero values (because the error at zero is squared the to the singularity of the square root at the origin).
+With an error of $(norm(cell_ω[2:end] - supercell_ω[2:end])) for the non-zero values (because the error at zero is squared due to the singularity of the square root at the origin).
 """
 
 # ╔═╡ 95b6d1cc-78f0-481b-8f93-ec6d1694a8d4
@@ -832,6 +839,7 @@ end
 # ╟─dcb7e8ed-74f6-48f4-9413-1cfb5838eef0
 # ╟─97d9b9f1-fe6c-434a-9752-41fbf5399a16
 # ╟─cee21c8d-251b-4184-a449-f064a96d1b33
+# ╠═0de3ad89-7387-4316-b704-8293d920367a
 # ╠═4cd360f1-8ced-404f-8f81-596aa84f9e48
 # ╟─a32990c9-7f5c-48ec-b2c4-ad7c65e0d964
 # ╠═b7e3129e-4c7e-4b18-aa4a-e35cb8de8cbd
