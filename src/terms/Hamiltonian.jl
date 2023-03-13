@@ -38,10 +38,10 @@ function HamiltonianBlock(basis, kpoint, operators, scratch=ham_allocate_scratch
     nonlocal_ops = filter(o -> o isa NonlocalOperator,        optimized_operators)
     divAgrad_ops = filter(o -> o isa DivAgradOperator,        optimized_operators)
 
+    n_ops_grouped = length(fourier_ops) + length(real_ops) + length(nonlocal_ops) + length(divAgrad_ops)
     is_dft_ham = (   length(fourier_ops) == 1 && length(real_ops) == 1
                   && length(nonlocal_ops) < 2 && length(divAgrad_ops) < 2
-                  && length(fourier_ops) + length(real_ops) + length(nonlocal_ops) + length(divAgrad_ops) == length(optimized_operators))
-    is_dft_ham = false
+                  && n_ops_grouped == length(optimized_operators))
     if is_dft_ham
         nonlocal_op = isempty(nonlocal_ops) ? nothing : only(nonlocal_ops)
         divAgrad_op = isempty(divAgrad_ops) ? nothing : only(divAgrad_ops)
