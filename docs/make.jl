@@ -119,7 +119,7 @@ ENV["PLOTS_TEST"] = "true"
 using DFTK
 using Documenter
 using Literate
-using PlutoStaticHTML: build_notebooks
+import PlutoStaticHTML
 
 #
 # Generate the docs
@@ -174,8 +174,8 @@ end
 for file in literate_files
     preprocess = file.type == :example ? add_badges : identity
     if file.type == :pluto
-        bopts = BuildOptions(basename(file.src); output_format=documenter_output)
-        build_notebooks(bopts, [file.src])
+        bopts = PlutoStaticHTML.BuildOptions(basename(file.src); output_format=PlutoStaticHTML.documenter_output)
+        PlutoStaticHTML.build_notebooks(bopts, [file.src])
         src_file = splitext(file.src)[1] * ".md"
         dest_file = joinpath(file.dest, splitext(basename(file.src))[1] * ".md")
         !isdir(file.dest) && mkdir(file.dest)
