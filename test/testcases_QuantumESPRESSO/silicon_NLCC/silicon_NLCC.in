@@ -25,7 +25,7 @@
 /
 
 ATOMIC_SPECIES
-    Si 28.085 Si_nc-sr-04_lda_standard.upf
+    Si 28.085 Si.upf
 
 ATOMIC_POSITIONS crystal
     Si  0.125  0.125  0.125
