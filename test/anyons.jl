@@ -21,6 +21,7 @@ end
 
 @testset "Anyons: check E11" begin
     # See https://arxiv.org/pdf/1901.10739.pdf
+    # We test E11, which is a quantity defined in the above paper
 
     using DFTK
     using StaticArrays
