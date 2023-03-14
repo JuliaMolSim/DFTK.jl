@@ -46,5 +46,5 @@ scfres_gaussian = silicon_scf(ValenceGaussianDensity());
 # that provide them and Gaussian densities for elements which do not have pseudopotentials
 # or whose pseudopotentials don't provide valence charge densities. To force all elements
 # to use valence charge densities (and error where any element doesn't have them), use
-# `PspDensityGuess()`. 
+# `ValenceNumericalDensity()`. 
 scfres_psp = silicon_scf(ValenceAutoDensity());
