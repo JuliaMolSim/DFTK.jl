@@ -31,7 +31,8 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     # Charge density for non-linear core correction
     # TODO: refactor the following, seems more complicated than necessary
     if any(use_nlcc, basis.model.atoms)
-        ρcore_tot = atomic_total_density(basis, CoreDensity())
+        ρcore_tot = atomic_total_density(basis, CoreDensity(), basis.model.atoms,
+                                         basis.model.atom_groups, basis.model.positions)
         if basis.model.spin_polarization in (:none, :spinless)
             ρcore_spin = nothing
         else
