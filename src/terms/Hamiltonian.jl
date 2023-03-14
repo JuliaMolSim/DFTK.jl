@@ -14,6 +14,8 @@ struct GenericHamiltonianBlock <: HamiltonianBlock
     operators::Vector  # the original list of RealFourierOperator
                        # (as many as there are terms), kept for easier exploration
     optimized_operators::Vector  # Optimized list of RealFourierOperator, for application
+
+    scratch # dummy field
 end
 
 # More optimized HamiltonianBlock for the important case of a DFT Hamiltonian
@@ -31,23 +33,25 @@ struct DftHamiltonianBlock <: HamiltonianBlock
     scratch  # Pre-allocated scratch arrays for fast application
 end
 
-function HamiltonianBlock(basis, kpoint, operators, scratch=ham_allocate_scratch_(basis))
+function HamiltonianBlock(basis, kpoint, operators; scratch=ham_allocate_scratch_(basis))
     optimized_operators = optimize_operators_(operators)
     fourier_ops  = filter(o -> o isa FourierMultiplication,   optimized_operators)
     real_ops     = filter(o -> o isa RealSpaceMultiplication, optimized_operators)
     nonlocal_ops = filter(o -> o isa NonlocalOperator,        optimized_operators)
-    divAgrid_ops = filter(o -> o isa DivAgradOperator,        optimized_operators)
+    divAgrad_ops = filter(o -> o isa DivAgradOperator,        optimized_operators)
 
+    n_ops_grouped = length(fourier_ops) + length(real_ops) + length(nonlocal_ops) + length(divAgrad_ops)
     is_dft_ham = (   length(fourier_ops) == 1 && length(real_ops) == 1
-                  && length(nonlocal_ops) < 2 && length(divAgrid_ops) < 2)
+                  && length(nonlocal_ops) < 2 && length(divAgrad_ops) < 2
+                  && n_ops_grouped == length(optimized_operators))
     if is_dft_ham
         nonlocal_op = isempty(nonlocal_ops) ? nothing : only(nonlocal_ops)
-        divAgrid_op = isempty(divAgrid_ops) ? nothing : only(divAgrid_ops)
+        divAgrad_op = isempty(divAgrad_ops) ? nothing : only(divAgrad_ops)
         DftHamiltonianBlock(basis, kpoint, operators,
                             only(fourier_ops), only(real_ops),
-                            nonlocal_op, divAgrid_op, scratch)
+                            nonlocal_op, divAgrad_op, scratch)
     else
-        GenericHamiltonianBlock(basis, kpoint, operators, optimized_operators)
+        GenericHamiltonianBlock(basis, kpoint, operators, optimized_operators, nothing)
     end
 end
 function ham_allocate_scratch_(basis::PlaneWaveBasis{T}) where {T}
@@ -229,5 +233,5 @@ end
 function hamiltonian_with_total_potential(Hk::HamiltonianBlock, V)
     operators = [op for op in Hk.operators if !(op isa RealSpaceMultiplication)]
     push!(operators, RealSpaceMultiplication(Hk.basis, Hk.kpoint, V))
-    HamiltonianBlock(Hk.basis, Hk.kpoint, operators, Hk.scratch)
+    HamiltonianBlock(Hk.basis, Hk.kpoint, operators; Hk.scratch)
 end
