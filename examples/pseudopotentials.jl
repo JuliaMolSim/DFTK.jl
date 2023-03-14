@@ -77,10 +77,6 @@ function run_bands(psp)
     lattice = a / 2 * [[0 1 1.];
                        [1 0 1.];
                        [1 1 0.]]
-    ## The PseudoDojo pseudopotential contains a model core charge density used for a
-    ## non-linear core correction to the exchange-correlation energy. This can be
-    ## toggled using the `use_nlcc` keyword argument to `ElementPsp` if you _really_
-    ## know what you're doing.
     Si = ElementPsp(:Si; psp=psp)
     atoms     = [Si, Si]
     positions = [ones(3)/8, -ones(3)/8]

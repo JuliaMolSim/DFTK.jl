@@ -30,7 +30,15 @@ end
 # Atomic density methods
 function guess_density(basis::PlaneWaveBasis, magnetic_moments=[],
                        n_electrons=basis.model.n_electrons)
-    atomic_density(basis, ValenceAutoDensity(), magnetic_moments, n_electrons)
+    atomic_density(basis, ValenceAutoDensity(), basis.model.atoms, basis.model.atom_groups,
+                   basis.model.positions, magnetic_moments, n_electrons)
+end
+
+function guess_density(basis::PlaneWaveBasis, system::AbstractSystem)
+    parsed = parse_system(system)
+    atom_groups = [findall(Ref(pot) .== system.atoms) for pot in Set(system.atoms)]
+    guess_density(basis, ValenceAutoDensity(), system.atoms, atom_groups, system.positions,
+                  parsed.magnetic_moments)
 end
 
 @doc raw"""
@@ -59,19 +67,21 @@ that does not have valence charge density data.
 When magnetic moments are provided, construct a symmetry-broken density guess.
 The magnetic moments should be specified in units of ``μ_B``.
 """
-function guess_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_moments=[];
-                       n_electrons=basis.model.n_electrons)
-    atomic_density(basis, method, magnetic_moments, n_electrons)
+function guess_density(basis::PlaneWaveBasis, method::AtomicDensity, atoms, atom_groups,
+                       positions, magnetic_moments=[]; n_electrons=basis.model.n_electrons)
+    atomic_density(basis, method, atoms, atom_groups, positions, magnetic_moments,
+                   n_electrons)
 end
 
 @doc raw"""
 Build a charge density from total and spin densities constructed as superpositions of atomic
 densities.
 """
-function atomic_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_moments,
-                        n_electrons)
-    ρtot = atomic_total_density(basis, method)
-    ρspin = atomic_spin_density(basis, method, magnetic_moments)
+function atomic_density(basis::PlaneWaveBasis, method::AtomicDensity, atoms, atom_groups,
+                        positions, magnetic_moments, n_electrons)
+    ρtot = atomic_total_density(basis, method, atoms, atom_groups, positions)
+    ρspin = atomic_spin_density(basis, method, atoms, atom_groups, positions,
+                                magnetic_moments)
     ρ = ρ_from_total_and_spin(ρtot, ρspin)
     
     N = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
@@ -86,18 +96,19 @@ end
 Build a total charge density without spin information from a superposition of atomic
 densities.
 """
-function atomic_total_density(basis::PlaneWaveBasis{T}, method::AtomicDensity;
+function atomic_total_density(basis::PlaneWaveBasis{T}, method::AtomicDensity, atoms,
+                              atom_groups, positions;
                               coefficients=ones(T, length(basis.model.atoms))) where {T}
-    form_factors = atomic_density_form_factors(basis, method)
-    atomic_density_superposition(basis, form_factors; coefficients)
+    form_factors = atomic_density_form_factors(basis, method, atoms, atom_groups)
+    atomic_density_superposition(basis, atom_groups, positions, form_factors; coefficients)
 end
 
 @doc raw"""
 Build a spin density from a superposition of atomic densities and provided magnetic moments
 (with units ``μ_B``).
 """
-function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
-                             magnetic_moments) where {T}
+function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity, atoms,
+                             atom_groups, positions, magnetic_moments) where {T}
     model = basis.model
     if model.spin_polarization in (:none, :spinless)
         isempty(magnetic_moments) && return nothing
@@ -123,8 +134,8 @@ function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
         magmom[3] / n_elec_valence(atom)
     end
 
-    form_factors = atomic_density_form_factors(basis, method)
-    atomic_density_superposition(basis, form_factors; coefficients)    
+    form_factors = atomic_density_form_factors(basis, method, atoms, atom_groups)
+    atomic_density_superposition(basis, atom_groups, positions, form_factors; coefficients)    
 end
 
 @doc raw"""
@@ -133,6 +144,7 @@ using the provided atomic form-factors and coefficients and applying an inverse 
 transform to yield the real-space density.
 """
 function atomic_density_superposition(basis::PlaneWaveBasis{T},
+                                      atom_groups, positions,
                                       form_factors::IdDict{Tuple{Int,T},T};
                                       coefficients=ones(T, length(basis.model.atoms))
                                       )::Array{T,3} where {T}
@@ -141,9 +153,9 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
 
     ρ = map(enumerate(G_vectors(basis))) do (iG, G)
         Gnorm = norm(G_cart[iG])
-        ρ_iG = sum(enumerate(model.atom_groups); init=zero(Complex{T})) do (igroup, group)
+        ρ_iG = sum(enumerate(atom_groups); init=zero(Complex{T})) do (igroup, group)
             sum(group) do iatom
-                structure_factor::Complex{T} = cis2pi(-dot(G, model.positions[iatom]))
+                structure_factor::Complex{T} = cis2pi(-dot(G, positions[iatom]))
                 coefficients[iatom]::T * form_factors[(igroup, Gnorm)]::T * structure_factor
             end
         end
@@ -154,15 +166,14 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
 end
 
 function atomic_density_form_factors(basis::PlaneWaveBasis{T},
-                                     method::AtomicDensity
+                                     method::AtomicDensity, atoms, atom_groups,
                                      )::IdDict{Tuple{Int,T},T} where {T<:Real}
-    model = basis.model
     form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
     for G in G_vectors_cart(basis)
         Gnorm = norm(G)
-        for (igroup, group) in enumerate(model.atom_groups)
+        for (igroup, group) in enumerate(atom_groups)
             if !haskey(form_factors, (igroup, Gnorm))
-                element = model.atoms[first(group)]
+                element = atoms[first(group)]
                 form_factor = atomic_density(element, Gnorm, method)
                 form_factors[(igroup, Gnorm)] = form_factor
             end

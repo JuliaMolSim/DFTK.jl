@@ -1,5 +1,5 @@
 using Test
-using DFTK: CoreDensity, atomic_density_superposition
+using DFTK: CoreDensity, atomic_total_density
 using LinearAlgebra
 using LazyArtifacts
 

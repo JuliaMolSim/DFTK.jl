@@ -173,10 +173,6 @@ export ValenceNumericalDensity
 export ValenceAutoDensity
 export guess_density
 export random_density
-export atomic_density
-export atomic_total_density
-export atomic_spin_density
-export atomic_density_superposition
 include("density_methods.jl")
 
 export load_psp

@@ -72,7 +72,7 @@ aluminium_primitive = (
 )
 aluminium_primitive = merge(aluminium_primitive,
                             (; atoms=fill(ElementPsp(aluminium_primitive.atnum,
-                                                     psp=load_psp(aluminium_primitive.psp)), 1)))
+                                                     psp=load_psp(aluminium_primitive.psp_hgh)), 1)))
 
 
 platinum_hcp = (

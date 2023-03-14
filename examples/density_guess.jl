@@ -15,11 +15,11 @@ import Main: @artifact_str # hide
 # density guess.
 UPF_PSEUDO = artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf"
 
-function silicon_scf(method)
+function silicon_scf(guess_method)
     a = 10.26  # Silicon lattice constant in Bohr
     lattice = a / 2 * [[0 1 1.];
-                    [1 0 1.];
-                    [1 1 0.]]
+                       [1 0 1.];
+                       [1 1 0.]]
     Si = ElementPsp(:Si; psp=load_psp(UPF_PSEUDO))
     atoms     = [Si, Si]
     positions = [ones(3)/8, -ones(3)/8]
@@ -27,7 +27,7 @@ function silicon_scf(method)
     model = model_LDA(lattice, atoms, positions)
     basis = PlaneWaveBasis(model; Ecut=12, kgrid=[4, 4, 4])
 
-    ρguess = guess_density(basis, method)
+    ρguess = guess_density(basis, guess_method)
 
     is_converged = DFTK.ScfConvergenceEnergy(1e-10)
     self_consistent_field(basis; is_converged, ρ=ρguess)

@@ -29,6 +29,7 @@ end
 function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     isempty(xc.functionals) && return TermNoop()
     # Charge density for non-linear core correction
+    # TODO: refactor the following, seems more complicated than necessary
     if any(use_nlcc, basis.model.atoms)
         ρcore_tot = atomic_total_density(basis, CoreDensity())
         if basis.model.spin_polarization in (:none, :spinless)
@@ -163,6 +164,7 @@ end
     isnothing(term.ρcore) && return nothing
 
     _, Vxc_real, _ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+    # TODO: the factor of 2 here should be associated with the density, not the potential
     if basis.model.spin_polarization in (:none, :spinless)
         Vxc_fourier = fft(basis, Vxc_real[:,:,:,1])
     else
@@ -170,7 +172,8 @@ end
     end
 
     model = basis.model
-    form_factors = atomic_density_form_factors(basis, CoreDensity())
+    form_factors = atomic_density_form_factors(basis, CoreDensity(), basis.model.atoms,
+                                               basis.model.atom_groups)
     nlcc_groups = [(igroup, group) for (igroup, group) in enumerate(basis.model.atom_groups)
                    if has_density_core(model.atoms[first(group)])]
     @assert !isnothing(nlcc_groups)
