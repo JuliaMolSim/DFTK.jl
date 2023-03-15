@@ -36,9 +36,9 @@ end
 function guess_density(basis::PlaneWaveBasis, system::AbstractSystem,
                        n_electrons=basis.model.n_electrons)
     parsed_system = parse_system(system)
-    parsed_system.positions .== basis.model.positions || error(
+    all(parsed_system.positions .== basis.model.positions) || error(
         "System positions do not match model positions")
-    parsed_system.atoms == basis.model.atoms || error(
+    all(parsed_system.atoms == basis.model.atoms) || error(
         "System atoms do not match model atoms")
     atomic_density(basis, ValenceAutoDensity(), parsed_system.magnetic_moments, n_electrons)
 end
