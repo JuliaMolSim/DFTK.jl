@@ -25,7 +25,7 @@ function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor) where T
     poisson_green_coeffs = T(scaling_factor) .* 4T(π) ./ [sum(abs2, G) 
         for G in G_vectors_cart(basis)]
     poisson_green_coeffs_kpt = T(scaling_factor) .* 4T(π) ./ [sum(abs2, G) 
-        for G in G_vectors_cart(basis, basis.kpoints[1])]
+        for G in Gplusk_vectors_cart(basis, basis.kpoints[1])]
     
     # Compensating charge background => Zero DC
     poisson_green_coeffs[1] = 0
@@ -37,12 +37,12 @@ end
 @timing "ene_ops: ExactExchange" function ene_ops(term::TermExactExchange, 
                                                   basis::PlaneWaveBasis{T}, ψ, occ; ρ, 
                                                   kwargs...) where {T}
-    ops = [NoopOperator(basis, kpoint)
-    for (ik, kpoint) in enumerate(basis.kpoints)]
+    ops = [NoopOperator(basis, kpoint) for (ik, kpoint) in enumerate(basis.kpoints)]
     isnothing(ψ) && return (E=T(0), ops=ops)
 
     ψ, occ = select_occupied_orbitals(basis, ψ, occ; threshold=0.1)
-    @assert length(ψ) == 1 # TODO: make it work for more kpoints
+    @assert length(ψ) == 1  # TODO: make it work for more kpoints
+    @assert temperature == 0
 
     E = T(0)
     for (k,kpoint) in enumerate(basis.kpoints)
@@ -58,7 +58,6 @@ end
                 ind2 = cat(1,basis.fft_size[2]:-1:2;dims=1)
                 ind3 = cat(1,basis.fft_size[3]:-1:2;dims=1)
                 
-
                 # equivalent to r_to_G(basis, kpoint, rho_ij_real_conj)
                 rho_ij_four_conj = conj(rho_ij_four[ind1,ind2,ind3])
 
@@ -71,11 +70,7 @@ end
         end
     end
 
-    ops = [ExchangeOperator(ψ[ik], term.poisson_green_coeffs_kpt, 
-    basis, kpt) for (ik,kpt) in enumerate(basis.kpoints)]
+    ops = [ExchangeOperator(ψ[ik], term.poisson_green_coeffs_kpt, basis, kpt) 
+        for (ik,kpt) in enumerate(basis.kpoints)]
     (E=E, ops=ops)
-end
-
-function pp(x,y)
-    println()
 end

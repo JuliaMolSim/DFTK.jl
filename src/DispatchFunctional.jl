@@ -11,15 +11,13 @@ function LibxcFunctional(identifier::Symbol)
     fun = Libxc.Functional(identifier)
     @assert fun.kind   in (:exchange, :correlation, :exchange_correlation)
     kind = Dict(:exchange => :x, :correlation => :c, :exchange_correlation => :xc)[fun.kind]
-
+    
+    @assert fun.family in (:lda, :gga, :mgga, :hyb_lda, :hyb_gga, :hyb_mgga)
+    
     # Libxc maintains the distinction between hybrid and non-hybrid equivalents,
     # but this distinction is not relevant for the functional interface
-    if fun.family == :hyb_lda
-        family = :lda
-    elseif fun.family == :hyb_gga
-        family = :gga
-    elseif fun.family == :hyb_mgga
-        family = :mgga
+    if startswith(string(fun.family), "hyb")
+        family = Symbol(string(fun.family)[5:end])
     else
         family = fun.family
     end

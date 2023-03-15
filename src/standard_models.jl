@@ -76,11 +76,10 @@ end
 """
 Build an PBE0 model from the specified atoms.
 DOI:10.1103/PhysRevLett.77.3865
-https://www.vasp.at/tutorials/latest/hybrids/part1/
 """
 function model_PBE0(lattice::AbstractMatrix, atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector}; kwargs...)
     functional = DispatchFunctional(:hyb_gga_xc_pbeh)
     model_DFT(lattice, atoms, positions, Xc([functional]), 
-    extra_terms=[ExactExchange(; scaling_factor = 0.25)]; kwargs...)
+    extra_terms = [ExactExchange(; scaling_factor=0.25)]; kwargs...)
 end

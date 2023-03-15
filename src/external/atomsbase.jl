@@ -90,7 +90,7 @@ Model(system::AbstractSystem; kwargs...) = _call_with_system(Model, system; kwar
 
 
 # Generate equivalent functions for AtomsBase
-for fun in (:model_atomic, :model_DFT, :model_LDA, :model_PBE, :model_SCAN)
+for fun in (:model_atomic, :model_DFT, :model_LDA, :model_PBE, :model_SCAN, :model_PBE0)
     @eval function $fun(system::AbstractSystem, args...; kwargs...)
         _call_with_system($fun, system, args...; kwargs...)
     end
