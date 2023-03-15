@@ -100,7 +100,8 @@ ROOTPATH  = joinpath(@__DIR__, "..")
 CONTINUOUS_INTEGRATION = get(ENV, "CI", nothing) == "true"
 DFTKREV    = LibGit2.head(ROOTPATH)
 DFTKBRANCH = try LibGit2.branch(LibGit2.GitRepo(ROOTPATH)) catch end
-DFTKREPO   = "github.com/JuliaMolSim/DFTK.jl.git"
+DFTKGH     = "github.com/JuliaMolSim/DFTK.jl"
+DFTKREPO   = DFTKGH * ".git"
 
 # Setup julia dependencies for docs generation if not yet done
 Pkg.activate(@__DIR__)
@@ -179,7 +180,7 @@ end
 # Generate the docs in BUILDPATH
 makedocs(;
     modules=[DFTK],
-    repo="https://" * DFTKREPO * "/blob/{commit}{path}#{line}",
+    repo="https://" * DFTKGH * "/blob/{commit}{path}#{line}",
     format=Documenter.HTML(
         # Use clean URLs, unless built as a "local" build
         prettyurls = CONTINUOUS_INTEGRATION,
