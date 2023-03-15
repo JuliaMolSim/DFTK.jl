@@ -42,35 +42,31 @@ end
 
     ψ, occ = select_occupied_orbitals(basis, ψ, occ; threshold=0.1)
     @assert length(ψ) == 1  # TODO: make it work for more kpoints
-    @assert temperature == 0
-
+    @assert basis.model.temperature == 0  # ground state
     E = T(0)
     for (k,kpoint) in enumerate(basis.kpoints)
-        for psi_i in eachcol(ψ[k])
-            for psi_j in eachcol(ψ[k])
+        for (i,psi_i) in enumerate(eachcol(ψ[k]))
+            for (j,psi_j) in enumerate(eachcol(ψ[k]))
 
-                rho_ij_real = conj(G_to_r(basis, kpoint, psi_i)) .* G_to_r(basis, kpoint, psi_j)
-                rho_ij_four = r_to_G(basis, rho_ij_real)
-
-                # Re-ordering of rho_ij_four coeffs to match opposing sign G vectors
-                # f(r) = Σc_G e^{iG⋅r} implies f^*(r) = Σc_G^* e^{i(-G)⋅r}
-                ind1 = cat(1,basis.fft_size[1]:-1:2;dims=1)
-                ind2 = cat(1,basis.fft_size[2]:-1:2;dims=1)
-                ind3 = cat(1,basis.fft_size[3]:-1:2;dims=1)
+                psi_i_real = G_to_r(basis, kpoint, psi_i)
+                psi_j_real = G_to_r(basis, kpoint, psi_j)
                 
-                # equivalent to r_to_G(basis, kpoint, rho_ij_real_conj)
-                rho_ij_four_conj = conj(rho_ij_four[ind1,ind2,ind3])
+                # ρ_ij(r) = ψ_i(r)^* ψ_j(r)
+                rho_ij_real = conj(psi_j_real) .* psi_i_real
+                rho_ij_real_conj = conj(psi_i_real) .* psi_j_real
 
-                # Solving poisson equation to obtain potential corresponding to 
-                # ϕ_i(r')ϕ_j(r) / |r - r'|
-                vij_fourier = rho_ij_four_conj .* term.poisson_green_coeffs
+                # Poisson solve - ∫ρ_ij(r') / |r-r'|dr'
+                rho_ij_four = r_to_G(basis, kpoint, rho_ij_real)
+                v_ij_four = rho_ij_four .* term.poisson_green_coeffs_kpt
 
-                E += real(dot(rho_ij_four, vij_fourier))
+                v_ij_real = G_to_r(basis, kpoint, v_ij_four)
+                E += real(dot(v_ij_real, rho_ij_real_conj))
+
             end
         end
     end
-
+    E_scaled = -.5 * E
     ops = [ExchangeOperator(ψ[ik], term.poisson_green_coeffs_kpt, basis, kpt) 
         for (ik,kpt) in enumerate(basis.kpoints)]
-    (E=E, ops=ops)
+    (E=E_scaled, ops=ops)
 end
