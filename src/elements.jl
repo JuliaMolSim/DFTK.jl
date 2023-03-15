@@ -27,7 +27,7 @@ n_elec_valence(el::Element) = charge_ionic(el)
 """Return the number of core electrons"""
 n_elec_core(el::Element) = charge_nuclear(el) - charge_ionic(el)
 
-"""Radial local potential, in Fourier space: V(q) = int_{R^3} V(x) e^{-iqx} dx."""
+"""Radial local potential, in Fourier space: ```V(q) = ∫_{ℝ^3} V(x) e^{-iq·x} dx``."""
 function local_potential_fourier(el::Element, q::AbstractVector)
     local_potential_fourier(el, norm(q))
 end
@@ -107,7 +107,7 @@ struct ElementCohenBergstresser <: Element
     V_sym   # Map |G|^2 (in units of (2π / lattice_constant)^2) to form factors
     lattice_constant  # Lattice constant (in Bohr) which is assumed
 end
-charge_ionic(el::ElementCohenBergstresser)   = 2
+charge_ionic(el::ElementCohenBergstresser)   = 4
 charge_nuclear(el::ElementCohenBergstresser) = el.Z
 AtomsBase.atomic_symbol(el::ElementCohenBergstresser) = el.symbol
 
@@ -163,4 +163,27 @@ function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <:
     # Get |q|^2 in units of (2π / lattice_constant)^2
     qsq_pi = Int(round(q^2 / (2π / el.lattice_constant)^2, digits=2))
     T(get(el.V_sym, qsq_pi, 0.0))
+end
+
+
+struct ElementGaussian <: Element
+    α                               # Prefactor
+    L                               # Width of the Gaussian nucleus
+    symbol::Union{Nothing, Symbol}  # Element symbol
+end
+AtomsBase.atomic_symbol(el::ElementGaussian) = el.symbol
+
+"""
+Element interacting with electrons via a Gaussian potential.
+Symbol is non-mandatory.
+"""
+function ElementGaussian(α, L; symbol=nothing)
+    ElementGaussian(α, L, symbol)
+end
+function local_potential_real(el::ElementGaussian, r)
+    -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
+end
+function local_potential_fourier(el::ElementGaussian, q::Real)
+    # = ∫_ℝ³ V(x) exp(-ix⋅q) dx
+    -el.α * exp(- (q * el.L)^2 / 2)
 end

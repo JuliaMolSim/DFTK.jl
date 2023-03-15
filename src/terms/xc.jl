@@ -20,7 +20,7 @@ end
 Xc(functional; kwargs...) = Xc([functional]; kwargs...)
 
 function Base.show(io::IO, xc::Xc)
-    fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$scaling_factor"
+    fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$(xc.scaling_factor)"
     fun = length(xc.functionals) == 1 ? ":$(xc.functionals[1])" : "$(xc.functionals)"
     print(io, "Xc($fun$fac)")
 end
@@ -44,19 +44,20 @@ struct TermXc{T} <: TermNonlinear where {T}
 end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
-                                              ψ, occ; ρ, τ=nothing, kwargs...) where {T}
+                                              ψ, occupation; ρ, τ=nothing, kwargs...) where {T}
     @assert !isempty(term.functionals)
 
     model    = basis.model
     n_spin   = model.n_spin_components
+    potential_threshold = term.potential_threshold
     @assert all(family(xc) in (:lda, :gga, :mgga, :mggal) for xc in term.functionals)
 
     # Compute kinetic energy density, if needed.
     if isnothing(τ) && any(needs_τ, term.functionals)
-        if isnothing(ψ) || isnothing(occ)
+        if isnothing(ψ) || isnothing(occupation)
             τ = zero(ρ)
         else
-            τ = compute_kinetic_energy_density(basis, ψ, occ)
+            τ = compute_kinetic_energy_density(basis, ψ, occupation)
         end
     end
 
@@ -82,7 +83,7 @@ end
         Vρ = reshape(terms.Vρ, n_spin, basis.fft_size...)
 
         potential[:, :, :, s] .+= Vρ[s, :, :, :]
-        if haskey(terms, :Vσ) && any(x -> abs(x) > term.potential_threshold, terms.Vσ)
+        if haskey(terms, :Vσ) && any(x -> abs(x) > potential_threshold, terms.Vσ)
             # Need gradient correction
             # TODO Drop do-block syntax here?
             potential[:, :, :, s] .+= -2divergence_real(basis) do α
@@ -95,18 +96,19 @@ end
                     for t in 1:n_spin)
             end
         end
-        if haskey(terms, :Vl) && any(x -> abs(x) > term.potential_threshold, terms.Vl)
+        if haskey(terms, :Vl) && any(x -> abs(x) > potential_threshold, terms.Vl)
             @warn "Meta-GGAs with a Δρ term have not yet been thoroughly tested." maxlog=1
-            mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
+            mG² = .-norm2.(G_vectors_cart(basis))
             Vl  = reshape(terms.Vl, n_spin, basis.fft_size...)
-            Vl_fourier = r_to_G(basis, Vl[s, :, :, :])
-            potential[:, :, :, s] .+= G_to_r(basis, mG² .* Vl_fourier)  # ΔVl
+            Vl_fourier = fft(basis, Vl[s, :, :, :])
+            # TODO: forcing real-valued ifft; should be enforced at creation of array
+            potential[:, :, :, s] .+= irfft(basis, mG² .* Vl_fourier; check=Val(false))  # ΔVl
         end
     end
 
     # DivAgrad contributions -½ Vτ
     Vτ = nothing
-    if haskey(terms, :Vτ) && any(x -> abs(x) > term.potential_threshold, terms.Vτ)
+    if haskey(terms, :Vτ) && any(x -> abs(x) > potential_threshold, terms.Vτ)
         # Need meta-GGA non-local operator (Note: -½ part of the definition of DivAgrid)
         Vτ = reshape(terms.Vτ, n_spin, basis.fft_size...)
         Vτ = term.scaling_factor * permutedims(Vτ, (2, 3, 4, 1))
@@ -221,7 +223,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
     # compute ρ_real and possibly ρ_fourier
     ρ_real = permutedims(ρ, (4, 1, 2, 3))  # ρ[x, y, z, σ] -> ρ_real[σ, x, y, z]
     if max_derivative > 0
-        ρf = r_to_G(basis, ρ)
+        ρf = fft(basis, ρ)
         ρ_fourier = permutedims(ρf, (4, 1, 2, 3))  # ρ_fourier[σ, x, y, z]
     end
 
@@ -232,9 +234,11 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
         σ_real  = similar(ρ_real, n_spin_σ, basis.fft_size...)
 
         for α = 1:3
-            iGα = [im * G[α] for G in G_vectors_cart(basis)]
+            iGα = map(G -> im * G[α], G_vectors_cart(basis))
             for σ = 1:n_spin
-                ∇ρ_real[σ, :, :, :, α] .= G_to_r(basis, iGα .* @view ρ_fourier[σ, :, :, :])
+                # TODO: forcing real-valued ifft; should be enforced at creation of array
+                ∇ρ_real[σ, :, :, :, α] .= irfft(basis, iGα .* @view ρ_fourier[σ, :, :, :];
+                                                check=Val(false))
             end
         end
 
@@ -252,9 +256,11 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
     # Compute Δρ
     if max_derivative > 1
         Δρ_real = similar(ρ_real, n_spin, basis.fft_size...)
-        mG² = [-sum(abs2, G) for G in G_vectors_cart(basis)]
+        mG² = .-norm2.(G_vectors_cart(basis))
         for σ = 1:n_spin
-            Δρ_real[σ, :, :, :] .= G_to_r(basis, mG² .* @view ρ_fourier[σ, :, :, :])
+            # TODO: forcing real-valued ifft; should be enforced at creation of array
+            Δρ_real[σ, :, :, :] .= irfft(basis, mG² .* @view ρ_fourier[σ, :, :, :];
+                                         check=Val(false))
         end
     end
 
@@ -442,9 +448,11 @@ The divergence is also returned as a real-space array.
 """
 function divergence_real(operand, basis)
     gradsum = sum(1:3) do α
-        operand_α = r_to_G(basis, operand(α))
-        del_α = im * [G[α] for G in G_vectors_cart(basis)]
-        del_α .* operand_α
+        operand_α = fft(basis, operand(α))
+        map(G_vectors_cart(basis), operand_α) do G, operand_αG
+            im * G[α] * operand_αG  # ∇_α * operand_α
+        end
     end
-    G_to_r(basis, gradsum)
+    # TODO: forcing real-valued ifft; should be enforced at creation of array
+    irfft(basis, gradsum; check=Val(false))
 end

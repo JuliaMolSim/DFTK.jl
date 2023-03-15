@@ -1,5 +1,4 @@
 using LinearMaps
-using IterativeSolvers
 using ProgressMeter
 
 @doc raw"""
@@ -16,8 +15,7 @@ In this case the matrix has effectively 4 blocks, which are:
 \end{array}\right)
 ```
 """
-function compute_χ0(ham; temperature=ham.basis.model.temperature,
-                    occupation_threshold=default_occupation_threshold())
+function compute_χ0(ham; temperature=ham.basis.model.temperature)
     # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
     # where (up to normalizations)
     # ρ = ∑_nk f(εnk - εF) |ψnk|^2
@@ -43,18 +41,19 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature,
     # δρ = LDOS δεF + ∑_{n,m} (fn-fm) ρnm <ρmn|δV> / (εn-εm)
     # Therefore the kernel is LDOS(r) LDOS(r') / DOS + ∑_{n,m} (fn-fm)/(εn-εm) ρnm(r) ρmn(r')
     basis = ham.basis
-    model = basis.model
-    filled_occ = filled_occupation(model)
+    filled_occ = filled_occupation(basis.model)
+    smearing = basis.model.smearing
     n_spin   = basis.model.n_spin_components
-    fft_size = basis.fft_size
-    n_fft    = prod(fft_size)
+    n_fft    = prod(basis.fft_size)
+    fermialg = default_fermialg(smearing)
 
-    length(model.symmetries) == 1 || error("Disable symmetries completely for computing χ0")
+    length(basis.model.symmetries) == 1 || error("Disable symmetries for computing χ0")
 
     EVs = [eigen(Hermitian(Array(Hk))) for Hk in ham.blocks]
     Es = [EV.values for EV in EVs]
     Vs = [EV.vectors for EV in EVs]
-    occ, εF = compute_occupation(basis, Es; temperature, occupation_threshold)
+    T  = eltype(basis)
+    occupation, εF = compute_occupation(basis, Es, fermialg; temperature, tol_n_elec=10eps(T))
 
     χ0 = zeros(eltype(basis), n_spin * n_fft, n_spin * n_fft)
     for (ik, kpt) in enumerate(basis.kpoints)
@@ -67,13 +66,13 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature,
         @assert N < 10_000
         E = Es[ik]
         V = Vs[ik]
-        Vr = cat(G_to_r.(Ref(basis), Ref(kpt), eachcol(V))..., dims=4)
+        Vr = cat(ifft.(Ref(basis), Ref(kpt), eachcol(V))..., dims=4)
         Vr = reshape(Vr, n_fft, N)
         @showprogress "Computing χ0 for k-point $ik/$(length(basis.kpoints)) ..." for m = 1:N, n = 1:N
             enred = (E[n] - εF) / temperature
-            @assert occ[ik][n] ≈ filled_occ * Smearing.occupation(model.smearing, enred)
+            @assert occupation[ik][n] ≈ filled_occ * Smearing.occupation(smearing, enred)
             ddiff = Smearing.occupation_divided_difference
-            ratio = filled_occ * ddiff(model.smearing, E[m], E[n], εF, temperature)
+            ratio = filled_occ * ddiff(smearing, E[m], E[n], εF, temperature)
             # dvol because inner products have a dvol in them
             # so that the dual gets one : |f> -> <dvol f|
             # can take the real part here because the nm term is complex conjugate of mn
@@ -104,14 +103,14 @@ LinearAlgebra.ldiv!(y::T, P::FunctionPreconditioner, x) where {T} = P.preconditi
 LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(similar(x), x))
 precondprep!(P::FunctionPreconditioner, ::Any) = P
 
-# Solves (1-P) (H-εn) (1-P) δψn = - (1-P) rhs
+# Solves (1-P) (H-ε) (1-P) δψn = - (1-P) rhs
 # where 1-P is the projector on the orthogonal of ψk
-# n is used for the preconditioning with ψk[:,n] and the optional callback
 # /!\ It is assumed (and not checked) that ψk'Hk*ψk = Diagonal(εk) (extra states
 # included).
-function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
+function sternheimer_solver(Hk, ψk, ε, rhs;
+                            callback=identity, cg_callback=identity,
                             ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
-                            abstol=1e-9, reltol=0, verbose=false)
+                            Hψk_extra=zeros(size(ψk,1), 0), tol=1e-9)
     basis = Hk.basis
     kpoint = Hk.kpoint
 
@@ -147,39 +146,42 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
     # 1     N_occupied  N_occupied + N_extra
 
     # ψk_extra are not converged but have been Rayleigh-Ritzed (they are NOT
-    # eigenvectors of H) so H(ψk_extra) = ψk_extra' (Hk-εn) ψk_extra should be a
+    # eigenvectors of H) so H(ψk_extra) = ψk_extra' (Hk-ε) ψk_extra should be a
     # real diagonal matrix.
-    H(ϕ) = Hk * ϕ - εnk * ϕ
-    ψk_exHψk_ex = Diagonal(real.(εk_extra .- εnk))
+    H(ϕ) = Hk * ϕ - ε * ϕ
+    ψk_exHψk_ex = Diagonal(real.(εk_extra .- ε))
 
     # 1) solve for δψknᴿ
     # ----------------------------
     # writing αkn as a function of δψknᴿ, we get that δψknᴿ
     # solves the system (in Ran(1-P_computed))
     #
-    # R * (H - εn) * (1 - M * (H - εn)) * R * δψknᴿ = R * (1 - M) * b
+    # R * (H - ε) * (1 - M * (H - ε)) * R * δψknᴿ = R * (1 - M) * b
     #
-    # where M = ψk_extra * (ψk_extra' (H-εn) ψk_extra)^{-1} * ψk_extra'
+    # where M = ψk_extra * (ψk_extra' (H-ε) ψk_extra)^{-1} * ψk_extra'
     # is defined above and b is the projection of -rhs onto Ran(Q).
     #
     b = -Q(rhs)
-    bb = R(b -  H(ψk_extra * (ψk_exHψk_ex \ ψk_extra'b)))
+    bb = R(b -  Hψk_extra * (ψk_exHψk_ex \ ψk_extra'b))
     function RAR(ϕ)
         Rϕ = R(ϕ)
-        # A denotes here the Schur complement of (1-P) (H-εn) (1-P)
+        # Schur complement of (1-P) (H-ε) (1-P)
         # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
-        ARϕ = Rϕ - ψk_extra * (ψk_exHψk_ex \ ψk_extra'H(Rϕ))
-        R(H(ARϕ))
+        R(H(Rϕ) - Hψk_extra * (ψk_exHψk_ex \ Hψk_extra'Rϕ))
     end
     precon = PreconditionerTPA(basis, kpoint)
-    precondprep!(precon, ψk[:, n])
+    # First column of ψk as there is no natural kinetic energy.
+    precondprep!(precon, ψk[:, 1])
     function R_ldiv!(x, y)
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    δψknᴿ, ch = cg(J, bb; Pl=FunctionPreconditioner(R_ldiv!), abstol, reltol,
-                   verbose, log=true)
-    info = (; basis=basis, kpoint=kpoint, ch=ch, n=n)
+    res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
+             callback=cg_callback)
+    !res.converged && @warn("Sternheimer CG not converged", res.iterations,
+                            res.tol, res.residual_norm)
+    δψknᴿ = res.x
+    info = (; basis, kpoint, res)
     callback(info)
 
     # 2) solve for αkn now that we know δψknᴿ
@@ -190,26 +192,33 @@ function sternheimer_solver(Hk, ψk, εnk, rhs, n; callback=info->nothing,
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
-# Returns δψ corresponding to a change in *total* Hamiltonian δH
+# Returns (δψ, δocc, δεF) corresponding to a change in *total* Hamiltonian δH
 # We start from
-# P = f(H-εF), tr(P) = N
-# where P is the density matrix, f the occupation function
-# δεn = <ψn|δV|ψn>
+# P = f(H-εF) = ∑_n fn |ψn><ψn|, tr(P) = N
+# where P is the density matrix, f the occupation function.
+# Charge conservation yields δεF as follows:
+# δεn = <ψn|δH|ψn>
 # 0 = ∑_n fn' (δεn - δεF) determines δεF
-# where fn' = f'((εn-εF)/T)/T
+# where fn' = f'((εn-εF)/T)/T.
 
-# Then <ψm|δP|ψn> = (fm-fn)/(εm-εn) <ψm|δH|ψn>
-# Except for the diagonal which is
-# <ψn|δP|ψn> = (fn'-δεF) <ψn|δH|ψn>
+# Then <ψm|δP|ψn> = (fm-fn)/(εm-εn) <ψm|δH|ψn>,
+# except for the diagonal which is
+# <ψn|δP|ψn> = (fn'-δεF) δεn.
 
-# We want to represent this with a δψ. We do *not* impose that
-# δψ is orthogonal at finite temperature.
-# We get
-# δP = ∑_k fk (|δψk><ψk| + |ψk><δψk|)
-# Identifying with <ψm|δP|ψn> we get for the diagonal terms
-# <ψn|δψn> fn = fn'<ψn|δH-δεF|ψn>
-# and for the off-diagonal
-# (fm-fn)/(εm-εn) <ψm|δH|ψn> = fm <δψm|ψn> + fn <ψm|δψn>
+# We want to represent δP with a tuple (δψ, δf). We do *not* impose that
+# δψ is orthogonal at finite temperature. A formal differentiation yields
+# δP = ∑_n fn (|δψn><ψn| + |ψn><δψn|) + δfn |ψn><ψn|.
+# Identifying with <ψm|δP|ψn> we get for the off-diagonal terms
+# (fm-fn)/(εm-εn) <ψm|δH|ψn> = fm <δψm|ψn> + fn <ψm|δψn>.
+# For the diagonal terms, n==m and we obtain
+# 0 = ∑_n Re (fn <ψn|δψn>) + δfn,
+# so that a gauge choice has to be made here. We choose to set <ψn|δψn> = 0 and
+# δfn = fn' (δεn - δεF) ensures the summation to 0 with the definition of δεF as
+# above.
+
+# We therefore need to compute all the δfn: this is done with compute_δocc!.
+# Regarding the δψ, they are computed with compute_δψ! as follows. We refer to
+# the paper https://arxiv.org/abs/2210.04512 for more details.
 
 # We split the computation of δψn in two contributions:
 # for the already-computed states, we add an explicit contribution
@@ -237,108 +246,136 @@ function compute_αmn(fm, fn, ratio)
     ratio * fn / (fn^2 + fm^2)
 end
 
-@views @timing function apply_χ0_4P(ham, ψ, occ, εF, eigenvalues, δHψ;
-                                    occupation_threshold, kwargs_sternheimer...)
-    basis  = ham.basis
+"""
+Compute the derivatives of the occupations (and of the Fermi level).
+The derivatives of the occupations are in-place stored in δocc.
+The tuple (; δocc, δεF) is returned. It is assumed the passed `δocc`
+are initialised to zero.
+"""
+function compute_δocc!(δocc, basis, ψ, εF::T, ε, δHψ) where {T}
     model = basis.model
     temperature = model.temperature
+    smearing = model.smearing
     filled_occ = filled_occupation(model)
-    T = eltype(basis)
     Nk = length(basis.kpoints)
+
+    # δocc = fn' * (δεn - δεF)
+    δεF = zero(T)
+    if temperature > 0
+        # First compute δocc without self-consistent Fermi δεF.
+        D = zero(T)
+        for ik = 1:Nk, (n, εnk) in enumerate(ε[ik])
+            enred = (εnk - εF) / temperature
+            δεnk = real(dot(ψ[ik][:, n], δHψ[ik][:, n]))
+            fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
+            δocc[ik][n] = δεnk * fpnk
+            D += fpnk * basis.kweights[ik]
+        end
+        # Compute δεF…
+        D = mpi_sum(D, basis.comm_kpts)  # equal to minus the total DOS
+        δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
+        δεF = !isnothing(model.εF) ? zero(δεF) : δocc_tot / D  # no δεF when Fermi level is fixed
+        # … and recompute δocc, taking into account δεF.
+        for ik = 1:Nk, (n, εnk) in enumerate(ε[ik])
+            enred = (εnk - εF) / temperature
+            fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
+            δocc[ik][n] -= fpnk * δεF
+        end
+    end
+
+    (; δocc, δεF)
+end
+
+"""
+Perform in-place computations of the derivatives of the wave functions by solving
+a Sternheimer equation for each `k`-points. It is assumed the passed `δψ` are initialised
+to zero.
+"""
+function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
+                     kwargs_sternheimer...)
+    model = basis.model
+    temperature = model.temperature
+    smearing = model.smearing
+    filled_occ = filled_occupation(model)
+    Nk = length(basis.kpoints)
+
+    # Compute δψnk band per band
+    for ik = 1:Nk
+        Hk  = H[ik]
+        ψk  = ψ[ik]
+        εk  = ε[ik]
+        δψk = δψ[ik]
+
+        ψk_extra = ψ_extra[ik]
+        Hψk_extra = Hk * ψk_extra
+        εk_extra  = diag(real.(ψk_extra' * Hψk_extra))
+        for n = 1:length(εk)
+            fnk = filled_occ * Smearing.occupation(smearing, (εk[n]-εF) / temperature)
+
+            # Explicit contributions (nonzero only for temperature > 0)
+            for m = 1:length(εk)
+                # the n == m contribution in compute_δρ is obtained through
+                # δoccupation, see the explanation above
+                m == n && continue
+                fmk = filled_occ * Smearing.occupation(smearing, (εk[m]-εF) / temperature)
+                ddiff = Smearing.occupation_divided_difference
+                ratio = filled_occ * ddiff(smearing, εk[m], εk[n], εF, temperature)
+                αmn = compute_αmn(fmk, fnk, ratio)  # fnk * αmn + fmk * αnm = ratio
+                δψk[:, n] .+= ψk[:, m] .* αmn .* dot(ψk[:, m], δHψ[ik][:, n])
+            end
+
+            # Sternheimer contribution
+            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk[n], δHψ[ik][:, n]; ψk_extra,
+                                             εk_extra, Hψk_extra, kwargs_sternheimer...)
+        end
+    end
+end
+
+@views @timing function apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                                    occupation_threshold, kwargs_sternheimer...)
+    basis = ham.basis
 
     # We first select orbitals with occupation number higher than
     # occupation_threshold for which we compute the associated response δψn,
-    # the others being discarded to ψ_extra / ε_extra.
+    # the others being discarded to ψ_extra.
     # We then use the extra information we have from these additional bands,
     # non-necessarily converged, to split the sternheimer_solver with a Schur
     # complement.
-
-    mask_occ   = map(occk -> isless.(occupation_threshold, occk), occ)
-    mask_extra = map(occk -> (!isless).(occupation_threshold, occk), occ)
+    occ_thresh = occupation_threshold
+    mask_occ   = map(occk -> findall(occnk -> abs(occnk) ≥ occ_thresh, occk), occupation)
+    mask_extra = map(occk -> findall(occnk -> abs(occnk) < occ_thresh, occk), occupation)
 
     ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
 
     ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    ε_extra = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_extra)]
+    δHψ_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
 
-    occ_occ = [occ[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
+    # First we compute δoccupation. We only need to do this for the actually occupied
+    # orbitals. So we make a fresh array padded with zeros, but only alter the elements
+    # corresponding to the occupied orbitals. (Note both compute_δocc! and compute_δψ!
+    # assume that the first array argument has already been initialised to zero).
+    δoccupation = zero.(occupation)
+    δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
+    δεF = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_occ).δεF
 
-    # First compute δεF
-    δεF = zero(T)
-    δocc = [zero(occ_occ[ik]) for ik = 1:Nk]  # = fn' * (δεn - δεF)
-    if temperature > 0
-        # First compute δocc without self-consistent Fermi δεF
-        D = zero(T)
-        for ik = 1:Nk, (n, εnk) in enumerate(ε_occ[ik])
-            enred = (εnk - εF) / temperature
-            δεnk = real(dot(ψ_occ[ik][:, n], δHψ[ik][:, n]))
-            fpnk = (filled_occ
-                    * Smearing.occupation_derivative(model.smearing, enred)
-                    / temperature)
-            δocc[ik][n] = δεnk * fpnk
-            D += fpnk * basis.kweights[ik]
-        end
-        # compute δεF
-        D = mpi_sum(D, basis.comm_kpts)  # equal to minus the total DOS
-        δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
-        δεF = δocc_tot / D
-        # recompute δocc
-        for ik = 1:Nk, (n, εnk) in enumerate(ε_occ[ik])
-            enred = (εnk - εF) / temperature
-            fpnk = (filled_occ
-                    * Smearing.occupation_derivative(model.smearing, enred)
-                    / temperature)
-            δocc[ik][n] -= fpnk * δεF
-        end
-    end
-
-    # compute δψnk band per band
+    # Then we compute δψ, again in-place into a zero-padded array
     δψ = zero.(ψ)
-    for ik = 1:Nk
-        ψk = ψ_occ[ik]
-        δψk = δψ[ik]
+    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
+    compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_occ; ψ_extra,
+                kwargs_sternheimer...)
 
-        εk = ε_occ[ik]
-        for n = 1:length(εk)
-            fnk = filled_occ * Smearing.occupation(model.smearing, (εk[n]-εF) / temperature)
-
-            # explicit contributions (nonzero only for temperature > 0)
-            for m = 1:length(εk)
-                fmk = filled_occ * Smearing.occupation(model.smearing, (εk[m]-εF) / temperature)
-                ddiff = Smearing.occupation_divided_difference
-                ratio = filled_occ * ddiff(model.smearing, εk[m], εk[n], εF, temperature)
-                αmn = compute_αmn(fmk, fnk, ratio)  # fnk * αmn + fmk * αnm = ratio
-                δψk[:, n] .+= ψk[:, m] .* αmn .* (dot(ψk[:, m], δHψ[ik][:, n]) * (n != m))
-            end
-
-            # Sternheimer contribution
-            δψk[:, n] .+= sternheimer_solver(ham.blocks[ik], ψk, εk[n], δHψ[ik][:, n], n;
-                                             ψk_extra=ψ_extra[ik], εk_extra=ε_extra[ik],
-                                             kwargs_sternheimer...)
-        end
-    end
-
-    # pad δoccupation
-    δoccupation = zero.(occ)
-    for (ik, maskk) in enumerate(mask_occ)
-        δoccupation[ik][maskk] .+= δocc[ik]
-    end
-
-    # keeping zeros for extra bands to keep the output δψ with the same size
-    # than the input ψ
     (; δψ, δoccupation, δεF)
 end
 
 """
-Get the density variation δρ corresponding to a total potential variation δV.
+Get the density variation δρ corresponding to a potential variation δV.
 """
 function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
                   occupation_threshold=default_occupation_threshold(),
                   kwargs_sternheimer...)
 
     basis = ham.basis
-    model = basis.model
 
     # Make δV respect the basis symmetry group, since we won't be able
     # to compute perturbations that don't anyway
@@ -352,11 +389,11 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
     normδV < eps(typeof(εF)) && return zero(δV)
     δV ./= normδV
 
-    δHψ = [DFTK.RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
+    δHψ = [RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
     δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                        occupation_threshold, kwargs_sternheimer...)
-    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation, δoccupation)
+    δρ = compute_δρ(basis, ψ, δψ, occupation, δoccupation; occupation_threshold)
     δρ * normδV
 end
 

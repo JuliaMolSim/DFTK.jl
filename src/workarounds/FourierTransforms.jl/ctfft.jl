@@ -43,7 +43,7 @@ size(p::CTPlan) = (p.n,)
 invCT(p::CTPlan{T,forward,Tt,Tn}) where {T,forward,Tt,Tn} =
     CTPlan{T,!forward,Tuple{map(inv,Tt.parameters)...},inv(Tn)}(p.n, map(inv, p.tsteps), inv(p.nstep))
 
-plan_inv(p::CTPlan{T}) where T =
+plan_inv(p::CTPlan{T}) where {T} =
     ScaledPlan(invCT(p), normalization(real(T), p.n, 1))
 
 # steps for pregenerated kernels:
@@ -63,7 +63,7 @@ struct TwiddleKernelStep{T,r,forward} <: TwiddleStep{T} # radix-r
     end
 end
 length(ts::TwiddleKernelStep{T,r}) where {T,r} = r
-applystep(ts::TwiddleKernelStep{T}, y, y0, ys) where T =
+applystep(ts::TwiddleKernelStep{T}, y, y0, ys) where {T} =
     applystep(ts, ts.m, y, y0, ts.m * ys, ys, ts.W)
 inv(ts::TwiddleKernelStep{T,r,forward}) where {T,r,forward} =
     TwiddleKernelStep{T,r,!forward}(ts.m, ts.W)
@@ -108,15 +108,15 @@ function CTPlan(T::Type, forward::Bool, n::Int; ωpow=ωpow)
     CTPlan{T,forward,Tuple{map(typeof,tsteps_)...},typeof(nt)}(n, tsteps_, nt)
 end
 
-plan_fft(x::AbstractVector{Complex{Tr}}) where Tr<:Real =
+plan_fft(x::AbstractVector{Complex{Tr}}) where {Tr<:Real} =
     CTPlan(Complex{Tr}, true, length(x))::CTPlan{Complex{Tr},true}
-plan_bfft(x::AbstractVector{Complex{Tr}}) where Tr<:Real =
+plan_bfft(x::AbstractVector{Complex{Tr}}) where {Tr<:Real} =
     CTPlan(Complex{Tr}, false, length(x))::CTPlan{Complex{Tr},false}
 
 function applystep(p::CTPlan{T},
                    x, x0, xs,
                    y, y0, ys,
-                   step::Int) where T
+                   step::Int) where {T}
     nsteps = length(p.tsteps)
     if step > nsteps
         applystep(p.nstep, 1, x,x0,xs, y,y0,ys)
@@ -143,13 +143,13 @@ function applystep(p::CTPlan{T},
     end
 end
 
-function mul!(y::AbstractVector{T}, p::CTPlan{T}, x::AbstractVector{T}) where T
+function mul!(y::AbstractVector{T}, p::CTPlan{T}, x::AbstractVector{T}) where {T}
     p.n == length(y) == length(x) || throw(BoundsError())
     applystep(p, x, firstindex(x), 1, y, firstindex(y), 1, 1)
     return y
 end
 
-*(p::CTPlan{T}, x::AbstractVector{T}) where T = mul!(similar(x), p, x)
+*(p::CTPlan{T}, x::AbstractVector{T}) where {T} = mul!(similar(x), p, x)
 
 #############################################################################
 # FFT code generation:
@@ -193,7 +193,7 @@ function twiddle(T, ω_n, forward::Bool, n::Integer, k::Integer, x)
     :($factor * $x)
 end
 
-function twiddle(T::Type{Complex{Tr}}, ω_n, forward::Bool, n::Integer, k::Integer, x) where Tr<:Real
+function twiddle(T::Type{Complex{Tr}}, ω_n, forward::Bool, n::Integer, k::Integer, x) where {Tr<:Real}
     k == 0 && return x
     2k == n && return :(-$x)
     if 4k == n || 4k == 3n
@@ -422,7 +422,7 @@ struct NontwiddleBluesteinStep{T} <: NontwiddleStep{T}
 
     forward::Bool
 
-    function NontwiddleBluesteinStep{T}(n::Int, ωpow, forward::Bool) where T
+    function NontwiddleBluesteinStep{T}(n::Int, ωpow, forward::Bool) where {T}
         n2 = nextpow(2, 2n-1)
         a = Array{T}(undef, n2)
         A = Array{T}(undef, n2)
@@ -435,16 +435,16 @@ end
 
 length(s::NontwiddleBluesteinStep) = s.n
 
-inv(s::NontwiddleBluesteinStep{T}) where T =
+inv(s::NontwiddleBluesteinStep{T}) where {T} =
     NontwiddleBluesteinStep{T}(s.n, ωpow, !s.forward)
-inv(S::Type{NontwiddleBluesteinStep{T}}) where T = S
+inv(S::Type{NontwiddleBluesteinStep{T}}) where {T} = S
 
 show(io::IO, s::NontwiddleBluesteinStep) =
     print(io, "size ", s.n, " Bluestein-", s.n2)
 
 function applystep(ns::NontwiddleBluesteinStep{T}, r,
                    x::AbstractArray{T}, x0, xs,
-                   y::AbstractArray{T}, y0, ys) where T
+                   y::AbstractArray{T}, y0, ys) where {T}
     a = ns.a
     b = ns.b
     A = ns.A
@@ -493,7 +493,7 @@ struct TwiddleBluesteinStep{T} <: TwiddleStep{T}
 
     forward::Bool
 
-    function TwiddleBluesteinStep{T}(n::Int, ωpow, r::Int, forward::Bool) where T
+    function TwiddleBluesteinStep{T}(n::Int, ωpow, r::Int, forward::Bool) where {T}
         m = div(n, r)
         Tr = promote_type(Float64, real(T))
         r2 = nextpow(2, 2r-1)
@@ -513,11 +513,11 @@ length(s::TwiddleBluesteinStep) = s.r
 show(io::IO, s::TwiddleBluesteinStep) =
     print(io, "radix ", s.r, " Bluestein-", s.r2)
 
-inv(s::TwiddleBluesteinStep{T}) where T =
+inv(s::TwiddleBluesteinStep{T}) where {T} =
     TwiddleBluesteinStep{T}(s.r*s.m, ωpow, s.r, !s.forward)
-inv(S::Type{TwiddleBluesteinStep{T}}) where T = S
+inv(S::Type{TwiddleBluesteinStep{T}}) where {T} = S
 
-function applystep(ts::TwiddleBluesteinStep{T}, y::AbstractArray{T}, y0,ys) where T
+function applystep(ts::TwiddleBluesteinStep{T}, y::AbstractArray{T}, y0,ys) where {T}
     W = ts.W
     a = ts.a
     b = ts.b

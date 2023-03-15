@@ -61,6 +61,7 @@ function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
 
     xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
     βs   = -(Mfac \ vec(Pfxₙ))
+    βs = to_cpu(βs)  # GPU computation only : get βs back on the CPU so we can iterate through it
     for (iβ, β) in enumerate(βs)
         xₙ₊₁ .+= β .* (xs[iβ] .- vec(xₙ) .+ αₙ .* (Pfxs[iβ] .- vec(Pfxₙ)))
     end
@@ -162,7 +163,7 @@ function AdaptiveDamping(α_trial_min; kwargs...)
     AdaptiveDamping(;α_min=α_trial_min / 4,
                      α_max=max(1.25α_trial_min, 1.0),
                      α_trial_init=max(α_trial_min, 0.8),
-                     α_trial_min=α_trial_min,
+                     α_trial_min,
                      kwargs...)
 end
 
@@ -186,7 +187,7 @@ function propose_backtrack_damping(damping::AdaptiveDamping, info, info_next)
         return info_next.α
     end
 
-    α_next, relerror = scf_damping_quadratic_model(info, info_next; modeltol=damping.modeltol)
+    α_next, relerror = scf_damping_quadratic_model(info, info_next; damping.modeltol)
     if isnothing(α_next)
         # Model failed ... use heuristics: Half for small model error, else use a quarter
         α_next = info_next.α / (relerror < 10 ? 2 : 4)
@@ -201,7 +202,7 @@ function trial_damping(damping::AdaptiveDamping, info, info_next, step_successfu
     α_trial = abs(info_next.α)  # By default use the α that worked in this step
     if step_successful && n_backtrack == 1  # First step was good => speed things up
         α_trial ≥ damping.α_max && return damping.α_max  # No need to compute model
-        α_model = scf_damping_quadratic_model(info, info_next; modeltol=damping.modeltol).α
+        α_model = scf_damping_quadratic_model(info, info_next; damping.modeltol).α
         if !isnothing(α_model)  # Model is meaningful
             α_trial = max(damping.α_trial_enhancement * abs(α_model), α_trial)
         end
@@ -224,23 +225,22 @@ trial_damping(damping::FixedDamping, args...) = damping.α
 @timing function scf_potential_mixing(
     basis::PlaneWaveBasis;
     damping=FixedDamping(0.8),
-    n_bands=default_n_bands(basis.model),
+    nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
+    fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model),
     ρ=guess_density(basis),
     V=nothing,
     ψ=nothing,
     tol=1e-6,
     maxiter=100,
     eigensolver=lobpcg_hyper,
-    n_ep_extra=3,
     diag_miniter=1,
     determine_diagtol=ScfDiagtol(),
     mixing=SimpleMixing(),
-    is_converged=ScfConvergenceEnergy(tol),
+    is_converged=ScfConvergenceDensity(tol),
     callback=ScfDefaultCallback(),
     acceleration=AndersonAcceleration(;m=10),
     accept_step=ScfAcceptStepAll(),
     max_backtracks=3,  # Maximal number of backtracking line searches
-    occupation_threshold=default_occupation_threshold(),
 )
     # TODO Test other mixings and lift this
     @assert (   mixing isa SimpleMixing
@@ -248,41 +248,38 @@ trial_damping(damping::FixedDamping, args...) = damping.α
              || mixing isa KerkerDosMixing)
     damping isa Number && (damping = FixedDamping(damping))
 
-    if ψ !== nothing
+    if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
-        for ik in 1:length(basis.kpoints)
-            @assert size(ψ[ik], 2) == n_bands + n_ep_extra
-        end
     end
 
     # Initial guess for V (if none given)
-    energies, ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ)
+    ham = energy_hamiltonian(basis, nothing, nothing; ρ).ham
     isnothing(V) && (V = total_local_potential(ham))
 
-    function EVρ(Vin; diagtol=tol / 10, ψ=nothing)
+    function EVρ(Vin; diagtol=tol / 10, ψ=nothing, eigenvalues=nothing, occupation=nothing)
         ham_V = hamiltonian_with_total_potential(ham, Vin)
-        res_V = next_density(ham_V; n_bands=n_bands, ψ=ψ, n_ep_extra=n_ep_extra,
-                             miniter=diag_miniter, tol=diagtol, eigensolver=eigensolver,
-                             occupation_threshold)
+
+        res_V = next_density(ham_V, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
+                             occupation, miniter=diag_miniter, tol=diagtol)
         new_E, new_ham = energy_hamiltonian(basis, res_V.ψ, res_V.occupation;
                                             ρ=res_V.ρout, eigenvalues=res_V.eigenvalues,
                                             εF=res_V.εF)
-        (basis=basis, ham=new_ham, energies=new_E, occupation_threshold=occupation_threshold,
-         Vin=Vin, Vout=total_local_potential(new_ham), res_V...)
+        (; basis, ham=new_ham, energies=new_E,
+         Vin, Vout=total_local_potential(new_ham), res_V...)
     end
 
     n_iter    = 1
     converged = false
     α_trial   = trial_damping(damping)
-    diagtol   = determine_diagtol((ρin=ρ, Vin=V, n_iter=n_iter))
-    info      = EVρ(V; diagtol=diagtol, ψ=ψ)
+    diagtol   = determine_diagtol((; ρin=ρ, Vin=V, n_iter))
+    info      = EVρ(V; diagtol, ψ)
     Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; n_iter, info...)
-    info      = merge(info, (α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
-                             n_iter=n_iter, Pinv_δV=Pinv_δV))
+    info      = merge(info, (; α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
+                             n_iter, Pinv_δV))
     ΔEdown    = 0.0
 
     while n_iter < maxiter
-        info = merge(info, (stage=:iterate, algorithm="SCF", converged=converged))
+        info = merge(info, (; stage=:iterate, algorithm="SCF", converged))
         callback(info)
         if MPI.bcast(is_converged(info), 0, MPI.COMM_WORLD)
             # TODO Debug why these MPI broadcasts are needed
@@ -290,14 +287,14 @@ trial_damping(damping::FixedDamping, args...) = damping.α
             break
         end
         n_iter += 1
-        info = merge(info, (n_iter=n_iter, ))
+        info = merge(info, (; n_iter, ))
 
         # Ensure same α on all processors
         α_trial = MPI.bcast(α_trial, 0, MPI.COMM_WORLD)
         δV = (acceleration(info.Vin, α_trial, info.Pinv_δV) - info.Vin) / α_trial
 
         # Determine damping and take next step
-        guess   = ψ
+        guess   = info.ψ
         α       = α_trial
         successful  = false  # Successful line search (final step is considered good)
         n_backtrack = 1
@@ -308,12 +305,11 @@ trial_damping(damping::FixedDamping, args...) = damping.α
             mpi_master() && @debug "Iteration $n_iter linesearch step $n_backtrack   α=$α diagtol=$diagtol"
             Vnext = info.Vin .+ α .* δV
 
-            info_next    = EVρ(Vnext; ψ=guess, diagtol=diagtol)
+            info_next    = EVρ(Vnext; ψ=guess, diagtol, info.eigenvalues, info.occupation)
             Pinv_δV_next = mix_potential(mixing, basis, info_next.Vout - info_next.Vin;
                                          n_iter, info_next...)
             push!(diagonalization, info_next.diagonalization)
-            info_next = merge(info_next, (α=α, diagonalization=diagonalization,
-                                          ρin=info.ρout, n_iter=n_iter,
+            info_next = merge(info_next, (; α, diagonalization, ρin=info.ρout, n_iter,
                                           Pinv_δV=Pinv_δV_next))
 
             successful = accept_step(info, info_next)
@@ -331,7 +327,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
             end
 
             # Adjust to guess fitting α best:
-            guess = α_next > α / 2 ? info_next.ψ : ψ
+            guess = α_next > α / 2 ? info_next.ψ : info.ψ
             α = α_next
         end
 
@@ -345,11 +341,10 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     end
 
     ham  = hamiltonian_with_total_potential(ham, info.Vout)
-    info = (ham=ham, basis=basis, energies=info.energies, converged=converged,
-            ρ=info.ρout, eigenvalues=info.eigenvalues, occupation=info.occupation,
-            εF=info.εF, n_iter=n_iter, n_ep_extra=n_ep_extra, ψ=info.ψ,
-            diagonalization=info.diagonalization, stage=:finalize, algorithm="SCF",
-            occupation_threshold=info.occupation_threshold)
+    info = (; ham, basis, info.energies, converged, ρ=info.ρout, info.eigenvalues,
+            info.occupation, info.εF, n_iter, info.ψ, info.n_bands_converge,
+            info.diagonalization, stage=:finalize, algorithm="SCF",
+            info.occupation_threshold)
     callback(info)
     info
 end
@@ -358,8 +353,8 @@ end
 # Wrapper function setting a few good defaults for adaptive damping
 function scf_potential_mixing_adaptive(basis; tol=1e-6, damping=AdaptiveDamping(), kwargs...)
     @assert damping isa AdaptiveDamping
-    scf_potential_mixing(basis; tol=tol, diag_miniter=2,
+    scf_potential_mixing(basis; tol, diag_miniter=2,
                          accept_step=ScfAcceptImprovingStep(max_energy_change=tol),
                          determine_diagtol=ScfDiagtol(ratio_ρdiff=0.03, diagtol_max=5e-3),
-                         damping=damping, kwargs...)
+                         damping, kwargs...)
 end

@@ -16,7 +16,8 @@ function ScfPlotTrace end  # implementation in src/plotting.jl
 """
 Default callback function for `self_consistent_field` and `newton`, which prints a convergence table.
 """
-function ScfDefaultCallback(; show_damping=true)
+function ScfDefaultCallback(; show_damping=true, show_time=true)
+    prev_time   = nothing
     prev_energy = NaN
     function callback(info)
         show_magn = info.basis.model.spin_polarization == :collinear
@@ -43,14 +44,20 @@ function ScfDefaultCallback(; show_damping=true)
             label_magn = show_magn ? ("   Magnet", "   ------") : ("", "")
             label_damp = show_damp ? ("   α   ", "   ----") : ("", "")
             label_diag = show_diag ? ("   Diag", "   ----") : ("", "")
+            label_time = show_time ? ("   Δtime", "   ------") : ("", "")
             @printf "n     Energy            log10(ΔE)   log10(Δρ)"
-            println(label_magn[1], label_damp[1], label_diag[1])
+            println(label_magn[1], label_damp[1], label_diag[1], label_time[1])
             @printf "---   ---------------   ---------   ---------"
-            println(label_magn[2], label_damp[2], label_diag[2])
+            println(label_magn[2], label_damp[2], label_diag[2], label_time[2])
         end
         E    = isnothing(info.energies) ? Inf : info.energies.total
         Δρ   = norm(info.ρout - info.ρin) * sqrt(info.basis.dvol)
         magn = sum(spin_density(info.ρout)) * info.basis.dvol
+
+        tstr = " "^9
+        if show_time && !isnothing(prev_time)
+            tstr = @sprintf "   % 6s" TimerOutputs.prettytime(time_ns() - prev_time)
+        end
 
         format_log8(e) = @sprintf "%8.2f" log10(abs(e))
 
@@ -69,20 +76,23 @@ function ScfDefaultCallback(; show_damping=true)
         show_damp && (αstr = isnan(info.α) ? "       " : @sprintf "  % 4.2f" info.α)
 
         @printf "% 3d   %s   %s   %s" info.n_iter Estr ΔE Δρstr
-        println(Mstr, αstr, diagstr)
+        println(Mstr, αstr, diagstr, tstr)
         prev_energy = info.energies.total
+        prev_time = time_ns()
 
         flush(stdout)
         info
     end
 end
 
+# TODO Convergence ideas:
+#      - Flag convergence only after two subsequent steps converged
+
 """
 Flag convergence as soon as total energy change drops below tolerance
 """
 function ScfConvergenceEnergy(tolerance)
-    energy_total = NaN
-
+    previous_energy = NaN
     function is_converged(info)
         info.energies === nothing && return false # first iteration
 
@@ -91,11 +101,10 @@ function ScfConvergenceEnergy(tolerance)
             return false
         end
 
-        etot_old = energy_total
-        energy_total = info.energies.total
-        abs(energy_total - etot_old) < tolerance
+        error = abs(info.energies.total - previous_energy)
+        previous_energy = info.energies.total
+        error < tolerance
     end
-    return is_converged
 end
 
 """
@@ -105,6 +114,20 @@ input density and unpreconditioned output density (ρout)
 function ScfConvergenceDensity(tolerance)
     info -> (norm(info.ρout - info.ρin) * sqrt(info.basis.dvol) < tolerance)
 end
+
+"""
+Flag convergence on the change in cartesian force between two iterations.
+"""
+function ScfConvergenceForce(tolerance)
+    previous_force = nothing
+    function is_converged(info)
+        force = compute_forces_cart(info.basis, info.ψ, info.occupation; ρ=info.ρout)
+        error = isnothing(previous_force) ? NaN : norm(previous_force - force)
+        previous_force = force
+        error < tolerance
+    end
+end
+
 
 """
 Determine the tolerance used for the next diagonalization. This function takes

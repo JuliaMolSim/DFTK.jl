@@ -64,13 +64,13 @@ basis = PlaneWaveBasis(model; Ecut, kgrid)
 ## this is equivalent to PlaneWaveBasis(model; Ecut=Ecut, kgrid=kgrid)
 
 ## 3. Run the SCF procedure to obtain the ground state
-scfres = self_consistent_field(basis, tol=1e-8);
+scfres = self_consistent_field(basis, tol=1e-5);
 
 # That's it! Now you can get various quantities from the result of the SCF.
 # For instance, the different components of the energy:
 scfres.energies
 
-# Eigenvalues: 
+# Eigenvalues:
 hcat(scfres.eigenvalues...)
 # `eigenvalues` is an array (indexed by k-points) of arrays (indexed by
 # eigenvalue number). The "splatting" operation `...` calls `hcat`
@@ -82,10 +82,10 @@ hcat(scfres.eigenvalues...)
 # k-point because there are 4 occupied states in the system (4 valence
 # electrons per silicon atom, two atoms per unit cell, and paired
 # spins), and the eigensolver gives itself some breathing room by
-# computing some extra states (see `n_ep_extra` argument to
-# `self_consistent_field`). There are only 8 k-points (instead of
-# 4x4x4) because symmetry has been used to reduce the amount of
-# computations to just the irreducible k-points (see
+# computing some extra states (see the `bands` argument to
+# `self_consistent_field` as well as the [`AdaptiveBands`](@ref) documentation).
+# There are only 8 k-points (instead of 4x4x4) because symmetry has been used to reduce the
+# amount of computations to just the irreducible k-points (see
 #md # [Crystal symmetries](@ref)
 #nb # [Crystal symmetries](https://docs.dftk.org/stable/developer/symmetries/)
 # for details).

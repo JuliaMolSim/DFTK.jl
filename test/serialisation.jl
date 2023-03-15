@@ -8,7 +8,9 @@ include("testcases.jl")
 
 function test_scfres_agreement(tested, ref)
     @test tested.basis.model.lattice           == ref.basis.model.lattice
+    @test tested.basis.model.temperature       == ref.basis.model.temperature
     @test tested.basis.model.smearing          == ref.basis.model.smearing
+    @test tested.basis.model.εF                == ref.basis.model.εF
     @test tested.basis.model.symmetries        == ref.basis.model.symmetries
     @test tested.basis.model.spin_polarization == ref.basis.model.spin_polarization
 
@@ -35,9 +37,8 @@ function test_scfres_agreement(tested, ref)
 end
 
 
-@testset "Test checkpointing" begin
-    O = ElementPsp(o2molecule.atnum, psp=load_psp("hgh/pbe/O-q6.hgh"))
-    model = model_PBE(o2molecule.lattice, [O, O], o2molecule.positions;
+@testset "SCF checkpointing" begin
+    model = model_PBE(o2molecule.lattice, o2molecule.atoms, o2molecule.positions;
                       temperature=0.02, smearing=Smearing.Gaussian(),
                       magnetic_moments=[1., 1.], symmetries=false)
 
@@ -49,23 +50,25 @@ end
         checkpointfile = joinpath(tmpdir, "scfres.jld2")
         checkpointfile = MPI.bcast(checkpointfile, 0, MPI.COMM_WORLD)  # master -> everyone
 
-        callback = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
-        scfres = self_consistent_field(basis, tol=5e-2, callback=callback)
+        callback  = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
+        nbandsalg = FixedBands(; n_bands_converge=20)
+        scfres = self_consistent_field(basis; tol=1e-2, nbandsalg, callback)
         test_scfres_agreement(scfres, load_scfres(checkpointfile))
     end
 end
 
-@testset "Test serialisation" begin
-    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions;
-                      spin_polarization=:collinear, temperature=0.01)
-    kgrid = [2, 3, 4]
-    basis = PlaneWaveBasis(model; Ecut=5, kgrid)
-    scfres = self_consistent_field(basis)
+function test_serialisation(label;
+                            modelargs=(; spin_polarization=:collinear, temperature=0.01),
+                            basisargs=(; Ecut=5, kgrid=(2, 3, 4)))
+    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions; modelargs...)
+    basis = PlaneWaveBasis(model; basisargs...)
+    nbandsalg = FixedBands(; n_bands_converge=20)
+    scfres = self_consistent_field(basis; tol=1e-1, nbandsalg)
 
     @test_throws ErrorException save_scfres("MyVTKfile.random", scfres)
     @test_throws ErrorException save_scfres("MyVTKfile", scfres)
 
-    @testset "JLD2" begin
+    @testset "JLD2 ($label)" begin
         mktempdir() do tmpdir
             dumpfile = joinpath(tmpdir, "scfres.jld2")
             dumpfile = MPI.bcast(dumpfile, 0, MPI.COMM_WORLD)  # master -> everyone
@@ -76,7 +79,7 @@ end
         end
     end
 
-    @testset "VTK" begin
+    @testset "VTK ($label)" begin
         mktempdir() do tmpdir
             dumpfile = joinpath(tmpdir, "scfres.vts")
             dumpfile = MPI.bcast(dumpfile, 0, MPI.COMM_WORLD)  # master -> everyone
@@ -85,4 +88,13 @@ end
             @test isfile(dumpfile)
         end
     end
+end
+
+@testset "Serialisation" begin
+    test_serialisation("nospin notemp")
+    test_serialisation("collinear temp";
+                       modelargs=(; spin_polarization=:collinear, temperature=0.01))
+    test_serialisation("fixed Fermi";
+                       modelargs=(; εF=0.5, disable_electrostatics_check=true,
+                                  temperature=1e-3))
 end

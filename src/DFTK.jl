@@ -13,7 +13,11 @@ using spglib_jll
 using Unitful
 using UnitfulAtomic
 using ForwardDiff
+using AbstractFFTs
+using GPUArraysCore
+using Random
 using ChainRulesCore
+using SnoopPrecompile
 
 export Vec3
 export Mat3
@@ -24,20 +28,27 @@ include("common/timer.jl")
 include("common/constants.jl")
 include("common/ortho.jl")
 include("common/types.jl")
+include("common/spherical_bessels.jl")
 include("common/spherical_harmonics.jl")
 include("common/split_evenly.jl")
 include("common/mpi.jl")
 include("common/threading.jl")
 include("common/printing.jl")
 include("common/cis2pi.jl")
+include("architecture.jl")
+include("common/zeros_like.jl")
+include("common/norm.jl")
 
 export PspHgh
+export PspUpf
 include("pseudo/NormConservingPsp.jl")
 include("pseudo/PspHgh.jl")
+include("pseudo/PspUpf.jl")
 
 export ElementPsp
 export ElementCohenBergstresser
 export ElementCoulomb
+export ElementGaussian
 export charge_nuclear
 export charge_ionic
 export atomic_symbol
@@ -55,10 +66,13 @@ export compute_fft_size
 export G_vectors, G_vectors_cart, r_vectors, r_vectors_cart
 export Gplusk_vectors, Gplusk_vectors_cart
 export Kpoint
-export G_to_r
-export G_to_r!
-export r_to_G
-export r_to_G!
+export ifft
+export irfft
+export ifft!
+export fft
+export fft!
+export create_supercell
+export cell_to_supercell
 include("Smearing.jl")
 include("Model.jl")
 include("structure.jl")
@@ -66,6 +80,7 @@ include("PlaneWaveBasis.jl")
 include("fft.jl")
 include("orbitals.jl")
 include("show.jl")
+include("supercell.jl")
 
 export Energies
 include("Energies.jl")
@@ -89,16 +104,21 @@ export PairwisePotential
 export Anyonic
 export apply_kernel
 export compute_kernel
+export BlowupIdentity
+export BlowupCHV
+export BlowupAbinit
 include("DispatchFunctional.jl")
 include("terms/terms.jl")
 
+export AbstractFermiAlgorithm, FermiBisection, FermiTwoStage
 include("occupation.jl")
 export compute_density
 export total_density
 export spin_density
 export ρ_from_total_and_spin
 include("densities.jl")
-include("interpolation_transfer.jl")
+include("transfer.jl")
+include("interpolation.jl")
 export compute_transfer_matrix
 export transfer_blochwave
 export transfer_blochwave_kpt
@@ -117,7 +137,7 @@ include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
 export LdosMixing, HybridMixing, χ0Mixing
-export scf_nlsolve_solver
+export FixedBands, AdaptiveBands
 export scf_damping_solver
 export scf_anderson_solver
 export scf_CROP_solver
@@ -129,6 +149,7 @@ export load_scfres, save_scfres
 include("scf/chi0models.jl")
 include("scf/mixing.jl")
 include("scf/scf_solvers.jl")
+include("scf/nbands_algorithm.jl")
 include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
 include("scf/newton.jl")
@@ -154,23 +175,15 @@ include("pseudo/list_psp.jl")
 include("pseudo/attach_psp.jl")
 
 export DFTKPotential
-export pymatgen_structure
-export ase_atoms
-export load_lattice
-export load_atoms
-export load_positions
-export load_magnetic_moments
+export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
 include("external/atomsbase.jl")
 include("external/interatomicpotentials.jl")
-include("external/load_from_file.jl")
-include("external/ase.jl")
-include("external/pymatgen.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
 
 export compute_bands
-export high_symmetry_kpath
 export plot_bandstructure
+export irrfbz_path
 include("postprocess/band_structure.jl")
 
 export compute_forces
@@ -184,14 +197,16 @@ export plot_dos
 include("postprocess/dos.jl")
 export compute_χ0
 export apply_χ0
+include("response/cg.jl")
 include("response/chi0.jl")
 include("response/hessian.jl")
 export compute_current
 include("postprocess/current.jl")
 
-# ForwardDiff workarounds
+# Workarounds
 include("workarounds/dummy_inplace_fft.jl")
 include("workarounds/forwarddiff_rules.jl")
+include("workarounds/gpu_arrays.jl")
 
 
 function __init__()
@@ -208,12 +223,32 @@ function __init__()
     @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
     end
-    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80"    include("plotting.jl")
-    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"     include("external/jld2io.jl")
+    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("plotting.jl")
+    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"  include("external/jld2io.jl")
     @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" include("external/vtkio.jl")
     @require wannier90_jll="c5400fa0-8d08-52c2-913f-1e3f656c1ce9" begin
         include("external/wannier90.jl")
     end
+    @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba"  begin
+        include("workarounds/cuda_arrays.jl")
+    end
 end
 
+# Precompilation block with a basic workflow
+if VERSION ≥ v"1.9alpha" && isnothing(get(ENV, "DFTK_NO_PRECOMPILATION", nothing))
+    @precompile_all_calls begin
+        # very artificial silicon ground state example
+        a = 10.26
+        lattice = a / 2 * [[0 1 1.];
+                           [1 0 1.];
+                           [1 1 0.]]
+        Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+        atoms     = [Si, Si]
+        positions = [ones(3)/8, -ones(3)/8]
+
+        model = model_LDA(lattice, atoms, positions, temperature=0.1, spin_polarization=:collinear)
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
+        scfres = self_consistent_field(basis, tol=1e-2, maxiter=3, callback=identity)
+    end
+end
 end # module DFTK

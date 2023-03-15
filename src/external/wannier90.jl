@@ -42,16 +42,16 @@ function write_w90_win(fileprefix::String, basis::PlaneWaveBasis;
         println(fp, "!"^20 * " k_points\n")
 
         if bands_plot
-            kpathdata = high_symmetry_kpath(basis.model)
-            length(kpathdata.kpath) > 1 || @warn(
+            kpath  = irrfbz_path(basis.model)
+            length(kpath.paths) > 1 || @warn(
                 "Only first kpath branch considered in write_w90_win")
-            path = kpathdata.kpath[1]
+            path = kpath.paths[1]
 
             println(fp, "begin kpoint_path")
             for i in 1:length(path)-1
                 A, B = path[i:i+1]  # write segment A -> B
-                @printf(fp, "%s %10.6f %10.6f %10.6f  ", A, round.(kpathdata.klabels[A], digits=5)...)
-                @printf(fp, "%s %10.6f %10.6f %10.6f\n", B, round.(kpathdata.klabels[B], digits=5)...)
+                @printf(fp, "%s %10.6f %10.6f %10.6f  ", A, round.(kpath.points[A], digits=5)...)
+                @printf(fp, "%s %10.6f %10.6f %10.6f\n", B, round.(kpath.points[B], digits=5)...)
             end
             println(fp, "end kpoint_path")
             println(fp, "bands_plot = true\n")
@@ -125,7 +125,7 @@ end
         open(dirname(fileprefix) * (@sprintf "/UNK%05i.%i" ik spin), "w") do fp
             println(fp, "$(fft_size[1]) $(fft_size[2]) $(fft_size[3]) $ik $n_bands")
             for iband in 1:n_bands
-                ψnk_real = G_to_r(basis, basis.kpoints[ik], @view ψ[ik][:, iband])
+                ψnk_real = ifft(basis, basis.kpoints[ik], @view ψ[ik][:, iband])
                 for iz in 1:fft_size[3], iy in 1:fft_size[2], ix in 1:fft_size[1]
                     println(fp, real(ψnk_real[ix, iy, iz]), " ", imag(ψnk_real[ix, iy, iz]))
                 end
@@ -138,19 +138,20 @@ end
 
 @doc raw"""
 Computes the matrix ``[M^{k,b}]_{m,n} = \langle u_{m,k} | u_{n,k+b} \rangle``
-for given k, kpb = k+b.
+for given `k`, `kpb` = ``k+b``.
 
 `G_shift` is the "shifting" vector, correction due to the periodicity conditions
-imposed on k -> ψ_k.
-It is non zero if kpb is taken in another unit cell of the reciprocal lattice.
-We use here that : ``u_{n(k + G_shift)}(r) = e^{-i*\langle G_shift,r \rangle} u_{nk}``
+imposed on ``k \to  ψ_k``.
+It is non zero if `kpb` is taken in another unit cell of the reciprocal lattice.
+We use here that:
+``u_{n(k + G_{\rm shift})}(r) = e^{-i*\langle G_{\rm shift},r \rangle} u_{nk}``.
 """
 @views function overlap_Mmn_k_kpb(basis::PlaneWaveBasis, ψ, ik, ikpb, G_shift, n_bands)
     # Search for common Fourier modes and their resp. indices in Bloch states k and kpb
     # TODO Check if this can be improved using the G vector mapping in the kpoints
     k   = basis.kpoints[ik]
     kpb = basis.kpoints[ikpb]
-    equivalent_G_vectors = [(iGk, DFTK.index_G_vectors(basis, kpb, Gk + G_shift))
+    equivalent_G_vectors = [(iGk, index_G_vectors(basis, kpb, Gk + G_shift))
                             for (iGk, Gk) in enumerate(G_vectors(basis, k))]
     iGk   = [eqG[1] for eqG in equivalent_G_vectors if !isnothing(eqG[2])]
     iGkpb = [eqG[2] for eqG in equivalent_G_vectors if !isnothing(eqG[2])]
@@ -247,7 +248,7 @@ generated in reduced coordinates.
 default_wannier_centres(n_wannier) = [rand(1, 3) for _ in 1:n_wannier]
 
 @timing function run_wannier90(scfres;
-                               n_bands=size(scfres.ψ[1], 2) - scfres.n_ep_extra,
+                               n_bands=scfres.n_bands_converge,
                                n_wannier=n_bands,
                                centers=default_wannier_centres(n_wannier),
                                fileprefix=joinpath("wannier90", "wannier"),

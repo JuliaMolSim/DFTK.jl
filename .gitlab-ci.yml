@@ -1,0 +1,27 @@
+stages:
+  - test
+
+# This job tests DFTK.jl with Julia 1.8 on Noctua 2
+# It only runs when:
+#    - Commit in master
+#    - PR from branch with name ending in "gpu"
+#    - Manual run triggered
+julia/1.8-n2:
+  stage: test
+  variables:
+    SCHEDULER_PARAMETERS: "-N 1 -n 1 -c 16 --gres=gpu:a100:1 --qos=devel -p dgx -t 00:15:00 -A hpc-prf-dftkjl"
+    JULIA_NUM_THREADS: "1"  # GPU and multi-threading not yet compatible
+  coverage: '/\(\d+.\d+\%\) covered/'
+  rules:
+    - if: $CI_COMMIT_BRANCH   == "master"
+    - if: $CI_PIPELINE_SOURCE == "external_pull_request_event" && $CI_EXTERNAL_PULL_REQUEST_SOURCE_BRANCH_NAME =~ /gpu$/
+    - if: $CI_PIPELINE_SOURCE == "external_pull_request_event"
+      when: manual
+  script:
+    - module load lang/JuliaHPC/1.8.3-foss-2022a-CUDA-11.7.0
+    - julia --color=yes --project=. -e '
+        using Pkg;
+        Pkg.test(; coverage=true, test_args=["gpu"])
+      '
+    - julia --color=yes --project=test/coverage -e 'import Pkg; Pkg.instantiate()'
+    - julia --color=yes --project=test/coverage test/coverage/coverage.jl

@@ -3,8 +3,7 @@ on:
   push:
     branches:
       - master
-    tags:
-      - 'v*'
+    tags: ['*']
   pull_request:
   schedule:
     - cron:  '0 4 * * 6'  # Run every Sunday
@@ -19,55 +18,34 @@ jobs:
   # Unit tests
   #
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.payload }}
+    name: Julia stable - ${{ matrix.os }} - ${{ matrix.payload }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {version: '1.6',   os: ubuntu-latest,  payload: serial}
-          - {version: '1.6',   os: macOS-latest,   payload: serial}
-          - {version: '1.6',   os: windows-latest, payload: serial}
-          - {version: '1.6',   os: ubuntu-latest,  payload: mpi   }
-          - {version: nightly, os: ubuntu-latest,  payload: serial}
+          - {os: ubuntu-latest,  payload: "fast,example" }
+          - {os: macOS-latest,   payload: fast           }
+          - {os: windows-latest, payload: fast           }
+          - {os: ubuntu-latest,  payload: mpi            }
     env:
-      PYTHON: ""          # Force using Conda in PyCall
       GKS_ENCODING: "utf8"
       GKSwstype: "100"    # Needed for Plots-related tests
       PLOTS_TEST: "true"  # Needed for Plots-related tests
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: julia-actions/setup-julia@v1
         with:
-          version: ${{ matrix.version }}
+          version: '1.7'
           arch: x64
-      - uses: actions/cache@v1
-        env:
-          cache-name: cache-artifacts
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-test-${{ env.cache-name }}-
-            ${{ runner.os }}-test-
-            ${{ runner.os }}-
-      - name: Install Conda dependencies
-        shell: bash
-        run: |
-          julia -e '
-            using Pkg; Pkg.add("Conda"); using Conda
-            pkgs = ["ase", "pymatgen"]
-            !Sys.iswindows() && (pkgs = append!(["libblas=*=*netlib", "nomkl"], pkgs))
-            Conda.add(pkgs; channel="conda-forge")
-          '
+      - uses: julia-actions/cache@v1
       - uses: julia-actions/julia-buildpkg@v1
 
-      - name: Execute serial tests
-        uses: julia-actions/julia-runtest@v1
-        if: ${{ matrix.payload == 'serial' }}
-        continue-on-error: ${{ matrix.version == 'nightly' }}
-
+      - uses: julia-actions/julia-runtest@v1
+        if: ${{ matrix.payload != 'mpi' }}
+        env:
+          DFTK_TEST_ARGS: ${{ matrix.payload }}
       - name: Execute MPI-parallel tests
         run: |
           julia --project -e '
@@ -77,40 +55,38 @@ jobs:
           '
           $HOME/.julia/bin/mpiexecjl -np 2 julia --check-bounds=yes --depwarn=yes --project --color=yes -e 'using Pkg; Pkg.test(coverage=true)'
         if: ${{ matrix.payload == 'mpi' }}
-        continue-on-error: ${{ matrix.version == 'nightly' }}
+        env:
+          DFTK_TEST_ARGS: fast
 
       - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v3
         with:
-          file: lcov.info
+          files: lcov.info
   #
-  # Examples
+  # Nightly
   #
-  examples:
-    name: Run examples
+  nightly:
+    name: Julia nightly - ubuntu-latest
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
     env:
       GKS_ENCODING: "utf8"
       GKSwstype: "100"    # Needed for Plots-related tests
       PLOTS_TEST: "true"  # Needed for Plots-related tests
+
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
-        with:
-          python-version: '3.7'
-      - name: Install python dependencies
-        run: pip install ase
+      - uses: actions/checkout@v3
       - uses: julia-actions/setup-julia@v1
         with:
-          version: '1.6'
-      - uses: actions/cache@v1
+          version: nightly
+          arch: x64
+      - uses: julia-actions/cache@v1
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
         env:
-          cache-name: cache-artifacts
+          DFTK_TEST_ARGS: fast
+      - uses: julia-actions/julia-processcoverage@v1
+      - uses: codecov/codecov-action@v3
         with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-test-${{ env.cache-name }}-
-            ${{ runner.os }}-test-
-            ${{ runner.os }}-
-      - run: julia --color=yes --project -e 'using Pkg; Pkg.test(test_args=["example"])'
+          file: lcov.info

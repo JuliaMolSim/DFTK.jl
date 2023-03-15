@@ -44,13 +44,10 @@ end
 
 @testset "Forces on silicon with spin and temperature" begin
     function silicon_energy_forces(positions; smearing=Smearing.FermiDirac())
-        model = model_DFT(silicon.lattice, silicon.atoms, positions, :lda_xc_teter93;
-                          temperature=0.03, smearing, spin_polarization=:collinear)
-        basis = PlaneWaveBasis(model; Ecut=4, kgrid=[4, 1, 2], kshift=[1/2, 0, 0])
-
-        n_bands = 10
-        is_converged = DFTK.ScfConvergenceDensity(5e-10)
-        scfres = self_consistent_field(basis; n_bands, is_converged)
+        model  = model_DFT(silicon.lattice, silicon.atoms, positions, :lda_xc_teter93;
+                           temperature=0.03, smearing, spin_polarization=:collinear)
+        basis  = PlaneWaveBasis(model; Ecut=4, kgrid=[4, 1, 2], kshift=[1/2, 0, 0])
+        scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(5e-10))
         scfres.energies.total, compute_forces(scfres)
     end
 
@@ -72,9 +69,8 @@ end
 
 @testset "Forces on spin-polarised case" begin
     function oxygen_energy_forces(positions)
-        O = ElementPsp(o2molecule.atnum, psp=load_psp("hgh/pbe/O-q6.hgh"))
         magnetic_moments = [1.0, 1.0]
-        model = model_PBE(diagm([7.0, 7.0, 7.0]), [O, O], positions;
+        model = model_PBE(diagm([7.0, 7.0, 7.0]), o2molecule.atoms, positions;
                           temperature=0.02, smearing=Smearing.Gaussian(), magnetic_moments)
         basis = PlaneWaveBasis(model; Ecut=4, kgrid=[1, 1, 1])
 

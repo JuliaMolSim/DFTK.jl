@@ -10,14 +10,14 @@ include("testcases.jl")
 
 if mpi_nprocs() == 1  # Distributed implementation not yet available
 
-    function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where T
+    function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where {T}
 
         pack(ψ) = reinterpret_real(pack_ψ(ψ))
         unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
 
         # compute quantites at the point which define the tangent space
         ρ = compute_density(basis, ψ, occupation)
-        _, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+        H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
 
         # preconditioner
         Pks = [PreconditionerTPA(basis, kpt) for kpt in basis.kpoints]
@@ -68,7 +68,7 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
 
             model  = model_atomic(silicon.lattice, silicon.atoms, silicon.positions)
             basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1])
-            scfres = self_consistent_field(basis; tol=1e-12)
+            scfres = self_consistent_field(basis; tol=1e-8)
             ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 
             res = eigen_ΩplusK(basis, ψ, occupation, numval)
@@ -84,9 +84,8 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
 
             model  = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
             basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1])
-            scfres = self_consistent_field(basis; tol=1e-12)
-            ψ, occupation = select_occupied_orbitals(basis, scfres.ψ,
-                                                     scfres.occupation)
+            scfres = self_consistent_field(basis; tol=1e-8)
+            ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 
             res = eigen_ΩplusK(basis, ψ, occupation, numval)
             @test res.λ[1] > 1e-3

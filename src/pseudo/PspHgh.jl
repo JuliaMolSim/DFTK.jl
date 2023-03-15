@@ -15,30 +15,12 @@ end
 charge_ionic(psp::PspHgh) = psp.Zion
 
 """
-    PspHgh(Zion::Number, rloc::Number, cloc::Vector, rp::Vector, h::Vector;
-           identifier="", description="")
+    PspHgh(path[, identifier, description])
 
-Construct a Hartwigsen, Goedecker, Teter, Hutter separable dual-space
-Gaussian pseudopotential (1998). The required parameters are the ionic
-charge `Zion` (total charge - valence electrons), the range for the local
-Gaussian charge distribution `rloc`, the coefficients for the local part
-`cloc`, the projector radius `rp` (one per AM channel) and the non-local
-coupling coefficients between the projectors `h` (one matrix per AM channel).
+Construct a Hartwigsen, Goedecker, Teter, Hutter separable dual-space Gaussian
+pseudopotential (1998) from file.
 """
-function PspHgh(Zion, rloc::T, cloc::AbstractVector, rp, h; identifier="", description="") where {T}
-    length(rp) == length(h) || error("Length of rp and h do not agree.")
-    length(cloc) <= 4 || error("length(cloc) > 4 not supported.")
-    if length(cloc) < 4
-        n_extra = 4 - length(cloc)
-        cloc = [cloc; zeros(T, n_extra)]
-    end
-
-    lmax = length(h) - 1
-    PspHgh{T}(Zion, rloc, cloc, lmax, rp, h, identifier, description)
-end
-
-
-function parse_hgh_file(path; identifier=path)
+function PspHgh(path; identifier=path)
     lines = readlines(path)
     description = lines[1]
 
@@ -109,6 +91,19 @@ function parse_hgh_file(path; identifier=path)
     PspHgh(Zion, rloc, cloc, rp, h; identifier, description)
 end
 
+function PspHgh(Zion, rloc::T, cloc::AbstractVector, rp, h;
+                identifier="", description="") where {T}
+    length(rp) == length(h) || error("Length of rp and h do not agree.")
+    length(cloc) <= 4 || error("length(cloc) > 4 not supported.")
+    if length(cloc) < 4
+        n_extra = 4 - length(cloc)
+        cloc = [cloc; zeros(T, n_extra)]
+    end
+
+    lmax = length(h) - 1
+    PspHgh{T}(Zion, rloc, cloc, lmax, rp, h, identifier, description)
+end
+
 @doc raw"""
 The local potential of a HGH pseudopotentials in reciprocal space
 can be brought to the form ``Q(t) / (t^2 exp(t^2 / 2))``
@@ -141,7 +136,7 @@ Estimate an upper bound for the argument `q` after which
 `abs(eval_psp_local_fourier(psp, q))` is a strictly decreasing function.
 """
 function qcut_psp_local(psp::PspHgh{T}) where {T}
-    Q = DFTK.psp_local_polynomial(T, psp)  # polynomial in t = q * rloc
+    Q = psp_local_polynomial(T, psp)  # polynomial in t = q * rloc
 
     # Find the roots of the derivative polynomial:
     res = roots(Polynomial([0, 1]) * derivative(Q) - Polynomial([2, 0, 1]) * Q)
@@ -198,7 +193,7 @@ Estimate an upper bound for the argument `q` after which
 `eval_psp_projector_fourier(psp, q)` is a strictly decreasing function.
 """
 function qcut_psp_projector(psp::PspHgh{T}, i, l) where {T}
-    Q = DFTK.psp_projector_polynomial(T, psp, i, l)  # polynomial in q * rp[l + 1]
+    Q = psp_projector_polynomial(T, psp, i, l)  # polynomial in q * rp[l + 1]
 
     # Find the roots of the derivative polynomial:
     res = roots(derivative(Q) - Polynomial([0, 1]) * Q)
@@ -224,7 +219,7 @@ end
 function eval_psp_energy_correction(T, psp::PspHgh, n_electrons)
     # By construction we need to compute the DC component of the difference
     # of the Coulomb potential (-Z/G^2 in Fourier space) and the pseudopotential
-    # i.e. -Z/(ΔG)^2 -  eval_psp_local_fourier(psp, ΔG) for ΔG → 0. This is:
+    # i.e. -4πZ/(ΔG)^2 -  eval_psp_local_fourier(psp, ΔG) for ΔG → 0. This is:
     cloc_coeffs = T[1, 3, 15, 105]
     difference_DC = (T(psp.Zion) * T(psp.rloc)^2 / 2
                      + sqrt(T(π)/2) * T(psp.rloc)^3 * T(sum(cloc_coeffs .* psp.cloc)))

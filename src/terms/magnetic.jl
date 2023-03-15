@@ -14,7 +14,7 @@ struct TermMagnetic <: Term
     # Apotential[α] is an array of size fft_size for α=1:3
     Apotential::Vector{<:AbstractArray}
 end
-function TermMagnetic(basis::PlaneWaveBasis{T}, Afunction::Function) where T
+function TermMagnetic(basis::PlaneWaveBasis{T}, Afunction::Function) where {T}
     Apotential = [zeros(T, basis.fft_size) for α = 1:3]
     N1, N2, N3 = basis.fft_size
     rvecs = collect(r_vectors_cart(basis))
@@ -30,20 +30,23 @@ function TermMagnetic(basis::PlaneWaveBasis{T}, Afunction::Function) where T
     TermMagnetic(Apotential)
 end
 
-function ene_ops(term::TermMagnetic, basis::PlaneWaveBasis{T}, ψ, occ; kwargs...) where {T}
+function ene_ops(term::TermMagnetic, basis::PlaneWaveBasis{T}, ψ, occupation;
+                 kwargs...) where {T}
     ops = [MagneticFieldOperator(basis, kpoint, term.Apotential)
            for (ik, kpoint) in enumerate(basis.kpoints)]
-    isnothing(ψ) && return (E=T(Inf), ops=ops)
+    if isnothing(ψ) || isnothing(occupation)
+        return (; E=T(Inf), ops)
+    end
 
     E = zero(T)
     for (ik, k) in enumerate(basis.kpoints)
         for iband = 1:size(ψ[1], 2)
             ψnk = @views ψ[ik][:, iband]
             # TODO optimize this
-            E += basis.kweights[ik] * occ[ik][iband] * real(dot(ψnk, ops[ik] * ψnk))
+            E += basis.kweights[ik] * occupation[ik][iband] * real(dot(ψnk, ops[ik] * ψnk))
         end
     end
     E = mpi_sum(E, basis.comm_kpts)
 
-    (E=E, ops=ops)
+    (; E, ops)
 end

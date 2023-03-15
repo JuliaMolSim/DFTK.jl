@@ -23,15 +23,13 @@ end
 default_primes(::Any) = (2, )
 
 # Generic fallback function, Float32 and Float64 specialization in fft.jl
-function build_fft_plans(T, fft_size)
-    tmp = Array{Complex{T}}(undef, fft_size...)
-
+function build_fft_plans!(tmp::AbstractArray{<:Complex})
     # Note: FourierTransforms has no support for in-place FFTs at the moment
     # ... also it's extension to multi-dimensional arrays is broken and
     #     the algo only works for some cases
-    @assert all(ispow2, fft_size)
+    @assert all(ispow2, size(tmp))
 
-    # opFFT = FourierTransforms.plan_fft(tmp)   # TODO When multidim works
+    # opFFT = AbstractFFTs.plan_fft(tmp)   # TODO When multidim works
     # opBFFT = inv(opFFT).p
     opFFT  = generic_plan_fft(tmp)               # Fallback for now
     opBFFT = generic_plan_bfft(tmp)
@@ -70,17 +68,17 @@ LinearAlgebra.ldiv!(Y, p::GenericPlan, X) = Y .= p \ X
 import Base: *, \, inv, length
 length(p::GenericPlan) = prod(length, p.subplans)
 *(p::GenericPlan, X::AbstractArray) = generic_apply(p, X)
-*(p::GenericPlan{T}, fac::Number) where T = GenericPlan{T}(p.subplans, p.factor * T(fac))
-*(fac::Number, p::GenericPlan{T}) where T = p * fac
+*(p::GenericPlan{T}, fac::Number) where {T} = GenericPlan{T}(p.subplans, p.factor * T(fac))
+*(fac::Number, p::GenericPlan{T}) where {T} = p * fac
 \(p::GenericPlan, X) = inv(p) * X
-inv(p::GenericPlan{T}) where T = GenericPlan{T}(inv.(p.subplans), 1 / p.factor)
+inv(p::GenericPlan{T}) where {T} = GenericPlan{T}(inv.(p.subplans), 1 / p.factor)
 
-function generic_plan_fft(data::AbstractArray{T, 3}) where T
+function generic_plan_fft(data::AbstractArray{T, 3}) where {T}
     GenericPlan{T}([FourierTransforms.plan_fft(data[:, 1, 1]),
                     FourierTransforms.plan_fft(data[1, :, 1]),
                     FourierTransforms.plan_fft(data[1, 1, :])], T(1))
 end
-function generic_plan_bfft(data::AbstractArray{T, 3}) where T
+function generic_plan_bfft(data::AbstractArray{T, 3}) where {T}
     GenericPlan{T}([FourierTransforms.plan_bfft(data[:, 1, 1]),
                     FourierTransforms.plan_bfft(data[1, :, 1]),
                     FourierTransforms.plan_bfft(data[1, 1, :])], T(1))

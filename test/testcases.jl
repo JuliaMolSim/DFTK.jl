@@ -6,7 +6,7 @@ silicon = (
                5.131570667152971 5.131570667152971  0.0],
     atnum = 14,
     n_electrons = 8,
-    temperature = nothing,
+    temperature = 0.0,
     psp = "hgh/lda/si-q4",
     positions = [ones(3)/8, -ones(3)/8],  # in fractional coordinates
     kcoords = [[   0,   0, 0],  # in fractional coordinates
@@ -59,9 +59,12 @@ aluminium_primitive = (
     atnum = 13,
     n_electrons = 3,
     psp = "hgh/lda/al-q3",
-    positions = [[0, 0, 0]],
+    positions = [zeros(3)],
     temperature = 0.0009500431544769484,
 )
+aluminium_primitive = merge(aluminium_primitive,
+                            (; atoms=fill(ElementPsp(aluminium_primitive.atnum,
+                                                     psp=load_psp(aluminium_primitive.psp)), 1)))
 
 
 platinum_hcp = (
@@ -95,3 +98,5 @@ o2molecule = (
     positions = 0.1155 * [[0, 0, 1], [0, 0, -1]],
     temperature = 0.02,
 )
+o2molecule = merge(o2molecule,
+                   (; atoms=fill(ElementPsp(o2molecule.atnum, psp=load_psp(o2molecule.psp)), 2)))

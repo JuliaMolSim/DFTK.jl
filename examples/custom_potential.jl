@@ -4,22 +4,27 @@
 # This is similar to [Gross-Pitaevskii equation in 1D example](@ref gross-pitaevskii)
 # and we show how to define local potentials attached to atoms, which allows for
 # instance to compute forces.
+# The custom potential is actually already defined as `ElementGaussian` in DFTK, and could
+# be used as is.
 using DFTK
 using LinearAlgebra
 
 # First, we define a new element which represents a nucleus generating
 # a Gaussian potential.
-struct ElementGaussian <: DFTK.Element
+struct CustomPotential <: DFTK.Element
     α  # Prefactor
     L  # Width of the Gaussian nucleus
 end
 
+# Some default values
+CustomPotential() = CustomPotential(1.0, 0.5);
+
 # We extend the two methods providing access to the real and Fourier
 # representation of the potential to DFTK.
-function DFTK.local_potential_real(el::ElementGaussian, r::Real)
+function DFTK.local_potential_real(el::CustomPotential, r::Real)
     -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
 end
-function DFTK.local_potential_fourier(el::ElementGaussian, q::Real)
+function DFTK.local_potential_fourier(el::CustomPotential, q::Real)
     ## = ∫ V(r) exp(-ix⋅q) dx
     -el.α * exp(- (q * el.L)^2 / 2)
 end
@@ -35,8 +40,8 @@ lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]];
 x1 = 0.2
 x2 = 0.8
 positions = [[x1, 0, 0], [x2, 0, 0]]
-gauss     = ElementGaussian(1.0, 0.5)
-atoms     = [gauss, gauss]
+gauss     = CustomPotential()
+atoms     = [gauss, gauss];
 
 # We setup a Gross-Pitaevskii model
 C = 1.0
@@ -53,7 +58,7 @@ model = Model(lattice, atoms, positions; n_electrons, terms,
 # a starting density and we choose to start from a zero density.
 basis = PlaneWaveBasis(model; Ecut=500, kgrid=(1, 1, 1))
 ρ = zeros(eltype(basis), basis.fft_size..., 1)
-scfres = self_consistent_field(basis; tol=1e-8, ρ=ρ)
+scfres = self_consistent_field(basis; tol=1e-5, ρ)
 scfres.energies
 
 # Computing the forces can then be done as usual:
@@ -65,7 +70,7 @@ tot_local_pot = DFTK.total_local_potential(scfres.ham)[:, 1, 1]; # use only dime
 # Extract other quantities before plotting them
 ρ = scfres.ρ[:, 1, 1, 1]        # converged density, first spin component
 ψ_fourier = scfres.ψ[1][:, 1]   # first k-point, all G components, first eigenvector
-ψ = G_to_r(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1]
+ψ = ifft(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1]
 ψ /= (ψ[div(end, 2)] / abs(ψ[div(end, 2)]));
 
 using Plots

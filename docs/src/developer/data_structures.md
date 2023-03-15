@@ -14,7 +14,7 @@ model = model_LDA(lattice, atoms, positions)
 kgrid = [4, 4, 4]
 Ecut = 15
 basis = PlaneWaveBasis(model; Ecut, kgrid)
-scfres = self_consistent_field(basis, tol=1e-8);
+scfres = self_consistent_field(basis; tol=1e-4);
 ```
 
 In this section we assume a calculation of silicon LDA model
@@ -126,7 +126,7 @@ basis set large enough to contain the set
 ``\{{G}-G' \,|\, G, G' \in S_{k}\}``.
 We can obtain the coefficients of densities on the
 ``e_{G}`` basis by a convolution, which can be performed efficiently
-with FFTs (see [`G_to_r`](@ref) and [`r_to_G`](@ref) functions).
+with FFTs (see [`ifft`](@ref) and [`fft`](@ref) functions).
 Potentials are discretized on this same set.
 
 The normalization conventions used in the code is that quantities
@@ -149,7 +149,7 @@ passed because ψ is expressed on the ``k``-dependent basis.
 Again the function is normalised:
 
 ```@example data_structures
-ψreal = G_to_r(basis, basis.kpoints[1], ψtest)
+ψreal = ifft(basis, basis.kpoints[1], ψtest)
 sum(abs2.(ψreal)) * basis.dvol
 ```
 
@@ -209,8 +209,8 @@ plot(x, scfres.ρ[:, 1, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 
 ```@example data_structures
 G_energies = [sum(abs2.(model.recip_lattice * G)) ./ 2 for G in G_vectors(basis)][:]
-scatter(G_energies, abs.(r_to_G(basis, scfres.ρ)[:]);
-        yscale=:log10, ylims=(1e-12, 1), label="", xlabel="Energy", ylabel="|ρ|^2")
+scatter(G_energies, abs.(fft(basis, scfres.ρ)[:]);
+        yscale=:log10, ylims=(1e-12, 1), label="", xlabel="Energy", ylabel="|ρ|")
 ```
 
 Note that the density has no components on wavevectors above a certain energy,

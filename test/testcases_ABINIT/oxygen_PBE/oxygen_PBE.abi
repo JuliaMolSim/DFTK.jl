@@ -5,7 +5,7 @@ ngkpt 1 1 1
 kptopt 1
 iomode 3
 nshiftk 1
-shiftk 0.0 0.0 0.0 
+shiftk 0.0 0.0 0.0
 nband 10
 # ecut 50
 ecut 15
@@ -20,7 +20,7 @@ pseudos "O-q6-pbe.abinit.hgh"
 output_file "oxygen_PBE.abo"
 
 ##############################################
-####               SECTION: gstate               
+####               SECTION: gstate
 ##############################################
  nspinor 1
  nspden 2

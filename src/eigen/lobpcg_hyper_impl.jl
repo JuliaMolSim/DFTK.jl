@@ -43,17 +43,81 @@
 vprintln(args...) = nothing
 
 using LinearAlgebra
-using BlockArrays # used for the `mortar` command which makes block matrices
+import Base: *
+import Base.size, Base.adjoint, Base.Array
 
-# when X or Y are BlockArrays, this makes the return value be a proper array (not a BlockArray)
-function array_mul(X::AbstractArray{T}, Y) where T
-    Z = Array{T}(undef, size(X, 1), size(Y, 2))
-    mul!(Z, X, Y)
+"""
+Simple wrapper to represent a matrix formed by the concatenation of column blocks:
+it is mostly equivalent to hcat, but doesn't allocate the full matrix.
+LazyHcat only supports a few multiplication routines: furthermore, a multiplication
+involving this structure will always yield a plain array (and not a LazyHcat structure).
+LazyHcat is a lightweight subset of BlockArrays.jl's functionalities, but has the
+advantage to be able to store GPU Arrays (BlockArrays is heavily built on Julia's CPU Array).
+"""
+struct LazyHcat{T <: Number, D <: Tuple} <: AbstractMatrix{T}
+    blocks::D
+end
+
+function LazyHcat(arrays::AbstractArray...)
+    @assert length(arrays) != 0
+    n_ref = size(arrays[1], 1)
+    @assert  all(size.(arrays, 1) .== n_ref)
+
+    T = promote_type(map(eltype, arrays)...)
+
+    LazyHcat{T, typeof(arrays)}(arrays)
+end
+
+function Base.size(A::LazyHcat)
+    n = size(A.blocks[1], 1)
+    m = sum(size(block, 2) for block in A.blocks)
+    (n,m)
+end
+
+Base.Array(A::LazyHcat)  = hcat(A.blocks...)
+
+Base.adjoint(A::LazyHcat) = Adjoint(A)
+
+@views function Base.:*(Aadj::Adjoint{T, <: LazyHcat}, B::LazyHcat) where {T}
+    A = Aadj.parent
+    rows = size(A)[2]
+    cols = size(B)[2]
+    ret = similar(A.blocks[1], rows, cols)
+
+    orow = 0  # row offset
+    for (iA, blA) in enumerate(A.blocks)
+        ocol = 0  # column offset
+        for (iB, blB) in enumerate(B.blocks)
+            ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] .= blA' * blB
+            ocol += size(blB, 2)
+        end
+        orow += size(blA, 2)
+    end
+    ret
+end
+
+Base.:*(Aadj::Adjoint{T, <: LazyHcat}, B::AbstractMatrix) where {T} = Aadj * LazyHcat(B)
+
+@views function *(Ablock::LazyHcat, B::AbstractMatrix)
+    res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
+    offset = size(Ablock.blocks[1], 2)
+    for block in Ablock.blocks[2:end]
+        mul!(res, block, B[offset .+ (1:size(block, 2)), :], 1, 1)
+        offset += size(block, 2)
+    end
+    res
+end
+
+function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
+                            B::AbstractVecOrMat, α::Number, β::Number)
+    mul!(res, Ablock*B, I, α, β)
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X, AX, N)
-    F = eigen(Hermitian(array_mul(X', AX)))
+    XAX = X' * AX
+    @assert all(!isnan, XAX)
+    F = eigen(Hermitian(XAX))
     F.vectors[:,1:N], F.values[1:N]
 end
 
@@ -65,6 +129,7 @@ end
 function B_ortho!(X, BX)
     O = Hermitian(X'*BX)
     U = cholesky(O).U
+    @assert all(!isnan, U)
     rdiv!(X, U)
     rdiv!(BX, U)
 end
@@ -74,7 +139,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been
 # magnified
-@timing function ortho!(X::AbstractArray{T}; tol=2eps(real(T))) where T
+@timing function ortho!(X::AbstractArray{T}; tol=2eps(real(T))) where {T}
     local R
 
     # # Uncomment for "gold standard"
@@ -117,7 +182,8 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
             success = false
         end
         invR = inv(R)
-        rmul!(X, invR) # we do not use X/R because we use invR next
+        @assert all(!isnan, invR)
+        rmul!(X, invR)  # we do not use X/R because we use invR next
 
         # We would like growth_factor *= opnorm(inv(R)) but it's too
         # expensive, so we use an upper bound which is sharp enough to
@@ -130,7 +196,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
         growth_factor *= norminvR
 
         # condR = 1/LAPACK.trcon!('I', 'U', 'N', Array(R))
-        condR = normest(R)*norminvR # in practice this seems to be an OK estimate
+        condR = normest(R)*norminvR  # in practice this seems to be an OK estimate
 
         vprintln("Ortho(X) success? $success ", eps(real(T))*condR^2, " < $tol")
 
@@ -147,7 +213,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 end
 
 # Randomize the columns of X if the norm is below tol
-function drop!(X::AbstractArray{T}, tol=2eps(real(T))) where T
+function drop!(X::AbstractArray{T}, tol=2eps(real(T))) where {T}
     dropped = Int[]
     for i=1:size(X,2)
         n = norm(@views X[:,i])
@@ -160,7 +226,7 @@ function drop!(X::AbstractArray{T}, tol=2eps(real(T))) where T
 end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
-@timing "ortho! X vs Y" function ortho!(X::AbstractArray{T}, Y, BY; tol=2eps(real(T))) where T
+@timing "ortho! X vs Y" function ortho!(X::AbstractArray{T}, Y, BY; tol=2eps(real(T))) where {T}
     # normalize to try to cheaply improve conditioning
     Threads.@threads for i=1:size(X,2)
         n = norm(@views X[:,i])
@@ -170,21 +236,21 @@ end
     niter = 1
     ninners = zeros(Int,0)
     while true
-        BYX = BY'X
-        # XXX the one(T) instead of plain old 1 is because of https://github.com/JuliaArrays/BlockArrays.jl/issues/176
-        mul!(X, Y, BYX, -one(T), one(T)) # X -= Y*BY'X
+        BYX = BY' * X
+        mul!(X, Y, BYX, -1, 1)  # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho!(cP, cX)
         dropped = drop!(X)
         if dropped != []
-            @views mul!(X[:, dropped], Y, BY' * (X[:, dropped]), -one(T), one(T)) # X -= Y*BY'X
+            X[:, dropped] .-= Y * (BY' * X[:, dropped])
         end
+
         if norm(BYX) < tol && niter > 1
             push!(ninners, 0)
             break
         end
-        X, ninner, growth_factor = ortho!(X, tol=tol)
+        X, ninner, growth_factor = ortho!(X; tol)
         push!(ninners, ninner)
 
         # norm(BY'X) < tol && break should be the proper check, but
@@ -201,7 +267,7 @@ end
         niter > 10 && error("Ortho(X,Y) is failing badly, this should never happen")
         niter += 1
     end
-    vprintln("ortho choleskys: ", ninners) # get how many Choleskys are performed
+    vprintln("ortho choleskys: ", ninners)  # get how many Choleskys are performed
 
     # @assert (norm(BY'X)) < tol
     # @assert (norm(X'X-I)) < tol
@@ -213,12 +279,10 @@ end
 function final_retval(X, AX, resid_history, niter, n_matvec)
     λ = real(diag(X' * AX))
     residuals = AX .- X*Diagonal(λ)
-    (λ=λ, X=X,
+    (; λ, X,
      residual_norms=[norm(residuals[:, i]) for i in 1:size(residuals, 2)],
-     residual_history=resid_history[:, 1:niter+1],
-     n_matvec=n_matvec)
+     residual_history=resid_history[:, 1:niter+1], n_matvec)
 end
-
 
 ### The algorithm is Xn+1 = rayleigh_ritz(hcat(Xn, A*Xn, Xn-Xn-1))
 ### We follow the strategy of Hetmaniuk and Lehoucq, and maintain a B-orthonormal basis Y = (X,R,P)
@@ -230,6 +294,7 @@ end
                         miniter=1, ortho_tol=2eps(real(eltype(X))),
                         n_conv_check=nothing, display_progress=false)
     N, M = size(X)
+
     # If N is too small, we will likely get in trouble
     error_message(verb) = "The eigenproblem is too small, and the iterative " *
                            "eigensolver $verb fail; increase the number of " *
@@ -248,7 +313,7 @@ end
         B_ortho!(X, BX)
     end
 
-    n_matvec = M   # Count number of matrix-vector products
+    n_matvec = M  # Count number of matrix-vector products
     AX = similar(X)
     AX = mul!(AX, A, X)
     @assert all(!isnan, AX)
@@ -270,7 +335,8 @@ end
     end
     nlocked = 0
     niter = 0  # the first iteration is fake
-    λs = @views [(X[:,n]'*AX[:,n]) / (X[:,n]'BX[:,n]) for n=1:M]
+    λs = @views [(X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n]) for n=1:M]
+    λs = oftype(X[:, 1], λs)  # Offload to GPU if needed
     new_X = X
     new_AX = AX
     new_BX = BX
@@ -279,20 +345,20 @@ end
     full_BX = BX
 
     while true
-        if niter > 0 # first iteration is just to compute the residuals (no X update)
+        if niter > 0  # first iteration is just to compute the residuals (no X update)
             ###  Perform the Rayleigh-Ritz
             mul!(AR, A, R)
             n_matvec += size(R, 2)
 
             # Form Rayleigh-Ritz subspace
             if niter > 1
-                Y = mortar((X, R, P))
-                AY = mortar((AX, AR, AP))
-                BY = mortar((BX, BR, BP))  # data shared with (X, R, P) in non-general case
+                Y = LazyHcat(X, R, P)
+                AY = LazyHcat(AX, AR, AP)
+                BY = LazyHcat(BX, BR, BP)  # data shared with (X, R, P) in non-general case
             else
-                Y  = mortar((X, R))
-                AY = mortar((AX, AR))
-                BY = mortar((BX, BR))  # data shared with (X, R) in non-general case
+                Y  = LazyHcat(X, R)
+                AY = LazyHcat(AX, AR)
+                BY = LazyHcat(BX, BR)  # data shared with (X, R) in non-general case
             end
             cX, λs = rayleigh_ritz(Y, AY, M-nlocked)
 
@@ -300,9 +366,9 @@ end
             # wait on updating P because we have to know which vectors
             # to lock (and therefore the residuals) before computing P
             # only for the unlocked vectors. This results in better convergence.
-            new_X  = array_mul(Y, cX)
-            new_AX = array_mul(AY, cX)  # no accuracy loss, since cX orthogonal
-            new_BX = (B == I) ? new_X : array_mul(BY, cX)
+            new_X  = Y * cX
+            new_AX = AY * cX  # no accuracy loss, since cX orthogonal
+            new_BX = (B == I) ? new_X : BY * cX
         end
 
         ### Compute new residuals
@@ -316,7 +382,7 @@ end
         vprintln(niter, "   ", resid_history[:, niter+1])
         if precon !== I
             @timing "preconditioning" begin
-                precondprep!(precon, X) # update preconditioner if needed; defaults to noop
+                precondprep!(precon, X)  # update preconditioner if needed; defaults to noop
                 ldiv!(precon, new_R)
             end
         end
@@ -347,7 +413,7 @@ end
             return final_retval(full_X, full_AX, resid_history, niter, n_matvec)
         end
         newly_locked = nlocked - prev_nlocked
-        active = newly_locked+1:size(X,2) # newly active vectors
+        active = newly_locked+1:size(X,2)  # newly active vectors
 
         if niter > 0
             ### compute P = Y*cP only for the newly active vectors
@@ -356,20 +422,23 @@ end
             # orthogonalization, see Hetmaniuk & Lehoucq, and Duersch et. al.
             # cP = copy(cX)
             # cP[Xn_indices,:] .= 0
-            e = zeros(eltype(X), size(cX, 1), M - prev_nlocked)
-            for i in 1:length(Xn_indices)
-                e[Xn_indices[i], i] = 1
-            end
+
+            lenXn = length(Xn_indices)
+            e = zeros_like(X, size(cX, 1), M - prev_nlocked)
+            lower_diag = one(similar(X, lenXn, lenXn))
+            # e has zeros everywhere except on one of its lower diagonal
+            e[Xn_indices[1]:last(Xn_indices), 1:lenXn] = lower_diag
+
             cP = cX .- e
             cP = cP[:, Xn_indices]
             # orthogonalize against all Xn (including newly locked)
             ortho!(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
-            new_P  = array_mul( Y, cP)
-            new_AP = array_mul(AY, cP)
+            new_P  = Y * cP
+            new_AP = AY * cP
             if B != I
-                new_BP = array_mul(BY, cP)
+                new_BP = BY * cP
             else
                 new_BP = new_P
             end
@@ -414,8 +483,8 @@ end
 
         # Orthogonalize R wrt all X, newly active P
         if niter > 0
-            Z  = mortar((full_X, P))
-            BZ = mortar((full_BX, BP))  # data shared with (full_X, P) in non-general case
+            Z  = LazyHcat(full_X, P)
+            BZ = LazyHcat(full_BX, BP)  # data shared with (full_X, P) in non-general case
         else
             Z  = full_X
             BZ = full_BX

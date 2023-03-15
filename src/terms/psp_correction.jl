@@ -15,7 +15,7 @@ function TermPspCorrection(basis::PlaneWaveBasis)
     TermPspCorrection(energy_psp_correction(model))
 end
 
-function ene_ops(term::TermPspCorrection, basis::PlaneWaveBasis, ψ, occ; kwargs...)
+function ene_ops(term::TermPspCorrection, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     (E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
 
@@ -23,7 +23,7 @@ end
 Compute the correction term for properly modelling the interaction of the pseudopotential
 core with the compensating background charge induced by the `Ewald` term.
 """
-function energy_psp_correction(lattice::AbstractMatrix{T}, atoms, atom_groups) where T
+function energy_psp_correction(lattice::AbstractMatrix{T}, atoms, atom_groups) where {T}
     psp_groups = [group for group in atom_groups if atoms[first(group)] isa ElementPsp]
     isempty(psp_groups) && return zero(T)
 

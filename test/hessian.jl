@@ -1,7 +1,7 @@
 using Test
 using DFTK
 import DFTK: solve_ΩplusK, apply_Ω, apply_K, solve_ΩplusK_split
-import DFTK: filled_occupation, compute_projected_gradient, compute_occupation
+import DFTK: compute_projected_gradient
 import DFTK: select_occupied_orbitals
 
 include("testcases.jl")
@@ -28,7 +28,7 @@ include("testcases.jl")
     end
 
     @testset "self-adjointness of apply_Ω" begin
-        _, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+        H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
         # Rayleigh-coefficients
         Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
 
@@ -79,14 +79,14 @@ include("testcases.jl")
 
     end
 
-    @testset "ΩplusK_split, temp" begin
+    @testset "ΩplusK_split, temperature" begin
         Ecut = 5
         fft_size = [9, 9, 9]
         model = model_DFT(magnesium.lattice, magnesium.atoms, magnesium.positions,
-                          [:lda_xc_teter93]; temperature=magnesium.temperature)
+                          [:lda_xc_teter93]; magnesium.temperature)
         basis = PlaneWaveBasis(model, Ecut, magnesium.kcoords, magnesium.kweights; fft_size)
-        scfres = self_consistent_field(basis; n_bands=7, tol=1e-12,
-                                       occupation_threshold=1e-10)
+        nbandsalg = AdaptiveBands(basis.model; occupation_threshold=1e-10)
+        scfres = self_consistent_field(basis; tol=1e-12, nbandsalg)
 
         ψ = scfres.ψ
         rhs = compute_projected_gradient(basis, scfres.ψ, scfres.occupation)
@@ -97,15 +97,5 @@ include("testcases.jl")
                            real(dot(solve_ΩplusK_split(scfres, ϕ).δψ, rhs)),
                            atol=1e-7)
         end
-
-        @testset "solve_ΩplusK_split convenience methods" begin
-            δψ1 = solve_ΩplusK_split(scfres, rhs).δψ
-            δψ2 = solve_ΩplusK_split(basis, ψ, rhs, scfres.occupation;
-                                     occupation_threshold=scfres.occupation_threshold).δψ
-            @test norm(δψ1 - δψ2) < 1e-7
-        end
-
     end
-
 end
-

@@ -17,16 +17,14 @@ For details see Herbst, Levitt 2020 arXiv:2009.01665
 @kwdef struct LdosModel <: χ0Model
     adjust_temperature = IncreaseMixingTemperature()
 end
-function (χ0::LdosModel)(basis; eigenvalues, ψ, εF, kwargs...)
+function (χ0::LdosModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs...) where {T}
     n_spin = basis.model.n_spin_components
 
     # Catch cases that will yield no contribution
     temperature = χ0.adjust_temperature(basis.model.temperature; kwargs...)
     iszero(temperature) && return nothing
     ldos = compute_ldos(εF, basis, eigenvalues, ψ; temperature)
-    if maximum(abs, ldos) < eps(eltype(basis))
-        return nothing
-    end
+    maximum(abs, ldos) < sqrt(eps(T)) && return nothing
 
     tdos = sum(sum, ldos) * basis.dvol  # Integrate LDOS to form total DOS
     function apply!(δρ, δV, α=1)
@@ -55,7 +53,7 @@ function (χ0::DielectricModel)(basis; kwargs...)
     C0  = 1 - εr
     iszero(C0) && return nothing  # Will yield no contribution
 
-    Gsq = [sum(abs2, G) for G in G_vectors_cart(basis)]
+    Gsq = norm2.(G_vectors_cart(basis))
     apply_sqrtL = identity
     if χ0.localization != identity
         sqrtL = sqrt.(χ0.localization.(r_vectors(basis)))
@@ -64,9 +62,9 @@ function (χ0::DielectricModel)(basis; kwargs...)
 
     # TODO simplify apply_sqrtL
     function apply!(δρ, δV, α=1)
-        loc_δV = r_to_G(basis, apply_sqrtL(δV))
+        loc_δV = fft(basis, apply_sqrtL(δV))
         dielectric_loc_δV = @. C0 * kTF^2 * Gsq / 4T(π) / (kTF^2 - C0 * Gsq) * loc_δV
-        δρ .+= α .* apply_sqrtL(G_to_r(basis, dielectric_loc_δV))
+        δρ .+= α .* apply_sqrtL(irfft(basis, dielectric_loc_δV))
         δρ
     end
 end

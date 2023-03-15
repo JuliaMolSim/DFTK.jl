@@ -1,7 +1,9 @@
 using Test
+using LinearAlgebra
 using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
 using DFTK: eval_psp_projector_real, psp_local_polynomial, eval_psp_local_real
 using DFTK: psp_projector_polynomial, qcut_psp_projector, qcut_psp_local
+using DFTK: eval_psp_energy_correction, count_n_proj_radial
 using SpecialFunctions: besselj
 using QuadGK
 
@@ -105,10 +107,7 @@ end
 
     for pspfile in ["Au-q11", "Ba-q10"]
         psp = load_psp("hgh/lda/" * pspfile)
-        for (l, i) in [(0, 1), (0, 2), (0, 3), (1, 1), (1, 2), (1, 3),
-                       (2, 1), (2, 2), (3, 1)]
-            l > length(psp.rp) - 1 && continue  # Overshooting available AM
-
+        for l = 0:psp.lmax, i = 1:count_n_proj_radial(psp, l)
             Qproj = psp_projector_polynomial(Float64, psp, i, l)
             evalQproj(q) = let t = q * psp.rp[l + 1]; Qproj(t) * exp(-t^2 / 2); end
             for q in abs.(randn(10))
@@ -132,9 +131,7 @@ end
 
     for pspfile in ["Au-q11", "Ba-q10"]
         psp = load_psp("hgh/lda/" * pspfile)
-        for (l, i) in [(0, 1), (0, 2), (0, 3), (1, 1), (1, 2), (1, 3),
-                       (2, 1), (2, 2), (3, 1)]
-            l > length(psp.rp) - 1 && continue  # Overshooting available AM
+        for l = 0:psp.lmax, i = 1:count_n_proj_radial(psp, l)
             for q in [0.01, 0.1, 0.2, 0.5, 1, 2, 5, 10]
                 reference = quadgk(r -> integrand(psp, i, l, q, r), 0, Inf)[1]
                 @test reference ≈ eval_psp_projector_fourier(psp, i, l, q) atol=5e-15 rtol=1e-8
@@ -144,7 +141,7 @@ end
 end
 
 @testset "Potentials are consistent in real and Fourier space" begin
-    reg_param = 0.001  # divergent integral, needs regularization
+    reg_param = 1e-3  # divergent integral, needs regularization
     function integrand(psp, q, r)
         4π * eval_psp_local_real(psp, r) * exp(-reg_param * r) * sin(q*r) / q * r
     end
@@ -155,5 +152,34 @@ end
             reference = quadgk(r -> integrand(psp, q, r), 0, Inf)[1]
             @test reference ≈ eval_psp_local_fourier(psp, q) rtol=.1 atol = .1
         end
+    end
+end
+
+@testset "PSP energy correction is consistent with real-space potential" begin
+    reg_param = 1e-6  # divergent integral, needs regularization
+    q_small = 1e-6    # We are interested in q→0 term
+    function integrand(psp, n_electrons, r)
+        # Difference of potential of point-like atom (what is assumed in Ewald)
+        # versus actual structure of the pseudo potential
+        coulomb = -psp.Zion / r
+        diff = n_electrons * (eval_psp_local_real(psp, r) - coulomb)
+        4π * diff * exp(-reg_param * r) * sin(q_small*r) / q_small * r
+    end
+
+    n_electrons = 20
+    for pspfile in ["Au-q11", "Ba-q10"]
+        psp = load_psp("hgh/lda/" * pspfile)
+        reference = quadgk(r -> integrand(psp, n_electrons, r), 0, Inf)[1]
+        @test reference ≈ eval_psp_energy_correction(psp, n_electrons) atol=1e-2
+    end
+end
+
+@testset "PSP energy correction is consistent with fourier-space potential" begin
+    q_small = 1e-3    # We are interested in q→0 term
+    for pspfile in ["Au-q11", "Ba-q10"]
+        psp = load_psp("hgh/lda/" * pspfile)
+        coulomb = -4π * psp.Zion / q_small^2
+        reference = eval_psp_local_fourier(psp, q_small) - coulomb
+        @test reference ≈ eval_psp_energy_correction(psp, 1) atol=1e-3
     end
 end

@@ -39,7 +39,7 @@ function my_eig_solver(A, X0; maxiter, tol, kwargs...)
     E = eigen(A)
     λ = E.values[1:n]
     X = E.vectors[:, 1:n]
-    (λ=λ, X=X, residual_norms=[], iterations=0, converged=true, n_matvec=0)
+    (; λ, X, residual_norms=[], iterations=0, converged=true, n_matvec=0)
 end;
 
 # Finally we also define our custom mixing scheme. It will be a mixture
@@ -68,9 +68,9 @@ scfres = self_consistent_field(basis;
                                solver=my_fp_solver,
                                eigensolver=my_eig_solver,
                                mixing=MyMixing());
-# Note that the default convergence criterion is on the difference of
-# energy from one step to the other; when this gets below `tol`, the
-# "driver" `self_consistent_field` artificially makes the fixpoint
+# Note that the default convergence criterion is the difference in
+# density. When this gets below `tol`, the
+# "driver" `self_consistent_field` artificially makes the fixed-point
 # solver think it's converged by forcing `f(x) = x`. You can customize
 # this with the `is_converged` keyword argument to
 # `self_consistent_field`.

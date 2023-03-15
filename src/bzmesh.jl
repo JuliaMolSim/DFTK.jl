@@ -30,7 +30,7 @@ Construct a (shifted) uniform Brillouin zone mesh for sampling the ``k``-points.
 Returns all ``k``-point coordinates, appropriate weights and the identity SymOp.
 """
 function bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
-    kcoords = kgrid_monkhorst_pack(kgrid_size; kshift=kshift)
+    kcoords = kgrid_monkhorst_pack(kgrid_size; kshift)
     kcoords, ones(length(kcoords)) ./ length(kcoords), [one(SymOp)]
 end
 
@@ -165,6 +165,6 @@ function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer)
         end
     end
 end
-function kgrid_from_minimal_kpoints(model::Model, args...)
-    kgrid_from_minimal_kpoints(model.lattice, args...)
+function kgrid_from_minimal_n_kpoints(model::Model, args...)
+    kgrid_from_minimal_n_kpoints(model.lattice, args...)
 end

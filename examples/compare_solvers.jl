@@ -18,28 +18,31 @@ positions = [ones(3)/8, -ones(3)/8]
 model = model_LDA(lattice, atoms, positions)
 basis = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3])
 
-## Convergence we desire
-tol = 1e-12
-is_converged = DFTK.ScfConvergenceDensity(tol)
+## Convergence we desire in the density
+tol = 1e-6
 
 # ## Density-based self-consistent field
-scfres_scf = self_consistent_field(basis; is_converged)
+scfres_scf = self_consistent_field(basis; tol);
 
 # ## Potential-based SCF
-scfres_scfv = DFTK.scf_potential_mixing(basis; is_converged)
+scfres_scfv = DFTK.scf_potential_mixing(basis; tol);
 
 # ## Direct minimization
-scfres_dm = direct_minimization(basis; tol)
+# Note: Unlike the other algorithms, tolerance for this one is in the energy,
+# thus we square the density tolerance value to be roughly equivalent.
+scfres_dm = direct_minimization(basis; tol=tol^2);
 
-## Newton algorithm
+# ## Newton algorithm
+
 # Start not too far from the solution to ensure convergence:
 # We run first a very crude SCF to get close and then switch to Newton.
-scfres_start = self_consistent_field(basis; tol=1e-1)
-# Remove the virtual orbitals (which Newton cannot treat yet)
-ψ, _ = DFTK.select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation)
-scfres_newton = newton(basis, ψ; tol)
+scfres_start = self_consistent_field(basis; tol=0.5);
 
-## Comparison of results
+# Remove the virtual orbitals (which Newton cannot treat yet)
+ψ = DFTK.select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation).ψ
+scfres_newton = newton(basis, ψ; tol);
+
+# ## Comparison of results
 
 println("|ρ_newton - ρ_scf|  = ", norm(scfres_newton.ρ - scfres_scf.ρ))
 println("|ρ_newton - ρ_scfv| = ", norm(scfres_newton.ρ - scfres_scfv.ρ))

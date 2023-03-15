@@ -8,3 +8,4 @@
 deps/deps.jl
 Manifest.toml
 .vscode
+.CondaPkg

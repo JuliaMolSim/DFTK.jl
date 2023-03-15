@@ -13,13 +13,13 @@ abstract type RealFourierOperator end
 # Unoptimized fallback, intended for exploratory use only.
 # For performance, call through Hamiltonian which saves FFTs.
 function LinearAlgebra.mul!(Hψ::AbstractVector, op::RealFourierOperator, ψ::AbstractVector)
-    ψ_real = G_to_r(op.basis, op.kpoint, ψ)
+    ψ_real = ifft(op.basis, op.kpoint, ψ)
     Hψ_fourier = similar(ψ)
     Hψ_real = similar(ψ_real)
     Hψ_fourier .= 0
     Hψ_real .= 0
     apply!((real=Hψ_real, fourier=Hψ_fourier), op, (real=ψ_real, fourier=ψ))
-    Hψ .= Hψ_fourier .+ r_to_G(op.basis, op.kpoint, Hψ_real)
+    Hψ .= Hψ_fourier .+ fft(op.basis, op.kpoint, Hψ_real)
     Hψ
 end
 function LinearAlgebra.mul!(Hψ::AbstractMatrix, op::RealFourierOperator, ψ::AbstractMatrix)
@@ -46,7 +46,7 @@ end
 
 """
 Real space multiplication by a potential:
-(Hψ)(r) V(r) ψ(r)
+(Hψ)(r) = V(r) ψ(r).
 """
 struct RealSpaceMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
@@ -58,7 +58,7 @@ function apply!(Hψ, op::RealSpaceMultiplication, ψ)
 end
 function Matrix(op::RealSpaceMultiplication)
     # V(G, G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
-    pot_fourier = r_to_G(op.basis, op.potential)
+    pot_fourier = fft(op.basis, op.potential)
     n_G = length(G_vectors(op.basis, op.kpoint))
     H = zeros(complex(eltype(op.basis)), n_G, n_G)
     for (i, G) in enumerate(G_vectors(op.basis, op.kpoint))
@@ -77,7 +77,7 @@ end
 
 """
 Fourier space multiplication, like a kinetic energy term:
-(Hψ)(G) = multiplier(G) ψ(G)
+(Hψ)(G) = multiplier(G) ψ(G).
 """
 struct FourierMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
@@ -92,7 +92,7 @@ Matrix(op::FourierMultiplication) = Array(Diagonal(op.multiplier))
 """
 Nonlocal operator in Fourier space in Kleinman-Bylander format,
 defined by its projectors P matrix and coupling terms D:
-Hψ = PDP' ψ
+Hψ = PDP' ψ.
 """
 struct NonlocalOperator{T <: Real, PT, DT} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
@@ -120,7 +120,7 @@ function apply!(Hψ, op::MagneticFieldOperator, ψ)
         iszero(op.Apot[α]) && continue
         pα = [Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)]
         ∂αψ_fourier = pα .* ψ.fourier
-        ∂αψ_real = G_to_r(op.basis, op.kpoint, ∂αψ_fourier)
+        ∂αψ_real = ifft(op.basis, op.kpoint, ∂αψ_fourier)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real
     end
 end
@@ -137,14 +137,13 @@ struct DivAgradOperator{T <: Real, AT} <: RealFourierOperator
     A::AT
 end
 function apply!(Hψ, op::DivAgradOperator, ψ,
-                                                     ψ_scratch=zeros(complex(eltype(op.basis)),
-                                                                     op.basis.fft_size...))
+                ψ_scratch=zeros(complex(eltype(op.basis)), op.basis.fft_size...))
     # TODO: Performance improvements: Unscaled plans, avoid remaining allocations
     #       (which are only on the small k-point-specific Fourier grid
     G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)] for α in 1:3]
     for α = 1:3
-        ∂αψ_real = G_to_r!(ψ_scratch, op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
-        A∇ψ      = r_to_G(op.basis, op.kpoint, ∂αψ_real .* op.A)
+        ∂αψ_real = ifft!(ψ_scratch, op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
+        A∇ψ      = fft(op.basis, op.kpoint, ∂αψ_real .* op.A)
         Hψ.fourier .-= im .* G_plus_k[α] .* A∇ψ ./ 2
 
     end

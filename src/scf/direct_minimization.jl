@@ -68,13 +68,14 @@ necessarily eigenvectors of the Hamiltonian.
 direct_minimization(basis::PlaneWaveBasis; kwargs...) = direct_minimization(basis, nothing; kwargs...)
 function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                              prec_type=PreconditionerTPA,
-                             optim_solver=Optim.LBFGS, tol=1e-6, kwargs...) where T
+                             optim_solver=Optim.LBFGS, tol=1e-6, kwargs...) where {T}
     if mpi_nprocs() > 1
         # need synchronization in Optim
         error("Direct minimization with MPI is not supported yet")
     end
     model = basis.model
-    @assert model.temperature == 0  # temperature is not yet supported
+    @assert iszero(model.temperature)  # temperature is not yet supported
+    @assert isnothing(model.εF)        # neither are computations with fixed Fermi level
     filled_occ = filled_occupation(model)
     n_spin = model.n_spin_components
     n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp)
@@ -100,7 +101,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     function fg!(E, G, ψ)
         ψ = unpack(ψ)
         ρ = compute_density(basis, ψ, occupation)
-        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ)
 
         # The energy has terms like occ * <ψ|H|ψ>, so the gradient is 2occ Hψ
         if G !== nothing
@@ -113,7 +114,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
         energies.total
     end
 
-    manif = DMManifold(Nk, unsafe_unpack)
+    manifold = DMManifold(Nk, unsafe_unpack)
 
     Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
     P = DMPreconditioner(Nk, Pks, unsafe_unpack)
@@ -124,7 +125,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                                   f_tol=pop!(kwdict, :f_tol, -1),
                                   g_tol=pop!(kwdict, :g_tol, -1), kwdict...)
     res = Optim.optimize(Optim.only_fg!(fg!), pack(ψ0),
-                         optim_solver(P=P, precondprep=precondprep!, manifold=manif,
+                         optim_solver(; P, precondprep=precondprep!, manifold,
                                       linesearch=LineSearches.BackTracking()),
                          optim_options)
     ψ = unpack(res.minimizer)
@@ -143,6 +144,5 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
 
     # We rely on the fact that the last point where fg! was called is the minimizer to
     # avoid recomputing at ψ
-    (ham=H, basis=basis, energies=energies, converged=true,
-     ρ=ρ, ψ=ψ, eigenvalues=eigenvalues, occupation=occupation, εF=εF, optim_res=res)
+    (; ham=H, basis, energies, converged=true, ρ, ψ, eigenvalues, occupation, εF, optim_res=res)
 end
