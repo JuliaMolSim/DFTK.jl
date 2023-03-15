@@ -164,19 +164,30 @@ function optimize_operators_(ops)
     [nonRSmults..., combined_RSmults]
 end
 
-struct ExchangeOperator <: RealFourierOperator
+struct ExchangeOperator{T <: Real} <: RealFourierOperator
     ψocc
     poisson_green_coeffs
-    basis
-    kpoint
+    basis::PlaneWaveBasis{T}
+    kpoint::Kpoint{T}
 end
 
 function apply!(Hψ, op::ExchangeOperator, ψ)
+
+    # - ∑ ψ_n(r) ∫ ψ_n(r')* ψ(r') / |r-r'|dr'
     for ψ_n in eachcol(op.ψocc)
-         integral_fourier = op.poisson_green_coeffs .* ψ_n .* ψ.fourier
-         integral_real = G_to_r(op.basis, op.kpoint, integral_fourier)
+
+         #1. Real-space multiply
          psi_n_real = G_to_r(op.basis, op.kpoint, ψ_n)
-         Hψ.real .-= integral_real .* psi_n_real
+         x_real = ψ.real .* psi_n_real
+         x_four = r_to_G(op.basis, op.kpoint, x_real)
+
+         # Poisson solve
+         phi_four = x_four .* op.poisson_green_coeffs
+         
+         #Real-space multiply and accumulate
+         phi_real = G_to_r(op.basis, op.kpoint, phi_four)
+         Hψ.real .-= psi_n_real .* phi_real
+         Hψ.fourier .-= ψ_n .* phi_four
     end
 end
 
