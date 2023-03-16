@@ -37,7 +37,7 @@ system = attach_psp(system, Fe="hgh/pbe/fe-q16.hgh")
 model = model_LDA(system; temperature=0.01)
 basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 2, 2))
 ρ0 = guess_density(basis, system)
-scfres = self_consistent_field(basis, tol=1e-4, ρ=ρ0, mixing=KerkerMixing());
+scfres = self_consistent_field(basis, ρ=ρ0);
 
 # ## Writing VTK files for visualization
 # For visualizing the density or the Kohn-Sham orbitals DFTK supports storing

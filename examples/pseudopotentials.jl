@@ -47,7 +47,9 @@ import Main: @artifact_str # hide
 # downloaded.
 
 # We load the HGH and UPF PSPs using `load_psp`, which determines the
-# file format using the file extension.
+# file format using the file extension. The `artifact` string literal resolves to the
+# directory where the file is stored by the Artifacts system. So, if you have your own
+# pseudopotential files, you can just provide the path to them as well.
 
 psp_hgh  = load_psp("hgh/lda/si-q4.hgh");
 psp_upf  = load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf");

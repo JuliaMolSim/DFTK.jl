@@ -164,13 +164,13 @@ export kgrid_from_minimal_spacing, kgrid_from_minimal_n_kpoints
 include("symmetry.jl")
 include("bzmesh.jl")
 
-export DensityMethod
+export DensityConstructionMethod
 export AtomicDensity
 export RandomDensity
 export CoreDensity
-export ValenceGaussianDensity
-export ValenceNumericalDensity
-export ValenceAutoDensity
+export ValenceDensityGaussian
+export ValenceDensityPseudo
+export ValenceDensityAuto
 export guess_density
 export random_density
 include("density_methods.jl")

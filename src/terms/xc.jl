@@ -29,17 +29,10 @@ end
 function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     isempty(xc.functionals) && return TermNoop()
     # Charge density for non-linear core correction
-    # TODO: refactor the following, seems more complicated than necessary
-    if any(use_nlcc, basis.model.atoms)
-        ρcore_tot = atomic_total_density(basis, CoreDensity())
-        if basis.model.spin_polarization in (:none, :spinless)
-            ρcore_spin = nothing
-        else
-            ρcore_spin = zeros(T, basis.fft_size)
-        end
-        ρcore = ρ_from_total_and_spin(ρcore_tot, ρcore_spin)
+    if any(a -> a.use_nlcc, basis.model.atoms)
+        ρcore = ρ_from_total(basis, atomic_total_density(basis, CoreDensity()))
     else
-        ρcore = nothing
+        ρcore = 0
     end
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
@@ -67,10 +60,8 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     potential_threshold = term.potential_threshold
     @assert all(family(xc) in (:lda, :gga, :mgga, :mggal) for xc in term.functionals)
 
-    # Add the model core charge density (non-linear core correction) if available
-    if !isnothing(term.ρcore)
-        ρ = ρ + term.ρcore
-    end
+    # Add the model core charge density (non-linear core correction)
+    ρ = ρ + term.ρcore
 
     # Compute kinetic energy density, if needed.
     if isnothing(τ) && any(needs_τ, term.functionals)
@@ -174,7 +165,7 @@ end
     model = basis.model
     form_factors = atomic_density_form_factors(basis, CoreDensity())
     nlcc_groups = [(igroup, group) for (igroup, group) in enumerate(basis.model.atom_groups)
-                   if has_density_core(model.atoms[first(group)])]
+                   if has_core_density(model.atoms[first(group)])]
     @assert !isnothing(nlcc_groups)
 
     forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]

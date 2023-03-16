@@ -7,6 +7,7 @@
 using DFTK
 using LinearAlgebra
 using LazyArtifacts
+using Printf
 import Main: @artifact_str # hide
 
 # We use a numeric norm-conserving PSP in UPF format from the
@@ -14,6 +15,7 @@ import Main: @artifact_str # hide
 # family because it contains valence charge density which can be used for a more tailored
 # density guess.
 UPF_PSEUDO = artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf"
+HGH_PSEUDO = "hgh/lda/si-q4"
 
 function silicon_scf(guess_method)
     a = 10.26  # Silicon lattice constant in Bohr
@@ -33,18 +35,29 @@ function silicon_scf(guess_method)
     self_consistent_field(basis; is_converged, ρ=ρguess)
 end;
 
+results = Dict();
+
 # ## Random guess
 # The random density is normalized to the number of electrons provided.
-scfres_random = silicon_scf(RandomDensity());
+results["Random"] = silicon_scf(RandomDensity());
 
 # ## Superposition of Gaussian densities
 # The Gaussians are defined by a tabulated atom decay length.
-scfres_gaussian = silicon_scf(ValenceGaussianDensity());
+results["Gaussian"] = silicon_scf(ValenceDensityGaussian());
+
+# ## Pseudopotential density guess
+# If you'd like to force the use of pseudopotential atomic densities, you can use
+# the `ValenceDensityPseudo()` method. Note that this will fail if any of the
+# pseudopotentials don't provide atomic valence charge densities!
+results["Pseudo"] = silicon_scf(ValenceDensityPseudo());
 
 # ## Automatic density guess
 # This method will automatically use valence charge densities from from pseudopotentials
 # that provide them and Gaussian densities for elements which do not have pseudopotentials
-# or whose pseudopotentials don't provide valence charge densities. To force all elements
-# to use valence charge densities (and error where any element doesn't have them), use
-# `ValenceNumericalDensity()`. 
-scfres_psp = silicon_scf(ValenceAutoDensity());
+# or whose pseudopotentials don't provide valence charge densities.
+results["Auto"] = silicon_scf(ValenceDensityAuto());
+
+@printf "%10s %6s\n" "Method" "n_iter"
+for (key, scfres) in results
+    @printf "%10s %6d\n" key scfres.n_iter
+end

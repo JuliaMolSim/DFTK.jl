@@ -177,7 +177,7 @@ end
         atoms = [ElementPsp(element, psp=psp)]
         model = model_LDA(lattice, atoms, positions)
         basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
-        ρ_val = guess_density(basis, ValenceNumericalDensity())
+        ρ_val = guess_density(basis, ValenceDensityPseudo())
         ρ_val_neg = abs(sum(ρ_val[ρ_val .< 0]))
         @test ρ_val_neg * model.unit_cell_volume / prod(basis.fft_size) < 1e-6
     end
@@ -191,7 +191,7 @@ end
             atoms = [ElementPsp(element, psp=psp)]
             model = model_LDA(lattice, atoms, positions)
             basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
-            ρ_val = guess_density(basis, ValenceNumericalDensity())
+            ρ_val = guess_density(basis, ValenceDensityPseudo())
             Z_valence = sum(ρ_val) * model.unit_cell_volume / prod(basis.fft_size)
             @test Z_valence ≈ charge_ionic(psp) rtol=1e-5 atol=1e-5
         end

@@ -20,7 +20,7 @@ struct PspUpf{T,I} <: NormConservingPsp
     # (UNUSED) Occupations of the pseudo-atomic wavefunctions.
     # UPF: `PP_PSWFC/PP_CHI.i['occupation']`
     pswfc_occs::Vector{Vector{T}}
-    # (UNUSED) Pseudo-atomic (valence) charge density on the radial grid multiplied by
+    # Pseudo-atomic (valence) charge density on the radial grid multiplied by
     # 4πr^2. Can be used for charge density initialization. UPF: `PP_RHOATOM`
     r2_4π_ρion::Vector{T}
     # Atomic core charge density on the radial grid, used for non-linear core correction.
@@ -162,8 +162,8 @@ function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, r_projs, h, pswfcs, 
 end
 
 charge_ionic(psp::PspUpf) = psp.Zion
-has_density_valence(psp::PspUpf) = !all(iszero, psp.r2_4π_ρion)
-has_density_core(psp::PspUpf) = !all(iszero, psp.ρcore)
+has_valence_density(psp::PspUpf) = !all(iszero, psp.r2_4π_ρion)
+has_core_density(psp::PspUpf) = !all(iszero, psp.ρcore)
 
 # Note: UPFs store `r[j] β_{li}(r[j])`, so r=0 is undefined and will error.
 function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T <: Real}

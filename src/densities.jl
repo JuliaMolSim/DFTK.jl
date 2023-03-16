@@ -104,3 +104,12 @@ function ρ_from_total_and_spin(ρtot, ρspin=nothing)
             (ρtot .- ρspin) ./ 2; dims=Val(4))
     end
 end
+
+function ρ_from_total(basis, ρtot)
+    if basis.model.spin_polarization in (:none, :spinless)
+        ρcore_spin = nothing
+    else
+        ρcore_spin = zeros(T, basis.fft_size)
+    end
+    ρ_from_total_and_spin(ρtot, ρspin)
+end

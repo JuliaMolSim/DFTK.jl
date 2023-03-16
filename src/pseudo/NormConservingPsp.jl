@@ -12,8 +12,8 @@ abstract type NormConservingPsp end
 
 #### Methods:
 # charge_ionic(psp::NormConservingPsp)
-# has_density_valence(psp:NormConservingPsp)
-# has_density_core(psp:NormConservingPsp)
+# has_valence_density(psp:NormConservingPsp)
+# has_core_density(psp:NormConservingPsp)
 # eval_psp_projector_real(psp::NormConservingPsp, i, l, r::Real)
 # eval_psp_projector_fourier(psp::NormConservingPsp, i, l, q::Real)
 # eval_psp_local_real(psp::NormConservingPsp, r::Real)

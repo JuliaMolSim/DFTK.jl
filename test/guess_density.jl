@@ -14,7 +14,7 @@ include("testcases.jl")
     Si_upf = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp_upf))
     Si_hgh = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp_hgh))
     magnetic_moments = [1.0, -1.0]
-    methods = [ValenceGaussianDensity(), ValenceNumericalDensity(), ValenceAutoDensity()]
+    methods = [ValenceDensityGaussian(), ValenceDensityPseudo(), ValenceDensityAuto()]
     elements = [[Si_upf, Si_hgh], [Si_upf, Si_upf], [Si_upf, Si_hgh]]
 
     @testset "Random" begin

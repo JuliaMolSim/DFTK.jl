@@ -1,11 +1,11 @@
-abstract type DensityMethod                  end
-abstract type AtomicDensity <: DensityMethod end
+abstract type DensityConstructionMethod                  end
+abstract type AtomicDensity <: DensityConstructionMethod end
 
-struct RandomDensity           <: DensityMethod end
+struct RandomDensity           <: DensityConstructionMethod end
 struct CoreDensity             <: AtomicDensity end
-struct ValenceGaussianDensity  <: AtomicDensity end
-struct ValenceNumericalDensity <: AtomicDensity end
-struct ValenceAutoDensity      <: AtomicDensity end
+struct ValenceDensityGaussian  <: AtomicDensity end
+struct ValenceDensityPseudo    <: AtomicDensity end
+struct ValenceDensityAuto      <: AtomicDensity end
 
 # Random density method
 function guess_density(basis::PlaneWaveBasis, ::RandomDensity;
@@ -30,7 +30,7 @@ end
 # Atomic density methods
 function guess_density(basis::PlaneWaveBasis, magnetic_moments=[],
                        n_electrons=basis.model.n_electrons)
-    atomic_density(basis, ValenceAutoDensity(), magnetic_moments, n_electrons)
+    atomic_density(basis, ValenceDensityAuto(), magnetic_moments, n_electrons)
 end
 
 function guess_density(basis::PlaneWaveBasis, system::AbstractSystem,
@@ -44,29 +44,29 @@ function guess_density(basis::PlaneWaveBasis, system::AbstractSystem,
     # TODO: assuming here that the model and system atoms are identical. Cannot check this
     # TODO: because we parse the system separately from the parsing done by the Model
     # TODO: constructor, so the pseudopotentials (if present) are not identical in memory 
-    atomic_density(basis, ValenceAutoDensity(), parsed_system.magnetic_moments, n_electrons)
+    atomic_density(basis, ValenceDensityAuto(), parsed_system.magnetic_moments, n_electrons)
 end
 
 @doc raw"""
-    guess_density(basis::PlaneWaveBasis, method::DensityMethod,
+    guess_density(basis::PlaneWaveBasis, method::DensityConstructionMethod,
                   magnetic_moments=[]; n_electrons=basis.model.n_electrons)
 
-Build a superposition of atomic densities (SAD) guess density.
+Build a superposition of atomic densities (SAD) guess density or a rarndom guess density.
 
 The guess atomic densities are taken as one of the following depending on the input
 `method`:
 
 -`RandomDensity()`: A random density, normalized to the number of electrons
 `basis.model.n_electrons`. Does not support magnetic moments.
--`ValenceAutoDensity()`: A combination of the `ValenceGaussianDensity` and
-`ValenceNumericalDensity` methods where elements whose pseudopotentials provide numeric
+-`ValenceDensityAuto()`: A combination of the `ValenceDensityGaussian` and
+`ValenceDensityPseudo` methods where elements whose pseudopotentials provide numeric
 valence charge density data use them and elements without use Gaussians.
--`ValenceGaussianDensity()`: Gaussians of length specified by `atom_decay_length`
+-`ValenceDensityGaussian()`: Gaussians of length specified by `atom_decay_length`
 normalized for the correct number of electrons:
 ```math
-\hat{ρ}(G) = Z \exp\left(-(2π \text{length} |G|)^2\right)
+\hat{ρ}(G) = Z_{\mathrm{valence}} \exp\left(-(2π \text{length} |G|)^2\right)
 ```
-- `ValenceNumericalDensity()`: Numerical pseudo-atomic valence charge densities from the
+- `ValenceDensityPseudo()`: Numerical pseudo-atomic valence charge densities from the
 pseudopotentials. Will fail if one or more elements in the system has a pseudopotential
 that does not have valence charge density data.
 
@@ -78,10 +78,8 @@ function guess_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_mo
     atomic_density(basis, method, magnetic_moments, n_electrons)
 end
 
-@doc raw"""
-Build a charge density from total and spin densities constructed as superpositions of atomic
-densities.
-"""
+# Build a charge density from total and spin densities constructed as superpositions of
+# atomic densities.
 function atomic_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_moments,
                         n_electrons)
     ρtot = atomic_total_density(basis, method)
@@ -96,20 +94,16 @@ function atomic_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_m
     ρ
 end
 
-@doc raw"""
-Build a total charge density without spin information from a superposition of atomic
-densities.
-"""
+# Build a total charge density without spin information from a superposition of atomic
+# densities.
 function atomic_total_density(basis::PlaneWaveBasis{T}, method::AtomicDensity;
                               coefficients=ones(T, length(basis.model.atoms))) where {T}
     form_factors = atomic_density_form_factors(basis, method)
     atomic_density_superposition(basis, form_factors; coefficients)
 end
 
-@doc raw"""
-Build a spin density from a superposition of atomic densities and provided magnetic moments
-(with units ``μ_B``).
-"""
+# Build a spin density from a superposition of atomic densities and provided magnetic
+# moments (with units ``μ_B``).
 function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
                              magnetic_moments) where {T}
     model = basis.model
@@ -141,11 +135,9 @@ function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
     atomic_density_superposition(basis, form_factors; coefficients)    
 end
 
-@doc raw"""
-Perform an atomic density superposition. The density is constructed in reciprocal space
-using the provided atomic form-factors and coefficients and applying an inverse Fourier
-transform to yield the real-space density.
-"""
+# Perform an atomic density superposition. The density is constructed in reciprocal space
+# using the provided atomic form-factors and coefficients and applying an inverse Fourier
+# transform to yield the real-space density.
 function atomic_density_superposition(basis::PlaneWaveBasis{T},
                                       form_factors::IdDict{Tuple{Int,T},T};
                                       coefficients=ones(T, length(basis.model.atoms))
@@ -157,8 +149,8 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
         Gnorm = norm(G_cart[iG])
         ρ_iG = sum(enumerate(model.atom_groups); init=zero(Complex{T})) do (igroup, group)
             sum(group) do iatom
-                structure_factor::Complex{T} = cis2pi(-dot(G, model.positions[iatom]))
-                coefficients[iatom]::T * form_factors[(igroup, Gnorm)]::T * structure_factor
+                structure_factor = cis2pi(-dot(G, model.positions[iatom]))
+                coefficients[iatom] * form_factors[(igroup, Gnorm)] * structure_factor
             end
         end
         ρ_iG / sqrt(model.unit_cell_volume)
@@ -186,29 +178,27 @@ function atomic_density_form_factors(basis::PlaneWaveBasis{T},
 end
 
 function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceGaussianDensity)::T where {T <: Real}
+                        ::ValenceDensityGaussian)::T where {T <: Real}
     gaussian_valence_charge_density_fourier(element, Gnorm)
 end
 
 function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceNumericalDensity)::T where {T <: Real}
+                        ::ValenceDensityPseudo)::T where {T <: Real}
     eval_psp_density_valence_fourier(element.psp, Gnorm)
 end
 
 function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceAutoDensity)::T where {T <: Real}
+                        ::ValenceDensityAuto)::T where {T <: Real}
     valence_charge_density_fourier(element, Gnorm)
 end
 
 function atomic_density(element::Element, Gnorm::T,
                         ::CoreDensity)::T where {T <: Real}
-    has_density_core(element) ? core_charge_density_fourier(element, Gnorm) : zero(T)
+    has_core_density(element) ? core_charge_density_fourier(element, Gnorm) : zero(T)
 end
 
-@doc raw"""
-Get the lengthscale of the valence density for an atom with `n_elec_core` core
-and `n_elec_valence` valence electrons.
-"""
+# Get the lengthscale of the valence density for an atom with `n_elec_core` core
+# and `n_elec_valence` valence electrons.
 function atom_decay_length(n_elec_core, n_elec_valence)
     # Adapted from ABINIT/src/32_util/m_atomdata.F90,
     # from which also the data has been taken.
