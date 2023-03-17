@@ -48,6 +48,7 @@ end
 charge_ionic(el::ElementCoulomb)   = el.Z
 charge_nuclear(el::ElementCoulomb) = el.Z
 AtomsBase.atomic_symbol(el::ElementCoulomb) = el.symbol
+atomic_mass(el::ElementCoulomb) = ustrip(periodic_table[el.Z].atomic_mass) * dalton_to_amu
 
 """
 Element interacting with electrons via a bare Coulomb potential
@@ -89,6 +90,7 @@ end
 charge_ionic(el::ElementPsp)   = charge_ionic(el.psp)
 charge_nuclear(el::ElementPsp) = el.Z
 AtomsBase.atomic_symbol(el::ElementPsp) = el.symbol
+atomic_mass(el::ElementPsp) = ustrip(periodic_table[el.Z].atomic_mass) * dalton_to_amu
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
     q == 0 && return zero(T)  # Compensating charge background
@@ -110,6 +112,8 @@ end
 charge_ionic(el::ElementCohenBergstresser)   = 4
 charge_nuclear(el::ElementCohenBergstresser) = el.Z
 AtomsBase.atomic_symbol(el::ElementCohenBergstresser) = el.symbol
+atomic_mass(el::ElementCohenBergstresser) = ustrip(periodic_table[el.Z].atomic_mass) *
+                                              dalton_to_amu
 
 """
 Element where the interaction with electrons is modelled
@@ -172,6 +176,8 @@ struct ElementGaussian <: Element
     symbol::Union{Nothing, Symbol}  # Element symbol
 end
 AtomsBase.atomic_symbol(el::ElementGaussian) = el.symbol
+# We default to 1 amu.
+atomic_mass(::ElementGaussian) = dalton_to_amu
 
 """
 Element interacting with electrons via a Gaussian potential.

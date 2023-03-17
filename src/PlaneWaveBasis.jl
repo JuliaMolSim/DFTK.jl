@@ -344,7 +344,7 @@ function PlaneWaveBasis(model::Model;
 end
 
 """
-Creates a new basis identical to `basis`, but with a custom set of kpoints
+Creates a new basis identical to `basis`, but with a custom set of kpoints.
 """
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
                                 kweights::AbstractVector)
@@ -353,6 +353,17 @@ Creates a new basis identical to `basis`, but with a custom set of kpoints
                    basis.fft_size, basis.variational,
                    kcoords, kweights, kgrid, kshift,
                    basis.symmetries_respect_rgrid, basis.comm_kpts, basis.architecture)
+end
+
+"""
+Creates a new basis identical to `basis`, but with an updated model.
+"""
+@timing function PlaneWaveBasis(basis::PlaneWaveBasis, new_model::Model)
+    PlaneWaveBasis(new_model, basis.Ecut, basis.fft_size,
+                   basis.variational, basis.kcoords_global,
+                   basis.kweights_global, basis.kgrid, basis.kshift,
+                   basis.symmetries_respect_rgrid, basis.comm_kpts,
+                   basis.architecture)
 end
 
 """

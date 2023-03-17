@@ -319,7 +319,8 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs..
     end
 
     terms = kernel_terms(term.functionals, density)
-    δV = zero(ρ)  # [ix, iy, iz, iσ]
+    Tδρ = eltype(δρ)
+    δV = Tδρ.(zero.(ρ))  # [ix, iy, iz, iσ]
 
     Vρρ = reshape(terms.Vρρ, n_spin, n_spin, basis.fft_size...)
     @views for s in 1:n_spin, t in 1:n_spin  # LDA term

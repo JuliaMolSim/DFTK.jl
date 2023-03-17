@@ -41,6 +41,7 @@ PAGES = [
         "examples/polarizability.jl",
         "examples/forwarddiff.jl",
         "examples/dielectric.jl",
+        "Phonons with perturbation theory" => "pluto/phonons_1d.jl",
     ],
     "Ecosystem integration" => [
         # This concerns the discussion of interfaces, IO and integration
@@ -119,6 +120,7 @@ ENV["PLOTS_TEST"] = "true"
 using DFTK
 using Documenter
 using Literate
+import PlutoStaticHTML
 
 #
 # Generate the docs
@@ -144,9 +146,11 @@ end
 # The examples go to docs/literate_build/examples, the .jl files stay where they are
 literate_files = map(filter!(endswith(".jl"), extract_paths(PAGES))) do file
     if startswith(file, "examples/")
-        (src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "examples"), example=true)
+        (src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "examples"), type=:example)
+    elseif startswith(file, "pluto/")
+        (src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "pluto"), type=:pluto)
     else
-        (src=joinpath(SRCPATH, file), dest=joinpath(SRCPATH, dirname(file)), example=false)
+        (src=joinpath(SRCPATH, file), dest=joinpath(SRCPATH, dirname(file)), type=:default)
     end
 end
 
@@ -169,12 +173,22 @@ end
 
 # Run Literate on them all
 for file in literate_files
-    preprocess = file.example ? add_badges : identity
-    Literate.markdown(file.src, file.dest;
-                      flavor=Literate.DocumenterFlavor(),
-                      credit=false, preprocess)
-    Literate.notebook(file.src, file.dest; credit=false,
-                      execute=CONTINUOUS_INTEGRATION || DEBUG)
+    preprocess = file.type == :example ? add_badges : identity
+    if file.type == :pluto
+        bopts = PlutoStaticHTML.BuildOptions(basename(file.src); output_format=PlutoStaticHTML.documenter_output)
+        PlutoStaticHTML.build_notebooks(bopts, [file.src])
+        src_file = splitext(file.src)[1] * ".md"
+        dest_file = joinpath(file.dest, splitext(basename(file.src))[1] * ".md")
+        !isdir(file.dest) && mkdir(file.dest)
+        mv(splitext(file.src)[1] * ".md", dest_file;
+           force=true)
+    else
+        Literate.markdown(file.src, file.dest;
+                          flavor=Literate.DocumenterFlavor(),
+                          credit=false, preprocess)
+        Literate.notebook(file.src, file.dest; credit=false,
+                          execute=CONTINUOUS_INTEGRATION || DEBUG)
+    end
 end
 
 # Generate the docs in BUILDPATH
