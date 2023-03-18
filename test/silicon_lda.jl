@@ -25,8 +25,9 @@ function run_silicon_lda(T ;Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     else
         magnetic_moments = []
     end
-    model = model_DFT(Array{T}(silicon.lattice), atoms, silicon.positions,
-                      [:lda_x, :lda_c_vwn]; spin_polarization, magnetic_moments)
+    model = model_DFT(silicon.lattice, atoms, silicon.positions, [:lda_x, :lda_c_vwn];
+                      spin_polarization, magnetic_moments)
+    model = convert(Model{T}, model)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
     spin_polarization == :collinear && (ref_lda = vcat(ref_lda, ref_lda))
@@ -37,30 +38,28 @@ end
 
 
 @testset "Silicon LDA (small, Float64)" begin
-    run_silicon_lda(Float64, Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17, scf_tol=1e-5,
-                    n_ep_extra=0)
+    run_silicon_lda(Float64, Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17, scf_tol=1e-5)
 end
 
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     @testset "Silicon LDA (large, Float64)" begin
-        run_silicon_lda(Float64, Ecut=25, test_tol=1e-5, n_ignored=0,
-                        grid_size=33, scf_tol=1e-7, n_ep_extra=0)
+        run_silicon_lda(Float64, Ecut=25, test_tol=1e-5, n_ignored=0, grid_size=33,
+                        scf_tol=1e-7)
     end
 end
 
 @testset "Silicon LDA (small, Float32)" begin
-    run_silicon_lda(Float32, Ecut=7, test_tol=0.03, n_ignored=1, grid_size=19, scf_tol=1e-4,
-                    n_ep_extra=1)
+    run_silicon_lda(Float32, Ecut=7, test_tol=0.03, n_ignored=1, grid_size=19, scf_tol=1e-4)
 end
 
 @testset "Silicon LDA (small, collinear spin)" begin
     run_silicon_lda(Float64, Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17,
-                    scf_tol=1e-5, n_ep_extra=0, spin_polarization=:collinear)
+                    scf_tol=1e-5, spin_polarization=:collinear)
 end
 
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     @testset "Silicon LDA (large, collinear spin)" begin
         run_silicon_lda(Float64, Ecut=25, test_tol=1e-5, n_ignored=0,
-                        grid_size=33, scf_tol=1e-7, n_ep_extra=0, spin_polarization=:collinear)
+                        grid_size=33, scf_tol=1e-7, spin_polarization=:collinear)
     end
 end

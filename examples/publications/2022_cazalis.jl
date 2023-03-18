@@ -1,5 +1,5 @@
 # Model of graphene confined to 2 spatial dimensions studied
-# in the paper by Cazalis (arxiv, 2022, TODO add ref)
+# in the paper by Cazalis (arxiv, 2022, https://arxiv.org/abs/2207.09893)
 # The pure 3D Coulomb 1/|x| interaction is used, without pseudopotential.
 
 using DFTK
@@ -15,12 +15,12 @@ function DFTK.ene_ops(term::Term2DHartree, basis::PlaneWaveBasis{T},
     poisson_green_coeffs = 2T(π) ./ [norm(G) for G in G_vectors_cart(basis)]
     poisson_green_coeffs[1] = 0  # DC component
 
-    ρtot_fourier = r_to_G(basis, total_density(ρ))
+    ρtot_fourier = fft(basis, total_density(ρ))
     pot_fourier = poisson_green_coeffs .* ρtot_fourier
-    pot_real = G_to_r(basis, pot_fourier)
+    pot_real = irfft(basis, pot_fourier)
     E = real(dot(pot_fourier, ρtot_fourier) / 2)
     ops = [DFTK.RealSpaceMultiplication(basis, kpt, pot_real) for kpt in basis.kpoints]
-    (E=E, ops=ops)
+    (; E, ops)
 end
 
 ## define electron-nuclei interaction
@@ -57,32 +57,11 @@ model = Model(lattice, atoms, positions; temperature=1e-4, smearing=Smearing.Gau
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 
 ## Run SCF
-scfres = self_consistent_field(basis, tol=1e-10)
+scfres = self_consistent_field(basis, is_converged=DFTK.ScfConvergenceEnergy(1e-10))
 
-## Choose the points of the band diagram, in reduced coordinates (in the (b1,b2) basis)
-Γ  = [0, 0, 0]
-K  = [ 1, 1, 0]/3
-Kp = [-1, 2, 0]/3
-M  = (K + Kp)/2
-kpath_coords = [Γ, K, M, Γ]
-kpath_names  = ["Γ", "K", "M", "Γ"]
-
-## Build the path
-kline_density = 20
-function build_path(k1, k2)
-    target_Δk = 1/kline_density  # the actual Δk is |k2-k1|/npt
-    npt = ceil(Int, norm(model.recip_lattice * (k2-k1)) / target_Δk)
-    [k1 + t * (k2-k1) for t in range(0, 1, length=npt)]
-end
-kcoords = []
-for i = 1:length(kpath_coords)-1
-    append!(kcoords, build_path(kpath_coords[i], kpath_coords[i+1]))
-end
-klabels = Dict(kpath_names[i] => kpath_coords[i] for i=1:length(kpath_coords))
-
-## Plot the bands
-band_data = compute_bands(basis, kcoords; n_bands=5, scfres.ρ)
-p = DFTK.plot_band_data(band_data; klabels, markersize=nothing)
+## Plot bands
+sgnum = 13  # Graphene space group number
+p = plot_bandstructure(scfres, irrfbz_path(model; sgnum); n_bands=5)
 Plots.hline!(p, [scfres.εF], label="", color="black")
-Plots.ylims!(p, -Inf,Inf)
+Plots.ylims!(p, (-Inf, Inf))
 p

@@ -38,7 +38,7 @@ pot(x) = (x - a/2)^2;
 C = 1.0
 α = 2;
 
-# ... and with this build the model
+# … and with this build the model
 using DFTK
 using LinearAlgebra
 
@@ -63,7 +63,7 @@ scfres.energies
 ψ_fourier = scfres.ψ[1][:, 1];    # first k-point, all G components, first eigenvector
 
 # Transform the wave function to real space and fix the phase:
-ψ = G_to_r(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1]
+ψ = ifft(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1]
 ψ /= (ψ[div(end, 2)] / abs(ψ[div(end, 2)]));
 
 # Check whether ``ψ`` is normalised:
@@ -90,12 +90,13 @@ plot!(p, x, ρ, label="ρ")
 E, ham = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
 @assert E.total == scfres.energies.total
 
-# Now the Hamiltonian contains all the blocks corresponding to k-points. Here, we just have one k-point:
+# Now the Hamiltonian contains all the blocks corresponding to ``k``-points. Here, we just
+# have one ``k``-point:
 H = ham.blocks[1];
 
 # `H` can be used as a linear operator (efficiently using FFTs), or converted to a dense matrix:
 ψ11 = scfres.ψ[1][:, 1] # first k-point, first eigenvector
-Hmat = Array(H) # This is now just a plain Julia matrix, 
+Hmat = Array(H) # This is now just a plain Julia matrix,
 ##                which we can compute and store in this simple 1D example
 @assert norm(Hmat * ψ11 - H * ψ11) < 1e-10
 

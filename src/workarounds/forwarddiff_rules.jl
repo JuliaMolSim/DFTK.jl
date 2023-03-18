@@ -64,7 +64,7 @@ end
 LinearAlgebra.mul!(Y::AbstractArray{<:Complex{<:ForwardDiff.Dual}}, p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, X::AbstractArray{<:ComplexF64}) where {T,P} =
     (Y .= _apply_plan(p, X))
 
-function _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where T
+function _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where {T}
     # TODO do we want x::AbstractArray{<:ForwardDiff.Dual{T}} too?
     xtil = p * ForwardDiff.value.(x)
     dxtils = ntuple(ForwardDiff.npartials(eltype(x))) do n
@@ -83,7 +83,7 @@ function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::Abst
 end
 
 # this is to avoid method ambiguities between these two:
-#   _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where T
+#   _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where {T}
 #   _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray) where {T,P}
 function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{Tg}}}) where {T,P,Tg}
     _apply_plan(p.p, p.scale * x)
@@ -105,16 +105,11 @@ end
 
 next_working_fft_size(::Type{<:ForwardDiff.Dual}, size::Int) = size
 
-_fftw_flags(::Type{<:ForwardDiff.Dual}) = FFTW.MEASURE | FFTW.UNALIGNED
-
-function build_fft_plans(T::Type{<:Union{ForwardDiff.Dual,Complex{<:ForwardDiff.Dual}}}, fft_size)
-    tmp = Array{complex(T)}(undef, fft_size...) # TODO think about other Array types
-    opFFT  = FFTW.plan_fft(tmp, flags=_fftw_flags(T))
-    opBFFT = FFTW.plan_bfft(tmp, flags=_fftw_flags(T))
-
+function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:ForwardDiff.Dual}
+    opFFT  = AbstractFFTs.plan_fft(tmp)
+    opBFFT = AbstractFFTs.plan_bfft(tmp)
     ipFFT  = DummyInplace{typeof(opFFT)}(opFFT)
     ipBFFT = DummyInplace{typeof(opBFFT)}(opBFFT)
-    # backward by inverting and stripping off normalizations
     ipFFT, opFFT, ipBFFT, opBFFT
 end
 
@@ -152,14 +147,17 @@ function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
     Model(ForwardDiff.value.(model.lattice),
           construct_value.(model.atoms),
           newpositions;
-          model_name=model.model_name,
-          n_electrons=model.n_electrons,
+          model.model_name,
+          model.n_electrons,
           magnetic_moments=[],  # Symmetries given explicitly
           terms=model.term_types,
           temperature=ForwardDiff.value(model.temperature),
-          smearing=model.smearing,
-          spin_polarization=model.spin_polarization,
-          symmetries=model.symmetries)
+          model.smearing,
+          εF=ForwardDiff.value(model.εF),
+          model.spin_polarization,
+          model.symmetries,
+          # Can be safely disabled: this has been checked for basis.model
+          disable_electrostatics_check=true)
 end
 
 construct_value(el::Element) = el
@@ -194,7 +192,7 @@ end
 
 function self_consistent_field(basis_dual::PlaneWaveBasis{T};
                                response=ResponseOptions(),
-                               kwargs...) where T <: ForwardDiff.Dual
+                               kwargs...) where {T <: ForwardDiff.Dual}
     # Note: No guarantees on this interface yet.
 
     # Primal pass
@@ -205,12 +203,12 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     Hψ_dual = let
         occupation_dual = [T.(occk) for occk in scfres.occupation]
         ψ_dual = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
-        ρ_dual = DFTK.compute_density(basis_dual, ψ_dual, occupation_dual)
+        ρ_dual = compute_density(basis_dual, ψ_dual, occupation_dual)
         εF_dual = T(scfres.εF)  # Only needed for entropy term
         eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
-        _, ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
-                                         ρ=ρ_dual, eigenvalues=eigenvalues_dual, 
-                                         εF=εF_dual)
+        ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
+                                      ρ=ρ_dual, eigenvalues=eigenvalues_dual,
+                                      εF=εF_dual).ham
         ham_dual * ψ_dual
     end
 
@@ -244,11 +242,11 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     energies, ham = energy_hamiltonian(basis_dual, ψ, occupation; ρ, eigenvalues, εF)
 
     # This has to be changed whenever the scfres structure changes
-    (; ham, basis=basis_dual, energies, ρ, eigenvalues, occupation, εF, ψ, 
+    (; ham, basis=basis_dual, energies, ρ, eigenvalues, occupation, εF, ψ,
        # non-differentiable metadata:
        response=getfield.(δresults, :history),
-       scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter, 
-       scfres.n_ep_extra, scfres.diagonalization, scfres.stage,
+       scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
+       scfres.n_bands_converge, scfres.diagonalization, scfres.stage,
        scfres.algorithm, scfres.norm_Δρ)
 end
 
@@ -299,4 +297,13 @@ function Base.:^(x::Complex{ForwardDiff.Dual{T,V,N}}, y::Complex{ForwardDiff.Dua
     end
     complex(ForwardDiff.Dual{T,V,N}(real(expv), ForwardDiff.Partials{N,V}(tuple(real(dexpv)...))),
             ForwardDiff.Dual{T,V,N}(imag(expv), ForwardDiff.Partials{N,V}(tuple(imag(dexpv)...))))
+end
+
+# Waiting for https://github.com/JuliaDiff/DiffRules.jl/pull/37 to be merged
+function erfc(x::Complex{ForwardDiff.Dual{T,V,N}}) where {T,V,N}
+    xx = complex(ForwardDiff.value(real(x)), ForwardDiff.value(imag(x)))
+    dx = complex.(ForwardDiff.partials(real(x)), ForwardDiff.partials(imag(x)))
+    dgamma = -2*exp(-xx^2)/sqrt(V(π)) * dx
+    complex(ForwardDiff.Dual{T,V,N}(real(erfc(xx)), ForwardDiff.Partials{N,V}(tuple(real(dgamma)...))),
+            ForwardDiff.Dual{T,V,N}(imag(erfc(xx)), ForwardDiff.Partials{N,V}(tuple(imag(dgamma)...))))
 end

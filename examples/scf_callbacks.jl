@@ -10,19 +10,14 @@
 # taking again our favourite silicon example.
 
 # We setup silicon in an LDA model using the ASE interface
-# to build the silicon lattice,
+# to build a bulk silicon lattice,
 # see [Input and output formats](@ref) for more details.
 using DFTK
-using PyCall
+using ASEconvert
 
-silicon = pyimport("ase.build").bulk("Si")
-atoms = [ElementPsp(el.symbol, psp=load_psp("hgh/lda/si-q4.hgh"))
-         for el in load_atoms(silicon)]
-positions = load_positions(silicon)
-lattice   = load_lattice(silicon);
-
-model = model_LDA(lattice, atoms, positions)
-basis = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
+system = pyconvert(AbstractSystem, ase.build.bulk("Si"))
+model  = model_LDA(attach_psp(system; Si="hgh/pbe/si-q4.hgh"))
+basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
 
 # DFTK already defines a few callback functions for standard
 # tasks. One example is the usual convergence table,
@@ -70,10 +65,10 @@ callback = DFTK.ScfDefaultCallback() ∘ plot_callback;
 # Notice that for constructing the `callback` function we chained the `plot_callback`
 # (which does the plotting) with the `ScfDefaultCallback`, such that when using
 # the `plot_callback` function with `self_consistent_field` we still get the usual
-# convergence table printed. We run the SCF with this callback ...
-scfres = self_consistent_field(basis, tol=1e-8, callback=callback);
+# convergence table printed. We run the SCF with this callback …
+scfres = self_consistent_field(basis; tol=1e-5, callback);
 
-# ... and show the plot
+# … and show the plot
 p
 
 # The `info` object passed to the callback contains not just the densities

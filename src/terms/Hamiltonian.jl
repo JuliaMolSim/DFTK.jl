@@ -14,6 +14,8 @@ struct GenericHamiltonianBlock <: HamiltonianBlock
     operators::Vector  # the original list of RealFourierOperator
                        # (as many as there are terms), kept for easier exploration
     optimized_operators::Vector  # Optimized list of RealFourierOperator, for application
+
+    scratch # dummy field
 end
 
 # More optimized HamiltonianBlock for the important case of a DFT Hamiltonian
@@ -31,27 +33,29 @@ struct DftHamiltonianBlock <: HamiltonianBlock
     scratch  # Pre-allocated scratch arrays for fast application
 end
 
-function HamiltonianBlock(basis, kpoint, operators, scratch=ham_allocate_scratch_(basis))
+function HamiltonianBlock(basis, kpoint, operators; scratch=ham_allocate_scratch_(basis))
     optimized_operators = optimize_operators_(operators)
     fourier_ops  = filter(o -> o isa FourierMultiplication,   optimized_operators)
     real_ops     = filter(o -> o isa RealSpaceMultiplication, optimized_operators)
     nonlocal_ops = filter(o -> o isa NonlocalOperator,        optimized_operators)
-    divAgrid_ops = filter(o -> o isa DivAgradOperator,        optimized_operators)
+    divAgrad_ops = filter(o -> o isa DivAgradOperator,        optimized_operators)
 
+    n_ops_grouped = length(fourier_ops) + length(real_ops) + length(nonlocal_ops) + length(divAgrad_ops)
     is_dft_ham = (   length(fourier_ops) == 1 && length(real_ops) == 1
-                  && length(nonlocal_ops) < 2 && length(divAgrid_ops) < 2)
+                  && length(nonlocal_ops) < 2 && length(divAgrad_ops) < 2
+                  && n_ops_grouped == length(optimized_operators))
     if is_dft_ham
         nonlocal_op = isempty(nonlocal_ops) ? nothing : only(nonlocal_ops)
-        divAgrid_op = isempty(divAgrid_ops) ? nothing : only(divAgrid_ops)
+        divAgrad_op = isempty(divAgrad_ops) ? nothing : only(divAgrad_ops)
         DftHamiltonianBlock(basis, kpoint, operators,
                             only(fourier_ops), only(real_ops),
-                            nonlocal_op, divAgrid_op, scratch)
+                            nonlocal_op, divAgrad_op, scratch)
     else
-        GenericHamiltonianBlock(basis, kpoint, operators, optimized_operators)
+        GenericHamiltonianBlock(basis, kpoint, operators, optimized_operators, nothing)
     end
 end
 function ham_allocate_scratch_(basis::PlaneWaveBasis{T}) where {T}
-    (ψ_reals=[zeros(complex(T), basis.fft_size...) for _ = 1:Threads.nthreads()], )
+    (ψ_reals=[zeros_like(basis.G_vectors, complex(T), basis.fft_size...) for _ = 1:Threads.nthreads()], )
 end
 
 Base.:*(H::HamiltonianBlock, ψ) = mul!(similar(ψ), H, ψ)
@@ -89,14 +93,13 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
     T = eltype(H.basis)
     n_bands = size(ψ, 2)
     Hψ_fourier = similar(Hψ[:, 1])
-    ψ_real  = zeros(complex(T), H.basis.fft_size...)
-    Hψ_real = zeros(complex(T), H.basis.fft_size...)
-
+    ψ_real  = similar(ψ, complex(T), H.basis.fft_size...)
+    Hψ_real = similar(Hψ, complex(T), H.basis.fft_size...)
     # take ψi, IFFT it to ψ_real, apply each term to Hψ_fourier and Hψ_real, and add it to Hψ
     for iband = 1:n_bands
         Hψ_real .= 0
         Hψ_fourier .= 0
-        G_to_r!(ψ_real, H.basis, H.kpoint, ψ[:, iband])
+        ifft!(ψ_real, H.basis, H.kpoint, ψ[:, iband])
         for op in H.optimized_operators
             @timing "$(nameof(typeof(op)))" begin
                 apply!((fourier=Hψ_fourier, real=Hψ_real),
@@ -105,7 +108,7 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
             end
         end
         Hψ[:, iband] .= Hψ_fourier
-        r_to_G!(Hψ_fourier, H.basis, H.kpoint, Hψ_real)
+        fft!(Hψ_fourier, H.basis, H.kpoint, Hψ_real)
         Hψ[:, iband] .+= Hψ_fourier
     end
 
@@ -117,6 +120,7 @@ end
                                                                            H::DftHamiltonianBlock,
                                                                            ψ::AbstractArray)
     n_bands = size(ψ, 2)
+    iszero(n_bands) && return Hψ  # Nothing to do if ψ empty
     have_divAgrad = !isnothing(H.divAgrad_op)
 
     # Notice that we use unnormalized plans for extra speed
@@ -130,9 +134,9 @@ end
             ψ_real = H.scratch.ψ_reals[ichunk]
 
             @timeit to "local+kinetic" begin
-                G_to_r!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
+                ifft!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
                 ψ_real .*= potential
-                r_to_G!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
+                fft!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
                 Hψ[:, iband] .+= H.fourier_op.multiplier .* ψ[:, iband]
             end
 
@@ -148,6 +152,8 @@ end
             if Threads.threadid() == 1
                 merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
             end
+
+            synchronize_device(H.basis.architecture)
        end
     end
 
@@ -187,14 +193,13 @@ end
     hks_per_k   = [flatten([blocks[ik] for blocks in operators])
                    for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
 
-    H = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
-                            for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
-    E = Energies(basis.model.term_types, energies)
-    (E=E, H=H)
+    ham = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
+                              for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
+    energies = Energies(basis.model.term_types, energies)
+    (; energies, ham)
 end
 function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occupation=nothing, kwargs...)
-    _, H = energy_hamiltonian(basis, ψ, occupation; kwargs...)
-    H
+    energy_hamiltonian(basis, ψ, occupation; kwargs...).ham
 end
 
 """
@@ -228,5 +233,5 @@ end
 function hamiltonian_with_total_potential(Hk::HamiltonianBlock, V)
     operators = [op for op in Hk.operators if !(op isa RealSpaceMultiplication)]
     push!(operators, RealSpaceMultiplication(Hk.basis, Hk.kpoint, V))
-    HamiltonianBlock(Hk.basis, Hk.kpoint, operators, Hk.scratch)
+    HamiltonianBlock(Hk.basis, Hk.kpoint, operators; Hk.scratch)
 end

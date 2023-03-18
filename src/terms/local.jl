@@ -1,13 +1,14 @@
 ## Local potentials. Can be provided from external potentials, or from `model.atoms`.
 
-# a local potential term. Must have the field `potential_values`, storing the
+# A local potential term. Must have the field `potential_values`, storing the
 # potential in real space on the grid. If the potential is different in the α and β
 # components then it should be a 4d-array with the last axis running over the
 # two spin components.
 abstract type TermLocalPotential <: Term end
 
 @timing "ene_ops: local" function ene_ops(term::TermLocalPotential,
-                                          basis::PlaneWaveBasis{T}, ψ, occ; kwargs...) where {T}
+                                          basis::PlaneWaveBasis{T}, ψ, occupation;
+                                          kwargs...) where {T}
     potview(data, spin) = ndims(data) == 4 ? (@view data[:, :, :, spin]) : data
     ops = [RealSpaceMultiplication(basis, kpt, potview(term.potential_values, kpt.spin))
            for kpt in basis.kpoints]
@@ -17,7 +18,7 @@ abstract type TermLocalPotential <: Term end
         E = T(Inf)
     end
 
-    (E=E, ops=ops)
+    (; E, ops)
 end
 
 ## External potentials
@@ -51,7 +52,8 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end
-    TermExternal(G_to_r(basis, pot_fourier))
+    enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
+    TermExternal(irfft(basis, pot_fourier))
 end
 
 
@@ -67,32 +69,52 @@ Atomic local potential defined by `model.atoms`.
 """
 struct AtomicLocal end
 function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
-    model = basis.model
-
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
     # Since V is a sum of radial functions located at atomic
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
+    model = basis.model
+    G_cart = to_cpu(G_vectors_cart(basis))
+    # TODO Bring G_cart on the CPU for compatibility with the pseudopotentials which
+    #      are not isbits ... might be able to solve this by restructuring the loop
 
-    pot_fourier = map(G_vectors(basis)) do G
-        pot = sum(model.atom_groups) do group
-            element = model.atoms[first(group)]
-            form_factor::T = local_potential_fourier(element, norm(model.recip_lattice * G))
-            form_factor * sum(cis2pi(-dot(G, r)) for r in @view model.positions[group])
+
+    # Pre-compute the form factors at unique values of |G| to speed up
+    # the potential Fourier transform (by a lot). Using a hash map gives O(1)
+    # lookup.
+    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
+    for G in G_cart
+        q = norm(G)
+        for (igroup, group) in enumerate(model.atom_groups)
+            if !haskey(form_factors, (igroup, q))
+                element = model.atoms[first(group)]
+                form_factors[(igroup, q)] = local_potential_fourier(element, q)
+            end
+        end
+    end
+
+    Gs = to_cpu(G_vectors(basis))  # TODO Again for GPU compatibility
+    pot_fourier = map(enumerate(Gs)) do (iG, G)
+        q = norm(G_cart[iG])
+        pot = sum(enumerate(model.atom_groups)) do (igroup, group)
+            structure_factor = sum(r -> cis2pi(-dot(G, r)), @view model.positions[group])
+            form_factors[(igroup, q)] * structure_factor
         end
         pot / sqrt(model.unit_cell_volume)
     end
 
-    pot_real = G_to_r(basis, pot_fourier)
+    enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
+    pot_real = irfft(basis, to_device(basis.architecture, pot_fourier))
+
     TermAtomicLocal(pot_real)
 end
 
 @timing "forces: local" function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{TT},
-                                                ψ, occupation; ρ, kwargs...) where TT
+                                                ψ, occupation; ρ, kwargs...) where {TT}
     T = promote_type(TT, real(eltype(ψ[1])))
     model = basis.model
     recip_lattice = model.recip_lattice
-    ρ_fourier = r_to_G(basis, total_density(ρ))
+    ρ_fourier = fft(basis, total_density(ρ))
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
     # where struct_factor(G) = e^{-i G·r}

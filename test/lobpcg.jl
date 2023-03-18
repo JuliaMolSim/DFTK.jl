@@ -39,7 +39,7 @@ include("./testcases.jl")
     end
 
     @testset "with Preconditioner" begin
-        res = diagonalize_all_kblocks(lobpcg_hyper, ham, nev_per_k, tol=tol,
+        res = diagonalize_all_kblocks(lobpcg_hyper, ham, nev_per_k; tol,
                                       prec_type=PreconditionerTPA, interpolate_kpoints=false)
 
         @test res.converged
@@ -59,8 +59,7 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
         Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       terms=[Kinetic(),AtomicLocal()])
-        basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights;
-                               fft_size=fft_size)
+        basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
         ham = Hamiltonian(basis)
 
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, 6, tol=1e-8)
@@ -89,7 +88,7 @@ end
     model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                   terms=[Kinetic(), AtomicLocal(), AtomicNonlocal()])
 
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size=fft_size)
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
     ham = Hamiltonian(basis)
 
     res = diagonalize_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, interpolate_kpoints=false)
@@ -121,4 +120,24 @@ end
     for ik in 1:length(basis.kpoints)
         @test res1.λ[ik] ≈ res2.λ[ik] atol=1e-6
     end
+end
+
+@testset "LOBPCG Internal data structures" begin
+    a1 = rand(10, 5)
+    a2 = rand(10, 2)
+    a3 = rand(10, 7)
+    b1 = rand(10, 6)
+    b2 = rand(10, 2)
+    A = hcat(a1,a2,a3)
+    B = hcat(b1,b2)
+    Ablock = DFTK.LazyHcat(a1, a2, a3)
+    Bblock = DFTK.LazyHcat(b1, b2)
+    @test Ablock'*Bblock ≈ A'*B
+    @test Ablock'*B ≈ A'*B
+
+    C = rand(14, 4)
+    @test Ablock*C ≈ A*C
+
+    D = rand(10, 4)
+    @test mul!(D,Ablock, C, 1, 0) ≈ A*C
 end

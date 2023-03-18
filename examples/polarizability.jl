@@ -3,7 +3,7 @@
 # We compute the polarizability of a Helium atom. The polarizability
 # is defined as the change in dipole moment
 # ```math
-# \mu = \int r ρ(r) dr
+# μ = ∫ r ρ(r) dr
 # ```
 # with respect to a small uniform electric field ``E = -x``.
 #
@@ -41,7 +41,7 @@ end;
 # First compute the dipole moment at rest:
 model = model_LDA(lattice, atoms, positions; symmetries=false)
 basis = PlaneWaveBasis(model; Ecut, kgrid)
-res   = self_consistent_field(basis, tol=tol)
+res   = self_consistent_field(basis; tol)
 μref  = dipole(basis, res.ρ)
 
 # Then in a small uniform field:
@@ -50,7 +50,7 @@ model_ε = model_LDA(lattice, atoms, positions;
                     extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
                     symmetries=false)
 basis_ε = PlaneWaveBasis(model_ε; Ecut, kgrid)
-res_ε   = self_consistent_field(basis_ε, tol=tol)
+res_ε   = self_consistent_field(basis_ε; tol)
 με = dipole(basis_ε, res_ε.ρ)
 
 #-
@@ -66,36 +66,36 @@ println("Polarizability :   $polarizability")
 
 # ## Using linear response
 # Now we use linear response to compute this analytically; we refer to standard
-# textbooks for the formalism. In the following, ``\chi_0`` is the
+# textbooks for the formalism. In the following, ``χ_0`` is the
 # independent-particle polarizability, and ``K`` the
-# Hartree-exchange-correlation kernel. We denote with ``\delta V_{\rm ext}`` an external
+# Hartree-exchange-correlation kernel. We denote with ``δV_{\rm ext}`` an external
 # perturbing potential (like in this case the uniform electric field). Then:
 # ```math
-# \delta\rho = \chi_0 \delta V = \chi_0 (\delta V_{\rm ext} + K \delta\rho),
+# δρ = χ_0 δV = χ_0 (δV_{\rm ext} + K δρ),
 # ```
 # which implies
 # ```math
-# \delta\rho = (1-\chi_0 K)^{-1} \chi_0 \delta V_{\rm ext}.
+# δρ = (1-χ_0 K)^{-1} χ_0 δV_{\rm ext}.
 # ```
-# From this we identify the polarizability operator to be ``\chi = (1-\chi_0 K)^{-1} \chi_0``.
-# Numerically, we apply ``\chi`` to ``\delta V = -x`` by solving a linear equation
+# From this we identify the polarizability operator to be ``χ = (1-χ_0 K)^{-1} χ_0``.
+# Numerically, we apply ``χ`` to ``δV = -x`` by solving a linear equation
 # (the Dyson equation) iteratively.
 
 using KrylovKit
 
-## Apply (1- χ0 K)
+## Apply ``(1- χ_0 K)``
 function dielectric_operator(δρ)
-    δV = apply_kernel(basis, δρ; ρ=res.ρ)
+    δV = apply_kernel(basis, δρ; res.ρ)
     χ0δV = apply_χ0(res, δV)
     δρ - χ0δV
 end
 
-## δVext is the potential from a uniform field interacting with the dielectric dipole
+## `δVext` is the potential from a uniform field interacting with the dielectric dipole
 ## of the density.
 δVext = [-(r[1] - a/2) for r in r_vectors_cart(basis)]
 δVext = cat(δVext; dims=4)
 
-## Apply χ0 once to get non-interacting dipole
+## Apply ``χ_0`` once to get non-interacting dipole
 δρ_nointeract = apply_χ0(res, δVext)
 
 ## Solve Dyson equation to get interacting dipole

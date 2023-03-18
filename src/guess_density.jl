@@ -66,7 +66,7 @@ function _guess_spin_density(basis::PlaneWaveBasis{T}, atoms, positions, magneti
         @warn("Returning zero spin density guess, because no initial magnetization has " *
               "been specified in any of the given elements / atoms. Your SCF will likely " *
               "not converge to a spin-broken solution.")
-        return zeros(T, basis.fft_size)
+        return zeros_like(basis.G_vectors, T, basis.fft_size...)
     end
 
     @assert length(magmoms) == length(atoms) == length(positions)
@@ -93,23 +93,36 @@ which follow the functional form
 and are placed at `position` (in fractional coordinates).
 """
 function gaussian_superposition(basis::PlaneWaveBasis{T}, gaussians) where {T}
-    ρ = zeros(complex(T), basis.fft_size)
-    isempty(gaussians) && return G_to_r(basis, ρ)
+    recip_lattice = basis.model.recip_lattice
+    fft_size      = basis.fft_size
+    ρ = zeros_like(G_vectors(basis), complex(T), fft_size...)
+
+    isempty(gaussians) && return irfft(basis, ρ)
+
+    # This copy is required so that `gaussians` is isbits and can be transferred to the GPU
+    # TODO See if there is a better option here ... this feels non-ideal for larger systems
+    gaussians = SVector{size(gaussians)[1]}(gaussians)
 
     # Fill ρ with the (unnormalized) Fourier transform, i.e. ∫ e^{-iGx} f(x) dx,
     # where f(x) is a weighted gaussian
     #
     # is formed from a superposition of atomic densities, each scaled by a prefactor
-    for (iG, G) in enumerate(G_vectors(basis))
-        Gsq = sum(abs2, basis.model.recip_lattice * G)
+    # Ensure that we only set G-vectors that have a -G counterpart to ensure ρ is real.
+    function build_ρ(G)
+        if isnothing(index_G_vectors(fft_size, -G))
+            return zero(complex(T))
+        end
+        Gsq = norm2(recip_lattice * G)
+        res = zero(complex(T))
         for (coeff, decay_length, r) in gaussians
             form_factor::T = exp(-Gsq * T(decay_length)^2)
-            ρ[iG] += T(coeff) * form_factor * cis2pi(-dot(G, r))
+            res += T(coeff) * form_factor * cis2pi(-dot(G, r))
         end
+        res
     end
+    ρ = map(build_ρ, basis.G_vectors)
 
-    # projection in the normalized plane wave basis
-    G_to_r(basis, ρ / sqrt(basis.model.unit_cell_volume))
+    irfft(basis, ρ / sqrt(basis.model.unit_cell_volume))
 end
 
 

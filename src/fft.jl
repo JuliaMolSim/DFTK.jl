@@ -1,28 +1,30 @@
 import FFTW
+import AbstractFFTs: fft, fft!, ifft, ifft!
 
 #
 # Perform (i)FFTs.
 #
 # We perform two sets of (i)FFTs.
 
-# For densities and potentials defined on the cubic basis set, r_to_G/G_to_r
+# For densities and potentials defined on the cubic basis set, fft/ifft
 # do a simple FFT/IFFT from the cubic basis set to the real-space grid.
 # These functions do not take a k-point as input
 
-# For orbitals, G_to_r converts the orbitals defined on a spherical
+# For orbitals, ifft converts the orbitals defined on a spherical
 # basis set to the cubic basis set using zero padding, then performs
-# an IFFT to get to the real-space grid. r_to_G performs an FFT, then
+# an IFFT to get to the real-space grid. fft performs an FFT, then
 # restricts the output to the spherical basis set. These functions
 # take a k-point as input.
 
+
 """
-In-place version of `G_to_r`.
+In-place version of `ifft`.
 """
-function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis, f_fourier::AbstractArray3)
+function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, f_fourier::AbstractArray3)
     mul!(f_real, basis.opBFFT, f_fourier)
-    f_real .*= basis.G_to_r_normalization
+    f_real .*= basis.ifft_normalization
 end
-function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
+function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis,
                  kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
     @assert length(f_fourier) == length(kpt.mapping)
     @assert size(f_real) == basis.fft_size
@@ -33,46 +35,51 @@ function G_to_r!(f_real::AbstractArray3, basis::PlaneWaveBasis,
 
     # Perform an IFFT
     mul!(f_real, basis.ipBFFT, f_real)
-    normalize && (f_real .*= basis.G_to_r_normalization)
+    normalize && (f_real .*= basis.ifft_normalization)
     f_real
 end
 
 """
-    G_to_r(basis::PlaneWaveBasis, [kpt::Kpoint, ] f_fourier)
+    ifft(basis::PlaneWaveBasis, [kpt::Kpoint, ] f_fourier)
 
 Perform an iFFT to obtain the quantity defined by `f_fourier` defined
 on the k-dependent spherical basis set (if `kpt` is given) or the
 k-independent cubic (if it is not) on the real-space grid.
 """
-function G_to_r(basis::PlaneWaveBasis, f_fourier::AbstractArray; assume_real=Val(true))
-    # assume_real is true by default because this is the most common usage
-    # (for densities & potentials). Val(true) to help const-prop;
-    # see https://github.com/JuliaLang/julia/issues/44330
+function ifft(basis::PlaneWaveBasis, f_fourier::AbstractArray)
     f_real = similar(f_fourier)
     @assert length(size(f_fourier)) ∈ (3, 4)
     # this exploits trailing index convention
     for iσ = 1:size(f_fourier, 4)
-        @views G_to_r!(f_real[:, :, :, iσ], basis, f_fourier[:, :, :, iσ])
+        @views ifft!(f_real[:, :, :, iσ], basis, f_fourier[:, :, :, iσ])
     end
-    (assume_real == Val(true)) ? real(f_real) : f_real
+    f_real
 end
-function G_to_r(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
-    G_to_r!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
+"""
+Perform a real valued iFFT; see [`ifft`](@ref).
+"""
+function irfft(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray; check=Val(true)) where {T}
+    f_real = ifft(basis, f_fourier)
+    (check == Val(true)) && @assert norm(imag(f_real)) < max(1e-12, sqrt(eps(T)))
+    real(f_real)
+end
+function ifft(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
+    ifft!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
 end
 
 
 @doc raw"""
-In-place version of `r_to_G!`.
+In-place version of `fft!`.
 NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
 """
-function r_to_G!(f_fourier::AbstractArray3, basis::PlaneWaveBasis, f_real::AbstractArray3)
+function fft!(f_fourier::AbstractArray3, basis::PlaneWaveBasis, f_real::AbstractArray3)
     if eltype(f_real) <: Real
         f_real = complex.(f_real)
     end
     mul!(f_fourier, basis.opFFT, f_real)
-    f_fourier .*= basis.r_to_G_normalization
+    f_fourier .*= basis.fft_normalization
 end
-function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
+function fft!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
                  kpt::Kpoint, f_real::AbstractArray3; normalize=true)
     @assert size(f_real) == basis.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
@@ -82,34 +89,34 @@ function r_to_G!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
 
     # Truncate
     f_fourier .= view(f_real, kpt.mapping)
-    normalize && (f_fourier .*= basis.r_to_G_normalization)
+    normalize && (f_fourier .*= basis.fft_normalization)
     f_fourier
 end
 
 """
-    r_to_G(basis::PlaneWaveBasis, [kpt::Kpoint, ] f_real)
+    fft(basis::PlaneWaveBasis, [kpt::Kpoint, ] f_real)
 
 Perform an FFT to obtain the Fourier representation of `f_real`. If
 `kpt` is given, the coefficients are truncated to the k-dependent
 spherical basis set.
 """
-function r_to_G(basis::PlaneWaveBasis{T}, f_real::AbstractArray{U}) where {T, U}
+function fft(basis::PlaneWaveBasis{T}, f_real::AbstractArray{U}) where {T, U}
     f_fourier = similar(f_real, complex(promote_type(T, U)))
     @assert length(size(f_real)) ∈ (3, 4)
     for iσ = 1:size(f_real, 4)  # this exploits trailing index convention
-        @views r_to_G!(f_fourier[:, :, :, iσ], basis, f_real[:, :, :, iσ])
+        @views fft!(f_fourier[:, :, :, iσ], basis, f_real[:, :, :, iσ])
     end
     f_fourier
 end
 
 
 # TODO optimize this
-function r_to_G(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3; kwargs...)
-    r_to_G!(similar(f_real, length(kpt.mapping)), basis, kpt, copy(f_real); kwargs...)
+function fft(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3; kwargs...)
+    fft!(similar(f_real, length(kpt.mapping)), basis, kpt, copy(f_real); kwargs...)
 end
 
-# returns matrix representations of the G_to_r and r_to_G matrices. For debug purposes.
-function G_to_r_matrix(basis::PlaneWaveBasis{T}) where {T}
+# returns matrix representations of the ifft and fft matrices. For debug purposes.
+function ifft_matrix(basis::PlaneWaveBasis{T}) where {T}
     ret = zeros(complex(T), prod(basis.fft_size), prod(basis.fft_size))
     for (iG, G) in enumerate(G_vectors(basis))
         for (ir, r) in enumerate(r_vectors(basis))
@@ -118,7 +125,7 @@ function G_to_r_matrix(basis::PlaneWaveBasis{T}) where {T}
     end
     ret
 end
-function r_to_G_matrix(basis::PlaneWaveBasis{T}) where {T}
+function fft_matrix(basis::PlaneWaveBasis{T}) where {T}
     ret = zeros(complex(T), prod(basis.fft_size), prod(basis.fft_size))
     for (iG, G) in enumerate(G_vectors(basis))
         for (ir, r) in enumerate(r_vectors(basis))
@@ -145,7 +152,8 @@ represented in the spherical basis sets, `supersampling` should be at least `2`.
 If `factors` is not empty, ensure that the resulting fft_size contains all the factors
 """
 function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
-                          ensure_smallprimes=true, algorithm=:fast, factors=1, kwargs...) where T
+                          ensure_smallprimes=true, algorithm=:fast, factors=1,
+                          kwargs...) where {T}
     if algorithm == :fast
         Glims = compute_Glims_fast(model.lattice, Ecut; kwargs...)
     elseif algorithm == :precise
@@ -158,7 +166,7 @@ function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
         # fft_size needs to be final at k-point construction time
         Glims_temp    = compute_Glims_fast(model.lattice, Ecut; kwargs...)
         fft_size_temp = Tuple{Int, Int, Int}(2 .* Glims_temp .+ 1)
-        kpoints_temp  = build_kpoints(model, fft_size_temp, kcoords, Ecut)
+        kpoints_temp  = build_kpoints(model, fft_size_temp, kcoords, Ecut; architecture=CPU())
 
         Glims = compute_Glims_precise(model.lattice, Ecut, kpoints_temp; kwargs...)
     else
@@ -202,7 +210,7 @@ end
 # This uses a more precise and slower algorithm than the one above,
 # simply enumerating all G vectors and seeing where their difference
 # is. It needs the kpoints to do so.
-@timing function compute_Glims_precise(lattice::AbstractMatrix{T}, Ecut, kpoints; supersampling=2) where T
+@timing function compute_Glims_precise(lattice::AbstractMatrix{T}, Ecut, kpoints; supersampling=2) where {T}
     recip_lattice  = compute_recip_lattice(lattice)
     recip_diameter = diameter(recip_lattice)
     Glims = [0, 0, 0]
@@ -237,30 +245,37 @@ end
 end
 
 # Fast implementation, but sometimes larger than necessary.
-function compute_Glims_fast(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=sqrt(eps(T))) where T
+function compute_Glims_fast(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=sqrt(eps(T))) where {T}
     Gmax = supersampling * sqrt(2 * Ecut)
     recip_lattice = compute_recip_lattice(lattice)
-    Glims = estimate_integer_lattice_bounds(recip_lattice, Gmax; tol=tol)
+    Glims = estimate_integer_lattice_bounds(recip_lattice, Gmax; tol)
     Glims
 end
-
-# For Float32 there are issues with aligned FFTW plans, so we
-# fall back to unaligned FFTW plans (which are generally discouraged).
-_fftw_flags(::Type{Float32}) = FFTW.MEASURE | FFTW.UNALIGNED
-_fftw_flags(::Type{Float64}) = FFTW.MEASURE
 
 """
 Plan a FFT of type `T` and size `fft_size`, spending some time on finding an
 optimal algorithm. (Inplace, out-of-place) x (forward, backward) FFT plans are returned.
 """
-function build_fft_plans(T::Union{Type{Float32}, Type{Float64}}, fft_size)
-    tmp = Array{Complex{T}}(undef, fft_size...)
-    ipFFT = FFTW.plan_fft!(tmp, flags=_fftw_flags(T))
-    opFFT = FFTW.plan_fft(tmp, flags=_fftw_flags(T))
-    # backward by inverting and stripping off normalizations
+function build_fft_plans!(tmp::Array{Complex{Float64}})
+    ipFFT = FFTW.plan_fft!(tmp; flags=FFTW.MEASURE)
+    opFFT = FFTW.plan_fft(tmp;  flags=FFTW.MEASURE)
+    # backwards-FFT by inverting and stripping off normalizations
     ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
 end
-
+function build_fft_plans!(tmp::Array{Complex{Float32}})
+    # For Float32 there are issues with aligned FFTW plans, so we
+    # fall back to unaligned FFTW plans (which are generally discouraged).
+    ipFFT = FFTW.plan_fft!(tmp; flags=FFTW.MEASURE | FFTW.UNALIGNED)
+    opFFT = FFTW.plan_fft(tmp;  flags=FFTW.MEASURE | FFTW.UNALIGNED)
+    # backwards-FFT by inverting and stripping off normalizations
+    ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
+end
+function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:Union{Float32,Float64}}
+    ipFFT = AbstractFFTs.plan_fft!(tmp)
+    opFFT = AbstractFFTs.plan_fft(tmp)
+    # backwards-FFT by inverting and stripping off normalizations
+    ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
+end
 
 # TODO Some grid sizes are broken in the generic FFT implementation
 # in FourierTransforms, for more details see workarounds/fft_generic.jl

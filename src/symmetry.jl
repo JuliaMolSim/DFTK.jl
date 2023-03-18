@@ -47,17 +47,22 @@ function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
     Ws, ws = spglib_get_symmetry(lattice, atom_groups, positions, magnetic_moments; tol_symmetry)
     [SymOp(W, w) for (W, w) in zip(Ws, ws)]
 end
+function symmetry_operations(system::AbstractSystem)
+    parsed = parse_system(system)
+    symmetry_operations(parsed.lattice, parsed.atoms, parsed.positions, parsed.magnetic_moments)
+end
+
+# Approximate in; can be performance-critical, so we optimize in case of rationals
+is_approx_in_(x::AbstractArray{<:Rational}, X)  = any(isequal(x), X)
+is_approx_in_(x::AbstractArray{T}, X) where {T} = any(y -> isapprox(x, y; atol=sqrt(eps(T))), X)
 
 """
 Filter out the symmetry operations that don't respect the symmetries of the discrete BZ grid
 """
 function symmetries_preserving_kgrid(symmetries, kcoords)
     kcoords_normalized = normalize_kpoint_coordinate.(kcoords)
-    T = eltype(kcoords[1])
-    atol = T <: Rational ? 0 : sqrt(eps(T))
-    is_approx_in(x, X) = any(y -> isapprox(x, y; atol), X)
     function preserves_grid(symop)
-        all(is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
+        all(is_approx_in_(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
             for k in kcoords_normalized)
     end
     filter(preserves_grid, symmetries)
@@ -153,7 +158,7 @@ end
 
 # Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
 # No normalization is performed
-@timing function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
+function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
     for symop in symmetries
         # Common special case, where ρin does not need to be processed
         if isone(symop)
@@ -186,7 +191,7 @@ end
 end
 
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
-function lowpass_for_symmetry!(ρ, basis; symmetries=basis.symmetries)
+function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmetries)
     for symop in symmetries
         isone(symop) && continue
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
@@ -202,14 +207,14 @@ end
 Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
 @views @timing function symmetrize_ρ(basis, ρ; symmetries=basis.symmetries, do_lowpass=true)
-    ρin_fourier  = r_to_G(basis, ρ)
+    ρin_fourier  = to_cpu(fft(basis, ρ))
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρ, 4)
         accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
         do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
-    G_to_r(basis, ρout_fourier ./ length(symmetries))
+    irfft(basis, to_device(basis.architecture, ρout_fourier) ./ length(symmetries))
 end
 
 """
@@ -243,7 +248,9 @@ function symmetrize_forces(model::Model, forces; symmetries)
             # (but careful that our symmetries are r -> Wr+w, not R(r+f))
             other_at = W \ (position - w)
             i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions_group)
-            symmetrized_forces[idx] += W * forces[group[i_other_at]]
+            # (A.27) is in cartesian coordinates, and since Wcart is orthogonal,
+            # Fsymcart = Wcart * Fcart <=> Fsymred = inv(Wred') Fred
+            symmetrized_forces[idx] += inv(W') * forces[group[i_other_at]]
         end
     end
     symmetrized_forces / length(symmetries)
@@ -266,7 +273,7 @@ function unfold_bz(basis::PlaneWaveBasis)
                               basis.Ecut, basis.fft_size, basis.variational,
                               kcoords, [1/length(kcoords) for _ in kcoords],
                               basis.kgrid, basis.kshift,
-                              basis.symmetries_respect_rgrid, basis.comm_kpts)
+                              basis.symmetries_respect_rgrid, basis.comm_kpts, basis.architecture)
     end
 end
 
@@ -316,9 +323,9 @@ function unfold_bz(scfres)
     ψ = unfold_array_(scfres.basis, basis_unfolded, scfres.ψ, true)
     eigenvalues = unfold_array_(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
     occupation = unfold_array_(scfres.basis, basis_unfolded, scfres.occupation, false)
-    E, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
-                                scfres.ρ, eigenvalues, scfres.εF)
-    @assert E.total ≈ scfres.energies.total
+    energies, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
+                                       scfres.ρ, eigenvalues, scfres.εF)
+    @assert energies.total ≈ scfres.energies.total
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)
     merge(scfres, new_scfres)
 end
@@ -332,4 +339,12 @@ function unfold_kcoords(kcoords, symmetries)
         digits = ceil(Int, -log10(SYMMETRY_TOLERANCE))
         normalize_kpoint_coordinate(round.(k; digits))
     end
+end
+
+"""
+Ensure its real-space equivalent of passed Fourier-space representation is entirely real by
+removing wavevectors `G` that don't have a `-G` counterpart in the basis.
+"""
+@timing function enforce_real!(basis, fourier_coeffs)
+    lowpass_for_symmetry!(fourier_coeffs, basis; symmetries=[SymOp(-Mat3(I), Vec3(0, 0, 0))])
 end

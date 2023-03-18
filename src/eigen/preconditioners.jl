@@ -19,7 +19,6 @@ No preconditioning
 struct PreconditionerNone end
 PreconditionerNone(basis, kpt) = I
 
-
 """
 (simplified version of) Tetter-Payne-Allan preconditioning
 ↑ M.P. Teter, M.C. Payne and D.C. Allan, Phys. Rev. B 40, 12255 (1989).
@@ -27,16 +26,19 @@ PreconditionerNone(basis, kpt) = I
 mutable struct PreconditionerTPA{T <: Real}
     basis::PlaneWaveBasis
     kpt::Kpoint
-    kin::Vector{T}  # kinetic energy of every G
+    kin::AbstractVector{T}  # kinetic energy of every G
     mean_kin::Union{Nothing, Vector{T}}  # mean kinetic energy of every band
-    default_shift::T # if mean_kin is not set by `precondprep!`, this will be used for the shift
+    default_shift::T  # if mean_kin is not set by `precondprep!`, this will be used for the shift
 end
 
-function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=1) where T
+function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=1) where {T}
     kinetic_term = [t for t in basis.model.term_types if t isa Kinetic]
     isempty(kinetic_term) && error("Preconditioner should be disabled when no Kinetic term is used.")
-    scaling = only(kinetic_term).scaling_factor
-    kin = Vector{T}([scaling * sum(abs2, q) for q in Gplusk_vectors_cart(basis, kpt)] ./ 2)
+
+    # TODO Annoying that one has to recompute the kinetic energies here. Perhaps
+    #      it's better to pass a HamiltonianBlock directly and read the computed values.
+    kinetic_term = only(kinetic_term)
+    kin = kinetic_energy(kinetic_term, basis.Ecut, Gplusk_vectors_cart(basis, kpt))
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 

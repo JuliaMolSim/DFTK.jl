@@ -21,71 +21,89 @@ function ScfPlotTrace(plt=Plots.plot(yaxis=:log); kwargs...)
 end
 
 
-function plot_band_data(band_data; εF=nothing,
-                        klabels=Dict{String, Vector{Float64}}(), unit=u"hartree", kwargs...)
-    eshift = isnothing(εF) ? 0.0 : εF
-    data = prepare_band_data(band_data, klabels=klabels)
+function default_band_εrange(eigenvalues; εF=nothing)
+    if isnothing(εF)
+        # Can't decide where the interesting region is. Just plot everything
+        (minimum(minimum, eigenvalues), maximum(maximum, eigenvalues))
+    else
+        # Stolen from Pymatgen
+        width = is_metal(eigenvalues, εF) ? 10u"eV" : 4u"eV"
+        (εF - austrip(width), εF + austrip(width))
+    end
+end
+
+
+function plot_band_data(kpath::KPathInterpolant, band_data;
+                        εF=nothing, unit=u"hartree", kwargs...)
+    eshift = something(εF, 0.0)
+    data = data_for_plotting(kpath, band_data)
 
     # Constant to convert from AU to the desired unit
     to_unit = ustrip(auconvert(unit, 1.0))
 
-    markerargs = ()
-    if !(:markersize in keys(kwargs)) && !(:markershape in keys(kwargs))
-        if length(krange_spin(band_data.basis, 1)) < 70
-            markerargs = (markersize=2, markershape=:circle)
+    # Plot all bands, spins and errors
+    p = Plots.plot(xlabel="wave vector")
+    margs = length(kpath) < 70 ? (; markersize=2, markershape=:circle) : (; )
+    for σ in 1:data.n_spin, iband = 1:data.n_bands, branch in data.kbranches
+        yerror = nothing
+        if hasproperty(data, :λerror)
+            yerror = data.λerror[:, iband, σ][branch] .* to_unit
         end
+        energies = (data.λ[:, iband, σ][branch] .- eshift) .* to_unit
+        Plots.plot!(p, data.kdistances[branch], energies;
+                    label="", yerror, color=(:blue, :red)[σ], margs..., kwargs...)
     end
 
-    # For each branch, plot all bands, spins and errors
-    p = Plots.plot(xlabel="wave vector")
-    for branch in data.branches
-        for σ in 1:data.n_spin, iband = 1:data.n_bands
-            yerror = nothing
-            if hasproperty(branch, :λerror)
-                yerror = branch.λerror[:, iband, σ] .* to_unit
-            end
-            energies = (branch.λ[:, iband, σ] .- eshift) .* to_unit
-            color = (:blue, :red)[σ]
-            Plots.plot!(p, branch.kdistances, energies; color, label="",
-                        yerror, markerargs..., kwargs...)
-        end
+    # Delimiter for branches
+    for branch in data.kbranches[1:end-1]
+        Plots.vline!(p, [data.kdistances[last(branch)]], color=:black, label="")
     end
 
     # X-range: 0 to last kdistance value
-    Plots.xlims!(p, (0, data.branches[end].kdistances[end]))
+    Plots.xlims!(p, (0, data.kdistances[end]))
     Plots.xticks!(p, data.ticks.distances, data.ticks.labels)
+    if !isnothing(εF)
+        Plots.hline!(p, [0.0], label="εF", color=:green, lw=1.5)
+    end
 
-    ylims = [-0.147, 0.147]
-    !isnothing(εF) && is_metal(band_data, εF) && (ylims = [-0.367, 0.367])
-    ylims = round.(ylims .* to_unit, sigdigits=2)
+    ylims = to_unit .* (default_band_εrange(band_data.λ; εF) .- eshift)
+    Plots.ylims!(p, round.(ylims, sigdigits=2)...)
     if isnothing(εF)
         Plots.ylabel!(p, "eigenvalues  ($(string(unit)))")
     else
         Plots.ylabel!(p, "eigenvalues - ε_f  ($(string(unit)))")
-        Plots.ylims!(p, ylims...)
     end
 
     p
 end
 
-
-function plot_dos(basis, eigenvalues; εF=nothing, kwargs...)
+function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
+                  εrange=default_band_εrange(eigenvalues; εF), n_points=1000, kwargs...)
     n_spin = basis.model.n_spin_components
-    εs = range(minimum(minimum(eigenvalues)) - .5,
-               maximum(maximum(eigenvalues)) + .5, length=1000)
+    eshift = something(εF, 0.0)
+    εs = range(austrip.(εrange)..., length=n_points)
 
-    p = Plots.plot(;kwargs...)
+    # Constant to convert from AU to the desired unit
+    to_unit = ustrip(auconvert(unit, 1.0))
+
+    p = Plots.plot(; kwargs...)
     spinlabels = spin_components(basis.model)
     colors = [:blue, :red]
     Dεs = compute_dos.(εs, Ref(basis), Ref(eigenvalues))
     for σ in 1:n_spin
         D = [Dσ[σ] for Dσ in Dεs]
         label = n_spin > 1 ? "DOS $(spinlabels[σ]) spin" : "DOS"
-        Plots.plot!(p, εs, D, label=label, color=colors[σ])
+        Plots.plot!(p, (εs .- eshift) .* to_unit, D; label, color=colors[σ])
     end
     if !isnothing(εF)
-        Plots.vline!(p, [εF], label="εF", color=:green, lw=1.5)
+        Plots.vline!(p, [0.0], label="εF", color=:green, lw=1.5)
+    end
+
+    if isnothing(εF)
+        Plots.xlabel!(p, "eigenvalues  ($(string(unit)))")
+    else
+        Plots.xlabel!(p, "eigenvalues -ε_F  ($(string(unit)))")
     end
     p
 end
-plot_dos(scfres; kwargs...) = plot_dos(scfres.basis, scfres.eigenvalues; εF=scfres.εF, kwargs...)
+plot_dos(scfres; kwargs...) = plot_dos(scfres.basis, scfres.eigenvalues; scfres.εF, kwargs...)

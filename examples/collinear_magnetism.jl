@@ -15,7 +15,7 @@ lattice = a / 2 * [[-1  1  1];
                    [ 1 -1  1];
                    [ 1  1 -1]]
 atoms     = [ElementPsp(:Fe, psp=load_psp("hgh/lda/Fe-q8.hgh"))]
-positions = [zeros(3)]
+positions = [zeros(3)];
 
 # To get the ground-state energy we use an LDA model and rather moderate
 # discretisation parameters.
@@ -25,7 +25,7 @@ Ecut = 15          # kinetic energy cutoff in Hartree
 model_nospin = model_LDA(lattice, atoms, positions, temperature=0.01)
 basis_nospin = PlaneWaveBasis(model_nospin; kgrid, Ecut)
 
-scfres_nospin = self_consistent_field(basis_nospin; tol=1e-6, mixing=KerkerDosMixing());
+scfres_nospin = self_consistent_field(basis_nospin; tol=1e-4, mixing=KerkerDosMixing());
 #-
 scfres_nospin.energies
 
@@ -59,7 +59,7 @@ magnetic_moments = [4];
 model = model_LDA(lattice, atoms, positions; magnetic_moments, temperature=0.01)
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 ρ0 = guess_density(basis, magnetic_moments)
-scfres = self_consistent_field(basis, tol=1e-6; ρ=ρ0, mixing=KerkerDosMixing());
+scfres = self_consistent_field(basis, tol=1e-4; ρ=ρ0, mixing=KerkerDosMixing());
 #-
 scfres.energies
 
@@ -93,7 +93,7 @@ idown = iup + length(scfres.basis.kpoints) ÷ 2
 @show scfres.eigenvalues[iup][1:7]
 @show scfres.eigenvalues[idown][1:7];
 
-# !!! note "k-points in collinear calculations"
+# !!! note "``k``-points in collinear calculations"
 #     For collinear calculations the `kpoints` field of the `PlaneWaveBasis` object contains
 #     each ``k``-point coordinate twice, once associated with spin-up and once with down-down.
 #     The list first contains all spin-up ``k``-points and then all spin-down ``k``-points,

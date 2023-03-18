@@ -5,8 +5,9 @@ using GenericLinearAlgebra
 include("testcases.jl")
 
 function discretized_hamiltonian(T, testcase)
-    model = model_DFT(Array{T}(testcase.lattice), testcase.atoms,
+    model = model_DFT(testcase.lattice, testcase.atoms,
                       testcase.positions, [:lda_x, :lda_c_vwn])
+    model = convert(Model{T}, model)
 
     # For interval arithmetic to give useful numbers,
     # the fft_size should be a power of 2
@@ -45,14 +46,14 @@ end
 
     model = model_LDA(Matrix{Interval{Float64}}(testcase.lattice),
                       testcase.atoms, testcase.positions)
-    basis = PlaneWaveBasis(model; Ecut=10, kgrid=(1, 1, 1))
+    basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 1, 1))
 
+    fermialg = DFTK.default_fermialg(basis.model)
     eigenvalues = [[-0.17268859, 0.26999098, 0.2699912, 0.2699914, 0.35897297, 0.3589743],
                    [-0.08567941, 0.00889772, 0.2246137, 0.2246138, 0.31941655, 0.3870046]]
-    occupations, εF = DFTK.compute_occupation(basis, Vector{Interval{Float64}}.(eigenvalues);
-                                              occupation_threshold=1e-7)
+    evals_inter = Vector{Interval{Float64}}.(eigenvalues)
+    occupations, εF = DFTK.compute_occupation(basis, evals_inter, fermialg)
 
-
-    @test mid.(εF) ≈ 0.2246137 atol=1e-6
-    @test mid.(sum(sum, occupations)) ≈ 8.0
+    @test mid(εF) ≈ (eigenvalues[1][4] + eigenvalues[2][5]) / 2 atol=1e-6
+    @test mid(sum(DFTK.weighted_ksum(basis, occupations))) ≈ 8.0
 end

@@ -29,7 +29,8 @@ atoms     = [C, C]
 positions = [[0.0, 0.0, 0.0], [1//3, 2//3, 0.0]]
 model  = model_PBE(lattice, atoms, positions)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[5, 5, 1])
-scfres = self_consistent_field(basis; n_bands=15, tol=1e-8);
+nbandsalg = AdaptiveBands(basis.model; n_bands_converge=15)
+scfres = self_consistent_field(basis; nbandsalg, tol=1e-5);
 
 # Plot bandstructure of the system
 
@@ -67,5 +68,5 @@ run_wannier90(scfres;
 # As can be observed standard optional arguments for the disentanglement
 # can be passed directly to `run_wannier90` as keyword arguments.
 
-# delete temporary files:
+# (Delete temporary files.)
 rm("wannier", recursive=true)

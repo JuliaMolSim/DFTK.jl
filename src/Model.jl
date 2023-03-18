@@ -21,8 +21,10 @@ struct Model{T <: Real, VT <: Real}
     unit_cell_volume::T
     recip_cell_volume::T
 
-    # Electrons, occupation and smearing function
-    n_electrons::Int  # usually consistent with `atoms` field, but doesn't have to
+    # Computations can be performed at fixed `n_electrons` (`n_electrons` Int, `εF` nothing),
+    # or fixed Fermi level (expert option, `n_electrons` nothing, `εF` T)
+    n_electrons::Union{Int, Nothing}
+    εF::Union{T, Nothing}
 
     # spin_polarization values:
     #     :none       No spin polarization, αα and ββ density identical,
@@ -94,28 +96,44 @@ function Model(lattice::AbstractMatrix{T},
                atoms::Vector{<:Element}=Element[],
                positions::Vector{<:AbstractVector}=Vec3{T}[];
                model_name="custom",
-               n_electrons::Int=sum(n_elec_valence, atoms; init=0),
+               εF=nothing,
+               n_electrons::Union{Int,Nothing}=isnothing(εF) ?
+                                               n_electrons_from_atoms(atoms) : nothing,
+               # Force electrostatics with non-neutral cells; results not guaranteed.
+               # Set to `true` by default for charged systems.
+               disable_electrostatics_check=all(iszero, charge_ionic.(atoms)),
                magnetic_moments=T[],
                terms=[Kinetic()],
                temperature=zero(T),
-               smearing=nothing,
+               smearing=temperature > 0 ? Smearing.FermiDirac() : Smearing.None(),
                spin_polarization=default_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
                ) where {T <: Real}
-    lattice = Mat3{T}(lattice)
-    temperature = T(austrip(temperature))
+    # Validate εF and n_electrons
+    if !isnothing(εF)  # fixed Fermi level
+        if !isnothing(n_electrons)
+            error("Cannot have both a given `n_electrons` and a fixed Fermi level `εF`.")
+        end
+        if !disable_electrostatics_check
+            error("Coulomb electrostatics is incompatible with fixed Fermi level.")
+        end
+    else  # fixed number of electrons
+        n_electrons < 0 && error("n_electrons should be non-negative.")
+        if !disable_electrostatics_check && n_electrons_from_atoms(atoms) != n_electrons
+            error("Support for non-neutral cells is experimental and likely broken.")
+        end
+    end
 
-    # Atoms and electrons
+    # Atoms and terms
     if length(atoms) != length(positions)
         error("Length of atoms and positions vectors need to agree.")
     end
-    n_electrons < 0 && error("n_electrons should be non-negative. Ensure to provide a " *
-                             "non-empty atoms list or an appropriate `n_electrons` kwarg.")
     isempty(terms) && error("Model without terms not supported.")
     atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
 
     # Special handling of 1D and 2D systems, and sanity checks
+    lattice = Mat3{T}(lattice)
     n_dim = count(!iszero, eachcol(lattice))
     n_dim > 0 || error("Check your lattice; we do not do 0D systems")
     for i = n_dim+1:3
@@ -141,11 +159,8 @@ function Model(lattice::AbstractMatrix{T},
     )
     n_spin = length(spin_components(spin_polarization))
 
-    if isnothing(smearing)
-        @assert temperature >= 0
-        # Default to Fermi-Dirac smearing when finite temperature
-        smearing = temperature > 0.0 ? Smearing.FermiDirac() : Smearing.None()
-    end
+    temperature = T(austrip(temperature))
+    temperature < 0 && error("temperature must be non-negative")
 
     if !allunique(string.(nameof.(typeof.(terms))))
         error("Having several terms of the same name is not supported.")
@@ -163,7 +178,7 @@ function Model(lattice::AbstractMatrix{T},
     Model{T,value_type(T)}(model_name,
                            lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
                            unit_cell_volume, recip_cell_volume,
-                           n_electrons, spin_polarization, n_spin, T(temperature), smearing,
+                           n_electrons, εF, spin_polarization, n_spin, temperature, smearing,
                            atoms, positions, atom_groups, terms, symmetries)
 end
 function Model(lattice::AbstractMatrix{<:Integer}, atoms::Vector{<:Element},
@@ -175,13 +190,67 @@ function Model(lattice::AbstractMatrix{<:Quantity}, atoms::Vector{<:Element},
     Model(austrip.(lattice), atoms, positions; kwargs...)
 end
 
+
+"""
+    Model(system::AbstractSystem; kwargs...)
+
+AtomsBase-compatible Model constructor. Sets structural information (`atoms`, `positions`,
+`lattice`, `n_electrons` etc.) from the passed `system`.
+"""
+function Model(system::AbstractSystem; kwargs...)
+    @assert !(:magnetic_moments in keys(kwargs))
+    parsed = parse_system(system)
+    Model(parsed.lattice, parsed.atoms, parsed.positions; parsed.magnetic_moments, kwargs...)
+end
+
+"""
+    Model(model; [lattice, positions, atoms, kwargs...])
+    Model{T}(model; [lattice, positions, atoms, kwargs...])
+
+Construct an identical model to `model` with the option to change some of the contained
+parameters. This constructor is useful for changing the data type in the model
+or for changing `lattice` or `positions` in geometry/lattice optimisations.
+"""
+function Model{T}(model::Model;
+                  lattice::AbstractMatrix=model.lattice,
+                  positions::Vector{<:AbstractVector}=model.positions,
+                  atoms::Vector{<:Element}=model.atoms,
+                  kwargs...) where {T <: Real}
+    Model(T.(lattice), atoms, positions;
+          model.model_name,
+          model.n_electrons,
+          magnetic_moments=[],  # not used because symmetries explicitly given
+          terms=model.term_types,
+          model.temperature,
+          model.smearing,
+          model.εF,
+          model.spin_polarization,
+          model.symmetries,
+          # Can be safely disabled: this has been checked for model
+          disable_electrostatics_check=true,
+          kwargs...
+    )
+end
+function Model(model::Model{T};
+               lattice::AbstractMatrix{U}=model.lattice,
+               positions::Vector{<:AbstractVector}=model.positions,
+               kwargs...) where {T, U}
+    TT = promote_type(T, U, eltype(positions[1]))
+    Model{TT}(model; lattice, positions, kwargs...)
+end
+
+Base.convert(::Type{Model{T}}, model::Model{T}) where {T}    = model
+Base.convert(::Type{Model{U}}, model::Model{T}) where {T, U} = Model{U}(model)
+
 normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
 normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)
 normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm
 
+"""Number of valence electrons."""
+n_electrons_from_atoms(atoms) = sum(n_elec_valence, atoms; init=0)
 
 """
-:none if no element has a magnetic moment, else :collinear or :full
+`:none` if no element has a magnetic moment, else `:collinear` or `:full`.
 """
 function default_spin_polarization(magnetic_moments)
     isempty(magnetic_moments) && return :none
@@ -244,7 +313,6 @@ function spin_components(spin_polarization::Symbol)
 end
 spin_components(model::Model) = spin_components(model.spin_polarization)
 
-
 # prevent broadcast
 import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(model::Model) = Ref(model)
@@ -263,13 +331,25 @@ Examples of covectors are forces.
 Reciprocal vectors are a special case: they are covectors, but conventionally have an
 additional factor of 2π in their definition, so they transform rather with 2π times the
 inverse lattice transpose: q_cart = 2π lattice' \ q_red = recip_lattice * q_red.
+
+For each of the function there is a one-argument version (returning a function to do the
+transformation) and a two-argument version applying the transformation to a passed vector.
 =#
-vector_red_to_cart(model::Model, rred)        = model.lattice * rred
-vector_cart_to_red(model::Model, rcart)       = model.inv_lattice * rcart
-covector_red_to_cart(model::Model, fred)      = model.inv_lattice' * fred
-covector_cart_to_red(model::Model, fcart)     = model.lattice' * fcart
-recip_vector_red_to_cart(model::Model, qred)  = model.recip_lattice * qred
-recip_vector_cart_to_red(model::Model, qcart) = model.inv_recip_lattice * qcart
+@inline _gen_matmul(mat) = vec -> mat * vec
+
+vector_red_to_cart(model::Model)       = _gen_matmul(model.lattice)
+vector_cart_to_red(model::Model)       = _gen_matmul(model.inv_lattice)
+covector_red_to_cart(model::Model)     = _gen_matmul(model.inv_lattice')
+covector_cart_to_red(model::Model)     = _gen_matmul(model.lattice')
+recip_vector_red_to_cart(model::Model) = _gen_matmul(model.recip_lattice)
+recip_vector_cart_to_red(model::Model) = _gen_matmul(model.inv_recip_lattice)
+
+vector_red_to_cart(model::Model, vec)       = vector_red_to_cart(model)(vec)
+vector_cart_to_red(model::Model, vec)       = vector_cart_to_red(model)(vec)
+covector_red_to_cart(model::Model, vec)     = covector_red_to_cart(model)(vec)
+covector_cart_to_red(model::Model, vec)     = covector_cart_to_red(model)(vec)
+recip_vector_red_to_cart(model::Model, vec) = recip_vector_red_to_cart(model)(vec)
+recip_vector_cart_to_red(model::Model, vec) = recip_vector_cart_to_red(model)(vec)
 
 #=
 Transformations on vectors and covectors are matrices and comatrices.
@@ -284,7 +364,14 @@ s_cart = L s_red = L A_red r_red = L A_red L⁻¹ r_cart, thus A_cart = L A_red 
 Examples of matrices are the symmetries in real space (W)
 Examples of comatrices are the symmetries in reciprocal space (S)
 =#
-matrix_red_to_cart(model::Model, Ared)    = model.lattice * Ared * model.inv_lattice
-matrix_cart_to_red(model::Model, Acart)   = model.inv_lattice * Acart * model.lattice
-comatrix_red_to_cart(model::Model, Bred)  = model.inv_lattice' * Bred * model.lattice'
-comatrix_cart_to_red(model::Model, Bcart) = model.lattice' * Bcart * model.inv_lattice'
+@inline _gen_matmatmul(M, Minv) = mat -> M * mat * Minv
+
+matrix_red_to_cart(model::Model)   = _gen_matmatmul(model.lattice,      model.inv_lattice)
+matrix_cart_to_red(model::Model)   = _gen_matmatmul(model.inv_lattice,  model.lattice)
+comatrix_red_to_cart(model::Model) = _gen_matmatmul(model.inv_lattice', model.lattice')
+comatrix_cart_to_red(model::Model) = _gen_matmatmul(model.lattice',     model.inv_lattice')
+
+matrix_red_to_cart(model::Model, Ared)    = matrix_red_to_cart(model)(Ared)
+matrix_cart_to_red(model::Model, Acart)   = matrix_cart_to_red(model)(Acart)
+comatrix_red_to_cart(model::Model, Bred)  = comatrix_red_to_cart(model)(Bred)
+comatrix_cart_to_red(model::Model, Bcart) = comatrix_cart_to_red(model)(Bcart)

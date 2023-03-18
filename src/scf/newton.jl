@@ -51,7 +51,7 @@ using IterativeSolvers
 #  to the ψ.
 function compute_projected_gradient(basis::PlaneWaveBasis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
-    _, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+    H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
 
     [proj_tangent_kpt(H.blocks[ik] * ψk, ψk) for (ik, ψk) in enumerate(ψ)]
 end
@@ -72,22 +72,22 @@ end
 
 
 """
-    newton(basis::PlaneWaveBasis{T}; ψ0=nothing,
-           tol=1e-6, tol_=1e-10, maxiter=20, verbose=false,
-           callback=NewtonDefaultCallback(),
-           is_converged=NewtonConvergenceDensity(tol))
+    newton(basis::PlaneWaveBasis{T}, ψ0;
+           tol=1e-6, tol_cg=tol / 100, maxiter=20, callback=ScfDefaultCallback(),
+           is_converged=ScfConvergenceDensity(tol))
 
 Newton algorithm. Be careful that the starting point needs to be not too far
 from the solution.
 """
 function newton(basis::PlaneWaveBasis{T}, ψ0;
-                tol=1e-6, tol_cg=tol / 100, maxiter=20, verbose=false,
+                tol=1e-6, tol_cg=tol / 100, maxiter=20,
                 callback=ScfDefaultCallback(),
-                is_converged=ScfConvergenceDensity(tol)) where T
+                is_converged=ScfConvergenceDensity(tol)) where {T}
 
     # setting parameters
     model = basis.model
-    @assert model.temperature == 0 # temperature is not yet supported
+    @assert iszero(model.temperature)  # temperature is not yet supported
+    @assert isnothing(model.εF)        # neither are computations with fixed Fermi level
 
     # check that there are no virtual orbitals
     filled_occ = filled_occupation(model)
@@ -105,7 +105,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     # orbitals, densities and energies to be updated along the iterations
     ψ = deepcopy(ψ0)
     ρ = compute_density(basis, ψ, occupation)
-    energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+    energies, H = energy_hamiltonian(basis, ψ, occupation; ρ)
     converged = false
 
     # perform iterations
@@ -115,13 +115,13 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
         # compute Newton step and next iteration
         res = compute_projected_gradient(basis, ψ, occupation)
         # solve (Ω+K) δψ = -res so that the Newton step is ψ <- ψ + δψ
-        δψ = solve_ΩplusK(basis, ψ, -res, occupation; tol=tol_cg, verbose).δψ
+        δψ = solve_ΩplusK(basis, ψ, -res, occupation; tol=tol_cg).δψ
         ψ  = [ortho_qr(ψ[ik] + δψ[ik]) for ik in 1:Nk]
 
         ρ_next = compute_density(basis, ψ, occupation)
         energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ_next)
-        info = (ham=H, basis=basis, converged=converged, stage=:iterate,
-                ρin=ρ, ρout=ρ_next, n_iter=n_iter, energies=energies, algorithm="Newton")
+        info = (; ham=H, basis, converged, stage=:iterate, ρin=ρ, ρout=ρ_next, n_iter,
+                energies, algorithm="Newton")
         callback(info)
 
         # update and test convergence
@@ -143,9 +143,8 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
     # return results and call callback one last time with final state for clean
     # up
-    info = (ham=H, basis=basis, energies=energies, converged=converged,
-            ρ=ρ, eigenvalues=eigenvalues, occupation=occupation, εF=εF,
-            n_iter=n_iter, ψ=ψ, stage=:finalize, algorithm="Newton")
+    info = (; ham=H, basis, energies, converged, ρ, eigenvalues, occupation, εF, n_iter, ψ,
+            stage=:finalize, algorithm="Newton")
     callback(info)
     info
 end

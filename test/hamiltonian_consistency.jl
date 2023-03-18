@@ -31,7 +31,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         n_dim = 3 - count(iszero, eachcol(lattice))
         Si = n_dim == 3 ? ElementPsp(14, psp=load_psp(silicon.psp)) : ElementCoulomb(:Si)
         atoms = [Si, Si]
-        model = Model(lattice, atoms, silicon.positions; n_electrons=silicon.n_electrons,
+        model = Model(lattice, atoms, silicon.positions;
                       terms=[term], spin_polarization, symmetries=true)
         basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
 
@@ -47,7 +47,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         ρ = with_logger(NullLogger()) do
             compute_density(basis, ψ, occupation)
         end
-        E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+        E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ)
 
         @assert length(basis.terms) == 1
 
@@ -57,7 +57,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
             ρ_trial = with_logger(NullLogger()) do
                 compute_density(basis, ψ_trial, occupation)
             end
-            E, _ = energy_hamiltonian(basis, ψ_trial, occupation; ρ=ρ_trial)
+            E = energy_hamiltonian(basis, ψ_trial, occupation; ρ=ρ_trial).energies
             E.total
         end
 
@@ -66,7 +66,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         diff_predicted = 0.0
         for ik in 1:length(basis.kpoints)
             Hψk = ham.blocks[ik]*ψ[ik]
-            test_matrix_repr_operator(ham.blocks[ik], ψ[ik]; atol=atol)
+            test_matrix_repr_operator(ham.blocks[ik], ψ[ik]; atol)
             δψkHψk = sum(occupation[ik][iband] * real(dot(δψ[ik][:, iband], Hψk[:, iband]))
                        for iband=1:n_bands)
             diff_predicted += 2 * basis.kweights[ik] * δψkHψk
@@ -83,7 +83,7 @@ end
     test_consistency_term(AtomicLocal())
     test_consistency_term(AtomicNonlocal())
     test_consistency_term(ExternalFromReal(X -> cos(X[1])))
-    test_consistency_term(ExternalFromFourier(X -> randn()))
+    test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
     test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
     test_consistency_term(Hartree())
     test_consistency_term(Ewald())

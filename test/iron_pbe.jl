@@ -50,8 +50,9 @@ function run_iron_pbe(T; kwargs...)
     Fe = ElementPsp(iron_bcc.atnum, psp=load_psp("hgh/lda/Fe-q8.hgh"))
     atoms, positions = [Fe], [zeros(3)]
     magnetic_moments = [4.0]
-    model = model_PBE(Array{T}(iron_bcc.lattice), iron_bcc.atoms, iron_bcc.positions;
+    model = model_PBE(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;
                       temperature=0.01, magnetic_moments)
+    model = convert(Model{T}, model)
     basis = PlaneWaveBasis(model; Ecut=20, fft_size=[20, 20, 20],
                            kgrid=[4, 4, 4], kshift=[1/2, 1/2, 1/2])
 

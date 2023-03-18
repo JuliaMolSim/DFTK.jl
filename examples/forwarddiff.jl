@@ -1,7 +1,7 @@
 # # Polarizability using automatic differentiation
 #
 # Simple example for computing properties using (forward-mode)
-# automatic differentation.
+# automatic differentiation.
 # For a more classical approach and more details about computing polarizabilities,
 # see [Polarizability by linear response](@ref).
 
@@ -11,7 +11,7 @@ using ForwardDiff
 
 ## Construct PlaneWaveBasis given a particular electric field strength
 ## Again we take the example of a Helium atom.
-function make_basis(ε::T; a=10., Ecut=30) where T
+function make_basis(ε::T; a=10., Ecut=30) where {T}
     lattice=T(a) * I(3)  # lattice is a cube of ``a`` Bohrs
     ## Helium at the center of the box
     atoms     = [ElementPsp(:He, psp=load_psp("hgh/lda/He-q2"))]
@@ -33,7 +33,7 @@ end
 
 ## Function to compute the dipole for a given field strength
 function compute_dipole(ε; tol=1e-8, kwargs...)
-    scfres = self_consistent_field(make_basis(ε; kwargs...), tol=tol)
+    scfres = self_consistent_field(make_basis(ε; kwargs...); tol)
     dipole(scfres.basis, scfres.ρ)
 end;
 

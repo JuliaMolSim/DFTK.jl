@@ -30,7 +30,7 @@ function my_callback(info)
     push!(resids, err)
 end
 my_isconverged = info -> norm(info.ρout - info.ρin) < tol
-opts = (callback=my_callback, is_converged=my_isconverged, maxiter=maxiter, tol=tol,
+opts = (; callback=my_callback, is_converged=my_isconverged, maxiter, tol,
         determine_diagtol=info -> diagtol)
 
 global errs = []

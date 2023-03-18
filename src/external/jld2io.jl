@@ -1,4 +1,3 @@
-
 function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2"; keep=false, overwrite=false)
     # TODO Save only every 30 minutes or so
     function callback(info)
@@ -84,10 +83,16 @@ struct PlaneWaveBasisSerialisation{T <: Real}
     kshift::Union{Nothing,Vec3{T}}
     symmetries_respect_rgrid::Bool
     fft_size::Tuple{Int, Int, Int}
+    architecture::AbstractArchitecture
 end
-JLD2.writeas(::Type{PlaneWaveBasis{T,T}}) where {T} = PlaneWaveBasisSerialisation{T}
+function JLD2.writeas(::Type{PlaneWaveBasis{T,T,GT,RT,KGT}}) where {T,GT,RT,KGT}
+    # The GT, GT, KGT are uniquely determined by the architecture,
+    # which is stored in the basis.
+    PlaneWaveBasisSerialisation{T}
+end
 
-function Base.convert(::Type{PlaneWaveBasisSerialisation{T}}, basis::PlaneWaveBasis{T,T}) where {T}
+function Base.convert(::Type{PlaneWaveBasisSerialisation{T}},
+                      basis::PlaneWaveBasis{T,T}) where {T}
     PlaneWaveBasisSerialisation{T}(
         basis.model,
         basis.Ecut,
@@ -98,12 +103,17 @@ function Base.convert(::Type{PlaneWaveBasisSerialisation{T}}, basis::PlaneWaveBa
         basis.kshift,
         basis.symmetries_respect_rgrid,
         basis.fft_size,
+        basis.architecture
     )
 end
 
-function Base.convert(::Type{PlaneWaveBasis{T,T}}, serial::PlaneWaveBasisSerialisation{T}) where {T}
-    PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords,
-                   serial.kweights; serial.fft_size,
-                   serial.kgrid, serial.kshift, serial.symmetries_respect_rgrid,
-                   serial.variational)
+function Base.convert(::Type{PlaneWaveBasis{T,T,GT,RT,KGT}},
+                      serial::PlaneWaveBasisSerialisation{T}) where {T,GT,RT,KGT}
+    PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords, serial.kweights;
+                   serial.fft_size,
+                   serial.kgrid,
+                   serial.kshift,
+                   serial.symmetries_respect_rgrid,
+                   serial.variational,
+                   architecture=serial.architecture)
 end

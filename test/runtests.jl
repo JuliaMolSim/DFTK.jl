@@ -12,14 +12,21 @@ using Random
 # runs all tests plus the "example" tests.
 #
 
-# By default run expensive tests, but not if in CI environment
-# If user supplies the "fast" tag
-const FAST_TESTS = ifelse("CI" in keys(ENV), parse(Bool, get(ENV, "CI", "false")),
-                          "fast" in ARGS)
+const DFTK_TEST_ARGS = let
+    if "DFTK_TEST_ARGS" in keys(ENV)
+        append!(split(ENV["DFTK_TEST_ARGS"], ","), ARGS)
+    else
+        ARGS
+    end
+end
 
-# Tags supplied by the user ... filter out "fast" (already dealt with)
-TAGS = filter(e -> !(e in ["fast"]), ARGS)
-isempty(TAGS) && (TAGS = ["all"])
+const FAST_TESTS = "fast" in DFTK_TEST_ARGS
+const TAGS = let
+    # Tags supplied by the user.
+    # Replace "fast" with "all": the notice for quick checks has been dealt with above.
+    tags = replace(e -> e == "fast" ? "all" : e, DFTK_TEST_ARGS)
+    isempty(tags) ? ["all"] : tags
+end
 
 if FAST_TESTS
     println("   Running fast tests (TAGS = $(join(TAGS, ", "))).")
@@ -35,6 +42,10 @@ Random.seed!(0)
 
 # Wrap in an outer testset to get a full report if one test fails
 @testset "DFTK.jl" begin
+    if "gpu" in TAGS
+        include("gpu.jl")
+    end
+
     # Super quick tests
     if "all" in TAGS || "quick" in TAGS
         include("helium_all_electron.jl")
@@ -54,6 +65,12 @@ Random.seed!(0)
         include("external_potential.jl")
     end
 
+    if "all" in TAGS || "psp" in TAGS
+        include("list_psp.jl")
+        include("PspHgh.jl")
+        include("PspUpf.jl")
+    end
+
     if "all" in TAGS
         include("split_evenly.jl")
         include("compute_fft_size.jl")
@@ -61,18 +78,16 @@ Random.seed!(0)
         include("PlaneWaveBasis.jl")
         include("Model.jl")
         include("interpolation.jl")
-        include("list_psp.jl")
-        include("PspHgh.jl")
+        include("transfer.jl")
         include("elements.jl")
         include("bzmesh.jl")
         include("bzmesh_symmetry.jl")
+        include("supercell.jl")
     end
 
     if "all" in TAGS
-        include("external/ase.jl")
         include("external/atomsbase.jl")
         include("external/interatomicpotentials.jl")
-        include("external/pymatgen.jl")
         include("external/spglib.jl")
         include("external/wannier90.jl")
     end
@@ -107,11 +122,13 @@ Random.seed!(0)
         include("variational.jl")
         include("compute_bands.jl")
         include("random_spindensity.jl")
+        include("cg.jl")
         include("chi0.jl")
         include("kernel.jl")
         include("serialisation.jl")
         include("compute_jacobian_eigen.jl")
         include("printing.jl")
+        include("energy_cutoff_smearing.jl")
     end
 
     if "all" in TAGS && mpi_master()
@@ -122,11 +139,7 @@ Random.seed!(0)
     if "all" in TAGS && mpi_nprocs() == 1
         include("hessian.jl")
         include("forwarddiff.jl")
-    end
-
-    # Phonons
-    if "all" in TAGS
-        include("phonons.jl")
+        include("phonon.jl")
     end
 
     ("example" in TAGS) && include("runexamples.jl")

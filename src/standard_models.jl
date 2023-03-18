@@ -9,9 +9,9 @@ Use `extra_terms` to add additional terms.
 function model_atomic(lattice::AbstractMatrix,
                       atoms::Vector{<:Element},
                       positions::Vector{<:AbstractVector};
-                      extra_terms=[], kwargs...)
+                      extra_terms=[], kinetic_blowup=BlowupIdentity(), kwargs...)
     @assert !(:terms in keys(kwargs))
-    terms = [Kinetic(),
+    terms = [Kinetic(; blowup=kinetic_blowup),
              AtomicLocal(),
              AtomicNonlocal(),
              Ewald(),
@@ -46,7 +46,8 @@ end
 
 
 """
-Build an LDA model (Teter93 parametrization) from the specified atoms.
+Build an LDA model (Perdew & Wang parametrization) from the specified atoms.
+DOI:10.1103/PhysRevB.45.13244
 """
 function model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector}; kwargs...)
@@ -73,6 +74,7 @@ function model_SCAN(lattice::AbstractMatrix, atoms::Vector{<:Element},
     model_DFT(lattice, atoms, positions, [:mgga_x_scan, :mgga_c_scan]; kwargs...)
 end
 
+
 """
 Build an PBE0 model from the specified atoms.
 DOI:10.1103/PhysRevLett.77.3865
@@ -82,4 +84,15 @@ function model_PBE0(lattice::AbstractMatrix, atoms::Vector{<:Element},
     functional = DispatchFunctional(:hyb_gga_xc_pbeh)
     model_DFT(lattice, atoms, positions, Xc([functional]), 
     extra_terms = [ExactExchange(; scaling_factor=0.25)]; kwargs...)
+end
+
+
+# Generate equivalent functions for AtomsBase
+for fun in (:model_atomic, :model_DFT, :model_LDA, :model_PBE, :model_SCAN, :model_PBE0)
+    @eval function $fun(system::AbstractSystem, args...; kwargs...)
+        @assert !(:magnetic_moments in keys(kwargs))
+        parsed = parse_system(system)
+        $fun(parsed.lattice, parsed.atoms, parsed.positions, args...;
+             parsed.magnetic_moments, kwargs...)
+    end
 end
