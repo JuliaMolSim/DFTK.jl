@@ -32,7 +32,7 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     if any(a -> a.use_nlcc, basis.model.atoms)
         ρcore = ρ_from_total(basis, atomic_total_density(basis, CoreDensity()))
     else
-        ρcore = 0
+        ρcore = ρ_from_total(basis, zeros(T, basis.fft_size))
     end
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
@@ -48,7 +48,7 @@ struct TermXc{T} <: TermNonlinear where {T}
     functionals::Vector{Functional}
     scaling_factor::T
     potential_threshold::T
-    ρcore::Union{Nothing, Array{T,4}}
+    ρcore::Array{T,4}
 end
 
 function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
