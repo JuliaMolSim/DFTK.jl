@@ -63,6 +63,6 @@ include("testcases.jl")
     lattice = a / 2 * [[0 1 1.1];
                        [1 0 1.];
                        [1 1 0.]]
-    test_stresses(lattice, ElementPsp(silicon.atnum, :Si, load_psp(silicon.psp_hgh)))
-    test_stresses(lattice, ElementPsp(silicon.atnum, :Si, load_psp(silicon.psp_upf)))
+    test_stresses(lattice, ElementPsp(silicon.atnum, :Si, silicon.psp_hgh))
+    test_stresses(lattice, ElementPsp(silicon.atnum, :Si, silicon.psp_upf))
 end

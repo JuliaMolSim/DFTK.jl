@@ -4,8 +4,8 @@ using Test
 
 @testset "spglib" begin
     a = 10.3
-    Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-    Ge = ElementPsp(:Ge, psp=load_psp("hgh/lda/Ge-q4"))
+    Si = ElementPsp(:Si, psp=PseudoPotentialIO.load_psp("hgh_lda_hgh", "si-q4.hgh"))
+    Ge = ElementPsp(:Ge, psp=PseudoPotentialIO.load_psp("hgh_lda_hgh", "ge-q4.hgh"))
 
     # silicon
     lattice = a / 2 * [[0 1 1.]; [1 0 1.]; [1 1 0.]]

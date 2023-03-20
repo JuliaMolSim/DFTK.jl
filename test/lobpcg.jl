@@ -56,7 +56,7 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
         Ecut = 25
         fft_size = [33, 33, 33]
 
-        Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
+        Si = ElementPsp(silicon.atnum, psp=PseudoPotentialIO.load_psp("hgh_lda_hgh", "si-q4.hgh"))
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       terms=[Kinetic(),AtomicLocal()])
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
@@ -84,7 +84,7 @@ end
     Ecut = 10
     fft_size = [21, 21, 21]
 
-    Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
+    Si = ElementPsp(silicon.atnum, psp=PseudoPotentialIO.load_psp("hgh_lda_hgh", "si-q4.hgh"))
     model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                   terms=[Kinetic(), AtomicLocal(), AtomicNonlocal()])
 
@@ -110,7 +110,7 @@ end
 @testset "Full diagonalization of a LDA Hamiltonian" begin
     Ecut = 2
 
-    Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
+    Si = ElementPsp(silicon.atnum, psp=PseudoPotentialIO.load_psp("hgh_lda_hgh", "si-q4.hgh"))
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, :lda_xc_teter93)
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights)
     ham = Hamiltonian(basis; ρ=guess_density(basis))

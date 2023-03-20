@@ -179,22 +179,22 @@ end
 
 function atomic_density(element::Element, Gnorm::T,
                         ::ValenceDensityGaussian)::T where {T <: Real}
-    gaussian_valence_charge_density_fourier(element, Gnorm)
+    gaussian_valence_charge_density_fourier(element)(Gnorm)
 end
 
 function atomic_density(element::Element, Gnorm::T,
                         ::ValenceDensityPseudo)::T where {T <: Real}
-    eval_psp_density_valence_fourier(element.psp, Gnorm)
+    PseudoPotentialIO.valence_charge_density_fourier(element.psp)(Gnorm)
 end
 
 function atomic_density(element::Element, Gnorm::T,
                         ::ValenceDensityAuto)::T where {T <: Real}
-    valence_charge_density_fourier(element, Gnorm)
+    PseudoPotentialIO.valence_charge_density_fourier(element)(Gnorm)
 end
 
 function atomic_density(element::Element, Gnorm::T,
                         ::CoreDensity)::T where {T <: Real}
-    has_core_density(element) ? core_charge_density_fourier(element, Gnorm) : zero(T)
+    PseudoPotentialIO.has_core_density(element) ? core_charge_density_fourier(element)(Gnorm) : zero(T)
 end
 
 # Get the lengthscale of the valence density for an atom with `n_elec_core` core

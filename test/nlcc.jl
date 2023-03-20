@@ -1,16 +1,16 @@
 using Test
 using DFTK: CoreDensity, atomic_total_density
 using LinearAlgebra
-using LazyArtifacts
+using PseudoPotentialIO
 
 pseudos = Dict(
     # With NLCC
-    :Si => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf"),
-    :Fe => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Fe.upf"),
-    :Ir => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Ir.upf"),
+    :Si => PseudoPotentialIO.load_psp("pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf"),
+    :Fe => PseudoPotentialIO.load_psp("pd_nc_sr_lda_standard_0.4.1_upf", "Fe.upf"),
+    :Ir => PseudoPotentialIO.load_psp("pd_nc_sr_lda_standard_0.4.1_upf", "Ir.upf"),
     # Without NLCC
-    :Li => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
-    :Mg => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf")
+    :Li => PseudoPotentialIO.load_psp("pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
+    :Mg => PseudoPotentialIO.load_psp("pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf")
 )
 
 @testset "Core charge density is positive" begin

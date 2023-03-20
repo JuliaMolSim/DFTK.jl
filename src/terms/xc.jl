@@ -165,7 +165,7 @@ end
     model = basis.model
     form_factors = atomic_density_form_factors(basis, CoreDensity())
     nlcc_groups = [(igroup, group) for (igroup, group) in enumerate(basis.model.atom_groups)
-                   if has_core_density(model.atoms[first(group)])]
+                   if PseudoPotentialIO.has_core_density(model.atoms[first(group)])]
     @assert !isnothing(nlcc_groups)
 
     forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]

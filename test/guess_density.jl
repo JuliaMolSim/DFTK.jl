@@ -11,8 +11,8 @@ include("testcases.jl")
     total_charge(basis, ρ) = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
 
 
-    Si_upf = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp_upf))
-    Si_hgh = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp_hgh))
+    Si_upf = ElementPsp(silicon.atnum, psp=silicon.psp_upf)
+    Si_hgh = ElementPsp(silicon.atnum, psp=silicon.psp_hgh)
     magnetic_moments = [1.0, -1.0]
     methods = [ValenceDensityGaussian(), ValenceDensityPseudo(), ValenceDensityAuto()]
     elements = [[Si_upf, Si_hgh], [Si_upf, Si_upf], [Si_upf, Si_hgh]]

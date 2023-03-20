@@ -2,6 +2,7 @@ using DFTK
 using ForwardDiff
 using Test
 using ComponentArrays
+using OffsetArrays
 
 include("testcases.jl")
 
@@ -59,12 +60,15 @@ end
 
 @testset "scfres PSP sensitivity using ForwardDiff" begin
     function compute_band_energies(ε::T) where {T}
-        psp  = load_psp("hgh/lda/al-q3")
+        psp  = PseudoPotentialIO.load_psp("hgh_lda_hgh", "al-q3.hgh")
+        Zatom = convert(T, psp.Zatom)
+        Zval = convert(T, psp.Zval)
         rloc = convert(T, psp.rloc)
+        rnl = psp.rnl .+ OffsetVector([0, ε], angular_momenta(psp))
 
-        pspmod = PspHgh(psp.Zion, rloc,
-                        psp.cloc, psp.rp .+ [0, ε], psp.h;
-                        psp.identifier, psp.description)
+        pspmod = PseudoPotentialIO.HghPsP(psp.checksum, Zatom, Zval, psp.lmax,
+                                          rloc, psp.cloc, rnl, psp.D)
+
         atoms = fill(ElementPsp(aluminium.atnum, psp=pspmod), length(aluminium.positions))
         model = model_LDA(Matrix{T}(aluminium.lattice), atoms, aluminium.positions,
                           temperature=1e-2, smearing=Smearing.Gaussian())

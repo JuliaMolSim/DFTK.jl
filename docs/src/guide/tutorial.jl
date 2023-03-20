@@ -48,7 +48,7 @@ lattice = a / 2 * [[0 1 1.];  # Silicon lattice vectors
 # [UnitfulAtomic.jl package](https://github.com/sostock/UnitfulAtomic.jl).
 
 ## Load HGH pseudopotential for Silicon
-Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+Si = ElementPsp(:Si, psp=PseudoPotentialIO.load_psp("hgh_lda_hgh", "si-q4.hgh"))
 
 ## Specify type and positions of atoms
 atoms     = [Si, Si]

@@ -276,7 +276,7 @@ plot_bandstructure(basis; n_bands=6, kline_density=100)
 using Plots
 using LinearAlgebra
 nucleus = ElementGaussian(0.3, 10.0)
-plot(r -> DFTK.local_potential_real(nucleus, norm(r)), xlims=(-50, 50))
+plot(r -> DFTK.PseudoPotentialIO.local_potential_real(nucleus, norm(r)), xlims=(-50, 50))
 
 # With this element at hand we can easily construct a setting
 # where two potentials of this form are located at positions

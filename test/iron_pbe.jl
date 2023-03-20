@@ -47,7 +47,7 @@ function run_iron_pbe(T; kwargs...)
     ref_magn = 2.98199463
 
     # Produce reference data and guess for this configuration
-    Fe = ElementPsp(iron_bcc.atnum, psp=load_psp("hgh/lda/Fe-q8.hgh"))
+    Fe = ElementPsp(iron_bcc.atnum, psp=PseudoPotentialIO.load_psp("hgh_lda_hgh", "fe-q8.hgh"))
     atoms, positions = [Fe], [zeros(3)]
     magnetic_moments = [4.0]
     model = model_PBE(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;

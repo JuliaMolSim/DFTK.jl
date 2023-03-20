@@ -16,7 +16,7 @@ include("testcases.jl")
     ref_etot = -7.856498623457256
 
     T = Float64
-    Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/pbe/Si-q4"))
+    Si = ElementPsp(silicon.atnum, psp=PseudoPotentialIO.load_psp("hgh_pbe_hgh", "si-q4.hgh"))
     model = model_SCAN(silicon.lattice, [Si, Si], silicon.positions)
     basis = PlaneWaveBasis(Model{T}(model); Ecut=15, fft_size=(27, 27, 27), kgrid=(3, 3, 3))
     run_scf_and_compare(T, basis, ref_scan, ref_etot; scf_tol=1e-9, test_tol=5e-5, n_ignored=1)
@@ -39,7 +39,7 @@ if !isdefined(Main, :FAST_TESTS)  # Only runs if this file is manually included
         ref_etot = -7.857384389260792
 
         T = Float64
-        Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/pbe/Si-q4"))
+        Si = ElementPsp(silicon.atnum, psp=PseudoPotentialIO.load_psp("hgh_pbe_hgh", "si-q4.hgh"))
         model = model_SCAN(silicon.lattice, [Si, Si], silicon.positions)
         basis = PlaneWaveBasis(Model{T}(model); Ecut=50, fft_size=(48, 48, 48), kgrid=(3, 3, 3))
         run_scf_and_compare(T, basis, ref_scan, ref_etot; test_tol=1e-8, n_ignored=2,

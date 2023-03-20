@@ -7,13 +7,15 @@ using DFTK
 using Optim
 using LinearAlgebra
 using Printf
+using PseudoPotentialIO
+
 
 kgrid = [1, 1, 1]       # k-point grid
 Ecut = 5                # kinetic energy cutoff in Hartree
 tol = 1e-8              # tolerance for the optimization routine
 a = 10                  # lattice constant in Bohr
 lattice = a * I(3)
-H = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1"));
+H = ElementPsp(:H, psp=PseudoPotentialIO.load_psp("hgh_lda_hgh", "h-q1"));
 atoms = [H, H];
 
 # We define a Bloch wave and a density to be used as global variables so that we

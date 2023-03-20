@@ -101,7 +101,7 @@ function Model(lattice::AbstractMatrix{T},
                                                n_electrons_from_atoms(atoms) : nothing,
                # Force electrostatics with non-neutral cells; results not guaranteed.
                # Set to `true` by default for charged systems.
-               disable_electrostatics_check=all(iszero, charge_ionic.(atoms)),
+               disable_electrostatics_check=all(iszero, PseudoPotentialIO.PseudoPotentialIO.valence_charge.(atoms)),
                magnetic_moments=T[],
                terms=[Kinetic()],
                temperature=zero(T),

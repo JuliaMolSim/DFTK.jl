@@ -12,11 +12,12 @@
 using DFTK
 using LinearAlgebra
 using ASEconvert
+using PseudoPotentialIO
 
 function aluminium_setup(repeat=1; Ecut=7.0, kgrid=[2, 2, 2])
     a = 7.65339
     lattice = a * Matrix(I, 3, 3)
-    Al = ElementPsp(:Al, psp=load_psp("hgh/lda/al-q3"))
+    Al = ElementPsp(:Al, psp=PseudoPotentialIO.load_psp("hgh_lda_hgh", "al-q3.hgh"))
     atoms     = [Al, Al, Al, Al]
     positions = [[0.0, 0.0, 0.0], [0.0, 0.5, 0.5], [0.5, 0.0, 0.5], [0.5, 0.5, 0.0]]
     unit_cell = periodic_system(lattice, atoms, positions)

@@ -7,40 +7,40 @@ periodic_table = PeriodicTable.elements
 # Data structure for chemical element and the potential model via which
 # they interact with electrons. A compensating charge background is
 # always assumed. It is assumed that each implementing struct
-# defines at least the functions `local_potential_fourier` and `local_potential_real`.
-# Very likely `charge_nuclear` and `charge_ionic` need to be defined as well.
+# defines at least the functions `PseudoPotentialIO.local_potential_fourier` and `PseudoPotentialIO.local_potential_real`.
+# Very likely `PseudoPotentialIO.atomic_charge` and `PseudoPotentialIO.valence_charge` need to be defined as well.
 abstract type Element end
 
 """Return the total nuclear charge of an atom type"""
-charge_nuclear(::Element) = 0
+PseudoPotentialIO.atomic_charge(::Element) = 0
 
 """Chemical symbol corresponding to an element"""
 AtomsBase.atomic_symbol(::Element) = :X
 # The preceeding functions are fallback implementations that should be altered as needed.
 
 """Return the total ionic charge of an atom type (nuclear charge - core electrons)"""
-charge_ionic(el::Element) = charge_nuclear(el)
+PseudoPotentialIO.valence_charge(el::Element) = PseudoPotentialIO.atomic_charge(el)
 
 """Return the number of valence electrons"""
-n_elec_valence(el::Element) = charge_ionic(el)
+n_elec_valence(el::Element)::Int = PseudoPotentialIO.valence_charge(el)
 
 """Return the number of core electrons"""
-n_elec_core(el::Element) = charge_nuclear(el) - charge_ionic(el)
+n_elec_core(el::Element)::Int = PseudoPotentialIO.atomic_charge(el) - PseudoPotentialIO.valence_charge(el)
 
 """Check presence of model core charge density (non-linear core correction)."""
-has_core_density(::Element) = false
+PseudoPotentialIO.has_core_density(::Element) = false
 
 # Fall back to the Gaussian table for Elements without pseudopotentials
-function valence_charge_density_fourier(el::Element, q::T)::T where {T <: Real}
-    gaussian_valence_charge_density_fourier(el, q)
+function PseudoPotentialIO.valence_charge_density_fourier(el::Element)
+    gaussian_valence_charge_density_fourier(el)
 end
 
 """Gaussian valence charge density using Abinit's coefficient table, in Fourier space."""
-function gaussian_valence_charge_density_fourier(el::Element, q::T)::T where {T <: Real}
-    charge_ionic(el) * exp(-(q * atom_decay_length(el))^2)
+function gaussian_valence_charge_density_fourier(el::Element)
+    q -> PseudoPotentialIO.valence_charge(el) * exp(-(q * atom_decay_length(el))^2)
 end
 
-function core_charge_density_fourier(::Element, ::T)::T where {T <: Real}
+function PseudoPotentialIO.core_charge_density_fourier(::Element)
     error("Abstract elements do not necesesarily provide core charge density.")
 end
 
@@ -52,8 +52,8 @@ struct ElementCoulomb <: Element
     Z::Int  # Nuclear charge
     symbol  # Element symbol
 end
-charge_ionic(el::ElementCoulomb)   = el.Z
-charge_nuclear(el::ElementCoulomb) = el.Z
+PseudoPotentialIO.valence_charge(el::ElementCoulomb) = el.Z
+PseudoPotentialIO.atomic_charge(el::ElementCoulomb) = el.Z
 AtomsBase.atomic_symbol(el::ElementCoulomb) = el.symbol
 
 """
@@ -65,14 +65,17 @@ or an element name (e.g. `"silicon"`)
 ElementCoulomb(key) = ElementCoulomb(periodic_table[key].number, Symbol(periodic_table[key].symbol))
 
 
-function local_potential_fourier(el::ElementCoulomb, q::T) where {T <: Real}
-    q == 0 && return zero(T)  # Compensating charge background
-    # General atom => Use default Coulomb potential
-    # We use int_{R^3} -Z/r e^{-i q⋅x} = 4π / |q|^2
-    return -4T(π) * el.Z / q^2
+function PseudoPotentialIO.local_potential_fourier(el::ElementCoulomb)
+    function Ṽloc(q::T) where {T}
+        q == 0 && return zero(T)  # Compensating charge background
+        # General atom => Use default Coulomb potential
+        # We use int_{R^3} -Z/r e^{-i q⋅x} = 4π / |q|^2
+        return -4T(π) * el.Z / q^2
+    end
+    return Ṽloc
 end
 
-local_potential_real(el::ElementCoulomb, r::Real) = -el.Z / r
+PseudoPotentialIO.local_potential_real(el::ElementCoulomb) = r -> -el.Z / r
 
 
 struct ElementPsp <: Element
@@ -82,7 +85,7 @@ struct ElementPsp <: Element
     use_nlcc::Bool # Flag to enable/disable non-linear core correction
 end
 function Base.show(io::IO, el::ElementPsp)
-    pspid = isempty(el.psp.identifier) ? "custom" : el.psp.identifier
+    pspid = PseudoPotentialIO.identifier(el.psp)
     print(io, "ElementPsp($(el.symbol), psp=\"$pspid\")")
 end
 
@@ -91,40 +94,40 @@ Element interacting with electrons via a pseudopotential model.
 `key` may be an element symbol (like `:Si`), an atomic number (e.g. `14`)
 or an element name (e.g. `"silicon"`)
 """
-function ElementPsp(key; psp, use_nlcc=has_core_density(psp))
+function ElementPsp(key; psp, use_nlcc=PseudoPotentialIO.has_core_density(psp))
     ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp, use_nlcc)
 end
-function ElementPsp(Z::Int, symbol, psp; use_nlcc=has_core_density(psp))
-    if (use_nlcc & !has_core_density(psp))
+function ElementPsp(Z::Int, symbol, psp; use_nlcc=PseudoPotentialIO.has_core_density(psp))
+    if (use_nlcc & !PseudoPotentialIO.has_core_density(psp))
         error("Cannot use NLCC for pseudopotentials that do not contain core charge density")
     end
     ElementPsp(Z, symbol, psp, use_nlcc)
 end
 
-charge_ionic(el::ElementPsp) = charge_ionic(el.psp)
-charge_nuclear(el::ElementPsp) = el.Z
-has_core_density(el::ElementPsp) = has_core_density(el.psp)
+PseudoPotentialIO.valence_charge(el::ElementPsp) = PseudoPotentialIO.valence_charge(el.psp)
+PseudoPotentialIO.atomic_charge(el::ElementPsp) = el.Z
+PseudoPotentialIO.has_core_density(el::ElementPsp) = PseudoPotentialIO.has_core_density(el.psp)
 AtomsBase.atomic_symbol(el::ElementPsp) = el.symbol
 
-function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
-    q == 0 && return zero(T)  # Compensating charge background
-    eval_psp_local_fourier(el.psp, q)
+function PseudoPotentialIO.local_potential_fourier(el::ElementPsp)
+    Ṽloc = PseudoPotentialIO.local_potential_fourier(el.psp)
+    return q -> iszero(q) ? zero(q) : Ṽloc(q)
 end
 
-function local_potential_real(el::ElementPsp, r::Real)
-    return eval_psp_local_real(el.psp, r)
+function PseudoPotentialIO.local_potential_real(el::ElementPsp)
+    PseudoPotentialIO.local_potential_real(el.psp)
 end
 
-function valence_charge_density_fourier(el::ElementPsp, q::T) where {T <: Real}
-    if has_valence_density(el.psp)
-        eval_psp_density_valence_fourier(el.psp, q)
+function PseudoPotentialIO.valence_charge_density_fourier(el::ElementPsp)
+    if PseudoPotentialIO.has_valence_density(el.psp)
+        PseudoPotentialIO.valence_charge_density_fourier(el.psp)
     else
-        gaussian_valence_charge_density_fourier(el, q)
+        gaussian_valence_charge_density_fourier(el)
     end
 end
 
-function core_charge_density_fourier(el::ElementPsp, q::T) where {T <: Real}
-    eval_psp_density_core_fourier(el.psp, q)
+function PseudoPotentialIO.core_charge_density_fourier(el::ElementPsp)
+    PseudoPotentialIO.core_charge_density_fourier(el.psp)
 end
 
 struct ElementCohenBergstresser <: Element
@@ -133,8 +136,8 @@ struct ElementCohenBergstresser <: Element
     V_sym   # Map |G|^2 (in units of (2π / lattice_constant)^2) to form factors
     lattice_constant  # Lattice constant (in Bohr) which is assumed
 end
-charge_ionic(el::ElementCohenBergstresser)   = 4
-charge_nuclear(el::ElementCohenBergstresser) = el.Z
+PseudoPotentialIO.valence_charge(el::ElementCohenBergstresser)   = 4
+PseudoPotentialIO.atomic_charge(el::ElementCohenBergstresser) = el.Z
 AtomsBase.atomic_symbol(el::ElementCohenBergstresser) = el.symbol
 
 """
@@ -183,12 +186,15 @@ function ElementCohenBergstresser(key; lattice_constant=nothing)
     ElementCohenBergstresser(periodic_table[key].number, symbol, V_sym, lattice_constant)
 end
 
-function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <: Real}
-    q == 0 && return zero(T)  # Compensating charge background
+function PseudoPotentialIO.local_potential_fourier(el::ElementCohenBergstresser)
+    function Ṽloc(q::T) where {T}
+        q == 0 && return zero(T)  # Compensating charge background
 
-    # Get |q|^2 in units of (2π / lattice_constant)^2
-    qsq_pi = Int(round(q^2 / (2π / el.lattice_constant)^2, digits=2))
-    T(get(el.V_sym, qsq_pi, 0.0))
+        # Get |q|^2 in units of (2π / lattice_constant)^2
+        qsq_pi = Int(round(q^2 / (2π / el.lattice_constant)^2, digits=2))
+        T(get(el.V_sym, qsq_pi, 0.0))
+    end
+    return Ṽloc
 end
 
 
@@ -206,10 +212,10 @@ Symbol is non-mandatory.
 function ElementGaussian(α, L; symbol=nothing)
     ElementGaussian(α, L, symbol)
 end
-function local_potential_real(el::ElementGaussian, r)
-    -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
+function PseudoPotentialIO.local_potential_real(el::ElementGaussian)
+    r -> -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
 end
-function local_potential_fourier(el::ElementGaussian, q::Real)
+function PseudoPotentialIO.local_potential_fourier(el::ElementGaussian)
     # = ∫_ℝ³ V(x) exp(-ix⋅q) dx
-    -el.α * exp(- (q * el.L)^2 / 2)
+    q -> -el.α * exp(- (q * el.L)^2 / 2)
 end

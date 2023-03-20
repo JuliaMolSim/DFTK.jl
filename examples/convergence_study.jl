@@ -23,9 +23,11 @@
 using DFTK
 using LinearAlgebra
 using Statistics
+using PseudoPotentialIO
+
 
 function run_scf(; a=5.0, Ecut, nkpt, tol)
-    atoms    = [ElementPsp(:Pt, psp = load_psp("hgh/lda/Pt-q10"))]
+    atoms    = [ElementPsp(:Pt, psp = PseudoPotentialIO.load_psp("hgh_lda_hgh", "pt-q10.hgh"))]
     position = [zeros(3)]
     lattice  = a * Matrix(I, 3, 3)
 

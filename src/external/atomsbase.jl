@@ -12,18 +12,12 @@ function parse_system(system::AbstractSystem{D}) where {D}
     lattice = zeros(T, 3, 3)
     lattice[1:D, 1:D] .= mtx
 
-    # Cache for instantiated pseudopotentials. This is done to ensure that identical
-    # atoms are indistinguishable in memory, which is used in the Model constructor
-    # to deduce the atom_groups.
-    cached_pspelements = Dict{String, ElementPsp}()
     atoms = map(system) do atom
-        pseudo = get(atom, :pseudopotential, "")
-        if isempty(pseudo)
+        psp = get(atom, :pseudopotential, nothing)
+        if isnothing(psp)
             ElementCoulomb(atomic_symbol(atom))
         else
-            get!(cached_pspelements, pseudo) do
-                ElementPsp(atomic_symbol(atom); psp=load_psp(pseudo))
-            end
+            ElementPsp(atomic_symbol(atom); psp)
         end
     end
 
@@ -87,13 +81,13 @@ function AtomsBase.atomic_system(lattice::AbstractMatrix{<:Number},
             end
         end
         if element isa ElementPsp
-            kwargs[:pseudopotential] = element.psp.identifier
+            kwargs[:pseudopotential] = element.psp
         elseif element isa ElementCoulomb
-            kwargs[:pseudopotential] = ""
+            kwargs[:pseudopotential] = nothing
         elseif !(element isa ElementCoulomb)
             @warn("Discarding DFTK-specific details for element type $(typeof(element)) " *
                   "(i.e. this element is treated as a ElementCoulomb).")
-            kwargs[:pseudopotential] = ""
+            kwargs[:pseudopotential] = nothing
         end
 
         position = lattice * positions[i] * u"bohr"

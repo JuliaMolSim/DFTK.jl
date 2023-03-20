@@ -65,11 +65,11 @@ Random.seed!(0)
         include("external_potential.jl")
     end
 
-    if "all" in TAGS || "psp" in TAGS
-        include("list_psp.jl")
-        include("PspHgh.jl")
-        include("PspUpf.jl")
-    end
+    # if "all" in TAGS || "psp" in TAGS
+    #     include("list_psp.jl")
+    #     include("PspHgh.jl")
+    #     include("PspUpf.jl")
+    # end
 
     if "all" in TAGS
         include("split_evenly.jl")
@@ -142,6 +142,10 @@ Random.seed!(0)
         include("hessian.jl")
         include("forwarddiff.jl")
         include("phonon.jl")
+    end
+
+    if "ppio" in TAGS 
+        include("forwarddiff.jl")
     end
 
     ("example" in TAGS) && include("runexamples.jl")

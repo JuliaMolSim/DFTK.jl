@@ -17,7 +17,7 @@ function run_silicon_lda(T ;Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     ref_etot = -7.911817522631488
 
     fft_size = fill(grid_size, 3)
-    Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
+    Si = ElementPsp(silicon.atnum, psp=PseudoPotentialIO.load_psp("hgh_lda_hgh", "si-q4.hgh"))
     atoms = [Si, Si]
 
     if spin_polarization == :collinear

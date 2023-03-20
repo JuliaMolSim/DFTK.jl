@@ -36,8 +36,7 @@
 using DFTK
 using Unitful
 using Plots
-using LazyArtifacts
-import Main: @artifact_str # hide
+using PseudoPotentialIO
 
 # Here, we will use a Perdew-Wang LDA PSP from [PseudoDojo](http://www.pseudo-dojo.org/),
 # which is available in the JuliaMolSim
@@ -51,8 +50,8 @@ import Main: @artifact_str # hide
 # directory where the file is stored by the Artifacts system. So, if you have your own
 # pseudopotential files, you can just provide the path to them as well.
 
-psp_hgh  = load_psp("hgh/lda/si-q4.hgh");
-psp_upf  = load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf");
+psp_hgh  = PseudoPotentialIO.load_psp("hgh_lda_hgh", "si-q4.hgh");
+psp_upf  = PseudoPotentialIO.load_psp("pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf");
 
 # First, we'll take a look at the energy cutoff convergence of these two pseudopotentials.
 # For both pseudos, a reference energy is calculated with a cutoff of 140 Hartree, and

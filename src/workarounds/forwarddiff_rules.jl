@@ -162,18 +162,19 @@ end
 
 construct_value(el::Element) = el
 construct_value(el::ElementPsp) = ElementPsp(el.Z, el.symbol, construct_value(el.psp))
-construct_value(psp::PspHgh) = psp
-function construct_value(psp::PspHgh{T}) where {T <: ForwardDiff.Dual}
-    PspHgh(psp.Zion,
-           ForwardDiff.value(psp.rloc),
-           ForwardDiff.value.(psp.cloc),
-           psp.lmax,
-           ForwardDiff.value.(psp.rp),
-           [ForwardDiff.value.(hl) for hl in psp.h],
-           psp.identifier,
-           psp.description)
+construct_value(psp::PseudoPotentialIO.HghPsP) = psp
+function construct_value(psp::HghPsP{T}) where {T <: ForwardDiff.Dual}
+    HghPsP{T}(
+        psp.checksum,
+        psp.Zatom,
+        psp.Zval,
+        psp.lmax,
+        ForwardDiff.value(psp.rloc),
+        ForwardDiff.value.(psp.cloc),
+        ForwardDiff.value.(psp.rnl),
+        [ForwardDiff.value.(Dl) for Dl in psp.D]
+    )
 end
-
 
 function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
     new_kshift = isnothing(basis.kshift) ? nothing : ForwardDiff.value.(basis.kshift)

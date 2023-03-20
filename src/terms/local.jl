@@ -71,7 +71,7 @@ struct AtomicLocal end
 function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
     # Since V is a sum of radial functions located at atomic
-    # positions, this involves a form factor (`local_potential_fourier`)
+    # positions, this involves a form factor (`PseudoPotentialIO.local_potential_fourier`)
     # and a structure factor e^{-i G·r}
     model = basis.model
     G_cart = to_cpu(G_vectors_cart(basis))
@@ -83,12 +83,13 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # the potential Fourier transform (by a lot). Using a hash map gives O(1)
     # lookup.
     form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
-    for G in G_cart
-        q = norm(G)
-        for (igroup, group) in enumerate(model.atom_groups)
+    for (igroup, group) in enumerate(model.atom_groups)
+        element = model.atoms[first(group)]
+        Ṽloc = PseudoPotentialIO.local_potential_fourier(element)
+        for G in G_cart
+            q = norm(G)
             if !haskey(form_factors, (igroup, q))
-                element = model.atoms[first(group)]
-                form_factors[(igroup, q)] = local_potential_fourier(element, q)
+                form_factors[(igroup, q)] = Ṽloc(q)
             end
         end
     end
@@ -113,7 +114,6 @@ end
                                                 ψ, occupation; ρ, kwargs...) where {TT}
     T = promote_type(TT, real(eltype(ψ[1])))
     model = basis.model
-    recip_lattice = model.recip_lattice
     ρ_fourier = fft(basis, total_density(ρ))
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
@@ -121,8 +121,8 @@ end
     forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
     for group in model.atom_groups
         element = model.atoms[first(group)]
-        form_factors = [Complex{T}(local_potential_fourier(element, norm(G)))
-                        for G in G_vectors_cart(basis)]
+        Ṽloc = PseudoPotentialIO.local_potential_fourier(element)
+        form_factors = [Complex{T}(Ṽloc(norm(G))) for G in G_vectors_cart(basis)]
         for idx in group
             r = model.positions[idx]
             forces[idx] = _force_local_internal(basis, ρ_fourier, form_factors, r)

@@ -47,7 +47,7 @@ end
 
 @testset "Forces on silicon with non-linear core correction" begin
     function energy_forces(positions)
-        Si = ElementPsp(silicon.atnum, :Si, load_psp(silicon.psp_upf))
+        Si = ElementPsp(silicon.atnum, :Si, silicon.psp_upf)
         atoms = fill(Si, length(silicon.atoms))
         model = model_DFT(silicon.lattice, atoms, positions, [:lda_x, :lda_c_pw])
         basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],

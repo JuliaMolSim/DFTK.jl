@@ -29,7 +29,7 @@ end
 
 function energy_ewald(model::Model{T}; kwargs...) where {T}
     isempty(model.atoms) && return zero(T)
-    charges = T.(charge_ionic.(model.atoms))
+    charges = T.(PseudoPotentialIO.PseudoPotentialIO.valence_charge.(model.atoms))
     energy_ewald(model.lattice, charges, model.positions; kwargs...)
 end
 

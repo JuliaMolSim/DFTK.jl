@@ -1,7 +1,8 @@
 using Test
-using DFTK: load_psp, charge_nuclear, charge_ionic, n_elec_core, n_elec_valence
+using LinearAlgebra: norm
+using DFTK: n_elec_core, n_elec_valence
 using DFTK: ElementPsp, ElementCohenBergstresser, ElementCoulomb
-using DFTK: local_potential_fourier, local_potential_real
+import PseudoPotentialIO
 
 @testset "Check constructing ElementCoulomb" begin
     el_by_name = ElementCoulomb("oxygen")
@@ -15,39 +16,38 @@ using DFTK: local_potential_fourier, local_potential_real
     @test element.symbol == :Mg
 
     @test atomic_symbol(element) == :Mg
-    @test charge_nuclear(element) == 12
-    @test charge_ionic(element) == 12
-    @test n_elec_valence(element) == charge_ionic(element)
+    @test PseudoPotentialIO.atomic_charge(element) == 12
+    @test PseudoPotentialIO.PseudoPotentialIO.valence_charge(element) == 12
+    @test n_elec_valence(element) == PseudoPotentialIO.PseudoPotentialIO.valence_charge(element)
     @test n_elec_core(element) == 0
 
-    @test local_potential_fourier(element, 0.0) == 0.0
-    @test local_potential_fourier(element, norm([2.0, 0, 0])) == -12π
-    @test local_potential_real(element, norm([2.0, 0, 0])) == -6.0
+    @test PseudoPotentialIO.local_potential_fourier(element)(0.0) == 0.0
+    @test PseudoPotentialIO.local_potential_fourier(element)(norm([2.0, 0, 0])) == -12π
+    @test PseudoPotentialIO.local_potential_real(element)(norm([2.0, 0, 0])) == -6.0
 end
 
 @testset "Check constructing ElementPsp" begin
-    el_by_name = ElementPsp("tungsten", psp=load_psp("hgh/lda/w-q6"))
+    el_by_name = ElementPsp("tungsten", psp=PseudoPotentialIO.load_psp("hgh_lda_hgh", "w-q6.hgh"))
     @test el_by_name.Z == 74
     @test el_by_name.symbol == :W
-    el_by_number = ElementPsp(1, psp=load_psp("hgh/pbe/H-q1"))
+    el_by_number = ElementPsp(1, psp=PseudoPotentialIO.load_psp("hgh_pbe_hgh", "h-q1.hgh"))
     @test el_by_number.symbol == :H
 
-    element = ElementPsp("carbon", psp=load_psp("hgh/lda/C-q4"))
+    element = ElementPsp("carbon", psp=PseudoPotentialIO.load_psp("hgh_lda_hgh", "c-q4.hgh"))
 
     @test element.Z == 6
     @test element.symbol == :C
     @test element.psp !== nothing
-    @test element.psp.identifier == "hgh/lda/c-q4"
 
     @test atomic_symbol(element) == :C
-    @test charge_nuclear(element) == 6
-    @test charge_ionic(element) == 4
+    @test PseudoPotentialIO.atomic_charge(element) == 6
+    @test PseudoPotentialIO.PseudoPotentialIO.valence_charge(element) == 4
     @test n_elec_valence(element) == 4
     @test n_elec_core(element) == 2
 
-    @test local_potential_fourier(element, 0.0) == 0.0
-    @test local_potential_fourier(element, 2.0) == -12.695860686869914
-    @test local_potential_real(element, 2.0) == -1.999997661838144
+    @test PseudoPotentialIO.local_potential_fourier(element)(0.0) == 0.0
+    @test PseudoPotentialIO.local_potential_fourier(element)(2.0) == -12.695860686869914
+    @test PseudoPotentialIO.local_potential_real(element)(2.0) == -1.999997661838144
 end
 
 @testset "Check constructing ElementCohenBergstresser" begin
@@ -59,14 +59,14 @@ end
     @test element.symbol == :Si
 
     @test atomic_symbol(element) == :Si
-    @test charge_nuclear(element) == 14
-    @test charge_ionic(element) == 4
+    @test PseudoPotentialIO.atomic_charge(element) == 14
+    @test PseudoPotentialIO.PseudoPotentialIO.valence_charge(element) == 4
     @test n_elec_valence(element) == 4
     @test n_elec_core(element) == 10
 
-    @test local_potential_fourier(element, 0.0) == 0.0
+    @test PseudoPotentialIO.local_potential_fourier(element)(0.0) == 0.0
     q3 = sqrt(3) * 2π / element.lattice_constant
-    @test local_potential_fourier(element, q3) == -14.180625963358901
+    @test PseudoPotentialIO.local_potential_fourier(element)(q3) == -14.180625963358901
 end
 
 @testset "Check constructing ElementGaussian" begin
@@ -74,7 +74,7 @@ end
 
     @test atomic_symbol(element) == :X1
 
-    @test local_potential_fourier(element, 0.0) == -1.0
-    @test local_potential_fourier(element, 2.0) == -0.6065306597126334
-    @test local_potential_real(element, 2.0) == -0.00026766045152977074
+    @test PseudoPotentialIO.local_potential_fourier(element)(0.0) == -1.0
+    @test PseudoPotentialIO.local_potential_fourier(element)(2.0) == -0.6065306597126334
+    @test PseudoPotentialIO.local_potential_real(element)(2.0) == -0.00026766045152977074
 end

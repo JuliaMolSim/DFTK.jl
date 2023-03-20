@@ -9,12 +9,14 @@
 # First we setup BCC iron without spin polarization
 # using a single iron atom inside the unit cell.
 using DFTK
+using PseudoPotentialIO
+
 
 a = 5.42352  # Bohr
 lattice = a / 2 * [[-1  1  1];
                    [ 1 -1  1];
                    [ 1  1 -1]]
-atoms     = [ElementPsp(:Fe, psp=load_psp("hgh/lda/Fe-q8.hgh"))]
+atoms     = [ElementPsp(:Fe, psp=PseudoPotentialIO.load_psp("hgh_lda_hgh", "fe-q8.hgh"))]
 positions = [zeros(3)];
 
 # To get the ground-state energy we use an LDA model and rather moderate

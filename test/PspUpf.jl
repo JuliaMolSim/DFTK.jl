@@ -7,22 +7,21 @@ using DFTK: eval_psp_energy_correction
 using DFTK: count_n_proj_radial
 using SpecialFunctions: sphericalbesselj
 using QuadGK
-using LazyArtifacts
 
 upf_pseudos = Dict(
     # Converged from HGH
-    :Si => load_psp(artifact"hgh_pbe_upf", "Si.pbe-hgh.UPF"),
-    :Tl => load_psp(artifact"hgh_pbe_upf", "Tl.pbe-d-hgh.UPF"),
+    :Si => PseudoPotentialIO.load_psp("hgh_pbe_upf", "Si.pbe-hgh.UPF"),
+    :Tl => PseudoPotentialIO.load_psp("hgh_pbe_upf", "Tl.pbe-d-hgh.UPF"),
     # No NLCC
-    :Li => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
-    :Mg => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf"),
+    :Li => PseudoPotentialIO.load_psp("pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
+    :Mg => PseudoPotentialIO.load_psp("pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf"),
     # With NLCC
-    :Co => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Co.upf"),
-    :Ge => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Ge.upf"),
+    :Co => PseudoPotentialIO.load_psp("pd_nc_sr_pbe_standard_0.4.1_upf", "Co.upf"),
+    :Ge => PseudoPotentialIO.load_psp("pd_nc_sr_pbe_standard_0.4.1_upf", "Ge.upf"),
 )
 hgh_pseudos = [
-    (hgh=load_psp("hgh/pbe/si-q4.hgh"), upf=upf_pseudos[:Si]),
-    (hgh=load_psp("hgh/pbe/tl-q13.hgh"), upf=upf_pseudos[:Tl])
+    (hgh=PseudoPotentialIO.load_psp("hgh_pbe_hgh", "si-q4.hgh"), upf=upf_pseudos[:Si]),
+    (hgh=PseudoPotentialIO.load_psp("hgh_pbe_hgh", "tl-q13.hgh"), upf=upf_pseudos[:Tl])
 ]
 
 @testset "Check reading PseudoDojo Li UPF" begin
@@ -193,7 +192,7 @@ end
             basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
             ρ_val = guess_density(basis, ValenceDensityPseudo())
             Z_valence = sum(ρ_val) * model.unit_cell_volume / prod(basis.fft_size)
-            @test Z_valence ≈ charge_ionic(psp) rtol=1e-5 atol=1e-5
+            @test Z_valence ≈ PseudoPotentialIO.PseudoPotentialIO.valence_charge(psp) rtol=1e-5 atol=1e-5
         end
     end
 end
