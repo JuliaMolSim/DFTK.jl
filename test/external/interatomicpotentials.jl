@@ -5,6 +5,7 @@ using StaticArrays
 using Test
 using Unitful
 using UnitfulAtomic
+using PseudoPotentialIO
 
 @testset "DFTK -> InteratomicPotentials" begin
     functionals = [:lda_x, :lda_c_pw]
@@ -22,7 +23,8 @@ using UnitfulAtomic
         :Ar => [7.0, 7.0, 7.0]u"bohr"
     ]
     box = [[28.0, 0.0, 0.0], [0.0, 28.0, 0.0], [0.0, 0.0, 28.0]]u"bohr"
-    system = attach_psp(periodic_system(particles, box); Ar=("hgh_lda_hgh", "ar-q8.hgh"))
+    system = attach_psp(periodic_system(particles, box);
+                        Ar=PseudoPotentialIO.load_psp("hgh_lda_hgh", "ar-q8.hgh"))
 
     eandf = energy_and_force(system, potential)
     @test eandf.e isa Unitful.Energy
