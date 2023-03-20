@@ -2,6 +2,7 @@
 
 ```@setup data_structures
 using DFTK
+using PseudoPotentialIO
 a = 10.26  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];

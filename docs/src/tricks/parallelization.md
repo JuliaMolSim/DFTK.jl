@@ -5,6 +5,8 @@ to monitor and influence performance of the code.
 
 ```@setup parallelization
 using DFTK
+using PseudoPotentialIO
+
 a = 10.26  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];

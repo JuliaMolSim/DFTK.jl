@@ -87,6 +87,7 @@ reducible points, determines the weight of each irreducible ``k`` point.
 ## Example
 ```@setup symmetries
 using DFTK
+using PseudoPotentialIO
 a = 10.26
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
