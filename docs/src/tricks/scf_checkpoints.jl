@@ -41,7 +41,7 @@ using PseudoPotentialIO
 d = 2.079  # oxygen-oxygen bondlength
 a = 9.0    # size of the simulation box
 lattice = a * I(3)
-O = ElementPsp(:O, psp=load_psp("hgh_pbe_hgh", "o-q6.hgh"))
+O = ElementPsp(:O, psp=PseudoPotentialIO.load_psp("hgh_pbe_hgh", "o-q6.hgh"))
 atoms     = [O, O]
 positions = d / 2a * [[0, 0, 1], [0, 0, -1]]
 magnetic_moments = [1., 1.]

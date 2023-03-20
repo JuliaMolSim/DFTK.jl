@@ -25,6 +25,7 @@
 #     [ArXiv 2004.13549](https://arxiv.org/abs/2004.13549)
 
 using DFTK
+using PseudoPotentialIO
 
 ## Setup silicon lattice
 a = 10.263141334305942  # lattice constant in Bohr

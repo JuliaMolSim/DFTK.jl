@@ -3,6 +3,7 @@
 # We compute a few eigenvalues of the dielectric matrix (``q=0``, ``ω=0``) iteratively.
 
 using DFTK
+using PseudoPotentialIO
 using Plots
 using KrylovKit
 using Printf

@@ -13,10 +13,11 @@
 # to build a bulk silicon lattice,
 # see [Input and output formats](@ref) for more details.
 using DFTK
+using PseudoPotentialIO
 using ASEconvert
 
 system = pyconvert(AbstractSystem, ase.build.bulk("Si"))
-model  = model_LDA(attach_psp(system; Si="hgh/pbe/si-q4.hgh"))
+model  = model_LDA(attach_psp(system; Si=PseudoPotentialIO.load_psp("hgh_pbe_hgh", "si-q4.hgh")))
 basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
 
 # DFTK already defines a few callback functions for standard

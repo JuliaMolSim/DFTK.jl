@@ -5,6 +5,7 @@
 
 # First we setup our problem
 using DFTK
+using PseudoPotentialIO
 using LinearAlgebra
 
 a = 10.26  # Silicon lattice constant in Bohr

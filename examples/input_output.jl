@@ -30,7 +30,8 @@ system = load_system("Fe_afm.pwi")
 # yet capable to read this information from the file.
 
 using DFTK
-system = attach_psp(system, Fe="hgh/pbe/fe-q16.hgh")
+using PseudoPotentialIO
+system = attach_psp(system, Fe=PseudoPotentialIO.load_psp("hgh_pbe_hgh", "fe-q16.hgh"))
 
 # Finally we make use of DFTK's [AtomsBase integration](@ref) to run the calculation.
 

@@ -30,7 +30,7 @@ function aluminium_setup(repeat=1; Ecut=7.0, kgrid=[2, 2, 2])
 
     ## Unfortunately right now the conversion to ASE drops the pseudopotential information,
     ## so we need to reattach it:
-    supercell = attach_psp(supercell, Al="hgh/lda/al-q3")
+    supercell = attach_psp(supercell, Al=PseudoPotentialIO.load_psp("hgh_lda_hgh", "al-q3.hgh"))
 
     ## Construct an LDA model and discretise
     ## Note: We disable symmetries explicitly here. Otherwise the problem sizes

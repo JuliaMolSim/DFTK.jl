@@ -24,6 +24,7 @@
 # around the experimental lattice constant.
 
 using DFTK
+using PseudoPotentialIO
 using Statistics
 
 a0 = 10.26  # Experimental lattice constant of silicon in bohr

@@ -275,6 +275,7 @@ plot_bandstructure(basis; n_bands=6, kline_density=100)
 
 using Plots
 using LinearAlgebra
+using PseudoPotentialIO
 nucleus = ElementGaussian(0.3, 10.0)
 potential = PseudoPotentialIO.local_potential_real(nucleus)
 plot(r -> potential(norm(r)), xlims=(-50, 50))

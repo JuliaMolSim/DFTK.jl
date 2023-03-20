@@ -1,7 +1,7 @@
 # # Custom solvers
 # In this example, we show how to define custom solvers. Our system
 # will again be silicon, because we are not very imaginative
-using DFTK, LinearAlgebra
+using DFTK, LinearAlgebra, PseudoPotentialIO
 
 a = 10.26
 lattice = a / 2 * [[0 1 1.];

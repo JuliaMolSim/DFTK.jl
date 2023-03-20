@@ -5,6 +5,7 @@
 # structures to run a calculation as is demonstrated here.
 
 using DFTK
+using PseudoPotentialIO
 
 # ## Feeding an AtomsBase AbstractSystem to DFTK
 # In this example we construct a silicon system using the `ase.build.bulk` routine
@@ -19,7 +20,7 @@ system = pyconvert(AbstractSystem, system_ase)
 
 # To use an AbstractSystem in DFTK, we attach pseudopotentials, construct a DFT model,
 # discretise and solve:
-system = attach_psp(system; Si="hgh/lda/si-q4")
+system = attach_psp(system; Si=PseudoPotentialIO.load_psp("hgh_lda_hgh", "si-q4.hgh"))
 
 model  = model_LDA(system; temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
@@ -37,7 +38,7 @@ using AtomsIO
 system = load_system("Si.extxyz")
 
 ## Now run the LDA calculation:
-system = attach_psp(system; Si="hgh/lda/si-q4")
+system = attach_psp(system; Si=PseudoPotentialIO.load_psp("hgh_lda_hgh", "si-q4.hgh"))
 model  = model_LDA(system; temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis, tol=1e-8);
@@ -61,7 +62,7 @@ atoms  = [:Si => ones(3)/8, :Si => -ones(3)/8]
 system = periodic_system(atoms, lattice; fractional=true)
 
 ## Now run the LDA calculation:
-system = attach_psp(system; Si="hgh/lda/si-q4")
+system = attach_psp(system; Si=PseudoPotentialIO.load_psp("hgh_lda_hgh", "si-q4.hgh"))
 model  = model_LDA(system; temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis, tol=1e-4);

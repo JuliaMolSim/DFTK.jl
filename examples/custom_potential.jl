@@ -21,12 +21,12 @@ CustomPotential() = CustomPotential(1.0, 0.5);
 
 # We extend the two methods providing access to the real and Fourier
 # representation of the potential to DFTK.
-function DFTK.PseudoPotentialIO.local_potential_real(el::CustomPotential, r::Real)
-    -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
+function DFTK.PseudoPotentialIO.local_potential_real(el::CustomPotential)
+    r -> -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
 end
-function DFTK.PseudoPotentialIO.local_potential_fourier(el::CustomPotential, q::Real)
+function DFTK.PseudoPotentialIO.local_potential_fourier(el::CustomPotential)
     ## = ∫ V(r) exp(-ix⋅q) dx
-    -el.α * exp(- (q * el.L)^2 / 2)
+    q -> -el.α * exp(- (q * el.L)^2 / 2)
 end
 
 # We set up the lattice. For a 1D case we supply two zero lattice vectors

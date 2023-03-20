@@ -49,9 +49,10 @@ ase.io.write("surface.png", surface * pytuple((3, 3, 1)), rotation="-90x, 30y, -
 # such that appropriate pseudopotentials need to be attached in a post-step:
 
 using DFTK
+using PseudoPotentialIO
 system = attach_psp(pyconvert(AbstractSystem, surface);
-                    Ga="hgh/pbe/ga-q3.hgh",
-                    As="hgh/pbe/as-q5.hgh")
+                    Ga=PseudoPotentialIO.load_psp("hgh_pbe_hgh", "ga-q3.hgh"),
+                    As=PseudoPotentialIO.load_psp("hgh_pbe_hgh", "as-q5.hgh"))
 
 # We model this surface with (quite large a) temperature of 0.01 Hartree
 # to ease convergence. Try lowering the SCF convergence tolerance (`tol`)
