@@ -32,6 +32,7 @@ using DFTK
 using Plots
 using Unitful
 using UnitfulAtomic
+using PseudoPotentialIO
 
 ## 1. Define lattice and atomic positions
 a = 5.431u"angstrom"          # Silicon lattice constant
