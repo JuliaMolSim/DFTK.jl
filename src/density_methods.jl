@@ -1,3 +1,5 @@
+# TODO Refactor and simplify the method zoo a little here.
+
 abstract type DensityConstructionMethod                  end
 abstract type AtomicDensity <: DensityConstructionMethod end
 
