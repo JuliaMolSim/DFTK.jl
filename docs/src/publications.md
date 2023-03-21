@@ -20,16 +20,16 @@ The current DFTK reference paper to cite is
 
 Additionally the following publications describe DFTK or one of its algorithms:
 
-- E. Cancès, M. F. Herbst, G. Kemlin, A. Levitt and B. Stamm.
-  [*Numerical stability and efficiency of response property calculations in density functional theory*](https://arxiv.org/abs/2210.04512)
-  (Submitted).
-  [ArXiv:2210.04512](https://arxiv.org/abs/2210.04512).
-  ([Supplementary material and computational scripts](https://github.com/gkemlin/response-calculations-metals)).
-
 - E. Cancès, M. Hassan and L. Vidal.
   [*Modified-Operator Method for the Calculation of Band Diagrams of Crystalline Materials.*](https://arxiv.org/abs/2210.00442)
   (Submitted).
   [ArXiv:2210.00442](https://arxiv.org/abs/2210.00442).
+
+- E. Cancès, M. F. Herbst, G. Kemlin, A. Levitt and B. Stamm.
+  [*Numerical stability and efficiency of response property calculations in density functional theory*](https://arxiv.org/abs/2210.04512)
+  Letters in Mathematical Physics, **113**, 21 (2023).
+  [ArXiv:2210.04512](https://arxiv.org/abs/2210.04512).
+  ([Supplementary material and computational scripts](https://github.com/gkemlin/response-calculations-metals)).
 
 - M. F. Herbst and A. Levitt.
   [*A robust and efficient line search for self-consistent field iterations*](https://arxiv.org/abs/2109.14018)
@@ -63,16 +63,16 @@ Feel free to drop us a line if you want your work to be added here.
   (Submitted).
   [ArXiv:2206.05685](https://arxiv.org/abs/2206.05685).
 
+- G. Dusson, I. Sigal and B. Stamm.
+  [*Analysis of the Feshbach-Schur method for the Fourier spectral discretizations of Schrödinger operators*](http://dx.doi.org/10.1090/mcom/3774)
+  Mathematics of Computation, **92**, 217 (2023).
+  [ArXiv:2008.10871](https://arxiv.org/abs/2008.10871).
+
 - E. Cancès, G. Dusson, G. Kemlin and A. Levitt.
   [*Practical error bounds for properties in plane-wave electronic structure calculations*](https://doi.org/10.1137/21M1456224)
   SIAM Journal on Scientific Computing, **44**, B1312 (2022).
   [ArXiv:2111.01470](https://arxiv.org/abs/2111.01470).
   ([Supplementary material and computational scripts](https://github.com/gkemlin/paper-forces-estimator)).
-
-- G. Dusson, I. Sigal and B. Stamm.
-  [*Analysis of the Feshbach-Schur method for the Fourier spectral discretizations of Schrödinger operators*](http://dx.doi.org/10.1090/mcom/3774)
-  Mathematics of Computation, **?**, ?? (2022).
-  [ArXiv:2008.10871](https://arxiv.org/abs/2008.10871).
 
 - E. Cancès, G. Kemlin and A. Levitt.
   [*Convergence analysis of direct minimization and self-consistent iterations*](https://doi.org/10.1137/20M1332864)
