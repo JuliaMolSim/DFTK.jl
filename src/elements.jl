@@ -30,6 +30,9 @@ n_elec_core(el::Element)::Int = PseudoPotentialIO.atomic_charge(el) - PseudoPote
 """Check presence of model core charge density (non-linear core correction)."""
 PseudoPotentialIO.has_core_density(::Element) = false
 
+"""Check presence of valence charge density (for density initialization)."""
+PseudoPotentialIO.has_valence_density(::Element) = false
+
 # Fall back to the Gaussian table for Elements without pseudopotentials
 function PseudoPotentialIO.valence_charge_density_fourier(el::Element)
     gaussian_valence_charge_density_fourier(el)
@@ -107,6 +110,7 @@ end
 PseudoPotentialIO.valence_charge(el::ElementPsp) = PseudoPotentialIO.valence_charge(el.psp)
 PseudoPotentialIO.atomic_charge(el::ElementPsp) = el.Z
 PseudoPotentialIO.has_core_density(el::ElementPsp) = PseudoPotentialIO.has_core_density(el.psp)
+PseudoPotentialIO.has_valence_density(el::ElementPsp) = PseudoPotentialIO.has_valence_density(el.psp)
 AtomsBase.atomic_symbol(el::ElementPsp) = el.symbol
 
 function PseudoPotentialIO.local_potential_fourier(el::ElementPsp)
