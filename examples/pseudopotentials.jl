@@ -28,40 +28,42 @@
 # http://pseudopotentials.quantum-espresso.org/home/unified-pseudopotential-format.
 #
 # In this example, we will compare the convergence of an analytical HGH PSP with
-# a modern UPF PSP from [PseudoDojo](http://www.pseudo-dojo.org/).
+# a modern numeric norm-conserving PSP in UPF format from
+# [PseudoDojo](http://www.pseudo-dojo.org/).
 # Then, we will compare the bandstructure at the converged parameters calculated
 # using the two PSPs.
 
 using DFTK
-using Downloads
 using Unitful
 using Plots
+using LazyArtifacts
+import Main: @artifact_str # hide
 
-# Here, we will use Perdew-Wang LDA PSP from [PseudoDojo](http://www.pseudo-dojo.org/),
+# Here, we will use a Perdew-Wang LDA PSP from [PseudoDojo](http://www.pseudo-dojo.org/),
 # which is available in the JuliaMolSim
 # [PseudoLibrary](https://github.com/JuliaMolSim/PseudoLibrary).
-
-PSEUDOLIB = "https://raw.githubusercontent.com/JuliaMolSim/PseudoLibrary"
-COMMIT    = "56d1774708e1adfff35d30a403004cb98de4224b"
-URL_UPF = PSEUDOLIB * "/$COMMIT/pseudos/pd_nc_sr_lda_standard_04_upf/Li.upf";
+# Directories in PseudoLibrary correspond to artifacts that you can load using `artifact`
+# strings which evaluate to a filepath on your local machine where the artifact has been
+# downloaded.
 
 # We load the HGH and UPF PSPs using `load_psp`, which determines the
-# file format using the file extension.
+# file format using the file extension. The `artifact` string literal resolves to the
+# directory where the file is stored by the Artifacts system. So, if you have your own
+# pseudopotential files, you can just provide the path to them as well.
 
-psp_hgh  = load_psp("hgh/lda/li-q3.hgh");
-path_upf = Downloads.download(URL_UPF, joinpath(tempdir(), "Li.upf"))
-psp_upf  = load_psp(path_upf);
+psp_hgh  = load_psp("hgh/lda/si-q4.hgh");
+psp_upf  = load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf");
 
 # First, we'll take a look at the energy cutoff convergence of these two pseudopotentials.
 # For both pseudos, a reference energy is calculated with a cutoff of 140 Hartree, and
 # SCF calculations are run at increasing cutoffs until 1 meV / atom convergence is reached.
 
 #md # ```@raw html
-#md # <img src="../../assets/li_pseudos_ecut_convergence.png" width=600 height=400 />
+#md # <img src="../../assets/si_pseudos_ecut_convergence.png" width=600 height=400 />
 #md # ```
-#nb # <img src="https://docs.dftk.org/stable/assets/li_pseudos_ecut_convergence.png" width=600 height=400 />
+#nb # <img src="https://docs.dftk.org/stable/assets/si_pseudos_ecut_convergence.png" width=600 height=400 />
 
-# The converged cutoffs are 128 Ha and 36 Ha for the HGH
+# The converged cutoffs are 26 Ha and 18 Ha for the HGH
 # and UPF pseudos respectively. We see that the HGH pseudopotential
 # is much *harder*, i.e. it requires a higher energy cutoff, than the UPF PSP. In general,
 # numeric pseudopotentials tend to be softer than analytical pseudos because of the
@@ -69,24 +71,21 @@ psp_upf  = load_psp(path_upf);
 
 # Next, to see that the different pseudopotentials give reasonbly similar results,
 # we'll look at the bandstructures calculated using the HGH and UPF PSPs. Even though
-# the convered cutoffs are 128 and 36 Ha, we perform these calculations with a cutoff of
-# 24 Ha for both PSPs.
+# the convered cutoffs are higher, we perform these calculations with a cutoff of
+# 12 Ha for both PSPs.
 
 function run_bands(psp)
-    a = -1.53877u"Å"
-    b = -2.66523u"Å"
-    c = -4.92295u"Å"
-    lattice = [ a  a  0;
-               -b  b  0;
-                0  0 -c]
-    Li = ElementPsp(:Li; psp)
-    atoms     = [Li, Li]
-    positions = [[1/3, 2/3, 1/4],
-                 [2/3, 1/3, 3/4]]
+    a = 10.26  # Silicon lattice constant in Bohr
+    lattice = a / 2 * [[0 1 1.];
+                       [1 0 1.];
+                       [1 1 0.]]
+    Si = ElementPsp(:Si; psp=psp)
+    atoms     = [Si, Si]
+    positions = [ones(3)/8, -ones(3)/8]
 
     ## These are (as you saw above) completely unconverged parameters
     model = model_LDA(lattice, atoms, positions; temperature=1e-2)
-    basis = PlaneWaveBasis(model; Ecut=24, kgrid=(6, 6, 4))
+    basis = PlaneWaveBasis(model; Ecut=12, kgrid=(4, 4, 4))
 
     scfres   = self_consistent_field(basis; tol=1e-4)
     bandplot = plot_bandstructure(scfres)

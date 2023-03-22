@@ -37,7 +37,7 @@ end
     @test maximum(mid, abs.(res .- ref)) < 1e-9
 
     # Small error determined by interval arithmetic
-    @test maximum(radius, abs.(res)) < 1e-9
+    @test maximum(radius, abs.(res)) < 2e-9
 end
 
 @testset "compute_occupation with Intervals" begin

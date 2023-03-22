@@ -41,7 +41,8 @@ function run_iron_lda(T; kwargs...)
     basis = PlaneWaveBasis(model; Ecut=15, fft_size=[20, 20, 20],
                            kgrid=[4, 4, 4], kshift=[1/2, 1/2, 1/2])
     run_scf_and_compare(T, basis, ref_lda, ref_etot;
-                        ρ=guess_density(basis, magnetic_moments), kwargs...)
+                        ρ=guess_density(basis, magnetic_moments),
+                        kwargs...)
 end
 
 @testset "Iron LDA (Float64)" begin

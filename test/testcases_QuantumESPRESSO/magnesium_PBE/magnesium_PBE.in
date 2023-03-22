@@ -1,0 +1,40 @@
+&CONTROL
+    calculation = 'scf'
+    verbosity = 'high'
+    tstress = .true.
+    tprnfor = .true.
+    outdir = './'
+    prefix = 'magnesium_PBE'
+    disk_io = 'nowf'
+    pseudo_dir = './'
+/
+
+&SYSTEM
+    ibrav = 4
+    celldm(1) = 6.03587784
+    celldm(3) = 1.61925443
+    nat = 2
+    ntyp = 1
+    nbnd = 14
+    ecutwfc = 60.0
+    occupations = 'smearing'
+    degauss = 0.02
+    smearing = 'fermi-dirac'
+    ! input_dft = 'sla+pw+pbx+pbc'
+    input_dft = 'xc-000i-000i-101l-130l'  ! gga_c_pbe + gga_x_pbe
+/
+
+&ELECTRONS
+    electron_maxstep = 100
+    conv_thr = 2.0d-14
+/
+
+ATOMIC_SPECIES
+    Mg 24.305 Mg.pbe-sp-hgh.UPF
+
+ATOMIC_POSITIONS crystal
+    Mg  0.3333333333333333  0.6666666666666666  0.7500000000000000
+    Mg  0.6666666666666666  0.3333333333333333  0.2500000000000000
+
+K_POINTS automatic
+    5 5 5 0 0 0

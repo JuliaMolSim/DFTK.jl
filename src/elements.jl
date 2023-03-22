@@ -27,14 +27,21 @@ n_elec_valence(el::Element) = charge_ionic(el)
 """Return the number of core electrons"""
 n_elec_core(el::Element) = charge_nuclear(el) - charge_ionic(el)
 
-"""Radial local potential, in Fourier space: ```V(q) = ∫_{ℝ^3} V(x) e^{-iq·x} dx``."""
-function local_potential_fourier(el::Element, q::AbstractVector)
-    local_potential_fourier(el, norm(q))
+"""Check presence of model core charge density (non-linear core correction)."""
+has_core_density(::Element) = false
+
+# Fall back to the Gaussian table for Elements without pseudopotentials
+function valence_charge_density_fourier(el::Element, q::T)::T where {T <: Real}
+    gaussian_valence_charge_density_fourier(el, q)
 end
 
-"""Radial local potential, in real space."""
-function local_potential_real(el::Element, q::AbstractVector)
-    local_potential_real(el, norm(q))
+"""Gaussian valence charge density using Abinit's coefficient table, in Fourier space."""
+function gaussian_valence_charge_density_fourier(el::Element, q::T)::T where {T <: Real}
+    charge_ionic(el) * exp(-(q * atom_decay_length(el))^2)
+end
+
+function core_charge_density_fourier(::Element, ::T)::T where {T <: Real}
+    error("Abstract elements do not necesesarily provide core charge density.")
 end
 
 # Fallback print function:
@@ -69,9 +76,10 @@ local_potential_real(el::ElementCoulomb, r::Real) = -el.Z / r
 
 
 struct ElementPsp <: Element
-    Z::Int  # Nuclear charge
-    symbol  # Element symbol
-    psp     # Pseudopotential data structure
+    Z::Int         # Nuclear charge
+    symbol         # Element symbol
+    psp            # Pseudopotential data structure
+    use_nlcc::Bool # Flag to enable/disable non-linear core correction
 end
 function Base.show(io::IO, el::ElementPsp)
     pspid = isempty(el.psp.identifier) ? "custom" : el.psp.identifier
@@ -83,11 +91,19 @@ Element interacting with electrons via a pseudopotential model.
 `key` may be an element symbol (like `:Si`), an atomic number (e.g. `14`)
 or an element name (e.g. `"silicon"`)
 """
-function ElementPsp(key; psp)
-    ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp)
+function ElementPsp(key; psp, use_nlcc=has_core_density(psp))
+    ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp, use_nlcc)
 end
-charge_ionic(el::ElementPsp)   = charge_ionic(el.psp)
+function ElementPsp(Z::Int, symbol, psp; use_nlcc=has_core_density(psp))
+    if (use_nlcc & !has_core_density(psp))
+        error("Cannot use NLCC for pseudopotentials that do not contain core charge density")
+    end
+    ElementPsp(Z, symbol, psp, use_nlcc)
+end
+
+charge_ionic(el::ElementPsp) = charge_ionic(el.psp)
 charge_nuclear(el::ElementPsp) = el.Z
+has_core_density(el::ElementPsp) = has_core_density(el.psp)
 AtomsBase.atomic_symbol(el::ElementPsp) = el.symbol
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
@@ -96,10 +112,20 @@ function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
 end
 
 function local_potential_real(el::ElementPsp, r::Real)
-    # Use local part of pseudopotential defined in Element object
     return eval_psp_local_real(el.psp, r)
 end
 
+function valence_charge_density_fourier(el::ElementPsp, q::T) where {T <: Real}
+    if has_valence_density(el.psp)
+        eval_psp_density_valence_fourier(el.psp, q)
+    else
+        gaussian_valence_charge_density_fourier(el, q)
+    end
+end
+
+function core_charge_density_fourier(el::ElementPsp, q::T) where {T <: Real}
+    eval_psp_density_core_fourier(el.psp, q)
+end
 
 struct ElementCohenBergstresser <: Element
     Z::Int  # Nuclear charge

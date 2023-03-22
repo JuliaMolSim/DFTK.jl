@@ -21,8 +21,8 @@ using DFTK: local_potential_fourier, local_potential_real
     @test n_elec_core(element) == 0
 
     @test local_potential_fourier(element, 0.0) == 0.0
-    @test local_potential_fourier(element, [2.0, 0, 0]) == -12π
-    @test local_potential_real(element, [2.0, 0, 0]) == -6.0
+    @test local_potential_fourier(element, norm([2.0, 0, 0])) == -12π
+    @test local_potential_real(element, norm([2.0, 0, 0])) == -6.0
 end
 
 @testset "Check constructing ElementPsp" begin

@@ -1,0 +1,36 @@
+&CONTROL
+    calculation = 'scf'
+    verbosity = 'high'
+    tstress = .true.
+    tprnfor = .true.
+    outdir = './'
+    prefix = 'silicon_TPSS'
+    disk_io = 'nowf'
+    pseudo_dir = './'
+/
+
+&SYSTEM
+    ibrav = 2
+    celldm(1) = 10.26314133
+    nat = 2
+    ntyp = 1
+    nbnd = 8
+    ecutwfc = 30.0
+    occupations = 'fixed'
+    input_dft = 'xc-000i-000i-000i-000i-202l-231l'  ! mgga_x_tpss + mgga_c_tpss
+/
+
+&ELECTRONS
+    electron_maxstep = 100
+    conv_thr = 2.0d-14
+/
+
+ATOMIC_SPECIES
+    Si 28.085 Si.pbe-hgh.UPF
+
+ATOMIC_POSITIONS crystal
+    Si  0.125  0.125  0.125
+    Si -0.125 -0.125 -0.125
+
+K_POINTS automatic
+    3 3 3 0 0 0
