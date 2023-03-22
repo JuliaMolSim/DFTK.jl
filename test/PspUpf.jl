@@ -7,6 +7,7 @@ using DFTK: eval_psp_energy_correction
 using DFTK: count_n_proj_radial
 using SpecialFunctions: sphericalbesselj
 using QuadGK
+using LazyArtifacts
 
 upf_pseudos = Dict(
     # Converged from HGH
