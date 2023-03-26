@@ -24,8 +24,8 @@
 # simply tablulate various coefficients fitted for a given element. UPF PSPs
 # take a more flexible approach where the functional form used to generate the
 # PSP is arbitrary, and the resulting functions are tabulated on a radial grid
-# in the file. The UPF file format is documented here:
-# http://pseudopotentials.quantum-espresso.org/home/unified-pseudopotential-format.
+# in the file. The UPF file format is documented
+# [on the Quantum Espresso Website](http://pseudopotentials.quantum-espresso.org/home/unified-pseudopotential-format).
 #
 # In this example, we will compare the convergence of an analytical HGH PSP with
 # a modern numeric norm-conserving PSP in UPF format from

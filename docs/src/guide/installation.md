@@ -35,32 +35,35 @@ run the code in the [Tutorial](@ref) or the
 ## Recommended optional packages
 While not strictly speaking required to use DFTK it is usually convenient to install
 a couple of standard packages from the [AtomsBase](https://github.com/JuliaMolSim/AtomsBase.jl)
-ecosystem, such as [AtomsIO.jl](https://github.com/mfherbst/AtomsIO.jl)
-or [ASEconvert.jl](https://github.com/mfherbst/ASEconvert.jl).
-You can install these two packages using
+ecosystem to make working with DFT more convenient. Examples are
+
+- [AtomsIO](https://github.com/mfherbst/AtomsIO.jl) and
+  [AtomsIOPython](https://github.com/mfherbst/AtomsIO.jl),
+  which allow you to read (and write) a large range of standard file formats
+  for atomistic structures. In particular AtomsIO is lightweight and highly recommended.
+- [ASEconvert](https://github.com/mfherbst/ASEconvert.jl),
+  which integrates DFTK with a number of convenience features of the
+  ASE, the [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html).
+  See [Creating and modelling metallic supercells](@ref) for an example where
+  ASE is used within a DFTK workflow.
+
+You can install these packages using
 ```julia
 import Pkg
-Pkg.add(["AtomsIO", "ASEconvert"])
+Pkg.add(["AtomsIO", "AtomsIOPython", "ASEconvert"])
 ```
-While [AtomsIO](https://github.com/mfherbst/AtomsIO.jl) allows you to read (and write)
-a large range of standard file formats for atomistic structures,
-[ASEconvert](https://github.com/mfherbst/ASEconvert.jl)
-integrates DFTK with a number of convenience features of the
-ASE, the [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html).
-See [Creating and modelling metallic supercells](@ref) for an example where
-ASE is used within a DFTK workflow.
 
 !!! note "Python dependencies in Julia"
-    There are two main packages to use python dependencies from Julia, namely
-    [PythonCall](https://cjdoris.github.io/PythonCall.jl)
-    and [PyCall](https://github.com/JuliaPy/PyCall.jl). These packages can
-    be used side by side,
+    There are two main packages to use Python dependencies from Julia,
+    namely [PythonCall](https://cjdoris.github.io/PythonCall.jl)
+    and [PyCall](https://github.com/JuliaPy/PyCall.jl).
+    These packages can be used side by side,
     but [some care is needed](https://cjdoris.github.io/PythonCall.jl/stable/pycall/).
-    Since the AtomsBase ecosystem (thus AtomsIO and ASEconvert) is build based
-    on PythonCall, be sure to follow
-    [these guidelines](https://cjdoris.github.io/PythonCall.jl/stable/pycall/)
-    when using them in combination with PyCall-based packages
-    (such as [PyPlot](https://github.com/JuliaPy/PyPlot.jl)).
+    By installing AtomsIOPython and ASEconvert you indirectly install PythonCall
+    which these two packages use to manage their third-party Python dependencies.
+    This might cause complications if you plan on  using PyCall-based packages
+    (such as [PyPlot](https://github.com/JuliaPy/PyPlot.jl))
+    In contrast AtomsIO is free of any Python dependencies and can be safely installed in any case.
 
 ## Developer setup
 If you want to start developing DFTK Julia has the option to
