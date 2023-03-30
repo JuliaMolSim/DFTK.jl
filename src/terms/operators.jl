@@ -61,9 +61,9 @@ function Matrix(op::RealSpaceMultiplication)
     pot_fourier = fft(op.basis, op.potential)
     n_G = length(G_vectors(op.basis, op.kpoint))
     H = zeros(complex(eltype(op.basis)), n_G, n_G)
-    for (i, G) in enumerate(G_vectors(op.basis, op.kpoint))
-        for (j, G′) in enumerate(G_vectors(op.basis, op.kpoint))
-            # G_vectors(basis)[ind_ΔG] = G - G′
+    for (j, G′) in enumerate(G_vectors(op.basis, op.kpoint))
+        for (i, G) in enumerate(G_vectors(op.basis, op.kpoint))
+            # G_vectors(basis)[ind_ΔG] = G - G'
             ind_ΔG = index_G_vectors(op.basis, G - G′)
             if isnothing(ind_ΔG)
                 error("For full matrix construction, the FFT size must be " *
