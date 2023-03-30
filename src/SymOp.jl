@@ -1,5 +1,5 @@
-# A symmetry operation (SymOp) is a couple (W, w) of a matrix W and a translation w such
-# that in reduced coordinates, for each atom of type A at position a, W a + w is also an
+# A symmetry operation (SymOp) is a couple (W, w) of a matrix W and a translation w, in
+# reduced coordinates, such that for each atom of type A at position a, W a + w is also an
 # atom of type A.
 # The matrix W is unitary in Cartesian coordinates, but not in reduced coordinates.
 # This induces an operator
