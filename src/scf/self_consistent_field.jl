@@ -145,7 +145,8 @@ Overview of parameters:
         info = merge(info, (; ρnext))
 
         callback(info)
-        is_converged(info) && (converged = true)
+        converged = is_converged(info)
+        converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)  # Ensure same converged
 
         ρnext
     end
