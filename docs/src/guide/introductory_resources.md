@@ -11,20 +11,21 @@ see [Publications](@ref).
 ## Workshop material and tutorials
 - [DFTK school 2022: Numerical methods for density-functional theory simulations](https://school2022.dftk.org):
   Summer school centred around the DFTK code and modern approaches to density-functional theory.
-  [Programme and lecture notes](https://school2022.dftk.org), in particular:
+  See the [programme and lecture notes](https://school2022.dftk.org), in particular:
     * [Introduction to DFT](https://school2022.dftk.org/assets/Fromager_DFT.pdf)
     * [Introduction to periodic problems](https://school2022.dftk.org/assets/Bruneval_Solid_State_Planewave.pdf)
     * [Analysis of plane-wave DFT](https://school2022.dftk.org/assets/Cances_PlaneWave_DFT.pdf)
     * [Analysis of SCF convergence](https://github.com/mfherbst/dftk-workshop-material/tree/master/Lectures_Day2_Michael_Herbst)
     * [Exercises](https://github.com/mfherbst/dftk-workshop-material/tree/master/Exercises)
 
+
 - [DFT in a nutshell](https://doi.org/10.1002/qua.24259) by Kieron Burke and Lucas Wagner:
   Short tutorial-style article introducing the basic DFT setting, basic equations and terminology.
   Great introduction from the physical / chemical perspective.
 
 - [Workshop on mathematics and numerics of DFT](https://michael-herbst.com/teaching/2022-mit-workshop-dftk/):
-  Two-day workshop at MIT centred around DFTK by M. F. Herbst, in particular:
-    * [Summary of DFT theory](https://michael-herbst.com/teaching/2022-mit-workshop-dftk/2022-mit-workshop-dftk/DFT_Theory.pdf)
+  Two-day workshop at MIT centred around DFTK by M. F. Herbst,
+  in particular the [summary of DFT theory](https://michael-herbst.com/teaching/2022-mit-workshop-dftk/2022-mit-workshop-dftk/DFT_Theory.pdf).
 
 ## Textbooks
 - [Electronic Structure: Basic theory and practical methods](https://doi.org/10.1017/CBO9780511805769)
