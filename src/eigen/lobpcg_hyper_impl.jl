@@ -454,6 +454,10 @@ end
         # Quick sanity check
         for i = 1:size(X, 2)
             @views if abs(BX[:, i]'X[:, i] - 1) >= sqrt(eps(real(eltype(X))))
+                # TODO error-ing is too harsh here. Better throw some exception (e.g. in
+                # reduced precision this can be interpreted as an indicator to re-try the
+                # orthogonalisation in elevated precision or to stop the reduced precision
+                # iterations as a whole.
                 error("LOBPCG is badly failing to keep the vectors normalized; this should never happen")
             end
         end

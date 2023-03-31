@@ -112,8 +112,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
             mG² = .-norm2.(G_vectors_cart(basis))
             Vl  = reshape(terms.Vl, n_spin, basis.fft_size...)
             Vl_fourier = fft(basis, Vl[s, :, :, :])
-            # TODO: forcing real-valued ifft; should be enforced at creation of array
-            potential[:, :, :, s] .+= irfft(basis, mG² .* Vl_fourier; check=Val(false))  # ΔVl
+            potential[:, :, :, s] .+= irfft(basis, mG² .* Vl_fourier)  # ΔVl
         end
     end
 
@@ -299,9 +298,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
         for α = 1:3
             iGα = map(G -> im * G[α], G_vectors_cart(basis))
             for σ = 1:n_spin
-                # TODO: forcing real-valued ifft; should be enforced at creation of array
-                ∇ρ_real[σ, :, :, :, α] .= irfft(basis, iGα .* @view ρ_fourier[σ, :, :, :];
-                                                check=Val(false))
+                ∇ρ_real[σ, :, :, :, α] .= irfft(basis, iGα .* @view ρ_fourier[σ, :, :, :])
             end
         end
 
@@ -321,9 +318,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
         Δρ_real = similar(ρ_real, n_spin, basis.fft_size...)
         mG² = .-norm2.(G_vectors_cart(basis))
         for σ = 1:n_spin
-            # TODO: forcing real-valued ifft; should be enforced at creation of array
-            Δρ_real[σ, :, :, :] .= irfft(basis, mG² .* @view ρ_fourier[σ, :, :, :];
-                                         check=Val(false))
+            Δρ_real[σ, :, :, :] .= irfft(basis, mG² .* @view ρ_fourier[σ, :, :, :])
         end
     end
 
@@ -516,6 +511,5 @@ function divergence_real(operand, basis)
             im * G[α] * operand_αG  # ∇_α * operand_α
         end
     end
-    # TODO: forcing real-valued ifft; should be enforced at creation of array
-    irfft(basis, gradsum; check=Val(false))
+    irfft(basis, gradsum)
 end

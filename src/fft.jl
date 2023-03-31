@@ -55,18 +55,16 @@ function ifft(basis::PlaneWaveBasis, f_fourier::AbstractArray)
     end
     f_real
 end
-"""
-Perform a real valued iFFT; see [`ifft`](@ref).
-"""
-function irfft(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray; check=Val(true)) where {T}
-    f_real = ifft(basis, f_fourier)
-    if check isa Val{true} && norm(imag(f_real)) > max(1e-10, 10sqrt(eps(T)))
-        @warn "Real fft encountered large imaginary component: $(norm(imag(f_real)))"
-    end
-    real(f_real)
-end
 function ifft(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
     ifft!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
+end
+
+"""
+Perform a real valued iFFT; see [`ifft`](@ref). Note that this function
+silently drops the imaginary part.
+"""
+function irfft(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray) where {T}
+    real(ifft(basis, f_fourier))
 end
 
 
