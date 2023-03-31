@@ -1,7 +1,7 @@
 # Densities (and potentials) are represented by arrays
 # ρ[ix,iy,iz,iσ] in real space, where iσ ∈ [1:n_spin_components]
 
-function _check_nonnegative(ρ::AbstractArray{T}; tol=eps(T)) where {T}
+function _check_nonnegative(ρ::AbstractArray{T}; tol=sqrt(eps(T))) where {T}
     minimum(ρ) < -tol && @warn("Negative ρ detected", min_ρ=minimum(ρ))
 end
 
@@ -55,7 +55,10 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 
     mpi_sum!(ρ, basis.comm_kpts)
     ρ = symmetrize_ρ(basis, ρ; do_lowpass=false)
-    _check_nonnegative(ρ; tol=5occupation_threshold)
+
+    # There can always be small negative densities, e.g. due to numerical fluctuations
+    # in a vacuum region, so put some tolerance even if occupation_threshold == 0
+    _check_nonnegative(ρ; tol=max(sqrt((T)), 10occupation_threshold))
     ρ
 end
 

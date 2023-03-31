@@ -31,6 +31,8 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     # Charge density for non-linear core correction
     if any(a -> a.use_nlcc, basis.model.atoms)
         ρcore = ρ_from_total(basis, atomic_total_density(basis, CoreDensity()))
+        _check_nonnegative(ρcore)
+        minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
     else
         ρcore = ρ_from_total(basis, zeros(T, basis.fft_size))
     end
