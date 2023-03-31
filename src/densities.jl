@@ -58,7 +58,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 
     # There can always be small negative densities, e.g. due to numerical fluctuations
     # in a vacuum region, so put some tolerance even if occupation_threshold == 0
-    _check_nonnegative(ρ; tol=max(sqrt((T)), 10occupation_threshold))
+    _check_nonnegative(ρ; tol=max(sqrt(eps(T)), 10occupation_threshold))
     ρ
 end
 
