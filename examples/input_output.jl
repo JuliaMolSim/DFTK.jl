@@ -9,8 +9,15 @@
 # Supported formats include Crystallographic Information Framework (CIF),
 # XYZ and extxyz files, ASE / Gromacs / LAMMPS / Amber trajectory files
 # or input files of various other codes (e.g. Quantum Espresso, VASP, ABINIT, CASTEP, …).
-# The full list of formatis is available in the
+# The full list of formats is is available in the
 # [AtomsIO documentation](https://mfherbst.github.io/AtomsIO.jl/stable).
+#
+# The AtomsIO functionality is split into two packages. The main package, `AtomsIO` itself,
+# only depends on packages, which are registered in the Julia General package registry.
+# In contrast `AtomsIOPython` extends `AtomsIO` by parsers depending on python packages,
+# which are automatically managed via `PythonCall`. While it thus provides the full set of
+# supported IO formats, this also adds additional practical complications, so some users
+# may choose not to use `AtomsIOPython`.
 #
 # As an example we start the calculation of a simple antiferromagnetic iron crystal
 # using a Quantum-Espresso input file, [Fe_afm.pwi](Fe_afm.pwi).
@@ -23,7 +30,8 @@
 # [AtomsBase](https://github.com/JuliaMolSim/AtomsBase.jl) `AbstractSystem`,
 # the JuliaMolSim community standard for representing atomic systems.
 
-using AtomsIO
+using AtomsIO        # Use Julia-only IO parsers
+using AtomsIOPython  # Use python-based IO parsers (e.g. ASE)
 system = load_system("Fe_afm.pwi")
 
 # Next we attach pseudopotential information, since currently the parser is not
