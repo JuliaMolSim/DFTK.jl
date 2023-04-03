@@ -118,7 +118,17 @@ end
     XAX = X' * AX
     @assert all(!isnan, XAX)
     F = eigen(Hermitian(XAX))
-    F.vectors[:,1:N], F.values[1:N]
+    # LAPACK can actually return eigenvectors that are significantly
+    # non-orthogonal (1e-4 in Float32 in some tests) here, presumably
+    # because it tries hard to make them eigenvectors in the presence
+    # of small gaps. Since we care more about them being orthogonal
+    # than about them being eigenvectors, re-orthogonalize. 
+    # TODO avoid orthogonalization? julia calls syevr, maybe we should
+    # call syev instead ? Also maybe try to play with the ABSTOL
+    # parameter of syevr
+    v = @views F.vectors[:,1:N]
+    ortho!(v)
+    v, F.values[1:N]
 end
 
 # B-orthogonalize X (in place) using only one B apply.
@@ -454,10 +464,6 @@ end
         # Quick sanity check
         for i = 1:size(X, 2)
             @views if abs(BX[:, i]'X[:, i] - 1) >= sqrt(eps(real(eltype(X))))
-                # TODO error-ing is too harsh here. Better throw some exception (e.g. in
-                # reduced precision this can be interpreted as an indicator to re-try the
-                # orthogonalisation in elevated precision or to stop the reduced precision
-                # iterations as a whole.
                 error("LOBPCG is badly failing to keep the vectors normalized; this should never happen")
             end
         end
