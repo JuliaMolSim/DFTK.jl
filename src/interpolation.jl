@@ -12,8 +12,9 @@ function interpolate_density(ρ_in, basis_in::PlaneWaveBasis, basis_out::PlaneWa
 end
 
 # Interpolate ρ_in from grid grid_in to grid_out.
-function interpolate_density(ρ_in::AbstractArray, grid_in::TA,
-                             grid_out::TB) where {TA, TB <: Union{Tuple, AbstractArray}}
+function interpolate_density(ρ_in::AbstractArray{T, 3}, grid_in::TA,
+                             grid_out::TB) where {T, TA <: Union{Tuple, AbstractArray},
+                                                  TB <: Union{Tuple, AbstractArray}}
     axes_in = (range(0, 1, length=grid_in[i]+1)[1:end-1] for i=1:3)
     itp = interpolate(ρ_in, BSpline(Quadratic(Interpolations.Periodic(OnCell()))))
     sitp = scale(itp, axes_in...)
