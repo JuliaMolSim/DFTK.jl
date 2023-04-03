@@ -1,22 +1,23 @@
-# A symmetry operation (SymOp) is a couple (W, w) of a
-# unitary (in cartesian coordinates, but not in reduced coordinates)
-# matrix W and a translation w such that, for each atom of
-# type A at position a, W a + w is also an atom of type A.
+# A symmetry operation (SymOp) is a couple (W, w) of a matrix W and a translation w, in
+# reduced coordinates, such that for each atom of type A at position a, W a + w is also an
+# atom of type A.
+# The matrix W is unitary in Cartesian coordinates, but not in reduced coordinates.
 # This induces an operator
-# (Uu)(x) = u(W x + w)
+#   (Uu)(x) = u(W x + w)
 # or in Fourier space
-# (Uu)(G) = e^{-i G τ} u(S^-1 G)
+#   (Uu)(G) = e^{-i G τ} u(S^-1 G)
 # with
-# S = W'
-# τ = -W^-1 w
-# (all these formulas are valid both in reduced and cartesian coordinates)
+#   S = W'
+#   τ = -W^-1 w
+# (Omitting a 2π factor, all these formulas are valid both in reduced and Cartesian
+# coordinates.)
 
 # Time-reversal symmetries are the anti-unitaries
-# (Uu)(x) = conj(u(Wx+w))
+#   (Uu)(x) = conj(u(Wx+w))
 # or in Fourier space
-# (Uu)(G) = e^{i G τ} conj(u(-S^-1 G))
+#   (Uu)(G) = e^{i G τ} conj(u(-S^-1 G))
 
-# Tolerance to consider two atomic positions as equal (in relative coordinates)
+# Tolerance to consider two atomic positions as equal (in relative coordinates).
 const SYMMETRY_TOLERANCE = 1e-5
 
 is_approx_integer(r; tol=SYMMETRY_TOLERANCE) = all(ri -> abs(ri - round(ri)) ≤ tol, r)
