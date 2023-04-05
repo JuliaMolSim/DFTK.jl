@@ -331,13 +331,16 @@ function unfold_bz(scfres)
 end
 
 function unfold_kcoords(kcoords, symmetries)
+    # unfold
     all_kcoords = [normalize_kpoint_coordinate(symop.S * kcoord)
                    for kcoord in kcoords, symop in symmetries]
-
-    # the above multiplications introduce an error
+    # uniquify
+    digits = ceil(Int, -log10(SYMMETRY_TOLERANCE))
     unique(all_kcoords) do k
-        digits = ceil(Int, -log10(SYMMETRY_TOLERANCE))
-        normalize_kpoint_coordinate(round.(k; digits))
+        # if x and y are both close to a round value, round(x)===round(y), except at zero
+        # where 0.0 and -0.0 are considered different by unique. Add 0.0 to make both
+        # -0.0 and 0.0 equal to 0.0
+        normalize_kpoint_coordinate(round.(k; digits) .+ 0.0)
     end
 end
 
