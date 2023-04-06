@@ -54,7 +54,7 @@ involving this structure will always yield a plain array (and not a LazyHcat str
 LazyHcat is a lightweight subset of BlockArrays.jl's functionalities, but has the
 advantage to be able to store GPU Arrays (BlockArrays is heavily built on Julia's CPU Array).
 """
-struct LazyHcat{T <: Number, D <: Tuple} <: AbstractMatrix{T}
+struct LazyHcat{T<:Number, D<:Tuple} <: AbstractMatrix{T}
     blocks::D
 end
 
@@ -78,16 +78,16 @@ Base.Array(A::LazyHcat)  = hcat(A.blocks...)
 
 Base.adjoint(A::LazyHcat) = Adjoint(A)
 
-@views function Base.:*(Aadj::Adjoint{T, <: LazyHcat}, B::LazyHcat) where {T}
+@views function Base.:*(Aadj::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
     A = Aadj.parent
     rows = size(A)[2]
     cols = size(B)[2]
     ret = similar(A.blocks[1], rows, cols)
 
     orow = 0  # row offset
-    for (iA, blA) in enumerate(A.blocks)
+    for blA in A.blocks
         ocol = 0  # column offset
-        for (iB, blB) in enumerate(B.blocks)
+        for blB in B.blocks
             ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] .= blA' * blB
             ocol += size(blB, 2)
         end
@@ -96,7 +96,7 @@ Base.adjoint(A::LazyHcat) = Adjoint(A)
     ret
 end
 
-Base.:*(Aadj::Adjoint{T, <: LazyHcat}, B::AbstractMatrix) where {T} = Aadj * LazyHcat(B)
+Base.:*(Aadj::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = Aadj * LazyHcat(B)
 
 @views function *(Ablock::LazyHcat, B::AbstractMatrix)
     res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
@@ -122,10 +122,10 @@ end
     # non-orthogonal (1e-4 in Float32 in some tests) here, presumably
     # because it tries hard to make them eigenvectors in the presence
     # of small gaps. Since we care more about them being orthogonal
-    # than about them being eigenvectors, re-orthogonalize. 
-    # TODO avoid orthogonalization? julia calls syevr, maybe we should
-    # call syev instead ? Also maybe try to play with the ABSTOL
-    # parameter of syevr
+    # than about them being eigenvectors, re-orthogonalize.
+    # TODO avoid orthogonalization: julia calls syevr, but syevd
+    # does a much better job, see https://github.com/JuliaLang/julia/pull/49262
+    # ... we should use that.
     v = @views F.vectors[:,1:N]
     ortho!(v)
     v, F.values[1:N]
