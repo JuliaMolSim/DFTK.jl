@@ -253,10 +253,11 @@ if VERSION ≥ v"1.9alpha" && isnothing(get(ENV, "DFTK_NO_PRECOMPILATION", nothi
         Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
         atoms     = [Si, Si]
         positions = [ones(3)/8, -ones(3)/8]
-
-        model = model_LDA(lattice, atoms, positions, temperature=0.1, spin_polarization=:collinear)
+        magnetic_moments = [2, -2]
+        model = model_LDA(lattice, atoms, positions; magnetic_moments, temperature=0.1, spin_polarization=:collinear)
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
-        scfres = self_consistent_field(basis, tol=1e-2, maxiter=3, callback=identity)
+        ρ0 = guess_density(basis, magnetic_moments)
+        scfres = self_consistent_field(basis; ρ=ρ0, tol=1e-2, maxiter=3, callback=identity)
     end
 end
 end # module DFTK

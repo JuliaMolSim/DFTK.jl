@@ -2,7 +2,6 @@ using DFTK
 using LinearAlgebra
 using Test
 using Unitful
-using ASEconvert
 using Logging
 include("testcases.jl")
 
@@ -31,7 +30,10 @@ include("testcases.jl")
     test_against_spglib([ 9, 11, 13])
 end
 
+if mpi_nprocs() == 1  # PythonCall does not play nicely with MPI
 @testset "bzmesh_ir_wedge is correct reduction" begin
+    using ASEconvert
+
     function test_reduction(testcase, kgrid_size, kirredsize;
                             supercell=(1, 1, 1), kshift=[0, 0, 0])
         system = atomic_system(testcase.lattice, testcase.atoms, testcase.positions)
@@ -79,6 +81,7 @@ end
     test_reduction(magnesium, [ 9, 11, 13], 350)
 
     test_reduction(platinum_hcp, [5, 5, 5], 63)
+end
 end
 
 @testset "standardize_atoms" begin
