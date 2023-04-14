@@ -28,12 +28,12 @@ end
 
 function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     isempty(xc.functionals) && return TermNoop()
+
     # Charge density for non-linear core correction
+    ρcore = nothing
     if any(a -> a.use_nlcc, basis.model.atoms)
         ρcore = ρ_from_total(basis, atomic_total_density(basis, CoreDensity()))
         minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
-    else
-        ρcore = ρ_from_total(basis, zeros(T, basis.fft_size))
     end
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
@@ -45,11 +45,11 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
            T(xc.potential_threshold), ρcore)
 end
 
-struct TermXc{T} <: TermNonlinear where {T}
+struct TermXc{T,CT} <: TermNonlinear where {T,CT}
     functionals::Vector{Functional}
     scaling_factor::T
     potential_threshold::T
-    ρcore::Array{T,4}
+    ρcore::CT
 end
 
 function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
@@ -62,7 +62,9 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     @assert all(family(xc) in (:lda, :gga, :mgga, :mggal) for xc in term.functionals)
 
     # Add the model core charge density (non-linear core correction)
-    ρ = ρ + term.ρcore
+    if !isnothing(term.ρcore)
+        ρ = ρ + term.ρcore
+    end
 
     # Compute kinetic energy density, if needed.
     if isnothing(τ) && any(needs_τ, term.functionals)

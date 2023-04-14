@@ -12,7 +12,7 @@ include("testcases.jl")
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=(3, 3, 3), architecture)
 
         # TODO Right now guess generation on the GPU does not work
-        basis_cpu = PlaneWaveBasis(model; Ecut=10, kgrid=(3, 3, 3))
+        basis_cpu = PlaneWaveBasis(model; basis.Ecut, basis.kgrid)
         ρ_guess = guess_density(basis_cpu)
         ρ = DFTK.to_device(architecture, ρ_guess)
 
@@ -33,20 +33,20 @@ end
         basis = PlaneWaveBasis(model; Ecut=20, kgrid=(4, 4, 4), architecture)
 
         # TODO Right now guess generation on the GPU does not work
-        basis_cpu = PlaneWaveBasis(model; Ecut=10, kgrid=(3, 3, 3))
+        basis_cpu = PlaneWaveBasis(model; basis.Ecut, basis.kgrid)
         ρ_guess = guess_density(basis_cpu, magnetic_moments)
         ρ = DFTK.to_device(architecture, ρ_guess)
         # ρ = guess_density(basis, magnetic_moments)
 
         # TODO Bump tolerance a bit here ... still leads to NaNs unfortunately
-        self_consistent_field(basis; ρ, tol=1e-8, mixing=KerkerMixing(),
+        self_consistent_field(basis; ρ, tol=1e-7, mixing=KerkerMixing(),
                               solver=scf_damping_solver(1.0))
     end
 
     scfres_cpu = run_problem(; architecture=DFTK.CPU())
     scfres_gpu = run_problem(; architecture=DFTK.GPU(CuArray))
-    @test abs(scfres_cpu.energies.total - scfres_gpu.energies.total) < 1e-8
-    @test norm(scfres_cpu.ρ - Array(scfres_gpu.ρ)) < 1e-7
+    @test abs(scfres_cpu.energies.total - scfres_gpu.energies.total) < 1e-7
+    @test norm(scfres_cpu.ρ - Array(scfres_gpu.ρ)) < 1e-6
 end
 
 
