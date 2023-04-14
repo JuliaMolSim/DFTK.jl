@@ -9,7 +9,8 @@ stages:
 julia/1.8-n2:
   stage: test
   variables:
-    SCHEDULER_PARAMETERS: "-N 1 -n 1 -c 16 --gres=gpu:a100:1 --qos=devel -p dgx -t 00:15:00 -A hpc-prf-dftkjl"
+    # SCHEDULER_PARAMETERS: "-N 1 -n 1 -c 16 --gres=gpu:a100:1 --qos=devel -p dgx -t 00:15:00 -A hpc-prf-dftkjl"
+    SCHEDULER_PARAMETERS: "-N 1 -n 1 -c 16 --gres=gpu:a100:1             -p gpu -t 00:30:00 -A hpc-prf-dftkjl"
     JULIA_NUM_THREADS: "1"  # GPU and multi-threading not yet compatible
   coverage: '/\(\d+.\d+\%\) covered/'
   rules:

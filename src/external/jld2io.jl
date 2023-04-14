@@ -28,7 +28,7 @@ function save_scfres_master(file::AbstractString, scfres::NamedTuple, ::Val{:jld
 
     JLD2.jldopen(file, "w") do jld
         jld["__propertynames"] = propertynames(scfres)
-        jld["ρ_real"]          = scfres.ρ
+        jld["ρ"]               = scfres.ρ
         jld["basis"]           = scfres.basis
 
         for symbol in propertynames(scfres)
@@ -44,7 +44,7 @@ end
 function load_scfres(jld::JLD2.JLDFile)
     basis = jld["basis"]
     scfdict = Dict{Symbol, Any}(
-        :ρ     => jld["ρ_real"],
+        :ρ     => jld["ρ"],
         :basis => basis
     )
 

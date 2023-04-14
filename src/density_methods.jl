@@ -87,7 +87,7 @@ function atomic_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_m
     ρtot = atomic_total_density(basis, method)
     ρspin = atomic_spin_density(basis, method, magnetic_moments)
     ρ = ρ_from_total_and_spin(ρtot, ρspin)
-    
+
     N = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
 
     if !isnothing(n_electrons) && (N > 0)
