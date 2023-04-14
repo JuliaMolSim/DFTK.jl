@@ -14,4 +14,6 @@ model = model_PBE(lattice, atoms, positions)
 architecture = has_cuda() ? DFTK.GPU(CuArray) : DFTK.CPU()
 
 basis  = PlaneWaveBasis(model; Ecut=30, kgrid=(5, 5, 5), architecture)
-scfres = self_consistent_field(basis; tol=1e-2, solver=scf_damping_solver())
+# FIXME right now guess generation on the GPU is broken
+ρ = DFTK.to_device(architecture, guess_density(PlaneWaveBasis(model; basis.Ecut, basis.kgrid)))
+scfres = self_consistent_field(basis; tol=1e-2, solver=scf_damping_solver(), ρ)

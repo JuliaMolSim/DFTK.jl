@@ -55,3 +55,4 @@ end
 # TODO meta GGA
 # TODO Aluminium with LdosMixing
 # TODO Anderson acceleration
+# TODO Norm-conserving pseudopotentials with non-linear core
