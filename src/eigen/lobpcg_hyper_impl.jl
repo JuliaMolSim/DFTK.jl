@@ -39,6 +39,7 @@
 ## TODO it seems there is a lack of orthogonalization immediately after locking, maybe investigate this to save on some choleskys
 ## TODO debug orthogonalizations when A=I
 
+# TODO Use @debug for this
 # vprintln(args...) = println(args...)  # Uncomment for output
 vprintln(args...) = nothing
 
@@ -117,18 +118,29 @@ end
 @timing function rayleigh_ritz(X, AX, N)
     XAX = X' * AX
     @assert all(!isnan, XAX)
-    F = eigen(Hermitian(XAX))
-    # LAPACK can actually return eigenvectors that are significantly
-    # non-orthogonal (1e-4 in Float32 in some tests) here, presumably
-    # because it tries hard to make them eigenvectors in the presence
+    rayleigh_ritz(Hermitian(XAX), N)
+end
+@views function rayleigh_ritz(XAX::Hermitian, N)
+    # Fallback: Use whatever is the default dense eigensolver.
+    # Note: GenericLinearAlgebra uses a QR-based algorithm, which is pretty safe in terms
+    #       of keeping the vectors orthogonal
+    values, vectors = eigen(XAX)
+    vectors[:, 1:N], values[1:N]
+end
+@views function rayleigh_ritz(XAX::Hermitian{T,<:Array}, N) where {T <: Union{ComplexF32,ComplexF64,
+                                                                              Float32,Float64}}
+    # LAPACK sysevr (the Julia default dense eigensolver) can actually return eigenvectors
+    # that are significantly non-orthogonal (1e-4 in Float32 in some tests) here,
+    # presumably because it tries hard to make them eigenvectors in the presence
     # of small gaps. Since we care more about them being orthogonal
     # than about them being eigenvectors, re-orthogonalize.
-    # TODO avoid orthogonalization: julia calls syevr, but syevd
-    # does a much better job, see https://github.com/JuliaLang/julia/pull/49262
-    # ... we should use that.
-    v = @views F.vectors[:,1:N]
+    # TODO To avoid orthogonalization: Use syevd,
+    # which does a much better job, see https://github.com/JuliaLang/julia/pull/49262
+    # and https://github.com/JuliaLang/julia/pull/49355
+    values, vectors = eigen(XAX)
+    v = vectors[:, 1:N]
     ortho!(v)
-    v, F.values[1:N]
+    v, values[1:N]
 end
 
 # B-orthogonalize X (in place) using only one B apply.
@@ -156,7 +168,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
     # U,S,V = svd(X)
     # return U*V', 1, 1
 
-    growth_factor = 1
+    growth_factor = one(real(T))
 
     success = false
     nchol = 0
@@ -219,7 +231,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 
     # @assert norm(X'X - I) < tol
 
-    X, nchol, growth_factor
+    (; X, nchol, growth_factor)
 end
 
 # Randomize the columns of X if the norm is below tol
@@ -272,7 +284,7 @@ end
 
         # If we're at a fixed point, growth_factor is 1 and if tol >
         # eps(), the loop will terminate, even if BY'Y != 0
-        growth_factor*eps(real(T)) < tol && break
+        growth_factor * eps(real(T)) < tol && break
 
         niter > 10 && error("Ortho(X,Y) is failing badly, this should never happen")
         niter += 1
@@ -382,14 +394,17 @@ end
         end
 
         ### Compute new residuals
-        new_R = new_AX .- new_BX .* λs'
+        @timing "Update residuals" begin
+            new_R = new_AX .- new_BX .* λs'
+            @views for i = 1:size(X, 2)
+                resid_history[i + nlocked, niter+1] = norm(new_R[:, i])
+            end
+        end
+        vprintln(niter, "   ", resid_history[:, niter+1])
+
         # it is actually a good question of knowing when to
         # precondition. Here seems sensible, but it could plausibly be
         # done before or after
-        @views for i=1:size(X,2)
-            resid_history[i + nlocked, niter+1] = norm(new_R[:, i])
-        end
-        vprintln(niter, "   ", resid_history[:, niter+1])
         if precon !== I
             @timing "preconditioning" begin
                 precondprep!(precon, X)  # update preconditioner if needed; defaults to noop
