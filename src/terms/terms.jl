@@ -80,7 +80,7 @@ In this case the matrix has effectively 4 blocks
 """
 @timing function compute_kernel(basis::PlaneWaveBasis{T}; kwargs...) where {T}
     n_spin = basis.model.n_spin_components
-    kernel = zeros(T, n_spin * prod(basis.fft_size), n_spin * prod(basis.fft_size))
+    kernel = zeros_like(basis.G_vectors, T, n_spin * prod(basis.fft_size), n_spin * prod(basis.fft_size))
     for term in basis.terms
         isnothing(term) && continue
         kernel .+= compute_kernel(term, basis; kwargs...)

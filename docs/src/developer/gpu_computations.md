@@ -88,3 +88,62 @@ performance. For example, iterating through the columns of a matrix to compute t
 norms is not efficient, as a new kernel is launched for every column. Instead, it
 is better to build the vector containing these norms, as it is a vectorized
 operation and will be much faster on the GPU.
+
+## Anti-patterns
+
+- Avoid hard coding `Array` in fields of a struct, as it prevents the use of GPU. In fact, this results in the underlying data being automatically moved to the CPU, which might not be ideal.
+- Avoid using `zeros`, `ones` as they simply the output would be an `Array` that is on CPU. Instead, use `zeros_like` constructor, or `similar`.
+
+For example,
+
+```julia
+rho_temp = zeros(T, basis.fft_size...)
+```
+
+should be written as:
+
+```julia
+rho_temp = zeros_like(basis.G_vectors, T, basis.fft_size...)
+```
+
+or 
+
+```julia
+rho_temp = similar(basis.G_vectors, T, basis.fft_size...)
+fill!(rho_temp, 0)
+```
+
+
+## Debugging
+
+First, make sure the scalar indexing is disabled as these calculations are not computed on GPU but instead on the CPU.
+Data must be transferred for each call so the speed can be extremely slow, resulting the calculation appears to be *stuck*.
+
+For CUDA GPU, scalar indexing is allowed on REPL, and a warning will be print. 
+However, this does not tell you where the offending lines are. 
+
+To completely disable scalar indexing, just run
+
+```julia
+CUDA.allowscalar(false)
+```
+
+which will allow the program to error when scalar indexing is used.
+The offending code should be rewritten using array operations. 
+If it is not possible or non-trivial to do so, one make the calculation to be run on CPU with, 
+then move the results back to GPU afterwards:
+
+```julia
+a_cpu = to_cpu(a)
+
+y_cpu = map(a_cpu) do x
+...
+end
+
+y = to_device(y_cpu)
+```
+
+If the calculation fails with a `GPU` architecture, the stack trace can often provide useful information.
+Pay attention to the function call that is in DFTK.jl in the trace, and also what type of its arguments are.
+Typically, the error is caused by mixing arrays on GPU (e.g. `CuArray`) with arrays on CPU (e.g. `Array`).
+

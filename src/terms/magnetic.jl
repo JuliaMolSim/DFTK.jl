@@ -27,7 +27,7 @@ function TermMagnetic(basis::PlaneWaveBasis{T}, Afunction::Function) where {T}
             end
         end
     end
-    TermMagnetic(Apotential)
+    TermMagnetic(to_device.(basis.architecture, Apotential))
 end
 
 function ene_ops(term::TermMagnetic, basis::PlaneWaveBasis{T}, ψ, occupation;
