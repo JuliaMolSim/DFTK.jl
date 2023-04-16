@@ -143,20 +143,24 @@ end
 function atomic_density_superposition(basis::PlaneWaveBasis{T},
                                       form_factors::IdDict{Tuple{Int,T},T};
                                       coefficients=ones(T, length(basis.model.atoms))
-                                      )::Array{T,3} where {T}
+                                      ) where {T}
     model = basis.model
-    G_cart = G_vectors_cart(basis)
+    G_cart = to_cpu(G_vectors_cart(basis))
+    Gv = to_cpu(G_vectors(basis))
+    atom_groups = to_cpu(model.atom_groups)
+    positions = to_cpu(model.positions)
 
-    ρ = map(enumerate(G_vectors(basis))) do (iG, G)
+    ρ_cpu = map(enumerate(Gv)) do (iG, G)
         Gnorm = norm(G_cart[iG])
-        ρ_iG = sum(enumerate(model.atom_groups); init=zero(Complex{T})) do (igroup, group)
+        ρ_iG = sum(enumerate(atom_groups); init=zero(Complex{T})) do (igroup, group)
             sum(group) do iatom
-                structure_factor = cis2pi(-dot(G, model.positions[iatom]))
+                structure_factor = cis2pi(-dot(G, positions[iatom]))
                 coefficients[iatom] * form_factors[(igroup, Gnorm)] * structure_factor
             end
         end
         ρ_iG / sqrt(model.unit_cell_volume)
     end
+    ρ = to_device(basis.architecture, ρ_cpu)
     enforce_real!(basis, ρ)  # Symmetrize Fourier coeffs to have real iFFT
     irfft(basis, ρ)
 end
@@ -166,9 +170,11 @@ function atomic_density_form_factors(basis::PlaneWaveBasis{T},
                                      )::IdDict{Tuple{Int,T},T} where {T<:Real}
     model = basis.model
     form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
-    for G in G_vectors_cart(basis)
+    G_cart = to_cpu(G_vectors_cart(basis))
+    atom_groups = to_cpu(model.atom_groups)
+    for G in G_cart
         Gnorm = norm(G)
-        for (igroup, group) in enumerate(model.atom_groups)
+        for (igroup, group) in enumerate(atom_groups)
             if !haskey(form_factors, (igroup, Gnorm))
                 element = model.atoms[first(group)]
                 form_factor = atomic_density(element, Gnorm, method)
