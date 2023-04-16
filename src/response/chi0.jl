@@ -55,7 +55,7 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
     T  = eltype(basis)
     occupation, εF = compute_occupation(basis, Es, fermialg; temperature, tol_n_elec=10eps(T))
 
-    χ0 = zeros_like(basis.G_vectors, n_spin * n_fft, n_spin * n_fft)
+    χ0 = zeros_like(basis.G_vectors, T, n_spin * n_fft, n_spin * n_fft)
     for (ik, kpt) in enumerate(basis.kpoints)
         # The sum-over-states terms of χ0 are diagonal in the spin blocks (no αβ / βα terms)
         # so the spin of the kpt selects the block we are in
