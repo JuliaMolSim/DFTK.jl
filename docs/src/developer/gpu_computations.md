@@ -30,7 +30,7 @@ PlaneWaveBasis(model; Ecut, kgrid, architecture = DFTK.GPU(CuArray))
     Julia ecosystem concerning distributed architectures.
 
 Not all terms can be used when doing GPU computations. As of January 2023 this
-concerns `Anyonic`, `Magnetic` and `TermPairwisePotential`. Similarly GPU features are
+concerns `Anyonic`, and `TermPairwisePotential`. Similarly GPU features are
 not yet exhaustively tested, and it is likely that some aspects of the code such as
 automatic differentiation or stresses will not work.
 
