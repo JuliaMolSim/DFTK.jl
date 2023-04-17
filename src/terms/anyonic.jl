@@ -82,7 +82,9 @@ struct TermAnyonic{T <: Real, Tρ, TA} <: Term
     ρref::Tρ
     Aref::TA
 end
+
 function TermAnyonic(basis::PlaneWaveBasis{T}, hbar, β) where {T}
+    @assert isa(basis.architecture, CPU) "Anyonic term is not implement for GPU yet."
     # compute correction magnetic field
     ρref = zeros(T, basis.fft_size)
     Aref = [zeros(T, basis.fft_size), zeros(T, basis.fft_size)]

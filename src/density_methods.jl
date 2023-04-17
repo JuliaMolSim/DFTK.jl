@@ -146,15 +146,11 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
                                       ) where {T}
     model = basis.model
     G_cart = to_cpu(G_vectors_cart(basis))
-    Gv = to_cpu(G_vectors(basis))
-    atom_groups = to_cpu(model.atom_groups)
-    positions = to_cpu(model.positions)
-
-    ρ_cpu = map(enumerate(Gv)) do (iG, G)
+    ρ_cpu = map(enumerate(to_cpu(G_vectors(basis)))) do (iG, G)
         Gnorm = norm(G_cart[iG])
-        ρ_iG = sum(enumerate(atom_groups); init=zero(Complex{T})) do (igroup, group)
+        ρ_iG = sum(enumerate(model.atom_groups); init=zero(Complex{T})) do (igroup, group)
             sum(group) do iatom
-                structure_factor = cis2pi(-dot(G, positions[iatom]))
+                structure_factor = cis2pi(-dot(G, model.positions[iatom]))
                 coefficients[iatom] * form_factors[(igroup, Gnorm)] * structure_factor
             end
         end
@@ -170,11 +166,9 @@ function atomic_density_form_factors(basis::PlaneWaveBasis{T},
                                      )::IdDict{Tuple{Int,T},T} where {T<:Real}
     model = basis.model
     form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
-    G_cart = to_cpu(G_vectors_cart(basis))
-    atom_groups = to_cpu(model.atom_groups)
-    for G in G_cart
+    for G in to_cpu(G_vectors_cart(basis))
         Gnorm = norm(G)
-        for (igroup, group) in enumerate(atom_groups)
+        for (igroup, group) in enumerate(model.atom_groups)
             if !haskey(form_factors, (igroup, Gnorm))
                 element = model.atoms[first(group)]
                 form_factor = atomic_density(element, Gnorm, method)

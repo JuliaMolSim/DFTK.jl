@@ -36,7 +36,9 @@ struct ExternalFromReal
 end
 
 function (external::ExternalFromReal)(basis::PlaneWaveBasis{T}) where {T}
-    pot_real = external.potential.(r_vectors_cart(basis))
+    # Move this operation on CPU as GPU broadcast is very strict on type stability
+    rv = to_cpu(r_vectors_cart(basis))
+    pot_real = to_device(basis.architecture, external.potential.(rv))
     TermExternal(convert_dual.(T, pot_real))
 end
 

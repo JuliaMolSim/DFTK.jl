@@ -106,20 +106,15 @@ should be written as:
 rho_temp = zeros_like(basis.G_vectors, T, basis.fft_size...)
 ```
 
-or 
-
-```julia
-rho_temp = similar(basis.G_vectors, T, basis.fft_size...)
-fill!(rho_temp, 0)
-```
-
 
 ## Debugging
 
-First, make sure the scalar indexing is disabled as these calculations are not computed on GPU but instead on the CPU.
-Data must be transferred for each call so the speed can be extremely slow, resulting the calculation appears to be *stuck*.
+First, make sure the scalar indexing is disabled as these calculations are not computed on GPU but instead on the CPU,
+as otherwise fallback routines on the CPU are allowed. 
+While  these are helpful for interactive debugging, these always imply a synchronisation on the device and a data transfer to main memory. 
+In practice runs this then results in an unnecessary overhead and the calculation appearing to be struck.
 
-For CUDA GPU, scalar indexing is allowed on REPL, and a warning will be print. 
+Note that by default scalar indexing is allowed on REPL and results in a warning being printed. 
 However, this does not tell you where the offending lines are. 
 
 To completely disable scalar indexing, just run
@@ -128,10 +123,9 @@ To completely disable scalar indexing, just run
 CUDA.allowscalar(false)
 ```
 
-which will allow the program to error when scalar indexing is used.
+which will cause the program to error when scalar indexing is used.
 The offending code should be rewritten using array operations. 
-If it is not possible or non-trivial to do so, one make the calculation to be run on CPU with, 
-then move the results back to GPU afterwards:
+If it is not possible or non-trivial to do so, it is usually best to have the calculation to run on the CPU:
 
 ```julia
 a_cpu = to_cpu(a)
