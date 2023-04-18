@@ -438,6 +438,12 @@ The list of ``r`` vectors, in cartesian coordinates.
 """
 r_vectors_cart(basis::PlaneWaveBasis) = map(vector_red_to_cart(basis.model), r_vectors(basis))
 
+"""
+Convert a vector containing G Vectors (SVector{3, T}) into a dense array.
+"""
+function G_vectors_as_array(Gv::AbstractArray{SVector{3, T}}) where {T}
+    reinterpret(reshape, T, Gv)
+end
 
 """
 Return the index tuple `I` such that `G_vectors(basis)[I] == G`
