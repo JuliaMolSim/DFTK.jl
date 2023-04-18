@@ -109,7 +109,7 @@ rho_temp = zeros_like(basis.G_vectors, T, basis.fft_size...)
 
 ## Debugging
 
-First, make sure the scalar indexing is disabled as these calculations are not computed on GPU but instead on the CPU,
+First, make sure the scalar indexing is disabled
 as otherwise fallback routines on the CPU are allowed. 
 While  these are helpful for interactive debugging, these always imply a synchronisation on the device and a data transfer to main memory. 
 In practice runs this then results in an unnecessary overhead and the calculation appearing to be struck.
