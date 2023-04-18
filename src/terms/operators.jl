@@ -41,7 +41,7 @@ end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
 function Matrix(op::NoopOperator)
     n_Gk = length(G_vectors(op.basis, op.kpoint))
-    zeros(eltype(op.basis), n_Gk, n_Gk)
+    zeros_like(op.basis.G_vectors, eltype(op.basis), n_Gk, n_Gk)
 end
 
 """
@@ -118,17 +118,13 @@ end
 function apply!(Hψ, op::MagneticFieldOperator, ψ)
     # TODO this could probably be better optimized
     # The cartesian coordinates should be pre-allocated....
-    p = Gv_to_array(Gplusk_vectors_cart(op.basis, op.kpoint))
+    p = G_vectors_as_array(Gplusk_vectors_cart(op.basis, op.kpoint))
     for α = 1:3
         iszero(op.Apot[α]) && continue
         ∂αψ_fourier = p[α, :] .* ψ.fourier
         ∂αψ_real = ifft(op.basis, op.kpoint, ∂αψ_fourier)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real
     end
-end
-
-function Gv_to_array(Gv::AbstractArray{SVector{3, T}}) where {T}
-    reinterpret(reshape, T, Gv)
 end
 
 # TODO Implement  Matrix(op::MagneticFieldOperator)

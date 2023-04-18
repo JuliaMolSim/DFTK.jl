@@ -36,9 +36,8 @@ struct ExternalFromReal
 end
 
 function (external::ExternalFromReal)(basis::PlaneWaveBasis{T}) where {T}
-    # Move this operation on CPU as GPU broadcast is very strict on type stability
-    rv = to_cpu(r_vectors_cart(basis))
-    pot_real = to_device(basis.architecture, external.potential.(rv))
+    rv = r_vectors_cart(basis)
+    pot_real = external.potential.(rv)
     TermExternal(convert_dual.(T, pot_real))
 end
 
@@ -51,6 +50,7 @@ struct ExternalFromFourier
 end
 function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
+    # This seems to be broken for GPU due to not being able to infer pot_fourier?
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end
