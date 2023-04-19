@@ -31,8 +31,8 @@ end
 External potential from an analytic function `V` (in cartesian coordinates).
 No low-pass filtering is performed.
 """
-struct ExternalFromReal
-    potential::Function
+struct ExternalFromReal{T<:Function}
+    potential::T
 end
 
 function (external::ExternalFromReal)(basis::PlaneWaveBasis{T}) where {T}
@@ -45,12 +45,11 @@ end
 External potential from the (unnormalized) Fourier coefficients `V(G)`
 G is passed in cartesian coordinates
 """
-struct ExternalFromFourier
-    potential::Function
+struct ExternalFromFourier{T<:Function}
+    potential::T
 end
 function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
-    # This seems to be broken for GPU due to not being able to infer pot_fourier?
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end

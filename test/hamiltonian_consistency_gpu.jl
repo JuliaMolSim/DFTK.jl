@@ -13,9 +13,7 @@ Random.seed!(0)
     test_consistency_term(AtomicLocal(), architecture=DFTK.GPU(CuArray))
     test_consistency_term(AtomicNonlocal(), architecture=DFTK.GPU(CuArray))
     test_consistency_term(ExternalFromReal(X -> cos(X[1])), architecture=DFTK.GPU(CuArray))
-    # Note that ExternalFromFourier appears to be broken due to type instability, likely cause by a buggy
-    # in julia itself...
-    # test_consistency_term(ExternalFromFourier(X -> abs(norm(X))), architecture=DFTK.GPU(CuArray))
+    test_consistency_term(ExternalFromFourier(X -> abs(norm(X))), architecture=DFTK.GPU(CuArray))
     test_consistency_term(LocalNonlinearity(ρ -> ρ^2), architecture=DFTK.GPU(CuArray))
     test_consistency_term(Hartree(), architecture=DFTK.GPU(CuArray))
     test_consistency_term(Ewald(), architecture=DFTK.GPU(CuArray))
