@@ -114,19 +114,16 @@ struct MagneticFieldOperator{T <: Real, AT} <: RealFourierOperator
     kpoint::Kpoint{T}
     Apot::AT  # Apot[α][i,j,k] is the A field in (cartesian) direction α
 end
-
 function apply!(Hψ, op::MagneticFieldOperator, ψ)
     # TODO this could probably be better optimized
-    # The cartesian coordinates should be pre-allocated....
-    p = G_vectors_as_array(Gplusk_vectors_cart(op.basis, op.kpoint))
     for α = 1:3
         iszero(op.Apot[α]) && continue
-        ∂αψ_fourier = p[α, :] .* ψ.fourier
+        pα = [Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)]
+        ∂αψ_fourier = pα .* ψ.fourier
         ∂αψ_real = ifft(op.basis, op.kpoint, ∂αψ_fourier)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real
     end
 end
-
 # TODO Implement  Matrix(op::MagneticFieldOperator)
 
 @doc raw"""

@@ -44,7 +44,6 @@ Random.seed!(0)
 @testset "DFTK.jl" begin
     if "gpu" in TAGS
         include("gpu.jl")
-        include("hamiltonian_consistency_gpu.jl")
     end
 
     # Super quick tests

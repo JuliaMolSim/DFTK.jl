@@ -30,7 +30,7 @@ PlaneWaveBasis(model; Ecut, kgrid, architecture = DFTK.GPU(CuArray))
     Julia ecosystem concerning distributed architectures.
 
 Not all terms can be used when doing GPU computations. As of January 2023 this
-concerns `Anyonic`, and `TermPairwisePotential`. Similarly GPU features are
+concerns `Anyonic`, `Magnetic` and `TermPairwisePotential`. Similarly GPU features are
 not yet exhaustively tested, and it is likely that some aspects of the code such as
 automatic differentiation or stresses will not work.
 
@@ -88,56 +88,3 @@ performance. For example, iterating through the columns of a matrix to compute t
 norms is not efficient, as a new kernel is launched for every column. Instead, it
 is better to build the vector containing these norms, as it is a vectorized
 operation and will be much faster on the GPU.
-
-## Anti-patterns
-
-- Avoid hard coding `Array` in fields of a struct, as it prevents the use of GPU. In fact, this results in the underlying data being automatically moved to the CPU, which might not be ideal.
-- Avoid using `zeros`, `ones` as they simply the output would be an `Array` that is on CPU. Instead, use `zeros_like` constructor, or `similar`.
-
-For example,
-
-```julia
-rho_temp = zeros(T, basis.fft_size...)
-```
-
-should be written as:
-
-```julia
-rho_temp = zeros_like(basis.G_vectors, T, basis.fft_size...)
-```
-
-
-## Debugging
-
-First, make sure the scalar indexing is disabled
-as otherwise fallback routines on the CPU are allowed. 
-While  these are helpful for interactive debugging, these always imply a synchronisation on the device and a data transfer to main memory. 
-In practice runs this then results in an unnecessary overhead and the calculation appearing to be struck.
-
-Note that by default scalar indexing is allowed on REPL and results in a warning being printed. 
-However, this does not tell you where the offending lines are. 
-
-To completely disable scalar indexing, just run
-
-```julia
-CUDA.allowscalar(false)
-```
-
-which will cause the program to error when scalar indexing is used.
-The offending code should be rewritten using array operations. 
-If it is not possible or non-trivial to do so, it is usually best to have the calculation to run on the CPU:
-
-```julia
-a_cpu = to_cpu(a)
-
-y_cpu = map(a_cpu) do x
-...
-end
-
-y = to_device(y_cpu)
-```
-
-If the calculation fails with a `GPU` architecture, the stack trace can often provide useful information.
-Pay attention to the function call that is in DFTK.jl in the trace, and also what type of its arguments are.
-Typically, the error is caused by mixing arrays on GPU (e.g. `CuArray`) with arrays on CPU (e.g. `Array`).
-

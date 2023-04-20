@@ -31,13 +31,12 @@ end
 External potential from an analytic function `V` (in cartesian coordinates).
 No low-pass filtering is performed.
 """
-struct ExternalFromReal{T<:Function}
-    potential::T
+struct ExternalFromReal
+    potential::Function
 end
 
 function (external::ExternalFromReal)(basis::PlaneWaveBasis{T}) where {T}
-    rv = r_vectors_cart(basis)
-    pot_real = external.potential.(rv)
+    pot_real = external.potential.(r_vectors_cart(basis))
     TermExternal(convert_dual.(T, pot_real))
 end
 
@@ -45,8 +44,8 @@ end
 External potential from the (unnormalized) Fourier coefficients `V(G)`
 G is passed in cartesian coordinates
 """
-struct ExternalFromFourier{T<:Function}
-    potential::T
+struct ExternalFromFourier
+    potential::Function
 end
 function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     unit_cell_volume = basis.model.unit_cell_volume

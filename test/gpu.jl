@@ -1,9 +1,6 @@
 using Test
 using CUDA
 using DFTK
-using StaticArrays
-using Logging
-import DFTK: mpi_sum
 include("testcases.jl")
 
 # These are not yet the best tests, but just to ensure our GPU support
@@ -52,7 +49,7 @@ end
     @test norm(scfres_cpu.ρ - Array(scfres_gpu.ρ)) < 1e-6
 end
 
-# TODO Fix direct minimization
+
 # TODO Fix guess density generation
 # TODO Float32
 # TODO meta GGA
