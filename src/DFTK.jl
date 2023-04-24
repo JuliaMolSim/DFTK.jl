@@ -17,7 +17,7 @@ using AbstractFFTs
 using GPUArraysCore
 using Random
 using ChainRulesCore
-using SnoopPrecompile
+using PrecompileTools
 
 export Vec3
 export Mat3
@@ -244,7 +244,7 @@ end
 
 # Precompilation block with a basic workflow
 if VERSION ≥ v"1.9alpha" && isnothing(get(ENV, "DFTK_NO_PRECOMPILATION", nothing))
-    @precompile_all_calls begin
+    @compile_workload begin
         # very artificial silicon ground state example
         a = 10.26
         lattice = a / 2 * [[0 1 1.];
