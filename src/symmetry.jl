@@ -35,7 +35,7 @@
 # - The group of symmetry operations of the crystal (model.symmetries)
 # - The group of symmetry operations of the crystal that preserves the BZ mesh (basis.symmetries)
 
-# See https://juliamolsim.github.io/DFTK.jl/stable/advanced/symmetries for details.
+# See https://juliamolsim.github.io/DFTK.jl/stable/developer/symmetries/ for details.
 
 @doc raw"""
 Return the ``k``-point symmetry operations associated to a lattice and atoms.
