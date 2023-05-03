@@ -17,7 +17,7 @@ function PairwisePotential(V, params; max_radius=100)
     params = Dict(minmax(key[1], key[2]) => value for (key, value) in params)
     PairwisePotential(V, params, max_radius)
 end
-function (P::PairwisePotential)(basis::PlaneWaveBasis{T}) where {T}
+@timing "precomp: Pairwise" function (P::PairwisePotential)(basis::PlaneWaveBasis{T}) where {T}
     E, forces = energy_forces_pairwise(basis.model, P.V, P.params; P.max_radius,
                                        compute_forces=true)
     TermPairwisePotential(P.V, P.params, T(P.max_radius), E, forces)

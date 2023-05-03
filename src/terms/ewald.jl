@@ -12,7 +12,7 @@ struct TermEwald{T} <: Term
     energy::T                # precomputed energy
     forces::Vector{Vec3{T}}  # and forces
 end
-function TermEwald(basis::PlaneWaveBasis{T}) where {T}
+@timing "precomp: Ewald" function TermEwald(basis::PlaneWaveBasis{T}) where {T}
     energy, forces = energy_forces_ewald(basis.model; compute_forces=true)
     TermEwald(energy, forces)
 end
