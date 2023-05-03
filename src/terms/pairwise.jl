@@ -18,8 +18,9 @@ function PairwisePotential(V, params; max_radius=100)
     PairwisePotential(V, params, max_radius)
 end
 function (P::PairwisePotential)(basis::PlaneWaveBasis{T}) where {T}
-    E = energy_pairwise(basis.model, P.V, P.params; P.max_radius)
-    TermPairwisePotential(P.V, P.params, T(P.max_radius), E)
+    E, forces = energy_forces_pairwise(basis.model, P.V, P.params; P.max_radius,
+                                       compute_forces=true)
+    TermPairwisePotential(P.V, P.params, T(P.max_radius), E, forces)
 end
 
 struct TermPairwisePotential{TV, Tparams, T} <:Term
@@ -27,6 +28,7 @@ struct TermPairwisePotential{TV, Tparams, T} <:Term
     params::Tparams
     max_radius::T
     energy::T
+    forces::Vector{Vec3{T}}
 end
 
 function ene_ops(term::TermPairwisePotential, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
@@ -36,9 +38,7 @@ end
 @timing "forces: Pairwise" function compute_forces(term::TermPairwisePotential,
                                                    basis::PlaneWaveBasis{T}, ψ, occupation;
                                                    kwargs...) where {T}
-    forces = zero(basis.model.positions)
-    energy_pairwise(basis.model, term.V, term.params; term.max_radius, forces)
-    forces
+    term.forces
 end
 
 
@@ -47,10 +47,10 @@ Compute the pairwise interaction energy per unit cell between atomic sites. If `
 not nothing, minus the derivatives of the energy with respect to `positions` is computed.
 The potential is expected to decrease quickly at infinity.
 """
-function energy_pairwise(model::Model{T}, V, params; kwargs...) where {T}
-    isempty(model.atoms) && return zero(T)
+function energy_forces_pairwise(model::Model{T}, V, params; kwargs...) where {T}
+    isempty(model.atoms) && return (; energy=zero(T), forces=zero(model.positions))
     symbols = Symbol.(atomic_symbol.(model.atoms))
-    energy_pairwise(model.lattice, symbols, model.positions, V, params; kwargs...)
+    energy_forces_pairwise(model.lattice, symbols, model.positions, V, params; kwargs...)
 end
 
 
@@ -60,21 +60,20 @@ end
 # compute the Fourier transform of the force constant matrix.
 # Computes the local energy and forces on the atoms of the reference unit cell 0, for an
 # infinite array of atoms at positions r_{iR} = positions[i] + R + ph_disp[i]*e^{iq·R}.
-function energy_pairwise(lattice, symbols, positions, V, params;
-                         max_radius=100, forces=nothing, ph_disp=nothing, q=nothing)
+function energy_forces_pairwise(lattice, symbols, positions, V, params; max_radius=100,
+                                compute_forces=false, ph_disp=nothing, q=nothing)
     isnothing(ph_disp) && @assert isnothing(q)
     @assert length(symbols) == length(positions)
 
     T = eltype(positions[1])
     if !isnothing(ph_disp)
-        @assert !isnothing(q) && !isnothing(forces)
+        @assert !isnothing(q) && compute_forces
         T = promote_type(complex(T), eltype(ph_disp[1]))
         @assert size(ph_disp) == size(positions)
     end
 
-    if !isnothing(forces)
-        @assert size(forces) == size(positions)
-        forces_pairwise = copy(forces)
+    if compute_forces
+        forces_pairwise = zero(positions)
     end
 
     # The potential V(dist) decays very quickly with dist = ||A (rj - rk - R)||,
@@ -111,7 +110,7 @@ function energy_pairwise(lattice, symbols, positions, V, params;
             dist = norm_cplx(Δr)
             energy_contribution = V(dist, param_ij)
             sum_pairwise += energy_contribution
-            if !isnothing(forces)
+            if compute_forces
                 dE_ddist = ForwardDiff.derivative(zero(real(eltype(dist)))) do ε
                     V(dist + ε, param_ij)
                 end
@@ -121,8 +120,8 @@ function energy_pairwise(lattice, symbols, positions, V, params;
         end # i,j
     end # R
     energy = sum_pairwise / 2  # Divide by 2 (because of double counting)
-    if !isnothing(forces)
-        forces .= forces_pairwise
-    end
-    energy
+    forces = compute_forces ?
+                forces_pairwise :
+                nothing
+    (; energy, forces)
 end

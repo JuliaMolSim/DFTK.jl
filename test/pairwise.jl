@@ -1,5 +1,6 @@
 using Test
 using DFTK
+using DFTK: energy_forces_pairwise
 using LinearAlgebra
 using Random
 
@@ -26,7 +27,7 @@ using Random
     # Compare forces to finite differences
     ε=1e-8
     disp=[rand(3) / 20, rand(3) / 20]
-    E1 = DFTK.energy_pairwise(lattice, symbols, positions,              term.V, term.params)
-    E2 = DFTK.energy_pairwise(lattice, symbols, positions .+ ε .* disp, term.V, term.params)
+    E1 = energy_forces_pairwise(lattice, symbols, positions,              term.V, term.params).energy
+    E2 = energy_forces_pairwise(lattice, symbols, positions .+ ε .* disp, term.V, term.params).energy
     @test (E2 - E1) / ε ≈ -dot(disp, forces) atol=abs(1e-6E1)
 end

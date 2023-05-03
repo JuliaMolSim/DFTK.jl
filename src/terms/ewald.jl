@@ -9,10 +9,12 @@ struct Ewald end
 (::Ewald)(basis) = TermEwald(basis)
 
 struct TermEwald{T} <: Term
-    energy::T  # precomputed energy
+    energy::T                # precomputed energy
+    forces::Vector{Vec3{T}}  # and forces
 end
 function TermEwald(basis::PlaneWaveBasis{T}) where {T}
-    TermEwald(T(energy_ewald(basis.model)))
+    energy, forces = energy_forces_ewald(basis.model; compute_forces=true)
+    TermEwald(T(energy), forces)
 end
 
 function ene_ops(term::TermEwald, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
@@ -21,16 +23,13 @@ end
 
 @timing "forces: Ewald" function compute_forces(term::TermEwald, basis::PlaneWaveBasis{T},
                                                 ψ, occupation; kwargs...) where {T}
-    # TODO this could be precomputed
-    forces = zero(basis.model.positions)
-    energy_ewald(basis.model; forces)
-    forces
+    term.forces
 end
 
-function energy_ewald(model::Model{T}; kwargs...) where {T}
-    isempty(model.atoms) && return zero(T)
+function energy_forces_ewald(model::Model{T}; kwargs...) where {T}
+    isempty(model.atoms) && return (; energy=zero(T), forces=zero(model.positions))
     charges = T.(charge_ionic.(model.atoms))
-    energy_ewald(model.lattice, charges, model.positions; kwargs...)
+    energy_forces_ewald(model.lattice, charges, model.positions; kwargs...)
 end
 
 # This could be merged with Pairwise, but its use of `atom_types` would slow down this
@@ -39,14 +38,14 @@ end
 Compute the electrostatic interaction energy per unit cell between point charges in
 a uniform background of compensating charge to yield net neutrality.`lattice` should
 contain the lattice vectors as columns. `charges` and `positions` are the point charges and
-their positions (as an array of arrays) in fractional coordinates. If `forces` is not
-nothing, minus the derivatives of the energy with respect to `positions` is computed.
+their positions (as an array of arrays) in fractional coordinates. If `compute_forces` is
+true, minus the derivatives of the energy with respect to `positions` is computed.
 
 For now this function returns zero energy and force on non-3D systems. Use a pairwise
 potential term if you want to customise this treatment.
 """
-function energy_ewald(lattice::AbstractArray{T}, charges, positions;
-                      η=nothing, forces=nothing) where {T}
+function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions;
+                             η=nothing, compute_forces=false) where {T}
     # TODO should something more clever be done here? For now
     # we assume that we are not interested in the Ewald
     # energy of non-3D systems
@@ -59,10 +58,9 @@ function energy_ewald(lattice::AbstractArray{T}, charges, positions;
         # with a slight bias towards reciprocal summation
         η = sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
     end
-    if !isnothing(forces)
-        @assert size(forces) == size(positions)
-        forces_real = copy(forces)
-        forces_recip = copy(forces)
+    if compute_forces
+        forces_real  = zero(positions)
+        forces_recip = zero(positions)
     end
 
     # Numerical cutoffs to obtain meaningful contributions. These are very conservative.
@@ -96,7 +94,7 @@ function energy_ewald(lattice::AbstractArray{T}, charges, positions;
         sin_strucfac = sum(Z * sin2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
         sum_strucfac = cos_strucfac^2 + sin_strucfac^2
         sum_recip += sum_strucfac * exp(-Gsq / 4η^2) / Gsq
-        if !isnothing(forces)
+        if compute_forces
             for (ir, r) in enumerate(positions)
                 Z = charges[ir]
                 dc = -Z*2T(π)*G*sin2pi(dot(r, G))
@@ -109,7 +107,7 @@ function energy_ewald(lattice::AbstractArray{T}, charges, positions;
 
     # Amend sum_recip by proper scaling factors:
     sum_recip *= 4T(π) / compute_unit_cell_volume(lattice)
-    if !isnothing(forces)
+    if compute_forces
         forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
     end
 
@@ -130,7 +128,7 @@ function energy_ewald(lattice::AbstractArray{T}, charges, positions;
             dist = norm(Δr)
             energy_contribution = Zi * Zj * erfc(η * dist) / dist
             sum_real += energy_contribution
-            if !isnothing(forces)
+            if compute_forces
                 # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
                 # dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
                 dE_ddist = ForwardDiff.derivative(zero(T)) do ε
@@ -145,8 +143,9 @@ function energy_ewald(lattice::AbstractArray{T}, charges, positions;
         end
     end
     energy = (sum_recip + sum_real) / 2  # Divide by 2 (because of double counting)
-    if !isnothing(forces)
-        forces .= (forces_recip .+ forces_real) ./ 2
-    end
-    energy
+    forces = compute_forces ?
+                (forces_recip .+ forces_real) ./ 2 :
+                nothing
+
+    (; energy, forces)
 end
