@@ -55,8 +55,8 @@ function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions;
         η = sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
     end
     if compute_forces
-        forces_real  = zero(positions)
-        forces_recip = zero(positions)
+        forces_real  = zeros(Vec3{T}, length(positions))
+        forces_recip = zeros(Vec3{T}, length(positions))
     end
 
     # Numerical cutoffs to obtain meaningful contributions. These are very conservative.

@@ -67,7 +67,7 @@ function energy_forces_pairwise(lattice, symbols, positions, V, params; max_radi
     end
 
     if compute_forces
-        forces_pairwise = zero(positions)
+        forces_pairwise = zeros(Vec3{T}, length(positions))
     end
 
     # The potential V(dist) decays very quickly with dist = ||A (rj - rk - R)||,
