@@ -34,13 +34,7 @@ end
 function ene_ops(term::TermPairwisePotential, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     (E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
-
-@timing "forces: Pairwise" function compute_forces(term::TermPairwisePotential,
-                                                   basis::PlaneWaveBasis{T}, ψ, occupation;
-                                                   kwargs...) where {T}
-    term.forces
-end
-
+compute_forces(term::TermPairwisePotential, ::PlaneWaveBasis, ψ, occ; kwargs...) = term.forces
 
 """
 Compute the pairwise interaction energy per unit cell between atomic sites. If `forces` is

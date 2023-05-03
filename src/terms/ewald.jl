@@ -14,17 +14,13 @@ struct TermEwald{T} <: Term
 end
 function TermEwald(basis::PlaneWaveBasis{T}) where {T}
     energy, forces = energy_forces_ewald(basis.model; compute_forces=true)
-    TermEwald(T(energy), forces)
+    TermEwald(energy, forces)
 end
 
 function ene_ops(term::TermEwald, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     (; E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
-
-@timing "forces: Ewald" function compute_forces(term::TermEwald, basis::PlaneWaveBasis{T},
-                                                ψ, occupation; kwargs...) where {T}
-    term.forces
-end
+compute_forces(term::TermEwald, ::PlaneWaveBasis, ψ, occupation; kwargs...) = term.forces
 
 function energy_forces_ewald(model::Model{T}; kwargs...) where {T}
     isempty(model.atoms) && return (; energy=zero(T), forces=zero(model.positions))
