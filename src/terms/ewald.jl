@@ -139,9 +139,12 @@ function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions;
         end
     end
     energy = (sum_recip + sum_real) / 2  # Divide by 2 (because of double counting)
-    forces = compute_forces ?
-                (forces_recip .+ forces_real) ./ 2 :
-                nothing
+    res = (; energy)
 
-    (; energy, forces)
+    if compute_forces
+        forces = (forces_recip .+ forces_real) ./ 2
+        res = merge(res, (; forces))
+    end
+
+    res
 end
