@@ -227,3 +227,86 @@ function build_form_factors(psp, qs::Array)
     end
     form_factors
 end
+
+@doc raw"""
+Build pseudo-atomic functions projection vectors for a atoms array
+
+See also [`build_projection_vectors_`](@ref).
+"""
+function build_projection_vectors_pswfcs(basis::PlaneWaveBasis{T}, kpt::Kpoint,
+                                   psps, psp_positions) where {T}
+    unit_cell_volume = basis.model.unit_cell_volume
+    n_pswfc = count_n_pswfc(psps, psp_positions)
+    n_G    = length(G_vectors(basis, kpt))
+    proj_vectors = zeros(Complex{T}, n_G, n_pswfc)
+    qs = to_cpu(Gplusk_vectors(basis, kpt))
+
+    # Compute the columns of proj_vectors = 1/√Ω pihat(k+G)
+    # Since the pi are translates of each others, pihat(k+G) decouples as
+    # pihat(q) = ∫ p(r-R) e^{-iqr} dr = e^{-iqR} phat(q).
+    # The first term is the structure factor, the second the form factor.
+    offset = 0  # offset into proj_vectors
+    for (psp, positions) in zip(psps, psp_positions)
+        # Compute position-independent form factors
+        qs_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
+        form_factors = build_form_factors_pswfcs(psp, qs_cart)
+
+        # Combine with structure factors
+        for r in positions
+            # k+G in this formula can also be G, this only changes an unimportant phase factor
+            structure_factors = map(q -> cis2pi(-dot(q, r)), qs)
+            @views for ipswfc = 1:count_n_pswfc(psp)
+                proj_vectors[:, offset+ipswfc] .= (
+                    structure_factors .* form_factors[:, ipswfc] ./ sqrt(unit_cell_volume)
+                )
+            end
+            offset += count_n_pswfc(psp)
+        end
+    end
+    @assert offset == n_pswfc
+
+    # Offload potential values to a device (like a GPU)
+    to_device(basis.architecture, proj_vectors)
+end
+
+"""
+Build form factors (Fourier transforms of projectors) for an atom centered at 0.
+"""
+function build_form_factors_pswfcs(psp, qs::AbstractArray)
+    T = real(eltype(eltype(qs)))
+
+    # Pre-compute the radial parts of the pseudo-atomic functions at unique |q| to speed up
+    # the form factor calculation (by a lot). Using a hash map gives O(1) lookup.
+
+    # Maximum number of pseudo-atomic functions over angular momenta so that form factors
+    # for a given `q` can be stored in an `n_pswfc_max x lmax` matrix.
+    n_pswfc_max = maximum(l -> count_n_pswfc_radial(psp, l), 0:psp.lmax-1; init=0)
+
+    radials = IdDict{T,Matrix{T}}()  # IdDict for Dual compatability
+    for q in qs
+        q_norm = norm(q)
+        if !haskey(radials, q_norm)
+            radials_q = Matrix{T}(undef, n_pswfc_max, psp.lmax)
+            for l in 0:psp.lmax-1, ipswfc_l in 1:count_n_pswfc_radial(psp, l)
+                radials_q[ipswfc_l, l+1] = eval_psp_pswfc_fourier(psp, ipswfc_l, l, q_norm)
+            end
+            radials[q_norm] = radials_q
+        end
+    end
+
+    form_factors = Matrix{Complex{T}}(undef, length(qs), count_n_pswfc(psp))
+    for (iq, q) in enumerate(qs)
+        radials_q = radials[norm(q)]
+        count = 1
+        for l in 0:psp.lmax-1, m in -l:l
+            # TODO -im or +im?
+            angular = (-im)^l * ylm_real(l, m, q)
+            for ipswfc_l in 1:count_n_pswfc_radial(psp, l)
+                form_factors[iq, count] = radials_q[ipswfc_l, l+1] * angular
+                count += 1
+            end
+        end
+        @assert count == count_n_pswfc(psp) + 1
+    end
+    form_factors
+end

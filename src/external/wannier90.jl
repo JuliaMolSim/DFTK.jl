@@ -2,34 +2,6 @@ using Dates
 using Printf: @sprintf
 
 """
-Return the indices of the bands to keep for Wannierization.
-
-Usually the semicore states are excluded from the Wannierization.
-
-# Arguments
-- `n_bands`: the total number of bands computed in the DFT calculation.
-- `exclude_bands`: the band indices to be excluded.
-"""
-function _get_keep_bands(n_bands::Integer, exclude_bands::Union{AbstractVector{Int},Nothing})
-    keep_bands = 1:n_bands
-    if !isnothing(exclude_bands)
-        keep_bands = setdiff(keep_bands, exclude_bands)
-    end
-    keep_bands
-end
-
-"""
-See [`compute_mmn`](@ref) for the meaning of the arguments.
-"""
-function _get_keep_bands(
-    ψ::AbstractVector{Matrix},
-    exclude_bands::Union{AbstractVector{Int},Nothing}
-)
-    n_bands = size(ψ[1], 2)
-    _get_keep_bands(n_bands, exclude_bands)
-end
-
-"""
 Return the kpoint index shift for spin-polarized case.
 
 For spin-polarized calculation, first half of kpoints are for spin up,
@@ -75,20 +47,14 @@ We use here that:
     the actual k+b point, thus the actual k+b is `kpb_k[ib,ik] + kpb_G[:,ib,ik]`.
 
 # Keyword arguments
-- `exclude_bands`: the bands to be excluded from the Wannierization.
 - `spin`: the spin channel to be used, either `1` or `2`.
 """
 @timing function compute_mmn(
-    basis::PlaneWaveBasis,
-    ψ::AbstractVector{Matrix{Complex}},
-    kpb_k::AbstractArray{Int,2},
-    kpb_G::AbstractArray{Int,3};
-    exclude_bands::Union{AbstractVector{Int},Nothing},
+    basis::PlaneWaveBasis, ψ::AbstractVector{Matrix{Complex}},
+    kpb_k::AbstractArray{Int,2}, kpb_G::AbstractArray{Int,3};
     spin::Int=1,
 )
-    keep_bands = _get_keep_bands(ψ, exclude_bands)
-    n_bands = length(keep_bands)
-
+    n_bands = size(ψ[1], 2)
     n_bvecs, n_kpts = size(kpb_k)
     @assert size(kpb_G) == (3, n_bvecs, n_kpts)
 
@@ -117,10 +83,9 @@ We use here that:
             iGkpb = [eqG[2] for eqG in equivalent_G_vectors if !isnothing(eqG[2])]
 
             # Compute overlaps
-            for (i, n) in enumerate(keep_bands)
-                for (j, m) in enumerate(keep_bands)
-                    # Select the coefficient in right order
-                    M[j, i, ib, ik0] = dot(ψ[ik][iGk, m], ψ[ikpb][iGkpb, n])
+            for n in 1:n_bands
+                for m in 1:n_bands
+                    M[m, n, ib, ik0] = dot(ψ[ik][iGk, m], ψ[ikpb][iGkpb, n])
                 end
             end
         end
@@ -154,96 +119,178 @@ function radial_hydrogenic(r::AbstractVector{T}, n::Integer, α::Real=1.0) where
 end
 
 """
-Compute radial Fourier transform of a radial function.
-
-`4π Σ{k} j_l(q r[k]) (r[k]^2 R_{l}(r[k]) dr[k])`
-where `q = k + G`, `R_{l}` is the radial function, `j_l` is spherical Bessel
-function and `l` is angular momentum, `r[k]` is the radial grid and
-`k` is the grid index.
+Generate a fake `PspUpf` for Hydrogenic orbitals.
 """
-function radial_fourier(
-    R::AbstractVector{T}, r::AbstractVector{T}, dr::AbstractVector{T},
-    q::AbstractVector{Vec3}, l::Integer) where {T<:Real}
-    @assert length(R) == length(r)
-    r2_R_dr = r.^2 .* R .* dr
-    f = zeros(T, length(q))
-    @inbounds for (iq, qvec) in enumerate(q)
-        for ir = eachindex(r2_R_dr)
-            f[iq] += sphericalbesselj_fast(l, qvec * r[ir]) * r2_R_dr[ir]
+function radial_hydrogenic_upf(n::Integer, l::Integer, α::Real)
+    # this is same as QE pw2wannier90, r = exp(x) / α
+    xmin = -6.0
+    dx = 0.025
+    rmax = 10.0
+    n_r = round(Int, (log(rmax) - xmin) / dx) + 1
+    x = range(; start=xmin, length=n_r, step=dx)
+    # rgrid depends on α
+    r = exp.(x) ./ α
+    dr = r .* dx
+    R = radial_hydrogenic(r, n, α)
+
+    T = Float64
+    pswfcs = Vector{Vector{Vector{T}}}()
+    pswfc_occs = Vector{Vector{T}}()
+    for _ in 0:(l-1)
+        push!(pswfcs, [T[]])
+        push!(pswfc_occs, T[])
+    end
+    push!(pswfcs, [R])
+    push!(pswfc_occs, T[])
+
+    PspUpf{T,T}(
+        0, l+1, r, dr, T[], [[T[]]], [Matrix{T}()], pswfcs, pswfc_occs,
+        T[], T[], T, [T[]], 0, 0, T[], [[T[]]], T[], T[], "",
+        "hydrogenic n=$(n) l=$(l) α=$(α)"
+    )
+end
+
+@doc raw"""
+Project Bloch wavefunctions to hydrogenic orbitals for the initial guess of
+Wannier functions.
+
+# Arguments
+- `basis`: PlaneWaveBasis
+- `centers`: centers of Wannier functions, in fractional coordinates
+- `l`: angular momentum
+- `n`: principal quantum number
+- `α`: diffusivity, see [`radial_hydrogenic`](@ref)
+
+# Examples
+Project onto a ``s`` orbital centered at (0, 0, 0) and
+three ``p`` (i.e., ``p_y, p_z, p_x``) orbitals centered at (0.5, 0.5, 0.5).
+```julia
+guess = guess_amn_hydrogenic(basis; [[0, 0, 0], [0.5, 0.5, 0.5]], [0, 1])
+```
+
+See <https://en.wikipedia.org/wiki/Table_of_spherical_harmonics#Real_spherical_harmonics>
+for the order of orbitals.
+"""
+@timing function guess_amn_hydrogenic(
+    basis::PlaneWaveBasis; centers::AbstractVector{Vec3},
+    l::AbstractVector{Integer},
+    n::AbstractVector{Integer}=ones(Integer, length(centers)),
+    α::AbstractVector{Real}=ones(Real, length(centers))
+)
+    @assert length(centers) == length(l) == length(n) == length(α)
+    @assert all(n .> 0)
+    @assert all(α .> 0)
+    @assert all(0 .<= l .<= n .- 1)
+
+    # I generate a fake `PspUpf` so as to reuse `build_projection_vectors_pswfcs`
+    labels = collect(zip(n, l, α))
+    psp_groups = [findall(Ref(lab) .== labels) for lab in Set(labels)]
+    psps = [radial_hydrogenic_upf(labels[first(group)]...) for group in psp_groups]
+    psp_positions = [centers[group] for group in psp_groups]
+
+    # note that on output the order of initial projections are different from
+    # the input order of (centers, l, n, α), due to reordering of psps
+    guess(kpt) = build_projection_vectors_pswfcs(basis, kpt, psps, psp_positions)
+
+    # we permute the order so that it matches the user input
+    # note the outputs also contain `m` angular momentum
+    perm = Int[]
+    for group in psp_groups
+        for g in group
+            start = sum(2 * l[i] + 1 for i in 1:(g-1); init=0)
+            append!(perm, start .+ (1:(2 * l[g] + 1)))
         end
     end
-    4π * f
+    guess_perm(kpt) = permute!(guess(kpt), perm)
+
+    # Lowdin orthonormalization
+    ortho_lowdin ∘ guess_perm
 end
 
-@raw doc"""
-Compute Fourier transform of a projector function.
-
-A projector function is ``R(r) * Y_{lm}(\theta, \phi)``.
-The `Rq` argument is the radial Fourier transform of `R(r)`, computed by
-[`radial_fourier`](@ref).
-
-`(-i)^l R(q) Y_{lm}(q)`
 """
-function projector_fourier(Rq::AbstractVector{T},
-    q::AbstractVector{Vec3}, l::Integer, m::Integer) where {T<:Real}
-    ylm = zeros(T, length(q))
-    @inbounds for (iq, qvec) in enumerate(q)
-        ylm[iq] = ylm_real(l, m, qvec)
-    end
-    (-im)^l .* Rq .* ylm
-end
+Allow specifying the `m` angular momentum of hydrogenic orbitals.
 
-@doc raw"""
-Given an orbital ``f``, the periodized orbital is defined by:
-```math
-\phi_{\mathbf{k}} = \sum \limits_{R \in {\rm lattice}}
-    \exp(- \mathbf{G} \cdot \mathbf{R}) f(\mathbf{k + G}).
+See <https://en.wikipedia.org/wiki/Table_of_spherical_harmonics#Real_spherical_harmonics>
+for the correspondence between `m` and orbital symbols, e.g.,
+- for p orbitals (l=1), `m=-1,0,1` map to ``p_y, p_z, p_x``
+- for d orbitals (l=2), `m=-2,-1,0,1,2` map to ``d_{xy}, d_{yz}, d_{z^2}, d_{xz}, d_{x^2-y^2}``
+
+# Examples
+For two atoms centered at (0, 0, 0) and (0.5, 0.5, 0.5), the following code
+Projects onto a ``s`` orbital centered at (0, 0, 0) and
+``p_x, p_y`` orbitals centered at (0.5, 0.5, 0.5).
+```julia
+guess = guess_amn_hydrogenic(
+    basis; [[0, 0, 0], [0.5, 0.5, 0.5]], [0, 1, 1], [0, 1, -1]
+)
 ```
 """
-@timing function bloch_sum(kpt::Kpoint, fq::AbstractArray{T}, 
-    τ::Vec3{Real}) where {T<:Complex}
-    ϕk = zeros(T, length(kpt.G_vectors))
-
-    @inbounds for (iG, G) in enumerate(kpt.G_vectors)
-        ϕk[iG] += exp(-im * dot(kpt.coordinate + G, τ)) * fq[iG]
-    end
-    # Functions are l^2 normalized in Fourier, in DFTK conventions.
-    ϕk / norm(ϕk)
-end
-
-@doc raw"""
-Compute random Gaussain initial guess for Wannier functions.
-
-With specified WF centers given as a vector of length `n_wann`,
-each element is a `Vec3` which is in lattice coordinates.
-"""
-@timing function guess_wannier_hydrogenic(
-    kpt::Kpoint;
-    centers::AbstractVector{Vec3},
+@timing function guess_amn_hydrogenic(
+    basis::PlaneWaveBasis; centers::AbstractVector{Vec3},
     l::AbstractVector{Integer}, m::AbstractVector{Integer},
     n::AbstractVector{Integer}=ones(Integer, length(centers)),
     α::AbstractVector{Real}=ones(Real, length(centers))
 )
-    n_wann = length(centers)
-    @assert n_wann == length(l) == length(m) == length(n) == length(α)
-    @assert all(n .> 0)
-    @assert all(α .> 0)
-    @assert all(0 .<= l .<= n .- 1)
+    @assert length(centers) == length(l) == length(m) == length(n) == length(α)
     @assert all(-l .<= m .<= l)
 
-    r = 1:0.1:10  # TODO update
-    dr = 0.1 .* ones(length(r))
-    q = map(G -> G + kpt.coordinate, kpt.G_vectors)
-    # all q = k+G in reduced coordinates
-    # qs = vec(map(G -> G .+ kpt.coordinate, G_vectors(basis)))
-
-    for (i, (ni, li, mi, αi)) in enumerate(zip(n, l, m, α))
-        R = radial_hydrogenic(r, ni, αi)
-        Rq = radial_fourier(R, r, dr, q, li)
-        fq = projector_fourier(Rq, q, li, mi)
-        ϕk = bloch_sum(kpt, fq, centers[i])
+    # find the indices of specified `l, m, n, α` in the output of
+    # `guess_amn_hydrogenic`, which computes all the `m`.
+    # e.g., with input `l=[0, 1, 1], m=[0, 1, -1]`, the returned orbitals
+    # of `guess_amn_hydrogenic` are
+    # `(l=0, m=0), (l=1, m=-1), (l=1, m=0), (l=1, m=1)`, so the computed
+    # `indices = [1, 4, 2]`.
+    indices = Int[]
+    lnα = []
+    for (ll, mm, nn, αα) in zip(l, m, n, α)
+        q = (ll, nn, αα)
+        !(q in lnα) && push!(lnα, q)
+        iq = findfirst(Ref(q) .== lnα)
+        lq = lnα[iq][1]
+        @info mm, lq
+        im = findfirst(mm .== (-lq:lq))
+        start = sum(2 * lnα[i][1] + 1 for i in 1:(iq-1); init=0)
+        push!(indices, start + im)
     end
-    ϕk
+
+    l = [q[1] for q in lnα]
+    n = [q[2] for q in lnα]
+    α = [q[3] for q in lnα]
+    guess = guess_amn_hydrogenic(basis; centers, l, n, α)
+    guess_filtered(kpt) = guess(kpt)[indices]
+    guess_filtered
+end
+
+"""
+Random Gaussain initial guess for Wannier functions.
+"""
+@timing function guess_amn_random(basis::PlaneWaveBasis, n_wann::Integer)
+    @assert n_wann > 0
+    centers = [rand(3) for _ in 1:n_wann]
+    l = zeros(Int, n_wann)
+    guess_amn_hydrogenic(basis; centers, l)
+end
+
+"""
+Pseudo-atomic-orbitals initial guess for Wannier functions.
+
+The pseudo-atomic-orbitals are atomic orbitals from pseudopotentials,
+centered on each atom.
+"""
+@timing function guess_amn_psp(basis::PlaneWaveBasis)
+    model = basis.model
+
+    # keep only pseudopotential atoms and positions
+    psp_groups = [group for group in model.atom_groups
+                  if model.atoms[first(group)] isa ElementPsp]
+    psps = [model.atoms[first(group)].psp for group in psp_groups]
+    psp_positions = [model.positions[group] for group in psp_groups]
+
+    isempty(psp_groups) && error("No pseudopotential atoms found in the model.")
+    guess(kpt) = build_projection_vectors_pswfcs(basis, kpt, psps, psp_positions)
+
+    # Lowdin orthonormalization
+    ortho_lowdin ∘ guess
 end
 
 @doc raw"""
@@ -256,21 +303,19 @@ where ``g_{n,k}`` are Bloch sums of some real-space localized orbitals.
 - `guess`: the initial guess for the Wannier functions.
     A function that accepts a `Kpoint` `kpt` as arguments,
     and return a vector of length `n_wann` containing the initial guess for
-    the MLWFs at that kpoint, see [`compute_amn_random`](@ref) for examples.
+    the MLWFs at that kpoint, see [`guess_amn_hydrogenic`](@ref),
+    [`guess_amn_random`](@ref), [`guess_amn_psp`](@ref)
+    for examples.
 """
 @timing function compute_amn(
-    basis::PlaneWaveBasis,
-    ψ::AbstractVector{Matrix{Complex}},
-    guess::Function;
-    exclude_bands::Union{AbstractVector{Int},Nothing},
+    basis::PlaneWaveBasis, ψ::AbstractVector{Matrix{Complex}}, guess::Function;
     spin::Integer=1,
 )
     kpts = krange_spin(basis, spin)
     ψs = ψ[kpts]  # ψ for the selected spin
 
     n_kpts = length(kpts)
-    keep_bands = _get_keep_bands(ψs, exclude_bands)
-    n_bands = length(keep_bands)
+    n_bands = size(ψs[1], 2)
     # I call once `guess` to get the n_wann, to avoid having to pass `n_wann`
     # as an argument.
     ϕk = guess(basis.kpoints[kpts[1]])
@@ -283,32 +328,13 @@ where ``g_{n,k}`` are Bloch sums of some real-space localized orbitals.
         ψk = ψs[ik]
         ik != 1 && (ϕk = guess(kpt))
         length(ϕk) == n_wann || error("guess function returns wrong length")
-        for m in keep_bands
+        for m in 1:n_bands
             for (n, ϕnk) in enumerate(ϕk)
                 A[m, n, ik] = dot(ψk[:, m], ϕnk)
             end
         end
     end
     A
-end
-
-"""
-Random Gaussain initial guess for Wannier functions.
-"""
-@timing function compute_amn_random(
-    basis::PlaneWaveBasis,
-    ψ::AbstractVector{Matrix{Complex}},
-    n_wann::Integer;
-    kwargs...
-)
-    @assert n_wann > 0
-
-    random_centers = [rand(3) for _ in 1:n_wann]
-    l = [0 for _ in 1:n_wann]
-    m = [0 for _ in 1:n_wann]
-    guess(kpt) = guess_wannier_hydrogenic(kpt; random_centers, l, m)
-
-    compute_amn(basis, ψ, guess; kwargs...)
 end
 
 """
@@ -320,26 +346,19 @@ Return a matrix of eigenvalues on a uniform grid for Wannierization.
     `n_kpts`, each element is a vector of length `n_bands`. In the spin-polarized
     case, the vector is of length `2*n_kpts`, and the first half is for spin-up,
     the second half is for spin-down.
-
-For the explanation of keyword arguments, see [`compute_mmn`](@ref).
 """
 function compute_eig(
-    basis::PlaneWaveBasis,
-    eigenvalues::AbstractVector{Vector{Real}};
-    exclude_bands::Union{AbstractVector{Int},Nothing}=nothing,
-    spin::Int=1,
+    basis::PlaneWaveBasis, eigenvalues::AbstractVector{Vector{Real}}; spin::Int=1,
 )
     kpts = krange_spin(basis, spin)
     eigs = eigenvalues[kpts]
 
     n_kpts = length(kpts)
     n_bands = length(eigs[1])
-    keep_bands = _get_keep_bands(n_bands, exclude_bands)
-    n_bands = length(keep_bands)
     E = zeros(eltype(eigs[1]), n_bands, n_kpts)
 
     for (ik, εk) in enumerate(eigs)
-        for (n, εnk) in enumerate(εk[keep_bands])
+        for (n, εnk) in enumerate(εk)
             E[n, ik] = auconvert(Unitful.eV, εnk).val
         end
     end
@@ -353,24 +372,20 @@ Since real-space wavefunctions are memory intensive, a `Kpoint` `kpt` needs
 to be specified to compute the periodic part of the wavefunction at a given
 kpoint.
 Since the `Kpoint.spin` already contains the spin information, no need
-to specify `spin` here, as in `compute_mmn`, `compute_eig`, etc.
+to specify `spin`, which is needed in `compute_mmn`, `compute_eig`, etc.
 
-For the explanation of the `ψ` and keyword arguments, see `compute_mmn`.
+For the explanation of the `ψ`, see [`compute_mmn`](@ref).
 """
 @timing function compute_unk(
-    basis::PlaneWaveBasis,
-    ψ::AbstractVector{Matrix{Complex}},
-    kpt::Kpoint;
-    exclude_bands::Union{AbstractVector{Int},Nothing},
+    basis::PlaneWaveBasis, ψ::AbstractVector{Matrix{Complex}}, kpt::Kpoint
 )
     fft_size = basis.fft_size
-    keep_bands = _get_keep_bands(ψ, exclude_bands)
-    n_bands = length(keep_bands)
-    unk = zeros(eltype(ψ[1]), fft_size[1], fft_size[2], fft_size[3], n_bands)
+    ik = findfirst(Ref(kpt) .== basis.kpoints)
+    n_bands = size(ψ[ik], 2)
+    unk = zeros(eltype(ψ[ik]), fft_size..., n_bands)
 
-    ik = findfirst(basis.kpoints .== kpt)
-    for ib in 1:n_bands
-        unk[:, :, :, ib] = ifft(basis, kpt, @view ψ[ik][:, ib])
+    for n in 1:n_bands
+        unk[:, :, :, n] = ifft(basis, kpt, @view ψ[ik][:, n])
     end
     unk
 end
@@ -398,11 +413,7 @@ function get_wannier90_win(basis::PlaneWaveBasis; kwargs...)
 
     # deepcopy for safety
     mp_grid = deepcopy(basis.kgrid)
-    if basis.model.spin_polarization == :collinear
-        kpoints = filter(k -> k.spin == 1, basis.kpoints)
-    else
-        kpoints = basis.kpoints[1:2:end] #?
-    end
+    kpoints = filter(k -> k.spin == 1, basis.kpoints)
     # columnwise vectors, fractional coordinates
     kpoints = hcat([k.coordinate for k in kpoints]...)
     @assert size(kpoints) == (3, prod(mp_grid))
@@ -414,16 +425,14 @@ function get_wannier90_win(basis::PlaneWaveBasis; kwargs...)
 
     if get(kwargs, :bands_plot, false)
         kpath  = irrfbz_path(basis.model)
-        length(kpath.paths) > 1 || @warn(  # TODO check
-            "Only first kpath branch considered in write_wannier90_win")
-        path = kpath.paths[1]
-
         kpoint_path = []
-        for i in 1:length(path)-1
-            A, B = path[i:i+1]  # write segment A -> B
-            A_k = A => kpath.points[A]
-            B_k = B => kpath.points[B]
-            push!(kpoint_path, [A_k, B_k])
+        for path in kpath.paths
+            for i in 1:length(path)-1
+                A, B = path[i:i+1]  # write segment A -> B
+                A_k = A => kpath.points[A]
+                B_k = B => kpath.points[B]
+                push!(kpoint_path, [A_k, B_k])
+            end
         end
         push!(win, :kpoint_path => kpoint_path)
     end
@@ -431,7 +440,16 @@ function get_wannier90_win(basis::PlaneWaveBasis; kwargs...)
     win
 end
 
-function _unfold_scfres(
+"""
+Preprocess the scf results for Wannierization.
+
+Unfold symmetries, exclude bands.
+
+# Arguments
+- `exclude_bands`: the band indices to be excluded from the Wannierization,
+    usually the semicore states.
+"""
+function unfold_scfres_wannier(
     scfres::NamedTuple,
     exclude_bands::Union{AbstractArray{Integer},Nothing}=nothing,
 )
@@ -451,7 +469,7 @@ function _unfold_scfres(
 
     if !isnothing(exclude_bands)
         n_bands = length(eigenvalues[1])
-        keep_bands = _get_keep_bands(n_bands, exclude_bands)
+        keep_bands = setdiff(1:n_bands, exclude_bands)
         ψ = [ψk[:, keep_bands] for ψk in ψ]
         eigenvalues = [e[keep_bands] for e in eigenvalues]
     end
@@ -460,63 +478,64 @@ function _unfold_scfres(
 end
 
 """
-Compute matrices for Wannierization.
+Compute & save matrices for Wannierization.
+
+# Arguments
+- `basis`: `PlaneWaveBasis`
+- `ψ`: the wavefunctions
+- `eigenvalues`: the eigenvalues
+    usually obtained from
+    `basis, ψ, eigenvalues = _unfold_scfres(scfres, exclude_bands)`
+- `fileprefix`: the filename prefix for saving the matrices, e.g., if
+    `fileprefix = "wannier/silicon"`, `amn` will be written to
+    `wannier/silicon.amn`.
 
 # Keyword arguments
 - `nnkp`: a tuple of `(kpb_k, kpb_G)` specifying the ``b``-vectors.
     Can be generated either by `Wannier90` or `Wannier.jl`.
-- `fileprefix`: the filename for saving the matrices, e.g.,
-    `amn` will be written to `wannier/silicon.amn` if
-    `fileprefix = "wannier/silicon"`. If `nothing`, no files are saved.
 - `unk`: whether to compute real-space wavefunction files `UNK`.
     Warning: this takes a lot of memory and time.
+
+!!! warning
+
+    For simplicity, here only use random initial guess for Wannier functions.
+    In principle, one should use better initial guesses, e.g.,
+    [`guess_amn_hydrogenic`](@ref), [`guess_amn_psp`](@ref).
 """
-function compute_wannier(
-    basis::PlaneWaveBasis,
-    ψ::AbstractVector{Matrix{Complex}},
-    eigenvalues::AbstractVector{Vector{T}};
+function save_wannier(
+    basis::PlaneWaveBasis, ψ::AbstractVector{T}, eigenvalues::AbstractVector{I};
+    fileprefix::AbstractString,
     n_wann::Integer,
     nnkp::NamedTuple,
     spin::Integer=1,
-    fileprefix::Union{Nothing,AbstractString}=nothing,
     unk::Bool=false,
-    kwargs...,
-) where {T<:Real}
-    unk && isnothing(fileprefix) && error("Must specify `fileprefix` when `unk=true`")
-
+) where {T<:AbstractMatrix{Complex}, I<:AbstractVector{Real}}
     # Make wannier directory ...
-    if !isnothing(fileprefix)
-        dir, prefix = dirname(fileprefix), basename(fileprefix)
-        mkpath(dir)
-    end
+    dir = dirname(fileprefix)
+    isempty(dir) || mkpath(dir)
 
     n_bands = length(eigenvalues[1])
-    win = get_wannier90_win(basis; num_wann=n_wann, num_bands=n_bands, kwargs...)
-    !isnothing(fileprefix) && WannierIO.write_win("$(prefix).win"; win...)
+    win = get_wannier90_win(basis; num_wann=n_wann, num_bands=n_bands)
+    WannierIO.write_win("$(fileprefix).win"; win...)
 
-    M = compute_mmn(basis, ψ, nnkp.kpb_k, nnkp.kpb_G; spin=spin)
-    if !isnothing(fileprefix)
-        fname = "$(prefix).mmn"
-        header = "Generated by DFTK.jl at $(now())"
-        WannierIO.write_mmn(fname, M, nnkp.kpb_k, nnkp.kpb_G, header)
-    end
+    M = compute_mmn(basis, ψ, nnkp.kpb_k, nnkp.kpb_G; spin)
+    fname = "$(fileprefix).mmn"
+    header = "Generated by DFTK.jl at $(now())"
+    WannierIO.write_mmn(fname, M, nnkp.kpb_k, nnkp.kpb_G, header)
+
+    E = compute_eig(basis, eigenvalues; spin)
+    fname = "$(fileprefix).eig"
+    WannierIO.write_eig(fname, E)
 
     # This is just a demonstration using random initial projections,
     # in practice one should use a better guess.
-    A = compute_amn_random(basis, ψ, n_wann; spin=spin)
-    if !isnothing(fileprefix)
-        fname = "$(prefix).amn"
-        header = "Generated by DFTK.jl at $(now())"
-        WannierIO.write_amn(fname, A)
-    end
+    guess = guess_amn_random(basis, n_wann)
+    A = compute_amn(basis, ψ, guess; spin)
+    fname = "$(fileprefix).amn"
+    header = "Generated by DFTK.jl at $(now())"
+    WannierIO.write_amn(fname, A)
 
-    E = compute_eig(basis, eigenvalues; spin=spin)
-    if !isnothing(fileprefix)
-        fname = "$(prefix).eig"
-        WannierIO.write_eig(fname, E)
-    end
-
-    # Writing the unk files is expensive (requires FFTs), so only do if needed.
+    # Writing the unk files is expensive (requires FFTs), so only done if required.
     if unk
         kpts = krange_spin(basis, spin)
         for (ik, kpt) in enumerate(basis.kpoints[kpts])
@@ -526,13 +545,9 @@ function compute_wannier(
         end
     end
 
-    (; win, M, A, E)
-end
+    @info "Wannier matrices written to $(fileprefix)"
 
-function _run_wannier90_jll(fileprefix::AbstractString, postproc::Bool=false)
-    dir, prefix = dirname(fileprefix), basename(fileprefix)
-    pp = postproc ? "-pp" : ""
-    wannier90_jll.wannier90(exe -> run(Cmd(`$exe $pp $prefix`; dir)))
+    (; win, M, A, E)
 end
 
 function _default_exclude_bands(scfres::NamedTuple)
@@ -541,24 +556,33 @@ function _default_exclude_bands(scfres::NamedTuple)
     exclude_bands
 end
 
+function _run_wannier90_jll(fileprefix::AbstractString, postproc::Bool=false)
+    dir, prefix = dirname(fileprefix), basename(fileprefix)
+    pp = postproc ? "-pp" : ""
+    wannier90_jll.wannier90(exe -> run(Cmd(`$exe $pp $prefix`; dir)))
+end
+
 """
 Call Wannier90 to Wannierize the results.
 
-For `kwargs` see [`compute_wannier`](@ref).
+# Arguments
+- `scfres`: the result of scf.
+
+`kwargs` will be passed to [`save_wannier`](@ref).
 """
 function run_wannier90(
     scfres::NamedTuple;
-    fileprefix::AbstractString,
-    exclude_bands::Union{AbstractArray{Integer},Nothing}=_default_exclude_bands(scfres),
+    fileprefix::AbstractString="wannier/wannier",
+    exclude_bands::AbstractArray{Integer}=_default_exclude_bands(scfres),
     kwargs...,
 )
-    # Make wannier directory ...
-    dir, prefix = dirname(fileprefix), basename(fileprefix)
-    mkpath(dir)
+    basis, ψ, eigenvalues = unfold_scfres_wannier(scfres, exclude_bands)
 
-    basis, ψ, eigenvalues = _unfold_scfres(scfres, exclude_bands)
+    n_bands = length(eigenvalues[1])
+    @assert haskey(kwargs, :n_wann) "Must specify `n_wann` in `kwargs`"
+    n_wann = kwargs[:n_wann]
 
-    # Files for main Wannierization run
+    # Save files for Wannierization
     if basis.model.spin_polarization == :collinear
         prefixes = ["$(fileprefix)_up", "$(fileprefix)_dn"]
     else
@@ -566,17 +590,17 @@ function run_wannier90(
     end
 
     for (spin, prefix) in enumerate(prefixes)
-        if isnothing(nnkp)
+        @timing "Compute b-vectors" begin
+            win = get_wannier90_win(basis; num_wann=n_wann, num_bands=n_bands, kwargs...)
+            WannierIO.write_win("$(prefix).win"; win...)
             _run_wannier90_jll(prefix, true)
             nnkp = WannierIO.read_nnkp("$(prefix).nnkp")
         end
 
-        @timing "Compute Wannier matrices" compute_wannier(
-            basis, ψ, eigenvalues; n_wann, nnkp, spin, fileprefix=prefix, kwargs...
-        )
+        @timing "Compute & save Wannier matrices" save_wannier(
+            basis, ψ, eigenvalues; fileprefix=prefix, nnkp, spin, kwargs...)
 
-        # Run Wannierisation procedure
-        @timing "Wannierization" _run_wannier90_jll(prefix)
+        @timing "Run Wannierization" _run_wannier90_jll(prefix)
     end
     prefixes
 end
@@ -584,42 +608,48 @@ end
 """
 Call `Wannier.jl` to Wannierize the results.
 
-For `kwargs` see [`compute_wannier`](@ref).
+# Arguments
+- `scfres`: the result of scf.
+
+`kwargs` will be passed to [`save_wannier`](@ref).
 """
 function run_wannier(
     scfres::NamedTuple;
-    exclude_bands::Union{AbstractArray{Integer},Nothing}=_default_exclude_bands(scfres),
+    fileprefix::AbstractString="wannier/wannier",
+    exclude_bands::AbstractArray{Integer}=_default_exclude_bands(scfres),
     kwargs...,
 )
-    basis, ψ, eigenvalues = _unfold_scfres(scfres, exclude_bands)
-
-    # Files for main Wannierization run
-    fileprefix = get(kwargs, :fileprefix, nothing)
-    if isnothing(fileprefix)
-        prefixes = [nothing]
-    else
-        if basis.model.spin_polarization == :collinear
-            prefixes = ["$(fileprefix)_up", "$(fileprefix)_dn"]
-        else
-            prefixes = [fileprefix]
-        end
-    end
+    basis, ψ, eigenvalues = unfold_scfres_wannier(scfres, exclude_bands)
 
     n_bands = length(eigenvalues[1])
     @assert haskey(kwargs, :n_wann) "Must specify `n_wann` in `kwargs`"
     n_wann = kwargs[:n_wann]
-    win = get_wannier90_win(basis; num_wann=n_wann, num_bands=n_bands, kwargs...)
-    nnkp = Wannier.get_bvectors(win.unit_cell_cart, win.kpoints)  # TODO check
+
+    # Although with Wannier.jl we can pass matrices in-memory,
+    # however I still save the files so that we can restart later.
+    if basis.model.spin_polarization == :collinear
+        prefixes = ["$(fileprefix)_up", "$(fileprefix)_dn"]
+    else
+        prefixes = [fileprefix]
+    end
+
+    @timing "Compute b-vectors" begin
+        win = get_wannier90_win(basis; num_wann=n_wann, num_bands=n_bands, kwargs...)
+        nnkp = Wannier.get_bvectors(win.unit_cell_cart, win.kpoints)
+    end
+
+    εF = auconvert(u"eV", scfres.εF)
 
     models = []
     for (spin, prefix) in enumerate(prefixes)
-        @timing "Compute Wannier matrices"  win, M, A, E = compute_wannier(
-            basis, ψ, eigenvalues; n_wann, nnkp, spin, fileprefix=prefix, kwargs...
-        )
+        @timing "Compute & save Wannier matrices" win, M, A, E = save_wannier(
+            basis, ψ, eigenvalues; fileprefix=prefix, nnkp, spin, kwargs...)
 
-        # Run Wannierisation procedure
-        @timing "Wannierization" begin
-            model = Wannier.Model(win, M, A, E)  # TODO check
+        @timing "Run Wannierization" begin
+            model = Wannier.Model(win, M, A, E)
+            # I simply call disentangle which works for both isolated and
+            # entangled cases. Also set frozen window just to be 1eV above Fermi.
+            Wannier.set_froz_win!(model, εF + 1.0)
             model.U .= Wannier.disentangle(model)
             push!(models, model)
         end
