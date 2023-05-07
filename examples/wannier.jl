@@ -1,10 +1,10 @@
-# # Wannierization using Wannier90
+# # Wannierization using Wannier.jl
 #
 # DFTK features an interface with the program
-# [Wannier90](http://www.wannier.org/),
+# [Wannier.jl](https://www.wannierjl.org/),
 # in order to compute maximally-localized Wannier functions (MLWFs)
 # from an initial self consistent field calculation.
-# All processes are handled by calling the routine `run_wannier90`.
+# All processes are handled by calling the routine `run_wannier`.
 #
 # !!! warning "No guarantees on Wannier90 interface"
 #     This code is at an early stage and has so far not been fully tested.
@@ -33,26 +33,23 @@ nbandsalg = AdaptiveBands(basis.model; n_bands_converge=15)
 scfres = self_consistent_field(basis; nbandsalg, tol=1e-5);
 
 # Plot bandstructure of the system
-using Plots
+
 plot_bandstructure(scfres; kline_density=10)
 
 # Now we use the `run_wannier90` routine to generate all files needed by
-# wannier90 and to perform the Wannierization procedure.
+# wannier90 and to perform the wannierization procedure.
 # In Wannier90's convention, all files are named with the same prefix and only differ by
 # their extensions. By default all generated input and output files are stored
-# in the subfolder "wannier" under the prefix "wannier" (i.e. "wannier/wannier.win",
-# "wannier/wannier.wout", etc.). A different file prefix can be given with the
+# in the subfolder "wannier90" under the prefix "wannier" (i.e. "wannier90/wannier.win",
+# "wannier90/wannier.wout", etc.). A different file prefix can be given with the
 # keyword argument `fileprefix` as shown below.
 #
 # We now solve for 5 MLWF using wannier90:
 
-using WannierIO  # Needed to save Wannier90 files, e.g., amn, mmn, etc.
 using wannier90_jll  # Needed to make run_wannier90 available
-
 run_wannier90(scfres;
               fileprefix="wannier/graphene",
-              n_wann=5,  # Number of MLWFs
-              # following are inputs to wannier90
+              n_wannier=5,
               num_print_cycles=25,
               num_iter=200,
               ##
@@ -60,8 +57,6 @@ run_wannier90(scfres;
               dis_froz_max=0.1,
               dis_num_iter=300,
               dis_mix_ratio=1.0,
-              ##
-              bands_plot=true,
               ##
               wannier_plot=true,
               wannier_plot_format="cube",

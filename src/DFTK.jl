@@ -234,8 +234,14 @@ function __init__()
     @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("plotting.jl")
     @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"  include("external/jld2io.jl")
     @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" include("external/vtkio.jl")
-    @require wannier90_jll="c5400fa0-8d08-52c2-913f-1e3f656c1ce9" begin
-        include("external/wannier90.jl")
+    @require WannierIO="cb1bc77f-5443-4951-af9f-05b616a3e422" begin
+        include("external/wannierio.jl")
+        @require wannier90_jll="c5400fa0-8d08-52c2-913f-1e3f656c1ce9" begin
+            include("external/wannier90.jl")
+        end
+        @require Wannier="2b19380a-1f7e-4d7d-b1b8-8aa60b3321c9" begin
+            include("external/wannier.jl")
+        end
     end
     @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba"  begin
         include("workarounds/cuda_arrays.jl")
