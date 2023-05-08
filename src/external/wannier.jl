@@ -28,7 +28,10 @@ function run_wannier(
 
     @timing "Compute b-vectors" begin
         win = get_wannier90_win(basis; num_wann=n_wann, num_bands=n_bands)
-        bvectors = Wannier.get_bvectors(win.kpoints, basis.model.recip_lattice)
+        # Note I am not using directly `basis.model.recip_lattice` here since
+        # that one is in Bohr unit, while `win.unit_cell_cart` is in Angstrom.
+        recip_lattice = compute_recip_lattice(win.unit_cell_cart)
+        bvectors = Wannier.get_bvectors(win.kpoints, recip_lattice)
         # TODO I am naming kpb_G as kpb_b in WannierIO.jl for the moment,
         # probably going to rename it in the future.
         kpb_k, kpb_G = bvectors.kpb_k, bvectors.kpb_b
