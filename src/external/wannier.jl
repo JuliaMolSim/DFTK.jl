@@ -28,10 +28,10 @@ function run_wannier(
 
     @timing "Compute b-vectors" begin
         win = get_wannier90_win(basis; num_wann=n_wann, num_bands=n_bands)
-        nnkp = Wannier.get_bvectors(win.unit_cell_cart, win.kpoints)
+        bvectors = Wannier.get_bvectors(win.kpoints, basis.model.recip_lattice)
         # TODO I am naming kpb_G as kpb_b in WannierIO.jl for the moment,
         # probably going to rename it in the future.
-        kpb_k, kpb_G = nnkp.kpb_k, nnkp.kpb_b
+        kpb_k, kpb_G = bvectors.kpb_k, bvectors.kpb_b
         nnkp = (; kpb_k, kpb_G)
     end
 
@@ -45,11 +45,18 @@ function run_wannier(
             fermi_energy=εF, kwargs...)
 
         @timing "Run Wannierization" begin
-            model = Wannier.Model(win, M, A, E)
             # I simply call disentangle which works for both isolated and
-            # entangled cases. Also set frozen window just to be 1eV above Fermi.
-            Wannier.set_froz_win!(model, εF + 1.0)
+            # entangled cases. Also if no frozen window provided, just use
+            # 0.5 eV above Fermi.
+            dis_froz_max = get(win, :dis_froz_max, εF + 0.5)
+            dis_froz_min = get(win, :dis_froz_min, -Inf)
+            frozen_bands = Wannier.get_frozen_bands(E, dis_froz_max, dis_froz_min)
+
+            model = Wannier.Model(
+                win.unit_cell_cart, win.atoms_frac, win.atom_labels,
+                win.mp_grid, win.kpoints, bvectors, frozen_bands, M, A, E)
             model.U .= Wannier.disentangle(model)
+
             push!(models, model)
         end
     end

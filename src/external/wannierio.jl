@@ -261,7 +261,7 @@ end
 end
 
 """
-Random Gaussain initial guess for Wannier functions.
+Random Gaussian initial guess for Wannier functions.
 """
 @timing function guess_amn_random(basis::PlaneWaveBasis, n_wann::Integer)
     @assert n_wann > 0
@@ -368,7 +368,7 @@ f_{nk} = \exp \left( - \frac{(\varepsilon_{nk} - \mu)^2}{\sigma^2} \right)
 # Arguments
 - `eigenvalues`, `μ` and `σ` in Atomic unit (Hartree).
 """
-function scdm_f_gaussain(basis::PlaneWaveBasis,
+function scdm_f_gaussian(basis::PlaneWaveBasis,
     eigenvalues::AbstractVector{<:AbstractVector{<:Real}}, μ::Real, σ::Real)
     f(kpt::Kpoint) = begin
         ik = findfirst(Ref(kpt) .== basis.kpoints)
@@ -392,7 +392,7 @@ it is not possible to generate a `guess` function and reuse [`compute_amn`](@ref
 - `n_wann`: number of WFs
 - `f`: weight factor for each band, accept a `Kpoint` and return an
     `n_bands`-length vector of floats in `[0, 1]`, see
-    [`scdm_f_isolated`](@ref), [`scdm_f_erfc`](@ref), [`scdm_f_gaussain`](@ref).
+    [`scdm_f_isolated`](@ref), [`scdm_f_erfc`](@ref), [`scdm_f_gaussian`](@ref).
 """
 @timing function compute_amn_scdm(
     basis::PlaneWaveBasis, ψ::AbstractVector{<:AbstractMatrix},
@@ -407,31 +407,30 @@ it is not possible to generate a `guess` function and reuse [`compute_amn`](@ref
     ψ0_real = zeros(eltype(ψ0), prod(basis.fft_size), n_bands)
     for (n, ψn) in enumerate(eachcol(ψ0))
         # the wfc returned by ifft has size `fft_size`, here I flatten it into a column
-        ψ0_real[:, n] = ifft(basis, kpt0, ψn)
+        ψ0_real[:, n] = reshape(ifft(basis, kpt0, ψn), :)
     end
 
     # QRCP of wfc
     F = qr(ψ0_real', ColumnNorm())
     C = F.p[1:n_wann]
     @assert length(C) == n_wann
+    # convert C back to Cartesian indices
+    C = CartesianIndices(basis.fft_size)[C]
 
-
-    # compute the exp(ikr) factor for the grid points
-    # flatten into a vector, same order as ψ0_real
-    grid = reshape(r_vectors(basis), :)
-    @assert length(grid) == prod(basis.fft_size)
+    grid = r_vectors(basis)
     kpts = krange_spin(basis, spin)
-    phase = zeros(eltype(ψ0), length(grid))
-    for (ir, (kpt, r)) in enumerate(zip(kpts, grid))
-        # since we need ψ', actually compute exp(-ikr)
-        phase[ir] = cis2pi(-dot(kpt.coordinate, r))
-    end
+    ψmk_real = zeros(eltype(ψ0), basis.fft_size)
+    phase = zeros(eltype(ψ0), basis.fft_size)
 
     A = zeros(eltype(ψ0), n_bands, n_wann, length(kpts))
-    ψmk_real = zeros(eltype(ψk), prod(basis.fft_size))
-    for (ik, kpt) in enumerate(kpts)
+    for (ik, kpt) in enumerate(basis.kpoints[kpts])
         ψk = ψ[ik]
         fk = f(kpt)
+        # compute the exp(ikr) factor for the grid points
+        for (idcs, r) in zip(CartesianIndices(basis.fft_size), grid)
+            # since we need ψ', actually compute exp(-ikr)
+            phase[idcs] = cis2pi(-dot(kpt.coordinate, r))
+        end
         # TODO probably use a slow inv fourier of just one point is faster
         for (m, ψm) in enumerate(eachcol(ψk))
             ifft!(ψmk_real, basis, kpt, ψm)
@@ -517,7 +516,7 @@ function get_wannier90_win(basis::PlaneWaveBasis; kwargs...)
     unit_cell_cart = to_ang.(basis.model.lattice)
     push!(win, :unit_cell_cart => unit_cell_cart)
 
-    atom_labels = [a.symbol for a in basis.model.atoms]
+    atom_labels = [string(a.symbol) for a in basis.model.atoms]
     # to columnwise vectors, and fractional coordinates
     atoms_frac = hcat(basis.model.positions...)
     push!(win, :atoms_frac => atoms_frac, :atom_labels => atom_labels)
@@ -599,13 +598,22 @@ Compute & save matrices for Wannierization.
 - `eigenvalues`: the eigenvalues
     usually obtained from
     `basis, ψ, eigenvalues = _unfold_scfres(scfres, exclude_bands)`
+
+# Keyword arguments
 - `fileprefix`: the filename prefix for saving the matrices, e.g., if
     `fileprefix = "wannier/silicon"`, `amn` will be written to
     `wannier/silicon.amn`.
-
-# Keyword arguments
+- `n_wann`: number of Wannier functions
 - `nnkp`: a tuple of `(kpb_k, kpb_G)` specifying the ``b``-vectors.
     Can be generated either by `Wannier90` or `Wannier.jl`.
+- `spin`: spin channel. In `:collinear` case, `1` for spin-up, `2` for spin-down.
+- `M`: the overlap matrix computed by [`compute_mmn`](@ref).
+    If given, the `compute_mmn` will be skipped.
+- `A`: the initial guess for the Wannier functions, computed by
+    [`compute_amn`](@ref).
+    If given, the `compute_amn` will be skipped.
+- `E`: the eigenvalues on a uniform grid, computed by [`compute_eig`](@ref).
+    If given, the `compute_eig` will be skipped.
 - `unk`: whether to compute real-space wavefunction files `UNK`.
     Warning: this takes a lot of memory and time.
 - remaining keyword arguments are passed to `get_wannier90_win` and written
@@ -625,6 +633,9 @@ function save_wannier(
     n_wann::Integer,
     nnkp::NamedTuple,
     spin::Integer=1,
+    M::Union{Nothing,AbstractArray{<:Complex,4}}=nothing,
+    A::Union{Nothing,AbstractArray{<:Complex,3}}=nothing,
+    E::Union{Nothing,AbstractMatrix{<:Real}}=nothing,
     unk::Bool=false,
     kwargs...,
 )
@@ -638,24 +649,30 @@ function save_wannier(
     header = "Generated by DFTK.jl at $(now())"
     WannierIO.write_win(fname; header, win...)
 
-    M = compute_mmn(basis, ψ, nnkp.kpb_k, nnkp.kpb_G; spin)
-    fname = "$(fileprefix).mmn"
-    header = "Generated by DFTK.jl at $(now())"
-    WannierIO.write_mmn(fname, M, nnkp.kpb_k, nnkp.kpb_G, header)
+    if isnothing(M)
+        M = compute_mmn(basis, ψ, nnkp.kpb_k, nnkp.kpb_G; spin)
+        fname = "$(fileprefix).mmn"
+        header = "Generated by DFTK.jl at $(now())"
+        WannierIO.write_mmn(fname, M, nnkp.kpb_k, nnkp.kpb_G, header)
+    end
 
-    E = compute_eig(basis, eigenvalues; spin)
-    fname = "$(fileprefix).eig"
-    WannierIO.write_eig(fname, E)
+    if isnothing(E)
+        E = compute_eig(basis, eigenvalues; spin)
+        fname = "$(fileprefix).eig"
+        WannierIO.write_eig(fname, E)
+    end
 
-    # This is just a demonstration using random initial projections,
-    # in practice one should use a better guess.
-    guess = guess_amn_random(basis, n_wann)
-    A = compute_amn(basis, ψ, guess; spin)
-    fname = "$(fileprefix).amn"
-    header = "Generated by DFTK.jl at $(now())"
-    WannierIO.write_amn(fname, A)
+    if isnothing(A)
+        # This is just a demonstration using random initial projections,
+        # in practice one should use a better guess.
+        guess = guess_amn_random(basis, n_wann)
+        A = compute_amn(basis, ψ, guess; spin)
+        fname = "$(fileprefix).amn"
+        header = "Generated by DFTK.jl at $(now())"
+        WannierIO.write_amn(fname, A)
+    end
 
-    # Writing the unk files is expensive (requires FFTs), so only done if required.
+    # Writing the unk files is expensive (requires FFTs)
     if unk
         kpts = krange_spin(basis, spin)
         for (ik, kpt) in enumerate(basis.kpoints[kpts])

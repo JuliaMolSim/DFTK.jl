@@ -184,7 +184,7 @@ include("pseudo/attach_psp.jl")
 
 export DFTKPotential
 export atomic_system, periodic_system  # Reexport from AtomsBase
-export run_wannier90
+export run_wannier90, run_wannier
 include("external/atomsbase.jl")
 include("external/interatomicpotentials.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods

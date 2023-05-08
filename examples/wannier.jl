@@ -6,7 +6,7 @@
 # from an initial self consistent field calculation.
 # All processes are handled by calling the routine `run_wannier`.
 #
-# !!! warning "No guarantees on Wannier90 interface"
+# !!! warning "No guarantees on Wannier.jl interface"
 #     This code is at an early stage and has so far not been fully tested.
 #     Bugs are likely and we welcome issues in case you find any!
 #
@@ -33,37 +33,47 @@ nbandsalg = AdaptiveBands(basis.model; n_bands_converge=15)
 scfres = self_consistent_field(basis; nbandsalg, tol=1e-5);
 
 # Plot bandstructure of the system
+using Plots
 
 plot_bandstructure(scfres; kline_density=10)
 
-# Now we use the `run_wannier90` routine to generate all files needed by
-# wannier90 and to perform the wannierization procedure.
+# Now we use the `run_wannier` routine to generate all files needed by
+# wannier90 and to perform the Wannierization procedure using Wannier.jl.
 # In Wannier90's convention, all files are named with the same prefix and only differ by
 # their extensions. By default all generated input and output files are stored
-# in the subfolder "wannier90" under the prefix "wannier" (i.e. "wannier90/wannier.win",
-# "wannier90/wannier.wout", etc.). A different file prefix can be given with the
+# in the subfolder "wannier" under the prefix "wannier" (i.e. "wannier/wannier.win",
+# "wannier/wannier.wout", etc.). A different file prefix can be given with the
 # keyword argument `fileprefix` as shown below.
 #
-# We now solve for 5 MLWF using wannier90:
+# We now solve for 5 MLWF using Wannier.jl:
 
-using wannier90_jll  # Needed to make run_wannier90 available
-run_wannier90(scfres;
-              fileprefix="wannier/graphene",
-              n_wannier=5,
-              num_print_cycles=25,
-              num_iter=200,
-              ##
-              dis_win_max=19.0,
-              dis_froz_max=0.1,
-              dis_num_iter=300,
-              dis_mix_ratio=1.0,
-              ##
-              wannier_plot=true,
-              wannier_plot_format="cube",
-              wannier_plot_supercell=5,
-              write_xyz=true,
-              translate_home_cell=true,
-             );
+using Wannier  # Needed to make run_wannier available
+
+# In this case, we use SCDM to generate a better initial guess for the MLWFs
+# (by default, `run_wannier` will use random initial guess which is not good).
+# We need to first unfold the `scfres` to a MP kgrid for Wannierization,
+# and remove the possibly unconverged bands (bands above `scfres.n_bands_converge`)
+exclude_bands = DFTK._default_exclude_bands(scfres)
+basis, ψ, eigenvalues = DFTK.unfold_scfres_wannier(scfres, exclude_bands)
+
+# then compute the SCDM amn with [`compute_amn_scdm`](@ref)
+# Since this is entangled bands, we need a weight factor, with `erfc` functions.
+# Note that the unit of `μ` and `σ` are `Ha`, as in the DFTK convention.
+# Here we choose these numbers by inspecting the band structure, you can also
+# test with different values to see how it affects the result.
+μ, σ = 0.0, 0.01
+f = DFTK.scdm_f_erfc(basis, eigenvalues, μ, σ)
+# and construct 5 MLWFs
+n_wann = 5
+A = DFTK.compute_amn_scdm(basis, ψ, n_wann, f)
+# we pass the `A` matrix to `run_wannier`, so it will the `compute_amn` using
+# random Gaussian initial guess.
+run_wannier(scfres;
+            fileprefix="wannier/graphene",
+            n_wann,
+            A,  # disable the computation of the amn file
+            dis_froz_max=0.1,
+);
 
 # As can be observed standard optional arguments for the disentanglement
 # can be passed directly to `run_wannier90` as keyword arguments.
