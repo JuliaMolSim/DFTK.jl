@@ -90,6 +90,7 @@ Random.seed!(0)
         include("external/interatomicpotentials.jl")
         include("external/spglib.jl")
         include("external/wannier90.jl")
+        include("external/wannier.jl")
     end
 
     if "all" in TAGS
