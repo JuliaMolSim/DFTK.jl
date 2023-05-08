@@ -1,5 +1,6 @@
 using Dates
 using Printf: @sprintf
+using SpecialFunctions: erfc
 
 """
 Return the kpoint index shift for spin-polarized case.
@@ -332,6 +333,118 @@ where ``g_{n,k}`` are Bloch sums of some real-space localized orbitals.
     A
 end
 
+function scdm_f_isolated(n_bands::Integer)
+    f(kpt::Kpoint) = ones(Float64, n_bands)
+    f
+end
+
+@doc raw"""
+    Return an erfc function for the weights of SCDM density matrix.
+
+```math
+f_{nk} = \frac{1}{2} \mathrm{erfc} \left( \frac{\varepsilon_{nk} - \mu}{\sigma} \right)
+```
+
+# Arguments
+- `eigenvalues`, `μ` and `σ` in Atomic unit (Hartree).
+"""
+function scdm_f_erfc(basis::PlaneWaveBasis,
+    eigenvalues::AbstractVector{<:AbstractVector{<:Real}}, μ::Real, σ::Real)
+    f(kpt::Kpoint) = begin
+        ik = findfirst(Ref(kpt) .== basis.kpoints)
+        εk = eigenvalues[ik]
+        0.5 * erfc.((εk .- μ) ./ σ)
+    end
+    f
+end
+
+@doc raw"""
+    Return a Gaussian function for the weights of SCDM density matrix.
+
+```math
+f_{nk} = \exp \left( - \frac{(\varepsilon_{nk} - \mu)^2}{\sigma^2} \right)
+```
+
+# Arguments
+- `eigenvalues`, `μ` and `σ` in Atomic unit (Hartree).
+"""
+function scdm_f_gaussain(basis::PlaneWaveBasis,
+    eigenvalues::AbstractVector{<:AbstractVector{<:Real}}, μ::Real, σ::Real)
+    f(kpt::Kpoint) = begin
+        ik = findfirst(Ref(kpt) .== basis.kpoints)
+        εk = eigenvalues[ik]
+        exp.(-(((εk .- μ) ./ σ).^2))
+    end
+    f
+end
+
+"""
+    compute_amn_scdm(basis, ψ, n_wann, f; spin=1)
+
+Compute initial guess using SCDM.
+
+Since SCDM works in real space and directly generates the unitary matrices,
+it is not possible to generate a `guess` function and reuse [`compute_amn`](@ref).
+
+# Arguments
+- `ψ`: vector of wavefunctions. `n_kpts`-length vector, each element is a matrix
+    of size `(n_G, n_bands)`.
+- `n_wann`: number of WFs
+- `f`: weight factor for each band, accept a `Kpoint` and return an
+    `n_bands`-length vector of floats in `[0, 1]`, see
+    [`scdm_f_isolated`](@ref), [`scdm_f_erfc`](@ref), [`scdm_f_gaussain`](@ref).
+"""
+@timing function compute_amn_scdm(
+    basis::PlaneWaveBasis, ψ::AbstractVector{<:AbstractMatrix},
+    n_wann::Integer, f::Function; spin::Integer=1
+)
+    @assert length(ψ) == length(basis.kpoints)
+
+    ik0 = findfirst(k -> k.coordinate == [0, 0, 0] && k.spin == spin, basis.kpoints)
+    kpt0 = basis.kpoints[ik0]
+    ψ0 = ψ[ik0] # wavefunction at Γ point
+    n_bands = size(ψ0, 2)
+    ψ0_real = zeros(eltype(ψ0), prod(basis.fft_size), n_bands)
+    for (n, ψn) in enumerate(eachcol(ψ0))
+        # the wfc returned by ifft has size `fft_size`, here I flatten it into a column
+        ψ0_real[:, n] = ifft(basis, kpt0, ψn)
+    end
+
+    # QRCP of wfc
+    F = qr(ψ0_real', ColumnNorm())
+    C = F.p[1:n_wann]
+    @assert length(C) == n_wann
+
+
+    # compute the exp(ikr) factor for the grid points
+    # flatten into a vector, same order as ψ0_real
+    grid = reshape(r_vectors(basis), :)
+    @assert length(grid) == prod(basis.fft_size)
+    kpts = krange_spin(basis, spin)
+    phase = zeros(eltype(ψ0), length(grid))
+    for (ir, (kpt, r)) in enumerate(zip(kpts, grid))
+        # since we need ψ', actually compute exp(-ikr)
+        phase[ir] = cis2pi(-dot(kpt.coordinate, r))
+    end
+
+    A = zeros(eltype(ψ0), n_bands, n_wann, length(kpts))
+    ψmk_real = zeros(eltype(ψk), prod(basis.fft_size))
+    for (ik, kpt) in enumerate(kpts)
+        ψk = ψ[ik]
+        fk = f(kpt)
+        # TODO probably use a slow inv fourier of just one point is faster
+        for (m, ψm) in enumerate(eachcol(ψk))
+            ifft!(ψmk_real, basis, kpt, ψm)
+            for (n, Cn) in enumerate(C)
+                A[m, n, ik] = fk[m] * (ψmk_real[Cn]' * phase[Cn])
+            end
+        end
+        # to be semi-unitary
+        A[:, :, ik] = ortho_lowdin(A[:, :, ik])
+    end
+    A
+end
+
 """
 Return a matrix of eigenvalues on a uniform grid for Wannierization.
 
@@ -435,7 +548,9 @@ function get_wannier90_win(basis::PlaneWaveBasis; kwargs...)
         push!(win, :kpoint_path => kpoint_path)
     end
 
-    win
+    # Return a NamedTuple so that the user can access the parameters using
+    # win.num_wann, win.num_bands, etc. (with Dict it is win[:num_wann])
+    NamedTuple(win)
 end
 
 """

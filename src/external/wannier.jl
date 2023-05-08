@@ -9,7 +9,7 @@ Call `Wannier.jl` to Wannierize the results.
 function run_wannier(
     scfres::NamedTuple;
     fileprefix::AbstractString="wannier/wannier",
-    exclude_bands::AbstractArray{Integer}=_default_exclude_bands(scfres),
+    exclude_bands::AbstractArray{<:Integer}=_default_exclude_bands(scfres),
     kwargs...,
 )
     basis, ψ, eigenvalues = unfold_scfres_wannier(scfres, exclude_bands)
