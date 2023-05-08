@@ -49,15 +49,18 @@ plot_bandstructure(scfres; kline_density=10)
 
 using Wannier  # Needed to make run_wannier available
 
-# In this case, we use SCDM to generate a better initial guess for the MLWFs
+# The Wannier.jl interface is very similar to the Wannier90 example,
+# except that the function `run_wannier` is used instead of `run_wannier90`.
+# To further explore the functionalities of the MLWF interface, in this example
+# we use SCDM to generate a better initial guess for the MLWFs
 # (by default, `run_wannier` will use random initial guess which is not good).
 # We need to first unfold the `scfres` to a MP kgrid for Wannierization,
 # and remove the possibly unconverged bands (bands above `scfres.n_bands_converge`)
 exclude_bands = DFTK._default_exclude_bands(scfres)
 basis, ψ, eigenvalues = DFTK.unfold_scfres_wannier(scfres, exclude_bands)
 
-# then compute the SCDM amn with [`compute_amn_scdm`](@ref)
-# Since this is entangled bands, we need a weight factor, with `erfc` functions.
+# Then compute the SCDM initial guess with [`compute_amn_scdm`](@ref)
+# Since this is an entangled case, we need a weight factor, using `erfc` function.
 # Note that the unit of `μ` and `σ` are `Ha`, as in the DFTK convention.
 # Here we choose these numbers by inspecting the band structure, you can also
 # test with different values to see how it affects the result.
@@ -66,17 +69,24 @@ f = DFTK.scdm_f_erfc(basis, eigenvalues, μ, σ)
 # and construct 5 MLWFs
 n_wann = 5
 A = DFTK.compute_amn_scdm(basis, ψ, n_wann, f)
-# we pass the `A` matrix to `run_wannier`, so it will the `compute_amn` using
-# random Gaussian initial guess.
-run_wannier(scfres;
-            fileprefix="wannier/graphene",
-            n_wann,
-            A,  # disable the computation of the amn file
-            dis_froz_max=0.1,
+# we pass the `A` matrix to `run_wannier`, so it will skip the `compute_amn` step
+wann_model, = run_wannier(
+    scfres;
+    fileprefix="wannier/graphene",
+    n_wann,
+    A,
+    dis_froz_max=0.1,
 );
-
+# Note we unwrap the returned objects since in `:collinear` case, the
+# `run_wannier` will return two `Wannier.Model` objects.
 # As can be observed standard optional arguments for the disentanglement
-# can be passed directly to `run_wannier90` as keyword arguments.
+# can be passed directly to `run_wannier` as keyword arguments.
+
+# The MLWF centers and spreads can be obtained from
+Wannier.omega(wann_model)
+
+# Please refer to the [Wannier.jl documentation](https://wannierjl.org/)
+# for more advanced usage of the Wannier function interface.
 
 # (Delete temporary files.)
 rm("wannier", recursive=true)
