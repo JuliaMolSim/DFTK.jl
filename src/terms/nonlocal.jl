@@ -299,7 +299,6 @@ function build_form_factors_pswfcs(psp, qs::AbstractArray)
         radials_q = radials[norm(q)]
         count = 1
         for l in 0:psp.lmax-1, m in -l:l
-            # TODO -im or +im?
             angular = (-im)^l * ylm_real(l, m, q)
             for ipswfc_l in 1:count_n_pswfc_radial(psp, l)
                 form_factors[iq, count] = radials_q[ipswfc_l, l+1] * angular

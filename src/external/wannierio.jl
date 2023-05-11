@@ -138,7 +138,7 @@ function radial_hydrogenic_upf(n::Integer, l::Integer, α::Real)
     pswfcs = Vector{Vector{Vector{T}}}()
     pswfc_occs = Vector{Vector{T}}()
     for _ in 0:(l-1)
-        push!(pswfcs, [T[]])
+        push!(pswfcs, [])
         push!(pswfc_occs, T[])
     end
     push!(pswfcs, [R])
@@ -196,7 +196,6 @@ guess = guess_amn_hydrogenic(
     @assert all(length(c) == 3 for c in centers)
     @assert all(n .> 0)
     @assert all(α .> 0)
-    @assert all(0 .<= l .<= n .- 1)
 
     # I generate a fake `PspUpf` so as to reuse `build_projection_vectors_pswfcs`
     labels = collect(zip(n, l, α))
