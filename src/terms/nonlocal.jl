@@ -200,7 +200,7 @@ function build_form_factors(psp, qs::Array)
     # for a given `q` can be stored in an `nproj x (lmax + 1)` matrix.
     n_proj_max = maximum(l -> count_n_proj_radial(psp, l), 0:psp.lmax; init=0)
 
-    radials = IdDict{T,Matrix{T}}()  # IdDict for Dual compatability
+    radials = IdDict{T,Matrix{T}}()  # IdDict for Dual compatibility
     for q in qs
         q_norm = norm(q)
         if !haskey(radials, q_norm)
@@ -217,7 +217,8 @@ function build_form_factors(psp, qs::Array)
         radials_q = radials[norm(q)]
         count = 1
         for l in 0:psp.lmax, m in -l:l
-            angular = im^l * ylm_real(l, m, q)
+            # see "Fourier transforms of centered functions" in the docs for the formula
+            angular = (-im)^l * ylm_real(l, m, q)
             for iproj_l in 1:count_n_proj_radial(psp, l)
                 form_factors[iq, count] = radials_q[iproj_l, l+1] * angular
                 count += 1
