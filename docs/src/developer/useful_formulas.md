@@ -21,6 +21,8 @@ of the conventions used in the equations.
      Y_{l'}^{m'\ast}(x/|x|)
     d{x} \\
     &= 4 \pi Y_{l}^{m}(-q/|q|) i^{l}
+    \int_{{\mathbb R}^+} r^2 R(r) \ j_{l}(|q| r) dr\\
+    &= 4 \pi Y_{l}^{m}(q/|q|) (-i)^{l}
     \int_{{\mathbb R}^+} r^2 R(r) \ j_{l}(|q| r) dr
    \end{aligned}
   ```
@@ -37,5 +39,11 @@ of the conventions used in the equations.
   ```math
   \int_{\mathbb{S}^2} Y_l^{m*}(r)Y_{l'}^{m'}(r) dr
        = \delta_{l,l'} \delta_{m,m'}
+  ```
+  This also holds true for real spherical harmonics.
+
+- Spherical harmonics parity
+  ```math
+  Y_l^m(-r) = (-1)^l Y_l^m(r)
   ```
   This also holds true for real spherical harmonics.

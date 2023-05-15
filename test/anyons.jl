@@ -19,6 +19,7 @@ using Test
     @test abs(divA) < 1e-6
 end
 
+if mpi_nprocs() == 1  # Direct minimisation not supported on mpi
 @testset "Anyons: check E11" begin
     # See https://arxiv.org/pdf/1901.10739.pdf
     # We test E11, which is a quantity defined in the above paper
@@ -50,4 +51,5 @@ end
     s = 2
     E11 = π/2 * (2(s+1)/s)^((s+2)/s) * (s/(s+2))^(2(s+1)/s) * E^((s+2)/s) / β
     @test 1.1 ≤ E11/(2π) ≤ 1.3 # 1.18 in the paper
+end
 end
