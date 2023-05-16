@@ -10,35 +10,33 @@ include("testcases.jl")
     end
     total_charge(basis, ρ) = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
 
-
     Si_upf = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp_upf))
     Si_hgh = ElementPsp(silicon.atnum, psp=load_psp(silicon.psp_hgh))
     magnetic_moments = [1.0, -1.0]
-    methods = [ValenceDensityGaussian(), ValenceDensityPseudo(), ValenceDensityAuto()]
+    methods  = [ValenceDensityGaussian(), ValenceDensityPseudo(), ValenceDensityAuto()]
     elements = [[Si_upf, Si_hgh], [Si_upf, Si_upf], [Si_upf, Si_hgh]]
 
     @testset "Random" begin
         method = RandomDensity()
         basis = build_basis([Si_upf, Si_hgh], :none)
-        ρ = guess_density(basis, method)
+        ρ = @inferred guess_density(basis, method)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
-    
+
         basis = build_basis([Si_upf, Si_hgh], :collinear)
-        ρ = guess_density(basis, method)
+        ρ = @inferred guess_density(basis, method)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     end
 
     @testset "Atomic $(string(typeof(method)))" for (method, elements) in zip(methods, elements)
         basis = build_basis(elements, :none)
-        ρ = guess_density(basis, method)
+        ρ = @inferred guess_density(basis, method)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
-    
+
         basis = build_basis(elements, :collinear)
-        ρ = guess_density(basis, method)
+        ρ = @inferred guess_density(basis, method)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
-    
-        basis = basis
-        ρ = guess_density(basis, method, magnetic_moments)
+
+        ρ = @inferred guess_density(basis, method, magnetic_moments)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     end
 end

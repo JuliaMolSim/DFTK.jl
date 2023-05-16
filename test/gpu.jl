@@ -10,13 +10,7 @@ include("testcases.jl")
     function run_problem(; architecture)
         model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions)
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=(3, 3, 3), architecture)
-
-        # TODO Right now guess generation on the GPU does not work
-        basis_cpu = PlaneWaveBasis(model; basis.Ecut, basis.kgrid)
-        ρ_guess = guess_density(basis_cpu)
-        ρ = DFTK.to_device(architecture, ρ_guess)
-
-        self_consistent_field(basis; tol=1e-10, solver=scf_damping_solver(1.0), ρ)
+        self_consistent_field(basis; tol=1e-10, solver=scf_damping_solver(1.0))
     end
 
     scfres_cpu = run_problem(; architecture=DFTK.CPU())
@@ -31,12 +25,7 @@ end
         model = model_PBE(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;
                           magnetic_moments, smearing=Smearing.Gaussian(), temperature=1e-3)
         basis = PlaneWaveBasis(model; Ecut=20, kgrid=(4, 4, 4), architecture)
-
-        # TODO Right now guess generation on the GPU does not work
-        basis_cpu = PlaneWaveBasis(model; basis.Ecut, basis.kgrid)
-        ρ_guess = guess_density(basis_cpu, magnetic_moments)
-        ρ = DFTK.to_device(architecture, ρ_guess)
-        # ρ = guess_density(basis, magnetic_moments)
+        ρ = guess_density(basis, magnetic_moments)
 
         # TODO Bump tolerance a bit here ... still leads to NaNs unfortunately
         self_consistent_field(basis; ρ, tol=1e-7, mixing=KerkerMixing(),
@@ -50,7 +39,8 @@ end
 end
 
 
-# TODO Fix guess density generation
+# TODO Test hamiltonian application on GPU
+# TODO Direct minimisation
 # TODO Float32
 # TODO meta GGA
 # TODO Aluminium with LdosMixing
