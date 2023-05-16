@@ -39,6 +39,7 @@ end
 end
 
 
+# TODO Test hamiltonian application on GPU
 # TODO Direct minimisation
 # TODO Float32
 # TODO meta GGA

@@ -124,17 +124,19 @@ function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
     end
 
     @assert length(magmoms) == length(basis.model.atoms)
-    coefficients = map(zip(basis.model.atoms, magmoms)) do (atom, magmom)
+    coefficients = map(basis.model.atoms, magmoms) do atom, magmom
         iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
         magmom[3] ≤ n_elec_valence(atom) || error(
             "Magnetic moment $(magmom[3]) too large for element $(atomic_symbol(atom)) " *
             "with only $(n_elec_valence(atom)) valence electrons."
         )
-        magmom[3] / n_elec_valence(atom)
+
+        # Type conversion to ensure type stability in final guess density
+        magmom[3] / T(n_elec_valence(atom))
     end
 
     form_factors = atomic_density_form_factors(basis, method)
-    atomic_density_superposition(basis, form_factors; coefficients)    
+    atomic_density_superposition(basis, form_factors; coefficients)
 end
 
 # Perform an atomic density superposition. The density is constructed in reciprocal space
@@ -148,7 +150,7 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
     G_cart = to_cpu(G_vectors_cart(basis))
     ρ_cpu = map(enumerate(to_cpu(G_vectors(basis)))) do (iG, G)
         Gnorm = norm(G_cart[iG])
-        ρ_iG = sum(enumerate(model.atom_groups); init=zero(Complex{T})) do (igroup, group)
+        ρ_iG = sum(enumerate(model.atom_groups); init=zero(complex(T))) do (igroup, group)
             sum(group) do iatom
                 structure_factor = cis2pi(-dot(G, model.positions[iatom]))
                 coefficients[iatom] * form_factors[(igroup, Gnorm)] * structure_factor

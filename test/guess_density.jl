@@ -20,11 +20,11 @@ include("testcases.jl")
     @testset "Random" begin
         method = RandomDensity()
         basis = build_basis([Si_upf, Si_hgh], :none)
-        ρ = guess_density(basis, method)
+        ρ = @inferred guess_density(basis, method)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
-    
+
         basis = build_basis([Si_upf, Si_hgh], :collinear)
-        ρ = guess_density(basis, method)
+        ρ = @inferred guess_density(basis, method)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     end
 
@@ -32,11 +32,11 @@ include("testcases.jl")
         basis = build_basis(elements, :none)
         ρ = guess_density(basis, method)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
-    
+
         basis = build_basis(elements, :collinear)
         ρ = guess_density(basis, method)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
-    
+
         basis = basis
         ρ = guess_density(basis, method, magnetic_moments)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
