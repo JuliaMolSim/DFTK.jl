@@ -18,7 +18,7 @@ end
 @doc raw"""
 Build a random charge density normalized to the provided number of electrons.
 """
-function random_density(basis::PlaneWaveBasis{T}, n_electrons) where {T}
+function random_density(basis::PlaneWaveBasis{T}, n_electrons::Integer) where {T}
     ρtot  = rand(T, basis.fft_size)
     ρtot  = ρtot .* n_electrons ./ (sum(ρtot) * basis.dvol)  # Integration to n_electrons
     ρspin = nothing
@@ -130,10 +130,8 @@ function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
             "Magnetic moment $(magmom[3]) too large for element $(atomic_symbol(atom)) " *
             "with only $(n_elec_valence(atom)) valence electrons."
         )
-
-        # Type conversion to ensure type stability in final guess density
-        magmom[3] / T(n_elec_valence(atom))
-    end
+        magmom[3] / n_elec_valence(atom)
+    end::AbstractVector{T}  # Needed to ensure type stability in final guess density
 
     form_factors = atomic_density_form_factors(basis, method)
     atomic_density_superposition(basis, form_factors; coefficients)

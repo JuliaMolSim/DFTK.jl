@@ -85,15 +85,15 @@ struct PlaneWaveBasisSerialisation{T <: Real, Arch <: AbstractArchitecture}
     fft_size::Tuple{Int, Int, Int}
     architecture::Arch
 end
-function JLD2.writeas(::Type{PlaneWaveBasis{T,T,GT,RT,KGT}}) where {T,GT,RT,KGT}
+function JLD2.writeas(::Type{PlaneWaveBasis{T,T,Arch,GT,RT,KGT}}) where {T,Arch,GT,RT,KGT}
     # The GT, GT, KGT are uniquely determined by the architecture,
     # which is stored in the basis.
-    PlaneWaveBasisSerialisation{T}
+    PlaneWaveBasisSerialisation{T,Arch}
 end
 
 function Base.convert(::Type{PlaneWaveBasisSerialisation{T,Arch}},
                       basis::PlaneWaveBasis{T,T,Arch}) where {T,Arch}
-    PlaneWaveBasisSerialisation{T}(
+    PlaneWaveBasisSerialisation{T,Arch}(
         basis.model,
         basis.Ecut,
         basis.variational,

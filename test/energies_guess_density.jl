@@ -18,7 +18,7 @@ include("testcases.jl")
                       [:lda_x, :lda_c_vwn]; symmetries=false)
     basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size, kshift)
 
-    ρ0 = @inferred guess_density(basis, ValenceDensityGaussian())
+    ρ0 = guess_density(basis, ValenceDensityGaussian())
     E, H = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
 
     @test E["Hartree"] ≈  0.3527293727197568  atol=5e-8
