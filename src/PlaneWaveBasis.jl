@@ -117,7 +117,6 @@ end
 
 
 # prevent broadcast
-import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
