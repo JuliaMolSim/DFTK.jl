@@ -44,6 +44,7 @@
 vprintln(args...) = nothing
 
 using LinearAlgebra
+import LinearAlgebra: BlasFloat
 import Base: *
 import Base.size, Base.adjoint, Base.Array
 
@@ -127,8 +128,7 @@ end
     values, vectors = eigen(XAX)
     vectors[:, 1:N], values[1:N]
 end
-@views function rayleigh_ritz(XAX::Hermitian{T,<:Array}, N) where {T <: Union{ComplexF32,ComplexF64,
-                                                                              Float32,Float64}}
+@views function rayleigh_ritz(XAX::Hermitian{<:BlasFloat, <:Array}, N)
     # LAPACK sysevr (the Julia default dense eigensolver) can actually return eigenvectors
     # that are significantly non-orthogonal (1e-4 in Float32 in some tests) here,
     # presumably because it tries hard to make them eigenvectors in the presence

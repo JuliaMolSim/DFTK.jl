@@ -59,12 +59,12 @@ Feel free to drop us a line if you want your work to be added here.
   ([Computational script](https://github.com/JuliaMolSim/DFTK.jl/blob/f7fcc31c79436b2582ac1604d4ed8ac51a6fd3c8/examples/publications/2022_cazalis.jl)).
 
 - E. Cancès, L. Garrigue, D. Gontier.
-  [*A simple derivation of moiré-scale continuous models for twisted bilayer graphene*](https://arxiv.org/abs/2206.05685)
-  (Submitted).
+  [*A simple derivation of moiré-scale continuous models for twisted bilayer graphene*](https://doi.org/10.1103/PhysRevB.107.155403)
+  Physical Review B, **107**, 155403 (2023).
   [ArXiv:2206.05685](https://arxiv.org/abs/2206.05685).
 
 - G. Dusson, I. Sigal and B. Stamm.
-  [*Analysis of the Feshbach-Schur method for the Fourier spectral discretizations of Schrödinger operators*](http://dx.doi.org/10.1090/mcom/3774)
+  [*Analysis of the Feshbach-Schur method for the Fourier spectral discretizations of Schrödinger operators*](http://doi.org/10.1090/mcom/3774)
   Mathematics of Computation, **92**, 217 (2023).
   [ArXiv:2008.10871](https://arxiv.org/abs/2008.10871).
 

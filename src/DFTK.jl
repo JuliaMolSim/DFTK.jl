@@ -17,7 +17,7 @@ using AbstractFFTs
 using GPUArraysCore
 using Random
 using ChainRulesCore
-using SnoopPrecompile
+using PrecompileTools
 
 export Vec3
 export Mat3
@@ -25,7 +25,6 @@ export mpi_nprocs
 export mpi_master
 export setup_threading, disable_threading
 include("common/timer.jl")
-include("common/constants.jl")
 include("common/ortho.jl")
 include("common/types.jl")
 include("common/spherical_bessels.jl")
@@ -243,18 +242,20 @@ function __init__()
 end
 
 # Precompilation block with a basic workflow
-if VERSION ≥ v"1.9alpha" && isnothing(get(ENV, "DFTK_NO_PRECOMPILATION", nothing))
-    @precompile_all_calls begin
-        # very artificial silicon ground state example
-        a = 10.26
-        lattice = a / 2 * [[0 1 1.];
-                           [1 0 1.];
-                           [1 1 0.]]
-        Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-        atoms     = [Si, Si]
-        positions = [ones(3)/8, -ones(3)/8]
-        magnetic_moments = [2, -2]
-        model = model_LDA(lattice, atoms, positions; magnetic_moments, temperature=0.1, spin_polarization=:collinear)
+@setup_workload begin
+    # very artificial silicon ground state example
+    a = 10.26
+    lattice = a / 2 * [[0 1 1.];
+                       [1 0 1.];
+                       [1 1 0.]]
+    Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+    atoms     = [Si, Si]
+    positions = [ones(3)/8, -ones(3)/8]
+    magnetic_moments = [2, -2]
+
+    @compile_workload begin
+        model = model_LDA(lattice, atoms, positions;
+                          magnetic_moments, temperature=0.1, spin_polarization=:collinear)
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
         ρ0 = guess_density(basis, magnetic_moments)
         scfres = self_consistent_field(basis; ρ=ρ0, tol=1e-2, maxiter=3, callback=identity)
