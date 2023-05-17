@@ -107,8 +107,8 @@ To achieve such a setup you have two recommended options:
 
 !!! tip "Reducing the overhead of PrecompileTools during development"
     We use [PrecompileTools.jl](https://github.com/JuliaLang/PrecompileTools.jl) to
-    reduce the time to first SCF and thus the user experience of DFTK. For development
-    spending the additional precompilation cost is usually not worth it and it might
+    reduce the time to first SCF. For development
+    spending the additional time for precompiling DFTK is usually not worth it and it might
     be a good idea to disable precompilation in a development setup. See the
     [PrecompileTools documentation](https://julialang.github.io/PrecompileTools.jl/stable/)
     for instructions how to do this.
