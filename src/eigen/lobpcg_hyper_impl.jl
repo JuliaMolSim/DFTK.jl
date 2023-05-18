@@ -204,7 +204,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
             success = false
         end
         invR = inv(R)
-        @assert all(!isnan, invR)
+        @assert !any(isnan, invR)
         rmul!(X, invR)  # we do not use X/R because we use invR next
 
         # We would like growth_factor *= opnorm(inv(R)) but it's too

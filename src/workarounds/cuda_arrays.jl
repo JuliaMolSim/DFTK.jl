@@ -1,5 +1,3 @@
-using LinearAlgebra
-
 synchronize_device(::GPU{<:CUDA.CuArray}) = CUDA.synchronize()
 
 for fun in (:potential_terms, :kernel_terms)
