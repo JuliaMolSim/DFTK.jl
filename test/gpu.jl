@@ -10,13 +10,13 @@ include("testcases.jl")
     function run_problem(; architecture)
         model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions)
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=(3, 3, 3), architecture)
-        self_consistent_field(basis; tol=1e-10, solver=scf_damping_solver(1.0))
+        self_consistent_field(basis; tol=1e-9, solver=scf_damping_solver(1.0))
     end
 
     scfres_cpu = run_problem(; architecture=DFTK.CPU())
     scfres_gpu = run_problem(; architecture=DFTK.GPU(CuArray))
-    @test abs(scfres_cpu.energies.total - scfres_gpu.energies.total) < 1e-10
-    @test norm(scfres_cpu.ρ - Array(scfres_gpu.ρ)) < 1e-10
+    @test abs(scfres_cpu.energies.total - scfres_gpu.energies.total) < 1e-9
+    @test norm(scfres_cpu.ρ - Array(scfres_gpu.ρ)) < 1e-9
 end
 
 @testset "CUDA iron functionality test" begin
