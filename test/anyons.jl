@@ -19,6 +19,7 @@ using Test
     @test abs(divA) < 1e-6
 end
 
+if mpi_nprocs() == 1  # Direct minimisation not supported on mpi
 @testset "Anyons: check E11" begin
     # See https://arxiv.org/pdf/1901.10739.pdf
     # We test E11, which is a quantity defined in the above paper
@@ -45,9 +46,10 @@ end
              ]
     model = Model(lattice; n_electrons, terms, spin_polarization=:spinless)  # "spinless electrons"
     basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
-    scfres = direct_minimization(basis, tol=1e-8)
+    scfres = direct_minimization(basis, tol=1e-6, maxiter=300)  # Limit maxiter as guess can be bad
     E = scfres.energies.total
     s = 2
     E11 = π/2 * (2(s+1)/s)^((s+2)/s) * (s/(s+2))^(2(s+1)/s) * E^((s+2)/s) / β
     @test 1.1 ≤ E11/(2π) ≤ 1.3 # 1.18 in the paper
+end
 end

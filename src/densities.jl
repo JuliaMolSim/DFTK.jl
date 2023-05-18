@@ -110,7 +110,7 @@ function ρ_from_total(basis, ρtot::AbstractArray{T}) where {T}
     if basis.model.spin_polarization in (:none, :spinless)
         ρspin = nothing
     else
-        ρspin = zeros(T, basis.fft_size)
+        ρspin = zeros_like(basis.G_vectors, T, basis.fft_size...)
     end
     ρ_from_total_and_spin(ρtot, ρspin)
 end

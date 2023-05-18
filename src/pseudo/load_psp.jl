@@ -1,7 +1,7 @@
 import PeriodicTable
 
 """Return the data directory with pseudopotential files"""
-datadir_psp() = joinpath(get(ENV, "DFTK_DATADIR", DFTK_DATADIR), "psp")
+datadir_psp() = normpath(joinpath(@__DIR__, "..", "..", "data", "psp"))
 
 """
 Load a pseudopotential file from the library of pseudopotentials.
