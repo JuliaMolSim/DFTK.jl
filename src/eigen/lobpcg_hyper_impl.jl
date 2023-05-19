@@ -118,7 +118,7 @@ end
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X, AX, N)
     XAX = X' * AX
-    @assert all(!isnan, XAX)
+    @assert !any(isnan, XAX)
     rayleigh_ritz(Hermitian(XAX), N)
 end
 @views function rayleigh_ritz(XAX::Hermitian, N)
@@ -151,7 +151,7 @@ end
 function B_ortho!(X, BX)
     O = Hermitian(X'*BX)
     U = cholesky(O).U
-    @assert all(!isnan, U)
+    @assert !any(isnan, U)
     rdiv!(X, U)
     rdiv!(BX, U)
 end
@@ -338,7 +338,7 @@ end
     n_matvec = M  # Count number of matrix-vector products
     AX = similar(X)
     AX = mul!(AX, A, X)
-    @assert all(!isnan, AX)
+    @assert !any(isnan, Ax)
     # full_X/AX/BX will always store the full (including locked) X.
     # X/AX/BX only point to the active part
     P = zero(X)
