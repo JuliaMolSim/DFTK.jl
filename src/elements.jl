@@ -79,7 +79,6 @@ struct ElementPsp <: Element
     Z::Int         # Nuclear charge
     symbol         # Element symbol
     psp            # Pseudopotential data structure
-    use_nlcc::Bool # Flag to enable/disable non-linear core correction
 end
 function Base.show(io::IO, el::ElementPsp)
     pspid = isempty(el.psp.identifier) ? "custom" : el.psp.identifier
@@ -91,14 +90,11 @@ Element interacting with electrons via a pseudopotential model.
 `key` may be an element symbol (like `:Si`), an atomic number (e.g. `14`)
 or an element name (e.g. `"silicon"`)
 """
-function ElementPsp(key; psp, use_nlcc=has_core_density(psp))
-    ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp, use_nlcc)
+function ElementPsp(key; psp)
+    ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp)
 end
-function ElementPsp(Z::Int, symbol, psp; use_nlcc=has_core_density(psp))
-    if (use_nlcc & !has_core_density(psp))
-        error("Cannot use NLCC for pseudopotentials that do not contain core charge density")
-    end
-    ElementPsp(Z, symbol, psp, use_nlcc)
+function ElementPsp(Z::Int, symbol, psp)
+    ElementPsp(Z, symbol, psp)
 end
 
 charge_ionic(el::ElementPsp) = charge_ionic(el.psp)

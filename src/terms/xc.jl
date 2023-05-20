@@ -7,10 +7,13 @@ struct Xc
 
     # Threshold for potential terms: Below this value a potential term is counted as zero.
     potential_threshold::Real
+
+    # Use non-linear core correction or not
+    use_nlcc::Bool
 end
 function Xc(functionals::AbstractVector{<:Functional}; scaling_factor=1,
-            potential_threshold=0)
-    Xc(functionals, scaling_factor, potential_threshold)
+            potential_threshold=0, use_nlcc=true)
+    Xc(functionals, scaling_factor, potential_threshold, use_nlcc)
 end
 function Xc(functionals::AbstractVector; kwargs...)
     fun = map(functionals) do f
@@ -31,7 +34,7 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
 
     # Charge density for non-linear core correction
     ρcore = nothing
-    if any(a -> a.use_nlcc, basis.model.atoms)
+    if xc.use_nlcc && any(has_core_density, basis.model.atoms)
         ρcore = ρ_from_total(basis, atomic_total_density(basis, CoreDensity()))
         minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
     end
