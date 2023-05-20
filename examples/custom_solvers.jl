@@ -64,7 +64,7 @@ end
 
 # That's it! Now we just run the SCF with these solvers
 scfres = self_consistent_field(basis;
-                               tol=1e-8,
+                               tol=1e-4,
                                solver=my_fp_solver,
                                eigensolver=my_eig_solver,
                                mixing=MyMixing());
