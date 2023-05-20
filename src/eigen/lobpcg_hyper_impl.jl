@@ -338,7 +338,7 @@ end
     n_matvec = M  # Count number of matrix-vector products
     AX = similar(X)
     AX = mul!(AX, A, X)
-    @assert !any(isnan, Ax)
+    @assert !any(isnan, AX)
     # full_X/AX/BX will always store the full (including locked) X.
     # X/AX/BX only point to the active part
     P = zero(X)
