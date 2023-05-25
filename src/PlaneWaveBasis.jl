@@ -41,9 +41,10 @@ Normalization conventions:
 """
 struct PlaneWaveBasis{T,
                       VT <: Real,
+                      Arch <: AbstractArchitecture,
                       T_G_vectors  <: AbstractArray{Vec3{Int}, 3},
                       T_r_vectors  <: AbstractArray{Vec3{VT},  3},
-                      T_kpt_G_vecs <: AbstractVector{Vec3{Int}}
+                      T_kpt_G_vecs <: AbstractVector{Vec3{Int}},
                      } <: AbstractBasis{T}
 
     # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
@@ -100,7 +101,7 @@ struct PlaneWaveBasis{T,
     #                                       respective rank in comm_kpts
 
     ## Information on the hardware and device used for computations.
-    architecture::AbstractArchitecture
+    architecture::Arch
 
     ## Symmetry operations that leave the discretized model (k and r grids) invariant.
     # Subset of model.symmetries.
@@ -116,7 +117,6 @@ end
 
 
 # prevent broadcast
-import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
@@ -160,7 +160,8 @@ end
 function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
                         kcoords, kweights, kgrid, kshift,
                         symmetries_respect_rgrid, comm_kpts,
-                        architecture::AbstractArchitecture) where {T <: Real}
+                        architecture::Arch
+                       ) where {T <: Real, Arch <: AbstractArchitecture}
     # Validate fft_size
     if variational
         max_E = norm2(model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
@@ -220,7 +221,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     # by the same process
     n_kpt   = length(kcoords_global)
     n_procs = mpi_nprocs(comm_kpts)
-    
+
     # Custom reduction operators for MPI are currently not working on aarch64, so
     # fallbacks are defined in common/mpi.jl. For them to work, there cannot be more
     # than 1 MPI process.
@@ -279,7 +280,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     r_vectors = to_device(architecture, r_vectors)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
-    basis = PlaneWaveBasis{T, value_type(T), typeof(Gs), typeof(r_vectors),
+    basis = PlaneWaveBasis{T, value_type(T), Arch, typeof(Gs), typeof(r_vectors),
                            typeof(kpoints[1].G_vectors)}(
         model, fft_size, dvol,
         Ecut, variational,

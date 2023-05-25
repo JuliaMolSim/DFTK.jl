@@ -55,7 +55,7 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
     T  = eltype(basis)
     occupation, εF = compute_occupation(basis, Es, fermialg; temperature, tol_n_elec=10eps(T))
 
-    χ0 = zeros(eltype(basis), n_spin * n_fft, n_spin * n_fft)
+    χ0 = zeros_like(basis.G_vectors, T, n_spin * n_fft, n_spin * n_fft)
     for (ik, kpt) in enumerate(basis.kpoints)
         # The sum-over-states terms of χ0 are diagonal in the spin blocks (no αβ / βα terms)
         # so the spin of the kpt selects the block we are in
@@ -109,8 +109,8 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # included).
 function sternheimer_solver(Hk, ψk, ε, rhs;
                             callback=identity, cg_callback=identity,
-                            ψk_extra=zeros(size(ψk,1), 0), εk_extra=zeros(0),
-                            Hψk_extra=zeros(size(ψk,1), 0), tol=1e-9)
+                            ψk_extra=zeros_like(ψk, size(ψk, 1), 0), εk_extra=zeros(0),
+                            Hψk_extra=zeros_like(ψk, size(ψk, 1), 0), tol=1e-9)
     basis = Hk.basis
     kpoint = Hk.kpoint
 
@@ -291,7 +291,7 @@ Perform in-place computations of the derivatives of the wave functions by solvin
 a Sternheimer equation for each `k`-points. It is assumed the passed `δψ` are initialised
 to zero.
 """
-function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros(size(ψk,1), 0) for ψk in ψ],
+function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
                      kwargs_sternheimer...)
     model = basis.model
     temperature = model.temperature

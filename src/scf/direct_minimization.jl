@@ -67,7 +67,7 @@ necessarily eigenvectors of the Hamiltonian.
 """
 direct_minimization(basis::PlaneWaveBasis; kwargs...) = direct_minimization(basis, nothing; kwargs...)
 function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
-                             prec_type=PreconditionerTPA,
+                             prec_type=PreconditionerTPA, maxiter=1_000,
                              optim_solver=Optim.LBFGS, tol=1e-6, kwargs...) where {T}
     if mpi_nprocs() > 1
         # need synchronization in Optim
@@ -123,7 +123,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     optim_options = Optim.Options(; allow_f_increases=true, show_trace=true,
                                   x_tol=pop!(kwdict, :x_tol, tol),
                                   f_tol=pop!(kwdict, :f_tol, -1),
-                                  g_tol=pop!(kwdict, :g_tol, -1), kwdict...)
+                                  g_tol=pop!(kwdict, :g_tol, -1),
+                                  iterations=maxiter, kwdict...)
     res = Optim.optimize(Optim.only_fg!(fg!), pack(ψ0),
                          optim_solver(; P, precondprep=precondprep!, manifold,
                                       linesearch=LineSearches.BackTracking()),

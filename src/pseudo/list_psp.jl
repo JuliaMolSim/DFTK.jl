@@ -1,7 +1,7 @@
 import IterTools
 
 """
-    list_psp(element; functional, family, core, datadir_psp)
+    list_psp(element; functional, family, core)
 
 List the pseudopotential files known to DFTK. Allows various ways
 to restrict the displayed files.
@@ -21,8 +21,7 @@ julia> list_psp(:O, core=:semicore)
 ```
 will list all oxygen semicore pseudopotentials known to DFTK.
 """
-function list_psp(element=nothing; family=nothing, functional=nothing, core=nothing,
-                  datadir_psp=datadir_psp())
+function list_psp(element=nothing; family=nothing, functional=nothing, core=nothing)
     # Normalize input keys
     isnothing(element)    || (element = Symbol(PeriodicTable.elements[element].symbol))
     isnothing(functional) || (functional = lowercase(functional))
@@ -32,8 +31,8 @@ function list_psp(element=nothing; family=nothing, functional=nothing, core=noth
     pathsep = Sys.iswindows() ? '\\' : '/'
 
     psplist = []
-    for (root, _, files) in walkdir(datadir_psp)
-        root = relpath(root, datadir_psp)
+    for (root, _, files) in walkdir(datadir_psp())
+        root = relpath(root, datadir_psp())
         for file in files
             base, ext = splitext(file)
             ext == ".sh" && continue                        # Ignore scripts
@@ -51,7 +50,7 @@ function list_psp(element=nothing; family=nothing, functional=nothing, core=noth
             push!(psplist, (identifier=f_identifier, family=f_family,
                   functional=f_functional, element=f_element,
                   n_elec_valence=parse(Int, f_nvalence[2:end]),
-                  path=joinpath(datadir_psp, root, file)))
+                  path=joinpath(datadir_psp(), root, file)))
         end
     end
 

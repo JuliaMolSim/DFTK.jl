@@ -53,7 +53,7 @@ import Pkg
 Pkg.add(["AtomsIO", "AtomsIOPython", "ASEconvert"])
 ```
 
-!!! note "Python dependencies in Julia"
+!!! tip "Python dependencies in Julia"
     There are two main packages to use Python dependencies from Julia,
     namely [PythonCall](https://cjdoris.github.io/PythonCall.jl)
     and [PyCall](https://github.com/JuliaPy/PyCall.jl).
@@ -103,3 +103,13 @@ To achieve such a setup you have two recommended options:
    ```
    The advantage of this method is that you can easily have multiple
    clones of DFTK with potentially different modifications made.
+
+
+!!! tip "Reducing the overhead of PrecompileTools during development"
+    We use [PrecompileTools.jl](https://github.com/JuliaLang/PrecompileTools.jl) to
+    reduce the time to first SCF. For development
+    spending the additional time for precompiling DFTK is usually not worth it and it might
+    be a good idea to disable precompilation in a development setup. See the
+    [PrecompileTools documentation](https://julialang.github.io/PrecompileTools.jl/stable/)
+    for instructions how to do this.
+
