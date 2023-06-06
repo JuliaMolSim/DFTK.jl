@@ -4,8 +4,8 @@ using ASEconvert
 using AtomsBase
 
 system = ase.build.bulk("Li")
-model = model_LDA(pyconvert(AbstractSystem, system); temperature=1e-3, smearing=Smearing.Gaussian())
-basis = PlaneWaveBasis(model; Ecut=10, kgrid=[1, 1, 1])
-scfres = self_consistent_field(basis, tol=1e-8)
+model  = model_LDA(pyconvert(AbstractSystem, system); temperature=1e-3, smearing=Smearing.Gaussian())
+basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[1, 1, 1])
+scfres = DFTK.scf_potential_mixing_adaptive(basis, tol=1e-8)
 
 DFTK.export_cc4s("lithium_cc4s.hdf5", scfres)
