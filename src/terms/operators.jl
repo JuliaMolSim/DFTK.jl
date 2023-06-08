@@ -9,6 +9,22 @@ They also implement mul! and Matrix(op) for exploratory use.
 """
 abstract type RealFourierOperator end
 # RealFourierOperator contain fields `basis` and `kpoint`
+#
+Array(op::RealFourierOperator) = Matrix(op)
+
+# Slow fallback for getting operator as a dense matrix
+function Matrix(op::RealFourierOperator)
+    T = complex(eltype(op.basis))
+    n_G = length(G_vectors(op.basis, op.kpoint))
+    H = zeros(T, n_G, n_G)
+    ψ = zeros(T, n_G)
+    @views for i in 1:n_G
+        ψ[i] = one(T)
+        mul!(H[:, i], op, ψ)
+        ψ[i] = zero(T)
+    end
+    H
+end
 
 # Unoptimized fallback, intended for exploratory use only.
 # For performance, call through Hamiltonian which saves FFTs.
@@ -164,30 +180,25 @@ function optimize_operators_(ops)
 end
 
 struct ExchangeOperator{T <: Real} <: RealFourierOperator
-    ψocc
-    poisson_green_coeffs
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
+    poisson_green_coeffs  # TODO This needs to be typed
+    occk  # TODO This needs to be typed
+    ψk    # TODO This needs to be typed
 end
-
 function apply!(Hψ, op::ExchangeOperator, ψ)
+    # Hψ = - ∑_n f_n ψ_n(r) ∫ (ψ_n)†(r') * ψ(r') / |r-r'|dr'
+    for (n, ψnk) in enumerate(eachcol(op.ψk))
+        ψnk_real = ifft(op.basis, op.kpoint, ψnk)
+        x_real   = conj(ψnk_real) .* ψ.real
 
-    # - ∑ ψ_n(r) ∫ ψ_n(r')* ψ(r') / |r-r'|dr'
-    for ψ_n in eachcol(op.ψocc)
+        # Compute integral by Poisson solve
+        x_four   = fft(op.basis, x_real)
+        Vx_four  = x_four .* op.poisson_green_coeffs
+        Vx_real  = ifft(op.basis, Vx_four)
 
-         #1. Real-space multiply
-         psi_n_real = G_to_r(op.basis, op.kpoint, ψ_n)
-         x_real = ψ.real .* psi_n_real
-         x_four = r_to_G(op.basis, op.kpoint, x_real)
-
-         # Poisson solve
-         phi_four = x_four .* op.poisson_green_coeffs
-         
-         #Real-space multiply and accumulate
-         phi_real = G_to_r(op.basis, op.kpoint, phi_four)
-         Hψ.real .-= psi_n_real .* phi_real
-         Hψ.fourier .-= ψ_n .* phi_four
+        # Real-space multiply and accumulate
+        Hψ.real .-= op.occk[n] .* ψnk_real .* Vx_real
     end
 end
-
 # TODO Implement  Matrix(op::ExchangeOperator)

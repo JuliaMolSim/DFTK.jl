@@ -67,8 +67,8 @@ function Base.size(block::HamiltonianBlock)
 end
 
 import Base: Matrix, Array
-Array(block::HamiltonianBlock)  = Matrix(block)
-Matrix(block::HamiltonianBlock) = sum(Matrix, block.operators)
+Array(block::HamiltonianBlock) = Matrix(block)
+Matrix(block::HamiltonianBlock)        = sum(Matrix, block.operators)
 Matrix(block::GenericHamiltonianBlock) = sum(Matrix, block.optimized_operators)
 
 struct Hamiltonian

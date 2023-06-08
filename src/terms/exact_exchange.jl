@@ -1,12 +1,11 @@
 """
 Exact exchange term: the Hartree-Exact exchange energy of the orbitals
 
-
 -1/2 ∑ ∫∫ ϕ_i^*(r)ϕ_j^*(r')ϕ_i(r')ϕ_j(r) / |r - r'| dr dr'
 
 """
 struct ExactExchange
-    scaling_factor::Real  # to scale by an arbitrary factor (useful for hybrid models)
+    scaling_factor::Real  # to scale the term (e.g. for hybrid models)
 end
 ExactExchange(; scaling_factor=1) = ExactExchange(scaling_factor)
 (exchange::ExactExchange)(basis) = TermExactExchange(basis, exchange.scaling_factor)
@@ -17,56 +16,68 @@ end
 struct TermExactExchange <: Term
     scaling_factor::Real  # scaling factor, absorbed into poisson_green_coeffs
     poisson_green_coeffs::AbstractArray
-    poisson_green_coeffs_kpt::AbstractArray
 end
 function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor) where T
-    model = basis.model
+    scale = T(scaling_factor)
 
-    poisson_green_coeffs = T(scaling_factor) .* 4T(π) ./ [sum(abs2, G) 
-        for G in G_vectors_cart(basis)]
-    poisson_green_coeffs_kpt = T(scaling_factor) .* 4T(π) ./ [sum(abs2, G) 
-        for G in Gplusk_vectors_cart(basis, basis.kpoints[1])]
-    
-    # Compensating charge background => Zero DC
-    poisson_green_coeffs[1] = 0
-    poisson_green_coeffs_kpt[1] = 0
+    # q = T[0.5, 0.5, 0.5]
+    # Gqs = map(G_vectors(basis)) do G
+    #     recip_vector_red_to_cart(basis.model, G + q)
+    # end
+    # poisson_green_coeffs     = 4T(π) * scale ./ norm2.(Gqs)
 
-    TermExactExchange(T(scaling_factor), poisson_green_coeffs, poisson_green_coeffs_kpt)
+    poisson_green_coeffs    = 4T(π) * scale ./ norm2.(G_vectors_cart(basis))
+    poisson_green_coeffs[1] = 0  # Compensating charge background => Zero DC
+
+    @assert iszero(G_vectors(basis, basis.kpoints[1])[1])
+
+    TermExactExchange(scale, poisson_green_coeffs)
 end
 
-@timing "ene_ops: ExactExchange" function ene_ops(term::TermExactExchange, 
-                                                  basis::PlaneWaveBasis{T}, ψ, occ; ρ, 
+# Note: Implementing exact exchange in a scalable and numerically stable way, such that it
+# rapidly converges with k-points is tricky. This implementation here is far too simple and
+# slow to be useful.
+#
+# For further information (in particular on regularising the Coulomb), consider the following
+#      https://www.vasp.at/wiki/index.php/Coulomb_singularity
+#      https://journals.aps.org/prb/pdf/10.1103/PhysRevB.34.4405   (QE default)
+#      https://journals.aps.org/prb/pdf/10.1103/PhysRevB.73.205119
+#      https://docs.abinit.org/topics/documents/hybrids-2017.pdf (Abinit apparently
+#           uses a short-ranged Coulomb)
+
+@timing "ene_ops: ExactExchange" function ene_ops(term::TermExactExchange,
+                                                  basis::PlaneWaveBasis{T}, ψ, occupation;
                                                   kwargs...) where {T}
-    ops = [NoopOperator(basis, kpoint) for (ik, kpoint) in enumerate(basis.kpoints)]
-    isnothing(ψ) && return (E=T(0), ops=ops)
+    if isnothing(ψ) || isnothing(occupation)
+        return (; E=T(0), ops=NoopOperator.(basis, basis.kpoints))
+    end
 
-    ψ, occ = select_occupied_orbitals(basis, ψ, occ; threshold=0.1)
+    @assert iszero(basis.model.temperature)  # ground state
+    ψ, occupation = select_occupied_orbitals(basis, ψ, occupation; threshold=0.1)
+    E = zero(T)
+
     @assert length(ψ) == 1  # TODO: make it work for more kpoints
-    @assert basis.model.temperature == 0  # ground state
-    E = T(0)
-    for (k,kpoint) in enumerate(basis.kpoints)
-        for (i,psi_i) in enumerate(eachcol(ψ[k]))
-            for (j,psi_j) in enumerate(eachcol(ψ[k]))
+    ik   = 1
+    kpt  = basis.kpoints[ik]
+    occk = occupation[ik]
+    ψk   = ψ[ik]
 
-                psi_i_real = G_to_r(basis, kpoint, psi_i)
-                psi_j_real = G_to_r(basis, kpoint, psi_j)
-                
-                # ρ_ij(r) = ψ_i(r)^* ψ_j(r)
-                rho_ij_real = conj(psi_j_real) .* psi_i_real
-                rho_ij_real_conj = conj(psi_i_real) .* psi_j_real
+    for (n, ψn) in enumerate(eachcol(ψk))
+        for (m, ψm) in enumerate(eachcol(ψk))
+            ψn_real = ifft(basis, kpt, ψn)
+            ψm_real = ifft(basis, kpt, ψm)
 
-                # Poisson solve - ∫ρ_ij(r') / |r-r'|dr'
-                rho_ij_four = r_to_G(basis, kpoint, rho_ij_real)
-                v_ij_four = rho_ij_four .* term.poisson_green_coeffs_kpt
+            ρnm_real = conj(ψn_real) .* ψm_real
+            ρmn_real = conj(ψm_real) .* ψn_real
 
-                v_ij_real = G_to_r(basis, kpoint, v_ij_four)
-                E += real(dot(v_ij_real, rho_ij_real_conj))
+            Vx_nm_four = fft(basis, ρnm_real) .* term.poisson_green_coeffs
+            Vx_nm_real = ifft(basis, Vx_nm_four)
 
-            end
+            occ_mn = occk[n] * occk[m]
+            E -= real(dot(Vx_nm_real, ρmn_real)) * basis.dvol * occ_mn / 2
         end
     end
-    E_scaled = -.5 * E
-    ops = [ExchangeOperator(ψ[ik], term.poisson_green_coeffs_kpt, basis, kpt) 
-        for (ik,kpt) in enumerate(basis.kpoints)]
-    (E=E_scaled, ops=ops)
+
+    ops = [ExchangeOperator(basis, kpt, term.poisson_green_coeffs, occk, ψk)]
+    (E=E, ops=ops)
 end

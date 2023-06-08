@@ -133,7 +133,7 @@ include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
 export model_atomic
-export model_DFT, model_PBE, model_LDA, model_SCAN, model_PBE0
+export model_DFT, model_PBE, model_LDA, model_SCAN, model_PBE0, model_HF
 include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing

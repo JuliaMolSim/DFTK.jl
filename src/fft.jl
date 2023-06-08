@@ -25,7 +25,7 @@ function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, f_fourier::Abstrac
     f_real .*= basis.ifft_normalization
 end
 function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                 kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
+               kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
     @assert length(f_fourier) == length(kpt.mapping)
     @assert size(f_real) == basis.fft_size
 
