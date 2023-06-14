@@ -102,9 +102,7 @@ Random.seed!(0)
 
         # This fails with multiple MPI procs, seems like a race condition
         # with MPI + DoubleFloats. TODO debug
-        # This also has been failing on Windows, most likely due to
-        # https://github.com/JuliaMolSim/DFTK.jl/pull/853#issuecomment-1546644191
-        !Sys.iswindows() && mpi_nprocs() == 1 && include("interval_arithmetic.jl")
+        mpi_nprocs() == 1 && include("interval_arithmetic.jl")
     end
 
     if "all" in TAGS
