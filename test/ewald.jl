@@ -55,7 +55,7 @@ end
     positions = Vec3.([ones(3)/8+rand(3)/20, -ones(3)/8])
     charges = [14, 14]
 
-    γ1, forces = energy_forces_ewald(lattice, charges, positions; compute_forces=true)
+    γ1, forces = energy_forces_ewald(lattice, charges, positions)
 
     # Compare forces to finite differences
     disp = [rand(3)/20, rand(3)/20]

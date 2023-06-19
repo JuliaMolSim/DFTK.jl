@@ -58,8 +58,7 @@ function test_supercell_q0(; n_scell=1, max_radius=1e3)
         Φ[i, :] = - ForwardDiff.derivative(0.0) do ε
             new_positions = unfold(fold(case.positions) .+ ε .* Linv * direction)
             forces = energy_forces_pairwise(case.lattice, fill(:X, n_atoms), new_positions,
-                                            case.V, case.params; compute_forces=true,
-                                            max_radius).forces
+                                            case.V, case.params; max_radius).forces
             [(Linv * f)[1] for f in forces]
         end
     end
@@ -74,8 +73,7 @@ function test_ph_disp(; n_scell=1, max_radius=1e3, n_points=2)
 
     function pairwise_ph(q, d)
         energy_forces_pairwise(case.lattice, fill(:X, n_atoms), case.positions, case.V,
-                               case.params; q=[q, 0, 0], ph_disp=d, compute_forces=true,
-                               max_radius).forces
+                               case.params; q=[q, 0, 0], ph_disp=d, max_radius).forces
     end
 
     ph_bands = []
