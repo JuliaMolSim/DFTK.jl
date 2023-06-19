@@ -31,11 +31,13 @@ end
 # This could be merged with Pairwise, but its use of `atom_types` would slow down this
 # computationally intensive Ewald sums. So we leave it as it for now.
 """
-Compute the electrostatic interaction energy per unit cell between point charges in
-a uniform background of compensating charge to yield net neutrality. `lattice` should
-contain the lattice vectors as columns. `charges` and `positions` are the point charges and
-their positions (as an array of arrays) in fractional coordinates. The forces, i.e., minus
-the derivatives of the energy with respect to `positions`, are also precomputed.
+Compute the electrostatic energy and forces. The energy is the electrostatic interaction
+energy per unit cell between point charges in a uniform background of compensating charge to
+yield net neutrality. The forces is the opposite of the derivative of the energy with
+respect to `positions`.
+
+`lattice` should contain the lattice vectors as columns. `charges` and `positions` are the
+point charges and their positions (as an array of arrays) in fractional coordinates.
 
 For now this function returns zero energy and force on non-3D systems. Use a pairwise
 potential term if you want to customise this treatment.
