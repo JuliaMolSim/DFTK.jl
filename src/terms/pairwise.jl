@@ -37,7 +37,7 @@ compute_forces(term::TermPairwisePotential, ::PlaneWaveBasis, ψ, occ; kwargs...
 
 """
 Compute the pairwise interaction energy per unit cell between atomic sites. The forces,
-minus the derivatives of the energy with respect to `positions`, are also precomputed.
+i.e., minus the derivatives of the energy with respect to `positions`, are also precomputed.
 The potential is expected to decrease quickly at infinity.
 """
 function energy_forces_pairwise(model::Model{T}, V, params; kwargs...) where {T}
