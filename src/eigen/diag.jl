@@ -29,8 +29,8 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         # Get ψguessk
         if !isnothing(ψguess)
             if n_Gk != size(ψguess[ik], 1)
-                error("Mismatch in dimension between guess ($(size(ψguess, 1)) and " *
-                      "Hamiltonian $n_Gk")
+                error("Mismatch in dimension between guess ($(size(ψguess[ik], 1)) and " *
+                      "Hamiltonian ($n_Gk)")
             end
             nev_guess = size(ψguess[ik], 2)
             if nev_guess > nev_per_kpoint
