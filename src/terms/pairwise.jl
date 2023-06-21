@@ -17,9 +17,9 @@ function PairwisePotential(V, params; max_radius=100)
     params = Dict(minmax(key[1], key[2]) => value for (key, value) in params)
     PairwisePotential(V, params, max_radius)
 end
-function (P::PairwisePotential)(basis::PlaneWaveBasis{T}) where {T}
-    E = energy_pairwise(basis.model, P.V, P.params; P.max_radius)
-    TermPairwisePotential(P.V, P.params, T(P.max_radius), E)
+@timing "precomp: Pairwise" function (P::PairwisePotential)(basis::PlaneWaveBasis{T}) where {T}
+    (; energy, forces) = energy_forces_pairwise(basis.model, P.V, P.params; P.max_radius)
+    TermPairwisePotential(P.V, P.params, T(P.max_radius), energy, forces)
 end
 
 struct TermPairwisePotential{TV, Tparams, T} <:Term
@@ -27,30 +27,25 @@ struct TermPairwisePotential{TV, Tparams, T} <:Term
     params::Tparams
     max_radius::T
     energy::T
+    forces::Vector{Vec3{T}}
 end
 
 function ene_ops(term::TermPairwisePotential, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     (E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
-
-@timing "forces: Pairwise" function compute_forces(term::TermPairwisePotential,
-                                                   basis::PlaneWaveBasis{T}, ψ, occupation;
-                                                   kwargs...) where {T}
-    forces = zero(basis.model.positions)
-    energy_pairwise(basis.model, term.V, term.params; term.max_radius, forces)
-    forces
-end
-
+compute_forces(term::TermPairwisePotential, ::PlaneWaveBasis, ψ, occ; kwargs...) = term.forces
 
 """
-Compute the pairwise interaction energy per unit cell between atomic sites. If `forces` is
-not nothing, minus the derivatives of the energy with respect to `positions` is computed.
+Compute the pairwise energy and forces. The energy is the interaction energy per unit cell
+between atomic sites. The forces is the opposite of the derivative of the energy with
+respect to `positions`.
+
 The potential is expected to decrease quickly at infinity.
 """
-function energy_pairwise(model::Model{T}, V, params; kwargs...) where {T}
-    isempty(model.atoms) && return zero(T)
+function energy_forces_pairwise(model::Model{T}, V, params; kwargs...) where {T}
+    isempty(model.atoms) && return (; energy=zero(T), forces=zero(model.positions))
     symbols = Symbol.(atomic_symbol.(model.atoms))
-    energy_pairwise(model.lattice, symbols, model.positions, V, params; kwargs...)
+    energy_forces_pairwise(model.lattice, symbols, model.positions, V, params; kwargs...)
 end
 
 
@@ -60,21 +55,16 @@ end
 # compute the Fourier transform of the force constant matrix.
 # Computes the local energy and forces on the atoms of the reference unit cell 0, for an
 # infinite array of atoms at positions r_{iR} = positions[i] + R + ph_disp[i]*e^{iq·R}.
-function energy_pairwise(lattice, symbols, positions, V, params;
-                         max_radius=100, forces=nothing, ph_disp=nothing, q=nothing)
+function energy_forces_pairwise(lattice, symbols, positions, V, params; max_radius=100,
+                                ph_disp=nothing, q=nothing)
     isnothing(ph_disp) && @assert isnothing(q)
     @assert length(symbols) == length(positions)
 
     T = eltype(positions[1])
     if !isnothing(ph_disp)
-        @assert !isnothing(q) && !isnothing(forces)
+        @assert !isnothing(q)
         T = promote_type(complex(T), eltype(ph_disp[1]))
         @assert size(ph_disp) == size(positions)
-    end
-
-    if !isnothing(forces)
-        @assert size(forces) == size(positions)
-        forces_pairwise = copy(forces)
     end
 
     # The potential V(dist) decays very quickly with dist = ||A (rj - rk - R)||,
@@ -92,6 +82,7 @@ function energy_pairwise(lattice, symbols, positions, V, params;
     # Energy loop
     #
     sum_pairwise::T = zero(T)
+    forces = zeros(Vec3{T}, length(positions))
     # Loop over real-space
     for R1 in -Rlims[1]:Rlims[1], R2 in -Rlims[2]:Rlims[2], R3 in -Rlims[3]:Rlims[3]
         R = Vec3(R1, R2, R3)
@@ -111,18 +102,14 @@ function energy_pairwise(lattice, symbols, positions, V, params;
             dist = norm_cplx(Δr)
             energy_contribution = V(dist, param_ij)
             sum_pairwise += energy_contribution
-            if !isnothing(forces)
-                dE_ddist = ForwardDiff.derivative(zero(real(eltype(dist)))) do ε
-                    V(dist + ε, param_ij)
-                end
-                dE_dti = lattice' * dE_ddist / dist * Δr
-                forces_pairwise[i] -= dE_dti
+            dE_ddist = ForwardDiff.derivative(zero(real(eltype(dist)))) do ε
+                V(dist + ε, param_ij)
             end
+            dE_dti = lattice' * dE_ddist / dist * Δr
+            forces[i] -= dE_dti
         end # i,j
     end # R
-    energy = sum_pairwise / 2  # Divide by 2 (because of double counting)
-    if !isnothing(forces)
-        forces .= forces_pairwise
-    end
-    energy
+
+    (; energy=sum_pairwise / 2,  # divide by 2 (because of double counting)
+       forces)
 end

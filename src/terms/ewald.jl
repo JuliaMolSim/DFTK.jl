@@ -9,44 +9,41 @@ struct Ewald end
 (::Ewald)(basis) = TermEwald(basis)
 
 struct TermEwald{T} <: Term
-    energy::T  # precomputed energy
+    energy::T                # precomputed energy
+    forces::Vector{Vec3{T}}  # and forces
 end
-function TermEwald(basis::PlaneWaveBasis{T}) where {T}
-    TermEwald(T(energy_ewald(basis.model)))
+@timing "precomp: Ewald" function TermEwald(basis::PlaneWaveBasis{T}) where {T}
+    (; energy, forces) = energy_forces_ewald(basis.model)
+    TermEwald(energy, forces)
 end
 
 function ene_ops(term::TermEwald, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     (; E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
+compute_forces(term::TermEwald, ::PlaneWaveBasis, ψ, occupation; kwargs...) = term.forces
 
-@timing "forces: Ewald" function compute_forces(term::TermEwald, basis::PlaneWaveBasis{T},
-                                                ψ, occupation; kwargs...) where {T}
-    # TODO this could be precomputed
-    forces = zero(basis.model.positions)
-    energy_ewald(basis.model; forces)
-    forces
-end
-
-function energy_ewald(model::Model{T}; kwargs...) where {T}
-    isempty(model.atoms) && return zero(T)
+function energy_forces_ewald(model::Model{T}; kwargs...) where {T}
+    isempty(model.atoms) && return (; energy=zero(T), forces=zero(model.positions))
     charges = T.(charge_ionic.(model.atoms))
-    energy_ewald(model.lattice, charges, model.positions; kwargs...)
+    energy_forces_ewald(model.lattice, charges, model.positions; kwargs...)
 end
 
 # This could be merged with Pairwise, but its use of `atom_types` would slow down this
 # computationally intensive Ewald sums. So we leave it as it for now.
 """
-Compute the electrostatic interaction energy per unit cell between point charges in
-a uniform background of compensating charge to yield net neutrality.`lattice` should
-contain the lattice vectors as columns. `charges` and `positions` are the point charges and
-their positions (as an array of arrays) in fractional coordinates. If `forces` is not
-nothing, minus the derivatives of the energy with respect to `positions` is computed.
+Compute the electrostatic energy and forces. The energy is the electrostatic interaction
+energy per unit cell between point charges in a uniform background of compensating charge to
+yield net neutrality. The forces is the opposite of the derivative of the energy with
+respect to `positions`.
+
+`lattice` should contain the lattice vectors as columns. `charges` and `positions` are the
+point charges and their positions (as an array of arrays) in fractional coordinates.
 
 For now this function returns zero energy and force on non-3D systems. Use a pairwise
 potential term if you want to customise this treatment.
 """
-function energy_ewald(lattice::AbstractArray{T}, charges, positions;
-                      η=nothing, forces=nothing) where {T}
+function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions;
+                             η=nothing) where {T}
     # TODO should something more clever be done here? For now
     # we assume that we are not interested in the Ewald
     # energy of non-3D systems
@@ -58,11 +55,6 @@ function energy_ewald(lattice::AbstractArray{T}, charges, positions;
         # Balance between reciprocal summation and real-space summation
         # with a slight bias towards reciprocal summation
         η = sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
-    end
-    if !isnothing(forces)
-        @assert size(forces) == size(positions)
-        forces_real = copy(forces)
-        forces_recip = copy(forces)
     end
 
     # Numerical cutoffs to obtain meaningful contributions. These are very conservative.
@@ -87,6 +79,7 @@ function energy_ewald(lattice::AbstractArray{T}, charges, positions;
     #
     # Initialize reciprocal sum with correction term for charge neutrality
     sum_recip::T = - (sum(charges)^2 / 4η^2)
+    forces_recip = zeros(Vec3{T}, length(positions))
 
     for G1 in -Glims[1]:Glims[1], G2 in -Glims[2]:Glims[2], G3 in -Glims[3]:Glims[3]
         G = Vec3(G1, G2, G3)
@@ -96,28 +89,25 @@ function energy_ewald(lattice::AbstractArray{T}, charges, positions;
         sin_strucfac = sum(Z * sin2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
         sum_strucfac = cos_strucfac^2 + sin_strucfac^2
         sum_recip += sum_strucfac * exp(-Gsq / 4η^2) / Gsq
-        if !isnothing(forces)
-            for (ir, r) in enumerate(positions)
-                Z = charges[ir]
-                dc = -Z*2T(π)*G*sin2pi(dot(r, G))
-                ds = +Z*2T(π)*G*cos2pi(dot(r, G))
-                dsum = 2cos_strucfac*dc + 2sin_strucfac*ds
-                forces_recip[ir] -= dsum * exp(-Gsq / 4η^2)/Gsq
-            end
+        for (ir, r) in enumerate(positions)
+            Z = charges[ir]
+            dc = -Z*2T(π)*G*sin2pi(dot(r, G))
+            ds = +Z*2T(π)*G*cos2pi(dot(r, G))
+            dsum = 2cos_strucfac*dc + 2sin_strucfac*ds
+            forces_recip[ir] -= dsum * exp(-Gsq / 4η^2)/Gsq
         end
     end
 
-    # Amend sum_recip by proper scaling factors:
-    sum_recip *= 4T(π) / compute_unit_cell_volume(lattice)
-    if !isnothing(forces)
-        forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
-    end
+    # Amend reciprocal quantities by proper scaling factors:
+    sum_recip     *= 4T(π) / compute_unit_cell_volume(lattice)
+    forces_recip .*= 4T(π) / compute_unit_cell_volume(lattice)
 
     #
     # Real-space sum
     #
     # Initialize real-space sum with correction term for uniform background
     sum_real::T = -2η / sqrt(T(π)) * sum(Z -> Z^2, charges)
+    forces_real = zeros(Vec3{T}, length(positions))
 
     for R1 in -Rlims[1]:Rlims[1], R2 in -Rlims[2]:Rlims[2], R3 in -Rlims[3]:Rlims[3]
         R = Vec3(R1, R2, R3)
@@ -130,23 +120,19 @@ function energy_ewald(lattice::AbstractArray{T}, charges, positions;
             dist = norm(Δr)
             energy_contribution = Zi * Zj * erfc(η * dist) / dist
             sum_real += energy_contribution
-            if !isnothing(forces)
-                # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
-                # dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
-                dE_ddist = ForwardDiff.derivative(zero(T)) do ε
-                    Zi * Zj * erfc(η * (dist + ε))
-                end
-                dE_ddist -= energy_contribution
-                dE_ddist /= dist
-                dE_dti = lattice' * ((dE_ddist / dist) * Δr)
-                forces_real[i] -= dE_dti
-                forces_real[j] += dE_dti
+            # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
+            # dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(T(π)))
+            dE_ddist = ForwardDiff.derivative(zero(T)) do ε
+                Zi * Zj * erfc(η * (dist + ε))
             end
+            dE_ddist -= energy_contribution
+            dE_ddist /= dist
+            dE_dti = lattice' * ((dE_ddist / dist) * Δr)
+            forces_real[i] -= dE_dti
+            forces_real[j] += dE_dti
         end
     end
-    energy = (sum_recip + sum_real) / 2  # Divide by 2 (because of double counting)
-    if !isnothing(forces)
-        forces .= (forces_recip .+ forces_real) ./ 2
-    end
-    energy
+
+    # Divide by 2 (because of double counting)
+    (; energy=(sum_recip + sum_real) / 2, forces=(forces_recip .+ forces_real) ./ 2)
 end

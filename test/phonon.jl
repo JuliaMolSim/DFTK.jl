@@ -1,6 +1,7 @@
 # TODO: Temporary, explanations too scarce. To be changed with proper phonon computations.
 using Test
 using DFTK
+using DFTK: energy_forces_pairwise
 using LinearAlgebra
 using ForwardDiff
 using StaticArrays
@@ -13,9 +14,9 @@ fold(x)   = hcat(x...)
 unfold(x) = Vec3.(eachcol(x))
 
 function prepare_system(; n_scell=1)
-    positions = [[0.0, 0.0, 0.0]]
+    positions = [Vec3([0.0, 0.0, 0.0])]
     for i in 1:n_scell-1
-        push!(positions, i * ones(3) / n_scell)
+        push!(positions, Vec3(i * ones(3) / n_scell))
     end
 
     a = 5. * length(positions)
@@ -56,10 +57,8 @@ function test_supercell_q0(; n_scell=1, max_radius=1e3)
     for (i, direction) in enumerate(directions)
         Φ[i, :] = - ForwardDiff.derivative(0.0) do ε
             new_positions = unfold(fold(case.positions) .+ ε .* Linv * direction)
-            forces = zeros(Vec3{complex(eltype(ε))}, n_atoms)
-            DFTK.energy_pairwise(case.lattice, fill(:X, n_atoms),
-                                 new_positions, case.V, case.params;
-                                 forces, max_radius)
+            forces = energy_forces_pairwise(case.lattice, fill(:X, n_atoms), new_positions,
+                                            case.V, case.params; max_radius).forces
             [(Linv * f)[1] for f in forces]
         end
     end
@@ -72,10 +71,9 @@ function test_ph_disp(; n_scell=1, max_radius=1e3, n_points=2)
     Linv  = DFTK.compute_inverse_lattice(case.lattice)
     n_atoms = length(case.positions)
 
-    function pairwise_ph(q, d; forces=nothing)
-        DFTK.energy_pairwise(case.lattice, fill(:X, n_atoms),
-                             case.positions, case.V, case.params;
-                             q=[q, 0, 0], ph_disp=d, forces, max_radius)
+    function pairwise_ph(q, d)
+        energy_forces_pairwise(case.lattice, fill(:X, n_atoms), case.positions, case.V,
+                               case.params; q=[q, 0, 0], ph_disp=d, max_radius).forces
     end
 
     ph_bands = []
@@ -83,8 +81,7 @@ function test_ph_disp(; n_scell=1, max_radius=1e3, n_points=2)
         as = ComplexF64[]
         for d in case.directions
             res = -ForwardDiff.derivative(0.0) do ε
-                forces = zeros(Vec3{complex(eltype(ε))}, n_atoms)
-                pairwise_ph(q, ε*d; forces)
+                forces = pairwise_ph(q, ε*d)
                 [Linv' * f for f in forces]
             end
             [push!(as, r[1]) for r in res]
