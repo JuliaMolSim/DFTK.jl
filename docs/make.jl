@@ -72,6 +72,7 @@ PAGES = [
         "examples/error_estimates_forces.jl",
     ],
     "Developer resources" => [
+        "developer/setup.md",
         "developer/conventions.md",
         "developer/data_structures.md",
         "developer/useful_formulas.md",
