@@ -65,6 +65,7 @@ Pkg.add(["AtomsIO", "AtomsIOPython", "ASEconvert"])
     (such as [PyPlot](https://github.com/JuliaPy/PyPlot.jl))
     In contrast AtomsIO is free of any Python dependencies and can be safely installed in any case.
 
-## Developer setup
-See [Developer setup](@ref) for recommendations if you
-want to develop and contribute to DFTK
+## Installation for DFTK development
+
+If you want to contribute to DFTK, see the [Developer setup](@ref)
+for some additional recommendations on how to setup Julia and DFTK.
