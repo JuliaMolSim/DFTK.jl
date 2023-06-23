@@ -40,13 +40,18 @@ see [Publications](@ref).
   Covers topics such as DFT, pseudos, SCF, response, ...
 
 ## Recordings
+- [Julia for Materials Modelling](https://www.youtube.com/watch?v=dujepKxxxkg) by M. F. Herbst:
+  One-hour talk providing an overview of materials modelling tools for Julia.
+  Key features of DFTK are highlighted as part of the talk.
+  [Pluto notebooks](https://mfherbst.github.io/julia-for-materials/)
+
 - [DFTK: A Julian approach for simulating electrons in solids](https://www.youtube.com/watch?v=-RomkxjlIcQ) by M. F. Herbst:
   Pre-recorded talk for JuliaCon 2020.
   Assumes no knowledge about DFT and gives the broad picture of DFTK.
   [Slides](https://michael-herbst.com/talks/2020.07.29_juliacon_dftk.pdf).
 
-- [Juliacon 2021 DFT workshop](https://github.com/mfherbst/juliacon_dft_workshop) by M. F. Herbst:
+- [Juliacon 2021 DFT workshop](https://www.youtube.com/watch?v=HvpPMWVm8aw) by M. F. Herbst:
   Three-hour workshop session at the 2021 Juliacon providing a mathematical look on
   DFT, SCF solution algorithms as well as the integration of DFTK into the Julia
   package ecosystem. Material starts to become a little outdated.
-  [Youtube recording](https://www.youtube.com/watch?v=HvpPMWVm8aw).
+  [Workshop material](https://github.com/mfherbst/juliacon_dft_workshop)

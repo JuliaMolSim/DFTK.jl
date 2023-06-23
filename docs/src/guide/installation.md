@@ -65,51 +65,7 @@ Pkg.add(["AtomsIO", "AtomsIOPython", "ASEconvert"])
     (such as [PyPlot](https://github.com/JuliaPy/PyPlot.jl))
     In contrast AtomsIO is free of any Python dependencies and can be safely installed in any case.
 
-## Developer setup
-If you want to start developing DFTK Julia has the option to
-automatically keep track of the changes of the sources during development.
-This means, for example, that
-[`Revise`](https://github.com/timholy/Revise.jl) will automatically be aware
-of the changes you make to the DFTK sources and automatically
-reload your changes inside an active Julia session.
-To achieve such a setup you have two recommended options:
+## Installation for DFTK development
 
-1. Add a development version of DFTK to the global Julia environment:
-   ```julia
-   import Pkg
-   Pkg.develop("DFTK")
-   ```
-   This clones DFTK to the path `~/.julia/dev/DFTK"` (on Linux).
-   Note that with this method you cannot install both the stable
-   and the development version of DFTK into your global environment.
-
-2. Clone [DFTK](https://dftk.org) into a location of your choice
-   ```bash
-   $ git clone https://github.com/JuliaMolSim/DFTK.jl /some/path/
-   ```
-   Whenever you want to use exactly this development version of DFTK
-   in a [Julia environment](https://julialang.github.io/Pkg.jl/v1/environments/)
-   (e.g. the global one) add it as a `develop` package:
-   ```julia
-   import Pkg
-   Pkg.develop("/some/path/")
-   ```
-   To run a script or start a Julia REPL using exactly this source tree
-   as the DFTK version, use the `--project` flag of Julia,
-   see [this documentation](https://julialang.github.io/Pkg.jl/v1/environments/)
-   for details. For example to start a Julia REPL with this version of DFTK use
-   ```bash
-   $ julia --project=/some/path/
-   ```
-   The advantage of this method is that you can easily have multiple
-   clones of DFTK with potentially different modifications made.
-
-
-!!! tip "Reducing the overhead of PrecompileTools during development"
-    We use [PrecompileTools.jl](https://github.com/JuliaLang/PrecompileTools.jl) to
-    reduce the time to first SCF. For development
-    spending the additional time for precompiling DFTK is usually not worth it and it might
-    be a good idea to disable precompilation in a development setup. See the
-    [PrecompileTools documentation](https://julialang.github.io/PrecompileTools.jl/stable/)
-    for instructions how to do this.
-
+If you want to contribute to DFTK, see the [Developer setup](@ref)
+for some additional recommendations on how to setup Julia and DFTK.
