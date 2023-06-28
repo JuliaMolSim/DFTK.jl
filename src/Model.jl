@@ -49,7 +49,7 @@ struct Model{T <: Real, VT <: Real}
     # `atom_groups` contains the groups of indices into atoms and positions, which
     # point to identical atoms. It is computed automatically on Model construction and may
     # be used to optimise the term instantiation.
-    atoms::Vector{Element}
+    atoms::Vector{AtomicPotential{RealSpace}}
     positions::Vector{Vec3{T}}  # positions[i] is the location of atoms[i] in fract. coords
     atom_groups::Vector{Vector{Int}}  # atoms[i] == atoms[j] for all i, j in atom_group[α]
 
@@ -93,7 +93,7 @@ external potential breaks some of the passed symmetries. Use `false` to turn off
 symmetries completely.
 """
 function Model(lattice::AbstractMatrix{T},
-               atoms::Vector{<:Element}=Element[],
+               atoms::Vector{<:AtomicPotential{RealSpace}}=AtomicPotential{RealSpace}[],
                positions::Vector{<:AbstractVector}=Vec3{T}[];
                model_name="custom",
                εF=nothing,
@@ -181,11 +181,11 @@ function Model(lattice::AbstractMatrix{T},
                            n_electrons, εF, spin_polarization, n_spin, temperature, smearing,
                            atoms, positions, atom_groups, terms, symmetries)
 end
-function Model(lattice::AbstractMatrix{<:Integer}, atoms::Vector{<:Element},
+function Model(lattice::AbstractMatrix{<:Integer}, atoms::Vector{<:AtomicPotential{RealSpace}},
                positions::Vector{<:AbstractVector}; kwargs...)
     Model(Float64.(lattice), atoms, positions; kwargs...)
 end
-function Model(lattice::AbstractMatrix{<:Quantity}, atoms::Vector{<:Element},
+function Model(lattice::AbstractMatrix{<:Quantity}, atoms::Vector{<:AtomicPotential{RealSpace}},
                positions::Vector{<:AbstractVector}; kwargs...)
     Model(austrip.(lattice), atoms, positions; kwargs...)
 end
@@ -214,7 +214,7 @@ or for changing `lattice` or `positions` in geometry/lattice optimisations.
 function Model{T}(model::Model;
                   lattice::AbstractMatrix=model.lattice,
                   positions::Vector{<:AbstractVector}=model.positions,
-                  atoms::Vector{<:Element}=model.atoms,
+                  atoms::Vector{<:AtomicPotential{RealSpace}}=model.atoms,
                   kwargs...) where {T <: Real}
     Model(T.(lattice), atoms, positions;
           model.model_name,

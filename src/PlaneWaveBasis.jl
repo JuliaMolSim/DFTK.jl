@@ -49,6 +49,7 @@ struct PlaneWaveBasis{T,
 
     # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
     model::Model{T, VT}
+    fourier_atoms::Vector{AtomicPotential{FourierSpace}}
 
     ## Global grid information
     # fft_size defines both the G basis on which densities and
@@ -280,9 +281,15 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     r_vectors = to_device(architecture, r_vectors)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
+    # TODO /
+    Gs_cart = map(recip_vector_red_to_cart(model), Gs)
+    qgrid = range(0.0, maximum(norm, Gs_cart), 3001)
+    fourier_atoms = ht.(model.atoms, Ref(qgrid))
+    # TODO \
+
     basis = PlaneWaveBasis{T, value_type(T), Arch, typeof(Gs), typeof(r_vectors),
                            typeof(kpoints[1].G_vectors)}(
-        model, fft_size, dvol,
+        model, fourier_atoms, fft_size, dvol,
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
         fft_normalization, ifft_normalization,

@@ -45,7 +45,7 @@ function guess_density(basis::PlaneWaveBasis, system::AbstractSystem,
         "System positions do not match model positions")
     # TODO: assuming here that the model and system atoms are identical. Cannot check this
     # TODO: because we parse the system separately from the parsing done by the Model
-    # TODO: constructor, so the pseudopotentials (if present) are not identical in memory 
+    # TODO: constructor, so the pseudopotentials (if present) are not identical in memory
     atomic_density(basis, ValenceDensityAuto(), parsed_system.magnetic_moments, n_electrons)
 end
 
@@ -170,7 +170,7 @@ function atomic_density_form_factors(basis::PlaneWaveBasis{T},
         Gnorm = norm(G)
         for (igroup, group) in enumerate(model.atom_groups)
             if !haskey(form_factors, (igroup, Gnorm))
-                element = model.atoms[first(group)]
+                element = basis.fourier_atoms[first(group)]
                 form_factor = atomic_density(element, Gnorm, method)
                 form_factors[(igroup, Gnorm)] = form_factor
             end
@@ -179,24 +179,38 @@ function atomic_density_form_factors(basis::PlaneWaveBasis{T},
     form_factors
 end
 
-function atomic_density(element::Element, Gnorm::T,
+function atomic_density(element::AtomicPotential, Gnorm::T,
                         ::ValenceDensityGaussian)::T where {T <: Real}
-    gaussian_valence_charge_density_fourier(element, Gnorm)
+    GaussianChargeDensity{FourierSpace,Analytical}(
+        charge_ionic(element),
+        atom_decay_length(n_elec_core(element), n_elec_valence(element))
+    )(Gnorm)
+    # gaussian_valence_charge_density_fourier(element, Gnorm)
 end
 
-function atomic_density(element::Element, Gnorm::T,
+function atomic_density(element::AtomicPotential, Gnorm::T,
                         ::ValenceDensityPseudo)::T where {T <: Real}
-    eval_psp_density_valence_fourier(element.psp, Gnorm)
+    return element.valence_density(Gnorm)
+    # eval_psp_density_valence_fourier(element.psp, Gnorm)
 end
 
-function atomic_density(element::Element, Gnorm::T,
+function atomic_density(element::AtomicPotential, Gnorm::T,
                         ::ValenceDensityAuto)::T where {T <: Real}
-    valence_charge_density_fourier(element, Gnorm)
+    if isnothing(element.valence_density)
+        GaussianChargeDensity{FourierSpace,Analytical}(
+            charge_ionic(element),
+            atom_decay_length(n_elec_core(element), n_elec_valence(element))
+        )(Gnorm)
+    else
+        return element.valence_density(Gnorm)
+    end
+    # valence_charge_density_fourier(element, Gnorm)
 end
 
-function atomic_density(element::Element, Gnorm::T,
+function atomic_density(element::AtomicPotential, Gnorm::T,
                         ::CoreDensity)::T where {T <: Real}
-    has_core_density(element) ? core_charge_density_fourier(element, Gnorm) : zero(T)
+    # has_core_density(element) ? core_charge_density_fourier(element, Gnorm) : zero(T)
+    isnothing(element.core_density) ? zero(T) : element.core_density(Gnorm)
 end
 
 # Get the lengthscale of the valence density for an atom with `n_elec_core` core
@@ -238,4 +252,4 @@ function atom_decay_length(n_elec_core, n_elec_valence)
     end
     data[min(n_elec_valence, length(data))]
 end
-atom_decay_length(sp::Element) = atom_decay_length(n_elec_core(sp), n_elec_valence(sp))
+atom_decay_length(sp::AtomicPotential) = atom_decay_length(n_elec_core(sp), n_elec_valence(sp))

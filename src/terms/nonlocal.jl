@@ -8,8 +8,8 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
 
     # keep only pseudopotential atoms and positions
     psp_groups = [group for group in model.atom_groups
-                  if model.atoms[first(group)] isa ElementPsp]
-    psps          = [model.atoms[first(group)].psp      for group in psp_groups]
+                  if !isnothing(model.atoms[first(group)].nonlocal_potential)]
+    psps          = [basis.fourier_atoms[first(group)] for group in psp_groups]
     psp_positions = [model.positions[group] for group in psp_groups]
 
     isempty(psp_groups) && return TermNoop()
@@ -50,7 +50,7 @@ end
     model = basis.model
     unit_cell_volume = model.unit_cell_volume
     psp_groups = [group for group in model.atom_groups
-                  if model.atoms[first(group)] isa ElementPsp]
+                  if !isnothing(model.atoms[first(group)].nonlocal_potential)]
 
     # early return if no pseudopotential atoms
     isempty(psp_groups) && return nothing
@@ -58,14 +58,14 @@ end
     # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
     forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
     for group in psp_groups
-        element = model.atoms[first(group)]
+        element = basis.fourier_atoms[first(group)]
 
-        C = build_projection_coefficients_(T, element.psp)
+        C = build_projection_coefficients_(T, element)
         for (ik, kpt) in enumerate(basis.kpoints)
             # we compute the forces from the irreductible BZ; they are symmetrized later
             qs = Gplusk_vectors(basis, kpt)
             qs_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-            form_factors = build_form_factors(element.psp, qs_cart)
+            form_factors = build_form_factors(element, qs_cart)
             for idx in group
                 r = model.positions[idx]
                 structure_factors = [cis2pi(-dot(q, r)) for q in qs]
@@ -115,14 +115,14 @@ end
 # The ordering of the projector indices is (l,m,i), where l, m are the
 # AM quantum numbers and i is running over all projectors for a given l.
 # The matrix is block-diagonal with non-zeros only if l and m agree.
-function build_projection_coefficients_(T, psp::NormConservingPsp)
+function build_projection_coefficients_(T, psp)
     n_proj = count_n_proj(psp)
     proj_coeffs = zeros(T, n_proj, n_proj)
     count = 0
-    for l in 0:psp.lmax, m in -l:l
+    for l in angular_momenta(psp), m in -l:l
         n_proj_l = count_n_proj_radial(psp, l)  # Number of i's
         range = count .+ (1:n_proj_l)
-        proj_coeffs[range, range] = psp.h[l + 1]
+        proj_coeffs[range, range] = psp.nonlocal_potential.D[l]
         count += n_proj_l
     end # l, m
     proj_coeffs
@@ -198,15 +198,16 @@ function build_form_factors(psp, qs::Array)
 
     # Maximum number of projectors over angular momenta so that form factors
     # for a given `q` can be stored in an `nproj x (lmax + 1)` matrix.
-    n_proj_max = maximum(l -> count_n_proj_radial(psp, l), 0:psp.lmax; init=0)
+    n_proj_max = maximum(l -> count_n_proj_radial(psp, l), angular_momenta(psp); init=0)
 
     radials = IdDict{T,Matrix{T}}()  # IdDict for Dual compatibility
     for q in qs
         q_norm = norm(q)
         if !haskey(radials, q_norm)
-            radials_q = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
-            for l in 0:psp.lmax, iproj_l in 1:count_n_proj_radial(psp, l)
-                radials_q[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q_norm)
+            radials_q = Matrix{T}(undef, n_proj_max, lmax(psp) + 1)
+            for l in angular_momenta(psp), iproj_l in 1:count_n_proj_radial(psp, l)
+                # radials_q[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q_norm)
+                radials_q[iproj_l, l+1] = psp.nonlocal_potential.β[l][iproj_l](q_norm)
             end
             radials[q_norm] = radials_q
         end
@@ -216,7 +217,7 @@ function build_form_factors(psp, qs::Array)
     for (iq, q) in enumerate(qs)
         radials_q = radials[norm(q)]
         count = 1
-        for l in 0:psp.lmax, m in -l:l
+        for l in angular_momenta(psp), m in -l:l
             # see "Fourier transforms of centered functions" in the docs for the formula
             angular = (-im)^l * ylm_real(l, m, q)
             for iproj_l in 1:count_n_proj_radial(psp, l)

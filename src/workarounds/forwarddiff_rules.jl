@@ -160,19 +160,19 @@ function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
           disable_electrostatics_check=true)
 end
 
-construct_value(el::Element) = el
-construct_value(el::ElementPsp) = ElementPsp(el.Z, el.symbol, construct_value(el.psp))
-construct_value(psp::PspHgh) = psp
-function construct_value(psp::PspHgh{T}) where {T <: ForwardDiff.Dual}
-    PspHgh(psp.Zion,
-           ForwardDiff.value(psp.rloc),
-           ForwardDiff.value.(psp.cloc),
-           psp.lmax,
-           ForwardDiff.value.(psp.rp),
-           [ForwardDiff.value.(hl) for hl in psp.h],
-           psp.identifier,
-           psp.description)
-end
+# construct_value(el::Element) = el
+# construct_value(el::ElementPsp) = ElementPsp(el.Z, el.symbol, construct_value(el.psp))
+# construct_value(psp::PspHgh) = psp
+# function construct_value(psp::PspHgh{T}) where {T <: ForwardDiff.Dual}
+#     PspHgh(psp.Zion,
+#            ForwardDiff.value(psp.rloc),
+#            ForwardDiff.value.(psp.cloc),
+#            psp.lmax,
+#            ForwardDiff.value.(psp.rp),
+#            [ForwardDiff.value.(hl) for hl in psp.h],
+#            psp.identifier,
+#            psp.description)
+# end
 
 
 function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}

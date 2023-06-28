@@ -19,6 +19,10 @@ using Random
 using ChainRulesCore
 using PrecompileTools
 
+using PseudoPotentialIOExperimental
+using AtomicPotentials
+using AtomsBase
+
 export Vec3
 export Mat3
 export mpi_nprocs
@@ -38,22 +42,22 @@ include("architecture.jl")
 include("common/zeros_like.jl")
 include("common/norm.jl")
 
-export PspHgh
-export PspUpf
-include("pseudo/NormConservingPsp.jl")
-include("pseudo/PspHgh.jl")
-include("pseudo/PspUpf.jl")
+# export PspHgh
+# export PspUpf
+# include("pseudo/NormConservingPsp.jl")
+# include("pseudo/PspHgh.jl")
+# include("pseudo/PspUpf.jl")
 
-export ElementPsp
-export ElementCohenBergstresser
-export ElementCoulomb
-export ElementGaussian
-export charge_nuclear
-export charge_ionic
-export atomic_symbol
-export n_elec_valence
-export n_elec_core
-include("elements.jl")
+# export ElementPsp
+# export ElementCohenBergstresser
+# export ElementCoulomb
+# export ElementGaussian
+# export charge_nuclear
+# export charge_ionic
+# export atomic_symbol
+# export n_elec_valence
+# export n_elec_core
+# include("elements.jl")
 
 export SymOp
 include("SymOp.jl")
@@ -174,17 +178,17 @@ export guess_density
 export random_density
 include("density_methods.jl")
 
-export load_psp
-export list_psp
-export attach_psp
-include("pseudo/load_psp.jl")
-include("pseudo/list_psp.jl")
-include("pseudo/attach_psp.jl")
+# export load_psp
+# export list_psp
+# export attach_psp
+# include("pseudo/load_psp.jl")
+# include("pseudo/list_psp.jl")
+# include("pseudo/attach_psp.jl")
 
 export DFTKPotential
-export atomic_system, periodic_system  # Reexport from AtomsBase
+# export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
-include("external/atomsbase.jl")
+# include("external/atomsbase.jl")
 include("external/interatomicpotentials.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
 
@@ -242,23 +246,23 @@ function __init__()
 end
 
 # Precompilation block with a basic workflow
-@setup_workload begin
-    # very artificial silicon ground state example
-    a = 10.26
-    lattice = a / 2 * [[0 1 1.];
-                       [1 0 1.];
-                       [1 1 0.]]
-    Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-    atoms     = [Si, Si]
-    positions = [ones(3)/8, -ones(3)/8]
-    magnetic_moments = [2, -2]
+# @setup_workload begin
+#     # very artificial silicon ground state example
+#     a = 10.26
+#     lattice = a / 2 * [[0 1 1.];
+#                        [1 0 1.];
+#                        [1 1 0.]]
+#     Si = AtomicPotential(load_psp_file("hgh_lda_hgh", "si-q4.hgh"))
+#     atoms     = [Si, Si]
+#     positions = [ones(3)/8, -ones(3)/8]
+#     magnetic_moments = [2, -2]
 
-    @compile_workload begin
-        model = model_LDA(lattice, atoms, positions;
-                          magnetic_moments, temperature=0.1, spin_polarization=:collinear)
-        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
-        ρ0 = guess_density(basis, magnetic_moments)
-        scfres = self_consistent_field(basis; ρ=ρ0, tol=1e-2, maxiter=3, callback=identity)
-    end
-end
+#     @compile_workload begin
+#         model = model_LDA(lattice, atoms, positions;
+#                           magnetic_moments, temperature=0.1, spin_polarization=:collinear)
+#         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
+#         ρ0 = guess_density(basis, magnetic_moments)
+#         scfres = self_consistent_field(basis; ρ=ρ0, tol=1e-2, maxiter=3, callback=identity)
+#     end
+# end
 end # module DFTK

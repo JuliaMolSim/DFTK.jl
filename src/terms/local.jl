@@ -87,8 +87,9 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
         q = norm(G)
         for (igroup, group) in enumerate(model.atom_groups)
             if !haskey(form_factors, (igroup, q))
-                element = model.atoms[first(group)]
-                form_factors[(igroup, q)] = local_potential_fourier(element, q)
+                element = basis.fourier_atoms[first(group)]
+                form_factors[(igroup, q)] = element.local_potential(q)
+                # form_factors[(igroup, q)] = local_potential_fourier(element, q)
             end
         end
     end
@@ -120,8 +121,10 @@ end
     # where struct_factor(G) = e^{-i G·r}
     forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
     for group in model.atom_groups
-        element = model.atoms[first(group)]
-        form_factors = [Complex{T}(local_potential_fourier(element, norm(G)))
+        element = basis.fourier_atoms[first(group)]
+        # form_factors = [Complex{T}(local_potential_fourier(element, norm(G)))
+        #                 for G in G_vectors_cart(basis)]
+        form_factors = [Complex{T}(element.local_potential(norm(G)))
                         for G in G_vectors_cart(basis)]
         for idx in group
             r = model.positions[idx]
