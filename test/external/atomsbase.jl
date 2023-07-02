@@ -178,10 +178,11 @@ end
 
 @testset "AbstractSystem (unusual symbols) -> DFTK" begin
     lattice     = [12u"bohr" * rand(3) for _ in 1:3]
-    atoms       = [Atom(6, randn(3)u"Å"; atomic_symsymbol=:C1),
-                   Atom(6, randn(3)u"Å"; atomic_symsymbol=:C2)]
+    atoms       = [Atom(6, randn(3)u"Å"; atomic_symbol=:C1),
+                   Atom(6, randn(3)u"Å"; atomic_symbol=:C2)]
     system      = periodic_system(atoms, lattice)
     system_psp  = attach_psp(system; C="hgh/lda/c-q4.hgh")
+    @test atomic_symbol(system_psp) == [:C1, :C2]
 
     pos_lattice = austrip.(reduce(hcat, lattice))
     let model = model_LDA(system_psp)
