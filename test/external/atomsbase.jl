@@ -97,6 +97,7 @@ end
 
 @testset "AbstractSystem -> DFTK" begin
     lattice     = [12u"bohr" * rand(3) for _ in 1:3]
+    weirdatom   = Atom(6, randn(3)u"Å"; atomic_symsymbol=:C1)
     atoms       = [:C => rand(3), :Si => rand(3), :H => rand(3), :C => rand(3)]
     pos_units   = last.(atoms)
     pos_lattice = austrip.(reduce(hcat, lattice))
@@ -173,4 +174,27 @@ end
     @test newsys[2, :pseudopotential] == "hgh/pbe/c-q4.hgh"
     @test newsys[3, :pseudopotential] == "hgh/lda/h-q1.hgh"
     @test newsys[4, :pseudopotential] == "hgh/pbe/c-q4.hgh"
+end
+
+@testset "AbstractSystem (unusual symbols) -> DFTK" begin
+    lattice     = [12u"bohr" * rand(3) for _ in 1:3]
+    atoms       = [Atom(6, randn(3)u"Å"; atomic_symbol=:C1),
+                   Atom(6, randn(3)u"Å"; atomic_symbol=:C2)]
+    system      = periodic_system(atoms, lattice)
+    system_psp  = attach_psp(system; C="hgh/lda/c-q4.hgh")
+    @test atomic_symbol(system_psp) == [:C1, :C2]
+
+    pos_lattice = austrip.(reduce(hcat, lattice))
+    let model = model_LDA(system_psp)
+        @test model.lattice   == pos_lattice
+        @test model.lattice * model.positions[1] * u"bohr" ≈ atoms[1].position
+        @test model.lattice * model.positions[2] * u"bohr" ≈ atoms[2].position
+        @test model.spin_polarization == :none
+
+        @test length(model.atoms) == 2
+        @test atomic_symbol(model.atoms[1]) == :C
+        @test atomic_symbol(model.atoms[2]) == :C
+        @test model.atoms[1].psp.identifier == "hgh/lda/c-q4.hgh"
+        @test model.atoms[2].psp.identifier == "hgh/lda/c-q4.hgh"
+    end
 end
