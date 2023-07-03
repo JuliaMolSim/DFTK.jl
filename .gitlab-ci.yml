@@ -12,7 +12,6 @@ julia/1.8-n2:
     # SCHEDULER_PARAMETERS: "-N 1 -n 1 -c 16 --gres=gpu:a100:1 --qos=devel -p dgx -t 00:15:00 -A hpc-prf-dftkjl"
     SCHEDULER_PARAMETERS: "-N 1 -n 1 -c 16 --gres=gpu:a100:1             -p gpu -t 00:30:00 -A hpc-prf-dftkjl"
     JULIA_NUM_THREADS: "1"  # GPU and multi-threading not yet compatible
-    JULIA_LOAD_PATH: "test/configuration_noctua2:"  # Needed to pick up LocalPreferences.toml
   coverage: '/\(\d+.\d+\%\) covered/'
   rules:
     - if: $CI_COMMIT_BRANCH   == "master"
@@ -28,7 +27,9 @@ julia/1.8-n2:
     #   '
     # The above does not work, because Pkg.test seems just ignores the JULIA_LOAD_PATH
     # and thus does not pick up the custom preferences ... so we need to do it manually
-    - julia --color=yes -e 'using Pkg; Pkg.add("TestEnv")'
+    - julia --color=yes -e 'using Pkg; Pkg.add(["TestEnv", "CUDA"])'
+    - julia --project=. -e 'using CUDA; CUDA.set_runtime_version!("local")'
+    - cat LocalPreferences.toml
     - julia --color=yes --code-coverage --project=. -e '
         using TestEnv;
         TestEnv.activate("DFTK");
