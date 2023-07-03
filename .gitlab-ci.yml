@@ -20,21 +20,9 @@ julia/1.8-n2:
       when: manual
   script:
     - module load lang/JuliaHPC/1.9.0-foss-2022a-CUDA-11.7.0
-    # testing
-    # - julia --color=yes --project=. -e '
-    #     using Pkg;
-    #     Pkg.test(; coverage=true, test_args=["gpu"])
-    #   '
-    # The above does not work, because Pkg.test seems just ignores the JULIA_LOAD_PATH
-    # and thus does not pick up the custom preferences ... so we need to do it manually
-    - julia --color=yes -e 'using Pkg; Pkg.add(["TestEnv", "CUDA"])'
-    - julia --project=. -e 'using CUDA; CUDA.set_runtime_version!("local")'
-    - cat LocalPreferences.toml
-    - julia --color=yes --code-coverage --project=. -e '
-        using TestEnv;
-        TestEnv.activate("DFTK");
-        include("test/runtests.jl")
-      ' gpu
-    # end testing
+    - julia --color=yes --project=. -e '
+        using Pkg;
+        Pkg.test(; coverage=true, test_args=["gpu"])
+      '
     - julia --color=yes --project=test/coverage -e 'import Pkg; Pkg.instantiate()'
     - julia --color=yes --project=test/coverage test/coverage/coverage.jl

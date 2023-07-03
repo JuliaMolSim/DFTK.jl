@@ -34,6 +34,17 @@ else
     println("   Running tests (TAGS = $(join(TAGS, ", "))).")
 end
 
+# Work around some issues with test preferences
+let
+    test_project = first(Base.load_path())
+    preferences_file = joinpath(dirname(@__DIR__), "LocalPreferences.toml")
+    test_preferences_file = joinpath(dirname(test_project), "LocalPreferences.toml")
+    if isfile(preferences_file) && !isfile(test_preferences_file)
+        cp(preferences_file, test_preferences_file)
+    end
+end
+
+
 # Setup threading in DFTK
 setup_threading(; n_blas=2)
 
