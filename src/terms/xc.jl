@@ -82,9 +82,8 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     density = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
 
-    # Evaluate terms and energy contribution (zk == energy per unit particle)
-    # It may happen that a functional does only provide a potenital and not an energy term
-    # Therefore skip_unsupported_derivatives=true to avoid an error.
+    # Evaluate terms and energy contribution
+    # If the XC functional is not supported for an architecture, terms is on the CPU
     terms = potential_terms(term.functionals, density)
     @assert haskey(terms, :Vρ) && haskey(terms, :e)
     E = term.scaling_factor * sum(terms.e) * basis.dvol
@@ -97,14 +96,14 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ) + ΔVl
     potential = zero(ρ)
     @views for s in 1:n_spin
-        Vρ = reshape(terms.Vρ, n_spin, basis.fft_size...)
+        Vρ = to_device(basis.architecture, reshape(terms.Vρ, n_spin, basis.fft_size...))
 
         potential[:, :, :, s] .+= Vρ[s, :, :, :]
         if haskey(terms, :Vσ) && any(x -> abs(x) > potential_threshold, terms.Vσ)
             # Need gradient correction
             # TODO Drop do-block syntax here?
             potential[:, :, :, s] .+= -2divergence_real(basis) do α
-                Vσ = reshape(terms.Vσ, :, basis.fft_size...)
+                Vσ = to_device(basis.architecture, reshape(terms.Vσ, :, basis.fft_size...))
 
                 # Extra factor (1/2) for s != t is needed because libxc only keeps σ_{αβ}
                 # in the energy expression. See comment block below on spin-polarised XC.
@@ -116,7 +115,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
         if haskey(terms, :Vl) && any(x -> abs(x) > potential_threshold, terms.Vl)
             @warn "Meta-GGAs with a Δρ term have not yet been thoroughly tested." maxlog=1
             mG² = .-norm2.(G_vectors_cart(basis))
-            Vl  = reshape(terms.Vl, n_spin, basis.fft_size...)
+            Vl  = to_device(basis.architecture, reshape(terms.Vl, n_spin, basis.fft_size...))
             Vl_fourier = fft(basis, Vl[s, :, :, :])
             potential[:, :, :, s] .+= irfft(basis, mG² .* Vl_fourier)  # ΔVl
         end
@@ -126,7 +125,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     Vτ = nothing
     if haskey(terms, :Vτ) && any(x -> abs(x) > potential_threshold, terms.Vτ)
         # Need meta-GGA non-local operator (Note: -½ part of the definition of DivAgrid)
-        Vτ = reshape(terms.Vτ, n_spin, basis.fft_size...)
+        Vτ = to_device(basis.architecture, reshape(terms.Vτ, n_spin, basis.fft_size...))
         Vτ = term.scaling_factor * permutedims(Vτ, (2, 3, 4, 1))
     end
 
@@ -382,10 +381,11 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs..
         ]
     end
 
+    # If the XC functional is not supported for an architecture, terms is on the CPU
     terms = kernel_terms(term.functionals, density)
     δV = zero(ρ)  # [ix, iy, iz, iσ]
 
-    Vρρ = reshape(terms.Vρρ, n_spin, n_spin, basis.fft_size...)
+    Vρρ = to_device(basis.architecture, reshape(terms.Vρρ, n_spin, n_spin, basis.fft_size...))
     @views for s in 1:n_spin, t in 1:n_spin  # LDA term
         δV[:, :, :, s] .+= Vρρ[s, t, :, :, :] .* δρ[t, :, :, :]
     end
@@ -425,9 +425,9 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
     δρ  = perturbation.ρ_real
     ∇δρ = perturbation.∇ρ_real
     δσ  = cross_derivatives[:δσ]
-    Vρσ = reshape(terms.Vρσ, n_spin, spin_σ, basis.fft_size...)
-    Vσσ = reshape(terms.Vσσ, spin_σ, spin_σ, basis.fft_size...)
-    Vσ  = reshape(terms.Vσ,  spin_σ,         basis.fft_size...)
+    Vρσ = to_device(basis.architecture, reshape(terms.Vρσ, n_spin, spin_σ, basis.fft_size...))
+    Vσσ = to_device(basis.architecture, reshape(terms.Vσσ, spin_σ, spin_σ, basis.fft_size...))
+    Vσ  = to_device(basis.architecture, reshape(terms.Vσ,  spin_σ,         basis.fft_size...))
 
     T   = eltype(ρ)
     tσ  = DftFunctionals.spinindex_σ
