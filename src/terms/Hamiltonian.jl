@@ -76,6 +76,8 @@ struct Hamiltonian
     blocks::Vector{HamiltonianBlock}
 end
 
+Base.getindex(ham::Hamiltonian, index) = ham.blocks[index]
+
 function LinearAlgebra.mul!(Hψ, H::Hamiltonian, ψ)
     for ik = 1:length(H.basis.kpoints)
         mul!(Hψ[ik], H.blocks[ik], ψ[ik])
