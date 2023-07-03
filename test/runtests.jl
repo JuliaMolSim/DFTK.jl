@@ -39,7 +39,9 @@ let
     test_project = first(Base.load_path())
     preferences_file = joinpath(dirname(@__DIR__), "LocalPreferences.toml")
     test_preferences_file = joinpath(dirname(test_project), "LocalPreferences.toml")
+    @show test_project preferences_file test_preferences_file
     if isfile(preferences_file) && !isfile(test_preferences_file)
+        println("do copy")
         cp(preferences_file, test_preferences_file)
     end
 end

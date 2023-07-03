@@ -20,6 +20,11 @@ julia/1.8-n2:
       when: manual
   script:
     - module load lang/JuliaHPC/1.9.0-foss-2022a-CUDA-11.7.0
+    - julia -e '
+        using Pkg; Pkg.add("CUDA");
+        using CUDA;
+        CUDA.set_runtime_version!("local")
+      '
     - julia --color=yes --project=. -e '
         using Pkg;
         Pkg.test(; coverage=true, test_args=["gpu"])
