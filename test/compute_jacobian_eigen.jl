@@ -37,7 +37,7 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
 
         # random starting point on the tangent space to avoid eigenvalue 0
         n_bands = size(ψ[1], 2)
-        x0 = map(1:numval) do n
+        x0 = map(1:numval) do _
             initial = map(basis.kpoints) do kpt
                 n_Gk = length(G_vectors(basis, kpt))
                 randn(Complex{eltype(basis)}, n_Gk, n_bands)
@@ -59,7 +59,7 @@ if mpi_nprocs() == 1  # Distributed implementation not yet available
         J = LinearMap{T}(ΩpK, size(x0, 1))
 
         # compute smallest eigenvalue of Ω with LOBPCG
-        lobpcg_hyper(J, x0, prec=FunctionPreconditioner(f_ldiv!), tol=1e-7)
+        lobpcg_hyper(J, x0; prec=FunctionPreconditioner(f_ldiv!), tol=1e-7)
     end
 
     @testset "Compute eigenvalues" begin
