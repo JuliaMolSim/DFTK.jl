@@ -7,3 +7,8 @@
         return x[:, 1:size(φk, 2)]
     end
 end
+
+function ortho_lowdin(A::AbstractMatrix)
+    F = svd(A)
+    return F.U * F.Vt
+end

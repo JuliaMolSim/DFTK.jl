@@ -12,7 +12,7 @@ if !Sys.iswindows() && mpi_nprocs() == 1
 
     fileprefix = "wannier90_outputs/Si"
     run_wannier90(scfres; fileprefix,
-                  n_wannier=8, bands_plot=true,
+                  n_wann=8, bands_plot=true,
                   num_print_cycles=50, num_iter=500,
                   dis_win_max=17.185257,
                   dis_froz_max=6.8318033,

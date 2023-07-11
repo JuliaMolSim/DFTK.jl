@@ -14,8 +14,9 @@ struct PspUpf{T,I} <: NormConservingPsp
     r_projs::Vector{Vector{Vector{T}}}
     # Kleinman-Bylander energies. Stored per AM channel `h[l+1][i,j]`. UPF: `PP_DIJ`
     h::Vector{Matrix{T}}
-    # (UNUSED) Pseudo-wavefunctions on the radial grid. Can be used for wavefunction
+    # Pseudo-wavefunctions on the radial grid. Can be used for wavefunction
     # initialization and as projectors for PDOS and DFT+U(+V). UPF: `PP_PSWFC/PP_CHI.i`
+    # r * ϕ̃ where ϕ̃ are pseudo-atomic wavefunctions on the radial grid.
     pswfcs::Vector{Vector{Vector{T}}}
     # (UNUSED) Occupations of the pseudo-atomic wavefunctions.
     # UPF: `PP_PSWFC/PP_CHI.i['occupation']`
@@ -181,6 +182,17 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real
     4T(π) * s
 end
 
+# For UPFs, the integral is transformed to the following sum:
+# 4π Σ{k} j_l(q r[k]) (r[k]^2 p_{il}(r[k]) dr[k])
+function eval_psp_pswfc_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real}
+    r2_pswfc_dr = psp.rgrid .* psp.pswfcs[l+1][i] .* psp.drgrid
+    s = zero(T)
+    @inbounds for ir = eachindex(r2_pswfc_dr)
+        s += sphericalbesselj_fast(l, q * psp.rgrid[ir]) * r2_pswfc_dr[ir]
+    end
+    4T(π) * s
+end
+
 eval_psp_local_real(psp::PspUpf, r::T) where {T <: Real} = psp.vloc_interp(r)
 
 # For UPFs, the integral is transformed to the following sum:
@@ -225,4 +237,48 @@ end
 # 4π Nelec Σ{i} r[i] (r[i] V(r[i]) + Z) dr[i]
 function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
     4T(π) * n_electrons * dot(psp.rgrid, psp.r_vloc_corr_dr)
+end
+
+"""
+    count_n_pswfc_radial(psp, l)
+
+Number of pseudo-atomic functions at angular momentum `l`.
+"""
+count_n_pswfc_radial(psp::PspUpf, l::Integer) = length(psp.pswfcs[l + 1])
+
+"""
+    count_n_pswfc_radial(psp)
+
+Number of pseudo-atomic functions at all angular momenta up to `psp.lmax-1`.
+"""
+function count_n_pswfc_radial(psp::PspUpf)
+    sum(l -> count_n_pswfc_radial(psp, l), 0:psp.lmax-1; init=0)::Int
+end
+
+"""
+    count_n_pswfc(psp, l)
+
+Number of pseudo-atomic functions for angular momentum `l`, including angular parts from `-m:m`.
+"""
+count_n_pswfc(psp::PspUpf, l::Integer) = count_n_pswfc_radial(psp, l) * (2l + 1)
+
+"""
+    count_n_pswfc(psp)
+
+Number of pseudo-atomic functions for all angular momenta up to `psp.lmax-1`, including
+angular parts from `-m:m`.
+"""
+function count_n_pswfc(psp::PspUpf)
+    sum(l -> count_n_pswfc(psp, l), 0:psp.lmax-1; init=0)::Int
+end
+
+"""
+    count_n_pswfc(psps, psp_positions)
+
+Number of pseudo-atomic functions for all angular momenta up to `psp.lmax-1` and for all
+atoms in the system, including angular parts from `-m:m`.
+"""
+function count_n_pswfc(psps, psp_positions)
+    sum(count_n_pswfc(psp) * length(positions)
+        for (psp, positions) in zip(psps, psp_positions))
 end
