@@ -22,10 +22,3 @@ for fun in (:potential_terms, :kernel_terms)
         $fun(fun, Array(ρ), cpuify.(args)...)
     end
 end
-
-# Note: This preference is temporary for now and can disappear at any time.
-#       This is needed because for some reason I cannot arrive at the tests
-#       to use CUDA version 11.8 instead of 12 (where Libxc is not supported)
-function disable_libxc_cuda!()
-    @set_preferences!("use_libxc_cuda" => "false")
-end
