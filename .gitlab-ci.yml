@@ -23,7 +23,7 @@ julia/1.8-n2:
     - julia --project=. -e '
         using Pkg; Pkg.instantiate();
         using CUDA;
-        CUDA.set_runtime_version!("local")
+        CUDA.set_runtime_version!(v"11.7")
       '
     - julia --color=yes --project=. -e '
         using Pkg;
