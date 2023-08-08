@@ -32,7 +32,7 @@ function next_density(ham::Hamiltonian,
 
     eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands_compute;
                                      ψguess=ψ, n_conv_check=n_bands_converge, kwargs...)
-    eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
+    eigres.converged || (@warn "Eigensolver not converged" n_iter=eigres.n_iter)
 
     # Check maximal occupation of the unconverged bands is sensible.
     occupation, εF = compute_occupation(ham.basis, eigres.λ, fermialg;

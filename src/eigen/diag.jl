@@ -64,10 +64,10 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
     # Transform results into a nicer datastructure
     # TODO It feels inconsistent to put λ onto the CPU here but none of the other objects.
     #      Better have this handled by the caller of diagonalize_all_kblocks.
-    (λ=[to_cpu(real.(res.λ)) for res in results],  # Always get onto the CPU
+    (; λ=[to_cpu(real.(res.λ)) for res in results],  # Always get onto the CPU
      X=[res.X for res in results],
      residual_norms=[res.residual_norms for res in results],
-     iterations=[res.iterations for res in results],
+     n_iter=[res.n_iter for res in results],
      converged=all(res.converged for res in results),
      n_matvec=sum(res.n_matvec for res in results))
 end
@@ -77,7 +77,7 @@ Function to select a subset of eigenpairs on each ``k``-Point. Works on the
 Tuple returned by `diagonalize_all_kblocks`.
 """
 function select_eigenpairs_all_kblocks(eigres, range)
-    merge(eigres, (λ=[λk[range] for λk in eigres.λ],
+    merge(eigres, (; λ=[λk[range] for λk in eigres.λ],
                    X=[Xk[:, range] for Xk in eigres.X],
                    residual_norms=[resk[range] for resk in eigres.residual_norms]))
 end

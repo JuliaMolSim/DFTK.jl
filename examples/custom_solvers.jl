@@ -7,7 +7,7 @@ a = 10.26
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
-Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si, Si]
 positions =  [ones(3)/8, -ones(3)/8]
 
@@ -28,7 +28,7 @@ function my_fp_solver(f, x0, max_iter; tol)
         x = x + mixing_factor * inc
         fx = f(x)
     end
-    (fixpoint=x, converged=norm(fx-x) < tol)
+    (; fixpoint=x, converged=norm(fx-x) < tol)
 end;
 
 # Our eigenvalue solver just forms the dense matrix and diagonalizes
@@ -39,7 +39,7 @@ function my_eig_solver(A, X0; maxiter, tol, kwargs...)
     E = eigen(A)
     λ = E.values[1:n]
     X = E.vectors[:, 1:n]
-    (; λ, X, residual_norms=[], iterations=0, converged=true, n_matvec=0)
+    (; λ, X, residual_norms=[], n_iter=0, converged=true, n_matvec=0)
 end;
 
 # Finally we also define our custom mixing scheme. It will be a mixture
