@@ -95,7 +95,7 @@ end
     eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
                                      n_conv_check=n_bands, tol, show_progress, kwargs...)
     if !eigres.converged
-        @warn "Eigensolver not converged" iterations=band_data.iterations
+        @warn "Eigensolver not converged" n_iter=band_data.n_iter
     end
     merge((; basis=bs_basis), select_eigenpairs_all_kblocks(eigres, 1:n_bands))
 end

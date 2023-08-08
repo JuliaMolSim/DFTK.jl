@@ -27,14 +27,14 @@ include("./testcases.jl")
 
     @test length(ref_λ) == length(silicon.kcoords)
     @testset "without Preconditioner" begin
-        res = diagonalize_all_kblocks(lobpcg_hyper, ham, nev_per_k, tol=1e-4,
+        res = diagonalize_all_kblocks(lobpcg_hyper, ham, nev_per_k; tol=1e-4,
                                       prec_type=nothing, interpolate_kpoints=false)
 
         @test res.converged
         for ik in 1:length(basis.kpoints)
             @test ref_λ[basis.krange_thisproc[ik]] ≈ res.λ[ik] atol = 1e-4
             @test maximum(res.residual_norms[ik]) < 1e-4
-            @test res.iterations[ik] < 200
+            @test res.n_iter[ik] < 200
         end
     end
 
@@ -46,7 +46,7 @@ include("./testcases.jl")
         for ik in 1:length(basis.kpoints)
             @test ref_λ[basis.krange_thisproc[ik]] ≈ res.λ[ik]
             @test maximum(res.residual_norms[ik]) < 100tol  # TODO Why the 100?
-            @test res.iterations[ik] < 50
+            @test res.n_iter[ik] < 50
         end
     end
 end
@@ -56,13 +56,13 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
         Ecut = 25
         fft_size = [33, 33, 33]
 
-        Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
+        Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       terms=[Kinetic(),AtomicLocal()])
         basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
         ham = Hamiltonian(basis)
 
-        res = diagonalize_all_kblocks(lobpcg_hyper, ham, 6, tol=1e-8)
+        res = diagonalize_all_kblocks(lobpcg_hyper, ham, 6; tol=1e-8)
 
         ref = [
             [-4.087198659513310, -4.085326314828677, -0.506869382308294,
@@ -84,14 +84,14 @@ end
     Ecut = 10
     fft_size = [21, 21, 21]
 
-    Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
+    Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
     model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                   terms=[Kinetic(), AtomicLocal(), AtomicNonlocal()])
 
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
     ham = Hamiltonian(basis)
 
-    res = diagonalize_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, interpolate_kpoints=false)
+    res = diagonalize_all_kblocks(lobpcg_hyper, ham, 5; tol=1e-8, interpolate_kpoints=false)
     ref = [
         [0.067955741977536, 0.470244204908046, 0.470244204920801,
          0.470244204998022, 0.578392222232969],
@@ -115,8 +115,8 @@ end
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights)
     ham = Hamiltonian(basis; ρ=guess_density(basis))
 
-    res1 = diagonalize_all_kblocks(lobpcg_hyper, ham, 5, tol=1e-8, interpolate_kpoints=false)
-    res2 = diagonalize_all_kblocks(diag_full, ham, 5, tol=1e-8, interpolate_kpoints=false)
+    res1 = diagonalize_all_kblocks(lobpcg_hyper, ham, 5; tol=1e-8, interpolate_kpoints=false)
+    res2 = diagonalize_all_kblocks(diag_full, ham, 5; tol=1e-8, interpolate_kpoints=false)
     for ik in 1:length(basis.kpoints)
         @test res1.λ[ik] ≈ res2.λ[ik] atol=1e-6
     end

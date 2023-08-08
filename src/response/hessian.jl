@@ -116,7 +116,7 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
     res = cg(J, rhs_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
              callback)
     (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
-     res.iterations)
+     res.n_iter)
 end
 
 

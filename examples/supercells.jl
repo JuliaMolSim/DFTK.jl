@@ -16,7 +16,7 @@ using ASEconvert
 function aluminium_setup(repeat=1; Ecut=7.0, kgrid=[2, 2, 2])
     a = 7.65339
     lattice = a * Matrix(I, 3, 3)
-    Al = ElementPsp(:Al, psp=load_psp("hgh/lda/al-q3"))
+    Al = ElementPsp(:Al; psp=load_psp("hgh/lda/al-q3"))
     atoms     = [Al, Al, Al, Al]
     positions = [[0.0, 0.0, 0.0], [0.0, 0.5, 0.5], [0.5, 0.0, 0.5], [0.5, 0.5, 0.0]]
     unit_cell = periodic_system(lattice, atoms, positions)
@@ -29,7 +29,7 @@ function aluminium_setup(repeat=1; Ecut=7.0, kgrid=[2, 2, 2])
 
     ## Unfortunately right now the conversion to ASE drops the pseudopotential information,
     ## so we need to reattach it:
-    supercell = attach_psp(supercell, Al="hgh/lda/al-q3")
+    supercell = attach_psp(supercell; Al="hgh/lda/al-q3")
 
     ## Construct an LDA model and discretise
     ## Note: We disable symmetries explicitly here. Otherwise the problem sizes
