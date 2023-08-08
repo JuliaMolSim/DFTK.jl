@@ -1,7 +1,7 @@
 using LinearMaps
 
 function default_cg_print(info)
-    @printf("%3d\t%1.2e\n", info.iterations, info.residual_norm)
+    @printf("%3d\t%1.2e\n", info.n_iter, info.residual_norm)
 end
 
 """
@@ -45,7 +45,7 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
         residual_norm = norm(r)
 
         # output
-        info = (; A, b, iterations=n_iter, x, r, residual_norm, converged, stage=:iterate)
+        info = (; A, b, n_iter, x, r, residual_norm, converged, stage=:iterate)
         callback(info)
         if (n_iter > miniter) && residual_norm <= tol
             converged = true
@@ -58,7 +58,7 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
         β = γ / γ_prev
         p .= proj(c .+ β .* p)
     end
-    info = (; x, converged, tol, residual_norm, iterations=n_iter, maxiter, stage=:finalize)
+    info = (; x, converged, tol, residual_norm, n_iter, maxiter, stage=:finalize)
     callback(info)
     info
 end

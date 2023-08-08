@@ -47,7 +47,7 @@ function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions;
     # TODO should something more clever be done here? For now
     # we assume that we are not interested in the Ewald
     # energy of non-3D systems
-    any(iszero.(eachcol(lattice))) && (; energy=zero(T), forces=zero(positions))
+    any(iszero.(eachcol(lattice))) && return (; energy=zero(T), forces=zero(positions))
 
     recip_lattice = compute_recip_lattice(lattice)
     @assert length(charges) == length(positions)
