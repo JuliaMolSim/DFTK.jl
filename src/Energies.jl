@@ -33,9 +33,10 @@ function Energies(term_types::Vector, energies::Vector{T}) where {T}
 end
 
 function Base.propertynames(energies::Energies, private::Bool=false)
-    ret = keys(energies)
-    append!(ret, "total")
-    private && append!(ret, "energies")
+    ret = Symbol.(keys(energies))
+    push!(ret, :total)
+    private && push!(ret, :energies)
+    ret
 end
 function Base.getproperty(energies::Energies, x::Symbol)
     x == :total && return sum(values(energies))
