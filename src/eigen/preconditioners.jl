@@ -17,7 +17,8 @@ precondprep!(P, X) = P  # This API is also used in Optim.jl
 No preconditioning
 """
 struct PreconditionerNone end
-PreconditionerNone(basis, kpt) = I
+PreconditionerNone(::PlaneWaveBasis, ::Kpoint) = I
+PreconditionerNone(::HamiltonianBlock) = I
 
 """
 (simplified version of) Tetter-Payne-Allan preconditioning
