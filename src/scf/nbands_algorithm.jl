@@ -81,6 +81,7 @@ function determine_n_bands(bands::AdaptiveBands, occupation::AbstractVector,
 
     # Determine number of bands to be computed
     n_bands_compute_ε = maximum(eigenvalues) do εk
+        n_bands_converge > length(εk) && return length(εk) + 1
         something(findlast(εnk -> εnk ≥ εk[n_bands_converge] + bands.gap_min, εk),
                   length(εk) + 1)
     end

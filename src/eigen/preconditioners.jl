@@ -41,6 +41,9 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     kin = kinetic_energy(kinetic_term, basis.Ecut, Gplusk_vectors_cart(basis, kpt))
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
+function PreconditionerTPA(ham::HamiltonianBlock; kwargs...)
+    PreconditionerTPA(ham.basis, ham.kpoint)
+end
 
 @views function ldiv!(Y, P::PreconditionerTPA, R)
     if P.mean_kin === nothing
