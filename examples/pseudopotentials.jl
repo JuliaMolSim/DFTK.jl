@@ -40,11 +40,15 @@ using LazyArtifacts
 import Main: @artifact_str # hide
 
 # Here, we will use a Perdew-Wang LDA PSP from [PseudoDojo](http://www.pseudo-dojo.org/),
-# which is available in the JuliaMolSim
-# [PseudoLibrary](https://github.com/JuliaMolSim/PseudoLibrary).
+# which is available in the
+# [JuliaMolSim PseudoLibrary](https://github.com/JuliaMolSim/PseudoLibrary).
 # Directories in PseudoLibrary correspond to artifacts that you can load using `artifact`
 # strings which evaluate to a filepath on your local machine where the artifact has been
 # downloaded.
+#
+# !!! note "Using the PseudoLibrary in your own calculations"
+#     Instructions for using the [PseudoLibrary](https://github.com/JuliaMolSim/PseudoLibrary)
+#     in your own calculations can be found in its documentation.
 
 # We load the HGH and UPF PSPs using `load_psp`, which determines the
 # file format using the file extension. The `artifact` string literal resolves to the

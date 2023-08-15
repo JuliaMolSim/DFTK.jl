@@ -53,8 +53,8 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         @assert size(ψguessk) == (n_Gk, nev_per_kpoint)
 
         prec = nothing
-        !isnothing(prec_type) && (prec = prec_type(ham.basis, kpt))
-        results[ik] = eigensolver(ham.blocks[ik], ψguessk;
+        !isnothing(prec_type) && (prec = prec_type(ham[ik]))
+        results[ik] = eigensolver(ham[ik], ψguessk;
                                   prec, tol, miniter, maxiter, n_conv_check)
 
         # Update progress bar if desired
