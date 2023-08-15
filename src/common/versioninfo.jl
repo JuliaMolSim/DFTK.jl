@@ -8,8 +8,10 @@ Summary of version and configuration of DFTK and its key dependencies.
 """
 function versioninfo(io::IO=stdout)
     indent = "  "
-    println(io, "DFTK Version     ", PkgVersion.@Version)
-    println(io, "Julia Version    ", VERSION, "\n")
+    println(io, "DFTK Version      ", PkgVersion.@Version)
+    println(io, "Julia Version     ", VERSION)
+    println(io, "FFTW.jl provider  ", FFTW.get_provider(), " v$(FFTW.version)")
+    println(io)
 
     let versionstr = sprint(show, "text/plain", BLAS.get_config())
         println(io, "BLAS.get_config()")
