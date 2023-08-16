@@ -1,5 +1,6 @@
 using DFTK
 using JLD2
+using JSON3
 using WriteVTK
 using MPI
 import DFTK: ScfDefaultCallback, ScfSaveCheckpoints
@@ -33,7 +34,7 @@ function test_scfres_agreement(tested, ref)
     @test tested.eigenvalues    == ref.eigenvalues
     @test tested.occupation     == ref.occupation
     @test tested.ψ              == ref.ψ
-    @test tested.ρ              ≈  ref.ρ     rtol=1e-14
+    @test tested.ρ              ≈  ref.ρ rtol=1e-14
 end
 
 
@@ -86,6 +87,20 @@ function test_serialisation(label;
 
             save_scfres(dumpfile, scfres; save_ψ=true)
             @test isfile(dumpfile)
+        end
+    end
+
+    @testset "JSON ($label)" begin
+        mktempdir() do tmpdir
+            dumpfile = joinpath(tmpdir, "scfres.json")
+            dumpfile = MPI.bcast(dumpfile, 0, MPI.COMM_WORLD)  # master -> everyone
+
+            save_scfres(dumpfile, scfres)
+            @test isfile(dumpfile)
+
+            data = open(JSON3.read, dumpfile)  # Get data back as dict
+            # TODO test json agreement
+            @test data["energies"]["total"] == scfres.energies.total
         end
     end
 end

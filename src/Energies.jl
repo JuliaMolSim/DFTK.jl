@@ -39,7 +39,16 @@ function Base.propertynames(energies::Energies, private::Bool=false)
     ret
 end
 function Base.getproperty(energies::Energies, x::Symbol)
-    x == :total && return sum(values(energies))
+    x == :total    && return sum(values(energies))
     x == :energies && return getfield(energies, x)
     energies.energies[string(x)]
+end
+
+"""
+Convert an `Energies` struct to a dictionary representation
+"""
+function todict(energies::Energies)
+    ret = convert(Dict, energies.energies)
+    ret["total"] = energies.total
+    ret
 end
