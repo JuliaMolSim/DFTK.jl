@@ -100,6 +100,7 @@ FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
 GenericLinearAlgebra = "14197337-ba66-59df-a3e3-ca00e7dcff7a"
 IntervalArithmetic = "d1acc4aa-44c8-5952-acd4-ba5d80a2a253"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 KrylovKit = "0b1a1467-8014-51b9-945f-bf0ae24f4b77"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
@@ -108,7 +109,6 @@ Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
-JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 
 [targets]
 test = ["Test", "ASEconvert", "Aqua", "AtomsIO", "AtomsIOPython", "CUDA", "CUDA_Runtime_jll", "ComponentArrays", "DoubleFloats", "FiniteDiff", "FiniteDifferences", "GenericLinearAlgebra", "IntervalArithmetic", "JLD2", "JSON3", "Logging", "Plots", "QuadGK", "Random", "KrylovKit", "WriteVTK", "wannier90_jll"]
