@@ -3,23 +3,42 @@ Nonlocal term coming from norm-conserving pseudopotentials in Kleinmann-Bylander
 ``\text{Energy} = \sum_a \sum_{ij} \sum_{n} f_n <ψ_n|p_{ai}> D_{ij} <p_{aj}|ψ_n>.``
 """
 struct AtomicNonlocal end
+
 function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
 
-    # keep only pseudopotential atoms and positions
-    psp_groups = [group for group in model.atom_groups
-                  if !isnothing(model.atoms[first(group)].nonlocal_potential)]
-    psps          = [basis.fourier_atoms[first(group)] for group in psp_groups]
-    psp_positions = [model.positions[group] for group in psp_groups]
+    atom_groups = [group for group in model.atom_groups
+                   if !isnothing(model.atoms[first(group)].nonlocal_potential)]
+    atom_positions = [model.positions[group] for group in atom_groups]
+    atoms = [basis.fourier_atoms[first(group)] for group in atom_groups]
+    atom_projectors = [atom.nonlocal_potential.β for atom in atoms]
 
-    isempty(psp_groups) && return TermNoop()
+    isempty(atom_groups) && return TermNoop()
     ops = map(basis.kpoints) do kpt
-        P = build_projection_vectors_(basis, kpt, psps, psp_positions)
-        D = build_projection_coefficients_(T, psps, psp_positions)
+        P = build_projection_vectors(basis, kpt, atom_projectors, atom_positions)
+        D = build_projection_coefficients_(T, atoms, atom_positions)
         NonlocalOperator(basis, kpt, P, to_device(basis.architecture, D))
     end
     TermAtomicNonlocal(ops)
 end
+
+# function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
+#     model = basis.model
+
+#     # keep only pseudopotential atoms and positions
+#     psp_groups = [group for group in model.atom_groups
+#                   if !isnothing(model.atoms[first(group)].nonlocal_potential)]
+#     psps          = [basis.fourier_atoms[first(group)] for group in psp_groups]
+#     psp_positions = [model.positions[group] for group in psp_groups]
+
+#     isempty(psp_groups) && return TermNoop()
+#     ops = map(basis.kpoints) do kpt
+#         P = build_projection_vectors_(basis, kpt, psps, psp_positions)
+#         D = build_projection_coefficients_(T, psps, psp_positions)
+#         NonlocalOperator(basis, kpt, P, to_device(basis.architecture, D))
+#     end
+#     TermAtomicNonlocal(ops)
+# end
 
 struct TermAtomicNonlocal <: Term
     ops::Vector{NonlocalOperator}

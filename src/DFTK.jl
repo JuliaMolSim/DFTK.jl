@@ -22,6 +22,7 @@ using PrecompileTools
 using PseudoPotentialIOExperimental
 using AtomicPotentials
 using AtomsBase
+using OffsetArrays
 
 export Vec3
 export Mat3
@@ -177,6 +178,9 @@ export ValenceDensityAuto
 export guess_density
 export random_density
 include("density_methods.jl")
+
+export build_projection_vectors
+include("projection_vectors.jl")
 
 # export load_psp
 # export list_psp

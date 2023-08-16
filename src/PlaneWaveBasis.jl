@@ -284,7 +284,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     # TODO /
     Gs_cart = map(recip_vector_red_to_cart(model), Gs)
     qgrid = range(0.0, maximum(norm, Gs_cart), 3001)
-    fourier_atoms = ht.(model.atoms, Ref(qgrid))
+    fourier_atoms = ht.(model.atoms, Ref(qgrid), Ref(NumericalQuadrature.Simpson{NumericalQuadrature.Uniform}()))
     # TODO \
 
     basis = PlaneWaveBasis{T, value_type(T), Arch, typeof(Gs), typeof(r_vectors),

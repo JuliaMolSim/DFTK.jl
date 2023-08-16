@@ -63,3 +63,40 @@ function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany) where {
     end
     ortho_qr(orbitals)
 end
+
+function guess_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany) where {T}
+    model = basis.model
+
+    atom_groups = [group for group in model.atom_groups
+                   if has_orbitals(model.atoms[first(group)])]
+    atom_positions = [model.positions[group] for group in atom_groups]
+    atoms = [basis.fourier_atoms[first(group)] for group in atom_groups]
+    atom_orbitals = [atom.potential.orbitals for atom in atoms]
+
+    n_orbitals = sum(zip(atom_orbitals, atom_positions)) do (orbitals, positions)
+        n_angulars = sum(orbital -> 2 * angular_momentum(orbital) + 1, orbitals)
+        n_angulars * length(positions)
+    end
+
+    orbitals = similar(basis.G_vectors, Complex{T}, length(G_vectors(basis, kpt)), howmany)
+
+    if howmany < n_orbitals
+        # Sort the states by their pseudo energy (if available) then build
+        error("Not yet supported")
+    elseif howmany == n_orbitals
+        # Just call build_projection_vectors
+        build_projection_vectors!(orbitals, basis, kpt, atom_orbitals, atom_positions)
+    else
+        # Call build_projection vectors to make all the pseudo-atomic states, then
+        # fill in the rest with random states
+        build_projection_vectors!(
+            @view(orbitals[:,1:n_orbitals]),
+            basis,
+            kpt,
+            atom_orbitals,
+            atom_positions
+        )
+        randn!(TaskLocalRng(), @view(orbitals[:,n_orbitals+1:end]))
+    end
+    ortho_qr(orbitals)
+end

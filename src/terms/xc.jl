@@ -33,11 +33,17 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     isempty(xc.functionals) && return TermNoop()
 
     # Charge density for non-linear core correction
-    ρcore = nothing
-    if xc.use_nlcc && any(!isnothing(atom.core_density) for atom in basis.model.atoms)
-        ρcore = ρ_from_total(basis, atomic_total_density(basis, CoreDensity()))
+    core_densities = [get_atomic_density(atom, CoreDensity()) for atom in basis.fourier_atoms]
+    core_density_mask = map(!isnothing, core_densities)
+    core_densities = core_densities[core_density_mask]
+    positions = basis.model.positions[core_density_mask]
+    if !xc.use_nlcc || isempty(core_densities)
+        ρcore = nothing
+    else
+        ρcore = atomic_density_superposition(basis, core_densities, positions)
         minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
     end
+
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
         newparams = convert_dual.(T, parameters(fun))
@@ -168,33 +174,42 @@ end
     end
 
     model = basis.model
-    form_factors = atomic_density_form_factors(basis, CoreDensity())
-    nlcc_groups = [(igroup, group) for (igroup, group) in enumerate(basis.model.atom_groups)
-                   if has_core_density(model.atoms[first(group)])]
-    @assert !isnothing(nlcc_groups)
-
-    forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
-    for (igroup, group) in nlcc_groups
-        for iatom in group
-            r = model.positions[iatom]
-            forces[iatom] = _force_xc_internal(basis, Vxc_fourier, form_factors, igroup, r)
-        end
+    forces = map(zip(basis.fourier_atoms, model.positions)) do (atom, position)
+        atomic_core_density = get_atomic_density(atom, CoreDensity())
+        return _force_xc_internal(basis, Vxc_fourier, atomic_core_density, position)
     end
+
     forces
 end
 
-function _force_xc_internal(basis, Vxc_fourier, form_factors, igroup, r)
-    T = real(eltype(basis))
-    f = zero(Vec3{T})
-    for (iG, (G, G_cart)) in enumerate(zip(G_vectors(basis), G_vectors_cart(basis)))
-        f -= real(conj(Vxc_fourier[iG])
-                  .* form_factors[(igroup, norm(G_cart))]
-                  .* cis2pi(-dot(G, r))
-                  .* (-2T(π)) .* G .* im
-                  ./ sqrt(basis.model.unit_cell_volume))
+function _force_xc_internal(basis::PlaneWaveBasis{T}, Vxc_fourier, atomic_density, r) where {T}
+    sum(enumerate(G_vectors(basis)); init=zero(Vec3{T})) do (iG, G)
+        -real(conj(Vxc_fourier[iG])
+              .* atomic_density(norm(recip_vector_red_to_cart(basis.model, G)))
+              .* cis2pi(-dot(G, r))
+              .* (-2T(π)) .* G .* im
+              ./ sqrt(basis.model.unit_cell_volume))
     end
-    f
 end
+
+function _force_xc_internal(::PlaneWaveBasis{T}, Vxc_fourier, atomic_density::Nothing, r) where {T}
+    zero(Vec3{T})
+end
+
+# function _force_xc_internal(basis, Vxc_fourier, atomic_density, r)
+#     T = real(eltype(basis))
+#     f = zero(Vec3{T})
+#     Gs = G_vectors(basis)
+#     for (iG, G) in enumerate(Gs)
+#         Gnorm_cart = norm(recip_vector_red_to_cart(basis.model, G))
+#         f -= real(conj(Vxc_fourier[iG])
+#                   .* atomic_density(Gnorm_cart) # form_factors[(igroup, norm(G_cart))]
+#                   .* cis2pi(-dot(G, r))
+#                   .* (-2T(π)) .* G .* im
+#                   ./ sqrt(basis.model.unit_cell_volume))
+#     end
+#     f
+# end
 
 #=  meta-GGA energy and potential
 
