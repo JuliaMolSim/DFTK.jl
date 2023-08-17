@@ -70,6 +70,14 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
     println(io, "PlaneWaveBasis discretization:")
+
+    showfieldln(io, "architecture", basis.architecture)
+    showfieldln(io, "num. mpi processes", mpi_nprocs(basis.comm_kpts))
+    showfieldln(io, "num. julia threads", Threads.nthreads())
+    showfieldln(io, "num. blas  threads", BLAS.get_num_threads())
+    showfieldln(io, "num. fft   threads", FFTW.get_num_threads())
+    println(io)
+
     showfieldln(io, "Ecut",     basis.Ecut, " Ha")
     showfieldln(io, "fft_size", basis.fft_size, ", ", prod(basis.fft_size), " total points")
     if !basis.variational
