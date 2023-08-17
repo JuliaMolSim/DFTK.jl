@@ -230,8 +230,9 @@ function __init__()
     @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
     end
-    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("plotting.jl")
-    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"  include("external/jld2io.jl")
+    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80"    include("plotting.jl")
+    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"     include("external/jld2io.jl")
+    @require JSON3="0f8b85d8-7281-11e9-16c2-39a750bddbf1"    include("external/json3.jl")
     @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" include("external/vtkio.jl")
     @require wannier90_jll="c5400fa0-8d08-52c2-913f-1e3f656c1ce9" begin
         include("external/wannier90.jl")
