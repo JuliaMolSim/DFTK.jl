@@ -99,7 +99,13 @@ function test_serialisation(label;
             @test isfile(dumpfile)
 
             data = open(JSON3.read, dumpfile)  # Get data back as dict
-            # TODO test json agreement
+            for key in (:converged, :occupation_threshold, :εF, :eigenvalues,
+                        :occupation, :n_bands_converge, :n_iter, :algorithm, :norm_Δρ)
+                @test data[key] == getproperty(scfres, key)
+            end
+            for key in keys(scfres.energies)
+                @test data["energies"][key] == scfres.energies[key]
+            end
             @test data["energies"]["total"] == scfres.energies.total
         end
     end
