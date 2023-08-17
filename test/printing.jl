@@ -37,3 +37,10 @@ include("testcases.jl")
     test_scfres_printing()
     test_basis_printing(; modelargs=(; εF=0.5))
 end
+
+@testset "versioninfo" begin
+    versioninfo = sprint(DFTK.versioninfo)
+    @test occursin("Julia Version", versioninfo)
+    @test occursin("DFTK Version", versioninfo)
+    @test occursin("BLAS", versioninfo)
+end
