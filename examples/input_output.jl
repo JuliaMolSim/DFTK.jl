@@ -65,7 +65,7 @@ save_scfres("iron_afm.vts", scfres; save_ψ=true);
 # Many structures in DFTK support the (unexported) `todict` function,
 # which returns a simplified dictionary representation of the data.
 
-todict(scfres.energies)
+DFTK.todict(scfres.energies)
 
 # This in turn can be easily written to disk using a JSON library.
 # Currently we integrate most closely with `JSON3`,
@@ -73,7 +73,7 @@ todict(scfres.energies)
 
 using JSON3
 open("iron_afm_energies.json", "w") do io
-    JSON3.pretty(io, todict(scfres.energies))
+    JSON3.pretty(io, DFTK.todict(scfres.energies))
 end
 println(read("iron_afm_energies.json", String))
 
