@@ -389,7 +389,7 @@ e.g. an [`MonkhorstPack`](@ref) or a [`ExplicitKpoints`](@ref) grid.
 end
 
 """
-    G_vectors([architecture=AbstractArchitecture], fft_size::Tuple)
+    G_vectors(fft_size::Tuple)
 
 The wave vectors `G` in reduced (integer) coordinates for a cubic basis set
 of given sizes.
