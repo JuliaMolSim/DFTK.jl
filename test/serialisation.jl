@@ -99,8 +99,16 @@ function test_serialisation(label;
             @test isfile(dumpfile)
 
             data = open(JSON3.read, dumpfile)  # Get data back as dict
-            for key in (:converged, :occupation_threshold, :εF, :eigenvalues,
-                        :occupation, :n_bands_converge, :n_iter, :algorithm, :norm_Δρ)
+
+            # Keys which need to be MPI-synchronised
+            for key in (:eigenvalues, :occupation)
+                gathered = DFTK.gather_kpts(getproperty(scfres, key), scfres.basis)
+                mpi_master() && @test data[key] == gathered
+            end
+
+            # Normal keys and energy values
+            for key in (:converged, :occupation_threshold, :εF, :n_bands_converge,
+                        :n_iter, :algorithm, :norm_Δρ)
                 @test data[key] == getproperty(scfres, key)
             end
             for key in keys(scfres.energies)
