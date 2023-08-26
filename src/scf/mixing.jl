@@ -163,7 +163,7 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `verbose`: Run the GMRES in verbose mode.
 - `reltol`: Relative tolerance for GMRES
 """
-function HybridMixing(; εr=1.0, kTF=0.8, localization=identity,
+function HybridMixing(; εr=10.0, kTF=0.8, localization=identity,
                       adjust_temperature=IncreaseMixingTemperature(), kwargs...)
     χ0terms = [DielectricModel(; εr, kTF, localization),
                LdosModel(;adjust_temperature)]
