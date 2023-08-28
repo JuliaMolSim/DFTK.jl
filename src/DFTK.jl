@@ -19,7 +19,7 @@ using Random
 using ChainRulesCore
 using PrecompileTools
 
-using PseudoPotentialIOExperimental
+import PseudoPotentialIOExperimental
 using AtomicPotentials
 using AtomsBase
 using OffsetArrays
@@ -59,6 +59,13 @@ include("common/norm.jl")
 # export n_elec_valence
 # export n_elec_core
 # include("elements.jl")
+
+export Element
+export nuclear_charge
+export n_elec_valence
+export n_elec_core
+export atomic_symbol
+include("elements.jl")
 
 export SymOp
 include("SymOp.jl")
@@ -179,20 +186,32 @@ export guess_density
 export random_density
 include("density_methods.jl")
 
+export compute_structure_factors
+export compute_structure_factor_gradients
+include("structure_factors.jl")
+
+export compute_form_factors_angular
+export compute_form_factors_radial
+include("form_factors.jl")
+
+export build_atomic_superposition
+include("atomic_superposition.jl")
+
 export build_projection_vectors
+export build_projection_coupling
 include("projection_vectors.jl")
 
-# export load_psp
+export load_psp
 # export list_psp
 # export attach_psp
-# include("pseudo/load_psp.jl")
+include("pseudo/load_psp.jl")
 # include("pseudo/list_psp.jl")
 # include("pseudo/attach_psp.jl")
 
 export DFTKPotential
 # export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
-# include("external/atomsbase.jl")
+include("external/atomsbase.jl")
 include("external/interatomicpotentials.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
 

@@ -45,11 +45,11 @@ struct PlaneWaveBasis{T,
                       T_G_vectors  <: AbstractArray{Vec3{Int}, 3},
                       T_r_vectors  <: AbstractArray{Vec3{VT},  3},
                       T_kpt_G_vecs <: AbstractVector{Vec3{Int}},
+                      T_q_grid     <: AbstractVector{VT}
                      } <: AbstractBasis{T}
 
     # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
     model::Model{T, VT}
-    fourier_atoms::Vector{AtomicPotential{FourierSpace}}
 
     ## Global grid information
     # fft_size defines both the G basis on which densities and
@@ -112,6 +112,17 @@ struct PlaneWaveBasis{T,
     # Therefore, all quantities should be symmetric to machine precision
     symmetries_respect_rgrid::Bool
 
+    ## Atomic potential parameters
+    # Quadrature method for computing radial Fourier transforms of numerical atomic
+    # quantities.
+    atom_rft_quadrature_method::AtomicPotentials.NumericalQuadrature.QuadratureMethod
+    # Radial grid in Fourier-space on which to evaluate the radial Fourier transforms
+    # of numerical atomic quantities.
+    atom_qgrid::T_q_grid
+    # Method for interpolating Fourier-space numerical atomic quantities for evaluation
+    # on the full G-grid.
+    atom_q_interpolation_method::AtomicPotentials.Interpolation.InterpolationMethod
+
     ## Instantiated terms (<: Term). See Hamiltonian for high-level usage
     terms::Vector{Any}
 end
@@ -160,7 +171,9 @@ end
 # and are stored in PlaneWaveBasis for easy reconstruction.
 function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
                         kcoords, kweights, kgrid, kshift,
-                        symmetries_respect_rgrid, comm_kpts,
+                        symmetries_respect_rgrid, atom_rft_quadrature_method,
+                        atom_minimal_dq,
+                        atom_q_interpolation_method, comm_kpts,
                         architecture::Arch
                        ) where {T <: Real, Arch <: AbstractArchitecture}
     # Validate fft_size
@@ -216,6 +229,12 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     # The other constant is chosen because FFT * BFFT = N
     ifft_normalization = 1/sqrt(model.unit_cell_volume)
     fft_normalization  = sqrt(model.unit_cell_volume) / length(ipFFT)
+
+    # Atomic potential Fourier transform grid
+    Gs_cart = map(Base.Fix1(recip_vector_red_to_cart, model), Gs)
+    (qmin, qmax) = extrema(norm.(Gs_cart))
+    nq = ceil(Int, (qmax - qmin) / atom_minimal_dq)
+    atom_qgrid = range(qmin, qmax, nq)
 
     # Compute k-point information and spread them across processors
     # Right now we split only the kcoords: both spin channels have to be handled
@@ -279,24 +298,20 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     r_vectors = [Vec3{VT}(VT(i-1) / N1, VT(j-1) / N2, VT(k-1) / N3)
                  for i = 1:N1, j = 1:N2, k = 1:N3]
     r_vectors = to_device(architecture, r_vectors)
+    atom_qgrid = to_device(architecture, atom_qgrid)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
-    # TODO /
-    Gs_cart = map(recip_vector_red_to_cart(model), Gs)
-    qgrid = range(0.0, maximum(norm, Gs_cart), 3001)
-    fourier_atoms = ht.(model.atoms, Ref(qgrid), Ref(NumericalQuadrature.Simpson{NumericalQuadrature.Uniform}()))
-    # TODO \
-
     basis = PlaneWaveBasis{T, value_type(T), Arch, typeof(Gs), typeof(r_vectors),
-                           typeof(kpoints[1].G_vectors)}(
-        model, fourier_atoms, fft_size, dvol,
-        Ecut, variational,
+                           typeof(kpoints[1].G_vectors), typeof(atom_qgrid)}(
+        model,
+        fft_size, dvol, Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
         fft_normalization, ifft_normalization,
         Gs, r_vectors,
         kpoints, kweights_thisproc, kgrid, kshift,
         kcoords_global, kweights_global, comm_kpts, krange_thisproc, krange_allprocs,
-        architecture, symmetries, symmetries_respect_rgrid, terms)
+        architecture, symmetries, symmetries_respect_rgrid,
+        atom_rft_quadrature_method, atom_qgrid, atom_q_interpolation_method, terms)
     # Instantiate the terms with the basis
     for (it, t) in enumerate(model.term_types)
         term_name = string(nameof(typeof(t)))
@@ -311,6 +326,9 @@ end
 @timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
                                 kcoords ::Union{Nothing, AbstractVector},
                                 kweights::Union{Nothing, AbstractVector};
+                                atom_rft_quadrature_method=AtomicPotentials.NumericalQuadrature.Simpson(),
+                                atom_minimal_dq=0.01,
+                                atom_q_interpolation_method=AtomicPotentials.Interpolation.Spline(4),
                                 variational=true, fft_size=nothing,
                                 kgrid=nothing, kshift=nothing,
                                 symmetries_respect_rgrid=isnothing(fft_size),
@@ -331,8 +349,10 @@ end
         end
         fft_size = compute_fft_size(model, Ecut, kcoords; factors)
     end
-    PlaneWaveBasis(model, Ecut, fft_size, variational, kcoords, kweights,
-                   kgrid, kshift, symmetries_respect_rgrid, comm_kpts, architecture)
+    PlaneWaveBasis(model, Ecut, fft_size, variational, kcoords,
+                   kweights, kgrid, kshift, symmetries_respect_rgrid,
+                   atom_rft_quadrature_method, atom_minimal_dq, atom_q_interpolation_method,
+                   comm_kpts, architecture)
 end
 
 @doc raw"""
@@ -360,7 +380,11 @@ Creates a new basis identical to `basis`, but with a custom set of kpoints
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
                    kcoords, kweights, kgrid, kshift,
-                   basis.symmetries_respect_rgrid, basis.comm_kpts, basis.architecture)
+                   basis.symmetries_respect_rgrid,
+                   basis.atom_rft_quadrature_method,
+                   basis.atom_minimal_dq,
+                   basis.atom_q_interpolation_method,
+                   basis.comm_kpts, basis.architecture)
 end
 
 """
@@ -559,4 +583,13 @@ function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
         MPI.send(data, master, tag, basis.comm_kpts)
         nothing
     end
+end
+
+# TODO (AZ): This should probably go somewhere else
+function AtomicPotentials.rft(basis::PlaneWaveBasis, qty)
+    return rft(qty, basis.atom_qgrid; quadrature_method=basis.atom_rft_quadrature_method)
+end
+
+function AtomicPotentials.rft(basis::PlaneWaveBasis, el::Element{RealSpace})
+    return Element(el.Z, el.symbol, rft(basis, el.potential))
 end

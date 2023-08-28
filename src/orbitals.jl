@@ -6,14 +6,14 @@ using Random  # Used to have a generic API for CPU and GPU computations alike: s
 # others when using temperature. It is set to 0.0 by default, to treat with insulators.
 function select_occupied_orbitals(basis, ψ, occupation; threshold=0.0)
     N = [something(findlast(x -> x > threshold, occk), 0) for occk in occupation]
-    selected_ψ   = [@view ψk[:, 1:N[ik]] for (ik, ψk)   in enumerate(ψ)]
-    selected_occ = [      occk[1:N[ik]]  for (ik, occk) in enumerate(occupation)]
+    selected_ψ = [@view ψk[:, 1:N[ik]] for (ik, ψk) in enumerate(ψ)]
+    selected_occ = [occk[1:N[ik]] for (ik, occk) in enumerate(occupation)]
 
     # if we have an insulator, sanity check that the orbitals we kept are the
     # occupied ones
     if iszero(threshold)
-        model   = basis.model
-        n_spin  = model.n_spin_components
+        model = basis.model
+        n_spin = model.n_spin_components
         n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)
         @assert n_bands == size(selected_ψ[1], 2)
     end
@@ -47,8 +47,8 @@ function unsafe_unpack_ψ(x, sizes_ψ)
     # We unsafe_wrap the resulting array to avoid a complicated type for ψ.
     map(1:length(sizes_ψ)) do ik
         unsafe_wrap(Array{complex(eltype(x))},
-                    pointer(@views x[ends[ik]-lengths[ik]+1:ends[ik]]),
-                    sizes_ψ[ik])
+            pointer(@views x[ends[ik]-lengths[ik]+1:ends[ik]]),
+            sizes_ψ[ik])
     end
 end
 unpack_ψ(x, sizes_ψ) = deepcopy(unsafe_unpack_ψ(x, sizes_ψ))
@@ -64,39 +64,62 @@ function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany) where {
     ortho_qr(orbitals)
 end
 
-function guess_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany) where {T}
+function guess_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, evaluators, positions, howmany; add_random=false) where {T}
+    n_atomic_orbitals = sum(zip(length.(positions), evaluators)) do(n_sites_a, evals_a)
+        n_evals_per_l = length.(evals_a)
+        angular_momenta = eachindex(evals_a) .- 1
+        sum(n_sites_a * n_evals_per_l .* (2 .* angular_momenta .+ 1))
+    end
+    orbitals = similar(basis.G_vectors, Complex{T}, length(G_vectors(basis, kpt)), howmany)
+
+    if howmany < n_atomic_orbitals
+        # Sort the states by their pseudo energy (if available) then build
+        error("It is not yet supported to use fewer atomic orbitals than present in the potential.")
+    else
+        ϕ = projection_vectors_to_matrix(
+            build_projection_vectors(basis, kpt, evaluators, positions)
+        )
+        orbitals[:, begin:n_atomic_orbitals] .= ϕ
+        @static if VERSION < v"1.7"  # TaskLocalRNG not yet available.
+            if howmany > n_atomic_orbitals
+                randn!(@view(orbitals[:, n_atomic_orbitals+1:end]))
+            end
+        else
+            if howmany > n_atomic_orbitals
+                randn!(TaskLocalRNG(), @view(orbitals[:, n_atomic_orbitals+1:end]))
+            end
+        end
+    end
+
+    if add_random
+        @static if VERSION < v"1.7"  # TaskLocalRNG not yet available.
+            orbitals .+= randn(eltype(orbitals), size(orbitals))
+        else
+            orbitals .+= randn(TaskLocalRNG(), eltype(orbitals), size(orbitals))
+        end
+    end
+
+    ortho_qr(orbitals)
+end
+
+function guess_orbitals(basis::PlaneWaveBasis{T}, howmany; add_random=false) where {T}
     model = basis.model
 
     atom_groups = [group for group in model.atom_groups
-                   if has_orbitals(model.atoms[first(group)])]
-    atom_positions = [model.positions[group] for group in atom_groups]
-    atoms = [basis.fourier_atoms[first(group)] for group in atom_groups]
-    atom_orbitals = [atom.potential.orbitals for atom in atoms]
-
-    n_orbitals = sum(zip(atom_orbitals, atom_positions)) do (orbitals, positions)
-        n_angulars = sum(orbital -> 2 * angular_momentum(orbital) + 1, orbitals)
-        n_angulars * length(positions)
+                   if hasquantity(model.atoms[first(group)].potential, :orbitals)]
+    positions = [model.positions[group] for group in atom_groups]
+    atoms = [model.atoms[first(group)] for group in atom_groups]
+    atomic_orbitals = map(atoms) do atom
+        map(atom.potential.orbitals) do orbitals_l
+            map(orbitals_l) do orbital_li
+                qty_fourier = rft(orbital_li, basis.atom_qgrid;
+                                  quadrature_method=basis.atom_rft_quadrature_method)
+                evaluate(qty_fourier, basis.atom_q_interpolation_method)
+            end
+        end
     end
 
-    orbitals = similar(basis.G_vectors, Complex{T}, length(G_vectors(basis, kpt)), howmany)
-
-    if howmany < n_orbitals
-        # Sort the states by their pseudo energy (if available) then build
-        error("Not yet supported")
-    elseif howmany == n_orbitals
-        # Just call build_projection_vectors
-        build_projection_vectors!(orbitals, basis, kpt, atom_orbitals, atom_positions)
-    else
-        # Call build_projection vectors to make all the pseudo-atomic states, then
-        # fill in the rest with random states
-        build_projection_vectors!(
-            @view(orbitals[:,1:n_orbitals]),
-            basis,
-            kpt,
-            atom_orbitals,
-            atom_positions
-        )
-        randn!(TaskLocalRng(), @view(orbitals[:,n_orbitals+1:end]))
+    return map(basis.kpoints) do kpt
+        guess_orbitals(basis, kpt, atomic_orbitals, positions, howmany; add_random)
     end
-    ortho_qr(orbitals)
 end

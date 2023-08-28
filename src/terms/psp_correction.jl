@@ -9,7 +9,8 @@ struct TermPspCorrection{T} <: Term
 end
 function TermPspCorrection(basis::PlaneWaveBasis)
     model = basis.model
-    if model.n_dim != 3 && any(!isnothing(atom.nonlocal_potential) for atom in model.atoms)
+    if model.n_dim != 3 &&
+        any(hasquantity(atom, :non_local_potential) for atom in model.atoms)
         error("The use of pseudopotentials is only sensible for 3D systems.")
     end
     TermPspCorrection(energy_psp_correction(model))
@@ -20,23 +21,14 @@ function ene_ops(term::TermPspCorrection, basis::PlaneWaveBasis, ψ, occupation;
 end
 
 """
-Compute the correction term for properly modelling the interaction of the pseudopotential
+Compute the correction term for properly modeling the interaction of the pseudopotential
 core with the compensating background charge induced by the `Ewald` term.
 """
-function energy_psp_correction(lattice::AbstractMatrix{T}, atoms, atom_groups) where {T}
-    # psp_groups = [group for group in atom_groups if atoms[first(group)] isa ElementPsp]
-    # isempty(psp_groups) && return zero(T)
-
-    n_electrons::Int = sum(n_elec_valence, atoms)
-    correction_per_cell = n_electrons * sum(
-        # length(group) * eval_psp_energy_correction(T, atoms[first(group)].psp, n_electrons)
-        # for group in psp_groups
-        length(group) * energy_correction(T, atoms[first(group)])
-        for group in atom_groups
-    )
-
-    correction_per_cell / compute_unit_cell_volume(lattice)
-end
-function energy_psp_correction(model::Model)
-    energy_psp_correction(model.lattice, model.atoms, model.atom_groups)
+function energy_psp_correction(model::Model{T}) where {T}
+    species = [model.atoms[first(group)] for group in model.atom_groups]
+    correction_per_cell = sum(zip(species, map(length, model.atom_groups))) do (el, n)
+         n * T(energy_correction(el.potential))
+    end
+    total_n_elec_valence = sum(n_elec_valence, model.atoms)
+    total_n_elec_valence * correction_per_cell / compute_unit_cell_volume(model.lattice)
 end

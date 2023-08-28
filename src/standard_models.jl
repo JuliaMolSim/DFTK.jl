@@ -7,7 +7,7 @@ Convenience constructor, which builds a standard atomic (kinetic + atomic potent
 Use `extra_terms` to add additional terms.
 """
 function model_atomic(lattice::AbstractMatrix,
-                      atoms::Vector{<:AtomicPotential},
+                      atoms::Vector{<:Element{RealSpace}},
                       positions::Vector{<:AbstractVector};
                       extra_terms=[], kinetic_blowup=BlowupIdentity(), kwargs...)
     @assert !(:terms in keys(kwargs))
@@ -28,7 +28,7 @@ end
 Build a DFT model from the specified atoms, with the specified functionals.
 """
 function model_DFT(lattice::AbstractMatrix,
-                   atoms::Vector{<:AtomicPotential},
+                   atoms::Vector{<:Element{RealSpace}},
                    positions::Vector{<:AbstractVector},
                    xc::Xc;
                    extra_terms=[], kwargs...)
@@ -37,7 +37,7 @@ function model_DFT(lattice::AbstractMatrix,
                  extra_terms=[Hartree(), xc, extra_terms...], model_name, kwargs...)
 end
 function model_DFT(lattice::AbstractMatrix,
-                   atoms::Vector{<:AtomicPotential},
+                   atoms::Vector{<:Element{RealSpace}},
                    positions::Vector{<:AbstractVector},
                    functionals;
                    kwargs...)
@@ -49,7 +49,7 @@ end
 Build an LDA model (Perdew & Wang parametrization) from the specified atoms.
 DOI:10.1103/PhysRevB.45.13244
 """
-function model_LDA(lattice::AbstractMatrix, atoms::Vector{<:AtomicPotential},
+function model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element{RealSpace}},
                    positions::Vector{<:AbstractVector}; kwargs...)
     model_DFT(lattice, atoms, positions, [:lda_x, :lda_c_pw]; kwargs...)
 end
@@ -59,7 +59,7 @@ end
 Build an PBE-GGA model from the specified atoms.
 DOI:10.1103/PhysRevLett.77.3865
 """
-function model_PBE(lattice::AbstractMatrix, atoms::Vector{<:AtomicPotential},
+function model_PBE(lattice::AbstractMatrix, atoms::Vector{<:Element{RealSpace}},
                    positions::Vector{<:AbstractVector}; kwargs...)
     model_DFT(lattice, atoms, positions, [:gga_x_pbe, :gga_c_pbe]; kwargs...)
 end
@@ -69,7 +69,7 @@ end
 Build a SCAN meta-GGA model from the specified atoms.
 DOI:10.1103/PhysRevLett.115.036402
 """
-function model_SCAN(lattice::AbstractMatrix, atoms::Vector{<:AtomicPotential},
+function model_SCAN(lattice::AbstractMatrix, atoms::Vector{<:Element{RealSpace}},
                     positions::Vector{<:AbstractVector}; kwargs...)
     model_DFT(lattice, atoms, positions, [:mgga_x_scan, :mgga_c_scan]; kwargs...)
 end

@@ -140,7 +140,7 @@ struct DispatchFunctional{Family,Kind} <: Functional{Family,Kind}
     inner::LibxcFunctional{Family,Kind}
 end
 DispatchFunctional(identifier::Symbol) = DispatchFunctional(LibxcFunctional(identifier))
-DftFunctionals.identifier(fun::DispatchFunctional) = identifier(fun.inner)
+DftFunctionals.identifier(fun::DispatchFunctional) = DftFunctionals.identifier(fun.inner)
 DftFunctionals.has_energy(fun::DispatchFunctional) = has_energy(fun.inner)
 
 for fun in (:potential_terms, :kernel_terms)

@@ -3,17 +3,14 @@ Exchange-correlation term, defined by a list of functionals and usually evaluate
 """
 struct Xc
     functionals::Vector{Functional}
-    scaling_factor::Real  # Scales by an arbitrary factor (useful for exploration)
-
+    # Scales by an arbitrary factor (useful for exploration)
+    scaling_factor::Real
     # Threshold for potential terms: Below this value a potential term is counted as zero.
     potential_threshold::Real
-
-    # Use non-linear core correction or not
-    use_nlcc::Bool
 end
 function Xc(functionals::AbstractVector{<:Functional}; scaling_factor=1,
-            potential_threshold=0, use_nlcc=true)
-    Xc(functionals, scaling_factor, potential_threshold, use_nlcc)
+            potential_threshold=0)
+    Xc(functionals, scaling_factor, potential_threshold)
 end
 function Xc(functionals::AbstractVector; kwargs...)
     fun = map(functionals) do f
@@ -33,15 +30,14 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     isempty(xc.functionals) && return TermNoop()
 
     # Charge density for non-linear core correction
-    core_densities = [get_atomic_density(atom, CoreDensity()) for atom in basis.fourier_atoms]
-    core_density_mask = map(!isnothing, core_densities)
-    core_densities = core_densities[core_density_mask]
-    positions = basis.model.positions[core_density_mask]
-    if !xc.use_nlcc || isempty(core_densities)
-        ρcore = nothing
-    else
-        ρcore = atomic_density_superposition(basis, core_densities, positions)
+    has_nlcc = any(hasquantity(basis.model.atoms[first(group)], :core_charge_density)
+                   for group in basis.model.atom_groups)
+    if has_nlcc
+        (evaluators, positions) = prepare_local_quantities(basis, :core_charge_density)
+        ρcore = build_atomic_superposition(basis, evaluators, positions)
         minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
+    else
+        ρcore = nothing
     end
 
     functionals = map(xc.functionals) do fun
@@ -158,13 +154,12 @@ end
     (; E, ops)
 end
 
-@timing "forces: xc" function compute_forces(term::TermXc, basis::PlaneWaveBasis{T},
+@timing "forces: xc" function compute_forces(term::TermXc, basis::PlaneWaveBasis{TT},
                                              ψ, occupation; ρ, τ=nothing,
-                                             kwargs...) where {T}
-    # the only non-zero force contribution is from the nlcc core charge
-    # early return if nlcc is disabled / no elements have model core charges
+                                             kwargs...) where {TT}
+    # The only non-zero force contribution is from the nlcc core charge
     isnothing(term.ρcore) && return nothing
-
+    (evaluators, positions) = prepare_local_quantities(basis, :core_charge_density)
     _, Vxc_real, _ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
     # TODO: the factor of 2 here should be associated with the density, not the potential
     if basis.model.spin_polarization in (:none, :spinless)
@@ -172,44 +167,9 @@ end
     else
         Vxc_fourier = fft(basis, mean(Vxc_real, dims=4))
     end
-
-    model = basis.model
-    forces = map(zip(basis.fourier_atoms, model.positions)) do (atom, position)
-        atomic_core_density = get_atomic_density(atom, CoreDensity())
-        return _force_xc_internal(basis, Vxc_fourier, atomic_core_density, position)
-    end
-
-    forces
+    return compute_scalar_field_forces(basis, evaluators, positions, Vxc_fourier)
 end
 
-function _force_xc_internal(basis::PlaneWaveBasis{T}, Vxc_fourier, atomic_density, r) where {T}
-    sum(enumerate(G_vectors(basis)); init=zero(Vec3{T})) do (iG, G)
-        -real(conj(Vxc_fourier[iG])
-              .* atomic_density(norm(recip_vector_red_to_cart(basis.model, G)))
-              .* cis2pi(-dot(G, r))
-              .* (-2T(π)) .* G .* im
-              ./ sqrt(basis.model.unit_cell_volume))
-    end
-end
-
-function _force_xc_internal(::PlaneWaveBasis{T}, Vxc_fourier, atomic_density::Nothing, r) where {T}
-    zero(Vec3{T})
-end
-
-# function _force_xc_internal(basis, Vxc_fourier, atomic_density, r)
-#     T = real(eltype(basis))
-#     f = zero(Vec3{T})
-#     Gs = G_vectors(basis)
-#     for (iG, G) in enumerate(Gs)
-#         Gnorm_cart = norm(recip_vector_red_to_cart(basis.model, G))
-#         f -= real(conj(Vxc_fourier[iG])
-#                   .* atomic_density(Gnorm_cart) # form_factors[(igroup, norm(G_cart))]
-#                   .* cis2pi(-dot(G, r))
-#                   .* (-2T(π)) .* G .* im
-#                   ./ sqrt(basis.model.unit_cell_volume))
-#     end
-#     f
-# end
 
 #=  meta-GGA energy and potential
 
