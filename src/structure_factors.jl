@@ -6,52 +6,52 @@ F_{j,hkl}= \exp \left[ -2πi \mathbf{G} \cdot \mathbf{R}_j \right]
 where $j$ is the atom index, $\mathbf{G} = \left[ h~k~l \right]$, and $\mathbf{R}_j$ is the
 position of atom $j$ in fractional units.
 """
-compute_structure_factor(G::Vec3, position::Vec3) = cis2pi(-dot(G, position))
-function compute_structure_factors(Gs::AbstractArray, position::Vec3{T}) where {T}
-    map(G -> cis2pi(-dot(G, position)), Gs)
+compute_structure_factor(Q::Vec3, R::Vec3) = cis2pi(-dot(Q, R))
+function compute_structure_factors(Qs::AbstractArray{<:Vec3}, R::Vec3)
+    map(Base.Fix2(compute_structure_factor, R), Qs)
 end
 function compute_structure_factors(
-    Gs::AbstractArray, positions::AbstractVector{Vec3{T}}
-) where {T}
-    return map(position -> compute_structure_factors(Gs, position), positions)
+    Qs::AbstractArray{<:Vec3}, Rs::AbstractVector{<:Vec3}
+)
+    return map(Base.Fix1(compute_structure_factors, Qs), Rs)
 end
 function compute_structure_factors(
-    basis::PlaneWaveBasis{T}, kpt::Kpoint{T}, positions
-) where {T}
-    Gpks = Gplusk_vectors(basis, kpt)
-    map(positions_a -> compute_structure_factors(Gpks, positions_a), positions)
+    Qs::AbstractArray{<:Vec3}, Rs::AbstractVector{<:AbstractVector{<:Vec3}}
+)
+    return map(Base.Fix1(compute_structure_factors, Qs), Rs)
 end
-function compute_structure_factors(basis::PlaneWaveBasis{T}, positions) where {T}
-    Gs = G_vectors(basis)
-    map(positions_a -> compute_structure_factors(Gs, positions_a), positions)
+function compute_structure_factors(basis::PlaneWaveBasis, R)
+    compute_structure_factors(G_vectors(basis), R)
+end
+function compute_structure_factors(basis::PlaneWaveBasis, kpt::Kpoint, R)
+    compute_structure_factors(Gplusk_vectors(basis, kpt), R)
 end
 
 @doc raw"""
-Compute the gradient of the structure factors w.r.t. the position `position`.
+Compute the gradient of the structure factors w.r.t. the position `R`.
 ```math
 \mathbf{\nabla F}_{j,hkl} = -2\pi i \left[ h~k~l \right] F_{j,hkl}
 ```
 """
-function compute_structure_factor_gradient(G::Vec3, position::Vec3{T}) where {T}
-    return -2T(π) * im * G * cis2pi(-dot(G, position))
+function compute_structure_factor_gradient(Q::Vec3, R::Vec3{T}) where {T}
+    return -2T(π) * im * Q * cis2pi(-dot(Q, R))
 end
-function compute_structure_factor_gradients(Gs::AbstractArray, position::Vec3{T}) where {T}
-    return map(Gs) do G
-        compute_structure_factor_gradient(G, position)
-    end
+function compute_structure_factor_gradients(Qs::AbstractArray{<:Vec3}, R::Vec3)
+    map(Base.Fix2(compute_structure_factor_gradient, R), Qs)
 end
 function compute_structure_factor_gradients(
-    Gs::AbstractArray, positions::AbstractVector{Vec3{T}}
-) where {T}
-    return map(position -> compute_structure_factor_gradients(Gs, position), positions)
+    Qs::AbstractArray{<:Vec3}, Rs::AbstractVector{<:Vec3}
+)
+    return map(Base.Fix1(compute_structure_factor_gradients, Qs), Rs)
 end
 function compute_structure_factor_gradients(
-    basis::PlaneWaveBasis{T}, kpt::Kpoint{T}, positions
-) where {T}
-    Gpks = Gplusk_vectors(basis, kpt)
-    map(positions_a -> compute_structure_factor_gradients(Gpks, positions_a), positions)
+    Qs::AbstractArray{<:Vec3}, Rs::AbstractVector{<:AbstractVector{<:Vec3}}
+)
+    return map(Base.Fix1(compute_structure_factor_gradients, Qs), Rs)
 end
-function compute_structure_factor_gradients(basis::PlaneWaveBasis{T}, positions) where {T}
-    Gs = G_vectors(basis)
-    map(positions_a -> compute_structure_factor_gradients(Gs, positions_a), positions)
+function compute_structure_factor_gradients(basis::PlaneWaveBasis, R)
+    compute_structure_factor_gradients(G_vectors(basis), R)
+end
+function compute_structure_factor_gradients(basis::PlaneWaveBasis, kpt::Kpoint, R)
+    compute_structure_factor_gradients(Gplusk_vectors(basis, kpt), R)
 end

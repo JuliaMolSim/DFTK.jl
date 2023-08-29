@@ -70,14 +70,14 @@ Atomic local potential defined by `model.atoms`.
 struct AtomicLocal end
 function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
-    (evaluators, positions) = prepare_local_quantities(basis, :local_potential)
-    pot_real = build_atomic_superposition(basis, evaluators, positions)
+    (local_potentials, positions) = group_local_quantities(basis, :local_potential)
+    pot_real = build_atomic_superposition(basis, local_potentials, positions)
     TermAtomicLocal(pot_real)
 end
 
 @timing "forces: local" function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{TT},
                                                 ψ, occupation; ρ, kwargs...) where {TT}
-    (evaluators, positions) = prepare_local_quantities(basis, :local_potential)
+    (local_potentials, positions) = group_local_quantities(basis, :local_potential)
     ρ_fourier = fft(basis, total_density(ρ))
-    return compute_scalar_field_forces(basis, evaluators, positions, ρ_fourier)
+    return compute_scalar_field_forces(basis, local_potentials, positions, ρ_fourier)
 end

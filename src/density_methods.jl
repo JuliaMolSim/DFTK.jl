@@ -7,25 +7,40 @@ struct ValenceDensityGaussian  <: AtomicDensity end
 struct ValenceDensityPseudo    <: AtomicDensity end
 struct ValenceDensityAuto      <: AtomicDensity end
 
-function get_atomic_density(atom::Element, ::CoreDensity)
-    return atom.potential.core_charge_density
-end
+get_atomic_density(atom::Element, ::CoreDensity) = atom.potential.core_charge_density
 function get_atomic_density(atom::Element, ::ValenceDensityPseudo)
     return atom.potential.ionic_charge_density
 end
 function get_atomic_density(atom::Element, ::ValenceDensityGaussian)
+    # If the atom already has a Gaussian charge denstiy, return that
+    if hasquantity(atom.potential, :ionic_charge_density)
+        if typeof(atom.potential.ionic_charge_density) <: GaussianChargeDensity
+            return atom.potential.ionic_charge_density
+        end
+    end
+    # Otherwise, build a new one with default parameters
     return GaussianChargeDensity{RealSpace}(n_elec_core(atom), n_elec_valence(atom))
 end
 function get_atomic_density(atom::Element, ::ValenceDensityAuto)
+    # If the atom already has an ionic charge density, return that
     if hasquantity(atom.potential, :ionic_charge_density)
         return atom.potential.ionic_charge_density
     end
+    # Otherwise, build a default Gaussian charge density
     return get_atomic_density(atom, ValenceDensityGaussian())
+end
+function group_local_quantities(basis::PlaneWaveBasis, method::DensityConstructionMethod)
+    model = basis.model
+    atom_groups = model.atom_groups
+    quantities = [get_atomic_density(model.atoms[first(group)], method)
+                  for group in atom_groups]
+    positions = [model.positions[group] for group in atom_groups]
+    return (;quantities, positions)
 end
 
 function build_spin_density_superposition(
     basis::PlaneWaveBasis{T},
-    densities,
+    densities::AbstractVector{<:AbstractQuantity},
     positions::Vector{Vector{Vec3{T}}},
     magnetic_moments=[]
 ) where {T}
@@ -35,7 +50,7 @@ function build_spin_density_superposition(
         error("Initial magnetic moments can only be used with collinear models.")
     end
 
-    # If no magnetic moments start with a zero spin density
+    # If no magnetic moments, start with a zero spin density
     magmoms = Vec3{T}[normalize_magnetic_moment(magmom) for magmom in magnetic_moments]
     if all(iszero, magmoms)
         @warn("Returning zero spin density guess, because no initial magnetization has " *
@@ -61,20 +76,11 @@ function guess_density(basis::PlaneWaveBasis{T},
                        method::DensityConstructionMethod=ValenceDensityAuto(),
                        magnetic_moments=[]; n_electrons=basis.model.n_electrons,
                        add_random=false) where {T}
-    #TODO: special case of `prepare_local_quantities` because we need to
-    #TODO: `get_atomic_density`
-    model = basis.model
-    atomic_densities = map(model.atom_groups) do group
-        el = model.atoms[first(group)]
-        qty_real = get_atomic_density(el, method)
-        qty_fourier = rft(qty_real, basis.atom_qgrid;
-                          integration_method=basis.atom_rft_quadrature_method)
-        evaluate(qty_fourier, basis.atom_q_interpolation_method)
-    end
-    positions = [model.positions[group] for group in model.atom_groups]
-
+    # Get the atomic densities and positions grouped by species
+    atomic_densities, positions = group_local_quantities(basis, method)
+    # Build the total charge density as a superposition of local atomic densities
     ρtot = build_atomic_superposition(basis, atomic_densities, positions)
-
+    # Add random noise to break possibly spurious symmetries
     if add_random
         @static if VERSION < v"1.7"  # TaskLocalRNG not yet available.
             ρtot .+= rand(T, basis.fft_size)
@@ -82,14 +88,15 @@ function guess_density(basis::PlaneWaveBasis{T},
             ρtot .+= rand(TaskLocalRNG(), T, basis.fft_size)
         end
     end
-
+    # Renormalize to the correct number of electrons
     N = sum(ρtot) * basis.dvol
     if !isnothing(n_electrons) && (N > 0)
-        ρtot .*= n_electrons / N  # Renormalize to the correct number of electrons
+        ρtot .*= n_electrons / N
     end
-
+    # Build the spin charge density as a weighted superposition of local atomic densities
     ρspin = build_spin_density_superposition(basis, atomic_densities, positions,
                                              magnetic_moments)
+    # Combine the total and spin densities -> ρ[Rx,Ry,Rz,(total,spin)]
     ρ_from_total_and_spin(ρtot, ρspin)
 end
 
@@ -111,408 +118,3 @@ function random_density(basis::PlaneWaveBasis{T}, n_electrons::Integer) where {T
     end
     ρ_from_total_and_spin(ρtot, ρspin)
 end
-
-############################################################################################
-
-# # TODO Refactor and simplify the method zoo a little here.
-
-# abstract type DensityConstructionMethod                  end
-# abstract type AtomicDensity <: DensityConstructionMethod end
-
-# struct RandomDensity           <: DensityConstructionMethod end
-# struct CoreDensity             <: AtomicDensity end
-# struct ValenceDensityGaussian  <: AtomicDensity end
-# struct ValenceDensityPseudo    <: AtomicDensity end
-# struct ValenceDensityAuto      <: AtomicDensity end
-
-# function get_atomic_density(atom::AtomicPotential{FourierSpace}, ::CoreDensity)
-#     return atom.core_density
-# end
-# function get_atomic_density(atom::AtomicPotential{FourierSpace}, ::ValenceDensityPseudo)
-#     return atom.valence_density
-# end
-# function get_atomic_density(atom::AtomicPotential{FourierSpace}, ::ValenceDensityGaussian)
-#     return GaussianChargeDensity{FourierSpace,Analytical}(
-#         charge_ionic(atom),
-#         AtomicPotentials._gaussian_density_decay_length(
-#             n_elec_core(atom),
-#             n_elec_valence(atom)
-#         )
-#     )
-# end
-# function get_atomic_density(atom::AtomicPotential{FourierSpace}, ::ValenceDensityAuto)
-#     !isnothing(atom.valence_density) && return atom.valence_density
-#     return get_atomic_density(atom, ValenceDensityGaussian())
-# end
-
-# function compute_structure_factors!(ρ::AbstractArray{Complex{T},3}, basis::PlaneWaveBasis{T},
-#                                     position::Vec3{T}) where {T}
-#     qs_frac = G_vectors(basis)
-#     map!(Base.Fix1(dot, -position), ρ, qs_frac)  # Compute -(G ⋅ r) for all G
-#     ρ .= cis2pi.(ρ)
-#     return ρ
-# end
-
-# function compute_structure_factor_gradients!(dρ_dr::AbstractArray{Vec3{Complex{T}},3},
-#                                              basis::PlaneWaveBasis{T},
-#                                              position::Vec3{T}
-#                                             ) where {T}
-#     Gs_frac = G_vectors(basis)
-#     map!(dρ_dr, Gs_frac) do G
-#         -2T(π) .* im .* G .* cis2pi(-dot(G, position))
-#     end
-#     return dρ_dr
-# end
-
-# function atomic_density!(ρ::AbstractArray{Complex{T}}, basis::PlaneWaveBasis{T},
-#                          atomic_density,
-#                          position::AbstractVector{T};
-#                          coefficient::T=one(T)) where {T}
-#     qnorms_cart = norm.(G_vectors_cart(basis))
-#     compute_structure_factors!(ρ, basis, position)  # Fill ρ with structure factors
-#     ρ .*= atomic_density.(qnorms_cart)  # Form factors
-#     ρ .*= coefficient  # Often magnetic moments
-#     ρ ./= sqrt(basis.model.unit_cell_volume)  # Normalization
-#     return ρ
-# end
-
-# function atomic_density(basis::PlaneWaveBasis{T}, atomic_density,
-#                         position::AbstractVector{T};
-#                         coefficient::T=one(T)) where {T}
-#     ρ = zeros_like(G_vectors(basis), Complex{T})
-#     return atomic_density!(ρ, basis, atomic_density, position; coefficient)
-# end
-
-# function atomic_density_superposition(basis::PlaneWaveBasis{T}, atomic_densities, positions;
-#                                       coefficients::AbstractVector{T}=ones(T, length(atomic_densities))) where {T}
-#     ρ = zeros_like(G_vectors(basis), Complex{T})
-#     ρ_atom = zeros_like(G_vectors(basis), Complex{T})
-#     for (atomic_density, position, coefficient) in zip(atomic_densities, positions, coefficients)
-#         atomic_density!(ρ_atom, basis, atomic_density, position; coefficient)
-#         ρ .+= ρ_atom
-#     end
-#     enforce_real!(basis, ρ)
-#     return irfft(basis, ρ)
-# end
-
-# function atomic_spin_density(basis::PlaneWaveBasis{T}, atomic_densities, positions,
-#                              magnetic_moments) where {T}
-#     model = basis.model
-#     if model.spin_polarization in (:none, :spinless)
-#         isempty(magnetic_moments) && return nothing
-#         error("Initial magnetic moments can only be used with collinear models.")
-#     end
-
-#     # If no magnetic moments start with a zero spin density
-#     magmoms = Vec3{T}[normalize_magnetic_moment(magmom) for magmom in magnetic_moments]
-#     if all(iszero, magmoms)
-#         @warn("Returning zero spin density guess, because no initial magnetization has " *
-#               "been specified in any of the given elements / atoms. Your SCF will likely " *
-#               "not converge to a spin-broken solution.")
-#         return zeros(T, basis.fft_size)
-#     end
-
-#     @assert length(magmoms) == length(basis.model.atoms)
-#     coefficients = map(basis.model.atoms, magmoms) do atom, magmom
-#         iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
-#         magmom[3] ≤ n_elec_valence(atom) || error(
-#             "Magnetic moment $(magmom[3]) too large for element $(atomic_symbol(atom)) " *
-#             "with only $(n_elec_valence(atom)) valence electrons."
-#         )
-#         magmom[3] / n_elec_valence(atom)
-#     end::AbstractVector{T}  # Needed to ensure type stability in final guess density
-
-#     return atomic_density_superposition(basis, atomic_densities, positions; coefficients)
-# end
-
-# @doc raw"""
-#     guess_density(basis::PlaneWaveBasis, method::DensityConstructionMethod,
-#                   magnetic_moments=[]; n_electrons=basis.model.n_electrons)
-
-# Build a superposition of atomic densities (SAD) guess density or a rarndom guess density.
-
-# The guess atomic densities are taken as one of the following depending on the input
-# `method`:
-
-# -`RandomDensity()`: A random density, normalized to the number of electrons
-# `basis.model.n_electrons`. Does not support magnetic moments.
-# -`ValenceDensityAuto()`: A combination of the `ValenceDensityGaussian` and
-# `ValenceDensityPseudo` methods where elements whose pseudopotentials provide numeric
-# valence charge density data use them and elements without use Gaussians.
-# -`ValenceDensityGaussian()`: Gaussians of length specified by `atom_decay_length`
-# normalized for the correct number of electrons:
-# ```math
-# \hat{ρ}(G) = Z_{\mathrm{valence}} \exp\left(-(2π \text{length} |G|)^2\right)
-# ```
-# - `ValenceDensityPseudo()`: Numerical pseudo-atomic valence charge densities from the
-# pseudopotentials. Will fail if one or more elements in the system has a pseudopotential
-# that does not have valence charge density data.
-
-# When magnetic moments are provided, construct a symmetry-broken density guess.
-# The magnetic moments should be specified in units of ``μ_B``.
-# """
-# function guess_density(basis::PlaneWaveBasis, method::AtomicDensity,
-#                        magnetic_moments=[]; n_electrons=basis.model.n_electrons)
-#     atomic_densities = [
-#         get_atomic_density(atom, method) for atom in basis.fourier_atoms
-#     ]
-#     positions = basis.model.positions
-#     ρtot = atomic_density_superposition(basis, atomic_densities, positions)
-#     ρspin = atomic_spin_density(basis, atomic_densities, positions, magnetic_moments)
-#     ρ = ρ_from_total_and_spin(ρtot, ρspin)
-
-#     N = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
-
-#     if !isnothing(n_electrons) && (N > 0)
-#         ρ .*= n_electrons / N  # Renormalize to the correct number of electrons
-#     end
-#     ρ
-# end
-
-############################################################################################
-
-
-# # Random density method
-# function guess_density(basis::PlaneWaveBasis, ::RandomDensity;
-#                        n_electrons=basis.model.n_electrons)
-#     random_density(basis, n_electrons)
-# end
-
-# @doc raw"""
-# Build a random charge density normalized to the provided number of electrons.
-# """
-# function random_density(basis::PlaneWaveBasis{T}, n_electrons::Integer) where {T}
-#     ρtot  = rand(T, basis.fft_size)
-#     ρtot  = ρtot .* n_electrons ./ (sum(ρtot) * basis.dvol)  # Integration to n_electrons
-#     ρspin = nothing
-#     if basis.model.n_spin_components > 1
-#         ρspin = rand((-1, 1), basis.fft_size) .* rand(T, basis.fft_size) .* ρtot
-#         @assert all(abs.(ρspin) .≤ ρtot)
-#     end
-#     ρ_from_total_and_spin(ρtot, ρspin)
-# end
-
-# # Atomic density methods
-# function guess_density(basis::PlaneWaveBasis, magnetic_moments=[],
-#                        n_electrons=basis.model.n_electrons)
-#     atomic_density(basis, ValenceDensityAuto(), magnetic_moments, n_electrons)
-# end
-
-# function guess_density(basis::PlaneWaveBasis, system::AbstractSystem,
-#                        n_electrons=basis.model.n_electrons)
-#     parsed_system = parse_system(system)
-#     length(parsed_system.positions) == length(basis.model.positions) || error(
-#         "System and model contain different numbers of positions"
-#     )
-#     all(parsed_system.positions .== basis.model.positions) || error(
-#         "System positions do not match model positions")
-#     # TODO: assuming here that the model and system atoms are identical. Cannot check this
-#     # TODO: because we parse the system separately from the parsing done by the Model
-#     # TODO: constructor, so the pseudopotentials (if present) are not identical in memory
-#     atomic_density(basis, ValenceDensityAuto(), parsed_system.magnetic_moments, n_electrons)
-# end
-
-# @doc raw"""
-#     guess_density(basis::PlaneWaveBasis, method::DensityConstructionMethod,
-#                   magnetic_moments=[]; n_electrons=basis.model.n_electrons)
-
-# Build a superposition of atomic densities (SAD) guess density or a rarndom guess density.
-
-# The guess atomic densities are taken as one of the following depending on the input
-# `method`:
-
-# -`RandomDensity()`: A random density, normalized to the number of electrons
-# `basis.model.n_electrons`. Does not support magnetic moments.
-# -`ValenceDensityAuto()`: A combination of the `ValenceDensityGaussian` and
-# `ValenceDensityPseudo` methods where elements whose pseudopotentials provide numeric
-# valence charge density data use them and elements without use Gaussians.
-# -`ValenceDensityGaussian()`: Gaussians of length specified by `atom_decay_length`
-# normalized for the correct number of electrons:
-# ```math
-# \hat{ρ}(G) = Z_{\mathrm{valence}} \exp\left(-(2π \text{length} |G|)^2\right)
-# ```
-# - `ValenceDensityPseudo()`: Numerical pseudo-atomic valence charge densities from the
-# pseudopotentials. Will fail if one or more elements in the system has a pseudopotential
-# that does not have valence charge density data.
-
-# When magnetic moments are provided, construct a symmetry-broken density guess.
-# The magnetic moments should be specified in units of ``μ_B``.
-# """
-# function guess_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_moments=[];
-#                        n_electrons=basis.model.n_electrons)
-#     atomic_density(basis, method, magnetic_moments, n_electrons)
-# end
-
-# # Build a charge density from total and spin densities constructed as superpositions of
-# # atomic densities.
-# function atomic_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_moments,
-#                         n_electrons)
-#     ρtot = atomic_total_density(basis, method)
-#     ρspin = atomic_spin_density(basis, method, magnetic_moments)
-#     ρ = ρ_from_total_and_spin(ρtot, ρspin)
-
-#     N = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
-
-#     if !isnothing(n_electrons) && (N > 0)
-#         ρ .*= n_electrons / N  # Renormalize to the correct number of electrons
-#     end
-#     ρ
-# end
-
-# # Build a total charge density without spin information from a superposition of atomic
-# # densities.
-# function atomic_total_density(basis::PlaneWaveBasis{T}, method::AtomicDensity;
-#                               coefficients=ones(T, length(basis.model.atoms))) where {T}
-#     form_factors = atomic_density_form_factors(basis, method)
-#     atomic_density_superposition(basis, form_factors; coefficients)
-# end
-
-# # Build a spin density from a superposition of atomic densities and provided magnetic
-# # moments (with units ``μ_B``).
-# function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
-#                              magnetic_moments) where {T}
-#     model = basis.model
-#     if model.spin_polarization in (:none, :spinless)
-#         isempty(magnetic_moments) && return nothing
-#         error("Initial magnetic moments can only be used with collinear models.")
-#     end
-
-#     # If no magnetic moments start with a zero spin density
-#     magmoms = Vec3{T}[normalize_magnetic_moment(magmom) for magmom in magnetic_moments]
-#     if all(iszero, magmoms)
-#         @warn("Returning zero spin density guess, because no initial magnetization has " *
-#               "been specified in any of the given elements / atoms. Your SCF will likely " *
-#               "not converge to a spin-broken solution.")
-#         return zeros(T, basis.fft_size)
-#     end
-
-#     @assert length(magmoms) == length(basis.model.atoms)
-#     coefficients = map(basis.model.atoms, magmoms) do atom, magmom
-#         iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
-#         magmom[3] ≤ n_elec_valence(atom) || error(
-#             "Magnetic moment $(magmom[3]) too large for element $(atomic_symbol(atom)) " *
-#             "with only $(n_elec_valence(atom)) valence electrons."
-#         )
-#         magmom[3] / n_elec_valence(atom)
-#     end::AbstractVector{T}  # Needed to ensure type stability in final guess density
-
-#     form_factors = atomic_density_form_factors(basis, method)
-#     atomic_density_superposition(basis, form_factors; coefficients)
-# end
-
-# # Perform an atomic density superposition. The density is constructed in reciprocal space
-# # using the provided atomic form-factors and coefficients and applying an inverse Fourier
-# # transform to yield the real-space density.
-# function atomic_density_superposition(basis::PlaneWaveBasis{T},
-#                                       form_factors::IdDict{Tuple{Int,T},T};
-#                                       coefficients=ones(T, length(basis.model.atoms))
-#                                       ) where {T}
-#     model = basis.model
-#     G_cart = to_cpu(G_vectors_cart(basis))
-#     ρ_cpu = map(enumerate(to_cpu(G_vectors(basis)))) do (iG, G)
-#         Gnorm = norm(G_cart[iG])
-#         ρ_iG = sum(enumerate(model.atom_groups); init=zero(complex(T))) do (igroup, group)
-#             sum(group) do iatom
-#                 structure_factor = cis2pi(-dot(G, model.positions[iatom]))
-#                 coefficients[iatom] * form_factors[(igroup, Gnorm)] * structure_factor
-#             end
-#         end
-#         ρ_iG / sqrt(model.unit_cell_volume)
-#     end
-#     ρ = to_device(basis.architecture, ρ_cpu)
-#     enforce_real!(basis, ρ)  # Symmetrize Fourier coeffs to have real iFFT
-#     irfft(basis, ρ)
-# end
-
-# function atomic_density_form_factors(basis::PlaneWaveBasis{T},
-#                                      method::AtomicDensity
-#                                      )::IdDict{Tuple{Int,T},T} where {T<:Real}
-#     model = basis.model
-#     form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
-#     for G in to_cpu(G_vectors_cart(basis))
-#         Gnorm = norm(G)
-#         for (igroup, group) in enumerate(model.atom_groups)
-#             if !haskey(form_factors, (igroup, Gnorm))
-#                 element = basis.fourier_atoms[first(group)]
-#                 form_factor = atomic_density(element, Gnorm, method)
-#                 form_factors[(igroup, Gnorm)] = form_factor
-#             end
-#         end
-#     end
-#     form_factors
-# end
-
-# function atomic_density(element::AtomicPotential, Gnorm::T,
-#                         ::ValenceDensityGaussian)::T where {T <: Real}
-#     GaussianChargeDensity{FourierSpace,Analytical}(
-#         charge_ionic(element),
-#         atom_decay_length(n_elec_core(element), n_elec_valence(element))
-#     )(Gnorm)
-#     # gaussian_valence_charge_density_fourier(element, Gnorm)
-# end
-
-# function atomic_density(element::AtomicPotential, Gnorm::T,
-#                         ::ValenceDensityPseudo)::T where {T <: Real}
-#     return element.valence_density(Gnorm)
-#     # eval_psp_density_valence_fourier(element.psp, Gnorm)
-# end
-
-# function atomic_density(element::AtomicPotential, Gnorm::T,
-#                         ::ValenceDensityAuto)::T where {T <: Real}
-#     if isnothing(element.valence_density)
-#         GaussianChargeDensity{FourierSpace,Analytical}(
-#             charge_ionic(element),
-#             atom_decay_length(n_elec_core(element), n_elec_valence(element))
-#         )(Gnorm)
-#     else
-#         return element.valence_density(Gnorm)
-#     end
-#     # valence_charge_density_fourier(element, Gnorm)
-# end
-
-# function atomic_density(element::AtomicPotential, Gnorm::T,
-#                         ::CoreDensity)::T where {T <: Real}
-#     # has_core_density(element) ? core_charge_density_fourier(element, Gnorm) : zero(T)
-#     isnothing(element.core_density) ? zero(T) : element.core_density(Gnorm)
-# end
-
-# # Get the lengthscale of the valence density for an atom with `n_elec_core` core
-# # and `n_elec_valence` valence electrons.
-function atom_decay_length(n_elec_core, n_elec_valence)
-    # Adapted from ABINIT/src/32_util/m_atomdata.F90,
-    # from which also the data has been taken.
-
-    n_elec_valence = round(Int, n_elec_valence)
-    if n_elec_valence == 0
-        return 0.0
-    end
-
-    data = if n_elec_core < 0.5
-        # Bare ions: Adjusted on 1H and 2He only
-        [0.6, 0.4, 0.3, 0.25, 0.2]
-    elseif n_elec_core < 2.5
-        # 1s2 core: Adjusted on 3Li, 6C, 7N, and 8O
-        [1.8, 1.4, 1.0, 0.7, 0.6, 0.5, 0.4, 0.35, 0.3]
-    elseif n_elec_core < 10.5
-        # Ne core (1s2 2s2 2p6): Adjusted on 11na, 13al, 14si and 17cl
-        [2.0, 1.6, 1.25, 1.1, 1.0, 0.9, 0.8, 0.7 , 0.7, 0.7, 0.6]
-    elseif n_elec_core < 12.5
-        # Mg core (1s2 2s2 2p6 3s2): Adjusted on 19k, and on n_elec_core==10
-        [1.9, 1.5, 1.15, 1.0, 0.9, 0.8, 0.7, 0.6 , 0.6, 0.6, 0.5]
-    elseif n_elec_core < 18.5
-        # Ar core (Ne + 3s2 3p6): Adjusted on 20ca, 25mn and 30zn
-        [2.0, 1.8, 1.5, 1.2, 1.0, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.65, 0.6]
-    elseif n_elec_core < 28.5
-        # Full 3rd shell core (Ar + 3d10): Adjusted on 31ga, 34se and 38sr
-        [1.5, 1.25, 1.15, 1.05, 1.00, 0.95, 0.95, 0.9, 0.9, 0.85, 0.85, 0.80,
-         0.8 , 0.75, 0.7]
-    elseif n_elec_core < 36.5
-        # Krypton core (Ar + 3d10 4s2 4p6): Adjusted on 39y, 42mo and 48cd
-        [2.0, 2.00, 1.60, 1.40, 1.25, 1.10, 1.00, 0.95, 0.90, 0.85, 0.80, 0.75, 0.7]
-    else
-        # For the remaining elements, consider a function of n_elec_valence only
-        [2.0 , 2.00, 1.55, 1.25, 1.15, 1.10, 1.05, 1.0 , 0.95, 0.9, 0.85, 0.85, 0.8]
-    end
-    data[min(n_elec_valence, length(data))]
-end
-atom_decay_length(sp::AtomicPotential) = atom_decay_length(n_elec_core(sp), n_elec_valence(sp))

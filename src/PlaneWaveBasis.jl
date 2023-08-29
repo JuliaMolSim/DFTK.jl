@@ -45,7 +45,7 @@ struct PlaneWaveBasis{T,
                       T_G_vectors  <: AbstractArray{Vec3{Int}, 3},
                       T_r_vectors  <: AbstractArray{Vec3{VT},  3},
                       T_kpt_G_vecs <: AbstractVector{Vec3{Int}},
-                      T_q_grid     <: AbstractVector{VT}
+                      T_q_grid     <: AbstractVector{T}
                      } <: AbstractBasis{T}
 
     # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
@@ -328,7 +328,7 @@ end
                                 kweights::Union{Nothing, AbstractVector};
                                 atom_rft_quadrature_method=AtomicPotentials.NumericalQuadrature.Simpson(),
                                 atom_minimal_dq=0.01,
-                                atom_q_interpolation_method=AtomicPotentials.Interpolation.Spline(4),
+                                atom_q_interpolation_method=AtomicPotentials.Interpolation.InterpolationsCubicSpline(),
                                 variational=true, fft_size=nothing,
                                 kgrid=nothing, kshift=nothing,
                                 symmetries_respect_rgrid=isnothing(fft_size),
@@ -586,10 +586,16 @@ function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
 end
 
 # TODO (AZ): This should probably go somewhere else
-function AtomicPotentials.rft(basis::PlaneWaveBasis, qty)
-    return rft(qty, basis.atom_qgrid; quadrature_method=basis.atom_rft_quadrature_method)
-end
+# function AtomicPotentials.rft(basis::PlaneWaveBasis, qty)
+#     return rft(qty, basis.atom_qgrid; quadrature_method=basis.atom_rft_quadrature_method)
+# end
 
-function AtomicPotentials.rft(basis::PlaneWaveBasis, el::Element{RealSpace})
-    return Element(el.Z, el.symbol, rft(basis, el.potential))
-end
+# function AtomicPotentials.rft(basis::PlaneWaveBasis, qty;
+#                               quadrature_method=basis.atom_rft_quadrature_method)
+#     return rft(qty, norm.(G_vectors_cart); quadrature_method)
+# end
+
+# function AtomicPotentials.rft(basis::PlaneWaveBasis, kpt::Kpoint, qty;
+#                               quadrature_method=basis.atom_rft_quadrature_method)
+#     return rft(qty, norm.(Gplusk_vectors_cart(basis, kpt)); quadrature_method)
+# end

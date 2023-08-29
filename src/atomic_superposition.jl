@@ -1,27 +1,20 @@
-function prepare_local_quantities(basis::PlaneWaveBasis, name::Symbol)
+function group_local_quantities(basis::PlaneWaveBasis, name::Symbol)
     model = basis.model
     # Filter out atom groups whose potential doesn't have the quantity of interest
     atom_groups = [group for group in model.atom_groups
                    if hasquantity(model.atoms[first(group)], name)]
-    # Create callable objects which evaluate the quantity in Fourier space for each atom
-    # group
-    evaluators = map(atom_groups) do group
-        el = model.atoms[first(group)]
-        qty_real = getproperty(el.potential, name)
-        qty_fourier = rft(qty_real, basis.atom_qgrid;
-                          quadrature_method=basis.atom_rft_quadrature_method)
-        evaluate(qty_fourier, basis.atom_q_interpolation_method)
-    end
-
+    # Collect the quantity of interest for each atom group
+    quantities = [getproperty(model.atoms[first(group)].potential, name)
+                  for group in atom_groups]
     # Organize the positions by atom group
     positions = [model.positions[group] for group in atom_groups]
-    return (evaluators, positions)
+    return (;quantities, positions)
 end
 
 function build_atomic_superposition(
     basis::PlaneWaveBasis{T},
-    quantities,
-    positions::Vector{Vector{Vec3{T}}};
+    quantities::AbstractVector{<:AbstractQuantity},
+    positions::AbstractVector{<:AbstractVector{<:Vec3}};
     weights=ones.(T, length.(positions))
 ) where {T}
     @assert length(quantities) == length(positions) == length(weights)
@@ -33,11 +26,10 @@ function build_atomic_superposition(
 
     # Compute form factors (the position-dependent part of the atomic quantities):
     # ff[a][q]
-    qs_cart = norm.(G_vectors_cart(basis))
-    form_factors_radials = map(qty -> qty.(qs_cart), quantities)
+    form_factors_radial = compute_form_factors_radial(basis, quantities)
 
     # Compute the superposition in Fourier space: F[G]
-    F = sum(zip(form_factors_radials, structure_factors, weights)) do (ffr_a, sf_a, w_a)
+    F = sum(zip(form_factors_radial, structure_factors, weights)) do (ffr_a, sf_a, w_a)
         sum(zip(sf_a, w_a)) do (sf_aj, w_aj)
             w_aj .* sf_aj .* ffr_a
         end
@@ -52,7 +44,7 @@ end
 
 function compute_scalar_field_forces(
     basis::PlaneWaveBasis{T},
-    quantities,
+    quantities::AbstractVector{<:AbstractQuantity},
     positions::Vector{Vector{Vec3{T}}},
     field::AbstractArray{Complex{T}}
 ) where {T}
@@ -60,15 +52,14 @@ function compute_scalar_field_forces(
 
     # Compute the gradients of the structure factors w.r.t. the positions
     # sf[a][j][q][α]
-    ∇sf = compute_structure_factor_gradients(basis, positions)
+    structure_factor_gradients = compute_structure_factor_gradients(basis, positions)
 
     # Compute form factors (the position-dependent part of the atomic quantities):
     # ff[a][q]
-    qs_cart = norm.(G_vectors_cart(basis))
-    ffr = map(qty -> qty.(qs_cart), quantities)
+    form_factors_radial = compute_form_factors_radial(basis, quantities)
 
     # Atomic species
-    group_forces = map(zip(∇sf, ffr)) do (∇sf_a, ffr_a)
+    group_forces = map(zip(structure_factor_gradients, form_factors_radial)) do (∇sf_a, ffr_a)
         # Position
         map(∇sf_a) do ∇sf_aj
             # G-vector: -∑_{G} [ Re[F(G)'] * ff_{G} * ∇sf_{G} ] / √Ω

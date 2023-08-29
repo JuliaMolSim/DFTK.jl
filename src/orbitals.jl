@@ -104,22 +104,31 @@ end
 
 function guess_orbitals(basis::PlaneWaveBasis{T}, howmany; add_random=false) where {T}
     model = basis.model
+    qgrid = basis.atom_qgrid
+    quadrature_method = basis.atom_rft_quadrature_method
+    interpolation_method = basis.atom_q_interpolation_method
 
+    # Filter for atom groups whose potentials have orbitals
     atom_groups = [group for group in model.atom_groups
                    if hasquantity(model.atoms[first(group)].potential, :orbitals)]
-    positions = [model.positions[group] for group in atom_groups]
+    # Get one element from each atom group
     atoms = [model.atoms[first(group)] for group in atom_groups]
-    atomic_orbitals = map(atoms) do atom
-        map(atom.potential.orbitals) do orbitals_l
-            map(orbitals_l) do orbital_li
-                qty_fourier = rft(orbital_li, basis.atom_qgrid;
-                                  quadrature_method=basis.atom_rft_quadrature_method)
-                evaluate(qty_fourier, basis.atom_q_interpolation_method)
-            end
-        end
-    end
-
-    return map(basis.kpoints) do kpt
+    # Collect orbitals for each species
+    orbitals = [atom.potential.orbitals for atom in atoms]
+    # Fourier transform and interpolate orbitals outside the k-point loop (a)
+    atomic_orbitals = map(orbitals) do orbs_a
+        # Angular momentum (l)
+        map(orbs_a) do orbs_al
+            # Orbital (i)
+            map(orbs_al) do orb_ali
+                evaluate(rft(orb_ali, qgrid; quadrature_method), interpolation_method)
+            end  # i
+        end  # l
+    end  # a
+    # Collect the positions by atom group
+    positions = [model.positions[group] for group in atom_groups]
+    # Construct the guess orbitals at each k-point
+    map(basis.kpoints) do kpt
         guess_orbitals(basis, kpt, atomic_orbitals, positions, howmany; add_random)
     end
 end

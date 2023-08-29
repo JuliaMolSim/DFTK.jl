@@ -33,8 +33,8 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     has_nlcc = any(hasquantity(basis.model.atoms[first(group)], :core_charge_density)
                    for group in basis.model.atom_groups)
     if has_nlcc
-        (evaluators, positions) = prepare_local_quantities(basis, :core_charge_density)
-        ρcore = build_atomic_superposition(basis, evaluators, positions)
+        (core_densities, positions) = group_local_quantities(basis, :core_charge_density)
+        ρcore = build_atomic_superposition(basis, core_densities, positions)
         minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
     else
         ρcore = nothing
@@ -159,7 +159,7 @@ end
                                              kwargs...) where {TT}
     # The only non-zero force contribution is from the nlcc core charge
     isnothing(term.ρcore) && return nothing
-    (evaluators, positions) = prepare_local_quantities(basis, :core_charge_density)
+    (core_densities, positions) = group_local_quantities(basis, :core_charge_density)
     _, Vxc_real, _ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
     # TODO: the factor of 2 here should be associated with the density, not the potential
     if basis.model.spin_polarization in (:none, :spinless)
@@ -167,7 +167,7 @@ end
     else
         Vxc_fourier = fft(basis, mean(Vxc_real, dims=4))
     end
-    return compute_scalar_field_forces(basis, evaluators, positions, Vxc_fourier)
+    return compute_scalar_field_forces(basis, core_densities, positions, Vxc_fourier)
 end
 
 
