@@ -108,21 +108,25 @@ function _group_non_locals(basis::PlaneWaveBasis)
     # Filter for atom groups whose potentials have a non-local part
     atom_groups = [group for group in model.atom_groups
                    if hasquantity(model.atoms[first(group)].potential, :non_local_potential)]
-    # Get one element from each atom group
+    # Get the atom of each atom group
     atoms = [model.atoms[first(group)] for group in atom_groups]
-    # Collect projectors for each species
-    projectors = [to_device(arch, atom.potential.non_local_potential.projectors)
-                  for atom in atoms]
     # Fourier transform and interpolate the projectors once outside the k-point loop
-    projectors = map(projectors) do projs_a
-        map(projs_a) do projs_al
+    projectors = map(atoms) do atom
+        map(atom.potential.non_local_potential.projectors) do projs_al
             map(projs_al) do proj_ali
-                evaluate(rft(proj_ali, qgrid; quadrature_method), interpolation_method)
+                evaluate(
+                    rft(to_device(arch, proj_ali), qgrid; quadrature_method),
+                    interpolation_method
+                )
             end  # i
         end  # l
     end  # a
     # Collect coupling matrices for each species
-    couplings = [atom.potential.non_local_potential.coupling for atom in atoms]
+    couplings = map(atoms) do atom
+        map(atom.potential.non_local_potential.coupling) do coupling_l
+            to_device(arch, coupling_l)
+        end
+    end
     # Collect positions by atom group
     positions = [model.positions[group] for group in atom_groups]
 
