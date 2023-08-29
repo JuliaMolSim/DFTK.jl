@@ -1,11 +1,14 @@
 function group_local_quantities(basis::PlaneWaveBasis, name::Symbol)
     model = basis.model
+    arch = basis.architecture
     # Filter out atom groups whose potential doesn't have the quantity of interest
     atom_groups = [group for group in model.atom_groups
                    if hasquantity(model.atoms[first(group)], name)]
     # Collect the quantity of interest for each atom group
-    quantities = [getproperty(model.atoms[first(group)].potential, name)
-                  for group in atom_groups]
+    quantities = [
+        to_device(arch, getproperty(model.atoms[first(group)].potential, name))
+        for group in atom_groups
+    ]
     # Organize the positions by atom group
     positions = [model.positions[group] for group in atom_groups]
     return (;quantities, positions)

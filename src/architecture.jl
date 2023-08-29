@@ -16,7 +16,8 @@ GPU(::Type{T}) where {T <: AbstractArray} = GPU{T}()
 Transfer an array from a device (typically a GPU) to the CPU.
 """
 to_cpu(x::AbstractArray) = Array(x)
-to_cpu(x::Array) = x
+to_cpu(x::Array)         = x
+to_cpu(x       )         = adapt(Array, x)
 
 """
 Transfer an array to a particular device (typically a GPU)
@@ -24,6 +25,7 @@ Transfer an array to a particular device (typically a GPU)
 to_device(::CPU, x) = to_cpu(x)
 to_device(::GPU{ArrayType}, x::AbstractArray) where {ArrayType} = ArrayType(x)
 to_device(::GPU{ArrayType}, x::ArrayType)     where {ArrayType} = x
+to_device(::GPU{ArrayType}, x)                where {ArrayType} = adapt(ArrayType, x)
 
 """
 Synchronize data and finish all operations on the execution stream of the device.

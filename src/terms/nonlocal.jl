@@ -100,6 +100,7 @@ end
 
 function _group_non_locals(basis::PlaneWaveBasis)
     model = basis.model
+    arch = basis.architecture
     qgrid = basis.atom_qgrid
     quadrature_method = basis.atom_rft_quadrature_method
     interpolation_method = basis.atom_q_interpolation_method
@@ -110,7 +111,8 @@ function _group_non_locals(basis::PlaneWaveBasis)
     # Get one element from each atom group
     atoms = [model.atoms[first(group)] for group in atom_groups]
     # Collect projectors for each species
-    projectors = [atom.potential.non_local_potential.projectors for atom in atoms]
+    projectors = [to_device(arch, atom.potential.non_local_potential.projectors)
+                  for atom in atoms]
     # Fourier transform and interpolate the projectors once outside the k-point loop
     projectors = map(projectors) do projs_a
         map(projs_a) do projs_al

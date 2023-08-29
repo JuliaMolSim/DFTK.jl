@@ -15,6 +15,7 @@ using UnitfulAtomic
 using ForwardDiff
 using AbstractFFTs
 using GPUArraysCore
+using Adapt
 using Random
 using ChainRulesCore
 using PrecompileTools
@@ -22,7 +23,6 @@ using PrecompileTools
 import PseudoPotentialIOExperimental
 using AtomicPotentials
 using AtomsBase
-using OffsetArrays
 
 export Vec3
 export Mat3
@@ -42,23 +42,6 @@ include("common/cis2pi.jl")
 include("architecture.jl")
 include("common/zeros_like.jl")
 include("common/norm.jl")
-
-# export PspHgh
-# export PspUpf
-# include("pseudo/NormConservingPsp.jl")
-# include("pseudo/PspHgh.jl")
-# include("pseudo/PspUpf.jl")
-
-# export ElementPsp
-# export ElementCohenBergstresser
-# export ElementCoulomb
-# export ElementGaussian
-# export charge_nuclear
-# export charge_ionic
-# export atomic_symbol
-# export n_elec_valence
-# export n_elec_core
-# include("elements.jl")
 
 export Element
 export nuclear_charge

@@ -231,7 +231,9 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     fft_normalization  = sqrt(model.unit_cell_volume) / length(ipFFT)
 
     # Atomic potential Fourier transform grid
-    Gs_cart = map(Base.Fix1(recip_vector_red_to_cart, model), Gs)
+    # avoiding model (not isbits) in closure for GPU compat
+    recip_lattice = model.recip_lattice
+    Gs_cart = map(G -> recip_lattice * G, Gs)
     (qmin, qmax) = extrema(norm.(Gs_cart))
     nq = ceil(Int, (qmax - qmin) / atom_minimal_dq)
     atom_qgrid = range(qmin, qmax, nq)
