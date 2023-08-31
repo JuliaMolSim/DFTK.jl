@@ -164,16 +164,14 @@ function transfer_density(ρ_in, basis_in::PlaneWaveBasis{T},
     @assert length(size(ρ_in)) ∈ (3, 4)
 
     ρ_freq_in = fft(basis_in, ρ_in)
-    ρ_freq_out = similar(ρ_freq_in, basis_out.fft_size..., size(ρ_in, 4))
-    ρ_freq_out .= 0
+    ρ_freq_out = zeros_like(ρ_freq_in, basis_out.fft_size..., size(ρ_in, 4))
 
     idcs_in, idcs_out = transfer_mapping(basis_in, basis_out)
-    map(zip(idcs_in, idcs_out)) do (block_in,block_out)
+    for (block_in,block_out) in zip(idcs_in, idcs_out)
         ρ_freq_out[block_out,:] .= ρ_freq_in[block_in,:]
     end
     
     ρ_real_out = ifft(basis_out, ρ_freq_out)
-    ρ_real_out
 end
 
 """
