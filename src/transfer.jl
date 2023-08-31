@@ -14,11 +14,13 @@ function transfer_mapping(basis_in::PlaneWaveBasis, basis_out::PlaneWaveBasis)
 
     idcs = map(basis_in.fft_size, basis_out.fft_size) do fft_in, fft_out
         if fft_in <= fft_out
-            a = fld(fft_in, 2)
-            return (1:a,(a+1):fft_in), ((1:a), (fft_out+1-a):fft_out)
+            a = cld(fft_in, 2)
+            b = fld(fft_in, 2)
+            return (1:a,(a+1):fft_in), ((1:a), (fft_out+1-b):fft_out)
         else
-            a = fld(fft_out, 2)
-            return ((1:a), (fft_in+1-a):fft_in), (1:a, (a+1):fft_out)
+            a = cld(fft_out, 2)
+            b = fld(fft_out, 2)
+            return ((1:a), (fft_in+1-b):fft_in), (1:a, (a+1):fft_out)
         end
     end
 
