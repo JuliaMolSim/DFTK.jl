@@ -173,7 +173,7 @@ function transfer_density(ρ_in, basis_in::PlaneWaveBasis{T},
         ρ_freq_out[block_out,:] .= ρ_freq_in[block_in,:]
     end
     
-    ρ_real_out = ifft(basis_out, ρ_freq_out)
+    ρ_real_out = irfft(basis_out, ρ_freq_out)
 end
 
 """
