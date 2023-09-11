@@ -34,7 +34,7 @@ jobs:
       PLOTS_TEST: "true"  # Needed for Plots-related tests
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1.7'
@@ -76,7 +76,7 @@ jobs:
       PLOTS_TEST: "true"  # Needed for Plots-related tests
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v1
         with:
           version: nightly
