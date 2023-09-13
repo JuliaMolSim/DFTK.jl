@@ -210,6 +210,7 @@ include("response/chi0.jl")
 include("response/hessian.jl")
 export compute_current
 include("postprocess/current.jl")
+include("postprocess/refine.jl")
 
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")
