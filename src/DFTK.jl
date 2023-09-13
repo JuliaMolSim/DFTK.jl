@@ -228,6 +228,7 @@ export compute_current
 include("postprocess/current.jl")
 export phonon_modes
 include("postprocess/phonon.jl")
+include("postprocess/refine.jl")
 
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")
