@@ -45,8 +45,6 @@ include("testcases.jl")
     @test norm(ψ-ψ_bb) < eps(eltype(basis))
 end
 
-using Infiltrator
-
 @testset "Transfer of density" begin
     model = Model(diagm(ones(3)))
     kgrid = [1, 1, 1]
