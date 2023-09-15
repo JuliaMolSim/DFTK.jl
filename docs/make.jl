@@ -188,7 +188,6 @@ end
 # Generate the docs in BUILDPATH
 makedocs(;
     modules=[DFTK],
-    repo="https://" * DFTKGH * "/blob/{commit}{path}#{line}",
     format=Documenter.HTML(
         # Use clean URLs, unless built as a "local" build
         prettyurls = CONTINUOUS_INTEGRATION,
@@ -202,12 +201,14 @@ makedocs(;
                 :braket => [raw"\left\langle#1\middle|#2\right\rangle", 2],
             ),
         ))),
+        size_threshold_warn=409600,
+        size_threshold=2048000,
     ),
     sitename = "DFTK.jl",
     authors = "Michael F. Herbst, Antoine Levitt and contributors.",
     pages=transform_to_md(PAGES),
     checkdocs=:exports,
-    strict=!DEBUG,
+    warnonly=DEBUG,
 )
 
 # Dump files for managing dependencies in binder

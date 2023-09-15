@@ -28,4 +28,4 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
 [compat]
-Documenter = "~0.27"
+Documenter = "~1.1"
