@@ -21,7 +21,7 @@ include("testcases.jl")
     # Transfer to bigger basis then same basis (both interpolations are
     # tested then)
     bigger_basis = PlaneWaveBasis(model; Ecut=(Ecut + 5), kgrid, kshift)
-    ψ_b = transfer_blochwave(ψ, basis, bigger_basis)
+    ψ_b  = transfer_blochwave(ψ, basis, bigger_basis)
     ψ_bb = transfer_blochwave(ψ_b, bigger_basis, basis)
     @test norm(ψ - ψ_bb) < eps(eltype(basis))
 
@@ -45,31 +45,49 @@ include("testcases.jl")
     @test norm(ψ-ψ_bb) < eps(eltype(basis))
 end
 
+using Infiltrator
+
 @testset "Transfer of density" begin
     model = Model(diagm(ones(3)))
-    kgrid = [1,1,1]
-    Ecut = 10
+    kgrid = [1, 1, 1]
+    Ecut  = 10
 
     # Test grids that have both even and odd sizes.
+    @testset "Small -> big -> small is identity" begin
+        basis      = PlaneWaveBasis(model; Ecut, kgrid, fft_size=(15, 30,  1))
+        basis_big  = PlaneWaveBasis(model; Ecut, kgrid, fft_size=(20, 33, 11))
 
-    # Transfer from small to big basis and back, check that this acts
-    # like identity.
-    basis      = PlaneWaveBasis(model; Ecut, kgrid, fft_size=(15,30,1))
-    basis_big  = PlaneWaveBasis(model; Ecut, kgrid, fft_size=(20,33,11))
-    ρ = random_density(basis,1)
-    ρ_b  = transfer_density(ρ, basis, basis_big)
-    ρ_bb = transfer_density(ρ_b, basis_big, basis)
-    @test norm(ρ_bb - ρ)/norm(ρ) < 10eps(eltype(basis))
+        # A random density on an even-sized grid has a Fourier component G, where its
+        # counterpart -G is *not* part of the FFT grid, therefore ifft(fft(ρ)) would
+        # not be an identity. To prevent this we use enforce_real! to explicitly set
+        # the non-matched Fourier component to zero.
+        ρ = random_density(basis, 1)
+        ρ_fourier_purified = DFTK.enforce_real!(basis, fft(basis, ρ))
+        ρ = irfft(basis, ρ_fourier_purified)
+
+        ρ_b  = transfer_density(ρ,   basis,     basis_big)
+        ρ_bb = transfer_density(ρ_b, basis_big, basis    )
+        @test ρ_bb ≈ ρ rtol=10eps(eltype(basis))
+    end
 
     # Transfer from big to small basis and back, check that this acts
-    # like identity on the Fourier components of the small basis.
-    basis      = PlaneWaveBasis(model; Ecut, kgrid, fft_size=(9,10,1))
-    basis_big  = PlaneWaveBasis(model; Ecut, kgrid, fft_size=(16,24,1))
-    ρ = random_density(basis_big,1)
-    ρ_s  = transfer_density(ρ, basis_big, basis)
-    ρ_ss = transfer_density(ρ_s, basis, basis_big)
-    err = norm([x-y for (x,y) in zip(fft(basis_big, ρ_ss)[:,1,1,1],
-                                     fft(basis_big,ρ)[:,1,1,1])
-                if abs(x)>10eps(eltype(basis_big))])
-    @test err/norm(ρ_ss) < 10eps(eltype(basis_big))
+    # like identity on the Fourier components of the small basis,
+    # where G has a matching -G (for the others a small error might occur)
+    @testset "Big -> small -> big is identity on small basis" begin
+        basis_big  = PlaneWaveBasis(model; Ecut, kgrid, fft_size=(16, 24, 1))
+        basis      = PlaneWaveBasis(model; Ecut, kgrid, fft_size=( 9, 10, 1))
+
+        ρ    = random_density(basis_big, 1)
+        ρ_s  = transfer_density(ρ,   basis_big, basis    )
+        ρ_ss = transfer_density(ρ_s, basis,     basis_big)
+
+        Δρ_fourier = fft(basis_big, ρ - ρ_ss)
+        for (iG, G) in enumerate(G_vectors(basis_big))
+            idx          = DFTK.index_G_vectors(basis,  G)
+            idx_matching = DFTK.index_G_vectors(basis, -G)
+            if !isnothing(idx) && !isnothing(idx_matching)
+                @test abs(Δρ_fourier[iG]) < 10eps(eltype(basis))
+            end
+        end
+    end
 end
