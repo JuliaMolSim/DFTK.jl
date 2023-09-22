@@ -62,7 +62,7 @@ ldiv!(P::PreconditionerTPA, R) = ldiv!(R, P, R)
 # These are needed by eg direct minimization with CG
 @views function mul!(Y, P::PreconditionerTPA, R)
     if P.mean_kin === nothing
-        mul!(Y, Diagonal(P.kin .+ default_shift), R)
+        mul!(Y, Diagonal(P.kin .+ P.default_shift), R)
     else
         Threads.@threads for n = 1:size(Y, 2)
             Y[:, n] .= (P.mean_kin[n] .+ P.kin) ./ P.mean_kin[n] .* R[:, n]
