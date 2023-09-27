@@ -207,7 +207,7 @@ makedocs(;
     authors = "Michael F. Herbst, Antoine Levitt and contributors.",
     pages=transform_to_md(PAGES),
     checkdocs=:exports,
-    strict=!DEBUG,
+    warnonly=DEBUG,
 )
 
 # Dump files for managing dependencies in binder
