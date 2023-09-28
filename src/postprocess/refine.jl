@@ -16,7 +16,7 @@
 end
 
 function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
-                       occ_threshold=default_occupation_threshold(T)) where {T}
+                       occ_threshold=default_occupation_threshold(T), kwargs...) where {T}
     basis = scfres.basis
 
     @assert basis.model.lattice == basis_ref.model.lattice
@@ -29,7 +29,8 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
     ψ, occ = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation; threshold=occ_threshold)
     ψr = transfer_blochwave(ψ, basis, basis_ref)
     ρr = transfer_density(scfres.ρ, basis, basis_ref)
-    _, hamr = energy_hamiltonian(basis_ref, ψr, occ; ρ=ρr)
+    _, ham  = energy_hamiltonian(basis,     ψ,  occ; ρ=scfres.ρ)
+    _, hamr = energy_hamiltonian(basis_ref, ψr, occ; ρ=ρr      )
     
     # Compute the residual R(P) and remove the virtual orbitals, as required
     # in src/scf/newton.jl
@@ -91,11 +92,16 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
     end # Rayleigh coefficients
     ΩpKe2 = apply_Ω(e2, ψr, hamr, Λ) .+ apply_K(basis_ref, e2, ψr, ρr, occ)
     ΩpKe2 = transfer_blochwave(ΩpKe2, basis_ref, basis)
+
+    rhs = resLF - ΩpKe2
     
-    # Invert Ω+K on the small space
-    e1 = solve_ΩplusK(basis, ψ, resLF - ΩpKe2, occ; tol=ΩpK_tol).δψ
+    # Invert Ω+K on the small space: for now, only solve_ΩplusK_split is MPI-compatible:
+    #e1 = solve_ΩplusK(basis, ψ, rhs, occ; tol=ΩpK_tol).δψ
+    e1 = solve_ΩplusK_split(ham, scfres.ρ, ψ, occ, scfres.εF, scfres.eigenvalues, rhs;
+                            tol=ΩpK_tol, occupation_threshold=zero(eltype(first(occ))),
+                            kwargs...).δψ
+
     e1 = transfer_blochwave(e1, basis, basis_ref)
-    
     schur_residual = e1 + e2
 
     # Use the Schur residual to compute (minus) the first-order correction to
