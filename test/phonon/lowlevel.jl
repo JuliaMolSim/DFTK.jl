@@ -17,7 +17,7 @@ function transfer_blochwave_kpt_real(ψk_in, basis::PlaneWaveBasis, kpt_in, kpt_
     ψk_out
 end
 
-@testset "Shifting functions" begin
+@testset "Phonon: Shifting functions" begin
     Random.seed!()
     tol = 1e-12
 

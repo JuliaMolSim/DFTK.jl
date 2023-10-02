@@ -78,8 +78,8 @@ Overview of parameters:
   the number of bands to compute. If you want to influence this algorithm or use a predefined
   number of bands in each SCF step, pass a [`FixedBands`](@ref) or [`AdaptiveBands`](@ref).
   Beware that with non-zero temperature, the convergence of the SCF algorithm may be limited
-  by the `default_occupation_threshold` parameter. For highly accurate calculations we thus
-  recommend increasing the `default_occupation_threshold` of the `AdaptiveBands`.
+  by the `default_occupation_threshold()` parameter. For highly accurate calculations we thus
+  recommend increasing the `occupation_threshold` of the `AdaptiveBands`.
 - `callback`: Function called at each SCF iteration. Usually takes care of printing the
   intermediate state.
 """

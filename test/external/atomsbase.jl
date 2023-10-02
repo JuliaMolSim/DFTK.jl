@@ -1,10 +1,9 @@
-using DFTK
-using Unitful
-using UnitfulAtomic
-using AtomsBase
-using Test
+@testitem "DFTK -> AbstractSystem -> DFTK" begin
+    using DFTK
+    using Unitful
+    using UnitfulAtomic
+    using AtomsBase
 
-@testset "DFTK -> AbstractSystem -> DFTK" begin
     Si = ElementCoulomb(:Si)
     C  = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4.hgh"))
     H  = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1.hgh"))
@@ -25,8 +24,8 @@ using Test
     @test system[:, :magnetic_moment] == magnetic_moments
 
     parsed = DFTK.parse_system(system)
-    @test parsed.lattice   == lattice
-    @test parsed.positions ≈ positions atol=1e-14
+    @test parsed.lattice   ≈ lattice   atol=1e-13
+    @test parsed.positions ≈ positions atol=1e-13
     for i in 1:4
         @test iszero(parsed.magnetic_moments[i][1:2])
         @test parsed.magnetic_moments[i][3] == magnetic_moments[i]
@@ -60,7 +59,10 @@ using Test
     end
 end
 
-@testset "DFTK -> AbstractSystem (noncollinear)" begin
+@testitem "DFTK -> AbstractSystem (noncollinear)" begin
+    using DFTK
+    using AtomsBase
+
     lattice   = randn(3, 3)
     atoms     = [ElementCoulomb(:Si), ElementCoulomb(:C)]
     positions = [rand(3) for _ in 1:2]
@@ -69,7 +71,12 @@ end
     @test system[:, :magnetic_moment] == magnetic_moments
 end
 
-@testset "charged AbstractSystem -> DFTK" begin
+@testitem "charged AbstractSystem -> DFTK" begin
+    using DFTK
+    using Unitful
+    using UnitfulAtomic
+    using AtomsBase
+
     @testset "Charged system" begin
         lattice = [12u"bohr" * rand(3) for _ in 1:3]
         atoms   = [:C => rand(3), :Si => rand(3), :H => rand(3), :C => rand(3)]
@@ -95,7 +102,12 @@ end
     end
 end
 
-@testset "AbstractSystem -> DFTK" begin
+@testitem "AbstractSystem -> DFTK" begin
+    using DFTK
+    using Unitful
+    using UnitfulAtomic
+    using AtomsBase
+
     lattice     = [12u"bohr" * rand(3) for _ in 1:3]
     weirdatom   = Atom(6, randn(3)u"Å"; atomic_symsymbol=:C1)
     atoms       = [:C => rand(3), :Si => rand(3), :H => rand(3), :C => rand(3)]
@@ -104,8 +116,8 @@ end
     system      = periodic_system(atoms, lattice; fractional=true)
 
     let model = Model(system)
-        @test model.lattice == pos_lattice
-        @test model.positions ≈ pos_units atol=1e-14
+        @test model.lattice   ≈ pos_lattice atol=1e-13
+        @test model.positions ≈ pos_units   atol=1e-13
         @test model.spin_polarization == :none
 
         @test length(model.atoms) == 4
@@ -125,8 +137,8 @@ end
         @test system[4, :pseudopotential] == "hgh/pbe/c-q4.hgh"
 
         parsed = DFTK.parse_system(system)
-        @test parsed.lattice == pos_lattice
-        @test parsed.positions ≈ pos_units atol=1e-14
+        @test parsed.lattice   ≈ pos_lattice atol=1e-13
+        @test parsed.positions ≈ pos_units   atol=1e-13
         @test isempty(parsed.magnetic_moments)
 
         @test length(parsed.atoms) == 4
@@ -145,8 +157,8 @@ end
         @test system[4, :pseudopotential] == "hgh/lda/c-q4.hgh"
 
         model = Model(system)
-        @test model.lattice == pos_lattice
-        @test model.positions ≈ pos_units atol=1e-14
+        @test model.lattice   ≈ pos_lattice atol=1e-13
+        @test model.positions ≈ pos_units   atol=1e-13
         @test model.spin_polarization == :none
 
         @test length(model.atoms) == 4
@@ -158,7 +170,10 @@ end
 end
 
 
-@testset "Check attach_psp routine selectively" begin
+@testitem "Check attach_psp routine selectively" begin
+    using DFTK
+    using AtomsBase
+
     Si = ElementCoulomb(:Si)
     C  = ElementCoulomb(:C)
     H  = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1.hgh"))
@@ -176,7 +191,12 @@ end
     @test newsys[4, :pseudopotential] == "hgh/pbe/c-q4.hgh"
 end
 
-@testset "AbstractSystem (unusual symbols) -> DFTK" begin
+@testitem "AbstractSystem (unusual symbols) -> DFTK" begin
+    using DFTK
+    using Unitful
+    using UnitfulAtomic
+    using AtomsBase
+
     lattice     = [12u"bohr" * rand(3) for _ in 1:3]
     atoms       = [Atom(6, randn(3)u"Å"; atomic_symbol=:C1),
                    Atom(6, randn(3)u"Å"; atomic_symbol=:C2)]

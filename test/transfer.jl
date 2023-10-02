@@ -1,11 +1,9 @@
-using Test
-using DFTK
-using DFTK: transfer_blochwave, compute_transfer_matrix, transfer_density
-using LinearAlgebra
+@testitem "Transfer of blochwave" setup=[TestCases] begin
+    using DFTK
+    using DFTK: transfer_blochwave, compute_transfer_matrix
+    using LinearAlgebra
+    silicon = TestCases.silicon
 
-include("testcases.jl")
-
-@testset "Transfer of blochwave" begin
     tol = 1e-7
     Ecut = 5
 
@@ -45,7 +43,11 @@ include("testcases.jl")
     @test norm(ψ-ψ_bb) < eps(eltype(basis))
 end
 
-@testset "Transfer of density" begin
+@testitem "Transfer of density" begin
+    using DFTK
+    using DFTK: transfer_density
+    using LinearAlgebra
+
     model = Model(diagm(ones(3)))
     kgrid = [1, 1, 1]
     Ecut  = 10

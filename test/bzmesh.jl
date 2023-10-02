@@ -1,13 +1,8 @@
-using DFTK
-using LinearAlgebra
-using Test
-using Spglib
-using Unitful
-using Logging
-include("testcases.jl")
-
-@testset "bzmesh_uniform agrees with spglib" begin
+@testitem "bzmesh_uniform agrees with spglib" begin
     using DFTK: normalize_kpoint_coordinate
+    using DFTK
+    using Spglib
+    using LinearAlgebra
 
     function test_against_spglib(kgrid_size; kshift=[0, 0, 0])
         kgrid_size = Vec3(kgrid_size)
@@ -31,9 +26,12 @@ include("testcases.jl")
     test_against_spglib([ 9, 11, 13])
 end
 
-if mpi_nprocs() == 1  # PythonCall does not play nicely with MPI
-@testset "bzmesh_ir_wedge is correct reduction" begin
+# PythonCall does not play nicely with MPI.
+@testitem "bzmesh_ir_wedge is correct reduction" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using Logging
     using ASEconvert
+    (; silicon, magnesium, platinum_hcp) = TestCases.all_testcases
 
     function test_reduction(testcase, kgrid_size, kirredsize;
                             supercell=(1, 1, 1), kshift=[0, 0, 0])
@@ -83,9 +81,10 @@ if mpi_nprocs() == 1  # PythonCall does not play nicely with MPI
 
     test_reduction(platinum_hcp, [5, 5, 5], 63)
 end
-end
 
-@testset "standardize_atoms" begin
+@testitem "standardize_atoms" setup=[TestCases] begin
+    silicon = TestCases.silicon
+
     # Test unperturbed structure
     std = standardize_atoms(silicon.lattice, silicon.atoms, silicon.positions, primitive=true)
     @test length(std.atoms) == 2
@@ -111,13 +110,21 @@ end
     @test std.positions[1] - std.positions[2] ≈ 0.25ones(3)
 end
 
-@testset "kgrid_from_minimal_spacing" begin
+@testitem "kgrid_from_minimal_spacing" begin
+    using DFTK
+    using Unitful
+
     # Test that units are stripped from both the lattice and the spacing
     lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
     @test kgrid_from_minimal_spacing(lattice * u"angstrom", 0.5 / u"angstrom") == [9; 9; 9]
 end
 
-@testset "kgrid_from_minimal_n_kpoints" begin
+@testitem "kgrid_from_minimal_n_kpoints" setup=[TestCases] begin
+    using DFTK
+    using Unitful
+    using LinearAlgebra
+    magnesium = TestCases.magnesium
+
     lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
     @test kgrid_from_minimal_n_kpoints(lattice * u"Å", 1000) == [10, 10, 10]
 

@@ -1,9 +1,8 @@
-using Test
-using DFTK
-using DFTK: interpolate_density
-using LinearAlgebra
+@testitem "Interpolation of density" begin
+    using DFTK
+    using DFTK: interpolate_density
+    using LinearAlgebra
 
-@testset "Interpolation of density" begin
     lattice = Array{Float64}(I, 3, 3)
     N = 20
     f(n) = cos(2π*(n-1)/N)

@@ -1,29 +1,32 @@
+@testsetup module Variational
 using DFTK
-using Test
-using LinearAlgebra: norm
-
-include("testcases.jl")
 
 function get_scf_energies(testcase, supersampling, functionals)
     Ecut=3
-    grid_size=15
     scf_tol=1e-12  # Tolerance in total enengy
     kcoords = [[.2, .3, .4]]
 
     # force symmetries to false because the symmetrization is weird at low ecuts
-    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions, functionals; symmetries=false)
-    fft_size = compute_fft_size(model, Ecut, kcoords;
-                                supersampling, ensure_smallprimes=false, algorithm=:precise)
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions, functionals;
+                      symmetries=false)
+    fft_size = compute_fft_size(model, Ecut, kcoords; supersampling,
+                                ensure_smallprimes=false, algorithm=:precise)
 
     kweights = [1]
     basis = PlaneWaveBasis(model, Ecut, kcoords, kweights; fft_size)
     scfres = self_consistent_field(basis; tol=scf_tol)
     values(scfres.energies)
 end
+end
 
 
-@testset "Energy is exact for supersampling>2 without XC" begin
-    energies = [get_scf_energies(silicon, supersampling, []) for supersampling in (1, 2, 3)]
+@testitem "Energy is exact for supersampling>2 without XC" #=
+    =#    setup=[Variational, TestCases] begin
+    using LinearAlgebra: norm
+    testcase = TestCases.silicon
+
+    energies = [Variational.get_scf_energies(testcase, supersampling, [])
+                for supersampling in (1, 2, 3)]
 
     @test abs(sum(energies[1]) - sum(energies[2])) > 1e-10
 
@@ -35,8 +38,11 @@ end
     @test norm(energies[2] .- energies[3]) < 1e-5
 end
 
-@testset "Energy is not exact for supersampling>2 with XC" begin
-    energies = [get_scf_energies(silicon, supersampling, [:lda_x, :lda_c_vwn])
+@testitem "Energy is not exact for supersampling>2 with XC" #=
+    =#    setup=[Variational, TestCases] begin
+    testcase = TestCases.silicon
+
+    energies = [Variational.get_scf_energies(testcase, supersampling, [:lda_x, :lda_c_vwn])
                 for supersampling in (1, 2, 3)]
 
     @test abs(sum(energies[1]) - sum(energies[2])) > 1e-10

@@ -1,8 +1,7 @@
-using Test
-using DFTK
-using LinearAlgebra
+@testitem "Helium all electron" tags=[:minimal, :core] begin
+    using DFTK
+    using LinearAlgebra
 
-@testset "Helium all electron" begin
     function energy_forces(; Ecut, tol)
         lattice = 10 * Matrix{Float64}(I, 3, 3)
         atoms = [ElementCoulomb(:He)]

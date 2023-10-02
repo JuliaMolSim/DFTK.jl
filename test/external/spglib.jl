@@ -1,9 +1,8 @@
-using DFTK
-using DFTK: spglib_dataset, spglib_standardize_cell
-using LinearAlgebra
-using Test
+@testitem "spglib" begin
+    using DFTK
+    using DFTK: spglib_dataset, spglib_standardize_cell
+    using LinearAlgebra
 
-@testset "spglib" begin
     a = 10.3
     Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
     Ge = ElementPsp(:Ge, psp=load_psp("hgh/lda/Ge-q4"))

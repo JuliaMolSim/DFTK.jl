@@ -18,7 +18,7 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
 
     progress = nothing
     if show_progress
-        progress = Progress(length(kpoints), desc="Diagonalising Hamiltonian kblocks: ")
+        progress = Progress(length(kpoints); desc="Diagonalising Hamiltonian kblocks: ")
     end
     for (ik, kpt) in enumerate(kpoints)
         n_Gk = length(G_vectors(ham.basis, kpt))

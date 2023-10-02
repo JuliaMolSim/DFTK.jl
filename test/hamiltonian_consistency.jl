@@ -1,11 +1,11 @@
+@testsetup module HamConsistency
 using Test
 using DFTK
 using Logging
-import DFTK: mpi_sum
-
-include("testcases.jl")
-using Random
-Random.seed!(0)
+using DFTK: mpi_sum
+using LinearAlgebra
+using ..TestCases: silicon
+testcase = silicon
 
 function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
     for operator in hamk.operators
@@ -22,19 +22,19 @@ function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
 end
 
 function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2, 3],
-                               kshift=[0, 1, 0]/2, lattice=silicon.lattice,
-                               Ecut=10, spin_polarization=:none)
+                               kshift=[0, 1, 0]/2, lattice=testcase.lattice, Ecut=10,
+                               spin_polarization=:none)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
         n_dim = 3 - count(iszero, eachcol(lattice))
-        Si = n_dim == 3 ? ElementPsp(14, psp=load_psp(silicon.psp_hgh)) : ElementCoulomb(:Si)
+        Si = n_dim == 3 ? ElementPsp(14, psp=load_psp(testcase.psp_hgh)) : ElementCoulomb(:Si)
         atoms = [Si, Si]
-        model = Model(lattice, atoms, silicon.positions;
-                      terms=[term], spin_polarization, symmetries=true)
+        model = Model(lattice, atoms, testcase.positions; terms=[term], spin_polarization,
+                      symmetries=true)
         basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
 
-        n_electrons = silicon.n_electrons
+        n_electrons = testcase.n_electrons
         n_bands = div(n_electrons, 2, RoundUp)
         filled_occ = DFTK.filled_occupation(model)
 
@@ -67,7 +67,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
             Hψk = ham.blocks[ik]*ψ[ik]
             test_matrix_repr_operator(ham.blocks[ik], ψ[ik]; atol)
             δψkHψk = sum(occupation[ik][iband] * real(dot(δψ[ik][:, iband], Hψk[:, iband]))
-                       for iband=1:n_bands)
+                         for iband=1:n_bands)
             diff_predicted += 2 * basis.kweights[ik] * δψkHψk
         end
         diff_predicted = mpi_sum(diff_predicted, basis.comm_kpts)
@@ -76,8 +76,14 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         @test err < rtol * abs(E0.total) || err < atol
     end
 end
+end
 
-@testset "Hamiltonian consistency" begin
+
+@testitem "Hamiltonian consistency" setup=[TestCases, HamConsistency] begin
+    using DFTK
+    using LinearAlgebra
+    using .HamConsistency: test_consistency_term
+
     test_consistency_term(Kinetic())
     test_consistency_term(AtomicLocal())
     test_consistency_term(AtomicNonlocal())

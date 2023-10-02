@@ -1,9 +1,10 @@
+@testsetup module RunSCF
 using Test
 using DFTK
-import DFTK: mpi_sum
+using DFTK: mpi_sum
 
-function run_scf_and_compare(T, basis, ref_evals, ref_etot;
-                             n_ignored=0, test_tol=1e-6, scf_tol=1e-6, test_etot=true, kwargs...)
+function run_scf_and_compare(T, basis, ref_evals, ref_etot; n_ignored=0, test_tol=1e-6,
+                             scf_tol=1e-6, test_etot=true, kwargs...)
     n_kpt    = length(ref_evals)
     n_bands  = length(ref_evals[1])
     kpt_done = zeros(Bool, n_kpt)
@@ -30,4 +31,5 @@ function run_scf_and_compare(T, basis, ref_evals, ref_etot;
     test_etot && (@test scfres.energies.total ≈ ref_etot atol=test_tol)
 
     scfres
+end
 end

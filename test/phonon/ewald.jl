@@ -8,7 +8,7 @@ using Random
 include("../testcases.jl")
 include("helpers.jl")
 
-@testset "Ewald: comparison to ref testcase" begin
+@testset "Phonon: Ewald: comparison to ref testcase" begin
     tol = 1e-9
     terms = [Ewald()]
     model = Model(silicon.lattice, silicon.atoms, silicon.positions; terms)
@@ -63,8 +63,8 @@ include("helpers.jl")
     @test norm(ω_uc - ω_ref) < tol
 end
 
-if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
-@testset "Ewald: comparison to automatic differentiation" begin
+# if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
+@testset "Phonon Ewald: comparison to automatic differentiation" begin
     Random.seed!()
     tol = 1e-9
     terms = [Ewald()]
@@ -96,4 +96,4 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     end
     @test norm(ω_ad - ω_supercell) < tol
 end
-end
+# end

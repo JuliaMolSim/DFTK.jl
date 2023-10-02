@@ -1,7 +1,9 @@
-include("run_scf_and_compare.jl")
-include("testcases.jl")
+@testsetup module SiliconRedHF
+using DFTK
 using GenericLinearAlgebra
 using DoubleFloats
+using ..RunSCF: run_scf_and_compare
+using ..TestCases: silicon
 
 # Silicon redHF (without xc) is a metal, so we add a bit of temperature to it
 function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwargs...)
@@ -34,39 +36,42 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
     else
         magnetic_moments = []
     end
-    model = model_DFT(silicon.lattice, atoms, silicon.positions, [];
-                      temperature=0.05, spin_polarization, magnetic_moments)
+    model = model_DFT(silicon.lattice, atoms, silicon.positions, []; temperature=0.05,
+                      spin_polarization, magnetic_moments)
     model = convert(Model{T}, model)  # Ensure the selected floating-point type is used
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
     spin_polarization == :collinear && (ref_redHF = vcat(ref_redHF, ref_redHF))
-    run_scf_and_compare(T, basis, ref_redHF, ref_etot;
-                        ρ=guess_density(basis), kwargs...)
+    run_scf_and_compare(T, basis, ref_redHF, ref_etot; ρ=guess_density(basis), kwargs...)
+end
 end
 
 
-@testset "Silicon without XC (small)" begin
-    run_silicon_redHF(Float64, Ecut=5, test_tol=0.05, n_ignored=0, grid_size=15,
-                      test_etot=false)
+@testitem "Silicon without XC (small)" #=
+    =#    tags=[:core] setup=[RunSCF, TestCases, SiliconRedHF] begin
+    SiliconRedHF.run_silicon_redHF(Float64; Ecut=5, test_tol=0.05, n_ignored=0,
+                                   grid_size=15, test_etot=false)
 end
 
-if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
-    @testset "Silicon without XC (large)" begin
-        run_silicon_redHF(Float64, Ecut=25, test_tol=1e-5, n_ignored=2, grid_size=35,
-                          scf_tol=1e-7, test_etot=false)
-    end
+@testitem "Silicon without XC (large)" #=
+    =#    tags=[:slow, :core] setup=[RunSCF, TestCases, SiliconRedHF] begin
+    SiliconRedHF.run_silicon_redHF(Float64; Ecut=25, test_tol=1e-5, n_ignored=2,
+                                   grid_size=35, scf_tol=1e-7, test_etot=false)
 end
 
 # There is a weird race condition with MPI + DoubleFloats. TODO debug
-if mpi_nprocs() == 1
-    @testset "Silicon without XC (small, Double32)" begin
-        run_silicon_redHF(Double32, Ecut=5, test_tol=0.05, n_ignored=0, grid_size=15,
-                          test_etot=false)
-    end
+@testitem "Silicon without XC (small, Double32)" #=
+    =#    tags=[:core, :dont_test_mpi] setup=[RunSCF, TestCases, SiliconRedHF] begin
+    using DoubleFloats
+
+    SiliconRedHF.run_silicon_redHF(Double32; Ecut=5, test_tol=0.05, n_ignored=0,
+                                   grid_size=15, test_etot=false)
 end
 
 
-@testset "Silicon without XC (small, collinear spin)" begin
-    run_silicon_redHF(Float64, Ecut=5, test_tol=0.05, n_ignored=0, grid_size=15,
-                      test_etot=false, spin_polarization=:collinear)
+@testitem "Silicon without XC (small, collinear spin)" #=
+    =#    tags=[:core] setup=[RunSCF, TestCases, SiliconRedHF] begin
+    SiliconRedHF.run_silicon_redHF(Float64; Ecut=5, test_tol=0.05, n_ignored=0,
+                                   grid_size=15, test_etot=false,
+                                   spin_polarization=:collinear)
 end

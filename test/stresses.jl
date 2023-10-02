@@ -1,14 +1,14 @@
-using Test
-using DFTK
-using ForwardDiff
-import FiniteDiff
-using MPI
-include("testcases.jl")
-
 # Hellmann-Feynman stress
 # via ForwardDiff & custom FFTW overloads on ForwardDiff.Dual
 
-@testset "ForwardDiff stresses on silicon" begin
+@testitem "ForwardDiff stresses on silicon" setup=[TestCases] begin
+    using DFTK
+    using ForwardDiff
+    import FiniteDiff
+    using MPI
+    using LinearAlgebra
+    silicon = TestCases.silicon
+
     function make_basis(lattice, symmetries, element)
         model = model_PBE(lattice, [element, element], silicon.positions; symmetries)
         PlaneWaveBasis(model; Ecut=7, kgrid=(3, 3, 3))

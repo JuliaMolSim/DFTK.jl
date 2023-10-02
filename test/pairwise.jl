@@ -1,10 +1,9 @@
-using Test
-using DFTK
-using DFTK: energy_forces_pairwise
-using LinearAlgebra
-using Random
+@testitem "Pairwise forces" begin
+    using DFTK
+    using DFTK: energy_forces_pairwise
+    using LinearAlgebra
+    using Random
 
-@testset "Pairwise forces" begin
     a = 5.131570667152971
     lattice = a .* [0 1 1; 1 0 1; 1 1 0]
     # perturb positions away from equilibrium to get nonzero force

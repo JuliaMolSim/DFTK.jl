@@ -1,4 +1,6 @@
-using LinearAlgebra
+@testsetup module TestCases
+using DFTK
+using LinearAlgebra: Diagonal, diagm
 using LazyArtifacts
 
 hgh_lda_family = artifact"hgh_lda_hgh"
@@ -111,3 +113,7 @@ o2molecule = (
 )
 o2molecule = merge(o2molecule,
                    (; atoms=fill(ElementPsp(o2molecule.atnum, psp=load_psp(o2molecule.psp_hgh)), 2)))
+
+all_testcases = (; silicon, magnesium, aluminium, aluminium_primitive, platinum_hcp,
+                 iron_bcc, o2molecule)
+end
