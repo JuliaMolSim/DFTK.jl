@@ -201,8 +201,7 @@ makedocs(;
                 :braket => [raw"\left\langle#1\middle|#2\right\rangle", 2],
             ),
         ))),
-        size_threshold_warn=409600,
-        size_threshold=2048000,
+        size_threshold=nothing,  # do not fail build if large HTML outputs
     ),
     sitename = "DFTK.jl",
     authors = "Michael F. Herbst, Antoine Levitt and contributors.",
