@@ -34,7 +34,8 @@ using AtomsIO
 
 ## Read a file using [AtomsIO](https://github.com/mfherbst/AtomsIO.jl),
 ## which directly yields an AbstractSystem.
-system = load_system("Si.extxyz")
+## Disabled for now, due to issue with AtomsIO.
+## system = load_system("Si.extxyz")
 
 ## Now run the LDA calculation:
 system = attach_psp(system; Si="hgh/lda/si-q4")

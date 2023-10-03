@@ -127,13 +127,13 @@ import Artifacts
 #
 
 # Get list of files from PAGES
-extract_paths(pages::AbstractArray) = collect(Iterators.flatten(extract_paths.(pages)))
 extract_paths(file::AbstractString) = [file]
+extract_paths(pages::AbstractArray) = collect(Iterators.flatten(extract_paths.(pages)))
 extract_paths(pair::Pair) = extract_paths(pair.second)
 
 # Transform files to *.md
-transform_to_md(pages::AbstractArray) = transform_to_md.(pages)
 transform_to_md(file::AbstractString) = first(splitext(file)) * ".md"
+transform_to_md(pages::AbstractArray) = transform_to_md.(pages)
 transform_to_md(pair::Pair) = (pair.first => transform_to_md(pair.second))
 
 # Setup Artifacts.toml system
@@ -188,7 +188,6 @@ end
 # Generate the docs in BUILDPATH
 makedocs(;
     modules=[DFTK],
-    repo="https://" * DFTKGH * "/blob/{commit}{path}#{line}",
     format=Documenter.HTML(
         # Use clean URLs, unless built as a "local" build
         prettyurls = CONTINUOUS_INTEGRATION,
@@ -202,12 +201,13 @@ makedocs(;
                 :braket => [raw"\left\langle#1\middle|#2\right\rangle", 2],
             ),
         ))),
+        size_threshold=nothing,  # do not fail build if large HTML outputs
     ),
     sitename = "DFTK.jl",
     authors = "Michael F. Herbst, Antoine Levitt and contributors.",
     pages=transform_to_md(PAGES),
     checkdocs=:exports,
-    strict=!DEBUG,
+    warnonly=DEBUG,
 )
 
 # Dump files for managing dependencies in binder
