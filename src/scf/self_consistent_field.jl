@@ -77,6 +77,8 @@ Overview of parameters:
 - `nbandsalg`: By default DFTK uses `nbandsalg=AdaptiveBands(model)`, which adaptively determines
   the number of bands to compute. If you want to influence this algorithm or use a predefined
   number of bands in each SCF step, pass a [`FixedBands`](@ref) or [`AdaptiveBands`](@ref).
+  Beware that with non-zero temperature, the convergence of the SCF algorithm may be limited
+  by the `default_occupation_threshold` parameter.
 - `callback`: Function called at each SCF iteration. Usually takes care of printing the
   intermediate state.
 """
@@ -92,7 +94,7 @@ Overview of parameters:
     solver=scf_anderson_solver(),
     eigensolver=lobpcg_hyper,
     determine_diagtol=ScfDiagtol(),
-    nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model; occupation_threshold=tol/10),
+    nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
     fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model),
     callback=ScfDefaultCallback(; show_damping=false),
     compute_consistent_energies=true,
