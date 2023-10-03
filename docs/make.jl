@@ -127,13 +127,13 @@ import Artifacts
 #
 
 # Get list of files from PAGES
-extract_paths(pages::AbstractArray) = collect(Iterators.flatten(extract_paths.(pages)))
 extract_paths(file::AbstractString) = [file]
+extract_paths(pages::AbstractArray) = collect(Iterators.flatten(extract_paths.(pages)))
 extract_paths(pair::Pair) = extract_paths(pair.second)
 
 # Transform files to *.md
-transform_to_md(pages::AbstractArray) = transform_to_md.(pages)
 transform_to_md(file::AbstractString) = first(splitext(file)) * ".md"
+transform_to_md(pages::AbstractArray) = transform_to_md.(pages)
 transform_to_md(pair::Pair) = (pair.first => transform_to_md(pair.second))
 
 # Setup Artifacts.toml system
