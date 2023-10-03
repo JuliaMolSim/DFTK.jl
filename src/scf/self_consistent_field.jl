@@ -94,7 +94,7 @@ Overview of parameters:
     solver=scf_anderson_solver(),
     eigensolver=lobpcg_hyper,
     determine_diagtol=ScfDiagtol(),
-    nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
+    nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model; occupation_threshold=tol/10),
     fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model),
     callback=ScfDefaultCallback(; show_damping=false),
     compute_consistent_energies=true,
