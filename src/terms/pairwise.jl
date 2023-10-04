@@ -35,35 +35,39 @@ function ene_ops(term::TermPairwisePotential, basis::PlaneWaveBasis, ψ, occupat
 end
 compute_forces(term::TermPairwisePotential, ::PlaneWaveBasis, ψ, occ; kwargs...) = term.forces
 
-"""
-Compute the pairwise energy and forces. The energy is the interaction energy per unit cell
-between atomic sites. The forces is the opposite of the derivative of the energy with
-respect to `positions`.
-
-The potential is expected to decrease quickly at infinity.
-"""
 function energy_forces_pairwise(model::Model{T}, V, params; kwargs...) where {T}
     isempty(model.atoms) && return (; energy=zero(T), forces=zero(model.positions))
     symbols = Symbol.(atomic_symbol.(model.atoms))
     energy_forces_pairwise(model.lattice, symbols, model.positions, V, params; kwargs...)
 end
 
-
-# This could be merged with Ewald, but the use of `symbols` would slow down the
+# This could be merged with Pairwise, but its use of `atom_types` would slow down this
 # computationally intensive Ewald sums. So we leave it as it for now.
+# Phonons:
+# Computes the local energy and forces on the atoms of the reference unit cell 0, for an
+# infinite array of atoms at positions r_{iR} = positions[i] + R + ph_disp[i]*e^{-iq·R}.
 # `q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
 # compute the Fourier transform of the force constant matrix.
-# Computes the local energy and forces on the atoms of the reference unit cell 0, for an
-# infinite array of atoms at positions r_{iR} = positions[i] + R + ph_disp[i]*e^{iq·R}.
-function energy_forces_pairwise(lattice, symbols, positions, V, params; max_radius=100,
-                                ph_disp=nothing, q=nothing)
-    isnothing(ph_disp) && @assert isnothing(q)
+"""
+Compute the pairwise energy and forces. The energy is the interaction energy per unit cell
+between atomic sites. The forces is the opposite of the derivative of the energy with
+respect to `positions`.
+
+`lattice` should contain the lattice vectors as columns. `symbols` and `positions` are the
+atomic elements and their positions (as an array of arrays) in fractional coordinates. `V`
+and `params` are the pairwise potential and its set of parameters (that depends on pairs of
+symbols).
+
+The potential is expected to decrease quickly at infinity.
+"""
+function energy_forces_pairwise(lattice::AbstractArray{T}, symbols, positions, V, params;
+                                max_radius=100, ph_disp=nothing, q=zero(Vec3{T})) where {T}
+    S = isnothing(ph_disp) ? T : promote_type(complex(T), eltype(ph_disp[1]))
     @assert length(symbols) == length(positions)
 
-    T = eltype(positions[1])
+    isnothing(ph_disp) && @assert iszero(q)
     if !isnothing(ph_disp)
         @assert !isnothing(q)
-        T = promote_type(complex(T), eltype(ph_disp[1]))
         @assert size(ph_disp) == size(positions)
     end
 
@@ -81,8 +85,8 @@ function energy_forces_pairwise(lattice, symbols, positions, V, params; max_radi
     #
     # Energy loop
     #
-    sum_pairwise::T = zero(T)
-    forces = zeros(Vec3{T}, length(positions))
+    sum_pairwise::S = zero(S)
+    forces = zeros(Vec3{S}, length(positions))
     # Loop over real-space
     for R1 in -Rlims[1]:Rlims[1], R2 in -Rlims[2]:Rlims[2], R3 in -Rlims[3]:Rlims[3]
         R = Vec3(R1, R2, R3)
@@ -94,15 +98,15 @@ function energy_forces_pairwise(lattice, symbols, positions, V, params; max_radi
             ti = positions[i]
             tj = positions[j] + R
             if !isnothing(ph_disp)
-                ti += ph_disp[i]  # * cis2pi(dot(q, zeros(3))) === 1
+                ti += ph_disp[i]  # * cis2pi(-dot(q, zeros(3))) === 1
                                   #  as we use the forces at the nuclei in the unit cell
-                tj += ph_disp[j] * cis2pi(dot(q, R))
+                tj += ph_disp[j] * cis2pi(-dot(q, R))
             end
             Δr = lattice * (ti .- tj)
             dist = norm_cplx(Δr)
             energy_contribution = V(dist, param_ij)
             sum_pairwise += energy_contribution
-            dE_ddist = ForwardDiff.derivative(zero(real(eltype(dist)))) do ε
+            dE_ddist = ForwardDiff.derivative(zero(T)) do ε
                 V(dist + ε, param_ij)
             end
             dE_dti = lattice' * dE_ddist / dist * Δr

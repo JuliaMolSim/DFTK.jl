@@ -1,14 +1,9 @@
-# TODO: Temporary, explanations too scarce. To be changed with proper phonon computations.
-using Test
-using DFTK
-using DFTK: energy_forces_pairwise
-using LinearAlgebra
 using Random
+using ForwardDiff
+using LinearAlgebra
 
-include("phonon/helpers.jl")
-include("testcases.jl")
-
-@testset "Phonons" begin
+# Helpers functions for tests.
+# TODO: Temporary, explanations too scarce. To be changed with proper phonon computations.
 
 # Convert back and forth between Vec3 and columnwise matrix
 fold(x)   = hcat(x...)
@@ -60,7 +55,7 @@ function test_supercell_q0(; n_scell=1, max_radius=1e3)
             new_positions = unfold(fold(case.positions) .+ ε .* Linv * direction)
             forces = energy_forces_pairwise(eltype(ε).(case.lattice), fill(:X, n_atoms),
                                             new_positions, case.V, case.params;
-                                            max_radius).forces
+                                            compute_forces=true, max_radius).forces
             [(Linv * f)[1] for f in forces]
         end
     end
@@ -75,7 +70,8 @@ function test_ph_disp(; n_scell=1, max_radius=1e3, n_points=2)
 
     function pairwise_ph(q, d)
         energy_forces_pairwise(case.lattice, fill(:X, n_atoms), case.positions, case.V,
-                               case.params; q=[q, 0, 0], ph_disp=d, max_radius).forces
+                               case.params; q=[q, 0, 0], ph_disp=d, compute_forces=true,
+                               max_radius).forces
     end
 
     ph_bands = []
@@ -107,80 +103,60 @@ function transfer_blochwave_kpt_real(ψk_in, basis::PlaneWaveBasis, kpt_in, kpt_
     ψk_out
 end
 
+# Convert to Cartesian a dynamical matrix in reduced coordinates.
+function dynmat_to_cart(basis, dynamical_matrix)
+    model = basis.model
+    positions = model.positions
+    n_atoms = length(positions)
+    lattice = model.lattice
+    inv_lattice = DFTK.compute_inverse_lattice(lattice)
 
-@testset "Phonon consistency" begin
-    tol = 1e-6
-    n_points = 10
-    max_radius = 1e3
-
-    ph_bands = [test_ph_disp(; n_scell, max_radius, n_points) for n_scell in 1:3]
-
-    # Recover the same extremum for the system whatever case we test
-    for n_scell in 2:3
-        @test minimum(fold(ph_bands[1])) ≈ minimum(fold(ph_bands[n_scell])) atol=tol
-        @test maximum(fold(ph_bands[1])) ≈ maximum(fold(ph_bands[n_scell])) atol=tol
+    cart_mat = zero.(dynamical_matrix)
+    # The dynamical matrix `D` acts on vectors `dr` and gives a covector `dF`:
+    #   dF = D · dr.
+    # Thus the transformation between reduced and Cartesian coordinates is not a comatrix.
+    # To transform `dynamical_matrix` from reduced coordinates to `cart_mat` in Cartesian
+    # coordinates, we write
+    #   dr_cart = lattice · dr_red,
+    #   ⇒ dr_redᵀ · D_red · dr_red = dr_cartᵀ · lattice⁻ᵀ · D_red · lattice⁻¹ · dr_cart
+    #                              = dr_cartᵀ · D_cart · dr_cart
+    #   ⇒ D_cart = lattice⁻ᵀ · D_red · lattice⁻¹.
+    for τ in 1:n_atoms
+        for η in 1:n_atoms
+            cart_mat[:, η, :, τ] = inv_lattice' * dynamical_matrix[:, η, :, τ] * inv_lattice
+        end
     end
-
-    # Test consistency between supercell method at `q = 0` and direct `q`-points computations
-    for n_scell in 1:3
-        r_q0 = test_supercell_q0(; n_scell, max_radius)
-        @assert length(r_q0) == n_scell
-        ph_band_q0 = ph_bands[n_scell][n_points÷2+1]
-        @test norm(r_q0 - ph_band_q0) < tol
-    end
+    reshape(cart_mat, 3*n_atoms, 3*n_atoms)
 end
 
-@testset "Shifting functions" begin
+# We do not take the square root to compare results with machine precision.
+function compute_ω²(matrix)
+    Ω = eigvals(matrix)
+    real(Ω)
+end
+
+function generate_random_supercell(; max_length=6)
     Random.seed!()
-    tol = 1e-12
-
-    case = prepare_3d_system()
-
-    X = ElementGaussian(1.0, 0.5, :X)
-    atoms = [X for _ in case.positions]
-    n_atoms = length(case.positions)
-
-    model = Model(case.lattice, atoms, case.positions; n_electrons=n_atoms,
-                  symmetries=false, spin_polarization=:collinear)
-    kgrid = rand(2:10, 3)
-    k1, k2, k3 = kgrid
-    basis = PlaneWaveBasis(model; Ecut=100, kgrid)
-
-    # We consider a smooth periodic function with Fourier coefficients given if the basis
-    # e^(iG·x)
-    ψ = rand(ComplexF64, size(r_vectors(basis)))
-
-    # Random `q` shift
-    q0 = rand(basis.kpoints).coordinate
-    ishift = [rand(-k1*2:k1*2), rand(-k2*2:k2*2), rand(-k3*2:k3*2)]
-    q = Vec3(q0 .* ishift)
-    @testset "Transfer function" begin
-        for kpt in unique(rand(basis.kpoints, 4))
-            ψk = fft(basis, kpt, ψ)
-
-            ψk_out_four = DFTK.multiply_by_expiqr(basis, kpt, q, ψk)
-            ψk_out_real = let
-                shifted_kcoord = kpt.coordinate .+ q
-                index, ΔG = DFTK.find_equivalent_kpt(basis, shifted_kcoord, kpt.spin)
-                kpt_out = basis.kpoints[index]
-                transfer_blochwave_kpt_real(ψk, basis, kpt, kpt_out, ΔG)
-            end
-            @testset "Testing kpoint $(kpt.coordinate) on kgrid $kgrid" begin
-                @test norm(ψk_out_four - ψk_out_real) < tol
-            end
-        end
+    n_max = min(max_length, 5)
+    supercell_size = nothing
+    while true
+        supercell_size = rand(1:n_max, 3)
+        prod(supercell_size) < max_length && break
     end
-
-    @testset "Ordering function" begin
-        kpoints_plus_q = DFTK.k_to_kpq_mapping(basis, q)
-        ordering(kdata) = kdata[kpoints_plus_q]
-        kcoords = getfield.(basis.kpoints, :coordinate)
-        for (ik, kcoord) in enumerate(kcoords)
-            @test mod.(kcoord + q .- tol, 1) ≈ mod.(ordering(kcoords)[ik] .- tol, 1)
-        end
-    end
+    supercell_size
 end
 
-include("phonon/ewald.jl")
+function generate_supercell_qpoints(; supercell_size=generate_random_supercell())
+    qpoints_list = Iterators.product([1:n_sc for n_sc in supercell_size]...)
+    qpoints = map(qpoints_list) do n_sc
+        DFTK.normalize_kpoint_coordinate.([n_sc[i] / supercell_size[i] for i in 1:3])
+    end |> vec
 
+    (; supercell_size, qpoints)
 end
+
+const REFERENCE_PH_CALC = "REFERENCE PH_CALC" in keys(ENV)
+phonon = (
+    supercell_size = REFERENCE_PH_CALC ? generate_random_supercell() : [2, 1, 3],
+)
+phonon = merge(phonon, (; generate_supercell_qpoints(; phonon.supercell_size).qpoints))
