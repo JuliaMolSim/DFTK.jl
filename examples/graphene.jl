@@ -8,6 +8,7 @@ using DFTK
 using Unitful
 using UnitfulAtomic
 using LinearAlgebra
+using Plots
 
 ## Define the convergence parameters (these should be increased in production)
 L = 20  # height of the simulation box
