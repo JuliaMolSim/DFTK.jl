@@ -1,7 +1,6 @@
 """
 Exchange-correlation term, defined by a list of functionals and usually evaluated through libxc.
 """
-
 struct Xc
     functionals::Vector{Functional}
     scaling_factor::Real  # Scales by an arbitrary factor (useful for exploration)
