@@ -5,9 +5,8 @@ using GenericLinearAlgebra
 include("testcases.jl")
 
 function discretized_hamiltonian(T, testcase)
-    model = model_DFT(testcase.lattice, testcase.atoms,
+    model = model_DFT(convert(Matrix{T}, testcase.lattice), testcase.atoms,
                       testcase.positions, [:lda_x, :lda_c_vwn])
-    model = convert(Model{T}, model)
 
     # For interval arithmetic to give useful numbers,
     # the fft_size should be a power of 2
