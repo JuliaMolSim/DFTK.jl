@@ -34,19 +34,109 @@
 
 # See https://juliamolsim.github.io/DFTK.jl/stable/developer/symmetries/ for details.
 
-@doc raw"""
-Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
-function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
-                             tol_symmetry=SYMMETRY_TOLERANCE)
-    @assert length(atoms) == length(positions)
-    atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
-    Ws, ws = spglib_get_symmetry(lattice, atom_groups, positions, magnetic_moments; tol_symmetry)
+`:none` if no element has a magnetic moment, else `:collinear` or `:full`.
+"""
+function determine_spin_polarization(magnetic_moments)
+    isempty(magnetic_moments) && return :none
+    all_magmoms = normalize_magnetic_moment.(magnetic_moments)
+    all(iszero, all_magmoms) && return :none
+    all(iszero(magmom[1:2]) for magmom in all_magmoms) && return :collinear
+
+    :full
+end
+
+
+"""
+Return the Symmetry operations given a `hall_number`.
+
+This function allows to directly access to the space group operations in the
+`spglib` database. To specify the space group type with a specific choice,
+`hall_number` is used.
+
+The definition of `hall_number` is found at
+[Space group type](https://spglib.readthedocs.io/en/latest/dataset.html#dataset-spg-get-dataset-spacegroup-type).
+"""
+function symmetry_operations(hall_number::Integer)
+    Ws, ws = Spglib.get_symmetry_from_database(hall_number)
     [SymOp(W, w) for (W, w) in zip(Ws, ws)]
 end
-function symmetry_operations(system::AbstractSystem)
+
+@doc raw"""
+Return the symmetries given an atomic structure with optionally designated magnetic moments
+on each of the atoms. The symmetries are determined using spglib.
+"""
+@timing function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
+                                     tol_symmetry=SYMMETRY_TOLERANCE, check_symmetry=true)
+    spin_polarization = determine_spin_polarization(magnetic_moments)
+    dimension   = count(!iszero, eachcol(lattice))
+    if isempty(atoms) || dimension != 3
+        # spglib doesn't support these cases, so we default to no symmetries
+        return [one(SymOp)]
+    end
+
+    if spin_polarization == :full
+        @warn("Symmetry detection not yet supported in full spin polarization. " *
+              "Returning no symmetries")
+        return [one(SymOp)]
+    end
+
+    atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
+    cell = spglib_cell(lattice, atom_groups, positions, magnetic_moments)
+    Ws, ws = try
+        if spin_polarization == :none
+            Spglib.get_symmetry(cell, tol_symmetry)
+        elseif spin_polarization == :collinear
+            rotations, translations, _ = Spglib.get_symmetry_with_collinear_spin(cell, tol_symmetry)
+            rotations, translations
+        end
+    catch e
+        if e isa Spglib.SpglibError
+            msg = ("spglib failed to get the symmetries. Check your lattice, use a " *
+                   "uniform BZ mesh or disable symmetries. Spglib reported : " * e.msg)
+            throw(Spglib.SpglibError(msg))
+        else
+            rethrow()
+        end
+    end
+
+    symmetries = [SymOp(W, w) for (W, w) in zip(Ws, ws)]
+    if check_symmetry
+        _check_symmetries(symmetries, lattice, atom_groups, positions; tol_symmetry)
+    end
+    symmetries
+end
+function symmetry_operations(system::AbstractSystem; tol_symmetry=SYMMETRY_TOLERANCE)
     parsed = parse_system(system)
-    symmetry_operations(parsed.lattice, parsed.atoms, parsed.positions, parsed.magnetic_moments)
+    symmetry_operations(parsed.lattice, parsed.atoms, parsed.positions,
+                        parsed.magnetic_moments; tol_symmetry)
+end
+
+function _check_symmetries(symmetries::AbstractVector{<:SymOp}, lattice, atom_groups, positions;
+                          tol_symmetry=SYMMETRY_TOLERANCE)
+    # Check (W, w) maps atoms to equivalent atoms in the lattice
+    for symop in symmetries
+        W, w = symop.W, symop.w
+
+        # Check (A W A^{-1}) is orthogonal
+        Wcart = lattice * W / lattice
+        if maximum(abs, Wcart'Wcart - I) > tol_symmetry
+            error("Issue in symmetry determination: Non-orthogonal rotation matrix.")
+        end
+
+        for group in atom_groups
+            group_positions = positions[group]
+            for coord in group_positions
+                # If all elements of a difference in diffs is integer, then
+                # W * coord + w and pos are equivalent lattice positions
+                if !any(c -> is_approx_integer(W * coord + w - c; tol=tol_symmetry), group_positions)
+                    error("Issue in symmetry determination: Cannot map the atom at position " *
+                          "$coord to another atom of the same element under the symmetry " *
+                          "operation (W, w):\n($W, $w)")
+                end
+            end
+        end
+    end
 end
 
 # Approximate in; can be performance-critical, so we optimize in case of rationals

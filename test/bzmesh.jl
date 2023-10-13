@@ -1,20 +1,22 @@
 using DFTK
 using LinearAlgebra
 using Test
+using Spglib
 using Unitful
 using Logging
 include("testcases.jl")
 
 @testset "bzmesh_uniform agrees with spglib" begin
+    using DFTK: normalize_kpoint_coordinate
+
     function test_against_spglib(kgrid_size; kshift=[0, 0, 0])
         kgrid_size = Vec3(kgrid_size)
-        is_shift = ifelse.(kshift .== 0, 0, 1)
+        is_shift = ifelse.(kshift .== 0, false, true)
         diagonal = Matrix{Int64}(I, 3, 3)
-        n_kpts, _, grid =
-            DFTK.spglib_get_stabilized_reciprocal_mesh(kgrid_size, [diagonal]; is_shift)
-
-        kcoords_spglib = [(kshift .+ grid[ik]) .// kgrid_size for ik in 1:n_kpts]
-        kcoords_spglib = DFTK.normalize_kpoint_coordinate.(kcoords_spglib)
+        spg_mesh = Spglib.get_stabilized_reciprocal_mesh([diagonal], kgrid_size;
+                                                         is_shift, is_time_reversal=false)
+        kcoords_spglib = [rationalize.(normalize_kpoint_coordinate(k))
+                          for k in Spglib.eachpoint(spg_mesh)]
         sort!(kcoords_spglib)
 
         kcoords, _ = bzmesh_uniform(kgrid_size; kshift)

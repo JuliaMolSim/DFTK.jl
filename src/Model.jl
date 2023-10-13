@@ -249,17 +249,7 @@ normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm
 """Number of valence electrons."""
 n_electrons_from_atoms(atoms) = sum(n_elec_valence, atoms; init=0)
 
-"""
-`:none` if no element has a magnetic moment, else `:collinear` or `:full`.
-"""
-function default_spin_polarization(magnetic_moments)
-    isempty(magnetic_moments) && return :none
-    all_magmoms = normalize_magnetic_moment.(magnetic_moments)
-    all(iszero, all_magmoms) && return :none
-    all(iszero(magmom[1:2]) for magmom in all_magmoms) && return :collinear
-
-    :full
-end
+default_spin_polarization(magnetic_moments) = determine_spin_polarization(magnetic_moments)
 
 """
 Default logic to determine the symmetry operations to be used in the model.
