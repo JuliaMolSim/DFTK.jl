@@ -48,13 +48,14 @@ function spglib_atoms(atom_groups,
         end
     end
 
+    @assert !arbitrary_spin  # Not yet supported
     collinear = !arbitrary_spin && !all(iszero, spg_spins)
     (; positions=spg_positions, numbers=spg_numbers, spins=spg_spins, collinear)
 end
 
 function spglib_cell(lattice, atom_groups, positions, magnetic_moments)
     spg = spglib_atoms(atom_groups, positions, magnetic_moments)
-    (; cell=Spglib.Cell(lattice, spg.positions, spg.numbers, spg.spins), spg.collinear)
+    Spglib.SpglibCell(lattice, spg.positions, spg.numbers, spg.spins)
 end
 function spglib_cell(model::Model, magnetic_moments)
     spglib_cell(model.lattice, model.atom_groups, model.positions, magnetic_moments)
@@ -165,8 +166,8 @@ function spglib_standardize_cell(lattice::AbstractArray{T}, atom_groups, positio
     #      https://github.com/JuliaMolSim/DFTK.jl/pull/496/files#r725203554
     #      Essentially this does not influence the standardisation,
     #      but it only influences the kpath.
-    cell, _ = spglib_cell(lattice, atom_groups, positions, magnetic_moments)
-    std_cell = Spglib.standardize_cell(cell; to_primitive=primitive, symprec=tol_symmetry,
+    cell = spglib_cell(lattice, atom_groups, positions, magnetic_moments)
+    std_cell = Spglib.standardize_cell(cell, tol_symmetry; to_primitive=primitive,
                                        no_idealize=!correct_symmetry)
 
     lattice   = Matrix{T}(std_cell.lattice)
@@ -180,9 +181,12 @@ function spglib_standardize_cell(model::Model, magnetic_moments=[]; kwargs...)
 end
 
 
-function spglib_spacegroup_number(model, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
+function spglib_spacegroup_number(model::Model, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
     # Get spacegroup number according to International Tables for Crystallography (ITA)
     # TODO Time-reversal symmetry disabled? (not yet available in DFTK)
-    cell, _ = spglib_cell(model, magnetic_moments)
-    Spglib.get_spacegroup_number(cell, tol_symmetry)
+    spglib_dataset(model, magnetic_moments; tol_symmetry).spacegroup_number
+end
+
+function spglib_dataset(model::Model, magnetic_moments=[]; tol_symmetry=SYMMETRY_TOLERANCE)
+    Spglib.get_dataset(spglib_cell(model, magnetic_moments), tol_symmetry)
 end

@@ -1,3 +1,4 @@
+using DFTK
 using DFTK: spglib_spacegroup_number, spglib_standardize_cell
 using LinearAlgebra
 using Test
