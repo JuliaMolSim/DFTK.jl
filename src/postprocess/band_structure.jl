@@ -65,17 +65,22 @@ function irrfbz_path(model; dim::Integer=model.n_dim, sgnum=nothing, magnetic_mo
 end
 
 """Return kpoint coordinates in reduced coordinates"""
-function kpath_get_kcoords(kpath::KPathInterpolant{D}) where {D}
-    map(k -> vcat(k, zeros_like(k, 3 - D)), kpath)
+function kpath_get_kcoords(kinter::KPathInterpolant{D}) where {D}
+    map(k -> vcat(k, zeros_like(k, 3 - D)), kinter)
 end
-function kpath_get_branch(kpath::KPathInterpolant{D}, ibranch::Integer) where {D}
-    map(k -> vcat(k, zeros_like(k, 3 - D)), kpath.kpaths[ibranch])
+function kpath_get_branch(kinter::KPathInterpolant{D}, ibranch::Integer) where {D}
+    map(k -> vcat(k, zeros_like(k, 3 - D)), kinter.kpaths[ibranch])
 end
 
-@timing function compute_bands(basis::PlaneWaveBasis, kcoords::AbstractVector;
+
+# TODO Add docstring here!
+#      The idea is that compute_bands contains anything a save_bands( ) function would need
+#      to store the computed bands for post-processing (e.g. in Aiida)
+@timing function compute_bands(basis::PlaneWaveBasis,
+                               kcoords::AbstractVector{<:AbstractVector};
                                n_bands=default_n_bands_bandstructure(basis.model),
-                               ρ=nothing, eigensolver=lobpcg_hyper,
-                               tol=1e-3, show_progress=true, kwargs...)
+                               n_extra=3, ρ=nothing, εF=nothing, eigensolver=lobpcg_hyper,
+                               tol=1e-3, kwargs...)
     # kcoords are the kpoint coordinates in fractional coordinates
     if isnothing(ρ)
         if any(t isa TermNonlinear for t in basis.terms)
@@ -91,17 +96,35 @@ end
     bs_basis = PlaneWaveBasis(basis, kcoords, kweights)
 
     ham = Hamiltonian(bs_basis; ρ)
-    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
-                                     n_conv_check=n_bands, tol, show_progress, kwargs...)
+    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_extra;
+                                     n_conv_check=n_bands, tol, kwargs...)
     if !eigres.converged
         @warn "Eigensolver not converged" n_iter=eigres.n_iter
     end
-    merge((; basis=bs_basis), select_eigenpairs_all_kblocks(eigres, 1:n_bands))
+    eigres = select_eigenpairs_all_kblocks(eigres, 1:n_bands)
+
+    occupation=nothing
+    if !isnothing(εF)
+        occupation = compute_occupation(bs_basis, eigres.λ, εF)
+    end
+
+    (; basis, ψ=eigres.X, eigenvalues=eigres.λ, ρ, εF, occupation, diagonalization=eigres)
 end
-function compute_bands(basis::PlaneWaveBasis, kpath::KPathInterpolant; kwargs...)
-    compute_bands(basis, kpath_get_kcoords(kpath); kwargs...)
+function compute_bands(scfres::NamedTuple, kcoords::AbstractVector{<:AbstractVector};
+                       n_bands=default_n_bands_bandstructure(scfres), kwargs...)
+    compute_bands(scfres.basis, kcoords; scfres.ρ, scfres.εF, n_bands, kwargs...)
 end
 
+function compute_bands(basis_or_scfres, kinter::KPathInterpolant; kwargs...)
+    res = compute_bands(basis_or_scfres, kpath_get_kcoords(kinter); kwargs...)
+    merge(res, (; kinter))
+end
+function compute_bands(basis_or_scfres, kpath::KPath; kline_density=40u"bohr", kwargs...)
+    kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
+    compute_bands(basis_or_scfres, kinter; kwargs...)
+end
+compute_bands(basis::PlaneWaveBasis; kwargs...) = compute_bands(basis,  irrfbz_path(basis.model))
+compute_bands(scfres::NamedTuple; kwargs...)    = compute_bands(scfres, irrfbz_path(scfres.basis.model))
 
 function kdistances_and_ticks(kcoords, klabels::Dict, kbranches)
     # kcoords in cartesian coordinates, klabels uses cartesian coordinates
@@ -138,22 +161,23 @@ function kdistances_and_ticks(kcoords, klabels::Dict, kbranches)
 end
 
 
-function data_for_plotting(kpath::KPathInterpolant, band_data; datakeys=[:λ, :λerror])
+function data_for_plotting(band_data; datakeys=[:eigenvalues, :λerror])
+    kinter   = band_data.kinter
     basis    = band_data.basis
     n_spin   = basis.model.n_spin_components
     n_kcoord = length(basis.kpoints) ÷ n_spin
     n_bands  = nothing
 
     # XXX Convert KPathInterpolant => kbranches, klabels
-    kbranches = [1:length(kpath.kpaths[1])]
-    for n in length.(kpath.kpaths)[2:end]
+    kbranches = [1:length(kinter.kpaths[1])]
+    for n in length.(kinter.kpaths)[2:end]
         push!(kbranches, kbranches[end].stop+1:kbranches[end].stop+n)
     end
-    klabels = Dict{Symbol, Vec3{eltype(kpath[1])}}()
-    for (ibranch, labels) in enumerate(kpath.labels)
+    klabels = Dict{Symbol, Vec3{eltype(kinter[1])}}()
+    for (ibranch, labels) in enumerate(kinter.labels)
         for (k, v) in pairs(labels)
             # Convert to Cartesian and add to labels
-            klabels[v] = basis.model.recip_lattice * kpath_get_branch(kpath, ibranch)[k]
+            klabels[v] = basis.model.recip_lattice * kpath_get_branch(kinter, ibranch)[k]
         end
     end
 
@@ -208,6 +232,7 @@ end
 
 """
 Compute and plot the band structure. `n_bands` selects the number of bands to compute.
+Requires Plots.jl to be loaded to be defined and working properly.
 If this value is absent and an `scfres` is used to start the calculation a default of
 `n_bands_scf + 5sqrt(n_bands_scf)` is used. The unit used to plot the bands can
 be selected using the `unit` parameter. Like in the rest of DFTK Hartree is used
@@ -215,24 +240,4 @@ by default. Another standard choices is `unit=u"eV"` (electron volts).
 The `kline_density` is given in number of ``k``-points per inverse bohrs (i.e.
 overall in units of length).
 """
-function plot_bandstructure(basis::PlaneWaveBasis, kpath::KPath=irrfbz_path(basis.model);
-                            εF=nothing, kline_density=40u"bohr",
-                            unit=u"hartree", kwargs_plot=(; ),
-                            kwargs...)
-    mpi_nprocs() > 1 && error("Band structures with MPI not supported yet")
-    if !isdefined(DFTK, :PLOTS_LOADED)
-        error("Plots not loaded. Run 'using Plots' before calling plot_bandstructure.")
-    end
-
-    # Band structure calculation along high-symmetry path
-    kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
-    println("Computing bands along kpath:")
-    sortlabels = map(bl -> last.(sort(collect(pairs(bl)))), kinter.labels)
-    println("       ", join(join.(sortlabels, " -> "), "  and  "))
-    band_data = compute_bands(basis, kinter; kwargs...)
-    plot_band_data(kinter, band_data; εF, unit, kwargs_plot...)
-end
-function plot_bandstructure(scfres::NamedTuple, kpath::KPath=irrfbz_path(scfres.basis.model);
-                            n_bands=default_n_bands_bandstructure(scfres), kwargs...)
-    plot_bandstructure(scfres.basis, kpath; n_bands, scfres.ρ, scfres.εF, kwargs...)
-end
+function plot_bandstructure end

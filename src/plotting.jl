@@ -33,23 +33,22 @@ function default_band_εrange(eigenvalues; εF=nothing)
 end
 
 
-function plot_band_data(kpath::KPathInterpolant, band_data;
-                        εF=nothing, unit=u"hartree", kwargs...)
-    eshift = something(εF, 0.0)
-    data = data_for_plotting(kpath, band_data)
+function plot_band_data(band_data; unit=u"hartree", kwargs...)
+    eshift = something(band_data.εF, 0.0)
+    data = data_for_plotting(band_data)
 
     # Constant to convert from AU to the desired unit
     to_unit = ustrip(auconvert(unit, 1.0))
 
     # Plot all bands, spins and errors
     p = Plots.plot(; xlabel="wave vector")
-    margs = length(kpath) < 70 ? (; markersize=2, markershape=:circle) : (; )
+    margs = length(band_data.kinter) < 70 ? (; markersize=2, markershape=:circle) : (; )
     for σ = 1:data.n_spin, iband = 1:data.n_bands, branch in data.kbranches
         yerror = nothing
         if hasproperty(data, :λerror)
             yerror = data.λerror[:, iband, σ][branch] .* to_unit
         end
-        energies = (data.λ[:, iband, σ][branch] .- eshift) .* to_unit
+        energies = (data.eigenvalues[:, iband, σ][branch] .- eshift) .* to_unit
         Plots.plot!(p, data.kdistances[branch], energies;
                     label="", yerror, color=(:blue, :red)[σ], margs..., kwargs...)
     end
@@ -62,19 +61,31 @@ function plot_band_data(kpath::KPathInterpolant, band_data;
     # X-range: 0 to last kdistance value
     Plots.xlims!(p, (0, data.kdistances[end]))
     Plots.xticks!(p, data.ticks.distances, data.ticks.labels)
-    if !isnothing(εF)
+    if !isnothing(band_data.εF)
         Plots.hline!(p, [0.0], label="εF", color=:green, lw=1.5)
     end
 
-    ylims = to_unit .* (default_band_εrange(band_data.λ; εF) .- eshift)
+    ylims = to_unit .* (default_band_εrange(band_data.eigenvalues; band_data.εF) .- eshift)
     Plots.ylims!(p, round.(ylims, sigdigits=2)...)
-    if isnothing(εF)
+    if isnothing(band_data.εF)
         Plots.ylabel!(p, "eigenvalues  ($(string(unit)))")
     else
         Plots.ylabel!(p, "eigenvalues - ε_f  ($(string(unit)))")
     end
 
     p
+end
+function plot_bandstructure(basis::PlaneWaveBasis, kpath::KPath=irrfbz_path(basis.model);
+                            unit=u"hartree", kwargs_plot=(; ), kwargs...)
+    mpi_nprocs() > 1 && error("Band structure plotting with MPI not supported yet")
+    band_data = compute_bands(basis, kpath; kwargs...)
+    plot_band_data(band_data; unit, kwargs_plot...)
+end
+function plot_bandstructure(scfres::NamedTuple, kpath::KPath=irrfbz_path(scfres.basis.model);
+                            unit=u"hartree", kwargs_plot=(; ), kwargs...)
+    mpi_nprocs() > 1 && error("Band structure plotting with MPI not supported yet")
+    band_data = compute_bands(scfres, kpath; kwargs...)
+    plot_band_data(band_data; unit, kwargs_plot...)
 end
 
 function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
