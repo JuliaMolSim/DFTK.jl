@@ -2,6 +2,75 @@ import Brillouin
 import Brillouin.KPaths: KPath, KPathInterpolant, irrfbz_path
 
 @doc raw"""
+Compute band data:
+
+- `kpath` is a Brillouin.jl `KPath` object, `kinter` a Brillouin.jl `KPathInterpolant`.
+- `kcoords` are the ``k``-point coordinates (reduced coordinates).
+- `n_bands` selects the number of bands to compute. If this value is absent and an
+  `scfres` is passed, a default of `n_bands_scf + 5sqrt(n_bands_scf)` is used.
+- `εF`, the Fermi level and `ρ` the density are taken from `scfres` by default.
+- `kline_density` is given in the number of ``k``-points per inverse bohrs (i.e.
+  overall in units of length).
+- `tol` The default tolerance for the eigensolver is substantially lower than
+  for SCF computations. Increase if higher accuracy desired.
+- `eigensolver`: The diagonalisation method to be employed.
+"""
+@timing function compute_bands(basis::PlaneWaveBasis,
+                               kcoords::AbstractVector{<:AbstractVector};
+                               n_bands=default_n_bands_bandstructure(basis.model),
+                               n_extra=3, ρ=nothing, εF=nothing, eigensolver=lobpcg_hyper,
+                               tol=1e-3, kwargs...)
+    # kcoords are the kpoint coordinates in fractional coordinates
+    if isnothing(ρ)
+        if any(t isa TermNonlinear for t in basis.terms)
+            error("If a non-linear term is present in the model the converged density is required " *
+                  "to compute bands. Either pass the self-consistent density as the ρ keyword " *
+                  "argument or use the plot_bandstructure(scfres) function.")
+        end
+        ρ = guess_density(basis)
+    end
+
+    # Create basis with new kpoints, without any symmetry operations.
+    kweights = ones(length(kcoords)) ./ length(kcoords)
+    bs_basis = PlaneWaveBasis(basis, kcoords, kweights)
+
+    ham = Hamiltonian(bs_basis; ρ)
+    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_extra;
+                                     n_conv_check=n_bands, tol, kwargs...)
+    if !eigres.converged
+        @warn "Eigensolver not converged" n_iter=eigres.n_iter
+    end
+    eigres = select_eigenpairs_all_kblocks(eigres, 1:n_bands)
+
+    occupation=nothing
+    if !isnothing(εF)
+        (; occupation) = compute_occupation(bs_basis, eigres.λ, εF)
+    end
+
+    (; basis=bs_basis, ψ=eigres.X, eigenvalues=eigres.λ,
+     ρ, εF, occupation, diagonalization=eigres)
+end
+function compute_bands(scfres::NamedTuple, kcoords::AbstractVector{<:AbstractVector};
+                       n_bands=default_n_bands_bandstructure(scfres), kwargs...)
+    compute_bands(scfres.basis, kcoords; scfres.ρ, scfres.εF, n_bands, kwargs...)
+end
+
+function compute_bands(scfres::NamedTuple, kinter::KPathInterpolant; kwargs...)
+    merge((; kinter), compute_bands(scfres, kpath_get_kcoords(kinter); kwargs...))
+end
+function compute_bands(basis::PlaneWaveBasis, kinter::KPathInterpolant; kwargs...)
+    merge((; kinter), compute_bands(basis, kpath_get_kcoords(kinter); kwargs...))
+end
+
+function compute_bands(basis_or_scfres, kpath::KPath; kline_density=40u"bohr", kwargs...)
+    kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
+    compute_bands(basis_or_scfres, kinter; kwargs...)
+end
+compute_bands(basis::PlaneWaveBasis; kwargs...) = compute_bands(basis,  irrfbz_path(basis.model))
+compute_bands(scfres::NamedTuple; kwargs...)    = compute_bands(scfres, irrfbz_path(scfres.basis.model))
+
+
+@doc raw"""
 Extract the high-symmetry ``k``-point path corresponding to the passed `model`
 using `Brillouin`. Uses the conventions described in the reference work by
 Cracknell, Davies, Miller, and Love (CDML). Of note, this has minor differences to
@@ -73,89 +142,6 @@ function kpath_get_branch(kinter::KPathInterpolant{D}, ibranch::Integer) where {
 end
 
 
-# TODO Add docstring here!
-#      The idea is that compute_bands contains anything a save_bands( ) function would need
-#      to store the computed bands for post-processing (e.g. in Aiida)
-@timing function compute_bands(basis::PlaneWaveBasis,
-                               kcoords::AbstractVector{<:AbstractVector};
-                               n_bands=default_n_bands_bandstructure(basis.model),
-                               n_extra=3, ρ=nothing, εF=nothing, eigensolver=lobpcg_hyper,
-                               tol=1e-3, kwargs...)
-    # kcoords are the kpoint coordinates in fractional coordinates
-    if isnothing(ρ)
-        if any(t isa TermNonlinear for t in basis.terms)
-            error("If a non-linear term is present in the model the converged density is required " *
-                  "to compute bands. Either pass the self-consistent density as the ρ keyword " *
-                  "argument or use the plot_bandstructure(scfres) function.")
-        end
-        ρ = guess_density(basis)
-    end
-
-    # Create basis with new kpoints, without any symmetry operations.
-    kweights = ones(length(kcoords)) ./ length(kcoords)
-    bs_basis = PlaneWaveBasis(basis, kcoords, kweights)
-
-    ham = Hamiltonian(bs_basis; ρ)
-    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_extra;
-                                     n_conv_check=n_bands, tol, kwargs...)
-    if !eigres.converged
-        @warn "Eigensolver not converged" n_iter=eigres.n_iter
-    end
-    eigres = select_eigenpairs_all_kblocks(eigres, 1:n_bands)
-
-    occupation=nothing
-    if !isnothing(εF)
-        occupation = compute_occupation(bs_basis, eigres.λ, εF)
-    end
-
-    (; basis, ψ=eigres.X, eigenvalues=eigres.λ, ρ, εF, occupation, diagonalization=eigres)
-end
-function compute_bands(scfres::NamedTuple, kcoords::AbstractVector{<:AbstractVector};
-                       n_bands=default_n_bands_bandstructure(scfres), kwargs...)
-    compute_bands(scfres.basis, kcoords; scfres.ρ, scfres.εF, n_bands, kwargs...)
-end
-
-function compute_bands(basis_or_scfres, kinter::KPathInterpolant; kwargs...)
-    res = compute_bands(basis_or_scfres, kpath_get_kcoords(kinter); kwargs...)
-    merge(res, (; kinter))
-end
-function compute_bands(basis_or_scfres, kpath::KPath; kline_density=40u"bohr", kwargs...)
-    kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
-    compute_bands(basis_or_scfres, kinter; kwargs...)
-end
-compute_bands(basis::PlaneWaveBasis; kwargs...) = compute_bands(basis,  irrfbz_path(basis.model))
-compute_bands(scfres::NamedTuple; kwargs...)    = compute_bands(scfres, irrfbz_path(scfres.basis.model))
-
-struct BandData
-    basis
-    ρ
-    kinter   # k-Path interpolant or nothing
-    kcoords  # k-Point coordinates
-    eigenvalues
-    eigenvalues_error  # may be nothing
-    occupation
-    ψ   # may be nothing
-    εF  # may be nothing
-    n_iter  # may be nothing
-    residual_norms  # may be nothing
-end
-
-function todict(band_data::BandData)
-    # TODO 
-end
-
-function save_bands(filename::AbstractString, band_data::BandData; save_ψ=false)
-    # TODO New
-    # Keep in mind that k-point stuff is distributed across MPI processors
-end
-
-function plot(band_data::BandData; kwargs...)
-    # TODO New ... use plot receips for this
-    # https://github.com/JuliaPlots/Plots.jl/tree/master/RecipesBase
-end
-
-# Investigate the use of Extmodules for PlotReceips / Plots etc.
-
 function kdistances_and_ticks(kcoords, klabels::Dict, kbranches)
     # kcoords in cartesian coordinates, klabels uses cartesian coordinates
     function getlabel(kcoord; tol=1e-4)
@@ -191,7 +177,7 @@ function kdistances_and_ticks(kcoords, klabels::Dict, kbranches)
 end
 
 
-function data_for_plotting(band_data; datakeys=[:eigenvalues, :λerror])
+function data_for_plotting(band_data; datakeys=[:eigenvalues, :eigenvalues_error])
     kinter   = band_data.kinter
     basis    = band_data.basis
     n_spin   = basis.model.n_spin_components
@@ -261,13 +247,31 @@ end
 
 
 """
-Compute and plot the band structure. `n_bands` selects the number of bands to compute.
+Compute and plot the band structure. Kwargs are like in [`compute_bands`](@ref).
 Requires Plots.jl to be loaded to be defined and working properly.
-If this value is absent and an `scfres` is used to start the calculation a default of
-`n_bands_scf + 5sqrt(n_bands_scf)` is used. The unit used to plot the bands can
-be selected using the `unit` parameter. Like in the rest of DFTK Hartree is used
-by default. Another standard choices is `unit=u"eV"` (electron volts).
-The `kline_density` is given in number of ``k``-points per inverse bohrs (i.e.
-overall in units of length).
+The unit used to plot the bands can be selected using the `unit` parameter.
+Like in the rest of DFTK Hartree is used by default. Another standard choices is
+`unit=u"eV"` (electron volts).
 """
 function plot_bandstructure end
+
+
+"""
+Write the computed bands to a file. `save_ψ` determines whether the wavefunction
+is also saved or not.
+"""
+function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false, kwargs...)
+    _, ext = splitext(filename)
+    ext = Symbol(ext[2:end])
+
+    # Whitelist valid extensions
+    !(ext in (:json, )) && error("Extension '$ext' not supported by DFTK.")
+
+    # Keep in mind that k-point stuff is distributed across MPI processors
+    save_bands(filename, band_data, Val(ext); save_ψ, kwargs...)
+end
+
+function save_bands(filename::AbstractString, ::NamedTuple, ::Any; kwargs...)
+    error("The extension $(last(splitext(filename))) is currently not available. " *
+          "A required package (e.g. JSON3) is not yet loaded.")
+end

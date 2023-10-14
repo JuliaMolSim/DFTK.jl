@@ -1,9 +1,6 @@
-"""
-DFTK --- The density-functional toolkit. Provides functionality for experimenting
-with plane-wave density-functional theory algorithms.
-"""
 module DFTK
 
+using DocStringExtensions
 using LinearAlgebra
 using Markdown
 using Printf
@@ -17,6 +14,13 @@ using GPUArraysCore
 using Random
 using ChainRulesCore
 using PrecompileTools
+
+@template METHODS =
+"""
+$(TYPEDSIGNATURES)
+
+$(DOCSTRING)
+"""
 
 export Vec3
 export Mat3
@@ -191,6 +195,7 @@ include("external/stubs.jl")  # Function stubs for conditionally defined methods
 export compute_bands
 export plot_bandstructure
 export irrfbz_path
+export save_bands
 include("postprocess/band_structure.jl")
 
 export compute_forces

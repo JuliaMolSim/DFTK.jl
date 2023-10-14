@@ -543,6 +543,8 @@ function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
         allk_data = similar(data, n_kpts)
         allk_data[basis.krange_allprocs[1]] = data
         for rank = 1:mpi_nprocs(basis.comm_kpts) - 1  # Note: MPI ranks are 0-based
+            # TODO Could save some memory by using in-place recv!
+            #      Could save some time by using asynchronous operations
             rk_data, status = MPI.recv(basis.comm_kpts, MPI.Status; source=rank, tag=tag)
             @assert MPI.Get_error(status) == 0  # all went well
             allk_data[basis.krange_allprocs[rank + 1]] = rk_data

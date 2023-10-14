@@ -136,7 +136,7 @@ end
     eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands + 3,
                                      n_conv_check=n_bands, tol=1e-5)
     for ik = 1:length(basis.kpoints)
-        @test eigres.λ[ik][1:n_bands] ≈ band_data.λ[ik] atol=1e-5
+        @test eigres.λ[ik][1:n_bands] ≈ band_data.eigenvalues[ik] atol=1e-5
     end
 end
 
@@ -153,18 +153,18 @@ end
     basis    = PlaneWaveBasis(model, 5, kinter, kweights)
 
     # Setup some dummy data
-    λ = [10ik .+ collect(1:4) for ik = 1:length(kinter)]
-    λerror = [λ[ik]./100 for ik = 1:length(kinter)]
-    band_data = (; basis, λ, λerror)
-    ret = DFTK.data_for_plotting(kinter, band_data)
+    eigenvalues = [10ik .+ collect(1:4) for ik = 1:length(kinter)]
+    eigenvalues_error = [λ[ik]./100 for ik = 1:length(kinter)]
+    band_data = (; basis, eigenvalues, eigenvalues_error)
+    ret = DFTK.data_for_plotting(band_data)
 
     @test ret.n_spin   == 1
     @test ret.n_kcoord == 8
     @test ret.n_bands  == 4
 
     for iband = 1:4
-        @test ret.λ[:, iband, 1] == [10ik .+ iband for ik = 1:8]
-        @test ret.λerror[:, iband, 1] == ret.λ[:, iband, 1] ./ 100
+        @test ret.eigenvalues[:, iband, 1] == [10ik .+ iband for ik = 1:8]
+        @test ret.eigenvalues_error[:, iband, 1] == ret.λ[:, iband, 1] ./ 100
     end
 
     B = model.recip_lattice

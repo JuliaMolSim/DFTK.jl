@@ -45,8 +45,8 @@ function plot_band_data(band_data; unit=u"hartree", kwargs...)
     margs = length(band_data.kinter) < 70 ? (; markersize=2, markershape=:circle) : (; )
     for σ = 1:data.n_spin, iband = 1:data.n_bands, branch in data.kbranches
         yerror = nothing
-        if hasproperty(data, :λerror)
-            yerror = data.λerror[:, iband, σ][branch] .* to_unit
+        if hasproperty(data, :eigenvalues_error)
+            yerror = data.eigenvalues_error[:, iband, σ][branch] .* to_unit
         end
         energies = (data.eigenvalues[:, iband, σ][branch] .- eshift) .* to_unit
         Plots.plot!(p, data.kdistances[branch], energies;
