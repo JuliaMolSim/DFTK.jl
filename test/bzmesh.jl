@@ -15,8 +15,7 @@ include("testcases.jl")
         diagonal = Matrix{Int64}(I, 3, 3)
         spg_mesh = Spglib.get_stabilized_reciprocal_mesh([diagonal], kgrid_size;
                                                          is_shift, is_time_reversal=false)
-        kcoords_spglib = [rationalize.(normalize_kpoint_coordinate(k))
-                          for k in Spglib.eachpoint(spg_mesh)]
+        kcoords_spglib = normalize_kpoint_coordinate.(Spglib.eachpoint(spg_mesh))
         sort!(kcoords_spglib)
 
         kcoords, _ = bzmesh_uniform(kgrid_size; kshift)

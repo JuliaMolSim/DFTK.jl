@@ -53,7 +53,7 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     symmetries = symmetries_preserving_kgrid(symmetries, kcoords_mp)
 
     # Give the remaining symmetries to spglib to compute an irreducible k-point mesh
-    # TODO implement time-reversal symmetry and turn the flag to true
+    # TODO implement time-reversal symmetry and turn the flag below to true
     is_shift = map(kshift) do ks
         ks in (0, 1//2) || error("Only kshifts of 0 or 1//2 implemented.")
         ks == 1//2
@@ -62,16 +62,11 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     qpoints = [Vec3(0, 0, 0)]
     spg_mesh = Spglib.get_stabilized_reciprocal_mesh(rotations, kgrid_size, qpoints;
                                                      is_shift, is_time_reversal=false)
-    ir_mapping = spg_mesh.ir_mapping_table
-    grid = spg_mesh.grid_address
-    kirreds = [(kshift .+ grid[ik]) .// kgrid_size for ik in unique(ir_mapping)]
-    kirreds = normalize_kpoint_coordinate.(kirreds)
-    # TODO Upstream PR to use rationals. Once merged we can use their routines directly.
-    #      https://github.com/singularitti/Spglib.jl/pull/154
-    # kirreds = normalize_kpoint_coordinate.(Spglib.eachpoint(spg_mesh))
+    kirreds = normalize_kpoint_coordinate.(Spglib.eachpoint(spg_mesh))
 
     # Find the indices of the corresponding reducible k-points in the MP grid, which one of
     # the irreducible k-points in `kirreds` generates.
+    ir_mapping = spg_mesh.ir_mapping_table
     k_all_reducible = [findall(isequal(elem), ir_mapping) for elem in unique(ir_mapping)]
 
     # Number of reducible k-points represented by the irreducible k-point `kirreds[ik]`
@@ -85,6 +80,7 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     # in *wrong results* being returned. See the discussion in
     # https://github.com/spglib/spglib/issues/101
     for (iks_reducible, k) in zip(k_all_reducible, kirreds), ikred in iks_reducible
+        grid = spg_mesh.grid_address
         kred = (kshift .+ grid[ikred]) .// kgrid_size
         found_mapping = any(symmetries) do symop
             # If the difference between kred and W' * k == W^{-1} * k
