@@ -126,6 +126,36 @@ end
 compute_bands(basis::PlaneWaveBasis; kwargs...) = compute_bands(basis,  irrfbz_path(basis.model))
 compute_bands(scfres::NamedTuple; kwargs...)    = compute_bands(scfres, irrfbz_path(scfres.basis.model))
 
+struct BandData
+    basis
+    ρ
+    kinter   # k-Path interpolant or nothing
+    kcoords  # k-Point coordinates
+    eigenvalues
+    eigenvalues_error  # may be nothing
+    occupation
+    ψ   # may be nothing
+    εF  # may be nothing
+    n_iter  # may be nothing
+    residual_norms  # may be nothing
+end
+
+function todict(band_data::BandData)
+    # TODO 
+end
+
+function save_bands(filename::AbstractString, band_data::BandData; save_ψ=false)
+    # TODO New
+    # Keep in mind that k-point stuff is distributed across MPI processors
+end
+
+function plot(band_data::BandData; kwargs...)
+    # TODO New ... use plot receips for this
+    # https://github.com/JuliaPlots/Plots.jl/tree/master/RecipesBase
+end
+
+# Investigate the use of Extmodules for PlotReceips / Plots etc.
+
 function kdistances_and_ticks(kcoords, klabels::Dict, kbranches)
     # kcoords in cartesian coordinates, klabels uses cartesian coordinates
     function getlabel(kcoord; tol=1e-4)
