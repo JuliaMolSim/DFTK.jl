@@ -4,7 +4,10 @@ import Brillouin.KPaths: KPath, KPathInterpolant, irrfbz_path
 @doc raw"""
 Compute band data:
 
-- `kpath` is a Brillouin.jl `KPath` object, `kinter` a Brillouin.jl `KPathInterpolant`.
+- `kpath` is a Brillouin.jl `KPath` object, determining the path to follow along.
+  If not given, the path is determined automatically by inspecting the `Model`.
+  If you are using spin, you should pass the `magnetic_moments` as a kwargs to
+  ensure these are taken into account when determining the path.
 - `kcoords` are the ``k``-point coordinates (reduced coordinates).
 - `n_bands` selects the number of bands to compute. If this value is absent and an
   `scfres` is passed, a default of `n_bands_scf + 5sqrt(n_bands_scf)` is used.
@@ -25,7 +28,7 @@ Compute band data:
         if any(t isa TermNonlinear for t in basis.terms)
             error("If a non-linear term is present in the model the converged density is required " *
                   "to compute bands. Either pass the self-consistent density as the ρ keyword " *
-                  "argument or use the plot_bandstructure(scfres) function.")
+                  "argument or use the compute_bands(scfres) function.")
         end
         ρ = guess_density(basis)
     end
@@ -47,27 +50,24 @@ Compute band data:
         (; occupation) = compute_occupation(bs_basis, eigres.λ, εF)
     end
 
-    (; basis=bs_basis, ψ=eigres.X, eigenvalues=eigres.λ,
-     ρ, εF, occupation, diagonalization=eigres)
+    (; basis=bs_basis, ψ=eigres.X, eigenvalues=eigres.λ, ρ, εF, occupation, diagonalization=eigres)
 end
 function compute_bands(scfres::NamedTuple, kcoords::AbstractVector{<:AbstractVector};
                        n_bands=default_n_bands_bandstructure(scfres), kwargs...)
     compute_bands(scfres.basis, kcoords; scfres.ρ, scfres.εF, n_bands, kwargs...)
 end
-
-function compute_bands(scfres::NamedTuple, kinter::KPathInterpolant; kwargs...)
-    merge((; kinter), compute_bands(scfres, kpath_get_kcoords(kinter); kwargs...))
-end
-function compute_bands(basis::PlaneWaveBasis, kinter::KPathInterpolant; kwargs...)
-    merge((; kinter), compute_bands(basis, kpath_get_kcoords(kinter); kwargs...))
-end
-
 function compute_bands(basis_or_scfres, kpath::KPath; kline_density=40u"bohr", kwargs...)
     kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
-    compute_bands(basis_or_scfres, kinter; kwargs...)
+    res =compute_bands(basis_or_scfres, kpath_get_kcoords(kinter); kwargs...)
+    merge(res, (; kinter))
 end
-compute_bands(basis::PlaneWaveBasis; kwargs...) = compute_bands(basis,  irrfbz_path(basis.model))
-compute_bands(scfres::NamedTuple; kwargs...)    = compute_bands(scfres, irrfbz_path(scfres.basis.model))
+function compute_bands(scfres::NamedTuple; magnetic_moments=[], kwargs...)
+    compute_bands(scfres, irrfbz_path(scfres.basis.model, magnetic_moments); kwargs...)
+end
+function compute_bands(basis::AbstractBasis; magnetic_moments=[], kwargs...)
+    compute_bands(basis, irrfbz_path(basis.model, magnetic_moments); kwargs...)
+end
+
 
 
 @doc raw"""
@@ -88,9 +88,10 @@ band structures of sheets with `dim=2`).
 
 Due to lacking support in `Spglib.jl` for two-dimensional lattices it is (a) assumed that
 `model.lattice` is a *conventional* lattice and (b) required to pass the space group
-number using the `sgnum` keyword argument.
+number using the `space_group_number` keyword argument.
 """
-function irrfbz_path(model; dim::Integer=model.n_dim, sgnum=nothing, magnetic_moments=[])
+function irrfbz_path(model, magnetic_moments=[]; dim::Integer=model.n_dim,
+                     space_group_number::Int=0)
     @assert dim ≤ model.n_dim
     for i in dim:3, j in dim:3
         if i != j && !iszero(model.lattice[i, j])
@@ -98,8 +99,8 @@ function irrfbz_path(model; dim::Integer=model.n_dim, sgnum=nothing, magnetic_mo
                   "if the dropped dimensions are orthogonal to the remaining ones.")
         end
     end
-    if !isnothing(sgnum) && dim ∈ (1, 3)
-        @warn("sgnum keyword argument unused in `irrfbz_path` unused " *
+    if space_group_number > 0 && dim ∈ (1, 3)
+        @warn("space_group_number keyword argument unused in `irrfbz_path` unused " *
               "unless a 2-dimensional lattice is encountered.")
     end
 
@@ -112,13 +113,13 @@ function irrfbz_path(model; dim::Integer=model.n_dim, sgnum=nothing, magnetic_mo
         # Only one space group; avoid spglib here
         kpath = Brillouin.irrfbz_path(1, [[model.lattice[1, 1]]], Val(1))
     elseif dim == 2
-        if isnothing(sgnum)
-            error("sgnum keyword argument (specifying the ITA space group number) " *
+        if space_group_number == 0
+            error("space_group_number keyword argument (specifying the ITA space group number) " *
                   "is required for band structure plots in 2D lattices.")
         end
         # TODO We assume to have the conventional lattice here.
         lattice_2d = [model.lattice[1:2, 1], model.lattice[1:2, 2]]
-        kpath = Brillouin.irrfbz_path(sgnum, lattice_2d, Val(2))
+        kpath = Brillouin.irrfbz_path(space_group_number, lattice_2d, Val(2))
     elseif dim == 3
         # Brillouin.jl has an interface to Spglib.jl to directly reduce the passed
         # lattice to the ITA conventional lattice and so the Spglib cell can be
@@ -132,6 +133,8 @@ function irrfbz_path(model; dim::Integer=model.n_dim, sgnum=nothing, magnetic_mo
 
     kpath
 end
+# TODO We should generalise irrfbz_path to AbstractSystem and move that to Brillouin
+
 
 """Return kpoint coordinates in reduced coordinates"""
 function kpath_get_kcoords(kinter::KPathInterpolant{D}) where {D}

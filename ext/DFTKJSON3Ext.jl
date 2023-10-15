@@ -29,26 +29,41 @@ function save_bands(filename::AbstractString, band_data::NamedTuple, ::Val{:json
     #      The better would be to have a BandData struct and use a `todict` function for it
 
     basis = band_data.basis
+    n_bands   = length(band_data.eigenvalues[1])
+    n_kpoints = length(basis.kcoords_global)
+    n_spin    = basis.model.n_spin_components
+
     data  = Dict{String,Any}(
-        "kcoords" => gather_kpts(getproperty.(basis.kpoints, :coordinate), basis),
-        "kspins"  => gather_kpts(getproperty.(basis.kpoints, :spin),       basis)
+        "n_kpoints" => n_kpoints,
+        "n_spin"    => n_spin,
+        "n_bands"   => n_bands,
+        "kcoords"   => basis.kcoords_global,
     )
     if !isnothing(band_data.εF)
         data["εF"] = band_data.εF
     end
 
-    # MPI distributed quantities
-    for key in (:eigenvalues, :eigenvalues_error, :occupation)
-        if hasproperty(band_data, key) && !isnothing(getproperty(band_data, key))
-            data[string(key)] = gather_kpts(getproperty(band_data, key), basis)
+    # Gather MPI distributed on the first processor and reshape into an
+    # (n_spin, n_kpoints, n_bands) arrays
+    function gather_and_reshape(data, shape)
+        value = gather_kpts(data, basis)
+        if mpi_master()
+            value = reshape(reduce(hcat, value), reverse(shape)...)
+            permutedims(value, reverse(1:length(shape)))
+        else
+            nothing
         end
     end
-
-    # Diagonalisation-specific quantities (MPI-distributed)
-    for key in (:n_iter, :residual_norms)
-        diag_value = getproperty(band_data.diagonalization, key)
-        data[string(key)] = gather_kpts(diag_value, basis)
+    for key in (:eigenvalues, :eigenvalues_error, :occupation)
+        if hasproperty(band_data, key) && !isnothing(getproperty(band_data, key))
+            data[string(key)] = gather_and_reshape(getproperty(band_data, key),
+                                                   (n_spin, n_kpoints, n_bands))
+        end
     end
+    data["n_iter"]         = gather_and_reshape(band_data.diagonalization.n_iter,
+                                                (n_spin, n_kpoints))
+    data["residual_norms"] = gather_and_reshape(band_data.diagonalization.residual_norms,
+                                                (n_spin, n_kpoints, n_bands))
 
     if mpi_master()
         open(filename, "w") do io

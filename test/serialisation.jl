@@ -42,10 +42,10 @@ using JSON3
 using WriteVTK
 using ..ScfresAgreement: test_scfres_agreement
 
-function test_serialisation(testcase, label;
-                            modelargs=(; spin_polarization=:collinear, temperature=0.01),
+function test_serialisation(testcase, label; modelargs=(; ),
                             basisargs=(; Ecut=5, kgrid=(2, 3, 4)))
     model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions; modelargs...)
+
     basis = PlaneWaveBasis(model; basisargs...)
     nbandsalg = FixedBands(; n_bands_converge=20)
     scfres = self_consistent_field(basis; tol=1e-1, nbandsalg)
@@ -109,6 +109,7 @@ function test_serialisation(testcase, label;
 end
 end
 
+<<<<<<< HEAD
 
 @testitem "SCF checkpointing" setup=[ScfresAgreement, TestCases] begin
     using DFTK
@@ -141,7 +142,7 @@ end
     using .SerialisationIO: test_serialisation
     testcase = TestCases.silicon
 
-    test_serialisation(testcase, "nospin notemp")
+    test_serialisation(testcase, "nospin notemp"; modelargs=(; spin_polarization=:none))
     test_serialisation(testcase, "collinear temp";
                        modelargs=(; spin_polarization=:collinear, temperature=0.01))
     test_serialisation(testcase, "fixed Fermi";

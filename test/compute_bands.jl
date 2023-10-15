@@ -154,7 +154,7 @@ end
 
     # Setup some dummy data
     eigenvalues = [10ik .+ collect(1:4) for ik = 1:length(kinter)]
-    eigenvalues_error = [λ[ik]./100 for ik = 1:length(kinter)]
+    eigenvalues_error = [eigenvalues[ik]./100 for ik = 1:length(kinter)]
     band_data = (; basis, eigenvalues, eigenvalues_error)
     ret = DFTK.data_for_plotting(band_data)
 
@@ -164,7 +164,7 @@ end
 
     for iband = 1:4
         @test ret.eigenvalues[:, iband, 1] == [10ik .+ iband for ik = 1:8]
-        @test ret.eigenvalues_error[:, iband, 1] == ret.λ[:, iband, 1] ./ 100
+        @test ret.eigenvalues_error[:, iband, 1] == ret.eigenvalues[:, iband, 1] ./ 100
     end
 
     B = model.recip_lattice
