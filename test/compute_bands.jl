@@ -155,7 +155,7 @@ end
     # Setup some dummy data
     eigenvalues = [10ik .+ collect(1:4) for ik = 1:length(kinter)]
     eigenvalues_error = [eigenvalues[ik]./100 for ik = 1:length(kinter)]
-    band_data = (; basis, eigenvalues, eigenvalues_error)
+    band_data = (; basis, eigenvalues, eigenvalues_error, kinter)
     ret = DFTK.data_for_plotting(band_data)
 
     @test ret.n_spin   == 1
