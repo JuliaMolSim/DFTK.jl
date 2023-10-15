@@ -34,6 +34,5 @@ basis = PlaneWaveBasis(model; Ecut, kgrid)
 scfres = self_consistent_field(basis)
 
 ## Construct 2D path through Brillouin zone
-sgnum = 13  # Graphene space group number
-kpath = irrfbz_path(model; dim=2, sgnum)
+kpath = irrfbz_path(model; dim=2, space_group_number=13)  # graphene space group number
 plot_bandstructure(scfres, kpath; kline_density=20)

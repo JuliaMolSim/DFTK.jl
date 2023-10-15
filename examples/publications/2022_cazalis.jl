@@ -60,8 +60,8 @@ basis = PlaneWaveBasis(model; Ecut, kgrid)
 scfres = self_consistent_field(basis, is_converged=DFTK.ScfConvergenceEnergy(1e-10))
 
 ## Plot bands
-sgnum = 13  # Graphene space group number
-p = plot_bandstructure(scfres, irrfbz_path(model; sgnum); n_bands=5)
+kpath = irrfbz_path(model; dim=2, space_group_number=13)
+p = plot_bandstructure(scfres, kpath; n_bands=5)
 Plots.hline!(p, [scfres.εF], label="", color="black")
 Plots.ylims!(p, (-Inf, Inf))
 p
