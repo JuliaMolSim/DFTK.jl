@@ -58,7 +58,7 @@ function compute_bands(scfres::NamedTuple, kcoords::AbstractVector{<:AbstractVec
 end
 function compute_bands(basis_or_scfres, kpath::KPath; kline_density=40u"bohr", kwargs...)
     kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
-    res =compute_bands(basis_or_scfres, kpath_get_kcoords(kinter); kwargs...)
+    res = compute_bands(basis_or_scfres, kpath_get_kcoords(kinter); kwargs...)
     merge(res, (; kinter))
 end
 function compute_bands(scfres::NamedTuple; magnetic_moments=[], kwargs...)
@@ -67,7 +67,6 @@ end
 function compute_bands(basis::AbstractBasis; magnetic_moments=[], kwargs...)
     compute_bands(basis, irrfbz_path(basis.model, magnetic_moments); kwargs...)
 end
-
 
 
 @doc raw"""
