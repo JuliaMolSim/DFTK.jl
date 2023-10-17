@@ -34,14 +34,22 @@ function ene_ops(term::TermPairwisePotential, basis::PlaneWaveBasis, ψ, occupat
     (E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
 compute_forces(term::TermPairwisePotential, ::PlaneWaveBasis, ψ, occ; kwargs...) = term.forces
-
+# Standard computation.
 function energy_forces_pairwise(model::Model{T}, V, params; kwargs...) where {T}
     isempty(model.atoms) && return (; energy=zero(T), forces=zero(model.positions))
     symbols = Symbol.(atomic_symbol.(model.atoms))
-    energy_forces_pairwise(model.lattice, symbols, model.positions, V, params; kwargs...)
+    energy_forces_pairwise(T, model.lattice, symbols, model.positions, V, params,
+                           zero(Vec3{T}), nothing; kwargs...)
+end
+# Computation for phonons; required to build the dynamical matrix.
+function energy_forces_pairwise(lattice::AbstractArray{T}, symbols, positions, V, params,
+                                q, ph_disp; kwargs...) where{T}
+    S = promote_type(complex(T), eltype(ph_disp[1]))
+    energy_forces_pairwise(S, lattice, symbols, positions, V, params, q, ph_disp; kwargs...)
 end
 
-# This could be merged with Pairwise, but its use of `atom_types` would slow down this
+
+# This could be merged with Ewald, but the use of `symbols` would slow down the
 # computationally intensive Ewald sums. So we leave it as it for now.
 # Phonons:
 # Computes the local energy and forces on the atoms of the reference unit cell 0, for an
@@ -60,9 +68,8 @@ symbols).
 
 The potential is expected to decrease quickly at infinity.
 """
-function energy_forces_pairwise(lattice::AbstractArray{T}, symbols, positions, V, params;
-                                max_radius=100, ph_disp=nothing, q=zero(Vec3{T})) where {T}
-    S = isnothing(ph_disp) ? T : promote_type(complex(T), eltype(ph_disp[1]))
+function energy_forces_pairwise(S, lattice::AbstractArray{T}, symbols, positions, V, params,
+                                q, ph_disp; max_radius=100) where {T}
     @assert length(symbols) == length(positions)
 
     isnothing(ph_disp) && @assert iszero(q)
@@ -116,4 +123,30 @@ function energy_forces_pairwise(lattice::AbstractArray{T}, symbols, positions, V
 
     (; energy=sum_pairwise / 2,  # divide by 2 (because of double counting)
        forces)
+end
+
+# Computes the Fourier transform of the force constant matrix of the pairwise term.
+function compute_dynmat(term::TermPairwisePotential, basis::PlaneWaveBasis{T}, ψ, occupation;
+                        q=zero(Vec3{T}), kwargs...) where {T}
+    model = basis.model
+    positions = model.positions
+    n_atoms = length(positions)
+    n_dim = model.n_dim
+    symbols = Symbol.(atomic_symbol.(model.atoms))
+
+    dynmat = zeros(complex(T), 3, n_atoms, 3, n_atoms)
+    for τ in 1:n_atoms
+        for γ in 1:n_dim
+            displacement = zero.(model.positions)
+            displacement[τ] = setindex(displacement[τ], one(T), γ)
+            dynmat[:, :, γ, τ] = -ForwardDiff.derivative(zero(T)) do ε
+                ph_disp = ε .* displacement
+                forces = energy_forces_pairwise(model.lattice, symbols, model.positions,
+                                                term.V, term.params, q, ph_disp;
+                                                term.max_radius).forces
+                hcat(Array.(forces)...)
+            end
+        end
+    end
+    dynmat
 end

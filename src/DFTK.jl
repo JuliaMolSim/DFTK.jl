@@ -199,6 +199,7 @@ export compute_forces_cart
 include("postprocess/forces.jl")
 export compute_stresses_cart
 include("postprocess/stresses.jl")
+include("postprocess/phonon.jl")
 export compute_dos
 export compute_ldos
 export plot_dos

@@ -21,11 +21,18 @@ function ene_ops(term::TermEwald, basis::PlaneWaveBasis, ψ, occupation; kwargs.
     (; E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
 compute_forces(term::TermEwald, ::PlaneWaveBasis, ψ, occupation; kwargs...) = term.forces
-
+# Standard computation.
 function energy_forces_ewald(model::Model{T}; kwargs...) where {T}
     isempty(model.atoms) && return (; energy=zero(T), forces=zero(model.positions))
     charges = T.(charge_ionic.(model.atoms))
-    energy_forces_ewald(model.lattice, charges, model.positions; kwargs...)
+    energy_forces_ewald(T, model.lattice, charges, model.positions, zero(Vec3{T}), nothing;
+                        kwargs...)
+end
+# Computation for phonons; required to build the dynamical matrix.
+function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions, q,
+                             ph_disp; kwargs...) where{T}
+    S = promote_type(complex(T), eltype(ph_disp[1]))
+    energy_forces_ewald(S, lattice, charges, positions, q, ph_disp; kwargs...)
 end
 
 # To compute the electrostatics of the system, we use the Ewald splitting method due to the
@@ -60,9 +67,8 @@ point charges and their positions (as an array of arrays) in fractional coordina
 For now this function returns zero energy and force on non-3D systems. Use a pairwise
 potential term if you want to customise this treatment.
 """
-function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions;
-                             η=default_η(lattice), q=zero(Vec3{T}), ph_disp=nothing) where {T}
-    S = isnothing(ph_disp) ? T : promote_type(complex(T), eltype(ph_disp[1]))
+function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q, ph_disp;
+                             η=default_η(lattice)) where {T}
     @assert length(charges) == length(positions)
 
     isnothing(ph_disp) && @assert iszero(q)
@@ -159,8 +165,8 @@ function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions;
         end
     end
 
-    # Divide by 2 (because of double counting)
-    (; energy=(sum_recip + sum_real) / 2, forces=forces_recip .+ forces_real)
+    (; energy=(sum_recip + sum_real) / 2,  # divide by 2 (because of double counting)
+       forces=forces_recip .+ forces_real)
 end
 
 # TODO: See if there is a way to express this with AD.
@@ -209,18 +215,24 @@ function dynmat_ewald_recip(model::Model{T}, τ, σ; η=default_η(model.lattice
 end
 
 # Computes the Fourier transform of the force constant matrix of the Ewald term.
-function dynmat_ewald(model::Model{T}; η=default_η(model.lattice), q=zero(Vec3{T})) where {T}
+function compute_dynmat(::TermEwald, basis::PlaneWaveBasis{T}, ψ, occupation;
+                        q=zero(Vec3{T}), η=default_η(basis.model.lattice),
+                        kwargs...) where {T}
+    model = basis.model
     n_atoms = length(model.positions)
     n_dim = model.n_dim
+    charges = T.(charge_ionic.(model.atoms))
 
     dynmat = zeros(complex(T), n_dim, n_atoms, n_dim, n_atoms)
     # Real part
     for τ in 1:n_atoms
         for γ in 1:n_dim
             displacement = zero.(model.positions)
-            displacement[τ] = StaticArrays.setindex(displacement[τ], one(T), γ)
+            displacement[τ] = setindex(displacement[τ], one(T), γ)
             real_part = -ForwardDiff.derivative(zero(T)) do ε
-                forces = energy_forces_ewald(model; η, ph_disp=ε .* displacement, q).forces
+                ph_disp = ε .* displacement
+                forces = energy_forces_ewald(model.lattice, charges, model.positions,
+                                             q, ph_disp; η).forces
                 hcat(Array.(forces)...)
             end
 
@@ -234,8 +246,4 @@ function dynmat_ewald(model::Model{T}; η=default_η(model.lattice), q=zero(Vec3
         end
     end
     dynmat
-end
-
-function compute_dynmat(::TermEwald, scfres::NamedTuple; kwargs...)
-    dynmat_ewald(scfres.basis.model; kwargs...)
 end
