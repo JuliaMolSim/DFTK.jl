@@ -2,6 +2,7 @@ using Test
 using DFTK
 using LinearAlgebra
 using ForwardDiff
+using Random
 
 include("helpers.jl")
 
@@ -96,6 +97,7 @@ end
 
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
 @testset "Pairwise: comparison to automatic differentiation" begin
+    Random.seed!()
     tol = 1e-4  # low because of the small radius that we use to speed-up computations
     a = 5.131570667152971
     lattice = a .* [0 1 1; 1 0 1; 1 1 0]

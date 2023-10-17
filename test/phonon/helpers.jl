@@ -1,5 +1,4 @@
 using Random
-using ForwardDiff
 using LinearAlgebra
 
 # Helpers functions for tests.
@@ -13,7 +12,6 @@ function compute_ω²(matrix)
 end
 
 function generate_random_supercell(; max_length=6)
-    Random.seed!()
     n_max = min(max_length, 5)
     supercell_size = nothing
     while true

@@ -5,18 +5,6 @@ using Random
 
 include("helpers.jl")
 
-function prepare_3d_system(; n_scell=1)
-    positions = [[0.0, 0.0, 0.0]]
-    for i in 1:n_scell-1
-        push!(positions, i * ones(3) / n_scell)
-    end
-
-    a = 5. * length(positions)
-    lattice = a * rand(3, 3)
-
-    (; positions, lattice)
-end
-
 """
 Real-space equivalent of `transfer_blochwave_kpt`.
 """
@@ -33,13 +21,19 @@ end
     Random.seed!()
     tol = 1e-12
 
-    case = prepare_3d_system()
+    positions = [[0.0, 0.0, 0.0]]
+    n_scell = 2
+    for i in 1:n_scell-1
+        push!(positions, i * ones(3) / n_scell)
+    end
+    n_atoms = length(positions)
+
+    lattice = 5 * n_atoms * rand(3, 3)
 
     X = ElementGaussian(1.0, 0.5, :X)
-    atoms = [X for _ in case.positions]
-    n_atoms = length(case.positions)
+    atoms = [X for _ in positions]
 
-    model = Model(case.lattice, atoms, case.positions; n_electrons=n_atoms,
+    model = Model(lattice, atoms, positions; n_electrons=n_atoms,
                   symmetries=false, spin_polarization=:collinear)
     kgrid = rand(2:10, 3)
     k1, k2, k3 = kgrid

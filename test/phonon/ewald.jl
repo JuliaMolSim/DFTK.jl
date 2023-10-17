@@ -2,6 +2,7 @@ using Test
 using DFTK
 using LinearAlgebra
 using ForwardDiff
+using Random
 
 include("../testcases.jl")
 include("helpers.jl")
@@ -85,6 +86,7 @@ end
 
 if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
 @testset "Ewald: comparison to automatic differentiation" begin
+    Random.seed!()
     tol = 1e-9
     terms = [Ewald()]
     model = Model(silicon.lattice, silicon.atoms, silicon.positions; terms)
