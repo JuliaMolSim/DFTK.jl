@@ -2,13 +2,19 @@ using Test
 using DFTK: energy_forces_ewald
 using LinearAlgebra
 
+function unfolded_energy_forces_ewald(lattice, charges, positions)
+    T = eltype(lattice)
+    q = zeros(3)
+    energy_forces_ewald(T, lattice, charges, positions, q, nothing)
+end
+
 @testset "Hydrogen atom" begin
     lattice = 16 * Diagonal(ones(3))
     charges = [1]
     positions = [[0,0,0]]
 
     ref = -0.088665545  # TODO source?
-    γ_E = energy_forces_ewald(lattice, charges, positions).energy
+    γ_E = unfold_energy_forces_ewald(lattice, charges, positions).energy
     @test abs(γ_E - ref) < 1e-8
 end
 
@@ -20,7 +26,7 @@ end
     charges = [14, 14]
 
     ref = -102.8741963352893
-    γ_E = energy_forces_ewald(lattice, charges, positions).energy
+    γ_E = unfold_energy_forces_ewald(lattice, charges, positions).energy
     @test abs(γ_E - ref) < 1e-8
 end
 
@@ -30,7 +36,7 @@ end
     charges = [5, 5]
 
     ref = 1.790634595  # TODO source?
-    γ_E = energy_forces_ewald(lattice, charges, positions).energy
+    γ_E = unfold_energy_forces_ewald(lattice, charges, positions).energy
     @test abs(γ_E - ref) < 1e-7
 end
 
@@ -43,7 +49,7 @@ end
     charges = [1, 1]
 
     ref = 0.31316999  # TODO source?
-    γ_E = energy_forces_ewald(lattice, charges, positions).energy
+    γ_E = unfold_energy_forces_ewald(lattice, charges, positions).energy
     @test abs(γ_E - ref) < 1e-7
 end
 
@@ -55,11 +61,11 @@ end
     positions = Vec3.([ones(3)/8+rand(3)/20, -ones(3)/8])
     charges = [14, 14]
 
-    γ1, forces = energy_forces_ewald(lattice, charges, positions)
+    γ1, forces = unfold_energy_forces_ewald(lattice, charges, positions)
 
     # Compare forces to finite differences
     disp = [rand(3)/20, rand(3)/20]
     ε = 1e-8
-    γ2 = energy_forces_ewald(lattice, charges, positions .+ ε .* disp).energy
+    γ2 = unfold_energy_forces_ewald(lattice, charges, positions .+ ε .* disp).energy
     @test (γ2-γ1)/ε ≈ -dot(disp, forces) atol=abs(γ1*1e-6)
 end
