@@ -1,5 +1,6 @@
 using Test
 using DFTK
+using DFTK: setindex
 using LinearAlgebra
 using ForwardDiff
 using Random
