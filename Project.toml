@@ -51,7 +51,7 @@ UnitfulAtomic = "a7773ee8-282e-5fa2-be4e-bd808c38a91a"
 [compat]
 AbstractFFTs = "1"
 AtomsBase = "0.3.1"
-Brillouin = "0.5.11"
+Brillouin = "0.5.14"
 ChainRulesCore = "1.15"
 DftFunctionals = "0.2"
 FFTW = "1.5"
