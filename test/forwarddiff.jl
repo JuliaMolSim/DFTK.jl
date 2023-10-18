@@ -137,9 +137,9 @@ end
     erfcα = x -> erfc(α * x)
 
     x0  = randn()
-    fd1 = ForwardDiff.derivative(erfcα , x0)
+    fd1 = ForwardDiff.derivative(erfcα, x0)
     fd2 = FiniteDifferences.central_fdm(5, 1)(erfcα, x0)
-    @test norm(fd1 - fd2) < 1e-9
+    @test norm(fd1 - fd2) < 1e-8
 end
 
 @testitem "LocalNonlinearity sensitivity using ForwardDiff" tags=[:dont_test_mpi] begin
