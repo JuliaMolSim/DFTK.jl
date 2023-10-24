@@ -52,27 +52,29 @@ We use here that:
 """
 @timing function compute_mmn(
     basis::PlaneWaveBasis, ψ::AbstractVector{<:AbstractMatrix{<:Complex}},
-    kpb_k::AbstractMatrix{<:Integer}, kpb_G::AbstractArray{<:Integer,3};
+    kpb_k::AbstractVector, kpb_G::AbstractVector;
     spin::Integer=1,
 )
     n_bands = size(ψ[1], 2)
-    n_bvecs, n_kpts = size(kpb_k)
-    @assert size(kpb_G) == (3, n_bvecs, n_kpts)
+    n_kpts = length(kpb_k)
+    n_bvecs = length(kpb_k[1])
+    @assert length(kpb_G) == n_kpts
+    @assert length(kpb_G[1]) == n_bvecs
 
     kpts = krange_spin(basis, spin)
     @assert length(kpts) == n_kpts
     ik_shift = _get_ik_shift(basis, spin)
 
-    M = zeros(eltype(ψ[1]), n_bands, n_bands, n_bvecs, n_kpts)
+    M = Wannier.zeros_overlap(eltype(ψ[1]), n_kpts, n_bvecs, n_bands)
 
     for ik in kpts
         k = basis.kpoints[ik]
         ik0 = ik - ik_shift
         for ib in 1:n_bvecs
-            ikpb0 = kpb_k[ib, ik0]
+            ikpb0 = kpb_k[ik0][ib]
             ikpb = ikpb0 + ik_shift
             kpb = basis.kpoints[ikpb]
-            G_shift = kpb_G[:, ib, ik0]
+            G_shift = kpb_G[ik0][ib]
             # Search for common Fourier modes and their resp. indices in
             # Bloch states k and kpb
             # TODO Check if this can be improved using the G vector mapping in the kpoints
@@ -86,7 +88,7 @@ We use here that:
             # Compute overlaps
             for n in 1:n_bands
                 for m in 1:n_bands
-                    M[m, n, ib, ik0] = dot(ψ[ik][iGk, m], ψ[ikpb][iGkpb, n])
+                    M[ik0][ib][m, n] = dot(ψ[ik][iGk, m], ψ[ikpb][iGkpb, n])
                 end
             end
         end
@@ -318,7 +320,8 @@ where ``g_{n,k}`` are Bloch sums of some real-space localized orbitals.
     # as an argument.
     ϕk = guess(basis.kpoints[kpts[1]])
     n_wann = size(ϕk, 2)
-    A = zeros(eltype(ψs[1]), n_bands, n_wann, n_kpts)
+    A = Wannier.zeros_gauge(eltype(ψs[1]), n_kpts, n_bands, n_wann)
+    println(typeof(A), length(A))
 
     # G_vectors in reduced coordinates.
     # The dot product is computed in the Fourier space.
@@ -327,7 +330,7 @@ where ``g_{n,k}`` are Bloch sums of some real-space localized orbitals.
         ik != 1 && (ϕk = guess(kpt))
         size(ϕk) == (size(ψk, 1), n_wann) || error(
             "ik=$(ik), guess function returns wrong size $(size(ϕk)) != $((size(ψk, 1), n_wann))")
-        A[:, :, ik] = ψk' * ϕk
+        A[ik] .= ψk' * ϕk
     end
     A
 end
@@ -421,7 +424,7 @@ it is not possible to generate a `guess` function and reuse [`compute_amn`](@ref
     ψmk_real = zeros(eltype(ψ0), basis.fft_size)
     phase = zeros(eltype(ψ0), basis.fft_size)
 
-    A = zeros(eltype(ψ0), n_bands, n_wann, length(kpts))
+    A = Wannier.zeros_gauge(eltype(ψ0), length(kpts), n_bands, n_wann)
     for (ik, kpt) in enumerate(basis.kpoints[kpts])
         ψk = ψ[ik]
         fk = f(kpt)
@@ -434,11 +437,11 @@ it is not possible to generate a `guess` function and reuse [`compute_amn`](@ref
         for (m, ψm) in enumerate(eachcol(ψk))
             ifft!(ψmk_real, basis, kpt, ψm)
             for (n, Cn) in enumerate(C)
-                A[m, n, ik] = fk[m] * (ψmk_real[Cn]' * phase[Cn])
+                A[ik][m, n] = fk[m] * (ψmk_real[Cn]' * phase[Cn])
             end
         end
         # to be semi-unitary
-        A[:, :, ik] = ortho_lowdin(A[:, :, ik])
+        A[ik] .= ortho_lowdin(A[ik])
     end
     A
 end
@@ -463,11 +466,11 @@ function compute_eig(
 
     n_kpts = length(kpts)
     n_bands = length(eigs[1])
-    E = zeros(eltype(eigs[1]), n_bands, n_kpts)
+    E = Wannier.zeros_eigenvalues(eltype(eigs[1]), n_kpts, n_bands)
 
     for (ik, εk) in enumerate(eigs)
         for (n, εnk) in enumerate(εk)
-            E[n, ik] = auconvert(Unitful.eV, εnk).val
+            E[ik][n] = auconvert(Unitful.eV, εnk).val
         end
     end
     E
@@ -515,17 +518,16 @@ function get_wannier90_win(basis::PlaneWaveBasis; kwargs...)
     unit_cell_cart = to_ang.(basis.model.lattice)
     push!(win, :unit_cell_cart => unit_cell_cart)
 
-    atom_labels = [string(a.symbol) for a in basis.model.atoms]
-    # to columnwise vectors, and fractional coordinates
-    atoms_frac = hcat(basis.model.positions...)
-    push!(win, :atoms_frac => atoms_frac, :atom_labels => atom_labels)
+    # fractional coordinates
+    atoms_frac = [string(a.symbol) => p for (a, p) in zip(basis.model.atoms, basis.model.positions)]
+    push!(win, :atoms_frac => atoms_frac)
 
     # deepcopy for safety
     mp_grid = deepcopy(basis.kgrid)
     kpoints = filter(k -> k.spin == 1, basis.kpoints)
     # columnwise vectors, fractional coordinates
-    kpoints = hcat([k.coordinate for k in kpoints]...)
-    @assert size(kpoints) == (3, prod(mp_grid))
+    kpoints = [k.coordinate for k in kpoints]
+    @assert length(kpoints) == prod(mp_grid)
     push!(win, :mp_grid => mp_grid, :kpoints => kpoints)
 
     if get(kwargs, :wannier_plot, false)
@@ -632,9 +634,9 @@ function save_wannier(
     n_wann::Integer,
     nnkp::NamedTuple,
     spin::Integer=1,
-    M::Union{Nothing,AbstractArray{<:Complex,4}}=nothing,
-    A::Union{Nothing,AbstractArray{<:Complex,3}}=nothing,
-    E::Union{Nothing,AbstractMatrix{<:Real}}=nothing,
+    M::Union{Nothing,AbstractVector}=nothing,
+    A::Union{Nothing,AbstractVector}=nothing,
+    E::Union{Nothing,AbstractVector}=nothing,
     unk::Bool=false,
     kwargs...,
 )
@@ -652,7 +654,7 @@ function save_wannier(
         M = compute_mmn(basis, ψ, nnkp.kpb_k, nnkp.kpb_G; spin)
         fname = "$(fileprefix).mmn"
         header = "Generated by DFTK.jl at $(now())"
-        WannierIO.write_mmn(fname, M, nnkp.kpb_k, nnkp.kpb_G, header)
+        WannierIO.write_mmn(fname, M, nnkp.kpb_k, nnkp.kpb_G; header)
     end
 
     if isnothing(E)

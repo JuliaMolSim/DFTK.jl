@@ -31,10 +31,10 @@ function run_wannier(
         # Note I am not using directly `basis.model.recip_lattice` here since
         # that one is in Bohr unit, while `win.unit_cell_cart` is in Angstrom.
         recip_lattice = compute_recip_lattice(win.unit_cell_cart)
-        bvectors = Wannier.get_bvectors(win.kpoints, recip_lattice)
+        bvectors = Wannier.generate_kspace_stencil(recip_lattice, win.mp_grid, win.kpoints)
         # TODO I am naming kpb_G as kpb_b in WannierIO.jl for the moment,
         # probably going to rename it in the future.
-        kpb_k, kpb_G = bvectors.kpb_k, bvectors.kpb_b
+        kpb_k, kpb_G = bvectors.kpb_k, bvectors.kpb_G
         nnkp = (; kpb_k, kpb_G)
     end
 
@@ -55,10 +55,12 @@ function run_wannier(
             dis_froz_min = get(win, :dis_froz_min, -Inf)
             frozen_bands = Wannier.get_frozen_bands(E, dis_froz_max, dis_froz_min)
 
+            atom_labels = [first(i) for i in win.atoms_frac]
+            atom_positions = [last(i) for i in win.atoms_frac]
             model = Wannier.Model(
-                win.unit_cell_cart, win.atoms_frac, win.atom_labels,
-                win.mp_grid, win.kpoints, bvectors, frozen_bands, M, A, E)
-            model.U .= Wannier.disentangle(model)
+                win.unit_cell_cart, atom_positions, atom_labels,
+                bvectors, M, A, E, frozen_bands)
+            model.gauges .= Wannier.disentangle(model)
 
             push!(models, model)
         end
