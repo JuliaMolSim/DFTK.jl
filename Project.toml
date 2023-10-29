@@ -51,6 +51,7 @@ spglib_jll = "ac4a9f1e-bdb2-5204-990c-47c8b2f70d4e"
 
 [compat]
 AbstractFFTs = "1"
+Artifacts = "1"
 AtomsBase = "0.3.1"
 Brillouin = "0.5.11"
 ChainRulesCore = "1.15"
