@@ -10,7 +10,7 @@ Run the Wannierization procedure with Wannier90.
         wannier_plot=false,
         kwargs...)
 
-    prefix = basename(fileprefix)
+    prefix, dir = basename(fileprefix), dirname(fileprefix)
 
     # Prepare files
     write_wannier90_files(scfres; n_bands, n_wannier, projections, fileprefix, wannier_plot, kwargs...) do
