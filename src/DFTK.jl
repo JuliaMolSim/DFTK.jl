@@ -183,10 +183,12 @@ include("pseudo/attach_psp.jl")
 
 export DFTKPotential
 export atomic_system, periodic_system  # Reexport from AtomsBase
+export get_wannier_model
 export run_wannier90
 include("external/atomsbase.jl")
 include("external/interatomicpotentials.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
+include("external/wannier_shared.jl")
 
 export compute_bands
 export plot_bandstructure
@@ -237,6 +239,9 @@ function __init__()
     @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" include("external/vtkio.jl")
     @require wannier90_jll="c5400fa0-8d08-52c2-913f-1e3f656c1ce9" begin
         include("external/wannier90.jl")
+    end
+    @require Wannier="2b19380a-1f7e-4d7d-b1b8-8aa60b3321c9" begin
+        include("external/wannier.jl")
     end
     @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba"  begin
         include("workarounds/cuda_arrays.jl")
