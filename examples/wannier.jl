@@ -92,7 +92,8 @@ U = disentangle(wannier_model, max_iter=200);
 omega(wannier_model)
 omega(wannier_model, U)
 
-# Build a Wannier interpolation model: (needs a kpath)
+# Build a Wannier interpolation model:
+kpath = irrfbz_path(model)
 interp_model = Wannier.InterpModel(wannier_model; kpath=kpath)
 
 # And so on...
