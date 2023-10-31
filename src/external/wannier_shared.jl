@@ -46,7 +46,8 @@ struct DoubleGaussianWannierProjection <: WannierProjection
 end
 
 function get_fourier_projection_coefficients(proj::DoubleGaussianWannierProjection, qs)
-    get_fourier_projection_coefficients(proj.proj1, qs) .+ (proj.factor2 .* get_fourier_projection_coefficients(proj.proj2, qs))
+    proj.factor1 .* get_fourier_projection_coefficients(proj.proj1, qs)
+    .+ proj.factor2 .* get_fourier_projection_coefficients(proj.proj2, qs)
 end
 
 function DoubleGaussianWannierProjection(factor1::Number, center1::AbstractVector{Float64}, factor2::Number, center2::AbstractVector{Float64})
@@ -269,10 +270,10 @@ function compute_amn_kpoint(basis::PlaneWaveBasis, ψk, kpt, projections::Abstra
     # Compute Ak
     for n in 1:n_wannier
         proj = projections[n]
-        # Functions are l^2 normalized in Fourier, in DFTK conventions.
-        norm_gn_per = norm(get_fourier_projection_coefficients(proj, qs), 2)
+        gn_per = get_fourier_projection_coefficients(proj, qs[kpt.mapping])
         # Fourier coeffs of gn_per for k+G in common with ψk
-        coeffs_gn_per = get_fourier_projection_coefficients(proj, qs[kpt.mapping]) ./ norm_gn_per
+        # Functions are l^2 normalized in Fourier, in DFTK conventions.
+        coeffs_gn_per = gn_per ./ norm(gn_per)
         # Compute overlap
         for m in 1:n_bands
             # TODO Check the ordering of m and n here!
