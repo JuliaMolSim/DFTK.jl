@@ -1,6 +1,8 @@
 # This file contains functions to handle the symetries.
 # The type SymOp is defined in Symop.jl
 
+import Spglib
+
 # A symmetry (W, w) (or (S, τ)) induces a symmetry in the Brillouin zone that the
 # Hamiltonian at S k is unitary equivalent to that at k, which we exploit to reduce
 # computations. The relationship is
@@ -62,6 +64,36 @@ function symmetry_operations(hall_number::Integer)
     [SymOp(W, w) for (W, w) in zip(Ws, ws)]
 end
 
+# Temporary workaround until Spglib.jl exports this function
+function spglib_get_symmetry_with_collinear_spin(cell::Spglib.SpglibCell, symprec=1e-5)
+    lattice, positions, atoms, spins = Spglib._expand_cell(cell)
+    num_atom = length(cell.magmoms)
+    # See https://github.com/spglib/spglib/blob/42527b0/python/spglib/spglib.py#L270
+    max_size = 96num_atom  # 96 = 48 × 2 since we have spins
+    rotations = Array{Cint,3}(undef, 3, 3, max_size)
+    translations = Matrix{Cdouble}(undef, 3, max_size)
+    equivalent_atoms = Vector{Cint}(undef, num_atom)
+    num_sym = @ccall Spglib.libsymspg.spg_get_symmetry_with_collinear_spin(
+        rotations::Ptr{Cint},
+        translations::Ptr{Cdouble},
+        equivalent_atoms::Ptr{Cint},
+        max_size::Cint,
+        lattice::Ptr{Cdouble},
+        positions::Ptr{Cdouble},
+        atoms::Ptr{Cint},
+        spins::Ptr{Cdouble},
+        num_atom::Cint,
+        symprec::Cdouble,
+    )::Cint
+    Spglib.check_error()
+    rotations = map(
+        SMatrix{3,3,Int32,9} ∘ transpose, eachslice(rotations[:, :, 1:num_sym]; dims=3)
+    )  # Remember to transpose, see https://github.com/singularitti/Spglib.jl/blob/8aed6e0/src/core.jl#L195-L198
+    translations = map(SVector{3,Float64}, eachcol(translations[:, 1:num_sym]))
+    return rotations, translations, equivalent_atoms
+end
+
+
 @doc raw"""
 Return the symmetries given an atomic structure with optionally designated magnetic moments
 on each of the atoms. The symmetries are determined using spglib.
@@ -87,7 +119,8 @@ on each of the atoms. The symmetries are determined using spglib.
         if spin_polarization == :none
             Spglib.get_symmetry(cell, tol_symmetry)
         elseif spin_polarization == :collinear
-            rotations, translations, _ = Spglib.get_symmetry_with_collinear_spin(cell, tol_symmetry)
+            # rotations, translations, _ = Spglib.get_symmetry_with_collinear_spin(cell, tol_symmetry)
+            rotations, translations, _ = spglib_get_symmetry_with_collinear_spin(cell, tol_symmetry)
             rotations, translations
         end
     catch e
