@@ -4,9 +4,33 @@ using LinearAlgebra
 # Helpers functions for tests.
 # TODO: Temporary, explanations too scarce. To be changed with proper phonon computations.
 
+function ph_compute_reference(payload, model_supercell)
+    n_atoms = length(model_supercell.positions)
+    n_dim = model_supercell.n_dim
+    T = eltype(model_supercell.lattice)
+    dynmat_ad = zeros(T, 3, n_atoms, 3, n_atoms)
+    term = only(model_supercell.term_types)
+    for τ in 1:n_atoms
+        for γ in 1:n_dim
+            displacement = zero.(model_supercell.positions)
+            displacement[τ] = setindex(displacement[τ], one(T), γ)
+            dynmat_ad[:, :, γ, τ] = -ForwardDiff.derivative(zero(T)) do ε
+                lattice = convert(Matrix{eltype(ε)}, model_supercell.lattice)
+                positions = ε*displacement .+ model_supercell.positions
+                (; forces) = payload(term, lattice, model_supercell.atoms, positions)
+                hcat(Array.(forces)...)
+            end
+        end
+    end
+    hessian_ad = DFTK.dynmat_red_to_cart(model_supercell, dynmat_ad)
+    sort(compute_squared_frequencies(hessian_ad))
+end
+
+
+
 # We do not take the square root to compare results with machine precision.
-function compute_ω²(matrix)
-    n, m = size(matrix)[1:2]
+function compute_squared_frequencies(matrix)
+    n, m = size(matrix, 1), size(matrix, 2)
     Ω = eigvals(reshape(matrix, n*m, n*m))
     real(Ω)
 end

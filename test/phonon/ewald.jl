@@ -8,28 +8,6 @@ using Random
 include("../testcases.jl")
 include("helpers.jl")
 
-function ph_compute_reference_ewald(model_supercell)
-    n_atoms = length(model_supercell.positions)
-    n_dim = model_supercell.n_dim
-    T = eltype(model_supercell.lattice)
-    dynmat_ad = zeros(T, 3, n_atoms, 3, n_atoms)
-    for τ in 1:n_atoms
-        for γ in 1:n_dim
-            displacement = zero.(model_supercell.positions)
-            displacement[τ] = setindex(displacement[τ], one(T), γ)
-            dynmat_ad[:, :, γ, τ] = -ForwardDiff.derivative(zero(T)) do ε
-                cell_disp = (; model_supercell.lattice, model_supercell.atoms,
-                             positions=ε*displacement .+ model_supercell.positions)
-                model_disp = Model(convert(Model{eltype(ε)}, model_supercell); cell_disp...)
-                forces = DFTK.energy_forces_ewald(model_disp).forces
-                hcat(Array.(forces)...)
-            end
-        end
-    end
-    hessian_ad = DFTK.dynmat_to_cart(model_supercell, dynmat_ad)
-    sort(compute_ω²(hessian_ad))
-end
-
 @testset "Ewald: comparison to ref testcase" begin
     tol = 1e-9
     terms = [Ewald()]
@@ -42,7 +20,7 @@ end
     ω_uc = []
     for q in phonon.qpoints
         hessian = DFTK.compute_dynmat_cart(basis_bs, nothing, nothing; q)
-        push!(ω_uc, compute_ω²(hessian))
+        push!(ω_uc, compute_squared_frequencies(hessian))
     end
     ω_uc = sort!(collect(Iterators.flatten(ω_uc)))
 
@@ -99,7 +77,7 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
     ω_uc = []
     for q in phonon.qpoints
         hessian = DFTK.compute_dynmat_cart(basis_bs, nothing, nothing; q)
-        push!(ω_uc, compute_ω²(hessian))
+        push!(ω_uc, compute_squared_frequencies(hessian))
     end
     ω_uc = sort!(collect(Iterators.flatten(ω_uc)))
 
@@ -109,10 +87,13 @@ if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
                             terms)
     basis_supercell_bs = PlaneWaveBasis(model_supercell; Ecut=5)
     hessian_supercell = DFTK.compute_dynmat_cart(basis_supercell_bs, nothing, nothing)
-    ω_supercell = sort(compute_ω²(hessian_supercell))
+    ω_supercell = sort(compute_squared_frequencies(hessian_supercell))
     @test norm(ω_uc - ω_supercell) < tol
 
-    ω_ad = ph_compute_reference_ewald(model_supercell)
+    ω_ad = ph_compute_reference(model_supercell) do term, lattice, atoms, positions
+        charges = charge_ionic.(atoms)
+        DFTK.energy_forces_ewald(lattice, charges, positions)
+    end
     @test norm(ω_ad - ω_supercell) < tol
 end
 end

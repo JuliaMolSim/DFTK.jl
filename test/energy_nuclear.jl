@@ -14,7 +14,7 @@ using LinearAlgebra: Diagonal
     ]
 
     ref = -0.02196861  # TODO source?
-    γ_E = DFTK.energy_forces_ewald(Model(lattice, atoms, positions; terms=[Ewald()])).energy
+    γ_E = DFTK.energy_forces_ewald(lattice, charge_ionic.(atoms), positions).energy
     @test abs(γ_E - ref) < 1e-8
 end
 
@@ -27,7 +27,7 @@ end
     positions = [[1/8, 1/8, 1/8], [-1/8, -1/8, -1/8]]
 
     ref = -8.39789357839024  # from ABINIT
-    γ_E = DFTK.energy_forces_ewald(Model(lattice, atoms, positions; terms=[Ewald()])).energy
+    γ_E = DFTK.energy_forces_ewald(lattice, charge_ionic.(atoms), positions).energy
     @test abs(γ_E - ref) < 1e-10
 end
 

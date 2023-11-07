@@ -5,30 +5,42 @@ Ewald term: electrostatic energy per unit cell of the array of point
 charges defined by `model.atoms` in a uniform background of
 compensating charge yielding net neutrality.
 """
-struct Ewald end
-(::Ewald)(basis) = TermEwald(basis)
+@kwdef struct Ewald
+    η = nothing  # Parameter used for the splitting 1/r ≡ erf(η·r)/r + erfc(η·r)/r
+                 # (or nothing if autoselected)
+end
+(ewald::Ewald)(basis) = TermEwald(basis; η=something(ewald.η, default_η(basis.model.lattice)))
 
 struct TermEwald{T} <: Term
     energy::T                # precomputed energy
     forces::Vector{Vec3{T}}  # and forces
+    η::T                     # Parameter used for the splitting
+    #                          1/r ≡ erf(η·r)/r + erfc(η·r)/r
 end
-@timing "precomp: Ewald" function TermEwald(basis::PlaneWaveBasis{T}) where {T}
-    (; energy, forces) = energy_forces_ewald(basis.model)
-    TermEwald(energy, forces)
+@timing "precomp: Ewald" function TermEwald(basis::PlaneWaveBasis{T};
+                                            η=default_η(basis.model.lattice)) where {T}
+    model = basis.model
+    charges = charge_ionic.(model.atoms)
+    (; energy, forces) = energy_forces_ewald(model.lattice, charges, model.positions; η)
+    TermEwald(energy, forces, η)
 end
 
 function ene_ops(term::TermEwald, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     (; E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
 compute_forces(term::TermEwald, ::PlaneWaveBasis, ψ, occupation; kwargs...) = term.forces
-# Standard computation.
-function energy_forces_ewald(model::Model{T}; kwargs...) where {T}
-    isempty(model.atoms) && return (; energy=zero(T), forces=zero(model.positions))
-    charges = T.(charge_ionic.(model.atoms))
-    energy_forces_ewald(T, model.lattice, charges, model.positions, zero(Vec3{T}), nothing;
-                        kwargs...)
+
+"""
+Standard computation of energy and forces.
+"""
+function energy_forces_ewald(lattice::AbstractArray{T}, charges::AbstractArray,
+                             positions; kwargs...) where {T}
+    energy_forces_ewald(T, lattice, charges, positions, zero(Vec3{T}), nothing)
 end
-# Computation for phonons; required to build the dynamical matrix.
+
+"""
+Computation for phonons; required to build the dynamical matrix.
+"""
 function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions, q,
                              ph_disp; kwargs...) where{T}
     S = promote_type(complex(T), eltype(ph_disp[1]))
@@ -70,6 +82,9 @@ potential term if you want to customise this treatment.
 function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q, ph_disp;
                              η=default_η(lattice)) where {T}
     @assert length(charges) == length(positions)
+    if isempty(charges)
+        return (; energy=zero(T), forces=zero(positions))
+    end
 
     isnothing(ph_disp) && @assert iszero(q)
     if !isnothing(ph_disp)
@@ -170,8 +185,7 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
 end
 
 # TODO: See if there is a way to express this with AD.
-function dynmat_ewald_recip(model::Model{T}, τ, σ; η=default_η(model.lattice),
-                            q=zero(Vec3{T})) where {T}
+function dynmat_ewald_recip(model::Model{T}, τ, σ; η, q=zero(Vec3{T})) where {T}
     # Numerical cutoffs to obtain meaningful contributions. These are very conservative.
     # The largest argument to the exp(-x) function
     max_exp_arg = -log(eps(T)) + 5  # add some wiggle room
@@ -215,9 +229,8 @@ function dynmat_ewald_recip(model::Model{T}, τ, σ; η=default_η(model.lattice
 end
 
 # Computes the Fourier transform of the force constant matrix of the Ewald term.
-function compute_dynmat(::TermEwald, basis::PlaneWaveBasis{T}, ψ, occupation;
-                        q=zero(Vec3{T}), η=default_η(basis.model.lattice),
-                        kwargs...) where {T}
+function compute_dynmat(ewald::TermEwald, basis::PlaneWaveBasis{T}, ψ, occupation;
+                        q=zero(Vec3{T}), kwargs...) where {T}
     model = basis.model
     n_atoms = length(model.positions)
     n_dim = model.n_dim
@@ -232,8 +245,8 @@ function compute_dynmat(::TermEwald, basis::PlaneWaveBasis{T}, ψ, occupation;
             real_part = -ForwardDiff.derivative(zero(T)) do ε
                 ph_disp = ε .* displacement
                 forces = energy_forces_ewald(model.lattice, charges, model.positions,
-                                             q, ph_disp; η).forces
-                hcat(Array.(forces)...)
+                                             q, ph_disp; ewald.η).forces
+                reduce(hcat, forces)
             end
 
             dynmat[:, :, γ, τ] = real_part[1:n_dim, :]
@@ -242,7 +255,7 @@ function compute_dynmat(::TermEwald, basis::PlaneWaveBasis{T}, ψ, occupation;
     # Reciprocal part
     for τ in 1:n_atoms
         for σ in 1:n_atoms
-            dynmat[:, σ, :, τ] += dynmat_ewald_recip(model, σ, τ; η, q)
+            dynmat[:, σ, :, τ] += dynmat_ewald_recip(model, σ, τ; ewald.η, q)
         end
     end
     dynmat
