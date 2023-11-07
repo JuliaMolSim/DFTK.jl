@@ -1,4 +1,4 @@
-@testsetup module SerialisationAgreement
+@testsetup module ScfresAgreement
 using Test
 using DFTK
 
@@ -40,7 +40,7 @@ using MPI
 using JLD2
 using JSON3
 using WriteVTK
-using ..SerialisationAgreement: test_scfres_agreement
+using ..ScfresAgreement: test_scfres_agreement
 
 function test_serialisation(testcase, label;
                             modelargs=(; spin_polarization=:collinear, temperature=0.01),
@@ -110,7 +110,7 @@ end
 end
 
 
-@testitem "SCF checkpointing" setup=[SerialisationAgreement, TestCases] begin
+@testitem "SCF checkpointing" setup=[ScfresAgreement, TestCases] begin
     using Test
     using DFTK
     using DFTK: ScfDefaultCallback, ScfSaveCheckpoints
@@ -133,11 +133,11 @@ end
         callback  = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
         nbandsalg = FixedBands(; n_bands_converge=20)
         scfres = self_consistent_field(basis; tol=1e-2, nbandsalg, callback)
-        SerialisationAgreement.test_scfres_agreement(scfres, load_scfres(checkpointfile))
+        ScfresAgreement.test_scfres_agreement(scfres, load_scfres(checkpointfile))
     end
 end
 
-@testitem "Serialisation" setup=[SerialisationAgreement, SerialisationIO, TestCases] begin
+@testitem "Serialisation" setup=[ScfresAgreement, SerialisationIO, TestCases] begin
     using DFTK
     using .SerialisationIO: test_serialisation
     testcase = TestCases.silicon

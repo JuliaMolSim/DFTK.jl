@@ -55,7 +55,7 @@ Random.seed!(0)
 
 exclude_tags = []
 :fast ∈ TAGS && push!(exclude_tags, :slow)
-:gpu ∉ TAGS && push!(exclude_tags, :gpu)
+:gpu ∉ TAGS  && push!(exclude_tags, :gpu)
 mpi_nprocs() > 1 && push!(exclude_tags, :dont_test_mpi)
 Sys.iswindows() && push!(exclude_tags, :unix)
 

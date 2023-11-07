@@ -67,29 +67,34 @@ end
     )
 end
 
-@testitem "ΩplusK_split, 0K" tags=[:dont_test_mpi] setup=[Hessian, TestCases] begin
+@testitem "ΩplusK_split, 0K" tags=[:dont_test_mpi] setup=[TestCases] begin
     using DFTK
     using DFTK: compute_projected_gradient
     using DFTK: select_occupied_orbitals, solve_ΩplusK, solve_ΩplusK_split
     using LinearAlgebra
 
-    (; scfres, basis, ψ, occupation, ρ) = Hessian.setup_quantities(TestCases.silicon)
-    rhs_ref = compute_projected_gradient(basis, scfres.ψ, scfres.occupation)
-    ϕ = rhs_ref + scfres.ψ
+    Ecut = 3
+    fft_size = [9, 9, 9]
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, [:lda_xc_teter93])
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
+    scfres = self_consistent_field(basis; tol=10)
+
+    rhs = compute_projected_gradient(basis, scfres.ψ, scfres.occupation)
+    ϕ = rhs + scfres.ψ
 
     @testset "self-adjointness of solve_ΩplusK_split" begin
-        @test isapprox(real(dot(ϕ, solve_ΩplusK_split(scfres, rhs_ref).δψ)),
-                        real(dot(solve_ΩplusK_split(scfres, ϕ).δψ, rhs_ref)),
+        @test isapprox(real(dot(ϕ, solve_ΩplusK_split(scfres, rhs).δψ)),
+                        real(dot(solve_ΩplusK_split(scfres, ϕ).δψ, rhs)),
                         atol=1e-7)
     end
 
-    @testset "solve_ΩplusK_split <=> solve_ΩplusK" begin
+    @testset "solve_ΩplusK_split agrees with solve_ΩplusK" begin
         scfres = self_consistent_field(basis; tol=1e-10)
-        δψ1 = solve_ΩplusK_split(scfres, rhs_ref).δψ
+        δψ1 = solve_ΩplusK_split(scfres, rhs).δψ
         δψ1, _ = select_occupied_orbitals(basis, δψ1, scfres.occupation)
         ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
-        rhs, _ = select_occupied_orbitals(basis, rhs_ref, occupation)
-        δψ2 = solve_ΩplusK(basis, ψ, rhs, occupation).δψ
+        rhs_trunc, _ = select_occupied_orbitals(basis, rhs, occupation)
+        δψ2 = solve_ΩplusK(basis, ψ, rhs_trunc, occupation).δψ
         @test norm(δψ1 - δψ2) < 1e-7
     end
 end
@@ -99,9 +104,17 @@ end
     using DFTK: compute_projected_gradient, solve_ΩplusK_split
     using LinearAlgebra
 
-    (; scfres, basis, ψ, occupation, ρ) = Hessian.setup_quantities(TestCases.silicon)
+    Ecut = 5
+    fft_size = [9, 9, 9]
+    model = model_DFT(magnesium.lattice, magnesium.atoms, magnesium.positions,
+                      [:lda_xc_teter93]; magnesium.temperature)
+    basis = PlaneWaveBasis(model, Ecut, magnesium.kcoords, magnesium.kweights; fft_size)
+    nbandsalg = AdaptiveBands(basis.model; occupation_threshold=1e-10)
+    scfres = self_consistent_field(basis; tol=1e-12, nbandsalg)
+
+    ψ = scfres.ψ
     rhs = compute_projected_gradient(basis, scfres.ψ, scfres.occupation)
-    ϕ = rhs + scfres.ψ
+    ϕ = rhs + ψ
 
     @testset "self-adjointness of solve_ΩplusK_split" begin
         @test isapprox(real(dot(ϕ, solve_ΩplusK_split(scfres, rhs).δψ)),
