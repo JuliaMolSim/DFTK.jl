@@ -5,7 +5,7 @@ Ewald term: electrostatic energy per unit cell of the array of point
 charges defined by `model.atoms` in a uniform background of
 compensating charge yielding net neutrality.
 """
-@kwdef struct Ewald
+Base.@kwdef struct Ewald
     η = nothing  # Parameter used for the splitting 1/r ≡ erf(η·r)/r + erfc(η·r)/r
                  # (or nothing if autoselected)
 end
