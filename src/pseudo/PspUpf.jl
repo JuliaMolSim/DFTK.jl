@@ -119,7 +119,7 @@ function PspUpf(path; identifier=path)
         end
         map(pswfc -> pswfc["occupation"], pswfcs_l)
     end
-    
+
     r2_4π_ρion = pseudo["total_charge_density"]
 
     if pseudo["header"]["core_correction"]

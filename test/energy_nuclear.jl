@@ -3,7 +3,7 @@ using DFTK
 using LinearAlgebra: Diagonal
 
 
-@testset "energy_ewald Lithium hydride" begin
+@testset "energy_forces_ewald Lithium hydride" begin
     lattice = 16 * Diagonal(ones(3))
     H  = ElementCoulomb(1)
     Li = ElementPsp(3, psp=load_psp("hgh/lda/Li-q1"))
@@ -14,11 +14,11 @@ using LinearAlgebra: Diagonal
     ]
 
     ref = -0.02196861  # TODO source?
-    γ_E = DFTK.energy_forces_ewald(Model(lattice, atoms, positions; terms=[Ewald()])).energy
+    γ_E = DFTK.energy_forces_ewald(lattice, charge_ionic.(atoms), positions).energy
     @test abs(γ_E - ref) < 1e-8
 end
 
-@testset "energy_ewald silicon" begin
+@testset "energy_forces_ewald silicon" begin
     lattice = [0.0  5.131570667152971 5.131570667152971;
                5.131570667152971 0.0 5.131570667152971;
                5.131570667152971 5.131570667152971  0.0]
@@ -27,7 +27,7 @@ end
     positions = [[1/8, 1/8, 1/8], [-1/8, -1/8, -1/8]]
 
     ref = -8.39789357839024  # from ABINIT
-    γ_E = DFTK.energy_forces_ewald(Model(lattice, atoms, positions; terms=[Ewald()])).energy
+    γ_E = DFTK.energy_forces_ewald(lattice, charge_ionic.(atoms), positions).energy
     @test abs(γ_E - ref) < 1e-10
 end
 
