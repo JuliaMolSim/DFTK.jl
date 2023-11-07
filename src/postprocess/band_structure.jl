@@ -54,8 +54,7 @@ function irrfbz_path(model; dim::Integer=model.n_dim, sgnum=nothing, magnetic_mo
         # Brillouin.jl has an interface to Spglib.jl to directly reduce the passed
         # lattice to the ITA conventional lattice and so the Spglib cell can be
         # directly used as an input.
-        cell, _ = spglib_cell(model, magnetic_moments)
-        kpath = Brillouin.irrfbz_path(cell)
+        kpath = Brillouin.irrfbz_path(spglib_cell(model, magnetic_moments))
     end
 
     # TODO In case of absence of time-reversal symmetry we need to explicitly

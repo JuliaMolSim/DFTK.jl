@@ -9,7 +9,6 @@ using Markdown
 using Printf
 using Requires
 using TimerOutputs
-using spglib_jll
 using Unitful
 using UnitfulAtomic
 using ForwardDiff

@@ -114,16 +114,11 @@ function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:ForwardDiff.
 end
 
 # determine symmetry operations only from primal lattice values
-function spglib_get_symmetry(lattice::AbstractMatrix{<:ForwardDiff.Dual}, atom_groups, positions,
-                             magnetic_moments=[]; kwargs...)
-    spglib_get_symmetry(ForwardDiff.value.(lattice), atom_groups, positions,
-                        magnetic_moments; kwargs...)
-end
-function spglib_atoms(atom_groups,
-                      positions::AbstractVector{<:AbstractVector{<:ForwardDiff.Dual}},
-                      magnetic_moments)
+function symmetry_operations(lattice::AbstractMatrix{<:ForwardDiff.Dual},
+                             atoms, positions, magnetic_moments=[]; kwargs...)
     positions_value = [ForwardDiff.value.(pos) for pos in positions]
-    spglib_atoms(atom_groups, positions_value, magnetic_moments)
+    symmetry_operations(ForwardDiff.value.(lattice), atoms, positions_value,
+                        magnetic_moments; kwargs...)
 end
 
 function _is_well_conditioned(A::AbstractArray{<:ForwardDiff.Dual}; kwargs...)
