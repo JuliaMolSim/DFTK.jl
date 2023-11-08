@@ -32,8 +32,8 @@ setup_threading(; n_blas=2)
 Random.seed!(0)
 
 const DFTK_TEST_ARGS = let
-    if "DFTK_TEST_ARGS" in keys(ENV)
-        append!(split(ENV["DFTK_TEST_ARGS"], ","), ARGS)
+    if "DFTK_TEST_ARGS" in keys(ENV) && isempty(ARGS)
+        split(ENV["DFTK_TEST_ARGS"], ",")
     else
         ARGS
     end
@@ -63,9 +63,11 @@ if :all ∈ TAGS || :fast ∈ TAGS
     is_excluded(ti) = any(in(ti.tags), EXCLUDED_FROM_ALL)
     @run_package_tests filter=!is_excluded
 
-    # TODO For now disable type piracy check, as we use that at places to patch
-    #      up missing functionality. Should disable this on a more fine-grained scale.
-    Aqua.test_all(DFTK, ambiguities=false, piracy=false, stale_deps=(ignore=[:Primes, ], ))
+    if mpi_nprocs() == 1
+        # TODO For now disable type piracy check, as we use that at places to patch
+        #      up missing functionality. Should disable this on a more fine-grained scale.
+        Aqua.test_all(DFTK, ambiguities=false, piracy=false, stale_deps=(ignore=[:Primes, ], ))
+    end
 end
 
 is_explicitly_selected(ti) = any(in(ti.tags), EXTRA_TAGS)

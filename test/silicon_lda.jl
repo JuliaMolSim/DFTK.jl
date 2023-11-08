@@ -45,7 +45,7 @@ end
 end
 
 @testitem "Silicon LDA (large, Float64)" #=
-    =#    tags=[:minimal, :slow] setup=[RunSCF, TestCases, SiliconLDA] begin
+    =#    tags=[:slow] setup=[RunSCF, TestCases, SiliconLDA] begin
     SiliconLDA.run_silicon_lda(Float64; Ecut=25, test_tol=1e-5, n_ignored=0, grid_size=33,
                                scf_tol=1e-7)
 end
@@ -63,7 +63,7 @@ end
 end
 
 @testitem "Silicon LDA (large, collinear spin)" #=
-    =#    tags=[:minimal, :slow] setup=[RunSCF, TestCases, SiliconLDA] begin
+    =#    tags=[:slow] setup=[RunSCF, TestCases, SiliconLDA] begin
     SiliconLDA.run_silicon_lda(Float64; Ecut=25, test_tol=1e-5, n_ignored=0, grid_size=33,
                                scf_tol=1e-7, spin_polarization=:collinear)
 end
