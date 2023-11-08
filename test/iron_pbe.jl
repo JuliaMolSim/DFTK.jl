@@ -66,6 +66,6 @@ end
 end
 
 
-@testitem "Iron PBE (Float64)" tags=[:minimal, :slow] setup=[RunSCF, TestCases, IronPBE] begin
+@testitem "Iron PBE (Float64)" tags=[:slow] setup=[RunSCF, TestCases, IronPBE] begin
     IronPBE.run_iron_pbe(Float64; test_tol=5e-6, scf_tol=1e-12)
 end
