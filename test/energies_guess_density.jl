@@ -1,13 +1,11 @@
-using Test
-using DFTK
-
-include("testcases.jl")
-
 # TODO Once we have converged SCF densities in a file it would be better to instead / also
 #      test the energies of these densities and compare them directly to the reference
 #      energies obtained in the data files
 
-@testset "Evaluate energies of guess density" begin
+@testitem "Evaluate energies of guess density" setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
+
     Ecut = 15
     n_bands = 8
     fft_size = [27, 27, 27]

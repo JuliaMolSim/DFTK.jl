@@ -90,7 +90,7 @@ scfres = self_consistent_field(basis;
 # which exactly gives the familiar printing of the SCF convergence.
 # If you want to have both (printing and checkpointing) you need to chain
 # both callbacks:
-callback = DFTK.ScfDefaultCallback() ∘ DFTK.ScfSaveCheckpoints(keep=true)
+callback = DFTK.ScfDefaultCallback() ∘ DFTK.ScfSaveCheckpoints(; keep=true)
 scfres = self_consistent_field(basis;
                                ρ=guess_density(basis, magnetic_moments),
                                tol=1e-2, callback);

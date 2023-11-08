@@ -6,7 +6,7 @@ on:
     tags: ['*']
   pull_request:
   schedule:
-    - cron:  '0 4 * * 6'  # Run every Sunday
+    - cron:  '0 4 * * 6'  # Run every Saturday
 concurrency:
   # Skip intermediate builds: always.
   # Cancel intermediate builds: only if it is a pull request build.
@@ -51,7 +51,7 @@ jobs:
           julia --project -e '
             using Pkg; Pkg.build(); Pkg.precompile()
             Pkg.add("MPI"); using MPI; MPI.install_mpiexecjl()
-            Pkg.test(; test_args=["quick"])
+            Pkg.test(; test_args=["minimal"])
           '
           $HOME/.julia/bin/mpiexecjl -np 2 julia --check-bounds=yes --depwarn=yes --project --color=yes -e 'using Pkg; Pkg.test(coverage=true)'
         if: ${{ matrix.payload == 'mpi' }}

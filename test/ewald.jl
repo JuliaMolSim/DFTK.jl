@@ -1,8 +1,7 @@
-using Test
-using DFTK: energy_forces_ewald
-using LinearAlgebra
+@testitem "Hydrogen atom" begin
+    using DFTK: energy_forces_ewald
+    using LinearAlgebra
 
-@testset "Hydrogen atom" begin
     lattice = 16 * Diagonal(ones(3))
     charges = [1]
     positions = [[0,0,0]]
@@ -12,7 +11,9 @@ using LinearAlgebra
     @test abs(γ_E - ref) < 1e-8
 end
 
-@testset "Silicon diamond structure" begin
+@testitem "Silicon diamond structure" begin
+    using DFTK: energy_forces_ewald
+
     lattice = [0.0  5.131570667152971 5.131570667152971;
                5.131570667152971 0.0 5.131570667152971;
                5.131570667152971 5.131570667152971  0.0]
@@ -24,7 +25,10 @@ end
     @test abs(γ_E - ref) < 1e-8
 end
 
-@testset "Boron molecule" begin
+@testitem "Boron molecule" begin
+    using DFTK: energy_forces_ewald
+    using LinearAlgebra
+
     lattice = 16 * Diagonal(ones(3))
     positions = [[0,0,0], [0.14763485355139283, 0, 0]]
     charges = [5, 5]
@@ -34,7 +38,10 @@ end
     @test abs(γ_E - ref) < 1e-7
 end
 
-@testset "Hydrogen molecule" begin
+@testitem "Hydrogen molecule" begin
+    using DFTK: energy_forces_ewald
+    using LinearAlgebra
+
     lattice = 16 * Diagonal(ones(3))
     positions = [
         [0.45312500031210007, 1/2, 1/2],
@@ -47,7 +54,11 @@ end
     @test abs(γ_E - ref) < 1e-7
 end
 
-@testset "Forces" begin
+@testitem "Forces" begin
+    using DFTK
+    using DFTK: energy_forces_ewald
+    using LinearAlgebra
+
     lattice = [0.0  5.131570667152971 5.131570667152971;
                5.131570667152971 0.0 5.131570667152971;
                5.131570667152971 5.131570667152971  0.0]

@@ -1,10 +1,7 @@
-using Test
-using DFTK
+@testitem "Diagonalization of a free-electron Hamiltonian" setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
 
-include("./testcases.jl")
-
-
-@testset "Diagonalization of a free-electron Hamiltonian" begin
     # Construct a free-electron Hamiltonian
     Ecut = 5
     fft_size = [15, 15, 15]
@@ -51,36 +48,40 @@ include("./testcases.jl")
     end
 end
 
-if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
-    @testset "Diagonalization of kinetic + local PSP" begin
-        Ecut = 25
-        fft_size = [33, 33, 33]
+@testitem "Diagonalization of kinetic + local PSP" tags=[:slow] setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
 
-        Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
-        model = Model(silicon.lattice, silicon.atoms, silicon.positions;
-                      terms=[Kinetic(),AtomicLocal()])
-        basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
-        ham = Hamiltonian(basis)
+    Ecut = 25
+    fft_size = [33, 33, 33]
 
-        res = diagonalize_all_kblocks(lobpcg_hyper, ham, 6; tol=1e-8)
+    Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
+    model = Model(silicon.lattice, silicon.atoms, silicon.positions;
+                  terms=[Kinetic(),AtomicLocal()])
+    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
+    ham = Hamiltonian(basis)
 
-        ref = [
-            [-4.087198659513310, -4.085326314828677, -0.506869382308294,
-             -0.506869382280876, -0.506869381798614],
-            [-4.085824585443292, -4.085418874576503, -0.509716820984169,
-             -0.509716820267449, -0.508545832298541],
-            [-4.086645155119840, -4.085209948598607, -0.514320642233337,
-             -0.514320641863231, -0.499373272772206],
-            [-4.085991608422304, -4.085039856878318, -0.517299903754010,
-             -0.513805498246478, -0.497036479690380]
-        ]
-        for ik in 1:length(basis.kpoints)
-            @test res.λ[ik][1:5] ≈ ref[basis.krange_thisproc[ik]] atol=5e-7
-        end
+    res = diagonalize_all_kblocks(lobpcg_hyper, ham, 6; tol=1e-8)
+
+    ref = [
+        [-4.087198659513310, -4.085326314828677, -0.506869382308294,
+         -0.506869382280876, -0.506869381798614],
+        [-4.085824585443292, -4.085418874576503, -0.509716820984169,
+         -0.509716820267449, -0.508545832298541],
+        [-4.086645155119840, -4.085209948598607, -0.514320642233337,
+         -0.514320641863231, -0.499373272772206],
+        [-4.085991608422304, -4.085039856878318, -0.517299903754010,
+         -0.513805498246478, -0.497036479690380]
+    ]
+    for ik in 1:length(basis.kpoints)
+        @test res.λ[ik][1:5] ≈ ref[basis.krange_thisproc[ik]] atol=5e-7
     end
 end
 
-@testset "Diagonalization of a core Hamiltonian" begin
+@testitem "Diagonalization of a core Hamiltonian" setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
+
     Ecut = 10
     fft_size = [21, 21, 21]
 
@@ -107,7 +108,10 @@ end
     end
 end
 
-@testset "Full diagonalization of a LDA Hamiltonian" begin
+@testitem "Full diagonalization of a LDA Hamiltonian" setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
+
     Ecut = 2
 
     Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
@@ -122,7 +126,10 @@ end
     end
 end
 
-@testset "LOBPCG Internal data structures" begin
+@testitem "LOBPCG Internal data structures" setup=[TestCases] begin
+    using DFTK
+    using LinearAlgebra
+
     a1 = rand(10, 5)
     a2 = rand(10, 2)
     a3 = rand(10, 7)

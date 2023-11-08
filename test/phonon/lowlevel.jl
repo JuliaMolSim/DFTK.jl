@@ -1,23 +1,19 @@
-using Test
-using DFTK
-using LinearAlgebra
-using Random
+@testitem "Phonon: Shifting functions" tags=[:phonon, :dont_test_mpi] begin
+    using DFTK
+    using DFTK: cis2pi, multiply_by_expiqr, find_equivalent_kpt, k_to_kpq_mapping
+    using LinearAlgebra
+    using Random
 
-include("helpers.jl")
-
-"""
-Real-space equivalent of `transfer_blochwave_kpt`.
-"""
-function transfer_blochwave_kpt_real(ψk_in, basis::PlaneWaveBasis, kpt_in, kpt_out, ΔG)
-    ψk_out = zeros(eltype(ψk_in), length(kpt_out.G_vectors), size(ψk_in, 2))
-    exp_ΔGr = DFTK.cis2pi.(-dot.(Ref(ΔG), r_vectors(basis)))
-    for n in 1:size(ψk_in, 2)
-        ψk_out[:, n] = fft(basis, kpt_out, exp_ΔGr .* ifft(basis, kpt_in, ψk_in[:, n]))
+    # Real-space equivalent of `transfer_blochwave_kpt`.
+    function transfer_blochwave_kpt_real(ψk_in, basis::PlaneWaveBasis, kpt_in, kpt_out, ΔG)
+        ψk_out = zeros(eltype(ψk_in), length(kpt_out.G_vectors), size(ψk_in, 2))
+        exp_ΔGr = cis2pi.(-dot.(Ref(ΔG), r_vectors(basis)))
+        for n in 1:size(ψk_in, 2)
+            ψk_out[:, n] = fft(basis, kpt_out, exp_ΔGr .* ifft(basis, kpt_in, ψk_in[:, n]))
+        end
+        ψk_out
     end
-    ψk_out
-end
 
-@testset "Shifting functions" begin
     Random.seed!()
     tol = 1e-12
 
@@ -33,8 +29,8 @@ end
     X = ElementGaussian(1.0, 0.5, :X)
     atoms = [X for _ in positions]
 
-    model = Model(lattice, atoms, positions; n_electrons=n_atoms,
-                  symmetries=false, spin_polarization=:collinear)
+    model = Model(lattice, atoms, positions; n_electrons=n_atoms, symmetries=false,
+                    spin_polarization=:collinear)
     kgrid = rand(2:10, 3)
     k1, k2, k3 = kgrid
     basis = PlaneWaveBasis(model; Ecut=100, kgrid)
@@ -51,10 +47,10 @@ end
         for kpt in unique(rand(basis.kpoints, 4))
             ψk = fft(basis, kpt, ψ)
 
-            ψk_out_four = DFTK.multiply_by_expiqr(basis, kpt, q, ψk)
+            ψk_out_four = multiply_by_expiqr(basis, kpt, q, ψk)
             ψk_out_real = let
                 shifted_kcoord = kpt.coordinate .+ q
-                index, ΔG = DFTK.find_equivalent_kpt(basis, shifted_kcoord, kpt.spin)
+                index, ΔG = find_equivalent_kpt(basis, shifted_kcoord, kpt.spin)
                 kpt_out = basis.kpoints[index]
                 transfer_blochwave_kpt_real(ψk, basis, kpt, kpt_out, ΔG)
             end
@@ -65,7 +61,7 @@ end
     end
 
     @testset "Ordering function" begin
-        kpoints_plus_q = DFTK.k_to_kpq_mapping(basis, q)
+        kpoints_plus_q = k_to_kpq_mapping(basis, q)
         ordering(kdata) = kdata[kpoints_plus_q]
         kcoords = getfield.(basis.kpoints, :coordinate)
         for (ik, kcoord) in enumerate(kcoords)

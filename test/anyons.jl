@@ -1,8 +1,7 @@
-using DFTK
-using LinearAlgebra
-using Test
+@testitem "Anyons: check magnetic potential" begin
+    using DFTK
+    using LinearAlgebra
 
-@testset "Anyons: check magnetic potential" begin
     # Test that the magnetic potential satisfies ∇∧A = 2π ρref, ∇⋅A = 0
     x = 1.23
     y = -1.8
@@ -19,13 +18,13 @@ using Test
     @test abs(divA) < 1e-6
 end
 
-if mpi_nprocs() == 1  # Direct minimisation not supported on mpi
-@testset "Anyons: check E11" begin
-    # See https://arxiv.org/pdf/1901.10739.pdf
-    # We test E11, which is a quantity defined in the above paper
-
+# Direct minimisation not supported on mpi
+@testitem "Anyons: check E11" tags=[:dont_test_mpi] begin
     using DFTK
     using StaticArrays
+
+    # See https://arxiv.org/pdf/1901.10739.pdf
+    # We test E11, which is a quantity defined in the above paper
 
     ## Unit cell. Having one of the lattice vectors as zero means a 2D system
     a = 14
@@ -51,5 +50,4 @@ if mpi_nprocs() == 1  # Direct minimisation not supported on mpi
     s = 2
     E11 = π/2 * (2(s+1)/s)^((s+2)/s) * (s/(s+2))^(2(s+1)/s) * E^((s+2)/s) / β
     @test 1.1 ≤ E11/(2π) ≤ 1.3 # 1.18 in the paper
-end
 end

@@ -1,9 +1,8 @@
-using Test
-using DFTK
-include("testcases.jl")
+@testitem "Test reduced / cartesian conversion" setup=[TestCases] begin
+    using DFTK
+    using LinearAlgebra
+    silicon = TestCases.silicon
 
-
-@testset "Test reduced / cartesian conversion" begin
     Ecut = 3
     fft_size = [13, 15, 14]
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
@@ -35,14 +34,17 @@ include("testcases.jl")
     @test DFTK.matrix_cart_to_red(model,   DFTK.matrix_red_to_cart(model,   Ared)) ≈ Ared
 end
 
-@testset "Violation of charge neutrality" begin
+@testitem "Violation of charge neutrality" setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
+
     # This is fine as no Coulomb electrostatics
     Model(silicon.lattice; εF=0.1)
     Model(silicon.lattice; n_electrons=1)
 
     # Violation of charge neutrality should throw for models with atoms.
-    @test_throws ErrorException model_LDA(silicon.lattice, silicon.atoms,
-                                          silicon.positions; εF=0.1)
-    @test_throws ErrorException model_LDA(silicon.lattice, silicon.atoms,
-                                          silicon.positions; n_electrons=1)
+    @test_throws ErrorException model_LDA(silicon.lattice, silicon.atoms, silicon.positions;
+                                          εF=0.1)
+    @test_throws ErrorException model_LDA(silicon.lattice, silicon.atoms, silicon.positions;
+                                          n_electrons=1)
 end

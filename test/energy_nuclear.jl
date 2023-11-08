@@ -1,9 +1,7 @@
-using Test
-using DFTK
-using LinearAlgebra: Diagonal
+@testitem "energy_forces_ewald Lithium hydride" begin
+    using DFTK
+    using LinearAlgebra: Diagonal
 
-
-@testset "energy_forces_ewald Lithium hydride" begin
     lattice = 16 * Diagonal(ones(3))
     H  = ElementCoulomb(1)
     Li = ElementPsp(3, psp=load_psp("hgh/lda/Li-q1"))
@@ -18,7 +16,9 @@ using LinearAlgebra: Diagonal
     @test abs(γ_E - ref) < 1e-8
 end
 
-@testset "energy_forces_ewald silicon" begin
+@testitem "energy_forces_ewald silicon" begin
+    using DFTK
+
     lattice = [0.0  5.131570667152971 5.131570667152971;
                5.131570667152971 0.0 5.131570667152971;
                5.131570667152971 5.131570667152971  0.0]
@@ -31,7 +31,9 @@ end
     @test abs(γ_E - ref) < 1e-10
 end
 
-@testset "energy_psp_correction silicon" begin
+@testitem "energy_psp_correction silicon" begin
+    using DFTK
+
     lattice = [0.0  5.131570667152971 5.131570667152971;
                5.131570667152971 0.0 5.131570667152971;
                5.131570667152971 5.131570667152971  0.0]

@@ -1,29 +1,9 @@
-using Test
-using DFTK
-using DFTK: setindex
-using LinearAlgebra
-using ForwardDiff
-using Random
+@testitem "Phonon: Ewald: comparison to ref testcase" #=
+    =#    tags=[:phonon, :dont_test_mpi] setup=[Phonon, TestCases] begin
+    using DFTK
 
-include("../testcases.jl")
-include("helpers.jl")
-
-@testset "Ewald: comparison to ref testcase" begin
-    tol = 1e-9
+    testcase = TestCases.silicon
     terms = [Ewald()]
-    model = Model(silicon.lattice, silicon.atoms, silicon.positions; terms)
-    basis_bs = PlaneWaveBasis(model; Ecut=5)
-
-    supercell_size = [2, 1, 3]
-    phonon = (; supercell_size, generate_supercell_qpoints(; supercell_size).qpoints)
-
-    ω_uc = []
-    for q in phonon.qpoints
-        hessian = DFTK.compute_dynmat_cart(basis_bs, nothing, nothing; q)
-        push!(ω_uc, compute_squared_frequencies(hessian))
-    end
-    ω_uc = sort!(collect(Iterators.flatten(ω_uc)))
-
     ω_ref = [ -0.2442311083805831
               -0.24423110838058237
               -0.23442208238107232
@@ -60,40 +40,14 @@ include("helpers.jl")
               1.7010950724885228
               1.7010950724885254
               1.752506588801463]
-    @test norm(ω_uc - ω_ref) < tol
+    Phonon.test_frequencies(testcase, terms, ω_ref)
 end
 
-if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
-@testset "Ewald: comparison to automatic differentiation" begin
-    Random.seed!()
-    tol = 1e-9
+@testitem "Phonon: Ewald: comparison to automatic differentiation" #=
+    =#    tags=[:phonon, :slow, :dont_test_mpi] setup=[Phonon, TestCases] begin
+    using DFTK
+    testcase = TestCases.silicon
+
     terms = [Ewald()]
-    model = Model(silicon.lattice, silicon.atoms, silicon.positions; terms)
-    basis_bs = PlaneWaveBasis(model; Ecut=5)
-
-    supercell_size = supercell_size=generate_random_supercell()
-    phonon = (; supercell_size, generate_supercell_qpoints(; supercell_size).qpoints)
-
-    ω_uc = []
-    for q in phonon.qpoints
-        hessian = DFTK.compute_dynmat_cart(basis_bs, nothing, nothing; q)
-        push!(ω_uc, compute_squared_frequencies(hessian))
-    end
-    ω_uc = sort!(collect(Iterators.flatten(ω_uc)))
-
-    supercell = create_supercell(silicon.lattice, silicon.atoms, silicon.positions,
-                                    phonon.supercell_size)
-    model_supercell = Model(supercell.lattice, supercell.atoms, supercell.positions;
-                            terms)
-    basis_supercell_bs = PlaneWaveBasis(model_supercell; Ecut=5)
-    hessian_supercell = DFTK.compute_dynmat_cart(basis_supercell_bs, nothing, nothing)
-    ω_supercell = sort(compute_squared_frequencies(hessian_supercell))
-    @test norm(ω_uc - ω_supercell) < tol
-
-    ω_ad = ph_compute_reference(model_supercell) do term, lattice, atoms, positions
-        charges = charge_ionic.(atoms)
-        DFTK.energy_forces_ewald(lattice, charges, positions)
-    end
-    @test norm(ω_ad - ω_supercell) < tol
-end
+    Phonon.test_rand_frequencies(testcase, terms)
 end
