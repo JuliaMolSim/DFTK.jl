@@ -48,7 +48,7 @@
     end
 end
 
-@testset "Diagonalization of kinetic + local PSP" tags=[:slow] setup=[TestCases] begin
+@testitem "Diagonalization of kinetic + local PSP" tags=[:slow] setup=[TestCases] begin
     using DFTK
     silicon = TestCases.silicon
 
