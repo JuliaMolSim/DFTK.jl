@@ -72,6 +72,7 @@ end
     using DFTK: compute_projected_gradient
     using DFTK: select_occupied_orbitals, solve_ΩplusK, solve_ΩplusK_split
     using LinearAlgebra
+    silicon = TestCases.silicon
 
     Ecut = 3
     fft_size = [9, 9, 9]
@@ -103,6 +104,7 @@ end
     using DFTK
     using DFTK: compute_projected_gradient, solve_ΩplusK_split
     using LinearAlgebra
+    magnesium = TestCases.magnesium
 
     Ecut = 5
     fft_size = [9, 9, 9]
