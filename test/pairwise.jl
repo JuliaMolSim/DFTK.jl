@@ -21,7 +21,7 @@
 
     model = Model(lattice, atoms, positions; terms=[term])
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=(1, 1, 1))
-    forces = compute_forces(basis.terms[1], basis, nothing, nothing)
+    forces = compute_forces(only(basis.terms), basis, nothing, nothing)
 
     # Compare forces to finite differences
     ε=1e-8
