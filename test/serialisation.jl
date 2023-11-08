@@ -111,7 +111,6 @@ end
 
 
 @testitem "SCF checkpointing" setup=[ScfresAgreement, TestCases] begin
-    using Test
     using DFTK
     using DFTK: ScfDefaultCallback, ScfSaveCheckpoints
     using JLD2  # needed for ScfSaveCheckpoints

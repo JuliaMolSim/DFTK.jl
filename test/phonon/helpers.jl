@@ -1,9 +1,18 @@
+# Helpers functions for tests.
+@testsetup module Phonon
+using DFTK: setindex, dynmat_red_to_cart, normalize_kpoint_coordinate
 using Random
 using LinearAlgebra
+using ForwardDiff
 
-# Helpers functions for tests.
-# TODO: Temporary, explanations too scarce. To be changed with proper phonon computations.
+# We do not take the square root to compare eigenvalues with machine precision.
+function compute_squared_frequencies(matrix)
+    n, m = size(matrix, 1), size(matrix, 2)
+    Ω = eigvals(reshape(matrix, n*m, n*m))
+    real(Ω)
+end
 
+# Reference against automatic differentiation.
 function ph_compute_reference(payload, model_supercell)
     n_atoms = length(model_supercell.positions)
     n_dim = model_supercell.n_dim
@@ -22,17 +31,8 @@ function ph_compute_reference(payload, model_supercell)
             end
         end
     end
-    hessian_ad = DFTK.dynmat_red_to_cart(model_supercell, dynmat_ad)
+    hessian_ad = dynmat_red_to_cart(model_supercell, dynmat_ad)
     sort(compute_squared_frequencies(hessian_ad))
-end
-
-
-
-# We do not take the square root to compare results with machine precision.
-function compute_squared_frequencies(matrix)
-    n, m = size(matrix, 1), size(matrix, 2)
-    Ω = eigvals(reshape(matrix, n*m, n*m))
-    real(Ω)
 end
 
 function generate_random_supercell(; max_length=6)
@@ -48,8 +48,9 @@ end
 function generate_supercell_qpoints(; supercell_size=generate_random_supercell())
     qpoints_list = Iterators.product([1:n_sc for n_sc in supercell_size]...)
     qpoints = map(qpoints_list) do n_sc
-        DFTK.normalize_kpoint_coordinate.([n_sc[i] / supercell_size[i] for i in 1:3])
+        normalize_kpoint_coordinate.([n_sc[i] / supercell_size[i] for i in 1:3])
     end |> vec
 
     (; supercell_size, qpoints)
+end
 end

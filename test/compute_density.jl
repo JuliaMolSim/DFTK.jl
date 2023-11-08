@@ -5,7 +5,6 @@
 # Not easy to distribute.
 @testitem "Using BZ symmetry yields identical density" #=
     =#    tags=[:dont_test_mpi] setup=[TestCases] begin
-    using Test
     using LinearAlgebra
     using DFTK
     using DFTK: total_local_potential, is_approx_integer

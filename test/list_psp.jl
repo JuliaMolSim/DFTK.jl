@@ -1,5 +1,4 @@
 @testitem "Check reading all HGH pseudos" tags=[:psp] begin
-    using Test
     using DFTK: load_psp, list_psp
 
     for record in list_psp()
