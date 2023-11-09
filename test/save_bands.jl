@@ -14,7 +14,7 @@ function test_save_bands(label; spin_polarization=:none, Ecut=7, temperature=0.0
     else
         magnetic_moments = []
     end
-    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions;
+    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
                       spin_polarization, temperature, magnetic_moments)
     basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
     n_spin = model.n_spin_components
