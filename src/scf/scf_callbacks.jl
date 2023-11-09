@@ -178,9 +178,9 @@ function ScfDiagtol(; ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.03)
 end
 
 function default_diagtol(basis; tol, kwargs...)
-    if any(t -> t isa TermNonlinear, basis.term)
+    if any(t -> t isa TermNonlinear, basis.terms)
         ScfDiagtol(; diagtol_max=0.03)
     else
-        ScfDiagtol(; diagtol_max=tol / 10)
+        ScfDiagtol(; diagtol_max=tol)
     end
 end
