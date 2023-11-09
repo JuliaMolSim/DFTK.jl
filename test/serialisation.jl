@@ -109,8 +109,6 @@ function test_serialisation(testcase, label; modelargs=(; ),
 end
 end
 
-<<<<<<< HEAD
-
 @testitem "SCF checkpointing" setup=[ScfresAgreement, TestCases] begin
     using DFTK
     using DFTK: ScfDefaultCallback, ScfSaveCheckpoints

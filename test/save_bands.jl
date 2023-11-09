@@ -1,9 +1,9 @@
+@testitem "Save_bands" setup=[TestCases] begin
 using Test
 using DFTK
 using MPI
 using JSON3
-
-include("testcases.jl")
+testcase = TestCases.silicon
 
 function test_save_bands(label; spin_polarization=:none, Ecut=7, temperature=0.0)
     n_bands = 8
@@ -58,7 +58,6 @@ function test_save_bands(label; spin_polarization=:none, Ecut=7, temperature=0.0
 end
 
 
-@testset "save_bands" begin
-    test_save_bands("nospin notemp";  spin_polarization=:none)
-    test_save_bands("collinear temp"; spin_polarization=:collinear)
+test_save_bands("nospin notemp";  spin_polarization=:none)
+test_save_bands("collinear temp"; spin_polarization=:collinear)
 end
