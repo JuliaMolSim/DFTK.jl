@@ -66,7 +66,7 @@ end
 
 # Temporary workaround until Spglib.jl exports this function
 function spglib_get_symmetry_with_collinear_spin(cell::Spglib.SpglibCell, symprec=1e-5)
-    lattice, positions, atoms, spins = Spglib._expand_cell(cell)
+    lattice, positions, atoms, spins = Spglib._unwrap_convert(cell)
     num_atom = length(cell.magmoms)
     # See https://github.com/spglib/spglib/blob/42527b0/python/spglib/spglib.py#L270
     max_size = 96num_atom  # 96 = 48 × 2 since we have spins
