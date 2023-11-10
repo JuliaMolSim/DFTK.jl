@@ -25,30 +25,29 @@ an input basis ``k``-grid. All other parameters are modified so that the respect
 systems associated to both basis are equivalent.
 """
 function cell_to_supercell(basis::PlaneWaveBasis{T}) where {T}
-    iszero(basis.kshift) || error("Only kshift of 0 implemented.")
+    @assert basis.kgrid isa MonkhorstPack
+    iszero(basis.kgrid.kshift) || error("Only kshift of 0 implemented.")
     model = basis.model
 
     # Compute supercell model and basis parameters
-    supercell_size = basis.kgrid
+    supercell_size = basis.kgrid.kgrid
     supercell = create_supercell(model.lattice, model.atoms, model.positions, supercell_size)
-    supercell_fft_size = basis.fft_size .* supercell_size
+    supercell_fft_size = Tuple{Int,Int,Int}(basis.fft_size .* supercell_size)
     if isnothing(model.n_electrons)
         n_electrons_supercell = nothing
     else
         n_electrons_supercell = prod(supercell_size) * model.n_electrons
     end
+    supercell_kgrid = MonkhorstPack([1, 1, 1], basis.kgrid.kshift)
 
     # Assemble new model and new basis
-    model_supercell = Model(model; supercell.lattice, supercell.atoms, supercell.positions,
+    supercell_model = Model(model; supercell.lattice, supercell.atoms, supercell.positions,
                             n_electrons=n_electrons_supercell, symmetries=false)
-    symmetries_respect_rgrid = false  # single point symmetry
-    PlaneWaveBasis(model_supercell, basis.Ecut, supercell_fft_size,
-                   basis.variational,
-                   [zeros(T, 3)],  # kcoords
-                   [one(T)],       # kweights
-                   ones(3),        # kgrid = Γ point only
-                   basis.kshift,   # kshift
-                   symmetries_respect_rgrid,
+    symmetries_respect_rgrid = true
+    use_symmetries_for_kpoint_reduction = true
+    PlaneWaveBasis(supercell_model, basis.Ecut, supercell_fft_size,
+                   basis.variational, supercell_kgrid, symmetries_respect_rgrid,
+                   use_symmetries_for_kpoint_reduction,
                    basis.comm_kpts, basis.architecture)
 end
 
@@ -71,7 +70,7 @@ The output `ψ_supercell` have a single component at ``Γ``-point, such that
 function cell_to_supercell(ψ, basis::PlaneWaveBasis{T},
                            basis_supercell::PlaneWaveBasis{T}) where {T <: Real}
     # Ensure that the basis is unfolded.
-    prod(basis.kgrid) != length(basis.kpoints) && error("basis must be unfolded")
+    length(basis.kgrid) != length(basis.kpoints) && error("basis must be unfolded")
 
     num_kpG   = sum(size.(ψ, 1))
     num_bands = size(ψ[1], 2)

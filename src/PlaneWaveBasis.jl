@@ -87,8 +87,7 @@ struct PlaneWaveBasis{T,
     ## (MPI-global) information on the k-point grid
     ## These fields are not actually used in computation, but can be used to reconstruct a basis
     # Monkhorst-Pack grid used to generate the k-points, or nothing for custom k-points
-    kgrid::Union{Nothing,Vec3{Int}}
-    kshift::Union{Nothing,Vec3{T}}
+    kgrid::AbstractKgrid
     # full list of (non spin doubled) k-point coordinates in the irreducible BZ
     kcoords_global::Vector{Vec3{T}}
     kweights_global::Vector{T}
@@ -110,6 +109,10 @@ struct PlaneWaveBasis{T,
     # If this is true, the symmetries are a property of the complete discretized model.
     # Therefore, all quantities should be symmetric to machine precision
     symmetries_respect_rgrid::Bool
+    # Whether symmetry is used to reduce the number of explicit k-points to the
+    # irreducible BZMesh. This is a debug option, useful when a part in the code does
+    # not yet implement symmetry. See `unfold_bz` as a way to activate this.
+    use_symmetries_for_kpoint_reduction::Bool
 
     ## Instantiated terms (<: Term). See Hamiltonian for high-level usage
     terms::Vector{Any}
@@ -157,11 +160,23 @@ end
 # Lowest-level constructor, should not be called directly.
 # All given parameters must be the same on all processors
 # and are stored in PlaneWaveBasis for easy reconstruction.
-function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
-                        kcoords, kweights, kgrid, kshift,
-                        symmetries_respect_rgrid, comm_kpts,
-                        architecture::Arch
+function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, Int},
+                        variational::Bool, kgrid::AbstractKgrid,
+                        symmetries_respect_rgrid::Bool,
+                        use_symmetries_for_kpoint_reduction::Bool,
+                        comm_kpts, architecture::Arch
                        ) where {T <: Real, Arch <: AbstractArchitecture}
+    # TODO This needs a refactor. There is too many different things here happening
+    #      at once. In particular steps, which can become rather costly for larger
+    #      calculations (symmetry determination, projector evaluation, potential
+    #      evaluations) need to be redone ... even for cases (such as changing kpoints
+    #      or going to a less accurate floating-point type) where parts of the
+    #      computation could be avoided.
+    #
+    # Also we should allow for more flexibility regarding the floating-point
+    # type and parallelisation, i.e. to temporarily change to a new FFT plan
+    # or something like that.
+
     # Validate fft_size
     if variational
         max_E = norm2(model.recip_lattice * floor.(Int, Vec3(fft_size) ./ 2)) / 2
@@ -171,37 +186,30 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         )
     end
     if !(all(fft_size .== next_working_fft_size(T, fft_size)))
-        @show fft_size next_working_fft_size(T, fft_size)
-        error("Selected fft_size will not work for the buggy generic " *
-              "FFT routines; use next_working_fft_size")
+        next_size = next_working_fft_size(T, fft_size)
+        error("Selected fft_size=$fft_size will not work for the buggy generic " *
+              "FFT routines; use next_working_fft_size(T, fft_size) = $next_size")
     end
-    fft_size   = Tuple{Int, Int, Int}(fft_size)  # explicit conversion in case passed as array
-    N1, N2, N3 = fft_size
 
-    # filter out the symmetries that don't preserve the real-space grid
+    # Filter out the symmetries that don't preserve the real-space grid
+    # and that don't preserve the k-point grid
     symmetries = model.symmetries
     if symmetries_respect_rgrid
         symmetries = symmetries_preserving_rgrid(symmetries, fft_size)
     end
+    symmetries = symmetries_preserving_kgrid(symmetries, kgrid)
 
-    # build or validate the kgrid, and get symmetries preserving the kgrid
-    if isnothing(kcoords)
-        # MP grid based on kgrid/kshift
-        @assert !isnothing(kgrid)
-        @assert !isnothing(kshift)
-        @assert isnothing(kweights)
-        kcoords, kweights, symmetries = bzmesh_ir_wedge(kgrid, symmetries; kshift)
+    # Build the irreducible k-point coordinates
+    if use_symmetries_for_kpoint_reduction
+        kdata = irreducible_kcoords(kgrid, symmetries)
     else
-        # Manual kpoint set based on kcoords/kweights
-        @assert length(kcoords) == length(kweights)
-        all_kcoords = unfold_kcoords(kcoords, symmetries)
-        symmetries  = symmetries_preserving_kgrid(symmetries, all_kcoords)
+        kdata = irreducible_kcoords(kgrid, [one(SymOp)])
     end
 
     # Init MPI, and store MPI-global values for reference
     MPI.Init()
-    kcoords_global  = kcoords
-    kweights_global = kweights
+    kcoords_global  = convert(Vector{Vec3{T}}, kdata.kcoords)
+    kweights_global = convert(Vector{T},       kdata.kweights)
 
     # Setup FFT plans
     Gs = to_device(architecture, G_vectors(fft_size))
@@ -251,7 +259,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         @assert mpi_sum(length(krange_thisproc), comm_kpts) == n_kpt
         @assert !isempty(krange_thisproc)
     end
-    kweights_thisproc = kweights[krange_thisproc]
+    kweights = kweights_global[krange_thisproc]
 
     # Setup k-point basis sets
     !variational && @warn(
@@ -264,10 +272,10 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     if model.n_spin_components == 2
         krange_thisproc   = vcat(krange_thisproc, n_kpt .+ krange_thisproc)
         krange_allprocs   = [vcat(range, n_kpt .+ range) for range in krange_allprocs]
-        kweights_thisproc = vcat(kweights_thisproc, kweights_thisproc)
+        kweights = vcat(kweights, kweights)
     end
-    @assert mpi_sum(sum(kweights_thisproc), comm_kpts) ≈ model.n_spin_components
-    @assert length(kpoints) == length(kweights_thisproc)
+    @assert mpi_sum(sum(kweights), comm_kpts) ≈ model.n_spin_components
+    @assert length(kpoints) == length(kweights)
 
     if architecture isa GPU && Threads.nthreads() > 1
         error("Can't mix multi-threading and GPU computations yet.")
@@ -275,8 +283,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
 
     VT = value_type(T)
     dvol  = model.unit_cell_volume ./ prod(fft_size)
-    r_vectors = [Vec3{VT}(VT(i-1) / N1, VT(j-1) / N2, VT(k-1) / N3)
-                 for i = 1:N1, j = 1:N2, k = 1:N3]
+    r_vectors = [(Vec3{VT}(idx.I) .- (1, 1, 1)) ./ VT.(fft_size)
+                 for idx in CartesianIndices(fft_size)]
     r_vectors = to_device(architecture, r_vectors)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
@@ -287,9 +295,11 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
         fft_normalization, ifft_normalization,
         Gs, r_vectors,
-        kpoints, kweights_thisproc, kgrid, kshift,
+        kpoints, kweights, kgrid,
         kcoords_global, kweights_global, comm_kpts, krange_thisproc, krange_allprocs,
-        architecture, symmetries, symmetries_respect_rgrid, terms)
+        architecture, symmetries, symmetries_respect_rgrid,
+        use_symmetries_for_kpoint_reduction, terms)
+
     # Instantiate the terms with the basis
     for (it, t) in enumerate(model.term_types)
         term_name = string(nameof(typeof(t)))
@@ -298,15 +308,21 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Number, fft_size, variational,
     basis
 end
 
-# This is an intermediate-level constructor, which allows for the
-# custom specification of k points and G grids.
-# For regular usage, the higher-level one below should be preferred
-@timing function PlaneWaveBasis(model::Model{T}, Ecut::Number,
-                                kcoords ::Union{Nothing, AbstractVector},
-                                kweights::Union{Nothing, AbstractVector};
+@doc raw"""
+Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a k-point grid.
+By default a [`MonkhorstPack`](@ref) grid is employed, which can be specified as a
+[`MonkhorstPack`](@ref) object or by simply passing a vector of three integers as
+the `kgrid`. Optionally `kshift` allows to specify a shift (0 or 1/2 in each
+direction). If not specified a grid is generated using `kgrid_from_maximal_spacing`
+with a minimal spacing of `2π * 0.022` per Bohr.
+"""
+@timing function PlaneWaveBasis(model::Model{T};
+                                Ecut::Number,
+                                kgrid=nothing,
+                                kshift=[0, 0, 0],
                                 variational=true, fft_size=nothing,
-                                kgrid=nothing, kshift=nothing,
                                 symmetries_respect_rgrid=isnothing(fft_size),
+                                use_symmetries_for_kpoint_reduction=true,
                                 comm_kpts=MPI.COMM_WORLD, architecture=CPU()) where {T <: Real}
     if isnothing(fft_size)
         @assert variational
@@ -320,40 +336,36 @@ end
                             for sym in model.symmetries for i = 1:3]
             factors = intersect((2, 3, 4, 6), denominators)
         else
-            factors = (1,)
+            factors = (1, )
         end
-        fft_size = compute_fft_size(model, Ecut, kcoords; factors)
+        fft_size = compute_fft_size(model, Ecut, kgrid; factors)
+    else
+        fft_size = Tuple{Int,Int,Int}(fft_size)
     end
-    PlaneWaveBasis(model, Ecut, fft_size, variational, kcoords, kweights,
-                   kgrid, kshift, symmetries_respect_rgrid, comm_kpts, architecture)
-end
 
-@doc raw"""
-Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a Monkhorst-Pack
-``k``-point grid. The MP grid can either be specified directly with `kgrid` providing the
-number of points in each dimension and `kshift` the shift (0 or 1/2 in each direction).
-If not specified a grid is generated using `kgrid_from_minimal_spacing` with
-a minimal spacing of `2π * 0.022` per Bohr.
-"""
-function PlaneWaveBasis(model::Model;
-                        Ecut,
-                        kgrid=kgrid_from_minimal_spacing(model, 2π * 0.022),
-                        kshift=zeros(3),
-                        kwargs...)
-    PlaneWaveBasis(model, austrip(Ecut), nothing, nothing;
-                   kgrid, kshift, kwargs...)
+    if isnothing(kgrid)
+        kgrid_inner = kgrid_from_maximal_spacing(model, 2π * 0.022; kshift)
+    elseif kgrid isa AbstractKgrid
+        kgrid_inner = kgrid
+    else
+        kgrid_inner = MonkhorstPack(kgrid, kshift)
+    end
+
+    PlaneWaveBasis(model, austrip(Ecut), fft_size, variational, kgrid_inner,
+                   symmetries_respect_rgrid, use_symmetries_for_kpoint_reduction,
+                   comm_kpts, architecture)
 end
 
 """
-Creates a new basis identical to `basis`, but with a custom set of kpoints
+Creates a new basis identical to `basis`, but with a new k-point grid,
+e.g. an [`MonkhorstPack`](@ref) or a [`ExplicitKpoints`](@ref) grid.
 """
-@timing function PlaneWaveBasis(basis::PlaneWaveBasis, kcoords::AbstractVector,
-                                kweights::AbstractVector)
-    kgrid = kshift = nothing
+@timing function PlaneWaveBasis(basis::PlaneWaveBasis, kgrid::AbstractKgrid)
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
-                   kcoords, kweights, kgrid, kshift,
-                   basis.symmetries_respect_rgrid, basis.comm_kpts, basis.architecture)
+                   kgrid, basis.symmetries_respect_rgrid,
+                   basis.use_symmetries_for_kpoint_reduction,
+                   basis.comm_kpts, basis.architecture)
 end
 
 """
@@ -505,28 +517,17 @@ function gather_kpts(basis::PlaneWaveBasis)
     # No need to allocate and setup a new basis object
     mpi_nprocs(basis.comm_kpts) == 1 && return basis
 
-    # Gather k-point info on master
-    kcoords  = getproperty.(basis.kpoints, :coordinate)
-    kcoords  = gather_kpts(kcoords, basis)
-    kweights = gather_kpts(basis.kweights, basis)
-
-    # Number of distinct k-point coordinates is number of k-points with spin 1
-    n_spinup_thisproc = count(kpt.spin == 1 for kpt in basis.kpoints)
-    n_kcoords = mpi_sum(n_spinup_thisproc, basis.comm_kpts)
-
-    if isnothing(kcoords)  # i.e. master process
-        nothing
-    else
+    if mpi_master()
         PlaneWaveBasis(basis.model,
                        basis.Ecut,
-                       kcoords[1:n_kcoords],
-                       kweights[1:n_kcoords];
+                       basis.fft_size,
                        basis.variational,
                        basis.kgrid,
-                       basis.kshift,
                        basis.symmetries_respect_rgrid,
                        comm_kpts=MPI.COMM_SELF,
                        architecture=basis.architecture)
+    else
+        nothing
     end
 end
 

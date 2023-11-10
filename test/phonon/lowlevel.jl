@@ -2,7 +2,6 @@
     using DFTK
     using DFTK: cis2pi, multiply_by_expiqr, find_equivalent_kpt, k_to_kpq_mapping
     using LinearAlgebra
-    using Random
 
     # Real-space equivalent of `transfer_blochwave_kpt`.
     function transfer_blochwave_kpt_real(ψk_in, basis::PlaneWaveBasis, kpt_in, kpt_out, ΔG)
@@ -13,8 +12,6 @@
         end
         ψk_out
     end
-
-    Random.seed!()
     tol = 1e-12
 
     positions = [[0.0, 0.0, 0.0]]

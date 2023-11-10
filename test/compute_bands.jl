@@ -125,8 +125,7 @@ end
 
     model    = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
     kinter   = interpolate(irrfbz_path(model), density=3)
-    kweights = ones(length(kinter)) ./ length(kinter)
-    basis    = PlaneWaveBasis(model, Ecut, kinter, kweights)
+    basis    = PlaneWaveBasis(model; Ecut, kgrid=ExplicitKpoints(kinter))
 
     # Check that plain diagonalization and compute_bands agree
     ρ   = guess_density(basis)
@@ -149,12 +148,11 @@ end
     model    = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
     kpath    = irrfbz_path(model)
     kinter   = interpolate(irrfbz_path(model), density=3)
-    kweights = ones(length(kinter)) ./ length(kinter)
-    basis    = PlaneWaveBasis(model, 5, kinter, kweights)
+    basis    = PlaneWaveBasis(model; Ecut=5, kgrid=ExplicitKpoints(kinter))
 
     # Setup some dummy data
-    eigenvalues = [10ik .+ collect(1:4) for ik = 1:length(kinter)]
-    eigenvalues_error = [eigenvalues[ik]./100 for ik = 1:length(kinter)]
+    eigenvalues = [10ik .+ collect(1:4)        for ik = 1:length(kinter)]
+    eigenvalues_error = [eigenvalues[ik]./100  for ik = 1:length(kinter)]
     band_data = (; basis, eigenvalues, eigenvalues_error, kinter)
     ret = DFTK.data_for_plotting(band_data)
 

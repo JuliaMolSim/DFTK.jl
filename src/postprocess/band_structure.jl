@@ -8,6 +8,8 @@ Compute band data:
   If not given, the path is determined automatically by inspecting the `Model`.
   If you are using spin, you should pass the `magnetic_moments` as a kwargs to
   ensure these are taken into account when determining the path.
+- `kgrid`: A custom kgrid to perform the band computation, e.g. a new
+  [`MonkhorstPack`](@ref) grid.
 - `kcoords` are the ``k``-point coordinates (reduced coordinates).
 - `n_bands` selects the number of bands to compute. If this value is absent and an
   `scfres` is passed, a default of `n_bands_scf + 5sqrt(n_bands_scf)` is used.
@@ -18,8 +20,7 @@ Compute band data:
   for SCF computations. Increase if higher accuracy desired.
 - `eigensolver`: The diagonalisation method to be employed.
 """
-@timing function compute_bands(basis::PlaneWaveBasis,
-                               kcoords::AbstractVector{<:AbstractVector};
+@timing function compute_bands(basis::PlaneWaveBasis, kgrid::AbstractKgrid;
                                n_bands=default_n_bands_bandstructure(basis.model),
                                n_extra=3, ρ=nothing, εF=nothing, eigensolver=lobpcg_hyper,
                                tol=1e-3, kwargs...)
@@ -33,9 +34,8 @@ Compute band data:
         ρ = guess_density(basis)
     end
 
-    # Create basis with new kpoints, without any symmetry operations.
-    kweights = ones(length(kcoords)) ./ length(kcoords)
-    bs_basis = PlaneWaveBasis(basis, kcoords, kweights)
+    # Create new basis with new kpoints
+    bs_basis = PlaneWaveBasis(basis, kgrid)
 
     ham = Hamiltonian(bs_basis; ρ)
     eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_extra;
@@ -50,11 +50,16 @@ Compute band data:
         (; occupation) = compute_occupation(bs_basis, eigres.λ, εF)
     end
 
-    (; basis=bs_basis, ψ=eigres.X, eigenvalues=eigres.λ, ρ, εF, occupation, diagonalization=eigres)
+    (; basis=bs_basis, ψ=eigres.X, eigenvalues=eigres.λ, ρ, εF, occupation,
+     diagonalization=eigres)
 end
 function compute_bands(scfres::NamedTuple, kcoords::AbstractVector{<:AbstractVector};
                        n_bands=default_n_bands_bandstructure(scfres), kwargs...)
     compute_bands(scfres.basis, kcoords; scfres.ρ, scfres.εF, n_bands, kwargs...)
+end
+
+function compute_bands(basis_or_scfres, kcoords::AbstractVector{<:AbstractVector}; kwargs...)
+    compute_bands(basis_or_scfres, ExplicitKpoints(kcoords); kwargs...)
 end
 function compute_bands(basis_or_scfres, kpath::KPath; kline_density=40u"bohr", kwargs...)
     kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
@@ -263,6 +268,8 @@ Write the computed bands to a file. `save_ψ` determines whether the wavefunctio
 is also saved or not.
 """
 function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false, kwargs...)
+    # TODO Make sure this works also when `band_data` is an `scfres`
+
     _, ext = splitext(filename)
     ext = Symbol(ext[2:end])
 

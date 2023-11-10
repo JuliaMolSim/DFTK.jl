@@ -66,6 +66,7 @@ include("SymOp.jl")
 
 export Smearing
 export Model
+export MonkhorstPack, ExplicitKpoints
 export PlaneWaveBasis
 export compute_fft_size
 export G_vectors, G_vectors_cart, r_vectors, r_vectors_cart
@@ -76,15 +77,18 @@ export irfft
 export ifft!
 export fft
 export fft!
-export create_supercell
-export cell_to_supercell
+export kgrid_from_maximal_spacing, kgrid_from_minimal_n_kpoints
 include("Smearing.jl")
 include("Model.jl")
 include("structure.jl")
+include("bzmesh.jl")
 include("PlaneWaveBasis.jl")
 include("fft.jl")
 include("orbitals.jl")
 include("show.jl")
+
+export create_supercell
+export cell_to_supercell
 include("supercell.jl")
 
 export Energies
@@ -163,11 +167,7 @@ include("scf/potential_mixing.jl")
 
 export symmetry_operations
 export standardize_atoms
-export bzmesh_uniform
-export bzmesh_ir_wedge
-export kgrid_from_minimal_spacing, kgrid_from_minimal_n_kpoints
 include("symmetry.jl")
-include("bzmesh.jl")
 
 export DensityConstructionMethod
 export AtomicDensity

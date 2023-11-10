@@ -18,7 +18,6 @@ function run_silicon_lda(T; Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     ]
     ref_etot = -7.911817522631488
 
-    fft_size = fill(grid_size, 3)
     Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
     atoms = [Si, Si]
 
@@ -30,7 +29,7 @@ function run_silicon_lda(T; Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     model = model_DFT(silicon.lattice, atoms, silicon.positions, [:lda_x, :lda_c_vwn];
                       spin_polarization, magnetic_moments)
     model = convert(Model{T}, model)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size=fill(grid_size, 3) )
 
     spin_polarization == :collinear && (ref_lda = vcat(ref_lda, ref_lda))
     run_scf_and_compare(T, basis, ref_lda, ref_etot; ρ=guess_density(basis), kwargs...)

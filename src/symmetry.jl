@@ -1,7 +1,7 @@
 # This file contains functions to handle the symetries.
 # The type SymOp is defined in Symop.jl
 
-import Spglib
+include("external/spglib.jl")
 
 # A symmetry (W, w) (or (S, τ)) induces a symmetry in the Brillouin zone that the
 # Hamiltonian at S k is unitary equivalent to that at k, which we exploit to reduce
@@ -154,6 +154,22 @@ function symmetries_preserving_kgrid(symmetries, kcoords)
             for k in kcoords_normalized)
     end
     filter(preserves_grid, symmetries)
+end
+function symmetries_preserving_kgrid(symmetries, kgrid::ExplicitKpoints)
+    # First apply symmetries as the provides k-points can be arbitrary
+    # (e.g. only along a line or similar)
+    all_kcoords = unfold_kcoords(kgrid.kcoords, symmetries)
+    symmetries_preserving_kgrid(symmetries, all_kcoords)
+end
+function symmetries_preserving_kgrid(symmetries, kgrid::MonkhorstPack)
+    if all(isone, kgrid.kgrid)
+        # TODO Keeping this special casing from version of the code before refactor
+        [one(SymOp)]
+    else
+        # TODO This can certainly be improved by knowing this is an MP grid,
+        #      see symmetries_preserving_rgrid below for ideas
+        symmetries_preserving_kgrid(symmetries, reducible_kcoords(kgrid).kcoords)
+    end
 end
 
 """
@@ -356,12 +372,14 @@ function unfold_bz(basis::PlaneWaveBasis)
     if length(basis.symmetries) == 1
         return basis
     else
-        kcoords = unfold_kcoords(basis.kcoords_global, basis.symmetries)
-        return PlaneWaveBasis(basis.model,
-                              basis.Ecut, basis.fft_size, basis.variational,
-                              kcoords, [1/length(kcoords) for _ in kcoords],
-                              basis.kgrid, basis.kshift,
-                              basis.symmetries_respect_rgrid, basis.comm_kpts, basis.architecture)
+        # TODO This can be optimised much better by avoiding the recomputation
+        #      of the terms wherever possible.
+        use_symmetry_for_kpoint_reduction = false
+        return PlaneWaveBasis(basis.model, basis.Ecut, basis.fft_size,
+                              basis.variational, basis.kgrid,
+                              basis.symmetries_respect_rgrid,
+                              use_symmetry_for_kpoint_reduction,
+                              basis.comm_kpts, basis.architecture)
     end
 end
 

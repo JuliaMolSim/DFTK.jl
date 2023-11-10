@@ -57,15 +57,7 @@ end
 
 function Base.show(io::IO, basis::PlaneWaveBasis)
     print(io, "PlaneWaveBasis(model = ", basis.model, ", Ecut = ", basis.Ecut, " Ha")
-    if !isnothing(basis.kgrid)
-        print(io, ", kgrid = ", basis.kgrid)
-        if !isnothing(basis.kshift) && !iszero(basis.kshift)
-            print(io, ", kshift = ", basis.kshift)
-        end
-    else
-        print(io, ", num. irred. kpoints = ", length(basis.kcoords_global))
-    end
-    print(io, ")")
+    print(io, ", kgrid = ", basis.kgrid, ")")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
@@ -83,11 +75,8 @@ function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
     if !basis.variational
         showfieldln(io, "variational", "false")
     end
-    showfieldln(io, "kgrid type", "Monkhorst-Pack")
     showfieldln(io, "kgrid",    basis.kgrid)
-    if !isnothing(basis.kshift) && !iszero(basis.kshift)
-        showfieldln(io, "kshift",   basis.kshift)
-    end
+    showfieldln(io, "num.   red. kpoints", length(basis.kgrid))
     showfieldln(io, "num. irred. kpoints", length(basis.kcoords_global))
 
     println(io)

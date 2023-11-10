@@ -1,5 +1,4 @@
-include("external/spglib.jl")
-
+import Spglib
 
 """Bring ``k``-point coordinates into the range [-0.5, 0.5)"""
 function normalize_kpoint_coordinate(x::Real)
@@ -48,10 +47,6 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     kgrid_size = Vec3{Int}(kgrid_size)
     kshift = Vec3{Rational{Int}}(kshift)
 
-    # Filter those symmetry operations that preserve the MP grid
-    kcoords_mp = kcoords_monkhorst_pack(kgrid_size; kshift)
-    symmetries = symmetries_preserving_kgrid(symmetries, kcoords_mp)
-
     # Give the remaining symmetries to spglib to compute an irreducible k-point mesh
     # TODO implement time-reversal symmetry and turn the flag below to true
     is_shift = map(kshift) do ks
@@ -94,40 +89,96 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
         end
     end
 
-    (; kcoords=kirreds, kweights, symmetries)
+    (; kcoords=kirreds, kweights)
+end
+
+abstract type AbstractKgrid end
+
+"""
+Perform BZ sampling employing a Monkhorst-Pack grid.
+"""
+struct MonkhorstPack <: AbstractKgrid
+    kgrid::Vec3{Int}
+    kshift::Vec3{Rational{Int}}
+end
+MonkhorstPack(kgrid; kshift=[0, 0, 0]) = MonkhorstPack(kgrid, kshift)
+function Base.show(io::IO, kgrid::MonkhorstPack)
+    print(io, "MonkhorstPack(", kgrid.kgrid)
+    if !iszero(kgrid.kshift)
+        print(io, ", ", Float64.(kgrid.kshift))
+    end
+    print(io, ")")
+end
+Base.length(kgrid::MonkhorstPack) = prod(kgrid.kgrid)
+function reducible_kcoords(kgrid::MonkhorstPack)
+    # TODO inline function
+    (; kcoords=kcoords_monkhorst_pack(kgrid.kgrid; kgrid.kshift))
+end
+function irreducible_kcoords(kgrid::MonkhorstPack, symmetries::AbstractVector{<:SymOp})
+    # TODO Inline function
+    bzmesh_ir_wedge(kgrid.kgrid, symmetries; kgrid.kshift)
 end
 
 
-# TODO Maybe maximal spacing is actually a better name as the kpoints are spaced
-#      at most that far apart
-@doc raw"""
-Selects a kgrid size to ensure a minimal spacing (in inverse Bohrs) between kpoints.
-A reasonable spacing is `0.13` inverse Bohrs (around ``2π * 0.04 \AA^{-1}``).
 """
-function kgrid_from_minimal_spacing(lattice, spacing)
+Explicitly define the k-points along which to perform BZ sampling.
+(Useful for bandstructure calculations)
+"""
+struct ExplicitKpoints{T} <: AbstractKgrid
+    kcoords::Vector{Vec3{T}}
+    kweights::Vector{T}
+
+    function ExplicitKpoints(kcoords::AbstractVector{<:AbstractVector{T}},
+                             kweights::AbstractVector{T}) where {T}
+        @assert length(kcoords) == length(kweights)
+        new{T}(kcoords, kweights)
+    end
+end
+function ExplicitKpoints(kcoords::AbstractVector{<:AbstractVector{T}}) where {T}
+    ExplicitKpoints(kcoords, ones(T, length(kcoords)) ./ length(kcoords))
+end
+function Base.show(io::IO, kgrid::ExplicitKpoints)
+    print(io, "ExplicitKpoints with $(length(kgrid.kcoords)) k-points")
+end
+Base.length(kgrid::ExplicitKpoints) = length(kgrid.kcoords)
+reducible_kcoords(kgrid::ExplicitKpoints) = (; kgrid.kcoords)
+function irreducible_kcoords(kgrid::ExplicitKpoints, ::AbstractVector{<:SymOp})
+    (; kgrid.kcoords, kgrid.kweights)
+end
+
+
+@doc raw"""
+Build a [`MonkhorsPack`](@ref) grid to ensure kpoints are at most this spacing
+apart (in inverse Bohrs). A reasonable spacing is `0.13` inverse Bohrs
+(around ``2π * 0.04 \AA^{-1}``).
+"""
+function kgrid_from_maximal_spacing(lattice, spacing; kshift=[0, 0, 0])
     lattice       = austrip.(lattice)
     spacing       = austrip(spacing)
     recip_lattice = compute_recip_lattice(lattice)
     @assert spacing > 0
     isinf(spacing) && return [1, 1, 1]
 
-    [max(1, ceil(Int, norm(vec) / spacing)) for vec in eachcol(recip_lattice)]
+    kgrid = [max(1, ceil(Int, norm(vec) / spacing)) for vec in eachcol(recip_lattice)]
+    MonkhorstPack(kgrid, kshift)
 end
-function kgrid_from_minimal_spacing(model::Model, args...)
-    kgrid_from_minimal_spacing(model.lattice, args...)
+function kgrid_from_maximal_spacing(model::Model, args...; kwargs...)
+    kgrid_from_maximal_spacing(model.lattice, args...; kwargs...)
 end
+@deprecate kgrid_from_minimal_spacing kgrid_from_maximal_spacing
 
 @doc raw"""
-Selects a kgrid size which ensures that at least a `n_kpoints` total number of ``k``-points
-are used. The distribution of ``k``-points amongst coordinate directions is as uniformly
-as possible, trying to achieve an identical minimal spacing in all directions.
+Selects a [`MonkhorsPack`](@ref) grid size which ensures that at least a
+`n_kpoints` total number of ``k``-points are used. The distribution of
+``k``-points amongst coordinate directions is as uniformly as possible, trying to
+achieve an identical minimal spacing in all directions.
 """
-function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer)
+function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer; kshift=[0, 0, 0])
     lattice = austrip.(lattice)
     n_dim   = count(!iszero, eachcol(lattice))
     @assert n_kpoints > 0
-    n_kpoints == 1 && return [1, 1, 1]
-    n_dim == 1 && return [n_kpoints, 1, 1]
+    n_kpoints == 1 && return MonkhorstPack([1, 1, 1], kshift)
+    n_dim == 1     && return MonkhorstPack([n_kpoints, 1, 1], kshift)
 
     # Compute truncated reciprocal lattice
     recip_lattice_nD = 2π * inv(lattice[1:n_dim, 1:n_dim]')
@@ -138,7 +189,7 @@ function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer)
     spacing_per_dim = [norm(vec) / n_kpt_per_dim for vec in eachcol(recip_lattice_nD)]
     min_spacing, max_spacing = extrema(spacing_per_dim)
     if min_spacing ≈ max_spacing
-        return kgrid_from_minimal_spacing(lattice, min_spacing)
+        return kgrid_from_maximal_spacing(lattice, min_spacing)
     else
         number_of_kpoints(spacing) = prod(vec -> norm(vec) / spacing, eachcol(recip_lattice_nD))
         @assert number_of_kpoints(min_spacing) + 0.05 ≥ n_kpoints
@@ -151,14 +202,14 @@ function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer)
 
         # Sanity check: Sometimes root finding is just across the edge towards
         # a larger number of k-points than needed. This attempts a slightly larger spacing.
-        kgrid_larger = kgrid_from_minimal_spacing(lattice, spacing + 1e-4)
-        if prod(kgrid_larger) ≥ n_kpoints
+        kgrid_larger = kgrid_from_maximal_spacing(lattice, spacing + 1e-4)
+        if prod(kgrid_larger.kgrid) ≥ n_kpoints
             return kgrid_larger
         else
-            return kgrid_from_minimal_spacing(lattice, spacing)
+            return kgrid_from_maximal_spacing(lattice, spacing)
         end
     end
 end
-function kgrid_from_minimal_n_kpoints(model::Model, args...)
-    kgrid_from_minimal_n_kpoints(model.lattice, args...)
+function kgrid_from_minimal_n_kpoints(model::Model, n_kpoints::Integer; kwargs...)
+    kgrid_from_minimal_n_kpoints(model.lattice, n_kpoints; kwargs...)
 end
