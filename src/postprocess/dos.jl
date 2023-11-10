@@ -4,8 +4,9 @@
 # N(ε) = sum_n f_n = sum_n f((εn-ε)/temperature)
 # DOS (density of states)
 # D(ε) = N'(ε)
+#
 # LDOS (local density of states)
-# LD = sum_n f_n |ψn|^2
+# LD(ε) = sum_n f_n' |ψn|^2 = sum_n δ(ε - ε_n) |ψn|^2
 
 """
 Total density of states at energy ε
