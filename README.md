@@ -46,7 +46,7 @@ For getting started with DFTK, see [our documentation](https://docs.dftk.org):
 - [Tutorial](https://docs.dftk.org/stable/guide/tutorial/)
 - [Basic DFT examples](https://docs.dftk.org/stable/examples/metallic_systems/)
 
-Note that at least **Julia 1.7** is required.
+Note that at least **Julia 1.8** is required.
 
 ## Support and citation
 DFTK is mostly developed as part of academic research.

@@ -1,12 +1,12 @@
 stages:
   - test
 
-# This job tests DFTK.jl with Julia 1.8 on Noctua 2
+# This job tests DFTK.jl with Julia 1.9 on Noctua 2
 # It only runs when:
 #    - Commit in master
 #    - PR from branch with name ending in "gpu"
 #    - Manual run triggered
-julia/1.8-n2:
+julia/1.9-n2:
   stage: test
   variables:
     # SCHEDULER_PARAMETERS: "-N 1 -n 1 -c 16 --gres=gpu:a100:1 --qos=devel -p dgx -t 00:15:00 -A hpc-prf-dftkjl"
@@ -20,7 +20,7 @@ julia/1.8-n2:
     - if: $CI_PIPELINE_SOURCE == "external_pull_request_event"
       when: manual
   script:
-    - module load lang/JuliaHPC/1.9.0-foss-2022a-CUDA-11.7.0
+    - module load lang/JuliaHPC/1.9.3-foss-2022a-CUDA-11.7.0
     - julia --project=. -e '
         using Pkg; Pkg.instantiate();
         Pkg.add("CUDA");

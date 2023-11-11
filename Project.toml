@@ -93,7 +93,7 @@ Statistics = "1"
 TimerOutputs = "0.5.12"
 Unitful = "1"
 UnitfulAtomic = "1"
-julia = "1.7"
+julia = "1.8"
 
 [extras]
 ASEconvert = "3da9722f-58c2-4165-81be-b4d7253e8fd2"
