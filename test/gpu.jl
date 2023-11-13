@@ -4,6 +4,7 @@
 @testitem "CUDA silicon functionality test" tags=[:gpu] setup=[TestCases] begin
     using DFTK
     using CUDA
+    using LinearAlgebra
     silicon = TestCases.silicon
 
     function run_problem(; architecture)
@@ -21,6 +22,7 @@ end
 @testitem "CUDA iron functionality test" tags=[:gpu] setup=[TestCases] begin
     using DFTK
     using CUDA
+    using LinearAlgebra
     iron_bcc = TestCases.iron_bcc
 
     function run_problem(; architecture)
