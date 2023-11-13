@@ -37,6 +37,7 @@ include("common/versioninfo.jl")
 include("architecture.jl")
 include("common/zeros_like.jl")
 include("common/norm.jl")
+include("common/hydrogenic.jl")
 
 export PspHgh
 export PspUpf

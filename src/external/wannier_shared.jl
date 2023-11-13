@@ -25,10 +25,15 @@ struct GaussianWannierProjection <: WannierProjection
     center::AbstractVector{Float64}
 end
 
-function get_fourier_projection_coefficients(proj::GaussianWannierProjection, qs)
+function get_fourier_projection_coefficients(proj::GaussianWannierProjection, basis::PlaneWaveBasis, qs)
     # associate a center with the fourier transform of the corresponding gaussian
     # TODO: what is the normalization here?
-    [exp( 2π*(-im*dot(q, proj.center) - dot(q, q) / 4) ) for q in qs]
+
+    model = basis.model
+    [begin
+        q_cart = recip_vector_red_to_cart(model, q)
+        exp( 2π*(-im*dot(q, proj.center) - dot(q_cart, q_cart) / 4) )
+    end for q in qs]
 end
 
 function random_gaussian_projection()
@@ -45,9 +50,9 @@ struct DoubleGaussianWannierProjection <: WannierProjection
     proj2::GaussianWannierProjection
 end
 
-function get_fourier_projection_coefficients(proj::DoubleGaussianWannierProjection, qs)
-    proj.factor1 .* get_fourier_projection_coefficients(proj.proj1, qs)
-    .+ proj.factor2 .* get_fourier_projection_coefficients(proj.proj2, qs)
+function get_fourier_projection_coefficients(proj::DoubleGaussianWannierProjection, basis::PlaneWaveBasis, qs)
+    proj.factor1 .* get_fourier_projection_coefficients(proj.proj1, basis, qs)
+    .+ proj.factor2 .* get_fourier_projection_coefficients(proj.proj2, basis, qs)
 end
 
 function DoubleGaussianWannierProjection(factor1::Number, center1::AbstractVector{Float64}, factor2::Number, center2::AbstractVector{Float64})
@@ -61,6 +66,56 @@ end
 
 function opposite_gaussians_projection(center1::AbstractVector{Float64}, center2::AbstractVector{Float64})
     DoubleGaussianWannierProjection(1, center1, -1, center2)
+end
+
+@doc raw"""
+A hydrogenic initial guess.
+
+`α` is the diffusivity, ``\frac{Z}/{a}`` where ``Z`` is the atomic number and
+    ``a`` is the Bohr radius.
+"""
+struct HydrogenicWannierProjection <: WannierProjection
+    center::AbstractVector{Float64}
+    n::Integer
+    l::Integer
+    m::Integer
+    α::Real
+end
+
+function get_fourier_projection_coefficients(proj::HydrogenicWannierProjection, basis::PlaneWaveBasis, qs)
+    # TODO: Performance can probably be improved a lot here.
+    # TODO: Some of this logic could be used for the pswfc from the UPF PSPs.
+
+    # this is same as QE pw2wannier90, r = exp(x) / α
+    xmin = -6.0
+    dx = 0.025
+    rmax = 10.0
+    n_r = round(Int, (log(rmax) - xmin) / dx) + 1
+    x = range(; start=xmin, length=n_r, step=dx)
+    # rgrid depends on α
+    r = exp.(x) ./ proj.α
+    dr = r .* dx
+    R = radial_hydrogenic(r, proj.n, proj.α)
+    r2_R_dr = r.^2 .* R .* dr
+
+    model = basis.model
+
+    [begin
+        q_cart = recip_vector_red_to_cart(model, q)
+
+        qnorm = norm(q_cart)
+        radial_part = 0
+        for (ir, rval) in enumerate(r)
+            @inbounds radial_part += r2_R_dr[ir] * sphericalbesselj_fast(proj.l, qnorm * rval)
+        end
+
+        # both q and proj.center in reduced coordinates
+        center_offset = exp(-im*2π*dot(q, proj.center))
+        # without the 4π normalization because the matrix will be orthonormalized anyway
+        angular_part = ylm_real(proj.l, proj.m, q_cart) * (-im)^proj.l
+
+        center_offset * angular_part * radial_part
+    end for q in qs]
 end
 
 """
@@ -270,7 +325,7 @@ function compute_amn_kpoint(basis::PlaneWaveBasis, ψk, kpt, projections::Abstra
     # Compute Ak
     for n in 1:n_wannier
         proj = projections[n]
-        gn_per = get_fourier_projection_coefficients(proj, qs[kpt.mapping])
+        gn_per = get_fourier_projection_coefficients(proj, basis, qs[kpt.mapping])
         # Fourier coeffs of gn_per for k+G in common with ψk
         # Functions are l^2 normalized in Fourier, in DFTK conventions.
         coeffs_gn_per = gn_per ./ norm(gn_per)
