@@ -58,7 +58,7 @@ struct PlaneWaveBasisSerialisation{T <: Real, Arch <: AbstractArchitecture}
     variational::Bool
     kgrid::AbstractKgrid
     symmetries_respect_rgrid::Bool
-    use_symmetries_for_kpoint_reduction::Bool,
+    use_symmetries_for_kpoint_reduction::Bool
     architecture::Arch
 end
 function JLD2.writeas(::Type{PlaneWaveBasis{T,T,Arch,GT,RT,KGT}}) where {T,Arch,GT,RT,KGT}
