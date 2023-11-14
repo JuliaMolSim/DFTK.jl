@@ -122,7 +122,7 @@ function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
         enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
         pot_real = irfft(basis, to_device(basis.architecture, pot_fourier))
     else
-        @assert all(.!basis.model.periodic)
+        @assert all(.!model.periodic)
         # simple real-space sum
         pot_real = map(r_vectors(basis)) do r
             sum(zip(model.atoms, model.positions)) do (element, r_ion)
