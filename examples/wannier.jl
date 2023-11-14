@@ -53,19 +53,14 @@ plot_bandstructure(scfres; kline_density=10)
 # For a good MLWF, we need to provide initial projections that resemble the expected shape
 # of the Wannier functions.
 # Here we will use:
-# - 3 bond-centered gaussians for the expected σ bonds
-# - 2 atom-centered opposite gaussians (for each atom: a gaussian with the + sign and a gaussian with the - sign)
-#   for the expected pz orbitals
+# - 3 bond-centered 2s hydrogenic orbitals for the expected σ bonds
+# - 2 atom-centered 2pz hydrogenic orbitals for the expected π bands
 
 using Wannier # Needed to make get_wannier_model available
 
-"""Helper function to produce a starting guess for pz orbitals"""
-make_double_gaussian(atomindex) = begin
-    offset = model.inv_lattice * [0, 0, austrip(0.5u"Å")]
-    center1 = positions[atomindex] + offset
-    center2 = positions[atomindex] - offset
-    DFTK.opposite_gaussians_projection(center1, center2)
-end
+## Helper functions to produce hydrogenic starting guesses
+s_guess(center) = DFTK.HydrogenicWannierProjection(center, 2, 0, 0, C.Z)
+pz_guess(center) = DFTK.HydrogenicWannierProjection(center, 2, 1, 0, C.Z)
 
 wannier_model = get_wannier_model(scfres;
     fileprefix="wannier/graphene",
@@ -73,13 +68,13 @@ wannier_model = get_wannier_model(scfres;
     n_wannier=5,
     projections=[
         ## Note: fractional coordinates for the centers!
-        ## 3 bond-centered gaussians to imitate σ orbitals
-        DFTK.GaussianWannierProjection((positions[1] + positions[2]) / 2),
-        DFTK.GaussianWannierProjection((positions[1] + positions[2] + [0, -1, 0]) / 2),
-        DFTK.GaussianWannierProjection((positions[1] + positions[2] + [-1, -1, 0]) / 2),
-        ## 2 double gaussians to imitate pz orbitals
-        make_double_gaussian(1),
-        make_double_gaussian(2),
+        ## 3 bond-centered 2s hydrogenic orbitals to imitate σ bonds
+        s_guess((positions[1] + positions[2]) / 2),
+        s_guess((positions[1] + positions[2] + [0, -1, 0]) / 2),
+        s_guess((positions[1] + positions[2] + [-1, -1, 0]) / 2),
+        ## 2 atom-centered 2pz hydrogenic orbitals
+        pz_guess(positions[1]),
+        pz_guess(positions[2]),
     ],
     dis_froz_max=ustrip(auconvert(u"eV", scfres.εF))+1) # maximum frozen window, for example 1 eV above Fermi level
 
@@ -102,7 +97,7 @@ interp_model = Wannier.InterpModel(wannier_model; kpath=kpath)
 # (Delete temporary files when done.)
 rm("wannier", recursive=true)
 
-# This example assumes that Wannier.jl version 0.3.1 is used,
+# This example assumes that Wannier.jl version 0.3.2 is used,
 # and may need to be updated to accomodate for changes in Wannier.jl.
 #
 # Note: Some parameters supported by Wannier90 may have to be passed to Wannier.jl differently,
@@ -119,13 +114,13 @@ run_wannier90(scfres;
               n_wannier=5,
               projections=[
                   ## Note: fractional coordinates for the centers!
-                  ## 3 bond-centered gaussians to imitate σ orbitals
-                  DFTK.GaussianWannierProjection((positions[1] + positions[2]) / 2),
-                  DFTK.GaussianWannierProjection((positions[1] + positions[2] + [0, -1, 0]) / 2),
-                  DFTK.GaussianWannierProjection((positions[1] + positions[2] + [-1, -1, 0]) / 2),
-                  ## 2 double gaussians to imitate pz orbitals
-                  make_double_gaussian(1),
-                  make_double_gaussian(2),
+                  ## 3 bond-centered 2s hydrogenic orbitals to imitate σ bonds
+                  s_guess((positions[1] + positions[2]) / 2),
+                  s_guess((positions[1] + positions[2] + [0, -1, 0]) / 2),
+                  s_guess((positions[1] + positions[2] + [-1, -1, 0]) / 2),
+                  ## 2 atom-centered 2pz hydrogenic orbitals
+                  pz_guess(positions[1]),
+                  pz_guess(positions[2]),
               ],
               num_print_cycles=25,
               num_iter=200,
