@@ -41,6 +41,6 @@ function load_psp(key::AbstractString; kwargs...)
     end
 end
 
-function load_psp(dir::AbstractString, filename::AbstractString)
-    load_psp(joinpath(dir, filename))
+function load_psp(dir::AbstractString, filename::AbstractString; kwargs...)
+    load_psp(joinpath(dir, filename); kwargs...)
 end

@@ -12,6 +12,9 @@ upf_pseudos = Dict(
     # With NLCC
     :Co => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Co.upf"),
     :Ge => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Ge.upf"),
+    # With cutoff
+    :Cu => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Cu.upf"; rcut=9.0),
+    :Cr => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Cu.upf"; rcut=12.0)
 )
 hgh_pseudos = [
     (hgh=load_psp("hgh/pbe/si-q4.hgh"), upf=upf_pseudos[:Si]),
@@ -135,7 +138,7 @@ end
     end
 
     for psp in values(mPspUpf.upf_pseudos)
-        ir_start = iszero(psp.rgrid[1]) ? 2 : 1 
+        ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for l in 0:psp.lmax, i in count_n_proj_radial(psp, l)
             ir_cut = length(psp.r_projs[l+1][i])
             for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
