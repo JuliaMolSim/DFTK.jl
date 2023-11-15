@@ -62,20 +62,20 @@ function PspUpf(path; identifier=path, rcut=nothing)
     pseudo = load_upf(path)
 
     unsupported = []
-    pseudo["header"]["has_so"]               && push!(unsupported, "spin-orbit coupling")
-    pseudo["header"]["pseudo_type"] == "SL"  && push!(unsupported, "semilocal potential")
-    pseudo["header"]["pseudo_type"] == "US"  && push!(unsupported, "ultrasoft")
+    pseudo["header"]["has_so"] && push!(unsupported, "spin-orbit coupling")
+    pseudo["header"]["pseudo_type"] == "SL" && push!(unsupported, "semilocal potential")
+    pseudo["header"]["pseudo_type"] == "US" && push!(unsupported, "ultrasoft")
     pseudo["header"]["pseudo_type"] == "PAW" && push!(unsupported, "projector-augmented wave")
-    pseudo["header"]["has_gipaw"]            && push!(unsupported, "gipaw data")
+    pseudo["header"]["has_gipaw"] && push!(unsupported, "gipaw data")
     pseudo["header"]["pseudo_type"] == "1/r" && push!(unsupported, "Coulomb")
     length(unsupported) > 0 && error("Pseudopotential contains the following unsupported" *
                                      " features/quantities: $(join(unsupported, ","))")
 
-    Zion        = Int(pseudo["header"]["z_valence"])
-    rgrid       = pseudo["radial_grid"]
-    drgrid      = pseudo["radial_grid_derivative"]
-    lmax        = pseudo["header"]["l_max"]
-    vloc        = pseudo["local_potential"] ./ 2  # (Ry -> Ha)
+    Zion = Int(pseudo["header"]["z_valence"])
+    rgrid = pseudo["radial_grid"]
+    drgrid = pseudo["radial_grid_derivative"]
+    lmax = pseudo["header"]["l_max"]
+    vloc = pseudo["local_potential"] ./ 2  # (Ry -> Ha)
     description = get(pseudo["header"], "comment", "")
 
     # There are two possible units schemes for the projectors and coupling coefficients:
@@ -99,14 +99,14 @@ function PspUpf(path; identifier=path, rcut=nothing)
         count += nproj_l
     end
 
-    pswfcs = map(0:lmax - 1) do l
+    pswfcs = map(0:lmax-1) do l
         pswfcs_l = filter(pseudo["atomic_wave_functions"]) do pswfc
             pswfc["angular_momentum"] == l
         end
         map(pswfc -> pswfc["radial_function"], pswfcs_l)
     end
 
-    pswfc_occs = map(0:lmax - 1) do l
+    pswfc_occs = map(0:lmax-1) do l
         pswfcs_l = filter(pseudo["atomic_wave_functions"]) do pswfc
             pswfc["angular_momentum"] == l
         end
@@ -121,7 +121,6 @@ function PspUpf(path; identifier=path, rcut=nothing)
         ρcore = zeros(Float64, length(rgrid))
     end
 
-    #* HACK!
     if !isnothing(rcut)
         mask = rgrid .<= rcut
         rgrid = rgrid[mask]
@@ -141,27 +140,20 @@ function PspUpf(path; identifier=path, rcut=nothing)
         ρcore = ρcore[mask]
     end
 
-    return PspUpf(Zion, lmax, rgrid, drgrid, vloc, r_projs, h, pswfcs, pswfc_occs,
-                  r2_4π_ρion, ρcore; identifier, description)
-end
-
-function PspUpf(Zion, lmax, rgrid::Vector{T}, drgrid, vloc, r_projs, h, pswfcs, pswfc_occs,
-                r2_4π_ρion, ρcore; identifier="", description="") where {T <: Real}
-
-    vloc_interp = linear_interpolation((rgrid, ), vloc)
+    vloc_interp = linear_interpolation((rgrid,), vloc)
     r_projs_interp = map(r_projs) do r_projs_l
         map(r_projs_l) do r_proj  # Can't use views here; have to match `vloc_interp`'s type
             ir_cut = lastindex(r_proj)
-            linear_interpolation((rgrid[1:ir_cut], ), r_proj)
+            linear_interpolation((rgrid[1:ir_cut],), r_proj)
         end
     end
-    r2_4π_ρion_interp = linear_interpolation((rgrid, ), r2_4π_ρion)
-    ρcore_interp = linear_interpolation((rgrid, ), ρcore)
+    r2_4π_ρion_interp = linear_interpolation((rgrid,), r2_4π_ρion)
+    ρcore_interp = linear_interpolation((rgrid,), ρcore)
 
-    PspUpf{T,typeof(vloc_interp)}(Zion, lmax, rgrid, drgrid, vloc, r_projs, h, pswfcs,
-                                  pswfc_occs, r2_4π_ρion, ρcore, vloc_interp, r_projs_interp,
-                                  r2_4π_ρion_interp, ρcore_interp,
-                                  identifier, description)
+    PspUpf{eltype(rgrid),typeof(vloc_interp)}(Zion, lmax, rgrid, drgrid, vloc,
+        r_projs, h, pswfcs, pswfc_occs, r2_4π_ρion, ρcore, vloc_interp,
+        r_projs_interp, r2_4π_ρion_interp, ρcore_interp, identifier, description
+    )
 end
 
 charge_ionic(psp::PspUpf) = psp.Zion
@@ -169,54 +161,55 @@ has_valence_density(psp::PspUpf) = !all(iszero, psp.r2_4π_ρion)
 has_core_density(psp::PspUpf) = !all(iszero, psp.ρcore)
 
 # Note: UPFs store `r[j] β_{li}(r[j])`, so r=0 is undefined and will error.
-function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T <: Real}
+function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
     psp.r_projs_interp[l+1][i](r) / r
 end
 
 # For UPFs, the integral is transformed to the following sum:
 # 4π Σ{k} j_l(q r[k]) (r[k]^2 p_{il}(r[k]) dr[k])
-function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real}
+function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T<:Real}
     ir_cut = length(psp.r_projs[l+1][i])
-    f = psp.rgrid[1:ir_cut] .* psp.r_projs[l+1][i] .* sphericalbesselj_fast.(l, q .* psp.rgrid[1:ir_cut])
+    f = (
+        psp.rgrid[1:ir_cut] .* psp.r_projs[l+1][i] .*
+        sphericalbesselj_fast.(l, q .* psp.rgrid[1:ir_cut])
+    )
     4T(π) * trapezoidal(psp.rgrid[1:ir_cut], f)
 end
 
-eval_psp_local_real(psp::PspUpf, r::T) where {T <: Real} = psp.vloc_interp(r)
+eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)
 
 # For UPFs, the integral is transformed to the following sum:
-# 4π/q (Σ{i} sin(q r[i]) (r[i] V(r[i]) + Z) dr[i] - Z/q)
-function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T <: Real}
-    # ABINIT STYLE
-    # f = psp.rgrid .* (psp.rgrid .* psp.vloc .- -psp.Zion) .* sphericalbesselj_fast.(0, q .* psp.rgrid)
-    # I = trapezoidal(psp.rgrid, f)
-    # 4T(π) * (I + -psp.Zion / q^2)
-
-    # QE STYLE
+# 4π/q (Σ{i} sin(q r[i]) (r[i] V(r[i]) + Zerf(r)) dr[i] - Z/q exp(-q^2 / 4))
+function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T<:Real}
+    # QE style -Zerf(r)/r correction; ABINIT uses -Z/r
     ir_cut = length(psp.rgrid)
-    f = psp.rgrid .* (psp.rgrid .* psp.vloc .- -psp.Zion * erf.(psp.rgrid)) .* sphericalbesselj_fast.(0, q .* psp.rgrid)
+    f = (
+        psp.rgrid .* (psp.rgrid .* psp.vloc .- -psp.Zion * erf.(psp.rgrid)) .*
+        sphericalbesselj_fast.(0, q .* psp.rgrid)
+    )
     I = trapezoidal(psp.rgrid, f)
     4T(π) * (I + -psp.Zion / q^2 * exp(-q^2 / T(4)))
 end
 
-function eval_psp_density_valence_real(psp::PspUpf, r::T) where {T <: Real}
+function eval_psp_density_valence_real(psp::PspUpf, r::T) where {T<:Real}
     psp.r2_4π_ρion_interp(r) / (r^2 * 4T(π))
 end
 
 # For UPFs, the integral is transformed into the following sum:
 # Σ{i} j_0(q r[i]) r^2 4π ρval[i] dr[i]
-function eval_psp_density_valence_fourier(psp::PspUpf, q::T) where {T <: Real}
+function eval_psp_density_valence_fourier(psp::PspUpf, q::T) where {T<:Real}
     ir_cut = length(psp.rgrid)
     f = sphericalbesselj_fast.(0, q .* psp.rgrid) .* psp.r2_4π_ρion
     trapezoidal(psp.rgrid, f)
 end
 
-function eval_psp_density_core_real(psp::PspUpf, r::T) where {T <: Real}
+function eval_psp_density_core_real(psp::PspUpf, r::T) where {T<:Real}
     psp.ρcore_interp(r)
 end
 
 # For UPFs, the integral is transformed into the following sum:
 # 4π Σ{i} j_0(q r[i]) r^2 ρcore[i] dr[i]
-function eval_psp_density_core_fourier(psp::PspUpf, q::T) where {T <: Real}
+function eval_psp_density_core_fourier(psp::PspUpf, q::T) where {T<:Real}
     ir_cut = length(psp.rgrid)
     f = psp.rgrid .^ 2 .* sphericalbesselj_fast.(0, q .* psp.rgrid) .* psp.ρcore
     4T(π) * trapezoidal(psp.rgrid, f)
