@@ -1,7 +1,6 @@
 using LinearAlgebra
 using Interpolations: linear_interpolation
 using PseudoPotentialIO: load_upf
-using NumericalIntegration
 
 struct PspUpf{T,I} <: NormConservingPsp
     ## From file
