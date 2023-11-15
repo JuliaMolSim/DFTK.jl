@@ -9,7 +9,7 @@ The file is searched in the directory `datadir_psp()` and by the `key`.
 If the `key` is a path to a valid file, the extension is used to determine
 the type of the pseudopotential file format and a respective class is returned.
 """
-function load_psp(key::AbstractString)
+function load_psp(key::AbstractString; rcut=nothing)
     if startswith(key, "hgh/") || endswith(lowercase(key), ".hgh")
         pseudo_type = PspHgh
         extension = ".hgh"
@@ -34,7 +34,7 @@ function load_psp(key::AbstractString)
     end
 
     if isfile(fullpath)
-        return pseudo_type(fullpath; identifier)
+        return pseudo_type(fullpath; identifier, rcut)
     else
         error("Could not find pseudopotential for identifier " *
               "'$identifier' in directory '$(datadir_psp())'")
