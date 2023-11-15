@@ -178,7 +178,7 @@ end
 function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T <: Real}
     ir_cut = length(psp.r_projs[l+1][i])
     f = psp.rgrid[1:ir_cut] .* psp.r_projs[l+1][i] .* sphericalbesselj_fast.(l, q .* psp.rgrid[1:ir_cut])
-    4T(π) * NumericalIntegration.integrate(psp.rgrid[1:ir_cut], f, Trapezoidal())
+    4T(π) * trapezoidal(psp.rgrid[1:ir_cut], f)
 end
 
 eval_psp_local_real(psp::PspUpf, r::T) where {T <: Real} = psp.vloc_interp(r)
@@ -188,13 +188,13 @@ eval_psp_local_real(psp::PspUpf, r::T) where {T <: Real} = psp.vloc_interp(r)
 function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T <: Real}
     # ABINIT STYLE
     # f = psp.rgrid .* (psp.rgrid .* psp.vloc .- -psp.Zion) .* sphericalbesselj_fast.(0, q .* psp.rgrid)
-    # I = NumericalIntegration.integrate(psp.rgrid, f, Trapezoidal())
+    # I = trapezoidal(psp.rgrid, f)
     # 4T(π) * (I + -psp.Zion / q^2)
 
     # QE STYLE
     ir_cut = length(psp.rgrid)
     f = psp.rgrid .* (psp.rgrid .* psp.vloc .- -psp.Zion * erf.(psp.rgrid)) .* sphericalbesselj_fast.(0, q .* psp.rgrid)
-    I = NumericalIntegration.integrate(psp.rgrid, f, Trapezoidal())
+    I = trapezoidal(psp.rgrid, f)
     4T(π) * (I + -psp.Zion / q^2 * exp(-q^2 / T(4)))
 end
 
@@ -207,7 +207,7 @@ end
 function eval_psp_density_valence_fourier(psp::PspUpf, q::T) where {T <: Real}
     ir_cut = length(psp.rgrid)
     f = sphericalbesselj_fast.(0, q .* psp.rgrid) .* psp.r2_4π_ρion
-    NumericalIntegration.integrate(psp.rgrid, f, Trapezoidal())
+    trapezoidal(psp.rgrid, f)
 end
 
 function eval_psp_density_core_real(psp::PspUpf, r::T) where {T <: Real}
@@ -219,7 +219,7 @@ end
 function eval_psp_density_core_fourier(psp::PspUpf, q::T) where {T <: Real}
     ir_cut = length(psp.rgrid)
     f = psp.rgrid .^ 2 .* sphericalbesselj_fast.(0, q .* psp.rgrid) .* psp.ρcore
-    4T(π) * NumericalIntegration.integrate(psp.rgrid, f, Trapezoidal())
+    4T(π) * trapezoidal(psp.rgrid, f)
 end
 
 # For UPFs, the integral is transformed to the following sum:
@@ -227,5 +227,5 @@ end
 function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
     ir_cut = length(psp.rgrid)
     f = psp.rgrid .* (psp.rgrid .* psp.vloc .- -psp.Zion)
-    4T(π) * n_electrons * NumericalIntegration.integrate(psp.rgrid, f, Trapezoidal())
+    4T(π) * n_electrons * trapezoidal(psp.rgrid, f)
 end
