@@ -23,6 +23,12 @@ struct PspUpf{T,I} <: NormConservingPsp
     # (UNUSED) Occupations of the pseudo-atomic wavefunctions.
     # UPF: `PP_PSWFC/PP_CHI.i['occupation']`
     pswfc_occs::Vector{Vector{T}}
+    # (UNUSED) Energies of the pseudo-atomic wavefunctions.
+    # UPF: `PP_PSWFC/PP_CHI.i['pseudo_energy']`
+    pswfc_energies::Vector{Vector{T}}
+    # (UNUSED) Labels of the pseudo-atomic wavefunctions.
+    # UPF: `PP_PSWFC/PP_CHI.i['label']`
+    pswfc_labels::Vector{Vector{String}}
     # 4πr^2 ρion where ρion is the pseudo-atomic (valence) charge density on the
     # radial grid. Can be used for charge density initialization.
     # UPF: `PP_RHOATOM`
@@ -57,7 +63,6 @@ end
 Construct a Unified Pseudopotential Format pseudopotential from file.
 
 Does not support:
-- Non-linear core correction
 - Fully-realtivistic / spin-orbit pseudos
 - Bare Coulomb / all-electron potentials
 - Semilocal potentials
@@ -69,20 +74,20 @@ function PspUpf(path; identifier=path, rcut=nothing)
     pseudo = load_upf(path)
 
     unsupported = []
-    pseudo["header"]["has_so"] && push!(unsupported, "spin-orbit coupling")
-    pseudo["header"]["pseudo_type"] == "SL" && push!(unsupported, "semilocal potential")
-    pseudo["header"]["pseudo_type"] == "US" && push!(unsupported, "ultrasoft")
+    pseudo["header"]["has_so"]               && push!(unsupported, "spin-orbit coupling")
+    pseudo["header"]["pseudo_type"] == "SL"  && push!(unsupported, "semilocal potential")
+    pseudo["header"]["pseudo_type"] == "US"  && push!(unsupported, "ultrasoft")
     pseudo["header"]["pseudo_type"] == "PAW" && push!(unsupported, "projector-augmented wave")
-    pseudo["header"]["has_gipaw"] && push!(unsupported, "gipaw data")
+    pseudo["header"]["has_gipaw"]            && push!(unsupported, "gipaw data")
     pseudo["header"]["pseudo_type"] == "1/r" && push!(unsupported, "Coulomb")
     length(unsupported) > 0 && error("Pseudopotential contains the following unsupported" *
                                      " features/quantities: $(join(unsupported, ","))")
 
-    Zion = Int(pseudo["header"]["z_valence"])
-    rgrid = pseudo["radial_grid"]
-    drgrid = pseudo["radial_grid_derivative"]
-    lmax = pseudo["header"]["l_max"]
-    vloc = pseudo["local_potential"] ./ 2  # (Ry -> Ha)
+    Zion        = Int(pseudo["header"]["z_valence"])
+    rgrid       = pseudo["radial_grid"]
+    drgrid      = pseudo["radial_grid_derivative"]
+    lmax        = pseudo["header"]["l_max"]
+    vloc        = pseudo["local_potential"] ./ 2  # (Ry -> Ha)
     description = get(pseudo["header"], "comment", "")
 
     rcut = isnothing(rcut) ? last(rgrid) : rcut
@@ -107,50 +112,43 @@ function PspUpf(path; identifier=path, rcut=nothing)
     count = 1
     for l = 0:lmax
         nproj_l = length(r2_projs[l+1])
-        Dij_l = pseudo["D_ion"][count:count+nproj_l-1, count:count+nproj_l-1] .* 2  # 1/Ry -> 1/Ha
+        # 1/Ry -> 1/Ha
+        Dij_l = pseudo["D_ion"][count:count+nproj_l-1, count:count+nproj_l-1] .* 2
         push!(h, Dij_l)
         count += nproj_l
     end
 
-    r2_pswfcs = map(0:lmax-1) do l
-        pswfcs_l = filter(pseudo["atomic_wave_functions"]) do pswfc
-            pswfc["angular_momentum"] == l
+    r2_pswfcs = [Vector{Float64}[] for _ in 0:lmax-1]
+    pswfc_occs = [Float64[] for _ in 0:lmax-1]
+    pswfc_energies = [Float64[] for _ in 0:lmax-1]
+    pswfc_labels = [String[] for _ in 0:lmax-1]
+    for l in 0:lmax-1
+        pswfcs_l = filter(χ -> χ["angular_momentum"] == l, pseudo["atomic_wave_functions"])
+        for pswfc_li in pswfcs_l
+            # Ry -> Ha, rχ -> r²χ
+            push!(r2_pswfcs[l+1], rgrid .* pswfc_li["radial_function"] ./ 2)
+            push!(pswfc_occs[l+1], pswfc_li["occupation"])
+            push!(pswfc_energies[l+1], pswfc_li["pseudo_energy"])
+            push!(pswfc_labels[l+1], pswfc_li["label"])
         end
-        map(pswfcs_l) do pswfc_li
-            r_pswfc_ha = pswfc_li["radial_function"] ./ 2  # Ry -> Ha
-            rgrid[1:length(r_pswfc_ha)] .* r_pswfc_ha  # rχ -> r²χ
-        end
-    end
-
-    pswfc_occs = map(0:lmax-1) do l
-        pswfcs_l = filter(pseudo["atomic_wave_functions"]) do pswfc
-            pswfc["angular_momentum"] == l
-        end
-        map(pswfc -> pswfc["occupation"], pswfcs_l)
     end
 
     r2_ρion = pseudo["total_charge_density"] ./ (4π)
-
-    if pseudo["header"]["core_correction"]
-        r2_ρcore = rgrid .^ 2 .* pseudo["core_charge_density"]
-    else
-        r2_ρcore = zeros(Float64, length(rgrid))
-    end
+    r2_ρcore = rgrid .^ 2 .* get(pseudo, "core_charge_density", zeros(length(rgrid)))
 
     vloc_interp = linear_interpolation((rgrid,), vloc)
     r2_projs_interp = map(r2_projs) do r2_projs_l
-        map(r2_projs_l) do r2_proj
-            ir_cut = lastindex(r2_proj)
-            linear_interpolation((rgrid[1:ir_cut],), r2_proj)
-        end
+        map(proj -> linear_interpolation((rgrid[1:length(proj)],), proj), r2_projs_l)
     end
     r2_ρion_interp = linear_interpolation((rgrid,), r2_ρion)
     r2_ρcore_interp = linear_interpolation((rgrid,), r2_ρcore)
 
-    PspUpf{eltype(rgrid),typeof(vloc_interp)}(Zion, lmax, rgrid, drgrid, vloc,
-        r2_projs, h, r2_pswfcs, pswfc_occs, r2_ρion, r2_ρcore, vloc_interp,
-        r2_projs_interp, r2_ρion_interp, r2_ρcore_interp, rcut, ircut,
-        identifier, description
+    PspUpf{eltype(rgrid),typeof(vloc_interp)}(
+        Zion, lmax, rgrid, drgrid,
+        vloc, r2_projs, h, r2_pswfcs, pswfc_occs, pswfc_energies, pswfc_labels,
+        r2_ρion, r2_ρcore,
+        vloc_interp, r2_projs_interp, r2_ρion_interp, r2_ρcore_interp,
+        rcut, ircut, identifier, description
     )
 end
 
@@ -166,9 +164,9 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T<:Real}
     # The projectors may have been cut off before the end of the radial mesh
     # by PseudoPotentialIO because UPFs list a radial cutoff index for these
     # functions after which they are strictly zero in the file.
-    ircut = min(psp.ircut, length(psp.r2_projs[l+1][i]))
-    rgrid = @view psp.rgrid[1:ircut]
-    r2_proj = psp.r2_projs[l+1][i][1:ircut]
+    ircut_proj = min(psp.ircut, length(psp.r2_projs[l+1][i]))
+    rgrid = @view psp.rgrid[1:ircut_proj]
+    r2_proj = psp.r2_projs[l+1][i][1:ircut_proj]
     return hankel(rgrid, r2_proj, l, q)
 end
 
@@ -181,9 +179,7 @@ function eval_psp_pswfc_fourier(psp::PspUpf, i, l, q::T)::T where {T<:Real}
     # quantities. They are the reason that PseudoDojo UPF files have a much
     # larger radial grid than their psp8 counterparts.
     # If issues arise, try cutting them off too.
-    ircut = length(psp.r2_pswfcs[l+1][i])
-    rgrid = @view psp.rgrid[1:ircut]
-    return hankel(rgrid, psp.r2_pswfcs[l+1][i], l, q)
+    return hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, q)
 end
 
 eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)
