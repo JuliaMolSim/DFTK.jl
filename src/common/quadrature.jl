@@ -1,3 +1,5 @@
+using LoopVectorization
+
 # NumericalIntegration.jl also implements this (in a slightly different way)
 # however, it is unmaintained and has stale, conflicting version requirements
 # for Interpolations.jl
@@ -12,7 +14,7 @@ trapezoidal
     n == length(y) || error("vectors `x` and `y` must have the same number of elements")
     n == 1 && return zero(promote_type(eltype(x), eltype(y)))
     I = (x[2] - x[1]) * y[1]
-    @simd for i in 2:(n-1)
+    @turbo for i in 2:(n-1)
         # dx[i] + dx[i - 1] = (x[i + 1] - x[i]) + (x[i] - x[i - 1])
         #                   = x[i + 1] - x[i - 1]
         I += (x[i + 1] - x[i - 1]) * y[i]
@@ -32,7 +34,7 @@ simpson
     n == length(y) || error("vectors `x` and `y` must have the same number of elements")
     n == 1 && return zero(promote_type(eltype(x), eltype(y)))
     n <= 4 && return trapezoidal(x, y)
-    (x[2] - x[1]) ≈ (x[3] - x[3]) && return _simpson_uniform(x, y)
+    (x[2] - x[1]) ≈ (x[3] - x[2]) && return _simpson_uniform(x, y)
     return _simpson_nonuniform(x, y)
 end
 
@@ -44,10 +46,10 @@ end
     istop = isodd(n_intervals) ? n - 1 : n - 2
 
     I = 1 / 3 * dx * y[1]
-    @simd for i in 2:2:istop
+    @turbo for i in 2:2:istop
         I += 4 / 3 * dx * y[i]
     end
-    @simd for i in 3:2:istop
+    @turbo for i in 3:2:istop
         I += 2 / 3 * dx * y[i]
     end
 
@@ -67,6 +69,7 @@ end
     istop = isodd(n_intervals) ? n - 3 : n - 2
 
     I = zero(promote_type(eltype(x), eltype(y)))
+    # This breaks when @turbo'd
     @simd for i in 1:2:istop
         dx0 = x[i + 1] - x[i]
         dx1 = x[i + 2] - x[i + 1]
