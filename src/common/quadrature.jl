@@ -10,7 +10,7 @@ trapezoidal
 @inbounds function trapezoidal(x::AbstractVector, y::AbstractVector)
     n = length(x)
     n == length(y) || error("vectors `x` and `y` must have the same number of elements")
-    n == 1 && return 0.0
+    n == 1 && return zero(promote_type(eltype(x), eltype(y)))
     I = (x[2] - x[1]) * y[1]
     @simd for i in 2:(n-1)
         # dx[i] + dx[i - 1] = (x[i + 1] - x[i]) + (x[i] - x[i - 1])
@@ -30,7 +30,7 @@ simpson
 @inbounds function simpson(x::AbstractVector, y::AbstractVector)
     n = length(x)
     n == length(y) || error("vectors `x` and `y` must have the same number of elements")
-    n == 1 && return 0.0
+    n == 1 && return zero(promote_type(eltype(x), eltype(y)))
     n <= 4 && return trapezoidal(x, y)
     (x[2] - x[1]) ≈ (x[3] - x[3]) && return _simpson_uniform(x, y)
     return _simpson_nonuniform(x, y)
@@ -66,7 +66,7 @@ end
 
     istop = isodd(n_intervals) ? n - 3 : n - 2
 
-    I = zero(eltype(y))
+    I = zero(promote_type(eltype(x), eltype(y)))
     @simd for i in 1:2:istop
         dx0 = x[i + 1] - x[i]
         dx1 = x[i + 2] - x[i + 1]
