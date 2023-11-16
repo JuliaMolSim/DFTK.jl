@@ -37,7 +37,8 @@ include("common/versioninfo.jl")
 include("architecture.jl")
 include("common/zeros_like.jl")
 include("common/norm.jl")
-include("common/trapezoidal.jl")
+include("common/quadrature.jl")
+include("common/hankel.jl")
 
 export PspHgh
 export PspUpf

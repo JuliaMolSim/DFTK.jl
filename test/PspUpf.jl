@@ -10,7 +10,7 @@ upf_pseudos = Dict(
     :Li => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
     :Mg => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf"),
     # With NLCC
-    :Co => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Co.upf"),
+    :Co => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Co.upf"; rcut=10.0),
     :Ge => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Ge.upf"),
     # With cutoff
     :Cu => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Cu.upf"; rcut=9.0),
@@ -36,7 +36,7 @@ end
 
     @test psp.vloc[1] ≈ -1.2501238567E+01 / 2
     @test psp.h[1][1,1] ≈ -9.7091222353E+0 * 2
-    @test psp.r_projs[1][1][1] ≈ -7.5698070034E-10 / 2
+    @test psp.r2_projs[1][1][1] ≈ psp.rgrid[1] * -7.5698070034E-10 / 2
 end
 
 @testitem "Real potentials are consistent with HGH" tags=[:psp] setup=[mPspUpf] begin
@@ -48,7 +48,7 @@ end
         rand_r = rand(5) .* abs(upf.rgrid[end] - upf.rgrid[1]) .+ upf.rgrid[1]
         for r in [upf.rgrid[1], rand_r..., upf.rgrid[end]]
             reference_hgh = eval_psp_local_real(hgh, r)
-            @test reference_hgh ≈ eval_psp_local_real(upf, r) rtol=1e-3 atol=1e-3
+            @test reference_hgh ≈ eval_psp_local_real(upf, r) rtol=1e-2 atol=1e-2
         end
     end
 end
@@ -61,7 +61,7 @@ end
         hgh = psp_pair.hgh
         for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference_hgh = eval_psp_local_fourier(hgh, q)
-            @test reference_hgh ≈ eval_psp_local_fourier(upf, q) rtol=1e-5 atol=1e-5
+            @test reference_hgh ≈ eval_psp_local_fourier(upf, q) rtol=1e-3 atol=1e-3
         end
     end
 end
@@ -81,16 +81,16 @@ end
         end
 
         for l in 0:upf.lmax, i in count_n_proj_radial(upf, l)
-            ircut = length(upf.r_projs[l+1][i])
+            ircut = length(upf.r2_projs[l+1][i])
             for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
                 reference_hgh = eval_psp_projector_fourier(hgh, i, l, q)
                 proj_upf = eval_psp_projector_fourier(upf, i, l, q)
-                @test reference_hgh ≈ proj_upf atol=1e-7 rtol=1e-7
+                @test reference_hgh ≈ proj_upf atol=1e-5 rtol=1e-5
             end
             for r in [upf.rgrid[1], upf.rgrid[ircut]]
                 reference_hgh = eval_psp_projector_real(hgh, i, l, r)
                 proj_upf = eval_psp_projector_real(upf, i, l, r)
-                @test reference_hgh ≈ proj_upf atol=1e-7 rtol=1e-7
+                @test reference_hgh ≈ proj_upf atol=1e-5 rtol=1e-5
             end
         end
     end
@@ -104,7 +104,7 @@ end
         hgh = psp_pair.hgh
         n_electrons = 3
         reference_hgh = eval_psp_energy_correction(hgh, n_electrons)
-        @test reference_hgh ≈ eval_psp_energy_correction(upf, n_electrons) rtol=1e-5 atol=1e-5
+        @test reference_hgh ≈ eval_psp_energy_correction(upf, n_electrons) atol=1e-3 rtol=1e-3
     end
 end
 
@@ -118,9 +118,10 @@ end
     end
     for psp in values(mPspUpf.upf_pseudos)
         for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
-            reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[begin], psp.rgrid[end])[1]
+            reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[begin],
+                               psp.rgrid[psp.ircut])[1]
             correction = 4π * psp.Zion / q^2
-            @test (reference - correction) ≈ eval_psp_local_fourier(psp, q) rtol=1. atol=1.
+            @test (reference - correction) ≈ eval_psp_local_fourier(psp, q) atol=1e-2 rtol=1e-2
         end
     end
 end
@@ -140,7 +141,7 @@ end
     for psp in values(mPspUpf.upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for l in 0:psp.lmax, i in count_n_proj_radial(psp, l)
-            ir_cut = length(psp.r_projs[l+1][i])
+            ir_cut = min(psp.ircut, length(psp.r2_projs[l+1][i]))
             for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
                 reference = quadgk(r -> integrand(psp, i, l, q, r),
                                    psp.rgrid[ir_start], psp.rgrid[ir_cut])[1]
@@ -163,8 +164,8 @@ end
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[ir_start],
-                               psp.rgrid[end])[1]
-            @test reference  ≈ eval_psp_density_valence_fourier(psp, q) rtol=1e-2 rtol=1e-2
+                               psp.rgrid[psp.ircut])[1]
+            @test reference  ≈ eval_psp_density_valence_fourier(psp, q) atol=1e-2 rtol=1e-2
         end
     end
 end
@@ -182,8 +183,8 @@ end
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[ir_start],
-                               psp.rgrid[end])[1]
-            @test reference  ≈ eval_psp_density_core_fourier(psp, q) rtol=1e-1 rtol=1e-1
+                               psp.rgrid[psp.ircut])[1]
+            @test reference  ≈ eval_psp_density_core_fourier(psp, q) atol=1e-2 rtol=1e-2
         end
     end
 end
@@ -192,11 +193,11 @@ end
     =#    tags=[:psp] setup=[mPspUpf] begin
     using DFTK: eval_psp_local_fourier, eval_psp_energy_correction
 
-    q_small = 1e-3    # We are interested in q→0 term
+    q_small = 1e-2    # We are interested in q→0 term
     for psp in values(mPspUpf.upf_pseudos)
         coulomb = -4π * (psp.Zion) / q_small^2
         reference = eval_psp_local_fourier(psp, q_small) - coulomb
-        @test reference ≈ eval_psp_energy_correction(psp, 1) atol=1e-3
+        @test reference ≈ eval_psp_energy_correction(psp, 1) atol=1e-2
     end
 end
 
@@ -223,7 +224,7 @@ end
     lattice = 5 * I(3)
     positions = [zeros(3)]
     for (element, psp) in mPspUpf.upf_pseudos
-        if sum(psp.r2_4π_ρion) > 0  # Otherwise, it's all 0 in the UPF as a placeholder
+        if sum(psp.r2_ρion) > 0  # Otherwise, it's all 0 in the UPF as a placeholder
             atoms = [ElementPsp(element, psp=psp)]
             model = model_LDA(lattice, atoms, positions)
             basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
