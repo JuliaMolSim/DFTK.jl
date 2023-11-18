@@ -155,5 +155,3 @@ function ScfDiagtol(; ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.03)
         diagtol
     end
 end
-
-

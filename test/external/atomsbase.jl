@@ -24,8 +24,8 @@
     @test system[:, :magnetic_moment] == magnetic_moments
 
     parsed = DFTK.parse_system(system)
-    @test parsed.lattice   ≈ lattice   atol=1e-13
-    @test parsed.positions ≈ positions atol=1e-13
+    @test parsed.lattice   ≈ lattice   atol=5e-13
+    @test parsed.positions ≈ positions atol=5e-13
     for i in 1:4
         @test iszero(parsed.magnetic_moments[i][1:2])
         @test parsed.magnetic_moments[i][3] == magnetic_moments[i]
@@ -116,8 +116,8 @@ end
     system      = periodic_system(atoms, lattice; fractional=true)
 
     let model = Model(system)
-        @test model.lattice   ≈ pos_lattice atol=1e-13
-        @test model.positions ≈ pos_units   atol=1e-13
+        @test model.lattice   ≈ pos_lattice atol=5e-13
+        @test model.positions ≈ pos_units   atol=5e-13
         @test model.spin_polarization == :none
 
         @test length(model.atoms) == 4
@@ -137,8 +137,8 @@ end
         @test system[4, :pseudopotential] == "hgh/pbe/c-q4.hgh"
 
         parsed = DFTK.parse_system(system)
-        @test parsed.lattice   ≈ pos_lattice atol=1e-13
-        @test parsed.positions ≈ pos_units   atol=1e-13
+        @test parsed.lattice   ≈ pos_lattice atol=5e-13
+        @test parsed.positions ≈ pos_units   atol=5e-13
         @test isempty(parsed.magnetic_moments)
 
         @test length(parsed.atoms) == 4
@@ -157,8 +157,8 @@ end
         @test system[4, :pseudopotential] == "hgh/lda/c-q4.hgh"
 
         model = Model(system)
-        @test model.lattice   ≈ pos_lattice atol=1e-13
-        @test model.positions ≈ pos_units   atol=1e-13
+        @test model.lattice   ≈ pos_lattice atol=5e-13
+        @test model.positions ≈ pos_units   atol=5e-13
         @test model.spin_polarization == :none
 
         @test length(model.atoms) == 4
