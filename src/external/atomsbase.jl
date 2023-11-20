@@ -22,7 +22,7 @@ function parse_system(system::AbstractSystem{D}) where {D}
             ElementCoulomb(atomic_number(atom))
         else
             get!(cached_pspelements, pseudo) do
-                kwargs = get(atom, :pseudopotential_kwargs, nothing)
+                kwargs = get(atom, :pseudopotential_kwargs, ())
                 ElementPsp(atomic_number(atom); psp=load_psp(pseudo; kwargs...))
             end
         end
