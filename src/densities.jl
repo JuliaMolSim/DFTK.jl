@@ -71,6 +71,55 @@ end
     end
 end
 
+@views @timing function compute_analytical_δρ(basis::PlaneWaveBasis{T}, ψ, δψ, occupation,
+                                              δoccupation=zero.(occupation);
+                                              occupation_threshold=zero(T),
+                                              q=zero(Vec3{T})) where {T}
+    # TODO: Should not be necessary, but without this, the sanity check in `symmetrize_ρ`
+    # fails. PR should not be merged before understanding what happens.
+    iszero(q) && return compute_δρ(basis, ψ, δψ, occupation, δoccupation; occupation_threshold)
+
+    S = promote_type(eltype(basis), complex(eltype(ψ[1])))
+
+    # we split the total iteration range (ik, n) in chunks, and parallelize over them
+    mask_occ = map(occk -> findall(isless.(occupation_threshold, occk)), occupation)
+    ik_n = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
+    chunk_length = cld(length(ik_n), Threads.nthreads())
+
+    # chunk-local variables
+    δρ_chunklocal        = Array{S,4}[zeros(S, basis.fft_size..., basis.model.n_spin_components)
+                                      for _ = 1:Threads.nthreads()]
+    ψnk_real_chunklocal  = Array{complex(S),3}[zeros(complex(S), basis.fft_size)
+                                               for _ = 1:Threads.nthreads()]
+    δψnk_real_chunklocal = Array{complex(S),3}[zeros(complex(S), basis.fft_size)
+                                               for _ = 1:Threads.nthreads()]
+
+    @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
+        Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
+            δρ_loc    = δρ_chunklocal[ichunk]
+            ψnk_real  = ψnk_real_chunklocal[ichunk]
+            δψnk_real = δψnk_real_chunklocal[ichunk]
+
+            kpt = basis.kpoints[ik]
+            ifft!(ψnk_real, basis, kpt, ψ[ik][:, n])
+            # The perturbation of the density
+            #   |ψ_nk|² is 2(ψ_{n,k}, δψ_{n,k}),
+            # except for phonon calculations, where it is
+            #   |ψ_nk|² is 2(ψ_{n,k}, δψ_{n,k+q}).
+            kpt_plus_q = only(build_kpoints(basis, [kpt.coordinate .+ q]))
+            δψnk_real = ifft(basis, kpt_plus_q, δψ[ik][:, n])
+
+            δρnk = 2 * occupation[ik][n] .* basis.kweights[ik] .* conj(ψnk_real) .* δψnk_real
+            δρnk .+= δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(ψnk_real)
+            δρ_loc[:, :, :, kpt.spin] .+= δρnk
+        end
+    end
+
+    δρ = sum(δρ_chunklocal)
+    mpi_sum!(δρ, basis.comm_kpts)
+    symmetrize_ρ(basis, δρ; do_lowpass=false, real=iszero(q))
+end
+
 @views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis, ψ, occupation)
     T = promote_type(eltype(basis), real(eltype(ψ[1])))
     τ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))

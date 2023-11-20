@@ -46,7 +46,8 @@ Perform an iFFT to obtain the quantity defined by `f_fourier` defined
 on the k-dependent spherical basis set (if `kpt` is given) or the
 k-independent cubic (if it is not) on the real-space grid.
 """
-function ifft(basis::PlaneWaveBasis, f_fourier::AbstractArray)
+function ifft(basis::PlaneWaveBasis, f_fourier::AbstractArray; real=false)
+    real && return irfft(basis, f_fourier)
     f_real = similar(f_fourier)
     @assert length(size(f_fourier)) ∈ (3, 4)
     # this exploits trailing index convention

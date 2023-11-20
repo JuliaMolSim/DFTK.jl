@@ -339,7 +339,10 @@ recip_vector_red_to_cart(model::Model, vec) = recip_vector_red_to_cart(model)(ve
 recip_vector_cart_to_red(model::Model, vec) = recip_vector_cart_to_red(model)(vec)
 
 #=
-Transformations on vectors and covectors are matrices and comatrices.
+Transformations on vectors and covectors are matrices and comatrices, i.e. matrices act on
+a vector to give a vector and comatrices act on covector to give a covector.
+Beware that some quantities (e.g., the force constant matrix) map vectors to covectors and
+are therefore not matrices nor comatrices; they fall outside of these methods.
 
 Consider two covectors f and g related by a transformation matrix B. In reduced
 coordinates g_red = B_red f_red and in cartesian coordinates we want g_cart = B_cart f_cart.

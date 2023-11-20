@@ -2,6 +2,7 @@
 @testsetup module Phonon
 using Test
 using DFTK
+using DFTK: TermAtomicLocal, TermAtomicNonlocal
 using DFTK: compute_dynmat_cart, setindex, dynmat_red_to_cart, normalize_kpoint_coordinate
 using LinearAlgebra
 using ForwardDiff
@@ -14,26 +15,34 @@ function compute_squared_frequencies(matrix)
 end
 
 # Reference against automatic differentiation.
-function ph_compute_reference(basis_supercell)
-    model_supercell = basis_supercell.model
-    n_atoms = length(model_supercell.positions)
-    n_dim = model_supercell.n_dim
-    T = eltype(model_supercell.lattice)
+function compute_reference(basis; kwargs...)
+    is_scfres_needed = any(t -> isa(t, TermAtomicLocal) ||
+                                isa(t, TermAtomicNonlocal), basis.terms)
+    model = basis.model
+    n_atoms = length(model.positions)
+    n_dim = model.n_dim
+    T = eltype(model.lattice)
     dynmat_ad = zeros(T, 3, n_atoms, 3, n_atoms)
     for τ = 1:n_atoms, γ = 1:n_dim
-        displacement = zero.(model_supercell.positions)
+        displacement = zero.(model.positions)
         displacement[τ] = setindex(displacement[τ], one(T), γ)
         dynmat_ad[:, :, γ, τ] = -ForwardDiff.derivative(zero(T)) do ε
-            lattice = convert(Matrix{eltype(ε)}, model_supercell.lattice)
-            positions = ε*displacement .+ model_supercell.positions
-            model_disp = Model(convert(Model{eltype(ε)}, model_supercell); lattice, positions)
+            lattice = convert(Matrix{eltype(ε)}, model.lattice)
+            positions = ε*displacement .+ model.positions
+            model_disp = Model(convert(Model{eltype(ε)}, model); lattice, positions)
             # TODO: Would be cleaner with PR #675.
-            basis_disp_bs = PlaneWaveBasis(model_disp; Ecut=5)
-            forces = compute_forces(basis_disp_bs, nothing, nothing)
+            if is_scfres_needed
+                basis_disp = PlaneWaveBasis(model_disp; Ecut=5)
+                scfres_disp = self_consistent_field(basis_disp; kwargs...)
+                forces = compute_forces(scfres_disp)
+            else
+                basis_disp_bs = PlaneWaveBasis(model_disp; Ecut=5)
+                forces = compute_forces(basis_disp_bs, nothing, nothing)
+            end
             reduce(hcat, forces)
         end
     end
-    hessian_ad = dynmat_red_to_cart(model_supercell, dynmat_ad)
+    hessian_ad = dynmat_red_to_cart(model, dynmat_ad)
     sort(compute_squared_frequencies(hessian_ad))
 end
 
@@ -57,19 +66,16 @@ function generate_supercell_qpoints(; supercell_size=generate_random_supercell()
 end
 
 # Test against a reference array.
-function test_frequencies(testcase, terms, ω_ref; tol=1e-9)
+function test_frequencies(testcase, terms, ω_ref; tol=1e-9, supercell_size=[2, 1, 3])
     model = Model(testcase.lattice, testcase.atoms, testcase.positions; terms)
     basis_bs = PlaneWaveBasis(model; Ecut=5)
 
-    supercell_size = [2, 1, 3]
     phonon = (; supercell_size, generate_supercell_qpoints(; supercell_size).qpoints)
 
-    ω_uc = []
-    for q in phonon.qpoints
+    ω_uc = sort!(reduce(vcat, map(phonon.qpoints) do q
         hessian = compute_dynmat_cart(basis_bs, nothing, nothing; q)
-        push!(ω_uc, compute_squared_frequencies(hessian))
-    end
-    ω_uc = sort!(collect(Iterators.flatten(ω_uc)))
+        compute_squared_frequencies(hessian)
+    end))
 
     @test norm(ω_uc - ω_ref) < tol
 end
@@ -98,7 +104,7 @@ function test_rand_frequencies(testcase, terms; tol=1e-9)
     ω_supercell = sort(compute_squared_frequencies(hessian_supercell))
     @test norm(ω_uc - ω_supercell) < tol
 
-    ω_ad = ph_compute_reference(basis_supercell_bs)
+    ω_ad = compute_reference(basis_supercell_bs)
 
     @test norm(ω_ad - ω_supercell) < tol
 end

@@ -27,6 +27,7 @@ export mpi_nprocs
 export mpi_master
 export setup_threading, disable_threading
 include("common/timer.jl")
+include("common/constants.jl")
 include("common/ortho.jl")
 include("common/types.jl")
 include("common/spherical_bessels.jl")
@@ -204,7 +205,6 @@ export compute_forces_cart
 include("postprocess/forces.jl")
 export compute_stresses_cart
 include("postprocess/stresses.jl")
-include("postprocess/phonon.jl")
 export compute_dos
 export compute_ldos
 export plot_dos
@@ -216,6 +216,13 @@ include("response/chi0.jl")
 include("response/hessian.jl")
 export compute_current
 include("postprocess/current.jl")
+export phonon_modes
+export phonon_frequencies
+include("response/phonon.jl")
+export compute_dynmat
+export compute_dynmat_cart
+export dynmat_red_to_cart
+include("postprocess/phonon.jl")
 
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")

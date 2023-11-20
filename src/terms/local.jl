@@ -82,78 +82,158 @@ end
 Atomic local potential defined by `model.atoms`.
 """
 struct AtomicLocal end
-function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
+function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model.positions,
+                                 q=zero(Vec3{T})) where {T}
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
     # Since V is a sum of radial functions located at atomic
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
     model = basis.model
-    G_cart = to_cpu(G_vectors_cart(basis))
-    # TODO Bring G_cart on the CPU for compatibility with the pseudopotentials which
+    Gs_cart = to_cpu([model.recip_lattice * (G + q) for G in G_vectors(basis)])
+    # TODO Bring Gs_cart on the CPU for compatibility with the pseudopotentials which
     #      are not isbits ... might be able to solve this by restructuring the loop
-
 
     # Pre-compute the form factors at unique values of |G| to speed up
     # the potential Fourier transform (by a lot). Using a hash map gives O(1)
     # lookup.
     form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
-    for G in G_cart
-        q = norm(G)
+    for G in Gs_cart
+        p = norm(G)
         for (igroup, group) in enumerate(model.atom_groups)
-            if !haskey(form_factors, (igroup, q))
+            if !haskey(form_factors, (igroup, p))
                 element = model.atoms[first(group)]
-                form_factors[(igroup, q)] = local_potential_fourier(element, q)
+                form_factors[(igroup, p)] = local_potential_fourier(element, p)
             end
         end
     end
 
-    Gs = to_cpu(G_vectors(basis))  # TODO Again for GPU compatibility
+    Gs = to_cpu([G + q for G in G_vectors(basis)])  # TODO Again for GPU compatibility
     pot_fourier = map(enumerate(Gs)) do (iG, G)
-        q = norm(G_cart[iG])
+        p = norm(Gs_cart[iG])
         pot = sum(enumerate(model.atom_groups)) do (igroup, group)
-            structure_factor = sum(r -> cis2pi(-dot(G, r)), @view model.positions[group])
-            form_factors[(igroup, q)] * structure_factor
+            structure_factor = sum(r -> cis2pi(-dot(G, r)), @view positions[group])
+            form_factors[(igroup, p)] * structure_factor
         end
         pot / sqrt(model.unit_cell_volume)
     end
 
-    enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
-    pot_real = irfft(basis, to_device(basis.architecture, pot_fourier))
-
-    TermAtomicLocal(pot_real)
+    iszero(q) && enforce_real!(basis, pot_fourier)  # Symmetrize coeffs to have real iFFT
+    ifft(basis, to_device(basis.architecture, pot_fourier); real=iszero(q))
 end
+(::AtomicLocal)(basis::PlaneWaveBasis) = TermAtomicLocal(compute_local_potential(basis))
 
-@timing "forces: local" function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{TT},
-                                                ψ, occupation; ρ, kwargs...) where {TT}
-    T = promote_type(TT, real(eltype(ψ[1])))
+@timing "forces: local" function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{T},
+                                                ψ, occupation; ρ, q=zeros(3),
+                                                kwargs...) where {T}
+
+    S = promote_type(T, eltype(ψ[1]))
     model = basis.model
+    recip_lattice = model.recip_lattice
     ρ_fourier = fft(basis, total_density(ρ))
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
     # where struct_factor(G) = e^{-i G·r}
-    forces = [zero(Vec3{T}) for _ = 1:length(model.positions)]
+    forces = [zero(Vec3{S}) for _ = 1:length(model.positions)]
     for group in model.atom_groups
         element = model.atoms[first(group)]
-        form_factors = [Complex{T}(local_potential_fourier(element, norm(G)))
-                        for G in G_vectors_cart(basis)]
+        form_factors = [S(local_potential_fourier(element, norm(recip_lattice * (G + q))))
+                        for G in G_vectors(basis)]
         for idx in group
             r = model.positions[idx]
-            forces[idx] = _force_local_internal(basis, ρ_fourier, form_factors, r)
+            forces[idx] = _force_local_internal(basis, ρ_fourier, form_factors, r; q)
         end
     end
-    forces
+    iszero(q) ? real(forces) : forces
 end
 
 # function barrier to work around various type instabilities
-function _force_local_internal(basis, ρ_fourier, form_factors, r)
-    T = real(eltype(ρ_fourier))
-    f = zero(Vec3{T})
+function _force_local_internal(basis::PlaneWaveBasis{T}, ρ_fourier, form_factors, r;
+                               q=zero(Vec3{T})) where {T}
+    S = eltype(ρ_fourier)
+    f = zero(Vec3{S})
     for (iG, G) in enumerate(G_vectors(basis))
-        f -= real(conj(ρ_fourier[iG])
+        f -= (conj(ρ_fourier[iG])
                   .* form_factors[iG]
-                  .* cis2pi(-dot(G, r))
-                  .* (-2T(π)) .* G .* im
+                  .* cis2pi(-dot(G + q, r))
+                  .* (-2T(π)) .* (G + q) .* im
                   ./ sqrt(basis.model.unit_cell_volume))
     end
     f
+end
+
+# Phonon: Perturbation of the local potential using AD with respect to a displacement on the
+# direction γ of the atom τ.
+function compute_δV(::TermAtomicLocal, basis::PlaneWaveBasis{T}, γ, τ;
+                    q=zero(Vec3{T}), positions=basis.model.positions) where {T}
+    displacement = zero.(positions)
+    displacement[τ] = setindex(displacement[τ], one(T), γ)
+    ForwardDiff.derivative(zero(T)) do ε
+        positions = ε*displacement .+ positions
+        compute_local_potential(basis; q, positions)
+    end
+end
+
+# Phonon: Second-order perturbation of the local potential using AD with respect to
+# a displacement on the directions η and γ of the atoms σ et τ.
+function compute_δ²V(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, η, σ, γ, τ) where {T}
+    model = basis.model
+
+    displacement = zero.(model.positions)
+    displacement[σ] = setindex(displacement[σ], one(T), η)
+    ForwardDiff.derivative(zero(T)) do ε
+        positions = ε*displacement .+ model.positions
+        compute_δV(term, basis, γ, τ; positions)
+    end
+end
+
+function compute_dynmat(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation; ρ,
+                        δρs, δψs, δoccupations, q=zero(Vec3{T})) where {T}
+    S = complex(eltype(basis))
+    model = basis.model
+    positions = model.positions
+    n_atoms = length(positions)
+    n_dim = model.n_dim
+
+    ∫δρδV = zeros(S, 3, n_atoms, 3, n_atoms)
+    for τ in 1:n_atoms
+        for γ in 1:n_dim
+            ∫δρδV_τγ = -compute_forces(term, basis, ψ, occupation; ρ=δρs[γ, τ],
+                                       δψ=δψs[γ, τ], δoccupation=δoccupations[γ, τ], q)
+            ∫δρδV[:, :, γ, τ] .+= hcat(∫δρδV_τγ...)
+        end
+    end
+
+    ∫ρδ²V = zeros(S, 3, n_atoms, 3, n_atoms)
+    ρ_fourier = fft(basis, total_density(ρ))
+    for τ in 1:n_atoms
+        for γ in 1:n_dim
+            for σ in 1:n_atoms
+                for η in 1:n_dim
+                    δ²V_fourier = fft(basis, compute_δ²V(term, basis, η, σ, γ, τ))
+                    ∫ρδ²V[η, σ, γ, τ] = sum(conj(ρ_fourier) .* δ²V_fourier)
+                end
+            end
+        end
+    end
+
+
+    ∫δρδV + ∫ρδ²V
+end
+
+function compute_δHψ(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
+                     q=zero(Vec3{T})) where {T}
+    model = basis.model
+    positions = model.positions
+    n_atoms = length(positions)
+    n_dim = model.n_dim
+
+    δHψ = [zero.(ψ) for _ in 1:3, _ in 1:n_atoms]
+    for τ in 1:n_atoms
+        for γ in 1:n_dim
+            δV_τγ = compute_δV(term, basis, γ, τ; q)
+            δHψ_τγ = compute_δVψk(basis, q, ψ, cat(δV_τγ, δV_τγ; dims=4))
+            δHψ[γ, τ] .+= δHψ_τγ
+       end
+   end
+   δHψ
 end

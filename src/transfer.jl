@@ -204,17 +204,6 @@ function find_equivalent_kpt(basis::PlaneWaveBasis{T}, kcoord, spin; tol=sqrt(ep
 end
 
 """
-Return the Fourier coefficients for `ψk · e^{i q·r}` in the basis of `kpt_out`, where `ψk`
-is defined on a basis `kpt_in`.
-"""
-function multiply_by_expiqr(basis, kpt_in, q, ψk)
-    shifted_kcoord = kpt_in.coordinate .+ q  # coordinate of ``k``-point in ℝ
-    index, ΔG = find_equivalent_kpt(basis, shifted_kcoord, kpt_in.spin)
-    kpt_out = basis.kpoints[index]
-    return transfer_blochwave_kpt(ψk, basis, kpt_in, kpt_out, ΔG)
-end
-
-"""
 Return the indices of the `kpoints` shifted by `q`. That is for each `kpoint` of the `basis`:
 `kpoints[ik].coordinate + q = kpoints[indices[ik]].coordinate`.
 """
@@ -224,4 +213,30 @@ function k_to_kpq_mapping(basis::PlaneWaveBasis, qcoord)
                for kpt in kpoints]
     @assert sort(indices) == 1:length(basis.kpoints)
     indices
+end
+
+@doc raw"""
+Create the Fourier expansion of ``ψ_{k+q}`` from ``ψ_{[k+q]}``, where ``[k+q]`` is in
+`basis.kpoints`. while ``k+q`` may or may not be inside.
+
+If ``ΔG ≔ [k+q] - (k+q)``, then we have that
+```math
+    ∑_G \hat{u}_{[k+q]}(G) e^{i(k+q+G)·r} &= ∑_{G'} \hat{u}_{k+q}(G'-ΔG) e^{i(k+q+ΔG+G')·r},
+```
+hence
+```math
+    u_{k+q}(G) = u_{[k+q]}(G + ΔG).
+```
+"""
+function shift_kplusq(basis, kpt, q, ψk)
+    kcoord_plus_q = kpt.coordinate .+ q
+    kpts_plus_q = build_kpoints(basis, [kcoord_plus_q])
+    @assert length(kpts_plus_q) == basis.model.n_spin_components
+    # If we have 2 spin components, we obtain pairs of k-points that have only different
+    # spin number.
+    kpt_plus_q = kpts_plus_q[1]
+    index, ΔG = find_equivalent_kpt(basis, kcoord_plus_q, kpt.spin)
+    equiv_kpt_plus_q = basis.kpoints[index]
+
+    transfer_blochwave_kpt(ψk, basis, equiv_kpt_plus_q, kpt_plus_q, -ΔG)
 end
