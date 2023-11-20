@@ -5,8 +5,8 @@
     using AtomsBase
 
     Si = ElementCoulomb(:Si)
-    C  = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4.hgh"))
-    H  = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1.hgh"))
+    C  = ElementPsp(:C; psp=load_psp("hgh/pbe/c-q4.hgh"))
+    H  = ElementPsp(:H; psp=load_psp("hgh/lda/h-q1.hgh"))
 
     lattice   = randn(3, 3)
     atoms     = [Si, C, H, C]
@@ -176,7 +176,7 @@ end
 
     Si = ElementCoulomb(:Si)
     C  = ElementCoulomb(:C)
-    H  = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1.hgh"))
+    H  = ElementPsp(:H; psp=load_psp("hgh/lda/h-q1.hgh"))
     lattice   = randn(3, 3)
     atoms     = [Si, C, H, C]
     positions = [rand(3) for _ in 1:4]

@@ -16,7 +16,7 @@ a = 3.01794  # bohr
 b = 5.22722  # bohr
 c = 9.77362  # bohr
 lattice = [[-a -a  0]; [-b  b  0]; [0   0 -c]]
-Mg = ElementPsp(:Mg, psp=load_psp("hgh/pbe/Mg-q2"))
+Mg = ElementPsp(:Mg; psp=load_psp("hgh/pbe/Mg-q2"))
 atoms     = [Mg, Mg]
 positions = [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]];
 

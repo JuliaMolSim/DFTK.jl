@@ -25,7 +25,7 @@ using LinearAlgebra
 using Statistics
 
 function run_scf(; a=5.0, Ecut, nkpt, tol)
-    atoms    = [ElementPsp(:Pt, psp = load_psp("hgh/lda/Pt-q10"))]
+    atoms    = [ElementPsp(:Pt; psp=load_psp("hgh/lda/Pt-q10"))]
     position = [zeros(3)]
     lattice  = a * Matrix(I, 3, 3)
 

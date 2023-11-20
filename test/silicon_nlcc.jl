@@ -22,7 +22,7 @@ function run_silicon_nlcc(T; Ecut=5, grid_size=15, spin_polarization=:none, kwar
     ref_etot = -8.50167205710043
 
     fft_size = fill(grid_size, 3)
-    Si = ElementPsp(silicon.atnum,
+    Si = ElementPsp(silicon.atnum;
                     psp=load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf"))
     atoms = [Si, Si]
 

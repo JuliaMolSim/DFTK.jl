@@ -24,7 +24,7 @@ lattice = [a  -a/2    0;
            0  √3*a/2  0;
            0     0    d]
 
-C = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4"))
+C = ElementPsp(:C; psp=load_psp("hgh/pbe/c-q4"))
 atoms     = [C, C]
 positions = [[0.0, 0.0, 0.0], [1//3, 2//3, 0.0]]
 model  = model_PBE(lattice, atoms, positions)

@@ -208,7 +208,7 @@ end
     lattice = 5 * I(3)
     positions = [zeros(3)]
     for (element, psp) in mPspUpf.upf_pseudos
-        atoms = [ElementPsp(element, psp=psp)]
+        atoms = [ElementPsp(element; psp)]
         model = model_LDA(lattice, atoms, positions)
         basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
         ρ_val = guess_density(basis, ValenceDensityPseudo())
@@ -225,7 +225,7 @@ end
     positions = [zeros(3)]
     for (element, psp) in mPspUpf.upf_pseudos
         if sum(psp.r2_ρion) > 0  # Otherwise, it's all 0 in the UPF as a placeholder
-            atoms = [ElementPsp(element, psp=psp)]
+            atoms = [ElementPsp(element; psp)]
             model = model_LDA(lattice, atoms, positions)
             basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
             ρ_val = guess_density(basis, ValenceDensityPseudo())

@@ -17,7 +17,7 @@
     lattice = 5 * I(3)
     positions = [zeros(3)]
     for (element, psp) in pseudos
-        atoms = [ElementPsp(element, psp=psp)]
+        atoms = [ElementPsp(element; psp)]
         model = model_LDA(lattice, atoms, positions)
         basis = PlaneWaveBasis(model; Ecut=24, kgrid=[2, 2, 2])
         ρ_core = @inferred atomic_total_density(basis, CoreDensity())
