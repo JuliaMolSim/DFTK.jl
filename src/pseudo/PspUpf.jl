@@ -90,12 +90,13 @@ function PspUpf(path; identifier=path, rcut=nothing)
     vloc        = pseudo["local_potential"] ./ 2  # (Ry -> Ha)
     description = get(pseudo["header"], "comment", "")
 
-    rcut = isnothing(rcut) ? last(rgrid) : rcut
+    # Ensure rcut is at most the end of the rgrid.
+    rcut = isnothing(rcut) ? last(rgrid) : min(rcut, last(rgrid))
     ircut = findfirst(>=(rcut), rgrid)
 
     # There are two possible units schemes for the projectors and coupling coefficients:
-    # β [Ry Bohr^{-1/2}]  h [Ry^{-1}]
-    # β [Bohr^{-1/2}]     h [Ry]
+    # rβ [Ry Bohr^{-1/2}]  h [Ry^{-1}]
+    # rβ [Bohr^{-1/2}]     h [Ry]
     # The quantity that's used in calculations is β h β, so the units don't practically
     # matter. However, HGH pseudos in UPF format use the first units, so we assume them
     # to facilitate comparison of the intermediate quantities with analytical HGH.
@@ -166,7 +167,7 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T<:Real}
     # functions after which they are strictly zero in the file.
     ircut_proj = min(psp.ircut, length(psp.r2_projs[l+1][i]))
     rgrid = @view psp.rgrid[1:ircut_proj]
-    r2_proj = psp.r2_projs[l+1][i][1:ircut_proj]
+    r2_proj = @view psp.r2_projs[l+1][i][1:ircut_proj]
     return hankel(rgrid, r2_proj, l, q)
 end
 
