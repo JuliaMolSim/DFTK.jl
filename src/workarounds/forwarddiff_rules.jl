@@ -114,16 +114,11 @@ function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:ForwardDiff.
 end
 
 # determine symmetry operations only from primal lattice values
-function spglib_get_symmetry(lattice::AbstractMatrix{<:ForwardDiff.Dual}, atom_groups, positions,
-                             magnetic_moments=[]; kwargs...)
-    spglib_get_symmetry(ForwardDiff.value.(lattice), atom_groups, positions,
-                        magnetic_moments; kwargs...)
-end
-function spglib_atoms(atom_groups,
-                      positions::AbstractVector{<:AbstractVector{<:ForwardDiff.Dual}},
-                      magnetic_moments)
+function symmetry_operations(lattice::AbstractMatrix{<:ForwardDiff.Dual},
+                             atoms, positions, magnetic_moments=[]; kwargs...)
     positions_value = [ForwardDiff.value.(pos) for pos in positions]
-    spglib_atoms(atom_groups, positions_value, magnetic_moments)
+    symmetry_operations(ForwardDiff.value.(lattice), atoms, positions_value,
+                        magnetic_moments; kwargs...)
 end
 
 function _is_well_conditioned(A::AbstractArray{<:ForwardDiff.Dual}; kwargs...)
@@ -295,6 +290,17 @@ function Base.:^(x::Complex{ForwardDiff.Dual{T,V,N}}, y::Complex{ForwardDiff.Dua
         dyexpv = ∂expv∂y * dy
         dexpv = dxexpv + dyexpv
     end
+    complex(ForwardDiff.Dual{T,V,N}(real(expv), ForwardDiff.Partials{N,V}(tuple(real(dexpv)...))),
+            ForwardDiff.Dual{T,V,N}(imag(expv), ForwardDiff.Partials{N,V}(tuple(imag(dexpv)...))))
+end
+
+# Fix for https://github.com/JuliaDiff/ForwardDiff.jl/issues/514
+function Base.exp(x::Complex{ForwardDiff.Dual{T,V,N}}) where {T,V,N}
+    xx = complex(ForwardDiff.value(real(x)), ForwardDiff.value(imag(x)))
+    dx = complex.(ForwardDiff.partials(real(x)), ForwardDiff.partials(imag(x)))
+
+    expv = exp(xx)
+    dexpv = expv * dx
     complex(ForwardDiff.Dual{T,V,N}(real(expv), ForwardDiff.Partials{N,V}(tuple(real(dexpv)...))),
             ForwardDiff.Dual{T,V,N}(imag(expv), ForwardDiff.Partials{N,V}(tuple(imag(dexpv)...))))
 end

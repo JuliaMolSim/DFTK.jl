@@ -19,10 +19,11 @@ function parse_system(system::AbstractSystem{D}) where {D}
     atoms = map(system) do atom
         pseudo = get(atom, :pseudopotential, "")
         if isempty(pseudo)
-            ElementCoulomb(atomic_symbol(atom))
+            ElementCoulomb(atomic_number(atom))
         else
             get!(cached_pspelements, pseudo) do
-                ElementPsp(atomic_symbol(atom); psp=load_psp(pseudo))
+                kwargs = get(atom, :pseudopotential_kwargs, ())
+                ElementPsp(atomic_number(atom); psp=load_psp(pseudo; kwargs...))
             end
         end
     end

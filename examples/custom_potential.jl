@@ -29,6 +29,10 @@ function DFTK.local_potential_fourier(el::CustomPotential, q::Real)
     -el.α * exp(- (q * el.L)^2 / 2)
 end
 
+# !!! tip "Gaussian potentials and DFTK"
+#     DFTK already implements `CustomPotential` in form of the [`DFTK.ElementGaussian`](@ref),
+#     so this explicit re-implementation is only provided for demonstration purposes.
+
 # We set up the lattice. For a 1D case we supply two zero lattice vectors
 a = 10
 lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]];

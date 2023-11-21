@@ -6,10 +6,10 @@ title: 'DFTK: The Density-functional toolkit'
 message: Cite this paper whenever you use DFTK.
 type: software
 authors:
-  - email: herbst@acom.rwth-aachen.de
+  - email: michael.herbst@epfl.ch
     given-names: Michael F.
     family-names: Herbst
-    affiliation: RWTH Aachen University
+    affiliation: École Polytechnique Federale Lausanne
     orcid: 'https://orcid.org/0000-0003-0378-7921'
   - family-names: Levitt
     given-names: Antoine

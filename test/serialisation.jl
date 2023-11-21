@@ -1,10 +1,6 @@
-using DFTK
-using JLD2
-using WriteVTK
-using MPI
-import DFTK: ScfDefaultCallback, ScfSaveCheckpoints
+@testsetup module ScfresAgreement
 using Test
-include("testcases.jl")
+using DFTK
 
 function test_scfres_agreement(tested, ref)
     @test tested.basis.model.lattice           == ref.basis.model.lattice
@@ -33,34 +29,23 @@ function test_scfres_agreement(tested, ref)
     @test tested.eigenvalues    == ref.eigenvalues
     @test tested.occupation     == ref.occupation
     @test tested.ψ              == ref.ψ
-    @test tested.ρ              ≈  ref.ρ     rtol=1e-14
+    @test tested.ρ              ≈  ref.ρ rtol=1e-14
+end
 end
 
+@testsetup module SerialisationIO
+using Test
+using DFTK
+using MPI
+using JLD2
+using JSON3
+using WriteVTK
+using ..ScfresAgreement: test_scfres_agreement
 
-@testset "SCF checkpointing" begin
-    model = model_PBE(o2molecule.lattice, o2molecule.atoms, o2molecule.positions;
-                      temperature=0.02, smearing=Smearing.Gaussian(),
-                      magnetic_moments=[1., 1.], symmetries=false)
-
-    kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
-    basis  = PlaneWaveBasis(model; Ecut=4, kgrid)
-
-    # Run SCF and do checkpointing along the way
-    mktempdir() do tmpdir
-        checkpointfile = joinpath(tmpdir, "scfres.jld2")
-        checkpointfile = MPI.bcast(checkpointfile, 0, MPI.COMM_WORLD)  # master -> everyone
-
-        callback  = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
-        nbandsalg = FixedBands(; n_bands_converge=20)
-        scfres = self_consistent_field(basis; tol=1e-2, nbandsalg, callback)
-        test_scfres_agreement(scfres, load_scfres(checkpointfile))
-    end
-end
-
-function test_serialisation(label;
+function test_serialisation(testcase, label;
                             modelargs=(; spin_polarization=:collinear, temperature=0.01),
                             basisargs=(; Ecut=5, kgrid=(2, 3, 4)))
-    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions; modelargs...)
+    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions; modelargs...)
     basis = PlaneWaveBasis(model; basisargs...)
     nbandsalg = FixedBands(; n_bands_converge=20)
     scfres = self_consistent_field(basis; tol=1e-1, nbandsalg)
@@ -88,13 +73,78 @@ function test_serialisation(label;
             @test isfile(dumpfile)
         end
     end
+
+    @testset "JSON ($label)" begin
+        mktempdir() do tmpdir
+            dumpfile = joinpath(tmpdir, "scfres.json")
+            dumpfile = MPI.bcast(dumpfile, 0, MPI.COMM_WORLD)  # master -> everyone
+
+            save_scfres(dumpfile, scfres)
+            @test isfile(dumpfile)
+
+            data = open(JSON3.read, dumpfile)  # Get data back as dict
+
+            # Keys which need to be MPI-synchronised
+            for key in (:eigenvalues, :occupation)
+                gathered = DFTK.gather_kpts(getproperty(scfres, key), scfres.basis)
+                mpi_master() && @test data[key] == gathered
+            end
+
+            # Note: For MPI runs, each processor may not gather the data exactly the same
+            #       way, which can induce machine-epsilons inconsistencies. That is why we
+            #       do not use strict equalities.
+            tol = 10eps(eltype(basis))
+            # Normal keys and energy values
+            for key in (:converged, :occupation_threshold, :εF, :n_bands_converge,
+                        :n_iter, :norm_Δρ)
+                @test data[key] ≈ getproperty(scfres, key) atol=tol
+            end
+            for key in keys(scfres.energies)
+                @test data["energies"][key] ≈ scfres.energies[key] atol=tol
+            end
+            @test data["energies"]["total"] ≈ scfres.energies.total atol=tol
+            @test data["algorithm"] == scfres.algorithm
+        end
+    end
+end
 end
 
-@testset "Serialisation" begin
-    test_serialisation("nospin notemp")
-    test_serialisation("collinear temp";
+
+@testitem "SCF checkpointing" setup=[ScfresAgreement, TestCases] begin
+    using DFTK
+    using DFTK: ScfDefaultCallback, ScfSaveCheckpoints
+    using JLD2  # needed for ScfSaveCheckpoints
+    using MPI
+    o2molecule = TestCases.o2molecule
+
+    model = model_PBE(o2molecule.lattice, o2molecule.atoms, o2molecule.positions;
+                      temperature=0.02, smearing=Smearing.Gaussian(),
+                      magnetic_moments=[1., 1.], symmetries=false)
+
+    kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
+    basis  = PlaneWaveBasis(model; Ecut=4, kgrid)
+
+    # Run SCF and do checkpointing along the way
+    mktempdir() do tmpdir
+        checkpointfile = joinpath(tmpdir, "scfres.jld2")
+        checkpointfile = MPI.bcast(checkpointfile, 0, MPI.COMM_WORLD)  # master -> everyone
+
+        callback  = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
+        nbandsalg = FixedBands(; n_bands_converge=20)
+        scfres = self_consistent_field(basis; tol=1e-2, nbandsalg, callback)
+        ScfresAgreement.test_scfres_agreement(scfres, load_scfres(checkpointfile))
+    end
+end
+
+@testitem "Serialisation" setup=[ScfresAgreement, SerialisationIO, TestCases] begin
+    using DFTK
+    using .SerialisationIO: test_serialisation
+    testcase = TestCases.silicon
+
+    test_serialisation(testcase, "nospin notemp")
+    test_serialisation(testcase, "collinear temp";
                        modelargs=(; spin_polarization=:collinear, temperature=0.01))
-    test_serialisation("fixed Fermi";
+    test_serialisation(testcase, "fixed Fermi";
                        modelargs=(; εF=0.5, disable_electrostatics_check=true,
                                   temperature=1e-3))
 end

@@ -17,7 +17,8 @@ precondprep!(P, X) = P  # This API is also used in Optim.jl
 No preconditioning
 """
 struct PreconditionerNone end
-PreconditionerNone(basis, kpt) = I
+PreconditionerNone(::PlaneWaveBasis, ::Kpoint) = I
+PreconditionerNone(::HamiltonianBlock) = I
 
 """
 (simplified version of) Tetter-Payne-Allan preconditioning
@@ -41,6 +42,9 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     kin = kinetic_energy(kinetic_term, basis.Ecut, Gplusk_vectors_cart(basis, kpt))
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
+function PreconditionerTPA(ham::HamiltonianBlock; kwargs...)
+    PreconditionerTPA(ham.basis, ham.kpoint)
+end
 
 @views function ldiv!(Y, P::PreconditionerTPA, R)
     if P.mean_kin === nothing
@@ -58,7 +62,7 @@ ldiv!(P::PreconditionerTPA, R) = ldiv!(R, P, R)
 # These are needed by eg direct minimization with CG
 @views function mul!(Y, P::PreconditionerTPA, R)
     if P.mean_kin === nothing
-        mul!(Y, Diagonal(P.kin .+ default_shift), R)
+        mul!(Y, Diagonal(P.kin .+ P.default_shift), R)
     else
         Threads.@threads for n = 1:size(Y, 2)
             Y[:, n] .= (P.mean_kin[n] .+ P.kin) ./ P.mean_kin[n] .* R[:, n]

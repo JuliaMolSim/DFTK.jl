@@ -1,12 +1,9 @@
-using Test
-using DFTK
-import Brillouin: interpolate
+@testitem "High-symmetry kpath construction for silicon" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using Brillouin: interpolate
+    testcase = TestCases.silicon
 
-include("testcases.jl")
-
-if mpi_nprocs() == 1  # not easy to distribute
-@testset "High-symmetry kpath construction for silicon" begin
-    testcase = silicon
     Ecut = 2
 
     ref_kcoords = [
@@ -97,7 +94,11 @@ if mpi_nprocs() == 1  # not easy to distribute
     @test length.(kinter.kpaths) == [18, 42]
 end
 
-@testset "High-symmetry kpath construction for 1D system" begin
+@testitem "High-symmetry kpath construction for 1D system" tags=[:dont_test_mpi] begin
+    using DFTK
+    using Brillouin: interpolate
+    using LinearAlgebra
+
     lattice = diagm([8.0, 0, 0])
     model   = Model(lattice; terms=[Kinetic()])
     kpath   = irrfbz_path(model)
@@ -114,8 +115,11 @@ end
     @test kinter[8] == [0.5]
 end
 
-@testset "Compute bands for silicon" begin
-    testcase = silicon
+@testitem "Compute bands for silicon" tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using Brillouin: interpolate
+    testcase = TestCases.silicon
+
     Ecut = 7
     n_bands = 8
 
@@ -136,8 +140,12 @@ end
     end
 end
 
-@testset "prepare_band_data" begin
-    testcase = silicon
+@testitem "prepare_band_data" tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using Brillouin: interpolate
+    using LinearAlgebra
+    testcase = TestCases.silicon
+
     model    = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
     kpath    = irrfbz_path(model)
     kinter   = interpolate(irrfbz_path(model), density=3)
@@ -175,21 +183,28 @@ end
     @test ret.kbranches == [1:3, 4:8]
 end
 
-@testset "is_metal" begin
+@testitem "is_metal" tags=[:dont_test_mpi] begin
+    using DFTK
+
     λ = [[1, 2, 3, 4], [1, 1.5, 3.5, 4.2], [1, 1.1, 3.2, 4.3], [1, 2, 3.3, 4.1]]
     @test !DFTK.is_metal(λ, 2.5)
     @test  DFTK.is_metal(λ, 3.2)
 end
 
-@testset "High-symmetry kpath for nonstandard lattice" begin
+@testitem "High-symmetry kpath for nonstandard lattice" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using Brillouin: interpolate
+    testcase = TestCases.silicon
+
     lattice_std = [0 1 1; 1 0 1; 1 1 0] .* 5.13
-    model_std   = model_LDA(lattice_std, silicon.atoms, silicon.positions)
+    model_std   = model_LDA(lattice_std, testcase.atoms, testcase.positions)
 
     # Non-standard lattice parameters that describe the same system as model_standard.
     lattice_nst = copy(lattice_std)
     lattice_nst[:, 3] .+= lattice_nst[:, 1] .* 3
     position_nst = [[-2, 1, 1]/8, -[-2, 1, 1]/8]
-    model_nst = model_LDA(lattice_nst, silicon.atoms, position_nst)
+    model_nst = model_LDA(lattice_nst, testcase.atoms, position_nst)
 
     kpath_std = irrfbz_path(model_std)
     kpath_nst = irrfbz_path(model_nst)
@@ -203,5 +218,4 @@ end
         @test(  model_std.recip_lattice * k_std
               ≈ model_nst.recip_lattice * k_nst)
     end
-end
 end

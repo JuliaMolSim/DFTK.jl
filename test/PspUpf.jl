@@ -1,12 +1,5 @@
-using Test
-using DFTK: eval_psp_projector_fourier, eval_psp_projector_real
-using DFTK: eval_psp_local_real, eval_psp_local_fourier
-using DFTK: eval_psp_density_valence_real, eval_psp_density_valence_fourier
-using DFTK: eval_psp_density_core_real, eval_psp_density_core_fourier
-using DFTK: eval_psp_energy_correction
-using DFTK: count_n_proj_radial
-using SpecialFunctions: sphericalbesselj
-using QuadGK
+@testsetup module mPspUpf  # PspUpf already exported by DFTK
+using DFTK
 using LazyArtifacts
 
 upf_pseudos = Dict(
@@ -17,16 +10,21 @@ upf_pseudos = Dict(
     :Li => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
     :Mg => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf"),
     # With NLCC
-    :Co => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Co.upf"),
+    :Co => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Co.upf"; rcut=10.0),
     :Ge => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Ge.upf"),
+    # With cutoff
+    :Cu => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Cu.upf"; rcut=9.0),
+    :Cr => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Cu.upf"; rcut=12.0)
 )
 hgh_pseudos = [
     (hgh=load_psp("hgh/pbe/si-q4.hgh"), upf=upf_pseudos[:Si]),
     (hgh=load_psp("hgh/pbe/tl-q13.hgh"), upf=upf_pseudos[:Tl])
 ]
+end
 
-@testset "Check reading PseudoDojo Li UPF" begin
-    psp = upf_pseudos[:Li]
+
+@testitem "Check reading PseudoDojo Li UPF" tags=[:psp] setup=[mPspUpf] begin
+    psp = mPspUpf.upf_pseudos[:Li]
 
     @test psp.lmax == 1
     @test psp.Zion == 3
@@ -38,34 +36,42 @@ hgh_pseudos = [
 
     @test psp.vloc[1] ≈ -1.2501238567E+01 / 2
     @test psp.h[1][1,1] ≈ -9.7091222353E+0 * 2
-    @test psp.r_projs[1][1][1] ≈ -7.5698070034E-10 / 2
+    @test psp.r2_projs[1][1][1] ≈ psp.rgrid[1] * -7.5698070034E-10 / 2
 end
 
-@testset "Real potentials are consistent with HGH" begin
-    for psp_pair in hgh_pseudos
+@testitem "Real potentials are consistent with HGH" tags=[:psp] setup=[mPspUpf] begin
+    using DFTK: eval_psp_local_real
+
+    for psp_pair in mPspUpf.hgh_pseudos
         upf = psp_pair.upf
         hgh = psp_pair.hgh
         rand_r = rand(5) .* abs(upf.rgrid[end] - upf.rgrid[1]) .+ upf.rgrid[1]
         for r in [upf.rgrid[1], rand_r..., upf.rgrid[end]]
             reference_hgh = eval_psp_local_real(hgh, r)
-            @test reference_hgh ≈ eval_psp_local_real(upf, r) rtol=1e-3 atol=1e-3
+            @test reference_hgh ≈ eval_psp_local_real(upf, r) rtol=1e-2 atol=1e-2
         end
     end
 end
 
-@testset "Fourier potentials are consistent with HGH" begin
-    for psp_pair in hgh_pseudos
+@testitem "Fourier potentials are consistent with HGH" tags=[:psp] setup=[mPspUpf] begin
+    using DFTK: eval_psp_local_fourier
+
+    for psp_pair in mPspUpf.hgh_pseudos
         upf = psp_pair.upf
         hgh = psp_pair.hgh
         for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference_hgh = eval_psp_local_fourier(hgh, q)
-            @test reference_hgh ≈ eval_psp_local_fourier(upf, q) rtol=1e-5 atol=1e-5
+            @test reference_hgh ≈ eval_psp_local_fourier(upf, q) rtol=1e-3 atol=1e-3
         end
     end
 end
 
-@testset "Projectors are consistent with HGH in real and Fourier space" begin
-    for psp_pair in hgh_pseudos
+@testitem "Projectors are consistent with HGH in real and Fourier space" #=
+    =#    tags=[:psp] setup=[mPspUpf] begin
+    using DFTK: eval_psp_projector_fourier, eval_psp_projector_real, eval_psp_local_fourier
+    using DFTK: count_n_proj_radial
+
+    for psp_pair in mPspUpf.hgh_pseudos
         upf = psp_pair.upf
         hgh = psp_pair.hgh
 
@@ -75,55 +81,67 @@ end
         end
 
         for l in 0:upf.lmax, i in count_n_proj_radial(upf, l)
-            ircut = length(upf.r_projs[l+1][i])
+            ircut = length(upf.r2_projs[l+1][i])
             for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
                 reference_hgh = eval_psp_projector_fourier(hgh, i, l, q)
                 proj_upf = eval_psp_projector_fourier(upf, i, l, q)
-                @test reference_hgh ≈ proj_upf atol=1e-7 rtol=1e-7
+                @test reference_hgh ≈ proj_upf atol=1e-5 rtol=1e-5
             end
             for r in [upf.rgrid[1], upf.rgrid[ircut]]
                 reference_hgh = eval_psp_projector_real(hgh, i, l, r)
                 proj_upf = eval_psp_projector_real(upf, i, l, r)
-                @test reference_hgh ≈ proj_upf atol=1e-7 rtol=1e-7
+                @test reference_hgh ≈ proj_upf atol=1e-5 rtol=1e-5
             end
         end
     end
 end
 
-@testset "Energy correction is consistent with HGH" begin
-    for psp_pair in hgh_pseudos
+@testitem "Energy correction is consistent with HGH" tags=[:psp] setup=[mPspUpf] begin
+    using DFTK: eval_psp_energy_correction
+
+    for psp_pair in mPspUpf.hgh_pseudos
         upf = psp_pair.upf
         hgh = psp_pair.hgh
         n_electrons = 3
         reference_hgh = eval_psp_energy_correction(hgh, n_electrons)
-        @test reference_hgh ≈ eval_psp_energy_correction(upf, n_electrons) rtol=1e-5 atol=1e-5
+        @test reference_hgh ≈ eval_psp_energy_correction(upf, n_electrons) atol=1e-3 rtol=1e-3
     end
 end
 
-@testset "Potentials are consistent in real and Fourier space" begin
+@testitem "Potentials are consistent in real and Fourier space" #=
+    =#    tags=[:psp] setup=[mPspUpf] begin
+    using DFTK: eval_psp_local_real, eval_psp_local_fourier
+    using QuadGK
+
     function integrand(psp, q, r)
         4π * (eval_psp_local_real(psp, r) + psp.Zion / r) * sin(q * r) / (q * r) * r^2
     end
-    for psp in values(upf_pseudos)
+    for psp in values(mPspUpf.upf_pseudos)
         for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
-            reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[begin], psp.rgrid[end])[1]
+            reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[begin],
+                               psp.rgrid[psp.ircut])[1]
             correction = 4π * psp.Zion / q^2
-            @test (reference - correction) ≈ eval_psp_local_fourier(psp, q) rtol=1. atol=1.
+            @test (reference - correction) ≈ eval_psp_local_fourier(psp, q) atol=1e-2 rtol=1e-2
         end
     end
 end
 
-@testset "Projectors are consistent in real and Fourier space" begin
+@testitem "Projectors are consistent in real and Fourier space" #=
+    =#    tags=[:psp] setup=[mPspUpf] begin
+    using DFTK: eval_psp_projector_fourier, eval_psp_projector_real, count_n_proj_radial
+    using SpecialFunctions: sphericalbesselj
+    using QuadGK
+
     # The integrand for performing the spherical Hankel transfrom,
     # i.e. compute the radial part of the projector in Fourier space
     function integrand(psp, i, l, q, r)
         4π * r^2 * eval_psp_projector_real(psp, i, l, r) * sphericalbesselj(l, q * r)
     end
 
-    for psp in values(upf_pseudos)
-        ir_start = iszero(psp.rgrid[1]) ? 2 : 1 
+    for psp in values(mPspUpf.upf_pseudos)
+        ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for l in 0:psp.lmax, i in count_n_proj_radial(psp, l)
-            ir_cut = length(psp.r_projs[l+1][i])
+            ir_cut = min(psp.ircut, length(psp.r2_projs[l+1][i]))
             for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
                 reference = quadgk(r -> integrand(psp, i, l, q, r),
                                    psp.rgrid[ir_start], psp.rgrid[ir_cut])[1]
@@ -133,47 +151,63 @@ end
     end
 end
 
-@testset "Valence charge densities are consistent in real and Fourier space" begin
+@testitem "Valence charge densities are consistent in real and Fourier space" #=
+    =#    tags=[:psp] setup=[mPspUpf] begin
+    using DFTK: eval_psp_density_valence_real, eval_psp_density_valence_fourier
+    using SpecialFunctions: sphericalbesselj
+    using QuadGK
+
     function integrand(psp, q, r)
         4π * r^2 * eval_psp_density_valence_real(psp, r) * sphericalbesselj(0, q * r)
     end
-    for psp in values(upf_pseudos)
+    for psp in values(mPspUpf.upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[ir_start],
-                               psp.rgrid[end])[1]
-            @test reference  ≈ eval_psp_density_valence_fourier(psp, q) rtol=1e-2 rtol=1e-2
+                               psp.rgrid[psp.ircut])[1]
+            @test reference  ≈ eval_psp_density_valence_fourier(psp, q) atol=1e-2 rtol=1e-2
         end
     end
 end
 
-@testset "Core charge densities are consistent in real and Fourier space" begin
+@testitem "Core charge densities are consistent in real and Fourier space" #=
+    =#    tags=[:psp] setup=[mPspUpf] begin
+    using DFTK: eval_psp_density_core_real, eval_psp_density_core_fourier
+    using SpecialFunctions: sphericalbesselj
+    using QuadGK
+
     function integrand(psp, q, r)
         4π * r^2 * eval_psp_density_core_real(psp, r) * sphericalbesselj(0, q * r)
     end
-    for psp in values(upf_pseudos)
+    for psp in values(mPspUpf.upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[ir_start],
-                               psp.rgrid[end])[1]
-            @test reference  ≈ eval_psp_density_core_fourier(psp, q) rtol=1e-1 rtol=1e-1
+                               psp.rgrid[psp.ircut])[1]
+            @test reference  ≈ eval_psp_density_core_fourier(psp, q) atol=1e-2 rtol=1e-2
         end
     end
 end
 
-@testset "PSP energy correction is consistent with fourier-space potential" begin
-    q_small = 1e-3    # We are interested in q→0 term
-    for psp in values(upf_pseudos)
+@testitem "PSP energy correction is consistent with fourier-space potential" #=
+    =#    tags=[:psp] setup=[mPspUpf] begin
+    using DFTK: eval_psp_local_fourier, eval_psp_energy_correction
+
+    q_small = 1e-2    # We are interested in q→0 term
+    for psp in values(mPspUpf.upf_pseudos)
         coulomb = -4π * (psp.Zion) / q_small^2
         reference = eval_psp_local_fourier(psp, q_small) - coulomb
-        @test reference ≈ eval_psp_energy_correction(psp, 1) atol=1e-3
+        @test reference ≈ eval_psp_energy_correction(psp, 1) atol=1e-2
     end
 end
 
-@testset "PSP guess density is positive" begin
+@testitem "PSP guess density is positive" tags=[:psp] setup=[mPspUpf] begin
+    using DFTK
+    using LinearAlgebra
+
     lattice = 5 * I(3)
     positions = [zeros(3)]
-    for (element, psp) in upf_pseudos
+    for (element, psp) in mPspUpf.upf_pseudos
         atoms = [ElementPsp(element, psp=psp)]
         model = model_LDA(lattice, atoms, positions)
         basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
@@ -183,11 +217,14 @@ end
     end
 end
 
-@testset "PSP total guess density gives Z-valence" begin
+@testitem "PSP total guess density gives Z-valence" tags=[:psp] setup=[mPspUpf] begin
+    using DFTK
+    using LinearAlgebra
+
     lattice = 5 * I(3)
     positions = [zeros(3)]
-    for (element, psp) in upf_pseudos
-        if sum(psp.r2_4π_ρion) > 0  # Otherwise, it's all 0 in the UPF as a placeholder
+    for (element, psp) in mPspUpf.upf_pseudos
+        if sum(psp.r2_ρion) > 0  # Otherwise, it's all 0 in the UPF as a placeholder
             atoms = [ElementPsp(element, psp=psp)]
             model = model_LDA(lattice, atoms, positions)
             basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])

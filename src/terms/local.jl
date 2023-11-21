@@ -28,6 +28,20 @@ struct TermExternal <: TermLocalPotential
 end
 
 """
+External potential given as values.
+"""
+struct ExternalFromValues
+    potential_values::AbstractArray
+end
+function (external::ExternalFromValues)(basis::PlaneWaveBasis{T}) where {T}
+    # TODO Could do interpolation here
+    @assert size(external.potential_values) == basis.fft_size
+    TermExternal(convert_dual.(T, external.potential_values))
+end
+
+
+
+"""
 External potential from an analytic function `V` (in cartesian coordinates).
 No low-pass filtering is performed.
 """
@@ -113,7 +127,6 @@ end
                                                 ψ, occupation; ρ, kwargs...) where {TT}
     T = promote_type(TT, real(eltype(ψ[1])))
     model = basis.model
-    recip_lattice = model.recip_lattice
     ρ_fourier = fft(basis, total_density(ρ))
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)

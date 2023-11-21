@@ -1,14 +1,14 @@
-using DFTK
-using Test
-include("testcases.jl")
+@testitem "Symmetrization and not symmetrization yields the same density and energy" #=
+    =#    setup=[TestCases] begin
+    using DFTK
+    using LinearAlgebra
+    testcase = TestCases.silicon
 
-@testset "Symmetrization and not symmetrization yields the same density and energy" begin
     args = ((kgrid=[2, 2, 2], kshift=[1/2, 0, 0]),
             (kgrid=[2, 2, 2], kshift=[1/2, 1/2, 0]),
             (kgrid=[2, 2, 2], kshift=[0, 0, 0]),
             (kgrid=[3, 2, 3], kshift=[0, 0, 0]),
             (kgrid=[3, 2, 3], kshift=[0, 1/2, 1/2]))
-    testcase = silicon
     for case in args
         model_nosym = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
                                 symmetries=false)

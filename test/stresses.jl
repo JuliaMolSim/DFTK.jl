@@ -1,14 +1,14 @@
-using Test
-using DFTK
-using ForwardDiff
-import FiniteDiff
-using MPI
-include("testcases.jl")
-
 # Hellmann-Feynman stress
 # via ForwardDiff & custom FFTW overloads on ForwardDiff.Dual
 
-@testset "ForwardDiff stresses on silicon" begin
+@testitem "ForwardDiff stresses on silicon" setup=[TestCases] begin
+    using DFTK
+    using ForwardDiff
+    import FiniteDiff
+    using MPI
+    using LinearAlgebra
+    silicon = TestCases.silicon
+
     function make_basis(lattice, symmetries, element)
         model = model_PBE(lattice, [element, element], silicon.positions; symmetries)
         PlaneWaveBasis(model; Ecut=7, kgrid=(3, 3, 3))
@@ -34,9 +34,9 @@ include("testcases.jl")
         scfres_nosym = self_consistent_field(make_basis(lattice, false, element); is_converged)
         stresses = compute_stresses_cart(scfres)
         @test isapprox(stresses, compute_stresses_cart(scfres_nosym), atol=1e-10)
-    
+
         dir = MPI.bcast(randn(3, 3), 0, MPI.COMM_WORLD)
-    
+
         dE_stresses = dot(dir, stresses) * scfres.basis.model.unit_cell_volume
         ref_recompute = FiniteDiff.finite_difference_derivative(0.0) do ε
             recompute_energy(lattice + ε*dir*lattice, false, element)

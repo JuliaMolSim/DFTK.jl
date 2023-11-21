@@ -45,6 +45,9 @@ file extensions are recognized and supported:
       (may lead to larger files).
     * `extra_data`: `Dict{String,Array}` with additional data on the 3D real-space
       grid to store into the VTK file.
+- **json**: A JSON file with basic information about the SCF run. Stores for example
+   the number of iterations, occupations, norm of the most recent density change,
+   eigenvalues, Fermi level etc.
 
 !!! warning "No compatibility guarantees"
     No guarantees are made with respect to this function at this point.
@@ -56,7 +59,7 @@ function save_scfres(filename::AbstractString, scfres::NamedTuple; kwargs...)
     ext = Symbol(ext[2:end])
 
     # Whitelist valid extensions
-    !(ext in (:jld2, :vts)) && error("Extension '$ext' not supported by DFTK.")
+    !(ext in (:jld2, :vts, :json)) && error("Extension '$ext' not supported by DFTK.")
 
     # Gather scfres data on master MPI process
     scfres = gather_kpts_scfres(scfres)

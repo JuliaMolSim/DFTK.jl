@@ -1,4 +1,17 @@
-using Test
+# Work around JuliaLang/Pkg.jl#2500
+# Must be before loading anything
+if VERSION < v"1.8-"
+    test_project = first(Base.load_path())
+    preferences_file = "../LocalPreferences.toml"
+    test_preferences_file = joinpath(dirname(test_project), "LocalPreferences.toml")
+    if isfile(preferences_file) && !isfile(test_preferences_file)
+        cp(preferences_file, test_preferences_file)
+        @info "copied LocalPreferences.toml to $test_preferences_file"
+    end
+end
+
+using Aqua
+using TestItemRunner
 using DFTK
 using Random
 
@@ -12,137 +25,54 @@ using Random
 # runs all tests plus the "example" tests.
 #
 
-const DFTK_TEST_ARGS = let
-    if "DFTK_TEST_ARGS" in keys(ENV)
-        append!(split(ENV["DFTK_TEST_ARGS"], ","), ARGS)
-    else
-        ARGS
-    end
-end
-
-const FAST_TESTS = "fast" in DFTK_TEST_ARGS
-const TAGS = let
-    # Tags supplied by the user.
-    # Replace "fast" with "all": the notice for quick checks has been dealt with above.
-    tags = replace(e -> e == "fast" ? "all" : e, DFTK_TEST_ARGS)
-    isempty(tags) ? ["all"] : tags
-end
-
-if FAST_TESTS
-    println("   Running fast tests (TAGS = $(join(TAGS, ", "))).")
-else
-    println("   Running tests (TAGS = $(join(TAGS, ", "))).")
-end
-
 # Setup threading in DFTK
 setup_threading(; n_blas=2)
 
 # Initialize seed
 Random.seed!(0)
 
-# Wrap in an outer testset to get a full report if one test fails
-@testset "DFTK.jl" begin
-    if "gpu" in TAGS
-        include("gpu.jl")
+const DFTK_TEST_ARGS = let
+    if "DFTK_TEST_ARGS" in keys(ENV) && isempty(ARGS)
+        split(ENV["DFTK_TEST_ARGS"], ",")
+    else
+        ARGS
     end
-
-    # Super quick tests
-    if "all" in TAGS || "quick" in TAGS
-        include("helium_all_electron.jl")
-        include("silicon_lda.jl")
-        include("iron_pbe.jl")
-    end
-
-    # Synthetic tests at the beginning, so it fails faster if
-    # something has gone badly wrong
-    if "all" in TAGS || "functionality" in TAGS
-        include("helium_all_electron.jl")
-        include("silicon_redHF.jl")
-        include("silicon_pbe.jl")
-        include("silicon_scan.jl")
-        include("scf_compare.jl")
-        include("iron_lda.jl")
-        include("external_potential.jl")
-    end
-
-    if "all" in TAGS || "psp" in TAGS
-        include("list_psp.jl")
-        include("PspHgh.jl")
-        include("PspUpf.jl")
-    end
-
-    if "all" in TAGS
-        include("split_evenly.jl")
-        include("compute_fft_size.jl")
-        include("fourier_transforms.jl")
-        include("PlaneWaveBasis.jl")
-        include("Model.jl")
-        include("interpolation.jl")
-        include("transfer.jl")
-        include("elements.jl")
-        include("bzmesh.jl")
-        include("bzmesh_symmetry.jl")
-        include("supercell.jl")
-    end
-
-    if "all" in TAGS
-        include("external/atomsbase.jl")
-        include("external/interatomicpotentials.jl")
-        include("external/spglib.jl")
-        include("external/wannier90.jl")
-    end
-
-    if "all" in TAGS
-        include("hamiltonian_consistency.jl")
-    end
-
-    if "all" in TAGS
-        include("lobpcg.jl")
-        include("diag_compare.jl")
-
-        # This fails with multiple MPI procs, seems like a race condition
-        # with MPI + DoubleFloats. TODO debug
-        mpi_nprocs() == 1 && include("interval_arithmetic.jl")
-    end
-
-    if "all" in TAGS
-        include("ewald.jl")
-        include("anyons.jl")
-        include("energy_nuclear.jl")
-        include("occupation.jl")
-        include("energies_guess_density.jl")
-        include("compute_density.jl")
-        include("forces.jl")
-        include("pairwise.jl")
-        include("stresses.jl")
-        include("nlcc.jl")
-    end
-
-    if "all" in TAGS
-        include("adaptive_damping.jl")
-        include("variational.jl")
-        include("compute_bands.jl")
-        include("random_spindensity.jl")
-        include("cg.jl")
-        include("chi0.jl")
-        include("kernel.jl")
-        include("serialisation.jl")
-        include("compute_jacobian_eigen.jl")
-        include("printing.jl")
-        include("energy_cutoff_smearing.jl")
-        include("guess_density.jl")
-    end
-
-    if "all" in TAGS && mpi_master()
-        include("aqua.jl")
-    end
-
-    # Distributed implementation not yet available
-    if "all" in TAGS && mpi_nprocs() == 1
-        include("hessian.jl")
-        include("forwarddiff.jl")
-        include("phonon.jl")
-    end
-
-    ("example" in TAGS) && include("runexamples.jl")
 end
+
+# Tags supplied by the user.
+const TAGS = isempty(DFTK_TEST_ARGS) ? [:all] : Symbol.(DFTK_TEST_ARGS)
+
+# Tags excluded from the first run of "all" tests
+const EXCLUDED_FROM_ALL = Symbol[:example, :gpu]
+:fast ∈ TAGS     && push!(EXCLUDED_FROM_ALL, :slow)
+mpi_nprocs() > 1 && push!(EXCLUDED_FROM_ALL, :dont_test_mpi)
+Sys.iswindows()  && push!(EXCLUDED_FROM_ALL, :dont_test_windows)
+
+# Tags explicitly included
+const EXTRA_TAGS = filter(!in((:all, :fast)), TAGS)
+
+println("Running tests")
+if :all ∈ TAGS || :fast ∈ TAGS
+    println("    all except: $(join(EXCLUDED_FROM_ALL, ", "));")
+end
+if !isempty(EXTRA_TAGS)
+    println("    plus:       $(join(EXTRA_TAGS, ", "));")
+end
+
+if :all ∈ TAGS || :fast ∈ TAGS
+    is_excluded(ti) = any(in(ti.tags), EXCLUDED_FROM_ALL)
+    @run_package_tests filter=!is_excluded
+
+    if mpi_nprocs() == 1
+        # TODO For now disable type piracy check, as we use that at places to patch
+        #      up missing functionality. Should disable this on a more fine-grained scale.
+        Aqua.test_all(DFTK;
+                      ambiguities=false,
+                      piracies=false,
+                      deps_compat=(check_extras=false, ),
+                      stale_deps=(ignore=[:Primes, ], ))
+    end
+end
+
+is_explicitly_selected(ti) = any(in(ti.tags), EXTRA_TAGS)
+@run_package_tests filter=is_explicitly_selected

@@ -1,12 +1,11 @@
-using AtomsBase
-using DFTK
-using InteratomicPotentials
-using StaticArrays
-using Test
-using Unitful
-using UnitfulAtomic
+@testitem "DFTK -> InteratomicPotentials" begin
+    using AtomsBase
+    using DFTK
+    using InteratomicPotentials
+    using StaticArrays
+    using Unitful
+    using UnitfulAtomic
 
-@testset "DFTK -> InteratomicPotentials" begin
     functionals = [:lda_x, :lda_c_pw]
     scf_kwargs = Dict(:damping => 0.7, :tol => 1e-4)
     potential = DFTKPotential(5u"hartree", [1, 1, 1]; functionals, scf_kwargs)

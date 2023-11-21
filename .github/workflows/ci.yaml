@@ -6,7 +6,7 @@ on:
     tags: ['*']
   pull_request:
   schedule:
-    - cron:  '0 4 * * 6'  # Run every Sunday
+    - cron:  '0 4 * * 6'  # Run every Saturday
 concurrency:
   # Skip intermediate builds: always.
   # Cancel intermediate builds: only if it is a pull request build.
@@ -34,10 +34,10 @@ jobs:
       PLOTS_TEST: "true"  # Needed for Plots-related tests
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v1
         with:
-          version: '1.7'
+          version: '1.8'
           arch: x64
       - uses: julia-actions/cache@v1
       - uses: julia-actions/julia-buildpkg@v1
@@ -51,7 +51,7 @@ jobs:
           julia --project -e '
             using Pkg; Pkg.build(); Pkg.precompile()
             Pkg.add("MPI"); using MPI; MPI.install_mpiexecjl()
-            Pkg.test(; test_args=["quick"])
+            Pkg.test(; test_args=["minimal"])
           '
           $HOME/.julia/bin/mpiexecjl -np 2 julia --check-bounds=yes --depwarn=yes --project --color=yes -e 'using Pkg; Pkg.test(coverage=true)'
         if: ${{ matrix.payload == 'mpi' }}
@@ -76,7 +76,7 @@ jobs:
       PLOTS_TEST: "true"  # Needed for Plots-related tests
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v1
         with:
           version: nightly

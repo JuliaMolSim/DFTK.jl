@@ -1,9 +1,9 @@
-using Test
-using DFTK
-include("testcases.jl")
+@testitem "Energy cutoff smearing on silicon LDA" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using LinearAlgebra
+    silicon = TestCases.silicon
 
-if mpi_nprocs() == 1
-@testset "Energy cutoff smearing on silicon LDA" begin
     # For a low Ecut, the first silicon band displays a discontinuity between the
     # X and U points. This code checks the presence of the discontinuity for
     # the standard kinetic term and checks that the same band computed with a modified
@@ -39,5 +39,4 @@ if mpi_nprocs() == 1
             test_blowup(blowup)
         end
     end
-end
 end

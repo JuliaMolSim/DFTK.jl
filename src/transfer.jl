@@ -1,6 +1,36 @@
 using SparseArrays
 
 """
+Compute the index mapping between the global grids of two bases.
+Returns an iterator of 8 pairs `(block_in, block_out)`. Iterated over these pairs
+`x_out_fourier[block_out, :] = x_in_fourier[block_in, :]` does the transfer from
+the Fourier coefficients `x_in_fourier` (defined on `basis_in`) to
+`x_out_fourier` (defined on `basis_out`, equally provided as Fourier coefficients).
+"""
+function transfer_mapping(basis_in::PlaneWaveBasis, basis_out::PlaneWaveBasis)
+    @assert basis_in.model.lattice == basis_out.model.lattice
+
+    # TODO This logic feels rather convoluted ... think if there are ways to simplify
+    idcs = map(basis_in.fft_size, basis_out.fft_size) do fft_in, fft_out
+        if fft_in <= fft_out
+            a = cld(fft_in, 2)
+            b = fld(fft_in, 2)
+            return (; in=(1:a,         (a+1):fft_in ),
+                     out=(1:a, (fft_out+1-b):fft_out))
+        else
+            a = cld(fft_out, 2)
+            b = fld(fft_out, 2)
+            return (; in=(1:a, (fft_in+1-b):fft_in ),
+                     out=(1:a,        (a+1):fft_out))
+        end
+    end
+
+    idcs_in  = CartesianIndices.(Iterators.product(idcs[1].in,  idcs[2].in,  idcs[3].in))
+    idcs_out = CartesianIndices.(Iterators.product(idcs[1].out, idcs[2].out, idcs[3].out))
+    zip(idcs_in, idcs_out)
+end
+
+"""
 Compute the index mapping between two bases. Returns two arrays
 `idcs_in` and `idcs_out` such that `ψkout[idcs_out] = ψkin[idcs_in]` does
 the transfer from `ψkin` (defined on `basis_in` and `kpt_in`) to `ψkout`
@@ -120,6 +150,34 @@ function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
     map(enumerate(basis_out.kpoints)) do (ik, kpt_out)
         transfer_blochwave_kpt(ψ_in[ik], basis_in, basis_in.kpoints[ik], basis_out, kpt_out)
     end
+end
+
+@doc raw"""
+Transfer density (in real space) between two basis sets.
+
+This function is fast by transferring only the Fourier coefficients from the small basis
+to the big basis.
+
+Note that this implies that for even-sized small FFT grids doing the
+transfer small -> big -> small is not an identity (as the small basis has an unmatched
+Fourier component and the identity ``c_G = c_{-G}^\ast`` does not fully hold).
+
+Note further that for the direction big -> small employing this function does not give
+the same answer as using first `transfer_blochwave` and then `compute_density`.
+"""
+function transfer_density(ρ_in, basis_in::PlaneWaveBasis{T},
+                          basis_out::PlaneWaveBasis{T}) where {T}
+    @assert basis_in.model.lattice == basis_out.model.lattice
+    @assert length(size(ρ_in)) ∈ (3, 4)
+
+    ρ_freq_in  = fft(basis_in, ρ_in)
+    ρ_freq_out = zeros_like(ρ_freq_in, basis_out.fft_size..., size(ρ_in, 4))
+
+    for (block_in, block_out) in transfer_mapping(basis_in, basis_out)
+        ρ_freq_out[block_out, :] .= ρ_freq_in[block_in, :]
+    end
+
+    irfft(basis_out, ρ_freq_out)
 end
 
 """

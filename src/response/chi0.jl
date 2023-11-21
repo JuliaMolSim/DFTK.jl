@@ -178,7 +178,7 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
     res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
              callback=cg_callback)
-    !res.converged && @warn("Sternheimer CG not converged", res.iterations,
+    !res.converged && @warn("Sternheimer CG not converged", res.n_iter,
                             res.tol, res.residual_norm)
     δψknᴿ = res.x
     info = (; basis, kpoint, res)

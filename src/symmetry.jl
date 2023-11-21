@@ -1,33 +1,32 @@
 # This file contains functions to handle the symetries.
 # The type SymOp is defined in Symop.jl
 
-# A symmetry (W, w) (or (S, τ)) induces a symmetry in the Brillouin zone
-# that the Hamiltonian at S k is unitary equivalent to that at k, which we exploit to
-# reduce computations. The relationship is
-# S = W'
-# τ = -W^-1 w
-# (valid both in reduced and cartesian coordinates). In our notation
-# the rotation matrix W and translation w are such that, for each atom of
-# type A at position a, W a + w is also an atom of type A.
+import Spglib
 
-# The full (reducible) Brillouin zone is implicitly represented by
-# a set of (irreducible) kpoints (see explanation in docs). Each
-# irreducible k-point k comes with a list of symmetry operations
-# (S, τ) (containing at least the trivial operation (I, 0)), where S
-# is a unitary matrix (/!\ in cartesian but not in reduced coordinates)
-# and τ a translation vector. The k-point is then used to represent
-# implicitly the information at all the kpoints Sk. The relationship
-# between the Hamiltonians is
-# H_{Sk} = U H_k U*, with
-# (Uu)(x) = u(W x + w)
+# A symmetry (W, w) (or (S, τ)) induces a symmetry in the Brillouin zone that the
+# Hamiltonian at S k is unitary equivalent to that at k, which we exploit to reduce
+# computations. The relationship is
+#   S = W'
+#   τ = -W^-1 w
+# (valid both in reduced and cartesian coordinates). In our notation the rotation matrix
+# W and translation w are such that, for each atom of type A at position a, W a + w is also
+# an atom of type A.
+
+# The full (reducible) Brillouin zone is implicitly represented by a set of (irreducible)
+# kpoints (see explanation in docs). Each irreducible k-point k comes with a list of
+# symmetry operations (S, τ) (containing at least the trivial operation (I, 0)), where S is
+# a unitary matrix (/!\ in cartesian but not in reduced coordinates) and τ a translation
+# vector. The k-point is then used to represent implicitly the information at all the
+# kpoints Sk. The relationship between the Hamiltonians is
+#   H_{Sk} = U H_k U*, with
+#   (Uu)(x) = u(W x + w)
 # or in Fourier space
-# (Uu)(G) = e^{-i G τ} u(S^-1 G)
+#   (Uu)(G) = e^{-i G τ} u(S^-1 G)
 # In particular, we can choose the eigenvectors at Sk as u_{Sk} = U u_k
 
-# We represent then the BZ as a set of irreducible points `kpoints`,
-# and a set of weights `kweights` (summing to 1). The value of
-# observables is given by a weighted sum over the irreducible kpoints,
-# plus a symmetrization operation (which depends on the particular way
+# We represent then the BZ as a set of irreducible points `kpoints`, and a set of weights
+# `kweights` (summing to 1). The value of observables is given by a weighted sum over the
+# irreducible kpoints, plus a symmetrization operation (which depends on the particular way
 # the observable transforms under the symmetry).
 
 # There is by decreasing cardinality
@@ -35,21 +34,142 @@
 # - The group of symmetry operations of the crystal (model.symmetries)
 # - The group of symmetry operations of the crystal that preserves the BZ mesh (basis.symmetries)
 
-# See https://juliamolsim.github.io/DFTK.jl/stable/advanced/symmetries for details.
+# See https://juliamolsim.github.io/DFTK.jl/stable/developer/symmetries/ for details.
 
-@doc raw"""
-Return the ``k``-point symmetry operations associated to a lattice and atoms.
 """
-function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
-                             tol_symmetry=SYMMETRY_TOLERANCE)
-    @assert length(atoms) == length(positions)
-    atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
-    Ws, ws = spglib_get_symmetry(lattice, atom_groups, positions, magnetic_moments; tol_symmetry)
+`:none` if no element has a magnetic moment, else `:collinear` or `:full`.
+"""
+function determine_spin_polarization(magnetic_moments)
+    isempty(magnetic_moments) && return :none
+    all_magmoms = normalize_magnetic_moment.(magnetic_moments)
+    all(iszero, all_magmoms) && return :none
+    all(iszero(magmom[1:2]) for magmom in all_magmoms) && return :collinear
+
+    :full
+end
+
+
+"""
+Return the Symmetry operations given a `hall_number`.
+
+This function allows to directly access to the space group operations in the
+`spglib` database. To specify the space group type with a specific choice,
+`hall_number` is used.
+
+The definition of `hall_number` is found at
+[Space group type](https://spglib.readthedocs.io/en/latest/dataset.html#dataset-spg-get-dataset-spacegroup-type).
+"""
+function symmetry_operations(hall_number::Integer)
+    Ws, ws = Spglib.get_symmetry_from_database(hall_number)
     [SymOp(W, w) for (W, w) in zip(Ws, ws)]
 end
-function symmetry_operations(system::AbstractSystem)
+
+# Temporary workaround until Spglib.jl exports this function
+function spglib_get_symmetry_with_collinear_spin(cell::Spglib.SpglibCell, symprec=1e-5)
+    lattice, positions, atoms, spins = Spglib._unwrap_convert(cell)
+    num_atom = length(cell.magmoms)
+    # See https://github.com/spglib/spglib/blob/42527b0/python/spglib/spglib.py#L270
+    max_size = 96num_atom  # 96 = 48 × 2 since we have spins
+    rotations = Array{Cint,3}(undef, 3, 3, max_size)
+    translations = Matrix{Cdouble}(undef, 3, max_size)
+    equivalent_atoms = Vector{Cint}(undef, num_atom)
+    num_sym = @ccall Spglib.libsymspg.spg_get_symmetry_with_collinear_spin(
+        rotations::Ptr{Cint},
+        translations::Ptr{Cdouble},
+        equivalent_atoms::Ptr{Cint},
+        max_size::Cint,
+        lattice::Ptr{Cdouble},
+        positions::Ptr{Cdouble},
+        atoms::Ptr{Cint},
+        spins::Ptr{Cdouble},
+        num_atom::Cint,
+        symprec::Cdouble,
+    )::Cint
+    Spglib.check_error()
+    rotations = map(
+        SMatrix{3,3,Int32,9} ∘ transpose, eachslice(rotations[:, :, 1:num_sym]; dims=3)
+    )  # Remember to transpose, see https://github.com/singularitti/Spglib.jl/blob/8aed6e0/src/core.jl#L195-L198
+    translations = map(SVector{3,Float64}, eachcol(translations[:, 1:num_sym]))
+    return rotations, translations, equivalent_atoms
+end
+
+
+@doc raw"""
+Return the symmetries given an atomic structure with optionally designated magnetic moments
+on each of the atoms. The symmetries are determined using spglib.
+"""
+@timing function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
+                                     tol_symmetry=SYMMETRY_TOLERANCE, check_symmetry=true)
+    spin_polarization = determine_spin_polarization(magnetic_moments)
+    dimension   = count(!iszero, eachcol(lattice))
+    if isempty(atoms) || dimension != 3
+        # spglib doesn't support these cases, so we default to no symmetries
+        return [one(SymOp)]
+    end
+
+    if spin_polarization == :full
+        @warn("Symmetry detection not yet supported in full spin polarization. " *
+              "Returning no symmetries")
+        return [one(SymOp)]
+    end
+
+    atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
+    cell = spglib_cell(lattice, atom_groups, positions, magnetic_moments)
+    Ws, ws = try
+        if spin_polarization == :none
+            Spglib.get_symmetry(cell, tol_symmetry)
+        elseif spin_polarization == :collinear
+            # rotations, translations, _ = Spglib.get_symmetry_with_collinear_spin(cell, tol_symmetry)
+            rotations, translations, _ = spglib_get_symmetry_with_collinear_spin(cell, tol_symmetry)
+            rotations, translations
+        end
+    catch e
+        if e isa Spglib.SpglibError
+            msg = ("spglib failed to get the symmetries. Check your lattice, use a " *
+                   "uniform BZ mesh or disable symmetries. Spglib reported : " * e.msg)
+            throw(Spglib.SpglibError(msg))
+        else
+            rethrow()
+        end
+    end
+
+    symmetries = [SymOp(W, w) for (W, w) in zip(Ws, ws)]
+    if check_symmetry
+        _check_symmetries(symmetries, lattice, atom_groups, positions; tol_symmetry)
+    end
+    symmetries
+end
+function symmetry_operations(system::AbstractSystem; tol_symmetry=SYMMETRY_TOLERANCE)
     parsed = parse_system(system)
-    symmetry_operations(parsed.lattice, parsed.atoms, parsed.positions, parsed.magnetic_moments)
+    symmetry_operations(parsed.lattice, parsed.atoms, parsed.positions,
+                        parsed.magnetic_moments; tol_symmetry)
+end
+
+function _check_symmetries(symmetries::AbstractVector{<:SymOp}, lattice, atom_groups, positions;
+                          tol_symmetry=SYMMETRY_TOLERANCE)
+    # Check (W, w) maps atoms to equivalent atoms in the lattice
+    for symop in symmetries
+        W, w = symop.W, symop.w
+
+        # Check (A W A^{-1}) is orthogonal
+        Wcart = lattice * W / lattice
+        if maximum(abs, Wcart'Wcart - I) > tol_symmetry
+            error("Issue in symmetry determination: Non-orthogonal rotation matrix.")
+        end
+
+        for group in atom_groups
+            group_positions = positions[group]
+            for coord in group_positions
+                # If all elements of a difference in diffs is integer, then
+                # W * coord + w and pos are equivalent lattice positions
+                if !any(c -> is_approx_integer(W * coord + w - c; tol=tol_symmetry), group_positions)
+                    error("Issue in symmetry determination: Cannot map the atom at position " *
+                          "$coord to another atom of the same element under the symmetry " *
+                          "operation (W, w):\n($W, $w)")
+                end
+            end
+        end
+    end
 end
 
 # Approximate in; can be performance-critical, so we optimize in case of rationals

@@ -32,7 +32,7 @@ function next_density(ham::Hamiltonian,
 
     eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands_compute;
                                      ψguess=ψ, n_conv_check=n_bands_converge, kwargs...)
-    eigres.converged || (@warn "Eigensolver not converged" iterations=eigres.iterations)
+    eigres.converged || (@warn "Eigensolver not converged" n_iter=eigres.n_iter)
 
     # Check maximal occupation of the unconverged bands is sensible.
     occupation, εF = compute_occupation(ham.basis, eigres.λ, fermialg;
@@ -77,6 +77,9 @@ Overview of parameters:
 - `nbandsalg`: By default DFTK uses `nbandsalg=AdaptiveBands(model)`, which adaptively determines
   the number of bands to compute. If you want to influence this algorithm or use a predefined
   number of bands in each SCF step, pass a [`FixedBands`](@ref) or [`AdaptiveBands`](@ref).
+  Beware that with non-zero temperature, the convergence of the SCF algorithm may be limited
+  by the `default_occupation_threshold()` parameter. For highly accurate calculations we thus
+  recommend increasing the `occupation_threshold` of the `AdaptiveBands`.
 - `callback`: Function called at each SCF iteration. Usually takes care of printing the
   intermediate state.
 """

@@ -73,7 +73,7 @@ end
 function Base.size(A::LazyHcat)
     n = size(A.blocks[1], 1)
     m = sum(size(block, 2) for block in A.blocks)
-    (n,m)
+    (n, m)
 end
 
 Base.Array(A::LazyHcat)  = hcat(A.blocks...)

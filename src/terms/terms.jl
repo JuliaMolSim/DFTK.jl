@@ -60,6 +60,8 @@ breaks_symmetries(::Anyonic) = true
 
 # forces computes either nothing or an array forces[at][α] (by default no forces)
 compute_forces(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
+# dynamical matrix for phonons computations (array dynmat[n_dim, n_atom, n_dim, n_atom])
+compute_dynmat(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
 
 @doc raw"""
     compute_kernel(basis::PlaneWaveBasis; kwargs...)

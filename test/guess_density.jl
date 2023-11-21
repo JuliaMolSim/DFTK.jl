@@ -1,8 +1,7 @@
-using Test
-using DFTK
-include("testcases.jl")
+@testitem "Guess density integrates to number of electrons" setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
 
-@testset "Guess density integrates to number of electrons" begin
     function build_basis(atoms, spin_polarization)
         model = model_LDA(silicon.lattice, atoms, silicon.positions; spin_polarization,
                           temperature=0.01)

@@ -54,8 +54,7 @@ function irrfbz_path(model; dim::Integer=model.n_dim, sgnum=nothing, magnetic_mo
         # Brillouin.jl has an interface to Spglib.jl to directly reduce the passed
         # lattice to the ITA conventional lattice and so the Spglib cell can be
         # directly used as an input.
-        cell, _ = spglib_cell(model, magnetic_moments)
-        kpath = Brillouin.irrfbz_path(cell)
+        kpath = Brillouin.irrfbz_path(spglib_cell(model, magnetic_moments))
     end
 
     # TODO In case of absence of time-reversal symmetry we need to explicitly
@@ -95,7 +94,7 @@ end
     eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
                                      n_conv_check=n_bands, tol, show_progress, kwargs...)
     if !eigres.converged
-        @warn "Eigensolver not converged" iterations=band_data.iterations
+        @warn "Eigensolver not converged" n_iter=eigres.n_iter
     end
     merge((; basis=bs_basis), select_eigenpairs_all_kblocks(eigres, 1:n_bands))
 end

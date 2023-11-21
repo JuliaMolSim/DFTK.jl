@@ -1,10 +1,9 @@
-using Test
-using DFTK
-import DFTK: Applyχ0Model, select_occupied_orbitals
+@testitem "Compare different SCF algorithms (no spin, no temperature)" #=
+    =#    tags=[:core] setup=[TestCases] begin
+    using DFTK
+    using DFTK: Applyχ0Model, select_occupied_orbitals
+    silicon = TestCases.silicon
 
-include("testcases.jl")
-
-@testset "Compare different SCF algorithms (no spin, no temperature)" begin
     Ecut = 3
     fft_size = [9, 9, 9]
     tol = 1e-7
@@ -46,10 +45,12 @@ include("testcases.jl")
     end
 
     # Run other mixing with default solver (the others are too slow...)
-    for mixing in (KerkerMixing(), SimpleMixing(), DielectricMixing(εr=12),
-                   KerkerDosMixing(), HybridMixing(), HybridMixing(εr=10, RPA=false),
-                   χ0Mixing(χ0terms=[Applyχ0Model()], RPA=true))
-        @testset "Testing $mixing" begin
+    for mixing_str in ("KerkerMixing()", "SimpleMixing()", "DielectricMixing(εr=12)",
+                       "KerkerDosMixing()", "HybridMixing()",
+                       "HybridMixing(εr=10, RPA=false)",
+                       "χ0Mixing(χ0terms=[Applyχ0Model()], RPA=true)")
+        @testset "Testing $mixing_str" begin
+            mixing = eval(Meta.parse(mixing_str))
             ρ_alg = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8).ρ
             @test maximum(abs, ρ_alg - ρ_def) < 5tol
         end
@@ -64,7 +65,12 @@ include("testcases.jl")
     @test maximum(abs, scfres.ρ - ρ_def) < 5tol
 end
 
-@testset "Compare different SCF algorithms (collinear spin, no temperature)" begin
+@testitem "Compare different SCF algorithms (collinear spin, no temperature)" #=
+    =#    tags=[:core] setup=[TestCases] begin
+    using DFTK
+    using DFTK: Applyχ0Model, select_occupied_orbitals
+    silicon = TestCases.silicon
+
     Ecut = 3
     fft_size = [9, 9, 9]
     tol = 1e-7
@@ -95,7 +101,11 @@ end
     end
 end
 
-@testset "Compare different SCF algorithms (no spin, temperature)" begin
+@testitem "Compare different SCF algorithms (no spin, temperature)" #=
+    =#    tags=[:core] setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
+
     Ecut = 3
     fft_size = [9, 9, 9]
     tol = 1e-7
@@ -108,9 +118,10 @@ end
     ρ0    = guess_density(basis)
     ρ_ref = self_consistent_field(basis; ρ=ρ0, tol).ρ
 
-    for mixing in (KerkerDosMixing(), HybridMixing(RPA=true), LdosMixing(RPA=false),
-                   HybridMixing(εr=10, RPA=true), )
-        @testset "Testing $mixing" begin
+    for mixing_str in ("KerkerDosMixing()", "HybridMixing(RPA=true)",
+                       "LdosMixing(RPA=false)", "HybridMixing(εr=10, RPA=true)")
+        @testset "Testing $mixing_str" begin
+            mixing = eval(Meta.parse(mixing_str))
             ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8).ρ
             @test maximum(abs, ρ_mix - ρ_ref) < 5tol
         end
@@ -118,7 +129,12 @@ end
 end
 
 
-@testset "Compare different SCF algorithms (collinear spin, temperature)" begin
+@testitem "Compare different SCF algorithms (collinear spin, temperature)" #=
+    =#    tags=[:core] setup=[TestCases] begin
+    using DFTK
+    using DFTK: Applyχ0Model
+    iron_bcc = TestCases.iron_bcc
+
     fft_size = [13, 13, 13]
     tol = 1e-7
 
@@ -132,9 +148,10 @@ end
     scfres = self_consistent_field(basis; ρ=ρ0, tol)
     ρ_ref  = scfres.ρ
 
-    for mixing in (KerkerMixing(), KerkerDosMixing(), DielectricMixing(εr=10),
-                   HybridMixing(εr=10), χ0Mixing(; χ0terms=[Applyχ0Model()], RPA=false))
-        @testset "Testing $mixing" begin
+    for mixing_str in ("KerkerMixing()", "KerkerDosMixing()", "DielectricMixing(εr=10)",
+                       "HybridMixing(εr=10)", "χ0Mixing(; χ0terms=[Applyχ0Model()], RPA=false)")
+        @testset "Testing $mixing_str" begin
+            mixing = eval(Meta.parse(mixing_str))
             scfres = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8)
             @test maximum(abs, scfres.ρ - ρ_ref) < 5tol
         end
