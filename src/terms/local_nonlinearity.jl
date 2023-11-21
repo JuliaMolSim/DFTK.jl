@@ -28,10 +28,8 @@ function compute_kernel(term::TermLocalNonlinearity, ::AbstractBasis{T}; ρ, kwa
     Diagonal(vec(convert_dual.(T, fpp.(ρ))))
 end
 
-function apply_kernel(term::TermLocalNonlinearity, ::AbstractBasis{T}, δρ; ρ,
-                      q=zero(Vec3{T}), kwargs...) where {T}
+function apply_kernel(term::TermLocalNonlinearity, ::AbstractBasis, δρ; ρ, kwargs...)
     fp(ρ) = ForwardDiff.derivative(term.f, ρ)
     fpp(ρ) = ForwardDiff.derivative(fp, ρ)
-    S = iszero(q) ? T : complex(T)
-    convert_dual.(S, fpp.(ρ) .* δρ)
+    convert_dual.(eltype(δρ), fpp.(ρ) .* δρ)
 end

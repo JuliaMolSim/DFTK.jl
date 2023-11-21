@@ -70,12 +70,12 @@ function apply_kernel(term::TermHartree, basis::PlaneWaveBasis{T}, δρ; q=zero(
                       kwargs...) where {T}
     δV = zero(δρ)
     δρtot = total_density(δρ)
-    # note broadcast here: δV is 4D, and all its spin components get the same potential
-    if iszero(q)
+    coeffs = if iszero(q)
         # We have the information in memory.
-        coeffs = term.poisson_green_coeffs
+        term.poisson_green_coeffs
     else
-        coeffs = coeffs_poisson_hartree(basis, term.scaling_factor; q)
+        coeffs_poisson_hartree(basis, term.scaling_factor; q)
     end
-    δV .= ifft(basis, coeffs .* fft(basis, δρtot); real=iszero(q))
+    # Note broadcast here: δV is 4D, and all its spin components get the same potential.
+    δV .= ifft(eltype(δV), basis, coeffs .* fft(basis, δρtot))
 end

@@ -18,7 +18,7 @@
     atoms = [X for _ in positions]
 
     model = Model(lattice, atoms, positions; n_electrons=n_atoms, symmetries=false,
-                    spin_polarization=:collinear)
+                  spin_polarization=:collinear)
     kgrid = rand(2:10, 3)
     k1, k2, k3 = kgrid
     basis = PlaneWaveBasis(model; Ecut=100, kgrid)

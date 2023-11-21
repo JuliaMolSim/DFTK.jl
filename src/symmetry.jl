@@ -314,14 +314,11 @@ function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmet
     ρ
 end
 
-# TODO: ÉTIENNE: Power-user option, so we keep the second line from the documentation?
 """
 Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
-By default, it uses a real inverse Fourier transform; for compatibility with phonon
-computations we enable the possibility to use its complex version.
 """
-@views @timing function symmetrize_ρ(basis, ρ; symmetries=basis.symmetries, do_lowpass=true,
-                                     real=true)
+@views @timing function symmetrize_ρ(basis, ρ::AbstractArray{T}; symmetries=basis.symmetries,
+                                     do_lowpass=true) where {T}
     ρin_fourier  = to_cpu(fft(basis, ρ))
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρ, 4)
@@ -329,7 +326,7 @@ computations we enable the possibility to use its complex version.
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
         do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
-    ifft(basis, to_device(basis.architecture, ρout_fourier ./ length(symmetries)); real)
+    ifft(T, basis, to_device(basis.architecture, ρout_fourier) ./ length(symmetries))
 end
 
 """

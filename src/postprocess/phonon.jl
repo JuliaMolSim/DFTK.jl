@@ -13,8 +13,8 @@ function dynmat_red_to_cart(model::Model, dynamical_matrix)
     #   ⇒ D_cart = lattice⁻ᵀ · D_red · lattice⁻¹.
 
     cart_mat = zero.(dynamical_matrix)
-    for τ = 1:size(cart_mat, 2), η = 1:size(cart_mat, 4)
-        cart_mat[:, η, :, τ] = inv_lattice' * dynamical_matrix[:, η, :, τ] * inv_lattice
+    for s = 1:size(cart_mat, 2), β = 1:size(cart_mat, 4)
+        cart_mat[:, β, :, s] = inv_lattice' * dynamical_matrix[:, β, :, s] * inv_lattice
     end
     cart_mat
 end
@@ -29,9 +29,9 @@ function get_masses(basis::PlaneWaveBasis{T}) where {T}
     atoms_mass = atomic_mass.(model.atoms)
     any(iszero.(atoms_mass)) && @error "Some elements have unknown masses"
     masses = zeros(T, 3, n_atoms, 3, n_atoms)
-    for τ in eachindex(atoms_mass)
-        masses_τ = @view masses[:, τ, :, τ]
-        masses_τ[diagind(masses_τ)] .= atoms_mass[τ]
+    for s in eachindex(atoms_mass)
+        masses_s = @view masses[:, s, :, s]
+        masses_s[diagind(masses_s)] .= atoms_mass[s]
     end
     masses
 end
@@ -63,9 +63,10 @@ Compute the dynamical matrix in the form of a ``3×n_{\rm atoms}×3×n_{\rm atom
 in reduced coordinates.
 """
 @timing function compute_dynmat(basis::PlaneWaveBasis{T}, ψ, occupation; q=zero(Vec3{T}),
-                                ρ=nothing, kwargs...) where {T}
+                                ρ=nothing, ham=nothing, εF=nothing, eigenvalues=nothing,
+                                kwargs...) where {T}
     is_perturbation_needed = any(t -> isa(t, TermAtomicLocal) ||
-                                       isa(t, TermAtomicNonlocal), basis.terms)
+                                      isa(t, TermAtomicNonlocal), basis.terms)
     δψs = nothing
     δρs = nothing
     δoccupations = nothing
@@ -75,19 +76,20 @@ in reduced coordinates.
         n_atoms = length(positions)
         n_dim = model.n_dim
 
-        δHψs = compute_δHψ(basis, ψ, occupation; q)
+        δHψs = compute_δHψ(basis, ψ; q)
         δρs = Array{Array{complex(eltype(basis)), 4}, 2}(undef, 3, n_atoms)
-        for τ in 1:n_atoms, γ in 1:3
-            δρs[γ, τ] = zeros(T, basis.fft_size..., basis.model.n_spin_components)
+        for s = 1:n_atoms, α = 1:3
+            δρs[α, s] = zeros(T, basis.fft_size..., basis.model.n_spin_components)
         end
-        δoccupations = [zero.(occupation) for _ in 1:3, _ in 1:n_atoms]
-        δψs = [zero.(ψ) for _ in 1:3, _ in 1:n_atoms]
-        for τ in 1:n_atoms, γ in 1:n_dim
-            δψ, δρ, δoccupation = solve_ΩplusK_split(basis, ψ, -δHψs[γ, τ], occupation; q,
-                                                     kwargs...)
-            δoccupations[γ, τ] = δoccupation
-            δρs[γ, τ] = δρ
-            δψs[γ, τ] = δψ
+        δoccupations = [zero.(occupation) for _ = 1:3, _ = 1:n_atoms]
+        δψs = [zero.(ψ) for _ = 1:3, _ = 1:n_atoms]
+        for s = 1:n_atoms, α = 1:n_dim
+            (; δψ, δρ, δoccupation) = solve_ΩplusK_split(ham, ρ, ψ, occupation, εF,
+                                                         eigenvalues, -δHψs[α, s]; q,
+                                                         kwargs...)
+            δoccupations[α, s] = δoccupation
+            δρs[α, s] = δρ
+            δψs[α, s] = δψ
         end
     end
 
@@ -106,20 +108,19 @@ function compute_dynmat_cart(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
 end
 
 function compute_dynmat(scfres::NamedTuple; kwargs...)
-    compute_dynmat(scfres.basis, scfres.ψ, scfres.occupation;
-                   scfres.ρ, scfres.occupation_threshold, kwargs...)
+    compute_dynmat(scfres.basis, scfres.ψ, scfres.occupation; scfres.ρ, scfres.ham,
+                   scfres.occupation_threshold, scfres.εF, scfres.eigenvalues, kwargs...)
 end
 
 function compute_dynmat_cart(scfres; kwargs...)
-    compute_dynmat_cart(scfres.basis, scfres.ψ, scfres.occupation;
-                        scfres.ρ, scfres.occupation_threshold, kwargs...)
+    compute_dynmat_cart(scfres.basis, scfres.ψ, scfres.occupation; scfres.ρ, scfres.ham,
+                        scfres.occupation_threshold, scfres.εF, scfres.eigenvalues, kwargs...)
 end
 
 """
 Assemble the right-hand side term for the Sternheimer equation for all relevant quantities.
 """
-@timing function compute_δHψ(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
-    δHψ_per_term = [compute_δHψ(term, basis, ψ, occupation; kwargs...)
-                    for term in basis.terms]
+@timing function compute_δHψ(basis::PlaneWaveBasis, ψ; kwargs...)
+    δHψ_per_term = [compute_δHψ(term, basis, ψ; kwargs...) for term in basis.terms]
     sum(filter(!isnothing, δHψ_per_term))
 end

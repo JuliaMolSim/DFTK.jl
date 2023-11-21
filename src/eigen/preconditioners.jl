@@ -72,9 +72,8 @@ ldiv!(P::PreconditionerTPA, R) = ldiv!(R, P, R)
 end
 (Base.:*)(P::PreconditionerTPA, R) = mul!(copy(R), P, R)
 
-function precondprep!(P::PreconditionerTPA, X; normalize=false)
+function precondprep!(P::PreconditionerTPA, X::AbstractArray)
     P.mean_kin = [real(dot(x, Diagonal(P.kin), x)) for x in eachcol(X)]
-    if normalize
-        P.mean_kin ./= dot(X, X)
-    end
 end
+precondprep!(P::PreconditionerTPA, ::Nothing) = one.(P.mean)  # fallback for edge cases
+

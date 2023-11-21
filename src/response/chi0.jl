@@ -170,12 +170,8 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     end
     precon = PreconditionerTPA(basis, kpoint)
     # First column of ψk as there is no natural kinetic energy.
-    if size(ψk, 2) ≥ 1
-        precondprep!(precon, ψk[:, 1])
-    else
-        # We take care of the (rare) cases when ψk is empty.
-        precondprep!(precon, rhs; normalize=true)
-    end
+    # We take care of the (rare) cases when ψk is empty.
+    precondprep!(precon, size(ψk, 2) ≥ 1 ? ψk[:, 1] : nothing)
     function R_ldiv!(x, y)
         x .= R(precon \ R(y))
     end
@@ -337,9 +333,8 @@ function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ, εp=ε;
             end
 
             # Sternheimer contribution
-            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εpk[n], δHψ[ik][:, n];
-                                             ψk_extra, εk_extra, Hψk_extra,
-                                             kwargs_sternheimer...)
+            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εpk[n], δHψ[ik][:, n]; ψk_extra,
+                                             εk_extra, Hψk_extra, kwargs_sternheimer...)
         end
     end
 end
@@ -358,23 +353,22 @@ end
     # non-necessarily converged, to split the sternheimer_solver with a Schur
     # complement.
     occ_thresh = occupation_threshold
-
     mask_occ   = map(occk -> findall(occnk -> abs(occnk) ≥ occ_thresh, occk), occupation)
     mask_extra = map(occk -> findall(occnk -> abs(occnk) < occ_thresh, occk), occupation)
 
-    δHψ_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
     ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
+    ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
+    δHψ_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
     # Only needed for phonon calculations.
-    εp_occ   = ordering([eigenvalues[ip][maskp] for (ip, maskp) in enumerate(mask_occ)])
-    ε_occ   = [eigenvalues[ip][maskp] for (ip, maskp) in enumerate(mask_occ)]
+    εp_occ  = ordering([eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)])
 
     # First we compute δoccupation. We only need to do this for the actually occupied
     # orbitals. So we make a fresh array padded with zeros, but only alter the elements
     # corresponding to the occupied orbitals. (Note both compute_δocc! and compute_δψ!
     # assume that the first array argument has already been initialised to zero).
-    # For phonon calculations whene q≠0, we do not use δoccupation, and compute directly the
-    # full perturbation δψ.
+    # For phonon calculations when q ≠ 0, we do not use δoccupation, and compute directly
+    # the full perturbation δψ.
     δoccupation = zero.(occupation)
     if iszero(q)
         δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
@@ -408,29 +402,28 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV::AbstractArray{T};
 
     # Make δV respect the basis symmetry group, since we won't be able
     # to compute perturbations that don't anyway
-    δV = symmetrize_ρ(basis, δV; real=iszero(q))
+    δV = symmetrize_ρ(basis, δV)
 
     # Normalize δV to avoid numerical trouble; theoretically should
     # not be necessary, but it simplifies the interaction with the
     # Sternheimer linear solver (it makes the rhs be order 1 even if
     # δV is small)
     normδV = norm(δV)
-    normδV < eps(eltype(basis)) && return δρ=zero(δV)
+    normδV < eps(eltype(basis)) && return zero(δV)
     δV ./= normδV
 
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
-    δHψ = compute_δVψk(basis, q, ψ, δV)
+    δHψ = multiply_by_blochwave(basis, ψ, δV, q)
     (; δψ, δoccupation) = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                       occupation_threshold, q, kwargs_sternheimer...)
 
-    δρ = compute_analytical_δρ(basis, ψ, δψ, occupation, δoccupation;
-                               occupation_threshold, q)
+    δρ = compute_δρ(basis, ψ, δψ, occupation, δoccupation; occupation_threshold, q)
 
     δρ * normδV
 end
 
-function apply_χ0(scfres, δV; kwargs...)
+function apply_χ0(scfres, δV; kwargs_sternheimer...)
     apply_χ0(scfres.ham, scfres.ψ, scfres.occupation, scfres.εF, scfres.eigenvalues, δV;
-             scfres.occupation_threshold, kwargs...)
+             scfres.occupation_threshold, kwargs_sternheimer...)
 end

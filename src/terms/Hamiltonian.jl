@@ -162,7 +162,7 @@ end
        end
     end
 
-    # Apply the nonlocal operator
+    # Apply the nonlocal operator.
     if !isnothing(H.nonlocal_op)
         @timing "nonlocal" begin
             apply!((; fourier=Hψ, real=nothing),

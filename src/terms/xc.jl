@@ -384,8 +384,7 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs..
 
     # If the XC functional is not supported for an architecture, terms is on the CPU
     terms = kernel_terms(term.functionals, density)
-    Tδρ = eltype(δρ)
-    δV = Tδρ.(zero.(ρ))  # [ix, iy, iz, iσ]
+    δV = zeros(eltype(δρ), size(ρ)...)  # [ix, iy, iz, iσ]
 
     Vρρ = to_device(basis.architecture, reshape(terms.Vρρ, n_spin, n_spin, basis.fft_size...))
     @views for s = 1:n_spin, t = 1:n_spin  # LDA term

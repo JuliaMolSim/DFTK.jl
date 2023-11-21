@@ -148,17 +148,15 @@ function compute_dynmat(term::TermPairwisePotential, basis::PlaneWaveBasis{T}, �
     symbols = Symbol.(atomic_symbol.(model.atoms))
 
     dynmat = zeros(complex(T), 3, n_atoms, 3, n_atoms)
-    for τ = 1:n_atoms
-        for γ = 1:n_dim
-            displacement = zero.(model.positions)
-            displacement[τ] = setindex(displacement[τ], one(T), γ)
-            dynmat[:, :, γ, τ] = -ForwardDiff.derivative(zero(T)) do ε
-                ph_disp = ε .* displacement
-                (; forces) = energy_forces_pairwise(model.lattice, symbols, model.positions,
-                                                    term.V, term.params, q, ph_disp;
-                                                    term.max_radius)
-                reduce(hcat, forces)
-            end
+    for s = 1:n_atoms, α = 1:n_dim
+        displacement = zero.(model.positions)
+        displacement[s] = setindex(displacement[s], one(T), α)
+        dynmat[:, :, α, s] = -ForwardDiff.derivative(zero(T)) do ε
+            ph_disp = ε .* displacement
+            (; forces) = energy_forces_pairwise(model.lattice, symbols, model.positions,
+                                                term.V, term.params, q, ph_disp;
+                                                term.max_radius)
+            reduce(hcat, forces)
         end
     end
     dynmat

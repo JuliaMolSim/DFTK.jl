@@ -154,7 +154,7 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 end
 function build_kpoints(basis::PlaneWaveBasis, kcoords)
     build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut;
-                  variational=basis.variational, basis.architecture)
+                  basis.variational, basis.architecture)
 end
 
 # Lowest-level constructor, should not be called directly.

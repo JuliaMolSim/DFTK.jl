@@ -185,10 +185,7 @@ Find the equivalent index of the coordinate `kcoord` ∈ ℝ³ in a list `kcoord
 `ΔG` is the vector of ℤ³ such that `kcoords[index] = kcoord + ΔG`.
 """
 function find_equivalent_kpt(basis::PlaneWaveBasis{T}, kcoord, spin; tol=sqrt(eps(T))) where {T}
-    kcoord_red = map(kcoord) do k
-                     k = mod(k, 1)              # coordinate in [0, 1)³
-                     k ≥ 0.5 - tol ? k - 1 : k  # coordinate in [-½, ½)³
-                 end
+    kcoord_red = normalize_kpoint_coordinate(kcoord .+ eps(T))
 
     ΔG = kcoord_red - kcoord
     # ΔG should be an integer.
@@ -230,13 +227,37 @@ hence
 """
 function shift_kplusq(basis, kpt, q, ψk)
     kcoord_plus_q = kpt.coordinate .+ q
-    kpts_plus_q = build_kpoints(basis, [kcoord_plus_q])
-    @assert length(kpts_plus_q) == basis.model.n_spin_components
-    # If we have 2 spin components, we obtain pairs of k-points that have only different
-    # spin number.
-    kpt_plus_q = kpts_plus_q[1]
     index, ΔG = find_equivalent_kpt(basis, kcoord_plus_q, kpt.spin)
     equiv_kpt_plus_q = basis.kpoints[index]
 
+    kpt_plus_q = build_kpoints(basis, [kcoord_plus_q])[kpt.spin]
     transfer_blochwave_kpt(ψk, basis, equiv_kpt_plus_q, kpt_plus_q, -ΔG)
+end
+
+# Replaces `multiply_by_expiqr`.
+# TODO: Think about a clear and consistent way to define such a function when completing
+# phonon PRs.
+"""
+Return the Fourier coefficients for ``f_{q} ψ_{k-q}`` in the basis of `k`-points, where
+``f`` is a real function.
+"""
+function multiply_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
+    equiv_kpoints_minus_q = k_to_kpq_mapping(basis, -q)
+    ordering(kdata) = kdata[equiv_kpoints_minus_q]
+    # First, express ψ_{[k-q]} in the basis of k-q points…
+    ψ_shifted = [shift_kplusq(basis, kpt, -q, ψk)
+                 for (kpt, ψk) in zip(basis.kpoints, ordering(ψ))]
+    # … then perform the multiplication with f in real space and get the Fourier
+    # coefficients.
+    fψ = zero.(ψ)
+    for (ik, kpt) in enumerate(basis.kpoints)
+        kcoord_minus_q = kpt.coordinate - q
+        kpt_minus_q = build_kpoints(basis, [kcoord_minus_q])[1]
+        for n = 1:size(ψ[ik], 2)
+            fψ[ik][:, n] = fft(basis, kpt,
+                               ifft(basis, kpt_minus_q,
+                                    ψ_shifted[ik][:, n]) .* f_real[:, :, :, kpt.spin])
+        end
+    end
+    fψ
 end

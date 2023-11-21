@@ -62,8 +62,8 @@ breaks_symmetries(::Anyonic) = true
 compute_forces(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
 # dynamical matrix for phonons computations (array dynmat[3, n_atom, 3, n_atom])
 compute_dynmat(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
-# variation of the rhs for phonons computations
-compute_δHψ(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
+# variation of the Hamiltonian applied to orbitals for phonons computations
+compute_δHψ(::Term, ::AbstractBasis, ψ; kwargs...) = nothing
 
 @doc raw"""
     compute_kernel(basis::PlaneWaveBasis; kwargs...)

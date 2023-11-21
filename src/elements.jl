@@ -16,13 +16,12 @@ charge_nuclear(::Element) = 0
 
 """Chemical symbol corresponding to an element"""
 AtomsBase.atomic_symbol(::Element) = :X
-# The preceeding functions are fallback implementations that should be altered as needed.
 
 """Return the total ionic charge of an atom type (nuclear charge - core electrons)"""
 charge_ionic(el::Element) = charge_nuclear(el)
 
 """Return the atomic mass in a.u. of an atom type"""
-atomic_mass(::Element) = 0
+atomic_mass(el::Element) = ustrip(periodic_table[el.Z].atomic_mass) * dalton_to_au
 
 """Return the number of valence electrons"""
 n_elec_valence(el::Element) = charge_ionic(el)
@@ -32,6 +31,7 @@ n_elec_core(el::Element) = charge_nuclear(el) - charge_ionic(el)
 
 """Check presence of model core charge density (non-linear core correction)."""
 has_core_density(::Element) = false
+# The preceeding functions are fallback implementations that should be altered as needed.
 
 # Fall back to the Gaussian table for Elements without pseudopotentials
 function valence_charge_density_fourier(el::Element, q::T)::T where {T <: Real}
@@ -58,7 +58,6 @@ end
 charge_ionic(el::ElementCoulomb)   = el.Z
 charge_nuclear(el::ElementCoulomb) = el.Z
 AtomsBase.atomic_symbol(el::ElementCoulomb) = el.symbol
-atomic_mass(el::ElementCoulomb) = ustrip(periodic_table[el.Z].atomic_mass) * dalton_to_au
 
 """
 Element interacting with electrons via a bare Coulomb potential
@@ -102,7 +101,6 @@ charge_ionic(el::ElementPsp) = charge_ionic(el.psp)
 charge_nuclear(el::ElementPsp) = el.Z
 has_core_density(el::ElementPsp) = has_core_density(el.psp)
 AtomsBase.atomic_symbol(el::ElementPsp) = el.symbol
-atomic_mass(el::ElementPsp) = ustrip(periodic_table[el.Z].atomic_mass) * dalton_to_au
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
     q == 0 && return zero(T)  # Compensating charge background
@@ -134,8 +132,6 @@ end
 charge_ionic(el::ElementCohenBergstresser)   = 4
 charge_nuclear(el::ElementCohenBergstresser) = el.Z
 AtomsBase.atomic_symbol(el::ElementCohenBergstresser) = el.symbol
-atomic_mass(el::ElementCohenBergstresser) = ustrip(periodic_table[el.Z].atomic_mass) *
-                                              dalton_to_au
 
 """
 Element where the interaction with electrons is modelled
@@ -198,8 +194,7 @@ struct ElementGaussian <: Element
     symbol::Symbol  # Element symbol
 end
 AtomsBase.atomic_symbol(el::ElementGaussian) = el.symbol
-# We default to 1 amu.
-atomic_mass(::ElementGaussian) = dalton_to_amu
+atomic_mass(::ElementGaussian) = dalton_to_au  # We default to 1 a.u.
 
 """
 Element interacting with electrons via a Gaussian potential.

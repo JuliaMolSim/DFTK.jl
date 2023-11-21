@@ -25,7 +25,7 @@ function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, f_fourier::Abstrac
     f_real .*= basis.ifft_normalization
 end
 function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                 kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
+               kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
     @assert length(f_fourier) == length(kpt.mapping)
     @assert size(f_real) == basis.fft_size
 
@@ -46,26 +46,29 @@ Perform an iFFT to obtain the quantity defined by `f_fourier` defined
 on the k-dependent spherical basis set (if `kpt` is given) or the
 k-independent cubic (if it is not) on the real-space grid.
 """
-function ifft(basis::PlaneWaveBasis, f_fourier::AbstractArray; real=false)
-    real && return irfft(basis, f_fourier)
+function ifft(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray) where {T}
+    # The barrier simplify flow for phonon that often need complex arrays where standard
+    # computations expect real ones.
+    ifft(eltype(f_fourier), basis, f_fourier)
+end
+function ifft(T, basis::PlaneWaveBasis, f_fourier::AbstractArray)
     f_real = similar(f_fourier)
     @assert length(size(f_fourier)) ∈ (3, 4)
     # this exploits trailing index convention
     for iσ = 1:size(f_fourier, 4)
         @views ifft!(f_real[:, :, :, iσ], basis, f_fourier[:, :, :, iσ])
     end
-    f_real
+    force_type(T, f_real)
 end
 function ifft(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
     ifft!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
 end
-
 """
 Perform a real valued iFFT; see [`ifft`](@ref). Note that this function
 silently drops the imaginary part.
 """
 function irfft(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray) where {T}
-    real(ifft(basis, f_fourier))
+    ifft(real(eltype(f_fourier)), basis, f_fourier)
 end
 
 
@@ -81,7 +84,7 @@ function fft!(f_fourier::AbstractArray3, basis::PlaneWaveBasis, f_real::Abstract
     f_fourier .*= basis.fft_normalization
 end
 function fft!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
-                 kpt::Kpoint, f_real::AbstractArray3; normalize=true)
+              kpt::Kpoint, f_real::AbstractArray3; normalize=true)
     @assert size(f_real) == basis.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
 

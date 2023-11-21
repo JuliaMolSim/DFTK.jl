@@ -185,7 +185,7 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
 end
 
 # TODO: See if there is a way to express this with AD.
-function dynmat_ewald_recip(model::Model{T}, τ, σ; η, q=zero(Vec3{T})) where {T}
+function dynmat_ewald_recip(model::Model{T}, s, t; η, q=zero(Vec3{T})) where {T}
     # Numerical cutoffs to obtain meaningful contributions. These are very conservative.
     # The largest argument to the exp(-x) function
     max_exp_arg = -log(eps(T)) + 5  # add some wiggle room
@@ -201,25 +201,25 @@ function dynmat_ewald_recip(model::Model{T}, τ, σ; η, q=zero(Vec3{T})) where 
     charges   = T.(charge_ionic.(model.atoms))
     positions = model.positions
     @assert length(charges) == length(positions)
-    pτ = positions[τ]
-    pσ = positions[σ]
+    ps = positions[s]
+    pt = positions[t]
 
     dynmat_recip = zeros(complex(T), length(q), length(q))
     for G1 in -Glims[1]:Glims[1], G2 in -Glims[2]:Glims[2], G3 in -Glims[3]:Glims[3]
         G = Vec3(G1, G2, G3)
         if !iszero(G + q)
             Gsqq = sum(abs2, recip_lattice * (G + q))
-            term = exp(-Gsqq / 4η^2) / Gsqq * charges[σ] * charges[τ]
-            term *= cis2pi(dot(G + q, pσ - pτ))
+            term = exp(-Gsqq / 4η^2) / Gsqq * charges[t] * charges[s]
+            term *= cis2pi(dot(G + q, pt - ps))
             term *= (2T(π) * (G + q)) * transpose(2T(π) * (G + q))
             dynmat_recip += term
         end
 
-        (iszero(G) || σ ≢ τ) && continue
+        (iszero(G) || t ≢ s) && continue
         Gsq = sum(abs2, recip_lattice * G)
 
-        strucfac = sum(Z * cos2pi(dot(pσ - r, G)) for (r, Z) in zip(positions, charges))
-        dsum = charges[σ] * strucfac
+        strucfac = sum(Z * cos2pi(dot(pt - r, G)) for (r, Z) in zip(positions, charges))
+        dsum = charges[t] * strucfac
         dsum *= (2T(π) * G) * transpose(2T(π) * G)
         dynmat_recip -= exp(-Gsq / 4η^2) / Gsq * dsum
     end
@@ -238,25 +238,21 @@ function compute_dynmat(ewald::TermEwald, basis::PlaneWaveBasis{T}, ψ, occupati
 
     dynmat = zeros(complex(T), n_dim, n_atoms, n_dim, n_atoms)
     # Real part
-    for τ = 1:n_atoms
-        for γ = 1:n_dim
-            displacement = zero.(model.positions)
-            displacement[τ] = setindex(displacement[τ], one(T), γ)
-            real_part = -ForwardDiff.derivative(zero(T)) do ε
-                ph_disp = ε .* displacement
-                forces = energy_forces_ewald(model.lattice, charges, model.positions,
-                                             q, ph_disp; ewald.η).forces
-                reduce(hcat, forces)
-            end
-
-            dynmat[:, :, γ, τ] = real_part[1:n_dim, :]
+    for s = 1:n_atoms, α = 1:n_dim
+        displacement = zero.(model.positions)
+        displacement[s] = setindex(displacement[s], one(T), α)
+        real_part = -ForwardDiff.derivative(zero(T)) do ε
+            ph_disp = ε .* displacement
+            forces = energy_forces_ewald(model.lattice, charges, model.positions,
+                                            q, ph_disp; ewald.η).forces
+            reduce(hcat, forces)
         end
+
+        dynmat[:, :, α, s] = real_part[1:n_dim, :]
     end
     # Reciprocal part
-    for τ = 1:n_atoms
-        for σ = 1:n_atoms
-            dynmat[:, σ, :, τ] += dynmat_ewald_recip(model, σ, τ; ewald.η, q)
-        end
+    for s = 1:n_atoms, t = 1:n_atoms
+        dynmat[:, t, :, s] += dynmat_ewald_recip(model, t, s; ewald.η, q)
     end
     dynmat
 end

@@ -147,11 +147,10 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
     @assert size(rhs[1]) == size(ψ[1])  # Assume the same number of bands in ψ and rhs
 
     # compute δρ0 (ignoring interactions)
-    δψ0, δoccupation0, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
-                                         tol=tol_sternheimer, occupation_threshold,
-                                         q, kwargs...)  # = -χ04P * rhs
-    δρ0 = compute_analytical_δρ(basis, ψ, δψ0, occupation, δoccupation0;
-                                occupation_threshold, q)
+    δψ0, δoccupation0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
+                                    tol=tol_sternheimer, occupation_threshold, q,
+                                    kwargs...)  # = -χ04P * rhs
+    δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0; occupation_threshold, q)
 
     # compute total δρ
     pack(δρ)   = vec(δρ)
@@ -174,7 +173,7 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
     δVind = apply_kernel(basis, δρ; ρ, q)  # Change in potential induced by δρ
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
-    δHψ = compute_δVψk(basis, q, ψ, δVind) - rhs
+    δHψ = multiply_by_blochwave(basis, ψ, δVind, q) - rhs
 
     # Compute total change in eigenvalues
     δeigenvalues = map(ψ, δHψ) do ψk, δHψk
@@ -183,22 +182,13 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
         end
     end
 
-    δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                                       occupation_threshold, tol=tol_sternheimer,
-                                       q, kwargs...)
+    (; δψ, δoccupation, δεF) = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                                           occupation_threshold, tol=tol_sternheimer, q,
+                                           kwargs...)
     # Note that the δρ that is computed above should be equal to the one computed from δψ
     # with `compute_analytical_δρ`.
 
-    (; δψ, δρ, δoccupation, δHψ, δVind, δeigenvalues, δεF, history)
-end
-
-function solve_ΩplusK_split(basis::PlaneWaveBasis, ψ, rhs, occupation; kwargs...)
-    ρ = compute_density(basis, ψ, occupation)
-    H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
-    eigenvalues = [real.(eigvals(ψk'Hψk)) for (ψk, Hψk) in zip(ψ, H * ψ)]
-    occupation, εF = compute_occupation(basis, eigenvalues)
-
-    solve_ΩplusK_split(H, ρ, ψ, occupation, εF, eigenvalues, rhs; kwargs...)
+    (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, history)
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
