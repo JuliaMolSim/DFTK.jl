@@ -45,7 +45,7 @@ function guess_density(basis::PlaneWaveBasis, system::AbstractSystem,
         "System positions do not match model positions")
     # TODO: assuming here that the model and system atoms are identical. Cannot check this
     # TODO: because we parse the system separately from the parsing done by the Model
-    # TODO: constructor, so the pseudopotentials (if present) are not identical in memory 
+    # TODO: constructor, so the pseudopotentials (if present) are not identical in memory
     atomic_density(basis, ValenceDensityAuto(), parsed_system.magnetic_moments, n_electrons)
 end
 

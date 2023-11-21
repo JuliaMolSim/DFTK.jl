@@ -22,7 +22,7 @@ has_core_density(psp::PspHgh) = false
 Construct a Hartwigsen, Goedecker, Teter, Hutter separable dual-space Gaussian
 pseudopotential (1998) from file.
 """
-function PspHgh(path; identifier=path)
+function PspHgh(path; identifier=path, kwargs...)
     lines = readlines(path)
     description = lines[1]
 
