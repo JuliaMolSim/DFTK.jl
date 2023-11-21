@@ -23,11 +23,9 @@ lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]];
 
 # which is special cased in DFTK to support 1D models.
 #
-# For the potential term `V` we just pick a harmonic
-# potential. The real-space grid is in ``[0,1)``
-# in fractional coordinates( see
-# [Lattices and lattice vectors](@ref conventions-lattice)),
-# therefore:
+# For the potential term `V` we pick a harmonic
+# potential. We use the function `ExternalFromReal` which uses 
+# cartesian coordinates ( see [Lattices and lattice vectors](@ref conventions-lattice)).
 pot(x) = (x - a/2)^2;
 
 # We setup each energy term in sequence: kinetic, potential and nonlinear term.
