@@ -28,7 +28,7 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
 
     fft_size = fill(grid_size, 3)
     fft_size = DFTK.next_working_fft_size(T, fft_size) # ad-hoc fix for buggy generic FFTs
-    Si = ElementPsp(silicon.atnum, psp=load_psp("hgh/lda/si-q4"))
+    Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
     atoms = [Si, Si]
 
     if spin_polarization == :collinear

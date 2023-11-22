@@ -30,13 +30,13 @@ end
     using DFTK: load_psp, charge_nuclear, charge_ionic, n_elec_core, n_elec_valence
     using DFTK: ElementPsp, local_potential_fourier, local_potential_real
 
-    el_by_name = ElementPsp("tungsten", psp=load_psp("hgh/lda/w-q6"))
+    el_by_name = ElementPsp("tungsten"; psp=load_psp("hgh/lda/w-q6"))
     @test el_by_name.Z == 74
     @test el_by_name.symbol == :W
-    el_by_number = ElementPsp(1, psp=load_psp("hgh/pbe/H-q1"))
+    el_by_number = ElementPsp(1; psp=load_psp("hgh/pbe/H-q1"))
     @test el_by_number.symbol == :H
 
-    element = ElementPsp("carbon", psp=load_psp("hgh/lda/C-q4"))
+    element = ElementPsp("carbon"; psp=load_psp("hgh/lda/C-q4"))
 
     @test element.Z == 6
     @test element.symbol == :C

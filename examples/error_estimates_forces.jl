@@ -23,8 +23,8 @@ using IterativeSolvers
 # ## Setup
 # We setup manually the ``{\rm TiO}_2`` configuration from
 # [Materials Project](https://materialsproject.org/materials/mp-2657/).
-Ti = ElementPsp(:Ti, psp=load_psp("hgh/lda/ti-q4.hgh"))
-O  = ElementPsp(:O, psp=load_psp("hgh/lda/o-q6.hgh"))
+Ti = ElementPsp(:Ti; psp=load_psp("hgh/lda/ti-q4.hgh"))
+O  = ElementPsp(:O; psp=load_psp("hgh/lda/o-q6.hgh"))
 atoms     = [Ti, Ti, O, O, O, O]
 positions = [[0.5,     0.5,     0.5],  # Ti
              [0.0,     0.0,     0.0],  # Ti

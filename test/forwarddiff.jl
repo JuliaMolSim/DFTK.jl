@@ -70,7 +70,7 @@ end
         pspmod = PspHgh(psp.Zion, rloc,
                         psp.cloc, psp.rp .+ [0, ε], psp.h;
                         psp.identifier, psp.description)
-        atoms = fill(ElementPsp(aluminium.atnum, psp=pspmod), length(aluminium.positions))
+        atoms = fill(ElementPsp(aluminium.atnum; psp=pspmod), length(aluminium.positions))
         model = model_LDA(Matrix{T}(aluminium.lattice), atoms, aluminium.positions,
                           temperature=1e-2, smearing=Smearing.Gaussian())
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
