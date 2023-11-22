@@ -69,7 +69,7 @@ Return the symmetries given an atomic structure with optionally designated magne
 on each of the atoms. The symmetries are determined using spglib.
 """
 @timing function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
-                                     tol_symmetry=SYMMETRY_TOLERANCE, check_symmetry=true)
+                                     tol_symmetry=SYMMETRY_TOLERANCE, check_symmetry=SYMMETRY_CHECK)
     spin_polarization = determine_spin_polarization(magnetic_moments)
     dimension   = count(!iszero, eachcol(lattice))
     if isempty(atoms) || dimension != 3
@@ -113,8 +113,9 @@ function symmetry_operations(system::AbstractSystem; kwargs...)
                         parsed.magnetic_moments; kwargs...)
 end
 
-function _check_symmetries(symmetries::AbstractVector{<:SymOp}, lattice, atom_groups, positions;
-                          tol_symmetry=SYMMETRY_TOLERANCE)
+@timing function _check_symmetries(symmetries::AbstractVector{<:SymOp},
+                                   lattice, atom_groups, positions;
+                                   tol_symmetry=SYMMETRY_TOLERANCE)
     # Check (W, w) maps atoms to equivalent atoms in the lattice
     for symop in symmetries
         W, w = symop.W, symop.w
@@ -166,6 +167,11 @@ function symmetries_preserving_kgrid(symmetries, kgrid::MonkhorstPack)
         # TODO Keeping this special casing from version of the code before refactor
         [one(SymOp)]
     else
+        # if k' = Rk
+        # then
+        #    R' = diag(kgrid) R diag(kgrid)^-1
+        # should be integer where
+
         # TODO This can certainly be improved by knowing this is an MP grid,
         #      see symmetries_preserving_rgrid below for ideas
         symmetries_preserving_kgrid(symmetries, reducible_kcoords(kgrid).kcoords)

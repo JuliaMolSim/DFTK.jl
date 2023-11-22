@@ -42,7 +42,7 @@ given the crystal symmetries `symmetries`. Returns the list of irreducible ``k``
 (fractional) coordinates, the associated weights and the new `symmetries` compatible with
 the grid.
 """
-function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
+function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0], check_symmetry=SYMMETRY_CHECK)
     all(isone, kgrid_size) && return bzmesh_uniform(kgrid_size; kshift)
     kgrid_size = Vec3{Int}(kgrid_size)
     kshift = Vec3{Rational{Int}}(kshift)
@@ -74,9 +74,18 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     # This happens because spglib actually fails for some non-ideal lattices, resulting
     # in *wrong results* being returned. See the discussion in
     # https://github.com/spglib/spglib/issues/101
+    if check_symmetry
+        _check_kpoint_reduction(symmetries, kgrid_size, kshift, k_all_reducible,
+                                kirreds, spg_mesh.grid_address)
+    end
+
+    (; kcoords=kirreds, kweights)
+end
+
+@timing function _check_kpoint_reduction(symmetries::AbstractVector{<: SymOp}, kgrid_size,
+                                         kshift, k_all_reducible, kirreds, grid_address)
     for (iks_reducible, k) in zip(k_all_reducible, kirreds), ikred in iks_reducible
-        grid = spg_mesh.grid_address
-        kred = (kshift .+ grid[ikred]) .// kgrid_size
+        kred = (kshift .+ grid_address[ikred]) .// kgrid_size
         found_mapping = any(symmetries) do symop
             # If the difference between kred and W' * k == W^{-1} * k
             # is only integer in fractional reciprocal-space coordinates, then
@@ -88,9 +97,9 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
                   "the irreducible kpoints. This points to a bug in spglib.")
         end
     end
-
-    (; kcoords=kirreds, kweights)
 end
+
+
 
 abstract type AbstractKgrid end
 
