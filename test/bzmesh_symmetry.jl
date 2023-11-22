@@ -21,6 +21,7 @@
 
         model_sym = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
         basis = PlaneWaveBasis(model_sym; Ecut=5, case...)
+        DFTK.check_group(basis.symmetries)
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10))
         ρ2 = scfres.ρ
         E2 = scfres.energies.total

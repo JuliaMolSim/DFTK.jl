@@ -5,24 +5,25 @@
 import Spglib
 
 function spglib_cell(lattice, atom_groups, positions, magnetic_moments)
-    offset  = 0
-    atoms   = zeros(Int, length(positions))
-    magmoms = zeros(length(positions))
-    arbitrary_spin = false
-    for (igroup, indices) in enumerate(atom_groups)
-        for iatom in indices
-            offset += 1
-            atoms[offset] = igroup
+    spg_atoms     = Int[]
+    spg_magmoms   = Float64[]
+    spg_positions = Vector{Float64}[]
 
-            if !isempty(magnetic_moments)
-                magmom = magnetic_moments[iatom]
-                magmoms[offset] = magmom[3]
-                !iszero(magmom[1:2]) && (arbitrary_spin = true)
-            end
+    arbitrary_spin = false
+    for (igroup, indices) in enumerate(atom_groups), iatom in indices
+        push!(spg_atoms, igroup)
+        push!(spg_positions, positions[iatom])
+
+        if isempty(magnetic_moments)
+            magmom = zeros(3)
+        else
+            magmom = magnetic_moments[iatom]
+            !iszero(magmom[1:2]) && (arbitrary_spin = true)
         end
+        push!(spg_magmoms, magmom[3])
     end
     @assert !arbitrary_spin
-    Spglib.SpglibCell(lattice, positions, atoms, magmoms)
+    Spglib.SpglibCell(lattice, spg_positions, spg_atoms, spg_magmoms)
 end
 function spglib_cell(system::AbstractSystem)
     parsed = parse_system(system)
