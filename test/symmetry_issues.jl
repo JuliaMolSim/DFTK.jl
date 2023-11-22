@@ -1,6 +1,5 @@
-# This file collects issues with respect to our symmetry determination,
-# which we collected and solved.
-
+# This file collects examples, where we had issues with symmetries (symmetry determination,
+# k-point reduction, etc.) which are now resolved. Should make sure we don't reintroduce bugs.
 
 @testitem "Symmetry issues" begin
     using DFTK

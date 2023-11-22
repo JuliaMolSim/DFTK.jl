@@ -139,10 +139,10 @@ on each of the atoms. The symmetries are determined using spglib.
     end
     symmetries
 end
-function symmetry_operations(system::AbstractSystem; tol_symmetry=SYMMETRY_TOLERANCE)
+function symmetry_operations(system::AbstractSystem; kwargs...)
     parsed = parse_system(system)
     symmetry_operations(parsed.lattice, parsed.atoms, parsed.positions,
-                        parsed.magnetic_moments; tol_symmetry)
+                        parsed.magnetic_moments; kwargs...)
 end
 
 function _check_symmetries(symmetries::AbstractVector{<:SymOp}, lattice, atom_groups, positions;
