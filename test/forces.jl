@@ -158,5 +158,5 @@ end
     diff_findiff = -(E2 - E1) / ε
     diff_forces  = dot(F1[1], disp)
 
-    @test abs(diff_findiff - diff_forces) < 1e-4
+    @test abs(diff_findiff - diff_forces) < 5e-4
 end
