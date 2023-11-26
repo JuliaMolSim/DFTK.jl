@@ -7,10 +7,11 @@ function parse_test_args()
 
     if :gpu in args
         base_tag = :gpu
-        excluded = Symbol[]
+        excluded = Symbol[:mpi]
     elseif :mpi in args
         base_tag = :mpi
-        excluded = Symbol[:dont_test_mpi]
+        excluded = Symbol[:dont_test_mpi, :gpu]
+        # TODO :dont_test_mpi added for backwards compatibility ... drop later
     else
         base_tag = :all
         excluded = Symbol[:gpu, :mpi]

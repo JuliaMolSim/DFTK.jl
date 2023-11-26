@@ -4,6 +4,9 @@
 
     using DFTK
     using Aqua
-    stale_deps = (ignore=[:Primes, ], )
-    Aqua.test_all(DFTK; ambiguities=false, piracy=false, stale_deps)
+    Aqua.test_all(DFTK;
+                  ambiguities=false,
+                  piracies=false,
+                  deps_compat=(check_extras=false, ),
+                  stale_deps=(ignore=[:Primes, ], ))
 end
