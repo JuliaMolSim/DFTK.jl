@@ -35,12 +35,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: julia-actions/setup-julia@v1
+      - name: "Setup Julia stable"
+        uses: julia-actions/setup-julia@v1
         with:
           version: '1.9'
           arch: x64
         if: ${{ matrix.mode == 'stable' }}
-      - uses: julia-actions/setup-julia@v1
+      - name: "Setup Julia nightly"
+        uses: julia-actions/setup-julia@v1
         with:
           version: 'nightly'
           arch: x64
