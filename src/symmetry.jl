@@ -162,7 +162,7 @@ function _check_symmetries(symmetries::AbstractVector{<:SymOp}, lattice, atom_gr
             for coord in group_positions
                 # If all elements of a difference in diffs is integer, then
                 # W * coord + w and pos are equivalent lattice positions
-                if !any(c -> is_approx_integer(W * coord + w - c; tol=tol_symmetry), group_positions)
+                if !any(c -> is_approx_integer(W * coord + w - c; atol=tol_symmetry), group_positions)
                     error("Issue in symmetry determination: Cannot map the atom at position " *
                           "$coord to another atom of the same element under the symmetry " *
                           "operation (W, w):\n($W, $w)")

@@ -1,4 +1,4 @@
-@testitem "Run examples" tags=[:example] begin
+@testitem "Run examples" tags=[:slow, :example] begin
     function list_examples()
         res = String[]
         for (root, dirs, files) in walkdir(joinpath(@__DIR__, "..", "examples"))

@@ -89,6 +89,9 @@ function AtomsBase.atomic_system(lattice::AbstractMatrix{<:Number},
         end
         if element isa ElementPsp
             kwargs[:pseudopotential] = element.psp.identifier
+            if element.psp isa PspUpf
+                kwargs[:pseudopotential_kwargs] = (; element.psp.rcut)
+            end
         elseif element isa ElementCoulomb
             kwargs[:pseudopotential] = ""
         elseif !(element isa ElementCoulomb)

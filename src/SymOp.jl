@@ -18,9 +18,9 @@
 #   (Uu)(G) = e^{i G τ} conj(u(-S^-1 G))
 
 # Tolerance to consider two atomic positions as equal (in relative coordinates).
-const SYMMETRY_TOLERANCE = 1e-5
+const SYMMETRY_TOLERANCE = convert(Float64, @load_preference("symmetry_tolerance", 1e-5))
 
-is_approx_integer(r; tol=SYMMETRY_TOLERANCE) = all(ri -> abs(ri - round(ri)) ≤ tol, r)
+is_approx_integer(r; atol=SYMMETRY_TOLERANCE) = all(ri -> abs(ri - round(ri)) ≤ atol, r)
 
 struct SymOp{T <: Real}
     # (Uu)(x) = u(W x + w) in real space
@@ -44,7 +44,7 @@ end
 
 Base.:(==)(op1::SymOp, op2::SymOp) = op1.W == op2.W && op1.w == op2.w
 function Base.isapprox(op1::SymOp, op2::SymOp; atol=SYMMETRY_TOLERANCE)
-    op1.W == op2.W && is_approx_integer(op1.w - op2.w; tol=atol)
+    op1.W == op2.W && is_approx_integer(op1.w - op2.w; atol)
 end
 Base.one(::Type{SymOp}) = one(SymOp{Bool})  # Not sure about this method
 Base.one(::Type{SymOp{T}}) where {T} = SymOp(Mat3{Int}(I), Vec3(zeros(T, 3)))
