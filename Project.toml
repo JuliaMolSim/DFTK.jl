@@ -51,9 +51,11 @@ UnitfulAtomic = "a7773ee8-282e-5fa2-be4e-bd808c38a91a"
 
 [weakdeps]
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [extensions]
 DFTKJSON3Ext = "JSON3"
+DFTKWriteVTK = "WriteVTK"
 
 [compat]
 AbstractFFTs = "1"
@@ -102,6 +104,7 @@ Statistics = "1"
 TimerOutputs = "0.5.12"
 Unitful = "1"
 UnitfulAtomic = "1"
+WriteVTK = "1"
 julia = "1.9"
 
 [extras]

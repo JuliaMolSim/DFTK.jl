@@ -237,14 +237,13 @@ function __init__()
     end
 
     # TODO Keep these requires for now as there are open PRs changing these files.
+    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"     include("external/jld2io.jl")
     @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80"    include("plotting.jl")
     @require wannier90_jll="c5400fa0-8d08-52c2-913f-1e3f656c1ce9" begin
         include("external/wannier90.jl")
     end
 
-    # TODO This caused trouble with MPI when used as ExtModule ... no idea why
-    @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" include("external/vtkio.jl")
-    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"     include("external/jld2io.jl")
+    # TODO Move out into extension module
     @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba"  begin
         include("workarounds/cuda_arrays.jl")
     end

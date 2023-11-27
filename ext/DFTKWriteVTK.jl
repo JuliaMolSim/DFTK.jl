@@ -1,5 +1,9 @@
-function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{:vts};
-                            save_ψ=false, extra_data=Dict{String,Any}())
+module DFTKWriteVTK
+using WriteVTK
+using DFTK
+
+function DFTK.save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{:vts};
+                                 save_ψ=false, extra_data=Dict{String,Any}())
     !mpi_master() && error(
         "This function should only be called on MPI master after the k-point data has " *
         "been gathered with `gather_kpts`."
@@ -49,4 +53,6 @@ function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{
     end
 
     only(WriteVTK.vtk_save(vtkfile))
+end
+
 end

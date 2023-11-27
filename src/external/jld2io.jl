@@ -1,25 +1,3 @@
-function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2"; keep=false, overwrite=false)
-    # TODO Save only every 30 minutes or so
-    function callback(info)
-        if info.n_iter == 1
-            isfile(filename) && !overwrite && error(
-                "Checkpoint $filename exists. Use 'overwrite=true' to force overwriting."
-            )
-        end
-        if info.stage == :finalize
-            if mpi_master() && !keep
-                isfile(filename) && rm(filename)  # Cleanup checkpoint
-            end
-        else
-            scfres = (; (k => v for (k, v) in pairs(info) if !startswith(string(k), "ρ"))...)
-            scfres = merge(scfres, (; ρ=info.ρout))
-            save_scfres(filename, scfres)
-        end
-        info
-    end
-end
-
-
 function save_scfres_master(file::AbstractString, scfres::NamedTuple, ::Val{:jld2})
     !mpi_master() && error(
         "This function should only be called on MPI master after the k-point data has " *
