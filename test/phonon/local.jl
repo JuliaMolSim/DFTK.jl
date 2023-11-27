@@ -58,7 +58,7 @@ function test_frequencies(testcase; ω_ref=nothing)
     scfres = self_consistent_field(basis; scf_kwargs...)
     ω_uc = sort!(reduce(vcat, map(qpoints) do q
         dynamical_matrix = compute_dynmat(scfres; q, tol=χ0_tol)
-        phonon_frequencies(basis, dynamical_matrix)
+        phonon_modes_cart(basis, dynamical_matrix).frequencies
     end))
 
     if !isnothing(ω_ref)
@@ -78,7 +78,7 @@ function test_frequencies(testcase; ω_ref=nothing)
 
     scfres = self_consistent_field(basis_supercell; scf_kwargs...)
     dynamical_matrix = compute_dynmat(scfres; tol=χ0_tol)
-    ω_sc = sort(phonon_frequencies(basis_supercell, dynamical_matrix))
+    ω_sc = sort(phonon_modes_cart(basis_supercell, dynamical_matrix).frequencies)
 
     return are_approx_frequencies(ω_uc, ω_sc; tol=10*scf_tol)
 end
@@ -87,24 +87,24 @@ end
 @testitem "Phonon: Local term: comparison to ref testcase" #=
     =#    tags=[:phonon, :dont_test_mpi] setup=[Phonon, PhononLocal, TestCases] begin
     # Values computed offline with automatic differentiation.
-    ω_ref = [ -0.0008026162779062059
-              -0.0008026162779062059
-              -0.0004967106000760207
-              97.24345594461734
-             102.60823068829413
-             102.60823069294518
-             114.27333066188902
-             114.27333066519498
-             186.14632614803327
-             199.28011875048747
-             199.280118752287
-             222.13926530938963
-             222.13926530938963
-             294.27830867783297
-             302.42610677630506
-             302.4261067813275
-             307.7446637359317
-             307.74466374075325]
+    ω_ref = [ -3.6569888415715e-9
+              -3.6569888415715e-9
+              -2.263180017613055e-9
+               0.000443073786433812
+               0.0004675174987222679
+               0.00046751749874345965
+               0.000520667604960504
+               0.0005206676049755671
+               0.0008481450680251938
+               0.0009079870302639688
+               0.0009079870302721681
+               0.0010121409655813906
+               0.0010121409655813906
+               0.0013408306319911576
+               0.0013779547317006979
+               0.001377954731723582
+               0.0014021878602703752
+               0.001402187860292344 ]
     PhononLocal.test_frequencies(TestCases.aluminium_primitive; ω_ref)
 end
 

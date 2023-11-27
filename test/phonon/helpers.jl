@@ -65,7 +65,7 @@ function test_frequencies(testcase, terms, ω_ref; tol=1e-9, supercell_size=[2, 
     phonon = (; supercell_size, generate_supercell_qpoints(; supercell_size).qpoints)
 
     ω_uc = sort!(reduce(vcat, map(phonon.qpoints) do q
-    hessian = compute_dynmat_cart(basis_bs, nothing, nothing; q)
+        hessian = compute_dynmat_cart(basis_bs, [], []; q)
         squared_frequencies(hessian)
     end))
 
@@ -83,7 +83,7 @@ function test_rand_frequencies(testcase, terms; tol=1e-9)
 
     ω_uc = []
     for q in phonon.qpoints
-        hessian = compute_dynmat_cart(basis_bs, nothing, nothing; q)
+        hessian = compute_dynmat_cart(basis_bs, [], []; q)
         push!(ω_uc, squared_frequencies(hessian))
     end
     ω_uc = sort!(collect(Iterators.flatten(ω_uc)))
@@ -92,7 +92,7 @@ function test_rand_frequencies(testcase, terms; tol=1e-9)
                                  phonon.supercell_size)
     model_supercell = Model(supercell.lattice, supercell.atoms, supercell.positions; terms)
     basis_supercell_bs = PlaneWaveBasis(model_supercell; Ecut=5)
-    hessian_supercell = compute_dynmat_cart(basis_supercell_bs, nothing, nothing)
+    hessian_supercell = compute_dynmat_cart(basis_supercell_bs, [], [])
     ω_supercell = sort(squared_frequencies(hessian_supercell))
     @test norm(ω_uc - ω_supercell) < tol
 

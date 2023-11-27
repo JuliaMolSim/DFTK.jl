@@ -296,8 +296,8 @@ to zero.
 # as the phonon modes couple the k and k-q points.
 # Furthermore, for temperature computations, we also need the eigenvalues at the k point.
 # Hence the need for the εp and ε variables.
-# In non-phonon calculations, εp ≡ ε, but in phonon calculations, it contains the reordering
-# of the eigenvalues such that εp[ik] ≡ ε_{·,n-k}.
+# In non-phonon calculations, εp ≡ ε, but in phonon calculations, it contains the
+# eigenvalues such that εp[ik] ≡ ε_{·,k-q}.
 function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ, εp=ε;
                      ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
                      phonon_calculation=false, kwargs_sternheimer...)
@@ -342,9 +342,8 @@ end
 @views @timing function apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                     occupation_threshold, q=zero(Vec3{eltype(ham.basis)}),
                                     kwargs_sternheimer...)
-    basis  = ham.basis
-    kpoints_minus_q = k_to_kpq_mapping(basis, -q)
-    ordering(kdata) = kdata[kpoints_minus_q]
+    basis = ham.basis
+    ordering(kdata) = kdata[k_to_kpq_mapping(basis, -q)]
 
     # We first select orbitals with occupation number higher than
     # occupation_threshold for which we compute the associated response δψn,

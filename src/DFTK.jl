@@ -217,10 +217,9 @@ include("response/hessian.jl")
 export compute_current
 include("postprocess/current.jl")
 export phonon_modes
-export phonon_frequencies
+export phonon_modes_cart
 export compute_dynmat
 export compute_dynmat_cart
-export dynmat_red_to_cart
 include("postprocess/phonon.jl")
 
 # Workarounds

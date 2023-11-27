@@ -242,8 +242,7 @@ Return the Fourier coefficients for ``f_{q} ψ_{k-q}`` in the basis of `k`-point
 ``f`` is a real function.
 """
 function multiply_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
-    equiv_kpoints_minus_q = k_to_kpq_mapping(basis, -q)
-    ordering(kdata) = kdata[equiv_kpoints_minus_q]
+    ordering(kdata) = kdata[k_to_kpq_mapping(basis, -q)]
     # First, express ψ_{[k-q]} in the basis of k-q points…
     ψ_shifted = [shift_kplusq(basis, kpt, -q, ψk)
                  for (kpt, ψk) in zip(basis.kpoints, ordering(ψ))]

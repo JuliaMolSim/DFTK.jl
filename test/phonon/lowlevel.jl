@@ -29,8 +29,7 @@
     q = Vec3(q0 .* ishift)
 
     @testset "Ordering function" begin
-        kpoints_plus_q = k_to_kpq_mapping(basis, q)
-        ordering(kdata) = kdata[kpoints_plus_q]
+        ordering(kdata) = kdata[k_to_kpq_mapping(basis, q)]
         kcoords = getfield.(basis.kpoints, :coordinate)
         for (ik, kcoord) in enumerate(kcoords)
             @test mod.(kcoord + q .- tol, 1) ≈ mod.(ordering(kcoords)[ik] .- tol, 1)

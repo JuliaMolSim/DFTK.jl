@@ -5,23 +5,24 @@ function dynmat_red_to_cart(model::Model, dynamical_matrix)
     # The dynamical matrix `D` acts on vectors `dr` and gives a covector `dF`:
     #   dF = D · dr.
     # Thus the transformation between reduced and Cartesian coordinates is not a comatrix.
-    # To transform `dynamical_matrix` from reduced coordinates to `cart_mat` in Cartesian
+    # To transform `dynamical_matrix` from reduced coordinates to `dynmat_cart` in Cartesian
     # coordinates, we write
     #   dr_cart = lattice · dr_red,
     #   ⇒ dr_redᵀ · D_red · dr_red = dr_cartᵀ · lattice⁻ᵀ · D_red · lattice⁻¹ · dr_cart
     #                              = dr_cartᵀ · D_cart · dr_cart
     #   ⇒ D_cart = lattice⁻ᵀ · D_red · lattice⁻¹.
 
-    cart_mat = zero.(dynamical_matrix)
-    for s = 1:size(cart_mat, 2), β = 1:size(cart_mat, 4)
-        cart_mat[:, β, :, s] = inv_lattice' * dynamical_matrix[:, β, :, s] * inv_lattice
+    dynmat_cart = zero.(dynamical_matrix)
+    for s = 1:size(dynmat_cart, 2), α = 1:size(dynmat_cart, 4)
+        dynmat_cart[:, α, :, s] = inv_lattice' * dynamical_matrix[:, α, :, s] * inv_lattice
     end
-    cart_mat
+    dynmat_cart
 end
 
-# Create a tensor equivalent to a``(n_{\rm atoms}×n_{\rm dim})^2`` diagonal matrix with the
-# atomic masses of the atoms.
-function get_masses(basis::PlaneWaveBasis{T}) where {T}
+# Create a ``3×n_{\rm atoms}×3×n_{\rm atoms}`` tensor (for consistency with the format of
+# dynamical matrices) equivalent to a diagonal matrix with the atomic masses of the atoms on
+# the diagonal.
+function get_mass_matrix(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
     positions = model.positions
     n_atoms = length(positions)
@@ -30,62 +31,54 @@ function get_masses(basis::PlaneWaveBasis{T}) where {T}
     any(iszero.(atoms_mass)) && @error "Some elements have unknown masses"
     masses = zeros(T, 3, n_atoms, 3, n_atoms)
     for s in eachindex(atoms_mass)
-        masses_s = @view masses[:, s, :, s]
-        masses_s[diagind(masses_s)] .= atoms_mass[s]
+        masses[:, s, :, s] = atoms_mass[s] * I(3)
     end
     masses
 end
 
 @doc raw"""
-Solve the eigenproblem for a dynamical matrix. The phonon frequencies that are returned are
-real numbers in ``{\rm cm}^{-1}``.
+Solve the eigenproblem for a dynamical matrix: returns the `frequencies` and eigenvectors
+(`vectors`).
 """
 function phonon_modes(basis::PlaneWaveBasis{T}, dynamical_matrix) where {T}
-    model = basis.model
-    positions = model.positions
-    n_atoms = length(positions)
+    n_atoms = length(basis.model.positions)
+    mass_matrix = reshape(get_mass_matrix(basis), 3*n_atoms, 3*n_atoms)
 
-    mass_mat = reshape(get_masses(basis), 3*n_atoms, 3*n_atoms)
-    cart_mat = reshape(dynmat_red_to_cart(model, dynamical_matrix), 3*n_atoms, 3*n_atoms)
-
-    res = eigen(cart_mat, mass_mat)
-    norm(imag(res.values)) > sqrt(eps(T)) && @warn "Some large imaginary phonon modes"
+    res = eigen(reshape(dynamical_matrix, 3*n_atoms, 3*n_atoms), mass_matrix)
+    norm(imag(res.values)) > sqrt(eps(T)) &&
+        @warn "Some eigenvalues of the dynmaical matrix have a large imaginary part"
 
     signs = sign.(real(res.values))
-    values = signs .* hartree_to_cm⁻¹ .* sqrt.(abs.(real(res.values)))
+    frequencies = signs .* sqrt.(abs.(real(res.values)))
 
-    (; values, res.vectors)
+    (; frequencies, res.vectors)
 end
-phonon_frequencies(args...; kwargs...) = phonon_modes(args...; kwargs...).values
+function phonon_modes_cart(basis::PlaneWaveBasis{T}, dynamical_matrix) where {T}
+    dynmat_cart = dynmat_red_to_cart(basis.model, dynamical_matrix)
+    phonon_modes(basis, dynmat_cart)
+end
 
-"""
+@doc raw"""
 Compute the dynamical matrix in the form of a ``3×n_{\rm atoms}×3×n_{\rm atoms}`` tensor
 in reduced coordinates.
 """
 @timing function compute_dynmat(basis::PlaneWaveBasis{T}, ψ, occupation; q=zero(Vec3{T}),
                                 ρ=nothing, ham=nothing, εF=nothing, eigenvalues=nothing,
                                 kwargs...) where {T}
-    is_perturbation_needed = any(t -> isa(t, TermAtomicLocal) ||
-                                      isa(t, TermAtomicNonlocal), basis.terms)
-    δψs = nothing
-    δρs = nothing
-    δoccupations = nothing
-    if is_perturbation_needed
-        model = basis.model
-        positions = model.positions
-        n_atoms = length(positions)
-        n_dim = model.n_dim
+    model = basis.model
+    positions = model.positions
+    n_atoms = length(positions)
+    n_dim = model.n_dim
 
-        δHψs = compute_δHψ(basis, ψ; q)
-        δρs = Array{Array{complex(eltype(basis)), 4}, 2}(undef, 3, n_atoms)
-        for s = 1:n_atoms, α = 1:3
-            δρs[α, s] = zeros(T, basis.fft_size..., basis.model.n_spin_components)
-        end
-        δoccupations = [zero.(occupation) for _ = 1:3, _ = 1:n_atoms]
-        δψs = [zero.(ψ) for _ = 1:3, _ = 1:n_atoms]
+    δρs = [zeros(complex(T), basis.fft_size..., basis.model.n_spin_components)
+           for _ = 1:3, _ = 1:n_atoms]
+    δoccupations = [zero.(occupation) for _ = 1:3, _ = 1:n_atoms]
+    δψs = [zero.(ψ) for _ = 1:3, _ = 1:n_atoms]
+    if !isempty(ψ)
         for s = 1:n_atoms, α = 1:n_dim
+            δHψs_αs = compute_δHψ(basis, ψ; q, s, α)
             (; δψ, δρ, δoccupation) = solve_ΩplusK_split(ham, ρ, ψ, occupation, εF,
-                                                         eigenvalues, -δHψs[α, s]; q,
+                                                         eigenvalues, -δHψs_αs; q,
                                                          kwargs...)
             δoccupations[α, s] = δoccupation
             δρs[α, s] = δρ

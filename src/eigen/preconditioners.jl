@@ -75,5 +75,5 @@ end
 function precondprep!(P::PreconditionerTPA, X::AbstractArray)
     P.mean_kin = [real(dot(x, Diagonal(P.kin), x)) for x in eachcol(X)]
 end
-precondprep!(P::PreconditionerTPA, ::Nothing) = one.(P.mean)  # fallback for edge cases
+precondprep!(P::PreconditionerTPA, ::Nothing) = 1  # fallback for edge cases
 

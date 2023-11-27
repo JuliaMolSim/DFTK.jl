@@ -6,7 +6,7 @@ using StaticArrays: setindex
 value_type(T) = T
 # Lossy: force interpretation of value as a determined type.
 force_type(::Type{T}, x) where {T <: Real} = real(x)
-force_type(::Any, x) = x
+force_type(::Type{T}, x) where {T <: Complex} = x
 
 # Frequently-used array types
 const Mat3{T} = SMatrix{3, 3, T, 9} where {T}

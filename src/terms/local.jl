@@ -89,7 +89,7 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
     model = basis.model
-    Gs_cart = to_cpu([model.recip_lattice * (G + q) for G in G_vectors(basis)])
+    Gs_cart = [model.recip_lattice * (G + q) for G in G_vectors(basis)]
     # TODO Bring Gs_cart on the CPU for compatibility with the pseudopotentials which
     #      are not isbits ... might be able to solve this by restructuring the loop
 
@@ -107,7 +107,7 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
         end
     end
 
-    Gs = to_cpu([G + q for G in G_vectors(basis)])  # TODO Again for GPU compatibility
+    Gs = [G + q for G in G_vectors(basis)]  # TODO Again for GPU compatibility
     pot_fourier = map(enumerate(Gs)) do (iG, G)
         p = norm(Gs_cart[iG])
         pot = sum(enumerate(model.atom_groups)) do (igroup, group)
@@ -127,13 +127,11 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
 end
 (::AtomicLocal)(basis::PlaneWaveBasis) = TermAtomicLocal(compute_local_potential(basis))
 
-# Standard computation.
 function compute_forces(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
                         ρ, kwargs...) where {T}
     S = promote_type(T, real(eltype(ψ[1])))
     forces_local(S, basis, ψ, occupation, zero(Vec3{T}), ρ; kwargs...)
 end
-# General function compatible to phonon computations.
 @timing "forces: local" function forces_local(S, basis::PlaneWaveBasis{T}, ψ, occupation, q,
                                               ρ; kwargs...) where {T}
     model = basis.model
@@ -150,17 +148,17 @@ end
         for idx in group
             r = model.positions[idx]
             forces[idx] = -force_type(S, sum(conj(ρ_fourier[iG])
-                                                 .* form_factors[iG]
-                                                 .* cis2pi(-dot(G + q, r))
-                                                 .* (-2T(π)) .* (G + q) .* im
-                                                 ./ sqrt(basis.model.unit_cell_volume)
+                                                  * form_factors[iG]
+                                                  * cis2pi(-dot(G + q, r))
+                                                  * (-2T(π)) * (G + q) * im
+                                                  / sqrt(model.unit_cell_volume)
                                              for (iG, G) in enumerate(G_vectors(basis))))
         end
     end
     forces
 end
 
-# Phonon: Perturbation of the local potential using AD with respect to a displacement on the
+# Phonon: Perturbation of the local potential with respect to a displacement on the
 # direction α of the atom s.
 function compute_δV(::TermAtomicLocal, basis::PlaneWaveBasis{T}, α, s;
                     q=zero(Vec3{T}), positions=basis.model.positions) where {T}
@@ -172,8 +170,8 @@ function compute_δV(::TermAtomicLocal, basis::PlaneWaveBasis{T}, α, s;
     end
 end
 
-# Phonon: Second-order perturbation of the local potential using AD with respect to
-# a displacement on the directions β and α of the atoms t et s.
+# Phonon: Second-order perturbation of the local potential with respect to a displacement on
+# the directions α and β of the atoms s and t.
 function compute_δ²V(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, β, t, α, s) where {T}
     model = basis.model
 
@@ -213,18 +211,9 @@ function compute_dynmat(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occ
 end
 
 function compute_δHψ(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ;
-                     q=zero(Vec3{T})) where {T}
-    model = basis.model
-    positions = model.positions
-    n_atoms = length(positions)
-    n_dim = model.n_dim
-
-    δHψ = [zero.(ψ) for _ = 1:3, _ = 1:n_atoms]
+                     q=zero(Vec3{T}), s, α) where {T}
     δV_sα = similar(ψ[1], basis.fft_size..., basis.model.n_spin_components)
-    for s = 1:n_atoms, α = 1:n_dim
-        # All spin components get the same potential.
-        δV_sα .= compute_δV(term, basis, α, s; q)
-        δHψ[α, s] += multiply_by_blochwave(basis, ψ, δV_sα, q)
-   end
-   δHψ
+    # All spin components get the same potential.
+    δV_sα .= compute_δV(term, basis, α, s; q)
+    multiply_by_blochwave(basis, ψ, δV_sα, q)
 end

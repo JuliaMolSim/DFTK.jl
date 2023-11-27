@@ -185,8 +185,6 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
     (; δψ, δoccupation, δεF) = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                            occupation_threshold, tol=tol_sternheimer, q,
                                            kwargs...)
-    # Note that the δρ that is computed above should be equal to the one computed from δψ
-    # with `compute_analytical_δρ`.
 
     (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, history)
 end

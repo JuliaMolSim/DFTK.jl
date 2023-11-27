@@ -21,7 +21,7 @@ AtomsBase.atomic_symbol(::Element) = :X
 charge_ionic(el::Element) = charge_nuclear(el)
 
 """Return the atomic mass in a.u. of an atom type"""
-atomic_mass(el::Element) = ustrip(periodic_table[el.Z].atomic_mass) * dalton_to_au
+atomic_mass(el::Element) = ustrip(periodic_table[charge_nuclear(el)].atomic_mass) * dalton_to_au
 
 """Return the number of valence electrons"""
 n_elec_valence(el::Element) = charge_ionic(el)
@@ -194,7 +194,6 @@ struct ElementGaussian <: Element
     symbol::Symbol  # Element symbol
 end
 AtomsBase.atomic_symbol(el::ElementGaussian) = el.symbol
-atomic_mass(::ElementGaussian) = dalton_to_au  # We default to 1 a.u.
 
 """
 Element interacting with electrons via a Gaussian potential.
