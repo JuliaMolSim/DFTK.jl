@@ -202,13 +202,13 @@ end
 
 """
 Return the indices of the `kpoints` shifted by `q`. That is for each `kpoint` of the `basis`:
-`kpoints[ik].coordinate + q = kpoints[indices[ik]].coordinate`.
+`kpoints[ik].coordinate + q` is equivalent to `kpoints[indices[ik]].coordinate`.
 """
-function k_to_kpq_mapping(basis::PlaneWaveBasis, qcoord)
+function k_to_equivalent_kpq_permutation(basis::PlaneWaveBasis, qcoord)
     kpoints = basis.kpoints
     indices = [find_equivalent_kpt(basis, kpt.coordinate + qcoord, kpt.spin).index
                for kpt in kpoints]
-    @assert sort(indices) == 1:length(basis.kpoints)
+    @assert isperm(indices)
     indices
 end
 
@@ -225,37 +225,39 @@ hence
     u_{k+q}(G) = u_{[k+q]}(G + ΔG).
 ```
 """
-function shift_kplusq(basis, kpt, q, ψk)
+function kpq_equivalent_blochwave_to_kpq(basis, kpt, q, ψk_plus_q_equivalent)
     kcoord_plus_q = kpt.coordinate .+ q
     index, ΔG = find_equivalent_kpt(basis, kcoord_plus_q, kpt.spin)
-    equiv_kpt_plus_q = basis.kpoints[index]
+    equivalent_kpt_plus_q = basis.kpoints[index]
 
     kpt_plus_q = build_kpoints(basis, [kcoord_plus_q])[kpt.spin]
-    transfer_blochwave_kpt(ψk, basis, equiv_kpt_plus_q, kpt_plus_q, -ΔG)
+    (; kpt=kpt_plus_q,
+     ψk=transfer_blochwave_kpt(ψk_plus_q_equivalent, basis, equivalent_kpt_plus_q,
+                               kpt_plus_q, -ΔG))
 end
 
 # Replaces `multiply_by_expiqr`.
 # TODO: Think about a clear and consistent way to define such a function when completing
 # phonon PRs.
+@doc raw"""
+    multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
+
+Return the Fourier coefficients for the Bloch waves ``f^{\rm real}_{q} ψ_{k-q}`` in an
+element of `basis.kpoints` equivalent to ``k-q``.
 """
-Return the Fourier coefficients for ``f_{q} ψ_{k-q}`` in the basis of `k`-points, where
-``f`` is a real function.
-"""
-function multiply_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
-    ordering(kdata) = kdata[k_to_kpq_mapping(basis, -q)]
-    # First, express ψ_{[k-q]} in the basis of k-q points…
-    ψ_shifted = [shift_kplusq(basis, kpt, -q, ψk)
-                 for (kpt, ψk) in zip(basis.kpoints, ordering(ψ))]
-    # … then perform the multiplication with f in real space and get the Fourier
-    # coefficients.
+function multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
+    ordering(kdata) = kdata[k_to_equivalent_kpq_permutation(basis, -q)]
     fψ = zero.(ψ)
     for (ik, kpt) in enumerate(basis.kpoints)
-        kcoord_minus_q = kpt.coordinate - q
-        kpt_minus_q = build_kpoints(basis, [kcoord_minus_q])[1]
+        # First, express ψ_{[k-q]} in the basis of k-q points…
+        kpt_minus_q, ψk_minus_q = kpq_equivalent_blochwave_to_kpq(basis, kpt, -q,
+                                                                  ordering(ψ)[ik])
+        # … then perform the multiplication with f in real space and get the Fourier
+        # coefficients.
         for n = 1:size(ψ[ik], 2)
             fψ[ik][:, n] = fft(basis, kpt,
-                               ifft(basis, kpt_minus_q,
-                                    ψ_shifted[ik][:, n]) .* f_real[:, :, :, kpt.spin])
+                               ifft(basis, kpt_minus_q, ψk_minus_q[:, n])
+                                 .* f_real[:, :, :, kpt.spin])
         end
     end
     fψ

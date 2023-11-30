@@ -215,5 +215,5 @@ function compute_δHψ(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ;
     δV_sα = similar(ψ[1], basis.fft_size..., basis.model.n_spin_components)
     # All spin components get the same potential.
     δV_sα .= compute_δV(term, basis, α, s; q)
-    multiply_by_blochwave(basis, ψ, δV_sα, q)
+    multiply_ψ_by_blochwave(basis, ψ, δV_sα, q)
 end

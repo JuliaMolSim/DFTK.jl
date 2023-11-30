@@ -291,16 +291,16 @@ Perform in-place computations of the derivatives of the wave functions by solvin
 a Sternheimer equation for each `k`-points. It is assumed the passed `δψ` are initialised
 to zero.
 """
-# For phonon calculations, the equation to be solved is
-#   (H_k - ε_{n,k-q}) δψ_{n,k} = - Q δHψ_{n, k-q},
-# as the phonon modes couple the k and k-q points.
-# Furthermore, for temperature computations, we also need the eigenvalues at the k point.
-# Hence the need for the εp and ε variables.
-# In non-phonon calculations, εp ≡ ε, but in phonon calculations, it contains the
-# eigenvalues such that εp[ik] ≡ ε_{·,k-q}.
-function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ, εp=ε;
+function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε_minus_q=ε;
                      ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
-                     phonon_calculation=false, kwargs_sternheimer...)
+                     q=zero(Vec3{T}), kwargs_sternheimer...) where {T}
+    # We solve the Sternheimer equation
+    #   (H_k - ε_{n,k-q}) δψ_{n,k} = - (1 - P_{k}) δHψ_{n, k-q},
+    # where P_{k} is the projector on ψ_{k} and with the conventions:
+    # - δψ_{k} is the variation of ψ_{k-q}, which implies (for ℬ_{k} the `basis.kpoints`)
+    #     δψ_{k-q} ∈ ℬ_{k-q} and δHψ_{k-q} ∈ ℬ_{k};
+    # - δHψ[ik] = δHψ_{k-q};
+    # - ε_minus_q[ik] = ε_{·, k-q}.
     model = basis.model
     temperature = model.temperature
     smearing = model.smearing
@@ -311,29 +311,29 @@ function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ, εp=ε;
         Hk  = H[ik]
         ψk  = ψ[ik]
         εk  = ε[ik]
-        εpk = εp[ik]
         δψk = δψ[ik]
+        εk_minus_q = ε_minus_q[ik]
 
         ψk_extra = ψ_extra[ik]
         Hψk_extra = Hk * ψk_extra
         εk_extra  = diag(real.(ψk_extra' * Hψk_extra))
-        for n = 1:length(εpk)
-            fnk = filled_occ * Smearing.occupation(smearing, (εpk[n]-εF) / temperature)
+        for n = 1:length(εk_minus_q)
+            fnk_minus_q = filled_occ * Smearing.occupation(smearing, (εk_minus_q[n]-εF) / temperature)
 
             # Explicit contributions (nonzero only for temperature > 0)
             for m = 1:length(εk)
                 # The n == m contribution in compute_δρ is obtained through δoccupation, see
                 # the explanation above; except if we perform phonon calculations.
-                phonon_calculation || (m == n && continue)
+                iszero(q) && (m == n) && continue
                 fmk = filled_occ * Smearing.occupation(smearing, (εk[m]-εF) / temperature)
                 ddiff = Smearing.occupation_divided_difference
-                ratio = filled_occ * ddiff(smearing, εk[m], εpk[n], εF, temperature)
-                αmn = compute_αmn(fmk, fnk, ratio)  # fnk * αmn + fmk * αnm = ratio
+                ratio = filled_occ * ddiff(smearing, εk[m], εk_minus_q[n], εF, temperature)
+                αmn = compute_αmn(fmk, fnk_minus_q, ratio)  # fnk_minus_q * αmn + fmk * αnm = ratio
                 δψk[:, n] .+= ψk[:, m] .* αmn .* dot(ψk[:, m], δHψ[ik][:, n])
             end
 
             # Sternheimer contribution
-            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εpk[n], δHψ[ik][:, n]; ψk_extra,
+            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n]; ψk_extra,
                                              εk_extra, Hψk_extra, kwargs_sternheimer...)
         end
     end
@@ -343,7 +343,7 @@ end
                                     occupation_threshold, q=zero(Vec3{eltype(ham.basis)}),
                                     kwargs_sternheimer...)
     basis = ham.basis
-    ordering(kdata) = kdata[k_to_kpq_mapping(basis, -q)]
+    ordering(kdata) = kdata[k_to_equivalent_kpq_permutation(basis, -q)]
 
     # We first select orbitals with occupation number higher than
     # occupation_threshold for which we compute the associated response δψn,
@@ -358,9 +358,9 @@ end
     ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
     ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    δHψ_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
+    δHψ_minus_q_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
     # Only needed for phonon calculations.
-    εp_occ  = ordering([eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)])
+    ε_minus_q_occ  = ordering([eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)])
 
     # First we compute δoccupation. We only need to do this for the actually occupied
     # orbitals. So we make a fresh array padded with zeros, but only alter the elements
@@ -371,21 +371,17 @@ end
     δoccupation = zero.(occupation)
     if iszero(q)
         δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-        δεF = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_occ).δεF
+        δεF = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ).δεF
     else
         δεF = zero(εF)
     end
 
-    # Then we compute δψ, again in-place into a zero-padded array
-    δψ_shifted = zero.(δHψ)
-    δψ_shifted_occ = [δψ_shifted[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
-    compute_δψ!(δψ_shifted_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_occ, εp_occ; ψ_extra,
-                phonon_calculation=!iszero(q), kwargs_sternheimer...)
-
-    # We return the δψk in the basis k+q which are associated to a displacement of the ψk.
-    kpoints_plus_q = k_to_kpq_mapping(basis, q)
-    δψ = [shift_kplusq(basis, kpt, q, δψ_shifted[kpoints_plus_q[ik]])
-          for (ik, kpt) in enumerate(basis.kpoints)]
+    # Then we compute δψ (again in-place into a zero-padded array) with elements of
+    # `basis.kpoints` that are equivalent to `k+q`.
+    δψ = zero.(δHψ)  # δHψ ≠ δHψ_minus_q
+    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
+    compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, ε_minus_q_occ;
+                ψ_extra, q, kwargs_sternheimer...)
 
     (; δψ, δoccupation, δεF)
 end
@@ -413,7 +409,7 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV::AbstractArray{T};
 
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
-    δHψ = multiply_by_blochwave(basis, ψ, δV, q)
+    δHψ = multiply_ψ_by_blochwave(basis, ψ, δV, q)
     (; δψ, δoccupation) = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                       occupation_threshold, q, kwargs_sternheimer...)
 

@@ -1,6 +1,6 @@
 @testitem "Phonon: Shifting functions" tags=[:phonon, :dont_test_mpi] begin
     using DFTK
-    using DFTK: k_to_kpq_mapping
+    using DFTK: k_to_equivalent_kpq_permutation
     using LinearAlgebra
 
     tol = 1e-12
@@ -29,7 +29,7 @@
     q = Vec3(q0 .* ishift)
 
     @testset "Ordering function" begin
-        ordering(kdata) = kdata[k_to_kpq_mapping(basis, q)]
+        ordering(kdata) = kdata[k_to_equivalent_kpq_permutation(basis, q)]
         kcoords = getfield.(basis.kpoints, :coordinate)
         for (ik, kcoord) in enumerate(kcoords)
             @test mod.(kcoord + q .- tol, 1) ≈ mod.(ordering(kcoords)[ik] .- tol, 1)
