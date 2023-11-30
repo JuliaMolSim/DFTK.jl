@@ -40,6 +40,9 @@ include("common/norm.jl")
 include("common/quadrature.jl")
 include("common/hankel.jl")
 
+export DFTKCalculator
+include("atoms_calculators.jl")
+
 export PspHgh
 export PspUpf
 include("pseudo/NormConservingPsp.jl")
