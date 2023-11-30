@@ -12,7 +12,7 @@ function parse_test_args()
         :mpi => (; included=Symbol[], excluded=[:gpu, :dont_test_mpi]),
         :all => (; included=Symbol[], excluded=[:gpu, :mpi]),
     )
-    base_tag = filter!(in(keys(incl_excl)), args)
+    base_tag = filter(in(keys(incl_excl)), args)
     if isempty(base_tag)
         base_tag = :all
     elseif length(base_tag) > 2
