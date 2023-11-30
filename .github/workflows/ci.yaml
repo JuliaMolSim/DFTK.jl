@@ -21,11 +21,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {mode: 'stable',  os: ubuntu-latest,  payload: "fast,example" }
-          - {mode: 'stable',  os: macOS-latest,   payload: fast           }
-          - {mode: 'stable',  os: windows-latest, payload: fast           }
-          - {mode: 'stable',  os: ubuntu-latest,  payload: "fast,mpi"     }
-          - {mode: 'nightly', os: ubuntu-latest,  payload: fast           }
+          - {mode: 'stable',  os: ubuntu-latest,  payload: "noslow,example" }
+          - {mode: 'stable',  os: macOS-latest,   payload: noslow           }
+          - {mode: 'stable',  os: windows-latest, payload: noslow           }
+          - {mode: 'stable',  os: ubuntu-latest,  payload: "noslow,mpi"     }
+          - {mode: 'nightly', os: ubuntu-latest,  payload: noslow           }
     env:
       GKS_ENCODING: "utf8"
       GKSwstype: "100"       # Needed for Plots-related tests
