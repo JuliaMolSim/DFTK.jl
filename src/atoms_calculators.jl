@@ -29,7 +29,9 @@ Not currently compatible with using atom properties such as `σ` and `ϵ`.
 - `temperature::T`: If temperature==0, no fractional occupations are used. 
     If temperature is nonzero, the occupations are `fn = max_occ*smearing((εn-εF) / temperature)`.
 """
-struct DFTKCalculator{T}
+abstract type AbstractCalculator end
+
+struct DFTKCalculator{T} <: AbstractCalculator
     Ecut::T
     kgrid::Union{Nothing,Vec3{Int}},
     tol
