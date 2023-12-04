@@ -41,11 +41,19 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
 end
 
 # a gaussian of exponent α and integral M
-ρref_real(r::T, M=1, α=1) where {T} = M * exp(-T(1)/2 * (α*r)^2) / ((2T(π))^(T(3)/2)) * α^3
+ρref_real(r::T, M=1, α=1, d=3) where {T} = M * exp(-T(1)/2 * (α*r)^2) / ((2T(π))^(T(d)/2)) * α^d
 # solution of -ΔVref = 4π ρref
-function Vref_real(r::T, M=1, α=1) where {T}
-    r == 0 && return M * 2 / sqrt(T(pi)) * α / sqrt(2)
-    M * erf(α/sqrt(2)*r)/r
+function Vref_real(r::T, M=1, α=1, d=3) where {T}
+    if d == 3
+        r == 0 && return M * 2 / sqrt(T(pi)) * α / sqrt(T(2))
+        M * erf(α/sqrt(2)*r)/r
+    elseif d == 1
+        ## TODO find a way to compute this more stably when r >> 1
+        res = M * (-2π*r*erf(α*r/sqrt(2)) - 2sqrt(2π)*exp(-α^2 * r^2/2)/α)
+        res
+    else
+        error()
+    end
 end
 
 one_hot(i) = Vec3{Bool}(j == i for j=1:3)
