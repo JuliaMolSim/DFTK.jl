@@ -60,15 +60,12 @@ one_hot(i) = Vec3{Bool}(j == i for j=1:3)
 ∂f∂α(f, α, r) = ForwardDiff.derivative(ε -> f(r + ε * one_hot(α)), zero(eltype(r)))
 
 function get_center(basis, ρ)
-    sumρ = sum(ρ)
+    sumρ = sum(abs.(ρ))
     center = map(1:3) do α
         rα = [r[α] for r in r_vectors_cart(basis)]
-        sum(rα .* ρ) / sumρ
+        sum(rα .* abs.(ρ)) / sumρ
     end
     Vec3(center...)
-end
-function get_integral(basis, ρ)
-    sum(ρ) * basis.dvol
 end
 function get_dipole(α, center, basis, ρ)
     rα = [r[α]-center[α] for r in r_vectors_cart(basis)]
@@ -76,7 +73,7 @@ function get_dipole(α, center, basis, ρ)
 end
 function get_variance(center, basis, ρ)
     rr = [sum(abs2, r-center) for r in r_vectors_cart(basis)]
-    dot(rr, ρ) * basis.dvol
+    dot(rr, abs.(ρ)) * basis.dvol
 end
 
 @timing "ene_ops: hartree" function ene_ops(term::TermHartree, basis::PlaneWaveBasis{T},
@@ -99,13 +96,13 @@ end
         # determine center and width from density
         # Strictly speaking, these computations should result in extra terms to guarantee energy/ham consistency
         center = get_center(basis, ρtot_real)
-        ρref_11 = [ρref_real(norm(r - center), model.n_electrons, 1) for r in r_vectors_cart(basis)]
+        ρref_11 = [ρref_real(norm(r - center), 1, 1, basis.model.n_dim) for r in r_vectors_cart(basis)]
         spread_11 = get_variance(center, basis, ρref_11)
         spread_ρ = get_variance(center, basis, ρtot_real)
         α = 1/sqrt(spread_ρ/spread_11)
-        # α = 1
 
-        ρrad_fun(r) = ρref_real(norm(r - center), model.n_electrons, α)
+        total_charge = sum(ρtot_real) .* basis.dvol
+        ρrad_fun(r) = ρref_real(norm(r - center), 1, α, basis.model.n_dim)
         ρrad = ρrad_fun.(r_vectors_cart(basis))
 
 
@@ -116,13 +113,13 @@ end
         coeffs_ders = map(1:3) do α
             get_dipole(α, center, basis, ρtot_real) / get_dipole(α, center, basis, ρders[α])
         end
-        ρref = ρrad + sum([coeffs_ders[α]*ρders[α] for α=1:3])
+        ρref = total_charge * ρrad + sum([coeffs_ders[α]*ρders[α] for α=1:3])
 
         # compute corresponding solution of -ΔVref = 4π ρref
-        Vref_rad_fun(r) = Vref_real(norm(r - center), model.n_electrons, α)
+        Vref_rad_fun(r) = Vref_real(norm(r - center), 1, α, basis.model.n_dim)
         Vref_rad = Vref_rad_fun.(r_vectors_cart(basis))
         Vref_ders = [∂f∂α.(Vref_rad_fun, α, r_vectors_cart(basis)) for α=1:3]
-        Vref = Vref_rad + sum([coeffs_ders[α]*Vref_ders[α] for α=1:3])
+        Vref = total_charge * Vref_rad + sum([coeffs_ders[α]*Vref_ders[α] for α=1:3])
 
         # TODO possibly optimize FFTs here
         Vcorr_real = Vref - irfft(basis, term.poisson_green_coeffs .* fft(basis, ρref))
@@ -131,6 +128,8 @@ end
         pot_fourier .+= Vcorr_fourier
     end
 
+    pot_fourier *= term.scaling_factor
+    pot_real *= term.scaling_factor
     E = real(dot(pot_fourier, ρtot_fourier) / 2)
 
     ops = [RealSpaceMultiplication(basis, kpt, pot_real) for kpt in basis.kpoints]
