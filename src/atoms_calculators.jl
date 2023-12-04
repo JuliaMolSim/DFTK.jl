@@ -33,18 +33,17 @@ Not currently compatible with using atom properties such as `σ` and `ϵ`.
 using AtomsBase
 using AtomsCalculators
 
-abstract type AbstractCalculator end
 
 struct DFTKCalculator{T} <: AbstractCalculator
     Ecut::T
-    kgrid::Union{Nothing,Vec3{Int}}
+    kgrid::Union{Nothing,AbstractVector{Int}}
     tol
     temperature::T
 end
 
 function DFTKCalculator(;
         Ecut::T,
-        kgrid::Union{Nothing,Vec3{Int}},
+        kgrid::Union{Nothing,<:AbstractVector{Int}},
         tol=1e-6,
         temperature=zero(T),
     ) where {T <: Real}
