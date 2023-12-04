@@ -24,16 +24,20 @@ Not currently compatible with using atom properties such as `σ` and `ϵ`.
 - `kgrid::kgrid::Union{Nothing,Vec3{Int}}`: Number of k-points in each dimension.
     If not specified a grid is generated using `kgrid_from_minimal_spacing` with 
     a minimal spacing of `2π * 0.022` per Bohr.
-- `tol`: Tolerance for the density change (``\|ρ_\text{out} - ρ_\text{in}\|``) in 
+- `tol`: Tolerance for the density change in 
     the self-consistent field algorithm to flag convergence. Default is `1e-6`.
 - `temperature::T`: If temperature==0, no fractional occupations are used. 
     If temperature is nonzero, the occupations are `fn = max_occ*smearing((εn-εF) / temperature)`.
 """
+
+using AtomsBase
+using AtomsCalculators
+
 abstract type AbstractCalculator end
 
 struct DFTKCalculator{T} <: AbstractCalculator
     Ecut::T
-    kgrid::Union{Nothing,Vec3{Int}},
+    kgrid::Union{Nothing,Vec3{Int}}
     tol
     temperature::T
 end
@@ -79,16 +83,4 @@ AtomsCalculators.@generate_interface function AtomsCalculators.forces(
         calculator.scfres = self_consistent_field(basis, tol=calculator.tol)
         return _compute_forces(calculator.scfres)
     end
-end
-
-# Re-implementation to avoid perfoming calculations twice. 
-# This akward solution is enfocred by the interface of AtomsCalculators.
-AtomsCalculators.@generate_interface function AtomsCalculators.energy_forces(
-        system::AbstractSystem, calculator::DFTKCalculator; kwargs...)
-    e = AtomsCalculators.potential_energy(system, calculator; kwargs...)
-    f = AtomsCalculators.forces(system, calculator; kwargs..., precomputed=true) # Enforce precomputed = true
-    return (;
-        :energy => e,
-        :forces => f
-    )
 end
