@@ -10,15 +10,6 @@
 
 A calculator for use with the AtomsCalculators.jl interface.
 
-`neighbors` can optionally be given as a keyword argument when calling the
-calculation functions to save on computation when the neighbors are the same
-for multiple calls.
-In a similar way, `n_threads` can be given to determine the number of threads
-to use when running the calculation function.
-
-Not currently compatible with virial calculation.
-Not currently compatible with using atom properties such as `σ` and `ϵ`.
-
 # Arguments
 - `Ecut::T`: kinetic energy cutoff for the `PlaneWaveBasis`.
 - `kgrid::kgrid::Union{Nothing,Vec3{Int}}`: Number of k-points in each dimension.
