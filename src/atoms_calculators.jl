@@ -33,12 +33,16 @@ Not currently compatible with using atom properties such as `σ` and `ϵ`.
 using AtomsBase
 using AtomsCalculators
 
+mutable struct DFTKState
+    scfres
+end
 
 struct DFTKCalculator{T} <: AbstractCalculator
     Ecut::T
     kgrid::Union{Nothing,AbstractVector{Int}}
     tol
     temperature::T
+    state::DFTKState
 end
 
 function DFTKCalculator(;
@@ -46,8 +50,9 @@ function DFTKCalculator(;
         kgrid::Union{Nothing,<:AbstractVector{Int}},
         tol=1e-6,
         temperature=zero(T),
+        state=nothing
     ) where {T <: Real}
-    return DFTKCalculator(Ecut, kgrid, tol, temperature)
+    return DFTKCalculator(Ecut, kgrid, tol, temperature, DFTKState(state))
 end
 
 function warm_up_calculator(calculator::DFTKCalculator, system::AbstractSystem)
@@ -60,11 +65,11 @@ AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
         system::AbstractSystem, calculator::DFTKCalculator; precomputed=false, kwargs...)
     # If precomputed, use stored value, else compute and store.
     if precomputed
-        return calculator.scfres.energies.total
+        return calculator.state.scfres.energies.total
     else
         _, basis = warm_up_calculator(calculator, system)
-        calculator.scfres = self_consistent_field(basis, tol=calculator.tol)
-        return calculator.scfres.energies.total
+        calculator.state.scfres = self_consistent_field(basis, tol=calculator.tol)
+        return calculator.state.scfres.energies.total
     end
 end
     
@@ -76,10 +81,10 @@ AtomsCalculators.@generate_interface function AtomsCalculators.forces(
         _compute_forces = compute_forces_cart
     end
     if precomputed
-        return _compute_forces(calculator.scfres)
+        return _compute_forces(calculator.state.scfres)
     else
         _, basis = warm_up_calculator(calculator, system)
-        calculator.scfres = self_consistent_field(basis, tol=calculator.tol)
-        return _compute_forces(calculator.scfres)
+        calculator.state.scfres = self_consistent_field(basis, tol=calculator.tol)
+        return _compute_forces(calculator.state.scfres)
     end
 end
