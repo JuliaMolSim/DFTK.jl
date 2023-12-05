@@ -80,6 +80,12 @@ end
                                             ψ, occupation; ρ, kwargs...) where {T}
     model = basis.model
     ρtot_real = total_density(ρ)
+    # T@D@ {
+    ρtot_real .-= [sum(DFTK.charge_real(el, norm(r - vector_red_to_cart(model, pos)))
+                       for (el, pos) in zip(model.atoms, model.positions))
+                   for r in r_vectors_cart(basis)]
+    # println(sum(ρtot_real) * basis.dvol)
+    # }
     ρtot_fourier = fft(basis, ρtot_real)
     pot_fourier = term.poisson_green_coeffs .* ρtot_fourier
     pot_real = irfft(basis, pot_fourier)
@@ -115,6 +121,12 @@ end
         coeffs_ders = map(1:3) do α
             get_dipole(α, center, basis, ρtot_real) / get_dipole(α, center, basis, ρders[α])
         end
+        # T@D@ {
+        # println(coeffs_ders)
+        if basis.model.n_dim == 1
+            coeffs_ders[2:3] .= 0
+        end
+        # }
         ρref = total_charge * ρrad + sum([coeffs_ders[α]*ρders[α] for α=1:3])
 
         # Compute corresponding solution of -ΔVref = 4π ρref.

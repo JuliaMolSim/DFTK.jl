@@ -205,3 +205,12 @@ end
 function local_potential_fourier(el::ElementGaussian, q::Real)
     -el.α * exp(- (q * el.L)^2 / 2)  # = ∫_ℝ³ V(x) exp(-ix⋅q) dx
 end
+# T@D@ {
+
+function charge_real(el::Element, r)
+    zero(r)
+ end
+function charge_fourier(el::Element, q)
+    zero(q)
+end
+# }
