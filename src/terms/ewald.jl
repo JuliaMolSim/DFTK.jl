@@ -137,7 +137,7 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
     end
     forces_recip = zeros(Vec3{S}, length(positions))
 
-    if all(periodic) # if non-periodic, no reciprocal-space contribution
+    if all(periodic)  # if non-periodic, no reciprocal-space contribution
         for G1 in -Glims[1]:Glims[1], G2 in -Glims[2]:Glims[2], G3 in -Glims[3]:Glims[3]
             G = Vec3(G1, G2, G3)
             iszero(G) && continue

@@ -79,17 +79,19 @@ end
     pot_fourier = term.poisson_green_coeffs .* ρtot_fourier
     pot_real = irfft(basis, pot_fourier)
 
-    # For isolated systems, the above does not compute a good potential (eg it assumes zero DC component)
+    # For isolated systems, the above does not compute a good potential (e.g. it assumes
+    # zero DC component).
     # We correct it by solving -Δ V = 4πρ in two steps: we split ρ into ρref and ρ-ρref,
-    # where ρref is a gaussian has the same total charge as ρ.
-    # We compute the first potential in real space (explicitly since ρref is known),
-    # and the second (short-range) potential in Fourier space
-    # Compared to the usual scheme (ρref = 0), this results in a correction potential
-    # equal to Vref computed in real space minus Vref computed in Fourier space
+    # where ρref is a Gaussian has the same total charge as ρ.
+    # We compute the first potential in real space (explicitly since ρref is known), and the
+    # second (short-range) potential in Fourier space.
+    # Compared to the usual scheme (ρref = 0), this results in a correction potential equal
+    # to Vref computed in real space minus Vref computed in Fourier space
     if any(.!model.periodic)
         @assert all(.!model.periodic)
-        # determine center and width from density
-        # Strictly speaking, these computations should result in extra terms to guarantee energy/ham consistency
+        # Determine center and width from density.
+        # Strictly speaking, these computations should result in extra terms to guarantee
+        # energy/ham consistency.
         center = get_center(basis, ρtot_real)
         ρref_11 = [ρref_real(norm(r - center), model.n_electrons, 1) for r in r_vectors_cart(basis)]
         spread_11 = get_variance(center, basis, ρref_11)
@@ -101,8 +103,8 @@ end
         ρrad = ρrad_fun.(r_vectors_cart(basis))
 
 
-        # at this point we've determined a gaussian of same width and center as the original.
-        # Now we get the dipole moments of ρ and match them
+        # At this point we've determined a gaussian of same width and center as the original.
+        # Now we get the dipole moments of ρ and match them.
         ρders = [∂f∂α.(ρrad_fun, α, r_vectors_cart(basis)) for α=1:3]
 
         coeffs_ders = map(1:3) do α
@@ -110,7 +112,7 @@ end
         end
         ρref = ρrad + sum([coeffs_ders[α]*ρders[α] for α=1:3])
 
-        # compute corresponding solution of -ΔVref = 4π ρref
+        # Compute corresponding solution of -ΔVref = 4π ρref.
         Vref_rad_fun(r) = Vref_real(norm(r - center), model.n_electrons, α)
         Vref_rad = Vref_rad_fun.(r_vectors_cart(basis))
         Vref_ders = [∂f∂α.(Vref_rad_fun, α, r_vectors_cart(basis)) for α=1:3]
