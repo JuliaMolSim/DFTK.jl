@@ -3,15 +3,17 @@ on:
   push:
     branches:
       - master
+      - testing
     tags: ['*']
   pull_request:
   schedule:
     - cron:  '0 4 * * 6'  # Run every Saturday
 concurrency:
   # Skip intermediate builds: always.
-  # Cancel intermediate builds: only if it is a pull request build.
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+  # Cancel intermediate builds: only if it is a pull request build or if it is on testing
+  # branch.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || contains(github.ref, 'testing') }}
+  cancel-in-progress: true
 
 jobs:
   test:
