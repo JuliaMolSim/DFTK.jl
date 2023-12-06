@@ -94,7 +94,7 @@ function compute_error(basis, ϕ, ψ)
 end
 err = compute_error(basis_ref, ψr, ψ_ref);
 
-# - Compute ``{\bm M}^{-1}R(P)`` with ``{\bm M}^{-1}`` defined in [^CDKL2021]:
+# - Compute ``{\boldsymbol M}^{-1}R(P)`` with ``{\boldsymbol M}^{-1}`` defined in [^CDKL2021]:
 P = [PreconditionerTPA(basis_ref, kpt) for kpt in basis_ref.kpoints]
 map(zip(P, ψr)) do (Pk, ψk)
     DFTK.precondprep!(Pk, ψk)
@@ -115,7 +115,7 @@ function apply_inv_M(φk, Pk, δφnk, n)
         DFTK.proj_tangent_kpt!(x, φk)
     end
     J = LinearMap{eltype(φk)}(op, size(δφnk, 1))
-    δφnk = cg(J, δφnk, Pl=DFTK.FunctionPreconditioner(f_ldiv!),
+    δφnk = cg(J, δφnk; Pl=DFTK.FunctionPreconditioner(f_ldiv!),
               verbose=false, reltol=0, abstol=1e-15)
     DFTK.proj_tangent_kpt!(δφnk, φk)
 end
@@ -136,8 +136,8 @@ Mres = apply_metric(ψr, P, res, apply_inv_M);
 #
 # ```math
 # \begin{bmatrix}
-# (\bm Ω + \bm K)_{11} & (\bm Ω + \bm K)_{12} \\
-# 0 & {\bm M}_{22}
+# (\boldsymbol Ω + \boldsymbol K)_{11} & (\boldsymbol Ω + \boldsymbol K)_{12} \\
+# 0 & {\boldsymbol M}_{22}
 # \end{bmatrix}
 # \begin{bmatrix}
 # P_{1} - P_{*1} \\ P_{2}-P_{*2}
@@ -151,7 +151,7 @@ Mres = apply_metric(ψr, P, res, apply_inv_M);
 resLF = DFTK.transfer_blochwave(res, basis_ref, basis)
 resHF = res - DFTK.transfer_blochwave(resLF, basis, basis_ref);
 
-# - Compute ``{\bm M}^{-1}_{22}R_2(P)``:
+# - Compute ``{\boldsymbol M}^{-1}_{22}R_2(P)``:
 e2 = apply_metric(ψr, P, resHF, apply_inv_M);
 
 # - Compute the right hand side of the Schur system:
@@ -166,7 +166,7 @@ end
 rhs = resLF - ΩpKe2;
 
 # - Solve the Schur system to compute ``R_{\rm Schur}(P)``: this is the most
-#   costly step, but inverting ``\bm{Ω} + \bm{K}`` on the small space has
+#   costly step, but inverting ``\boldsymbol{Ω} + \boldsymbol{K}`` on the small space has
 #   the same cost than the full SCF cycle on the small grid.
 ψ, _ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 e1 = DFTK.solve_ΩplusK(basis, ψ, rhs, occ; tol).δψ
