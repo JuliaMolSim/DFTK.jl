@@ -7,6 +7,6 @@
     Aqua.test_all(DFTK;
                   ambiguities=false,
                   piracies=false,
-                  deps_compat=(check_extras=false, ),
-                  stale_deps=(ignore=[:Primes, ], ))
+                  deps_compat=(; check_extras=false),
+                  stale_deps=(; ignore=[:Primes, ]))
 end

@@ -128,7 +128,7 @@ Overview of parameters:
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
                                  occupation, miniter=1, tol=determine_diagtol(info))
-        ψ, eigenvalues, occupation, εF, ρout = nextstate
+        (; ψ, eigenvalues, occupation, εF, ρout) = nextstate
 
         # Update info with results gathered so far
         info = (; ham, basis, converged, stage=:iterate, algorithm="SCF",

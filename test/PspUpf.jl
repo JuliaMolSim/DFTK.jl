@@ -17,8 +17,8 @@ upf_pseudos = Dict(
     :Cr => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Cu.upf"; rcut=12.0)
 )
 hgh_pseudos = [
-    (hgh=load_psp("hgh/pbe/si-q4.hgh"), upf=upf_pseudos[:Si]),
-    (hgh=load_psp("hgh/pbe/tl-q13.hgh"), upf=upf_pseudos[:Tl])
+    (; hgh=load_psp("hgh/pbe/si-q4.hgh"), upf=upf_pseudos[:Si]),
+    (; hgh=load_psp("hgh/pbe/tl-q13.hgh"), upf=upf_pseudos[:Tl])
 ]
 end
 

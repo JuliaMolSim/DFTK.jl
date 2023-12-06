@@ -17,7 +17,7 @@
         end
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
-        response     = ResponseOptions(verbose=true)
+        response     = ResponseOptions(; verbose=true)
         is_converged = DFTK.ScfConvergenceForce(tol)
         scfres = self_consistent_field(basis; is_converged, response)
         compute_forces_cart(scfres)
@@ -78,7 +78,7 @@ end
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
         scfres = self_consistent_field(basis; is_converged, mixing=KerkerMixing(),
                                        nbandsalg=FixedBands(; n_bands_converge=10),
-                                       damping=0.6, response=ResponseOptions(verbose=true))
+                                       damping=0.6, response=ResponseOptions(; verbose=true))
 
         ComponentArray(
            eigenvalues=hcat([ev[1:10] for ev in scfres.eigenvalues]...),
@@ -116,7 +116,7 @@ end
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
         scfres = self_consistent_field(basis; is_converged,
-                                       response=ResponseOptions(verbose=true))
+                                       response=ResponseOptions(; verbose=true))
         compute_forces_cart(scfres)
     end
 
@@ -161,7 +161,7 @@ end
         ρ = zeros(Float64, basis.fft_size..., 1)
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
         scfres = self_consistent_field(basis; ρ, is_converged,
-                                       response=ResponseOptions(verbose=true))
+                                       response=ResponseOptions(; verbose=true))
         compute_forces_cart(scfres)
     end
     derivative_ε = let ε = 1e-5

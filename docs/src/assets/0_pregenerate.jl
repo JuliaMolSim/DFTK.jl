@@ -1,7 +1,7 @@
 using MKL
 using DFTK
 using LinearAlgebra
-setup_threading(n_blas=2)
+setup_threading(; n_blas=2)
 
 let
     include("../../../../examples/convergence_study.jl")
@@ -61,7 +61,7 @@ let
     conv_hgh = converge_Ecut(Ecuts, psp_hgh, tol)
     println("HGH: $(conv_hgh.Ecut_conv)")
 
-    plt = plot(yaxis=:log10, xlabel="Ecut [Eh]", ylabel="Error [Eh]")
+    plt = plot(; yaxis=:log10, xlabel="Ecut [Eh]", ylabel="Error [Eh]")
     plot!(plt, conv_hgh.Ecuts, conv_hgh.errors, label="HGH",
           markers=true, linewidth=3)
     plot!(plt, conv_upf.Ecuts, conv_upf.errors, label="PseudoDojo NC SR LDA UPF",

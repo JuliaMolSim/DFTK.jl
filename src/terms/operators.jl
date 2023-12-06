@@ -18,7 +18,9 @@ function LinearAlgebra.mul!(Hψ::AbstractVector, op::RealFourierOperator, ψ::Ab
     Hψ_real = similar(ψ_real)
     Hψ_fourier .= 0
     Hψ_real .= 0
-    apply!((real=Hψ_real, fourier=Hψ_fourier), op, (real=ψ_real, fourier=ψ))
+    apply!((; real=Hψ_real, fourier=Hψ_fourier),
+           op,
+           (; real=ψ_real, fourier=ψ))
     Hψ .= Hψ_fourier .+ fft(op.basis, op.kpoint, Hψ_real)
     Hψ
 end

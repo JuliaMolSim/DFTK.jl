@@ -14,7 +14,7 @@
         kwargs = ()
         n_bands = div(testcase.n_electrons, 2, RoundUp)
         if testcase.temperature !== nothing
-            kwargs = (temperature=testcase.temperature, smearing=DFTK.Smearing.FermiDirac())
+            kwargs = (; testcase.temperature, smearing=DFTK.Smearing.FermiDirac())
             n_bands = div(testcase.n_electrons, 2, RoundUp) + 4
         end
 

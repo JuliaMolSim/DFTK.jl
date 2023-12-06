@@ -133,7 +133,7 @@ function kdistances_and_ticks(kcoords, klabels::Dict, kbranches)
             end
         end
     end
-    ticks = (distances=tick_distances, labels=tick_labels)
+    ticks = (; distances=tick_distances, labels=tick_labels)
     (; kdistances, ticks)
 end
 

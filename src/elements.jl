@@ -142,17 +142,17 @@ or an element name (e.g. `"silicon"`)
 function ElementCohenBergstresser(key; lattice_constant=nothing)
     # Form factors from Cohen-Bergstresser paper Table 2
     # Lattice constants from Table 1
-    data = Dict(:Si => (form_factors=Dict( 3 => -0.21u"Ry",
-                                           8 =>  0.04u"Ry",
-                                          11 =>  0.08u"Ry"),
+    data = Dict(:Si => (; form_factors=Dict( 3 => -0.21u"Ry",
+                                             8 =>  0.04u"Ry",
+                                            11 =>  0.08u"Ry"),
                         lattice_constant=5.43u"Å"),
-                :Ge => (form_factors=Dict( 3 => -0.23u"Ry",
-                                           8 =>  0.01u"Ry",
-                                          11 =>  0.06u"Ry"),
+                :Ge => (; form_factors=Dict( 3 => -0.23u"Ry",
+                                             8 =>  0.01u"Ry",
+                                            11 =>  0.06u"Ry"),
                         lattice_constant=5.66u"Å"),
-                :Sn => (form_factors=Dict( 3 => -0.20u"Ry",
-                                           8 =>  0.00u"Ry",
-                                          11 =>  0.04u"Ry"),
+                :Sn => (; form_factors=Dict( 3 => -0.20u"Ry",
+                                             8 =>  0.00u"Ry",
+                                            11 =>  0.04u"Ry"),
                         lattice_constant=6.49u"Å"),
             )
 

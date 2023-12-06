@@ -1,14 +1,14 @@
 # This is needed to flag that the plots-dependent code has been loaded
 const PLOTS_LOADED = true
 
-function ScfPlotTrace(plt=Plots.plot(yaxis=:log); kwargs...)
+function ScfPlotTrace(plt=Plots.plot(; yaxis=:log); kwargs...)
     energies = nothing
     function callback(info)
         if info.stage == :finalize
             minenergy = minimum(energies[max(1, end-5):end])
             error = abs.(energies .- minenergy)
             error[error .== 0] .= NaN
-            extra = ifelse(:mark in keys(kwargs), (), (mark=:x, ))
+            extra = ifelse(:mark in keys(kwargs), (), (; mark=:x))
             Plots.plot!(plt, error; extra..., kwargs...)
             display(plt)
         elseif info.n_iter == 1
@@ -42,7 +42,7 @@ function plot_band_data(kpath::KPathInterpolant, band_data;
     to_unit = ustrip(auconvert(unit, 1.0))
 
     # Plot all bands, spins and errors
-    p = Plots.plot(xlabel="wave vector")
+    p = Plots.plot(; xlabel="wave vector")
     margs = length(kpath) < 70 ? (; markersize=2, markershape=:circle) : (; )
     for σ in 1:data.n_spin, iband = 1:data.n_bands, branch in data.kbranches
         yerror = nothing
