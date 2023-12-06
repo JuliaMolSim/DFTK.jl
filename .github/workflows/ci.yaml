@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   test:
-    name: Julia ${{ matrix.mode }} - ${{ matrix.os }} - ${{ join(matrix.payload, '_') }}
+    name: Julia ${{ matrix.mode }} - ${{ matrix.os }} - ${{ join(matrix.payload) }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -49,6 +49,10 @@ jobs:
         if: ${{ matrix.mode == 'nightly' }}
 
       - uses: julia-actions/cache@v1
+        with:
+          cache-name: "julia-cache-${{ github.workflow }}-${{ github.job }}-\
+                        ${{ matrix.mode }}-${{ matrix.os }}-${{ join(matrix.payload, '_') }}"
+          include-matrix: false
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
         env:
