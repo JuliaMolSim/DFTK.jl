@@ -46,12 +46,12 @@ end
     eigenvalues = [zeros(n_bands) for k in testcase.kcoords]
     n_occ = div(testcase.n_electrons, 2, RoundUp)
     n_k = length(testcase.kcoords)
-    for ik in 1:n_k
+    for ik = 1:n_k
         eigenvalues[ik] = sort(rand(n_bands))
         eigenvalues[ik][n_occ+1:end] .+= 2
     end
-    εHOMO = maximum(eigenvalues[ik][n_occ] for ik in 1:n_k)
-    εLUMO = minimum(eigenvalues[ik][n_occ + 1] for ik in 1:n_k)
+    εHOMO = maximum(eigenvalues[ik][n_occ] for ik = 1:n_k)
+    εLUMO = minimum(eigenvalues[ik][n_occ + 1] for ik = 1:n_k)
 
     # Occupation for zero temperature
     occupation0 = let
@@ -84,7 +84,7 @@ end
         basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.kweights; fft_size)
         occupation, _ = DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-6)
 
-        for ik in 1:n_k
+        for ik = 1:n_k
             @test all(isapprox.(occupation[ik], occupation0[ik], atol=1e-2))
         end
     end

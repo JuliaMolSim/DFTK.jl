@@ -50,13 +50,13 @@ end
 function generic_apply(p::GenericPlan, X::AbstractArray)
     pl1, pl2, pl3 = p.subplans
     ret = similar(X)
-    for i in 1:size(X, 1), j in 1:size(X, 2)
+    for i = 1:size(X, 1), j = 1:size(X, 2)
         @views ret[i, j, :] .= pl3 * X[i, j, :]
     end
-    for i in 1:size(X, 1), k in 1:size(X, 3)
+    for i = 1:size(X, 1), k = 1:size(X, 3)
         @views ret[i, :, k] .= pl2 * ret[i, :, k]
     end
-    for j in 1:size(X, 2), k in 1:size(X, 3)
+    for j = 1:size(X, 2), k = 1:size(X, 3)
         @views ret[:, j, k] .= pl1 * ret[:, j, k]
     end
     p.factor .* ret

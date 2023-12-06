@@ -48,7 +48,7 @@ function write_w90_win(fileprefix::String, basis::PlaneWaveBasis;
             path = kpath.paths[1]
 
             println(fp, "begin kpoint_path")
-            for i in 1:length(path)-1
+            for i = 1:length(path)-1
                 A, B = path[i:i+1]  # write segment A -> B
                 @printf(fp, "%s %10.6f %10.6f %10.6f  ", A, round.(kpath.points[A], digits=5)...)
                 @printf(fp, "%s %10.6f %10.6f %10.6f\n", B, round.(kpath.points[B], digits=5)...)
@@ -124,9 +124,9 @@ end
     for ik in krange_spin(basis, spin)
         open(dirname(fileprefix) * (@sprintf "/UNK%05i.%i" ik spin), "w") do fp
             println(fp, "$(fft_size[1]) $(fft_size[2]) $(fft_size[3]) $ik $n_bands")
-            for iband in 1:n_bands
+            for iband = 1:n_bands
                 ψnk_real = ifft(basis, basis.kpoints[ik], @view ψ[ik][:, iband])
-                for iz in 1:fft_size[3], iy in 1:fft_size[2], ix in 1:fft_size[1]
+                for iz = 1:fft_size[3], iy = 1:fft_size[2], ix = 1:fft_size[1]
                     println(fp, real(ψnk_real[ix, iy, iz]), " ", imag(ψnk_real[ix, iy, iz]))
                 end
             end
@@ -159,8 +159,8 @@ We use here that:
     # Compute overlaps
     # TODO This should be improved ...
     Mkb = zeros(ComplexF64, (n_bands, n_bands))
-    for n in 1:n_bands
-        for m in 1:n_bands
+    for n = 1:n_bands
+        for m = 1:n_bands
             # Select the coefficient in right order
             Mkb[m, n] = dot(ψ[ik][iGk, m], ψ[ikpb][iGkpb, n])
         end
@@ -208,13 +208,13 @@ function compute_Ak_gaussian_guess(basis::PlaneWaveBasis, ψk, kpt, centers, n_b
     Ak = zeros(eltype(ψk), (n_bands, n_wannier))
 
     # Compute Ak
-    for n in 1:n_wannier
+    for n = 1:n_wannier
         # Functions are l^2 normalized in Fourier, in DFTK conventions.
         norm_gn_per = norm(fourier_gn(centers[n], qs), 2)
         # Fourier coeffs of gn_per for k+G in common with ψk
         coeffs_gn_per = fourier_gn(centers[n], qs[kpt.mapping]) ./ norm_gn_per
         # Compute overlap
-        for m in 1:n_bands
+        for m = 1:n_bands
             # TODO Check the ordering of m and n here!
             Ak[m, n] = dot(ψk[:, m], coeffs_gn_per)
         end
@@ -230,8 +230,8 @@ end
 
         for (ik, (ψk, kpt)) in enumerate(zip(ψ, basis.kpoints))
             Ak = compute_Ak_gaussian_guess(basis, ψk, kpt, centers, n_bands)
-            for n in 1:size(Ak, 2)
-                for m in 1:size(Ak, 1)
+            for n = 1:size(Ak, 2)
+                for m = 1:size(Ak, 1)
                     @printf(fp, "%3i %3i %3i  %22.18f %22.18f \n",
                             m, n, ik, real(Ak[m, n]), imag(Ak[m, n]))
                 end
@@ -245,7 +245,7 @@ end
 Default random Gaussian guess for maximally-localised wannier functions
 generated in reduced coordinates.
 """
-default_wannier_centres(n_wannier) = [rand(1, 3) for _ in 1:n_wannier]
+default_wannier_centres(n_wannier) = [rand(1, 3) for _ = 1:n_wannier]
 
 @timing function run_wannier90(scfres;
                                n_bands=scfres.n_bands_converge,

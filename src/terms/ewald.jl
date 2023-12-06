@@ -112,7 +112,7 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
     # In the real-space term we have erfc(η ||A(rj - rk - R)||),
     # where A is the real-space lattice, rj and rk are atomic positions and
     # thus use the bound  ||A(rj - rk - R)|| * η ≤ max_erfc_arg
-    poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
+    poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i = 1:3]
     Rlims = estimate_integer_lattice_bounds(lattice, max_erfc_arg / η, poslims)
 
     #
@@ -238,8 +238,8 @@ function compute_dynmat(ewald::TermEwald, basis::PlaneWaveBasis{T}, ψ, occupati
 
     dynmat = zeros(complex(T), n_dim, n_atoms, n_dim, n_atoms)
     # Real part
-    for τ in 1:n_atoms
-        for γ in 1:n_dim
+    for τ = 1:n_atoms
+        for γ = 1:n_dim
             displacement = zero.(model.positions)
             displacement[τ] = setindex(displacement[τ], one(T), γ)
             real_part = -ForwardDiff.derivative(zero(T)) do ε
@@ -253,8 +253,8 @@ function compute_dynmat(ewald::TermEwald, basis::PlaneWaveBasis{T}, ψ, occupati
         end
     end
     # Reciprocal part
-    for τ in 1:n_atoms
-        for σ in 1:n_atoms
+    for τ = 1:n_atoms
+        for σ = 1:n_atoms
             dynmat[:, σ, :, τ] += dynmat_ewald_recip(model, σ, τ; ewald.η, q)
         end
     end

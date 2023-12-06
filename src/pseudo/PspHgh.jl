@@ -48,7 +48,7 @@ function PspHgh(path; identifier=path, kwargs...)
     h = Vector{Matrix{Float64}}(undef, lmax + 1)
     cur = 5  # Current line to parse
 
-    for l in 0:lmax
+    for l = 0:lmax
         # loop over all AM channels and extract projectors,
         # these are given in blocks like
         #
@@ -77,7 +77,7 @@ function PspHgh(path; identifier=path, kwargs...)
         # Else we have to parse the extra parts of the hcoeff matrix.
         # This is done here.
         hcoeff = [parse(Float64, part) for part in split(m[3])]
-        for i in 1:nproj
+        for i = 1:nproj
             for j in i:nproj
                 h[l + 1][j, i] = h[l + 1][i, j] = hcoeff[j - i + 1]
             end

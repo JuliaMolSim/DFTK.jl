@@ -15,7 +15,7 @@ function scf_damping_solver(β=0.2)
         β = convert(eltype(x0), β)
         converged = false
         x = copy(x0)
-        for i in 1:max_iter
+        for i = 1:max_iter
             x_new = f(x)
 
             if norm(x_new - x) < tol

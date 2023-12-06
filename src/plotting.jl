@@ -44,7 +44,7 @@ function plot_band_data(kpath::KPathInterpolant, band_data;
     # Plot all bands, spins and errors
     p = Plots.plot(; xlabel="wave vector")
     margs = length(kpath) < 70 ? (; markersize=2, markershape=:circle) : (; )
-    for σ in 1:data.n_spin, iband = 1:data.n_bands, branch in data.kbranches
+    for σ = 1:data.n_spin, iband = 1:data.n_bands, branch in data.kbranches
         yerror = nothing
         if hasproperty(data, :λerror)
             yerror = data.λerror[:, iband, σ][branch] .* to_unit
@@ -90,7 +90,7 @@ function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
     spinlabels = spin_components(basis.model)
     colors = [:blue, :red]
     Dεs = compute_dos.(εs, Ref(basis), Ref(eigenvalues))
-    for σ in 1:n_spin
+    for σ = 1:n_spin
         D = [Dσ[σ] for Dσ in Dεs]
         label = n_spin > 1 ? "DOS $(spinlabels[σ]) spin" : "DOS"
         Plots.plot!(p, (εs .- eshift) .* to_unit, D; label, color=colors[σ])

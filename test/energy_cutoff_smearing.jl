@@ -22,7 +22,7 @@
     # Test irregularity of the standard band through its second finite diff derivative
     basis_std = PlaneWaveBasis(model, 5, silicon.kcoords, silicon.kweights; basis.fft_size)
     λ_std = vcat(compute_bands(basis_std, kcoords, n_bands=1; scfres.ρ).λ...)
-    ∂2λ_std = [(λ_std[i+1] - 2*λ_std[i] + λ_std[i-1])/δk^2 for i in 2:length(kcoords)-1]
+    ∂2λ_std = [(λ_std[i+1] - 2*λ_std[i] + λ_std[i-1])/δk^2 for i = 2:length(kcoords)-1]
 
     # Compute band for given blow-up and test regularity
     function test_blowup(kinetic_blowup)
@@ -30,7 +30,7 @@
         basis_mod = PlaneWaveBasis(model, 5, silicon.kcoords, silicon.kweights; basis.fft_size)
 
         λ_mod = vcat(compute_bands(basis_mod, kcoords, n_bands=1, ρ=scfres.ρ).λ...)
-        ∂2λ_mod = [(λ_mod[i+1] - 2*λ_mod[i] + λ_mod[i-1])/δk^2 for i in 2:length(kcoords)-1]
+        ∂2λ_mod = [(λ_mod[i+1] - 2*λ_mod[i] + λ_mod[i-1])/δk^2 for i = 2:length(kcoords)-1]
         @test norm(∂2λ_std) / norm(∂2λ_mod) > 1e4
         nothing
     end

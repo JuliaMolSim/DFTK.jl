@@ -94,7 +94,7 @@ function energy_forces_pairwise(S, lattice::AbstractArray{T}, symbols, positions
     # The potential V(dist) decays very quickly with dist = ||A (rj - rk - R)||,
     # so we cut off at some point. We use the bound  ||A (rj - rk - R)|| ≤ max_radius
     # where A is the real-space lattice, rj and rk are atomic positions.
-    poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
+    poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i = 1:3]
     Rlims = estimate_integer_lattice_bounds(lattice, max_radius, poslims)
 
     # Check if some coordinates are not used.
@@ -148,8 +148,8 @@ function compute_dynmat(term::TermPairwisePotential, basis::PlaneWaveBasis{T}, �
     symbols = Symbol.(atomic_symbol.(model.atoms))
 
     dynmat = zeros(complex(T), 3, n_atoms, 3, n_atoms)
-    for τ in 1:n_atoms
-        for γ in 1:n_dim
+    for τ = 1:n_atoms
+        for γ = 1:n_dim
             displacement = zero.(model.positions)
             displacement[τ] = setindex(displacement[τ], one(T), γ)
             dynmat[:, :, γ, τ] = -ForwardDiff.derivative(zero(T)) do ε

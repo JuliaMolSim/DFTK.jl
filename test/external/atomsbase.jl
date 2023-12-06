@@ -10,7 +10,7 @@
 
     lattice   = randn(3, 3)
     atoms     = [Si, C, H, C]
-    positions = [rand(3) for _ in 1:4]
+    positions = [rand(3) for _ = 1:4]
     magnetic_moments = rand(4)
 
     system = atomic_system(lattice, atoms, positions, magnetic_moments)
@@ -26,7 +26,7 @@
     parsed = DFTK.parse_system(system)
     @test parsed.lattice   ≈ lattice   atol=5e-13
     @test parsed.positions ≈ positions atol=5e-13
-    for i in 1:4
+    for i = 1:4
         @test iszero(parsed.magnetic_moments[i][1:2])
         @test parsed.magnetic_moments[i][3] == magnetic_moments[i]
     end
@@ -65,7 +65,7 @@ end
 
     lattice   = randn(3, 3)
     atoms     = [ElementCoulomb(:Si), ElementCoulomb(:C)]
-    positions = [rand(3) for _ in 1:2]
+    positions = [rand(3) for _ = 1:2]
     magnetic_moments = [rand(3), rand(3)]
     system = atomic_system(lattice, atoms, positions, magnetic_moments)
     @test system[:, :magnetic_moment] == magnetic_moments
@@ -78,14 +78,14 @@ end
     using AtomsBase
 
     @testset "Charged system" begin
-        lattice = [12u"bohr" * rand(3) for _ in 1:3]
+        lattice = [12u"bohr" * rand(3) for _ = 1:3]
         atoms   = [:C => rand(3), :Si => rand(3), :H => rand(3), :C => rand(3)]
         system  = periodic_system(atoms, lattice; fractional=true, charge=1.0u"e_au")
         @test_throws ErrorException Model(system)
     end
 
     @testset "Charged atoms, but neutral" begin
-        lattice = [12u"bohr" * rand(3) for _ in 1:3]
+        lattice = [12u"bohr" * rand(3) for _ = 1:3]
         atoms   = [Atom(:C,  rand(3) * 12u"bohr", charge=1.0u"e_au"),
                    Atom(:Si, rand(3) * 12u"bohr", charge=-1.0u"e_au")]
         system  = periodic_system(atoms, lattice)
@@ -94,7 +94,7 @@ end
     end
 
     @testset "Charged atoms and not neutral" begin
-        lattice = [12u"bohr" * rand(3) for _ in 1:3]
+        lattice = [12u"bohr" * rand(3) for _ = 1:3]
         atoms   = [Atom(:C,  rand(3) * 12u"bohr", charge=1.0u"e_au"),
                    Atom(:Si, rand(3) * 12u"bohr", charge=-2.0u"e_au")]
         system  = periodic_system(atoms, lattice)
@@ -108,7 +108,7 @@ end
     using UnitfulAtomic
     using AtomsBase
 
-    lattice     = [12u"bohr" * rand(3) for _ in 1:3]
+    lattice     = [12u"bohr" * rand(3) for _ = 1:3]
     weirdatom   = Atom(6, randn(3)u"Å"; atomic_symsymbol=:C1)
     atoms       = [:C => rand(3), :Si => rand(3), :H => rand(3), :C => rand(3)]
     pos_units   = last.(atoms)
@@ -179,7 +179,7 @@ end
     H  = ElementPsp(:H; psp=load_psp("hgh/lda/h-q1.hgh"))
     lattice   = randn(3, 3)
     atoms     = [Si, C, H, C]
-    positions = [rand(3) for _ in 1:4]
+    positions = [rand(3) for _ = 1:4]
     system    = atomic_system(lattice, atoms, positions)
 
     @test_throws ErrorException attach_psp(system; Si="hgh/pbe/si-q4.hgh")
@@ -197,7 +197,7 @@ end
     using UnitfulAtomic
     using AtomsBase
 
-    lattice     = [12u"bohr" * rand(3) for _ in 1:3]
+    lattice     = [12u"bohr" * rand(3) for _ = 1:3]
     atoms       = [Atom(6, randn(3)u"Å"; atomic_symbol=:C1),
                    Atom(6, randn(3)u"Å"; atomic_symbol=:C2)]
     system      = periodic_system(atoms, lattice)

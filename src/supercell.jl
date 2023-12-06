@@ -12,8 +12,8 @@ function create_supercell(lattice, atoms, positions, supercell_size)
 
     for (atom, position) in zip(atoms, positions)
         append!(positions_supercell, [(position .+ [i;j;k]) ./ [nx, ny, nz]
-                                      for i in 0:nx-1, j in 0:ny-1, k in 0:nz-1])
-        append!(atoms_supercell, vcat([atom for _ in 1:nx*ny*nz]...))
+                                      for i = 0:nx-1, j = 0:ny-1, k = 0:nz-1])
+        append!(atoms_supercell, vcat([atom for _ = 1:nx*ny*nz]...))
     end
 
     (; lattice=lattice_supercell, atoms=atoms_supercell, positions=positions_supercell)

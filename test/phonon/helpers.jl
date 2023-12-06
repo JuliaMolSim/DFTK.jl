@@ -21,7 +21,7 @@ function ph_compute_reference(basis_supercell)
     n_dim = model_supercell.n_dim
     T = eltype(model_supercell.lattice)
     dynmat_ad = zeros(T, 3, n_atoms, 3, n_atoms)
-    for τ in 1:n_atoms, γ in 1:n_dim
+    for τ = 1:n_atoms, γ = 1:n_dim
         displacement = zero.(model_supercell.positions)
         displacement[τ] = setindex(displacement[τ], one(T), γ)
         dynmat_ad[:, :, γ, τ] = -ForwardDiff.derivative(zero(T)) do ε
@@ -51,7 +51,7 @@ end
 function generate_supercell_qpoints(; supercell_size=generate_random_supercell())
     qpoints_list = Iterators.product([1:n_sc for n_sc in supercell_size]...)
     qpoints = map(qpoints_list) do n_sc
-        normalize_kpoint_coordinate.([n_sc[i] / supercell_size[i] for i in 1:3])
+        normalize_kpoint_coordinate.([n_sc[i] / supercell_size[i] for i = 1:3])
     end |> vec
 
     (; supercell_size, qpoints)

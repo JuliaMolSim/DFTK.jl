@@ -14,7 +14,7 @@ trapezoidal
     n == length(y) || error("vectors `x` and `y` must have the same number of elements")
     n == 1 && return zero(promote_type(eltype(x), eltype(y)))
     I = (x[2] - x[1]) * y[1]
-    @turbo for i in 2:(n-1)
+    @turbo for i = 2:(n-1)
         # dx[i] + dx[i - 1] = (x[i + 1] - x[i]) + (x[i] - x[i - 1])
         #                   = x[i + 1] - x[i - 1]
         I += (x[i + 1] - x[i - 1]) * y[i]
@@ -46,10 +46,10 @@ end
     istop = isodd(n_intervals) ? n - 1 : n - 2
 
     I = 1 / 3 * dx * y[1]
-    @turbo for i in 2:2:istop
+    @turbo for i = 2:2:istop
         I += 4 / 3 * dx * y[i]
     end
-    @turbo for i in 3:2:istop
+    @turbo for i = 3:2:istop
         I += 2 / 3 * dx * y[i]
     end
 
@@ -70,7 +70,7 @@ end
 
     I = zero(promote_type(eltype(x), eltype(y)))
     # This breaks when @turbo'd
-    @simd for i in 1:2:istop
+    @simd for i = 1:2:istop
         dx0 = x[i + 1] - x[i]
         dx1 = x[i + 2] - x[i + 1]
         c = (dx0 + dx1) / 6
