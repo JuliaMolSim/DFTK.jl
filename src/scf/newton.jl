@@ -97,7 +97,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
     # number of kpoints and occupation
     Nk = length(basis.kpoints)
-    occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
+    occupation = [filled_occ * ones(T, n_bands) for _ = 1:Nk]
 
     # iterators
     n_iter = 0

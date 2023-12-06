@@ -17,9 +17,7 @@ function Optim.project_tangent!(m::DMManifold, g, x)
     g_unpack = m.unpack(g)
     x_unpack = m.unpack(x)
     for ik = 1:m.Nk
-        Optim.project_tangent!(Optim.Stiefel(),
-                               g_unpack[ik],
-                               x_unpack[ik])
+        Optim.project_tangent!(Optim.Stiefel(), g_unpack[ik], x_unpack[ik])
     end
     g
 end
@@ -84,7 +82,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     if ψ0 === nothing
         ψ0 = [random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints]
     end
-    occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
+    occupation = [filled_occ * ones(T, n_bands) for _ = 1:Nk]
 
     # we need to copy the reinterpret array here to not raise errors in Optim.jl
     # TODO raise this issue in Optim.jl
