@@ -53,19 +53,19 @@ function warm_up_calculator(calculator::DFTKCalculator, system::AbstractSystem)
 end
 
 AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
-        system::AbstractSystem, calculator::DFTKCalculator; precomputed=false, kwargs...)
+        system::AbstractSystem, calculator::DFTKCalculator; precomputed=false, scf_callback=DFTK.ScfDefaultCallback())
     # If precomputed, use stored value, else compute and store.
     if precomputed
         return calculator.state.scfres.energies.total
     else
         _, basis = warm_up_calculator(calculator, system)
-        calculator.state.scfres = self_consistent_field(basis, tol=calculator.tol)
+        calculator.state.scfres = self_consistent_field(basis, tol=calculator.tol, callback=scf_callback)
         return calculator.state.scfres.energies.total
     end
 end
     
 AtomsCalculators.@generate_interface function AtomsCalculators.forces(
-        system::AbstractSystem, calculator::DFTKCalculator; precomputed=false, cartesian=false, kwargs...)
+        system::AbstractSystem, calculator::DFTKCalculator; precomputed=false, cartesian=false, scf_callback=DFTK.ScfDefaultCallback())
     if cartesian
         _compute_forces = compute_forces
     else
@@ -75,7 +75,7 @@ AtomsCalculators.@generate_interface function AtomsCalculators.forces(
         return _compute_forces(calculator.state.scfres)
     else
         _, basis = warm_up_calculator(calculator, system)
-        calculator.state.scfres = self_consistent_field(basis, tol=calculator.tol)
+        calculator.state.scfres = self_consistent_field(basis, tol=calculator.tol, callback=scf_callback)
         return _compute_forces(calculator.state.scfres)
     end
 end
