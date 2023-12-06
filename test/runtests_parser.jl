@@ -2,7 +2,7 @@ function parse_test_args()
     # Parsing code
     args = Symbol.(ARGS)
     if "DFTK_TEST_ARGS" in keys(ENV) && isempty(ARGS)
-        args = Symbol.(split(ENV["DFTK_TEST_ARGS"], ","))
+        args = Symbol.(split(ENV["DFTK_TEST_ARGS"], "-"))
     end
 
     # Figure out the base tag
