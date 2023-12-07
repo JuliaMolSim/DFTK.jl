@@ -28,8 +28,7 @@
         @testset "Newton" begin
             scfres_start = self_consistent_field(basis, maxiter=1)
             # remove virtual orbitals
-            ψ0, _ = select_occupied_orbitals(basis, scfres_start.ψ,
-                                             scfres_start.occupation)
+            ψ0 = select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation).ψ
             ρ_newton = newton(basis, ψ0; tol).ρ
             @test maximum(abs, ρ_newton - ρ_def) < 5tol
         end
@@ -81,8 +80,7 @@ end
     ρ0    = guess_density(basis, magnetic_moments)
     ρ_def = self_consistent_field(basis; tol, ρ=ρ0).ρ
     scfres_start = self_consistent_field(basis, maxiter=1, ρ=ρ0)
-    ψ0, _ = select_occupied_orbitals(basis, scfres_start.ψ,
-                                     scfres_start.occupation)
+    ψ0 = select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation).ψ
 
     # Run DM
     if mpi_nprocs() == 1  # Distributed implementation not yet available

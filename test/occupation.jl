@@ -70,8 +70,8 @@ end
         model = Model(testcase.lattice, testcase.atoms, testcase.positions;
                       temperature, smearing, terms=[Kinetic()])
         basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.kweights; fft_size)
-        occs, _ = with_logger(NullLogger()) do
-            DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-12)
+        occs = with_logger(NullLogger()) do
+            DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-12).occupation
         end
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
     end
@@ -82,7 +82,7 @@ end
         model = Model(testcase.lattice, testcase.atoms, testcase.positions;
                       temperature, smearing, terms=[Kinetic()])
         basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.kweights; fft_size)
-        occupation, _ = DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-6)
+        (; occupation) = DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-6)
 
         for ik = 1:n_k
             @test all(isapprox.(occupation[ik], occupation0[ik], atol=1e-2))

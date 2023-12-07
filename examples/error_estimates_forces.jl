@@ -54,8 +54,7 @@ tol = 1e-5;
 # We compute the reference solution ``P_*`` from which we will compute the
 # references forces.
 scfres_ref = self_consistent_field(basis_ref; tol, callback=identity)
-ψ_ref, _ = DFTK.select_occupied_orbitals(basis_ref, scfres_ref.ψ,
-                                         scfres_ref.occupation);
+ψ_ref = DFTK.select_occupied_orbitals(basis_ref, scfres_ref.ψ, scfres_ref.occupation).ψ;
 
 # We compute a variational approximation of the reference solution with
 # smaller `Ecut`. `ψr`, `ρr` and `Er` are the quantities computed with `Ecut`
@@ -79,7 +78,7 @@ Er, hamr = energy_hamiltonian(basis_ref, ψr, scfres.occupation; ρ=ρr);
 #   in [`src/scf/newton.jl`](https://github.com/JuliaMolSim/DFTK.jl/blob/fedc720dab2d194b30d468501acd0f04bd4dd3d6/src/scf/newton.jl#L121).
 res = DFTK.compute_projected_gradient(basis_ref, ψr, scfres.occupation)
 res, occ = DFTK.select_occupied_orbitals(basis_ref, res, scfres.occupation)
-ψr, _ = DFTK.select_occupied_orbitals(basis_ref, ψr, scfres.occupation);
+ψr = DFTK.select_occupied_orbitals(basis_ref, ψr, scfres.occupation).ψ;
 
 # - Compute the error ``P-P_*`` on the associated orbitals ``ϕ-ψ`` after aligning
 #   them: this is done by solving ``\min |ϕ - ψU|`` for ``U`` unitary matrix of
@@ -168,7 +167,7 @@ rhs = resLF - ΩpKe2;
 # - Solve the Schur system to compute ``R_{\rm Schur}(P)``: this is the most
 #   costly step, but inverting ``\boldsymbol{Ω} + \boldsymbol{K}`` on the small space has
 #   the same cost than the full SCF cycle on the small grid.
-ψ, _ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
+(; ψ) = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 e1 = DFTK.solve_ΩplusK(basis, ψ, rhs, occ; tol).δψ
 e1 = DFTK.transfer_blochwave(e1, basis, basis_ref)
 res_schur = e1 + Mres;

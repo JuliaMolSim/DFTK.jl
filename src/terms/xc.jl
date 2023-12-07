@@ -158,7 +158,7 @@ end
     # early return if nlcc is disabled / no elements have model core charges
     isnothing(term.ρcore) && return nothing
 
-    _, Vxc_real, _ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+    Vxc_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ).potential
     # TODO: the factor of 2 here should be associated with the density, not the potential
     if basis.model.spin_polarization in (:none, :spinless)
         Vxc_fourier = fft(basis, Vxc_real[:,:,:,1])
