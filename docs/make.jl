@@ -90,6 +90,7 @@ EXAMPLE_ASSETS = ["examples/Fe_afm.pwi", "examples/Si.extxyz"]
 #
 # Configuration and setup
 #
+DEBUG = false  # set to `true` to disable some checks and cleanup
 
 import LibGit2
 import Pkg
@@ -102,9 +103,6 @@ DFTKREV    = LibGit2.head(ROOTPATH)
 DFTKBRANCH = try LibGit2.branch(LibGit2.GitRepo(ROOTPATH)) catch end
 DFTKGH     = "github.com/JuliaMolSim/DFTK.jl"
 DFTKREPO   = DFTKGH * ".git"
-
-# Set to `true` to disable some checks and cleanup.
-DEBUG = !CONTINUOUS_INTEGRATION
 
 # Setup julia dependencies for docs generation if not yet done
 Pkg.activate(@__DIR__)
@@ -188,7 +186,7 @@ for file in literate_files
 end
 
 # Generate the docs in BUILDPATH
-debug_args = DEBUG ? (; remotes=nothing) : (; )  # allows doc to be built locally
+remote_args = CONTINUOUS_INTEGRATION ? (; ) : (; remotes=nothing)
 makedocs(;
     modules=[DFTK],
     format=Documenter.HTML(
@@ -211,7 +209,7 @@ makedocs(;
     pages=transform_to_md(PAGES),
     checkdocs=:exports,
     warnonly=DEBUG,
-    debug_args...,
+    remote_args...,
 )
 
 # Dump files for managing dependencies in binder
