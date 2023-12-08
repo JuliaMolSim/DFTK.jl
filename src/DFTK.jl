@@ -18,6 +18,9 @@ using Random
 using ChainRulesCore
 using PrecompileTools
 
+using AtomsBase
+using AtomsCalculators
+
 export Vec3
 export Mat3
 export mpi_nprocs
