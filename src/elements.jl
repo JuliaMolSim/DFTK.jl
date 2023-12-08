@@ -21,7 +21,7 @@ AtomsBase.atomic_symbol(::Element) = :X
 charge_ionic(el::Element) = charge_nuclear(el)
 
 """Return the atomic mass in a.u. of an atom type"""
-atomic_mass(el::Element) = ustrip(periodic_table[charge_nuclear(el)].atomic_mass) * dalton_to_au
+atomic_mass(el::Element) = ustrip(element(atomic_symbol(el)).atomic_mass) * dalton_to_au
 
 """Return the number of valence electrons"""
 n_elec_valence(el::Element) = charge_ionic(el)

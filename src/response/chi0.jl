@@ -389,9 +389,9 @@ end
 """
 Get the density variation δρ corresponding to a potential variation δV.
 """
-function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV::AbstractArray{T};
-                  occupation_threshold=default_occupation_threshold(T),
-                  q=zero(Vec3{eltype(ham.basis)}), kwargs_sternheimer...) where {T}
+function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{TδV};
+                  occupation_threshold=default_occupation_threshold(TδV),
+                  q=zero(Vec3{eltype(ham.basis)}), kwargs_sternheimer...) where {T, TδV}
 
     basis = ham.basis
 
@@ -404,7 +404,7 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV::AbstractArray{T};
     # Sternheimer linear solver (it makes the rhs be order 1 even if
     # δV is small)
     normδV = norm(δV)
-    normδV < eps(eltype(basis)) && return zero(δV)
+    normδV < eps(T) && return zero(δV)
     δV ./= normδV
 
     # For phonon calculations, assemble

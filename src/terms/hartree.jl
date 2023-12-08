@@ -66,8 +66,8 @@ function compute_kernel(term::TermHartree, basis::PlaneWaveBasis; kwargs...)
     basis.model.n_spin_components == 1 ? K : [K K; K K]
 end
 
-function apply_kernel(term::TermHartree, basis::PlaneWaveBasis{T}, δρ; q=zero(Vec3{T}),
-                      kwargs...) where {T}
+function apply_kernel(term::TermHartree, basis::PlaneWaveBasis{T}, δρ::AbstractArray{Tδρ};
+                      q=zero(Vec3{T}), kwargs...) where {T, Tδρ}
     δV = zero(δρ)
     δρtot = total_density(δρ)
     coeffs = if iszero(q)
@@ -77,5 +77,5 @@ function apply_kernel(term::TermHartree, basis::PlaneWaveBasis{T}, δρ; q=zero(
         coeffs_poisson_hartree(basis, term.scaling_factor; q)
     end
     # Note broadcast here: δV is 4D, and all its spin components get the same potential.
-    δV .= ifft(eltype(δV), basis, coeffs .* fft(basis, δρtot))
+    δV .= ifft(Tδρ, basis, coeffs .* fft(basis, δρtot))
 end

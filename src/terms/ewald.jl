@@ -243,12 +243,12 @@ function compute_dynmat(ewald::TermEwald, basis::PlaneWaveBasis{T}, ψ, occupati
         displacement[s] = setindex(displacement[s], one(T), α)
         real_part = -ForwardDiff.derivative(zero(T)) do ε
             ph_disp = ε .* displacement
-            forces = energy_forces_ewald(model.lattice, charges, model.positions,
-                                            q, ph_disp; ewald.η).forces
+            forces = energy_forces_ewald(model.lattice, charges, model.positions, q,
+                                         ph_disp; ewald.η).forces
             reduce(hcat, forces)
         end
 
-        dynmat[:, :, α, s] = real_part[1:n_dim, :]
+        dynmat[:, :, α, s] = real_part
     end
     # Reciprocal part
     for s = 1:n_atoms, t = 1:n_atoms
