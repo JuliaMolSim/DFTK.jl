@@ -4,8 +4,6 @@
 # This interface is inspired by the one used in Molly.jl, 
 # see https://github.com/JuliaMolSim/Molly.jl/blob/master/src/types.jl
 #
-# TODO: Decide if calling potential_energy with a state should update the 
-# state of the calculator (currently yes).
 # TODO: Decide how Hamiltonian terms should be updated upon change of the positions.
 # These terms are held inside the `basis`. Currently, the whole basis is rebuilt.
 # TODO: Find out if symmetries can be re-enabled (see issue on GH).
@@ -13,9 +11,10 @@
 struct DFTKState
     scfres::NamedTuple
 end
-function construct_DFTKState(basis)
+function construct_dummy_state(basis)
     ρ = guess_density(basis)
-    return DFTKState((;ρ, basis))
+    ψ = nothing # Will get initialized by SCF.
+    return DFTKState((;ρ, ψ, basis))
 end
 
 struct DFTKParameters
@@ -37,17 +36,12 @@ function prepare_basis(system::AbstractSystem, params::DFTKParameters)
     return basis
 end
 
-function DFTKCalculator(system;
-        Ecut::T,
-        kgrid::Union{Nothing,<:AbstractVector{Int}},
-        tol=1e-6,
-        temperature=zero(T),
-        verbose=false,
-        state=nothing
-    ) where {T <: Real}
+function DFTKCalculator(system; Ecut::Real, kgrid::Union{Nothing,<:AbstractVector{Int}}, tol=1e-6,
+        temperature=zero(Real), verbose_scf=false, state=nothing
+    )
     params = DFTKParameters(Ecut, kgrid, tol, temperature)
 
-    if verbose
+    if verbose_scf
         scf_callback=DFTK.ScfDefaultCallback()
     else
         scf_callback = (x) -> nothing
@@ -56,7 +50,7 @@ function DFTKCalculator(system;
     if isnothing(state)
         # By default create and LDA model.
         basis = prepare_basis(system, params)
-        state = construct_DFTKState(basis)
+        state = construct_dummy_state(basis)
     end
     return DFTKCalculator(params, scf_callback, state)
 end
