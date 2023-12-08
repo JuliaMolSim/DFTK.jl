@@ -65,6 +65,9 @@ function Base.size(block::HamiltonianBlock)
     n_G = length(G_vectors(block.basis, block.kpoint))
     (n_G, n_G)
 end
+function random_orbitals(hamk::HamiltonianBlock, howmany::Integer)
+    random_orbitals(hamk.basis, hamk.kpoint, howmany)
+end
 
 import Base: Matrix, Array
 Array(block::HamiltonianBlock)  = Matrix(block)
