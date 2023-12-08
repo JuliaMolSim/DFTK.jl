@@ -54,6 +54,6 @@ function estimate_integer_lattice_bounds(M::AbstractMatrix{<:Interval}, δ, shif
     # As a general statement, with M a lattice matrix, then if ||Mx|| <= δ,
     # then xi = <ei, M^-1 Mx> = <M^-T ei, Mx> <= ||M^-T ei|| δ.
     # Below code does not support non-3D systems.
-    xlims = [norm(inv(M')[:, i]) * δ + shift[i] for i in 1:3]
+    xlims = [norm(inv(M')[:, i]) * δ + shift[i] for i = 1:3]
     map(x -> ceil(Int, x.hi), xlims)
 end

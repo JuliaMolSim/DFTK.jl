@@ -28,8 +28,7 @@
         @testset "Newton" begin
             scfres_start = self_consistent_field(basis, maxiter=1)
             # remove virtual orbitals
-            ψ0, _ = select_occupied_orbitals(basis, scfres_start.ψ,
-                                             scfres_start.occupation)
+            ψ0 = select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation).ψ
             ρ_newton = newton(basis, ψ0; tol).ρ
             @test maximum(abs, ρ_newton - ρ_def) < 5tol
         end
@@ -81,8 +80,7 @@ end
     ρ0    = guess_density(basis, magnetic_moments)
     ρ_def = self_consistent_field(basis; tol, ρ=ρ0).ρ
     scfres_start = self_consistent_field(basis, maxiter=1, ρ=ρ0)
-    ψ0, _ = select_occupied_orbitals(basis, scfres_start.ψ,
-                                     scfres_start.occupation)
+    ψ0 = select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation).ψ
 
     # Run DM
     if mpi_nprocs() == 1  # Distributed implementation not yet available
@@ -118,8 +116,8 @@ end
     ρ0    = guess_density(basis)
     ρ_ref = self_consistent_field(basis; ρ=ρ0, tol).ρ
 
-    for mixing_str in ("KerkerDosMixing()", "HybridMixing(RPA=true)",
-                       "LdosMixing(RPA=false)", "HybridMixing(εr=10, RPA=true)")
+    for mixing_str in ("KerkerDosMixing()", "HybridMixing(; RPA=true)",
+                       "LdosMixing(; RPA=false)", "HybridMixing(; εr=10, RPA=true)")
         @testset "Testing $mixing_str" begin
             mixing = eval(Meta.parse(mixing_str))
             ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8).ρ
@@ -148,8 +146,8 @@ end
     scfres = self_consistent_field(basis; ρ=ρ0, tol)
     ρ_ref  = scfres.ρ
 
-    for mixing_str in ("KerkerMixing()", "KerkerDosMixing()", "DielectricMixing(εr=10)",
-                       "HybridMixing(εr=10)", "χ0Mixing(; χ0terms=[Applyχ0Model()], RPA=false)")
+    for mixing_str in ("KerkerMixing()", "KerkerDosMixing()", "DielectricMixing(; εr=10)",
+                       "HybridMixing(; εr=10)", "χ0Mixing(; χ0terms=[Applyχ0Model()], RPA=false)")
         @testset "Testing $mixing_str" begin
             mixing = eval(Meta.parse(mixing_str))
             scfres = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8)

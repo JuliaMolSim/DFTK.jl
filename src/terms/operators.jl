@@ -18,7 +18,9 @@ function LinearAlgebra.mul!(Hψ::AbstractVector, op::RealFourierOperator, ψ::Ab
     Hψ_real = similar(ψ_real)
     Hψ_fourier .= 0
     Hψ_real .= 0
-    apply!((real=Hψ_real, fourier=Hψ_fourier), op, (real=ψ_real, fourier=ψ))
+    apply!((; real=Hψ_real, fourier=Hψ_fourier),
+           op,
+           (; real=ψ_real, fourier=ψ))
     Hψ .= Hψ_fourier .+ fft(op.basis, op.kpoint, Hψ_real)
     Hψ
 end
@@ -140,7 +142,7 @@ function apply!(Hψ, op::DivAgradOperator, ψ,
                 ψ_scratch=zeros(complex(eltype(op.basis)), op.basis.fft_size...))
     # TODO: Performance improvements: Unscaled plans, avoid remaining allocations
     #       (which are only on the small k-point-specific Fourier grid
-    G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)] for α in 1:3]
+    G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)] for α = 1:3]
     for α = 1:3
         ∂αψ_real = ifft!(ψ_scratch, op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
         A∇ψ      = fft(op.basis, op.kpoint, ∂αψ_real .* op.A)

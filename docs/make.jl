@@ -90,7 +90,7 @@ EXAMPLE_ASSETS = ["examples/Fe_afm.pwi", "examples/Si.extxyz"]
 #
 # Configuration and setup
 #
-DEBUG = false  # Set to true to disable some checks and cleanup
+DEBUG = false  # set to `true` to disable some checks and cleanup
 
 import LibGit2
 import Pkg
@@ -107,7 +107,7 @@ DFTKREPO   = DFTKGH * ".git"
 # Setup julia dependencies for docs generation if not yet done
 Pkg.activate(@__DIR__)
 if !isfile(joinpath(@__DIR__, "Manifest.toml"))
-    Pkg.develop(Pkg.PackageSpec(path=ROOTPATH))
+    Pkg.develop(Pkg.PackageSpec(; path=ROOTPATH))
     Pkg.instantiate()
 end
 
@@ -152,9 +152,9 @@ end
 # The examples go to docs/literate_build/examples, the .jl files stay where they are
 literate_files = map(filter!(endswith(".jl"), extract_paths(PAGES))) do file
     if startswith(file, "examples/")
-        (src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "examples"), example=true)
+        (; src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "examples"), example=true)
     else
-        (src=joinpath(SRCPATH, file), dest=joinpath(SRCPATH, dirname(file)), example=false)
+        (; src=joinpath(SRCPATH, file), dest=joinpath(SRCPATH, dirname(file)), example=false)
     end
 end
 
@@ -186,6 +186,7 @@ for file in literate_files
 end
 
 # Generate the docs in BUILDPATH
+remote_args = CONTINUOUS_INTEGRATION ? (; ) : (; remotes=nothing)
 makedocs(;
     modules=[DFTK],
     format=Documenter.HTML(
@@ -208,6 +209,7 @@ makedocs(;
     pages=transform_to_md(PAGES),
     checkdocs=:exports,
     warnonly=DEBUG,
+    remote_args...,
 )
 
 # Dump files for managing dependencies in binder

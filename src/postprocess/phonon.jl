@@ -13,7 +13,7 @@ function dynmat_red_to_cart(model::Model, dynamical_matrix)
     #   ⇒ D_cart = lattice⁻ᵀ · D_red · lattice⁻¹.
 
     cart_mat = zero.(dynamical_matrix)
-    for τ in 1:size(cart_mat, 2), η in 1:size(cart_mat, 4)
+    for τ = 1:size(cart_mat, 2), η = 1:size(cart_mat, 4)
         cart_mat[:, η, :, τ] = inv_lattice' * dynamical_matrix[:, η, :, τ] * inv_lattice
     end
     cart_mat

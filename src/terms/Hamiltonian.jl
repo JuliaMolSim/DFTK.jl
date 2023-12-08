@@ -107,9 +107,9 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
         ifft!(ψ_real, H.basis, H.kpoint, ψ[:, iband])
         for op in H.optimized_operators
             @timing "$(nameof(typeof(op)))" begin
-                apply!((fourier=Hψ_fourier, real=Hψ_real),
+                apply!((; fourier=Hψ_fourier, real=Hψ_real),
                        op,
-                       (fourier=ψ[:, iband], real=ψ_real))
+                       (; fourier=ψ[:, iband], real=ψ_real))
             end
         end
         Hψ[:, iband] .= Hψ_fourier
@@ -147,9 +147,9 @@ end
 
             if have_divAgrad
                 @timeit to "divAgrad" begin
-                    apply!((fourier=Hψ[:, iband], real=nothing),
+                    apply!((; fourier=Hψ[:, iband], real=nothing),
                            H.divAgrad_op,
-                           (fourier=ψ[:, iband], real=nothing),
+                           (; fourier=ψ[:, iband], real=nothing),
                            ψ_real)  # ψ_real used as scratch
                 end
             end
@@ -165,7 +165,9 @@ end
     # Apply the nonlocal operator
     if !isnothing(H.nonlocal_op)
         @timing "nonlocal" begin
-            apply!((fourier=Hψ, real=nothing), H.nonlocal_op, (fourier=ψ, real=nothing))
+            apply!((; fourier=Hψ, real=nothing),
+                   H.nonlocal_op,
+                   (; fourier=ψ, real=nothing))
         end
     end
 

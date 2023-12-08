@@ -84,7 +84,7 @@ function compute_transfer_matrix(basis_in::PlaneWaveBasis{T}, basis_out::PlaneWa
     @assert basis_in.model.lattice == basis_out.model.lattice
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
-                for ik in 1:length(basis_in.kpoints))
+                for ik = 1:length(basis_in.kpoints))
     [compute_transfer_matrix(basis_in, kpt_in, basis_out, kpt_out)
      for (kpt_in, kpt_out) in zip(basis_in.kpoints, basis_out.kpoints)]
 end
@@ -134,7 +134,7 @@ function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
     @assert basis_in.model.lattice == basis_out.model.lattice
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
-                for ik in 1:length(basis_in.kpoints))
+                for ik = 1:length(basis_in.kpoints))
 
     # If, for some kpt ik, basis_in has less vectors than basis_out, then idcs_out[ik] is
     # the array of the indices of the G_vectors from basis_in in basis_out.

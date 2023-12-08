@@ -92,9 +92,9 @@ end
     @testset "solve_ΩplusK_split agrees with solve_ΩplusK" begin
         scfres = self_consistent_field(basis; tol=1e-10)
         δψ1 = solve_ΩplusK_split(scfres, rhs).δψ
-        δψ1, _ = select_occupied_orbitals(basis, δψ1, scfres.occupation)
-        ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
-        rhs_trunc, _ = select_occupied_orbitals(basis, rhs, occupation)
+        δψ1 = select_occupied_orbitals(basis, δψ1, scfres.occupation).ψ
+        (; ψ, occupation) = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
+        rhs_trunc = select_occupied_orbitals(basis, rhs, occupation).ψ
         δψ2 = solve_ΩplusK(basis, ψ, rhs_trunc, occupation).δψ
         @test norm(δψ1 - δψ2) < 1e-7
     end

@@ -74,6 +74,8 @@ tot_local_pot = DFTK.total_local_potential(scfres.ham)[:, 1, 1]; # use only dime
 # Extract other quantities before plotting them
 ρ = scfres.ρ[:, 1, 1, 1]        # converged density, first spin component
 ψ_fourier = scfres.ψ[1][:, 1]   # first k-point, all G components, first eigenvector
+
+# Transform the wave function to real space and fix the phase:
 ψ = ifft(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1]
 ψ /= (ψ[div(end, 2)] / abs(ψ[div(end, 2)]));
 

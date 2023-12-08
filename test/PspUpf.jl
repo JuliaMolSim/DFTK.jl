@@ -17,8 +17,8 @@ upf_pseudos = Dict(
     :Cr => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Cu.upf"; rcut=12.0)
 )
 hgh_pseudos = [
-    (hgh=load_psp("hgh/pbe/si-q4.hgh"), upf=upf_pseudos[:Si]),
-    (hgh=load_psp("hgh/pbe/tl-q13.hgh"), upf=upf_pseudos[:Tl])
+    (; hgh=load_psp("hgh/pbe/si-q4.hgh"), upf=upf_pseudos[:Si]),
+    (; hgh=load_psp("hgh/pbe/tl-q13.hgh"), upf=upf_pseudos[:Tl])
 ]
 end
 
@@ -76,11 +76,11 @@ end
         hgh = psp_pair.hgh
 
         @test upf.lmax == hgh.lmax
-        for l in 0:upf.lmax
+        for l = 0:upf.lmax
             @test count_n_proj_radial(upf, l) == count_n_proj_radial(hgh, l)
         end
 
-        for l in 0:upf.lmax, i in count_n_proj_radial(upf, l)
+        for l = 0:upf.lmax, i in count_n_proj_radial(upf, l)
             ircut = length(upf.r2_projs[l+1][i])
             for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
                 reference_hgh = eval_psp_projector_fourier(hgh, i, l, q)
@@ -140,7 +140,7 @@ end
 
     for psp in values(mPspUpf.upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
-        for l in 0:psp.lmax, i in count_n_proj_radial(psp, l)
+        for l = 0:psp.lmax, i in count_n_proj_radial(psp, l)
             ir_cut = min(psp.ircut, length(psp.r2_projs[l+1][i]))
             for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
                 reference = quadgk(r -> integrand(psp, i, l, q, r),

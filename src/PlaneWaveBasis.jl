@@ -124,7 +124,7 @@ Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
                                variational=true,
                                architecture::AbstractArchitecture) where {T}
-    kpoints_per_spin = [Kpoint[] for _ in 1:model.n_spin_components]
+    kpoints_per_spin = [Kpoint[] for _ = 1:model.n_spin_components]
     for k in kcoords
         k = Vec3{T}(k)  # rationals are sloooow
         mapping = Int[]
@@ -367,7 +367,7 @@ function G_vectors(fft_size::Union{Tuple,AbstractVector})
     # than this implementation, hence the code duplication.
     start = .- cld.(fft_size .- 1, 2)
     stop  = fld.(fft_size .- 1, 2)
-    axes  = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
+    axes  = [[collect(0:stop[i]); collect(start[i]:-1)] for i = 1:3]
     [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
 end
 
@@ -376,7 +376,7 @@ function G_vectors_generator(fft_size::Union{Tuple,AbstractVector})
     # accumulate_over_symmetries!, which are 100-fold slower with G_vector(fft_size).
     start = .- cld.(fft_size .- 1, 2)
     stop  = fld.(fft_size .- 1, 2)
-    axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i in 1:3]
+    axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i = 1:3]
     (Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3])
 end
 
@@ -542,7 +542,7 @@ function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
     if MPI.Comm_rank(basis.comm_kpts) == master
         allk_data = similar(data, n_kpts)
         allk_data[basis.krange_allprocs[1]] = data
-        for rank in 1:mpi_nprocs(basis.comm_kpts) - 1  # Note: MPI ranks are 0-based
+        for rank = 1:mpi_nprocs(basis.comm_kpts) - 1  # Note: MPI ranks are 0-based
             rk_data, status = MPI.recv(basis.comm_kpts, MPI.Status; source=rank, tag=tag)
             @assert MPI.Get_error(status) == 0  # all went well
             allk_data[basis.krange_allprocs[rank + 1]] = rk_data
