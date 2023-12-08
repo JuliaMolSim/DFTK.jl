@@ -10,9 +10,13 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
 It is possible to ask only for occupations higher than a certain level to be computed by
 using an optional `occupation_threshold`. By default all occupation numbers are considered.
 """
-@views @timing function compute_density(basis::PlaneWaveBasis{T}, ψ, occupation;
-                                        occupation_threshold=zero(T)) where {T}
+function compute_density(basis::PlaneWaveBasis{T}, ψ, occupation;
+                         occupation_threshold=zero(T)) where {T}
     Tρ = promote_type(T, real(eltype(ψ[1])))
+    compute_density(Tρ, basis, ψ, occupation; occupation_threshold)
+end
+@views @timing function compute_density(Tρ, basis::PlaneWaveBasis{T}, ψ, occupation;
+                                        occupation_threshold=zero(T)) where {T}
 
     # Occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]
@@ -36,7 +40,9 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 
         synchronize_device(basis.architecture)
     end
-    ρ = sum(getfield.(storages, :ρ))
+    # To ensure type-stability.
+    ρ = similar(basis.G_vectors, Tρ, basis.fft_size..., basis.model.n_spin_components)
+    ρ .= sum(getfield.(storages, :ρ))
 
     mpi_sum!(ρ, basis.comm_kpts)
     ρ = symmetrize_ρ(basis, ρ; do_lowpass=false)
@@ -50,13 +56,17 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 end
 
 # Variation in density corresponding to a variation in the orbitals and occupations.
-@views @timing function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ, occupation,
-                                   δoccupation=zero.(occupation);
-                                   occupation_threshold=zero(T), q=zero(Vec3{T})) where {T}
+function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ, occupation,
+                    δoccupation=zero.(occupation);
+                    occupation_threshold=zero(T), q=zero(Vec3{T})) where {T}
     S = promote_type(T, eltype(ψ[1]))
     # δρ is expected to be real when computations are not phonon-related.
     Tδρ = iszero(q) ? real(S) : S
-
+    compute_δρ(Tδρ, basis, ψ, δψ, occupation, δoccupation; occupation_threshold, q)
+end
+@views @timing function compute_δρ(Tδρ, basis::PlaneWaveBasis{T}, ψ, δψ, occupation,
+                                   δoccupation=zero.(occupation);
+                                   occupation_threshold=zero(T), q=zero(Vec3{T})) where {T}
     ordering(kdata) = kdata[k_to_equivalent_kpq_permutation(basis, q)]
 
     # occupation should be on the CPU as we are going to be doing scalar indexing.
@@ -66,8 +76,8 @@ end
 
     function allocate_local_storage()
         (; δρ=zeros_like(basis.G_vectors, Tδρ, basis.fft_size..., basis.model.n_spin_components),
-          ψnk_real=zeros_like(basis.G_vectors, S, basis.fft_size...),
-         δψnk_real=zeros_like(basis.G_vectors, S, basis.fft_size...))
+          ψnk_real=zeros_like(basis.G_vectors, complex(Tδρ), basis.fft_size...),
+         δψnk_real=zeros_like(basis.G_vectors, complex(Tδρ), basis.fft_size...))
     end
     range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
 
@@ -90,7 +100,9 @@ end
 
         synchronize_device(basis.architecture)
     end
-    δρ = sum(getfield.(storages, :δρ))
+    # To ensure type-stability.
+    δρ = similar(basis.G_vectors, Tδρ, basis.fft_size..., basis.model.n_spin_components)
+    δρ .= sum(getfield.(storages, :δρ))
 
     mpi_sum!(δρ, basis.comm_kpts)
     δρ = symmetrize_ρ(basis, δρ; do_lowpass=false)
