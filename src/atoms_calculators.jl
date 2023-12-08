@@ -4,28 +4,11 @@
 # This interface is inspired by the one used in Molly.jl, 
 # see https://github.com/JuliaMolSim/Molly.jl/blob/master/src/types.jl
 #
-using AbstractFFTs: Plan
 # TODO: Decide if calling potential_energy with a state should update the 
 # state of the calculator (currently yes).
-
-"""
-    DFTKCalculator(; <keyword arguments>)
-
-A calculator for use with the AtomsCalculators.jl interface.
-
-# Arguments
-- `Ecut::T`: kinetic energy cutoff for the `PlaneWaveBasis`.
-- `kgrid::kgrid::Union{Nothing,Vec3{Int}}`: Number of k-points in each dimension.
-    If not specified a grid is generated using `kgrid_from_minimal_spacing` with 
-    a minimal spacing of `2π * 0.022` per Bohr.
-- `tol`: Tolerance for the density change in 
-    the self-consistent field algorithm to flag convergence. Default is `1e-6`.
-- `temperature::T`: If temperature==0, no fractional occupations are used. 
-    If temperature is nonzero, the occupations are `fn = max_occ*smearing((εn-εF) / temperature)`.
-"""
-
-using AtomsBase
-using AtomsCalculators
+# TODO: Decide how Hamiltonian terms should be updated upon change of the positions.
+# These terms are held inside the `basis`. Currently, the whole basis is rebuilt.
+# TODO: Find out if symmetries can be re-enabled (see issue on GH).
 
 struct DFTKState
     scfres::NamedTuple
@@ -49,7 +32,7 @@ mutable struct DFTKCalculator <: AbstractCalculator
 end
 
 function prepare_basis(system::AbstractSystem, params::DFTKParameters)
-    model = model_LDA(system; temperature=params.temperature)
+    model = model_LDA(system; temperature=params.temperature, symmetries=false)
     basis = PlaneWaveBasis(model; params.Ecut, params.kgrid)
     return basis
 end
@@ -89,7 +72,12 @@ AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
 end
 AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
         system::AbstractSystem, calculator::DFTKCalculator, state::DFTKState)
-    scfres = self_consistent_field(state.scfres.basis, ρ=state.scfres.ρ, tol=calculator.params.tol, callback=calculator.scf_callback)
+    # Update basis (and the enregy terms within).
+    basis = prepare_basis(system, calculator.params)
+    
+    # Note that we use the state's densities and orbitals, but change the basis 
+    # to reflect system changes.
+    scfres = self_consistent_field(basis, ρ=state.scfres.ρ, ψ=state.scfres.ψ, tol=calculator.params.tol, callback=calculator.scf_callback)
     calculator.state = DFTKState(scfres)
     return calculator.state.scfres.energies.total
 end
@@ -108,7 +96,12 @@ AtomsCalculators.@generate_interface function AtomsCalculators.forces(
 end
 AtomsCalculators.@generate_interface function AtomsCalculators.forces(
         system::AbstractSystem, calculator::DFTKCalculator, state::DFTKState; cartesian=false)
-    scfres = self_consistent_field(state.scfres.basis, ρ=state.scfres.ρ, tol=calculator.params.tol, callback=calculator.scf_callback)
+    # Update basis (and the enregy terms within).
+    basis = prepare_basis(system, calculator.params)
+    
+    # Note that we use the state's densities and orbitals, but change the basis 
+    # to reflect system changes.
+    scfres = self_consistent_field(basis, ρ=state.scfres.ρ, ψ=state.scfres.ψ, tol=calculator.params.tol, callback=calculator.scf_callback)
     calculator.state = DFTKState(scfres)
     if cartesian
         _compute_forces = compute_forces
