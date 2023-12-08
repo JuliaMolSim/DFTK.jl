@@ -8,7 +8,7 @@
     function transfer_blochwave_kpt_real(ψk_in, basis::PlaneWaveBasis, kpt_in, kpt_out, ΔG)
         ψk_out = zeros(eltype(ψk_in), length(kpt_out.G_vectors), size(ψk_in, 2))
         exp_ΔGr = cis2pi.(-dot.(Ref(ΔG), r_vectors(basis)))
-        for n in 1:size(ψk_in, 2)
+        for n = 1:size(ψk_in, 2)
             ψk_out[:, n] = fft(basis, kpt_out, exp_ΔGr .* ifft(basis, kpt_in, ψk_in[:, n]))
         end
         ψk_out
@@ -19,7 +19,7 @@
 
     positions = [[0.0, 0.0, 0.0]]
     n_scell = 2
-    for i in 1:n_scell-1
+    for i = 1:n_scell-1
         push!(positions, i * ones(3) / n_scell)
     end
     n_atoms = length(positions)

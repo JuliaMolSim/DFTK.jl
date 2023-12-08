@@ -4,7 +4,7 @@
 
 | **Documentation**                                                                 | **Build Status**                                |  **License**                     |
 |:--------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
-| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][zulip-img]][zulip-url] | [![][ci-img]][ci-url] [![][cigpu-img]][cigpu-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
+| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][slack-img]][slack-url] | [![][ci-img]][ci-url] [![][cigpu-img]][cigpu-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
 
 [ddocs-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [ddocs-url]: https://docs.dftk.org/dev
@@ -12,8 +12,8 @@
 [docs-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-url]: https://docs.dftk.org/stable
 
-[zulip-img]: https://img.shields.io/badge/chat-on_zulip-808493.svg?logo=zulip
-[zulip-url]: https://juliamolsim.zulipchat.com/#narrow/stream/332493-dftk
+[slack-img]: https://img.shields.io/badge/chat-on_julia_slack-808493.svg?logo=slack
+[slack-url]: https://julialang.slack.com/archives/C05KJB8MPQR
 
 [ci-img]: https://github.com/JuliaMolSim/DFTK.jl/workflows/CI/badge.svg?branch=master&event=push
 [ci-url]: https://github.com/JuliaMolSim/DFTK.jl/actions
@@ -46,7 +46,7 @@ For getting started with DFTK, see [our documentation](https://docs.dftk.org):
 - [Tutorial](https://docs.dftk.org/stable/guide/tutorial/)
 - [Basic DFT examples](https://docs.dftk.org/stable/examples/metallic_systems/)
 
-Note that at least **Julia 1.8** is required.
+Note that at least **Julia 1.9** is required.
 
 ## Support and citation
 DFTK is mostly developed as part of academic research.
@@ -58,10 +58,12 @@ The current DFTK reference paper to cite is
 [![DOI](https://img.shields.io/badge/DOI-10.21105/jcon.00069-blue)](https://doi.org/10.21105/jcon.00069).
 
 ## Funding
-This project has received funding from
-the [Institute of computing and data sciences (ISCD, Sorbonne Université)](https://iscd.sorbonne-universite.fr/),
-[École des Ponts ParisTech](https://enpc.fr), [Inria Research Centre Paris](https://www.inria.fr/fr/centre-inria-de-paris),
+This project has received funding from the
+[Institute of computing and data sciences (ISCD, Sorbonne Université)](https://iscd.sorbonne-universite.fr/),
+[École des Ponts ParisTech](https://enpc.fr),
+[Inria Research Centre Paris](https://www.inria.fr/fr/centre-inria-de-paris),
 [RWTH Aachen University](https://rwth-aachen.de/),
+[Swiss National Science Foundation](https://snf.ch/),
 and from the European Research Council (ERC) under the European Union's Horizon 2020 research and
 innovation program ([grant agreement No 810367](https://cordis.europa.eu/project/id/810367)).
 
@@ -79,4 +81,6 @@ on github. If you want to contribute but are unsure where to start, take a look
 at the list of issues tagged [good first issue](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 (relatively easy tasks suitable for newcomers) or [help wanted](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 (more sizeable but well-defined and isolated).
-Don't hesitate to ask for help, through github, email or the [JuliaMolSim zulip chat][zulip-url].
+Don't hesitate to ask for help, through github,
+email or the [Julia slack][slack-url]
+channel `#juliamolsim`.

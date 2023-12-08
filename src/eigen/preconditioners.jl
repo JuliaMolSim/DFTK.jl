@@ -43,7 +43,7 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 function PreconditionerTPA(ham::HamiltonianBlock; kwargs...)
-    PreconditionerTPA(ham.basis, ham.kpoint)
+    PreconditionerTPA(ham.basis, ham.kpoint; kwargs...)
 end
 
 @views function ldiv!(Y, P::PreconditionerTPA, R)

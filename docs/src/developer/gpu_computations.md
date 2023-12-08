@@ -7,7 +7,7 @@ relying only on the high level functionalities implemented in the GPU packages.
 
 To go even further with this idea of unified code, we would also like to be able to
 support any type of GPU architecture: we do not want to hard-code the use of a
-specific architecture, say a NVIDIA CUDA GPU. DFTK does not realy on an
+specific architecture, say a NVIDIA CUDA GPU. DFTK does not rely on an
 architecture-specific package ([CUDA](https://github.com/JuliaGPU/CUDA.jl),
 [ROCm](https://github.com/JuliaGPU/AMDGPU.jl),
 [OneAPI](https://github.com/JuliaGPU/oneAPI.jl)...) but rather uses

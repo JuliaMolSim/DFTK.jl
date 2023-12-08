@@ -97,7 +97,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
     # number of kpoints and occupation
     Nk = length(basis.kpoints)
-    occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
+    occupation = [filled_occ * ones(T, n_bands) for _ = 1:Nk]
 
     # iterators
     n_iter = 0
@@ -116,7 +116,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
         res = compute_projected_gradient(basis, ψ, occupation)
         # solve (Ω+K) δψ = -res so that the Newton step is ψ <- ψ + δψ
         δψ = solve_ΩplusK(basis, ψ, -res, occupation; tol=tol_cg).δψ
-        ψ  = [ortho_qr(ψ[ik] + δψ[ik]) for ik in 1:Nk]
+        ψ  = [ortho_qr(ψ[ik] + δψ[ik]) for ik = 1:Nk]
 
         ρ_next = compute_density(basis, ψ, occupation)
         energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ_next)

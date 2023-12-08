@@ -215,7 +215,7 @@ function read_w90_nnkp(fileprefix::String)
         # 1st: Index of k-point
         # 2nd: Index of periodic image of k+b k-point
         # 3rd: Shift vector to get k-point of ikpb to the actual k+b point required
-        (ik=splitted[1], ikpb=splitted[2], G_shift=splitted[3:5])
+        (; ik=splitted[1], ikpb=splitted[2], G_shift=splitted[3:5])
     end
     (; nntot, nnkpts)
 end

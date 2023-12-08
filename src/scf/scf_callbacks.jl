@@ -2,7 +2,28 @@
 Adds simplistic checkpointing to a DFTK self-consistent field calculation.
 Requires JLD2 to be loaded.
 """
-function ScfSaveCheckpoints end  # implementation in src/jld2io.jl
+function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2"; keep=false, overwrite=false)
+    # TODO Save only every 30 minutes or so
+    function callback(info)
+        if info.n_iter == 1
+            isfile(filename) && !overwrite && error(
+                "Checkpoint $filename exists. Use 'overwrite=true' to force overwriting."
+            )
+        end
+        if info.stage == :finalize
+            if mpi_master() && !keep
+                isfile(filename) && rm(filename)  # Cleanup checkpoint
+            end
+        else
+            scfres = (; (k => v for (k, v) in pairs(info) if !startswith(string(k), "ρ"))...)
+            scfres = merge(scfres, (; ρ=info.ρout))
+            save_scfres(filename, scfres)
+        end
+        info
+    end
+end
+
+
 
 """
 Plot the trace of an SCF, i.e. the absolute error of the total energy at
@@ -155,5 +176,3 @@ function ScfDiagtol(; ratio_ρdiff=0.2, diagtol_min=nothing, diagtol_max=0.03)
         diagtol
     end
 end
-
-

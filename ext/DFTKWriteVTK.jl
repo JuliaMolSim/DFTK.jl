@@ -1,5 +1,9 @@
-function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{:vts};
-                            save_ψ=false, extra_data=Dict{String,Any}())
+module DFTKWriteVTK
+using WriteVTK
+using DFTK
+
+function DFTK.save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{:vts};
+                                 save_ψ=false, extra_data=Dict{String,Any}())
     !mpi_master() && error(
         "This function should only be called on MPI master after the k-point data has " *
         "been gathered with `gather_kpts`."
@@ -15,8 +19,8 @@ function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{
 
     # Storing the bloch waves
     if save_ψ
-        for ik in 1:length(basis.kpoints)
-            for iband in 1:size(scfres.ψ[ik])[2]
+        for ik = 1:length(basis.kpoints)
+            for iband = 1:size(scfres.ψ[ik])[2]
                 ψnk_real = ifft(basis, basis.kpoints[ik], scfres.ψ[ik][:, iband])
                 vtkfile["ψ_k$(ik)_band$(iband)_real"] = real.(ψnk_real)
                 vtkfile["ψ_k$(ik)_band$(iband)_imag"] = imag.(ψnk_real)
@@ -49,4 +53,6 @@ function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{
     end
 
     only(WriteVTK.vtk_save(vtkfile))
+end
+
 end

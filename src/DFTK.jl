@@ -184,12 +184,10 @@ include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
 include("pseudo/attach_psp.jl")
 
-export DFTKPotential
 export atomic_system, periodic_system  # Reexport from AtomsBase
 export get_wannier_model
 export run_wannier90
 include("external/atomsbase.jl")
-include("external/interatomicpotentials.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
 include("external/wannier_shared.jl")
 
@@ -223,6 +221,8 @@ include("workarounds/gpu_arrays.jl")
 
 
 function __init__()
+    # TODO No idea how to get rid of these requires below:
+
     # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
     # DoubleFloats has been loaded (via a "using" or an "import").
     # See https://github.com/JuliaPackaging/Requires.jl for details.
@@ -236,16 +236,18 @@ function __init__()
     @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
     end
-    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80"    include("plotting.jl")
+
+    # TODO Keep these requires for now as there are open PRs changing these files.
     @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"     include("external/jld2io.jl")
-    @require JSON3="0f8b85d8-7281-11e9-16c2-39a750bddbf1"    include("external/json3.jl")
-    @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" include("external/vtkio.jl")
+    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80"    include("plotting.jl")
     @require wannier90_jll="c5400fa0-8d08-52c2-913f-1e3f656c1ce9" begin
         include("external/wannier90.jl")
     end
     @require Wannier="2b19380a-1f7e-4d7d-b1b8-8aa60b3321c9" begin
         include("external/wannier.jl")
     end
+
+    # TODO Move out into extension module
     @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba"  begin
         include("workarounds/cuda_arrays.jl")
     end
@@ -258,7 +260,7 @@ end
     lattice = a / 2 * [[0 1 1.];
                        [1 0 1.];
                        [1 1 0.]]
-    Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+    Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
     atoms     = [Si, Si]
     positions = [ones(3)/8, -ones(3)/8]
     magnetic_moments = [2, -2]

@@ -95,7 +95,7 @@ end
         @test (res[1] < res[2]) == (res[3] < res[2])
     end
 
-    for i in 1:2, l in 0:2
+    for i = 1:2, l = 0:2
         qcut = qcut_psp_projector(psp, i, l)
         res = eval_psp_projector_fourier.(psp, i, l, [qcut - ε, qcut, qcut + ε])
         @test (res[1] < res[2]) == (res[3] < res[2])

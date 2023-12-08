@@ -61,7 +61,7 @@ end
     basis = PlaneWaveBasis(model; Ecut=3, fft_size=(15, 15, 15), kgrid=(1, 1, 1))
     g_all = collect(G_vectors(basis))
 
-    for i in 1:15, j in 1:15, k in 1:15
+    for i = 1:15, j = 1:15, k = 1:15
         @test index_G_vectors(basis, g_all[i, j, k]) == CartesianIndex(i, j, k)
     end
     @test index_G_vectors(basis, [15, 1, 1]) === nothing
@@ -105,7 +105,7 @@ end
     for kpt in basis.kpoints
         Gs_basis = collect(G_vectors(basis))
         Gs_kpt   = collect(G_vectors(basis, kpt))
-        for i in 1:length(kpt.mapping)
+        for i = 1:length(kpt.mapping)
             @test Gs_basis[kpt.mapping[i]] == Gs_kpt[i]
         end
         for i in keys(kpt.mapping_inv)

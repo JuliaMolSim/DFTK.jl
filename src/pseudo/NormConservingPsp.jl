@@ -149,7 +149,7 @@ import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(psp::NormConservingPsp) = Ref(psp)
 
 function projector_indices(psp::NormConservingPsp)
-    ((i, l, m) for l in 0:psp.lmax for i in 1:size(psp.h[l+1], 1) for m = -l:l)
+    ((i, l, m) for l = 0:psp.lmax for i = 1:size(psp.h[l+1], 1) for m = -l:l)
 end
 
 """

@@ -139,10 +139,10 @@ on each of the atoms. The symmetries are determined using spglib.
     end
     symmetries
 end
-function symmetry_operations(system::AbstractSystem; tol_symmetry=SYMMETRY_TOLERANCE)
+function symmetry_operations(system::AbstractSystem; kwargs...)
     parsed = parse_system(system)
     symmetry_operations(parsed.lattice, parsed.atoms, parsed.positions,
-                        parsed.magnetic_moments; tol_symmetry)
+                        parsed.magnetic_moments; kwargs...)
 end
 
 function _check_symmetries(symmetries::AbstractVector{<:SymOp}, lattice, atom_groups, positions;
@@ -162,7 +162,7 @@ function _check_symmetries(symmetries::AbstractVector{<:SymOp}, lattice, atom_gr
             for coord in group_positions
                 # If all elements of a difference in diffs is integer, then
                 # W * coord + w and pos are equivalent lattice positions
-                if !any(c -> is_approx_integer(W * coord + w - c; tol=tol_symmetry), group_positions)
+                if !any(c -> is_approx_integer(W * coord + w - c; atol=tol_symmetry), group_positions)
                     error("Issue in symmetry determination: Cannot map the atom at position " *
                           "$coord to another atom of the same element under the symmetry " *
                           "operation (W, w):\n($W, $w)")
@@ -257,7 +257,7 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     invS = Mat3{Int}(inv(S))
     Gs_full = [G + kshift for G in G_vectors(basis, Skpoint)]
     ψSk = zero(ψk)
-    for iband in 1:size(ψk, 2)
+    for iband = 1:size(ψk, 2)
         for (ig, G_full) in enumerate(Gs_full)
             igired = index_G_vectors(basis, kpoint, invS * G_full)
             @assert igired !== nothing
@@ -420,7 +420,7 @@ function unfold_array_(basis_irred, basis_unfolded, data, is_ψ)
         error("Brillouin zone symmetry unfolding not supported with MPI yet")
     end
     data_unfolded = similar(data, length(basis_unfolded.kpoints))
-    for ik_unfolded in 1:length(basis_unfolded.kpoints)
+    for ik_unfolded = 1:length(basis_unfolded.kpoints)
         kpt_unfolded = basis_unfolded.kpoints[ik_unfolded]
         ik_irred, symop = unfold_mapping(basis_irred, kpt_unfolded)
         if is_ψ

@@ -29,5 +29,5 @@ scfres = direct_minimization(basis, tol=1e-14)  # Reduce tol for production
 E = scfres.energies.total
 s = 2
 E11 = π/2 * (2(s+1)/s)^((s+2)/s) * (s/(s+2))^(2(s+1)/s) * E^((s+2)/s) / β
-println("e(1,1) / (2π)= ", E11 / (2π))
+println("e(1,1) / (2π) = ", E11 / (2π))
 heatmap(scfres.ρ[:, :, 1, 1], c=:blues)

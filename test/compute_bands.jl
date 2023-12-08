@@ -135,7 +135,7 @@ end
 
     eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands + 3,
                                      n_conv_check=n_bands, tol=1e-5)
-    for ik in 1:length(basis.kpoints)
+    for ik = 1:length(basis.kpoints)
         @test eigres.λ[ik][1:n_bands] ≈ band_data.λ[ik] atol=1e-5
     end
 end
@@ -162,14 +162,14 @@ end
     @test ret.n_kcoord == 8
     @test ret.n_bands  == 4
 
-    for iband in 1:4
-        @test ret.λ[:, iband, 1] == [10ik .+ iband for ik in 1:8]
+    for iband = 1:4
+        @test ret.λ[:, iband, 1] == [10ik .+ iband for ik = 1:8]
         @test ret.λerror[:, iband, 1] == ret.λ[:, iband, 1] ./ 100
     end
 
     B = model.recip_lattice
     ref_kdist = [0.0]
-    for ik in 2:8
+    for ik = 2:8
         if ik != 4
             push!(ref_kdist, ref_kdist[end] + norm(B * (kinter[ik-1] - kinter[ik])))
         else

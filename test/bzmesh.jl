@@ -13,7 +13,7 @@
         kcoords_spglib = normalize_kpoint_coordinate.(Spglib.eachpoint(spg_mesh))
         sort!(kcoords_spglib)
 
-        kcoords, _ = bzmesh_uniform(kgrid_size; kshift)
+        (; kcoords) = bzmesh_uniform(kgrid_size; kshift)
         sort!(kcoords)
 
         @test kcoords == kcoords_spglib
@@ -43,16 +43,16 @@ end
             system = pyconvert(AbstractSystem, ase_atoms * pytuple(supercell))
         end
 
-        red_kcoords, _ = bzmesh_uniform(kgrid_size; kshift)
+        red_kcoords = bzmesh_uniform(kgrid_size; kshift).kcoords
         symmetries = symmetry_operations(system)
-        irred_kcoords, _ = bzmesh_ir_wedge(kgrid_size, symmetries; kshift)
+        irred_kcoords = bzmesh_ir_wedge(kgrid_size, symmetries; kshift).kcoords
 
         @test length(irred_kcoords) == kirredsize
 
         # Try to reproduce all kcoords from irred_kcoords
         all_kcoords = Vector{Vec3{Rational{Int}}}()
         sym_preserving_grid = DFTK.symmetries_preserving_kgrid(symmetries, red_kcoords)
-        for (ik, k) in enumerate(irred_kcoords)
+        for k in irred_kcoords
             append!(all_kcoords, [symop.S * k for symop in sym_preserving_grid])
         end
 
