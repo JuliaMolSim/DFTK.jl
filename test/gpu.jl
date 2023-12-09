@@ -1,12 +1,12 @@
-using Test
-using CUDA
-using DFTK
-include("testcases.jl")
-
 # These are not yet the best tests, but just to ensure our GPU support
 # does not just break randomly
 
-@testset "CUDA silicon functionality test" begin
+@testitem "CUDA silicon functionality test" tags=[:gpu] setup=[TestCases] begin
+    using DFTK
+    using CUDA
+    using LinearAlgebra
+    silicon = TestCases.silicon
+
     function run_problem(; architecture)
         model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions)
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=(3, 3, 3), architecture)
@@ -19,7 +19,12 @@ include("testcases.jl")
     @test norm(scfres_cpu.ρ - Array(scfres_gpu.ρ)) < 1e-9
 end
 
-@testset "CUDA iron functionality test" begin
+@testitem "CUDA iron functionality test" tags=[:gpu] setup=[TestCases] begin
+    using DFTK
+    using CUDA
+    using LinearAlgebra
+    iron_bcc = TestCases.iron_bcc
+
     function run_problem(; architecture)
         magnetic_moments = [4.0]
         model = model_PBE(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;

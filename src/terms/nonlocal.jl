@@ -56,7 +56,7 @@ end
     isempty(psp_groups) && return nothing
 
     # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
-    forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
+    forces = [zero(Vec3{T}) for _ = 1:length(model.positions)]
     for group in psp_groups
         element = model.atoms[first(group)]
 
@@ -119,7 +119,7 @@ function build_projection_coefficients_(T, psp::NormConservingPsp)
     n_proj = count_n_proj(psp)
     proj_coeffs = zeros(T, n_proj, n_proj)
     count = 0
-    for l in 0:psp.lmax, m in -l:l
+    for l = 0:psp.lmax, m in -l:l
         n_proj_l = count_n_proj_radial(psp, l)  # Number of i's
         range = count .+ (1:n_proj_l)
         proj_coeffs[range, range] = psp.h[l + 1]
@@ -205,7 +205,7 @@ function build_form_factors(psp, qs::Array)
         q_norm = norm(q)
         if !haskey(radials, q_norm)
             radials_q = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
-            for l in 0:psp.lmax, iproj_l in 1:count_n_proj_radial(psp, l)
+            for l = 0:psp.lmax, iproj_l = 1:count_n_proj_radial(psp, l)
                 radials_q[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q_norm)
             end
             radials[q_norm] = radials_q
@@ -216,10 +216,10 @@ function build_form_factors(psp, qs::Array)
     for (iq, q) in enumerate(qs)
         radials_q = radials[norm(q)]
         count = 1
-        for l in 0:psp.lmax, m in -l:l
+        for l = 0:psp.lmax, m in -l:l
             # see "Fourier transforms of centered functions" in the docs for the formula
             angular = (-im)^l * ylm_real(l, m, q)
-            for iproj_l in 1:count_n_proj_radial(psp, l)
+            for iproj_l = 1:count_n_proj_radial(psp, l)
                 form_factors[iq, count] = radials_q[iproj_l, l+1] * angular
                 count += 1
             end

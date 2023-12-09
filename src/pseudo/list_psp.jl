@@ -8,11 +8,11 @@ to restrict the displayed files.
 
 # Examples
 ```julia-repl
-julia> list_psp(family="hgh")
+julia> list_psp(; family="hgh")
 ```
 will list all HGH-type pseudopotentials and
 ```julia-repl
-julia> list_psp(family="hgh", functional="lda")
+julia> list_psp(; family="hgh", functional="lda")
 ```
 will only list those for LDA (also known as Pade in this context)
 and
@@ -47,7 +47,7 @@ function list_psp(element=nothing; family=nothing, functional=nothing, core=noth
 
             f_identifier = joinpath(root, file)
             Sys.iswindows() && (f_identifier = replace(f_identifier, "\\" => "/"))
-            push!(psplist, (identifier=f_identifier, family=f_family,
+            push!(psplist, (; identifier=f_identifier, family=f_family,
                   functional=f_functional, element=f_element,
                   n_elec_valence=parse(Int, f_nvalence[2:end]),
                   path=joinpath(datadir_psp(), root, file)))
@@ -59,10 +59,10 @@ function list_psp(element=nothing; family=nothing, functional=nothing, core=noth
     psp_per_element = map(per_elem) do elgroup
         @assert length(elgroup) > 0
         if length(elgroup) == 1
-            cores = [(core=:fullcore, )]
+            cores = [(; core=:fullcore)]
         else
-            cores = append!(fill((core=:other, ), length(elgroup) - 2),
-                            [(core=:fullcore, ), (core=:semicore, )])
+            cores = append!(fill((; core=:other), length(elgroup) - 2),
+                            [(; core=:fullcore), (; core=:semicore)])
         end
         merge.(sort(elgroup, by=psp -> psp.n_elec_valence), cores)
     end

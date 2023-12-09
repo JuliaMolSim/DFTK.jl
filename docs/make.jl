@@ -90,7 +90,7 @@ EXAMPLE_ASSETS = ["examples/Fe_afm.pwi", "examples/Si.extxyz"]
 #
 # Configuration and setup
 #
-DEBUG = false  # Set to true to disable some checks and cleanup
+DEBUG = false  # set to `true` to disable some checks and cleanup
 
 import LibGit2
 import Pkg
@@ -107,7 +107,7 @@ DFTKREPO   = DFTKGH * ".git"
 # Setup julia dependencies for docs generation if not yet done
 Pkg.activate(@__DIR__)
 if !isfile(joinpath(@__DIR__, "Manifest.toml"))
-    Pkg.develop(Pkg.PackageSpec(path=ROOTPATH))
+    Pkg.develop(Pkg.PackageSpec(; path=ROOTPATH))
     Pkg.instantiate()
 end
 
@@ -127,13 +127,13 @@ import Artifacts
 #
 
 # Get list of files from PAGES
-extract_paths(pages::AbstractArray) = collect(Iterators.flatten(extract_paths.(pages)))
 extract_paths(file::AbstractString) = [file]
+extract_paths(pages::AbstractArray) = collect(Iterators.flatten(extract_paths.(pages)))
 extract_paths(pair::Pair) = extract_paths(pair.second)
 
 # Transform files to *.md
-transform_to_md(pages::AbstractArray) = transform_to_md.(pages)
 transform_to_md(file::AbstractString) = first(splitext(file)) * ".md"
+transform_to_md(pages::AbstractArray) = transform_to_md.(pages)
 transform_to_md(pair::Pair) = (pair.first => transform_to_md(pair.second))
 
 # Setup Artifacts.toml system
@@ -152,9 +152,9 @@ end
 # The examples go to docs/literate_build/examples, the .jl files stay where they are
 literate_files = map(filter!(endswith(".jl"), extract_paths(PAGES))) do file
     if startswith(file, "examples/")
-        (src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "examples"), example=true)
+        (; src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "examples"), example=true)
     else
-        (src=joinpath(SRCPATH, file), dest=joinpath(SRCPATH, dirname(file)), example=false)
+        (; src=joinpath(SRCPATH, file), dest=joinpath(SRCPATH, dirname(file)), example=false)
     end
 end
 
@@ -186,9 +186,9 @@ for file in literate_files
 end
 
 # Generate the docs in BUILDPATH
+remote_args = CONTINUOUS_INTEGRATION ? (; ) : (; remotes=nothing)
 makedocs(;
     modules=[DFTK],
-    repo="https://" * DFTKGH * "/blob/{commit}{path}#{line}",
     format=Documenter.HTML(
         # Use clean URLs, unless built as a "local" build
         prettyurls = CONTINUOUS_INTEGRATION,
@@ -202,12 +202,14 @@ makedocs(;
                 :braket => [raw"\left\langle#1\middle|#2\right\rangle", 2],
             ),
         ))),
+        size_threshold=nothing,  # do not fail build if large HTML outputs
     ),
     sitename = "DFTK.jl",
     authors = "Michael F. Herbst, Antoine Levitt and contributors.",
     pages=transform_to_md(PAGES),
     checkdocs=:exports,
-    strict=!DEBUG,
+    warnonly=DEBUG,
+    remote_args...,
 )
 
 # Dump files for managing dependencies in binder

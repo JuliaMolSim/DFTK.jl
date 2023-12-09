@@ -1,14 +1,7 @@
-using Test
-using LinearAlgebra
-using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
-using DFTK: eval_psp_projector_real, psp_local_polynomial, eval_psp_local_real
-using DFTK: psp_projector_polynomial, qcut_psp_projector, qcut_psp_local
-using DFTK: eval_psp_energy_correction, count_n_proj_radial
-using SpecialFunctions: besselj
-using QuadGK
+@testitem "Check reading 'C-lda-q4'" tags=[:psp] begin
+    using LinearAlgebra
+    using DFTK: load_psp
 
-
-@testset "Check reading 'C-lda-q4'" begin
     psp = load_psp("hgh/lda/C-q4")
 
     @test psp.identifier == "hgh/lda/c-q4"
@@ -23,7 +16,10 @@ using QuadGK
     @test psp.h[2] == zeros(0, 0)
 end
 
-@testset "Check reading 'Ni-lda-q18'" begin
+@testitem "Check reading 'Ni-lda-q18'" tags=[:psp] begin
+    using LinearAlgebra
+    using DFTK: load_psp
+
     psp = load_psp("hgh/lda/Ni-q18")
 
     @test psp.identifier == "hgh/lda/ni-q18"
@@ -39,7 +35,10 @@ end
     @test psp.h[3] == -13.39506212 * ones(1, 1)
 end
 
-@testset "Check evaluating 'Si-lda-q4'" begin
+@testitem "Check evaluating 'Si-lda-q4'" tags=[:psp] begin
+    using LinearAlgebra
+    using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
+
     psp = load_psp("hgh/lda/Si-q4")
 
     # Test local part evaluation
@@ -82,27 +81,39 @@ end
 
 end
 
-@testset "Check qcut routines" begin
+@testitem "Check qcut routines" tags=[:psp] begin
+    using LinearAlgebra
+    using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
+    using DFTK: qcut_psp_projector, qcut_psp_local
+
     psp = load_psp("hgh/pbe/au-q11.hgh")
     ε = 1e-6
 
-    qcut = qcut_psp_local(psp)
-    res = eval_psp_local_fourier.(psp, [qcut - ε, qcut, qcut + ε])
-    @test (res[1] < res[2]) == (res[3] < res[2])
+    let
+        qcut = qcut_psp_local(psp)
+        res = eval_psp_local_fourier.(psp, [qcut - ε, qcut, qcut + ε])
+        @test (res[1] < res[2]) == (res[3] < res[2])
+    end
 
-    for i in 1:2, l in 0:2
+    for i = 1:2, l = 0:2
         qcut = qcut_psp_projector(psp, i, l)
         res = eval_psp_projector_fourier.(psp, i, l, [qcut - ε, qcut, qcut + ε])
         @test (res[1] < res[2]) == (res[3] < res[2])
     end
 end
 
-@testset "Agreement of polynomial implementation and eval functions" begin
-    psp = load_psp("hgh/lda/Si-q4")
-    Qloc = psp_local_polynomial(Float64, psp)
-    evalQloc(q) = let t = q * psp.rloc; Qloc(t) * exp(-t^2 / 2) / t^2; end
-    for q in abs.(randn(10))
-        @test evalQloc(q) ≈ eval_psp_local_fourier(psp, q)
+@testitem "Agreement of polynomial implementation and eval functions" tags=[:psp] begin
+    using LinearAlgebra
+    using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
+    using DFTK: psp_local_polynomial, psp_projector_polynomial, count_n_proj_radial
+
+    let
+        psp = load_psp("hgh/lda/Si-q4")
+        Qloc = psp_local_polynomial(Float64, psp)
+        evalQloc(q) = let t = q * psp.rloc; Qloc(t) * exp(-t^2 / 2) / t^2; end
+        for q in abs.(randn(10))
+            @test evalQloc(q) ≈ eval_psp_local_fourier(psp, q)
+        end
     end
 
     for pspfile in ["Au-q11", "Ba-q10"]
@@ -117,7 +128,13 @@ end
     end
 end
 
-@testset "Projectors are consistent in real and Fourier space" begin
+@testitem "Projectors are consistent in real and Fourier space" tags=[:psp] begin
+    using LinearAlgebra
+    using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_projector_real
+    using DFTK: count_n_proj_radial
+    using SpecialFunctions: besselj
+    using QuadGK
+
     # The spherical bessel function of the first kind in terms of ordinary bessels:
     function j(n, x::T) where {T}
         x == 0 ? zero(T) : sqrt(π/2x) * besselj(n+1/2, x)
@@ -140,7 +157,11 @@ end
     end
 end
 
-@testset "Potentials are consistent in real and Fourier space" begin
+@testitem "Potentials are consistent in real and Fourier space" tags=[:psp] begin
+    using LinearAlgebra
+    using DFTK: load_psp, eval_psp_local_fourier, eval_psp_local_real
+    using QuadGK
+
     reg_param = 1e-3  # divergent integral, needs regularization
     function integrand(psp, q, r)
         4π * eval_psp_local_real(psp, r) * exp(-reg_param * r) * sin(q*r) / q * r
@@ -155,7 +176,11 @@ end
     end
 end
 
-@testset "PSP energy correction is consistent with real-space potential" begin
+@testitem "PSP energy correction is consistent with real-space potential" tags=[:psp] begin
+    using LinearAlgebra
+    using DFTK: load_psp, eval_psp_local_real, eval_psp_energy_correction
+    using QuadGK
+
     reg_param = 1e-6  # divergent integral, needs regularization
     q_small = 1e-6    # We are interested in q→0 term
     function integrand(psp, n_electrons, r)
@@ -174,7 +199,11 @@ end
     end
 end
 
-@testset "PSP energy correction is consistent with fourier-space potential" begin
+@testitem "PSP energy correction is consistent with fourier-space potential" #=
+    =#    tags=[:psp] begin
+    using LinearAlgebra
+    using DFTK: load_psp, eval_psp_local_fourier, eval_psp_energy_correction
+
     q_small = 1e-3    # We are interested in q→0 term
     for pspfile in ["Au-q11", "Ba-q10"]
         psp = load_psp("hgh/lda/" * pspfile)

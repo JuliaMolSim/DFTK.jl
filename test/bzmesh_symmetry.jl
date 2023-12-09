@@ -1,14 +1,14 @@
-using DFTK
-using Test
-include("testcases.jl")
+@testitem "Symmetrization and not symmetrization yields the same density and energy" #=
+    =#    setup=[TestCases] begin
+    using DFTK
+    using LinearAlgebra
+    testcase = TestCases.silicon
 
-@testset "Symmetrization and not symmetrization yields the same density and energy" begin
-    args = ((kgrid=[2, 2, 2], kshift=[1/2, 0, 0]),
-            (kgrid=[2, 2, 2], kshift=[1/2, 1/2, 0]),
-            (kgrid=[2, 2, 2], kshift=[0, 0, 0]),
-            (kgrid=[3, 2, 3], kshift=[0, 0, 0]),
-            (kgrid=[3, 2, 3], kshift=[0, 1/2, 1/2]))
-    testcase = silicon
+    args = ((; kgrid=[2, 2, 2], kshift=[1/2, 0, 0]),
+            (; kgrid=[2, 2, 2], kshift=[1/2, 1/2, 0]),
+            (; kgrid=[2, 2, 2], kshift=[0, 0, 0]),
+            (; kgrid=[3, 2, 3], kshift=[0, 0, 0]),
+            (; kgrid=[3, 2, 3], kshift=[0, 1/2, 1/2]))
     for case in args
         model_nosym = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
                                 symmetries=false)
@@ -21,6 +21,7 @@ include("testcases.jl")
 
         model_sym = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
         basis = PlaneWaveBasis(model_sym; Ecut=5, case...)
+        DFTK.check_group(basis.symmetries)
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10))
         ρ2 = scfres.ρ
         E2 = scfres.energies.total

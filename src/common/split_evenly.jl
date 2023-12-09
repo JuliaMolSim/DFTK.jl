@@ -1,4 +1,3 @@
-
 """
 Split an iterable evenly into N chunks, which will be returned.
 """

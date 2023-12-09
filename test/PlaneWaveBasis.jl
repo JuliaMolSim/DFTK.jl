@@ -1,22 +1,8 @@
-using Test
-using DFTK
-using DFTK: index_G_vectors
-using LinearAlgebra
+@testitem "PlaneWaveBasis: Check struct construction" setup=[TestCases] begin
+    using DFTK
+    using LinearAlgebra
+    silicon = TestCases.silicon
 
-include("testcases.jl")
-
-function test_pw_cutoffs(testcase, Ecut, fft_size)
-    model = Model(testcase.lattice)
-    basis = PlaneWaveBasis(model; Ecut, fft_size, kgrid=(2, 5, 5), kshift=[1, 0, 0]/2)
-
-    for (ik, kpt) in enumerate(basis.kpoints)
-        for G in G_vectors(basis, kpt)
-            @test sum(abs2, model.recip_lattice * (kpt.coordinate + G)) ≤ 2 * Ecut
-        end
-    end
-end
-
-@testset "PlaneWaveBasis: Check struct construction" begin
     Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
@@ -46,25 +32,47 @@ end
     @test basis.kweights == ([1, 8, 6, 12] / 27)[basis.krange_thisproc]
 end
 
-@testset "PlaneWaveBasis: Energy cutoff is respected" begin
+@testitem "PlaneWaveBasis: Energy cutoff is respected" setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
+
+    function test_pw_cutoffs(testcase, Ecut, fft_size)
+        model = Model(testcase.lattice)
+        basis = PlaneWaveBasis(model; Ecut, fft_size, kgrid=(2, 5, 5), kshift=[1, 0, 0]/2)
+
+        for kpt in basis.kpoints
+            for G in G_vectors(basis, kpt)
+                @test sum(abs2, model.recip_lattice * (kpt.coordinate + G)) ≤ 2 * Ecut
+            end
+        end
+    end
+
     test_pw_cutoffs(silicon, 4.0, [15, 15, 15])
     test_pw_cutoffs(silicon, 3.0, [15, 13, 13])
     test_pw_cutoffs(silicon, 4.0, [11, 13, 11])
 end
 
-@testset "PlaneWaveBasis: Check cubic basis and cubic index" begin
+@testitem "PlaneWaveBasis: Check cubic basis and cubic index" setup=[TestCases] begin
+    using DFTK
+    using DFTK: index_G_vectors
+    silicon = TestCases.silicon
+
     model = Model(silicon.lattice)
     basis = PlaneWaveBasis(model; Ecut=3, fft_size=(15, 15, 15), kgrid=(1, 1, 1))
     g_all = collect(G_vectors(basis))
 
-    for i in 1:15, j in 1:15, k in 1:15
+    for i = 1:15, j = 1:15, k = 1:15
         @test index_G_vectors(basis, g_all[i, j, k]) == CartesianIndex(i, j, k)
     end
     @test index_G_vectors(basis, [15, 1, 1]) === nothing
     @test index_G_vectors(basis, [-15, 1, 1]) === nothing
 end
 
-@testset "PlaneWaveBasis: Check index for kpoints" begin
+@testitem "PlaneWaveBasis: Check index for kpoints" setup=[TestCases] begin
+    using DFTK
+    using DFTK: index_G_vectors
+    silicon = TestCases.silicon
+
     Ecut = 3
     fft_size = [7, 9, 11]
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
@@ -86,7 +94,10 @@ end
     end
 end
 
-@testset "PlaneWaveBasis: kpoint mapping" begin
+@testitem "PlaneWaveBasis: kpoint mapping" setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
+
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
     basis = PlaneWaveBasis(model; Ecut=3, kgrid=(2, 2, 2), fft_size=[7, 9, 11],
                            kshift=ones(3)/2)
@@ -94,7 +105,7 @@ end
     for kpt in basis.kpoints
         Gs_basis = collect(G_vectors(basis))
         Gs_kpt   = collect(G_vectors(basis, kpt))
-        for i in 1:length(kpt.mapping)
+        for i = 1:length(kpt.mapping)
             @test Gs_basis[kpt.mapping[i]] == Gs_kpt[i]
         end
         for i in keys(kpt.mapping_inv)
@@ -103,7 +114,10 @@ end
     end
 end
 
-@testset "PlaneWaveBasis: Check G_vector-like accessor functions" begin
+@testitem "PlaneWaveBasis: Check G_vector-like accessor functions" setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
+
     Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)

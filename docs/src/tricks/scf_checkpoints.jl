@@ -40,7 +40,7 @@ using JLD2
 d = 2.079  # oxygen-oxygen bondlength
 a = 9.0    # size of the simulation box
 lattice = a * I(3)
-O = ElementPsp(:O, psp=load_psp("hgh/pbe/O-q6.hgh"))
+O = ElementPsp(:O; psp=load_psp("hgh/pbe/O-q6.hgh"))
 atoms     = [O, O]
 positions = d / 2a * [[0, 0, 1], [0, 0, -1]]
 magnetic_moments = [1., 1.]
@@ -90,7 +90,7 @@ scfres = self_consistent_field(basis;
 # which exactly gives the familiar printing of the SCF convergence.
 # If you want to have both (printing and checkpointing) you need to chain
 # both callbacks:
-callback = DFTK.ScfDefaultCallback() ∘ DFTK.ScfSaveCheckpoints(keep=true)
+callback = DFTK.ScfDefaultCallback() ∘ DFTK.ScfSaveCheckpoints(; keep=true)
 scfres = self_consistent_field(basis;
                                ρ=guess_density(basis, magnetic_moments),
                                tol=1e-2, callback);

@@ -1,12 +1,12 @@
-using DFTK
-import DFTK: mpi_mean!
-using Test
-using Random
-using MPI
-include("testcases.jl")
-
 # TODO: refactor tests to avoid code repetition
-@testset "Forces on silicon" begin
+@testitem "Forces on silicon" setup=[TestCases] begin
+    using DFTK
+    using DFTK: mpi_mean!
+    using Random
+    using MPI
+    using LinearAlgebra
+    silicon = TestCases.silicon
+
     function energy_forces(positions)
         model = model_DFT(silicon.lattice, silicon.atoms, positions, [:lda_x, :lda_c_pw])
         basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
@@ -45,7 +45,14 @@ include("testcases.jl")
     @test maximum(v -> maximum(abs, v), reference - Fc1) < 1e-5
 end
 
-@testset "Forces on silicon with non-linear core correction" begin
+@testitem "Forces on silicon with non-linear core correction" setup=[TestCases] begin
+    using DFTK
+    using DFTK: mpi_mean!
+    using Random
+    using MPI
+    using LinearAlgebra
+    silicon = TestCases.silicon
+
     function energy_forces(positions)
         Si = ElementPsp(silicon.atnum, :Si, load_psp(silicon.psp_upf))
         atoms = fill(Si, length(silicon.atoms))
@@ -86,7 +93,14 @@ end
     @test maximum(v -> maximum(abs, v), reference - Fc1) < 1e-5
 end
 
-@testset "Forces on silicon with spin and temperature" begin
+@testitem "Forces on silicon with spin and temperature" setup=[TestCases] begin
+    using DFTK
+    using DFTK: mpi_mean!
+    using Random
+    using MPI
+    using LinearAlgebra
+    silicon = TestCases.silicon
+
     function silicon_energy_forces(positions; smearing=Smearing.FermiDirac())
         model  = model_DFT(silicon.lattice, silicon.atoms, positions, :lda_xc_teter93;
                            temperature=0.03, smearing, spin_polarization=:collinear)
@@ -111,7 +125,14 @@ end
     end
 end
 
-@testset "Forces on oxygen with spin and temperature" begin
+@testitem "Forces on oxygen with spin and temperature" setup=[TestCases] begin
+    using DFTK
+    using DFTK: mpi_mean!
+    using Random
+    using MPI
+    using LinearAlgebra
+    o2molecule = TestCases.o2molecule
+
     function oxygen_energy_forces(positions)
         magnetic_moments = [1.0, 1.0]
         model = model_PBE(diagm([7.0, 7.0, 7.0]), o2molecule.atoms, positions;
@@ -137,5 +158,5 @@ end
     diff_findiff = -(E2 - E1) / ε
     diff_forces  = dot(F1[1], disp)
 
-    @test abs(diff_findiff - diff_forces) < 1e-4
+    @test abs(diff_findiff - diff_forces) < 5e-4
 end

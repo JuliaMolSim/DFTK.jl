@@ -1,4 +1,6 @@
-using LinearAlgebra
+@testsetup module TestCases
+using DFTK
+using LinearAlgebra: Diagonal, diagm
 using LazyArtifacts
 
 hgh_lda_family = artifact"hgh_lda_hgh"
@@ -21,7 +23,7 @@ silicon = (
     kweights = [1/27, 8/27, 6/27, 12/27],
 )
 silicon = merge(silicon,
-                (; atoms=fill(ElementPsp(silicon.atnum, psp=load_psp(silicon.psp_hgh)), 2)))
+                (; atoms=fill(ElementPsp(silicon.atnum; psp=load_psp(silicon.psp_hgh)), 2)))
 
 magnesium = (
     lattice = [-3.0179389205999998 -3.0179389205999998 0.0000000000000000;
@@ -42,7 +44,7 @@ magnesium = (
     kweights = [1/27, 6/27, 2/27, 2/27, 12/27, 4/27],
 )
 magnesium = merge(magnesium,
-                  (; atoms=fill(ElementPsp(magnesium.atnum, psp=load_psp(magnesium.psp_hgh)), 2)))
+                  (; atoms=fill(ElementPsp(magnesium.atnum; psp=load_psp(magnesium.psp_hgh)), 2)))
 
 
 aluminium = (
@@ -56,7 +58,7 @@ aluminium = (
     temperature = 0.0009500431544769484,
 )
 aluminium = merge(aluminium,
-                  (; atoms=fill(ElementPsp(aluminium.atnum, psp=load_psp(aluminium.psp_hgh)), 4)))
+                  (; atoms=fill(ElementPsp(aluminium.atnum; psp=load_psp(aluminium.psp_hgh)), 4)))
 
 
 aluminium_primitive = (
@@ -87,7 +89,7 @@ platinum_hcp = (
     temperature = 0.0009500431544769484,
 )
 platinum_hcp = merge(platinum_hcp,
-                     (; atoms=fill(ElementPsp(platinum_hcp.atnum, psp=load_psp(platinum_hcp.psp_hgh)), 2)))
+                     (; atoms=fill(ElementPsp(platinum_hcp.atnum; psp=load_psp(platinum_hcp.psp_hgh)), 2)))
 
 iron_bcc = (
     lattice = 2.71176 .* [[-1 1 1]; [1 -1  1]; [1 1 -1]],
@@ -98,7 +100,7 @@ iron_bcc = (
     positions = [zeros(3)],
     temperature = 0.01,
 )
-iron_bcc = merge(iron_bcc, (; atoms=[ElementPsp(iron_bcc.atnum, psp=load_psp(iron_bcc.psp_hgh))]))
+iron_bcc = merge(iron_bcc, (; atoms=[ElementPsp(iron_bcc.atnum; psp=load_psp(iron_bcc.psp_hgh))]))
 
 o2molecule = (
     lattice = diagm([6.5, 6.5, 9.0]),
@@ -110,4 +112,8 @@ o2molecule = (
     temperature = 0.02,
 )
 o2molecule = merge(o2molecule,
-                   (; atoms=fill(ElementPsp(o2molecule.atnum, psp=load_psp(o2molecule.psp_hgh)), 2)))
+                   (; atoms=fill(ElementPsp(o2molecule.atnum; psp=load_psp(o2molecule.psp_hgh)), 2)))
+
+all_testcases = (; silicon, magnesium, aluminium, aluminium_primitive, platinum_hcp,
+                 iron_bcc, o2molecule)
+end

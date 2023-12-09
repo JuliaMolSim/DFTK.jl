@@ -1,10 +1,9 @@
-using DFTK
-import DFTK: mpi_mean!
-using MPI
+@testsetup module Chi0
 using Test
-using LinearAlgebra: norm
-
-include("testcases.jl")
+using DFTK
+using DFTK: mpi_mean!
+using MPI
+using LinearAlgebra
 
 function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=:none,
                    eigensolver=lobpcg_hyper, Ecut=10, kgrid=[3, 1, 1], fft_size=[15, 1, 15],
@@ -39,7 +38,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         ham0  = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
         nbandsalg = is_εF_fixed ? FixedBands(; n_bands_converge=6) : AdaptiveBands(model)
         res = DFTK.next_density(ham0, nbandsalg; tol, eigensolver)
-        scfres = (ham=ham0, res...)
+        scfres = (; ham=ham0, res...)
 
         # create external small perturbation εδV
         n_spin = model.n_spin_components
@@ -72,14 +71,12 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         @test norm(diff_findiff - diff_applied_χ0) < testtol
 
         # Test apply_χ0 without extra bands
-        ψ_occ, occ_occ = DFTK.select_occupied_orbitals(basis,
-                                                       scfres.ψ,
-                                                       scfres.occupation;
+        ψ_occ, occ_occ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation;
                                                        threshold=scfres.occupation_threshold)
         ε_occ = [scfres.eigenvalues[ik][1:size(ψk, 2)] for (ik, ψk) in enumerate(ψ_occ)]
 
-        diff_applied_χ0_noextra = apply_χ0(scfres.ham, ψ_occ, occ_occ, scfres.εF,
-                                           ε_occ, δV; scfres.occupation_threshold)
+        diff_applied_χ0_noextra = apply_χ0(scfres.ham, ψ_occ, occ_occ, scfres.εF, ε_occ, δV;
+                                           scfres.occupation_threshold)
         @test norm(diff_applied_χ0_noextra - diff_applied_χ0) < testtol
 
         # just to cover it here
@@ -109,8 +106,14 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         end
     end
 end
+end
 
-@testset "Computing χ0" begin
+
+@testitem "Computing χ0" setup=[Chi0, TestCases] begin
+    using DFTK
+    using .Chi0: test_chi0
+    (; silicon, magnesium) = TestCases.all_testcases
+
     for (case, temperatures) in [(silicon, (0, 0.03)), (magnesium, (0.01, ))]
         for temperature in temperatures, spin_polarization in (:none, :collinear)
             for symmetries in (false, true)

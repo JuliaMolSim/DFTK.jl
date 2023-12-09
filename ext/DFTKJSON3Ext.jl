@@ -1,4 +1,9 @@
-function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{:json})
+module DFTKJSON3Ext
+using JSON3
+using DFTK
+using DFTK: todict
+
+function DFTK.save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{:json})
     # TODO Quick and dirty solution for now.
     #      The better approach is to integrate with StructTypes.jl
 
@@ -14,3 +19,5 @@ function save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{
 end
 
 #TODO introduce `todict` functions for all sorts of datastructures (basis, ...)
+
+end

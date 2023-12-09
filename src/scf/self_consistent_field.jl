@@ -77,6 +77,9 @@ Overview of parameters:
 - `nbandsalg`: By default DFTK uses `nbandsalg=AdaptiveBands(model)`, which adaptively determines
   the number of bands to compute. If you want to influence this algorithm or use a predefined
   number of bands in each SCF step, pass a [`FixedBands`](@ref) or [`AdaptiveBands`](@ref).
+  Beware that with non-zero temperature, the convergence of the SCF algorithm may be limited
+  by the `default_occupation_threshold()` parameter. For highly accurate calculations we thus
+  recommend increasing the `occupation_threshold` of the `AdaptiveBands`.
 - `callback`: Function called at each SCF iteration. Usually takes care of printing the
   intermediate state.
 """
@@ -125,7 +128,7 @@ Overview of parameters:
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
                                  occupation, miniter=1, tol=determine_diagtol(info))
-        ψ, eigenvalues, occupation, εF, ρout = nextstate
+        (; ψ, eigenvalues, occupation, εF, ρout) = nextstate
 
         # Update info with results gathered so far
         info = (; ham, basis, converged, stage=:iterate, algorithm="SCF",

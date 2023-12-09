@@ -65,10 +65,14 @@ Return δψ where (Ω+K) δψ = rhs
 """
 @timing function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
                       callback=identity, tol=1e-10) where {T}
-    @assert mpi_nprocs() == 1  # Distributed implementation not yet available
     filled_occ = filled_occupation(basis.model)
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
     @assert all(all(occ_k .== filled_occ) for occ_k in occupation)
+
+    # To mpi-parallelise we have to deal with the fact that the linear algebra
+    # in the CG (dot products, norms) couples k-Points. Maybe take a look at
+    # the PencilArrays.jl package to get this done automatically.
+    @assert mpi_nprocs() == 1  # Distributed implementation not yet available
 
     # compute quantites at the point which define the tangent space
     ρ = compute_density(basis, ψ, occupation)

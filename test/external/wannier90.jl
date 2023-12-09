@@ -1,10 +1,8 @@
-using Test
-using DFTK
-include("../testcases.jl")
-
-if !Sys.iswindows() && mpi_nprocs() == 1
-@testset "Test run_wannier90" begin
+@testitem "Test run_wannier90" tags=[:dont_test_mpi, :dont_test_windows] setup=[TestCases] begin
+    using DFTK
     using wannier90_jll
+    silicon = TestCases.silicon
+
     model  = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
     basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[4, 4, 4], kshift=[1, 1, 1]/2)
     nbandsalg = AdaptiveBands(model; n_bands_converge=12)
@@ -31,5 +29,4 @@ if !Sys.iswindows() && mpi_nprocs() == 1
 
     # remove produced files
     rm("wannier90_outputs", recursive=true)
-end
 end

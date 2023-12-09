@@ -22,7 +22,8 @@ function parse_system(system::AbstractSystem{D}) where {D}
             ElementCoulomb(atomic_number(atom))
         else
             get!(cached_pspelements, pseudo) do
-                ElementPsp(atomic_number(atom); psp=load_psp(pseudo))
+                kwargs = get(atom, :pseudopotential_kwargs, ())
+                ElementPsp(atomic_number(atom); psp=load_psp(pseudo; kwargs...))
             end
         end
     end
@@ -88,6 +89,9 @@ function AtomsBase.atomic_system(lattice::AbstractMatrix{<:Number},
         end
         if element isa ElementPsp
             kwargs[:pseudopotential] = element.psp.identifier
+            if element.psp isa PspUpf
+                kwargs[:pseudopotential_kwargs] = (; element.psp.rcut)
+            end
         elseif element isa ElementCoulomb
             kwargs[:pseudopotential] = ""
         elseif !(element isa ElementCoulomb)

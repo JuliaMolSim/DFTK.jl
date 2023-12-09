@@ -4,8 +4,9 @@
 # N(ε) = sum_n f_n = sum_n f((εn-ε)/temperature)
 # DOS (density of states)
 # D(ε) = N'(ε)
+#
 # LDOS (local density of states)
-# LD = sum_n f_n |ψn|^2
+# LD(ε) = sum_n f_n' |ψn|^2 = sum_n δ(ε - ε_n) |ψn|^2
 
 """
 Total density of states at energy ε
@@ -18,7 +19,7 @@ function compute_dos(ε, basis, eigenvalues; smearing=basis.model.smearing,
     filled_occ = filled_occupation(basis.model)
 
     D = zeros(typeof(ε), basis.model.n_spin_components)
-    for σ in 1:basis.model.n_spin_components, ik = krange_spin(basis, σ)
+    for σ = 1:basis.model.n_spin_components, ik = krange_spin(basis, σ)
         for (iband, εnk) in enumerate(eigenvalues[ik])
             enred = (εnk - ε) / temperature
             D[σ] -= (filled_occ * basis.kweights[ik] / temperature

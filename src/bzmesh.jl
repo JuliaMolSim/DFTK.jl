@@ -11,7 +11,7 @@ normalize_kpoint_coordinate(k::AbstractVector) = normalize_kpoint_coordinate.(k)
 
 
 """Construct the coordinates of the ``k``-points in a (shifted) Monkorst-Pack grid"""
-function kgrid_monkhorst_pack(kgrid_size; kshift=[0, 0, 0])
+function kcoords_monkhorst_pack(kgrid_size; kshift=[0, 0, 0])
     kgrid_size = Vec3{Int}(kgrid_size)
     kshift     = Vec3{Rational{Int}}(kshift)
 
@@ -30,8 +30,8 @@ Construct a (shifted) uniform Brillouin zone mesh for sampling the ``k``-points.
 Returns all ``k``-point coordinates, appropriate weights and the identity SymOp.
 """
 function bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
-    kcoords = kgrid_monkhorst_pack(kgrid_size; kshift)
-    kcoords, ones(length(kcoords)) ./ length(kcoords), [one(SymOp)]
+    kcoords = kcoords_monkhorst_pack(kgrid_size; kshift)
+    (; kcoords, kweights=ones(length(kcoords)) ./ length(kcoords), symmetries=[one(SymOp)])
 end
 
 
@@ -44,35 +44,30 @@ given the crystal symmetries `symmetries`. Returns the list of irreducible ``k``
 the grid.
 """
 function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
-    all(isequal.(kgrid_size, 1)) && return bzmesh_uniform(kgrid_size; kshift)
-
-    # Transform kshift to the convention used in spglib:
-    #    If is_shift is set (i.e. integer 1), then a shift of 0.5 is performed,
-    #    else no shift is performed along an axis.
+    all(isone, kgrid_size) && return bzmesh_uniform(kgrid_size; kshift)
+    kgrid_size = Vec3{Int}(kgrid_size)
     kshift = Vec3{Rational{Int}}(kshift)
-    is_shift = map(kshift) do ks
-        ks in (0, 1//2) || error("Only kshifts of 0 or 1//2 implemented.")
-        convert(Int, 2 * ks)
-    end
 
     # Filter those symmetry operations that preserve the MP grid
-    kcoords_mp = kgrid_monkhorst_pack(kgrid_size; kshift)
+    kcoords_mp = kcoords_monkhorst_pack(kgrid_size; kshift)
     symmetries = symmetries_preserving_kgrid(symmetries, kcoords_mp)
 
     # Give the remaining symmetries to spglib to compute an irreducible k-point mesh
-    # TODO implement time-reversal symmetry and turn the flag to true
-    Ws = [symop.W for symop in symmetries]
-    _, mapping, grid = spglib_get_stabilized_reciprocal_mesh(
-        kgrid_size, Ws; is_shift, is_time_reversal=false
-    )
-    # Convert irreducible k-points to DFTK conventions
-    kgrid_size = Vec3{Int}(kgrid_size)
-    kirreds = [(kshift .+ grid[ik + 1]) .// kgrid_size for ik in unique(mapping)]
-    kirreds = normalize_kpoint_coordinate.(kirreds)
+    # TODO implement time-reversal symmetry and turn the flag below to true
+    is_shift = map(kshift) do ks
+        ks in (0, 1//2) || error("Only kshifts of 0 or 1//2 implemented.")
+        ks == 1//2
+    end
+    rotations = [symop.W for symop in symmetries]
+    qpoints = [Vec3(0, 0, 0)]
+    spg_mesh = Spglib.get_stabilized_reciprocal_mesh(rotations, kgrid_size, qpoints;
+                                                     is_shift, is_time_reversal=false)
+    kirreds = normalize_kpoint_coordinate.(Spglib.eachpoint(spg_mesh))
 
-    # Find the indices of the corresponding reducible k-points in `grid`, which one of the
-    # irreducible k-points in `kirreds` generates.
-    k_all_reducible = [findall(isequal(elem), mapping) for elem in unique(mapping)]
+    # Find the indices of the corresponding reducible k-points in the MP grid, which one of
+    # the irreducible k-points in `kirreds` generates.
+    ir_mapping = spg_mesh.ir_mapping_table
+    k_all_reducible = [findall(isequal(elem), ir_mapping) for elem in unique(ir_mapping)]
 
     # Number of reducible k-points represented by the irreducible k-point `kirreds[ik]`
     n_equivalent_k = length.(k_all_reducible)
@@ -85,22 +80,21 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
     # in *wrong results* being returned. See the discussion in
     # https://github.com/spglib/spglib/issues/101
     for (iks_reducible, k) in zip(k_all_reducible, kirreds), ikred in iks_reducible
+        grid = spg_mesh.grid_address
         kred = (kshift .+ grid[ikred]) .// kgrid_size
-
         found_mapping = any(symmetries) do symop
             # If the difference between kred and W' * k == W^{-1} * k
             # is only integer in fractional reciprocal-space coordinates, then
             # kred and S' * k are equivalent k-points
             all(isinteger, kred - (symop.S * k))
         end
-
         if !found_mapping
             error("The reducible k-point $kred could not be generated from " *
                   "the irreducible kpoints. This points to a bug in spglib.")
         end
     end
 
-    kirreds, kweights, symmetries
+    (; kcoords=kirreds, kweights, symmetries)
 end
 
 

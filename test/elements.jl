@@ -1,9 +1,9 @@
-using Test
-using DFTK: load_psp, charge_nuclear, charge_ionic, n_elec_core, n_elec_valence
-using DFTK: ElementPsp, ElementCohenBergstresser, ElementCoulomb
-using DFTK: local_potential_fourier, local_potential_real
+@testitem "Check constructing ElementCoulomb" begin
+    using DFTK
+    using DFTK: charge_nuclear, charge_ionic, n_elec_core, n_elec_valence
+    using DFTK: ElementCoulomb, local_potential_fourier, local_potential_real
+    using LinearAlgebra
 
-@testset "Check constructing ElementCoulomb" begin
     el_by_name = ElementCoulomb("oxygen")
     @test el_by_name.Z == 8
     @test el_by_name.symbol == :O
@@ -25,14 +25,18 @@ using DFTK: local_potential_fourier, local_potential_real
     @test local_potential_real(element, norm([2.0, 0, 0])) == -6.0
 end
 
-@testset "Check constructing ElementPsp" begin
-    el_by_name = ElementPsp("tungsten", psp=load_psp("hgh/lda/w-q6"))
+@testitem "Check constructing ElementPsp" begin
+    using DFTK
+    using DFTK: load_psp, charge_nuclear, charge_ionic, n_elec_core, n_elec_valence
+    using DFTK: ElementPsp, local_potential_fourier, local_potential_real
+
+    el_by_name = ElementPsp("tungsten"; psp=load_psp("hgh/lda/w-q6"))
     @test el_by_name.Z == 74
     @test el_by_name.symbol == :W
-    el_by_number = ElementPsp(1, psp=load_psp("hgh/pbe/H-q1"))
+    el_by_number = ElementPsp(1; psp=load_psp("hgh/pbe/H-q1"))
     @test el_by_number.symbol == :H
 
-    element = ElementPsp("carbon", psp=load_psp("hgh/lda/C-q4"))
+    element = ElementPsp("carbon"; psp=load_psp("hgh/lda/C-q4"))
 
     @test element.Z == 6
     @test element.symbol == :C
@@ -50,7 +54,11 @@ end
     @test local_potential_real(element, 2.0) == -1.999997661838144
 end
 
-@testset "Check constructing ElementCohenBergstresser" begin
+@testitem "Check constructing ElementCohenBergstresser" begin
+    using DFTK
+    using DFTK: charge_nuclear, charge_ionic, n_elec_core, n_elec_valence
+    using DFTK: ElementCohenBergstresser, local_potential_fourier
+
     element_Ge = ElementCohenBergstresser(:Ge)
     @test element_Ge.Z == 32
 
@@ -69,7 +77,10 @@ end
     @test local_potential_fourier(element, q3) == -14.180625963358901
 end
 
-@testset "Check constructing ElementGaussian" begin
+@testitem "Check constructing ElementGaussian" begin
+    using DFTK
+    using DFTK: local_potential_fourier, local_potential_real
+
     element = ElementGaussian(1.0, 0.5; symbol=:X1)
 
     @test atomic_symbol(element) == :X1

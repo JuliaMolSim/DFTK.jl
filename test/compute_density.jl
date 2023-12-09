@@ -1,20 +1,20 @@
-using Test
-using LinearAlgebra
-using DFTK
-import DFTK: total_local_potential, is_approx_integer
-include("testcases.jl")
-
 # TODO Once we have converged SCF densities in a file it would be better to instead / also
 #      test the energies of these densities and compare them directly to the reference
 #      energies obtained in the data files
 
-if mpi_nprocs() == 1  # not easy to distribute
-@testset "Using BZ symmetry yields identical density" begin
+# Not easy to distribute.
+@testitem "Using BZ symmetry yields identical density" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using LinearAlgebra
+    using DFTK
+    using DFTK: total_local_potential, is_approx_integer
+    (; silicon, magnesium, aluminium) = TestCases.all_testcases
+
     function get_bands(testcase, kgrid, kshift; symmetries, Ecut=5, tol=1e-8, n_rounds=1)
         kwargs = ()
         n_bands = div(testcase.n_electrons, 2, RoundUp)
         if testcase.temperature !== nothing
-            kwargs = (temperature=testcase.temperature, smearing=DFTK.Smearing.FermiDirac())
+            kwargs = (; testcase.temperature, smearing=DFTK.Smearing.FermiDirac())
             n_bands = div(testcase.n_electrons, 2, RoundUp) + 4
         end
 
@@ -27,7 +27,7 @@ if mpi_nprocs() == 1  # not easy to distribute
         occ, εF = DFTK.compute_occupation(basis, res.λ, FermiBisection())
         ρnew = compute_density(basis, res.X, occ)
 
-        for it in 1:n_rounds
+        for it = 1:n_rounds
             ham = Hamiltonian(basis; ρ=ρnew)
             res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol, ψguess=res.X)
 
@@ -133,5 +133,4 @@ if mpi_nprocs() == 1  # not easy to distribute
                              n_ignore=1)
     test_full_vs_irreducible("aluminium (1,3,5)", aluminium, [1, 3, 5]; Ecut=3, tol=1e-5,
                              n_ignore=3, eigenvectors=false)
-end
 end

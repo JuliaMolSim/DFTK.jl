@@ -68,7 +68,7 @@ end;
 
 x0 = vcat(lattice \ [0., 0., 0.], lattice \ [1.4, 0., 0.])
 xres = optimize(Optim.only_fg!(fg!), x0, LBFGS(),
-                Optim.Options(show_trace=true, f_tol=tol))
+                Optim.Options(; show_trace=true, f_tol=tol))
 xmin = Optim.minimizer(xres)
 dmin = norm(lattice*xmin[1:3] - lattice*xmin[4:6])
 @printf "\nOptimal bond length for Ecut=%.2f: %.3f Bohr\n" Ecut dmin

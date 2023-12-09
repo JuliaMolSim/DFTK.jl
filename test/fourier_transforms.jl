@@ -1,9 +1,9 @@
-using Test
-using DFTK: PlaneWaveBasis, ifft!, fft!, ifft, fft
+@testitem "FFT and IFFT are an identity" setup=[TestCases] begin
+    using DFTK
+    using DFTK: PlaneWaveBasis, ifft!, fft!, ifft, fft
+    using LinearAlgebra
+    silicon = TestCases.silicon
 
-include("testcases.jl")
-
-@testset "FFT and IFFT are an identity" begin
     model = Model(silicon.lattice)
     pw    = PlaneWaveBasis(model; Ecut=4.0, fft_size=(8, 8, 8))
 

@@ -1,5 +1,7 @@
-include("run_scf_and_compare.jl")
-include("testcases.jl")
+@testsetup module IronLDA
+using DFTK
+using ..RunSCF: run_scf_and_compare
+using ..TestCases: iron_bcc
 
 function run_iron_lda(T; kwargs...)
     # These values were computed using ABINIT with the same kpoints as testcases.jl
@@ -41,10 +43,11 @@ function run_iron_lda(T; kwargs...)
     basis = PlaneWaveBasis(model; Ecut=15, fft_size=[20, 20, 20],
                            kgrid=[4, 4, 4], kshift=[1/2, 1/2, 1/2])
     run_scf_and_compare(T, basis, ref_lda, ref_etot;
-                        ρ=guess_density(basis, magnetic_moments),
-                        kwargs...)
+                        ρ=guess_density(basis, magnetic_moments), kwargs...)
+end
 end
 
-@testset "Iron LDA (Float64)" begin
-    run_iron_lda(Float64, test_tol=5e-6, scf_tol=1e-11)
+
+@testitem "Iron LDA (Float64)" tags=[:core] setup=[RunSCF, TestCases, IronLDA] begin
+    IronLDA.run_iron_lda(Float64; test_tol=5e-6, scf_tol=1e-11)
 end

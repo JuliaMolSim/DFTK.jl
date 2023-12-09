@@ -1,23 +1,23 @@
-using Test
-using DFTK: CoreDensity, atomic_total_density
-using LinearAlgebra
-using LazyArtifacts
+@testitem "Core charge density is positive" begin
+    using DFTK
+    using DFTK: CoreDensity, atomic_total_density
+    using LinearAlgebra
+    using LazyArtifacts
 
-pseudos = Dict(
-    # With NLCC
-    :Si => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf"),
-    :Fe => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Fe.upf"),
-    :Ir => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Ir.upf"),
-    # Without NLCC
-    :Li => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
-    :Mg => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf")
-)
+    pseudos = Dict(
+        # With NLCC
+        :Si => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf"),
+        :Fe => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Fe.upf"),
+        :Ir => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Ir.upf"),
+        # Without NLCC
+        :Li => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
+        :Mg => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf")
+    )
 
-@testset "Core charge density is positive" begin
     lattice = 5 * I(3)
     positions = [zeros(3)]
     for (element, psp) in pseudos
-        atoms = [ElementPsp(element, psp=psp)]
+        atoms = [ElementPsp(element; psp)]
         model = model_LDA(lattice, atoms, positions)
         basis = PlaneWaveBasis(model; Ecut=24, kgrid=[2, 2, 2])
         ρ_core = @inferred atomic_total_density(basis, CoreDensity())

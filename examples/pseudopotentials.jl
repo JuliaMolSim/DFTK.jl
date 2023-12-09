@@ -83,7 +83,7 @@ function run_bands(psp)
     lattice = a / 2 * [[0 1 1.];
                        [1 0 1.];
                        [1 1 0.]]
-    Si = ElementPsp(:Si; psp=psp)
+    Si = ElementPsp(:Si; psp)
     atoms     = [Si, Si]
     positions = [ones(3)/8, -ones(3)/8]
 

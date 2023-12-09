@@ -39,7 +39,7 @@ basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
 # has finished. For this we first define the empty plot canvas
 # and an empty container for all the density differences:
 using Plots
-p = plot(yaxis=:log)
+p = plot(; yaxis=:log)
 density_differences = Float64[];
 
 # The callback function itself gets passed a named tuple

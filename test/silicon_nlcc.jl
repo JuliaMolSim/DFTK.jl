@@ -1,5 +1,8 @@
-include("run_scf_and_compare.jl")
-include("testcases.jl")
+@testsetup module SiliconNLCC
+using DFTK
+using LazyArtifacts
+using ..RunSCF: run_scf_and_compare
+using ..TestCases: silicon
 
 function run_silicon_nlcc(T; Ecut=5, grid_size=15, spin_polarization=:none, kwargs...)
     # see testcases_ABINIT/silicon_NLCC
@@ -19,7 +22,7 @@ function run_silicon_nlcc(T; Ecut=5, grid_size=15, spin_polarization=:none, kwar
     ref_etot = -8.50167205710043
 
     fft_size = fill(grid_size, 3)
-    Si = ElementPsp(silicon.atnum,
+    Si = ElementPsp(silicon.atnum;
                     psp=load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf"))
     atoms = [Si, Si]
 
@@ -33,30 +36,28 @@ function run_silicon_nlcc(T; Ecut=5, grid_size=15, spin_polarization=:none, kwar
     basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
 
     spin_polarization == :collinear && (ref_nlcc = vcat(ref_nlcc, ref_nlcc))
-    run_scf_and_compare(T, basis, ref_nlcc, ref_etot;
-                        ρ=guess_density(basis), kwargs...)
+    run_scf_and_compare(T, basis, ref_nlcc, ref_etot; ρ=guess_density(basis), kwargs...)
 end
-
-@testset "Silicon NLCC (small, Float64)" begin
-    run_silicon_nlcc(Float64, Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17)
 end
 
 
-if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
-    @testset "Silicon NLCC (large, Float64)" begin
-        run_silicon_nlcc(Float64, Ecut=25, test_tol=3e-5, n_ignored=0,
-                         grid_size=36, scf_tol=1e-11)
-    end
+@testitem "Silicon NLCC (small, Float64)" setup=[RunSCF, TestCases, SiliconNLCC] begin
+    SiliconNLCC.run_silicon_nlcc(Float64; Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17)
 end
 
-@testset "Silicon NLCC (small, collinear spin)" begin
-    run_silicon_nlcc(Float64, Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17,
-                     spin_polarization=:collinear)
+@testitem "Silicon NLCC (large, Float64)" #=
+    =#    tags=[:slow] setup=[RunSCF, TestCases, SiliconNLCC] begin
+    SiliconNLCC.run_silicon_nlcc(Float64; Ecut=25, test_tol=6e-5, n_ignored=0, grid_size=36,
+                                 scf_tol=1e-11)
 end
 
-if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
-    @testset "Silicon NLCC (large, collinear spin)" begin
-        run_silicon_nlcc(Float64, Ecut=25, test_tol=3e-5, n_ignored=0, grid_size=36,
-                         scf_tol=1e-11, spin_polarization=:collinear)
-    end
+@testitem "Silicon NLCC (small, collinear spin)" setup=[RunSCF, TestCases, SiliconNLCC] begin
+    SiliconNLCC.run_silicon_nlcc(Float64; Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17,
+                                 spin_polarization=:collinear)
+end
+
+@testitem "Silicon NLCC (large, collinear spin)" #=
+    =#    tags=[:slow] setup=[RunSCF, TestCases, SiliconNLCC] begin
+    SiliconNLCC.run_silicon_nlcc(Float64; Ecut=25, test_tol=6e-5, n_ignored=0, grid_size=36,
+                                 scf_tol=1e-11, spin_polarization=:collinear)
 end

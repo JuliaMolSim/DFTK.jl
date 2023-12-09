@@ -54,8 +54,7 @@ function irrfbz_path(model; dim::Integer=model.n_dim, sgnum=nothing, magnetic_mo
         # Brillouin.jl has an interface to Spglib.jl to directly reduce the passed
         # lattice to the ITA conventional lattice and so the Spglib cell can be
         # directly used as an input.
-        cell, _ = spglib_cell(model, magnetic_moments)
-        kpath = Brillouin.irrfbz_path(cell)
+        kpath = Brillouin.irrfbz_path(spglib_cell(model, magnetic_moments))
     end
 
     # TODO In case of absence of time-reversal symmetry we need to explicitly
@@ -134,7 +133,7 @@ function kdistances_and_ticks(kcoords, klabels::Dict, kbranches)
             end
         end
     end
-    ticks = (distances=tick_distances, labels=tick_labels)
+    ticks = (; distances=tick_distances, labels=tick_labels)
     (; kdistances, ticks)
 end
 
@@ -168,7 +167,7 @@ function data_for_plotting(kpath::KPathInterpolant, band_data; datakeys=[:λ, :�
         hasproperty(band_data, key) || continue
         n_bands = length(band_data[key][1])
         data_per_kσ = similar(band_data[key][1], n_kcoord, n_bands, n_spin)
-        for σ in 1:n_spin, (ito, ik) in enumerate(krange_spin(basis, σ))
+        for σ = 1:n_spin, (ito, ik) in enumerate(krange_spin(basis, σ))
             data_per_kσ[ito, :, σ] = band_data[key][ik]
         end
         data[key] = data_per_kσ
@@ -188,7 +187,7 @@ i.e. where bands are cut by the Fermi level.
 """
 function is_metal(eigenvalues, εF; tol=1e-4)
     n_bands = length(eigenvalues[1])
-    for ib in 1:n_bands
+    for ib = 1:n_bands
         some_larger  = any(εk[ib] > εF + tol for εk in eigenvalues)
         some_smaller = any(εk[ib] < εF - tol for εk in eigenvalues)
         some_larger && some_smaller && return true

@@ -68,7 +68,7 @@ ElementCoulomb(key) = ElementCoulomb(periodic_table[key].number, Symbol(periodic
 function local_potential_fourier(el::ElementCoulomb, q::T) where {T <: Real}
     q == 0 && return zero(T)  # Compensating charge background
     # General atom => Use default Coulomb potential
-    # We use int_{R^3} -Z/r e^{-i q⋅x} = 4π / |q|^2
+    # We use int_{R^3} -Z/r e^{-i q⋅x} = -4π Z / |q|^2
     return -4T(π) * el.Z / q^2
 end
 
@@ -82,7 +82,7 @@ struct ElementPsp <: Element
 end
 function Base.show(io::IO, el::ElementPsp)
     pspid = isempty(el.psp.identifier) ? "custom" : el.psp.identifier
-    print(io, "ElementPsp($(el.symbol), psp=\"$pspid\")")
+    print(io, "ElementPsp($(el.symbol); psp=\"$pspid\")")
 end
 
 """
@@ -140,19 +140,19 @@ are implemented (i.e. Si, Ge, Sn).
 or an element name (e.g. `"silicon"`)
 """
 function ElementCohenBergstresser(key; lattice_constant=nothing)
-    # Form factors from Cohen-Bergstresser paper Table 2, converted to Bohr
-    # Lattice constants from Table 1, converted to Bohr
-    data = Dict(:Si => (form_factors=Dict( 3 => -0.21u"Ry",
-                                           8 =>  0.04u"Ry",
-                                          11 =>  0.08u"Ry"),
+    # Form factors from Cohen-Bergstresser paper Table 2
+    # Lattice constants from Table 1
+    data = Dict(:Si => (; form_factors=Dict( 3 => -0.21u"Ry",
+                                             8 =>  0.04u"Ry",
+                                            11 =>  0.08u"Ry"),
                         lattice_constant=5.43u"Å"),
-                :Ge => (form_factors=Dict( 3 => -0.23u"Ry",
-                                           8 =>  0.01u"Ry",
-                                          11 =>  0.06u"Ry"),
+                :Ge => (; form_factors=Dict( 3 => -0.23u"Ry",
+                                             8 =>  0.01u"Ry",
+                                            11 =>  0.06u"Ry"),
                         lattice_constant=5.66u"Å"),
-                :Sn => (form_factors=Dict( 3 => -0.20u"Ry",
-                                           8 =>  0.00u"Ry",
-                                          11 =>  0.04u"Ry"),
+                :Sn => (; form_factors=Dict( 3 => -0.20u"Ry",
+                                             8 =>  0.00u"Ry",
+                                            11 =>  0.04u"Ry"),
                         lattice_constant=6.49u"Å"),
             )
 
@@ -196,13 +196,12 @@ AtomsBase.atomic_symbol(el::ElementGaussian) = el.symbol
 Element interacting with electrons via a Gaussian potential.
 Symbol is non-mandatory.
 """
-function ElementGaussian(α, L; symbol=nothing)
+function ElementGaussian(α, L; symbol=:X)
     ElementGaussian(α, L, symbol)
 end
 function local_potential_real(el::ElementGaussian, r)
     -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
 end
 function local_potential_fourier(el::ElementGaussian, q::Real)
-    # = ∫_ℝ³ V(x) exp(-ix⋅q) dx
-    -el.α * exp(- (q * el.L)^2 / 2)
+    -el.α * exp(- (q * el.L)^2 / 2)  # = ∫_ℝ³ V(x) exp(-ix⋅q) dx
 end
