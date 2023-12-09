@@ -172,7 +172,8 @@ end
                    if has_core_density(model.atoms[first(group)])]
     @assert !isnothing(nlcc_groups)
 
-    forces = [zero(Vec3{T}) for _ = 1:length(model.positions)]
+    TT = promote_type(T, eltype(Vxc_real))
+    forces = [zero(Vec3{TT}) for _ = 1:length(model.positions)]
     for (igroup, group) in nlcc_groups
         for iatom in group
             r = model.positions[iatom]
@@ -182,9 +183,9 @@ end
     forces
 end
 
-function _force_xc_internal(basis, Vxc_fourier, form_factors, igroup, r)
-    T = real(eltype(basis))
-    f = zero(Vec3{T})
+function _force_xc_internal(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U}, form_factors, igroup, r) where {T, U}
+    TT = promote_type(T, real(U))
+    f  = zero(Vec3{TT})
     for (iG, (G, G_cart)) in enumerate(zip(G_vectors(basis), G_vectors_cart(basis)))
         f -= real(conj(Vxc_fourier[iG])
                   .* form_factors[(igroup, norm(G_cart))]
