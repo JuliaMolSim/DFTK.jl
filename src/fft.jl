@@ -67,7 +67,7 @@ function irfft(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray) where {T}
 end
 # Force iFFT to be casted to type T.
 function ifft(T, basis::PlaneWaveBasis, f_fourier::AbstractArray)
-    force_type(T, ifft(basis, f_fourier))
+    convert_enforced(T, ifft(basis, f_fourier))
 end
 
 

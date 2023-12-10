@@ -93,7 +93,7 @@ end
         #   |ψ_nk|² is 2 ψ_{n,k} * δψ_{n,k+q}.
         ifft!(storage.δψnk_real, basis, kpt_plus_q, δψk_plus_q[:, n])
 
-        storage.δρ[:, :, :, kpt.spin] .+= force_type(Tδρ,
+        storage.δρ[:, :, :, kpt.spin] .+= convert_enforced(Tδρ,
             2 .* occupation[ik][n] .* basis.kweights[ik] .* conj(storage.ψnk_real)
                                                          .* storage.δψnk_real
                 .+ δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(storage.ψnk_real))

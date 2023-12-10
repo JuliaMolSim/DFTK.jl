@@ -30,8 +30,8 @@ end
 
 function apply_kernel(term::TermLocalNonlinearity, ::AbstractBasis{T},
                       δρ::AbstractArray{Tδρ}; ρ, kwargs...) where {T, Tδρ}
-    Tρ = promote_type(T, Tδρ)
+    S = promote_type(T, Tδρ)
     fp(ρ) = ForwardDiff.derivative(term.f, ρ)
     fpp(ρ) = ForwardDiff.derivative(fp, ρ)
-    convert_dual.(Tρ, fpp.(ρ) .* δρ)
+    convert_dual.(S, fpp.(ρ) .* δρ)
 end

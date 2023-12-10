@@ -26,8 +26,8 @@ struct TermHartree <: TermNonlinear
     # Fourier coefficients of the Green's function of the periodic Poisson equation
     poisson_green_coeffs::AbstractArray
 end
-function coeffs_poisson_hartree(basis::PlaneWaveBasis{T}, scaling_factor;
-                                q=zero(Vec3{T})) where {T}
+function compute_poisson_green_coeffs(basis::PlaneWaveBasis{T}, scaling_factor;
+                                      q=zero(Vec3{T})) where {T}
     model = basis.model
 
     # Solving the Poisson equation ΔV = -4π ρ in Fourier space
@@ -38,13 +38,13 @@ function coeffs_poisson_hartree(basis::PlaneWaveBasis{T}, scaling_factor;
         # Compensating charge background => Zero DC.
         GPUArraysCore.@allowscalar poisson_green_coeffs[1] = 0
         # Symmetrize Fourier coeffs to have real iFFT.
-        enforce_real!(basis, poisson_green_coeffs)
+        real_enforced!(basis, poisson_green_coeffs)
     end
     poisson_green_coeffs = to_device(basis.architecture, poisson_green_coeffs)
     return scaling_factor .* poisson_green_coeffs
 end
 function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
-    poisson_green_coeffs = coeffs_poisson_hartree(basis, scaling_factor)
+    poisson_green_coeffs = compute_poisson_green_coeffs(basis, scaling_factor)
     TermHartree(T(scaling_factor), poisson_green_coeffs)
 end
 
@@ -74,7 +74,7 @@ function apply_kernel(term::TermHartree, basis::PlaneWaveBasis{T}, δρ::Abstrac
         # We have the information in memory.
         term.poisson_green_coeffs
     else
-        coeffs_poisson_hartree(basis, term.scaling_factor; q)
+        compute_poisson_green_coeffs(basis, term.scaling_factor; q)
     end
     # Note broadcast here: δV is 4D, and all its spin components get the same potential.
     δV .= ifft(Tδρ, basis, coeffs .* fft(basis, δρtot))

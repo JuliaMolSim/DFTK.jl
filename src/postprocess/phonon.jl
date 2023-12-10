@@ -1,5 +1,5 @@
 # Convert to Cartesian a dynamical matrix in reduced coordinates.
-function dynmat_red_to_cart(model::Model, dynamical_matrix)
+function dynmat_red_to_cart(model::Model, dynmat)
     inv_lattice = model.inv_lattice
 
     # The dynamical matrix `D` acts on vectors `dr` and gives a covector `dF`:
@@ -12,9 +12,9 @@ function dynmat_red_to_cart(model::Model, dynamical_matrix)
     #                              = dr_cartᵀ · D_cart · dr_cart
     #   ⇒ D_cart = lattice⁻ᵀ · D_red · lattice⁻¹.
 
-    dynmat_cart = zero.(dynamical_matrix)
+    dynmat_cart = zero.(dynmat)
     for s = 1:size(dynmat_cart, 2), α = 1:size(dynmat_cart, 4)
-        dynmat_cart[:, α, :, s] = inv_lattice' * dynamical_matrix[:, α, :, s] * inv_lattice
+        dynmat_cart[:, α, :, s] = inv_lattice' * dynmat[:, α, :, s] * inv_lattice
     end
     dynmat_cart
 end
@@ -22,39 +22,37 @@ end
 # Create a ``3×n_{\rm atoms}×3×n_{\rm atoms}`` tensor (for consistency with the format of
 # dynamical matrices) equivalent to a diagonal matrix with the atomic masses of the atoms on
 # the diagonal.
-function get_mass_matrix(basis::PlaneWaveBasis{T}) where {T}
-    model = basis.model
-    positions = model.positions
-    n_atoms = length(positions)
-
-    atoms_mass = atomic_mass.(model.atoms)
-    any(iszero.(atoms_mass)) && @error "Some elements have unknown masses"
+function mass_matrix(T, atoms)
+    n_atoms = length(atoms)
+    atoms_mass = atomic_mass.(atoms)
+    any(iszero.(atoms_mass)) && @warn "Some elements have unknown masses"
     masses = zeros(T, 3, n_atoms, 3, n_atoms)
     for s in eachindex(atoms_mass)
         masses[:, s, :, s] = atoms_mass[s] * I(3)
     end
     masses
 end
+mass_matrix(model::Model{T}) where {T} = mass_matrix(T, model.atoms)
 
 @doc raw"""
 Solve the eigenproblem for a dynamical matrix: returns the `frequencies` and eigenvectors
 (`vectors`).
 """
-function phonon_modes(basis::PlaneWaveBasis{T}, dynamical_matrix) where {T}
+function phonon_modes(basis::PlaneWaveBasis{T}, dynmat) where {T}
     n_atoms = length(basis.model.positions)
-    mass_matrix = reshape(get_mass_matrix(basis), 3*n_atoms, 3*n_atoms)
+    M = reshape(mass_matrix(T, basis.model.atoms), 3*n_atoms, 3*n_atoms)
 
-    res = eigen(reshape(dynamical_matrix, 3*n_atoms, 3*n_atoms), mass_matrix)
-    norm(imag(res.values)) > sqrt(eps(T)) &&
-        @warn "Some eigenvalues of the dynmaical matrix have a large imaginary part"
+    res = eigen(reshape(dynmat, 3*n_atoms, 3*n_atoms), M)
+    maximum(imag(res.values)) > sqrt(eps(T)) &&
+        @warn "Some eigenvalues of the dynamical matrix have a large imaginary part"
 
     signs = sign.(real(res.values))
     frequencies = signs .* sqrt.(abs.(real(res.values)))
 
     (; frequencies, res.vectors)
 end
-function phonon_modes_cart(basis::PlaneWaveBasis{T}, dynamical_matrix) where {T}
-    dynmat_cart = dynmat_red_to_cart(basis.model, dynamical_matrix)
+function phonon_modes_cart(basis::PlaneWaveBasis{T}, dynmat) where {T}
+    dynmat_cart = dynmat_red_to_cart(basis.model, dynmat)
     phonon_modes(basis, dynmat_cart)
 end
 

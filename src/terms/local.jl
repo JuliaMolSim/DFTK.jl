@@ -66,7 +66,7 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end
-    enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
+    real_enforced!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
     TermExternal(irfft(basis, pot_fourier))
 end
 
@@ -117,7 +117,7 @@ function compute_local_potential(S, basis::PlaneWaveBasis{T}; positions=basis.mo
         pot / sqrt(model.unit_cell_volume)
     end
 
-    iszero(q) && enforce_real!(basis, pot_fourier)  # Symmetrize coeffs to have real iFFT
+    iszero(q) && real_enforced!(basis, pot_fourier)  # Symmetrize coeffs to have real iFFT
     ifft(S, basis, to_device(basis.architecture, pot_fourier))
 end
 (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T} =
@@ -142,12 +142,13 @@ end
                         for G in G_vectors(basis)]
         for idx in group
             r = model.positions[idx]
-            forces[idx] = -force_type(S, sum(conj(ρ_fourier[iG])
-                                                  * form_factors[iG]
-                                                  * cis2pi(-dot(G + q, r))
-                                                  * (-2T(π)) * (G + q) * im
-                                                  / sqrt(model.unit_cell_volume)
-                                             for (iG, G) in enumerate(G_vectors(basis))))
+            forces[idx] = -convert_enforced(S,
+                              sum(conj(ρ_fourier[iG])
+                                       * form_factors[iG]
+                                       * cis2pi(-dot(G + q, r))
+                                       * (-2T(π)) * (G + q) * im
+                                       / sqrt(model.unit_cell_volume)
+                                  for (iG, G) in enumerate(G_vectors(basis))))
         end
     end
     forces

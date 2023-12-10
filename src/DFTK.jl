@@ -58,6 +58,7 @@ export ElementGaussian
 export charge_nuclear
 export charge_ionic
 export atomic_symbol
+export atomic_mass
 export n_elec_valence
 export n_elec_core
 include("elements.jl")

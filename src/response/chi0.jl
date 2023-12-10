@@ -297,10 +297,10 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
     # We solve the Sternheimer equation
     #   (H_k - ε_{n,k-q}) δψ_{n,k} = - (1 - P_{k}) δHψ_{n, k-q},
     # where P_{k} is the projector on ψ_{k} and with the conventions:
-    # - δψ_{k} is the variation of ψ_{k-q}, which implies (for ℬ_{k} the `basis.kpoints`)
+    # * δψ_{k} is the variation of ψ_{k-q}, which implies (for ℬ_{k} the `basis.kpoints`)
     #     δψ_{k-q} ∈ ℬ_{k-q} and δHψ_{k-q} ∈ ℬ_{k};
-    # - δHψ[ik] = δHψ_{k-q};
-    # - ε_minus_q[ik] = ε_{·, k-q}.
+    # * δHψ[ik] = δHψ_{k-q};
+    # * ε_minus_q[ik] = ε_{·, k-q}.
     model = basis.model
     temperature = model.temperature
     smearing = model.smearing
