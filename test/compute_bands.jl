@@ -123,14 +123,14 @@ end
     Ecut = 7
     n_bands = 8
 
-    model    = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
-    kinter   = interpolate(irrfbz_path(model), density=3)
-    basis    = PlaneWaveBasis(model; Ecut, kgrid=ExplicitKpoints(kinter))
+    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
+    kgrid = ExplicitKpoints(interpolate(irrfbz_path(model), density=3))
+    basis = PlaneWaveBasis(model; Ecut, kgrid)
 
     # Check that plain diagonalization and compute_bands agree
     ρ   = guess_density(basis)
     ham = Hamiltonian(basis; ρ)
-    band_data = compute_bands(basis, kinter; ρ, n_bands)
+    band_data = compute_bands(basis, kgrid; ρ, n_bands)
 
     eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands + 3,
                                      n_conv_check=n_bands, tol=1e-5)

@@ -1,7 +1,8 @@
 module DFTKJSON3Ext
-using JSON3
 using DFTK
-using DFTK: todict
+using DFTK: todict, band_data_to_dict
+using JSON3
+using MPI
 
 function DFTK.save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{:json})
     # TODO Quick and dirty solution for now.
@@ -32,4 +33,6 @@ function save_bands(filename::AbstractString, band_data::NamedTuple, ::Val{:json
     end
     MPI.Barrier(MPI.COMM_WORLD)
     nothing
+end
+
 end

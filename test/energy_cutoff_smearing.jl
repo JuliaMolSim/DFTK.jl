@@ -20,16 +20,17 @@
     δk = norm(kcoords[2] .- kcoords[1], 1)
 
     # Test irregularity of the standard band through its second finite diff derivative
-    λ_std = vcat(compute_bands(basis_std, kcoords, n_bands=1; scfres.ρ).eigenvalues...)
-    ∂2λ_std = [(λ_std[i+1] - 2*λ_std[i] + λ_std[i-1])/δk^2 for i = 2:length(kcoords)-1]
+    kpath = ExplicitKpoints(kcoords)
+    λ_std = vcat(compute_bands(basis_std, kpath, n_bands=1; scfres.ρ).eigenvalues...)
+    ∂2λ_std = [(λ_std[i+1] - 2*λ_std[i] + λ_std[i-1])/δk^2 for i = 2:length(kpath)-1]
 
     # Compute band for given blow-up and test regularity
     function test_blowup(kinetic_blowup)
         model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions; kinetic_blowup)
         basis_mod = PlaneWaveBasis(model; Ecut=5, kgrid=(3, 3, 3), basis_std.fft_size)
 
-        λ_mod = vcat(compute_bands(basis_mod, kcoords, n_bands=1; scfres.ρ).eigenvalues...)
-        ∂2λ_mod = [(λ_mod[i+1] - 2*λ_mod[i] + λ_mod[i-1])/δk^2 for i = 2:length(kcoords)-1]
+        λ_mod = vcat(compute_bands(basis_mod, kpath, n_bands=1; scfres.ρ).eigenvalues...)
+        ∂2λ_mod = [(λ_mod[i+1] - 2*λ_mod[i] + λ_mod[i-1])/δk^2 for i = 2:length(kpath)-1]
         @test norm(∂2λ_std) / norm(∂2λ_mod) > 1e4
     end
     for blowup in (BlowupCHV(), BlowupAbinit())
