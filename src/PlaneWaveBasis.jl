@@ -524,8 +524,8 @@ function gather_kpts(basis::PlaneWaveBasis)
                        basis.variational,
                        basis.kgrid,
                        basis.symmetries_respect_rgrid,
-                       comm_kpts=MPI.COMM_SELF,
-                       architecture=basis.architecture)
+                       MPI.COMM_SELF,
+                       basis.architecture)
     else
         nothing
     end
