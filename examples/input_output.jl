@@ -90,7 +90,7 @@ save_bands("iron_afm_scfres.json", scfres)
 # Notably this function works both for the results obtained
 # by `self_consistent_field` as well as `compute_bands`:
 bands = compute_bands(scfres, kline_density=10)
-save_bands("iron_afm_bands.json", scfres)
+save_bands("iron_afm_bands.json", bands)
 
 # ## Writing and reading JLD2 files
 # The full state of a DFTK self-consistent field calculation can be

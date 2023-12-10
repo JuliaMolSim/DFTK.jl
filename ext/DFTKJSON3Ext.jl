@@ -21,7 +21,7 @@ function DFTK.save_scfres_master(filename::AbstractString, scfres::NamedTuple, :
     end
 end
 
-function save_bands(filename::AbstractString, band_data::NamedTuple, ::Val{:json};
+function DFTK.save_bands(filename::AbstractString, band_data::NamedTuple, ::Val{:json};
                     save_ψ=false)
     save_ψ && @warn "save_ψ not supported with json files"
 

@@ -7,14 +7,17 @@ function test_dict_agreement(band_data, dict; explicit_reshape=false)
     #       but testing only happens on master
 
     model = band_data.basis.model
-    all_eigenvalues = DFTK.gather_kpts(band_data.eigenvalues, band_data.basis)
-    all_occupation  = DFTK.gather_kpts(band_data.occupation,  band_data.basis)
-    all_n_iter      = DFTK.gather_kpts(last(band_data.diagonalization).n_iter, band_data.basis)
-    rotations       = [symop.W for symop in band_data.basis.symmetries]
-    translations    = [symop.w for symop in band_data.basis.symmetries]
     n_kpoints = length(band_data.basis.kcoords_global)
     n_spin    = model.n_spin_components
     n_bands   = length(band_data.eigenvalues[1])
+
+    all_eigenvalues = DFTK.gather_kpts(band_data.eigenvalues, band_data.basis)
+    all_occupation  = DFTK.gather_kpts(band_data.occupation,  band_data.basis)
+    all_n_iter      = DFTK.gather_kpts(last(band_data.diagonalization).n_iter, band_data.basis)
+    all_krange      = [DFTK.gather_kpts(DFTK.krange_spin(band_data.basis, σ), band_data.basis)
+                       for σ = 1:n_spin]
+    rotations       = [symop.W for symop in band_data.basis.symmetries]
+    translations    = [symop.w for symop in band_data.basis.symmetries]
 
     function condreshape(data, shape...)
         if explicit_reshape
@@ -51,8 +54,8 @@ function test_dict_agreement(band_data, dict; explicit_reshape=false)
         eigenvalues_resh = condreshape(dict["eigenvalues"], (n_spin, n_kpoints, n_bands))
         occupation_resh  = condreshape(dict["occupation"],  (n_spin, n_kpoints, n_bands))
         n_iter_resh      = condreshape(dict["n_iter"],      (n_spin, n_kpoints))
-        for σ in 1:n_spin
-            for (i, ik) in enumerate(DFTK.krange_spin(band_data.basis, σ))
+        for σ = 1:n_spin
+            for (i, ik) in enumerate(all_krange[σ])
                 @test all_eigenvalues[ik] ≈  eigenvalues_resh[σ, i, :] atol=1e-12
                 @test all_occupation[ik]  ≈  occupation_resh[σ, i, :]  atol=1e-12
                 @test all_n_iter[ik]      == n_iter_resh[σ, i]
@@ -98,6 +101,6 @@ function test_todict(label; spin_polarization=:none, Ecut=7, temperature=0.0,
     end
 end
 
-test_todict("nospin notemp";  spin_polarization=:none)
+test_todict("nospin notemp";  spin_polarization=:none, kgrid=MonkhorstPack(1, 2, 1))
 test_todict("collinear temp"; spin_polarization=:collinear, kgrid=MonkhorstPack(2, 1, 3))
 end

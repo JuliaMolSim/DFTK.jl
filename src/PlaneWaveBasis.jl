@@ -538,16 +538,18 @@ Gather the distributed data of a quantity depending on `k`-Points on the master 
 and return it. On the other (non-master) processes `nothing` is returned.
 """
 function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
+    # This function does not handle the self-communication case properly
+    @assert basis.comm_kpts != MPI.COMM_SELF
+
     master = tag = 0
     n_kpts = sum(length, basis.krange_allprocs)
-
     if MPI.Comm_rank(basis.comm_kpts) == master
         allk_data = similar(data, n_kpts)
         allk_data[basis.krange_allprocs[1]] = data
-        for rank = 1:mpi_nprocs(basis.comm_kpts) - 1  # Note: MPI ranks are 0-based
+        for rank = 1:mpi_nprocs(basis.comm_kpts)-1  # Note: MPI ranks are 0-based
             # TODO Could save some memory by using in-place recv!
             #      Could save some time by using asynchronous operations
-            rk_data, status = MPI.recv(basis.comm_kpts, MPI.Status; source=rank, tag=tag)
+            rk_data, status = MPI.recv(basis.comm_kpts, MPI.Status; source=rank, tag)
             @assert MPI.Get_error(status) == 0  # all went well
             allk_data[basis.krange_allprocs[rank + 1]] = rk_data
         end

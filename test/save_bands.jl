@@ -16,7 +16,7 @@ function test_save_bands(label; spin_polarization=:none, Ecut=7, temperature=0.0
     end
     model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
                       spin_polarization, temperature, magnetic_moments)
-    basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
+    basis = PlaneWaveBasis(model; Ecut, kgrid=(3, 1, 2))
     ρ = guess_density(basis, magnetic_moments)
     band_data = compute_bands(basis; εF, magnetic_moments, ρ, n_bands, kline_density=3)
 
