@@ -36,4 +36,4 @@ scfres = self_consistent_field(basis)
 ## Construct 2D path through Brillouin zone
 kpath = irrfbz_path(model; dim=2, space_group_number=13)  # graphene space group number
 bands = compute_bands(scfres, kpath; kline_density=20)
-plot_bands(bands)
+plot_bandstructure(bands)

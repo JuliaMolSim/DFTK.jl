@@ -524,6 +524,7 @@ function gather_kpts(basis::PlaneWaveBasis)
                        basis.variational,
                        basis.kgrid,
                        basis.symmetries_respect_rgrid,
+                       basis.use_symmetries_for_kpoint_reduction,
                        MPI.COMM_SELF,
                        basis.architecture)
     else
