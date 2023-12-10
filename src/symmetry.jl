@@ -69,7 +69,8 @@ Return the symmetries given an atomic structure with optionally designated magne
 on each of the atoms. The symmetries are determined using spglib.
 """
 @timing function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
-                                     tol_symmetry=SYMMETRY_TOLERANCE, check_symmetry=SYMMETRY_CHECK)
+                                     tol_symmetry=SYMMETRY_TOLERANCE,
+                                     check_symmetry=SYMMETRY_CHECK)
     spin_polarization = determine_spin_polarization(magnetic_moments)
     dimension   = count(!iszero, eachcol(lattice))
     if isempty(atoms) || dimension != 3
