@@ -61,7 +61,8 @@ scfres = self_consistent_field(basis, is_converged=DFTK.ScfConvergenceEnergy(1e-
 
 ## Plot bands
 kpath = irrfbz_path(model; dim=2, space_group_number=13)
-p = plot_bandstructure(scfres, kpath; n_bands=5)
+bands = compute_bands(scfres, kpath; n_bands=5)
+p = plot_bandstructure(bands)
 Plots.hline!(p, [scfres.εF], label="", color="black")
 Plots.ylims!(p, (-Inf, Inf))
 p

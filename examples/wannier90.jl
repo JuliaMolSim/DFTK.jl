@@ -34,7 +34,8 @@ scfres = self_consistent_field(basis; nbandsalg, tol=1e-5);
 
 # Plot bandstructure of the system
 
-plot_bandstructure(scfres; kline_density=10)
+bands = compute_bands(scfres; kline_density=10)
+plot_bandstructure(bands)
 
 # Now we use the `run_wannier90` routine to generate all files needed by
 # wannier90 and to perform the wannierization procedure.

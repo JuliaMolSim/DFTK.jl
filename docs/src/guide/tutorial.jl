@@ -100,8 +100,15 @@ x = [r[1] for r in rvecs]                   # only keep the x coordinate
 plot(x, scfres.ρ[1, :, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 
 # We can also perform various postprocessing steps:
-# for instance compute a band structure
-plot_bandstructure(scfres; kline_density=10)
-# or get the cartesian forces (in Hartree / Bohr)
+# We can get the Cartesian forces (in Hartree / Bohr):
 compute_forces_cart(scfres)
 # As expected, they are numerically zero in this highly symmetric configuration.
+# We could also compute a band structure,
+plot_bandstructure(scfres; kline_density=10)
+# or plot a density of states, for which we increase the kgrid a bit
+# to get smoother plots:
+bands = compute_bands(scfres, MonkhorstPack(6, 6, 6))
+plot_dos(bands; temperature=1e-3, smearing=Smearing.FermiDirac())
+# Note that directly employing the `scfres` also works, but the results
+# are much cruder:
+plot_dos(scfres; temperature=1e-3, smearing=Smearing.FermiDirac())

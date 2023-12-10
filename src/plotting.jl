@@ -32,8 +32,27 @@ function default_band_εrange(eigenvalues; εF=nothing)
     end
 end
 
+function plot_bandstructure(basis::PlaneWaveBasis,
+                            kpath::KPath=irrfbz_path(basis.model);
+                            unit=u"hartree", kwargs_plot=(; ), kwargs...)
+    @warn("Calling plot_bandstructure without first computing the band data " *
+          "is deprecated and will be removed in the next minor version bump.")
+    band_data = compute_bands(basis; kwargs...)
+    plot_bandstructure(band_data; unit, kwargs_plot...)
+end
+function plot_bandstructure(band_data::NamedTuple;
+                            unit=u"hartree", kwargs_plot=(; ), kwargs...)
+    # TODO Replace by a plot recipe once BandData is its own type.
 
-function plot_band_data(band_data; unit=u"hartree", kwargs...)
+    mpi_nprocs() > 1 && error("Band structure plotting with MPI not supported yet")
+
+    if !haskey(band_data, :kinter)
+        @warn("Calling plot_bandstructure without first computing the band data " *
+              "is deprecated and will be removed in the next minor version bump.")
+        band_data = compute_bands(band_data; kwargs...)
+        kwargs = kwargs_plot
+    end
+
     eshift = something(band_data.εF, 0.0)
     data = data_for_plotting(band_data)
 
@@ -70,26 +89,20 @@ function plot_band_data(band_data; unit=u"hartree", kwargs...)
     if isnothing(band_data.εF)
         Plots.ylabel!(p, "eigenvalues  ($(string(unit)))")
     else
-        Plots.ylabel!(p, "eigenvalues - ε_f  ($(string(unit)))")
+        Plots.ylabel!(p, "eigenvalues - εF  ($(string(unit)))")
     end
 
     p
-end
-function plot_bandstructure(basis::PlaneWaveBasis, kpath::KPath=irrfbz_path(basis.model);
-                            unit=u"hartree", kwargs_plot=(; ), kwargs...)
-    mpi_nprocs() > 1 && error("Band structure plotting with MPI not supported yet")
-    band_data = compute_bands(basis, kpath; kwargs...)
-    plot_band_data(band_data; unit, kwargs_plot...)
-end
-function plot_bandstructure(scfres::NamedTuple, kpath::KPath=irrfbz_path(scfres.basis.model);
-                            unit=u"hartree", kwargs_plot=(; ), kwargs...)
-    mpi_nprocs() > 1 && error("Band structure plotting with MPI not supported yet")
-    band_data = compute_bands(scfres, kpath; kwargs...)
-    plot_band_data(band_data; unit, kwargs_plot...)
+
 end
 
 function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
+                  temperature=basis.model.temperature,
+                  smearing=basis.model.smearing,
                   εrange=default_band_εrange(eigenvalues; εF), n_points=1000, kwargs...)
+    # TODO Should also split this up into one stage doing the DOS computation
+    #      and one stage doing the DOS plotting (like now for the bands.)
+
     n_spin = basis.model.n_spin_components
     eshift = something(εF, 0.0)
     εs = range(austrip.(εrange)..., length=n_points)
@@ -100,7 +113,7 @@ function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
     p = Plots.plot(; kwargs...)
     spinlabels = spin_components(basis.model)
     colors = [:blue, :red]
-    Dεs = compute_dos.(εs, Ref(basis), Ref(eigenvalues))
+    Dεs = compute_dos.(εs, Ref(basis), Ref(eigenvalues); smearing, temperature)
     for σ = 1:n_spin
         D = [Dσ[σ] for Dσ in Dεs]
         label = n_spin > 1 ? "DOS $(spinlabels[σ]) spin" : "DOS"

@@ -110,7 +110,8 @@ struct MonkhorstPack <: AbstractKgrid
     kgrid::Vec3{Int}
     kshift::Vec3{Rational{Int}}
 end
-MonkhorstPack(kgrid; kshift=[0, 0, 0]) = MonkhorstPack(kgrid, kshift)
+MonkhorstPack(kgrid::AbstractVector; kshift=[0, 0, 0]) = MonkhorstPack(kgrid, kshift)
+MonkhorstPack(k1::Integer, k2::Integer, k3::Integer) = MonkhorstPack([k1, k2, k3])
 function Base.show(io::IO, kgrid::MonkhorstPack)
     print(io, "MonkhorstPack(", kgrid.kgrid)
     if !iszero(kgrid.kshift)

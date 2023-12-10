@@ -258,6 +258,8 @@ default_wannier_centres(n_wannier) = [rand(1, 3) for _ = 1:n_wannier]
     @assert scfres.basis.model.spin_polarization in (:none, :spinless)
     @assert length(centers) == n_wannier
 
+    # TODO Use band_data_to_dict to get this easily MPI compatible.
+
     # Undo symmetry operations to get full k-point list
     scfres_unfold = unfold_bz(scfres)
     basis = scfres_unfold.basis

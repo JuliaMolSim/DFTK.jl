@@ -111,7 +111,7 @@ struct PlaneWaveBasis{T,
     symmetries_respect_rgrid::Bool
     # Whether symmetry is used to reduce the number of explicit k-points to the
     # irreducible BZMesh. This is a debug option, useful when a part in the code does
-    # not yet implement symmetry. See `unfold_bz` as a way to activate this.
+    # not yet implement symmetry. See `unfold_bz` as a convenient way to use this.
     use_symmetries_for_kpoint_reduction::Bool
 
     ## Instantiated terms (<: Term). See Hamiltonian for high-level usage
