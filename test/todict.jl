@@ -14,8 +14,6 @@ function test_dict_agreement(band_data, dict; explicit_reshape=false)
     all_eigenvalues = DFTK.gather_kpts(band_data.eigenvalues, band_data.basis)
     all_occupation  = DFTK.gather_kpts(band_data.occupation,  band_data.basis)
     all_n_iter      = DFTK.gather_kpts(last(band_data.diagonalization).n_iter, band_data.basis)
-    all_krange      = [DFTK.gather_kpts(DFTK.krange_spin(band_data.basis, σ), band_data.basis)
-                       for σ = 1:n_spin]
     rotations       = [symop.W for symop in band_data.basis.symmetries]
     translations    = [symop.w for symop in band_data.basis.symmetries]
 
@@ -55,7 +53,8 @@ function test_dict_agreement(band_data, dict; explicit_reshape=false)
         occupation_resh  = condreshape(dict["occupation"],  (n_spin, n_kpoints, n_bands))
         n_iter_resh      = condreshape(dict["n_iter"],      (n_spin, n_kpoints))
         for σ = 1:n_spin
-            for (i, ik) in enumerate(all_krange[σ])
+            krange_spin = (1 + (σ - 1) * n_kpoints):(σ * n_kpoints)
+            for (i, ik) in enumerate(krange_spin)
                 @test all_eigenvalues[ik] ≈  eigenvalues_resh[σ, i, :] atol=1e-12
                 @test all_occupation[ik]  ≈  occupation_resh[σ, i, :]  atol=1e-12
                 @test all_n_iter[ik]      == n_iter_resh[σ, i]

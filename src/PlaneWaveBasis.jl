@@ -493,9 +493,9 @@ Return the index range of ``k``-points that have a particular spin component.
 """
 function krange_spin(basis::PlaneWaveBasis, spin::Integer)
     n_spin = basis.model.n_spin_components
+    n_kpts_per_spin = div(length(basis.kpoints), n_spin)
     @assert 1 ≤ spin ≤ n_spin
-    spinlength = div(length(basis.kpoints), n_spin)
-    (1 + (spin - 1) * spinlength):(spin * spinlength)
+    (1 + (spin - 1) * n_kpts_per_spin):(spin * n_kpts_per_spin)
 end
 
 """
