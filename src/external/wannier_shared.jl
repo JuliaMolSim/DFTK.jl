@@ -7,7 +7,7 @@ using Dates
 A Gaussian-shaped initial guess. Can be used as an approximation of an s- or σ-like orbital.
 """
 struct GaussianWannierProjection
-    center::AbstractVector{Float64}
+    center::AbstractVector
 end
 
 function (proj::GaussianWannierProjection)(basis::PlaneWaveBasis, qs)
@@ -37,7 +37,7 @@ A hydrogenic initial guess.
     ``a`` is the Bohr radius.
 """
 struct HydrogenicWannierProjection
-    center::AbstractVector{Float64}
+    center::AbstractVector
     n::Integer
     l::Integer
     m::Integer
@@ -61,12 +61,11 @@ function (proj::HydrogenicWannierProjection)(basis::PlaneWaveBasis, qs)
     r2_R_dr = r.^2 .* R .* dr
 
     model = basis.model
-
     map(qs) do q
         q_cart = recip_vector_red_to_cart(model, q)
-
         qnorm = norm(q_cart)
-        radial_part = 0
+
+        radial_part = 0.0
         for (ir, rval) in enumerate(r)
             @inbounds radial_part += r2_R_dr[ir] * sphericalbesselj_fast(proj.l, qnorm * rval)
         end
@@ -284,7 +283,7 @@ is given by the value of the Fourier transform of ``g_n`` in G.
 Each projection is a callable object that accepts the basis and some qpoints as an argument,
 and returns the Fourier transform of ``g_n`` at the qpoints.
 """
-function compute_amn_kpoint(basis::PlaneWaveBasis, kpt, ψk, projections::AbstractVector, n_bands)
+function compute_amn_kpoint(basis::PlaneWaveBasis, kpt, ψk, projections, n_bands)
     n_wannier = length(projections)
     # TODO This function should be improved in performance
 
@@ -310,7 +309,7 @@ end
 @timing function write_w90_amn(
         fileprefix::String,
         basis::PlaneWaveBasis,
-        projections::AbstractVector,
+        projections,
         ψ;
         n_bands)
     open(fileprefix * ".amn", "w") do fp
@@ -339,10 +338,10 @@ default_wannier_centers(n_wannier) = [GaussianWannierProjection(rand(3)) for _ i
 """
 Shared file writing code for Wannier.jl and Wannier90.
 """
-@timing function write_wannier90_files(preprocess_call::Function, scfres;
+@timing function write_wannier90_files(preprocess_call, scfres;
         n_bands,
         n_wannier,
-        projections::AbstractVector,
+        projections,
         fileprefix,
         wannier_plot,
         kwargs...)

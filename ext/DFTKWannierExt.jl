@@ -27,7 +27,7 @@ Build a Wannier.jl model that can be used for Wannierization.
 @DFTK.timing function Wannier.Model(scfres;
         n_bands=scfres.n_bands_converge,
         n_wannier=n_bands,
-        projections::AbstractVector=DFTK.default_wannier_centers(n_wannier),
+        projections=DFTK.default_wannier_centers(n_wannier),
         fileprefix=joinpath("wannierjl", "wannier"),
         wannier_plot=false,
         kwargs...)
