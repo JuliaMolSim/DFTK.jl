@@ -23,7 +23,7 @@ Run the Wannierization procedure with Wannier90.
     end
 
     # Run Wannierisation procedure
-    @timing "Wannierization" wannier90_jll.wannier90(exe -> run(Cmd(`$exe $prefix`; dir)))
+    @DFTK.timing "Wannierization" wannier90_jll.wannier90(exe -> run(Cmd(`$exe $prefix`; dir)))
     fileprefix
 end
 
