@@ -52,7 +52,7 @@ end
     silicon = TestCases.silicon
 
     function energy_forces(positions)
-        Si = ElementPsp(silicon.atnum, :Si, load_psp(silicon.psp_upf))
+        Si = ElementPsp(silicon.atnum, :Si, silicon.mass, load_psp(silicon.psp_upf))
         atoms = fill(Si, length(silicon.atoms))
         model = model_DFT(silicon.lattice, atoms, positions, [:lda_x, :lda_c_pw])
         basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],

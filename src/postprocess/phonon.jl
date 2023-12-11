@@ -20,15 +20,15 @@ function dynmat_red_to_cart(model::Model, dynmat)
 end
 
 # Create a ``3×n_{\rm atoms}×3×n_{\rm atoms}`` tensor (for consistency with the format of
-# dynamical matrices) equivalent to a diagonal matrix with the atomic masses of the atoms on
-# the diagonal.
+# dynamical matrices) equivalent to a diagonal matrix with the atomic masses of the atoms in
+# a.u. on the diagonal.
 function mass_matrix(T, atoms)
     n_atoms = length(atoms)
     atoms_mass = atomic_mass.(atoms)
     any(iszero.(atoms_mass)) && @warn "Some elements have unknown masses"
     masses = zeros(T, 3, n_atoms, 3, n_atoms)
     for s in eachindex(atoms_mass)
-        masses[:, s, :, s] = atoms_mass[s] * I(3)
+        masses[:, s, :, s] = austrip(atoms_mass[s]) * I(3)
     end
     masses
 end
@@ -108,12 +108,13 @@ function compute_dynmat_cart(scfres; kwargs...)
                         scfres.occupation_threshold, scfres.εF, scfres.eigenvalues, kwargs...)
 end
 
+# TODO: Document relation to non-local potential in future phonon PR.
 """
-Assemble the right-hand side term for the Sternheimer equation for all relevant quantities.
+Assemble the right-hand side term for the Sternheimer equation for all relevant quantities:
+Compute the perturbation of the Hamiltonian with respect to a variation of the local
+potential produced by a displacement of the atom s in the direction α.
 """
 @timing function compute_δHψ_sα(basis::PlaneWaveBasis, ψ, q, s, α; kwargs...)
-    # Compute the perturbation of the Hamiltonian with respect to a variation of the
-    # potential produced by a displacement of the atom s in the direction α.
     δHψ_per_term = [compute_δHψ_sα(term, basis, ψ, q, s, α; kwargs...)
                     for term in basis.terms]
     sum(filter(!isnothing, δHψ_per_term))

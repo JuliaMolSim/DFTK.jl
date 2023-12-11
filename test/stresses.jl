@@ -33,7 +33,7 @@
         scfres = self_consistent_field(make_basis(lattice, true, element); is_converged)
         scfres_nosym = self_consistent_field(make_basis(lattice, false, element); is_converged)
         stresses = compute_stresses_cart(scfres)
-        @test isapprox(stresses, compute_stresses_cart(scfres_nosym), atol=1e-10)
+        @test isapprox(stresses, compute_stresses_cart(scfres_nosym); atol=1e-10)
 
         dir = MPI.bcast(randn(3, 3), 0, MPI.COMM_WORLD)
 
@@ -53,16 +53,17 @@
             hellmann_feynman_energy(scfres_nosym, lattice+ε*(dir*lattice), false, element)
         end
 
-        @test isapprox(ref_recompute, ref_scfres, atol=1e-8)
-        @test isapprox(ref_HF, ref_recompute, atol=1e-5)
-        @test isapprox(ref_HF, FD_HF, atol=1e-5)
-        @test isapprox(dE_stresses, ref_recompute, atol=1e-5)
+        @test isapprox(ref_recompute, ref_scfres; atol=1e-8)
+        @test isapprox(ref_HF, ref_recompute; atol=1e-5)
+        @test isapprox(ref_HF, FD_HF; atol=1e-5)
+        @test isapprox(dE_stresses, ref_recompute; atol=1e-5)
     end
 
     a = 10.0  # slightly compressed and twisted
     lattice = a / 2 * [[0 1 1.1];
                        [1 0 1.];
                        [1 1 0.]]
-    test_stresses(lattice, ElementPsp(silicon.atnum, :Si, load_psp(silicon.psp_hgh)))
-    test_stresses(lattice, ElementPsp(silicon.atnum, :Si, load_psp(silicon.psp_upf)))
+    element = ElementPsp(silicon.atnum, :Si, silicon.mass, load_psp(silicon.psp_hgh))
+    test_stresses(lattice, element)
+    test_stresses(lattice, element)
 end

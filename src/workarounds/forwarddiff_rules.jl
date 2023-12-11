@@ -156,7 +156,7 @@ function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
 end
 
 construct_value(el::Element) = el
-construct_value(el::ElementPsp) = ElementPsp(el.Z, el.symbol, construct_value(el.psp))
+construct_value(el::ElementPsp) = ElementPsp(el.Z, el.symbol, el.mass, construct_value(el.psp))
 construct_value(psp::PspHgh) = psp
 function construct_value(psp::PspHgh{T}) where {T <: ForwardDiff.Dual}
     PspHgh(psp.Zion,

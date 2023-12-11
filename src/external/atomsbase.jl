@@ -19,13 +19,21 @@ function parse_system(system::AbstractSystem{D}) where {D}
     atoms = map(system) do atom
         pseudo = get(atom, :pseudopotential, "")
         if isempty(pseudo)
-            ElementCoulomb(atomic_number(atom))
+            ElementCoulomb(atomic_number(atom); mass=atomic_mass(atom))
         else
-            get!(cached_pspelements, pseudo) do
+            key = pseudo * string(get(atom, :atomic_mass, ""))
+            get!(cached_pspelements, key) do
                 kwargs = get(atom, :pseudopotential_kwargs, ())
-                ElementPsp(atomic_number(atom); psp=load_psp(pseudo; kwargs...))
+                ElementPsp(atomic_number(atom); psp=load_psp(pseudo; kwargs...),
+                           mass=atomic_mass(atom))
             end
         end
+    end
+
+    dftk_atomic_masses = getfield.(element.(getfield.(atoms, :symbol)), :atomic_mass)
+    if (atomic_mass(system) != dftk_atomic_masses)
+        @warn "Some atomic masses differ from the default ones; they may come from \
+               rounding error from the external parser."
     end
 
     positions = map(system) do atom
@@ -104,7 +112,8 @@ function AtomsBase.atomic_system(lattice::AbstractMatrix{<:Number},
         if atomic_symbol(element) == :X  # dummy element ... should solve this upstream
             Atom(:X, position; atomic_symbol=:X, atomic_number=0, atomic_mass=0u"u", kwargs...)
         else
-            Atom(atomic_symbol(element), position; kwargs...)
+            Atom(atomic_symbol(element), position; atomic_mass=atomic_mass(element),
+                 kwargs...)
         end
     end
     periodic_system(atomsbase_atoms, collect(eachcol(lattice)) * u"bohr")

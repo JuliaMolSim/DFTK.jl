@@ -15,6 +15,7 @@
 
     system = atomic_system(lattice, atoms, positions, magnetic_moments)
     @test atomic_symbol(system) == [:Si, :C, :H, :C]
+    @test atomic_mass(system)   == [28.085u"u", 12.011u"u", 1.008u"u", 12.011u"u"]
     @test bounding_box(system)  == collect(eachcol(lattice)) * u"bohr"
     @test position(system)      == [lattice * p * u"bohr" for p in positions]
 
@@ -51,6 +52,7 @@
         newsys = periodic_system(model, magnetic_moments)
 
         @test atomic_symbol(system)       == atomic_symbol(newsys)
+        @test atomic_mass(system)         == atomic_mass(newsys)
         @test bounding_box(system)        == bounding_box(newsys)
         @test boundary_conditions(system) == boundary_conditions(newsys)
         @test maximum(maximum, position(system) - position(newsys)) < 1e-12u"bohr"
@@ -191,18 +193,19 @@ end
     @test newsys[4, :pseudopotential] == "hgh/pbe/c-q4.hgh"
 end
 
-@testitem "AbstractSystem (unusual symbols) -> DFTK" begin
+@testitem "AbstractSystem (unusual symbols and masses) -> DFTK" begin
     using DFTK
     using Unitful
     using UnitfulAtomic
     using AtomsBase
 
     lattice     = [12u"bohr" * rand(3) for _ = 1:3]
-    atoms       = [Atom(6, randn(3)u"Å"; atomic_symbol=:C1),
-                   Atom(6, randn(3)u"Å"; atomic_symbol=:C2)]
+    atoms       = [Atom(6, randn(3)u"Å"; atomic_symbol=:C1, atomic_mass=-1u"u"),
+                   Atom(6, randn(3)u"Å"; atomic_symbol=:C2, atomic_mass=-2u"u")]
     system      = periodic_system(atoms, lattice)
     system_psp  = attach_psp(system; C="hgh/lda/c-q4.hgh")
     @test atomic_symbol(system_psp) == [:C1, :C2]
+    @test atomic_mass(system_psp) == [-1u"u", -2u"u"]
 
     pos_lattice = austrip.(reduce(hcat, lattice))
     let model = model_LDA(system_psp)
@@ -214,7 +217,31 @@ end
         @test length(model.atoms) == 2
         @test atomic_symbol(model.atoms[1]) == :C
         @test atomic_symbol(model.atoms[2]) == :C
+        @test atomic_mass.(model.atoms) == [-1u"u", -2u"u"]
         @test model.atoms[1].psp.identifier == "hgh/lda/c-q4.hgh"
         @test model.atoms[2].psp.identifier == "hgh/lda/c-q4.hgh"
     end
+end
+
+@testitem "AbstractSystem (atomic mass consistency)" begin
+    using DFTK: parse_system
+    using AtomsIO
+    filename = tempname() * ".cif"
+    open(filename, "w") do io
+        write(io, "data_image0 \
+                   _cell_length_a       10 \
+                   _cell_length_b       10 \
+                   _cell_length_c       10 \
+                   _cell_angle_alpha    90 \
+                   _cell_angle_beta     90 \
+                   _cell_angle_gamma    90 \
+                   loop_ \
+                     _atom_site_type_symbol \
+                     _atom_site_label \
+                     Fe  Fe \
+                     W   W")
+    end
+    system = load_system(filename)
+    # Warning due to rounding of atomic masses by the parser.
+    @test_warn "Some atomic masses differ" parse_system(system)
 end
