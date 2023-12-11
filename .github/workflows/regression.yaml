@@ -1,0 +1,98 @@
+name: Regression
+on:
+  push:
+    branches:
+      - master
+    tags: ['*']
+  pull_request:
+  schedule:
+    - cron:  '0 4 * * 6'  # Run every Saturday
+concurrency:
+  # Skip intermediate builds: always.
+  # Cancel intermediate builds: only if it is a pull request build.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+
+jobs:
+  test:
+    name: Benchmarking ${{ matrix.description }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {description: run,  payload: benchmarks.jl  }
+          - {description: load, payload: load.jl }
+    steps:
+      # Remove older benchmark comment
+      - name: pr-deleter
+        uses: maheshrayas/action-pr-comment-delete@v3.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          org: <orgname>
+          repo: <repo>
+          user: github-actions[bot]
+          issue: ${{github.event.number}}
+
+      - uses: actions/checkout@v4
+
+      - name: Setup Julia stable
+        uses: julia-actions/setup-julia@v1
+        with:
+          version: '1.9'
+          arch: x64
+
+      - uses: julia-actions/cache@v1
+        with:
+          include-matrix: false
+      - uses: julia-actions/julia-buildpkg@v1
+
+      - name: Install dependencies
+        run: |
+          julia --project=benchmark -e '
+          using Pkg
+          Pkg.develop(PackageSpec(; path=pwd()))
+          Pkg.instantiate()'
+
+      - name: Run benchmarks against master
+        # Remove baseline once merged. Regression tests will only work after this is merged
+        # in master.
+        run: |
+          julia --project=benchmark -e "
+            using BenchmarkCI
+            baseline = \"HEAD\"
+            script = \"\$(pwd())/benchmark/${{ matrix.payload }}\"
+            BenchmarkCI.judge(; baseline, script, retune=true)"
+        if: ${{ github.event_name == 'pull_request' }}
+
+      - name: Run benchmarks against last release
+        run: |
+          julia --project=benchmark -e "
+            import Pkg
+            baseline = \"v\" * Pkg.TOML.parsefile(\"Project.toml\")[\"version\"]
+            script = \"\$(pwd())/benchmark/${{ matrix.payload }}\"
+            using BenchmarkCI
+            BenchmarkCI.judge(; baseline, script, retune=true)"
+        if: ${{ github.event_name == 'schedule' ||
+                github.event.push.ref == 'refs/heads/master' }}
+
+      - name: Print judgement
+        run: |
+          julia --project=benchmark -e '
+            using BenchmarkCI
+            BenchmarkCI.displayjudgement()'
+
+      - name: Post results
+        run: |
+          julia --project=benchmark -e '
+            using BenchmarkCI
+            BenchmarkCI.postjudge()'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Is report successful
+        run: |
+          res=$(julia --project=benchmark -e '
+                  using BenchmarkCI
+                  BenchmarkCI.displayjudgement()' | grep --count ':x:')
+          if [[ $res -gt 1 ]]; then exit 1; fi
