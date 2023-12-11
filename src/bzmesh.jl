@@ -159,7 +159,7 @@ end
 
 
 @doc raw"""
-Build a [`MonkhorsPack`](@ref) grid to ensure kpoints are at most this spacing
+Build a [`MonkhorstPack`](@ref) grid to ensure kpoints are at most this spacing
 apart (in inverse Bohrs). A reasonable spacing is `0.13` inverse Bohrs
 (around ``2π * 0.04 \AA^{-1}``).
 """
@@ -179,7 +179,7 @@ end
 @deprecate kgrid_from_minimal_spacing kgrid_from_maximal_spacing
 
 @doc raw"""
-Selects a [`MonkhorsPack`](@ref) grid size which ensures that at least a
+Selects a [`MonkhortsPack`](@ref) grid size which ensures that at least a
 `n_kpoints` total number of ``k``-points are used. The distribution of
 ``k``-points amongst coordinate directions is as uniformly as possible, trying to
 achieve an identical minimal spacing in all directions.
