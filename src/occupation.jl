@@ -146,23 +146,33 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
               "occupation $filled_occ. Typically this indicates that you need to put " *
               "a temperature or switch to a calculation with collinear spin polarization.")
     end
-    n_fill = div(n_electrons, n_spin * filled_occ, RoundUp)
+    n_fill = div(n_electrons, filled_occ, RoundUp)
+
+    # For a given kpoint, all the eigenvalues corresponding to different spins must be treated together.
+    kpt_coordinates = unique([basis.kpoints[i].coordinate for i in 1:length(basis.kpoints)])
+    if length(kpt_coordinates) < length(basis.kpoints)
+        merged_spin_eigenvalues = [sort(vcat(eigenvalues[findall(j->basis.kpoints[j].coordinate==coordinate, 1:length(basis.kpoints))]...))
+                for coordinate in kpt_coordinates]
+    else
+        merged_spin_eigenvalues = eigenvalues
+    end
 
     # For zero temperature, two cases arise: either there are as many bands
     # as electrons, in which case we set εF to the highest energy level
     # reached, or there are unoccupied conduction bands and we take
     # εF as the midpoint between valence and conduction bands.
+
     if n_fill == length(eigenvalues[1])
-        εF = maximum(maximum, eigenvalues) + 1
+        εF = maximum(maximum, merged_spin_eigenvalues) + 1
         εF = mpi_max(εF, basis.comm_kpts)
     else
         # highest occupied energy level
-        HOMO = maximum([εk[n_fill] for εk in eigenvalues])
+        HOMO = maximum([εk[n_fill] for εk in merged_spin_eigenvalues])
         HOMO = mpi_max(HOMO, basis.comm_kpts)
         # lowest unoccupied energy level, be careful that not all k-points
         # might have at least n_fill+1 energy levels so we have to take care
         # of that by specifying init to minimum
-        LUMO = minimum(minimum.([εk[n_fill+1:end] for εk in eigenvalues]; init=T(Inf)))
+        LUMO = minimum(minimum.([εk[n_fill+1:end] for εk in merged_spin_eigenvalues]; init=T(Inf)))
         LUMO = mpi_min(LUMO, basis.comm_kpts)
         εF = (HOMO + LUMO) / 2
     end
