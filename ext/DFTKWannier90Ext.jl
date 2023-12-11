@@ -6,7 +6,7 @@ import wannier90_jll
 """
 Run the Wannierization procedure with Wannier90.
 """
-@DFTK.timing function run_wannier90(scfres;
+@DFTK.timing function DFTK.run_wannier90(scfres;
         n_bands=scfres.n_bands_converge,
         n_wannier=n_bands,
         projections=DFTK.default_wannier_centers(n_wannier),
