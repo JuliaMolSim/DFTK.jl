@@ -80,20 +80,13 @@ AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
     return calculator.state.scfres.energies.total
 end
     
-AtomsCalculators.@generate_interface function AtomsCalculators.forces(
-        system::AbstractSystem, calculator::DFTKCalculator; cartesian=false)
+AtomsCalculators.@generate_interface function AtomsCalculators.forces(system::AbstractSystem, calculator::DFTKCalculator)
     basis = prepare_basis(system, calculator.params)
-    if cartesian
-        _compute_forces = compute_forces
-    else
-        _compute_forces = compute_forces_cart
-    end
     scfres = self_consistent_field(basis, tol=calculator.params.tol, callback=calculator.scf_callback)
     calculator.state = DFTKState(scfres)
-    return _compute_forces(calculator.state.scfres)
+    return _compute_forces_cart(calculator.state.scfres)
 end
-AtomsCalculators.@generate_interface function AtomsCalculators.forces(
-        system::AbstractSystem, calculator::DFTKCalculator, state::DFTKState; cartesian=false)
+AtomsCalculators.@generate_interface function AtomsCalculators.forces(system::AbstractSystem, calculator::DFTKCalculator, state::DFTKState)
     # Update basis (and the enregy terms within).
     basis = prepare_basis(system, calculator.params)
     
@@ -101,10 +94,5 @@ AtomsCalculators.@generate_interface function AtomsCalculators.forces(
     # to reflect system changes.
     scfres = self_consistent_field(basis, ρ=state.scfres.ρ, ψ=state.scfres.ψ, tol=calculator.params.tol, callback=calculator.scf_callback)
     calculator.state = DFTKState(scfres)
-    if cartesian
-        _compute_forces = compute_forces
-    else
-        _compute_forces = compute_forces_cart
-    end
-    return _compute_forces(calculator.state.scfres)
+    return _compute_forces_cart(calculator.state.scfres)
 end
