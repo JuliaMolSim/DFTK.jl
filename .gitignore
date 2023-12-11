@@ -10,3 +10,5 @@ Manifest.toml
 /LocalPreferences.toml
 .vscode
 .CondaPkg
+/.benchmarkci
+/benchmark/**/*.json
