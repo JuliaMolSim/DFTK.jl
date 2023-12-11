@@ -8,14 +8,8 @@
 # These terms are held inside the `basis`. Currently, the whole basis is rebuilt.
 # TODO: Find out if symmetries can be re-enabled (see issue on GH).
 
-struct DFTKState
-    scfres::NamedTuple
-end
-function construct_dummy_state(basis)
-    ρ = guess_density(basis)
-    ψ = nothing # Will get initialized by SCF.
-    return DFTKState((;ρ, ψ, basis))
-end
+using AtomsBase
+using AtomsCalculators
 
 struct DFTKParameters
     Ecut::Real
@@ -24,13 +18,25 @@ struct DFTKParameters
     temperature::Real
 end
 
-mutable struct DFTKCalculator <: AbstractCalculator
+struct DFTKState
+    scfres::NamedTuple
+end
+function DFTKState(system::AbstractSystem, params::DFTKParameters)
+    basis = prepare_basis(system, params)
+    ρ = guess_density(basis)
+    ψ = nothing # Will get initialized by SCF.
+    return DFTKState((;ρ, ψ, basis))
+end
+
+
+mutable struct DFTKCalculator
     params::DFTKParameters
     scf_callback
     state::DFTKState
 end
 
 function prepare_basis(system::AbstractSystem, params::DFTKParameters)
+    # By default create an LDA model.
     model = model_LDA(system; temperature=params.temperature, symmetries=false)
     basis = PlaneWaveBasis(model; params.Ecut, params.kgrid)
     return basis
@@ -48,9 +54,7 @@ function DFTKCalculator(system; Ecut::Real, kgrid::Union{Nothing,<:AbstractVecto
     end
     # Create dummy state if not given.
     if isnothing(state)
-        # By default create and LDA model.
-        basis = prepare_basis(system, params)
-        state = construct_dummy_state(basis)
+        state = DFTKState(system, params)
     end
     return DFTKCalculator(params, scf_callback, state)
 end
