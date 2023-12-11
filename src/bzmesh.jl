@@ -179,7 +179,7 @@ end
 @deprecate kgrid_from_minimal_spacing kgrid_from_maximal_spacing
 
 @doc raw"""
-Selects a [`MonkhortsPack`](@ref) grid size which ensures that at least a
+Selects a [`MonkhorstPack`](@ref) grid size which ensures that at least a
 `n_kpoints` total number of ``k``-points are used. The distribution of
 ``k``-points amongst coordinate directions is as uniformly as possible, trying to
 achieve an identical minimal spacing in all directions.
