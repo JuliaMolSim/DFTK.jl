@@ -4,7 +4,7 @@
 # [Wannier.jl](https://wannierjl.org) and [Wannier90](http://www.wannier.org/),
 # in order to compute maximally-localized Wannier functions (MLWFs)
 # from an initial self consistent field calculation.
-# All processes are handled by calling the routine `get_wannier_model` (for Wannier.jl) or `run_wannier90` (for Wannier90).
+# All processes are handled by calling the routine `wannier_model` (for Wannier.jl) or `run_wannier90` (for Wannier90).
 #
 # !!! warning "No guarantees on Wannier interface"
 #     This code is at an early stage and has so far not been fully tested.
@@ -39,7 +39,7 @@ plot_bandstructure(scfres; kline_density=10)
 
 # ## Wannierization with Wannier.jl
 #
-# Now we use the `get_wannier_model` routine to generate a Wannier.jl model
+# Now we use the `wannier_model` routine to generate a Wannier.jl model
 # that can be used to perform the wannierization procedure.
 # For now, this model generation produces file in the Wannier90 convention,
 # where all files are named with the same prefix and only differ by
@@ -56,13 +56,13 @@ plot_bandstructure(scfres; kline_density=10)
 # - 3 bond-centered 2s hydrogenic orbitals for the expected σ bonds
 # - 2 atom-centered 2pz hydrogenic orbitals for the expected π bands
 
-using Wannier # Needed to make get_wannier_model available
+using Wannier # Needed to make wannier_model available
 
 ## Helper functions to produce hydrogenic starting guesses
 s_guess(center) = DFTK.HydrogenicWannierProjection(center, 2, 0, 0, C.Z)
 pz_guess(center) = DFTK.HydrogenicWannierProjection(center, 2, 1, 0, C.Z)
 
-wannier_model = get_wannier_model(scfres;
+wannier_model = wannier_model(scfres;
     fileprefix="wannier/graphene",
     n_bands=scfres.n_bands_converge,
     n_wannier=5,

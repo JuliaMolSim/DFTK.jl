@@ -19,7 +19,7 @@ end
 """
 Build a Wannier.jl model that can be used for Wannierization.
 """
-@timing function get_wannier_model(scfres;
+@timing function wannier_model(scfres;
         n_bands=scfres.n_bands_converge,
         n_wannier=n_bands,
         projections::AbstractVector{<:WannierProjection}=default_wannier_centres(n_wannier),

@@ -15,11 +15,11 @@ The function returns the `fileprefix`.
     incompatibly in the future. Use at your own risk and please report bugs
     in case you encounter any.
 """
-function get_wannier_model end
+function wannier_model end
 
 """
 Wannerize the obtained bands using wannier90.
-Same arguments as `get_wannier_model`.
+Same arguments as [`wannier_model`](@ref).
 The function returns the `fileprefix`.
 
 !!! warning "Experimental feature"
