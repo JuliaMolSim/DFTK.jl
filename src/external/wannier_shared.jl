@@ -36,10 +36,6 @@ function get_fourier_projection_coefficients(proj::GaussianWannierProjection, ba
     end for q in qs]
 end
 
-function random_gaussian_projection()
-    GaussianWannierProjection(rand(3))
-end
-
 """
 A sum of two Gaussians. Can be used as an approximation of a p-like orbital.
 """
@@ -366,7 +362,7 @@ end
 Default random Gaussian guess for maximally-localised wannier functions
 generated in reduced coordinates.
 """
-default_wannier_centres(n_wannier) = [random_gaussian_projection() for _ in 1:n_wannier]
+default_wannier_centers(n_wannier) = [GaussianWannierProjection(rand(3)) for _ in 1:n_wannier]
 
 """
 Shared file writing code for Wannier.jl and Wannier90.
