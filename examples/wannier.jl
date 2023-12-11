@@ -56,13 +56,13 @@ plot_bandstructure(scfres; kline_density=10)
 # - 3 bond-centered 2s hydrogenic orbitals for the expected σ bonds
 # - 2 atom-centered 2pz hydrogenic orbitals for the expected π bands
 
-using Wannier # Needed to make wannier_model available
+using Wannier # Needed to make Wannier.Model available
 
 ## Helper functions to produce hydrogenic starting guesses
 s_guess(center) = DFTK.HydrogenicWannierProjection(center, 2, 0, 0, C.Z)
 pz_guess(center) = DFTK.HydrogenicWannierProjection(center, 2, 1, 0, C.Z)
 
-wannier_model = wannier_model(scfres;
+wannier_model = Wannier.Model(scfres;
     fileprefix="wannier/graphene",
     n_bands=scfres.n_bands_converge,
     n_wannier=5,

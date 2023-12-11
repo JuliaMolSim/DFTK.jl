@@ -240,12 +240,6 @@ function __init__()
     # TODO Keep these requires for now as there are open PRs changing these files.
     @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"     include("external/jld2io.jl")
     @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80"    include("plotting.jl")
-    @require wannier90_jll="c5400fa0-8d08-52c2-913f-1e3f656c1ce9" begin
-        include("external/wannier90.jl")
-    end
-    @require Wannier="2b19380a-1f7e-4d7d-b1b8-8aa60b3321c9" begin
-        include("external/wannier.jl")
-    end
 
     # TODO Move out into extension module
     @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba"  begin

@@ -3,29 +3,14 @@
 
 using Dates
 
-@doc raw"""
-Base type for Wannier projections.
-
-Wannierization searchs for a unitary matrix ``U_{m_n}``.
-As a starting point for the search, we can provide an initial guess function ``g``
-for the shape of the Wannier functions, based on what we expect from knowledge of the problem or physical intuition.
-This starting matrix is called ``[A_k]_{m,n}``, and is computed as follows:
-``[A_k]_{m,n} = \langle ψ_m^k | g^{\text{per}}_n \rangle``.
-The matrix will be orthonormalized by the chosen Wannier program, we don't need to do so ourselves.
-"""
-abstract type WannierProjection end
-
-# Dispatch function for WannierProjection implementations, evaluating g in Fourier space.
-function get_fourier_projection_coefficients end
-
 """
 A Gaussian-shaped initial guess. Can be used as an approximation of an s- or σ-like orbital.
 """
-struct GaussianWannierProjection <: WannierProjection
+struct GaussianWannierProjection
     center::AbstractVector{Float64}
 end
 
-function get_fourier_projection_coefficients(proj::GaussianWannierProjection, basis::PlaneWaveBasis, qs)
+function (proj::GaussianWannierProjection)(basis::PlaneWaveBasis, qs)
     # associate a center with the fourier transform of the corresponding gaussian
     # TODO: what is the normalization here?
 
@@ -37,31 +22,12 @@ function get_fourier_projection_coefficients(proj::GaussianWannierProjection, ba
 end
 
 """
-A sum of two Gaussians. Can be used as an approximation of a p-like orbital.
+A p-like initial guess, using the difference of two Gaussians with different centers.
 """
-struct DoubleGaussianWannierProjection <: WannierProjection
-    factor1::Number
-    proj1::GaussianWannierProjection
-    factor2::Number
-    proj2::GaussianWannierProjection
-end
-
-function get_fourier_projection_coefficients(proj::DoubleGaussianWannierProjection, basis::PlaneWaveBasis, qs)
-    proj.factor1 .* get_fourier_projection_coefficients(proj.proj1, basis, qs)
-    .+ proj.factor2 .* get_fourier_projection_coefficients(proj.proj2, basis, qs)
-end
-
-function DoubleGaussianWannierProjection(factor1::Number, center1::AbstractVector{Float64}, factor2::Number, center2::AbstractVector{Float64})
-    DoubleGaussianWannierProjection(
-        factor1,
-        GaussianWannierProjection(center1),
-        factor2,
-        GaussianWannierProjection(center2),
-    )
-end
-
-function opposite_gaussians_projection(center1::AbstractVector{Float64}, center2::AbstractVector{Float64})
-    DoubleGaussianWannierProjection(1, center1, -1, center2)
+function opposite_gaussians_projection(center1::AbstractVector, center2::AbstractVector)
+    function inner(basis, qs)
+        GaussianWannierProjection(center1)(basis, qs) - GaussianWannierProjection(center2)(basis, qs)
+    end
 end
 
 @doc raw"""
@@ -70,7 +36,7 @@ A hydrogenic initial guess.
 `α` is the diffusivity, ``\frac{Z}/{a}`` where ``Z`` is the atomic number and
     ``a`` is the Bohr radius.
 """
-struct HydrogenicWannierProjection <: WannierProjection
+struct HydrogenicWannierProjection
     center::AbstractVector{Float64}
     n::Integer
     l::Integer
@@ -78,7 +44,7 @@ struct HydrogenicWannierProjection <: WannierProjection
     α::Real
 end
 
-function get_fourier_projection_coefficients(proj::HydrogenicWannierProjection, basis::PlaneWaveBasis, qs)
+function (proj::HydrogenicWannierProjection)(basis::PlaneWaveBasis, qs)
     # TODO: Performance can probably be improved a lot here.
     # TODO: Some of this logic could be used for the pswfc from the UPF PSPs.
 
@@ -298,20 +264,27 @@ end
 end
 
 @doc raw"""
-Compute the matrix ``[A_k]_{m,n} = \langle ψ_m^k | g^{\text{per}}_n \rangle``
+Compute the starting matrix for Wannierization.
 
-``g^{per}_n`` are periodized gaussians whose respective centers are given as an
- (num_bands,1) array [ [center 1], ... ].
+Wannierization searches for a unitary matrix ``U_{m_n}``.
+As a starting point for the search, we can provide an initial guess function ``g``
+for the shape of the Wannier functions, based on what we expect from knowledge of the problem or physical intuition.
+This starting matrix is called ``[A_k]_{m,n}``, and is computed as follows:
+``[A_k]_{m,n} = \langle ψ_m^k | g^{\text{per}}_n \rangle``.
+The matrix will be orthonormalized by the chosen Wannier program, we don't need to do so ourselves.
 
 Centers are to be given in lattice coordinates and G_vectors in reduced coordinates.
 The dot product is computed in the Fourier space.
 
 Given an orbital ``g_n``, the periodized orbital is defined by :
  ``g^{per}_n =  \sum\limits_{R \in {\rm lattice}} g_n( \cdot - R)``.
-The  Fourier coefficient of ``g^{per}_n`` at any G
+The Fourier coefficient of ``g^{per}_n`` at any G
 is given by the value of the Fourier transform of ``g_n`` in G.
+
+Each projection is a callable object that accepts the basis and some qpoints as an argument,
+and returns the Fourier transform of ``g_n`` at the qpoints.
 """
-function compute_amn_kpoint(basis::PlaneWaveBasis, ψk, kpt, projections::AbstractVector{<:WannierProjection}, n_bands)
+function compute_amn_kpoint(basis::PlaneWaveBasis, ψk, kpt, projections::AbstractVector, n_bands)
     n_wannier = length(projections)
     # TODO This function should be improved in performance
 
@@ -321,7 +294,7 @@ function compute_amn_kpoint(basis::PlaneWaveBasis, ψk, kpt, projections::Abstra
     # Compute Ak
     for n in 1:n_wannier
         proj = projections[n]
-        gn_per = get_fourier_projection_coefficients(proj, basis, qs[kpt.mapping])
+        gn_per = proj(basis, qs[kpt.mapping])
         # Fourier coeffs of gn_per for k+G in common with ψk
         # Functions are l^2 normalized in Fourier, in DFTK conventions.
         coeffs_gn_per = gn_per ./ norm(gn_per)
@@ -338,7 +311,7 @@ end
 @timing function write_w90_amn(
         fileprefix::String,
         basis::PlaneWaveBasis,
-        projections::AbstractVector{<:WannierProjection},
+        projections::AbstractVector,
         ψ;
         n_bands)
     open(fileprefix * ".amn", "w") do fp
@@ -370,7 +343,7 @@ Shared file writing code for Wannier.jl and Wannier90.
 @timing function write_wannier90_files(preprocess_call::Function, scfres;
         n_bands,
         n_wannier,
-        projections::AbstractVector{<:WannierProjection},
+        projections::AbstractVector,
         fileprefix,
         wannier_plot,
         kwargs...)

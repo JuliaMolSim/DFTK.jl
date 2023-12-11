@@ -1,3 +1,8 @@
+module DFTKWannierExt
+
+using DFTK
+import Wannier
+
 """
 Use Wannier.jl to read a .win file and produce the nnkp data (i.e. the b-vectors used in the Mmn matrix).
 """
@@ -19,18 +24,20 @@ end
 """
 Build a Wannier.jl model that can be used for Wannierization.
 """
-@timing function wannier_model(scfres;
+@DFTK.timing function Wannier.Model(scfres;
         n_bands=scfres.n_bands_converge,
         n_wannier=n_bands,
-        projections::AbstractVector{<:WannierProjection}=default_wannier_centers(n_wannier),
+        projections::AbstractVector=DFTK.default_wannier_centers(n_wannier),
         fileprefix=joinpath("wannierjl", "wannier"),
         wannier_plot=false,
         kwargs...)
     # Write the files
-    write_wannier90_files(scfres; n_bands, n_wannier, projections, fileprefix, wannier_plot, kwargs...) do 
+    DFTK.write_wannier90_files(scfres; n_bands, n_wannier, projections, fileprefix, wannier_plot, kwargs...) do
         get_nnkpt_from_wannier(fileprefix)
     end
 
     # Read Wannier.jl model
     Wannier.read_w90(fileprefix)
+end
+
 end
