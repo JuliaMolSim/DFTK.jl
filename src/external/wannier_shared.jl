@@ -284,7 +284,7 @@ is given by the value of the Fourier transform of ``g_n`` in G.
 Each projection is a callable object that accepts the basis and some qpoints as an argument,
 and returns the Fourier transform of ``g_n`` at the qpoints.
 """
-function compute_amn_kpoint(basis::PlaneWaveBasis, ψk, kpt, projections::AbstractVector, n_bands)
+function compute_amn_kpoint(basis::PlaneWaveBasis, kpt, ψk, projections::AbstractVector, n_bands)
     n_wannier = length(projections)
     # TODO This function should be improved in performance
 
@@ -300,7 +300,6 @@ function compute_amn_kpoint(basis::PlaneWaveBasis, ψk, kpt, projections::Abstra
         coeffs_gn_per = gn_per ./ norm(gn_per)
         # Compute overlap
         for m in 1:n_bands
-            # TODO Check the ordering of m and n here!
             Ak[m, n] = dot(ψk[:, m], coeffs_gn_per)
         end
     end
@@ -319,7 +318,7 @@ end
         println(fp, "$n_bands   $(length(basis.kpoints))  $(length(projections))")
 
         for (ik, (ψk, kpt)) in enumerate(zip(ψ, basis.kpoints))
-            Ak = compute_amn_kpoint(basis, ψk, kpt, projections, n_bands)
+            Ak = compute_amn_kpoint(basis, kpt, ψk, projections, n_bands)
             for n in 1:size(Ak, 2)
                 for m in 1:size(Ak, 1)
                     @printf(fp, "%3i %3i %3i  %22.18f %22.18f \n",
