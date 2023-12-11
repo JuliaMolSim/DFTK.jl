@@ -15,10 +15,10 @@ function (proj::GaussianWannierProjection)(basis::PlaneWaveBasis, qs)
     # TODO: what is the normalization here?
 
     model = basis.model
-    [begin
+    map(qs) do q
         q_cart = recip_vector_red_to_cart(model, q)
         exp( 2π*(-im*dot(q, proj.center) - dot(q_cart, q_cart) / 4) )
-    end for q in qs]
+    end
 end
 
 """
@@ -62,7 +62,7 @@ function (proj::HydrogenicWannierProjection)(basis::PlaneWaveBasis, qs)
 
     model = basis.model
 
-    [begin
+    map(qs) do q
         q_cart = recip_vector_red_to_cart(model, q)
 
         qnorm = norm(q_cart)
@@ -77,7 +77,7 @@ function (proj::HydrogenicWannierProjection)(basis::PlaneWaveBasis, qs)
         angular_part = ylm_real(proj.l, proj.m, q_cart) * (-im)^proj.l
 
         center_offset * angular_part * radial_part
-    end for q in qs]
+    end
 end
 
 """
