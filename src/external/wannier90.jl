@@ -57,8 +57,8 @@ function write_w90_win(fileprefix::String, basis::PlaneWaveBasis;
             println(fp, "bands_plot = true\n")
         end
 
-        println(fp, "mp_grid : $(basis.kgrid.kgrid[1]) $(basis.kgrid.kgrid[2]) ",
-                "$(basis.kgrid.kgrid[3])\n")
+        println(fp, "mp_grid : $(basis.kgrid.kgrid_size[1]) $(basis.kgrid.kgrid_size[2]) ",
+                "$(basis.kgrid.kgrid_size[3])\n")
         println(fp, "begin kpoints")
         for kpt in basis.kpoints
             @printf fp  "%10.6f %10.6f %10.6f\n" kpt.coordinate...

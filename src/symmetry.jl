@@ -164,7 +164,7 @@ function symmetries_preserving_kgrid(symmetries, kgrid::ExplicitKpoints)
     symmetries_preserving_kgrid(symmetries, all_kcoords)
 end
 function symmetries_preserving_kgrid(symmetries, kgrid::MonkhorstPack)
-    if all(isone, kgrid.kgrid)
+    if all(isone, kgrid.kgrid_size)
         # TODO Keeping this special casing from version of the code before refactor
         [one(SymOp)]
     else

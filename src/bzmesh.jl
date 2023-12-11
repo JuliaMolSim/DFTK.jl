@@ -9,55 +9,60 @@ end
 normalize_kpoint_coordinate(k::AbstractVector) = normalize_kpoint_coordinate.(k)
 
 
-"""Construct the coordinates of the ``k``-points in a (shifted) Monkorst-Pack grid"""
-function kcoords_monkhorst_pack(kgrid_size; kshift=[0, 0, 0])
-    kgrid_size = Vec3{Int}(kgrid_size)
-    kshift     = Vec3{Rational{Int}}(kshift)
+abstract type AbstractKgrid end
 
+"""
+Perform BZ sampling employing a Monkhorst-Pack grid.
+"""
+struct MonkhorstPack <: AbstractKgrid
+    kgrid_size::Vec3{Int}
+    kshift::Vec3{Rational{Int}}
+end
+MonkhorstPack(kgrid_size::AbstractVector; kshift=[0, 0, 0]) = MonkhorstPack(kgrid_size, kshift)
+MonkhorstPack(kgrid_size::Tuple; kshift=[0, 0, 0]) = MonkhorstPack(kgrid_size, kshift)
+MonkhorstPack(k1::Integer, k2::Integer, k3::Integer) = MonkhorstPack([k1, k2, k3])
+function Base.show(io::IO, kgrid::MonkhorstPack)
+    print(io, "MonkhorstPack(", kgrid.kgrid_size)
+    if !iszero(kgrid.kshift)
+        print(io, ", ", Float64.(kgrid.kshift))
+    end
+    print(io, ")")
+end
+Base.length(kgrid::MonkhorstPack) = prod(kgrid.kgrid_size)
+
+"""Construct the coordinates of the k-points in a (shifted) Monkhorst-Pack grid"""
+function reducible_kcoords(kgrid::MonkhorstPack)
+    kgrid_size = kgrid.kgrid_size
     start   = -floor.(Int, (kgrid_size .- 1) ./ 2)
     stop    = ceil.(Int, (kgrid_size .- 1) ./ 2)
-    kcoords = [(kshift .+ Vec3([i, j, k])) .// kgrid_size
+    kcoords = [(kgrid.kshift .+ Vec3([i, j, k])) .// kgrid_size
                for i=start[1]:stop[1], j=start[2]:stop[2], k=start[3]:stop[3]]
-    vec(normalize_kpoint_coordinate.(kcoords))
+    (; kcoords=vec(normalize_kpoint_coordinate.(kcoords)))
 end
 
-
-@doc raw"""
-    bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
-
-Construct a (shifted) uniform Brillouin zone mesh for sampling the ``k``-points.
-Returns all ``k``-point coordinates, appropriate weights and the identity SymOp.
 """
-function bzmesh_uniform(kgrid_size; kshift=[0, 0, 0])
-    kcoords = kcoords_monkhorst_pack(kgrid_size; kshift)
-    (; kcoords, kweights=ones(length(kcoords)) ./ length(kcoords), symmetries=[one(SymOp)])
-end
-
-
-@doc raw"""
-     bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0])
-
-Construct the irreducible wedge of a uniform Brillouin zone mesh for sampling ``k``-points,
-given the crystal symmetries `symmetries`. Returns the list of irreducible ``k``-point
-(fractional) coordinates, the associated weights and the new `symmetries` compatible with
-the grid.
+Construct the irreducible wedge given the crystal `symmetries`. Returns the list of k-point
+coordinates and the associated weights.
 """
-function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0], check_symmetry=SYMMETRY_CHECK)
-    all(isone, kgrid_size) && return bzmesh_uniform(kgrid_size; kshift)
-    kgrid_size = Vec3{Int}(kgrid_size)
-    kshift = Vec3{Rational{Int}}(kshift)
+function irreducible_kcoords(kgrid::MonkhorstPack, symmetries::AbstractVector{<:SymOp};
+                             check_symmetry=SYMMETRY_CHECK)
+    if all(isone, kgrid.kgrid_size)
+        return (; kcoords=[Vec3{Float64}(kgrid.kshift)], kweights=[1.0])
+    end
 
     # Give the remaining symmetries to spglib to compute an irreducible k-point mesh
     # TODO implement time-reversal symmetry and turn the flag below to true
-    is_shift = map(kshift) do ks
+    is_shift = map(kgrid.kshift) do ks
         ks in (0, 1//2) || error("Only kshifts of 0 or 1//2 implemented.")
         ks == 1//2
     end
     rotations = [symop.W for symop in symmetries]
     qpoints = [Vec3(0, 0, 0)]
-    spg_mesh = Spglib.get_stabilized_reciprocal_mesh(rotations, kgrid_size, qpoints;
+    spg_mesh = Spglib.get_stabilized_reciprocal_mesh(rotations, kgrid.kgrid_size, qpoints;
                                                      is_shift, is_time_reversal=false)
-    kirreds = normalize_kpoint_coordinate.(Spglib.eachpoint(spg_mesh))
+    kirreds = map(Spglib.eachpoint(spg_mesh)) do kcoord
+        normalize_kpoint_coordinate(Vec3(kcoord))
+    end
 
     # Find the indices of the corresponding reducible k-points in the MP grid, which one of
     # the irreducible k-points in `kirreds` generates.
@@ -66,7 +71,7 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0], check_symmetr
 
     # Number of reducible k-points represented by the irreducible k-point `kirreds[ik]`
     n_equivalent_k = length.(k_all_reducible)
-    @assert sum(n_equivalent_k) == prod(kgrid_size)
+    @assert sum(n_equivalent_k) == prod(kgrid.kgrid_size)
     kweights = n_equivalent_k / sum(n_equivalent_k)
 
     # This loop checks for reducible k-points, which could not be mapped to any irreducible
@@ -75,59 +80,11 @@ function bzmesh_ir_wedge(kgrid_size, symmetries; kshift=[0, 0, 0], check_symmetr
     # in *wrong results* being returned. See the discussion in
     # https://github.com/spglib/spglib/issues/101
     if check_symmetry
-        _check_kpoint_reduction(symmetries, kgrid_size, kshift, k_all_reducible,
+        _check_kpoint_reduction(symmetries, kgrid, k_all_reducible,
                                 kirreds, spg_mesh.grid_address)
     end
 
     (; kcoords=kirreds, kweights)
-end
-
-@timing function _check_kpoint_reduction(symmetries::AbstractVector{<: SymOp}, kgrid_size,
-                                         kshift, k_all_reducible, kirreds, grid_address)
-    for (iks_reducible, k) in zip(k_all_reducible, kirreds), ikred in iks_reducible
-        kred = (kshift .+ grid_address[ikred]) .// kgrid_size
-        found_mapping = any(symmetries) do symop
-            # If the difference between kred and W' * k == W^{-1} * k
-            # is only integer in fractional reciprocal-space coordinates, then
-            # kred and S' * k are equivalent k-points
-            all(isinteger, kred - (symop.S * k))
-        end
-        if !found_mapping
-            error("The reducible k-point $kred could not be generated from " *
-                  "the irreducible kpoints. This points to a bug in spglib.")
-        end
-    end
-end
-
-
-
-abstract type AbstractKgrid end
-
-"""
-Perform BZ sampling employing a Monkhorst-Pack grid.
-"""
-struct MonkhorstPack <: AbstractKgrid
-    kgrid::Vec3{Int}
-    kshift::Vec3{Rational{Int}}
-end
-MonkhorstPack(kgrid::AbstractVector; kshift=[0, 0, 0]) = MonkhorstPack(kgrid, kshift)
-MonkhorstPack(kgrid::Tuple; kshift=[0, 0, 0]) = MonkhorstPack(kgrid, kshift)
-MonkhorstPack(k1::Integer, k2::Integer, k3::Integer) = MonkhorstPack([k1, k2, k3])
-function Base.show(io::IO, kgrid::MonkhorstPack)
-    print(io, "MonkhorstPack(", kgrid.kgrid)
-    if !iszero(kgrid.kshift)
-        print(io, ", ", Float64.(kgrid.kshift))
-    end
-    print(io, ")")
-end
-Base.length(kgrid::MonkhorstPack) = prod(kgrid.kgrid)
-function reducible_kcoords(kgrid::MonkhorstPack)
-    # TODO inline function
-    (; kcoords=kcoords_monkhorst_pack(kgrid.kgrid; kgrid.kshift))
-end
-function irreducible_kcoords(kgrid::MonkhorstPack, symmetries::AbstractVector{<:SymOp})
-    # TODO Inline function
-    bzmesh_ir_wedge(kgrid.kgrid, symmetries; kgrid.kshift)
 end
 
 
@@ -223,4 +180,23 @@ function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer; kshift=[0, 0,
 end
 function kgrid_from_minimal_n_kpoints(model::Model, n_kpoints::Integer; kwargs...)
     kgrid_from_minimal_n_kpoints(model.lattice, n_kpoints; kwargs...)
+end
+
+
+@timing function _check_kpoint_reduction(symmetries::AbstractVector{<: SymOp},
+                                         kgrid::MonkhorstPack, k_all_reducible, kirreds,
+                                         grid_address)
+    for (iks_reducible, k) in zip(k_all_reducible, kirreds), ikred in iks_reducible
+        kred = (kgrid.kshift .+ grid_address[ikred]) .// kgrid.kgrid_size
+        found_mapping = any(symmetries) do symop
+            # If the difference between kred and W' * k == W^{-1} * k
+            # is only integer in fractional reciprocal-space coordinates, then
+            # kred and S' * k are equivalent k-points
+            all(isinteger, kred - (symop.S * k))
+        end
+        if !found_mapping
+            error("The reducible k-point $kred could not be generated from " *
+                  "the irreducible kpoints. This points to a bug in spglib.")
+        end
+    end
 end

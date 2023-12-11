@@ -1,4 +1,4 @@
-@testitem "bzmesh_uniform agrees with spglib" begin
+@testitem "MonkhorstPack reducible_kcoords agrees with spglib" begin
     using DFTK: normalize_kpoint_coordinate
     using DFTK
     using Spglib
@@ -25,7 +25,7 @@
 end
 
 # PythonCall does not play nicely with MPI.
-@testitem "bzmesh_ir_wedge is correct reduction" #=
+@testitem "MonkhorstPack irreducible_kcoords is correct reduction" #=
     =#    tags=[:dont_test_mpi] setup=[TestCases] begin
     using Logging
     using ASEconvert

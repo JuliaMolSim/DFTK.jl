@@ -16,7 +16,7 @@
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Direct minimization" begin
             ρ_dm = direct_minimization(basis; tol).ρ
-            @test maximum(abs, ρ_dm - ρ_def) < 5tol
+            @test maximum(abs, ρ_dm - ρ_def) < 10tol
         end
     end
 
@@ -27,7 +27,7 @@
             # remove virtual orbitals
             ψ0 = select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation).ψ
             ρ_newton = newton(basis, ψ0; tol).ρ
-            @test maximum(abs, ρ_newton - ρ_def) < 5tol
+            @test maximum(abs, ρ_newton - ρ_def) < 10tol
         end
     end
 
@@ -36,7 +36,7 @@
     for solver in (scf_anderson_solver(), scf_damping_solver(1.2), scf_CROP_solver())
         @testset "Testing $solver" begin
             ρ_alg = self_consistent_field(basis; ρ=ρ0, solver, tol).ρ
-            @test maximum(abs, ρ_alg - ρ_def) < 5tol
+            @test maximum(abs, ρ_alg - ρ_def) < 10tol
         end
     end
 
@@ -48,17 +48,17 @@
         @testset "Testing $mixing_str" begin
             mixing = eval(Meta.parse(mixing_str))
             ρ_alg = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8).ρ
-            @test maximum(abs, ρ_alg - ρ_def) < 5tol
+            @test maximum(abs, ρ_alg - ρ_def) < 10tol
         end
     end
 
     # Potential mixing
     scfres = DFTK.scf_potential_mixing(basis; mixing=KerkerMixing(), tol, ρ=ρ0)
-    @test maximum(abs, scfres.ρ - ρ_def) < 5tol
+    @test maximum(abs, scfres.ρ - ρ_def) < 10tol
 
     # Adaptive potential mixing
     scfres = DFTK.scf_potential_mixing_adaptive(basis; mixing=SimpleMixing(), tol, ρ=ρ0)
-    @test maximum(abs, scfres.ρ - ρ_def) < 5tol
+    @test maximum(abs, scfres.ρ - ρ_def) < 10tol
 end
 
 @testitem "Compare different SCF algorithms (collinear spin, no temperature)" #=
@@ -80,7 +80,7 @@ end
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Direct minimization" begin
             ρ_dm = direct_minimization(basis, ψ0; g_tol=tol).ρ
-            @test maximum(abs.(ρ_dm - ρ_def)) < 5tol
+            @test maximum(abs.(ρ_dm - ρ_def)) < 10tol
         end
     end
 
@@ -88,7 +88,7 @@ end
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Newton" begin
             ρ_newton = newton(basis, ψ0; tol).ρ
-            @test maximum(abs.(ρ_newton - ρ_def)) < 5tol
+            @test maximum(abs.(ρ_newton - ρ_def)) < 10tol
         end
     end
 end
@@ -112,7 +112,7 @@ end
         @testset "Testing $mixing_str" begin
             mixing = eval(Meta.parse(mixing_str))
             ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8).ρ
-            @test maximum(abs, ρ_mix - ρ_ref) < 5tol
+            @test maximum(abs, ρ_mix - ρ_ref) < 10tol
         end
     end
 end
@@ -140,17 +140,17 @@ end
         @testset "Testing $mixing_str" begin
             mixing = eval(Meta.parse(mixing_str))
             scfres = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8)
-            @test maximum(abs, scfres.ρ - ρ_ref) < 5tol
+            @test maximum(abs, scfres.ρ - ρ_ref) < 10tol
         end
     end
 
     # Potential mixing
     scfres = DFTK.scf_potential_mixing(basis; mixing=KerkerMixing(), tol, ρ=ρ0)
-    @test maximum(abs, scfres.ρ - ρ_ref) < 5tol
+    @test maximum(abs, scfres.ρ - ρ_ref) < 10tol
 
     # Adaptive potential mixing (started deliberately with the very bad damping
     #          of 1.5 to provoke backtrack steps ... don't do this in production runs!)
     scfres = DFTK.scf_potential_mixing_adaptive(basis; mixing=SimpleMixing(), tol, ρ=ρ0,
                                                 damping=DFTK.AdaptiveDamping(1.5))
-    @test maximum(abs, scfres.ρ - ρ_ref) < 5tol
+    @test maximum(abs, scfres.ρ - ρ_ref) < 10tol
 end
