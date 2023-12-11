@@ -106,6 +106,8 @@ Statistics = "1"
 TimerOutputs = "0.5.12"
 Unitful = "1"
 UnitfulAtomic = "1"
+Wannier = "0.3.2"
+wannier90_jll = "3.1"
 WriteVTK = "1"
 julia = "1.9"
 
