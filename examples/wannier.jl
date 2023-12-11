@@ -58,24 +58,30 @@ plot_bandstructure(scfres; kline_density=10)
 
 using Wannier # Needed to make Wannier.Model available
 
-## Helper functions to produce hydrogenic starting guesses
+# From chemical intuition, we know that the bonds with the lowest energy are:
+# - the 3 σ bonds,
+# - the π and π* bonds.
+# We provide relevant initial projections to help Wannierization
+# converge to functions with a similar shape.
 s_guess(center) = DFTK.HydrogenicWannierProjection(center, 2, 0, 0, C.Z)
 pz_guess(center) = DFTK.HydrogenicWannierProjection(center, 2, 1, 0, C.Z)
+projections = [
+    ## Note: fractional coordinates for the centers!
+    ## 3 bond-centered 2s hydrogenic orbitals to imitate σ bonds
+    s_guess((positions[1] + positions[2]) / 2),
+    s_guess((positions[1] + positions[2] + [0, -1, 0]) / 2),
+    s_guess((positions[1] + positions[2] + [-1, -1, 0]) / 2),
+    ## 2 atom-centered 2pz hydrogenic orbitals
+    pz_guess(positions[1]),
+    pz_guess(positions[2]),
+]
 
+# Wannierize:
 wannier_model = Wannier.Model(scfres;
     fileprefix="wannier/graphene",
     n_bands=scfres.n_bands_converge,
     n_wannier=5,
-    projections=[
-        ## Note: fractional coordinates for the centers!
-        ## 3 bond-centered 2s hydrogenic orbitals to imitate σ bonds
-        s_guess((positions[1] + positions[2]) / 2),
-        s_guess((positions[1] + positions[2] + [0, -1, 0]) / 2),
-        s_guess((positions[1] + positions[2] + [-1, -1, 0]) / 2),
-        ## 2 atom-centered 2pz hydrogenic orbitals
-        pz_guess(positions[1]),
-        pz_guess(positions[2]),
-    ],
+    projections,
     dis_froz_max=ustrip(auconvert(u"eV", scfres.εF))+1) # maximum frozen window, for example 1 eV above Fermi level
 
 # Once we have the `wannier_model`, we can use the functions in the Wannier.jl package:
@@ -112,16 +118,7 @@ using wannier90_jll  # Needed to make run_wannier90 available
 run_wannier90(scfres;
               fileprefix="wannier/graphene",
               n_wannier=5,
-              projections=[
-                  ## Note: fractional coordinates for the centers!
-                  ## 3 bond-centered 2s hydrogenic orbitals to imitate σ bonds
-                  s_guess((positions[1] + positions[2]) / 2),
-                  s_guess((positions[1] + positions[2] + [0, -1, 0]) / 2),
-                  s_guess((positions[1] + positions[2] + [-1, -1, 0]) / 2),
-                  ## 2 atom-centered 2pz hydrogenic orbitals
-                  pz_guess(positions[1]),
-                  pz_guess(positions[2]),
-              ],
+              projections,
               num_print_cycles=25,
               num_iter=200,
               ##
