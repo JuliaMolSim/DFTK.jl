@@ -21,15 +21,6 @@ function (proj::GaussianWannierProjection)(basis::PlaneWaveBasis, qs)
     end
 end
 
-"""
-A p-like initial guess, using the difference of two Gaussians with different centers.
-"""
-function opposite_gaussians_projection(center1::AbstractVector, center2::AbstractVector)
-    function inner(basis, qs)
-        GaussianWannierProjection(center1)(basis, qs) - GaussianWannierProjection(center2)(basis, qs)
-    end
-end
-
 @doc raw"""
 A hydrogenic initial guess.
 
