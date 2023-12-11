@@ -185,7 +185,6 @@ include("pseudo/list_psp.jl")
 include("pseudo/attach_psp.jl")
 
 export atomic_system, periodic_system  # Reexport from AtomsBase
-export wannier_model
 export run_wannier90
 include("external/atomsbase.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
