@@ -114,7 +114,7 @@ end
 
     # Test that units are stripped from both the lattice and the spacing
     lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
-    @test kgrid_from_maximal_spacing(lattice * u"Å", 0.5 / u"Å").kgrid == [9; 9; 9]
+    @test kgrid_from_maximal_spacing(lattice * u"Å", 0.5 / u"Å").kgrid_size == [9, 9, 9]
 end
 
 @testitem "kgrid_from_minimal_n_kpoints" setup=[TestCases] begin
@@ -124,14 +124,14 @@ end
     magnesium = TestCases.magnesium
 
     lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
-    @test kgrid_from_minimal_n_kpoints(lattice * u"Å", 1000).kgrid == [10, 10, 10]
+    @test kgrid_from_minimal_n_kpoints(lattice * u"Å", 1000).kgrid_size == [10, 10, 10]
 
-    @test kgrid_from_minimal_n_kpoints(magnesium.lattice, 1).kgrid == [1, 1, 1]
+    @test kgrid_from_minimal_n_kpoints(magnesium.lattice, 1).kgrid_size == [1, 1, 1]
     for n_kpt in [10, 20, 100, 400, 900, 1200]
         @test prod(kgrid_from_minimal_n_kpoints(magnesium.lattice, n_kpt).kgrid) ≥ n_kpt
     end
 
     lattice = diagm([4., 10, 0])
-    @test kgrid_from_minimal_n_kpoints(lattice, 1000).kgrid          == [50, 20, 1]
-    @test kgrid_from_minimal_n_kpoints(diagm([10, 0, 0]), 913).kgrid == [913, 1, 1]
+    @test kgrid_from_minimal_n_kpoints(lattice, 1000).kgrid_size          == [50, 20, 1]
+    @test kgrid_from_minimal_n_kpoints(diagm([10, 0, 0]), 913).kgrid_size == [913, 1, 1]
 end

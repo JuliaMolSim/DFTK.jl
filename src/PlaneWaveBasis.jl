@@ -314,7 +314,7 @@ By default a [`MonkhorstPack`](@ref) grid is employed, which can be specified as
 [`MonkhorstPack`](@ref) object or by simply passing a vector of three integers as
 the `kgrid`. Optionally `kshift` allows to specify a shift (0 or 1/2 in each
 direction). If not specified a grid is generated using `kgrid_from_maximal_spacing`
-with a minimal spacing of `2π * 0.022` per Bohr.
+with a maximal spacing of `2π * 0.022` per Bohr.
 """
 @timing function PlaneWaveBasis(model::Model{T};
                                 Ecut::Number,
