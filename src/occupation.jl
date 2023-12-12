@@ -155,6 +155,9 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
     elseif excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max]; temperature, smearing) *
             excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_min]; temperature, smearing) < 0
         while i_max - i_min > 1
+            println((i_min, i_max))
+            println((all_eigenvalues[i_min], all_eigenvalues[i_max]))
+            println((excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_min]; temperature, smearing), excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max]; temperature, smearing)))
             i = div(i_min+i_max, 2)
             εF = all_eigenvalues[i]
             if excess_n_electrons(basis, eigenvalues, εF; temperature, smearing) <= 0
@@ -163,7 +166,6 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
                 i_max = i
             end
         end
-        println((i_min, i_max))
         εF = 1/2*(all_eigenvalues[i_min]+all_eigenvalues[i_max])
     else
         error("Not enough eigenvalues computed")
