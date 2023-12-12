@@ -103,6 +103,25 @@ interp_model = Wannier.InterpModel(wannier_model; kpath=kpath)
 # (Delete temporary files when done.)
 rm("wannier", recursive=true)
 
+# ### Custom initial guesses
+#
+# We can also provide custom initial guesses for Wannierization,
+# by passing a callable function in the `projections` array.
+# The function receives the basis and a list of points (fractional coordinates in reciprocal space),
+# and returns the Fourier transform of the initial guess function evaluated at each point.
+#
+# For example, we could use Gaussians for the σ and pz guesses with the following code:
+s_guess(center) = DFTK.GaussianWannierProjection(center)
+pz_guess(center) = begin
+    ## Approximate with two Gaussians offset by 0.5 Å from the center of the atom
+    offset = model.inv_lattice * [0, 0, austrip(0.5u"Å")]
+    center1 = center + offset
+    center2 = center - offset
+    ## Build the custom projector
+    (basis, qs) -> DFTK.GaussianWannierProjection(center1)(basis, qs) - DFTK.GaussianWannierProjection(center2)(basis, qs)
+end
+## Feed to Wannier via the `projections` as before...
+
 # This example assumes that Wannier.jl version 0.3.2 is used,
 # and may need to be updated to accomodate for changes in Wannier.jl.
 #
