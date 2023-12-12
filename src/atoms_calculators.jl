@@ -28,7 +28,6 @@ function DFTKState(system::AbstractSystem, params::DFTKParameters)
     return DFTKState((;ρ, ψ, basis))
 end
 
-
 mutable struct DFTKCalculator
     params::DFTKParameters
     scf_callback
@@ -59,17 +58,7 @@ function DFTKCalculator(system; Ecut::Real, kgrid::Union{Nothing,<:AbstractVecto
     return DFTKCalculator(params, scf_callback, state)
 end
 
-
-AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
-        system::AbstractSystem, calculator::DFTKCalculator)
-    # Create basis.
-    basis = prepare_basis(system, calculator.params)
-    scfres = self_consistent_field(basis, tol=calculator.params.tol, callback=calculator.scf_callback)
-    calculator.state = DFTKState(scfres)
-    return calculator.state.scfres.energies.total
-end
-AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
-        system::AbstractSystem, calculator::DFTKCalculator, state::DFTKState)
+AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state)
     # Update basis (and the enregy terms within).
     basis = prepare_basis(system, calculator.params)
     
@@ -80,13 +69,7 @@ AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
     return calculator.state.scfres.energies.total
 end
     
-AtomsCalculators.@generate_interface function AtomsCalculators.forces(system::AbstractSystem, calculator::DFTKCalculator)
-    basis = prepare_basis(system, calculator.params)
-    scfres = self_consistent_field(basis, tol=calculator.params.tol, callback=calculator.scf_callback)
-    calculator.state = DFTKState(scfres)
-    return _compute_forces_cart(calculator.state.scfres)
-end
-AtomsCalculators.@generate_interface function AtomsCalculators.forces(system::AbstractSystem, calculator::DFTKCalculator, state::DFTKState)
+AtomsCalculators.@generate_interface function AtomsCalculators.forces(system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state)
     # Update basis (and the enregy terms within).
     basis = prepare_basis(system, calculator.params)
     
@@ -94,5 +77,5 @@ AtomsCalculators.@generate_interface function AtomsCalculators.forces(system::Ab
     # to reflect system changes.
     scfres = self_consistent_field(basis, ρ=state.scfres.ρ, ψ=state.scfres.ψ, tol=calculator.params.tol, callback=calculator.scf_callback)
     calculator.state = DFTKState(scfres)
-    return _compute_forces_cart(calculator.state.scfres)
+    return compute_forces_cart(calculator.state.scfres)
 end
