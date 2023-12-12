@@ -79,6 +79,8 @@ reciprocal-space lattice vectors by ``B = 2\pi A^{-T}``.
     (notably Python and C) use row-major ordering.
     Care therefore needs to be taken to properly
     transpose the unit cell matrices ``A`` before using it with DFTK.
+    Calls through the supported third-party package AtomsIO handle such conversion
+    automatically.
 
 We use the convention that the unit cell in real space is
 ``[0, 1)^3`` in reduced coordinates and the unit cell in reciprocal
