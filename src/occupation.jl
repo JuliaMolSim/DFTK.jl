@@ -163,14 +163,15 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
                 i_max = i
             end
         end
+        println((i_min, i_max))
         εF = 1/2*(all_eigenvalues[i_min]+all_eigenvalues[i_max])
     else
-        error("")
+        error("Not enough eigenvalues computed")
     end
 
     if !allequal(compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation)
         @warn("All kpoints don't have the same occupations, this could indicate "*
-                "that a metalic system is being treated with zero temperature.")
+                "that a metallic system is being treated with zero temperature.")
     end
 
     excess(εF) = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
