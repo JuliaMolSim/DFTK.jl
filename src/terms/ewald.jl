@@ -20,8 +20,14 @@ end
 @timing "precomp: Ewald" function TermEwald(basis::PlaneWaveBasis{T};
                                             η=default_η(basis.model.lattice)) where {T}
     model = basis.model
+    periodic = model.periodic
+    if all(.! periodic)
+        @assert all(periodic) || all(.! periodic)  # only periodic or isolated atm
+        η = zero(T)  # no Ewald splitting in this case: simple Coulomb for the unit cell only
+    end
     charges = charge_ionic.(model.atoms)
-    (; energy, forces) = energy_forces_ewald(model.lattice, charges, model.positions; η)
+    (; energy, forces) = energy_forces_ewald(model.lattice, charges, model.positions; η,
+                                             periodic)
     TermEwald(energy, forces, η)
 end
 
@@ -34,17 +40,17 @@ compute_forces(term::TermEwald, ::PlaneWaveBasis, ψ, occupation; kwargs...) = t
 Standard computation of energy and forces.
 """
 function energy_forces_ewald(lattice::AbstractArray{T}, charges::AbstractArray,
-                             positions; kwargs...) where {T}
-    energy_forces_ewald(T, lattice, charges, positions, zero(Vec3{T}), nothing)
+                             positions; periodic=Vec3(true, true, true), kwargs...) where {T}
+    energy_forces_ewald(T, lattice, charges, positions, zero(Vec3{T}), nothing; periodic)
 end
 
 """
 Computation for phonons; required to build the dynamical matrix.
 """
 function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions, q,
-                             ph_disp; kwargs...) where{T}
+                             ph_disp; periodic=Vec3(true, true, true), kwargs...) where{T}
     S = promote_type(complex(T), eltype(ph_disp[1]))
-    energy_forces_ewald(S, lattice, charges, positions, q, ph_disp; kwargs...)
+    energy_forces_ewald(S, lattice, charges, positions, q, ph_disp; periodic, kwargs...)
 end
 
 # To compute the electrostatics of the system, we use the Ewald splitting method due to the
@@ -80,7 +86,7 @@ For now this function returns zero energy and force on non-3D systems. Use a pai
 potential term if you want to customise this treatment.
 """
 function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q, ph_disp;
-                             η=default_η(lattice)) where {T}
+                             η=default_η(lattice), periodic=Vec3(true, true, true)) where {T}
     @assert length(charges) == length(positions)
     if isempty(charges)
         return (; energy=zero(T), forces=zero(positions))
@@ -115,27 +121,38 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
     poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i = 1:3]
     Rlims = estimate_integer_lattice_bounds(lattice, max_erfc_arg / η, poslims)
 
+    # Do we want shells in all directions?
+    is_dim_trivial = .!periodic
+    max_shell(n, trivial) = trivial ? 0 : n
+    Rlims = max_shell.(Rlims, is_dim_trivial)
+
     #
     # Reciprocal space sum
     #
-    # Initialize reciprocal sum with correction term for charge neutrality
-    sum_recip::S = - (sum(charges)^2 / 4η^2)
+    if all(periodic)
+        # Initialize reciprocal sum with correction term for charge neutrality
+        sum_recip::S = - (sum(charges)^2 / 4η^2)
+    else
+        sum_recip = zero(T)
+    end
     forces_recip = zeros(Vec3{S}, length(positions))
 
-    for G1 in -Glims[1]:Glims[1], G2 in -Glims[2]:Glims[2], G3 in -Glims[3]:Glims[3]
-        G = Vec3(G1, G2, G3)
-        iszero(G) && continue
-        Gsq = norm2(recip_lattice * G)
-        cos_strucfac = sum(Z * cos2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
-        sin_strucfac = sum(Z * sin2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
-        sum_strucfac = cos_strucfac^2 + sin_strucfac^2
-        sum_recip += sum_strucfac * exp(-Gsq / 4η^2) / Gsq
-        for (ir, r) in enumerate(positions)
-            Z = charges[ir]
-            dc = -Z*2S(π)*G*sin2pi(dot(r, G))
-            ds = +Z*2S(π)*G*cos2pi(dot(r, G))
-            dsum = cos_strucfac*dc + sin_strucfac*ds
-            forces_recip[ir] -= dsum * exp(-Gsq / 4η^2)/Gsq
+    if all(periodic)  # if non-periodic, no reciprocal-space contribution
+        for G1 in -Glims[1]:Glims[1], G2 in -Glims[2]:Glims[2], G3 in -Glims[3]:Glims[3]
+            G = Vec3(G1, G2, G3)
+            iszero(G) && continue
+            Gsq = norm2(recip_lattice * G)
+            cos_strucfac = sum(Z * cos2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
+            sin_strucfac = sum(Z * sin2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
+            sum_strucfac = cos_strucfac^2 + sin_strucfac^2
+            sum_recip += sum_strucfac * exp(-Gsq / 4η^2) / Gsq
+            for (ir, r) in enumerate(positions)
+                Z = charges[ir]
+                dc = -Z*2S(π)*G*sin2pi(dot(r, G))
+                ds = +Z*2S(π)*G*cos2pi(dot(r, G))
+                dsum = cos_strucfac*dc + sin_strucfac*ds
+                forces_recip[ir] -= dsum * exp(-Gsq / 4η^2)/Gsq
+            end
         end
     end
 
@@ -146,8 +163,12 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
     #
     # Real-space sum
     #
-    # Initialize real-space sum with correction term for uniform background
-    sum_real::S = -2η / sqrt(S(π)) * sum(Z -> Z^2, charges)
+    if all(periodic)
+        # Initialize real-space sum with correction term for uniform background
+        sum_real::S = -2η / sqrt(S(π)) * sum(Z -> Z^2, charges)
+    else
+        sum_real = zero(S)
+    end
     forces_real = zeros(Vec3{S}, length(positions))
 
     for R1 in -Rlims[1]:Rlims[1], R2 in -Rlims[2]:Rlims[2], R3 in -Rlims[3]:Rlims[3]

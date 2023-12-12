@@ -4,6 +4,7 @@ using DFTK
 
 function test_scfres_agreement(tested, ref)
     @test tested.basis.model.lattice           == ref.basis.model.lattice
+    @test tested.basis.model.periodic          == ref.basis.model.periodic
     @test tested.basis.model.temperature       == ref.basis.model.temperature
     @test tested.basis.model.smearing          == ref.basis.model.smearing
     @test tested.basis.model.εF                == ref.basis.model.εF

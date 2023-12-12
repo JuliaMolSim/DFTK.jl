@@ -1,3 +1,4 @@
+using SpecialFunctions
 """
 Hartree term: for a decaying potential V the energy would be
 
@@ -39,11 +40,110 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
     TermHartree(T(scaling_factor), T(scaling_factor) .* poisson_green_coeffs)
 end
 
+# a gaussian of exponent α and integral M
+ρref_real(r::T, M=1, α=1, d=3) where {T} = M * exp(-T(1)/2 * (α*r)^2) / ((2T(π))^(T(d)/2)) * α^d
+# solution of -ΔVref = 4π ρref
+function Vref_real(r::T, M=1, α=1, d=3) where {T}
+    if d == 3
+        r == 0 && return M * 2 / sqrt(T(pi)) * α / sqrt(T(2))
+        M * erf(α/sqrt(2)*r)/r
+    elseif d == 1
+        ## TODO find a way to compute this more stably when r >> 1
+        res = M * (-2π*r*erf(α*r/sqrt(2)) - 2sqrt(2π)*exp(-α^2 * r^2/2)/α)
+        res
+    else
+        error()
+    end
+end
+
+one_hot(i) = Vec3{Bool}(j == i for j=1:3)
+∂f∂α(f, α, r) = ForwardDiff.derivative(ε -> f(r + ε * one_hot(α)), zero(eltype(r)))
+
+function get_center(basis, ρ)
+    sumρ = sum(abs.(ρ))
+    center = map(1:3) do α
+        rα = [r[α] for r in r_vectors_cart(basis)]
+        sum(rα .* abs.(ρ)) / sumρ
+    end
+    Vec3(center...)
+end
+function get_dipole(α, center, basis, ρ)
+    rα = [r[α]-center[α] for r in r_vectors_cart(basis)]
+    dot(rα, ρ) * basis.dvol
+end
+function get_variance(center, basis, ρ)
+    rr = [sum(abs2, r-center) for r in r_vectors_cart(basis)]
+    dot(rr, abs.(ρ)) * basis.dvol
+end
+
 @timing "ene_ops: hartree" function ene_ops(term::TermHartree, basis::PlaneWaveBasis{T},
                                             ψ, occupation; ρ, kwargs...) where {T}
-    ρtot_fourier = fft(basis, total_density(ρ))
+    model = basis.model
+    ρtot_real = total_density(ρ)
+    # T@D@ {
+    ρtot_real .-= [sum(DFTK.charge_real(el, norm(r - vector_red_to_cart(model, pos)))
+                       for (el, pos) in zip(model.atoms, model.positions))
+                   for r in r_vectors_cart(basis)]
+    # println(sum(ρtot_real) * basis.dvol)
+    # }
+    ρtot_fourier = fft(basis, ρtot_real)
     pot_fourier = term.poisson_green_coeffs .* ρtot_fourier
     pot_real = irfft(basis, pot_fourier)
+
+    # For isolated systems, the above does not compute a good potential (e.g., it assumes
+    # zero DC component).
+    # We correct it by solving -Δ V = 4πρ in two steps: we split ρ into ρref and ρ-ρref,
+    # where ρref is a Gaussian has the same total charge as ρ.
+    # We compute the first potential in real space (explicitly since ρref is known), and the
+    # second (short-range) potential in Fourier space.
+    # Compared to the usual scheme (ρref = 0), this results in a correction potential equal
+    # to Vref computed in real space minus Vref computed in Fourier space
+    if any(.!model.periodic)
+        @assert all(.!model.periodic)
+        # Determine center and width from density.
+        # Strictly speaking, these computations should result in extra terms to guarantee
+        # energy/ham consistency.
+        center = get_center(basis, ρtot_real)
+        ρref_11 = [ρref_real(norm(r - center), 1, 1, basis.model.n_dim) for r in r_vectors_cart(basis)]
+        spread_11 = get_variance(center, basis, ρref_11)
+        spread_ρ = get_variance(center, basis, ρtot_real)
+        α = 1/sqrt(spread_ρ/spread_11)
+
+        total_charge = sum(ρtot_real) .* basis.dvol
+        ρrad_fun(r) = ρref_real(norm(r - center), 1, α, basis.model.n_dim)
+        ρrad = ρrad_fun.(r_vectors_cart(basis))
+
+
+        # At this point we've determined a gaussian of same width and center as the original.
+        # Now we get the dipole moments of ρ and match them.
+        ρders = [∂f∂α.(ρrad_fun, α, r_vectors_cart(basis)) for α=1:3]
+
+        coeffs_ders = map(1:3) do α
+            get_dipole(α, center, basis, ρtot_real) / get_dipole(α, center, basis, ρders[α])
+        end
+        # T@D@ {
+        # println(coeffs_ders)
+        if basis.model.n_dim == 1
+            coeffs_ders[2:3] .= 0
+        end
+        # }
+        ρref = total_charge * ρrad + sum([coeffs_ders[α]*ρders[α] for α=1:3])
+
+        # Compute corresponding solution of -ΔVref = 4π ρref.
+        Vref_rad_fun(r) = Vref_real(norm(r - center), 1, α, basis.model.n_dim)
+        Vref_rad = Vref_rad_fun.(r_vectors_cart(basis))
+        Vref_ders = [∂f∂α.(Vref_rad_fun, α, r_vectors_cart(basis)) for α=1:3]
+        Vref = total_charge * Vref_rad + sum([coeffs_ders[α]*Vref_ders[α] for α=1:3])
+
+        # TODO possibly optimize FFTs here
+        Vcorr_real = Vref - irfft(basis, term.poisson_green_coeffs .* fft(basis, ρref))
+        Vcorr_fourier = fft(basis, Vcorr_real)
+        pot_real .+= Vcorr_real
+        pot_fourier .+= Vcorr_fourier
+    end
+
+    pot_fourier *= term.scaling_factor
+    pot_real *= term.scaling_factor
     E = real(dot(pot_fourier, ρtot_fourier) / 2)
 
     ops = [RealSpaceMultiplication(basis, kpt, pot_real) for kpt in basis.kpoints]

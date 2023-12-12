@@ -83,43 +83,53 @@ Atomic local potential defined by `model.atoms`.
 """
 struct AtomicLocal end
 function (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T}
-    # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
-    # Since V is a sum of radial functions located at atomic
-    # positions, this involves a form factor (`local_potential_fourier`)
-    # and a structure factor e^{-i G·r}
     model = basis.model
-    G_cart = to_cpu(G_vectors_cart(basis))
-    # TODO Bring G_cart on the CPU for compatibility with the pseudopotentials which
-    #      are not isbits ... might be able to solve this by restructuring the loop
+
+    if all(model.periodic)
+        # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
+        # Since V is a sum of radial functions located at atomic
+        # positions, this involves a form factor (`local_potential_fourier`)
+        # and a structure factor e^{-i G·r}
+        G_cart = to_cpu(G_vectors_cart(basis))
+        # TODO Bring G_cart on the CPU for compatibility with the pseudopotentials which
+        #      are not isbits ... might be able to solve this by restructuring the loop
 
 
-    # Pre-compute the form factors at unique values of |G| to speed up
-    # the potential Fourier transform (by a lot). Using a hash map gives O(1)
-    # lookup.
-    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
-    for G in G_cart
-        q = norm(G)
-        for (igroup, group) in enumerate(model.atom_groups)
-            if !haskey(form_factors, (igroup, q))
-                element = model.atoms[first(group)]
-                form_factors[(igroup, q)] = local_potential_fourier(element, q)
+        # Pre-compute the form factors at unique values of |G| to speed up
+        # the potential Fourier transform (by a lot). Using a hash map gives O(1)
+        # lookup.
+        form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
+        for G in G_cart
+            q = norm(G)
+            for (igroup, group) in enumerate(model.atom_groups)
+                if !haskey(form_factors, (igroup, q))
+                    element = model.atoms[first(group)]
+                    form_factors[(igroup, q)] = local_potential_fourier(element, q)
+                end
+            end
+        end
+
+        Gs = to_cpu(G_vectors(basis))  # TODO Again for GPU compatibility
+        pot_fourier = map(enumerate(Gs)) do (iG, G)
+            q = norm(G_cart[iG])
+            pot = sum(enumerate(model.atom_groups)) do (igroup, group)
+                structure_factor = sum(r -> cis2pi(-dot(G, r)), @view model.positions[group])
+                form_factors[(igroup, q)] * structure_factor
+            end
+            pot / sqrt(model.unit_cell_volume)
+        end
+
+        enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
+        pot_real = irfft(basis, to_device(basis.architecture, pot_fourier))
+    else
+        @assert all(.!model.periodic)
+        # simple real-space sum
+        pot_real = map(r_vectors(basis)) do r
+            sum(zip(model.atoms, model.positions)) do (element, r_ion)
+                local_potential_real(element, norm(model.lattice * (r-r_ion)))
             end
         end
     end
-
-    Gs = to_cpu(G_vectors(basis))  # TODO Again for GPU compatibility
-    pot_fourier = map(enumerate(Gs)) do (iG, G)
-        q = norm(G_cart[iG])
-        pot = sum(enumerate(model.atom_groups)) do (igroup, group)
-            structure_factor = sum(r -> cis2pi(-dot(G, r)), @view model.positions[group])
-            form_factors[(igroup, q)] * structure_factor
-        end
-        pot / sqrt(model.unit_cell_volume)
-    end
-
-    enforce_real!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
-    pot_real = irfft(basis, to_device(basis.architecture, pot_fourier))
-
     TermAtomicLocal(pot_real)
 end
 

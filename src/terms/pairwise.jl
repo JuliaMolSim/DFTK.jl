@@ -21,7 +21,8 @@ end
     model = basis.model
     symbols = Symbol.(atomic_symbol.(model.atoms))
     (; energy, forces) = energy_forces_pairwise(model.lattice, symbols, model.positions,
-                                                P.V, P.params; P.max_radius)
+                                                P.V, P.params; P.max_radius,
+                                                basis.model.periodic)
     TermPairwisePotential(P.V, P.params, T(P.max_radius), energy, forces)
 end
 
@@ -79,7 +80,8 @@ symbols).
 The potential is expected to decrease quickly at infinity.
 """
 function energy_forces_pairwise(S, lattice::AbstractArray{T}, symbols, positions, V, params,
-                                q, ph_disp; max_radius=100) where {T}
+                                q, ph_disp; max_radius=100,
+                                periodic=Vec3(true, true, true)) where {T}
     @assert length(symbols) == length(positions)
     if isempty(symbols)
         return (; energy=zero(T), forces=zero(positions))
@@ -97,8 +99,8 @@ function energy_forces_pairwise(S, lattice::AbstractArray{T}, symbols, positions
     poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i = 1:3]
     Rlims = estimate_integer_lattice_bounds(lattice, max_radius, poslims)
 
-    # Check if some coordinates are not used.
-    is_dim_trivial = iszero.(eachcol(lattice))
+    # Do we want shells in all directions?
+    is_dim_trivial = iszero.(eachcol(lattice)) .|| (.!periodic)'
     max_shell(n, trivial) = trivial ? 0 : n
     Rlims = max_shell.(Rlims, is_dim_trivial)
 

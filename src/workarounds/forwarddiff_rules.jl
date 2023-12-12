@@ -143,6 +143,7 @@ function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
           construct_value.(model.atoms),
           newpositions;
           model.model_name,
+          model.periodic,
           model.n_electrons,
           magnetic_moments=[],  # Symmetries given explicitly
           terms=model.term_types,
