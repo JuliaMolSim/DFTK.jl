@@ -148,16 +148,14 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
 
     all_eigenvalues = sort(vcat(eigenvalues...))
 
+    # Bissection method to find  the index of the eigenvalue such that excess_n_electrons = 0
     i_min = 1
     i_max = length(all_eigenvalues)
+
     if excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max]; temperature, smearing) == 0
         εF = all_eigenvalues[i_max]
-    elseif excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max]; temperature, smearing) *
-            excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_min]; temperature, smearing) < 0
+    else
         while i_max - i_min > 1
-            println((i_min, i_max))
-            println((all_eigenvalues[i_min], all_eigenvalues[i_max]))
-            println((excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_min]; temperature, smearing), excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max]; temperature, smearing)))
             i = div(i_min+i_max, 2)
             εF = all_eigenvalues[i]
             if excess_n_electrons(basis, eigenvalues, εF; temperature, smearing) <= 0
@@ -167,13 +165,11 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
             end
         end
         εF = 1/2*(all_eigenvalues[i_min]+all_eigenvalues[i_max])
-    else
-        error("Not enough eigenvalues computed")
     end
 
     if !allequal(compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation)
-        @warn("All kpoints don't have the same occupations, this could indicate "*
-                "that a metallic system is being treated with zero temperature.")
+        @warn("Not all kpoints have the same number of occupied states, which could mean "*
+              "that a metallic system is treated at zero temperature.")
     end
 
     excess(εF) = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
