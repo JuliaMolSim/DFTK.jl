@@ -6,7 +6,7 @@
     Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut=3, silicon.kgrid, fft_size)
 
     @test basis.model.lattice == silicon.lattice
     @test basis.model.recip_lattice ≈ 2π * inv(silicon.lattice)
@@ -22,14 +22,14 @@
 
     for (ik, kpt) in enumerate(basis.kpoints)
         kpt = basis.kpoints[ik]
-        @test kpt.coordinate == silicon.kcoords[basis.krange_thisproc[ik]]
+        @test kpt.coordinate == silicon.kgrid.kcoords[basis.krange_thisproc[ik]]
 
         for (ig, G) in enumerate(G_vectors(basis, kpt))
             @test g_start <= G <= g_stop
         end
         @test g_all[kpt.mapping] == G_vectors(basis, kpt)
     end
-    @test basis.kweights == ([1, 8, 6, 12] / 27)[basis.krange_thisproc]
+    @test basis.kweights == silicon.kgrid.kweights[basis.krange_thisproc]
 end
 
 @testitem "PlaneWaveBasis: Energy cutoff is respected" setup=[TestCases] begin
@@ -73,10 +73,8 @@ end
     using DFTK: index_G_vectors
     silicon = TestCases.silicon
 
-    Ecut = 3
-    fft_size = [7, 9, 11]
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut=3, silicon.kgrid, fft_size=[7, 9, 11])
     g_all = collect(G_vectors(basis))
 
     for kpt in basis.kpoints
@@ -118,10 +116,9 @@ end
     using DFTK
     silicon = TestCases.silicon
 
-    Ecut = 3
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut=3, kgrid=(3, 3, 3), fft_size)
 
     # `isapprox` and not `==` because of https://github.com/JuliaLang/julia/issues/46849
     atol = 20eps(eltype(basis))

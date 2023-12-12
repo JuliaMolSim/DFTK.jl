@@ -4,7 +4,7 @@ using LinearAlgebra: Diagonal, diagm
 using LazyArtifacts
 
 hgh_lda_family = artifact"hgh_lda_hgh"
-pd_lda_family = artifact"pd_nc_sr_lda_standard_0.4.1_upf"
+pd_lda_family  = artifact"pd_nc_sr_lda_standard_0.4.1_upf"
 
 silicon = (
     lattice = [0.0  5.131570667152971 5.131570667152971;
@@ -15,12 +15,12 @@ silicon = (
     temperature = 0.0,
     psp_hgh = joinpath(hgh_lda_family, "si-q4.hgh"),
     psp_upf = joinpath(pd_lda_family, "Si.upf"),
-    positions = [ones(3)/8, -ones(3)/8],  # in fractional coordinates
-    kcoords = [[   0,   0, 0],  # in fractional coordinates
-               [ 1/3,   0, 0],
-               [ 1/3, 1/3, 0],
-               [-1/3, 1/3, 0]],
-    kweights = [1/27, 8/27, 6/27, 12/27],
+    positions = [ones(3)/8, -ones(3)/8],      # in fractional coordinates
+    kgrid = ExplicitKpoints([[   0,   0, 0],  # kcoords in fractional coordinates
+                             [ 1/3,   0, 0],
+                             [ 1/3, 1/3, 0],
+                             [-1/3, 1/3, 0]],
+                            [1/27, 8/27, 6/27, 12/27]),
 )
 silicon = merge(silicon,
                 (; atoms=fill(ElementPsp(silicon.atnum; psp=load_psp(silicon.psp_hgh)), 2)))
@@ -34,14 +34,14 @@ magnesium = (
     psp_hgh = joinpath(hgh_lda_family, "mg-q2.hgh"),
     psp_upf = joinpath(pd_lda_family, "Mg.upf"),
     positions = [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]],
-    kcoords =  [[0,   0,   0],
-                [1/3, 0,   0],
-                [1/3, 1/3, 0],
-                [0,   0,   1/3],
-                [1/3, 0,   1/3],
-                [1/3, 1/3, 1/3]],
+    kgrid = ExplicitKpoints([[0,   0,   0],
+                             [1/3, 0,   0],
+                             [1/3, 1/3, 0],
+                             [0,   0,   1/3],
+                             [1/3, 0,   1/3],
+                             [1/3, 1/3, 1/3]],
+                            [1/27, 6/27, 2/27, 2/27, 12/27, 4/27]),
     temperature = 0.01,
-    kweights = [1/27, 6/27, 2/27, 2/27, 12/27, 4/27],
 )
 magnesium = merge(magnesium,
                   (; atoms=fill(ElementPsp(magnesium.atnum; psp=load_psp(magnesium.psp_hgh)), 2)))

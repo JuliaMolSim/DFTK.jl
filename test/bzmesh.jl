@@ -1,4 +1,4 @@
-@testitem "bzmesh_uniform agrees with spglib" begin
+@testitem "MonkhorstPack reducible_kcoords agrees with spglib" begin
     using DFTK: normalize_kpoint_coordinate
     using DFTK
     using Spglib
@@ -13,10 +13,8 @@
         kcoords_spglib = normalize_kpoint_coordinate.(Spglib.eachpoint(spg_mesh))
         sort!(kcoords_spglib)
 
-        (; kcoords) = bzmesh_uniform(kgrid_size; kshift)
-        sort!(kcoords)
-
-        @test kcoords == kcoords_spglib
+        (; kcoords) = DFTK.reducible_kcoords(MonkhorstPack(kgrid_size, kshift))
+        @test sort!(kcoords) == kcoords_spglib
     end
 
     test_against_spglib([ 2,  3,  2])
@@ -27,7 +25,7 @@
 end
 
 # PythonCall does not play nicely with MPI.
-@testitem "bzmesh_ir_wedge is correct reduction" #=
+@testitem "MonkhorstPack irreducible_kcoords is correct reduction" #=
     =#    tags=[:dont_test_mpi] setup=[TestCases] begin
     using Logging
     using ASEconvert
@@ -42,16 +40,16 @@ end
             ase_atoms = with_logger(() -> convert_ase(system), NullLogger())
             system = pyconvert(AbstractSystem, ase_atoms * pytuple(supercell))
         end
-
-        red_kcoords = bzmesh_uniform(kgrid_size; kshift).kcoords
+        kgrid = MonkhorstPack(kgrid_size, kshift)
         symmetries = symmetry_operations(system)
-        irred_kcoords = bzmesh_ir_wedge(kgrid_size, symmetries; kshift).kcoords
+        sym_preserving_grid = DFTK.symmetries_preserving_kgrid(symmetries, kgrid)
 
+        red_kcoords   = DFTK.reducible_kcoords(kgrid).kcoords
+        irred_kcoords = DFTK.irreducible_kcoords(kgrid, sym_preserving_grid).kcoords
         @test length(irred_kcoords) == kirredsize
 
         # Try to reproduce all kcoords from irred_kcoords
         all_kcoords = Vector{Vec3{Rational{Int}}}()
-        sym_preserving_grid = DFTK.symmetries_preserving_kgrid(symmetries, red_kcoords)
         for k in irred_kcoords
             append!(all_kcoords, [symop.S * k for symop in sym_preserving_grid])
         end
@@ -110,13 +108,13 @@ end
     @test std.positions[1] - std.positions[2] ≈ 0.25ones(3)
 end
 
-@testitem "kgrid_from_minimal_spacing" begin
+@testitem "kgrid_from_maximal_spacing" begin
     using DFTK
     using Unitful
 
     # Test that units are stripped from both the lattice and the spacing
     lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
-    @test kgrid_from_minimal_spacing(lattice * u"angstrom", 0.5 / u"angstrom") == [9; 9; 9]
+    @test kgrid_from_maximal_spacing(lattice * u"Å", 0.5 / u"Å").kgrid_size == [9, 9, 9]
 end
 
 @testitem "kgrid_from_minimal_n_kpoints" setup=[TestCases] begin
@@ -126,14 +124,14 @@ end
     magnesium = TestCases.magnesium
 
     lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
-    @test kgrid_from_minimal_n_kpoints(lattice * u"Å", 1000) == [10, 10, 10]
+    @test kgrid_from_minimal_n_kpoints(lattice * u"Å", 1000).kgrid_size == [10, 10, 10]
 
-    @test kgrid_from_minimal_n_kpoints(magnesium.lattice, 1) == [1, 1, 1]
+    @test kgrid_from_minimal_n_kpoints(magnesium.lattice, 1).kgrid_size == [1, 1, 1]
     for n_kpt in [10, 20, 100, 400, 900, 1200]
-        @test prod(kgrid_from_minimal_n_kpoints(magnesium.lattice, n_kpt)) ≥ n_kpt
+        @test length(kgrid_from_minimal_n_kpoints(magnesium.lattice, n_kpt)) ≥ n_kpt
     end
 
     lattice = diagm([4., 10, 0])
-    @test kgrid_from_minimal_n_kpoints(lattice, 1000) == [50, 20, 1]
-    @test kgrid_from_minimal_n_kpoints(diagm([10, 0, 0]), 913) == [913, 1, 1]
+    @test kgrid_from_minimal_n_kpoints(lattice, 1000).kgrid_size          == [50, 20, 1]
+    @test kgrid_from_minimal_n_kpoints(diagm([10, 0, 0]), 913).kgrid_size == [913, 1, 1]
 end

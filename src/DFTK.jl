@@ -1,9 +1,6 @@
-"""
-DFTK --- The density-functional toolkit. Provides functionality for experimenting
-with plane-wave density-functional theory algorithms.
-"""
 module DFTK
 
+using DocStringExtensions
 using LinearAlgebra
 using Markdown
 using Printf
@@ -17,6 +14,13 @@ using GPUArraysCore
 using Random
 using ChainRulesCore
 using PrecompileTools
+
+@template METHODS =
+"""
+$(TYPEDSIGNATURES)
+
+$(DOCSTRING)
+"""
 
 export Vec3
 export Mat3
@@ -63,6 +67,7 @@ include("SymOp.jl")
 
 export Smearing
 export Model
+export MonkhorstPack, ExplicitKpoints
 export PlaneWaveBasis
 export compute_fft_size
 export G_vectors, G_vectors_cart, r_vectors, r_vectors_cart
@@ -73,15 +78,18 @@ export irfft
 export ifft!
 export fft
 export fft!
-export create_supercell
-export cell_to_supercell
+export kgrid_from_maximal_spacing, kgrid_from_minimal_n_kpoints
 include("Smearing.jl")
 include("Model.jl")
 include("structure.jl")
+include("bzmesh.jl")
 include("PlaneWaveBasis.jl")
 include("fft.jl")
 include("orbitals.jl")
-include("show.jl")
+include("input_output.jl")
+
+export create_supercell
+export cell_to_supercell
 include("supercell.jl")
 
 export Energies
@@ -160,11 +168,7 @@ include("scf/potential_mixing.jl")
 
 export symmetry_operations
 export standardize_atoms
-export bzmesh_uniform
-export bzmesh_ir_wedge
-export kgrid_from_minimal_spacing, kgrid_from_minimal_n_kpoints
 include("symmetry.jl")
-include("bzmesh.jl")
 
 export DensityConstructionMethod
 export AtomicDensity
@@ -193,6 +197,7 @@ include("external/wannier_shared.jl")
 export compute_bands
 export plot_bandstructure
 export irrfbz_path
+export save_bands
 include("postprocess/band_structure.jl")
 
 export compute_forces

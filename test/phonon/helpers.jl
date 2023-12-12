@@ -3,7 +3,6 @@
 using Test
 using DFTK
 using DFTK: compute_dynmat_cart, setindex, dynmat_red_to_cart, normalize_kpoint_coordinate
-using Random
 using LinearAlgebra
 using ForwardDiff
 
@@ -78,7 +77,6 @@ end
 # Random test. Slow but more robust than against some reference.
 # TODO: Will need rework for local term in future PR.
 function test_rand_frequencies(testcase, terms; tol=1e-9)
-    Random.seed!()
     model = Model(testcase.lattice, testcase.atoms, testcase.positions; terms)
     basis_bs = PlaneWaveBasis(model; Ecut=5)
 

@@ -188,7 +188,7 @@ end
 struct ElementGaussian <: Element
     α                               # Prefactor
     L                               # Width of the Gaussian nucleus
-    symbol::Union{Nothing, Symbol}  # Element symbol
+    symbol::Symbol  # Element symbol
 end
 AtomsBase.atomic_symbol(el::ElementGaussian) = el.symbol
 

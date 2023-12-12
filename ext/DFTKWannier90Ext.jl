@@ -18,12 +18,14 @@ Run the Wannierization procedure with Wannier90.
 
     # Prepare files
     DFTK.write_wannier90_files(scfres; n_bands, n_wannier, projections, fileprefix, wannier_plot, kwargs...) do
-        wannier90_jll.wannier90(exe -> run(Cmd(`$exe -pp $prefix`; dir)))
+        run(Cmd(`$(wannier90_jll.wannier90()) -pp $prefix`; dir))
         DFTK.read_w90_nnkp(fileprefix)
     end
 
     # Run Wannierisation procedure
-    @DFTK.timing "Wannierization" wannier90_jll.wannier90(exe -> run(Cmd(`$exe $prefix`; dir)))
+    @DFTK.timing "Wannierization" begin
+        run(Cmd(`$(wannier90_jll.wannier90()) $prefix`; dir))
+    end
     fileprefix
 end
 

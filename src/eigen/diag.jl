@@ -1,5 +1,3 @@
-using ProgressMeter
-
 @doc raw"""
 Function for diagonalising each ``k``-Point blow of ham one step at a time.
 Some logic for interpolating between ``k``-points is used if `interpolate_kpoints`
@@ -11,15 +9,10 @@ that really does the work, operating on a single ``k``-Block.
 function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
                                  ψguess=nothing,
                                  prec_type=PreconditionerTPA, interpolate_kpoints=true,
-                                 tol=1e-6, miniter=1, maxiter=100, n_conv_check=nothing,
-                                 show_progress=false)
+                                 tol=1e-6, miniter=1, maxiter=100, n_conv_check=nothing)
     kpoints = ham.basis.kpoints
     results = Vector{Any}(undef, length(kpoints))
 
-    progress = nothing
-    if show_progress
-        progress = Progress(length(kpoints); desc="Diagonalising Hamiltonian kblocks: ")
-    end
     for (ik, kpt) in enumerate(kpoints)
         n_Gk = length(G_vectors(ham.basis, kpt))
         if n_Gk < nev_per_kpoint
@@ -56,9 +49,6 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         !isnothing(prec_type) && (prec = prec_type(ham[ik]))
         results[ik] = eigensolver(ham[ik], ψguessk;
                                   prec, tol, miniter, maxiter, n_conv_check)
-
-        # Update progress bar if desired
-        !isnothing(progress) && next!(progress)
     end
 
     # Transform results into a nicer datastructure

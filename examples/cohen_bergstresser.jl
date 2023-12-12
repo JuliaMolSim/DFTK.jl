@@ -29,5 +29,6 @@ eigres = diagonalize_all_kblocks(DFTK.lobpcg_hyper, ham, 6)
 using Plots
 using Unitful
 
-p = plot_bandstructure(basis; n_bands=8, εF, kline_density=10, unit=u"eV")
+bands = compute_bands(basis; n_bands=8, εF, kline_density=10)
+p = plot_bandstructure(bands; unit=u"eV")
 ylims!(p, (-5, 6))

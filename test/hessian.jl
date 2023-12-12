@@ -3,10 +3,8 @@ using DFTK
 using DFTK: select_occupied_orbitals, compute_projected_gradient
 
 function setup_quantities(testcase)
-    Ecut = 3
-    fft_size = [9, 9, 9]
     model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions, [:lda_xc_teter93])
-    basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut=3, kgrid=(3, 3, 3), fft_size=[9, 9, 9])
     scfres = self_consistent_field(basis; tol=10)
 
     ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
@@ -74,10 +72,8 @@ end
     using LinearAlgebra
     silicon = TestCases.silicon
 
-    Ecut = 3
-    fft_size = [9, 9, 9]
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, [:lda_xc_teter93])
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut=3, kgrid=(3, 3, 3), fft_size=[9, 9, 9])
     scfres = self_consistent_field(basis; tol=10)
 
     rhs = compute_projected_gradient(basis, scfres.ψ, scfres.occupation)
@@ -106,11 +102,9 @@ end
     using LinearAlgebra
     magnesium = TestCases.magnesium
 
-    Ecut = 5
-    fft_size = [9, 9, 9]
     model = model_DFT(magnesium.lattice, magnesium.atoms, magnesium.positions,
                       [:lda_xc_teter93]; magnesium.temperature)
-    basis = PlaneWaveBasis(model, Ecut, magnesium.kcoords, magnesium.kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut=5, kgrid=(3, 3, 3), fft_size=[9, 9, 9])
     nbandsalg = AdaptiveBands(basis.model; occupation_threshold=1e-10)
     scfres = self_consistent_field(basis; tol=1e-12, nbandsalg)
 

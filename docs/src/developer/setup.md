@@ -74,6 +74,10 @@ TestEnv.activate()  # for tests in a temporary environment.
 using TestItemRunner
 @run_package_tests filter = ti -> :core ∈ ti.tags
 ```
+Or to only run the tests of a particular file `serialisation.jl` use
+```julia
+@run_package_tests filter = ti -> occursin("serialisation.jl", ti.filename)
+```
 
 If you need to write tests, note that you can create modules with `@testsetup`. To use
 a function `my_function` of a module `MySetup` in a `@testitem`, you can import it with
