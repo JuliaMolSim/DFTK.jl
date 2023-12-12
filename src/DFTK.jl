@@ -43,6 +43,7 @@ include("common/zeros_like.jl")
 include("common/norm.jl")
 include("common/quadrature.jl")
 include("common/hankel.jl")
+include("common/hydrogenic.jl")
 
 export PspHgh
 export PspUpf
@@ -191,6 +192,7 @@ export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
 include("external/atomsbase.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
+include("external/wannier_shared.jl")
 
 export compute_bands
 export plot_bandstructure
@@ -242,9 +244,6 @@ function __init__()
     # TODO Keep these requires for now as there are open PRs changing these files.
     @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"     include("external/jld2io.jl")
     @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80"    include("plotting.jl")
-    @require wannier90_jll="c5400fa0-8d08-52c2-913f-1e3f656c1ce9" begin
-        include("external/wannier90.jl")
-    end
 
     # TODO Move out into extension module
     @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba"  begin

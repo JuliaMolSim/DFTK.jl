@@ -47,7 +47,7 @@ PAGES = [
         # options we have
         "examples/atomsbase.jl",
         "examples/input_output.jl",
-        "examples/wannier90.jl",
+        "examples/wannier.jl",
     ],
     "Tipps and tricks" => [
         # Resolving convergence issues, what solver to use, improving performance or

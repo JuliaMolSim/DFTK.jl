@@ -1,4 +1,74 @@
+# Shared functionality to operate with Wannier programs (Wannier.jl and Wannier90).
+# The communication happens with the Wannier90 file formats which Wannier.jl also understands.
+
 using Dates
+
+"""
+A Gaussian-shaped initial guess. Can be used as an approximation of an s- or σ-like orbital.
+"""
+struct GaussianWannierProjection
+    center::AbstractVector
+end
+
+function (proj::GaussianWannierProjection)(basis::PlaneWaveBasis, qs)
+    # associate a center with the fourier transform of the corresponding gaussian
+    # TODO: what is the normalization here?
+
+    model = basis.model
+    map(qs) do q
+        q_cart = recip_vector_red_to_cart(model, q)
+        exp( 2π*(-im*dot(q, proj.center) - dot(q_cart, q_cart) / 4) )
+    end
+end
+
+@doc raw"""
+A hydrogenic initial guess.
+
+`α` is the diffusivity, ``\frac{Z}/{a}`` where ``Z`` is the atomic number and
+    ``a`` is the Bohr radius.
+"""
+struct HydrogenicWannierProjection
+    center::AbstractVector
+    n::Integer
+    l::Integer
+    m::Integer
+    α::Real
+end
+
+function (proj::HydrogenicWannierProjection)(basis::PlaneWaveBasis, qs)
+    # TODO: Performance can probably be improved a lot here.
+    # TODO: Some of this logic could be used for the pswfc from the UPF PSPs.
+
+    # this is same as QE pw2wannier90, r = exp(x) / α
+    xmin = -6.0
+    dx = 0.025
+    rmax = 10.0
+    n_r = round(Int, (log(rmax) - xmin) / dx) + 1
+    x = range(; start=xmin, length=n_r, step=dx)
+    # rgrid depends on α
+    r = exp.(x) ./ proj.α
+    dr = r .* dx
+    R = radial_hydrogenic(r, proj.n, proj.α)
+    r2_R_dr = r.^2 .* R .* dr
+
+    model = basis.model
+    map(qs) do q
+        q_cart = recip_vector_red_to_cart(model, q)
+        qnorm = norm(q_cart)
+
+        radial_part = 0.0
+        for (ir, rval) in enumerate(r)
+            @inbounds radial_part += r2_R_dr[ir] * sphericalbesselj_fast(proj.l, qnorm * rval)
+        end
+
+        # both q and proj.center in reduced coordinates
+        center_offset = exp(-im*2π*dot(q, proj.center))
+        # without the 4π normalization because the matrix will be orthonormalized anyway
+        angular_part = ylm_real(proj.l, proj.m, q_cart) * (-im)^proj.l
+
+        center_offset * angular_part * radial_part
+    end
+end
 
 """
 Write a win file at the indicated prefix.
@@ -61,7 +131,7 @@ function write_w90_win(fileprefix::String, basis::PlaneWaveBasis;
                 "$(basis.kgrid.kgrid_size[3])\n")
         println(fp, "begin kpoints")
         for kpt in basis.kpoints
-            @printf fp  "%10.6f %10.6f %10.6f\n" kpt.coordinate...
+            @printf fp  "%10.10f %10.10f %10.10f\n" kpt.coordinate...
         end
         println(fp, "end kpoints")
     end
@@ -128,7 +198,7 @@ end
             for iband = 1:n_bands
                 ψnk_real = ifft(basis, basis.kpoints[ik], @view ψ[ik][:, iband])
                 for iz = 1:fft_size[3], iy = 1:fft_size[2], ix = 1:fft_size[1]
-                    println(fp, real(ψnk_real[ix, iy, iz]), " ", imag(ψnk_real[ix, iy, iz]))
+                    @printf fp "%25.18f %25.18f\n" real(ψnk_real[ix, iy, iz]) imag(ψnk_real[ix, iy, iz])
                 end
             end
         end
@@ -184,39 +254,43 @@ end
     nothing
 end
 
-
 @doc raw"""
-Compute the matrix ``[A_k]_{m,n} = \langle ψ_m^k | g^{\text{per}}_n \rangle``
+Compute the starting matrix for Wannierization.
 
-``g^{per}_n`` are periodized gaussians whose respective centers are given as an
- (num_bands,1) array [ [center 1], ... ].
+Wannierization searches for a unitary matrix ``U_{m_n}``.
+As a starting point for the search, we can provide an initial guess function ``g``
+for the shape of the Wannier functions, based on what we expect from knowledge of the problem or physical intuition.
+This starting matrix is called ``[A_k]_{m,n}``, and is computed as follows:
+``[A_k]_{m,n} = \langle ψ_m^k | g^{\text{per}}_n \rangle``.
+The matrix will be orthonormalized by the chosen Wannier program, we don't need to do so ourselves.
 
 Centers are to be given in lattice coordinates and G_vectors in reduced coordinates.
 The dot product is computed in the Fourier space.
 
 Given an orbital ``g_n``, the periodized orbital is defined by :
  ``g^{per}_n =  \sum\limits_{R \in {\rm lattice}} g_n( \cdot - R)``.
-The  Fourier coefficient of ``g^{per}_n`` at any G
+The Fourier coefficient of ``g^{per}_n`` at any G
 is given by the value of the Fourier transform of ``g_n`` in G.
+
+Each projection is a callable object that accepts the basis and some qpoints as an argument,
+and returns the Fourier transform of ``g_n`` at the qpoints.
 """
-function compute_Ak_gaussian_guess(basis::PlaneWaveBasis, ψk, kpt, centers, n_bands)
-    n_wannier = length(centers)
+function compute_amn_kpoint(basis::PlaneWaveBasis, kpt, ψk, projections, n_bands)
+    n_wannier = length(projections)
     # TODO This function should be improved in performance
 
-    # associate a center with the fourier transform of the corresponding gaussian
-    fourier_gn(center, qs) = [exp( 2π*(-im*dot(q, center) - dot(q, q) / 4) ) for q in qs]
     qs = vec(map(G -> G .+ kpt.coordinate, G_vectors(basis)))  # all q = k+G in reduced coordinates
     Ak = zeros(eltype(ψk), (n_bands, n_wannier))
 
     # Compute Ak
     for n = 1:n_wannier
-        # Functions are l^2 normalized in Fourier, in DFTK conventions.
-        norm_gn_per = norm(fourier_gn(centers[n], qs), 2)
+        proj = projections[n]
+        gn_per = proj(basis, qs[kpt.mapping])
         # Fourier coeffs of gn_per for k+G in common with ψk
-        coeffs_gn_per = fourier_gn(centers[n], qs[kpt.mapping]) ./ norm_gn_per
+        # Functions are l^2 normalized in Fourier, in DFTK conventions.
+        coeffs_gn_per = gn_per ./ norm(gn_per)
         # Compute overlap
         for m = 1:n_bands
-            # TODO Check the ordering of m and n here!
             Ak[m, n] = dot(ψk[:, m], coeffs_gn_per)
         end
     end
@@ -224,13 +298,18 @@ function compute_Ak_gaussian_guess(basis::PlaneWaveBasis, ψk, kpt, centers, n_b
 end
 
 
-@timing function write_w90_amn(fileprefix::String, basis::PlaneWaveBasis, ψ; n_bands, centers)
+@timing function write_w90_amn(
+        fileprefix::String,
+        basis::PlaneWaveBasis,
+        projections,
+        ψ;
+        n_bands)
     open(fileprefix * ".amn", "w") do fp
         println(fp, "Generated by DFTK at $(now())")
-        println(fp, "$n_bands   $(length(basis.kpoints))  $(length(centers))")
+        println(fp, "$n_bands   $(length(basis.kpoints))  $(length(projections))")
 
         for (ik, (ψk, kpt)) in enumerate(zip(ψ, basis.kpoints))
-            Ak = compute_Ak_gaussian_guess(basis, ψk, kpt, centers, n_bands)
+            Ak = compute_amn_kpoint(basis, kpt, ψk, projections, n_bands)
             for n = 1:size(Ak, 2)
                 for m = 1:size(Ak, 1)
                     @printf(fp, "%3i %3i %3i  %22.18f %22.18f \n",
@@ -246,17 +325,21 @@ end
 Default random Gaussian guess for maximally-localised wannier functions
 generated in reduced coordinates.
 """
-default_wannier_centres(n_wannier) = [rand(1, 3) for _ = 1:n_wannier]
+default_wannier_centers(n_wannier) = [GaussianWannierProjection(rand(3)) for _ = 1:n_wannier]
 
-@timing function run_wannier90(scfres;
-                               n_bands=scfres.n_bands_converge,
-                               n_wannier=n_bands,
-                               centers=default_wannier_centres(n_wannier),
-                               fileprefix=joinpath("wannier90", "wannier"),
-                               wannier_plot=false, kwargs...)
+"""
+Shared file writing code for Wannier.jl and Wannier90.
+"""
+@timing function write_wannier90_files(preprocess_call, scfres;
+        n_bands,
+        n_wannier,
+        projections,
+        fileprefix,
+        wannier_plot,
+        kwargs...)
     # TODO None of the routines consider spin at the moment
     @assert scfres.basis.model.spin_polarization in (:none, :spinless)
-    @assert length(centers) == n_wannier
+    @assert length(projections) == n_wannier
 
     # TODO Use band_data_to_dict to get this easily MPI compatible.
 
@@ -266,29 +349,20 @@ default_wannier_centres(n_wannier) = [rand(1, 3) for _ = 1:n_wannier]
     ψ = scfres_unfold.ψ
 
     # Make wannier directory ...
-    dir, prefix = dirname(fileprefix), basename(fileprefix)
-    mkpath(dir)
+    mkpath(dirname(fileprefix))
 
-    # Write input file and launch Wannier90 preprocessing
+    # Write input file and launch preprocessing
     write_w90_win(fileprefix, basis;
-                  num_wann=length(centers), num_bands=n_bands, wannier_plot, kwargs...)
-    run(Cmd(`$(wannier90_jll.wannier90()) -pp $prefix`; dir))
-
-    nnkp = read_w90_nnkp(fileprefix)
+                  num_wann=n_wannier, num_bands=n_bands, wannier_plot, kwargs...)
+    nnkp = preprocess_call()
 
     # Files for main wannierization run
     write_w90_eig(fileprefix, scfres_unfold.eigenvalues; n_bands)
-    write_w90_amn(fileprefix, basis, ψ; n_bands, centers)
+    write_w90_amn(fileprefix, basis, projections, ψ; n_bands)
     write_w90_mmn(fileprefix, basis, ψ, nnkp; n_bands)
 
     # Writing the unk files is expensive (requires FFTs), so only do if needed.
     if wannier_plot
         write_w90_unk(fileprefix, basis, ψ; n_bands, spin=1)
     end
-
-    # Run Wannierisation procedure
-    @timing "Wannierization" begin
-        run(Cmd(`$(wannier90_jll.wannier90()) $prefix`; dir))
-    end
-    fileprefix
 end

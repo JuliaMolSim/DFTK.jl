@@ -50,10 +50,14 @@ UnitfulAtomic = "a7773ee8-282e-5fa2-be4e-bd808c38a91a"
 
 [weakdeps]
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+Wannier = "2b19380a-1f7e-4d7d-b1b8-8aa60b3321c9"
+wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [extensions]
 DFTKJSON3Ext = "JSON3"
+DFTKWannierExt = "Wannier"
+DFTKWannier90Ext = "wannier90_jll"
 DFTKWriteVTK = "WriteVTK"
 
 [compat]
@@ -102,6 +106,8 @@ Statistics = "1"
 TimerOutputs = "0.5.12"
 Unitful = "1"
 UnitfulAtomic = "1"
+Wannier = "0.3.2"
+wannier90_jll = "3.1"
 WriteVTK = "1"
 julia = "1.9"
 
@@ -127,8 +133,9 @@ QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
+Wannier = "2b19380a-1f7e-4d7d-b1b8-8aa60b3321c9"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
 [targets]
-test = ["Test", "TestItemRunner", "ASEconvert", "Aqua", "AtomsIO", "AtomsIOPython", "CUDA", "CUDA_Runtime_jll", "ComponentArrays", "DoubleFloats", "FiniteDiff", "FiniteDifferences", "GenericLinearAlgebra", "IntervalArithmetic", "JLD2", "JSON3", "Logging", "Plots", "QuadGK", "Random", "KrylovKit", "WriteVTK", "wannier90_jll"]
+test = ["Test", "TestItemRunner", "ASEconvert", "Aqua", "AtomsIO", "AtomsIOPython", "CUDA", "CUDA_Runtime_jll", "ComponentArrays", "DoubleFloats", "FiniteDiff", "FiniteDifferences", "GenericLinearAlgebra", "IntervalArithmetic", "JLD2", "JSON3", "Logging", "Plots", "QuadGK", "Random", "KrylovKit", "Wannier", "WriteVTK", "wannier90_jll"]
