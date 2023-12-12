@@ -148,7 +148,8 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
 
     all_eigenvalues = sort(vcat(eigenvalues...))
 
-    i_min = 1, i_max = length(all_eigenvalues)
+    i_min = 1
+    i_max = length(all_eigenvalues)
     if excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max]; temperature, smearing) == 0
         εF = all_eigenvalues[i_max]
     elseif excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max]; temperature, smearing) *
