@@ -2,7 +2,6 @@
 @testitem "Forces on silicon" setup=[TestCases] begin
     using DFTK
     using DFTK: mpi_mean!
-    using Random
     using MPI
     using LinearAlgebra
     silicon = TestCases.silicon
@@ -48,7 +47,6 @@ end
 @testitem "Forces on silicon with non-linear core correction" setup=[TestCases] begin
     using DFTK
     using DFTK: mpi_mean!
-    using Random
     using MPI
     using LinearAlgebra
     silicon = TestCases.silicon
@@ -96,7 +94,6 @@ end
 @testitem "Forces on silicon with spin and temperature" setup=[TestCases] begin
     using DFTK
     using DFTK: mpi_mean!
-    using Random
     using MPI
     using LinearAlgebra
     silicon = TestCases.silicon
@@ -128,7 +125,6 @@ end
 @testitem "Forces on oxygen with spin and temperature" setup=[TestCases] begin
     using DFTK
     using DFTK: mpi_mean!
-    using Random
     using MPI
     using LinearAlgebra
     o2molecule = TestCases.o2molecule

@@ -171,17 +171,18 @@ end
 
 
 function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
-    new_kshift = isnothing(basis.kshift) ? nothing : ForwardDiff.value.(basis.kshift)
+    # NOTE: This is a pretty slow function as it *recomputes* basically
+    #       everything instead of just extracting the primal data contained
+    #       already in the dualised PlaneWaveBasis data structure.
     PlaneWaveBasis(construct_value(basis.model),
                    ForwardDiff.value(basis.Ecut),
-                   map(v -> ForwardDiff.value.(v), basis.kcoords_global),
-                   ForwardDiff.value.(basis.kweights_global);
+                   basis.fft_size,
+                   basis.variational,
+                   basis.kgrid,
                    basis.symmetries_respect_rgrid,
-                   fft_size=basis.fft_size,
-                   kgrid=basis.kgrid,
-                   kshift=new_kshift,
-                   variational=basis.variational,
-                   comm_kpts=basis.comm_kpts)
+                   basis.use_symmetries_for_kpoint_reduction,
+                   basis.comm_kpts,
+                   basis.architecture)
 end
 
 

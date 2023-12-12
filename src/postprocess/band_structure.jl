@@ -1,6 +1,88 @@
 import Brillouin
 import Brillouin.KPaths: KPath, KPathInterpolant, irrfbz_path
 
+"""
+Compute `n_bands` eigenvalues and Bloch waves at the k-Points specified by the `kgrid`.
+All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
+
+- `kgrid`: A custom kgrid to perform the band computation, e.g. a new
+  [`MonkhorstPack`](@ref) grid.
+- `tol` The default tolerance for the eigensolver is substantially lower than
+  for SCF computations. Increase if higher accuracy desired.
+- `eigensolver`: The diagonalisation method to be employed.
+"""
+@timing function compute_bands(basis::PlaneWaveBasis, kgrid::AbstractKgrid;
+                               n_bands=default_n_bands_bandstructure(basis.model),
+                               n_extra=3, ρ=nothing, εF=nothing, eigensolver=lobpcg_hyper,
+                               tol=1e-3, kwargs...)
+    # kcoords are the kpoint coordinates in fractional coordinates
+    if isnothing(ρ)
+        if any(t isa TermNonlinear for t in basis.terms)
+            error("If a non-linear term is present in the model the converged density is required " *
+                  "to compute bands. Either pass the self-consistent density as the ρ keyword " *
+                  "argument or use the compute_bands(scfres) function.")
+        end
+        ρ = guess_density(basis)
+    end
+
+    # Create new basis with new kpoints
+    bs_basis = PlaneWaveBasis(basis, kgrid)
+
+    ham = Hamiltonian(bs_basis; ρ)
+    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_extra;
+                                     n_conv_check=n_bands, tol, kwargs...)
+    if !eigres.converged
+        @warn "Eigensolver not converged" n_iter=eigres.n_iter
+    end
+    eigres = select_eigenpairs_all_kblocks(eigres, 1:n_bands)
+
+    occupation=nothing
+    if !isnothing(εF)
+        (; occupation) = compute_occupation(bs_basis, eigres.λ, εF)
+    end
+
+    # TODO This return value should be as compatible as possible with the
+    #      scfres named tuple to ensure the same functions can be used
+    #      for saving the results. Maybe it even makes sense to have an
+    #      AbstractBandData type from which the BandData and ScfResults
+    #      types subtype. In a first version the ScfResult could just contain
+    #      the currently used named tuple and forward all operations to it.
+    (; basis=bs_basis, ψ=eigres.X, eigenvalues=eigres.λ, ρ, εF, occupation,
+     diagonalization=[eigres])
+end
+
+"""
+Compute band data starting from SCF results. `εF` and `ρ` from the `scfres` are forwarded
+to the band computation and `n_bands` is by default selected
+as `n_bands_scf + 5sqrt(n_bands_scf)`.
+"""
+function compute_bands(scfres::NamedTuple, kgrid::AbstractKgrid;
+                       n_bands=default_n_bands_bandstructure(scfres), kwargs...)
+    compute_bands(scfres.basis, kgrid; scfres.ρ, scfres.εF, n_bands, kwargs...)
+end
+
+"""
+Compute band data along a specific `Brillouin.KPath` using a `kline_density`,
+the number of ``k``-points per inverse bohrs (i.e. overall in units of length).
+
+If not given, the path is determined automatically by inspecting the `Model`.
+If you are using spin, you should pass the `magnetic_moments` as a kwarg to
+ensure these are taken into account when determining the path.
+"""
+function compute_bands(basis_or_scfres, kpath::KPath; kline_density=40u"bohr", kwargs...)
+    kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
+    res = compute_bands(basis_or_scfres, ExplicitKpoints(kpath_get_kcoords(kinter));
+                        kwargs...)
+    merge(res, (; kinter))
+end
+function compute_bands(scfres::NamedTuple; magnetic_moments=[], kwargs...)
+    compute_bands(scfres, irrfbz_path(scfres.basis.model, magnetic_moments); kwargs...)
+end
+function compute_bands(basis::AbstractBasis; magnetic_moments=[], kwargs...)
+    compute_bands(basis, irrfbz_path(basis.model, magnetic_moments); kwargs...)
+end
+
+
 @doc raw"""
 Extract the high-symmetry ``k``-point path corresponding to the passed `model`
 using `Brillouin`. Uses the conventions described in the reference work by
@@ -19,9 +101,10 @@ band structures of sheets with `dim=2`).
 
 Due to lacking support in `Spglib.jl` for two-dimensional lattices it is (a) assumed that
 `model.lattice` is a *conventional* lattice and (b) required to pass the space group
-number using the `sgnum` keyword argument.
+number using the `space_group_number` keyword argument.
 """
-function irrfbz_path(model; dim::Integer=model.n_dim, sgnum=nothing, magnetic_moments=[])
+function irrfbz_path(model::Model, magnetic_moments=[]; dim::Integer=model.n_dim,
+                     space_group_number::Int=0)
     @assert dim ≤ model.n_dim
     for i in dim:3, j in dim:3
         if i != j && !iszero(model.lattice[i, j])
@@ -29,8 +112,8 @@ function irrfbz_path(model; dim::Integer=model.n_dim, sgnum=nothing, magnetic_mo
                   "if the dropped dimensions are orthogonal to the remaining ones.")
         end
     end
-    if !isnothing(sgnum) && dim ∈ (1, 3)
-        @warn("sgnum keyword argument unused in `irrfbz_path` unused " *
+    if space_group_number > 0 && dim ∈ (1, 3)
+        @warn("space_group_number keyword argument unused in `irrfbz_path` unused " *
               "unless a 2-dimensional lattice is encountered.")
     end
 
@@ -43,13 +126,13 @@ function irrfbz_path(model; dim::Integer=model.n_dim, sgnum=nothing, magnetic_mo
         # Only one space group; avoid spglib here
         kpath = Brillouin.irrfbz_path(1, [[model.lattice[1, 1]]], Val(1))
     elseif dim == 2
-        if isnothing(sgnum)
-            error("sgnum keyword argument (specifying the ITA space group number) " *
+        if space_group_number == 0
+            error("space_group_number keyword argument (specifying the ITA space group number) " *
                   "is required for band structure plots in 2D lattices.")
         end
         # TODO We assume to have the conventional lattice here.
         lattice_2d = [model.lattice[1:2, 1], model.lattice[1:2, 2]]
-        kpath = Brillouin.irrfbz_path(sgnum, lattice_2d, Val(2))
+        kpath = Brillouin.irrfbz_path(space_group_number, lattice_2d, Val(2))
     elseif dim == 3
         # Brillouin.jl has an interface to Spglib.jl to directly reduce the passed
         # lattice to the ITA conventional lattice and so the Spglib cell can be
@@ -63,43 +146,91 @@ function irrfbz_path(model; dim::Integer=model.n_dim, sgnum=nothing, magnetic_mo
 
     kpath
 end
+# TODO We should generalise irrfbz_path to AbstractSystem and move that to Brillouin
+
 
 """Return kpoint coordinates in reduced coordinates"""
-function kpath_get_kcoords(kpath::KPathInterpolant{D}) where {D}
-    map(k -> vcat(k, zeros_like(k, 3 - D)), kpath)
+function kpath_get_kcoords(kinter::KPathInterpolant{D}) where {D}
+    map(k -> vcat(k, zeros_like(k, 3 - D)), kinter)
 end
-function kpath_get_branch(kpath::KPathInterpolant{D}, ibranch::Integer) where {D}
-    map(k -> vcat(k, zeros_like(k, 3 - D)), kpath.kpaths[ibranch])
+function kpath_get_branch(kinter::KPathInterpolant{D}, ibranch::Integer) where {D}
+    map(k -> vcat(k, zeros_like(k, 3 - D)), kinter.kpaths[ibranch])
 end
 
-@timing function compute_bands(basis::PlaneWaveBasis, kcoords::AbstractVector;
-                               n_bands=default_n_bands_bandstructure(basis.model),
-                               ρ=nothing, eigensolver=lobpcg_hyper,
-                               tol=1e-3, show_progress=true, kwargs...)
-    # kcoords are the kpoint coordinates in fractional coordinates
-    if isnothing(ρ)
-        if any(t isa TermNonlinear for t in basis.terms)
-            error("If a non-linear term is present in the model the converged density is required " *
-                  "to compute bands. Either pass the self-consistent density as the ρ keyword " *
-                  "argument or use the plot_bandstructure(scfres) function.")
+"""
+Convert a band computational result to a dictionary representation.
+Intended to give a condensed set of results and useful metadata
+for post processing. See also the [`todict`](@ref) function
+for the [`Model`](@ref) and the [`PlaneWaveBasis`](@ref), which are
+called from this function and the outputs merged. Note, that only
+the master process returns the dictionary. On all other processors
+`nothing` is returned.
+
+Some details on the conventions for the returned data:
+- εF: Computed Fermi level (if present in band_data)
+- labels: A mapping of high-symmetry k-Point labels to the index in
+  the `"kcoords"` vector of the corresponding k-Point.
+- eigenvalues, eigenvalues_error, occupation, residual_norms:
+  (n_spin, n_kpoints, n_bands) arrays of the respective data.
+- n_iter: (n_spin, n_kpoints) array of the number of iterations the
+  diagonalisation routine required.
+"""
+function band_data_to_dict(band_data::NamedTuple)
+    # TODO Quick and dirty solution for now.
+    #      The better would be to have a BandData struct and use
+    #      a `todict` function for it, which does essentially this.
+    #      See also the todo in compute_bands above.
+    data = todict(band_data.basis)
+
+    n_bands   = length(band_data.eigenvalues[1])
+    n_kpoints = length(band_data.basis.kcoords_global)
+    n_spin    = band_data.basis.model.n_spin_components
+    data["n_bands"] = n_bands  # n_spin_components and n_kpoints already stored
+
+    if !isnothing(band_data.εF)
+        data["εF"] = band_data.εF
+    end
+
+    if haskey(band_data, :kinter)
+        data["labels"] = map(band_data.kinter.labels) do labeldict
+            Dict(k => string(v) for (k, v) in pairs(labeldict))
         end
-        ρ = guess_density(basis)
     end
 
-    # Create basis with new kpoints, without any symmetry operations.
-    kweights = ones(length(kcoords)) ./ length(kcoords)
-    bs_basis = PlaneWaveBasis(basis, kcoords, kweights)
-
-    ham = Hamiltonian(bs_basis; ρ)
-    eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + 3;
-                                     n_conv_check=n_bands, tol, show_progress, kwargs...)
-    if !eigres.converged
-        @warn "Eigensolver not converged" n_iter=eigres.n_iter
+    # Gather MPI distributed on the first processor and reshape as specified
+    function gather_and_reshape(data::AbstractVector{T}, shape) where {T}
+        value = gather_kpts(data, band_data.basis)
+        if mpi_master()
+            if T <: AbstractVector
+                value = reduce(hcat, value)
+            end
+            reshaped = reshape(value, reverse(shape)...)
+            permutedims(reshaped, reverse(1:length(shape)))
+        else
+            nothing
+        end
     end
-    merge((; basis=bs_basis), select_eigenpairs_all_kblocks(eigres, 1:n_bands))
-end
-function compute_bands(basis::PlaneWaveBasis, kpath::KPathInterpolant; kwargs...)
-    compute_bands(basis, kpath_get_kcoords(kpath); kwargs...)
+    for key in (:eigenvalues, :eigenvalues_error, :occupation)
+        if hasproperty(band_data, key) && !isnothing(getproperty(band_data, key))
+            data[string(key)] = gather_and_reshape(getproperty(band_data, key),
+                                                   (n_spin, n_kpoints, n_bands))
+        end
+    end
+    if mpi_master() && length(band_data.diagonalization) > 1
+        @warn("Ignoring residual norm and iterations of all but the " *
+              "last diagonalisation performed.")
+    end
+    diagonalization = last(band_data.diagonalization)
+
+    data["n_iter"]         = gather_and_reshape(diagonalization.n_iter, (n_spin, n_kpoints))
+    data["residual_norms"] = gather_and_reshape(diagonalization.residual_norms,
+                                                (n_spin, n_kpoints, n_bands))
+
+    if mpi_master()
+        data
+    else
+        nothing
+    end
 end
 
 
@@ -138,22 +269,23 @@ function kdistances_and_ticks(kcoords, klabels::Dict, kbranches)
 end
 
 
-function data_for_plotting(kpath::KPathInterpolant, band_data; datakeys=[:λ, :λerror])
+function data_for_plotting(band_data; datakeys=[:eigenvalues, :eigenvalues_error])
+    kinter   = band_data.kinter
     basis    = band_data.basis
     n_spin   = basis.model.n_spin_components
     n_kcoord = length(basis.kpoints) ÷ n_spin
     n_bands  = nothing
 
     # XXX Convert KPathInterpolant => kbranches, klabels
-    kbranches = [1:length(kpath.kpaths[1])]
-    for n in length.(kpath.kpaths)[2:end]
+    kbranches = [1:length(kinter.kpaths[1])]
+    for n in length.(kinter.kpaths)[2:end]
         push!(kbranches, kbranches[end].stop+1:kbranches[end].stop+n)
     end
-    klabels = Dict{Symbol, Vec3{eltype(kpath[1])}}()
-    for (ibranch, labels) in enumerate(kpath.labels)
+    klabels = Dict{Symbol, Vec3{eltype(kinter[1])}}()
+    for (ibranch, labels) in enumerate(kinter.labels)
         for (k, v) in pairs(labels)
             # Convert to Cartesian and add to labels
-            klabels[v] = basis.model.recip_lattice * kpath_get_branch(kpath, ibranch)[k]
+            klabels[v] = basis.model.recip_lattice * kpath_get_branch(kinter, ibranch)[k]
         end
     end
 
@@ -207,32 +339,34 @@ end
 
 
 """
-Compute and plot the band structure. `n_bands` selects the number of bands to compute.
-If this value is absent and an `scfres` is used to start the calculation a default of
-`n_bands_scf + 5sqrt(n_bands_scf)` is used. The unit used to plot the bands can
-be selected using the `unit` parameter. Like in the rest of DFTK Hartree is used
-by default. Another standard choices is `unit=u"eV"` (electron volts).
-The `kline_density` is given in number of ``k``-points per inverse bohrs (i.e.
-overall in units of length).
+Compute and plot the band structure. Kwargs are like in [`compute_bands`](@ref).
+Requires Plots.jl to be loaded to be defined and working properly.
+The unit used to plot the bands can be selected using the `unit` parameter.
+Like in the rest of DFTK Hartree is used by default. Another standard choices is
+`unit=u"eV"` (electron volts).
 """
-function plot_bandstructure(basis::PlaneWaveBasis, kpath::KPath=irrfbz_path(basis.model);
-                            εF=nothing, kline_density=40u"bohr",
-                            unit=u"hartree", kwargs_plot=(; ),
-                            kwargs...)
-    mpi_nprocs() > 1 && error("Band structures with MPI not supported yet")
-    if !isdefined(DFTK, :PLOTS_LOADED)
-        error("Plots not loaded. Run 'using Plots' before calling plot_bandstructure.")
-    end
+function plot_bandstructure end
 
-    # Band structure calculation along high-symmetry path
-    kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
-    println("Computing bands along kpath:")
-    sortlabels = map(bl -> last.(sort(collect(pairs(bl)))), kinter.labels)
-    println("       ", join(join.(sortlabels, " -> "), "  and  "))
-    band_data = compute_bands(basis, kinter; kwargs...)
-    plot_band_data(kinter, band_data; εF, unit, kwargs_plot...)
+
+"""
+Write the computed bands to a file. `save_ψ` determines whether the wavefunction
+is also saved or not. Note that this function can be both used on the results
+of [`compute_bands`](@ref) and [`self_consistent_field`](@ref).
+"""
+function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false, kwargs...)
+    _, ext = splitext(filename)
+    ext = Symbol(ext[2:end])
+
+    # Whitelist valid extensions
+    !(ext in (:json, )) && error("Extension '$ext' not supported by DFTK.")
+
+    # When writing these functions keep in mind that k-Point data is
+    # distributed across MPI processors and thus this function is called
+    # on *all* MPI processors.
+    save_bands(filename, band_data, Val(ext); save_ψ, kwargs...)
 end
-function plot_bandstructure(scfres::NamedTuple, kpath::KPath=irrfbz_path(scfres.basis.model);
-                            n_bands=default_n_bands_bandstructure(scfres), kwargs...)
-    plot_bandstructure(scfres.basis, kpath; n_bands, scfres.ρ, scfres.εF, kwargs...)
+
+function save_bands(filename::AbstractString, ::NamedTuple, ::Any; kwargs...)
+    error("The extension $(last(splitext(filename))) is currently not available. " *
+          "A required package (e.g. JSON3) is not yet loaded.")
 end

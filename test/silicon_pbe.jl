@@ -22,7 +22,6 @@ function run_silicon_pbe(T; Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     ]
     ref_etot = -7.854477356672080
 
-    fft_size = fill(grid_size, 3)
     Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/pbe/si-q4"))
     atoms = [Si, Si]
 
@@ -34,7 +33,7 @@ function run_silicon_pbe(T; Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     model = model_PBE(silicon.lattice, atoms, silicon.positions; spin_polarization,
                       magnetic_moments)
     model = convert(Model{T}, model)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut, kgrid=(3, 3, 3), fft_size=fill(grid_size, 3))
 
     spin_polarization == :collinear && (ref_pbe = vcat(ref_pbe, ref_pbe))
     run_scf_and_compare(T, basis, ref_pbe, ref_etot; ρ=guess_density(basis), kwargs...)

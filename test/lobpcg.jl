@@ -3,10 +3,9 @@
     silicon = TestCases.silicon
 
     # Construct a free-electron Hamiltonian
-    Ecut = 5
     fft_size = [15, 15, 15]
     model = Model(silicon.lattice, silicon.atoms, silicon.positions; terms=[Kinetic()])
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut=5, silicon.kgrid, fft_size)
     ham = Hamiltonian(basis)
 
     tol = 1e-8
@@ -22,7 +21,7 @@
          0.66631039803, 0.72877699784, 0.72877699784, 0.72877699784, 0.72877699784],
     ]
 
-    @test length(ref_λ) == length(silicon.kcoords)
+    @test length(ref_λ) == length(silicon.kgrid)
     @testset "without Preconditioner" begin
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, nev_per_k; tol=1e-4,
                                       prec_type=nothing, interpolate_kpoints=false)
@@ -52,17 +51,13 @@ end
     using DFTK
     silicon = TestCases.silicon
 
-    Ecut = 25
-    fft_size = [33, 33, 33]
-
     Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
     model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                   terms=[Kinetic(),AtomicLocal()])
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut=25, silicon.kgrid, fft_size=[33, 33, 33])
     ham = Hamiltonian(basis)
 
     res = diagonalize_all_kblocks(lobpcg_hyper, ham, 6; tol=1e-8)
-
     ref = [
         [-4.087198659513310, -4.085326314828677, -0.506869382308294,
          -0.506869382280876, -0.506869381798614],
@@ -82,14 +77,11 @@ end
     using DFTK
     silicon = TestCases.silicon
 
-    Ecut = 10
-    fft_size = [21, 21, 21]
-
     Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
     model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                   terms=[Kinetic(), AtomicLocal(), AtomicNonlocal()])
 
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut=10, silicon.kgrid, fft_size=[21, 21, 21])
     ham = Hamiltonian(basis)
 
     res = diagonalize_all_kblocks(lobpcg_hyper, ham, 5; tol=1e-8, interpolate_kpoints=false)
@@ -112,11 +104,9 @@ end
     using DFTK
     silicon = TestCases.silicon
 
-    Ecut = 2
-
     Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, :lda_xc_teter93)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights)
+    basis = PlaneWaveBasis(model; Ecut=2, silicon.kgrid)
     ham = Hamiltonian(basis; ρ=guess_density(basis))
 
     res1 = diagonalize_all_kblocks(lobpcg_hyper, ham, 5; tol=1e-8, interpolate_kpoints=false)

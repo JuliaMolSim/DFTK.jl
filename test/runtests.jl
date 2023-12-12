@@ -17,7 +17,7 @@ if base_tag == :mpi
     nprocs  = parse(Int, get(ENV, "DFTK_TEST_NPROCS", "2"))
     run(`$(mpiexec()) -n $nprocs $(Base.julia_cmd())
         --check-bounds=yes --depwarn=yes --project --color=yes --startup-file=no
-        $runfile`)
+        $runfile $ARGS`)
 else
     include(runfile)
 end

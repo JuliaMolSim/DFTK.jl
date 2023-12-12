@@ -27,7 +27,7 @@ function energy_psp_correction(lattice::AbstractMatrix{T}, atoms, atom_groups) w
     psp_groups = [group for group in atom_groups if atoms[first(group)] isa ElementPsp]
     isempty(psp_groups) && return zero(T)
 
-    n_electrons::Int = sum(n_elec_valence, atoms)
+    n_electrons::Int = n_electrons_from_atoms(atoms)
     correction_per_cell = sum(
         length(group) * eval_psp_energy_correction(T, atoms[first(group)].psp, n_electrons)
         for group in psp_groups

@@ -94,7 +94,7 @@ Overview of parameters:
     damping=0.8,
     solver=scf_anderson_solver(),
     eigensolver=lobpcg_hyper,
-    determine_diagtol=ScfDiagtol(),
+    determine_diagtol=default_diagtol(basis; tol),
     nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
     fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model),
     callback=ScfDefaultCallback(; show_damping=false),

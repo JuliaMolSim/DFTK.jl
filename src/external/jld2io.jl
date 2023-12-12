@@ -54,13 +54,11 @@ load_scfres(file::AbstractString) = JLD2.jldopen(load_scfres, file, "r")
 struct PlaneWaveBasisSerialisation{T <: Real, Arch <: AbstractArchitecture}
     model::Model{T,T}
     Ecut::T
-    variational::Bool
-    kcoords::Vector{Vec3{T}}
-    kweights::Vector{T}
-    kgrid::Union{Nothing,Vec3{Int}}
-    kshift::Union{Nothing,Vec3{T}}
-    symmetries_respect_rgrid::Bool
     fft_size::Tuple{Int, Int, Int}
+    variational::Bool
+    kgrid::AbstractKgrid
+    symmetries_respect_rgrid::Bool
+    use_symmetries_for_kpoint_reduction::Bool
     architecture::Arch
 end
 function JLD2.writeas(::Type{PlaneWaveBasis{T,T,Arch,GT,RT,KGT}}) where {T,Arch,GT,RT,KGT}
@@ -74,24 +72,24 @@ function Base.convert(::Type{PlaneWaveBasisSerialisation{T,Arch}},
     PlaneWaveBasisSerialisation{T,Arch}(
         basis.model,
         basis.Ecut,
-        basis.variational,
-        basis.kcoords_global,
-        basis.kweights_global,
-        basis.kgrid,
-        basis.kshift,
-        basis.symmetries_respect_rgrid,
         basis.fft_size,
+        basis.variational,
+        basis.kgrid,
+        basis.symmetries_respect_rgrid,
+        basis.use_symmetries_for_kpoint_reduction,
         basis.architecture
     )
 end
 
 function Base.convert(::Type{PlaneWaveBasis{T,T,Arch,GT,RT,KGT}},
                       serial::PlaneWaveBasisSerialisation{T,Arch}) where {T,Arch,GT,RT,KGT}
-    PlaneWaveBasis(serial.model, serial.Ecut, serial.kcoords, serial.kweights;
+    PlaneWaveBasis(serial.model,
+                   serial.Ecut,
                    serial.fft_size,
-                   serial.kgrid,
-                   serial.kshift,
-                   serial.symmetries_respect_rgrid,
                    serial.variational,
-                   architecture=serial.architecture)
+                   serial.kgrid,
+                   serial.symmetries_respect_rgrid,
+                   serial.use_symmetries_for_kpoint_reduction,
+                   MPI.COMM_WORLD,
+                   serial.architecture)
 end
