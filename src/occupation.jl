@@ -168,7 +168,7 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
         error("")
     end
 
-    if not allequal(compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation)
+    if !allequal(compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation)
         @warn("All kpoints don't have the same occupations, this could indicate "*
                 "that a metalic system is being treated with zero temperature.")
     end
