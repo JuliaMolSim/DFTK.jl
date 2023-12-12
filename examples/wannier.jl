@@ -113,7 +113,7 @@ rm("wannier", recursive=true)
 #
 # For example, we could use Gaussians for the σ and pz guesses with the following code:
 s_guess(center) = DFTK.GaussianWannierProjection(center)
-pz_guess(center) = begin
+function pz_guess(center)
     ## Approximate with two Gaussians offset by 0.5 Å from the center of the atom
     offset = model.inv_lattice * [0, 0, austrip(0.5u"Å")]
     center1 = center + offset
