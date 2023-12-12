@@ -128,7 +128,7 @@ end
 
     @test kgrid_from_minimal_n_kpoints(magnesium.lattice, 1).kgrid_size == [1, 1, 1]
     for n_kpt in [10, 20, 100, 400, 900, 1200]
-        @test prod(kgrid_from_minimal_n_kpoints(magnesium.lattice, n_kpt).kgrid) ≥ n_kpt
+        @test length(kgrid_from_minimal_n_kpoints(magnesium.lattice, n_kpt)) ≥ n_kpt
     end
 
     lattice = diagm([4., 10, 0])

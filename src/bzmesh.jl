@@ -171,7 +171,7 @@ function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer; kshift=[0, 0,
         # Sanity check: Sometimes root finding is just across the edge towards
         # a larger number of k-points than needed. This attempts a slightly larger spacing.
         kgrid_larger = kgrid_from_maximal_spacing(lattice, spacing + 1e-4)
-        if prod(kgrid_larger.kgrid) ≥ n_kpoints
+        if length(kgrid_larger) ≥ n_kpoints
             return kgrid_larger
         else
             return kgrid_from_maximal_spacing(lattice, spacing)
