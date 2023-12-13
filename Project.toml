@@ -49,6 +49,7 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 UnitfulAtomic = "a7773ee8-282e-5fa2-be4e-bd808c38a91a"
 
 [weakdeps]
+GenericLinearAlgebra = "14197337-ba66-59df-a3e3-ca00e7dcff7a"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
@@ -57,6 +58,7 @@ wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [extensions]
+DFTKGenericLinearAlgebraExt = "GenericLinearAlgebra"
 DFTKJLD2Ext = "JLD2"
 DFTKJSON3Ext = "JSON3"
 DFTKPlotsExt = "Plots"
@@ -75,6 +77,7 @@ DftFunctionals = "0.2"
 DocStringExtensions = "0.9"
 FFTW = "1.5"
 ForwardDiff = "0.10"
+GenericLinearAlgebra = "0.3"
 GPUArraysCore = "0.1"
 Interpolations = "0.14, 0.15"
 IntervalArithmetic = "0.20"

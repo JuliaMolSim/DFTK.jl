@@ -226,22 +226,8 @@ include("workarounds/gpu_arrays.jl")
 
 function __init__()
     # TODO Move out into extension module
-    #      The solution for the fft_generic is to have a conditional load
-    #      of the FFT generic on GenericLinearAlgebra and tell people to load
-    #      this package in the extmodule of IntervalArithmetic and DoubleFloats
-
-    # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
-    # DoubleFloats has been loaded (via a "using" or an "import").
-    # See https://github.com/JuliaPackaging/Requires.jl for details.
-    #
-    # The global variable GENERIC_FFT_LOADED makes sure that things are
-    # only included once.
     @require IntervalArithmetic="d1acc4aa-44c8-5952-acd4-ba5d80a2a253" begin
         include("workarounds/intervals.jl")
-        !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
-    end
-    @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin
-        !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
     end
     @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" begin
         include("workarounds/cuda_arrays.jl")

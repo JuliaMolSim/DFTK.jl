@@ -52,9 +52,10 @@ eltype(scfres.ρ)
 #
 # !!! note "Generic linear algebra routines"
 #     For more unusual floating-point types (like IntervalArithmetic or DoubleFloats),
-#     which are not directly supported in the standard `LinearAlgebra` library of Julia
-#     one additional step is required: One needs to explicitly enable the generic versions
-#     of standard linear-algebra operations like `cholesky` or `qr`, which are needed
-#     inside DFTK by loading the `GenericLinearAlgebra` package in the user script
+#     which are not directly supported in the standard `LinearAlgebra` and `FFTW`
+#     libraries one additional step is required: One needs to explicitly enable the generic
+#     versions of standard linear-algebra operations like `cholesky` or `qr` or standard
+#     `fft` operations, which DFTK requires. THis is done by loading the
+#     `GenericLinearAlgebra` package in the user script
 #     (i.e. just add ad `using GenericLinearAlgebra` next to your `using DFTK` call).
 #
