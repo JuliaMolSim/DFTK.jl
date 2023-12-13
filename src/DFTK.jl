@@ -225,7 +225,10 @@ include("workarounds/gpu_arrays.jl")
 
 
 function __init__()
-    # TODO No idea how to get rid of these requires below:
+    # TODO Move out into extension module
+    #      The solution for the fft_generic is to have a conditional load
+    #      of the FFT generic on GenericLinearAlgebra and tell people to load
+    #      this package in the extmodule of IntervalArithmetic and DoubleFloats
 
     # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
     # DoubleFloats has been loaded (via a "using" or an "import").
@@ -241,12 +244,8 @@ function __init__()
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
     end
 
-    # TODO Keep these requires for now as there are open PRs changing these files.
-    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"     include("external/jld2io.jl")
-    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80"    include("plotting.jl")
-
-    # TODO Move out into extension module
-    @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba"  begin
+    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819" include("external/jld2io.jl")
+    @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" begin
         include("workarounds/cuda_arrays.jl")
     end
 end

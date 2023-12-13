@@ -31,7 +31,7 @@ each iteration versus the converged energy in a semilog plot. By default
 a new plot canvas is generated, but an existing one can be passed and reused
 along with `kwargs` for the call to `plot!`. Requires Plots to be loaded.
 """
-function ScfPlotTrace end  # implementation in src/plotting.jl
+function ScfPlotTrace end
 
 
 """

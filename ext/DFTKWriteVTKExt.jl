@@ -1,4 +1,4 @@
-module DFTKWriteVTK
+module DFTKWriteVTKExt
 using WriteVTK
 using DFTK
 
