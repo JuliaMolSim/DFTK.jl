@@ -44,14 +44,14 @@ end
 
     # Emulate an insulator ... prepare energy levels
     n_k = length(silicon.kgrid)
-    eigenvalues = [zeros(n_bands) for ik in 1:n_k]
+    eigenvalues = [zeros(n_bands) for _ = 1:n_k]
     n_occ = div(silicon.n_electrons, 2, RoundUp)
     for ik = 1:n_k
         eigenvalues[ik] = sort(rand(n_bands))
         eigenvalues[ik][n_occ+1:end] .+= 2
     end
-    εHOMO = maximum(eigenvalues[ik][n_occ]     for ik in 1:n_k)
-    εLUMO = minimum(eigenvalues[ik][n_occ + 1] for ik in 1:n_k)
+    εHOMO = maximum(eigenvalues[ik][n_occ]     for ik = 1:n_k)
+    εLUMO = minimum(eigenvalues[ik][n_occ + 1] for ik = 1:n_k)
 
     # Occupation for zero temperature
     occupation0 = let
@@ -85,7 +85,7 @@ end
         (; occupation) = DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-6)
 
         for ik = 1:n_k
-            @test all(isapprox.(occupation[ik], occupation0[ik], atol=1e-2))
+            @test all(isapprox.(occupation[ik], occupation0[ik]; atol=1e-2))
         end
     end
 end

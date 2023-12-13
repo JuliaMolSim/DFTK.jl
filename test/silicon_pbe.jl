@@ -49,13 +49,13 @@ end
 @testitem "Silicon PBE (small, Float32)" #=
     =#    tags=[:core] setup=[RunSCF, TestCases, SiliconPBE] begin
     SiliconPBE.run_silicon_pbe(Float32; Ecut=7, test_tol=0.03, n_ignored=1, grid_size=17,
-                               scf_tol=1e-4)
+                               scf_ene_tol=1e-4)
 end
 
 @testitem "Silicon PBE (large, Float64)" #=
     =#    tags=[:slow, :core] setup=[RunSCF, TestCases, SiliconPBE] begin
     SiliconPBE.run_silicon_pbe(Float64; Ecut=25, test_tol=1e-5, n_ignored=0, grid_size=33,
-                               scf_tol=1e-8)
+                               scf_ene_tol=1e-8)
 end
 
 @testitem "Silicon PBE (small, collinear spin)" #=
@@ -67,5 +67,5 @@ end
 @testitem "Silicon PBE (large, collinear spin)" #=
     =#    tags=[:slow, :core] setup=[RunSCF, SiliconPBE, TestCases] begin
     SiliconPBE.run_silicon_pbe(Float64; Ecut=25, test_tol=1e-5, n_ignored=0, grid_size=33,
-                               scf_tol=1e-8, spin_polarization=:collinear)
+                               scf_ene_tol=1e-8, spin_polarization=:collinear)
 end

@@ -16,7 +16,7 @@
 
     function recompute_energy(lattice, symmetries, element)
         basis = make_basis(lattice, symmetries, element)
-        scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-13))
+        scfres = self_consistent_field(basis; tol=1e-13)
         (; energies) = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
         energies.total
     end
@@ -29,9 +29,8 @@
     end
 
     function test_stresses(lattice, element)
-        is_converged = DFTK.ScfConvergenceDensity(1e-11)
-        scfres = self_consistent_field(make_basis(lattice, true, element); is_converged)
-        scfres_nosym = self_consistent_field(make_basis(lattice, false, element); is_converged)
+        scfres = self_consistent_field(make_basis(lattice, true, element); tol=1e-11)
+        scfres_nosym = self_consistent_field(make_basis(lattice, false, element); tol=1e-11)
         stresses = compute_stresses_cart(scfres)
         @test isapprox(stresses, compute_stresses_cart(scfres_nosym); atol=1e-10)
 
@@ -43,7 +42,7 @@
         end
         ref_scfres = FiniteDiff.finite_difference_derivative(0.0) do ε
             basis = make_basis(lattice + ε*dir*lattice, false, element)
-            scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-13))
+            scfres = self_consistent_field(basis; tol=1e-13)
             scfres.energies.total
         end
         ref_HF = FiniteDiff.finite_difference_derivative(0.0) do ε

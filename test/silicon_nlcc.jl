@@ -46,7 +46,7 @@ end
 @testitem "Silicon NLCC (large, Float64)" #=
     =#    tags=[:slow] setup=[RunSCF, TestCases, SiliconNLCC] begin
     SiliconNLCC.run_silicon_nlcc(Float64; Ecut=25, test_tol=6e-5, n_ignored=0, grid_size=36,
-                                 scf_tol=1e-11)
+                                 scf_ene_tol=1e-11)
 end
 
 @testitem "Silicon NLCC (small, collinear spin)" setup=[RunSCF, TestCases, SiliconNLCC] begin
@@ -57,5 +57,5 @@ end
 @testitem "Silicon NLCC (large, collinear spin)" #=
     =#    tags=[:slow] setup=[RunSCF, TestCases, SiliconNLCC] begin
     SiliconNLCC.run_silicon_nlcc(Float64; Ecut=25, test_tol=6e-5, n_ignored=0, grid_size=36,
-                                 scf_tol=1e-11, spin_polarization=:collinear)
+                                 scf_ene_tol=1e-11, spin_polarization=:collinear)
 end

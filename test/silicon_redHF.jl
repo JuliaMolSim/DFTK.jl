@@ -54,7 +54,7 @@ end
 @testitem "Silicon without XC (large)" #=
     =#    tags=[:slow, :core] setup=[RunSCF, TestCases, SiliconRedHF] begin
     SiliconRedHF.run_silicon_redHF(Float64; Ecut=25, test_tol=1e-5, n_ignored=2,
-                                   grid_size=35, scf_tol=1e-7, test_etot=false)
+                                   grid_size=35, scf_ene_tol=1e-7, test_etot=false)
 end
 
 # There is a weird race condition with MPI + DoubleFloats. TODO debug

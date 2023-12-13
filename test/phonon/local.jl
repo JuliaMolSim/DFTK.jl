@@ -46,9 +46,8 @@ function test_frequencies(testcase; ω_ref=nothing)
     qpoints = Phonon.generate_supercell_qpoints(; supercell_size=kgrid).qpoints
     scf_tol = 1e-12
     χ0_tol  = scf_tol/10
-    is_converged = DFTK.ScfConvergenceDensity(scf_tol)
     determine_diagtol = DFTK.ScfDiagtol(diagtol_max=scf_tol)
-    scf_kwargs = (; is_converged, determine_diagtol)
+    scf_kwargs = (; tol=scf_tol, determine_diagtol)
 
     model = model_tested(testcase.lattice, testcase.atoms, testcase.positions;
                          symmetries=false, testcase.temperature)
@@ -62,7 +61,7 @@ function test_frequencies(testcase; ω_ref=nothing)
     end))
 
     if !isnothing(ω_ref)
-        return are_approx_frequencies(ω_uc, ω_ref; tol=10*scf_tol)
+        return are_approx_frequencies(ω_uc, ω_ref; tol=10scf_tol)
     end
 
     supercell_size = kgrid
@@ -80,7 +79,7 @@ function test_frequencies(testcase; ω_ref=nothing)
     dynamical_matrix = compute_dynmat(scfres; tol=χ0_tol)
     ω_sc = sort(phonon_modes_cart(basis_supercell, dynamical_matrix).frequencies)
 
-    return are_approx_frequencies(ω_uc, ω_sc; tol=10*scf_tol)
+    return are_approx_frequencies(ω_uc, ω_sc; tol=10scf_tol)
 end
 end
 

@@ -43,7 +43,7 @@ function phonon_modes(basis::PlaneWaveBasis{T}, dynmat) where {T}
     M = reshape(mass_matrix(T, basis.model.atoms), 3*n_atoms, 3*n_atoms)
 
     res = eigen(reshape(dynmat, 3*n_atoms, 3*n_atoms), M)
-    maximum(imag(res.values)) > sqrt(eps(T)) &&
+    maximum(abs, imag(res.values)) > sqrt(eps(T)) &&
         @warn "Some eigenvalues of the dynamical matrix have a large imaginary part"
 
     signs = sign.(real(res.values))
