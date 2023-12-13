@@ -243,8 +243,6 @@ function __init__()
     @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin
         !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
     end
-
-    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819" include("external/jld2io.jl")
     @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" begin
         include("workarounds/cuda_arrays.jl")
     end
