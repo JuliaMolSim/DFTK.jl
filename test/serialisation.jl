@@ -9,6 +9,7 @@ function test_scfres_agreement(tested, ref)
     @test tested.basis.model.εF                == ref.basis.model.εF
     @test tested.basis.model.symmetries        == ref.basis.model.symmetries
     @test tested.basis.model.spin_polarization == ref.basis.model.spin_polarization
+    @test tested.basis.model.n_components      == ref.basis.model.n_components
 
     @test tested.basis.model.positions == ref.basis.model.positions
     @test atomic_symbol.(tested.basis.model.atoms) == atomic_symbol.(ref.basis.model.atoms)

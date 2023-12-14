@@ -88,43 +88,57 @@ function LinearAlgebra.mul!(Hψ, H::Hamiltonian, ψ)
     Hψ
 end
 # need `deepcopy` here to copy the elements of the array of arrays ψ (not just pointers)
-Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
+Base.:*(H::Hamiltonian, ψ::AbstractArray) = mul!(deepcopy(ψ), H, ψ)
+
+# Serves as a wrapper around the specialized multiplication functions for LOBPCG as it
+# expects to work on matrices.
+function LinearAlgebra.mul!(Hψ::AbstractVecOrMat, H::HamiltonianBlock, ψ::AbstractVecOrMat)
+    n_Gk    = length(H.kpoint.G_vectors)
+    n_bands = size(Hψ, 2)
+    n_components = H.basis.model.n_components
+    Hψ_r = reshape(Hψ, n_components, n_Gk, n_bands)
+    ψ_r = reshape(ψ, n_components, n_Gk, n_bands)
+    mul!(Hψ_r, H, ψ_r)
+    Hψ
+end
 
 # Loop through bands, IFFT to get ψ in real space, loop through terms, FFT and accumulate into Hψ
 # For the common DftHamiltonianBlock there is an optimized version below
-@views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
+@views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray3,
                                                                         H::GenericHamiltonianBlock,
-                                                                        ψ::AbstractArray)
+                                                                        ψ::AbstractArray3)
     T = eltype(H.basis)
-    n_bands = size(ψ, 2)
-    Hψ_fourier = similar(Hψ[:, 1])
+    n_bands = size(ψ, 3)
+    Hψ_fourier = similar(Hψ[1, :, 1])
     ψ_real  = similar(ψ, complex(T), H.basis.fft_size...)
     Hψ_real = similar(Hψ, complex(T), H.basis.fft_size...)
     # take ψi, IFFT it to ψ_real, apply each term to Hψ_fourier and Hψ_real, and add it to Hψ
     for iband = 1:n_bands
         Hψ_real .= 0
         Hψ_fourier .= 0
-        ifft!(ψ_real, H.basis, H.kpoint, ψ[:, iband])
-        for op in H.optimized_operators
-            @timing "$(nameof(typeof(op)))" begin
-                apply!((; fourier=Hψ_fourier, real=Hψ_real),
-                       op,
-                       (; fourier=ψ[:, iband], real=ψ_real))
+        for σ = 1:H.basis.model.n_components
+            ifft!(ψ_real, H.basis, H.kpoint, ψ[σ, :, iband])
+            for op in H.optimized_operators
+                @timing "$(nameof(typeof(op)))" begin
+                    apply!((fourier=Hψ_fourier, real=Hψ_real),
+                           op,
+                           (fourier=ψ[σ, :, iband], real=ψ_real))
+                end
             end
+            Hψ[σ, :, iband] .= Hψ_fourier
+            fft!(Hψ_fourier, H.basis, H.kpoint, Hψ_real)
+            Hψ[σ, :, iband] .+= Hψ_fourier
         end
-        Hψ[:, iband] .= Hψ_fourier
-        fft!(Hψ_fourier, H.basis, H.kpoint, Hψ_real)
-        Hψ[:, iband] .+= Hψ_fourier
     end
 
     Hψ
 end
 
 # Fast version, specialized on DFT models. Minimizes the number of FFTs and allocations
-@views @timing "DftHamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
+@views @timing "DftHamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray3,
                                                                            H::DftHamiltonianBlock,
-                                                                           ψ::AbstractArray)
-    n_bands = size(ψ, 2)
+                                                                           ψ::AbstractArray3)
+    n_bands = size(ψ, 3)
     iszero(n_bands) && return Hψ  # Nothing to do if ψ empty
     have_divAgrad = !isnothing(H.divAgrad_op)
 
@@ -139,17 +153,20 @@ end
             ψ_real = H.scratch.ψ_reals[ichunk]
 
             @timeit to "local+kinetic" begin
-                ifft!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
-                ψ_real .*= potential
-                fft!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
-                Hψ[:, iband] .+= H.fourier_op.multiplier .* ψ[:, iband]
+                for σ = 1:H.basis.model.n_components
+                    ifft!(ψ_real, H.basis, H.kpoint, ψ[σ, :, iband]; normalize=false)
+                    ψ_real .*= potential
+                    fft!(Hψ[σ, :, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
+                    Hψ[σ, :, iband] .+= H.fourier_op.multiplier .* ψ[σ, :, iband]
+                end
             end
 
             if have_divAgrad
+                @assert H.basis.model.n_components == 1
                 @timeit to "divAgrad" begin
-                    apply!((; fourier=Hψ[:, iband], real=nothing),
+                    apply!((; fourier=Hψ[1, :, iband], real=nothing),
                            H.divAgrad_op,
-                           (; fourier=ψ[:, iband], real=nothing),
+                           (; fourier=ψ[1, :, iband], real=nothing),
                            ψ_real)  # ψ_real used as scratch
                 end
             end
@@ -173,7 +190,6 @@ end
 
     Hψ
 end
-
 
 # Get energies and Hamiltonian
 # kwargs is additional info that might be useful for the energy terms to precompute

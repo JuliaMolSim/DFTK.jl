@@ -140,7 +140,7 @@ For example let us check the normalization of the first eigenfunction
 at the first ``k``-point in reciprocal space:
 
 ```@example data_structures
-ψtest = scfres.ψ[1][:, 1]
+ψtest = scfres.ψ[1][:, :, 1]
 sum(abs2.(ψtest))
 ```
 

@@ -6,16 +6,15 @@ using Random  # Used to have a generic API for CPU and GPU computations alike: s
 # others when using temperature. It is set to 0.0 by default, to treat with insulators.
 function select_occupied_orbitals(basis, ψ, occupation; threshold=0.0)
     N = [something(findlast(x -> x > threshold, occk), 0) for occk in occupation]
-    selected_ψ   = [@view ψk[:, 1:N[ik]] for (ik, ψk)   in enumerate(ψ)]
-    selected_occ = [      occk[1:N[ik]]  for (ik, occk) in enumerate(occupation)]
+    selected_ψ   = [@view ψk[:, :, 1:N[ik]] for (ik, ψk)   in enumerate(ψ)]
+    selected_occ = [      occk[1:N[ik]]     for (ik, occk) in enumerate(occupation)]
 
-    # if we have an insulator, sanity check that the orbitals we kept are the
-    # occupied ones
+    # If we have an insulator, sanity check that the orbitals we kept are the occupied ones.
     if iszero(threshold)
         model   = basis.model
         n_spin  = model.n_spin_components
         n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)
-        @assert n_bands == size(selected_ψ[1], 2)
+        @assert all([n_bands == size(ψk, 3) for ψk in selected_ψ])
     end
     (; ψ=selected_ψ, occupation=selected_occ)
 end
@@ -54,7 +53,8 @@ end
 unpack_ψ(x, sizes_ψ) = deepcopy(unsafe_unpack_ψ(x, sizes_ψ))
 
 function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany::Integer) where {T}
-    orbitals = similar(basis.G_vectors, Complex{T}, length(G_vectors(basis, kpt)), howmany)
+    orbitals = similar(basis.G_vectors, Complex{T},
+                       basis.model.n_components, length(G_vectors(basis, kpt)), howmany)
     randn!(TaskLocalRNG(), orbitals)  # use the RNG on the device if we're using a GPU
     ortho_qr(orbitals)
 end

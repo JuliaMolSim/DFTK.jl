@@ -22,8 +22,8 @@ function next_density(ham::Hamiltonian,
         increased_n_bands = true
     else
         @assert length(ψ) == length(ham.basis.kpoints)
-        n_bands_compute = max(n_bands_compute, maximum(ψk -> size(ψk, 2), ψ))
-        increased_n_bands = n_bands_compute > size(ψ[1], 2)
+        n_bands_compute = max(n_bands_compute, maximum(ψk -> size(ψk, 3), ψ))
+        increased_n_bands = any([n_bands_compute > size(ψk, 3) for ψk in ψ])
     end
 
     # TODO Synchronize since right now it is assumed that the same number of bands are
@@ -49,8 +49,9 @@ function next_density(ham::Hamiltonian,
               "`nbandsalg=AdaptiveBands(model; n_bands_converge=$(n_bands_converge + 3)`)")
     end
 
-    ρout = compute_density(ham.basis, eigres.X, occupation; nbandsalg.occupation_threshold)
-    (; ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, ρout, diagonalization=eigres,
+    ψ = eigres.X
+    ρout = compute_density(ham.basis, ψ, occupation; nbandsalg.occupation_threshold)
+    (; ψ, eigenvalues=eigres.λ, occupation, εF, ρout, diagonalization=eigres,
      n_bands_converge, nbandsalg.occupation_threshold)
 end
 

@@ -72,6 +72,11 @@ struct PlaneWaveBasis{T,
     ipBFFT
     fft_normalization::T   # fft = fft_normalization * FFT
     ifft_normalization::T  # ifft = ifft_normalization * BFFT
+    # Multicomponents plans
+    opFFT_mc
+    ipFFT_mc
+    opBFFT_mc
+    ipBFFT_mc
 
     # "cubic" basis in reciprocal and real space, on which potentials and densities are stored
     G_vectors::T_G_vectors
@@ -213,7 +218,11 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
 
     # Setup FFT plans
     Gs = to_device(architecture, G_vectors(fft_size))
-    (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans!(similar(Gs, Complex{T}, fft_size))
+    (; ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans!(similar(Gs, Complex{T}, fft_size))
+    # strided FFT plans for multicomponents
+    ipFFT_mc, opFFT_mc, ipBFFT_mc, opBFFT_mc =
+        build_fft_plans!(similar(Gs, Complex{T}, model.n_components, fft_size...);
+                         region=2:4)
 
     # Normalization constants
     # fft = fft_normalization * FFT
@@ -294,6 +303,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
         Ecut, variational,
         opFFT, ipFFT, opBFFT, ipBFFT,
         fft_normalization, ifft_normalization,
+        opFFT_mc, ipFFT_mc, opBFFT_mc, ipBFFT_mc,
         Gs, r_vectors,
         kpoints, kweights, kgrid,
         kcoords_global, kweights_global, comm_kpts, krange_thisproc, krange_allprocs,

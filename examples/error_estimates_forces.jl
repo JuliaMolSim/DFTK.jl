@@ -84,46 +84,47 @@ res, occ = DFTK.select_occupied_orbitals(basis_ref, res, scfres.occupation)
 #   them: this is done by solving ``\min |ϕ - ψU|`` for ``U`` unitary matrix of
 #   size ``N×N`` (``N`` being the number of electrons) whose solution is
 #   ``U = S(S^*S)^{-1/2}`` where ``S`` is the overlap matrix ``ψ^*ϕ``.
-function compute_error(basis, ϕ, ψ)
+function compute_error(ϕ, ψ)
     map(zip(ϕ, ψ)) do (ϕk, ψk)
-        S = ψk'ϕk
+        S = ψk[1, :, :]'ϕk[1, :, :]
         U = S*(S'S)^(-1/2)
-        ϕk - ψk*U
+        reshape(ϕk[1, :, :] - ψk[1, :, :]*U, size(ϕk)...)
     end
 end
-err = compute_error(basis_ref, ψr, ψ_ref);
+err = compute_error(ψr, ψ_ref);
 
 # - Compute ``{\boldsymbol M}^{-1}R(P)`` with ``{\boldsymbol M}^{-1}`` defined in [^CDKL2021]:
 P = [PreconditionerTPA(basis_ref, kpt) for kpt in basis_ref.kpoints]
 map(zip(P, ψr)) do (Pk, ψk)
-    DFTK.precondprep!(Pk, ψk)
+    DFTK.precondprep!(Pk, ψk[1, :, :])
 end
 function apply_M(φk, Pk, δφnk, n)
+    fact = reshape(sqrt.(Pk.mean_kin[n] .+ Pk.kin), size(δφnk)...)
     DFTK.proj_tangent_kpt!(δφnk, φk)
-    δφnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δφnk
+    δφnk = fact .* δφnk
     DFTK.proj_tangent_kpt!(δφnk, φk)
-    δφnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δφnk
+    δφnk = fact .* δφnk
     DFTK.proj_tangent_kpt!(δφnk, φk)
 end
 function apply_inv_M(φk, Pk, δφnk, n)
     DFTK.proj_tangent_kpt!(δφnk, φk)
-    op(x) = apply_M(φk, Pk, x, n)
+    op(x) = apply_M(φk, Pk, reshape(x, 1, :), n)
     function f_ldiv!(x, y)
-        x .= DFTK.proj_tangent_kpt(y, φk)
+        x .= DFTK.proj_tangent_kpt(reshape(y, 1, :), φk)[1, :]
         x ./= (Pk.mean_kin[n] .+ Pk.kin)
-        DFTK.proj_tangent_kpt!(x, φk)
+        DFTK.proj_tangent_kpt!(reshape(x, 1, :), φk)[1, :]
     end
-    J = LinearMap{eltype(φk)}(op, size(δφnk, 1))
-    δφnk = cg(J, δφnk; Pl=DFTK.FunctionPreconditioner(f_ldiv!),
+    J = LinearMap{eltype(φk)}(op, size(δφnk, 2))
+    δφnk = cg(J, δφnk[1, :]; Pl=DFTK.FunctionPreconditioner(f_ldiv!),
               verbose=false, reltol=0, abstol=1e-15)
-    DFTK.proj_tangent_kpt!(δφnk, φk)
+    DFTK.proj_tangent_kpt!(reshape(δφnk, 1, :), φk)
 end
 function apply_metric(φ, P, δφ, A::Function)
     map(enumerate(δφ)) do (ik, δφk)
         Aδφk = similar(δφk)
         φk = φ[ik]
-        for n = 1:size(δφk,2)
-            Aδφk[:,n] = A(φk, P[ik], δφk[:,n], n)
+        for n = 1:size(δφk, 3)
+            Aδφk[:, :, n] = A(φk, P[ik], δφk[:, :, n], n)
         end
         Aδφk
     end
@@ -158,7 +159,7 @@ e2 = apply_metric(ψr, P, resHF, apply_inv_M);
 Λ = map(enumerate(ψr)) do (ik, ψk)
     Hk = hamr.blocks[ik]
     Hψk = Hk * ψk
-    ψk'Hψk
+    ψk[1, :, :]'Hψk[1, :, :]
 end
 ΩpKe2 = DFTK.apply_Ω(e2, ψr, hamr, Λ) .+ DFTK.apply_K(basis_ref, e2, ψr, ρr, occ)
 ΩpKe2 = DFTK.transfer_blochwave(ΩpKe2, basis_ref, basis)

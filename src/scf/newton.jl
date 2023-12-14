@@ -59,7 +59,10 @@ end
 # Projections on the space tangent to ψ
 function proj_tangent_kpt!(δψk, ψk)
     # δψk = δψk - ψk * (ψk'δψk)
-    mul!(δψk, ψk, ψk'δψk, -1, 1)
+    δψk_matrix = blochwave_as_matorvec(δψk)
+    ψk_matrix = blochwave_as_matorvec(ψk)
+    mul!(δψk_matrix, ψk_matrix, ψk_matrix'δψk_matrix, -1, 1)
+    δψk
 end
 proj_tangent_kpt(δψk, ψk) = proj_tangent_kpt!(deepcopy(δψk), ψk)
 
@@ -79,13 +82,13 @@ end
 Newton algorithm. Be careful that the starting point needs to be not too far
 from the solution.
 """
-function newton(basis::PlaneWaveBasis{T}, ψ0;
-                tol=1e-6, tol_cg=tol / 100, maxiter=20,
+function newton(basis::PlaneWaveBasis{T}, ψ0; tol=1e-6, tol_cg=tol / 100, maxiter=20,
                 callback=ScfDefaultCallback(),
                 is_converged=ScfConvergenceDensity(tol)) where {T}
 
     # setting parameters
     model = basis.model
+    @assert model.n_components == 1
     @assert iszero(model.temperature)  # temperature is not yet supported
     @assert isnothing(model.εF)        # neither are computations with fixed Fermi level
 
@@ -93,7 +96,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     filled_occ = filled_occupation(model)
     n_spin = model.n_spin_components
     n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp)
-    @assert n_bands == size(ψ0[1], 2)
+    @assert all([n_bands == size(ψk, 3) for ψk in ψ0])
 
     # number of kpoints and occupation
     Nk = length(basis.kpoints)
@@ -131,11 +134,12 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
     # Rayleigh-Ritz
     eigenvalues = []
+    ψ_matrices = blochwaves_as_matrices(ψ)
     for ik = 1:Nk
         Hψk = H.blocks[ik] * ψ[ik]
-        F = eigen(Hermitian(ψ[ik]'Hψk))
+        F = eigen(Hermitian(ψ_matrices[ik]'blochwave_as_matrix(Hψk)))
         push!(eigenvalues, F.values)
-        ψ[ik] .= ψ[ik] * F.vectors
+        ψ_matrices[ik] .= ψ_matrices[ik] * F.vectors
     end
 
     εF = nothing  # does not necessarily make sense here, as the

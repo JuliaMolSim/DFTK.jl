@@ -40,16 +40,23 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     #      it's better to pass a HamiltonianBlock directly and read the computed values.
     kinetic_term = only(kinetic_term)
     kin = kinetic_energy(kinetic_term, basis.Ecut, Gplusk_vectors_cart(basis, kpt))
-    PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
+    PreconditionerTPA{T}(basis, kpt, repeat(kin, basis.model.n_components), nothing, default_shift)
 end
 function PreconditionerTPA(ham::HamiltonianBlock; kwargs...)
     PreconditionerTPA(ham.basis, ham.kpoint; kwargs...)
 end
 
-@views function ldiv!(Y, P::PreconditionerTPA, R)
+@views function ldiv!(Y, P::PreconditionerTPA, R::AbstractArray)
     if P.mean_kin === nothing
         ldiv!(Y, Diagonal(P.kin .+ P.default_shift), R)
+    elseif ndims(R) == 3
+        Threads.@threads for n = 1:size(Y, 3)
+            for σ = 1:size(Y, 1)
+                Y[σ, :, n] .= P.mean_kin[n] ./ (P.mean_kin[n] .+ P.kin) .* R[σ, :, n]
+            end
+        end
     else
+        # Fallback for LOBPCG as it works on matrices.
         Threads.@threads for n = 1:size(Y, 2)
             Y[:, n] .= P.mean_kin[n] ./ (P.mean_kin[n] .+ P.kin) .* R[:, n]
         end

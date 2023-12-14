@@ -95,13 +95,14 @@ Transfer an array `ψk` defined on basis_in ``k``-point kpt_in to basis_out ``k`
 function transfer_blochwave_kpt(ψk_in, basis_in::PlaneWaveBasis{T}, kpt_in::Kpoint,
                                 basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where {T}
     kpt_in == kpt_out && return copy(ψk_in)
-    @assert length(G_vectors(basis_in, kpt_in)) == size(ψk_in, 1)
+    @assert length(G_vectors(basis_in, kpt_in)) == size(ψk_in, 2)
     idcsk_in, idcsk_out = transfer_mapping(basis_in, kpt_in, basis_out, kpt_out)
 
-    n_bands = size(ψk_in, 2)
-    ψk_out  = similar(ψk_in, length(G_vectors(basis_out, kpt_out)), n_bands)
+    n_bands      = size(ψk_in, 3)
+    n_components = basis_in.model.n_components
+    ψk_out  = similar(ψk_in, n_components, length(G_vectors(basis_out, kpt_out)), n_bands)
     ψk_out .= 0
-    ψk_out[idcsk_out, :] .= ψk_in[idcsk_in, :]
+    ψk_out[:, idcsk_out, :] .= ψk_in[:, idcsk_in, :]
 
     ψk_out
 end
@@ -113,14 +114,15 @@ Beware: `ψk_out` can lose information if the shift `ΔG` is large or if the `G_
 differ between `k`-points.
 """
 function transfer_blochwave_kpt(ψk_in, basis::PlaneWaveBasis, kpt_in, kpt_out, ΔG)
-    ψk_out = zeros(eltype(ψk_in), length(G_vectors(basis, kpt_out)), size(ψk_in, 2))
+    ψk_out = zeros(eltype(ψk_in), basis.model.n_components, length(G_vectors(basis, kpt_out)),
+                                  size(ψk_in, 3))
     for (iG, G) in enumerate(G_vectors(basis, kpt_in))
         # e^i(kpt_in + G)r = e^i(kpt_out + G')r, where
         # kpt_out + G' = kpt_in + G = kpt_out + ΔG + G, and
         # G' = G + ΔG
         idx_Gp_in_kpoint = index_G_vectors(basis, kpt_out, G - ΔG)
         if !isnothing(idx_Gp_in_kpoint)
-            ψk_out[idx_Gp_in_kpoint, :] = ψk_in[iG, :]
+            ψk_out[:, idx_Gp_in_kpoint, :] = ψk_in[:, iG, :]
         end
     end
     ψk_out
@@ -132,6 +134,7 @@ Transfer Bloch wave between two basis sets. Limited feature set.
 function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
                             basis_out::PlaneWaveBasis{T}) where {T}
     @assert basis_in.model.lattice == basis_out.model.lattice
+    @assert basis_in.model.n_components == basis_out.model.n_components
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
                 for ik = 1:length(basis_in.kpoints))

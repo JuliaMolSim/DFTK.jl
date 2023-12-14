@@ -1,6 +1,8 @@
 # Densities (and potentials) are represented by arrays
 # ρ[ix,iy,iz,iσ] in real space, where iσ ∈ [1:n_spin_components]
 
+# TODO: We reduce all components for the density. Will need to be though again when we merge
+# the components and the spins.
 """
     compute_density(basis::PlaneWaveBasis, ψ::AbstractVector, occupation::AbstractVector)
 
@@ -29,19 +31,22 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
         ρ_chunklocal = map(1:Threads.nthreads()) do i
             zeros_like(basis.G_vectors, S, basis.fft_size..., basis.model.n_spin_components)
         end
-        ψnk_real_chunklocal = [zeros_like(basis.G_vectors, complex(S), basis.fft_size...)
-                               for _ = 1:Threads.nthreads()]
+        ψσnk_real_chunklocal = [zeros_like(basis.G_vectors, complex(S),
+                                           basis.model.n_components, basis.fft_size...)
+                                for _ = 1:Threads.nthreads()]
 
         @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
             Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
                 ρ_loc = ρ_chunklocal[ichunk]
-                ψnk_real = ψnk_real_chunklocal[ichunk]
+                ψσnk_real = ψσnk_real_chunklocal[ichunk]
                 kpt = basis.kpoints[ik]
 
-                ifft!(ψnk_real, basis, kpt, ψ[ik][:, n])
-                ρ_loc[:, :, :, kpt.spin] .+= (occupation[ik][n] .* basis.kweights[ik]
-                                              .* abs2.(ψnk_real))
+                ifft!(ψσnk_real, basis, kpt, ψ[ik][:, :, n])
+                for σ = 1:basis.model.n_components
+                    ρ_loc[:, :, :, kpt.spin] .+= (occupation[ik][n] .* basis.kweights[ik]
+                                                  .* abs2.(ψσnk_real[σ, :, :, :]))
 
+                end
                 synchronize_device(basis.architecture)
             end
         end
@@ -71,15 +76,17 @@ end
     end
 end
 
-@views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis, ψ, occupation)
-    T = promote_type(eltype(basis), real(eltype(ψ[1])))
+@views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis{TT}, ψ,
+                                                       occupation) where {TT}
+    @assert basis.model.n_components == 1
+    T = promote_type(TT, real(eltype(ψ[1])))
     τ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
     τ .= 0
-    dαψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
+    dαψnk_real = zeros(complex(T), basis.fft_size)
     for (ik, kpt) in enumerate(basis.kpoints)
         G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(basis, kpt)] for α = 1:3]
-        for n = 1:size(ψ[ik], 2), α = 1:3
-            ifft!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
+        for n = 1:size(ψ[ik], 3), α = 1:3
+            ifft!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][1, :, n])
             @. τ[:, :, :, kpt.spin] += occupation[ik][n] * basis.kweights[ik] / 2 * abs2(dαψnk_real)
         end
     end

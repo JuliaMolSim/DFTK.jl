@@ -72,6 +72,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
         error("Direct minimization with MPI is not supported yet")
     end
     model = basis.model
+    @assert model.n_components == 1
     @assert iszero(model.temperature)  # temperature is not yet supported
     @assert isnothing(model.εF)        # neither are computations with fixed Fermi level
     filled_occ = filled_occupation(model)
@@ -79,9 +80,10 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp)
     Nk = length(basis.kpoints)
 
-    if ψ0 === nothing
+    if isnothing(ψ0)
         ψ0 = [random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints]
     end
+    ψ0_matrices = blochwaves_as_matrices(ψ0)
     occupation = [filled_occ * ones(T, n_bands) for _ = 1:Nk]
 
     # we need to copy the reinterpret array here to not raise errors in Optim.jl
@@ -89,6 +91,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     pack(ψ) = copy(reinterpret_real(pack_ψ(ψ)))
     unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ0))
     unsafe_unpack(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ0))
+    unsafe_unpack2(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ0_matrices))
 
     # this will get updated along the iterations
     H = nothing
@@ -96,7 +99,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     ρ = nothing
 
     # computes energies and gradients
-    function fg!(E, G, ψ)
+    function fg!(::Any, G, ψ)
         ψ = unpack(ψ)
         ρ = compute_density(basis, ψ, occupation)
         energies, H = energy_hamiltonian(basis, ψ, occupation; ρ)
@@ -112,10 +115,10 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
         energies.total
     end
 
-    manifold = DMManifold(Nk, unsafe_unpack)
+    manifold = DMManifold(Nk, unsafe_unpack2)
 
     Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
-    P = DMPreconditioner(Nk, Pks, unsafe_unpack)
+    P = DMPreconditioner(Nk, Pks, unsafe_unpack2)
 
     kwdict = Dict(kwargs)
     optim_options = Optim.Options(; allow_f_increases=true, show_trace=true,
@@ -133,9 +136,9 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     eigenvalues = []
     for ik = 1:Nk
         Hψk = H.blocks[ik] * ψ[ik]
-        F = eigen(Hermitian(ψ[ik]'Hψk))
+        F = eigen(Hermitian(ψ[ik][1, :, :]'Hψk[1, :, :]))
         push!(eigenvalues, F.values)
-        ψ[ik] .= ψ[ik] * F.vectors
+        ψ[ik][1, :, :] .= ψ[ik][1, :, :] * F.vectors
     end
 
     εF = nothing  # does not necessarily make sense here, as the

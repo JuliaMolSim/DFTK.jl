@@ -45,10 +45,10 @@ end
 
     E = zero(T)
     for (ik, ψk) in enumerate(ψ)
-        for iband = 1:size(ψk, 2)
-            ψnk = @views ψk[:, iband]
+        for iband = 1:size(ψk, 3), σ = 1:size(ψk, 1)
+            ψσkn = @views ψk[σ, :, iband]
             E += (basis.kweights[ik] * occupation[ik][iband]
-                  * real(dot(ψnk, Diagonal(term.kinetic_energies[ik]), ψnk)))
+                    * real(dot(ψσkn, Diagonal(term.kinetic_energies[ik]), ψσkn)))
         end
     end
     E = mpi_sum(E, basis.comm_kpts)

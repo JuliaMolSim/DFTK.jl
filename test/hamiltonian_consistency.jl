@@ -11,7 +11,7 @@ function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
     for operator in hamk.operators
         try
             operator_matrix = Matrix(operator)
-            @test norm(operator_matrix*ψk - operator*ψk) < atol
+            @test norm(operator_matrix*ψk[1, :, :] - (operator*ψk)[1, :, :]) < atol
         catch e
             allowed_missing_operators = Union{DFTK.DivAgradOperator,
                                               DFTK.MagneticFieldOperator}
@@ -38,8 +38,10 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         n_bands = div(n_electrons, 2, RoundUp)
         filled_occ = DFTK.filled_occupation(model)
 
-        ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
-             for kpt in basis.kpoints]
+        ψ = map(basis.kpoints) do kpt
+            Q = Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
+            reshape(Q, 1, size(Q)...)
+        end
         occupation = [filled_occ * rand(n_bands) for _ = 1:length(basis.kpoints)]
         occ_scaling = n_electrons / sum(sum(occupation))
         occupation = [occ * occ_scaling for occ in occupation]
@@ -64,9 +66,10 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
 
         diff_predicted = 0.0
         for ik = 1:length(basis.kpoints)
-            Hψk = ham.blocks[ik]*ψ[ik]
+            # T@D@ should be ok without 1
+            Hψk = ham.blocks[ik]*ψ[ik][1, :, :]
             test_matrix_repr_operator(ham.blocks[ik], ψ[ik]; atol)
-            δψkHψk = sum(occupation[ik][iband] * real(dot(δψ[ik][:, iband], Hψk[:, iband]))
+            δψkHψk = sum(occupation[ik][iband] * real(dot(δψ[ik][1, :, iband], Hψk[:, iband]))
                          for iband=1:n_bands)
             diff_predicted += 2 * basis.kweights[ik] * δψkHψk
         end

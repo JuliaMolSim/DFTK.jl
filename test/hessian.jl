@@ -40,7 +40,7 @@ end
 
     H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
     # Rayleigh-coefficients
-    Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
+    Λ = [ψk[1, :, :]'Hψk[1, :, :] for (ψk, Hψk) in zip(ψ, H * ψ)]
 
     # Ω is complex-linear and so self-adjoint as a complex operator.
     @test isapprox(

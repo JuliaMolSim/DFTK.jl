@@ -43,8 +43,7 @@ function DFTK.load_scfres(jld::JLD2.JLDFile)
     end
 
     energies, ham = energy_hamiltonian(basis, scfdict[:ψ], scfdict[:occupation];
-                                       ρ=scfdict[:ρ],
-                                       eigenvalues=scfdict[:eigenvalues],
+                                       ρ=scfdict[:ρ], eigenvalues=scfdict[:eigenvalues],
                                        εF=scfdict[:εF])
 
     scfdict[:energies] = energies

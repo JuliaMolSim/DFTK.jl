@@ -72,6 +72,8 @@ export compute_fft_size
 export G_vectors, G_vectors_cart, r_vectors, r_vectors_cart
 export Gplusk_vectors, Gplusk_vectors_cart
 export Kpoint
+export to_composite_σG
+export from_composite_σG
 export ifft
 export irfft
 export ifft!
@@ -83,6 +85,7 @@ include("Model.jl")
 include("structure.jl")
 include("bzmesh.jl")
 include("PlaneWaveBasis.jl")
+include("Psi.jl")
 include("fft.jl")
 include("orbitals.jl")
 include("input_output.jl")

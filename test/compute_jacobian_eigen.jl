@@ -8,6 +8,9 @@ using DFTK: precondprep!, FunctionPreconditioner
 using LinearMaps
 
 function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where {T}
+    n_components = basis.model.n_components
+    @assert n_components == 1
+    ψ_matrices = DFTK.blochwaves_as_matrices(ψ)
 
     pack(ψ) = reinterpret_real(pack_ψ(ψ))
     unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
@@ -18,7 +21,7 @@ function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where {
 
     # preconditioner
     Pks = [PreconditionerTPA(basis, kpt) for kpt in basis.kpoints]
-    for (ik, ψk) in enumerate(ψ)
+    for (ik, ψk) in enumerate(ψ_matrices)
         precondprep!(Pks[ik], ψk)
     end
     function f_ldiv!(x, y)
@@ -33,18 +36,17 @@ function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where {
     end
 
     # random starting point on the tangent space to avoid eigenvalue 0
-    n_bands = size(ψ[1], 2)
     x0 = map(1:numval) do _
-        initial = map(basis.kpoints) do kpt
+        initial = map(enumerate(basis.kpoints)) do (ik, kpt)
             n_Gk = length(G_vectors(basis, kpt))
-            randn(Complex{eltype(basis)}, n_Gk, n_bands)
+            randn(Complex{T}, n_components, n_Gk, size(ψ[ik], 3))
         end
         pack(proj_tangent(initial, ψ))
     end
-    x0 = hcat(x0...)
+    x0 = reduce(hcat, x0)
 
     # Rayleigh-coefficients
-    Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
+    Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ_matrices, H * ψ_matrices)]
 
     # mapping of the linear system on the tangent space
     function ΩpK(x)

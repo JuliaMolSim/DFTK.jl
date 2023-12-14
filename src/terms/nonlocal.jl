@@ -34,9 +34,11 @@ end
 
     E = zero(T)
     for (ik, ψk) in enumerate(ψ)
-        Pψk = term.ops[ik].P' * ψk  # nproj x nband
-        band_enes = dropdims(sum(real.(conj.(Pψk) .* (term.ops[ik].D * Pψk)), dims=1), dims=1)
-        E += basis.kweights[ik] * sum(band_enes .* occupation[ik])
+        for σ = 1:basis.model.n_components
+            Pψk = term.ops[ik].P' * ψk[σ, :, :]  # nproj x nband
+            band_enes = dropdims(sum(real.(conj.(Pψk) .* (term.ops[ik].D * Pψk)), dims=1), dims=1)
+            E += basis.kweights[ik] * sum(band_enes .* occupation[ik])
+        end
     end
     E = mpi_sum(E, basis.comm_kpts)
 
@@ -73,11 +75,13 @@ end
 
                 forces[idx] += map(1:3) do α
                     dPdR = [-2T(π)*im*q[α] for q in qs] .* P
-                    ψk = ψ[ik]
-                    dHψk = P * (C * (dPdR' * ψk))
-                    -sum(occupation[ik][iband] * basis.kweights[ik] *
-                         2real(dot(ψk[:, iband], dHψk[:, iband]))
-                         for iband=1:size(ψk, 2))
+                    mapreduce(+, 1:model.n_components) do σ
+                        ψkσ = ψ[ik][σ, :, :]
+                        dHψkσ = P * (C * (dPdR' * ψkσ))
+                        -sum(occupation[ik][iband] * basis.kweights[ik] *
+                             2real(dot(ψkσ[:, iband], dHψkσ[:, iband]))
+                             for iband=1:size(ψkσ, 2))
+                    end
                 end  # α
             end  # r
         end  # kpt

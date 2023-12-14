@@ -39,21 +39,21 @@
     end
 
     function test_orthonormality(basis, ψ; tol=1e-8)
-        n_k = length(ψ)
-        n_states = size(ψ[1], 2)
+        n_states = size(ψ[1], 3)
         n_fft = prod(basis.fft_size)
 
         for (ik, kpt) in enumerate(basis.kpoints)
-            # Fourier-transform the wave functions to real space
-            ψk = ψ[ik]
-            ψk_real = cat((DFTK.ifft(basis, kpt, ψik) for ψik in eachcol(ψk))..., dims=4)
+            for σ = 1:basis.model.n_components
+                # Fourier-transform the wave functions to real space
+                ψk = ψ[ik][σ, :, :]
+                ψk_real = cat((DFTK.ifft(basis, kpt, ψik) for ψik in eachcol(ψk))..., dims=4)
 
-            T = real(eltype(ψk_real))
-            ψk_real_mat = reshape(ψk_real, n_fft, n_states)
-            ψk_real_overlap = adjoint(ψk_real_mat) * ψk_real_mat
-            nondiag = ψk_real_overlap - I * (n_fft / basis.model.unit_cell_volume)
+                ψk_real_mat = reshape(ψk_real, n_fft, n_states)
+                ψk_real_overlap = adjoint(ψk_real_mat) * ψk_real_mat
+                nondiag = ψk_real_overlap - I * (n_fft / basis.model.unit_cell_volume)
 
-            @test maximum(abs.(nondiag)) < tol
+                @test maximum(abs.(nondiag)) < tol
+            end
         end
     end
 
@@ -100,7 +100,8 @@
             # yields an eigenfunction of the Hamiltonian
             # Also check that the accumulated partial densities are equal
             # to the returned density.
-            for (ik, kpt) in enumerate(ham_ir.basis.kpoints)
+            @assert ham_ir.basis.model.n_components == 1
+            for ik in eachindex(ham_ir.basis.kpoints)
                 Hk_ir = ham_ir.blocks[ik]
                 for symop in ham_ir.basis.symmetries
                     Skpoint, ψSk = DFTK.apply_symop(symop, ham_ir.basis, Hk_ir.kpoint, ψ_ir[ik])
@@ -113,14 +114,14 @@
 
                     range = 1:length(eigenvalues_ir[ik]) - n_ignore
                     for iband in range
-                        ψnSk = ψSk[:, iband]
+                        ψnSk = ψSk[1, :, iband]
                         residual = norm(Hk_full * ψnSk - eigenvalues_ir[ik][iband] * ψnSk)
                         @test residual < 10tol
                     end  # iband
                 end  # symop
             end  # k
-        end # eigenvectors
-        end # testset
+        end  # eigenvectors
+        end  # testset
     end
 
     test_full_vs_irreducible("silicon (3,2,3)", silicon, [3, 2, 3], Ecut=5, tol=1e-10)

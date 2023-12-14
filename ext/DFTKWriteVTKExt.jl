@@ -20,10 +20,12 @@ function DFTK.save_scfres_master(filename::AbstractString, scfres::NamedTuple, :
     # Storing the bloch waves
     if save_ψ
         for ik = 1:length(basis.kpoints)
-            for iband = 1:size(scfres.ψ[ik])[2]
-                ψnk_real = ifft(basis, basis.kpoints[ik], scfres.ψ[ik][:, iband])
-                vtkfile["ψ_k$(ik)_band$(iband)_real"] = real.(ψnk_real)
-                vtkfile["ψ_k$(ik)_band$(iband)_imag"] = imag.(ψnk_real)
+            for iband = 1:size(scfres.ψ[ik], 3)
+                ψnk_real = ifft(basis, basis.kpoints[ik], scfres.ψ[ik][:, :, iband])
+                for σ = 1:basis.model.n_components
+                    vtkfile["σ$(σ)_ψ_k$(ik)_band$(iband)_real"] = real.(ψnk_real[σ, :, :, :])
+                    vtkfile["σ$(σ)_ψ_k$(ik)_band$(iband)_imag"] = imag.(ψnk_real[σ, :, :, :])
+                end
             end
         end
     end

@@ -44,7 +44,7 @@
         for kpt in unique(rand(basis.kpoints, 4))
             ψk = fft(basis, kpt, ψ)
 
-            ψk_out_four = multiply_by_expiqr(basis, kpt, q, ψk)
+            ψk_out_four = multiply_by_expiqr(basis, kpt, q, reshape(ψk, 1, length(ψk), 1))
             ψk_out_real = let
                 shifted_kcoord = kpt.coordinate .+ q
                 index, ΔG = find_equivalent_kpt(basis, shifted_kcoord, kpt.spin)
@@ -52,7 +52,7 @@
                 transfer_blochwave_kpt_real(ψk, basis, kpt, kpt_out, ΔG)
             end
             @testset "Testing kpoint $(kpt.coordinate) on kgrid $kgrid" begin
-                @test norm(ψk_out_four - ψk_out_real) < tol
+                @test norm(ψk_out_four[1, :, :] - ψk_out_real) < tol
             end
         end
     end
