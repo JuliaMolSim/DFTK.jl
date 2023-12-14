@@ -226,9 +226,6 @@ include("workarounds/gpu_arrays.jl")
 
 function __init__()
     # TODO Move out into extension module
-    @require IntervalArithmetic="d1acc4aa-44c8-5952-acd4-ba5d80a2a253" begin
-        include("workarounds/intervals.jl")
-    end
     @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" begin
         include("workarounds/cuda_arrays.jl")
     end
