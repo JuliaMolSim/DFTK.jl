@@ -1,7 +1,5 @@
 @testsetup module SiliconRedHF
 using DFTK
-using GenericLinearAlgebra
-using DoubleFloats
 using ..RunSCF: run_scf_and_compare
 using ..TestCases: silicon
 
@@ -63,6 +61,7 @@ end
 @testitem "Silicon without XC (small, Double32)" #=
     =#    tags=[:core, :dont_test_mpi] setup=[RunSCF, TestCases, SiliconRedHF] begin
     using DoubleFloats
+    using GenericLinearAlgebra
 
     SiliconRedHF.run_silicon_redHF(Double32; Ecut=5, test_tol=0.05, n_ignored=0,
                                    grid_size=15, test_etot=false)

@@ -1,5 +1,11 @@
-# This is needed to flag that the plots-dependent code has been loaded
-const PLOTS_LOADED = true
+module DFTKPlotsExt
+using Brillouin: KPath
+using DFTK
+using DFTK: is_metal, data_for_plotting, spin_components, default_band_εrange
+import DFTK: ScfPlotTrace, plot_dos, plot_bandstructure
+using Plots
+using Unitful
+using UnitfulAtomic
 
 function ScfPlotTrace(plt=Plots.plot(; yaxis=:log); kwargs...)
     energies = nothing
@@ -20,17 +26,6 @@ function ScfPlotTrace(plt=Plots.plot(; yaxis=:log); kwargs...)
     end
 end
 
-
-function default_band_εrange(eigenvalues; εF=nothing)
-    if isnothing(εF)
-        # Can't decide where the interesting region is. Just plot everything
-        (minimum(minimum, eigenvalues), maximum(maximum, eigenvalues))
-    else
-        # Stolen from Pymatgen
-        width = is_metal(eigenvalues, εF) ? 10u"eV" : 4u"eV"
-        (εF - austrip(width), εF + austrip(width))
-    end
-end
 
 function plot_bandstructure(basis::PlaneWaveBasis,
                             kpath::KPath=irrfbz_path(basis.model);
@@ -131,3 +126,5 @@ function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
     p
 end
 plot_dos(scfres; kwargs...) = plot_dos(scfres.basis, scfres.eigenvalues; scfres.εF, kwargs...)
+
+end

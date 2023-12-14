@@ -1,4 +1,10 @@
-function save_scfres_master(file::AbstractString, scfres::NamedTuple, ::Val{:jld2})
+module DFTKJLD2Ext
+using DFTK
+using DFTK: energy_hamiltonian, AbstractArchitecture, AbstractKgrid
+using JLD2
+using MPI
+
+function DFTK.save_scfres_master(file::AbstractString, scfres::NamedTuple, ::Val{:jld2})
     !mpi_master() && error(
         "This function should only be called on MPI master after the k-point data has " *
         "been gathered with `gather_kpts`."
@@ -19,7 +25,7 @@ function save_scfres_master(file::AbstractString, scfres::NamedTuple, ::Val{:jld
 end
 
 
-function load_scfres(jld::JLD2.JLDFile)
+function DFTK.load_scfres(jld::JLD2.JLDFile)
     basis = jld["basis"]
     scfdict = Dict{Symbol, Any}(
         :ρ     => jld["ρ"],
@@ -45,7 +51,7 @@ function load_scfres(jld::JLD2.JLDFile)
     scfdict[:ham]      = ham
     (; (sym => scfdict[sym] for sym in jld["__propertynames"])...)
 end
-load_scfres(file::AbstractString) = JLD2.jldopen(load_scfres, file, "r")
+DFTK.load_scfres(file::AbstractString) = JLD2.jldopen(DFTK.load_scfres, file, "r")
 
 
 #
@@ -92,4 +98,6 @@ function Base.convert(::Type{PlaneWaveBasis{T,T,Arch,GT,RT,KGT}},
                    serial.use_symmetries_for_kpoint_reduction,
                    MPI.COMM_WORLD,
                    serial.architecture)
+end
+
 end

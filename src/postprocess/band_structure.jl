@@ -327,6 +327,17 @@ function is_metal(eigenvalues, εF; tol=1e-4)
     false
 end
 
+function default_band_εrange(eigenvalues; εF=nothing)
+    if isnothing(εF)
+        # Can't decide where the interesting region is. Just plot everything
+        (minimum(minimum, eigenvalues), maximum(maximum, eigenvalues))
+    else
+        # Stolen from Pymatgen
+        width = is_metal(eigenvalues, εF) ? 10u"eV" : 4u"eV"
+        (εF - austrip(width), εF + austrip(width))
+    end
+end
+
 # Number of bands to compute when plotting the bandstructure
 default_n_bands_bandstructure(n_bands_scf::Int) = ceil(Int, n_bands_scf + 5sqrt(n_bands_scf))
 function default_n_bands_bandstructure(model::Model)
